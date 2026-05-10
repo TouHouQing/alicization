@@ -47,7 +47,7 @@ import type { AlicizationProactiveLayeredContext } from './proactive-layered-con
 import { pickDominantAutobiographicalGoal } from './autobiographical-self'
 import { createAlicizationContinuityMind } from './continuity-mind'
 import { inferScenarioFromContext } from './proactive-layered-context'
-import { deriveAlicizationPersonaKernelSummary } from './personality-continuity-state'
+import { deriveAlicizationAutobiographicalPersonaSummary } from './personality-continuity-state'
 
 function clamp01(value: number) {
   if (!Number.isFinite(value))
@@ -296,7 +296,7 @@ function applyContinuityMindOverlay(input: {
       ) / 3,
     ) || 0)),
     personaAuthoritySummary: input.snapshot.autobiographicalSelf?.relationshipDoctrine ?? null,
-    personaKernelSummary: deriveAlicizationPersonaKernelSummary(input.snapshot.autobiographicalSelf ?? null),
+    personaKernelSummary: deriveAlicizationAutobiographicalPersonaSummary(input.snapshot.autobiographicalSelf ?? null),
     latestUserTurnAt: input.latestUserTurnAt ?? null,
     now: input.now,
   })

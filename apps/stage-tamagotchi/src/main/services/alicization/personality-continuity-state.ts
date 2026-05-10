@@ -144,36 +144,55 @@ function uniqueList(values: Array<string | null | undefined>, maxItems = 8) {
   return result
 }
 
-export function deriveAlicizationPersonaKernelSummary(input: AlicizationPersonalityState | null | undefined) {
+export function deriveAlicizationAutobiographicalPersonaSummary(input: AlicizationAutobiographicalSelfSnapshot | null | undefined) {
+  if (!input)
+    return null
+
+  const drift = input.personaDrift ?? null
+  const anchors = uniqueList(input.behaviorSignatures ?? [], 4)
+  const latestInflection = sanitizeText(input.latestInflection ?? '', 80)
+  const identityNarrative = sanitizeText(input.identityNarrative ?? '', 80)
+  const doctrine = sanitizeText(input.relationshipDoctrine ?? '', 80)
+  const driftLine = drift
+    ? uniqueList([
+        drift.conflictStyle ? `conflict ${drift.conflictStyle}` : null,
+        drift.agencyStyle ? `agency ${drift.agencyStyle}` : null,
+        drift.expressionStyle ? `expression ${drift.expressionStyle}` : null,
+        drift.attachmentStyle ? `attachment ${drift.attachmentStyle}` : null,
+      ], 4).join(' | ')
+    : ''
+
+  return uniqueList([
+    doctrine ? `doctrine ${doctrine}` : null,
+    identityNarrative ? `identity ${identityNarrative}` : null,
+    latestInflection ? `inflection ${latestInflection}` : null,
+    driftLine ? `drift ${driftLine}` : null,
+    anchors.length ? `anchors ${anchors.join(', ')}` : null,
+  ], 5).join(' | ') || null
+}
+
+function deriveAlicizationPersonalityStateSummary(input: AlicizationPersonalityState | null | undefined) {
   if (!input)
     return null
 
   const identityKernel = input.identityKernel ?? null
-  const personaDrift = input.initiativeBaseline ?? null
+  const expressionProfile = input.expressionProfile ?? null
   const anchors = uniqueList(input.identityAnchors ?? [], 4)
   const relationshipLine = sanitizeText(identityKernel?.relationshipPosture ? `relationship ${identityKernel.relationshipPosture}` : '', 64)
   const initiativeLine = sanitizeText(identityKernel?.initiativeStyle ? `initiative ${identityKernel.initiativeStyle}` : '', 64)
   const expressionLine = uniqueList([
-    input.expressionProfile?.warmth ? `warmth ${input.expressionProfile.warmth}` : null,
-    input.expressionProfile?.directness ? `directness ${input.expressionProfile.directness}` : null,
-    input.expressionProfile?.playfulness ? `playfulness ${input.expressionProfile.playfulness}` : null,
-    input.expressionProfile?.emotionalVisibility ? `visibility ${input.expressionProfile.emotionalVisibility}` : null,
+    expressionProfile?.warmth ? `warmth ${expressionProfile.warmth}` : null,
+    expressionProfile?.directness ? `directness ${expressionProfile.directness}` : null,
+    expressionProfile?.playfulness ? `playfulness ${expressionProfile.playfulness}` : null,
+    expressionProfile?.emotionalVisibility ? `visibility ${expressionProfile.emotionalVisibility}` : null,
   ], 4).join(' | ')
-  const driftLine = personaDrift
-    ? uniqueList([
-        personaDrift.silenceReconnect ? `silence ${personaDrift.silenceReconnect}` : null,
-        personaDrift.comfortStyle ? `comfort ${personaDrift.comfortStyle}` : null,
-        personaDrift.jealousyStyle ? `jealousy ${personaDrift.jealousyStyle}` : null,
-      ], 3).join(' | ')
-    : ''
 
   return uniqueList([
     relationshipLine ? `kernel ${relationshipLine}` : null,
     initiativeLine ? `kernel ${initiativeLine}` : null,
     expressionLine ? `expression ${expressionLine}` : null,
-    driftLine ? `drift ${driftLine}` : null,
-    anchors.length ? `anchors ${anchors.join(', ')}` : null,
-  ], 5).join(' | ') || null
+    ...anchors,
+  ], 4).join(' | ') || null
 }
 
 export function deriveAlicizationPersonaAuthorityInfluence(input: AlicizationPersonalityState | null | undefined): AlicizationPersonaAuthorityInfluence {
@@ -264,7 +283,7 @@ export function deriveAlicizationPersonaAuthorityInfluence(input: AlicizationPer
         ? 'Open gently, but keep the opening bounded and real.'
         : null
 
-  const summary = deriveAlicizationPersonaKernelSummary(input)
+  const summary = deriveAlicizationPersonalityStateSummary(input)
 
   return {
     summary,

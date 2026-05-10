@@ -4,7 +4,7 @@ import type {
   AlicizationVisualWatchMode,
 } from '@proj-alicization/stage-shared'
 
-import { deriveAlicizationPersonaKernelSummary } from './personality-continuity-state'
+import { deriveAlicizationAutobiographicalPersonaSummary } from './personality-continuity-state'
 
 interface CreateAlicizationBodyKernelOptions {
   now?: () => number
@@ -91,7 +91,7 @@ export function createAlicizationBodyKernel(options: CreateAlicizationBodyKernel
 
     applyToVisualPresenceState(input: AlicizationBodyKernelApplyInput): AlicizationVisualPresenceStateSnapshot {
       const personaAuthoritySummary = input.candidateState.autobiographicalSelf?.relationshipDoctrine ?? null
-      const personaKernelSummary = deriveAlicizationPersonaKernelSummary(input.candidateState.autobiographicalSelf ?? null)
+      const personaKernelSummary = deriveAlicizationAutobiographicalPersonaSummary(input.candidateState.autobiographicalSelf ?? null)
       const authority = this.reduce({
         sustainedFocusMs: deriveSustainedFocusMs({
           now: input.now,

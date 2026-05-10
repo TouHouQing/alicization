@@ -78,6 +78,9 @@ describe('runtime visual presence state', () => {
     const previousState = createVisualPresenceState(4_800)
     previousState.autobiographicalSelf = {
       relationshipDoctrine: 'Repair before closeness.',
+      latestInflection: 'Keep the opening live when the opening is real.',
+      identityNarrative: 'Repair before closeness is how I keep room honest.',
+      behaviorSignatures: ['repair-first', 'room-first'],
       personaDrift: {
         conflictStyle: 'repair-first',
         agencyStyle: 'reserved',
@@ -123,6 +126,7 @@ describe('runtime visual presence state', () => {
     expect(nextState.watchMode).toBe(previousState.watchMode)
     expect(nextState.captureState).toEqual(previousState.captureState)
     expect(nextState.currentInwardPreoccupation).toContain('Repair before closeness')
+    expect(nextState.currentInwardPreoccupation).toContain('identity Repair before closeness is how I keep room honest.')
   })
 
   it('does not inherit long focus from a stale previous scene when candidate scene is fresh', () => {
