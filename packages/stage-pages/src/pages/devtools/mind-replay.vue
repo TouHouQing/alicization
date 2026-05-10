@@ -27,6 +27,7 @@ const {
   benchmarkHumanRatingRows,
   benchmarkShipGateRows,
   benchmarkRegressionTriageRows,
+  benchmarkPresenceQualityRows,
   filteredBenchmarkFailingTurns,
   memoryHealthComparisonRows,
   lastError,
@@ -327,6 +328,7 @@ async function inspectBenchmarkTurn(turnId: string | null) {
       :failing-turns="filteredBenchmarkFailingTurns"
       :selected-turn-id="selectedDiagnosisTurnId"
       :memory-health-rows="memoryHealthComparisonRows"
+      :presence-quality-rows="benchmarkPresenceQualityRows"
       @run="runBenchmark"
       @update:pack-id="store.setBenchmarkPackId($event)"
       @update:sample-limit="store.setBenchmarkSampleLimit($event)"

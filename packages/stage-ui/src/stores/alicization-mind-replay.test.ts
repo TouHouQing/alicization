@@ -26,6 +26,11 @@ function createAlicizationBridgeStub(overrides?: Partial<Parameters<typeof setAl
         reconstructedCount: 0,
         templateLeakageFailCount: 0,
       },
+      presenceQuality: {
+        quietCompanionshipCoverage: 0.1,
+        silentPresenceNuisanceRate: 0.3,
+        continuityMindCarryRate: 0.2,
+      },
     }),
     runMemoryPrune: vi.fn(),
     updateMemoryStats: vi.fn(),
@@ -118,6 +123,25 @@ describe('alicization mind replay store', () => {
     expect(summary.fallbackReasonSet).toEqual(['unsupported-specificity'])
     expect(summary.firstCreatedAt).toBe(100)
     expect(summary.lastCreatedAt).toBe(140)
+  })
+
+  it('marks replay coverage incomplete when required replay kinds are missing', () => {
+    const summary = deriveMindReplaySummary([
+      {
+        id: 'evt-1',
+        decisionTraceId: 'mind:missing:persistence',
+        turnId: 'turn-missing',
+        sessionId: 'session-missing',
+        origin: 'system',
+        kind: 'governance-normalized',
+        payload: null,
+        createdAt: 100,
+      },
+    ])
+
+    expect(summary.coverage.hasGovernanceNormalized).toBe(true)
+    expect(summary.coverage.hasPersistenceWritten).toBe(false)
+    expect(summary.coverage.requiredComplete).toBe(false)
   })
 
   it('queries by decisionTraceId and sorts returned events by createdAt', async () => {
@@ -294,6 +318,11 @@ describe('alicization mind replay store', () => {
           reconstructedCount: 3,
           templateLeakageFailCount: 0,
         },
+        presenceQuality: {
+          quietCompanionshipCoverage: 0.1,
+          silentPresenceNuisanceRate: 0.3,
+          continuityMindCarryRate: 0.2,
+        },
       })
       .mockResolvedValueOnce({
         total: 10,
@@ -306,6 +335,11 @@ describe('alicization mind replay store', () => {
           reconstructionFrequency: 1,
           reconstructedCount: 3,
           templateLeakageFailCount: 2,
+        },
+        presenceQuality: {
+          quietCompanionshipCoverage: 0.64,
+          silentPresenceNuisanceRate: 0.22,
+          continuityMindCarryRate: 0.71,
         },
       })
     const runReplayBenchmark = vi.fn().mockResolvedValue({
@@ -361,6 +395,9 @@ describe('alicization mind replay store', () => {
           learningSelfModelReviseCount: 1,
           learningWorldModelValidationCount: 1,
           learningWorldModelFalseInternalizationCount: 0,
+          quietCompanionshipCoverage: 0.64,
+          silentPresenceNuisanceRate: 0.22,
+          continuityMindCarryRate: 0.71,
         },
       },
       telemetryPersisted: true,
@@ -435,6 +472,30 @@ describe('alicization mind replay store', () => {
     expect(store.memoryHealthComparisonRows.find(item => item.key === 'learningRelationshipReviseCount')).toEqual(expect.objectContaining({
       patch: 2,
     }))
+    expect(store.memoryHealthComparisonRows.find(item => item.key === 'quietCompanionshipCoverage')).toEqual(expect.objectContaining({
+      before: 0.1,
+      after: 0.64,
+      patch: 0.64,
+      section: 'presence-quality',
+    }))
+    expect(store.memoryHealthComparisonRows.find(item => item.key === 'silentPresenceNuisanceRate')).toEqual(expect.objectContaining({
+      before: 0.3,
+      after: 0.22,
+      patch: 0.22,
+      section: 'presence-quality',
+    }))
+    expect(store.memoryHealthComparisonRows.find(item => item.key === 'continuityMindCarryRate')).toEqual(expect.objectContaining({
+      before: 0.2,
+      after: 0.71,
+      patch: 0.71,
+      section: 'presence-quality',
+    }))
+    expect(store.benchmarkShipGateRows).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        key: 'presence-qa-gate',
+        status: 'fail',
+      }),
+    ]))
   })
 
   it('filters failing turns by dimension and drills down through decision trace id', async () => {

@@ -12,6 +12,9 @@ export interface AlicizationMemoryTuningAdvice {
   focusDimensions: string[]
   staleSelfModelVetoRate?: number
   relationshipEraConfusionRate?: number
+  quietCompanionshipCoverage?: number
+  silentPresenceNuisanceRate?: number
+  continuityMindCarryRate?: number
   retrievalAdjustments: {
     proceduralBoost: number
     relationshipBoost: number
@@ -70,6 +73,9 @@ export function deriveMemoryTuningAdviceFromReplayBenchmark(input: {
     focusDimensions: [],
     staleSelfModelVetoRate: 0,
     relationshipEraConfusionRate: 0,
+    quietCompanionshipCoverage: 0,
+    silentPresenceNuisanceRate: 0,
+    continuityMindCarryRate: 0,
     retrievalAdjustments: {
       proceduralBoost: 0,
       relationshipBoost: 0,
@@ -180,6 +186,40 @@ export function deriveMemoryTuningAdviceFromReplayBenchmark(input: {
     advice.notes.push('Relationship-era confusion vetoes stayed elevated, so competing repair phases should separate earlier and keep distance before warmth returns.')
   }
 
+  const quietCompanionshipCoverage = input.results.reduce((sum, item) => {
+    return sum + Number((item.telemetryPatch.retrievalHealth as any).quietCompanionshipCoverage ?? 0)
+  }, 0) / Math.max(1, input.results.length)
+  advice.quietCompanionshipCoverage = clamp01(quietCompanionshipCoverage)
+  if (quietCompanionshipCoverage < 0.55) {
+    advice.focusDimensions = uniqueList([...advice.focusDimensions, 'quietCompanionshipCoverage'], 12)
+    advice.retrievalAdjustments.relationshipBoost += 0.06
+    advice.surfaceAdjustments.delayUntilAfterPayoffBias += 0.04
+    advice.notes.push('Quiet companionship coverage fell short, so low-pressure continuity and patient relationship carry should be easier to preserve.')
+  }
+
+  const silentPresenceNuisanceRate = input.results.reduce((sum, item) => {
+    return sum + Number((item.telemetryPatch.retrievalHealth as any).silentPresenceNuisanceRate ?? 0)
+  }, 0) / Math.max(1, input.results.length)
+  advice.silentPresenceNuisanceRate = clamp01(silentPresenceNuisanceRate)
+  if (silentPresenceNuisanceRate > 0.25) {
+    advice.focusDimensions = uniqueList([...advice.focusDimensions, 'silentPresenceNuisanceRate'], 12)
+    advice.surfaceAdjustments.inwardCarryBias += 0.1
+    advice.surfaceAdjustments.delayUntilAfterPayoffBias += 0.08
+    advice.personStateAdjustments.closenessCapBias += 0.06
+    advice.notes.push('Presence stayed noisy, so silent-presence gestures should stay lower-pressure and less eager to crowd the visible reply surface.')
+  }
+
+  const continuityMindCarryRate = input.results.reduce((sum, item) => {
+    return sum + Number((item.telemetryPatch.retrievalHealth as any).continuityMindCarryRate ?? 0)
+  }, 0) / Math.max(1, input.results.length)
+  advice.continuityMindCarryRate = clamp01(continuityMindCarryRate)
+  if (continuityMindCarryRate < 0.55) {
+    advice.focusDimensions = uniqueList([...advice.focusDimensions, 'continuityMindCarryRate'], 12)
+    advice.retrievalAdjustments.relationshipBoost += 0.04
+    advice.surfaceAdjustments.inwardCarryBias += 0.06
+    advice.notes.push('Continuity mind carry stayed weak, so the system should preserve more of the ongoing mind line before compressing it into a flat answer.')
+  }
+
   const templateLeakageFailCount = input.results.reduce((sum, item) => {
     return sum + Number(item.telemetryPatch.retrievalHealth.templateLeakageFailCount ?? 0)
   }, 0)
@@ -220,6 +260,9 @@ export function parseMemoryTuningAdvice(raw: string | undefined) {
       focusDimensions: uniqueList(parsed.focusDimensions ?? [], 12),
       staleSelfModelVetoRate: clamp01(Number((parsed as any).staleSelfModelVetoRate ?? 0)),
       relationshipEraConfusionRate: clamp01(Number((parsed as any).relationshipEraConfusionRate ?? 0)),
+      quietCompanionshipCoverage: clamp01(Number((parsed as any).quietCompanionshipCoverage ?? 0)),
+      silentPresenceNuisanceRate: clamp01(Number((parsed as any).silentPresenceNuisanceRate ?? 0)),
+      continuityMindCarryRate: clamp01(Number((parsed as any).continuityMindCarryRate ?? 0)),
       retrievalAdjustments: {
         proceduralBoost: clamp01(Number(parsed.retrievalAdjustments?.proceduralBoost ?? 0)),
         relationshipBoost: clamp01(Number(parsed.retrievalAdjustments?.relationshipBoost ?? 0)),

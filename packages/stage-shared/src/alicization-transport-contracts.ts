@@ -1091,7 +1091,7 @@ export type AlicizationMindRelationshipPosture = 'restrained' | 'warm' | 'tender
 export type AlicizationMindAnswerSubject = 'alicization-self' | 'relationship' | 'host-state' | 'task-knot' | 'visible-scene' | 'general'
 export type AlicizationMindScreenReferenceMode = 'required' | 'helpful' | 'incidental' | 'avoid'
 export type AlicizationNormalVisibleReplyAuthority = 'llm-mind' | 'llm-second-pass-rewrite'
-export type AlicizationInfraVisibleReplyAuthority = 'local-deterministic-fallback'
+export type AlicizationInfraVisibleReplyAuthority = 'local-deterministic-fallback' | 'non-human-authored-blocked'
 export type AlicizationVisibleReplyExecutionAuthority = AlicizationNormalVisibleReplyAuthority | AlicizationInfraVisibleReplyAuthority
 export type AlicizationVisibleReplyAuthority = AlicizationNormalVisibleReplyAuthority
 export type AlicizationLegacyVisibleReplyAuthority = 'governed-repair-fallback' | AlicizationInfraVisibleReplyAuthority
@@ -1101,7 +1101,7 @@ export function isAlicizationNormalVisibleReplyAuthority(raw: unknown): raw is A
 }
 
 export function isAlicizationInfraVisibleReplyAuthority(raw: unknown): raw is AlicizationInfraVisibleReplyAuthority {
-  return raw === 'local-deterministic-fallback'
+  return raw === 'local-deterministic-fallback' || raw === 'non-human-authored-blocked'
 }
 
 export function normalizeAlicizationNormalVisibleReplyAuthority(
@@ -1291,6 +1291,7 @@ export type AlicizationMindTurnEventKind
     | 'reply-memory-coherence'
     | 'memory-facts-upserted'
     | 'memory-reconsolidated'
+    | 'presence-pulse-dispatched'
     | 'person-state-updated'
     | 'learning-executed'
 
@@ -1500,6 +1501,9 @@ export interface AlicizationReplayBenchmarkTelemetryPatch {
     personalityParticipation?: number
     relationshipParticipation?: number
     continuityParticipation?: number
+    quietCompanionshipCoverage?: number
+    silentPresenceNuisanceRate?: number
+    continuityMindCarryRate?: number
     learningTaskCompletionCount?: number
     learningTaskFailureCount?: number
     learningTaskBlockedCount?: number
@@ -1520,6 +1524,11 @@ export interface AlicizationReplayBenchmarkTelemetryPatch {
     recallAt3?: number
     precisionAt3?: number
     wrongThreadSuppression?: number
+    recallFeedbackSourceKinds?: string[]
+    recallFeedbackTargetScopes?: string[]
+    recallFeedbackConfirmedFactIds?: string[]
+    recallFeedbackDeniedFactIds?: string[]
+    recallFeedbackSupersededFactIds?: string[]
     claimAccuracy?: number
     replyAuthorityAccuracy?: number
     latencyBudgetPass?: boolean
@@ -1527,6 +1536,8 @@ export interface AlicizationReplayBenchmarkTelemetryPatch {
     productionGoldSampleCount?: number
     syntheticGoldSampleCount?: number
     productionGoldCoverage?: number
+    independentProductionGoldSampleCount?: number
+    independentProductionGoldCoverage?: number
   }
 }
 
@@ -1656,6 +1667,9 @@ export interface AlicizationFinalReplayGateReportRecord {
     productionGoldSampleCount?: number | null
     minimumProductionGoldSampleCount?: number
     productionGoldCoverage?: number | null
+    independentProductionGoldSampleCount?: number | null
+    minimumIndependentProductionGoldSampleCount?: number
+    independentProductionGoldCoverage?: number | null
   }
 }
 
@@ -1678,7 +1692,7 @@ export interface AlicizationReplayHumanRatingRubric {
 }
 
 export interface AlicizationReplayBenchmarkShipGateRow {
-  key: 'benchmark-gate' | 'human-rating-gate' | 'latency-gate' | 'wrong-thread-gate' | 'self-model-suppression-gate' | 'relationship-era-suppression-gate' | 'template-leakage-gate' | 'learning-domain-gate' | 'browser-main-parity-gate' | 'final-replay-gate'
+  key: 'benchmark-gate' | 'human-rating-gate' | 'latency-gate' | 'wrong-thread-gate' | 'self-model-suppression-gate' | 'relationship-era-suppression-gate' | 'template-leakage-gate' | 'presence-qa-gate' | 'learning-domain-gate' | 'browser-main-parity-gate' | 'final-replay-gate'
   status: 'pass' | 'fail'
   detail: string
 }

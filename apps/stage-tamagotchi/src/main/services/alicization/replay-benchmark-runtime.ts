@@ -215,6 +215,9 @@ function buildReplayBenchmarkNoopResult(input: {
       staleSelfModelVetoRate: 0,
       relationshipEraConfusionRate: 0,
       templateLeakageFailCount: 0,
+      quietCompanionshipCoverage: 0,
+      silentPresenceNuisanceRate: 0,
+      continuityMindCarryRate: 0,
     },
   }
   const finalReplayGate = buildAlicizationFinalReplayGateReport({
@@ -231,6 +234,8 @@ function buildReplayBenchmarkNoopResult(input: {
       sampleCount: 0,
       productionGoldSampleCount: 0,
       productionGoldCoverage: 0,
+      independentProductionGoldSampleCount: 0,
+      independentProductionGoldCoverage: 0,
     })
   return {
     packId: input.packId,
@@ -258,6 +263,11 @@ function buildReplayBenchmarkNoopResult(input: {
       { key: 'self-model-suppression-gate', status: 'pass', detail: 'staleSelfModelVetoRate=0' },
       { key: 'relationship-era-suppression-gate', status: 'pass', detail: 'relationshipEraConfusionRate=0' },
       { key: 'template-leakage-gate', status: 'pass', detail: 'templateLeakageFailCount=0' },
+      {
+        key: 'presence-qa-gate',
+        status: 'fail',
+        detail: 'quietCompanionshipCoverage=0, silentPresenceNuisanceRate=0, continuityMindCarryRate=0',
+      },
     ],
     regressionTriage: [],
     datasetFeedback: {
@@ -272,9 +282,16 @@ function buildReplayBenchmarkShipGate(input: {
   report: Pick<AlicizationRunReplayBenchmarkResult, 'gate' | 'telemetryPatch' | 'datasetFeedback'>
   finalReplayGate: AlicizationRunReplayBenchmarkResult['finalReplayGate']
 }) {
-  const telemetry = input.report.telemetryPatch.retrievalHealth
+  const telemetry = input.report.telemetryPatch.retrievalHealth as typeof input.report.telemetryPatch.retrievalHealth & {
+    quietCompanionshipCoverage?: number
+    silentPresenceNuisanceRate?: number
+    continuityMindCarryRate?: number
+  }
   const rubricCount = input.report.datasetFeedback.humanRatingRubric?.dimensions.length ?? 0
   const paritySummary = input.report.datasetFeedback.paritySummary ?? null
+  const quietCompanionshipCoverage = runtimeMetricNumber(telemetry.quietCompanionshipCoverage)
+  const silentPresenceNuisanceRate = runtimeMetricNumber(telemetry.silentPresenceNuisanceRate)
+  const continuityMindCarryRate = runtimeMetricNumber(telemetry.continuityMindCarryRate)
   return [
     {
       key: 'final-replay-gate' as const,
@@ -323,6 +340,15 @@ function buildReplayBenchmarkShipGate(input: {
       detail: `templateLeakageFailCount=${telemetry.templateLeakageFailCount ?? 0}`,
     },
     {
+      key: 'presence-qa-gate' as const,
+      status: (quietCompanionshipCoverage ?? 0) >= 0.7
+        && (silentPresenceNuisanceRate ?? 1) <= 0.2
+        && (continuityMindCarryRate ?? 0) >= 0.7
+        ? 'pass'
+        : 'fail',
+      detail: `quietCompanionshipCoverage=${quietCompanionshipCoverage ?? 0}, silentPresenceNuisanceRate=${silentPresenceNuisanceRate ?? 0}, continuityMindCarryRate=${continuityMindCarryRate ?? 0}`,
+    },
+    {
       key: 'learning-domain-gate' as const,
       status: (telemetry.learningTaskCompletionRate ?? 1) >= 0.85
         && (telemetry.learningTaskFailureRate ?? 0) <= 0.15
@@ -348,6 +374,88 @@ function runtimeMetricNumber(raw: unknown) {
   return typeof raw === 'number' && Number.isFinite(raw)
     ? raw
     : null
+}
+
+function clampPresenceMetric(value: number) {
+  if (!Number.isFinite(value))
+    return 0
+  return Math.max(0, Math.min(1, Number(value.toFixed(2))))
+}
+
+function deriveReplayPresenceQuality(input: {
+  turns: Awaited<ReturnType<typeof benchmarkMainChatSessionReplay>>['turns']
+  quality: AlicizationRunReplayBenchmarkResult['quality']
+}) {
+  const totalTurns = input.turns.length
+  if (totalTurns === 0) {
+    return {
+      quietCompanionshipCoverage: 0,
+      silentPresenceNuisanceRate: 0,
+      continuityMindCarryRate: 0,
+    }
+  }
+
+  const qualityByTurnId = new Map(input.quality.map(item => [item.turnId, item]))
+  const replayRows = input.turns.map(turn => ({
+    turn,
+    quality: qualityByTurnId.get(turn.turn.turnId) ?? null,
+  })).filter((row): row is {
+    turn: Awaited<ReturnType<typeof benchmarkMainChatSessionReplay>>['turns'][number]
+    quality: AlicizationRunReplayBenchmarkResult['quality'][number]
+  } => Boolean(row.quality))
+
+  const quietCompanionshipApplicable = replayRows.filter(({ turn }) =>
+    turn.turn.sampledCategories?.includes('dialogue')
+    || turn.turn.sampledCategories?.includes('repair')
+    || turn.turn.sampledCategories?.includes('repair-arc'),
+  )
+  const quietCompanionshipCovered = quietCompanionshipApplicable.filter(({ quality }) => {
+    return quality.dialogueRhythmStability === 'pass'
+      && quality.emptyCareRate !== 'fail'
+      && quality.warmthTemplateRisk !== 'fail'
+  })
+
+  const silentPresenceNuisanceApplicable = replayRows.filter(({ turn }) =>
+    turn.turn.sampledCategories?.includes('dialogue')
+    || turn.turn.sampledCategories?.includes('proactive')
+    || turn.turn.sampledCategories?.includes('deferred-followup'),
+  )
+  const silentPresenceNuisanceFails = silentPresenceNuisanceApplicable.filter(({ quality }) => {
+    return quality.emptyCareRate === 'fail'
+      || quality.repairMechanicalRate === 'fail'
+      || quality.warmthTemplateRisk === 'fail'
+      || quality.relationshipDistanceJumpRate === 'fail'
+  })
+
+  const continuityCarryApplicable = replayRows.filter(({ turn }) =>
+    turn.turn.sampledCategories?.includes('procedure-carry')
+    || turn.turn.sampledCategories?.includes('stable-core')
+    || turn.turn.sampledCategories?.includes('long-horizon')
+    || turn.turn.sampledCategories?.includes('general-memory'),
+  )
+  const continuityCarryHits = continuityCarryApplicable.filter(({ quality }) => {
+    return quality.procedureCarryQuality === 'pass'
+      || quality.replyMemoryCoherence === 'pass'
+      || quality.afterglowFalseCarryRate === 'pass'
+  })
+
+  return {
+    quietCompanionshipCoverage: clampPresenceMetric(
+      quietCompanionshipApplicable.length === 0
+        ? 1
+        : quietCompanionshipCovered.length / quietCompanionshipApplicable.length,
+    ),
+    silentPresenceNuisanceRate: clampPresenceMetric(
+      silentPresenceNuisanceApplicable.length === 0
+        ? 0
+        : silentPresenceNuisanceFails.length / silentPresenceNuisanceApplicable.length,
+    ),
+    continuityMindCarryRate: clampPresenceMetric(
+      continuityCarryApplicable.length === 0
+        ? 1
+        : continuityCarryHits.length / continuityCarryApplicable.length,
+    ),
+  }
 }
 
 function countReplayAuthorityLeaks(input: {
@@ -381,6 +489,30 @@ function deriveReplayTurnOsTraceCoverage(input: {
     return 1
   const traced = input.turns.filter(turn => isAlicizationTurnGraphClosed(turn.turnGraph)).length
   return Number((traced / input.turns.length).toFixed(2))
+}
+
+function deriveReplayTurnCompletionAuthorityPass(input: {
+  turns: Awaited<ReturnType<typeof benchmarkMainChatSessionReplay>>['turns']
+}) {
+  if (input.turns.length === 0)
+    return true
+  return input.turns.every((turn) => {
+    const completionAuthority = turn.turnGraph.completionAuthority
+    return completionAuthority?.authority === 'turn-os'
+      && completionAuthority.status === turn.turnGraph.closure.status
+  })
+}
+
+function deriveReplayExplanationCompletenessPass(input: {
+  turns: Awaited<ReturnType<typeof benchmarkMainChatSessionReplay>>['turns']
+}) {
+  if (input.turns.length === 0)
+    return true
+  return input.turns.every((turn) => {
+    const completionReasonCodes = turn.turnGraph.completionAuthority?.reasonCodes ?? []
+    const visibleMemoryGateReasons = turn.turnGraph.memory?.visibleMemoryGate.reasons ?? []
+    return completionReasonCodes.length > 0 && visibleMemoryGateReasons.length > 0
+  })
 }
 
 function deriveReplayLearningSelfRevisionRoundtrip(input: {
@@ -766,12 +898,26 @@ export function createAlicizationReplayBenchmarkRuntime(
       quality: replay.quality,
       traces: benchmarkTraceRecords,
       goldMetrics: replay.goldMetrics,
+      recallFeedback: replay.goldMetrics
+        ? {
+            sourceKinds: [],
+            targetScopes: [],
+            confirmedFactIds: [],
+            deniedFactIds: [],
+            supersededFactIds: [],
+          }
+        : null,
+    })
+    const presenceQuality = deriveReplayPresenceQuality({
+      turns: replay.turns,
+      quality: replay.quality,
     })
     const currentStats = await db.getMemoryStats()
     const telemetryPatch = preferRuntimeGrowthMetrics({
       replayPatch: replayTelemetryPatch,
       currentStats,
     })
+    Object.assign(telemetryPatch.retrievalHealth as Record<string, unknown>, presenceQuality)
     const authorityLeakCount = countReplayAuthorityLeaks({
       turns: replay.turns,
     })
@@ -793,6 +939,14 @@ export function createAlicizationReplayBenchmarkRuntime(
       sampleCount: telemetryPatch.retrievalHealth.sampleCount ?? replay.turns.length,
       productionGoldSampleCount: telemetryPatch.retrievalHealth.productionGoldSampleCount,
       productionGoldCoverage: telemetryPatch.retrievalHealth.productionGoldCoverage,
+      independentProductionGoldSampleCount: telemetryPatch.retrievalHealth.independentProductionGoldSampleCount,
+      independentProductionGoldCoverage: telemetryPatch.retrievalHealth.independentProductionGoldCoverage,
+      turnCompletionAuthorityPass: deriveReplayTurnCompletionAuthorityPass({
+        turns: replay.turns,
+      }),
+      explanationCompletenessPass: deriveReplayExplanationCompletenessPass({
+        turns: replay.turns,
+      }),
     })
 
     if (persistTelemetry) {
@@ -802,6 +956,7 @@ export function createAlicizationReplayBenchmarkRuntime(
           ...currentStats?.retrievalHealth,
           ...telemetryPatch.retrievalHealth,
         },
+        presenceQuality,
       })
     }
 

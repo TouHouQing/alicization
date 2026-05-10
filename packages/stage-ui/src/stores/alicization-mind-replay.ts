@@ -78,6 +78,10 @@ function pickNumber(raw: unknown) {
   return Number.isFinite(value) ? value : null
 }
 
+function readPresenceQuality(raw: AlicizationMemoryStats | null | undefined) {
+  return raw?.presenceQuality ?? null
+}
+
 function uniqueStrings(values: Array<string | null | undefined>) {
   const result: string[] = []
   for (const value of values) {
@@ -256,6 +260,7 @@ export interface AlicizationMindReplayMemoryHealthComparisonRow {
   before: number | null
   after: number | null
   patch: number | null
+  section?: 'retrieval' | 'learning' | 'presence-quality'
 }
 
 export interface AlicizationMindReplayHumanRatingDimensionRow {
@@ -526,7 +531,14 @@ export const useAlicizationMindReplayStore = defineStore('alicization-mind-repla
     }
     if (Array.isArray((report as any).shipGate) && (report as any).shipGate.length > 0)
       return (report as any).shipGate as AlicizationMindReplayShipGateRow[]
-    const telemetry = report.telemetryPatch.retrievalHealth
+    const telemetry = report.telemetryPatch.retrievalHealth as typeof report.telemetryPatch.retrievalHealth & {
+      quietCompanionshipCoverage?: number
+      silentPresenceNuisanceRate?: number
+      continuityMindCarryRate?: number
+    }
+    const quietCompanionshipCoverage = pickNumber(telemetry.quietCompanionshipCoverage)
+    const silentPresenceNuisanceRate = pickNumber(telemetry.silentPresenceNuisanceRate)
+    const continuityMindCarryRate = pickNumber(telemetry.continuityMindCarryRate)
     return [
       {
         key: 'benchmark-gate',
@@ -558,6 +570,15 @@ export const useAlicizationMindReplayStore = defineStore('alicization-mind-repla
         key: 'template-leakage-gate',
         status: (telemetry.templateLeakageFailCount ?? 0) <= 0 ? 'pass' : 'fail',
         detail: `templateLeakageFailCount=${telemetry.templateLeakageFailCount ?? 0}`,
+      },
+      {
+        key: 'presence-qa-gate',
+        status: (quietCompanionshipCoverage ?? 0) >= 0.7
+          && (silentPresenceNuisanceRate ?? 1) <= 0.2
+          && (continuityMindCarryRate ?? 0) >= 0.7
+          ? 'pass'
+          : 'fail',
+        detail: `quietCompanionshipCoverage=${quietCompanionshipCoverage ?? 0}, silentPresenceNuisanceRate=${silentPresenceNuisanceRate ?? 0}, continuityMindCarryRate=${continuityMindCarryRate ?? 0}`,
       },
     ]
   })
@@ -643,7 +664,9 @@ export const useAlicizationMindReplayStore = defineStore('alicization-mind-repla
   const memoryHealthComparisonRows = computed<AlicizationMindReplayMemoryHealthComparisonRow[]>(() => {
     const before = benchmarkStatsBefore.value?.retrievalHealth
     const after = benchmarkStatsAfter.value?.retrievalHealth
-    const patch = benchmarkReport.value?.telemetryPatch.retrievalHealth
+    const patch = benchmarkReport.value?.telemetryPatch.retrievalHealth as Record<string, unknown> | undefined
+    const beforePresence = readPresenceQuality(benchmarkStatsBefore.value)
+    const afterPresence = readPresenceQuality(benchmarkStatsAfter.value)
     return [
       {
         key: 'templateLeakageFailCount',
@@ -747,8 +770,32 @@ export const useAlicizationMindReplayStore = defineStore('alicization-mind-repla
         after: pickNumber(after?.selfModelStaleBeliefRate),
         patch: pickNumber(patch?.selfModelStaleBeliefRate),
       },
+      {
+        key: 'quietCompanionshipCoverage',
+        before: pickNumber(beforePresence?.quietCompanionshipCoverage),
+        after: pickNumber(afterPresence?.quietCompanionshipCoverage),
+        patch: pickNumber(patch?.quietCompanionshipCoverage),
+        section: 'presence-quality',
+      },
+      {
+        key: 'silentPresenceNuisanceRate',
+        before: pickNumber(beforePresence?.silentPresenceNuisanceRate),
+        after: pickNumber(afterPresence?.silentPresenceNuisanceRate),
+        patch: pickNumber(patch?.silentPresenceNuisanceRate),
+        section: 'presence-quality',
+      },
+      {
+        key: 'continuityMindCarryRate',
+        before: pickNumber(beforePresence?.continuityMindCarryRate),
+        after: pickNumber(afterPresence?.continuityMindCarryRate),
+        patch: pickNumber(patch?.continuityMindCarryRate),
+        section: 'presence-quality',
+      },
     ]
   })
+  const benchmarkPresenceQualityRows = computed(() =>
+    memoryHealthComparisonRows.value.filter(row => row.section === 'presence-quality'),
+  )
 
   async function queryReplayLab(payload: AlicizationListMindTurnEventsPayload | AlicizationListMemoryDecisionTracesPayload) {
     const query = normalizeReplayQuery(payload)
@@ -939,6 +986,7 @@ export const useAlicizationMindReplayStore = defineStore('alicization-mind-repla
     benchmarkDimensionKeySet,
     benchmarkHumanRatingRows,
     benchmarkShipGateRows,
+    benchmarkPresenceQualityRows,
     benchmarkParityRows,
     benchmarkRegressionTriageRows,
     memoryHealthComparisonRows,

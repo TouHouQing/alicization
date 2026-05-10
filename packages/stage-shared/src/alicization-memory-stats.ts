@@ -149,6 +149,11 @@ export interface AlicizationMemoryRetrievalHealth {
   learningTaskReopenRecoveryRate?: number
   misinternalizationRate?: number
   sampleCount?: number
+  productionGoldSampleCount?: number
+  syntheticGoldSampleCount?: number
+  productionGoldCoverage?: number
+  independentProductionGoldSampleCount?: number
+  independentProductionGoldCoverage?: number
   learningPolicyStrictnessBias?: number
   learningPolicyWrongThreadSuppressionBias?: number
   learningPolicyProvenanceLabelBias?: number
@@ -172,6 +177,12 @@ export interface AlicizationMemoryRetrievalHealth {
   selfModelStaleBeliefRate?: number
 }
 
+export interface AlicizationPresenceQualityStats {
+  quietCompanionshipCoverage: number
+  silentPresenceNuisanceRate: number
+  continuityMindCarryRate: number
+}
+
 export interface AlicizationMemoryStats {
   total: number
   active: number
@@ -184,5 +195,6 @@ export interface AlicizationMemoryStats {
   integrity?: AlicizationMemoryIntegrityHealth
   writeHealth?: AlicizationMemoryWriteHealth
   retrievalHealth?: AlicizationMemoryRetrievalHealth
+  presenceQuality?: AlicizationPresenceQualityStats
   lastPrunedAt: number | null
 }

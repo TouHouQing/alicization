@@ -32,6 +32,7 @@ const props = defineProps<{
   failingTurns: AlicizationMindReplayBenchmarkTurnDiagnosis[]
   selectedTurnId: string | null
   memoryHealthRows: AlicizationMindReplayMemoryHealthComparisonRow[]
+  presenceQualityRows: AlicizationMindReplayMemoryHealthComparisonRow[]
 }>()
 
 const emit = defineEmits<{
@@ -583,6 +584,47 @@ function turnTraceLabel(turn: AlicizationMindReplayBenchmarkTurnDiagnosis) {
 
         <div :class="['mb-3', 'text-sm', 'font-medium', 'text-neutral-800', 'dark:text-neutral-100']">
           {{ tDiagnosis('health.title', 'Memory Health Before / After') }}
+        </div>
+        <div
+          v-if="presenceQualityRows.length > 0"
+          :class="['mb-4', 'grid', 'gap-2']"
+        >
+          <div :class="['text-xs', 'text-neutral-500', 'dark:text-neutral-400']">
+            {{ tDiagnosis('presence_quality.description', 'Presence QA tracks quiet companionship coverage, silent-presence nuisance, and continuity mind carry through the replay loop.') }}
+          </div>
+          <div
+            v-for="row in presenceQualityRows"
+            :key="`presence:${row.key}`"
+            :class="[
+              'rounded-xl', 'border', 'border-solid', 'border-cyan-200/80',
+              'bg-cyan-50/60', 'px-3', 'py-3',
+              'dark:border-cyan-900/70', 'dark:bg-cyan-950/20',
+            ]"
+          >
+            <div :class="['font-mono', 'text-xs', 'text-cyan-800', 'dark:text-cyan-200']">
+              {{ row.key }}
+            </div>
+            <div :class="['mt-2', 'grid', 'grid-cols-3', 'gap-2', 'text-[11px]', 'text-cyan-700/80', 'dark:text-cyan-200/80']">
+              <div>
+                <div>{{ tDiagnosis('health.before', 'before') }}</div>
+                <div :class="['mt-1', 'font-mono', 'text-cyan-900', 'dark:text-cyan-100']">
+                  {{ row.before ?? 'n/a' }}
+                </div>
+              </div>
+              <div>
+                <div>{{ tDiagnosis('health.after', 'after') }}</div>
+                <div :class="['mt-1', 'font-mono', 'text-cyan-900', 'dark:text-cyan-100']">
+                  {{ row.after ?? 'n/a' }}
+                </div>
+              </div>
+              <div>
+                <div>{{ tDiagnosis('health.patch', 'patch') }}</div>
+                <div :class="['mt-1', 'font-mono', 'text-cyan-900', 'dark:text-cyan-100']">
+                  {{ row.patch ?? 'n/a' }}
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
         <div :class="['grid', 'gap-2']">
           <div

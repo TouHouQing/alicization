@@ -239,4 +239,129 @@ describe('memory-tuning-advice', () => {
     expect(speechPlan?.placement).toBe('internal-only')
     expect(speechPlan?.certainty).toBe('approximate')
   })
+
+  it('raises presence-related tuning advice from presence quality regressions', () => {
+    const advice = deriveMemoryTuningAdviceFromReplayBenchmark({
+      now: 1_700_000_000_000,
+      results: [
+        {
+          packId: 'final-humanlike-memory-v1',
+          ranAt: 1_700_000_000_000,
+          turnCount: 2,
+          quality: [],
+          standards: {
+            eraSelectionQuality: 'pass',
+            resolutionLedgerQuality: 'pass',
+            procedureCarryQuality: 'pass',
+            wrongThreadSuppression: 'pass',
+            replyMemoryCoherence: 'pass',
+            implicitRecallQuality: 'pass',
+            temporalScopeFlexibility: 'pass',
+            recentOnlyDrift: 'pass',
+            surfaceRestraint: 'pass',
+            relationshipRepairAdaptation: 'pass',
+            closenessLadderDrift: 'pass',
+            eventGraphRecallCollapse: 'pass',
+            knowledgeCorrectionDiscipline: 'pass',
+            repeatedMistakeAvoidance: 'pass',
+            hostUnderstandingGrowth: 'pass',
+            skillInternalizationGrowth: 'pass',
+            selfRevisionGrowth: 'pass',
+            learningRevisionDiscipline: 'pass',
+            domainInternalizationDiscipline: 'pass',
+            worldModelValidationDiscipline: 'pass',
+            dialogueRhythmStability: 'pass',
+            emptyCareRate: 'pass',
+            repairMechanicalRate: 'pass',
+            warmthTemplateRisk: 'pass',
+            relationshipDistanceJumpRate: 'pass',
+            afterglowFalseCarryRate: 'pass',
+            templateLeakage: 'pass',
+          },
+          gate: {
+            passed: true,
+            failingKeys: [],
+            dimensions: [],
+            standards: {
+              eraSelectionQuality: 'pass',
+              resolutionLedgerQuality: 'pass',
+              procedureCarryQuality: 'pass',
+              wrongThreadSuppression: 'pass',
+              replyMemoryCoherence: 'pass',
+              implicitRecallQuality: 'pass',
+              temporalScopeFlexibility: 'pass',
+              recentOnlyDrift: 'pass',
+              surfaceRestraint: 'pass',
+              relationshipRepairAdaptation: 'pass',
+              closenessLadderDrift: 'pass',
+              eventGraphRecallCollapse: 'pass',
+              knowledgeCorrectionDiscipline: 'pass',
+              repeatedMistakeAvoidance: 'pass',
+              hostUnderstandingGrowth: 'pass',
+              skillInternalizationGrowth: 'pass',
+              selfRevisionGrowth: 'pass',
+              learningRevisionDiscipline: 'pass',
+              domainInternalizationDiscipline: 'pass',
+              worldModelValidationDiscipline: 'pass',
+              dialogueRhythmStability: 'pass',
+              emptyCareRate: 'pass',
+              repairMechanicalRate: 'pass',
+              warmthTemplateRisk: 'pass',
+              relationshipDistanceJumpRate: 'pass',
+              afterglowFalseCarryRate: 'pass',
+              templateLeakage: 'pass',
+            },
+          },
+          telemetryPatch: {
+            retrievalHealth: {
+              semanticLatencyMs: null,
+              graphLatencyMs: null,
+              reconstructionFrequency: 0,
+              reconstructedCount: 0,
+              templateLeakageFailCount: 0,
+              quietCompanionshipCoverage: 0.38,
+              silentPresenceNuisanceRate: 0.41,
+              continuityMindCarryRate: 0.27,
+            } as any,
+          },
+          telemetryPersisted: true,
+          failingTurnSet: [],
+          finalReplayGate: {
+            version: 'final-replay-gate-v1',
+            passed: true,
+            failingKeys: [],
+            metrics: {
+              recallAt3: null,
+              precisionAt3: null,
+              wrongThreadRate: 0,
+              templateLeakageFailCount: 0,
+              authorityLeakCount: 0,
+              localHumanlikeVisibleFallbackCount: 0,
+            },
+          },
+          shipGate: [],
+          regressionTriage: [],
+          datasetFeedback: {
+            backlogKey: 'replay_benchmark_dataset_backlog_v1',
+            appendedCount: 0,
+            totalCount: 0,
+            persisted: true,
+          },
+        },
+      ],
+    })
+
+    expect(advice.focusDimensions).toEqual(expect.arrayContaining([
+      'quietCompanionshipCoverage',
+      'silentPresenceNuisanceRate',
+      'continuityMindCarryRate',
+    ]))
+    expect(advice.surfaceAdjustments.inwardCarryBias).toBeGreaterThan(0)
+    expect(advice.surfaceAdjustments.delayUntilAfterPayoffBias).toBeGreaterThan(0)
+    expect(advice.notes).toEqual(expect.arrayContaining([
+      expect.stringContaining('Presence stayed noisy'),
+      expect.stringContaining('companionship coverage'),
+      expect.stringContaining('mind carry'),
+    ]))
+  })
 })
