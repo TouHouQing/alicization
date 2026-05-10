@@ -14,6 +14,7 @@ import type {
 import type { AlicizationProactiveLayeredContext } from './proactive-layered-context'
 
 import { createAlicizationContinuityMind } from './continuity-mind'
+import { deriveAlicizationPersonaKernelSummary } from './personality-continuity-state'
 
 const coolingObjectTtlMs = 30 * 60_000
 
@@ -349,11 +350,7 @@ function deriveQuietCompanionshipState(input: {
     latestThreadSummary: input.state.worldModel?.activeThread?.summary ?? null,
     relationshipPressure: resolveRelationshipPressure(input.state),
     personaAuthoritySummary: input.state.autobiographicalSelf?.relationshipDoctrine ?? null,
-    personaKernelSummary: [
-      input.state.autobiographicalSelf?.personaDrift?.conflictStyle ? `conflict ${input.state.autobiographicalSelf.personaDrift.conflictStyle}` : '',
-      input.state.autobiographicalSelf?.personaDrift?.agencyStyle ? `agency ${input.state.autobiographicalSelf.personaDrift.agencyStyle}` : '',
-      input.state.autobiographicalSelf?.personaDrift?.attachmentStyle ? `attachment ${input.state.autobiographicalSelf.personaDrift.attachmentStyle}` : '',
-    ].filter(Boolean).join(' | ') || null,
+    personaKernelSummary: deriveAlicizationPersonaKernelSummary(input.state.autobiographicalSelf ?? null),
     latestUserTurnAt: null,
     now: input.now,
   })

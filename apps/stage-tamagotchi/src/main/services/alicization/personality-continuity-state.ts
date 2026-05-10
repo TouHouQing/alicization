@@ -144,6 +144,38 @@ function uniqueList(values: Array<string | null | undefined>, maxItems = 8) {
   return result
 }
 
+export function deriveAlicizationPersonaKernelSummary(input: AlicizationPersonalityState | null | undefined) {
+  if (!input)
+    return null
+
+  const identityKernel = input.identityKernel ?? null
+  const personaDrift = input.initiativeBaseline ?? null
+  const anchors = uniqueList(input.identityAnchors ?? [], 4)
+  const relationshipLine = sanitizeText(identityKernel?.relationshipPosture ? `relationship ${identityKernel.relationshipPosture}` : '', 64)
+  const initiativeLine = sanitizeText(identityKernel?.initiativeStyle ? `initiative ${identityKernel.initiativeStyle}` : '', 64)
+  const expressionLine = uniqueList([
+    input.expressionProfile?.warmth ? `warmth ${input.expressionProfile.warmth}` : null,
+    input.expressionProfile?.directness ? `directness ${input.expressionProfile.directness}` : null,
+    input.expressionProfile?.playfulness ? `playfulness ${input.expressionProfile.playfulness}` : null,
+    input.expressionProfile?.emotionalVisibility ? `visibility ${input.expressionProfile.emotionalVisibility}` : null,
+  ], 4).join(' | ')
+  const driftLine = personaDrift
+    ? uniqueList([
+        personaDrift.silenceReconnect ? `silence ${personaDrift.silenceReconnect}` : null,
+        personaDrift.comfortStyle ? `comfort ${personaDrift.comfortStyle}` : null,
+        personaDrift.jealousyStyle ? `jealousy ${personaDrift.jealousyStyle}` : null,
+      ], 3).join(' | ')
+    : ''
+
+  return uniqueList([
+    relationshipLine ? `kernel ${relationshipLine}` : null,
+    initiativeLine ? `kernel ${initiativeLine}` : null,
+    expressionLine ? `expression ${expressionLine}` : null,
+    driftLine ? `drift ${driftLine}` : null,
+    anchors.length ? `anchors ${anchors.join(', ')}` : null,
+  ], 5).join(' | ') || null
+}
+
 export function deriveAlicizationPersonaAuthorityInfluence(input: AlicizationPersonalityState | null | undefined): AlicizationPersonaAuthorityInfluence {
   if (!input) {
     return {
@@ -232,13 +264,7 @@ export function deriveAlicizationPersonaAuthorityInfluence(input: AlicizationPer
         ? 'Open gently, but keep the opening bounded and real.'
         : null
 
-  const summary = uniqueList([
-    relationshipLine ? `kernel ${relationshipLine}` : null,
-    initiativeLine ? `kernel ${initiativeLine}` : null,
-    expressionLine ? `expression ${expressionLine}` : null,
-    repairBias >= 0.2 ? 'kernel repair-first' : null,
-    ...anchors,
-  ], 4).join(' | ') || null
+  const summary = deriveAlicizationPersonaKernelSummary(input)
 
   return {
     summary,

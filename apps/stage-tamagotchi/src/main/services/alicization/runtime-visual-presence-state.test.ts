@@ -122,7 +122,7 @@ describe('runtime visual presence state', () => {
     expect(nextState.updatedAt).toBe(180_000)
     expect(nextState.watchMode).toBe(previousState.watchMode)
     expect(nextState.captureState).toEqual(previousState.captureState)
-    expect(nextState.currentInwardPreoccupation).toContain('persona kernel')
+    expect(nextState.currentInwardPreoccupation).toContain('Repair before closeness')
   })
 
   it('does not inherit long focus from a stale previous scene when candidate scene is fresh', () => {
