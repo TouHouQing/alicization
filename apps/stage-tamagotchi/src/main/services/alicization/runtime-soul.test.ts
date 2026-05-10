@@ -179,4 +179,32 @@ describe('runtime soul persona kernel seeding', () => {
     expect(body).toContain('## Identity Anchors')
     expect(body).toContain('## Personality Baseline')
   })
+
+  it('keeps repeated normalization idempotent for persona arrays', () => {
+    const first = normalizeFrontmatter({
+      ...defaultFrontmatter,
+      initialized: true,
+      profile: {
+        ownerName: '指挥官',
+        hostName: '主人',
+        alicizationName: '小艾',
+        gender: 'female',
+        genderCustom: '',
+        relationship: '女仆',
+        mindAge: 18,
+      },
+      personality: {
+        obedience: 0.78,
+        liveliness: 0.62,
+        sensibility: 0.86,
+        identityAnchors: ['host-steadiness'],
+        antiPersonaConstraints: ['no theatrical warmth'],
+      },
+    })
+
+    const second = normalizeFrontmatter(first)
+
+    expect(second.personality.identityAnchors).toEqual(['host-steadiness'])
+    expect(second.personality.antiPersonaConstraints).toEqual(['no theatrical warmth'])
+  })
 })

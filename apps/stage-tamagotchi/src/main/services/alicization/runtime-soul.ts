@@ -608,7 +608,10 @@ export function normalizeFrontmatter(raw: Partial<AlicizationSoulFrontmatter> | 
     placeholderHostAttitudes: [defaultFrontmatter.host_attitude],
   })
   const compiledPersonality = compilePersonaWorkshopAuthority({
-    personality: normalizedFrontmatter.personality,
+    personality: {
+      ...normalizedFrontmatter.personality,
+      ...frontmatter.personality,
+    },
     personaWorkshop: null,
   })
   return {
@@ -636,14 +639,6 @@ export function normalizeFrontmatter(raw: Partial<AlicizationSoulFrontmatter> | 
         ...normalizedFrontmatter.personality.evolutionSeed,
         ...compiledPersonality.evolutionSeed,
       },
-      identityAnchors: [
-        ...(normalizedFrontmatter.personality.identityAnchors ?? []),
-        ...(compiledPersonality.identityAnchors ?? []),
-      ],
-      antiPersonaConstraints: [
-        ...(normalizedFrontmatter.personality.antiPersonaConstraints ?? []),
-        ...(compiledPersonality.antiPersonaConstraints ?? []),
-      ],
     },
     host_attitude: normalizeHostAttitude(personaKernel.hostAttitude),
     core_incarnation: normalizeCoreIncarnation(personaKernel.coreIncarnation),
