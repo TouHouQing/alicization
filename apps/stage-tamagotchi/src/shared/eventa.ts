@@ -166,6 +166,7 @@ import type {
   AlicizationSensoryCaptureLeaseStatus as SharedAlicizationSensoryCaptureLeaseStatus,
   AlicizationSensoryCapturePermission as SharedAlicizationSensoryCapturePermission,
   AlicizationSensoryCaptureSnapshot as SharedAlicizationSensoryCaptureSnapshot,
+  AlicizationPersonalityState as SharedAlicizationPersonalityState,
   AlicizationPersonaTemperament as SharedAlicizationPersonaTemperament,
   AlicizationPersonaRelationshipPosture as SharedAlicizationPersonaRelationshipPosture,
   AlicizationPersonaInitiativeStyle as SharedAlicizationPersonaInitiativeStyle,
