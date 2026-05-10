@@ -90,7 +90,7 @@ dialogs:
         relationshipPosture: 关系姿态：{value}
         relationshipPostureDefault: 关系姿态：陪伴者
         initiativeStyle: 主动风格：{value}
-        initiativeStyleDefault: 主动风格：适度主动
+        initiativeStyleDefault: 主动风格：稳健推进
         reconnectAfterSilence: 沉默后重新接话：{value}
         reconnectAfterSilenceDefault: 沉默后重新接话：轻轻试探
         genesisAccepted: 已确认生成。

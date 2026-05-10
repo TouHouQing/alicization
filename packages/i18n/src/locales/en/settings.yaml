@@ -92,9 +92,9 @@ dialogs:
         relationshipPosture: Relationship posture: {value}
         relationshipPostureDefault: Relationship posture: companion
         initiativeStyle: Initiative style: {value}
-        initiativeStyleDefault: Initiative style: measured-approach
+        initiativeStyleDefault: Initiative style: Measured approach
         reconnectAfterSilence: Reconnect after silence: {value}
-        reconnectAfterSilenceDefault: Reconnect after silence: light-probe
+        reconnectAfterSilenceDefault: Reconnect after silence: Light probe
         genesisAccepted: Genesis accepted.
         relationshipPostureLabels:
           companion: Companion
