@@ -1,4 +1,6 @@
 import type {
+  AlicizationMindTurnEventInput,
+  AlicizationVisualPresenceStateSnapshot,
   AlicizationDurabilityPulseSnapshot,
   AlicizationEntityWorldModelSnapshot,
   AlicizationLivingWorldObjectKind,
@@ -10,6 +12,8 @@ import type {
   AlicizationWorldModelSnapshot,
 } from '../../../shared/eventa'
 import type { AlicizationProactiveLayeredContext } from './proactive-layered-context'
+
+import { createAlicizationContinuityMind } from './continuity-mind'
 
 const coolingObjectTtlMs = 30 * 60_000
 
@@ -323,6 +327,103 @@ function buildIncidentObject(input: {
       input.pulse?.pid ? `pid:${input.pulse.pid}` : '',
     ],
   })
+}
+
+function resolveRelationshipPressure(state: AlicizationVisualPresenceStateSnapshot) {
+  return clamp01(
+    (
+      (state.relationshipModel?.receptivity ?? 0)
+      + (state.relationshipModel?.sharedAttentionTrust ?? 0)
+      + (state.relationshipModel?.reciprocityExpectation ?? 0)
+    ) / 3,
+  )
+}
+
+function deriveQuietCompanionshipState(input: {
+  now: number
+  state: AlicizationVisualPresenceStateSnapshot
+}) {
+  return createAlicizationContinuityMind().reduce({
+    quietLineMs: Math.max(0, Number(input.state.quietLineMs ?? 0)),
+    bodyState: input.state.currentBodyState,
+    latestThreadSummary: input.state.worldModel?.activeThread?.summary ?? null,
+    relationshipPressure: resolveRelationshipPressure(input.state),
+    latestUserTurnAt: null,
+    now: input.now,
+  })
+}
+
+export interface AlicizationQuietCompanionshipOutcome {
+  mode: 'quiet-companionship'
+  label: 'quiet-companionship'
+  summary: string
+  quietLineMs: number
+  shouldDispatchSilentPresencePulse: boolean
+}
+
+export function deriveQuietCompanionshipOutcome(input: {
+  now: number
+  state: AlicizationVisualPresenceStateSnapshot
+  previousState?: AlicizationVisualPresenceStateSnapshot | null
+  activeConversation: boolean
+}): AlicizationQuietCompanionshipOutcome | null {
+  const continuityMindState = deriveQuietCompanionshipState({
+    now: input.now,
+    state: input.state,
+  })
+  const sustainedFocusMs = Math.max(0, Number(input.state.quietLineMs ?? 0))
+  const shouldEnterQuietCompanionship
+    = sustainedFocusMs >= 120_000
+      && input.state.currentBodyState === 'accompanying'
+      && continuityMindState.privateThoughtMode === 'quiet-companionship'
+      && !input.activeConversation
+
+  if (!shouldEnterQuietCompanionship)
+    return null
+
+  const previousContinuityMindState = input.previousState
+    ? deriveQuietCompanionshipState({
+        now: input.now,
+        state: input.previousState,
+      })
+    : null
+  const previousQualified = Boolean(
+    input.previousState
+    && Math.max(0, Number(input.previousState.quietLineMs ?? 0)) >= 120_000
+    && input.previousState.currentBodyState === 'accompanying'
+    && previousContinuityMindState?.privateThoughtMode === 'quiet-companionship',
+  )
+
+  return {
+    mode: 'quiet-companionship',
+    label: 'quiet-companionship',
+    summary: continuityMindState.subjectiveNowSummary,
+    quietLineMs: sustainedFocusMs,
+    shouldDispatchSilentPresencePulse: !previousQualified,
+  }
+}
+
+export function buildQuietCompanionshipMindTurnEvent(input: {
+  now: number
+  decisionTraceId: string
+  sessionId?: string | null
+  turnId?: string | null
+  outcome: AlicizationQuietCompanionshipOutcome
+}): AlicizationMindTurnEventInput {
+  return {
+    decisionTraceId: input.decisionTraceId,
+    turnId: input.turnId ?? null,
+    sessionId: input.sessionId ?? null,
+    origin: 'system',
+    kind: 'presence-pulse-dispatched',
+    payload: {
+      mode: input.outcome.mode,
+      summary: input.outcome.summary,
+      quietLineMs: input.outcome.quietLineMs,
+      label: input.outcome.label,
+    },
+    createdAt: input.now,
+  }
 }
 
 export function buildLivingWorldState(input: {

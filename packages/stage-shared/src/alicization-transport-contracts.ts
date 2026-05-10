@@ -1110,7 +1110,7 @@ export function normalizeAlicizationNormalVisibleReplyAuthority(
 ): AlicizationNormalVisibleReplyAuthority {
   if (authority === 'llm-mind' || authority === 'llm-second-pass-rewrite')
     return authority
-  if (authority === 'local-deterministic-fallback' || authority === 'governed-repair-fallback')
+  if (authority === 'local-deterministic-fallback' || authority === 'non-human-authored-blocked' || authority === 'governed-repair-fallback')
     return 'llm-second-pass-rewrite'
   return fallback
 }

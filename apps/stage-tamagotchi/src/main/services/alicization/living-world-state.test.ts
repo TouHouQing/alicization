@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { buildLivingWorldState } from './living-world-state'
+import { buildLivingWorldState, buildQuietCompanionshipMindTurnEvent, deriveQuietCompanionshipOutcome } from './living-world-state'
 
 function createContext() {
   return {
@@ -150,6 +150,77 @@ describe('buildLivingWorldState', () => {
     expect(state.objects.some(object => object.kind === 'thread')).toBe(true)
     expect(state.openLoops).toContain('where is the real error root?')
     expect(state.stability).toBe('stable')
+  })
+
+  it('holds quiet companionship during sustained focus and records the outcome into memory-facing state', () => {
+    const now = 240_000
+    const quietState = {
+      watchMode: 'symbiotic-vision',
+      currentBodyState: 'accompanying',
+      continuityMode: 'quiet-accompaniment',
+      quietLineMs: 240_000,
+      currentInwardPreoccupation: 'host sustained focus',
+      worldModel: {
+        activeThread: {
+          id: 'thread:focus',
+          kind: 'deep-focus',
+          status: 'active',
+          source: 'grounded-scene',
+          title: 'runtime.ts',
+          summary: 'the coding thread in runtime.ts',
+          confidence: 0.9,
+          significance: 0.88,
+          unresolved: true,
+          beganAt: 0,
+          lastUpdatedAt: now,
+          target: null,
+        },
+      },
+      relationshipModel: {
+        receptivity: 0.6,
+        sharedAttentionTrust: 0.7,
+        reciprocityExpectation: 0.5,
+      },
+      updatedAt: now,
+    } as any
+
+    const outcome = deriveQuietCompanionshipOutcome({
+      now,
+      state: quietState,
+      previousState: {
+        ...quietState,
+        quietLineMs: 119_000,
+        currentBodyState: 'idle',
+      } as any,
+      activeConversation: false,
+    })
+
+    expect(outcome).toEqual(expect.objectContaining({
+      mode: 'quiet-companionship',
+      label: 'quiet-companionship',
+      quietLineMs: 240_000,
+      shouldDispatchSilentPresencePulse: true,
+    }))
+    expect(outcome?.summary).toContain('quietly accompanying')
+    expect(outcome?.summary).toContain('coding thread')
+
+    const event = buildQuietCompanionshipMindTurnEvent({
+      now,
+      decisionTraceId: 'mind:test:quiet-slice',
+      sessionId: 'session-quiet',
+      outcome: outcome!,
+    })
+
+    expect(event).toEqual(expect.objectContaining({
+      decisionTraceId: 'mind:test:quiet-slice',
+      sessionId: 'session-quiet',
+      origin: 'system',
+      kind: 'presence-pulse-dispatched',
+      payload: expect.objectContaining({
+        mode: 'quiet-companionship',
+        quietLineMs: 240_000,
+      }),
+    }))
   })
 
   it('carries prior world objects as cooling continuity instead of dropping them immediately', () => {

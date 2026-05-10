@@ -17,7 +17,6 @@ import type {
 } from './alicization-bridge'
 import type { StreamEvent, StreamOptions } from './llm'
 
-import { errorMessageFrom } from '@moeru/std'
 import {
   deriveAlicizationRendererBridgeWatchdogTimeoutPolicy,
   buildAlicizationDialogueSpeechTimeline,
@@ -46,8 +45,8 @@ import { categorizeResponse, createStreamingCategorizer } from '../composables/r
 import { useAnalytics } from '../composables/use-analytics'
 import { translateStageUi } from '../utils/i18n'
 import { getAlicizationBridge, hasAlicizationBridge, normalizeAlicizationPerformancePayload } from './alicization-bridge'
+import { useAlicizationPresenceDispatcherStore } from './alicization-presence-dispatcher'
 import { type RealtimeEvidenceItem, useAlicizationExecutionEngineStore } from './alicization-execution-engine'
-import { extractRuleFacts, upsertFacts } from './alicization-memory'
 import {
   blockAlicizationRendererLocalVisibleReply,
   removeAlicizationExecutionStatusSlices,
@@ -1370,6 +1369,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
   const chatSession = useChatSessionStore()
   const chatStream = useChatStreamStore()
   const chatContext = useChatContextStore()
+  const presenceDispatcher = useAlicizationPresenceDispatcherStore()
   const { activeSessionId } = storeToRefs(chatSession)
   const { streamingMessage } = storeToRefs(chatStream)
 
@@ -1377,6 +1377,29 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
   const pendingQueuedSends = ref<QueuedSend[]>([])
   const externalPipelineAborters = new Set<ExternalPipelineAborter>()
   const hooks = createChatHooks()
+  let stopVisualPresencePulseSubscription: (() => void) | null = null
+
+  function ensureVisualPresencePulseSubscription() {
+    if (stopVisualPresencePulseSubscription || !hasAlicizationBridge())
+      return
+
+    const bridge = getAlicizationBridge()
+    if (typeof bridge.onVisualPresencePulse !== 'function')
+      return
+
+    stopVisualPresencePulseSubscription = bridge.onVisualPresencePulse((payload) => {
+      if (!payload || payload.expiresAt <= Date.now())
+        return
+      if (!payload.reasonTags?.includes('continuity-mind:quiet-companionship'))
+        return
+
+      void presenceDispatcher.dispatchSilentPresencePulse({
+        label: 'quiet-companionship',
+        summary: 'Still quietly accompanying the host through the current focus.',
+        payload,
+      })
+    })
+  }
 
   function resolveSendRoute(options: SendOptions) {
     const providerId = typeof options.providerId === 'string' && options.providerId.trim()
@@ -1886,40 +1909,6 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
       userTurnMessageId = `${turnId}:user`
       sessionMessagesForSend.push({ role: 'user', content: finalContent, createdAt: sendingCreatedAt, id: userTurnMessageId })
       chatSession.persistSessionMessages(sessionId)
-
-      if (origin === 'ui-user') {
-        const extractedFacts = extractRuleFacts({ userText: sendingMessage })
-        if (extractedFacts.length > 0) {
-          void upsertFacts(extractedFacts, 'rule')
-            .then(async () => {
-              await appendAlicizationAuditLog({
-                level: 'notice',
-                category: 'alicization.memory',
-                action: 'rule-facts-upserted',
-                message: 'Extracted rule-based facts from the current user turn and persisted them to memory.',
-                details: {
-                  sessionId,
-                  turnId,
-                  factCount: extractedFacts.length,
-                },
-              })
-            })
-            .catch(async (error) => {
-              await appendAlicizationAuditLog({
-                level: 'warning',
-                category: 'alicization.memory',
-                action: 'rule-facts-upsert-failed',
-                message: 'Failed to persist rule-based facts extracted from the current user turn.',
-                details: {
-                  sessionId,
-                  turnId,
-                  factCount: extractedFacts.length,
-                  reason: errorMessageFrom(error) ?? 'unknown-error',
-                },
-              })
-            })
-        }
-      }
 
       hasVisualAttachment = contentParts.some(part => part.type === 'image_url')
       inspectionLikeTurn = origin === 'ui-user' && detectInvitedInspectionLikeTurn({
@@ -4111,6 +4100,8 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
     options: SendOptions,
     targetSessionId?: string,
   ) {
+    ensureVisualPresencePulseSubscription()
+
     if (hasAlicizationBridge()) {
       const origin = options.origin ?? 'ui-user'
       const isTopLevelInput = origin === 'ui-user'

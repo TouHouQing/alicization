@@ -52,6 +52,12 @@ export interface AlicizationPresenceEmbodimentController {
   speak?: (reply: string, performance: AlicizationDialoguePerformancePayload, payload: AlicizationDialogueRespondedPayload) => Promise<void> | void
 }
 
+export interface AlicizationSilentPresencePulseInput {
+  label: string
+  summary: string
+  payload?: AlicizationPresencePulsePayload | null
+}
+
 const maxRememberedTurnIds = 512
 
 export const useAlicizationPresenceDispatcherStore = defineStore('alicization-presence-dispatcher', () => {
@@ -363,6 +369,14 @@ export const useAlicizationPresenceDispatcherStore = defineStore('alicization-pr
     }
   }
 
+  async function dispatchSilentPresencePulse(input: AlicizationSilentPresencePulseInput) {
+    const payload = input.payload
+    if (!payload)
+      return
+
+    await dispatchPresencePulse(payload)
+  }
+
   function onDialogueResponded(listener: DialogueListener) {
     listeners.add(listener)
     return () => {
@@ -418,6 +432,7 @@ export const useAlicizationPresenceDispatcherStore = defineStore('alicization-pr
   return {
     dispatchDialogueResponded,
     dispatchPresencePulse,
+    dispatchSilentPresencePulse,
     onDialogueResponded,
     registerEmbodimentController,
     registerLive2DController,

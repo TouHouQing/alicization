@@ -10,9 +10,8 @@ const streamMock = vi.fn()
 const executeRealtimeQueryTurnMock = vi.fn()
 const appendConversationTurnMock = vi.fn()
 const appendAuditLogMock = vi.fn()
-const extractRuleFactsMock = vi.fn()
-const upsertFactsMock = vi.fn()
 const emitEmbodimentMetaHooksMock = vi.fn(async () => {})
+const onVisualPresencePulseUnsubscribeMock = vi.fn()
 
 const activeSessionId = ref('session-test')
 const activeConsciousnessProvider = ref('mock-provider')
@@ -24,6 +23,7 @@ const streamingMessage = ref({
   tool_results: [],
 })
 const sessionMessagesMap = new Map<string, any[]>()
+let visualPresencePulseListener: ((payload: any) => void) | null = null
 
 function ensureSessionMessages(sessionId: string) {
   if (!sessionMessagesMap.has(sessionId))
@@ -201,11 +201,6 @@ vi.mock('../composables/alicization-guardrails', () => ({
   }),
 }))
 
-vi.mock('./alicization-memory', () => ({
-  extractRuleFacts: (...args: any[]) => extractRuleFactsMock(...args),
-  upsertFacts: (...args: any[]) => upsertFactsMock(...args),
-}))
-
 vi.mock('../composables/response-categoriser', () => ({
   createStreamingCategorizer: () => ({
     consume: vi.fn(),
@@ -252,6 +247,7 @@ function installAlicizationBridge(options?: {
   streamChat?: (payload: any, options: any) => Promise<void>
   chatAbort?: (payload: any) => Promise<any>
   reminderSchedule?: (payload: any) => Promise<any>
+  onVisualPresencePulse?: (listener: (payload: any) => void) => () => void
 }) {
   appendConversationTurnMock.mockResolvedValue(undefined)
   appendAuditLogMock.mockResolvedValue(undefined)
@@ -307,6 +303,10 @@ function installAlicizationBridge(options?: {
     streamChat: options?.streamChat,
     chatAbort: options?.chatAbort,
     reminderSchedule: options?.reminderSchedule,
+    onVisualPresencePulse: options?.onVisualPresencePulse ?? ((listener: (payload: any) => void) => {
+      visualPresencePulseListener = listener
+      return onVisualPresencePulseUnsubscribeMock
+    }),
   } as any)
 }
 
@@ -334,12 +334,9 @@ describe('chat orchestrator', () => {
     executeRealtimeQueryTurnMock.mockReset()
     appendConversationTurnMock.mockReset()
     appendAuditLogMock.mockReset()
-    extractRuleFactsMock.mockReset()
-    extractRuleFactsMock.mockReturnValue([])
-    upsertFactsMock.mockReset()
-    upsertFactsMock.mockResolvedValue(undefined)
     emitEmbodimentMetaHooksMock.mockReset()
     emitEmbodimentMetaHooksMock.mockImplementation(async () => {})
+    onVisualPresencePulseUnsubscribeMock.mockReset()
     appendConversationTurnMock.mockResolvedValue(undefined)
     appendAuditLogMock.mockResolvedValue(undefined)
     executeRealtimeQueryTurnMock.mockResolvedValue({ handled: false })
@@ -353,6 +350,7 @@ describe('chat orchestrator', () => {
     ensureSessionMessages(activeSessionId.value)
     activeConsciousnessProvider.value = 'mock-provider'
     activeConsciousnessModel.value = 'mock-active-model'
+    visualPresencePulseListener = null
   })
 
   it('uses realtime execution engine first and keeps plain dialogue turns in no-tools mode', async () => {
@@ -444,16 +442,7 @@ describe('chat orchestrator', () => {
     expect(String(payload?.assistantText ?? '')).not.toContain('当前无法获取可靠的实时外部数据')
   })
 
-  it('extracts and upserts rule-based memory facts from ui user turns', async () => {
-    extractRuleFactsMock.mockReturnValueOnce([
-      {
-        subject: 'user',
-        predicate: 'likes',
-        object: '抹茶拿铁',
-        confidence: 0.74,
-      },
-    ])
-
+  it('does not write renderer rule-based memory facts from ui user turns', async () => {
     streamMock.mockImplementation(async (_model: string, _provider: unknown, _messages: unknown, options: any) => {
       await options.onStreamEvent?.({
         type: 'text-delta',
@@ -469,18 +458,45 @@ describe('chat orchestrator', () => {
       origin: 'ui-user',
     })
 
-    expect(upsertFactsMock).toBeCalledTimes(1)
-    expect(upsertFactsMock).toBeCalledWith(expect.arrayContaining([
-      expect.objectContaining({
-        subject: 'user',
-        predicate: 'likes',
-        object: '抹茶拿铁',
-      }),
-    ]), 'rule')
-    expect(appendAuditLogMock).toBeCalledWith(expect.objectContaining({
+    expect(appendAuditLogMock).not.toBeCalledWith(expect.objectContaining({
       category: 'alicization.memory',
-      action: 'rule-facts-upserted',
+      action: expect.stringMatching(/^rule-facts-/u),
     }))
+  })
+
+  it('dispatches quiet companionship presence pulses from the runtime bridge without creating chat turns', async () => {
+    const store = useChatOrchestratorStore()
+    const dispatcher = await import('./alicization-presence-dispatcher')
+    const dispatchSilentPresencePulseMock = vi.spyOn(
+      dispatcher.useAlicizationPresenceDispatcherStore(),
+      'dispatchSilentPresencePulse',
+    ).mockResolvedValue(undefined)
+
+    await store.ingest('先初始化一下聊天存储', {
+      model: 'mock-model',
+      chatProvider: createChatProviderStub(),
+      origin: 'system',
+    }).catch(() => {})
+
+    expect(visualPresencePulseListener).toBeTypeOf('function')
+
+    visualPresencePulseListener?.({
+      watchMode: 'symbiotic-vision',
+      embodiedPresence: 'attentive',
+      scenario: 'coding',
+      stance: 'accompany',
+      confidence: 0.88,
+      reasonTags: ['continuity-mind:quiet-companionship'],
+      emotionalTension: 'soft-covision',
+      expiresAt: Date.now() + 30_000,
+    })
+
+    await vi.waitFor(() => {
+      expect(dispatchSilentPresencePulseMock).toBeCalledWith(expect.objectContaining({
+        label: 'quiet-companionship',
+      }))
+    })
+    expect(appendConversationTurnMock).not.toBeCalled()
   })
 
   it('uses deterministic user message id derived from turnId to prevent replay duplicates', async () => {

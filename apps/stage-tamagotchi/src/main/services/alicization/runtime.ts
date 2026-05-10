@@ -166,6 +166,7 @@ import { sanitizeMindGovernanceDecisionTraceId } from './mind-governance-trace'
 import { buildMindTruthContractLines, deriveMindTruthContract } from './mind-truth-contract'
 import { isPersonaResidueMemoryText, normalizeOrganicMemoryText } from './organic-memory-hygiene'
 import { buildAlicizationPersonStateProjection } from './person-state-projection'
+import { buildQuietCompanionshipMindTurnEvent, deriveQuietCompanionshipOutcome } from './living-world-state'
 import {
   createDefaultProactiveLoopState,
   normalizeProactiveLoopState,
@@ -4492,7 +4493,57 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     try {
       for (const cardId of cardIds) {
         await withCardScope(cardId, async () => {
+          const previousVisualPresenceState = await ensureVisualPresenceState(activeCardId)
           const result = await runSubconsciousTickForCurrentCard(trigger)
+          const nextVisualPresenceState = await ensureVisualPresenceState(activeCardId)
+          const quietCompanionshipOutcome = deriveQuietCompanionshipOutcome({
+            now: nextVisualPresenceState.updatedAt,
+            state: nextVisualPresenceState,
+            previousState: previousVisualPresenceState,
+            activeConversation: false,
+          })
+          if (quietCompanionshipOutcome) {
+            if (quietCompanionshipOutcome.shouldDispatchSilentPresencePulse) {
+              emitVisualPresencePulse({
+                cardId: activeCardId,
+                watchMode: nextVisualPresenceState.watchMode,
+                embodiedPresence: nextVisualPresenceState.privateThought?.embodiedPresence === 'none'
+                  ? 'attentive'
+                  : nextVisualPresenceState.privateThought?.embodiedPresence ?? 'attentive',
+                scenario: nextVisualPresenceState.currentScene?.scenario ?? 'general',
+                stance: nextVisualPresenceState.privateThought?.stance ?? 'accompany',
+                confidence: nextVisualPresenceState.privateThought?.confidence ?? 0.82,
+                reasonTags: Array.from(new Set([
+                  ...(nextVisualPresenceState.privateThought?.rationaleTags ?? []),
+                  'continuity-mind:quiet-companionship',
+                ])),
+                emotionalTension: nextVisualPresenceState.privateThought?.emotionalTension ?? 'soft-covision',
+                expiresAt: Date.now() + 30_000,
+              })
+              const sessionId = await ensureActiveOrLatestSessionId(activeCardId).catch(() => null)
+              const event = buildQuietCompanionshipMindTurnEvent({
+                now: nextVisualPresenceState.updatedAt,
+                decisionTraceId: sanitizeMindGovernanceDecisionTraceId(
+                  `mind:${Math.max(0, Math.floor(nextVisualPresenceState.updatedAt)).toString(36)}:${randomUUID().replace(/-/g, '').slice(0, 12)}`,
+                ),
+                sessionId,
+                outcome: quietCompanionshipOutcome,
+              })
+              await alicizationDb.appendMindTurnEvents([event]).catch(async (error) => {
+                await appendAuditLog({
+                  level: 'warning',
+                  category: 'alicization.subconscious',
+                  action: 'quiet-companionship-event-append-failed',
+                  message: 'Failed to append quiet companionship memory-facing mind-turn event.',
+                  payload: {
+                    cardId: activeCardId,
+                    trigger,
+                    reason: errorMessageFrom(error) ?? 'unknown-error',
+                  },
+                })
+              })
+            }
+          }
           processedCards.push(activeCardId)
           if (result.proactive)
             proactiveTriggered.push(activeCardId)
