@@ -82,6 +82,14 @@ import type {
   AlicizationGenesisInput as SharedAlicizationGenesisInput,
   AlicizationGender as SharedAlicizationGender,
   AlicizationPersonalityState as SharedAlicizationPersonalityState,
+  AlicizationPersonaTemperament as SharedAlicizationPersonaTemperament,
+  AlicizationPersonaRelationshipPosture as SharedAlicizationPersonaRelationshipPosture,
+  AlicizationPersonaInitiativeStyle as SharedAlicizationPersonaInitiativeStyle,
+  AlicizationPersonaIdentityKernel as SharedAlicizationPersonaIdentityKernel,
+  AlicizationPersonaExpressionProfile as SharedAlicizationPersonaExpressionProfile,
+  AlicizationPersonaInitiativeBaseline as SharedAlicizationPersonaInitiativeBaseline,
+  AlicizationPersonaEvolutionSeed as SharedAlicizationPersonaEvolutionSeed,
+  AlicizationPersonaWorkshopSubmission as SharedAlicizationPersonaWorkshopSubmission,
   AlicizationSubconsciousFragmentSourceKind as SharedAlicizationSubconsciousFragmentSourceKind,
   AlicizationSystemProbeDegradeReason as SharedAlicizationSystemProbeDegradeReason,
   AlicizationSystemProbeSample as SharedAlicizationSystemProbeSample,
@@ -112,6 +120,14 @@ export interface AlicizationCardScope {
 
 export type AlicizationPersonalityState = SharedAlicizationPersonalityState
 export type AlicizationGender = SharedAlicizationGender
+export type AlicizationPersonaTemperament = SharedAlicizationPersonaTemperament
+export type AlicizationPersonaRelationshipPosture = SharedAlicizationPersonaRelationshipPosture
+export type AlicizationPersonaInitiativeStyle = SharedAlicizationPersonaInitiativeStyle
+export type AlicizationPersonaIdentityKernel = SharedAlicizationPersonaIdentityKernel
+export type AlicizationPersonaExpressionProfile = SharedAlicizationPersonaExpressionProfile
+export type AlicizationPersonaInitiativeBaseline = SharedAlicizationPersonaInitiativeBaseline
+export type AlicizationPersonaEvolutionSeed = SharedAlicizationPersonaEvolutionSeed
+export type AlicizationPersonaWorkshopSubmission = SharedAlicizationPersonaWorkshopSubmission
 
 export interface AlicizationSoulFrontmatter {
   schemaVersion: number

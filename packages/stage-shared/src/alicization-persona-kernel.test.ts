@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
 import {
-  defaultAlicizationPersonality,
   defaultAlicizationProfile,
 } from './alicization-defaults'
 import {
@@ -97,15 +96,27 @@ describe('alicization-persona-kernel', () => {
     })
     expect(snapshot.personality.identityAnchors).toEqual(['host-steadiness'])
     expect(snapshot.personality.antiPersonaConstraints).toEqual(['no theatrical warmth'])
-    expect(snapshot.temperamentSummary).toBe(summarizeAlicizationTemperament({
-      obedience: 0.5,
-      liveliness: 0.5,
-      sensibility: 0.5,
-    }))
+    expect(snapshot.temperamentSummary).toBe('温顺服从、沉静内敛、细腻有感')
     expect(snapshot.hostAttitudeSeed).toContain(defaultAlicizationProfile.hostName)
     expect(snapshot.coreIncarnationSeed).toContain(defaultAlicizationProfile.alicizationName)
-    expect(snapshot.coreIncarnation).toContain('Stay gentle, bounded, and clear.')
-    expect(snapshot.coreIncarnation).toContain('no pushy intimacy')
-    expect(summarizeAlicizationTemperament(defaultAlicizationPersonality)).toBe('保留主见、安静平稳、理性稳住')
+    expect(snapshot.coreIncarnation).toContain('先稳住，再靠近。')
+    expect(snapshot.personality.personaWorkshop).toEqual({
+      presetTemperament: {
+        obedience: 0.3,
+        liveliness: 0.2,
+        sensibility: 0.8,
+      },
+      relationshipPosture: 'attuned',
+      initiativeStyle: 'balanced',
+      freeDescription: 'Stay gentle, bounded, and clear.',
+      antiPersonaConstraints: ['no pushy intimacy'],
+      calibration: 'warm but not crowded',
+      previewCorrections: ['shorter openings'],
+    })
+    expect(summarizeAlicizationTemperament({
+      obedience: 0.91,
+      liveliness: 0.14,
+      sensibility: 0.67,
+    })).toBe('温顺服从、沉静内敛、细腻有感')
   })
 })
