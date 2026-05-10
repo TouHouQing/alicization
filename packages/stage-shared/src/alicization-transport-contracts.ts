@@ -2325,6 +2325,32 @@ export interface AlicizationPersonStateEvolutionSummary {
   updatedAt: number | null
 }
 
+export type AlicizationPersonaGradualUnlockFacetKind
+  = 'shared-language'
+    | 'truth-before-flourish'
+    | 'near-with-boundary'
+    | 'unfinished-thread-return'
+
+export interface AlicizationPersonaGradualUnlockFacetSnapshot {
+  facet: AlicizationPersonaGradualUnlockFacetKind
+  confidence: number
+  reason: string
+}
+
+export interface AlicizationPersonaGradualUnlockHypothesisSnapshot {
+  facet: AlicizationPersonaGradualUnlockFacetKind
+  hypothesis: string
+  confidence: number
+  supportingSignals: string[]
+}
+
+export interface AlicizationPersonaGradualUnlockSnapshot {
+  version: 'persona-gradual-unlock-v1'
+  unlockableFacets: AlicizationPersonaGradualUnlockFacetSnapshot[]
+  pendingHypotheses: AlicizationPersonaGradualUnlockHypothesisSnapshot[]
+  summary: string
+}
+
 export interface AlicizationSelfEvolutionKernelSnapshot {
   version: 'self-evolution-kernel-v1'
   updatedAt: number | null

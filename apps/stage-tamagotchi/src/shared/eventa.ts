@@ -128,6 +128,10 @@ import type {
   AlicizationNormalVisibleReplyAuthority as SharedAlicizationNormalVisibleReplyAuthority,
   AlicizationInfraVisibleReplyAuthority as SharedAlicizationInfraVisibleReplyAuthority,
   AlicizationVisibleReplyExecutionAuthority as SharedAlicizationVisibleReplyExecutionAuthority,
+  AlicizationPersonaGradualUnlockFacetKind as SharedAlicizationPersonaGradualUnlockFacetKind,
+  AlicizationPersonaGradualUnlockFacetSnapshot as SharedAlicizationPersonaGradualUnlockFacetSnapshot,
+  AlicizationPersonaGradualUnlockHypothesisSnapshot as SharedAlicizationPersonaGradualUnlockHypothesisSnapshot,
+  AlicizationPersonaGradualUnlockSnapshot as SharedAlicizationPersonaGradualUnlockSnapshot,
   AlicizationMindHeadKey as SharedAlicizationMindHeadKey,
   AlicizationMindTurnEventInput as SharedAlicizationMindTurnEventInput,
   AlicizationMindTurnEventKind as SharedAlicizationMindTurnEventKind,
@@ -1381,31 +1385,10 @@ export interface AlicizationAutobiographicalGoalSnapshot {
   updatedAt: number
 }
 
-export type AlicizationPersonaGradualUnlockFacetKind
-  = 'shared-language'
-    | 'truth-before-flourish'
-    | 'near-with-boundary'
-    | 'unfinished-thread-return'
-
-export interface AlicizationPersonaGradualUnlockFacetSnapshot {
-  facet: AlicizationPersonaGradualUnlockFacetKind
-  confidence: number
-  reason: string
-}
-
-export interface AlicizationPersonaGradualUnlockHypothesisSnapshot {
-  facet: AlicizationPersonaGradualUnlockFacetKind
-  hypothesis: string
-  confidence: number
-  supportingSignals: string[]
-}
-
-export interface AlicizationPersonaGradualUnlockSnapshot {
-  version: 'persona-gradual-unlock-v1'
-  unlockableFacets: AlicizationPersonaGradualUnlockFacetSnapshot[]
-  pendingHypotheses: AlicizationPersonaGradualUnlockHypothesisSnapshot[]
-  summary: string
-}
+export type AlicizationPersonaGradualUnlockFacetKind = SharedAlicizationPersonaGradualUnlockFacetKind
+export type AlicizationPersonaGradualUnlockFacetSnapshot = SharedAlicizationPersonaGradualUnlockFacetSnapshot
+export type AlicizationPersonaGradualUnlockHypothesisSnapshot = SharedAlicizationPersonaGradualUnlockHypothesisSnapshot
+export type AlicizationPersonaGradualUnlockSnapshot = SharedAlicizationPersonaGradualUnlockSnapshot
 
 export type AlicizationLongHorizonMemoryCueInfluence = SharedAlicizationLongHorizonMemoryCueInfluence
 export type AlicizationLongHorizonMemoryCueSnapshot = SharedAlicizationLongHorizonMemoryCueSnapshot
