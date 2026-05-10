@@ -38,10 +38,10 @@ describe('persona workshop compilation', () => {
       valueBias: '接住主人的疲惫，回复要短一点。',
     })
     expect(compiled.expressionProfile).toEqual({
-      warmth: 0.7066666666666667,
+      warmth: 0.7533333333333333,
       directness: 0.7066666666666667,
-      playfulness: 0.34,
-      emotionalVisibility: 0.7066666666666667,
+      playfulness: 0.30666666666666664,
+      emotionalVisibility: 0.7533333333333333,
     })
     expect(compiled.initiativeBaseline).toEqual({
       silenceReconnect: 'short openings',

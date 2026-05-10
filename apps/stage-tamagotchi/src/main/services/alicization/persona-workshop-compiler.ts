@@ -56,9 +56,9 @@ export function compilePersonaWorkshopAuthority(input: CompilePersonaWorkshopAut
   const personality = input.personality
   const workshop = input.personaWorkshop ?? null
   const temperament = {
-    obedience: clamp01(workshop?.presetTemperament?.obedience ?? personality.identityKernel?.temperament?.obedience ?? personality.obedience),
-    liveliness: clamp01(workshop?.presetTemperament?.liveliness ?? personality.identityKernel?.temperament?.liveliness ?? personality.liveliness),
-    sensibility: clamp01(workshop?.presetTemperament?.sensibility ?? personality.identityKernel?.temperament?.sensibility ?? personality.sensibility),
+    obedience: clamp01(workshop?.presetTemperament?.obedience ?? personality.obedience ?? personality.identityKernel?.temperament?.obedience),
+    liveliness: clamp01(workshop?.presetTemperament?.liveliness ?? personality.liveliness ?? personality.identityKernel?.temperament?.liveliness),
+    sensibility: clamp01(workshop?.presetTemperament?.sensibility ?? personality.sensibility ?? personality.identityKernel?.temperament?.sensibility),
   }
 
   const relationshipPosture = pickText(
@@ -72,16 +72,24 @@ export function compilePersonaWorkshopAuthority(input: CompilePersonaWorkshopAut
     defaultAlicizationPersonaIdentityKernel.initiativeStyle,
   )
   const valueBias = pickText(
-    personality.identityKernel?.valueBias,
     workshop?.freeDescription,
     workshop?.calibration,
+    personality.identityKernel?.valueBias,
   )
 
   const expressionProfile = {
-    warmth: clamp01(personality.expressionProfile?.warmth ?? average([temperament.sensibility, personality.sensibility, defaultAlicizationPersonaExpressionProfile.warmth])),
-    directness: clamp01(personality.expressionProfile?.directness ?? average([temperament.obedience, 1 - temperament.liveliness, defaultAlicizationPersonaExpressionProfile.directness])),
-    playfulness: clamp01(personality.expressionProfile?.playfulness ?? average([temperament.liveliness, personality.liveliness, defaultAlicizationPersonaExpressionProfile.playfulness])),
-    emotionalVisibility: clamp01(personality.expressionProfile?.emotionalVisibility ?? average([temperament.sensibility, personality.sensibility, defaultAlicizationPersonaExpressionProfile.emotionalVisibility])),
+    warmth: clamp01(workshop?.presetTemperament?.sensibility != null
+      ? average([workshop.presetTemperament.sensibility, temperament.sensibility, defaultAlicizationPersonaExpressionProfile.warmth])
+      : personality.expressionProfile?.warmth ?? average([temperament.sensibility, personality.sensibility, defaultAlicizationPersonaExpressionProfile.warmth])),
+    directness: clamp01(workshop?.presetTemperament?.obedience != null
+      ? average([workshop.presetTemperament.obedience, 1 - temperament.liveliness, defaultAlicizationPersonaExpressionProfile.directness])
+      : personality.expressionProfile?.directness ?? average([temperament.obedience, 1 - temperament.liveliness, defaultAlicizationPersonaExpressionProfile.directness])),
+    playfulness: clamp01(workshop?.presetTemperament?.liveliness != null
+      ? average([workshop.presetTemperament.liveliness, temperament.liveliness, defaultAlicizationPersonaExpressionProfile.playfulness])
+      : personality.expressionProfile?.playfulness ?? average([temperament.liveliness, personality.liveliness, defaultAlicizationPersonaExpressionProfile.playfulness])),
+    emotionalVisibility: clamp01(workshop?.presetTemperament?.sensibility != null
+      ? average([workshop.presetTemperament.sensibility, temperament.sensibility, defaultAlicizationPersonaExpressionProfile.emotionalVisibility])
+      : personality.expressionProfile?.emotionalVisibility ?? average([temperament.sensibility, personality.sensibility, defaultAlicizationPersonaExpressionProfile.emotionalVisibility])),
   }
 
   const silenceReconnect = pickText(
@@ -101,37 +109,37 @@ export function compilePersonaWorkshopAuthority(input: CompilePersonaWorkshopAut
   )
 
   const antiPersonaConstraints = dedupe([
-    ...normalizeTextList(personality.antiPersonaConstraints),
     ...normalizeTextList(workshop?.antiPersonaConstraints),
+    ...normalizeTextList(personality.antiPersonaConstraints),
   ])
   const identityAnchors = dedupe([
-    ...normalizeTextList(personality.identityAnchors),
     ...normalizeTextList([
       workshop?.freeDescription,
       workshop?.calibration,
       workshop?.relationshipPosture,
       workshop?.initiativeStyle,
     ]),
+    ...normalizeTextList(personality.identityAnchors),
   ])
 
   const evolutionSeed = {
     fastLayers: dedupe([
-      ...normalizeTextList(personality.evolutionSeed?.fastLayers),
       ...normalizeTextList([
         workshop?.freeDescription,
         workshop?.previewCorrections?.[0],
       ]),
+      ...normalizeTextList(personality.evolutionSeed?.fastLayers),
     ]),
     slowLayers: dedupe([
-      ...normalizeTextList(personality.evolutionSeed?.slowLayers),
       ...normalizeTextList([workshop?.calibration]),
+      ...normalizeTextList(personality.evolutionSeed?.slowLayers),
     ]),
     unlockTracks: dedupe([
-      ...normalizeTextList(personality.evolutionSeed?.unlockTracks),
       ...normalizeTextList([
         workshop?.relationshipPosture,
         workshop?.initiativeStyle,
       ]),
+      ...normalizeTextList(personality.evolutionSeed?.unlockTracks),
     ]),
   }
 

@@ -44,7 +44,8 @@ interface RegisterAlicizationSoulStateInvokeHandlersOptions {
     frontmatter: AlicizationSoulFrontmatter
     body: string
   }
-  syncPersonalityBaselineInBody: (body: string, personality: AlicizationPersonalityState) => string
+  extractPersonaNotesFromBody: (body: string) => string
+  buildSoulBody: (frontmatter: AlicizationSoulFrontmatter, personaNotes: string) => string
   toSoulContent: (frontmatter: AlicizationSoulFrontmatter, body: string) => string
   snapshotFromContent: (content: string) => AlicizationSoulSnapshot | Promise<AlicizationSoulSnapshot>
   clamp01: (value: number) => number
@@ -100,7 +101,8 @@ export function registerAlicizationSoulStateInvokeHandlers(options: RegisterAlic
     initializeGenesis,
     queueSoulMutation,
     parseSoul,
-    syncPersonalityBaselineInBody,
+    extractPersonaNotesFromBody,
+    buildSoulBody,
     toSoulContent,
     snapshotFromContent,
     clamp01,
@@ -146,8 +148,8 @@ export function registerAlicizationSoulStateInvokeHandlers(options: RegisterAlic
         }
 
         const parsed = parseSoul(updatePayload.content)
-        const syncedBody = syncPersonalityBaselineInBody(parsed.body, parsed.frontmatter.personality)
-        const content = toSoulContent(parsed.frontmatter, syncedBody)
+        const personaNotes = extractPersonaNotesFromBody(parsed.body)
+        const content = toSoulContent(parsed.frontmatter, buildSoulBody(parsed.frontmatter, personaNotes))
         return await snapshotFromContent(content)
       })
     })
@@ -204,8 +206,9 @@ export function registerAlicizationSoulStateInvokeHandlers(options: RegisterAlic
           ...parsed.frontmatter,
           personality: nextPersonality,
         }
-        const syncedBody = syncPersonalityBaselineInBody(parsed.body, nextPersonality)
-        const content = toSoulContent(nextFrontmatter, syncedBody)
+        const personaNotes = extractPersonaNotesFromBody(parsed.body)
+        const nextBody = buildSoulBody(nextFrontmatter, personaNotes)
+        const content = toSoulContent(nextFrontmatter, nextBody)
         return await snapshotFromContent(content)
       })
     })
