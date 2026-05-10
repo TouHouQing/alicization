@@ -100,11 +100,57 @@ function createAutobiographicalSelf(overrides: Record<string, unknown> = {}) {
   } as any
 }
 
+function createPersonaAuthority(overrides: Record<string, unknown> = {}) {
+  return {
+    obedience: 0.62,
+    liveliness: 0.34,
+    sensibility: 0.58,
+    identityKernel: {
+      relationshipPosture: 'partner',
+      initiativeStyle: 'measured-approach',
+      valueBias: ['room-first'],
+    },
+    expressionProfile: {
+      warmth: 'warm',
+      directness: 'measured',
+      playfulness: 'low',
+      emotionalVisibility: 'steady',
+    },
+    initiativeBaseline: {
+      silenceReconnect: 'hold',
+      comfortStyle: 'quiet-presence',
+      jealousyStyle: 'mask-it',
+    },
+    evolutionSeed: {
+      fastLayers: [],
+      slowLayers: [],
+      unlockTracks: [],
+    },
+    identityAnchors: ['room first'],
+    antiPersonaConstraints: [],
+    ...overrides,
+  } as any
+}
+
 describe('person-state-projection', () => {
   it('keeps focused-work repair windows restrained and leaves room first', () => {
     const projection = buildAlicizationPersonStateProjection({
       now: 10_000,
       contexts: ['focused-work', 'execution'],
+      personaAuthority: createPersonaAuthority({
+        identityKernel: {
+          relationshipPosture: 'guardian',
+          initiativeStyle: 'observant',
+          valueBias: ['room-first', 'repair-first'],
+        },
+        expressionProfile: {
+          warmth: 'guarded-warm',
+          directness: 'indirect',
+          playfulness: 'low',
+          emotionalVisibility: 'selective',
+        },
+        identityAnchors: ['room first', 'repair before closeness'],
+      }),
       hostPersonModel: {
         summary: 'Focused work windows need room first.',
         routines: ['Focused work windows need room first.'],
@@ -158,10 +204,93 @@ describe('person-state-projection', () => {
     expect(projection.preferredProactiveStyle).toBe('light-nudge')
   })
 
+  it('lets the same silent interval open more directly when persona authority is self-starting', () => {
+    const projection = buildAlicizationPersonStateProjection({
+      now: 14_000,
+      contexts: ['focused-work'],
+      personaAuthority: createPersonaAuthority({
+        identityKernel: {
+          relationshipPosture: 'partner',
+          initiativeStyle: 'direct-approach',
+          valueBias: ['take-the-lead'],
+        },
+        expressionProfile: {
+          warmth: 'warm',
+          directness: 'frank',
+          playfulness: 'medium',
+          emotionalVisibility: 'expressive',
+        },
+        identityAnchors: ['take the lead', 'move first'],
+      }),
+      hostPersonModel: {
+        summary: 'Focused work windows still need room first.',
+        routines: ['Keep the work window light.'],
+        sensitivities: ['Pressure and over-close timing become intrusive quickly.'],
+        repairTriggers: [],
+        trustLadder: {
+          stage: 'warming',
+          score: 0.72,
+          rationale: 'Bounded continuity is trusted more than pushy warmth.',
+        },
+        preferredClosenessByContext: [{
+          context: 'focused-work',
+          preference: 'Lighter touch, more room, less interruption pressure.',
+          confidence: 0.86,
+        }],
+        recurrentBurdens: ['Focused work overloads quickly when extra conversational pressure lands.'],
+        narrative: [],
+        updatedAt: 14_000,
+      },
+      autobiographicalSelf: createAutobiographicalSelf({
+        relationshipDoctrine: 'I can initiate clearly when the opening is real.',
+      }),
+      selfContinuity: {
+        relationshipTrust: 0.64,
+        guardingTendency: 0.42,
+        misreadBurden: 0.18,
+        carryOverDesire: 0.52,
+        perceptionTrust: 0.62,
+        attachmentMode: 'attuned',
+        initiativeTemperament: 'balanced',
+        updatedAt: 14_000,
+      } as any,
+      selfState: {
+        feltCloseness: 0.54,
+        protectiveness: 0.46,
+        patience: 0.64,
+      } as any,
+      mindEcology: createMindEcology({
+        currentPreoccupation: 'Keep the runtime thread coherent without waiting too long to move.',
+        relationNarrative: 'Open directly, but do not crowd the host.',
+        updatedAt: 14_000,
+      }),
+    })
+
+    expect(projection.personalityContinuityState.currentRegime).toBe('focused-work')
+    expect(projection.relationshipPosture).toBe('restrained')
+    expect(projection.openingGuidance).toContain('Open with the live answer first and keep the approach lighter')
+    expect(projection.preferredProactiveStyle).toBe('light-nudge')
+    expect(projection.summary).toContain('persona=')
+  })
+
   it('pushes late-night person-state toward gentle-care instead of daytime nudging', () => {
     const projection = buildAlicizationPersonStateProjection({
       now: 20_000,
       contexts: ['late-night', 'general'],
+      personaAuthority: createPersonaAuthority({
+        identityKernel: {
+          relationshipPosture: 'observer',
+          initiativeStyle: 'observant',
+          valueBias: ['quiet-presence'],
+        },
+        expressionProfile: {
+          warmth: 'guarded-warm',
+          directness: 'indirect',
+          playfulness: 'low',
+          emotionalVisibility: 'selective',
+        },
+        identityAnchors: ['quiet-presence'],
+      }),
       autobiographicalSelf: createAutobiographicalSelf({
         relationshipDoctrine: 'Rest deserves intervention before the bond asks for more.',
         preferenceEvolution: {
@@ -205,8 +334,8 @@ describe('person-state-projection', () => {
 
     expect(projection.personalityContinuityState.currentRegime).toBe('late-night-care')
     expect(projection.activeClosenessContext).toBe('late-night-care')
-    expect(projection.activeClosenessRung).toBe('nearby-soft')
-    expect(projection.openingGuidance).toContain('gentle and low-pressure')
+    expect(projection.activeClosenessRung).toBe('space-first')
+    expect(projection.openingGuidance).toContain('Open by observing first')
     expect(projection.preferredProactiveStyle).toBe('gentle-care')
   })
 
@@ -214,6 +343,20 @@ describe('person-state-projection', () => {
     const projection = buildAlicizationPersonStateProjection({
       now: 28_000,
       contexts: ['repair-window', 'focused-work'],
+      personaAuthority: createPersonaAuthority({
+        identityKernel: {
+          relationshipPosture: 'guardian',
+          initiativeStyle: 'observant',
+          valueBias: ['room-first'],
+        },
+        expressionProfile: {
+          warmth: 'guarded-warm',
+          directness: 'indirect',
+          playfulness: 'low',
+          emotionalVisibility: 'selective',
+        },
+        identityAnchors: ['room first'],
+      }),
       hostPersonModel: {
         summary: 'When the seam is off, repair has to land before the return.',
         routines: ['Focused work windows usually need space first, then precise follow-up.'],
@@ -268,6 +411,20 @@ describe('person-state-projection', () => {
     const projection = buildAlicizationPersonStateProjection({
       now: 36_000,
       contexts: ['execution-callback', 'execution'],
+      personaAuthority: createPersonaAuthority({
+        identityKernel: {
+          relationshipPosture: 'partner',
+          initiativeStyle: 'high-participation',
+          valueBias: ['move-first'],
+        },
+        expressionProfile: {
+          warmth: 'warm',
+          directness: 'frank',
+          playfulness: 'medium',
+          emotionalVisibility: 'expressive',
+        },
+        identityAnchors: ['move first'],
+      }),
       hostPersonModel: {
         summary: 'Callbacks should stay exact, bounded, and thread-faithful.',
         routines: ['Execution flows land better when proposal, action, and callback stay bounded.'],
@@ -327,6 +484,20 @@ describe('person-state-projection', () => {
     const projection = buildAlicizationPersonStateProjection({
       now: 48_000,
       contexts: ['open-companionship'],
+      personaAuthority: createPersonaAuthority({
+        identityKernel: {
+          relationshipPosture: 'partner',
+          initiativeStyle: 'high-participation',
+          valueBias: ['move-first'],
+        },
+        expressionProfile: {
+          warmth: 'warm',
+          directness: 'frank',
+          playfulness: 'medium',
+          emotionalVisibility: 'expressive',
+        },
+        identityAnchors: ['move first'],
+      }),
       hostPersonModel: {
         summary: 'The bond can stay openly warm now as long as it remains honest and bounded.',
         routines: ['Closer warmth is welcome when it still feels real.'],
@@ -440,5 +611,136 @@ describe('person-state-projection', () => {
     expect(projection.burdenText).toContain('Focused work gets overloaded quickly')
     expect(projection.relationshipDoctrine).toContain('Repair before closeness')
     expect(projection.trustRationale).toContain('Bounded repair felt safer')
+  })
+
+  it('keeps the same quiet interval split by persona authority without erasing repair or room boundaries', () => {
+    const direct = buildAlicizationPersonStateProjection({
+      now: 58_000,
+      contexts: ['focused-work'],
+      personaAuthority: createPersonaAuthority({
+        identityKernel: {
+          relationshipPosture: 'partner',
+          initiativeStyle: 'direct-approach',
+          valueBias: ['take-the-lead'],
+        },
+        expressionProfile: {
+          warmth: 'warm',
+          directness: 'frank',
+          playfulness: 'medium',
+          emotionalVisibility: 'expressive',
+        },
+        identityAnchors: ['take the lead'],
+      }),
+      hostPersonModel: {
+        summary: 'Focused work windows still need room first.',
+        routines: ['Keep the work window light.'],
+        sensitivities: ['Pressure and over-close timing become intrusive quickly.'],
+        repairTriggers: [],
+        trustLadder: {
+          stage: 'warming',
+          score: 0.72,
+          rationale: 'Bounded continuity is trusted more than pushy warmth.',
+        },
+        preferredClosenessByContext: [{
+          context: 'focused-work',
+          preference: 'Lighter touch, more room, less interruption pressure.',
+          confidence: 0.86,
+        }],
+        recurrentBurdens: ['Focused work overloads quickly when extra conversational pressure lands.'],
+        narrative: [],
+        updatedAt: 58_000,
+      },
+      autobiographicalSelf: createAutobiographicalSelf({
+        relationshipDoctrine: 'I can keep the opening live when the opening is real.',
+      }),
+      selfContinuity: {
+        relationshipTrust: 0.64,
+        guardingTendency: 0.42,
+        misreadBurden: 0.18,
+        carryOverDesire: 0.52,
+        perceptionTrust: 0.62,
+        attachmentMode: 'attuned',
+        initiativeTemperament: 'balanced',
+        updatedAt: 58_000,
+      } as any,
+      selfState: {
+        feltCloseness: 0.54,
+        protectiveness: 0.46,
+        patience: 0.64,
+      } as any,
+      mindEcology: createMindEcology({
+        currentPreoccupation: 'Keep the runtime thread coherent without waiting too long to move.',
+        relationNarrative: 'Open directly, but do not crowd the host.',
+        updatedAt: 58_000,
+      }),
+    })
+    const guarded = buildAlicizationPersonStateProjection({
+      now: 58_000,
+      contexts: ['focused-work'],
+      personaAuthority: createPersonaAuthority({
+        identityKernel: {
+          relationshipPosture: 'guardian',
+          initiativeStyle: 'observant',
+          valueBias: ['room-first', 'repair-first'],
+        },
+        expressionProfile: {
+          warmth: 'guarded-warm',
+          directness: 'indirect',
+          playfulness: 'low',
+          emotionalVisibility: 'selective',
+        },
+        identityAnchors: ['room first', 'repair before closeness'],
+      }),
+      hostPersonModel: {
+        summary: 'Focused work windows still need room first.',
+        routines: ['Keep the work window light.'],
+        sensitivities: ['Pressure and over-close timing become intrusive quickly.'],
+        repairTriggers: [],
+        trustLadder: {
+          stage: 'warming',
+          score: 0.72,
+          rationale: 'Bounded continuity is trusted more than pushy warmth.',
+        },
+        preferredClosenessByContext: [{
+          context: 'focused-work',
+          preference: 'Lighter touch, more room, less interruption pressure.',
+          confidence: 0.86,
+        }],
+        recurrentBurdens: ['Focused work overloads quickly when extra conversational pressure lands.'],
+        narrative: [],
+        updatedAt: 58_000,
+      },
+      autobiographicalSelf: createAutobiographicalSelf({
+        relationshipDoctrine: 'I can keep the opening live when the opening is real.',
+      }),
+      selfContinuity: {
+        relationshipTrust: 0.64,
+        guardingTendency: 0.42,
+        misreadBurden: 0.18,
+        carryOverDesire: 0.52,
+        perceptionTrust: 0.62,
+        attachmentMode: 'attuned',
+        initiativeTemperament: 'balanced',
+        updatedAt: 58_000,
+      } as any,
+      selfState: {
+        feltCloseness: 0.54,
+        protectiveness: 0.46,
+        patience: 0.64,
+      } as any,
+      mindEcology: createMindEcology({
+        currentPreoccupation: 'Keep the runtime thread coherent without waiting too long to move.',
+        relationNarrative: 'Open directly, but do not crowd the host.',
+        updatedAt: 58_000,
+      }),
+    })
+
+    expect(direct.relationshipPosture).toBe('restrained')
+    expect(direct.openingGuidance).toContain('Open with the live answer first')
+    expect(direct.preferredProactiveStyle).toBe('light-nudge')
+    expect(guarded.relationshipPosture).toBe('restrained')
+    expect(guarded.openingGuidance).toContain('Repair the seam before leaning closer')
+    expect(guarded.preferredProactiveStyle).toBe('silent-observe')
+    expect(guarded.activeClosenessRung).toBe('space-first')
   })
 })

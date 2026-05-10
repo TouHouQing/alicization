@@ -81,6 +81,34 @@ describe('personality-continuity-state', () => {
   it('converges host model, self continuity, and mind ecology into a focused-work regime', () => {
     const state = buildAlicizationPersonalityContinuityState({
       now: 10_000,
+      personaAuthority: {
+        obedience: 0.74,
+        liveliness: 0.28,
+        sensibility: 0.68,
+        identityKernel: {
+          relationshipPosture: 'guardian',
+          initiativeStyle: 'observant',
+          valueBias: ['room-first', 'repair-first'],
+        },
+        expressionProfile: {
+          warmth: 'guarded-warm',
+          directness: 'measured',
+          playfulness: 'low',
+          emotionalVisibility: 'selective',
+        },
+        initiativeBaseline: {
+          silenceReconnect: 'hold',
+          comfortStyle: 'quiet-presence',
+          jealousyStyle: 'mask-it',
+        },
+        evolutionSeed: {
+          fastLayers: ['keep room before closeness'],
+          slowLayers: ['repair lands before return'],
+          unlockTracks: ['observe-first'],
+        },
+        identityAnchors: ['room first', 'repair before closeness'],
+        antiPersonaConstraints: [],
+      },
       hostPersonModel: {
         summary: 'Focused work windows need room first, then precise follow-up.',
         routines: ['Focused work windows usually need space first, then precise follow-up.'],
@@ -152,6 +180,8 @@ describe('personality-continuity-state', () => {
     expect(state.autonomyPosture).toBe('protect-space')
     expect(state.trustStage).toBe('warming')
     expect(state.continuitySummary).toContain('focused-work')
+    expect(state.continuitySummary).toContain('persona')
+    expect(state.rationale.some(line => line?.includes('room first'))).toBe(true)
   })
 
   it('derives posture shifts from autobiographical reconsolidation instead of only current mood', () => {
@@ -497,6 +527,7 @@ describe('personality-continuity-state', () => {
     expect(state.regimeModel.primaryReason).toContain('callback')
     expect(state.regimeModel.signals.some(signal => signal.includes('same thread'))).toBe(true)
     expect(state.rhythmState.cadenceMode).toBe('ready-return')
+    expect(state.continuitySummary).toContain('cadence')
   })
 
   it('holds a late-night-care regime across nearby turns when the body-rest context is still live', () => {

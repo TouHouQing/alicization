@@ -12,6 +12,7 @@ export interface AlicizationContinuityMindReduceInput {
   bodyState: AlicizationContinuityMindBodyState
   latestThreadSummary: string | null
   relationshipPressure: number
+  personaAuthoritySummary?: string | null
   latestUserTurnAt: number | null
   now: number
 }
@@ -33,6 +34,7 @@ export function createAlicizationContinuityMind() {
   return {
     reduce(input: AlicizationContinuityMindReduceInput): AlicizationContinuityMindState {
       const latestThreadSummary = sanitizeText(input.latestThreadSummary, 160) || null
+      const personaAuthoritySummary = sanitizeText(input.personaAuthoritySummary, 160) || null
       const sustainedQuietCompanionship = input.bodyState === 'accompanying'
         && input.quietLineMs >= 120_000
         && input.relationshipPressure >= 0.2
@@ -43,8 +45,8 @@ export function createAlicizationContinuityMind() {
 
       return {
         subjectiveNowSummary: sustainedQuietCompanionship
-          ? `Still quietly accompanying the host through ${latestThreadSummary ?? 'the current focus'}.`
-          : `Holding ambient awareness around ${latestThreadSummary ?? 'the current desktop moment'}.`,
+          ? `Still quietly accompanying the host through ${latestThreadSummary ?? 'the current focus'}${personaAuthoritySummary ? `, with ${personaAuthoritySummary}` : ''}.`
+          : `Holding ambient awareness around ${latestThreadSummary ?? 'the current desktop moment'}${personaAuthoritySummary ? `, with ${personaAuthoritySummary}` : ''}.`,
         privateThoughtMode: sustainedQuietCompanionship ? 'quiet-companionship' : 'ambient-watch',
         shouldForceSpeech: false,
         emotionalCarry: sustainedQuietCompanionship ? 'soft-covision' : 'calm-browse',

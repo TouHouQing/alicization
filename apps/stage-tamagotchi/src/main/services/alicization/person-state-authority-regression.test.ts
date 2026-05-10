@@ -174,6 +174,38 @@ function createSelfState(overrides: Record<string, unknown> = {}) {
   } as any
 }
 
+function createPersonaAuthority(overrides: Record<string, unknown> = {}) {
+  return {
+    obedience: 0.62,
+    liveliness: 0.34,
+    sensibility: 0.58,
+    identityKernel: {
+      relationshipPosture: 'partner',
+      initiativeStyle: 'measured-approach',
+      valueBias: ['room-first'],
+    },
+    expressionProfile: {
+      warmth: 'warm',
+      directness: 'measured',
+      playfulness: 'low',
+      emotionalVisibility: 'steady',
+    },
+    initiativeBaseline: {
+      silenceReconnect: 'hold',
+      comfortStyle: 'quiet-presence',
+      jealousyStyle: 'mask-it',
+    },
+    evolutionSeed: {
+      fastLayers: [],
+      slowLayers: [],
+      unlockTracks: [],
+    },
+    identityAnchors: ['room first'],
+    antiPersonaConstraints: [],
+    ...overrides,
+  } as any
+}
+
 function buildSurfaceContractFromProjection(input: {
   projection: ReturnType<typeof buildAlicizationPersonStateProjection>
   turnMode?: 'guide-current-knot' | 'care' | 'accompany'
@@ -463,5 +495,70 @@ describe('person-state-authority-regression', () => {
     expect(projection.activeClosenessRung).toBe('measured-room')
     expect(surface.contract.mustDo).toContain('Keep callback delivery thread-faithful and bounded to the same result line.')
     expect(surface.contract.mustNotDo).toContain('Do not widen a bounded execution callback into generic companionship tone.')
+  })
+
+  it('splits the same silent interval by persona authority while keeping repair and room boundaries intact', () => {
+    const direct = buildAlicizationPersonStateProjection({
+      now: 60_000,
+      contexts: ['focused-work'],
+      personaAuthority: createPersonaAuthority({
+        identityKernel: {
+          relationshipPosture: 'partner',
+          initiativeStyle: 'direct-approach',
+          valueBias: ['take-the-lead'],
+        },
+        expressionProfile: {
+          warmth: 'warm',
+          directness: 'frank',
+          playfulness: 'medium',
+          emotionalVisibility: 'expressive',
+        },
+        identityAnchors: ['take the lead'],
+      }),
+      hostPersonModel: createHostModel(),
+      autobiographicalSelf: createAutobiographicalSelf({
+        relationshipDoctrine: 'Trust is protected by repair before closeness.',
+      }),
+      selfContinuity: createSelfContinuity(),
+      selfState: createSelfState(),
+      mindEcology: createMindEcology({
+        currentPreoccupation: 'Keep the runtime thread coherent without waiting too long to move.',
+      }),
+    })
+    const guarded = buildAlicizationPersonStateProjection({
+      now: 60_000,
+      contexts: ['focused-work'],
+      personaAuthority: createPersonaAuthority({
+        identityKernel: {
+          relationshipPosture: 'guardian',
+          initiativeStyle: 'observant',
+          valueBias: ['room-first', 'repair-first'],
+        },
+        expressionProfile: {
+          warmth: 'guarded-warm',
+          directness: 'indirect',
+          playfulness: 'low',
+          emotionalVisibility: 'selective',
+        },
+        identityAnchors: ['room first', 'repair before closeness'],
+      }),
+      hostPersonModel: createHostModel(),
+      autobiographicalSelf: createAutobiographicalSelf({
+        relationshipDoctrine: 'Trust is protected by repair before closeness.',
+      }),
+      selfContinuity: createSelfContinuity(),
+      selfState: createSelfState(),
+      mindEcology: createMindEcology({
+        currentPreoccupation: 'Keep the runtime thread coherent without waiting too long to move.',
+      }),
+    })
+
+    expect(direct.relationshipPosture).toBe('warm')
+    expect(direct.openingGuidance).toContain('Open directly with the live answer')
+    expect(direct.preferredProactiveStyle).toBe('light-nudge')
+    expect(guarded.relationshipPosture).toBe('restrained')
+    expect(guarded.openingGuidance).toContain('Open by observing first')
+    expect(guarded.preferredProactiveStyle).toBe('silent-observe')
+    expect(guarded.activeClosenessRung).toBe('space-first')
   })
 })

@@ -14,6 +14,7 @@ interface AlicizationBodyKernelReduceInput {
   shouldSpeak: boolean
   activeConversation: boolean
   relationshipPressure: number
+  personaAuthoritySummary?: string | null
 }
 
 interface AlicizationBodyKernelApplyInput {
@@ -40,6 +41,9 @@ export function createAlicizationBodyKernel(options: CreateAlicizationBodyKernel
     reduce(input: AlicizationBodyKernelReduceInput): AlicizationPersistentPresenceAuthoritySnapshot & {
       updatedAt: number
     } {
+      const personaAuthoritySummary = typeof input.personaAuthoritySummary === 'string'
+        ? input.personaAuthoritySummary.trim().replace(/\s+/g, ' ').slice(0, 160)
+        : ''
       const quietCoVision = input.watchMode === 'symbiotic-vision'
         && input.sustainedFocusMs >= 120_000
         && !input.shouldSpeak
@@ -51,7 +55,7 @@ export function createAlicizationBodyKernel(options: CreateAlicizationBodyKernel
           currentBodyState: 'accompanying',
           continuityMode: 'quiet-accompaniment',
           quietLineMs: input.sustainedFocusMs,
-          currentInwardPreoccupation: 'host sustained focus',
+          currentInwardPreoccupation: personaAuthoritySummary ? `host sustained focus with ${personaAuthoritySummary}` : 'host sustained focus',
           updatedAt: now(),
         }
       }

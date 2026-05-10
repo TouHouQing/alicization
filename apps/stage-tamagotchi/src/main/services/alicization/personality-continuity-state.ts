@@ -6,6 +6,8 @@ import type {
   AlicizationLongHorizonMemorySnapshot,
   AlicizationMotiveEngineSnapshot,
   AlicizationPrivateThoughtSnapshot,
+  AlicizationPersonalityState,
+  AlicizationProactiveStyle,
   AlicizationSelfContinuitySnapshot,
   AlicizationSelfStateSnapshot,
 } from '../../../shared/eventa'
@@ -70,6 +72,17 @@ export interface AlicizationPersonalityContinuityStateSnapshot {
   updatedAt: number
 }
 
+export interface AlicizationPersonaAuthorityInfluence {
+  summary: string | null
+  openingGuidance: string | null
+  preferredProactiveStyle: AlicizationProactiveStyle | null
+  cadenceBias: number
+  roomBias: number
+  warmthBias: number
+  directnessBias: number
+  anchors: string[]
+}
+
 interface AlicizationPersonalityReconsolidationInfluence {
   lines: string[]
   primaryLine: string | null
@@ -128,6 +141,103 @@ function uniqueList(values: Array<string | null | undefined>, maxItems = 8) {
       break
   }
   return result
+}
+
+export function deriveAlicizationPersonaAuthorityInfluence(input: AlicizationPersonalityState | null | undefined): AlicizationPersonaAuthorityInfluence {
+  if (!input) {
+    return {
+      summary: null,
+      openingGuidance: null,
+      preferredProactiveStyle: null,
+      cadenceBias: 0,
+      roomBias: 0,
+      warmthBias: 0,
+      directnessBias: 0,
+      anchors: [],
+    }
+  }
+
+  const identityKernel = input.identityKernel ?? null
+  const expressionProfile = input.expressionProfile ?? null
+  const anchors = uniqueList(input.identityAnchors ?? [], 4)
+  const relationshipLine = sanitizeText(identityKernel?.relationshipPosture ? `relationship ${identityKernel.relationshipPosture}` : '', 64)
+  const initiativeLine = sanitizeText(identityKernel?.initiativeStyle ? `initiative ${identityKernel.initiativeStyle}` : '', 64)
+  const expressionLine = uniqueList([
+    expressionProfile?.warmth ? `warmth ${expressionProfile.warmth}` : null,
+    expressionProfile?.directness ? `directness ${expressionProfile.directness}` : null,
+    expressionProfile?.playfulness ? `playfulness ${expressionProfile.playfulness}` : null,
+    expressionProfile?.emotionalVisibility ? `visibility ${expressionProfile.emotionalVisibility}` : null,
+  ], 4).join(' | ')
+
+  const directnessBias = clamp01(
+    (identityKernel?.initiativeStyle === 'high-participation'
+      ? 0.28
+      : identityKernel?.initiativeStyle === 'direct-approach'
+        ? 0.22
+        : identityKernel?.initiativeStyle === 'measured-approach'
+          ? 0.14
+          : 0.04)
+    + (expressionProfile?.directness === 'frank' ? 0.16 : expressionProfile?.directness === 'measured' ? 0.08 : 0)
+    + (anchors.some(anchor => /initiat|forward|lead|move|bring|主动|推进/iu.test(anchor)) ? 0.08 : 0),
+  )
+  const roomBias = clamp01(
+    (identityKernel?.initiativeStyle === 'observant'
+      ? 0.24
+      : identityKernel?.initiativeStyle === 'measured-approach'
+        ? 0.12
+        : 0.04)
+    + (expressionProfile?.directness === 'indirect' ? 0.12 : 0)
+    + (anchors.some(anchor => /space|room|observe|steady|quiet|留白|空间|观察|稳/iu.test(anchor)) ? 0.08 : 0),
+  )
+  const warmthBias = clamp01(
+    (expressionProfile?.warmth === 'intense'
+      ? 0.22
+      : expressionProfile?.warmth === 'warm'
+        ? 0.16
+        : expressionProfile?.warmth === 'guarded-warm'
+          ? 0.1
+          : 0.04)
+    + (anchors.some(anchor => /warm|close|care|gentle|靠近|温和|亲近/iu.test(anchor)) ? 0.08 : 0),
+  )
+  const cadenceBias = clamp01(
+    directnessBias * 0.7
+    + warmthBias * 0.1
+    - roomBias * 0.32,
+  )
+
+  const preferredProactiveStyle = roomBias >= 0.22 && directnessBias < 0.2
+    ? 'silent-observe'
+    : directnessBias >= 0.24
+      ? 'light-nudge'
+      : warmthBias >= 0.18
+        ? 'gentle-care'
+        : null
+
+  const openingGuidance = roomBias >= 0.22 && directnessBias < 0.2
+    ? 'Open by observing first and keep the approach lighter.'
+    : directnessBias >= 0.24
+      ? 'Open directly with the live answer, then keep the approach light and bounded.'
+      : warmthBias >= 0.18
+        ? 'Open gently, but keep the opening bounded and real.'
+        : null
+
+  const summary = uniqueList([
+    relationshipLine || null,
+    initiativeLine || null,
+    expressionLine || null,
+    ...anchors,
+  ], 4).join(' | ') || null
+
+  return {
+    summary,
+    openingGuidance,
+    preferredProactiveStyle,
+    cadenceBias,
+    roomBias,
+    warmthBias,
+    directnessBias,
+    anchors,
+  }
 }
 
 function scoreMatchingLines(lines: string[], pattern: RegExp) {
@@ -198,9 +308,11 @@ function buildAlicizationPersonalityRegimeModel(input: {
   privateThought?: AlicizationPrivateThoughtSnapshot | null
   autobiographicalSelf?: AlicizationAutobiographicalSelfSnapshot | null
   longHorizonMemory?: AlicizationLongHorizonMemorySnapshot | null
+  personaAuthority?: AlicizationPersonalityState | null
   reconsolidation: AlicizationPersonalityReconsolidationInfluence
   previousContinuityState?: AlicizationPersonalityContinuityStateSnapshot | null
 }): AlicizationPersonalityRegimeModelSnapshot {
+  const personaAuthority = deriveAlicizationPersonaAuthorityInfluence(input.personaAuthority ?? null)
   const signalLines = buildRegimeSignalLines({
     hostPersonModel: input.hostPersonModel ?? null,
     autobiographicalSelf: input.autobiographicalSelf ?? null,
@@ -263,6 +375,7 @@ function buildAlicizationPersonalityRegimeModel(input: {
       + input.growthProfile.unfinishedThreadReturn * 0.12
       + (executionPreference ? 0.16 : 0)
       + (input.privateThought?.emotionalTension === 'focused-flow' ? 0.06 : 0)
+      + personaAuthority.cadenceBias * 0.08
       + carryBonus('execution-callback')
       - lateNightSignal * 0.08,
     ),
@@ -272,6 +385,7 @@ function buildAlicizationPersonalityRegimeModel(input: {
       + input.growthProfile.closeness * 0.16
       + (input.selfContinuity?.relationshipTrust ?? 0.46) * 0.1
       + (companionshipPreference ? 0.18 : 0)
+      + personaAuthority.warmthBias * 0.08
       + carryBonus('open-companionship')
       - repairSignal * 0.12
       - focusedSignal * 0.08,
@@ -347,6 +461,7 @@ function buildAlicizationPersonalityRhythmState(input: {
   selfContinuity?: AlicizationSelfContinuitySnapshot | null
   privateThought?: AlicizationPrivateThoughtSnapshot | null
   mindEcology?: AlicizationMindEcologySnapshot | null
+  personaAuthority?: AlicizationPersonalityState | null
   regimeModel: AlicizationPersonalityRegimeModelSnapshot
   reconsolidation: AlicizationPersonalityReconsolidationInfluence
   previousRhythmState?: AlicizationPersonalityRhythmStateSnapshot | null
@@ -357,6 +472,7 @@ function buildAlicizationPersonalityRhythmState(input: {
   const moodLabel = sanitizeText(input.mindEcology?.moodLabel, 64) || null
   const emotionalTension = input.privateThought?.emotionalTension ?? null
   const previousRhythmState = input.previousRhythmState ?? null
+  const personaAuthority = deriveAlicizationPersonaAuthorityInfluence(input.personaAuthority ?? null)
 
   const restPressure = clamp01(
     input.growthProfile.restAttunement * 0.32
@@ -374,6 +490,7 @@ function buildAlicizationPersonalityRhythmState(input: {
     + (input.selfContinuity?.carryOverDesire ?? 0.22) * 0.12
     + (input.regimeModel.dominantRegime === 'execution-callback' ? 0.18 : 0)
     + (executionPreference ? 0.14 : 0)
+    + personaAuthority.cadenceBias * 0.08
     + (previousRhythmState?.cadencePressure ?? 0) * 0.08
     - restPressure * 0.08,
   )
@@ -383,6 +500,7 @@ function buildAlicizationPersonalityRhythmState(input: {
     + input.reconsolidation.warmthLift * 0.24
     + (input.regimeModel.dominantRegime === 'open-companionship' ? 0.18 : 0)
     + (companionshipPreference ? 0.14 : 0)
+    + personaAuthority.warmthBias * 0.06
     - restPressure * 0.06,
   )
   const memoryResonance = clamp01(
@@ -428,6 +546,7 @@ function buildAlicizationPersonalityRhythmState(input: {
     `rest:${restMode}`,
     moodLabel ? `mood:${moodLabel}` : '',
     emotionalTension ? `tension:${emotionalTension}` : '',
+    personaAuthority.summary ? `persona:${personaAuthority.summary}` : '',
     `presence:${embodiedPresence}`,
     `memory-resonance:${memoryResonance.toFixed(2)}`,
   ].filter(Boolean).join(' | '), 220)
@@ -435,6 +554,7 @@ function buildAlicizationPersonalityRhythmState(input: {
     input.regimeModel.primaryReason,
     input.regimeModel.carryReason,
     input.reconsolidation.primaryLine,
+    personaAuthority.summary,
     lateNightPreference?.preference,
     executionPreference?.preference,
     companionshipPreference?.preference,
@@ -610,6 +730,7 @@ function deriveTrustStage(input: {
 export function buildAlicizationPersonalityContinuityState(input: {
   now: number
   autobiographicalSelf?: AlicizationAutobiographicalSelfSnapshot | null
+  personaAuthority?: AlicizationPersonalityState | null
   hostPersonModel?: AlicizationHostPersonModelSnapshot | null
   longHorizonMemory?: AlicizationLongHorizonMemorySnapshot | null
   motiveEngine?: AlicizationMotiveEngineSnapshot | null
@@ -655,10 +776,12 @@ export function buildAlicizationPersonalityContinuityState(input: {
     privateThought: input.privateThought ?? null,
     autobiographicalSelf: input.autobiographicalSelf ?? null,
     longHorizonMemory: input.longHorizonMemory ?? null,
+    personaAuthority: input.personaAuthority ?? null,
     reconsolidation,
     previousContinuityState: input.previousContinuityState ?? null,
   })
   const currentRegime = regimeModel.dominantRegime
+  const personaAuthority = deriveAlicizationPersonaAuthorityInfluence(input.personaAuthority ?? null)
   const rhythmState = buildAlicizationPersonalityRhythmState({
     growthProfile,
     hostPersonModel: input.hostPersonModel ?? null,
@@ -666,6 +789,7 @@ export function buildAlicizationPersonalityContinuityState(input: {
     selfContinuity: input.selfContinuity ?? null,
     privateThought: input.privateThought ?? null,
     mindEcology: input.mindEcology ?? null,
+    personaAuthority: input.personaAuthority ?? null,
     regimeModel,
     reconsolidation,
     previousRhythmState: input.previousContinuityState?.rhythmState ?? null,
@@ -787,12 +911,14 @@ export function buildAlicizationPersonalityContinuityState(input: {
     `autonomy ${autonomyPosture}`,
     `cadence ${cadenceProfile}`,
     `energy ${energyProfile}`,
+    personaAuthority.summary ? `persona ${personaAuthority.summary}` : '',
     rhythmState.summary,
   ].join(' | '), 240)
   const rationale = uniqueList([
     regimeModel.primaryReason,
     regimeModel.carryReason,
     rhythmState.summary,
+    personaAuthority.summary,
     reconsolidation.primaryLine,
     reconsolidation.trustMeaning,
     input.hostPersonModel?.trustLadder.rationale,
