@@ -906,11 +906,12 @@ export const useAlicizationEpoch1Store = defineStore('alicization-epoch1', () =>
       return
 
     const result = await getAlicizationBridge().initializeGenesis(payload)
+    const resolvedNeedsGenesis = result.soul.needsGenesis
 
     soul.value = result.soul
-    needsGenesis.value = result.soul.needsGenesis
+    needsGenesis.value = resolvedNeedsGenesis
     genesisConflictCandidate.value = result.conflictCandidate ?? null
-    if (result.soul.needsGenesis)
+    if (resolvedNeedsGenesis)
       setupGenesisPolling()
     else
       stopGenesisPolling()
