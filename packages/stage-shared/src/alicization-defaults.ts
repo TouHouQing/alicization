@@ -9,9 +9,9 @@ export const defaultAlicizationPersonaTemperament = {
 
 export const defaultAlicizationPersonaIdentityKernel = {
   temperament: defaultAlicizationPersonaTemperament,
-  relationshipPosture: 'warm',
-  initiativeStyle: 'balanced',
-  valueBias: '',
+  relationshipPosture: 'companion',
+  initiativeStyle: 'measured-approach',
+  valueBias: ['truthful', 'gentle'],
 } as const
 
 export const defaultAlicizationPersonaExpressionProfile = {
@@ -35,11 +35,15 @@ export const defaultAlicizationPersonaEvolutionSeed = {
 
 export const defaultAlicizationPersonaWorkshopSubmission = {
   presetTemperament: defaultAlicizationPersonaTemperament,
-  relationshipPosture: 'warm',
-  initiativeStyle: 'balanced',
+  relationshipPosture: 'companion',
+  initiativeStyle: 'measured-approach',
   freeDescription: '',
   antiPersonaConstraints: [] as string[],
-  calibration: '',
+  calibration: {
+    silenceReconnect: 'light-probe',
+    jealousyStyle: 'soft-ache',
+    comfortStyle: 'gentle-care',
+  },
   previewCorrections: [] as string[],
 } as const
 

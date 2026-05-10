@@ -37,13 +37,11 @@ export interface AlicizationPersonaKernelPersonality {
   evolutionSeed?: AlicizationPersonaEvolutionSeed | null
   identityAnchors?: string[] | null
   antiPersonaConstraints?: string[] | null
-  personaWorkshop?: AlicizationPersonaWorkshopSubmission | null
 }
 
 export interface AlicizationPersonaKernelInput {
   profile?: AlicizationPersonaKernelProfile | null
   personality?: AlicizationPersonaKernelPersonality | null
-  personaWorkshop?: AlicizationPersonaWorkshopSubmission | null
   customDirectives?: string | null
   hostAttitude?: string | null
   coreIncarnation?: string | null
@@ -190,9 +188,9 @@ function normalizeTemperament(temperament: AlicizationPersonaTemperament | null 
 function normalizeIdentityKernel(identityKernel: AlicizationPersonaIdentityKernel | null | undefined) {
   return {
     temperament: normalizeTemperament(identityKernel?.temperament),
-    relationshipPosture: sanitizeText(identityKernel?.relationshipPosture, defaultAlicizationPersonaIdentityKernel.relationshipPosture),
-    initiativeStyle: sanitizeText(identityKernel?.initiativeStyle, defaultAlicizationPersonaIdentityKernel.initiativeStyle),
-    valueBias: sanitizeText(identityKernel?.valueBias, defaultAlicizationPersonaIdentityKernel.valueBias),
+    relationshipPosture: identityKernel?.relationshipPosture ?? defaultAlicizationPersonaIdentityKernel.relationshipPosture,
+    initiativeStyle: identityKernel?.initiativeStyle ?? defaultAlicizationPersonaIdentityKernel.initiativeStyle,
+    valueBias: normalizeTextList(identityKernel?.valueBias ?? defaultAlicizationPersonaIdentityKernel.valueBias),
   }
 }
 
@@ -233,7 +231,11 @@ function normalizePersonaWorkshop(personaWorkshop: AlicizationPersonaWorkshopSub
     initiativeStyle: sanitizeText(personaWorkshop.initiativeStyle, defaultAlicizationPersonaWorkshopSubmission.initiativeStyle),
     freeDescription: sanitizeMultilineText(personaWorkshop.freeDescription, defaultAlicizationPersonaWorkshopSubmission.freeDescription),
     antiPersonaConstraints: normalizeTextList(personaWorkshop.antiPersonaConstraints ?? defaultAlicizationPersonaWorkshopSubmission.antiPersonaConstraints),
-    calibration: sanitizeMultilineText(personaWorkshop.calibration, defaultAlicizationPersonaWorkshopSubmission.calibration),
+    calibration: {
+      silenceReconnect: personaWorkshop.calibration?.silenceReconnect ?? defaultAlicizationPersonaWorkshopSubmission.calibration.silenceReconnect,
+      jealousyStyle: personaWorkshop.calibration?.jealousyStyle ?? defaultAlicizationPersonaWorkshopSubmission.calibration.jealousyStyle,
+      comfortStyle: personaWorkshop.calibration?.comfortStyle ?? defaultAlicizationPersonaWorkshopSubmission.calibration.comfortStyle,
+    },
     previewCorrections: normalizeTextList(personaWorkshop.previewCorrections ?? defaultAlicizationPersonaWorkshopSubmission.previewCorrections),
   }
 }
@@ -252,13 +254,11 @@ function normalizeProfile(profile: AlicizationPersonaKernelProfile | null | unde
 
 function normalizePersonality(
   personality: AlicizationPersonaKernelPersonality | null | undefined,
-  personaWorkshopInput?: AlicizationPersonaWorkshopSubmission | null | undefined,
 ) {
   const identityKernel = normalizeIdentityKernel(personality?.identityKernel)
   const expressionProfile = normalizeExpressionProfile(personality?.expressionProfile)
   const initiativeBaseline = normalizeInitiativeBaseline(personality?.initiativeBaseline)
   const evolutionSeed = normalizeEvolutionSeed(personality?.evolutionSeed)
-  const personaWorkshop = normalizePersonaWorkshop(personaWorkshopInput ?? personality?.personaWorkshop)
   return {
     obedience: clamp01(personality?.obedience, defaultAlicizationPersonality.obedience),
     liveliness: clamp01(personality?.liveliness, defaultAlicizationPersonality.liveliness),
@@ -269,13 +269,12 @@ function normalizePersonality(
     evolutionSeed,
     identityAnchors: normalizeTextList(personality?.identityAnchors),
     antiPersonaConstraints: normalizeTextList(personality?.antiPersonaConstraints),
-    personaWorkshop,
   }
 }
 
 export function buildAlicizationHostAttitudeSeed(input: AlicizationPersonaKernelInput) {
   const profile = normalizeProfile(input.profile)
-  const personality = normalizePersonality(input.personality, input.personaWorkshop)
+  const personality = normalizePersonality(input.personality)
   const hostReference = profile.hostName || profile.ownerName || '宿主'
   const relation = profile.relationship || '陪伴者'
   const temperamentSummary = summarizeAlicizationTemperament(personality)
@@ -288,7 +287,7 @@ export function buildAlicizationHostAttitudeSeed(input: AlicizationPersonaKernel
 
 export function buildAlicizationCoreIncarnationSeed(input: AlicizationPersonaKernelInput) {
   const profile = normalizeProfile(input.profile)
-  const personality = normalizePersonality(input.personality, input.personaWorkshop)
+  const personality = normalizePersonality(input.personality)
   const hostReference = profile.hostName || profile.ownerName || '宿主'
   const relation = profile.relationship || '陪伴者'
   const temperamentSummary = summarizeAlicizationTemperament(personality)
@@ -324,7 +323,8 @@ export function resolveAlicizationPersonaKernel(
   },
 ): AlicizationPersonaKernelSnapshot {
   const profile = normalizeProfile(input.profile)
-  const personality = normalizePersonality(input.personality, input.personaWorkshop)
+  const personality = normalizePersonality(input.personality)
+  const personaWorkshop = normalizePersonaWorkshop((input as AlicizationPersonaKernelInput & { personaWorkshop?: AlicizationPersonaWorkshopSubmission | null }).personaWorkshop)
   const hostReference = profile.hostName || profile.ownerName || '宿主'
   const temperamentSummary = summarizeAlicizationTemperament(personality)
   const hostAttitudeSeed = hasAlicizationPersonaIdentity(profile)
@@ -347,6 +347,7 @@ export function resolveAlicizationPersonaKernel(
   return {
     profile,
     personality,
+    personaWorkshop,
     hostReference,
     temperamentSummary,
     hostAttitudeSeed,

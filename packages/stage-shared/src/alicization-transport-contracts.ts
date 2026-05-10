@@ -27,23 +27,15 @@ export interface AlicizationPersonaTemperament {
   sensibility?: number | null
 }
 
-export interface AlicizationPersonaRelationshipPosture {
-  posture?: string | null
-  warmthBias?: number | null
-  closenessBias?: number | null
-}
+export type AlicizationPersonaRelationshipPosture = 'companion' | 'guardian' | 'lover' | 'partner' | 'observer'
 
-export interface AlicizationPersonaInitiativeStyle {
-  mode?: string | null
-  directness?: number | null
-  initiativeBias?: number | null
-}
+export type AlicizationPersonaInitiativeStyle = 'observant' | 'measured-approach' | 'direct-approach' | 'high-participation'
 
 export interface AlicizationPersonaIdentityKernel {
   temperament?: AlicizationPersonaTemperament | null
-  relationshipPosture?: string | null
-  initiativeStyle?: string | null
-  valueBias?: string | null
+  relationshipPosture?: AlicizationPersonaRelationshipPosture | null
+  initiativeStyle?: AlicizationPersonaInitiativeStyle | null
+  valueBias?: string[] | null
 }
 
 export interface AlicizationPersonaExpressionProfile {
@@ -67,11 +59,15 @@ export interface AlicizationPersonaEvolutionSeed {
 
 export interface AlicizationPersonaWorkshopSubmission {
   presetTemperament?: AlicizationPersonaTemperament | null
-  relationshipPosture?: string | null
-  initiativeStyle?: string | null
+  relationshipPosture?: AlicizationPersonaRelationshipPosture | null
+  initiativeStyle?: AlicizationPersonaInitiativeStyle | null
   freeDescription?: string | null
   antiPersonaConstraints?: string[] | null
-  calibration?: string | null
+  calibration?: {
+    silenceReconnect?: 'hold' | 'light-probe' | 'direct-approach' | null
+    jealousyStyle?: 'mask-it' | 'soft-ache' | 'say-it' | null
+    comfortStyle?: 'quiet-presence' | 'gentle-care' | 'take-charge' | null
+  } | null
   previewCorrections?: string[] | null
 }
 

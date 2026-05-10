@@ -30,7 +30,7 @@ describe('alicization-persona-kernel', () => {
           },
           relationshipPosture: 'nearby',
           initiativeStyle: 'self-starting',
-          valueBias: 'protective continuity',
+          valueBias: ['protective continuity'],
         },
         expressionProfile: {
           warmth: 0.77,
@@ -58,10 +58,14 @@ describe('alicization-persona-kernel', () => {
           sensibility: 0.8,
         },
         relationshipPosture: 'attuned',
-        initiativeStyle: 'balanced',
+        initiativeStyle: 'measured-approach',
         freeDescription: 'Stay gentle, bounded, and clear.',
         antiPersonaConstraints: ['no pushy intimacy'],
-        calibration: 'warm but not crowded',
+        calibration: {
+          silenceReconnect: 'light-probe',
+          jealousyStyle: 'soft-ache',
+          comfortStyle: 'gentle-care',
+        },
         previewCorrections: ['shorter openings'],
       },
       customDirectives: '先稳住，再靠近。',
@@ -77,7 +81,7 @@ describe('alicization-persona-kernel', () => {
     })
     expect(snapshot.personality.identityKernel?.relationshipPosture).toBe('nearby')
     expect(snapshot.personality.identityKernel?.initiativeStyle).toBe('self-starting')
-    expect(snapshot.personality.identityKernel?.valueBias).toBe('protective continuity')
+    expect(snapshot.personality.identityKernel?.valueBias).toEqual(['protective continuity'])
     expect(snapshot.personality.expressionProfile).toEqual({
       warmth: 0.77,
       directness: 0.35,
@@ -100,17 +104,21 @@ describe('alicization-persona-kernel', () => {
     expect(snapshot.hostAttitudeSeed).toContain(defaultAlicizationProfile.hostName)
     expect(snapshot.coreIncarnationSeed).toContain(defaultAlicizationProfile.alicizationName)
     expect(snapshot.coreIncarnation).toContain('先稳住，再靠近。')
-    expect(snapshot.personality.personaWorkshop).toEqual({
+    expect(snapshot.personaWorkshop).toEqual({
       presetTemperament: {
         obedience: 0.3,
         liveliness: 0.2,
         sensibility: 0.8,
       },
       relationshipPosture: 'attuned',
-      initiativeStyle: 'balanced',
+      initiativeStyle: 'measured-approach',
       freeDescription: 'Stay gentle, bounded, and clear.',
       antiPersonaConstraints: ['no pushy intimacy'],
-      calibration: 'warm but not crowded',
+      calibration: {
+        silenceReconnect: 'light-probe',
+        jealousyStyle: 'soft-ache',
+        comfortStyle: 'gentle-care',
+      },
       previewCorrections: ['shorter openings'],
     })
     expect(summarizeAlicizationTemperament({
