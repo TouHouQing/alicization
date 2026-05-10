@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   activeProvider: '',
   activeModel: '',
+  needsGenesis: false,
   configuredProviders: {} as Record<string, boolean>,
   providers: {} as Record<string, Record<string, unknown>>,
   addedProviders: {} as Record<string, boolean>,
@@ -38,11 +39,21 @@ vi.mock('./modules/consciousness', async () => {
   }
 })
 
+vi.mock('./alicization-epoch1', async () => {
+  const { ref } = await import('vue')
+  return {
+    useAlicizationEpoch1Store: () => ({
+      needsGenesis: ref(mocks.needsGenesis),
+    }),
+  }
+})
+
 describe('onboarding store', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     mocks.activeProvider = ''
     mocks.activeModel = ''
+    mocks.needsGenesis = false
     Object.keys(mocks.configuredProviders).forEach(key => delete mocks.configuredProviders[key])
     Object.keys(mocks.providers).forEach(key => delete mocks.providers[key])
     Object.keys(mocks.addedProviders).forEach(key => delete mocks.addedProviders[key])
@@ -109,5 +120,21 @@ describe('onboarding store', () => {
     expect(store.needsOnboarding).toBe(false)
     expect(store.shouldShowSetup).toBe(false)
     expect(store.hasCompletedSetup).toBe(true)
+  })
+
+  it('still requires onboarding when the provider is ready but genesis is not', async () => {
+    mocks.activeProvider = 'provider-not-hydrated-yet'
+    mocks.activeModel = 'model-x'
+    mocks.needsGenesis = true
+
+    const { useOnboardingStore } = await import('./onboarding')
+    const store = useOnboardingStore()
+    await store.initializeSetupCheck()
+
+    expect(store.hasRuntimeProviderSelection).toBe(true)
+    expect(store.hasGenesisReady).toBe(false)
+    expect(store.needsOnboarding).toBe(true)
+    expect(store.shouldShowSetup).toBe(true)
+    expect(store.hasCompletedSetup).toBe(false)
   })
 })

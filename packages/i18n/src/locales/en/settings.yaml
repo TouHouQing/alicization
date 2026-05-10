@@ -45,6 +45,40 @@ dialogs:
       nextDescription: Motions are only exposed to Alicization as callable capabilities after Action Key, Label, and Description are all filled in.
       skip: Maybe later
       open: Configure action mapping
+    personaWorkshop:
+      intro:
+        title: Shape her first memory of self
+        lead: This is a guided quick-birth workshop, not a form. We will sketch the feel first, then let the system interpret it back to you before you confirm.
+        exampleTitle: Example
+        exampleBody: "Instead of asking for a personality label, you can start with: 'gentle, notices small changes, gets shy when praised, and should avoid sounding cold.'"
+        guidance: Start with the kind of presence you want, not the taxonomy. Short phrases are enough.
+      core:
+        title: Give the core feeling
+        description: Pick the broad temperament first, then add a short description that captures how she should feel in conversation.
+        obedience: Obedience
+        liveliness: Liveliness
+        sensibility: Sensibility
+        summary: Current read: {summary}
+        freeDescription: Short persona description
+        examplesTitle: Helpful prompts
+        examplesBody: Try describing the tone, attachment style, or how she should react under pressure. You can revise it on the next screen.
+      calibration:
+        title: Tune the response style
+        description: Choose how she should reconnect after silence, comfort you, and handle jealousy. These are behavior hints, not hard rules.
+        silenceReconnect: Reconnect after silence
+        comfortStyle: Comfort style
+        jealousyStyle: Jealousy style
+        summary: Current calibration: {summary}
+        examplesBody: If you are unsure, choose the softer option first. The preview screen will translate this into a concise system summary.
+      preview:
+        title: Review the system interpretation
+        description: We turn your choices into a compact persona draft. Read it like a preview of how the system understood you, then submit if it matches your intent.
+        summaryPending: Waiting for the draft to be compiled.
+        correctionsTitle: Add small corrections
+        notesTitle: What the system inferred
+        notesEmpty: No notes yet.
+        emptyDescription: No free-description text yet.
+        complete: Confirm and birth her
     permissions:
       title: Notifications
       description: You can allow notifications now or continue and set it up later.

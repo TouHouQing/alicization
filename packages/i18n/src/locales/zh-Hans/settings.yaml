@@ -43,6 +43,40 @@ dialogs:
       nextDescription: 补全 Action Key、Label 和 Description 之后，这些动作才会作为可调用能力暴露给 Alicization。
       skip: 稍后再说
       open: 去配置动作映射
+    personaWorkshop:
+      intro:
+        title: 先定下她最初的自我感
+        lead: 这是一个引导式 quick-birth 工作坊，不是问卷。我们会先描出感觉，再让系统把它解释回来，最后由你确认。
+        exampleTitle: 例子
+        exampleBody: "不要先想标签，可以直接写：‘温柔，会注意细微变化，被夸奖时会害羞，说话不要太冷。’"
+        guidance: 先写你希望她拥有的存在感，不必追求术语。几句话就够。
+      core:
+        title: 先给出核心感觉
+        description: 先选整体气质，再补一段短描述，说明她在对话里应该是什么感觉。
+        obedience: 服从度
+        liveliness: 活力感
+        sensibility: 细腻度
+        summary: 当前理解：{summary}
+        freeDescription: 简短人格描述
+        examplesTitle: 可参考的写法
+        examplesBody: 可以描述语气、依恋方式，或她在压力下的反应。下一步会帮你把它整理成预览。
+      calibration:
+        title: 调整回应风格
+        description: 选择她在沉默后如何重新接话、如何安抚你，以及如何处理吃醋。这些是行为提示，不是硬性规则。
+        silenceReconnect: 沉默后重新接话
+        comfortStyle: 安抚方式
+        jealousyStyle: 吃醋风格
+        summary: 当前校准：{summary}
+        examplesBody: 如果不确定，先选更柔和的项。预览页会把它翻译成简洁的系统摘要。
+      preview:
+        title: 检查系统理解结果
+        description: 我们会把你的选择整理成一份简洁的人格草稿。请把它当作系统对你意图的理解预览，合适再提交。
+        summaryPending: 正在编译草稿。
+        correctionsTitle: 补充小修正
+        notesTitle: 系统推断出的内容
+        notesEmpty: 还没有备注。
+        emptyDescription: 还没有填写简短人格描述。
+        complete: 确认并开始生成
     permissions:
       title: Notifications
       description: You can allow notifications now or continue and set it up later.

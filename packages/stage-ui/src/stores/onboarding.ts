@@ -2,6 +2,7 @@ import { useLocalStorage } from '@vueuse/core'
 import { defineStore, storeToRefs } from 'pinia'
 import { computed, ref, watch } from 'vue'
 
+import { useAlicizationEpoch1Store } from './alicization-epoch1'
 import { useConsciousnessStore } from './modules/consciousness'
 import { useProvidersStore } from './providers'
 
@@ -14,6 +15,7 @@ function hasNonEmptyText(value: unknown): boolean {
 export const useOnboardingStore = defineStore('onboarding', () => {
   const providersStore = useProvidersStore()
   const consciousnessStore = useConsciousnessStore()
+  const alicizationEpoch1Store = useAlicizationEpoch1Store()
   const { activeProvider, activeModel } = storeToRefs(consciousnessStore)
 
   function isChatProvider(providerId: string) {
@@ -66,12 +68,14 @@ export const useOnboardingStore = defineStore('onboarding', () => {
       || hasRuntimeProviderSelection.value
   })
 
+  const hasGenesisReady = computed(() => !alicizationEpoch1Store.needsGenesis)
+
   const needsOnboarding = computed(() => {
     if (hasSkippedSetup.value)
       return false
     if (hasCompletedSetup.value)
       return false
-    if (hasConfiguredChatProvider.value)
+    if (hasConfiguredChatProvider.value && hasGenesisReady.value)
       return false
     return true
   })
@@ -84,7 +88,7 @@ export const useOnboardingStore = defineStore('onboarding', () => {
   function initializeSetupCheck() {
     if (!needsOnboarding.value) {
       showingSetup.value = false
-      if (hasConfiguredChatProvider.value && !hasSkippedSetup.value && !hasCompletedSetup.value)
+      if (hasConfiguredChatProvider.value && hasGenesisReady.value && !hasSkippedSetup.value && !hasCompletedSetup.value)
         hasCompletedSetup.value = true
       return
     }
@@ -124,6 +128,7 @@ export const useOnboardingStore = defineStore('onboarding', () => {
     hasRuntimeProviderSelection,
     hasPersistedChatProviderConfig,
     hasConfiguredChatProvider,
+    hasGenesisReady,
     needsOnboarding,
 
     initializeSetupCheck,

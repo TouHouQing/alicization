@@ -13,6 +13,10 @@ import { storeToRefs } from 'pinia'
 import { computed, nextTick, ref } from 'vue'
 
 import StepActionMappingGuide from './step-action-mapping-guide.vue'
+import StepPersonaCalibration from './step-persona-calibration.vue'
+import StepPersonaCore from './step-persona-core.vue'
+import StepPersonaIntro from './step-persona-intro.vue'
+import StepPersonaPreview from './step-persona-preview.vue'
 import StepModelSelection from './step-model-selection.vue'
 import StepProviderConfiguration from './step-provider-configuration.vue'
 import StepProviderSelection from './step-provider-selection.vue'
@@ -115,6 +119,22 @@ const allSteps = computed<OnboardingStep[]>(() => {
     {
       id: 'welcome',
       component: StepWelcome,
+    },
+    {
+      id: 'persona-intro',
+      component: StepPersonaIntro,
+    },
+    {
+      id: 'persona-core',
+      component: StepPersonaCore,
+    },
+    {
+      id: 'persona-calibration',
+      component: StepPersonaCalibration,
+    },
+    {
+      id: 'persona-preview',
+      component: StepPersonaPreview,
     },
     {
       id: 'provider-selection',
