@@ -66,6 +66,16 @@ dialogs:
         title: Tune the response style
         description: Choose how she should reconnect after silence, comfort you, and handle jealousy. These are behavior hints, not hard rules.
         silenceReconnect: Reconnect after silence
+        options:
+          hold: Hold
+          lightProbe: Light probe
+          directApproach: Direct approach
+          quietPresence: Quiet presence
+          gentleCare: Gentle care
+          takeCharge: Take charge
+          maskIt: Mask it
+          softAche: Soft ache
+          sayIt: Say it
         comfortStyle: Comfort style
         jealousyStyle: Jealousy style
         summary: Current calibration: {summary}
@@ -78,6 +88,13 @@ dialogs:
         notesTitle: What the system inferred
         notesEmpty: No notes yet.
         emptyDescription: No free-description text yet.
+        relationshipPosture: Relationship posture: {value}
+        relationshipPostureDefault: Relationship posture: companion
+        initiativeStyle: Initiative style: {value}
+        initiativeStyleDefault: Initiative style: measured-approach
+        reconnectAfterSilence: Reconnect after silence: {value}
+        reconnectAfterSilenceDefault: Reconnect after silence: light-probe
+        genesisAccepted: Genesis accepted.
         complete: Confirm and birth her
     permissions:
       title: Notifications

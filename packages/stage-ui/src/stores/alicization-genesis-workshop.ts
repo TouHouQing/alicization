@@ -100,6 +100,34 @@ export const useAlicizationGenesisWorkshopStore = defineStore('alicization-genes
     return payload
   }
 
+  function buildGenesisPayload(input?: {
+    ownerName?: string
+    hostName?: string
+    alicizationName?: string
+    gender?: 'female' | 'male' | 'non-binary' | 'neutral' | 'custom'
+    genderCustom?: string
+    relationship?: string
+    mindAge?: number
+  }) {
+    return {
+      ownerName: input?.ownerName ?? '指挥官',
+      hostName: input?.hostName ?? '主人',
+      alicizationName: input?.alicizationName ?? '小艾',
+      gender: input?.gender ?? 'female',
+      genderCustom: input?.genderCustom ?? '',
+      relationship: input?.relationship ?? '女仆',
+      mindAge: input?.mindAge ?? 18,
+      personality: {
+        obedience: draft.value.presetTemperament?.obedience ?? 0.5,
+        liveliness: draft.value.presetTemperament?.liveliness ?? 0.5,
+        sensibility: draft.value.presetTemperament?.sensibility ?? 0.5,
+        identityAnchors: [],
+        antiPersonaConstraints: [...(draft.value.antiPersonaConstraints ?? [])],
+      },
+      personaWorkshop: snapshotDraft(),
+    }
+  }
+
   return {
     draft,
     previewNotes,
@@ -117,5 +145,6 @@ export const useAlicizationGenesisWorkshopStore = defineStore('alicization-genes
     setPreviewCorrections,
     setPreviewFeedback,
     snapshotDraft,
+    buildGenesisPayload,
   }
 })

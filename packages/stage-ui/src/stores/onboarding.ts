@@ -73,7 +73,7 @@ export const useOnboardingStore = defineStore('onboarding', () => {
   const needsOnboarding = computed(() => {
     if (hasSkippedSetup.value)
       return false
-    if (hasCompletedSetup.value)
+    if (hasCompletedSetup.value && hasGenesisReady.value)
       return false
     if (hasConfiguredChatProvider.value && hasGenesisReady.value)
       return false

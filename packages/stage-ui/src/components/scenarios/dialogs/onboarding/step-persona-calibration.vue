@@ -47,9 +47,9 @@ const calibrationSummary = computed(() => {
             {{ t('settings.dialogs.onboarding.personaWorkshop.calibration.silenceReconnect') }}
           </div>
           <select v-model="draft.calibration!.silenceReconnect" class="w-full rounded-lg border-2 border-neutral-100 bg-neutral-50 px-2 py-2 text-sm outline-none dark:border-neutral-900 dark:bg-neutral-950">
-            <option value="hold">Hold</option>
-            <option value="light-probe">Light probe</option>
-            <option value="direct-approach">Direct approach</option>
+            <option value="hold">{{ t('settings.dialogs.onboarding.personaWorkshop.calibration.options.hold') }}</option>
+            <option value="light-probe">{{ t('settings.dialogs.onboarding.personaWorkshop.calibration.options.lightProbe') }}</option>
+            <option value="direct-approach">{{ t('settings.dialogs.onboarding.personaWorkshop.calibration.options.directApproach') }}</option>
           </select>
         </label>
         <label class="space-y-2">
@@ -57,9 +57,9 @@ const calibrationSummary = computed(() => {
             {{ t('settings.dialogs.onboarding.personaWorkshop.calibration.comfortStyle') }}
           </div>
           <select v-model="draft.calibration!.comfortStyle" class="w-full rounded-lg border-2 border-neutral-100 bg-neutral-50 px-2 py-2 text-sm outline-none dark:border-neutral-900 dark:bg-neutral-950">
-            <option value="quiet-presence">Quiet presence</option>
-            <option value="gentle-care">Gentle care</option>
-            <option value="take-charge">Take charge</option>
+            <option value="quiet-presence">{{ t('settings.dialogs.onboarding.personaWorkshop.calibration.options.quietPresence') }}</option>
+            <option value="gentle-care">{{ t('settings.dialogs.onboarding.personaWorkshop.calibration.options.gentleCare') }}</option>
+            <option value="take-charge">{{ t('settings.dialogs.onboarding.personaWorkshop.calibration.options.takeCharge') }}</option>
           </select>
         </label>
         <label class="space-y-2">
@@ -67,9 +67,9 @@ const calibrationSummary = computed(() => {
             {{ t('settings.dialogs.onboarding.personaWorkshop.calibration.jealousyStyle') }}
           </div>
           <select v-model="draft.calibration!.jealousyStyle" class="w-full rounded-lg border-2 border-neutral-100 bg-neutral-50 px-2 py-2 text-sm outline-none dark:border-neutral-900 dark:bg-neutral-950">
-            <option value="mask-it">Mask it</option>
-            <option value="soft-ache">Soft ache</option>
-            <option value="say-it">Say it</option>
+            <option value="mask-it">{{ t('settings.dialogs.onboarding.personaWorkshop.calibration.options.maskIt') }}</option>
+            <option value="soft-ache">{{ t('settings.dialogs.onboarding.personaWorkshop.calibration.options.softAche') }}</option>
+            <option value="say-it">{{ t('settings.dialogs.onboarding.personaWorkshop.calibration.options.sayIt') }}</option>
           </select>
         </label>
       </div>

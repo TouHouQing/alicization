@@ -64,6 +64,16 @@ dialogs:
         title: 调整回应风格
         description: 选择她在沉默后如何重新接话、如何安抚你，以及如何处理吃醋。这些是行为提示，不是硬性规则。
         silenceReconnect: 沉默后重新接话
+        options:
+          hold: 保持
+          lightProbe: 轻轻试探
+          directApproach: 直接接话
+          quietPresence: 静静陪伴
+          gentleCare: 温柔照顾
+          takeCharge: 主动接手
+          maskIt: 先藏起来
+          softAche: 轻轻吃醋
+          sayIt: 直接说出来
         comfortStyle: 安抚方式
         jealousyStyle: 吃醋风格
         summary: 当前校准：{summary}
@@ -76,6 +86,13 @@ dialogs:
         notesTitle: 系统推断出的内容
         notesEmpty: 还没有备注。
         emptyDescription: 还没有填写简短人格描述。
+        relationshipPosture: 关系姿态：{value}
+        relationshipPostureDefault: 关系姿态：陪伴者
+        initiativeStyle: 主动风格：{value}
+        initiativeStyleDefault: 主动风格：适度主动
+        reconnectAfterSilence: 沉默后重新接话：{value}
+        reconnectAfterSilenceDefault: 沉默后重新接话：轻轻试探
+        genesisAccepted: 已确认生成。
         complete: 确认并开始生成
     permissions:
       title: Notifications

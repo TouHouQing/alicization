@@ -81,7 +81,11 @@ describe('onboarding store', () => {
     expect(store.shouldShowSetup).toBe(false)
   })
 
-  it('treats completed setup as terminal and does not reopen onboarding', async () => {
+  it('reopens onboarding when setup was completed but genesis is still needed', async () => {
+    mocks.activeProvider = 'provider-not-hydrated-yet'
+    mocks.activeModel = 'model-x'
+    mocks.needsGenesis = true
+
     const { useOnboardingStore } = await import('./onboarding')
     const store = useOnboardingStore()
 
@@ -89,8 +93,8 @@ describe('onboarding store', () => {
     await store.initializeSetupCheck()
 
     expect(store.hasCompletedSetup).toBe(true)
-    expect(store.needsOnboarding).toBe(false)
-    expect(store.shouldShowSetup).toBe(false)
+    expect(store.needsOnboarding).toBe(true)
+    expect(store.shouldShowSetup).toBe(true)
   })
 
   it('auto-promotes setup as completed when persisted chat provider metadata exists', async () => {

@@ -40,14 +40,14 @@ const previewInterpretation = computed(() => {
 
   const notes = [
     draft.value.relationshipPosture
-      ? `Relationship posture: ${draft.value.relationshipPosture}`
-      : 'Relationship posture: companion',
+      ? t('settings.dialogs.onboarding.personaWorkshop.preview.relationshipPosture', { value: draft.value.relationshipPosture })
+      : t('settings.dialogs.onboarding.personaWorkshop.preview.relationshipPostureDefault'),
     draft.value.initiativeStyle
-      ? `Initiative style: ${draft.value.initiativeStyle}`
-      : 'Initiative style: measured-approach',
+      ? t('settings.dialogs.onboarding.personaWorkshop.preview.initiativeStyle', { value: draft.value.initiativeStyle })
+      : t('settings.dialogs.onboarding.personaWorkshop.preview.initiativeStyleDefault'),
     draft.value.calibration?.silenceReconnect
-      ? `Reconnect after silence: ${draft.value.calibration.silenceReconnect}`
-      : 'Reconnect after silence: light-probe',
+      ? t('settings.dialogs.onboarding.personaWorkshop.preview.reconnectAfterSilence', { value: draft.value.calibration.silenceReconnect })
+      : t('settings.dialogs.onboarding.personaWorkshop.preview.reconnectAfterSilenceDefault'),
   ]
 
   return { summary, notes }
@@ -91,27 +91,11 @@ async function completePreview() {
 
   submitting.value = true
   try {
-    const payload = workshopStore.snapshotDraft()
-    const result = await epoch1Store.initializeGenesis({
-      ownerName: '指挥官',
-      hostName: '主人',
-      alicizationName: '小艾',
-      gender: 'female',
-      genderCustom: '',
-      relationship: '女仆',
-      mindAge: 18,
-      personality: {
-        obedience: draft.value.presetTemperament?.obedience ?? 0.5,
-        liveliness: draft.value.presetTemperament?.liveliness ?? 0.5,
-        sensibility: draft.value.presetTemperament?.sensibility ?? 0.5,
-        identityAnchors: [],
-        antiPersonaConstraints: draft.value.antiPersonaConstraints,
-      },
-      personaWorkshop: payload,
-    })
+    const payload = workshopStore.buildGenesisPayload()
+    const result = await epoch1Store.initializeGenesis(payload)
     if (result && !epoch1Store.needsGenesis) {
       workshopStore.setPreviewFeedback({
-        notes: ['Genesis accepted.'],
+        notes: [t('settings.dialogs.onboarding.personaWorkshop.preview.genesisAccepted')],
         summary: previewInterpretation.value.summary,
         decision: 'ready',
       })
