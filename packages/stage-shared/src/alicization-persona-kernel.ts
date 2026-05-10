@@ -67,8 +67,8 @@ export interface AlicizationPersonaKernelSnapshot {
     evolutionSeed: AlicizationPersonaEvolutionSeed | null
     identityAnchors: string[]
     antiPersonaConstraints: string[]
-    personaWorkshop: AlicizationPersonaWorkshopSubmission | null
   }
+  personaWorkshop: AlicizationPersonaWorkshopSubmission | null
   hostReference: string
   temperamentSummary: string
   hostAttitudeSeed: string
@@ -324,7 +324,7 @@ export function resolveAlicizationPersonaKernel(
 ): AlicizationPersonaKernelSnapshot {
   const profile = normalizeProfile(input.profile)
   const personality = normalizePersonality(input.personality)
-  const personaWorkshop = normalizePersonaWorkshop((input as AlicizationPersonaKernelInput & { personaWorkshop?: AlicizationPersonaWorkshopSubmission | null }).personaWorkshop)
+  const personaWorkshop = normalizePersonaWorkshop(input.personaWorkshop)
   const hostReference = profile.hostName || profile.ownerName || '宿主'
   const temperamentSummary = summarizeAlicizationTemperament(personality)
   const hostAttitudeSeed = hasAlicizationPersonaIdentity(profile)
