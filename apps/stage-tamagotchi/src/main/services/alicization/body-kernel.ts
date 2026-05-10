@@ -88,6 +88,12 @@ export function createAlicizationBodyKernel(options: CreateAlicizationBodyKernel
     },
 
     applyToVisualPresenceState(input: AlicizationBodyKernelApplyInput): AlicizationVisualPresenceStateSnapshot {
+      const personaAuthoritySummary = input.candidateState.autobiographicalSelf?.relationshipDoctrine ?? null
+      const personaKernelSummary = [
+        input.candidateState.autobiographicalSelf?.personaDrift?.conflictStyle ? `conflict ${input.candidateState.autobiographicalSelf.personaDrift.conflictStyle}` : '',
+        input.candidateState.autobiographicalSelf?.personaDrift?.agencyStyle ? `agency ${input.candidateState.autobiographicalSelf.personaDrift.agencyStyle}` : '',
+        input.candidateState.autobiographicalSelf?.personaDrift?.attachmentStyle ? `attachment ${input.candidateState.autobiographicalSelf.personaDrift.attachmentStyle}` : '',
+      ].filter(Boolean).join(' | ') || null
       const authority = this.reduce({
         sustainedFocusMs: deriveSustainedFocusMs({
           now: input.now,
@@ -103,6 +109,8 @@ export function createAlicizationBodyKernel(options: CreateAlicizationBodyKernel
             + (input.candidateState.relationshipModel?.reciprocityExpectation ?? 0)
           ) / 3,
         ) || 0)),
+        personaAuthoritySummary,
+        personaKernelSummary,
       })
 
       return {

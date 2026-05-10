@@ -348,6 +348,12 @@ function deriveQuietCompanionshipState(input: {
     bodyState: input.state.currentBodyState,
     latestThreadSummary: input.state.worldModel?.activeThread?.summary ?? null,
     relationshipPressure: resolveRelationshipPressure(input.state),
+    personaAuthoritySummary: input.state.autobiographicalSelf?.relationshipDoctrine ?? null,
+    personaKernelSummary: [
+      input.state.autobiographicalSelf?.personaDrift?.conflictStyle ? `conflict ${input.state.autobiographicalSelf.personaDrift.conflictStyle}` : '',
+      input.state.autobiographicalSelf?.personaDrift?.agencyStyle ? `agency ${input.state.autobiographicalSelf.personaDrift.agencyStyle}` : '',
+      input.state.autobiographicalSelf?.personaDrift?.attachmentStyle ? `attachment ${input.state.autobiographicalSelf.personaDrift.attachmentStyle}` : '',
+    ].filter(Boolean).join(' | ') || null,
     latestUserTurnAt: null,
     now: input.now,
   })

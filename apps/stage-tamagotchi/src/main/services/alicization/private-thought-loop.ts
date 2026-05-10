@@ -283,9 +283,9 @@ function applyContinuityMindOverlay(input: {
           ? 'accompanying'
           : input.mindKernel?.dominantMode === 'repairing'
             ? 'recovering'
-            : input.snapshot.stance === 'observe' || input.snapshot.stance === 'uncertain'
-              ? 'noticing'
-              : 'idle',
+              : input.snapshot.stance === 'observe' || input.snapshot.stance === 'uncertain'
+                ? 'noticing'
+                : 'idle',
     latestThreadSummary: input.worldModel?.activeThread?.summary ?? null,
     relationshipPressure: Math.max(0, Math.min(1, Number(
       (
@@ -294,6 +294,12 @@ function applyContinuityMindOverlay(input: {
         + (input.relationshipModel?.reciprocityExpectation ?? 0)
       ) / 3,
     ) || 0)),
+    personaAuthoritySummary: input.snapshot.autobiographicalSelf?.relationshipDoctrine ?? null,
+    personaKernelSummary: [
+      input.snapshot.autobiographicalSelf?.personaDrift?.conflictStyle ? `conflict ${input.snapshot.autobiographicalSelf.personaDrift.conflictStyle}` : '',
+      input.snapshot.autobiographicalSelf?.personaDrift?.agencyStyle ? `agency ${input.snapshot.autobiographicalSelf.personaDrift.agencyStyle}` : '',
+      input.snapshot.autobiographicalSelf?.personaDrift?.expressionStyle ? `expression ${input.snapshot.autobiographicalSelf.personaDrift.expressionStyle}` : '',
+    ].filter(Boolean).join(' | ') || null,
     latestUserTurnAt: input.latestUserTurnAt ?? null,
     now: input.now,
   })

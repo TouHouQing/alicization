@@ -76,6 +76,14 @@ describe('runtime visual presence state', () => {
   it('applies authority onto a visual presence state without disturbing other fields', () => {
     const kernel = createAlicizationBodyKernel({ now: () => 9_000 })
     const previousState = createVisualPresenceState(4_800)
+    previousState.autobiographicalSelf = {
+      relationshipDoctrine: 'Repair before closeness.',
+      personaDrift: {
+        conflictStyle: 'repair-first',
+        agencyStyle: 'reserved',
+        expressionStyle: 'measured',
+      },
+    } as any
     previousState.currentScene = {
       scenario: 'coding',
       workloadKind: 'focused-work',
@@ -114,6 +122,7 @@ describe('runtime visual presence state', () => {
     expect(nextState.updatedAt).toBe(180_000)
     expect(nextState.watchMode).toBe(previousState.watchMode)
     expect(nextState.captureState).toEqual(previousState.captureState)
+    expect(nextState.currentInwardPreoccupation).toContain('persona kernel')
   })
 
   it('does not inherit long focus from a stale previous scene when candidate scene is fresh', () => {
