@@ -10,9 +10,12 @@ describe('alicization genesis workshop store', () => {
     const { useAlicizationGenesisWorkshopStore } = await import('./alicization-genesis-workshop')
     const store = useAlicizationGenesisWorkshopStore()
 
-    store.setFreeDescription('warm, observant, and lightly playful')
-    store.setAntiPersonaConstraints(['no harsh teasing'])
-    store.setCalibration('comfortStyle', 'quiet-presence')
+    store.draft.freeDescription = 'warm, observant, and lightly playful'
+    store.draft.antiPersonaConstraints = ['no harsh teasing']
+    store.draft.calibration = {
+      ...store.draft.calibration,
+      comfortStyle: 'quiet-presence',
+    }
 
     expect(store.hasDraftContent).toBe(true)
 

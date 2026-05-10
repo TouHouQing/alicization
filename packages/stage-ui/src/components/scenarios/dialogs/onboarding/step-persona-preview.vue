@@ -80,7 +80,7 @@ watch(correctionText, (value) => {
     .map(item => item.trim())
     .filter(Boolean)
 
-  workshopStore.setPreviewCorrections(corrections)
+  draft.value.previewCorrections = corrections
 }, { immediate: true })
 
 watch(

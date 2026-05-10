@@ -34,46 +34,6 @@ export const useAlicizationGenesisWorkshopStore = defineStore('alicization-genes
     draft.value = createWorkshopDraft()
   }
 
-  function setFreeDescription(value: string) {
-    draft.value.freeDescription = value
-  }
-
-  function setAntiPersonaConstraints(value: string[]) {
-    draft.value.antiPersonaConstraints = value
-  }
-
-  function setTemperament(
-    key: keyof NonNullable<AlicizationPersonaWorkshopSubmission['presetTemperament']>,
-    value: number,
-  ) {
-    draft.value.presetTemperament = {
-      ...draft.value.presetTemperament,
-      [key]: value,
-    }
-  }
-
-  function setRelationshipPosture(value: NonNullable<AlicizationPersonaWorkshopSubmission['relationshipPosture']>) {
-    draft.value.relationshipPosture = value
-  }
-
-  function setInitiativeStyle(value: NonNullable<AlicizationPersonaWorkshopSubmission['initiativeStyle']>) {
-    draft.value.initiativeStyle = value
-  }
-
-  function setCalibration(
-    key: keyof NonNullable<NonNullable<AlicizationPersonaWorkshopSubmission['calibration']>>,
-    value: string,
-  ) {
-    draft.value.calibration = {
-      ...draft.value.calibration,
-      [key]: value,
-    }
-  }
-
-  function setPreviewCorrections(value: string[]) {
-    draft.value.previewCorrections = value
-  }
-
   function snapshotDraft() {
     return {
       presetTemperament: draft.value.presetTemperament ? { ...draft.value.presetTemperament } : null,
@@ -90,13 +50,6 @@ export const useAlicizationGenesisWorkshopStore = defineStore('alicization-genes
     draft,
     hasDraftContent,
     resetDraft,
-    setTemperament,
-    setRelationshipPosture,
-    setInitiativeStyle,
-    setFreeDescription,
-    setAntiPersonaConstraints,
-    setCalibration,
-    setPreviewCorrections,
     snapshotDraft,
   }
 })
