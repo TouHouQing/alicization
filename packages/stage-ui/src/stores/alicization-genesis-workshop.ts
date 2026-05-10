@@ -22,10 +22,6 @@ function createWorkshopDraft(): AlicizationPersonaWorkshopSubmission {
 
 export const useAlicizationGenesisWorkshopStore = defineStore('alicization-genesis-workshop', () => {
   const draft = ref<AlicizationPersonaWorkshopSubmission>(createWorkshopDraft())
-  const previewNotes = ref<string[]>([])
-  const previewSummary = ref('')
-  const previewDecision = ref<'pending' | 'ready'>('pending')
-  const lastSubmittedPayload = ref<AlicizationPersonaWorkshopSubmission | null>(null)
 
   const hasDraftContent = computed(() => {
     return Boolean(
@@ -36,13 +32,20 @@ export const useAlicizationGenesisWorkshopStore = defineStore('alicization-genes
 
   function resetDraft() {
     draft.value = createWorkshopDraft()
-    previewNotes.value = []
-    previewSummary.value = ''
-    previewDecision.value = 'pending'
-    lastSubmittedPayload.value = null
   }
 
-  function setTemperament(key: keyof NonNullable<AlicizationPersonaWorkshopSubmission['presetTemperament']>, value: number) {
+  function setFreeDescription(value: string) {
+    draft.value.freeDescription = value
+  }
+
+  function setAntiPersonaConstraints(value: string[]) {
+    draft.value.antiPersonaConstraints = value
+  }
+
+  function setTemperament(
+    key: keyof NonNullable<AlicizationPersonaWorkshopSubmission['presetTemperament']>,
+    value: number,
+  ) {
     draft.value.presetTemperament = {
       ...draft.value.presetTemperament,
       [key]: value,
@@ -57,15 +60,10 @@ export const useAlicizationGenesisWorkshopStore = defineStore('alicization-genes
     draft.value.initiativeStyle = value
   }
 
-  function setFreeDescription(value: string) {
-    draft.value.freeDescription = value
-  }
-
-  function setAntiPersonaConstraints(value: string[]) {
-    draft.value.antiPersonaConstraints = value
-  }
-
-  function setCalibration(key: keyof NonNullable<NonNullable<AlicizationPersonaWorkshopSubmission['calibration']>>, value: string) {
+  function setCalibration(
+    key: keyof NonNullable<NonNullable<AlicizationPersonaWorkshopSubmission['calibration']>>,
+    value: string,
+  ) {
     draft.value.calibration = {
       ...draft.value.calibration,
       [key]: value,
@@ -76,18 +74,8 @@ export const useAlicizationGenesisWorkshopStore = defineStore('alicization-genes
     draft.value.previewCorrections = value
   }
 
-  function setPreviewFeedback(input: {
-    notes: string[]
-    summary: string
-    decision: 'pending' | 'ready'
-  }) {
-    previewNotes.value = input.notes
-    previewSummary.value = input.summary
-    previewDecision.value = input.decision
-  }
-
   function snapshotDraft() {
-    const payload = {
+    return {
       presetTemperament: draft.value.presetTemperament ? { ...draft.value.presetTemperament } : null,
       relationshipPosture: draft.value.relationshipPosture,
       initiativeStyle: draft.value.initiativeStyle,
@@ -96,44 +84,10 @@ export const useAlicizationGenesisWorkshopStore = defineStore('alicization-genes
       calibration: draft.value.calibration ? { ...draft.value.calibration } : null,
       previewCorrections: [...(draft.value.previewCorrections ?? [])],
     } satisfies AlicizationPersonaWorkshopSubmission
-    lastSubmittedPayload.value = payload
-    return payload
-  }
-
-  function buildGenesisPayload(input?: {
-    ownerName?: string
-    hostName?: string
-    alicizationName?: string
-    gender?: 'female' | 'male' | 'non-binary' | 'neutral' | 'custom'
-    genderCustom?: string
-    relationship?: string
-    mindAge?: number
-  }) {
-    return {
-      ownerName: input?.ownerName ?? '指挥官',
-      hostName: input?.hostName ?? '主人',
-      alicizationName: input?.alicizationName ?? '小艾',
-      gender: input?.gender ?? 'female',
-      genderCustom: input?.genderCustom ?? '',
-      relationship: input?.relationship ?? '女仆',
-      mindAge: input?.mindAge ?? 18,
-      personality: {
-        obedience: draft.value.presetTemperament?.obedience ?? 0.5,
-        liveliness: draft.value.presetTemperament?.liveliness ?? 0.5,
-        sensibility: draft.value.presetTemperament?.sensibility ?? 0.5,
-        identityAnchors: [],
-        antiPersonaConstraints: [...(draft.value.antiPersonaConstraints ?? [])],
-      },
-      personaWorkshop: snapshotDraft(),
-    }
   }
 
   return {
     draft,
-    previewNotes,
-    previewSummary,
-    previewDecision,
-    lastSubmittedPayload,
     hasDraftContent,
     resetDraft,
     setTemperament,
@@ -143,8 +97,6 @@ export const useAlicizationGenesisWorkshopStore = defineStore('alicization-genes
     setAntiPersonaConstraints,
     setCalibration,
     setPreviewCorrections,
-    setPreviewFeedback,
     snapshotDraft,
-    buildGenesisPayload,
   }
 })

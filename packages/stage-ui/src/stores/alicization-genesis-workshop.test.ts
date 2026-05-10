@@ -20,7 +20,6 @@ describe('alicization genesis workshop store', () => {
 
     expect(store.draft.freeDescription).toBe('')
     expect(store.draft.antiPersonaConstraints).toEqual([])
-    expect(store.previewDecision).toBe('pending')
     expect(store.hasDraftContent).toBe(false)
   })
 })

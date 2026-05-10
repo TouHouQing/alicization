@@ -2,10 +2,10 @@
 import type { OnboardingStepNextHandler, OnboardingStepPrevHandler } from './types'
 
 import { Button, Textarea } from '@proj-alicization/ui'
-import { storeToRefs } from 'pinia'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import { defaultAlicizationPersonality, defaultAlicizationProfile } from '@proj-alicization/stage-shared'
 import { useAlicizationEpoch1Store } from '../../../../stores/alicization-epoch1'
 import { useAlicizationGenesisWorkshopStore } from '../../../../stores/alicization-genesis-workshop'
 
@@ -14,14 +14,10 @@ const props = defineProps<{
   onPrevious: OnboardingStepPrevHandler
 }>()
 
-const emit = defineEmits<{
-  (e: 'completed'): void
-}>()
-
 const { t } = useI18n()
 const workshopStore = useAlicizationGenesisWorkshopStore()
 const epoch1Store = useAlicizationEpoch1Store()
-const { draft, previewNotes, previewSummary } = storeToRefs(workshopStore)
+const { draft } = workshopStore
 const submitting = ref(false)
 const correctionText = ref('')
 
@@ -78,14 +74,6 @@ const previewInterpretation = computed(() => {
   return { summary, notes }
 })
 
-watch(previewInterpretation, (value) => {
-  workshopStore.setPreviewFeedback({
-    notes: value.notes,
-    summary: value.summary,
-    decision: 'pending',
-  })
-}, { immediate: true })
-
 watch(correctionText, (value) => {
   const corrections = value
     .split('\n')
@@ -93,13 +81,6 @@ watch(correctionText, (value) => {
     .filter(Boolean)
 
   workshopStore.setPreviewCorrections(corrections)
-  workshopStore.setPreviewFeedback({
-    notes: previewInterpretation.value.notes,
-    summary: corrections.length > 0
-      ? `${previewInterpretation.value.summary} | ${t('settings.dialogs.onboarding.personaWorkshop.preview.correctionsLabel')}: ${corrections.join(' / ')}`
-      : previewInterpretation.value.summary,
-    decision: 'pending',
-  })
 }, { immediate: true })
 
 watch(
@@ -110,21 +91,34 @@ watch(
   { immediate: true },
 )
 
+function buildGenesisPayload() {
+  const personaWorkshop = workshopStore.snapshotDraft()
+  return {
+    ownerName: defaultAlicizationProfile.ownerName,
+    hostName: defaultAlicizationProfile.hostName,
+    alicizationName: defaultAlicizationProfile.alicizationName,
+    gender: defaultAlicizationProfile.gender,
+    genderCustom: defaultAlicizationProfile.genderCustom,
+    relationship: defaultAlicizationProfile.relationship,
+    mindAge: defaultAlicizationProfile.mindAge,
+    personality: {
+      ...defaultAlicizationPersonality,
+      identityAnchors: [...(defaultAlicizationPersonality.identityAnchors ?? [])],
+      antiPersonaConstraints: [...(draft.value.antiPersonaConstraints ?? [])],
+    },
+    personaWorkshop,
+  }
+}
+
 async function completePreview() {
   if (submitting.value)
     return
 
   submitting.value = true
   try {
-    const payload = workshopStore.buildGenesisPayload()
+    const payload = buildGenesisPayload()
     const result = await epoch1Store.initializeGenesis(payload)
     if (result && !epoch1Store.needsGenesis) {
-      workshopStore.setPreviewFeedback({
-        notes: [t('settings.dialogs.onboarding.personaWorkshop.preview.genesisAccepted')],
-        summary: previewInterpretation.value.summary,
-        decision: 'ready',
-      })
-      emit('completed')
       await props.onNext()
     }
   }
@@ -150,7 +144,7 @@ async function completePreview() {
         {{ t('settings.dialogs.onboarding.personaWorkshop.preview.description') }}
       </div>
       <div class="rounded-2xl border border-dashed border-primary-200 bg-primary-50/70 p-4 text-sm text-primary-700 dark:border-primary-700/60 dark:bg-primary-900/10 dark:text-primary-200">
-        {{ previewSummary || t('settings.dialogs.onboarding.personaWorkshop.preview.summaryPending') }}
+        {{ previewInterpretation.summary }}
       </div>
       <label class="block space-y-2">
         <div class="text-xs text-neutral-500">
@@ -171,8 +165,8 @@ async function completePreview() {
           {{ t('settings.dialogs.onboarding.personaWorkshop.preview.notesTitle') }}
         </div>
         <div class="rounded-xl bg-white/70 p-3 text-sm text-neutral-600 dark:bg-neutral-950/60 dark:text-neutral-300">
-          <div v-for="note in previewNotes" :key="note">{{ note }}</div>
-          <div v-if="previewNotes.length === 0">
+          <div v-for="note in previewInterpretation.notes" :key="note">{{ note }}</div>
+          <div v-if="previewInterpretation.notes.length === 0">
             {{ t('settings.dialogs.onboarding.personaWorkshop.preview.notesEmpty') }}
           </div>
         </div>
