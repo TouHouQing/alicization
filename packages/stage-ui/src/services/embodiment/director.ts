@@ -1,11 +1,8 @@
 import type {
-  AlicizationDialogueEmbodimentEnvelope,
-  AlicizationDialogueSpeechTimeline,
-  AlicizationDigitalLifeEnvelope,
-  AlicizationDigitalLifeSpineDigest,
   AlicizationEmbodimentScriptRendererTarget,
   AlicizationEmbodimentScriptV1,
 } from '@proj-alicization/stage-shared'
+import type { AlicizationRuntimeEmbodimentSeed } from '../../../../../apps/stage-tamagotchi/src/main/services/alicization/embodiment/runtime-embodiment-seed'
 
 import type {
   AlicizationDialoguePerformancePayload,
@@ -15,30 +12,20 @@ import type {
 
 import { adaptAlicizationEmbodimentPerformanceToRenderer } from './renderer-capability-adapter'
 
-export interface AlicizationEmbodimentDirectorSeed {
-  turnId: string
-  replyText: string
-  performance: AlicizationDialoguePerformancePayload
-  embodiment: AlicizationDialogueEmbodimentEnvelope | null
-  speechTimeline: AlicizationDialogueSpeechTimeline | null
-  digitalLife: AlicizationDigitalLifeEnvelope | null
-  digitalLifeSpine: AlicizationDigitalLifeSpineDigest | null
-}
-
 export interface BuildAlicizationEmbodimentScriptInput {
-  seed: AlicizationEmbodimentDirectorSeed
+  seed: AlicizationRuntimeEmbodimentSeed
   manifest: CharacterPerformanceCapabilitiesManifest | null | undefined
   residentPerformance: AlicizationResidentPerformanceSnapshot | null
   rendererTarget: AlicizationEmbodimentScriptRendererTarget
 }
 
-function buildSegmentText(replyText: string, speechTimeline: AlicizationDialogueSpeechTimeline | null) {
+function buildSegmentText(replyText: string, speechTimeline: AlicizationRuntimeEmbodimentSeed['speechTimeline']) {
   return speechTimeline?.segments[0]?.text?.trim() || replyText
 }
 
 function resolveResidentMode(input: {
   residentPerformance: AlicizationResidentPerformanceSnapshot | null
-  digitalLife: AlicizationDigitalLifeEnvelope | null
+  digitalLife: AlicizationRuntimeEmbodimentSeed['digitalLife']
 }) {
   if (input.digitalLife?.mode === 'recovering')
     return 'idle-recovering' as const

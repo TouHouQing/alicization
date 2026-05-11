@@ -1,13 +1,14 @@
 import { describe, expect, it } from 'vitest'
 
+import { buildAlicizationRuntimeEmbodimentSeed } from '../../../../../apps/stage-tamagotchi/src/main/services/alicization/embodiment/runtime-embodiment-seed'
 import { buildAlicizationEmbodimentScript } from './director'
 
 describe('embodiment director', () => {
   it('produces one normalized live2d script from seed plus manifest', () => {
     const script = buildAlicizationEmbodimentScript({
-      seed: {
+      seed: buildAlicizationRuntimeEmbodimentSeed({
         turnId: 'turn-1',
-        replyText: '你好，我们慢慢来。',
+        reply: '你好，我们慢慢来。',
         performance: {
           baseEmotion: 'concerned',
           emotion: 'concerned',
@@ -20,7 +21,7 @@ describe('embodiment director', () => {
         speechTimeline: null,
         digitalLife: null,
         digitalLifeSpine: null,
-      },
+      }),
       manifest: {
         renderer: 'live2d',
         supportedBaseEmotions: ['neutral', 'concerned', 'thinking'],
