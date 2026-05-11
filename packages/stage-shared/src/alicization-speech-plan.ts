@@ -53,16 +53,19 @@ function normalizeSpeechSegment(raw: unknown, fallbackIndex: number): Alicizatio
   }
 }
 
-export function normalizeAlicizationEmbodimentSpeechPlan(raw: unknown): AlicizationEmbodimentSpeechPlan {
-  const candidate = raw && typeof raw === 'object' && !Array.isArray(raw)
-    ? raw as Record<string, unknown>
-    : {}
+export function normalizeAlicizationEmbodimentSpeechPlan(raw: unknown): AlicizationEmbodimentSpeechPlan | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+    return null
 
-  const segments = Array.isArray(candidate.segments)
-    ? candidate.segments
-        .map((segment, index) => normalizeSpeechSegment(segment, index))
-        .filter((segment): segment is AlicizationEmbodimentSpeechSegment => Boolean(segment))
-    : []
+  const candidate = raw as Record<string, unknown>
+  if (!Array.isArray(candidate.segments))
+    return null
+
+  const segments = candidate.segments
+    .map((segment, index) => normalizeSpeechSegment(segment, index))
+    .filter((segment): segment is AlicizationEmbodimentSpeechSegment => Boolean(segment))
+  if (segments.length !== candidate.segments.length)
+    return null
 
   return {
     segments,

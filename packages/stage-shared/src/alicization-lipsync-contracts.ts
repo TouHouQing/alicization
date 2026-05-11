@@ -62,16 +62,21 @@ function normalizeVisemeHint(raw: unknown): AlicizationEmbodimentLipSyncVisemeHi
   }
 }
 
-export function normalizeAlicizationEmbodimentLipSyncPlan(raw: unknown): AlicizationEmbodimentLipSyncPlan {
-  const candidate = raw && typeof raw === 'object' && !Array.isArray(raw)
-    ? raw as Record<string, unknown>
-    : {}
+export function normalizeAlicizationEmbodimentLipSyncPlan(raw: unknown): AlicizationEmbodimentLipSyncPlan | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+    return null
+
+  const candidate = raw as Record<string, unknown>
+  if (candidate.mode !== 'energy-only' && candidate.mode !== 'energy-phoneme-hybrid')
+    return null
 
   const visemeHints = Array.isArray(candidate.visemeHints)
     ? candidate.visemeHints
         .map(normalizeVisemeHint)
         .filter((hint): hint is AlicizationEmbodimentLipSyncVisemeHint => Boolean(hint))
     : []
+  if (Array.isArray(candidate.visemeHints) && visemeHints.length !== candidate.visemeHints.length)
+    return null
 
   return {
     mode: normalizeLipSyncMode(candidate.mode),

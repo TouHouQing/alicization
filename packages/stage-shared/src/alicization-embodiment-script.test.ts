@@ -72,10 +72,38 @@ describe('alicization embodiment script', () => {
     expect(script?.lipsyncPlan.mode).toBe('energy-phoneme-hybrid')
   })
 
-  it('normalizes the reviewed resident modes and restricts lipsync mode to task-1 values', () => {
+  it('normalizes the reviewed resident modes and rejects invalid lipsync authority blocks', () => {
     const idleRecovering = normalizeAlicizationEmbodimentScript({
       version: 'embodiment-script-v1',
       turnId: 'turn-2',
+      rendererTarget: 'live2d',
+      replyText: '先休息一下。',
+      state: {
+        baseEmotion: 'tired',
+        delivery: 'calm',
+        emphasis: 0,
+        residentMode: 'idle-recovering',
+      },
+      speechPlan: {
+        segments: [],
+        interruptPolicy: 'hard-stop',
+        preRollMs: 0,
+        settleMs: 160,
+      },
+      facePlan: { speakingCues: [] },
+      motionPlan: {
+        idleBase: 'idle_settle',
+        actionBursts: [],
+        attentionMode: 'ambient',
+      },
+      lipsyncPlan: {
+        mode: 'energy-only',
+      },
+    })
+
+    const invalidLipSyncAuthority = normalizeAlicizationEmbodimentScript({
+      version: 'embodiment-script-v1',
+      turnId: 'turn-2-invalid-lipsync',
       rendererTarget: 'live2d',
       replyText: '先休息一下。',
       state: {
@@ -103,6 +131,139 @@ describe('alicization embodiment script', () => {
 
     expect(idleRecovering?.state.residentMode).toBe('idle-recovering')
     expect(idleRecovering?.lipsyncPlan.mode).toBe('energy-only')
+    expect(invalidLipSyncAuthority).toBeNull()
+  })
+
+  it('preserves null cue semantics for face and motion entries when the rest of the entry is valid', () => {
+    const script = normalizeAlicizationEmbodimentScript({
+      version: 'embodiment-script-v1',
+      turnId: 'turn-null-cues',
+      rendererTarget: 'live2d',
+      replyText: '先别着急。',
+      state: {
+        baseEmotion: 'concerned',
+        delivery: 'gentle',
+        emphasis: 1,
+        residentMode: 'dialogue',
+      },
+      speechPlan: {
+        segments: [{
+          id: 'segment-1',
+          index: 0,
+          text: '先别着急。',
+          interruptPolicy: 'soft-settle',
+          preRollMs: 40,
+          settleMs: 220,
+        }],
+        interruptPolicy: 'soft-settle',
+        preRollMs: 40,
+        settleMs: 220,
+      },
+      facePlan: {
+        speakingCues: [{
+          segmentId: 'segment-1',
+          emotion: 'concerned',
+          facialCue: null,
+          intensity: 0.4,
+        }],
+      },
+      motionPlan: {
+        idleBase: 'idle_settle',
+        actionBursts: [{
+          segmentId: 'segment-1',
+          actionCue: null,
+          intensity: 0.2,
+          holdMs: 180,
+        }],
+        attentionMode: 'attentive',
+      },
+      lipsyncPlan: {
+        mode: 'energy-only',
+      },
+    })
+
+    expect(script?.facePlan.speakingCues[0]?.facialCue).toBeNull()
+    expect(script?.motionPlan.actionBursts[0]?.actionCue).toBeNull()
+  })
+
+  it('rejects malformed nested plan blocks instead of normalizing a plausible authority payload', () => {
+    const missingSpeechPlan = normalizeAlicizationEmbodimentScript({
+      version: 'embodiment-script-v1',
+      turnId: 'turn-missing-speech',
+      rendererTarget: 'live2d',
+      replyText: '你好',
+      state: {
+        baseEmotion: 'neutral',
+        delivery: 'calm',
+        emphasis: 0,
+        residentMode: 'dialogue',
+      },
+      facePlan: { speakingCues: [] },
+      motionPlan: {
+        idleBase: 'idle_settle',
+        actionBursts: [],
+        attentionMode: 'attentive',
+      },
+      lipsyncPlan: { mode: 'energy-only' },
+    })
+
+    const malformedFacePlan = normalizeAlicizationEmbodimentScript({
+      version: 'embodiment-script-v1',
+      turnId: 'turn-bad-face',
+      rendererTarget: 'live2d',
+      replyText: '你好',
+      state: {
+        baseEmotion: 'neutral',
+        delivery: 'calm',
+        emphasis: 0,
+        residentMode: 'dialogue',
+      },
+      speechPlan: {
+        segments: [],
+        interruptPolicy: 'hard-stop',
+        preRollMs: 0,
+        settleMs: 160,
+      },
+      facePlan: {
+        speakingCues: 'bad-data',
+      },
+      motionPlan: {
+        idleBase: 'idle_settle',
+        actionBursts: [],
+        attentionMode: 'attentive',
+      },
+      lipsyncPlan: { mode: 'energy-only' },
+    } as any)
+
+    const malformedLipSyncPlan = normalizeAlicizationEmbodimentScript({
+      version: 'embodiment-script-v1',
+      turnId: 'turn-bad-lipsync',
+      rendererTarget: 'live2d',
+      replyText: '你好',
+      state: {
+        baseEmotion: 'neutral',
+        delivery: 'calm',
+        emphasis: 0,
+        residentMode: 'dialogue',
+      },
+      speechPlan: {
+        segments: [],
+        interruptPolicy: 'hard-stop',
+        preRollMs: 0,
+        settleMs: 160,
+      },
+      facePlan: { speakingCues: [] },
+      motionPlan: {
+        idleBase: 'idle_settle',
+        actionBursts: [],
+        attentionMode: 'attentive',
+      },
+      lipsyncPlan: null,
+    })
+
+    expect(missingSpeechPlan).toBeNull()
+    expect(malformedFacePlan).toBeNull()
+    expect(malformedLipSyncPlan).toBeNull()
   })
 
   it('threads embodimentScript through the shared derived-mind payload normalization', () => {

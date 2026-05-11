@@ -229,6 +229,12 @@ function normalizeBundle(bundle: AlicizationDerivedMindStateBundle | null | unde
     recollectionCenter: normalizeScalar((bundle.recollectionPlan as any)?.opening),
     recollectionSurfaceMode: normalizeScalar((bundle.recollectionSpeechPlan as any)?.surfaceMode),
     deliberationSurfacePolicy: normalizeScalar((bundle.memoryDeliberation as any)?.surfacePolicy),
+    structuredEmbodimentScriptVersion: normalizeScalar(bundle.structured?.embodimentScript?.version),
+    structuredEmbodimentScriptDecisionTraceId: normalizeScalar(bundle.structured?.embodimentScript?.decisionTraceId),
+    structuredEmbodimentScriptResidentMode: normalizeScalar(bundle.structured?.embodimentScript?.state.residentMode),
+    structuredEmbodimentScriptFacePreUtteranceCue: normalizeScalar(bundle.structured?.embodimentScript?.facePlan.preUtteranceCue),
+    structuredEmbodimentScriptFacePostUtteranceCue: normalizeScalar(bundle.structured?.embodimentScript?.facePlan.postUtteranceCue),
+    structuredEmbodimentScriptLipSyncMode: normalizeScalar(bundle.structured?.embodimentScript?.lipsyncPlan.mode),
   }
 }
 

@@ -23,7 +23,7 @@ export interface AlicizationEmbodimentScriptState {
 export interface AlicizationEmbodimentFaceCue {
   segmentId: string
   emotion: AlicizationEmotion
-  facialCue: string
+  facialCue: string | null
   intensity: number
 }
 
@@ -35,7 +35,7 @@ export interface AlicizationEmbodimentFacePlan {
 
 export interface AlicizationEmbodimentMotionBurst {
   segmentId: string
-  actionCue: string
+  actionCue: string | null
   intensity: number
   holdMs: number
 }
@@ -110,14 +110,13 @@ function normalizeFaceCue(raw: unknown): AlicizationEmbodimentFaceCue | null {
 
   const candidate = raw as Record<string, unknown>
   const segmentId = normalizeText(candidate.segmentId, 120)
-  const facialCue = normalizeText(candidate.facialCue, 120)
-  if (!segmentId || !facialCue)
+  if (!segmentId)
     return null
 
   return {
     segmentId,
     emotion: normalizeAlicizationEmotion(candidate.emotion).emotion,
-    facialCue,
+    facialCue: normalizeText(candidate.facialCue, 120) || null,
     intensity: normalizeUnit(candidate.intensity),
   }
 }
@@ -128,46 +127,59 @@ function normalizeMotionBurst(raw: unknown): AlicizationEmbodimentMotionBurst | 
 
   const candidate = raw as Record<string, unknown>
   const segmentId = normalizeText(candidate.segmentId, 120)
-  const actionCue = normalizeText(candidate.actionCue, 120)
-  if (!segmentId || !actionCue)
+  if (!segmentId)
     return null
 
   return {
     segmentId,
-    actionCue,
+    actionCue: normalizeText(candidate.actionCue, 120) || null,
     intensity: normalizeUnit(candidate.intensity),
     holdMs: normalizeNonNegativeInteger(candidate.holdMs),
   }
 }
 
-function normalizeFacePlan(raw: unknown): AlicizationEmbodimentFacePlan {
-  const candidate = raw && typeof raw === 'object' && !Array.isArray(raw)
-    ? raw as Record<string, unknown>
-    : {}
+function normalizeFacePlan(raw: unknown): AlicizationEmbodimentFacePlan | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+    return null
+
+  const candidate = raw as Record<string, unknown>
+  if (!Array.isArray(candidate.speakingCues))
+    return null
+
+  const speakingCues = candidate.speakingCues
+    .map(normalizeFaceCue)
+    .filter((cue): cue is AlicizationEmbodimentFaceCue => Boolean(cue))
+  if (speakingCues.length !== candidate.speakingCues.length)
+    return null
 
   return {
     preUtteranceCue: normalizeText(candidate.preUtteranceCue, 120) || null,
     postUtteranceCue: normalizeText(candidate.postUtteranceCue, 120) || null,
-    speakingCues: Array.isArray(candidate.speakingCues)
-      ? candidate.speakingCues
-          .map(normalizeFaceCue)
-          .filter((cue): cue is AlicizationEmbodimentFaceCue => Boolean(cue))
-      : [],
+    speakingCues,
   }
 }
 
-function normalizeMotionPlan(raw: unknown): AlicizationEmbodimentMotionPlan {
-  const candidate = raw && typeof raw === 'object' && !Array.isArray(raw)
-    ? raw as Record<string, unknown>
-    : {}
+function normalizeMotionPlan(raw: unknown): AlicizationEmbodimentMotionPlan | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+    return null
+
+  const candidate = raw as Record<string, unknown>
+  if (!Array.isArray(candidate.actionBursts))
+    return null
+
+  const idleBase = normalizeText(candidate.idleBase, 120)
+  if (!idleBase)
+    return null
+
+  const actionBursts = candidate.actionBursts
+    .map(normalizeMotionBurst)
+    .filter((burst): burst is AlicizationEmbodimentMotionBurst => Boolean(burst))
+  if (actionBursts.length !== candidate.actionBursts.length)
+    return null
 
   return {
-    idleBase: normalizeText(candidate.idleBase, 120) || 'idle_settle',
-    actionBursts: Array.isArray(candidate.actionBursts)
-      ? candidate.actionBursts
-          .map(normalizeMotionBurst)
-          .filter((burst): burst is AlicizationEmbodimentMotionBurst => Boolean(burst))
-      : [],
+    idleBase,
+    actionBursts,
     attentionMode: normalizeAttentionMode(candidate.attentionMode),
   }
 }
@@ -189,7 +201,13 @@ export function normalizeAlicizationEmbodimentScript(raw: unknown): AlicizationE
 
   const stateCandidate = candidate.state && typeof candidate.state === 'object' && !Array.isArray(candidate.state)
     ? candidate.state as Record<string, unknown>
-    : {}
+    : null
+  const speechPlan = normalizeAlicizationEmbodimentSpeechPlan(candidate.speechPlan)
+  const facePlan = normalizeFacePlan(candidate.facePlan)
+  const motionPlan = normalizeMotionPlan(candidate.motionPlan)
+  const lipsyncPlan = normalizeAlicizationEmbodimentLipSyncPlan(candidate.lipsyncPlan)
+  if (!stateCandidate || !speechPlan || !facePlan || !motionPlan || !lipsyncPlan)
+    return null
 
   return {
     version,
@@ -203,9 +221,9 @@ export function normalizeAlicizationEmbodimentScript(raw: unknown): AlicizationE
       emphasis: normalizeEmphasis(stateCandidate.emphasis),
       residentMode: normalizeResidentMode(stateCandidate.residentMode),
     },
-    speechPlan: normalizeAlicizationEmbodimentSpeechPlan(candidate.speechPlan),
-    facePlan: normalizeFacePlan(candidate.facePlan),
-    motionPlan: normalizeMotionPlan(candidate.motionPlan),
-    lipsyncPlan: normalizeAlicizationEmbodimentLipSyncPlan(candidate.lipsyncPlan),
+    speechPlan,
+    facePlan,
+    motionPlan,
+    lipsyncPlan,
   }
 }

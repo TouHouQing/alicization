@@ -131,6 +131,51 @@ describe('alicization-browser-main-parity', () => {
         dialogueRhythm: {
           relationshipDoctrine: 'repair first',
         },
+        structured: {
+          thought: 'focus',
+          emotion: 'neutral',
+          reply: '你好',
+          performance: {
+            baseEmotion: 'neutral',
+            emotion: 'neutral',
+            facialCue: null,
+            actionCue: null,
+            delivery: 'calm',
+            emphasis: 0,
+          },
+          embodimentScript: {
+            version: 'embodiment-script-v1',
+            decisionTraceId: 'trace-parity-1',
+            turnId: 'turn-parity-1',
+            rendererTarget: 'live2d',
+            replyText: '你好',
+            state: {
+              baseEmotion: 'neutral',
+              delivery: 'calm',
+              emphasis: 0,
+              residentMode: 'dialogue',
+            },
+            speechPlan: {
+              segments: [],
+              interruptPolicy: 'hard-stop',
+              preRollMs: 0,
+              settleMs: 160,
+            },
+            facePlan: {
+              preUtteranceCue: 'steady-inhale',
+              postUtteranceCue: 'soft-release',
+              speakingCues: [],
+            },
+            motionPlan: {
+              idleBase: 'idle_settle',
+              actionBursts: [],
+              attentionMode: 'attentive',
+            },
+            lipsyncPlan: {
+              mode: 'energy-only',
+            },
+          },
+        },
         summary: 'steady line',
       },
       browserBundle: {
@@ -258,6 +303,51 @@ describe('alicization-browser-main-parity', () => {
         dialogueRhythm: {
           relationshipDoctrine: 'repair first',
         },
+        structured: {
+          thought: 'focus',
+          emotion: 'neutral',
+          reply: '你好',
+          performance: {
+            baseEmotion: 'neutral',
+            emotion: 'neutral',
+            facialCue: null,
+            actionCue: null,
+            delivery: 'calm',
+            emphasis: 0,
+          },
+          embodimentScript: {
+            version: 'embodiment-script-v1',
+            decisionTraceId: 'trace-parity-1',
+            turnId: 'turn-parity-1',
+            rendererTarget: 'live2d',
+            replyText: '你好',
+            state: {
+              baseEmotion: 'neutral',
+              delivery: 'calm',
+              emphasis: 0,
+              residentMode: 'dialogue',
+            },
+            speechPlan: {
+              segments: [],
+              interruptPolicy: 'hard-stop',
+              preRollMs: 0,
+              settleMs: 160,
+            },
+            facePlan: {
+              preUtteranceCue: 'steady-inhale',
+              postUtteranceCue: 'soft-release',
+              speakingCues: [],
+            },
+            motionPlan: {
+              idleBase: 'idle_settle',
+              actionBursts: [],
+              attentionMode: 'attentive',
+            },
+            lipsyncPlan: {
+              mode: 'energy-only',
+            },
+          },
+        },
         summary: 'steady line',
       },
       mainResolutionLedger: {
@@ -310,6 +400,13 @@ describe('alicization-browser-main-parity', () => {
 
     expect(summary.passed).toBe(true)
     expect(summary.divergentFieldCount).toBe(0)
+    expect(summary.comparedFields).toEqual(expect.arrayContaining([
+      'bundle.structuredEmbodimentScriptVersion',
+      'bundle.structuredEmbodimentScriptDecisionTraceId',
+      'bundle.structuredEmbodimentScriptResidentMode',
+      'bundle.structuredEmbodimentScriptFacePreUtteranceCue',
+      'bundle.structuredEmbodimentScriptLipSyncMode',
+    ]))
   })
 
   it('reports first divergent layer and field-level diffs', () => {
