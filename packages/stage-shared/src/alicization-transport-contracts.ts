@@ -1,7 +1,7 @@
 import type { AlicizationDialogueEmbodimentEnvelope } from './alicization-dialogue-embodiment'
 import type { AlicizationDialogueSpeechTimeline } from './alicization-dialogue-speech-timeline'
 import type { AlicizationDigitalLifeEnvelope } from './alicization-digital-life'
-import type { AlicizationEmbodimentScript } from './alicization-embodiment-script'
+import type { AlicizationEmbodimentScriptV1 } from './alicization-embodiment-script'
 import type { AlicizationClaimEvidenceGraph } from './alicization-claim-evidence-graph'
 import type { AlicizationMemoryResolutionLedger } from './alicization-memory-resolution-ledger'
 import type { AlicizationOrganicMemoryStageReplay } from './alicization-memory-stats'
@@ -3848,7 +3848,7 @@ export interface AlicizationDialogueStructuredPayload {
   visibleReplyRewriteRequest?: AlicizationVisibleReplyRewriteRequest | null
   performance: AlicizationDialoguePerformancePayload
   embodiment?: AlicizationDialogueEmbodimentEnvelope | null
-  embodimentScript?: AlicizationEmbodimentScript | null
+  embodimentScript?: AlicizationEmbodimentScriptV1 | null
   speechTimeline?: AlicizationDialogueSpeechTimeline | null
   digitalLife?: AlicizationDigitalLifeEnvelope | null
   digitalLifeSpine?: AlicizationDigitalLifeSpineDigest | null

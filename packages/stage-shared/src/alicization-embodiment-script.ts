@@ -10,7 +10,7 @@ import { normalizeAlicizationEmbodimentLipSyncPlan } from './alicization-lipsync
 import { normalizeAlicizationEmbodimentSpeechPlan } from './alicization-speech-plan'
 
 export type AlicizationEmbodimentScriptRendererTarget = 'live2d'
-export type AlicizationEmbodimentResidentMode = 'dialogue'
+export type AlicizationEmbodimentResidentMode = 'dialogue' | 'quiet-companionship' | 'idle-recovering'
 export type AlicizationEmbodimentAttentionMode = 'attentive' | 'ambient'
 
 export interface AlicizationEmbodimentScriptState {
@@ -28,6 +28,8 @@ export interface AlicizationEmbodimentFaceCue {
 }
 
 export interface AlicizationEmbodimentFacePlan {
+  preUtteranceCue?: string | null
+  postUtteranceCue?: string | null
   speakingCues: AlicizationEmbodimentFaceCue[]
 }
 
@@ -35,6 +37,7 @@ export interface AlicizationEmbodimentMotionBurst {
   segmentId: string
   actionCue: string
   intensity: number
+  holdMs: number
 }
 
 export interface AlicizationEmbodimentMotionPlan {
@@ -43,8 +46,9 @@ export interface AlicizationEmbodimentMotionPlan {
   attentionMode: AlicizationEmbodimentAttentionMode
 }
 
-export interface AlicizationEmbodimentScript {
+export interface AlicizationEmbodimentScriptV1 {
   version: 'embodiment-script-v1'
+  decisionTraceId?: string | null
   turnId: string
   rendererTarget: AlicizationEmbodimentScriptRendererTarget
   replyText: string
@@ -85,7 +89,11 @@ function normalizeEmphasis(raw: unknown): 0 | 1 | 2 {
 }
 
 function normalizeResidentMode(raw: unknown): AlicizationEmbodimentResidentMode {
-  return raw === 'dialogue' ? 'dialogue' : 'dialogue'
+  return raw === 'quiet-companionship'
+    || raw === 'idle-recovering'
+    || raw === 'dialogue'
+    ? raw
+    : 'dialogue'
 }
 
 function normalizeAttentionMode(raw: unknown): AlicizationEmbodimentAttentionMode {
@@ -128,6 +136,7 @@ function normalizeMotionBurst(raw: unknown): AlicizationEmbodimentMotionBurst | 
     segmentId,
     actionCue,
     intensity: normalizeUnit(candidate.intensity),
+    holdMs: normalizeNonNegativeInteger(candidate.holdMs),
   }
 }
 
@@ -137,6 +146,8 @@ function normalizeFacePlan(raw: unknown): AlicizationEmbodimentFacePlan {
     : {}
 
   return {
+    preUtteranceCue: normalizeText(candidate.preUtteranceCue, 120) || null,
+    postUtteranceCue: normalizeText(candidate.postUtteranceCue, 120) || null,
     speakingCues: Array.isArray(candidate.speakingCues)
       ? candidate.speakingCues
           .map(normalizeFaceCue)
@@ -161,7 +172,7 @@ function normalizeMotionPlan(raw: unknown): AlicizationEmbodimentMotionPlan {
   }
 }
 
-export function normalizeAlicizationEmbodimentScript(raw: unknown): AlicizationEmbodimentScript | null {
+export function normalizeAlicizationEmbodimentScript(raw: unknown): AlicizationEmbodimentScriptV1 | null {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw))
     return null
 
@@ -169,6 +180,7 @@ export function normalizeAlicizationEmbodimentScript(raw: unknown): AlicizationE
   const version = candidate.version === 'embodiment-script-v1'
     ? candidate.version
     : null
+  const decisionTraceId = normalizeText(candidate.decisionTraceId, 120) || null
   const turnId = normalizeText(candidate.turnId, 120)
   const rendererTarget = normalizeRendererTarget(candidate.rendererTarget)
   const replyText = normalizeText(candidate.replyText, 4000)
@@ -181,6 +193,7 @@ export function normalizeAlicizationEmbodimentScript(raw: unknown): AlicizationE
 
   return {
     version,
+    decisionTraceId,
     turnId,
     rendererTarget,
     replyText,

@@ -1,6 +1,5 @@
 export type AlicizationEmbodimentLipSyncMode
   = 'energy-only'
-    | 'phoneme-only'
     | 'energy-phoneme-hybrid'
 
 export type AlicizationEmbodimentViseme = 'A' | 'E' | 'I' | 'O' | 'U' | 'closed'
@@ -30,8 +29,7 @@ function normalizeUnit(raw: unknown) {
 }
 
 function normalizeLipSyncMode(raw: unknown): AlicizationEmbodimentLipSyncMode {
-  return raw === 'phoneme-only'
-    || raw === 'energy-phoneme-hybrid'
+  return raw === 'energy-phoneme-hybrid'
     ? raw
     : 'energy-only'
 }
