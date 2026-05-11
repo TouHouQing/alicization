@@ -69,6 +69,9 @@ export const useOnboardingStore = defineStore('onboarding', () => {
   })
 
   const hasGenesisReady = computed(() => !alicizationEpoch1Store.needsGenesis)
+  const preferredEntryStepId = computed(() => {
+    return hasGenesisReady.value ? 'provider-selection' : 'welcome'
+  })
 
   const needsOnboarding = computed(() => {
     if (hasSkippedSetup.value)
@@ -129,6 +132,7 @@ export const useOnboardingStore = defineStore('onboarding', () => {
     hasPersistedChatProviderConfig,
     hasConfiguredChatProvider,
     hasGenesisReady,
+    preferredEntryStepId,
     needsOnboarding,
 
     initializeSetupCheck,

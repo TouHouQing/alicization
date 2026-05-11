@@ -494,6 +494,7 @@ onMounted(() => {
   syncDesktopMouseCaptureState()
   void recoverStageLoading('init')
 
+  onboardingStore.initializeSetupCheck()
   if (onboardingStore.needsOnboarding) {
     openOnboarding()
   }
