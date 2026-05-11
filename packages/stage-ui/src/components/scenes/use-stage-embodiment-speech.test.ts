@@ -5,6 +5,7 @@ import type { BrowserSpeechAudioSource } from '../../libs/speech-audio-playback'
 import { createLive2DLipSync } from '@proj-alicization/model-driver-lipsync'
 import { createBufferedSpeechAudioSource } from '@proj-alicization/pipelines-audio'
 import {
+  normalizeAlicizationEmbodimentSpeechPlan,
   alignAlicizationDialogueSpeechTimelineSegment,
   buildAlicizationDialogueSpeechTimeline,
   createIdleStageEmbodimentSpeechArticulationState,
@@ -613,6 +614,91 @@ describe('stage embodiment speech contract', () => {
     expect(speech.speechRenderState.value.articulation.voice?.voiceId).toBe('nova')
     expect(speech.speechRenderState.value.articulation.voice?.spreadBias).toBeGreaterThan(0.3)
 
+    speech.dispose()
+  })
+
+  it('prefers embodimentScript speechPlan continuity over fallback timeline timing', async () => {
+    vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1))
+    vi.stubGlobal('cancelAnimationFrame', vi.fn())
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    const { useStageEmbodimentSpeech } = await import('./use-stage-embodiment-speech')
+
+    const speech = useStageEmbodimentSpeech({
+      audioContext: {} as AudioContext,
+      mouthOpenSize: ref(0),
+      paused: ref(false),
+      speechStylePitch: ref(0),
+      speechStyleRate: ref(1),
+      stageModelRenderer: ref('vrm'),
+    })
+
+    speech.primeSpeechTimeline(buildAlicizationDialogueSpeechTimeline({
+      reply: '先看这里。',
+      candidateEmotion: 'thinking',
+      candidatePerformance: {
+        baseEmotion: 'thinking',
+        emotion: 'thinking',
+        facialCue: 'focused',
+        actionCue: 'point_screen',
+        delivery: 'firm',
+        emphasis: 1,
+      },
+    }))
+
+    const preview = speech.previewSpeechSegment({
+      intentId: 'intent-script-authority',
+      streamId: 'stream-script-authority',
+      segmentId: 'segment-script-authority',
+      text: '先看这里。',
+      special: null,
+      continuityHoldMs: 100,
+      metadata: {
+        embodimentScript: {
+          version: 'embodiment-script-v1',
+          turnId: 'turn-script-authority',
+          rendererTarget: 'live2d',
+          replyText: '先看这里。',
+          state: {
+            baseEmotion: 'thinking',
+            delivery: 'firm',
+            emphasis: 1,
+            residentMode: 'dialogue',
+          },
+          speechPlan: normalizeAlicizationEmbodimentSpeechPlan({
+            segments: [{
+              id: 'segment-script-authority',
+              index: 0,
+              text: '先看这里。',
+              interruptPolicy: 'soft-settle',
+              preRollMs: 40,
+              settleMs: 480,
+            }],
+            interruptPolicy: 'soft-settle',
+            preRollMs: 40,
+            settleMs: 480,
+          }),
+          facePlan: {
+            speakingCues: [{
+              segmentId: 'segment-script-authority',
+              emotion: 'thinking',
+              facialCue: 'focused',
+              intensity: 0.6,
+            }],
+          },
+          motionPlan: {
+            idleBase: 'idle_settle',
+            actionBursts: [],
+            attentionMode: 'attentive',
+          },
+          lipsyncPlan: {
+            mode: 'energy-only',
+          },
+        },
+      },
+    })
+
+    expect(preview?.continuityHoldMs).toBe(480)
     speech.dispose()
   })
 

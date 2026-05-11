@@ -2,6 +2,8 @@ import type { Live2DLipSync, Live2DLipSyncOptions } from '@proj-alicization/mode
 import type { Profile } from '@proj-alicization/model-driver-lipsync/shared/wlipsync'
 import type { PlaybackItem, PlaybackManagerOptions, TextSegment } from '@proj-alicization/pipelines-audio'
 import type {
+  AlicizationEmbodimentScriptV1,
+  AlicizationEmbodimentSpeechPlan,
   AlicizationDialogueSpeechTimeline,
   AlicizationDialogueSpeechTimelineSegment,
   AlicizationDigitalLifeEnvelope,
@@ -39,6 +41,7 @@ import {
 import { computed, onUnmounted, readonly, ref, watch } from 'vue'
 
 import { playBrowserSpeechAudio } from '../../libs/speech-audio-playback'
+import { buildAlicizationEmbodimentSpeechPlan } from '../../services/embodiment/speech-planner'
 import { shouldRunLive2dLipSyncLoop } from './runtime'
 
 const defaultLive2dLipSyncOptions: Live2DLipSyncOptions = {
@@ -65,6 +68,12 @@ interface SpeechTimelineAlignmentState {
   consumedText: string
   signature: string
   timeline: AlicizationDialogueSpeechTimeline | null
+}
+
+interface SpeechPlanAlignmentState {
+  consumedSegmentIndex: number
+  plan: AlicizationEmbodimentSpeechPlan | null
+  signature: string
 }
 
 interface SyntheticSpeechState {
@@ -313,6 +322,14 @@ function createIdleSpeechTimelineAlignmentState(): SpeechTimelineAlignmentState 
   }
 }
 
+function createIdleSpeechPlanAlignmentState(): SpeechPlanAlignmentState {
+  return {
+    consumedSegmentIndex: 0,
+    plan: null,
+    signature: '',
+  }
+}
+
 function cloneSpeechTimelineCue(
   cue: AlicizationDialogueSpeechTimelineSegment | null | undefined,
 ): AlicizationDialogueSpeechTimelineSegment | null {
@@ -321,6 +338,41 @@ function cloneSpeechTimelineCue(
         ...cue,
       }
     : null
+}
+
+function normalizeSpeechMetadataRecord(metadata: Record<string, unknown> | null | undefined) {
+  return metadata && typeof metadata === 'object' && !Array.isArray(metadata)
+    ? metadata
+    : null
+}
+
+function resolveEmbodimentScriptFromMetadata(
+  metadata: Record<string, unknown> | null | undefined,
+): AlicizationEmbodimentScriptV1 | null {
+  const candidate = normalizeSpeechMetadataRecord(metadata)?.embodimentScript
+  if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate))
+    return null
+
+  const script = candidate as AlicizationEmbodimentScriptV1
+  return script.version === 'embodiment-script-v1' ? script : null
+}
+
+function createSpeechPlanSignature(plan: AlicizationEmbodimentSpeechPlan | null | undefined) {
+  let hash = 2166136261
+  hash = updateStableSignature(hash, plan?.interruptPolicy ?? null)
+  hash = updateStableSignature(hash, plan?.preRollMs ?? null)
+  hash = updateStableSignature(hash, plan?.settleMs ?? null)
+
+  plan?.segments.forEach((segment) => {
+    hash = updateStableSignature(hash, segment.id)
+    hash = updateStableSignature(hash, segment.index)
+    hash = updateStableSignature(hash, segment.text)
+    hash = updateStableSignature(hash, segment.interruptPolicy)
+    hash = updateStableSignature(hash, segment.preRollMs)
+    hash = updateStableSignature(hash, segment.settleMs)
+  })
+
+  return finalizeStableSignature(hash)
 }
 
 export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOptions) {
@@ -341,6 +393,7 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
   let speechRenderRevision = 0
   let syntheticSpeech = createIdleSyntheticSpeechState()
   let speechTimelineAlignment = createIdleSpeechTimelineAlignmentState()
+  let speechPlanAlignment = createIdleSpeechPlanAlignmentState()
   let speechArticulationState = createIdleStageEmbodimentSpeechArticulationState()
   let speechArticulationStartedAt: number | null = null
   let digitalLifeEnvelopeSignature = ''
@@ -810,6 +863,16 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
       durationMs: Number((performance.now() - startedAt).toFixed(2)),
       lastSegmentId: timeline?.segments.at(-1)?.id ?? null,
     })
+
+    const plan = buildAlicizationEmbodimentSpeechPlan({
+      turnId: timeline?.variationToken ?? 'speech-timeline',
+      replyText: timeline?.reply ?? '',
+      speechTimeline: timeline,
+      digitalLife: null,
+    })
+    speechPlanAlignment.plan = plan
+    speechPlanAlignment.signature = createSpeechPlanSignature(plan)
+    speechPlanAlignment.consumedSegmentIndex = 0
   }
 
   function resetDigitalLifeEnvelope() {
@@ -1081,6 +1144,57 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
     ].filter(Boolean).join(' '))
   }
 
+  function resolveActiveSpeechPlan(
+    metadata: Record<string, unknown> | null | undefined,
+  ) {
+    return resolveEmbodimentScriptFromMetadata(metadata)?.speechPlan ?? speechPlanAlignment.plan
+  }
+
+  function resolveSpeechPlanSegment(input: {
+    metadata: Record<string, unknown> | null | undefined
+    segmentId: string | null | undefined
+    text: string
+    queueIndex?: number
+  }) {
+    const plan = resolveActiveSpeechPlan(input.metadata)
+    if (!plan)
+      return null
+
+    if (input.segmentId) {
+      const directMatch = plan.segments.find(segment => segment.id === input.segmentId)
+      if (directMatch)
+        return directMatch
+    }
+
+    if (typeof input.queueIndex === 'number') {
+      const indexedMatch = plan.segments[input.queueIndex]
+      if (indexedMatch)
+        return indexedMatch
+    }
+
+    const normalizedText = normalizeAlignmentText(input.text)
+    if (!normalizedText)
+      return null
+
+    return plan.segments.find(segment => normalizeAlignmentText(segment.text) === normalizedText) ?? null
+  }
+
+  function resolveSpeechPlanContinuityHoldMs(
+    descriptor: SpeechPlaybackDescriptor,
+    queueIndex?: number,
+  ) {
+    const segment = resolveSpeechPlanSegment({
+      metadata: descriptor.metadata,
+      segmentId: descriptor.segmentId,
+      text: descriptor.text,
+      queueIndex,
+    })
+
+    return segment
+      ? Math.max(descriptor.continuityHoldMs ?? 0, segment.settleMs)
+      : descriptor.continuityHoldMs ?? null
+  }
+
   function projectPreviewPlaybackItem(
     descriptor: SpeechPlaybackDescriptor,
     index: number,
@@ -1103,7 +1217,7 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
     const digitalLifeFrame = resolveDigitalLifeFrame(descriptor, cue)
     const previewItem = createStageEmbodimentSpeechPlaybackItem({
       ...descriptor,
-      continuityHoldMs: descriptor.continuityHoldMs,
+      continuityHoldMs: resolveSpeechPlanContinuityHoldMs(descriptor, index) ?? descriptor.continuityHoldMs,
       metadata: descriptor.metadata,
       playbackDurationMs: descriptor.playbackDurationMs ?? estimateStageEmbodimentSpeechPlaybackDurationMs({
         text: descriptor.text,
@@ -1132,6 +1246,10 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
     const previewItem = projectPlaybackItem({
       ...descriptor,
       text,
+      continuityHoldMs: resolveSpeechPlanContinuityHoldMs({
+        ...descriptor,
+        text,
+      }, targetIndex) ?? descriptor.continuityHoldMs,
     }, {
       advanceTimeline: false,
       alignTimeline: false,
@@ -1360,10 +1478,12 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
     lastSpeechSignalsTickAt = 0
     clearUpcomingSpeechSegment(item.segmentId ?? null)
     beginSpeechArticulation(performance.now())
+    const continuityHoldMs = resolveSpeechPlanContinuityHoldMs(item)
     commitPlaybackState({
       phase: 'playing',
       item: projectPlaybackItem({
         ...item,
+        continuityHoldMs,
         metadata: item.metadata,
         playbackDurationMs: item.playbackDurationMs ?? estimateStageEmbodimentSpeechPlaybackDurationMs({
           text: item.text,
@@ -1383,6 +1503,13 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
       playbackDurationMs: item.playbackDurationMs ?? null,
       text: item.text.slice(0, 96),
     })
+    const segment = resolveSpeechPlanSegment({
+      metadata: item.metadata,
+      segmentId: item.segmentId,
+      text: item.text,
+    })
+    if (segment)
+      speechPlanAlignment.consumedSegmentIndex = Math.max(speechPlanAlignment.consumedSegmentIndex, segment.index + 1)
     emitPlaybackEvent('playback-start')
     startSpeechSignalsLoop()
   }
@@ -1397,6 +1524,7 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
       phase: 'idle',
       item: projectPlaybackItem({
         ...item,
+        continuityHoldMs: resolveSpeechPlanContinuityHoldMs(item),
         metadata: item.metadata,
         playbackDurationMs: item.playbackDurationMs ?? estimateStageEmbodimentSpeechPlaybackDurationMs({
           text: item.text,
