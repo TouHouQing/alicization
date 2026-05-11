@@ -58,18 +58,46 @@ export interface StageEmbodimentDiagnosticsSnapshot {
     prosodyIntensity: number
     emphasisLevel: number
     cadencePulse: number
+    playbackTelemetry: {
+      actualDurationMs: number | null
+      plannedDurationMs: number | null
+      driftMs: number | null
+      settleMs: number | null
+      stopReason: string | null
+    } | null
   }
   stage: Size2D
 }
 
 export interface UseStageEmbodimentDiagnosticsOptions {
   activePresence: Readonly<Ref<StageEmbodimentAttentionPresenceState | null>>
+  playbackTelemetry?: Readonly<Ref<unknown>>
   runtimeDigest?: Readonly<Ref<AlicizationRuntimeDigest | null | undefined>>
   presencePosture: Readonly<Ref<StageEmbodimentPresencePostureState>>
   speechRenderState: Readonly<Ref<StageEmbodimentSpeechRenderState | null | undefined>>
   stageBounds: Readonly<Ref<Size2D>>
   targetPoint: Readonly<Ref<Point2D>>
   visualPresenceState?: Readonly<Ref<AlicizationVisualPresenceStateSnapshot | null | undefined>>
+}
+
+function normalizePlaybackTelemetry(raw: unknown) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+    return null
+
+  const candidate = raw as Record<string, unknown>
+  const actualDurationMs = Number(candidate.actualDurationMs)
+  const plannedDurationMs = Number(candidate.plannedDurationMs)
+  const driftMs = Number(candidate.driftMs)
+  const settleMs = Number(candidate.settleMs)
+  const stopReason = typeof candidate.stopReason === 'string' ? candidate.stopReason : null
+
+  return {
+    actualDurationMs: Number.isFinite(actualDurationMs) ? actualDurationMs : null,
+    plannedDurationMs: Number.isFinite(plannedDurationMs) ? plannedDurationMs : null,
+    driftMs: Number.isFinite(driftMs) ? driftMs : null,
+    settleMs: Number.isFinite(settleMs) ? settleMs : null,
+    stopReason,
+  }
 }
 
 export function useStageEmbodimentDiagnostics(options: UseStageEmbodimentDiagnosticsOptions) {
@@ -80,6 +108,7 @@ export function useStageEmbodimentDiagnostics(options: UseStageEmbodimentDiagnos
     const runtimePresence = resolveStageEmbodimentRuntimePresence(visualPresenceState, now)
     const runtimeBias = resolveStageEmbodimentRuntimeAttentionBias(visualPresenceState, now, runtimePresence)
     const speechRenderState = options.speechRenderState.value
+    const playbackTelemetry = normalizePlaybackTelemetry(options.playbackTelemetry?.value)
 
     return {
       visualPresence: {
@@ -115,6 +144,7 @@ export function useStageEmbodimentDiagnostics(options: UseStageEmbodimentDiagnos
         prosodyIntensity: speechRenderState?.dynamics.prosodyIntensity ?? 0,
         emphasisLevel: speechRenderState?.dynamics.emphasisLevel ?? 0,
         cadencePulse: speechRenderState?.dynamics.cadencePulse ?? 0,
+        playbackTelemetry,
       },
       stage: options.stageBounds.value,
     }

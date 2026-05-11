@@ -119,6 +119,7 @@ export function useStageEmbodimentRuntime(options: UseStageEmbodimentRuntimeOpti
   })
   const diagnostics = useStageEmbodimentDiagnostics({
     activePresence: attention.activePresence,
+    playbackTelemetry: speech.playbackTelemetry,
     runtimeDigest: options.runtimeDigest,
     presencePosture: posture.presencePosture,
     speechRenderState: speech.speechRenderState,
