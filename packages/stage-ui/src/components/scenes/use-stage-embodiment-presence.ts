@@ -315,7 +315,9 @@ export function useStageEmbodimentPresence(options: UseStageEmbodimentPresenceOp
         variationToken,
       })
 
-      await options.speakFallback(reply, plannedPerformance)
+      await options.speakFallback(reply, plannedPerformance, payload.structured.embodimentScript ? {
+        embodimentScript: payload.structured.embodimentScript,
+      } : null)
     },
   }))
 

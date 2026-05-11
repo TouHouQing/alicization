@@ -484,7 +484,7 @@ function attachEmbodimentScriptToSpeechMetadata(
   embodimentScript: unknown,
 ) {
   if (!embodimentScript || typeof embodimentScript !== 'object' || Array.isArray(embodimentScript))
-    return metadata ?? {}
+    return metadata ?? null
 
   return {
     ...metadata,
@@ -1181,7 +1181,7 @@ embodimentRuntime = useStageEmbodimentRuntime({
   runtimeDigest,
   resolveClampedPresencePulsePerformance,
   resolvePresenceIntensity,
-  speakFallback: async (reply, _performance, _metadata) => {
+  speakFallback: async (reply, _performance, metadata) => {
     const normalizedReply = reply.trim()
     if (!normalizedReply)
       return
@@ -1193,7 +1193,10 @@ embodimentRuntime = useStageEmbodimentRuntime({
       ownerId: activeCardId.value,
       priority: 'normal',
       behavior: 'queue',
-      metadata: createSpeechIntentMetadata('fallback'),
+      metadata: attachEmbodimentScriptToSpeechMetadata(
+        createSpeechIntentMetadata('fallback'),
+        (metadata as Record<string, unknown> | null | undefined)?.embodimentScript,
+      ),
     })
     fallbackIntent.writeLiteral(normalizedReply)
     fallbackIntent.writeFlush()

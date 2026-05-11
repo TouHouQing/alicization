@@ -340,6 +340,51 @@ describe('stage embodiment presence', () => {
     }))
     expect(speakFallback).toBeCalledWith(payload.structured.reply, expect.objectContaining({
       actionCue: firstArmedPerformance?.actionCue,
+    }), null)
+
+    runtime.dispose()
+  })
+
+  it('passes embodimentScript metadata through the live2d speech fallback path when a script is present', async () => {
+    const harness = createDispatcherHarness()
+    const speakFallback = vi.fn()
+
+    const runtime = useStageEmbodimentPresence({
+      armPerformance: vi.fn(),
+      currentMotion: ref({ group: 'Idle' as string, index: 0 as number | undefined }),
+      dispatcher: harness.dispatcher as any,
+      live2dActionCapabilities: computed(() => []),
+      normalizePresenceEmotionName: () => Emotion.Neutral,
+      applyEmotionSpeechStyle: vi.fn(),
+      clampPerformance: performance => performance,
+      enqueueEmotion: vi.fn(),
+      performanceManifest: computed(() => createManifest()),
+      resolveClampedPresencePulsePerformance: () => createPerformance(),
+      resolvePresenceIntensity: (_emphasis, fallback) => fallback,
+      speakFallback,
+      stageModelRenderer: ref('live2d'),
+    })
+
+    const payload = createDialoguePayload({
+      turnId: 'turn-live2d-script',
+      structured: {
+        thought: 'focus',
+        reply: '我在这里。',
+        emotion: 'neutral',
+        performance: createPerformance(),
+        format: 'mind-turn-v1',
+      },
+    })
+
+    payload.structured.embodimentScript = harness.buildEmbodimentScript(payload) as any
+
+    const ttsController = harness.getController('tts')
+    await ttsController?.speak(payload.structured.reply, payload.structured.performance, payload)
+
+    expect(speakFallback).toBeCalledWith(payload.structured.reply, expect.any(Object), expect.objectContaining({
+      embodimentScript: expect.objectContaining({
+        turnId: 'turn-live2d-script',
+      }),
     }))
 
     runtime.dispose()
