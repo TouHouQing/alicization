@@ -1426,6 +1426,55 @@ describe('stage embodiment speech contract', () => {
       continuityHoldMs: 180,
       audio: createBufferedSpeechAudioSource({} as AudioBuffer),
       createdAt: 0,
+      metadata: {
+        embodimentScript: {
+          version: 'embodiment-script-v1',
+          turnId: 'turn-stop-1',
+          rendererTarget: 'live2d',
+          replyText: '先看这里，',
+          state: {
+            baseEmotion: 'thinking',
+            delivery: 'calm',
+            emphasis: 0,
+            residentMode: 'dialogue',
+          },
+          speechPlan: {
+            segments: [{
+              id: 'segment-1',
+              index: 0,
+              text: '先看这里，',
+              interruptPolicy: 'soft-settle',
+              preRollMs: 0,
+              settleMs: 180,
+            }],
+            interruptPolicy: 'soft-settle',
+            preRollMs: 0,
+            settleMs: 180,
+          },
+          facePlan: {
+            postUtteranceCue: 'settle-smile',
+            speakingCues: [{
+              segmentId: 'segment-1',
+              emotion: 'thinking',
+              facialCue: 'focus',
+              intensity: 0.6,
+            }],
+          },
+          motionPlan: {
+            idleBase: 'idle_settle',
+            actionBursts: [{
+              segmentId: 'segment-1',
+              actionCue: 'observe_focus',
+              intensity: 0.4,
+              holdMs: 220,
+            }],
+            attentionMode: 'attentive',
+          },
+          lipsyncPlan: {
+            mode: 'energy-only',
+          },
+        },
+      },
     }
 
     startListener?.({ item, startedAt: 100 })
@@ -1436,6 +1485,16 @@ describe('stage embodiment speech contract', () => {
     expect(interruptListener).toBeTypeOf('function')
     expect(speech.speechRenderState.value.phase).toBe('stopping')
     expect(speech.nowSpeaking.value).toBe(true)
+    expect(speech.playbackTelemetry.value).toEqual(expect.objectContaining({
+      actualDurationMs: 140,
+      driftMs: 140,
+      settleMs: 320,
+      stopReason: 'ended',
+    }))
+    expect(speech.playbackTelemetry.value?.drivers.face).toEqual(expect.objectContaining({
+      facialCue: 'focus',
+      postUtteranceCue: 'settle-smile',
+    }))
 
     vi.advanceTimersByTime(180)
 

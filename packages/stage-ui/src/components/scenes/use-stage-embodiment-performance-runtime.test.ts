@@ -881,4 +881,25 @@ describe('stage embodiment performance runtime', () => {
 
     scope.stop()
   })
+
+  it('exposes playback telemetry without changing performance state flow', () => {
+    const speechRenderState = ref(createIdleStageEmbodimentSpeechRenderState())
+    const playbackTelemetry = ref<Record<string, unknown> | null>({
+      driftMs: 380,
+      settleMs: 560,
+    })
+    const scope = effectScope()
+    const runtime = scope.run(() => useStageEmbodimentPerformanceRuntime({
+      playbackTelemetry,
+      speechRenderState,
+    }))!
+
+    expect(runtime.playbackTelemetry.value).toEqual({
+      driftMs: 380,
+      settleMs: 560,
+    })
+    expect(runtime.state.value.phase).toBe('idle')
+
+    scope.stop()
+  })
 })

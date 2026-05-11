@@ -94,6 +94,7 @@ export function useStageEmbodimentRuntime(options: UseStageEmbodimentRuntimeOpti
   })
   const performance = useStageEmbodimentPerformanceRuntime({
     digitalLifeSpineDigest: visualPresence.digitalLifeSpineDigest,
+    playbackTelemetry: speech.playbackTelemetry,
     speechRenderState: speech.speechRenderState,
     upcomingSpeechSegment: speech.upcomingSpeechSegment,
   })
@@ -248,6 +249,7 @@ export function useStageEmbodimentRuntime(options: UseStageEmbodimentRuntimeOpti
     normalizePresenceEmotionName,
     nowSpeaking: speech.nowSpeaking,
     onPlaybackEvent: speech.onPlaybackEvent,
+    playbackTelemetry: speech.playbackTelemetry,
     performanceState: performance.state,
     playAudioSource: speech.playAudioSource,
     previewSpeechSegment: speech.previewSpeechSegment,
