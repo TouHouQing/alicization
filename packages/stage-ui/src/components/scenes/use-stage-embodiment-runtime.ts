@@ -61,7 +61,11 @@ export interface UseStageEmbodimentRuntimeOptions {
   rate: Ref<number>
   resolveClampedPresencePulsePerformance: (payload: AlicizationPresencePulsePayload) => AlicizationDialoguePerformancePayload
   resolvePresenceIntensity: (emphasis: number | undefined, fallbackIntensity: number) => number
-  speakFallback: (reply: string, performance: AlicizationDialoguePerformancePayload) => Promise<void> | void
+  speakFallback: (
+    reply: string,
+    performance: AlicizationDialoguePerformancePayload,
+    metadata?: Record<string, unknown> | null,
+  ) => Promise<void> | void
   stageBounds: Readonly<Ref<Size2D>>
   stageModelRenderer: Ref<StageModelRenderer>
   vrmActionBindings: Readonly<Ref<VrmActionBinding[]>>

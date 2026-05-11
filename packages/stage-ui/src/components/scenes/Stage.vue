@@ -1181,7 +1181,7 @@ embodimentRuntime = useStageEmbodimentRuntime({
   runtimeDigest,
   resolveClampedPresencePulsePerformance,
   resolvePresenceIntensity,
-  speakFallback: async (reply) => {
+  speakFallback: async (reply, _performance, _metadata) => {
     const normalizedReply = reply.trim()
     if (!normalizedReply)
       return
