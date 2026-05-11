@@ -390,6 +390,19 @@ function renderTextList(values?: string[] | null) {
   return items.map(item => `- ${item}`)
 }
 
+function renderInlineTextList(values?: string[] | null) {
+  const items = (values ?? []).map(item => item.trim()).filter(Boolean)
+  return items.length === 0 ? '未定义' : items.join('、')
+}
+
+function renderInlineScalar(value: unknown, fallback: string) {
+  if (typeof value === 'number')
+    return Number.isFinite(value) ? value.toFixed(2) : fallback
+  if (typeof value === 'string')
+    return value.trim() || fallback
+  return fallback
+}
+
 export function buildSoulBody(frontmatter: AlicizationSoulFrontmatter, _personaNotes: string) {
   const personality = frontmatter.personality
   const identityKernel = personality.identityKernel ?? null
@@ -405,17 +418,17 @@ export function buildSoulBody(frontmatter: AlicizationSoulFrontmatter, _personaN
     '',
     `- 关系姿态：${identityKernel?.relationshipPosture?.trim() || '未定义'}`,
     `- 主动风格：${identityKernel?.initiativeStyle?.trim() || '未定义'}`,
-    `- 价值偏置：${identityKernel?.valueBias?.trim() || '未定义'}`,
-    `- 服从温度：${identityKernel?.temperament?.obedience?.toFixed(2) ?? personality.obedience.toFixed(2)}`,
-    `- 活泼温度：${identityKernel?.temperament?.liveliness?.toFixed(2) ?? personality.liveliness.toFixed(2)}`,
-    `- 感性温度：${identityKernel?.temperament?.sensibility?.toFixed(2) ?? personality.sensibility.toFixed(2)}`,
+    `- 价值偏置：${renderInlineTextList(identityKernel?.valueBias)}`,
+    `- 服从温度：${renderInlineScalar(identityKernel?.temperament?.obedience, personality.obedience.toFixed(2))}`,
+    `- 活泼温度：${renderInlineScalar(identityKernel?.temperament?.liveliness, personality.liveliness.toFixed(2))}`,
+    `- 感性温度：${renderInlineScalar(identityKernel?.temperament?.sensibility, personality.sensibility.toFixed(2))}`,
     '',
     '## Expression Profile',
     '',
-    `- 温暖度：${expressionProfile?.warmth?.toFixed(2) ?? personality.sensibility.toFixed(2)}`,
-    `- 直接度：${expressionProfile?.directness?.toFixed(2) ?? personality.obedience.toFixed(2)}`,
-    `- 玩心度：${expressionProfile?.playfulness?.toFixed(2) ?? personality.liveliness.toFixed(2)}`,
-    `- 情绪可见度：${expressionProfile?.emotionalVisibility?.toFixed(2) ?? personality.sensibility.toFixed(2)}`,
+    `- 温暖度：${renderInlineScalar(expressionProfile?.warmth, personality.sensibility.toFixed(2))}`,
+    `- 直接度：${renderInlineScalar(expressionProfile?.directness, personality.obedience.toFixed(2))}`,
+    `- 玩心度：${renderInlineScalar(expressionProfile?.playfulness, personality.liveliness.toFixed(2))}`,
+    `- 情绪可见度：${renderInlineScalar(expressionProfile?.emotionalVisibility, personality.sensibility.toFixed(2))}`,
     '',
     '## Anti-Persona Constraints',
     '',

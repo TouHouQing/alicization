@@ -739,7 +739,7 @@ describe('person-state-projection', () => {
     expect(direct.openingGuidance).toContain('Open with the live answer first')
     expect(direct.preferredProactiveStyle).toBe('light-nudge')
     expect(guarded.relationshipPosture).toBe('restrained')
-    expect(guarded.openingGuidance).toContain('Repair the seam before leaning closer')
+    expect(guarded.openingGuidance).toContain('Open by observing first')
     expect(guarded.preferredProactiveStyle).toBe('silent-observe')
     expect(guarded.activeClosenessRung).toBe('space-first')
   })

@@ -119,9 +119,19 @@ function normalizeClosenessContext(raw: string | null | undefined): AlicizationP
 function deriveRelationshipPosture(input: {
   continuity: AlicizationPersonalityContinuityStateSnapshot
   personaAuthority: AlicizationPersonaAuthorityInfluence
+  repairBeforeCloseness: boolean
   cautious: boolean
   restrained: boolean
 }) {
+  if (
+    input.continuity.currentRegime === 'focused-work'
+    && input.personaAuthority.directnessBias >= 0.34
+    && input.repairBeforeCloseness
+    && input.continuity.repairPosture !== 'repair-first'
+    && input.personaAuthority.roomBias < 0.14
+  ) {
+    return 'warm' as const
+  }
   if (input.continuity.currentRegime === 'open-companionship') {
     if (
       input.continuity.repairPosture === 'repair-first'
@@ -146,15 +156,15 @@ function deriveRelationshipPosture(input: {
   }
   if (
     input.personaAuthority.directnessBias >= 0.22
-    && !input.cautious
-    && !input.restrained
     && input.continuity.repairPosture !== 'repair-first'
+    && input.continuity.closenessPosture !== 'space-first'
+    && input.continuity.autonomyPosture !== 'protect-space'
+    && input.personaAuthority.roomBias < 0.2
   ) {
     return 'warm' as const
   }
   if (
-    input.restrained
-    || input.continuity.closenessPosture === 'space-first'
+    (input.continuity.closenessPosture === 'space-first' && input.personaAuthority.directnessBias < 0.22)
     || input.continuity.repairPosture === 'repair-first'
     || input.continuity.autonomyPosture === 'protect-space'
     || input.personaAuthority.roomBias >= 0.2
@@ -193,15 +203,29 @@ function deriveOpeningGuidance(input: {
   restrained: boolean
 }) {
   if (
-    input.repairBeforeCloseness
-    || input.continuity.repairPosture === 'repair-first'
-    || (input.personaAuthority.repairBias >= 0.2 && input.personaAuthority.roomBias >= 0.14)
-    || (input.repairTriggerText && input.relationshipPosture === 'restrained')
+    (input.repairTriggerText && input.relationshipPosture === 'restrained')
+    || (input.continuity.currentRegime === 'repair-window' && input.relationshipPosture === 'restrained')
   ) {
     return 'Repair the seam before leaning closer.'
   }
-  if (input.personaAuthority.openingGuidance && !input.restrained)
+  if (
+    input.continuity.repairPosture === 'repair-first'
+  ) {
+    return 'Repair the seam before leaning closer.'
+  }
+  if (
+    input.personaAuthority.openingGuidance
+    && (!input.restrained || (input.relationshipPosture === 'warm' && input.personaAuthority.directnessBias >= 0.34))
+  ) {
     return input.personaAuthority.openingGuidance
+  }
+  if (
+    input.personaAuthority.preferredProactiveStyle === 'silent-observe'
+    && input.relationshipPosture === 'restrained'
+    && input.continuity.repairPosture !== 'repair-first'
+  ) {
+    return 'Open by observing first and keep the approach lighter.'
+  }
   if (input.truthBeforeWarmth)
     return 'Keep truth in front of warmth while you answer.'
   if (
@@ -451,6 +475,7 @@ export function buildAlicizationPersonStateProjection(input: {
   const relationshipPosture = deriveRelationshipPosture({
     continuity: personalityContinuityState,
     personaAuthority,
+    repairBeforeCloseness: doctrineGuidance.repairBeforeCloseness,
     cautious,
     restrained,
   })
