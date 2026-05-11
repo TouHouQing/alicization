@@ -140,4 +140,26 @@ describe('onboarding store', () => {
     expect(store.shouldShowSetup).toBe(true)
     expect(store.hasCompletedSetup).toBe(false)
   })
+
+  it('starts on the birth workshop path when genesis is needed', async () => {
+    mocks.needsGenesis = true
+
+    const { useOnboardingStore } = await import('./onboarding')
+    const store = useOnboardingStore()
+    await store.initializeSetupCheck()
+
+    expect(store.preferredEntryStepId).toBe('welcome')
+  })
+
+  it('defaults to provider setup when genesis is already ready', async () => {
+    mocks.activeProvider = 'provider-not-hydrated-yet'
+    mocks.activeModel = 'model-x'
+    mocks.needsGenesis = false
+
+    const { useOnboardingStore } = await import('./onboarding')
+    const store = useOnboardingStore()
+    await store.initializeSetupCheck()
+
+    expect(store.preferredEntryStepId).toBe('provider-selection')
+  })
 })

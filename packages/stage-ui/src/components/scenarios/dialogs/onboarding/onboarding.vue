@@ -10,7 +10,7 @@ import type {
 } from './types'
 
 import { storeToRefs } from 'pinia'
-import { computed, nextTick, ref } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 
 import StepActionMappingGuide from './step-action-mapping-guide.vue'
 import StepPersonaCalibration from './step-persona-calibration.vue'
@@ -24,6 +24,7 @@ import StepWelcome from './step-welcome.vue'
 
 import { useAiriCardStore } from '../../../../stores/modules/airi-card'
 import { useConsciousnessStore } from '../../../../stores/modules/consciousness'
+import { useOnboardingStore } from '../../../../stores/onboarding'
 import { useProvidersStore } from '../../../../stores/providers'
 
 interface Emits {
@@ -34,7 +35,78 @@ interface Emits {
 const { extraSteps = [] } = defineProps<{
   extraSteps?: OnboardingStep[]
 }>()
+const onboardingStore = useOnboardingStore()
 const emit = defineEmits<Emits>()
+const allSteps = computed<OnboardingStep[]>(() => {
+  const coreSteps: OnboardingStep[] = [
+    {
+      id: 'welcome',
+      component: StepWelcome,
+    },
+    {
+      id: 'persona-intro',
+      component: StepPersonaIntro,
+    },
+    {
+      id: 'persona-core',
+      component: StepPersonaCore,
+    },
+    {
+      id: 'persona-calibration',
+      component: StepPersonaCalibration,
+    },
+    {
+      id: 'persona-preview',
+      component: StepPersonaPreview,
+    },
+    {
+      id: 'provider-selection',
+      component: StepProviderSelection,
+      props: () => ({
+        selectedProviderId: selectedProviderId.value,
+        popularProviders: popularProviders.value,
+        onSelectProvider: selectProvider,
+      }),
+    },
+    {
+      id: 'provider-configuration',
+      component: StepProviderConfiguration,
+      props: () => ({
+        selectedProviderId: selectedProviderId.value,
+        selectedProvider: selectedProvider.value,
+      }),
+      beforeNext: async () => {
+        if (!pendingProviderConfig.value)
+          return false
+
+        await saveProviderConfiguration(pendingProviderConfig.value)
+        pendingProviderConfig.value = null
+        return true
+      },
+    },
+    ...extraSteps.map(step => ({
+      ...step,
+      props: () => ({
+        ...step.props?.(),
+      }),
+    })),
+    {
+      id: 'model-selection',
+      component: StepModelSelection,
+      beforeNext: async () => syncAlicizationCardConsciousnessBinding(),
+    },
+    {
+      id: 'action-mapping-guide',
+      component: StepActionMappingGuide,
+      props: () => ({
+        onComplete: () => handleSave(),
+        onOpenActionMapping: () => handleSave({ followUpRoute: '/settings/models' }),
+      }),
+    },
+  ]
+
+  return coreSteps
+})
 const step = ref(0)
 const direction = ref<'next' | 'previous'>('next')
 const pendingProviderConfig = ref<ProviderConfigData | null>(null)
@@ -114,80 +186,24 @@ async function handleSave(payload?: OnboardingConfiguredPayload) {
   emit('configured', payload)
 }
 
-const allSteps = computed<OnboardingStep[]>(() => {
-  const coreSteps: OnboardingStep[] = [
-    {
-      id: 'welcome',
-      component: StepWelcome,
-    },
-    {
-      id: 'persona-intro',
-      component: StepPersonaIntro,
-    },
-    {
-      id: 'persona-core',
-      component: StepPersonaCore,
-    },
-    {
-      id: 'persona-calibration',
-      component: StepPersonaCalibration,
-    },
-    {
-      id: 'persona-preview',
-      component: StepPersonaPreview,
-    },
-    {
-      id: 'provider-selection',
-      component: StepProviderSelection,
-      props: () => ({
-        selectedProviderId: selectedProviderId.value,
-        popularProviders: popularProviders.value,
-        onSelectProvider: selectProvider,
-      }),
-    },
-    {
-      id: 'provider-configuration',
-      component: StepProviderConfiguration,
-      props: () => ({
-        selectedProviderId: selectedProviderId.value,
-        selectedProvider: selectedProvider.value,
-      }),
-      beforeNext: async () => {
-        if (!pendingProviderConfig.value)
-          return false
-
-        await saveProviderConfiguration(pendingProviderConfig.value)
-        pendingProviderConfig.value = null
-        return true
-      },
-    },
-    ...extraSteps.map(step => ({
-      ...step,
-      props: () => ({
-        ...step.props?.(),
-      }),
-    })),
-    {
-      id: 'model-selection',
-      component: StepModelSelection,
-      beforeNext: async () => syncAlicizationCardConsciousnessBinding(),
-    },
-    {
-      id: 'action-mapping-guide',
-      component: StepActionMappingGuide,
-      props: () => ({
-        onComplete: () => handleSave(),
-        onOpenActionMapping: () => handleSave({ followUpRoute: '/settings/models' }),
-      }),
-    },
-  ]
-
-  return coreSteps
+const preferredEntryStepIndex = computed(() => {
+  const preferredStepId = onboardingStore.preferredEntryStepId
+  const preferredIndex = allSteps.value.findIndex(step => step.id === preferredStepId)
+  return preferredIndex >= 0 ? preferredIndex : 0
 })
 
 const currentStep = computed(() => allSteps.value[step.value] ?? null)
 const isLastStep = computed(() => step.value === allSteps.value.length - 1)
 const currentStepProps = computed(() => currentStep.value?.props?.() ?? {})
+
+const hasAppliedInitialStep = ref(false)
+watch(preferredEntryStepIndex, (index) => {
+  if (hasAppliedInitialStep.value)
+    return
+
+  step.value = index
+  hasAppliedInitialStep.value = true
+}, { immediate: true })
 
 async function canPassGuard(guard?: OnboardingStepGuard) {
   if (!guard)

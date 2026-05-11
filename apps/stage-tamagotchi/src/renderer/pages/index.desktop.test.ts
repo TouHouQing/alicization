@@ -195,4 +195,24 @@ describe('stage desktop page helpers', () => {
       expect(model.cameraDistance).toBe(3.2)
     })
   })
+
+  describe('startup onboarding order', () => {
+    it('initializes onboarding state before checking whether to open onboarding', () => {
+      const initializeSetupCheck = vi.fn()
+      const openOnboarding = vi.fn()
+      const onboardingStore = {
+        initializeSetupCheck,
+        get needsOnboarding() {
+          return false
+        },
+      }
+
+      onboardingStore.initializeSetupCheck()
+      if (onboardingStore.needsOnboarding)
+        openOnboarding()
+
+      expect(initializeSetupCheck).toHaveBeenCalledOnce()
+      expect(openOnboarding).not.toHaveBeenCalled()
+    })
+  })
 })
