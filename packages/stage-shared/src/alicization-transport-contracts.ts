@@ -1,10 +1,17 @@
 import type { AlicizationDialogueEmbodimentEnvelope } from './alicization-dialogue-embodiment'
 import type { AlicizationDialogueSpeechTimeline } from './alicization-dialogue-speech-timeline'
 import type { AlicizationDigitalLifeEnvelope } from './alicization-digital-life'
+import type { AlicizationEmbodimentScript } from './alicization-embodiment-script'
 import type { AlicizationClaimEvidenceGraph } from './alicization-claim-evidence-graph'
 import type { AlicizationMemoryResolutionLedger } from './alicization-memory-resolution-ledger'
 import type { AlicizationOrganicMemoryStageReplay } from './alicization-memory-stats'
 import type { AlicizationDialoguePerformancePayload, AlicizationEmotion } from './alicization-performance-contracts'
+
+import { normalizeAlicizationEmbodimentScript } from './alicization-embodiment-script'
+import {
+  normalizeAlicizationEmotion,
+  normalizeAlicizationPerformancePayload,
+} from './alicization-performance-contracts'
 
 export type AlicizationMemorySource = 'rule' | 'async-llm' | 'rule-shadow'
 export type AlicizationKnowledgeAssimilationStage
@@ -2448,6 +2455,7 @@ export interface AlicizationDerivedMindStateBundle {
   source: 'main-runtime' | 'browser-fallback'
   producedAt: number
   visualPresenceState?: AlicizationVisualPresenceStateSnapshot | null
+  structured?: AlicizationDialogueStructuredPayload | null
   hostPersonModel?: AlicizationHostPersonModelSnapshot | null
   personStateProjection?: Record<string, unknown> | null
   knowledgeEvidence?: {
@@ -2549,6 +2557,35 @@ function normalizeVisualPresenceStateSnapshot(raw: unknown): AlicizationVisualPr
   }
 }
 
+function normalizeAlicizationDialogueStructuredPayload(raw: unknown): AlicizationDialogueStructuredPayload | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+    return null
+
+  const candidate = raw as Record<string, unknown>
+  const thought = sanitizeAlicizationDigitalLifeDigestText(candidate.thought, 4000)
+  const reply = sanitizeAlicizationDigitalLifeDigestText(candidate.reply, 4000)
+  if (!thought || !reply)
+    return null
+
+  const emotion = normalizeAlicizationEmotion(candidate.emotion)
+
+  return {
+    thought,
+    emotion: emotion.emotion,
+    reply,
+    performance: normalizeAlicizationPerformancePayload(candidate.performance, emotion.emotion),
+    embodimentScript: normalizeAlicizationEmbodimentScript(candidate.embodimentScript),
+    format: candidate.format === 'subconscious-proactive-v1'
+      || candidate.format === 'subconscious-proactive-llm-v1'
+      || candidate.format === 'subconscious-reminder-v1'
+      || candidate.format === 'mind-turn-v1'
+      || candidate.format === 'epoch1-v1'
+      || candidate.format === 'fallback-v1'
+      ? candidate.format
+      : undefined,
+  }
+}
+
 export function normalizeAlicizationDerivedMindStateBundle(raw: unknown): AlicizationDerivedMindStateBundle | null {
   const candidate = raw && typeof raw === 'object' && !Array.isArray(raw)
     ? raw as Record<string, unknown>
@@ -2568,6 +2605,7 @@ export function normalizeAlicizationDerivedMindStateBundle(raw: unknown): Aliciz
     return null
 
   const visualPresenceState = normalizeVisualPresenceStateSnapshot(candidate.visualPresenceState)
+  const structured = normalizeAlicizationDialogueStructuredPayload(candidate.structured)
 
   const knowledgeEvidence = candidate.knowledgeEvidence && typeof candidate.knowledgeEvidence === 'object'
     ? candidate.knowledgeEvidence as Record<string, unknown>
@@ -2596,6 +2634,7 @@ export function normalizeAlicizationDerivedMindStateBundle(raw: unknown): Aliciz
     source,
     producedAt: Math.max(0, Math.floor(producedAt)),
     visualPresenceState,
+    structured,
     hostPersonModel: candidate.hostPersonModel && typeof candidate.hostPersonModel === 'object'
       ? candidate.hostPersonModel as AlicizationHostPersonModelSnapshot
       : null,
@@ -3809,6 +3848,7 @@ export interface AlicizationDialogueStructuredPayload {
   visibleReplyRewriteRequest?: AlicizationVisibleReplyRewriteRequest | null
   performance: AlicizationDialoguePerformancePayload
   embodiment?: AlicizationDialogueEmbodimentEnvelope | null
+  embodimentScript?: AlicizationEmbodimentScript | null
   speechTimeline?: AlicizationDialogueSpeechTimeline | null
   digitalLife?: AlicizationDigitalLifeEnvelope | null
   digitalLifeSpine?: AlicizationDigitalLifeSpineDigest | null
