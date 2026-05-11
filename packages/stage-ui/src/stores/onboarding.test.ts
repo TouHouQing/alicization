@@ -40,10 +40,9 @@ vi.mock('./modules/consciousness', async () => {
 })
 
 vi.mock('./alicization-epoch1', async () => {
-  const { ref } = await import('vue')
   return {
     useAlicizationEpoch1Store: () => ({
-      needsGenesis: ref(mocks.needsGenesis),
+      needsGenesis: mocks.needsGenesis,
     }),
   }
 })
