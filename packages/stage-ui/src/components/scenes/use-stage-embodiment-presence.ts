@@ -4,6 +4,7 @@ import type { ComputedRef, Ref } from 'vue'
 import type { EmotionPayload } from '../../constants/emotions'
 import type {
   AlicizationDialogueEmbodimentEnvelope,
+  AlicizationEmbodimentScriptV1,
   AlicizationDialoguePerformancePayload,
   AlicizationDialogueRespondedPayload,
   AlicizationDialogueSpeechTimeline,
@@ -50,7 +51,11 @@ export interface UseStageEmbodimentPresenceOptions {
   performanceManifest: ComputedRef<CharacterPerformanceCapabilitiesManifest | null>
   resolveClampedPresencePulsePerformance: (payload: AlicizationPresencePulsePayload) => AlicizationDialoguePerformancePayload
   resolvePresenceIntensity: (emphasis: number | undefined, fallbackIntensity: number) => number
-  speakFallback: (reply: string, performance: AlicizationDialoguePerformancePayload) => Promise<void> | void
+  speakFallback: (
+    reply: string,
+    performance: AlicizationDialoguePerformancePayload,
+    metadata?: { embodimentScript?: AlicizationEmbodimentScriptV1 | null } | null,
+  ) => Promise<void> | void
   stageModelRenderer: Ref<StageModelRenderer>
   visualPresenceState?: Readonly<Ref<AlicizationVisualPresenceStateSnapshot | null | undefined>>
 }
