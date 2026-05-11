@@ -36,7 +36,11 @@ import { electronMainStageStartupStatusChannel, electronOpenOnboarding } from '.
 import { useControlsIslandStore } from '../stores/controls-island'
 import { useStageWindowLifecycleStore } from '../stores/stage-window-lifecycle'
 import { useWindowStore } from '../stores/window'
-import { resetDesktopLayoutState, resolveDesktopMouseCaptureState } from './index.desktop'
+import {
+  resetDesktopLayoutState,
+  resolveDesktopMouseCaptureState,
+  runStageStartupOnboardingCheck,
+} from './index.desktop'
 
 const controlsIslandRef = ref<InstanceType<typeof ControlsIsland>>()
 const widgetStageRef = ref<InstanceType<typeof WidgetStage>>()
@@ -493,11 +497,13 @@ onMounted(() => {
   emitStageStartupStatus('stage-page-mounted')
   syncDesktopMouseCaptureState()
   void recoverStageLoading('init')
-
-  onboardingStore.initializeSetupCheck()
-  if (onboardingStore.needsOnboarding) {
-    openOnboarding()
-  }
+  runStageStartupOnboardingCheck({
+    initializeSetupCheck: () => onboardingStore.initializeSetupCheck(),
+    get needsOnboarding() {
+      return onboardingStore.needsOnboarding
+    },
+    openOnboarding,
+  })
 })
 
 onUnmounted(() => {

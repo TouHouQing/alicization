@@ -27,6 +27,12 @@ export interface DesktopLayoutResetInput {
   }
 }
 
+export interface StageStartupOnboardingInput {
+  initializeSetupCheck: () => void
+  needsOnboarding: boolean
+  openOnboarding: () => void
+}
+
 export function resolveDesktopMouseCaptureState(input: DesktopMouseCaptureStateInput) {
   const shouldCaptureStagePixels = input.stageCapturePixel && !input.fadeOnHoverEnabled
   const shouldCaptureMouse = input.stagePaused
@@ -65,4 +71,10 @@ export function resetDesktopLayoutState(input: DesktopLayoutResetInput) {
     ? input.model.bootstrapCameraDistance
     : input.model.cameraDistance
   input.stageDialogue.resetLayout()
+}
+
+export function runStageStartupOnboardingCheck(input: StageStartupOnboardingInput) {
+  input.initializeSetupCheck()
+  if (input.needsOnboarding)
+    input.openOnboarding()
 }
