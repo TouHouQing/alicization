@@ -32,8 +32,9 @@ interface Emits {
   (e: 'skipped'): void
 }
 
-const { extraSteps = [] } = defineProps<{
+const { extraSteps = [], isOpen = true } = defineProps<{
   extraSteps?: OnboardingStep[]
+  isOpen?: boolean
 }>()
 const onboardingStore = useOnboardingStore()
 const emit = defineEmits<Emits>()
@@ -196,13 +197,13 @@ const currentStep = computed(() => allSteps.value[step.value] ?? null)
 const isLastStep = computed(() => step.value === allSteps.value.length - 1)
 const currentStepProps = computed(() => currentStep.value?.props?.() ?? {})
 
-const hasAppliedInitialStep = ref(false)
-watch(preferredEntryStepIndex, (index) => {
-  if (hasAppliedInitialStep.value)
+watch([isOpen, preferredEntryStepIndex], ([open, index]) => {
+  if (!open) {
+    step.value = 0
     return
+  }
 
   step.value = index
-  hasAppliedInitialStep.value = true
 }, { immediate: true })
 
 async function canPassGuard(guard?: OnboardingStepGuard) {
