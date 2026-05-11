@@ -18,6 +18,30 @@ describe('stage embodiment diagnostics', () => {
         driftMs: 380,
         settleMs: 560,
         stopReason: 'ended',
+        drivers: {
+          face: {
+            emotion: 'happy',
+            facialCue: 'smile',
+            intensity: 0.8,
+            preUtteranceCue: 'soft-breath',
+            postUtteranceCue: 'settle-smile',
+            segmentId: 'segment-1',
+          },
+          lipsync: {
+            mode: 'energy-phoneme-hybrid',
+            playbackPhase: 'idle',
+            segmentId: 'segment-1',
+            visemeHints: [],
+          },
+          motion: {
+            idleBase: 'idle_settle',
+            attentionMode: 'attentive',
+            actionCue: 'wave',
+            intensity: 0.7,
+            holdMs: 320,
+            segmentId: 'segment-1',
+          },
+        },
       }),
       runtimeDigest: ref({
         version: 'alicization-runtime-digest-v1',
@@ -105,6 +129,30 @@ describe('stage embodiment diagnostics', () => {
       driftMs: 380,
       settleMs: 560,
       stopReason: 'ended',
+      drivers: {
+        face: {
+          emotion: 'happy',
+          facialCue: 'smile',
+          intensity: 0.8,
+          preUtteranceCue: 'soft-breath',
+          postUtteranceCue: 'settle-smile',
+          segmentId: 'segment-1',
+        },
+        lipsync: {
+          mode: 'energy-phoneme-hybrid',
+          playbackPhase: 'idle',
+          segmentId: 'segment-1',
+          visemeHints: [],
+        },
+        motion: {
+          idleBase: 'idle_settle',
+          attentionMode: 'attentive',
+          actionCue: 'wave',
+          intensity: 0.7,
+          holdMs: 320,
+          segmentId: 'segment-1',
+        },
+      },
     })
   })
 

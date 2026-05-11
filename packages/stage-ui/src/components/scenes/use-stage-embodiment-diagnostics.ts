@@ -2,6 +2,7 @@ import type { StageEmbodimentPresencePostureState, StageEmbodimentSpeechRenderPh
 import type { ComputedRef, Ref } from 'vue'
 
 import type { AlicizationRuntimeDigest, AlicizationVisualPresenceStateSnapshot } from '../../stores/alicization-bridge'
+import type { EmbodimentPlaybackTelemetry } from '../../services/embodiment/playback-reconciler'
 import type { StageEmbodimentAttentionPresenceState } from './use-stage-embodiment-attention'
 
 import { computed, readonly } from 'vue'
@@ -64,6 +65,7 @@ export interface StageEmbodimentDiagnosticsSnapshot {
       driftMs: number | null
       settleMs: number | null
       stopReason: string | null
+      drivers: EmbodimentPlaybackTelemetry['drivers'] | null
     } | null
   }
   stage: Size2D
@@ -71,7 +73,7 @@ export interface StageEmbodimentDiagnosticsSnapshot {
 
 export interface UseStageEmbodimentDiagnosticsOptions {
   activePresence: Readonly<Ref<StageEmbodimentAttentionPresenceState | null>>
-  playbackTelemetry?: Readonly<Ref<unknown>>
+  playbackTelemetry?: Readonly<Ref<EmbodimentPlaybackTelemetry | null>>
   runtimeDigest?: Readonly<Ref<AlicizationRuntimeDigest | null | undefined>>
   presencePosture: Readonly<Ref<StageEmbodimentPresencePostureState>>
   speechRenderState: Readonly<Ref<StageEmbodimentSpeechRenderState | null | undefined>>
@@ -80,23 +82,17 @@ export interface UseStageEmbodimentDiagnosticsOptions {
   visualPresenceState?: Readonly<Ref<AlicizationVisualPresenceStateSnapshot | null | undefined>>
 }
 
-function normalizePlaybackTelemetry(raw: unknown) {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+function normalizePlaybackTelemetry(raw: EmbodimentPlaybackTelemetry | null | undefined) {
+  if (!raw)
     return null
 
-  const candidate = raw as Record<string, unknown>
-  const actualDurationMs = Number(candidate.actualDurationMs)
-  const plannedDurationMs = Number(candidate.plannedDurationMs)
-  const driftMs = Number(candidate.driftMs)
-  const settleMs = Number(candidate.settleMs)
-  const stopReason = typeof candidate.stopReason === 'string' ? candidate.stopReason : null
-
   return {
-    actualDurationMs: Number.isFinite(actualDurationMs) ? actualDurationMs : null,
-    plannedDurationMs: Number.isFinite(plannedDurationMs) ? plannedDurationMs : null,
-    driftMs: Number.isFinite(driftMs) ? driftMs : null,
-    settleMs: Number.isFinite(settleMs) ? settleMs : null,
-    stopReason,
+    actualDurationMs: raw.actualDurationMs,
+    plannedDurationMs: raw.plannedDurationMs,
+    driftMs: raw.driftMs,
+    settleMs: raw.settleMs,
+    stopReason: raw.stopReason,
+    drivers: raw.drivers,
   }
 }
 

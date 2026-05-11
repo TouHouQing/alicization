@@ -1,4 +1,13 @@
 import type { AlicizationEmbodimentScriptV1 } from '@proj-alicization/stage-shared'
+import type { Live2DFaceDriverState } from '../../components/scenes/drivers/live2d-face-driver'
+import type { Live2DLipSyncDriverState } from '../../components/scenes/drivers/live2d-lipsync-driver'
+import type { Live2DMotionDriverState } from '../../components/scenes/drivers/live2d-motion-driver'
+
+export interface EmbodimentPlaybackDriverTelemetry {
+  face: Live2DFaceDriverState | null
+  lipsync: Live2DLipSyncDriverState | null
+  motion: Live2DMotionDriverState | null
+}
 
 export interface ReconcileEmbodimentPlaybackInput {
   actualDurationMs: number | null | undefined
@@ -13,6 +22,10 @@ export interface EmbodimentPlaybackReconciliation {
   plannedDurationMs: number
   settleMs: number
   stopReason: string | null
+}
+
+export interface EmbodimentPlaybackTelemetry extends EmbodimentPlaybackReconciliation {
+  drivers: EmbodimentPlaybackDriverTelemetry
 }
 
 function normalizeDurationMs(value: number | null | undefined) {

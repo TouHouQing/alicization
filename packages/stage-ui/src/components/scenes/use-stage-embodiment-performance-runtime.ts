@@ -9,6 +9,7 @@ import type {
   AlicizationDialoguePerformancePayload,
   AlicizationDigitalLifeSpineDigest,
 } from '../../stores/alicization-bridge'
+import type { EmbodimentPlaybackTelemetry } from '../../services/embodiment/playback-reconciler'
 
 import {
   createIdleStageEmbodimentMotorState,
@@ -21,7 +22,7 @@ type StageEmbodimentPerformanceActionPulseReason = StageEmbodimentPerformanceSta
 
 export interface UseStageEmbodimentPerformanceRuntimeOptions {
   digitalLifeSpineDigest?: Readonly<Ref<AlicizationDigitalLifeSpineDigest | null | undefined>>
-  playbackTelemetry?: Readonly<Ref<unknown>>
+  playbackTelemetry?: Readonly<Ref<EmbodimentPlaybackTelemetry | null>>
   speechRenderState: Readonly<Ref<StageEmbodimentSpeechRenderState | null | undefined>>
   upcomingSpeechSegment?: Readonly<Ref<StageEmbodimentSpeechPlaybackItem | null | undefined>>
 }

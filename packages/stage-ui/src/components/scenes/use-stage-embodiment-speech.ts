@@ -42,6 +42,7 @@ import { computed, onUnmounted, readonly, ref, watch } from 'vue'
 
 import { playBrowserSpeechAudio } from '../../libs/speech-audio-playback'
 import { buildAlicizationEmbodimentSpeechPlan } from '../../services/embodiment/speech-planner'
+import type { EmbodimentPlaybackTelemetry } from '../../services/embodiment/playback-reconciler'
 import { reconcileEmbodimentPlayback } from '../../services/embodiment/playback-reconciler'
 import { resolveLive2DFaceDriverState } from './drivers/live2d-face-driver'
 import { resolveLive2DLipSyncDriverState } from './drivers/live2d-lipsync-driver'
@@ -88,21 +89,6 @@ interface SyntheticSpeechState {
   baselineEnergy: number
   amplitudeEnergy: number
   phaseOffset: number
-}
-
-interface EmbodimentPlaybackDriverMetadata {
-  face: ReturnType<typeof resolveLive2DFaceDriverState>
-  lipsync: ReturnType<typeof resolveLive2DLipSyncDriverState>
-  motion: ReturnType<typeof resolveLive2DMotionDriverState>
-}
-
-interface EmbodimentPlaybackMetadata {
-  actualDurationMs: number
-  driftMs: number
-  plannedDurationMs: number
-  settleMs: number
-  stopReason: string | null
-  drivers: EmbodimentPlaybackDriverMetadata
 }
 
 export interface UseStageEmbodimentSpeechOptions {
@@ -152,8 +138,8 @@ function cloneSpeechMetadata(metadata: Record<string, unknown> | null | undefine
 }
 
 function cloneEmbodimentPlaybackMetadata(
-  metadata: EmbodimentPlaybackMetadata | null | undefined,
-): EmbodimentPlaybackMetadata | null {
+  metadata: EmbodimentPlaybackTelemetry | null | undefined,
+): EmbodimentPlaybackTelemetry | null {
   if (!metadata)
     return null
 
@@ -403,12 +389,12 @@ function resolveEmbodimentScriptFromMetadata(
 
 function resolveEmbodimentPlaybackMetadataFromMetadata(
   metadata: Record<string, unknown> | null | undefined,
-): EmbodimentPlaybackMetadata | null {
+): EmbodimentPlaybackTelemetry | null {
   const candidate = normalizeSpeechMetadataRecord(metadata)?.embodimentPlayback
   if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate))
     return null
 
-  const typedCandidate = candidate as EmbodimentPlaybackMetadata
+  const typedCandidate = candidate as EmbodimentPlaybackTelemetry
   return cloneEmbodimentPlaybackMetadata(typedCandidate)
 }
 
@@ -416,7 +402,7 @@ function resolvePlaybackDriverMetadata(input: {
   script: AlicizationEmbodimentScriptV1 | null
   segmentId: string | null | undefined
   playbackPhase: 'idle' | 'playing'
-}): EmbodimentPlaybackDriverMetadata {
+}): EmbodimentPlaybackTelemetry['drivers'] {
   return {
     face: resolveLive2DFaceDriverState({
       script: input.script,
