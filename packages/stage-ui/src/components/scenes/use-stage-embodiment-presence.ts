@@ -19,6 +19,7 @@ import { watch } from 'vue'
 
 import { getAlicizationBridge, hasAlicizationBridge, normalizeAlicizationPerformancePayload } from '../../stores/alicization-bridge'
 import { buildStageEmbodimentPerformancePlan } from './stage-embodiment-performance-plan'
+import { buildAlicizationEmbodimentScript } from '../../services/embodiment/director'
 
 interface Live2DActionCapability {
   actionKey: string
@@ -161,6 +162,27 @@ export function useStageEmbodimentPresence(options: UseStageEmbodimentPresenceOp
     ].join('|')
   }
 
+  options.dispatcher.setEmbodimentScriptBuilder((payload) => {
+    if (options.stageModelRenderer.value !== 'live2d')
+      return null
+
+    return buildAlicizationEmbodimentScript({
+      seed: {
+        decisionTraceId: payload.structured.governance?.decisionTraceId ?? null,
+        turnId: payload.turnId,
+        replyText: payload.structured.reply,
+        performance: payload.structured.performance,
+        embodiment: payload.structured.embodiment ?? null,
+        speechTimeline: payload.structured.speechTimeline ?? null,
+        digitalLife: payload.structured.digitalLife ?? null,
+        digitalLifeSpine: payload.structured.digitalLifeSpine ?? null,
+      },
+      manifest: options.performanceManifest.value,
+      residentPerformance: options.visualPresenceState?.value?.residentPerformance ?? null,
+      rendererTarget: 'live2d',
+    })
+  })
+
   cleanups.push(watch(options.performanceManifest, async (manifest) => {
     if (!hasAlicizationBridge())
       return
@@ -298,6 +320,7 @@ export function useStageEmbodimentPresence(options: UseStageEmbodimentPresenceOp
   }))
 
   function dispose() {
+    options.dispatcher.setEmbodimentScriptBuilder(null)
     plannedPerformanceCache.clear()
     plannedPerformanceCacheOrder.length = 0
     while (cleanups.length > 0) {

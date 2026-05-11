@@ -9,6 +9,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { computed, ref } from 'vue'
 
 import { Emotion } from '../../constants/emotions'
+import { buildAlicizationEmbodimentScript } from '../../services/embodiment/director'
 import { useStageEmbodimentPresence } from './use-stage-embodiment-presence'
 
 function createPerformance(overrides?: Partial<AlicizationDialoguePerformancePayload>): AlicizationDialoguePerformancePayload {
@@ -71,6 +72,7 @@ function createManifest(overrides?: Partial<CharacterPerformanceCapabilitiesMani
 
 function createDispatcherHarness() {
   const controllers: any[] = []
+  let scriptBuilder: ((payload: AlicizationDialogueRespondedPayload) => unknown) | null = null
   return {
     dispatcher: {
       registerEmbodimentController(controller: any) {
@@ -81,9 +83,15 @@ function createDispatcherHarness() {
             controllers.splice(index, 1)
         }
       },
+      setEmbodimentScriptBuilder(builder: ((payload: AlicizationDialogueRespondedPayload) => unknown) | null) {
+        scriptBuilder = builder
+      },
     },
     getController(channel: string) {
       return controllers.find(controller => controller.channel === channel)
+    },
+    buildEmbodimentScript(payload: AlicizationDialogueRespondedPayload) {
+      return scriptBuilder?.(payload) ?? null
     },
   }
 }
@@ -409,6 +417,119 @@ describe('stage embodiment presence', () => {
       emphasis: 2,
     }), expect.objectContaining({
       source: 'dialogue',
+    }))
+
+    runtime.dispose()
+  })
+
+  it('registers a director-backed script builder that reflects renderer context and resident state', () => {
+    const harness = createDispatcherHarness()
+    const performanceManifest = createManifest({
+      renderer: 'live2d',
+      supportsVisemeLipSync: false,
+    })
+    const residentPerformance = {
+      version: 'resident-performance-v1',
+      source: 'browser-fallback',
+      performance: createPerformance({
+        baseEmotion: 'thinking',
+        emotion: 'thinking',
+        delivery: 'gentle',
+        emphasis: 1,
+      }),
+      embodiedPresence: 'attentive',
+      stance: 'observe',
+      emotionalTension: 'focused-flow',
+      confidence: 0.8,
+      reasonTags: ['resident-performance'],
+      signature: 'resident-1',
+      updatedAt: Date.now(),
+    }
+
+    const runtime = useStageEmbodimentPresence({
+      currentMotion: ref({ group: 'Idle' as string, index: 0 as number | undefined }),
+      dispatcher: harness.dispatcher as any,
+      live2dActionCapabilities: computed(() => []),
+      normalizePresenceEmotionName: () => Emotion.Neutral,
+      applyEmotionSpeechStyle: vi.fn(),
+      clampPerformance: performance => performance,
+      enqueueEmotion: vi.fn(),
+      performanceManifest: computed(() => performanceManifest),
+      resolveClampedPresencePulsePerformance: () => createPerformance(),
+      resolvePresenceIntensity: (_emphasis, fallback) => fallback,
+      speakFallback: vi.fn(),
+      stageModelRenderer: ref('live2d'),
+      visualPresenceState: ref({
+        residentPerformance,
+      } as any),
+    })
+
+    const payload = createDialoguePayload({
+      turnId: 'turn-builder-1',
+      structured: {
+        thought: 'focus',
+        reply: '我在这里',
+        emotion: 'thinking',
+        performance: createPerformance({
+          baseEmotion: 'thinking',
+          emotion: 'thinking',
+          facialCue: 'focused',
+          actionCue: 'idle_settle',
+          delivery: 'gentle',
+          emphasis: 1,
+        }),
+        embodiment: {
+          emotion: 'thinking',
+          performance: createPerformance({
+            baseEmotion: 'thinking',
+            emotion: 'thinking',
+            facialCue: 'focused',
+            actionCue: 'idle_settle',
+            delivery: 'gentle',
+            emphasis: 1,
+          }),
+          postureHint: 'attentive',
+          speechStyle: null,
+          variationToken: 'variation-1',
+        } as any,
+        speechTimeline: {
+          version: 'speech-timeline-v1',
+          segments: [{
+            id: 'segment-1',
+            index: 0,
+            text: '我在这里',
+            actionWindow: 'settle',
+            beatWeight: 0.6,
+          }],
+        } as any,
+        digitalLife: {
+          version: 'digital-life-v1',
+          mode: 'steady',
+          frames: [],
+          continuity: {
+            active: true,
+            rhythm: 'steady',
+          },
+        } as any,
+        digitalLifeSpine: null,
+        format: 'mind-turn-v1',
+      },
+    })
+
+    expect(harness.buildEmbodimentScript(payload)).toEqual(buildAlicizationEmbodimentScript({
+      seed: {
+        decisionTraceId: null,
+        turnId: payload.turnId,
+        replyText: payload.structured.reply,
+        performance: payload.structured.performance,
+        embodiment: payload.structured.embodiment ?? null,
+        speechTimeline: payload.structured.speechTimeline ?? null,
+        digitalLife: payload.structured.digitalLife ?? null,
+        digitalLifeSpine: payload.structured.digitalLifeSpine ?? null,
+      },
+      manifest: performanceManifest,
+      residentPerformance,
+      rendererTarget: 'live2d',
     }))
 
     runtime.dispose()

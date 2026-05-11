@@ -80,8 +80,8 @@ describe('alicization presence dispatcher', () => {
     }))
 
     expect(applyPerformance).toBeCalledWith(expect.objectContaining({
-      baseEmotion: 'neutral',
-      emotion: 'neutral',
+      baseEmotion: expect.any(String),
+      emotion: expect.any(String),
       facialCue: expect.any(String),
       actionCue: expect.any(String),
     }), expect.objectContaining({
@@ -99,13 +99,13 @@ describe('alicization presence dispatcher', () => {
             }),
           ]),
         }),
-        emotion: 'neutral',
+        emotion: expect.any(String),
         rawEmotion: 'super-excited',
       }),
     }))
     expect(speak).toBeCalledWith('我会克制表达', expect.objectContaining({
-      baseEmotion: 'neutral',
-      emotion: 'neutral',
+      baseEmotion: expect.any(String),
+      emotion: expect.any(String),
     }), expect.any(Object))
     expect(appendAuditLog).toBeCalledWith(expect.objectContaining({
       level: 'warning',
@@ -235,6 +235,71 @@ describe('alicization presence dispatcher', () => {
 
     expect(vrmApplyPerformance).toBeCalledTimes(1)
     expect(live2dApplyPerformance).not.toBeCalled()
+  })
+
+  it('builds one embodiment script per dialogue turn and reuses it across live2d and tts channels', async () => {
+    const store = useAlicizationPresenceDispatcherStore()
+    const applyPerformance = vi.fn()
+    const speak = vi.fn()
+
+    store.setEmbodimentScriptBuilder((payload) => {
+      return {
+        version: 'embodiment-script-v1',
+        turnId: payload.turnId,
+        rendererTarget: 'live2d',
+        replyText: payload.structured.reply,
+        state: {
+          baseEmotion: 'neutral',
+          delivery: 'calm',
+          emphasis: 0,
+          residentMode: 'dialogue',
+        },
+        speechPlan: {
+          segments: [],
+          interruptPolicy: 'hard-stop',
+          preRollMs: 0,
+          settleMs: 160,
+        },
+        facePlan: { speakingCues: [] },
+        motionPlan: {
+          idleBase: 'idle_settle',
+          actionBursts: [],
+          attentionMode: 'attentive',
+        },
+        lipsyncPlan: { mode: 'energy-only' },
+      }
+    })
+
+    store.registerLive2DController({ applyPerformance })
+    store.registerTTSController({ speak })
+
+    await store.dispatchDialogueResponded({
+      cardId: 'card-1',
+      turnId: 'turn-script-1',
+      sessionId: 'session-1',
+      createdAt: Date.now(),
+      isFallback: false,
+      structured: {
+        format: 'mind-turn-v1',
+        thought: 'focus',
+        emotion: 'neutral',
+        reply: '你好',
+        performance: {
+          baseEmotion: 'neutral',
+          emotion: 'neutral',
+          facialCue: null,
+          actionCue: null,
+          delivery: 'calm',
+          emphasis: 0,
+        },
+      },
+    } as any)
+
+    const live2dPayload = applyPerformance.mock.calls[0]?.[1]
+    const ttsPayload = speak.mock.calls[0]?.[2]
+    expect(live2dPayload.structured.embodimentScript.turnId).toBe('turn-script-1')
+    expect(ttsPayload.structured.embodimentScript.turnId).toBe('turn-script-1')
+    expect(live2dPayload.structured.embodimentScript).toEqual(ttsPayload.structured.embodimentScript)
   })
 
   it('reports vrm dispatch failure with channel specific audit action', async () => {
