@@ -80,10 +80,10 @@ describe('alicization presence dispatcher', () => {
     }))
 
     expect(applyPerformance).toBeCalledWith(expect.objectContaining({
-      baseEmotion: expect.any(String),
-      emotion: expect.any(String),
-      facialCue: expect.any(String),
-      actionCue: expect.any(String),
+      baseEmotion: 'thinking',
+      emotion: 'thinking',
+      facialCue: 'glance',
+      actionCue: 'quick_glance',
     }), expect.objectContaining({
       turnId: 'turn-unknown-emotion',
       structured: expect.objectContaining({
@@ -94,18 +94,18 @@ describe('alicization presence dispatcher', () => {
           version: 'speech-timeline-v1',
           segments: expect.arrayContaining([
             expect.objectContaining({
-              actionWindow: expect.any(String),
-              beatWeight: expect.any(Number),
+              actionWindow: 'segment-start',
+              beatWeight: 0.48,
             }),
           ]),
         }),
-        emotion: expect.any(String),
+        emotion: 'thinking',
         rawEmotion: 'super-excited',
       }),
     }))
     expect(speak).toBeCalledWith('我会克制表达', expect.objectContaining({
-      baseEmotion: expect.any(String),
-      emotion: expect.any(String),
+      baseEmotion: 'thinking',
+      emotion: 'thinking',
     }), expect.any(Object))
     expect(appendAuditLog).toBeCalledWith(expect.objectContaining({
       level: 'warning',
@@ -300,6 +300,153 @@ describe('alicization presence dispatcher', () => {
     expect(live2dPayload.structured.embodimentScript.turnId).toBe('turn-script-1')
     expect(ttsPayload.structured.embodimentScript.turnId).toBe('turn-script-1')
     expect(live2dPayload.structured.embodimentScript).toEqual(ttsPayload.structured.embodimentScript)
+  })
+
+  it('keeps runtime-provided embodimentScript instead of rebuilding it locally', async () => {
+    const store = useAlicizationPresenceDispatcherStore()
+    const applyPerformance = vi.fn()
+    const builder = vi.fn(() => ({
+      version: 'embodiment-script-v1',
+      turnId: 'turn-script-fallback',
+      rendererTarget: 'live2d',
+      replyText: 'builder-reply',
+      state: {
+        baseEmotion: 'neutral',
+        delivery: 'calm',
+        emphasis: 0,
+        residentMode: 'dialogue',
+      },
+      speechPlan: {
+        segments: [],
+        interruptPolicy: 'hard-stop',
+        preRollMs: 0,
+        settleMs: 160,
+      },
+      facePlan: { speakingCues: [] },
+      motionPlan: {
+        idleBase: 'idle_settle',
+        actionBursts: [],
+        attentionMode: 'attentive',
+      },
+      lipsyncPlan: { mode: 'energy-only' },
+    }))
+    const runtimeScript = {
+      version: 'embodiment-script-v1' as const,
+      turnId: 'turn-script-fallback',
+      rendererTarget: 'live2d' as const,
+      replyText: 'runtime-reply',
+      state: {
+        baseEmotion: 'happy' as const,
+        delivery: 'energetic' as const,
+        emphasis: 2 as const,
+        residentMode: 'dialogue' as const,
+      },
+      speechPlan: {
+        segments: [],
+        interruptPolicy: 'hard-stop' as const,
+        preRollMs: 0,
+        settleMs: 160,
+      },
+      facePlan: { speakingCues: [] },
+      motionPlan: {
+        idleBase: 'runtime-idle',
+        actionBursts: [],
+        attentionMode: 'attentive' as const,
+      },
+      lipsyncPlan: { mode: 'energy-only' as const },
+    }
+
+    store.setEmbodimentScriptBuilder(builder)
+    store.registerLive2DController({ applyPerformance })
+
+    await store.dispatchDialogueResponded(createPayload({
+      turnId: 'turn-script-fallback',
+      structured: {
+        thought: 'focus',
+        emotion: 'happy',
+        reply: '你好',
+        embodimentScript: runtimeScript as any,
+        performance: {
+          baseEmotion: 'happy',
+          emotion: 'happy',
+          facialCue: null,
+          actionCue: null,
+          delivery: 'energetic',
+          emphasis: 1,
+        },
+      },
+    }))
+
+    const live2dPayload = applyPerformance.mock.calls[0]?.[1]
+    expect(builder).not.toBeCalled()
+    expect(live2dPayload?.structured.embodimentScript).toEqual(runtimeScript)
+  })
+
+  it('restores the previous embodimentScript builder when the latest registration is disposed', async () => {
+    const store = useAlicizationPresenceDispatcherStore()
+    const applyPerformance = vi.fn()
+    const firstDispose = store.setEmbodimentScriptBuilder((payload) => ({
+      version: 'embodiment-script-v1',
+      turnId: payload.turnId,
+      rendererTarget: 'live2d',
+      replyText: 'first',
+      state: {
+        baseEmotion: 'neutral',
+        delivery: 'calm',
+        emphasis: 0,
+        residentMode: 'dialogue',
+      },
+      speechPlan: {
+        segments: [],
+        interruptPolicy: 'hard-stop',
+        preRollMs: 0,
+        settleMs: 160,
+      },
+      facePlan: { speakingCues: [] },
+      motionPlan: {
+        idleBase: 'first-idle',
+        actionBursts: [],
+        attentionMode: 'attentive',
+      },
+      lipsyncPlan: { mode: 'energy-only' },
+    }))
+    const secondDispose = store.setEmbodimentScriptBuilder((payload) => ({
+      version: 'embodiment-script-v1',
+      turnId: payload.turnId,
+      rendererTarget: 'live2d',
+      replyText: 'second',
+      state: {
+        baseEmotion: 'neutral',
+        delivery: 'calm',
+        emphasis: 0,
+        residentMode: 'dialogue',
+      },
+      speechPlan: {
+        segments: [],
+        interruptPolicy: 'hard-stop',
+        preRollMs: 0,
+        settleMs: 160,
+      },
+      facePlan: { speakingCues: [] },
+      motionPlan: {
+        idleBase: 'second-idle',
+        actionBursts: [],
+        attentionMode: 'attentive',
+      },
+      lipsyncPlan: { mode: 'energy-only' },
+    }))
+
+    store.registerLive2DController({ applyPerformance })
+
+    await store.dispatchDialogueResponded(createPayload({ turnId: 'turn-script-stack-1' }))
+    secondDispose()
+    await store.dispatchDialogueResponded(createPayload({ turnId: 'turn-script-stack-2' }))
+    firstDispose()
+    await store.dispatchDialogueResponded(createPayload({ turnId: 'turn-script-stack-3' }))
+
+    expect(applyPerformance.mock.calls[0]?.[1]?.structured.embodimentScript?.motionPlan.idleBase).toBe('second-idle')
+    expect(applyPerformance.mock.calls[1]?.[1]?.structured.embodimentScript?.motionPlan.idleBase).toBe('first-idle')
+    expect(applyPerformance.mock.calls[2]?.[1]?.structured.embodimentScript).toBeNull()
   })
 
   it('reports vrm dispatch failure with channel specific audit action', async () => {

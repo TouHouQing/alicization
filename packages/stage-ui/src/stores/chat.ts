@@ -643,7 +643,7 @@ interface StagedAssistantResolution {
   visibleReplySource: 'runtime-model' | 'renderer-local'
 }
 
-function mergeStructuredRuntimeMeta(
+export function mergeStructuredRuntimeMeta(
   structured: StructuredWithContract,
   input: {
     embodiment: AlicizationDialogueEmbodimentEnvelope | null

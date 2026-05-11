@@ -72,7 +72,8 @@ function createManifest(overrides?: Partial<CharacterPerformanceCapabilitiesMani
 
 function createDispatcherHarness() {
   const controllers: any[] = []
-  let scriptBuilder: ((payload: AlicizationDialogueRespondedPayload) => unknown) | null = null
+  const scriptBuilderDisposers: Array<() => void> = []
+  const scriptBuilderRegistrations: Array<{ id: symbol, builder: (payload: AlicizationDialogueRespondedPayload) => unknown }> = []
   return {
     dispatcher: {
       registerEmbodimentController(controller: any) {
@@ -83,15 +84,29 @@ function createDispatcherHarness() {
             controllers.splice(index, 1)
         }
       },
-      setEmbodimentScriptBuilder(builder: ((payload: AlicizationDialogueRespondedPayload) => unknown) | null) {
-        scriptBuilder = builder
+      setEmbodimentScriptBuilder(builder: (payload: AlicizationDialogueRespondedPayload) => unknown) {
+        const registration = {
+          id: Symbol('test-script-builder'),
+          builder,
+        }
+        scriptBuilderRegistrations.push(registration)
+        const dispose = () => {
+          const index = scriptBuilderRegistrations.findIndex(item => item.id === registration.id)
+          if (index >= 0)
+            scriptBuilderRegistrations.splice(index, 1)
+        }
+        scriptBuilderDisposers.push(dispose)
+        return dispose
       },
     },
     getController(channel: string) {
       return controllers.find(controller => controller.channel === channel)
     },
     buildEmbodimentScript(payload: AlicizationDialogueRespondedPayload) {
-      return scriptBuilder?.(payload) ?? null
+      return scriptBuilderRegistrations.at(-1)?.builder(payload) ?? null
+    },
+    disposeLatestScriptBuilder() {
+      scriptBuilderDisposers.pop()?.()
     },
   }
 }
@@ -533,5 +548,58 @@ describe('stage embodiment presence', () => {
     }))
 
     runtime.dispose()
+  })
+
+  it('restores the previous script builder when multiple presence instances share one dispatcher', () => {
+    const harness = createDispatcherHarness()
+    const firstRuntime = useStageEmbodimentPresence({
+      currentMotion: ref({ group: 'Idle' as string, index: 0 as number | undefined }),
+      dispatcher: harness.dispatcher as any,
+      live2dActionCapabilities: computed(() => []),
+      normalizePresenceEmotionName: () => Emotion.Neutral,
+      applyEmotionSpeechStyle: vi.fn(),
+      clampPerformance: performance => performance,
+      enqueueEmotion: vi.fn(),
+      performanceManifest: computed(() => createManifest()),
+      resolveClampedPresencePulsePerformance: () => createPerformance(),
+      resolvePresenceIntensity: (_emphasis, fallback) => fallback,
+      speakFallback: vi.fn(),
+      stageModelRenderer: ref('live2d'),
+    })
+    const secondRuntime = useStageEmbodimentPresence({
+      currentMotion: ref({ group: 'Idle' as string, index: 0 as number | undefined }),
+      dispatcher: harness.dispatcher as any,
+      live2dActionCapabilities: computed(() => []),
+      normalizePresenceEmotionName: () => Emotion.Neutral,
+      applyEmotionSpeechStyle: vi.fn(),
+      clampPerformance: performance => performance,
+      enqueueEmotion: vi.fn(),
+      performanceManifest: computed(() => createManifest({
+        supportsVisemeLipSync: false,
+      })),
+      resolveClampedPresencePulsePerformance: () => createPerformance(),
+      resolvePresenceIntensity: (_emphasis, fallback) => fallback,
+      speakFallback: vi.fn(),
+      stageModelRenderer: ref('live2d'),
+    })
+
+    const payload = createDialoguePayload()
+
+    expect(harness.buildEmbodimentScript(payload)).toMatchObject({
+      lipsyncPlan: {
+        mode: 'energy-only',
+      },
+    })
+
+    secondRuntime.dispose()
+
+    expect(harness.buildEmbodimentScript(payload)).toMatchObject({
+      lipsyncPlan: {
+        mode: 'energy-phoneme-hybrid',
+      },
+    })
+
+    firstRuntime.dispose()
+    expect(harness.buildEmbodimentScript(payload)).toBeNull()
   })
 })

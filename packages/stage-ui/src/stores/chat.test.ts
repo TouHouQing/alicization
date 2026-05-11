@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ref } from 'vue'
 
 import { clearAlicizationBridge, setAlicizationBridge } from './alicization-bridge'
-import { configureAlicizationChatRuntimeForTest, useChatOrchestratorStore } from './chat'
+import { configureAlicizationChatRuntimeForTest, mergeStructuredRuntimeMeta, useChatOrchestratorStore } from './chat'
 
 const streamMock = vi.fn()
 const executeRealtimeQueryTurnMock = vi.fn()
@@ -1508,6 +1508,65 @@ describe('chat orchestrator', () => {
       digitalLifeSpine,
       runtimeDigest,
     }), expect.any(Object))
+  })
+
+  it('preserves embodimentScript through mergeStructuredRuntimeMeta when runtime meta arrives later', () => {
+    const structured = {
+      thought: 'focus',
+      emotion: 'neutral',
+      reply: '我在这里',
+      performance: {
+        baseEmotion: 'neutral',
+        emotion: 'neutral',
+        facialCue: null,
+        actionCue: null,
+        delivery: 'calm',
+        emphasis: 0,
+      },
+      embodimentScript: {
+        version: 'embodiment-script-v1' as const,
+        turnId: 'turn-merge-1',
+        rendererTarget: 'live2d' as const,
+        replyText: '我在这里',
+        state: {
+          baseEmotion: 'neutral' as const,
+          delivery: 'calm' as const,
+          emphasis: 0 as const,
+          residentMode: 'dialogue' as const,
+        },
+        speechPlan: {
+          segments: [],
+          interruptPolicy: 'soft-settle' as const,
+          preRollMs: 40,
+          settleMs: 220,
+        },
+        facePlan: {
+          preUtteranceCue: null,
+          postUtteranceCue: null,
+          speakingCues: [],
+        },
+        motionPlan: {
+          idleBase: 'idle_settle',
+          actionBursts: [],
+          attentionMode: 'attentive' as const,
+        },
+        lipsyncPlan: {
+          mode: 'energy-only' as const,
+        },
+      },
+    } as any
+
+    const merged = mergeStructuredRuntimeMeta(structured, {
+      embodiment: null,
+      embodimentScript: null,
+      speechTimeline: null,
+      digitalLife: null,
+      digitalLifeSpine: null,
+      runtimeDigest: null,
+      governance: null,
+    })
+
+    expect(merged.embodimentScript).toEqual(structured.embodimentScript)
   })
 
   it('keeps runtime-authoritative plain-text turns expressive and avoids repeated embodiment cues', async () => {

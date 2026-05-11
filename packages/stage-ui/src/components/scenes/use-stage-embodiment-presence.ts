@@ -162,7 +162,7 @@ export function useStageEmbodimentPresence(options: UseStageEmbodimentPresenceOp
     ].join('|')
   }
 
-  options.dispatcher.setEmbodimentScriptBuilder((payload) => {
+  cleanups.push(options.dispatcher.setEmbodimentScriptBuilder((payload) => {
     if (options.stageModelRenderer.value !== 'live2d')
       return null
 
@@ -181,7 +181,7 @@ export function useStageEmbodimentPresence(options: UseStageEmbodimentPresenceOp
       residentPerformance: options.visualPresenceState?.value?.residentPerformance ?? null,
       rendererTarget: 'live2d',
     })
-  })
+  }))
 
   cleanups.push(watch(options.performanceManifest, async (manifest) => {
     if (!hasAlicizationBridge())
@@ -320,7 +320,6 @@ export function useStageEmbodimentPresence(options: UseStageEmbodimentPresenceOp
   }))
 
   function dispose() {
-    options.dispatcher.setEmbodimentScriptBuilder(null)
     plannedPerformanceCache.clear()
     plannedPerformanceCacheOrder.length = 0
     while (cleanups.length > 0) {
