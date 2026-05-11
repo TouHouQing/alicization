@@ -366,6 +366,21 @@ describe('stage desktop page helpers', () => {
       expect(startupMocks.initializeSetupCheck).toHaveBeenCalledOnce()
       expect(startupMocks.openOnboarding).not.toHaveBeenCalled()
     })
+
+    it('opens onboarding after initialization when onboarding becomes needed', async () => {
+      startupMocks.initializeSetupCheck.mockImplementationOnce(() => {
+        startupMocks.needsOnboarding = true
+      })
+
+      await import('./index.vue')
+
+      expect(startupMocks.onMountedCallbacks).toHaveLength(1)
+
+      startupMocks.onMountedCallbacks[0]()
+
+      expect(startupMocks.initializeSetupCheck).toHaveBeenCalledOnce()
+      expect(startupMocks.openOnboarding).toHaveBeenCalledOnce()
+    })
   })
 
 })
