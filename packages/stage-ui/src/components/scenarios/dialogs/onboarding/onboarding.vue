@@ -196,14 +196,19 @@ const preferredEntryStepIndex = computed(() => {
 const currentStep = computed(() => allSteps.value[step.value] ?? null)
 const isLastStep = computed(() => step.value === allSteps.value.length - 1)
 const currentStepProps = computed(() => currentStep.value?.props?.() ?? {})
+const wasOpen = ref(false)
 
-watch([isOpen, preferredEntryStepIndex], ([open, index]) => {
+watch(isOpen, (open) => {
   if (!open) {
+    wasOpen.value = false
     step.value = 0
     return
   }
 
-  step.value = index
+  if (!wasOpen.value) {
+    step.value = preferredEntryStepIndex.value
+    wasOpen.value = true
+  }
 }, { immediate: true })
 
 async function canPassGuard(guard?: OnboardingStepGuard) {
