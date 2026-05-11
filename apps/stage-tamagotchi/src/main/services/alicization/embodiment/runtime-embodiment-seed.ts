@@ -9,6 +9,7 @@ import type {
 import { normalizeAlicizationPerformancePayload } from '@proj-alicization/stage-shared'
 
 export interface AlicizationRuntimeEmbodimentSeed {
+  decisionTraceId?: string | null
   turnId: string
   replyText: string
   performance: AlicizationDialoguePerformancePayload
@@ -19,6 +20,7 @@ export interface AlicizationRuntimeEmbodimentSeed {
 }
 
 export interface BuildAlicizationRuntimeEmbodimentSeedInput {
+  decisionTraceId?: string | null
   turnId: string
   reply: string
   performance: AlicizationDialoguePerformancePayload
@@ -32,6 +34,14 @@ function normalizeSeedText(raw: string, maxChars: number) {
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
 }
 
+function normalizeSeedDecisionTraceId(raw: string | null | undefined) {
+  if (typeof raw !== 'string')
+    return null
+
+  const normalized = normalizeSeedText(raw, 120)
+  return normalized || null
+}
+
 export function buildAlicizationRuntimeEmbodimentSeed(
   input: BuildAlicizationRuntimeEmbodimentSeedInput,
 ): AlicizationRuntimeEmbodimentSeed {
@@ -40,6 +50,7 @@ export function buildAlicizationRuntimeEmbodimentSeed(
   // but it is not transported over shared IPC yet. The transported execution
   // authority remains `structured.embodimentScript`.
   return {
+    decisionTraceId: normalizeSeedDecisionTraceId(input.decisionTraceId),
     turnId: normalizeSeedText(input.turnId, 120),
     replyText: normalizeSeedText(input.reply, 4000),
     performance: normalizeAlicizationPerformancePayload(

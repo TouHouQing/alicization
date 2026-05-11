@@ -2,36 +2,50 @@ import type {
   AlicizationEmbodimentScriptRendererTarget,
   AlicizationEmbodimentScriptV1,
 } from '@proj-alicization/stage-shared'
-import type { AlicizationRuntimeEmbodimentSeed } from '../../../../../apps/stage-tamagotchi/src/main/services/alicization/embodiment/runtime-embodiment-seed'
 
 import type {
   AlicizationDialoguePerformancePayload,
+  AlicizationDialogueEmbodimentEnvelope,
+  AlicizationDialogueSpeechTimeline,
+  AlicizationDigitalLifeEnvelope,
+  AlicizationDigitalLifeSpineDigest,
   AlicizationResidentPerformanceSnapshot,
   CharacterPerformanceCapabilitiesManifest,
 } from '../../stores/alicization-bridge'
 
 import { adaptAlicizationEmbodimentPerformanceToRenderer } from './renderer-capability-adapter'
 
+interface AlicizationEmbodimentSeedLike {
+  decisionTraceId?: string | null
+  turnId: string
+  replyText: string
+  performance: AlicizationDialoguePerformancePayload
+  embodiment: AlicizationDialogueEmbodimentEnvelope | null
+  speechTimeline: AlicizationDialogueSpeechTimeline | null
+  digitalLife: AlicizationDigitalLifeEnvelope | null
+  digitalLifeSpine: AlicizationDigitalLifeSpineDigest | null
+}
+
 export interface BuildAlicizationEmbodimentScriptInput {
-  seed: AlicizationRuntimeEmbodimentSeed
+  seed: AlicizationEmbodimentSeedLike
   manifest: CharacterPerformanceCapabilitiesManifest | null | undefined
   residentPerformance: AlicizationResidentPerformanceSnapshot | null
   rendererTarget: AlicizationEmbodimentScriptRendererTarget
 }
 
-function buildSegmentText(replyText: string, speechTimeline: AlicizationRuntimeEmbodimentSeed['speechTimeline']) {
+function buildSegmentText(replyText: string, speechTimeline: AlicizationEmbodimentSeedLike['speechTimeline']) {
   return speechTimeline?.segments[0]?.text?.trim() || replyText
 }
 
 function resolveResidentMode(input: {
   residentPerformance: AlicizationResidentPerformanceSnapshot | null
-  digitalLife: AlicizationRuntimeEmbodimentSeed['digitalLife']
+  digitalLife: AlicizationEmbodimentSeedLike['digitalLife']
 }) {
   if (input.digitalLife?.mode === 'recovering')
     return 'idle-recovering' as const
 
   const residentSource = input.residentPerformance?.source
-  if (residentSource === 'browser-fallback' || residentSource === 'runtime')
+  if (residentSource === 'browser-fallback' || residentSource === 'main-runtime')
     return 'quiet-companionship' as const
 
   return 'dialogue' as const
@@ -57,6 +71,7 @@ export function buildAlicizationEmbodimentScript(
 
   return {
     version: 'embodiment-script-v1',
+    decisionTraceId: input.seed.decisionTraceId ?? null,
     turnId: input.seed.turnId,
     rendererTarget: input.rendererTarget,
     replyText: input.seed.replyText,
