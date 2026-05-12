@@ -1914,7 +1914,7 @@ describe('stage embodiment speech contract', () => {
       stopReason: 'ended',
     }))
     expect(speech.playbackTelemetry.value?.drivers.face).toEqual(expect.objectContaining({
-      facialCue: 'focus',
+      facialCue: 'settle-smile',
       postUtteranceCue: 'settle-smile',
     }))
 
