@@ -1,6 +1,13 @@
 export type AlicizationSpeechProsodyIntentLanguage = 'zh-CN' | 'zh-HK' | 'zh-TW'
-export type AlicizationSpeechProsodyPauseClass = 'none' | 'comma' | 'enumeration' | 'full-stop'
-export type AlicizationSpeechProsodyPhraseBoundary = 'none' | 'soft' | 'firm'
+export type AlicizationSpeechProsodyPauseClass
+  = 'none'
+    | 'comma'
+    | 'enumeration'
+    | 'full-stop'
+    | 'ellipsis'
+    | 'question'
+    | 'exclaim'
+export type AlicizationSpeechProsodyPhraseBoundary = 'none' | 'soft' | 'hard'
 export type AlicizationSpeechProsodyContour = 'flat' | 'rising' | 'falling' | 'dip-rise'
 
 export interface AlicizationSpeechProsodyIntent {
@@ -36,25 +43,31 @@ function normalizeSignedUnit(raw: unknown) {
 function normalizeLanguage(raw: unknown): AlicizationSpeechProsodyIntentLanguage {
   return raw === 'zh-HK' || raw === 'zh-TW' || raw === 'zh-CN'
     ? raw
-    : 'zh-CN'
+    : null as never
 }
 
 function normalizePauseClass(raw: unknown): AlicizationSpeechProsodyPauseClass {
-  return raw === 'comma' || raw === 'enumeration' || raw === 'full-stop' || raw === 'none'
+  return raw === 'comma'
+    || raw === 'enumeration'
+    || raw === 'full-stop'
+    || raw === 'ellipsis'
+    || raw === 'question'
+    || raw === 'exclaim'
+    || raw === 'none'
     ? raw
-    : 'none'
+    : null as never
 }
 
 function normalizePhraseBoundary(raw: unknown): AlicizationSpeechProsodyPhraseBoundary {
-  return raw === 'soft' || raw === 'firm' || raw === 'none'
+  return raw === 'soft' || raw === 'hard' || raw === 'none'
     ? raw
-    : 'none'
+    : null as never
 }
 
 function normalizeContour(raw: unknown): AlicizationSpeechProsodyContour {
   return raw === 'rising' || raw === 'falling' || raw === 'dip-rise' || raw === 'flat'
     ? raw
-    : 'flat'
+    : null as never
 }
 
 export function normalizeAlicizationSpeechProsodyIntent(raw: unknown): AlicizationSpeechProsodyIntent | null {
@@ -62,13 +75,19 @@ export function normalizeAlicizationSpeechProsodyIntent(raw: unknown): Alicizati
     return null
 
   const candidate = raw as Record<string, unknown>
+  const language = normalizeLanguage(candidate.language)
+  const pauseClass = normalizePauseClass(candidate.pauseClass)
+  const phraseBoundary = normalizePhraseBoundary(candidate.phraseBoundary)
+  const contour = normalizeContour(candidate.contour)
   const emphasisWord = normalizeText(candidate.emphasisWord, 120) || null
+  if (!language || !pauseClass || !phraseBoundary || !contour)
+    return null
 
   return {
-    language: normalizeLanguage(candidate.language),
-    pauseClass: normalizePauseClass(candidate.pauseClass),
-    phraseBoundary: normalizePhraseBoundary(candidate.phraseBoundary),
-    contour: normalizeContour(candidate.contour),
+    language,
+    pauseClass,
+    phraseBoundary,
+    contour,
     emphasisWord,
     emphasisStrength: normalizeUnit(candidate.emphasisStrength),
     tempoShift: normalizeSignedUnit(candidate.tempoShift),
