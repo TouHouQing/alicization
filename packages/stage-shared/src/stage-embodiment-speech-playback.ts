@@ -14,6 +14,8 @@ import {
   normalizeStageEmbodimentSpeechPlaybackDurationMs,
 } from './stage-embodiment-speech-articulation'
 
+const playbackEmbodimentScriptCache = new WeakMap<Record<string, unknown>, AlicizationEmbodimentScriptV1 | null>()
+
 export type StageEmbodimentSpeechPlaybackPhase = 'idle' | 'playing'
 
 export interface StageEmbodimentSpeechPlaybackItem {
@@ -115,7 +117,12 @@ function normalizeEmbodimentScriptFromPlaybackMetadata(
   if (!metadata)
     return null
 
-  return normalizeAlicizationEmbodimentScript(metadata.embodimentScript)
+  if (playbackEmbodimentScriptCache.has(metadata))
+    return playbackEmbodimentScriptCache.get(metadata) ?? null
+
+  const normalized = normalizeAlicizationEmbodimentScript(metadata.embodimentScript)
+  playbackEmbodimentScriptCache.set(metadata, normalized)
+  return normalized
 }
 
 function resolvePlaybackSegmentProsodyIntent(item: StageEmbodimentSpeechPlaybackItem | null) {
