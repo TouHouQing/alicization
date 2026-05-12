@@ -1,4 +1,5 @@
 import {
+  createIdleStageEmbodimentSpeechArticulationState,
   createIdleStageEmbodimentPresencePostureState,
   createIdleStageEmbodimentSpeechRenderState,
 } from '@proj-alicization/stage-shared'
@@ -173,5 +174,83 @@ describe('stage embodiment diagnostics', () => {
     expect(snapshot.value.visualPresence.runtimeCompanionshipPressure).toBeNull()
     expect(snapshot.value.visualPresence.runtimeSummary).toBeNull()
     expect(snapshot.value.speech.playbackTelemetry).toBeNull()
+  })
+
+  it('surfaces chinese-first speech style and viseme telemetry for tuning', () => {
+    const diagnostics = useStageEmbodimentDiagnostics({
+      activePresence: ref(null),
+      playbackTelemetry: ref({
+        actualDurationMs: 1100,
+        plannedDurationMs: 900,
+        driftMs: 200,
+        settleMs: 420,
+        stopReason: 'ended',
+        drivers: {
+          face: null,
+          lipsync: {
+            mode: 'energy-phoneme-hybrid',
+            playbackPhase: 'playing',
+            segmentId: 'segment-1',
+            visemeHints: [{ segmentId: 'segment-1', viseme: 'A', weight: 0.78 }],
+          },
+          motion: null,
+        },
+      }),
+      presencePosture: ref({} as any),
+      speechRenderState: ref({
+        ...createIdleStageEmbodimentSpeechRenderState(),
+        phase: 'playing',
+        playbackPhase: 'playing',
+        visemeIntensity: 0.71,
+        articulation: {
+          ...createIdleStageEmbodimentSpeechArticulationState(),
+          active: true,
+          lipClosure: 0.44,
+          visemes: {
+            A: 0.66,
+            E: 0.24,
+            I: 0.18,
+            O: 0.08,
+            U: 0.12,
+            closed: 0.41,
+          },
+          voice: {
+            provider: 'test',
+            model: null,
+            voiceId: 'crisp-zh',
+            voiceName: null,
+            language: 'zh-CN',
+            gender: null,
+            rateMultiplier: 1,
+            pitchDelta: 0,
+            closureBias: 0.84,
+            roundBias: 0.1,
+            spreadBias: 0.1,
+            jawBias: 0.12,
+            consonantPrecision: 0.9,
+            vowelLegato: 0.3,
+          },
+        },
+        dynamics: {
+          speechEnergy: 0.52,
+          prosodyIntensity: 0.64,
+          emphasisLevel: 0.58,
+          cadencePulse: 0.4,
+        },
+      }),
+      stageBounds: ref({ width: 800, height: 600 }),
+      targetPoint: ref({ x: 400, y: 300 }),
+    })
+
+    expect(diagnostics.snapshot.value.speech.prosodyIntensity).toBeCloseTo(0.64)
+    expect(diagnostics.snapshot.value.speech.visemeIntensity).toBeCloseTo(0.71)
+    expect(diagnostics.snapshot.value.speech.articulation.voice?.language).toBe('zh-CN')
+    expect(diagnostics.snapshot.value.speech.articulation.voice?.consonantPrecision).toBeCloseTo(0.9)
+    expect(diagnostics.snapshot.value.speech.articulation.lipClosure).toBeCloseTo(0.44)
+    expect(diagnostics.snapshot.value.speech.articulation.visemes.A).toBeCloseTo(0.66)
+    expect(diagnostics.snapshot.value.speech.playbackTelemetry?.drivers?.lipsync?.mode).toBe('energy-phoneme-hybrid')
+    expect(diagnostics.snapshot.value.speech.playbackTelemetry?.drivers?.lipsync?.visemeHints).toEqual([
+      { segmentId: 'segment-1', viseme: 'A', weight: 0.78 },
+    ])
   })
 })

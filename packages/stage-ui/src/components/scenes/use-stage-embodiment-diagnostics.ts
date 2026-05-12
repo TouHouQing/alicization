@@ -1,4 +1,9 @@
-import type { StageEmbodimentPresencePostureState, StageEmbodimentSpeechRenderPhase, StageEmbodimentSpeechRenderState } from '@proj-alicization/stage-shared'
+import type {
+  StageEmbodimentPresencePostureState,
+  StageEmbodimentSpeechArticulationState,
+  StageEmbodimentSpeechRenderPhase,
+  StageEmbodimentSpeechRenderState,
+} from '@proj-alicization/stage-shared'
 import type { ComputedRef, Ref } from 'vue'
 
 import type { AlicizationRuntimeDigest, AlicizationVisualPresenceStateSnapshot } from '../../stores/alicization-bridge'
@@ -6,6 +11,7 @@ import type { EmbodimentPlaybackTelemetry } from '../../services/embodiment/play
 import type { StageEmbodimentAttentionPresenceState } from './use-stage-embodiment-attention'
 
 import { computed, readonly } from 'vue'
+import { cloneStageEmbodimentSpeechArticulationState } from '@proj-alicization/stage-shared'
 
 import {
   resolveStageEmbodimentRuntimeAttentionBias,
@@ -59,6 +65,8 @@ export interface StageEmbodimentDiagnosticsSnapshot {
     prosodyIntensity: number
     emphasisLevel: number
     cadencePulse: number
+    visemeIntensity: number
+    articulation: StageEmbodimentSpeechArticulationState
     playbackTelemetry: {
       actualDurationMs: number | null
       plannedDurationMs: number | null
@@ -94,6 +102,10 @@ function normalizePlaybackTelemetry(raw: EmbodimentPlaybackTelemetry | null | un
     stopReason: raw.stopReason,
     drivers: raw.drivers,
   }
+}
+
+function normalizeSpeechArticulation(raw: StageEmbodimentSpeechArticulationState | null | undefined) {
+  return cloneStageEmbodimentSpeechArticulationState(raw)
 }
 
 export function useStageEmbodimentDiagnostics(options: UseStageEmbodimentDiagnosticsOptions) {
@@ -140,6 +152,8 @@ export function useStageEmbodimentDiagnostics(options: UseStageEmbodimentDiagnos
         prosodyIntensity: speechRenderState?.dynamics.prosodyIntensity ?? 0,
         emphasisLevel: speechRenderState?.dynamics.emphasisLevel ?? 0,
         cadencePulse: speechRenderState?.dynamics.cadencePulse ?? 0,
+        visemeIntensity: speechRenderState?.visemeIntensity ?? 0,
+        articulation: normalizeSpeechArticulation(speechRenderState?.articulation),
         playbackTelemetry,
       },
       stage: options.stageBounds.value,
