@@ -159,6 +159,18 @@ function deriveSegmentProsody(input: {
   }
 }
 
+function createNeutralFallbackProsody(text: string): AlicizationSpeechProsodyIntent {
+  return {
+    language: 'zh-CN',
+    pauseClass: 'none',
+    phraseBoundary: 'none',
+    contour: 'flat',
+    emphasisWord: extractEmphasisWord(text),
+    emphasisStrength: 0.49,
+    tempoShift: 0,
+  }
+}
+
 function resolveInterruptPolicy(
   interruptMode: AlicizationDialogueSpeechTimeline['segments'][number]['interruptMode'] | undefined,
 ): AlicizationEmbodimentSpeechSegment['interruptPolicy'] {
@@ -258,7 +270,7 @@ export function buildAlicizationEmbodimentSpeechPlan(
         index: 0,
         text: fallbackText,
         interruptPolicy: 'hard-stop',
-        prosody: deriveSegmentProsody({ text: fallbackText }),
+        prosody: createNeutralFallbackProsody(fallbackText),
         preRollMs: 0,
         settleMs: timelineSettleMs,
       } satisfies AlicizationEmbodimentSpeechSegment]
