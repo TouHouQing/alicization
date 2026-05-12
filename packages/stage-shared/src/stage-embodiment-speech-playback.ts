@@ -130,9 +130,16 @@ function resolvePlaybackSegmentProsodyIntent(item: StageEmbodimentSpeechPlayback
     return directMatch.prosody
 
   const normalizedText = normalizePlaybackText(item?.text)
-  return script.speechPlan.segments.find(
+  if (!normalizedText)
+    return null
+
+  const textMatches = script.speechPlan.segments.filter(
     segment => normalizePlaybackText(segment.text) === normalizedText,
-  )?.prosody ?? null
+  )
+  if (textMatches.length !== 1)
+    return null
+
+  return textMatches[0]?.prosody ?? null
 }
 
 function cloneRendererHints(
