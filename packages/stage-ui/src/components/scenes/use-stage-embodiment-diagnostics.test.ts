@@ -161,7 +161,7 @@ describe('stage embodiment diagnostics', () => {
     const { snapshot } = useStageEmbodimentDiagnostics({
       activePresence: ref(null),
       presencePosture: ref(createIdleStageEmbodimentPresencePostureState()),
-      speechRenderState: ref(createIdleStageEmbodimentSpeechRenderState()),
+      speechRenderState: ref(null),
       stageBounds: ref({ width: 800, height: 600 }),
       targetPoint: ref({ x: 400, y: 300 }),
       visualPresenceState: ref(null),
@@ -173,6 +173,7 @@ describe('stage embodiment diagnostics', () => {
     expect(snapshot.value.visualPresence.runtimeContinuityPressure).toBeNull()
     expect(snapshot.value.visualPresence.runtimeCompanionshipPressure).toBeNull()
     expect(snapshot.value.visualPresence.runtimeSummary).toBeNull()
+    expect(snapshot.value.speech.articulation).toBeNull()
     expect(snapshot.value.speech.playbackTelemetry).toBeNull()
   })
 

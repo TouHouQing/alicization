@@ -66,7 +66,7 @@ export interface StageEmbodimentDiagnosticsSnapshot {
     emphasisLevel: number
     cadencePulse: number
     visemeIntensity: number
-    articulation: StageEmbodimentSpeechArticulationState
+    articulation: StageEmbodimentSpeechArticulationState | null
     playbackTelemetry: {
       actualDurationMs: number | null
       plannedDurationMs: number | null
@@ -105,6 +105,8 @@ function normalizePlaybackTelemetry(raw: EmbodimentPlaybackTelemetry | null | un
 }
 
 function normalizeSpeechArticulation(raw: StageEmbodimentSpeechArticulationState | null | undefined) {
+  if (!raw)
+    return null
   return cloneStageEmbodimentSpeechArticulationState(raw)
 }
 
