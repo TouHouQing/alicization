@@ -27,6 +27,15 @@ describe('alicization embodiment script', () => {
           interruptPolicy: 'soft-settle',
           preRollMs: 60,
           settleMs: 240,
+          prosody: {
+            language: 'zh-CN',
+            pauseClass: 'comma',
+            phraseBoundary: 'soft',
+            contour: 'falling',
+            emphasisWord: '慢慢',
+            emphasisStrength: 0.64,
+            tempoShift: -0.06,
+          },
         }],
         interruptPolicy: 'soft-settle',
         preRollMs: 60,
@@ -68,6 +77,15 @@ describe('alicization embodiment script', () => {
     expect(script?.facePlan.preUtteranceCue).toBe('soft-breath')
     expect(script?.facePlan.postUtteranceCue).toBe('settle-smile')
     expect(script?.speechPlan.segments[0]?.interruptPolicy).toBe('soft-settle')
+    expect(script?.speechPlan.segments[0]?.prosody).toEqual({
+      language: 'zh-CN',
+      pauseClass: 'comma',
+      phraseBoundary: 'soft',
+      contour: 'falling',
+      emphasisWord: '慢慢',
+      emphasisStrength: 0.64,
+      tempoShift: -0.06,
+    })
     expect(script?.motionPlan.actionBursts[0]?.holdMs).toBe(420)
     expect(script?.lipsyncPlan.mode).toBe('energy-phoneme-hybrid')
   })

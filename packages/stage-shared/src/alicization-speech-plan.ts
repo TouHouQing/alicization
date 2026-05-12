@@ -1,5 +1,9 @@
 export type AlicizationEmbodimentSpeechInterruptPolicy = 'hard-stop' | 'soft-settle'
 
+import type { AlicizationSpeechProsodyIntent } from './alicization-speech-prosody-contracts'
+
+import { normalizeAlicizationSpeechProsodyIntent } from './alicization-speech-prosody-contracts'
+
 export interface AlicizationEmbodimentSpeechSegment {
   id: string
   index: number
@@ -7,6 +11,7 @@ export interface AlicizationEmbodimentSpeechSegment {
   interruptPolicy: AlicizationEmbodimentSpeechInterruptPolicy
   preRollMs: number
   settleMs: number
+  prosody?: AlicizationSpeechProsodyIntent
 }
 
 export interface AlicizationEmbodimentSpeechPlan {
@@ -43,6 +48,13 @@ function normalizeSpeechSegment(raw: unknown, fallbackIndex: number): Alicizatio
   if (!id || !text)
     return null
 
+  const hasProsody = candidate.prosody !== undefined
+  const prosody = hasProsody
+    ? normalizeAlicizationSpeechProsodyIntent(candidate.prosody)
+    : null
+  if (hasProsody && !prosody)
+    return null
+
   return {
     id,
     index: normalizeNonNegativeInteger(candidate.index, fallbackIndex),
@@ -50,6 +62,7 @@ function normalizeSpeechSegment(raw: unknown, fallbackIndex: number): Alicizatio
     interruptPolicy: normalizeInterruptPolicy(candidate.interruptPolicy),
     preRollMs: normalizeNonNegativeInteger(candidate.preRollMs),
     settleMs: normalizeNonNegativeInteger(candidate.settleMs, 160),
+    ...(prosody ? { prosody } : {}),
   }
 }
 
