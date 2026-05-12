@@ -1003,7 +1003,57 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
       turnId: timeline?.variationToken ?? 'speech-timeline',
       replyText: timeline?.reply ?? '',
       speechTimeline: timeline,
-      digitalLife: null,
+      digitalLife: normalizeAlicizationDigitalLifeEnvelope(
+        digitalLifeFramesBySegmentId.size > 0
+          ? {
+              version: 'digital-life-v1',
+              variationToken: timeline?.variationToken ?? '',
+              emotion: timeline?.emotion ?? 'neutral',
+              mode: 'speaking',
+              postureHint: 'attentive',
+              performance: {
+                baseEmotion: timeline?.emotion ?? 'neutral',
+                emotion: timeline?.emotion ?? 'neutral',
+                facialCue: null,
+                actionCue: null,
+                delivery: 'calm',
+                emphasis: 0,
+              },
+              speechStyle: {
+                pitchDelta: 0,
+                rateMultiplier: 1,
+              },
+              voice: {
+                pitchDelta: 0,
+                rateMultiplier: 1,
+                energy: 0.5,
+                cadence: 0.5,
+              },
+              lipSync: {
+                mode: 'energy',
+                visemeBias: 0.5,
+                energyBias: 0.5,
+                mouthScale: 1,
+                continuityHoldMs: 160,
+              },
+              face: {
+                emotion: timeline?.emotion ?? 'neutral',
+                facialCue: null,
+                expressionMode: 'blend',
+                intensity: 0.5,
+                holdMs: 160,
+              },
+              action: {
+                actionCue: null,
+                actionMode: 'none',
+                intensity: 0,
+                holdMs: 160,
+              },
+              motor: createIdleStageEmbodimentMotorState(),
+              frames: [...digitalLifeFramesBySegmentId.values()],
+            }
+          : null,
+      ),
     })
     speechPlanAlignment.plan = plan
     speechPlanAlignment.signature = createSpeechPlanSignature(plan)

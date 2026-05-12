@@ -166,4 +166,65 @@ describe('embodiment director', () => {
     expect(quietScript.state.residentMode).toBe('quiet-companionship')
     expect(recoveringScript.state.residentMode).toBe('idle-recovering')
   })
+
+  it('preserves multi-segment speech timing from the provided speechTimeline', () => {
+    const script = buildAlicizationEmbodimentScript({
+      seed: {
+        ...createSeed(),
+        speechTimeline: {
+          version: 'speech-timeline-v1',
+          variationToken: 'turn-1',
+          reply: '先看这里。然后点保存。',
+          emotion: 'thinking',
+          segments: [
+            {
+              id: 'segment-1',
+              index: 0,
+              startOffset: 0,
+              endOffset: 5,
+              text: '先看这里。',
+              gestureWeight: 0.2,
+              facialWeight: 0.3,
+              prosodyWeight: 0.4,
+              beatWeight: 0.5,
+              actionCue: 'point_screen',
+              facialCue: 'focused',
+              actionWindow: 'segment-start',
+              interruptMode: 'soft-interrupt',
+            },
+            {
+              id: 'segment-2',
+              index: 1,
+              startOffset: 5,
+              endOffset: 11,
+              text: '然后点保存。',
+              gestureWeight: 0.1,
+              facialWeight: 0.2,
+              prosodyWeight: 0.3,
+              beatWeight: 0.4,
+              actionCue: 'idle_gentle_nod',
+              facialCue: 'focused',
+              actionWindow: 'cadence-peak',
+              interruptMode: 'hard-interrupt',
+            },
+          ],
+        },
+      },
+      manifest: {
+        renderer: 'live2d',
+        supportedBaseEmotions: ['neutral', 'concerned', 'thinking'],
+        supportedFacialCues: [],
+        supportedActions: [],
+        supportsLookAt: true,
+        supportsVisemeLipSync: true,
+        supportsMicroDynamics: true,
+      },
+      residentPerformance: null,
+      rendererTarget: 'live2d',
+    })
+
+    expect(script.speechPlan.segments).toHaveLength(2)
+    expect(script.speechPlan.segments.map(segment => segment.id)).toEqual(['segment-1', 'segment-2'])
+    expect(script.speechPlan.interruptPolicy).toBe('hard-stop')
+  })
 })

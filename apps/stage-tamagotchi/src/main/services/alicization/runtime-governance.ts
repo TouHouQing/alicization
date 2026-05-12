@@ -22,6 +22,7 @@ import type {
 import {
   buildAlicizationDialogueSpeechTimeline,
   buildAlicizationDigitalLifeEnvelope,
+  normalizeAlicizationEmbodimentScript,
   deriveAlicizationMindParticipationFromSpine,
   buildMindGovernedFallbackSurface,
   formatGovernedMindMessage,
@@ -45,6 +46,7 @@ import {
   shouldPreserveDialogueFirstVisibleReply,
   translateGovernedMindFallback as translateGovernedMindFallbackShared,
 } from '@proj-alicization/stage-shared'
+import { buildAlicizationRuntimeEmbodimentSeed } from './embodiment/runtime-embodiment-seed'
 import { coerceAlicizationGovernanceForMindFallback } from './governed-mind-fallback-compat'
 import {
   clampAlicizationPerformancePayloadToManifest,
@@ -310,6 +312,7 @@ export function buildAlicizationChatStreamEmbodimentMeta(input: {
     return {
       governance: null,
       embodiment: null,
+      embodimentScript: null,
       speechTimeline: null,
       digitalLife: null,
     }
@@ -339,10 +342,75 @@ export function buildAlicizationChatStreamEmbodimentMeta(input: {
     embodiment,
     performanceManifest: input.performanceManifest,
   })
+  const embodimentScript = speechTimeline
+    ? normalizeAlicizationEmbodimentScript({
+        version: 'embodiment-script-v1',
+        decisionTraceId: governance.decisionTraceId ?? null,
+        turnId: input.turnId ?? 'unknown-turn',
+        rendererTarget: 'live2d',
+        replyText: reply,
+        state: {
+          baseEmotion: embodiment.performance.baseEmotion,
+          delivery: embodiment.performance.delivery,
+          emphasis: embodiment.performance.emphasis,
+          residentMode: 'dialogue',
+        },
+        speechPlan: {
+          segments: speechTimeline.segments.map(segment => ({
+            id: segment.id,
+            index: segment.index,
+            text: segment.text,
+            interruptPolicy: segment.interruptMode === 'hard-interrupt' ? 'hard-stop' : 'soft-settle',
+            preRollMs: segment.actionWindow === 'segment-start'
+              ? 40
+              : segment.actionWindow === 'cadence-peak'
+                ? 20
+                : 0,
+            settleMs: Math.max(
+              120,
+              segment.emotionHoldMs ?? 0,
+              segment.facialHoldMs ?? 0,
+              segment.actionHoldMs ?? 0,
+            ),
+          })),
+          interruptPolicy: speechTimeline.segments.some(segment => segment.interruptMode === 'hard-interrupt')
+            ? 'hard-stop'
+            : 'soft-settle',
+          preRollMs: speechTimeline.segments.some(segment => segment.actionWindow === 'segment-start') ? 40 : 0,
+          settleMs: speechTimeline.segments.reduce((max, segment) => {
+            return Math.max(max, segment.emotionHoldMs ?? 0, segment.facialHoldMs ?? 0, segment.actionHoldMs ?? 0)
+          }, 120),
+        },
+        facePlan: {
+          preUtteranceCue: null,
+          postUtteranceCue: null,
+          speakingCues: speechTimeline.segments.map(segment => ({
+            segmentId: segment.id,
+            emotion: segment.emotion ?? embodiment.performance.baseEmotion,
+            facialCue: segment.facialCue ?? embodiment.performance.facialCue ?? null,
+            intensity: segment.facialWeight ?? 0.5,
+          })),
+        },
+        motionPlan: {
+          idleBase: embodiment.performance.actionCue ?? 'idle_settle',
+          actionBursts: speechTimeline.segments.map(segment => ({
+            segmentId: segment.id,
+            actionCue: segment.actionCue ?? embodiment.performance.actionCue ?? null,
+            intensity: segment.gestureWeight ?? 0,
+            holdMs: Math.max(0, segment.actionHoldMs ?? 0),
+          })),
+          attentionMode: 'attentive',
+        },
+        lipsyncPlan: {
+          mode: input.performanceManifest?.supportsVisemeLipSync === true ? 'energy-phoneme-hybrid' : 'energy-only',
+        },
+      })
+    : null
 
   return {
     governance,
     embodiment,
+    embodimentScript,
     speechTimeline,
     digitalLife: buildAlicizationDigitalLifeEnvelope({
       embodiment,
@@ -1572,6 +1640,80 @@ export function coerceConversationTurnToMindGovernedPayload(
     speechTimeline: finalSpeechTimeline,
     performanceManifest,
   })
+  const finalEmbodimentSeed = buildAlicizationRuntimeEmbodimentSeed({
+    decisionTraceId: coherentGovernance.decisionTraceId ?? null,
+    turnId: input.turnId ?? 'unknown-turn',
+    reply: finalReply,
+    performance: finalPerformance,
+    embodiment: finalEmbodiment,
+    speechTimeline: finalSpeechTimeline,
+    digitalLife: finalDigitalLife,
+    digitalLifeSpine: finalDigitalLifeSpine,
+  })
+  const finalEmbodimentScript = finalSpeechTimeline
+    ? normalizeAlicizationEmbodimentScript({
+        version: 'embodiment-script-v1',
+        decisionTraceId: finalEmbodimentSeed.decisionTraceId ?? null,
+        turnId: finalEmbodimentSeed.turnId,
+        rendererTarget: 'live2d',
+        replyText: finalEmbodimentSeed.replyText,
+        state: {
+          baseEmotion: finalPerformance.baseEmotion,
+          delivery: finalPerformance.delivery,
+          emphasis: finalPerformance.emphasis,
+          residentMode: finalDigitalLife?.mode === 'recovering' ? 'idle-recovering' : 'dialogue',
+        },
+        speechPlan: {
+          segments: finalSpeechTimeline.segments.map(segment => ({
+            id: segment.id,
+            index: segment.index,
+            text: segment.text,
+            interruptPolicy: segment.interruptMode === 'hard-interrupt' ? 'hard-stop' : 'soft-settle',
+            preRollMs: segment.actionWindow === 'segment-start'
+              ? 40
+              : segment.actionWindow === 'cadence-peak'
+                ? 20
+                : 0,
+            settleMs: Math.max(
+              120,
+              segment.emotionHoldMs ?? 0,
+              segment.facialHoldMs ?? 0,
+              segment.actionHoldMs ?? 0,
+            ),
+          })),
+          interruptPolicy: finalSpeechTimeline.segments.some(segment => segment.interruptMode === 'hard-interrupt')
+            ? 'hard-stop'
+            : 'soft-settle',
+          preRollMs: finalSpeechTimeline.segments.some(segment => segment.actionWindow === 'segment-start') ? 40 : 0,
+          settleMs: finalSpeechTimeline.segments.reduce((max, segment) => {
+            return Math.max(max, segment.emotionHoldMs ?? 0, segment.facialHoldMs ?? 0, segment.actionHoldMs ?? 0)
+          }, 120),
+        },
+        facePlan: {
+          preUtteranceCue: null,
+          postUtteranceCue: null,
+          speakingCues: finalSpeechTimeline.segments.map(segment => ({
+            segmentId: segment.id,
+            emotion: segment.emotion ?? finalPerformance.baseEmotion,
+            facialCue: segment.facialCue ?? finalPerformance.facialCue ?? null,
+            intensity: segment.facialWeight ?? 0.5,
+          })),
+        },
+        motionPlan: {
+          idleBase: finalPerformance.actionCue ?? 'idle_settle',
+          actionBursts: finalSpeechTimeline.segments.map(segment => ({
+            segmentId: segment.id,
+            actionCue: segment.actionCue ?? finalPerformance.actionCue ?? null,
+            intensity: segment.gestureWeight ?? 0,
+            holdMs: Math.max(0, segment.actionHoldMs ?? 0),
+          })),
+          attentionMode: 'attentive',
+        },
+        lipsyncPlan: {
+          mode: performanceManifest?.supportsVisemeLipSync === true ? 'energy-phoneme-hybrid' : 'energy-only',
+        },
+      })
+    : null
 
   return {
     payload: {
@@ -1589,6 +1731,7 @@ export function coerceConversationTurnToMindGovernedPayload(
         visibleReplyRewriteRequest,
         performance: finalPerformance,
         embodiment: finalEmbodiment,
+        embodimentScript: finalEmbodimentScript,
         speechTimeline: finalSpeechTimeline,
         digitalLife: finalDigitalLife,
         format: 'mind-turn-v1',

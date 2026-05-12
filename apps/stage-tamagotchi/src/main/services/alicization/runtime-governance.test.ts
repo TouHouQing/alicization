@@ -681,4 +681,5 @@ describe('runtime-governance', () => {
       legacyInputFormat: 'epoch1-v1',
     }))
   })
+
 })

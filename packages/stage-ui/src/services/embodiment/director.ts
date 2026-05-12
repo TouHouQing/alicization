@@ -14,6 +14,7 @@ import type {
 } from '../../stores/alicization-bridge'
 
 import { adaptAlicizationEmbodimentPerformanceToRenderer } from './renderer-capability-adapter'
+import { buildAlicizationEmbodimentSpeechPlan } from './speech-planner'
 
 interface AlicizationEmbodimentSeedLike {
   decisionTraceId?: string | null
@@ -31,10 +32,6 @@ export interface BuildAlicizationEmbodimentScriptInput {
   manifest: CharacterPerformanceCapabilitiesManifest | null | undefined
   residentPerformance: AlicizationResidentPerformanceSnapshot | null
   rendererTarget: AlicizationEmbodimentScriptRendererTarget
-}
-
-function buildSegmentText(replyText: string, speechTimeline: AlicizationEmbodimentSeedLike['speechTimeline']) {
-  return speechTimeline?.segments[0]?.text?.trim() || replyText
 }
 
 function resolveResidentMode(input: {
@@ -66,8 +63,13 @@ export function buildAlicizationEmbodimentScript(
         }
       : undefined,
   })
-  const segmentId = `${input.seed.turnId}-segment-0`
-  const segmentText = buildSegmentText(input.seed.replyText, input.seed.speechTimeline)
+  const speechPlan = buildAlicizationEmbodimentSpeechPlan({
+    turnId: input.seed.turnId,
+    replyText: input.seed.replyText,
+    speechTimeline: input.seed.speechTimeline,
+    digitalLife: input.seed.digitalLife,
+  })
+  const primarySegment = speechPlan.segments[0] ?? null
 
   return {
     version: 'embodiment-script-v1',
@@ -84,37 +86,29 @@ export function buildAlicizationEmbodimentScript(
         digitalLife: input.seed.digitalLife,
       }),
     },
-    speechPlan: {
-      segments: [{
-        id: segmentId,
-        index: 0,
-        text: segmentText,
-        interruptPolicy: 'soft-settle',
-        preRollMs: 40,
-        settleMs: 220,
-      }],
-      interruptPolicy: 'soft-settle',
-      preRollMs: 40,
-      settleMs: 220,
-    },
+    speechPlan,
     facePlan: {
       preUtteranceCue: null,
       postUtteranceCue: null,
-      speakingCues: [{
-        segmentId,
-        emotion: adapted.performance.baseEmotion,
-        facialCue: adapted.performance.facialCue ?? null,
-        intensity: adapted.performance.emphasis >= 2 ? 0.8 : adapted.performance.emphasis === 1 ? 0.6 : 0.4,
-      }],
+      speakingCues: primarySegment
+        ? [{
+            segmentId: primarySegment.id,
+            emotion: adapted.performance.baseEmotion,
+            facialCue: adapted.performance.facialCue ?? null,
+            intensity: adapted.performance.emphasis >= 2 ? 0.8 : adapted.performance.emphasis === 1 ? 0.6 : 0.4,
+          }]
+        : [],
     },
     motionPlan: {
       idleBase: adapted.performance.actionCue ?? 'idle_settle',
-      actionBursts: [{
-        segmentId,
-        actionCue: adapted.performance.actionCue ?? null,
-        intensity: adapted.performance.emphasis >= 2 ? 0.7 : adapted.performance.emphasis === 1 ? 0.5 : 0.3,
-        holdMs: 320,
-      }],
+      actionBursts: primarySegment
+        ? [{
+            segmentId: primarySegment.id,
+            actionCue: adapted.performance.actionCue ?? null,
+            intensity: adapted.performance.emphasis >= 2 ? 0.7 : adapted.performance.emphasis === 1 ? 0.5 : 0.3,
+            holdMs: primarySegment.settleMs,
+          }]
+        : [],
       attentionMode: input.manifest?.supportsLookAt === false ? 'ambient' : 'attentive',
     },
     lipsyncPlan: {

@@ -10,7 +10,7 @@ import type {
 import { shouldEmitAlicizationChatMetaUpdate } from './main-chat-stream-meta-policy'
 import { buildAlicizationChatStreamEmbodimentMeta, readStringValue } from './runtime-governance'
 
-export function buildAlicizationChatMetaSignature(body: Pick<AlicizationChatMetaEvent, 'governance' | 'visibleReplyExecution' | 'embodiment' | 'speechTimeline' | 'digitalLife' | 'digitalLifeSpine' | 'runtimeDigest'>) {
+export function buildAlicizationChatMetaSignature(body: Pick<AlicizationChatMetaEvent, 'governance' | 'visibleReplyExecution' | 'embodiment' | 'embodimentScript' | 'speechTimeline' | 'digitalLife' | 'digitalLifeSpine' | 'runtimeDigest'>) {
   const lastSegment = body.speechTimeline?.segments.at(-1)
   const lastFrame = body.digitalLife?.frames.at(-1)
   return JSON.stringify({
@@ -23,6 +23,10 @@ export function buildAlicizationChatMetaSignature(body: Pick<AlicizationChatMeta
     postureHint: body.embodiment?.postureHint ?? null,
     preferredExpressionAlias: body.embodiment?.rendererHints?.preferredExpressionAliases?.[0] ?? null,
     preferredMotionAlias: body.embodiment?.rendererHints?.preferredMotionAliases?.[0] ?? null,
+    embodimentScriptVersion: body.embodimentScript?.version ?? null,
+    embodimentScriptTurnId: body.embodimentScript?.turnId ?? null,
+    embodimentScriptDecisionTraceId: body.embodimentScript?.decisionTraceId ?? null,
+    embodimentScriptSegmentCount: body.embodimentScript?.speechPlan.segments.length ?? 0,
     segmentCount: body.speechTimeline?.segments.length ?? 0,
     replyChars: body.speechTimeline?.reply.length ?? 0,
     lastSegmentEndOffset: lastSegment?.endOffset ?? null,
@@ -124,6 +128,7 @@ export function createAlicizationChatStreamMetaEmitter(input: {
       governance: meta.governance,
       visibleReplyExecution: input.getVisibleReplyExecution?.() ?? null,
       embodiment: meta.embodiment,
+      embodimentScript: (meta as { embodimentScript?: AlicizationChatMetaEvent['embodimentScript'] | null }).embodimentScript ?? null,
       speechTimeline: meta.speechTimeline,
       digitalLife: meta.digitalLife,
       digitalLifeSpine,
