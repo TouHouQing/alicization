@@ -4,6 +4,7 @@ import type {
 } from '@proj-alicization/stage-shared'
 
 export interface ResolveLive2DFaceDriverStateInput {
+  idleCuePhase?: 'pre-utterance' | 'post-utterance'
   playbackPhase: 'idle' | 'playing'
   script: AlicizationEmbodimentScriptV1 | null | undefined
   segmentId?: string | null
@@ -39,12 +40,16 @@ export function resolveLive2DFaceDriverState(
     return null
 
   const speakingCue = resolveSpeakingCue(script, input.segmentId)
+  const idleCuePhase = input.idleCuePhase ?? 'pre-utterance'
   const playbackFacialCue = input.playbackPhase === 'playing'
     ? speakingCue?.facialCue ?? null
-    : script.facePlan.preUtteranceCue
-      ?? script.facePlan.postUtteranceCue
-      ?? speakingCue?.facialCue
-      ?? null
+    : idleCuePhase === 'post-utterance'
+        ? script.facePlan.postUtteranceCue
+          ?? speakingCue?.facialCue
+          ?? null
+        : script.facePlan.preUtteranceCue
+          ?? speakingCue?.facialCue
+          ?? null
 
   return {
     emotion: speakingCue?.emotion ?? script.state.baseEmotion,

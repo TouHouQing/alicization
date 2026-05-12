@@ -79,6 +79,7 @@ describe('live2d embodiment drivers', () => {
     expect(resolveLive2DFaceDriverState({
       script,
       segmentId: 'segment-1',
+      idleCuePhase: 'pre-utterance',
       playbackPhase: 'idle',
     })).toEqual(expect.objectContaining({
       facialCue: 'soft-breath',
@@ -87,18 +88,13 @@ describe('live2d embodiment drivers', () => {
     }))
 
     expect(resolveLive2DFaceDriverState({
-      script: {
-        ...script,
-        facePlan: {
-          ...script.facePlan,
-          preUtteranceCue: null,
-        },
-      },
+      script,
       segmentId: 'segment-1',
+      idleCuePhase: 'post-utterance',
       playbackPhase: 'idle',
     })).toEqual(expect.objectContaining({
       facialCue: 'settle-smile',
-      preUtteranceCue: null,
+      preUtteranceCue: 'soft-breath',
       postUtteranceCue: 'settle-smile',
     }))
   })
