@@ -99,6 +99,18 @@ describe('live2d embodiment drivers', () => {
     }))
   })
 
+  it('defaults idle face timing to the pre-utterance cue when no idle cue phase is provided', () => {
+    expect(resolveLive2DFaceDriverState({
+      script,
+      segmentId: 'segment-1',
+      playbackPhase: 'idle',
+    })).toEqual(expect.objectContaining({
+      facialCue: 'soft-breath',
+      preUtteranceCue: 'soft-breath',
+      postUtteranceCue: 'settle-smile',
+    }))
+  })
+
   it('resolves live2d lipsync mode from the embodiment script', () => {
     expect(resolveLive2DLipSyncDriverState({
       script,

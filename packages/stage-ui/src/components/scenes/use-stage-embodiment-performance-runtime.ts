@@ -265,6 +265,24 @@ function roundSignedHundredths(value: number, fallback = 0) {
   return Number(clampSigned(value, -1, 1, fallback).toFixed(2))
 }
 
+function resolvePlaybackDriverFaceMetadata(
+  item: StageEmbodimentSpeechPlaybackItem | null | undefined,
+) {
+  const candidate = item?.metadata?.embodimentPlayback
+  if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate))
+    return null
+
+  const face = (candidate as EmbodimentPlaybackTelemetry).drivers?.face
+  if (!face)
+    return null
+
+  return {
+    facialCue: face.facialCue?.trim() || null,
+    postUtteranceCue: face.postUtteranceCue?.trim() || null,
+    preUtteranceCue: face.preUtteranceCue?.trim() || null,
+  }
+}
+
 function mixUnit(from: number, to: number, amount: number) {
   return roundHundredths(from + (to - from) * clamp01(amount))
 }
@@ -822,6 +840,7 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
     const previewSegmentId = upcomingSegment?.segmentId ?? ''
     const previewCue = upcomingSegment?.cue ?? null
     const previewLife = upcomingSegment?.digitalLifeFrame ?? null
+    const previewDriverFace = resolvePlaybackDriverFaceMetadata(upcomingSegment)
     const previewGestureWeight = Math.max(
       clamp01(previewCue?.gestureWeight),
       clamp01(previewLife?.action.intensity),
@@ -859,6 +878,16 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
     }
     lastCadencePeakActive = cadencePeakActive
 
+    const previewDriverFacialCue = previewDriverFace?.preUtteranceCue ?? previewDriverFace?.facialCue ?? null
+    const stoppingDriverFace = !speech.active && !previewSegmentId
+      ? resolvePlaybackDriverFaceMetadata(speech.item)
+      : null
+    const previewFacialCue = previewCue?.facialCue
+      ?? previewDriverFacialCue
+      ?? stoppingDriverFace?.postUtteranceCue
+      ?? stoppingDriverFace?.facialCue
+      ?? null
+
     const segmentSuppressResidentFacialCue = Boolean(
       speech.active
       && segmentLife
@@ -885,9 +914,9 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
     )
 
     const facialCueLayer = previewAhead
-      ? previewCue?.facialCue
+      ? previewFacialCue
           ? {
-              cue: previewCue.facialCue,
+              cue: previewFacialCue,
               source: 'preview' as const,
               heldCue: null,
               heldUntil: 0,

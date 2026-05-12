@@ -415,12 +415,14 @@ function resolveActivePlaybackVisemeHints(
 }
 
 function resolvePlaybackDriverMetadata(input: {
+  idleCuePhase?: 'pre-utterance' | 'post-utterance'
   script: AlicizationEmbodimentScriptV1 | null
   segmentId: string | null | undefined
   playbackPhase: 'idle' | 'playing'
 }): EmbodimentPlaybackTelemetry['drivers'] {
   return {
     face: resolveLive2DFaceDriverState({
+      idleCuePhase: input.idleCuePhase,
       script: input.script,
       segmentId: input.segmentId,
       playbackPhase: input.playbackPhase,
@@ -439,6 +441,7 @@ function resolvePlaybackDriverMetadata(input: {
 }
 
 function enrichSpeechMetadataWithDrivers(input: {
+  idleCuePhase?: 'pre-utterance' | 'post-utterance'
   metadata: Record<string, unknown> | null | undefined
   script: AlicizationEmbodimentScriptV1 | null
   segmentId: string | null | undefined
@@ -462,6 +465,7 @@ function enrichSpeechMetadataWithDrivers(input: {
   }
 
   nextPlayback.drivers = resolvePlaybackDriverMetadata({
+    idleCuePhase: input.idleCuePhase,
     script: input.script,
     segmentId: input.segmentId,
     playbackPhase: input.playbackPhase,
@@ -473,6 +477,22 @@ function enrichSpeechMetadataWithDrivers(input: {
   } satisfies Record<string, unknown>
 }
 
+function resolveSpeechMetadataIdleCuePhase(
+  metadata: Record<string, unknown> | null | undefined,
+) {
+  const face = resolveEmbodimentPlaybackMetadataFromMetadata(metadata)?.drivers.face
+  if (!face)
+    return undefined
+
+  if (face.facialCue && face.facialCue === face.postUtteranceCue)
+    return 'post-utterance' as const
+
+  if (face.facialCue && face.facialCue === face.preUtteranceCue)
+    return 'pre-utterance' as const
+
+  return undefined
+}
+
 function enrichSpeechMetadataWithReconciliation(input: {
   actualDurationMs: number
   metadata: Record<string, unknown> | null | undefined
@@ -482,6 +502,7 @@ function enrichSpeechMetadataWithReconciliation(input: {
 }) {
   const script = resolveEmbodimentScriptFromMetadata(input.metadata)
   const metadataWithDrivers = enrichSpeechMetadataWithDrivers({
+    idleCuePhase: 'post-utterance',
     metadata: input.metadata,
     script,
     segmentId: input.segmentId,
@@ -500,6 +521,7 @@ function enrichSpeechMetadataWithReconciliation(input: {
         stopReason: input.stopReason,
       }),
       drivers: resolvePlaybackDriverMetadata({
+        idleCuePhase: 'post-utterance',
         script,
         segmentId: input.segmentId,
         playbackPhase: 'idle',
@@ -1378,11 +1400,16 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
       rememberSpokenText(descriptor.text, nextConsumedOffset)
 
     const digitalLifeFrame = resolveDigitalLifeFrame(descriptor, cue)
+    const idleCuePhase = resolveSpeechMetadataIdleCuePhase(descriptor.metadata)
+    const playbackPhase = idleCuePhase
+      ? 'idle'
+      : descriptor.playbackDurationMs == null && !advanceTimeline ? 'idle' : 'playing'
     const enrichedMetadata = enrichSpeechMetadataWithDrivers({
+      idleCuePhase,
       metadata: descriptor.metadata,
       script: resolveEmbodimentScriptFromMetadata(descriptor.metadata),
       segmentId: descriptor.segmentId,
-      playbackPhase: descriptor.playbackDurationMs == null && !advanceTimeline ? 'idle' : 'playing',
+      playbackPhase,
     })
     return createStageEmbodimentSpeechPlaybackItem({
       ...descriptor,
