@@ -505,6 +505,7 @@ export function deriveStageEmbodimentSpeechDynamicsState(input: {
 
   const speechEnergy = clampUnit(input.speechEnergy ?? 0)
   const planProsody = resolvePlaybackSegmentProsodyIntent(input.item)
+  const hasPlanProsody = Boolean(planProsody)
   const prosodyStrength = clampUnit(planProsody?.emphasisStrength ?? 0)
   const tempoShift = clampRange(planProsody?.tempoShift ?? 0, -1, 1)
   const contourBoost = planProsody?.contour === 'rising'
@@ -544,12 +545,12 @@ export function deriveStageEmbodimentSpeechDynamicsState(input: {
     speechEnergy,
     emphasisLevel,
     prosodyIntensity: clampUnit(
-      emphasisLevel * 0.38
-      + cueProsody * 0.2
+      emphasisLevel * (hasPlanProsody ? 0.38 : 0.42)
+      + cueProsody * (hasPlanProsody ? 0.2 : 0.24)
       + cueMouth * 0.12
-      + styleIntensity * 0.24
+      + styleIntensity * (hasPlanProsody ? 0.24 : 0.28)
       + mouthPresence * 0.14
-      + speechEnergy * 0.22
+      + speechEnergy * (hasPlanProsody ? 0.22 : 0.24)
       + prosodyStrength * 0.24
       + contourBoost
       + Math.max(0, tempoShift) * 0.08,
