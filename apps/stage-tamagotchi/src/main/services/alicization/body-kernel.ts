@@ -55,6 +55,9 @@ export function createAlicizationBodyKernel(options: CreateAlicizationBodyKernel
         && !input.shouldSpeak
         && !input.activeConversation
         && input.relationshipPressure >= 0.2
+      const recoveringSilentWatch = input.watchMode === 'recovering'
+        && !input.shouldSpeak
+        && !input.activeConversation
 
       if (quietCoVision) {
         return {
@@ -66,6 +69,20 @@ export function createAlicizationBodyKernel(options: CreateAlicizationBodyKernel
             : personaAuthoritySummary
               ? `host sustained focus with ${personaAuthoritySummary}`
               : 'host sustained focus',
+          updatedAt: now(),
+        }
+      }
+
+      if (recoveringSilentWatch) {
+        return {
+          currentBodyState: 'recovering',
+          continuityMode: 'protective-watch',
+          quietLineMs: Math.max(0, input.sustainedFocusMs),
+          currentInwardPreoccupation: personaKernelSummary
+            ? `quiet recovery under watch with persona kernel ${personaKernelSummary}`
+            : personaAuthoritySummary
+              ? `quiet recovery under watch with ${personaAuthoritySummary}`
+              : 'quiet recovery under watch',
           updatedAt: now(),
         }
       }

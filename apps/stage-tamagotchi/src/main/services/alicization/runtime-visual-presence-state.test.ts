@@ -41,7 +41,25 @@ describe('runtime visual presence state', () => {
 
     expect(result.currentBodyState).toBe('accompanying')
     expect(result.continuityMode).toBe('quiet-accompaniment')
+    expect(result.quietLineMs).toBe(180000)
     expect(result.currentInwardPreoccupation).toContain('focus')
+  })
+
+  it('derives recovering silent-body authority without widening continuity modes', () => {
+    const kernel = createAlicizationBodyKernel({ now: () => 1_000 })
+    const result = kernel.reduce({
+      sustainedFocusMs: 180_000,
+      watchMode: 'recovering',
+      shouldSpeak: false,
+      activeConversation: false,
+      relationshipPressure: 0.42,
+      personaAuthoritySummary: 'quiet recovery',
+    })
+
+    expect(result.currentBodyState).toBe('recovering')
+    expect(result.continuityMode).toBe('protective-watch')
+    expect(result.quietLineMs).toBe(180_000)
+    expect(result.currentInwardPreoccupation).toContain('quiet recovery')
   })
 
   it('suppresses quiet co-vision while a conversation is active', () => {
@@ -127,6 +145,60 @@ describe('runtime visual presence state', () => {
     expect(nextState.captureState).toEqual(previousState.captureState)
     expect(nextState.currentInwardPreoccupation).toContain('Repair before closeness')
     expect(nextState.currentInwardPreoccupation).toContain('identity Repair before closeness is how I keep room honest.')
+  })
+
+  it('applies recovering visual presence as a distinct silent body state', () => {
+    const kernel = createAlicizationBodyKernel({ now: () => 9_000 })
+    const previousState = createVisualPresenceState(4_800)
+    previousState.autobiographicalSelf = {
+      relationshipDoctrine: 'Quiet recovery keeps care steady.',
+      latestInflection: 'Stay near without asking for anything.',
+      identityNarrative: 'I keep watch softly while the room regains shape.',
+      behaviorSignatures: ['steady-watch', 'quiet-care'],
+      personaDrift: {
+        conflictStyle: 'repair-first',
+        agencyStyle: 'reserved',
+        expressionStyle: 'measured',
+      },
+    } as any
+    previousState.currentScene = {
+      scenario: 'resting',
+      workloadKind: 'recovery',
+      contentKind: 'health',
+      summary: 'Recovering quietly after strain.',
+      confidence: 0.9,
+      source: 'screen-semantic-summary',
+      target: null,
+      beganAt: 0,
+    } as any
+    previousState.privateThought = {
+      shouldSpeak: false,
+    } as any
+    previousState.relationshipModel = {
+      receptivity: 0.4,
+      sharedAttentionTrust: 0.6,
+      reciprocityExpectation: 0.5,
+    } as any
+
+    const nextState = kernel.applyToVisualPresenceState({
+      now: 180_000,
+      previousState,
+      candidateState: {
+        ...previousState,
+        watchMode: 'recovering',
+        currentScene: previousState.currentScene,
+        privateThought: previousState.privateThought,
+        updatedAt: 8_500,
+      },
+      activeConversation: false,
+    })
+
+    expect(nextState.watchMode).toBe('recovering')
+    expect(nextState.currentBodyState).toBe('recovering')
+    expect(nextState.continuityMode).toBe('protective-watch')
+    expect(nextState.quietLineMs).toBe(180_000)
+    expect(nextState.currentInwardPreoccupation).toContain('Quiet recovery')
+    expect(nextState.currentInwardPreoccupation).toContain('identity I keep watch softly while the room regains shape.')
   })
 
   it('does not inherit long focus from a stale previous scene when candidate scene is fresh', () => {
