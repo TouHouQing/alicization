@@ -163,6 +163,14 @@ function normalizeLanguageCode(value: unknown): string | null {
   return normalizeString(record?.code ?? record?.id ?? record?.language ?? null, 32)
 }
 
+function isChineseLanguageCode(value: string | null | undefined) {
+  if (!value)
+    return false
+
+  const normalized = value.trim().toLowerCase()
+  return normalized === 'zh' || normalized.startsWith('zh-')
+}
+
 function containsAny(source: string, candidates: readonly string[]) {
   return candidates.some(candidate => source.includes(candidate))
 }
@@ -641,47 +649,60 @@ export function normalizeStageEmbodimentSpeechArticulationVoiceProfile(
   digitalLifeFrame?: AlicizationDigitalLifeFrame | null,
 ): StageEmbodimentSpeechArticulationVoiceProfile | null {
   const metadata = normalizeRecord(rawMetadata)
+  const metadataVoice = normalizeRecord(metadata?.voice)
   const synthesis = normalizeRecord(
     metadata?.speechSynthesis
     ?? metadata?.speech
     ?? metadata?.tts,
   )
-  const voice = normalizeRecord(synthesis?.voice)
+  const voice = normalizeRecord(synthesis?.voice) ?? metadataVoice
   const digitalLifeVoice = digitalLifeFrame?.voice ?? null
   const digitalLifeFacial = digitalLifeFrame?.motor.facial ?? null
-  const provider = normalizeString(synthesis?.provider)
-  const model = normalizeString(synthesis?.model)
+  const provider = normalizeString(synthesis?.provider ?? metadataVoice?.provider)
+  const model = normalizeString(synthesis?.model ?? metadataVoice?.model)
   const voiceId = normalizeString(
     voice?.id
+    ?? metadataVoice?.voiceId
     ?? synthesis?.voiceId
     ?? synthesis?.voice_id,
   )
   const voiceName = normalizeString(
     voice?.name
+    ?? metadataVoice?.voiceName
     ?? synthesis?.voiceName
     ?? synthesis?.voice_name,
   )
-  const gender = normalizeString(voice?.gender ?? synthesis?.gender, 32)
+  const gender = normalizeString(voice?.gender ?? metadataVoice?.gender ?? synthesis?.gender, 32)
   const language = normalizeLanguageCode(
     synthesis?.language
     ?? voice?.language
-    ?? voice?.languages,
+    ?? voice?.languages
+    ?? metadataVoice?.language
+    ?? metadataVoice?.languages,
   )
 
   if (!provider && !model && !voiceId && !voiceName && !digitalLifeVoice && !digitalLifeFacial)
     return null
 
   const rateMultiplier = Number(clampRange(
-    normalizeNumber(synthesis?.rateMultiplier)
+    normalizeNumber(metadataVoice?.rateMultiplier)
+    ?? normalizeNumber(voice?.rateMultiplier)
+    ?? normalizeNumber(synthesis?.rateMultiplier)
     ?? normalizeNumber(synthesis?.rate)
+    ?? normalizeNumber(voice?.rate)
+    ?? normalizeNumber(metadataVoice?.rate)
     ?? digitalLifeVoice?.rateMultiplier,
     0.5,
     2,
     1,
   ).toFixed(2))
   const pitchDelta = Number(clampRange(
-    normalizeNumber(synthesis?.pitchDelta)
+    normalizeNumber(metadataVoice?.pitchDelta)
+    ?? normalizeNumber(voice?.pitchDelta)
+    ?? normalizeNumber(synthesis?.pitchDelta)
     ?? normalizeNumber(synthesis?.pitch)
+    ?? normalizeNumber(voice?.pitch)
+    ?? normalizeNumber(metadataVoice?.pitch)
     ?? digitalLifeVoice?.pitchDelta,
     -24,
     24,
@@ -766,47 +787,97 @@ export function normalizeStageEmbodimentSpeechArticulationVoiceProfile(
     rateMultiplier,
     pitchDelta,
     closureBias: roundHundredths(
-      0.34
-      + fastRateBias * 0.2
-      + (precisionHint ? 0.14 : 0)
-      + jawOpenBias * 0.06,
+      normalizeNumber(metadataVoice?.closureBias)
+      ?? normalizeNumber(voice?.closureBias)
+      ?? (
+        0.34
+        + fastRateBias * 0.2
+        + (precisionHint ? 0.14 : 0)
+        + jawOpenBias * 0.06
+      ),
       0.46,
     ),
     roundBias: roundHundredths(
-      0.22
-      + mouthRound * 0.46
-      + lowPitchBias * 0.16
-      + (deepHint ? 0.16 : 0),
+      normalizeNumber(metadataVoice?.roundBias)
+      ?? normalizeNumber(voice?.roundBias)
+      ?? (
+        0.22
+        + mouthRound * 0.46
+        + lowPitchBias * 0.16
+        + (deepHint ? 0.16 : 0)
+      ),
       0.34,
     ),
     spreadBias: roundHundredths(
-      0.2
-      + mouthSpread * 0.5
-      + highPitchBias * 0.14
-      + (brightHint ? 0.18 : 0),
+      normalizeNumber(metadataVoice?.spreadBias)
+      ?? normalizeNumber(voice?.spreadBias)
+      ?? (
+        0.2
+        + mouthSpread * 0.5
+        + highPitchBias * 0.14
+        + (brightHint ? 0.18 : 0)
+      ),
       0.36,
     ),
     jawBias: roundHundredths(
-      0.28
-      + jawOpenBias * 0.46
-      + lowPitchBias * 0.16
-      + (deepHint ? 0.14 : 0),
+      normalizeNumber(metadataVoice?.jawBias)
+      ?? normalizeNumber(voice?.jawBias)
+      ?? (
+        0.28
+        + jawOpenBias * 0.46
+        + lowPitchBias * 0.16
+        + (deepHint ? 0.14 : 0)
+      ),
       0.38,
     ),
     consonantPrecision: roundHundredths(
-      0.3
-      + fastRateBias * 0.18
-      + (precisionHint ? 0.18 : 0)
-      + (brightHint ? 0.08 : 0),
+      normalizeNumber(metadataVoice?.consonantPrecision)
+      ?? normalizeNumber(voice?.consonantPrecision)
+      ?? (
+        0.3
+        + fastRateBias * 0.18
+        + (precisionHint ? 0.18 : 0)
+        + (brightHint ? 0.08 : 0)
+      ),
       0.44,
     ),
     vowelLegato: roundHundredths(
-      0.34
-      + slowRateBias * 0.22
-      + mouthRound * 0.1
-      + (legatoHint ? 0.18 : 0),
+      normalizeNumber(metadataVoice?.vowelLegato)
+      ?? normalizeNumber(voice?.vowelLegato)
+      ?? (
+        0.34
+        + slowRateBias * 0.22
+        + mouthRound * 0.1
+        + (legatoHint ? 0.18 : 0)
+      ),
       0.46,
     ),
+  }
+}
+
+function deriveChineseVoiceConditionedVisemeBias(input: {
+  closureBias: number
+  consonantPrecision: number
+  jawBias: number
+  roundBias: number
+  spreadBias: number
+  vowelLegato: number
+  voice: StageEmbodimentSpeechArticulationVoiceProfile | null
+}) {
+  if (!isChineseLanguageCode(input.voice?.language))
+    return null
+
+  const consonantEdge = clampUnit(input.consonantPrecision - input.vowelLegato + 0.5)
+  const vowelFlow = clampUnit(input.vowelLegato - input.consonantPrecision + 0.5)
+
+  return {
+    closureLift: consonantEdge * (0.1 + input.closureBias * 0.12),
+    closedVisemeLift: consonantEdge * (0.12 + input.closureBias * 0.1),
+    spreadLift: clampUnit(input.spreadBias * 0.06 + vowelFlow * 0.08 - consonantEdge * 0.06),
+    roundLift: clampUnit(input.roundBias * 0.04 + vowelFlow * 0.05 - consonantEdge * 0.03),
+    jawLift: clampUnit(input.jawBias * 0.04 + vowelFlow * 0.06 - consonantEdge * 0.04),
+    opennessScale: 1 - consonantEdge * 0.16 + vowelFlow * 0.08,
+    vowelSuppressionScale: 1 - consonantEdge * 0.14,
   }
 }
 
@@ -884,6 +955,15 @@ export function deriveStageEmbodimentSpeechArticulationState(
   const closureBias = clampUnit(voice?.closureBias ?? 0.46, 0.46)
   const consonantPrecision = clampUnit(voice?.consonantPrecision ?? 0.44, 0.44)
   const vowelLegato = clampUnit(voice?.vowelLegato ?? 0.46, 0.46)
+  const chineseVoiceBias = deriveChineseVoiceConditionedVisemeBias({
+    voice,
+    closureBias,
+    consonantPrecision,
+    vowelLegato,
+    roundBias,
+    spreadBias,
+    jawBias,
+  })
   const amplitude = clampUnit(Math.max(
     mouthOpenRatio,
     speechEnergy * 0.94,
@@ -891,30 +971,38 @@ export function deriveStageEmbodimentSpeechArticulationState(
     emphasisLevel * 0.3,
   ))
   const opennessEnvelope = clampUnit(
-    preset.openness * (0.52 + amplitude * 0.48 + vowelLegato * 0.12),
+    preset.openness
+    * (0.52 + amplitude * 0.48 + vowelLegato * 0.12)
+    * (chineseVoiceBias?.opennessScale ?? 1),
   )
   const lipClosure = clampUnit(
-    preset.closure
+    Math.max(
+      preset.closure,
+      chineseVoiceBias?.closureLift ?? 0,
+    )
     * (0.72 + closureBias * 0.3 + consonantPrecision * 0.22)
     * (0.48 + amplitude * 0.52),
   )
   const lipRound = clampUnit(
     preset.round * (0.54 + roundBias * 0.36 + vowelLegato * 0.1)
-    + roundBias * 0.08,
+    + roundBias * 0.08
+    + (chineseVoiceBias?.roundLift ?? 0),
   )
   const lipSpread = clampUnit(
     preset.spread * (0.54 + spreadBias * 0.34 + consonantPrecision * 0.12)
-    + spreadBias * 0.06,
+    + spreadBias * 0.06
+    + (chineseVoiceBias?.spreadLift ?? 0),
   )
   const jawOpen = clampUnit(
     (preset.jaw * (0.42 + amplitude * 0.44) + cadencePulse * 0.08)
     * mouthScale
-    * (0.72 + jawBias * 0.34)
+    * (0.72 + clampUnit(jawBias + (chineseVoiceBias?.jawLift ?? 0)) * 0.34)
     * (1 - lipClosure * 0.48),
   )
   const closedViseme = clampUnit(Math.max(
     preset.visemes.closed * (0.62 + closureBias * 0.28),
     lipClosure * 0.96,
+    chineseVoiceBias?.closedVisemeLift ?? 0,
   ))
   const openness = clampUnit(
     opennessEnvelope
@@ -922,7 +1010,7 @@ export function deriveStageEmbodimentSpeechArticulationState(
     * (0.78 + jawBias * 0.24)
     * (1 - closedViseme * 0.54),
   )
-  const vowelSuppression = 1 - closedViseme * 0.78
+  const vowelSuppression = clampUnit((1 - closedViseme * 0.78) * (chineseVoiceBias?.vowelSuppressionScale ?? 1), 1)
   const visemeDrive = clampUnit(openness * 0.82 + jawOpen * 0.18)
   const visemes = normalizeVisemes({
     A: preset.visemes.A * visemeDrive * (0.72 + jawOpen * 0.24) * vowelSuppression,

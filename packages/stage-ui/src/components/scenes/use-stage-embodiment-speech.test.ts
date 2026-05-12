@@ -617,6 +617,121 @@ describe('stage embodiment speech contract', () => {
     speech.dispose()
   })
 
+  it('refines chinese articulation from preserved voice bias metadata during playback', async () => {
+    vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1))
+    vi.stubGlobal('cancelAnimationFrame', vi.fn())
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    const { useStageEmbodimentSpeech } = await import('./use-stage-embodiment-speech')
+
+    let startListener: ((event: { item: PlaybackItem<BrowserSpeechAudioSource>, startedAt: number }) => void) | undefined
+
+    const speech = useStageEmbodimentSpeech({
+      audioContext: {} as AudioContext,
+      mouthOpenSize: ref(0),
+      paused: ref(false),
+      speechStylePitch: ref(0),
+      speechStyleRate: ref(1),
+      stageModelRenderer: ref('vrm'),
+    })
+
+    speech.bindPlaybackManager({
+      onStart(listener) {
+        startListener = listener
+      },
+      onEnd() {},
+      onInterrupt() {},
+    })
+
+    const softMetadata = {
+      voice: {
+        provider: 'test',
+        voiceId: 'soft-zh',
+        language: 'zh-CN',
+        consonantPrecision: 0.2,
+        vowelLegato: 0.9,
+        roundBias: 0.1,
+        spreadBias: 0.1,
+        jawBias: 0.1,
+        closureBias: 0.1,
+        rateMultiplier: 1,
+        pitchDelta: 0,
+      },
+    } satisfies Record<string, unknown>
+    const crispMetadata = {
+      voice: {
+        provider: 'test',
+        voiceId: 'crisp-zh',
+        language: 'zh-CN',
+        consonantPrecision: 0.9,
+        vowelLegato: 0.3,
+        roundBias: 0.1,
+        spreadBias: 0.1,
+        jawBias: 0.1,
+        closureBias: 0.1,
+        rateMultiplier: 1,
+        pitchDelta: 0,
+      },
+    } satisfies Record<string, unknown>
+
+    speech.previewSpeechSegment({
+      intentId: 'intent-soft-zh',
+      streamId: 'stream-soft-zh',
+      segmentId: 'segment-soft-zh',
+      text: '先看这里。',
+      special: null,
+      continuityHoldMs: 180,
+      metadata: softMetadata,
+    })
+
+    startListener?.({
+      item: {
+        id: 'playback-soft-zh',
+        streamId: 'stream-soft-zh',
+        intentId: 'intent-soft-zh',
+        segmentId: 'segment-soft-zh',
+        ownerId: 'alice',
+        priority: 0,
+        text: '先看这里。',
+        special: null,
+        continuityHoldMs: 180,
+        audio: createBufferedSpeechAudioSource({ duration: 0.8 } as AudioBuffer),
+        createdAt: 0,
+        metadata: softMetadata,
+      },
+      startedAt: 0,
+    })
+
+    const softArticulation = speech.speechRenderState.value.articulation
+
+    startListener?.({
+      item: {
+        id: 'playback-crisp-zh',
+        streamId: 'stream-crisp-zh',
+        intentId: 'intent-crisp-zh',
+        segmentId: 'segment-crisp-zh',
+        ownerId: 'alice',
+        priority: 0,
+        text: '先看这里。',
+        special: null,
+        continuityHoldMs: 180,
+        audio: createBufferedSpeechAudioSource({ duration: 0.8 } as AudioBuffer),
+        createdAt: 0,
+        metadata: crispMetadata,
+      },
+      startedAt: 0,
+    })
+
+    const crispArticulation = speech.speechRenderState.value.articulation
+
+    expect(softArticulation.voice?.language).toBe('zh-CN')
+    expect(crispArticulation.voice?.voiceId).toBe('crisp-zh')
+    expect(crispArticulation.lipClosure).toBeGreaterThan(softArticulation.lipClosure)
+    expect(crispArticulation.visemes.closed).toBeGreaterThan(softArticulation.visemes.closed)
+
+    speech.dispose()
+  })
+
   it('prefers embodimentScript speechPlan continuity over fallback timeline timing', async () => {
     vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1))
     vi.stubGlobal('cancelAnimationFrame', vi.fn())
