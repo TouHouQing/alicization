@@ -12,6 +12,37 @@ describe('stage embodiment diagnostics', () => {
     const now = Date.now()
     const { snapshot } = useStageEmbodimentDiagnostics({
       activePresence: ref(null),
+      playbackTelemetry: ref({
+        actualDurationMs: 1280,
+        plannedDurationMs: 900,
+        driftMs: 380,
+        settleMs: 560,
+        stopReason: 'ended',
+        drivers: {
+          face: {
+            emotion: 'happy',
+            facialCue: 'smile',
+            intensity: 0.8,
+            preUtteranceCue: 'soft-breath',
+            postUtteranceCue: 'settle-smile',
+            segmentId: 'segment-1',
+          },
+          lipsync: {
+            mode: 'energy-phoneme-hybrid',
+            playbackPhase: 'idle',
+            segmentId: 'segment-1',
+            visemeHints: [],
+          },
+          motion: {
+            idleBase: 'idle_settle',
+            attentionMode: 'attentive',
+            actionCue: 'wave',
+            intensity: 0.7,
+            holdMs: 320,
+            segmentId: 'segment-1',
+          },
+        },
+      }),
       runtimeDigest: ref({
         version: 'alicization-runtime-digest-v1',
         dominantChannel: 'active-dialogue',
@@ -92,6 +123,37 @@ describe('stage embodiment diagnostics', () => {
     expect(snapshot.value.visualPresence.runtimeContinuityPressure).toBeCloseTo(0.67)
     expect(snapshot.value.visualPresence.runtimeCompanionshipPressure).toBeCloseTo(0.81)
     expect(snapshot.value.visualPresence.runtimeSummary).toContain('active-dialogue=hot')
+    expect(snapshot.value.speech.playbackTelemetry).toEqual({
+      actualDurationMs: 1280,
+      plannedDurationMs: 900,
+      driftMs: 380,
+      settleMs: 560,
+      stopReason: 'ended',
+      drivers: {
+        face: {
+          emotion: 'happy',
+          facialCue: 'smile',
+          intensity: 0.8,
+          preUtteranceCue: 'soft-breath',
+          postUtteranceCue: 'settle-smile',
+          segmentId: 'segment-1',
+        },
+        lipsync: {
+          mode: 'energy-phoneme-hybrid',
+          playbackPhase: 'idle',
+          segmentId: 'segment-1',
+          visemeHints: [],
+        },
+        motion: {
+          idleBase: 'idle_settle',
+          attentionMode: 'attentive',
+          actionCue: 'wave',
+          intensity: 0.7,
+          holdMs: 320,
+          segmentId: 'segment-1',
+        },
+      },
+    })
   })
 
   it('falls back to null Alicization diagnostics fields when runtime digest is absent', () => {
@@ -110,5 +172,6 @@ describe('stage embodiment diagnostics', () => {
     expect(snapshot.value.visualPresence.runtimeContinuityPressure).toBeNull()
     expect(snapshot.value.visualPresence.runtimeCompanionshipPressure).toBeNull()
     expect(snapshot.value.visualPresence.runtimeSummary).toBeNull()
+    expect(snapshot.value.speech.playbackTelemetry).toBeNull()
   })
 })

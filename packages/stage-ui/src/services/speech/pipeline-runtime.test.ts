@@ -227,6 +227,42 @@ describe('speech pipeline runtime', () => {
       intentId: 'remote-intent',
       streamId: 'remote-stream',
       metadata: {
+        embodimentScript: {
+          version: 'embodiment-script-v1',
+          turnId: 'turn-remote-script',
+          rendererTarget: 'live2d',
+          replyText: 'remote reply',
+          state: {
+            baseEmotion: 'thinking',
+            delivery: 'firm',
+            emphasis: 1,
+            residentMode: 'dialogue',
+          },
+          speechPlan: {
+            segments: [{
+              id: 'segment-remote-script',
+              index: 0,
+              text: 'remote reply',
+              interruptPolicy: 'soft-settle',
+              preRollMs: 40,
+              settleMs: 220,
+            }],
+            interruptPolicy: 'soft-settle',
+            preRollMs: 40,
+            settleMs: 220,
+          },
+          facePlan: {
+            speakingCues: [],
+          },
+          motionPlan: {
+            idleBase: 'idle_settle',
+            actionBursts: [],
+            attentionMode: 'attentive',
+          },
+          lipsyncPlan: {
+            mode: 'energy-only',
+          },
+        },
         digitalLifeSpine: {
           runtime: {
             activeThreadId: 'thread-42',
@@ -240,6 +276,9 @@ describe('speech pipeline runtime', () => {
       intentId: 'remote-intent',
       streamId: 'remote-stream',
       metadata: {
+        embodimentScript: expect.objectContaining({
+          turnId: 'turn-remote-script',
+        }),
         digitalLifeSpine: {
           runtime: {
             activeThreadId: 'thread-42',
@@ -260,6 +299,42 @@ describe('speech pipeline runtime', () => {
       intentId: 'local-intent-metadata',
       streamId: 'local-stream-metadata',
       metadata: {
+        embodimentScript: {
+          version: 'embodiment-script-v1',
+          turnId: 'turn-local-script',
+          rendererTarget: 'live2d',
+          replyText: 'local reply',
+          state: {
+            baseEmotion: 'thinking',
+            delivery: 'firm',
+            emphasis: 1,
+            residentMode: 'dialogue',
+          },
+          speechPlan: {
+            segments: [{
+              id: 'segment-local-script',
+              index: 0,
+              text: 'local reply',
+              interruptPolicy: 'soft-settle',
+              preRollMs: 40,
+              settleMs: 220,
+            }],
+            interruptPolicy: 'soft-settle',
+            preRollMs: 40,
+            settleMs: 220,
+          },
+          facePlan: {
+            speakingCues: [],
+          },
+          motionPlan: {
+            idleBase: 'idle_settle',
+            actionBursts: [],
+            attentionMode: 'attentive',
+          },
+          lipsyncPlan: {
+            mode: 'energy-only',
+          },
+        },
         digitalLifeSpine: {
           runtime: {
             activeThreadId: 'thread-local',
@@ -273,6 +348,9 @@ describe('speech pipeline runtime', () => {
       intentId: 'local-intent-metadata',
       streamId: 'local-stream-metadata',
       metadata: {
+        embodimentScript: expect.objectContaining({
+          turnId: 'turn-local-script',
+        }),
         digitalLifeSpine: {
           runtime: {
             activeThreadId: 'thread-local',

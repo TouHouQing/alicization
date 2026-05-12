@@ -2,6 +2,7 @@ import type { StageEmbodimentPresencePostureState, StageEmbodimentSpeechRenderPh
 import type { ComputedRef, Ref } from 'vue'
 
 import type { AlicizationRuntimeDigest, AlicizationVisualPresenceStateSnapshot } from '../../stores/alicization-bridge'
+import type { EmbodimentPlaybackTelemetry } from '../../services/embodiment/playback-reconciler'
 import type { StageEmbodimentAttentionPresenceState } from './use-stage-embodiment-attention'
 
 import { computed, readonly } from 'vue'
@@ -58,18 +59,41 @@ export interface StageEmbodimentDiagnosticsSnapshot {
     prosodyIntensity: number
     emphasisLevel: number
     cadencePulse: number
+    playbackTelemetry: {
+      actualDurationMs: number | null
+      plannedDurationMs: number | null
+      driftMs: number | null
+      settleMs: number | null
+      stopReason: string | null
+      drivers: EmbodimentPlaybackTelemetry['drivers'] | null
+    } | null
   }
   stage: Size2D
 }
 
 export interface UseStageEmbodimentDiagnosticsOptions {
   activePresence: Readonly<Ref<StageEmbodimentAttentionPresenceState | null>>
+  playbackTelemetry?: Readonly<Ref<EmbodimentPlaybackTelemetry | null>>
   runtimeDigest?: Readonly<Ref<AlicizationRuntimeDigest | null | undefined>>
   presencePosture: Readonly<Ref<StageEmbodimentPresencePostureState>>
   speechRenderState: Readonly<Ref<StageEmbodimentSpeechRenderState | null | undefined>>
   stageBounds: Readonly<Ref<Size2D>>
   targetPoint: Readonly<Ref<Point2D>>
   visualPresenceState?: Readonly<Ref<AlicizationVisualPresenceStateSnapshot | null | undefined>>
+}
+
+function normalizePlaybackTelemetry(raw: EmbodimentPlaybackTelemetry | null | undefined) {
+  if (!raw)
+    return null
+
+  return {
+    actualDurationMs: raw.actualDurationMs,
+    plannedDurationMs: raw.plannedDurationMs,
+    driftMs: raw.driftMs,
+    settleMs: raw.settleMs,
+    stopReason: raw.stopReason,
+    drivers: raw.drivers,
+  }
 }
 
 export function useStageEmbodimentDiagnostics(options: UseStageEmbodimentDiagnosticsOptions) {
@@ -80,6 +104,7 @@ export function useStageEmbodimentDiagnostics(options: UseStageEmbodimentDiagnos
     const runtimePresence = resolveStageEmbodimentRuntimePresence(visualPresenceState, now)
     const runtimeBias = resolveStageEmbodimentRuntimeAttentionBias(visualPresenceState, now, runtimePresence)
     const speechRenderState = options.speechRenderState.value
+    const playbackTelemetry = normalizePlaybackTelemetry(options.playbackTelemetry?.value)
 
     return {
       visualPresence: {
@@ -115,6 +140,7 @@ export function useStageEmbodimentDiagnostics(options: UseStageEmbodimentDiagnos
         prosodyIntensity: speechRenderState?.dynamics.prosodyIntensity ?? 0,
         emphasisLevel: speechRenderState?.dynamics.emphasisLevel ?? 0,
         cadencePulse: speechRenderState?.dynamics.cadencePulse ?? 0,
+        playbackTelemetry,
       },
       stage: options.stageBounds.value,
     }

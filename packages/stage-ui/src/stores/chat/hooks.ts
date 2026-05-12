@@ -3,6 +3,7 @@ import type { ToolMessage } from '@xsai/shared-chat'
 import type { ChatStreamEventContext, StreamingAssistantMessage } from '../../types/chat'
 import type {
   AlicizationDialogueEmbodimentEnvelope,
+  AlicizationEmbodimentScriptV1,
   AlicizationDialogueSpeechTimeline,
   AlicizationDigitalLifeEnvelope,
   AlicizationDigitalLifeSpineDigest,
@@ -13,6 +14,7 @@ import type {
 export interface ChatEmbodimentMetaHookPayload {
   governance: AlicizationMindTurnGovernance | null
   embodiment?: AlicizationDialogueEmbodimentEnvelope | null
+  embodimentScript?: AlicizationEmbodimentScriptV1 | null
   speechTimeline?: AlicizationDialogueSpeechTimeline | null
   digitalLife?: AlicizationDigitalLifeEnvelope | null
   digitalLifeSpine?: AlicizationDigitalLifeSpineDigest | null

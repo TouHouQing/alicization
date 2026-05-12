@@ -9,18 +9,20 @@ import type {
   AlicizationDialoguePerformancePayload,
   AlicizationDigitalLifeSpineDigest,
 } from '../../stores/alicization-bridge'
+import type { EmbodimentPlaybackTelemetry } from '../../services/embodiment/playback-reconciler'
 
 import {
   createIdleStageEmbodimentMotorState,
   createIdleStageEmbodimentPerformanceState,
   normalizeAlicizationPerformancePayload,
 } from '@proj-alicization/stage-shared'
-import { onScopeDispose, readonly, ref, watch } from 'vue'
+import { computed, onScopeDispose, readonly, ref, watch } from 'vue'
 
 type StageEmbodimentPerformanceActionPulseReason = StageEmbodimentPerformanceState['actionPulse']['reason']
 
 export interface UseStageEmbodimentPerformanceRuntimeOptions {
   digitalLifeSpineDigest?: Readonly<Ref<AlicizationDigitalLifeSpineDigest | null | undefined>>
+  playbackTelemetry?: Readonly<Ref<EmbodimentPlaybackTelemetry | null>>
   speechRenderState: Readonly<Ref<StageEmbodimentSpeechRenderState | null | undefined>>
   upcomingSpeechSegment?: Readonly<Ref<StageEmbodimentSpeechPlaybackItem | null | undefined>>
 }
@@ -1303,6 +1305,7 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
     armPerformance,
     clear: reset,
     dispose,
+    playbackTelemetry: readonly(computed(() => options.playbackTelemetry?.value ?? null)),
     prepareForNextMessage,
     syncResidentPerformance,
     state: readonly(state) as Readonly<Ref<StageEmbodimentPerformanceState>>,

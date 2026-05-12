@@ -72,6 +72,55 @@ vi.mock('./runtime-governance', () => ({
             ],
           }
         : null,
+      embodimentScript: normalizedReply
+        ? {
+            version: 'embodiment-script-v1',
+            decisionTraceId: governance?.decisionTraceId ?? null,
+            turnId: turnId ?? 'turn',
+            rendererTarget: 'live2d',
+            replyText: normalizedReply,
+            state: {
+              baseEmotion: 'thinking',
+              delivery: 'firm',
+              emphasis: 0,
+              residentMode: 'dialogue',
+            },
+            speechPlan: {
+              segments: [{
+                id: 'segment-1',
+                index: 0,
+                text: normalizedReply,
+                interruptPolicy: 'soft-settle',
+                preRollMs: 40,
+                settleMs: 360,
+              }],
+              interruptPolicy: 'soft-settle',
+              preRollMs: 40,
+              settleMs: 360,
+            },
+            facePlan: {
+              speakingCues: [{
+                segmentId: 'segment-1',
+                emotion: 'thinking',
+                facialCue: 'blink',
+                intensity: 0.5,
+              }],
+            },
+            motionPlan: {
+              idleBase: 'lean-forward',
+              actionBursts: [{
+                segmentId: 'segment-1',
+                actionCue: 'lean-forward',
+                intensity: 0.6,
+                holdMs: 360,
+              }],
+              attentionMode: 'attentive',
+            },
+            lipsyncPlan: {
+              mode: 'energy-phoneme-hybrid',
+            },
+          }
+        : null,
     }
   },
   readStringValue: (value: unknown) => typeof value === 'string' ? value : '',
@@ -184,6 +233,10 @@ describe('main chat stream meta', () => {
     expect(emit).toHaveBeenNthCalledWith(1, expect.objectContaining({
       cardId: 'card-1',
       turnId: 'turn-1',
+      embodimentScript: expect.objectContaining({
+        version: 'embodiment-script-v1',
+        turnId: 'turn-1',
+      }),
       speechTimeline: expect.objectContaining({
         reply: '先看这里',
       }),
@@ -198,6 +251,9 @@ describe('main chat stream meta', () => {
       }),
     }))
     expect(emit).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      embodimentScript: expect.objectContaining({
+        version: 'embodiment-script-v1',
+      }),
       speechTimeline: expect.objectContaining({
         reply: '先看这里。',
       }),

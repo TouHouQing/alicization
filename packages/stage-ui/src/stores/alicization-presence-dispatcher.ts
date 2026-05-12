@@ -1,5 +1,6 @@
 import type {
   AlicizationAuditLogInput,
+  AlicizationEmbodimentScriptV1,
   AlicizationDialogueEmbodimentEnvelope,
   AlicizationDialoguePerformancePayload,
   AlicizationDialogueRespondedPayload,
@@ -22,6 +23,11 @@ import { normalizeAlicizationEmotion, normalizeAlicizationPerformancePayload } f
 type DialogueListener = (payload: AlicizationDialogueRespondedPayload) => void
 type PresenceAuditLogger = (input: AlicizationAuditLogInput) => Promise<void> | void
 type AlicizationPresenceChannel = 'live2d' | 'vrm' | 'tts' | string
+type AlicizationEmbodimentScriptBuilder = (payload: AlicizationDialogueRespondedPayload) => AlicizationEmbodimentScriptV1 | null
+type AlicizationEmbodimentScriptBuilderRegistration = {
+  id: symbol
+  builder: AlicizationEmbodimentScriptBuilder
+}
 
 interface DialogueEmbodimentRoutingState {
   previousActionCue: string | null
@@ -66,6 +72,7 @@ export const useAlicizationPresenceDispatcherStore = defineStore('alicization-pr
   const turnIdOrder: string[] = []
   const embodimentControllers = new Set<AlicizationPresenceEmbodimentController>()
   const auditLogger = ref<PresenceAuditLogger | null>(null)
+  const embodimentScriptBuilderRegistrations = ref<AlicizationEmbodimentScriptBuilderRegistration[]>([])
   const dialogueEmbodimentRoutingState: DialogueEmbodimentRoutingState = {
     previousActionCue: null,
     previousDelivery: null,
@@ -161,6 +168,11 @@ export const useAlicizationPresenceDispatcherStore = defineStore('alicization-pr
     dialogueEmbodimentRoutingState.previousEmotion = input.performance.baseEmotion
     dialogueEmbodimentRoutingState.previousDelivery = input.performance.delivery
     dialogueEmbodimentRoutingState.previousVariationToken = input.variationToken ?? null
+  }
+
+  function resolveEmbodimentScriptBuilder() {
+    const activeRegistration = embodimentScriptBuilderRegistrations.value.at(-1)
+    return activeRegistration?.builder ?? null
   }
 
   async function dispatchDialogueResponded(payload: AlicizationDialogueRespondedPayload) {
@@ -260,6 +272,10 @@ export const useAlicizationPresenceDispatcherStore = defineStore('alicization-pr
           : payload.structured.rawEmotion,
       },
     }
+    normalizedPayload.structured.embodimentScript
+      = normalizedPayload.structured.embodimentScript
+        ?? resolveEmbodimentScriptBuilder()?.(normalizedPayload)
+        ?? null
 
     if (normalizedEmotion.downgraded) {
       await appendWarning(
@@ -416,12 +432,28 @@ export const useAlicizationPresenceDispatcherStore = defineStore('alicization-pr
     auditLogger.value = logger
   }
 
+  function setEmbodimentScriptBuilder(builder: AlicizationEmbodimentScriptBuilder) {
+    const registration: AlicizationEmbodimentScriptBuilderRegistration = {
+      id: Symbol('alicization-embodiment-script-builder'),
+      builder,
+    }
+    embodimentScriptBuilderRegistrations.value.push(registration)
+    return () => {
+      const registrationIndex = embodimentScriptBuilderRegistrations.value.findIndex(item => item.id === registration.id)
+      if (registrationIndex < 0)
+        return
+
+      embodimentScriptBuilderRegistrations.value.splice(registrationIndex, 1)
+    }
+  }
+
   function resetDispatcher() {
     listeners.clear()
     seenTurnIds.clear()
     turnIdOrder.splice(0, turnIdOrder.length)
     embodimentControllers.clear()
     auditLogger.value = null
+    embodimentScriptBuilderRegistrations.value = []
     dialogueEmbodimentRoutingState.previousActionCue = null
     dialogueEmbodimentRoutingState.previousFacialCue = null
     dialogueEmbodimentRoutingState.previousEmotion = null
@@ -439,6 +471,7 @@ export const useAlicizationPresenceDispatcherStore = defineStore('alicization-pr
     registerVRMController,
     registerTTSController,
     setAuditLogger,
+    setEmbodimentScriptBuilder,
     resetDispatcher,
   }
 })

@@ -61,7 +61,11 @@ export interface UseStageEmbodimentRuntimeOptions {
   rate: Ref<number>
   resolveClampedPresencePulsePerformance: (payload: AlicizationPresencePulsePayload) => AlicizationDialoguePerformancePayload
   resolvePresenceIntensity: (emphasis: number | undefined, fallbackIntensity: number) => number
-  speakFallback: (reply: string, performance: AlicizationDialoguePerformancePayload) => Promise<void> | void
+  speakFallback: (
+    reply: string,
+    performance: AlicizationDialoguePerformancePayload,
+    metadata?: Record<string, unknown> | null,
+  ) => Promise<void> | void
   stageBounds: Readonly<Ref<Size2D>>
   stageModelRenderer: Ref<StageModelRenderer>
   vrmActionBindings: Readonly<Ref<VrmActionBinding[]>>
@@ -90,6 +94,7 @@ export function useStageEmbodimentRuntime(options: UseStageEmbodimentRuntimeOpti
   })
   const performance = useStageEmbodimentPerformanceRuntime({
     digitalLifeSpineDigest: visualPresence.digitalLifeSpineDigest,
+    playbackTelemetry: speech.playbackTelemetry,
     speechRenderState: speech.speechRenderState,
     upcomingSpeechSegment: speech.upcomingSpeechSegment,
   })
@@ -114,6 +119,7 @@ export function useStageEmbodimentRuntime(options: UseStageEmbodimentRuntimeOpti
   })
   const diagnostics = useStageEmbodimentDiagnostics({
     activePresence: attention.activePresence,
+    playbackTelemetry: speech.playbackTelemetry,
     runtimeDigest: options.runtimeDigest,
     presencePosture: posture.presencePosture,
     speechRenderState: speech.speechRenderState,
@@ -244,6 +250,7 @@ export function useStageEmbodimentRuntime(options: UseStageEmbodimentRuntimeOpti
     normalizePresenceEmotionName,
     nowSpeaking: speech.nowSpeaking,
     onPlaybackEvent: speech.onPlaybackEvent,
+    playbackTelemetry: speech.playbackTelemetry,
     performanceState: performance.state,
     playAudioSource: speech.playAudioSource,
     previewSpeechSegment: speech.previewSpeechSegment,

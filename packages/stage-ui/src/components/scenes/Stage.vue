@@ -479,6 +479,19 @@ function createSpeechIntentMetadata(intentSource: 'chat' | 'fallback'): Record<s
   }
 }
 
+function attachEmbodimentScriptToSpeechMetadata(
+  metadata: Record<string, unknown> | null | undefined,
+  embodimentScript: unknown,
+) {
+  if (!embodimentScript || typeof embodimentScript !== 'object' || Array.isArray(embodimentScript))
+    return metadata ?? null
+
+  return {
+    ...metadata,
+    embodimentScript,
+  }
+}
+
 function applyRuntimeEmbodimentEnvelope(embodiment: AlicizationDialogueEmbodimentEnvelope | null | undefined) {
   const emotion = typeof embodiment?.emotion === 'string' ? embodiment.emotion.trim() : ''
   if (!emotion) {
@@ -1168,7 +1181,7 @@ embodimentRuntime = useStageEmbodimentRuntime({
   runtimeDigest,
   resolveClampedPresencePulsePerformance,
   resolvePresenceIntensity,
-  speakFallback: async (reply) => {
+  speakFallback: async (reply, _performance, metadata) => {
     const normalizedReply = reply.trim()
     if (!normalizedReply)
       return
@@ -1180,7 +1193,10 @@ embodimentRuntime = useStageEmbodimentRuntime({
       ownerId: activeCardId.value,
       priority: 'normal',
       behavior: 'queue',
-      metadata: createSpeechIntentMetadata('fallback'),
+      metadata: attachEmbodimentScriptToSpeechMetadata(
+        createSpeechIntentMetadata('fallback'),
+        (metadata as Record<string, unknown> | null | undefined)?.embodimentScript,
+      ),
     })
     fallbackIntent.writeLiteral(normalizedReply)
     fallbackIntent.writeFlush()
@@ -1325,7 +1341,7 @@ speechPipeline.on('onTtsRequest', (request) => {
     text: request.text,
     special: request.special,
     continuityHoldMs: request.continuityHoldMs,
-    metadata: request.metadata ?? null,
+    metadata: attachEmbodimentScriptToSpeechMetadata(request.metadata ?? null, (request.metadata as any)?.embodimentScript),
   })
 })
 
@@ -1351,7 +1367,7 @@ speechPipeline.on('onTtsResult', (result) => {
     text: result.text,
     special: result.special,
     continuityHoldMs: result.continuityHoldMs,
-    metadata: result.metadata ?? null,
+    metadata: attachEmbodimentScriptToSpeechMetadata(result.metadata ?? null, (result.metadata as any)?.embodimentScript),
     playbackDurationMs: resolveSpeechAudioDurationMs(result.audio),
   })
 })
@@ -1383,7 +1399,7 @@ speechPipeline.on('onSegment', (segment) => {
     text: segment.text,
     special: segment.special,
     continuityHoldMs: segment.continuityHoldMs,
-    metadata: segment.metadata ?? null,
+    metadata: attachEmbodimentScriptToSpeechMetadata(segment.metadata ?? null, (segment.metadata as any)?.embodimentScript),
   })
   embodimentRuntime?.applySyntheticSpeechSegment(segment)
 })
@@ -1462,6 +1478,14 @@ chatHookCleanups.push(onBeforeMessageComposed(async () => {
 chatHookCleanups.push(onEmbodimentMeta(async (meta) => {
   runtimeDigest.value = meta.runtimeDigest ?? null
 
+  const embodimentScript = (meta as Record<string, unknown>).embodimentScript
+  if (currentChatIntent.value && embodimentScript) {
+    currentChatIntent.value.metadata = attachEmbodimentScriptToSpeechMetadata(
+      currentChatIntent.value.metadata as Record<string, unknown> | null | undefined,
+      embodimentScript,
+    ) as any
+  }
+
   if (meta.digitalLifeSpine)
     embodimentRuntime?.applyTransientDigitalLifeSpine(meta.digitalLifeSpine)
 
@@ -1488,6 +1512,7 @@ chatHookCleanups.push(onEmbodimentMeta(async (meta) => {
     facialCue: meta.embodiment.performance.facialCue ?? null,
     actionCue: meta.embodiment.performance.actionCue ?? null,
     variationToken: meta.embodiment.variationToken ?? null,
+    hasEmbodimentScript: Boolean(embodimentScript),
     hasSpeechTimeline: Boolean(meta.speechTimeline?.segments.length),
     hasDigitalLife: Boolean(meta.digitalLife?.frames.length),
     speechTimelineSegments: meta.speechTimeline?.segments.length ?? 0,

@@ -4,6 +4,7 @@ import type { ComputedRef, Ref } from 'vue'
 import type { EmotionPayload } from '../../constants/emotions'
 import type {
   AlicizationDialogueEmbodimentEnvelope,
+  AlicizationEmbodimentScriptV1,
   AlicizationDialoguePerformancePayload,
   AlicizationDialogueRespondedPayload,
   AlicizationDialogueSpeechTimeline,
@@ -19,6 +20,7 @@ import { watch } from 'vue'
 
 import { getAlicizationBridge, hasAlicizationBridge, normalizeAlicizationPerformancePayload } from '../../stores/alicization-bridge'
 import { buildStageEmbodimentPerformancePlan } from './stage-embodiment-performance-plan'
+import { buildAlicizationEmbodimentScript } from '../../services/embodiment/director'
 
 interface Live2DActionCapability {
   actionKey: string
@@ -49,7 +51,11 @@ export interface UseStageEmbodimentPresenceOptions {
   performanceManifest: ComputedRef<CharacterPerformanceCapabilitiesManifest | null>
   resolveClampedPresencePulsePerformance: (payload: AlicizationPresencePulsePayload) => AlicizationDialoguePerformancePayload
   resolvePresenceIntensity: (emphasis: number | undefined, fallbackIntensity: number) => number
-  speakFallback: (reply: string, performance: AlicizationDialoguePerformancePayload) => Promise<void> | void
+  speakFallback: (
+    reply: string,
+    performance: AlicizationDialoguePerformancePayload,
+    metadata?: { embodimentScript?: AlicizationEmbodimentScriptV1 | null } | null,
+  ) => Promise<void> | void
   stageModelRenderer: Ref<StageModelRenderer>
   visualPresenceState?: Readonly<Ref<AlicizationVisualPresenceStateSnapshot | null | undefined>>
 }
@@ -160,6 +166,27 @@ export function useStageEmbodimentPresence(options: UseStageEmbodimentPresenceOp
       String(payload.expiresAt),
     ].join('|')
   }
+
+  cleanups.push(options.dispatcher.setEmbodimentScriptBuilder((payload) => {
+    if (options.stageModelRenderer.value !== 'live2d')
+      return null
+
+    return buildAlicizationEmbodimentScript({
+      seed: {
+        decisionTraceId: payload.structured.governance?.decisionTraceId ?? null,
+        turnId: payload.turnId,
+        replyText: payload.structured.reply,
+        performance: payload.structured.performance,
+        embodiment: payload.structured.embodiment ?? null,
+        speechTimeline: payload.structured.speechTimeline ?? null,
+        digitalLife: payload.structured.digitalLife ?? null,
+        digitalLifeSpine: payload.structured.digitalLifeSpine ?? null,
+      },
+      manifest: options.performanceManifest.value,
+      residentPerformance: options.visualPresenceState?.value?.residentPerformance ?? null,
+      rendererTarget: 'live2d',
+    })
+  }))
 
   cleanups.push(watch(options.performanceManifest, async (manifest) => {
     if (!hasAlicizationBridge())
@@ -293,7 +320,9 @@ export function useStageEmbodimentPresence(options: UseStageEmbodimentPresenceOp
         variationToken,
       })
 
-      await options.speakFallback(reply, plannedPerformance)
+      await options.speakFallback(reply, plannedPerformance, payload.structured.embodimentScript ? {
+        embodimentScript: payload.structured.embodimentScript,
+      } : null)
     },
   }))
 

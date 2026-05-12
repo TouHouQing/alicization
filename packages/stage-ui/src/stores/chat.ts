@@ -7,6 +7,7 @@ import type { AlicizationAbortReason } from '../composables/alicization-turn-abo
 import type { ChatAssistantMessage, ChatAssistantStructuredPayload, ChatSlices, ChatSlicesExecutionStatus, ChatStreamEventContext, StreamingAssistantMessage } from '../types/chat'
 import type {
   AlicizationDialogueEmbodimentEnvelope,
+  AlicizationEmbodimentScriptV1,
   AlicizationDialogueSpeechTimeline,
   AlicizationDigitalLifeEnvelope,
   AlicizationDigitalLifeSpineDigest,
@@ -622,6 +623,7 @@ type StructuredWithContract = StructuredOutputResult
   | 'repairTimedOut'>
   & {
     embodiment?: AlicizationDialogueEmbodimentEnvelope | null
+    embodimentScript?: AlicizationEmbodimentScriptV1 | null
     speechTimeline?: AlicizationDialogueSpeechTimeline | null
     digitalLife?: AlicizationDigitalLifeEnvelope | null
     digitalLifeSpine?: AlicizationDigitalLifeSpineDigest | null
@@ -641,10 +643,11 @@ interface StagedAssistantResolution {
   visibleReplySource: 'runtime-model' | 'renderer-local'
 }
 
-function mergeStructuredRuntimeMeta(
+export function mergeStructuredRuntimeMeta(
   structured: StructuredWithContract,
   input: {
     embodiment: AlicizationDialogueEmbodimentEnvelope | null
+    embodimentScript: AlicizationEmbodimentScriptV1 | null
     speechTimeline: AlicizationDialogueSpeechTimeline | null
     digitalLife: AlicizationDigitalLifeEnvelope | null
     digitalLifeSpine: AlicizationDigitalLifeSpineDigest | null
@@ -655,6 +658,7 @@ function mergeStructuredRuntimeMeta(
   return {
     ...structured,
     embodiment: input.embodiment ?? structured.embodiment ?? null,
+    embodimentScript: input.embodimentScript ?? structured.embodimentScript ?? null,
     speechTimeline: input.speechTimeline ?? structured.speechTimeline ?? null,
     digitalLife: input.digitalLife ?? structured.digitalLife ?? null,
     digitalLifeSpine: input.digitalLifeSpine ?? structured.digitalLifeSpine ?? null,
@@ -1584,6 +1588,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
     let runtimeAuthoritativeModelTextObserved = false
     let turnMindGovernance: AlicizationMindTurnGovernance | null = null
     let turnEmbodiment: AlicizationDialogueEmbodimentEnvelope | null = null
+    let turnEmbodimentScript: AlicizationEmbodimentScriptV1 | null = null
     let turnSpeechTimeline: AlicizationDialogueSpeechTimeline | null = null
     let turnDigitalLife: AlicizationDigitalLifeEnvelope | null = null
     let turnDigitalLifeSpine: AlicizationDigitalLifeSpineDigest | null = null
@@ -1591,6 +1596,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
 
     const getTurnStructuredRuntimeMeta = () => ({
       embodiment: turnEmbodiment,
+      embodimentScript: turnEmbodimentScript,
       speechTimeline: turnSpeechTimeline,
       digitalLife: turnDigitalLife,
       digitalLifeSpine: turnDigitalLifeSpine,
@@ -1601,6 +1607,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
     const ingestTurnStructuredRuntimeMeta = (event: Extract<StreamEvent, { type: 'meta' }>) => {
       turnMindGovernance = event.governance ?? turnMindGovernance
       turnEmbodiment = event.embodiment ?? turnEmbodiment
+      turnEmbodimentScript = event.embodimentScript ?? turnEmbodimentScript
       turnSpeechTimeline = event.speechTimeline ?? turnSpeechTimeline
       turnDigitalLife = event.digitalLife ?? turnDigitalLife
       turnDigitalLifeSpine = event.digitalLifeSpine ?? turnDigitalLifeSpine
@@ -3400,10 +3407,11 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           switch (event.type) {
             case 'meta':
               ingestTurnStructuredRuntimeMeta(event)
-              if (event.embodiment || event.speechTimeline || event.digitalLife || event.digitalLifeSpine || event.runtimeDigest) {
+              if (event.embodiment || event.embodimentScript || event.speechTimeline || event.digitalLife || event.digitalLifeSpine || event.runtimeDigest) {
                 await hooks.emitEmbodimentMetaHooks({
                   governance: event.governance ?? turnMindGovernance,
                   embodiment: event.embodiment ?? null,
+                  embodimentScript: event.embodimentScript ?? null,
                   speechTimeline: event.speechTimeline ?? null,
                   digitalLife: event.digitalLife ?? null,
                   digitalLifeSpine: event.digitalLifeSpine ?? null,

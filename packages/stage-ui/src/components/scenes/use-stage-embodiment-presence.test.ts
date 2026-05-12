@@ -9,6 +9,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { computed, ref } from 'vue'
 
 import { Emotion } from '../../constants/emotions'
+import { buildAlicizationEmbodimentScript } from '../../services/embodiment/director'
 import { useStageEmbodimentPresence } from './use-stage-embodiment-presence'
 
 function createPerformance(overrides?: Partial<AlicizationDialoguePerformancePayload>): AlicizationDialoguePerformancePayload {
@@ -71,6 +72,8 @@ function createManifest(overrides?: Partial<CharacterPerformanceCapabilitiesMani
 
 function createDispatcherHarness() {
   const controllers: any[] = []
+  const scriptBuilderDisposers: Array<() => void> = []
+  const scriptBuilderRegistrations: Array<{ id: symbol, builder: (payload: AlicizationDialogueRespondedPayload) => unknown }> = []
   return {
     dispatcher: {
       registerEmbodimentController(controller: any) {
@@ -81,9 +84,29 @@ function createDispatcherHarness() {
             controllers.splice(index, 1)
         }
       },
+      setEmbodimentScriptBuilder(builder: (payload: AlicizationDialogueRespondedPayload) => unknown) {
+        const registration = {
+          id: Symbol('test-script-builder'),
+          builder,
+        }
+        scriptBuilderRegistrations.push(registration)
+        const dispose = () => {
+          const index = scriptBuilderRegistrations.findIndex(item => item.id === registration.id)
+          if (index >= 0)
+            scriptBuilderRegistrations.splice(index, 1)
+        }
+        scriptBuilderDisposers.push(dispose)
+        return dispose
+      },
     },
     getController(channel: string) {
       return controllers.find(controller => controller.channel === channel)
+    },
+    buildEmbodimentScript(payload: AlicizationDialogueRespondedPayload) {
+      return scriptBuilderRegistrations.at(-1)?.builder(payload) ?? null
+    },
+    disposeLatestScriptBuilder() {
+      scriptBuilderDisposers.pop()?.()
     },
   }
 }
@@ -317,6 +340,51 @@ describe('stage embodiment presence', () => {
     }))
     expect(speakFallback).toBeCalledWith(payload.structured.reply, expect.objectContaining({
       actionCue: firstArmedPerformance?.actionCue,
+    }), null)
+
+    runtime.dispose()
+  })
+
+  it('passes embodimentScript metadata through the live2d speech fallback path when a script is present', async () => {
+    const harness = createDispatcherHarness()
+    const speakFallback = vi.fn()
+
+    const runtime = useStageEmbodimentPresence({
+      armPerformance: vi.fn(),
+      currentMotion: ref({ group: 'Idle' as string, index: 0 as number | undefined }),
+      dispatcher: harness.dispatcher as any,
+      live2dActionCapabilities: computed(() => []),
+      normalizePresenceEmotionName: () => Emotion.Neutral,
+      applyEmotionSpeechStyle: vi.fn(),
+      clampPerformance: performance => performance,
+      enqueueEmotion: vi.fn(),
+      performanceManifest: computed(() => createManifest()),
+      resolveClampedPresencePulsePerformance: () => createPerformance(),
+      resolvePresenceIntensity: (_emphasis, fallback) => fallback,
+      speakFallback,
+      stageModelRenderer: ref('live2d'),
+    })
+
+    const payload = createDialoguePayload({
+      turnId: 'turn-live2d-script',
+      structured: {
+        thought: 'focus',
+        reply: '我在这里。',
+        emotion: 'neutral',
+        performance: createPerformance(),
+        format: 'mind-turn-v1',
+      },
+    })
+
+    payload.structured.embodimentScript = harness.buildEmbodimentScript(payload) as any
+
+    const ttsController = harness.getController('tts')
+    await ttsController?.speak(payload.structured.reply, payload.structured.performance, payload)
+
+    expect(speakFallback).toBeCalledWith(payload.structured.reply, expect.any(Object), expect.objectContaining({
+      embodimentScript: expect.objectContaining({
+        turnId: 'turn-live2d-script',
+      }),
     }))
 
     runtime.dispose()
@@ -412,5 +480,171 @@ describe('stage embodiment presence', () => {
     }))
 
     runtime.dispose()
+  })
+
+  it('registers a director-backed script builder that reflects renderer context and resident state', () => {
+    const harness = createDispatcherHarness()
+    const performanceManifest = createManifest({
+      renderer: 'live2d',
+      supportsVisemeLipSync: false,
+    })
+    const residentPerformance = {
+      version: 'resident-performance-v1',
+      source: 'browser-fallback',
+      performance: createPerformance({
+        baseEmotion: 'thinking',
+        emotion: 'thinking',
+        delivery: 'gentle',
+        emphasis: 1,
+      }),
+      embodiedPresence: 'attentive',
+      stance: 'observe',
+      emotionalTension: 'focused-flow',
+      confidence: 0.8,
+      reasonTags: ['resident-performance'],
+      signature: 'resident-1',
+      updatedAt: Date.now(),
+    }
+
+    const runtime = useStageEmbodimentPresence({
+      currentMotion: ref({ group: 'Idle' as string, index: 0 as number | undefined }),
+      dispatcher: harness.dispatcher as any,
+      live2dActionCapabilities: computed(() => []),
+      normalizePresenceEmotionName: () => Emotion.Neutral,
+      applyEmotionSpeechStyle: vi.fn(),
+      clampPerformance: performance => performance,
+      enqueueEmotion: vi.fn(),
+      performanceManifest: computed(() => performanceManifest),
+      resolveClampedPresencePulsePerformance: () => createPerformance(),
+      resolvePresenceIntensity: (_emphasis, fallback) => fallback,
+      speakFallback: vi.fn(),
+      stageModelRenderer: ref('live2d'),
+      visualPresenceState: ref({
+        residentPerformance,
+      } as any),
+    })
+
+    const payload = createDialoguePayload({
+      turnId: 'turn-builder-1',
+      structured: {
+        thought: 'focus',
+        reply: '我在这里',
+        emotion: 'thinking',
+        performance: createPerformance({
+          baseEmotion: 'thinking',
+          emotion: 'thinking',
+          facialCue: 'focused',
+          actionCue: 'idle_settle',
+          delivery: 'gentle',
+          emphasis: 1,
+        }),
+        embodiment: {
+          emotion: 'thinking',
+          performance: createPerformance({
+            baseEmotion: 'thinking',
+            emotion: 'thinking',
+            facialCue: 'focused',
+            actionCue: 'idle_settle',
+            delivery: 'gentle',
+            emphasis: 1,
+          }),
+          postureHint: 'attentive',
+          speechStyle: null,
+          variationToken: 'variation-1',
+        } as any,
+        speechTimeline: {
+          version: 'speech-timeline-v1',
+          segments: [{
+            id: 'segment-1',
+            index: 0,
+            text: '我在这里',
+            actionWindow: 'settle',
+            beatWeight: 0.6,
+          }],
+        } as any,
+        digitalLife: {
+          version: 'digital-life-v1',
+          mode: 'steady',
+          frames: [],
+          continuity: {
+            active: true,
+            rhythm: 'steady',
+          },
+        } as any,
+        digitalLifeSpine: null,
+        format: 'mind-turn-v1',
+      },
+    })
+
+    expect(harness.buildEmbodimentScript(payload)).toEqual(buildAlicizationEmbodimentScript({
+      seed: {
+        decisionTraceId: null,
+        turnId: payload.turnId,
+        replyText: payload.structured.reply,
+        performance: payload.structured.performance,
+        embodiment: payload.structured.embodiment ?? null,
+        speechTimeline: payload.structured.speechTimeline ?? null,
+        digitalLife: payload.structured.digitalLife ?? null,
+        digitalLifeSpine: payload.structured.digitalLifeSpine ?? null,
+      },
+      manifest: performanceManifest,
+      residentPerformance,
+      rendererTarget: 'live2d',
+    }))
+
+    runtime.dispose()
+  })
+
+  it('restores the previous script builder when multiple presence instances share one dispatcher', () => {
+    const harness = createDispatcherHarness()
+    const firstRuntime = useStageEmbodimentPresence({
+      currentMotion: ref({ group: 'Idle' as string, index: 0 as number | undefined }),
+      dispatcher: harness.dispatcher as any,
+      live2dActionCapabilities: computed(() => []),
+      normalizePresenceEmotionName: () => Emotion.Neutral,
+      applyEmotionSpeechStyle: vi.fn(),
+      clampPerformance: performance => performance,
+      enqueueEmotion: vi.fn(),
+      performanceManifest: computed(() => createManifest()),
+      resolveClampedPresencePulsePerformance: () => createPerformance(),
+      resolvePresenceIntensity: (_emphasis, fallback) => fallback,
+      speakFallback: vi.fn(),
+      stageModelRenderer: ref('live2d'),
+    })
+    const secondRuntime = useStageEmbodimentPresence({
+      currentMotion: ref({ group: 'Idle' as string, index: 0 as number | undefined }),
+      dispatcher: harness.dispatcher as any,
+      live2dActionCapabilities: computed(() => []),
+      normalizePresenceEmotionName: () => Emotion.Neutral,
+      applyEmotionSpeechStyle: vi.fn(),
+      clampPerformance: performance => performance,
+      enqueueEmotion: vi.fn(),
+      performanceManifest: computed(() => createManifest({
+        supportsVisemeLipSync: false,
+      })),
+      resolveClampedPresencePulsePerformance: () => createPerformance(),
+      resolvePresenceIntensity: (_emphasis, fallback) => fallback,
+      speakFallback: vi.fn(),
+      stageModelRenderer: ref('live2d'),
+    })
+
+    const payload = createDialoguePayload()
+
+    expect(harness.buildEmbodimentScript(payload)).toMatchObject({
+      lipsyncPlan: {
+        mode: 'energy-only',
+      },
+    })
+
+    secondRuntime.dispose()
+
+    expect(harness.buildEmbodimentScript(payload)).toMatchObject({
+      lipsyncPlan: {
+        mode: 'energy-phoneme-hybrid',
+      },
+    })
+
+    firstRuntime.dispose()
+    expect(harness.buildEmbodimentScript(payload)).toBeNull()
   })
 })
