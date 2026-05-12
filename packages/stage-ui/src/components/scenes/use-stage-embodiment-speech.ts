@@ -81,6 +81,10 @@ interface SpeechPlanAlignmentState {
   signature: string
 }
 
+interface StageEmbodimentSpeechDriverPhaseMetadata {
+  idleCuePhase?: 'pre-utterance' | 'post-utterance'
+}
+
 interface SyntheticSpeechState {
   active: boolean
   startedAt: number
@@ -398,6 +402,20 @@ function resolveEmbodimentPlaybackMetadataFromMetadata(
   return cloneEmbodimentPlaybackMetadata(typedCandidate)
 }
 
+function resolveSpeechDriverPhaseMetadata(
+  metadata: Record<string, unknown> | null | undefined,
+): StageEmbodimentSpeechDriverPhaseMetadata | null {
+  const candidate = normalizeSpeechMetadataRecord(metadata)?.embodimentDriverPhase
+  if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate))
+    return null
+
+  const idleCuePhase = (candidate as StageEmbodimentSpeechDriverPhaseMetadata).idleCuePhase
+  if (idleCuePhase !== 'pre-utterance' && idleCuePhase !== 'post-utterance')
+    return null
+
+  return { idleCuePhase }
+}
+
 function resolveActivePlaybackVisemeHints(
   item: {
     metadata?: Record<string, unknown> | null | undefined
@@ -473,6 +491,9 @@ function enrichSpeechMetadataWithDrivers(input: {
 
   return {
     ...metadata,
+    embodimentDriverPhase: input.idleCuePhase
+      ? { idleCuePhase: input.idleCuePhase }
+      : undefined,
     embodimentPlayback: nextPlayback,
   } satisfies Record<string, unknown>
 }
@@ -480,17 +501,7 @@ function enrichSpeechMetadataWithDrivers(input: {
 function resolveSpeechMetadataIdleCuePhase(
   metadata: Record<string, unknown> | null | undefined,
 ) {
-  const face = resolveEmbodimentPlaybackMetadataFromMetadata(metadata)?.drivers.face
-  if (!face)
-    return undefined
-
-  if (face.facialCue && face.facialCue === face.postUtteranceCue)
-    return 'post-utterance' as const
-
-  if (face.facialCue && face.facialCue === face.preUtteranceCue)
-    return 'pre-utterance' as const
-
-  return undefined
+  return resolveSpeechDriverPhaseMetadata(metadata)?.idleCuePhase
 }
 
 function enrichSpeechMetadataWithReconciliation(input: {

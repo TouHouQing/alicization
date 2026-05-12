@@ -827,6 +827,123 @@ describe('stage embodiment performance runtime', () => {
     scope.stop()
   })
 
+  it('keeps scripted playing projection when the speaking cue alias matches the post-utterance cue', async () => {
+    vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1))
+    vi.stubGlobal('cancelAnimationFrame', vi.fn())
+
+    let startListener: ((event: { item: any, startedAt: number }) => void) | undefined
+
+    const audioContext = {
+      createAnalyser: vi.fn(() => ({
+        fftSize: 2048,
+        getByteTimeDomainData: vi.fn(),
+      })),
+      resume: vi.fn(() => Promise.resolve()),
+      state: 'running',
+    } as unknown as AudioContext
+
+    const scope = effectScope()
+    const speech = scope.run(() => {
+      const runtime = useStageEmbodimentSpeech({
+        audioContext,
+        mouthOpenSize: ref(0),
+        paused: ref(false),
+        speechStylePitch: ref(0),
+        speechStyleRate: ref(1),
+        stageModelRenderer: ref('vrm'),
+      })
+      runtime.bindPlaybackManager({
+        onStart(listener) {
+          startListener = listener
+        },
+        onEnd() {},
+        onInterrupt() {},
+      } as never)
+      return runtime
+    })!
+
+    const item = {
+      id: 'playback-scripted-alias-collision-1',
+      streamId: 'stream-scripted-alias-collision-1',
+      intentId: 'intent-scripted-alias-collision-1',
+      segmentId: 'segment-scripted-alias-collision-1',
+      ownerId: 'alice',
+      priority: 0,
+      text: '继续看这里。',
+      special: null,
+      continuityHoldMs: 180,
+      audio: createBufferedSpeechAudioSource({} as AudioBuffer),
+      createdAt: 0,
+      metadata: {
+        embodimentScript: {
+          version: 'embodiment-script-v1',
+          turnId: 'turn-scripted-alias-collision-1',
+          rendererTarget: 'live2d',
+          replyText: '继续看这里。',
+          state: {
+            baseEmotion: 'thinking',
+            delivery: 'calm',
+            emphasis: 0,
+            residentMode: 'dialogue',
+          },
+          speechPlan: {
+            segments: [{
+              id: 'segment-scripted-alias-collision-1',
+              index: 0,
+              text: '继续看这里。',
+              interruptPolicy: 'soft-settle',
+              preRollMs: 0,
+              settleMs: 180,
+            }],
+            interruptPolicy: 'soft-settle',
+            preRollMs: 0,
+            settleMs: 180,
+          },
+          facePlan: {
+            postUtteranceCue: 'focus',
+            speakingCues: [{
+              segmentId: 'segment-scripted-alias-collision-1',
+              emotion: 'thinking',
+              facialCue: 'focus',
+              intensity: 0.6,
+            }],
+          },
+          motionPlan: {
+            idleBase: 'idle_settle',
+            actionBursts: [{
+              segmentId: 'segment-scripted-alias-collision-1',
+              actionCue: 'observe_focus',
+              intensity: 0.4,
+              holdMs: 220,
+            }],
+            attentionMode: 'attentive',
+          },
+          lipsyncPlan: {
+            mode: 'energy-only',
+          },
+        },
+      },
+    }
+
+    startListener?.({ item, startedAt: 100 })
+    await nextTick()
+
+    expect(speech.playbackTelemetry.value?.drivers.face).toEqual(expect.objectContaining({
+      facialCue: 'focus',
+      postUtteranceCue: 'focus',
+    }))
+    expect(speech.playbackTelemetry.value?.drivers.lipsync).toEqual(expect.objectContaining({
+      playbackPhase: 'playing',
+    }))
+    expect(speech.playbackTelemetry.value?.drivers.motion).toEqual(expect.objectContaining({
+      actionCue: 'observe_focus',
+      intensity: 0.4,
+    }))
+
+    speech.dispose()
+    scope.stop()
+  })
+
   it('preserves scripted post-utterance face cues through the real stop projection path', async () => {
     vi.useFakeTimers()
     vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1))
