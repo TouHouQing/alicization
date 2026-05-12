@@ -962,6 +962,309 @@ describe('stage embodiment speech contract', () => {
     speech.dispose()
   })
 
+  it('uses playback viseme hints to shape live2d mouth articulation at runtime', async () => {
+    const frameQueue: FrameRequestCallback[] = []
+    vi.stubGlobal('requestAnimationFrame', vi.fn((callback: FrameRequestCallback) => {
+      frameQueue.push(callback)
+      return frameQueue.length
+    }))
+    vi.stubGlobal('cancelAnimationFrame', vi.fn())
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    let now = 2_000
+    vi.spyOn(performance, 'now').mockImplementation(() => now)
+
+    const getVowelWeights = vi.fn(() => ({
+      A: 0.08,
+      E: 0.06,
+      I: 0.05,
+      O: 0.1,
+      U: 0.04,
+    }))
+
+    const createLive2DLipSyncMock = vi.mocked(createLive2DLipSync)
+    createLive2DLipSyncMock.mockResolvedValueOnce({
+      node: {
+        disconnect: vi.fn(),
+      } as unknown as AudioNode,
+      connectSource: vi.fn(),
+      getMouthOpen: vi.fn(() => 0.01),
+      getVowelWeights,
+    } as unknown as Awaited<ReturnType<typeof createLive2DLipSync>>)
+
+    const analyser = {
+      fftSize: 2048,
+      getByteTimeDomainData: vi.fn((target: Uint8Array<ArrayBuffer>) => {
+        target.fill(128)
+      }),
+    } as unknown as AnalyserNode
+    const audioContext = {
+      createAnalyser: vi.fn(() => analyser),
+      resume: vi.fn(() => Promise.resolve()),
+      state: 'running',
+    } as unknown as AudioContext
+
+    const { useStageEmbodimentSpeech } = await import('./use-stage-embodiment-speech')
+    const speech = useStageEmbodimentSpeech({
+      audioContext,
+      mouthOpenSize: ref(0),
+      paused: ref(false),
+      speechStylePitch: ref(0),
+      speechStyleRate: ref(1),
+      stageModelRenderer: ref('live2d'),
+    })
+
+    await speech.prepareForNextMessage()
+    await new Promise(resolve => setTimeout(resolve, 0))
+    await Promise.resolve()
+    await Promise.resolve()
+
+    speech.applySyntheticSpeechSegment({
+      text: 'woo',
+      reason: 'boost',
+      metadata: {
+        embodimentPlayback: {
+          actualDurationMs: 420,
+          driftMs: 0,
+          plannedDurationMs: 420,
+          settleMs: 180,
+          stopReason: null,
+          drivers: {
+            face: null,
+            motion: null,
+            lipsync: {
+              mode: 'energy-phoneme-hybrid',
+              playbackPhase: 'playing',
+              segmentId: 'synthetic-1',
+              visemeHints: [
+                { segmentId: 'synthetic-1', viseme: 'U', weight: 0.92 },
+                { segmentId: 'synthetic-1', viseme: 'closed', weight: 0.58 },
+              ],
+            },
+          },
+        },
+      },
+    } as never)
+
+    async function advanceFrame(deltaMs: number) {
+      const nextFrame = frameQueue.shift()
+      expect(nextFrame).toBeTypeOf('function')
+      now += deltaMs
+      nextFrame?.(now)
+      await Promise.resolve()
+    }
+
+    await advanceFrame(80)
+    const articulation = speech.speechRenderState.value.articulation
+
+    expect(articulation.lipRound).toBeGreaterThan(0.35)
+    expect(articulation.visemes.U).toBeGreaterThan(0.35)
+    expect(articulation.visemes.closed).toBeGreaterThan(0.15)
+    expect(articulation.lipRound).toBeGreaterThan(articulation.lipSpread)
+    expect(getVowelWeights).toHaveBeenCalled()
+
+    speech.dispose()
+  })
+
+  it('filters playback viseme hints by authoritative driver segment id when item segment id is absent', async () => {
+    const frameQueue: FrameRequestCallback[] = []
+    vi.stubGlobal('requestAnimationFrame', vi.fn((callback: FrameRequestCallback) => {
+      frameQueue.push(callback)
+      return frameQueue.length
+    }))
+    vi.stubGlobal('cancelAnimationFrame', vi.fn())
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    let now = 2_300
+    vi.spyOn(performance, 'now').mockImplementation(() => now)
+
+    const getVowelWeights = vi.fn(() => ({
+      A: 0.04,
+      E: 0.03,
+      I: 0.03,
+      O: 0.05,
+      U: 0.04,
+    }))
+
+    const createLive2DLipSyncMock = vi.mocked(createLive2DLipSync)
+    createLive2DLipSyncMock.mockResolvedValueOnce({
+      node: {
+        disconnect: vi.fn(),
+      } as unknown as AudioNode,
+      connectSource: vi.fn(),
+      getMouthOpen: vi.fn(() => 0.01),
+      getVowelWeights,
+    } as unknown as Awaited<ReturnType<typeof createLive2DLipSync>>)
+
+    const analyser = {
+      fftSize: 2048,
+      getByteTimeDomainData: vi.fn((target: Uint8Array<ArrayBuffer>) => {
+        target.fill(128)
+      }),
+    } as unknown as AnalyserNode
+    const audioContext = {
+      createAnalyser: vi.fn(() => analyser),
+      resume: vi.fn(() => Promise.resolve()),
+      state: 'running',
+    } as unknown as AudioContext
+
+    const { useStageEmbodimentSpeech } = await import('./use-stage-embodiment-speech')
+    const speech = useStageEmbodimentSpeech({
+      audioContext,
+      mouthOpenSize: ref(0),
+      paused: ref(false),
+      speechStylePitch: ref(0),
+      speechStyleRate: ref(1),
+      stageModelRenderer: ref('live2d'),
+    })
+
+    await speech.prepareForNextMessage()
+    await new Promise(resolve => setTimeout(resolve, 0))
+    await Promise.resolve()
+    await Promise.resolve()
+
+    speech.applySyntheticSpeechSegment({
+      text: 'woo',
+      reason: 'boost',
+      metadata: {
+        embodimentPlayback: {
+          actualDurationMs: 420,
+          driftMs: 0,
+          plannedDurationMs: 420,
+          settleMs: 180,
+          stopReason: null,
+          drivers: {
+            face: null,
+            motion: null,
+            lipsync: {
+              mode: 'energy-phoneme-hybrid',
+              playbackPhase: 'playing',
+              segmentId: 'driver-segment',
+              visemeHints: [
+                { segmentId: 'driver-segment', viseme: 'U', weight: 0.88 },
+                { segmentId: 'other-segment', viseme: 'A', weight: 0.98 },
+              ],
+            },
+          },
+        },
+      },
+    } as never)
+
+    async function advanceFrame(deltaMs: number) {
+      const nextFrame = frameQueue.shift()
+      expect(nextFrame).toBeTypeOf('function')
+      now += deltaMs
+      nextFrame?.(now)
+      await Promise.resolve()
+    }
+
+    await advanceFrame(80)
+    const articulation = speech.speechRenderState.value.articulation
+
+    expect(articulation.visemes.U).toBeGreaterThan(0.35)
+    expect(articulation.visemes.A).toBeLessThan(0.2)
+    expect(articulation.lipRound).toBeGreaterThan(articulation.lipSpread)
+
+    speech.dispose()
+  })
+
+  it('uses playback viseme hints even when live2d vowel weights are unavailable', async () => {
+    const frameQueue: FrameRequestCallback[] = []
+    vi.stubGlobal('requestAnimationFrame', vi.fn((callback: FrameRequestCallback) => {
+      frameQueue.push(callback)
+      return frameQueue.length
+    }))
+    vi.stubGlobal('cancelAnimationFrame', vi.fn())
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    let now = 2_600
+    vi.spyOn(performance, 'now').mockImplementation(() => now)
+
+    const getVowelWeights = vi.fn(() => null)
+
+    const createLive2DLipSyncMock = vi.mocked(createLive2DLipSync)
+    createLive2DLipSyncMock.mockResolvedValueOnce({
+      node: {
+        disconnect: vi.fn(),
+      } as unknown as AudioNode,
+      connectSource: vi.fn(),
+      getMouthOpen: vi.fn(() => 0.01),
+      getVowelWeights,
+    } as unknown as Awaited<ReturnType<typeof createLive2DLipSync>>)
+
+    const analyser = {
+      fftSize: 2048,
+      getByteTimeDomainData: vi.fn((target: Uint8Array<ArrayBuffer>) => {
+        target.fill(128)
+      }),
+    } as unknown as AnalyserNode
+    const audioContext = {
+      createAnalyser: vi.fn(() => analyser),
+      resume: vi.fn(() => Promise.resolve()),
+      state: 'running',
+    } as unknown as AudioContext
+
+    const { useStageEmbodimentSpeech } = await import('./use-stage-embodiment-speech')
+    const speech = useStageEmbodimentSpeech({
+      audioContext,
+      mouthOpenSize: ref(0),
+      paused: ref(false),
+      speechStylePitch: ref(0),
+      speechStyleRate: ref(1),
+      stageModelRenderer: ref('live2d'),
+    })
+
+    await speech.prepareForNextMessage()
+    await new Promise(resolve => setTimeout(resolve, 0))
+    await Promise.resolve()
+    await Promise.resolve()
+
+    speech.applySyntheticSpeechSegment({
+      text: 'woo',
+      reason: 'boost',
+      metadata: {
+        embodimentPlayback: {
+          actualDurationMs: 420,
+          driftMs: 0,
+          plannedDurationMs: 420,
+          settleMs: 180,
+          stopReason: null,
+          drivers: {
+            face: null,
+            motion: null,
+            lipsync: {
+              mode: 'energy-phoneme-hybrid',
+              playbackPhase: 'playing',
+              segmentId: 'synthetic-1',
+              visemeHints: [
+                { segmentId: 'synthetic-1', viseme: 'U', weight: 0.92 },
+                { segmentId: 'synthetic-1', viseme: 'closed', weight: 0.58 },
+              ],
+            },
+          },
+        },
+      },
+    } as never)
+
+    async function advanceFrame(deltaMs: number) {
+      const nextFrame = frameQueue.shift()
+      expect(nextFrame).toBeTypeOf('function')
+      now += deltaMs
+      nextFrame?.(now)
+      await Promise.resolve()
+    }
+
+    await advanceFrame(80)
+    const articulation = speech.speechRenderState.value.articulation
+
+    expect(articulation.lipRound).toBeGreaterThan(0.3)
+    expect(articulation.visemes.U).toBeGreaterThan(0.35)
+    expect(articulation.visemes.closed).toBeGreaterThan(0.15)
+    expect(getVowelWeights).toHaveBeenCalled()
+
+    speech.dispose()
+  })
+
   it('keeps queued preview segments in playback order instead of skipping to the latest ready chunk', async () => {
     vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1))
     vi.stubGlobal('cancelAnimationFrame', vi.fn())

@@ -398,6 +398,22 @@ function resolveEmbodimentPlaybackMetadataFromMetadata(
   return cloneEmbodimentPlaybackMetadata(typedCandidate)
 }
 
+function resolveActivePlaybackVisemeHints(
+  item: {
+    metadata?: Record<string, unknown> | null | undefined
+    segmentId?: string | null | undefined
+  } | null | undefined,
+) {
+  const playbackMetadata = resolveEmbodimentPlaybackMetadataFromMetadata(item?.metadata)
+  const visemeHints = playbackMetadata?.drivers.lipsync?.visemeHints ?? []
+  const segmentId = playbackMetadata?.drivers.lipsync?.segmentId?.trim()
+    || item?.segmentId?.trim()
+  if (!segmentId)
+    return [...visemeHints]
+
+  return visemeHints.filter(hint => hint.segmentId === segmentId)
+}
+
 function resolvePlaybackDriverMetadata(input: {
   script: AlicizationEmbodimentScriptV1 | null
   segmentId: string | null | undefined
@@ -670,16 +686,25 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
       return baseArticulation
     }
 
-    const rawVisemes = live2dLipSync.value.getVowelWeights?.()
-    if (!rawVisemes)
-      return baseArticulation
+    const hintMap = {
+      A: 0,
+      E: 0,
+      I: 0,
+      O: 0,
+      U: 0,
+      closed: 0,
+    }
+    for (const hint of resolveActivePlaybackVisemeHints(speechPlaybackState.value.item)) {
+      hintMap[hint.viseme] = Math.max(hintMap[hint.viseme], clampUnit(hint.weight))
+    }
 
+    const rawVisemes = live2dLipSync.value.getVowelWeights?.()
     const audioVisemes = {
-      A: clampUnit(rawVisemes.A ?? 0),
-      E: clampUnit(rawVisemes.E ?? 0),
-      I: clampUnit(rawVisemes.I ?? 0),
-      O: clampUnit(rawVisemes.O ?? 0),
-      U: clampUnit(rawVisemes.U ?? 0),
+      A: clampUnit(rawVisemes?.A ?? 0),
+      E: clampUnit(rawVisemes?.E ?? 0),
+      I: clampUnit(rawVisemes?.I ?? 0),
+      O: clampUnit(rawVisemes?.O ?? 0),
+      U: clampUnit(rawVisemes?.U ?? 0),
     }
     const audioPeak = Math.max(
       audioVisemes.A,
@@ -688,12 +713,30 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
       audioVisemes.O,
       audioVisemes.U,
     )
-    if (audioPeak <= 0.01)
+    const hintedVisemes = {
+      A: hintMap.A,
+      E: hintMap.E,
+      I: hintMap.I,
+      O: hintMap.O,
+      U: hintMap.U,
+    }
+    const hintedPeak = Math.max(
+      hintedVisemes.A,
+      hintedVisemes.E,
+      hintedVisemes.I,
+      hintedVisemes.O,
+      hintedVisemes.U,
+    )
+    const hintedClosure = hintMap.closed
+    const hintStrength = Math.max(hintedPeak, hintedClosure)
+    if (audioPeak <= 0.01 && hintStrength <= 0.01)
       return baseArticulation
 
     const lipSyncProfile = speechPlaybackState.value.item?.digitalLifeFrame?.lipSync
     const visemeBias = clampRange(lipSyncProfile?.visemeBias ?? 0.58, 0.16, 1)
     const energyBias = clampRange(lipSyncProfile?.energyBias ?? 0.42, 0.12, 1)
+    const effectiveVisemeBias = clampRange(visemeBias + hintStrength * 0.24, visemeBias, 1)
+    const effectiveEnergyBias = clampRange(energyBias + hintedClosure * 0.26, energyBias, 1)
     const voice = baseArticulation.voice
     const audioRound = clampUnit(
       audioVisemes.U * 0.92
@@ -711,11 +754,40 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
       + speechEnergy * 0.22
       + (voice?.jawBias ?? 0) * 0.12,
     )
+    const hintedRound = clampUnit(
+      hintedVisemes.U * 0.94
+      + hintedVisemes.O * 0.72
+      + (voice?.roundBias ?? 0) * 0.18,
+    )
+    const hintedSpread = clampUnit(
+      hintedVisemes.I * 0.92
+      + hintedVisemes.E * 0.68
+      + (voice?.spreadBias ?? 0) * 0.18,
+    )
+    const hintedJaw = clampUnit(
+      hintedVisemes.A * 0.76
+      + hintedVisemes.O * 0.34
+      + speechEnergy * 0.16
+      + (voice?.jawBias ?? 0) * 0.1,
+    )
+    const roundTarget = clampUnit(Math.max(
+      audioRound,
+      hintedRound * (0.64 + hintStrength * 0.36),
+    ))
+    const spreadTarget = clampUnit(Math.max(
+      audioSpread,
+      hintedSpread * (0.64 + hintStrength * 0.36),
+    ))
+    const jawTarget = clampUnit(Math.max(
+      audioJaw,
+      hintedJaw * (0.6 + hintStrength * 0.32),
+    ))
     const opennessTarget = clampUnit(
       Math.max(
         baseArticulation.openness,
         audioPeak * (0.68 + speechEnergy * 0.18),
-        audioJaw * 0.9,
+        jawTarget * 0.9,
+        hintedPeak * (0.52 + speechEnergy * 0.18),
       ) * (1 - baseArticulation.lipClosure * 0.18),
     )
     const closureTarget = clampUnit(
@@ -723,38 +795,39 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
         baseArticulation.lipClosure * (1 - audioPeak * 0.76),
         baseArticulation.visemes.closed * (1 - audioPeak * 0.72),
         (1 - audioPeak) * 0.16 * energyBias,
+        hintedClosure * (0.28 + hintStrength * 0.36),
       ),
     )
 
     return {
       ...baseArticulation,
       openness: roundHundredths(
-        baseArticulation.openness + (opennessTarget - baseArticulation.openness) * visemeBias,
+        baseArticulation.openness + (opennessTarget - baseArticulation.openness) * effectiveVisemeBias,
         baseArticulation.openness,
       ),
       jawOpen: roundHundredths(
-        baseArticulation.jawOpen + (audioJaw - baseArticulation.jawOpen) * Math.max(visemeBias, energyBias),
+        baseArticulation.jawOpen + (jawTarget - baseArticulation.jawOpen) * Math.max(effectiveVisemeBias, effectiveEnergyBias),
         baseArticulation.jawOpen,
       ),
       lipClosure: roundHundredths(
-        baseArticulation.lipClosure + (closureTarget - baseArticulation.lipClosure) * energyBias,
+        baseArticulation.lipClosure + (closureTarget - baseArticulation.lipClosure) * effectiveEnergyBias,
         baseArticulation.lipClosure,
       ),
       lipSpread: roundHundredths(
-        baseArticulation.lipSpread + (audioSpread - baseArticulation.lipSpread) * visemeBias,
+        baseArticulation.lipSpread + (spreadTarget - baseArticulation.lipSpread) * effectiveVisemeBias,
         baseArticulation.lipSpread,
       ),
       lipRound: roundHundredths(
-        baseArticulation.lipRound + (audioRound - baseArticulation.lipRound) * visemeBias,
+        baseArticulation.lipRound + (roundTarget - baseArticulation.lipRound) * effectiveVisemeBias,
         baseArticulation.lipRound,
       ),
       visemes: {
-        A: roundHundredths(Math.max(baseArticulation.visemes.A * (1 - visemeBias * 0.42), audioVisemes.A * visemeBias)),
-        E: roundHundredths(Math.max(baseArticulation.visemes.E * (1 - visemeBias * 0.42), audioVisemes.E * visemeBias)),
-        I: roundHundredths(Math.max(baseArticulation.visemes.I * (1 - visemeBias * 0.42), audioVisemes.I * visemeBias)),
-        O: roundHundredths(Math.max(baseArticulation.visemes.O * (1 - visemeBias * 0.42), audioVisemes.O * visemeBias)),
-        U: roundHundredths(Math.max(baseArticulation.visemes.U * (1 - visemeBias * 0.42), audioVisemes.U * visemeBias)),
-        closed: roundHundredths(closureTarget),
+        A: roundHundredths(Math.max(baseArticulation.visemes.A * (1 - effectiveVisemeBias * 0.42), audioVisemes.A * visemeBias, hintedVisemes.A * effectiveVisemeBias)),
+        E: roundHundredths(Math.max(baseArticulation.visemes.E * (1 - effectiveVisemeBias * 0.42), audioVisemes.E * visemeBias, hintedVisemes.E * effectiveVisemeBias)),
+        I: roundHundredths(Math.max(baseArticulation.visemes.I * (1 - effectiveVisemeBias * 0.42), audioVisemes.I * visemeBias, hintedVisemes.I * effectiveVisemeBias)),
+        O: roundHundredths(Math.max(baseArticulation.visemes.O * (1 - effectiveVisemeBias * 0.42), audioVisemes.O * visemeBias, hintedVisemes.O * effectiveVisemeBias)),
+        U: roundHundredths(Math.max(baseArticulation.visemes.U * (1 - effectiveVisemeBias * 0.42), audioVisemes.U * visemeBias, hintedVisemes.U * effectiveVisemeBias)),
+        closed: roundHundredths(Math.max(closureTarget, hintedClosure * (0.36 + hintStrength * 0.28))),
       },
     }
   }
