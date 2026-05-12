@@ -48,6 +48,52 @@ function resolveResidentMode(input: {
   return 'dialogue' as const
 }
 
+function resolveMicroExpressionTimingCues(input: {
+  baseEmotion: AlicizationDialoguePerformancePayload['baseEmotion']
+  delivery: AlicizationDialoguePerformancePayload['delivery']
+  emphasis: AlicizationDialoguePerformancePayload['emphasis']
+}) {
+  if (input.delivery === 'energetic' || input.delivery === 'teasing') {
+    return {
+      preUtteranceCue: input.emphasis >= 2 ? 'steady-inhale' : 'soft-breath',
+      postUtteranceCue: 'settle-smile',
+    }
+  }
+
+  if (input.delivery === 'gentle') {
+    if (input.baseEmotion === 'thinking') {
+      return {
+        preUtteranceCue: 'steady-inhale',
+        postUtteranceCue: input.emphasis >= 2 ? 'eyes-soften' : 'soft-release',
+      }
+    }
+
+    return {
+      preUtteranceCue: 'soft-breath',
+      postUtteranceCue: input.emphasis >= 2 ? 'eyes-soften' : 'settle-smile',
+    }
+  }
+
+  if (input.baseEmotion === 'thinking' || input.delivery === 'hesitant') {
+    return {
+      preUtteranceCue: 'steady-inhale',
+      postUtteranceCue: 'soft-release',
+    }
+  }
+
+  if (input.baseEmotion === 'concerned' || input.baseEmotion === 'apologetic' || input.baseEmotion === 'tired') {
+    return {
+      preUtteranceCue: 'soft-breath',
+      postUtteranceCue: 'eyes-soften',
+    }
+  }
+
+  return {
+    preUtteranceCue: null,
+    postUtteranceCue: null,
+  }
+}
+
 export function buildAlicizationEmbodimentScript(
   input: BuildAlicizationEmbodimentScriptInput,
 ): AlicizationEmbodimentScriptV1 {
@@ -70,6 +116,11 @@ export function buildAlicizationEmbodimentScript(
     digitalLife: input.seed.digitalLife,
   })
   const primarySegment = speechPlan.segments[0] ?? null
+  const microExpressionTiming = resolveMicroExpressionTimingCues({
+    baseEmotion: adapted.performance.baseEmotion,
+    delivery: adapted.performance.delivery,
+    emphasis: adapted.performance.emphasis,
+  })
 
   return {
     version: 'embodiment-script-v1',
@@ -88,8 +139,8 @@ export function buildAlicizationEmbodimentScript(
     },
     speechPlan,
     facePlan: {
-      preUtteranceCue: null,
-      postUtteranceCue: null,
+      preUtteranceCue: microExpressionTiming.preUtteranceCue,
+      postUtteranceCue: microExpressionTiming.postUtteranceCue,
       speakingCues: primarySegment
         ? [{
             segmentId: primarySegment.id,

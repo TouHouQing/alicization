@@ -75,6 +75,34 @@ describe('live2d embodiment drivers', () => {
     }))
   })
 
+  it('routes pre and post utterance timing through the live2d face driver', () => {
+    expect(resolveLive2DFaceDriverState({
+      script,
+      segmentId: 'segment-1',
+      playbackPhase: 'idle',
+    })).toEqual(expect.objectContaining({
+      facialCue: 'soft-breath',
+      preUtteranceCue: 'soft-breath',
+      postUtteranceCue: 'settle-smile',
+    }))
+
+    expect(resolveLive2DFaceDriverState({
+      script: {
+        ...script,
+        facePlan: {
+          ...script.facePlan,
+          preUtteranceCue: null,
+        },
+      },
+      segmentId: 'segment-1',
+      playbackPhase: 'idle',
+    })).toEqual(expect.objectContaining({
+      facialCue: 'settle-smile',
+      preUtteranceCue: null,
+      postUtteranceCue: 'settle-smile',
+    }))
+  })
+
   it('resolves live2d lipsync mode from the embodiment script', () => {
     expect(resolveLive2DLipSyncDriverState({
       script,

@@ -41,7 +41,10 @@ export function resolveLive2DFaceDriverState(
   const speakingCue = resolveSpeakingCue(script, input.segmentId)
   const playbackFacialCue = input.playbackPhase === 'playing'
     ? speakingCue?.facialCue ?? null
-    : script.facePlan.postUtteranceCue ?? speakingCue?.facialCue ?? null
+    : script.facePlan.preUtteranceCue
+      ?? script.facePlan.postUtteranceCue
+      ?? speakingCue?.facialCue
+      ?? null
 
   return {
     emotion: speakingCue?.emotion ?? script.state.baseEmotion,

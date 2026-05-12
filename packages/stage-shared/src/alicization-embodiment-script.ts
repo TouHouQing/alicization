@@ -28,6 +28,8 @@ export interface AlicizationEmbodimentFaceCue {
 }
 
 export interface AlicizationEmbodimentFacePlan {
+  // Timing cues let the renderer stage a brief expression before speech starts
+  // and a release/settle expression once playback returns to idle.
   preUtteranceCue?: string | null
   postUtteranceCue?: string | null
   speakingCues: AlicizationEmbodimentFaceCue[]
