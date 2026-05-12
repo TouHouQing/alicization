@@ -72,7 +72,7 @@ describe('stage embodiment speech playback dynamics', () => {
       phase: 'playing',
       item: createPlaybackItemWithProsody({
         segmentId: 'segment-neutral',
-        text: '先看这里。',
+        text: '先看这里',
         pauseClass: 'full-stop',
         phraseBoundary: 'hard',
         contour: 'falling',
@@ -90,7 +90,7 @@ describe('stage embodiment speech playback dynamics', () => {
       phase: 'playing',
       item: createPlaybackItemWithProsody({
         segmentId: 'segment-rising',
-        text: '先看这里？',
+        text: '先看这里',
         pauseClass: 'question',
         phraseBoundary: 'hard',
         contour: 'rising',
@@ -114,7 +114,7 @@ describe('stage embodiment speech playback dynamics', () => {
       phase: 'playing',
       item: createPlaybackItemWithProsody({
         segmentId: 'segment-comma',
-        text: '先看这里，',
+        text: '先看这里',
         pauseClass: 'comma',
         phraseBoundary: 'soft',
         contour: 'falling',
@@ -132,7 +132,7 @@ describe('stage embodiment speech playback dynamics', () => {
       phase: 'playing',
       item: createPlaybackItemWithProsody({
         segmentId: 'segment-stop',
-        text: '先看这里。',
+        text: '先看这里',
         pauseClass: 'full-stop',
         phraseBoundary: 'hard',
         contour: 'falling',
