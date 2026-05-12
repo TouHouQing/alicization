@@ -4,8 +4,10 @@ import type {
   AlicizationDialogueSpeechTimelineSegment,
 } from './alicization-dialogue-speech-timeline'
 import type { AlicizationDigitalLifeFrame } from './alicization-digital-life'
+import type { AlicizationEmbodimentScriptV1 } from './alicization-embodiment-script'
 import type { StageEmbodimentSpeechArticulationState } from './stage-embodiment-speech-articulation'
 
+import { normalizeAlicizationEmbodimentScript } from './alicization-embodiment-script'
 import {
   cloneStageEmbodimentSpeechArticulationState,
   createIdleStageEmbodimentSpeechArticulationState,
@@ -98,6 +100,39 @@ function normalizeCueToken(value: string | null | undefined) {
 
   const normalized = value.trim()
   return normalized || null
+}
+
+function normalizePlaybackText(value: string | null | undefined) {
+  if (typeof value !== 'string')
+    return ''
+
+  return value.trim().replace(/\s+/g, ' ')
+}
+
+function normalizeEmbodimentScriptFromPlaybackMetadata(
+  metadata: Record<string, unknown> | null | undefined,
+): AlicizationEmbodimentScriptV1 | null {
+  if (!metadata)
+    return null
+
+  return normalizeAlicizationEmbodimentScript(metadata.embodimentScript)
+}
+
+function resolvePlaybackSegmentProsodyIntent(item: StageEmbodimentSpeechPlaybackItem | null) {
+  const script = normalizeEmbodimentScriptFromPlaybackMetadata(item?.metadata)
+  if (!script)
+    return null
+
+  const directMatch = item?.segmentId
+    ? script.speechPlan.segments.find(segment => segment.id === item.segmentId)
+    : null
+  if (directMatch?.prosody)
+    return directMatch.prosody
+
+  const normalizedText = normalizePlaybackText(item?.text)
+  return script.speechPlan.segments.find(
+    segment => normalizePlaybackText(segment.text) === normalizedText,
+  )?.prosody ?? null
 }
 
 function cloneRendererHints(
@@ -455,7 +490,33 @@ export function deriveStageEmbodimentSpeechDynamicsState(input: {
     return createIdleStageEmbodimentSpeechDynamicsState()
 
   const speechEnergy = clampUnit(input.speechEnergy ?? 0)
-  const emphasisLevel = resolveTextEmphasis(input.item)
+  const planProsody = resolvePlaybackSegmentProsodyIntent(input.item)
+  const prosodyStrength = clampUnit(planProsody?.emphasisStrength ?? 0)
+  const tempoShift = clampRange(planProsody?.tempoShift ?? 0, -1, 1)
+  const contourBoost = planProsody?.contour === 'rising'
+    ? 0.12
+    : planProsody?.contour === 'dip-rise'
+      ? 0.08
+      : planProsody?.contour === 'falling'
+        ? 0.04
+        : 0
+  const pauseBias = planProsody?.pauseClass === 'question'
+    ? 0.04
+    : planProsody?.pauseClass === 'comma'
+      ? -0.03
+      : planProsody?.pauseClass === 'full-stop'
+        ? 0.01
+        : 0
+  const boundaryBias = planProsody?.phraseBoundary === 'hard'
+    ? 0.08
+    : planProsody?.phraseBoundary === 'soft'
+      ? -0.04
+      : 0
+  const emphasisLevel = clampUnit(
+    resolveTextEmphasis(input.item)
+    + prosodyStrength * 0.28
+    + contourBoost * 0.4,
+  )
   const mouthPresence = clampUnit(input.mouthOpenSize / 100)
   const cueProsody = clampUnit(input.item?.cue?.prosodyWeight ?? 0)
   const cueMouth = clampUnit(input.item?.cue?.mouthWeight ?? 0)
@@ -469,23 +530,41 @@ export function deriveStageEmbodimentSpeechDynamicsState(input: {
     speechEnergy,
     emphasisLevel,
     prosodyIntensity: clampUnit(
-      emphasisLevel * 0.42
-      + cueProsody * 0.24
+      emphasisLevel * 0.38
+      + cueProsody * 0.2
       + cueMouth * 0.12
-      + styleIntensity * 0.28
+      + styleIntensity * 0.24
       + mouthPresence * 0.14
-      + speechEnergy * 0.24,
+      + speechEnergy * 0.22
+      + prosodyStrength * 0.24
+      + contourBoost
+      + Math.max(0, tempoShift) * 0.08,
     ),
-    cadencePulse: resolveCadencePulse({
-      emphasisLevel: clampUnit(emphasisLevel + cueHead * 0.08),
-      item: input.item,
-      mouthOpenSize: input.mouthOpenSize,
-      now: input.now,
-      phase: input.phase,
-      speechEnergy,
-      startedAt: input.startedAt,
-      styleRate: input.styleRate,
-    }),
+    cadencePulse: clampUnit(
+      resolveCadencePulse({
+        emphasisLevel: clampUnit(
+          emphasisLevel
+          + cueHead * 0.08
+          + prosodyStrength * 0.14
+          + contourBoost * 0.1
+          + boundaryBias,
+        ),
+        item: input.item,
+        mouthOpenSize: input.mouthOpenSize,
+        now: input.now,
+        phase: input.phase,
+        speechEnergy,
+        startedAt: input.startedAt,
+        styleRate: Number.isFinite(input.styleRate)
+          ? Number(input.styleRate) + tempoShift * 0.22
+          : 1 + tempoShift * 0.22,
+      })
+      + prosodyStrength * 0.04
+      + contourBoost * 0.22
+      + boundaryBias * 0.2
+      + tempoShift * 0.12
+      + pauseBias,
+    ),
   }
 }
 
