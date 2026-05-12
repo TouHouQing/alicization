@@ -33,5 +33,34 @@ describe('embodiment speech planner', () => {
 
     expect(plan.segments[0]?.interruptPolicy).toBe('soft-settle')
     expect(plan.segments[0]?.settleMs).toBeGreaterThan(0)
+    expect(plan.segments[0]?.prosody).toEqual({
+      language: 'zh-CN',
+      pauseClass: 'full-stop',
+      phraseBoundary: 'hard',
+      contour: 'falling',
+      emphasisWord: '慢慢',
+      emphasisStrength: 0.48,
+      tempoShift: -0.08,
+    })
+  })
+
+  it('derives neutral chinese-first prosody for fallback segments without a speech timeline', () => {
+    const plan = buildAlicizationEmbodimentSpeechPlan({
+      turnId: 'turn-fallback',
+      replyText: '先继续',
+      speechTimeline: null,
+      digitalLife: null,
+    })
+
+    expect(plan.segments).toHaveLength(1)
+    expect(plan.segments[0]?.prosody).toEqual({
+      language: 'zh-CN',
+      pauseClass: 'none',
+      phraseBoundary: 'none',
+      contour: 'flat',
+      emphasisWord: '继续',
+      emphasisStrength: 0.49,
+      tempoShift: 0,
+    })
   })
 })
