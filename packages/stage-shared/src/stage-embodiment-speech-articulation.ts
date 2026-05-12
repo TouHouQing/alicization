@@ -649,60 +649,51 @@ export function normalizeStageEmbodimentSpeechArticulationVoiceProfile(
   digitalLifeFrame?: AlicizationDigitalLifeFrame | null,
 ): StageEmbodimentSpeechArticulationVoiceProfile | null {
   const metadata = normalizeRecord(rawMetadata)
-  const metadataVoice = normalizeRecord(metadata?.voice)
   const synthesis = normalizeRecord(
     metadata?.speechSynthesis
     ?? metadata?.speech
     ?? metadata?.tts,
   )
-  const voice = normalizeRecord(synthesis?.voice) ?? metadataVoice
+  const voice = normalizeRecord(synthesis?.voice)
   const digitalLifeVoice = digitalLifeFrame?.voice ?? null
   const digitalLifeFacial = digitalLifeFrame?.motor.facial ?? null
-  const provider = normalizeString(synthesis?.provider ?? metadataVoice?.provider)
-  const model = normalizeString(synthesis?.model ?? metadataVoice?.model)
+  const provider = normalizeString(synthesis?.provider)
+  const model = normalizeString(synthesis?.model)
   const voiceId = normalizeString(
     voice?.id
-    ?? metadataVoice?.voiceId
     ?? synthesis?.voiceId
     ?? synthesis?.voice_id,
   )
   const voiceName = normalizeString(
     voice?.name
-    ?? metadataVoice?.voiceName
     ?? synthesis?.voiceName
     ?? synthesis?.voice_name,
   )
-  const gender = normalizeString(voice?.gender ?? metadataVoice?.gender ?? synthesis?.gender, 32)
+  const gender = normalizeString(voice?.gender ?? synthesis?.gender, 32)
   const language = normalizeLanguageCode(
     synthesis?.language
     ?? voice?.language
     ?? voice?.languages
-    ?? metadataVoice?.language
-    ?? metadataVoice?.languages,
   )
 
   if (!provider && !model && !voiceId && !voiceName && !digitalLifeVoice && !digitalLifeFacial)
     return null
 
   const rateMultiplier = Number(clampRange(
-    normalizeNumber(metadataVoice?.rateMultiplier)
-    ?? normalizeNumber(voice?.rateMultiplier)
+    normalizeNumber(voice?.rateMultiplier)
     ?? normalizeNumber(synthesis?.rateMultiplier)
     ?? normalizeNumber(synthesis?.rate)
     ?? normalizeNumber(voice?.rate)
-    ?? normalizeNumber(metadataVoice?.rate)
     ?? digitalLifeVoice?.rateMultiplier,
     0.5,
     2,
     1,
   ).toFixed(2))
   const pitchDelta = Number(clampRange(
-    normalizeNumber(metadataVoice?.pitchDelta)
-    ?? normalizeNumber(voice?.pitchDelta)
+    normalizeNumber(voice?.pitchDelta)
     ?? normalizeNumber(synthesis?.pitchDelta)
     ?? normalizeNumber(synthesis?.pitch)
     ?? normalizeNumber(voice?.pitch)
-    ?? normalizeNumber(metadataVoice?.pitch)
     ?? digitalLifeVoice?.pitchDelta,
     -24,
     24,
@@ -787,8 +778,7 @@ export function normalizeStageEmbodimentSpeechArticulationVoiceProfile(
     rateMultiplier,
     pitchDelta,
     closureBias: roundHundredths(
-      normalizeNumber(metadataVoice?.closureBias)
-      ?? normalizeNumber(voice?.closureBias)
+      normalizeNumber(voice?.closureBias)
       ?? (
         0.34
         + fastRateBias * 0.2
@@ -798,8 +788,7 @@ export function normalizeStageEmbodimentSpeechArticulationVoiceProfile(
       0.46,
     ),
     roundBias: roundHundredths(
-      normalizeNumber(metadataVoice?.roundBias)
-      ?? normalizeNumber(voice?.roundBias)
+      normalizeNumber(voice?.roundBias)
       ?? (
         0.22
         + mouthRound * 0.46
@@ -809,8 +798,7 @@ export function normalizeStageEmbodimentSpeechArticulationVoiceProfile(
       0.34,
     ),
     spreadBias: roundHundredths(
-      normalizeNumber(metadataVoice?.spreadBias)
-      ?? normalizeNumber(voice?.spreadBias)
+      normalizeNumber(voice?.spreadBias)
       ?? (
         0.2
         + mouthSpread * 0.5
@@ -820,8 +808,7 @@ export function normalizeStageEmbodimentSpeechArticulationVoiceProfile(
       0.36,
     ),
     jawBias: roundHundredths(
-      normalizeNumber(metadataVoice?.jawBias)
-      ?? normalizeNumber(voice?.jawBias)
+      normalizeNumber(voice?.jawBias)
       ?? (
         0.28
         + jawOpenBias * 0.46
@@ -831,8 +818,7 @@ export function normalizeStageEmbodimentSpeechArticulationVoiceProfile(
       0.38,
     ),
     consonantPrecision: roundHundredths(
-      normalizeNumber(metadataVoice?.consonantPrecision)
-      ?? normalizeNumber(voice?.consonantPrecision)
+      normalizeNumber(voice?.consonantPrecision)
       ?? (
         0.3
         + fastRateBias * 0.18
@@ -842,8 +828,7 @@ export function normalizeStageEmbodimentSpeechArticulationVoiceProfile(
       0.44,
     ),
     vowelLegato: roundHundredths(
-      normalizeNumber(metadataVoice?.vowelLegato)
-      ?? normalizeNumber(voice?.vowelLegato)
+      normalizeNumber(voice?.vowelLegato)
       ?? (
         0.34
         + slowRateBias * 0.22

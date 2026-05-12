@@ -8,18 +8,20 @@ describe('speech articulation voice bias', () => {
       active: true,
       text: '先看这里。',
       metadata: {
-        voice: {
+        speechSynthesis: {
           provider: 'test',
-          voiceId: 'soft-zh',
-          language: 'zh-CN',
-          consonantPrecision: 0.2,
-          vowelLegato: 0.9,
-          roundBias: 0.1,
-          spreadBias: 0.1,
-          jawBias: 0.1,
-          closureBias: 0.1,
-          rateMultiplier: 1,
-          pitchDelta: 0,
+          voice: {
+            id: 'soft-zh',
+            language: 'zh-CN',
+            consonantPrecision: 0.2,
+            vowelLegato: 0.9,
+            roundBias: 0.1,
+            spreadBias: 0.1,
+            jawBias: 0.1,
+            closureBias: 0.1,
+            rateMultiplier: 1,
+            pitchDelta: 0,
+          },
         },
       },
       playbackDurationMs: 800,
@@ -32,18 +34,20 @@ describe('speech articulation voice bias', () => {
       active: true,
       text: '先看这里。',
       metadata: {
-        voice: {
+        speechSynthesis: {
           provider: 'test',
-          voiceId: 'crisp-zh',
-          language: 'zh-CN',
-          consonantPrecision: 0.9,
-          vowelLegato: 0.3,
-          roundBias: 0.1,
-          spreadBias: 0.1,
-          jawBias: 0.1,
-          closureBias: 0.1,
-          rateMultiplier: 1,
-          pitchDelta: 0,
+          voice: {
+            id: 'crisp-zh',
+            language: 'zh-CN',
+            consonantPrecision: 0.9,
+            vowelLegato: 0.3,
+            roundBias: 0.1,
+            spreadBias: 0.1,
+            jawBias: 0.1,
+            closureBias: 0.1,
+            rateMultiplier: 1,
+            pitchDelta: 0,
+          },
         },
       },
       playbackDurationMs: 800,
@@ -54,5 +58,36 @@ describe('speech articulation voice bias', () => {
 
     expect(crisp.lipClosure).toBeGreaterThan(soft.lipClosure)
     expect(crisp.visemes.closed).toBeGreaterThan(soft.visemes.closed)
+  })
+
+  it('does not apply the chinese-specific closure lift to non-chinese voice profiles', () => {
+    const english = deriveStageEmbodimentSpeechArticulationState({
+      active: true,
+      text: 'Look here.',
+      metadata: {
+        speechSynthesis: {
+          provider: 'test',
+          voice: {
+            id: 'en-voice',
+            language: 'en-US',
+            consonantPrecision: 0.9,
+            vowelLegato: 0.3,
+            roundBias: 0.1,
+            spreadBias: 0.1,
+            jawBias: 0.1,
+            closureBias: 0.1,
+            rateMultiplier: 1,
+            pitchDelta: 0,
+          },
+        },
+      },
+      playbackDurationMs: 800,
+      startedAt: 0,
+      now: 200,
+      mouthOpenRatio: 0.4,
+    })
+
+    expect(english.voice?.language).toBe('en-US')
+    expect(english.lipClosure).toBeLessThan(1)
   })
 })

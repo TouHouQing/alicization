@@ -644,33 +644,37 @@ describe('stage embodiment speech contract', () => {
     })
 
     const softMetadata = {
-      voice: {
+      speechSynthesis: {
         provider: 'test',
-        voiceId: 'soft-zh',
-        language: 'zh-CN',
-        consonantPrecision: 0.2,
-        vowelLegato: 0.9,
-        roundBias: 0.1,
-        spreadBias: 0.1,
-        jawBias: 0.1,
-        closureBias: 0.1,
-        rateMultiplier: 1,
-        pitchDelta: 0,
+        voice: {
+          id: 'soft-zh',
+          language: 'zh-CN',
+          consonantPrecision: 0.2,
+          vowelLegato: 0.9,
+          roundBias: 0.1,
+          spreadBias: 0.1,
+          jawBias: 0.1,
+          closureBias: 0.1,
+          rateMultiplier: 1,
+          pitchDelta: 0,
+        },
       },
     } satisfies Record<string, unknown>
     const crispMetadata = {
-      voice: {
+      speechSynthesis: {
         provider: 'test',
-        voiceId: 'crisp-zh',
-        language: 'zh-CN',
-        consonantPrecision: 0.9,
-        vowelLegato: 0.3,
-        roundBias: 0.1,
-        spreadBias: 0.1,
-        jawBias: 0.1,
-        closureBias: 0.1,
-        rateMultiplier: 1,
-        pitchDelta: 0,
+        voice: {
+          id: 'crisp-zh',
+          language: 'zh-CN',
+          consonantPrecision: 0.9,
+          vowelLegato: 0.3,
+          roundBias: 0.1,
+          spreadBias: 0.1,
+          jawBias: 0.1,
+          closureBias: 0.1,
+          rateMultiplier: 1,
+          pitchDelta: 0,
+        },
       },
     } satisfies Record<string, unknown>
 
