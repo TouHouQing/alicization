@@ -107,6 +107,55 @@ function resolveVisualScenarioFromSpine(raw: unknown): NonNullable<AlicizationVi
     : 'general'
 }
 
+function resolvePresenceAuthorityFromSpine(input: {
+  digest: AlicizationDigitalLifeSpineDigest
+  previous: AlicizationVisualPresenceStateSnapshot | null
+  shouldSpeak: boolean
+}) {
+  if (
+    input.digest.runtime.watchMode === 'recovering'
+    && !input.shouldSpeak
+  ) {
+    return {
+      currentBodyState: 'recovering' as const,
+      continuityMode: 'protective-watch' as const,
+      quietLineMs: Math.max(0, input.previous?.quietLineMs ?? 0),
+      currentInwardPreoccupation: sanitizeBriefText(
+        input.digest.memory?.summary
+        || input.digest.runtime.sceneSummary
+        || 'quiet recovery watch',
+        180,
+      ) || 'quiet recovery watch',
+    }
+  }
+
+  if (
+    input.digest.runtime.watchMode === 'symbiotic-vision'
+    && !input.shouldSpeak
+  ) {
+    return {
+      currentBodyState: 'accompanying' as const,
+      continuityMode: 'quiet-accompaniment' as const,
+      quietLineMs: Math.max(0, input.previous?.quietLineMs ?? 0),
+      currentInwardPreoccupation: sanitizeBriefText(
+        input.digest.memory?.summary
+        || input.digest.runtime.sceneSummary
+        || 'quiet companionship watch',
+        180,
+      ) || 'quiet companionship watch',
+    }
+  }
+
+  return {
+    currentBodyState: 'idle' as const,
+    continuityMode: input.digest.architecture?.dominantSystem === 'dialogue'
+      ? 'active-dialogue' as const
+      : 'ambient-covision' as const,
+    quietLineMs: Math.max(0, input.previous?.quietLineMs ?? 0),
+    currentInwardPreoccupation: null,
+  }
+}
+
 function resolveVisualWorkloadKindFromSpine(input: {
   previous: AlicizationVisualPresenceStateSnapshot | null
   scenario: ReturnType<typeof resolveVisualScenarioFromSpine>
@@ -349,12 +398,21 @@ export function buildAlicizationVisualPresenceStateFromSpineDigest(input: {
     : confidence
   const shouldSpeak = input.digest.proactive?.shouldSpeak === true || memoryCarryPolicy.mode === 'reflective-repair'
   const suggestedStyle = resolvePrivateThoughtStyleFromSpine(input.digest, memoryCarryPolicy)
+  const authority = resolvePresenceAuthorityFromSpine({
+    digest: input.digest,
+    previous: input.previous ?? null,
+    shouldSpeak,
+  })
 
   return ensureAlicizationVisualPresenceResidentPerformance({
     ...base,
     watchMode: resolveVisualWatchModeFromSpine(
       input.digest.runtime.watchMode ?? input.digest.continuitySignal?.watchMode,
     ),
+    currentBodyState: authority.currentBodyState,
+    continuityMode: authority.continuityMode,
+    quietLineMs: authority.quietLineMs,
+    currentInwardPreoccupation: authority.currentInwardPreoccupation,
     currentScene: {
       workloadKind: resolveVisualWorkloadKindFromSpine({
         previous: input.previous ?? null,

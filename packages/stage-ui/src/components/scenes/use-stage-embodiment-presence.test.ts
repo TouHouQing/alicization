@@ -70,6 +70,31 @@ function createManifest(overrides?: Partial<CharacterPerformanceCapabilitiesMani
   }
 }
 
+function createSilentResidentPerformance(mode: 'accompanying' | 'recovering') {
+  const recovering = mode === 'recovering'
+  return {
+    version: 'resident-performance-v1' as const,
+    source: 'main-runtime' as const,
+    performance: createPerformance({
+      baseEmotion: recovering ? 'concerned' : 'thinking',
+      emotion: recovering ? 'concerned' : 'thinking',
+      facialCue: recovering ? 'soft-gaze' : 'focus',
+      actionCue: recovering ? 'comfort_sway' : 'observe_focus',
+      delivery: 'gentle',
+      emphasis: recovering ? 1 : 2,
+    }),
+    embodiedPresence: recovering ? 'concerned' as const : 'attentive' as const,
+    stance: recovering ? 'care' as const : 'accompany' as const,
+    emotionalTension: recovering ? 'late-night-drain' as const : 'soft-covision' as const,
+    confidence: 0.86,
+    reasonTags: [recovering ? 'recovery' : 'companionship'],
+    signature: recovering
+      ? 'resident|main-runtime|recovering|protective-watch'
+      : 'resident|main-runtime|accompanying|quiet-accompaniment',
+    updatedAt: Date.now(),
+  }
+}
+
 function createDispatcherHarness() {
   const controllers: any[] = []
   const scriptBuilderDisposers: Array<() => void> = []
@@ -480,6 +505,113 @@ describe('stage embodiment presence', () => {
     }))
 
     runtime.dispose()
+  })
+
+  it('keeps dialogue planning companionship- or recovery-biased from silent resident authority without forcing speech', async () => {
+    const cases = [
+      {
+        mode: 'accompanying' as const,
+        visualPresenceState: {
+          watchMode: 'symbiotic-vision',
+          currentBodyState: 'accompanying',
+          continuityMode: 'quiet-accompaniment',
+          residentPerformance: createSilentResidentPerformance('accompanying'),
+        },
+        expected: {
+          baseEmotion: 'thinking',
+          facialCue: 'focus',
+          actionCue: 'observe_focus',
+          delivery: 'gentle',
+          emphasis: 2,
+        },
+      },
+      {
+        mode: 'recovering' as const,
+        visualPresenceState: {
+          watchMode: 'recovering',
+          currentBodyState: 'recovering',
+          continuityMode: 'protective-watch',
+          residentPerformance: createSilentResidentPerformance('recovering'),
+        },
+        expected: {
+          baseEmotion: 'concerned',
+          facialCue: 'soft-gaze',
+          actionCue: 'comfort_sway',
+          delivery: 'gentle',
+          emphasis: 1,
+        },
+      },
+    ]
+
+    for (const testCase of cases) {
+      const harness = createDispatcherHarness()
+      const armPerformance = vi.fn()
+      const speakFallback = vi.fn()
+
+      const runtime = useStageEmbodimentPresence({
+        armPerformance,
+        currentMotion: ref({ group: 'Idle' as string, index: 0 as number | undefined }),
+        dispatcher: harness.dispatcher as any,
+        live2dActionCapabilities: computed(() => []),
+        normalizePresenceEmotionName: () => Emotion.Neutral,
+        applyEmotionSpeechStyle: vi.fn(),
+        clampPerformance: performance => performance,
+        enqueueEmotion: vi.fn(),
+        performanceManifest: computed(() => createManifest({
+          renderer: 'vrm',
+          supportedActions: [
+            { key: 'observe_focus', label: 'Observe', description: 'observe focus', source: 'builtin' },
+            { key: 'comfort_sway', label: 'Comfort', description: 'comfort sway', source: 'builtin' },
+          ],
+          supportedFacialCues: [
+            { key: 'focus', label: 'Focus', description: 'focus face', source: 'preset', affectsMouth: false },
+            { key: 'soft-gaze', label: 'Soft gaze', description: 'soft gaze', source: 'preset', affectsMouth: false },
+          ],
+        })),
+        resolveClampedPresencePulsePerformance: () => createPerformance(),
+        resolvePresenceIntensity: (_emphasis, fallback) => fallback,
+        speakFallback,
+        stageModelRenderer: ref('vrm'),
+        visualPresenceState: ref(testCase.visualPresenceState as any),
+      })
+
+      const vrmController = harness.getController('vrm')
+      expect(vrmController).toBeTruthy()
+
+      await vrmController?.applyPerformance(
+        createPerformance({
+          baseEmotion: 'neutral',
+          emotion: 'neutral',
+          facialCue: null,
+          actionCue: null,
+          delivery: 'calm',
+          emphasis: 0,
+        }),
+        createDialoguePayload({
+          turnId: `turn-silent-${testCase.mode}`,
+          structured: {
+            thought: `silent-${testCase.mode}`,
+            reply: '',
+            emotion: 'neutral',
+            performance: createPerformance({
+              baseEmotion: 'neutral',
+              emotion: 'neutral',
+              facialCue: null,
+              actionCue: null,
+              delivery: 'calm',
+              emphasis: 0,
+            }),
+            format: 'mind-turn-v1',
+          },
+        }),
+      )
+
+      expect(armPerformance).toBeCalledWith(expect.objectContaining(testCase.expected), expect.objectContaining({
+        source: 'dialogue',
+      }))
+      expect(speakFallback).not.toBeCalled()
+      runtime.dispose()
+    }
   })
 
   it('registers a director-backed script builder that reflects renderer context and resident state', () => {
