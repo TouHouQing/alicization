@@ -271,6 +271,91 @@ describe('stage embodiment resident performance', () => {
     expect(resolved.variationToken).toContain('late-night-care')
   })
 
+  it('biases synthesized silent accompanying toward quiet companionship instead of a flat reset', () => {
+    const resolved = resolveStageEmbodimentResidentPerformance({
+      activePresence: null,
+      performanceManifest: createManifest(),
+      presencePosture: null,
+      visualPresenceState: createVisualPresenceState({
+        watchMode: 'symbiotic-vision',
+        currentBodyState: 'accompanying',
+        continuityMode: 'quiet-accompaniment',
+        quietLineMs: 240_000,
+        currentInwardPreoccupation: 'host sustained focus',
+        currentScene: {
+          workloadKind: 'coding',
+          contentKind: 'editor',
+          scenario: 'coding',
+          summary: 'Quietly staying with the host through deep focus.',
+          source: 'screen-semantic-summary',
+          confidence: 0.72,
+          target: null,
+          beganAt: 0,
+          lastSeenAt: 1_000,
+        },
+        privateThought: {
+          shouldSpeak: false,
+          thoughtText: 'Stay close without interrupting.',
+          suggestedStyle: 'quiet-companionship',
+          embodiedPresence: 'attentive',
+          emotionalTension: 'soft-covision',
+          confidence: 0.7,
+          rationaleTags: ['companionship'],
+          stance: 'accompany',
+          expiresAt: Date.now() + 6_000,
+        },
+        residentPerformance: null,
+      }),
+    })
+
+    expect(['thinking', 'neutral']).toContain(resolved.performance.baseEmotion)
+    expect(['calm', 'gentle']).toContain(resolved.performance.delivery)
+    expect(['observe_focus', 'steady_focus', 'idle_gentle_nod']).toContain(resolved.performance.actionCue)
+  })
+
+  it('biases synthesized silent recovering toward low-pressure care instead of generic attention', () => {
+    const resolved = resolveStageEmbodimentResidentPerformance({
+      activePresence: null,
+      performanceManifest: createManifest(),
+      presencePosture: null,
+      visualPresenceState: createVisualPresenceState({
+        watchMode: 'recovering',
+        currentBodyState: 'recovering',
+        continuityMode: 'protective-watch',
+        quietLineMs: 90_000,
+        currentInwardPreoccupation: 'host recovery window',
+        currentScene: {
+          workloadKind: 'chat',
+          contentKind: 'chat',
+          scenario: 'late-night-care',
+          summary: 'Holding a gentle recovery watch without pushing.',
+          source: 'foreground-window-heuristic',
+          confidence: 0.65,
+          target: null,
+          beganAt: 0,
+          lastSeenAt: 1_000,
+        },
+        privateThought: {
+          shouldSpeak: false,
+          thoughtText: 'Keep the pressure low and stay nearby.',
+          suggestedStyle: 'protective-watch',
+          embodiedPresence: 'concerned',
+          emotionalTension: 'late-night-drain',
+          confidence: 0.68,
+          rationaleTags: ['recovery'],
+          stance: 'care',
+          expiresAt: Date.now() + 6_000,
+        },
+        residentPerformance: null,
+      }),
+    })
+
+    expect(['tired', 'concerned']).toContain(resolved.performance.baseEmotion)
+    expect(resolved.performance.delivery).toBe('gentle')
+    expect(['soft-gaze', 'relaxed', 'half-lid']).toContain(resolved.performance.facialCue)
+    expect(['idle_settle', 'comfort_sway', 'idle_gentle_nod']).toContain(resolved.performance.actionCue)
+  })
+
   it('prefers authoritative resident performance published by the main runtime', () => {
     const activePresence: StageEmbodimentAttentionPresenceState = {
       source: 'runtime-visual-presence',

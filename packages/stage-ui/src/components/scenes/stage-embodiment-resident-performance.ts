@@ -148,6 +148,57 @@ function buildResidentVariationToken(
   ].join('|')
 }
 
+function shouldBiasSilentAccompanying(input: ResolveStageEmbodimentResidentPerformanceInput) {
+  const visualPresenceState = input.visualPresenceState
+  if (visualPresenceState?.residentPerformance)
+    return false
+
+  return visualPresenceState?.currentBodyState === 'accompanying'
+    && visualPresenceState.continuityMode === 'quiet-accompaniment'
+    && Math.max(0, Number(visualPresenceState.quietLineMs ?? 0)) >= 120_000
+    && visualPresenceState.privateThought?.shouldSpeak === false
+}
+
+function shouldBiasSilentRecovering(input: ResolveStageEmbodimentResidentPerformanceInput) {
+  const visualPresenceState = input.visualPresenceState
+  if (visualPresenceState?.residentPerformance)
+    return false
+
+  return visualPresenceState?.currentBodyState === 'recovering'
+    && visualPresenceState.continuityMode === 'protective-watch'
+    && visualPresenceState.watchMode === 'recovering'
+    && visualPresenceState.privateThought?.shouldSpeak === false
+}
+
+function biasSilentResidentPerformance(input: ResolveStageEmbodimentResidentPerformanceInput, performance: AlicizationDialoguePerformancePayload) {
+  if (shouldBiasSilentAccompanying(input)) {
+    return normalizeAlicizationPerformancePayload({
+      ...performance,
+      baseEmotion: performance.baseEmotion === 'neutral' ? 'neutral' : 'thinking',
+      emotion: performance.baseEmotion === 'neutral' ? 'neutral' : 'thinking',
+      delivery: performance.delivery === 'gentle' ? 'gentle' : 'calm',
+      actionCue: 'steady_focus',
+      emphasis: Math.min(performance.emphasis, 1),
+    })
+  }
+
+  if (shouldBiasSilentRecovering(input)) {
+    const baseEmotion = performance.baseEmotion === 'tired' ? 'tired' : 'concerned'
+
+    return normalizeAlicizationPerformancePayload({
+      ...performance,
+      baseEmotion,
+      emotion: baseEmotion,
+      delivery: 'gentle',
+      facialCue: 'soft-gaze',
+      actionCue: 'comfort_sway',
+      emphasis: 1,
+    })
+  }
+
+  return performance
+}
+
 export function resolveStageEmbodimentResidentPerformance(
   input: ResolveStageEmbodimentResidentPerformanceInput,
 ): StageEmbodimentResidentPerformanceResolution {
@@ -155,7 +206,10 @@ export function resolveStageEmbodimentResidentPerformance(
   const planned = buildStageEmbodimentPerformancePlan({
     continuity: input.continuity,
     manifest: input.performanceManifest,
-    performance: normalizeAlicizationPerformancePayload(residentSnapshot.performance),
+    performance: biasSilentResidentPerformance(
+      input,
+      normalizeAlicizationPerformancePayload(residentSnapshot.performance),
+    ),
   })
 
   return {
