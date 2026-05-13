@@ -67,4 +67,114 @@ describe('stage embodiment idle performance', () => {
     expect(preference?.confidence).toBe(0.84)
     expect(preference?.binding?.actionKey).toBe('settle_idle')
   })
+
+  it('prefers comfort and settle recovering idles over energetic options', () => {
+    const live2dPreference = resolveLive2DIdleMotionPreference({
+      engaged: true,
+      mode: 'concerned',
+      confidence: 0.81,
+      bodyYaw: 0.04,
+      bodyPitch: 0.3,
+      breathBoost: 0.18,
+      gazeStability: 0.88,
+    }, [
+      {
+        actionKey: 'cheer_jump',
+        motionName: 'Cheer',
+        motionIndex: 0,
+        label: 'Cheer Jump',
+        description: 'excited cheer and bounce',
+      },
+      {
+        actionKey: 'comfort_settle',
+        motionName: 'Idle',
+        motionIndex: 1,
+        label: 'Comfort Settle',
+        description: 'gentle comfort settle and reassuring idle',
+      },
+    ])
+
+    expect(live2dPreference).toEqual({
+      mode: 'concerned',
+      confidence: 0.81,
+      actionKey: 'comfort_settle',
+      motionName: 'Idle',
+      motionIndex: 1,
+    })
+
+    const vrmPreference = resolveVrmIdleActionPreference({
+      engaged: true,
+      mode: 'concerned',
+      confidence: 0.81,
+      bodyYaw: 0.04,
+      bodyPitch: 0.3,
+      breathBoost: 0.18,
+      gazeStability: 0.88,
+    }, [
+      {
+        id: 'vrm-cheer',
+        fileName: 'cheer.vrma',
+        actionKey: 'cheer_jump',
+        label: 'Cheer Jump',
+        description: 'excited cheer and bounce',
+        importedAt: 0,
+        source: 'builtin',
+        file: '/tmp/cheer.vrma',
+      },
+      {
+        id: 'vrm-comfort',
+        fileName: 'comfort_settle.vrma',
+        actionKey: 'comfort_settle',
+        label: 'Comfort Settle',
+        description: 'gentle comfort settle and reassuring idle',
+        importedAt: 0,
+        source: 'builtin',
+        file: '/tmp/comfort_settle.vrma',
+      },
+    ])
+
+    expect(vrmPreference?.binding?.actionKey).toBe('comfort_settle')
+  })
+
+  it('prefers companionship-safe attentive idles over flat or energetic choices', () => {
+    const preference = resolveLive2DIdleMotionPreference({
+      engaged: true,
+      mode: 'attentive',
+      confidence: 0.74,
+      bodyYaw: 0.06,
+      bodyPitch: 0.24,
+      breathBoost: 0.16,
+      gazeStability: 0.8,
+    }, [
+      {
+        actionKey: 'neutral_loop',
+        motionName: 'Loop',
+        motionIndex: 0,
+        label: 'Neutral Loop',
+        description: 'flat neutral loop',
+      },
+      {
+        actionKey: 'companion_settle_nod',
+        motionName: 'Idle',
+        motionIndex: 1,
+        label: 'Companion Settle Nod',
+        description: 'attentive gentle companionship idle with a soft nod',
+      },
+      {
+        actionKey: 'excited_wave',
+        motionName: 'Wave',
+        motionIndex: 0,
+        label: 'Excited Wave',
+        description: 'energetic excited wave',
+      },
+    ])
+
+    expect(preference).toEqual({
+      mode: 'attentive',
+      confidence: 0.74,
+      actionKey: 'companion_settle_nod',
+      motionName: 'Idle',
+      motionIndex: 1,
+    })
+  })
 })

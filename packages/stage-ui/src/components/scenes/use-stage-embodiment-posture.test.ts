@@ -80,4 +80,147 @@ describe('stage embodiment posture', () => {
       gazeStability: 0.32,
     })
   })
+
+  it('keeps silent accompanying in an attentive engaged posture during quiet accompaniment', () => {
+    const result = deriveStageEmbodimentPresencePostureState({
+      activePresence: null,
+      basePoint: { x: 640, y: 360 },
+      targetPoint: { x: 664, y: 348 },
+      stageBounds: { width: 1280, height: 720 },
+      speechRenderState: createIdleStageEmbodimentSpeechRenderState(),
+      visualPresenceState: {
+        watchMode: 'symbiotic-vision',
+        currentBodyState: 'accompanying',
+        continuityMode: 'quiet-accompaniment',
+        quietLineMs: 240_000,
+        currentInwardPreoccupation: 'host sustained focus',
+        currentScene: null,
+        attention: null,
+        workingMemoryEpisodes: [],
+        privateThought: {
+          stance: 'accompany',
+          confidence: 0.72,
+          rationaleTags: ['quiet-companionship'],
+          thoughtText: 'Stay with the host without interrupting.',
+          shouldSpeak: false,
+          suggestedStyle: 'silent-observe',
+          embodiedPresence: 'attentive',
+          expiresAt: Date.now() + 5_000,
+          emotionalTension: 'focused-flow',
+        },
+        captureState: {
+          permission: 'granted',
+          lastGroundedAt: Date.now() - 200,
+        },
+        durabilityPulse: null,
+        recentTransition: null,
+        nextSuggestedProbeMs: 1_500,
+        updatedAt: Date.now() - 100,
+      },
+    })
+
+    expect(result.engaged).toBe(true)
+    expect(result.mode).toBe('attentive')
+    expect(result.confidence).toBeGreaterThan(0.25)
+    expect(Math.abs(result.bodyYaw)).toBeLessThan(0.18)
+    expect(result.bodyPitch).toBeGreaterThan(0.2)
+    expect(result.bodyPitch).toBeLessThan(0.42)
+    expect(result.breathBoost).toBeGreaterThan(0.08)
+    expect(result.breathBoost).toBeLessThan(0.3)
+    expect(result.gazeStability).toBeGreaterThan(0.78)
+  })
+
+  it('keeps recovering in a concerned posture under protective watch', () => {
+    const result = deriveStageEmbodimentPresencePostureState({
+      activePresence: null,
+      basePoint: { x: 640, y: 360 },
+      targetPoint: { x: 650, y: 352 },
+      stageBounds: { width: 1280, height: 720 },
+      speechRenderState: createIdleStageEmbodimentSpeechRenderState(),
+      visualPresenceState: {
+        watchMode: 'recovering',
+        currentBodyState: 'recovering',
+        continuityMode: 'protective-watch',
+        quietLineMs: 180_000,
+        currentInwardPreoccupation: 'hold low-pressure care',
+        currentScene: null,
+        attention: null,
+        workingMemoryEpisodes: [],
+        privateThought: {
+          stance: 'care',
+          confidence: 0.78,
+          rationaleTags: ['protective-watch'],
+          thoughtText: 'Stay nearby and keep the stance gentle.',
+          shouldSpeak: false,
+          suggestedStyle: 'silent-observe',
+          embodiedPresence: 'concerned',
+          expiresAt: Date.now() + 5_000,
+          emotionalTension: 'late-night-drain',
+        },
+        captureState: {
+          permission: 'granted',
+          lastGroundedAt: Date.now() - 200,
+        },
+        durabilityPulse: null,
+        recentTransition: null,
+        nextSuggestedProbeMs: 1_500,
+        updatedAt: Date.now() - 100,
+      },
+    })
+
+    expect(result.engaged).toBe(true)
+    expect(result.mode).toBe('concerned')
+    expect(result.confidence).toBeGreaterThan(0.22)
+    expect(Math.abs(result.bodyYaw)).toBeLessThan(0.14)
+    expect(result.bodyPitch).toBeGreaterThan(0.26)
+    expect(result.bodyPitch).toBeLessThan(0.5)
+    expect(result.breathBoost).toBeGreaterThan(0.1)
+    expect(result.breathBoost).toBeLessThan(0.32)
+    expect(result.gazeStability).toBeGreaterThan(0.82)
+  })
+
+  it('does not enter silent recovering posture when runtime still intends to speak', () => {
+    const result = deriveStageEmbodimentPresencePostureState({
+      activePresence: null,
+      basePoint: { x: 640, y: 360 },
+      targetPoint: { x: 650, y: 352 },
+      stageBounds: { width: 1280, height: 720 },
+      speechRenderState: createIdleStageEmbodimentSpeechRenderState(),
+      visualPresenceState: {
+        watchMode: 'recovering',
+        currentBodyState: 'recovering',
+        continuityMode: 'protective-watch',
+        quietLineMs: 180_000,
+        currentInwardPreoccupation: 'prepare a gentle recovery line',
+        currentScene: null,
+        attention: null,
+        workingMemoryEpisodes: [],
+        privateThought: {
+          stance: 'care',
+          confidence: 0.78,
+          rationaleTags: ['protective-watch'],
+          thoughtText: 'Speak softly once the opening is ready.',
+          shouldSpeak: true,
+          suggestedStyle: 'gentle-care',
+          embodiedPresence: 'concerned',
+          expiresAt: Date.now() + 5_000,
+          emotionalTension: 'late-night-drain',
+        },
+        captureState: {
+          permission: 'granted',
+          lastGroundedAt: Date.now() - 200,
+        },
+        durabilityPulse: null,
+        recentTransition: null,
+        nextSuggestedProbeMs: 1_500,
+        updatedAt: Date.now() - 100,
+      },
+    })
+
+    expect(result.mode).toBe('concerned')
+    expect(result.confidence).toBeLessThan(0.34)
+    expect(result.bodyPitch).toBeGreaterThan(0.38)
+    expect(result.breathBoost).toBeGreaterThan(0.13)
+    expect(result.gazeStability).toBeLessThan(0.9)
+  })
 })

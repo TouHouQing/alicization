@@ -29,6 +29,12 @@ export interface StageEmbodimentResidentPerformanceResolution {
   variationToken: string
 }
 
+interface SilentPresenceAuthorityFields {
+  continuityMode: 'ambient-covision' | 'quiet-accompaniment' | 'active-dialogue' | 'protective-watch' | 'rest-withdrawal' | null
+  currentBodyState: 'idle' | 'speaking' | 'listening' | 'thinking' | 'accompanying' | 'recovering' | null
+  quietLineMs: number
+}
+
 function clamp01(value: number, fallback: number = 0) {
   if (!Number.isFinite(value))
     return fallback
@@ -41,6 +47,41 @@ function sanitizeTokenText(raw: unknown, maxChars = 96) {
     return ''
 
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
+}
+
+function resolveSilentPresenceAuthority(
+  visualPresenceState: AlicizationVisualPresenceStateSnapshot | null | undefined,
+): SilentPresenceAuthorityFields {
+  // NOTICE: `packages/stage-ui/src/stores/alicization-bridge.ts` still carries a locally-expanded
+  // visual-presence snapshot shape that has not yet been fully re-synced with the shared transport
+  // contract. Main runtime already publishes `currentBodyState`, `continuityMode`, and `quietLineMs`.
+  // Keep this access local to resident-performance consumption until the broader cross-package type
+  // sync can land as a dedicated follow-up, instead of widening the current embodiment slice.
+  const candidate = visualPresenceState as Record<string, unknown> | null | undefined
+  const currentBodyState = candidate?.currentBodyState
+  const continuityMode = candidate?.continuityMode
+  const quietLineMs = candidate?.quietLineMs
+
+  return {
+    currentBodyState: currentBodyState === 'idle'
+      || currentBodyState === 'speaking'
+      || currentBodyState === 'listening'
+      || currentBodyState === 'thinking'
+      || currentBodyState === 'accompanying'
+      || currentBodyState === 'recovering'
+      ? currentBodyState
+      : null,
+    continuityMode: continuityMode === 'ambient-covision'
+      || continuityMode === 'quiet-accompaniment'
+      || continuityMode === 'active-dialogue'
+      || continuityMode === 'protective-watch'
+      || continuityMode === 'rest-withdrawal'
+      ? continuityMode
+      : null,
+    quietLineMs: typeof quietLineMs === 'number' && Number.isFinite(quietLineMs)
+      ? Math.max(0, quietLineMs)
+      : 0,
+  }
 }
 
 function resolveEmbodiedPresence(input: ResolveStageEmbodimentResidentPerformanceInput) {
@@ -152,10 +193,11 @@ function shouldBiasSilentAccompanying(input: ResolveStageEmbodimentResidentPerfo
   const visualPresenceState = input.visualPresenceState
   if (visualPresenceState?.residentPerformance)
     return false
+  const authority = resolveSilentPresenceAuthority(visualPresenceState)
 
-  return visualPresenceState?.currentBodyState === 'accompanying'
-    && visualPresenceState.continuityMode === 'quiet-accompaniment'
-    && Math.max(0, Number(visualPresenceState.quietLineMs ?? 0)) >= 120_000
+  return authority.currentBodyState === 'accompanying'
+    && authority.continuityMode === 'quiet-accompaniment'
+    && authority.quietLineMs >= 120_000
     && visualPresenceState.privateThought?.shouldSpeak === false
 }
 
@@ -163,9 +205,10 @@ function shouldBiasSilentRecovering(input: ResolveStageEmbodimentResidentPerform
   const visualPresenceState = input.visualPresenceState
   if (visualPresenceState?.residentPerformance)
     return false
+  const authority = resolveSilentPresenceAuthority(visualPresenceState)
 
-  return visualPresenceState?.currentBodyState === 'recovering'
-    && visualPresenceState.continuityMode === 'protective-watch'
+  return authority.currentBodyState === 'recovering'
+    && authority.continuityMode === 'protective-watch'
     && visualPresenceState.watchMode === 'recovering'
     && visualPresenceState.privateThought?.shouldSpeak === false
 }
