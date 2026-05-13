@@ -434,6 +434,67 @@ describe('stage embodiment resident performance', () => {
     expect(resolved.variationToken).toBe(visualPresenceState.residentPerformance?.signature)
   })
 
+  it('fills missing published runtime cues through renderer planning without changing authoritative affect', () => {
+    const visualPresenceState = createVisualPresenceState({
+      watchMode: 'recovering',
+      currentScene: {
+        workloadKind: 'chat',
+        contentKind: 'chat',
+        scenario: 'late-night-care',
+        summary: 'Published runtime affect should still receive renderer-supported cues when missing.',
+        source: 'foreground-window-heuristic',
+        confidence: 0.77,
+        target: null,
+        beganAt: 0,
+        lastSeenAt: 1_000,
+      },
+      residentPerformance: {
+        version: 'resident-performance-v1',
+        source: 'main-runtime',
+        performance: {
+          baseEmotion: 'tired',
+          emotion: 'tired',
+          facialCue: null,
+          actionCue: null,
+          delivery: 'gentle',
+          emphasis: 1,
+        },
+        embodiedPresence: 'concerned',
+        stance: 'care',
+        emotionalTension: 'late-night-drain',
+        confidence: 0.82,
+        reasonTags: ['resident-performance', 'scene:late-night-care'],
+        signature: 'resident|main-runtime|concerned|care|late-night-drain|late-night-care|chat|chat|soft-room|tired|gentle|1',
+        updatedAt: 1_000,
+      },
+      privateThought: {
+        shouldSpeak: false,
+        thoughtText: 'Hold a soft care posture.',
+        suggestedStyle: 'gentle-care',
+        embodiedPresence: 'concerned',
+        emotionalTension: 'late-night-drain',
+        confidence: 0.8,
+        rationaleTags: ['care'],
+        stance: 'care',
+        expiresAt: Date.now() + 6_000,
+      },
+    })
+
+    const resolved = resolveStageEmbodimentResidentPerformance({
+      activePresence: null,
+      performanceManifest: createManifest(),
+      presencePosture: null,
+      visualPresenceState,
+    })
+
+    expect(resolved.performance.baseEmotion).toBe('tired')
+    expect(resolved.performance.delivery).toBe('gentle')
+    expect(resolved.performance.emphasis).toBe(1)
+    expect(['relaxed', 'half-lid', 'soft-gaze']).toContain(resolved.performance.facialCue)
+    expect(['idle_settle', 'slow_nod', 'comfort_sway', 'idle_gentle_nod']).toContain(resolved.performance.actionCue)
+    expect(resolved.variationToken).toBe(visualPresenceState.residentPerformance?.signature)
+  })
+
   it('derives resident performance from transient digital-life spine when runtime snapshot is absent', () => {
     const resolved = resolveStageEmbodimentResidentPerformance({
       activePresence: null,
