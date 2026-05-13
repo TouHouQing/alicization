@@ -203,6 +203,17 @@ export function resolveStageEmbodimentResidentPerformance(
   input: ResolveStageEmbodimentResidentPerformanceInput,
 ): StageEmbodimentResidentPerformanceResolution {
   const residentSnapshot = resolveResidentSnapshot(input)
+  if (input.visualPresenceState?.residentPerformance) {
+    return {
+      performance: normalizeAlicizationPerformancePayload(residentSnapshot.performance),
+      variationToken: sanitizeTokenText(residentSnapshot.signature, 240)
+        || buildResidentVariationToken(
+          input,
+          normalizeAlicizationPerformancePayload(residentSnapshot.performance),
+        ),
+    }
+  }
+
   const planned = buildStageEmbodimentPerformancePlan({
     continuity: input.continuity,
     manifest: input.performanceManifest,

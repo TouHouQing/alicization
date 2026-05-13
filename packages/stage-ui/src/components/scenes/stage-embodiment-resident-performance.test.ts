@@ -393,6 +393,8 @@ describe('stage embodiment resident performance', () => {
         performance: {
           baseEmotion: 'tired',
           emotion: 'tired',
+          facialCue: 'runtime-half-closed',
+          actionCue: 'runtime-stillness',
           delivery: 'gentle',
           emphasis: 1,
         },
@@ -427,6 +429,8 @@ describe('stage embodiment resident performance', () => {
     expect(resolved.performance.baseEmotion).toBe('tired')
     expect(resolved.performance.delivery).toBe('gentle')
     expect(resolved.performance.emphasis).toBe(1)
+    expect(resolved.performance.facialCue).toBe('runtime-half-closed')
+    expect(resolved.performance.actionCue).toBe('runtime-stillness')
     expect(resolved.variationToken).toBe(visualPresenceState.residentPerformance?.signature)
   })
 
