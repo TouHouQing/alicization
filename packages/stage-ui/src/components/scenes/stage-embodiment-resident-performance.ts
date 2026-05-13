@@ -198,7 +198,7 @@ function shouldBiasSilentAccompanying(input: ResolveStageEmbodimentResidentPerfo
   return authority.currentBodyState === 'accompanying'
     && authority.continuityMode === 'quiet-accompaniment'
     && authority.quietLineMs >= 120_000
-    && visualPresenceState.privateThought?.shouldSpeak === false
+    && visualPresenceState?.privateThought?.shouldSpeak === false
 }
 
 function shouldBiasSilentRecovering(input: ResolveStageEmbodimentResidentPerformanceInput) {
@@ -209,8 +209,8 @@ function shouldBiasSilentRecovering(input: ResolveStageEmbodimentResidentPerform
 
   return authority.currentBodyState === 'recovering'
     && authority.continuityMode === 'protective-watch'
-    && visualPresenceState.watchMode === 'recovering'
-    && visualPresenceState.privateThought?.shouldSpeak === false
+    && visualPresenceState?.watchMode === 'recovering'
+    && visualPresenceState?.privateThought?.shouldSpeak === false
 }
 
 function biasSilentResidentPerformance(input: ResolveStageEmbodimentResidentPerformanceInput, performance: AlicizationDialoguePerformancePayload) {

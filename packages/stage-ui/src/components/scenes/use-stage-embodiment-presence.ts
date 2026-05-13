@@ -1,10 +1,9 @@
-import type { StageEmbodimentSpeechStyleProfile } from '@proj-alicization/stage-shared'
+import type { AlicizationEmbodimentScriptV1, StageEmbodimentSpeechStyleProfile } from '@proj-alicization/stage-shared'
 import type { ComputedRef, Ref } from 'vue'
 
 import type { EmotionPayload } from '../../constants/emotions'
 import type {
   AlicizationDialogueEmbodimentEnvelope,
-  AlicizationEmbodimentScriptV1,
   AlicizationDialoguePerformancePayload,
   AlicizationDialogueRespondedPayload,
   AlicizationDialogueSpeechTimeline,

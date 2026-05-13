@@ -1,4 +1,4 @@
-import type { AlicizationDigitalLifeSpineDigest } from '../../stores/alicization-bridge'
+import type { AlicizationDigitalLifeSpineDigest, AlicizationVisualPresenceStateSnapshot } from '../../stores/alicization-bridge'
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { effectScope, nextTick } from 'vue'
@@ -144,10 +144,42 @@ function createDigitalLifeSpineDigest(updatedAt = Date.now()) {
   } satisfies AlicizationDigitalLifeSpineDigest
 }
 
+function createRecoveringDigitalLifeSpineDigest(updatedAt = Date.now()): AlicizationDigitalLifeSpineDigest {
+  return {
+    ...createDigitalLifeSpineDigest(updatedAt),
+    runtime: {
+      ...createDigitalLifeSpineDigest(updatedAt).runtime,
+      watchMode: 'recovering',
+      sceneScenario: 'late-night-care',
+      sceneSummary: 'hold recovery watch near the host',
+      preferredPresence: 'concerned',
+      dominantMode: 'accompanying',
+      answerIntent: 'care',
+    },
+    architecture: {
+      ...createDigitalLifeSpineDigest(updatedAt).architecture,
+      operatingMode: 'thinking',
+      dominantSystem: 'perception',
+      summary: 'quiet recovery watch stays present without speech',
+    },
+    proactive: {
+      ...createDigitalLifeSpineDigest(updatedAt).proactive,
+      selectedAction: 'wait',
+      preferredStyle: 'silent-observe',
+      shouldSpeak: false,
+      preferredPresence: 'concerned',
+    },
+    memory: {
+      ...createDigitalLifeSpineDigest(updatedAt).memory,
+      summary: 'Keep recovery watch without speaking.',
+    },
+  }
+}
+
 function createSilentPresenceVisualSnapshot(
   mode: 'accompanying' | 'recovering',
   updatedAt = Date.now(),
-) {
+): AlicizationVisualPresenceStateSnapshot {
   const recovering = mode === 'recovering'
   return {
     watchMode: recovering ? 'recovering' : 'symbiotic-vision',
@@ -170,7 +202,7 @@ function createSilentPresenceVisualSnapshot(
       rationaleTags: [recovering ? 'recovery' : 'companionship'],
       thoughtText: recovering ? 'Keep watch without adding pressure.' : 'Stay nearby without interrupting.',
       shouldSpeak: false,
-      suggestedStyle: recovering ? 'protective-watch' as const : 'quiet-companionship' as const,
+      suggestedStyle: recovering ? 'gentle-care' as const : 'silent-observe' as const,
       embodiedPresence: recovering ? 'concerned' as const : 'attentive' as const,
       expiresAt: updatedAt + 4_000,
       emotionalTension: recovering ? 'late-night-drain' as const : 'soft-covision' as const,
@@ -184,7 +216,7 @@ function createSilentPresenceVisualSnapshot(
     recentTransition: null,
     nextSuggestedProbeMs: 1_400,
     updatedAt,
-  }
+  } as AlicizationVisualPresenceStateSnapshot
 }
 
 async function flushTasks() {
@@ -298,7 +330,7 @@ describe('stage embodiment visual presence', () => {
   })
 
   it('keeps silent accompanying and recovering authority alive from pushed snapshots or transient spine without dialogue turns', async () => {
-    let emitSnapshot: ((state: ReturnType<typeof createSilentPresenceVisualSnapshot> | null) => void) | undefined
+    let emitSnapshot: ((state: AlicizationVisualPresenceStateSnapshot | null) => void) | undefined
     setAlicizationBridge(createAlicizationBridgeStub({
       getVisualPresenceState: vi.fn().mockResolvedValue(null),
       onVisualPresenceState: (listener) => {
@@ -328,21 +360,7 @@ describe('stage embodiment visual presence', () => {
       }),
     })
 
-    const recoveringDigest = createDigitalLifeSpineDigest(8_400)
-    recoveringDigest.runtime.watchMode = 'recovering'
-    recoveringDigest.runtime.sceneScenario = 'late-night-care'
-    recoveringDigest.runtime.sceneSummary = 'hold recovery watch near the host'
-    recoveringDigest.runtime.preferredPresence = 'concerned'
-    recoveringDigest.runtime.dominantMode = 'accompanying'
-    recoveringDigest.runtime.answerIntent = 'care'
-    recoveringDigest.architecture.operatingMode = 'silent'
-    recoveringDigest.architecture.dominantSystem = 'perception'
-    recoveringDigest.architecture.summary = 'quiet recovery watch stays present without speech'
-    recoveringDigest.proactive.selectedAction = 'wait'
-    recoveringDigest.proactive.preferredStyle = 'silent-observe'
-    recoveringDigest.proactive.shouldSpeak = false
-    recoveringDigest.proactive.preferredPresence = 'concerned'
-    recoveringDigest.memory.summary = 'Keep recovery watch without speaking.'
+    const recoveringDigest = createRecoveringDigitalLifeSpineDigest(8_400)
 
     const recoveringState = embodimentVisualPresence.applyTransientDigitalLifeSpine(recoveringDigest)
     await flushTasks()

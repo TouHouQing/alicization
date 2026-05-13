@@ -2,6 +2,7 @@ import type { StageEmbodimentPresencePostureState } from '@proj-alicization/stag
 
 import type {
   AlicizationDigitalLifeSpineDigest,
+  AlicizationResidentPerformanceSnapshot,
   AlicizationVisualPresenceStateSnapshot,
   CharacterPerformanceCapabilitiesManifest,
 } from '../../stores/alicization-bridge'
@@ -74,6 +75,48 @@ function createVisualPresenceState(
     updatedAt: 1_000,
     ...overrides,
   } as AlicizationVisualPresenceStateSnapshot
+}
+
+function withSilentPresenceAuthority<T extends AlicizationVisualPresenceStateSnapshot>(
+  state: T,
+  authority: {
+    currentBodyState: 'accompanying' | 'recovering'
+    continuityMode: 'quiet-accompaniment' | 'protective-watch'
+    quietLineMs: number
+    currentInwardPreoccupation: string
+  },
+): T {
+  return {
+    ...state,
+    ...authority,
+  } as T
+}
+
+function createSilentResidentPerformanceSnapshot(
+  mode: 'accompanying' | 'recovering',
+): AlicizationResidentPerformanceSnapshot {
+  const recovering = mode === 'recovering'
+  return {
+    version: 'resident-performance-v1',
+    source: 'main-runtime',
+    performance: {
+      baseEmotion: recovering ? 'tired' : 'thinking',
+      emotion: recovering ? 'tired' : 'thinking',
+      facialCue: recovering ? 'soft-gaze' : 'focus',
+      actionCue: recovering ? 'comfort_sway' : 'observe_focus',
+      delivery: 'gentle',
+      emphasis: recovering ? 1 : 2,
+    },
+    embodiedPresence: recovering ? 'concerned' : 'attentive',
+    stance: recovering ? 'care' : 'accompany',
+    emotionalTension: recovering ? 'late-night-drain' : 'soft-covision',
+    confidence: 0.82,
+    reasonTags: [recovering ? 'recovery' : 'companionship'],
+    signature: recovering
+      ? 'resident|main-runtime|recovering|protective-watch'
+      : 'resident|main-runtime|accompanying|quiet-accompaniment',
+    updatedAt: 1_000,
+  }
 }
 
 function createDigitalLifeSpineDigest(overrides: Partial<AlicizationDigitalLifeSpineDigest> = {}): AlicizationDigitalLifeSpineDigest {
@@ -276,15 +319,11 @@ describe('stage embodiment resident performance', () => {
       activePresence: null,
       performanceManifest: createManifest(),
       presencePosture: null,
-      visualPresenceState: createVisualPresenceState({
+      visualPresenceState: withSilentPresenceAuthority(createVisualPresenceState({
         watchMode: 'symbiotic-vision',
-        currentBodyState: 'accompanying',
-        continuityMode: 'quiet-accompaniment',
-        quietLineMs: 240_000,
-        currentInwardPreoccupation: 'host sustained focus',
         currentScene: {
           workloadKind: 'coding',
-          contentKind: 'editor',
+          contentKind: 'doc',
           scenario: 'coding',
           summary: 'Quietly staying with the host through deep focus.',
           source: 'screen-semantic-summary',
@@ -296,7 +335,7 @@ describe('stage embodiment resident performance', () => {
         privateThought: {
           shouldSpeak: false,
           thoughtText: 'Stay close without interrupting.',
-          suggestedStyle: 'quiet-companionship',
+          suggestedStyle: 'silent-observe',
           embodiedPresence: 'attentive',
           emotionalTension: 'soft-covision',
           confidence: 0.7,
@@ -305,6 +344,11 @@ describe('stage embodiment resident performance', () => {
           expiresAt: Date.now() + 6_000,
         },
         residentPerformance: null,
+      }), {
+        currentBodyState: 'accompanying',
+        continuityMode: 'quiet-accompaniment',
+        quietLineMs: 240_000,
+        currentInwardPreoccupation: 'host sustained focus',
       }),
     })
 
@@ -318,12 +362,8 @@ describe('stage embodiment resident performance', () => {
       activePresence: null,
       performanceManifest: createManifest(),
       presencePosture: null,
-      visualPresenceState: createVisualPresenceState({
+      visualPresenceState: withSilentPresenceAuthority(createVisualPresenceState({
         watchMode: 'recovering',
-        currentBodyState: 'recovering',
-        continuityMode: 'protective-watch',
-        quietLineMs: 90_000,
-        currentInwardPreoccupation: 'host recovery window',
         currentScene: {
           workloadKind: 'chat',
           contentKind: 'chat',
@@ -338,7 +378,7 @@ describe('stage embodiment resident performance', () => {
         privateThought: {
           shouldSpeak: false,
           thoughtText: 'Keep the pressure low and stay nearby.',
-          suggestedStyle: 'protective-watch',
+          suggestedStyle: 'gentle-care',
           embodiedPresence: 'concerned',
           emotionalTension: 'late-night-drain',
           confidence: 0.68,
@@ -347,6 +387,11 @@ describe('stage embodiment resident performance', () => {
           expiresAt: Date.now() + 6_000,
         },
         residentPerformance: null,
+      }), {
+        currentBodyState: 'recovering',
+        continuityMode: 'protective-watch',
+        quietLineMs: 90_000,
+        currentInwardPreoccupation: 'host recovery window',
       }),
     })
 
@@ -387,25 +432,14 @@ describe('stage embodiment resident performance', () => {
         beganAt: 0,
         lastSeenAt: 1_000,
       },
-      residentPerformance: {
-        version: 'resident-performance-v1',
-        source: 'main-runtime',
+        residentPerformance: {
+        ...createSilentResidentPerformanceSnapshot('recovering'),
         performance: {
-          baseEmotion: 'tired',
-          emotion: 'tired',
+          ...createSilentResidentPerformanceSnapshot('recovering').performance,
           facialCue: 'runtime-half-closed',
           actionCue: 'runtime-stillness',
-          delivery: 'gentle',
-          emphasis: 1,
         },
-        embodiedPresence: 'concerned',
-        stance: 'care',
-        emotionalTension: 'late-night-drain',
-        confidence: 0.8,
-        reasonTags: ['resident-performance', 'scene:late-night-care'],
-        signature: 'resident|main-runtime|concerned|care|late-night-drain|late-night-care|chat|chat|soft-room|tired|gentle|1',
-        updatedAt: 1_000,
-      },
+      } satisfies AlicizationResidentPerformanceSnapshot,
       privateThought: {
         shouldSpeak: false,
         thoughtText: 'Stay gentle.',
@@ -449,24 +483,13 @@ describe('stage embodiment resident performance', () => {
         lastSeenAt: 1_000,
       },
       residentPerformance: {
-        version: 'resident-performance-v1',
-        source: 'main-runtime',
+        ...createSilentResidentPerformanceSnapshot('recovering'),
         performance: {
-          baseEmotion: 'tired',
-          emotion: 'tired',
+          ...createSilentResidentPerformanceSnapshot('recovering').performance,
           facialCue: null,
           actionCue: null,
-          delivery: 'gentle',
-          emphasis: 1,
         },
-        embodiedPresence: 'concerned',
-        stance: 'care',
-        emotionalTension: 'late-night-drain',
-        confidence: 0.82,
-        reasonTags: ['resident-performance', 'scene:late-night-care'],
-        signature: 'resident|main-runtime|concerned|care|late-night-drain|late-night-care|chat|chat|soft-room|tired|gentle|1',
-        updatedAt: 1_000,
-      },
+      } satisfies AlicizationResidentPerformanceSnapshot,
       privateThought: {
         shouldSpeak: false,
         thoughtText: 'Hold a soft care posture.',

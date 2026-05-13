@@ -1,9 +1,44 @@
 import {
   createIdleStageEmbodimentSpeechRenderState,
 } from '@proj-alicization/stage-shared'
+import type { AlicizationVisualPresenceStateSnapshot } from '../../stores/alicization-bridge'
 import { describe, expect, it } from 'vitest'
 
 import { deriveStageEmbodimentPresencePostureState } from './use-stage-embodiment-posture'
+
+function withSilentPresenceAuthority<T extends AlicizationVisualPresenceStateSnapshot>(
+  state: T,
+  authority: {
+    currentBodyState: 'accompanying' | 'recovering'
+    continuityMode: 'quiet-accompaniment' | 'protective-watch'
+    quietLineMs: number
+    currentInwardPreoccupation: string
+  },
+): T {
+  return {
+    ...state,
+    ...authority,
+  } as T
+}
+
+function createVisualPresenceStateForPosture(overrides: Partial<AlicizationVisualPresenceStateSnapshot> = {}) {
+  return {
+    watchMode: 'mnemonic-passive',
+    currentScene: null,
+    attention: null,
+    workingMemoryEpisodes: [],
+    privateThought: null,
+    captureState: {
+      permission: 'granted' as const,
+      lastGroundedAt: Date.now() - 200,
+    },
+    durabilityPulse: null,
+    recentTransition: null,
+    nextSuggestedProbeMs: 1_500,
+    updatedAt: Date.now() - 100,
+    ...overrides,
+  } satisfies AlicizationVisualPresenceStateSnapshot
+}
 
 describe('stage embodiment posture', () => {
   it('leans into invited inspection with stable gaze posture', () => {
@@ -88,15 +123,8 @@ describe('stage embodiment posture', () => {
       targetPoint: { x: 664, y: 348 },
       stageBounds: { width: 1280, height: 720 },
       speechRenderState: createIdleStageEmbodimentSpeechRenderState(),
-      visualPresenceState: {
+      visualPresenceState: withSilentPresenceAuthority(createVisualPresenceStateForPosture({
         watchMode: 'symbiotic-vision',
-        currentBodyState: 'accompanying',
-        continuityMode: 'quiet-accompaniment',
-        quietLineMs: 240_000,
-        currentInwardPreoccupation: 'host sustained focus',
-        currentScene: null,
-        attention: null,
-        workingMemoryEpisodes: [],
         privateThought: {
           stance: 'accompany',
           confidence: 0.72,
@@ -108,15 +136,12 @@ describe('stage embodiment posture', () => {
           expiresAt: Date.now() + 5_000,
           emotionalTension: 'focused-flow',
         },
-        captureState: {
-          permission: 'granted',
-          lastGroundedAt: Date.now() - 200,
-        },
-        durabilityPulse: null,
-        recentTransition: null,
-        nextSuggestedProbeMs: 1_500,
-        updatedAt: Date.now() - 100,
-      },
+      }), {
+        currentBodyState: 'accompanying',
+        continuityMode: 'quiet-accompaniment',
+        quietLineMs: 240_000,
+        currentInwardPreoccupation: 'host sustained focus',
+      }),
     })
 
     expect(result.engaged).toBe(true)
@@ -137,15 +162,8 @@ describe('stage embodiment posture', () => {
       targetPoint: { x: 650, y: 352 },
       stageBounds: { width: 1280, height: 720 },
       speechRenderState: createIdleStageEmbodimentSpeechRenderState(),
-      visualPresenceState: {
+      visualPresenceState: withSilentPresenceAuthority(createVisualPresenceStateForPosture({
         watchMode: 'recovering',
-        currentBodyState: 'recovering',
-        continuityMode: 'protective-watch',
-        quietLineMs: 180_000,
-        currentInwardPreoccupation: 'hold low-pressure care',
-        currentScene: null,
-        attention: null,
-        workingMemoryEpisodes: [],
         privateThought: {
           stance: 'care',
           confidence: 0.78,
@@ -157,15 +175,12 @@ describe('stage embodiment posture', () => {
           expiresAt: Date.now() + 5_000,
           emotionalTension: 'late-night-drain',
         },
-        captureState: {
-          permission: 'granted',
-          lastGroundedAt: Date.now() - 200,
-        },
-        durabilityPulse: null,
-        recentTransition: null,
-        nextSuggestedProbeMs: 1_500,
-        updatedAt: Date.now() - 100,
-      },
+      }), {
+        currentBodyState: 'recovering',
+        continuityMode: 'protective-watch',
+        quietLineMs: 180_000,
+        currentInwardPreoccupation: 'hold low-pressure care',
+      }),
     })
 
     expect(result.engaged).toBe(true)
@@ -186,15 +201,8 @@ describe('stage embodiment posture', () => {
       targetPoint: { x: 650, y: 352 },
       stageBounds: { width: 1280, height: 720 },
       speechRenderState: createIdleStageEmbodimentSpeechRenderState(),
-      visualPresenceState: {
+      visualPresenceState: withSilentPresenceAuthority(createVisualPresenceStateForPosture({
         watchMode: 'recovering',
-        currentBodyState: 'recovering',
-        continuityMode: 'protective-watch',
-        quietLineMs: 180_000,
-        currentInwardPreoccupation: 'prepare a gentle recovery line',
-        currentScene: null,
-        attention: null,
-        workingMemoryEpisodes: [],
         privateThought: {
           stance: 'care',
           confidence: 0.78,
@@ -206,15 +214,12 @@ describe('stage embodiment posture', () => {
           expiresAt: Date.now() + 5_000,
           emotionalTension: 'late-night-drain',
         },
-        captureState: {
-          permission: 'granted',
-          lastGroundedAt: Date.now() - 200,
-        },
-        durabilityPulse: null,
-        recentTransition: null,
-        nextSuggestedProbeMs: 1_500,
-        updatedAt: Date.now() - 100,
-      },
+      }), {
+        currentBodyState: 'recovering',
+        continuityMode: 'protective-watch',
+        quietLineMs: 180_000,
+        currentInwardPreoccupation: 'prepare a gentle recovery line',
+      }),
     })
 
     expect(result.mode).toBe('concerned')

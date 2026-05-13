@@ -9,6 +9,17 @@ import {
   deriveAlicizationResidentPerformanceSnapshot,
 } from '@proj-alicization/stage-shared'
 
+interface SilentPresenceAuthorityFields {
+  continuityMode: 'ambient-covision' | 'quiet-accompaniment' | 'active-dialogue' | 'protective-watch' | 'rest-withdrawal'
+  currentBodyState: 'idle' | 'speaking' | 'listening' | 'thinking' | 'accompanying' | 'recovering'
+  currentInwardPreoccupation: string | null
+  quietLineMs: number
+}
+
+type AlicizationVisualPresenceStateWithAuthority
+  = AlicizationVisualPresenceStateSnapshot
+  & Partial<SilentPresenceAuthorityFields>
+
 function clamp01(value: number, fallback = 0) {
   if (Number.isNaN(value))
     return fallback
@@ -111,15 +122,16 @@ function resolvePresenceAuthorityFromSpine(input: {
   digest: AlicizationDigitalLifeSpineDigest
   previous: AlicizationVisualPresenceStateSnapshot | null
   shouldSpeak: boolean
-}) {
+}): SilentPresenceAuthorityFields {
+  const previousAuthority = input.previous as AlicizationVisualPresenceStateWithAuthority | null
   if (
     input.digest.runtime.watchMode === 'recovering'
     && !input.shouldSpeak
   ) {
-    return {
-      currentBodyState: 'recovering' as const,
-      continuityMode: 'protective-watch' as const,
-      quietLineMs: Math.max(0, input.previous?.quietLineMs ?? 0),
+      return {
+        currentBodyState: 'recovering' as const,
+        continuityMode: 'protective-watch' as const,
+      quietLineMs: Math.max(0, previousAuthority?.quietLineMs ?? 0),
       currentInwardPreoccupation: sanitizeBriefText(
         input.digest.memory?.summary
         || input.digest.runtime.sceneSummary
@@ -133,10 +145,10 @@ function resolvePresenceAuthorityFromSpine(input: {
     input.digest.runtime.watchMode === 'symbiotic-vision'
     && !input.shouldSpeak
   ) {
-    return {
-      currentBodyState: 'accompanying' as const,
-      continuityMode: 'quiet-accompaniment' as const,
-      quietLineMs: Math.max(0, input.previous?.quietLineMs ?? 0),
+      return {
+        currentBodyState: 'accompanying' as const,
+        continuityMode: 'quiet-accompaniment' as const,
+      quietLineMs: Math.max(0, previousAuthority?.quietLineMs ?? 0),
       currentInwardPreoccupation: sanitizeBriefText(
         input.digest.memory?.summary
         || input.digest.runtime.sceneSummary
@@ -151,7 +163,7 @@ function resolvePresenceAuthorityFromSpine(input: {
     continuityMode: input.digest.architecture?.dominantSystem === 'dialogue'
       ? 'active-dialogue' as const
       : 'ambient-covision' as const,
-    quietLineMs: Math.max(0, input.previous?.quietLineMs ?? 0),
+    quietLineMs: Math.max(0, previousAuthority?.quietLineMs ?? 0),
     currentInwardPreoccupation: null,
   }
 }
@@ -404,7 +416,7 @@ export function buildAlicizationVisualPresenceStateFromSpineDigest(input: {
     shouldSpeak,
   })
 
-  return ensureAlicizationVisualPresenceResidentPerformance({
+  const nextState: AlicizationVisualPresenceStateWithAuthority = {
     ...base,
     watchMode: resolveVisualWatchModeFromSpine(
       input.digest.runtime.watchMode ?? input.digest.continuitySignal?.watchMode,
@@ -462,5 +474,9 @@ export function buildAlicizationVisualPresenceStateFromSpineDigest(input: {
       leadingGoalId: input.digest.proactive?.leadingGoalId ?? base.privateThought?.leadingGoalId ?? null,
     },
     updatedAt: input.digest.runtime.updatedAt ?? currentTs,
-  })
+  }
+
+  return ensureAlicizationVisualPresenceResidentPerformance(
+    nextState as AlicizationVisualPresenceStateSnapshot,
+  )
 }

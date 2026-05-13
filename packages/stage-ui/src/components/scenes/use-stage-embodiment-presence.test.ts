@@ -2,6 +2,7 @@ import type {
   AlicizationDialoguePerformancePayload,
   AlicizationDialogueRespondedPayload,
   AlicizationPresencePulsePayload,
+  AlicizationResidentPerformanceSnapshot,
   CharacterPerformanceCapabilitiesManifest,
 } from '../../stores/alicization-bridge'
 
@@ -92,7 +93,7 @@ function createSilentResidentPerformance(mode: 'accompanying' | 'recovering') {
       ? 'resident|main-runtime|recovering|protective-watch'
       : 'resident|main-runtime|accompanying|quiet-accompaniment',
     updatedAt: Date.now(),
-  }
+  } satisfies import('../../stores/alicization-bridge').AlicizationResidentPerformanceSnapshot
 }
 
 function createDispatcherHarness() {
@@ -620,7 +621,7 @@ describe('stage embodiment presence', () => {
       renderer: 'live2d',
       supportsVisemeLipSync: false,
     })
-    const residentPerformance = {
+    const residentPerformance: AlicizationResidentPerformanceSnapshot = {
       version: 'resident-performance-v1',
       source: 'browser-fallback',
       performance: createPerformance({
