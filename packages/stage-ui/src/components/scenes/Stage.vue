@@ -40,6 +40,10 @@ import { useI18n } from 'vue-i18n'
 
 import StageDialoguePanel from './stage-dialogue-panel.vue'
 import StageEmbodimentDiagnosticsOverlay from './stage-embodiment-diagnostics-overlay.vue'
+import {
+  attachEmbodimentScriptToSpeechMetadata,
+  createStageChatIntentBridge,
+} from './stage-chat-intent-bridge'
 
 import { useDelayMessageQueue, useEmotionsMessageQueue } from '../../composables/queues'
 import { llmInferenceEndToken } from '../../constants'
@@ -294,6 +298,9 @@ const speechStore = useSpeechStore()
 const { ssmlEnabled, activeSpeechProvider, activeSpeechModel, activeSpeechVoice, pitch, rate } = storeToRefs(speechStore)
 const activeCardId = computed(() => activeCard.value?.name ?? 'default')
 const speechRuntimeStore = useSpeechRuntimeStore()
+const chatIntentBridge = createStageChatIntentBridge({
+  openIntent: options => speechRuntimeStore.openIntent(options),
+})
 const currentChatIntent = ref<ReturnType<typeof speechRuntimeStore.openIntent> | null>(null)
 const debugEmbodimentStorage = useLocalStorage(stageEmbodimentDebugStorageKey, false)
 const showEmbodimentDiagnostics = computed(() => {
@@ -476,19 +483,6 @@ function createSpeechIntentMetadata(intentSource: 'chat' | 'fallback'): Record<s
           summary: runtimeDigest.value.summary,
         }
       : null,
-  }
-}
-
-function attachEmbodimentScriptToSpeechMetadata(
-  metadata: Record<string, unknown> | null | undefined,
-  embodimentScript: unknown,
-) {
-  if (!embodimentScript || typeof embodimentScript !== 'object' || Array.isArray(embodimentScript))
-    return metadata ?? null
-
-  return {
-    ...metadata,
-    embodimentScript,
   }
 }
 
@@ -1465,9 +1459,10 @@ chatHookCleanups.push(onBeforeMessageComposed(async () => {
   captionPoster.post({ type: 'caption-assistant', text: '' })
   presentPoster.post({ type: 'assistant-reset' })
 
+  chatIntentBridge.cancel('prepare-next-message')
   currentChatIntent.value = null
 
-  currentChatIntent.value = speechRuntimeStore.openIntent({
+  currentChatIntent.value = chatIntentBridge.prepare({
     ownerId: activeCardId.value,
     priority: 'normal',
     behavior: 'queue',
@@ -1478,13 +1473,9 @@ chatHookCleanups.push(onBeforeMessageComposed(async () => {
 chatHookCleanups.push(onEmbodimentMeta(async (meta) => {
   runtimeDigest.value = meta.runtimeDigest ?? null
 
-  const embodimentScript = (meta as Record<string, unknown>).embodimentScript
-  if (currentChatIntent.value && embodimentScript) {
-    currentChatIntent.value.metadata = attachEmbodimentScriptToSpeechMetadata(
-      currentChatIntent.value.metadata as Record<string, unknown> | null | undefined,
-      embodimentScript,
-    ) as any
-  }
+  const embodimentScript = meta.embodimentScript ?? null
+  if (embodimentScript)
+    currentChatIntent.value = chatIntentBridge.attachEmbodimentScript(embodimentScript)
 
   if (meta.digitalLifeSpine)
     embodimentRuntime?.applyTransientDigitalLifeSpine(meta.digitalLifeSpine)
@@ -1523,21 +1514,21 @@ chatHookCleanups.push(onEmbodimentMeta(async (meta) => {
 }))
 
 chatHookCleanups.push(onTokenLiteral(async (literal) => {
-  currentChatIntent.value?.writeLiteral(literal)
+  chatIntentBridge.writeLiteral(literal)
 }))
 
 chatHookCleanups.push(onTokenSpecial(async (special) => {
   // console.debug('Stage received special token:', special)
-  currentChatIntent.value?.writeSpecial(special)
+  chatIntentBridge.writeSpecial(special)
 }))
 
 chatHookCleanups.push(onStreamEnd(async () => {
   delaysQueue.enqueue(llmInferenceEndToken)
-  currentChatIntent.value?.writeFlush()
+  chatIntentBridge.writeFlush()
 }))
 
 chatHookCleanups.push(onAssistantResponseEnd(async (_message) => {
-  currentChatIntent.value?.end()
+  chatIntentBridge.end()
   currentChatIntent.value = null
   // const res = await embed({
   //   ...transformersProvider.embed('Xenova/nomic-embed-text-v1'),
