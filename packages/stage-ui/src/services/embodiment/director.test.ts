@@ -1,3 +1,7 @@
+import type { AlicizationResidentPerformanceSnapshot } from '../../stores/alicization-bridge'
+import type { BuildAlicizationEmbodimentScriptInput } from './director'
+
+import { createIdleStageEmbodimentMotorState } from '@proj-alicization/stage-shared'
 import { describe, expect, it } from 'vitest'
 
 import { buildAlicizationEmbodimentScript } from './director'
@@ -7,11 +11,11 @@ function createSeed(overrides?: Partial<{
   turnId: string
   replyText: string
   residentMode: 'speaking' | 'recovering'
-}>){
+}>): BuildAlicizationEmbodimentScriptInput['seed'] {
   return {
-    decisionTraceId: 'trace-1',
-    turnId: 'turn-1',
-    replyText: '你好，我们慢慢来。',
+    decisionTraceId: overrides?.decisionTraceId ?? 'trace-1',
+    turnId: overrides?.turnId ?? 'turn-1',
+    replyText: overrides?.replyText ?? '你好，我们慢慢来。',
     performance: {
       baseEmotion: 'concerned',
       emotion: 'concerned',
@@ -28,7 +32,7 @@ function createSeed(overrides?: Partial<{
           variationToken: 'life-1',
           emotion: 'concerned' as const,
           mode: overrides.residentMode,
-          postureHint: 'speaking' as const,
+          postureHint: 'concerned' as const,
           performance: {
             baseEmotion: 'concerned' as const,
             emotion: 'concerned' as const,
@@ -38,10 +42,8 @@ function createSeed(overrides?: Partial<{
             emphasis: 1 as const,
           },
           speechStyle: {
-            voiceName: 'default',
             pitchDelta: 0,
             rateMultiplier: 1,
-            stylePrompt: 'gentle',
           },
           voice: {
             pitchDelta: 0,
@@ -69,23 +71,15 @@ function createSeed(overrides?: Partial<{
             intensity: 0.2,
             holdMs: 120,
           },
-          motor: {
-            emotion: 'concerned',
-            expression: 'neutral',
-            action: 'idle',
-            intensity: 0.5,
-            mouthOpen: 0,
-            gazeTarget: null,
-          },
+          motor: createIdleStageEmbodimentMotorState(),
           frames: [],
         }
       : null,
     digitalLifeSpine: null,
-    ...overrides,
   }
 }
 
-function createResidentPerformance(source: 'main-runtime' | 'browser-fallback') {
+function createResidentPerformance(source: 'main-runtime' | 'browser-fallback'): AlicizationResidentPerformanceSnapshot {
   return {
     version: 'resident-performance-v1' as const,
     source,
@@ -226,5 +220,78 @@ describe('embodiment director', () => {
     expect(script.speechPlan.segments).toHaveLength(2)
     expect(script.speechPlan.segments.map(segment => segment.id)).toEqual(['segment-1', 'segment-2'])
     expect(script.speechPlan.interruptPolicy).toBe('hard-stop')
+  })
+
+  it('creates per-segment face and motion cues for multi-segment chinese guidance turns', () => {
+    const script = buildAlicizationEmbodimentScript({
+      seed: {
+        ...createSeed(),
+        speechTimeline: {
+          version: 'speech-timeline-v1',
+          variationToken: 'turn-1',
+          reply: '先看这里。然后点保存。',
+          emotion: 'thinking',
+          segments: [
+            {
+              id: 'segment-1',
+              index: 0,
+              startOffset: 0,
+              endOffset: 5,
+              text: '先看这里。',
+              emotion: 'thinking',
+              gestureWeight: 0.24,
+              facialWeight: 0.38,
+              prosodyWeight: 0.42,
+              beatWeight: 0.48,
+              facialHoldMs: 360,
+              actionHoldMs: 140,
+              actionCue: 'point_screen',
+              facialCue: 'focused',
+              actionWindow: 'segment-start',
+              interruptMode: 'soft-interrupt',
+            },
+            {
+              id: 'segment-2',
+              index: 1,
+              startOffset: 5,
+              endOffset: 11,
+              text: '然后点保存。',
+              emotion: 'happy',
+              gestureWeight: 0.36,
+              facialWeight: 0.54,
+              prosodyWeight: 0.46,
+              beatWeight: 0.52,
+              facialHoldMs: 420,
+              actionHoldMs: 180,
+              actionCue: 'idle_gentle_nod',
+              facialCue: 'reassure_smile',
+              actionWindow: 'cadence-peak',
+              interruptMode: 'soft-interrupt',
+            },
+          ],
+        },
+      },
+      manifest: {
+        renderer: 'live2d',
+        supportedBaseEmotions: ['neutral', 'concerned', 'thinking', 'happy'],
+        supportedFacialCues: [],
+        supportedActions: [],
+        supportsLookAt: true,
+        supportsVisemeLipSync: true,
+        supportsMicroDynamics: true,
+      },
+      residentPerformance: null,
+      rendererTarget: 'live2d',
+    })
+
+    expect(script.facePlan.speakingCues.map(cue => cue.segmentId)).toEqual(['segment-1', 'segment-2'])
+    expect(script.facePlan.speakingCues.map(cue => cue.facialCue)).toEqual(['focused', 'reassure_smile'])
+    expect(script.facePlan.speakingCues.map(cue => cue.emotion)).toEqual(['thinking', 'happy'])
+    expect(script.motionPlan.actionBursts.map(burst => burst.segmentId)).toEqual(['segment-1', 'segment-2'])
+    expect(script.motionPlan.actionBursts.map(burst => burst.actionCue)).toEqual(['point_screen', 'idle_gentle_nod'])
+    expect(script.speechPlan.segments[0]?.settleMs).toBeGreaterThan(140)
+    expect(script.speechPlan.segments[1]?.settleMs).toBeGreaterThan(180)
+    expect(script.motionPlan.actionBursts[0]?.holdMs).toBe(140)
+    expect(script.motionPlan.actionBursts[1]?.holdMs).toBe(180)
   })
 })

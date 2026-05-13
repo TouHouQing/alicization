@@ -67,6 +67,10 @@ describe('stage embodiment diagnostics', () => {
       stageBounds: ref({ width: 1280, height: 720 }),
       targetPoint: ref({ x: 640, y: 360 }),
       visualPresenceState: ref({
+        currentBodyState: 'idle',
+        continuityMode: 'ambient-covision',
+        quietLineMs: 0,
+        currentInwardPreoccupation: null,
         watchMode: 'symbiotic-vision',
         currentScene: {
           workloadKind: 'coding',
@@ -245,10 +249,11 @@ describe('stage embodiment diagnostics', () => {
 
     expect(diagnostics.snapshot.value.speech.prosodyIntensity).toBeCloseTo(0.64)
     expect(diagnostics.snapshot.value.speech.visemeIntensity).toBeCloseTo(0.71)
-    expect(diagnostics.snapshot.value.speech.articulation.voice?.language).toBe('zh-CN')
-    expect(diagnostics.snapshot.value.speech.articulation.voice?.consonantPrecision).toBeCloseTo(0.9)
-    expect(diagnostics.snapshot.value.speech.articulation.lipClosure).toBeCloseTo(0.44)
-    expect(diagnostics.snapshot.value.speech.articulation.visemes.A).toBeCloseTo(0.66)
+    expect(diagnostics.snapshot.value.speech.articulation).not.toBeNull()
+    expect(diagnostics.snapshot.value.speech.articulation?.voice?.language).toBe('zh-CN')
+    expect(diagnostics.snapshot.value.speech.articulation?.voice?.consonantPrecision).toBeCloseTo(0.9)
+    expect(diagnostics.snapshot.value.speech.articulation?.lipClosure).toBeCloseTo(0.44)
+    expect(diagnostics.snapshot.value.speech.articulation?.visemes.A).toBeCloseTo(0.66)
     expect(diagnostics.snapshot.value.speech.playbackTelemetry?.drivers?.lipsync?.mode).toBe('energy-phoneme-hybrid')
     expect(diagnostics.snapshot.value.speech.playbackTelemetry?.drivers?.lipsync?.visemeHints).toEqual([
       { segmentId: 'segment-1', viseme: 'A', weight: 0.78 },

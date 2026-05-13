@@ -94,6 +94,14 @@ function resolveMicroExpressionTimingCues(input: {
   }
 }
 
+function resolveFallbackFaceIntensity(emphasis: AlicizationDialoguePerformancePayload['emphasis']) {
+  return emphasis >= 2 ? 0.8 : emphasis === 1 ? 0.6 : 0.4
+}
+
+function resolveFallbackActionIntensity(emphasis: AlicizationDialoguePerformancePayload['emphasis']) {
+  return emphasis >= 2 ? 0.7 : emphasis === 1 ? 0.5 : 0.3
+}
+
 export function buildAlicizationEmbodimentScript(
   input: BuildAlicizationEmbodimentScriptInput,
 ): AlicizationEmbodimentScriptV1 {
@@ -115,11 +123,33 @@ export function buildAlicizationEmbodimentScript(
     speechTimeline: input.seed.speechTimeline,
     digitalLife: input.seed.digitalLife,
   })
-  const primarySegment = speechPlan.segments[0] ?? null
   const microExpressionTiming = resolveMicroExpressionTimingCues({
     baseEmotion: adapted.performance.baseEmotion,
     delivery: adapted.performance.delivery,
     emphasis: adapted.performance.emphasis,
+  })
+  const timelineSegmentById = new Map(
+    (input.seed.speechTimeline?.segments ?? []).map(segment => [segment.id, segment] as const),
+  )
+  const fallbackFaceIntensity = resolveFallbackFaceIntensity(adapted.performance.emphasis)
+  const fallbackActionIntensity = resolveFallbackActionIntensity(adapted.performance.emphasis)
+  const speakingCues = speechPlan.segments.map((segment) => {
+    const timelineSegment = timelineSegmentById.get(segment.id)
+    return {
+      segmentId: segment.id,
+      emotion: timelineSegment?.emotion ?? adapted.performance.baseEmotion,
+      facialCue: timelineSegment?.facialCue ?? adapted.performance.facialCue ?? null,
+      intensity: timelineSegment?.facialWeight ?? fallbackFaceIntensity,
+    }
+  })
+  const actionBursts = speechPlan.segments.map((segment) => {
+    const timelineSegment = timelineSegmentById.get(segment.id)
+    return {
+      segmentId: segment.id,
+      actionCue: timelineSegment?.actionCue ?? adapted.performance.actionCue ?? null,
+      intensity: timelineSegment?.gestureWeight ?? fallbackActionIntensity,
+      holdMs: Math.max(0, timelineSegment?.actionHoldMs ?? segment.settleMs),
+    }
   })
 
   return {
@@ -141,25 +171,11 @@ export function buildAlicizationEmbodimentScript(
     facePlan: {
       preUtteranceCue: microExpressionTiming.preUtteranceCue,
       postUtteranceCue: microExpressionTiming.postUtteranceCue,
-      speakingCues: primarySegment
-        ? [{
-            segmentId: primarySegment.id,
-            emotion: adapted.performance.baseEmotion,
-            facialCue: adapted.performance.facialCue ?? null,
-            intensity: adapted.performance.emphasis >= 2 ? 0.8 : adapted.performance.emphasis === 1 ? 0.6 : 0.4,
-          }]
-        : [],
+      speakingCues,
     },
     motionPlan: {
       idleBase: adapted.performance.actionCue ?? 'idle_settle',
-      actionBursts: primarySegment
-        ? [{
-            segmentId: primarySegment.id,
-            actionCue: adapted.performance.actionCue ?? null,
-            intensity: adapted.performance.emphasis >= 2 ? 0.7 : adapted.performance.emphasis === 1 ? 0.5 : 0.3,
-            holdMs: primarySegment.settleMs,
-          }]
-        : [],
+      actionBursts,
       attentionMode: input.manifest?.supportsLookAt === false ? 'ambient' : 'attentive',
     },
     lipsyncPlan: {

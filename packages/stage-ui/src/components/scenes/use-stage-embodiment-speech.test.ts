@@ -1925,4 +1925,170 @@ describe('stage embodiment speech contract', () => {
 
     speech.dispose()
   })
+
+  it('switches playback driver face and motion cues to the active later segment in a multi-segment embodiment script', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1))
+    vi.stubGlobal('cancelAnimationFrame', vi.fn())
+
+    const { useStageEmbodimentSpeech } = await import('./use-stage-embodiment-speech')
+
+    let startListener: ((event: { item: PlaybackItem<BrowserSpeechAudioSource>, startedAt: number }) => void) | undefined
+
+    const speech = useStageEmbodimentSpeech({
+      audioContext: {} as AudioContext,
+      mouthOpenSize: ref(0),
+      paused: ref(false),
+      speechStylePitch: ref(0),
+      speechStyleRate: ref(1),
+      stageModelRenderer: ref('vrm'),
+    })
+
+    speech.bindPlaybackManager({
+      onStart(listener) {
+        startListener = listener
+      },
+      onEnd() {},
+      onInterrupt() {},
+    })
+
+    const script = {
+      version: 'embodiment-script-v1' as const,
+      turnId: 'turn-multi-segment-driver-cues',
+      rendererTarget: 'live2d' as const,
+      replyText: '先看这里。然后点保存。',
+      state: {
+        baseEmotion: 'thinking' as const,
+        delivery: 'firm' as const,
+        emphasis: 1 as const,
+        residentMode: 'dialogue' as const,
+      },
+      speechPlan: {
+        segments: [
+          {
+            id: 'segment-1',
+            index: 0,
+            text: '先看这里。',
+            interruptPolicy: 'soft-settle' as const,
+            preRollMs: 20,
+            settleMs: 180,
+          },
+          {
+            id: 'segment-2',
+            index: 1,
+            text: '然后点保存。',
+            interruptPolicy: 'soft-settle' as const,
+            preRollMs: 20,
+            settleMs: 220,
+          },
+        ],
+        interruptPolicy: 'soft-settle' as const,
+        preRollMs: 20,
+        settleMs: 220,
+      },
+      facePlan: {
+        speakingCues: [
+          {
+            segmentId: 'segment-1',
+            emotion: 'thinking' as const,
+            facialCue: 'focused',
+            intensity: 0.42,
+          },
+          {
+            segmentId: 'segment-2',
+            emotion: 'happy' as const,
+            facialCue: 'reassure_smile',
+            intensity: 0.66,
+          },
+        ],
+      },
+      motionPlan: {
+        idleBase: 'idle_settle',
+        actionBursts: [
+          {
+            segmentId: 'segment-1',
+            actionCue: 'point_screen',
+            intensity: 0.28,
+            holdMs: 140,
+          },
+          {
+            segmentId: 'segment-2',
+            actionCue: 'idle_gentle_nod',
+            intensity: 0.54,
+            holdMs: 180,
+          },
+        ],
+        attentionMode: 'attentive' as const,
+      },
+      lipsyncPlan: {
+        mode: 'energy-only' as const,
+      },
+    }
+
+    startListener?.({
+      item: {
+        id: 'playback-driver-segment-1',
+        streamId: 'stream-driver',
+        intentId: 'intent-driver',
+        segmentId: 'segment-1',
+        ownerId: 'alice',
+        priority: 0,
+        text: '先看这里。',
+        special: null,
+        continuityHoldMs: 180,
+        audio: createBufferedSpeechAudioSource({} as AudioBuffer),
+        createdAt: 0,
+        metadata: {
+          embodimentScript: script,
+        },
+      },
+      startedAt: 100,
+    })
+
+    expect(speech.playbackTelemetry.value?.drivers.face).toEqual(expect.objectContaining({
+      segmentId: 'segment-1',
+      facialCue: 'focused',
+      intensity: 0.42,
+    }))
+    expect(speech.playbackTelemetry.value?.drivers.motion).toEqual(expect.objectContaining({
+      segmentId: 'segment-1',
+      actionCue: 'point_screen',
+      intensity: 0.28,
+      holdMs: 140,
+    }))
+
+    startListener?.({
+      item: {
+        id: 'playback-driver-segment-2',
+        streamId: 'stream-driver',
+        intentId: 'intent-driver',
+        segmentId: 'segment-2',
+        ownerId: 'alice',
+        priority: 0,
+        text: '然后点保存。',
+        special: null,
+        continuityHoldMs: 220,
+        audio: createBufferedSpeechAudioSource({} as AudioBuffer),
+        createdAt: 0,
+        metadata: {
+          embodimentScript: script,
+        },
+      },
+      startedAt: 240,
+    })
+
+    expect(speech.playbackTelemetry.value?.drivers.face).toEqual(expect.objectContaining({
+      segmentId: 'segment-2',
+      facialCue: 'reassure_smile',
+      intensity: 0.66,
+    }))
+    expect(speech.playbackTelemetry.value?.drivers.motion).toEqual(expect.objectContaining({
+      segmentId: 'segment-2',
+      actionCue: 'idle_gentle_nod',
+      intensity: 0.54,
+      holdMs: 180,
+    }))
+
+    speech.dispose()
+  })
 })

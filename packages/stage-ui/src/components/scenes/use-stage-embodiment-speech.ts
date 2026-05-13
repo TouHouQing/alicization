@@ -24,6 +24,7 @@ import { wlipsyncProfile } from '@proj-alicization/model-driver-lipsync/shared/w
 import {
   alignAlicizationDialogueSpeechTimelineSegment,
   createIdleStageEmbodimentSpeechArticulationState,
+  createIdleStageEmbodimentMotorState,
   createIdleStageEmbodimentSpeechDynamicsState,
   createIdleStageEmbodimentSpeechPlaybackState,
   createIdleStageEmbodimentSpeechRenderState,

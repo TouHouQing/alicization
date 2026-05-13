@@ -1,4 +1,6 @@
 import type { AlicizationDigitalLifeSpineDigest } from '../../stores/alicization-bridge'
+import type { EmbodimentPlaybackTelemetry } from '../../services/embodiment/playback-reconciler'
+import type { PlaybackItem } from '@proj-alicization/pipelines-audio'
 
 import { createBufferedSpeechAudioSource } from '@proj-alicization/pipelines-audio'
 import {
@@ -6,6 +8,7 @@ import {
   createIdleStageEmbodimentSpeechRenderState,
   createStageEmbodimentSpeechPlaybackItem,
 } from '@proj-alicization/stage-shared'
+import type { BrowserSpeechAudioSource } from '../../libs/speech-audio-playback'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { effectScope, nextTick, ref } from 'vue'
 
@@ -853,7 +856,7 @@ describe('stage embodiment performance runtime', () => {
         stageModelRenderer: ref('vrm'),
       })
       runtime.bindPlaybackManager({
-        onStart(listener) {
+        onStart(listener: (event: { item: PlaybackItem<BrowserSpeechAudioSource>, startedAt: number }) => void) {
           startListener = listener
         },
         onEnd() {},
@@ -944,6 +947,77 @@ describe('stage embodiment performance runtime', () => {
     scope.stop()
   })
 
+  it('falls back to playback-driver segment face and motion cues during active later-segment playback', async () => {
+    const speechRenderState = ref(createIdleStageEmbodimentSpeechRenderState())
+    const scope = effectScope()
+    const runtime = scope.run(() => useStageEmbodimentPerformanceRuntime({ speechRenderState }))!
+
+    runtime.armPerformance(createPerformance(), {
+      source: 'dialogue',
+      variationToken: 'turn-driver-fallback-segment-2',
+    })
+
+    speechRenderState.value = {
+      ...speechRenderState.value,
+      active: true,
+      dynamics: {
+        speechEnergy: 0.44,
+        prosodyIntensity: 0.52,
+        emphasisLevel: 0.36,
+        cadencePulse: 0.58,
+      },
+      item: createStageEmbodimentSpeechPlaybackItem({
+        intentId: 'intent-driver-fallback-segment-2',
+        segmentId: 'segment-2',
+        special: null,
+        streamId: 'stream-driver-fallback-segment-2',
+        text: '然后点保存。',
+        metadata: {
+          embodimentPlayback: {
+            actualDurationMs: 0,
+            driftMs: 0,
+            plannedDurationMs: 220,
+            settleMs: 220,
+            stopReason: null,
+            drivers: {
+              face: {
+                emotion: 'happy',
+                facialCue: 'reassure_smile',
+                intensity: 0.66,
+                playbackPhase: 'playing',
+                preUtteranceCue: 'soft-breath',
+                postUtteranceCue: 'settle-smile',
+                segmentId: 'segment-2',
+              },
+              lipsync: null,
+              motion: {
+                idleBase: 'idle_settle',
+                attentionMode: 'attentive',
+                actionCue: 'idle_gentle_nod',
+                intensity: 0.54,
+                holdMs: 180,
+                segmentId: 'segment-2',
+              },
+            },
+          },
+        },
+      }),
+      phase: 'playing',
+      revision: 1,
+      visemeIntensity: 0.34,
+    }
+    await nextTick()
+
+    expect(runtime.state.value.phase).toBe('speaking')
+    expect(runtime.state.value.activeFacialCue).toBe('reassure_smile')
+    expect(runtime.state.value.activeFacialCueSource).toBe('segment')
+    expect(runtime.state.value.activeActionCue).toBe('idle_gentle_nod')
+    expect(runtime.state.value.activeActionCueSource).toBe('segment')
+    expect(runtime.state.value.performance.baseEmotion).toBe('happy')
+
+    scope.stop()
+  })
+
   it('preserves scripted post-utterance face cues through the real stop projection path', async () => {
     vi.useFakeTimers()
     vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1))
@@ -976,10 +1050,10 @@ describe('stage embodiment performance runtime', () => {
         upcomingSpeechSegment: speech.upcomingSpeechSegment,
       })
       speech.bindPlaybackManager({
-        onStart(listener) {
+        onStart(listener: (event: { item: PlaybackItem<BrowserSpeechAudioSource>, startedAt: number }) => void) {
           startListener = listener
         },
-        onEnd(listener) {
+        onEnd(listener: (event: { item: PlaybackItem<BrowserSpeechAudioSource>, endedAt: number }) => void) {
           endListener = listener
         },
         onInterrupt() {},
@@ -1275,9 +1349,17 @@ describe('stage embodiment performance runtime', () => {
 
   it('exposes playback telemetry without changing performance state flow', () => {
     const speechRenderState = ref(createIdleStageEmbodimentSpeechRenderState())
-    const playbackTelemetry = ref<Record<string, unknown> | null>({
+    const playbackTelemetry = ref<EmbodimentPlaybackTelemetry | null>({
+      actualDurationMs: 0,
       driftMs: 380,
+      drivers: {
+        face: null,
+        lipsync: null,
+        motion: null,
+      },
+      plannedDurationMs: 0,
       settleMs: 560,
+      stopReason: null,
     })
     const scope = effectScope()
     const runtime = scope.run(() => useStageEmbodimentPerformanceRuntime({
@@ -1286,8 +1368,16 @@ describe('stage embodiment performance runtime', () => {
     }))!
 
     expect(runtime.playbackTelemetry.value).toEqual({
+      actualDurationMs: 0,
       driftMs: 380,
+      drivers: {
+        face: null,
+        lipsync: null,
+        motion: null,
+      },
+      plannedDurationMs: 0,
       settleMs: 560,
+      stopReason: null,
     })
     expect(runtime.state.value.phase).toBe('idle')
 
