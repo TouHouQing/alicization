@@ -1213,6 +1213,8 @@ describe('stage embodiment performance runtime', () => {
           preUtteranceCue: 'soft-breath',
           postUtteranceCue: 'settle-smile',
           segmentId: 'segment-explicit-playback-telemetry',
+          source: 'prosody-authority',
+          confidence: 0.94,
         },
         lipsync: {
           mode: 'energy-phoneme-hybrid',
@@ -1230,6 +1232,8 @@ describe('stage embodiment performance runtime', () => {
           intensity: 0.58,
           holdMs: 180,
           segmentId: 'segment-explicit-playback-telemetry',
+          source: 'timeline-projection',
+          confidence: 0.88,
         },
       },
     }
@@ -1240,6 +1244,14 @@ describe('stage embodiment performance runtime', () => {
     expect(runtime.state.value.activeActionCue).toBe('idle_gentle_nod')
     expect(runtime.state.value.activeActionCueSource).toBe('segment')
     expect(runtime.state.value.prosodyDrive).toBeGreaterThan(baselineProsodyDrive)
+    expect(runtime.playbackTelemetry.value?.drivers.face).toEqual(expect.objectContaining({
+      source: 'prosody-authority',
+      confidence: 0.94,
+    }))
+    expect(runtime.playbackTelemetry.value?.drivers.motion).toEqual(expect.objectContaining({
+      source: 'timeline-projection',
+      confidence: 0.88,
+    }))
     expect(runtime.playbackTelemetry.value?.drivers.lipsync).toEqual(expect.objectContaining({
       mode: 'energy-phoneme-hybrid',
       segmentId: 'segment-explicit-playback-telemetry',

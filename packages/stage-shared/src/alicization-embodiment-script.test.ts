@@ -52,6 +52,8 @@ describe('alicization embodiment script', () => {
           holdMs: 360,
           preUtteranceCue: 'steady-inhale',
           postUtteranceCue: 'soft-release',
+          source: 'prosody-authority',
+          confidence: 0.9,
         }],
       },
       motionPlan: {
@@ -61,6 +63,8 @@ describe('alicization embodiment script', () => {
           actionCue: 'comfort_sway',
           intensity: 0.55,
           holdMs: 420,
+          source: 'timeline-projection',
+          confidence: 0.86,
         }],
         attentionMode: 'attentive',
       },
@@ -94,7 +98,15 @@ describe('alicization embodiment script', () => {
     expect(script?.facePlan.speakingCues[0]?.holdMs).toBe(360)
     expect(script?.facePlan.speakingCues[0]?.preUtteranceCue).toBe('steady-inhale')
     expect(script?.facePlan.speakingCues[0]?.postUtteranceCue).toBe('soft-release')
+    expect(script?.facePlan.speakingCues[0]).toEqual(expect.objectContaining({
+      source: 'prosody-authority',
+      confidence: 0.9,
+    }))
     expect(script?.motionPlan.actionBursts[0]?.holdMs).toBe(420)
+    expect(script?.motionPlan.actionBursts[0]).toEqual(expect.objectContaining({
+      source: 'timeline-projection',
+      confidence: 0.86,
+    }))
     expect(script?.lipsyncPlan.mode).toBe('energy-phoneme-hybrid')
     expect(script?.lipsyncPlan.visemeHints?.[0]).toEqual({
       segmentId: 'segment-1',
@@ -198,6 +210,11 @@ describe('alicization embodiment script', () => {
           emotion: 'concerned',
           facialCue: null,
           intensity: 0.4,
+          holdMs: 180,
+          preUtteranceCue: null,
+          postUtteranceCue: null,
+          source: 'prosody-authority',
+          confidence: 0.72,
         }],
       },
       motionPlan: {
@@ -207,6 +224,8 @@ describe('alicization embodiment script', () => {
           actionCue: null,
           intensity: 0.2,
           holdMs: 180,
+          source: 'timeline-projection',
+          confidence: 0.72,
         }],
         attentionMode: 'attentive',
       },
@@ -350,6 +369,8 @@ describe('alicization embodiment script', () => {
               actionCue: 'comfort_sway',
               intensity: 0.4,
               holdMs: 260,
+              source: 'timeline-projection',
+              confidence: 0.86,
             }],
             attentionMode: 'attentive',
           },

@@ -28,6 +28,8 @@ describe('stage embodiment diagnostics', () => {
             preUtteranceCue: 'soft-breath',
             postUtteranceCue: 'settle-smile',
             segmentId: 'segment-1',
+            source: 'prosody-authority',
+            confidence: 0.94,
           },
           lipsync: {
             mode: 'energy-phoneme-hybrid',
@@ -42,6 +44,8 @@ describe('stage embodiment diagnostics', () => {
             intensity: 0.7,
             holdMs: 320,
             segmentId: 'segment-1',
+            source: 'timeline-projection',
+            confidence: 0.88,
           },
         },
       }),
@@ -144,6 +148,8 @@ describe('stage embodiment diagnostics', () => {
           preUtteranceCue: 'soft-breath',
           postUtteranceCue: 'settle-smile',
           segmentId: 'segment-1',
+          source: 'prosody-authority',
+          confidence: 0.94,
         },
         lipsync: {
           mode: 'energy-phoneme-hybrid',
@@ -158,6 +164,8 @@ describe('stage embodiment diagnostics', () => {
           intensity: 0.7,
           holdMs: 320,
           segmentId: 'segment-1',
+          source: 'timeline-projection',
+          confidence: 0.88,
         },
       },
     })

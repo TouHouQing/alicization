@@ -49,6 +49,8 @@ describe('live2d embodiment drivers', () => {
         holdMs: 360,
         preUtteranceCue: 'steady-inhale',
         postUtteranceCue: 'soft-release',
+        source: 'prosody-authority' as const,
+        confidence: 0.94,
       }],
     },
     motionPlan: {
@@ -58,6 +60,8 @@ describe('live2d embodiment drivers', () => {
         actionCue: 'wave',
         intensity: 0.7,
         holdMs: 320,
+        source: 'timeline-projection' as const,
+        confidence: 0.88,
       }],
       attentionMode: 'attentive' as const,
     },
@@ -76,6 +80,8 @@ describe('live2d embodiment drivers', () => {
       facialCue: 'smile',
       intensity: 0.8,
       holdMs: 360,
+      source: 'prosody-authority',
+      confidence: 0.94,
     }))
   })
 
@@ -157,6 +163,8 @@ describe('live2d embodiment drivers', () => {
       idleBase: 'idle_settle',
       actionCue: 'wave',
       holdMs: 320,
+      source: 'timeline-projection',
+      confidence: 0.88,
     }))
   })
 })

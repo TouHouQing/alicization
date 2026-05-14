@@ -187,11 +187,15 @@ describe('director micro-expression timing', () => {
     expect(script.facePlan.speakingCues).toEqual([
       expect.objectContaining({
         segmentId: 'segment-comma',
+        source: 'prosody-authority',
+        confidence: 0.94,
         preUtteranceCue: 'steady-inhale',
         postUtteranceCue: 'soft-release',
       }),
       expect.objectContaining({
         segmentId: 'segment-question',
+        source: 'prosody-authority',
+        confidence: 0.94,
         preUtteranceCue: 'steady-inhale',
         postUtteranceCue: 'eyes-soften',
       }),

@@ -178,6 +178,28 @@ function resolveVisemeConfidence(timelineSegment: NonNullable<AlicizationDialogu
   return hasExplicitEmphasisCues ? 0.94 : 0.9
 }
 
+function resolveTimelineBackedCueConfidence(
+  timelineSegment: AlicizationDialogueSpeechTimeline['segments'][number] | null | undefined,
+) {
+  if (!timelineSegment)
+    return 0
+
+  const hasExplicitCue = Boolean(timelineSegment.facialCue || timelineSegment.actionCue)
+  const hasHoldWindow = Number.isFinite(timelineSegment.facialHoldMs) || Number.isFinite(timelineSegment.actionHoldMs)
+  return hasExplicitCue || hasHoldWindow ? 0.94 : 0.88
+}
+
+function resolveTimelineProjectionConfidence(
+  timelineSegment: AlicizationDialogueSpeechTimeline['segments'][number] | null | undefined,
+) {
+  if (!timelineSegment)
+    return 0
+
+  const hasActionWindow = timelineSegment.actionWindow !== 'none'
+  const hasHoldWindow = Number.isFinite(timelineSegment.actionHoldMs)
+  return hasActionWindow || hasHoldWindow ? 0.88 : 0.82
+}
+
 function resolveSegmentPreUtteranceCue(segment: AlicizationEmbodimentSpeechSegment) {
   switch (segment.prosody?.pauseClass) {
     case 'question':
@@ -293,6 +315,8 @@ export function buildAlicizationEmbodimentScript(
       holdMs: Math.max(0, timelineSegment?.facialHoldMs ?? segment.settleMs),
       preUtteranceCue: resolveSegmentPreUtteranceCue(segment),
       postUtteranceCue: resolveSegmentPostUtteranceCue(segment),
+      source: timelineSegment ? 'prosody-authority' as const : 'timeline-projection' as const,
+      confidence: timelineSegment ? resolveTimelineBackedCueConfidence(timelineSegment) : 0.72,
     }
   })
   const actionBursts = speechPlan.segments.map((segment) => {
@@ -302,6 +326,8 @@ export function buildAlicizationEmbodimentScript(
       actionCue: timelineSegment?.actionCue ?? adapted.performance.actionCue ?? null,
       intensity: timelineSegment?.gestureWeight ?? fallbackActionIntensity,
       holdMs: Math.max(0, timelineSegment?.actionHoldMs ?? segment.settleMs),
+      source: timelineSegment ? 'timeline-projection' as const : 'digital-life-projection' as const,
+      confidence: timelineSegment ? resolveTimelineProjectionConfidence(timelineSegment) : 0.72,
     }
   })
   const visemeHints = input.manifest?.supportsVisemeLipSync === true && input.seed.speechTimeline?.segments.length

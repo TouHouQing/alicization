@@ -15,6 +15,8 @@ export interface Live2DMotionDriverState {
   actionCue: string | null
   intensity: number
   holdMs: number
+  source: AlicizationEmbodimentMotionBurst['source'] | null
+  confidence: number
   segmentId: string | null
 }
 
@@ -48,6 +50,8 @@ export function resolveLive2DMotionDriverState(
     actionCue: actionBurst?.actionCue ?? null,
     intensity: actionBurst?.intensity ?? 0,
     holdMs: actionBurst?.holdMs ?? 0,
+    source: actionBurst?.source ?? null,
+    confidence: actionBurst?.confidence ?? 0,
     segmentId: actionBurst?.segmentId ?? input.segmentId?.trim() ?? null,
   }
 }

@@ -15,6 +15,8 @@ export interface Live2DFaceDriverState {
   facialCue: string | null
   intensity: number
   holdMs: number
+  source: AlicizationEmbodimentFaceCue['source'] | null
+  confidence: number
   preUtteranceCue: string | null
   postUtteranceCue: string | null
   segmentId: string | null
@@ -59,6 +61,8 @@ export function resolveLive2DFaceDriverState(
     facialCue: playbackFacialCue,
     intensity: speakingCue?.intensity ?? 0,
     holdMs: Math.max(0, speakingCue?.holdMs ?? 0),
+    source: speakingCue?.source ?? null,
+    confidence: speakingCue?.confidence ?? 0,
     preUtteranceCue: script.facePlan.preUtteranceCue ?? null,
     postUtteranceCue: script.facePlan.postUtteranceCue ?? null,
     segmentId: speakingCue?.segmentId ?? input.segmentId?.trim() ?? null,

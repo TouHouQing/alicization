@@ -2091,4 +2091,131 @@ describe('stage embodiment speech contract', () => {
 
     speech.dispose()
   })
+
+  it('preserves chinese segment expression metadata from embodiment script into playback telemetry', async () => {
+    vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1))
+    vi.stubGlobal('cancelAnimationFrame', vi.fn())
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    const { useStageEmbodimentSpeech } = await import('./use-stage-embodiment-speech')
+    const analyser = {
+      fftSize: 2048,
+      getByteTimeDomainData: vi.fn((target: Uint8Array<ArrayBuffer>) => {
+        target.fill(128)
+      }),
+    } as unknown as AnalyserNode
+    const audioContext = {
+      createAnalyser: vi.fn(() => analyser),
+      resume: vi.fn(() => Promise.resolve()),
+      state: 'running',
+    } as unknown as AudioContext
+    const speech = useStageEmbodimentSpeech({
+      audioContext,
+      mouthOpenSize: ref(0),
+      paused: ref(false),
+      speechStylePitch: ref(0),
+      speechStyleRate: ref(1),
+      stageModelRenderer: ref('live2d'),
+    })
+
+    const script = {
+      version: 'embodiment-script-v1' as const,
+      turnId: 'turn-expression-metadata',
+      rendererTarget: 'live2d' as const,
+      replyText: '先看这里，然后确认了吗？',
+      state: {
+        baseEmotion: 'thinking' as const,
+        delivery: 'gentle' as const,
+        emphasis: 1 as const,
+        residentMode: 'dialogue' as const,
+      },
+      speechPlan: {
+        segments: [{
+          id: 'segment-question',
+          index: 1,
+          text: '然后确认了吗？',
+          interruptPolicy: 'soft-settle' as const,
+          preRollMs: 20,
+          settleMs: 260,
+        }],
+        interruptPolicy: 'soft-settle' as const,
+        preRollMs: 20,
+        settleMs: 260,
+      },
+      facePlan: {
+        preUtteranceCue: 'steady-inhale',
+        postUtteranceCue: 'soft-release',
+        speakingCues: [{
+          segmentId: 'segment-question',
+          emotion: 'thinking' as const,
+          facialCue: 'focused',
+          intensity: 0.46,
+          holdMs: 420,
+          preUtteranceCue: 'steady-inhale',
+          postUtteranceCue: 'eyes-soften',
+          source: 'prosody-authority' as const,
+          confidence: 0.94,
+        }],
+      },
+      motionPlan: {
+        idleBase: 'idle_settle',
+        attentionMode: 'attentive' as const,
+        actionBursts: [{
+          segmentId: 'segment-question',
+          actionCue: 'idle_gentle_nod',
+          intensity: 0.32,
+          holdMs: 180,
+          source: 'timeline-projection' as const,
+          confidence: 0.88,
+        }],
+      },
+      lipsyncPlan: {
+        mode: 'energy-phoneme-hybrid' as const,
+        visemeHints: [
+          { segmentId: 'segment-question', viseme: 'I' as const, weight: 0.35, source: 'prosody-authority' as const, confidence: 0.94 },
+          { segmentId: 'segment-question', viseme: 'closed' as const, weight: 0.75, source: 'prosody-authority' as const, confidence: 0.94 },
+        ],
+      },
+    }
+
+    const preview = speech.previewSpeechSegment({
+      intentId: 'intent-expression-metadata',
+      streamId: 'stream-expression-metadata',
+      segmentId: 'segment-question',
+      text: '然后确认了吗？',
+      special: null,
+      continuityHoldMs: 180,
+      metadata: {
+        embodimentScript: script,
+      },
+    })
+    const playback = (preview?.metadata as { embodimentPlayback?: { drivers?: {
+      face?: unknown
+      motion?: unknown
+      lipsync?: { visemeHints?: unknown[] }
+    } } } | null | undefined)?.embodimentPlayback
+
+    expect(playback?.drivers?.face).toEqual(expect.objectContaining({
+      segmentId: 'segment-question',
+      facialCue: 'steady-inhale',
+      holdMs: 420,
+      preUtteranceCue: 'steady-inhale',
+      postUtteranceCue: 'soft-release',
+      source: 'prosody-authority',
+      confidence: 0.94,
+    }))
+    expect(playback?.drivers?.motion).toEqual(expect.objectContaining({
+      idleBase: 'idle_settle',
+      actionCue: null,
+      holdMs: 0,
+      source: null,
+      confidence: 0,
+    }))
+    expect(playback?.drivers?.lipsync?.visemeHints).toEqual([
+      { segmentId: 'segment-question', viseme: 'I', weight: 0.35, source: 'prosody-authority', confidence: 0.94 },
+      { segmentId: 'segment-question', viseme: 'closed', weight: 0.75, source: 'prosody-authority', confidence: 0.94 },
+    ])
+
+    speech.dispose()
+  })
 })
