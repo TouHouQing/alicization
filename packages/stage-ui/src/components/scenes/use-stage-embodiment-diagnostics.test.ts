@@ -297,4 +297,90 @@ describe('stage embodiment diagnostics', () => {
       { segmentId: 'segment-1', viseme: 'closed', weight: 0.58, source: 'prosody-authority', confidence: 0.77 },
     ])
   })
+
+  it('summarizes chinese segment-2 expression provenance across face motion and lipsync', () => {
+    const diagnostics = useStageEmbodimentDiagnostics({
+      activePresence: ref(null),
+      playbackTelemetry: ref({
+        actualDurationMs: 220,
+        plannedDurationMs: 220,
+        driftMs: 0,
+        settleMs: 220,
+        stopReason: null,
+        drivers: {
+          face: {
+            emotion: 'happy',
+            facialCue: 'reassure_smile',
+            intensity: 0.66,
+            holdMs: 420,
+            preUtteranceCue: 'steady-inhale',
+            postUtteranceCue: 'eyes-soften',
+            segmentId: 'segment-2',
+            source: 'prosody-authority',
+            confidence: 0.94,
+          },
+          lipsync: {
+            mode: 'energy-phoneme-hybrid',
+            playbackPhase: 'playing',
+            segmentId: 'segment-2',
+            visemeHints: [
+              { segmentId: 'segment-2', viseme: 'I', weight: 0.35, source: 'prosody-authority', confidence: 0.94 },
+              { segmentId: 'segment-2', viseme: 'closed', weight: 0.75, source: 'prosody-authority', confidence: 0.94 },
+            ],
+          },
+          motion: {
+            idleBase: 'idle_settle',
+            attentionMode: 'attentive',
+            actionCue: 'idle_gentle_nod',
+            intensity: 0.54,
+            holdMs: 180,
+            segmentId: 'segment-2',
+            source: 'timeline-projection',
+            confidence: 0.88,
+          },
+        },
+      }),
+      presencePosture: ref({} as any),
+      speechRenderState: ref({
+        ...createIdleStageEmbodimentSpeechRenderState(),
+        phase: 'playing',
+        playbackPhase: 'playing',
+        visemeIntensity: 0.66,
+        articulation: createIdleStageEmbodimentSpeechArticulationState(),
+        dynamics: {
+          speechEnergy: 0.44,
+          prosodyIntensity: 0.52,
+          emphasisLevel: 0.36,
+          cadencePulse: 0.58,
+        },
+      }),
+      stageBounds: ref({ width: 800, height: 600 }),
+      targetPoint: ref({ x: 400, y: 300 }),
+    })
+    const playbackTelemetry = diagnostics.snapshot.value.speech.playbackTelemetry
+
+    expect(playbackTelemetry).not.toBeNull()
+    if (!playbackTelemetry)
+      throw new Error('expected playback telemetry')
+
+    expect(playbackTelemetry.drivers?.face).toEqual(expect.objectContaining({
+      segmentId: 'segment-2',
+      source: 'prosody-authority',
+      confidence: 0.94,
+    }))
+    expect(playbackTelemetry.drivers?.motion).toEqual(expect.objectContaining({
+      segmentId: 'segment-2',
+      source: 'timeline-projection',
+      confidence: 0.88,
+    }))
+    expect(playbackTelemetry.drivers?.lipsync?.visemeHints).toEqual([
+      { segmentId: 'segment-2', viseme: 'I', weight: 0.35, source: 'prosody-authority', confidence: 0.94 },
+      { segmentId: 'segment-2', viseme: 'closed', weight: 0.75, source: 'prosody-authority', confidence: 0.94 },
+    ])
+    expect(diagnostics.snapshot.value.speech.driverSummary).toEqual({
+      face: 'prosody-authority@0.94',
+      motion: 'timeline-projection@0.88',
+      lipsync: 'prosody-authority@0.94',
+    })
+  })
 })
