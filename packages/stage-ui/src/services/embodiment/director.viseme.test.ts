@@ -2,19 +2,21 @@ import { describe, expect, it } from 'vitest'
 
 import { buildAlicizationEmbodimentScript } from './director'
 
+const guidancePerformance = {
+  baseEmotion: 'thinking' as const,
+  emotion: 'thinking' as const,
+  facialCue: 'focused' as const,
+  actionCue: 'point_screen' as const,
+  delivery: 'gentle' as const,
+  emphasis: 2 as const,
+}
+
 function createVisemeSeed(replyText: string, segmentText: string) {
   return {
     decisionTraceId: 'trace-viseme',
     turnId: 'turn-viseme',
     replyText,
-    performance: {
-      baseEmotion: 'thinking' as const,
-      emotion: 'thinking' as const,
-      facialCue: 'focused' as const,
-      actionCue: 'point_screen' as const,
-      delivery: 'gentle' as const,
-      emphasis: 2,
-    },
+    performance: guidancePerformance,
     embodiment: null,
     speechTimeline: {
       version: 'speech-timeline-v1' as const,

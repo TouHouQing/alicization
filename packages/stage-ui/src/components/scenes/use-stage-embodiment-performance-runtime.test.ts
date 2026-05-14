@@ -1218,8 +1218,8 @@ describe('stage embodiment performance runtime', () => {
           playbackPhase: 'playing',
           segmentId: 'segment-explicit-playback-telemetry',
           visemeHints: [
-            { segmentId: 'segment-explicit-playback-telemetry', viseme: 'U', weight: 0.92 },
-            { segmentId: 'segment-explicit-playback-telemetry', viseme: 'closed', weight: 0.58 },
+            { segmentId: 'segment-explicit-playback-telemetry', viseme: 'U', weight: 0.92, source: 'prosody-authority', confidence: 0.89 },
+            { segmentId: 'segment-explicit-playback-telemetry', viseme: 'closed', weight: 0.58, source: 'prosody-authority', confidence: 0.77 },
           ],
         },
         motion: {

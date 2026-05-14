@@ -1,8 +1,8 @@
 import type {
-  AlicizationEmbodimentLipSyncHint,
   AlicizationEmbodimentScriptRendererTarget,
   AlicizationEmbodimentScriptV1,
   AlicizationEmbodimentSpeechSegment,
+  AlicizationEmbodimentLipSyncVisemeHint,
 } from '@proj-alicization/stage-shared'
 
 import type {
@@ -183,7 +183,7 @@ function resolveVisemeConfidence(segment: AlicizationEmbodimentSpeechSegment, we
 
 function buildAlicizationEmbodimentLipSyncHints(
   segment: AlicizationEmbodimentSpeechSegment,
-): AlicizationEmbodimentLipSyncHint[] {
+): AlicizationEmbodimentLipSyncVisemeHint[] {
   const closedWeight = resolveClosedVisemeWeight(segment)
   const contourViseme = resolveContourViseme(segment)
   const secondaryViseme = resolveSecondaryViseme(segment)
