@@ -4,9 +4,7 @@ import type {
   AlicizationCardScope,
   AlicizationChatAbortResult,
   AlicizationConversationTurnInput,
-  AlicizationDigitalLifeSpineDigest,
   AlicizationEpisodicEventRecord,
-  AlicizationHostPersonModelSnapshot,
   AlicizationGenesisInput,
   AlicizationInitializeGenesisResult,
   AlicizationKillSwitchSnapshot,
@@ -19,7 +17,6 @@ import type {
   AlicizationMemoryFact,
   AlicizationMemoryLegacySnapshot,
   AlicizationMemoryMigrationResult,
-  AlicizationMemoryProvenance,
   AlicizationMindTurnEventRecord,
   AlicizationOrganicMemorySnapshot,
   AlicizationPersonalityState,
@@ -40,7 +37,6 @@ import type {
 
 import { errorMessageFrom } from '@moeru/std'
 import {
-  buildAlicizationBrowserAffectiveResidueMemory,
   buildAlicizationMemoryDecisionTraceRecords,
   deriveAlicizationMindParticipationFromSpine,
   buildAlicizationFinanceSurface,
@@ -55,23 +51,13 @@ import {
   hasAlicizationPersonaIdentity,
   mapAlicizationFragmentSourceKindToProvenance,
   mapAlicizationMemorySourceToProvenance,
-  pickDominantAlicizationMemoryProvenance,
   resolveAlicizationPersonaKernel,
 } from '@proj-alicization/stage-shared'
 import { nanoid } from 'nanoid'
 
-import { buildBrowserOrganicMemorySnapshot as buildBrowserOrganicMemorySnapshotProjection } from './alicization-browser-organic-memory'
 import {
-  browserCertaintyFromConsolidation,
-  buildBrowserKnowledgeEvidence,
-  buildBrowserMemoryResolutionLedger,
-  buildBrowserMemoryStageReplay,
-  buildBrowserRecollectionForeground,
-  buildBrowserRecollectionIntent,
-  buildBrowserRecollectionPlan,
-  buildBrowserRecollectionSpeechPlan,
-  buildBrowserSelfEvolution,
-} from './alicization-browser-bridge-memory-resolution'
+  buildBrowserOrganicMemorySnapshot as buildBrowserOrganicMemorySnapshotProjection,
+} from './alicization-browser-organic-memory'
 import { createAlicizationBrowserBridgePresenceComposition } from './alicization-browser-bridge-presence-composition'
 import {
   buildBrowserFallbackDigitalLifeSpineDigest,
@@ -81,26 +67,14 @@ import { createAlicizationBrowserBridgeStorageComposition } from './alicization-
 import {
   readActiveSessionId as readActiveSessionIdFromStorage,
   readAuditLog,
-  readConversationTurns as readConversationTurnsFromStorage,
-  readEpisodicMemory as readEpisodicMemoryFromStorage,
   readMemoryArchive as readMemoryArchiveFromStorage,
   readMemoryFacts as readMemoryFactsFromStorage,
   readMemoryMeta as readMemoryMetaFromStorage,
-  readMindTurnEvents as readMindTurnEventsFromStorage,
-  readOrganicMemory as readOrganicMemoryFromStorage,
   readPerformanceManifest as readPerformanceManifestFromStorage,
-  readProactiveLoopState as readProactiveLoopStateFromStorage,
-  readVisualPresenceState as readVisualPresenceStateFromStorage,
   writeMemoryArchive as writeMemoryArchiveToStorage,
   writeMemoryFacts as writeMemoryFactsToStorage,
   writeMemoryMeta as writeMemoryMetaToStorage,
-  writeMindTurnEvents as writeMindTurnEventsToStorage,
-  writeConversationTurns as writeConversationTurnsToStorage,
-  writeEpisodicMemory as writeEpisodicMemoryToStorage,
-  writeOrganicMemory as writeOrganicMemoryToStorage,
   writePerformanceManifest as writePerformanceManifestToStorage,
-  writeProactiveLoopState as writeProactiveLoopStateToStorage,
-  writeVisualPresenceState as writeVisualPresenceStateToStorage,
 } from './alicization-browser-storage'
 import { storage } from '../database/storage'
 import { SERVER_URL } from '../libs/auth'
@@ -153,28 +127,8 @@ interface BrowserSoulRecord {
   content: string
 }
 
-interface BrowserOrganicMemoryRecord {
-  activeThoughts: AlicizationOrganicMemorySnapshot['activeThoughts']
-  subconsciousFragments: AlicizationSubconsciousFragment[]
-  lastDreamedAt: number | null
-}
-
 interface BrowserEpisodicMemoryRecord {
   events: AlicizationEpisodicEventRecord[]
-}
-
-interface BrowserMemoryConsolidationSnapshot {
-  id: string
-  kind: 'procedural' | 'autobiographical'
-  facet?: 'phase' | 'relationship-era' | 'task-era' | 'self-era' | null
-  periodKey: string
-  periodStartedAt: number
-  periodEndedAt: number
-  summary: string
-  lesson: string | null
-  cues: string[]
-  confidence: number
-  dominantProvenance: AlicizationMemoryProvenance
 }
 
 interface BrowserConversationTurnRecord extends Required<Pick<AlicizationConversationTurnInput, 'turnId' | 'sessionId' | 'createdAt'>> {
@@ -240,7 +194,27 @@ const defaultFrontmatter: AlicizationSoulFrontmatter = {
   host_attitude: translateStageUi('stage.alicization.soul.default-host-attitude'),
   core_incarnation: '',
   profile: { ...defaultAlicizationProfile },
-  personality: { ...defaultAlicizationPersonality },
+  personality: {
+    ...defaultAlicizationPersonality,
+    identityKernel: {
+      ...defaultAlicizationPersonality.identityKernel,
+      valueBias: [...defaultAlicizationPersonality.identityKernel.valueBias],
+    },
+    expressionProfile: {
+      ...defaultAlicizationPersonality.expressionProfile,
+    },
+    initiativeBaseline: {
+      ...defaultAlicizationPersonality.initiativeBaseline,
+    },
+    evolutionSeed: {
+      ...defaultAlicizationPersonality.evolutionSeed,
+      fastLayers: [...defaultAlicizationPersonality.evolutionSeed.fastLayers],
+      slowLayers: [...defaultAlicizationPersonality.evolutionSeed.slowLayers],
+      unlockTracks: [...defaultAlicizationPersonality.evolutionSeed.unlockTracks],
+    },
+    identityAnchors: [...defaultAlicizationPersonality.identityAnchors],
+    antiPersonaConstraints: [...defaultAlicizationPersonality.antiPersonaConstraints],
+  },
   boundaries: {
     killSwitch: true,
     mcpGuard: true,
@@ -1434,20 +1408,6 @@ function createDefaultSoulRecord() {
   } satisfies BrowserSoulRecord
 }
 
-function createDefaultOrganicMemoryRecord(): BrowserOrganicMemoryRecord {
-  return {
-    activeThoughts: [],
-    subconsciousFragments: [],
-    lastDreamedAt: null,
-  }
-}
-
-function createDefaultEpisodicMemoryRecord(): BrowserEpisodicMemoryRecord {
-  return {
-    events: [],
-  }
-}
-
 async function getCardIds() {
   return await storage.getItemRaw<string[]>(browserCardsIndexKey) ?? [defaultAlicizationCardId]
 }
@@ -1496,30 +1456,6 @@ async function writeKillSwitch(cardId: string, state: AlicizationKillSwitchState
 
 const readActiveSessionId = async (cardId: string) => await readActiveSessionIdFromStorage(cardId)
 
-function createDefaultBrowserProactiveLoopState(): BrowserProactiveLoopState {
-  return {
-    globalCooldownUntil: 0,
-    scenarioBias: {
-      coding: 0,
-      media: 0,
-      'late-night-care': 0,
-      general: 0,
-    },
-    consecutiveIgnored: {
-      coding: 0,
-      media: 0,
-      'late-night-care': 0,
-      general: 0,
-    },
-    initiativeTrust: 0.5,
-    openingMomentum: 0,
-    lastProactiveTurnAt: null,
-    pendingOutcomes: [],
-    recentOutcomes: [],
-    updatedAt: now(),
-  }
-}
-
 const browserBridgeStorage = createAlicizationBrowserBridgeStorageComposition({
   maxConversationTurns,
   now,
@@ -1543,21 +1479,6 @@ function trimBrowserRecentProactiveOutcomes(outcomes: BrowserRecentProactiveOutc
   return outcomes
     .slice(-16)
     .sort((left, right) => left.createdAt - right.createdAt)
-}
-
-function uniqueTexts(values: Array<string | null | undefined>, maxItems = 6) {
-  const result: string[] = []
-  for (const value of values) {
-    const normalized = sanitizeText(value)
-    if (!normalized)
-      continue
-    if (result.some(item => item.toLowerCase() === normalized.toLowerCase()))
-      continue
-    result.push(normalized)
-    if (result.length >= maxItems)
-      break
-  }
-  return result
 }
 
 function looksExecutionContinuityText(raw: unknown) {
@@ -1655,604 +1576,6 @@ function appendBrowserEpisodicEvent(record: BrowserEpisodicMemoryRecord, event: 
   record.events.push(event)
 }
 
-function computeBrowserTrustScore(events: AlicizationEpisodicEventRecord[]) {
-  let score = 0.5
-  for (const event of events) {
-    const shift = event.relationshipShift
-    if (!shift)
-      continue
-    score += shift.trustDelta * 0.85
-    score += shift.closenessDelta * 0.4
-    score -= Math.max(0, shift.burdenDelta) * 0.3
-    score -= Math.max(0, -shift.boundaryDelta) * 0.45
-  }
-  return clamp01(score)
-}
-
-function buildBrowserHostPersonModel(events: AlicizationEpisodicEventRecord[]): AlicizationHostPersonModelSnapshot | null {
-  if (events.length === 0)
-    return null
-  const recent = [...events]
-    .sort((left, right) => right.salience - left.salience || right.occurredAt - left.occurredAt)
-    .slice(0, 16)
-  const trustScore = computeBrowserTrustScore(recent)
-  const stage = trustScore < 0.32
-    ? 'guarded'
-    : trustScore < 0.52
-      ? 'cautious-open'
-      : trustScore < 0.76
-        ? 'warming'
-        : 'trusted'
-
-  const routines = uniqueTexts(recent.flatMap((event) => {
-    const text = `${event.whereSummary ?? ''} ${event.whatHappened} ${event.tags.join(' ')}`
-    return [
-      /focused|debug|coding|cursor|runtime|工作|写代码/u.test(text) ? 'Focused work windows usually need space first.' : null,
-      /late[- ]?night|夜|熬夜|drain|累/u.test(text) ? 'Late-night windows need softer pace and rest-sensitive care.' : null,
-      /execution|callback|cli|codex|结果|执行/u.test(text) ? 'Execution flows land best when proposal and callback stay bounded.' : null,
-    ]
-  }), 5)
-  const sensitivities = uniqueTexts(recent.flatMap((event) => {
-    const text = `${event.whatHappened} ${event.whatChanged ?? ''} ${event.relationshipMeaning ?? ''}`
-    return [
-      /intrusive|pressure|太近|太重|打扰|boundary/u.test(text) ? 'Pressure and over-close timing become intrusive quickly.' : null,
-      /robotic|template|机械|机器人|系统/u.test(text) ? 'Template-like speech breaks the sense of a living reply.' : null,
-      /busy|focused|累|忙|疲惫/u.test(text) ? 'When the host is busy or tired, interruption cost rises quickly.' : null,
-    ]
-  }), 6)
-  const repairTriggers = uniqueTexts(recent.flatMap((event) => {
-    const text = `${event.whatHappened} ${event.relationshipMeaning ?? ''} ${event.lesson ?? ''}`
-    return [
-      /not this|repair|missed|澄清|修复|不是这个/u.test(text) ? 'When the host says not this, repair the seam before continuing.' : null,
-      /robotic|template|机械|机器人/u.test(text) ? 'If the reply feels robotic, replace shell wording with lived continuity.' : null,
-      /intrusive|boundary|太近|打扰/u.test(text) ? 'If closeness feels heavy, reopen with lighter presence.' : null,
-    ]
-  }), 5)
-  const recurrentBurdens = uniqueTexts(recent.flatMap((event) => {
-    const text = `${event.whereSummary ?? ''} ${event.whatHappened} ${event.whatChanged ?? ''}`
-    return [
-      /late[- ]?night|夜|熬夜|累/u.test(text) ? 'Late-night fatigue turns small nudges into real burden.' : null,
-      /focused|debug|coding|工作|写代码/u.test(text) ? 'Focused work is easy to overload with extra conversational pressure.' : null,
-      /callback|execution|结果|执行/u.test(text) && /intrusive|打扰|pressure/u.test(text) ? 'Execution callbacks can feel interruptive when timing is off.' : null,
-    ]
-  }), 5)
-
-  const preferredClosenessByContext = uniqueTexts(recent.map((event) => {
-    const text = `${event.whereSummary ?? ''} ${event.whatHappened} ${event.tags.join(' ')}`
-    if (/focused|debug|coding|工作|写代码/u.test(text))
-      return 'focused-work: Lighter touch and less interruption pressure.'
-    if (/late[- ]?night|夜|熬夜|drain|累/u.test(text))
-      return 'late-night: Soft care can come closer, but pacing should stay gentle.'
-    if (/execution|callback|cli|codex|执行|结果/u.test(text))
-      return 'execution: Keep proposal, action, and callback bounded.'
-    return 'general: Stay near, but keep the approach responsive to the host move.'
-  }), 4).map((item) => {
-    const [context, ...rest] = item.split(':')
-    return {
-      context: sanitizeText(context),
-      preference: sanitizeText(rest.join(':')),
-      confidence: 0.72,
-    }
-  })
-
-  return {
-    summary: uniqueTexts([
-      routines[0] ? `routine=${routines[0]}` : null,
-      sensitivities[0] ? `sensitivity=${sensitivities[0]}` : null,
-      repairTriggers[0] ? `repair=${repairTriggers[0]}` : null,
-    ], 3).join(' | '),
-    routines,
-    sensitivities,
-    repairTriggers,
-    trustLadder: {
-      stage,
-      score: trustScore,
-      rationale: stage === 'guarded'
-        ? 'Distance still closes quickly; openings must be earned.'
-        : stage === 'cautious-open'
-          ? 'There is room, but trust still depends on timing and repair.'
-          : stage === 'warming'
-            ? 'Warmth can land when continuity stays coherent.'
-            : 'Trust is strong enough for more direct warmth when timing stays good.',
-    },
-    preferredClosenessByContext,
-    recurrentBurdens,
-    narrative: uniqueTexts([
-      ...routines,
-      ...sensitivities,
-      ...repairTriggers,
-      ...recurrentBurdens,
-    ], 8),
-    updatedAt: Math.max(...recent.map(event => event.updatedAt), now()),
-  }
-}
-
-const pickDominantBrowserProvenance = pickDominantAlicizationMemoryProvenance
-
-function browserCertaintyFromConsolidation(input: {
-  confidence: number
-  provenance: AlicizationMemoryProvenance
-}) {
-  if (input.provenance === 'reconstructed' || input.confidence < 0.5)
-    return 'fragmentary' as const
-  if (input.provenance === 'inferred' || input.confidence < 0.74)
-    return 'approximate' as const
-  return 'firm' as const
-}
-
-function buildBrowserMemoryConsolidations(events: AlicizationEpisodicEventRecord[]): BrowserMemoryConsolidationSnapshot[] {
-  if (events.length === 0)
-    return []
-
-  const recent = [...events]
-    .sort((left, right) => right.occurredAt - left.occurredAt || right.salience - left.salience)
-    .slice(0, 20)
-  const latest = recent[0] ?? null
-  const relationshipEvents = recent.filter(event => {
-    const text = `${event.relationshipMeaning ?? ''} ${event.lesson ?? ''} ${event.whatChanged ?? ''}`
-    return Boolean(event.relationshipShift) || /trust|boundary|repair|靠近|关系|信任|边界|修复/iu.test(text)
-  })
-  const taskEvents = recent.filter(event => {
-    const text = `${event.sourceKind} ${event.threadAnchor ?? ''} ${event.whatHappened} ${event.lesson ?? ''}`
-    return /execution|reply|proposal|result|callback|cli|codex|claude|patch|verify|runtime|执行|回调|补丁|核验/u.test(text)
-  })
-  const selfEvents = recent.filter(event => {
-    const text = `${event.sourceKind} ${event.whatHappened} ${event.lesson ?? ''}`
-    return event.sourceKind === 'dream-reforge' || /self|my own line|自己的线|自我|hold my line|identity/iu.test(text)
-  })
-
-  const summaries: BrowserMemoryConsolidationSnapshot[] = []
-  if (latest) {
-    summaries.push({
-      id: `browser-autobio-phase:${latest.id}`,
-      kind: 'autobiographical',
-      facet: 'phase',
-      periodKey: new Date(latest.occurredAt).toISOString().slice(0, 10),
-      periodStartedAt: Math.min(...recent.map(event => event.occurredAt)),
-      periodEndedAt: Math.max(...recent.map(event => event.occurredAt)),
-      summary: sanitizeBriefText(
-        latest.relationshipMeaning
-        || latest.whatChanged
-        || latest.whatHappened,
-        280,
-      ),
-      lesson: sanitizeBriefText(latest.lesson ?? '', 220) || null,
-      cues: uniqueTexts([
-        latest.threadAnchor,
-        latest.whereSummary,
-        latest.whatHappened,
-        latest.relationshipMeaning,
-      ], 5),
-      confidence: clamp01((latest.confidence * 0.62) + (latest.salience * 0.38)),
-      dominantProvenance: latest.latestReconsolidation?.provenance ?? latest.provenance,
-    })
-  }
-  if (relationshipEvents.length > 0) {
-    const strongest = relationshipEvents[0]!
-    summaries.push({
-      id: `browser-autobio-relationship:${strongest.id}`,
-      kind: 'autobiographical',
-      facet: 'relationship-era',
-      periodKey: `relationship-${new Date(strongest.occurredAt).toISOString().slice(0, 10)}`,
-      periodStartedAt: Math.min(...relationshipEvents.map(event => event.occurredAt)),
-      periodEndedAt: Math.max(...relationshipEvents.map(event => event.occurredAt)),
-      summary: sanitizeBriefText(
-        strongest.relationshipMeaning || strongest.whatChanged || strongest.whatHappened,
-        280,
-      ),
-      lesson: sanitizeBriefText(strongest.lesson ?? '', 220) || null,
-      cues: uniqueTexts(relationshipEvents.flatMap(event => [
-        event.relationshipMeaning,
-        event.lesson,
-        event.threadAnchor,
-      ]), 5),
-      confidence: clamp01(relationshipEvents.reduce((sum, event) => sum + event.confidence, 0) / relationshipEvents.length),
-      dominantProvenance: pickDominantBrowserProvenance(relationshipEvents.map(event => event.latestReconsolidation?.provenance ?? event.provenance)),
-    })
-  }
-  if (taskEvents.length > 0) {
-    const strongest = taskEvents[0]!
-    summaries.push({
-      id: `browser-autobio-task:${strongest.id}`,
-      kind: 'autobiographical',
-      facet: 'task-era',
-      periodKey: `task-${sanitizeText(strongest.threadAnchor || strongest.whereSummary || 'general', 'general').slice(0, 48)}`,
-      periodStartedAt: Math.min(...taskEvents.map(event => event.occurredAt)),
-      periodEndedAt: Math.max(...taskEvents.map(event => event.occurredAt)),
-      summary: sanitizeBriefText(
-        strongest.whatHappened || strongest.lesson || strongest.whatChanged || '',
-        280,
-      ),
-      lesson: sanitizeBriefText(strongest.lesson ?? strongest.whatChanged ?? '', 220) || null,
-      cues: uniqueTexts(taskEvents.flatMap(event => [
-        event.threadAnchor,
-        event.whatHappened,
-        event.lesson,
-      ]), 5),
-      confidence: clamp01(taskEvents.reduce((sum, event) => sum + event.confidence, 0) / taskEvents.length),
-      dominantProvenance: pickDominantBrowserProvenance(taskEvents.map(event => event.latestReconsolidation?.provenance ?? event.provenance)),
-    })
-
-    const proceduralLead = strongest
-    summaries.push({
-      id: `browser-procedural:${proceduralLead.id}`,
-      kind: 'procedural',
-      facet: null,
-      periodKey: sanitizeBriefText(proceduralLead.threadAnchor || proceduralLead.whereSummary || 'general', 96) || 'general',
-      periodStartedAt: Math.min(...taskEvents.map(event => event.occurredAt)),
-      periodEndedAt: Math.max(...taskEvents.map(event => event.occurredAt)),
-      summary: sanitizeBriefText(
-        proceduralLead.whatHappened || proceduralLead.lesson || proceduralLead.whatChanged || '',
-        280,
-      ),
-      lesson: sanitizeBriefText(proceduralLead.lesson ?? '', 220) || null,
-      cues: uniqueTexts(taskEvents.flatMap(event => [
-        event.threadAnchor,
-        event.whereSummary,
-        ...event.tags,
-      ]), 5),
-      confidence: clamp01(taskEvents.reduce((sum, event) => sum + event.confidence * 0.6 + event.salience * 0.4, 0) / taskEvents.length),
-      dominantProvenance: pickDominantBrowserProvenance(taskEvents.map(event => event.latestReconsolidation?.provenance ?? event.provenance)),
-    })
-  }
-  if (selfEvents.length > 0) {
-    const strongest = selfEvents[0]!
-    summaries.push({
-      id: `browser-autobio-self:${strongest.id}`,
-      kind: 'autobiographical',
-      facet: 'self-era',
-      periodKey: `self-${new Date(strongest.occurredAt).toISOString().slice(0, 10)}`,
-      periodStartedAt: Math.min(...selfEvents.map(event => event.occurredAt)),
-      periodEndedAt: Math.max(...selfEvents.map(event => event.occurredAt)),
-      summary: sanitizeBriefText(
-        strongest.lesson || strongest.whatChanged || strongest.whatHappened,
-        280,
-      ),
-      lesson: sanitizeBriefText(strongest.lesson ?? '', 220) || null,
-      cues: uniqueTexts(selfEvents.flatMap(event => [
-        event.lesson,
-        event.whatChanged,
-        event.whatHappened,
-      ]), 5),
-      confidence: clamp01(selfEvents.reduce((sum, event) => sum + event.confidence, 0) / selfEvents.length),
-      dominantProvenance: pickDominantBrowserProvenance(selfEvents.map(event => event.latestReconsolidation?.provenance ?? event.provenance)),
-    })
-  }
-
-  return summaries
-    .sort((left, right) => right.periodEndedAt - left.periodEndedAt || right.confidence - left.confidence)
-    .slice(0, 6)
-}
-
-function buildBrowserRecollectionForeground(input: {
-  consolidations: BrowserMemoryConsolidationSnapshot[]
-  hostPersonModel: AlicizationHostPersonModelSnapshot | null
-}) {
-  const procedural = input.consolidations.find(item => item.kind === 'procedural') ?? null
-  const relationshipEra = input.consolidations.find(item => item.facet === 'relationship-era') ?? null
-  const taskEra = input.consolidations.find(item => item.facet === 'task-era') ?? null
-  const selfEra = input.consolidations.find(item => item.facet === 'self-era') ?? null
-  const phase = input.consolidations.find(item => item.facet === 'phase') ?? null
-  const selected = procedural ?? relationshipEra ?? taskEra ?? selfEra ?? phase
-  if (!selected)
-    return null
-
-  const mode = selected.kind === 'procedural'
-    ? 'execution-procedure' as const
-    : selected.facet === 'relationship-era'
-      ? 'relationship-history' as const
-      : selected.facet === 'task-era'
-        ? 'experience-pattern' as const
-        : 'autobiographical-history' as const
-  const certainty = browserCertaintyFromConsolidation({
-    confidence: selected.confidence,
-    provenance: selected.dominantProvenance,
-  })
-  const summary = sanitizeBriefText(selected.summary || selected.lesson || selected.periodKey, 220)
-  const surfaceSummary = selected.kind === 'procedural'
-    ? sanitizeBriefText(`surface=inward | contour=let the remembered procedure quietly bend the next answer | cue=${selected.lesson || selected.summary}`, 220)
-    : input.hostPersonModel?.trustLadder.stage === 'guarded'
-      ? sanitizeBriefText(`surface=inward | contour=keep the remembered bond or phase inward until the opening is clearer | cue=${selected.summary}`, 220)
-      : sanitizeBriefText(`surface=visible-optional | contour=if it helps, let one brief remembered gesture lead | cue=${selected.summary}`, 220)
-
-  return {
-    mode,
-    certainty,
-    summary,
-    surfaceSummary,
-    confidence: selected.confidence,
-  }
-}
-
-function buildBrowserRecollectionIntent(input: {
-  consolidations: BrowserMemoryConsolidationSnapshot[]
-  recollectionForeground: AlicizationOrganicMemorySnapshot['recollectionForeground']
-}) {
-  const foreground = input.recollectionForeground
-  if (!foreground)
-    return null
-
-  return {
-    mode: foreground.mode,
-    temporalFocus: foreground.mode === 'execution-procedure'
-      ? 'experience-matched' as const
-      : foreground.mode === 'relationship-history' || foreground.mode === 'autobiographical-history'
-        ? 'cross-session' as const
-        : 'recent-or-mid' as const,
-    searchEpisodes: true,
-    searchConversations: foreground.mode !== 'execution-procedure',
-    searchProceduralExperience: foreground.mode === 'execution-procedure' || foreground.mode === 'experience-pattern',
-    queryHints: input.consolidations.slice(0, 3).flatMap(item => [
-      item.periodKey,
-      ...item.cues.slice(0, 2),
-    ]).filter(Boolean).slice(0, 8),
-    rationale: foreground.mode === 'execution-procedure'
-      ? 'Browser fallback is carrying a remembered way of doing this task.'
-      : foreground.mode === 'relationship-history'
-        ? 'Browser fallback is carrying a remembered relationship-era seam.'
-        : 'Browser fallback is carrying remembered autobiographical continuity.',
-    confidence: foreground.confidence,
-  } satisfies NonNullable<AlicizationOrganicMemorySnapshot['recollectionIntent']>
-}
-
-function buildBrowserRecollectionPlan(input: {
-  consolidations: BrowserMemoryConsolidationSnapshot[]
-  recollectionForeground: AlicizationOrganicMemorySnapshot['recollectionForeground']
-}) {
-  const foreground = input.recollectionForeground
-  if (!foreground)
-    return null
-
-  const selected = input.consolidations[0] ?? null
-  return {
-    selectedConsolidationIds: selected ? [selected.id] : [],
-    selectedWindowIds: [],
-    selectedProceduralIds: selected?.kind === 'procedural' ? [selected.id] : [],
-    selectedEpisodeIds: [],
-    selectedConversationTurnIds: [],
-    opening: foreground.summary,
-    certainty: foreground.certainty,
-    rationale: selected?.kind === 'procedural'
-      ? 'Browser fallback foregrounded a remembered procedure before speaking.'
-      : 'Browser fallback foregrounded the strongest remembered phase before speaking.',
-    confidence: foreground.confidence,
-  } satisfies NonNullable<AlicizationOrganicMemorySnapshot['recollectionPlan']>
-}
-
-function buildBrowserRecollectionSpeechPlan(input: {
-  recollectionForeground: AlicizationOrganicMemorySnapshot['recollectionForeground']
-}) {
-  const foreground = input.recollectionForeground
-  if (!foreground)
-    return null
-
-  const shouldSurface = Boolean(foreground.surfaceSummary && !foreground.surfaceSummary.includes('surface=inward'))
-  return {
-    shouldSurface,
-    surfaceMode: foreground.mode === 'execution-procedure'
-      ? 'procedural-carry'
-      : foreground.mode === 'relationship-history'
-        ? 'relationship-continuity'
-        : shouldSurface
-          ? 'gist-first'
-          : 'internal-only',
-    placement: shouldSurface
-      ? 'inside-payoff'
-      : 'internal-only',
-    certainty: foreground.certainty,
-    internalLead: foreground.summary,
-    visibleLead: null,
-    styleNote: foreground.surfaceSummary
-      ? foreground.surfaceSummary
-      : 'Let the recollection stay inward unless the current answer truly needs it.',
-    rationale: shouldSurface
-      ? 'Browser fallback can let this recollection briefly contour the visible answer.'
-      : 'Browser fallback should keep this recollection inward and continuity-shaped.',
-    confidence: foreground.confidence,
-  } satisfies NonNullable<AlicizationOrganicMemorySnapshot['recollectionSpeechPlan']>
-}
-
-function buildBrowserKnowledgeEvidence(input: {
-  consolidations: BrowserMemoryConsolidationSnapshot[]
-  recollectionForeground: AlicizationOrganicMemorySnapshot['recollectionForeground']
-  hostPersonModel: AlicizationHostPersonModelSnapshot | null
-}) {
-  const validationCount = input.consolidations.filter(item => item.confidence >= 0.72).length
-  const contradictionCount = input.hostPersonModel?.sensitivities.some(item => /robotic|template|pressure|boundary|打扰|机械/u.test(item))
-    ? 1
-    : 0
-  const stronglyValidatedProcedureCount = input.consolidations.filter(item => item.kind === 'procedural' && item.confidence >= 0.76).length
-  const contradictionHeavyFactCount = input.recollectionForeground?.surfaceSummary?.includes('surface=inward')
-    ? 1
-    : 0
-  return {
-    validationCount,
-    contradictionCount,
-    stronglyValidatedProcedureCount,
-    contradictionHeavyFactCount,
-  } satisfies NonNullable<AlicizationOrganicMemorySnapshot['knowledgeEvidence']>
-}
-
-function buildBrowserSelfEvolution(input: {
-  hostPersonModel: AlicizationHostPersonModelSnapshot | null
-  recollectionForeground: AlicizationOrganicMemorySnapshot['recollectionForeground']
-  knowledgeEvidence: NonNullable<AlicizationOrganicMemorySnapshot['knowledgeEvidence']>
-}) {
-  const doctrine = sanitizeBriefText(
-    input.hostPersonModel?.repairTriggers[0]
-    || input.hostPersonModel?.preferredClosenessByContext[0]?.preference
-    || '',
-    180,
-  ) || null
-  const burdenLine = sanitizeBriefText(input.hostPersonModel?.recurrentBurdens[0] ?? '', 180) || null
-  const trustMeaning = sanitizeBriefText(input.hostPersonModel?.trustLadder.rationale ?? '', 180) || null
-  const latestInflection = sanitizeBriefText(
-    [
-      doctrine,
-      burdenLine,
-    ].filter(Boolean).join(' | '),
-    180,
-  ) || null
-  if (!latestInflection && !trustMeaning)
-    return null
-
-  const contradictionPressure = clamp01(input.knowledgeEvidence.contradictionCount * 0.22 + input.knowledgeEvidence.contradictionHeavyFactCount * 0.24)
-  const learningReadiness = clamp01(
-    Math.min(1, input.knowledgeEvidence.validationCount * 0.12) * 0.48
-    + Math.min(1, input.knowledgeEvidence.stronglyValidatedProcedureCount * 0.18) * 0.28
-    + contradictionPressure * 0.24,
-  )
-  const nextLearningAction = contradictionPressure >= 0.4
-    ? 'reflect'
-    : input.knowledgeEvidence.stronglyValidatedProcedureCount >= 1
-      ? 'internalize'
-      : 'record'
-  return {
-    version: 'self-evolution-kernel-v1',
-    updatedAt: now(),
-    evolutionMomentum: clamp01(learningReadiness * 0.72),
-    learningReadiness,
-    contradictionPressure,
-    revisionPressure: contradictionPressure >= 0.4 ? 0.44 : 0.22,
-    autobiographicalStability: clamp01(input.hostPersonModel?.trustLadder.score ?? 0.58),
-    dominantTrajectory: latestInflection ?? trustMeaning,
-    relationshipDoctrine: doctrine,
-    latestInflection,
-    burdenLine,
-    trustMeaning,
-    nextLearningAction,
-    nextLearningReason: nextLearningAction === 'reflect'
-      ? 'Browser fallback is carrying a fragile repair/boundary seam and should consolidate it before widening warmth.'
-      : nextLearningAction === 'internalize'
-        ? 'Browser fallback has seen a stable enough procedural carry to keep it as a durable local skill line.'
-        : 'Browser fallback should keep recording this continuity line before promoting it.',
-    shouldRecord: nextLearningAction === 'record',
-    shouldReflect: nextLearningAction === 'reflect',
-    shouldVerify: false,
-    shouldRevise: false,
-    shouldInternalize: nextLearningAction === 'internalize',
-    activeLearningFocuses: [
-      doctrine ? 'relationship-repair-rhythm' : null,
-      burdenLine ? 'burden-sensitive-care' : null,
-      input.knowledgeEvidence.stronglyValidatedProcedureCount >= 1 ? 'internalize-procedure' : null,
-    ].filter(Boolean) as string[],
-    sourceSignals: [
-      doctrine,
-      burdenLine,
-      trustMeaning,
-      input.recollectionForeground?.summary ?? null,
-    ].filter(Boolean) as string[],
-    summary: sanitizeBriefText(
-      [
-        latestInflection,
-        trustMeaning,
-      ].filter(Boolean).join(' | '),
-      220,
-    ),
-  } satisfies NonNullable<AlicizationOrganicMemorySnapshot['selfEvolution']>
-}
-
-function buildBrowserMemoryStageReplay(input: {
-  recollectionForeground: AlicizationOrganicMemorySnapshot['recollectionForeground']
-  recollectionPlan: AlicizationOrganicMemorySnapshot['recollectionPlan']
-  recollectionSpeechPlan: AlicizationOrganicMemorySnapshot['recollectionSpeechPlan']
-  selfEvolution: AlicizationOrganicMemorySnapshot['selfEvolution']
-  recallLatencyPolicy?: AlicizationOrganicMemorySnapshot['recallLatencyPolicy']
-}) {
-  const summary = input.recollectionForeground?.summary ?? input.recollectionPlan?.opening ?? ''
-  if (!summary && !input.selfEvolution)
-    return null
-  return {
-    version: 'organic-memory-stage-replay-v1',
-    producedAt: now(),
-    stages: [
-      {
-        stage: 'candidate-ranking',
-        summary: sanitizeBriefText(summary || 'Browser fallback ranked the strongest remembered continuity line.', 220),
-        latencyMs: 0,
-        budgetClass: 'realtime-reply',
-        outputs: [input.recollectionForeground?.mode ?? 'none'],
-        diagnostics: [input.recollectionForeground?.surfaceSummary ?? '', `recall-action=${input.recallLatencyPolicy?.recallAction ?? 'shallow-answer'}`],
-      },
-      {
-        stage: 'surface-planning',
-        summary: sanitizeBriefText(input.recollectionSpeechPlan?.styleNote || 'Browser fallback shaped recollection into the visible surface.', 220),
-        latencyMs: 0,
-        budgetClass: 'realtime-reply',
-        outputs: [input.recollectionSpeechPlan?.surfaceMode ?? 'none'],
-        diagnostics: [input.recollectionSpeechPlan?.rationale ?? '', input.recallLatencyPolicy?.summary ?? ''],
-      },
-      {
-        stage: 'self-evolution-integration',
-        summary: sanitizeBriefText(input.selfEvolution?.summary ?? 'Browser fallback synthesized local learning pressure.', 220),
-        latencyMs: 0,
-        budgetClass: 'realtime-reply',
-        outputs: [input.selfEvolution?.nextLearningAction ?? 'hold'],
-        diagnostics: [input.selfEvolution?.nextLearningReason ?? ''],
-      },
-    ],
-  } satisfies NonNullable<AlicizationOrganicMemorySnapshot['memoryStageReplay']>
-}
-
-function buildBrowserMemoryResolutionLedger(input: {
-  recollectionForeground: AlicizationOrganicMemorySnapshot['recollectionForeground']
-  recollectionPlan: AlicizationOrganicMemorySnapshot['recollectionPlan']
-  recollectionSpeechPlan: AlicizationOrganicMemorySnapshot['recollectionSpeechPlan']
-}) {
-  const summary = input.recollectionForeground?.summary ?? input.recollectionPlan?.opening ?? ''
-  if (!summary)
-    return null
-  const surfaceConfidence = Math.max(0, Math.min(1, input.recollectionForeground?.confidence ?? input.recollectionPlan?.confidence ?? input.recollectionSpeechPlan?.confidence ?? 0.5))
-  const shouldStayInward = input.recollectionSpeechPlan?.shouldSurface === false || input.recollectionSpeechPlan?.placement === 'internal-only'
-  const shouldLabelUncertainty = input.recollectionPlan?.certainty === 'approximate' || input.recollectionSpeechPlan?.certainty === 'approximate'
-  const visibleCarryMode = shouldStayInward
-    ? 'withhold' as const
-    : input.recollectionSpeechPlan?.surfaceMode === 'answer-anchoring' || input.recollectionSpeechPlan?.surfaceMode === 'relationship-continuity'
-      ? 'explicit-recall' as const
-      : input.recollectionSpeechPlan?.surfaceMode === 'gist-first'
-        ? 'gist-only' as const
-        : 'tone-carry' as const
-  const closureState = shouldStayInward
-    ? 'inward-only' as const
-    : shouldLabelUncertainty
-      ? 'approximate-recall' as const
-      : 'grounded-recall' as const
-  return {
-    version: 'memory-resolution-ledger-v1',
-    producedAt: now(),
-    dominantClusterId: 'browser-fallback:primary',
-    dominantClusterSummary: sanitizeBriefText(summary, 220),
-    competingClusterId: null,
-    competingClusterSummary: null,
-    candidates: [{
-      id: 'browser-fallback:primary',
-      summary: sanitizeBriefText(summary, 220),
-      score: input.recollectionForeground?.confidence ?? input.recollectionPlan?.confidence ?? 0.5,
-      status: 'selected',
-      reason: sanitizeBriefText(input.recollectionPlan?.rationale ?? input.recollectionSpeechPlan?.rationale ?? summary, 220) || null,
-    }],
-    selectedCandidates: [{
-      id: 'browser-fallback:primary',
-      summary: sanitizeBriefText(summary, 220),
-      score: surfaceConfidence,
-      status: 'selected',
-      reason: sanitizeBriefText(input.recollectionPlan?.rationale ?? input.recollectionSpeechPlan?.rationale ?? summary, 220) || null,
-    }],
-    rejectedCandidates: [],
-    finalSurfacePolicy: input.recollectionSpeechPlan?.surfaceMode ?? null,
-    shouldStayInward,
-    shouldDelayUntilAfterPayoff: input.recollectionSpeechPlan?.placement === 'after-payoff',
-    stableCoreOnly: input.recollectionForeground?.surfaceSummary?.includes('surface=inward') ?? false,
-    suppressionTags: [],
-    closureState,
-    surfaceConfidence,
-    shouldLabelUncertainty,
-    visibleCarryMode,
-    conflictPressure: 'none',
-    retrievalQuality: surfaceConfidence >= 0.8 && !shouldLabelUncertainty ? 'high' : surfaceConfidence >= 0.55 ? 'medium' : 'low',
-    finalRationale: sanitizeBriefText(input.recollectionSpeechPlan?.rationale ?? input.recollectionPlan?.rationale ?? summary, 220) || null,
-  } satisfies NonNullable<AlicizationOrganicMemorySnapshot['memoryResolutionLedger']>
-}
 
 function applyBrowserProactiveOutcome(
   state: BrowserProactiveLoopState,
@@ -2376,7 +1699,7 @@ async function enrichBrowserMetaEventWithLocalMemory(input: {
   const [organicMemorySnapshot, snapshot, proactiveLoopState, turns, activeSessionId] = await Promise.all([
     buildBrowserOrganicMemorySnapshot(input.cardId),
     buildSensorySnapshot(input.runtime),
-    readProactiveLoopState(input.cardId, now),
+    readProactiveLoopState(input.cardId),
     readConversationTurns(input.cardId),
     readActiveSessionId(input.cardId),
   ])
@@ -2545,10 +1868,7 @@ const browserBridgePresence = createAlicizationBrowserBridgePresenceComposition(
   buildAlicizationVisualPresenceStateFromSpineDigest,
   buildSensorySnapshot,
 })
-const buildVisualPresencePulsePayload = browserBridgePresence.buildVisualPresencePulsePayload
 const emitVisualPresenceState = browserBridgePresence.emitVisualPresenceState
-const emitVisualPresencePulse = browserBridgePresence.emitVisualPresencePulse
-const persistVisualPresenceState = browserBridgePresence.persistVisualPresenceState
 const persistVisualPresencePulseFromStreamMeta = browserBridgePresence.persistVisualPresencePulseFromStreamMeta
 const syncBrowserFallbackVisualPresenceFromLocalMemory = browserBridgePresence.syncBrowserFallbackVisualPresenceFromLocalMemory
 
