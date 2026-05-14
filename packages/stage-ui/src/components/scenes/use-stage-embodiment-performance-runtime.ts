@@ -46,6 +46,14 @@ const segmentFacialCueHoldMs = 260
 const segmentActionCueHoldMs = 180
 const segmentEmotionCueHoldMs = 240
 const performanceEmbodimentDebugStorageKey = 'devtools/embodiment-debug'
+const previewDriverCueConfidenceFloor = 0.5
+
+function isDriverCueConfidenceSufficient(raw: unknown) {
+  if (raw == null)
+    return true
+
+  return clamp01(Number(raw)) >= previewDriverCueConfidenceFloor
+}
 
 function clamp01(value: number | null | undefined, fallback: number = 0) {
   if (!Number.isFinite(value))
@@ -293,6 +301,8 @@ function resolvePlaybackDriverFaceMetadata(
   const face = (candidate as EmbodimentPlaybackTelemetry).drivers?.face
   if (!face)
     return null
+  if (!isDriverCueConfidenceSufficient(face.confidence))
+    return null
 
   return {
     facialCue: face.facialCue?.trim() || null,
@@ -313,6 +323,8 @@ function resolvePlaybackDriverMotionMetadata(
   const motion = (candidate as EmbodimentPlaybackTelemetry).drivers?.motion
   if (!motion)
     return null
+  if (!isDriverCueConfidenceSufficient(motion.confidence))
+    return null
 
   return {
     actionCue: motion.actionCue?.trim() || null,
@@ -328,6 +340,8 @@ function resolveExplicitPlaybackDriverFaceMetadata(input: {
 }) {
   const face = input.telemetry?.drivers.face
   if (!face)
+    return null
+  if (!isDriverCueConfidenceSufficient(face.confidence))
     return null
   if (!matchesDriverSegment(face.segmentId, input.segmentId))
     return null
@@ -347,6 +361,8 @@ function resolveExplicitPlaybackDriverMotionMetadata(input: {
 }) {
   const motion = input.telemetry?.drivers.motion
   if (!motion)
+    return null
+  if (!isDriverCueConfidenceSufficient(motion.confidence))
     return null
   if (!matchesDriverSegment(motion.segmentId, input.segmentId))
     return null
