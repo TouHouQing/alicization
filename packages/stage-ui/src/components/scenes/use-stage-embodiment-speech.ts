@@ -2,6 +2,7 @@ import type { Live2DLipSync, Live2DLipSyncOptions } from '@proj-alicization/mode
 import type { Profile } from '@proj-alicization/model-driver-lipsync/shared/wlipsync'
 import type { PlaybackItem, PlaybackManagerOptions, TextSegment } from '@proj-alicization/pipelines-audio'
 import type {
+  AlicizationEmbodimentLipSyncVisemeHint,
   AlicizationEmbodimentScriptV1,
   AlicizationEmbodimentSpeechPlan,
   AlicizationDialogueSpeechTimeline,
@@ -433,6 +434,15 @@ function resolveActivePlaybackVisemeHints(
   return visemeHints.filter(hint => hint.segmentId === segmentId)
 }
 
+function resolveAuthoritativeHintStrength(hints: AlicizationEmbodimentLipSyncVisemeHint[]) {
+  return hints.reduce((peak, hint) => {
+    if (hint.source !== 'prosody-authority')
+      return peak
+
+    return Math.max(peak, clampUnit(hint.weight) * clampUnit(hint.confidence))
+  }, 0)
+}
+
 function resolvePlaybackDriverMetadata(input: {
   idleCuePhase?: 'pre-utterance' | 'post-utterance'
   script: AlicizationEmbodimentScriptV1 | null
@@ -728,7 +738,9 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
       U: 0,
       closed: 0,
     }
-    for (const hint of resolveActivePlaybackVisemeHints(speechPlaybackState.value.item)) {
+    const activeVisemeHints = resolveActivePlaybackVisemeHints(speechPlaybackState.value.item)
+    const authoritativeHintStrength = resolveAuthoritativeHintStrength(activeVisemeHints)
+    for (const hint of activeVisemeHints) {
       hintMap[hint.viseme] = Math.max(hintMap[hint.viseme], clampUnit(hint.weight))
     }
 
@@ -769,8 +781,16 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
     const lipSyncProfile = speechPlaybackState.value.item?.digitalLifeFrame?.lipSync
     const visemeBias = clampRange(lipSyncProfile?.visemeBias ?? 0.58, 0.16, 1)
     const energyBias = clampRange(lipSyncProfile?.energyBias ?? 0.42, 0.12, 1)
-    const effectiveVisemeBias = clampRange(visemeBias + hintStrength * 0.24, visemeBias, 1)
-    const effectiveEnergyBias = clampRange(energyBias + hintedClosure * 0.26, energyBias, 1)
+    const effectiveVisemeBias = clampRange(
+      visemeBias + hintStrength * 0.24 + authoritativeHintStrength * 0.22,
+      authoritativeHintStrength > 0 ? Math.max(visemeBias, 0.86) : visemeBias,
+      1,
+    )
+    const effectiveEnergyBias = clampRange(
+      energyBias + hintedClosure * 0.18 + authoritativeHintStrength * 0.16,
+      authoritativeHintStrength > 0 ? Math.max(energyBias, 0.72) : energyBias,
+      1,
+    )
     const voice = baseArticulation.voice
     const audioRound = clampUnit(
       audioVisemes.U * 0.92
@@ -861,7 +881,10 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
         I: roundHundredths(Math.max(baseArticulation.visemes.I * (1 - effectiveVisemeBias * 0.42), audioVisemes.I * visemeBias, hintedVisemes.I * effectiveVisemeBias)),
         O: roundHundredths(Math.max(baseArticulation.visemes.O * (1 - effectiveVisemeBias * 0.42), audioVisemes.O * visemeBias, hintedVisemes.O * effectiveVisemeBias)),
         U: roundHundredths(Math.max(baseArticulation.visemes.U * (1 - effectiveVisemeBias * 0.42), audioVisemes.U * visemeBias, hintedVisemes.U * effectiveVisemeBias)),
-        closed: roundHundredths(Math.max(closureTarget, hintedClosure * (0.36 + hintStrength * 0.28))),
+        closed: roundHundredths(Math.max(
+          closureTarget,
+          hintedClosure * (0.36 + hintStrength * 0.28 + authoritativeHintStrength * 0.2),
+        )),
       },
     }
   }

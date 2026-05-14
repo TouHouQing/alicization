@@ -1037,8 +1037,8 @@ describe('stage embodiment speech contract', () => {
               playbackPhase: 'playing',
               segmentId: 'synthetic-1',
               visemeHints: [
-                { segmentId: 'synthetic-1', viseme: 'U', weight: 0.92 },
-                { segmentId: 'synthetic-1', viseme: 'closed', weight: 0.58 },
+                { segmentId: 'synthetic-1', viseme: 'U', weight: 0.92, source: 'prosody-authority', confidence: 0.94 },
+                { segmentId: 'synthetic-1', viseme: 'closed', weight: 0.58, source: 'prosody-authority', confidence: 0.94 },
               ],
             },
           },
@@ -1058,8 +1058,8 @@ describe('stage embodiment speech contract', () => {
     const articulation = speech.speechRenderState.value.articulation
 
     expect(articulation.lipRound).toBeGreaterThan(0.35)
-    expect(articulation.visemes.U).toBeGreaterThan(0.35)
-    expect(articulation.visemes.closed).toBeGreaterThan(0.15)
+    expect(articulation.visemes.U).toBeGreaterThan(0.8)
+    expect(articulation.visemes.closed).toBeGreaterThan(0.4)
     expect(articulation.lipRound).toBeGreaterThan(articulation.lipSpread)
     expect(getVowelWeights).toHaveBeenCalled()
 
@@ -1141,8 +1141,8 @@ describe('stage embodiment speech contract', () => {
               playbackPhase: 'playing',
               segmentId: 'driver-segment',
               visemeHints: [
-                { segmentId: 'driver-segment', viseme: 'U', weight: 0.88 },
-                { segmentId: 'other-segment', viseme: 'A', weight: 0.98 },
+                { segmentId: 'driver-segment', viseme: 'U', weight: 0.88, source: 'prosody-authority', confidence: 0.92 },
+                { segmentId: 'other-segment', viseme: 'A', weight: 0.98, source: 'prosody-authority', confidence: 0.92 },
               ],
             },
           },
@@ -1237,8 +1237,8 @@ describe('stage embodiment speech contract', () => {
               playbackPhase: 'playing',
               segmentId: 'synthetic-1',
               visemeHints: [
-                { segmentId: 'synthetic-1', viseme: 'U', weight: 0.92 },
-                { segmentId: 'synthetic-1', viseme: 'closed', weight: 0.58 },
+                { segmentId: 'synthetic-1', viseme: 'U', weight: 0.92, source: 'prosody-authority', confidence: 0.94 },
+                { segmentId: 'synthetic-1', viseme: 'closed', weight: 0.58, source: 'prosody-authority', confidence: 0.94 },
               ],
             },
           },
