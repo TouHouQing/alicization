@@ -50,6 +50,8 @@ describe('alicization embodiment script', () => {
           facialCue: 'soft-gaze',
           intensity: 0.62,
           holdMs: 360,
+          preUtteranceCue: 'steady-inhale',
+          postUtteranceCue: 'soft-release',
         }],
       },
       motionPlan: {
@@ -90,6 +92,8 @@ describe('alicization embodiment script', () => {
       tempoShift: -0.06,
     })
     expect(script?.facePlan.speakingCues[0]?.holdMs).toBe(360)
+    expect(script?.facePlan.speakingCues[0]?.preUtteranceCue).toBe('steady-inhale')
+    expect(script?.facePlan.speakingCues[0]?.postUtteranceCue).toBe('soft-release')
     expect(script?.motionPlan.actionBursts[0]?.holdMs).toBe(420)
     expect(script?.lipsyncPlan.mode).toBe('energy-phoneme-hybrid')
     expect(script?.lipsyncPlan.visemeHints?.[0]).toEqual({

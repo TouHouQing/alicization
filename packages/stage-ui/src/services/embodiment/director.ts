@@ -178,6 +178,40 @@ function resolveVisemeConfidence(timelineSegment: NonNullable<AlicizationDialogu
   return hasExplicitEmphasisCues ? 0.94 : 0.9
 }
 
+function resolveSegmentPreUtteranceCue(segment: AlicizationEmbodimentSpeechSegment) {
+  switch (segment.prosody?.pauseClass) {
+    case 'question':
+    case 'exclaim':
+    case 'full-stop':
+      return 'steady-inhale' as const
+    case 'comma':
+    case 'enumeration':
+    case 'ellipsis':
+      return 'steady-inhale' as const
+    case 'none':
+    default:
+      return null
+  }
+}
+
+function resolveSegmentPostUtteranceCue(segment: AlicizationEmbodimentSpeechSegment) {
+  switch (segment.prosody?.pauseClass) {
+    case 'question':
+      return 'eyes-soften' as const
+    case 'exclaim':
+      return 'settle-smile' as const
+    case 'full-stop':
+    case 'ellipsis':
+      return 'soft-release' as const
+    case 'comma':
+    case 'enumeration':
+      return 'soft-release' as const
+    case 'none':
+    default:
+      return null
+  }
+}
+
 function buildAlicizationEmbodimentLipSyncHints(
   segment: AlicizationEmbodimentSpeechSegment,
   timelineSegment: AlicizationDialogueSpeechTimeline['segments'][number] | null,
@@ -257,6 +291,8 @@ export function buildAlicizationEmbodimentScript(
       facialCue: timelineSegment?.facialCue ?? adapted.performance.facialCue ?? null,
       intensity: timelineSegment?.facialWeight ?? fallbackFaceIntensity,
       holdMs: Math.max(0, timelineSegment?.facialHoldMs ?? segment.settleMs),
+      preUtteranceCue: resolveSegmentPreUtteranceCue(segment),
+      postUtteranceCue: resolveSegmentPostUtteranceCue(segment),
     }
   })
   const actionBursts = speechPlan.segments.map((segment) => {

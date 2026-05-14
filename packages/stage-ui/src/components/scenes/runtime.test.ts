@@ -47,6 +47,8 @@ describe('live2d embodiment drivers', () => {
         facialCue: 'smile',
         intensity: 0.8,
         holdMs: 360,
+        preUtteranceCue: 'steady-inhale',
+        postUtteranceCue: 'soft-release',
       }],
     },
     motionPlan: {
@@ -84,7 +86,7 @@ describe('live2d embodiment drivers', () => {
       idleCuePhase: 'pre-utterance',
       playbackPhase: 'idle',
     })).toEqual(expect.objectContaining({
-      facialCue: 'soft-breath',
+      facialCue: 'steady-inhale',
       preUtteranceCue: 'soft-breath',
       postUtteranceCue: 'settle-smile',
     }))
@@ -95,7 +97,7 @@ describe('live2d embodiment drivers', () => {
       idleCuePhase: 'post-utterance',
       playbackPhase: 'idle',
     })).toEqual(expect.objectContaining({
-      facialCue: 'settle-smile',
+      facialCue: 'soft-release',
       preUtteranceCue: 'soft-breath',
       postUtteranceCue: 'settle-smile',
     }))
@@ -107,7 +109,31 @@ describe('live2d embodiment drivers', () => {
       segmentId: 'segment-1',
       playbackPhase: 'idle',
     })).toEqual(expect.objectContaining({
-      facialCue: 'soft-breath',
+      facialCue: 'steady-inhale',
+      preUtteranceCue: 'soft-breath',
+      postUtteranceCue: 'settle-smile',
+    }))
+  })
+
+  it('prefers segment-level idle face timing cues when they are available', () => {
+    expect(resolveLive2DFaceDriverState({
+      script,
+      segmentId: 'segment-1',
+      idleCuePhase: 'pre-utterance',
+      playbackPhase: 'idle',
+    })).toEqual(expect.objectContaining({
+      facialCue: 'steady-inhale',
+      preUtteranceCue: 'soft-breath',
+      postUtteranceCue: 'settle-smile',
+    }))
+
+    expect(resolveLive2DFaceDriverState({
+      script,
+      segmentId: 'segment-1',
+      idleCuePhase: 'post-utterance',
+      playbackPhase: 'idle',
+    })).toEqual(expect.objectContaining({
+      facialCue: 'soft-release',
       preUtteranceCue: 'soft-breath',
       postUtteranceCue: 'settle-smile',
     }))

@@ -45,10 +45,12 @@ export function resolveLive2DFaceDriverState(
   const playbackFacialCue = input.playbackPhase === 'playing'
     ? speakingCue?.facialCue ?? null
     : idleCuePhase === 'post-utterance'
-        ? script.facePlan.postUtteranceCue
+        ? speakingCue?.postUtteranceCue
+          ?? script.facePlan.postUtteranceCue
           ?? speakingCue?.facialCue
           ?? null
-        : script.facePlan.preUtteranceCue
+        : speakingCue?.preUtteranceCue
+          ?? script.facePlan.preUtteranceCue
           ?? speakingCue?.facialCue
           ?? null
 
