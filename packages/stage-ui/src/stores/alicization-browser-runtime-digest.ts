@@ -1,5 +1,4 @@
 import type {
-  AlicizationDigitalLifeSpineDigest,
   AlicizationOrganicMemorySnapshot,
   AlicizationSensoryCacheSnapshot,
 } from './alicization-bridge'

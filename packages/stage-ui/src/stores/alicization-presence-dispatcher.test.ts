@@ -1,4 +1,7 @@
-import type { AlicizationDialogueRespondedPayload } from './alicization-bridge'
+import type {
+  AlicizationDialogueRespondedPayload,
+  AlicizationEmbodimentScriptV1,
+} from './alicization-bridge'
 
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -305,7 +308,7 @@ describe('alicization presence dispatcher', () => {
   it('keeps runtime-provided embodimentScript instead of rebuilding it locally', async () => {
     const store = useAlicizationPresenceDispatcherStore()
     const applyPerformance = vi.fn()
-    const builder = vi.fn(() => ({
+    const builder = vi.fn<(_: AlicizationDialogueRespondedPayload) => AlicizationEmbodimentScriptV1>(() => ({
       version: 'embodiment-script-v1',
       turnId: 'turn-script-fallback',
       rendererTarget: 'live2d',
@@ -330,20 +333,20 @@ describe('alicization presence dispatcher', () => {
       },
       lipsyncPlan: { mode: 'energy-only' },
     }))
-    const runtimeScript = {
-      version: 'embodiment-script-v1' as const,
+    const runtimeScript: AlicizationEmbodimentScriptV1 = {
+      version: 'embodiment-script-v1',
       turnId: 'turn-script-fallback',
-      rendererTarget: 'live2d' as const,
+      rendererTarget: 'live2d',
       replyText: 'runtime-reply',
       state: {
-        baseEmotion: 'happy' as const,
-        delivery: 'energetic' as const,
-        emphasis: 2 as const,
-        residentMode: 'dialogue' as const,
+        baseEmotion: 'happy',
+        delivery: 'energetic',
+        emphasis: 2,
+        residentMode: 'dialogue',
       },
       speechPlan: {
         segments: [],
-        interruptPolicy: 'hard-stop' as const,
+        interruptPolicy: 'hard-stop',
         preRollMs: 0,
         settleMs: 160,
       },
@@ -351,9 +354,9 @@ describe('alicization presence dispatcher', () => {
       motionPlan: {
         idleBase: 'runtime-idle',
         actionBursts: [],
-        attentionMode: 'attentive' as const,
+        attentionMode: 'attentive',
       },
-      lipsyncPlan: { mode: 'energy-only' as const },
+      lipsyncPlan: { mode: 'energy-only' },
     }
 
     store.setEmbodimentScriptBuilder(builder)
@@ -365,7 +368,7 @@ describe('alicization presence dispatcher', () => {
         thought: 'focus',
         emotion: 'happy',
         reply: '你好',
-        embodimentScript: runtimeScript as any,
+        embodimentScript: runtimeScript,
         performance: {
           baseEmotion: 'happy',
           emotion: 'happy',
