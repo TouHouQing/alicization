@@ -67,6 +67,11 @@ export interface StageEmbodimentDiagnosticsSnapshot {
     cadencePulse: number
     visemeIntensity: number
     articulation: StageEmbodimentSpeechArticulationState | null
+    driverSummary: {
+      face: string | null
+      motion: string | null
+      lipsync: string | null
+    } | null
     playbackTelemetry: {
       actualDurationMs: number | null
       plannedDurationMs: number | null
@@ -108,6 +113,16 @@ function normalizeSpeechArticulation(raw: StageEmbodimentSpeechArticulationState
   if (!raw)
     return null
   return cloneStageEmbodimentSpeechArticulationState(raw)
+}
+
+function formatDriverSummaryEntry(input: { source?: string | null, confidence?: number | null } | null | undefined) {
+  if (!input?.source)
+    return null
+
+  const confidence = Number.isFinite(input.confidence)
+    ? Number(input.confidence).toFixed(2)
+    : '0.00'
+  return `${input.source}@${confidence}`
 }
 
 export function useStageEmbodimentDiagnostics(options: UseStageEmbodimentDiagnosticsOptions) {
@@ -156,6 +171,13 @@ export function useStageEmbodimentDiagnostics(options: UseStageEmbodimentDiagnos
         cadencePulse: speechRenderState?.dynamics.cadencePulse ?? 0,
         visemeIntensity: speechRenderState?.visemeIntensity ?? 0,
         articulation: normalizeSpeechArticulation(speechRenderState?.articulation),
+        driverSummary: playbackTelemetry?.drivers
+          ? {
+              face: formatDriverSummaryEntry(playbackTelemetry.drivers.face),
+              motion: formatDriverSummaryEntry(playbackTelemetry.drivers.motion),
+              lipsync: formatDriverSummaryEntry(playbackTelemetry.drivers.lipsync?.visemeHints[0] ?? null),
+            }
+          : null,
         playbackTelemetry,
       },
       stage: options.stageBounds.value,

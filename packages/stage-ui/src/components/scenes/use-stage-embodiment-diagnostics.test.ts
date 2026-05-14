@@ -201,7 +201,17 @@ describe('stage embodiment diagnostics', () => {
         settleMs: 420,
         stopReason: 'ended',
         drivers: {
-          face: null,
+          face: {
+            emotion: 'thinking',
+            facialCue: 'focused',
+            intensity: 0.46,
+            holdMs: 420,
+            preUtteranceCue: 'steady-inhale',
+            postUtteranceCue: 'eyes-soften',
+            segmentId: 'segment-1',
+            source: 'prosody-authority',
+            confidence: 0.94,
+          },
           lipsync: {
             mode: 'energy-phoneme-hybrid',
             playbackPhase: 'playing',
@@ -211,7 +221,16 @@ describe('stage embodiment diagnostics', () => {
               { segmentId: 'segment-1', viseme: 'closed', weight: 0.58, source: 'prosody-authority', confidence: 0.77 },
             ],
           },
-          motion: null,
+          motion: {
+            idleBase: 'idle_settle',
+            attentionMode: 'attentive',
+            actionCue: 'idle_gentle_nod',
+            intensity: 0.32,
+            holdMs: 180,
+            segmentId: 'segment-1',
+            source: 'timeline-projection',
+            confidence: 0.88,
+          },
         },
       }),
       presencePosture: ref({} as any),
@@ -268,6 +287,11 @@ describe('stage embodiment diagnostics', () => {
     expect(diagnostics.snapshot.value.speech.articulation?.lipClosure).toBeCloseTo(0.44)
     expect(diagnostics.snapshot.value.speech.articulation?.visemes.A).toBeCloseTo(0.66)
     expect(diagnostics.snapshot.value.speech.playbackTelemetry?.drivers?.lipsync?.mode).toBe('energy-phoneme-hybrid')
+    expect(diagnostics.snapshot.value.speech.driverSummary).toEqual({
+      face: 'prosody-authority@0.94',
+      motion: 'timeline-projection@0.88',
+      lipsync: 'prosody-authority@0.89',
+    })
     expect(diagnostics.snapshot.value.speech.playbackTelemetry?.drivers?.lipsync?.visemeHints).toEqual([
       { segmentId: 'segment-1', viseme: 'U', weight: 0.92, source: 'prosody-authority', confidence: 0.89 },
       { segmentId: 'segment-1', viseme: 'closed', weight: 0.58, source: 'prosody-authority', confidence: 0.77 },

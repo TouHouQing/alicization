@@ -1336,6 +1336,83 @@ describe('stage embodiment performance runtime', () => {
     scope.stop()
   })
 
+  it('keeps resident cues when explicit playback telemetry confidence is too low to override them', async () => {
+    const speechRenderState = ref(createIdleStageEmbodimentSpeechRenderState())
+    const playbackTelemetry = ref<EmbodimentPlaybackTelemetry | null>(null)
+    const scope = effectScope()
+    const runtime = scope.run(() => useStageEmbodimentPerformanceRuntime({
+      playbackTelemetry,
+      speechRenderState,
+    }))!
+
+    runtime.armPerformance(createPerformance(), {
+      source: 'dialogue',
+      variationToken: 'turn-explicit-low-confidence',
+    })
+
+    speechRenderState.value = {
+      ...speechRenderState.value,
+      active: true,
+      dynamics: {
+        speechEnergy: 0.14,
+        prosodyIntensity: 0.1,
+        emphasisLevel: 0.08,
+        cadencePulse: 0.18,
+      },
+      item: createStageEmbodimentSpeechPlaybackItem({
+        intentId: 'intent-explicit-low-confidence',
+        segmentId: 'segment-explicit-low-confidence',
+        special: null,
+        streamId: 'stream-explicit-low-confidence',
+        text: '然后点保存。',
+      }),
+      phase: 'playing',
+      revision: 1,
+      visemeIntensity: 0.04,
+    }
+    await nextTick()
+
+    playbackTelemetry.value = {
+      actualDurationMs: 180,
+      driftMs: 0,
+      plannedDurationMs: 180,
+      settleMs: 220,
+      stopReason: null,
+      drivers: {
+        face: {
+          emotion: 'happy',
+          facialCue: 'reassure_smile',
+          intensity: 0.72,
+          holdMs: 360,
+          preUtteranceCue: 'soft-breath',
+          postUtteranceCue: 'settle-smile',
+          segmentId: 'segment-explicit-low-confidence',
+          source: 'prosody-authority',
+          confidence: 0.22,
+        },
+        lipsync: null,
+        motion: {
+          idleBase: 'idle_settle',
+          attentionMode: 'attentive',
+          actionCue: 'idle_gentle_nod',
+          intensity: 0.58,
+          holdMs: 180,
+          segmentId: 'segment-explicit-low-confidence',
+          source: 'timeline-projection',
+          confidence: 0.24,
+        },
+      },
+    }
+    await nextTick()
+
+    expect(runtime.state.value.activeFacialCue).toBe('smile')
+    expect(runtime.state.value.activeFacialCueSource).toBe('resident')
+    expect(runtime.state.value.activeActionCue).toBe('raise_hand_excited')
+    expect(runtime.state.value.activeActionCueSource).toBe('resident')
+
+    scope.stop()
+  })
+
   it('modulates speaking dynamics from digital-life spine architecture and memory signals', async () => {
     const speechBase = {
       active: true,
