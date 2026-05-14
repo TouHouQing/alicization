@@ -164,11 +164,28 @@ describe('alicization-browser-main-parity', () => {
             facePlan: {
               preUtteranceCue: 'steady-inhale',
               postUtteranceCue: 'soft-release',
-              speakingCues: [],
+              speakingCues: [{
+                segmentId: 'segment-1',
+                emotion: 'neutral',
+                facialCue: null,
+                intensity: 0.5,
+                holdMs: 360,
+                preUtteranceCue: 'steady-inhale',
+                postUtteranceCue: 'soft-release',
+                source: 'prosody-authority',
+                confidence: 0.94,
+              }],
             },
             motionPlan: {
               idleBase: 'idle_settle',
-              actionBursts: [],
+              actionBursts: [{
+                segmentId: 'segment-1',
+                actionCue: 'observe_focus',
+                intensity: 0.4,
+                holdMs: 260,
+                source: 'timeline-projection',
+                confidence: 0.88,
+              }],
               attentionMode: 'attentive',
             },
             lipsyncPlan: {
@@ -336,11 +353,28 @@ describe('alicization-browser-main-parity', () => {
             facePlan: {
               preUtteranceCue: 'steady-inhale',
               postUtteranceCue: 'soft-release',
-              speakingCues: [],
+              speakingCues: [{
+                segmentId: 'segment-1',
+                emotion: 'neutral',
+                facialCue: null,
+                intensity: 0.5,
+                holdMs: 360,
+                preUtteranceCue: 'steady-inhale',
+                postUtteranceCue: 'soft-release',
+                source: 'prosody-authority',
+                confidence: 0.94,
+              }],
             },
             motionPlan: {
               idleBase: 'idle_settle',
-              actionBursts: [],
+              actionBursts: [{
+                segmentId: 'segment-1',
+                actionCue: 'observe_focus',
+                intensity: 0.4,
+                holdMs: 260,
+                source: 'timeline-projection',
+                confidence: 0.88,
+              }],
               attentionMode: 'attentive',
             },
             lipsyncPlan: {

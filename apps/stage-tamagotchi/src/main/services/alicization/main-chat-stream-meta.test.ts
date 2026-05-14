@@ -104,6 +104,11 @@ vi.mock('./runtime-governance', () => ({
                 emotion: 'thinking',
                 facialCue: 'blink',
                 intensity: 0.5,
+                holdMs: 360,
+                preUtteranceCue: 'steady-inhale',
+                postUtteranceCue: 'soft-release',
+                source: 'prosody-authority',
+                confidence: 0.94,
               }],
             },
             motionPlan: {
@@ -113,6 +118,8 @@ vi.mock('./runtime-governance', () => ({
                 actionCue: 'lean-forward',
                 intensity: 0.6,
                 holdMs: 360,
+                source: 'timeline-projection',
+                confidence: 0.88,
               }],
               attentionMode: 'attentive',
             },
@@ -236,6 +243,26 @@ describe('main chat stream meta', () => {
       embodimentScript: expect.objectContaining({
         version: 'embodiment-script-v1',
         turnId: 'turn-1',
+        facePlan: expect.objectContaining({
+          speakingCues: [
+            expect.objectContaining({
+              holdMs: 360,
+              preUtteranceCue: 'steady-inhale',
+              postUtteranceCue: 'soft-release',
+              source: 'prosody-authority',
+              confidence: 0.94,
+            }),
+          ],
+        }),
+        motionPlan: expect.objectContaining({
+          actionBursts: [
+            expect.objectContaining({
+              holdMs: 360,
+              source: 'timeline-projection',
+              confidence: 0.88,
+            }),
+          ],
+        }),
       }),
       speechTimeline: expect.objectContaining({
         reply: '先看这里',
