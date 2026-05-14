@@ -125,6 +125,22 @@ vi.mock('./runtime-governance', () => ({
             },
             lipsyncPlan: {
               mode: 'energy-phoneme-hybrid',
+              visemeHints: [
+                {
+                  segmentId: 'segment-1',
+                  viseme: 'closed',
+                  weight: 0.62,
+                  source: 'prosody-authority',
+                  confidence: 0.94,
+                },
+                {
+                  segmentId: 'segment-1',
+                  viseme: 'E',
+                  weight: 0.29,
+                  source: 'prosody-authority',
+                  confidence: 0.94,
+                },
+              ],
             },
           }
         : null,
@@ -237,33 +253,10 @@ describe('main chat stream meta', () => {
     emitter.emit('先看这里。')
 
     expect(emit).toHaveBeenCalledTimes(2)
-    expect(emit).toHaveBeenNthCalledWith(1, expect.objectContaining({
+    const firstEmission = emit.mock.calls[0]?.[0]
+    expect(firstEmission).toEqual(expect.objectContaining({
       cardId: 'card-1',
       turnId: 'turn-1',
-      embodimentScript: expect.objectContaining({
-        version: 'embodiment-script-v1',
-        turnId: 'turn-1',
-        facePlan: expect.objectContaining({
-          speakingCues: [
-            expect.objectContaining({
-              holdMs: 360,
-              preUtteranceCue: 'steady-inhale',
-              postUtteranceCue: 'soft-release',
-              source: 'prosody-authority',
-              confidence: 0.94,
-            }),
-          ],
-        }),
-        motionPlan: expect.objectContaining({
-          actionBursts: [
-            expect.objectContaining({
-              holdMs: 360,
-              source: 'timeline-projection',
-              confidence: 0.88,
-            }),
-          ],
-        }),
-      }),
       speechTimeline: expect.objectContaining({
         reply: '先看这里',
       }),
@@ -276,6 +269,26 @@ describe('main chat stream meta', () => {
         version: 'alicization-runtime-digest-v1',
         dominantChannel: 'active-dialogue',
       }),
+    }))
+    expect(firstEmission?.embodimentScript?.version).toBe('embodiment-script-v1')
+    expect(firstEmission?.embodimentScript?.turnId).toBe('turn-1')
+    expect(firstEmission?.embodimentScript?.facePlan.speakingCues[0]).toEqual(expect.objectContaining({
+      holdMs: 360,
+      preUtteranceCue: 'steady-inhale',
+      postUtteranceCue: 'soft-release',
+      source: 'prosody-authority',
+      confidence: 0.94,
+    }))
+    expect(firstEmission?.embodimentScript?.motionPlan.actionBursts[0]).toEqual(expect.objectContaining({
+      holdMs: 360,
+      source: 'timeline-projection',
+      confidence: 0.88,
+    }))
+    expect(firstEmission?.embodimentScript?.lipsyncPlan.mode).toBe('energy-phoneme-hybrid')
+    expect(firstEmission?.embodimentScript?.lipsyncPlan.visemeHints?.[0]).toEqual(expect.objectContaining({
+      viseme: 'closed',
+      source: 'prosody-authority',
+      confidence: 0.94,
     }))
     expect(emit).toHaveBeenNthCalledWith(2, expect.objectContaining({
       embodimentScript: expect.objectContaining({

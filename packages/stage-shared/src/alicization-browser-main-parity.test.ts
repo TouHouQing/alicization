@@ -190,6 +190,13 @@ describe('alicization-browser-main-parity', () => {
             },
             lipsyncPlan: {
               mode: 'energy-only',
+              visemeHints: [{
+                segmentId: 'segment-1',
+                viseme: 'closed',
+                weight: 0.62,
+                source: 'prosody-authority',
+                confidence: 0.94,
+              }],
             },
           },
         },
@@ -379,6 +386,13 @@ describe('alicization-browser-main-parity', () => {
             },
             lipsyncPlan: {
               mode: 'energy-only',
+              visemeHints: [{
+                segmentId: 'segment-1',
+                viseme: 'closed',
+                weight: 0.62,
+                source: 'prosody-authority',
+                confidence: 0.94,
+              }],
             },
           },
         },
