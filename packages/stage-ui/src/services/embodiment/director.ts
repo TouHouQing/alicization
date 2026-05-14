@@ -256,6 +256,7 @@ export function buildAlicizationEmbodimentScript(
       emotion: timelineSegment?.emotion ?? adapted.performance.baseEmotion,
       facialCue: timelineSegment?.facialCue ?? adapted.performance.facialCue ?? null,
       intensity: timelineSegment?.facialWeight ?? fallbackFaceIntensity,
+      holdMs: Math.max(0, timelineSegment?.facialHoldMs ?? segment.settleMs),
     }
   })
   const actionBursts = speechPlan.segments.map((segment) => {

@@ -1209,6 +1209,7 @@ describe('stage embodiment performance runtime', () => {
           emotion: 'happy',
           facialCue: 'reassure_smile',
           intensity: 0.72,
+          holdMs: 360,
           preUtteranceCue: 'soft-breath',
           postUtteranceCue: 'settle-smile',
           segmentId: 'segment-explicit-playback-telemetry',

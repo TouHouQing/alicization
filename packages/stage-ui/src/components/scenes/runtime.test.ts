@@ -46,6 +46,7 @@ describe('live2d embodiment drivers', () => {
         emotion: 'happy' as const,
         facialCue: 'smile',
         intensity: 0.8,
+        holdMs: 360,
       }],
     },
     motionPlan: {
@@ -72,6 +73,7 @@ describe('live2d embodiment drivers', () => {
       emotion: 'happy',
       facialCue: 'smile',
       intensity: 0.8,
+      holdMs: 360,
     }))
   })
 

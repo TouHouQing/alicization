@@ -49,6 +49,7 @@ describe('alicization embodiment script', () => {
           emotion: 'concerned',
           facialCue: 'soft-gaze',
           intensity: 0.62,
+          holdMs: 360,
         }],
       },
       motionPlan: {
@@ -88,6 +89,7 @@ describe('alicization embodiment script', () => {
       emphasisStrength: 0.64,
       tempoShift: -0.06,
     })
+    expect(script?.facePlan.speakingCues[0]?.holdMs).toBe(360)
     expect(script?.motionPlan.actionBursts[0]?.holdMs).toBe(420)
     expect(script?.lipsyncPlan.mode).toBe('energy-phoneme-hybrid')
     expect(script?.lipsyncPlan.visemeHints?.[0]).toEqual({

@@ -25,6 +25,7 @@ export interface AlicizationEmbodimentFaceCue {
   emotion: AlicizationEmotion
   facialCue: string | null
   intensity: number
+  holdMs: number
 }
 
 export interface AlicizationEmbodimentFacePlan {
@@ -120,6 +121,7 @@ function normalizeFaceCue(raw: unknown): AlicizationEmbodimentFaceCue | null {
     emotion: normalizeAlicizationEmotion(candidate.emotion).emotion,
     facialCue: normalizeText(candidate.facialCue, 120) || null,
     intensity: normalizeUnit(candidate.intensity),
+    holdMs: normalizeNonNegativeInteger(candidate.holdMs),
   }
 }
 
