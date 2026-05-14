@@ -67,6 +67,8 @@ describe('alicization embodiment script', () => {
           segmentId: 'segment-1',
           viseme: 'A',
           weight: 0.8,
+          source: 'prosody-authority',
+          confidence: 0.94,
         }],
       },
     })
@@ -88,6 +90,13 @@ describe('alicization embodiment script', () => {
     })
     expect(script?.motionPlan.actionBursts[0]?.holdMs).toBe(420)
     expect(script?.lipsyncPlan.mode).toBe('energy-phoneme-hybrid')
+    expect(script?.lipsyncPlan.visemeHints?.[0]).toEqual({
+      segmentId: 'segment-1',
+      viseme: 'A',
+      weight: 0.8,
+      source: 'prosody-authority',
+      confidence: 0.94,
+    })
   })
 
   it('normalizes the reviewed resident modes and rejects invalid lipsync authority blocks', () => {
