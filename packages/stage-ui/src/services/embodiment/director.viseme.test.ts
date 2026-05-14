@@ -67,12 +67,11 @@ describe('director viseme hints', () => {
     })
 
     expect(script.lipsyncPlan.mode).toBe('energy-phoneme-hybrid')
-    expect(script.lipsyncPlan.visemeHints).toBeDefined()
-    expect(script.lipsyncPlan.visemeHints).not.toHaveLength(0)
-    expect(script.lipsyncPlan.visemeHints?.every(hint => hint.segmentId === 'segment-1')).toBe(true)
-    expect(script.lipsyncPlan.visemeHints?.some(hint => hint.source === 'prosody-authority')).toBe(true)
-    expect(script.lipsyncPlan.visemeHints?.every(hint => hint.confidence >= 0 && hint.confidence <= 1)).toBe(true)
-    expect(script.lipsyncPlan.visemeHints?.some(hint => hint.viseme === 'closed')).toBe(true)
+    expect(script.lipsyncPlan.visemeHints).toEqual([
+      { segmentId: 'segment-1', viseme: 'closed', weight: 0.51, source: 'prosody-authority', confidence: 0.94 },
+      { segmentId: 'segment-1', viseme: 'O', weight: 0.32, source: 'prosody-authority', confidence: 0.94 },
+      { segmentId: 'segment-1', viseme: 'E', weight: 0.34, source: 'prosody-authority', confidence: 0.94 },
+    ])
   })
 
   it('uses softer closed-viseme pressure for comma pauses than for full-stop closures', () => {
@@ -111,5 +110,28 @@ describe('director viseme hints', () => {
     expect(commaClosed).toBeDefined()
     expect(fullStopClosed).toBeDefined()
     expect(fullStopClosed?.weight).toBeGreaterThan(commaClosed?.weight ?? -1)
+  })
+
+  it('keeps fallback speech-plan synthesis free of prosody-authority viseme hints', () => {
+    const script = buildAlicizationEmbodimentScript({
+      seed: {
+        ...createVisemeSeed('你好，我们慢慢来。', '你好，我们慢慢来。'),
+        speechTimeline: null,
+      },
+      manifest: {
+        renderer: 'live2d',
+        supportedBaseEmotions: ['neutral', 'thinking'],
+        supportedFacialCues: [],
+        supportedActions: [],
+        supportsLookAt: true,
+        supportsVisemeLipSync: true,
+        supportsMicroDynamics: true,
+      },
+      residentPerformance: null,
+      rendererTarget: 'live2d',
+    })
+
+    expect(script.lipsyncPlan.mode).toBe('energy-phoneme-hybrid')
+    expect(script.lipsyncPlan.visemeHints).toBeUndefined()
   })
 })

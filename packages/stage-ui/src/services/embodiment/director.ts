@@ -159,6 +159,7 @@ function resolveSecondaryViseme(segment: AlicizationEmbodimentSpeechSegment) {
   if (segment.prosody?.pauseClass === 'comma' || segment.prosody?.pauseClass === 'enumeration')
     return 'E' as const
 
+  // Chinese-first fallback bucket stays coarse until phoneme-grade authority exists.
   const lastCharacter = Array.from(text.replace(/[，,。．.？！!?…⋯、]+$/u, '')).at(-1)
   if (!lastCharacter)
     return 'A' as const
@@ -169,20 +170,17 @@ function resolveSecondaryViseme(segment: AlicizationEmbodimentSpeechSegment) {
   return 'O' as const
 }
 
-function resolveVisemeConfidence(segment: AlicizationEmbodimentSpeechSegment, weight: number) {
-  const prosody = segment.prosody
-  const emphasis = prosody?.emphasisStrength ?? 0.5
-  const pauseBonus = prosody?.pauseClass === 'full-stop' || prosody?.pauseClass === 'question' || prosody?.pauseClass === 'exclaim'
-    ? 0.12
-    : prosody?.pauseClass === 'comma' || prosody?.pauseClass === 'enumeration'
-      ? 0.08
-      : 0.04
+function resolveVisemeConfidence(timelineSegment: NonNullable<AlicizationDialogueSpeechTimeline['segments'][number]> | null | undefined) {
+  if (!timelineSegment)
+    return null
 
-  return roundHintWeight(0.38 + emphasis * 0.34 + weight * 0.16 + pauseBonus)
+  const hasExplicitEmphasisCues = timelineSegment.emotion !== undefined || timelineSegment.facialCue !== undefined || timelineSegment.actionCue !== undefined
+  return hasExplicitEmphasisCues ? 0.94 : 0.9
 }
 
 function buildAlicizationEmbodimentLipSyncHints(
   segment: AlicizationEmbodimentSpeechSegment,
+  timelineSegment: AlicizationDialogueSpeechTimeline['segments'][number] | null,
 ): AlicizationEmbodimentLipSyncVisemeHint[] {
   const closedWeight = resolveClosedVisemeWeight(segment)
   const contourViseme = resolveContourViseme(segment)
@@ -191,6 +189,9 @@ function buildAlicizationEmbodimentLipSyncHints(
   const emphasis = prosody?.emphasisStrength ?? 0.5
   const openWeight = roundHintWeight(Math.max(0.08, Math.min(0.62, 0.18 + emphasis * 0.24)))
   const contourWeight = roundHintWeight(Math.max(0.12, Math.min(0.54, 0.2 + emphasis * 0.18)))
+  const confidence = resolveVisemeConfidence(timelineSegment)
+  if (confidence === null)
+    return []
 
   return [
     {
@@ -198,21 +199,21 @@ function buildAlicizationEmbodimentLipSyncHints(
       viseme: 'closed',
       weight: closedWeight,
       source: 'prosody-authority',
-      confidence: resolveVisemeConfidence(segment, closedWeight),
+      confidence,
     },
     {
       segmentId: segment.id,
       viseme: contourViseme,
       weight: contourWeight,
       source: 'prosody-authority',
-      confidence: resolveVisemeConfidence(segment, contourWeight),
+      confidence,
     },
     {
       segmentId: segment.id,
       viseme: secondaryViseme,
       weight: openWeight,
       source: 'prosody-authority',
-      confidence: resolveVisemeConfidence(segment, openWeight),
+      confidence,
     },
   ]
 }
@@ -266,8 +267,8 @@ export function buildAlicizationEmbodimentScript(
       holdMs: Math.max(0, timelineSegment?.actionHoldMs ?? segment.settleMs),
     }
   })
-  const visemeHints = input.manifest?.supportsVisemeLipSync === true
-    ? speechPlan.segments.flatMap(segment => buildAlicizationEmbodimentLipSyncHints(segment))
+  const visemeHints = input.manifest?.supportsVisemeLipSync === true && input.seed.speechTimeline?.segments.length
+    ? speechPlan.segments.flatMap(segment => buildAlicizationEmbodimentLipSyncHints(segment, timelineSegmentById.get(segment.id) ?? null))
     : undefined
 
   return {
