@@ -1083,6 +1083,170 @@ describe('stage embodiment performance runtime', () => {
     scope.stop()
   })
 
+  it('keeps scripted segment cues ahead of playback-driver overrides during active playback', async () => {
+    const speechRenderState = ref(createIdleStageEmbodimentSpeechRenderState())
+    const scope = effectScope()
+    const runtime = scope.run(() => useStageEmbodimentPerformanceRuntime({ speechRenderState }))!
+
+    runtime.armPerformance(createPerformance(), {
+      source: 'dialogue',
+      variationToken: 'turn-scripted-segment-over-driver',
+    })
+
+    speechRenderState.value = {
+      ...speechRenderState.value,
+      active: true,
+      dynamics: {
+        speechEnergy: 0.44,
+        prosodyIntensity: 0.52,
+        emphasisLevel: 0.36,
+        cadencePulse: 0.58,
+      },
+      item: createStageEmbodimentSpeechPlaybackItem({
+        intentId: 'intent-scripted-segment-over-driver',
+        segmentId: 'segment-2',
+        special: null,
+        streamId: 'stream-scripted-segment-over-driver',
+        text: '然后点保存。',
+        cue: {
+          id: 'turn-scripted-segment-over-driver:1',
+          index: 1,
+          startOffset: 5,
+          endOffset: 11,
+          text: '然后点保存。',
+          emotion: 'thinking',
+          gestureWeight: 0.36,
+          facialWeight: 0.54,
+          prosodyWeight: 0.46,
+          beatWeight: 0.52,
+          actionCue: 'scripted_nod',
+          facialCue: 'scripted_focus',
+          actionWindow: 'cadence-peak',
+          interruptMode: 'soft-interrupt',
+        },
+        metadata: {
+          embodimentPlayback: {
+            actualDurationMs: 0,
+            driftMs: 0,
+            plannedDurationMs: 220,
+            settleMs: 220,
+            stopReason: null,
+            drivers: {
+              face: {
+                emotion: 'happy',
+                facialCue: 'driver_smile',
+                intensity: 0.66,
+                playbackPhase: 'playing',
+                preUtteranceCue: 'soft-breath',
+                postUtteranceCue: 'settle-smile',
+                segmentId: 'segment-2',
+                source: 'prosody-authority',
+                confidence: 0.94,
+              },
+              lipsync: null,
+              motion: {
+                idleBase: 'idle_settle',
+                attentionMode: 'attentive',
+                actionCue: 'driver_nod',
+                intensity: 0.54,
+                holdMs: 180,
+                segmentId: 'segment-2',
+                source: 'timeline-projection',
+                confidence: 0.88,
+              },
+            },
+          },
+        },
+      }),
+      phase: 'playing',
+      revision: 1,
+      visemeIntensity: 0.34,
+    }
+    await nextTick()
+
+    expect(runtime.state.value.phase).toBe('speaking')
+    expect(runtime.state.value.activeFacialCue).toBe('scripted_focus')
+    expect(runtime.state.value.activeFacialCueSource).toBe('segment')
+    expect(runtime.state.value.activeActionCue).toBe('scripted_nod')
+    expect(runtime.state.value.activeActionCueSource).toBe('segment')
+
+    scope.stop()
+  })
+
+  it('keeps resident cues when active playback driver confidence is too low to override them', async () => {
+    const speechRenderState = ref(createIdleStageEmbodimentSpeechRenderState())
+    const scope = effectScope()
+    const runtime = scope.run(() => useStageEmbodimentPerformanceRuntime({ speechRenderState }))!
+
+    runtime.armPerformance(createPerformance(), {
+      source: 'dialogue',
+      variationToken: 'turn-driver-low-confidence-segment-2',
+    })
+
+    speechRenderState.value = {
+      ...speechRenderState.value,
+      active: true,
+      dynamics: {
+        speechEnergy: 0.44,
+        prosodyIntensity: 0.52,
+        emphasisLevel: 0.36,
+        cadencePulse: 0.58,
+      },
+      item: createStageEmbodimentSpeechPlaybackItem({
+        intentId: 'intent-driver-low-confidence-segment-2',
+        segmentId: 'segment-2',
+        special: null,
+        streamId: 'stream-driver-low-confidence-segment-2',
+        text: '然后点保存。',
+        metadata: {
+          embodimentPlayback: {
+            actualDurationMs: 0,
+            driftMs: 0,
+            plannedDurationMs: 220,
+            settleMs: 220,
+            stopReason: null,
+            drivers: {
+              face: {
+                emotion: 'happy',
+                facialCue: 'reassure_smile',
+                intensity: 0.66,
+                playbackPhase: 'playing',
+                preUtteranceCue: 'soft-breath',
+                postUtteranceCue: 'settle-smile',
+                segmentId: 'segment-2',
+                source: 'prosody-authority',
+                confidence: 0.22,
+              },
+              lipsync: null,
+              motion: {
+                idleBase: 'idle_settle',
+                attentionMode: 'attentive',
+                actionCue: 'idle_gentle_nod',
+                intensity: 0.54,
+                holdMs: 180,
+                segmentId: 'segment-2',
+                source: 'timeline-projection',
+                confidence: 0.24,
+              },
+            },
+          },
+        },
+      }),
+      phase: 'playing',
+      revision: 1,
+      visemeIntensity: 0.34,
+    }
+    await nextTick()
+
+    expect(runtime.state.value.phase).toBe('speaking')
+    expect(runtime.state.value.activeFacialCue).toBe('smile')
+    expect(runtime.state.value.activeFacialCueSource).toBe('resident')
+    expect(runtime.state.value.activeActionCue).toBe('raise_hand_excited')
+    expect(runtime.state.value.activeActionCueSource).toBe('resident')
+
+    scope.stop()
+  })
+
   it('preserves scripted post-utterance face cues through the real stop projection path', async () => {
     vi.useFakeTimers()
     vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1))
