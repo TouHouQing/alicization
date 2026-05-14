@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  createDefaultVisualPresenceState,
   buildVisualRecallSeed,
   buildVisualSedimentFragment,
   normalizeVisualPresenceState,
@@ -9,6 +10,43 @@ import {
 } from './visual-episodic-memory'
 
 describe('visual episodic memory', () => {
+  it('creates default visual presence state with baseline authority fields', () => {
+    expect(createDefaultVisualPresenceState(12_345)).toMatchObject({
+      currentBodyState: 'idle',
+      continuityMode: 'ambient-covision',
+      quietLineMs: 0,
+      currentInwardPreoccupation: null,
+      watchMode: 'mnemonic-passive',
+      updatedAt: 12_345,
+    })
+  })
+
+  it('normalizes persisted authority fields alongside the rich visual state', () => {
+    const state = normalizeVisualPresenceState({
+      currentBodyState: 'accompanying',
+      continuityMode: 'quiet-accompaniment',
+      quietLineMs: 240_400.9,
+      currentInwardPreoccupation: '  host sustained focus  ',
+      watchMode: 'symbiotic-vision',
+      currentScene: null,
+      attention: null,
+      workingMemoryEpisodes: [],
+      privateThought: null,
+      captureState: { permission: 'unknown', lastGroundedAt: null },
+      durabilityPulse: null,
+      recentTransition: null,
+      nextSuggestedProbeMs: 45_000,
+      updatedAt: 12_400,
+    }, 12_400)
+
+    expect(state).toMatchObject({
+      currentBodyState: 'accompanying',
+      continuityMode: 'quiet-accompaniment',
+      quietLineMs: 240_400,
+      currentInwardPreoccupation: 'host sustained focus',
+    })
+  })
+
   it('prunes expired working memory episodes on normalization', () => {
     const state = normalizeVisualPresenceState({
       watchMode: 'mnemonic-passive',
@@ -104,6 +142,10 @@ describe('visual episodic memory', () => {
     const next = updateVisualPresenceState({
       now: 21 * 60_000,
       previousState: {
+        currentBodyState: 'idle',
+        continuityMode: 'ambient-covision',
+        quietLineMs: 0,
+        currentInwardPreoccupation: null,
         watchMode: 'symbiotic-vision',
         currentScene: {
           workloadKind: 'coding',
@@ -228,6 +270,41 @@ describe('visual episodic memory', () => {
     }
 
     expect(previousState.workingMemoryEpisodes).toHaveLength(8)
+  })
+
+  it('preserves prior authority fields when updating the rich visual state', () => {
+    const next = updateVisualPresenceState({
+      now: 50_000,
+      previousState: normalizeVisualPresenceState({
+        currentBodyState: 'recovering',
+        continuityMode: 'protective-watch',
+        quietLineMs: 180_000,
+        currentInwardPreoccupation: 'hold low-pressure care',
+        watchMode: 'recovering',
+        currentScene: null,
+        attention: null,
+        workingMemoryEpisodes: [],
+        privateThought: null,
+        captureState: { permission: 'granted', lastGroundedAt: 49_500 },
+        durabilityPulse: null,
+        recentTransition: null,
+        nextSuggestedProbeMs: 5_000,
+        updatedAt: 49_800,
+      }, 49_800),
+      watchMode: 'recovering',
+      scene: null,
+      attention: null,
+      privateThought: null,
+      captureState: { permission: 'granted', lastGroundedAt: 49_900 },
+      nextSuggestedProbeMs: 5_000,
+    })
+
+    expect(next).toMatchObject({
+      currentBodyState: 'recovering',
+      continuityMode: 'protective-watch',
+      quietLineMs: 180_000,
+      currentInwardPreoccupation: 'hold low-pressure care',
+    })
   })
 
   it('persists world ontology and initiative arbitration snapshots', () => {

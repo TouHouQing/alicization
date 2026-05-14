@@ -16,6 +16,7 @@ import type {
   AlicizationDialoguePerformancePayload as SharedAlicizationDialoguePerformancePayload,
   AlicizationDialogueRespondedPayload as SharedAlicizationDialogueRespondedPayload,
   AlicizationDialogueSpeechTimeline as SharedAlicizationDialogueSpeechTimeline,
+  AlicizationEmbodimentScriptV1 as SharedAlicizationEmbodimentScriptV1,
   AlicizationDialogueStructuredFormat as SharedAlicizationDialogueStructuredFormat,
   AlicizationDialogueStructuredPayload as SharedAlicizationDialogueStructuredPayload,
   AlicizationDerivedMemoryReference as SharedAlicizationDerivedMemoryReference,
@@ -128,6 +129,7 @@ import type {
   AlicizationNormalVisibleReplyAuthority as SharedAlicizationNormalVisibleReplyAuthority,
   AlicizationInfraVisibleReplyAuthority as SharedAlicizationInfraVisibleReplyAuthority,
   AlicizationVisibleReplyExecutionAuthority as SharedAlicizationVisibleReplyExecutionAuthority,
+  AlicizationPersistentPresenceAuthoritySnapshot as SharedAlicizationPersistentPresenceAuthoritySnapshot,
   AlicizationPersonaGradualUnlockFacetKind as SharedAlicizationPersonaGradualUnlockFacetKind,
   AlicizationPersonaGradualUnlockFacetSnapshot as SharedAlicizationPersonaGradualUnlockFacetSnapshot,
   AlicizationPersonaGradualUnlockHypothesisSnapshot as SharedAlicizationPersonaGradualUnlockHypothesisSnapshot,
@@ -2746,7 +2748,7 @@ export interface AlicizationPrivateThoughtSnapshot {
   livingWorldObjectId?: string | null
 }
 
-export interface AlicizationVisualPresenceStateSnapshot {
+export interface AlicizationVisualPresenceStateSnapshot extends SharedAlicizationPersistentPresenceAuthoritySnapshot {
   watchMode: AlicizationVisualWatchMode
   currentScene: AlicizationVisualSceneSnapshot | null
   attention: AlicizationVisualAttentionSnapshot | null
@@ -2861,6 +2863,7 @@ export type AlicizationDigitalLifeSpineDigest = SharedAlicizationDigitalLifeSpin
 export type AlicizationDigitalLifeSpineMemoryDigest = SharedAlicizationDigitalLifeSpineMemoryDigest
 export type AlicizationRuntimeDigest = SharedAlicizationRuntimeDigest
 export type AlicizationDialogueSpeechTimeline = SharedAlicizationDialogueSpeechTimeline
+export type AlicizationEmbodimentScriptV1 = SharedAlicizationEmbodimentScriptV1
 export type AlicizationResidentPerformanceSnapshot = SharedAlicizationResidentPerformanceSnapshot
 export type CharacterFacialCapability = SharedCharacterFacialCapability
 export type CharacterActionCapability = SharedCharacterActionCapability
@@ -2945,6 +2948,7 @@ export interface AlicizationChatMetaEvent {
   governance: AlicizationMindTurnGovernance | null
   visibleReplyExecution?: AlicizationVisibleReplyExecution | null
   embodiment?: AlicizationDialogueEmbodimentEnvelope | null
+  embodimentScript?: AlicizationEmbodimentScriptV1 | null
   speechTimeline?: AlicizationDialogueSpeechTimeline | null
   digitalLife?: AlicizationDigitalLifeEnvelope | null
   digitalLifeSpine?: AlicizationDigitalLifeSpineDigest | null

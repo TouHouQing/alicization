@@ -56,6 +56,10 @@ describe('buildVisualHeartbeat', () => {
       now: 45_000,
       scenario: 'coding',
       previousState: {
+        currentBodyState: 'idle',
+        continuityMode: 'ambient-covision',
+        quietLineMs: 0,
+        currentInwardPreoccupation: null,
         watchMode: 'mnemonic-passive',
         currentScene: {
           workloadKind: 'coding',

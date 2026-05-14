@@ -1156,6 +1156,93 @@ describe('stage embodiment performance runtime', () => {
     scope.stop()
   })
 
+  it('consumes explicit playback telemetry drivers when segment metadata is absent', async () => {
+    const speechRenderState = ref(createIdleStageEmbodimentSpeechRenderState())
+    const playbackTelemetry = ref<EmbodimentPlaybackTelemetry | null>(null)
+    const scope = effectScope()
+    const runtime = scope.run(() => useStageEmbodimentPerformanceRuntime({
+      playbackTelemetry,
+      speechRenderState,
+    }))!
+
+    runtime.armPerformance(createPerformance(), {
+      source: 'dialogue',
+      variationToken: 'turn-explicit-playback-telemetry',
+    })
+
+    speechRenderState.value = {
+      ...speechRenderState.value,
+      active: true,
+      dynamics: {
+        speechEnergy: 0.14,
+        prosodyIntensity: 0.1,
+        emphasisLevel: 0.08,
+        cadencePulse: 0.18,
+      },
+      item: createStageEmbodimentSpeechPlaybackItem({
+        intentId: 'intent-explicit-playback-telemetry',
+        segmentId: 'segment-explicit-playback-telemetry',
+        special: null,
+        streamId: 'stream-explicit-playback-telemetry',
+        text: '然后点保存。',
+      }),
+      phase: 'playing',
+      revision: 1,
+      visemeIntensity: 0.04,
+    }
+    await nextTick()
+
+    const baselineProsodyDrive = runtime.state.value.prosodyDrive
+    expect(runtime.state.value.activeFacialCue).toBe('smile')
+    expect(runtime.state.value.activeFacialCueSource).toBe('resident')
+    expect(runtime.state.value.activeActionCue).toBe('raise_hand_excited')
+    expect(runtime.state.value.activeActionCueSource).toBe('resident')
+
+    playbackTelemetry.value = {
+      actualDurationMs: 180,
+      driftMs: 0,
+      plannedDurationMs: 180,
+      settleMs: 220,
+      stopReason: null,
+      drivers: {
+        face: {
+          emotion: 'happy',
+          facialCue: 'reassure_smile',
+          intensity: 0.72,
+          preUtteranceCue: 'soft-breath',
+          postUtteranceCue: 'settle-smile',
+          segmentId: 'segment-explicit-playback-telemetry',
+        },
+        lipsync: {
+          mode: 'energy-phoneme-hybrid',
+          playbackPhase: 'playing',
+          segmentId: 'segment-explicit-playback-telemetry',
+          visemeHints: [
+            { segmentId: 'segment-explicit-playback-telemetry', viseme: 'U', weight: 0.92 },
+            { segmentId: 'segment-explicit-playback-telemetry', viseme: 'closed', weight: 0.58 },
+          ],
+        },
+        motion: {
+          idleBase: 'idle_settle',
+          attentionMode: 'attentive',
+          actionCue: 'idle_gentle_nod',
+          intensity: 0.58,
+          holdMs: 180,
+          segmentId: 'segment-explicit-playback-telemetry',
+        },
+      },
+    }
+    await nextTick()
+
+    expect(runtime.state.value.activeFacialCue).toBe('reassure_smile')
+    expect(runtime.state.value.activeFacialCueSource).toBe('segment')
+    expect(runtime.state.value.activeActionCue).toBe('idle_gentle_nod')
+    expect(runtime.state.value.activeActionCueSource).toBe('segment')
+    expect(runtime.state.value.prosodyDrive).toBeGreaterThan(baselineProsodyDrive)
+
+    scope.stop()
+  })
+
   it('modulates speaking dynamics from digital-life spine architecture and memory signals', async () => {
     const speechBase = {
       active: true,

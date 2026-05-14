@@ -82,6 +82,10 @@ describe('stage embodiment attention', () => {
   it('derives runtime visual presence into an embodied attention state', () => {
     const now = 50_000
     const result = resolveStageEmbodimentRuntimePresence({
+      currentBodyState: 'idle',
+      continuityMode: 'ambient-covision',
+      quietLineMs: 0,
+      currentInwardPreoccupation: null,
       watchMode: 'invited-inspection',
       currentScene: {
         workloadKind: 'coding',
@@ -147,6 +151,10 @@ describe('stage embodiment attention', () => {
   it('adds a stable runtime gaze bias for grounded inspection states', () => {
     const now = 50_000
     const visualPresenceState = {
+      currentBodyState: 'idle' as const,
+      continuityMode: 'ambient-covision' as const,
+      quietLineMs: 0,
+      currentInwardPreoccupation: null,
       watchMode: 'invited-inspection' as const,
       currentScene: {
         workloadKind: 'coding' as const,

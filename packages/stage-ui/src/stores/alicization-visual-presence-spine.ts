@@ -11,14 +11,12 @@ import {
 
 interface SilentPresenceAuthorityFields {
   continuityMode: 'ambient-covision' | 'quiet-accompaniment' | 'active-dialogue' | 'protective-watch' | 'rest-withdrawal'
-  currentBodyState: 'idle' | 'speaking' | 'listening' | 'thinking' | 'accompanying' | 'recovering'
+  currentBodyState: AlicizationVisualPresenceStateSnapshot['currentBodyState']
   currentInwardPreoccupation: string | null
   quietLineMs: number
 }
 
-type AlicizationVisualPresenceStateWithAuthority
-  = AlicizationVisualPresenceStateSnapshot
-  & Partial<SilentPresenceAuthorityFields>
+type AlicizationVisualPresenceStateWithAuthority = AlicizationVisualPresenceStateSnapshot
 
 function clamp01(value: number, fallback = 0) {
   if (Number.isNaN(value))
@@ -344,6 +342,10 @@ export function buildFallbackAlicizationVisualPresenceState(input?: {
   const summary = [target?.appName, target?.title].filter(Boolean).join(' - ')
 
   return ensureAlicizationVisualPresenceResidentPerformance({
+    currentBodyState: 'idle',
+    continuityMode: 'ambient-covision',
+    quietLineMs: 0,
+    currentInwardPreoccupation: null,
     watchMode: 'mnemonic-passive',
     currentScene: target
       ? {

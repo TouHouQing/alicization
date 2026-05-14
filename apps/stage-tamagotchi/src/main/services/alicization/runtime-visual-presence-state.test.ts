@@ -62,6 +62,34 @@ describe('runtime visual presence state', () => {
     expect(result.currentInwardPreoccupation).toContain('quiet recovery')
   })
 
+  it('does not let recovering silent-body authority overtake active dialogue or speaking pressure', () => {
+    const kernel = createAlicizationBodyKernel({ now: () => 1_000 })
+
+    expect(kernel.reduce({
+      sustainedFocusMs: 180_000,
+      watchMode: 'recovering',
+      shouldSpeak: false,
+      activeConversation: true,
+      relationshipPressure: 0.42,
+    })).toEqual(expect.objectContaining({
+      currentBodyState: 'idle',
+      continuityMode: 'active-dialogue',
+      currentInwardPreoccupation: null,
+    }))
+
+    expect(kernel.reduce({
+      sustainedFocusMs: 180_000,
+      watchMode: 'recovering',
+      shouldSpeak: true,
+      activeConversation: false,
+      relationshipPressure: 0.42,
+    })).toEqual(expect.objectContaining({
+      currentBodyState: 'idle',
+      continuityMode: 'ambient-covision',
+      currentInwardPreoccupation: null,
+    }))
+  })
+
   it('suppresses quiet co-vision while a conversation is active', () => {
     const kernel = createAlicizationBodyKernel({ now: () => 2_000 })
     const result = kernel.reduce({

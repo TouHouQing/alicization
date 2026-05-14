@@ -516,6 +516,8 @@ describe('stage embodiment presence', () => {
           watchMode: 'symbiotic-vision',
           currentBodyState: 'accompanying',
           continuityMode: 'quiet-accompaniment',
+          quietLineMs: 240_000,
+          currentInwardPreoccupation: 'host sustained focus',
           residentPerformance: createSilentResidentPerformance('accompanying'),
         },
         expected: {
@@ -532,6 +534,8 @@ describe('stage embodiment presence', () => {
           watchMode: 'recovering',
           currentBodyState: 'recovering',
           continuityMode: 'protective-watch',
+          quietLineMs: 180_000,
+          currentInwardPreoccupation: 'hold low-pressure care',
           residentPerformance: createSilentResidentPerformance('recovering'),
         },
         expected: {

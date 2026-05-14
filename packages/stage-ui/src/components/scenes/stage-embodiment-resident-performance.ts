@@ -1,4 +1,8 @@
-import type { AlicizationResidentPerformanceSnapshot, StageEmbodimentPresencePostureState } from '@proj-alicization/stage-shared'
+import type {
+  AlicizationPersistentPresenceAuthoritySnapshot,
+  AlicizationResidentPerformanceSnapshot,
+  StageEmbodimentPresencePostureState,
+} from '@proj-alicization/stage-shared'
 
 import type {
   AlicizationDialoguePerformancePayload,
@@ -31,7 +35,7 @@ export interface StageEmbodimentResidentPerformanceResolution {
 
 interface SilentPresenceAuthorityFields {
   continuityMode: 'ambient-covision' | 'quiet-accompaniment' | 'active-dialogue' | 'protective-watch' | 'rest-withdrawal' | null
-  currentBodyState: 'idle' | 'speaking' | 'listening' | 'thinking' | 'accompanying' | 'recovering' | null
+  currentBodyState: AlicizationPersistentPresenceAuthoritySnapshot['currentBodyState'] | null
   quietLineMs: number
 }
 
@@ -52,22 +56,17 @@ function sanitizeTokenText(raw: unknown, maxChars = 96) {
 function resolveSilentPresenceAuthority(
   visualPresenceState: AlicizationVisualPresenceStateSnapshot | null | undefined,
 ): SilentPresenceAuthorityFields {
-  // NOTICE: `packages/stage-ui/src/stores/alicization-bridge.ts` still carries a locally-expanded
-  // visual-presence snapshot shape that has not yet been fully re-synced with the shared transport
-  // contract. Main runtime already publishes `currentBodyState`, `continuityMode`, and `quietLineMs`.
-  // Keep this access local to resident-performance consumption until the broader cross-package type
-  // sync can land as a dedicated follow-up, instead of widening the current embodiment slice.
-  const candidate = visualPresenceState as Record<string, unknown> | null | undefined
-  const currentBodyState = candidate?.currentBodyState
-  const continuityMode = candidate?.continuityMode
-  const quietLineMs = candidate?.quietLineMs
+  const currentBodyState = visualPresenceState?.currentBodyState
+  const continuityMode = visualPresenceState?.continuityMode
+  const quietLineMs = visualPresenceState?.quietLineMs
 
   return {
-    currentBodyState: currentBodyState === 'idle'
-      || currentBodyState === 'speaking'
-      || currentBodyState === 'listening'
-      || currentBodyState === 'thinking'
+    currentBodyState: currentBodyState === 'sleep'
+      || currentBodyState === 'idle'
+      || currentBodyState === 'noticing'
       || currentBodyState === 'accompanying'
+      || currentBodyState === 'speaking'
+      || currentBodyState === 'warning'
       || currentBodyState === 'recovering'
       ? currentBodyState
       : null,

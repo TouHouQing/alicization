@@ -43,6 +43,10 @@ function createAlicizationBridgeStub(overrides?: Partial<Parameters<typeof setAl
 
 function createVisualPresenceState(updatedAt: number) {
   return {
+    currentBodyState: 'idle' as const,
+    continuityMode: 'ambient-covision' as const,
+    quietLineMs: 0,
+    currentInwardPreoccupation: null,
     watchMode: 'invited-inspection' as const,
     currentScene: {
       workloadKind: 'coding' as const,
@@ -196,6 +200,8 @@ function createSilentPresenceVisualSnapshot(
     workingMemoryEpisodes: [],
     currentBodyState: recovering ? 'recovering' as const : 'accompanying' as const,
     continuityMode: recovering ? 'protective-watch' as const : 'quiet-accompaniment' as const,
+    quietLineMs: 0,
+    currentInwardPreoccupation: recovering ? 'hold recovery watch' : 'stay with the current diff',
     privateThought: {
       stance: recovering ? 'care' as const : 'accompany' as const,
       confidence: 0.72,
@@ -257,6 +263,12 @@ describe('stage embodiment visual presence', () => {
     await flushTasks()
 
     expect(embodimentVisualPresence.state.value).toEqual(pushedState)
+    expect(embodimentVisualPresence.state.value).toMatchObject({
+      currentBodyState: 'idle',
+      continuityMode: 'ambient-covision',
+      quietLineMs: 0,
+      currentInwardPreoccupation: null,
+    })
     scope.stop()
   })
 
@@ -312,6 +324,10 @@ describe('stage embodiment visual presence', () => {
 
     expect(embodimentVisualPresence.digitalLifeSpineDigest.value).toEqual(digest)
     expect(transient).toMatchObject({
+      currentBodyState: 'accompanying',
+      continuityMode: 'quiet-accompaniment',
+      quietLineMs: 0,
+      currentInwardPreoccupation: 'stay with the current diff',
       watchMode: 'symbiotic-vision',
       currentScene: expect.objectContaining({
         scenario: 'coding',

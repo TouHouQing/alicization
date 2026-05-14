@@ -1,8 +1,8 @@
 import type {
   AlicizationPersistentPresenceAuthoritySnapshot,
-  AlicizationVisualPresenceStateSnapshot,
   AlicizationVisualWatchMode,
 } from '@proj-alicization/stage-shared'
+import type { AlicizationVisualPresenceStateSnapshot } from '../../../shared/eventa'
 
 import { deriveAlicizationAutobiographicalPersonaSummary } from './personality-continuity-state'
 

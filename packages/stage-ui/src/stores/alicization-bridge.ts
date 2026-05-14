@@ -12,6 +12,7 @@ import type {
   AlicizationCliCommandInput as SharedAlicizationCliCommandInput,
   AlicizationCodexCommandInput as SharedAlicizationCodexCommandInput,
   AlicizationDialogueEmbodimentEnvelope as SharedAlicizationDialogueEmbodimentEnvelope,
+  AlicizationEmbodimentScriptV1 as SharedAlicizationEmbodimentScriptV1,
   AlicizationDialoguePerformancePayload as SharedAlicizationDialoguePerformancePayload,
   AlicizationDialogueRespondedPayload as SharedAlicizationDialogueRespondedPayload,
   AlicizationDialogueSpeechTimeline as SharedAlicizationDialogueSpeechTimeline,
@@ -55,6 +56,7 @@ import type {
   AlicizationReplayMemoryQualityRecord as SharedAlicizationReplayMemoryQualityRecord,
   AlicizationRunReplayBenchmarkInput as SharedAlicizationRunReplayBenchmarkInput,
   AlicizationRunReplayBenchmarkResult as SharedAlicizationRunReplayBenchmarkResult,
+  AlicizationPersistentPresenceAuthoritySnapshot as SharedAlicizationPersistentPresenceAuthoritySnapshot,
   AlicizationSelfEvolutionKernelSnapshot as SharedAlicizationSelfEvolutionKernelSnapshot,
   AlicizationMemoryProvenance as SharedAlicizationMemoryProvenance,
   AlicizationMemorySource as SharedAlicizationMemorySource,
@@ -1706,7 +1708,7 @@ export interface AlicizationPrivateThoughtSnapshot {
   livingWorldObjectId?: string | null
 }
 
-export interface AlicizationVisualPresenceStateSnapshot {
+export interface AlicizationVisualPresenceStateSnapshot extends SharedAlicizationPersistentPresenceAuthoritySnapshot {
   watchMode: AlicizationVisualWatchMode
   currentScene: AlicizationVisualSceneSnapshot | null
   attention: AlicizationVisualAttentionSnapshot | null
@@ -1797,6 +1799,7 @@ export interface AlicizationProactiveFeedbackPayload {
 
 export type AlicizationDialoguePerformancePayload = SharedAlicizationDialoguePerformancePayload
 export type AlicizationDialogueEmbodimentEnvelope = SharedAlicizationDialogueEmbodimentEnvelope
+export type AlicizationEmbodimentScriptV1 = SharedAlicizationEmbodimentScriptV1
 export type AlicizationDigitalLifeEnvelope = SharedAlicizationDigitalLifeEnvelope
 export type AlicizationDigitalLifeSpineDigest = SharedAlicizationDigitalLifeSpineDigest
 export type AlicizationRuntimeDigest = SharedAlicizationRuntimeDigest

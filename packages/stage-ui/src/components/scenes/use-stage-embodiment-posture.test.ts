@@ -23,6 +23,10 @@ function withSilentPresenceAuthority<T extends AlicizationVisualPresenceStateSna
 
 function createVisualPresenceStateForPosture(overrides: Partial<AlicizationVisualPresenceStateSnapshot> = {}) {
   return {
+    currentBodyState: 'idle' as const,
+    continuityMode: 'ambient-covision' as const,
+    quietLineMs: 0,
+    currentInwardPreoccupation: null,
     watchMode: 'mnemonic-passive',
     currentScene: null,
     attention: null,
@@ -56,6 +60,10 @@ describe('stage embodiment posture', () => {
       stageBounds: { width: 1280, height: 720 },
       speechRenderState: createIdleStageEmbodimentSpeechRenderState(),
       visualPresenceState: {
+        currentBodyState: 'idle',
+        continuityMode: 'ambient-covision',
+        quietLineMs: 0,
+        currentInwardPreoccupation: null,
         watchMode: 'invited-inspection',
         currentScene: {
           workloadKind: 'coding',

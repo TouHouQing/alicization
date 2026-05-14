@@ -1,4 +1,8 @@
-import type { StageEmbodimentPresencePostureState, StageEmbodimentSpeechRenderState } from '@proj-alicization/stage-shared'
+import type {
+  AlicizationPersistentPresenceAuthoritySnapshot,
+  StageEmbodimentPresencePostureState,
+  StageEmbodimentSpeechRenderState,
+} from '@proj-alicization/stage-shared'
 import type { ComputedRef, Ref } from 'vue'
 
 import type { AlicizationVisualPresenceStateSnapshot } from '../../stores/alicization-bridge'
@@ -30,7 +34,7 @@ export interface UseStageEmbodimentPostureOptions {
 
 interface SilentPresenceAuthorityFields {
   continuityMode: 'ambient-covision' | 'quiet-accompaniment' | 'active-dialogue' | 'protective-watch' | 'rest-withdrawal' | null
-  currentBodyState: 'idle' | 'speaking' | 'listening' | 'thinking' | 'accompanying' | 'recovering' | null
+  currentBodyState: AlicizationPersistentPresenceAuthoritySnapshot['currentBodyState'] | null
   quietLineMs: number
 }
 
@@ -51,22 +55,17 @@ function clampSignedUnit(value: number, fallback: number = 0) {
 function resolveSilentPresenceAuthority(
   visualPresenceState: AlicizationVisualPresenceStateSnapshot | null | undefined,
 ): SilentPresenceAuthorityFields {
-  // NOTICE: `packages/stage-ui/src/stores/alicization-bridge.ts` still carries a locally-expanded
-  // visual-presence snapshot type that has not yet been fully re-synced with the shared transport
-  // contract. Main runtime already publishes `currentBodyState`, `continuityMode`, and `quietLineMs`.
-  // Keep this access local to posture consumption until the broader cross-package type sync can be
-  // done safely as a dedicated follow-up, instead of widening this Task 3 slice into a repo-wide migration.
-  const candidate = visualPresenceState as Record<string, unknown> | null | undefined
-  const currentBodyState = candidate?.currentBodyState
-  const continuityMode = candidate?.continuityMode
-  const quietLineMs = candidate?.quietLineMs
+  const currentBodyState = visualPresenceState?.currentBodyState
+  const continuityMode = visualPresenceState?.continuityMode
+  const quietLineMs = visualPresenceState?.quietLineMs
 
   return {
-    currentBodyState: currentBodyState === 'idle'
-      || currentBodyState === 'speaking'
-      || currentBodyState === 'listening'
-      || currentBodyState === 'thinking'
+    currentBodyState: currentBodyState === 'sleep'
+      || currentBodyState === 'idle'
+      || currentBodyState === 'noticing'
       || currentBodyState === 'accompanying'
+      || currentBodyState === 'speaking'
+      || currentBodyState === 'warning'
       || currentBodyState === 'recovering'
       ? currentBodyState
       : null,

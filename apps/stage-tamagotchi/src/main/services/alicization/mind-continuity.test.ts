@@ -7,6 +7,10 @@ describe('mind continuity', () => {
   it('writes a searchable fragment when the inner line materially changes', () => {
     const fragment = buildMindContinuityFragment({
       previousState: {
+        currentBodyState: 'idle',
+        continuityMode: 'ambient-covision',
+        quietLineMs: 0,
+        currentInwardPreoccupation: null,
         watchMode: 'mnemonic-passive',
         currentScene: null,
         attention: null,
@@ -22,6 +26,10 @@ describe('mind continuity', () => {
         updatedAt: 0,
       },
       nextState: {
+        currentBodyState: 'idle',
+        continuityMode: 'ambient-covision',
+        quietLineMs: 0,
+        currentInwardPreoccupation: null,
         watchMode: 'symbiotic-vision',
         currentScene: {
           workloadKind: 'coding',
@@ -277,6 +285,10 @@ describe('mind continuity', () => {
 
   it('stays silent when the inner signature has not changed', () => {
     const nextState = {
+      currentBodyState: 'idle' as const,
+      continuityMode: 'ambient-covision' as const,
+      quietLineMs: 0,
+      currentInwardPreoccupation: null,
       watchMode: 'mnemonic-passive' as const,
       currentScene: null,
       attention: null,
@@ -357,6 +369,10 @@ describe('mind continuity', () => {
 
   it('builds a recall seed from the current inner line', () => {
     const state = {
+      currentBodyState: 'idle' as const,
+      continuityMode: 'ambient-covision' as const,
+      quietLineMs: 0,
+      currentInwardPreoccupation: null,
       watchMode: 'symbiotic-vision',
       currentScene: null,
       attention: null,

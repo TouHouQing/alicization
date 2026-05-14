@@ -265,6 +265,24 @@ function roundSignedHundredths(value: number, fallback = 0) {
   return Number(clampSigned(value, -1, 1, fallback).toFixed(2))
 }
 
+function normalizeDriverSegmentId(segmentId: string | null | undefined) {
+  const normalized = segmentId?.trim()
+  return normalized || null
+}
+
+function matchesDriverSegment(
+  driverSegmentId: string | null | undefined,
+  activeSegmentId: string | null | undefined,
+) {
+  const normalizedDriverSegmentId = normalizeDriverSegmentId(driverSegmentId)
+  const normalizedActiveSegmentId = normalizeDriverSegmentId(activeSegmentId)
+  if (!normalizedActiveSegmentId)
+    return true
+  if (!normalizedDriverSegmentId)
+    return false
+  return normalizedDriverSegmentId === normalizedActiveSegmentId
+}
+
 function resolvePlaybackDriverFaceMetadata(
   item: StageEmbodimentSpeechPlaybackItem | null | undefined,
 ) {
@@ -278,8 +296,10 @@ function resolvePlaybackDriverFaceMetadata(
 
   return {
     facialCue: face.facialCue?.trim() || null,
+    intensity: clamp01(face.intensity ?? 0),
     postUtteranceCue: face.postUtteranceCue?.trim() || null,
     preUtteranceCue: face.preUtteranceCue?.trim() || null,
+    segmentId: normalizeDriverSegmentId(face.segmentId),
   }
 }
 
@@ -296,7 +316,83 @@ function resolvePlaybackDriverMotionMetadata(
 
   return {
     actionCue: motion.actionCue?.trim() || null,
+    holdMs: Math.max(0, Math.round(motion.holdMs ?? 0)),
+    intensity: clamp01(motion.intensity ?? 0),
+    segmentId: normalizeDriverSegmentId(motion.segmentId),
   }
+}
+
+function resolveExplicitPlaybackDriverFaceMetadata(input: {
+  segmentId?: string | null
+  telemetry: EmbodimentPlaybackTelemetry | null | undefined
+}) {
+  const face = input.telemetry?.drivers.face
+  if (!face)
+    return null
+  if (!matchesDriverSegment(face.segmentId, input.segmentId))
+    return null
+
+  return {
+    facialCue: face.facialCue?.trim() || null,
+    intensity: clamp01(face.intensity ?? 0),
+    postUtteranceCue: face.postUtteranceCue?.trim() || null,
+    preUtteranceCue: face.preUtteranceCue?.trim() || null,
+    segmentId: normalizeDriverSegmentId(face.segmentId),
+  }
+}
+
+function resolveExplicitPlaybackDriverMotionMetadata(input: {
+  segmentId?: string | null
+  telemetry: EmbodimentPlaybackTelemetry | null | undefined
+}) {
+  const motion = input.telemetry?.drivers.motion
+  if (!motion)
+    return null
+  if (!matchesDriverSegment(motion.segmentId, input.segmentId))
+    return null
+
+  return {
+    actionCue: motion.actionCue?.trim() || null,
+    holdMs: Math.max(0, Math.round(motion.holdMs ?? 0)),
+    intensity: clamp01(motion.intensity ?? 0),
+    segmentId: normalizeDriverSegmentId(motion.segmentId),
+  }
+}
+
+function resolveExplicitPlaybackDriverLipSyncMetadata(input: {
+  playbackPhase: 'idle' | 'playing'
+  segmentId?: string | null
+  telemetry: EmbodimentPlaybackTelemetry | null | undefined
+}) {
+  const lipsync = input.telemetry?.drivers.lipsync
+  if (!lipsync || lipsync.playbackPhase !== input.playbackPhase)
+    return null
+  if (!matchesDriverSegment(lipsync.segmentId, input.segmentId))
+    return null
+
+  return {
+    mode: lipsync.mode,
+    playbackPhase: lipsync.playbackPhase,
+    segmentId: normalizeDriverSegmentId(lipsync.segmentId),
+    visemeHints: lipsync.visemeHints
+      .filter(hint => matchesDriverSegment(hint.segmentId, input.segmentId))
+      .map(hint => ({
+        segmentId: hint.segmentId,
+        viseme: hint.viseme,
+        weight: clamp01(hint.weight),
+      })),
+  }
+}
+
+function resolvePlaybackDriverVisemePeakWeight(
+  lipsync: ReturnType<typeof resolveExplicitPlaybackDriverLipSyncMetadata>,
+) {
+  if (!lipsync)
+    return 0
+
+  return lipsync.visemeHints.reduce((peak, hint) => {
+    return Math.max(peak, clamp01(hint.weight))
+  }, 0)
 }
 
 function mixUnit(from: number, to: number, amount: number) {
@@ -341,6 +437,38 @@ function createDigitalLifeFrameSignature(item: StageEmbodimentSpeechPlaybackItem
     frame.motor.body.lean,
     frame.motor.body.openness,
     frame.motor.body.settle,
+  ])
+}
+
+function createPlaybackTelemetrySignature(
+  telemetry: EmbodimentPlaybackTelemetry | null | undefined,
+) {
+  if (!telemetry)
+    return ''
+
+  return JSON.stringify([
+    telemetry.actualDurationMs,
+    telemetry.driftMs,
+    telemetry.plannedDurationMs,
+    telemetry.settleMs,
+    telemetry.stopReason,
+    telemetry.drivers.face?.segmentId ?? '',
+    telemetry.drivers.face?.facialCue ?? '',
+    telemetry.drivers.face?.preUtteranceCue ?? '',
+    telemetry.drivers.face?.postUtteranceCue ?? '',
+    telemetry.drivers.face?.intensity ?? 0,
+    telemetry.drivers.motion?.segmentId ?? '',
+    telemetry.drivers.motion?.actionCue ?? '',
+    telemetry.drivers.motion?.intensity ?? 0,
+    telemetry.drivers.motion?.holdMs ?? 0,
+    telemetry.drivers.lipsync?.mode ?? '',
+    telemetry.drivers.lipsync?.playbackPhase ?? '',
+    telemetry.drivers.lipsync?.segmentId ?? '',
+    ...(telemetry.drivers.lipsync?.visemeHints.flatMap(hint => [
+      hint.segmentId,
+      hint.viseme,
+      clamp01(hint.weight),
+    ]) ?? []),
   ])
 }
 
@@ -816,6 +944,7 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
 
   function updateFromSpeech(now = performance.now()) {
     const speech = syncSpeechSnapshot(options.speechRenderState.value)
+    const playbackTelemetry = options.playbackTelemetry?.value ?? null
     const previewAhead = !speech.active || speech.phase === 'stopping'
     const upcomingSegment = previewAhead
       ? syncUpcomingSegmentSnapshot(options.upcomingSpeechSegment?.value)
@@ -831,11 +960,31 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
     const segmentId = speech.item?.segmentId ?? ''
     const segmentCue = speech.item?.cue ?? null
     const segmentLife = speech.item?.digitalLifeFrame ?? null
+    const segmentDriverFace = speech.active
+      ? resolveExplicitPlaybackDriverFaceMetadata({
+          segmentId,
+          telemetry: playbackTelemetry,
+        }) ?? resolvePlaybackDriverFaceMetadata(speech.item)
+      : null
+    const segmentDriverMotion = speech.active
+      ? resolveExplicitPlaybackDriverMotionMetadata({
+          segmentId,
+          telemetry: playbackTelemetry,
+        }) ?? resolvePlaybackDriverMotionMetadata(speech.item)
+      : null
+    const segmentDriverLipSync = speech.active
+      ? resolveExplicitPlaybackDriverLipSyncMetadata({
+          playbackPhase: 'playing',
+          segmentId,
+          telemetry: playbackTelemetry,
+        })
+      : null
     const residentPerformance = state.value.residentPerformance
     const segmentChanged = Boolean(segmentId) && segmentId !== lastSegmentId
     const segmentGestureWeight = Math.max(
       clamp01(segmentCue?.gestureWeight),
       clamp01(segmentLife?.action.intensity),
+      clamp01(segmentDriverMotion?.intensity),
     )
     if (segmentChanged) {
       lastSegmentId = segmentId
@@ -845,7 +994,7 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
           previousSegmentId ? 'segment-shift' : 'segment-start',
           now,
           segmentActionPulseGapMs,
-          segmentLife?.action.actionCue ?? segmentCue?.actionCue,
+          segmentLife?.action.actionCue ?? segmentCue?.actionCue ?? segmentDriverMotion?.actionCue,
         )
       }
     }
@@ -883,23 +1032,24 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
     const cadencePeakActive = Boolean(
       speech.active
       && segmentCue?.actionWindow === 'cadence-peak'
-      && Math.max(clamp01(segmentCue.beatWeight), clamp01(segmentLife?.action.intensity)) >= 0.44
-      && speech.dynamics.cadencePulse >= Math.max(0.46, 0.68 - Math.max(clamp01(segmentCue.beatWeight), clamp01(segmentLife?.action.intensity)) * 0.18),
+      && Math.max(clamp01(segmentCue.beatWeight), clamp01(segmentLife?.action.intensity), clamp01(segmentDriverMotion?.intensity)) >= 0.44
+      && speech.dynamics.cadencePulse >= Math.max(0.46, 0.68 - Math.max(clamp01(segmentCue.beatWeight), clamp01(segmentLife?.action.intensity), clamp01(segmentDriverMotion?.intensity)) * 0.18),
     )
     if (cadencePeakActive && !lastCadencePeakActive) {
       const beatSegmentKey = `${segmentId}:${state.value.actionPulse.revision}`
       if (beatSegmentKey !== lastBeatPulseSegmentKey) {
-        issueActionPulse('segment-beat', now, segmentBeatPulseGapMs, segmentLife?.action.actionCue ?? segmentCue?.actionCue)
+        issueActionPulse('segment-beat', now, segmentBeatPulseGapMs, segmentLife?.action.actionCue ?? segmentCue?.actionCue ?? segmentDriverMotion?.actionCue)
         lastBeatPulseSegmentKey = beatSegmentKey
       }
     }
     lastCadencePeakActive = cadencePeakActive
 
     const previewDriverFacialCue = previewDriverFace?.preUtteranceCue ?? previewDriverFace?.facialCue ?? null
-    const segmentDriverFace = speech.active ? resolvePlaybackDriverFaceMetadata(speech.item) : null
-    const segmentDriverMotion = speech.active ? resolvePlaybackDriverMotionMetadata(speech.item) : null
     const stoppingDriverFace = !speech.active && !previewSegmentId
-      ? resolvePlaybackDriverFaceMetadata(speech.item)
+      ? resolveExplicitPlaybackDriverFaceMetadata({
+          segmentId: speech.item?.segmentId ?? null,
+          telemetry: playbackTelemetry,
+        }) ?? resolvePlaybackDriverFaceMetadata(speech.item)
       : null
     const previewFacialCue = previewCue?.facialCue
       ?? previewDriverFacialCue
@@ -1048,7 +1198,11 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
     const cueFacial = clamp01(Math.max(transientCue?.facialWeight ?? 0, transientLife?.face.intensity ?? 0) * transientCueScale)
     const cueProsody = clamp01(Math.max(transientCue?.prosodyWeight ?? 0, transientLife?.voice.cadence ?? 0) * transientCueScale)
     const cueBeat = clamp01(Math.max(transientCue?.beatWeight ?? 0, transientLife?.action.intensity ?? 0) * transientCueScale)
-    const cueMouth = clamp01(((transientCue?.mouthWeight ?? cueProsody) * (transientLife?.lipSync.mouthScale ?? 1)) * transientCueScale)
+    const driverVisemeWeight = resolvePlaybackDriverVisemePeakWeight(segmentDriverLipSync)
+    const cueMouth = clamp01(Math.max(
+      ((transientCue?.mouthWeight ?? cueProsody) * (transientLife?.lipSync.mouthScale ?? 1)) * transientCueScale,
+      driverVisemeWeight * transientCueScale,
+    ))
     const cueHead = clamp01(Math.max(transientCue?.headWeight ?? cueGesture, transientLife?.action.intensity ?? 0) * transientCueScale)
     const voiceEnergyScale = clampSigned(transientLife?.voice.energy ?? 1, 0.4, 1.25, 1)
     const speechDrive = clamp01(Math.max(
@@ -1056,6 +1210,7 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
       speech.dynamics.prosodyIntensity * 0.8,
       speech.visemeIntensity * 0.72,
       cueMouth * 0.54,
+      driverVisemeWeight * 0.68,
     ) * voiceEnergyScale)
     const transientMotor = transientLife?.motor ?? resolveFallbackMotorFromPerformance(performance)
     const focusBase = resolvePerformanceFocusBase(performance)
@@ -1329,6 +1484,7 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
       () => options.upcomingSpeechSegment?.value?.cue?.rendererSettle?.vrmActionFadeMs ?? 0,
       () => options.upcomingSpeechSegment?.value?.cue?.rendererSettle?.vrmExpressionBlendMs ?? 0,
       () => createDigitalLifeFrameSignature(options.upcomingSpeechSegment?.value),
+      () => createPlaybackTelemetrySignature(options.playbackTelemetry?.value ?? null),
       () => options.upcomingSpeechSegment?.value?.text ?? '',
       () => options.digitalLifeSpineDigest?.value?.architecture?.operatingMode ?? '',
       () => options.digitalLifeSpineDigest?.value?.architecture?.dominantSystem ?? '',

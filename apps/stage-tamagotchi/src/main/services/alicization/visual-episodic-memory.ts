@@ -89,6 +89,40 @@ function sanitizeText(raw: unknown, maxChars = 240) {
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
 }
 
+function normalizePresenceAuthorityCurrentBodyState(raw: unknown): AlicizationVisualPresenceStateSnapshot['currentBodyState'] {
+  return raw === 'sleep'
+    || raw === 'idle'
+    || raw === 'noticing'
+    || raw === 'accompanying'
+    || raw === 'speaking'
+    || raw === 'warning'
+    || raw === 'recovering'
+    ? raw
+    : 'idle'
+}
+
+function normalizePresenceAuthorityContinuityMode(raw: unknown): AlicizationVisualPresenceStateSnapshot['continuityMode'] {
+  return raw === 'ambient-covision'
+    || raw === 'quiet-accompaniment'
+    || raw === 'active-dialogue'
+    || raw === 'protective-watch'
+    || raw === 'rest-withdrawal'
+    ? raw
+    : 'ambient-covision'
+}
+
+function normalizePresenceAuthorityQuietLineMs(raw: unknown) {
+  const value = Number(raw)
+  if (!Number.isFinite(value))
+    return 0
+  return Math.max(0, Math.floor(value))
+}
+
+function normalizePresenceAuthorityCurrentInwardPreoccupation(raw: unknown) {
+  const value = sanitizeText(raw, 160)
+  return value || null
+}
+
 function withResidentPerformance(state: AlicizationVisualPresenceStateSnapshot): AlicizationVisualPresenceStateSnapshot {
   return {
     ...state,
@@ -1968,6 +2002,10 @@ function normalizeAutobiographicalSelf(raw: unknown): AlicizationAutobiographica
 
 export function createDefaultVisualPresenceState(now = Date.now()): AlicizationVisualPresenceStateSnapshot {
   return withResidentPerformance({
+    currentBodyState: 'idle',
+    continuityMode: 'ambient-covision',
+    quietLineMs: 0,
+    currentInwardPreoccupation: null,
     watchMode: 'mnemonic-passive',
     currentScene: null,
     attention: null,
@@ -2041,6 +2079,10 @@ export function normalizeVisualPresenceState(raw: unknown, now = Date.now()): Al
 
   const candidate = raw as Record<string, unknown>
   const base = createDefaultVisualPresenceState(now)
+  base.currentBodyState = normalizePresenceAuthorityCurrentBodyState(candidate.currentBodyState)
+  base.continuityMode = normalizePresenceAuthorityContinuityMode(candidate.continuityMode)
+  base.quietLineMs = normalizePresenceAuthorityQuietLineMs(candidate.quietLineMs)
+  base.currentInwardPreoccupation = normalizePresenceAuthorityCurrentInwardPreoccupation(candidate.currentInwardPreoccupation)
   const watchMode = candidate.watchMode
   if (watchMode === 'mnemonic-passive' || watchMode === 'symbiotic-vision' || watchMode === 'invited-inspection' || watchMode === 'recovering')
     base.watchMode = watchMode
@@ -2302,6 +2344,10 @@ export function updateVisualPresenceState(input: {
   }
 
   return withResidentPerformance({
+    currentBodyState: previousState.currentBodyState,
+    continuityMode: previousState.continuityMode,
+    quietLineMs: previousState.quietLineMs,
+    currentInwardPreoccupation: previousState.currentInwardPreoccupation,
     watchMode: input.watchMode,
     currentScene: input.scene,
     attention: input.attention,

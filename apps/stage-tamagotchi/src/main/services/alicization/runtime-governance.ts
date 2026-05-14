@@ -294,6 +294,7 @@ function applyDialoguePerformanceSeedToEmbodiment(
 export interface AlicizationChatStreamEmbodimentMeta {
   governance: AlicizationMindTurnGovernance | null
   embodiment: AlicizationDialogueEmbodimentEnvelope | null
+  embodimentScript: AlicizationDialogueStructuredPayload['embodimentScript']
   speechTimeline: AlicizationDialogueSpeechTimeline | null
   digitalLife: AlicizationDialogueStructuredPayload['digitalLife']
 }
