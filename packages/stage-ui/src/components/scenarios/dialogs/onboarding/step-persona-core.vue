@@ -17,6 +17,40 @@ const { t } = useI18n()
 const workshopStore = useAlicizationGenesisWorkshopStore()
 const { draft } = storeToRefs(workshopStore)
 
+const obedienceInput = computed({
+  get: () => draft.value.presetTemperament?.obedience,
+  set: (value: number | undefined) => {
+    if (!draft.value.presetTemperament)
+      return
+    draft.value.presetTemperament.obedience = value ?? 0.5
+  },
+})
+
+const livelinessInput = computed({
+  get: () => draft.value.presetTemperament?.liveliness,
+  set: (value: number | undefined) => {
+    if (!draft.value.presetTemperament)
+      return
+    draft.value.presetTemperament.liveliness = value ?? 0.5
+  },
+})
+
+const sensibilityInput = computed({
+  get: () => draft.value.presetTemperament?.sensibility,
+  set: (value: number | undefined) => {
+    if (!draft.value.presetTemperament)
+      return
+    draft.value.presetTemperament.sensibility = value ?? 0.5
+  },
+})
+
+const freeDescriptionInput = computed({
+  get: () => draft.value.freeDescription ?? '',
+  set: (value: string) => {
+    draft.value.freeDescription = value
+  },
+})
+
 const temperamentSummary = computed(() => {
   const values = draft.value.presetTemperament
   return [values?.obedience, values?.liveliness, values?.sensibility]
@@ -45,19 +79,19 @@ const temperamentSummary = computed(() => {
           <div class="text-xs text-neutral-500">
             {{ t('settings.dialogs.onboarding.personaWorkshop.core.obedience') }}
           </div>
-          <Input v-model="draft.presetTemperament!.obedience" type="number" :min="0" :max="1" :step="0.1" />
+          <Input v-model="obedienceInput" type="number" :min="0" :max="1" :step="0.1" />
         </label>
         <label class="space-y-2">
           <div class="text-xs text-neutral-500">
             {{ t('settings.dialogs.onboarding.personaWorkshop.core.liveliness') }}
           </div>
-          <Input v-model="draft.presetTemperament!.liveliness" type="number" :min="0" :max="1" :step="0.1" />
+          <Input v-model="livelinessInput" type="number" :min="0" :max="1" :step="0.1" />
         </label>
         <label class="space-y-2">
           <div class="text-xs text-neutral-500">
             {{ t('settings.dialogs.onboarding.personaWorkshop.core.sensibility') }}
           </div>
-          <Input v-model="draft.presetTemperament!.sensibility" type="number" :min="0" :max="1" :step="0.1" />
+          <Input v-model="sensibilityInput" type="number" :min="0" :max="1" :step="0.1" />
         </label>
       </div>
       <div class="rounded-2xl border border-dashed border-primary-200 bg-primary-50/70 p-4 text-sm text-primary-700 dark:border-primary-700/60 dark:bg-primary-900/10 dark:text-primary-200">
@@ -67,7 +101,7 @@ const temperamentSummary = computed(() => {
         <div class="text-xs text-neutral-500">
           {{ t('settings.dialogs.onboarding.personaWorkshop.core.freeDescription') }}
         </div>
-        <Textarea v-model="draft.freeDescription" rows="5" />
+        <Textarea v-model="freeDescriptionInput" rows="5" />
       </label>
       <div class="space-y-2">
         <div class="text-xs text-neutral-500">

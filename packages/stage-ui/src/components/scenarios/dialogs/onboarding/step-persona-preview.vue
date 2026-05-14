@@ -2,10 +2,12 @@
 import type { OnboardingStepNextHandler, OnboardingStepPrevHandler } from './types'
 
 import { Button, Textarea } from '@proj-alicization/ui'
+import { storeToRefs } from 'pinia'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { defaultAlicizationPersonality, defaultAlicizationProfile } from '@proj-alicization/stage-shared'
+import type { AlicizationGenesisInput } from '../../../../stores/alicization-bridge'
 import { useAlicizationEpoch1Store } from '../../../../stores/alicization-epoch1'
 import { useAlicizationGenesisWorkshopStore } from '../../../../stores/alicization-genesis-workshop'
 
@@ -17,7 +19,7 @@ const props = defineProps<{
 const { t } = useI18n()
 const workshopStore = useAlicizationGenesisWorkshopStore()
 const epoch1Store = useAlicizationEpoch1Store()
-const { draft } = workshopStore
+const { draft } = storeToRefs(workshopStore)
 const submitting = ref(false)
 const correctionText = ref('')
 
@@ -103,11 +105,27 @@ function buildGenesisPayload() {
     mindAge: defaultAlicizationProfile.mindAge,
     personality: {
       ...defaultAlicizationPersonality,
+      identityKernel: {
+        ...defaultAlicizationPersonality.identityKernel,
+        valueBias: [...defaultAlicizationPersonality.identityKernel.valueBias],
+      },
+      expressionProfile: {
+        ...defaultAlicizationPersonality.expressionProfile,
+      },
+      initiativeBaseline: {
+        ...defaultAlicizationPersonality.initiativeBaseline,
+      },
+      evolutionSeed: {
+        ...defaultAlicizationPersonality.evolutionSeed,
+        fastLayers: [...defaultAlicizationPersonality.evolutionSeed.fastLayers],
+        slowLayers: [...defaultAlicizationPersonality.evolutionSeed.slowLayers],
+        unlockTracks: [...defaultAlicizationPersonality.evolutionSeed.unlockTracks],
+      },
       identityAnchors: [...(defaultAlicizationPersonality.identityAnchors ?? [])],
       antiPersonaConstraints: [...(draft.value.antiPersonaConstraints ?? [])],
     },
     personaWorkshop,
-  }
+  } satisfies AlicizationGenesisInput
 }
 
 async function completePreview() {
