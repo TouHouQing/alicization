@@ -90,4 +90,61 @@ describe('speech articulation voice bias', () => {
     expect(english.voice?.language).toBe('en-US')
     expect(english.lipClosure).toBeLessThan(1)
   })
+
+  it('keeps stronger rounded U shaping for chinese text with explicit rounded characters', () => {
+    const rounded = deriveStageEmbodimentSpeechArticulationState({
+      active: true,
+      text: '呜。',
+      metadata: {
+        speechSynthesis: {
+          provider: 'test',
+          voice: {
+            id: 'rounded-zh',
+            language: 'zh-CN',
+            consonantPrecision: 0.6,
+            vowelLegato: 0.5,
+            roundBias: 0.1,
+            spreadBias: 0.1,
+            jawBias: 0.1,
+            closureBias: 0.1,
+            rateMultiplier: 1,
+            pitchDelta: 0,
+          },
+        },
+      },
+      playbackDurationMs: 800,
+      startedAt: 0,
+      now: 200,
+      mouthOpenRatio: 0.4,
+    })
+
+    const spread = deriveStageEmbodimentSpeechArticulationState({
+      active: true,
+      text: '衣。',
+      metadata: {
+        speechSynthesis: {
+          provider: 'test',
+          voice: {
+            id: 'spread-zh',
+            language: 'zh-CN',
+            consonantPrecision: 0.6,
+            vowelLegato: 0.5,
+            roundBias: 0.1,
+            spreadBias: 0.1,
+            jawBias: 0.1,
+            closureBias: 0.1,
+            rateMultiplier: 1,
+            pitchDelta: 0,
+          },
+        },
+      },
+      playbackDurationMs: 800,
+      startedAt: 0,
+      now: 200,
+      mouthOpenRatio: 0.4,
+    })
+
+    expect(rounded.visemes.U).toBeGreaterThan(spread.visemes.U)
+    expect(rounded.lipRound).toBeGreaterThan(spread.lipRound)
+  })
 })

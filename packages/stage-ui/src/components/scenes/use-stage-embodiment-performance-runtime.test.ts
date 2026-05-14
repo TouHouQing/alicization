@@ -1239,6 +1239,14 @@ describe('stage embodiment performance runtime', () => {
     expect(runtime.state.value.activeActionCue).toBe('idle_gentle_nod')
     expect(runtime.state.value.activeActionCueSource).toBe('segment')
     expect(runtime.state.value.prosodyDrive).toBeGreaterThan(baselineProsodyDrive)
+    expect(runtime.playbackTelemetry.value?.drivers.lipsync).toEqual(expect.objectContaining({
+      mode: 'energy-phoneme-hybrid',
+      segmentId: 'segment-explicit-playback-telemetry',
+      visemeHints: [
+        { segmentId: 'segment-explicit-playback-telemetry', viseme: 'U', weight: 0.92, source: 'prosody-authority', confidence: 0.89 },
+        { segmentId: 'segment-explicit-playback-telemetry', viseme: 'closed', weight: 0.58, source: 'prosody-authority', confidence: 0.77 },
+      ],
+    }))
 
     scope.stop()
   })

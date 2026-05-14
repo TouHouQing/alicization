@@ -196,7 +196,10 @@ describe('stage embodiment diagnostics', () => {
             mode: 'energy-phoneme-hybrid',
             playbackPhase: 'playing',
             segmentId: 'segment-1',
-            visemeHints: [{ segmentId: 'segment-1', viseme: 'A', weight: 0.78, source: 'prosody-authority', confidence: 0.82 }],
+            visemeHints: [
+              { segmentId: 'segment-1', viseme: 'U', weight: 0.92, source: 'prosody-authority', confidence: 0.89 },
+              { segmentId: 'segment-1', viseme: 'closed', weight: 0.58, source: 'prosody-authority', confidence: 0.77 },
+            ],
           },
           motion: null,
         },
@@ -256,7 +259,8 @@ describe('stage embodiment diagnostics', () => {
     expect(diagnostics.snapshot.value.speech.articulation?.visemes.A).toBeCloseTo(0.66)
     expect(diagnostics.snapshot.value.speech.playbackTelemetry?.drivers?.lipsync?.mode).toBe('energy-phoneme-hybrid')
     expect(diagnostics.snapshot.value.speech.playbackTelemetry?.drivers?.lipsync?.visemeHints).toEqual([
-      { segmentId: 'segment-1', viseme: 'A', weight: 0.78, source: 'prosody-authority', confidence: 0.82 },
+      { segmentId: 'segment-1', viseme: 'U', weight: 0.92, source: 'prosody-authority', confidence: 0.89 },
+      { segmentId: 'segment-1', viseme: 'closed', weight: 0.58, source: 'prosody-authority', confidence: 0.77 },
     ])
   })
 })
