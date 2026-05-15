@@ -55,6 +55,13 @@ function isDriverCueConfidenceSufficient(raw: unknown) {
   return clamp01(Number(raw)) >= previewDriverCueConfidenceFloor
 }
 
+function resolveDriverCueConfidenceScale(raw: unknown, fallback = 1) {
+  if (raw == null)
+    return fallback
+
+  return Math.max(0.35, clamp01(Number(raw), fallback))
+}
+
 function clamp01(value: number | null | undefined, fallback: number = 0) {
   if (!Number.isFinite(value))
     return fallback
@@ -310,6 +317,7 @@ function resolvePlaybackDriverFaceMetadata(
     postUtteranceCue: face.postUtteranceCue?.trim() || null,
     preUtteranceCue: face.preUtteranceCue?.trim() || null,
     segmentId: normalizeDriverSegmentId(face.segmentId),
+    confidence: clamp01(face.confidence ?? 0),
   }
 }
 
@@ -331,6 +339,7 @@ function resolvePlaybackDriverMotionMetadata(
     holdMs: Math.max(0, Math.round(motion.holdMs ?? 0)),
     intensity: clamp01(motion.intensity ?? 0),
     segmentId: normalizeDriverSegmentId(motion.segmentId),
+    confidence: clamp01(motion.confidence ?? 0),
   }
 }
 
@@ -352,6 +361,7 @@ function resolveExplicitPlaybackDriverFaceMetadata(input: {
     postUtteranceCue: face.postUtteranceCue?.trim() || null,
     preUtteranceCue: face.preUtteranceCue?.trim() || null,
     segmentId: normalizeDriverSegmentId(face.segmentId),
+    confidence: clamp01(face.confidence ?? 0),
   }
 }
 
@@ -372,6 +382,7 @@ function resolveExplicitPlaybackDriverMotionMetadata(input: {
     holdMs: Math.max(0, Math.round(motion.holdMs ?? 0)),
     intensity: clamp01(motion.intensity ?? 0),
     segmentId: normalizeDriverSegmentId(motion.segmentId),
+    confidence: clamp01(motion.confidence ?? 0),
   }
 }
 
@@ -1023,9 +1034,14 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
     const previewLife = upcomingSegment?.digitalLifeFrame ?? null
     const previewDriverFace = resolvePlaybackDriverFaceMetadata(upcomingSegment)
     const previewDriverMotion = resolvePlaybackDriverMotionMetadata(upcomingSegment)
+    const previewDriverFaceScale = resolveDriverCueConfidenceScale(previewDriverFace?.confidence)
+    const previewDriverMotionScale = resolveDriverCueConfidenceScale(previewDriverMotion?.confidence)
+    const segmentDriverFaceScale = resolveDriverCueConfidenceScale(segmentDriverFace?.confidence)
+    const segmentDriverMotionScale = resolveDriverCueConfidenceScale(segmentDriverMotion?.confidence)
     const previewGestureWeight = Math.max(
       clamp01(previewCue?.gestureWeight),
       clamp01(previewLife?.action.intensity),
+      clamp01(previewDriverMotion?.intensity) * previewDriverMotionScale,
     )
     if (previewAhead && previewSegmentId) {
       if (
@@ -1132,6 +1148,13 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
         })
     heldSegmentFacialCue = facialCueLayer.heldCue
     heldSegmentFacialCueUntil = facialCueLayer.heldUntil
+    const facialCueSourceScale = facialCueLayer.source === 'resident'
+      ? 0.62
+      : facialCueLayer.source === 'preview'
+        ? 0.86
+        : facialCueLayer.source === 'segment'
+          ? 1
+          : 0
 
     const actionCueLayer = previewAhead
       ? previewCue?.actionCue
@@ -1167,6 +1190,13 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
         })
     heldSegmentActionCue = actionCueLayer.heldCue
     heldSegmentActionCueUntil = actionCueLayer.heldUntil
+    const actionCueSourceScale = actionCueLayer.source === 'resident'
+      ? 0.62
+      : actionCueLayer.source === 'preview'
+        ? 0.86
+        : actionCueLayer.source === 'segment'
+          ? 1
+          : 0
 
     const activeCueLayer = resolveTransientActiveCueLayer(now, {
       holdMs: resolveSegmentCueHoldMs(
@@ -1210,8 +1240,20 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
       ? transientCue ? 0.74 : 1
       : 1
     const transientLife = speech.active ? segmentLife : previewLife
-    const cueGesture = clamp01(Math.max(transientCue?.gestureWeight ?? 0, transientLife?.action.intensity ?? 0) * transientCueScale)
-    const cueFacial = clamp01(Math.max(transientCue?.facialWeight ?? 0, transientLife?.face.intensity ?? 0) * transientCueScale)
+    const cueGesture = clamp01(Math.max(
+      transientCue?.gestureWeight ?? 0,
+      transientLife?.action.intensity ?? 0,
+      previewAhead
+        ? (previewDriverMotion?.intensity ?? 0) * previewDriverMotionScale
+        : (segmentDriverMotion?.intensity ?? 0) * segmentDriverMotionScale,
+    ) * transientCueScale)
+    const cueFacial = clamp01(Math.max(
+      transientCue?.facialWeight ?? 0,
+      transientLife?.face.intensity ?? 0,
+      previewAhead
+        ? (previewDriverFace?.intensity ?? 0) * previewDriverFaceScale
+        : (segmentDriverFace?.intensity ?? 0) * segmentDriverFaceScale,
+    ) * transientCueScale)
     const cueProsody = clamp01(Math.max(transientCue?.prosodyWeight ?? 0, transientLife?.voice.cadence ?? 0) * transientCueScale)
     const cueBeat = clamp01(Math.max(transientCue?.beatWeight ?? 0, transientLife?.action.intensity ?? 0) * transientCueScale)
     const driverVisemeWeight = resolvePlaybackDriverVisemePeakWeight(segmentDriverLipSync)
@@ -1263,8 +1305,8 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
       activeCueSource: activeCueLayer.source,
       activeSegment: speech.item,
       expressionIntensity: roundTenths(clamp01((baseIntensity + speechDrive * 0.16 + motionPulse * 0.1 + cueFacial * 0.12 + cueMouth * 0.06 + runtimeMotor.expressivity * 0.12 + runtimeMotor.facial.cheekLift * 0.08) * spineBias.expressionBias * activeFactor)),
-      facialCueIntensity: roundTenths(clamp01((baseIntensity * 0.88 + speechDrive * 0.22 + motionPulse * 0.14 + cueFacial * 0.18 + cueMouth * 0.08 + runtimeMotor.expressivity * 0.08 + runtimeMotor.facial.browTension * 0.08) * spineBias.expressionBias * activeFactor)),
-      actionIntensity: roundTenths(clamp01((0.34 + performance.emphasis * 0.12 + motionPulse * 0.18 + cueGesture * 0.16 + cueHead * 0.2 + cueBeat * 0.14 + runtimeMotor.body.openness * 0.08 + (1 - runtimeMotor.stillness) * 0.12) * spineBias.actionBias * activeFactor)),
+      facialCueIntensity: roundTenths(clamp01((baseIntensity * 0.88 + speechDrive * 0.22 + motionPulse * 0.14 + cueFacial * 0.18 + cueMouth * 0.08 + runtimeMotor.expressivity * 0.08 + runtimeMotor.facial.browTension * 0.08) * spineBias.expressionBias * activeFactor * facialCueSourceScale)),
+      actionIntensity: roundTenths(clamp01((0.34 + performance.emphasis * 0.12 + motionPulse * 0.18 + cueGesture * 0.16 + cueHead * 0.2 + cueBeat * 0.14 + runtimeMotor.body.openness * 0.08 + (1 - runtimeMotor.stillness) * 0.12) * spineBias.actionBias * activeFactor * actionCueSourceScale)),
       motionPulse,
       prosodyDrive: roundTenths(clamp01(Math.max(speechDrive, speech.dynamics.cadencePulse * (0.62 + cueProsody * 0.18), cueProsody * 0.46) * spineBias.prosodyBias * activeFactor)),
       breathDrive: roundTenths(clamp01((speech.dynamics.cadencePulse * 0.44 + speech.dynamics.speechEnergy * 0.3 + motionPulse * 0.14 + cueBeat * 0.1 + cueMouth * 0.12 + runtimeMotor.breath.amplitude * 0.18 + runtimeMotor.breath.pace * 0.08) * spineBias.breathBias * activeFactor)),

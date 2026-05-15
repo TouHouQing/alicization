@@ -1480,6 +1480,8 @@ describe('stage embodiment performance runtime', () => {
     expect(runtime.state.value.activeActionCue).toBe('idle_gentle_nod')
     expect(runtime.state.value.activeActionCueSource).toBe('segment')
     expect(runtime.state.value.prosodyDrive).toBeGreaterThan(baselineProsodyDrive)
+    expect(runtime.state.value.facialCueIntensity).toBeGreaterThan(0.8)
+    expect(runtime.state.value.actionIntensity).toBeGreaterThan(0.7)
     expect(runtime.playbackTelemetry.value?.drivers.face).toEqual(expect.objectContaining({
       source: 'prosody-authority',
       confidence: 0.94,
@@ -1573,6 +1575,8 @@ describe('stage embodiment performance runtime', () => {
     expect(runtime.state.value.activeFacialCueSource).toBe('resident')
     expect(runtime.state.value.activeActionCue).toBe('raise_hand_excited')
     expect(runtime.state.value.activeActionCueSource).toBe('resident')
+    expect(runtime.state.value.facialCueIntensity).toBeLessThan(0.8)
+    expect(runtime.state.value.actionIntensity).toBeLessThan(0.7)
 
     scope.stop()
   })
