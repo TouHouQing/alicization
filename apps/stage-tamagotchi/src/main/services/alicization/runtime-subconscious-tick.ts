@@ -2,6 +2,7 @@ import { deriveAutonomyExecutionProposalSurface, runAutonomyActuation } from './
 import { buildAutobiographicalEpisodeFragment } from './autobiographical-episodes'
 import { adjustProactiveStyleFromHostPersonModel, inferHostSocialContextsFromText } from './host-social-guidance'
 import { resolveAlicizationProactiveVisibleUtterance } from './proactive-mind/visible-utterance-realization'
+import { resolveRuntimeSubconsciousTickEntry } from './runtime-subconscious-tick-entry'
 
 function buildDeferredProactiveContinuitySignal(input: {
   now: number
@@ -487,15 +488,6 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
         selfRevisionPatch: activeSelfRevisionPatch,
         ...committedDigitalLifeSpine.current.proactivePolicy,
       })
-      const hardSuppressed = !decision.shouldInterrupt
-        && (
-          decision.style === 'silent-observe'
-          || decision.reasonCodes.includes('kill-switch-suspended')
-          || decision.reasonCodes.includes('global-cooldown-active')
-          || decision.reasonCodes.includes('busy-host')
-          || decision.reasonCodes.includes('fullscreen-host')
-        )
-
       if (!decision.shouldInterrupt)
         emitVisualPresencePulse(buildPresencePulsePayload(activeCardId, visualPresenceState))
 
@@ -605,10 +597,11 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
         })
       }
 
-      const shouldSurfaceAutonomyProposal = Boolean(
-        autonomyExecutionProposalSurface
-        && !hardSuppressed,
-      )
+      const entrySurface = resolveRuntimeSubconsciousTickEntry({
+        decision,
+        autonomyExecutionProposalSurface,
+      })
+      const { hardSuppressed } = entrySurface
       if (hardSuppressed) {
         suppressed = true
         const obediencePenalty = decision.reasonCodes.includes('busy-host') || decision.reasonCodes.includes('fullscreen-host')
@@ -657,7 +650,7 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
           },
         })
       }
-      else if (decision.shouldInterrupt || shouldSurfaceAutonomyProposal) {
+      else if (entrySurface.shouldEnterProactiveFlow) {
         const personality = soulForSubconscious.frontmatter.personality
         const personaContext = {
           customDirectives: normalizeCustomDirectives(soulForSubconscious.frontmatter.custom_directives),
