@@ -52,7 +52,15 @@ describe('runtime-governance', () => {
       createdAt: Date.now(),
     }
 
-    const governed = coerceConversationTurnToMindGovernedPayload(input)
+    const governed = coerceConversationTurnToMindGovernedPayload(input, {
+      renderer: 'live2d',
+      supportedBaseEmotions: ['neutral', 'thinking'],
+      supportedFacialCues: [],
+      supportedActions: [],
+      supportsLookAt: true,
+      supportsVisemeLipSync: true,
+      supportsMicroDynamics: true,
+    })
     const structured = governed.payload.structured as Record<string, unknown>
 
     expect(governed.replyOverridden).toBe(false)
@@ -62,6 +70,83 @@ describe('runtime-governance', () => {
     expect(String(structured.reply ?? '')).toBe('不是刚才那页了，我按这张新画面重新说。')
     expect(structured.visibleReplyAuthority).toBe('llm-mind')
     expect(String(structured.reply ?? '')).not.toContain('先按你眼前这件事说')
+  })
+
+  it('emits chinese segment viseme and face timing metadata in governed embodiment scripts', () => {
+    const input: AlicizationConversationTurnInput = {
+      turnId: 'turn-embodiment-contract-1',
+      sessionId: 'session-1',
+      userText: '继续说下去',
+      assistantText: '先看这里，然后确认了吗？',
+      structured: {
+        thought: 'obligation=answer; truth=remembered; focus=current-user-turn; move=answer-directly; tone=direct',
+        emotion: 'thinking',
+        reply: '先看这里，然后确认了吗？',
+        parsePath: 'json',
+        format: 'mind-turn-v1',
+        performance: {
+          baseEmotion: 'thinking',
+          emotion: 'thinking',
+          facialCue: 'focused',
+          actionCue: 'idle_gentle_nod',
+          delivery: 'gentle',
+          emphasis: 1,
+        },
+      } as any,
+      governance: {
+        decisionTraceId: 'trace-embodiment-contract-1',
+        turnMode: 'answer',
+        truthState: 'remembered',
+        personaKernelMode: 'full',
+        openingStyle: 'direct-answer',
+        relationshipPosture: 'warm',
+        answerAct: 'guide',
+        answerSubject: 'task-knot',
+        screenReferenceMode: 'helpful',
+        evidenceMode: 'continuity-carry',
+        repairState: 'none',
+        liveSurface: 'current task thread',
+        focusAnchor: 'current task thread',
+        answerIntent: 'Continue the task directly.',
+        openingMove: 'Continue directly.',
+        carriedThread: 'current task thread',
+        suppressAssociativeRecall: false,
+        labelCarryAsMemory: true,
+        shouldAskForGrounding: false,
+        shouldAcknowledgeRepair: false,
+        maxSentences: 3,
+        mustDo: [],
+        mustNotDo: [],
+      } as any,
+      createdAt: Date.now(),
+    }
+
+    const governed = coerceConversationTurnToMindGovernedPayload(input, {
+      renderer: 'live2d',
+      supportedBaseEmotions: ['neutral', 'thinking'],
+      supportedFacialCues: [],
+      supportedActions: [],
+      supportsLookAt: true,
+      supportsVisemeLipSync: true,
+      supportsMicroDynamics: true,
+    })
+    const script = (governed.payload.structured as Record<string, any>).embodimentScript
+
+    expect(script?.facePlan?.speakingCues?.[0]).toEqual(expect.objectContaining({
+      source: 'prosody-authority',
+      preUtteranceCue: 'steady-inhale',
+      postUtteranceCue: 'soft-release',
+    }))
+    expect(script?.motionPlan?.actionBursts?.[0]).toEqual(expect.objectContaining({
+      source: 'timeline-projection',
+      confidence: 0.88,
+    }))
+    expect(script?.lipsyncPlan?.visemeHints).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        source: 'prosody-authority',
+        confidence: 0.94,
+      }),
+    ]))
   })
 
   it('suppresses need-reground fallback takeover for explicit execution-bound turns', () => {

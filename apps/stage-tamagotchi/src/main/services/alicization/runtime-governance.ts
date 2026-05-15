@@ -20,6 +20,9 @@ import type {
 } from '../../../shared/eventa'
 
 import {
+  buildAlicizationEmbodimentFaceCue,
+  buildAlicizationEmbodimentLipSyncHints,
+  buildAlicizationEmbodimentMotionBurst,
   buildAlicizationDialogueSpeechTimeline,
   buildAlicizationDigitalLifeEnvelope,
   normalizeAlicizationEmbodimentScript,
@@ -85,6 +88,64 @@ import { resolveAlicizationVisibleReplyGovernanceAuditAuthority } from './visibl
 
 export function createAbortError(reason?: string) {
   return new DOMException(`Alicization runtime aborted: ${reason ?? 'unknown'}`, 'AbortError')
+}
+
+function deriveRuntimeGovernanceSegmentProsody(segment: AlicizationDialogueSpeechTimeline['segments'][number]) {
+  const trimmed = segment.text.trim()
+  const pauseClass = trimmed.endsWith('？') || trimmed.endsWith('?')
+    ? 'question'
+    : trimmed.endsWith('！') || trimmed.endsWith('!')
+      ? 'exclaim'
+      : trimmed.endsWith('。') || trimmed.endsWith('.')
+        ? 'full-stop'
+        : trimmed.endsWith('，') || trimmed.endsWith(',')
+          ? 'comma'
+          : trimmed.endsWith('、')
+            ? 'enumeration'
+            : 'none'
+  const phraseBoundary = pauseClass === 'comma' || pauseClass === 'enumeration'
+    ? 'soft'
+    : pauseClass === 'full-stop' || pauseClass === 'question' || pauseClass === 'exclaim'
+      ? 'hard'
+      : 'none'
+  const contour = pauseClass === 'question'
+    ? 'rising'
+    : pauseClass === 'comma' || pauseClass === 'full-stop' || pauseClass === 'exclaim'
+      ? 'falling'
+      : 'flat'
+
+  return {
+    language: 'zh-CN' as const,
+    pauseClass,
+    phraseBoundary,
+    contour,
+    emphasisWord: null,
+    emphasisStrength: Number(Math.max(0, Math.min(1, segment.prosodyWeight ?? 0.5)).toFixed(2)),
+    tempoShift: 0,
+  }
+}
+
+function buildRuntimeGovernanceEmbodimentSpeechSegment(
+  segment: AlicizationDialogueSpeechTimeline['segments'][number],
+) {
+  return {
+    id: segment.id,
+    index: segment.index,
+    text: segment.text,
+    interruptPolicy: segment.interruptMode === 'hard-interrupt' ? 'hard-stop' as const : 'soft-settle' as const,
+    preRollMs: segment.actionWindow === 'segment-start'
+      ? 40
+      : segment.actionWindow === 'cadence-peak'
+        ? 20
+        : 0,
+    settleMs: Math.max(
+      120,
+      segment.emotionHoldMs ?? 0,
+      segment.facialHoldMs ?? 0,
+      segment.actionHoldMs ?? 0,
+    ),
+    prosody: deriveRuntimeGovernanceSegmentProsody(segment),
+  }
 }
 
 export function isAbortError(error: unknown) {
@@ -385,32 +446,32 @@ export function buildAlicizationChatStreamEmbodimentMeta(input: {
         facePlan: {
           preUtteranceCue: null,
           postUtteranceCue: null,
-          speakingCues: speechTimeline.segments.map(segment => ({
-            segmentId: segment.id,
-            emotion: segment.emotion ?? embodiment.performance.baseEmotion,
-            facialCue: segment.facialCue ?? embodiment.performance.facialCue ?? null,
-            intensity: segment.facialWeight ?? 0.5,
-            holdMs: Math.max(0, segment.facialHoldMs ?? segment.emotionHoldMs ?? 0),
-            preUtteranceCue: null,
-            postUtteranceCue: null,
-            source: 'prosody-authority' as const,
-            confidence: 0.94,
+          speakingCues: speechTimeline.segments.map(segment => buildAlicizationEmbodimentFaceCue({
+            segment: buildRuntimeGovernanceEmbodimentSpeechSegment(segment),
+            timelineSegment: segment,
+            fallbackEmotion: embodiment.performance.baseEmotion,
+            fallbackFacialCue: embodiment.performance.facialCue ?? null,
+            fallbackIntensity: 0.5,
           })),
         },
         motionPlan: {
           idleBase: embodiment.performance.actionCue ?? 'idle_settle',
-          actionBursts: speechTimeline.segments.map(segment => ({
-            segmentId: segment.id,
-            actionCue: segment.actionCue ?? embodiment.performance.actionCue ?? null,
-            intensity: segment.gestureWeight ?? 0,
-            holdMs: Math.max(0, segment.actionHoldMs ?? 0),
-            source: 'timeline-projection' as const,
-            confidence: 0.88,
+          actionBursts: speechTimeline.segments.map(segment => buildAlicizationEmbodimentMotionBurst({
+            segment: buildRuntimeGovernanceEmbodimentSpeechSegment(segment),
+            timelineSegment: segment,
+            fallbackActionCue: embodiment.performance.actionCue ?? null,
+            fallbackIntensity: 0,
           })),
           attentionMode: 'attentive',
         },
         lipsyncPlan: {
           mode: input.performanceManifest?.supportsVisemeLipSync === true ? 'energy-phoneme-hybrid' : 'energy-only',
+          visemeHints: input.performanceManifest?.supportsVisemeLipSync === true
+            ? speechTimeline.segments.flatMap(segment => buildAlicizationEmbodimentLipSyncHints({
+                segment: buildRuntimeGovernanceEmbodimentSpeechSegment(segment),
+                timelineSegment: segment,
+              }))
+            : undefined,
         },
       })
     : null
@@ -1700,32 +1761,32 @@ export function coerceConversationTurnToMindGovernedPayload(
         facePlan: {
           preUtteranceCue: null,
           postUtteranceCue: null,
-          speakingCues: finalSpeechTimeline.segments.map(segment => ({
-            segmentId: segment.id,
-            emotion: segment.emotion ?? finalPerformance.baseEmotion,
-            facialCue: segment.facialCue ?? finalPerformance.facialCue ?? null,
-            intensity: segment.facialWeight ?? 0.5,
-            holdMs: Math.max(0, segment.facialHoldMs ?? segment.emotionHoldMs ?? 0),
-            preUtteranceCue: null,
-            postUtteranceCue: null,
-            source: 'prosody-authority' as const,
-            confidence: 0.94,
+          speakingCues: finalSpeechTimeline.segments.map(segment => buildAlicizationEmbodimentFaceCue({
+            segment: buildRuntimeGovernanceEmbodimentSpeechSegment(segment),
+            timelineSegment: segment,
+            fallbackEmotion: finalPerformance.baseEmotion,
+            fallbackFacialCue: finalPerformance.facialCue ?? null,
+            fallbackIntensity: 0.5,
           })),
         },
         motionPlan: {
           idleBase: finalPerformance.actionCue ?? 'idle_settle',
-          actionBursts: finalSpeechTimeline.segments.map(segment => ({
-            segmentId: segment.id,
-            actionCue: segment.actionCue ?? finalPerformance.actionCue ?? null,
-            intensity: segment.gestureWeight ?? 0,
-            holdMs: Math.max(0, segment.actionHoldMs ?? 0),
-            source: 'timeline-projection' as const,
-            confidence: 0.88,
+          actionBursts: finalSpeechTimeline.segments.map(segment => buildAlicizationEmbodimentMotionBurst({
+            segment: buildRuntimeGovernanceEmbodimentSpeechSegment(segment),
+            timelineSegment: segment,
+            fallbackActionCue: finalPerformance.actionCue ?? null,
+            fallbackIntensity: 0,
           })),
           attentionMode: 'attentive',
         },
         lipsyncPlan: {
           mode: performanceManifest?.supportsVisemeLipSync === true ? 'energy-phoneme-hybrid' : 'energy-only',
+          visemeHints: performanceManifest?.supportsVisemeLipSync === true
+            ? finalSpeechTimeline.segments.flatMap(segment => buildAlicizationEmbodimentLipSyncHints({
+                segment: buildRuntimeGovernanceEmbodimentSpeechSegment(segment),
+                timelineSegment: segment,
+              }))
+            : undefined,
         },
       })
     : null
