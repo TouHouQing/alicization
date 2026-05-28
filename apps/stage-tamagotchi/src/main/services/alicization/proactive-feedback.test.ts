@@ -38,10 +38,16 @@ describe('proactive feedback loop state', () => {
       scenario: 'media',
       deliveredAt: 1_000,
       feedbackWindowMs: 120_000,
+      learningAction: 'verify',
+      learningFocuses: ['world-model'],
     })
     const settled = settleProactiveOutcomesOnUserTurnStart(state, 20_000)
 
     expect(settled.appliedOutcomes[0]?.outcome).toBe('reply-within-120s')
+    expect(settled.appliedOutcomes[0]).toEqual(expect.objectContaining({
+      learningAction: 'verify',
+      learningFocuses: ['world-model'],
+    }))
     expect(settled.state.scenarioBias.media).toBe(0)
     expect(settled.state.consecutiveIgnored.media).toBe(0)
   })

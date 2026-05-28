@@ -58,7 +58,29 @@ function summarizeReinforcementEvents(events: AlicizationPersonaReinforcementEve
     const signedDelta = event.valence === 'suppress'
       ? -Math.abs(event.delta)
       : Math.abs(event.delta)
-    summary[event.dimension] += signedDelta
+    switch (event.dimension) {
+      case 'companionship':
+        summary.companionship += signedDelta
+        break
+      case 'truthful-grounding':
+        summary.truthfulGrounding += signedDelta
+        break
+      case 'gentle-repair':
+        summary.gentleRepair += signedDelta
+        break
+      case 'autonomy-respect':
+        summary.autonomyRespect += signedDelta
+        break
+      case 'unfinished-thread-return':
+        summary.unfinishedThreadReturn += signedDelta
+        break
+      case 'temper-guardedness':
+        summary.temperGuardedness += signedDelta
+        break
+      case 'temper-directness':
+        summary.temperDirectness += signedDelta
+        break
+    }
     return summary
   }, {
     companionship: 0,

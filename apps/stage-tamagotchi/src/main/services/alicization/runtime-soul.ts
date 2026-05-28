@@ -70,7 +70,24 @@ export const defaultFrontmatter: AlicizationSoulFrontmatter = {
   host_attitude: '礼貌而克制，保持观察',
   core_incarnation: '',
   profile: { ...defaultAlicizationProfile },
-  personality: { ...defaultAlicizationPersonality },
+  personality: {
+    ...defaultAlicizationPersonality,
+    identityKernel: {
+      ...defaultAlicizationPersonality.identityKernel,
+      temperament: { ...defaultAlicizationPersonality.identityKernel.temperament },
+      valueBias: [...defaultAlicizationPersonality.identityKernel.valueBias],
+    },
+    expressionProfile: { ...defaultAlicizationPersonality.expressionProfile },
+    initiativeBaseline: { ...defaultAlicizationPersonality.initiativeBaseline },
+    evolutionSeed: {
+      ...defaultAlicizationPersonality.evolutionSeed,
+      fastLayers: [...defaultAlicizationPersonality.evolutionSeed.fastLayers],
+      slowLayers: [...defaultAlicizationPersonality.evolutionSeed.slowLayers],
+      unlockTracks: [...defaultAlicizationPersonality.evolutionSeed.unlockTracks],
+    },
+    identityAnchors: [...defaultAlicizationPersonality.identityAnchors],
+    antiPersonaConstraints: [...defaultAlicizationPersonality.antiPersonaConstraints],
+  },
   boundaries: {
     killSwitch: true,
     mcpGuard: true,
@@ -588,7 +605,10 @@ export function parseSimpleFrontmatter(raw: string): Partial<AlicizationSoulFron
 
 export function normalizeFrontmatter(raw: Partial<AlicizationSoulFrontmatter> | null | undefined): AlicizationSoulFrontmatter {
   const frontmatter = raw ?? {}
-  const normalizedFrontmatter = {
+  const normalizedPersonaKernel = resolveAlicizationPersonaKernel({
+    personality: frontmatter.personality,
+  })
+  const normalizedFrontmatter: AlicizationSoulFrontmatter = {
     schemaVersion: typeof frontmatter.schemaVersion === 'number' ? frontmatter.schemaVersion : defaultFrontmatter.schemaVersion,
     initialized: typeof frontmatter.initialized === 'boolean' ? frontmatter.initialized : defaultFrontmatter.initialized,
     custom_directives: normalizeCustomDirectives(frontmatter.custom_directives),
@@ -604,9 +624,7 @@ export function normalizeFrontmatter(raw: Partial<AlicizationSoulFrontmatter> | 
       mindAge: normalizeMindAge(frontmatter.profile?.mindAge),
     },
     personality: {
-      obedience: clamp01(frontmatter.personality?.obedience ?? defaultFrontmatter.personality.obedience),
-      liveliness: clamp01(frontmatter.personality?.liveliness ?? defaultFrontmatter.personality.liveliness),
-      sensibility: clamp01(frontmatter.personality?.sensibility ?? defaultFrontmatter.personality.sensibility),
+      ...normalizedPersonaKernel.personality,
     },
     boundaries: {
       killSwitch: typeof frontmatter.boundaries?.killSwitch === 'boolean' ? frontmatter.boundaries.killSwitch : defaultFrontmatter.boundaries.killSwitch,
@@ -621,10 +639,7 @@ export function normalizeFrontmatter(raw: Partial<AlicizationSoulFrontmatter> | 
     placeholderHostAttitudes: [defaultFrontmatter.host_attitude],
   })
   const compiledPersonality = compilePersonaWorkshopAuthority({
-    personality: {
-      ...normalizedFrontmatter.personality,
-      ...frontmatter.personality,
-    },
+    personality: normalizedFrontmatter.personality,
     personaWorkshop: null,
   })
   return {

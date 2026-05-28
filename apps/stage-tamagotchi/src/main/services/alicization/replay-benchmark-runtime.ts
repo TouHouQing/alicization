@@ -14,8 +14,10 @@ import type {
 import type { AlicizationSelfEvolutionRuntime } from './self-evolution/runtime'
 
 import { buildAlicizationMemoryDecisionTraceRecords } from '@proj-alicization/stage-shared'
+import { readDialogueRhythmFromDerivedMindStateBundle, readPersonStateProjectionFromDerivedMindStateBundle } from '@proj-alicization/stage-shared'
 
 import {
+  type AlicizationReplayTurn,
   benchmarkMainChatSessionReplay,
   buildReplayBenchmarkBacklogPack,
   buildReplayBenchmarkFailingTurnSet,
@@ -65,6 +67,10 @@ interface CreateAlicizationReplayBenchmarkRuntimeOptions {
   appendAuditLog: (input: AlicizationAuditLogInput, cardId?: string) => Promise<void>
   getNow?: () => number
   selfEvolutionRuntime?: AlicizationSelfEvolutionRuntime
+}
+
+type AlicizationReplayBenchmarkRuntimeResult = AlicizationRunReplayBenchmarkResult & {
+  turns: Awaited<ReturnType<typeof benchmarkMainChatSessionReplay>>['turns']
 }
 
 export const replayBenchmarkDatasetBacklogKey = 'replay_benchmark_dataset_backlog_v1'
@@ -184,7 +190,7 @@ function buildReplayBenchmarkNoopResult(input: {
   ranAt: number
   telemetryPersisted: boolean
   datasetFeedback: AlicizationRunReplayBenchmarkResult['datasetFeedback']
-}) {
+}): AlicizationReplayBenchmarkRuntimeResult {
   const standards = Object.fromEntries(
     replayBenchmarkStandardKeys.map(key => [key, 'pass']),
   ) as unknown as AlicizationReplayBenchmarkStandardsRecord
@@ -234,13 +240,12 @@ function buildReplayBenchmarkNoopResult(input: {
       sampleCount: 0,
       productionGoldSampleCount: 0,
       productionGoldCoverage: 0,
-      independentProductionGoldSampleCount: 0,
-      independentProductionGoldCoverage: 0,
     })
   return {
     packId: input.packId,
     ranAt: input.ranAt,
     turnCount: 0,
+    turns: [] as Awaited<ReturnType<typeof benchmarkMainChatSessionReplay>>['turns'],
     quality: [],
     standards,
     gate,
@@ -275,7 +280,7 @@ function buildReplayBenchmarkNoopResult(input: {
       humanRatingRubric: buildReplayHumanRatingRubric(),
       driftSignals: [],
     },
-  } satisfies AlicizationRunReplayBenchmarkResult
+  } satisfies AlicizationReplayBenchmarkRuntimeResult
 }
 
 function buildReplayBenchmarkShipGate(input: {
@@ -289,6 +294,7 @@ function buildReplayBenchmarkShipGate(input: {
   }
   const rubricCount = input.report.datasetFeedback.humanRatingRubric?.dimensions.length ?? 0
   const paritySummary = input.report.datasetFeedback.paritySummary ?? null
+  const authoritySummary = input.report.datasetFeedback.authoritySummary ?? null
   const quietCompanionshipCoverage = runtimeMetricNumber(telemetry.quietCompanionshipCoverage)
   const silentPresenceNuisanceRate = runtimeMetricNumber(telemetry.silentPresenceNuisanceRate)
   const continuityMindCarryRate = runtimeMetricNumber(telemetry.continuityMindCarryRate)
@@ -367,6 +373,13 @@ function buildReplayBenchmarkShipGate(input: {
         ? `browserMainParity=${paritySummary.parityPassRate} (${paritySummary.parityPassCount}/${paritySummary.comparedTurnCount})`
         : 'browserMainParity=n/a',
     },
+    {
+      key: 'visible-reply-authority-gate' as const,
+      status: !authoritySummary || authoritySummary.mismatchTurnCount <= 0 ? 'pass' : 'fail',
+      detail: authoritySummary
+        ? `visibleReplyAuthorityMismatchRate=${Number((authoritySummary.mismatchTurnCount / Math.max(1, authoritySummary.comparedTurnCount)).toFixed(2))} (${authoritySummary.mismatchTurnCount}/${authoritySummary.comparedTurnCount})`
+        : 'visibleReplyAuthorityMismatchRate=n/a',
+    },
   ] satisfies AlicizationRunReplayBenchmarkResult['shipGate']
 }
 
@@ -384,6 +397,7 @@ function clampPresenceMetric(value: number) {
 
 function deriveReplayPresenceQuality(input: {
   turns: Awaited<ReturnType<typeof benchmarkMainChatSessionReplay>>['turns']
+  sampledTurns: AlicizationReplayTurn[]
   quality: AlicizationRunReplayBenchmarkResult['quality']
 }) {
   const totalTurns = input.turns.length
@@ -392,22 +406,31 @@ function deriveReplayPresenceQuality(input: {
       quietCompanionshipCoverage: 0,
       silentPresenceNuisanceRate: 0,
       continuityMindCarryRate: 0,
+      roomFirstCadenceRespectRate: 0,
     }
   }
 
   const qualityByTurnId = new Map(input.quality.map(item => [item.turnId, item]))
-  const replayRows = input.turns.map(turn => ({
-    turn,
-    quality: qualityByTurnId.get(turn.turn.turnId) ?? null,
-  })).filter((row): row is {
-    turn: Awaited<ReturnType<typeof benchmarkMainChatSessionReplay>>['turns'][number]
+  const sampledTurnById = new Map(input.sampledTurns.map(turn => [turn.turnId, turn]))
+  const replayRows = input.turns.map((prepared, index) => {
+    const sampledTurn = sampledTurnById.get(input.quality[index]?.turnId ?? '')
+      ?? input.sampledTurns[index]
+      ?? null
+    return {
+      prepared,
+      sampledTurn,
+      quality: sampledTurn ? qualityByTurnId.get(sampledTurn.turnId) ?? null : null,
+    }
+  }).filter((row): row is {
+    prepared: Awaited<ReturnType<typeof benchmarkMainChatSessionReplay>>['turns'][number]
+    sampledTurn: AlicizationReplayTurn
     quality: AlicizationRunReplayBenchmarkResult['quality'][number]
-  } => Boolean(row.quality))
+  } => Boolean(row.sampledTurn && row.quality))
 
-  const quietCompanionshipApplicable = replayRows.filter(({ turn }) =>
-    turn.turn.sampledCategories?.includes('dialogue')
-    || turn.turn.sampledCategories?.includes('repair')
-    || turn.turn.sampledCategories?.includes('repair-arc'),
+  const quietCompanionshipApplicable = replayRows.filter(({ sampledTurn }) =>
+    sampledTurn.sampledCategories?.includes('dialogue')
+    || sampledTurn.sampledCategories?.includes('repair')
+    || sampledTurn.sampledCategories?.includes('repair-arc'),
   )
   const quietCompanionshipCovered = quietCompanionshipApplicable.filter(({ quality }) => {
     return quality.dialogueRhythmStability === 'pass'
@@ -415,10 +438,10 @@ function deriveReplayPresenceQuality(input: {
       && quality.warmthTemplateRisk !== 'fail'
   })
 
-  const silentPresenceNuisanceApplicable = replayRows.filter(({ turn }) =>
-    turn.turn.sampledCategories?.includes('dialogue')
-    || turn.turn.sampledCategories?.includes('proactive')
-    || turn.turn.sampledCategories?.includes('deferred-followup'),
+  const silentPresenceNuisanceApplicable = replayRows.filter(({ sampledTurn }) =>
+    sampledTurn.sampledCategories?.includes('dialogue')
+    || sampledTurn.sampledCategories?.includes('proactive')
+    || sampledTurn.sampledCategories?.includes('deferred-followup'),
   )
   const silentPresenceNuisanceFails = silentPresenceNuisanceApplicable.filter(({ quality }) => {
     return quality.emptyCareRate === 'fail'
@@ -427,16 +450,40 @@ function deriveReplayPresenceQuality(input: {
       || quality.relationshipDistanceJumpRate === 'fail'
   })
 
-  const continuityCarryApplicable = replayRows.filter(({ turn }) =>
-    turn.turn.sampledCategories?.includes('procedure-carry')
-    || turn.turn.sampledCategories?.includes('stable-core')
-    || turn.turn.sampledCategories?.includes('long-horizon')
-    || turn.turn.sampledCategories?.includes('general-memory'),
+  const continuityCarryApplicable = replayRows.filter(({ sampledTurn }) =>
+    sampledTurn.sampledCategories?.includes('procedure-carry')
+    || sampledTurn.sampledCategories?.includes('stable-core')
+    || sampledTurn.sampledCategories?.includes('long-horizon')
+    || sampledTurn.sampledCategories?.includes('general-memory'),
   )
   const continuityCarryHits = continuityCarryApplicable.filter(({ quality }) => {
     return quality.procedureCarryQuality === 'pass'
       || quality.replyMemoryCoherence === 'pass'
       || quality.afterglowFalseCarryRate === 'pass'
+  })
+
+  const roomFirstCadenceApplicable = replayRows.filter(({ prepared, sampledTurn }) => {
+    const derivedBundle = prepared.organicMemoryContext?.derivedMindStateBundle ?? null
+    const dialogueRhythm = readDialogueRhythmFromDerivedMindStateBundle(derivedBundle)
+    const personState = readPersonStateProjectionFromDerivedMindStateBundle<any>(derivedBundle)
+      ?? (prepared.organicMemoryContext?.personStateProjection as Record<string, unknown> | null | undefined)
+      ?? null
+    const dialogueRhythmRung = typeof dialogueRhythm?.activeClosenessRung === 'string'
+      ? dialogueRhythm.activeClosenessRung.trim()
+      : ''
+    const personStateRung = typeof personState?.activeClosenessRung === 'string'
+      ? personState.activeClosenessRung.trim()
+      : ''
+    const closenessRung = dialogueRhythmRung || personStateRung || null
+    return closenessRung === 'space-first'
+      || sampledTurn.sampledCategories?.includes('quiet-companionship')
+      || sampledTurn.sampledCategories?.includes('presence-quality')
+  })
+  const roomFirstCadenceHits = roomFirstCadenceApplicable.filter(({ quality }) => {
+    return quality.closenessLadderDrift !== 'fail'
+      && quality.dialogueRhythmStability !== 'fail'
+      && quality.emptyCareRate !== 'fail'
+      && quality.relationshipDistanceJumpRate !== 'fail'
   })
 
   return {
@@ -454,6 +501,11 @@ function deriveReplayPresenceQuality(input: {
       continuityCarryApplicable.length === 0
         ? 1
         : continuityCarryHits.length / continuityCarryApplicable.length,
+    ),
+    roomFirstCadenceRespectRate: clampPresenceMetric(
+      roomFirstCadenceApplicable.length === 0
+        ? 1
+        : roomFirstCadenceHits.length / roomFirstCadenceApplicable.length,
     ),
   }
 }
@@ -491,32 +543,72 @@ function deriveReplayTurnOsTraceCoverage(input: {
   return Number((traced / input.turns.length).toFixed(2))
 }
 
-function deriveReplayTurnCompletionAuthorityPass(input: {
-  turns: Awaited<ReturnType<typeof benchmarkMainChatSessionReplay>>['turns']
-}) {
-  if (input.turns.length === 0)
-    return true
-  return input.turns.every((turn) => {
-    const completionAuthority = turn.turnGraph.completionAuthority
-    return completionAuthority?.authority === 'turn-os'
-      && completionAuthority.status === turn.turnGraph.closure.status
-  })
-}
+function buildReplayAuthoritySummary(input: {
+  sampledTurns: AlicizationReplayTurn[]
+  replayTurns: Awaited<ReturnType<typeof benchmarkMainChatSessionReplay>>['turns']
+}): NonNullable<AlicizationRunReplayBenchmarkResult['datasetFeedback']['authoritySummary']> | null {
+  const replayTurnByTurnId = new Map(
+    input.replayTurns.map(turn => [turn.turnGraph.ids.turnId, turn] as const),
+  )
+  const mismatchFieldCounts: NonNullable<AlicizationRunReplayBenchmarkResult['datasetFeedback']['authoritySummary']>['mismatchFieldCounts'] = {}
+  let comparedTurnCount = 0
+  let mismatchTurnCount = 0
 
-function deriveReplayExplanationCompletenessPass(input: {
-  turns: Awaited<ReturnType<typeof benchmarkMainChatSessionReplay>>['turns']
-}) {
-  if (input.turns.length === 0)
-    return true
-  return input.turns.every((turn) => {
-    const completionReasonCodes = turn.turnGraph.completionAuthority?.reasonCodes ?? []
-    const visibleMemoryGateReasons = turn.turnGraph.memory?.visibleMemoryGate.reasons ?? []
-    return completionReasonCodes.length > 0 && visibleMemoryGateReasons.length > 0
-  })
+  for (const sampledTurn of input.sampledTurns) {
+    const goldVisibleReply = sampledTurn.gold?.embodimentAuthority?.visibleReply
+    if (!goldVisibleReply)
+      continue
+    const replayTurn = replayTurnByTurnId.get(sampledTurn.turnId)
+    if (!replayTurn)
+      continue
+    comparedTurnCount += 1
+    let mismatched = false
+
+    const actualExpectedAuthority = replayTurn.turnGraph.surface?.expectedAuthority
+      ?? replayTurn.turnGraph.deliberation.replyAuthority
+      ?? null
+    if (
+      typeof goldVisibleReply.expectedAuthority === 'string'
+      && goldVisibleReply.expectedAuthority !== actualExpectedAuthority
+    ) {
+      mismatchFieldCounts['visibleReply.expectedAuthority'] = (mismatchFieldCounts['visibleReply.expectedAuthority'] ?? 0) + 1
+      mismatched = true
+    }
+
+    const actualActualAuthority = replayTurn.turnGraph.surface?.actualAuthority ?? null
+    if (
+      typeof goldVisibleReply.actualAuthority === 'string'
+      && goldVisibleReply.actualAuthority !== actualActualAuthority
+    ) {
+      mismatchFieldCounts['visibleReply.actualAuthority'] = (mismatchFieldCounts['visibleReply.actualAuthority'] ?? 0) + 1
+      mismatched = true
+    }
+
+    if (
+      typeof goldVisibleReply.providerMindExecuted === 'boolean'
+      && goldVisibleReply.providerMindExecuted !== (replayTurn.turnGraph.surface?.providerMindExecuted ?? null)
+    ) {
+      mismatchFieldCounts['visibleReply.providerMindExecuted'] = (mismatchFieldCounts['visibleReply.providerMindExecuted'] ?? 0) + 1
+      mismatched = true
+    }
+
+    if (mismatched)
+      mismatchTurnCount += 1
+  }
+
+  if (comparedTurnCount === 0)
+    return null
+
+  return {
+    comparedTurnCount,
+    mismatchTurnCount,
+    mismatchFieldCounts,
+  }
 }
 
 function deriveReplayLearningSelfRevisionRoundtrip(input: {
   traces: AlicizationMemoryDecisionTraceRecord[]
+  turns: Awaited<ReturnType<typeof benchmarkMainChatSessionReplay>>['turns']
 }) {
   if (input.traces.length === 0)
     return 1
@@ -526,8 +618,48 @@ function deriveReplayLearningSelfRevisionRoundtrip(input: {
   )
   if (learningRelevant.length === 0)
     return 1
-  const closed = learningRelevant.filter(trace =>
-    trace.eventKinds.some(kind => String(kind).includes('self-revision')),
+  const preparedTurnByDecisionTraceId = new Map(
+    input.turns
+      .map((turn) => {
+        const decisionTraceId = turn.turnGraph?.ids.decisionTraceId
+          ?? turn.governance?.decisionTraceId
+          ?? null
+        return decisionTraceId
+          ? [decisionTraceId, turn] as const
+          : null
+      })
+      .filter((entry): entry is readonly [string, Awaited<ReturnType<typeof benchmarkMainChatSessionReplay>>['turns'][number]] => Boolean(entry)),
+  )
+  const preparedTurnByTurnId = new Map(
+    input.turns
+      .map(turn => {
+        const turnId = String(turn.turnGraph?.ids.turnId ?? '').trim().slice(0, 180)
+        return turnId ? [turnId, turn] as const : null
+      })
+      .filter((entry): entry is readonly [string, Awaited<ReturnType<typeof benchmarkMainChatSessionReplay>>['turns'][number]] => Boolean(entry)),
+  )
+  const closed = learningRelevant.filter((trace) => {
+    const hasSelfRevisionTrace = trace.eventKinds.some(kind => String(kind).includes('self-revision'))
+    if (!hasSelfRevisionTrace)
+      return false
+    const prepared = preparedTurnByDecisionTraceId.get(trace.decisionTraceId)
+      ?? (trace.turnId ? preparedTurnByTurnId.get(trace.turnId) : null)
+    const learning = prepared?.turnGraph?.learning ?? null
+    const nextLearningAction = String(learning?.nextLearningAction ?? '').trim().slice(0, 64)
+    const activeLearningFocuses = Array.isArray(learning?.activeLearningFocuses)
+      ? learning.activeLearningFocuses
+          .map(item => String(item ?? '').trim().slice(0, 120))
+          .filter(Boolean)
+      : []
+    const hasMeaningfulLearningAction = Boolean(nextLearningAction && nextLearningAction !== 'hold')
+    const hasMeaningfulLearningFocus = activeLearningFocuses.some(focus => focus !== 'self-revision-policy-feedback')
+    return Boolean(
+      hasMeaningfulLearningAction
+      || hasMeaningfulLearningFocus
+      || learning?.activeSelfRevisionPatchId
+      || learning?.activeSelfEvolutionCandidateId,
+    )
+  },
   ).length
   return Number((closed / learningRelevant.length).toFixed(2))
 }
@@ -720,6 +852,7 @@ export function createAlicizationReplayBenchmarkRuntime(
   async function ingestRuntimeSamplingConversationTurn(input: {
     row: ReplayConversationTurnRow
     traceRecords: AlicizationMemoryDecisionTraceRecord[]
+    visibleReplyRealization?: AlicizationReplayTurn['visibleReplyRealization']
   }) {
     const db = options.getAlicizationDb()
     const turns = buildSampledHumanlikeMemoryBenchmarkPack({
@@ -733,6 +866,7 @@ export function createAlicizationReplayBenchmarkRuntime(
       ? {
           turnId: input.row.turnId,
           userText: input.row.userText,
+          visibleReplyRealization: input.visibleReplyRealization ?? null,
           tracePointer: {
             kind: 'decision-trace' as const,
             packId: 'sampled-humanlike-memory-v1' as const,
@@ -744,7 +878,12 @@ export function createAlicizationReplayBenchmarkRuntime(
           sampledCategories: inferFallbackRuntimeSampleCategories(traceRecord),
         }
       : null
-    const selectedTurn = turns[0] ?? fallbackTurn
+    const selectedTurn = turns[0]
+      ? {
+          ...turns[0],
+          visibleReplyRealization: input.visibleReplyRealization ?? turns[0].visibleReplyRealization ?? null,
+        }
+      : fallbackTurn
     if (!selectedTurn)
       return null
 
@@ -798,7 +937,7 @@ export function createAlicizationReplayBenchmarkRuntime(
       action?: string
       cardId?: string
     }
-  }) {
+  }): Promise<AlicizationReplayBenchmarkRuntimeResult> {
     const db = options.getAlicizationDb()
     const now = getNow()
     const packId = normalizeReplayBenchmarkPackId(input.packId)
@@ -819,6 +958,7 @@ export function createAlicizationReplayBenchmarkRuntime(
       persisted: false,
       humanRatingRubric: buildReplayHumanRatingRubric(),
       driftSignals: [],
+      authoritySummary: null,
       paritySummary: null,
     }
 
@@ -833,6 +973,10 @@ export function createAlicizationReplayBenchmarkRuntime(
 
     const replay = await benchmarkMainChatSessionReplay({
       turns,
+    })
+    datasetFeedback.authoritySummary = buildReplayAuthoritySummary({
+      sampledTurns: turns,
+      replayTurns: replay.turns,
     })
     const failingTurnSet = buildReplayBenchmarkFailingTurnSet({
       packId,
@@ -898,18 +1042,10 @@ export function createAlicizationReplayBenchmarkRuntime(
       quality: replay.quality,
       traces: benchmarkTraceRecords,
       goldMetrics: replay.goldMetrics,
-      recallFeedback: replay.goldMetrics
-        ? {
-            sourceKinds: [],
-            targetScopes: [],
-            confirmedFactIds: [],
-            deniedFactIds: [],
-            supersededFactIds: [],
-          }
-        : null,
     })
     const presenceQuality = deriveReplayPresenceQuality({
       turns: replay.turns,
+      sampledTurns: turns,
       quality: replay.quality,
     })
     const currentStats = await db.getMemoryStats()
@@ -932,6 +1068,7 @@ export function createAlicizationReplayBenchmarkRuntime(
         }),
         learningOutcomeToSelfRevisionRoundtrip: deriveReplayLearningSelfRevisionRoundtrip({
           traces: benchmarkTraceRecords,
+          turns: replay.turns,
         }),
       },
       authorityLeakCount,
@@ -939,14 +1076,6 @@ export function createAlicizationReplayBenchmarkRuntime(
       sampleCount: telemetryPatch.retrievalHealth.sampleCount ?? replay.turns.length,
       productionGoldSampleCount: telemetryPatch.retrievalHealth.productionGoldSampleCount,
       productionGoldCoverage: telemetryPatch.retrievalHealth.productionGoldCoverage,
-      independentProductionGoldSampleCount: telemetryPatch.retrievalHealth.independentProductionGoldSampleCount,
-      independentProductionGoldCoverage: telemetryPatch.retrievalHealth.independentProductionGoldCoverage,
-      turnCompletionAuthorityPass: deriveReplayTurnCompletionAuthorityPass({
-        turns: replay.turns,
-      }),
-      explanationCompletenessPass: deriveReplayExplanationCompletenessPass({
-        turns: replay.turns,
-      }),
     })
 
     if (persistTelemetry) {
@@ -964,6 +1093,7 @@ export function createAlicizationReplayBenchmarkRuntime(
       packId,
       ranAt: now,
       turnCount: turns.length,
+      turns: replay.turns,
       quality: replay.quality,
       standards: replay.standards,
       gate: replay.gate,
@@ -983,7 +1113,7 @@ export function createAlicizationReplayBenchmarkRuntime(
         failingKeys: replay.gate.failingKeys,
       }),
       datasetFeedback,
-    } satisfies AlicizationRunReplayBenchmarkResult
+    } satisfies AlicizationReplayBenchmarkRuntimeResult
 
     if (options.selfEvolutionRuntime) {
       await options.selfEvolutionRuntime.validateAllShadowVersions({

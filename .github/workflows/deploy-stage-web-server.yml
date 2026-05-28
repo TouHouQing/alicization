@@ -24,9 +24,9 @@ jobs:
         include:
           - app_name: stage-web
             environment_name: Production
-            environment_url: http://103.85.226.171
+            environment_url: http://36.212.197.121
             dist_directory: ./apps/stage-web/dist
-            deploy_host: 103.85.226.171
+            deploy_host: 36.212.197.121
             deploy_path: /www/wwwroot/alizication
             command: |
               pnpm -F @proj-alicization/stage-web run build

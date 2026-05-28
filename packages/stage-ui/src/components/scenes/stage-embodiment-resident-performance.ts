@@ -1,4 +1,8 @@
-import type { AlicizationResidentPerformanceSnapshot, StageEmbodimentPresencePostureState } from '@proj-alicization/stage-shared'
+import type {
+  AlicizationPersistentPresenceAuthoritySnapshot,
+  AlicizationResidentPerformanceSnapshot,
+  StageEmbodimentPresencePostureState,
+} from '@proj-alicization/stage-shared'
 
 import type {
   AlicizationDialoguePerformancePayload,
@@ -14,6 +18,7 @@ import { deriveAlicizationResidentPerformanceSnapshot } from '@proj-alicization/
 import { normalizeAlicizationPerformancePayload } from '../../stores/alicization-bridge'
 import { buildAlicizationVisualPresenceStateFromSpineDigest } from '../../stores/alicization-visual-presence-spine'
 import { buildStageEmbodimentPerformancePlan } from './stage-embodiment-performance-plan'
+import { resolveResidentFacialCueBias } from './stage-resident-expression-aliases'
 
 export interface ResolveStageEmbodimentResidentPerformanceInput {
   activePresence: StageEmbodimentAttentionPresenceState | null
@@ -29,6 +34,25 @@ export interface StageEmbodimentResidentPerformanceResolution {
   variationToken: string
 }
 
+interface SilentPresenceAuthorityFields {
+  continuityMode: 'ambient-covision' | 'quiet-accompaniment' | 'active-dialogue' | 'protective-watch' | 'rest-withdrawal' | null
+  currentBodyState: AlicizationPersistentPresenceAuthoritySnapshot['currentBodyState'] | null
+  quietLineMs: number
+}
+
+function resolveRelationshipTimingNextLearningAction(
+  action: string | null | undefined,
+): 'record' | 'reflect' | 'verify' | 'revise' | 'internalize' | 'hold' | null {
+  return action === 'record'
+    || action === 'reflect'
+    || action === 'verify'
+    || action === 'revise'
+    || action === 'internalize'
+    || action === 'hold'
+    ? action
+    : null
+}
+
 function clamp01(value: number, fallback: number = 0) {
   if (!Number.isFinite(value))
     return fallback
@@ -41,6 +65,36 @@ function sanitizeTokenText(raw: unknown, maxChars = 96) {
     return ''
 
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
+}
+
+function resolveSilentPresenceAuthority(
+  visualPresenceState: AlicizationVisualPresenceStateSnapshot | null | undefined,
+): SilentPresenceAuthorityFields {
+  const currentBodyState = visualPresenceState?.currentBodyState
+  const continuityMode = visualPresenceState?.continuityMode
+  const quietLineMs = visualPresenceState?.quietLineMs
+
+  return {
+    currentBodyState: currentBodyState === 'sleep'
+      || currentBodyState === 'idle'
+      || currentBodyState === 'noticing'
+      || currentBodyState === 'accompanying'
+      || currentBodyState === 'speaking'
+      || currentBodyState === 'warning'
+      || currentBodyState === 'recovering'
+      ? currentBodyState
+      : null,
+    continuityMode: continuityMode === 'ambient-covision'
+      || continuityMode === 'quiet-accompaniment'
+      || continuityMode === 'active-dialogue'
+      || continuityMode === 'protective-watch'
+      || continuityMode === 'rest-withdrawal'
+      ? continuityMode
+      : null,
+    quietLineMs: typeof quietLineMs === 'number' && Number.isFinite(quietLineMs)
+      ? Math.max(0, quietLineMs)
+      : 0,
+  }
 }
 
 function resolveEmbodiedPresence(input: ResolveStageEmbodimentResidentPerformanceInput) {
@@ -62,6 +116,9 @@ function resolveFallbackResidentSnapshot(
   input: ResolveStageEmbodimentResidentPerformanceInput,
 ): AlicizationResidentPerformanceSnapshot {
   const visualPresenceState = input.visualPresenceState
+  const pulsePresence = input.activePresence?.source === 'presence-pulse'
+    ? input.activePresence
+    : null
   const thoughtConfidence = Number(visualPresenceState?.privateThought?.confidence ?? 0)
   const confidence = clamp01(Math.max(
     Number(input.activePresence?.confidence ?? 0),
@@ -75,17 +132,40 @@ function resolveFallbackResidentSnapshot(
     : Date.now()
 
   return deriveAlicizationResidentPerformanceSnapshot({
-    watchMode: resolveDerivationWatchMode(input),
+    watchMode: resolveDerivationWatchMode(input) ?? pulsePresence?.watchMode ?? null,
+    currentBodyState: pulsePresence?.currentBodyState ?? null,
+    continuityMode: pulsePresence?.continuityMode ?? null,
+    currentInwardPreoccupation: pulsePresence?.currentInwardPreoccupation ?? null,
+    quietLineMs: pulsePresence?.quietLineMs ?? null,
     attention: visualPresenceState?.attention,
     captureState: visualPresenceState?.captureState,
     currentScene: visualPresenceState?.currentScene,
     privateThought: {
       confidence,
       embodiedPresence: resolveEmbodiedPresence(input),
-      emotionalTension: visualPresenceState?.privateThought?.emotionalTension ?? null,
-      rationaleTags: visualPresenceState?.privateThought?.rationaleTags ?? [],
-      stance: visualPresenceState?.privateThought?.stance ?? null,
+      emotionalTension: visualPresenceState?.privateThought?.emotionalTension ?? pulsePresence?.emotionalTension ?? null,
+      rationaleTags: visualPresenceState?.privateThought?.rationaleTags ?? pulsePresence?.reasonTags ?? [],
+      stance: visualPresenceState?.privateThought?.stance ?? pulsePresence?.stance ?? null,
+      shouldSpeak: false,
     },
+    relationshipTimingBias: input.digitalLifeSpine?.outcomeLearning?.summary
+      || input.digitalLifeSpine?.outcomeLearning?.latestInflection
+      || input.digitalLifeSpine?.embodiment?.autobiographicalSelf?.relationshipDoctrine
+      ? {
+          relationshipDoctrine: input.digitalLifeSpine?.embodiment?.autobiographicalSelf?.relationshipDoctrine
+            ?? input.digitalLifeSpine?.outcomeLearning?.summary
+            ?? null,
+          latestInflection: input.digitalLifeSpine?.outcomeLearning?.latestInflection ?? null,
+          burdenLine: null,
+          trustMeaning: null,
+          nextLearningAction: resolveRelationshipTimingNextLearningAction(
+            input.digitalLifeSpine?.outcomeLearning?.nextLearningAction,
+          ),
+          evolutionMomentum: input.digitalLifeSpine?.outcomeLearning?.evolutionMomentum ?? null,
+          learningReadiness: input.digitalLifeSpine?.outcomeLearning?.learningReadiness ?? null,
+          source: 'outcome-learning',
+        }
+      : null,
     updatedAt,
   }, {
     fallbackUpdatedAt: updatedAt,
@@ -148,14 +228,99 @@ function buildResidentVariationToken(
   ].join('|')
 }
 
+function shouldBiasSilentAccompanying(input: ResolveStageEmbodimentResidentPerformanceInput) {
+  const visualPresenceState = input.visualPresenceState
+  if (visualPresenceState?.residentPerformance)
+    return false
+  const authority = resolveSilentPresenceAuthority(visualPresenceState)
+
+  return authority.currentBodyState === 'accompanying'
+    && authority.continuityMode === 'quiet-accompaniment'
+    && authority.quietLineMs >= 120_000
+    && visualPresenceState?.privateThought?.shouldSpeak === false
+}
+
+function shouldBiasSilentRecovering(input: ResolveStageEmbodimentResidentPerformanceInput) {
+  const visualPresenceState = input.visualPresenceState
+  if (visualPresenceState?.residentPerformance)
+    return false
+  const authority = resolveSilentPresenceAuthority(visualPresenceState)
+
+  return authority.currentBodyState === 'recovering'
+    && authority.continuityMode === 'protective-watch'
+    && visualPresenceState?.watchMode === 'recovering'
+    && visualPresenceState?.privateThought?.shouldSpeak === false
+}
+
+function biasSilentResidentPerformance(input: ResolveStageEmbodimentResidentPerformanceInput, performance: AlicizationDialoguePerformancePayload) {
+  if (shouldBiasSilentAccompanying(input)) {
+    const biasedFacialCue = resolveResidentFacialCueBias({
+      configuredCue: performance.facialCue,
+      presencePosture: input.presencePosture,
+      visualPresenceState: input.visualPresenceState,
+    })
+
+    return normalizeAlicizationPerformancePayload({
+      ...performance,
+      baseEmotion: performance.baseEmotion === 'neutral' ? 'neutral' : 'thinking',
+      emotion: performance.baseEmotion === 'neutral' ? 'neutral' : 'thinking',
+      facialCue: biasedFacialCue,
+      delivery: performance.delivery === 'gentle' ? 'gentle' : 'calm',
+      actionCue: 'steady_focus',
+      emphasis: Math.min(performance.emphasis, 1),
+    })
+  }
+
+  if (shouldBiasSilentRecovering(input)) {
+    const baseEmotion = performance.baseEmotion === 'tired' ? 'tired' : 'concerned'
+
+    return normalizeAlicizationPerformancePayload({
+      ...performance,
+      baseEmotion,
+      emotion: baseEmotion,
+      delivery: 'gentle',
+      facialCue: 'soft-gaze',
+      actionCue: 'comfort_sway',
+      emphasis: 1,
+    })
+  }
+
+  return performance
+}
+
 export function resolveStageEmbodimentResidentPerformance(
   input: ResolveStageEmbodimentResidentPerformanceInput,
 ): StageEmbodimentResidentPerformanceResolution {
   const residentSnapshot = resolveResidentSnapshot(input)
+  if (input.visualPresenceState?.residentPerformance) {
+    const publishedPerformance = normalizeAlicizationPerformancePayload(residentSnapshot.performance)
+    const planned = buildStageEmbodimentPerformancePlan({
+      continuity: input.continuity,
+      manifest: input.performanceManifest,
+      performance: publishedPerformance,
+    })
+
+    return {
+      performance: {
+        ...publishedPerformance,
+        facialCue: publishedPerformance.facialCue ?? planned.performance.facialCue ?? null,
+        actionCue: publishedPerformance.actionCue ?? planned.performance.actionCue ?? null,
+      },
+      variationToken: sanitizeTokenText(residentSnapshot.signature, 240)
+        || buildResidentVariationToken(
+          input,
+          publishedPerformance,
+        ),
+    }
+  }
+
   const planned = buildStageEmbodimentPerformancePlan({
     continuity: input.continuity,
     manifest: input.performanceManifest,
-    performance: normalizeAlicizationPerformancePayload(residentSnapshot.performance),
+    performance: biasSilentResidentPerformance(
+      input,
+      normalizeAlicizationPerformancePayload(residentSnapshot.performance),
+    ),
   })
 
   return {

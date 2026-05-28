@@ -294,6 +294,13 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
     const outcomeName = sanitizeText(outcome.outcome) || 'observed'
     const turnId = sanitizeBriefText(outcome.turnId, 120)
     const summaryLead = describeProactiveOutcome(outcome)
+    const learningAction = sanitizeText(outcome.learningAction ?? '') || null
+    const learningFocuses = Array.isArray(outcome.learningFocuses)
+      ? outcome.learningFocuses
+          .map(item => sanitizeBriefText(item, 96))
+          .filter(Boolean)
+          .slice(0, 3)
+      : []
 
     return {
       kind: 'proactive',
@@ -302,6 +309,8 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
       summary: [
         summaryLead,
         `scenario=${scenario}`,
+        learningAction ? `learning=${learningAction}` : '',
+        learningFocuses[0] ? `focus=${learningFocuses.join('|')}` : '',
       ].filter(Boolean).join(' | '),
       signature: [
         'proactive-outcome',
@@ -314,6 +323,8 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
         turnId: turnId || null,
         scenario,
         outcome: outcomeName,
+        learningAction,
+        learningFocuses,
       },
     }
   }
@@ -375,6 +386,13 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
     const turnId = sanitizeBriefText(input.pending.turnId, 120)
     const elapsedMinutes = Math.max(0, (input.now - input.pending.deliveredAt) / 60_000)
     const feedbackWindowMinutes = Math.max(0, input.pending.feedbackWindowMs / 60_000)
+    const learningAction = sanitizeText(input.pending.learningAction ?? '') || null
+    const learningFocuses = Array.isArray(input.pending.learningFocuses)
+      ? input.pending.learningFocuses
+          .map(item => sanitizeBriefText(item, 96))
+          .filter(Boolean)
+          .slice(0, 3)
+      : []
     return {
       kind: 'proactive',
       state: 'pending',
@@ -384,6 +402,8 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
         `scenario=${scenario}`,
         `${elapsedMinutes.toFixed(1)}m elapsed`,
         `${feedbackWindowMinutes.toFixed(1)}m direct-reply window`,
+        learningAction ? `learning=${learningAction}` : '',
+        learningFocuses[0] ? `focus=${learningFocuses.join('|')}` : '',
       ].join(' | '),
       signature: [
         'proactive-pending',
@@ -397,6 +417,8 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
         scenario,
         deliveredAt: Math.max(0, Math.floor(Number(input.pending.deliveredAt) || 0)),
         feedbackWindowMs: Math.max(1_000, Math.floor(Number(input.pending.feedbackWindowMs) || proactiveReplyWindowMs)),
+        learningAction,
+        learningFocuses,
       },
     }
   }

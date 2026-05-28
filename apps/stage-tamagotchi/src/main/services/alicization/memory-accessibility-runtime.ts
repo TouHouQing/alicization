@@ -42,6 +42,7 @@ export interface AlicizationTurnRetrievalPolicySnapshot {
   plan: AlicizationMemoryAccessibilityPlan
   telemetry: AlicizationMemoryRetrievalTelemetrySnapshot | null
   tuningAdvice: AlicizationMemoryTuningAdvice | null
+  activeSelfEvolutionCandidateId: string | null
   selfRevisionPatch: AlicizationSelfRevisionStatePatch | null
 }
 
@@ -216,6 +217,7 @@ export function buildAlicizationTurnRetrievalPolicySnapshot(input: {
   budgetClass?: AlicizationMemoryRetrievalBudgetClass
   telemetry?: AlicizationMemoryRetrievalTelemetrySnapshot | null
   tuningAdvice?: AlicizationMemoryTuningAdvice | null
+  activeSelfEvolutionCandidateId?: string | null
   selfRevisionPatch?: AlicizationSelfRevisionStatePatch | null
 }) {
   const policy = mergeSelfRevisionMemoryPolicy({
@@ -237,6 +239,7 @@ export function buildAlicizationTurnRetrievalPolicySnapshot(input: {
     plan,
     telemetry: input.telemetry ?? null,
     tuningAdvice: input.tuningAdvice ?? null,
+    activeSelfEvolutionCandidateId: input.activeSelfEvolutionCandidateId ?? null,
     selfRevisionPatch: input.selfRevisionPatch ?? null,
   } satisfies AlicizationTurnRetrievalPolicySnapshot
 }

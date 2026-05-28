@@ -1,4 +1,8 @@
-import type { StageEmbodimentPresencePostureState, StageEmbodimentSpeechRenderState } from '@proj-alicization/stage-shared'
+import type {
+  AlicizationPersistentPresenceAuthoritySnapshot,
+  StageEmbodimentPresencePostureState,
+  StageEmbodimentSpeechRenderState,
+} from '@proj-alicization/stage-shared'
 import type { ComputedRef, Ref } from 'vue'
 
 import type { AlicizationVisualPresenceStateSnapshot } from '../../stores/alicization-bridge'
@@ -28,6 +32,12 @@ export interface UseStageEmbodimentPostureOptions {
   visualPresenceState?: Readonly<Ref<AlicizationVisualPresenceStateSnapshot | null | undefined>>
 }
 
+interface SilentPresenceAuthorityFields {
+  continuityMode: 'ambient-covision' | 'quiet-accompaniment' | 'active-dialogue' | 'protective-watch' | 'rest-withdrawal' | null
+  currentBodyState: AlicizationPersistentPresenceAuthoritySnapshot['currentBodyState'] | null
+  quietLineMs: number
+}
+
 function clampUnit(value: number, fallback: number = 0) {
   if (!Number.isFinite(value))
     return fallback
@@ -40,6 +50,48 @@ function clampSignedUnit(value: number, fallback: number = 0) {
     return fallback
 
   return Math.min(1, Math.max(-1, value))
+}
+
+function hasLowerPressureTiming(input: {
+  activePresence: StageEmbodimentAttentionPresenceState | null
+  visualPresenceState?: AlicizationVisualPresenceStateSnapshot | null | undefined
+}) {
+  const activeReasonTags = input.activePresence?.reasonTags ?? []
+  if (activeReasonTags.includes('timing:lower-pressure-opening'))
+    return true
+
+  const rationaleTags = input.visualPresenceState?.privateThought?.rationaleTags ?? []
+  return rationaleTags.includes('timing:lower-pressure-opening')
+}
+
+function resolveSilentPresenceAuthority(
+  visualPresenceState: AlicizationVisualPresenceStateSnapshot | null | undefined,
+): SilentPresenceAuthorityFields {
+  const currentBodyState = visualPresenceState?.currentBodyState
+  const continuityMode = visualPresenceState?.continuityMode
+  const quietLineMs = visualPresenceState?.quietLineMs
+
+  return {
+    currentBodyState: currentBodyState === 'sleep'
+      || currentBodyState === 'idle'
+      || currentBodyState === 'noticing'
+      || currentBodyState === 'accompanying'
+      || currentBodyState === 'speaking'
+      || currentBodyState === 'warning'
+      || currentBodyState === 'recovering'
+      ? currentBodyState
+      : null,
+    continuityMode: continuityMode === 'ambient-covision'
+      || continuityMode === 'quiet-accompaniment'
+      || continuityMode === 'active-dialogue'
+      || continuityMode === 'protective-watch'
+      || continuityMode === 'rest-withdrawal'
+      ? continuityMode
+      : null,
+    quietLineMs: typeof quietLineMs === 'number' && Number.isFinite(quietLineMs)
+      ? Math.max(0, quietLineMs)
+      : 0,
+  }
 }
 
 export function deriveStageEmbodimentPresencePostureState(input: {
@@ -60,8 +112,27 @@ export function deriveStageEmbodimentPresencePostureState(input: {
   const prosodyIntensity = clampUnit(speechRenderState?.dynamics.prosodyIntensity ?? 0)
   const emphasisLevel = clampUnit(speechRenderState?.dynamics.emphasisLevel ?? 0)
   const cadencePulse = clampUnit(speechRenderState?.dynamics.cadencePulse ?? 0)
-  const watchMode = input.visualPresenceState?.watchMode
-  const thought = input.visualPresenceState?.privateThought
+  const visualPresenceState = input.visualPresenceState
+  const watchMode = visualPresenceState?.watchMode
+  const thought = visualPresenceState?.privateThought
+  const authority = resolveSilentPresenceAuthority(visualPresenceState)
+  const currentBodyState = authority.currentBodyState
+  const continuityMode = authority.continuityMode
+  const quietLineMs = authority.quietLineMs
+  const speechInactive = speechRenderState?.active !== true
+  const silentAccompanyingAnchor = currentBodyState === 'accompanying'
+    && continuityMode === 'quiet-accompaniment'
+    && quietLineMs >= 120_000
+    && speechInactive
+    && thought?.shouldSpeak === false
+  const silentRecoveringAnchor = currentBodyState === 'recovering'
+    && (watchMode === 'recovering' || continuityMode === 'protective-watch')
+    && speechInactive
+    && thought?.shouldSpeak === false
+  const lowerPressureTiming = hasLowerPressureTiming({
+    activePresence: presence ?? null,
+    visualPresenceState,
+  })
   const baseConfidence = clampUnit(
     (presence?.confidence ?? 0) * 0.62
     + (thought?.confidence ?? 0) * 0.18
@@ -69,13 +140,19 @@ export function deriveStageEmbodimentPresencePostureState(input: {
       ? 0.18
       : watchMode === 'recovering'
         ? 0.14
-        : watchMode === 'symbiotic-vision'
+      : watchMode === 'symbiotic-vision'
           ? 0.1
           : 0)
-        + (speechRenderState?.active === true ? 0.08 : 0),
+        + (speechRenderState?.active === true ? 0.08 : 0)
+        + (silentAccompanyingAnchor ? 0.08 : 0)
+        + (silentRecoveringAnchor ? 0.04 : 0),
   )
 
   const mode = (() => {
+    if (silentRecoveringAnchor)
+      return 'concerned'
+    if (silentAccompanyingAnchor)
+      return 'attentive'
     if (presence?.embodiedPresence === 'concerned' || watchMode === 'recovering')
       return 'concerned'
     if (watchMode === 'invited-inspection')
@@ -98,37 +175,43 @@ export function deriveStageEmbodimentPresencePostureState(input: {
   const bodyPitchBase = mode === 'inspection'
     ? 0.5
     : mode === 'concerned'
-      ? 0.42
+      ? (silentRecoveringAnchor ? 0.34 : 0.42)
       : mode === 'hesitant'
         ? 0.22
-        : 0.28
+        : (silentAccompanyingAnchor ? 0.24 : 0.28)
 
   const bodyPitch = clampUnit(
     bodyPitchBase
-    + Math.max(0, offsetY) * 0.18
+    - (lowerPressureTiming && mode === 'attentive' ? 0.04 : 0)
+    + Math.max(0, offsetY) * (silentAccompanyingAnchor || silentRecoveringAnchor ? 0.12 : 0.18)
     + speechEnergy * 0.08
-    + prosodyIntensity * 0.05
+    + prosodyIntensity * (silentRecoveringAnchor ? 0.03 : 0.05)
     + (watchMode === 'invited-inspection' ? 0.08 : 0),
   )
 
   const breathBoost = clampUnit(
-    speechEnergy * 0.46
-    + prosodyIntensity * 0.2
+    speechEnergy * (silentAccompanyingAnchor ? 0.22 : silentRecoveringAnchor ? 0.18 : 0.46)
+    + prosodyIntensity * (silentRecoveringAnchor ? 0.08 : 0.2)
     + emphasisLevel * 0.12
-    + baseConfidence * 0.18
-    + (mode === 'concerned' ? 0.08 : 0),
+    + baseConfidence * (silentAccompanyingAnchor ? 0.24 : silentRecoveringAnchor ? 0.16 : 0.18)
+    + (mode === 'concerned' ? (silentRecoveringAnchor ? 0.06 : 0.08) : 0)
+    + (silentAccompanyingAnchor ? 0.04 : 0),
+  )
+  const adjustedBreathBoost = clampUnit(
+    breathBoost - (lowerPressureTiming && mode === 'attentive' ? 0.04 : 0),
   )
 
   const gazeStability = clampUnit(
     (mode === 'inspection'
       ? 0.9
       : mode === 'concerned'
-        ? 0.82
+        ? (silentRecoveringAnchor ? 0.84 : 0.82)
         : mode === 'attentive'
-          ? 0.72
+          ? (silentAccompanyingAnchor ? 0.78 : 0.72)
           : 0.62)
         + baseConfidence * 0.12
-        + (input.visualPresenceState?.captureState.permission === 'granted' ? 0.04 : 0),
+        + (lowerPressureTiming && mode === 'attentive' ? 0.04 : 0)
+        + (visualPresenceState?.captureState.permission === 'granted' ? 0.04 : 0),
   )
 
   return {
@@ -137,7 +220,7 @@ export function deriveStageEmbodimentPresencePostureState(input: {
     confidence: baseConfidence,
     bodyYaw,
     bodyPitch,
-    breathBoost,
+    breathBoost: adjustedBreathBoost,
     gazeStability,
   }
 }

@@ -113,7 +113,7 @@ import { createDesktopCaptureAccessRuntime } from './desktop-capture-runtime'
 import { buildDialogueIngressGovernor } from './dialogue-ingress-governor'
 import { buildDialogueTurnMemoryFragment } from './dialogue-memory'
 import { createAlicizationDialogueSessionManager } from './dialogue-session-manager'
-import { inferHostSocialContextsFromText } from './host-social-guidance'
+import { adjustProactiveReplyFromLongHorizonLearning, inferHostSocialContextsFromText } from './host-social-guidance'
 import {
   buildDialogueTurnSemantics,
 } from './dialogue-turn-semantics'
@@ -603,8 +603,21 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     emitFinishEvent: (state, payload) => emitChatStreamEventForState(state, 'finish', payload),
   })
   const pendingMindTraceTelemetryByTurnId = new Map<string, {
-    memoryTrace: AlicizationMindTraceMemorySnapshot
+    memoryTrace: AlicizationMindTraceMemorySnapshot | null
+    visibleReplyRealization?: {
+      expectedAuthority: 'llm-mind' | 'llm-second-pass-rewrite' | null
+      actualAuthority: 'llm-mind' | 'llm-second-pass-rewrite' | 'local-deterministic-fallback' | null
+      providerMindExecuted: boolean | null
+      mode: string | null
+      visibleText: string | null
+      nonHumanAuthoredStatus: string | null
+      blockedReasons: string[]
+      reason: string | null
+    } | null
   }>()
+  type PendingVisibleReplyRealizationTelemetry = NonNullable<
+    NonNullable<(typeof pendingMindTraceTelemetryByTurnId extends Map<any, infer TValue> ? TValue : never)['visibleReplyRealization']>
+  >
 
   function buildMindTraceMemorySnapshotFromPrepared(
     prepared: AlicizationPreparedMainChatExecutionResult,
@@ -745,12 +758,47 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       return
 
     const memoryTrace = buildMindTraceMemorySnapshotFromPrepared(input.prepared)
-    if (!memoryTrace) {
+    const surface = input.prepared.turnGraph?.surface ?? null
+    const visibleReplyRealization: PendingVisibleReplyRealizationTelemetry | null = surface
+      ? {
+          expectedAuthority: (() => {
+            const authority = sanitizeText(surface.expectedAuthority, '')
+            return authority === 'llm-mind' || authority === 'llm-second-pass-rewrite'
+              ? authority
+              : null
+          })(),
+          actualAuthority: (() => {
+            const authority = sanitizeText(surface.actualAuthority, '')
+            return authority === 'llm-mind'
+              || authority === 'llm-second-pass-rewrite'
+              || authority === 'local-deterministic-fallback'
+              ? authority
+              : null
+          })(),
+          providerMindExecuted: typeof surface.providerMindExecuted === 'boolean'
+            ? surface.providerMindExecuted
+            : null,
+          mode: sanitizeText(surface.mode, '') || null,
+          visibleText: sanitizeText(surface.visibleText, '') || null,
+          nonHumanAuthoredStatus: sanitizeText(surface.nonHumanAuthoredStatus, '') || null,
+          blockedReasons: [...(surface.blockedReasons ?? [])]
+            .map(item => sanitizeText(item, ''))
+            .filter(Boolean)
+            .slice(0, 12),
+          reason: sanitizeText(surface.reason, '') || null,
+        }
+      : null
+
+    if (!memoryTrace && !visibleReplyRealization) {
       pendingMindTraceTelemetryByTurnId.delete(turnId)
       return
     }
 
-    pendingMindTraceTelemetryByTurnId.set(turnId, { memoryTrace })
+    const previous = pendingMindTraceTelemetryByTurnId.get(turnId) ?? null
+    pendingMindTraceTelemetryByTurnId.set(turnId, {
+      memoryTrace: memoryTrace ?? previous?.memoryTrace ?? null,
+      visibleReplyRealization: visibleReplyRealization ?? previous?.visibleReplyRealization ?? null,
+    })
     if (pendingMindTraceTelemetryByTurnId.size > 128) {
       const oldestKey = pendingMindTraceTelemetryByTurnId.keys().next().value
       if (typeof oldestKey === 'string')
@@ -761,13 +809,23 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     memoryLedgerRuntime,
     executionCallbackRuntime,
     memoryRetrievalTelemetryRuntime,
-    getRecallFeedbackSummary,
+    getRecallFeedbackSummary: _getRecallFeedbackSummary,
     selfEvolutionRuntime,
   } = createAlicizationRuntimeSupportingRuntimesComposition({
     execution: {
       alicizationDb: {
         listExecutionEvents: input => alicizationDb.listExecutionEvents(input),
         listTaskThreads: input => alicizationDb.listTaskThreads(input),
+      },
+    },
+    memoryFeedback: {
+      now: () => Date.now(),
+      activeCardId,
+      summaryMetaKey: 'memory_recall_feedback_summary_v1',
+      alicizationDb: {
+        getMetaValue: key => alicizationDb.getMetaValue(key),
+        setMetaValue: (key, value) => alicizationDb.setMetaValue(key, value),
+        listMemoryReflections: input => alicizationDb.listMemoryReflections(input),
       },
     },
     selfEvolution: {
@@ -826,8 +884,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       recordMemoryBudgetClass: async budgetClass => await memoryRetrievalTelemetryRuntime.recordBudgetClass(budgetClass),
       recordMemoryHotKeyOutcome: async input => await memoryRetrievalTelemetryRuntime.recordHotKeyOutcome(input),
       getMemoryRetrievalTelemetry: async () => await memoryRetrievalTelemetryRuntime.getTelemetry(),
-      getRecallFeedbackSummary,
       getActiveSelfRevisionStatePatch: async () => await selfEvolutionRuntime.getActivePatch(),
+      getActiveSelfEvolutionCandidateId: async () => (await selfEvolutionRuntime.getActiveCandidate())?.id ?? null,
     },
     organicMemorySearch: {
       normalizeOrganicRecallText,
@@ -887,7 +945,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     resolveOrganicMemoryPromptContext,
   } = memoryRuntime
   const {
-    executeLearningTask,
+    executeLearningTask: _executeLearningTask,
     learningActionScheduler,
     memoryClosureRuntime,
   } = createAlicizationRuntimeMemorySupportingComposition({
@@ -1152,6 +1210,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     listPersonaReinforcementEvents: async (cardId, limit) => await alicizationDb.listPersonaReinforcementEvents({ cardId, limit }).catch(() => []),
     listMemoryReflections: async (cardId, limit) => await alicizationDb.listMemoryReflections({ cardId, limit }).catch(() => []),
     listMemoryConsolidations: async (limit) => await alicizationDb.listMemoryConsolidations?.(limit).catch(() => []) ?? [],
+    getPersonStateEvolutionSummary: async ({ cardId, limit }) => await alicizationDb.summarizePersonStateEvolution({ cardId, limit }).catch(() => null),
     readMindHead: async <T>(cardId: string, key: AlicizationMindHeadKey) => await alicizationDb.readMindHead<T>(cardId, key).catch((): T | null => null),
   })
   const {
@@ -1525,6 +1584,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     clampAlicizationPerformancePayloadToManifest,
     ensureVisualPresenceState,
     buildHostPersonModel,
+    getActiveSelfRevisionStatePatch: async () => await selfEvolutionRuntime.getActivePatch(),
+    getActiveSelfEvolutionCandidateId: async () => (await selfEvolutionRuntime.getActiveCandidate())?.id ?? null,
   })
 
   const queueExecutionDeliveryCandidate = runtimeExecutionDelivery.queueExecutionDeliveryCandidate
@@ -1721,13 +1782,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
 
   function buildVisualPresenceCapturePersistFingerprint(state: AlicizationVisualPresenceStateSnapshot) {
     return [
-      state.watchMode,
       buildMindSceneSignature(state.currentScene),
       buildMindAttentionSignature(state.attention),
-      state.residentPerformance?.signature ?? '',
-      state.privateThought?.stance ?? '',
-      state.privateThought?.embodiedPresence ?? '',
-      state.privateThought?.emotionalTension ?? '',
       state.captureState.health ?? '',
       state.captureState.permission,
       sanitizeText(state.captureState.sourceName),
@@ -1765,6 +1821,10 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       embodiedPresence: privateThought.embodiedPresence,
       scenario,
       stance: privateThought.stance,
+      currentBodyState: state.currentBodyState,
+      continuityMode: state.continuityMode,
+      quietLineMs: state.quietLineMs,
+      currentInwardPreoccupation: state.currentInwardPreoccupation,
       confidence: privateThought.confidence,
       reasonTags: [...privateThought.rationaleTags],
       emotionalTension: privateThought.emotionalTension,
@@ -3078,12 +3138,30 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
           ...dialoguePayload,
         })
         if (dialoguePayload.origin === 'subconscious-proactive' && dialoguePayload.structured.proactive) {
+          const proactiveReasonCodes = dialoguePayload.structured.proactive.reasonCodes
+          const learningAction = proactiveReasonCodes.find(code =>
+            /^learning:(record|reflect|verify|revise|internalize|hold)$/u.test(code),
+          )?.slice('learning:'.length) as
+            | 'record'
+            | 'reflect'
+            | 'verify'
+            | 'revise'
+            | 'internalize'
+            | 'hold'
+            | undefined
+          const learningFocuses = proactiveReasonCodes
+            .filter(code => code.startsWith('learning-focus:'))
+            .map(code => code.slice('learning-focus:'.length).trim())
+            .filter(Boolean)
+            .slice(0, 6)
           const proactiveState = await ensureProactiveLoopState(activeCardId)
           await persistProactiveLoopState(activeCardId, registerProactiveDelivery(proactiveState, {
             turnId: dialoguePayload.turnId,
             scenario: dialoguePayload.structured.proactive.scenario,
             deliveredAt: dialoguePayload.createdAt,
             feedbackWindowMs: dialoguePayload.structured.proactive.feedbackWindowMs,
+            learningAction: learningAction ?? null,
+            learningFocuses,
           }))
         }
         await appendRuntimeDebugLine('dialogue-responded.emitted', {
@@ -3112,6 +3190,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       }
       const appendedMindTurnTraceEvents = await appendMindTurnTraceEvents(emittedDialoguePayload)
       if (normalizedPayload.origin === 'user-turn' && sanitizeText(normalizedPayload.userText).length > 0 && appendedMindTurnTraceEvents.length > 0) {
+        const payloadVisibleReplyExecution = normalizedPayload.visibleReplyExecution ?? null
         await replayBenchmarkRuntime.ingestRuntimeSamplingConversationTurn({
           row: {
             turnId: normalizedPayload.turnId ?? null,
@@ -3121,6 +3200,41 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
             structuredJson: normalizedPayload.structured ? JSON.stringify(normalizedPayload.structured) : null,
             createdAt: normalizedCreatedAt,
           },
+          visibleReplyRealization: pendingMindTraceTelemetry?.visibleReplyRealization?.expectedAuthority
+            && pendingMindTraceTelemetry.visibleReplyRealization.actualAuthority
+            ? {
+                version: 'visible-reply-realization-v1',
+                expectedAuthority: pendingMindTraceTelemetry.visibleReplyRealization.expectedAuthority,
+                actualAuthority: pendingMindTraceTelemetry.visibleReplyRealization.actualAuthority,
+                providerMindExecuted: pendingMindTraceTelemetry.visibleReplyRealization.providerMindExecuted ?? false,
+                mode: (pendingMindTraceTelemetry.visibleReplyRealization.mode as any) ?? 'provider-stream',
+                visibleText: pendingMindTraceTelemetry.visibleReplyRealization.visibleText,
+                nonHumanAuthoredStatus: pendingMindTraceTelemetry.visibleReplyRealization.nonHumanAuthoredStatus,
+                blockedReasons: [...pendingMindTraceTelemetry.visibleReplyRealization.blockedReasons],
+                reason: pendingMindTraceTelemetry.visibleReplyRealization.reason,
+                critic: null,
+                closure: null,
+              }
+            : payloadVisibleReplyExecution?.expectedVisibleReplyAuthority
+                && payloadVisibleReplyExecution.actualVisibleReplyAuthority
+              ? {
+                  version: 'visible-reply-realization-v1',
+                  expectedAuthority: payloadVisibleReplyExecution.expectedVisibleReplyAuthority,
+                  actualAuthority: payloadVisibleReplyExecution.actualVisibleReplyAuthority,
+                  providerMindExecuted: payloadVisibleReplyExecution.providerMindExecuted,
+                  mode: payloadVisibleReplyExecution.mode,
+                  visibleText: sanitizeText(normalizedPayload.assistantText, '') || null,
+                  nonHumanAuthoredStatus: payloadVisibleReplyExecution.providerMindExecuted
+                    ? null
+                    : payloadVisibleReplyExecution.reason ?? 'visible-reply-local-fallback',
+                  blockedReasons: payloadVisibleReplyExecution.providerMindExecuted
+                    ? []
+                    : ['non-human-authored-visible-fallback'],
+                  reason: payloadVisibleReplyExecution.reason,
+                  critic: null,
+                  closure: null,
+                }
+            : undefined,
           traceRecords: buildAlicizationMemoryDecisionTraceRecords(
             appendedMindTurnTraceEvents.map((event, index) => ({
               id: `${event.decisionTraceId}:${event.kind}:${index}`,
@@ -3568,17 +3682,35 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     }
   }
 
-  function buildProactiveMetadataFromDecision(decision: ReturnType<typeof evaluateProactivePolicy>): AlicizationProactiveMetadata {
+  function buildProactiveMetadataFromDecision(input: {
+    decision: ReturnType<typeof evaluateProactivePolicy>
+    selfEvolution?: OrganicMemoryPromptContext['selfEvolution'] | null
+    learningExecutionState?: OrganicMemoryPromptContext['learningExecutionState'] | null
+    openingGuidance?: string | null
+  }): AlicizationProactiveMetadata {
+    const reasonCodes = [...input.decision.reasonCodes]
+    const learningAction = input.learningExecutionState?.nextLearningAction
+      ?? input.selfEvolution?.nextLearningAction
+      ?? null
+    if (learningAction)
+      reasonCodes.push(`learning:${learningAction}`)
+    for (const focus of input.learningExecutionState?.activeLearningFocuses ?? input.selfEvolution?.activeLearningFocuses ?? []) {
+      const normalized = sanitizeBriefText(focus, 64)
+      if (!normalized)
+        continue
+      reasonCodes.push(`learning-focus:${normalized}`)
+    }
     return {
-      shouldInterrupt: decision.shouldInterrupt,
-      confidence: decision.confidence,
-      reasonCodes: [...decision.reasonCodes],
-      urgency: decision.urgency,
-      style: decision.style,
-      cooldownMs: decision.cooldownMs,
-      scenario: decision.scenario,
-      policyVersion: decision.policyVersion,
+      shouldInterrupt: input.decision.shouldInterrupt,
+      confidence: input.decision.confidence,
+      reasonCodes: [...new Set(reasonCodes)],
+      urgency: input.decision.urgency,
+      style: input.decision.style,
+      cooldownMs: input.decision.cooldownMs,
+      scenario: input.decision.scenario,
+      policyVersion: input.decision.policyVersion,
       feedbackWindowMs: proactiveReplyWindowMs,
+      openingGuidance: sanitizeBriefText(input.openingGuidance ?? '', 220) || null,
     }
   }
 
@@ -3626,6 +3758,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       selfState: digitalLifeRuntimeSurface.agency.selfState ?? null,
       privateThought: digitalLifeRuntimeSurface.cognition.privateThought ?? null,
       mindEcology: buildMindEcologyFromRuntimeSurface(digitalLifeRuntimeSurface),
+      selfEvolution: digitalLifeRuntimeSurface.memory.selfEvolution ?? null,
       previousContinuityState: digitalLifeRuntimeSurface.memory.personalityContinuityState ?? null,
     })
     const system = [
@@ -3661,6 +3794,22 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       organicPromptContext.knowledgeEvidence
         ? `Knowledge evidence JSON: ${JSON.stringify(organicPromptContext.knowledgeEvidence)}`
         : '',
+      organicPromptContext.selfEvolution
+        ? `Long-horizon learning JSON: ${JSON.stringify({
+            dominantTrajectory: sanitizeBriefText(organicPromptContext.selfEvolution.dominantTrajectory ?? '', 180) || null,
+            nextLearningAction: organicPromptContext.selfEvolution.nextLearningAction ?? null,
+            nextLearningReason: sanitizeBriefText(organicPromptContext.selfEvolution.nextLearningReason ?? '', 180) || null,
+            contradictionPressure: organicPromptContext.selfEvolution.contradictionPressure,
+            activeLearningFocuses: organicPromptContext.selfEvolution.activeLearningFocuses.slice(0, 4),
+            summary: sanitizeBriefText(organicPromptContext.selfEvolution.summary ?? '', 220) || null,
+          })}`
+        : '',
+      organicPromptContext.learningExecutionState
+        ? `Learning execution state JSON: ${JSON.stringify({
+            nextLearningAction: organicPromptContext.learningExecutionState.nextLearningAction ?? null,
+            activeLearningFocuses: organicPromptContext.learningExecutionState.activeLearningFocuses.slice(0, 6),
+          })}`
+        : '',
       personStateProjection.relationshipDoctrine
         ? `Relationship doctrine JSON: ${JSON.stringify({
             doctrine: personStateProjection.relationshipDoctrine,
@@ -3693,6 +3842,12 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       'performance must be an object with keys: baseEmotion, facialCue, actionCue, delivery, emphasis.',
       'reply must be concise, context-relevant, and non-generic. No markdown, no extra keys.',
       'If truth state is remembered, imagined, or uncertain, do not present screen details as current facts. Phrase them as carried memory, tentative hypothesis, residual impression, or unfinished regrounding.',
+      organicPromptContext.selfEvolution?.nextLearningAction === 'verify'
+        ? 'Long-horizon learning is currently in verify-first posture. Keep the proactive line cautious, provisional, and light; do not phrase uncertain understanding as settled companionship truth.'
+        : '',
+      organicPromptContext.learningExecutionState?.nextLearningAction === 'internalize'
+        ? 'Long-horizon learning is currently moving into internalize posture. You may let the proactive line sound slightly steadier, but still keep it brief and non-intrusive.'
+        : '',
       personStateProjection.summary
         ? 'Use the person-state projection as the single social authority for tone, distance, and timing. Do not invent a second relationship posture beside it.'
         : '',
@@ -3743,7 +3898,12 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       performance,
       parsePath: 'json',
       format: 'subconscious-proactive-llm-v1',
-      proactive: buildProactiveMetadataFromDecision(policyDecision),
+      proactive: buildProactiveMetadataFromDecision({
+        decision: policyDecision,
+        selfEvolution: organicPromptContext.selfEvolution ?? null,
+        learningExecutionState: organicPromptContext.learningExecutionState ?? null,
+        openingGuidance: personStateProjection.openingGuidance,
+      }),
     }
   }
 
@@ -3899,6 +4059,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       selfState: digitalLifeRuntimeSurface.agency.selfState ?? null,
       privateThought: digitalLifeRuntimeSurface.cognition.privateThought ?? null,
       mindEcology: buildMindEcologyFromRuntimeSurface(digitalLifeRuntimeSurface),
+      selfEvolution: digitalLifeRuntimeSurface.memory.selfEvolution ?? null,
       previousContinuityState: digitalLifeRuntimeSurface.memory.personalityContinuityState ?? null,
     })
     const doctrineAdjustedStyle = personStateProjection.preferredProactiveStyle ?? policyDecision.style
@@ -3979,13 +4140,18 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       return '我先记下这一刻，等更合适的时候再开口。'
     })()
     const sociallyAdjustedReply = (() => {
+      const learningAdjustedReply = adjustProactiveReplyFromLongHorizonLearning({
+        currentReply: reply,
+        selfEvolution: digitalLifeRuntimeSurface.memory.selfEvolution ?? null,
+        learningExecutionState: digitalLifeRuntimeSurface.memory.learningExecutionState ?? null,
+      })
       if (doctrineAdjustedStyle === 'silent-observe')
         return '我先不挤进来，只把这条线轻轻挂着。'
       if (personStateProjection.cautious && doctrineAdjustedStyle === 'light-nudge')
-        return `${reply.replace(/[。！!？?]+$/u, '')}。我就轻一点提醒你。`
+        return `${learningAdjustedReply.replace(/[。！!？?]+$/u, '')}。我就轻一点提醒你。`
       if (personStateProjection.preferredProactiveStyle === 'gentle-care' && doctrineAdjustedStyle === 'gentle-care')
-        return `${reply.replace(/[。！!？?]+$/u, '')}。我会尽量放轻一点。`
-      return reply
+        return `${learningAdjustedReply.replace(/[。！!？?]+$/u, '')}。我会尽量放轻一点。`
+      return learningAdjustedReply
     })()
 
     const thought = [
@@ -4038,8 +4204,13 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       parsePath: 'json',
       format: 'subconscious-proactive-v1',
       proactive: buildProactiveMetadataFromDecision({
-        ...policyDecision,
-        style: doctrineAdjustedStyle,
+        decision: {
+          ...policyDecision,
+          style: doctrineAdjustedStyle,
+        },
+        selfEvolution: digitalLifeRuntimeSurface.memory.selfEvolution ?? null,
+        learningExecutionState: digitalLifeRuntimeSurface.memory.learningExecutionState ?? null,
+        openingGuidance: personStateProjection.openingGuidance,
       }),
     }
   }
@@ -4382,7 +4553,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     clearForegroundProbeTimeoutStreakForPid,
     ensureSubconsciousState,
     ensureProactiveLoopState,
-    openAgentTurn: (input: any) => agentRuntime.openTurn(input),
+    openAgentTurn: (input: Parameters<typeof agentRuntime.openTurn>[0]) => agentRuntime.openTurn(input),
     buildMainGatewayAgentTurnId,
     processDueRemindersForCurrentCard,
     processDueLearningActionsForCurrentCard,
@@ -4415,7 +4586,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     buildVisualHeartbeat,
     updateVisualAttentionModel,
     buildDigitalLifeMindState,
-    commitAlicizationDigitalLifeSpine: input => commitAlicizationDigitalLifeSpineWithBodyAuthority({
+    commitAlicizationDigitalLifeSpine: (input: Parameters<typeof commitAlicizationDigitalLifeSpineWithBodyAuthority>[0]) => commitAlicizationDigitalLifeSpineWithBodyAuthority({
       ...input,
       activeConversation: false,
     }),
@@ -4444,6 +4615,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     buildProactiveRecallSeed,
     buildVisualRecallSeed,
     buildMindContinuityRecallSeed,
+    getOrganicMemorySnapshot,
     resolveOrganicMemoryPromptContext,
     generateProactiveStructuredWithGateway,
     buildProactiveStructured,
@@ -4495,7 +4667,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         await withCardScope(cardId, async () => {
           const previousVisualPresenceState = await ensureVisualPresenceState(activeCardId)
           const result = await runSubconsciousTickForCurrentCard(trigger)
-          const nextVisualPresenceState = await ensureVisualPresenceState(activeCardId)
+          const nextVisualPresenceState = visualPresenceStateByCard.get(activeCardId)
+            ?? await ensureVisualPresenceState(activeCardId)
           const quietCompanionshipOutcome = deriveQuietCompanionshipOutcome({
             now: nextVisualPresenceState.updatedAt,
             state: nextVisualPresenceState,
@@ -4512,6 +4685,10 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
                   : nextVisualPresenceState.privateThought?.embodiedPresence ?? 'attentive',
                 scenario: nextVisualPresenceState.currentScene?.scenario ?? 'general',
                 stance: nextVisualPresenceState.privateThought?.stance ?? 'accompany',
+                currentBodyState: nextVisualPresenceState.currentBodyState,
+                continuityMode: nextVisualPresenceState.continuityMode,
+                quietLineMs: nextVisualPresenceState.quietLineMs,
+                currentInwardPreoccupation: nextVisualPresenceState.currentInwardPreoccupation,
                 confidence: nextVisualPresenceState.privateThought?.confidence ?? 0.82,
                 reasonTags: Array.from(new Set([
                   ...(nextVisualPresenceState.privateThought?.rationaleTags ?? []),
@@ -4893,7 +5070,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     initializeGenesis,
     queueSoulMutation,
     parseSoul,
-    syncPersonalityBaselineInBody,
+    extractPersonaNotesFromBody,
+    buildSoulBody,
     toSoulContent,
     snapshotFromContent,
     clamp01,
@@ -4948,6 +5126,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     queueSubconsciousWake,
     getAlicizationDb: () => alicizationDb,
     getPerformanceManifest,
+    getSelfEvolutionState: async () => await selfEvolutionRuntime.getSnapshot(),
     toReplayDialogueRespondedPayload,
     clearAllConversationData,
     parseStructuredHint,

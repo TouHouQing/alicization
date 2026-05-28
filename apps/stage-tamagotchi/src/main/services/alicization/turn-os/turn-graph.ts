@@ -79,6 +79,7 @@ export interface AlicizationTurnGraph {
   learning: {
     selfEvolutionKernelVersion: string | null
     nextLearningAction: string | null
+    activeLearningFocuses: string[]
     activeSelfRevisionPatchId: string | null
     activeSelfRevisionDecisionTraceId: string | null
     activeSelfEvolutionCandidateId: string | null
@@ -202,6 +203,7 @@ export function buildAlicizationTurnGraphFromSettlements(input: {
   })
   const governance = input.prepared.governance ?? null
   const selfEvolution = input.prepared.organicMemoryContext?.selfEvolution ?? null
+  const learningExecutionState = input.prepared.organicMemoryContext?.learningExecutionState ?? null
 
   return {
     version: 'turn-graph-v1',
@@ -239,7 +241,12 @@ export function buildAlicizationTurnGraphFromSettlements(input: {
     },
     learning: {
       selfEvolutionKernelVersion: selfEvolution?.version ?? null,
-      nextLearningAction: selfEvolution?.nextLearningAction ?? null,
+      nextLearningAction: learningExecutionState?.nextLearningAction
+        ?? selfEvolution?.nextLearningAction
+        ?? null,
+      activeLearningFocuses: learningExecutionState?.activeLearningFocuses
+        ?? selfEvolution?.activeLearningFocuses
+        ?? [],
       activeSelfRevisionPatchId: input.activeSelfRevision?.patchId ?? null,
       activeSelfRevisionDecisionTraceId: input.activeSelfRevision?.decisionTraceId ?? null,
       activeSelfEvolutionCandidateId: input.activeSelfRevision?.candidateId ?? null,

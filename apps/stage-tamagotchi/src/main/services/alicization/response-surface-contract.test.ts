@@ -1045,6 +1045,113 @@ describe('response-surface-contract', () => {
     expect(result.systemBlock).toContain('Memory visible carry mode: gist-only.')
   })
 
+  it('uses resolved procedural continuity for visible recollection rules when runtime seam carry is explicit', () => {
+    const runtimeSurface = buildAlicizationDigitalLifeRuntimeSurface(createDefaultVisualPresenceState(1_700_000_000_000))
+    runtimeSurface.memory.recollectionSpeechPlan = {
+      shouldSurface: true,
+      surfaceMode: 'answer-anchoring',
+      placement: 'inside-payoff',
+      certainty: 'approximate',
+      confidence: 0.84,
+      internalLead: 'What comes back first is the active runtime seam we kept carrying.',
+      visibleLead: 'It feels like the same active runtime seam again.',
+      styleNote: 'Let recollection bend the answer without becoming a memory dump.',
+      rationale: 'The host is still in the same runtime repair lane.',
+    } as any
+    runtimeSurface.memory.memoryDeliberation = {
+      shouldRecall: true,
+      surfacePolicy: 'answer-anchoring',
+      confidence: 0.86,
+      whyNow: 'The active runtime seam should keep shaping the live answer.',
+      stableCore: ['Stay on the same active dialogue seam before branching.'],
+      unsafeDetails: [],
+      selectedPeriods: [],
+      selectedEras: [{
+        id: 'era-runtime',
+        facet: 'task-era',
+        summary: 'That task era kept returning to the same active dialogue seam.',
+      }],
+      selectedEpisodes: [],
+      selectedProcedures: [{
+        label: 'active dialogue seam first',
+        approach: 'Stay on the same active dialogue seam before branching.',
+      }],
+      selectedBundles: [{
+        id: 'bundle-runtime',
+        summary: 'The active dialogue seam kept holding the same runtime thread.',
+        confidence: 0.85,
+      }],
+      selectedChains: [{
+        kind: 'task-procedure',
+        summary: 'The answer should continue from the same active dialogue seam.',
+        currentStance: 'Stay on the same active dialogue seam.',
+        answerPosture: 'Carry the same active dialogue seam before widening out.',
+        confidence: 0.84,
+      }],
+      selectedRelationshipLines: [],
+      followUpAffordance: {
+        summary: 'Carry the same active dialogue seam inside the current payoff.',
+        whyNow: 'The host is still in the same runtime repair lane.',
+        intrusionRisk: 'low',
+        payoffDependency: 'can-surface-softly',
+        preferredTiming: 'same-turn-if-invited',
+      },
+    } as any
+    runtimeSurface.memory.derivedMindStateBundle = {
+      recollectionIntent: {
+        mode: 'execution-procedure',
+        temporalFocus: 'experience-matched',
+        confidence: 0.86,
+        rationale: 'The turn is continuing the same runtime seam.',
+        recollectionAgenda: {
+          goalSimilarity: 0.92,
+          relationshipNeed: 0.12,
+          uncertaintyTolerance: 'medium',
+          candidateProcedureLines: ['active-dialogue', 'runtime seam'],
+        },
+      },
+    } as any
+
+    const result = buildAlicizationResponseSurfaceContract({
+      brief: {
+        turnMode: 'guide-current-knot',
+        liveSurface: '',
+        carriedThread: 'active runtime seam',
+        truthState: 'remembered',
+        separateCarryFromSurface: true,
+        shouldCompactHistory: false,
+        maxRecentUserTurns: 2,
+        mustDo: [],
+        mustNotDo: [],
+      },
+      charter: {
+        epistemicMode: 'memory-only',
+        responseMode: 'guide-current-knot',
+        governingFocus: 'Stay on the same active runtime seam.',
+        governingConcern: null,
+        governingCommitment: null,
+        governingInquiry: null,
+        governingProject: null,
+        latestRevision: null,
+        executivePhase: 'acting',
+        truthFrame: 'remembered',
+        mindMode: 'tracking',
+        relationshipPosture: 'warm',
+        reasons: [],
+        mustDo: [],
+        mustNotDo: [],
+      },
+      runtimeSurface,
+    })
+
+    expect(result.contract.recollectionLatentControls).toEqual(expect.arrayContaining([
+      'recollection_continuity_role=procedure-carry',
+      'recollection_frame_prior_procedure=yes',
+      'recollection_surface_permission=soft-surface',
+    ]))
+    expect(result.contract.mustNotDo).toContain('Do not let remembered procedure impersonate fresh execution completion.')
+  })
+
   it('threads active self-revision response posture into the response surface contract', () => {
     const result = buildAlicizationResponseSurfaceContract({
       brief: {

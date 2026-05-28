@@ -7,6 +7,7 @@ import type {
   AlicizationGoalStackSnapshot,
   AlicizationLongHorizonMemorySnapshot,
   AlicizationMemoryReflectionRecord,
+  AlicizationPersonalityState,
   AlicizationPersonaReinforcementEventRecord,
   AlicizationRelationshipOutcomeRecord,
   AlicizationPrivateThoughtSnapshot,
@@ -20,6 +21,8 @@ import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel
 import type { AlicizationMemoryConsolidationRecord } from './memory-consolidation'
 import type { AlicizationMindEcologySnapshot } from './mind-ecology'
 import type { AlicizationProactiveLayeredContext } from './proactive-layered-context'
+
+import { deriveAlicizationPersonaAuthorityInfluence } from './personality-continuity-state'
 import { buildPersonaGradualUnlock } from './persona-gradual-unlock'
 
 export const alicizationAutobiographicalSelfMarker = '[ALICIZATION_AUTOBIOGRAPHICAL_SELF]'
@@ -38,6 +41,7 @@ export interface AlicizationAutobiographicalSelfInput {
   actionEcology?: AlicizationActionEcologySnapshot | null
   privateThought?: AlicizationPrivateThoughtSnapshot | null
   mindEcology?: AlicizationMindEcologySnapshot | null
+  personalityAuthority?: AlicizationPersonalityState | null
   recentRelationshipOutcomes?: AlicizationRelationshipOutcomeRecord[] | null
   recentMemoryReflections?: AlicizationMemoryReflectionRecord[] | null
   recentMemoryConsolidations?: AlicizationMemoryConsolidationRecord[] | null
@@ -419,6 +423,7 @@ function buildPreferenceTargets(input: AlicizationAutobiographicalSelfInput) {
   const climate = input.relationshipModel?.climate ?? 'neutral'
   const approach = input.relationshipModel?.approachVector ?? 'guide'
   const unresolved = input.worldModel.activeThread?.unresolved === true || Boolean(input.goalStack?.unresolvedSummary)
+  const personaAuthority = deriveAlicizationPersonaAuthorityInfluence(input.personalityAuthority ?? null)
 
   const companionship = clamp01(
     relationTrust * 0.28
@@ -429,6 +434,8 @@ function buildPreferenceTargets(input: AlicizationAutobiographicalSelfInput) {
     + (climate === 'attuned' ? 0.12 : climate === 'warm' ? 0.08 : 0)
     + (longHorizon?.preferenceBias.companionship ?? 0) * 0.22
     + (longHorizon?.identityBias.tenderness ?? 0) * 0.08
+    + personaAuthority.warmthBias * 0.18
+    + personaAuthority.directnessBias * 0.08
     + reinforcement.companionship * 0.28
     + outcomeHistory.closenessSupport * 0.16
     + outcomeHistory.trustSupport * 0.14
@@ -461,6 +468,7 @@ function buildPreferenceTargets(input: AlicizationAutobiographicalSelfInput) {
     + outcomeHistory.repairLearning * 0.14
     + Math.max(0, reflectionHistory.truth) * 0.1
     + Math.max(0, reflectionHistory.habit) * 0.08
+    + personaAuthority.repairBias * 0.14
     + (input.mindEcology?.regulationHabit === 'soften-before-speaking' ? 0.1 : 0),
   )
   const quietObservation = clamp01(
@@ -472,6 +480,7 @@ function buildPreferenceTargets(input: AlicizationAutobiographicalSelfInput) {
     + (longHorizon?.preferenceBias.autonomyRespect ?? 0) * 0.14
     + (longHorizon?.preferenceBias.quietObservation ?? 0) * 0.2
     + (longHorizon?.identityBias.guardedness ?? 0) * 0.12
+    + personaAuthority.roomBias * 0.28
     + Math.max(0, reinforcement.autonomyRespect) * 0.18
     + Math.max(0, reinforcement.temperGuardedness) * 0.12
     + outcomeHistory.boundaryLift * 0.14
@@ -488,6 +497,7 @@ function buildPreferenceTargets(input: AlicizationAutobiographicalSelfInput) {
     + (approach === 'care' ? 0.12 : 0)
     + (longHorizon?.preferenceBias.proactiveCare ?? 0) * 0.3
     + (longHorizon?.identityBias.tenderness ?? 0) * 0.12
+    + personaAuthority.warmthBias * 0.14
     + outcomeHistory.burdenRelief * 0.12
     - outcomeHistory.burdenPressure * 0.08
     + Math.max(0, reflectionHistory.relationship) * 0.08
@@ -510,6 +520,7 @@ function buildPreferenceTargets(input: AlicizationAutobiographicalSelfInput) {
     + (input.worldModel.hostState.availability === 'focused' || input.worldModel.hostState.availability === 'immersed' ? 0.14 : 0)
     + (climate === 'guarded' ? 0.1 : 0)
     + (longHorizon?.preferenceBias.autonomyRespect ?? 0) * 0.3
+    + personaAuthority.roomBias * 0.18
     + reinforcement.autonomyRespect * 0.34
     + outcomeHistory.boundaryLift * 0.22
     + outcomeHistory.boundaryPressure * 0.1
@@ -523,6 +534,7 @@ function buildPreferenceTargets(input: AlicizationAutobiographicalSelfInput) {
     + (desire?.kind === 'recheck' || desire?.kind === 'speak' ? 0.08 : 0)
     + (longHorizon?.preferenceBias.unfinishedThreadReturn ?? 0) * 0.34
     + (longHorizon?.identityBias.selfDirection ?? 0) * 0.12
+    + personaAuthority.cadenceBias * 0.14
     + reinforcement.unfinishedThreadReturn * 0.32
     + outcomeHistory.openLoopSupport * 0.22
     + Math.max(0, reflectionHistory.task) * 0.18
@@ -594,12 +606,25 @@ function resolveAgencyStyle(input: {
   companionship: number
   proactiveCare: number
   quietObservation: number
+  roomBias?: number
+  directnessBias?: number
   selfContinuity?: AlicizationSelfContinuitySnapshot | null
 }) {
-  if (input.selfContinuity?.initiativeTemperament === 'reserved' || input.quietObservation >= 0.62)
+  if (
+    input.selfContinuity?.initiativeTemperament === 'reserved'
+    || input.roomBias != null && input.directnessBias != null && input.roomBias >= input.directnessBias + 0.16
+    || input.quietObservation >= 0.62
+  ) {
     return 'reserved' as const
-  if (input.selfContinuity?.initiativeTemperament === 'eager' || input.companionship >= 0.62 || input.proactiveCare >= 0.62)
+  }
+  if (
+    input.selfContinuity?.initiativeTemperament === 'eager'
+    || input.directnessBias != null && input.directnessBias >= 0.24
+    || input.companionship >= 0.62
+    || input.proactiveCare >= 0.62
+  ) {
     return 'self-starting' as const
+  }
   return 'balanced' as const
 }
 
@@ -892,6 +917,7 @@ function describePreference(key: PreferenceKey, value: number) {
 
 export function buildAutobiographicalSelf(input: AlicizationAutobiographicalSelfInput): AlicizationAutobiographicalSelfSnapshot {
   const previous = input.previous ?? defaultAutobiographicalSelf(input.now)
+  const personaAuthority = deriveAlicizationPersonaAuthorityInfluence(input.personalityAuthority ?? null)
   const reinforcement = summarizeReinforcement(input)
   const outcomeHistory = summarizeRelationshipOutcomeHistory(input)
   const reflectionHistory = summarizeReflectionHistory(input)
@@ -940,6 +966,8 @@ export function buildAutobiographicalSelf(input: AlicizationAutobiographicalSelf
     companionship: preferenceEvolution.companionship,
     proactiveCare: preferenceEvolution.proactiveCare,
     quietObservation: preferenceEvolution.quietObservation,
+    roomBias: personaAuthority.roomBias,
+    directnessBias: personaAuthority.directnessBias,
     selfContinuity: input.selfContinuity ?? null,
   })
   const personaDrift = {

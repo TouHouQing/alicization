@@ -272,6 +272,25 @@ function buildTaskSummaryLine(task: AlicizationAgentTaskRecord) {
   return `- [${formatTaskStatus(task.status)}] ${sanitizeSummary(task.label, 48)} -> ${summary}`
 }
 
+function selectRecentTasksForSystemBlock(tasks: AlicizationAgentTaskRecord[], limit: number) {
+  const safeLimit = Math.max(0, Math.floor(limit))
+  if (safeLimit === 0)
+    return []
+
+  const tail = tasks.slice(-safeLimit)
+  if (tail.some(task => sanitizeSummary(task.label, 80).startsWith('proactive-feedback:')))
+    return tail
+
+  const latestProactiveFeedback = [...tasks]
+    .reverse()
+    .find(task => sanitizeSummary(task.label, 80).startsWith('proactive-feedback:'))
+  if (!latestProactiveFeedback)
+    return tail
+
+  return [...tail.slice(1), latestProactiveFeedback]
+    .sort((left, right) => left.startedAt - right.startedAt)
+}
+
 function formatContinuityState(state: AlicizationAgentContinuityState) {
   if (state === 'fresh')
     return 'FRESH'
@@ -560,7 +579,7 @@ export function createAlicizationAgentRuntime(options: CreateAlicizationAgentRun
 
     const buildSessionSystemBlock = () => {
       const recentContinuitySignals = session.continuitySignals.slice(-maxContinuityInSystemBlock)
-      const recentTasks = session.tasks.slice(-maxTasksInSystemBlock)
+      const recentTasks = selectRecentTasksForSystemBlock(session.tasks, maxTasksInSystemBlock)
       const digitalLifeLine = session.digitalLifeSpine?.continuitySignal
         ?? findLatestDigitalLifeContinuitySignal(session.continuitySignals)
       const digitalLifeDigest = projectAlicizationDigitalLifeSpineDigest(session.digitalLifeSpine)
@@ -575,7 +594,7 @@ export function createAlicizationAgentRuntime(options: CreateAlicizationAgentRun
         deriveAlicizationRuntimeSnapshot({
           spine: session.digitalLifeSpine,
           agentRuntime: deriveAlicizationAgentRuntimeTelemetryFromSession({
-            tasks: session.tasks,
+            tasks: recentTasks,
             continuitySignals: session.continuitySignals,
             lastSensorySnapshot: session.lastSensorySnapshot,
           }),
@@ -611,13 +630,14 @@ export function createAlicizationAgentRuntime(options: CreateAlicizationAgentRun
 
     const buildExecutionRuntimeContext: AlicizationAgentTurnRuntime['buildExecutionRuntimeContext'] = async (identity) => {
       const sensorySnapshot = identity?.sensorySnapshot ?? await getSensorySnapshot()
+      const recentTasks = selectRecentTasksForSystemBlock(session.tasks, maxTasksInSystemBlock)
       return buildAlicizationExecutionRuntimeContext({
         agentSessionId: session.id,
         cardId: sanitizeText(identity?.cardId, 120) || cardId,
         turnId: sanitizeText(identity?.turnId, 160) || sanitizeText(input.turnId, 160),
         decisionTraceId: sanitizeText(identity?.decisionTraceId, 200) || sanitizeText(input.decisionTraceId, 200) || null,
         sessionId: sanitizeText(identity?.sessionId, 160) || conversationSessionId,
-        recentActions: session.tasks.slice(-maxTasksInSystemBlock).map(toExecutionActionDigest),
+        recentActions: recentTasks.map(toExecutionActionDigest),
         sensorySnapshot,
       })
     }

@@ -34,10 +34,148 @@ function uniqueList(values: Array<string | null | undefined>, maxItems = 6) {
   return result
 }
 
+function parseRuntimeContinuityCarry(recallSeed: string) {
+  const line = recallSeed
+    .split('\n')
+    .map(item => item.trim())
+    .find(item => item.startsWith('mirror_runtime_continuity:'))
+  if (!line)
+    return null
+
+  const payload = line.slice('mirror_runtime_continuity:'.length).trim()
+  if (!payload)
+    return null
+
+  const fields = new Map<string, string>()
+  for (const segment of payload.split('|')) {
+    const normalized = segment.trim()
+    if (!normalized)
+      continue
+    const separatorIndex = normalized.indexOf('=')
+    if (separatorIndex <= 0)
+      continue
+    const key = normalized.slice(0, separatorIndex).trim().toLowerCase()
+    const value = sanitizePromptText(normalized.slice(separatorIndex + 1).trim(), 160)
+    if (!key || !value)
+      continue
+    fields.set(key, value)
+  }
+
+  const dominant = fields.get('dominant') ?? ''
+  const phase = fields.get('phase') ?? ''
+  const handoff = fields.get('handoff') ?? ''
+  const from = fields.get('from') ?? ''
+  const to = fields.get('to') ?? ''
+  const scenario = fields.get('scenario') ?? ''
+  const reason = fields.get('reason') ?? ''
+  if (!dominant && !phase && !handoff && !from && !to && !scenario && !reason)
+    return null
+
+  return {
+    dominant,
+    phase,
+    handoff,
+    from,
+    to,
+    scenario,
+    reason,
+  }
+}
+
+function deriveRuntimeContinuityTriggeredIntent(input: {
+  recallSeed: string
+}): OrganicMemoryPromptContext['recollectionIntent'] | null {
+  const continuity = parseRuntimeContinuityCarry(input.recallSeed)
+  if (!continuity)
+    return null
+
+  const runtimeText = [
+    continuity.dominant,
+    continuity.phase,
+    continuity.handoff,
+    continuity.from,
+    continuity.to,
+    continuity.scenario,
+    continuity.reason,
+  ].filter(Boolean).join(' ').toLowerCase()
+  const procedureTriggered = /runtime|repair|seam|task|workflow|execution|dialogue|handoff|grounded|coding|执行|修复|链路|任务|流程/u.test(runtimeText)
+  if (!procedureTriggered)
+    return null
+
+  const scenario = continuity.scenario || continuity.to || continuity.phase || continuity.dominant
+  const reason = continuity.reason || continuity.handoff || continuity.phase || continuity.dominant
+  const queryHints = uniqueList([
+    reason,
+    scenario,
+    continuity.handoff,
+    continuity.to,
+    continuity.from,
+  ], 6)
+  const candidateProcedureLines = uniqueList([
+    reason,
+    continuity.handoff,
+    scenario,
+    continuity.dominant,
+  ], 4)
+
+  return {
+    mode: 'execution-procedure',
+    temporalFocus: 'experience-matched',
+    searchEpisodes: true,
+    searchConversations: false,
+    searchProceduralExperience: true,
+    queryHints,
+    rationale: sanitizePromptText(
+      'Runtime continuity carry suggests that the next recollection should reopen the remembered way this active seam was handled, not drift into generic history.',
+      220,
+    ),
+    confidence: clamp01(0.74 + (continuity.reason ? 0.08 : 0) + (continuity.scenario ? 0.04 : 0)),
+    recollectionAgenda: {
+      whyRecallNow: 'The current turn is carrying an unfinished runtime seam, so remembered procedure continuity should reopen before older conversation history.',
+      goalSimilarity: clamp01(0.82 + (continuity.reason ? 0.08 : 0)),
+      relationshipNeed: clamp01(0.14 + (continuity.dominant === 'dialogue' ? 0.06 : 0)),
+      affectivePull: clamp01(0.16 + (continuity.reason ? 0.04 : 0)),
+      sceneFamiliarity: clamp01(0.62 + (continuity.scenario ? 0.08 : 0)),
+      candidateTimeScopes: [
+        {
+          scope: 'experience-matched',
+          weight: 0.94,
+          rationale: 'A matching runtime seam matters more than an exact date window.',
+        },
+        {
+          scope: 'recent-or-mid',
+          weight: 0.42,
+          rationale: 'Recent carry remains a secondary anchor if the seam needs a narrower period.',
+        },
+      ],
+      candidateEraFacets: [
+        {
+          facet: 'task-era',
+          weight: 0.95,
+          rationale: 'The continuity carry points to an unfinished task period rather than a relationship phase.',
+        },
+        {
+          facet: 'window',
+          weight: 0.36,
+          rationale: 'A bounded window can still stabilize the recollection if needed.',
+        },
+      ],
+      candidateProcedureLines,
+      uncertaintyTolerance: 'medium',
+    },
+  }
+}
+
 export function deriveSceneTriggeredRecollectionIntent(input: {
   recallSeed: string
   recalledEpisodes: AlicizationEpisodicEventRecord[]
 }): OrganicMemoryPromptContext['recollectionIntent'] | null {
+  const runtimeContinuityIntent = deriveRuntimeContinuityTriggeredIntent({
+    recallSeed: input.recallSeed,
+  })
+  if (runtimeContinuityIntent)
+    return runtimeContinuityIntent
+
   const lead = input.recalledEpisodes[0] ?? null
   if (!lead)
     return null

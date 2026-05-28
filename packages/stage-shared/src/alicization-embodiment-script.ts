@@ -9,9 +9,13 @@ import {
 import { normalizeAlicizationEmbodimentLipSyncPlan } from './alicization-lipsync-contracts'
 import { normalizeAlicizationEmbodimentSpeechPlan } from './alicization-speech-plan'
 
-export type AlicizationEmbodimentScriptRendererTarget = 'live2d'
+export type AlicizationEmbodimentScriptRendererTarget = 'live2d' | 'vrm'
 export type AlicizationEmbodimentResidentMode = 'dialogue' | 'quiet-companionship' | 'idle-recovering'
 export type AlicizationEmbodimentAttentionMode = 'attentive' | 'ambient'
+export type AlicizationEmbodimentExecutionCueSource
+  = 'prosody-authority'
+    | 'timeline-projection'
+    | 'digital-life-projection'
 
 export interface AlicizationEmbodimentScriptState {
   baseEmotion: AlicizationEmotion
@@ -25,9 +29,16 @@ export interface AlicizationEmbodimentFaceCue {
   emotion: AlicizationEmotion
   facialCue: string | null
   intensity: number
+  holdMs: number
+  preUtteranceCue: string | null
+  postUtteranceCue: string | null
+  source: AlicizationEmbodimentExecutionCueSource
+  confidence: number
 }
 
 export interface AlicizationEmbodimentFacePlan {
+  // Timing cues let the renderer stage a brief expression before speech starts
+  // and a release/settle expression once playback returns to idle.
   preUtteranceCue?: string | null
   postUtteranceCue?: string | null
   speakingCues: AlicizationEmbodimentFaceCue[]
@@ -38,6 +49,8 @@ export interface AlicizationEmbodimentMotionBurst {
   actionCue: string | null
   intensity: number
   holdMs: number
+  source: AlicizationEmbodimentExecutionCueSource
+  confidence: number
 }
 
 export interface AlicizationEmbodimentMotionPlan {
@@ -72,6 +85,13 @@ function normalizeUnit(raw: unknown) {
   return Math.max(0, Math.min(1, value))
 }
 
+function normalizeRequiredUnit(raw: unknown): number | null {
+  const value = Number(raw)
+  if (!Number.isFinite(value))
+    return null
+  return Math.max(0, Math.min(1, value))
+}
+
 function normalizeNonNegativeInteger(raw: unknown) {
   const value = Number(raw)
   if (!Number.isFinite(value))
@@ -101,7 +121,17 @@ function normalizeAttentionMode(raw: unknown): AlicizationEmbodimentAttentionMod
 }
 
 function normalizeRendererTarget(raw: unknown): AlicizationEmbodimentScriptRendererTarget | null {
-  return raw === 'live2d' ? 'live2d' : null
+  return raw === 'live2d' || raw === 'vrm'
+    ? raw
+    : null
+}
+
+function normalizeExecutionCueSource(raw: unknown): AlicizationEmbodimentExecutionCueSource | null {
+  return raw === 'prosody-authority'
+    || raw === 'timeline-projection'
+    || raw === 'digital-life-projection'
+    ? raw
+    : null
 }
 
 function normalizeFaceCue(raw: unknown): AlicizationEmbodimentFaceCue | null {
@@ -110,7 +140,9 @@ function normalizeFaceCue(raw: unknown): AlicizationEmbodimentFaceCue | null {
 
   const candidate = raw as Record<string, unknown>
   const segmentId = normalizeText(candidate.segmentId, 120)
-  if (!segmentId)
+  const source = normalizeExecutionCueSource(candidate.source)
+  const confidence = normalizeRequiredUnit(candidate.confidence)
+  if (!segmentId || !source || confidence === null)
     return null
 
   return {
@@ -118,6 +150,11 @@ function normalizeFaceCue(raw: unknown): AlicizationEmbodimentFaceCue | null {
     emotion: normalizeAlicizationEmotion(candidate.emotion).emotion,
     facialCue: normalizeText(candidate.facialCue, 120) || null,
     intensity: normalizeUnit(candidate.intensity),
+    holdMs: normalizeNonNegativeInteger(candidate.holdMs),
+    preUtteranceCue: normalizeText(candidate.preUtteranceCue, 120) || null,
+    postUtteranceCue: normalizeText(candidate.postUtteranceCue, 120) || null,
+    source,
+    confidence,
   }
 }
 
@@ -127,7 +164,9 @@ function normalizeMotionBurst(raw: unknown): AlicizationEmbodimentMotionBurst | 
 
   const candidate = raw as Record<string, unknown>
   const segmentId = normalizeText(candidate.segmentId, 120)
-  if (!segmentId)
+  const source = normalizeExecutionCueSource(candidate.source)
+  const confidence = normalizeRequiredUnit(candidate.confidence)
+  if (!segmentId || !source || confidence === null)
     return null
 
   return {
@@ -135,6 +174,8 @@ function normalizeMotionBurst(raw: unknown): AlicizationEmbodimentMotionBurst | 
     actionCue: normalizeText(candidate.actionCue, 120) || null,
     intensity: normalizeUnit(candidate.intensity),
     holdMs: normalizeNonNegativeInteger(candidate.holdMs),
+    source,
+    confidence,
   }
 }
 

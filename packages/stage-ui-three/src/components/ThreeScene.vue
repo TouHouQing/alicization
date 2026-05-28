@@ -751,6 +751,9 @@ defineExpose({
   getRuntimeCapabilities: () => {
     return modelRef.value?.getRuntimeCapabilities?.()
   },
+  executionDiagnostics: () => {
+    return modelRef.value?.executionDiagnostics?.() ?? null
+  },
   setVrmFrameHook: (hook?: (vrm: VRM, delta: number) => void) => {
     vrmFrameHook.value = hook
     applyVrmFrameHook()

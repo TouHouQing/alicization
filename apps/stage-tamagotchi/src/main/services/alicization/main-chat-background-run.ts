@@ -150,6 +150,26 @@ class AlicizationMindAuthoredReplyRequiredError extends Error {
   }
 }
 
+export function resolveAlicizationExecutionPayoffContinuityInputs(input: {
+  runtimeSurface: AlicizationPreparedMainChatExecutionResult['runtimeSurface'] | null | undefined
+}) {
+  const digitalLifeRuntimeSurface = input.runtimeSurface?.digitalLifeRuntimeSurface ?? null
+  const personStateProjection = digitalLifeRuntimeSurface?.memory.personStateProjection ?? null
+  const hostPersonModel = digitalLifeRuntimeSurface?.memory.hostPersonModel ?? null
+  let selfContinuityAuthority = null
+  try {
+    selfContinuityAuthority = buildSelfContinuityAuthorityFromRuntimeSurface(digitalLifeRuntimeSurface)
+  }
+  catch {
+    selfContinuityAuthority = null
+  }
+  return {
+    personStateProjection,
+    hostPersonModel,
+    selfContinuityAuthority,
+  }
+}
+
 export async function runAlicizationMainChatBackground(
   input: RunAlicizationMainChatBackgroundOptions,
 ) {
@@ -194,6 +214,10 @@ export async function runAlicizationMainChatBackground(
       : Date.now()
     return deriveAlicizationResidentPerformanceSnapshot({
       watchMode: runtimeDigestSurface.perception.watchMode,
+      currentBodyState: runtimeDigestSurface.perception.currentBodyState,
+      continuityMode: runtimeDigestSurface.perception.continuityMode,
+      currentInwardPreoccupation: runtimeDigestSurface.perception.currentInwardPreoccupation,
+      quietLineMs: runtimeDigestSurface.perception.quietLineMs,
       currentScene: runtimeDigestSurface.perception.currentScene,
       attention: runtimeDigestSurface.perception.attention,
       captureState: runtimeDigestSurface.perception.captureState,
@@ -543,6 +567,9 @@ export async function runAlicizationMainChatBackground(
       throw new AlicizationMindAuthoredReplyRequiredError('mind-authored-execution-payoff-required:execution-inline-payoff-unsupported-surface')
     }
 
+    const continuityInputs = resolveAlicizationExecutionPayoffContinuityInputs({
+      runtimeSurface: prepared.runtimeSurface,
+    })
     const deterministicStructured = buildAlicizationExecutionPayoffDeterministicStructured({
       mode: 'inline-execution',
       channel: surfaceInput.channel,
@@ -550,8 +577,9 @@ export async function runAlicizationMainChatBackground(
       status: surfaceInput.status,
       summary: surfaceInput.summary,
       outcome: surfaceInput.outcome,
-      selfContinuityAuthority: buildSelfContinuityAuthorityFromRuntimeSurface(prepared.runtimeSurface.digitalLifeRuntimeSurface),
-      hostPersonModel: prepared.runtimeSurface.digitalLifeRuntimeSurface?.memory.hostPersonModel ?? null,
+      personStateProjection: continuityInputs.personStateProjection,
+      selfContinuityAuthority: continuityInputs.selfContinuityAuthority,
+      hostPersonModel: continuityInputs.hostPersonModel,
       visibleReplyAuthority: 'llm-second-pass-rewrite',
     })
 
@@ -580,8 +608,9 @@ export async function runAlicizationMainChatBackground(
               answerIntent: prepared.runtimeSurface.governance.answerIntent,
             }
           : null,
-        selfContinuityAuthority: buildSelfContinuityAuthorityFromRuntimeSurface(prepared.runtimeSurface.digitalLifeRuntimeSurface),
-        hostPersonModel: prepared.runtimeSurface.digitalLifeRuntimeSurface?.memory.hostPersonModel ?? null,
+        personStateProjection: continuityInputs.personStateProjection,
+        selfContinuityAuthority: continuityInputs.selfContinuityAuthority,
+        hostPersonModel: continuityInputs.hostPersonModel,
       })
       await input.appendRuntimeDebugLine('chat-stream.execution-payoff-started', {
         cardId: input.payload.cardId,
@@ -614,8 +643,9 @@ export async function runAlicizationMainChatBackground(
         outcome: surfaceInput.outcome,
         status: surfaceInput.status,
         summary: surfaceInput.summary,
-        selfContinuityAuthority: buildSelfContinuityAuthorityFromRuntimeSurface(prepared.runtimeSurface.digitalLifeRuntimeSurface),
-        hostPersonModel: prepared.runtimeSurface.digitalLifeRuntimeSurface?.memory.hostPersonModel ?? null,
+        personStateProjection: continuityInputs.personStateProjection,
+        selfContinuityAuthority: continuityInputs.selfContinuityAuthority,
+        hostPersonModel: continuityInputs.hostPersonModel,
       })
       const emotion = normalizeAlicizationExecutionPayoffEmotion(
         parsed.emotion,
@@ -1056,6 +1086,19 @@ export async function runAlicizationMainChatBackground(
       prepared = {
         ...nextPrepared,
         turnGraph: rebuildPreparedTurnGraph(nextPrepared, surface),
+      }
+      try {
+        await Promise.resolve(input.recordPreparedMindTrace?.({
+          payload: input.payload,
+          prepared,
+        }))
+      }
+      catch (error) {
+        await input.appendRuntimeDebugLine('chat-stream.completed-mind-trace-failed', {
+          cardId: input.runState.cardId,
+          turnId: input.runState.turnId,
+          reason: error instanceof Error ? error.message : String(error),
+        })
       }
     }
     input.runStateController.finishRun(input.key, {

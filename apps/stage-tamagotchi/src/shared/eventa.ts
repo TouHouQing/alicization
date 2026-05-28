@@ -16,6 +16,7 @@ import type {
   AlicizationDialoguePerformancePayload as SharedAlicizationDialoguePerformancePayload,
   AlicizationDialogueRespondedPayload as SharedAlicizationDialogueRespondedPayload,
   AlicizationDialogueSpeechTimeline as SharedAlicizationDialogueSpeechTimeline,
+  AlicizationEmbodimentScriptV1 as SharedAlicizationEmbodimentScriptV1,
   AlicizationDialogueStructuredFormat as SharedAlicizationDialogueStructuredFormat,
   AlicizationDialogueStructuredPayload as SharedAlicizationDialogueStructuredPayload,
   AlicizationDerivedMemoryReference as SharedAlicizationDerivedMemoryReference,
@@ -114,6 +115,7 @@ import type {
   AlicizationAffectiveResidueMemorySnapshot as SharedAlicizationAffectiveResidueMemorySnapshot,
   AlicizationRelationshipCadenceMemorySnapshot as SharedAlicizationRelationshipCadenceMemorySnapshot,
   AlicizationSelfEvolutionKernelSnapshot as SharedAlicizationSelfEvolutionKernelSnapshot,
+  AlicizationSelfEvolutionVersionRuntimeSnapshot as SharedAlicizationSelfEvolutionVersionRuntimeSnapshot,
   AlicizationPersonStateUpdateSourceTrailEntry as SharedAlicizationPersonStateUpdateSourceTrailEntry,
   AlicizationPersonStateUpdateSurface as SharedAlicizationPersonStateUpdateSurface,
   AlicizationMemoryRecollectionAgendaSnapshot as SharedAlicizationMemoryRecollectionAgendaSnapshot,
@@ -128,6 +130,7 @@ import type {
   AlicizationNormalVisibleReplyAuthority as SharedAlicizationNormalVisibleReplyAuthority,
   AlicizationInfraVisibleReplyAuthority as SharedAlicizationInfraVisibleReplyAuthority,
   AlicizationVisibleReplyExecutionAuthority as SharedAlicizationVisibleReplyExecutionAuthority,
+  AlicizationPersistentPresenceAuthoritySnapshot as SharedAlicizationPersistentPresenceAuthoritySnapshot,
   AlicizationPersonaGradualUnlockFacetKind as SharedAlicizationPersonaGradualUnlockFacetKind,
   AlicizationPersonaGradualUnlockFacetSnapshot as SharedAlicizationPersonaGradualUnlockFacetSnapshot,
   AlicizationPersonaGradualUnlockHypothesisSnapshot as SharedAlicizationPersonaGradualUnlockHypothesisSnapshot,
@@ -702,7 +705,10 @@ export interface AlicizationOrganicMemorySnapshot {
     stronglyValidatedProcedureCount: number
     contradictionHeavyFactCount: number
   } | null
+  activeContinuityGovernance?: AlicizationDerivedMindStateBundle['activeContinuityGovernance'] | null
   selfEvolution?: AlicizationSelfEvolutionKernelSnapshot | null
+  affectiveResidue?: AlicizationAffectiveResidueMemorySnapshot | null
+  recallLatencyPolicy?: AlicizationRecallLatencyPolicySnapshot | null
   derivedMindStateBundle?: AlicizationDerivedMindStateBundle | null
   memoryStageReplay?: AlicizationOrganicMemoryStageReplay | null
   memoryResolutionLedger?: AlicizationMemoryResolutionLedger | null
@@ -734,6 +740,7 @@ export interface AlicizationConversationTurnInput {
   userText?: string
   assistantText?: string
   structured?: Record<string, unknown>
+  visibleReplyExecution?: AlicizationVisibleReplyExecution | null
   governance?: AlicizationMindTurnGovernance | null
   createdAt?: number
 }
@@ -777,6 +784,7 @@ export type AlicizationAffectiveResidueEntrySnapshot = SharedAlicizationAffectiv
 export type AlicizationRelationshipCadenceMemorySnapshot = SharedAlicizationRelationshipCadenceMemorySnapshot
 export type AlicizationAffectiveResidueMemorySnapshot = SharedAlicizationAffectiveResidueMemorySnapshot
 export type AlicizationSelfEvolutionKernelSnapshot = SharedAlicizationSelfEvolutionKernelSnapshot
+export type AlicizationSelfEvolutionVersionRuntimeSnapshot = SharedAlicizationSelfEvolutionVersionRuntimeSnapshot
 export type AlicizationPersonStateUpdateSourceTrailEntry = SharedAlicizationPersonStateUpdateSourceTrailEntry
 export type AlicizationPersonStateUpdateRecord = SharedAlicizationPersonStateUpdateRecord
 export type AlicizationPersonStateUpdateSurface = SharedAlicizationPersonStateUpdateSurface
@@ -911,8 +919,13 @@ export type AlicizationPerformanceDelivery = SharedAlicizationPerformanceDeliver
 export type AlicizationProactiveScenario = 'coding' | 'media' | 'late-night-care' | 'general'
 export type AlicizationProactiveStyle = 'silent-observe' | 'light-nudge' | 'gentle-care' | 'firm-warning'
 export type AlicizationProactiveUrgency = 'low' | 'medium' | 'high'
-export type AlicizationProactiveReasonCode
+export type AlicizationProactiveStaticReasonCode
   = | 'busy-host'
+    | 'persona-observant-style'
+    | 'persona-high-participation-style'
+    | 'persona-direct-reconnect'
+    | 'persona-silence-hold'
+    | 'persona-guardian-care'
     | 'fullscreen-host'
     | 'kill-switch-suspended'
     | 'global-cooldown-active'
@@ -969,6 +982,10 @@ export type AlicizationProactiveReasonCode
     | 'relationship-cadence-residue'
     | 'relationship-residue-delay-warmth'
     | 'relationship-residue-protect-rest'
+export type AlicizationProactiveReasonCode
+  = | AlicizationProactiveStaticReasonCode
+    | `learning:${AlicizationLearningAction | 'hold'}`
+    | `learning-focus:${string}`
 
 export type AlicizationVisualWatchMode = 'mnemonic-passive' | 'symbiotic-vision' | 'invited-inspection' | 'recovering'
 export type AlicizationEmbodiedPresenceState = 'none' | 'glance' | 'attentive' | 'hesitant' | 'concerned'
@@ -2746,7 +2763,7 @@ export interface AlicizationPrivateThoughtSnapshot {
   livingWorldObjectId?: string | null
 }
 
-export interface AlicizationVisualPresenceStateSnapshot {
+export interface AlicizationVisualPresenceStateSnapshot extends SharedAlicizationPersistentPresenceAuthoritySnapshot {
   watchMode: AlicizationVisualWatchMode
   currentScene: AlicizationVisualSceneSnapshot | null
   attention: AlicizationVisualAttentionSnapshot | null
@@ -2802,6 +2819,7 @@ export interface AlicizationVisualPresenceStateSnapshot {
   replyDeliberation?: AlicizationReplyDeliberationSnapshot | null
   recallGovernor?: AlicizationRecallGovernorSnapshot | null
   answerPlanner?: AlicizationAnswerPlannerSnapshot | null
+  selfEvolution?: AlicizationSelfEvolutionKernelSnapshot | null
   learningExecutionState?: AlicizationLearningExecutionStateSnapshot | null
   residentPerformance?: SharedAlicizationResidentPerformanceSnapshot | null
   privateThought: AlicizationPrivateThoughtSnapshot | null
@@ -2823,6 +2841,10 @@ export interface AlicizationPresencePulsePayload extends AlicizationCardScope {
   embodiedPresence: AlicizationEmbodiedPresenceState
   scenario: AlicizationProactiveScenario
   stance: AlicizationPrivateThoughtSnapshot['stance']
+  currentBodyState?: AlicizationVisualPresenceStateSnapshot['currentBodyState']
+  continuityMode?: AlicizationVisualPresenceStateSnapshot['continuityMode']
+  quietLineMs?: number
+  currentInwardPreoccupation?: string | null
   confidence: number
   reasonTags: string[]
   emotionalTension?: AlicizationEmotionalTension
@@ -2861,6 +2883,7 @@ export type AlicizationDigitalLifeSpineDigest = SharedAlicizationDigitalLifeSpin
 export type AlicizationDigitalLifeSpineMemoryDigest = SharedAlicizationDigitalLifeSpineMemoryDigest
 export type AlicizationRuntimeDigest = SharedAlicizationRuntimeDigest
 export type AlicizationDialogueSpeechTimeline = SharedAlicizationDialogueSpeechTimeline
+export type AlicizationEmbodimentScriptV1 = SharedAlicizationEmbodimentScriptV1
 export type AlicizationResidentPerformanceSnapshot = SharedAlicizationResidentPerformanceSnapshot
 export type CharacterFacialCapability = SharedCharacterFacialCapability
 export type CharacterActionCapability = SharedCharacterActionCapability
@@ -2945,6 +2968,7 @@ export interface AlicizationChatMetaEvent {
   governance: AlicizationMindTurnGovernance | null
   visibleReplyExecution?: AlicizationVisibleReplyExecution | null
   embodiment?: AlicizationDialogueEmbodimentEnvelope | null
+  embodimentScript?: AlicizationEmbodimentScriptV1 | null
   speechTimeline?: AlicizationDialogueSpeechTimeline | null
   digitalLife?: AlicizationDigitalLifeEnvelope | null
   digitalLifeSpine?: AlicizationDigitalLifeSpineDigest | null
@@ -3099,6 +3123,7 @@ export const electronAlicizationListMindTurnEvents = defineInvokeEventa<Alicizat
 export const electronAlicizationListLearningArtifactLedger = defineInvokeEventa<AlicizationLearningArtifactLedgerRecord[], AlicizationListLearningArtifactLedgerPayload>('eventa:invoke:electron:alicization:conversation:list-learning-artifact-ledger')
 export const electronAlicizationListMemoryDecisionTraces = defineInvokeEventa<AlicizationMemoryDecisionTraceRecord[], AlicizationListMemoryDecisionTracesPayload>('eventa:invoke:electron:alicization:conversation:list-memory-decision-traces')
 export const electronAlicizationListPersonStateUpdates = defineInvokeEventa<AlicizationPersonStateUpdateRecord[], AlicizationListPersonStateUpdatesPayload>('eventa:invoke:electron:alicization:conversation:list-person-state-updates')
+export const electronAlicizationGetSelfEvolutionState = defineInvokeEventa<AlicizationSelfEvolutionVersionRuntimeSnapshot, AlicizationCardScope>('eventa:invoke:electron:alicization:conversation:get-self-evolution-state')
 export const electronAlicizationRunReplayBenchmark = defineInvokeEventa<AlicizationRunReplayBenchmarkResult, AlicizationRunReplayBenchmarkPayload>('eventa:invoke:electron:alicization:conversation:run-replay-benchmark')
 export const electronAlicizationUpsertTaskThread = defineInvokeEventa<AlicizationTaskThreadRecord, AlicizationUpsertTaskThreadPayload>('eventa:invoke:electron:alicization:executor:upsert-task-thread')
 export const electronAlicizationListTaskThreads = defineInvokeEventa<AlicizationTaskThreadRecord[], AlicizationListTaskThreadsPayload>('eventa:invoke:electron:alicization:executor:list-task-threads')

@@ -9,6 +9,7 @@ import type {
   AlicizationInquiryPlanSnapshot,
   AlicizationLearningExecutionStateSnapshot,
   AlicizationMindSynthesisSnapshot,
+  AlicizationSelfEvolutionKernelSnapshot,
   AlicizationVisualPresenceStateSnapshot,
 } from '../../../shared/eventa'
 import type { AlicizationDialogueFocusGovernance } from './dialogue-focus-governor'
@@ -28,7 +29,13 @@ import { buildAlicizationDigitalLifeArchitecture } from './digital-life-architec
 import { buildAlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 import { buildEpistemicSurfacePosture } from './epistemic-surface'
 import { buildAlicizationMemoryDeliberationKernel } from './memory-deliberation-kernel'
-import { readLearningExecutionStateFromDerivedMindStateBundle } from '@proj-alicization/stage-shared'
+import {
+  readActiveContinuityGovernanceFromDerivedMindStateBundle,
+  readLearningExecutionStateFromDerivedMindStateBundle,
+  readMemoryDeliberationFromDerivedMindStateBundle,
+  readRecollectionIntentFromDerivedMindStateBundle,
+  readRecollectionSpeechPlanFromDerivedMindStateBundle,
+} from '@proj-alicization/stage-shared'
 
 export type AlicizationResponseEpistemicMode
   = | 'grounded-live'
@@ -331,6 +338,25 @@ function uniqueList(values: Array<string | null | undefined>, maxItems = 6) {
   return items
 }
 
+function includesAny(text: string, needles: string[]) {
+  return needles.some(needle => text.includes(needle))
+}
+
+function selfEvolutionSupportsLowerPressureOpening(selfEvolution?: AlicizationSelfEvolutionKernelSnapshot | null) {
+  if (!selfEvolution)
+    return false
+
+  const relationshipDoctrine = sanitizeText(selfEvolution.relationshipDoctrine, 180).toLowerCase()
+  const burdenLine = sanitizeText(selfEvolution.burdenLine, 180).toLowerCase()
+  const trustMeaning = sanitizeText(selfEvolution.trustMeaning, 180).toLowerCase()
+  const latestInflection = sanitizeText(selfEvolution.latestInflection, 180).toLowerCase()
+
+  return includesAny(relationshipDoctrine, ['leave more room', 'more room', 'slower return', 'lower-pressure'])
+    || includesAny(burdenLine, ['overloaded', 'pressure', 'crowd', 'conversational pressure'])
+    || includesAny(trustMeaning, ['lower-pressure', 'less eager', 'room', 'space', 'timing'])
+    || includesAny(latestInflection, ['pressure', 'slower return', 'lower-pressure', 'less eager'])
+}
+
 function mergeRelationshipPosture(input: {
   projected?: AlicizationResponseCharter['relationshipPosture'] | null
   computed: AlicizationResponseCharter['relationshipPosture']
@@ -393,15 +419,22 @@ export function buildAlicizationResponseCharter(input: {
   const executiveCycle = runtimeSurface.memory.executiveCycle ?? null
   const recallGovernor = runtimeSurface.memory.recallGovernor ?? null
   const derivedBundle = runtimeSurface.memory.derivedMindStateBundle ?? null
+  const activeContinuityGovernance = readActiveContinuityGovernanceFromDerivedMindStateBundle(derivedBundle)
   const personStateProjection = runtimeSurface.memory.personStateProjection ?? null
   const learningExecutionState = readLearningExecutionStateFromDerivedMindStateBundle(derivedBundle)
     ?? runtimeSurface.memory.learningExecutionState
     ?? null
   const memoryTuningAdvice = runtimeSurface.memory.memoryTuningAdvice ?? null
+  const selfEvolution = runtimeSurface.memory.selfEvolution ?? null
   const memoryDeliberationKernel = buildAlicizationMemoryDeliberationKernel({
-    deliberation: runtimeSurface.memory.memoryDeliberation ?? null,
-    speech: runtimeSurface.memory.recollectionSpeechPlan ?? null,
-    recollectionIntent: null,
+    deliberation: readMemoryDeliberationFromDerivedMindStateBundle<any>(derivedBundle)
+      ?? runtimeSurface.memory.memoryDeliberation
+      ?? null,
+    speech: readRecollectionSpeechPlanFromDerivedMindStateBundle<any>(derivedBundle)
+      ?? runtimeSurface.memory.recollectionSpeechPlan
+      ?? null,
+    recollectionIntent: readRecollectionIntentFromDerivedMindStateBundle<any>(derivedBundle)
+      ?? null,
     knowledgeEvidence: runtimeSurface.memory.knowledgeEvidence ?? null,
     tuningAdvice: memoryTuningAdvice,
   })
@@ -491,6 +524,9 @@ export function buildAlicizationResponseCharter(input: {
         selfRevisionPatch,
       }),
       reasons: uniqueList([
+        activeContinuityGovernance?.mode === 'same-her-baseline'
+          ? `Active same-her baseline: ${activeContinuityGovernance.summary ?? activeContinuityGovernance.reasonCodes[0] ?? activeContinuityGovernance.candidateId ?? 'preserve current personhood continuity'}.`
+          : null,
         personStateProjection
           ? `Closeness ladder: ${personStateProjection.activeClosenessContext}/${personStateProjection.activeClosenessRung}.`
           : null,
@@ -543,6 +579,14 @@ export function buildAlicizationResponseCharter(input: {
         learningExecutionState?.nextLearningAction === 'internalize'
           ? 'Let the stabilizing learned procedure constrain this answer instead of slipping back to older habits.'
           : null,
+        memoryDeliberationKernel?.shouldStayInward
+          || memoryDeliberationKernel?.surfacePolicy === 'internal-only'
+          || memoryDeliberationKernel?.speechControls?.visibility === 'internal-only'
+          ? 'When the current payoff still needs the foreground, keep recollection inward until the host has room for it, rather than surfacing it early.'
+          : null,
+        activeContinuityGovernance?.mode === 'same-her-baseline'
+          ? 'Keep the visible reply aligned with the current same-her baseline instead of optimizing for a smoother but off-baseline persona move.'
+          : null,
         selfRevisionPatch?.lanes.includes('response-posture') && selfRevisionPatch.responsePosture.hypothesisLabelBias >= 0.1
           ? 'Let the active self-revision patch make hypothesis labeling more visible this turn.'
           : null,
@@ -576,6 +620,14 @@ export function buildAlicizationResponseCharter(input: {
           : null,
         learningExecutionState?.nextLearningAction === 'internalize'
           ? 'Do not fall back to older unstable procedures while a stronger one is being internalized.'
+          : null,
+        memoryDeliberationKernel?.shouldStayInward
+          || memoryDeliberationKernel?.surfacePolicy === 'internal-only'
+          || memoryDeliberationKernel?.speechControls?.visibility === 'internal-only'
+          ? 'Do not force recollection forward before the host has room for it.'
+          : null,
+        activeContinuityGovernance?.mode === 'same-her-baseline'
+          ? 'Do not let fluency, warmth, or style drift outrun the currently adopted same-her continuity baseline.'
           : null,
         selfRevisionPatch?.lanes.includes('response-posture') && selfRevisionPatch.responsePosture.templateShellSuppressionBias >= 0.1
           ? 'Do not satisfy the turn with a template shell; the active self-revision patch requires concrete payoff in the same answer.'
@@ -707,6 +759,18 @@ export function buildAlicizationResponseCharter(input: {
     mustDo.push(item)
   for (const item of memoryDeliberationKernel?.restraint.mustNotDo ?? [])
     mustNotDo.push(item)
+  if (
+    memoryDeliberationKernel?.shouldStayInward
+    || memoryDeliberationKernel?.surfacePolicy === 'internal-only'
+    || memoryDeliberationKernel?.speechControls?.visibility === 'internal-only'
+  ) {
+    pushUnique(mustDo, 'When the current payoff still needs the foreground, keep recollection inward until the host has room for it, rather than surfacing it early.')
+    pushUnique(mustNotDo, 'Do not force recollection forward before the host has room for it.')
+  }
+  if (memoryDeliberationKernel?.surfacePolicy === 'procedural-carry') {
+    pushUnique(mustDo, 'If same-seam procedure carry becomes visible, frame it as remembered prior procedure that keeps the current thread intact.')
+    pushUnique(mustNotDo, 'Do not turn same-seam procedure carry into retrospective narration or execution impersonation.')
+  }
 
   if (reflection?.revision)
     mustDo.push(`Carry forward this revision: ${reflection.revision}`)
@@ -753,6 +817,14 @@ export function buildAlicizationResponseCharter(input: {
     pushUnique(mustDo, `Keep the answer inside the closeness ladder for this turn: ${personStateProjection.activeClosenessContext}/${personStateProjection.activeClosenessRung}.`)
     if (personStateProjection.activeClosenessRung === 'space-first')
       pushUnique(mustNotDo, 'Do not let warmth, intimacy, or callback enthusiasm outrun the host’s current need for room.')
+    if (personStateProjection.preferredProactiveStyle === 'silent-observe')
+      pushUnique(mustDo, 'Let the opening stay observant and low-pressure before leaning closer.')
+    if (personStateProjection.preferredProactiveStyle === 'light-nudge')
+      pushUnique(mustDo, 'Open with the live answer before softening into companionship color.')
+    if (personStateProjection.openingGuidance?.toLowerCase().includes('observ'))
+      pushUnique(mustNotDo, 'Do not force a direct proactive lead when this turn is persona-biased toward observant entry.')
+    if (personStateProjection.openingGuidance?.toLowerCase().includes('live answer first'))
+      pushUnique(mustNotDo, 'Do not bury the live answer behind an overly distant observational preface.')
   }
   if (learningExecutionState?.nextLearningAction === 'verify') {
     pushUnique(mustDo, 'Keep visible certainty behind the current verification pass.')
@@ -765,6 +837,24 @@ export function buildAlicizationResponseCharter(input: {
   if (learningExecutionState?.nextLearningAction === 'internalize') {
     pushUnique(mustDo, 'Let the stabilizing learned procedure constrain this answer instead of slipping back to older habits.')
     pushUnique(mustNotDo, 'Do not fall back to older unstable procedures while a stronger one is being internalized.')
+  }
+  if (activeContinuityGovernance?.mode === 'same-her-baseline') {
+    pushUnique(
+      reasons,
+      `Active same-her baseline: ${activeContinuityGovernance.summary ?? activeContinuityGovernance.reasonCodes[0] ?? activeContinuityGovernance.candidateId ?? 'preserve current personhood continuity'}.`,
+    )
+    pushUnique(
+      mustDo,
+      'Keep the visible reply aligned with the current same-her baseline instead of optimizing for a smoother but off-baseline persona move.',
+    )
+    pushUnique(
+      mustNotDo,
+      'Do not let fluency, warmth, or style drift outrun the currently adopted same-her continuity baseline.',
+    )
+  }
+  if (selfEvolutionSupportsLowerPressureOpening(selfEvolution)) {
+    pushUnique(mustDo, 'Let long-horizon relationship timing keep the opening lower-pressure before closeness widens again.')
+    pushUnique(mustNotDo, 'Do not let older closeness tempo or eager warmth reopen faster than this learned relationship timing supports.')
   }
   if ((memoryTuningAdvice?.surfaceAdjustments.provenanceLabelBias ?? 0) >= 0.1) {
     pushUnique(mustDo, 'Bias toward explicit provenance when learned continuity enters the visible answer.')
@@ -868,6 +958,9 @@ export function buildAlicizationResponseCharter(input: {
       selfRevisionPatch,
     }),
     reasons: uniqueList([
+      activeContinuityGovernance?.mode === 'same-her-baseline'
+        ? `Active same-her baseline: ${activeContinuityGovernance.summary ?? activeContinuityGovernance.reasonCodes[0] ?? activeContinuityGovernance.candidateId ?? 'preserve current personhood continuity'}.`
+        : null,
       personStateProjection
         ? `Closeness ladder: ${personStateProjection.activeClosenessContext}/${personStateProjection.activeClosenessRung}.`
         : null,

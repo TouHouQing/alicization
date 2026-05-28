@@ -10,6 +10,7 @@ import type { Cubism4InternalModel } from 'pixi-live2d-display/cubism4'
 
 import type { Live2DActionPulseBinding, PixiLive2DInternalModel } from '../../../composables/live2d'
 import type { Live2DRuntimeCapabilitySnapshot } from '../../../composables/live2d'
+import type { Live2DExecutionDiagnosticsSnapshot } from '../../../composables/live2d'
 
 import { listenBeatSyncBeatSignal } from '@proj-alicization/stage-shared/beat-sync'
 import { useTheme } from '@proj-alicization/ui'
@@ -23,6 +24,8 @@ import { computed, onBeforeMount, onErrorCaptured, onMounted, onUnmounted, ref, 
 
 import {
   buildLive2DRuntimeCapabilitySnapshot,
+  buildLive2DExecutionDiagnosticsSnapshot,
+  createIdleLive2DExecutionDiagnosticsSnapshot,
   createBeatSyncController,
   resolveLive2DActionPulseBinding,
   resolveLive2DExpressionSelection,
@@ -248,6 +251,9 @@ let lastMotionRequestKey = ''
 let inFlightMotionRequestKey = ''
 let expressionRequestId = 0
 let lastExpressionSelectionKey = '__default__'
+const live2dExecutionDiagnostics = ref<Live2DExecutionDiagnosticsSnapshot>(
+  createIdleLive2DExecutionDiagnosticsSnapshot(),
+)
 const lastAppliedActionPulseRevision = ref(0)
 const preferredIdleMotionSelection = computed<MotionSelection | null>(() => {
   if (props.idleMotionPreference) {
@@ -346,6 +352,15 @@ function resolveDesiredExpressionSelection() {
   })
 }
 
+function syncLive2DExecutionDiagnostics(selection?: ReturnType<typeof resolveDesiredExpressionSelection> | null) {
+  live2dExecutionDiagnostics.value = buildLive2DExecutionDiagnosticsSnapshot({
+    currentMotion: localCurrentMotion.value,
+    performanceState: live2dPerformanceState.value,
+    preferredExpressionAliases: props.preferredExpressionAliases,
+    selection: selection ?? null,
+  })
+}
+
 const applyResolvedExpression = async (options?: { force?: boolean }) => {
   const activeModel = model.value
   const expressionManager = getInternalModel()?.motionManager?.expressionManager
@@ -364,6 +379,7 @@ const applyResolvedExpression = async (options?: { force?: boolean }) => {
       return
 
     lastExpressionSelectionKey = '__default__'
+    syncLive2DExecutionDiagnostics(null)
     logLive2DModelDebug('expression-reset', {
       emotion: live2dPerformanceState.value?.performance.baseEmotion ?? 'neutral',
     })
@@ -375,8 +391,10 @@ const applyResolvedExpression = async (options?: { force?: boolean }) => {
     if (requestId !== expressionRequestId)
       return
 
-    if (applied)
+    if (applied) {
       lastExpressionSelectionKey = desiredSelection.name
+      syncLive2DExecutionDiagnostics(desiredSelection)
+    }
 
     logLive2DModelDebug('expression-applied', {
       applied,
@@ -906,6 +924,9 @@ watch([themeColorsHueDynamic, live2dShadowEnabled], ([dynamic, shadowEnabled]) =
 }, { immediate: true })
 
 watch(currentMotion, value => setMotion(value.group, value.index))
+watch(currentMotion, () => {
+  syncLive2DExecutionDiagnostics(resolveDesiredExpressionSelection())
+}, { deep: true })
 watch(
   () => live2dPerformanceState.value?.actionPulse.revision ?? 0,
   async (revision) => {
@@ -1054,6 +1075,7 @@ function listMotionGroups() {
 }
 
 defineExpose({
+  executionDiagnostics: () => live2dExecutionDiagnostics.value,
   characterFrame,
   dragAnchorClientPoint,
   hitTestClientPoint,

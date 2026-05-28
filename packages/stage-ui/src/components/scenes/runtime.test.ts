@@ -46,6 +46,11 @@ describe('live2d embodiment drivers', () => {
         emotion: 'happy' as const,
         facialCue: 'smile',
         intensity: 0.8,
+        holdMs: 360,
+        preUtteranceCue: 'steady-inhale',
+        postUtteranceCue: 'soft-release',
+        source: 'prosody-authority' as const,
+        confidence: 0.94,
       }],
     },
     motionPlan: {
@@ -55,6 +60,8 @@ describe('live2d embodiment drivers', () => {
         actionCue: 'wave',
         intensity: 0.7,
         holdMs: 320,
+        source: 'timeline-projection' as const,
+        confidence: 0.88,
       }],
       attentionMode: 'attentive' as const,
     },
@@ -72,6 +79,69 @@ describe('live2d embodiment drivers', () => {
       emotion: 'happy',
       facialCue: 'smile',
       intensity: 0.8,
+      holdMs: 360,
+      source: 'prosody-authority',
+      confidence: 0.94,
+    }))
+  })
+
+  it('routes pre and post utterance timing through the live2d face driver', () => {
+    expect(resolveLive2DFaceDriverState({
+      script,
+      segmentId: 'segment-1',
+      idleCuePhase: 'pre-utterance',
+      playbackPhase: 'idle',
+    })).toEqual(expect.objectContaining({
+      facialCue: 'steady-inhale',
+      preUtteranceCue: 'soft-breath',
+      postUtteranceCue: 'settle-smile',
+    }))
+
+    expect(resolveLive2DFaceDriverState({
+      script,
+      segmentId: 'segment-1',
+      idleCuePhase: 'post-utterance',
+      playbackPhase: 'idle',
+    })).toEqual(expect.objectContaining({
+      facialCue: 'soft-release',
+      preUtteranceCue: 'soft-breath',
+      postUtteranceCue: 'settle-smile',
+    }))
+  })
+
+  it('defaults idle face timing to the pre-utterance cue when no idle cue phase is provided', () => {
+    expect(resolveLive2DFaceDriverState({
+      script,
+      segmentId: 'segment-1',
+      playbackPhase: 'idle',
+    })).toEqual(expect.objectContaining({
+      facialCue: 'steady-inhale',
+      preUtteranceCue: 'soft-breath',
+      postUtteranceCue: 'settle-smile',
+    }))
+  })
+
+  it('prefers segment-level idle face timing cues when they are available', () => {
+    expect(resolveLive2DFaceDriverState({
+      script,
+      segmentId: 'segment-1',
+      idleCuePhase: 'pre-utterance',
+      playbackPhase: 'idle',
+    })).toEqual(expect.objectContaining({
+      facialCue: 'steady-inhale',
+      preUtteranceCue: 'soft-breath',
+      postUtteranceCue: 'settle-smile',
+    }))
+
+    expect(resolveLive2DFaceDriverState({
+      script,
+      segmentId: 'segment-1',
+      idleCuePhase: 'post-utterance',
+      playbackPhase: 'idle',
+    })).toEqual(expect.objectContaining({
+      facialCue: 'soft-release',
+      preUtteranceCue: 'soft-breath',
+      postUtteranceCue: 'settle-smile',
     }))
   })
 
@@ -93,6 +163,8 @@ describe('live2d embodiment drivers', () => {
       idleBase: 'idle_settle',
       actionCue: 'wave',
       holdMs: 320,
+      source: 'timeline-projection',
+      confidence: 0.88,
     }))
   })
 })

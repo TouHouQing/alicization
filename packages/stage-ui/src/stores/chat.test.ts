@@ -1306,7 +1306,16 @@ describe('chat orchestrator', () => {
         type: 'text-delta',
         text: '{"thought":"obligation=answer; truth=uncertain; focus=current-user-turn; move=answer-via-main-gateway; tone=direct","emotion":"neutral","reply":"通过主进程网关回复。"}',
       })
-      await options.onStreamEvent?.({ type: 'finish' })
+      await options.onStreamEvent?.({
+        type: 'finish',
+        visibleReplyExecution: {
+          mode: 'provider-stream',
+          expectedVisibleReplyAuthority: 'llm-second-pass-rewrite',
+          actualVisibleReplyAuthority: 'llm-mind',
+          providerMindExecuted: true,
+          reason: 'provider-stream',
+        },
+      })
     })
     installAlicizationBridge({
       streamChat: bridgeStreamChatMock,
@@ -1326,6 +1335,10 @@ describe('chat orchestrator', () => {
     expect(streamMock).not.toBeCalled()
     const payload = appendConversationTurnMock.mock.calls.at(-1)?.[0]
     expect(String(payload?.assistantText ?? '')).toContain('主进程网关')
+    expect(payload?.visibleReplyExecution).toEqual(expect.objectContaining({
+      actualVisibleReplyAuthority: 'llm-mind',
+      providerMindExecuted: true,
+    }))
   })
 
   it('persists runtime digital life spine metadata into the final assistant turn', async () => {

@@ -17,6 +17,23 @@ describe('alicization memory decision trace', () => {
             version: 'derived-mind-state-bundle-v1',
             source: 'main-runtime',
             producedAt: 100,
+            activeSelfRevision: {
+              patchId: 'patch-runtime-1',
+              patchDecisionTraceId: 'trace-runtime-1',
+              lanes: ['response-posture', 'rollback-validation'],
+              reasonCodes: ['domain:self-model', 'rollback-validation-required'],
+              summary: 'Keep the revised self-line in verify-first posture.',
+            },
+            activeContinuityGovernance: {
+              source: 'active-self-evolution-version',
+              mode: 'same-her-baseline',
+              candidateId: 'candidate-runtime-1',
+              patchId: 'patch-runtime-1',
+              decisionTraceId: 'trace-runtime-1',
+              lanes: ['response-posture', 'rollback-validation'],
+              reasonCodes: ['domain:self-model', 'rollback-validation-required'],
+              summary: 'Keep the revised self-line in verify-first posture.',
+            },
             summary: 'bundle summary',
           },
           memoryStageReplay: {
@@ -137,6 +154,119 @@ describe('alicization memory decision trace', () => {
     expect(records[0]?.learningExecuted).toEqual(expect.objectContaining({
       action: 'verify',
       domain: 'relationship',
+    }))
+    expect(records[0]?.derivedMindStateBundle).toEqual(expect.objectContaining({
+      activeSelfRevision: expect.objectContaining({
+        patchId: 'patch-runtime-1',
+        patchDecisionTraceId: 'trace-runtime-1',
+        lanes: expect.arrayContaining(['response-posture', 'rollback-validation']),
+      }),
+      activeContinuityGovernance: expect.objectContaining({
+        mode: 'same-her-baseline',
+        candidateId: 'candidate-runtime-1',
+        patchId: 'patch-runtime-1',
+      }),
+    }))
+  })
+
+  it('projects embodied authority summaries from dialogue-emitted telemetry for replay consumers', () => {
+    const records = buildAlicizationMemoryDecisionTraceRecords([
+      {
+        id: 'evt-dialogue-1',
+        decisionTraceId: 'mind:test:embodiment-authority',
+        turnId: 'turn-embodiment-authority-1',
+        sessionId: 'session-embodiment-authority',
+        origin: 'user-turn',
+        kind: 'dialogue-emitted',
+        payload: {
+          emotion: 'thinking',
+          digitalLifeSpine: {
+            runtime: {
+              preferredPresence: 'attentive',
+            },
+          },
+          performance: {
+            baseEmotion: 'thinking',
+            facialCue: 'focused',
+            actionCue: 'inspect_follow',
+            delivery: 'calm',
+            emphasis: 1,
+          },
+          digitalLife: {
+            emotion: 'thinking',
+            mode: 'acting',
+            performance: {
+              baseEmotion: 'thinking',
+              facialCue: 'focused',
+              actionCue: 'inspect_follow',
+            },
+            face: {
+              emotion: 'thinking',
+              facialCue: 'focused',
+            },
+            action: {
+              actionCue: 'inspect_follow',
+              actionMode: 'pulse',
+            },
+          },
+          embodimentScript: {
+            rendererTarget: 'vrm',
+            state: {
+              baseEmotion: 'thinking',
+              delivery: 'calm',
+              emphasis: 1,
+            },
+            speechPlan: {
+              segmentCount: 2,
+              interruptPolicy: 'soft-settle',
+            },
+          },
+          visibleReply: {
+            expectedAuthority: 'llm-mind',
+          },
+        },
+        createdAt: 200,
+      } as any,
+    ])
+
+    expect(records).toHaveLength(1)
+    expect(records[0]?.embodimentAuthority).toEqual(expect.objectContaining({
+      emotion: 'thinking',
+      performance: expect.objectContaining({
+        baseEmotion: 'thinking',
+        facialCue: 'focused',
+        actionCue: 'inspect_follow',
+        delivery: 'calm',
+        emphasis: 1,
+      }),
+      digitalLife: expect.objectContaining({
+        emotion: 'thinking',
+        mode: 'acting',
+        preferredPresence: 'attentive',
+        face: expect.objectContaining({
+          emotion: 'thinking',
+          facialCue: 'focused',
+        }),
+        action: expect.objectContaining({
+          actionCue: 'inspect_follow',
+          actionMode: 'pulse',
+        }),
+      }),
+      embodimentScript: expect.objectContaining({
+        rendererTarget: 'vrm',
+        state: expect.objectContaining({
+          baseEmotion: 'thinking',
+          delivery: 'calm',
+          emphasis: 1,
+        }),
+        speechPlan: expect.objectContaining({
+          segmentCount: 2,
+          interruptPolicy: 'soft-settle',
+        }),
+      }),
+      visibleReply: expect.objectContaining({
+        expectedAuthority: 'llm-mind',
+      }),
     }))
   })
 })

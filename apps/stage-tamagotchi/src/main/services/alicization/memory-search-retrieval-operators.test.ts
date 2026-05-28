@@ -4,8 +4,77 @@ import {
   resolveMemorySearchPrelude,
   retrieveMemorySearchCandidates,
 } from './memory-search-retrieval-operators'
+import { deriveSceneTriggeredRecollectionIntent } from './runtime-organic-memory-search-prelude'
 
 describe('memory-search-retrieval-operators', () => {
+  it('derives heuristic recollection intent from session mirror runtime continuity carry', async () => {
+    let plannedInput: any = null
+    const prelude = await resolveMemorySearchPrelude({
+      access: {
+        getOrganicMemorySnapshot: async () => ({
+          hostAttitude: 'warm',
+          coreIncarnation: '',
+          activeThoughts: [],
+        }),
+        getLatestRelationshipDynamics: async () => null,
+        retrieveMemoryFacts: async () => [],
+        recallSubconsciousFragmentsWithGovernor: async () => [],
+        recallEpisodicEventsWithGovernor: async () => [],
+        buildHostPersonModel: async () => null,
+      },
+      policy: {
+        planRecollectionIntent: vi.fn(async (input) => {
+          plannedInput = input
+          return input.heuristicIntent
+        }),
+        deriveSceneTriggeredRecollectionIntent,
+        isPersonaResidueMemoryText: () => false,
+      },
+      recallSeed: [
+        'continue the repair without losing the current seam',
+        'mirror_runtime_continuity: dominant=dialogue | phase=dialogue | handoff=active-dialogue | from=symbiotic-vision | to=companion-presence | scenario=coding | reason=runtime seam repair after the grounded turn failed',
+      ].join('\n'),
+      recallGovernor: {
+        allowRecalledFragments: true,
+      } as any,
+    })
+
+    expect(plannedInput?.heuristicIntent).toEqual(expect.objectContaining({
+      mode: 'execution-procedure',
+      temporalFocus: 'experience-matched',
+      searchEpisodes: true,
+      searchConversations: false,
+      searchProceduralExperience: true,
+      queryHints: expect.arrayContaining([
+        'runtime seam repair after the grounded turn failed',
+        'coding',
+      ]),
+      recollectionAgenda: expect.objectContaining({
+        candidateTimeScopes: expect.arrayContaining([
+          expect.objectContaining({ scope: 'experience-matched' }),
+        ]),
+        candidateEraFacets: expect.arrayContaining([
+          expect.objectContaining({ facet: 'task-era' }),
+        ]),
+        candidateProcedureLines: expect.arrayContaining([
+          'runtime seam repair after the grounded turn failed',
+        ]),
+      }),
+    }))
+    expect(prelude.recollectionIntent).toEqual(expect.objectContaining({
+      mode: 'execution-procedure',
+      searchProceduralExperience: true,
+    }))
+    expect(prelude.activeRecollectionIntent).toEqual(expect.objectContaining({
+      mode: 'execution-procedure',
+      recollectionAgenda: expect.objectContaining({
+        candidateProcedureLines: expect.arrayContaining([
+          'runtime seam repair after the grounded turn failed',
+        ]),
+      }),
+    }))
+  })
+
   it('runs prelude resolution before explicit candidate retrieval operators', async () => {
     const prelude = await resolveMemorySearchPrelude({
       access: {

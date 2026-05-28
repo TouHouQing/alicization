@@ -6,6 +6,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   alicizationDialogueResponded,
+  electronAlicizationLlmSyncConfig,
+  electronAlicizationSetPerformanceManifest,
   electronAlicizationReportProactiveFeedback,
   electronAlicizationSubconsciousForceTick,
 } from '../../../shared/eventa'
@@ -15,6 +17,7 @@ const sandboxDirs: string[] = []
 const contextEmitMock = vi.fn()
 const metaStore = new Map<string, string>()
 const streamTextMock = vi.fn()
+const generateTextMock = vi.fn()
 let sensoryCpuUsage = 12
 let foregroundWindowSample: { appName?: string, processName?: string, title?: string } | undefined
 
@@ -57,6 +60,7 @@ const dbStub = {
   countSubconsciousFragments: vi.fn().mockResolvedValue(0),
   appendRelationshipDynamics: vi.fn().mockResolvedValue(undefined),
   getLatestRelationshipDynamics: vi.fn().mockResolvedValue(null),
+  appendEpisodicEvents: vi.fn().mockResolvedValue(undefined),
   insertScheduledTask: vi.fn().mockResolvedValue(undefined),
   claimDueScheduledTasks: vi.fn().mockResolvedValue([]),
   requeueScheduledTask: vi.fn().mockResolvedValue(undefined),
@@ -200,6 +204,10 @@ vi.mock('@xsai/stream-text', () => ({
   streamText: (...args: any[]) => streamTextMock(...args),
 }))
 
+vi.mock('@xsai/generate-text', () => ({
+  generateText: (...args: any[]) => generateTextMock(...args),
+}))
+
 const { setupAlicizationRuntime } = await import('./runtime')
 
 async function createSandboxPath() {
@@ -221,8 +229,26 @@ describe('epoch3 proactive closure e2e', () => {
     contextEmitMock.mockReset()
     metaStore.clear()
     streamTextMock.mockReset()
+    generateTextMock.mockReset()
     sensoryCpuUsage = 12
     foregroundWindowSample = undefined
+    generateTextMock.mockImplementation(async (options: any) => {
+      let text = ''
+      let finishReason = 'stop'
+      await streamTextMock({
+        ...options,
+        onEvent: async (event: any) => {
+          if (event?.type === 'text-delta')
+            text += event.text ?? ''
+          if (event?.type === 'finish' && typeof event.finishReason === 'string')
+            finishReason = event.finishReason
+        },
+      })
+      return {
+        text,
+        finishReason,
+      }
+    })
   })
 
   afterEach(async () => {
@@ -240,10 +266,39 @@ describe('epoch3 proactive closure e2e', () => {
       processName: 'Cursor',
       title: 'main.ts - error',
     }
+    streamTextMock.mockImplementation(async ({ messages, onEvent }: { messages?: Array<{ role?: string, content?: unknown }>, onEvent?: (event: any) => Promise<void> | void }) => {
+      const systemText = Array.isArray(messages)
+        ? messages
+            .filter(message => message.role === 'system')
+            .map(message => String(message.content ?? ''))
+            .join('\n\n')
+        : ''
+      if (systemText.includes('[SYSTEM OVERRIDE: 内部动机触发]')) {
+        await onEvent?.({
+          type: 'text-delta',
+          text: JSON.stringify({
+            thought: 'coding proactive nudge should be short and grounded',
+            emotion: 'thinking',
+            reply: '这个错误先别放过去，我轻轻提醒你看一眼。',
+            performance: {
+              baseEmotion: 'thinking',
+              facialCue: null,
+              actionCue: null,
+              delivery: 'calm',
+              emphasis: 0,
+            },
+          }),
+        })
+        await onEvent?.({ type: 'finish', finishReason: 'stop' })
+        return
+      }
+      await onEvent?.({ type: 'text-delta', text: '{}' })
+      await onEvent?.({ type: 'finish', finishReason: 'stop' })
+    })
     metaStore.set('subconscious_state_v1', JSON.stringify({
-      boredom: 97,
-      loneliness: 85,
-      fatigue: 18,
+      boredom: 96,
+      loneliness: 84,
+      fatigue: 24,
       lastTickAt: Date.now() - 60_000,
       lastInteractionAt: Date.now() - 60_000,
       lastSavedAt: Date.now() - 60_000,
@@ -254,16 +309,125 @@ describe('epoch3 proactive closure e2e', () => {
       userDataPathOverride: sandboxPath,
     })
 
+    const syncLlmConfig = invokeHandlers.get(electronAlicizationLlmSyncConfig)
+    const setPerformanceManifest = invokeHandlers.get(electronAlicizationSetPerformanceManifest)
     const forceTick = invokeHandlers.get(electronAlicizationSubconsciousForceTick)
     const reportFeedback = invokeHandlers.get(electronAlicizationReportProactiveFeedback)
+    expect(syncLlmConfig).toBeTypeOf('function')
+    expect(setPerformanceManifest).toBeTypeOf('function')
     expect(forceTick).toBeTypeOf('function')
     expect(reportFeedback).toBeTypeOf('function')
+
+    await syncLlmConfig!({
+      activeProviderId: 'openai',
+      activeModelId: 'gpt-4o-mini',
+      providerCredentials: {
+        openai: {
+          apiKey: 'test-key',
+          baseUrl: 'https://api.openai.com/v1',
+        },
+      },
+    })
+    await setPerformanceManifest!({
+      cardId: 'default',
+      manifest: {
+        renderer: 'live2d',
+        supportedBaseEmotions: ['neutral', 'thinking', 'concerned'],
+        supportedFacialCues: [
+          { key: 'focus', label: 'Focus', description: 'focused face', source: 'preset', affectsMouth: false },
+          { key: 'relaxed', label: 'Relaxed', description: 'relaxed face', source: 'preset', affectsMouth: false },
+        ],
+        supportedActions: [
+          { key: 'observe_focus', label: 'Observe', description: 'observe focus', source: 'live2d-motion' },
+          { key: 'pout_confused', label: 'Pout', description: 'pout confused', source: 'live2d-motion' },
+          { key: 'idle_settle', label: 'Idle', description: 'idle settle', source: 'live2d-motion' },
+        ],
+        supportsLookAt: true,
+        supportsVisemeLipSync: true,
+        supportsMicroDynamics: true,
+        embodimentHints: null,
+      },
+    })
 
     const firstTick = await forceTick!({ cardId: 'default' })
     const proactiveEvent = getDialogueRespondedEvents().find(event => event.origin === 'subconscious-proactive')
     expect(firstTick.proactiveTriggered).toContain('default')
     expect(proactiveEvent?.turnId).toBeTruthy()
+    expect(proactiveEvent?.structured.embodiment).toEqual(expect.objectContaining({
+      emotion: 'thinking',
+      performance: expect.objectContaining({
+        baseEmotion: 'thinking',
+        delivery: 'calm',
+      }),
+      variationToken: expect.any(String),
+    }))
+    expect(proactiveEvent?.structured.speechTimeline).toEqual(expect.objectContaining({
+      version: 'speech-timeline-v1',
+      segments: expect.arrayContaining([
+        expect.objectContaining({
+          text: expect.stringContaining('这个错误先别放过去'),
+          emotion: 'thinking',
+          facialCue: expect.any(String),
+          actionCue: expect.any(String),
+          prosodyWeight: expect.any(Number),
+        }),
+      ]),
+    }))
+    expect(proactiveEvent?.structured.digitalLife).toEqual(expect.objectContaining({
+      version: 'digital-life-v1',
+      emotion: 'thinking',
+      mode: expect.any(String),
+      frames: expect.arrayContaining([
+        expect.objectContaining({
+          text: expect.stringContaining('这个错误先别放过去'),
+          face: expect.objectContaining({
+            emotion: 'thinking',
+            facialCue: expect.any(String),
+          }),
+          action: expect.objectContaining({
+            actionCue: expect.any(String),
+          }),
+        }),
+      ]),
+    }))
+    expect(proactiveEvent?.structured.embodimentScript).toEqual(expect.objectContaining({
+      version: 'embodiment-script-v1',
+      rendererTarget: expect.any(String),
+      speechPlan: expect.objectContaining({
+        segments: expect.arrayContaining([
+          expect.objectContaining({
+            text: expect.stringContaining('这个错误先别放过去'),
+          }),
+        ]),
+      }),
+      facePlan: expect.objectContaining({
+        speakingCues: expect.arrayContaining([
+          expect.objectContaining({
+            source: 'prosody-authority',
+            confidence: expect.any(Number),
+          }),
+        ]),
+      }),
+      motionPlan: expect.objectContaining({
+        actionBursts: expect.arrayContaining([
+          expect.objectContaining({
+            source: 'timeline-projection',
+            confidence: expect.any(Number),
+          }),
+        ]),
+      }),
+      lipsyncPlan: expect.objectContaining({
+        mode: 'energy-phoneme-hybrid',
+        visemeHints: expect.arrayContaining([
+          expect.objectContaining({
+            source: 'prosody-authority',
+            confidence: expect.any(Number),
+          }),
+        ]),
+      }),
+    }))
 
+    dbStub.appendEpisodicEvents.mockClear()
     await reportFeedback!({
       cardId: 'default',
       turnId: proactiveEvent!.turnId,
@@ -271,6 +435,7 @@ describe('epoch3 proactive closure e2e', () => {
     })
 
     const secondTick = await forceTick!({ cardId: 'default' })
+    const proactiveLoopState = JSON.parse(metaStore.get('proactive_loop_state_v1') ?? '{}')
     const policyAudit = dbStub.appendAuditLog.mock.calls
       .map(call => call[0])
       .find((entry: any) => entry.action === 'proactive-policy-evaluated')
@@ -280,6 +445,8 @@ describe('epoch3 proactive closure e2e', () => {
 
     expect(secondTick.proactiveTriggered).toHaveLength(0)
     expect(secondTick.suppressedCards).toContain('default')
+    expect(proactiveLoopState.scenarioBias?.coding).toBe(0.15)
+    expect(proactiveLoopState.globalCooldownUntil).toBeGreaterThan(Date.now())
     expect(JSON.parse(metaStore.get('proactive_loop_state_v1') ?? '{}')).toEqual(expect.objectContaining({
       scenarioBias: expect.objectContaining({
         coding: 0.15,

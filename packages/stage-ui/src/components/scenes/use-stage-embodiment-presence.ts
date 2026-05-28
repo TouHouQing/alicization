@@ -1,10 +1,9 @@
-import type { StageEmbodimentSpeechStyleProfile } from '@proj-alicization/stage-shared'
+import type { AlicizationEmbodimentScriptV1, StageEmbodimentSpeechStyleProfile } from '@proj-alicization/stage-shared'
 import type { ComputedRef, Ref } from 'vue'
 
 import type { EmotionPayload } from '../../constants/emotions'
 import type {
   AlicizationDialogueEmbodimentEnvelope,
-  AlicizationEmbodimentScriptV1,
   AlicizationDialoguePerformancePayload,
   AlicizationDialogueRespondedPayload,
   AlicizationDialogueSpeechTimeline,
@@ -115,6 +114,50 @@ export function useStageEmbodimentPresence(options: UseStageEmbodimentPresenceOp
     return plan.performance
   }
 
+  function buildFallbackEmbodimentScript(
+    payload: AlicizationDialogueRespondedPayload,
+    authoritativePerformance?: AlicizationDialoguePerformancePayload,
+  ) {
+    const rendererTarget = options.stageModelRenderer.value
+    if (rendererTarget !== 'live2d' && rendererTarget !== 'vrm')
+      return null
+
+    const performance = authoritativePerformance ?? payload.structured.performance
+    const embodiment = payload.structured.embodiment
+      ? {
+          ...payload.structured.embodiment,
+          emotion: performance.baseEmotion,
+          performance,
+        }
+      : null
+
+    return buildAlicizationEmbodimentScript({
+      seed: {
+        decisionTraceId: payload.structured.governance?.decisionTraceId ?? null,
+        turnId: payload.turnId,
+        replyText: payload.structured.reply,
+        performance,
+        embodiment,
+        speechTimeline: payload.structured.speechTimeline ?? null,
+        digitalLife: payload.structured.digitalLife ?? null,
+        digitalLifeSpine: payload.structured.digitalLifeSpine ?? null,
+      },
+      manifest: options.performanceManifest.value,
+      residentPerformance: options.visualPresenceState?.value?.residentPerformance ?? null,
+      rendererTarget,
+    })
+  }
+
+  function resolveEmbodimentScriptMetadata(
+    payload: AlicizationDialogueRespondedPayload,
+    authoritativePerformance?: AlicizationDialoguePerformancePayload,
+  ) {
+    if (payload.structured.embodimentScript)
+      return payload.structured.embodimentScript
+
+    return buildFallbackEmbodimentScript(payload, authoritativePerformance)
+  }
+
   function resolveResidentFallbackDialoguePerformance(
     performance: AlicizationDialoguePerformancePayload,
     residentPerformance: AlicizationDialoguePerformancePayload,
@@ -135,11 +178,32 @@ export function useStageEmbodimentPresence(options: UseStageEmbodimentPresenceOp
       ? resident.baseEmotion
       : candidate.baseEmotion
 
+    const visualPresenceState = options.visualPresenceState?.value
+    const shouldBiasQuietAccompanimentDialogueFallback = candidateNeutralBaseline
+      && visualPresenceState?.currentBodyState === 'accompanying'
+      && visualPresenceState?.continuityMode === 'quiet-accompaniment'
+      && Number(visualPresenceState?.quietLineMs ?? 0) >= 120_000
+      && resident.delivery === 'gentle'
+      && resident.baseEmotion === 'thinking'
+      && (
+        visualPresenceState?.privateThought?.shouldSpeak === false
+        || (
+          visualPresenceState?.residentPerformance?.stance === 'accompany'
+          && visualPresenceState?.residentPerformance?.embodiedPresence === 'attentive'
+        )
+      )
+
     return normalizeAlicizationPerformancePayload({
       baseEmotion: mergedEmotion,
       emotion: mergedEmotion,
       facialCue: candidate.facialCue ?? resident.facialCue ?? null,
-      actionCue: candidate.actionCue ?? resident.actionCue ?? null,
+      actionCue: candidate.actionCue
+        ?? (
+          shouldBiasQuietAccompanimentDialogueFallback
+            ? 'steady_focus'
+            : resident.actionCue
+        )
+        ?? null,
       delivery: candidateNeutralBaseline ? resident.delivery : candidate.delivery,
       emphasis: candidateNeutralBaseline ? resident.emphasis : candidate.emphasis,
     }, mergedEmotion)
@@ -163,29 +227,21 @@ export function useStageEmbodimentPresence(options: UseStageEmbodimentPresenceOp
       payload.watchMode,
       payload.scenario,
       payload.embodiedPresence,
+      payload.currentBodyState ?? 'none',
+      payload.continuityMode ?? 'none',
+      typeof payload.quietLineMs === 'number' ? String(Math.max(0, Math.round(payload.quietLineMs))) : '0',
       String(payload.expiresAt),
     ].join('|')
   }
 
   cleanups.push(options.dispatcher.setEmbodimentScriptBuilder((payload) => {
-    if (options.stageModelRenderer.value !== 'live2d')
-      return null
-
-    return buildAlicizationEmbodimentScript({
-      seed: {
-        decisionTraceId: payload.structured.governance?.decisionTraceId ?? null,
-        turnId: payload.turnId,
-        replyText: payload.structured.reply,
-        performance: payload.structured.performance,
-        embodiment: payload.structured.embodiment ?? null,
-        speechTimeline: payload.structured.speechTimeline ?? null,
-        digitalLife: payload.structured.digitalLife ?? null,
-        digitalLifeSpine: payload.structured.digitalLifeSpine ?? null,
-      },
-      manifest: options.performanceManifest.value,
-      residentPerformance: options.visualPresenceState?.value?.residentPerformance ?? null,
-      rendererTarget: 'live2d',
-    })
+    const variationToken = buildDialogueVariationToken(payload)
+    const plannedPerformance = resolvePlannedPerformance(
+      payload.structured.performance,
+      variationToken,
+      'dialogue',
+    )
+    return buildFallbackEmbodimentScript(payload, plannedPerformance)
   }))
 
   cleanups.push(watch(options.performanceManifest, async (manifest) => {
@@ -320,8 +376,9 @@ export function useStageEmbodimentPresence(options: UseStageEmbodimentPresenceOp
         variationToken,
       })
 
-      await options.speakFallback(reply, plannedPerformance, payload.structured.embodimentScript ? {
-        embodimentScript: payload.structured.embodimentScript,
+      const embodimentScript = resolveEmbodimentScriptMetadata(payload, plannedPerformance)
+      await options.speakFallback(reply, plannedPerformance, embodimentScript ? {
+        embodimentScript,
       } : null)
     },
   }))

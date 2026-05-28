@@ -1,5 +1,6 @@
 import type {
   AlicizationDigitalLifeSpineDigest,
+  AlicizationSelfEvolutionKernelSnapshot,
   AlicizationSensoryCacheSnapshot,
   AlicizationVisualPresenceStateSnapshot,
 } from './alicization-bridge'
@@ -8,6 +9,40 @@ import {
   deriveAlicizationDialogueMemoryCarryPolicyFromDigest,
   deriveAlicizationResidentPerformanceSnapshot,
 } from '@proj-alicization/stage-shared'
+
+interface SilentPresenceAuthorityFields {
+  continuityMode: 'ambient-covision' | 'quiet-accompaniment' | 'active-dialogue' | 'protective-watch' | 'rest-withdrawal'
+  currentBodyState: AlicizationVisualPresenceStateSnapshot['currentBodyState']
+  currentInwardPreoccupation: string | null
+  quietLineMs: number
+}
+
+type AlicizationVisualPresenceStateWithAuthority = AlicizationVisualPresenceStateSnapshot
+type AlicizationVisualPresenceStateWithRelationshipTiming = AlicizationVisualPresenceStateSnapshot & {
+  relationshipTimingBias?: {
+    relationshipDoctrine?: string | null
+    latestInflection?: string | null
+    burdenLine?: string | null
+    trustMeaning?: string | null
+    nextLearningAction?: AlicizationSelfEvolutionKernelSnapshot['nextLearningAction'] | 'hold' | null
+    evolutionMomentum?: number | null
+    learningReadiness?: number | null
+    source?: 'outcome-learning' | 'autobiographical-self' | null
+  } | null
+}
+
+function resolveRelationshipTimingNextLearningAction(
+  action: string | null | undefined,
+): 'record' | 'reflect' | 'verify' | 'revise' | 'internalize' | 'hold' | null {
+  return action === 'record'
+    || action === 'reflect'
+    || action === 'verify'
+    || action === 'revise'
+    || action === 'internalize'
+    || action === 'hold'
+    ? action
+    : null
+}
 
 function clamp01(value: number, fallback = 0) {
   if (Number.isNaN(value))
@@ -44,9 +79,14 @@ export function ensureAlicizationVisualPresenceResidentPerformance(
     ...state,
     residentPerformance: deriveAlicizationResidentPerformanceSnapshot({
       watchMode: state.watchMode,
+      currentBodyState: state.currentBodyState,
+      continuityMode: state.continuityMode,
+      currentInwardPreoccupation: state.currentInwardPreoccupation,
+      quietLineMs: state.quietLineMs,
       currentScene: state.currentScene,
       attention: state.attention,
       privateThought: state.privateThought,
+      relationshipTimingBias: (state as AlicizationVisualPresenceStateWithRelationshipTiming).relationshipTimingBias ?? null,
       captureState: state.captureState,
       updatedAt: state.updatedAt,
     }, {
@@ -105,6 +145,56 @@ function resolveVisualScenarioFromSpine(raw: unknown): NonNullable<AlicizationVi
   return raw === 'coding' || raw === 'media' || raw === 'late-night-care'
     ? raw
     : 'general'
+}
+
+function resolvePresenceAuthorityFromSpine(input: {
+  digest: AlicizationDigitalLifeSpineDigest
+  previous: AlicizationVisualPresenceStateSnapshot | null
+  shouldSpeak: boolean
+}): SilentPresenceAuthorityFields {
+  const previousAuthority = input.previous as AlicizationVisualPresenceStateWithAuthority | null
+  if (
+    input.digest.runtime.watchMode === 'recovering'
+    && !input.shouldSpeak
+  ) {
+      return {
+        currentBodyState: 'recovering' as const,
+        continuityMode: 'protective-watch' as const,
+      quietLineMs: Math.max(0, previousAuthority?.quietLineMs ?? 0),
+      currentInwardPreoccupation: sanitizeBriefText(
+        input.digest.memory?.summary
+        || input.digest.runtime.sceneSummary
+        || 'quiet recovery watch',
+        180,
+      ) || 'quiet recovery watch',
+    }
+  }
+
+  if (
+    input.digest.runtime.watchMode === 'symbiotic-vision'
+    && !input.shouldSpeak
+  ) {
+      return {
+        currentBodyState: 'accompanying' as const,
+        continuityMode: 'quiet-accompaniment' as const,
+      quietLineMs: Math.max(0, previousAuthority?.quietLineMs ?? 0),
+      currentInwardPreoccupation: sanitizeBriefText(
+        input.digest.memory?.summary
+        || input.digest.runtime.sceneSummary
+        || 'quiet companionship watch',
+        180,
+      ) || 'quiet companionship watch',
+    }
+  }
+
+  return {
+    currentBodyState: 'idle' as const,
+    continuityMode: input.digest.architecture?.dominantSystem === 'dialogue'
+      ? 'active-dialogue' as const
+      : 'ambient-covision' as const,
+    quietLineMs: Math.max(0, previousAuthority?.quietLineMs ?? 0),
+    currentInwardPreoccupation: null,
+  }
 }
 
 function resolveVisualWorkloadKindFromSpine(input: {
@@ -283,6 +373,10 @@ export function buildFallbackAlicizationVisualPresenceState(input?: {
   const summary = [target?.appName, target?.title].filter(Boolean).join(' - ')
 
   return ensureAlicizationVisualPresenceResidentPerformance({
+    currentBodyState: 'idle',
+    continuityMode: 'ambient-covision',
+    quietLineMs: 0,
+    currentInwardPreoccupation: null,
     watchMode: 'mnemonic-passive',
     currentScene: target
       ? {
@@ -349,12 +443,21 @@ export function buildAlicizationVisualPresenceStateFromSpineDigest(input: {
     : confidence
   const shouldSpeak = input.digest.proactive?.shouldSpeak === true || memoryCarryPolicy.mode === 'reflective-repair'
   const suggestedStyle = resolvePrivateThoughtStyleFromSpine(input.digest, memoryCarryPolicy)
+  const authority = resolvePresenceAuthorityFromSpine({
+    digest: input.digest,
+    previous: input.previous ?? null,
+    shouldSpeak,
+  })
 
-  return ensureAlicizationVisualPresenceResidentPerformance({
+  const nextState: AlicizationVisualPresenceStateWithAuthority & AlicizationVisualPresenceStateWithRelationshipTiming = {
     ...base,
     watchMode: resolveVisualWatchModeFromSpine(
       input.digest.runtime.watchMode ?? input.digest.continuitySignal?.watchMode,
     ),
+    currentBodyState: authority.currentBodyState,
+    continuityMode: authority.continuityMode,
+    quietLineMs: authority.quietLineMs,
+    currentInwardPreoccupation: authority.currentInwardPreoccupation,
     currentScene: {
       workloadKind: resolveVisualWorkloadKindFromSpine({
         previous: input.previous ?? null,
@@ -403,6 +506,26 @@ export function buildAlicizationVisualPresenceStateFromSpineDigest(input: {
       runtimeThreadId: input.digest.runtime.activeThreadId ?? base.privateThought?.runtimeThreadId ?? null,
       leadingGoalId: input.digest.proactive?.leadingGoalId ?? base.privateThought?.leadingGoalId ?? null,
     },
+    relationshipTimingBias: input.digest.outcomeLearning?.summary
+      || input.digest.outcomeLearning?.latestInflection
+      || input.digest.embodiment?.autobiographicalSelf?.relationshipDoctrine
+      ? {
+          relationshipDoctrine: input.digest.embodiment?.autobiographicalSelf?.relationshipDoctrine ?? input.digest.outcomeLearning?.summary ?? null,
+          latestInflection: input.digest.outcomeLearning?.latestInflection ?? null,
+          burdenLine: null,
+          trustMeaning: null,
+          nextLearningAction: resolveRelationshipTimingNextLearningAction(
+            input.digest.outcomeLearning?.nextLearningAction,
+          ),
+          evolutionMomentum: input.digest.outcomeLearning?.evolutionMomentum ?? null,
+          learningReadiness: input.digest.outcomeLearning?.learningReadiness ?? null,
+          source: 'outcome-learning',
+        }
+      : null,
     updatedAt: input.digest.runtime.updatedAt ?? currentTs,
-  })
+  }
+
+  return ensureAlicizationVisualPresenceResidentPerformance(
+    nextState as AlicizationVisualPresenceStateSnapshot,
+  )
 }

@@ -8,6 +8,14 @@ export interface AlicizationProactiveVisibleUtteranceDecision {
   reason: string
 }
 
+function hasRememberedFamiliarityRestraint(selfRevisionPatch?: AlicizationSelfRevisionStatePatch | null) {
+  if (!selfRevisionPatch)
+    return false
+
+  return (selfRevisionPatch.memoryPolicy.provenanceLabelBias ?? 0) >= 0.14
+    && (selfRevisionPatch.relationshipPosture.closenessCapBias ?? 0) >= 0.14
+}
+
 export function decideAlicizationProactiveVisibleUtterance(input: {
   hasMindAuthoredStructured: boolean
   allowDeterministicVisibleFallback?: boolean
@@ -24,15 +32,20 @@ export function decideAlicizationProactiveVisibleUtterance(input: {
       || selfRevisionPatch.validation.requiresRollbackCheck
     ),
   )
+  const selfRevisionRememberedFamiliarityRestraint = hasRememberedFamiliarityRestraint(selfRevisionPatch)
 
   if (input.hasMindAuthoredStructured) {
-    if (selfRevisionProactiveRestraint) {
+    if (selfRevisionProactiveRestraint || selfRevisionRememberedFamiliarityRestraint) {
       return {
         version: 'proactive-visible-utterance-policy-v1',
         shouldPersistVisibleUtterance: false,
         requiresMindAuthoredText: true,
         action: 'hold',
-        reason: input.reason ?? 'active-self-revision-proactive-restraint-holds-visible-utterance',
+        reason: input.reason ?? (
+          selfRevisionRememberedFamiliarityRestraint
+            ? 'active-self-revision-remembered-familiarity-restraint-holds-visible-utterance'
+            : 'active-self-revision-proactive-restraint-holds-visible-utterance'
+        ),
       }
     }
 

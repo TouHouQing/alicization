@@ -96,6 +96,7 @@ import {
 import {
   buildSessionContinuityRecallSeed,
   buildSessionMirrorRecollectionAfterthoughtSeed,
+  buildSessionMirrorRuntimeContinuitySeed,
   deriveOrganicMemoryBudgetClass,
   filterMainGatewayToolsForRoutingIntent,
   mergeUniqueRules,
@@ -252,6 +253,17 @@ interface CreateAlicizationMainChatSessionRuntimeOptions {
 
 function normalizeSessionPhases(phases: string[]) {
   return [...new Set(phases.map(phase => phase.trim()).filter(Boolean))]
+}
+
+async function readLightweightPerformanceManifest(
+  getPerformanceManifest: () => Promise<CharacterPerformanceCapabilitiesManifest | null>,
+) {
+  try {
+    return await getPerformanceManifest()
+  }
+  catch {
+    return null
+  }
 }
 
 export function createAlicizationMainChatSessionRuntime(options: CreateAlicizationMainChatSessionRuntimeOptions) {
@@ -411,6 +423,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       memoryCarryPolicy.recallSeed,
       buildSessionContinuityRecallSeed(sessionContinuitySignals ?? []),
       buildSessionMirrorRecollectionAfterthoughtSeed(previousSessionMirror),
+      buildSessionMirrorRuntimeContinuitySeed(previousSessionMirror),
     ].filter(Boolean).join('\n')
     const organicMemoryBudgetClass = deriveOrganicMemoryBudgetClass(
       prelude.perceptionAugmentation.recallGovernor,
@@ -673,7 +686,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
 
     const [performanceManifest, customDirectivesResolution, hostName, personaKernel, builtTools, executionCapabilities] = await Promise.all([
       dialogueFirstLeanRuntime
-        ? Promise.resolve(null)
+        ? readLightweightPerformanceManifest(options.getPerformanceManifest)
         : agentTurn.trackPhase('performance-manifest', async () => await options.getPerformanceManifest(), {
             cardId: payload.cardId,
           }),

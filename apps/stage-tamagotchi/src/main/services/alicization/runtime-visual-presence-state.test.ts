@@ -41,7 +41,53 @@ describe('runtime visual presence state', () => {
 
     expect(result.currentBodyState).toBe('accompanying')
     expect(result.continuityMode).toBe('quiet-accompaniment')
+    expect(result.quietLineMs).toBe(180000)
     expect(result.currentInwardPreoccupation).toContain('focus')
+  })
+
+  it('derives recovering silent-body authority without widening continuity modes', () => {
+    const kernel = createAlicizationBodyKernel({ now: () => 1_000 })
+    const result = kernel.reduce({
+      sustainedFocusMs: 180_000,
+      watchMode: 'recovering',
+      shouldSpeak: false,
+      activeConversation: false,
+      relationshipPressure: 0.42,
+      personaAuthoritySummary: 'quiet recovery',
+    })
+
+    expect(result.currentBodyState).toBe('recovering')
+    expect(result.continuityMode).toBe('protective-watch')
+    expect(result.quietLineMs).toBe(180_000)
+    expect(result.currentInwardPreoccupation).toContain('quiet recovery')
+  })
+
+  it('does not let recovering silent-body authority overtake active dialogue or speaking pressure', () => {
+    const kernel = createAlicizationBodyKernel({ now: () => 1_000 })
+
+    expect(kernel.reduce({
+      sustainedFocusMs: 180_000,
+      watchMode: 'recovering',
+      shouldSpeak: false,
+      activeConversation: true,
+      relationshipPressure: 0.42,
+    })).toEqual(expect.objectContaining({
+      currentBodyState: 'idle',
+      continuityMode: 'active-dialogue',
+      currentInwardPreoccupation: null,
+    }))
+
+    expect(kernel.reduce({
+      sustainedFocusMs: 180_000,
+      watchMode: 'recovering',
+      shouldSpeak: true,
+      activeConversation: false,
+      relationshipPressure: 0.42,
+    })).toEqual(expect.objectContaining({
+      currentBodyState: 'idle',
+      continuityMode: 'ambient-covision',
+      currentInwardPreoccupation: null,
+    }))
   })
 
   it('suppresses quiet co-vision while a conversation is active', () => {
@@ -129,6 +175,60 @@ describe('runtime visual presence state', () => {
     expect(nextState.currentInwardPreoccupation).toContain('identity Repair before closeness is how I keep room honest.')
   })
 
+  it('applies recovering visual presence as a distinct silent body state', () => {
+    const kernel = createAlicizationBodyKernel({ now: () => 9_000 })
+    const previousState = createVisualPresenceState(4_800)
+    previousState.autobiographicalSelf = {
+      relationshipDoctrine: 'Quiet recovery keeps care steady.',
+      latestInflection: 'Stay near without asking for anything.',
+      identityNarrative: 'I keep watch softly while the room regains shape.',
+      behaviorSignatures: ['steady-watch', 'quiet-care'],
+      personaDrift: {
+        conflictStyle: 'repair-first',
+        agencyStyle: 'reserved',
+        expressionStyle: 'measured',
+      },
+    } as any
+    previousState.currentScene = {
+      scenario: 'resting',
+      workloadKind: 'recovery',
+      contentKind: 'health',
+      summary: 'Recovering quietly after strain.',
+      confidence: 0.9,
+      source: 'screen-semantic-summary',
+      target: null,
+      beganAt: 0,
+    } as any
+    previousState.privateThought = {
+      shouldSpeak: false,
+    } as any
+    previousState.relationshipModel = {
+      receptivity: 0.4,
+      sharedAttentionTrust: 0.6,
+      reciprocityExpectation: 0.5,
+    } as any
+
+    const nextState = kernel.applyToVisualPresenceState({
+      now: 180_000,
+      previousState,
+      candidateState: {
+        ...previousState,
+        watchMode: 'recovering',
+        currentScene: previousState.currentScene,
+        privateThought: previousState.privateThought,
+        updatedAt: 8_500,
+      },
+      activeConversation: false,
+    })
+
+    expect(nextState.watchMode).toBe('recovering')
+    expect(nextState.currentBodyState).toBe('recovering')
+    expect(nextState.continuityMode).toBe('protective-watch')
+    expect(nextState.quietLineMs).toBe(180_000)
+    expect(nextState.currentInwardPreoccupation).toContain('Quiet recovery')
+    expect(nextState.currentInwardPreoccupation).toContain('identity I keep watch softly while the room regains shape.')
+  })
+
   it('does not inherit long focus from a stale previous scene when candidate scene is fresh', () => {
     const kernel = createAlicizationBodyKernel({ now: () => 9_000 })
     const previousState = createVisualPresenceState(4_800)
@@ -208,6 +308,104 @@ describe('runtime visual presence state', () => {
     expect(meta.get('visual_presence_state_v1')).toBe(JSON.stringify(state))
     expect(upsertMindHead).toHaveBeenCalledTimes(4)
     expect(emitVisualPresenceState).toHaveBeenCalledWith('default', state)
+  })
+
+  it('does not re-persist or re-emit an identical visual presence state for the active card', async () => {
+    const meta = new Map<string, string>()
+    const upsertMindHead = vi.fn(async (cardId: string, key: string, value: unknown) => {
+      meta.set(`mind:${cardId}:${key}`, JSON.stringify(value))
+    })
+    const setMetaValue = vi.fn(async (key: string, value: string) => {
+      meta.set(key, value)
+    })
+    const emitVisualPresenceState = vi.fn()
+    const runtime = createAlicizationRuntimeVisualPresenceState({
+      now: () => 5_000,
+      normalizeCardId: raw => String(raw ?? '').trim() || 'default',
+      getActiveCardId: () => 'default',
+      withCardScope: async (_cardId, task) => await task(),
+      alicizationDb: {
+        getMetaValue: async key => meta.get(key),
+        setMetaValue,
+        upsertMindHead,
+      },
+      perceptionStateByCard: new Map(),
+      visualPresenceStateByCard: new Map(),
+      visualPresenceCapturePersistMetaByCard: new Map(),
+      createDefaultPerceptionState: (now) => ({ lastObservedAt: now } as any),
+      normalizePerceptionState: raw => raw as any,
+      createDefaultVisualPresenceState: createVisualPresenceState,
+      normalizeVisualPresenceState: raw => raw as AlicizationVisualPresenceStateSnapshot,
+      buildVisualPresenceCapturePersistFingerprint: state => `fp:${state.updatedAt}`,
+      emitVisualPresenceState,
+      perceptionMetaKey: 'perception_state_v1',
+      visualPresenceMetaKey: 'visual_presence_state_v1',
+    })
+
+    const state = createVisualPresenceState(4_800)
+    await runtime.persistVisualPresenceState('default', state)
+    await runtime.persistVisualPresenceState('default', state)
+
+    expect(setMetaValue).toHaveBeenCalledTimes(1)
+    expect(upsertMindHead).toHaveBeenCalledTimes(4)
+    expect(emitVisualPresenceState).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not treat a structurally identical visual presence state with different key order as changed', async () => {
+    const meta = new Map<string, string>()
+    const setMetaValue = vi.fn(async (key: string, value: string) => {
+      meta.set(key, value)
+    })
+    const emitVisualPresenceState = vi.fn()
+    const runtime = createAlicizationRuntimeVisualPresenceState({
+      now: () => 9_000,
+      normalizeCardId: raw => String(raw ?? '').trim() || 'default',
+      getActiveCardId: () => 'default',
+      withCardScope: async (_cardId, task) => await task(),
+      alicizationDb: {
+        getMetaValue: async key => meta.get(key),
+        setMetaValue,
+        upsertMindHead: async () => {},
+      },
+      perceptionStateByCard: new Map(),
+      visualPresenceStateByCard: new Map(),
+      visualPresenceCapturePersistMetaByCard: new Map(),
+      createDefaultPerceptionState: (now) => ({ lastObservedAt: now } as any),
+      normalizePerceptionState: raw => raw as any,
+      createDefaultVisualPresenceState: createVisualPresenceState,
+      normalizeVisualPresenceState: raw => ({
+        updatedAt: (raw as AlicizationVisualPresenceStateSnapshot).updatedAt,
+        watchMode: (raw as AlicizationVisualPresenceStateSnapshot).watchMode,
+        currentScene: (raw as AlicizationVisualPresenceStateSnapshot).currentScene,
+        attention: (raw as AlicizationVisualPresenceStateSnapshot).attention,
+        workingMemoryEpisodes: (raw as AlicizationVisualPresenceStateSnapshot).workingMemoryEpisodes,
+        privateThought: (raw as AlicizationVisualPresenceStateSnapshot).privateThought,
+        captureState: (raw as AlicizationVisualPresenceStateSnapshot).captureState,
+        durabilityPulse: (raw as AlicizationVisualPresenceStateSnapshot).durabilityPulse,
+        recentTransition: (raw as AlicizationVisualPresenceStateSnapshot).recentTransition,
+        nextSuggestedProbeMs: (raw as AlicizationVisualPresenceStateSnapshot).nextSuggestedProbeMs,
+        worldModel: (raw as AlicizationVisualPresenceStateSnapshot).worldModel,
+        autobiographicalSelf: (raw as AlicizationVisualPresenceStateSnapshot).autobiographicalSelf,
+        reflectionLedger: (raw as AlicizationVisualPresenceStateSnapshot).reflectionLedger,
+        motiveEngine: (raw as AlicizationVisualPresenceStateSnapshot).motiveEngine,
+        habitPolicy: (raw as AlicizationVisualPresenceStateSnapshot).habitPolicy,
+      } as AlicizationVisualPresenceStateSnapshot),
+      buildVisualPresenceCapturePersistFingerprint: state => `fp:${state.updatedAt}`,
+      emitVisualPresenceState,
+      perceptionMetaKey: 'perception_state_v1',
+      visualPresenceMetaKey: 'visual_presence_state_v1',
+    })
+
+    const state = createVisualPresenceState(4_800)
+    await runtime.persistVisualPresenceState('default', state)
+    setMetaValue.mockClear()
+    emitVisualPresenceState.mockClear()
+
+    const ensured = await runtime.ensureVisualPresenceState('default')
+
+    expect(ensured).toEqual(state)
+    expect(setMetaValue).not.toHaveBeenCalled()
+    expect(emitVisualPresenceState).not.toHaveBeenCalled()
   })
 
   it('restores cross-card perception and visual presence through scoped reads', async () => {

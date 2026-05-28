@@ -32,10 +32,13 @@ interface Emits {
   (e: 'skipped'): void
 }
 
-const { extraSteps = [], isOpen = true } = defineProps<{
+const props = withDefaults(defineProps<{
   extraSteps?: OnboardingStep[]
   isOpen?: boolean
-}>()
+}>(), {
+  extraSteps: () => [],
+  isOpen: true,
+})
 const onboardingStore = useOnboardingStore()
 const emit = defineEmits<Emits>()
 const allSteps = computed<OnboardingStep[]>(() => {
@@ -85,7 +88,7 @@ const allSteps = computed<OnboardingStep[]>(() => {
         return true
       },
     },
-    ...extraSteps.map(step => ({
+    ...props.extraSteps.map(step => ({
       ...step,
       props: () => ({
         ...step.props?.(),
@@ -198,7 +201,7 @@ const isLastStep = computed(() => step.value === allSteps.value.length - 1)
 const currentStepProps = computed(() => currentStep.value?.props?.() ?? {})
 const wasOpen = ref(false)
 
-watch(isOpen, (open) => {
+watch(() => props.isOpen, (open) => {
   if (!open) {
     wasOpen.value = false
     step.value = 0

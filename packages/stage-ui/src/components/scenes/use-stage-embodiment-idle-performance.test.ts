@@ -67,4 +67,243 @@ describe('stage embodiment idle performance', () => {
     expect(preference?.confidence).toBe(0.84)
     expect(preference?.binding?.actionKey).toBe('settle_idle')
   })
+
+  it('prefers comfort and settle recovering idles over energetic options', () => {
+    const live2dPreference = resolveLive2DIdleMotionPreference({
+      engaged: true,
+      mode: 'concerned',
+      confidence: 0.81,
+      bodyYaw: 0.04,
+      bodyPitch: 0.3,
+      breathBoost: 0.18,
+      gazeStability: 0.88,
+    }, [
+      {
+        actionKey: 'cheer_jump',
+        motionName: 'Cheer',
+        motionIndex: 0,
+        label: 'Cheer Jump',
+        description: 'excited cheer and bounce',
+      },
+      {
+        actionKey: 'comfort_settle',
+        motionName: 'Idle',
+        motionIndex: 1,
+        label: 'Comfort Settle',
+        description: 'gentle comfort settle and reassuring idle',
+      },
+    ])
+
+    expect(live2dPreference).toEqual({
+      mode: 'concerned',
+      confidence: 0.81,
+      actionKey: 'comfort_settle',
+      motionName: 'Idle',
+      motionIndex: 1,
+    })
+
+    const vrmPreference = resolveVrmIdleActionPreference({
+      engaged: true,
+      mode: 'concerned',
+      confidence: 0.81,
+      bodyYaw: 0.04,
+      bodyPitch: 0.3,
+      breathBoost: 0.18,
+      gazeStability: 0.88,
+    }, [
+      {
+        id: 'vrm-cheer',
+        fileName: 'cheer.vrma',
+        actionKey: 'cheer_jump',
+        label: 'Cheer Jump',
+        description: 'excited cheer and bounce',
+        importedAt: 0,
+        source: 'builtin',
+        file: '/tmp/cheer.vrma',
+      },
+      {
+        id: 'vrm-comfort',
+        fileName: 'comfort_settle.vrma',
+        actionKey: 'comfort_settle',
+        label: 'Comfort Settle',
+        description: 'gentle comfort settle and reassuring idle',
+        importedAt: 0,
+        source: 'builtin',
+        file: '/tmp/comfort_settle.vrma',
+      },
+    ])
+
+    expect(vrmPreference?.binding?.actionKey).toBe('comfort_settle')
+  })
+
+  it('prefers companionship-safe attentive idles over flat or energetic choices', () => {
+    const preference = resolveLive2DIdleMotionPreference({
+      engaged: true,
+      mode: 'attentive',
+      confidence: 0.74,
+      bodyYaw: 0.06,
+      bodyPitch: 0.24,
+      breathBoost: 0.16,
+      gazeStability: 0.8,
+    }, [
+      {
+        actionKey: 'neutral_loop',
+        motionName: 'Loop',
+        motionIndex: 0,
+        label: 'Neutral Loop',
+        description: 'flat neutral loop',
+      },
+      {
+        actionKey: 'companion_settle_nod',
+        motionName: 'Idle',
+        motionIndex: 1,
+        label: 'Companion Settle Nod',
+        description: 'attentive gentle companionship idle with a soft nod',
+      },
+      {
+        actionKey: 'excited_wave',
+        motionName: 'Wave',
+        motionIndex: 0,
+        label: 'Excited Wave',
+        description: 'energetic excited wave',
+      },
+    ])
+
+    expect(preference).toEqual({
+      mode: 'attentive',
+      confidence: 0.74,
+      actionKey: 'companion_settle_nod',
+      motionName: 'Idle',
+      motionIndex: 1,
+    })
+  })
+
+  it('distinguishes quiet companionship attentive idles from more active attentive focus holds', () => {
+    const capabilities = [
+      {
+        actionKey: 'observe_focus_hold',
+        motionName: 'Observe',
+        motionIndex: 0,
+        label: 'Observe Focus Hold',
+        description: 'attentive observe focus hold',
+      },
+      {
+        actionKey: 'companion_quiet_hold',
+        motionName: 'Idle',
+        motionIndex: 1,
+        label: 'Companion Quiet Hold',
+        description: 'quiet companionship hold with soft nearby steadiness',
+      },
+    ]
+
+    const quietPreference = resolveLive2DIdleMotionPreference({
+      engaged: true,
+      mode: 'attentive',
+      confidence: 0.74,
+      bodyYaw: 0.02,
+      bodyPitch: 0.22,
+      breathBoost: 0.12,
+      gazeStability: 0.9,
+    }, capabilities)
+    const activePreference = resolveLive2DIdleMotionPreference({
+      engaged: true,
+      mode: 'attentive',
+      confidence: 0.74,
+      bodyYaw: 0.12,
+      bodyPitch: 0.42,
+      breathBoost: 0.32,
+      gazeStability: 0.64,
+    }, capabilities)
+
+    expect(quietPreference?.actionKey).toBe('companion_quiet_hold')
+    expect(activePreference?.actionKey).toBe('observe_focus_hold')
+  })
+
+  it('lets lower-pressure attentive posture choose a quieter nearby hold than ordinary quiet attentive posture', () => {
+    const capabilities = [
+      {
+        actionKey: 'companion_settle_nod',
+        motionName: 'Idle',
+        motionIndex: 0,
+        label: 'Companion Settle Nod',
+        description: 'attentive gentle companionship idle with a soft nod',
+      },
+      {
+        actionKey: 'nearby_quiet_hold',
+        motionName: 'Idle',
+        motionIndex: 1,
+        label: 'Nearby Quiet Hold',
+        description: 'quiet nearby companionship hold with soft steady presence',
+      },
+    ]
+
+    const ordinaryQuietPreference = resolveLive2DIdleMotionPreference({
+      engaged: true,
+      mode: 'attentive',
+      confidence: 0.74,
+      bodyYaw: 0.02,
+      bodyPitch: 0.26,
+      breathBoost: 0.16,
+      gazeStability: 0.84,
+    }, capabilities)
+    const lowerPressurePreference = resolveLive2DIdleMotionPreference({
+      engaged: true,
+      mode: 'attentive',
+      confidence: 0.74,
+      bodyYaw: 0.02,
+      bodyPitch: 0.22,
+      breathBoost: 0.12,
+      gazeStability: 0.9,
+    }, capabilities)
+
+    expect(ordinaryQuietPreference?.actionKey).toBe('companion_settle_nod')
+    expect(lowerPressurePreference?.actionKey).toBe('nearby_quiet_hold')
+  })
+
+  it('distinguishes protective-watch concerned idles from more ordinary concerned settle motion', () => {
+    const bindings = [
+      {
+        id: 'vrm-comfort',
+        fileName: 'comfort_settle.vrma',
+        actionKey: 'comfort_settle',
+        label: 'Comfort Settle',
+        description: 'gentle comfort settle and reassuring idle',
+        importedAt: 0,
+        source: 'builtin' as const,
+        file: '/tmp/comfort_settle.vrma',
+      },
+      {
+        id: 'vrm-protective',
+        fileName: 'protective_guard_hold.vrma',
+        actionKey: 'protective_guard_hold',
+        label: 'Protective Guard Hold',
+        description: 'quiet protective watch hold that stays near without pressing',
+        importedAt: 0,
+        source: 'builtin' as const,
+        file: '/tmp/protective_guard_hold.vrma',
+      },
+    ]
+
+    const protectivePreference = resolveVrmIdleActionPreference({
+      engaged: true,
+      mode: 'concerned',
+      confidence: 0.82,
+      bodyYaw: 0.02,
+      bodyPitch: 0.3,
+      breathBoost: 0.16,
+      gazeStability: 0.9,
+    }, bindings)
+    const ordinaryConcernedPreference = resolveVrmIdleActionPreference({
+      engaged: true,
+      mode: 'concerned',
+      confidence: 0.82,
+      bodyYaw: 0.1,
+      bodyPitch: 0.42,
+      breathBoost: 0.32,
+      gazeStability: 0.72,
+    }, bindings)
+
+    expect(protectivePreference?.binding?.actionKey).toBe('protective_guard_hold')
+    expect(ordinaryConcernedPreference?.binding?.actionKey).toBe('comfort_settle')
+  })
 })

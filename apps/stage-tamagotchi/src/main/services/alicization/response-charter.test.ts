@@ -391,6 +391,94 @@ describe('response-charter', () => {
     expect(block).toContain('Closeness ladder: focused-work/space-first.')
   })
 
+  it('turns projected persona opening guidance into explicit reply posture rules', () => {
+    const directSurface = buildAlicizationDigitalLifeRuntimeSurface(createState())
+    directSurface.memory.personStateProjection = {
+      contexts: ['focused-work'],
+      summary: 'regime=focused-work | ladder=focused-work/space-first | posture=restrained | proactive=light-nudge',
+      activeClosenessContext: 'focused-work',
+      activeClosenessRung: 'space-first',
+      closenessLadder: [{
+        context: 'focused-work',
+        rung: 'space-first',
+        preference: 'Lighter touch, more room, less interruption pressure.',
+        rationale: 'context=focused-work | regime=focused-work | posture=restrained',
+        confidence: 0.86,
+      }],
+      relationshipPosture: 'restrained',
+      openingGuidance: 'Open with the live answer first and keep the approach lighter.',
+      preferredProactiveStyle: 'light-nudge',
+      preferenceText: 'Lighter touch, more room, less interruption pressure.',
+      sensitivityText: 'Pressure and over-close timing become intrusive quickly.',
+      repairTriggerText: '',
+      burdenText: 'Focused work gets overloaded quickly by extra conversational pressure.',
+      routineText: 'Keep the work window light.',
+      trustRationale: 'Trust is warming, but the host still needs room while focused.',
+      relationshipDoctrine: 'Open directly, but do not crowd the host.',
+      cautious: true,
+      restrained: true,
+      personalityContinuityState: {
+        currentRegime: 'focused-work',
+        closenessPosture: 'space-first',
+        repairPosture: 'measured-repair',
+      } as any,
+    }
+    const observantSurface = buildAlicizationDigitalLifeRuntimeSurface(createState())
+    observantSurface.memory.personStateProjection = {
+      contexts: ['focused-work'],
+      summary: 'regime=focused-work | ladder=focused-work/space-first | posture=restrained | proactive=silent-observe',
+      activeClosenessContext: 'focused-work',
+      activeClosenessRung: 'space-first',
+      closenessLadder: [{
+        context: 'focused-work',
+        rung: 'space-first',
+        preference: 'Lighter touch, more room, less interruption pressure.',
+        rationale: 'context=focused-work | regime=focused-work | posture=restrained',
+        confidence: 0.86,
+      }],
+      relationshipPosture: 'restrained',
+      openingGuidance: 'Open by observing first and keep the approach lighter.',
+      preferredProactiveStyle: 'silent-observe',
+      preferenceText: 'Lighter touch, more room, less interruption pressure.',
+      sensitivityText: 'Pressure and over-close timing become intrusive quickly.',
+      repairTriggerText: '',
+      burdenText: 'Focused work gets overloaded quickly by extra conversational pressure.',
+      routineText: 'Keep the work window light.',
+      trustRationale: 'Trust is warming, but the host still needs room while focused.',
+      relationshipDoctrine: 'Observe first, then decide whether closeness is welcome.',
+      cautious: true,
+      restrained: true,
+      personalityContinuityState: {
+        currentRegime: 'focused-work',
+        closenessPosture: 'space-first',
+        repairPosture: 'measured-repair',
+      } as any,
+    }
+
+    const direct = buildAlicizationResponseCharter({
+      context: createContext(),
+      state: createState(),
+      runtimeSurface: directSurface,
+      inspectionRequested: false,
+    })
+    const observant = buildAlicizationResponseCharter({
+      context: createContext(),
+      state: createState(),
+      runtimeSurface: observantSurface,
+      inspectionRequested: false,
+    })
+
+    expect(direct.mustDo).toContain('Open with the live answer before softening into companionship color.')
+    expect(direct.mustNotDo).toContain('Do not bury the live answer behind an overly distant observational preface.')
+    expect(observant.mustDo).toContain('Let the opening stay observant and low-pressure before leaning closer.')
+    expect(observant.mustNotDo).toContain('Do not force a direct proactive lead when this turn is persona-biased toward observant entry.')
+
+    const directBlock = buildAlicizationResponseCharterSystemBlock(direct)
+    const observantBlock = buildAlicizationResponseCharterSystemBlock(observant)
+    expect(directBlock).toContain('Open with the live answer before softening into companionship color.')
+    expect(observantBlock).toContain('Let the opening stay observant and low-pressure before leaning closer.')
+  })
+
   it('lets shared memory deliberation kernel feed reasons and truth discipline in the response charter', () => {
     const runtimeSurface = buildAlicizationDigitalLifeRuntimeSurface(createState())
     runtimeSurface.memory.recollectionSpeechPlan = {
@@ -445,6 +533,105 @@ describe('response-charter', () => {
     expect(charter.mustDo).toContain('If recollection is pressing forward too hard, keep recollection inward until the host has room for it.')
     expect(charter.mustNotDo.some(item => item.includes('Do not outrun this recollection boundary'))).toBe(true)
     expect(charter.mustNotDo.some(item => item.includes('Do not surface unstable remembered detail as settled fact'))).toBe(true)
+  })
+
+  it('keeps same-seam procedural continuity discipline in the charter fallback path', () => {
+    const runtimeSurface = buildAlicizationDigitalLifeRuntimeSurface(createState({
+      answerCompiler: null,
+    }))
+    runtimeSurface.memory.recollectionSpeechPlan = {
+      shouldSurface: true,
+      surfaceMode: 'answer-anchoring',
+      placement: 'inside-payoff',
+      certainty: 'approximate',
+      confidence: 0.84,
+      internalLead: 'The active runtime seam should keep shaping the live answer.',
+      visibleLead: 'It still feels like the same seam.',
+      styleNote: 'Keep the remembered seam inside the live payoff.',
+      rationale: 'The turn is still on the same runtime seam.',
+    } as any
+    runtimeSurface.memory.memoryDeliberation = {
+      shouldRecall: true,
+      surfacePolicy: 'answer-anchoring',
+      confidence: 0.85,
+      whyNow: 'The active runtime seam should keep shaping the live answer.',
+      stableCore: ['Stay on the same active dialogue seam before branching.'],
+      unsafeDetails: [],
+      selectedPeriods: [],
+      selectedEras: [{
+        id: 'era-runtime',
+        facet: 'task-era',
+        summary: 'That task era kept returning to the same active dialogue seam.',
+      }],
+      selectedEpisodes: [],
+      selectedProcedures: [{
+        label: 'active dialogue seam first',
+        approach: 'Stay on the same active dialogue seam before branching.',
+      }],
+      selectedBundles: [{
+        id: 'bundle-runtime',
+        summary: 'The active dialogue seam kept holding the same runtime thread.',
+        confidence: 0.85,
+      }],
+      selectedChains: [{
+        kind: 'task-procedure',
+        summary: 'The answer should continue from the same active dialogue seam.',
+        currentStance: 'Stay on the same active dialogue seam.',
+        answerPosture: 'Carry the same active dialogue seam before widening out.',
+        confidence: 0.84,
+      }],
+      selectedRelationshipLines: [],
+      followUpAffordance: {
+        summary: 'Carry the same active dialogue seam inside the current payoff.',
+        whyNow: 'The host is still in the same runtime repair lane.',
+        intrusionRisk: 'low',
+        payoffDependency: 'can-surface-softly',
+        preferredTiming: 'same-turn-if-invited',
+      },
+    } as any
+    runtimeSurface.memory.derivedMindStateBundle = {
+      version: 'derived-mind-state-bundle-v1',
+      source: 'main-runtime',
+      producedAt: 1_700_000_000_000,
+      hostPersonModel: null,
+      personStateProjection: null,
+      knowledgeEvidence: null,
+      selfEvolution: null,
+      learningExecutionState: null,
+      recollectionIntent: {
+        mode: 'execution-procedure',
+        temporalFocus: 'experience-matched',
+        confidence: 0.86,
+        rationale: 'The turn is continuing the same runtime seam.',
+        recollectionAgenda: {
+          goalSimilarity: 0.92,
+          relationshipNeed: 0.12,
+          uncertaintyTolerance: 'medium',
+          candidateProcedureLines: ['active-dialogue', 'runtime seam'],
+        },
+      },
+      recollectionPlan: null,
+      recollectionSpeechPlan: runtimeSurface.memory.recollectionSpeechPlan as any,
+      memoryDeliberation: runtimeSurface.memory.memoryDeliberation as any,
+      dialogueRhythm: null,
+      summary: 'surface=answer-anchoring | deliberation=answer-anchoring | recollection=execution-procedure',
+    }
+
+    const charter = buildAlicizationResponseCharter({
+      context: createContext(),
+      state: createState({
+        answerCompiler: null,
+      }),
+      runtimeSurface,
+      inspectionRequested: false,
+    })
+
+    expect(charter.mustDo).toContain(
+      'If same-seam procedure carry becomes visible, frame it as remembered prior procedure that keeps the current thread intact.',
+    )
+    expect(charter.mustNotDo).toContain(
+      'Do not turn same-seam procedure carry into retrospective narration or execution impersonation.',
+    )
   })
 
   it('lets the conscious frame impose hypothesis discipline on coarse screen turns', () => {
@@ -795,6 +982,120 @@ describe('response-charter', () => {
     expect(charter.mustNotDo).toContain('Do not let learned familiarity widen visible closeness faster than the host’s current room allows.')
   })
 
+  it('threads long-horizon self-evolution burden and trust timing into visible opening discipline before persona residue fully catches up', () => {
+    const state = createState()
+    const runtimeSurface = buildAlicizationDigitalLifeRuntimeSurface(state)
+    runtimeSurface.memory.personStateProjection = {
+      contexts: ['focused-work'],
+      summary: 'regime=focused-work | ladder=focused-work/space-first | posture=restrained | proactive=light-nudge',
+      activeClosenessContext: 'focused-work',
+      activeClosenessRung: 'space-first',
+      closenessLadder: [{
+        context: 'focused-work',
+        rung: 'space-first',
+        preference: 'Lighter touch, more room, less interruption pressure.',
+        rationale: 'context=focused-work | regime=focused-work | posture=restrained',
+        confidence: 0.84,
+      }],
+      relationshipPosture: 'restrained',
+      openingGuidance: 'Open with the live answer first and keep the approach lighter.',
+      preferredProactiveStyle: 'light-nudge',
+      preferenceText: 'Lighter touch, more room, less interruption pressure.',
+      sensitivityText: 'Pressure and over-close timing become intrusive quickly.',
+      repairTriggerText: '',
+      burdenText: 'Focused work gets overloaded quickly by extra conversational pressure.',
+      routineText: 'Keep the work window light.',
+      trustRationale: 'Trust is warming, but the host still needs room while focused.',
+      relationshipDoctrine: 'Open directly, but do not crowd the host.',
+      cautious: true,
+      restrained: true,
+      personalityContinuityState: {
+        currentRegime: 'focused-work',
+        closenessPosture: 'space-first',
+        repairPosture: 'measured-repair',
+      } as any,
+    }
+    runtimeSurface.memory.selfEvolution = {
+      version: 'self-evolution-kernel-v1',
+      updatedAt: 1_700_000_000_000,
+      evolutionMomentum: 0.66,
+      learningReadiness: 0.76,
+      contradictionPressure: 0.08,
+      revisionPressure: 0.14,
+      autobiographicalStability: 0.82,
+      dominantTrajectory: 'earned lower-pressure companionship timing',
+      relationshipDoctrine: 'Leave more room before closeness reopens.',
+      latestInflection: 'Even when the opening is real, pressure lands worse than a slower return.',
+      burdenLine: 'Focused work gets overloaded quickly by extra conversational pressure.',
+      trustMeaning: 'Trust holds better when the opening stays lower-pressure and less eager.',
+      nextLearningAction: 'internalize',
+      nextLearningReason: 'The lower-pressure return is stable enough to become durable.',
+      shouldRecord: false,
+      shouldReflect: false,
+      shouldVerify: false,
+      shouldRevise: false,
+      shouldInternalize: true,
+      activeLearningFocuses: ['internalize-relationship'],
+      sourceSignals: ['relationship-learning'],
+      summary: 'Lower-pressure return is becoming durable relationship timing.',
+    } as any
+
+    const charter = buildAlicizationResponseCharter({
+      context: createContext(),
+      state,
+      runtimeSurface,
+      inspectionRequested: false,
+    })
+
+    expect(charter.mustDo).toContain('Let long-horizon relationship timing keep the opening lower-pressure before closeness widens again.')
+    expect(charter.mustNotDo).toContain('Do not let older closeness tempo or eager warmth reopen faster than this learned relationship timing supports.')
+  })
+
+  it('threads active same-her continuity governance into charter-level reply discipline', () => {
+    const state = createState()
+    const runtimeSurface = buildAlicizationDigitalLifeRuntimeSurface(state)
+    runtimeSurface.memory.derivedMindStateBundle = {
+      version: 'derived-mind-state-bundle-v1',
+      source: 'main-runtime',
+      producedAt: 1_700_000_000_000,
+      hostPersonModel: null,
+      personStateProjection: null,
+      knowledgeEvidence: null,
+      activeSelfRevision: null,
+      activeContinuityGovernance: {
+        source: 'active-self-evolution-version',
+        mode: 'same-her-baseline',
+        candidateId: 'candidate-same-her-1',
+        patchId: 'patch-same-her-1',
+        decisionTraceId: 'trace-same-her-1',
+        summary: 'Keep truth discipline and measured warmth aligned so she still reads as the same her.',
+        lanes: ['response-posture', 'relationship-posture'],
+        reasonCodes: ['domain:relationship', 'same-her-baseline'],
+      },
+      selfEvolution: null,
+      affectiveResidue: null,
+      learningExecutionState: null,
+      recallLatencyPolicy: null,
+      recollectionIntent: null,
+      recollectionPlan: null,
+      recollectionSpeechPlan: null,
+      memoryDeliberation: null,
+      dialogueRhythm: null,
+      summary: 'continuity=same-her-baseline | anchor=candidate-same-her-1',
+    }
+
+    const charter = buildAlicizationResponseCharter({
+      context: createContext(),
+      state,
+      runtimeSurface,
+      inspectionRequested: false,
+    })
+
+    expect(charter.reasons).toContain('Active same-her baseline: Keep truth discipline and measured warmth aligned so she still reads as the same her..')
+    expect(charter.mustDo).toContain('Keep the visible reply aligned with the current same-her baseline instead of optimizing for a smoother but off-baseline persona move.')
+    expect(charter.mustNotDo).toContain('Do not let fluency, warmth, or style drift outrun the currently adopted same-her continuity baseline.')
+  })
+
   it('threads active self-revision response posture into charter-level reply discipline', () => {
     const charter = buildAlicizationResponseCharter({
       context: createContext(),
@@ -847,5 +1148,59 @@ describe('response-charter', () => {
     expect(charter.relationshipPosture).toBe('restrained')
     expect(charter.mustDo).toContain('Let the active self-revision patch make hypothesis labeling more visible this turn.')
     expect(charter.mustNotDo).toContain('Do not satisfy the turn with a template shell; the active self-revision patch requires concrete payoff in the same answer.')
+  })
+
+  it('keeps recollection inward in the charter when memory deliberation remains internal-only', () => {
+    const state = createState()
+    const runtimeSurface = buildAlicizationDigitalLifeRuntimeSurface(state)
+    runtimeSurface.memory.recollectionSpeechPlan = {
+      shouldSurface: false,
+      surfaceMode: 'internal-only',
+      placement: 'internal-only',
+      certainty: 'approximate',
+      confidence: 0.7,
+      internalLead: 'The remembered line should stay inward.',
+      visibleLead: null,
+      styleNote: 'Let memory bend tone quietly.',
+      rationale: 'The answer needs continuity but not overt retrospection.',
+    } as any
+    runtimeSurface.memory.memoryDeliberation = {
+      shouldRecall: true,
+      surfacePolicy: 'internal-only',
+      confidence: 0.82,
+      whyNow: 'The runtime seam is still live enough to contour the answer from the inside.',
+      stableCore: ['The same runtime seam kept pulling until it held together.'],
+      unsafeDetails: ['Do not assert which exact wording belonged to that old seam.'],
+      selectedPeriods: [{ kind: 'relationship-era', summary: 'That period kept bending toward the runtime seam until it held together.' }],
+      selectedEras: [],
+      selectedEpisodes: [],
+      selectedProcedures: [{ label: 'return to the same runtime seam', approach: 'Return to the same seam before branching.' }],
+      selectedBundles: [{ id: 'bundle-1', summary: 'Runtime seam bundle', confidence: 0.84 }],
+      selectedChains: [{
+        kind: 'relationship-line',
+        summary: 'The runtime seam is still the line to hold.',
+        currentStance: 'Stay on the same seam before branching.',
+        answerPosture: 'Carry the same seam before widening out.',
+        confidence: 0.82,
+      }],
+      selectedRelationshipLines: ['Carry the same runtime seam before branching.'],
+      followUpAffordance: {
+        summary: 'Carry the same runtime seam before branching.',
+        whyNow: 'The seam is still the smallest honest continuation.',
+        intrusionRisk: 'high',
+        payoffDependency: 'requires-current-payoff',
+        preferredTiming: 'after-payoff',
+      },
+    } as any
+
+    const charter = buildAlicizationResponseCharter({
+      context: createContext(),
+      state,
+      runtimeSurface,
+      inspectionRequested: false,
+    })
+
+    expect(charter.mustDo.some(item => item.includes('keep recollection inward until the host has room for it'))).toBe(true)
+    expect(charter.mustNotDo).toContain('Do not force recollection forward before the host has room for it.')
   })
 })

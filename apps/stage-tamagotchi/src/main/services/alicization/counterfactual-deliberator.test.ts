@@ -492,4 +492,181 @@ describe('buildCounterfactualDeliberation', () => {
     expect(deliberation.options.find(option => option.id === deliberation.selectedOptionId)?.style).toBeTruthy()
     expect(deliberation.dominantTradeoff).toBe('care-over-restraint')
   })
+
+  it('demotes speak-first counterfactual options when remembered familiarity must stay explicitly remembered before closeness widens', () => {
+    const deliberation = buildCounterfactualDeliberation({
+      now: 40_000,
+      context: createContext({
+        relationship: {
+          ...createContext().relationship,
+          boredom: 58,
+          loneliness: 54,
+          fatigue: 20,
+        },
+      }),
+      worldModel: {
+        activeThread: {
+          id: 'thread-4',
+          kind: 'relationship',
+          status: 'active',
+          source: 'continuity',
+          title: 'remembered closeness return',
+          summary: 'The thread feels warm, but the opening should not widen too quickly.',
+          confidence: 0.84,
+          significance: 0.8,
+          unresolved: true,
+          beganAt: 0,
+          lastUpdatedAt: 40_000,
+          target: null,
+        },
+        lingeringThreads: [],
+        focusTarget: null,
+        epistemicState: {
+          certainty: 'grounded',
+          freshness: 'live',
+          seenNow: ['relationship-thread'],
+          inferredNow: [],
+          openQuestions: [],
+          staleRisks: [],
+        },
+        continuity: {
+          label: 'staying-with-thread',
+          sceneAgeMs: 40_000,
+          attentionAgeMs: 40_000,
+          sameSceneAsBefore: true,
+          sameAttentionAsBefore: true,
+          afterglowOpen: true,
+        },
+        hostState: {
+          availability: 'open',
+          burden: 'moderate',
+        },
+        updatedAt: 40_000,
+      },
+      appraisal: {
+        inferredHostGoal: 'stay-connected',
+        confidence: 0.82,
+        surprise: 0.08,
+        carePressure: 0.28,
+        interruptionCost: 0.18,
+        desireToSpeak: 0.78,
+        relationshipNeed: 'companionship',
+        currentKnot: 'remembered closeness return',
+        notes: ['warm-thread'],
+      },
+      subjectiveInference: {
+        dominantInterpretation: 'The thread is warm enough to stay near, but not to reopen closeness too fast.',
+        hostIntentCandidates: [{
+          goal: 'stay-connected',
+          confidence: 0.8,
+          why: 'The host is still in the same relationship thread.',
+        }],
+        relationshipNeedCandidates: [{
+          need: 'companionship',
+          confidence: 0.84,
+          why: 'Presence fits, but pressure would be too much.',
+        }],
+        confidence: 0.8,
+        source: 'hybrid',
+        notes: ['relationship-continuity'],
+        updatedAt: 40_000,
+      },
+      concerns: [{
+        id: 'stay-near',
+        kind: 'stay-near',
+        status: 'active',
+        summary: '她想留在这里，但不想顺着熟悉感直接压近。',
+        hostGoal: 'stay-connected',
+        tension: 0.62,
+        confidence: 0.8,
+        careWeight: 0.7,
+        createdAt: 0,
+        lastEvidenceAt: 40_000,
+        patienceUntil: 60_000,
+      }],
+      selfState: {
+        stance: 'approach',
+        feltCloseness: 0.68,
+        protectiveness: 0.34,
+        curiosity: 0.56,
+        patience: 0.64,
+        desireToSpeak: 0.8,
+        fearOfInterrupting: 0.22,
+        dominantConcernId: 'stay-near',
+      },
+      relationshipModel: {
+        climate: 'warm',
+        approachVector: 'accompany',
+        receptivity: 0.72,
+        sharedAttentionTrust: 0.74,
+        correctionSensitivity: 0.24,
+        reciprocityExpectation: 0.58,
+        activeBoundaries: [],
+        narrative: [],
+        updatedAt: 40_000,
+      },
+      mindDynamics: createMindDynamics({
+        dominantMotive: 'accompany',
+        relationalPressure: 0.44,
+        carePressure: 0.26,
+        continuityPressure: 0.62,
+        restraintPressure: 0.34,
+        surfacePressure: 0.74,
+        speakReadiness: 0.72,
+        presenceWeight: 0.68,
+        motives: {
+          accompany: 0.82,
+          clarify: 0.3,
+          protect: 0.26,
+          care: 0.24,
+          'stay-silent': 0.28,
+        },
+        speakDrive: 0.76,
+        silenceDrive: 0.28,
+      }),
+      mindKernel: {
+        dominantMode: 'tracking',
+        worldPressure: 0.46,
+        epistemicPressure: 0.18,
+        relationalPressure: 0.52,
+        carePressure: 0.28,
+        continuityPressure: 0.66,
+        speakReadiness: 0.72,
+        presenceWeight: 0.68,
+        narrative: [],
+        updatedAt: 40_000,
+      },
+      memoryTuningAdvice: {
+        version: 'memory-tuning-advice-v1',
+        source: 'nightly-replay-benchmark',
+        updatedAt: 39_500,
+        sourceReportAt: 39_500,
+        focusDimensions: ['relationshipTimingDiscipline'],
+        retrievalAdjustments: {
+          proceduralBoost: 0,
+          relationshipBoost: 0,
+          temporalWindowBias: 0,
+          wrongThreadPenalty: 0,
+        },
+        surfaceAdjustments: {
+          inwardCarryBias: 0,
+          delayUntilAfterPayoffBias: 0,
+          provenanceLabelBias: 0.18,
+          specificityClampBias: 0,
+        },
+        personStateAdjustments: {
+          repairWindowBias: 0,
+          closenessCapBias: 0.18,
+        },
+        notes: ['Remembered familiarity reopened visible closeness too quickly.'],
+      },
+    } as any)
+
+    expect(deliberation.selectedAction).toBe('hover')
+    expect(deliberation.selectedOptionId).toBe('counterfactual::hover')
+    expect(deliberation.options.find(option => option.id === 'counterfactual::speak')?.score)
+      .toBeLessThan(deliberation.options.find(option => option.id === 'counterfactual::hover')?.score ?? 1)
+    expect(deliberation.options.find(option => option.id === 'counterfactual::hover')?.why)
+      .toContain('记忆')
+  })
 })

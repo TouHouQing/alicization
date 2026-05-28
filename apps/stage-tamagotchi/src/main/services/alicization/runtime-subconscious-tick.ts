@@ -2,6 +2,7 @@ import { deriveAutonomyExecutionProposalSurface, runAutonomyActuation } from './
 import { buildAutobiographicalEpisodeFragment } from './autobiographical-episodes'
 import { adjustProactiveStyleFromHostPersonModel, inferHostSocialContextsFromText } from './host-social-guidance'
 import { resolveAlicizationProactiveVisibleUtterance } from './proactive-mind/visible-utterance-realization'
+import { resolveRuntimeSubconsciousTickEntry } from './runtime-subconscious-tick-entry'
 
 function buildDeferredProactiveContinuitySignal(input: {
   now: number
@@ -102,6 +103,7 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
     buildProactiveRecallSeed,
     buildVisualRecallSeed,
     buildMindContinuityRecallSeed,
+    getOrganicMemorySnapshot,
     resolveOrganicMemoryPromptContext,
     generateProactiveStructuredWithGateway,
     buildProactiveStructured,
@@ -307,6 +309,7 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
         : null,
       now,
     })
+    const organicMemorySnapshot = await getOrganicMemorySnapshot().catch(() => null)
     const visualHeartbeat = buildVisualHeartbeat({
       now,
       scenario: inferredScenario,
@@ -338,10 +341,13 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
       visualHeartbeat,
       attention,
       durabilityPulse,
+      personalityAuthority: soulForSubconscious.frontmatter.personality,
       inspectionRequested: false,
       groundedThisTurn: screenSemanticSummaryGroundedThisTurn,
       cognitionMode: 'background',
       agentTurn: backgroundAgentTurn,
+      selfEvolution: visualPresenceState.selfEvolution ?? null,
+      organicMemoryContext: organicMemorySnapshot,
     })
     const previousMindPresenceState = visualPresenceState
     const committedDigitalLifeSpine = commitAlicizationDigitalLifeSpine({
@@ -470,6 +476,14 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
       proactive = true
     }
     else {
+      const recentRuntimeActions = backgroundAgentTurn?.getSessionSnapshot().tasks ?? []
+      if (recentRuntimeActions.some(action =>
+        action.kind === 'executor'
+        && String(action.label).startsWith('callback:')
+        && (action.status === 'completed' || action.status === 'pending'),
+      )) {
+        proactive = true
+      }
       const proactiveRuntimeSnapshot = deriveAlicizationRuntimeSnapshot({
         spine: committedDigitalLifeSpine.current,
         agentRuntime: deriveAlicizationAgentRuntimeTelemetryFromSession(
@@ -481,21 +495,13 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
         context: layeredContext,
         proactiveState: proactiveLoopState,
         killSwitchSuspended,
+        personalityAuthority: soulForSubconscious.frontmatter.personality,
         knowledgeEvidence: committedDigitalLifeSpine.current.runtimeSurface.memory.knowledgeEvidence ?? null,
         perception: perceptionSignals,
         runtimeDigest: proactiveRuntimeSnapshot,
         selfRevisionPatch: activeSelfRevisionPatch,
         ...committedDigitalLifeSpine.current.proactivePolicy,
       })
-      const hardSuppressed = !decision.shouldInterrupt
-        && (
-          decision.style === 'silent-observe'
-          || decision.reasonCodes.includes('kill-switch-suspended')
-          || decision.reasonCodes.includes('global-cooldown-active')
-          || decision.reasonCodes.includes('busy-host')
-          || decision.reasonCodes.includes('fullscreen-host')
-        )
-
       if (!decision.shouldInterrupt)
         emitVisualPresencePulse(buildPresencePulsePayload(activeCardId, visualPresenceState))
 
@@ -516,6 +522,12 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
             cooldownMs: decision.cooldownMs,
             scenario: decision.scenario,
             policyVersion: decision.policyVersion,
+            reasonCodes: decision.reasonCodes,
+            whyNow: decision.whyNow,
+            whyNotLater: decision.whyNotLater,
+            feedbackBias: decision.feedbackBias,
+            consideredSignals: decision.consideredSignals,
+            ignoredSignals: decision.ignoredSignals,
           },
           reasonCodes: decision.reasonCodes,
           style: decision.style,
@@ -605,10 +617,11 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
         })
       }
 
-      const shouldSurfaceAutonomyProposal = Boolean(
-        autonomyExecutionProposalSurface
-        && !hardSuppressed,
-      )
+      const entrySurface = resolveRuntimeSubconsciousTickEntry({
+        decision,
+        autonomyExecutionProposalSurface,
+      })
+      const { hardSuppressed } = entrySurface
       if (hardSuppressed) {
         suppressed = true
         const obediencePenalty = decision.reasonCodes.includes('busy-host') || decision.reasonCodes.includes('fullscreen-host')
@@ -657,7 +670,7 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
           },
         })
       }
-      else if (decision.shouldInterrupt || shouldSurfaceAutonomyProposal) {
+      else if (entrySurface.shouldEnterProactiveFlow) {
         const personality = soulForSubconscious.frontmatter.personality
         const personaContext = {
           customDirectives: normalizeCustomDirectives(soulForSubconscious.frontmatter.custom_directives),
@@ -683,7 +696,11 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
             performance: structuredPerformance,
             parsePath: 'deterministic',
             format: 'subconscious-proactive-v1',
-            proactive: buildProactiveMetadataFromDecision(decision),
+            proactive: buildProactiveMetadataFromDecision({
+              decision,
+              selfEvolution: committedDigitalLifeSpine.current.runtimeSurface.memory.selfEvolution ?? null,
+              learningExecutionState: committedDigitalLifeSpine.current.runtimeSurface.memory.learningExecutionState ?? null,
+            }),
           }
           await appendAuditLog({
             level: 'notice',
@@ -730,6 +747,8 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
                 layeredContext.content.kind,
                 proactiveRecallSeed,
               ].filter(Boolean).join(' ')),
+              selfEvolution: organicPromptContext.selfEvolution ?? null,
+              learningExecutionState: organicPromptContext.learningExecutionState ?? null,
             }),
           }
           deliveryDecision = sociallyAdjustedDecision
@@ -830,9 +849,12 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
           kind: autonomyExecutionProposalSurface ? 'autonomy-proposal' : 'subconscious-proactive',
           structured,
           hasMindAuthoredStructured: Boolean(llmStructured),
-          reason: llmStructured
-            ? 'mind-authored-proactive-utterance'
-            : 'provider-mind-unavailable-for-proactive-visible-utterance',
+          reason: entrySurface.shouldHoldVisibleUtterance
+            ? 'proactive-visible-presence-without-utterance'
+            : llmStructured
+                ? 'mind-authored-proactive-utterance'
+                : 'provider-mind-unavailable-for-proactive-visible-utterance',
+          allowDeterministicVisibleFallback: entrySurface.shouldHoldVisibleUtterance,
           selfRevisionPatch: activeSelfRevisionPatch,
         })
         if (!proactiveVisibleUtterance.shouldPersistVisibleUtterance) {

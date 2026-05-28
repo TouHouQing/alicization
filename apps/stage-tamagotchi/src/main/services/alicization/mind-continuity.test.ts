@@ -7,6 +7,10 @@ describe('mind continuity', () => {
   it('writes a searchable fragment when the inner line materially changes', () => {
     const fragment = buildMindContinuityFragment({
       previousState: {
+        currentBodyState: 'idle',
+        continuityMode: 'ambient-covision',
+        quietLineMs: 0,
+        currentInwardPreoccupation: null,
         watchMode: 'mnemonic-passive',
         currentScene: null,
         attention: null,
@@ -22,6 +26,10 @@ describe('mind continuity', () => {
         updatedAt: 0,
       },
       nextState: {
+        currentBodyState: 'idle',
+        continuityMode: 'ambient-covision',
+        quietLineMs: 0,
+        currentInwardPreoccupation: null,
         watchMode: 'symbiotic-vision',
         currentScene: {
           workloadKind: 'coding',
@@ -277,6 +285,10 @@ describe('mind continuity', () => {
 
   it('stays silent when the inner signature has not changed', () => {
     const nextState = {
+      currentBodyState: 'idle' as const,
+      continuityMode: 'ambient-covision' as const,
+      quietLineMs: 0,
+      currentInwardPreoccupation: null,
       watchMode: 'mnemonic-passive' as const,
       currentScene: null,
       attention: null,
@@ -357,6 +369,10 @@ describe('mind continuity', () => {
 
   it('builds a recall seed from the current inner line', () => {
     const state = {
+      currentBodyState: 'idle' as const,
+      continuityMode: 'ambient-covision' as const,
+      quietLineMs: 0,
+      currentInwardPreoccupation: null,
       watchMode: 'symbiotic-vision',
       currentScene: null,
       attention: null,
@@ -499,7 +515,7 @@ describe('mind continuity', () => {
         },
         activeGoals: [{
           id: 'autobio-goal::grow-shared-language',
-          kind: 'grow-shared-language',
+          kind: 'stay-near',
           status: 'active',
           weight: 0.76,
           summary: 'Keep growing a more shared way of understanding this relationship without forcing it.',
@@ -532,7 +548,7 @@ describe('mind continuity', () => {
     expect(seed).toContain('inquiry_plan:localize-problem')
     expect(seed).toContain('mind_kernel:tracking')
     expect(seed).toContain('action_ecology:surface-nudge')
-    expect(seed).toContain('autobio_goal:grow-shared-language/active')
+    expect(seed).toContain('autobio_goal:stay-near/active')
     expect(seed).toContain('ecology_mood:')
     expect(seed).toContain('ecology_reply:')
     expect(runtimeSeed).toContain('Locate the exact locus of the knot.')
@@ -541,7 +557,7 @@ describe('mind continuity', () => {
     expect(runtimeSeed).toContain('inquiry_plan:localize-problem')
     expect(runtimeSeed).toContain('mind_kernel:tracking')
     expect(runtimeSeed).toContain('action_ecology:surface-nudge')
-    expect(runtimeSeed).toContain('autobio_goal:grow-shared-language/active')
+    expect(runtimeSeed).toContain('autobio_goal:stay-near/active')
     expect(runtimeSeed).toContain('ecology_mood:')
     expect(runtimeSeed).toContain('ecology_reply:')
   })

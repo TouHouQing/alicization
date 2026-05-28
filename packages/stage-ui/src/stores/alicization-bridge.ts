@@ -12,6 +12,7 @@ import type {
   AlicizationCliCommandInput as SharedAlicizationCliCommandInput,
   AlicizationCodexCommandInput as SharedAlicizationCodexCommandInput,
   AlicizationDialogueEmbodimentEnvelope as SharedAlicizationDialogueEmbodimentEnvelope,
+  AlicizationEmbodimentScriptV1 as SharedAlicizationEmbodimentScriptV1,
   AlicizationDialoguePerformancePayload as SharedAlicizationDialoguePerformancePayload,
   AlicizationDialogueRespondedPayload as SharedAlicizationDialogueRespondedPayload,
   AlicizationDialogueSpeechTimeline as SharedAlicizationDialogueSpeechTimeline,
@@ -55,7 +56,12 @@ import type {
   AlicizationReplayMemoryQualityRecord as SharedAlicizationReplayMemoryQualityRecord,
   AlicizationRunReplayBenchmarkInput as SharedAlicizationRunReplayBenchmarkInput,
   AlicizationRunReplayBenchmarkResult as SharedAlicizationRunReplayBenchmarkResult,
+  AlicizationNormalVisibleReplyAuthority as SharedAlicizationNormalVisibleReplyAuthority,
+  AlicizationInfraVisibleReplyAuthority as SharedAlicizationInfraVisibleReplyAuthority,
+  AlicizationVisibleReplyExecutionAuthority as SharedAlicizationVisibleReplyExecutionAuthority,
+  AlicizationPersistentPresenceAuthoritySnapshot as SharedAlicizationPersistentPresenceAuthoritySnapshot,
   AlicizationSelfEvolutionKernelSnapshot as SharedAlicizationSelfEvolutionKernelSnapshot,
+  AlicizationSelfEvolutionVersionRuntimeSnapshot as SharedAlicizationSelfEvolutionVersionRuntimeSnapshot,
   AlicizationMemoryProvenance as SharedAlicizationMemoryProvenance,
   AlicizationMemorySource as SharedAlicizationMemorySource,
   AlicizationMemoryUpsertTrace as SharedAlicizationMemoryUpsertTrace,
@@ -194,6 +200,8 @@ export type AlicizationMemoryUpsertTrace = SharedAlicizationMemoryUpsertTrace
 export type AlicizationEpisodicEventRecord = SharedAlicizationEpisodicEventRecord
 export type AlicizationHostPersonModelSnapshot = SharedAlicizationHostPersonModelSnapshot
 export type AlicizationAffectiveResidueMemorySnapshot = SharedAlicizationAffectiveResidueMemorySnapshot
+export type AlicizationSelfEvolutionKernelSnapshot = SharedAlicizationSelfEvolutionKernelSnapshot
+export type AlicizationSelfEvolutionVersionRuntimeSnapshot = SharedAlicizationSelfEvolutionVersionRuntimeSnapshot
 export type AlicizationPersonStateUpdateRecord = SharedAlicizationPersonStateUpdateRecord
 export type AlicizationPersonStateUpdateSurface = SharedAlicizationPersonStateUpdateSurface
 
@@ -355,6 +363,7 @@ export interface AlicizationConversationTurnInput {
   userText?: string
   assistantText?: string
   structured?: Record<string, unknown>
+  visibleReplyExecution?: AlicizationVisibleReplyExecution | null
   governance?: AlicizationMindTurnGovernance | null
   createdAt?: number
 }
@@ -368,6 +377,19 @@ export type AlicizationReplayMemoryQualityRecord = SharedAlicizationReplayMemory
 export type AlicizationReplayBenchmarkStandardsRecord = SharedAlicizationReplayBenchmarkStandardsRecord
 export type AlicizationReplayBenchmarkGateReport = SharedAlicizationReplayBenchmarkGateReport
 export type AlicizationReplayBenchmarkTelemetryPatch = SharedAlicizationReplayBenchmarkTelemetryPatch
+export type AlicizationNormalVisibleReplyAuthority = SharedAlicizationNormalVisibleReplyAuthority
+export type AlicizationInfraVisibleReplyAuthority = SharedAlicizationInfraVisibleReplyAuthority
+export type AlicizationVisibleReplyExecutionAuthority = SharedAlicizationVisibleReplyExecutionAuthority
+
+export type AlicizationVisibleReplyExecutionMode = 'provider-stream' | 'provider-one-shot' | 'local-fallback'
+
+export interface AlicizationVisibleReplyExecution {
+  mode: AlicizationVisibleReplyExecutionMode
+  expectedVisibleReplyAuthority: AlicizationNormalVisibleReplyAuthority | null
+  actualVisibleReplyAuthority: AlicizationVisibleReplyExecutionAuthority | null
+  providerMindExecuted: boolean
+  reason: string | null
+}
 
 export interface AlicizationListMindTurnEventsPayload extends SharedAlicizationListMindTurnEventsInput {}
 export interface AlicizationListMemoryDecisionTracesPayload extends SharedAlicizationListMemoryDecisionTracesInput {}
@@ -1646,6 +1668,16 @@ export interface AlicizationInitiativeSnapshot {
   silenceDrive?: number
   preferredStyle?: AlicizationProactiveStyle
   preferredPresence?: AlicizationEmbodiedPresenceState
+  personaBias?: {
+    relationshipPosture: string | null
+    initiativeStyle: string | null
+    silenceReconnect: string | null
+    comfortStyle: string | null
+    preferredProactiveStyle: string | null
+    manifestationCadenceSummary: string | null
+    openingGuidance: string | null
+    whySummary: string | null
+  } | null
   why: string
   shouldSurface: boolean
   shouldSpeak: boolean
@@ -1706,7 +1738,7 @@ export interface AlicizationPrivateThoughtSnapshot {
   livingWorldObjectId?: string | null
 }
 
-export interface AlicizationVisualPresenceStateSnapshot {
+export interface AlicizationVisualPresenceStateSnapshot extends SharedAlicizationPersistentPresenceAuthoritySnapshot {
   watchMode: AlicizationVisualWatchMode
   currentScene: AlicizationVisualSceneSnapshot | null
   attention: AlicizationVisualAttentionSnapshot | null
@@ -1768,6 +1800,10 @@ export interface AlicizationPresencePulsePayload {
   embodiedPresence: AlicizationEmbodiedPresenceState
   scenario: AlicizationProactiveScenario
   stance: AlicizationPrivateThoughtSnapshot['stance']
+  currentBodyState?: AlicizationVisualPresenceStateSnapshot['currentBodyState']
+  continuityMode?: AlicizationVisualPresenceStateSnapshot['continuityMode']
+  quietLineMs?: number
+  currentInwardPreoccupation?: string | null
   confidence: number
   reasonTags: string[]
   emotionalTension?: AlicizationEmotionalTension
@@ -1797,6 +1833,7 @@ export interface AlicizationProactiveFeedbackPayload {
 
 export type AlicizationDialoguePerformancePayload = SharedAlicizationDialoguePerformancePayload
 export type AlicizationDialogueEmbodimentEnvelope = SharedAlicizationDialogueEmbodimentEnvelope
+export type AlicizationEmbodimentScriptV1 = SharedAlicizationEmbodimentScriptV1
 export type AlicizationDigitalLifeEnvelope = SharedAlicizationDigitalLifeEnvelope
 export type AlicizationDigitalLifeSpineDigest = SharedAlicizationDigitalLifeSpineDigest
 export type AlicizationRuntimeDigest = SharedAlicizationRuntimeDigest
@@ -1940,6 +1977,7 @@ interface AlicizationBridge {
   upsertMemoryFacts: (payload: { facts: AlicizationMemoryFactInput[], source: AlicizationMemorySource, trace?: AlicizationMemoryUpsertTrace | null }) => Promise<void>
   importLegacyMemory: (payload: AlicizationMemoryLegacySnapshot) => Promise<AlicizationMemoryMigrationResult>
   getOrganicMemorySnapshot?: () => Promise<AlicizationOrganicMemorySnapshot>
+  getSelfEvolutionState?: () => Promise<AlicizationSelfEvolutionVersionRuntimeSnapshot>
   searchOrganicSubconsciousFragments?: (payload: { query: string, limit?: number }) => Promise<AlicizationSubconsciousFragment[]>
   getPerformanceManifest?: () => Promise<CharacterPerformanceCapabilitiesManifest | null>
   setPerformanceManifest?: (payload: CharacterPerformanceCapabilitiesManifest | null) => Promise<void>

@@ -3,11 +3,17 @@ export type AlicizationEmbodimentLipSyncMode
     | 'energy-phoneme-hybrid'
 
 export type AlicizationEmbodimentViseme = 'A' | 'E' | 'I' | 'O' | 'U' | 'closed'
+export type AlicizationEmbodimentLipSyncVisemeSource
+  = 'prosody-authority'
+    | 'timeline-projection'
+    | 'digital-life-projection'
 
 export interface AlicizationEmbodimentLipSyncVisemeHint {
   segmentId: string
   viseme: AlicizationEmbodimentViseme
   weight: number
+  source: AlicizationEmbodimentLipSyncVisemeSource
+  confidence: number
 }
 
 export interface AlicizationEmbodimentLipSyncPlan {
@@ -28,6 +34,13 @@ function normalizeUnit(raw: unknown) {
   return Math.max(0, Math.min(1, value))
 }
 
+function normalizeRequiredUnit(raw: unknown): number | null {
+  const value = Number(raw)
+  if (!Number.isFinite(value))
+    return null
+  return Math.max(0, Math.min(1, value))
+}
+
 function normalizeLipSyncMode(raw: unknown): AlicizationEmbodimentLipSyncMode {
   return raw === 'energy-phoneme-hybrid'
     ? raw
@@ -45,6 +58,14 @@ function normalizeViseme(raw: unknown): AlicizationEmbodimentViseme | null {
     : null
 }
 
+function normalizeVisemeSource(raw: unknown): AlicizationEmbodimentLipSyncVisemeSource | null {
+  return raw === 'prosody-authority'
+    || raw === 'timeline-projection'
+    || raw === 'digital-life-projection'
+    ? raw
+    : null
+}
+
 function normalizeVisemeHint(raw: unknown): AlicizationEmbodimentLipSyncVisemeHint | null {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw))
     return null
@@ -52,13 +73,17 @@ function normalizeVisemeHint(raw: unknown): AlicizationEmbodimentLipSyncVisemeHi
   const candidate = raw as Record<string, unknown>
   const segmentId = normalizeText(candidate.segmentId, 120)
   const viseme = normalizeViseme(candidate.viseme)
-  if (!segmentId || !viseme)
+  const source = normalizeVisemeSource(candidate.source)
+  const confidence = normalizeRequiredUnit(candidate.confidence)
+  if (!segmentId || !viseme || !source || confidence === null)
     return null
 
   return {
     segmentId,
     viseme,
     weight: normalizeUnit(candidate.weight),
+    source,
+    confidence,
   }
 }
 

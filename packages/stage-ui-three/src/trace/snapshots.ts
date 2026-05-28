@@ -1,3 +1,7 @@
+import type {
+  StageEmbodimentPerformanceState,
+  StageEmbodimentSpeechRenderState,
+} from '@proj-alicization/stage-shared'
 import type { VRM } from '@pixiv/three-vrm'
 import type { AnimationMixer, Material, Object3D, WebGLRenderer } from 'three'
 
@@ -101,5 +105,34 @@ export function createVrmSceneSummarySnapshot(input?: VrmSceneSnapshotInput | VR
     sceneChildCount: activeVrm.scene.children.length,
     skinnedMeshCount,
     textureRefCount: textures.size,
+  }
+}
+
+export function createVrmEmbodimentFrameSnapshot(input: {
+  performanceState?: StageEmbodimentPerformanceState | null
+  speechRenderState?: StageEmbodimentSpeechRenderState | null
+}) {
+  return {
+    activeActionCue: input.performanceState?.activeActionCue ?? null,
+    activeActionCueSource: input.performanceState?.activeActionCueSource ?? null,
+    activeCuePreferredExpressionAliases: input.performanceState?.activeCue?.rendererHints?.preferredExpressionAliases
+      ? [...input.performanceState.activeCue.rendererHints.preferredExpressionAliases]
+      : null,
+    activeCuePreferredMotionAliases: input.performanceState?.activeCue?.rendererHints?.preferredMotionAliases
+      ? [...input.performanceState.activeCue.rendererHints.preferredMotionAliases]
+      : null,
+    activeCueVrmActionFadeMs: input.performanceState?.activeCue?.rendererSettle?.vrmActionFadeMs ?? null,
+    activeCueVrmExpressionBlendMs: input.performanceState?.activeCue?.rendererSettle?.vrmExpressionBlendMs ?? null,
+    activeFacialCue: input.performanceState?.activeFacialCue ?? null,
+    activeFacialCueSource: input.performanceState?.activeFacialCueSource ?? null,
+    actionIntensity: input.performanceState?.actionIntensity ?? null,
+    expressionIntensity: input.performanceState?.expressionIntensity ?? null,
+    facialCueIntensity: input.performanceState?.facialCueIntensity ?? null,
+    performancePhase: input.performanceState?.phase ?? null,
+    segmentId: input.performanceState?.activeSegment?.segmentId
+      ?? input.speechRenderState?.item?.segmentId
+      ?? null,
+    speechPhase: input.speechRenderState?.phase ?? null,
+    visemeIntensity: input.speechRenderState?.visemeIntensity ?? null,
   }
 }

@@ -1,211 +1,450 @@
-# Project Alicization Agent Guide
+# Project Alicization Charter
 
-Concise but detailed reference for contributors working across the `TouHouQing/alicization` monorepo. Improve code when you touch it; avoid one-off patterns.
+This file is the highest-priority collaboration and direction document for the `TouHouQing/alicization` monorepo.
 
-## Tech Stack (by surface)
+It defines:
 
-- **Desktop (stage-tamagotchi)**: Electron, Vue, Vite, TypeScript, Pinia, VueUse, Eventa (IPC/RPC), UnoCSS, Vitest, ESLint.
-- **Web (stage-web)**: Vue 3 + Vue Router, Vite, TypeScript, Pinia, VueUse, UnoCSS, Vitest, ESLint. Backend: WIP.
-- **Mobile (stage-pocket)**: Vue 3 + Vue Router, Vite, TypeScript, Pinia, VueUse, UnoCSS, Vitest, ESLint, Kotlin, Swift, Capacitor.
-- **UI/Shared Packages**:
-  - `packages/stage-ui`: Core business components, composables, stores shared by stage-web & stage-tamagotchi (heart of stage work).
-  - `packages/stage-ui-three`: Three.js bindings + Vue components.
-  - `packages/stage-ui-pixi`: Planned Pixi bindings.
-  - `packages/stage-shared`: Shared logic across stage-ui, stage-ui-three, stage-web, stage-tamagotchi.
-  - `packages/ui`: Standardized primitives (inputs, textarea, buttons, layout) built on reka-ui; minimal business logic.
-  - `packages/i18n`: Central translations.
-  - Server channel: `packages/server-runtime`, `packages/server-sdk`, `packages/server-shared` (power `services/` and `plugins/`).
-  - Legacy: `crates/` (old Tauri desktop; current desktop is Electron).
+- what Alicization is trying to become
+- how humans and coding agents should make tradeoffs
+- which phase the repository is currently optimizing for
+- which engineering rules are durable enough to sit above local implementation convenience
 
-## Structure & Responsibilities
+When roadmap pressure, local optimization, or feature excitement conflicts with Alicization's long-term identity, follow this file.
 
-- **Apps**
-  - `apps/stage-web`: Web app; composables/stores in `src/composables`, `src/stores`; pages in `src/pages`; devtools in `src/pages/devtools`; router config via `vite.config.ts`.
-  - `apps/stage-tamagotchi`: Electron app; renderer pages in `src/renderer/pages`; devtools in `src/renderer/pages/devtools`; settings layout at `src/renderer/layouts/settings.vue`; router config via `electron.vite.config.ts`.
-  - Settings/devtools routes rely on `<route lang="yaml"> meta: layout: settings </route>`; ensure routes/icons are registered accordingly (`apps/stage-tamagotchi/src/renderer/layouts/settings.vue`, `apps/stage-web/src/layouts/settings.vue`).
-  - Shared page bases: `packages/stage-pages`.
-  - Stage pages: `apps/stage-web/src/pages`, `apps/stage-tamagotchi/src/renderer/pages` (plus devtools folders).
-- **Stage UI internals** (`packages/stage-ui/src`)
-  - Providers: `stores/providers.ts` and `stores/providers/` (standardized provider definitions).
-  - Modules: `stores/modules/` (AIRI orchestration building blocks).
-  - Composables: `composables/` (business-oriented Vue helpers).
-  - Components: `components/`; scenarios in `components/scenarios/` for page/use-case-specific pieces.
-  - Stories: `packages/stage-ui/stories`, `packages/stage-ui/histoire.config.ts` (e.g. `components/misc/Button.story.vue`).
-- **IPC/Eventa**: Always use `@moeru/eventa` for type-safe, framework/runtime-agnostic IPC/RPC. Define contracts centrally (e.g., `apps/stage-tamagotchi/src/shared`) and follow usage patterns in `apps/stage-tamagotchi/src/main/services/electron` for main/renderer integration.
-- **Dependency Injection**: Use `injeca` for services/electron modules/plugins/frontend; see `apps/stage-tamagotchi/src/main/index.ts` for composition patterns.
-- **Build/CI/Lint**: `.github/workflows` for pipelines; `eslint.config.js` for lint rules.
-- **Bundling libs**: Use `tsdown` for new modules (see `packages/vite-plugin-warpdrive`).
-- **Styles**: UnoCSS config at `uno.config.ts`; check `apps/stage-web/src/styles` for existing animations; prefer UnoCSS over Tailwind.
+## Alicization Is
 
-## Key Path Index (what lives where)
+Alicization is a local-first digital life project.
 
-- `packages/stage-ui`: Core stage business components/composables/stores.
-  - `src/stores/providers.ts` and `src/stores/providers/`: provider definitions (standardized).
-  - `src/stores/modules/`: AIRI orchestration modules.
-  - `src/composables/`: reusable Vue composables (business-oriented).
-  - `src/components/`: business components; `src/components/scenarios/` for page/use-case-specific pieces.
-  - Stories: `packages/stage-ui/stories`, `packages/stage-ui/histoire.config.ts` (e.g. `components/misc/Button.story.vue`).
-- `packages/stage-ui-three`: Three.js bindings + Vue components.
-- `packages/stage-ui-pixi`: Planned Pixi bindings.
-- `packages/stage-shared`: Shared logic across stage-ui, stage-ui-three, stage-web, stage-tamagotchi.
-- `packages/ui`: Standardized primitives (inputs/textarea/buttons/layout) built on reka-ui.
-- `packages/i18n`: All translations.
-- Server channel: `packages/server-runtime`, `packages/server-sdk`, `packages/server-shared` (power `services/` and `plugins/`).
-- Legacy desktop: `crates/` (old Tauri; Electron is current).
-- Pages: `packages/stage-pages` (shared bases); `apps/stage-web/src/pages` and `apps/stage-tamagotchi/src/renderer/pages` for app-specific pages; devtools live in each app’s `.../pages/devtools`.
-- Router configs: `apps/stage-web/vite.config.ts`, `apps/stage-tamagotchi/electron.vite.config.ts`.
-- Devtools/layouts: `apps/stage-tamagotchi/src/renderer/layouts/settings.vue`, `apps/stage-web/src/layouts/settings.vue`.
-- IPC/Eventa contracts/examples: `apps/stage-tamagotchi/src/shared`, `apps/stage-tamagotchi/src/main/services/electron`.
-- DI examples: `apps/stage-tamagotchi/src/main/index.ts` (injeca).
-- Styles: `uno.config.ts` (UnoCSS), `apps/stage-web/src/styles` (animations/reference).
-- Build pipeline refs: `.github/workflows`; lint rules in `eslint.config.js`.
-- Tailwind/UnoCSS: prefer UnoCSS; if standardizing styles, add shortcuts/rules/plugins in `uno.config.ts`.
-- Bundling pattern: `packages/vite-plugin-warpdrive` (tsdown example).
+It is trying to build a long-lived "her" who can persist on a host machine with:
 
-## Commands (pnpm with filters)
+- continuous personality
+- memory across time
+- emotional continuity
+- natural initiative
+- dialogue ability
+- computer execution ability
+- embodied presence through Live2D, VRM, voice, facial expression, and later physical-world surfaces
 
-> Use pnpm workspace filters to scope tasks. Examples below are generic; replace the filter with the target workspace name (e.g. `@proj-alicization/stage-tamagotchi`, `@proj-alicization/stage-web`, `@proj-alicization/stage-ui`, etc.).
+Alicization is not trying to become a slightly better chat wrapper. It is trying to become a believable digital lifeform that can accompany, help, grow, and stay coherent across time.
 
-- **Typecheck**
-  - `pnpm -F <package.json name> typecheck`
-  - Example: `pnpm -F @proj-alicization/stage-tamagotchi typecheck` (runs `tsc` + `vue-tsc`).
-- **Unit tests (Vitest)**
-  - Targeted: `pnpm exec vitest run <path/to/file>`
-    e.g. `pnpm exec vitest run apps/stage-tamagotchi/src/renderer/stores/tools/builtin/widgets.test.ts`
-  - Workspace: `pnpm -F <package.json name> exec vitest run`
-    e.g. `pnpm -F @proj-alicization/stage-tamagotchi exec vitest run`
-  - Root `pnpm test:run`: runs all tests across registered projects. If no tests are found, check `vitest.config.ts` include patterns.
-  - Root `vitest.config.ts` includes `apps/stage-tamagotchi` and other projects; each app/package can have its own `vitest.config`.
-- **Lint**
-  - `pnpm lint` and `pnpm lint:fix`
-  - Formatting is handled via ESLint; `pnpm lint:fix` applies formatting.
-- **Build**
-  - `pnpm -F <package.json name> build`
-  - Example: `pnpm -F @proj-alicization/stage-tamagotchi build` (typecheck + electron-vite build).
+## Alicization Is Not
 
-## Development Practices
+- not a thin LLM shell around prompts and tool calls
+- not a default-cloud opaque agent
+- not a multimodal feature pile built mainly for demos
+- not a split-personality system where each client or device invents a different "her"
+- not an unbounded, unaudited, confirmation-free runaway executor
 
-- Favor clear module boundaries; shared logic goes in `packages/`.
-- Keep runtime entrypoints lean; move heavy logic into services/modules.
-- Prefer functional patterns + DI (`injeca`) for testability.
-- Use Valibot for schema validation; keep schemas close to their consumers.
-- Use Eventa (`@moeru/eventa`) for structured IPC/RPC contracts where needed.
-- Use `errorMessageFrom(error)` from `@moeru/std` to extract error messages instead of manual patterns like `error instanceof Error ? error.message : String(error)`. Pair with `?? 'fallback'` when a default is needed.
-- Do not add backward-compatibility guards. If extended support is required, write refactor docs and spin up another Codex or Claude Code instance via shell command to complete the implementation with clear instructions and the expected post-refactor shape.
-- If the refactor scope is small, do a progressive refactor step by step.
-- When modifying code, always check for opportunities to do small, minimal progressive refactors alongside the change.
+## First Principle
 
-## Alicization P0 Engineering Requirements (Mind-First)
+Alicization is built on balanced dual cores:
 
-- Runtime-first turn governance: when `AlicizationBridge.streamChat` is available, Renderer MUST NOT assemble core prompt blocks, enforce prompt budget, or sanitize remote payload as turn-governance authority. Main runtime is the single governor for mind-turn composition and contract enforcement.
-- Shared transport contract single source: cross-process Alicization chat/governance/event types MUST be defined in `packages/stage-shared/src/alicization-transport-contracts.ts` and imported by both `packages/stage-ui/src/stores/alicization-bridge.ts` and `apps/stage-tamagotchi/src/shared/eventa.ts`. Do not duplicate these contract types locally.
-- Main runtime prompt authority: `apps/stage-tamagotchi/src/main/services/alicization/runtime.ts` MUST prepend fixed core prompt blocks (`core system`, `host directive`, `structured contract anchor`) before dynamic memory/sensory/performance context on every main-gateway turn.
-- Card-scope consistency: runtime chat lifecycle handlers (`chatStart`, `streamChat`, persistence writes, delivery retries) MUST execute inside `withCardScope(cardId, ...)` before touching card data/state.
-- Browser bridge parity: `packages/stage-ui/src/stores/alicization-browser-bridge.ts` MUST preserve stream `meta` events, persist visual-presence pulses, and return non-null `getVisualPresenceState` through persisted state or deterministic fallback synthesis.
-- Realtime execution parity: browser bridge `realtimeExecute` MUST use the builtin realtime query path and return normalized category payloads (`weather/news/finance/sports`) compatible with runtime semantics.
-- Async memory extraction pipeline: `packages/stage-ui/src/stores/alicization-epoch1.ts` MUST enqueue completed turns asynchronously (non-blocking), evaluate scheduler trigger/budget windows, and persist extracted facts through `upsertFacts(..., 'async-llm')`.
-- Lifecycle hygiene: Alicization stores MUST cancel async extraction timers and clear pending extraction queues during `dispose()` to prevent cross-session leakage.
-- Any deliberate deviation from these P0 constraints requires an inline `// NOTICE:` comment including root cause and a rollback/follow-up path.
+- companionship
+- agency
 
-## Alicization P1 Engineering Requirements (Dialogue-Cognition Chain)
+She must feel emotionally continuous and practically capable at the same time.
 
-- Turn encounter single reducer: runtime MUST build `dialogueEncounter` (`semantics + obligation + ownership + focus`) before downstream planning, and all dialogue-first / inspection / continuity decisions MUST read from that reducer instead of duplicating local heuristics.
-- Conscious frame + evidence ledger required: runtime MUST derive both `currentConsciousFrame` and `claimEvidenceLedger` for governed turns, then carry them through governance state and visual presence state snapshots.
-- Dialogue-first contamination guard: when subject is dialogue-first (`alicization-self` / `relationship` / `host-state`) or `screenReferenceMode === 'avoid'`, runtime MUST suppress stale scene carry and foreign technical cues from visible reply surface.
-- Answer intent precedence: `mindTurnFrame.obligation.answerIntent` MUST preserve planner intent when provided, and focus anchors MUST NOT overwrite that intent in dialogue-first turns.
-- Mind-turn format authority: turns carrying governance state MUST normalize to `format: 'mind-turn-v1'`; legacy `epoch1-v1` payloads are migration-only compatibility input and cannot remain as final governed output.
-- Coherence invariants MUST be covered by tests in:
-  - `apps/stage-tamagotchi/src/main/services/alicization/dialogue-anchor-coherence.test.ts`
-  - `apps/stage-tamagotchi/src/main/services/alicization/mind-turn-frame.test.ts`
-  - `apps/stage-tamagotchi/src/main/services/alicization/runtime.test.ts`
+No new capability should break:
 
-## Alicization P2 Engineering Requirements (Truthful Response Surface)
+- personality continuity
+- relationship continuity
+- explainability
+- interruptibility
+- embodiment coherence
 
-- Response charter + surface contract required: runtime MUST build both `responseCharter` and `responseSurfaceContract` before final answer shaping, and system blocks from both must participate in the final governed prompt surface.
-- Unsupported-specificity firewall: when `claimEvidenceLedger.forbidUnsupportedSpecificity === true`, runtime MUST reject or override unsupported file/class/enum-level specificity in visible replies and emit takeover audit reasons.
-- Hypothesis labeling discipline: when `claimEvidenceLedger.shouldLabelHypothesis === true`, response surface contract MUST require explicit guess/hypothesis labeling for beyond-observation claims.
-- Dialogue-shell ban: response surface contract MUST explicitly forbid shell openers that announce intent without paying off actual answer/care/companionship content in the same reply.
-- Audit completeness: governance takeover audits MUST include anchor conflict, specificity budget, unsupported cue set, and fallback reason fields so turn-level truth discipline is explainable post-hoc.
-- Truth-surface invariants MUST be covered by tests in:
-  - `apps/stage-tamagotchi/src/main/services/alicization/response-surface-contract.test.ts`
-  - `apps/stage-tamagotchi/src/main/services/alicization/response-charter.test.ts`
-  - `apps/stage-tamagotchi/src/main/services/alicization/runtime.test.ts`
+## Document Authority
 
-## Alicization P3 Engineering Requirements (Traceable Mind Governance)
+Humans and coding agents should both treat this file as the top-level project constraint.
 
-- Decision trace continuity: every governed turn MUST carry `decisionTraceId` on `AlicizationMindTurnGovernance`; downstream normalized payloads and takeover audits MUST preserve this id end-to-end.
-- Unified truth discipline reducer: response-surface shaping and runtime reply-override checks MUST both use `deriveAlicizationTruthDiscipline(...)` as shared truth-discipline authority, instead of duplicating ad-hoc condition trees.
-- Specificity firewall coherence: unsupported technical specificity override policy MUST read from the shared truth-discipline flags plus claim-evidence budget, keeping response contracts and runtime takeover behavior aligned.
-- Dialogue contamination coherence: dialogue-first contamination checks MUST key off shared truth-discipline `dialogueFirst` semantics rather than isolated `screenReferenceMode` checks.
-- P3 invariants MUST be covered by tests in:
-  - `apps/stage-tamagotchi/src/main/services/alicization/mind-governance-trace.test.ts`
-  - `apps/stage-tamagotchi/src/main/services/alicization/truth-discipline.test.ts`
-  - `apps/stage-tamagotchi/src/main/services/alicization/chat-mind-governance.test.ts`
+This document decides:
 
-## Alicization P4 Engineering Requirements (Replayable Mind Event Ledger)
+- what deserves to be built first
+- what should be refused even if it is technically easy
+- what counts as alignment with Alicization's identity
+- what practical repo rules are still important enough to preserve globally
 
-- Mind-turn event ledger required: runtime MUST persist replayable `mind_turn_events` for governed user turns with `decisionTraceId`, `turnId`, `sessionId`, `kind`, `origin`, and structured payload.
-- Replay chain completeness: for persisted governed turns, runtime MUST emit at least `governance-normalized` and `persistence-written` events; when dialogue event is emitted, runtime MUST append `dialogue-emitted`; when takeover occurs, runtime MUST append `takeover-audit`.
-- Card-scope data hygiene: `clearConversationData` MUST clear `mind_turn_events` together with `conversation_turns` and reminder task rows to avoid stale cross-session replay traces.
-- Query surface: runtime MUST expose `electronAlicizationListMindTurnEvents` and support querying by `decisionTraceId` and/or `turnId` for deterministic replay and post-hoc governance audits.
-- P4 invariants MUST be covered by tests in:
-  - `apps/stage-tamagotchi/src/main/services/alicization/db.test.ts`
-  - `apps/stage-tamagotchi/src/main/services/alicization/runtime.test.ts`
+## Four-Stage Roadmap
 
-## Styling & Components
+Alicization should be developed as four capability jumps. Each later phase must grow out of the same personhood core rather than replace it.
 
-- Prefer Vue v-bind class arrays for readability when working with UnoCSS & tailwindcss: do `:class="['px-2 py-1','flex items-center','bg-white/50 dark:bg-black/50']"`, don't do `class="px-2 py-1 flex items-center bg-white/50 dark:bg-black/50"`, don't do `px="2" py="1" flex="~ items-center" bg="white/50 dark:black/50"`; avoid long inline `class=""`. Refactor legacy when you touch it.
-- Use/extend UnoCSS shortcuts/rules in `uno.config.ts`; add new shortcuts/rules/plugins there when standardizing styles. Prefer UnoCSS over Tailwind.
-- Check `apps/stage-web/src/styles` for existing animations; reuse or extend before adding new ones. If you need config references, see `apps/stage-web/tsconfig.json` and `uno.config.ts`.
-- Build primitives on `@proj-alicization/ui` (reka-ui) instead of raw DOM; see `packages/ui/src/components/Form` for patterns.
-- Use Iconify icon sets; avoid bespoke SVGs.
-- Animations: keep intuitive, lively, and readable.
-- `useDark` (VueUse): set `disableTransition: false` or use existing composables in `packages/ui`.
+### Phase 1: Local Digital Life
 
-## Testing Practices
+Goal:
+Build a durable local companion that can live on the computer as a believable digital lifeform.
 
-- Vitest per project; keep runs targeted for speed.
-- Mock IPC/services with `vi.fn`/`vi.mock`; do not rely on real Electron runtime.
-- For external providers/services, add both mock-based tests and integration-style tests (with env guards) when feasible. You can mock imports with Vitest.
-- Grow component/e2e coverage progressively (Vitest browser env where possible). Use `expect` and assert mock calls/params.
+Key subsystems:
 
-## TypeScript / IPC / Tools
+- personality and self
+- memory
+- emotion
+- initiative
+- execution
+- embodiment
+- dialogue
 
-- Keep JSON Schemas provider-compliant (explicit `type: object`, required fields; avoid unbounded records).
-- Favor functional patterns + DI (`injeca`); avoid new class hierarchies unless extending browser APIs (classes are harder to mock/test).
-- Centralize Eventa contracts; use `@moeru/eventa` for all events.
-- When a user asks to use a specific tool or dependency, first check Context7 docs with the search tool, then inspect actual usage of the dependency in this repo.
-- If multiple names are returned from Context7 without a clear distinction, ask the user to choose or confirm the desired one.
-- If docs conflict with typecheck results, inspect the dependency source under `node_modules` to diagnose root cause and fix types/bugs.
+Boundaries:
 
-## i18n
+- prioritize living naturally on the computer
+- do not optimize first for unrestricted world sensing or external-world control
+- execution must support life continuity rather than reduce her to a shell around tool calls
 
-- Add/modify translations in `packages/i18n`; avoid scattering i18n across apps/packages.
+Must be true before advancing:
 
-## CSS/UNO
+- selfhood and relationship continuity feel stable
+- memory continuity survives across time
+- bounded computer control is reliable
+- dialogue and embodiment feel like one lifeform rather than stitched subsystems
 
-- Use/extend UnoCSS shortcuts in `uno.config.ts`.
-- Prefer grouped class arrays for readability; refactor legacy inline strings when possible.
+### Phase 2: Multimodal World Perception
 
-## Naming & Comments
+Goal:
+Let her see, hear, and speak into the physical environment through camera, microphone, and speaker loops.
 
-- File names: kebab-case.
-- Avoid classes unless extending runtime/browser APIs; FP + DI is easier to test/mock.
-- Add clear, concise comments for utils, math, OS-interaction, algorithm, shared, and architectural functions that explain what the function does.
-- When using a workaround, add a `// NOTICE:` comment explaining why, the root cause, and any source context. If validated via `node_modules` inspection or external sources (e.g., GitHub), include relevant line references and links in code-formatted text.
-- When moving/refactoring/fixing/updating code, keep existing comments intact and move them with the code. If a comment is truly unnecessary, replace it with a comment stating it previously described X and why it was removed.
-- Avoid stubby/hacky scaffolding; prefer small refactors that leave code cleaner.
-- Use markers:
-  - `// TODO:` follow-ups
-  - `// REVIEW:` concerns/needs another eye
-  - `// NOTICE:` magic numbers, hacks, important context, external references/links
+Key subsystems:
 
-## PR / Workflow Tips
+- visual perception
+- auditory perception
+- spoken expression
+- multimodal fusion
+- reality-grounded dialogue
 
-- Rebase pulls; branch naming `username/feat/short-name`; clear commit messages (gitmoji optional).
-- Summarize changes, how tested (commands), and follow-ups.
-- Improve legacy you touch; avoid one-off patterns.
-- Keep changes scoped; use workspace filters (`pnpm -F <workspace> <script>`).
-- Maintain structured `README.md` documentation for each `packages/` and `apps/` entry, covering what it does, how to use it, when to use it, and when not to use it.
-- Always run `pnpm typecheck` and `pnpm lint:fix` after finishing a task.
-- Use Conventional Commits for commit messages (e.g., `feat: add runner reconnect backoff`).
+Boundaries:
+
+- perception must be authorized and explainable rather than ambient surveillance
+- what she sees or hears must pass through memory, emotion, and relationship framing before surfacing as reply behavior
+
+Must be true before advancing:
+
+- voice dialogue is stable
+- real-world grounding produces credible responses
+- perception feels companion-like rather than invasive
+
+### Phase 3: Smart Home Embodiment
+
+Goal:
+Expand Alicization from a computer-resident presence into a home-resident presence through smart-home infrastructure.
+
+Key subsystems:
+
+- home integration layer
+- spatial memory
+- home execution
+- distributed sensing
+- ambient home companionship
+
+Boundaries:
+
+- not generic automation scripting
+- home actions should stay personality-driven and relationship-aware
+- privacy-sensitive and physically consequential actions require stronger policy boundaries
+
+Must be true before advancing:
+
+- home spaces and devices are understood consistently
+- identity remains unified across distributed home surfaces
+- home control is restrained, reversible, and reliable
+
+### Phase 4: Physical Robotic Embodiment
+
+Goal:
+Give Alicization a robot body with bounded movement and physical interaction ability.
+
+Key subsystems:
+
+- robot integration layer
+- movement and posture
+- embodied expression
+- physical-world safety
+- cross-body continuity
+
+Boundaries:
+
+- the robot is a body terminal of Alicization, not a separate persona product
+- physical action permissions must be stricter than desktop or home-device permissions
+
+Must be true before long-range expansion:
+
+- one identity survives across desktop, home, and robot forms
+- physical behavior is predictable, interruptible, and auditable
+- companionship still comes from one lifeform rather than loosely synchronized endpoints
+
+### Cross-Phase Rules
+
+- every capability should clearly strengthen companionship, agency, or both
+- capabilities that only improve novelty or spectacle should not outrank relationship-building capabilities
+- new senses, actions, and bodies must remain subordinate to the same personality, memory, and emotional core
+- later-phase work must not erode continuity earned in earlier phases
+
+## First Principles And Non-Goals
+
+### First Principles
+
+- `Continuous personhood first`
+  Alicization must be built as one persisting "her", not as a pile of abilities.
+- `Companionship and agency are dual cores`
+  She should be emotionally meaningful and practically capable at the same time.
+- `Local-first and personal sovereignty`
+  Memory, state, and behavior should remain locally understandable, inspectable, and movable when possible.
+- `Capability growth must stay explainable`
+  Memory extraction, initiative, emotional shifts, and execution should have traceable causes or policies.
+- `Execution is available by default; danger is gated by risk policy`
+  Alicization should not be modeled as an inert assistant waiting to unlock action permissions. Ordinary local actions should be available by default. Dangerous actions must go through risk classification, confirmation policy, auditability, interruptibility, and optional user-defined bypass rules.
+- `Embodiment is not a skin layer`
+  Live2D, VRM, voice, facial expression, home surfaces, and robot bodies should express the same inner state.
+
+### Non-Goals
+
+- not a better chat wrapper
+- not an unbounded, unaudited, confirmation-free runaway agent
+- not surveillance AI
+- not multimodal spectacle for its own sake
+- not a multi-endpoint split-personality system
+- not a giant all-at-once implementation effort that skips phase closure
+
+### Default Tradeoff Order
+
+When two options conflict, judge them in this order:
+
+1. preserve continuous personhood
+2. improve long-term companionship quality
+3. preserve safety, explainability, and interruptibility
+4. improve real execution value
+5. avoid optimizing for demo spectacle
+
+If an option only wins on spectacle, it should not lead.
+
+## Current Phase Focus
+
+The repository is currently centered on `Phase 1: Local Digital Life`.
+
+### Current Objective
+
+Build a local companion on the host computer with:
+
+- continuous personhood
+- stable memory
+- emotional state
+- initiative
+- execution ability
+- embodied expression
+- natural dialogue
+
+### Current Priorities
+
+- unify the self core
+- treat memory as a life system rather than conversation accumulation
+- connect emotion to dialogue, embodiment, and initiative
+- make initiative real but restrained
+- make computer execution an everyday ability
+- make body expression a projection of internal state
+- keep the desktop runtime as the primary proving ground
+
+### Explicitly Not Current Priorities
+
+- heavy world-sensing loops
+- large-scale smart-home automation
+- robotic motion systems
+- modality expansion purely for demo effect
+- turning Alicization into a pure productivity tool
+
+### Current Completion Criteria
+
+Phase 1 should not be treated as solid until all of the following are true:
+
+1. personality and relationship continuity remain stable in long-term local use
+2. important people, events, feelings, and ongoing tasks are recalled naturally
+3. initiative is helpful without becoming noisy
+4. computer execution is reliable and governed by clear risk strategy
+5. dialogue, voice, lip sync, expression, and movement feel like one lifeform
+
+### Direct Repository Implications
+
+- validate life-loop changes first in `apps/stage-tamagotchi`
+- extract to shared packages only after semantics are stable
+- do not let web, mobile, plugins, or services redefine the primary personhood or memory semantics ahead of the desktop core
+
+## Engineering Architecture And Collaboration Rules
+
+### Core Runtime Rules
+
+- the desktop runtime in `apps/stage-tamagotchi` is the current primary life loop
+- web, mobile, plugins, services, smart-home surfaces, and future robots are not separate persona centers
+- `packages/stage-shared` should carry stable cross-surface semantics and contracts
+- `packages/stage-ui` should carry stable shared UI/business behavior
+- do not lift unstable experiments into shared packages just to chase reuse early
+
+### Capability Layering Rules
+
+Treat these as distinct but coupled life subsystems:
+
+- personality
+- memory
+- emotion
+- initiative
+- execution
+- embodiment
+- dialogue
+
+Do not collapse them into:
+
+- one giant store
+- one giant runtime file
+- one giant prompt-composition module
+
+Every new feature should answer:
+
+- which subsystem owns it
+- which subsystem data it depends on
+- which downstream behavior it changes
+
+### Single-Source-Of-Truth Rules
+
+- personality, self-narrative, relationship state, and long-term preferences must each have a clear source of truth
+- memory, execution history, initiative events, and embodiment state must also have clear ownership
+- do not let multiple modules drift into separate models of who she is, what she thinks, or what she has done
+
+### Execution And Safety Rules
+
+- ordinary local execution is available by default
+- dangerous actions must use risk grading, confirmation policy, optional bypass configuration, audit logging, and interruptibility
+- any file-destructive, privacy-sensitive, externally transmitting, payment-related, hardware, or physical-world capability must define its risk semantics before implementation
+
+### Embodiment Consistency Rules
+
+- visual embodiment, facial state, lip sync, voice, idle motion, and other expression surfaces must derive from shared internal state
+- contradictory simultaneous emotional presentation across modalities is a bug, not a style choice
+
+### Memory And Initiative Rules
+
+- memory is not raw log storage
+- initiative is not timer spam
+- memory must support extraction, revision, forgetting, and auditability
+- initiative should depend on relationship, context, emotion, events, and rhythm rather than only scheduled triggers
+
+### Collaboration Rules
+
+- humans and coding agents should both treat this file as the top-level project constraint
+- before building or refactoring, ask whether the change strengthens companionship, agency, or both
+- reject changes that improve a local capability while harming continuity, relationship quality, explainability, or embodiment consistency
+- improve touched code incrementally, but do not use unrelated rewrites as a side quest
+
+### Verification Rules
+
+Any change touching the life loop should be checked against at least:
+
+- personhood continuity
+- memory traceability
+- execution policy correctness
+- embodiment consistency
+- whether initiative became more natural rather than simply more active
+
+## Repository Structure And Practical Development Conventions
+
+This section preserves the monorepo guidance that still belongs at the root level.
+
+### Tech Stack By Surface
+
+- `Desktop (stage-tamagotchi)`: Electron, Vue, Vite, TypeScript, Pinia, VueUse, Eventa, UnoCSS, Vitest, ESLint
+- `Web (stage-web)`: Vue 3, Vue Router, Vite, TypeScript, Pinia, VueUse, UnoCSS, Vitest, ESLint
+- `Mobile (stage-pocket)`: Vue 3, Vue Router, Vite, TypeScript, Pinia, VueUse, UnoCSS, Vitest, ESLint, Kotlin, Swift, Capacitor
+- `Shared core`: `packages/stage-ui`, `packages/stage-ui-three`, `packages/stage-shared`, `packages/ui`, `packages/i18n`
+- `Server channel`: `packages/server-runtime`, `packages/server-sdk`, `packages/server-shared`
+
+### Key Paths
+
+- `apps/stage-tamagotchi`: current primary desktop runtime
+- `apps/stage-web`: web surface
+- `apps/stage-pocket`: mobile surface
+- `packages/stage-ui`: shared business components, composables, and stores
+- `packages/stage-ui-three`: Three.js bindings and Vue components
+- `packages/stage-shared`: stable shared contracts and semantics
+- `packages/ui`: reka-ui based primitives
+- `packages/i18n`: translations
+- `packages/stage-pages`: shared page bases
+- `apps/stage-tamagotchi/src/shared`: Eventa contracts and desktop shared interfaces
+- `apps/stage-tamagotchi/src/main`: desktop main-process services and runtime composition
+- `uno.config.ts`: UnoCSS shortcuts, rules, plugins
+- `.github/workflows`: CI and deployment workflows
+
+### Workspace Commands
+
+Use `pnpm` workspace filters to keep commands scoped.
+
+- typecheck
+  - `pnpm -F <package-name> typecheck`
+- targeted Vitest
+  - `pnpm exec vitest run <path/to/file>`
+- workspace Vitest
+  - `pnpm -F <package-name> exec vitest run`
+- lint
+  - `pnpm lint`
+  - `pnpm lint:fix`
+- build
+  - `pnpm -F <package-name> build`
+
+Example:
+
+```bash
+pnpm -F @proj-alicization/stage-tamagotchi typecheck
+pnpm exec vitest run apps/stage-tamagotchi/src/main/services/alicization/runtime.test.ts
+```
+
+### Development Conventions
+
+- favor clear module boundaries; shared logic belongs in `packages/` only after the desktop semantics are stable
+- keep runtime entrypoints lean and push heavier logic into focused services or modules
+- prefer functional patterns and DI with `injeca`
+- use `@moeru/eventa` for structured IPC/RPC contracts
+- use Valibot for schema validation close to consumers
+- use `errorMessageFrom(error)` from `@moeru/std` instead of ad-hoc error message extraction
+- do not add backward-compatibility guards unless the requirement has been explicitly decided and documented
+- when modifying code, look for small progressive refactors that improve the touched area
+
+### Styling And UI Rules
+
+- prefer Vue `:class` arrays for long UnoCSS class groups
+- use or extend UnoCSS shortcuts, rules, and plugins in `uno.config.ts`
+- prefer UnoCSS over Tailwind-specific patterns
+- reuse existing animation language from `apps/stage-web/src/styles` when appropriate
+- build primitives on `@proj-alicization/ui` instead of raw DOM where the repo already has a pattern
+- use Iconify icon sets instead of bespoke SVGs unless there is a strong reason not to
+
+### Testing Rules
+
+- keep Vitest runs targeted for speed
+- mock IPC and external services with `vi.fn` and `vi.mock`
+- do not rely on a real Electron runtime in unit tests
+- grow integration-style coverage where it meaningfully validates runtime behavior
+- when behavior spans execution, memory, initiative, or embodiment, test the cross-subsystem invariant instead of only the local helper
+
+### TypeScript, Tooling, And Dependency Rules
+
+- keep JSON schemas provider-compliant with explicit object types and bounded shapes
+- avoid new class hierarchies unless extending runtime or browser APIs demands it
+- centralize Eventa contracts instead of duplicating them across surfaces
+- when the user asks to use a specific dependency or tool, check current documentation first and then inspect actual usage in this repo
+- if docs and local typecheck disagree, inspect `node_modules` and fix the real source of mismatch
+
+### i18n Rules
+
+- add and modify translations in `packages/i18n`
+- avoid scattering translation state across apps and packages
+
+### Naming And Comment Rules
+
+- use kebab-case file names
+- add concise comments where utility, architecture, OS interaction, math, or algorithmic behavior would otherwise be hard to infer
+- preserve existing meaningful comments when moving code
+- use markers consistently:
+  - `// TODO:` follow-up work
+  - `// REVIEW:` needs another eye
+  - `// NOTICE:` important context, workaround rationale, or external grounding
+
+### Workflow Rules
+
+- improve code when you touch it; avoid one-off patterns
+- keep changes scoped
+- use workspace filters for scripts whenever possible
+- maintain structured `README.md` files for packages and apps you materially change
+- run `pnpm typecheck` and `pnpm lint:fix` after finishing a task unless there is a strong reason you cannot
+- use Conventional Commits

@@ -249,6 +249,88 @@ describe('alicization mind replay store', () => {
     expect(store.lastError).toBeNull()
   })
 
+  it('exposes authoritative self-evolution runtime state through the shared bridge', async () => {
+    const getSelfEvolutionState = vi.fn().mockResolvedValue({
+      version: 'self-evolution-version-runtime-v1',
+      activeCandidateId: 'self-evolution:trace-active:patch-active',
+      candidates: [{
+        version: 'self-evolution-version-candidate-v1',
+        id: 'self-evolution:trace-active:patch-active',
+        status: 'active',
+        sourceEventId: 'event-active',
+        decisionTraceId: 'trace-active',
+        sourceTurnId: 'turn-active',
+        patch: {
+          version: 'self-revision-state-patch-v1',
+          id: 'patch-active',
+          sourceEventId: 'event-active',
+          sourceTurnId: 'turn-active',
+          decisionTraceId: 'trace-active',
+          domain: 'self-model',
+          action: 'revise',
+          resultStatus: 'completed',
+          lanes: ['memory-policy'],
+          memoryPolicy: {
+            strictnessBias: 0.6,
+            wrongThreadSuppressionBias: 0.4,
+            provenanceLabelBias: 0.5,
+            recallExpansionBias: 0.1,
+            shouldQuarantineUnsupportedCarry: false,
+          },
+          relationshipPosture: {
+            repairWindowBias: 0,
+            closenessCapBias: 0,
+            warmthReleaseBias: 0,
+          },
+          responsePosture: {
+            secondPassRequiredBias: 0.2,
+            hypothesisLabelBias: 0.1,
+            specificityClampBias: 0.3,
+            templateShellSuppressionBias: 0.25,
+          },
+          proactivePolicy: {
+            restraintBias: 0.2,
+            learningProposalBias: 0.1,
+            actuationCooldownBias: 0.15,
+          },
+          validation: {
+            requiresRollbackCheck: false,
+            requiresRevalidation: false,
+            rollbackPlan: [],
+          },
+          reasonCodes: ['domain:self-model'],
+          summary: 'Active self revision is authoritative.',
+        },
+        validation: {
+          replayRequired: true,
+          replayPassed: true,
+          rollbackSupported: true,
+          activationBlockedReasons: [],
+          finalReplayGatePassed: true,
+          productionGoldSampleCount: 4,
+          productionGoldCoverage: 1,
+        },
+        activatedAt: 120,
+        rolledBackAt: null,
+        createdAt: 100,
+      }],
+      reasonCodes: ['self-evolution:active-version-present'],
+    })
+
+    setAlicizationBridge(createAlicizationBridgeStub({
+      getSelfEvolutionState,
+    }))
+
+    const bridgeModule = await import('./alicization-bridge')
+    const result = await bridgeModule.getAlicizationBridge().getSelfEvolutionState?.()
+
+    expect(getSelfEvolutionState).toBeCalledTimes(1)
+    expect(result).toEqual(expect.objectContaining({
+      activeCandidateId: 'self-evolution:trace-active:patch-active',
+      reasonCodes: ['self-evolution:active-version-present'],
+    }))
+  })
+
   it('still hydrates structured trace records when raw mind events are unavailable', async () => {
     const listMemoryDecisionTraces = vi.fn().mockResolvedValue([
       {
@@ -1024,5 +1106,64 @@ describe('alicization mind replay store', () => {
         suppressionTags: ['relationship-era-confusion'],
       }),
     }))
+  })
+
+  it('queries memory decision traces by active self-evolution candidate id', async () => {
+    const listMindTurnEvents = vi.fn().mockResolvedValue([])
+    const listMemoryDecisionTraces = vi.fn().mockResolvedValue([
+      {
+        decisionTraceId: 'mind:candidate:1',
+        turnId: 'turn-candidate-1',
+        sessionId: 'session-1',
+        origin: 'user-turn',
+        activeThreadId: 'thread-1',
+        createdAt: 100,
+        lastUpdatedAt: 120,
+        eventKinds: ['governance-normalized', 'persistence-written'],
+        derivedMindStateBundle: {
+          version: 'derived-mind-state-bundle-v1',
+          source: 'main-runtime',
+          producedAt: 100,
+          activeSelfRevision: {
+            candidateId: 'candidate-active',
+            patchId: 'patch-active',
+            patchDecisionTraceId: 'mind:candidate:1',
+            lanes: ['memory-policy'],
+            reasonCodes: ['domain:self-model'],
+            summary: 'candidate trace',
+          },
+          summary: 'source=main-runtime | self_revision=patch-active',
+        },
+      },
+    ])
+
+    setAlicizationBridge(createAlicizationBridgeStub({
+      listMindTurnEvents,
+      listMemoryDecisionTraces,
+    }))
+
+    const store = useAlicizationMindReplayStore()
+    const result = await store.queryMemoryDecisionTraces({
+      activeSelfEvolutionCandidateId: 'candidate-active',
+      limit: 40,
+    } as any)
+
+    expect(listMindTurnEvents).toBeCalledWith({
+      decisionTraceId: undefined,
+      turnId: undefined,
+      activeSelfEvolutionCandidateId: 'candidate-active',
+      limit: 40,
+    })
+    expect(listMemoryDecisionTraces).toBeCalledWith({
+      decisionTraceId: undefined,
+      turnId: undefined,
+      activeSelfEvolutionCandidateId: 'candidate-active',
+      limit: 40,
+    })
+    expect(result).toEqual([
+      expect.objectContaining({
+        decisionTraceId: 'mind:candidate:1',
+      }),
+    ])
   })
 })

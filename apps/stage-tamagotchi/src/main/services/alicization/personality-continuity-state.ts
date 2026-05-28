@@ -213,14 +213,6 @@ export function deriveAlicizationPersonaAuthorityInfluence(input: AlicizationPer
   const identityKernel = input.identityKernel ?? null
   const expressionProfile = input.expressionProfile ?? null
   const anchors = uniqueList(input.identityAnchors ?? [], 4)
-  const relationshipLine = sanitizeText(identityKernel?.relationshipPosture ? `relationship ${identityKernel.relationshipPosture}` : '', 64)
-  const initiativeLine = sanitizeText(identityKernel?.initiativeStyle ? `initiative ${identityKernel.initiativeStyle}` : '', 64)
-  const expressionLine = uniqueList([
-    expressionProfile?.warmth ? `warmth ${expressionProfile.warmth}` : null,
-    expressionProfile?.directness ? `directness ${expressionProfile.directness}` : null,
-    expressionProfile?.playfulness ? `playfulness ${expressionProfile.playfulness}` : null,
-    expressionProfile?.emotionalVisibility ? `visibility ${expressionProfile.emotionalVisibility}` : null,
-  ], 4).join(' | ')
 
   const directnessBias = clamp01(
     (identityKernel?.initiativeStyle === 'high-participation'

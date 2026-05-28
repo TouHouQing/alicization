@@ -105,6 +105,13 @@ function uniqueTextList(values: Array<string | null | undefined>) {
   return deduped
 }
 
+function clampUnit(value: number, fallback: number) {
+  if (!Number.isFinite(value))
+    return fallback
+
+  return Math.min(1, Math.max(0, value))
+}
+
 function createExpressionCatalog(expressionNames: string[]) {
   const catalog = uniqueTextList(expressionNames)
     .map((name) => {
@@ -165,6 +172,16 @@ function scoreExpressionAliasMatch(
 
 function resolveEmotionExpressionSearchAliases(
   emotion: StageEmbodimentCanonicalEmotion,
+) {
+  return uniqueTextList([
+    emotion,
+    ...resolveStageEmbodimentLive2DMotionAliases(emotion),
+    ...live2dEmotionExpressionAliases[emotion],
+  ])
+}
+
+function resolveEmotionCueBridgeAliases(
+  emotion: StageEmbodimentCanonicalEmotion,
   delivery?: AlicizationPerformanceDelivery | string | null,
 ) {
   const cueCandidates = resolveStageEmbodimentCueCandidates({
@@ -172,12 +189,9 @@ function resolveEmotionExpressionSearchAliases(
     emotion,
   })
 
-  return uniqueTextList([
-    emotion,
-    ...resolveStageEmbodimentLive2DMotionAliases(emotion),
-    ...live2dEmotionExpressionAliases[emotion],
-    ...cueCandidates.facialCueCandidates.flatMap(key => live2dFacialCueExpressionAliases[key] ?? [key]),
-  ])
+  return uniqueTextList(
+    cueCandidates.facialCueCandidates.flatMap(key => live2dFacialCueExpressionAliases[key] ?? [key]),
+  )
 }
 
 function resolveFacialCueExpressionSearchAliases(rawCue?: string | null) {
@@ -234,24 +248,26 @@ export function resolveLive2DExpressionSelection(
   }
 
   const emotion = normalizeStageEmbodimentEmotion(input.emotion)
-  const emotionAliases = resolveEmotionExpressionSearchAliases(emotion, input.delivery)
+  const emotionAliases = resolveEmotionExpressionSearchAliases(emotion)
+  const emotionCueBridgeAliases = resolveEmotionCueBridgeAliases(emotion, input.delivery)
   const facialCueAliases = resolveFacialCueExpressionSearchAliases(input.facialCue)
   const neutralAliases = resolveEmotionExpressionSearchAliases('neutral')
 
-  const expressionWeight = Math.max(0.8, Number(input.expressionIntensity ?? 0.62))
+  const expressionWeight = clampUnit(Number(input.expressionIntensity), 0.62)
   const cueWeight = facialCueAliases.length > 0
-    ? Math.max(0.7, Number(input.facialCueIntensity ?? 0.68))
+    ? clampUnit(Number(input.facialCueIntensity), 0.68)
     : 0
 
   let bestSelection: Live2DResolvedExpressionSelection | null = null
 
   for (const expression of catalog) {
     const emotionScore = scoreExpressionAliasMatch(expression, emotionAliases) * (emotion === 'neutral' ? 0.9 : 1.4 * expressionWeight)
+    const emotionCueBridgeScore = scoreExpressionAliasMatch(expression, emotionCueBridgeAliases) * (emotion === 'neutral' ? 0.2 : 0.18 + expressionWeight * 0.18)
     const facialCueScore = scoreExpressionAliasMatch(expression, facialCueAliases) * (0.9 + cueWeight * 0.7)
     const neutralScore = scoreExpressionAliasMatch(expression, neutralAliases) * (emotion === 'neutral' && cueWeight <= 0 ? 1.3 : 0.35)
-    const totalScore = emotionScore + facialCueScore + neutralScore
+    const totalScore = emotionScore + emotionCueBridgeScore + facialCueScore + neutralScore
     if (!bestSelection || totalScore > bestSelection.score) {
-      const reason = facialCueScore >= emotionScore && facialCueScore >= neutralScore
+      const reason = facialCueScore >= emotionScore + emotionCueBridgeScore && facialCueScore >= neutralScore
         ? 'facial-cue'
         : neutralScore >= emotionScore
           ? 'neutral'

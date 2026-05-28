@@ -13,6 +13,7 @@ import type {
   AlicizationListMindTurnEventsPayload,
   AlicizationMindTurnEventRecord,
   AlicizationPersonStateUpdateRecord,
+  AlicizationSelfEvolutionVersionRuntimeSnapshot,
   AlicizationProactiveFeedbackKind,
   AlicizationProactiveFeedbackPayload,
   CharacterPerformanceCapabilitiesManifest,
@@ -33,6 +34,7 @@ import {
   electronAlicizationAckDialogue,
   electronAlicizationAppendConversationTurn,
   electronAlicizationClearAllConversations,
+  electronAlicizationGetSelfEvolutionState,
   electronAlicizationListConversationTurns,
   electronAlicizationListLearningArtifactLedger,
   electronAlicizationListMemoryDecisionTraces,
@@ -111,6 +113,7 @@ interface RegisterAlicizationDialogueInvokeHandlersOptions {
       decisionTraceId?: string
       turnId?: string
       activeThreadId?: string
+      activeSelfEvolutionCandidateId?: string
       kind?: AlicizationMindTurnEventRecord['kind']
       limit?: number
     }) => Promise<AlicizationMindTurnEventRecord[]>
@@ -119,6 +122,7 @@ interface RegisterAlicizationDialogueInvokeHandlersOptions {
     setMetaValue: (key: string, value: string) => Promise<void>
   }
   getPerformanceManifest: () => Promise<CharacterPerformanceCapabilitiesManifest | null>
+  getSelfEvolutionState: () => Promise<AlicizationSelfEvolutionVersionRuntimeSnapshot>
   toReplayDialogueRespondedPayload: (row: ReplayConversationTurnRow, performanceManifest?: CharacterPerformanceCapabilitiesManifest | null) => AlicizationDialogueRespondedPayload | null
   clearAllConversationData: (reason: string) => Promise<void>
   parseStructuredHint: (input: string | null | undefined) => Record<string, unknown>
@@ -145,6 +149,7 @@ export function registerAlicizationDialogueInvokeHandlers(options: RegisterAlici
     queueSubconsciousWake,
     getAlicizationDb,
     getPerformanceManifest,
+    getSelfEvolutionState,
     toReplayDialogueRespondedPayload,
     clearAllConversationData,
     parseStructuredHint,
@@ -315,6 +320,7 @@ export function registerAlicizationDialogueInvokeHandlers(options: RegisterAlici
       decisionTraceId: payload.decisionTraceId,
       turnId: payload.turnId,
       activeThreadId: payload.activeThreadId,
+      activeSelfEvolutionCandidateId: payload.activeSelfEvolutionCandidateId,
       limit: payload.limit ? Math.max(payload.limit * 8, payload.limit) : 400,
     })
     return buildAlicizationMemoryDecisionTraceRecords(rows).slice(0, Math.max(1, payload.limit ?? 20)) as AlicizationMemoryDecisionTraceRecord[]
@@ -331,6 +337,7 @@ export function registerAlicizationDialogueInvokeHandlers(options: RegisterAlici
       .filter((row): row is AlicizationPersonStateUpdateRecord => Boolean(row))
       .slice(0, Math.max(1, payload.limit ?? 20))
   }))
+  registerInvokeHandler(electronAlicizationGetSelfEvolutionState, async payload => await withCardScope(payload.cardId, async () => await getSelfEvolutionState()))
 
   registerInvokeHandler(electronAlicizationRunReplayBenchmark, async (payload: AlicizationRunReplayBenchmarkPayload) => await withCardScope(payload.cardId, async () => {
     return await replayBenchmarkRuntime.runReplayBenchmark({

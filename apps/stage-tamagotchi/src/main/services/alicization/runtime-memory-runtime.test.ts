@@ -133,6 +133,7 @@ describe('runtime memory runtime', () => {
       version: 'self-evolution-kernel-v1',
       activeLearningFocuses: expect.any(Array),
     }))
+    expect(context.learningExecutionState).toEqual(expect.any(Object))
     expect(context.derivedMindStateBundle).toEqual(expect.objectContaining({
       version: 'derived-mind-state-bundle-v1',
       source: 'main-runtime',

@@ -18,6 +18,7 @@ import {
 import { buildAlicizationActiveDialogueGovernedReply } from './main-chat-active-dialogue-loop'
 import { type AlicizationMindSurfaceMove } from './mind-surface-renderer'
 import { buildHostSocialGuidance, inferHostSocialContextsFromText } from './host-social-guidance'
+import { resolveAlicizationOpeningGuidanceViolationReason } from './proactive-opening-guidance'
 import { buildRelationshipDoctrineGuidance } from './relationship-doctrine-guidance'
 import { parseJsonObjectFromText } from './runtime-transport-content'
 const listingProtocolLeakPattern = /\bListed\s+(?:desktop\s+entries|entries)\s*\(\d+\):/iu
@@ -444,8 +445,15 @@ export function buildAlicizationExecutionPayoffStructuredReply(input: {
   const parsed = parseJsonObjectFromText(structured)
   if (!parsed)
     throw new Error('execution-payoff-surface-invalid-json')
+  const openingGuidance = sanitizeText(input.personStateProjection?.openingGuidance, 180) || null
   return {
     ...parsed,
+    proactive: openingGuidance
+      ? {
+          ...(parsed as { proactive?: Record<string, unknown> | null }).proactive,
+          openingGuidance,
+        }
+      : ((parsed as { proactive?: Record<string, unknown> | null }).proactive ?? null),
     parsePath: 'json',
     format: 'mind-turn-v1',
   } as AlicizationExecutionPayoffStructured
@@ -591,6 +599,19 @@ export function selectAlicizationExecutionDeliveryReply(input: {
         authority: input.selfContinuityAuthority ?? null,
         contexts: inferHostSocialContextsFromText(input.goal),
       })
+  const openingGuidanceViolationReason = input.personStateProjection?.openingGuidance
+    ? resolveAlicizationOpeningGuidanceViolationReason({
+        reply: llmReply,
+        openingGuidance: input.personStateProjection.openingGuidance,
+      })
+    : null
+  if (openingGuidanceViolationReason) {
+    return {
+      source: 'llm-repaired',
+      reply: deterministicReply,
+      reason: openingGuidanceViolationReason.replace('proactive-opening-guidance-violation:', 'opening-guidance-'),
+    }
+  }
   if ((input.policy?.mode === 'check-availability-first' || hostGuidance.cautious || doctrineGuidance.cautious) && !/(方便|能接|if you're free|if you have room|if now's a good time)/iu.test(llmReply)) {
     return {
       source: 'llm-repaired',

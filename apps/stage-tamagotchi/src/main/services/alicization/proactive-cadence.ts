@@ -2,9 +2,11 @@ import type {
   AlicizationActionEcologySnapshot,
   AlicizationAutonomySnapshot,
   AlicizationAffectiveResidueMemorySnapshot,
+  AlicizationDerivedMindStateBundle,
   AlicizationInitiativeSnapshot,
   AlicizationMotiveEngineSnapshot,
   AlicizationPrivateThoughtSnapshot,
+  AlicizationSelfEvolutionKernelSnapshot,
   AlicizationThoughtThreadStateSnapshot,
   AlicizationThreadRuntimeStateSnapshot,
   AlicizationWorldModelSnapshot,
@@ -23,6 +25,106 @@ function sanitizeText(raw: unknown, maxChars = 120) {
   if (typeof raw !== 'string')
     return ''
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
+}
+
+function includesAny(text: string, needles: string[]) {
+  return needles.some(needle => text.includes(needle))
+}
+
+function deriveSelfEvolutionCadenceBias(selfEvolution?: AlicizationSelfEvolutionKernelSnapshot | null) {
+  if (!selfEvolution)
+    return null
+
+  const relationshipDoctrine = sanitizeText(selfEvolution.relationshipDoctrine, 160).toLowerCase()
+  const burdenLine = sanitizeText(selfEvolution.burdenLine, 160).toLowerCase()
+  const trustMeaning = sanitizeText(selfEvolution.trustMeaning, 160).toLowerCase()
+  const latestInflection = sanitizeText(selfEvolution.latestInflection, 160).toLowerCase()
+
+  const doctrineSoftensRoom = includesAny(relationshipDoctrine, [
+    'leave more room',
+    'more room',
+    'space first',
+    'space-before',
+    'slower return',
+    'lower-pressure',
+    'less eager',
+  ])
+  const burdenSoftensCadence = includesAny(burdenLine, [
+    'overloaded',
+    'pressure',
+    'crowd',
+    'conversational pressure',
+    'interrupt',
+    'eager',
+  ])
+  const trustSoftensCadence = includesAny(trustMeaning, [
+    'lower-pressure',
+    'less eager',
+    'room',
+    'space',
+    'timing',
+    'slower',
+  ])
+  const inflectionSoftensCadence = includesAny(latestInflection, [
+    'pressure',
+    'slower return',
+    'lower-pressure',
+    'less eager',
+    'room',
+  ])
+
+  if (!doctrineSoftensRoom && !burdenSoftensCadence && !trustSoftensCadence && !inflectionSoftensCadence)
+    return null
+
+  const internalizing = selfEvolution.nextLearningAction === 'internalize' || selfEvolution.shouldInternalize === true
+  const weighting = 0.7
+    + Math.min(0.2, (selfEvolution.evolutionMomentum ?? 0) * 0.2)
+    + Math.min(0.1, (selfEvolution.learningReadiness ?? 0) * 0.1)
+
+  const baseSoftening = (
+    (doctrineSoftensRoom ? 0.04 : 0)
+    + (burdenSoftensCadence ? 0.05 : 0)
+    + (trustSoftensCadence ? 0.05 : 0)
+    + (inflectionSoftensCadence ? 0.03 : 0)
+    + (internalizing ? 0.02 : 0)
+  ) * weighting
+
+  return {
+    openingMomentumDamp: clamp01(Math.min(0.12, baseSoftening)),
+    cadencePressureDamp: clamp01(Math.min(0.14, baseSoftening + (internalizing ? 0.01 : 0))),
+    reasonTags: ['self-evolution:cadence-softened-by-burden-trust'],
+  }
+}
+
+function deriveContinuityGovernanceCadenceBias(
+  activeContinuityGovernance?: AlicizationDerivedMindStateBundle['activeContinuityGovernance'] | null,
+) {
+  if (activeContinuityGovernance?.mode !== 'same-her-baseline')
+    return null
+
+  const summary = sanitizeText(activeContinuityGovernance.summary, 200).toLowerCase()
+  const reasonCodes = activeContinuityGovernance.reasonCodes.map(code => sanitizeText(code, 80).toLowerCase())
+  const lanes = activeContinuityGovernance.lanes.map(lane => sanitizeText(lane, 80).toLowerCase())
+
+  const relationshipWeighted = lanes.includes('relationship-posture')
+    || lanes.includes('relationship-policy')
+    || reasonCodes.includes('domain:relationship')
+  const continuityWeighted = reasonCodes.includes('same-her-baseline')
+    || summary.includes('same-her-baseline')
+    || summary.includes('continuity=')
+    || summary.includes('slower')
+    || summary.includes('lower-pressure')
+
+  if (!relationshipWeighted && !continuityWeighted)
+    return null
+
+  const weight = relationshipWeighted ? 1 : 0.8
+
+  return {
+    openingMomentumDamp: clamp01(0.04 * weight),
+    cadencePressureDamp: clamp01(0.05 * weight),
+    reasonTags: ['continuity-governance:same-her-baseline'],
+  }
 }
 
 function foregroundThoughtThread(thoughtThreads?: AlicizationThoughtThreadStateSnapshot | null) {
@@ -67,6 +169,8 @@ export function progressProactiveCadenceState(input: {
   actionEcology?: AlicizationActionEcologySnapshot | null
   personalityContinuityState?: AlicizationPersonalityContinuityStateSnapshot | null
   affectiveResidue?: AlicizationAffectiveResidueMemorySnapshot | null
+  selfEvolution?: AlicizationSelfEvolutionKernelSnapshot | null
+  activeContinuityGovernance?: AlicizationDerivedMindStateBundle['activeContinuityGovernance'] | null
 }) {
   const busy = hostBusy(input.context, input.worldModel ?? null)
   const runtimeThread = foregroundRuntimeThread(input.threadRuntime ?? null)
@@ -78,6 +182,8 @@ export function progressProactiveCadenceState(input: {
   const rhythmState = input.personalityContinuityState?.rhythmState ?? null
   const affectiveResidue = input.affectiveResidue ?? null
   const cadenceMemory = affectiveResidue?.relationshipCadence ?? null
+  const selfEvolutionCadenceBias = deriveSelfEvolutionCadenceBias(input.selfEvolution ?? null)
+  const continuityGovernanceCadenceBias = deriveContinuityGovernanceCadenceBias(input.activeContinuityGovernance ?? null)
   const targetMomentum = clamp01(
     (busy ? 0 : 0.18)
     + (minutesSinceLastUserTurn >= 4 && minutesSinceLastUserTurn <= 45 ? 0.16 : minutesSinceLastUserTurn > 45 ? 0.08 : 0)
@@ -104,7 +210,9 @@ export function progressProactiveCadenceState(input: {
     - (cadenceMemory?.overreachRisk ?? 0) * 0.12
     - (input.actionEcology?.mode === 'repair-before-speaking' ? 0.16 : 0)
     - (input.actionEcology?.mode === 'return-later' ? 0.12 : 0)
-    - (recentProactiveGapMinutes < 6 ? 0.18 : recentProactiveGapMinutes < 12 ? 0.08 : 0),
+    - (recentProactiveGapMinutes < 6 ? 0.18 : recentProactiveGapMinutes < 12 ? 0.08 : 0)
+    - (selfEvolutionCadenceBias?.openingMomentumDamp ?? 0)
+    - (continuityGovernanceCadenceBias?.openingMomentumDamp ?? 0),
   )
   const initiativeTrust = clamp01(
     input.state.initiativeTrust * 0.98
@@ -139,12 +247,16 @@ export function deriveProactiveCadenceSignal(input: {
   actionEcology?: AlicizationActionEcologySnapshot | null
   personalityContinuityState?: AlicizationPersonalityContinuityStateSnapshot | null
   affectiveResidue?: AlicizationAffectiveResidueMemorySnapshot | null
+  selfEvolution?: AlicizationSelfEvolutionKernelSnapshot | null
+  activeContinuityGovernance?: AlicizationDerivedMindStateBundle['activeContinuityGovernance'] | null
 }) {
   const runtimeThread = foregroundRuntimeThread(input.threadRuntime ?? null)
   const thoughtThread = foregroundThoughtThread(input.thoughtThreads ?? null)
   const rhythmState = input.personalityContinuityState?.rhythmState ?? null
   const affectiveResidue = input.affectiveResidue ?? null
   const cadenceMemory = affectiveResidue?.relationshipCadence ?? null
+  const selfEvolutionCadenceBias = deriveSelfEvolutionCadenceBias(input.selfEvolution ?? null)
+  const continuityGovernanceCadenceBias = deriveContinuityGovernanceCadenceBias(input.activeContinuityGovernance ?? null)
   const cadencePressure = clamp01(
     input.state.openingMomentum * 0.58
     + input.state.initiativeTrust * 0.18
@@ -165,6 +277,8 @@ export function deriveProactiveCadenceSignal(input: {
   ) - (rhythmState?.restMode === 'rest-protective' ? 0.12 : rhythmState?.restMode === 'low-pressure' ? 0.04 : 0)
     - ((cadenceMemory?.fatigueGuard ?? 0) * 0.12)
     - ((cadenceMemory?.overreachRisk ?? 0) * 0.1)
+    - (selfEvolutionCadenceBias?.cadencePressureDamp ?? 0)
+    - (continuityGovernanceCadenceBias?.cadencePressureDamp ?? 0)
 
   const normalizedCadencePressure = clamp01(
     cadencePressure,
@@ -191,6 +305,8 @@ export function deriveProactiveCadenceSignal(input: {
             `rhythm-presence:${rhythmState.embodiedPresence ?? 'none'}`,
           ]
         : []),
+      ...(selfEvolutionCadenceBias?.reasonTags ?? []),
+      ...(continuityGovernanceCadenceBias?.reasonTags ?? []),
     ],
   } satisfies AlicizationProactiveCadenceSignal
 }

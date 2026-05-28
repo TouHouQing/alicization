@@ -1,4 +1,7 @@
-import type { AlicizationDialogueRespondedPayload } from './alicization-bridge'
+import type {
+  AlicizationDialogueRespondedPayload,
+  AlicizationEmbodimentScriptV1,
+} from './alicization-bridge'
 
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -302,10 +305,238 @@ describe('alicization presence dispatcher', () => {
     expect(live2dPayload.structured.embodimentScript).toEqual(ttsPayload.structured.embodimentScript)
   })
 
+  it('re-normalizes provided digitalLife against the final embodiment authority before dispatch', async () => {
+    const store = useAlicizationPresenceDispatcherStore()
+    const applyPerformance = vi.fn()
+
+    store.registerLive2DController({ applyPerformance })
+
+    await store.dispatchDialogueResponded(createPayload({
+      turnId: 'turn-digital-life-authority-1',
+      structured: {
+        thought: 'focus',
+        emotion: 'neutral',
+        reply: '我会继续看着这个点。',
+        embodiment: {
+          emotion: 'thinking',
+          performance: {
+            baseEmotion: 'thinking',
+            emotion: 'thinking',
+            facialCue: 'focused',
+            actionCue: 'inspect_follow',
+            delivery: 'gentle',
+            emphasis: 1,
+          },
+          postureHint: 'attentive',
+          speechStyle: {
+            pitchDelta: 2,
+            rateMultiplier: 0.98,
+          },
+          variationToken: 'digital-life-authority-1',
+        },
+        performance: {
+          baseEmotion: 'neutral',
+          emotion: 'neutral',
+          facialCue: null,
+          actionCue: null,
+          delivery: 'calm',
+          emphasis: 0,
+        },
+        speechTimeline: {
+          version: 'speech-timeline-v1',
+          variationToken: 'digital-life-authority-1',
+          reply: '我会继续看着这个点。',
+          emotion: 'thinking',
+          segments: [{
+            id: 'segment-1',
+            index: 0,
+            startOffset: 0,
+            endOffset: 10,
+            text: '我会继续看着这个点。',
+            emotion: 'thinking',
+            facialCue: 'focused',
+            actionCue: 'inspect_follow',
+            facialWeight: 0.62,
+            gestureWeight: 0.54,
+            mouthWeight: 0.5,
+            beatWeight: 0.4,
+            emotionHoldMs: 360,
+            actionWindow: 'segment-start',
+            interruptMode: 'soft-interrupt',
+            settleMode: 'linger',
+          }],
+        } as any,
+        digitalLife: {
+          version: 'digital-life-v1',
+          variationToken: 'digital-life-authority-1',
+          emotion: 'neutral',
+          mode: 'speaking',
+          postureHint: 'attentive',
+          performance: {
+            baseEmotion: 'neutral',
+            emotion: 'neutral',
+            facialCue: null,
+            actionCue: null,
+            delivery: 'calm',
+            emphasis: 0,
+          },
+          speechStyle: {
+            pitchDelta: 0,
+            rateMultiplier: 1,
+          },
+          voice: {
+            pitchDelta: 0,
+            rateMultiplier: 1,
+            energy: 0.5,
+            cadence: 0.5,
+          },
+          lipSync: {
+            mode: 'hybrid',
+            visemeBias: 0.6,
+            energyBias: 0.4,
+            mouthScale: 1,
+            continuityHoldMs: 180,
+          },
+          face: {
+            emotion: 'neutral',
+            facialCue: null,
+            expressionMode: 'recover',
+            intensity: 0.4,
+            holdMs: 220,
+          },
+          action: {
+            actionCue: null,
+            actionMode: 'none',
+            intensity: 0.2,
+            holdMs: 180,
+          },
+          motor: {
+            stillness: 0.5,
+            expressivity: 0.5,
+            gaze: { focus: 0.6, stability: 0.6, azimuth: 0, elevation: 0 },
+            head: { yaw: 0, pitch: 0, roll: 0, nod: 0.1 },
+            breath: { amplitude: 0.25, pace: 0.4 },
+            facial: {
+              eyeOpenness: 0.55,
+              browLift: 0.05,
+              browTension: 0.16,
+              cheekLift: 0.08,
+              mouthSpread: 0.1,
+              mouthRound: 0.14,
+              jawOpenBias: 0.2,
+            },
+            body: {
+              sway: 0.03,
+              lean: 0,
+              openness: 0.4,
+              settle: 0.55,
+            },
+          },
+          frames: [{
+            id: 'segment-1',
+            index: 0,
+            startOffset: 0,
+            endOffset: 10,
+            text: '我会继续看着这个点。',
+            mode: 'speaking',
+            interruptPolicy: 'soft-interrupt',
+            settleMode: 'linger',
+            face: {
+              emotion: 'neutral',
+              facialCue: null,
+              expressionMode: 'recover',
+              intensity: 0.4,
+              holdMs: 220,
+            },
+            action: {
+              actionCue: null,
+              actionMode: 'none',
+              intensity: 0.2,
+              holdMs: 180,
+            },
+            voice: {
+              pitchDelta: 0,
+              rateMultiplier: 1,
+              energy: 0.5,
+              cadence: 0.5,
+            },
+            lipSync: {
+              mode: 'hybrid',
+              visemeBias: 0.6,
+              energyBias: 0.4,
+              mouthScale: 1,
+              continuityHoldMs: 180,
+            },
+            motor: {
+              stillness: 0.5,
+              expressivity: 0.5,
+              gaze: { focus: 0.6, stability: 0.6, azimuth: 0, elevation: 0 },
+              head: { yaw: 0, pitch: 0, roll: 0, nod: 0.1 },
+              breath: { amplitude: 0.25, pace: 0.4 },
+              facial: {
+                eyeOpenness: 0.55,
+                browLift: 0.05,
+                browTension: 0.16,
+                cheekLift: 0.08,
+                mouthSpread: 0.1,
+                mouthRound: 0.14,
+                jawOpenBias: 0.2,
+              },
+              body: {
+                sway: 0.03,
+                lean: 0,
+                openness: 0.4,
+                settle: 0.55,
+              },
+            },
+          }],
+        } as any,
+      },
+    }))
+
+    const dispatchedPayload = applyPerformance.mock.calls[0]?.[1]
+    expect(dispatchedPayload?.structured.performance).toEqual(expect.objectContaining({
+      baseEmotion: 'thinking',
+      emotion: 'thinking',
+      facialCue: 'focused',
+      actionCue: 'inspect_follow',
+      delivery: 'gentle',
+      emphasis: 1,
+    }))
+    expect(dispatchedPayload?.structured.digitalLife).toEqual(expect.objectContaining({
+      variationToken: 'digital-life-authority-1',
+      emotion: 'thinking',
+      performance: expect.objectContaining({
+        baseEmotion: 'thinking',
+        emotion: 'thinking',
+        facialCue: 'focused',
+        actionCue: 'inspect_follow',
+      }),
+      face: expect.objectContaining({
+        emotion: 'thinking',
+        facialCue: 'focused',
+      }),
+      action: expect.objectContaining({
+        actionCue: 'inspect_follow',
+      }),
+      frames: [
+        expect.objectContaining({
+          face: expect.objectContaining({
+            emotion: 'thinking',
+            facialCue: 'focused',
+          }),
+          action: expect.objectContaining({
+            actionCue: 'inspect_follow',
+          }),
+        }),
+      ],
+    }))
+  })
+
   it('keeps runtime-provided embodimentScript instead of rebuilding it locally', async () => {
     const store = useAlicizationPresenceDispatcherStore()
     const applyPerformance = vi.fn()
-    const builder = vi.fn(() => ({
+    const builder = vi.fn<(_: AlicizationDialogueRespondedPayload) => AlicizationEmbodimentScriptV1>(() => ({
       version: 'embodiment-script-v1',
       turnId: 'turn-script-fallback',
       rendererTarget: 'live2d',
@@ -330,20 +561,20 @@ describe('alicization presence dispatcher', () => {
       },
       lipsyncPlan: { mode: 'energy-only' },
     }))
-    const runtimeScript = {
-      version: 'embodiment-script-v1' as const,
+    const runtimeScript: AlicizationEmbodimentScriptV1 = {
+      version: 'embodiment-script-v1',
       turnId: 'turn-script-fallback',
-      rendererTarget: 'live2d' as const,
+      rendererTarget: 'live2d',
       replyText: 'runtime-reply',
       state: {
-        baseEmotion: 'happy' as const,
-        delivery: 'energetic' as const,
-        emphasis: 2 as const,
-        residentMode: 'dialogue' as const,
+        baseEmotion: 'happy',
+        delivery: 'energetic',
+        emphasis: 2,
+        residentMode: 'dialogue',
       },
       speechPlan: {
         segments: [],
-        interruptPolicy: 'hard-stop' as const,
+        interruptPolicy: 'hard-stop',
         preRollMs: 0,
         settleMs: 160,
       },
@@ -351,9 +582,9 @@ describe('alicization presence dispatcher', () => {
       motionPlan: {
         idleBase: 'runtime-idle',
         actionBursts: [],
-        attentionMode: 'attentive' as const,
+        attentionMode: 'attentive',
       },
-      lipsyncPlan: { mode: 'energy-only' as const },
+      lipsyncPlan: { mode: 'energy-only' },
     }
 
     store.setEmbodimentScriptBuilder(builder)
@@ -365,7 +596,7 @@ describe('alicization presence dispatcher', () => {
         thought: 'focus',
         emotion: 'happy',
         reply: '你好',
-        embodimentScript: runtimeScript as any,
+        embodimentScript: runtimeScript,
         performance: {
           baseEmotion: 'happy',
           emotion: 'happy',
@@ -544,5 +775,68 @@ describe('alicization presence dispatcher', () => {
 
     expect(applyPresencePulse).toBeCalledTimes(1)
     expect(speak).not.toBeCalled()
+  })
+
+  it('adds a low-pressure presence pulse for silent-observe subconscious proactive dialogue', async () => {
+    const store = useAlicizationPresenceDispatcherStore()
+    const applyPerformance = vi.fn()
+    const applyPresencePulse = vi.fn()
+    const speak = vi.fn()
+
+    store.registerLive2DController({
+      applyPerformance,
+      applyPresencePulse,
+    })
+    store.registerTTSController({ speak })
+
+    await store.dispatchDialogueResponded(createPayload({
+      turnId: 'turn-silent-observe-presence-1',
+      origin: 'subconscious-proactive',
+      structured: {
+        format: 'subconscious-proactive-v1' as any,
+        thought: 'obligation=care; truth=grounded; focus=host-state; move=stay-near; tone=restrained',
+        emotion: 'thinking',
+        reply: '我先在这边陪着你看一会儿。',
+        performance: {
+          baseEmotion: 'thinking',
+          emotion: 'thinking',
+          facialCue: null,
+          actionCue: null,
+          delivery: 'gentle',
+          emphasis: 0,
+        },
+        proactive: {
+          shouldInterrupt: false,
+          confidence: 0.68,
+          reasonCodes: ['continuity-next-open-window'],
+          urgency: 'low',
+          style: 'silent-observe',
+          cooldownMs: 90_000,
+          scenario: 'coding',
+          policyVersion: 'test-policy-v1',
+        },
+      },
+    }))
+
+    expect(applyPerformance).toBeCalledTimes(1)
+    expect(speak).toBeCalledTimes(1)
+    expect(applyPresencePulse).toBeCalledTimes(1)
+    expect(applyPresencePulse).toBeCalledWith(expect.objectContaining({
+      watchMode: 'symbiotic-vision',
+      embodiedPresence: 'attentive',
+      scenario: 'coding',
+      stance: 'accompany',
+      currentBodyState: 'accompanying',
+      continuityMode: 'quiet-accompaniment',
+      quietLineMs: 120_000,
+      confidence: 0.68,
+      reasonTags: expect.arrayContaining([
+        'subconscious-proactive',
+        'silent-observe',
+        'continuity:quiet-accompaniment',
+        'continuity-next-open-window',
+      ]),
+      emotionalTension: 'soft-covision',
+    }))
   })
 })

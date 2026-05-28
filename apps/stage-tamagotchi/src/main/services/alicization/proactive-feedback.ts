@@ -13,6 +13,8 @@ export interface AlicizationRecentProactiveOutcome {
   scenario: AlicizationProactiveScenario
   outcome: AlicizationProactiveOutcome
   createdAt: number
+  learningAction?: 'record' | 'reflect' | 'verify' | 'revise' | 'internalize' | 'hold' | null
+  learningFocuses?: string[]
 }
 
 export interface AlicizationPendingProactiveOutcome {
@@ -20,6 +22,8 @@ export interface AlicizationPendingProactiveOutcome {
   scenario: AlicizationProactiveScenario
   deliveredAt: number
   feedbackWindowMs: number
+  learningAction?: 'record' | 'reflect' | 'verify' | 'revise' | 'internalize' | 'hold' | null
+  learningFocuses?: string[]
 }
 
 export interface AlicizationProactiveLoopState {
@@ -68,11 +72,31 @@ function normalizePendingOutcome(raw: unknown): AlicizationPendingProactiveOutco
   if (!turnId || !scenario || !Number.isFinite(deliveredAt) || !Number.isFinite(feedbackWindowMs))
     return null
 
+  const learningAction = (() => {
+    const rawAction = typeof candidate?.learningAction === 'string' ? candidate.learningAction.trim() : ''
+    return rawAction === 'record'
+      || rawAction === 'reflect'
+      || rawAction === 'verify'
+      || rawAction === 'revise'
+      || rawAction === 'internalize'
+      || rawAction === 'hold'
+      ? rawAction
+      : null
+  })()
+  const learningFocuses = Array.isArray(candidate?.learningFocuses)
+    ? candidate.learningFocuses
+        .map(value => typeof value === 'string' ? value.trim().replace(/\s+/g, ' ').slice(0, 140) : '')
+        .filter(Boolean)
+        .slice(0, 6)
+    : []
+
   return {
     turnId,
     scenario,
     deliveredAt: Math.max(0, Math.floor(deliveredAt)),
     feedbackWindowMs: Math.max(1_000, Math.floor(feedbackWindowMs)),
+    learningAction,
+    learningFocuses,
   }
 }
 
@@ -91,11 +115,31 @@ function normalizeRecentOutcome(raw: unknown): AlicizationRecentProactiveOutcome
     return null
   }
 
+  const learningAction = (() => {
+    const rawAction = typeof candidate?.learningAction === 'string' ? candidate.learningAction.trim() : ''
+    return rawAction === 'record'
+      || rawAction === 'reflect'
+      || rawAction === 'verify'
+      || rawAction === 'revise'
+      || rawAction === 'internalize'
+      || rawAction === 'hold'
+      ? rawAction
+      : null
+  })()
+  const learningFocuses = Array.isArray(candidate?.learningFocuses)
+    ? candidate.learningFocuses
+        .map(value => typeof value === 'string' ? value.trim().replace(/\s+/g, ' ').slice(0, 140) : '')
+        .filter(Boolean)
+        .slice(0, 6)
+    : []
+
   return {
     turnId,
     scenario,
     outcome,
     createdAt: Math.max(0, Math.floor(createdAt)),
+    learningAction,
+    learningFocuses,
   }
 }
 
@@ -144,6 +188,13 @@ function applyOutcome(
     scenario: entry.scenario,
     outcome,
     createdAt: at,
+    learningAction: entry.learningAction ?? null,
+    learningFocuses: Array.isArray(entry.learningFocuses)
+      ? entry.learningFocuses
+          .map(value => typeof value === 'string' ? value.trim().replace(/\s+/g, ' ').slice(0, 140) : '')
+          .filter(Boolean)
+          .slice(0, 6)
+      : [],
   }
 
   return {
@@ -231,6 +282,8 @@ export function registerProactiveDelivery(
     scenario: AlicizationProactiveScenario
     deliveredAt: number
     feedbackWindowMs: number
+    learningAction?: AlicizationPendingProactiveOutcome['learningAction']
+    learningFocuses?: string[]
   },
 ): AlicizationProactiveLoopState {
   const turnId = input.turnId.trim()
@@ -244,6 +297,13 @@ export function registerProactiveDelivery(
     scenario: input.scenario,
     deliveredAt,
     feedbackWindowMs: Math.max(1_000, Math.floor(input.feedbackWindowMs)),
+    learningAction: input.learningAction ?? null,
+    learningFocuses: Array.isArray(input.learningFocuses)
+      ? input.learningFocuses
+          .map(value => typeof value === 'string' ? value.trim().replace(/\s+/g, ' ').slice(0, 140) : '')
+          .filter(Boolean)
+          .slice(0, 6)
+      : [],
   })
 
   return {

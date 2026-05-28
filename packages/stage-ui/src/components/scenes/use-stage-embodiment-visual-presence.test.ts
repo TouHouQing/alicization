@@ -1,4 +1,4 @@
-import type { AlicizationDigitalLifeSpineDigest } from '../../stores/alicization-bridge'
+import type { AlicizationDigitalLifeSpineDigest, AlicizationVisualPresenceStateSnapshot } from '../../stores/alicization-bridge'
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { effectScope, nextTick } from 'vue'
@@ -43,6 +43,10 @@ function createAlicizationBridgeStub(overrides?: Partial<Parameters<typeof setAl
 
 function createVisualPresenceState(updatedAt: number) {
   return {
+    currentBodyState: 'idle' as const,
+    continuityMode: 'ambient-covision' as const,
+    quietLineMs: 0,
+    currentInwardPreoccupation: null,
     watchMode: 'invited-inspection' as const,
     currentScene: {
       workloadKind: 'coding' as const,
@@ -144,6 +148,83 @@ function createDigitalLifeSpineDigest(updatedAt = Date.now()) {
   } satisfies AlicizationDigitalLifeSpineDigest
 }
 
+function createRecoveringDigitalLifeSpineDigest(updatedAt = Date.now()): AlicizationDigitalLifeSpineDigest {
+  return {
+    ...createDigitalLifeSpineDigest(updatedAt),
+    runtime: {
+      ...createDigitalLifeSpineDigest(updatedAt).runtime,
+      watchMode: 'recovering',
+      sceneScenario: 'late-night-care',
+      sceneSummary: 'hold recovery watch near the host',
+      preferredPresence: 'concerned',
+      dominantMode: 'accompanying',
+      answerIntent: 'care',
+    },
+    architecture: {
+      ...createDigitalLifeSpineDigest(updatedAt).architecture,
+      operatingMode: 'thinking',
+      dominantSystem: 'perception',
+      summary: 'quiet recovery watch stays present without speech',
+    },
+    proactive: {
+      ...createDigitalLifeSpineDigest(updatedAt).proactive,
+      selectedAction: 'wait',
+      preferredStyle: 'silent-observe',
+      shouldSpeak: false,
+      preferredPresence: 'concerned',
+    },
+    memory: {
+      ...createDigitalLifeSpineDigest(updatedAt).memory,
+      summary: 'Keep recovery watch without speaking.',
+    },
+  }
+}
+
+function createSilentPresenceVisualSnapshot(
+  mode: 'accompanying' | 'recovering',
+  updatedAt = Date.now(),
+): AlicizationVisualPresenceStateSnapshot {
+  const recovering = mode === 'recovering'
+  return {
+    watchMode: recovering ? 'recovering' : 'symbiotic-vision',
+    currentScene: {
+      workloadKind: recovering ? 'chat' as const : 'coding' as const,
+      contentKind: recovering ? 'chat' as const : 'diff' as const,
+      scenario: recovering ? 'late-night-care' as const : 'coding' as const,
+      source: 'invited-grounding' as const,
+      confidence: 0.84,
+      beganAt: updatedAt - 8_000,
+      lastSeenAt: updatedAt - 300,
+    },
+    attention: null,
+    workingMemoryEpisodes: [],
+    currentBodyState: recovering ? 'recovering' as const : 'accompanying' as const,
+    continuityMode: recovering ? 'protective-watch' as const : 'quiet-accompaniment' as const,
+    quietLineMs: 0,
+    currentInwardPreoccupation: recovering ? 'hold recovery watch' : 'stay with the current diff',
+    privateThought: {
+      stance: recovering ? 'care' as const : 'accompany' as const,
+      confidence: 0.72,
+      rationaleTags: [recovering ? 'recovery' : 'companionship'],
+      thoughtText: recovering ? 'Keep watch without adding pressure.' : 'Stay nearby without interrupting.',
+      shouldSpeak: false,
+      suggestedStyle: recovering ? 'gentle-care' as const : 'silent-observe' as const,
+      embodiedPresence: recovering ? 'concerned' as const : 'attentive' as const,
+      expiresAt: updatedAt + 4_000,
+      emotionalTension: recovering ? 'late-night-drain' as const : 'soft-covision' as const,
+    },
+    captureState: {
+      permission: 'granted' as const,
+      lastGroundedAt: updatedAt - 120,
+      sourceName: 'display-1',
+    },
+    durabilityPulse: null,
+    recentTransition: null,
+    nextSuggestedProbeMs: 1_400,
+    updatedAt,
+  } as AlicizationVisualPresenceStateSnapshot
+}
+
 async function flushTasks() {
   await Promise.resolve()
   await Promise.resolve()
@@ -182,6 +263,12 @@ describe('stage embodiment visual presence', () => {
     await flushTasks()
 
     expect(embodimentVisualPresence.state.value).toEqual(pushedState)
+    expect(embodimentVisualPresence.state.value).toMatchObject({
+      currentBodyState: 'idle',
+      continuityMode: 'ambient-covision',
+      quietLineMs: 0,
+      currentInwardPreoccupation: null,
+    })
     scope.stop()
   })
 
@@ -237,6 +324,10 @@ describe('stage embodiment visual presence', () => {
 
     expect(embodimentVisualPresence.digitalLifeSpineDigest.value).toEqual(digest)
     expect(transient).toMatchObject({
+      currentBodyState: 'accompanying',
+      continuityMode: 'quiet-accompaniment',
+      quietLineMs: 0,
+      currentInwardPreoccupation: 'stay with the current diff',
       watchMode: 'symbiotic-vision',
       currentScene: expect.objectContaining({
         scenario: 'coding',
@@ -251,6 +342,55 @@ describe('stage embodiment visual presence', () => {
       }),
     })
     expect(embodimentVisualPresence.state.value).toEqual(transient)
+    scope.stop()
+  })
+
+  it('keeps silent accompanying and recovering authority alive from pushed snapshots or transient spine without dialogue turns', async () => {
+    let emitSnapshot: ((state: AlicizationVisualPresenceStateSnapshot | null) => void) | undefined
+    setAlicizationBridge(createAlicizationBridgeStub({
+      getVisualPresenceState: vi.fn().mockResolvedValue(null),
+      onVisualPresenceState: (listener) => {
+        emitSnapshot = listener
+        return () => {
+          emitSnapshot = undefined
+        }
+      },
+    }))
+
+    const scope = effectScope()
+    const embodimentVisualPresence = scope.run(() => useStageEmbodimentVisualPresence())!
+    await flushTasks()
+
+    const accompanyingSnapshot = createSilentPresenceVisualSnapshot('accompanying', 4_200)
+    emitSnapshot?.(accompanyingSnapshot)
+    await flushTasks()
+
+    expect(embodimentVisualPresence.state.value).toMatchObject({
+      watchMode: 'symbiotic-vision',
+      currentBodyState: 'accompanying',
+      continuityMode: 'quiet-accompaniment',
+      privateThought: expect.objectContaining({
+        shouldSpeak: false,
+        stance: 'accompany',
+        embodiedPresence: 'attentive',
+      }),
+    })
+
+    const recoveringDigest = createRecoveringDigitalLifeSpineDigest(8_400)
+
+    const recoveringState = embodimentVisualPresence.applyTransientDigitalLifeSpine(recoveringDigest)
+    await flushTasks()
+
+    expect(recoveringState).toMatchObject({
+      watchMode: 'recovering',
+      currentBodyState: 'recovering',
+      continuityMode: 'protective-watch',
+      privateThought: expect.objectContaining({
+        shouldSpeak: false,
+        embodiedPresence: 'concerned',
+      }),
+    })
+    expect(recoveringState?.privateThought?.thoughtText).not.toEqual('')
     scope.stop()
   })
 })

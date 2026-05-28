@@ -28,6 +28,7 @@ import type {
   AlicizationReflectionLedgerSnapshot,
   AlicizationRelationshipModelSnapshot,
   AlicizationRepairLedgerSnapshot,
+  AlicizationSelfEvolutionKernelSnapshot,
   AlicizationSelfContinuitySnapshot,
   AlicizationSelfGovernorSnapshot,
   AlicizationSelfStateSnapshot,
@@ -59,6 +60,25 @@ function sanitizeText(raw: unknown, maxChars = 240) {
   if (typeof raw !== 'string')
     return ''
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
+}
+
+function includesAny(text: string, needles: string[]) {
+  return needles.some(needle => text.includes(needle))
+}
+
+function selfEvolutionSupportsLowerPressureCompanionship(selfEvolution?: AlicizationSelfEvolutionKernelSnapshot | null) {
+  if (!selfEvolution)
+    return false
+
+  const relationshipDoctrine = sanitizeText(selfEvolution.relationshipDoctrine, 160).toLowerCase()
+  const burdenLine = sanitizeText(selfEvolution.burdenLine, 160).toLowerCase()
+  const trustMeaning = sanitizeText(selfEvolution.trustMeaning, 160).toLowerCase()
+  const latestInflection = sanitizeText(selfEvolution.latestInflection, 160).toLowerCase()
+
+  return includesAny(relationshipDoctrine, ['leave more room', 'more room', 'slower return', 'lower-pressure', 'less eager'])
+    || includesAny(trustMeaning, ['lower-pressure', 'less eager', 'room', 'space', 'timing'])
+    || includesAny(latestInflection, ['lower-pressure', 'less eager', 'slower return', 'room'])
+    || includesAny(burdenLine, ['pressure', 'crowd', 'overloaded', 'eager'])
 }
 
 function isSeriousDurabilityPulse(pulse: AlicizationDurabilityPulseSnapshot | null | undefined) {
@@ -267,6 +287,7 @@ function applyContinuityMindOverlay(input: {
   relationshipModel?: AlicizationRelationshipModelSnapshot | null
   mindKernel?: AlicizationMindKernelSnapshot | null
   selfGovernor?: AlicizationSelfGovernorSnapshot | null
+  autobiographicalSelf?: AlicizationAutobiographicalSelfSnapshot | null
   latestUserTurnAt?: number | null
 }) {
   const continuityMindState = createAlicizationContinuityMind().reduce({
@@ -276,7 +297,7 @@ function applyContinuityMindOverlay(input: {
       ?? input.worldModel?.continuity.sceneAgeMs
       ?? 0,
     ),
-    bodyState: input.selfGovernor?.dominantDrive === 'warn'
+    bodyState: input.snapshot.stance === 'warn'
       ? 'warning'
       : input.snapshot.shouldSpeak
         ? 'speaking'
@@ -295,8 +316,8 @@ function applyContinuityMindOverlay(input: {
         + (input.relationshipModel?.reciprocityExpectation ?? 0)
       ) / 3,
     ) || 0)),
-    personaAuthoritySummary: input.snapshot.autobiographicalSelf?.relationshipDoctrine ?? null,
-    personaKernelSummary: deriveAlicizationAutobiographicalPersonaSummary(input.snapshot.autobiographicalSelf ?? null),
+    personaAuthoritySummary: input.autobiographicalSelf?.relationshipDoctrine ?? null,
+    personaKernelSummary: deriveAlicizationAutobiographicalPersonaSummary(input.autobiographicalSelf ?? null),
     latestUserTurnAt: input.latestUserTurnAt ?? null,
     now: input.now,
   })
@@ -316,7 +337,7 @@ function applyContinuityMindOverlay(input: {
       ...input.snapshot.rationaleTags,
       `continuity-mind:${continuityMindState.privateThoughtMode}`,
     ])),
-  }
+  } satisfies AlicizationPrivateThoughtSnapshot
 }
 
 function resolveMotiveFallbackThought(
@@ -991,6 +1012,7 @@ export function buildPrivateThoughtLoop(input: {
   autobiographicalSelf?: AlicizationAutobiographicalSelfSnapshot | null
   motiveEngine?: AlicizationMotiveEngineSnapshot | null
   habitPolicy?: AlicizationHabitPolicySnapshot | null
+  selfEvolution?: AlicizationSelfEvolutionKernelSnapshot | null
   selfState?: AlicizationSelfStateSnapshot | null
   selfGovernor?: AlicizationSelfGovernorSnapshot | null
   inquiryLoop?: AlicizationInquiryLoopSnapshot | null
@@ -1045,48 +1067,48 @@ export function buildPrivateThoughtLoop(input: {
       afterglowActive,
       previous: input.previousPrivateThought ?? null,
       snapshot: buildThoughtFromMind({
-      now: input.now,
-      emotionalTension,
-      afterglowActive,
-      latestUserTurnAt,
-      recentTransition: input.recentTransition,
-      worldModel: input.worldModel,
-      entityWorld: input.entityWorld,
-      livingWorldState: input.livingWorldState,
-      beliefLedger: input.beliefLedger,
-      hypothesisGraph: input.hypothesisGraph,
-      deliberationState: input.deliberationState,
-      threadRuntime: input.threadRuntime,
-      actionEcology: input.actionEcology,
-      worldOntology: input.worldOntology,
-      initiativeArbitration: input.initiativeArbitration,
-      goalStack: input.goalStack,
-      inquiryLoop: input.inquiryLoop,
-      mindDynamics: input.mindDynamics,
-      commitmentLedger: input.commitmentLedger,
-      inquiryPlanner: input.inquiryPlanner,
-      concernContinuity: input.concernContinuity,
-      repairLedger: input.repairLedger,
-      intentionStream: input.intentionStream,
-      reflectionLedger: input.reflectionLedger,
-      executiveCycle: input.executiveCycle,
-      durabilityPulse: input.durabilityPulse,
-      mindKernel: input.mindKernel,
-      relationshipModel: input.relationshipModel,
-      selfContinuity: input.selfContinuity,
-      autobiographicalSelf: input.autobiographicalSelf,
-      motiveEngine: input.motiveEngine,
-      habitPolicy: input.habitPolicy,
-      selfGovernor: input.selfGovernor,
-      desireMemory: input.desireMemory,
-      thoughtThreads: input.thoughtThreads,
-      counterfactualDeliberation: input.counterfactualDeliberation,
-      appraisal: input.appraisal,
-      concerns: input.concerns,
-      selfState: input.selfState,
-      mindEcology: input.mindEcology,
-      initiative: input.initiative,
-      autonomy: input.autonomy ?? null,
+        now: input.now,
+        emotionalTension,
+        afterglowActive,
+        latestUserTurnAt,
+        recentTransition: input.recentTransition,
+        worldModel: input.worldModel,
+        entityWorld: input.entityWorld,
+        livingWorldState: input.livingWorldState,
+        beliefLedger: input.beliefLedger,
+        hypothesisGraph: input.hypothesisGraph,
+        deliberationState: input.deliberationState,
+        threadRuntime: input.threadRuntime,
+        actionEcology: input.actionEcology,
+        worldOntology: input.worldOntology,
+        initiativeArbitration: input.initiativeArbitration,
+        goalStack: input.goalStack,
+        inquiryLoop: input.inquiryLoop,
+        mindDynamics: input.mindDynamics,
+        commitmentLedger: input.commitmentLedger,
+        inquiryPlanner: input.inquiryPlanner,
+        concernContinuity: input.concernContinuity,
+        repairLedger: input.repairLedger,
+        intentionStream: input.intentionStream,
+        reflectionLedger: input.reflectionLedger,
+        executiveCycle: input.executiveCycle,
+        durabilityPulse: input.durabilityPulse,
+        mindKernel: input.mindKernel,
+        relationshipModel: input.relationshipModel,
+        selfContinuity: input.selfContinuity,
+        autobiographicalSelf: input.autobiographicalSelf,
+        motiveEngine: input.motiveEngine,
+        habitPolicy: input.habitPolicy,
+        selfGovernor: input.selfGovernor,
+        desireMemory: input.desireMemory,
+        thoughtThreads: input.thoughtThreads,
+        counterfactualDeliberation: input.counterfactualDeliberation,
+        appraisal: input.appraisal,
+        concerns: input.concerns,
+        selfState: input.selfState,
+        mindEcology: input.mindEcology,
+        initiative: input.initiative,
+        autonomy: input.autonomy ?? null,
       }),
     })
   }
@@ -1209,6 +1231,8 @@ export function buildPrivateThoughtLoop(input: {
     rationaleTags.push(`motive-drive:${input.motiveEngine.rulingDrive}`)
   if (input.habitPolicy?.dominantMode)
     rationaleTags.push(`habit:${input.habitPolicy.dominantMode}`)
+  if (selfEvolutionSupportsLowerPressureCompanionship(input.selfEvolution ?? null))
+    rationaleTags.push('self-evolution:lower-pressure-companionship')
   if (input.autobiographicalSelf?.personaDrift.attachmentStyle)
     rationaleTags.push(`autobio-bond:${input.autobiographicalSelf.personaDrift.attachmentStyle}`)
   if (input.autobiographicalSelf?.personaDrift.conflictStyle)
@@ -1568,42 +1592,43 @@ export function buildPrivateThoughtLoop(input: {
     afterglowActive,
     previous: input.previousPrivateThought ?? null,
     snapshot: applyContinuityMindOverlay({
-    now: input.now,
-    worldModel: input.worldModel,
-    relationshipModel: input.relationshipModel,
-    mindKernel: input.mindKernel,
-    selfGovernor: input.selfGovernor,
-    latestUserTurnAt,
-    snapshot: {
-    stance,
-    confidence: clamp01(confidence + (project?.confidence ?? 0) * 0.1 + Math.max(0, reflection?.confidenceShift ?? 0) * 0.08),
-    rationaleTags,
-    thoughtText: sanitizeText(thoughtText, 220),
-    shouldSpeak,
-    suggestedStyle,
-    embodiedPresence,
-    expiresAt: input.now + (afterglowActive ? 120_000 : 90_000),
-    afterglowFromScenario: afterglowActive && (input.recentTransition?.fromScenario === 'coding' || input.recentTransition?.fromScenario === 'media')
-      ? input.recentTransition.fromScenario
-      : null,
-    emotionalTension,
-    focusBeliefId: focusBelief?.id ?? null,
-    focusInquiryId: primaryInquiry?.id ?? null,
-    commitmentId: governingCommitment?.id ?? null,
-    inquiryPlanId: activeInquiryPlan?.id ?? null,
-    hypothesisId: activeHypothesis?.id ?? null,
-    deliberationThreadId: deliberationThread?.id ?? null,
-    runtimeThreadId: runtimeThread?.id ?? null,
-    mindNeed: input.deliberationState?.dominantNeed ?? null,
-    relationshipVector: input.relationshipModel?.approachVector ?? null,
-    counterfactualOptionId: counterfactualOption?.id ?? null,
-    leadingGoalId: leadingGoal?.id ?? null,
-    desireId: resurfacingDesire?.id ?? null,
-    governorDrive: input.selfGovernor?.dominantDrive ?? null,
-    governorIntentionId: governorIntention?.id ?? null,
-    selectedThoughtThreadId: thoughtThread?.id ?? null,
-    livingWorldObjectId: livingObject?.id ?? null,
-    },
+      now: input.now,
+      worldModel: input.worldModel,
+      relationshipModel: input.relationshipModel,
+      mindKernel: input.mindKernel,
+      selfGovernor: input.selfGovernor,
+      autobiographicalSelf: input.autobiographicalSelf,
+      latestUserTurnAt,
+      snapshot: {
+        stance,
+        confidence: clamp01(confidence + (project?.confidence ?? 0) * 0.1 + Math.max(0, reflection?.confidenceShift ?? 0) * 0.08),
+        rationaleTags,
+        thoughtText: sanitizeText(thoughtText, 220),
+        shouldSpeak,
+        suggestedStyle,
+        embodiedPresence,
+        expiresAt: input.now + (afterglowActive ? 120_000 : 90_000),
+        afterglowFromScenario: afterglowActive && (input.recentTransition?.fromScenario === 'coding' || input.recentTransition?.fromScenario === 'media')
+          ? input.recentTransition.fromScenario
+          : null,
+        emotionalTension,
+        focusBeliefId: focusBelief?.id ?? null,
+        focusInquiryId: primaryInquiry?.id ?? null,
+        commitmentId: governingCommitment?.id ?? null,
+        inquiryPlanId: activeInquiryPlan?.id ?? null,
+        hypothesisId: activeHypothesis?.id ?? null,
+        deliberationThreadId: deliberationThread?.id ?? null,
+        runtimeThreadId: runtimeThread?.id ?? null,
+        mindNeed: input.deliberationState?.dominantNeed ?? null,
+        relationshipVector: input.relationshipModel?.approachVector ?? null,
+        counterfactualOptionId: counterfactualOption?.id ?? null,
+        leadingGoalId: leadingGoal?.id ?? null,
+        desireId: resurfacingDesire?.id ?? null,
+        governorDrive: input.selfGovernor?.dominantDrive ?? null,
+        governorIntentionId: governorIntention?.id ?? null,
+        selectedThoughtThreadId: thoughtThread?.id ?? null,
+        livingWorldObjectId: livingObject?.id ?? null,
+      } satisfies AlicizationPrivateThoughtSnapshot,
     }),
   })
 }

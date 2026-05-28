@@ -447,6 +447,7 @@ describe('dialogue session manager', () => {
     expect(block).toContain('conversation_session_id=session-1')
     expect(block).toContain('continuity_labels=presence:symbiotic-vision,digital-life-line')
     expect(block).toContain('digital_life_runtime=watch=symbiotic-vision')
+    expect(block).toContain('runtime_channel=dominant=')
     expect(block).toContain('mind=mode=tracking | drive=understand | need=guidance')
     expect(block).toContain('memory_carry=mode=reflective-repair')
     expect(block).toContain('perception=watch=symbiotic-vision | scene=Viewing a runtime refactor diff | attention=runtime.ts | source=attention-anchor')
@@ -456,6 +457,47 @@ describe('dialogue session manager', () => {
     expect(block).toContain('recollection_confidence=0.81')
     expect(block).toContain('agency=action=speak | speak=true | style=light-nudge | thread=Refactor dialogue continuity runtime')
     expect(block).toContain('dialogue=turn=answer | persona=full | subject=relationship | answer=reassure while staying grounded')
+  })
+
+  it('carries recent runtime transitions into the session mirror block', () => {
+    const manager = createAlicizationDialogueSessionManager({
+      getNow: () => 40,
+    })
+
+    manager.ingestPreparedExecution({
+      agentSession: createAgentSessionSnapshot(),
+      cardId: 'default',
+      runtimeSurface: {
+        ...createRuntimeSurface(),
+        digitalLifeRuntimeSurface: {
+          ...createRuntimeSurface().digitalLifeRuntimeSurface!,
+          perception: {
+            ...createRuntimeSurface().digitalLifeRuntimeSurface!.perception,
+            currentScene: {
+              ...createRuntimeSurface().digitalLifeRuntimeSurface!.perception.currentScene,
+              scenario: 'coding',
+              summary: 'Recovering after a late-night coding stretch',
+            } as any,
+            recentTransition: {
+              fromWatchMode: 'symbiotic-vision',
+              toWatchMode: 'recovering',
+              fromScenario: 'coding',
+              durationMs: 1_800_000,
+              reason: 'host fatigue detected during late-night care',
+              occurredAt: 25,
+            },
+          },
+        },
+      },
+      sessionId: 'session-transition-1',
+    })
+
+    const block = manager.buildSessionMirrorSystemBlock({
+      cardId: 'default',
+      sessionId: 'session-transition-1',
+    })
+
+    expect(block).toContain('runtime_transition=from=symbiotic-vision | to=recovering | scenario=coding | reason=host fatigue detected during late-night care')
   })
 
   it('drops stale mirrors instead of injecting outdated continuity', () => {

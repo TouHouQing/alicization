@@ -6,6 +6,7 @@ import type {
 } from '../../../shared/eventa'
 import type { AlicizationPersonStateProjection } from './person-state-projection'
 import type { AlicizationRelationshipDynamicsState } from './relationship-dynamics-state'
+import type { AlicizationSelfRevisionStatePatch } from './self-evolution/state-revision-bus'
 import type { OrganicMemoryPromptContext } from './runtime-soul'
 
 import {
@@ -80,28 +81,66 @@ export function buildOrganicMemoryEvolutionState(input: {
   recentRelationshipOutcomes?: OrganicMemoryPromptContext['recentRelationshipOutcomes'] | null
   recentMemoryReflections?: OrganicMemoryPromptContext['recentMemoryReflections'] | null
   relationshipDynamics?: AlicizationRelationshipDynamicsState | null
+  activeSelfEvolutionCandidateId?: string | null
+  activeSelfRevisionPatch?: AlicizationSelfRevisionStatePatch | null
+  activeContinuityGovernance?: {
+    source: 'active-self-evolution-version'
+    mode: 'same-her-baseline'
+    candidateId: string | null
+    patchId: string | null
+    decisionTraceId: string | null
+    summary: string | null
+    lanes: string[]
+    reasonCodes: string[]
+  } | null
 }) {
   const knowledgeEvidence = deriveKnowledgeEvidence({
     retrievedFacts: input.retrievedFacts,
     proceduralMemories: input.proceduralMemories,
   })
+  const activeSelfRevisionPatch = input.activeSelfRevisionPatch ?? null
   const selfEvolution = buildAlicizationSelfEvolutionKernel({
     personStateEvolutionSummary: input.personStateEvolutionSummary ?? null,
     hostPersonModel: input.hostPersonModel,
     knowledgeEvidence,
-    learningPolicyState: input.memoryStats?.retrievalHealth
+    learningPolicyState: activeSelfRevisionPatch
       ? {
-          strictnessBias: input.memoryStats.retrievalHealth.learningPolicyStrictnessBias ?? 0,
-          wrongThreadSuppressionBias: input.memoryStats.retrievalHealth.learningPolicyWrongThreadSuppressionBias ?? 0,
-          provenanceLabelBias: input.memoryStats.retrievalHealth.learningPolicyProvenanceLabelBias ?? 0,
-          reasonCodes: input.memoryStats.retrievalHealth.learningPolicyReasonCodes ?? [],
-          selfRevisionPatchCount: input.memoryStats.retrievalHealth.selfRevisionPatchCount ?? 0,
-          selfRevisionMemoryPolicyBias: input.memoryStats.retrievalHealth.selfRevisionMemoryPolicyBias ?? 0,
-          selfRevisionRelationshipPostureBias: input.memoryStats.retrievalHealth.selfRevisionRelationshipPostureBias ?? 0,
-          selfRevisionResponsePostureBias: input.memoryStats.retrievalHealth.selfRevisionResponsePostureBias ?? 0,
-          selfRevisionProactivePolicyBias: input.memoryStats.retrievalHealth.selfRevisionProactivePolicyBias ?? 0,
-          selfRevisionValidationBias: input.memoryStats.retrievalHealth.selfRevisionValidationBias ?? 0,
-          selfRevisionReasonCodes: input.memoryStats.retrievalHealth.selfRevisionReasonCodes ?? [],
+          strictnessBias: activeSelfRevisionPatch.memoryPolicy.strictnessBias ?? 0,
+          wrongThreadSuppressionBias: activeSelfRevisionPatch.memoryPolicy.wrongThreadSuppressionBias ?? 0,
+          provenanceLabelBias: activeSelfRevisionPatch.memoryPolicy.provenanceLabelBias ?? 0,
+          reasonCodes: activeSelfRevisionPatch.reasonCodes ?? [],
+          selfRevisionPatchCount: 1,
+          selfRevisionMemoryPolicyBias: Math.max(
+            activeSelfRevisionPatch.memoryPolicy.strictnessBias ?? 0,
+            activeSelfRevisionPatch.memoryPolicy.wrongThreadSuppressionBias ?? 0,
+            activeSelfRevisionPatch.memoryPolicy.provenanceLabelBias ?? 0,
+            activeSelfRevisionPatch.memoryPolicy.recallExpansionBias ?? 0,
+            activeSelfRevisionPatch.memoryPolicy.shouldQuarantineUnsupportedCarry ? 0.2 : 0,
+          ),
+          selfRevisionRelationshipPostureBias: Math.max(
+            activeSelfRevisionPatch.relationshipPosture.repairWindowBias ?? 0,
+            activeSelfRevisionPatch.relationshipPosture.closenessCapBias ?? 0,
+            activeSelfRevisionPatch.relationshipPosture.warmthReleaseBias ?? 0,
+          ),
+          selfRevisionResponsePostureBias: Math.max(
+            activeSelfRevisionPatch.responsePosture.secondPassRequiredBias ?? 0,
+            activeSelfRevisionPatch.responsePosture.hypothesisLabelBias ?? 0,
+            activeSelfRevisionPatch.responsePosture.specificityClampBias ?? 0,
+            activeSelfRevisionPatch.responsePosture.templateShellSuppressionBias ?? 0,
+          ),
+          selfRevisionProactivePolicyBias: Math.max(
+            activeSelfRevisionPatch.proactivePolicy.restraintBias ?? 0,
+            activeSelfRevisionPatch.proactivePolicy.learningProposalBias ?? 0,
+            activeSelfRevisionPatch.proactivePolicy.actuationCooldownBias ?? 0,
+          ),
+          selfRevisionValidationBias: Math.max(
+            activeSelfRevisionPatch.validation.requiresRollbackCheck ? 1 : 0,
+            activeSelfRevisionPatch.validation.requiresRevalidation ? 1 : 0,
+          ),
+          selfRevisionReasonCodes: [
+            ...(activeSelfRevisionPatch.reasonCodes ?? []),
+            ...(activeSelfRevisionPatch.lanes ?? []).map(lane => `lane:${lane}`),
+          ].slice(0, 24),
         }
       : null,
     reflectionSummary: input.personStateEvolutionSummary?.recentSummaries?.[0] ?? null,
@@ -127,6 +166,17 @@ export function buildOrganicMemoryEvolutionState(input: {
     personStateProjection: input.personStateProjection as unknown as Record<string, unknown> | null,
     knowledgeEvidence,
     claimEvidenceGraphs: input.claimEvidenceGraphs ?? null,
+    activeSelfRevision: activeSelfRevisionPatch
+      ? {
+          candidateId: input.activeSelfEvolutionCandidateId ?? null,
+          patchId: activeSelfRevisionPatch.id,
+          patchDecisionTraceId: activeSelfRevisionPatch.decisionTraceId,
+          lanes: [...activeSelfRevisionPatch.lanes],
+          reasonCodes: [...activeSelfRevisionPatch.reasonCodes],
+          summary: activeSelfRevisionPatch.summary,
+        }
+      : null,
+    activeContinuityGovernance: input.activeContinuityGovernance ?? null,
     selfEvolution,
     affectiveResidue,
     learningExecutionState: deriveAlicizationLearningExecutionProjection({

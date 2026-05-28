@@ -26,7 +26,7 @@ jobs:
     permissions:
       contents: read
     env:
-      DEPLOY_HOST: 103.85.226.171
+      DEPLOY_HOST: 36.212.197.121
       DEPLOY_PORT: ${{ secrets.DEPLOY_PORT || '22' }}
       DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
       REMOTE_REPO_DIR: ${{ secrets.SERVER_REPO_DIR || '/opt/alicization' }}

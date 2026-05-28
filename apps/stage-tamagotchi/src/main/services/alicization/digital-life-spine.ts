@@ -90,6 +90,80 @@ function joinNarrativeLine(items: string[] | null | undefined, maxItems = 4, max
   return text ? sanitizeDigitalLifeSpineDigestText(text, maxChars) : null
 }
 
+function extractPersonaBiasSummary(surface: AlicizationDigitalLifeRuntimeSurface) {
+  const projection = surface.memory.personStateProjection ?? null
+  const rawPersonality = surface.memory.derivedMindStateBundle?.personalityState ?? null
+  const personality = rawPersonality && typeof rawPersonality === 'object'
+    ? rawPersonality as {
+        identityKernel?: { relationshipPosture?: unknown, initiativeStyle?: unknown } | null
+        initiativeBaseline?: { silenceReconnect?: unknown, comfortStyle?: unknown } | null
+      }
+    : null
+
+  const relationshipPosture = sanitizeDigitalLifeSpineDigestText(personality?.identityKernel?.relationshipPosture, 48) || null
+  const initiativeStyle = sanitizeDigitalLifeSpineDigestText(personality?.identityKernel?.initiativeStyle, 48) || null
+  const silenceReconnect = sanitizeDigitalLifeSpineDigestText(personality?.initiativeBaseline?.silenceReconnect, 48) || null
+  const comfortStyle = sanitizeDigitalLifeSpineDigestText(personality?.initiativeBaseline?.comfortStyle, 48) || null
+  const preferredProactiveStyle = sanitizeDigitalLifeSpineDigestText(projection?.preferredProactiveStyle ?? '', 48) || null
+  const manifestationCadenceSummary = buildPersonaManifestationCadenceSummary({
+    initiativeStyle,
+    silenceReconnect,
+    relationshipPosture,
+    comfortStyle,
+    preferredProactiveStyle,
+  })
+  const openingGuidance = sanitizeDigitalLifeSpineDigestText(projection?.openingGuidance ?? '', 220) || null
+  const whySummary = sanitizeDigitalLifeSpineDigestText(
+    surface.agency.autonomy?.whyNow
+      ?? surface.agency.initiative?.why
+      ?? '',
+    220,
+  ) || null
+
+  if (!relationshipPosture && !initiativeStyle && !silenceReconnect && !comfortStyle && !preferredProactiveStyle && !manifestationCadenceSummary && !openingGuidance && !whySummary)
+    return null
+
+  return {
+    relationshipPosture,
+    initiativeStyle,
+    silenceReconnect,
+    comfortStyle,
+    preferredProactiveStyle,
+    manifestationCadenceSummary,
+    openingGuidance,
+    whySummary,
+  }
+}
+
+function buildPersonaManifestationCadenceSummary(input: {
+  initiativeStyle: string | null
+  silenceReconnect: string | null
+  relationshipPosture: string | null
+  comfortStyle: string | null
+  preferredProactiveStyle: string | null
+}) {
+  const observeFirst = input.initiativeStyle === 'observant'
+    || input.silenceReconnect === 'hold'
+    || input.preferredProactiveStyle === 'silent-observe'
+  if (observeFirst) {
+    return 'persona prefers observe-first room, so visible return cadence should stay slower until the opening softens.'
+  }
+
+  const directReconnect = input.initiativeStyle === 'high-participation'
+    || input.silenceReconnect === 'direct-approach'
+  if (directReconnect) {
+    return 'persona leans toward direct reconnect once the opening is real, so the return cadence can loosen earlier.'
+  }
+
+  const guardianCare = input.relationshipPosture === 'guardian'
+    || input.comfortStyle === 'take-charge'
+  if (guardianCare) {
+    return 'persona keeps a care-first cadence, so she can surface sooner when the host needs a steadier kind of presence.'
+  }
+
+  return null
+}
+
 export function projectAlicizationDigitalLifeSpineDigest(
   spine: AlicizationDigitalLifeSpineSnapshot | null | undefined,
 ): AlicizationDigitalLifeSpineDigest | null {
@@ -123,6 +197,7 @@ export function projectAlicizationDigitalLifeSpineDigest(
     privateThought?.embodiedPresence ?? initiative?.preferredPresence ?? '',
     48,
   ) || null
+  const personaBias = extractPersonaBiasSummary(surface)
   const mindEcology = buildMindEcology({
     now: surface.perception.updatedAt,
     watchMode: surface.perception.watchMode,
@@ -212,6 +287,7 @@ export function projectAlicizationDigitalLifeSpineDigest(
       leadingGoalId: sanitizeDigitalLifeSpineDigestText(leadingGoal?.id ?? '', 96) || null,
       leadingGoalSummary: readDigitalLifeGoalSummary(leadingGoal) || null,
       preferredPresence,
+      personaBias,
     },
     autonomy: autonomy
       ? {
@@ -414,6 +490,7 @@ export function projectAlicizationDigitalLifeSpineDigest(
             speakDrive: normalizeDigitalLifeSpineDigestUnit(initiative.speakDrive),
             silenceDrive: normalizeDigitalLifeSpineDigestUnit(initiative.silenceDrive),
             why: sanitizeDigitalLifeSpineDigestText(initiative.why, 220) || null,
+            personaBias,
           }
         : null,
     },

@@ -30,6 +30,14 @@ export interface StageEmbodimentAttentionPresenceState {
   delivery: AlicizationPerformanceDelivery | null
   emphasis: 0 | 1 | 2
   expiresAt: number
+  watchMode?: AlicizationPresencePulsePayload['watchMode']
+  stance?: AlicizationPresencePulsePayload['stance']
+  reasonTags?: AlicizationPresencePulsePayload['reasonTags']
+  emotionalTension?: AlicizationPresencePulsePayload['emotionalTension']
+  currentBodyState?: AlicizationVisualPresenceStateSnapshot['currentBodyState']
+  continuityMode?: AlicizationVisualPresenceStateSnapshot['continuityMode']
+  quietLineMs?: number
+  currentInwardPreoccupation?: string | null
 }
 
 export interface UseStageEmbodimentAttentionOptions {
@@ -160,17 +168,24 @@ function resolvePresenceBias(presence: StageEmbodimentAttentionPresenceState | n
   }
 
   const confidence = clampUnit(presence.confidence)
+  const quietAccompanyingPresence = presence.source === 'presence-pulse'
+    && presence.currentBodyState === 'accompanying'
+    && presence.continuityMode === 'quiet-accompaniment'
+    && Number(presence.quietLineMs ?? 0) >= 120_000
+  const protectiveWatchPresence = presence.source === 'presence-pulse'
+    && presence.currentBodyState === 'recovering'
+    && presence.continuityMode === 'protective-watch'
   if (presence.embodiedPresence === 'attentive') {
     return {
-      x: cadenceCentered * 0.004 * confidence,
-      y: -0.016 * confidence,
+      x: cadenceCentered * (quietAccompanyingPresence ? 0.0024 : 0.004) * confidence,
+      y: -(quietAccompanyingPresence ? 0.01 : 0.016) * confidence,
     }
   }
 
   if (presence.embodiedPresence === 'concerned') {
     return {
-      x: -0.01 * confidence + cadenceCentered * 0.003,
-      y: -0.02 * confidence,
+      x: -(protectiveWatchPresence ? 0.007 : 0.01) * confidence + cadenceCentered * 0.003,
+      y: -(protectiveWatchPresence ? 0.015 : 0.02) * confidence,
     }
   }
 
@@ -456,6 +471,14 @@ export function useStageEmbodimentAttention(options: UseStageEmbodimentAttention
       delivery: null,
       emphasis: 0,
       expiresAt: payload.expiresAt,
+      watchMode: payload.watchMode,
+      stance: payload.stance,
+      reasonTags: [...payload.reasonTags],
+      emotionalTension: payload.emotionalTension,
+      currentBodyState: payload.currentBodyState,
+      continuityMode: payload.continuityMode,
+      quietLineMs: payload.quietLineMs,
+      currentInwardPreoccupation: payload.currentInwardPreoccupation ?? null,
     })
   }
 

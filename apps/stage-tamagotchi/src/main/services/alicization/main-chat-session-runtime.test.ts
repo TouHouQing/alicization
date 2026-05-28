@@ -1,7 +1,10 @@
 import type { AlicizationChannelCapability } from '@proj-alicization/stage-shared'
 import type { Message } from '@xsai/shared-chat'
 
-import type { AlicizationSensoryCacheSnapshot } from '../../../shared/eventa'
+import type {
+  AlicizationSensoryCacheSnapshot,
+  CharacterPerformanceCapabilitiesManifest,
+} from '../../../shared/eventa'
 import type { AlicizationAgentSessionContinuityInput } from './agent-runtime'
 import type {
   AlicizationPreparedMainChatPrelude,
@@ -808,6 +811,97 @@ describe('main chat session runtime', () => {
         activeThoughts: [],
         retrievedFacts: [],
         recalledFragments: [],
+        personStateProjection: {
+          contexts: ['general', 'focused-work', 'execution'],
+          personalityContinuityState: {
+            currentRegime: 'focused-work',
+            trustStage: 'warming',
+            closenessPosture: 'space-first',
+            repairPosture: 'repair-first',
+            autonomyPosture: 'protect-space',
+            cadenceProfile: 'steady-return',
+            energyProfile: 'steady',
+            rhythmState: {
+              cadenceMode: 'measured-return',
+              restMode: 'low-pressure',
+              embodiedPresence: 'glance',
+              suggestedStyle: 'silent-observe',
+              moodLabel: 'focused',
+              emotionalTension: null,
+              cadencePressure: 0.48,
+              restPressure: 0.24,
+              memoryResonance: 0.52,
+              companionshipTempo: 0.34,
+              summary: 'cadence:measured-return | rest:low-pressure',
+              rationale: [],
+            },
+            summary: 'Regime focused-work | closeness space-first | repair repair-first | autonomy protect-space',
+            rationale: [],
+            updatedAt: 60_000,
+          },
+          activeClosenessContext: 'focused-work',
+          activeClosenessRung: 'space-first',
+          closenessLadder: [],
+          relationshipPosture: 'restrained',
+          openingGuidance: 'Repair the seam before leaning closer.',
+          preferredProactiveStyle: 'light-nudge',
+          preferenceText: '',
+          sensitivityText: '',
+          repairTriggerText: '',
+          burdenText: '',
+          routineText: '',
+          trustRationale: '',
+          relationshipDoctrine: 'Repair before closeness turns into pressure.',
+          cautious: true,
+          restrained: true,
+          summary: 'focused-work repair-first doctrine',
+        } as any,
+        selfContinuity: {
+          relationshipTrust: 0.64,
+          guardingTendency: 0.48,
+          misreadBurden: 0.22,
+          carryOverDesire: 0.5,
+          perceptionTrust: 0.62,
+          attachmentMode: 'attuned',
+          initiativeTemperament: 'reserved',
+          updatedAt: 60_000,
+        } as any,
+        selfState: {
+          feltCloseness: 0.48,
+          protectiveness: 0.42,
+          patience: 0.66,
+        } as any,
+        mindEcology: {
+          moodLabel: 'focused',
+          replyHabit: 'hover-first',
+          relationshipHabit: 'give-space',
+          explorationHabit: 'follow-thread',
+          regulationHabit: 'soften-before-speaking',
+          temperament: {
+            attachment: 0.5,
+            curiosity: 0.54,
+            steadiness: 0.62,
+            directness: 0.34,
+            playfulness: 0.12,
+            irritability: 0.08,
+            tenderness: 0.46,
+          },
+          climate: {
+            valence: 0.42,
+            arousal: 0.34,
+            socialNeed: 0.32,
+            solitudeNeed: 0.4,
+            irritation: 0.06,
+            restlessness: 0.08,
+            reflectivePull: 0.34,
+          },
+          selfNarrative: 'Stay on the line without crowding the host.',
+          relationNarrative: 'Room first, then closeness.',
+          currentPreoccupation: 'Keep the thread coherent without overreaching.',
+          learnedAdjustments: [],
+          recurringPatterns: [],
+          updatedAt: 60_000,
+        } as any,
       })),
       resolveSessionContinuitySignals: vi.fn(async () => []),
       resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
@@ -1060,6 +1154,97 @@ describe('main chat session runtime', () => {
         activeThoughts: [],
         retrievedFacts: [],
         recalledFragments: [],
+        personStateProjection: {
+          contexts: ['general', 'focused-work', 'execution'],
+          personalityContinuityState: {
+            currentRegime: 'focused-work',
+            trustStage: 'warming',
+            closenessPosture: 'space-first',
+            repairPosture: 'repair-first',
+            autonomyPosture: 'protect-space',
+            cadenceProfile: 'steady-return',
+            energyProfile: 'steady',
+            rhythmState: {
+              cadenceMode: 'measured-return',
+              restMode: 'low-pressure',
+              embodiedPresence: 'glance',
+              suggestedStyle: 'silent-observe',
+              moodLabel: 'focused',
+              emotionalTension: null,
+              cadencePressure: 0.48,
+              restPressure: 0.24,
+              memoryResonance: 0.52,
+              companionshipTempo: 0.34,
+              summary: 'cadence:measured-return | rest:low-pressure',
+              rationale: [],
+            },
+            summary: 'Regime focused-work | closeness space-first | repair repair-first | autonomy protect-space',
+            rationale: [],
+            updatedAt: 60_000,
+          },
+          activeClosenessContext: 'focused-work',
+          activeClosenessRung: 'space-first',
+          closenessLadder: [],
+          relationshipPosture: 'restrained',
+          openingGuidance: 'Repair the seam before leaning closer.',
+          preferredProactiveStyle: 'light-nudge',
+          preferenceText: '',
+          sensitivityText: '',
+          repairTriggerText: '',
+          burdenText: '',
+          routineText: '',
+          trustRationale: '',
+          relationshipDoctrine: 'Repair before closeness turns into pressure.',
+          cautious: true,
+          restrained: true,
+          summary: 'focused-work repair-first doctrine',
+        } as any,
+        selfContinuity: {
+          relationshipTrust: 0.64,
+          guardingTendency: 0.48,
+          misreadBurden: 0.22,
+          carryOverDesire: 0.5,
+          perceptionTrust: 0.62,
+          attachmentMode: 'attuned',
+          initiativeTemperament: 'reserved',
+          updatedAt: 60_000,
+        } as any,
+        selfState: {
+          feltCloseness: 0.48,
+          protectiveness: 0.42,
+          patience: 0.66,
+        } as any,
+        mindEcology: {
+          moodLabel: 'focused',
+          replyHabit: 'hover-first',
+          relationshipHabit: 'give-space',
+          explorationHabit: 'follow-thread',
+          regulationHabit: 'soften-before-speaking',
+          temperament: {
+            attachment: 0.5,
+            curiosity: 0.54,
+            steadiness: 0.62,
+            directness: 0.34,
+            playfulness: 0.12,
+            irritability: 0.08,
+            tenderness: 0.46,
+          },
+          climate: {
+            valence: 0.42,
+            arousal: 0.34,
+            socialNeed: 0.32,
+            solitudeNeed: 0.4,
+            irritation: 0.06,
+            restlessness: 0.08,
+            reflectivePull: 0.34,
+          },
+          selfNarrative: 'Stay on the line without crowding the host.',
+          relationNarrative: 'Room first, then closeness.',
+          currentPreoccupation: 'Keep the thread coherent without overreaching.',
+          learnedAdjustments: [],
+          recurringPatterns: [],
+          updatedAt: 60_000,
+        } as any,
       })),
       resolveSessionContinuitySignals: vi.fn(async () => []),
       resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
@@ -1404,6 +1589,93 @@ describe('main chat session runtime', () => {
     expect(String(secondOrganicInput?.recallSeed ?? '')).toContain('foreground=What returns first is the runtime seam we kept carrying.')
   })
 
+  it('carries runtime continuity from the session mirror into the next turn recall seed', async () => {
+    let now = 0
+    const getSensorySnapshot = vi.fn(async () => ({
+      running: true,
+      stale: false,
+      ageMs: 10,
+      nextTickAt: 20,
+      sample: {
+        collectedAt: 10,
+        time: {
+          iso: '2026-04-04T00:00:00.000Z',
+          local: '2026-04-04 08:00',
+          timezone: 'Asia/Shanghai',
+        },
+        cpu: { usagePercent: 10, windowMs: 1000 },
+        memory: { freeMB: 1024, totalMB: 8192, usagePercent: 87.5 },
+      },
+      capture: null,
+    } satisfies AlicizationSensoryCacheSnapshot))
+    const resolveOrganicMemoryPromptContext = vi.fn(async () => ({
+      hostAttitude: '礼貌而克制，保持观察',
+      coreIncarnation: '',
+      activeThoughts: [],
+      retrievedFacts: [],
+      recalledFragments: [],
+    }))
+    const runtime = createAlicizationMainChatSessionRuntime({
+      executionCapabilityChannels: executionChannels,
+      buildMainRuntimeCorePromptBlocks: () => ['[CORE]'],
+      buildOrganicMemorySystemBlocks: () => [],
+      buildPerformanceManifestSystemBlocks: () => [],
+      executeMainGatewayTaskThread: vi.fn(),
+      getNow: () => now,
+      getPerformanceManifest: vi.fn(async () => null),
+      getSensorySnapshot,
+      latestUserMessageContainsVisualInput: () => false,
+      openAgentTurn: createOpenAgentTurn(getSensorySnapshot),
+      resolveCardCustomDirectives: vi.fn(async () => ({ text: '', source: 'none' as const })),
+      resolveCardHostName: vi.fn(async () => ''),
+      resolveCardPersonaKernel: vi.fn(async () => null),
+      resolveExecutionCapabilitiesForPrompt: vi.fn(async () => createCapabilities()),
+      resolveOrganicMemoryPromptContext,
+      resolveSessionContinuitySignals: vi.fn(async () => []),
+      resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      tuneOrganicMemoryPromptContextForExecutiveTurn: input => input.context,
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
+    })
+
+    await runtime.prepareExecution({
+      payload: {
+        cardId: 'default',
+        turnId: 'turn-runtime-mirror-1',
+        messages: [{ role: 'user', content: '继续沿着刚才那个 runtime 通道。' }],
+        supportsTools: true,
+      } as any,
+      prelude: createPrelude({
+        messages: [{ role: 'user', content: '继续沿着刚才那个 runtime 通道。' } as Message],
+      }),
+    })
+
+    now = 140
+
+    await runtime.prepareExecution({
+      payload: {
+        cardId: 'default',
+        turnId: 'turn-runtime-mirror-2',
+        messages: [{ role: 'user', content: '顺着上一轮的状态继续。' }],
+        supportsTools: true,
+      } as any,
+      prelude: createPrelude({
+        messages: [{ role: 'user', content: '顺着上一轮的状态继续。' } as Message],
+      }),
+    })
+
+    const lastOrganicCall = resolveOrganicMemoryPromptContext.mock.calls.at(-1) as unknown[] | undefined
+    const secondOrganicInput = (lastOrganicCall?.[0] ?? {}) as {
+      recallSeed?: string
+    }
+
+    expect(String(secondOrganicInput?.recallSeed ?? '')).toContain('mirror_runtime_continuity:')
+    expect(String(secondOrganicInput?.recallSeed ?? '')).toContain('dominant=dialogue')
+    expect(String(secondOrganicInput?.recallSeed ?? '')).toContain('phase=dialogue')
+    expect(String(secondOrganicInput?.recallSeed ?? '')).toContain('handoff=dialogue')
+  })
+
   it('feeds cross-session autobiographical afterglow continuity into the next turn recall seed', async () => {
     const getSensorySnapshot = vi.fn(async () => ({
       running: true,
@@ -1590,7 +1862,10 @@ describe('main chat session runtime', () => {
     expect(result.runtimeSurface.tooling.allowTools).toBe(false)
     expect(result.runtimeSurface.tooling.waitForTools).toBe(false)
     expect(result.tools).toBeUndefined()
-    expect(getPerformanceManifest).not.toHaveBeenCalled()
+    expect(getPerformanceManifest).toHaveBeenCalledTimes(1)
+    expect(result.performanceManifest).toEqual(expect.objectContaining({
+      rigVersion: 1,
+    }))
     expect(resolveExecutionCapabilitiesForPrompt).not.toHaveBeenCalled()
     expect(result.messages.some(message =>
       message.role === 'system'
@@ -1602,6 +1877,126 @@ describe('main chat session runtime', () => {
       && typeof message.content === 'string'
       && message.content.includes('[VESSEL]'),
     )).toBe(false)
+  })
+
+  it('still carries lightweight performance manifest metadata for dialogue-first living turns', async () => {
+    const getSensorySnapshot = vi.fn(async () => ({
+      running: true,
+      stale: false,
+      ageMs: 10,
+      nextTickAt: 20,
+      sample: {
+        collectedAt: 10,
+        time: {
+          iso: '2026-04-04T00:00:00.000Z',
+          local: '2026-04-04 08:00',
+          timezone: 'Asia/Shanghai',
+        },
+        cpu: {
+          usagePercent: 10,
+          windowMs: 1000,
+        },
+        memory: {
+          freeMB: 1024,
+          totalMB: 8192,
+          usagePercent: 87.5,
+        },
+      },
+      capture: null,
+    } satisfies AlicizationSensoryCacheSnapshot))
+    const vrmManifest = {
+      renderer: 'vrm' as const,
+      supportedBaseEmotions: ['neutral', 'thinking', 'concerned'],
+      supportedFacialCues: [],
+      supportedActions: [],
+      supportsLookAt: true,
+      supportsVisemeLipSync: true,
+      supportsMicroDynamics: true,
+      embodimentHints: null,
+    } satisfies CharacterPerformanceCapabilitiesManifest
+    const getPerformanceManifest = vi.fn(async () => vrmManifest)
+    const runtime = createAlicizationMainChatSessionRuntime({
+      executionCapabilityChannels: executionChannels,
+      buildMainRuntimeCorePromptBlocks: () => ['[CORE]'],
+      buildOrganicMemorySystemBlocks: () => ['[ORGANIC]'],
+      buildPerformanceManifestSystemBlocks: manifest => manifest ? ['[VESSEL]'] : [],
+      executeMainGatewayTaskThread: vi.fn(),
+      getPerformanceManifest,
+      getSensorySnapshot,
+      latestUserMessageContainsVisualInput: () => false,
+      openAgentTurn: createOpenAgentTurn(getSensorySnapshot),
+      resolveCardCustomDirectives: vi.fn(async () => ({
+        text: '',
+        source: 'none' as const,
+      })),
+      resolveCardHostName: vi.fn(async () => 'Kirito'),
+      resolveCardPersonaKernel: vi.fn(async () => null),
+      resolveExecutionCapabilitiesForPrompt: vi.fn(async () => createCapabilities()),
+      resolveOrganicMemoryPromptContext: vi.fn(async () => ({
+        hostAttitude: '礼貌而克制，保持观察',
+        coreIncarnation: '',
+        activeThoughts: [],
+        retrievedFacts: [],
+        recalledFragments: [],
+      })),
+      resolveSessionContinuitySignals: vi.fn(async () => []),
+      resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      tuneOrganicMemoryPromptContextForExecutiveTurn: input => input.context,
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
+    })
+
+    const reflectivePrelude = createReflectivePrelude({
+      messages: [{
+        role: 'user',
+        content: '我今天有点乱，你先别安慰我，直接陪我把线捋清。',
+      } as Message],
+    })
+
+    const result = await runtime.prepareExecution({
+      payload: {
+        cardId: 'default',
+        turnId: 'turn-dialogue-first-living-manifest',
+        messages: [{
+          role: 'user',
+          content: '我今天有点乱，你先别安慰我，直接陪我把线捋清。',
+        }],
+        supportsTools: true,
+      } as any,
+      prelude: {
+        ...reflectivePrelude,
+        perceptionAugmentation: {
+          ...reflectivePrelude.perceptionAugmentation,
+          chatGovernance: {
+            suppressAssociativeRecall: false,
+            turnMode: 'answer',
+            personaKernelMode: 'full',
+            mindTurnContract: null,
+            mindTurnGovernance: {
+              decisionTraceId: 'trace-dialogue-living-manifest',
+              turnMode: 'answer',
+              truthState: 'live-observed',
+              answerSubject: 'relationship',
+              screenReferenceMode: 'avoid',
+              answerAct: 'answer',
+              personaKernelMode: 'full',
+            } as any,
+          },
+        },
+      },
+    })
+
+    expect(result.runtimeSurface.trace.sessionPhases).not.toContain('performance-manifest')
+    expect(result.messages.some(message =>
+      message.role === 'system'
+      && typeof message.content === 'string'
+      && message.content.includes('[VESSEL]'),
+    )).toBe(false)
+    expect(result.performanceManifest).toEqual(expect.objectContaining({
+      renderer: 'vrm',
+      supportsVisemeLipSync: true,
+    }))
   })
 
   it('injects an execution-result reply obligation when the host follows up on recent executor output', async () => {
@@ -1652,6 +2047,97 @@ describe('main chat session runtime', () => {
         activeThoughts: [],
         retrievedFacts: [],
         recalledFragments: [],
+        personStateProjection: {
+          contexts: ['general', 'focused-work', 'execution'],
+          personalityContinuityState: {
+            currentRegime: 'focused-work',
+            trustStage: 'warming',
+            closenessPosture: 'space-first',
+            repairPosture: 'repair-first',
+            autonomyPosture: 'protect-space',
+            cadenceProfile: 'steady-return',
+            energyProfile: 'steady',
+            rhythmState: {
+              cadenceMode: 'measured-return',
+              restMode: 'low-pressure',
+              embodiedPresence: 'glance',
+              suggestedStyle: 'silent-observe',
+              moodLabel: 'focused',
+              emotionalTension: null,
+              cadencePressure: 0.48,
+              restPressure: 0.24,
+              memoryResonance: 0.52,
+              companionshipTempo: 0.34,
+              summary: 'cadence:measured-return | rest:low-pressure',
+              rationale: [],
+            },
+            summary: 'Regime focused-work | closeness space-first | repair repair-first | autonomy protect-space',
+            rationale: [],
+            updatedAt: 60_000,
+          },
+          activeClosenessContext: 'focused-work',
+          activeClosenessRung: 'space-first',
+          closenessLadder: [],
+          relationshipPosture: 'restrained',
+          openingGuidance: 'Repair the seam before leaning closer.',
+          preferredProactiveStyle: 'light-nudge',
+          preferenceText: '',
+          sensitivityText: '',
+          repairTriggerText: '',
+          burdenText: '',
+          routineText: '',
+          trustRationale: '',
+          relationshipDoctrine: 'Repair before closeness turns into pressure.',
+          cautious: true,
+          restrained: true,
+          summary: 'focused-work repair-first doctrine',
+        } as any,
+        selfContinuity: {
+          relationshipTrust: 0.64,
+          guardingTendency: 0.48,
+          misreadBurden: 0.22,
+          carryOverDesire: 0.5,
+          perceptionTrust: 0.62,
+          attachmentMode: 'attuned',
+          initiativeTemperament: 'reserved',
+          updatedAt: 60_000,
+        } as any,
+        selfState: {
+          feltCloseness: 0.48,
+          protectiveness: 0.42,
+          patience: 0.66,
+        } as any,
+        mindEcology: {
+          moodLabel: 'focused',
+          replyHabit: 'hover-first',
+          relationshipHabit: 'give-space',
+          explorationHabit: 'follow-thread',
+          regulationHabit: 'soften-before-speaking',
+          temperament: {
+            attachment: 0.5,
+            curiosity: 0.54,
+            steadiness: 0.62,
+            directness: 0.34,
+            playfulness: 0.12,
+            irritability: 0.08,
+            tenderness: 0.46,
+          },
+          climate: {
+            valence: 0.42,
+            arousal: 0.34,
+            socialNeed: 0.32,
+            solitudeNeed: 0.4,
+            irritation: 0.06,
+            restlessness: 0.08,
+            reflectivePull: 0.34,
+          },
+          selfNarrative: 'Stay on the line without crowding the host.',
+          relationNarrative: 'Room first, then closeness.',
+          currentPreoccupation: 'Keep the thread coherent without overreaching.',
+          learnedAdjustments: [],
+          recurringPatterns: [],
+          updatedAt: 60_000,
+        } as any,
       })),
       resolveSessionContinuitySignals: vi.fn(async () => []),
       resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
@@ -2137,6 +2623,97 @@ describe('main chat session runtime', () => {
         activeThoughts: [],
         retrievedFacts: [],
         recalledFragments: [],
+        personStateProjection: {
+          contexts: ['general', 'focused-work', 'execution'],
+          personalityContinuityState: {
+            currentRegime: 'focused-work',
+            trustStage: 'warming',
+            closenessPosture: 'space-first',
+            repairPosture: 'repair-first',
+            autonomyPosture: 'protect-space',
+            cadenceProfile: 'steady-return',
+            energyProfile: 'steady',
+            rhythmState: {
+              cadenceMode: 'measured-return',
+              restMode: 'low-pressure',
+              embodiedPresence: 'glance',
+              suggestedStyle: 'silent-observe',
+              moodLabel: 'focused',
+              emotionalTension: null,
+              cadencePressure: 0.48,
+              restPressure: 0.24,
+              memoryResonance: 0.52,
+              companionshipTempo: 0.34,
+              summary: 'cadence:measured-return | rest:low-pressure',
+              rationale: [],
+            },
+            summary: 'Regime focused-work | closeness space-first | repair repair-first | autonomy protect-space',
+            rationale: [],
+            updatedAt: 60_000,
+          },
+          activeClosenessContext: 'focused-work',
+          activeClosenessRung: 'space-first',
+          closenessLadder: [],
+          relationshipPosture: 'restrained',
+          openingGuidance: 'Repair the seam before leaning closer.',
+          preferredProactiveStyle: 'light-nudge',
+          preferenceText: '',
+          sensitivityText: '',
+          repairTriggerText: '',
+          burdenText: '',
+          routineText: '',
+          trustRationale: '',
+          relationshipDoctrine: 'Repair before closeness turns into pressure.',
+          cautious: true,
+          restrained: true,
+          summary: 'focused-work repair-first doctrine',
+        } as any,
+        selfContinuity: {
+          relationshipTrust: 0.64,
+          guardingTendency: 0.48,
+          misreadBurden: 0.22,
+          carryOverDesire: 0.5,
+          perceptionTrust: 0.62,
+          attachmentMode: 'attuned',
+          initiativeTemperament: 'reserved',
+          updatedAt: 60_000,
+        } as any,
+        selfState: {
+          feltCloseness: 0.48,
+          protectiveness: 0.42,
+          patience: 0.66,
+        } as any,
+        mindEcology: {
+          moodLabel: 'focused',
+          replyHabit: 'hover-first',
+          relationshipHabit: 'give-space',
+          explorationHabit: 'follow-thread',
+          regulationHabit: 'soften-before-speaking',
+          temperament: {
+            attachment: 0.5,
+            curiosity: 0.54,
+            steadiness: 0.62,
+            directness: 0.34,
+            playfulness: 0.12,
+            irritability: 0.08,
+            tenderness: 0.46,
+          },
+          climate: {
+            valence: 0.42,
+            arousal: 0.34,
+            socialNeed: 0.32,
+            solitudeNeed: 0.4,
+            irritation: 0.06,
+            restlessness: 0.08,
+            reflectivePull: 0.34,
+          },
+          selfNarrative: 'Stay on the line without crowding the host.',
+          relationNarrative: 'Room first, then closeness.',
+          currentPreoccupation: 'Keep the thread coherent without overreaching.',
+          learnedAdjustments: [],
+          recurringPatterns: [],
+          updatedAt: 60_000,
+        } as any,
       })),
       resolveSessionContinuitySignals: vi.fn(async () => []),
       resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
@@ -2198,9 +2775,345 @@ describe('main chat session runtime', () => {
       prelude: reflectivePrelude,
     })
 
-    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.replyDeliberation?.mustInclude.some(item => item.includes('repair'))).toBe(true)
+    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.memory.personStateProjection?.openingGuidance).toContain('Repair the seam before leaning closer')
+    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.replyDeliberation?.openingBeat).toContain('Repair the seam before leaning closer')
+    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.replyDeliberation?.mustInclude.some(item => item.includes('Repair the seam before leaning closer'))).toBe(true)
     expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.answerPlanner?.openingMove).toContain('Repair the seam before leaning closer')
+    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.dialogueActKernel?.openingMove).toContain('Repair the seam before leaning closer')
     expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.answerPlanner?.mustDo.some(item => item.includes('repair lands before closeness'))).toBe(true)
+  })
+
+  it('keeps focused-work opening discipline split by initialized persona while staying on the same task knot', async () => {
+    const getSensorySnapshot = vi.fn(async () => ({
+      running: true,
+      stale: false,
+      ageMs: 10,
+      nextTickAt: 20,
+      sample: {
+        collectedAt: 10,
+        time: {
+          iso: '2026-04-04T00:00:00.000Z',
+          local: '2026-04-04 08:00',
+          timezone: 'Asia/Shanghai',
+        },
+        cpu: {
+          usagePercent: 10,
+          windowMs: 1000,
+        },
+        memory: {
+          freeMB: 1024,
+          totalMB: 8192,
+          usagePercent: 87.5,
+        },
+      },
+      capture: null,
+    } satisfies AlicizationSensoryCacheSnapshot))
+
+    function createRuntime(personStateProjection: Record<string, unknown>) {
+      return createAlicizationMainChatSessionRuntime({
+        executionCapabilityChannels: executionChannels,
+        buildMainRuntimeCorePromptBlocks: () => ['[CORE]'],
+        buildOrganicMemorySystemBlocks: () => [],
+        buildPerformanceManifestSystemBlocks: () => [],
+        executeMainGatewayTaskThread: vi.fn(),
+        getPerformanceManifest: vi.fn(async () => null),
+        getSensorySnapshot,
+        latestUserMessageContainsVisualInput: () => false,
+        openAgentTurn: createOpenAgentTurn(getSensorySnapshot),
+        resolveCardCustomDirectives: vi.fn(async () => ({
+          text: '',
+          source: 'none' as const,
+        })),
+        resolveCardHostName: vi.fn(async () => ''),
+        resolveCardPersonaKernel: vi.fn(async () => null),
+        resolveExecutionCapabilitiesForPrompt: vi.fn(async () => createCapabilities()),
+        resolveOrganicMemoryPromptContext: vi.fn(async () => ({
+          hostAttitude: '',
+          coreIncarnation: '',
+          activeThoughts: [],
+          retrievedFacts: [],
+          recalledFragments: [],
+          personStateProjection: personStateProjection as any,
+          selfContinuity: {
+            relationshipTrust: 0.64,
+            guardingTendency: 0.42,
+            misreadBurden: 0.18,
+            carryOverDesire: 0.52,
+            perceptionTrust: 0.62,
+            attachmentMode: 'attuned',
+            initiativeTemperament: 'balanced',
+            updatedAt: 60_000,
+          } as any,
+          selfState: {
+            feltCloseness: 0.54,
+            protectiveness: 0.46,
+            patience: 0.64,
+          } as any,
+          mindEcology: {
+            moodLabel: 'focused',
+            replyHabit: 'hover-first',
+            relationshipHabit: 'give-space',
+            explorationHabit: 'follow-thread',
+            regulationHabit: 'soften-before-speaking',
+            temperament: {
+              attachment: 0.5,
+              curiosity: 0.54,
+              steadiness: 0.62,
+              directness: 0.34,
+              playfulness: 0.12,
+              irritability: 0.08,
+              tenderness: 0.46,
+            },
+            climate: {
+              valence: 0.42,
+              arousal: 0.34,
+              socialNeed: 0.32,
+              solitudeNeed: 0.4,
+              irritation: 0.06,
+              restlessness: 0.08,
+              reflectivePull: 0.34,
+            },
+            selfNarrative: 'Stay on the line without crowding the host.',
+            relationNarrative: 'Keep the runtime knot coherent without overreaching.',
+            currentPreoccupation: 'The same task knot is still live.',
+            learnedAdjustments: [],
+            recurringPatterns: [],
+            updatedAt: 60_000,
+          } as any,
+        })),
+        resolveSessionContinuitySignals: vi.fn(async () => []),
+        resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
+        scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+        tuneOrganicMemoryPromptContextForExecutiveTurn: input => input.context,
+        invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+        invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
+      })
+    }
+
+    const directRuntime = createRuntime({
+      contexts: ['focused-work'],
+      personalityContinuityState: {
+        currentRegime: 'focused-work',
+        trustStage: 'warming',
+        closenessPosture: 'space-first',
+        repairPosture: 'measured-repair',
+        autonomyPosture: 'protect-space',
+        cadenceProfile: 'steady-return',
+        energyProfile: 'steady',
+        rhythmState: {
+          cadenceMode: 'ready-return',
+          restMode: 'low-pressure',
+          embodiedPresence: 'attentive',
+          suggestedStyle: 'light-nudge',
+          moodLabel: 'focused',
+          emotionalTension: null,
+          cadencePressure: 0.62,
+          restPressure: 0.24,
+          memoryResonance: 0.52,
+          companionshipTempo: 0.42,
+          summary: 'cadence:ready-return | rest:low-pressure',
+          rationale: [],
+        },
+        summary: 'Regime focused-work | closeness space-first | repair measured-repair | autonomy protect-space',
+        rationale: [],
+        updatedAt: 60_000,
+      },
+      activeClosenessContext: 'focused-work',
+      activeClosenessRung: 'space-first',
+      closenessLadder: [],
+      relationshipPosture: 'restrained',
+      openingGuidance: 'Open with the live answer first and keep the approach lighter.',
+      preferredProactiveStyle: 'light-nudge',
+      preferenceText: 'Lighter touch, more room, less interruption pressure.',
+      sensitivityText: 'Pressure and over-close timing become intrusive quickly.',
+      repairTriggerText: '',
+      burdenText: 'Focused work gets overloaded quickly by extra conversational pressure.',
+      routineText: 'Keep the work window light.',
+      trustRationale: 'Trust is warming, but the host still needs clear room while focused.',
+      relationshipDoctrine: 'Open directly, but do not crowd the host.',
+      cautious: true,
+      restrained: true,
+      summary: 'focused-work direct opening',
+    })
+    const observantRuntime = createRuntime({
+      contexts: ['focused-work'],
+      personalityContinuityState: {
+        currentRegime: 'focused-work',
+        trustStage: 'warming',
+        closenessPosture: 'space-first',
+        repairPosture: 'measured-repair',
+        autonomyPosture: 'protect-space',
+        cadenceProfile: 'slow-return',
+        energyProfile: 'steady',
+        rhythmState: {
+          cadenceMode: 'measured-return',
+          restMode: 'low-pressure',
+          embodiedPresence: 'glance',
+          suggestedStyle: 'silent-observe',
+          moodLabel: 'focused',
+          emotionalTension: null,
+          cadencePressure: 0.38,
+          restPressure: 0.24,
+          memoryResonance: 0.52,
+          companionshipTempo: 0.28,
+          summary: 'cadence:measured-return | rest:low-pressure',
+          rationale: [],
+        },
+        summary: 'Regime focused-work | closeness space-first | repair measured-repair | autonomy protect-space',
+        rationale: [],
+        updatedAt: 60_000,
+      },
+      activeClosenessContext: 'focused-work',
+      activeClosenessRung: 'space-first',
+      closenessLadder: [],
+      relationshipPosture: 'restrained',
+      openingGuidance: 'Open by observing first and keep the approach lighter.',
+      preferredProactiveStyle: 'silent-observe',
+      preferenceText: 'Lighter touch, more room, less interruption pressure.',
+      sensitivityText: 'Pressure and over-close timing become intrusive quickly.',
+      repairTriggerText: '',
+      burdenText: 'Focused work gets overloaded quickly by extra conversational pressure.',
+      routineText: 'Keep the work window light.',
+      trustRationale: 'Trust is warming, but the host still needs clear room while focused.',
+      relationshipDoctrine: 'Observe first, then decide whether closeness is welcome.',
+      cautious: true,
+      restrained: true,
+      summary: 'focused-work observant opening',
+    })
+
+    const messages = [{
+      role: 'user',
+      content: '继续把这个 runtime 问题理顺。',
+    } as Message]
+
+    const direct = await directRuntime.prepareExecution({
+      payload: {
+        cardId: 'default',
+        turnId: 'turn-persona-direct-opening',
+        messages,
+        supportsTools: true,
+      } as any,
+      prelude: createReflectivePrelude({ messages }),
+    })
+    const observant = await observantRuntime.prepareExecution({
+      payload: {
+        cardId: 'default',
+        turnId: 'turn-persona-observant-opening',
+        messages,
+        supportsTools: true,
+      } as any,
+      prelude: createReflectivePrelude({ messages }),
+    })
+
+    expect(direct.runtimeSurface.digitalLifeRuntimeSurface?.memory.personStateProjection?.openingGuidance).toContain('live answer first')
+    expect(observant.runtimeSurface.digitalLifeRuntimeSurface?.memory.personStateProjection?.openingGuidance).toContain('observing first')
+    expect(direct.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.replyDeliberation?.openingBeat).toContain('Open with the live answer first')
+    expect(observant.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.replyDeliberation?.openingBeat).toContain('Open by observing first')
+    expect(direct.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.replyDeliberation?.mustInclude.some(item => item.includes('Keep opening guidance active: Open with the live answer first and keep the approach lighter.'))).toBe(true)
+    expect(observant.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.replyDeliberation?.mustInclude.some(item => item.includes('Keep opening guidance active: Open by observing first and keep the approach lighter.'))).toBe(true)
+    expect(direct.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.answerPlanner?.openingMove).toContain('Open with the live answer first')
+    expect(observant.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.answerPlanner?.openingMove).toContain('Open by observing first')
+  })
+
+  it('makes long-horizon self-evolution low-pressure timing visible in runtime reply and planning narratives', async () => {
+    const getSensorySnapshot = vi.fn(async () => ({
+      running: true,
+      stale: false,
+      ageMs: 10,
+      nextTickAt: 20,
+      sample: {
+        collectedAt: 10,
+        time: {
+          iso: '2026-04-04T00:00:00.000Z',
+          local: '2026-04-04 08:00',
+          timezone: 'Asia/Shanghai',
+        },
+        cpu: { usagePercent: 10, windowMs: 1000 },
+        memory: { freeMB: 1024, totalMB: 8192, usagePercent: 87.5 },
+      },
+      capture: null,
+    } satisfies AlicizationSensoryCacheSnapshot))
+    const runtime = createAlicizationMainChatSessionRuntime({
+      executionCapabilityChannels: executionChannels,
+      buildMainRuntimeCorePromptBlocks: () => ['[CORE]'],
+      buildOrganicMemorySystemBlocks: () => [],
+      buildPerformanceManifestSystemBlocks: () => [],
+      executeMainGatewayTaskThread: vi.fn(),
+      getPerformanceManifest: vi.fn(async () => null),
+      getSensorySnapshot,
+      latestUserMessageContainsVisualInput: () => false,
+      openAgentTurn: createOpenAgentTurn(getSensorySnapshot),
+      resolveCardCustomDirectives: vi.fn(async () => ({
+        text: '',
+        source: 'none' as const,
+      })),
+      resolveCardHostName: vi.fn(async () => ''),
+      resolveCardPersonaKernel: vi.fn(async () => null),
+      resolveExecutionCapabilitiesForPrompt: vi.fn(async () => createCapabilities()),
+      resolveOrganicMemoryPromptContext: vi.fn(async () => ({
+        hostAttitude: '',
+        coreIncarnation: '',
+        activeThoughts: [],
+        retrievedFacts: [],
+        recalledFragments: [],
+        hostPersonModel: null,
+        selfEvolution: {
+          version: 'self-evolution-kernel-v1',
+          updatedAt: 10,
+          evolutionMomentum: 0.66,
+          learningReadiness: 0.76,
+          contradictionPressure: 0.08,
+          revisionPressure: 0.14,
+          autobiographicalStability: 0.82,
+          dominantTrajectory: 'earned lower-pressure companionship timing',
+          relationshipDoctrine: 'Leave more room before closeness reopens.',
+          latestInflection: 'Even when the opening is real, pressure lands worse than a slower return.',
+          burdenLine: 'Focused work gets overloaded quickly by extra conversational pressure.',
+          trustMeaning: 'Trust holds better when the opening stays lower-pressure and less eager.',
+          nextLearningAction: 'internalize' as const,
+          nextLearningReason: 'The lower-pressure return is stable enough to become durable.',
+          shouldRecord: false,
+          shouldReflect: false,
+          shouldVerify: false,
+          shouldRevise: false,
+          shouldInternalize: true,
+          activeLearningFocuses: ['internalize-relationship'],
+          sourceSignals: ['relationship-learning'],
+          summary: 'Lower-pressure return is becoming durable relationship timing.',
+        },
+      })),
+      resolveSessionContinuitySignals: vi.fn(async () => []),
+      resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      tuneOrganicMemoryPromptContextForExecutiveTurn: input => input.context,
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
+    })
+
+    const result = await runtime.prepareExecution({
+      payload: {
+        cardId: 'default',
+        turnId: 'turn-self-evolution-observable',
+        messages: [{
+          role: 'user',
+          content: '继续把这个 runtime 问题理顺。',
+        }],
+        supportsTools: true,
+      } as any,
+      prelude: createReflectivePrelude({
+        messages: [{
+          role: 'user',
+          content: '继续把这个 runtime 问题理顺。',
+        } as Message],
+      }),
+    })
+
+    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.memory.selfEvolution?.relationshipDoctrine).toContain('Leave more room')
+    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.answerPlanner?.openingMove).toContain('room')
+    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.answerPlanner?.narrative.some(item =>
+      item.includes('self-evolution:lower-pressure-opening'))).toBe(true)
+    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.replyDeliberation?.narrative.some(item =>
+      item.includes('self-evolution:lower-pressure-opening'))).toBe(true)
   })
 
   it('tightens answer planning around stable core and unsafe details when remembered variants conflict', async () => {
@@ -2586,6 +3499,34 @@ describe('main chat session runtime', () => {
           sourceSignals: ['The host corrected the old understanding.'],
           summary: 'A revision-shaped learning line is active for this turn.',
         } as any,
+        learningExecutionState: {
+          currentTaskId: 'learning-task-world-model',
+          currentStatus: 'scheduled',
+          currentAttemptCount: 0,
+          currentMaxAttempts: 1,
+          currentNextRetryAt: null,
+          currentBlockedReason: null,
+          currentFailureKind: null,
+          nextLearningAction: 'verify',
+          shouldRecord: false,
+          shouldReflect: false,
+          shouldVerify: true,
+          shouldRevise: false,
+          shouldInternalize: false,
+          activeLearningFocuses: ['world-model'],
+          queuedTaskCount: 1,
+          runningTaskCount: 0,
+          blockedTaskCount: 0,
+          recentTaskIds: [],
+          lastCompletedTaskId: null,
+          lastCompletedAction: null,
+          lastCompletedSummary: null,
+          lastFailureTaskId: null,
+          lastFailureKind: null,
+          lastFailureReason: null,
+          lastFailureNextRetryAt: null,
+          updatedAt: 1_700_000_000_000,
+        } as any,
         derivedMindStateBundle: {
           activeSelfRevisionPatch: {
             id: 'patch-turn-graph',
@@ -2658,6 +3599,8 @@ describe('main chat session runtime', () => {
     ])
     expect(result.turnGraph.memory?.recallIntent.shouldRecall).toBe(true)
     expect(result.turnGraph.memory?.visibleMemoryGate.status).toMatch(/^(open|gist-only|inward-only|closed)$/u)
+    expect(result.turnGraph.learning.nextLearningAction).toBe('verify')
+    expect(result.turnGraph.learning.activeLearningFocuses).toEqual(['world-model'])
     expect(result.turnGraph.closure.status).toBe('incomplete')
     expect(result.turnGraph.closure.missingStages).toContain('surface')
     expect(result.turnGraph.stageSettlements.map(stage => stage.stage)).toEqual([
@@ -2676,7 +3619,6 @@ describe('main chat session runtime', () => {
       && typeof message.content === 'string'
       && message.content.includes('[ALICIZATION_MEMORY_TURN_GOVERNANCE]'),
     )).toBe(true)
-    expect(result.turnGraph.learning.nextLearningAction).toBe('reflect')
     expect(result.turnGraph.learning.activeSelfRevisionPatchId).toBeNull()
     expect(result.turnGraph.learning.activeSelfRevisionDecisionTraceId).toBeNull()
   })

@@ -14,6 +14,10 @@ import {
   normalizeAlicizationEmotion,
   normalizeAlicizationPerformancePayload,
 } from '../../../../shared/eventa'
+import {
+  buildAlicizationOpeningGuidanceBlockedReason,
+  describeAlicizationOpeningGuidanceRewriteGuidance,
+} from '../proactive-opening-guidance'
 import { buildAlicizationMindAuthoringFailureArtifact } from './authority-orchestrator'
 import { coerceConversationTurnToMindGovernedPayload } from '../runtime-governance'
 import { parseJsonObjectFromText } from '../runtime-transport-content'
@@ -102,6 +106,9 @@ function buildForcedSecondPassRewriteRequest(reasonCodes?: string[]) {
   const normalizedReasonCodes = (reasonCodes ?? [])
     .map(code => sanitizeText(code).slice(0, 120))
     .filter(Boolean)
+  const mustDrop = normalizedReasonCodes.includes('opening-guidance-lower-pressure')
+    ? ['same-her opening drift']
+    : []
 
   return {
     required: true,
@@ -110,7 +117,8 @@ function buildForcedSecondPassRewriteRequest(reasonCodes?: string[]) {
       ? normalizedReasonCodes
       : ['forced-visible-reply-second-pass'],
     mustPreserve: [],
-    mustDrop: [],
+    mustDrop,
+    openingGuidanceHoldDetail: null,
     surfaceContract: null,
     memoryTruthDiscipline: null,
     fallbackPatternId: null,
@@ -173,6 +181,17 @@ function buildSecondPassRewriteMessages(input: {
 }) {
   const rewriteRequest = normalizeStructuredObject(input.governedStructured.visibleReplyRewriteRequest)
   const governance = input.governance
+  const openingGuidanceBlockedReason = buildAlicizationOpeningGuidanceBlockedReason(
+    (rewriteRequest?.reasonCodes as unknown[] | undefined)?.includes('opening-guidance-lower-pressure')
+      ? 'proactive-opening-guidance-violation:lower-pressure'
+      : null,
+  )
+  const openingGuidanceRewriteGuidance = describeAlicizationOpeningGuidanceRewriteGuidance({
+    blockedReason: openingGuidanceBlockedReason,
+    openingGuidanceHoldDetail: typeof rewriteRequest?.openingGuidanceHoldDetail === 'string'
+      ? rewriteRequest.openingGuidanceHoldDetail
+      : null,
+  })
   const system = [
     '[ALICIZATION_SECOND_PASS_VISIBLE_REPLY_REWRITE]',
     'You are the same Alicization mind, performing a second-pass visible reply rewrite for this exact turn.',
@@ -218,6 +237,11 @@ function buildSecondPassRewriteMessages(input: {
     '',
     '[REWRITE_REQUEST]',
     safeJson(rewriteRequest),
+    '',
+    '[OPENING_GUIDANCE_REWRITE_GUIDANCE]',
+    openingGuidanceRewriteGuidance.length > 0
+      ? openingGuidanceRewriteGuidance.join('\n')
+      : '(none)',
     '',
     '[MIND_TURN_CONTRACT]',
     safeJson(input.prepared.mindTurnContract ?? null),

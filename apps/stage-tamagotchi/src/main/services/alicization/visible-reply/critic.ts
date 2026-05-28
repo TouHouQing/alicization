@@ -3,6 +3,7 @@ import type { AlicizationPreparedMainChatExecutionResult } from '../main-chat-se
 
 import { looksLikeAlicizationStructuredPayloadText } from '@proj-alicization/stage-shared'
 import { parseJsonObjectFromText } from '../runtime-transport-content'
+import { resolveAlicizationOpeningGuidanceViolationReason } from '../proactive-opening-guidance'
 import {
   buildAlicizationVisibleReplySemanticJudgeArtifact,
   type AlicizationVisibleReplySemanticJudgeArtifact,
@@ -183,6 +184,24 @@ function containsUnsupportedSurfaceSpecificity(input: {
   return ''
 }
 
+function resolveOpeningGuidanceRepairReason(input: {
+  text: string
+  prepared: AlicizationPreparedMainChatExecutionResult
+}) {
+  const runtimeSurface = input.prepared.runtimeSurface?.digitalLifeRuntimeSurface ?? null
+  const personStateProjection = runtimeSurface?.memory?.personStateProjection ?? null
+  const openingGuidance = normalizeText(personStateProjection?.openingGuidance)
+  if (!openingGuidance)
+    return ''
+  const violationReason = resolveAlicizationOpeningGuidanceViolationReason({
+    reply: input.text,
+    openingGuidance,
+  })
+  return violationReason
+    ? violationReason.replace('proactive-opening-guidance-violation:', 'opening-guidance-')
+    : ''
+}
+
 export function buildAlicizationVisibleReplyCriticArtifact(input: {
   fullText: string
   visibleReplyExecution: AlicizationVisibleReplyExecution
@@ -244,6 +263,16 @@ export function buildAlicizationVisibleReplyCriticArtifact(input: {
     pushUnique(reasonCodes, 'mind-contract-not-closed')
     pushUnique(repairReasonCodes, 'mind-contract-not-closed')
     pushUnique(mustDrop, 'visible reply that does not satisfy the current mind-turn contract')
+  }
+
+  const openingGuidanceRepairReason = resolveOpeningGuidanceRepairReason({
+    text: visibleText,
+    prepared: input.prepared,
+  })
+  if (openingGuidanceRepairReason) {
+    pushUnique(reasonCodes, openingGuidanceRepairReason)
+    pushUnique(repairReasonCodes, openingGuidanceRepairReason)
+    pushUnique(mustDrop, 'same-her opening drift')
   }
 
   const unsupportedSurface = containsUnsupportedSurfaceSpecificity({

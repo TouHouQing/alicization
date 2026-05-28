@@ -544,6 +544,157 @@ describe('alicization digital life', () => {
     expect(guardedEnvelope?.motor.facial.browTension).toBeGreaterThan(attunedEnvelope?.motor.facial.browTension ?? 0)
   })
 
+  it('lets explicit persona proactive bias further separate guarded and direct embodiment posture', () => {
+    const baseInput = {
+      embodiment: {
+        emotion: 'neutral' as const,
+        postureHint: 'attentive' as const,
+        variationToken: 'turn-digital-life-persona-bias',
+        speechStyle: {
+          pitchDelta: 0,
+          rateMultiplier: 1,
+        },
+        performance: {
+          baseEmotion: 'neutral' as const,
+          emotion: 'neutral' as const,
+          facialCue: 'focus',
+          actionCue: null,
+          delivery: 'calm' as const,
+          emphasis: 1 as const,
+        },
+      },
+      speechTimeline: {
+        version: 'speech-timeline-v1' as const,
+        variationToken: 'turn-digital-life-persona-bias',
+        reply: '继续吧。',
+        emotion: 'neutral' as const,
+        segments: [{
+          id: 'segment-persona-bias',
+          index: 0,
+          startOffset: 0,
+          endOffset: 4,
+          text: '继续吧。',
+          emotion: 'neutral' as const,
+          gestureWeight: 0.32,
+          facialWeight: 0.42,
+          prosodyWeight: 0.46,
+          beatWeight: 0.3,
+          mouthWeight: 0.42,
+          headWeight: 0.34,
+          facialHoldMs: 220,
+          actionHoldMs: 180,
+          emotionHoldMs: 260,
+          settleMode: 'linger' as const,
+          rendererSettle: {
+            live2dFacialReleaseMs: 280,
+            live2dMotionFollowThroughMs: 420,
+            vrmActionFadeMs: 220,
+            vrmExpressionBlendMs: 280,
+          },
+          actionCue: null,
+          facialCue: 'focus',
+          actionWindow: 'none' as const,
+          interruptMode: 'continue' as const,
+        }],
+      },
+    }
+
+    const observeFirst = buildAlicizationDigitalLifeEnvelope({
+      ...baseInput,
+      digitalLifeSpine: {
+        version: 'digital-life-spine-digest-v1',
+        runtime: {
+          watchMode: 'symbiotic-vision',
+          sceneScenario: 'coding',
+          sceneSummary: 'holding back a little',
+          activeThreadId: 'thread-observe',
+          activeThreadTitle: 'observe line',
+          dominantMode: 'thinking',
+          dominantDrive: 'understand',
+          answerIntent: 'guide',
+          preferredPresence: 'attentive',
+          selectedAction: 'hover',
+          updatedAt: 1_000,
+        },
+        architecture: null,
+        continuitySignal: null,
+        proactive: {
+          selectedAction: 'hover',
+          preferredStyle: 'silent-observe',
+          confidence: 0.7,
+          shouldSpeak: false,
+          activeThreadId: 'thread-observe',
+          activeThreadTitle: 'observe line',
+          dominantConcernKind: null,
+          dominantConcernSummary: null,
+          leadingGoalId: null,
+          leadingGoalSummary: null,
+          preferredPresence: 'attentive',
+          personaBias: {
+            relationshipPosture: 'observer',
+            initiativeStyle: 'observant',
+            silenceReconnect: 'hold',
+            comfortStyle: 'quiet-presence',
+            preferredProactiveStyle: 'silent-observe',
+            openingGuidance: 'Open by observing first and keep the approach lighter.',
+            whySummary: 'persona prefers observe-first room before a closer move.',
+          },
+        },
+        embodiment: null,
+        memory: null,
+      },
+    })
+
+    const directReconnect = buildAlicizationDigitalLifeEnvelope({
+      ...baseInput,
+      digitalLifeSpine: {
+        version: 'digital-life-spine-digest-v1',
+        runtime: {
+          watchMode: 'symbiotic-vision',
+          sceneScenario: 'coding',
+          sceneSummary: 'opening is real',
+          activeThreadId: 'thread-direct',
+          activeThreadTitle: 'direct line',
+          dominantMode: 'thinking',
+          dominantDrive: 'guide',
+          answerIntent: 'guide',
+          preferredPresence: 'attentive',
+          selectedAction: 'whisper',
+          updatedAt: 1_000,
+        },
+        architecture: null,
+        continuitySignal: null,
+        proactive: {
+          selectedAction: 'whisper',
+          preferredStyle: 'light-nudge',
+          confidence: 0.82,
+          shouldSpeak: true,
+          activeThreadId: 'thread-direct',
+          activeThreadTitle: 'direct line',
+          dominantConcernKind: null,
+          dominantConcernSummary: null,
+          leadingGoalId: null,
+          leadingGoalSummary: null,
+          preferredPresence: 'attentive',
+          personaBias: {
+            relationshipPosture: 'guardian',
+            initiativeStyle: 'high-participation',
+            silenceReconnect: 'direct-approach',
+            comfortStyle: 'take-charge',
+            preferredProactiveStyle: 'light-nudge',
+            openingGuidance: 'Open directly with the live answer first and keep the approach lighter.',
+            whySummary: 'persona prefers a direct reconnect once the opening is real.',
+          },
+        },
+        embodiment: null,
+        memory: null,
+      },
+    })
+
+    expect(directReconnect?.motor.body.lean).toBeGreaterThan(observeFirst?.motor.body.lean ?? 0)
+    expect(directReconnect?.motor.body.openness).toBeGreaterThan(observeFirst?.motor.body.openness ?? 0)
+  })
+
   it('normalizes persistent body-kernel state fields without inventing second-mind authority', () => {
     const state = normalizeAlicizationDerivedMindStateBundle({
       source: 'browser-fallback',
@@ -577,4 +728,5 @@ describe('alicization digital life', () => {
 
     expect(state).toBeNull()
   })
+
 })

@@ -216,4 +216,66 @@ describe('self evolution version runtime', () => {
     expect((await runtime.getActiveCandidate())?.id).toBe(candidate.id)
     expect(await runtime.getActivePatch()).toEqual(basePatch)
   })
+
+  it('promotes the newest validated candidate to authoritative active state', async () => {
+    let snapshot = buildAlicizationSelfEvolutionVersionRuntimeSnapshot({ candidates: [] })
+    let now = 300
+    const runtime = createAlicizationSelfEvolutionVersionRuntime({
+      now: () => now,
+      readSnapshot: async () => snapshot,
+      writeSnapshot: async (next) => {
+        snapshot = next
+      },
+    })
+
+    const firstCandidate = await runtime.propose({
+      event: {
+        ...baseEvent,
+        id: 'event-older',
+        decisionTraceId: 'trace-older',
+      },
+      patch: {
+        ...basePatch,
+        id: 'patch-older',
+        sourceEventId: 'event-older',
+        decisionTraceId: 'trace-older',
+        summary: 'Older active patch.',
+      },
+    })
+
+    await runtime.validate({
+      candidateId: firstCandidate.id,
+      replayPassed: true,
+      finalReplayGatePassed: true,
+      productionGoldSampleCount: 4,
+      productionGoldCoverage: 1,
+    })
+
+    now = 320
+    const secondCandidate = await runtime.propose({
+      event: {
+        ...baseEvent,
+        id: 'event-newer',
+        decisionTraceId: 'trace-newer',
+      },
+      patch: {
+        ...basePatch,
+        id: 'patch-newer',
+        sourceEventId: 'event-newer',
+        decisionTraceId: 'trace-newer',
+        summary: 'Newer active patch.',
+      },
+    })
+
+    await runtime.validate({
+      candidateId: secondCandidate.id,
+      replayPassed: true,
+      finalReplayGatePassed: true,
+      productionGoldSampleCount: 5,
+      productionGoldCoverage: 1,
+    })
+
+    expect((await runtime.getActiveCandidate())?.id).toBe(secondCandidate.id)
+    expect((await runtime.getActivePatch())?.id).toBe('patch-newer')
+  })
 })

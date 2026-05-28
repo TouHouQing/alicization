@@ -50,10 +50,22 @@ export function readLearningExecutionStateFromDerivedMindStateBundle(
   return bundle?.learningExecutionState ?? null
 }
 
+export function readActiveContinuityGovernanceFromDerivedMindStateBundle(
+  bundle: AlicizationDerivedMindStateBundle | null | undefined,
+) {
+  return bundle?.activeContinuityGovernance ?? null
+}
+
 export function readRecallLatencyPolicyFromDerivedMindStateBundle(
   bundle: AlicizationDerivedMindStateBundle | null | undefined,
 ) {
   return bundle?.recallLatencyPolicy ?? null
+}
+
+export function readRecollectionIntentFromDerivedMindStateBundle<T extends Record<string, unknown>>(
+  bundle: AlicizationDerivedMindStateBundle | null | undefined,
+) {
+  return asObject(bundle?.recollectionIntent) as T | null
 }
 
 export function readRecollectionPlanFromDerivedMindStateBundle<T extends Record<string, unknown>>(

@@ -10,7 +10,9 @@ import {
   resolveStageEmbodimentPerformancePresence,
   resolveStageEmbodimentRuntimeAttentionBias,
   resolveStageEmbodimentRuntimePresence,
+  useStageEmbodimentAttention,
 } from './use-stage-embodiment-attention'
+import { ref } from 'vue'
 
 describe('stage embodiment attention', () => {
   it('maps hesitant delivery into a short-lived hesitant presence state', () => {
@@ -79,9 +81,109 @@ describe('stage embodiment attention', () => {
     expect(result.point.y).toBeCloseTo(384.48, 3)
   })
 
+  it('keeps quiet accompaniment body authority on presence-pulse state instead of collapsing to bare attentive presence', () => {
+    const now = 10_000
+    const speechRenderState = createIdleStageEmbodimentSpeechRenderState()
+
+    const result = deriveStageEmbodimentAttentionScreenPoint({
+      basePoint: { x: 512, y: 320 },
+      stageBounds: { width: 1024, height: 640 },
+      presence: {
+        source: 'presence-pulse',
+        embodiedPresence: 'attentive',
+        confidence: 0.82,
+        delivery: null,
+        emphasis: 0,
+        expiresAt: now + 2_000,
+        currentBodyState: 'accompanying',
+        continuityMode: 'quiet-accompaniment',
+        currentInwardPreoccupation: 'stay nearby without interrupting',
+        quietLineMs: 240_000,
+      } as any,
+      speechRenderState,
+    })
+
+    expect(result.engaged).toBe(true)
+    expect(result.point.y).toBeLessThan(320)
+  })
+
+  it('preserves quiet accompaniment authority fields on active presence when a presence pulse is applied', () => {
+    const attention = useStageEmbodimentAttention({
+      focusAt: ref({ x: 512, y: 320 }),
+      speechRenderState: ref(createIdleStageEmbodimentSpeechRenderState()),
+      stageBounds: ref({ width: 1024, height: 640 }),
+    })
+
+    attention.applyPresencePulse({
+      watchMode: 'symbiotic-vision',
+      embodiedPresence: 'attentive',
+      scenario: 'coding',
+      stance: 'accompany',
+      currentBodyState: 'accompanying',
+      continuityMode: 'quiet-accompaniment',
+      quietLineMs: 240_000,
+      currentInwardPreoccupation: 'stay nearby without interrupting',
+      confidence: 0.82,
+      reasonTags: ['quiet-companionship'],
+      emotionalTension: 'soft-covision',
+      expiresAt: Date.now() + 2_000,
+    } as any)
+
+    expect(attention.activePresence.value).toMatchObject({
+      source: 'presence-pulse',
+      embodiedPresence: 'attentive',
+      currentBodyState: 'accompanying',
+      continuityMode: 'quiet-accompaniment',
+      quietLineMs: 240_000,
+      currentInwardPreoccupation: 'stay nearby without interrupting',
+    })
+  })
+
+  it('softens presence-pulse gaze drift when quiet accompaniment authority is active', () => {
+    const expiresAt = Date.now() + 2_000
+    const generic = deriveStageEmbodimentAttentionScreenPoint({
+      basePoint: { x: 512, y: 320 },
+      stageBounds: { width: 1024, height: 640 },
+      presence: {
+        source: 'presence-pulse',
+        embodiedPresence: 'attentive',
+        confidence: 0.82,
+        delivery: null,
+        emphasis: 0,
+        expiresAt,
+      },
+      speechRenderState: createIdleStageEmbodimentSpeechRenderState(),
+    })
+    const quiet = deriveStageEmbodimentAttentionScreenPoint({
+      basePoint: { x: 512, y: 320 },
+      stageBounds: { width: 1024, height: 640 },
+      presence: {
+        source: 'presence-pulse',
+        embodiedPresence: 'attentive',
+        confidence: 0.82,
+        delivery: null,
+        emphasis: 0,
+        expiresAt,
+        currentBodyState: 'accompanying',
+        continuityMode: 'quiet-accompaniment',
+        quietLineMs: 240_000,
+        currentInwardPreoccupation: 'stay nearby without interrupting',
+      } as any,
+      speechRenderState: createIdleStageEmbodimentSpeechRenderState(),
+    })
+
+    expect(quiet.engaged).toBe(true)
+    expect(generic.engaged).toBe(true)
+    expect(quiet.point.y).toBeGreaterThan(generic.point.y)
+  })
+
   it('derives runtime visual presence into an embodied attention state', () => {
     const now = 50_000
     const result = resolveStageEmbodimentRuntimePresence({
+      currentBodyState: 'idle',
+      continuityMode: 'ambient-covision',
+      quietLineMs: 0,
+      currentInwardPreoccupation: null,
       watchMode: 'invited-inspection',
       currentScene: {
         workloadKind: 'coding',
@@ -147,6 +249,10 @@ describe('stage embodiment attention', () => {
   it('adds a stable runtime gaze bias for grounded inspection states', () => {
     const now = 50_000
     const visualPresenceState = {
+      currentBodyState: 'idle' as const,
+      continuityMode: 'ambient-covision' as const,
+      quietLineMs: 0,
+      currentInwardPreoccupation: null,
       watchMode: 'invited-inspection' as const,
       currentScene: {
         workloadKind: 'coding' as const,

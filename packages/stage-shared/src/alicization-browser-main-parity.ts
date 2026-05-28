@@ -231,6 +231,7 @@ function normalizeBundle(bundle: AlicizationDerivedMindStateBundle | null | unde
     deliberationSurfacePolicy: normalizeScalar((bundle.memoryDeliberation as any)?.surfacePolicy),
     structuredEmbodimentScriptVersion: normalizeScalar(bundle.structured?.embodimentScript?.version),
     structuredEmbodimentScriptDecisionTraceId: normalizeScalar(bundle.structured?.embodimentScript?.decisionTraceId),
+    structuredEmbodimentScriptRendererTarget: normalizeScalar(bundle.structured?.embodimentScript?.rendererTarget),
     structuredEmbodimentScriptResidentMode: normalizeScalar(bundle.structured?.embodimentScript?.state.residentMode),
     structuredEmbodimentScriptFacePreUtteranceCue: normalizeScalar(bundle.structured?.embodimentScript?.facePlan.preUtteranceCue),
     structuredEmbodimentScriptFacePostUtteranceCue: normalizeScalar(bundle.structured?.embodimentScript?.facePlan.postUtteranceCue),

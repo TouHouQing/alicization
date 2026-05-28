@@ -26,12 +26,13 @@ export interface AlicizationVisibleReplyClosureArtifact {
 export interface AlicizationVisibleReplyRealizationArtifact {
   version: 'visible-reply-realization-v1'
   expectedAuthority: 'llm-mind' | 'llm-second-pass-rewrite'
-  actualAuthority: 'llm-mind' | 'llm-second-pass-rewrite' | 'local-deterministic-fallback' | null
+  actualAuthority: AlicizationVisibleReplyExecution['actualVisibleReplyAuthority'] | null
   providerMindExecuted: boolean
   mode: AlicizationVisibleReplyExecutionMode
   visibleText: string | null
   nonHumanAuthoredStatus: string | null
   blockedReasons: string[]
+  openingGuidanceHoldDetail?: string | null
   reason: string | null
   critic?: AlicizationVisibleReplyCriticArtifact | null
   closure?: AlicizationVisibleReplyClosureArtifact | null

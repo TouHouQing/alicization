@@ -137,6 +137,44 @@ describe('main chat run state', () => {
     expect(recentlyFinishedRuns.has(key)).toBe(false)
   })
 
+  it('keeps a short-lived finish payload snapshot for recently finished runs', () => {
+    const { controller, runs, setNow } = createController()
+    const key = controller.createKey('card-1', 'turn-1')
+    runs.set(key, {
+      cardId: 'card-1',
+      turnId: 'turn-1',
+      controller: new AbortController(),
+      chunkCount: 0,
+      rawChunkChars: 0,
+      state: 'running',
+    })
+
+    controller.finishRun(key, {
+      status: 'completed',
+      finishReason: 'stop',
+      fullText: 'hello world',
+      visibleReplyExecution: {
+        mode: 'provider-stream',
+        expectedVisibleReplyAuthority: 'llm-second-pass-rewrite',
+        actualVisibleReplyAuthority: 'llm-mind',
+        providerMindExecuted: true,
+        reason: 'test-finish-payload',
+      },
+    })
+
+    expect(controller.getRecentlyFinishedPayload(key)).toEqual(expect.objectContaining({
+      status: 'completed',
+      finishReason: 'stop',
+      visibleReplyExecution: expect.objectContaining({
+        actualVisibleReplyAuthority: 'llm-mind',
+        providerMindExecuted: true,
+      }),
+    }))
+
+    setNow(1_101)
+    expect(controller.getRecentlyFinishedPayload(key)).toBeNull()
+  })
+
   it('ignores missing or already finished runs', () => {
     const { controller, runs, appendRuntimeDebugLine, emitFinishEvent } = createController()
     const key = controller.createKey('card-1', 'turn-1')

@@ -1,4 +1,6 @@
-import { resolveStageEmbodimentVrmBaseExpressionName } from '@proj-alicization/stage-shared'
+import { alicizationEmotionWhitelist, resolveStageEmbodimentVrmBaseExpressionName } from '@proj-alicization/stage-shared'
+
+import type { AlicizationEmotion, CharacterFacialCapability } from '@proj-alicization/stage-shared'
 
 export interface VrmPresetFacialCapabilityDefinition {
   key: string
@@ -6,6 +8,15 @@ export interface VrmPresetFacialCapabilityDefinition {
   description: string
   expressionName: string
   affectsMouth: boolean
+}
+
+export interface VrmResolvedRuntimeCapabilitySnapshot {
+  supportedExpressionNames: string[]
+  supportedBaseEmotions: AlicizationEmotion[]
+  supportedFacialCues: CharacterFacialCapability[]
+  supportsLookAt: boolean
+  supportsVisemeLipSync: boolean
+  supportsMicroDynamics: boolean
 }
 
 export const vrmVisemeExpressionNames = ['aa', 'ee', 'ih', 'oh', 'ou'] as const
@@ -127,6 +138,19 @@ export function createVrmSupportedExpressionSet(expressionNames: Iterable<string
   )
 }
 
+export function resolveSupportedVrmExpressionName(
+  expressionNames: Iterable<string>,
+  expressionName: string,
+) {
+  const supportedExpressionNames = createVrmSupportedExpressionSet(expressionNames)
+  for (const candidate of resolveVrmExpressionAliasCandidates(expressionName)) {
+    if (supportedExpressionNames.has(candidate))
+      return candidate
+  }
+
+  return ''
+}
+
 export function resolveVrmBaseExpressionCandidates(
   baseEmotion: string,
   preferredExpressionCandidates?: Iterable<string>,
@@ -177,4 +201,29 @@ export function listVrmPresetFacialCapabilities(expressionNames: Iterable<string
 export function supportsVrmVisemeLipSync(expressionNames: Iterable<string>) {
   const supportedExpressionNames = createVrmSupportedExpressionSet(expressionNames)
   return vrmVisemeExpressionNames.every(name => hasAnySupportedAlias(supportedExpressionNames, name))
+}
+
+export function buildVrmRuntimeCapabilitySnapshot(input: {
+  expressionNames: Iterable<string>
+  supportsLookAt: boolean
+}): VrmResolvedRuntimeCapabilitySnapshot {
+  const supportedExpressionNames = [...createVrmSupportedExpressionSet(input.expressionNames)]
+    .sort((left, right) => left.localeCompare(right))
+
+  return {
+    supportedExpressionNames,
+    supportedBaseEmotions: alicizationEmotionWhitelist.filter(emotion =>
+      supportsVrmBaseEmotion(supportedExpressionNames, emotion),
+    ),
+    supportedFacialCues: listVrmPresetFacialCapabilities(supportedExpressionNames).map(item => ({
+      key: item.key,
+      label: item.label,
+      description: item.description,
+      source: 'preset' as const,
+      affectsMouth: item.affectsMouth,
+    })),
+    supportsLookAt: input.supportsLookAt,
+    supportsVisemeLipSync: supportsVrmVisemeLipSync(supportedExpressionNames),
+    supportsMicroDynamics: true,
+  }
 }

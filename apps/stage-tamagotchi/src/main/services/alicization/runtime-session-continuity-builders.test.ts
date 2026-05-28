@@ -3,6 +3,39 @@ import { describe, expect, it } from 'vitest'
 import { createAlicizationSessionContinuityBuildersRuntime } from './runtime-session-continuity-builders'
 
 describe('runtime session continuity builders', () => {
+  it('carries long-horizon learning posture into pending proactive continuity signals', () => {
+    const runtime = createAlicizationSessionContinuityBuildersRuntime({
+      sanitizeText: (raw, fallback = '') => typeof raw === 'string' ? raw : fallback,
+      sanitizeBriefText: (raw, maxChars) => String(raw ?? '').trim().slice(0, maxChars),
+      sanitizeExecutionLedgerText: raw => String(raw ?? '').trim(),
+      readTaskThreadActivityAt: thread => thread.completedAt ?? thread.updatedAt,
+      terminalTaskThreadStatuses: new Set(['completed', 'failed', 'cancelled', 'blocked']),
+      proactiveReplyWindowMs: 120_000,
+      proactiveImplicitIgnoredAfterMs: 600_000,
+      proactiveDismissCooldownMs: 1_800_000,
+      buildVisualPresenceCapturePersistFingerprint: () => 'fingerprint',
+    })
+
+    const signal = runtime.buildPendingProactiveContinuitySignal({
+      now: Date.UTC(2026, 4, 22, 10, 10, 0),
+      pending: {
+        turnId: 'turn-proactive-verify',
+        scenario: 'coding',
+        deliveredAt: Date.UTC(2026, 4, 22, 10, 8, 0),
+        feedbackWindowMs: 120_000,
+        learningAction: 'verify',
+        learningFocuses: ['world-model'],
+      } as any,
+    })
+
+    expect(signal.metadata).toEqual(expect.objectContaining({
+      learningAction: 'verify',
+      learningFocuses: ['world-model'],
+    }))
+    expect(signal.summary).toContain('learning=verify')
+    expect(signal.summary).toContain('focus=world-model')
+  })
+
   it('builds cross-session autobiographical afterglow signals from recent maintenance episodes', () => {
     const runtime = createAlicizationSessionContinuityBuildersRuntime({
       sanitizeText: (raw, fallback = '') => typeof raw === 'string' ? raw : fallback,

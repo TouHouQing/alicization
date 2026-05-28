@@ -6,6 +6,40 @@ import {
 } from './index'
 
 describe('alicization embodiment script', () => {
+  it('accepts vrm as a valid embodiment renderer target', () => {
+    const script = normalizeAlicizationEmbodimentScript({
+      version: 'embodiment-script-v1',
+      turnId: 'turn-vrm-renderer-target',
+      rendererTarget: 'vrm',
+      replyText: '我会继续看着这个问题。',
+      state: {
+        baseEmotion: 'thinking',
+        delivery: 'calm',
+        emphasis: 0,
+        residentMode: 'dialogue',
+      },
+      speechPlan: {
+        segments: [],
+        interruptPolicy: 'soft-settle',
+        preRollMs: 0,
+        settleMs: 180,
+      },
+      facePlan: {
+        speakingCues: [],
+      },
+      motionPlan: {
+        idleBase: 'idle_settle',
+        actionBursts: [],
+        attentionMode: 'attentive',
+      },
+      lipsyncPlan: {
+        mode: 'energy-only',
+      },
+    })
+
+    expect(script?.rendererTarget).toBe('vrm')
+  })
+
   it('normalizes one live2d embodiment script with speech, face, motion, and lipsync plans', () => {
     const script = normalizeAlicizationEmbodimentScript({
       version: 'embodiment-script-v1',
@@ -27,6 +61,25 @@ describe('alicization embodiment script', () => {
           interruptPolicy: 'soft-settle',
           preRollMs: 60,
           settleMs: 240,
+          rendererSettle: {
+            live2dFacialReleaseMs: 320,
+            live2dMotionFollowThroughMs: 420,
+            vrmActionFadeMs: 220,
+            vrmExpressionBlendMs: 260,
+          },
+          rendererHints: {
+            preferredExpressionAliases: ['CalmInspect'],
+            preferredMotionAliases: ['ObserveSoft'],
+          },
+          prosody: {
+            language: 'zh-CN',
+            pauseClass: 'comma',
+            phraseBoundary: 'soft',
+            contour: 'falling',
+            emphasisWord: '慢慢',
+            emphasisStrength: 0.64,
+            tempoShift: -0.06,
+          },
         }],
         interruptPolicy: 'soft-settle',
         preRollMs: 60,
@@ -40,6 +93,11 @@ describe('alicization embodiment script', () => {
           emotion: 'concerned',
           facialCue: 'soft-gaze',
           intensity: 0.62,
+          holdMs: 360,
+          preUtteranceCue: 'steady-inhale',
+          postUtteranceCue: 'soft-release',
+          source: 'prosody-authority',
+          confidence: 0.9,
         }],
       },
       motionPlan: {
@@ -49,6 +107,8 @@ describe('alicization embodiment script', () => {
           actionCue: 'comfort_sway',
           intensity: 0.55,
           holdMs: 420,
+          source: 'timeline-projection',
+          confidence: 0.86,
         }],
         attentionMode: 'attentive',
       },
@@ -58,6 +118,8 @@ describe('alicization embodiment script', () => {
           segmentId: 'segment-1',
           viseme: 'A',
           weight: 0.8,
+          source: 'prosody-authority',
+          confidence: 0.94,
         }],
       },
     })
@@ -68,8 +130,45 @@ describe('alicization embodiment script', () => {
     expect(script?.facePlan.preUtteranceCue).toBe('soft-breath')
     expect(script?.facePlan.postUtteranceCue).toBe('settle-smile')
     expect(script?.speechPlan.segments[0]?.interruptPolicy).toBe('soft-settle')
+    expect(script?.speechPlan.segments[0]?.rendererSettle).toEqual({
+      live2dFacialReleaseMs: 320,
+      live2dMotionFollowThroughMs: 420,
+      vrmActionFadeMs: 220,
+      vrmExpressionBlendMs: 260,
+    })
+    expect(script?.speechPlan.segments[0]?.rendererHints).toEqual({
+      preferredExpressionAliases: ['CalmInspect'],
+      preferredMotionAliases: ['ObserveSoft'],
+    })
+    expect(script?.speechPlan.segments[0]?.prosody).toEqual({
+      language: 'zh-CN',
+      pauseClass: 'comma',
+      phraseBoundary: 'soft',
+      contour: 'falling',
+      emphasisWord: '慢慢',
+      emphasisStrength: 0.64,
+      tempoShift: -0.06,
+    })
+    expect(script?.facePlan.speakingCues[0]?.holdMs).toBe(360)
+    expect(script?.facePlan.speakingCues[0]?.preUtteranceCue).toBe('steady-inhale')
+    expect(script?.facePlan.speakingCues[0]?.postUtteranceCue).toBe('soft-release')
+    expect(script?.facePlan.speakingCues[0]).toEqual(expect.objectContaining({
+      source: 'prosody-authority',
+      confidence: 0.9,
+    }))
     expect(script?.motionPlan.actionBursts[0]?.holdMs).toBe(420)
+    expect(script?.motionPlan.actionBursts[0]).toEqual(expect.objectContaining({
+      source: 'timeline-projection',
+      confidence: 0.86,
+    }))
     expect(script?.lipsyncPlan.mode).toBe('energy-phoneme-hybrid')
+    expect(script?.lipsyncPlan.visemeHints?.[0]).toEqual({
+      segmentId: 'segment-1',
+      viseme: 'A',
+      weight: 0.8,
+      source: 'prosody-authority',
+      confidence: 0.94,
+    })
   })
 
   it('normalizes the reviewed resident modes and rejects invalid lipsync authority blocks', () => {
@@ -165,6 +264,11 @@ describe('alicization embodiment script', () => {
           emotion: 'concerned',
           facialCue: null,
           intensity: 0.4,
+          holdMs: 180,
+          preUtteranceCue: null,
+          postUtteranceCue: null,
+          source: 'prosody-authority',
+          confidence: 0.72,
         }],
       },
       motionPlan: {
@@ -174,6 +278,8 @@ describe('alicization embodiment script', () => {
           actionCue: null,
           intensity: 0.2,
           holdMs: 180,
+          source: 'timeline-projection',
+          confidence: 0.72,
         }],
         attentionMode: 'attentive',
       },
@@ -317,6 +423,8 @@ describe('alicization embodiment script', () => {
               actionCue: 'comfort_sway',
               intensity: 0.4,
               holdMs: 260,
+              source: 'timeline-projection',
+              confidence: 0.86,
             }],
             attentionMode: 'attentive',
           },

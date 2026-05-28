@@ -6,6 +6,7 @@ interface AlicizationMainChatRunStateControllerOptions {
   runs: Map<string, ChatRunState>
   sessionTraceGetters: Map<string, () => AlicizationRuntimeCallChainSnapshot>
   recentlyFinishedRuns: Map<string, number>
+  recentlyFinishedPayloads?: Map<string, Omit<AlicizationChatFinishEvent, 'cardId' | 'turnId'>>
   finishedRetentionMs: number
   normalizeCardId: (raw: unknown) => string
   appendRuntimeDebugLine: (event: string, payload: Record<string, unknown>) => Promise<void>
@@ -17,6 +18,7 @@ export function createAlicizationMainChatRunStateController(
   options: AlicizationMainChatRunStateControllerOptions,
 ) {
   const getNow = options.getNow ?? Date.now
+  const recentlyFinishedPayloads = options.recentlyFinishedPayloads ?? new Map<string, Omit<AlicizationChatFinishEvent, 'cardId' | 'turnId'>>()
 
   function createKey(cardId: string, turnId: string) {
     return `${options.normalizeCardId(cardId)}::${turnId.trim()}`
@@ -25,8 +27,10 @@ export function createAlicizationMainChatRunStateController(
   function rememberFinished(key: string, finishedAt = getNow()) {
     options.recentlyFinishedRuns.set(key, finishedAt)
     for (const [knownKey, knownFinishedAt] of options.recentlyFinishedRuns.entries()) {
-      if (finishedAt - knownFinishedAt > options.finishedRetentionMs)
+      if (finishedAt - knownFinishedAt > options.finishedRetentionMs) {
         options.recentlyFinishedRuns.delete(knownKey)
+        recentlyFinishedPayloads.delete(knownKey)
+      }
     }
   }
 
@@ -36,9 +40,16 @@ export function createAlicizationMainChatRunStateController(
       return false
     if (now - finishedAt > options.finishedRetentionMs) {
       options.recentlyFinishedRuns.delete(key)
+      recentlyFinishedPayloads.delete(key)
       return false
     }
     return true
+  }
+
+  function getRecentlyFinishedPayload(key: string, now = getNow()) {
+    if (!hasRecentlyFinished(key, now))
+      return null
+    return recentlyFinishedPayloads.get(key) ?? null
   }
 
   function setSessionTraceGetter(key: string, getter: () => AlicizationRuntimeCallChainSnapshot) {
@@ -47,12 +58,14 @@ export function createAlicizationMainChatRunStateController(
 
   function clearFinishedRuns() {
     options.recentlyFinishedRuns.clear()
+    recentlyFinishedPayloads.clear()
   }
 
   function clearAll() {
     options.sessionTraceGetters.clear()
     options.runs.clear()
     options.recentlyFinishedRuns.clear()
+    recentlyFinishedPayloads.clear()
   }
 
   function finishRun(key: string, payload: Omit<AlicizationChatFinishEvent, 'cardId' | 'turnId'>) {
@@ -66,6 +79,7 @@ export function createAlicizationMainChatRunStateController(
     options.runs.delete(key)
     const sessionTrace = options.sessionTraceGetters.get(key)?.()
     options.sessionTraceGetters.delete(key)
+    recentlyFinishedPayloads.set(key, payload)
     rememberFinished(key)
 
     void options.appendRuntimeDebugLine('chat-stream.finished', {
@@ -93,6 +107,7 @@ export function createAlicizationMainChatRunStateController(
     clearFinishedRuns,
     createKey,
     finishRun,
+    getRecentlyFinishedPayload,
     hasRecentlyFinished,
     setSessionTraceGetter,
   }

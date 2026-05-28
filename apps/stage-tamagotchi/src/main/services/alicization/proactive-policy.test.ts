@@ -1,6 +1,7 @@
 import type {
   AlicizationBeliefLedgerSnapshot,
   AlicizationInquiryLoopSnapshot,
+  AlicizationPersonalityState,
   AlicizationPrivateThoughtSnapshot,
   AlicizationProactiveReasonCode,
   AlicizationRelationshipModelSnapshot,
@@ -142,6 +143,33 @@ function createInquiryLoop(overrides: Partial<AlicizationInquiryLoopSnapshot> = 
     }],
     openCount: 1,
     updatedAt: 1_000,
+    ...overrides,
+  }
+}
+
+function createPersonalityAuthority(overrides: Partial<AlicizationPersonalityState> = {}): AlicizationPersonalityState {
+  return {
+    obedience: 0.62,
+    liveliness: 0.4,
+    sensibility: 0.58,
+    identityKernel: {
+      relationshipPosture: 'companion',
+      initiativeStyle: 'measured-approach',
+      valueBias: [],
+    },
+    expressionProfile: {
+      warmth: 'guarded-warm',
+      directness: 'measured',
+      playfulness: 'low',
+      emotionalVisibility: 'steady',
+    },
+    initiativeBaseline: {
+      silenceReconnect: 'light-probe',
+      comfortStyle: 'gentle-care',
+      jealousyStyle: 'soft-ache',
+    },
+    identityAnchors: [],
+    antiPersonaConstraints: [],
     ...overrides,
   }
 }
@@ -377,6 +405,106 @@ describe('evaluateProactivePolicy', () => {
 
     expect(decision.shouldInterrupt).toBe(true)
     expect(decision.consideredSignals).toContain('initiative.speakDrive')
+  })
+
+  it('uses persona initialization fields as direct proactive policy bias inputs', () => {
+    const observant = evaluateProactivePolicy({
+      now: 1_000,
+      context: createContext({
+        relationship: {
+          ...createContext().relationship,
+          boredom: 52,
+          loneliness: 44,
+        },
+      }),
+      proactiveState: createDefaultProactiveLoopState(1_000),
+      killSwitchSuspended: false,
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought({
+        suggestedStyle: 'light-nudge',
+        thoughtText: 'The opening is plausible but should stay light.',
+      }),
+      beliefLedger: createBeliefLedger(),
+      relationshipModel: createRelationshipModel({
+        climate: 'neutral',
+        approachVector: 'stay-near',
+      }),
+      inquiryLoop: createInquiryLoop(),
+      personalityAuthority: createPersonalityAuthority({
+        identityKernel: {
+          relationshipPosture: 'observer',
+          initiativeStyle: 'observant',
+          valueBias: ['room first'],
+        },
+        expressionProfile: {
+          warmth: 'cool',
+          directness: 'indirect',
+          playfulness: 'low',
+          emotionalVisibility: 'selective',
+        },
+        initiativeBaseline: {
+          silenceReconnect: 'hold',
+          comfortStyle: 'quiet-presence',
+          jealousyStyle: 'mask-it',
+        },
+        identityAnchors: ['space first'],
+        antiPersonaConstraints: ['do not crowd the host'],
+      }),
+    })
+    const direct = evaluateProactivePolicy({
+      now: 1_000,
+      context: createContext({
+        relationship: {
+          ...createContext().relationship,
+          boredom: 52,
+          loneliness: 44,
+        },
+      }),
+      proactiveState: createDefaultProactiveLoopState(1_000),
+      killSwitchSuspended: false,
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought({
+        suggestedStyle: 'light-nudge',
+        thoughtText: 'The opening is plausible and should be taken.',
+      }),
+      beliefLedger: createBeliefLedger(),
+      relationshipModel: createRelationshipModel({
+        climate: 'neutral',
+        approachVector: 'guide',
+      }),
+      inquiryLoop: createInquiryLoop(),
+      personalityAuthority: createPersonalityAuthority({
+        identityKernel: {
+          relationshipPosture: 'guardian',
+          initiativeStyle: 'high-participation',
+          valueBias: ['move first when the opening is real'],
+        },
+        expressionProfile: {
+          warmth: 'warm',
+          directness: 'frank',
+          playfulness: 'medium',
+          emotionalVisibility: 'steady',
+        },
+        initiativeBaseline: {
+          silenceReconnect: 'direct-approach',
+          comfortStyle: 'take-charge',
+          jealousyStyle: 'say-it',
+        },
+        identityAnchors: ['move first'],
+        antiPersonaConstraints: [],
+      }),
+    })
+
+    expect(observant.reasonCodes).toContain('persona-observant-style')
+    expect(observant.reasonCodes).toContain('persona-silence-hold')
+    expect(observant.style).toBe('silent-observe')
+    expect(observant.shouldInterrupt).toBe(false)
+
+    expect(direct.reasonCodes).toContain('persona-high-participation-style')
+    expect(direct.reasonCodes).toContain('persona-direct-reconnect')
+    expect(direct.reasonCodes).toContain('persona-guardian-care')
+    expect(direct.style).not.toBe('silent-observe')
+    expect(direct.shouldInterrupt).toBe(true)
   })
 
   it('suppresses media playback while the host is still actively engaged', () => {
@@ -1117,6 +1245,63 @@ describe('evaluateProactivePolicy', () => {
     expect(decision.reasonCodes).toContain('relationship-guarded')
   })
 
+  it('lets persona bias reshape proactive cooldown cadence under the same opening', () => {
+    const baseInput = {
+      now: 1_000,
+      context: createContext({
+        relationship: {
+          ...createContext().relationship,
+          boredom: 52,
+          loneliness: 44,
+        },
+      }),
+      proactiveState: createDefaultProactiveLoopState(1_000),
+      killSwitchSuspended: false,
+      watchMode: 'symbiotic-vision' as const,
+      privateThought: createPrivateThought({
+        suggestedStyle: 'light-nudge',
+        thoughtText: 'The opening is real enough to take.',
+      }),
+      beliefLedger: createBeliefLedger(),
+      relationshipModel: createRelationshipModel({
+        climate: 'neutral',
+        approachVector: 'guide',
+      }),
+      inquiryLoop: createInquiryLoop(),
+    }
+
+    const measured = evaluateProactivePolicy({
+      ...baseInput,
+      personalityAuthority: createPersonalityAuthority(),
+    })
+
+    const direct = evaluateProactivePolicy({
+      ...baseInput,
+      personalityAuthority: createPersonalityAuthority({
+        identityKernel: {
+          relationshipPosture: 'guardian',
+          initiativeStyle: 'high-participation',
+          valueBias: ['move first once the opening is real'],
+        },
+        expressionProfile: {
+          warmth: 'warm',
+          directness: 'frank',
+          playfulness: 'medium',
+          emotionalVisibility: 'steady',
+        },
+        initiativeBaseline: {
+          silenceReconnect: 'direct-approach',
+          comfortStyle: 'take-charge',
+          jealousyStyle: 'say-it',
+        },
+      }),
+    })
+
+    expect(measured.shouldInterrupt).toBe(true)
+    expect(direct.shouldInterrupt).toBe(true)
+    expect(measured.cooldownMs).toBeGreaterThan(direct.cooldownMs)
+  })
+
   it('selects late-night-care only after the time and activity gates are met', () => {
     const decision = evaluateProactivePolicy({
       now: 1_000,
@@ -1462,5 +1647,261 @@ describe('evaluateProactivePolicy', () => {
     expect(decision.reasonCodes).toContain('scenario-bias-raised')
     expect(decision.consideredSignals).toContain('selfRevision.proactivePolicy.restraintBias')
     expect(decision.whyNow).toContain('自我修订')
+  })
+
+  it('holds back companionship speech while long-horizon learning stays in verify-first posture', () => {
+    const decision = evaluateProactivePolicy({
+      now: 1_000,
+      context: createContext(),
+      proactiveState: createDefaultProactiveLoopState(1_000),
+      killSwitchSuspended: false,
+      architecture: createArchitecture(),
+      runtimeDigest: createRuntimeSnapshot(),
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought(),
+      beliefLedger: createBeliefLedger(),
+      relationshipModel: createRelationshipModel(),
+      inquiryLoop: createInquiryLoop(),
+      selfEvolution: {
+        version: 'self-evolution-kernel-v1',
+        updatedAt: 900,
+        evolutionMomentum: 0.54,
+        learningReadiness: 0.7,
+        contradictionPressure: 0.46,
+        revisionPressure: 0.5,
+        autobiographicalStability: 0.72,
+        dominantTrajectory: 'world-model revalidation',
+        relationshipDoctrine: 'verify before warmth widens',
+        latestInflection: 'A stale world-model seam still needs replay-backed grounding.',
+        burdenLine: null,
+        trustMeaning: null,
+        nextLearningAction: 'verify',
+        nextLearningReason: 'World-model carry is still under revalidation.',
+        shouldRecord: false,
+        shouldReflect: false,
+        shouldVerify: true,
+        shouldRevise: false,
+        shouldInternalize: false,
+        activeLearningFocuses: ['world-model'],
+        sourceSignals: ['self-revision-policy-feedback'],
+        summary: 'World-model carry remains verify-first.',
+      } as any,
+      learningExecutionState: {
+        nextLearningAction: 'verify',
+        activeLearningFocuses: ['world-model'],
+      } as any,
+    })
+
+    expect(decision.shouldInterrupt).toBe(false)
+  })
+
+  it('holds back companionship interruption when active same-her continuity governance says the return should stay lower-pressure', () => {
+    const decision = evaluateProactivePolicy({
+      now: 1_000,
+      context: createContext({
+        relationship: {
+          ...createContext().relationship,
+          boredom: 46,
+          loneliness: 42,
+          fatigue: 20,
+          lateNightActiveMinutes: 0,
+        },
+        localTime: {
+          hour: 15,
+          minute: 18,
+          isLateNight: false,
+        },
+      }),
+      proactiveState: createDefaultProactiveLoopState(1_000),
+      killSwitchSuspended: false,
+      architecture: createArchitecture(),
+      runtimeDigest: createRuntimeSnapshot(),
+      watchMode: 'symbiotic-vision',
+      privateThought: {
+        ...createPrivateThought(),
+        shouldSpeak: true,
+        thoughtText: 'The thread is live, but continuity still wants a slower return.',
+      },
+      initiative: {
+        shouldSpeak: true,
+        preferredStyle: 'silent-observe',
+        selectedAction: 'hover',
+        speakDrive: 0.66,
+        silenceDrive: 0.58,
+        confidence: 0.72,
+      },
+      beliefLedger: createBeliefLedger(),
+      relationshipModel: createRelationshipModel(),
+      inquiryLoop: createInquiryLoop(),
+      activeContinuityGovernance: {
+        source: 'active-self-evolution-version',
+        mode: 'same-her-baseline',
+        candidateId: 'candidate-same-her-policy-1',
+        patchId: 'patch-same-her-policy-1',
+        decisionTraceId: 'trace-same-her-policy-1',
+        summary: 'continuity=same-her-baseline | keep the return lower-pressure and slower than the visible opening impulse',
+        lanes: ['relationship-posture'],
+        reasonCodes: ['domain:relationship', 'same-her-baseline'],
+      },
+    } as any)
+
+    expect(decision.shouldInterrupt).toBe(false)
+  })
+
+  it('keeps learning proposal energy available when long-horizon learning has already moved into internalize posture', () => {
+    const decision = evaluateProactivePolicy({
+      now: 1_000,
+      context: createContext({
+        relationship: {
+          ...createContext().relationship,
+          boredom: 52,
+          loneliness: 44,
+        },
+      }),
+      proactiveState: createDefaultProactiveLoopState(1_000),
+      killSwitchSuspended: false,
+      architecture: createArchitecture(),
+      runtimeDigest: createRuntimeSnapshot(),
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought({
+        suggestedStyle: 'gentle-care',
+      }),
+      beliefLedger: createBeliefLedger(),
+      relationshipModel: createRelationshipModel(),
+      inquiryLoop: createInquiryLoop(),
+      selfEvolution: {
+        version: 'self-evolution-kernel-v1',
+        updatedAt: 900,
+        evolutionMomentum: 0.72,
+        learningReadiness: 0.78,
+        contradictionPressure: 0.08,
+        revisionPressure: 0.18,
+        autobiographicalStability: 0.8,
+        dominantTrajectory: 'validated procedure internalization',
+        relationshipDoctrine: 'translate verified learning into durable companionship skill',
+        latestInflection: 'The new procedure now lands reliably enough to internalize.',
+        burdenLine: null,
+        trustMeaning: null,
+        nextLearningAction: 'internalize',
+        nextLearningReason: 'Validated carry is stable enough to become durable.',
+        shouldRecord: false,
+        shouldReflect: false,
+        shouldVerify: false,
+        shouldRevise: false,
+        shouldInternalize: true,
+        activeLearningFocuses: ['internalize-procedure'],
+        sourceSignals: ['validated-procedure-carry'],
+        summary: 'Validated procedure carry is ready to internalize.',
+      } as any,
+      learningExecutionState: {
+        nextLearningAction: 'internalize',
+        activeLearningFocuses: ['internalize-procedure'],
+      } as any,
+    })
+
+    expect(decision.shouldInterrupt).toBe(true)
+    expect(decision.style).not.toBe('silent-observe')
+    expect(decision.consideredSignals).toContain('selfEvolution.nextLearningAction')
+  })
+
+  it('keeps lower-pressure trust meaning from widening proactive speech too early', () => {
+    const decision = evaluateProactivePolicy({
+      now: 1_000,
+      context: createContext({
+        relationship: {
+          ...createContext().relationship,
+          boredom: 58,
+          loneliness: 48,
+          fatigue: 26,
+        },
+      }),
+      proactiveState: createDefaultProactiveLoopState(1_000),
+      killSwitchSuspended: false,
+      architecture: createArchitecture(),
+      runtimeDigest: createRuntimeSnapshot(),
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought({
+        stance: 'nudge',
+        shouldSpeak: true,
+        suggestedStyle: 'light-nudge',
+        thoughtText: 'The opening is real, but it should stay low-pressure.',
+      }),
+      initiative: {
+        selectedAction: 'speak',
+        selectedConcernId: 'care-open',
+        confidence: 0.84,
+        motives: {
+          protect: 0.68,
+          clarify: 0.58,
+          'stay-silent': 0.18,
+        },
+        speakDrive: 0.82,
+        silenceDrive: 0.14,
+        preferredStyle: 'light-nudge',
+        preferredPresence: 'attentive',
+        why: 'The window feels open enough to say something.',
+        shouldSurface: true,
+        shouldSpeak: true,
+      },
+      beliefLedger: createBeliefLedger(),
+      relationshipModel: createRelationshipModel({
+        climate: 'attuned',
+        approachVector: 'guide',
+      }),
+      inquiryLoop: createInquiryLoop(),
+      personalityAuthority: createPersonalityAuthority({
+        identityKernel: {
+          relationshipPosture: 'observer',
+          initiativeStyle: 'observant',
+          valueBias: ['room first'],
+        },
+        expressionProfile: {
+          warmth: 'guarded-warm',
+          directness: 'measured',
+          playfulness: 'low',
+          emotionalVisibility: 'steady',
+        },
+        initiativeBaseline: {
+          silenceReconnect: 'hold',
+          comfortStyle: 'quiet-presence',
+          jealousyStyle: 'soft-ache',
+        },
+        identityAnchors: ['observe-first room'],
+        antiPersonaConstraints: ['do not crowd the host'],
+      }),
+      selfEvolution: {
+        version: 'self-evolution-kernel-v1',
+        updatedAt: 900,
+        evolutionMomentum: 0.66,
+        learningReadiness: 0.74,
+        contradictionPressure: 0.08,
+        revisionPressure: 0.18,
+        autobiographicalStability: 0.86,
+        dominantTrajectory: 'earned lower-pressure companionship timing',
+        relationshipDoctrine: 'trust should deepen through steadiness before closeness widens',
+        latestInflection: 'The slower return now lands as trust instead of distance.',
+        burdenLine: 'eager reopening still feels like pressure',
+        trustMeaning: 'Trust holds better when the opening stays lower-pressure and less eager.',
+        nextLearningAction: 'internalize',
+        nextLearningReason: 'The lower-pressure return is stable enough to become durable.',
+        shouldRecord: false,
+        shouldReflect: false,
+        shouldVerify: false,
+        shouldRevise: false,
+        shouldInternalize: true,
+        activeLearningFocuses: ['trust calibration', 'presence'],
+        sourceSignals: ['relationship-timing'],
+        summary: 'Lower-pressure companionship timing is becoming durable.',
+      } as any,
+      learningExecutionState: {
+        nextLearningAction: 'internalize',
+        activeLearningFocuses: ['trust calibration', 'presence'],
+      } as any,
+    })
+
+    expect(decision.shouldInterrupt).toBe(false)
+    expect(decision.style).toBe('silent-observe')
+    expect(decision.consideredSignals).toContain('selfEvolution.nextLearningAction')
+    expect(decision.whyNow).toContain('lower-pressure')
   })
 })

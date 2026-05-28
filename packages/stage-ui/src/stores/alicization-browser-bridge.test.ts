@@ -280,6 +280,10 @@ describe('browser alicization bridge visual presence listeners', () => {
       embodiedPresence: 'attentive',
       scenario: 'coding',
       stance: 'accompany',
+      currentBodyState: 'accompanying',
+      continuityMode: 'quiet-accompaniment',
+      currentInwardPreoccupation: expect.stringContaining('guide the current diff'),
+      quietLineMs: 0,
     })
     expect(onStreamEvent).toHaveBeenCalledWith(expect.objectContaining({
       type: 'meta',
@@ -939,5 +943,83 @@ describe('browser alicization bridge visual presence listeners', () => {
     }))
 
     vi.unstubAllGlobals()
+  })
+
+  it('preserves structured personality authority when updatePersonality only changes numeric deltas', async () => {
+    disposeBridge = installBrowserAlicizationBridge({ runtime: 'web' })
+    const bridge = getAlicizationBridge()
+
+    const initialized = await bridge.initializeGenesis?.({
+      ownerName: '指挥官',
+      hostName: '主人',
+      alicizationName: 'Alicization',
+      gender: 'female',
+      relationship: '伙伴',
+      mindAge: 18,
+      personality: {
+        obedience: 0.62,
+        liveliness: 0.31,
+        sensibility: 0.74,
+        identityKernel: {
+          temperament: {
+            obedience: 0.83,
+            liveliness: 0.21,
+            sensibility: 0.88,
+          },
+          relationshipPosture: 'guardian',
+          initiativeStyle: 'observant',
+          valueBias: ['接住主人的疲惫，回复要短一点。'],
+        },
+        expressionProfile: {
+          warmth: 'warm',
+          directness: 'measured',
+          playfulness: 'low',
+          emotionalVisibility: 'steady',
+        },
+        initiativeBaseline: {
+          silenceReconnect: 'hold',
+          comfortStyle: 'quiet-presence',
+          jealousyStyle: 'mask-it',
+        },
+        evolutionSeed: {
+          fastLayers: ['presence'],
+          slowLayers: ['continuity'],
+          unlockTracks: ['guardian'],
+        },
+        identityAnchors: ['space first'],
+        antiPersonaConstraints: ['do not crowd the host'],
+      },
+      allowOverwrite: true,
+    } as any)
+
+    const nextSoul = await bridge.updatePersonality?.({
+      expectedRevision: initialized?.soul.revision,
+      deltas: {
+        obedience: -0.1,
+        liveliness: 0.05,
+        sensibility: 0.02,
+      },
+    } as any)
+
+    expect(nextSoul?.frontmatter.personality.identityKernel).toEqual(expect.objectContaining({
+      relationshipPosture: 'guardian',
+      initiativeStyle: 'observant',
+      valueBias: ['接住主人的疲惫，回复要短一点。'],
+    }))
+    expect(nextSoul?.frontmatter.personality.expressionProfile).toEqual({
+      warmth: 'warm',
+      directness: 'measured',
+      playfulness: 'low',
+      emotionalVisibility: 'steady',
+    })
+    expect(nextSoul?.frontmatter.personality.initiativeBaseline).toEqual({
+      silenceReconnect: 'hold',
+      comfortStyle: 'quiet-presence',
+      jealousyStyle: 'mask-it',
+    })
+    expect(nextSoul?.frontmatter.personality.identityAnchors).toEqual(['space first'])
+    expect(nextSoul?.frontmatter.personality.antiPersonaConstraints).toEqual(['do not crowd the host'])
+    expect(nextSoul?.revision).toBeGreaterThan(initialized?.soul.revision ?? 0)
+    expect(nextSoul?.content).toContain('stage.alicization.soul.sections.personality-baseline')
   })
 })

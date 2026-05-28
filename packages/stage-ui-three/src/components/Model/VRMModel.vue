@@ -38,6 +38,7 @@ import type { ManagedVrmInstance } from './vrm-instance-cache'
 import { VRMUtils } from '@pixiv/three-vrm'
 import { useLoop, useTresContext } from '@tresjs/core'
 import { until, useMouse } from '@vueuse/core'
+import { createIdleStageEmbodimentPerformanceState } from '@proj-alicization/stage-shared'
 import {
   AnimationMixer,
   Box3,
@@ -81,18 +82,29 @@ import {
   useIdleEyeSaccades,
 } from '../../composables/vrm/animation'
 import {
+  buildVrmRuntimeCapabilitySnapshot,
   normalizeVrmExpressionName,
   resolveVrmBaseExpressionName,
   resolveVrmPresetFacialCapability,
-  supportsVrmVisemeLipSync,
   vrmStandardExpressionNames,
 } from '../../composables/vrm/capabilities'
+import {
+  buildVrmExecutionDiagnosticsSnapshot,
+} from '../../composables/vrm/execution-diagnostics'
+import { resolveVrmActionFadeDurationSeconds } from '../../composables/vrm/action-playback'
 import { loadVrm } from '../../composables/vrm/core'
 import { useVRMEmote } from '../../composables/vrm/expression'
 import { useVRMLipSync } from '../../composables/vrm/lip-sync'
+import {
+  resolveVrmPreferredActionBinding,
+  resolveVrmPreferredCustomExpressionBinding,
+  resolveVrmDialogueExpressionWatchKey,
+  resolveVrmDialoguePerformanceFromState,
+} from '../../composables/vrm/performance-selection'
 import { applyStageEmbodimentVrmPosture } from '../../composables/vrm/posture'
 import {
   createThreeRendererMemorySnapshot,
+  createVrmEmbodimentFrameSnapshot,
   createVrmSceneSummarySnapshot,
   getStageThreeRuntimeTraceContext,
   isStageThreeRuntimeTraceEnabled,
@@ -238,6 +250,23 @@ interface DialoguePerformanceInput {
   facialCue?: string | null
   actionCue?: string | null
   emphasis?: number
+}
+
+function createSyntheticPerformanceStateForDialogueInput(
+  input: DialoguePerformanceInput,
+): StageEmbodimentPerformanceState {
+  const state = createIdleStageEmbodimentPerformanceState()
+  state.phase = 'speaking'
+  state.performance = {
+    ...state.performance,
+    actionCue: input.actionCue ?? null,
+    baseEmotion: input.baseEmotion as StageEmbodimentPerformanceState['performance']['baseEmotion'],
+    emphasis: (input.emphasis ?? 0) as StageEmbodimentPerformanceState['performance']['emphasis'],
+    facialCue: input.facialCue ?? null,
+  }
+  state.activeActionCue = input.actionCue ?? null
+  state.activeFacialCue = input.facialCue ?? null
+  return state
 }
 
 // Expressions
@@ -451,7 +480,12 @@ function bindManagedVrmInstanceRenderLoop() {
     })
 
     if (traceStart > 0) {
+      const embodimentFrame = createVrmEmbodimentFrameSnapshot({
+        performanceState: performanceState.value,
+        speechRenderState: speechRenderState.value,
+      })
       stageThreeRuntimeTraceContext.emit(stageThreeTraceVrmUpdateFrameEvent, {
+        ...embodimentFrame,
         animationMixerMs,
         blinkAndSaccadeMs,
         deltaMs: delta * 1000,
@@ -569,12 +603,10 @@ function buildRuntimeCapabilitySnapshot(activeVrm?: VRM): VrmRuntimeCapabilitySn
       .filter(Boolean),
   )].sort((left, right) => left.localeCompare(right))
 
-  return {
-    supportedExpressionNames,
+  return buildVrmRuntimeCapabilitySnapshot({
+    expressionNames: supportedExpressionNames,
     supportsLookAt: Boolean(activeVrm?.lookAt),
-    supportsVisemeLipSync: supportsVrmVisemeLipSync(supportedExpressionNames),
-    supportsMicroDynamics: true,
-  }
+  })
 }
 
 function emitRuntimeCapabilitiesResolved(activeVrm?: VRM) {
@@ -641,18 +673,6 @@ function resolveFacialCueIntensityFromPerformanceState(state?: StageEmbodimentPe
   )
 }
 
-function resolveDialoguePerformanceFromState(state?: StageEmbodimentPerformanceState | null): DialoguePerformanceInput | null {
-  if (!state || state.phase === 'idle')
-    return null
-
-  return {
-    actionCue: state.performance.actionCue ?? null,
-    baseEmotion: state.performance.baseEmotion,
-    emphasis: state.performance.emphasis,
-    facialCue: state.performance.facialCue ?? null,
-  }
-}
-
 function resolveRendererSettleBlendDurationFromPerformanceState(state?: StageEmbodimentPerformanceState | null) {
   return clampBlendDurationSeconds(state?.activeCue?.rendererSettle?.vrmExpressionBlendMs)
 }
@@ -675,7 +695,17 @@ function isConfiguredCustomExpressionBinding(binding?: VrmCustomExpressionBindin
   )
 }
 
-function resolveConfiguredCustomExpressionBinding(facialCue?: string | null) {
+function resolveConfiguredCustomExpressionBinding(
+  state?: StageEmbodimentPerformanceState | null,
+  facialCue?: string | null,
+) {
+  const binding = resolveVrmPreferredCustomExpressionBinding(
+    state,
+    (customExpressionBindings.value ?? []).filter(item => isConfiguredCustomExpressionBinding(item)),
+  )
+  if (binding)
+    return binding
+
   const normalizedCue = typeof facialCue === 'string' ? facialCue.trim() : ''
   if (!normalizedCue)
     return undefined
@@ -861,6 +891,7 @@ function applyDialogueExpression(
     blendDuration?: number
     emotionIntensity?: number
     facialCueIntensity?: number
+    performanceState?: StageEmbodimentPerformanceState | null
   },
 ) {
   const emote = vrmEmote.value
@@ -878,7 +909,7 @@ function applyDialogueExpression(
     { blendDuration: options?.blendDuration },
   )
 
-  const customBinding = resolveConfiguredCustomExpressionBinding(input.facialCue)
+  const customBinding = resolveConfiguredCustomExpressionBinding(options?.performanceState, input.facialCue)
   if (customBinding) {
     emote.setFacialCue(customBinding.expressionName, facialCueIntensity, {
       affectsMouth: customBinding.affectsMouth,
@@ -895,7 +926,7 @@ function applyDialogueExpression(
 }
 
 function applyDialogueExpressionFromState(state?: StageEmbodimentPerformanceState | null) {
-  const performanceInput = resolveDialoguePerformanceFromState(state)
+  const performanceInput = resolveVrmDialoguePerformanceFromState(state)
   if (!performanceInput) {
     applyDialogueExpression({
       actionCue: null,
@@ -913,6 +944,7 @@ function applyDialogueExpressionFromState(state?: StageEmbodimentPerformanceStat
     blendDuration: resolveRendererSettleBlendDurationFromPerformanceState(state),
     emotionIntensity: resolveExpressionIntensityFromPerformanceState(state),
     facialCueIntensity: resolveFacialCueIntensityFromPerformanceState(state),
+    performanceState: state,
   })
 }
 
@@ -920,8 +952,13 @@ async function applyDialoguePerformance(input: DialoguePerformanceInput) {
   lastDialoguePerformance.value = { ...input }
   applyDialogueExpression(input)
 
-  const actionBinding = (actionBindings.value ?? [])
-    .find(item => item.actionKey === input.actionCue)
+  const syntheticState = performanceState.value
+  const actionBinding = resolveVrmPreferredActionBinding(
+    syntheticState
+      ? syntheticState
+      : createSyntheticPerformanceStateForDialogueInput(input),
+    actionBindings.value ?? [],
+  )
   if (actionBinding)
     await playActionBinding(actionBinding)
 }
@@ -1376,19 +1413,7 @@ onMounted(async () => {
       applyDialogueExpression(lastDialoguePerformance.value)
   }, { deep: true })
   watch(
-    [
-      () => performanceState.value?.phase ?? 'idle',
-      () => performanceState.value?.performance.baseEmotion ?? 'neutral',
-      () => performanceState.value?.performance.facialCue ?? null,
-      () => performanceState.value?.activeCue?.rendererSettle?.vrmExpressionBlendMs ?? 0,
-      () => Math.round((performanceState.value?.expressionIntensity ?? 0) * 10),
-      () => Math.round((performanceState.value?.facialCueIntensity ?? 0) * 10),
-      () => Math.round((performanceState.value?.motor.expressivity ?? 0) * 100),
-      () => Math.round((performanceState.value?.motor.facial.cheekLift ?? 0) * 100),
-      () => Math.round((performanceState.value?.motor.facial.browTension ?? 0) * 100),
-      () => Math.round((performanceState.value?.motor.facial.eyeOpenness ?? 0) * 100),
-      () => Math.round((performanceState.value?.motor.stillness ?? 0) * 100),
-    ],
+    () => resolveVrmDialogueExpressionWatchKey(performanceState.value),
     () => {
       applyDialogueExpressionFromState(performanceState.value)
     },
@@ -1405,11 +1430,17 @@ onMounted(async () => {
       if (!actionCue)
         return
 
-      const actionBinding = (actionBindings.value ?? [])
-        .find(item => item.actionKey === actionCue)
+      const actionBinding = resolveVrmPreferredActionBinding(
+        performanceState.value,
+        actionBindings.value ?? [],
+      )
       if (actionBinding) {
         await playActionBinding(actionBinding, {
-          fadeDuration: resolveRendererSettleActionFadeFromPerformanceState(performanceState.value),
+          fadeDuration: resolveVrmActionFadeDurationSeconds({
+            actionCueSource: performanceState.value?.activeActionCueSource ?? 'none',
+            actionIntensity: performanceState.value?.actionIntensity ?? null,
+            fadeDurationSeconds: resolveRendererSettleActionFadeFromPerformanceState(performanceState.value) ?? 0.18,
+          }),
         })
       }
     },
@@ -1473,6 +1504,20 @@ defineExpose({
   },
   getRuntimeCapabilities() {
     return buildRuntimeCapabilitySnapshot(vrm.value)
+  },
+  executionDiagnostics() {
+    return buildVrmExecutionDiagnosticsSnapshot({
+      currentEmotion: vrmEmote.value?.currentEmotion.value ?? null,
+      currentEmotionResolvedExpressionNames: vrmEmote.value?.currentEmotion.value
+        ? [resolveVrmBaseExpressionName(
+            vrmEmote.value.currentEmotion.value,
+            baseExpressionOverrides.value?.[vrmEmote.value.currentEmotion.value] ?? [],
+          )]
+        : [],
+      currentFacialCue: vrmEmote.value?.currentFacialCue.value ?? null,
+      currentFacialCueAffectsMouth: vrmEmote.value?.currentFacialCueAffectsMouth?.() ?? null,
+      performanceState: performanceState.value,
+    })
   },
   setVrmFrameHook(hook?: VrmFrameHook) {
     vrmFrameHook.value = hook

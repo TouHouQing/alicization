@@ -702,17 +702,18 @@ function resolveApproachEmbodimentMotorBias(raw: string | null | undefined): Ali
 function resolveSpineEmbodimentMotorBias(
   digitalLifeSpine?: AlicizationDigitalLifeSpineDigest | null,
 ): AlicizationDigitalLifeEmbodimentMotorBias {
-  const embodiment = digitalLifeSpine?.embodiment
-  if (!embodiment)
+  const embodiment = digitalLifeSpine?.embodiment ?? null
+  const personaBias = digitalLifeSpine?.proactive?.personaBias ?? null
+  if (!embodiment && !personaBias)
     return createNeutralEmbodimentMotorBias()
 
-  const privateThought = embodiment.privateThought ?? null
-  const selfContinuity = embodiment.selfContinuity ?? null
-  const autobiographicalSelf = embodiment.autobiographicalSelf ?? null
-  const relationship = embodiment.relationship ?? null
-  const selfState = embodiment.selfState ?? null
-  const mindEcology = embodiment.mindEcology ?? null
-  const initiative = embodiment.initiative ?? null
+  const privateThought = embodiment?.privateThought ?? null
+  const selfContinuity = embodiment?.selfContinuity ?? null
+  const autobiographicalSelf = embodiment?.autobiographicalSelf ?? null
+  const relationship = embodiment?.relationship ?? null
+  const selfState = embodiment?.selfState ?? null
+  const mindEcology = embodiment?.mindEcology ?? null
+  const initiative = embodiment?.initiative ?? null
 
   const presence = privateThought?.embodiedPresence
     ?? initiative?.preferredPresence
@@ -903,6 +904,13 @@ function resolveSpineEmbodimentMotorBias(
   const arousalDelta = arousal - 0.5
   const truthDelta = truthDiscipline - 0.5
   const irritationDelta = irritation - 0.5
+  const personaObserveBias = personaBias?.initiativeStyle === 'observant'
+    || personaBias?.silenceReconnect === 'hold'
+    || personaBias?.preferredProactiveStyle === 'silent-observe'
+  const personaDirectBias = personaBias?.initiativeStyle === 'high-participation'
+    || personaBias?.silenceReconnect === 'direct-approach'
+  const personaCareBias = personaBias?.relationshipPosture === 'guardian'
+    || personaBias?.comfortStyle === 'take-charge'
 
   const presenceBias = resolvePresenceEmbodimentMotorBias(presence)
   const styleBias = resolveExpressionStyleEmbodimentMotorBias(expressionStyle)
@@ -916,6 +924,8 @@ function resolveSpineEmbodimentMotorBias(
       + guardedDelta * 0.24
       + restraintDelta * 0.2
       + protectiveDelta * 0.08
+      + (personaObserveBias ? 0.08 : 0)
+      - (personaDirectBias ? 0.08 : 0)
       - warmthDelta * 0.1
       - playDelta * 0.16
       - directnessDelta * 0.08,
@@ -927,8 +937,11 @@ function resolveSpineEmbodimentMotorBias(
       + warmthDelta * 0.18
       + playDelta * 0.22
       + arousalDelta * 0.08
+      + (personaDirectBias ? 0.08 : 0)
+      + (personaCareBias ? 0.04 : 0)
       + directnessDelta * 0.08
       - guardedDelta * 0.08
+      - (personaObserveBias ? 0.06 : 0)
       - restraintDelta * 0.12,
     ),
     gazeFocus: roundSignedHundredths(
@@ -1063,6 +1076,7 @@ function resolveSpineEmbodimentMotorBias(
       + approachBias.bodyLean
       + attunementDelta * 0.18
       + directnessDelta * 0.08
+      + (personaDirectBias ? 0.12 : 0)
       - clampUnit(autobiographicalSelf?.autonomyNeed, 0.48) * 0.14
       + 0.07,
     ),
@@ -1073,7 +1087,10 @@ function resolveSpineEmbodimentMotorBias(
       + warmthDelta * 0.22
       + attunementDelta * 0.14
       + careDelta * 0.08
+      + (personaDirectBias ? 0.1 : 0)
+      + (personaCareBias ? 0.04 : 0)
       - guardedDelta * 0.14
+      - (personaObserveBias ? 0.06 : 0)
       - clampUnit(autobiographicalSelf?.autonomyRespect, 0.52) * 0.12
       + 0.06,
     ),

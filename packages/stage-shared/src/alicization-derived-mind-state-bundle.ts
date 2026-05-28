@@ -46,6 +46,8 @@ function buildDialogueRhythm(input: {
 function summarizeBundle(input: {
   source: AlicizationDerivedMindStateBundle['source']
   hostPersonModel?: AlicizationHostPersonModelSnapshot | null
+  activeSelfRevision?: AlicizationDerivedMindStateBundle['activeSelfRevision']
+  activeContinuityGovernance?: AlicizationDerivedMindStateBundle['activeContinuityGovernance']
   selfEvolution?: AlicizationSelfEvolutionKernelSnapshot | null
   affectiveResidue?: AlicizationAffectiveResidueMemorySnapshot | null
   learningExecutionState?: AlicizationLearningExecutionStateSnapshot | null
@@ -56,6 +58,9 @@ function summarizeBundle(input: {
 }) {
   return [
     `source=${input.source}`,
+    input.activeSelfRevision?.patchId ? `self_revision=${sanitizeText(input.activeSelfRevision.patchId, 120)}` : '',
+    input.activeContinuityGovernance?.mode ? `continuity=${input.activeContinuityGovernance.mode}` : '',
+    input.activeContinuityGovernance?.candidateId ? `anchor=${sanitizeText(input.activeContinuityGovernance.candidateId, 120)}` : '',
     input.selfEvolution?.dominantTrajectory ? `trajectory=${sanitizeText(input.selfEvolution.dominantTrajectory, 120)}` : '',
     input.affectiveResidue?.dominantResidueKind ? `residue=${input.affectiveResidue.dominantResidueKind}` : '',
     input.learningExecutionState?.nextLearningAction ? `learning=${sanitizeText(input.learningExecutionState.nextLearningAction, 64)}` : '',
@@ -81,6 +86,8 @@ export function buildDerivedMindStateBundle(input: {
     contradictionHeavyFactCount: number
   } | null
   claimEvidenceGraphs?: AlicizationClaimEvidenceGraph[] | null
+  activeSelfRevision?: AlicizationDerivedMindStateBundle['activeSelfRevision']
+  activeContinuityGovernance?: AlicizationDerivedMindStateBundle['activeContinuityGovernance']
   selfEvolution?: AlicizationSelfEvolutionKernelSnapshot | null
   affectiveResidue?: AlicizationAffectiveResidueMemorySnapshot | null
   learningExecutionState?: AlicizationLearningExecutionStateSnapshot | null
@@ -98,6 +105,8 @@ export function buildDerivedMindStateBundle(input: {
     personStateProjection: input.personStateProjection ?? null,
     knowledgeEvidence: input.knowledgeEvidence ?? null,
     claimEvidenceGraphs: input.claimEvidenceGraphs ?? null,
+    activeSelfRevision: input.activeSelfRevision ?? null,
+    activeContinuityGovernance: input.activeContinuityGovernance ?? null,
     selfEvolution: input.selfEvolution ?? null,
     affectiveResidue: input.affectiveResidue ?? null,
     learningExecutionState: input.learningExecutionState ?? null,
@@ -114,6 +123,8 @@ export function buildDerivedMindStateBundle(input: {
     summary: summarizeBundle({
       source: input.source,
       hostPersonModel: input.hostPersonModel ?? null,
+      activeSelfRevision: input.activeSelfRevision ?? null,
+      activeContinuityGovernance: input.activeContinuityGovernance ?? null,
       selfEvolution: input.selfEvolution ?? null,
       affectiveResidue: input.affectiveResidue ?? null,
       learningExecutionState: input.learningExecutionState ?? null,

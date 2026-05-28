@@ -20,6 +20,8 @@ import type { AlicizationPersonStateUpdateSurface } from './person-state-update-
 import type { AlicizationRelationshipDynamicsState } from './relationship-dynamics-state'
 import type { ContextualConversationTurn } from './runtime-soul'
 
+import { deriveAlicizationLearningExecutionProjection, deriveAlicizationRecallLatencyPolicy } from '@proj-alicization/stage-shared'
+import { buildAlicizationAffectiveResidueMemory } from './affective-residue-memory'
 import { filterOrganicMemoryEntries, isPersonaResidueMemoryText } from './organic-memory-hygiene'
 import {
   parsePerformanceManifestFromMeta,
@@ -49,8 +51,10 @@ import {
   parseMemoryTuningAdvice,
   replayBenchmarkTuningAdviceMetaKey,
 } from './memory-tuning-advice'
+import { buildAlicizationPersonStateProjection } from './person-state-projection'
 import { rankSubconsciousRecallFragments } from './subconscious-recall-ranking'
 import type { AlicizationMemoryRetrievalTelemetrySnapshot } from './memory-retrieval-telemetry'
+import { buildOrganicMemoryEvolutionState } from './runtime-organic-memory-self-evolution-integration'
 import type { AlicizationSelfRevisionStatePatch } from './self-evolution/state-revision-bus'
 
 export interface CreateAlicizationOrganicMemoryAccessRuntimeOptions {
@@ -148,6 +152,7 @@ export interface CreateAlicizationOrganicMemoryAccessRuntimeOptions {
   }) => Promise<void>
   getMemoryRetrievalTelemetry?: () => Promise<AlicizationMemoryRetrievalTelemetrySnapshot | null>
   getActiveSelfRevisionStatePatch?: () => Promise<AlicizationSelfRevisionStatePatch | null>
+  getActiveSelfEvolutionCandidateId?: () => Promise<string | null>
 }
 
 export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlicizationOrganicMemoryAccessRuntimeOptions) {
@@ -155,6 +160,25 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
     value: unknown
     expiresAt: number
   }>()
+
+  function buildActiveContinuityGovernance(input: {
+    candidateId: string | null
+    activeSelfRevisionPatch: AlicizationSelfRevisionStatePatch | null
+  }) {
+    const patch = input.activeSelfRevisionPatch
+    if (!patch && !input.candidateId)
+      return null
+    return {
+      source: 'active-self-evolution-version' as const,
+      mode: 'same-her-baseline' as const,
+      candidateId: input.candidateId,
+      patchId: patch?.id ?? null,
+      decisionTraceId: patch?.decisionTraceId ?? null,
+      summary: patch?.summary ?? null,
+      lanes: patch ? [...patch.lanes] : [],
+      reasonCodes: patch ? [...patch.reasonCodes] : [],
+    }
+  }
 
   function readTransientRecallCache<T>(key: string, now = Date.now()) {
     const cached = transientRecallCache.get(key)
@@ -184,12 +208,14 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
       getMemoryTuningAdvice().catch(() => null),
     ])
     const selfRevisionPatch = await options.getActiveSelfRevisionStatePatch?.().catch(() => null) ?? null
+    const activeSelfEvolutionCandidateId = await options.getActiveSelfEvolutionCandidateId?.().catch(() => null) ?? null
     return buildAlicizationTurnRetrievalPolicySnapshot({
       recallSeed: input.recallSeed,
       recallGovernor: input.recallGovernor ?? null,
       budgetClass: input.budgetClass,
       telemetry,
       tuningAdvice,
+      activeSelfEvolutionCandidateId,
       selfRevisionPatch,
     })
   }
@@ -251,16 +277,168 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
   async function getOrganicMemorySnapshot() {
     const currentSoul = options.getSoulSnapshot() ?? await options.bootstrap()
     const activeCardId = options.getActiveCardId()
-    const [rawActiveThoughts, subconsciousCount, rawRecentSubconsciousFragments, rawLastDreamedAt, learningExecutionState] = await Promise.all([
+    const [
+      rawActiveThoughts,
+      subconsciousCount,
+      rawRecentSubconsciousFragments,
+      rawLastDreamedAt,
+      persistedLearningExecutionState,
+      recentEpisodicEvents,
+      rawMemoryConsolidations,
+      relationshipDynamics,
+      relationshipOutcomes,
+      memoryReflections,
+      personStateEvolutionSummary,
+      memoryRetrievalTelemetry,
+      activeSelfRevisionPatch,
+      activeSelfEvolutionCandidateId,
+    ] = await Promise.all([
       options.listActiveThoughts().catch(() => []),
       options.countSubconsciousFragments().catch(() => 0),
       options.listRecentSubconsciousFragments(8).catch(() => []),
       options.getMetaValue(alicizationDreamLastRunMetaKey).catch(() => undefined),
       options.getLatestLearningExecutionState?.(activeCardId).catch(() => null) ?? Promise.resolve(null),
+      options.listRecentEpisodicEvents(8).catch(() => []),
+      options.listMemoryConsolidations(16).catch(() => []),
+      options.getLatestRelationshipDynamics().catch(() => null),
+      options.listRelationshipOutcomes({
+        cardId: activeCardId,
+        limit: 8,
+      }).catch(() => []),
+      options.listMemoryReflections({
+        cardId: activeCardId,
+        limit: 8,
+      }).catch(() => []),
+      options.summarizePersonStateEvolution({
+        cardId: activeCardId,
+        limit: 16,
+      }).catch(() => ({
+        trustShift: 0,
+        closenessShift: 0,
+        repairShift: 0,
+        autonomyShift: 0,
+        burdenShift: 0,
+        executionTrustShift: 0,
+        relationshipDoctrineShift: 0,
+        latestDoctrine: null,
+        latestBurdenLine: null,
+        latestTrustMeaning: null,
+        latestDominantRung: null,
+        recentSummaries: [],
+        explanation: [],
+        updatedAt: null,
+      })),
+      options.getMemoryRetrievalTelemetry?.().catch(() => null) ?? Promise.resolve(null),
+      options.getActiveSelfRevisionStatePatch?.().catch(() => null) ?? Promise.resolve(null),
+      options.getActiveSelfEvolutionCandidateId?.().catch(() => null) ?? Promise.resolve(null),
     ])
     const parsedLastDreamedAt = Number.parseInt(String(rawLastDreamedAt ?? ''), 10)
     const activeThoughts = filterOrganicMemoryEntries(rawActiveThoughts)
     const recentSubconsciousFragments = rawRecentSubconsciousFragments.filter(fragment => !isPersonaResidueMemoryText(fragment.text))
+    const hostPersonModel = await buildHostPersonModel().catch(() => null)
+    const filteredMemoryConsolidations = rawMemoryConsolidations
+      .filter((item): item is AlicizationMemoryConsolidationRecord & { kind: 'procedural' | 'autobiographical' } => item.kind === 'procedural' || item.kind === 'autobiographical')
+    const memoryConsolidations: NonNullable<AlicizationOrganicMemorySnapshot['memoryConsolidations']> = filteredMemoryConsolidations
+      .map(item => ({
+        id: item.id,
+        kind: item.kind as 'procedural' | 'autobiographical',
+        facet: item.facet ?? null,
+        periodKey: item.periodKey,
+        periodStartedAt: item.periodStartedAt,
+        periodEndedAt: item.periodEndedAt,
+        summary: item.summary,
+        lesson: item.lesson,
+        cues: item.cues,
+        confidence: item.confidence,
+        dominantProvenance: item.dominantProvenance,
+      }))
+    const personStateProjection = buildAlicizationPersonStateProjection({
+      now: Date.now(),
+      personaAuthority: currentSoul.frontmatter.personality,
+      hostPersonModel,
+      personStateEvolutionSummary,
+      recentEpisodicEvents,
+      recentMemoryConsolidations: rawMemoryConsolidations,
+      previousContinuityState: null,
+    })
+    const affectiveResidue = buildAlicizationAffectiveResidueMemory({
+      now: Date.now(),
+      recentRelationshipOutcomes: relationshipOutcomes,
+      recentMemoryReflections: memoryReflections,
+      personStateEvolutionSummary,
+      personalityContinuityState: personStateProjection.personalityContinuityState,
+      hostPersonModel,
+      relationshipDynamics,
+    })
+    const recallLatencyPolicy = deriveAlicizationRecallLatencyPolicy({
+      budgetClass: memoryRetrievalTelemetry?.budgetClassCounts?.['realtime-reply']
+        || memoryRetrievalTelemetry?.budgetClassCounts?.['deep-recall-reply']
+        ? 'realtime-reply'
+        : 'realtime-reply',
+      shouldRecall: false,
+      stableCoreCount: 0,
+      unsafeDetailCount: 0,
+      wrongThreadRate: memoryRetrievalTelemetry?.wrongThreadRate ?? null,
+      recallMissRate: memoryRetrievalTelemetry?.recallMissRate ?? null,
+      reconstructionErrorRate: memoryRetrievalTelemetry?.reconstructionErrorRate ?? null,
+      memorySurfaceViolationRate: memoryRetrievalTelemetry?.memorySurfaceViolationRate ?? null,
+    })
+    const {
+      selfEvolution,
+      derivedMindStateBundle,
+    } = buildOrganicMemoryEvolutionState({
+      producedAt: Date.now(),
+      retrievedFacts: [],
+      proceduralMemories: [],
+      personStateEvolutionSummary,
+      hostPersonModel,
+      memoryStats: memoryRetrievalTelemetry
+        ? {
+            version: 'memory-stats-v1',
+            total: 0,
+            active: 0,
+            archived: 0,
+            lastPrunedAt: null,
+            retrievalHealth: {
+              semanticLatencyMs: null,
+              graphLatencyMs: null,
+              templateLeakageFailCount: 0,
+              reconstructionFrequency: 0,
+              reconstructedCount: 0,
+              wrongThreadRate: memoryRetrievalTelemetry.wrongThreadRate ?? 0,
+              recallMissRate: memoryRetrievalTelemetry.recallMissRate ?? 0,
+              reconstructionErrorRate: memoryRetrievalTelemetry.reconstructionErrorRate ?? 0,
+              memorySurfaceViolationRate: memoryRetrievalTelemetry.memorySurfaceViolationRate ?? 0,
+            },
+          } as any
+        : null,
+      recollectionIntent: null,
+      recollectionPlan: null,
+      recollectionSpeechPlan: null,
+      memoryDeliberation: null,
+      personStateProjection,
+      learningExecutionState: persistedLearningExecutionState,
+      recallLatencyPolicy,
+      affectiveResidue,
+      recentRelationshipOutcomes: relationshipOutcomes,
+      recentMemoryReflections: memoryReflections,
+      relationshipDynamics,
+      activeSelfEvolutionCandidateId,
+      activeSelfRevisionPatch,
+      activeContinuityGovernance: buildActiveContinuityGovernance({
+        candidateId: activeSelfEvolutionCandidateId,
+        activeSelfRevisionPatch,
+      }),
+    })
+    const activeContinuityGovernance = buildActiveContinuityGovernance({
+      candidateId: activeSelfEvolutionCandidateId,
+      activeSelfRevisionPatch,
+    })
+    const learningExecutionState = deriveAlicizationLearningExecutionProjection({
+      persistedState: persistedLearningExecutionState,
+      selfEvolution,
+      projectionMode: 'advisory-only',
+    })
 
     if (activeThoughts.length !== rawActiveThoughts.length) {
       void options.replaceActiveThoughts(activeThoughts.map(item => ({ text: item.text }))).catch(() => {})
@@ -272,7 +450,22 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
       activeThoughts,
       subconsciousCount,
       recentSubconsciousFragments,
+      recentEpisodicEvents,
+      hostPersonModel,
+      memoryConsolidations,
+      knowledgeEvidence: derivedMindStateBundle?.knowledgeEvidence ?? null,
+      activeContinuityGovernance,
+      selfEvolution,
+      affectiveResidue,
+      recallLatencyPolicy,
+      derivedMindStateBundle,
       learningExecutionState,
+      recollectionIntent: null,
+      recollectionPlan: null,
+      recollectionSpeechPlan: null,
+      recollectionForeground: null,
+      memoryStageReplay: null,
+      memoryResolutionLedger: null,
       lastDreamedAt: Number.isFinite(parsedLastDreamedAt) ? Math.max(0, parsedLastDreamedAt) : null,
     } satisfies AlicizationOrganicMemorySnapshot
   }

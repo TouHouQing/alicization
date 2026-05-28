@@ -186,14 +186,39 @@ export function buildRecollectionSpeechVisibleSurfaceRules(
   pushUnique(mustNotDo, 'Do not turn recollection into a standalone archive dump or date-recital.')
   if (controls.certainty === 'approximate' || controls.certainty === 'fragmentary')
     pushUnique(mustNotDo, 'Do not present fragmentary or approximate recollection as exact remembered wording.')
-  if (controls.continuityRole === 'procedure-carry')
+  if (controls.continuityRole === 'procedure-carry') {
+    pushUnique(mustDo, 'If same-seam procedure carry becomes visible, frame it as remembered prior procedure that keeps the current thread intact.')
+    pushUnique(mustNotDo, 'Do not turn same-seam procedure carry into retrospective narration or execution impersonation.')
     pushUnique(mustNotDo, 'Do not let remembered procedure impersonate fresh execution completion.')
+  }
 
   return {
     mustDo,
     mustNotDo,
     latentControls,
   }
+}
+
+function buildResolvedRecollectionSpeechPlan(input: {
+  plan: OrganicMemoryPromptContext['recollectionSpeechPlan'] | null | undefined
+  memoryDeliberationKernel: ReturnType<typeof buildAlicizationMemoryDeliberationKernel> | null
+}) {
+  const speechPlan = input.plan ?? null
+  const memoryDeliberationKernel = input.memoryDeliberationKernel ?? null
+  if (!speechPlan)
+    return null
+  if (!memoryDeliberationKernel)
+    return speechPlan
+  if (
+    memoryDeliberationKernel.surfacePolicy === speechPlan.surfaceMode
+    || memoryDeliberationKernel.surfacePolicy === 'internal-only'
+  ) {
+    return speechPlan
+  }
+  return {
+    ...speechPlan,
+    surfaceMode: memoryDeliberationKernel.surfacePolicy,
+  } satisfies NonNullable<OrganicMemoryPromptContext['recollectionSpeechPlan']>
 }
 
 function pushUnique(target: string[], value: string) {
@@ -268,7 +293,9 @@ export function buildAlicizationResponseSurfaceContract(input: {
   const learningExecutionState = readLearningExecutionStateFromDerivedMindStateBundle(derivedBundle)
     ?? runtimeSurface?.memory.learningExecutionState
     ?? null
-  const recollectionSpeechPlan = input.recollectionSpeechPlan ?? null
+  const recollectionSpeechPlan = input.recollectionSpeechPlan
+    ?? runtimeSurface?.memory.recollectionSpeechPlan
+    ?? null
   const memoryResolutionLedger = runtimeSurface?.memory.memoryResolutionLedger ?? null
   const memoryClosureDiscipline = deriveAlicizationMemoryClosureDiscipline(memoryResolutionLedger)
   const memoryDeliberationKernel = buildAlicizationMemoryDeliberationKernel({
@@ -276,10 +303,14 @@ export function buildAlicizationResponseSurfaceContract(input: {
       ?? runtimeSurface?.memory.memoryDeliberation
       ?? null,
     speech: recollectionSpeechPlan,
-    recollectionIntent: null,
+    recollectionIntent: (derivedBundle?.recollectionIntent as OrganicMemoryPromptContext['recollectionIntent']) ?? null,
     knowledgeEvidence: readKnowledgeEvidenceFromDerivedMindStateBundle(derivedBundle)
       ?? runtimeSurface?.memory.knowledgeEvidence
       ?? null,
+  })
+  const resolvedRecollectionSpeechPlan = buildResolvedRecollectionSpeechPlan({
+    plan: recollectionSpeechPlan,
+    memoryDeliberationKernel,
   })
   const selfRevisionPatch = input.selfRevisionPatch ?? null
   const { brief, charter } = input
@@ -434,7 +465,7 @@ export function buildAlicizationResponseSurfaceContract(input: {
     pushUnique(mustDo, item)
   for (const item of memoryDeliberationKernel?.restraint.mustNotDo ?? [])
     pushUnique(mustNotDo, item)
-  const recollectionSpeechRules = buildRecollectionSpeechVisibleSurfaceRules(recollectionSpeechPlan)
+  const recollectionSpeechRules = buildRecollectionSpeechVisibleSurfaceRules(resolvedRecollectionSpeechPlan)
   for (const item of recollectionSpeechRules.mustDo)
     pushUnique(mustDo, item)
   for (const item of recollectionSpeechRules.mustNotDo)

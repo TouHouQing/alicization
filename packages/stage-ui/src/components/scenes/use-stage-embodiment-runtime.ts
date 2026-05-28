@@ -1,5 +1,13 @@
 import type { TextSegment } from '@proj-alicization/pipelines-audio'
+import type { VrmResolvedRuntimeCapabilitySnapshot } from '../../../../stage-ui-three/src/composables/vrm/capabilities'
+import type { VrmExecutionDiagnosticsSnapshot } from '../../../../stage-ui-three/src/composables/vrm/execution-diagnostics'
 import type { VrmActionBinding } from '@proj-alicization/stage-ui-three'
+import type {
+  Live2DExecutionDiagnosticsSnapshot,
+} from '../../../../stage-ui-live2d/src/composables/live2d/execution-diagnostics'
+import type {
+  Live2DRuntimeCapabilitySnapshot,
+} from '../../../../stage-ui-live2d/src/composables/live2d/expression-runtime'
 import type { ComputedRef, Ref } from 'vue'
 
 import type { EmotionPayload } from '../../constants/emotions'
@@ -53,6 +61,8 @@ export interface UseStageEmbodimentRuntimeOptions {
   enqueueEmotion: (emotion: EmotionPayload) => void
   focusAt: Readonly<Ref<Point2D>>
   live2dActionCapabilities: ComputedRef<Live2DActionCapability[]>
+  live2dExecutionDiagnostics?: Readonly<Ref<Live2DExecutionDiagnosticsSnapshot | null | undefined>>
+  live2dRuntimeCapabilities?: Readonly<Ref<Live2DRuntimeCapabilitySnapshot | null | undefined>>
   mouthOpenSize: Ref<number>
   runtimeDigest?: Readonly<Ref<AlicizationRuntimeDigest | null>>
   paused: Readonly<Ref<boolean>>
@@ -69,6 +79,8 @@ export interface UseStageEmbodimentRuntimeOptions {
   stageBounds: Readonly<Ref<Size2D>>
   stageModelRenderer: Ref<StageModelRenderer>
   vrmActionBindings: Readonly<Ref<VrmActionBinding[]>>
+  vrmExecutionDiagnostics?: Readonly<Ref<VrmExecutionDiagnosticsSnapshot | null | undefined>>
+  vrmRuntimeCapabilities?: Readonly<Ref<VrmResolvedRuntimeCapabilitySnapshot | null | undefined>>
 }
 
 export function useStageEmbodimentRuntime(options: UseStageEmbodimentRuntimeOptions) {
@@ -119,6 +131,10 @@ export function useStageEmbodimentRuntime(options: UseStageEmbodimentRuntimeOpti
   })
   const diagnostics = useStageEmbodimentDiagnostics({
     activePresence: attention.activePresence,
+    digitalLifeSpineDigest: visualPresence.digitalLifeSpineDigest,
+    live2dExecutionDiagnostics: options.live2dExecutionDiagnostics,
+    live2dRuntimeCapabilities: options.live2dRuntimeCapabilities,
+    performanceState: performance.state,
     playbackTelemetry: speech.playbackTelemetry,
     runtimeDigest: options.runtimeDigest,
     presencePosture: posture.presencePosture,
@@ -126,6 +142,8 @@ export function useStageEmbodimentRuntime(options: UseStageEmbodimentRuntimeOpti
     stageBounds: options.stageBounds,
     targetPoint: attention.live2dFocusAt,
     visualPresenceState: visualPresence.state,
+    vrmExecutionDiagnostics: options.vrmExecutionDiagnostics,
+    vrmRuntimeCapabilities: options.vrmRuntimeCapabilities,
   })
   const idlePerformance = useStageEmbodimentIdlePerformance({
     live2dActionCapabilities: options.live2dActionCapabilities,

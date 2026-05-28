@@ -1,0 +1,183 @@
+<style>
+  .hero {
+    display: grid;
+    grid-template-columns: 1.2fr 0.8fr;
+    gap: 22px;
+    margin-top: 18px;
+  }
+  .box {
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 18px;
+    padding: 18px;
+    background: rgba(255,255,255,0.04);
+  }
+  .small {
+    font-size: 13px;
+    color: rgba(255,255,255,0.72);
+    line-height: 1.55;
+  }
+  .stack {
+    display: grid;
+    gap: 12px;
+    margin-top: 14px;
+  }
+  .layer {
+    border-radius: 14px;
+    padding: 14px 16px;
+    border: 1px solid rgba(255,255,255,0.12);
+  }
+  .l1 { background: rgba(56,189,248,0.10); }
+  .l2 { background: rgba(52,211,153,0.10); }
+  .l3 { background: rgba(250,204,21,0.10); }
+  .l4 { background: rgba(248,113,113,0.10); }
+  .title {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: baseline;
+  }
+  .title h3 {
+    margin: 0;
+    font-size: 18px;
+  }
+  .tag {
+    font-size: 12px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.10);
+  }
+  .flow {
+    display: grid;
+    gap: 10px;
+    margin-top: 10px;
+  }
+  .node {
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: rgba(0,0,0,0.16);
+    border: 1px solid rgba(255,255,255,0.08);
+    font-size: 13px;
+  }
+  .good {
+    color: #86efac;
+  }
+  .warn {
+    color: #fca5a5;
+  }
+  .cols {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-top: 22px;
+  }
+  .list {
+    margin: 10px 0 0;
+    padding-left: 18px;
+    line-height: 1.6;
+  }
+  .options {
+    margin-top: 22px;
+  }
+  @media (max-width: 1050px) {
+    .hero, .cols {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+
+<h2>推荐架构：单一演出总线</h2>
+<p class="subtitle">核心原则：`心智治理` 只决定“她为什么说、该说什么、说话时是什么状态”；`具身导演层` 负责把这些信息变成一条统一时间线，再由声音、口型、表情、动作各自执行。</p>
+
+<div class="hero">
+  <div class="box">
+    <h3>目标层级</h3>
+    <div class="stack">
+      <div class="layer l1">
+        <div class="title">
+          <h3>1. Mind Authority</h3>
+          <span class="tag">Main Runtime</span>
+        </div>
+        <p class="small">保留你现在最强的部分：`mind-turn-v1`、truth discipline、dialogue governance、digital-life spine。它只产出“被治理后的回复事实”和“当前生命状态”，不直接操心具体怎么张嘴、眨眼、抬手。</p>
+      </div>
+
+      <div class="layer l2">
+        <div class="title">
+          <h3>2. Embodiment Director</h3>
+          <span class="tag">新增权威层</span>
+        </div>
+        <p class="small">把 `reply + thought-derived performance + speechTimeline + digitalLifeSpine + resident state` 收束成统一的 `performance script`。这层才是 Live2D/语音演出的单一真相来源。</p>
+      </div>
+
+      <div class="layer l3">
+        <div class="title">
+          <h3>3. Execution Drivers</h3>
+          <span class="tag">可替换执行器</span>
+        </div>
+        <p class="small">拆成 4 个执行器并行消费同一脚本：`Speech Planner/TTS`、`LipSync Driver`、`Face Driver`、`Motion Driver`。它们不再彼此猜测，而是共享同一时序、同一 cue、同一 interruption policy。</p>
+      </div>
+
+      <div class="layer l4">
+        <div class="title">
+          <h3>4. Telemetry & Repair</h3>
+          <span class="tag">回流层</span>
+        </div>
+        <p class="small">采集真实播放时长、TTS 首包延迟、打断点、mouth drift、表情动作丢失、renderer failure，回流给 director 和 runtime，形成“越用越稳”的闭环。</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="box">
+    <h3>一条标准闭环</h3>
+    <div class="flow">
+      <div class="node">User turn / quiet presence trigger</div>
+      <div class="node">Alicization Runtime 产出 `mind-turn-v1`</div>
+      <div class="node">Embodiment Director 产出 `performance script`</div>
+      <div class="node">Speech Planner 分段、优先级、可打断策略</div>
+      <div class="node">TTS 输出 audio + phoneme/energy metadata</div>
+      <div class="node">LipSync / Face / Motion 同步消费</div>
+      <div class="node">Playback telemetry 回流修正 resident state</div>
+    </div>
+    <p class="small" style="margin-top:12px">
+      重点不是“模块更多”，而是每一层只做一件事，并且上层不直接越级操作下层。
+    </p>
+  </div>
+</div>
+
+<div class="cols">
+  <div class="box">
+    <h3>当前架构最需要修正的点</h3>
+    <ul class="list">
+      <li><span class="warn">并行派发过强</span>：`presence dispatcher` 现在更像是把 performance/tts 平行扔给多个 controller。</li>
+      <li><span class="warn">统一时序不足</span>：`speechTimeline`、`digitalLifeEnvelope`、实际音频播放、Live2D 口型循环之间有抽象，但还没有单一 timeline authority。</li>
+      <li><span class="warn">状态回流不完整</span>：真实播放、打断、掉帧、动作失败没有充分反向塑造下一次 resident performance。</li>
+      <li><span class="warn">Renderer 抽象偏晚</span>：Live2D/VRM 差异更多在执行端兜底，而不是在导演层先收敛。</li>
+    </ul>
+  </div>
+
+  <div class="box">
+    <h3>为什么这条路适合你现在的仓库</h3>
+    <ul class="list">
+      <li><span class="good">不推翻心智层</span>：保留 `Alicization` 的 runtime / governance / truth discipline 资产。</li>
+      <li><span class="good">先强化 Live2D</span>：一期只把 Live2D 做成主栈，VRM 以后作为第二执行器接入。</li>
+      <li><span class="good">先适合桌宠形态</span>：最适合你当前要的按钮/聊天框交互，不被全双工音频系统拖死。</li>
+      <li><span class="good">天然支持以后升级</span>：后续加 VAD、半双工、全双工时，只要增强 Speech Planner 和 interruption protocol，不需要推倒整套人格层。</li>
+    </ul>
+  </div>
+</div>
+
+<div class="options">
+  <div class="option" data-choice="architecture-looks-right" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>这个骨架对</h3>
+      <p>继续往下讲模块边界、数据契约和阶段规划。</p>
+    </div>
+  </div>
+  <div class="option" data-choice="architecture-adjust" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>需要调整</h3>
+      <p>我会根据你指出的问题，重画这一层级关系再继续。</p>
+    </div>
+  </div>
+</div>

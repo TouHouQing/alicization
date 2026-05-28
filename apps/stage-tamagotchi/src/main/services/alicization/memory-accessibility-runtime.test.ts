@@ -245,6 +245,7 @@ describe('memory-accessibility-runtime', () => {
     const snapshot = buildAlicizationTurnRetrievalPolicySnapshot({
       recallSeed: '这条旧关系线现在还能不能接着用',
       budgetClass: 'realtime-reply',
+      activeSelfEvolutionCandidateId: 'candidate-relationship-1',
       telemetry: {
         recallAt3: 0.88,
         recallHitRate: 0.82,
@@ -302,6 +303,7 @@ describe('memory-accessibility-runtime', () => {
     expect(snapshot.policy.provenanceLabelingBias).toBeGreaterThan(0.2)
     expect(snapshot.policy.reasonCodes).toContain('self-revision-memory-policy-active')
     expect(snapshot.selfRevisionPatch?.id).toBe('revision-1')
+    expect(snapshot.activeSelfEvolutionCandidateId).toBe('candidate-relationship-1')
     expect(snapshot.plan.verificationStrictness).toBe('quarantine')
   })
 })

@@ -1400,6 +1400,118 @@ describe('buildAnswerCompiler', () => {
     expect(buildAnswerCompilerSystemBlock(compiler)).toContain('Memory why now:')
   })
 
+  it('threads derived procedural continuity intent into compiler-level same-seam memory discipline', () => {
+    const runtimeSurface = buildAlicizationDigitalLifeRuntimeSurface({
+      ...createDefaultVisualPresenceState(71_000),
+      discourseState: {
+        ...repairDiscourse,
+        currentTurnSubject: 'task-knot',
+        screenReferenceMode: 'helpful',
+        currentTurnSummary: 'Continue the same runtime seam without branching away.',
+        owedAction: 'guide-task',
+        relationMove: 'guide',
+      },
+      mindSynthesis: {
+        ...repairMind,
+        answerSubject: 'task-knot',
+        relationMove: 'guide',
+        speechObligation: 'guide-task',
+        openingIntent: 'Stay on the same active dialogue seam before branching.',
+        truthBoundary: 'Only the stable procedure core should surface.',
+        interiorSummary: 'The current seam should carry through as remembered procedure, not retrospective narration.',
+      },
+    })
+    runtimeSurface.memory.recollectionSpeechPlan = {
+      shouldSurface: true,
+      surfaceMode: 'answer-anchoring',
+      placement: 'inside-payoff',
+      certainty: 'approximate',
+      confidence: 0.84,
+      internalLead: 'The active runtime seam should keep shaping the live answer.',
+      visibleLead: 'It still feels like the same seam.',
+      styleNote: 'Keep the remembered seam inside the live payoff.',
+      rationale: 'The turn is still on the same runtime seam.',
+    } as any
+    runtimeSurface.memory.memoryDeliberation = {
+      shouldRecall: true,
+      surfacePolicy: 'answer-anchoring',
+      confidence: 0.85,
+      whyNow: 'The active runtime seam should keep shaping the live answer.',
+      stableCore: ['Stay on the same active dialogue seam before branching.'],
+      unsafeDetails: [],
+      selectedPeriods: [],
+      selectedEras: [{
+        id: 'era-runtime',
+        facet: 'task-era',
+        summary: 'That task era kept returning to the same active dialogue seam.',
+      }],
+      selectedEpisodes: [],
+      selectedProcedures: [{
+        label: 'active dialogue seam first',
+        approach: 'Stay on the same active dialogue seam before branching.',
+      }],
+      selectedBundles: [{
+        id: 'bundle-runtime',
+        summary: 'The active dialogue seam kept holding the same runtime thread.',
+        confidence: 0.85,
+      }],
+      selectedChains: [{
+        kind: 'task-procedure',
+        summary: 'The answer should continue from the same active dialogue seam.',
+        currentStance: 'Stay on the same active dialogue seam.',
+        answerPosture: 'Carry the same active dialogue seam before widening out.',
+        confidence: 0.84,
+      }],
+      selectedRelationshipLines: [],
+      followUpAffordance: {
+        summary: 'Carry the same active dialogue seam inside the current payoff.',
+        whyNow: 'The host is still in the same runtime repair lane.',
+        intrusionRisk: 'low',
+        payoffDependency: 'can-surface-softly',
+        preferredTiming: 'same-turn-if-invited',
+      },
+    } as any
+    runtimeSurface.memory.derivedMindStateBundle = {
+      version: 'derived-mind-state-bundle-v1',
+      source: 'main-runtime',
+      producedAt: 71_000,
+      hostPersonModel: null,
+      personStateProjection: null,
+      knowledgeEvidence: null,
+      selfEvolution: null,
+      learningExecutionState: null,
+      recollectionIntent: {
+        mode: 'execution-procedure',
+        temporalFocus: 'experience-matched',
+        confidence: 0.86,
+        rationale: 'The turn is continuing the same runtime seam.',
+        recollectionAgenda: {
+          goalSimilarity: 0.92,
+          relationshipNeed: 0.12,
+          uncertaintyTolerance: 'medium',
+          candidateProcedureLines: ['active-dialogue', 'runtime seam'],
+        },
+      },
+      recollectionPlan: null,
+      recollectionSpeechPlan: runtimeSurface.memory.recollectionSpeechPlan as any,
+      memoryDeliberation: runtimeSurface.memory.memoryDeliberation as any,
+      dialogueRhythm: null,
+      summary: 'surface=answer-anchoring | deliberation=answer-anchoring | recollection=execution-procedure',
+    }
+
+    const compiler = buildAnswerCompiler({
+      now: 71_000,
+      runtimeSurface,
+    })
+
+    expect(compiler?.mustDo).toContain(
+      'If same-seam procedure carry becomes visible, frame it as remembered prior procedure that keeps the current thread intact.',
+    )
+    expect(compiler?.mustNotDo).toContain(
+      'Do not turn same-seam procedure carry into retrospective narration or execution impersonation.',
+    )
+  })
+
   it('keeps intrusive memory follow-up inward at the compiler layer when the deliberation kernel marks it high-risk', () => {
     const runtimeSurface = buildAlicizationDigitalLifeRuntimeSurface({
       ...createDefaultVisualPresenceState(72_000),
@@ -1586,5 +1698,201 @@ describe('buildAnswerCompiler', () => {
     expect(compiler?.mustDo).toContain('When memory or learned carry enters the answer, bias toward explicit provenance instead of seamless certainty.')
     expect(compiler?.mustDo.some(item => item.includes('explicit provenance') || item.includes('current verification pass'))).toBe(true)
     expect(compiler?.mustNotDo).toContain('Do not let learned confidence spill into unsupported technical specificity.')
+  })
+
+  it('turns combined provenance and closeness tuning into remembered-familiarity discipline inside the compiled spine', () => {
+    const runtimeSurface = buildAlicizationDigitalLifeRuntimeSurface({
+      ...createDefaultVisualPresenceState(96_500),
+      discourseState: {
+        ...repairDiscourse,
+        currentTurnSubject: 'task-knot',
+        screenReferenceMode: 'helpful' as any,
+        currentTurnSummary: 'Answer directly without letting remembered familiarity rush the opening.',
+        owedAction: 'guide-task' as any,
+        relationMove: 'guide',
+      },
+      mindSynthesis: {
+        ...repairMind,
+        answerSubject: 'task-knot',
+        relationMove: 'guide',
+        speechObligation: 'guide-task' as any,
+        openingIntent: 'Answer the current knot, but keep remembered familiarity inside the same-her room.',
+        truthBoundary: 'Remembered closeness should not impersonate the current turn.',
+        interiorSummary: 'If familiarity appears, it should stay explicitly remembered before closeness widens.',
+      },
+    })
+    runtimeSurface.memory.memoryTuningAdvice = {
+      version: 'memory-tuning-advice-v1',
+      source: 'nightly-replay-benchmark',
+      updatedAt: 96_500,
+      sourceReportAt: 96_500,
+      focusDimensions: ['relationshipTimingDiscipline'],
+      retrievalAdjustments: {
+        proceduralBoost: 0,
+        relationshipBoost: 0,
+        temporalWindowBias: 0,
+        wrongThreadPenalty: 0,
+      },
+      surfaceAdjustments: {
+        inwardCarryBias: 0,
+        delayUntilAfterPayoffBias: 0,
+        provenanceLabelBias: 0.18,
+        specificityClampBias: 0,
+      },
+      personStateAdjustments: {
+        repairWindowBias: 0,
+        closenessCapBias: 0.18,
+      },
+      notes: ['Remembered familiarity reopened visible closeness too quickly.'],
+    }
+
+    const compiler = buildAnswerCompiler({
+      now: 96_500,
+      runtimeSurface,
+    })
+
+    expect(compiler?.mustDo).toContain('If remembered familiarity enters, keep it explicitly framed as memory before using it to shape visible closeness.')
+    expect(compiler?.mustNotDo).toContain('Do not let remembered familiarity reopen visible closeness faster than the host\'s current room allows.')
+  })
+
+  it('lets long-horizon self-evolution soften compiled opening pressure before persona projection fully catches up', () => {
+    const runtimeSurface = buildAlicizationDigitalLifeRuntimeSurface({
+      ...createDefaultVisualPresenceState(97_000),
+      discourseState: {
+        ...repairDiscourse,
+        currentTurnSubject: 'task-knot',
+        screenReferenceMode: 'helpful' as any,
+        currentTurnSummary: 'Answer directly, but stay on the same focused work line.',
+        owedAction: 'guide-task' as any,
+        relationMove: 'guide',
+      },
+      mindSynthesis: {
+        ...repairMind,
+        answerSubject: 'task-knot',
+        relationMove: 'guide',
+        speechObligation: 'guide-task' as any,
+        openingIntent: 'Open with the live answer and keep the thread intact.',
+        truthBoundary: 'Keep the answer grounded in the current work knot.',
+        interiorSummary: 'The answer should land without crowding the host.',
+      },
+      privateThought: {
+        stance: 'nudge',
+        confidence: 0.82,
+        rationaleTags: [],
+        thoughtText: 'The host is still on the same focused work knot.',
+        shouldSpeak: true,
+        suggestedStyle: 'light-nudge',
+        embodiedPresence: 'attentive',
+        expiresAt: 140_000,
+        afterglowFromScenario: null,
+        emotionalTension: 'focused-flow',
+      },
+    })
+    runtimeSurface.memory.selfEvolution = {
+      version: 'self-evolution-kernel-v1',
+      updatedAt: 96_500,
+      evolutionMomentum: 0.66,
+      learningReadiness: 0.76,
+      contradictionPressure: 0.08,
+      revisionPressure: 0.14,
+      autobiographicalStability: 0.82,
+      dominantTrajectory: 'earned lower-pressure companionship timing',
+      relationshipDoctrine: 'Leave more room before closeness reopens.',
+      latestInflection: 'Even when the opening is real, pressure lands worse than a slower return.',
+      burdenLine: 'Focused work gets overloaded quickly by extra conversational pressure.',
+      trustMeaning: 'Trust holds better when the opening stays lower-pressure and less eager.',
+      nextLearningAction: 'internalize',
+      nextLearningReason: 'The lower-pressure return is stable enough to become durable.',
+      shouldRecord: false,
+      shouldReflect: false,
+      shouldVerify: false,
+      shouldRevise: false,
+      shouldInternalize: true,
+      activeLearningFocuses: ['internalize-relationship'],
+      sourceSignals: ['relationship-learning'],
+      summary: 'Lower-pressure return is becoming durable relationship timing.',
+    } as any
+
+    const compiler = buildAnswerCompiler({
+      now: 97_000,
+      runtimeSurface,
+    })
+
+    expect(compiler?.openingDirective).toContain('Keep the opening lower-pressure and leave room before widening closeness.')
+    expect(compiler?.mustDo).toContain('Let long-horizon relationship timing keep the answer lower-pressure before closeness widens again.')
+    expect(compiler?.mustNotDo).toContain('Do not let eager warmth or older closeness tempo reopen faster than this learned relationship timing supports.')
+  })
+
+  it('threads active same-her continuity governance into the compiled visible reply spine', () => {
+    const runtimeSurface = buildAlicizationDigitalLifeRuntimeSurface({
+      ...createDefaultVisualPresenceState(98_000),
+      discourseState: {
+        ...repairDiscourse,
+        currentTurnSubject: 'task-knot',
+        screenReferenceMode: 'helpful' as any,
+        currentTurnSummary: 'Answer directly, but do not slip into an off-baseline persona move.',
+        owedAction: 'guide-task' as any,
+        relationMove: 'guide',
+      },
+      mindSynthesis: {
+        ...repairMind,
+        answerSubject: 'task-knot',
+        relationMove: 'guide',
+        speechObligation: 'guide-task' as any,
+        openingIntent: 'Open from the live answer and keep the same-her line intact.',
+        truthBoundary: 'Do not let fluency outrun personhood continuity.',
+        interiorSummary: 'The answer should still read as the same her.',
+      },
+      privateThought: {
+        stance: 'nudge',
+        confidence: 0.82,
+        rationaleTags: [],
+        thoughtText: 'She should answer from the same line, not from a smoother but stranger persona move.',
+        shouldSpeak: true,
+        suggestedStyle: 'light-nudge',
+        embodiedPresence: 'attentive',
+        expiresAt: 140_000,
+        afterglowFromScenario: null,
+        emotionalTension: 'focused-flow',
+      },
+    })
+    runtimeSurface.memory.derivedMindStateBundle = {
+      version: 'derived-mind-state-bundle-v1',
+      source: 'main-runtime',
+      producedAt: 98_000,
+      hostPersonModel: null,
+      personStateProjection: null,
+      knowledgeEvidence: null,
+      activeSelfRevision: null,
+      activeContinuityGovernance: {
+        source: 'active-self-evolution-version',
+        mode: 'same-her-baseline',
+        candidateId: 'candidate-same-her-compiler-1',
+        patchId: 'patch-same-her-compiler-1',
+        decisionTraceId: 'trace-same-her-compiler-1',
+        summary: 'Keep truth discipline and measured warmth aligned so she still reads as the same her.',
+        lanes: ['response-posture', 'relationship-posture'],
+        reasonCodes: ['domain:relationship', 'same-her-baseline'],
+      },
+      selfEvolution: null,
+      affectiveResidue: null,
+      learningExecutionState: null,
+      recallLatencyPolicy: null,
+      recollectionIntent: null,
+      recollectionPlan: null,
+      recollectionSpeechPlan: null,
+      memoryDeliberation: null,
+      dialogueRhythm: null,
+      summary: 'continuity=same-her-baseline | anchor=candidate-same-her-compiler-1',
+    }
+
+    const compiler = buildAnswerCompiler({
+      now: 98_000,
+      runtimeSurface,
+    })
+
+    expect(compiler?.openingDirective).toContain('Stay inside the current same-her baseline.')
+    expect(compiler?.mustDo).toContain('Keep the visible reply aligned with the current same-her baseline instead of optimizing for a smoother but off-baseline persona move.')
+    expect(compiler?.mustNotDo).toContain('Do not let fluency, warmth, or style drift outrun the currently adopted same-her continuity baseline.')
   })
 })

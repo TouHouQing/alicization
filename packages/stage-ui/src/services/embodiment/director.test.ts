@@ -1,3 +1,7 @@
+import type { AlicizationResidentPerformanceSnapshot } from '../../stores/alicization-bridge'
+import type { BuildAlicizationEmbodimentScriptInput } from './director'
+
+import { createIdleStageEmbodimentMotorState } from '@proj-alicization/stage-shared'
 import { describe, expect, it } from 'vitest'
 
 import { buildAlicizationEmbodimentScript } from './director'
@@ -7,11 +11,11 @@ function createSeed(overrides?: Partial<{
   turnId: string
   replyText: string
   residentMode: 'speaking' | 'recovering'
-}>){
+}>): BuildAlicizationEmbodimentScriptInput['seed'] {
   return {
-    decisionTraceId: 'trace-1',
-    turnId: 'turn-1',
-    replyText: '你好，我们慢慢来。',
+    decisionTraceId: overrides?.decisionTraceId ?? 'trace-1',
+    turnId: overrides?.turnId ?? 'turn-1',
+    replyText: overrides?.replyText ?? '你好，我们慢慢来。',
     performance: {
       baseEmotion: 'concerned',
       emotion: 'concerned',
@@ -28,7 +32,7 @@ function createSeed(overrides?: Partial<{
           variationToken: 'life-1',
           emotion: 'concerned' as const,
           mode: overrides.residentMode,
-          postureHint: 'speaking' as const,
+          postureHint: 'concerned' as const,
           performance: {
             baseEmotion: 'concerned' as const,
             emotion: 'concerned' as const,
@@ -38,10 +42,8 @@ function createSeed(overrides?: Partial<{
             emphasis: 1 as const,
           },
           speechStyle: {
-            voiceName: 'default',
             pitchDelta: 0,
             rateMultiplier: 1,
-            stylePrompt: 'gentle',
           },
           voice: {
             pitchDelta: 0,
@@ -69,23 +71,15 @@ function createSeed(overrides?: Partial<{
             intensity: 0.2,
             holdMs: 120,
           },
-          motor: {
-            emotion: 'concerned',
-            expression: 'neutral',
-            action: 'idle',
-            intensity: 0.5,
-            mouthOpen: 0,
-            gazeTarget: null,
-          },
+          motor: createIdleStageEmbodimentMotorState(),
           frames: [],
         }
       : null,
     digitalLifeSpine: null,
-    ...overrides,
   }
 }
 
-function createResidentPerformance(source: 'main-runtime' | 'browser-fallback') {
+function createResidentPerformance(source: 'main-runtime' | 'browser-fallback'): AlicizationResidentPerformanceSnapshot {
   return {
     version: 'resident-performance-v1' as const,
     source,
@@ -103,6 +97,28 @@ function createResidentPerformance(source: 'main-runtime' | 'browser-fallback') 
     confidence: 0.8,
     reasonTags: ['care'],
     signature: `resident-${source}`,
+    updatedAt: 1,
+  }
+}
+
+function createQuietAccompanimentResidentPerformance(): AlicizationResidentPerformanceSnapshot {
+  return {
+    version: 'resident-performance-v1' as const,
+    source: 'main-runtime',
+    performance: {
+      baseEmotion: 'thinking' as const,
+      emotion: 'thinking' as const,
+      facialCue: 'focus',
+      actionCue: 'steady_focus',
+      delivery: 'gentle' as const,
+      emphasis: 2 as const,
+    },
+    embodiedPresence: 'attentive' as const,
+    stance: 'accompany' as const,
+    emotionalTension: 'soft-covision' as const,
+    confidence: 0.84,
+    reasonTags: ['subconscious-proactive', 'silent-observe', 'continuity:quiet-accompaniment'],
+    signature: 'resident|main-runtime|accompanying|quiet-accompaniment|subconscious-proactive|silent-observe',
     updatedAt: 1,
   }
 }
@@ -226,5 +242,213 @@ describe('embodiment director', () => {
     expect(script.speechPlan.segments).toHaveLength(2)
     expect(script.speechPlan.segments.map(segment => segment.id)).toEqual(['segment-1', 'segment-2'])
     expect(script.speechPlan.interruptPolicy).toBe('hard-stop')
+  })
+
+  it('creates per-segment face and motion cues for multi-segment chinese guidance turns', () => {
+    const script = buildAlicizationEmbodimentScript({
+      seed: {
+        ...createSeed(),
+        speechTimeline: {
+          version: 'speech-timeline-v1',
+          variationToken: 'turn-1',
+          reply: '先看这里。然后点保存。',
+          emotion: 'thinking',
+          segments: [
+            {
+              id: 'segment-1',
+              index: 0,
+              startOffset: 0,
+              endOffset: 5,
+              text: '先看这里。',
+              emotion: 'thinking',
+              gestureWeight: 0.24,
+              facialWeight: 0.38,
+              prosodyWeight: 0.42,
+              beatWeight: 0.48,
+              facialHoldMs: 360,
+              actionHoldMs: 140,
+              actionCue: 'point_screen',
+              facialCue: 'focused',
+              actionWindow: 'segment-start',
+              interruptMode: 'soft-interrupt',
+            },
+            {
+              id: 'segment-2',
+              index: 1,
+              startOffset: 5,
+              endOffset: 11,
+              text: '然后点保存。',
+              emotion: 'happy',
+              gestureWeight: 0.36,
+              facialWeight: 0.54,
+              prosodyWeight: 0.46,
+              beatWeight: 0.52,
+              facialHoldMs: 420,
+              actionHoldMs: 180,
+              actionCue: 'idle_gentle_nod',
+              facialCue: 'reassure_smile',
+              actionWindow: 'cadence-peak',
+              interruptMode: 'soft-interrupt',
+            },
+          ],
+        },
+      },
+      manifest: {
+        renderer: 'live2d',
+        supportedBaseEmotions: ['neutral', 'concerned', 'thinking', 'happy'],
+        supportedFacialCues: [],
+        supportedActions: [],
+        supportsLookAt: true,
+        supportsVisemeLipSync: true,
+        supportsMicroDynamics: true,
+      },
+      residentPerformance: null,
+      rendererTarget: 'live2d',
+    })
+
+    expect(script.facePlan.speakingCues.map(cue => cue.segmentId)).toEqual(['segment-1', 'segment-2'])
+    expect(script.facePlan.speakingCues.map(cue => cue.facialCue)).toEqual(['focused', 'reassure_smile'])
+    expect(script.facePlan.speakingCues.map(cue => cue.emotion)).toEqual(['thinking', 'happy'])
+    expect(script.facePlan.speakingCues.map(cue => cue.source)).toEqual(['prosody-authority', 'prosody-authority'])
+    expect(script.facePlan.speakingCues.map(cue => cue.confidence)).toEqual([0.94, 0.94])
+    expect(script.motionPlan.actionBursts.map(burst => burst.segmentId)).toEqual(['segment-1', 'segment-2'])
+    expect(script.motionPlan.actionBursts.map(burst => burst.actionCue)).toEqual(['point_screen', 'idle_gentle_nod'])
+    expect(script.motionPlan.actionBursts.map(burst => burst.source)).toEqual(['timeline-projection', 'timeline-projection'])
+    expect(script.motionPlan.actionBursts.map(burst => burst.confidence)).toEqual([0.88, 0.88])
+    expect(script.speechPlan.segments[0]?.settleMs).toBeGreaterThan(140)
+    expect(script.speechPlan.segments[1]?.settleMs).toBeGreaterThan(180)
+    expect(script.motionPlan.actionBursts[0]?.holdMs).toBe(140)
+    expect(script.motionPlan.actionBursts[1]?.holdMs).toBe(180)
+  })
+
+  it('keeps quiet-companionship fallback scripts aligned to steady focus when resident authority is silent-observe accompaniment', () => {
+    const script = buildAlicizationEmbodimentScript({
+      seed: {
+        ...createSeed({
+          turnId: 'turn-quiet-companionship-1',
+          replyText: '我在这里继续陪着你。',
+        }),
+        performance: {
+          baseEmotion: 'thinking',
+          emotion: 'thinking',
+          facialCue: 'focus',
+          actionCue: 'steady_focus',
+          delivery: 'gentle',
+          emphasis: 2,
+        },
+        speechTimeline: {
+          version: 'speech-timeline-v1',
+          variationToken: 'turn-quiet-companionship-1',
+          reply: '我在这里继续陪着你。',
+          emotion: 'thinking',
+          segments: [
+            {
+              id: 'segment-1',
+              index: 0,
+              startOffset: 0,
+              endOffset: 11,
+              text: '我在这里继续陪着你。',
+              emotion: 'thinking',
+              gestureWeight: 0.24,
+              facialWeight: 0.38,
+              prosodyWeight: 0.42,
+              beatWeight: 0.48,
+              facialHoldMs: 160,
+              actionHoldMs: 160,
+              actionCue: 'observe_focus',
+              facialCue: 'focus',
+              actionWindow: 'none',
+              interruptMode: 'continue',
+            },
+          ],
+        },
+      },
+      manifest: {
+        renderer: 'vrm',
+        supportedBaseEmotions: ['neutral', 'thinking'],
+        supportedFacialCues: [],
+        supportedActions: [
+          { key: 'steady_focus', label: 'Steady Focus', description: 'steady focus', source: 'builtin' },
+          { key: 'observe_focus', label: 'Observe Focus', description: 'observe focus', source: 'builtin' },
+        ],
+        supportsLookAt: true,
+        supportsVisemeLipSync: true,
+        supportsMicroDynamics: true,
+      } as any,
+      residentPerformance: createQuietAccompanimentResidentPerformance(),
+      rendererTarget: 'vrm',
+    })
+
+    expect(script.state.residentMode).toBe('quiet-companionship')
+    expect(script.motionPlan.idleBase).toBe('steady_focus')
+    expect(script.motionPlan.actionBursts[0]?.actionCue).toBe('steady_focus')
+    expect(script.facePlan.speakingCues[0]?.facialCue).toBe('focus')
+  })
+
+  it('keeps quiet-companionship fallback scripts in a low-interruption accompaniment posture across speech, face, and attention planning', () => {
+    const script = buildAlicizationEmbodimentScript({
+      seed: {
+        ...createSeed({
+          turnId: 'turn-quiet-companionship-posture-1',
+          replyText: '我先在旁边看着，你继续就好。',
+        }),
+        performance: {
+          baseEmotion: 'thinking',
+          emotion: 'thinking',
+          facialCue: 'focus',
+          actionCue: 'steady_focus',
+          delivery: 'gentle',
+          emphasis: 1,
+        },
+        speechTimeline: {
+          version: 'speech-timeline-v1',
+          variationToken: 'turn-quiet-companionship-posture-1',
+          reply: '我先在旁边看着，你继续就好。',
+          emotion: 'thinking',
+          segments: [
+            {
+              id: 'segment-1',
+              index: 0,
+              startOffset: 0,
+              endOffset: 14,
+              text: '我先在旁边看着，你继续就好。',
+              emotion: 'thinking',
+              gestureWeight: 0.18,
+              facialWeight: 0.28,
+              prosodyWeight: 0.36,
+              beatWeight: 0.32,
+              facialHoldMs: 220,
+              actionHoldMs: 220,
+              actionCue: 'observe_focus',
+              facialCue: 'focus',
+              actionWindow: 'none',
+              interruptMode: 'soft-interrupt',
+            },
+          ],
+        },
+      },
+      manifest: {
+        renderer: 'vrm',
+        supportedBaseEmotions: ['neutral', 'thinking'],
+        supportedFacialCues: [],
+        supportedActions: [
+          { key: 'steady_focus', label: 'Steady Focus', description: 'steady focus', source: 'builtin' },
+          { key: 'observe_focus', label: 'Observe Focus', description: 'observe focus', source: 'builtin' },
+        ],
+        supportsLookAt: true,
+        supportsVisemeLipSync: true,
+        supportsMicroDynamics: true,
+      } as any,
+      residentPerformance: createQuietAccompanimentResidentPerformance(),
+      rendererTarget: 'vrm',
+    })
+
+    expect(script.state.residentMode).toBe('quiet-companionship')
+    expect(script.speechPlan.interruptPolicy).toBe('soft-settle')
+    expect(script.facePlan.preUtteranceCue).toBe('soft-breath')
+    expect(script.facePlan.postUtteranceCue).toBe('soft-release')
+    expect(script.motionPlan.attentionMode).toBe('ambient')
+    expect(script.motionPlan.idleBase).toBe('steady_focus')
+    expect(script.motionPlan.actionBursts[0]?.actionCue).toBe('steady_focus')
   })
 })

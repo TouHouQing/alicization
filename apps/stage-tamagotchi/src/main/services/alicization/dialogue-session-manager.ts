@@ -4,6 +4,7 @@ import type { AlicizationDigitalLifeSpineSnapshot } from './digital-life-spine'
 import type { AlicizationMainChatRuntimeSurface } from './main-chat-runtime-surface'
 import type { OrganicMemoryPromptContext } from './runtime-soul'
 
+import { deriveAlicizationRuntimeSnapshot } from './alicization-runtime-architecture'
 import { deriveAlicizationDialogueMemoryCarryPolicy } from './dialogue-memory-governor'
 import {
   deriveAlicizationDigitalLifeSpineFromSurface,
@@ -18,6 +19,8 @@ export interface AlicizationDialogueSessionMirror {
   dialogueSummary: string | null
   digitalLifeArchitectureSummary: string | null
   digitalLifeRuntimeSummary: string | null
+  runtimeChannelSummary?: string | null
+  runtimeTransitionSummary?: string | null
   captureSummary: string
   executionSummary: string | null
   mindSummary: string | null
@@ -327,6 +330,33 @@ function summarizeMemoryFromSpine(spine: AlicizationDigitalLifeSpineSnapshot | n
   ].filter(Boolean).join(' | ')
 }
 
+function summarizeRuntimeChannelFromSpine(spine: AlicizationDigitalLifeSpineSnapshot | null | undefined) {
+  const runtime = deriveAlicizationRuntimeSnapshot({
+    spine,
+  })
+  if (!runtime)
+    return ''
+
+  return [
+    `dominant=${sanitizeText(runtime.dominantChannel, 48)}`,
+    runtime.activeLoop?.phase ? `phase=${sanitizeText(runtime.activeLoop.phase, 48)}` : '',
+    runtime.activeLoop?.handoffTarget ? `handoff=${sanitizeText(runtime.activeLoop.handoffTarget, 48)}` : '',
+  ].filter(Boolean).join(' | ')
+}
+
+function summarizeRuntimeTransitionFromSpine(spine: AlicizationDigitalLifeSpineSnapshot | null | undefined) {
+  const recentTransition = spine?.runtimeSurface.perception.recentTransition ?? null
+  if (!recentTransition)
+    return ''
+
+  return [
+    recentTransition.fromWatchMode ? `from=${sanitizeText(recentTransition.fromWatchMode, 48)}` : '',
+    recentTransition.toWatchMode ? `to=${sanitizeText(recentTransition.toWatchMode, 48)}` : '',
+    recentTransition.fromScenario ? `scenario=${sanitizeText(recentTransition.fromScenario, 48)}` : '',
+    recentTransition.reason ? `reason=${sanitizeText(recentTransition.reason, 160)}` : '',
+  ].filter(Boolean).join(' | ')
+}
+
 function summarizeRecollectionForeground(context: OrganicMemoryPromptContext | null | undefined) {
   const deliberation = context?.memoryDeliberation ?? null
   const intent = context?.recollectionIntent ?? null
@@ -539,6 +569,14 @@ export function createAlicizationDialogueSessionManager(
         220,
       ) || previousMirror?.digitalLifeArchitectureSummary || null,
       digitalLifeRuntimeSummary: sanitizeText(digitalLifeSpine?.continuitySignal?.summary ?? '', 220) || previousMirror?.digitalLifeRuntimeSummary || null,
+      runtimeChannelSummary: sanitizeText(
+        summarizeRuntimeChannelFromSpine(digitalLifeSpine),
+        220,
+      ) || previousMirror?.runtimeChannelSummary || null,
+      runtimeTransitionSummary: sanitizeText(
+        summarizeRuntimeTransitionFromSpine(digitalLifeSpine),
+        220,
+      ) || previousMirror?.runtimeTransitionSummary || null,
       mindSummary: sanitizeText(
         summarizeMindFromSpine(digitalLifeSpine),
         220,
@@ -639,6 +677,14 @@ export function createAlicizationDialogueSessionManager(
         digitalLifeSpine?.continuitySignal?.summary ?? '',
         220,
       ) || previousMirror?.digitalLifeRuntimeSummary || null,
+      runtimeChannelSummary: sanitizeText(
+        summarizeRuntimeChannelFromSpine(digitalLifeSpine),
+        220,
+      ) || previousMirror?.runtimeChannelSummary || null,
+      runtimeTransitionSummary: sanitizeText(
+        summarizeRuntimeTransitionFromSpine(digitalLifeSpine),
+        220,
+      ) || previousMirror?.runtimeTransitionSummary || null,
       mindSummary: sanitizeText(
         summarizeMindFromSpine(digitalLifeSpine),
         220,
@@ -701,6 +747,8 @@ export function createAlicizationDialogueSessionManager(
       `capture=${mirror.captureSummary}`,
       `digital_life_architecture=${mirror.digitalLifeArchitectureSummary ?? 'none'}`,
       `digital_life_runtime=${mirror.digitalLifeRuntimeSummary ?? 'none'}`,
+      `runtime_channel=${mirror.runtimeChannelSummary ?? 'none'}`,
+      `runtime_transition=${mirror.runtimeTransitionSummary ?? 'none'}`,
       `mind=${mirror.mindSummary ?? 'none'}`,
       `memory_carry=${mirror.memoryCarrySummary ?? 'none'}`,
       `memory=${mirror.memorySummary ?? 'none'}`,

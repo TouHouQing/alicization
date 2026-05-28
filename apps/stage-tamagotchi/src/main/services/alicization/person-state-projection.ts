@@ -9,6 +9,7 @@ import type {
   AlicizationPersonalityState,
   AlicizationPrivateThoughtSnapshot,
   AlicizationProactiveStyle,
+  AlicizationSelfEvolutionKernelSnapshot,
   AlicizationSelfContinuitySnapshot,
   AlicizationSelfStateSnapshot,
 } from '../../../shared/eventa'
@@ -60,6 +61,7 @@ export interface AlicizationPersonStateProjection {
   relationshipPosture: AlicizationPersonStateRelationshipPosture | null
   openingGuidance: string | null
   preferredProactiveStyle: AlicizationProactiveStyle | null
+  manifestationCadenceSummary: string | null
   preferenceText: string
   sensitivityText: string
   repairTriggerText: string
@@ -82,6 +84,10 @@ function sanitizeText(raw: unknown, maxChars = 220) {
   if (typeof raw !== 'string')
     return ''
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
+}
+
+function includesAny(text: string, needles: string[]) {
+  return needles.some(needle => text.includes(needle))
 }
 
 function mergeUnique(items: Array<string | null | undefined>, maxItems = 8) {
@@ -123,6 +129,8 @@ function deriveRelationshipPosture(input: {
   cautious: boolean
   restrained: boolean
 }) {
+  if (input.repairBeforeCloseness && input.restrained)
+    return 'restrained' as const
   if (
     input.continuity.currentRegime === 'focused-work'
     && input.personaAuthority.directnessBias >= 0.34
@@ -209,6 +217,13 @@ function deriveOpeningGuidance(input: {
     return 'Repair the seam before leaning closer.'
   }
   if (
+    input.repairBeforeCloseness
+    && input.relationshipPosture === 'restrained'
+    && (input.contexts.includes('focused-work') || input.contexts.includes('repair-window'))
+  ) {
+    return 'Repair the seam before leaning closer.'
+  }
+  if (
     input.continuity.repairPosture === 'repair-first'
   ) {
     return 'Repair the seam before leaning closer.'
@@ -222,7 +237,6 @@ function deriveOpeningGuidance(input: {
   if (
     input.personaAuthority.preferredProactiveStyle === 'silent-observe'
     && input.relationshipPosture === 'restrained'
-    && input.continuity.repairPosture !== 'repair-first'
   ) {
     return 'Open by observing first and keep the approach lighter.'
   }
@@ -256,7 +270,10 @@ function derivePreferredProactiveStyle(input: {
   repairBoundaryAnchored: boolean
   hostPreferredStyle: AlicizationProactiveStyle | null
   doctrinePreferredStyle: AlicizationProactiveStyle | null
+  lowerPressureManifestation: boolean
 }) {
+  if (input.lowerPressureManifestation)
+    return 'silent-observe' as const
   if (
     input.restrained
     && !input.repairBoundaryAnchored
@@ -285,6 +302,31 @@ function derivePreferredProactiveStyle(input: {
   }
   if (input.continuity.currentRegime === 'repair-window')
     return 'light-nudge' as const
+  return null
+}
+
+function deriveManifestationCadenceSummary(input: {
+  preferredProactiveStyle: AlicizationProactiveStyle | null
+  activeClosenessRung: AlicizationPersonStateClosenessRung
+  lowerPressureManifestation: boolean
+  evolutionTrustMeaning: string
+  evolutionDoctrine: string
+  evolutionBurden: string
+}) {
+  if (input.lowerPressureManifestation) {
+    const anchor = input.evolutionTrustMeaning || input.evolutionDoctrine || input.evolutionBurden
+    return sanitizeText([
+      'Long-horizon relationship learning keeps manifestation lower-pressure and less eager before closeness widens again.',
+      anchor ? `Anchor: ${anchor}` : '',
+    ].filter(Boolean).join(' '), 220)
+  }
+
+  if (input.preferredProactiveStyle === 'silent-observe' && input.activeClosenessRung === 'space-first')
+    return 'Current manifestation cadence stays observe-first so room is preserved before any closer return.'
+
+  if (input.preferredProactiveStyle === 'light-nudge' && input.activeClosenessRung === 'measured-room')
+    return 'Current manifestation cadence can re-enter lightly once the opening is real, but it should stay bounded.'
+
   return null
 }
 
@@ -431,6 +473,7 @@ export function buildAlicizationPersonStateProjection(input: {
   selfState?: AlicizationSelfStateSnapshot | null
   privateThought?: AlicizationPrivateThoughtSnapshot | null
   mindEcology?: AlicizationMindEcologySnapshot | null
+  selfEvolution?: AlicizationSelfEvolutionKernelSnapshot | null
   personStateEvolutionSummary?: AlicizationPersonStateEvolutionSummary | null
   recentEpisodicEvents?: AlicizationEpisodicEventRecord[] | null
   recentMemoryConsolidations?: AlicizationMemoryConsolidationRecord[] | null
@@ -505,6 +548,35 @@ export function buildAlicizationPersonStateProjection(input: {
     restIntervention: doctrineGuidance.restIntervention,
     restrained,
   })
+  const evolutionSummary = input.personStateEvolutionSummary ?? null
+  const evolutionPreferenceText = evolutionSummary?.latestDominantRung === 'space-first'
+    ? 'Lighter touch, more room, less interruption pressure.'
+    : evolutionSummary?.latestDominantRung === 'warm-near'
+      ? 'Warmer directness can land when the opening is clearly there.'
+      : ''
+  const evolutionDoctrine = sanitizeText(
+    evolutionSummary?.latestDoctrine
+    ?? input.selfEvolution?.relationshipDoctrine
+    ?? '',
+    220,
+  )
+  const evolutionBurden = sanitizeText(
+    evolutionSummary?.latestBurdenLine
+    ?? input.selfEvolution?.burdenLine
+    ?? '',
+    180,
+  )
+  const evolutionTrustMeaning = sanitizeText(
+    evolutionSummary?.latestTrustMeaning
+    ?? input.selfEvolution?.trustMeaning
+    ?? '',
+    180,
+  )
+  const lowerPressureManifestation = includesAny(
+    [evolutionDoctrine, evolutionBurden, evolutionTrustMeaning].filter(Boolean).join(' ').toLowerCase(),
+    ['lower-pressure', 'less eager', 'leave more room', 'more room', 'slower return', 'pressure', 'timing'],
+  ) || (input.privateThought?.rationaleTags ?? []).includes('self-evolution:lower-pressure-companionship')
+
   const preferredProactiveStyle = derivePreferredProactiveStyle({
     continuity: personalityContinuityState,
     personaAuthority,
@@ -514,17 +586,16 @@ export function buildAlicizationPersonStateProjection(input: {
       || personalityContinuityState.repairPosture === 'repair-first',
     hostPreferredStyle: hostGuidance.preferredProactiveStyle,
     doctrinePreferredStyle: doctrineGuidance.preferredProactiveStyle,
+    lowerPressureManifestation,
   })
-  const evolutionSummary = input.personStateEvolutionSummary ?? null
-  const evolutionPreferenceText = evolutionSummary?.latestDominantRung === 'space-first'
-    ? 'Lighter touch, more room, less interruption pressure.'
-    : evolutionSummary?.latestDominantRung === 'warm-near'
-      ? 'Warmer directness can land when the opening is clearly there.'
-      : ''
-  const evolutionDoctrine = sanitizeText(evolutionSummary?.latestDoctrine, 220)
-  const evolutionBurden = sanitizeText(evolutionSummary?.latestBurdenLine, 180)
-  const evolutionTrustMeaning = sanitizeText(evolutionSummary?.latestTrustMeaning, 180)
-
+  const manifestationCadenceSummary = deriveManifestationCadenceSummary({
+    preferredProactiveStyle,
+    activeClosenessRung,
+    lowerPressureManifestation,
+    evolutionTrustMeaning,
+    evolutionDoctrine,
+    evolutionBurden,
+  })
   const summary = mergeUnique([
     `regime=${personalityContinuityState.currentRegime}`,
     `closeness=${personalityContinuityState.closenessPosture}`,
@@ -539,6 +610,11 @@ export function buildAlicizationPersonStateProjection(input: {
     evolutionTrustMeaning ? `evolution_trust=${evolutionTrustMeaning}` : null,
   ], 6).join(' | ')
 
+  const projectionSummary = mergeUnique([
+    summary,
+    manifestationCadenceSummary ? `manifestation=${manifestationCadenceSummary}` : null,
+  ], 7).join(' | ')
+
   return {
     contexts,
     personalityContinuityState,
@@ -548,6 +624,7 @@ export function buildAlicizationPersonStateProjection(input: {
     relationshipPosture,
     openingGuidance,
     preferredProactiveStyle,
+    manifestationCadenceSummary,
     preferenceText: hostGuidance.preferenceText || evolutionPreferenceText || activeClosenessEntry?.preference || '',
     sensitivityText: hostGuidance.sensitivityText,
     repairTriggerText: hostGuidance.repairTriggerText,
@@ -557,6 +634,6 @@ export function buildAlicizationPersonStateProjection(input: {
     relationshipDoctrine: relationshipDoctrine || evolutionDoctrine,
     cautious,
     restrained,
-    summary,
+    summary: projectionSummary,
   }
 }

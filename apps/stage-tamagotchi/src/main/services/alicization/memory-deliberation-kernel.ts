@@ -87,6 +87,47 @@ function isSelfModelRevisionContext(input: {
   return /self-story|self line|identity|autobiographical|self model|my pattern|my habit|who i am|older self|newer self|自我|身份|习惯|性格|叙事|我会|我总是/u.test(selfCueText)
 }
 
+function deriveResolvedSurfacePolicy(input: {
+  deliberation: OrganicMemoryPromptContext['memoryDeliberation'] | null
+  speech: OrganicMemoryPromptContext['recollectionSpeechPlan'] | null
+  recollectionIntent: OrganicMemoryPromptContext['recollectionIntent'] | null
+}) {
+  const deliberation = input.deliberation
+  const speech = input.speech
+  const baseSurfacePolicy = deliberation?.surfacePolicy ?? speech?.surfaceMode ?? 'internal-only'
+  if (baseSurfacePolicy !== 'answer-anchoring')
+    return baseSurfacePolicy
+
+  const intentMode = input.recollectionIntent?.mode ?? 'none'
+  const procedureLike = speech?.surfaceMode === 'procedural-carry'
+    || intentMode === 'execution-procedure'
+    || intentMode === 'experience-pattern'
+    || (deliberation?.selectedProcedures.length ?? 0) > 0
+    || (deliberation?.selectedChains ?? []).some(item => item.kind === 'task-procedure')
+  const threadedContinuityPresent = (deliberation?.selectedBundles.length ?? 0) > 0
+    || (deliberation?.selectedChains.length ?? 0) > 0
+  const continuityProcedureHints = input.recollectionIntent?.recollectionAgenda?.candidateProcedureLines ?? []
+  const seamContinuityText = [
+    deliberation?.whyNow,
+    ...(deliberation?.stableCore ?? []),
+    ...(deliberation?.selectedBundles ?? []).map(item => item.summary),
+    ...(deliberation?.selectedChains ?? []).flatMap(item => [item.summary, item.currentStance, item.answerPosture]),
+    ...(deliberation?.selectedProcedures ?? []).flatMap(item => [item.label, item.approach]),
+    ...continuityProcedureHints,
+  ].filter(Boolean).join(' ')
+  const seamContinuityExplicit = /active dialogue|runtime seam|continuity seam|repair lane|handoff|stay on the same thread|别换线|沿着这条|继续这条|同一条线程/u.test(seamContinuityText)
+  const relationshipLike = speech?.surfaceMode === 'relationship-continuity'
+    || intentMode === 'relationship-history'
+    || (deliberation?.selectedRelationshipLines.length ?? 0) > 0
+    || (deliberation?.selectedChains ?? []).some(item => item.kind === 'relationship-line')
+
+  if (procedureLike && threadedContinuityPresent && seamContinuityExplicit && !relationshipLike)
+    return 'procedural-carry' as const
+  if (relationshipLike && !procedureLike)
+    return 'relationship-continuity' as const
+  return baseSurfacePolicy
+}
+
 export function buildAlicizationMemoryDeliberationKernel(input: {
   deliberation: OrganicMemoryPromptContext['memoryDeliberation'] | null | undefined
   speech: OrganicMemoryPromptContext['recollectionSpeechPlan'] | null | undefined
@@ -100,7 +141,11 @@ export function buildAlicizationMemoryDeliberationKernel(input: {
     return null
 
   const shouldRecall = deliberation?.shouldRecall ?? Boolean(speech)
-  const surfacePolicy = deliberation?.surfacePolicy ?? speech?.surfaceMode ?? 'internal-only'
+  const surfacePolicy = deriveResolvedSurfacePolicy({
+    deliberation,
+    speech,
+    recollectionIntent: input.recollectionIntent ?? null,
+  })
   const speechRequestsInward = speech
     ? (!speech.shouldSurface || speech.placement === 'internal-only')
     : false

@@ -31,6 +31,26 @@ export interface StageEmbodimentPerformanceActionPulseState {
 export interface StageEmbodimentPerformanceState {
   revision: number
   phase: StageEmbodimentPerformancePhase
+  driverRendererTarget: 'live2d' | 'vrm' | null
+  driverAuthority: {
+    segmentId: string | null
+    rendererTarget: 'live2d' | 'vrm' | null
+    matchedDrivers: Array<'face' | 'motion' | 'lipsync'>
+    sources: string[]
+    faceSegmentMatched: boolean
+    motionSegmentMatched: boolean
+    lipsyncSegmentMatched: boolean
+    prosodyAuthority?: {
+      segmentId: string | null
+      provenance: 'authority-bound' | 'fallback-derived'
+      source: string | null
+      mode: string | null
+      cueProsodyWeight: number | null
+      cueMouthWeight: number | null
+      cueHeadWeight: number | null
+      visemePeakWeight: number | null
+    } | null
+  } | null
   residentPerformance: AlicizationDialoguePerformancePayload
   performance: AlicizationDialoguePerformancePayload
   activeFacialCue: string | null
@@ -64,6 +84,8 @@ export function createIdleStageEmbodimentPerformanceState(): StageEmbodimentPerf
   return {
     revision: 0,
     phase: 'idle',
+    driverRendererTarget: null,
+    driverAuthority: null,
     residentPerformance: { ...idlePerformance },
     performance: { ...idlePerformance },
     activeFacialCue: null,

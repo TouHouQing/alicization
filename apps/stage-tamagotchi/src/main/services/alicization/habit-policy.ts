@@ -2,8 +2,10 @@ import type {
   AlicizationAutobiographicalSelfSnapshot,
   AlicizationHabitPolicySnapshot,
   AlicizationMotiveEngineSnapshot,
+  AlicizationPersonalityState,
   AlicizationReflectionLedgerSnapshot,
   AlicizationRelationshipModelSnapshot,
+  AlicizationSelfEvolutionKernelSnapshot,
   AlicizationSelfContinuitySnapshot,
   AlicizationWorldModelSnapshot,
 } from '../../../shared/eventa'
@@ -12,6 +14,7 @@ import type { AlicizationMemoryConsolidationRecord } from './memory-consolidatio
 import type { AlicizationProactiveLayeredContext } from './proactive-layered-context'
 
 import { buildHostRhythmModel } from './host-rhythm-model'
+import { deriveAlicizationPersonaAuthorityInfluence } from './personality-continuity-state'
 
 export const alicizationHabitPolicyMarker = '[ALICIZATION_HABIT_POLICY]'
 
@@ -19,6 +22,56 @@ function sanitizeText(raw: unknown, maxChars = 80) {
   if (typeof raw !== 'string')
     return ''
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
+}
+
+function includesAny(text: string, needles: string[]) {
+  return needles.some(needle => text.includes(needle))
+}
+
+function deriveSelfEvolutionManifestationBias(selfEvolution?: AlicizationSelfEvolutionKernelSnapshot | null) {
+  if (!selfEvolution)
+    return null
+
+  const relationshipDoctrine = sanitizeText(selfEvolution.relationshipDoctrine, 160).toLowerCase()
+  const burdenLine = sanitizeText(selfEvolution.burdenLine, 160).toLowerCase()
+  const trustMeaning = sanitizeText(selfEvolution.trustMeaning, 160).toLowerCase()
+  const latestInflection = sanitizeText(selfEvolution.latestInflection, 160).toLowerCase()
+
+  const lowerPressureTiming = includesAny(relationshipDoctrine, [
+    'leave more room',
+    'more room',
+    'space first',
+    'slower return',
+    'lower-pressure',
+    'less eager',
+  ]) || includesAny(trustMeaning, [
+    'lower-pressure',
+    'less eager',
+    'room',
+    'space',
+    'timing',
+  ]) || includesAny(latestInflection, [
+    'lower-pressure',
+    'less eager',
+    'slower return',
+    'room',
+    'space',
+  ]) || includesAny(burdenLine, [
+    'conversational pressure',
+    'pressure',
+    'overloaded',
+    'crowd',
+    'eager',
+  ])
+
+  if (!lowerPressureTiming)
+    return null
+
+  return {
+    prefersQuietCompanionship: true,
+    softenManifestationCaps: true,
+    reasonTag: 'self-evolution:lower-pressure-manifestation',
+  }
 }
 
 function latestAutobiographicalEra(
@@ -38,6 +91,8 @@ export function buildHabitPolicy(input: {
   relationshipModel?: AlicizationRelationshipModelSnapshot | null
   selfContinuity?: AlicizationSelfContinuitySnapshot | null
   autobiographicalSelf?: AlicizationAutobiographicalSelfSnapshot | null
+  selfEvolution?: AlicizationSelfEvolutionKernelSnapshot | null
+  personalityAuthority?: AlicizationPersonalityState | null
   recentMemoryConsolidations?: AlicizationMemoryConsolidationRecord[] | null
   reflectionLedger?: AlicizationReflectionLedgerSnapshot | null
   motiveEngine?: AlicizationMotiveEngineSnapshot | null
@@ -62,11 +117,14 @@ export function buildHabitPolicy(input: {
   const misreadBurden = input.selfContinuity?.misreadBurden ?? 0.18
   const correctionSensitivity = input.relationshipModel?.correctionSensitivity ?? 0.34
   const revisionPressure = input.reflectionLedger?.revisionPressure ?? 0
+  const personalityAuthority = deriveAlicizationPersonaAuthorityInfluence(input.personalityAuthority ?? null)
+  const selfEvolutionManifestationBias = deriveSelfEvolutionManifestationBias(input.selfEvolution ?? null)
 
   const requiresGroundingBeforeSurface
     = truthDrive >= 0.58
       || revisionPressure >= 0.24
       || misreadBurden >= 0.32
+      || personalityAuthority.repairBias >= 0.24
       || Boolean(selfEra?.lesson)
       || (
         input.autobiographicalSelf?.personaDrift.conflictStyle === 'repair-first'
@@ -78,8 +136,10 @@ export function buildHabitPolicy(input: {
         boundaryDrive >= companionshipDrive - 0.08
         || busyHost
         || hostRhythm.interruptionSensitivity >= 0.48
+        || personalityAuthority.roomBias >= 0.24
         || input.autobiographicalSelf?.personaDrift.attachmentStyle !== 'attuned'
         || Boolean(relationshipEra?.lesson)
+        || selfEvolutionManifestationBias?.prefersQuietCompanionship === true
       )
   const blocksDirectSpeakWhenBusy
     = busyHost
@@ -87,6 +147,7 @@ export function buildHabitPolicy(input: {
         boundaryDrive >= 0.56
         || correctionSensitivity >= 0.62
         || hostRhythm.workMode === 'deep-focus'
+        || personalityAuthority.roomBias >= 0.22
         || (input.autobiographicalSelf?.preferenceEvolution.autonomyRespect ?? 0) >= 0.62
         || Boolean(relationshipEra?.lesson)
       )
@@ -113,6 +174,9 @@ export function buildHabitPolicy(input: {
   else if (prefersQuietCompanionship)
     dominantMode = 'light-touch-companionship'
 
+  const softenedLightTouchManifestation = dominantMode === 'light-touch-companionship'
+    && selfEvolutionManifestationBias?.softenManifestationCaps === true
+
   return {
     dominantMode,
     requiresGroundingBeforeSurface,
@@ -122,11 +186,15 @@ export function buildHabitPolicy(input: {
     returnViaRecheck,
     suggestedStyleCap: dominantMode === 'protect-rest-window'
       ? (input.context.relationship.fatigue >= 80 ? 'firm-warning' : 'gentle-care')
+      : softenedLightTouchManifestation
+        ? 'silent-observe'
       : dominantMode === 'repair-before-fluency' || dominantMode === 'return-with-proof' || dominantMode === 'watchful-boundary'
         ? 'silent-observe'
         : 'light-nudge',
     suggestedPresenceCap: dominantMode === 'protect-rest-window'
       ? 'concerned'
+      : softenedLightTouchManifestation
+        ? 'glance'
       : dominantMode === 'repair-before-fluency' || dominantMode === 'return-with-proof'
         ? 'hesitant'
         : dominantMode === 'light-touch-companionship'
@@ -140,6 +208,7 @@ export function buildHabitPolicy(input: {
       ...hostRhythm.narrative,
       protectsRestWindow ? 'protect-rest-window' : '',
       returnViaRecheck ? 'return-open-loop-via-recheck' : '',
+      selfEvolutionManifestationBias?.reasonTag ?? '',
       sanitizeText(input.motiveEngine?.backgroundAgendas[0]?.summary ?? '', 80),
     ].filter(Boolean),
     updatedAt: input.now,

@@ -44,6 +44,44 @@ describe('live2d expression runtime', () => {
     expect(selection?.reason).toBe('facial-cue')
   })
 
+  it('keeps weak resident-grade facial cues from overriding a strong emotional expression match', () => {
+    const selection = resolveLive2DExpressionSelection({
+      delivery: 'energetic',
+      emotion: 'happy',
+      expressionIntensity: 0.96,
+      expressionNames: [
+        'happy_exp_01',
+        'focus_observe',
+        'neutral_exp_05',
+      ],
+      facialCue: 'focus',
+      facialCueIntensity: 0.08,
+    })
+
+    expect(selection).not.toBeNull()
+    expect(selection?.name).toBe('happy_exp_01')
+    expect(selection?.reason).toBe('emotion')
+  })
+
+  it('keeps direct emotional aliases ahead of neutral fallback when no facial cue is active', () => {
+    const selection = resolveLive2DExpressionSelection({
+      delivery: 'energetic',
+      emotion: 'happy',
+      expressionIntensity: 0.96,
+      expressionNames: [
+        'happy_exp_01',
+        'focus_observe',
+        'neutral_exp_05',
+      ],
+      facialCue: null,
+      facialCueIntensity: 0,
+    })
+
+    expect(selection).not.toBeNull()
+    expect(selection?.name).toBe('happy_exp_01')
+    expect(selection?.reason).toBe('emotion')
+  })
+
   it('lets runtime preferred aliases override heuristic emotion matching', () => {
     const selection = resolveLive2DExpressionSelection({
       delivery: 'energetic',

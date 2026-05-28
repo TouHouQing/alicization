@@ -2,7 +2,10 @@ import type { Message } from '@xsai/shared-chat'
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { runAlicizationMainChatBackground } from './main-chat-background-run'
+import {
+  resolveAlicizationExecutionPayoffContinuityInputs,
+  runAlicizationMainChatBackground,
+} from './main-chat-background-run'
 import {
   generateAlicizationMainChatNonStreaming,
   recoverAlicizationMainChatFromTimeout,
@@ -489,6 +492,53 @@ describe('main chat background run', () => {
       }),
     })
     expect(runAlicizationMainChatStream).toHaveBeenCalledTimes(1)
+  })
+
+  it('re-emits the prepared turn after visible reply surface authority settles', async () => {
+    vi.mocked(runAlicizationMainChatStream).mockResolvedValue(createStreamResult({
+      fullText: JSON.stringify({
+        format: 'mind-turn-v1',
+        thought: 'stay on the same line',
+        emotion: 'thinking',
+        reply: '我继续沿着这条线在这里。',
+        performance: {
+          baseEmotion: 'thinking',
+          facialCue: null,
+          actionCue: null,
+          delivery: 'calm',
+          emphasis: 0,
+        },
+      }),
+      visibleReplyExecution: {
+        mode: 'provider-stream',
+        expectedVisibleReplyAuthority: 'llm-second-pass-rewrite',
+        actualVisibleReplyAuthority: 'llm-mind',
+        providerMindExecuted: true,
+        reason: 'provider-stream',
+      },
+    }))
+    const recordPreparedMindTrace = vi.fn(async () => {})
+    const input = createInput({
+      recordPreparedMindTrace,
+    })
+
+    await runAlicizationMainChatBackground(input)
+
+    expect(recordPreparedMindTrace).toHaveBeenCalledTimes(2)
+    const preparedMindTraceCalls = recordPreparedMindTrace.mock.calls as unknown[][]
+    const secondTraceCall = preparedMindTraceCalls[1]
+    expect(secondTraceCall?.[0]).toEqual({
+      payload: input.payload,
+      prepared: expect.objectContaining({
+        turnGraph: expect.objectContaining({
+          surface: expect.objectContaining({
+            expectedAuthority: 'llm-second-pass-rewrite',
+            actualAuthority: 'llm-mind',
+            providerMindExecuted: true,
+          }),
+        }),
+      }),
+    })
   })
 
   it('lets simple greeting turns stay on the main stream path instead of the active dialogue fast lane', async () => {
@@ -2032,6 +2082,73 @@ describe('main chat background run', () => {
       cardId: 'card-1',
       turnId: 'turn-inline-second-pass',
     }))
+  })
+
+  it('reads person-state projection from runtime surface for inline execution payoff continuity wiring', () => {
+    const personStateProjection = {
+      contexts: ['execution-callback', 'focused-work'],
+      summary: 'regime=execution-callback | posture=restrained',
+      activeClosenessContext: 'execution-callback',
+      activeClosenessRung: 'measured-room',
+      relationshipPosture: 'restrained',
+      openingGuidance: 'Stay inside the current same-her baseline. Keep the opening lower-pressure and leave room before widening closeness.',
+      preferredProactiveStyle: 'silent-observe',
+      preferenceText: 'Keep the callback exact and lower-pressure.',
+      sensitivityText: 'Over-close callback warmth lands as pressure.',
+      repairTriggerText: 'If the callback leans too close, reopen lighter.',
+      burdenText: 'Focused work is crowded easily by extra callback warmth.',
+      routineText: 'Callbacks land best when they stay bounded and exact.',
+      trustRationale: 'Trust holds when callback timing stays measured.',
+      relationshipDoctrine: 'Stay exact, bounded, and lower-pressure before widening closeness.',
+      cautious: true,
+      restrained: true,
+      personalityContinuityState: {
+        currentRegime: 'execution-callback',
+        closenessPosture: 'space-first',
+        repairPosture: 'repair-first',
+      },
+    } as any
+
+    const resolved = resolveAlicizationExecutionPayoffContinuityInputs({
+      runtimeSurface: {
+        digitalLifeRuntimeSurface: {
+          memory: {
+            personStateProjection,
+            hostPersonModel: {
+              summary: 'Focused work windows need more room before closeness.',
+              routines: [],
+              sensitivities: [],
+              repairTriggers: [],
+              trustLadder: {
+                stage: 'cautious-open',
+                score: 0.48,
+                rationale: 'Trust is warming, but the host still needs clear room while focused.',
+              },
+              preferredClosenessByContext: [],
+              recurrentBurdens: [],
+              narrative: [],
+              updatedAt: 1,
+            },
+            autobiographicalSelf: null,
+            longHorizonMemory: null,
+            motiveEngine: null,
+            reflectionLedger: null,
+          },
+          agency: {
+            habitPolicy: null,
+          },
+          cognition: {
+            privateThought: null,
+          },
+          world: {},
+          perception: {},
+        } as any,
+      } as any,
+    })
+
+    expect(resolved.personStateProjection).toBe(personStateProjection)
+    expect(resolved.hostPersonModel?.trustLadder.stage).toBe('cautious-open')
+    expect(resolved.selfContinuityAuthority).toBeNull()
   })
 
   it('uses minimal infra repair instead of local contentful dialogue fallback when stream and one-shot recoveries both time out', async () => {
