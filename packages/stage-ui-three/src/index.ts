@@ -1,6 +1,7 @@
 export { default as ThreeScene } from './components/ThreeScene.vue'
 export * from './composables/hit-test'
 export * from './composables/render-target'
+export * from './composables/vrm/capabilities'
 export { useModelStore } from './stores/model-store'
 export * from './trace'
 export * from './types/performance'

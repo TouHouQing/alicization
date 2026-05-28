@@ -237,6 +237,8 @@ function buildSpeechPlanSegment(input: {
           ? 20
           : 0,
     ),
+    rendererSettle: input.segment.rendererSettle ?? null,
+    rendererHints: input.segment.rendererHints ?? null,
     settleMs: resolveSegmentSettleMs({
       timelineSettleMs: input.timelineSettleMs,
       frameSettleMs,

@@ -1,5 +1,6 @@
 import type {
   AlicizationAuditLogInput,
+  AlicizationDigitalLifeEnvelope,
   AlicizationEmbodimentScriptV1,
   AlicizationDialogueEmbodimentEnvelope,
   AlicizationDialoguePerformancePayload,
@@ -175,6 +176,107 @@ export const useAlicizationPresenceDispatcherStore = defineStore('alicization-pr
     return activeRegistration?.builder ?? null
   }
 
+  function buildLowPressurePresencePulseFromDialogue(
+    payload: AlicizationDialogueRespondedPayload,
+  ): AlicizationPresencePulsePayload | null {
+    const proactive = payload.structured?.proactive
+    if (
+      payload.origin !== 'subconscious-proactive'
+      || !proactive
+      || proactive.style !== 'silent-observe'
+      || proactive.shouldInterrupt
+    ) {
+      return null
+    }
+
+    return {
+      watchMode: 'symbiotic-vision',
+      embodiedPresence: 'attentive',
+      scenario: proactive.scenario,
+      stance: 'accompany',
+      currentBodyState: 'accompanying',
+      continuityMode: 'quiet-accompaniment',
+      quietLineMs: 120_000,
+      confidence: proactive.confidence,
+      reasonTags: [
+        'subconscious-proactive',
+        proactive.style,
+        'continuity:quiet-accompaniment',
+        ...proactive.reasonCodes,
+      ],
+      emotionalTension: 'soft-covision',
+      currentInwardPreoccupation: payload.structured?.thought?.trim() || null,
+      expiresAt: Date.now() + Math.max(15_000, Math.min(proactive.cooldownMs, 180_000)),
+    }
+  }
+
+  function mergeAuthoritativeDigitalLifeFace(
+    provided: AlicizationDigitalLifeEnvelope['face'],
+    authoritative: AlicizationDigitalLifeEnvelope['face'],
+  ) {
+    return {
+      ...provided,
+      emotion: authoritative.emotion,
+      facialCue: authoritative.facialCue,
+      expressionMode: authoritative.expressionMode,
+      rendererHints: provided.rendererHints ?? authoritative.rendererHints,
+    }
+  }
+
+  function mergeAuthoritativeDigitalLifeAction(
+    provided: AlicizationDigitalLifeEnvelope['action'],
+    authoritative: AlicizationDigitalLifeEnvelope['action'],
+  ) {
+    return {
+      ...provided,
+      actionCue: authoritative.actionCue,
+      actionMode: authoritative.actionMode,
+      rendererHints: provided.rendererHints ?? authoritative.rendererHints,
+    }
+  }
+
+  function reconcileProvidedDigitalLifeWithAuthority(input: {
+    provided: AlicizationDigitalLifeEnvelope
+    authoritative: AlicizationDigitalLifeEnvelope
+  }): AlicizationDigitalLifeEnvelope {
+    const authoritativeFrames = input.authoritative.frames
+    const providedFrames = input.provided.frames
+    const providedFrameById = new Map(providedFrames.map(frame => [frame.id, frame] as const))
+
+    return {
+      ...input.provided,
+      version: input.authoritative.version,
+      variationToken: input.authoritative.variationToken,
+      emotion: input.authoritative.emotion,
+      mode: input.authoritative.mode,
+      postureHint: input.authoritative.postureHint,
+      performance: input.authoritative.performance,
+      speechStyle: input.authoritative.speechStyle,
+      rendererHints: input.provided.rendererHints ?? input.authoritative.rendererHints,
+      face: mergeAuthoritativeDigitalLifeFace(input.provided.face, input.authoritative.face),
+      action: mergeAuthoritativeDigitalLifeAction(input.provided.action, input.authoritative.action),
+      frames: authoritativeFrames.map((authoritativeFrame, index) => {
+        const providedFrame = providedFrameById.get(authoritativeFrame.id) ?? providedFrames[index]
+        if (!providedFrame)
+          return authoritativeFrame
+
+        return {
+          ...providedFrame,
+          id: authoritativeFrame.id,
+          index: authoritativeFrame.index,
+          startOffset: authoritativeFrame.startOffset,
+          endOffset: authoritativeFrame.endOffset,
+          text: authoritativeFrame.text,
+          mode: authoritativeFrame.mode,
+          interruptPolicy: authoritativeFrame.interruptPolicy,
+          settleMode: authoritativeFrame.settleMode,
+          face: mergeAuthoritativeDigitalLifeFace(providedFrame.face, authoritativeFrame.face),
+          action: mergeAuthoritativeDigitalLifeAction(providedFrame.action, authoritativeFrame.action),
+        }
+      }),
+    }
+  }
+
   async function dispatchDialogueResponded(payload: AlicizationDialogueRespondedPayload) {
     if (!payload?.turnId)
       return
@@ -200,10 +302,7 @@ export const useAlicizationPresenceDispatcherStore = defineStore('alicization-pr
     let resolvedSpeechTimeline = normalizeAlicizationDialogueSpeechTimeline(
       payload.structured?.speechTimeline,
     )
-    let resolvedDigitalLife = normalizeAlicizationDigitalLifeEnvelope(
-      payload.structured?.digitalLife,
-      normalizedEmotion.emotion,
-    )
+    let resolvedDigitalLife: ReturnType<typeof normalizeAlicizationDigitalLifeEnvelope> = null
     if (resolvedEmbodiment) {
       resolvedEmotion = resolvedEmbodiment.emotion
       resolvedPerformance = {
@@ -245,13 +344,23 @@ export const useAlicizationPresenceDispatcherStore = defineStore('alicization-pr
         embodiment: resolvedEmbodiment,
       })
     }
-    if (!resolvedDigitalLife) {
-      resolvedDigitalLife = buildAlicizationDigitalLifeEnvelope({
-        embodiment: resolvedEmbodiment,
-        speechTimeline: resolvedSpeechTimeline,
-        digitalLifeSpine: payload.structured?.digitalLifeSpine ?? null,
-      })
-    }
+    const authoritativeDigitalLife = buildAlicizationDigitalLifeEnvelope({
+      embodiment: resolvedEmbodiment,
+      speechTimeline: resolvedSpeechTimeline,
+      digitalLifeSpine: payload.structured?.digitalLifeSpine ?? null,
+    })
+    resolvedDigitalLife = normalizeAlicizationDigitalLifeEnvelope(
+      payload.structured?.digitalLife,
+      resolvedEmotion,
+    )
+    resolvedDigitalLife = resolvedDigitalLife && authoritativeDigitalLife
+      ? reconcileProvidedDigitalLifeWithAuthority({
+          provided: resolvedDigitalLife,
+          authoritative: authoritativeDigitalLife,
+        })
+      : resolvedDigitalLife
+    if (!resolvedDigitalLife)
+      resolvedDigitalLife = authoritativeDigitalLife
 
     updateDialogueEmbodimentRoutingState({
       performance: resolvedPerformance,
@@ -335,6 +444,10 @@ export const useAlicizationPresenceDispatcherStore = defineStore('alicization-pr
         )
       }
     }
+
+    const derivedPresencePulse = buildLowPressurePresencePulseFromDialogue(normalizedPayload)
+    if (derivedPresencePulse)
+      await dispatchPresencePulse(derivedPresencePulse)
 
     for (const listener of listeners) {
       try {

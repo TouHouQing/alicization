@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   buildSessionContinuityRecallSeed,
   buildSessionMirrorRecollectionAfterthoughtSeed,
+  buildSessionMirrorRuntimeContinuitySeed,
   deriveOrganicMemoryBudgetClass,
   filterMainGatewayToolsForRoutingIntent,
 } from './runtime-turn-composition'
@@ -31,6 +32,10 @@ describe('runtime turn composition helpers', () => {
       recollectionSummary: 'old seam',
       recollectionSurfaceSummary: 'afterthought=not-yet',
     } as any)).toBe('')
+    expect(buildSessionMirrorRuntimeContinuitySeed({
+      runtimeChannelSummary: 'dominant=dialogue | phase=dialogue | handoff=dialogue',
+      runtimeTransitionSummary: 'from=symbiotic-vision | to=recovering | scenario=coding | reason=host fatigue detected',
+    } as any)).toContain('mirror_runtime_continuity:')
     expect(buildSessionContinuityRecallSeed([
       {
         label: 'ordinary',
@@ -63,4 +68,3 @@ describe('runtime turn composition helpers', () => {
     } as any)).toBe(tools)
   })
 })
-

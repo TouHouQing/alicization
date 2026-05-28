@@ -8,6 +8,7 @@ import type {
   AlicizationMotiveAgendaSnapshot,
   AlicizationMotiveDriveKind,
   AlicizationMotiveEngineSnapshot,
+  AlicizationPersonalityState,
   AlicizationReflectionLedgerSnapshot,
   AlicizationSelfContinuitySnapshot,
   AlicizationSubjectiveSceneAppraisal,
@@ -17,6 +18,8 @@ import type {
 import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 import type { AlicizationMemoryConsolidationRecord } from './memory-consolidation'
 import type { AlicizationProactiveLayeredContext } from './proactive-layered-context'
+
+import { deriveAlicizationPersonaAuthorityInfluence } from './personality-continuity-state'
 
 export const alicizationMotiveEngineMarker = '[ALICIZATION_MOTIVE_ENGINE]'
 
@@ -184,6 +187,7 @@ export function buildMotiveEngine(input: {
   longHorizonMemory?: AlicizationLongHorizonMemorySnapshot | null
   selfContinuity?: AlicizationSelfContinuitySnapshot | null
   autobiographicalSelf?: AlicizationAutobiographicalSelfSnapshot | null
+  personalityAuthority?: AlicizationPersonalityState | null
   recentMemoryConsolidations?: AlicizationMemoryConsolidationRecord[] | null
   reflectionLedger?: AlicizationReflectionLedgerSnapshot | null
   habitPolicy?: AlicizationHabitPolicySnapshot | null
@@ -213,6 +217,7 @@ export function buildMotiveEngine(input: {
   const unresolvedThread = input.worldModel.activeThread?.unresolved === true || Boolean(input.goalStack?.unresolvedSummary)
   const reflectionPressure = input.reflectionLedger?.revisionPressure ?? 0
   const afterglowOpen = input.worldModel.continuity.afterglowOpen || Boolean(input.recentTransition)
+  const personalityAuthority = deriveAlicizationPersonaAuthorityInfluence(input.personalityAuthority ?? null)
 
   const drives = {
     companionship: clamp01(
@@ -222,6 +227,8 @@ export function buildMotiveEngine(input: {
       + rememberedCompanionship * 0.22
       + (relationshipEra ? 0.1 : 0)
       + (afterglowOpen ? 0.12 : 0)
+      + personalityAuthority.warmthBias * 0.14
+      + personalityAuthority.directnessBias * 0.08
       - (busyHost ? 0.06 : 0),
     ),
     boundaryRespect: clamp01(
@@ -231,6 +238,7 @@ export function buildMotiveEngine(input: {
       + (relationshipEra?.lesson ? 0.08 : 0)
       + (busyHost ? 0.18 : 0.06)
       + reflectionPressure * 0.12
+      + personalityAuthority.roomBias * 0.24
       + (input.worldModel.hostState.burden === 'heavy' ? 0.12 : 0),
     ),
     truthDiscipline: clamp01(
@@ -240,6 +248,7 @@ export function buildMotiveEngine(input: {
       + (selfEra?.lesson ? 0.08 : 0)
       + reflectionPressure * 0.18
       + (input.worldModel.epistemicState.certainty === 'grounded' ? 0.02 : 0.16)
+      + personalityAuthority.repairBias * 0.16
       + (input.autobiographicalSelf?.personaDrift.conflictStyle === 'repair-first' ? 0.12 : 0),
     ),
     restProtection: clamp01(
@@ -257,12 +266,14 @@ export function buildMotiveEngine(input: {
       + rememberedReturn * 0.22
       + (taskEra ? 0.12 : 0)
       + (input.longHorizonMemory?.rememberedPlanSummary ? 0.14 : 0)
+      + personalityAuthority.cadenceBias * 0.18
       + (unresolvedThread ? 0.22 : 0),
     ),
     selfDirection: clamp01(
       rememberedSelfDirection * 0.26
       + (input.autobiographicalSelf?.stability ?? 0.48) * 0.18
       + (selfEra ? 0.14 : 0)
+      + personalityAuthority.directnessBias * 0.18
       + (input.autobiographicalSelf?.personaDrift.agencyStyle === 'self-starting' ? 0.18 : input.autobiographicalSelf?.personaDrift.agencyStyle === 'balanced' ? 0.08 : 0)
       + (input.autobiographicalSelf?.activeGoals.length ?? 0) * 0.06,
     ),

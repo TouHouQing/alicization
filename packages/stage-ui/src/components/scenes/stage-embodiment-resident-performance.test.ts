@@ -401,6 +401,158 @@ describe('stage embodiment resident performance', () => {
     expect(['idle_settle', 'comfort_sway', 'idle_gentle_nod']).toContain(resolved.performance.actionCue)
   })
 
+  it('lets outcome-learning lower-pressure timing keep synthesized resident manifestation quieter on the desktop', () => {
+    const resolved = resolveStageEmbodimentResidentPerformance({
+      activePresence: null,
+      performanceManifest: createManifest(),
+      presencePosture: {
+        engaged: true,
+        mode: 'inspection',
+        confidence: 0.9,
+        bodyYaw: 0.08,
+        bodyPitch: 0.4,
+        breathBoost: 0.28,
+        gazeStability: 0.92,
+      },
+      digitalLifeSpine: createDigitalLifeSpineDigest({
+        runtime: {
+          watchMode: 'invited-inspection',
+          sceneScenario: 'coding',
+          sceneSummary: 'Reviewing a live diff while keeping nearby without reopening too fast.',
+          preferredPresence: 'attentive',
+          selectedAction: 'hover',
+          updatedAt: 2_000,
+        },
+        proactive: {
+          selectedAction: 'hover',
+          preferredStyle: 'silent-observe',
+          confidence: 0.92,
+          shouldSpeak: false,
+          preferredPresence: 'attentive',
+        },
+        outcomeLearning: {
+          reflectionTargetScope: 'relationship',
+          reflectionSummary: 'The room stayed warmer when pressure stayed low.',
+          reflectionLesson: 'Keep more room before widening closeness again.',
+          latestInflection: 'The last seam held because pressure stayed low and the return stayed slower.',
+          revisionPressure: 0.22,
+          autobiographicalStability: 0.86,
+          learningReadiness: 0.8,
+          contradictionPressure: 0.16,
+          dominantTrajectory: 'lower-pressure timing preserves trust',
+          activeLearningFocuses: ['relationship timing'],
+          evolutionMomentum: 0.84,
+          nextLearningAction: 'internalize',
+          nextLearningReason: 'The relationship line is stabilizing around slower re-entry.',
+          summary: 'Repair should settle before closeness expands, and the opening should keep more room.',
+        },
+      }),
+      visualPresenceState: createVisualPresenceState({
+        watchMode: 'invited-inspection',
+        currentScene: {
+          workloadKind: 'coding',
+          contentKind: 'diff',
+          scenario: 'coding',
+          summary: 'Reviewing a live diff while staying nearby.',
+          source: 'screen-semantic-summary',
+          confidence: 0.88,
+          target: null,
+          beganAt: 0,
+          lastSeenAt: 1_000,
+        },
+        privateThought: {
+          shouldSpeak: false,
+          thoughtText: 'Stay close enough to track it, not close enough to crowd it.',
+          suggestedStyle: 'silent-observe',
+          embodiedPresence: 'attentive',
+          emotionalTension: 'focused-flow',
+          confidence: 0.82,
+          rationaleTags: ['inspection'],
+          stance: 'observe',
+          expiresAt: Date.now() + 6_000,
+        },
+        residentPerformance: null,
+      }),
+    })
+
+    expect(resolved.performance.baseEmotion).toBe('thinking')
+    expect(resolved.performance.delivery).toBe('calm')
+    expect(resolved.performance.emphasis).toBeLessThanOrEqual(1)
+    expect(['observe_focus', 'steady_focus', 'idle_gentle_nod', 'idle_settle']).toContain(resolved.performance.actionCue)
+  })
+
+  it('softens synthesized lower-pressure quiet accompaniment facial cue away from focused reopening', () => {
+    const resolved = resolveStageEmbodimentResidentPerformance({
+      activePresence: null,
+      performanceManifest: createManifest(),
+      presencePosture: {
+        engaged: true,
+        mode: 'attentive',
+        confidence: 0.74,
+        bodyYaw: 0.02,
+        bodyPitch: 0.22,
+        breathBoost: 0.12,
+        gazeStability: 0.9,
+      },
+      digitalLifeSpine: createDigitalLifeSpineDigest({
+        outcomeLearning: {
+          reflectionTargetScope: 'relationship',
+          reflectionSummary: 'The room stayed warmer when pressure stayed low.',
+          reflectionLesson: 'Keep more room before widening closeness again.',
+          latestInflection: 'The last seam held because pressure stayed low and the return stayed slower.',
+          revisionPressure: 0.22,
+          autobiographicalStability: 0.86,
+          learningReadiness: 0.8,
+          contradictionPressure: 0.16,
+          dominantTrajectory: 'lower-pressure timing preserves trust',
+          activeLearningFocuses: ['relationship timing'],
+          evolutionMomentum: 0.84,
+          nextLearningAction: 'internalize',
+          nextLearningReason: 'The relationship line is stabilizing around slower re-entry.',
+          summary: 'Repair should settle before closeness expands, and the opening should keep more room.',
+        },
+      }),
+      visualPresenceState: withSilentPresenceAuthority(createVisualPresenceState({
+        watchMode: 'symbiotic-vision',
+        currentScene: {
+          workloadKind: 'coding',
+          contentKind: 'doc',
+          scenario: 'coding',
+          summary: 'Quietly staying with the host through deep focus after a tense repair.',
+          source: 'screen-semantic-summary',
+          confidence: 0.72,
+          target: null,
+          beganAt: 0,
+          lastSeenAt: 1_000,
+        },
+        privateThought: {
+          shouldSpeak: false,
+          thoughtText: 'Stay close without reopening too fast.',
+          suggestedStyle: 'silent-observe',
+          embodiedPresence: 'attentive',
+          emotionalTension: 'soft-covision',
+          confidence: 0.7,
+          rationaleTags: ['companionship', 'timing:lower-pressure-opening'],
+          stance: 'accompany',
+          expiresAt: Date.now() + 6_000,
+        },
+        residentPerformance: null,
+      }), {
+        currentBodyState: 'accompanying',
+        continuityMode: 'quiet-accompaniment',
+        quietLineMs: 240_000,
+        currentInwardPreoccupation: 'host sustained focus after repair',
+      }),
+    })
+
+    expect(resolved.performance.baseEmotion).toBe('thinking')
+    expect(['soft-gaze', 'relaxed', 'half-lid']).toContain(resolved.performance.facialCue)
+    expect(resolved.performance.facialCue).not.toBe('focus')
+    expect(resolved.performance.actionCue).toBe('steady_focus')
+    expect(['calm', 'gentle']).toContain(resolved.performance.delivery)
+    expect(resolved.performance.emphasis).toBeLessThanOrEqual(1)
+  })
+
   it('prefers authoritative resident performance published by the main runtime', () => {
     const activePresence: StageEmbodimentAttentionPresenceState = {
       source: 'runtime-visual-presence',
@@ -538,5 +690,46 @@ describe('stage embodiment resident performance', () => {
     expect(resolved.variationToken).toContain('concerned')
     expect(resolved.variationToken).toContain('firm')
     expect(resolved.variationToken).toContain('warn')
+  })
+
+  it('does not collapse a quiet accompaniment pulse-only resident fallback back to generic neutral idle', () => {
+    const resolved = resolveStageEmbodimentResidentPerformance({
+      activePresence: {
+        source: 'presence-pulse',
+        embodiedPresence: 'attentive',
+        confidence: 0.82,
+        delivery: null,
+        emphasis: 0,
+        expiresAt: Date.now() + 2_000,
+        watchMode: 'symbiotic-vision',
+        stance: 'accompany',
+        reasonTags: ['quiet-companionship'],
+        emotionalTension: 'soft-covision',
+        currentBodyState: 'accompanying',
+        continuityMode: 'quiet-accompaniment',
+        quietLineMs: 240_000,
+        currentInwardPreoccupation: 'stay nearby without interrupting',
+      } as any,
+      digitalLifeSpine: null,
+      performanceManifest: createManifest(),
+      presencePosture: {
+        engaged: true,
+        mode: 'attentive',
+        confidence: 0.78,
+        bodyYaw: 0.04,
+        bodyPitch: 0.24,
+        breathBoost: 0.16,
+        gazeStability: 0.8,
+      },
+      visualPresenceState: null,
+    })
+
+    expect(resolved.performance).toEqual(expect.objectContaining({
+      baseEmotion: 'thinking',
+      facialCue: 'focus',
+      actionCue: 'steady_focus',
+      delivery: 'gentle',
+      emphasis: 0,
+    }))
   })
 })

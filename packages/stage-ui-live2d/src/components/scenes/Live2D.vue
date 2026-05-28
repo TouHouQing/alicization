@@ -6,8 +6,11 @@ import type {
   StageEmbodimentSpeechRenderState,
 } from '@proj-alicization/stage-shared'
 
-import type { Live2DActionPulseBinding } from '../../composables/live2d'
-import type { Live2DRuntimeCapabilitySnapshot } from '../../composables/live2d'
+import type {
+  Live2DActionPulseBinding,
+  Live2DExecutionDiagnosticsSnapshot,
+  Live2DRuntimeCapabilitySnapshot,
+} from '../../composables/live2d'
 
 import { useWindowSize } from '@vueuse/core'
 import { onBeforeMount, onErrorCaptured, onMounted, ref, watch } from 'vue'
@@ -116,6 +119,7 @@ const live2dModelRef = ref<{
     centerX: number
     anchorY: number
   } | null
+  executionDiagnostics: () => Live2DExecutionDiagnosticsSnapshot
   dragAnchorClientPoint: () => {
     x: number
     y: number
@@ -149,6 +153,9 @@ defineExpose({
   },
   characterFrame: () => {
     return live2dModelRef.value?.characterFrame()
+  },
+  executionDiagnostics: () => {
+    return live2dModelRef.value?.executionDiagnostics()
   },
   dragAnchorClientPoint: () => {
     return live2dModelRef.value?.dragAnchorClientPoint() ?? null

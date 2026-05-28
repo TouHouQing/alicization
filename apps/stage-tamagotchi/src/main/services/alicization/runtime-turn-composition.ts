@@ -80,6 +80,19 @@ export function buildSessionMirrorRecollectionAfterthoughtSeed(mirror: Alicizati
   ].filter(Boolean).join(' ')
 }
 
+export function buildSessionMirrorRuntimeContinuitySeed(mirror: AlicizationDialogueSessionMirror | null) {
+  if (!mirror)
+    return ''
+  if (!mirror.runtimeChannelSummary && !mirror.runtimeTransitionSummary)
+    return ''
+
+  return [
+    'mirror_runtime_continuity:',
+    mirror.runtimeChannelSummary ? mirror.runtimeChannelSummary : '',
+    mirror.runtimeTransitionSummary ? mirror.runtimeTransitionSummary : '',
+  ].filter(Boolean).join(' ')
+}
+
 export function buildSessionContinuityRecallSeed(signals: AlicizationAgentSessionContinuityInput[]) {
   const afterglowSignals = signals
     .filter((signal) => {
@@ -122,4 +135,3 @@ export function deriveOrganicMemoryBudgetClass(
     ? 'deep-recall-reply'
     : 'realtime-reply'
 }
-

@@ -163,6 +163,87 @@ describe('stage embodiment posture', () => {
     expect(result.gazeStability).toBeGreaterThan(0.78)
   })
 
+  it('keeps lower-pressure attentive posture quieter and steadier when long-horizon timing says not to reopen too fast', () => {
+    const baseline = deriveStageEmbodimentPresencePostureState({
+      activePresence: {
+        source: 'presence-pulse',
+        embodiedPresence: 'attentive',
+        confidence: 0.82,
+        delivery: null,
+        emphasis: 0,
+        expiresAt: Date.now() + 2_000,
+        watchMode: 'symbiotic-vision',
+        stance: 'observe',
+        reasonTags: ['inspection'],
+        emotionalTension: 'focused-flow',
+        currentBodyState: 'noticing',
+        continuityMode: 'ambient-covision',
+        quietLineMs: 45_000,
+        currentInwardPreoccupation: 'stay nearby and track the room',
+      },
+      basePoint: { x: 640, y: 360 },
+      targetPoint: { x: 664, y: 348 },
+      stageBounds: { width: 1280, height: 720 },
+      speechRenderState: createIdleStageEmbodimentSpeechRenderState(),
+      visualPresenceState: createVisualPresenceStateForPosture({
+        watchMode: 'symbiotic-vision',
+        privateThought: {
+          stance: 'observe',
+          confidence: 0.72,
+          rationaleTags: ['inspection'],
+          thoughtText: 'Stay nearby and track the room.',
+          shouldSpeak: false,
+          suggestedStyle: 'silent-observe',
+          embodiedPresence: 'attentive',
+          expiresAt: Date.now() + 5_000,
+          emotionalTension: 'focused-flow',
+        },
+      }),
+    })
+
+    const lowerPressure = deriveStageEmbodimentPresencePostureState({
+      activePresence: {
+        source: 'presence-pulse',
+        embodiedPresence: 'attentive',
+        confidence: 0.82,
+        delivery: null,
+        emphasis: 0,
+        expiresAt: Date.now() + 2_000,
+        watchMode: 'symbiotic-vision',
+        stance: 'observe',
+        reasonTags: ['inspection', 'timing:lower-pressure-opening', 'timing-source:self-evolution'],
+        emotionalTension: 'focused-flow',
+        currentBodyState: 'noticing',
+        continuityMode: 'ambient-covision',
+        quietLineMs: 45_000,
+        currentInwardPreoccupation: 'stay nearby without reopening too fast',
+      },
+      basePoint: { x: 640, y: 360 },
+      targetPoint: { x: 664, y: 348 },
+      stageBounds: { width: 1280, height: 720 },
+      speechRenderState: createIdleStageEmbodimentSpeechRenderState(),
+      visualPresenceState: createVisualPresenceStateForPosture({
+        watchMode: 'symbiotic-vision',
+        privateThought: {
+          stance: 'observe',
+          confidence: 0.72,
+          rationaleTags: ['inspection', 'timing:lower-pressure-opening'],
+          thoughtText: 'Stay nearby without reopening too fast.',
+          shouldSpeak: false,
+          suggestedStyle: 'silent-observe',
+          embodiedPresence: 'attentive',
+          expiresAt: Date.now() + 5_000,
+          emotionalTension: 'focused-flow',
+        },
+      }),
+    })
+
+    expect(lowerPressure.mode).toBe('attentive')
+    expect(lowerPressure.bodyPitch).toBeLessThan(baseline.bodyPitch)
+    expect(lowerPressure.breathBoost).toBeLessThan(baseline.breathBoost)
+    expect(lowerPressure.gazeStability).toBeGreaterThan(baseline.gazeStability)
+  })
+
   it('keeps recovering in a concerned posture under protective watch', () => {
     const result = deriveStageEmbodimentPresencePostureState({
       activePresence: null,

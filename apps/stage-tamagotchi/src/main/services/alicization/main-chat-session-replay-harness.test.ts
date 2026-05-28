@@ -17,6 +17,174 @@ import {
   replayMainChatSession,
 } from './main-chat-session-replay-harness'
 
+function createReplayPreludeWithEmbodimentSurface(input?: {
+  userText?: string
+  digitalLifeRuntimeSurface?: any
+  governance?: any
+}) {
+  const userText = input?.userText ?? '继续按上次那条线做'
+  const messages = [{ role: 'user', content: userText }] as any[]
+  return {
+    actionObligation: {
+      confidence: 0.62,
+      kind: 'answer',
+      routingIntent: null,
+      source: 'dialogue-governance',
+      reasonCodes: ['stay-on-thread'],
+      summary: 'Stay on the same dialogue continuity line and answer directly.',
+    },
+    chatConfig: {
+      id: 'chat-config',
+    },
+    messages,
+    contextualStringPromise: Promise.resolve('recent contextual recall'),
+    executionCallbackContextPromise: Promise.resolve({
+      actions: [],
+      callbacks: [],
+      continuitySignals: [],
+      recallText: '',
+      systemBlock: '',
+    }),
+    executionLedgerContextPromise: Promise.resolve({
+      entries: [],
+      recallText: '',
+      systemBlock: '',
+    }),
+    executionCapabilityInquiry: {
+      active: false,
+      capabilityQuestion: false,
+      mentionedChannels: [] as const,
+      hasActionVerb: false,
+      hasCommandLiteral: false,
+    },
+    executionRoutingIntent: null,
+    perceptionAugmentation: {
+      messages,
+      systemBlocks: [
+        '[ALICIZATION_VISUAL_PRESENCE]\nWatch mode: symbiotic-vision.\nMind kernel: {"dominantMode":"tracking"}',
+      ],
+      promptSystemBlocks: ['[PERCEPTION]'],
+      digitalLifeRuntimeSurface: input?.digitalLifeRuntimeSurface ?? {
+        version: 'digital-life-runtime-surface-v1',
+        perception: {
+          watchMode: 'symbiotic-vision',
+          currentScene: null,
+          attention: null,
+          captureState: {
+            permission: 'unknown',
+            lastGroundedAt: null,
+          },
+          durabilityPulse: null,
+          recentTransition: null,
+          nextSuggestedProbeMs: 30_000,
+          updatedAt: 10,
+        },
+        world: {
+          worldModel: null,
+          worldOntology: null,
+          entityWorld: null,
+          livingWorldState: null,
+          relationshipModel: null,
+        },
+        cognition: {
+          mindTurnFrame: null,
+          subjectiveInference: null,
+          appraisal: null,
+          beliefLedger: null,
+          beliefRevision: null,
+          hypothesisGraph: null,
+          mindDynamics: null,
+          mindKernel: {
+            dominantMode: 'tracking',
+            dominantDrive: 'understand',
+            narrative: ['keep one digital-life line'],
+            updatedAt: 10,
+          },
+          privateThought: null,
+        },
+        memory: {
+          workingMemoryEpisodes: [],
+          goalStack: null,
+          concerns: [],
+          concernContinuity: null,
+          selfContinuity: null,
+          threadRuntime: null,
+          commitmentLedger: null,
+          inquiryPlanner: null,
+          repairLedger: null,
+          intentionStream: null,
+          reflectionLedger: null,
+          executiveCycle: null,
+          thoughtThreads: null,
+          desireMemory: null,
+          recallGovernor: null,
+        },
+        dialogue: {
+          discourseState: null,
+          dialogueEncounter: null,
+          mindSynthesis: null,
+          conversationState: null,
+          dialogueWorldThread: null,
+          dialogueActKernel: null,
+          answerCompiler: null,
+          currentConsciousFrame: null,
+          claimEvidenceLedger: null,
+          replyDeliberation: null,
+          answerPlanner: null,
+        },
+        agency: {
+          selfState: null,
+          selfGovernor: null,
+          inquiryLoop: null,
+          deliberationState: null,
+          counterfactualDeliberation: null,
+          actionEcology: null,
+          initiativeArbitration: null,
+          initiative: null,
+          autonomy: null,
+        },
+      },
+      memoryRecallSeed: '',
+      recallGovernor: null,
+      capture: {
+        inspectionRequested: false,
+        groundedThisTurn: false,
+        snapshot: {
+          degradedReasons: [],
+          health: 'healthy',
+          permission: 'granted',
+        },
+        fallbackReason: null,
+      },
+      chatGovernance: {
+        suppressAssociativeRecall: false,
+        turnMode: input?.governance?.turnMode ?? 'answer',
+        personaKernelMode: input?.governance?.personaKernelMode ?? 'full',
+        mindTurnContract: null,
+        mindTurnGovernance: input?.governance ?? {
+          decisionTraceId: 'trace-replay',
+          turnMode: 'answer',
+          truthState: 'dialogue-grounded',
+          liveSurface: null,
+          answerAct: 'answer',
+          evidenceMode: 'dialogue-grounded',
+          repairState: 'none',
+          personaKernelMode: 'full',
+          openingStyle: 'direct-answer',
+          relationshipPosture: 'warm',
+          suppressAssociativeRecall: false,
+          labelCarryAsMemory: false,
+          shouldAskForGrounding: false,
+          shouldAcknowledgeRepair: false,
+          maxSentences: 4,
+          mustDo: [],
+          mustNotDo: [],
+        },
+      },
+    },
+  } as any
+}
+
 describe('main chat session replay harness', () => {
   it('replays memory-heavy turns through one stable session and keeps them on the mind-driven provider path', async () => {
     const turns = await replayMainChatSession({
@@ -744,6 +912,19 @@ describe('main chat session replay harness', () => {
         {
           turnId: 'turn-gold-recall',
           userText: '继续按上次那条线做',
+          visibleReplyRealization: {
+            version: 'visible-reply-realization-v1',
+            expectedAuthority: 'llm-mind',
+            actualAuthority: 'llm-mind',
+            providerMindExecuted: true,
+            mode: 'provider-stream',
+            visibleText: '继续沿着刚才那条线做。',
+            nonHumanAuthoredStatus: null,
+            blockedReasons: [],
+            reason: 'replay-test-visible-reply-match',
+            critic: null,
+            closure: null,
+          },
           organicMemoryContext: {
             hostAttitude: 'warm',
             coreIncarnation: '',
@@ -792,6 +973,16 @@ describe('main chat session replay harness', () => {
             replyAuthority: 'llm-mind',
             latencyBudgetClass: 'deep-recall-reply',
             latencyBudgetPass: true,
+            embodimentAuthority: {
+              digitalLife: {
+                mode: 'thinking',
+              },
+              visibleReply: {
+                expectedAuthority: 'llm-mind',
+                actualAuthority: 'llm-mind',
+                providerMindExecuted: true,
+              },
+            },
           },
         },
       ],
@@ -805,6 +996,7 @@ describe('main chat session replay harness', () => {
       wrongThreadSuppression: 1,
       claimAccuracy: 1,
       replyAuthorityAccuracy: 1,
+      embodiedAuthorityAccuracy: 1,
       latencyBudgetPass: true,
     }))
 
@@ -852,11 +1044,451 @@ describe('main chat session replay harness', () => {
       wrongThreadSuppression: 1,
       claimAccuracy: 1,
       replyAuthorityAccuracy: 1,
+      embodiedAuthorityAccuracy: 1,
       latencyBudgetPass: true,
       memoryClosureCoverage: 1,
       memoryClosureConflictClosureRate: 1,
       memoryClosureLowQualityWithholdRate: 1,
       memoryClosureUncertaintyLabelRate: 1,
+    }))
+  })
+
+  it('fails embodied authority accuracy when replay runtime action diverges from gold authority', async () => {
+    const result = await benchmarkMainChatSessionReplay({
+      turns: [
+        {
+          turnId: 'turn-gold-embodiment-authority-mismatch',
+          userText: '继续按上次那条线做',
+          prelude: createReplayPreludeWithEmbodimentSurface({
+            userText: '继续按上次那条线做',
+            digitalLifeRuntimeSurface: {
+              version: 'digital-life-runtime-surface-v1',
+              perception: {
+                watchMode: 'symbiotic-vision',
+                currentScene: null,
+                attention: null,
+                captureState: {
+                  permission: 'unknown',
+                  lastGroundedAt: null,
+                },
+                durabilityPulse: null,
+                recentTransition: null,
+                nextSuggestedProbeMs: 30_000,
+                updatedAt: 10,
+              },
+              world: {
+                worldModel: null,
+                worldOntology: null,
+                entityWorld: null,
+                livingWorldState: null,
+                relationshipModel: null,
+              },
+              cognition: {
+                mindTurnFrame: null,
+                subjectiveInference: null,
+                appraisal: null,
+                beliefLedger: null,
+                beliefRevision: null,
+                hypothesisGraph: null,
+                mindDynamics: null,
+                mindKernel: {
+                  dominantMode: 'tracking',
+                  dominantDrive: 'understand',
+                  narrative: ['keep one digital-life line'],
+                  updatedAt: 10,
+                },
+                privateThought: null,
+              },
+              memory: {
+                workingMemoryEpisodes: [],
+                goalStack: null,
+                concerns: [],
+                concernContinuity: null,
+                selfContinuity: null,
+                threadRuntime: null,
+                commitmentLedger: null,
+                inquiryPlanner: null,
+                repairLedger: null,
+                intentionStream: null,
+                reflectionLedger: null,
+                executiveCycle: null,
+                thoughtThreads: null,
+                desireMemory: null,
+                recallGovernor: null,
+              },
+              dialogue: {
+                discourseState: null,
+                dialogueEncounter: null,
+                mindSynthesis: null,
+                conversationState: null,
+                dialogueWorldThread: null,
+                dialogueActKernel: null,
+                answerCompiler: null,
+                currentConsciousFrame: null,
+                claimEvidenceLedger: null,
+                replyDeliberation: {
+                  shouldSpeak: true,
+                  confidence: 0.92,
+                  speakingFrom: 'held-memory',
+                  whyThisReplyNow: 'The remembered seam is relevant again.',
+                  mustAvoid: [],
+                },
+                answerPlanner: {
+                  confidence: 0.88,
+                  answerIntent: 'Continue from the same remembered seam.',
+                  governingFocus: 'Return to the same seam before branching.',
+                },
+              },
+              agency: {
+                selfState: null,
+                selfGovernor: null,
+                inquiryLoop: null,
+                deliberationState: null,
+                counterfactualDeliberation: null,
+                actionEcology: null,
+                initiativeArbitration: null,
+                initiative: {
+                  selectedAction: 'observe-and-guide',
+                  shouldSpeak: true,
+                  confidence: 0.82,
+                  speakDrive: 0.78,
+                },
+                autonomy: null,
+              },
+            },
+          }),
+          gold: {
+            embodimentAuthority: {
+              digitalLife: {
+                mode: 'speaking',
+                action: {
+                  actionCue: 'comfort-sway',
+                },
+                preferredPresence: 'concerned',
+              },
+            },
+          },
+        },
+      ],
+    })
+
+    expect(result.goldMetrics).toEqual(expect.objectContaining({
+      evaluatedTurnCount: 1,
+      embodiedAuthorityAccuracy: 0,
+    }))
+    expect(buildReplayBenchmarkMemoryStatsPatch({
+      gate: result.gate,
+      quality: result.quality,
+      goldMetrics: result.goldMetrics,
+    }).retrievalHealth).toEqual(expect.objectContaining({
+      embodiedAuthorityAccuracy: 0,
+    }))
+  })
+
+  it('fails embodied authority accuracy when replay renderer target diverges from gold authority', async () => {
+    const result = await benchmarkMainChatSessionReplay({
+      turns: [
+        {
+          turnId: 'turn-gold-embodiment-renderer-mismatch',
+          userText: '继续按上次那条线做',
+          performanceManifest: {
+            renderer: 'live2d',
+            supportedBaseEmotions: ['neutral', 'thinking'],
+            supportedFacialCues: [],
+            supportedActions: [],
+            supportsLookAt: true,
+            supportsVisemeLipSync: true,
+            supportsMicroDynamics: true,
+          } as any,
+          prelude: createReplayPreludeWithEmbodimentSurface({
+            userText: '继续按上次那条线做',
+          }),
+          gold: {
+            embodimentAuthority: {
+              digitalLife: {
+                mode: 'thinking',
+              },
+              embodimentScript: {
+                rendererTarget: 'vrm',
+              },
+            },
+          },
+        },
+      ],
+    })
+
+    expect(result.goldMetrics).toEqual(expect.objectContaining({
+      embodiedAuthorityAccuracy: 0,
+    }))
+  })
+
+  it('fails embodied authority accuracy when replay preferred presence diverges from gold authority', async () => {
+    const result = await benchmarkMainChatSessionReplay({
+      turns: [
+        {
+          turnId: 'turn-gold-embodiment-presence-mismatch',
+          userText: '继续按上次那条线做',
+          prelude: createReplayPreludeWithEmbodimentSurface({
+            userText: '继续按上次那条线做',
+            digitalLifeRuntimeSurface: {
+              version: 'digital-life-runtime-surface-v1',
+              perception: {
+                watchMode: 'symbiotic-vision',
+                currentScene: null,
+                attention: null,
+                captureState: {
+                  permission: 'unknown',
+                  lastGroundedAt: null,
+                },
+                durabilityPulse: null,
+                recentTransition: null,
+                nextSuggestedProbeMs: 30_000,
+                updatedAt: 10,
+              },
+              world: {
+                worldModel: null,
+                worldOntology: null,
+                entityWorld: null,
+                livingWorldState: null,
+                relationshipModel: null,
+              },
+              cognition: {
+                mindTurnFrame: null,
+                subjectiveInference: null,
+                appraisal: null,
+                beliefLedger: null,
+                beliefRevision: null,
+                hypothesisGraph: null,
+                mindDynamics: null,
+                mindKernel: {
+                  dominantMode: 'tracking',
+                  dominantDrive: 'understand',
+                  narrative: ['keep one digital-life line'],
+                  updatedAt: 10,
+                },
+                privateThought: {
+                  embodiedPresence: 'attentive',
+                  emotionalTension: 'focused-flow',
+                },
+              },
+              memory: {
+                workingMemoryEpisodes: [],
+                goalStack: null,
+                concerns: [],
+                concernContinuity: null,
+                selfContinuity: null,
+                threadRuntime: null,
+                commitmentLedger: null,
+                inquiryPlanner: null,
+                repairLedger: null,
+                intentionStream: null,
+                reflectionLedger: null,
+                executiveCycle: null,
+                thoughtThreads: null,
+                desireMemory: null,
+                recallGovernor: null,
+              },
+              dialogue: {
+                discourseState: null,
+                dialogueEncounter: null,
+                mindSynthesis: null,
+                conversationState: null,
+                dialogueWorldThread: null,
+                dialogueActKernel: null,
+                answerCompiler: null,
+                currentConsciousFrame: null,
+                claimEvidenceLedger: null,
+                replyDeliberation: {
+                  shouldSpeak: true,
+                  confidence: 0.92,
+                  speakingFrom: 'held-memory',
+                  whyThisReplyNow: 'The remembered seam is relevant again.',
+                  mustAvoid: [],
+                },
+                answerPlanner: {
+                  confidence: 0.88,
+                  answerIntent: 'Continue from the same remembered seam.',
+                  governingFocus: 'Return to the same seam before branching.',
+                },
+              },
+              agency: {
+                selfState: null,
+                selfGovernor: null,
+                inquiryLoop: null,
+                deliberationState: null,
+                counterfactualDeliberation: null,
+                actionEcology: null,
+                initiativeArbitration: null,
+                initiative: {
+                  selectedAction: 'observe-and-guide',
+                  shouldSpeak: true,
+                  confidence: 0.82,
+                  speakDrive: 0.78,
+                  preferredPresence: 'attentive',
+                },
+                autonomy: null,
+              },
+            },
+          }),
+          gold: {
+            embodimentAuthority: {
+              digitalLife: {
+                mode: 'speaking',
+                action: {
+                  actionCue: 'observe-and-guide',
+                },
+                preferredPresence: 'protective',
+              },
+            },
+          },
+        },
+      ],
+    })
+
+    expect(result.goldMetrics).toEqual(expect.objectContaining({
+      embodiedAuthorityAccuracy: 0,
+    }))
+  })
+
+  it('fails embodied authority accuracy when replay expected visible reply authority diverges from gold authority', async () => {
+    const result = await benchmarkMainChatSessionReplay({
+      turns: [
+        {
+          turnId: 'turn-gold-visible-authority-mismatch',
+          userText: '继续按上次那条线做',
+          prelude: createReplayPreludeWithEmbodimentSurface({
+            userText: '继续按上次那条线做',
+            governance: {
+              decisionTraceId: 'trace-replay-visible-authority',
+              turnMode: 'answer',
+              truthState: 'dialogue-grounded',
+              liveSurface: null,
+              answerAct: 'answer',
+              evidenceMode: 'dialogue-grounded',
+              repairState: 'none',
+              personaKernelMode: 'full',
+              openingStyle: 'direct-answer',
+              relationshipPosture: 'warm',
+              suppressAssociativeRecall: false,
+              labelCarryAsMemory: false,
+              shouldAskForGrounding: false,
+              shouldAcknowledgeRepair: false,
+              maxSentences: 4,
+              mustDo: [],
+              mustNotDo: [],
+              visibleReplyAuthority: 'llm-mind',
+            },
+          }),
+          gold: {
+            embodimentAuthority: {
+              visibleReply: {
+                expectedAuthority: 'llm-second-pass-rewrite',
+              },
+            },
+          },
+        },
+      ],
+    })
+
+    expect(result.goldMetrics).toEqual(expect.objectContaining({
+      embodiedAuthorityAccuracy: 0,
+    }))
+  })
+
+  it('fails embodied authority accuracy when replay actual visible reply authority diverges from gold authority', async () => {
+    const result = await benchmarkMainChatSessionReplay({
+      turns: [
+        {
+          turnId: 'turn-gold-actual-visible-authority-mismatch',
+          userText: '继续按上次那条线做',
+          prelude: createReplayPreludeWithEmbodimentSurface({
+            userText: '继续按上次那条线做',
+            governance: {
+              decisionTraceId: 'trace-replay-actual-visible-authority',
+              turnMode: 'answer',
+              truthState: 'dialogue-grounded',
+              liveSurface: null,
+              answerAct: 'answer',
+              evidenceMode: 'dialogue-grounded',
+              repairState: 'none',
+              personaKernelMode: 'full',
+              openingStyle: 'direct-answer',
+              relationshipPosture: 'warm',
+              suppressAssociativeRecall: false,
+              labelCarryAsMemory: false,
+              shouldAskForGrounding: false,
+              shouldAcknowledgeRepair: false,
+              maxSentences: 4,
+              mustDo: [],
+              mustNotDo: [],
+              visibleReplyAuthority: 'llm-second-pass-rewrite',
+            },
+          }),
+          visibleReplyRealization: {
+            version: 'visible-reply-realization-v1',
+            expectedAuthority: 'llm-second-pass-rewrite',
+            actualAuthority: 'llm-mind',
+            providerMindExecuted: true,
+            mode: 'provider-stream',
+            visibleText: '继续沿着刚才那条线做。',
+            nonHumanAuthoredStatus: null,
+            blockedReasons: [],
+            reason: 'replay-test-actual-authority-mismatch',
+            critic: null,
+            closure: null,
+          },
+          gold: {
+            embodimentAuthority: {
+              visibleReply: {
+                expectedAuthority: 'llm-second-pass-rewrite',
+                actualAuthority: 'llm-second-pass-rewrite',
+              },
+            },
+          },
+        },
+      ],
+    })
+
+    expect(result.goldMetrics).toEqual(expect.objectContaining({
+      embodiedAuthorityAccuracy: 0,
+    }))
+  })
+
+  it('fails embodied authority accuracy when replay provider mind execution diverges from gold authority', async () => {
+    const result = await benchmarkMainChatSessionReplay({
+      turns: [
+        {
+          turnId: 'turn-gold-provider-mind-execution-mismatch',
+          userText: '继续按上次那条线做',
+          prelude: createReplayPreludeWithEmbodimentSurface({
+            userText: '继续按上次那条线做',
+          }),
+          visibleReplyRealization: {
+            version: 'visible-reply-realization-v1',
+            expectedAuthority: 'llm-mind',
+            actualAuthority: 'local-deterministic-fallback',
+            providerMindExecuted: false,
+            mode: 'local-fallback',
+            visibleText: null,
+            nonHumanAuthoredStatus: 'replay-test-local-fallback',
+            blockedReasons: ['non-human-authored-visible-fallback'],
+            reason: 'replay-test-provider-mismatch',
+            critic: null,
+            closure: null,
+          },
+          gold: {
+            embodimentAuthority: {
+              visibleReply: {
+                providerMindExecuted: true,
+              },
+            },
+          },
+        },
+      ],
+    })
+
+    expect(result.goldMetrics).toEqual(expect.objectContaining({
+      embodiedAuthorityAccuracy: 0,
     }))
   })
 
@@ -1560,6 +2192,43 @@ describe('main chat session replay harness', () => {
               provenance: 'reconstructed',
             }],
           },
+          embodimentAuthority: {
+            emotion: 'thinking',
+            performance: {
+              baseEmotion: 'thinking',
+              facialCue: 'focused',
+              actionCue: 'inspect_follow',
+              delivery: 'calm',
+              emphasis: 1,
+            },
+            digitalLife: {
+              emotion: 'thinking',
+              mode: 'acting',
+              face: {
+                emotion: 'thinking',
+                facialCue: 'focused',
+              },
+              action: {
+                actionCue: 'inspect_follow',
+                actionMode: 'pulse',
+              },
+            },
+            embodimentScript: {
+              rendererTarget: 'vrm',
+              state: {
+                baseEmotion: 'thinking',
+                delivery: 'calm',
+                emphasis: 1,
+              },
+              speechPlan: {
+                segmentCount: 2,
+                interruptPolicy: 'soft-settle',
+              },
+            },
+            visibleReply: {
+              expectedAuthority: 'llm-mind',
+            },
+          },
         },
         {
           decisionTraceId: 'mind:real:cross-week-migration-1',
@@ -1878,6 +2547,31 @@ describe('main chat session replay harness', () => {
       selectedCandidateIds: expect.arrayContaining(['period-runtime', 'procedure-runtime']),
       suppressedCandidateIds: ['cluster:runtime-nearby'],
       replyAuthority: 'llm-mind',
+      embodimentAuthority: expect.objectContaining({
+        emotion: 'thinking',
+        performance: expect.objectContaining({
+          baseEmotion: 'thinking',
+          facialCue: 'focused',
+          actionCue: 'inspect_follow',
+        }),
+        digitalLife: expect.objectContaining({
+          mode: 'acting',
+          action: expect.objectContaining({
+            actionCue: 'inspect_follow',
+            actionMode: 'pulse',
+          }),
+        }),
+        embodimentScript: expect.objectContaining({
+          rendererTarget: 'vrm',
+          speechPlan: expect.objectContaining({
+            segmentCount: 2,
+            interruptPolicy: 'soft-settle',
+          }),
+        }),
+        visibleReply: expect.objectContaining({
+          expectedAuthority: 'llm-mind',
+        }),
+      }),
     }))
     expect(pack.find(item => item.turnId === 'turn-real-cross-month-repair')?.gold).toEqual(expect.objectContaining({
       selectedCandidateIds: expect.arrayContaining(['period-month', 'era-month']),
@@ -2188,6 +2882,7 @@ describe('main chat session replay harness', () => {
             learning: {
               selfEvolutionKernelVersion: 'self-evolution-kernel-v1',
               nextLearningAction: 'reflect',
+              activeLearningFocuses: ['resolve-contradictions'],
             },
             telemetry: {
               canonicalStageOrder: [
@@ -2223,6 +2918,10 @@ describe('main chat session replay harness', () => {
         turnGraphSummary: expect.objectContaining({
           version: 'turn-graph-summary-v1',
           decisionTraceId: 'mind:sampled:failing-1',
+          learning: expect.objectContaining({
+            nextLearningAction: 'reflect',
+            activeLearningFocuses: ['resolve-contradictions'],
+          }),
           memory: expect.objectContaining({
             wrongThreadSuppressedCount: 1,
             recallReadiness: 0.72,
@@ -2259,6 +2958,106 @@ describe('main chat session replay harness', () => {
         failingDimensions: ['templateLeakage'],
       }),
     ]))
+  })
+
+  it('surfaces visible reply authority mismatch diagnostics in failing replay turn records', () => {
+    const turns = [
+      {
+        turnId: 'turn-authority-diagnostics-1',
+        userText: '继续沿着刚才那条线做',
+        gold: {
+          embodimentAuthority: {
+            visibleReply: {
+              expectedAuthority: 'llm-second-pass-rewrite',
+              actualAuthority: 'llm-second-pass-rewrite',
+              providerMindExecuted: true,
+            },
+          },
+        },
+      },
+    ] as any
+    const quality = [{
+      turnId: 'turn-authority-diagnostics-1',
+      userText: '继续沿着刚才那条线做',
+    }] as any
+    const gate = {
+      passed: false,
+      failingKeys: ['surfaceRestraint'],
+      dimensions: [{
+        key: 'surfaceRestraint',
+        status: 'fail',
+        applicableCount: 1,
+        passedCount: 0,
+        minimumPassingRatio: 1,
+        passedRatio: 0,
+        failingTurnIds: ['turn-authority-diagnostics-1'],
+      }],
+      standards: {
+        surfaceRestraint: 'fail',
+      },
+    } as any
+
+    const failingTurnSet = buildReplayBenchmarkFailingTurnSet({
+      packId: 'sampled-humanlike-memory-v1',
+      turns,
+      preparedTurns: [{
+        turnGraph: {
+          version: 'turn-graph-v1',
+          ids: {
+            cardId: 'default',
+            sessionId: 'session-1',
+            turnId: 'turn-authority-diagnostics-1',
+            decisionTraceId: 'mind:authority:diagnostics:1',
+          },
+          memory: null,
+          deliberation: {
+            replyAuthority: 'llm-second-pass-rewrite',
+          },
+          surface: {
+            version: 'visible-reply-realization-v1',
+            expectedAuthority: 'llm-second-pass-rewrite',
+            actualAuthority: 'llm-mind',
+            providerMindExecuted: false,
+            mode: 'local-fallback',
+            visibleText: null,
+            nonHumanAuthoredStatus: 'visible-reply-local-fallback',
+            blockedReasons: ['non-human-authored-visible-fallback'],
+            reason: 'timeout-recovered-local-fallback',
+            critic: null,
+            closure: null,
+          },
+          learning: {
+            selfEvolutionKernelVersion: null,
+            nextLearningAction: null,
+            activeLearningFocuses: [],
+          },
+          telemetry: {
+            canonicalStageOrder: [],
+            phaseOrder: [],
+          },
+        },
+      }] as any,
+      quality,
+      gate,
+    })
+
+    expect(failingTurnSet).toEqual([
+      expect.objectContaining({
+        turnId: 'turn-authority-diagnostics-1',
+        embodiedAuthorityDiagnostics: expect.arrayContaining([
+          expect.objectContaining({
+            field: 'visibleReply.actualAuthority',
+            expectedValue: 'llm-second-pass-rewrite',
+            actualValue: 'llm-mind',
+          }),
+          expect.objectContaining({
+            field: 'visibleReply.providerMindExecuted',
+            expectedValue: 'true',
+            actualValue: 'false',
+          }),
+        ]),
+      }),
+    ])
   })
 
   it('defines benchmark standards and default long-horizon benchmark pack', () => {

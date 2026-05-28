@@ -83,6 +83,7 @@ function countPatternMatches(text: string, patterns: RegExp[]) {
 function resolveIdlePreferenceScore(
   mode: Exclude<StageEmbodimentPresencePostureMode, 'idle'>,
   confidence: number,
+  posture: StageEmbodimentPresencePostureState,
   text: string,
   settleLike: boolean,
 ) {
@@ -91,11 +92,54 @@ function resolveIdlePreferenceScore(
   const softMatches = countPatternMatches(text, profile.soft)
   const avoidMatches = countPatternMatches(text, profile.avoid)
   const genericIdleMatches = countPatternMatches(text, [/idle/i, /settle/i, /rest/i, /neutral/i, /loop/i])
+  const quietMatches = countPatternMatches(text, [/quiet/i, /companion/i, /nearby/i, /soft/i, /hold/i])
+  const protectiveMatches = countPatternMatches(text, [/protect/i, /guard/i, /watch/i, /hold/i, /nearby/i])
+  const focusHoldMatches = countPatternMatches(text, [/focus/i, /observe/i, /inspect/i, /hold/i, /study/i])
+  const responsiveMatches = countPatternMatches(text, [/nod/i, /sway/i, /smile/i, /lean/i, /settle/i])
+  const quietAttentiveBias = mode === 'attentive'
+    && posture.gazeStability >= 0.84
+    && posture.breathBoost <= 0.18
+    && Math.abs(posture.bodyYaw) <= 0.05
+    && posture.bodyPitch <= 0.28
+      ? quietMatches * 0.3 - focusHoldMatches * 0.08
+      : 0
+  const lowerPressureQuietAttentiveBias = mode === 'attentive'
+    && posture.gazeStability >= 0.88
+    && posture.breathBoost <= 0.14
+    && Math.abs(posture.bodyYaw) <= 0.03
+    && posture.bodyPitch <= 0.24
+      ? quietMatches * 0.26
+        + protectiveMatches * 0.08
+        - responsiveMatches * 0.12
+        - (settleLike ? 0.08 : 0)
+      : 0
+  const activeAttentiveBias = mode === 'attentive'
+    && posture.gazeStability <= 0.72
+    && posture.breathBoost >= 0.24
+    && posture.bodyPitch >= 0.34
+      ? focusHoldMatches * 0.24 - quietMatches * 0.08
+      : 0
+  const protectiveConcernedBias = mode === 'concerned'
+    && posture.gazeStability >= 0.86
+    && posture.breathBoost <= 0.2
+    && Math.abs(posture.bodyYaw) <= 0.04
+      ? protectiveMatches * 0.46 - genericIdleMatches * 0.08
+      : 0
+  const ordinaryConcernedBias = mode === 'concerned'
+    && posture.breathBoost >= 0.26
+    && posture.bodyPitch >= 0.38
+      ? genericIdleMatches * 0.12
+      : 0
 
   return confidence * 0.35
     + strongMatches * 0.42
     + softMatches * 0.18
     + genericIdleMatches * 0.08
+    + quietAttentiveBias
+    + lowerPressureQuietAttentiveBias
+    + activeAttentiveBias
+    + protectiveConcernedBias
+    + ordinaryConcernedBias
     + (settleLike ? profile.settleBoost : 0)
     - avoidMatches * 0.32
 }
@@ -125,7 +169,7 @@ function resolveLive2DIdleMotionPreference(
         capability.motionName,
       )
       const settleLike = /(?:^|[_\s-])(?:idle|settle)(?:[_\s-]|$)/i.test(capability.actionKey) || /(?:^|[_\s-])idle(?:[_\s-]|$)/i.test(capability.motionName)
-      const score = resolveIdlePreferenceScore(mode, confidence, text, settleLike)
+      const score = resolveIdlePreferenceScore(mode, confidence, posture!, text, settleLike)
       return {
         capability,
         score,
@@ -164,7 +208,7 @@ function resolveVrmIdleActionPreference(
         binding.fileName,
       )
       const settleLike = binding.actionKey === 'settle_idle' || /(?:^|[_\s-])(?:idle|settle)(?:[_\s-]|$)/i.test(binding.actionKey)
-      const score = resolveIdlePreferenceScore(mode, confidence, text, settleLike)
+      const score = resolveIdlePreferenceScore(mode, confidence, posture!, text, settleLike)
       return {
         binding,
         score,

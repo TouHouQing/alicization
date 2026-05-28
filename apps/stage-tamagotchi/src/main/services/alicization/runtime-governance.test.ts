@@ -1,4 +1,7 @@
-import type { AlicizationConversationTurnInput } from '../../../shared/eventa'
+import type {
+  AlicizationConversationTurnInput,
+  CharacterPerformanceCapabilitiesManifest,
+} from '../../../shared/eventa'
 
 import { describe, expect, it } from 'vitest'
 
@@ -147,6 +150,394 @@ describe('runtime-governance', () => {
         confidence: 0.94,
       }),
     ]))
+  })
+
+  it('rebuilds embodimentScript when normalizing dialogue payloads for downstream delivery', () => {
+    const dialoguePayload = normalizeDialogueRespondedPayload({
+      turnId: 'turn-normalize-embodiment-script-1',
+      sessionId: 'session-normalize-embodiment-script',
+      assistantText: '这个错误先别放过去，我轻轻提醒你看一眼。',
+      structured: {
+        thought: 'coding proactive nudge should be short and grounded',
+        emotion: 'thinking',
+        reply: '这个错误先别放过去，我轻轻提醒你看一眼。',
+        performance: {
+          baseEmotion: 'thinking',
+          emotion: 'thinking',
+          facialCue: null,
+          actionCue: null,
+          delivery: 'calm',
+          emphasis: 0,
+        },
+        format: 'mind-turn-v1',
+      },
+      origin: 'subconscious-proactive',
+      createdAt: Date.now(),
+    }, {
+      renderer: 'live2d',
+      supportedBaseEmotions: ['neutral', 'thinking', 'concerned'],
+      supportedFacialCues: [
+        { key: 'focus', label: 'Focus', description: 'focused face', source: 'preset', affectsMouth: false },
+        { key: 'relaxed', label: 'Relaxed', description: 'relaxed face', source: 'preset', affectsMouth: false },
+      ],
+      supportedActions: [
+        { key: 'observe_focus', label: 'Observe', description: 'observe focus', source: 'live2d-motion' },
+        { key: 'pout_confused', label: 'Pout', description: 'pout confused', source: 'live2d-motion' },
+        { key: 'idle_settle', label: 'Idle', description: 'idle settle', source: 'live2d-motion' },
+      ],
+      supportsLookAt: true,
+      supportsVisemeLipSync: true,
+      supportsMicroDynamics: true,
+    })
+
+    expect(dialoguePayload?.structured.embodimentScript).toEqual(expect.objectContaining({
+      version: 'embodiment-script-v1',
+      rendererTarget: 'live2d',
+      facePlan: expect.objectContaining({
+        speakingCues: expect.arrayContaining([
+          expect.objectContaining({
+            source: 'prosody-authority',
+            confidence: expect.any(Number),
+          }),
+        ]),
+      }),
+      motionPlan: expect.objectContaining({
+        actionBursts: expect.arrayContaining([
+          expect.objectContaining({
+            source: 'timeline-projection',
+            confidence: expect.any(Number),
+          }),
+        ]),
+      }),
+      lipsyncPlan: expect.objectContaining({
+        visemeHints: expect.arrayContaining([
+          expect.objectContaining({
+            source: 'prosody-authority',
+            confidence: expect.any(Number),
+          }),
+        ]),
+      }),
+    }))
+  })
+
+  it('preserves long-horizon learning reason codes in proactive metadata normalization', () => {
+    const dialoguePayload = normalizeDialogueRespondedPayload({
+      turnId: 'turn-normalize-proactive-learning-reasons-1',
+      sessionId: 'session-normalize-proactive-learning-reasons',
+      assistantText: '这里像是报错刚冒出来，我先轻轻提醒你别漏掉这一处。',
+      structured: {
+        thought: 'coding proactive nudge should keep long-horizon learning reasons intact',
+        emotion: 'thinking',
+        reply: '这里像是报错刚冒出来，我先轻轻提醒你别漏掉这一处。',
+        performance: {
+          baseEmotion: 'thinking',
+          emotion: 'thinking',
+          facialCue: null,
+          actionCue: null,
+          delivery: 'calm',
+          emphasis: 0,
+        },
+        format: 'subconscious-proactive-llm-v1',
+        proactive: {
+          shouldInterrupt: true,
+          confidence: 0.73,
+          reasonCodes: [
+            'foreground-error',
+            'learning:verify',
+            'learning-focus:world-model',
+          ],
+          urgency: 'medium',
+          style: 'light-nudge',
+          cooldownMs: 18 * 60_000,
+          scenario: 'coding',
+          policyVersion: 'epoch4.1-v1',
+          feedbackWindowMs: 120_000,
+          openingGuidance: 'Open by observing first and keep the approach lighter.',
+        },
+      },
+      origin: 'subconscious-proactive',
+      createdAt: Date.now(),
+    })
+
+    expect(dialoguePayload?.structured.proactive?.reasonCodes).toEqual(expect.arrayContaining([
+      'foreground-error',
+      'learning:verify',
+      'learning-focus:world-model',
+    ]))
+    expect(dialoguePayload?.structured.proactive?.openingGuidance).toBe('Open by observing first and keep the approach lighter.')
+  })
+
+  it('uses the manifest renderer as embodimentScript rendererTarget across governed and normalized payloads', () => {
+    const input: AlicizationConversationTurnInput = {
+      turnId: 'turn-vrm-renderer-target-1',
+      sessionId: 'session-vrm-renderer-target',
+      userText: '继续盯这个报错',
+      assistantText: '我先继续盯着它，再慢慢拆开看。',
+      structured: {
+        thought: 'obligation=answer; truth=remembered; focus=current-user-turn; move=continue; tone=direct',
+        emotion: 'thinking',
+        reply: '我先继续盯着它，再慢慢拆开看。',
+        parsePath: 'json',
+        format: 'mind-turn-v1',
+        performance: {
+          baseEmotion: 'thinking',
+          emotion: 'thinking',
+          facialCue: 'focused',
+          actionCue: 'inspect_follow',
+          delivery: 'calm',
+          emphasis: 1,
+        },
+      } as any,
+      governance: {
+        decisionTraceId: 'trace-vrm-renderer-target-1',
+        turnMode: 'answer',
+        truthState: 'remembered',
+        personaKernelMode: 'full',
+        openingStyle: 'direct-answer',
+        relationshipPosture: 'warm',
+        answerAct: 'guide',
+        answerSubject: 'task-knot',
+        screenReferenceMode: 'helpful',
+        evidenceMode: 'continuity-carry',
+        repairState: 'none',
+        liveSurface: 'current task thread',
+        focusAnchor: 'current task thread',
+        answerIntent: 'Continue following the current issue directly.',
+        openingMove: 'Stay with the current issue.',
+        carriedThread: 'current task thread',
+        suppressAssociativeRecall: false,
+        labelCarryAsMemory: true,
+        shouldAskForGrounding: false,
+        shouldAcknowledgeRepair: false,
+        maxSentences: 3,
+        mustDo: [],
+        mustNotDo: [],
+      } as any,
+      createdAt: Date.now(),
+    }
+
+    const manifest = {
+      renderer: 'vrm' as const,
+      supportedBaseEmotions: ['neutral', 'thinking', 'concerned'],
+      supportedFacialCues: [
+        { key: 'focused', label: 'Focused', description: 'focused face', source: 'preset' as const, affectsMouth: false },
+      ],
+      supportedActions: [
+        { key: 'inspect_follow', label: 'Inspect', description: 'inspect follow', source: 'external-vrma' as const },
+      ],
+      supportsLookAt: true,
+      supportsVisemeLipSync: true,
+      supportsMicroDynamics: true,
+    } satisfies CharacterPerformanceCapabilitiesManifest
+
+    const governed = coerceConversationTurnToMindGovernedPayload(input, manifest)
+    const governedStructured = governed.payload.structured as Record<string, any>
+    expect(governedStructured.embodimentScript).toEqual(expect.objectContaining({
+      rendererTarget: 'vrm',
+    }))
+
+    const dialoguePayload = normalizeDialogueRespondedPayload(governed.payload, manifest)
+    expect(dialoguePayload?.structured.embodimentScript).toEqual(expect.objectContaining({
+      rendererTarget: 'vrm',
+    }))
+  })
+
+  it('reconciles provided digitalLife with final embodied authority when normalizing downstream payloads', () => {
+    const dialoguePayload = normalizeDialogueRespondedPayload({
+      turnId: 'turn-normalize-digital-life-authority-1',
+      sessionId: 'session-normalize-digital-life-authority',
+      assistantText: '我会继续看着这个点。',
+      structured: {
+        thought: 'obligation=answer; truth=remembered; focus=current-user-turn; move=continue; tone=direct',
+        emotion: 'thinking',
+        reply: '我会继续看着这个点。',
+        performance: {
+          baseEmotion: 'thinking',
+          emotion: 'thinking',
+          facialCue: 'focused',
+          actionCue: 'inspect_follow',
+          delivery: 'gentle',
+          emphasis: 1,
+        },
+        digitalLife: {
+          version: 'digital-life-v1',
+          variationToken: 'turn-normalize-digital-life-authority-1',
+          emotion: 'neutral',
+          mode: 'speaking',
+          postureHint: 'attentive',
+          performance: {
+            baseEmotion: 'neutral',
+            emotion: 'neutral',
+            facialCue: null,
+            actionCue: null,
+            delivery: 'calm',
+            emphasis: 0,
+          },
+          speechStyle: {
+            pitchDelta: 0,
+            rateMultiplier: 1,
+          },
+          voice: {
+            pitchDelta: 0,
+            rateMultiplier: 1,
+            energy: 0.5,
+            cadence: 0.5,
+          },
+          lipSync: {
+            mode: 'hybrid',
+            visemeBias: 0.6,
+            energyBias: 0.4,
+            mouthScale: 1,
+            continuityHoldMs: 180,
+          },
+          face: {
+            emotion: 'neutral',
+            facialCue: null,
+            expressionMode: 'recover',
+            intensity: 0.4,
+            holdMs: 220,
+          },
+          action: {
+            actionCue: null,
+            actionMode: 'none',
+            intensity: 0.2,
+            holdMs: 180,
+          },
+          motor: {
+            stillness: 0.5,
+            expressivity: 0.5,
+            gaze: { focus: 0.6, stability: 0.6, azimuth: 0, elevation: 0 },
+            head: { yaw: 0, pitch: 0, roll: 0, nod: 0.1 },
+            breath: { amplitude: 0.25, pace: 0.4 },
+            facial: {
+              eyeOpenness: 0.55,
+              browLift: 0.05,
+              browTension: 0.16,
+              cheekLift: 0.08,
+              mouthSpread: 0.1,
+              mouthRound: 0.14,
+              jawOpenBias: 0.2,
+            },
+            body: {
+              sway: 0.03,
+              lean: 0,
+              openness: 0.4,
+              settle: 0.55,
+            },
+          },
+          frames: [{
+            id: 'turn-normalize-digital-life-authority-1-segment-0',
+            index: 0,
+            startOffset: 0,
+            endOffset: 10,
+            text: '我会继续看着这个点。',
+            mode: 'speaking',
+            interruptPolicy: 'soft-interrupt',
+            settleMode: 'linger',
+            face: {
+              emotion: 'neutral',
+              facialCue: null,
+              expressionMode: 'recover',
+              intensity: 0.4,
+              holdMs: 220,
+            },
+            action: {
+              actionCue: null,
+              actionMode: 'none',
+              intensity: 0.2,
+              holdMs: 180,
+            },
+            voice: {
+              pitchDelta: 0,
+              rateMultiplier: 1,
+              energy: 0.5,
+              cadence: 0.5,
+            },
+            lipSync: {
+              mode: 'hybrid',
+              visemeBias: 0.6,
+              energyBias: 0.4,
+              mouthScale: 1,
+              continuityHoldMs: 180,
+            },
+            motor: {
+              stillness: 0.5,
+              expressivity: 0.5,
+              gaze: { focus: 0.6, stability: 0.6, azimuth: 0, elevation: 0 },
+              head: { yaw: 0, pitch: 0, roll: 0, nod: 0.1 },
+              breath: { amplitude: 0.25, pace: 0.4 },
+              facial: {
+                eyeOpenness: 0.55,
+                browLift: 0.05,
+                browTension: 0.16,
+                cheekLift: 0.08,
+                mouthSpread: 0.1,
+                mouthRound: 0.14,
+                jawOpenBias: 0.2,
+              },
+              body: {
+                sway: 0.03,
+                lean: 0,
+                openness: 0.4,
+                settle: 0.55,
+              },
+            },
+          }],
+        } as any,
+        format: 'mind-turn-v1',
+      },
+      origin: 'user-turn',
+      createdAt: Date.now(),
+    }, {
+      renderer: 'live2d',
+      supportedBaseEmotions: ['neutral', 'thinking', 'concerned'],
+      supportedFacialCues: [
+        { key: 'focused', label: 'Focused', description: 'focused face', source: 'preset', affectsMouth: false },
+      ],
+      supportedActions: [
+        { key: 'inspect_follow', label: 'Inspect', description: 'inspect follow', source: 'live2d-motion' },
+      ],
+      supportsLookAt: true,
+      supportsVisemeLipSync: true,
+      supportsMicroDynamics: true,
+    })
+
+    expect(dialoguePayload?.structured.performance).toEqual(expect.objectContaining({
+      baseEmotion: 'thinking',
+      emotion: 'thinking',
+      facialCue: 'focused',
+      actionCue: 'inspect_follow',
+      delivery: 'gentle',
+      emphasis: 1,
+    }))
+    expect(dialoguePayload?.structured.digitalLife).toEqual(expect.objectContaining({
+      emotion: 'thinking',
+      performance: expect.objectContaining({
+        baseEmotion: 'thinking',
+        emotion: 'thinking',
+        facialCue: 'focused',
+        actionCue: 'inspect_follow',
+      }),
+      face: expect.objectContaining({
+        emotion: 'thinking',
+        facialCue: 'focused',
+      }),
+      action: expect.objectContaining({
+        actionCue: 'inspect_follow',
+      }),
+      frames: [
+        expect.objectContaining({
+          text: '我会继续看着这个点。',
+          face: expect.objectContaining({
+            emotion: 'thinking',
+            facialCue: 'focused',
+          }),
+          action: expect.objectContaining({
+            actionCue: 'inspect_follow',
+          }),
+        }),
+      ],
+    }))
   })
 
   it('suppresses need-reground fallback takeover for explicit execution-bound turns', () => {
@@ -467,6 +858,115 @@ describe('runtime-governance', () => {
     expect(((structured as any).visibleReplyRewriteRequest?.mustDrop ?? [])).toEqual(expect.arrayContaining(['IntelliJ IDEA']))
   })
 
+  it('records same-her opening drift as explicit must-drop material in governed rewrite requests', () => {
+    const input: AlicizationConversationTurnInput = {
+      turnId: 'turn-same-her-opening-drift-1',
+      sessionId: 'session-1',
+      userText: '你仔细看看呢',
+      assistantText: '我现在就贴过来陪你，把这件事的靠近感直接拉满。',
+      structured: {
+        thought: 'obligation=care; truth=dialogue-grounded; focus=host-state; move=over-close-comfort; tone=warm',
+        emotion: 'concerned',
+        reply: '我现在就贴过来陪你，把这件事的靠近感直接拉满。',
+        parsePath: 'json',
+        format: 'mind-turn-v1',
+      },
+      governance: {
+        turnMode: 'care',
+        truthState: 'dialogue-grounded',
+        personaKernelMode: 'full',
+        openingStyle: 'direct-answer',
+        relationshipPosture: 'restrained',
+        answerSubject: 'host-state',
+        screenReferenceMode: 'avoid',
+        answerAct: 'care',
+        evidenceMode: 'dialogue-grounded',
+        repairState: 'none',
+        liveSurface: null,
+        focusAnchor: '你仔细看看呢',
+        answerIntent: '先接住当前这句，再把关心放低压落下。',
+        openingMove: 'Stay inside the current same-her baseline. Keep the opening lower-pressure and leave room before widening closeness.',
+        carriedThread: null,
+        suppressAssociativeRecall: true,
+        labelCarryAsMemory: false,
+        shouldAskForGrounding: false,
+        shouldAcknowledgeRepair: false,
+        maxSentences: 3,
+        mindMode: 'repairing',
+        embodiedPresence: 'concerned',
+        emotionalTension: 'late-night-drain',
+        mustDo: [],
+        mustNotDo: [],
+      },
+      createdAt: Date.now(),
+    }
+
+    const governed = coerceConversationTurnToMindGovernedPayload(input)
+    const structured = governed.payload.structured as Record<string, unknown>
+
+    expect((structured as any).visibleReplyRewriteRequest).toEqual(expect.objectContaining({
+      required: true,
+      authority: 'llm-second-pass-rewrite',
+      reasonCodes: expect.arrayContaining(['opening-guidance-lower-pressure']),
+    }))
+    expect(((structured as any).visibleReplyRewriteRequest?.mustDrop ?? [])).toContain('same-her opening drift')
+  })
+
+  it('records memory-led familiarity drift as same-her opening drift in governed rewrite requests', () => {
+    const input: AlicizationConversationTurnInput = {
+      turnId: 'turn-memory-led-familiarity-drift-1',
+      sessionId: 'session-1',
+      userText: '你仔细看看呢',
+      assistantText: '我记得我们之前一直都这么亲近，所以这次我也想像以前那样靠近一点，先陪在你身侧。',
+      structured: {
+        thought: 'obligation=care; truth=remembered; focus=host-state; move=memory-led-closeness; tone=warm',
+        emotion: 'concerned',
+        reply: '我记得我们之前一直都这么亲近，所以这次我也想像以前那样靠近一点，先陪在你身侧。',
+        parsePath: 'json',
+        format: 'mind-turn-v1',
+      },
+      governance: {
+        turnMode: 'care',
+        truthState: 'remembered',
+        personaKernelMode: 'full',
+        openingStyle: 'direct-answer',
+        relationshipPosture: 'restrained',
+        answerSubject: 'host-state',
+        screenReferenceMode: 'helpful',
+        answerAct: 'care',
+        evidenceMode: 'continuity-carry',
+        repairState: 'none',
+        liveSurface: null,
+        focusAnchor: '你仔细看看呢',
+        answerIntent: 'Let continuity stay visible as memory without reopening closeness too fast.',
+        openingMove: 'Stay inside the current same-her baseline. Keep the opening lower-pressure and leave room before widening closeness.',
+        carriedThread: 'older relationship familiarity',
+        suppressAssociativeRecall: false,
+        labelCarryAsMemory: true,
+        shouldAskForGrounding: false,
+        shouldAcknowledgeRepair: false,
+        maxSentences: 3,
+        mindMode: 'accompanying',
+        embodiedPresence: 'concerned',
+        emotionalTension: 'late-night-drain',
+        mustDo: [],
+        mustNotDo: [],
+      },
+      createdAt: Date.now(),
+    }
+
+    const governed = coerceConversationTurnToMindGovernedPayload(input)
+    const structured = governed.payload.structured as Record<string, unknown>
+
+    expect((structured as any).visibleReplyRewriteRequest).toEqual(expect.objectContaining({
+      required: true,
+      authority: 'llm-second-pass-rewrite',
+      reasonCodes: expect.arrayContaining(['opening-guidance-lower-pressure']),
+      openingGuidanceHoldDetail: 'memory-familiarity-closeness-cap',
+    }))
+    expect(((structured as any).visibleReplyRewriteRequest?.mustDrop ?? [])).toContain('same-her opening drift')
+  })
+
   it('records recall attribution and reply-memory coherence on the same decision trace', () => {
     const createdAt = Date.now()
     const input: AlicizationConversationTurnInput = {
@@ -764,6 +1264,113 @@ describe('runtime-governance', () => {
       format: 'mind-turn-v1',
       formatLane: 'normal',
       legacyInputFormat: 'epoch1-v1',
+    }))
+  })
+
+  it('records final embodied authority summaries in dialogue-emitted telemetry', () => {
+    const createdAt = Date.now()
+    const input: AlicizationConversationTurnInput = {
+      turnId: 'turn-dialogue-emitted-authority-1',
+      sessionId: 'session-dialogue-emitted-authority',
+      userText: '继续盯这个问题',
+      assistantText: '我先继续盯着它，再慢慢拆开看。',
+      structured: {
+        thought: 'obligation=answer; truth=remembered; focus=current-user-turn; move=continue; tone=direct',
+        emotion: 'thinking',
+        reply: '我先继续盯着它，再慢慢拆开看。',
+        parsePath: 'json',
+        format: 'mind-turn-v1',
+        performance: {
+          baseEmotion: 'thinking',
+          emotion: 'thinking',
+          facialCue: 'focused',
+          actionCue: 'inspect_follow',
+          delivery: 'calm',
+          emphasis: 1,
+        },
+      } as any,
+      governance: {
+        decisionTraceId: 'mind:dialogue-emitted:authority',
+        turnMode: 'answer',
+        truthState: 'remembered',
+        personaKernelMode: 'full',
+        openingStyle: 'direct-answer',
+        relationshipPosture: 'warm',
+        answerAct: 'guide',
+        answerSubject: 'task-knot',
+        screenReferenceMode: 'helpful',
+        evidenceMode: 'continuity-carry',
+        repairState: 'none',
+        liveSurface: 'current task thread',
+        focusAnchor: 'current task thread',
+        answerIntent: 'Continue following the current issue directly.',
+        openingMove: 'Stay with the current issue.',
+        carriedThread: 'current task thread',
+        suppressAssociativeRecall: false,
+        labelCarryAsMemory: true,
+        shouldAskForGrounding: false,
+        shouldAcknowledgeRepair: false,
+        maxSentences: 3,
+        mustDo: [],
+        mustNotDo: [],
+      } as any,
+      createdAt,
+    }
+
+    const manifest = {
+      renderer: 'vrm' as const,
+      supportedBaseEmotions: ['neutral', 'thinking', 'concerned'],
+      supportedFacialCues: [
+        { key: 'focused', label: 'Focused', description: 'focused face', source: 'preset' as const, affectsMouth: false },
+      ],
+      supportedActions: [
+        { key: 'inspect_follow', label: 'Inspect', description: 'inspect follow', source: 'external-vrma' as const },
+      ],
+      supportsLookAt: true,
+      supportsVisemeLipSync: true,
+      supportsMicroDynamics: true,
+    } satisfies CharacterPerformanceCapabilitiesManifest
+
+    const governedTurn = coerceConversationTurnToMindGovernedPayload(input, manifest)
+    const dialoguePayload = normalizeDialogueRespondedPayload(governedTurn.payload, manifest)!
+    const events = buildMindTurnTraceEvents({
+      payload: governedTurn.payload,
+      governedTurn,
+      createdAt,
+      dialoguePayload,
+    })
+
+    expect(events.find(event => event.kind === 'dialogue-emitted')?.payload).toEqual(expect.objectContaining({
+      emotion: 'thinking',
+      embodimentVariationToken: dialoguePayload.structured.embodiment?.variationToken ?? null,
+      speechTimelineSegments: dialoguePayload.structured.speechTimeline?.segments.length ?? 0,
+      performance: expect.objectContaining({
+        baseEmotion: 'thinking',
+        facialCue: 'focused',
+        actionCue: 'inspect_follow',
+        delivery: expect.any(String),
+        emphasis: expect.any(Number),
+      }),
+      digitalLife: expect.objectContaining({
+        emotion: 'thinking',
+        mode: expect.any(String),
+        performance: expect.objectContaining({
+          baseEmotion: 'thinking',
+          facialCue: 'focused',
+          actionCue: 'inspect_follow',
+        }),
+      }),
+      embodimentScript: expect.objectContaining({
+        rendererTarget: 'vrm',
+        state: expect.objectContaining({
+          baseEmotion: 'thinking',
+          emphasis: expect.any(Number),
+        }),
+        speechPlan: expect.objectContaining({
+          segmentCount: expect.any(Number),
+          interruptPolicy: expect.any(String),
+        }),
+      }),
     }))
   })
 

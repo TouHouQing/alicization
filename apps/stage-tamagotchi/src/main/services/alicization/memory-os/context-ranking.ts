@@ -118,14 +118,31 @@ function expandCarryCueVariants(raw: string | null | undefined, maxItems = 8) {
     const hyphenParts = segment.split('-').map(item => item.trim()).filter(item => item.length >= 2)
     if (hyphenParts.length > 1) {
       variants.add(hyphenParts.join('-'))
+      variants.add(hyphenParts.join(' '))
       if (hyphenParts.length > 2)
         variants.add(hyphenParts.slice(0, -1).join('-'))
+      if (hyphenParts.length > 2)
+        variants.add(hyphenParts.slice(0, -1).join(' '))
       variants.add(hyphenParts[hyphenParts.length - 1]!)
       hyphenParts.forEach(part => variants.add(part))
     }
   }
 
   return uniqueList([...variants], maxItems)
+}
+
+function expandProcedureLineVariants(lines: string[], maxItems = 16) {
+  const result: string[] = []
+  for (const line of lines) {
+    for (const variant of expandCarryCueVariants(line, maxItems)) {
+      if (result.some(item => item.toLowerCase() === variant.toLowerCase()))
+        continue
+      result.push(variant)
+      if (result.length >= maxItems)
+        return result
+    }
+  }
+  return result
 }
 
 function deriveAffectiveEmbodiedCarry(input: {
@@ -202,6 +219,26 @@ function scoreCuePresence(normalizeOrganicRecallText: (raw: string) => string, t
         matched += 1
     }
     best = Math.max(best, matched / cueTokens.length)
+  }
+  return clamp01(best)
+}
+
+function scoreExactCuePresence(normalizeOrganicRecallText: (raw: string) => string, text: string, cues: string[]) {
+  const normalized = normalizeOrganicRecallText(text).toLowerCase()
+  if (!normalized || cues.length === 0)
+    return 0
+
+  let best = 0
+  for (const cue of cues) {
+    const normalizedCue = normalizeOrganicRecallText(cue).toLowerCase()
+    if (!normalizedCue)
+      continue
+    if (normalized.includes(normalizedCue))
+      best = Math.max(best, 1)
+      continue
+    const cueParts = normalizedCue.split(/\s+/u).filter(part => part.length >= 2)
+    if (cueParts.length >= 2 && cueParts.every(part => normalized.includes(part)))
+      best = Math.max(best, 0.82)
   }
   return clamp01(best)
 }
@@ -543,6 +580,7 @@ export function rankByRecollectionAgendaAffinity<T>(input: {
     (agenda.candidateEraFacets ?? []).map(item => [item.facet, item.weight] as const),
   )
   const procedureLines = agenda.candidateProcedureLines ?? []
+  const procedureLineVariants = expandProcedureLineVariants(procedureLines, 18)
   const emotionalPattern = /drain|mess|overwhelm|care|warm|cold|tender|annoyed|压力|累|乱|烦|温和|冷淡|情绪/u
   const relationshipPattern = /relationship|bond|trust|repair|boundary|tone|space|回应|关系|信任|修复|边界|语气|空间/u
 
@@ -553,6 +591,11 @@ export function rankByRecollectionAgendaAffinity<T>(input: {
       const procedureOverlap = procedureLines.length > 0
         ? Math.max(...procedureLines.map(line => countRecallTermOverlap(input.normalizeOrganicRecallText, line, text)), 0)
         : 0
+      const procedureVariantOverlap = procedureLineVariants.length > 0
+        ? Math.max(...procedureLineVariants.map(line => countRecallTermOverlap(input.normalizeOrganicRecallText, line, text)), 0)
+        : 0
+      const procedureExactCue = scoreExactCuePresence(input.normalizeOrganicRecallText, text, procedureLines)
+      const procedureVariantExactCue = scoreExactCuePresence(input.normalizeOrganicRecallText, text, procedureLineVariants)
       const facetWeight = input.getFacet ? (facetWeights.get(input.getFacet(item) ?? 'phase') ?? 0) : 0
       const timeWeight = input.getAgeDays
         ? Math.max(
@@ -570,6 +613,9 @@ export function rankByRecollectionAgendaAffinity<T>(input: {
         ? agenda.sceneFamiliarity * 0.1
         : 0
       const score = procedureOverlap * (0.18 + agenda.goalSimilarity * 0.22)
+        + procedureVariantOverlap * (0.12 + agenda.goalSimilarity * 0.18)
+        + procedureExactCue * (0.18 + agenda.goalSimilarity * 0.16)
+        + procedureVariantExactCue * (0.16 + agenda.goalSimilarity * 0.14)
         + facetWeight * 0.28
         + timeWeight * 0.24
         + relationshipAffinity
@@ -613,6 +659,7 @@ export function analyzeMemoryClusters(input: {
   const recallSeedText = input.normalizeOrganicRecallText(input.recallSeed)
   const hintTexts = input.recollectionIntent?.queryHints ?? []
   const procedureLines = agenda?.candidateProcedureLines ?? []
+  const procedureLineVariants = expandProcedureLineVariants(procedureLines, 18)
   const clusterEntries = new Map<string, {
     summary: string
     score: number
@@ -626,6 +673,11 @@ export function analyzeMemoryClusters(input: {
     const procedureOverlap = procedureLines.length > 0
       ? Math.max(...procedureLines.map(text => countRecallTermOverlap(input.normalizeOrganicRecallText, text, probe.text)), 0)
       : 0
+    const procedureVariantOverlap = procedureLineVariants.length > 0
+      ? Math.max(...procedureLineVariants.map(text => countRecallTermOverlap(input.normalizeOrganicRecallText, text, probe.text)), 0)
+      : 0
+    const procedureExactCue = scoreExactCuePresence(input.normalizeOrganicRecallText, probe.text, procedureLines)
+    const procedureVariantExactCue = scoreExactCuePresence(input.normalizeOrganicRecallText, probe.text, procedureLineVariants)
     const relationshipStageScore = deriveRelationshipStageAlignmentScore({
       normalizeOrganicRecallText: input.normalizeOrganicRecallText,
       text: probe.text,
@@ -643,6 +695,9 @@ export function analyzeMemoryClusters(input: {
     const baseScore = recallOverlap * 0.44
       + hintOverlap * 0.22
       + procedureOverlap * 0.2
+      + procedureVariantOverlap * 0.18
+      + procedureExactCue * 0.22
+      + procedureVariantExactCue * 0.2
       + relationshipStageScore
       + carryScore * 0.48
       + 0.08

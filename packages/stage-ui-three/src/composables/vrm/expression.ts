@@ -566,6 +566,10 @@ export function useVRMEmote(vrm: VRMCore) {
     )
   }
 
+  function currentFacialCueAffectsMouth() {
+    return currentFacialCue.value != null && facialLayerMouthAffectedNames.has(currentFacialCue.value)
+  }
+
   function setVisemeWeights(weights: Record<string, number>, active: boolean) {
     const resolvedWeights: Record<string, number> = {}
     Object.entries(weights).forEach(([name, value]) => {
@@ -675,6 +679,7 @@ export function useVRMEmote(vrm: VRMCore) {
   return {
     currentEmotion,
     currentFacialCue,
+    currentFacialCueAffectsMouth,
     isTransitioning,
     setEmotion,
     setEmotionWithResetAfter,

@@ -41,6 +41,10 @@ import { useI18n } from 'vue-i18n'
 import StageDialoguePanel from './stage-dialogue-panel.vue'
 import StageEmbodimentDiagnosticsOverlay from './stage-embodiment-diagnostics-overlay.vue'
 import {
+  resolveVrmManifestBaseEmotions,
+  resolveVrmManifestFacialCapabilities,
+} from './stage-vrm-performance-manifest'
+import {
   attachEmbodimentScriptToSpeechMetadata,
   createStageChatIntentBridge,
 } from './stage-chat-intent-bridge'
@@ -70,6 +74,18 @@ import { resolveStageProactiveFeedbackTarget } from '../../utils/stage-dialogue'
 import { useStageDesktopInteractions } from './use-stage-desktop-interactions'
 import { useStageDialogueHoverVisibility } from './use-stage-dialogue-hover-visibility'
 import { useStageEmbodimentRuntime } from './use-stage-embodiment-runtime'
+import { resolveResidentLive2DPreferredExpressionAliases } from './stage-resident-expression-aliases'
+import { resolveResidentVrmPreferredExpressionAliases } from './stage-resident-expression-aliases'
+import {
+  applyRuntimeEmbodimentActiveCueState,
+  applyRuntimeEmbodimentEnvelopeCueState,
+  clearRuntimeSegmentEmbodimentCueState,
+  createEmptyStageRuntimeEmbodimentCueState,
+  resolveLive2DSegmentMotionCueSelection,
+  resolvePreferredExpressionAliasesFromRuntimeState,
+  resolvePreferredMotionAliasesFromRuntimeState,
+} from './stage-runtime-embodiment-cues'
+import { resolveStagePresencePulsePerformance } from './stage-presence-pulse-performance'
 
 const props = withDefaults(defineProps<{
   paused?: boolean
@@ -204,6 +220,12 @@ const viewUpdateCleanups: Array<() => void> = []
 const stageBounds = ref({ width: 0, height: 0 })
 const directDesktopInteractionActive = ref(false)
 const dialoguePanelInteractionActive = ref(false)
+const live2dExecutionDiagnostics = computed(() => {
+  return live2dSceneRef.value?.executionDiagnostics?.() ?? null
+})
+const vrmExecutionDiagnostics = computed(() => {
+  return vrmViewerRef.value?.executionDiagnostics?.() ?? null
+})
 
 useResizeObserver(stageRootRef, (entries) => {
   const entry = entries[0]
@@ -328,25 +350,12 @@ let runtimeSegmentMotionFollowThroughMs = 0
 const runtimeResidentEmotion = ref('')
 const runtimeDigest = ref<AlicizationRuntimeDigest | null>(null)
 let runtimeSegmentMotionFollowThroughTimer: ReturnType<typeof setTimeout> | undefined
-
-function normalizeRuntimeAliasList(rawAliases: readonly string[] | null | undefined) {
-  return [...new Set(
-    (rawAliases ?? [])
-      .map(alias => alias.trim())
-      .filter(Boolean),
-  )]
-}
-
-function mergePreferredAliases(runtimeAliases: readonly string[] | null | undefined, configuredAliases: readonly string[] | null | undefined) {
-  return normalizeRuntimeAliasList([
-    ...(runtimeAliases ?? []),
-    ...(configuredAliases ?? []),
-  ])
-}
+const runtimeEmbodimentCueState = createEmptyStageRuntimeEmbodimentCueState()
 
 function clearRuntimeSegmentEmbodimentCue() {
-  runtimeSegmentExpressionAliasesByEmotion.value = {}
-  runtimeSegmentMotionAliasesByEmotion.value = {}
+  clearRuntimeSegmentEmbodimentCueState(runtimeEmbodimentCueState)
+  runtimeSegmentExpressionAliasesByEmotion.value = runtimeEmbodimentCueState.segmentExpressionAliasesByEmotion
+  runtimeSegmentMotionAliasesByEmotion.value = runtimeEmbodimentCueState.segmentMotionAliasesByEmotion
 }
 
 function clearRuntimeSegmentMotionFollowThroughTimer() {
@@ -487,73 +496,45 @@ function createSpeechIntentMetadata(intentSource: 'chat' | 'fallback'): Record<s
 }
 
 function applyRuntimeEmbodimentEnvelope(embodiment: AlicizationDialogueEmbodimentEnvelope | null | undefined) {
-  const emotion = typeof embodiment?.emotion === 'string' ? embodiment.emotion.trim() : ''
-  if (!emotion) {
-    runtimeTurnExpressionAliasesByEmotion.value = {}
-    runtimeTurnMotionAliasesByEmotion.value = {}
-    return
-  }
-
-  const preferredExpressionAliases = normalizeRuntimeAliasList(embodiment?.rendererHints?.preferredExpressionAliases)
-  const preferredMotionAliases = normalizeRuntimeAliasList(embodiment?.rendererHints?.preferredMotionAliases)
-
-  runtimeTurnExpressionAliasesByEmotion.value = preferredExpressionAliases.length > 0
-    ? { [emotion]: preferredExpressionAliases }
-    : {}
-  runtimeTurnMotionAliasesByEmotion.value = preferredMotionAliases.length > 0
-    ? { [emotion]: preferredMotionAliases }
-    : {}
+  applyRuntimeEmbodimentEnvelopeCueState(runtimeEmbodimentCueState, embodiment)
+  runtimeTurnExpressionAliasesByEmotion.value = runtimeEmbodimentCueState.turnExpressionAliasesByEmotion
+  runtimeTurnMotionAliasesByEmotion.value = runtimeEmbodimentCueState.turnMotionAliasesByEmotion
 }
 
 function applyRuntimeEmbodimentCue(cue: {
   emotion?: string | null
   rendererHints?: AlicizationDialogueEmbodimentEnvelope['rendererHints']
 } | null | undefined) {
-  const emotion = typeof cue?.emotion === 'string' ? cue.emotion.trim() : ''
-  if (!emotion) {
-    clearRuntimeSegmentEmbodimentCue()
-    if (!runtimeSegmentMotionActive.value)
-      runtimeSegmentMotionFollowThroughMs = 0
-    return
-  }
-
-  const preferredExpressionAliases = normalizeRuntimeAliasList(cue?.rendererHints?.preferredExpressionAliases)
-  const preferredMotionAliases = normalizeRuntimeAliasList(cue?.rendererHints?.preferredMotionAliases)
-  runtimeSegmentExpressionAliasesByEmotion.value = preferredExpressionAliases.length > 0
-    ? { [emotion]: preferredExpressionAliases }
-    : {}
-  runtimeSegmentMotionAliasesByEmotion.value = preferredMotionAliases.length > 0
-    ? { [emotion]: preferredMotionAliases }
-    : {}
+  const result = applyRuntimeEmbodimentActiveCueState(runtimeEmbodimentCueState, cue)
+  runtimeSegmentExpressionAliasesByEmotion.value = runtimeEmbodimentCueState.segmentExpressionAliasesByEmotion
+  runtimeSegmentMotionAliasesByEmotion.value = runtimeEmbodimentCueState.segmentMotionAliasesByEmotion
+  if (!cue?.emotion && !runtimeSegmentMotionActive.value)
+    runtimeSegmentMotionFollowThroughMs = 0
+  if (cue?.emotion)
+    runtimeSegmentMotionFollowThroughMs = result.followThroughMs
 }
 
 function resolvePreferredVrmExpressionAliases(emotion: string) {
-  return mergePreferredAliases(
-    runtimeSegmentExpressionAliasesByEmotion.value[emotion],
-    mergePreferredAliases(
-      runtimeTurnExpressionAliasesByEmotion.value[emotion],
-      stagePerformanceStore.resolveVrmEmotionExpressionAliases(stageModelSelected.value, emotion),
-    ),
+  return resolvePreferredExpressionAliasesFromRuntimeState(
+    runtimeEmbodimentCueState,
+    emotion,
+    stagePerformanceStore.resolveVrmEmotionExpressionAliases(stageModelSelected.value, emotion),
   )
 }
 
 function resolvePreferredLive2DExpressionAliases(emotion: string) {
-  return mergePreferredAliases(
-    runtimeSegmentExpressionAliasesByEmotion.value[emotion],
-    mergePreferredAliases(
-      runtimeTurnExpressionAliasesByEmotion.value[emotion],
-      stagePerformanceStore.resolveLive2DEmotionExpressionAliases(stageModelSelected.value, emotion),
-    ),
+  return resolvePreferredExpressionAliasesFromRuntimeState(
+    runtimeEmbodimentCueState,
+    emotion,
+    stagePerformanceStore.resolveLive2DEmotionExpressionAliases(stageModelSelected.value, emotion),
   )
 }
 
 function resolvePreferredLive2DMotionAliases(emotion: string) {
-  return mergePreferredAliases(
-    runtimeSegmentMotionAliasesByEmotion.value[emotion],
-    mergePreferredAliases(
-      runtimeTurnMotionAliasesByEmotion.value[emotion],
-      stagePerformanceStore.resolveLive2DEmotionMotionAliases(stageModelSelected.value, emotion),
-    ),
+  return resolvePreferredMotionAliasesFromRuntimeState(
+    runtimeEmbodimentCueState,
+    emotion,
+    stagePerformanceStore.resolveLive2DEmotionMotionAliases(stageModelSelected.value, emotion),
   )
 }
 
@@ -608,11 +589,16 @@ function applyLive2DSegmentMotionHint(cue: {
     return
   }
 
+  const selection = resolveLive2DSegmentMotionCueSelection({
+    state: runtimeEmbodimentCueState,
+    cue,
+    configuredAliases: stagePerformanceStore.resolveLive2DEmotionMotionAliases(stageModelSelected.value, emotion),
+  })
   runtimeSegmentMotionFollowThroughMs = Math.max(
-    0,
-    Math.round(Number(cue?.rendererSettle?.live2dMotionFollowThroughMs ?? 0)),
+    runtimeSegmentMotionFollowThroughMs,
+    selection.followThroughMs,
   )
-  const preferredMotionAliases = normalizeRuntimeAliasList(cue?.rendererHints?.preferredMotionAliases)
+  const preferredMotionAliases = selection.preferredMotionAliases
   const resolvedMotion = live2dStore.resolveEmotionMotionSelection(stageModelSelected.value, emotion, {
     preferredMotionAliases,
   })
@@ -829,37 +815,6 @@ function resolvePresenceIntensity(emphasis: number | undefined, fallbackIntensit
   return fallbackIntensity
 }
 
-function resolvePresencePulsePerformance(payload: AlicizationPresencePulsePayload): AlicizationDialoguePerformancePayload {
-  const emotion = (() => {
-    if (payload.embodiedPresence === 'concerned')
-      return payload.emotionalTension === 'late-night-drain' ? 'tired' : 'concerned'
-    if (payload.embodiedPresence === 'hesitant')
-      return 'thinking'
-    if (payload.embodiedPresence === 'attentive')
-      return payload.watchMode === 'symbiotic-vision' ? 'thinking' : 'neutral'
-    return 'neutral'
-  })()
-  const delivery = payload.embodiedPresence === 'hesitant'
-    ? 'hesitant'
-    : payload.embodiedPresence === 'concerned'
-      ? 'gentle'
-      : 'calm'
-  const emphasis = payload.embodiedPresence === 'concerned'
-    ? 1
-    : payload.embodiedPresence === 'attentive'
-      ? 1
-      : 0
-
-  return {
-    baseEmotion: emotion,
-    emotion,
-    facialCue: null,
-    actionCue: null,
-    delivery,
-    emphasis,
-  }
-}
-
 function syncVrmCustomExpressionScan(names: string[]) {
   if (stageModelRenderer.value !== 'vrm' || !stageModelSelected.value)
     return
@@ -913,6 +868,8 @@ function syncVrmRuntimeCapabilities(snapshot?: VrmRuntimeCapabilitySnapshot | nu
     supportedExpressionNames: [...new Set(snapshot.supportedExpressionNames
       .map(name => name.trim().toLowerCase())
       .filter(Boolean))].sort((left, right) => left.localeCompare(right)),
+    supportedBaseEmotions: [...new Set(snapshot.supportedBaseEmotions)],
+    supportedFacialCues: dedupeCapabilityItemsByKey(snapshot.supportedFacialCues),
     supportsLookAt: snapshot.supportsLookAt === true,
     supportsVisemeLipSync: snapshot.supportsVisemeLipSync === true,
     supportsMicroDynamics: snapshot.supportsMicroDynamics === true,
@@ -977,7 +934,12 @@ const currentVrmBaseExpressionOverrides = computed(() => {
   return Object.fromEntries(
     alicizationEmotionWhitelist.map(emotion => [
       emotion,
-      resolvePreferredVrmExpressionAliases(emotion),
+      resolveResidentVrmPreferredExpressionAliases({
+        emotion,
+        configuredAliases: resolvePreferredVrmExpressionAliases(emotion),
+        presencePosture: presencePosture.value,
+        visualPresenceState: visualPresenceState.value,
+      }),
     ]),
   )
 })
@@ -993,16 +955,11 @@ const currentVrmPresetFacialCapabilities = computed(() => {
 })
 
 const currentVrmFacialCapabilities = computed(() => {
-  return dedupeCapabilityItemsByKey([
-    ...currentVrmManifestCustomExpressionBindings.value.map(item => ({
-      key: item.facialKey,
-      label: item.label,
-      description: item.description,
-      source: 'custom' as const,
-      affectsMouth: item.affectsMouth,
-    })),
-    ...currentVrmPresetFacialCapabilities.value,
-  ])
+  return resolveVrmManifestFacialCapabilities({
+    runtimeSupportedFacialCues: currentVrmRuntimeCapabilities.value?.supportedFacialCues ?? [],
+    customExpressionBindings: currentVrmManifestCustomExpressionBindings.value,
+    fallbackFacialCues: currentVrmPresetFacialCapabilities.value,
+  })
 })
 
 const currentStoredVrmExternalAnimations = computed(() => {
@@ -1111,9 +1068,14 @@ const currentPerformanceManifest = computed(() => {
   }
 
   if (stageModelRenderer.value === 'vrm') {
+    const runtimeSupportedBaseEmotions = currentVrmRuntimeCapabilities.value?.supportedBaseEmotions ?? []
+
     return {
       renderer: 'vrm' as const,
-      supportedBaseEmotions: currentVrmSupportedBaseEmotions.value,
+      supportedBaseEmotions: resolveVrmManifestBaseEmotions({
+        runtimeSupportedBaseEmotions,
+        fallbackBaseEmotions: currentVrmSupportedBaseEmotions.value,
+      }),
       supportedFacialCues: currentVrmFacialCapabilities.value,
       supportedActions: dedupeCapabilityItemsByKey(currentVrmActionBindings.value.map(item => ({
         key: item.actionKey,
@@ -1140,7 +1102,7 @@ function clampPresencePerformanceToManifest(performance: AlicizationDialoguePerf
 }
 
 function resolveClampedPresencePulsePerformance(payload: AlicizationPresencePulsePayload) {
-  return clampPresencePerformanceToManifest(resolvePresencePulsePerformance(payload))
+  return clampPresencePerformanceToManifest(resolveStagePresencePulsePerformance(payload))
 }
 
 watch([stageModelRenderer, stageModelSelected, currentStoredVrmExternalAnimations], async () => {
@@ -1167,6 +1129,8 @@ embodimentRuntime = useStageEmbodimentRuntime({
   enqueueEmotion: emotion => emotionsQueue.enqueue(emotion),
   focusAt: computed(() => props.focusAt),
   live2dActionCapabilities: currentLive2DActionCapabilities,
+  live2dExecutionDiagnostics,
+  live2dRuntimeCapabilities: currentLive2DRuntimeCapabilities,
   mouthOpenSize,
   paused: computed(() => Boolean(props.paused)),
   performanceManifest: currentPerformanceManifest,
@@ -1199,6 +1163,8 @@ embodimentRuntime = useStageEmbodimentRuntime({
   stageBounds,
   stageModelRenderer,
   vrmActionBindings: currentVrmActionBindings,
+  vrmExecutionDiagnostics,
+  vrmRuntimeCapabilities: currentVrmRuntimeCapabilities,
 })
 logStageStartupTrace('after-embodiment-runtime')
 const {
@@ -1212,6 +1178,7 @@ const {
   prepareForNextMessage,
   presencePosture,
   speechRenderState,
+  visualPresenceState,
   vrmIdleActionPreference,
   vrmLookAtScreenPoint,
 } = embodimentRuntime
@@ -1224,7 +1191,14 @@ const currentLive2DPreferredExpressionAliases = computed(() => {
   const emotion = performanceState.value?.activeCue?.emotion
     ?? performanceState.value?.performance.baseEmotion
     ?? runtimeResidentEmotion.value
-  return emotion ? resolvePreferredLive2DExpressionAliases(emotion) : []
+  return emotion
+    ? resolveResidentLive2DPreferredExpressionAliases({
+        emotion,
+        configuredAliases: resolvePreferredLive2DExpressionAliases(emotion),
+        presencePosture: presencePosture.value,
+        visualPresenceState: visualPresenceState.value,
+      })
+    : []
 })
 
 logStageStartupTrace('before-watch-component-state')

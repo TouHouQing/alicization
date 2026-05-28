@@ -9,6 +9,7 @@ import type {
   AlicizationPrivateThoughtSnapshot,
   AlicizationRelationshipModelSnapshot,
   AlicizationRepairLedgerSnapshot,
+  AlicizationSelfEvolutionKernelSnapshot,
   AlicizationVisualSceneSnapshot,
   AlicizationWorldModelSnapshot,
   AlicizationWorldOntologySnapshot,
@@ -19,11 +20,13 @@ import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel
 
 import {
   buildAlicizationScreenSurfaceCue,
+  readActiveContinuityGovernanceFromDerivedMindStateBundle,
   readHostPersonModelFromDerivedMindStateBundle,
   readKnowledgeEvidenceFromDerivedMindStateBundle,
   readLearningExecutionStateFromDerivedMindStateBundle,
   readMemoryDeliberationFromDerivedMindStateBundle,
   readPersonStateProjectionFromDerivedMindStateBundle,
+  readRecollectionIntentFromDerivedMindStateBundle,
   readRecollectionSpeechPlanFromDerivedMindStateBundle,
 } from '@proj-alicization/stage-shared'
 
@@ -140,6 +143,33 @@ function uniqueList(values: Array<string | null | undefined>, maxItems = 8) {
       break
   }
   return result
+}
+
+function includesAny(text: string, needles: string[]) {
+  return needles.some(needle => text.includes(needle))
+}
+
+function shouldEnforceRememberedFamiliarityDiscipline(input: {
+  provenanceLabelBias?: number
+  closenessCapBias?: number
+}) {
+  return (input.provenanceLabelBias ?? 0) >= 0.14
+    && (input.closenessCapBias ?? 0) >= 0.14
+}
+
+function selfEvolutionSupportsLowerPressureOpening(selfEvolution?: AlicizationSelfEvolutionKernelSnapshot | null) {
+  if (!selfEvolution)
+    return false
+
+  const relationshipDoctrine = sanitizeText(selfEvolution.relationshipDoctrine, 180).toLowerCase()
+  const burdenLine = sanitizeText(selfEvolution.burdenLine, 180).toLowerCase()
+  const trustMeaning = sanitizeText(selfEvolution.trustMeaning, 180).toLowerCase()
+  const latestInflection = sanitizeText(selfEvolution.latestInflection, 180).toLowerCase()
+
+  return includesAny(relationshipDoctrine, ['leave more room', 'more room', 'slower return', 'lower-pressure'])
+    || includesAny(burdenLine, ['overloaded', 'pressure', 'crowd', 'conversational pressure'])
+    || includesAny(trustMeaning, ['lower-pressure', 'less eager', 'room', 'space', 'timing'])
+    || includesAny(latestInflection, ['pressure', 'slower return', 'lower-pressure', 'less eager'])
 }
 
 interface AlicizationDialogueEncounterAnchor {
@@ -745,12 +775,16 @@ export function buildAnswerCompiler(input: {
   const repairLedger = runtimeSurface?.memory.repairLedger ?? input.repairLedger ?? null
   const privateThought = runtimeSurface?.cognition.privateThought ?? input.privateThought ?? null
   const derivedBundle = runtimeSurface?.memory.derivedMindStateBundle ?? null
+  const activeContinuityGovernance = readActiveContinuityGovernanceFromDerivedMindStateBundle(derivedBundle)
   const explicitPersonalityContinuityState = runtimeSurface?.memory.personalityContinuityState ?? null
   const personStateProjection = readPersonStateProjectionFromDerivedMindStateBundle<any>(derivedBundle)
     ?? runtimeSurface?.memory.personStateProjection
     ?? null
   const learningExecutionState = readLearningExecutionStateFromDerivedMindStateBundle(derivedBundle)
     ?? runtimeSurface?.memory.learningExecutionState
+    ?? null
+  const selfEvolution = ((derivedBundle as { selfEvolution?: AlicizationSelfEvolutionKernelSnapshot | null } | null)?.selfEvolution)
+    ?? runtimeSurface?.memory.selfEvolution
     ?? null
   const memoryDeliberationKernel = buildAlicizationMemoryDeliberationKernel({
     deliberation: readMemoryDeliberationFromDerivedMindStateBundle<any>(derivedBundle)
@@ -759,7 +793,8 @@ export function buildAnswerCompiler(input: {
     speech: readRecollectionSpeechPlanFromDerivedMindStateBundle<any>(derivedBundle)
       ?? runtimeSurface?.memory.recollectionSpeechPlan
       ?? null,
-    recollectionIntent: null,
+    recollectionIntent: readRecollectionIntentFromDerivedMindStateBundle<any>(derivedBundle)
+      ?? null,
     knowledgeEvidence: readKnowledgeEvidenceFromDerivedMindStateBundle(derivedBundle)
       ?? runtimeSurface?.memory.knowledgeEvidence
       ?? null,
@@ -853,6 +888,12 @@ export function buildAnswerCompiler(input: {
       : learningExecutionState?.nextLearningAction === 'internalize'
         ? `${openingDirective} Stay aligned with the stabilizing learned procedure.`
         : openingDirective
+  const continuityGovernanceAdjustedOpeningDirective = activeContinuityGovernance?.mode === 'same-her-baseline'
+    ? `${learningAdjustedOpeningDirective} Stay inside the current same-her baseline.`
+    : learningAdjustedOpeningDirective
+  const selfEvolutionAdjustedOpeningDirective = selfEvolutionSupportsLowerPressureOpening(selfEvolution)
+    ? `${continuityGovernanceAdjustedOpeningDirective} Keep the opening lower-pressure and leave room before widening closeness.`
+    : continuityGovernanceAdjustedOpeningDirective
   const learningTuningAdvice = runtimeSurface?.memory.memoryTuningAdvice ?? null
   const openingClaim = resolveOpeningClaim({
     discourseState,
@@ -964,6 +1005,10 @@ export function buildAnswerCompiler(input: {
         : growthProfile.directness >= 0.66 || growthProfile.irritability >= 0.58
           ? 3
           : 4
+  const rememberedFamiliarityDiscipline = shouldEnforceRememberedFamiliarityDiscipline({
+    provenanceLabelBias: learningTuningAdvice?.surfaceAdjustments.provenanceLabelBias,
+    closenessCapBias: learningTuningAdvice?.personStateAdjustments.closenessCapBias,
+  })
 
   const mustDo = uniqueList([
     'Let the compiled answer spine outrank persona routines, residue, and decorative helpfulness.',
@@ -993,6 +1038,9 @@ export function buildAnswerCompiler(input: {
     labelCarryAsMemory
       ? 'If continuity carry appears, label it explicitly as memory, residue, or held thread.'
       : null,
+    rememberedFamiliarityDiscipline
+      ? 'If remembered familiarity enters, keep it explicitly framed as memory before using it to shape visible closeness.'
+      : null,
     growthProfile.closeness >= 0.58 && growthProfile.truthAnchor >= 0.58
       ? 'Let closeness land through precision and continuity, not sugary filler.'
       : null,
@@ -1020,6 +1068,12 @@ export function buildAnswerCompiler(input: {
     learningExecutionState?.nextLearningAction === 'internalize'
       ? 'Let the stabilizing learned procedure constrain this answer instead of slipping back to older habits.'
       : null,
+    activeContinuityGovernance?.mode === 'same-her-baseline'
+      ? 'Keep the visible reply aligned with the current same-her baseline instead of optimizing for a smoother but off-baseline persona move.'
+      : null,
+    selfEvolutionSupportsLowerPressureOpening(selfEvolution)
+      ? 'Let long-horizon relationship timing keep the answer lower-pressure before closeness widens again.'
+      : null,
     (learningTuningAdvice?.surfaceAdjustments.provenanceLabelBias ?? 0) >= 0.1
       ? 'When memory or learned carry enters the answer, bias toward explicit provenance instead of seamless certainty.'
       : null,
@@ -1028,6 +1082,9 @@ export function buildAnswerCompiler(input: {
       : null,
     (learningTuningAdvice?.personStateAdjustments.closenessCapBias ?? 0) >= 0.12
       ? 'Keep warmth capped so learned confidence does not outrun the host’s current need for room.'
+      : null,
+    memoryDeliberationKernel?.surfacePolicy === 'procedural-carry'
+      ? 'If same-seam procedure carry becomes visible, frame it as remembered prior procedure that keeps the current thread intact.'
       : null,
     ...(memoryDeliberationKernel?.restraint.mustDo ?? []),
   ], 8)
@@ -1053,6 +1110,9 @@ export function buildAnswerCompiler(input: {
     evidenceMode === 'continuity-carry' || evidenceMode === 'repair-first'
       ? 'Do not present remembered or uncertain scene details in simple present tense.'
       : null,
+    rememberedFamiliarityDiscipline
+      ? 'Do not let remembered familiarity reopen visible closeness faster than the host\'s current room allows.'
+      : null,
     growthProfile.autonomyRespect >= 0.58
       ? 'Do not lean too hard, over-open, or crowd the host just to prove closeness.'
       : null,
@@ -1074,6 +1134,12 @@ export function buildAnswerCompiler(input: {
     learningExecutionState?.nextLearningAction === 'internalize'
       ? 'Do not fall back to older unstable procedures while a stronger one is being internalized.'
       : null,
+    activeContinuityGovernance?.mode === 'same-her-baseline'
+      ? 'Do not let fluency, warmth, or style drift outrun the currently adopted same-her continuity baseline.'
+      : null,
+    selfEvolutionSupportsLowerPressureOpening(selfEvolution)
+      ? 'Do not let eager warmth or older closeness tempo reopen faster than this learned relationship timing supports.'
+      : null,
     (learningTuningAdvice?.surfaceAdjustments.provenanceLabelBias ?? 0) >= 0.1
       ? 'Do not let learned continuity silently impersonate current grounded fact.'
       : null,
@@ -1088,6 +1154,9 @@ export function buildAnswerCompiler(input: {
       : null,
     activeClosenessContext === 'open-companionship'
       ? 'Do not turn open companionship into theatrical intimacy or stock affection.'
+      : null,
+    memoryDeliberationKernel?.surfacePolicy === 'procedural-carry'
+      ? 'Do not turn same-seam procedure carry into retrospective narration or execution impersonation.'
       : null,
     ...(memoryDeliberationKernel?.restraint.mustNotDo ?? []),
   ], 8)
@@ -1108,7 +1177,7 @@ export function buildAnswerCompiler(input: {
     relationshipPosture,
     activeClosenessContext,
     activeClosenessRung,
-    openingDirective: learningAdjustedOpeningDirective,
+    openingDirective: selfEvolutionAdjustedOpeningDirective,
     openingClaim,
     supportingReality,
     uncertaintyBoundary,

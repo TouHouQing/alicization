@@ -41,6 +41,91 @@ function extractMemoryResolutionLedger(payload: Record<string, unknown> | null |
   return normalizeAlicizationMemoryResolutionLedger(payload?.memoryResolutionLedger)
 }
 
+function extractEmbodimentAuthority(payload: Record<string, unknown> | null | undefined) {
+  const performance = asObject(payload?.performance)
+  const digitalLife = asObject(payload?.digitalLife)
+  const digitalLifeSpine = asObject(payload?.digitalLifeSpine)
+  const digitalLifeSpineRuntime = asObject(digitalLifeSpine?.runtime)
+  const visibleReply = asObject(payload?.visibleReply)
+  const digitalLifeFace = asObject(digitalLife?.face)
+  const digitalLifeAction = asObject(digitalLife?.action)
+  const embodimentScript = asObject(payload?.embodimentScript)
+  const embodimentScriptState = asObject(embodimentScript?.state)
+  const embodimentScriptSpeechPlan = asObject(embodimentScript?.speechPlan)
+
+  const hasPerformance = Boolean(performance)
+  const hasDigitalLife = Boolean(digitalLife)
+  const hasEmbodimentScript = Boolean(embodimentScript)
+  const hasVisibleReply = Boolean(visibleReply)
+  if (!hasPerformance && !hasDigitalLife && !hasEmbodimentScript && !hasVisibleReply)
+    return null
+
+  return {
+    emotion: sanitizeText(payload?.emotion, 64) || null,
+    performance: performance
+      ? {
+          baseEmotion: sanitizeText(performance.baseEmotion, 64) || null,
+          facialCue: sanitizeText(performance.facialCue, 64) || null,
+          actionCue: sanitizeText(performance.actionCue, 64) || null,
+          delivery: sanitizeText(performance.delivery, 64) || null,
+          emphasis: typeof performance.emphasis === 'number' && Number.isFinite(performance.emphasis)
+            ? Number(performance.emphasis)
+            : null,
+        }
+      : null,
+    digitalLife: digitalLife
+      ? {
+          emotion: sanitizeText(digitalLife.emotion, 64) || null,
+          mode: sanitizeText(digitalLife.mode, 64) || null,
+          preferredPresence: sanitizeText(digitalLifeSpineRuntime?.preferredPresence, 64) || null,
+          face: digitalLifeFace
+            ? {
+                emotion: sanitizeText(digitalLifeFace.emotion, 64) || null,
+                facialCue: sanitizeText(digitalLifeFace.facialCue, 64) || null,
+              }
+            : null,
+          action: digitalLifeAction
+            ? {
+                actionCue: sanitizeText(digitalLifeAction.actionCue, 64) || null,
+                actionMode: sanitizeText(digitalLifeAction.actionMode, 64) || null,
+              }
+            : null,
+        }
+      : null,
+    embodimentScript: embodimentScript
+      ? {
+          rendererTarget: sanitizeText(embodimentScript.rendererTarget, 64) || null,
+          state: embodimentScriptState
+            ? {
+                baseEmotion: sanitizeText(embodimentScriptState.baseEmotion, 64) || null,
+                delivery: sanitizeText(embodimentScriptState.delivery, 64) || null,
+                emphasis: typeof embodimentScriptState.emphasis === 'number' && Number.isFinite(embodimentScriptState.emphasis)
+                  ? Number(embodimentScriptState.emphasis)
+                  : null,
+              }
+            : null,
+          speechPlan: embodimentScriptSpeechPlan
+            ? {
+                segmentCount: typeof embodimentScriptSpeechPlan.segmentCount === 'number' && Number.isFinite(embodimentScriptSpeechPlan.segmentCount)
+                  ? Number(embodimentScriptSpeechPlan.segmentCount)
+                  : null,
+                interruptPolicy: sanitizeText(embodimentScriptSpeechPlan.interruptPolicy, 64) || null,
+              }
+            : null,
+        }
+      : null,
+    visibleReply: visibleReply
+      ? {
+          expectedAuthority: sanitizeText(visibleReply.expectedAuthority, 64) || null,
+          actualAuthority: sanitizeText(visibleReply.actualAuthority, 64) || null,
+          providerMindExecuted: typeof visibleReply.providerMindExecuted === 'boolean'
+            ? visibleReply.providerMindExecuted
+            : null,
+        }
+      : null,
+  }
+}
+
 function uniqueKinds(kinds: AlicizationMindTurnEventKind[]) {
   return [...new Set(kinds)]
 }
@@ -91,6 +176,7 @@ export function buildAlicizationMemoryDecisionTraceRecords(
         || extractMemoryResolutionLedger(persistenceWritten?.payload)
         || extractMemoryResolutionLedger(dialogueEmitted?.payload)
         || null
+      const embodimentAuthority = extractEmbodimentAuthority(dialogueEmitted?.payload)
 
       return {
         decisionTraceId,
@@ -128,6 +214,7 @@ export function buildAlicizationMemoryDecisionTraceRecords(
         memoryFactsUpserted: memoryFactsUpserted?.payload ?? null,
         personStateUpdated: personStateUpdated?.payload ?? null,
         learningExecuted: learningExecuted?.payload ?? null,
+        embodimentAuthority,
         participation: deriveAlicizationMindParticipationFromTrace({
           governance: governance?.payload
             ? {

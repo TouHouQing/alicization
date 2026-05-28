@@ -24,6 +24,7 @@ import type {
   AlicizationProactiveStyle,
   AlicizationReflectionLedgerSnapshot,
   AlicizationRelationshipModelSnapshot,
+  AlicizationSelfEvolutionKernelSnapshot,
   AlicizationSelfContinuitySnapshot,
   AlicizationSelfGovernorSnapshot,
   AlicizationSelfStateSnapshot,
@@ -35,6 +36,7 @@ import type {
   AlicizationWorldOntologySnapshot,
 } from '../../../shared/eventa'
 import type { AlicizationProactiveLayeredContext } from './proactive-layered-context'
+import type { AlicizationMemoryTuningAdvice } from './memory-tuning-advice'
 
 import { pickDominantAutobiographicalGoal } from './autobiographical-self'
 import { buildInitiativeArbitration } from './initiative-arbiter'
@@ -43,6 +45,41 @@ function clamp01(value: number) {
   if (!Number.isFinite(value))
     return 0
   return Math.max(0, Math.min(1, Number(value.toFixed(2))))
+}
+
+function sanitizeText(raw: unknown, maxChars = 180) {
+  if (typeof raw !== 'string')
+    return ''
+  return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
+}
+
+function includesAny(text: string, needles: string[]) {
+  return needles.some(needle => text.includes(needle))
+}
+
+function deriveSelfEvolutionInitiativeBias(selfEvolution?: AlicizationSelfEvolutionKernelSnapshot | null) {
+  if (!selfEvolution) {
+    return {
+      preferLowerPressure: false,
+      forceSilentObserve: false,
+    }
+  }
+
+  const relationshipDoctrine = sanitizeText(selfEvolution.relationshipDoctrine, 180).toLowerCase()
+  const burdenLine = sanitizeText(selfEvolution.burdenLine, 180).toLowerCase()
+  const trustMeaning = sanitizeText(selfEvolution.trustMeaning, 180).toLowerCase()
+  const latestInflection = sanitizeText(selfEvolution.latestInflection, 180).toLowerCase()
+  const dominantTrajectory = sanitizeText(selfEvolution.dominantTrajectory, 160).toLowerCase()
+  const preferLowerPressure = includesAny(relationshipDoctrine, ['leave more room', 'more room', 'slower return', 'lower-pressure', 'steadiness before closeness'])
+    || includesAny(burdenLine, ['overloaded', 'pressure', 'crowd', 'conversational pressure', 'eager reopening'])
+    || includesAny(trustMeaning, ['lower-pressure', 'less eager', 'room', 'space', 'timing', 'steadiness before closeness'])
+    || includesAny(latestInflection, ['pressure', 'slower return', 'lower-pressure', 'less eager'])
+    || includesAny(dominantTrajectory, ['lower-pressure'])
+
+  return {
+    preferLowerPressure,
+    forceSilentObserve: preferLowerPressure,
+  }
 }
 
 function highestConcern(concerns: AlicizationConcernSnapshot[]) {
@@ -154,6 +191,18 @@ export function buildInitiativeSnapshot(input: {
   autobiographicalSelf?: AlicizationAutobiographicalSelfSnapshot | null
   motiveEngine?: AlicizationMotiveEngineSnapshot | null
   habitPolicy?: AlicizationHabitPolicySnapshot | null
+  selfEvolution?: AlicizationSelfEvolutionKernelSnapshot | null
+  memoryTuningAdvice?: AlicizationMemoryTuningAdvice | null
+  activeContinuityGovernance?: {
+    source: 'active-self-evolution-version'
+    mode: 'same-her-baseline'
+    candidateId: string | null
+    patchId: string | null
+    decisionTraceId: string | null
+    summary: string | null
+    lanes: string[]
+    reasonCodes: string[]
+  } | null
 }): AlicizationInitiativeSnapshot {
   const concern = highestConcern(input.concerns)
   const focusBelief = input.beliefLedger?.beliefs.find(belief => belief.id === input.beliefLedger?.focusBeliefId) ?? null
@@ -182,6 +231,8 @@ export function buildInitiativeSnapshot(input: {
   const stablePreferences = input.autobiographicalSelf?.preferenceEvolution ?? null
   const motiveEngine = input.motiveEngine ?? null
   const habitPolicy = input.habitPolicy ?? null
+  const selfEvolutionBias = deriveSelfEvolutionInitiativeBias(input.selfEvolution ?? null)
+  const sameHerContinuityBias = input.activeContinuityGovernance?.mode === 'same-her-baseline'
   const motives: Partial<Record<AlicizationMindMotive, number>> = {
     ...input.mindDynamics.motives,
   }
@@ -265,6 +316,7 @@ export function buildInitiativeSnapshot(input: {
     commitmentLedger: input.commitmentLedger,
     counterfactualDeliberation: input.counterfactualDeliberation,
     desireMemory: input.previousDesireMemory,
+    memoryTuningAdvice: input.memoryTuningAdvice ?? null,
   })
   const selectedProposal = arbitration.proposals.find(proposal => proposal.id === arbitration.selectedProposalId)
     ?? arbitration.proposals[0]
@@ -335,6 +387,20 @@ export function buildInitiativeSnapshot(input: {
   ) {
     selectedAction = input.worldModel.epistemicState.certainty === 'grounded' ? 'whisper' : 'recheck'
   }
+  if (
+    selfEvolutionBias.preferLowerPressure
+    && (selectedAction === 'speak' || selectedAction === 'whisper')
+    && concern?.kind !== 'care-body'
+  ) {
+    selectedAction = input.worldModel.epistemicState.certainty === 'grounded' ? 'hover' : 'recheck'
+  }
+  if (
+    sameHerContinuityBias
+    && (selectedAction === 'speak' || selectedAction === 'whisper')
+    && concern?.kind !== 'care-body'
+  ) {
+    selectedAction = input.worldModel.epistemicState.certainty === 'grounded' ? 'hover' : 'recheck'
+  }
   const why = input.executiveCycle?.currentLine
     ?? activeReflection?.revision
     ?? motiveEngine?.backgroundAgendas[0]?.summary
@@ -391,6 +457,15 @@ export function buildInitiativeSnapshot(input: {
     .reduce((best, option) => Math.max(best, option.score), 0)
   const executiveSilenceBias = input.executiveCycle?.phase === 'reflecting' || input.executiveCycle?.phase === 'inferring' ? 0.12 : 0
   const executiveSurfaceBias = input.executiveCycle?.shouldAct ? 0.12 : 0
+  const forcedSilentObserve = (selfEvolutionBias.forceSilentObserve || sameHerContinuityBias) && concern?.kind !== 'care-body'
+  const finalPreferredStyle: AlicizationProactiveStyle = forcedSilentObserve
+    ? 'silent-observe'
+    : (selectedProposal?.style ?? cappedPreferredStyle)
+  const finalShouldSpeak = forcedSilentObserve
+    ? false
+    : input.executiveCycle?.phase === 'reflecting' || input.executiveCycle?.phase === 'inferring'
+      ? governingProject?.kind === 'care-host' && (selectedAction === 'speak' || selectedAction === 'warn')
+      : (selectedProposal?.shouldSpeak ?? input.actionEcology?.shouldSpeak ?? (selectedAction === 'whisper' || selectedAction === 'speak' || selectedAction === 'warn'))
 
   return {
     selectedAction,
@@ -440,14 +515,12 @@ export function buildInitiativeSnapshot(input: {
       + (habitPolicy?.prefersQuietCompanionship ? 0.08 : 0),
       silenceForwardDrive ?? 0,
     )),
-    preferredStyle: selectedProposal?.style ?? cappedPreferredStyle,
+    preferredStyle: finalPreferredStyle,
     preferredPresence: selectedProposal?.embodiedPresence ?? foregroundRuntimeThread?.suggestedPresence ?? cappedPreferredPresence,
     why,
     shouldSurface: selectedProposal?.shouldSurface
       ?? input.actionEcology?.shouldSurface
       ?? Boolean(counterfactualOption ? counterfactualOption.action !== 'wait' || preferredPresence !== 'none' : selectedAction !== 'wait'),
-    shouldSpeak: input.executiveCycle?.phase === 'reflecting' || input.executiveCycle?.phase === 'inferring'
-      ? governingProject?.kind === 'care-host' && (selectedAction === 'speak' || selectedAction === 'warn')
-      : (selectedProposal?.shouldSpeak ?? input.actionEcology?.shouldSpeak ?? (selectedAction === 'whisper' || selectedAction === 'speak' || selectedAction === 'warn')),
+    shouldSpeak: finalShouldSpeak,
   }
 }

@@ -18,11 +18,15 @@ describe('persona workshop compilation', () => {
           liveliness: 0.21,
           sensibility: 0.88,
         },
-        relationshipPosture: '守在身边',
-        initiativeStyle: '先观察再行动',
+        relationshipPosture: 'guardian',
+        initiativeStyle: 'observant',
         freeDescription: '接住主人的疲惫，回复要短一点。',
         antiPersonaConstraints: ['no theatrical warmth', 'no forced cheerfulness'],
-        calibration: 'calm and attentive',
+        calibration: {
+          silenceReconnect: 'hold',
+          comfortStyle: 'quiet-presence',
+          jealousyStyle: 'mask-it',
+        },
         previewCorrections: ['short openings'],
       },
     })
@@ -33,26 +37,25 @@ describe('persona workshop compilation', () => {
         liveliness: 0.21,
         sensibility: 0.88,
       },
-      relationshipPosture: '守在身边',
-      initiativeStyle: '先观察再行动',
-      valueBias: '接住主人的疲惫，回复要短一点。',
+      relationshipPosture: 'guardian',
+      initiativeStyle: 'observant',
+      valueBias: ['接住主人的疲惫，回复要短一点。'],
     })
     expect(compiled.expressionProfile).toEqual({
-      warmth: 0.7533333333333333,
-      directness: 0.7066666666666667,
-      playfulness: 0.30666666666666664,
-      emotionalVisibility: 0.7533333333333333,
+      warmth: 'warm',
+      directness: 'measured',
+      playfulness: 'low',
+      emotionalVisibility: 'steady',
     })
     expect(compiled.initiativeBaseline).toEqual({
-      silenceReconnect: 'short openings',
-      comfortStyle: 'calm and attentive',
-      jealousyStyle: 'no theatrical warmth / no forced cheerfulness',
+      silenceReconnect: 'hold',
+      comfortStyle: 'quiet-presence',
+      jealousyStyle: 'mask-it',
     })
     expect(compiled.identityAnchors).toEqual([
       '接住主人的疲惫，回复要短一点。',
-      'calm and attentive',
-      '守在身边',
-      '先观察再行动',
+      'guardian',
+      'observant',
     ])
     expect(compiled.antiPersonaConstraints).toEqual([
       'no theatrical warmth',
@@ -60,8 +63,8 @@ describe('persona workshop compilation', () => {
     ])
     expect(compiled.evolutionSeed).toEqual({
       fastLayers: ['接住主人的疲惫，回复要短一点。', 'short openings'],
-      slowLayers: ['calm and attentive'],
-      unlockTracks: ['守在身边', '先观察再行动'],
+      slowLayers: [],
+      unlockTracks: ['guardian', 'observant'],
     })
   })
 })
@@ -146,20 +149,20 @@ describe('runtime soul persona kernel seeding', () => {
             liveliness: 0.24,
             sensibility: 0.9,
           },
-          relationshipPosture: '守在身边',
-          initiativeStyle: '先观察再行动',
-          valueBias: '先稳住主人的情绪',
+          relationshipPosture: 'guardian',
+          initiativeStyle: 'observant',
+          valueBias: ['先稳住主人的情绪'],
         },
         expressionProfile: {
-          warmth: 0.72,
-          directness: 0.34,
-          playfulness: 0.2,
-          emotionalVisibility: 0.87,
+          warmth: 'warm',
+          directness: 'measured',
+          playfulness: 'low',
+          emotionalVisibility: 'steady',
         },
         initiativeBaseline: {
-          silenceReconnect: '短句回声',
-          comfortStyle: '贴近安抚',
-          jealousyStyle: '先确认再修复',
+          silenceReconnect: 'hold',
+          comfortStyle: 'gentle-care',
+          jealousyStyle: 'mask-it',
         },
         evolutionSeed: {
           fastLayers: ['presence', 'repair'],

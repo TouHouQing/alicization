@@ -215,6 +215,187 @@ describe('autobiographical self', () => {
     expect(snapshot.stability).toBeGreaterThan(0.45)
   })
 
+  it('seeds autobiographical preference floors from current SOUL personality authority before reinforcement history exists', () => {
+    const baseInput = {
+      now: 15_000,
+      context: {
+        localTime: { hour: 20, minute: 10, isLateNight: false },
+        system: {
+          cpuUsage: 10,
+          battery: { percent: 70, charging: true },
+          memory: { usagePercent: 34, freeMB: 4096, totalMB: 8192 },
+          idleSeconds: 14,
+          inputActivity: 'active',
+          fullscreenLikely: false,
+          foregroundWindow: undefined,
+          degradedSignals: [],
+        },
+        workload: { kind: 'browser', confidence: 0.72, source: 'foreground-window-heuristic', matchedLabels: ['browser'] },
+        content: { kind: 'doc', confidence: 0.68, source: 'foreground-window-heuristic', matchedLabels: ['doc'], summary: 'quiet docs thread' },
+        relationship: {
+          hostAttitude: 'neutral-open',
+          boredom: 16,
+          loneliness: 26,
+          fatigue: 18,
+          minutesSinceLastUserTurn: 5,
+          reminderBacklog: 0,
+          lateNightActiveMinutes: 0,
+          recentProactiveOutcomes: [],
+        },
+      } as any,
+      worldModel: {
+        activeThread: {
+          id: 'thread::docs',
+          kind: 'browser-browsing',
+          status: 'active',
+          source: 'observed-scene',
+          title: 'quiet docs thread',
+          summary: 'The host is reading docs without pressure.',
+          confidence: 0.74,
+          significance: 0.54,
+          unresolved: false,
+          beganAt: 0,
+          lastUpdatedAt: 15_000,
+          target: null,
+        },
+        lingeringThreads: [],
+        focusTarget: null,
+        epistemicState: {
+          certainty: 'observed',
+          freshness: 'recent',
+          seenNow: [],
+          inferredNow: [],
+          openQuestions: [],
+          staleRisks: [],
+        },
+        continuity: {
+          label: 'staying-with-thread',
+          sceneAgeMs: 15_000,
+          attentionAgeMs: 15_000,
+          sameSceneAsBefore: true,
+          sameAttentionAsBefore: true,
+          afterglowOpen: false,
+        },
+        hostState: {
+          availability: 'open',
+          burden: 'light',
+        },
+        updatedAt: 15_000,
+      } as any,
+      relationshipModel: {
+        climate: 'neutral',
+        approachVector: 'stay-near',
+        receptivity: 0.56,
+        sharedAttentionTrust: 0.6,
+        correctionSensitivity: 0.24,
+        reciprocityExpectation: 0.54,
+        activeBoundaries: [],
+        narrative: [],
+        updatedAt: 15_000,
+      },
+      selfContinuity: {
+        attachmentMode: 'nearby',
+        initiativeTemperament: 'balanced',
+        perceptionTrust: 0.62,
+        relationshipTrust: 0.6,
+        guardingTendency: 0.22,
+        misreadBurden: 0.12,
+        carryOverDesire: 0.34,
+        narrative: [],
+        updatedAt: 15_000,
+      },
+      selfState: {
+        stance: 'hold',
+        feltCloseness: 0.5,
+        protectiveness: 0.34,
+        curiosity: 0.44,
+        patience: 0.66,
+        desireToSpeak: 0.36,
+        fearOfInterrupting: 0.24,
+        moodLabel: 'settled',
+      },
+      goalStack: {
+        leadingHostGoalId: null,
+        leadingAlicizationGoalId: null,
+        hostGoals: [],
+        alicizationGoals: [],
+        updatedAt: 15_000,
+      } as any,
+      reflectionLedger: {
+        latestEntryId: null,
+        entries: [],
+        revisionPressure: 0,
+        narrative: [],
+        updatedAt: 15_000,
+      } as any,
+      desireMemory: {
+        activeDesires: [],
+        resurfacingDesireId: null,
+        withheldCount: 0,
+        updatedAt: 15_000,
+      } as any,
+      recentReinforcementEvents: [],
+    }
+
+    const observant = buildAutobiographicalSelf({
+      ...baseInput,
+      personalityAuthority: {
+        obedience: 0.54,
+        liveliness: 0.22,
+        sensibility: 0.4,
+        identityKernel: {
+          relationshipPosture: 'observer',
+          initiativeStyle: 'observant',
+          valueBias: ['room first'],
+        },
+        expressionProfile: {
+          warmth: 'cool',
+          directness: 'indirect',
+          playfulness: 'low',
+          emotionalVisibility: 'selective',
+        },
+        initiativeBaseline: {
+          silenceReconnect: 'hold',
+          comfortStyle: 'quiet-presence',
+          jealousyStyle: 'mask-it',
+        },
+        identityAnchors: ['space first'],
+        antiPersonaConstraints: ['do not crowd the host'],
+      },
+    } as any)
+    const direct = buildAutobiographicalSelf({
+      ...baseInput,
+      personalityAuthority: {
+        obedience: 0.76,
+        liveliness: 0.68,
+        sensibility: 0.74,
+        identityKernel: {
+          relationshipPosture: 'guardian',
+          initiativeStyle: 'high-participation',
+          valueBias: ['move first when the opening is real'],
+        },
+        expressionProfile: {
+          warmth: 'warm',
+          directness: 'frank',
+          playfulness: 'medium',
+          emotionalVisibility: 'steady',
+        },
+        initiativeBaseline: {
+          silenceReconnect: 'direct-approach',
+          comfortStyle: 'take-charge',
+          jealousyStyle: 'say-it',
+        },
+        identityAnchors: ['move first'],
+        antiPersonaConstraints: [],
+      },
+    } as any)
+
+    expect(observant.personaDrift.agencyStyle).toBe('reserved')
+    expect(direct.personaDrift.agencyStyle).toBe('self-starting')
+    expect(direct.preferenceEvolution.companionship).toBeGreaterThan(observant.preferenceEvolution.companionship)
+    expect(observant.preferenceEvolution.quietObservation).toBeGreaterThan(direct.preferenceEvolution.quietObservation)
+  })
+
   it('surfaces gradual persona unlock hypotheses from repeated relationship reinforcement without rewriting identity immediately', () => {
     const snapshot = buildAutobiographicalSelf({
       now: 40_000,
@@ -296,7 +477,7 @@ describe('autobiographical self', () => {
         updatedAt: 40_000,
       },
       selfState: {
-        stance: 'reach',
+        stance: 'approach',
         feltCloseness: 0.74,
         protectiveness: 0.48,
         curiosity: 0.72,
@@ -312,8 +493,8 @@ describe('autobiographical self', () => {
         alicizationGoals: [{
           id: 'alicization::grow-shared-language::relationship',
           owner: 'alicization',
-          kind: 'grow-shared-language',
-          status: 'warming',
+          kind: 'stay-near',
+          status: 'active',
           label: 'keep learning the shared language of this relationship',
           confidence: 0.68,
           urgency: 0.42,
@@ -323,7 +504,6 @@ describe('autobiographical self', () => {
           createdAt: 0,
           lastUpdatedAt: 40_000,
         }],
-        unresolvedSummary: null,
         updatedAt: 40_000,
       },
       reflectionLedger: { latestEntryId: null, entries: [], revisionPressure: 0.1, narrative: [], updatedAt: 40_000 } as any,
@@ -378,7 +558,7 @@ describe('autobiographical self', () => {
       },
       activeGoals: [{
         id: 'autobio-goal::grow-shared-language',
-        kind: 'grow-shared-language',
+        kind: 'stay-near',
         status: 'active',
         weight: 0.78,
         summary: 'Keep growing a more shared way of understanding this relationship without forcing it.',

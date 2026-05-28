@@ -517,4 +517,69 @@ describe('digital life kernel', () => {
     expect(surface.memory.affectiveResidue?.dominantResidueKind).toBe('repair')
     expect(policy.affectiveResidue?.relationshipCadence.shouldDelayWarmth).toBe(true)
   })
+
+  it('carries derived self-evolution and learning execution authority into proactive policy snapshot', () => {
+    const state = {
+      ...createDefaultVisualPresenceState(9_500),
+      learningExecutionState: {
+        nextLearningAction: 'verify',
+        activeLearningFocuses: ['world-model'],
+      },
+      derivedMindStateBundle: {
+        version: 'derived-mind-state-bundle-v1',
+        source: 'main-runtime',
+        producedAt: 9_500,
+        selfEvolution: {
+          version: 'self-evolution-kernel-v1',
+          updatedAt: 9_500,
+          evolutionMomentum: 0.58,
+          learningReadiness: 0.66,
+          contradictionPressure: 0.42,
+          revisionPressure: 0.49,
+          autobiographicalStability: 0.72,
+          dominantTrajectory: 'world-model revalidation',
+          relationshipDoctrine: 'verify before warmth widens',
+          latestInflection: 'A stale world-model seam still needs replay-backed grounding.',
+          burdenLine: null,
+          trustMeaning: null,
+          nextLearningAction: 'verify',
+          nextLearningReason: 'World-model carry is still under revalidation.',
+          shouldRecord: false,
+          shouldReflect: false,
+          shouldVerify: true,
+          shouldRevise: false,
+          shouldInternalize: false,
+          activeLearningFocuses: ['world-model'],
+          sourceSignals: ['self-revision-policy-feedback'],
+          summary: 'World-model carry remains verify-first.',
+        },
+        learningExecutionState: {
+          nextLearningAction: 'verify',
+          activeLearningFocuses: ['world-model'],
+        },
+        summary: 'source=main-runtime | trajectory=world-model revalidation | learning=verify',
+      },
+    } as any
+
+    const surface = buildAlicizationDigitalLifeRuntimeSurface(state)
+    const policy = buildAlicizationDigitalLifeProactivePolicySnapshot(surface)
+
+    expect(surface.memory.selfEvolution).toEqual(expect.objectContaining({
+      version: 'self-evolution-kernel-v1',
+      nextLearningAction: 'verify',
+      dominantTrajectory: 'world-model revalidation',
+    }))
+    expect(surface.memory.learningExecutionState).toEqual(expect.objectContaining({
+      nextLearningAction: 'verify',
+      activeLearningFocuses: ['world-model'],
+    }))
+    expect(policy.selfEvolution).toEqual(expect.objectContaining({
+      version: 'self-evolution-kernel-v1',
+      nextLearningAction: 'verify',
+    }))
+    expect(policy.learningExecutionState).toEqual(expect.objectContaining({
+      nextLearningAction: 'verify',
+      activeLearningFocuses: ['world-model'],
+    }))
+  })
 })

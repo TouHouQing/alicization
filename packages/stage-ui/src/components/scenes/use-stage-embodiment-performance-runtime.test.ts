@@ -5,6 +5,7 @@ import type { PlaybackItem } from '@proj-alicization/pipelines-audio'
 import { createBufferedSpeechAudioSource } from '@proj-alicization/pipelines-audio'
 import {
   createIdleStageEmbodimentMotorState,
+  type StageEmbodimentSpeechPlaybackItem,
   createIdleStageEmbodimentSpeechRenderState,
   createStageEmbodimentSpeechPlaybackItem,
 } from '@proj-alicization/stage-shared'
@@ -133,6 +134,36 @@ function createDigitalLifeSpineDigest(input: {
       recallSeed: null,
       thoughtThreadSummary: null,
     },
+  }
+}
+
+async function createResidentIdleRuntime(input: {
+  actionCue: string | null
+  baseEmotion: 'neutral' | 'thinking' | 'happy' | 'concerned' | 'tired'
+  delivery: 'calm' | 'gentle'
+  emphasis: 0 | 1 | 2
+  facialCue: string | null
+  variationToken: string
+}) {
+  const speechRenderState = ref(createIdleStageEmbodimentSpeechRenderState())
+  const scope = effectScope()
+  const runtime = scope.run(() => useStageEmbodimentPerformanceRuntime({ speechRenderState }))!
+
+  runtime.syncResidentPerformance({
+    baseEmotion: input.baseEmotion,
+    emotion: input.baseEmotion,
+    facialCue: input.facialCue,
+    actionCue: input.actionCue,
+    delivery: input.delivery,
+    emphasis: input.emphasis,
+  }, {
+    variationToken: input.variationToken,
+  })
+  await nextTick()
+
+  return {
+    runtime,
+    scope,
   }
 }
 
@@ -538,6 +569,325 @@ describe('stage embodiment performance runtime', () => {
     expect(runtime.state.value.actionPulse.revision).toBe(actionPulseRevision)
 
     scope.stop()
+  })
+
+  it('lets quiet accompaniment resident sync persist as the next idle baseline instead of only a momentary pulse', async () => {
+    const speechRenderState = ref(createIdleStageEmbodimentSpeechRenderState())
+    const scope = effectScope()
+    const runtime = scope.run(() => useStageEmbodimentPerformanceRuntime({ speechRenderState }))!
+
+    runtime.syncResidentPerformance({
+      baseEmotion: 'thinking',
+      emotion: 'thinking',
+      facialCue: 'focus',
+      actionCue: 'steady_focus',
+      delivery: 'gentle',
+      emphasis: 0,
+    }, {
+      variationToken: 'presence-pulse|quiet-accompaniment',
+    })
+    await nextTick()
+
+    runtime.prepareForNextMessage()
+    await nextTick()
+
+    expect(runtime.state.value.phase).toBe('armed')
+    expect(runtime.state.value.residentPerformance).toEqual(expect.objectContaining({
+      baseEmotion: 'thinking',
+      facialCue: 'focus',
+      actionCue: 'steady_focus',
+      delivery: 'gentle',
+      emphasis: 0,
+    }))
+    expect(runtime.state.value.performance).toEqual(expect.objectContaining({
+      baseEmotion: 'thinking',
+      facialCue: 'focus',
+      actionCue: 'steady_focus',
+      delivery: 'gentle',
+      emphasis: 0,
+    }))
+
+    scope.stop()
+  })
+
+  it('keeps subconscious silent-observe accompaniment resident dynamics distinct from ordinary attentive resident baselines', async () => {
+    const baseline = await createResidentIdleRuntime({
+      actionCue: 'observe_focus',
+      baseEmotion: 'thinking',
+      delivery: 'gentle',
+      emphasis: 0,
+      facialCue: 'focus',
+      variationToken: 'resident|symbiotic-vision|attentive|subconscious-proactive|silent-observe',
+    })
+    const quietAccompaniment = await createResidentIdleRuntime({
+      actionCue: 'steady_focus',
+      baseEmotion: 'thinking',
+      delivery: 'gentle',
+      emphasis: 0,
+      facialCue: 'focus',
+      variationToken: 'presence-pulse|quiet-accompaniment|subconscious-proactive|silent-observe|continuity:quiet-accompaniment',
+    })
+
+    expect(quietAccompaniment.runtime.state.value.phase).toBe('idle')
+    expect(quietAccompaniment.runtime.state.value.actionIntensity).toBeGreaterThan(0)
+    expect(quietAccompaniment.runtime.state.value.breathDrive).toBeGreaterThan(0)
+    expect(quietAccompaniment.runtime.state.value.focusDrive).toBeGreaterThan(0)
+    expect(quietAccompaniment.runtime.state.value.actionIntensity).toBeLessThan(baseline.runtime.state.value.actionIntensity)
+    expect(quietAccompaniment.runtime.state.value.breathDrive).toBeGreaterThanOrEqual(baseline.runtime.state.value.breathDrive)
+    expect(quietAccompaniment.runtime.state.value.focusDrive).toBeGreaterThanOrEqual(baseline.runtime.state.value.focusDrive)
+    expect(quietAccompaniment.runtime.state.value.motor.body.openness).toBeLessThanOrEqual(baseline.runtime.state.value.motor.body.openness)
+
+    baseline.scope.stop()
+    quietAccompaniment.scope.stop()
+  })
+
+  it('lets protective-watch resident sync persist as a recovery baseline into the next idle window', async () => {
+    const speechRenderState = ref(createIdleStageEmbodimentSpeechRenderState())
+    const scope = effectScope()
+    const runtime = scope.run(() => useStageEmbodimentPerformanceRuntime({ speechRenderState }))!
+
+    runtime.syncResidentPerformance({
+      baseEmotion: 'tired',
+      emotion: 'tired',
+      facialCue: 'soft-gaze',
+      actionCue: 'comfort_sway',
+      delivery: 'gentle',
+      emphasis: 1,
+    }, {
+      variationToken: 'presence-pulse|protective-watch',
+    })
+    await nextTick()
+
+    runtime.prepareForNextMessage()
+    await nextTick()
+
+    expect(runtime.state.value.phase).toBe('armed')
+    expect(runtime.state.value.residentPerformance).toEqual(expect.objectContaining({
+      baseEmotion: 'tired',
+      facialCue: 'soft-gaze',
+      actionCue: 'comfort_sway',
+      delivery: 'gentle',
+      emphasis: 1,
+    }))
+    expect(runtime.state.value.performance).toEqual(expect.objectContaining({
+      baseEmotion: 'tired',
+      facialCue: 'soft-gaze',
+      actionCue: 'comfort_sway',
+      delivery: 'gentle',
+      emphasis: 1,
+    }))
+
+    scope.stop()
+  })
+
+  it('keeps quiet accompaniment lightly alive during idle instead of collapsing to a zero-drive reset', async () => {
+    const baseline = await createResidentIdleRuntime({
+      actionCue: 'observe_focus',
+      baseEmotion: 'thinking',
+      delivery: 'calm',
+      emphasis: 1,
+      facialCue: 'focus',
+      variationToken: 'resident|symbiotic-vision|attentive',
+    })
+    const quiet = await createResidentIdleRuntime({
+      actionCue: 'steady_focus',
+      baseEmotion: 'thinking',
+      delivery: 'gentle',
+      emphasis: 0,
+      facialCue: 'focus',
+      variationToken: 'presence-pulse|quiet-accompaniment',
+    })
+
+    expect(quiet.runtime.state.value.phase).toBe('idle')
+    expect(quiet.runtime.state.value.actionIntensity).toBeGreaterThan(0)
+    expect(quiet.runtime.state.value.breathDrive).toBeGreaterThan(0)
+    expect(quiet.runtime.state.value.focusDrive).toBeGreaterThan(0)
+    expect(quiet.runtime.state.value.actionIntensity).toBeLessThan(baseline.runtime.state.value.actionIntensity)
+    expect(quiet.runtime.state.value.breathDrive).toBeGreaterThanOrEqual(baseline.runtime.state.value.breathDrive)
+    expect(quiet.runtime.state.value.focusDrive).toBeGreaterThanOrEqual(baseline.runtime.state.value.focusDrive)
+
+    baseline.scope.stop()
+    quiet.scope.stop()
+  })
+
+  it('keeps protective-watch idle recovery dynamics distinct from ordinary concern', async () => {
+    const baseline = await createResidentIdleRuntime({
+      actionCue: 'comfort_settle',
+      baseEmotion: 'concerned',
+      delivery: 'calm',
+      emphasis: 1,
+      facialCue: 'soft-gaze',
+      variationToken: 'resident|recovering|concerned',
+    })
+    const protective = await createResidentIdleRuntime({
+      actionCue: 'comfort_sway',
+      baseEmotion: 'tired',
+      delivery: 'gentle',
+      emphasis: 1,
+      facialCue: 'soft-gaze',
+      variationToken: 'presence-pulse|protective-watch',
+    })
+
+    expect(protective.runtime.state.value.phase).toBe('idle')
+    expect(protective.runtime.state.value.actionIntensity).toBeGreaterThan(0)
+    expect(protective.runtime.state.value.breathDrive).toBeGreaterThan(0)
+    expect(protective.runtime.state.value.focusDrive).toBeGreaterThan(0)
+    expect(protective.runtime.state.value.actionIntensity).toBeLessThan(baseline.runtime.state.value.actionIntensity)
+    expect(protective.runtime.state.value.breathDrive).toBeGreaterThanOrEqual(baseline.runtime.state.value.breathDrive)
+    expect(protective.runtime.state.value.focusDrive).toBeGreaterThanOrEqual(baseline.runtime.state.value.focusDrive)
+    expect(protective.runtime.state.value.motor.body.openness).toBeLessThan(baseline.runtime.state.value.motor.body.openness)
+
+    baseline.scope.stop()
+    protective.scope.stop()
+  })
+
+  it('lets persona proactive bias tilt idle runtime dynamics between observe-first and direct reconnect', async () => {
+    const observant = await createResidentIdleRuntime({
+      actionCue: 'steady_focus',
+      baseEmotion: 'thinking',
+      delivery: 'calm',
+      emphasis: 0,
+      facialCue: 'focus',
+      variationToken: 'presence-pulse|quiet-accompaniment|persona:observant',
+    })
+    const direct = await createResidentIdleRuntime({
+      actionCue: 'steady_focus',
+      baseEmotion: 'thinking',
+      delivery: 'calm',
+      emphasis: 0,
+      facialCue: 'focus',
+      variationToken: 'presence-pulse|quiet-accompaniment|persona:direct',
+    })
+
+    expect(observant.runtime.state.value.focusDrive).toBeGreaterThan(0)
+    expect(direct.runtime.state.value.actionIntensity).toBeGreaterThan(0)
+    expect(direct.runtime.state.value.actionIntensity).toBeGreaterThanOrEqual(observant.runtime.state.value.actionIntensity)
+    expect(observant.runtime.state.value.focusDrive).toBeGreaterThanOrEqual(direct.runtime.state.value.focusDrive)
+
+    observant.scope.stop()
+    direct.scope.stop()
+  })
+
+  it('lets long-horizon lower-pressure timing keep idle runtime dynamics quieter even when resident performance stays the same', async () => {
+    const baselineDigest = ref(createDigitalLifeSpineDigest({
+      confidence: 0.76,
+      dominantSystem: 'memory',
+      operatingMode: 'observing',
+      recallMode: 'working-memory',
+      watchMode: 'symbiotic-vision',
+    }))
+    baselineDigest.value = {
+      ...baselineDigest.value,
+      proactive: {
+        ...baselineDigest.value.proactive!,
+        selectedAction: 'hover',
+        preferredStyle: 'silent-observe',
+        personaBias: {
+          relationshipPosture: 'observer',
+          initiativeStyle: 'observant',
+          silenceReconnect: 'hold',
+          comfortStyle: 'quiet-presence',
+          preferredProactiveStyle: 'silent-observe',
+          manifestationCadenceSummary: 'persona prefers observe-first room, so visible return cadence should stay slower until the opening softens.',
+          openingGuidance: 'Open by observing first and keep the approach lighter.',
+          whySummary: 'stay nearby without pressing in.',
+        },
+      },
+    }
+
+    const lowerPressureDigest = ref({
+      ...baselineDigest.value,
+      embodiment: {
+        privateThought: null,
+        selfContinuity: null,
+        autobiographicalSelf: {
+          attachmentStyle: null,
+          expressionStyle: null,
+          conflictStyle: null,
+          agencyStyle: null,
+          attachmentNeed: null,
+          autonomyNeed: null,
+          truthAnchor: null,
+          careBias: null,
+          playBias: null,
+          irritabilityThreshold: null,
+          stubbornness: null,
+          companionship: null,
+          truthfulGrounding: null,
+          gentleRepair: null,
+          quietObservation: null,
+          proactiveCare: null,
+          playfulIntimacy: null,
+          autonomyRespect: null,
+          unfinishedThreadReturn: null,
+          stability: null,
+          identityNarrative: null,
+          relationshipDoctrine: 'Repair should settle before closeness expands, and the opening should keep more room.',
+        },
+        relationship: null,
+        selfState: null,
+        mindEcology: null,
+        initiative: null,
+      },
+      outcomeLearning: {
+        reflectionTargetScope: 'relationship',
+        reflectionSummary: 'The room stayed warmer when pressure stayed low.',
+        reflectionLesson: 'Keep more room before widening closeness again.',
+        latestInflection: 'The last seam held because pressure stayed low and the return stayed slower.',
+        revisionPressure: 0.22,
+        autobiographicalStability: 0.86,
+        learningReadiness: 0.8,
+        contradictionPressure: 0.16,
+        dominantTrajectory: 'lower-pressure timing preserves trust',
+        activeLearningFocuses: ['relationship timing'],
+        evolutionMomentum: 0.84,
+        nextLearningAction: 'internalize',
+        nextLearningReason: 'The relationship line is stabilizing around slower re-entry.',
+        summary: 'Repair should settle before closeness expands, and the opening should keep more room.',
+      },
+    } satisfies AlicizationDigitalLifeSpineDigest)
+
+    const baselineSpeech = ref(createIdleStageEmbodimentSpeechRenderState())
+    const lowerPressureSpeech = ref(createIdleStageEmbodimentSpeechRenderState())
+    const baselineScope = effectScope()
+    const lowerPressureScope = effectScope()
+    const baselineRuntime = baselineScope.run(() => useStageEmbodimentPerformanceRuntime({
+      digitalLifeSpineDigest: baselineDigest,
+      speechRenderState: baselineSpeech,
+    }))!
+    const lowerPressureRuntime = lowerPressureScope.run(() => useStageEmbodimentPerformanceRuntime({
+      digitalLifeSpineDigest: lowerPressureDigest,
+      speechRenderState: lowerPressureSpeech,
+    }))!
+
+    baselineRuntime.syncResidentPerformance({
+      baseEmotion: 'thinking',
+      emotion: 'thinking',
+      facialCue: 'focus',
+      actionCue: 'steady_focus',
+      delivery: 'gentle',
+      emphasis: 0,
+    }, {
+      variationToken: 'resident|observe-first|baseline',
+    })
+    lowerPressureRuntime.syncResidentPerformance({
+      baseEmotion: 'thinking',
+      emotion: 'thinking',
+      facialCue: 'focus',
+      actionCue: 'steady_focus',
+      delivery: 'gentle',
+      emphasis: 0,
+    }, {
+      variationToken: 'resident|observe-first|lower-pressure',
+    })
+    await nextTick()
+
+    expect(lowerPressureRuntime.state.value.actionIntensity).toBeLessThan(baselineRuntime.state.value.actionIntensity)
+    expect(lowerPressureRuntime.state.value.breathDrive).toBeGreaterThanOrEqual(baselineRuntime.state.value.breathDrive)
+    expect(lowerPressureRuntime.state.value.focusDrive).toBeGreaterThanOrEqual(baselineRuntime.state.value.focusDrive)
+
+    baselineScope.stop()
+    lowerPressureScope.stop()
   })
 
   it('previews the next speech segment cue before buffered playback starts', async () => {
@@ -1440,6 +1790,15 @@ describe('stage embodiment performance runtime', () => {
       plannedDurationMs: 180,
       settleMs: 220,
       stopReason: null,
+      driverAuthority: {
+        segmentId: 'segment-explicit-playback-telemetry',
+        rendererTarget: 'live2d',
+        matchedDrivers: ['face', 'motion', 'lipsync'],
+        sources: ['seeded-face', 'seeded-motion', 'seeded-lipsync'],
+        faceSegmentMatched: true,
+        motionSegmentMatched: true,
+        lipsyncSegmentMatched: true,
+      },
       drivers: {
         face: {
           emotion: 'happy',
@@ -1498,6 +1857,225 @@ describe('stage embodiment performance runtime', () => {
         { segmentId: 'segment-explicit-playback-telemetry', viseme: 'closed', weight: 0.58, source: 'prosody-authority', confidence: 0.77 },
       ],
     }))
+    expect(runtime.state.value.driverAuthority).toEqual({
+      segmentId: 'segment-explicit-playback-telemetry',
+      rendererTarget: 'live2d',
+      matchedDrivers: ['face', 'motion', 'lipsync'],
+      sources: ['seeded-face', 'seeded-motion', 'seeded-lipsync'],
+      faceSegmentMatched: true,
+      motionSegmentMatched: true,
+      lipsyncSegmentMatched: true,
+    })
+
+    scope.stop()
+  })
+
+  it('consumes explicit playback telemetry cue renderer metadata when item cue metadata is absent', async () => {
+    const speechRenderState = ref(createIdleStageEmbodimentSpeechRenderState())
+    const playbackTelemetry = ref<EmbodimentPlaybackTelemetry | null>(null)
+    const scope = effectScope()
+    const runtime = scope.run(() => useStageEmbodimentPerformanceRuntime({
+      playbackTelemetry,
+      speechRenderState,
+    }))!
+
+    runtime.armPerformance(createPerformance(), {
+      source: 'dialogue',
+      variationToken: 'turn-explicit-playback-cue-metadata',
+    })
+
+    speechRenderState.value = {
+      ...speechRenderState.value,
+      active: true,
+      dynamics: {
+        speechEnergy: 0.18,
+        prosodyIntensity: 0.14,
+        emphasisLevel: 0.12,
+        cadencePulse: 0.2,
+      },
+      item: createStageEmbodimentSpeechPlaybackItem({
+        intentId: 'intent-explicit-playback-cue-metadata',
+        segmentId: 'segment-explicit-playback-cue-metadata',
+        special: null,
+        streamId: 'stream-explicit-playback-cue-metadata',
+        text: '继续看这里。',
+      }),
+      phase: 'playing',
+      revision: 1,
+      visemeIntensity: 0.06,
+    }
+    await nextTick()
+
+    playbackTelemetry.value = {
+      actualDurationMs: 240,
+      driftMs: 0,
+      plannedDurationMs: 240,
+      settleMs: 280,
+      stopReason: null,
+      rendererTarget: 'vrm',
+      cue: {
+        id: 'segment-explicit-playback-cue-metadata',
+        index: 0,
+        startOffset: 0,
+        endOffset: 6,
+        text: '继续看这里。',
+        emotion: 'thinking',
+        gestureWeight: 0.34,
+        facialWeight: 0.52,
+        prosodyWeight: 0.36,
+        beatWeight: 0.3,
+        mouthWeight: 0.28,
+        headWeight: 0.32,
+        facialHoldMs: 320,
+        actionHoldMs: 240,
+        emotionHoldMs: 320,
+        actionCue: 'observe_focus',
+        facialCue: 'focused',
+        actionWindow: 'segment-start',
+        interruptMode: 'soft-interrupt',
+        rendererHints: {
+          preferredExpressionAliases: ['CalmInspect'],
+          preferredMotionAliases: ['ObserveSoft'],
+        },
+        rendererSettle: {
+          live2dFacialReleaseMs: 320,
+          live2dMotionFollowThroughMs: 440,
+          vrmActionFadeMs: 280,
+          vrmExpressionBlendMs: 360,
+        },
+      },
+      drivers: {
+        face: {
+          emotion: 'thinking',
+          facialCue: 'focused',
+          intensity: 0.52,
+          holdMs: 320,
+          preUtteranceCue: 'steady-inhale',
+          postUtteranceCue: 'soft-release',
+          segmentId: 'segment-explicit-playback-cue-metadata',
+          source: 'prosody-authority',
+          confidence: 0.94,
+        },
+        motion: {
+          idleBase: 'idle_settle',
+          attentionMode: 'attentive',
+          actionCue: 'observe_focus',
+          intensity: 0.34,
+          holdMs: 240,
+          segmentId: 'segment-explicit-playback-cue-metadata',
+          source: 'timeline-projection',
+          confidence: 0.88,
+        },
+        lipsync: {
+          mode: 'energy-phoneme-hybrid',
+          playbackPhase: 'playing',
+          segmentId: 'segment-explicit-playback-cue-metadata',
+          visemeHints: [
+            { segmentId: 'segment-explicit-playback-cue-metadata', viseme: 'I', weight: 0.35, source: 'prosody-authority', confidence: 0.94 },
+          ],
+        },
+      },
+    } as EmbodimentPlaybackTelemetry & {
+      cue: NonNullable<StageEmbodimentSpeechPlaybackItem['cue']>
+    }
+    await nextTick()
+
+    expect(runtime.state.value.activeCue?.rendererHints?.preferredExpressionAliases).toEqual(['CalmInspect'])
+    expect(runtime.state.value.activeCue?.rendererHints?.preferredMotionAliases).toEqual(['ObserveSoft'])
+    expect(runtime.state.value.activeCue?.rendererSettle).toEqual({
+      live2dFacialReleaseMs: 320,
+      live2dMotionFollowThroughMs: 440,
+      vrmActionFadeMs: 280,
+      vrmExpressionBlendMs: 360,
+    })
+
+    scope.stop()
+  })
+
+  it('derives active segment emotion from explicit playback driver face metadata when cue metadata is absent', async () => {
+    const speechRenderState = ref(createIdleStageEmbodimentSpeechRenderState())
+    const playbackTelemetry = ref<EmbodimentPlaybackTelemetry | null>(null)
+    const scope = effectScope()
+    const runtime = scope.run(() => useStageEmbodimentPerformanceRuntime({
+      playbackTelemetry,
+      speechRenderState,
+    }))!
+
+    runtime.armPerformance(createPerformance(), {
+      source: 'dialogue',
+      variationToken: 'turn-explicit-driver-emotion',
+    })
+
+    speechRenderState.value = {
+      ...speechRenderState.value,
+      active: true,
+      dynamics: {
+        speechEnergy: 0.26,
+        prosodyIntensity: 0.22,
+        emphasisLevel: 0.16,
+        cadencePulse: 0.28,
+      },
+      item: createStageEmbodimentSpeechPlaybackItem({
+        intentId: 'intent-explicit-driver-emotion',
+        segmentId: 'segment-explicit-driver-emotion',
+        special: null,
+        streamId: 'stream-explicit-driver-emotion',
+        text: '继续看这里。',
+      }),
+      phase: 'playing',
+      revision: 1,
+      visemeIntensity: 0.12,
+    }
+    await nextTick()
+
+    playbackTelemetry.value = {
+      actualDurationMs: 220,
+      driftMs: 0,
+      plannedDurationMs: 220,
+      settleMs: 260,
+      stopReason: null,
+      rendererTarget: 'vrm',
+      drivers: {
+        face: {
+          emotion: 'thinking',
+          facialCue: 'focused',
+          intensity: 0.66,
+          holdMs: 360,
+          preUtteranceCue: 'steady-inhale',
+          postUtteranceCue: 'soft-release',
+          segmentId: 'segment-explicit-driver-emotion',
+          source: 'prosody-authority',
+          confidence: 0.94,
+        },
+        lipsync: {
+          mode: 'energy-phoneme-hybrid',
+          playbackPhase: 'playing',
+          segmentId: 'segment-explicit-driver-emotion',
+          visemeHints: [
+            { segmentId: 'segment-explicit-driver-emotion', viseme: 'I', weight: 0.35, source: 'prosody-authority', confidence: 0.94 },
+          ],
+        },
+        motion: {
+          idleBase: 'idle_settle',
+          attentionMode: 'attentive',
+          actionCue: 'observe_focus',
+          intensity: 0.42,
+          holdMs: 220,
+          segmentId: 'segment-explicit-driver-emotion',
+          source: 'timeline-projection',
+          confidence: 0.88,
+        },
+      },
+    }
+    await nextTick()
+
+    expect(runtime.state.value.driverRendererTarget).toBe('vrm')
+    expect(runtime.state.value.performance.baseEmotion).toBe('thinking')
+    expect(runtime.state.value.performance.emotion).toBe('thinking')
+    expect(runtime.state.value.activeFacialCue).toBe('focused')
+    expect(runtime.state.value.activeActionCue).toBe('observe_focus')
+    expect(runtime.state.value.activeCueSource).toBe('segment')
+    expect(runtime.state.value.activeCue?.emotion).toBe('thinking')
 
     scope.stop()
   })
@@ -1805,6 +2383,223 @@ describe('stage embodiment performance runtime', () => {
       stopReason: null,
     })
     expect(runtime.state.value.phase).toBe('idle')
+
+    scope.stop()
+  })
+
+  it('surfaces vrm playback telemetry rendererTarget in performance runtime state', async () => {
+    const speechRenderState = ref(createIdleStageEmbodimentSpeechRenderState())
+    const playbackTelemetry = ref<EmbodimentPlaybackTelemetry | null>({
+      actualDurationMs: 920,
+      plannedDurationMs: 920,
+      driftMs: 0,
+      settleMs: 220,
+      stopReason: null,
+      rendererTarget: 'vrm',
+      driverAuthority: {
+        segmentId: 'segment-vrm-performance',
+        rendererTarget: 'vrm',
+        matchedDrivers: ['face', 'motion', 'lipsync'],
+        sources: ['seeded-face', 'seeded-motion', 'seeded-lipsync'],
+        faceSegmentMatched: true,
+        motionSegmentMatched: true,
+        lipsyncSegmentMatched: true,
+      },
+      drivers: {
+        face: {
+          emotion: 'thinking',
+          facialCue: 'focused',
+          intensity: 0.56,
+          holdMs: 360,
+          preUtteranceCue: 'steady-inhale',
+          postUtteranceCue: 'soft-release',
+          segmentId: 'segment-vrm-performance',
+          source: 'prosody-authority',
+          confidence: 0.94,
+        },
+        lipsync: {
+          mode: 'energy-phoneme-hybrid',
+          playbackPhase: 'playing',
+          segmentId: 'segment-vrm-performance',
+          visemeHints: [
+            { segmentId: 'segment-vrm-performance', viseme: 'I', weight: 0.35, source: 'prosody-authority', confidence: 0.94 },
+          ],
+        },
+        motion: {
+          idleBase: 'idle_settle',
+          attentionMode: 'attentive',
+          actionCue: 'inspect_follow',
+          intensity: 0.4,
+          holdMs: 220,
+          segmentId: 'segment-vrm-performance',
+          source: 'timeline-projection',
+          confidence: 0.88,
+        },
+      },
+    })
+    const scope = effectScope()
+    const runtime = scope.run(() => useStageEmbodimentPerformanceRuntime({
+      playbackTelemetry,
+      speechRenderState,
+    }))!
+
+    expect(runtime.playbackTelemetry.value?.rendererTarget).toBe('vrm')
+    expect((runtime.state.value as any).driverRendererTarget).toBe('vrm')
+    expect(runtime.playbackTelemetry.value?.drivers.face).toEqual(expect.objectContaining({
+      source: 'prosody-authority',
+    }))
+    expect((runtime.state.value as any).driverAuthority).toEqual({
+      segmentId: 'segment-vrm-performance',
+      rendererTarget: 'vrm',
+      matchedDrivers: ['face', 'motion', 'lipsync'],
+      sources: ['seeded-face', 'seeded-motion', 'seeded-lipsync'],
+      faceSegmentMatched: true,
+      motionSegmentMatched: true,
+      lipsyncSegmentMatched: true,
+    })
+
+    scope.stop()
+  })
+
+  it('deduplicates derived authority sources when runtime reconstructs authority from playback drivers', async () => {
+    const speechRenderState = ref({
+      ...createIdleStageEmbodimentSpeechRenderState(),
+      active: true,
+      dynamics: {
+        speechEnergy: 0.18,
+        prosodyIntensity: 0.14,
+        emphasisLevel: 0.12,
+        cadencePulse: 0.2,
+      },
+      item: createStageEmbodimentSpeechPlaybackItem({
+        intentId: 'intent-derived-authority-sources',
+        segmentId: 'segment-derived-authority-sources',
+        special: null,
+        streamId: 'stream-derived-authority-sources',
+        text: '继续看这里。',
+      }),
+      phase: 'playing',
+      revision: 1,
+      visemeIntensity: 0.06,
+    })
+    const playbackTelemetry = ref<EmbodimentPlaybackTelemetry | null>({
+      actualDurationMs: 240,
+      plannedDurationMs: 240,
+      driftMs: 0,
+      settleMs: 280,
+      stopReason: null,
+      rendererTarget: 'vrm',
+      driverAuthority: null,
+      drivers: {
+        face: {
+          emotion: 'thinking',
+          facialCue: 'focused',
+          intensity: 0.52,
+          holdMs: 320,
+          preUtteranceCue: 'steady-inhale',
+          postUtteranceCue: 'soft-release',
+          segmentId: 'segment-derived-authority-sources',
+          source: 'prosody-authority',
+          confidence: 0.94,
+        },
+        lipsync: {
+          mode: 'energy-phoneme-hybrid',
+          playbackPhase: 'playing',
+          segmentId: 'segment-derived-authority-sources',
+          visemeHints: [
+            { segmentId: 'segment-derived-authority-sources', viseme: 'I', weight: 0.35, source: 'prosody-authority', confidence: 0.94 },
+            { segmentId: 'segment-derived-authority-sources', viseme: 'closed', weight: 0.75, source: 'prosody-authority', confidence: 0.89 },
+          ],
+        },
+        motion: {
+          idleBase: 'idle_settle',
+          attentionMode: 'attentive',
+          actionCue: 'observe_focus',
+          intensity: 0.34,
+          holdMs: 240,
+          source: 'timeline-projection',
+          confidence: 0.88,
+          segmentId: 'segment-derived-authority-sources',
+        },
+      },
+    })
+    const scope = effectScope()
+    const runtime = scope.run(() => useStageEmbodimentPerformanceRuntime({
+      playbackTelemetry,
+      speechRenderState,
+    }))!
+
+    expect(runtime.state.value.driverAuthority).toEqual({
+      segmentId: 'segment-derived-authority-sources',
+      rendererTarget: 'vrm',
+      matchedDrivers: ['face', 'motion', 'lipsync'],
+      sources: ['prosody-authority', 'timeline-projection'],
+      faceSegmentMatched: true,
+      motionSegmentMatched: true,
+      lipsyncSegmentMatched: true,
+    })
+
+    scope.stop()
+  })
+
+  it('reconstructs authority segment and sources from unanimous viseme hints when no seeded authority or lipsync segment id exists', async () => {
+    const speechRenderState = ref({
+      ...createIdleStageEmbodimentSpeechRenderState(),
+      active: true,
+      dynamics: {
+        speechEnergy: 0.18,
+        prosodyIntensity: 0.14,
+        emphasisLevel: 0.12,
+        cadencePulse: 0.2,
+      },
+      item: createStageEmbodimentSpeechPlaybackItem({
+        intentId: 'intent-derived-viseme-authority',
+        segmentId: null,
+        special: null,
+        streamId: 'stream-derived-viseme-authority',
+        text: '继续看这里。',
+      }),
+      phase: 'playing',
+      revision: 1,
+      visemeIntensity: 0.06,
+    })
+    const playbackTelemetry = ref<EmbodimentPlaybackTelemetry | null>({
+      actualDurationMs: 240,
+      plannedDurationMs: 240,
+      driftMs: 0,
+      settleMs: 280,
+      stopReason: null,
+      rendererTarget: 'vrm',
+      driverAuthority: null,
+      drivers: {
+        face: null,
+        lipsync: {
+          mode: 'energy-phoneme-hybrid',
+          playbackPhase: 'playing',
+          segmentId: null,
+          visemeHints: [
+            { segmentId: 'segment-derived-viseme-authority', viseme: 'I', weight: 0.35, source: 'prosody-authority', confidence: 0.94 },
+            { segmentId: 'segment-derived-viseme-authority', viseme: 'closed', weight: 0.75, source: 'prosody-authority', confidence: 0.89 },
+          ],
+        },
+        motion: null,
+      },
+    })
+    const scope = effectScope()
+    const runtime = scope.run(() => useStageEmbodimentPerformanceRuntime({
+      playbackTelemetry,
+      speechRenderState,
+    }))!
+
+    expect(runtime.state.value.driverAuthority).toEqual({
+      segmentId: 'segment-derived-viseme-authority',
+      rendererTarget: 'vrm',
+      matchedDrivers: ['lipsync'],
+      sources: ['prosody-authority'],
+      faceSegmentMatched: false,
+      motionSegmentMatched: false,
+      lipsyncSegmentMatched: true,
+    })
 
     scope.stop()
   })

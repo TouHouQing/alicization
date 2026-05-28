@@ -115,6 +115,43 @@ describe('execution delivery surface', () => {
     expect(selected.reply).toContain('callback fallback mirror ok')
   })
 
+  it('returns lower-pressure repair reason for memory-led familiarity callback drift so downstream runtime can explain the hold', () => {
+    const selected = selectAlicizationExecutionDeliveryReply({
+      channel: 'codex',
+      goal: 'Return the finished patch result to the same thread.',
+      status: 'completed',
+      summary: 'patched runtime line',
+      outcome: 'patched runtime line',
+      llmReply: '我记得我们之前一直都这么亲近，所以这次我也想像以前那样靠近一点，先陪在你身侧。',
+      personStateProjection: {
+        contexts: ['focused-work', 'execution-callback'],
+        summary: 'regime=focused-work | ladder=focused-work/space-first | posture=restrained',
+        activeClosenessContext: 'execution-callback',
+        activeClosenessRung: 'space-first',
+        relationshipPosture: 'restrained',
+        openingGuidance: 'Stay inside the current same-her baseline. Keep the opening lower-pressure and leave room before widening closeness.',
+        preferredProactiveStyle: 'silent-observe',
+        preferenceText: 'Lighter touch, more room, less interruption pressure.',
+        sensitivityText: 'Pressure and over-close timing become intrusive quickly.',
+        repairTriggerText: '',
+        burdenText: 'Focused work gets overloaded quickly by extra conversational pressure.',
+        routineText: 'Keep the work window light.',
+        trustRationale: 'Trust is warming, but the host still needs room while focused.',
+        relationshipDoctrine: 'Observe first, then decide whether closeness is welcome.',
+        cautious: true,
+        restrained: true,
+        personalityContinuityState: {
+          currentRegime: 'focused-work',
+          closenessPosture: 'space-first',
+          repairPosture: 'measured-repair',
+        } as any,
+      } as any,
+    })
+
+    expect(selected.source).toBe('llm-repaired')
+    expect(selected.reason).toBe('opening-guidance-lower-pressure')
+  })
+
   it('adds a soft availability check when learned delivery policy is cautious', () => {
     const reply = buildAlicizationDeterministicExecutionDeliveryReply({
       channel: 'codex',
@@ -340,6 +377,44 @@ describe('execution delivery surface', () => {
     expect((structured as any).visibleReplyAuthority).toBe('llm-second-pass-rewrite')
   })
 
+  it('threads callback opening guidance into execution payoff structured payload so visible callback gating can enforce same-her timing', () => {
+    const structured = buildAlicizationExecutionPayoffStructuredReply({
+      mode: 'callback-delivery',
+      channel: 'cli',
+      goal: 'Patch the runtime line.',
+      status: 'completed',
+      summary: 'patched runtime line',
+      outcome: 'patched runtime line',
+      personStateProjection: {
+        contexts: ['execution-callback', 'focused-work'],
+        summary: 'regime=execution-callback | posture=restrained',
+        activeClosenessContext: 'execution-callback',
+        activeClosenessRung: 'measured-room',
+        relationshipPosture: 'restrained',
+        openingGuidance: 'Stay inside the current same-her baseline. Keep the opening lower-pressure and leave room before widening closeness.',
+        preferredProactiveStyle: 'silent-observe',
+        preferenceText: 'Keep the callback exact and lower-pressure.',
+        sensitivityText: 'Over-close callback warmth lands as pressure.',
+        repairTriggerText: 'If the callback leans too close, reopen lighter.',
+        burdenText: 'Focused work is crowded easily by extra callback warmth.',
+        routineText: 'Callbacks land best when they stay bounded and exact.',
+        trustRationale: 'Trust holds when callback timing stays measured.',
+        relationshipDoctrine: 'Stay exact, bounded, and lower-pressure before widening closeness.',
+        cautious: true,
+        restrained: true,
+        personalityContinuityState: {
+          currentRegime: 'execution-callback',
+          closenessPosture: 'space-first',
+          repairPosture: 'repair-first',
+        } as any,
+      } as any,
+    })
+
+    expect(structured.format).toBe('mind-turn-v1')
+    expect((structured as any).proactive?.openingGuidance).toContain('same-her baseline')
+    expect((structured as any).proactive?.openingGuidance).toContain('lower-pressure')
+  })
+
   it('labels missing llm callback payoff as llm-repaired instead of raw deterministic authority', () => {
     const selected = selectAlicizationExecutionDeliveryReply({
       channel: 'cli',
@@ -352,5 +427,44 @@ describe('execution delivery surface', () => {
 
     expect(selected.source).toBe('llm-repaired')
     expect(selected.reason).toBe('missing-llm-reply')
+  })
+
+  it('repairs raw callback payoff when same-her lower-pressure guidance drifts into eager closeness before availability is checked', () => {
+    const selected = selectAlicizationExecutionDeliveryReply({
+      channel: 'cli',
+      goal: 'Patch the runtime line.',
+      status: 'completed',
+      summary: 'patched runtime line',
+      outcome: 'patched runtime line',
+      llmReply: '这件事已经落到结果上了：我现在就贴过来把这条结果给你，patched runtime line。',
+      personStateProjection: {
+        contexts: ['execution-callback', 'focused-work'],
+        summary: 'regime=execution-callback | posture=restrained',
+        activeClosenessContext: 'execution-callback',
+        activeClosenessRung: 'measured-room',
+        relationshipPosture: 'restrained',
+        openingGuidance: 'Stay inside the current same-her baseline. Keep the opening lower-pressure and leave room before widening closeness.',
+        preferredProactiveStyle: 'silent-observe',
+        preferenceText: 'Keep the callback exact and lower-pressure.',
+        sensitivityText: 'Over-close callback warmth lands as pressure.',
+        repairTriggerText: 'If the callback leans too close, reopen lighter.',
+        burdenText: 'Focused work is crowded easily by extra callback warmth.',
+        routineText: 'Callbacks land best when they stay bounded and exact.',
+        trustRationale: 'Trust holds when callback timing stays measured.',
+        relationshipDoctrine: 'Stay exact, bounded, and lower-pressure before widening closeness.',
+        cautious: true,
+        restrained: true,
+        personalityContinuityState: {
+          currentRegime: 'execution-callback',
+          closenessPosture: 'space-first',
+          repairPosture: 'repair-first',
+        } as any,
+      } as any,
+    })
+
+    expect(selected.source).toBe('llm-repaired')
+    expect(selected.reason).toBe('opening-guidance-lower-pressure')
+    expect(selected.reply).toContain('你现在要是方便')
+    expect(selected.reply).toContain('patched runtime line')
   })
 })

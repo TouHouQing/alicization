@@ -34,17 +34,32 @@ export interface ThreeHitTestReadTracePayload extends StageThreeRuntimeTraceBase
 }
 
 export interface VrmUpdateFrameTracePayload extends StageThreeRuntimeTraceBasePayload {
+  activeActionCue?: string | null
+  activeActionCueSource?: string | null
+  activeCuePreferredExpressionAliases?: string[] | null
+  activeCuePreferredMotionAliases?: string[] | null
+  activeCueVrmActionFadeMs?: number | null
+  activeCueVrmExpressionBlendMs?: number | null
+  activeFacialCue?: string | null
+  activeFacialCueSource?: string | null
   animationMixerMs: number
+  actionIntensity?: number | null
   blinkAndSaccadeMs: number
   deltaMs: number
   durationMs: number
   emoteMs: number
+  expressionIntensity?: number | null
   expressionMs: number
+  facialCueIntensity?: number | null
   humanoidMs: number
   lipSyncMs: number
   lookAtMs: number
   postureMs?: number
+  performancePhase?: string | null
+  segmentId?: string | null
   springBoneMs: number
+  speechPhase?: string | null
+  visemeIntensity?: number | null
   vrmFrameHookMs: number
 }
 

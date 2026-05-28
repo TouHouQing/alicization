@@ -310,6 +310,104 @@ describe('runtime visual presence state', () => {
     expect(emitVisualPresenceState).toHaveBeenCalledWith('default', state)
   })
 
+  it('does not re-persist or re-emit an identical visual presence state for the active card', async () => {
+    const meta = new Map<string, string>()
+    const upsertMindHead = vi.fn(async (cardId: string, key: string, value: unknown) => {
+      meta.set(`mind:${cardId}:${key}`, JSON.stringify(value))
+    })
+    const setMetaValue = vi.fn(async (key: string, value: string) => {
+      meta.set(key, value)
+    })
+    const emitVisualPresenceState = vi.fn()
+    const runtime = createAlicizationRuntimeVisualPresenceState({
+      now: () => 5_000,
+      normalizeCardId: raw => String(raw ?? '').trim() || 'default',
+      getActiveCardId: () => 'default',
+      withCardScope: async (_cardId, task) => await task(),
+      alicizationDb: {
+        getMetaValue: async key => meta.get(key),
+        setMetaValue,
+        upsertMindHead,
+      },
+      perceptionStateByCard: new Map(),
+      visualPresenceStateByCard: new Map(),
+      visualPresenceCapturePersistMetaByCard: new Map(),
+      createDefaultPerceptionState: (now) => ({ lastObservedAt: now } as any),
+      normalizePerceptionState: raw => raw as any,
+      createDefaultVisualPresenceState: createVisualPresenceState,
+      normalizeVisualPresenceState: raw => raw as AlicizationVisualPresenceStateSnapshot,
+      buildVisualPresenceCapturePersistFingerprint: state => `fp:${state.updatedAt}`,
+      emitVisualPresenceState,
+      perceptionMetaKey: 'perception_state_v1',
+      visualPresenceMetaKey: 'visual_presence_state_v1',
+    })
+
+    const state = createVisualPresenceState(4_800)
+    await runtime.persistVisualPresenceState('default', state)
+    await runtime.persistVisualPresenceState('default', state)
+
+    expect(setMetaValue).toHaveBeenCalledTimes(1)
+    expect(upsertMindHead).toHaveBeenCalledTimes(4)
+    expect(emitVisualPresenceState).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not treat a structurally identical visual presence state with different key order as changed', async () => {
+    const meta = new Map<string, string>()
+    const setMetaValue = vi.fn(async (key: string, value: string) => {
+      meta.set(key, value)
+    })
+    const emitVisualPresenceState = vi.fn()
+    const runtime = createAlicizationRuntimeVisualPresenceState({
+      now: () => 9_000,
+      normalizeCardId: raw => String(raw ?? '').trim() || 'default',
+      getActiveCardId: () => 'default',
+      withCardScope: async (_cardId, task) => await task(),
+      alicizationDb: {
+        getMetaValue: async key => meta.get(key),
+        setMetaValue,
+        upsertMindHead: async () => {},
+      },
+      perceptionStateByCard: new Map(),
+      visualPresenceStateByCard: new Map(),
+      visualPresenceCapturePersistMetaByCard: new Map(),
+      createDefaultPerceptionState: (now) => ({ lastObservedAt: now } as any),
+      normalizePerceptionState: raw => raw as any,
+      createDefaultVisualPresenceState: createVisualPresenceState,
+      normalizeVisualPresenceState: raw => ({
+        updatedAt: (raw as AlicizationVisualPresenceStateSnapshot).updatedAt,
+        watchMode: (raw as AlicizationVisualPresenceStateSnapshot).watchMode,
+        currentScene: (raw as AlicizationVisualPresenceStateSnapshot).currentScene,
+        attention: (raw as AlicizationVisualPresenceStateSnapshot).attention,
+        workingMemoryEpisodes: (raw as AlicizationVisualPresenceStateSnapshot).workingMemoryEpisodes,
+        privateThought: (raw as AlicizationVisualPresenceStateSnapshot).privateThought,
+        captureState: (raw as AlicizationVisualPresenceStateSnapshot).captureState,
+        durabilityPulse: (raw as AlicizationVisualPresenceStateSnapshot).durabilityPulse,
+        recentTransition: (raw as AlicizationVisualPresenceStateSnapshot).recentTransition,
+        nextSuggestedProbeMs: (raw as AlicizationVisualPresenceStateSnapshot).nextSuggestedProbeMs,
+        worldModel: (raw as AlicizationVisualPresenceStateSnapshot).worldModel,
+        autobiographicalSelf: (raw as AlicizationVisualPresenceStateSnapshot).autobiographicalSelf,
+        reflectionLedger: (raw as AlicizationVisualPresenceStateSnapshot).reflectionLedger,
+        motiveEngine: (raw as AlicizationVisualPresenceStateSnapshot).motiveEngine,
+        habitPolicy: (raw as AlicizationVisualPresenceStateSnapshot).habitPolicy,
+      } as AlicizationVisualPresenceStateSnapshot),
+      buildVisualPresenceCapturePersistFingerprint: state => `fp:${state.updatedAt}`,
+      emitVisualPresenceState,
+      perceptionMetaKey: 'perception_state_v1',
+      visualPresenceMetaKey: 'visual_presence_state_v1',
+    })
+
+    const state = createVisualPresenceState(4_800)
+    await runtime.persistVisualPresenceState('default', state)
+    setMetaValue.mockClear()
+    emitVisualPresenceState.mockClear()
+
+    const ensured = await runtime.ensureVisualPresenceState('default')
+
+    expect(ensured).toEqual(state)
+    expect(setMetaValue).not.toHaveBeenCalled()
+    expect(emitVisualPresenceState).not.toHaveBeenCalled()
+  })
+
   it('restores cross-card perception and visual presence through scoped reads', async () => {
     const scopedMeta = new Map<string, Map<string, string>>([
       ['other-card', new Map([

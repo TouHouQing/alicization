@@ -63,6 +63,7 @@ import {
   electronAlicizationDispatchTaskThread,
   electronAlicizationGetMemoryStats,
   electronAlicizationGetOrganicMemorySnapshot,
+  electronAlicizationGetSelfEvolutionState,
   electronAlicizationGetPerformanceManifest,
   electronAlicizationGetSensorySnapshot,
   electronAlicizationGetSoul,
@@ -187,6 +188,7 @@ const alicizationPlanTaskThread = useElectronEventaInvoke(electronAlicizationPla
 const alicizationDispatchTaskThread = useElectronEventaInvoke(electronAlicizationDispatchTaskThread)
 const alicizationGetMemoryStats = useElectronEventaInvoke(electronAlicizationGetMemoryStats)
 const alicizationGetOrganicMemorySnapshot = useElectronEventaInvoke(electronAlicizationGetOrganicMemorySnapshot)
+const alicizationGetSelfEvolutionState = useElectronEventaInvoke(electronAlicizationGetSelfEvolutionState)
 const alicizationGetPerformanceManifest = useElectronEventaInvoke(electronAlicizationGetPerformanceManifest)
 const alicizationRunMemoryPrune = useElectronEventaInvoke(electronAlicizationRunMemoryPrune)
 const alicizationUpdateMemoryStats = useElectronEventaInvoke(electronAlicizationUpdateMemoryStats)
@@ -228,6 +230,7 @@ let llmConfigHydrating = false
 const llmConfigHydrated = ref(false)
 const pendingAlicizationChatStreams = new Map<string, {
   onStreamEvent?: (event: AlicizationBridgeChatStreamEvent) => Promise<void> | void
+  visibleReplyExecution?: AlicizationChatFinishEvent['visibleReplyExecution']
   resolve: () => void
   reject: (error: unknown) => void
 }>()
@@ -754,8 +757,12 @@ function handleAlicizationChatStreamFinish(payload?: AlicizationChatFinishEvent)
   const pending = resolvePendingAlicizationStream(payload.cardId, payload.turnId)
   if (!pending)
     return
+  pending.visibleReplyExecution = payload.visibleReplyExecution ?? null
   if (payload.status === 'completed') {
-    void pending.onStreamEvent?.({ type: 'finish' })
+    void pending.onStreamEvent?.({
+      type: 'finish',
+      visibleReplyExecution: pending.visibleReplyExecution ?? null,
+    } as AlicizationBridgeChatStreamEvent)
     pending.resolve()
     return
   }
@@ -926,6 +933,7 @@ setAlicizationBridge({
   upsertMemoryFacts: async payload => await alicizationUpsertMemoryFacts({ ...resolveAlicizationScope(), ...payload }),
   importLegacyMemory: async payload => await alicizationImportLegacyMemory({ ...resolveAlicizationScope(), ...payload }),
   getOrganicMemorySnapshot: async () => await alicizationGetOrganicMemorySnapshot(resolveAlicizationScope()),
+  getSelfEvolutionState: async () => await alicizationGetSelfEvolutionState(resolveAlicizationScope()),
   searchOrganicSubconsciousFragments: async payload => await alicizationSearchOrganicSubconsciousFragments({ ...resolveAlicizationScope(), ...payload }),
   getPerformanceManifest: async () => await alicizationGetPerformanceManifest(resolveAlicizationScope()),
   setPerformanceManifest: async manifest => await alicizationSetPerformanceManifest({ ...resolveAlicizationScope(), manifest }),
@@ -1015,6 +1023,7 @@ setAlicizationBridge({
 
       pendingAlicizationChatStreams.set(key, {
         onStreamEvent: options.onStreamEvent,
+        visibleReplyExecution: null,
         resolve: resolveAndDispose,
         reject: rejectAndDispose,
       })

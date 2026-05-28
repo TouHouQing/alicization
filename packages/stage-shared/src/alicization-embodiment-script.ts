@@ -9,7 +9,7 @@ import {
 import { normalizeAlicizationEmbodimentLipSyncPlan } from './alicization-lipsync-contracts'
 import { normalizeAlicizationEmbodimentSpeechPlan } from './alicization-speech-plan'
 
-export type AlicizationEmbodimentScriptRendererTarget = 'live2d'
+export type AlicizationEmbodimentScriptRendererTarget = 'live2d' | 'vrm'
 export type AlicizationEmbodimentResidentMode = 'dialogue' | 'quiet-companionship' | 'idle-recovering'
 export type AlicizationEmbodimentAttentionMode = 'attentive' | 'ambient'
 export type AlicizationEmbodimentExecutionCueSource
@@ -121,7 +121,9 @@ function normalizeAttentionMode(raw: unknown): AlicizationEmbodimentAttentionMod
 }
 
 function normalizeRendererTarget(raw: unknown): AlicizationEmbodimentScriptRendererTarget | null {
-  return raw === 'live2d' ? 'live2d' : null
+  return raw === 'live2d' || raw === 'vrm'
+    ? raw
+    : null
 }
 
 function normalizeExecutionCueSource(raw: unknown): AlicizationEmbodimentExecutionCueSource | null {

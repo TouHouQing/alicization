@@ -1,5 +1,6 @@
 import type {
   AlicizationDigitalLifeSpineDigest,
+  AlicizationSelfEvolutionKernelSnapshot,
   AlicizationSensoryCacheSnapshot,
   AlicizationVisualPresenceStateSnapshot,
 } from './alicization-bridge'
@@ -17,6 +18,31 @@ interface SilentPresenceAuthorityFields {
 }
 
 type AlicizationVisualPresenceStateWithAuthority = AlicizationVisualPresenceStateSnapshot
+type AlicizationVisualPresenceStateWithRelationshipTiming = AlicizationVisualPresenceStateSnapshot & {
+  relationshipTimingBias?: {
+    relationshipDoctrine?: string | null
+    latestInflection?: string | null
+    burdenLine?: string | null
+    trustMeaning?: string | null
+    nextLearningAction?: AlicizationSelfEvolutionKernelSnapshot['nextLearningAction'] | 'hold' | null
+    evolutionMomentum?: number | null
+    learningReadiness?: number | null
+    source?: 'outcome-learning' | 'autobiographical-self' | null
+  } | null
+}
+
+function resolveRelationshipTimingNextLearningAction(
+  action: string | null | undefined,
+): 'record' | 'reflect' | 'verify' | 'revise' | 'internalize' | 'hold' | null {
+  return action === 'record'
+    || action === 'reflect'
+    || action === 'verify'
+    || action === 'revise'
+    || action === 'internalize'
+    || action === 'hold'
+    ? action
+    : null
+}
 
 function clamp01(value: number, fallback = 0) {
   if (Number.isNaN(value))
@@ -53,9 +79,14 @@ export function ensureAlicizationVisualPresenceResidentPerformance(
     ...state,
     residentPerformance: deriveAlicizationResidentPerformanceSnapshot({
       watchMode: state.watchMode,
+      currentBodyState: state.currentBodyState,
+      continuityMode: state.continuityMode,
+      currentInwardPreoccupation: state.currentInwardPreoccupation,
+      quietLineMs: state.quietLineMs,
       currentScene: state.currentScene,
       attention: state.attention,
       privateThought: state.privateThought,
+      relationshipTimingBias: (state as AlicizationVisualPresenceStateWithRelationshipTiming).relationshipTimingBias ?? null,
       captureState: state.captureState,
       updatedAt: state.updatedAt,
     }, {
@@ -418,7 +449,7 @@ export function buildAlicizationVisualPresenceStateFromSpineDigest(input: {
     shouldSpeak,
   })
 
-  const nextState: AlicizationVisualPresenceStateWithAuthority = {
+  const nextState: AlicizationVisualPresenceStateWithAuthority & AlicizationVisualPresenceStateWithRelationshipTiming = {
     ...base,
     watchMode: resolveVisualWatchModeFromSpine(
       input.digest.runtime.watchMode ?? input.digest.continuitySignal?.watchMode,
@@ -475,6 +506,22 @@ export function buildAlicizationVisualPresenceStateFromSpineDigest(input: {
       runtimeThreadId: input.digest.runtime.activeThreadId ?? base.privateThought?.runtimeThreadId ?? null,
       leadingGoalId: input.digest.proactive?.leadingGoalId ?? base.privateThought?.leadingGoalId ?? null,
     },
+    relationshipTimingBias: input.digest.outcomeLearning?.summary
+      || input.digest.outcomeLearning?.latestInflection
+      || input.digest.embodiment?.autobiographicalSelf?.relationshipDoctrine
+      ? {
+          relationshipDoctrine: input.digest.embodiment?.autobiographicalSelf?.relationshipDoctrine ?? input.digest.outcomeLearning?.summary ?? null,
+          latestInflection: input.digest.outcomeLearning?.latestInflection ?? null,
+          burdenLine: null,
+          trustMeaning: null,
+          nextLearningAction: resolveRelationshipTimingNextLearningAction(
+            input.digest.outcomeLearning?.nextLearningAction,
+          ),
+          evolutionMomentum: input.digest.outcomeLearning?.evolutionMomentum ?? null,
+          learningReadiness: input.digest.outcomeLearning?.learningReadiness ?? null,
+          source: 'outcome-learning',
+        }
+      : null,
     updatedAt: input.digest.runtime.updatedAt ?? currentTs,
   }
 

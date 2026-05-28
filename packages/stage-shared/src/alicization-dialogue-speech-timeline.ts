@@ -8,6 +8,7 @@ import type {
   AlicizationPerformanceDelivery,
   CharacterPerformanceCapabilitiesManifest,
 } from './alicization-performance-contracts'
+import type { AlicizationDigitalLifeSpineDigest } from './alicization-transport-contracts'
 
 import {
   normalizeAlicizationEmotion,
@@ -44,6 +45,7 @@ export interface AlicizationDialogueSpeechTimelineSegment {
   beatWeight: number
   mouthWeight?: number
   headWeight?: number
+  personaStyleSummary?: string | null
   facialHoldMs?: number
   actionHoldMs?: number
   emotionHoldMs?: number
@@ -69,11 +71,25 @@ export interface BuildAlicizationDialogueSpeechTimelineInput {
   candidateEmotion?: string | null
   candidatePerformance?: AlicizationDialoguePerformancePayload | null
   embodiment?: AlicizationDialogueEmbodimentEnvelope | null
+  digitalLifeSpine?: AlicizationDigitalLifeSpineDigest | null
   performanceManifest?: CharacterPerformanceCapabilitiesManifest | null
 }
 
 interface StringChunk {
   text: string
+}
+
+interface PersonaSpeechTimingBias {
+  observeFirst: boolean
+  directReconnect: boolean
+}
+
+interface PersonaSpeechStyleBias {
+  gesture: number
+  prosody: number
+  beat: number
+  mouth: number
+  head: number
 }
 
 const keptPunctuations = new Set(['?', '？', '!', '！'])
@@ -398,6 +414,59 @@ function resolveManifestEmotionHints(
   return hints
 }
 
+function resolvePersonaSpeechTimingBias(digitalLifeSpine?: AlicizationDigitalLifeSpineDigest | null): PersonaSpeechTimingBias {
+  const personaBias = digitalLifeSpine?.proactive?.personaBias ?? null
+  return {
+    observeFirst: personaBias?.initiativeStyle === 'observant'
+      || personaBias?.silenceReconnect === 'hold'
+      || personaBias?.preferredProactiveStyle === 'silent-observe',
+    directReconnect: personaBias?.initiativeStyle === 'high-participation'
+      || personaBias?.silenceReconnect === 'direct-approach',
+  }
+}
+
+function resolvePersonaSpeechStyleBias(personaBias: PersonaSpeechTimingBias): PersonaSpeechStyleBias {
+  if (personaBias.observeFirst) {
+    return {
+      gesture: -0.05,
+      prosody: -0.07,
+      beat: -0.06,
+      mouth: -0.04,
+      head: 0.08,
+    }
+  }
+
+  if (personaBias.directReconnect) {
+    return {
+      gesture: 0.04,
+      prosody: 0.07,
+      beat: 0.07,
+      mouth: 0.05,
+      head: -0.05,
+    }
+  }
+
+  return {
+    gesture: 0,
+    prosody: 0,
+    beat: 0,
+    mouth: 0,
+    head: 0,
+  }
+}
+
+function resolvePersonaSpeechStyleSummary(personaBias: PersonaSpeechTimingBias, styleBias: PersonaSpeechStyleBias) {
+  if (personaBias.observeFirst) {
+    return `observe-first | prosody=${styleBias.prosody.toFixed(2)} beat=${styleBias.beat.toFixed(2)} mouth=${styleBias.mouth.toFixed(2)} head=+${styleBias.head.toFixed(2)}`
+  }
+
+  if (personaBias.directReconnect) {
+    return `direct-reconnect | prosody=+${styleBias.prosody.toFixed(2)} beat=+${styleBias.beat.toFixed(2)} mouth=+${styleBias.mouth.toFixed(2)} head=${styleBias.head.toFixed(2)}`
+  }
+
+  return null
+}
+
 function resolveSegmentEmotion(input: {
   delivery: AlicizationPerformanceDelivery
   text: string
@@ -517,6 +586,7 @@ function resolveSegmentMicroDynamics(input: {
   emotion: AlicizationEmotion
   facialWeight: number
   gestureWeight: number
+  personaStyleBias: PersonaSpeechStyleBias
   prosodyWeight: number
   segmentCount: number
   segmentIndex: number
@@ -540,7 +610,8 @@ function resolveSegmentMicroDynamics(input: {
     input.gestureWeight * 0.62
     + input.beatWeight * 0.24
     + phraseTailWeight * 0.1
-    + resolveDeliveryMotionBias(input.delivery),
+    + resolveDeliveryMotionBias(input.delivery)
+    + input.personaStyleBias.head,
     0.12,
     1,
     0.5,
@@ -565,7 +636,12 @@ function resolveSegmentMicroDynamics(input: {
   ))
 
   return {
-    mouthWeight: Number(mouthWeight.toFixed(2)),
+    mouthWeight: Number(clampRange(
+      mouthWeight + input.personaStyleBias.mouth,
+      0.16,
+      1,
+      0.56,
+    ).toFixed(2)),
     headWeight: Number(headWeight.toFixed(2)),
     facialHoldMs,
     actionHoldMs,
@@ -575,6 +651,7 @@ function resolveSegmentMicroDynamics(input: {
 function resolveSegmentSettleMode(input: {
   delivery: AlicizationPerformanceDelivery
   emotion: AlicizationEmotion
+  personaBias: PersonaSpeechTimingBias
   segmentCount: number
   segmentIndex: number
   text: string
@@ -587,6 +664,13 @@ function resolveSegmentSettleMode(input: {
   const lastSegment = input.segmentIndex === input.segmentCount - 1
   const questionSignal = /[?？]/.test(input.text)
   const ellipsisSignal = /[…~～]|\.{3,}/.test(input.text)
+
+  if (!ellipsisSignal && !questionSignal) {
+    if (input.personaBias.observeFirst)
+      return 'hold' as const
+    if (input.personaBias.directReconnect)
+      return 'release' as const
+  }
 
   if (lastSegment || phraseTailWeight >= 0.48 || ellipsisSignal)
     return 'linger' as const
@@ -609,6 +693,7 @@ function resolveSegmentEmotionHoldMs(input: {
   delivery: AlicizationPerformanceDelivery
   facialWeight: number
   gestureWeight: number
+  personaBias: PersonaSpeechTimingBias
   segmentCount: number
   segmentIndex: number
   settleMode: AlicizationDialogueSpeechSettleMode
@@ -629,6 +714,11 @@ function resolveSegmentEmotionHoldMs(input: {
     : input.delivery === 'energetic'
       ? -20
       : 0
+  const personaBias = input.personaBias.observeFirst
+    ? 60
+    : input.personaBias.directReconnect
+      ? -40
+      : 0
 
   return Math.round(clampRange(
     110
@@ -640,11 +730,12 @@ function resolveSegmentEmotionHoldMs(input: {
     80,
     960,
     220,
-  ))
+  ) + personaBias)
 }
 
 function resolveSegmentRendererSettleHints(input: {
   delivery: AlicizationPerformanceDelivery
+  personaBias: PersonaSpeechTimingBias
   segmentCount: number
   segmentIndex: number
   settleMode: AlicizationDialogueSpeechSettleMode
@@ -695,10 +786,20 @@ function resolveSegmentRendererSettleHints(input: {
     : input.delivery === 'gentle' || input.delivery === 'hesitant'
       ? 40
       : 0
+  const personaFacialReleaseBias = input.personaBias.observeFirst
+    ? 60
+    : input.personaBias.directReconnect
+      ? -40
+      : 0
+  const personaMotionBias = input.personaBias.observeFirst
+    ? 40
+    : input.personaBias.directReconnect
+      ? -30
+      : 0
 
   return {
     live2dFacialReleaseMs: Math.round(clampRange(
-      settleFacialReleaseBase + phraseTailWeight * 260 + deliveryFacialReleaseBias,
+      settleFacialReleaseBase + phraseTailWeight * 260 + deliveryFacialReleaseBias + personaFacialReleaseBias,
       80,
       1600,
       320,
@@ -716,7 +817,7 @@ function resolveSegmentRendererSettleHints(input: {
       220,
     )),
     live2dMotionFollowThroughMs: Math.round(clampRange(
-      settleMotionBase + phraseTailWeight * 220 + deliveryMotionBias,
+      settleMotionBase + phraseTailWeight * 220 + deliveryMotionBias + personaMotionBias,
       0,
       1200,
       220,
@@ -846,6 +947,9 @@ export function buildAlicizationDialogueSpeechTimeline(
     return null
 
   const deliveryIntensity = resolveDeliveryIntensity(performance.delivery)
+  const personaTimingBias = resolvePersonaSpeechTimingBias(input.digitalLifeSpine)
+  const personaStyleBias = resolvePersonaSpeechStyleBias(personaTimingBias)
+  const personaStyleSummary = resolvePersonaSpeechStyleSummary(personaTimingBias, personaStyleBias)
   const variationToken = normalizeVariationToken(embodiment?.variationToken) ?? reply
   const segments: AlicizationDialogueSpeechTimelineSegment[] = []
   let searchOffset = 0
@@ -891,6 +995,7 @@ export function buildAlicizationDialogueSpeechTimeline(
     const settleMode = resolveSegmentSettleMode({
       delivery: performance.delivery,
       emotion: segmentEmotion,
+      personaBias: personaTimingBias,
       segmentCount: chunks.length,
       segmentIndex: index,
       text,
@@ -904,7 +1009,7 @@ export function buildAlicizationDialogueSpeechTimeline(
     const endBias = index === chunks.length - 1 ? 0.05 : 0
 
     const gestureWeight = clampRange(
-      deliveryIntensity.gesture + excitation * 0.24 + emphasisBoost + endBias * 0.5,
+      deliveryIntensity.gesture + personaStyleBias.gesture + excitation * 0.24 + emphasisBoost + endBias * 0.5,
       0.1,
       1,
       0.48,
@@ -916,13 +1021,13 @@ export function buildAlicizationDialogueSpeechTimeline(
       0.54,
     )
     const prosodyWeight = clampRange(
-      deliveryIntensity.prosody + excitation * 0.18 + emphasisBoost * 0.8 + endBias,
+      deliveryIntensity.prosody + personaStyleBias.prosody + excitation * 0.18 + emphasisBoost * 0.8 + endBias,
       0.12,
       1,
       0.56,
     )
     const beatWeight = clampRange(
-      deliveryIntensity.beat + excitation * 0.26 + emphasisBoost + (index === 0 ? 0.04 : 0),
+      deliveryIntensity.beat + personaStyleBias.beat + excitation * 0.26 + emphasisBoost + (index === 0 ? 0.04 : 0),
       0.08,
       1,
       0.52,
@@ -953,6 +1058,7 @@ export function buildAlicizationDialogueSpeechTimeline(
       emotion: segmentEmotion,
       facialWeight,
       gestureWeight,
+      personaStyleBias,
       prosodyWeight,
       segmentCount: chunks.length,
       segmentIndex: index,
@@ -962,6 +1068,7 @@ export function buildAlicizationDialogueSpeechTimeline(
       delivery: performance.delivery,
       facialWeight,
       gestureWeight,
+      personaBias: personaTimingBias,
       segmentCount: chunks.length,
       segmentIndex: index,
       settleMode,
@@ -969,6 +1076,7 @@ export function buildAlicizationDialogueSpeechTimeline(
     })
     const rendererSettle = resolveSegmentRendererSettleHints({
       delivery: performance.delivery,
+      personaBias: personaTimingBias,
       segmentCount: chunks.length,
       segmentIndex: index,
       settleMode,
@@ -991,6 +1099,7 @@ export function buildAlicizationDialogueSpeechTimeline(
       beatWeight: Number(beatWeight.toFixed(2)),
       mouthWeight: microDynamics.mouthWeight,
       headWeight: microDynamics.headWeight,
+      personaStyleSummary,
       facialHoldMs: microDynamics.facialHoldMs,
       actionHoldMs: microDynamics.actionHoldMs,
       emotionHoldMs,
@@ -1077,6 +1186,9 @@ export function normalizeAlicizationDialogueSpeechTimeline(
         beatWeight: Number(clamp01(Number(item.beatWeight), 0.52).toFixed(2)),
         mouthWeight: Number(clamp01(Number(item.mouthWeight), 0.56).toFixed(2)),
         headWeight: Number(clamp01(Number(item.headWeight), 0.5).toFixed(2)),
+        personaStyleSummary: typeof item.personaStyleSummary === 'string' && item.personaStyleSummary.trim()
+          ? item.personaStyleSummary.trim().slice(0, 240)
+          : null,
         facialHoldMs: Math.round(clampRange(Number(item.facialHoldMs), 90, 920, 260)),
         actionHoldMs: Math.round(clampRange(Number(item.actionHoldMs), 70, 720, 180)),
         emotionHoldMs: Math.round(clampRange(Number(item.emotionHoldMs), 80, 960, 220)),

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { adjustProactiveStyleFromHostPersonModel, buildHostSocialGuidance, inferHostSocialContextsFromText } from './host-social-guidance'
+import { adjustProactiveStyleFromHostPersonModel, adjustProactiveReplyFromLongHorizonLearning, buildHostSocialGuidance, inferHostSocialContextsFromText } from './host-social-guidance'
 
 const hostPersonModel = {
   summary: 'Focused work windows need more room before closeness.',
@@ -45,5 +45,162 @@ describe('host social guidance', () => {
     })
 
     expect(style).toBe('light-nudge')
+  })
+
+  it('suppresses proactive warmth while learning stays in verify-first revalidation posture', () => {
+    const contexts = inferHostSocialContextsFromText('runtime diff fix in cursor terminal')
+    const style = adjustProactiveStyleFromHostPersonModel({
+      currentStyle: 'gentle-care',
+      hostPersonModel,
+      contexts,
+      selfEvolution: {
+        version: 'self-evolution-kernel-v1',
+        updatedAt: 1,
+        evolutionMomentum: 0.52,
+        learningReadiness: 0.68,
+        contradictionPressure: 0.42,
+        revisionPressure: 0.5,
+        autobiographicalStability: 0.72,
+        dominantTrajectory: 'world-model revalidation',
+        relationshipDoctrine: null,
+        latestInflection: null,
+        burdenLine: null,
+        trustMeaning: null,
+        nextLearningAction: 'verify',
+        nextLearningReason: 'World-model carry is still under revalidation.',
+        shouldRecord: false,
+        shouldReflect: false,
+        shouldVerify: true,
+        shouldRevise: false,
+        shouldInternalize: false,
+        activeLearningFocuses: ['world-model'],
+        sourceSignals: ['self-revision-policy-feedback'],
+        summary: 'World-model carry remains verify-first.',
+      } as any,
+      learningExecutionState: {
+        nextLearningAction: 'verify',
+        activeLearningFocuses: ['world-model'],
+      } as any,
+    })
+
+    expect(style).toBe('silent-observe')
+  })
+
+  it('keeps gentle-care available when long-horizon learning has moved into internalize posture', () => {
+    const contexts = inferHostSocialContextsFromText('late night care and validated routine')
+    const style = adjustProactiveStyleFromHostPersonModel({
+      currentStyle: 'gentle-care',
+      hostPersonModel: {
+        ...hostPersonModel,
+        preferredClosenessByContext: [{
+          context: 'late-night',
+          preference: 'Keep it gentle when the host is tired.',
+          confidence: 0.88,
+        }],
+      } as any,
+      contexts,
+      selfEvolution: {
+        version: 'self-evolution-kernel-v1',
+        updatedAt: 1,
+        evolutionMomentum: 0.72,
+        learningReadiness: 0.78,
+        contradictionPressure: 0.08,
+        revisionPressure: 0.18,
+        autobiographicalStability: 0.8,
+        dominantTrajectory: 'validated procedure internalization',
+        relationshipDoctrine: null,
+        latestInflection: null,
+        burdenLine: null,
+        trustMeaning: null,
+        nextLearningAction: 'internalize',
+        nextLearningReason: 'Validated carry is stable enough to become durable.',
+        shouldRecord: false,
+        shouldReflect: false,
+        shouldVerify: false,
+        shouldRevise: false,
+        shouldInternalize: true,
+        activeLearningFocuses: ['internalize-procedure'],
+        sourceSignals: ['validated-procedure-carry'],
+        summary: 'Validated procedure carry is ready to internalize.',
+      } as any,
+      learningExecutionState: {
+        nextLearningAction: 'internalize',
+        activeLearningFocuses: ['internalize-procedure'],
+      } as any,
+    })
+
+    expect(style).toBe('gentle-care')
+  })
+
+  it('softens proactive copy into a verify-first caution when long-horizon learning is still revalidating', () => {
+    const reply = adjustProactiveReplyFromLongHorizonLearning({
+      currentReply: '这个窗口里像是报错了。要不要先回头看一眼？',
+      selfEvolution: {
+        version: 'self-evolution-kernel-v1',
+        updatedAt: 1,
+        evolutionMomentum: 0.52,
+        learningReadiness: 0.68,
+        contradictionPressure: 0.42,
+        revisionPressure: 0.5,
+        autobiographicalStability: 0.72,
+        dominantTrajectory: 'world-model revalidation',
+        relationshipDoctrine: null,
+        latestInflection: null,
+        burdenLine: null,
+        trustMeaning: null,
+        nextLearningAction: 'verify',
+        nextLearningReason: 'World-model carry is still under revalidation.',
+        shouldRecord: false,
+        shouldReflect: false,
+        shouldVerify: true,
+        shouldRevise: false,
+        shouldInternalize: false,
+        activeLearningFocuses: ['world-model'],
+        sourceSignals: ['self-revision-policy-feedback'],
+        summary: 'World-model carry remains verify-first.',
+      } as any,
+      learningExecutionState: {
+        nextLearningAction: 'verify',
+        activeLearningFocuses: ['world-model'],
+      } as any,
+    })
+
+    expect(reply).toContain('先别说死')
+  })
+
+  it('keeps the original proactive copy when long-horizon learning is already internalizing', () => {
+    const reply = adjustProactiveReplyFromLongHorizonLearning({
+      currentReply: '我先轻轻提醒一句，你可以回头确认一下。',
+      selfEvolution: {
+        version: 'self-evolution-kernel-v1',
+        updatedAt: 1,
+        evolutionMomentum: 0.72,
+        learningReadiness: 0.78,
+        contradictionPressure: 0.08,
+        revisionPressure: 0.18,
+        autobiographicalStability: 0.8,
+        dominantTrajectory: 'validated procedure internalization',
+        relationshipDoctrine: null,
+        latestInflection: null,
+        burdenLine: null,
+        trustMeaning: null,
+        nextLearningAction: 'internalize',
+        nextLearningReason: 'Validated carry is stable enough to become durable.',
+        shouldRecord: false,
+        shouldReflect: false,
+        shouldVerify: false,
+        shouldRevise: false,
+        shouldInternalize: true,
+        activeLearningFocuses: ['internalize-procedure'],
+        sourceSignals: ['validated-procedure-carry'],
+        summary: 'Validated procedure carry is ready to internalize.',
+      } as any,
+      learningExecutionState: {
+        nextLearningAction: 'internalize',
+        activeLearningFocuses: ['internalize-procedure'],
+      } as any,
+    })
+
+    expect(reply).toBe('我先轻轻提醒一句，你可以回头确认一下。')
   })
 })

@@ -1,5 +1,6 @@
 import type {
   AlicizationActionEcologySnapshot,
+  AlicizationMindActionTendency,
   AlicizationAutonomySnapshot,
   AlicizationAutobiographicalGoalKind,
   AlicizationAutobiographicalSelfSnapshot,
@@ -143,6 +144,9 @@ function deriveVisibleAction(input: {
   if (input.initiative.selectedAction !== 'wait')
     return input.initiative.selectedAction
 
+  if (input.habitPolicy?.prefersQuietCompanionship)
+    return 'hover' as const
+
   return input.actReadiness >= 0.72 ? 'whisper' as const : 'hover' as const
 }
 
@@ -230,6 +234,35 @@ function deriveInhibition(input: {
   inhibition += (input.habitPolicy?.prefersQuietCompanionship ? 0.04 : 0)
 
   return clamp01(inhibition)
+}
+
+function buildPersonaAutonomyWhy(input: {
+  initiative: AlicizationInitiativeSnapshot
+  selectedProposal?: ReturnType<typeof pickSelectedProposal>
+  habitPolicy?: AlicizationHabitPolicySnapshot | null
+  visibleAction: AlicizationMindActionTendency
+  baseWhy: string
+}) {
+  const proposalWhy = sanitizeText(input.selectedProposal?.why, 220)
+  const personaLine = (() => {
+    if (proposalWhy.includes('persona='))
+      return proposalWhy.split('persona=').slice(1).join('persona=')
+    if (input.habitPolicy?.prefersQuietCompanionship && input.visibleAction === 'hover')
+      return 'persona keeps the move in observe-first posture.'
+    if (
+      ((input.initiative.preferredStyle === 'light-nudge' || input.initiative.preferredStyle === 'gentle-care')
+        && input.visibleAction === 'whisper')
+      || (input.visibleAction === 'whisper' && input.selectedProposal?.shouldSpeak)
+    ) {
+      return 'persona allows a direct, light reconnect once the opening is real.'
+    }
+    return ''
+  })()
+
+  return sanitizeText([
+    input.baseWhy,
+    personaLine ? `persona=${personaLine}` : '',
+  ].filter(Boolean).join(' '), 220) || input.baseWhy
 }
 
 export function buildAutonomySnapshot(input: {
@@ -374,6 +407,13 @@ export function buildAutonomySnapshot(input: {
     ?? input.initiative.why,
     220,
   ) || 'The current continuity line has become strong enough to shape a next move.'
+  const personaWhyNow = buildPersonaAutonomyWhy({
+    initiative: input.initiative,
+    selectedProposal,
+    habitPolicy: input.habitPolicy ?? null,
+    visibleAction,
+    baseWhy: whyNow,
+  })
 
   return {
     selectedMode,
@@ -393,7 +433,7 @@ export function buildAutonomySnapshot(input: {
     ),
     deferReason,
     guardReasons,
-    whyNow,
+    whyNow: personaWhyNow,
     sourceGoalId: leadingGoal?.id ?? resurfacingDesire?.goalId ?? null,
     sourceGoalSummary: sanitizeText(leadingGoal?.label ?? '', 160) || null,
     sourceAgendaId: leadingAgenda?.id ?? null,

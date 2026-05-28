@@ -1,0 +1,179 @@
+<style>
+  .layout {
+    display: grid;
+    grid-template-columns: 1.05fr 0.95fr;
+    gap: 22px;
+    margin-top: 18px;
+  }
+  .box {
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 18px;
+    padding: 18px;
+    background: rgba(255,255,255,0.04);
+  }
+  .small {
+    font-size: 13px;
+    color: rgba(255,255,255,0.72);
+    line-height: 1.58;
+  }
+  .map {
+    display: grid;
+    gap: 10px;
+    margin-top: 12px;
+  }
+  .item {
+    border-radius: 14px;
+    padding: 12px 14px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.10);
+  }
+  .keep { border-left: 4px solid #22c55e; }
+  .split { border-left: 4px solid #f59e0b; }
+  .new { border-left: 4px solid #38bdf8; }
+  .drop { border-left: 4px solid #f87171; }
+  .title {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    align-items: baseline;
+  }
+  .title h3 {
+    margin: 0;
+    font-size: 17px;
+  }
+  .tag {
+    font-size: 12px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.09);
+  }
+  .diagram {
+    display: grid;
+    gap: 10px;
+    margin-top: 12px;
+  }
+  .node {
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(255,255,255,0.10);
+    background: rgba(0,0,0,0.16);
+  }
+  .arrow {
+    text-align: center;
+    opacity: 0.7;
+    font-size: 13px;
+  }
+  .cols {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+    margin-top: 22px;
+  }
+  .list {
+    margin: 10px 0 0;
+    padding-left: 18px;
+    line-height: 1.6;
+  }
+  @media (max-width: 1050px) {
+    .layout, .cols {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+
+<h2>模块边界与重构落点</h2>
+<p class="subtitle">不是另起炉灶，而是把现有分散逻辑“收编”为一个清晰的具身导演层。</p>
+
+<div class="layout">
+  <div class="box">
+    <h3>现有资产怎么处理</h3>
+    <div class="map">
+      <div class="item keep">
+        <div class="title">
+          <h3>`Alicization Runtime / Governance`</h3>
+          <span class="tag">保留</span>
+        </div>
+        <p class="small">继续做心智权威。特别是 `runtime-governance.ts`、`digital-life-spine.ts`、`mind-surface-renderer.ts` 这一层，不要下沉到 renderer 执行细节。</p>
+      </div>
+
+      <div class="item split">
+        <div class="title">
+          <h3>`presence dispatcher`</h3>
+          <span class="tag">拆分</span>
+        </div>
+        <p class="small">保留它作为“事件入口/去重/降级日志”，但把“performance planning”和“并行派发决策”抽出去。它不该继续承担导演职责。</p>
+      </div>
+
+      <div class="item split">
+        <div class="title">
+          <h3>`use-stage-embodiment-presence`</h3>
+          <span class="tag">拆分</span>
+        </div>
+        <p class="small">这里已经有 performance planning、variation token、resident merge 的雏形。应抽成独立 `Embodiment Director`，别继续埋在 renderer composable 里。</p>
+      </div>
+
+      <div class="item split">
+        <div class="title">
+          <h3>`use-stage-embodiment-speech`</h3>
+          <span class="tag">拆分</span>
+        </div>
+        <p class="small">保留为执行器，但把里面“timeline 对齐规则、fallback emotion/action cue 推断、synthetic speech 状态机”的权威判断尽量前移到 director / speech planner。</p>
+      </div>
+
+      <div class="item keep">
+        <div class="title">
+          <h3>`pipelines-audio`</h3>
+          <span class="tag">保留并增强</span>
+        </div>
+        <p class="small">它适合继续做语音 segment/TTS/playback 的底层通道，但要升级 metadata 契约，让 segment 能带更多 viseme / prosody / interrupt 信息。</p>
+      </div>
+
+      <div class="item new">
+        <div class="title">
+          <h3>`Embodiment Director`</h3>
+          <span class="tag">新增核心</span>
+        </div>
+        <p class="small">新增独立模块，输入 `mind-turn-v1 + resident state + renderer capabilities`，输出统一 `performance script`。这是未来几年最重要的新边界。</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="box">
+    <h3>推荐的新调用链</h3>
+    <div class="diagram">
+      <div class="node">Main Runtime<br><span class="small">reply / governance / embodiment seed / speechTimeline seed / digitalLifeSpine</span></div>
+      <div class="arrow">↓</div>
+      <div class="node">Embodiment Director<br><span class="small">performance script / interruption policy / animation timeline</span></div>
+      <div class="arrow">↓</div>
+      <div class="node">Speech Planner<br><span class="small">segment plan / prosody / tts metadata</span></div>
+      <div class="arrow">↓</div>
+      <div class="node">Execution Drivers<br><span class="small">Live2D face / lipsync / motion / playback</span></div>
+      <div class="arrow">↓</div>
+      <div class="node">Telemetry Bus<br><span class="small">tts first-byte / actual duration / interrupt / renderer drift / cue miss</span></div>
+      <div class="arrow">↺</div>
+      <div class="node">Resident Presence State<br><span class="small">为下一回合持续塑形</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="cols">
+  <div class="box">
+    <h3>Director 至少要拆成 4 个子模块</h3>
+    <ul class="list">
+      <li><strong>Performance Script Builder</strong>：把 emotion / delivery / emphasis / facial cue / action cue 统一成单一脚本。</li>
+      <li><strong>Speech Planner</strong>：决定分段、呼吸点、延迟预算、打断点、continuity hold、segment 优先级。</li>
+      <li><strong>Renderer Capability Adapter</strong>：根据 Live2D 当前模型能力裁剪 cue，别把 renderer 兜底当成常态。</li>
+      <li><strong>Playback Reconciler</strong>：根据真实音频时长、失败和打断，回流修正 timeline 与 resident state。</li>
+    </ul>
+  </div>
+
+  <div class="box">
+    <h3>第一阶段不该做什么</h3>
+    <ul class="list">
+      <li>不要一开始做 Live2D / VRM 同权双栈导演。</li>
+      <li>不要急着把所有 TTS provider 都做成高保真情感音色。</li>
+      <li>不要把实时 VAD/ASR 先拉进一期主路径。</li>
+      <li>不要继续把“动作计划”散落在多个 composable 内部维护。</li>
+    </ul>
+  </div>
+</div>

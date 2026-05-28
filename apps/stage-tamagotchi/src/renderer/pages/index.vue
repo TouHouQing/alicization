@@ -15,6 +15,8 @@ import { useModelStore, useThreeSceneIsTransparentAtPoint } from '@proj-alicizat
 import { WidgetStage } from '@proj-alicization/stage-ui/components/scenes'
 import { useAudioRecorder } from '@proj-alicization/stage-ui/composables/audio/audio-recorder'
 import { useCanvasPixelIsTransparentAtPoint } from '@proj-alicization/stage-ui/composables/canvas-alpha'
+import { getAlicizationBridge, hasAlicizationBridge } from '@proj-alicization/stage-ui/stores/alicization-bridge'
+import type { AlicizationMindTurnEventRecord } from '@proj-alicization/stage-ui/stores/alicization-bridge'
 import { useVAD } from '@proj-alicization/stage-ui/stores/ai/models/vad'
 import { useChatOrchestratorStore } from '@proj-alicization/stage-ui/stores/chat'
 import { useDisplayModelsStore } from '@proj-alicization/stage-ui/stores/display-models'
@@ -34,8 +36,17 @@ import ResourceStatusIsland from '../components/stage-islands/resource-status-is
 
 import { electronMainStageStartupStatusChannel, electronOpenOnboarding } from '../../shared/eventa'
 import { useControlsIslandStore } from '../stores/controls-island'
+import { useStageThreeRuntimeDiagnosticsStore } from '../stores/stage-three-runtime-diagnostics'
 import { useStageWindowLifecycleStore } from '../stores/stage-window-lifecycle'
 import { useWindowStore } from '../stores/window'
+import {
+  buildRecentDrivingEventQueryInput,
+  buildRecentDrivingTraceRecordSummaryFromMemoryDecisionTraces,
+  buildRecentDrivingTraceDetailsFromMindTurnEvents,
+  buildRecentDrivingTraceEventsFromMindTurnEvents,
+  mapSpeechEmbodimentDiagnosticsForRenderer,
+  resolveRecentDrivingEventFromMindTurnEvents,
+} from './index.speech-embodiment-diagnostics'
 import {
   resetDesktopLayoutState,
   resolveDesktopMouseCaptureState,
@@ -107,6 +118,7 @@ const isTransparentByThreeForCharacterHover = useThreeSceneIsTransparentAtPoint(
 
 const settingsStore = useSettings()
 const displayModelsStore = useDisplayModelsStore()
+const stageThreeRuntimeDiagnosticsStore = useStageThreeRuntimeDiagnosticsStore()
 const { stageModelRenderer, stageModelSelectedUrl } = storeToRefs(settingsStore)
 const { stagePaused } = storeToRefs(useStageWindowLifecycleStore())
 const { fadeOnHoverEnabled } = storeToRefs(useControlsIslandStore())
@@ -191,6 +203,92 @@ function syncDesktopMouseCaptureState() {
   setIgnoreMouseEvents([ignoreMouse, { forward: ignoreMouse }])
 }
 
+function createDrivingEventQueryKey(speechDiagnostics: ReturnType<typeof mapSpeechEmbodimentDiagnosticsForRenderer> | null) {
+  if (!speechDiagnostics?.runtimeDynamics)
+    return ''
+
+  const runtimeDynamics = speechDiagnostics.runtimeDynamics
+  return JSON.stringify([
+    runtimeDynamics.variationToken ?? '',
+    runtimeDynamics.provenance.runtimeChannel ?? '',
+    runtimeDynamics.eventPointers.runtimeThreadId ?? '',
+    runtimeDynamics.eventPointers.governorIntentionId ?? '',
+    runtimeDynamics.eventPointers.focusBeliefId ?? '',
+    runtimeDynamics.eventPointers.commitmentId ?? '',
+  ])
+}
+
+let recentDrivingEventRequestRevision = 0
+let lastDrivingEventQueryKey = ''
+
+async function syncRecentDrivingEventFromMindTrace(
+  speechDiagnostics: ReturnType<typeof mapSpeechEmbodimentDiagnosticsForRenderer> | null,
+) {
+  if (!speechDiagnostics?.runtimeDynamics) {
+    stageThreeRuntimeDiagnosticsStore.setSpeechEmbodiment({
+      ...(speechDiagnostics ?? mapSpeechEmbodimentDiagnosticsForRenderer(null)),
+      recentDrivingEvent: null,
+      recentDrivingTraceRecord: null,
+    })
+    return
+  }
+
+  if (!hasAlicizationBridge() || !getAlicizationBridge().listMindTurnEvents) {
+    stageThreeRuntimeDiagnosticsStore.setSpeechEmbodiment({
+      ...speechDiagnostics,
+      recentDrivingEvent: null,
+      recentDrivingTraceRecord: null,
+    })
+    return
+  }
+
+  const queryKey = createDrivingEventQueryKey(speechDiagnostics)
+  if (!queryKey || queryKey === lastDrivingEventQueryKey)
+    return
+
+  lastDrivingEventQueryKey = queryKey
+  const requestRevision = ++recentDrivingEventRequestRevision
+  const bridge = getAlicizationBridge()
+  const query = buildRecentDrivingEventQueryInput(speechDiagnostics)
+  if (!query)
+    return
+
+  const events = await bridge.listMindTurnEvents!(query)
+    .catch(() => [] as AlicizationMindTurnEventRecord[])
+
+  if (requestRevision !== recentDrivingEventRequestRevision)
+    return
+
+  const recentDrivingEvent = resolveRecentDrivingEventFromMindTurnEvents(events)
+  const recentDrivingTraceDecisionId = recentDrivingEvent?.decisionTraceId?.trim() || null
+  const recentDrivingTraceRecords = recentDrivingTraceDecisionId && bridge.listMemoryDecisionTraces
+    ? await bridge.listMemoryDecisionTraces({
+        decisionTraceId: recentDrivingTraceDecisionId,
+        limit: 12,
+      }).catch(() => [])
+    : []
+
+  if (requestRevision !== recentDrivingEventRequestRevision)
+    return
+
+  stageThreeRuntimeDiagnosticsStore.setSpeechEmbodiment({
+    ...speechDiagnostics,
+    recentDrivingEvent,
+    recentDrivingTraceRecord: buildRecentDrivingTraceRecordSummaryFromMemoryDecisionTraces(
+      recentDrivingTraceRecords,
+      recentDrivingTraceDecisionId,
+    ),
+    recentDrivingTraceEvents: buildRecentDrivingTraceEventsFromMindTurnEvents(
+      events,
+      recentDrivingEvent?.decisionTraceId ?? null,
+    ),
+    recentDrivingTraceDetails: buildRecentDrivingTraceDetailsFromMindTurnEvents(
+      events,
+      recentDrivingEvent?.decisionTraceId ?? null,
+    ),
+  })
+}
+
 watch([isOutsideFor250Ms, isOutsideDialogueOverlayFor250Ms, isDialogueOverlayFocused, isOutsideWindow, stageCapturePixel, stageCharacterHovered, hearingDialogOpen, fadeOnHoverEnabled, stagePaused, stageInteractionActive], () => {
   syncDesktopMouseCaptureState()
 }, { immediate: true })
@@ -221,6 +319,16 @@ watch(componentStateStage, (state) => {
 
   emitStageStartupStatus('stage-unmounted')
 }, { immediate: true })
+
+watch(
+  () => widgetStageRef.value?.embodimentDiagnostics?.speech ?? null,
+  (speechDiagnostics) => {
+    const mapped = mapSpeechEmbodimentDiagnosticsForRenderer(speechDiagnostics)
+    stageThreeRuntimeDiagnosticsStore.setSpeechEmbodiment(mapped)
+    void syncRecentDrivingEventFromMindTrace(mapped)
+  },
+  { immediate: true, deep: true },
+)
 
 const settingsAudioDeviceStore = useSettingsAudioDevice()
 const { stream, enabled } = storeToRefs(settingsAudioDeviceStore)

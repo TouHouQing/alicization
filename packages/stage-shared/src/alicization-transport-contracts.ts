@@ -1424,6 +1424,7 @@ export interface AlicizationListMindTurnEventsInput {
   decisionTraceId?: string
   turnId?: string
   activeThreadId?: string
+  activeSelfEvolutionCandidateId?: string
   kind?: AlicizationMindTurnEventKind
   limit?: number
 }
@@ -1442,6 +1443,7 @@ export interface AlicizationListMemoryDecisionTracesInput {
   decisionTraceId?: string
   turnId?: string
   activeThreadId?: string
+  activeSelfEvolutionCandidateId?: string
   limit?: number
 }
 
@@ -1449,6 +1451,90 @@ export interface AlicizationListPersonStateUpdatesInput {
   decisionTraceId?: string
   turnId?: string
   limit?: number
+}
+
+export type AlicizationSelfEvolutionVersionStatus
+  = 'shadow'
+    | 'active'
+    | 'rejected'
+    | 'rolled-back'
+
+export type AlicizationSelfRevisionStatePatchLane
+  = | 'memory-policy'
+    | 'relationship-posture'
+    | 'response-posture'
+    | 'proactive-policy'
+    | 'rollback-validation'
+
+export interface AlicizationSelfRevisionStatePatchSnapshot {
+  version: 'self-revision-state-patch-v1'
+  id: string
+  sourceEventId: string
+  sourceTurnId: string | null
+  decisionTraceId: string | null
+  domain: AlicizationMemoryDomain | 'dialogue-style' | 'proactive-policy'
+  action: 'record' | 'reflect' | 'verify' | 'revise' | 'internalize' | 'hold'
+  resultStatus: 'completed' | 'blocked' | 'failed' | 'reopened' | 'downgraded' | 'cancelled'
+  lanes: AlicizationSelfRevisionStatePatchLane[]
+  memoryPolicy: {
+    strictnessBias: number
+    wrongThreadSuppressionBias: number
+    provenanceLabelBias: number
+    recallExpansionBias: number
+    shouldQuarantineUnsupportedCarry: boolean
+  }
+  relationshipPosture: {
+    repairWindowBias: number
+    closenessCapBias: number
+    warmthReleaseBias: number
+  }
+  responsePosture: {
+    secondPassRequiredBias: number
+    hypothesisLabelBias: number
+    specificityClampBias: number
+    templateShellSuppressionBias: number
+  }
+  proactivePolicy: {
+    restraintBias: number
+    learningProposalBias: number
+    actuationCooldownBias: number
+  }
+  validation: {
+    requiresRollbackCheck: boolean
+    requiresRevalidation: boolean
+    rollbackPlan: string[]
+  }
+  reasonCodes: string[]
+  summary: string | null
+}
+
+export interface AlicizationSelfEvolutionVersionCandidateSnapshot {
+  version: 'self-evolution-version-candidate-v1'
+  id: string
+  status: AlicizationSelfEvolutionVersionStatus
+  sourceEventId: string
+  decisionTraceId: string | null
+  sourceTurnId: string | null
+  patch: AlicizationSelfRevisionStatePatchSnapshot
+  validation: {
+    replayRequired: boolean
+    replayPassed: boolean | null
+    rollbackSupported: boolean
+    activationBlockedReasons: string[]
+    finalReplayGatePassed?: boolean | null
+    productionGoldSampleCount?: number | null
+    productionGoldCoverage?: number | null
+  }
+  activatedAt: number | null
+  rolledBackAt: number | null
+  createdAt: number
+}
+
+export interface AlicizationSelfEvolutionVersionRuntimeSnapshot {
+  version: 'self-evolution-version-runtime-v1'
+  activeCandidateId: string | null
+  candidates: AlicizationSelfEvolutionVersionCandidateSnapshot[]
+  reasonCodes: string[]
 }
 
 export type AlicizationReplayBenchmarkPackId =
@@ -1599,6 +1685,7 @@ export interface AlicizationReplayBenchmarkTelemetryPatch {
     quietCompanionshipCoverage?: number
     silentPresenceNuisanceRate?: number
     continuityMindCarryRate?: number
+    roomFirstCadenceRespectRate?: number
     learningTaskCompletionCount?: number
     learningTaskFailureCount?: number
     learningTaskBlockedCount?: number
@@ -1626,6 +1713,7 @@ export interface AlicizationReplayBenchmarkTelemetryPatch {
     recallFeedbackSupersededFactIds?: string[]
     claimAccuracy?: number
     replyAuthorityAccuracy?: number
+    embodiedAuthorityAccuracy?: number
     latencyBudgetPass?: boolean
     sampleCount?: number
     productionGoldSampleCount?: number
@@ -1675,6 +1763,11 @@ export interface AlicizationReplayBenchmarkFailureTurnRecord {
       nextLearningAction: string | null
     }
   } | null
+  embodiedAuthorityDiagnostics?: Array<{
+    field: string
+    expectedValue: string | null
+    actualValue: string | null
+  }> | null
   sampledCategories?: string[] | null
   paritySummary?: {
     version: 'browser-main-parity-v1'
@@ -1721,6 +1814,11 @@ export interface AlicizationReplayBenchmarkDatasetFeedback {
   persisted: boolean
   humanRatingRubric?: AlicizationReplayHumanRatingRubric | null
   driftSignals?: Array<keyof AlicizationReplayBenchmarkStandardsRecord | 'recentOnlyDrift' | 'closenessLadderDrift' | 'eventGraphRecallCollapse'> | null
+  authoritySummary?: {
+    comparedTurnCount: number
+    mismatchTurnCount: number
+    mismatchFieldCounts: Partial<Record<'visibleReply.expectedAuthority' | 'visibleReply.actualAuthority' | 'visibleReply.providerMindExecuted', number>>
+  } | null
   paritySummary?: {
     comparedTurnCount: number
     parityPassCount: number
@@ -1787,7 +1885,7 @@ export interface AlicizationReplayHumanRatingRubric {
 }
 
 export interface AlicizationReplayBenchmarkShipGateRow {
-  key: 'benchmark-gate' | 'human-rating-gate' | 'latency-gate' | 'wrong-thread-gate' | 'self-model-suppression-gate' | 'relationship-era-suppression-gate' | 'template-leakage-gate' | 'presence-qa-gate' | 'learning-domain-gate' | 'browser-main-parity-gate' | 'final-replay-gate'
+  key: 'benchmark-gate' | 'human-rating-gate' | 'latency-gate' | 'wrong-thread-gate' | 'self-model-suppression-gate' | 'relationship-era-suppression-gate' | 'template-leakage-gate' | 'presence-qa-gate' | 'learning-domain-gate' | 'browser-main-parity-gate' | 'visible-reply-authority-gate' | 'final-replay-gate'
   status: 'pass' | 'fail'
   detail: string
 }
@@ -1850,6 +1948,46 @@ export interface AlicizationMemoryDecisionTraceRecord {
   memoryFactsUpserted?: Record<string, unknown> | null
   personStateUpdated?: Record<string, unknown> | null
   learningExecuted?: Record<string, unknown> | null
+  embodimentAuthority?: {
+    emotion?: string | null
+    performance?: {
+      baseEmotion?: string | null
+      facialCue?: string | null
+      actionCue?: string | null
+      delivery?: string | null
+      emphasis?: number | null
+    } | null
+    digitalLife?: {
+      emotion?: string | null
+      mode?: string | null
+      preferredPresence?: string | null
+      face?: {
+        emotion?: string | null
+        facialCue?: string | null
+      } | null
+      action?: {
+        actionCue?: string | null
+        actionMode?: string | null
+      } | null
+    } | null
+    embodimentScript?: {
+      rendererTarget?: string | null
+      state?: {
+        baseEmotion?: string | null
+        delivery?: string | null
+        emphasis?: number | null
+      } | null
+      speechPlan?: {
+        segmentCount?: number | null
+        interruptPolicy?: string | null
+      } | null
+    } | null
+    visibleReply?: {
+      expectedAuthority?: string | null
+      actualAuthority?: string | null
+      providerMindExecuted?: boolean | null
+    } | null
+  } | null
   participation?: AlicizationMindParticipationSnapshot | null
   derivedMindStateBundle?: AlicizationDerivedMindStateBundle | null
   memoryStageReplay?: AlicizationOrganicMemoryStageReplay | null
@@ -1920,6 +2058,16 @@ export interface AlicizationDigitalLifeSpineProactiveDigest {
   leadingGoalId: string | null
   leadingGoalSummary: string | null
   preferredPresence: string | null
+  personaBias?: {
+    relationshipPosture: string | null
+    initiativeStyle: string | null
+    silenceReconnect: string | null
+    comfortStyle: string | null
+    preferredProactiveStyle: string | null
+    manifestationCadenceSummary: string | null
+    openingGuidance: string | null
+    whySummary: string | null
+  } | null
 }
 
 export interface AlicizationDigitalLifeSpineAutonomyDigest {
@@ -2465,6 +2613,24 @@ export interface AlicizationDerivedMindStateBundle {
     contradictionHeavyFactCount: number
   } | null
   claimEvidenceGraphs?: AlicizationClaimEvidenceGraph[] | null
+  activeSelfRevision?: {
+    candidateId: string | null
+    patchId: string | null
+    patchDecisionTraceId: string | null
+    lanes: string[]
+    reasonCodes: string[]
+    summary: string | null
+  } | null
+  activeContinuityGovernance?: {
+    source: 'active-self-evolution-version'
+    mode: 'same-her-baseline'
+    candidateId: string | null
+    patchId: string | null
+    decisionTraceId: string | null
+    summary: string | null
+    lanes: string[]
+    reasonCodes: string[]
+  } | null
   selfEvolution?: AlicizationSelfEvolutionKernelSnapshot | null
   affectiveResidue?: AlicizationAffectiveResidueMemorySnapshot | null
   learningExecutionState?: AlicizationLearningExecutionStateSnapshot | null
@@ -2613,6 +2779,12 @@ export function normalizeAlicizationDerivedMindStateBundle(raw: unknown): Aliciz
   const claimEvidenceGraphs = Array.isArray(candidate.claimEvidenceGraphs)
     ? candidate.claimEvidenceGraphs.filter(item => item && typeof item === 'object') as AlicizationClaimEvidenceGraph[]
     : null
+  const activeSelfRevision = candidate.activeSelfRevision && typeof candidate.activeSelfRevision === 'object'
+    ? candidate.activeSelfRevision as Record<string, unknown>
+    : null
+  const activeContinuityGovernance = candidate.activeContinuityGovernance && typeof candidate.activeContinuityGovernance === 'object'
+    ? candidate.activeContinuityGovernance as Record<string, unknown>
+    : null
   const selfEvolution = candidate.selfEvolution && typeof candidate.selfEvolution === 'object'
     ? candidate.selfEvolution as Record<string, unknown>
     : null
@@ -2650,6 +2822,48 @@ export function normalizeAlicizationDerivedMindStateBundle(raw: unknown): Aliciz
         }
       : null,
     claimEvidenceGraphs,
+    activeSelfRevision: activeSelfRevision
+      ? {
+          candidateId: sanitizeAlicizationDigitalLifeDigestText(activeSelfRevision.candidateId, 160) || null,
+          patchId: sanitizeAlicizationDigitalLifeDigestText(activeSelfRevision.patchId, 160) || null,
+          patchDecisionTraceId: sanitizeAlicizationDigitalLifeDigestText(activeSelfRevision.patchDecisionTraceId, 160) || null,
+          lanes: Array.isArray(activeSelfRevision.lanes)
+            ? activeSelfRevision.lanes
+              .map(item => sanitizeAlicizationDigitalLifeDigestText(item, 64))
+              .filter(Boolean)
+              .slice(0, 12)
+            : [],
+          reasonCodes: Array.isArray(activeSelfRevision.reasonCodes)
+            ? activeSelfRevision.reasonCodes
+              .map(item => sanitizeAlicizationDigitalLifeDigestText(item, 120))
+              .filter(Boolean)
+              .slice(0, 16)
+            : [],
+          summary: sanitizeAlicizationDigitalLifeDigestText(activeSelfRevision.summary, 220) || null,
+        }
+      : null,
+    activeContinuityGovernance: activeContinuityGovernance
+      ? {
+          source: 'active-self-evolution-version',
+          mode: 'same-her-baseline',
+          candidateId: sanitizeAlicizationDigitalLifeDigestText(activeContinuityGovernance.candidateId, 160) || null,
+          patchId: sanitizeAlicizationDigitalLifeDigestText(activeContinuityGovernance.patchId, 160) || null,
+          decisionTraceId: sanitizeAlicizationDigitalLifeDigestText(activeContinuityGovernance.decisionTraceId, 160) || null,
+          summary: sanitizeAlicizationDigitalLifeDigestText(activeContinuityGovernance.summary, 220) || null,
+          lanes: Array.isArray(activeContinuityGovernance.lanes)
+            ? activeContinuityGovernance.lanes
+              .map(item => sanitizeAlicizationDigitalLifeDigestText(item, 64))
+              .filter(Boolean)
+              .slice(0, 12)
+            : [],
+          reasonCodes: Array.isArray(activeContinuityGovernance.reasonCodes)
+            ? activeContinuityGovernance.reasonCodes
+              .map(item => sanitizeAlicizationDigitalLifeDigestText(item, 120))
+              .filter(Boolean)
+              .slice(0, 16)
+            : [],
+        }
+      : null,
     selfEvolution: selfEvolution ? selfEvolution as unknown as AlicizationSelfEvolutionKernelSnapshot : null,
     affectiveResidue: affectiveResidue
       ? {
@@ -3051,6 +3265,16 @@ export interface AlicizationDigitalLifeSpineEmbodimentDigest {
     speakDrive: number | null
     silenceDrive: number | null
     why: string | null
+    personaBias?: {
+      relationshipPosture: string | null
+      initiativeStyle: string | null
+      silenceReconnect: string | null
+      comfortStyle: string | null
+      preferredProactiveStyle: string | null
+      manifestationCadenceSummary: string | null
+      openingGuidance: string | null
+      whySummary: string | null
+    } | null
   } | null
 }
 
@@ -3766,8 +3990,13 @@ export type AlicizationDialogueStructuredFormatLane = 'normal' | 'legacy-input' 
 export type AlicizationProactiveScenario = 'coding' | 'media' | 'late-night-care' | 'general'
 export type AlicizationProactiveStyle = 'silent-observe' | 'light-nudge' | 'gentle-care' | 'firm-warning'
 export type AlicizationProactiveUrgency = 'low' | 'medium' | 'high'
-export type AlicizationProactiveReasonCode
+export type AlicizationProactiveStaticReasonCode
   = | 'busy-host'
+    | 'persona-observant-style'
+    | 'persona-high-participation-style'
+    | 'persona-direct-reconnect'
+    | 'persona-silence-hold'
+    | 'persona-guardian-care'
     | 'fullscreen-host'
     | 'kill-switch-suspended'
     | 'global-cooldown-active'
@@ -3824,6 +4053,10 @@ export type AlicizationProactiveReasonCode
     | 'relationship-cadence-residue'
     | 'relationship-residue-delay-warmth'
     | 'relationship-residue-protect-rest'
+export type AlicizationProactiveReasonCode
+  = | AlicizationProactiveStaticReasonCode
+    | `learning:${AlicizationLearningAction | 'hold'}`
+    | `learning-focus:${string}`
 
 export interface AlicizationProactiveDecision {
   shouldInterrupt: boolean
@@ -3838,6 +4071,7 @@ export interface AlicizationProactiveDecision {
 
 export interface AlicizationProactiveMetadata extends AlicizationProactiveDecision {
   feedbackWindowMs: number
+  openingGuidance?: string | null
 }
 
 export interface AlicizationDialogueStructuredPayload {

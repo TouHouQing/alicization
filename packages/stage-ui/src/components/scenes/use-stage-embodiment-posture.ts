@@ -52,6 +52,18 @@ function clampSignedUnit(value: number, fallback: number = 0) {
   return Math.min(1, Math.max(-1, value))
 }
 
+function hasLowerPressureTiming(input: {
+  activePresence: StageEmbodimentAttentionPresenceState | null
+  visualPresenceState?: AlicizationVisualPresenceStateSnapshot | null | undefined
+}) {
+  const activeReasonTags = input.activePresence?.reasonTags ?? []
+  if (activeReasonTags.includes('timing:lower-pressure-opening'))
+    return true
+
+  const rationaleTags = input.visualPresenceState?.privateThought?.rationaleTags ?? []
+  return rationaleTags.includes('timing:lower-pressure-opening')
+}
+
 function resolveSilentPresenceAuthority(
   visualPresenceState: AlicizationVisualPresenceStateSnapshot | null | undefined,
 ): SilentPresenceAuthorityFields {
@@ -117,6 +129,10 @@ export function deriveStageEmbodimentPresencePostureState(input: {
     && (watchMode === 'recovering' || continuityMode === 'protective-watch')
     && speechInactive
     && thought?.shouldSpeak === false
+  const lowerPressureTiming = hasLowerPressureTiming({
+    activePresence: presence ?? null,
+    visualPresenceState,
+  })
   const baseConfidence = clampUnit(
     (presence?.confidence ?? 0) * 0.62
     + (thought?.confidence ?? 0) * 0.18
@@ -166,6 +182,7 @@ export function deriveStageEmbodimentPresencePostureState(input: {
 
   const bodyPitch = clampUnit(
     bodyPitchBase
+    - (lowerPressureTiming && mode === 'attentive' ? 0.04 : 0)
     + Math.max(0, offsetY) * (silentAccompanyingAnchor || silentRecoveringAnchor ? 0.12 : 0.18)
     + speechEnergy * 0.08
     + prosodyIntensity * (silentRecoveringAnchor ? 0.03 : 0.05)
@@ -180,6 +197,9 @@ export function deriveStageEmbodimentPresencePostureState(input: {
     + (mode === 'concerned' ? (silentRecoveringAnchor ? 0.06 : 0.08) : 0)
     + (silentAccompanyingAnchor ? 0.04 : 0),
   )
+  const adjustedBreathBoost = clampUnit(
+    breathBoost - (lowerPressureTiming && mode === 'attentive' ? 0.04 : 0),
+  )
 
   const gazeStability = clampUnit(
     (mode === 'inspection'
@@ -190,6 +210,7 @@ export function deriveStageEmbodimentPresencePostureState(input: {
           ? (silentAccompanyingAnchor ? 0.78 : 0.72)
           : 0.62)
         + baseConfidence * 0.12
+        + (lowerPressureTiming && mode === 'attentive' ? 0.04 : 0)
         + (visualPresenceState?.captureState.permission === 'granted' ? 0.04 : 0),
   )
 
@@ -199,7 +220,7 @@ export function deriveStageEmbodimentPresencePostureState(input: {
     confidence: baseConfidence,
     bodyYaw,
     bodyPitch,
-    breathBoost,
+    breathBoost: adjustedBreathBoost,
     gazeStability,
   }
 }

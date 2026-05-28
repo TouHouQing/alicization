@@ -280,4 +280,217 @@ describe('autonomy kernel', () => {
     expect(autonomy.actReadiness).toBeGreaterThanOrEqual(0.72)
     expect(autonomy.executionIntent?.kind).toBe('follow-through')
   })
+
+  it('lets personality-shaped motive and habit layers split the final visible action between hover and whisper', () => {
+    const observant = buildAutonomySnapshot(createBaseInput({
+      context: createContext({
+        system: {
+          inputActivity: 'idle',
+          fullscreenLikely: false,
+        },
+        relationship: {
+          fatigue: 20,
+        },
+      }),
+      worldModel: {
+        activeThread: {
+          id: 'thread-companionship',
+          kind: 'browser-browsing',
+          title: 'quiet docs pass',
+          summary: 'The host is browsing quietly with room for a light move.',
+          status: 'active',
+          significance: 0.62,
+          confidence: 0.76,
+          unresolved: false,
+        },
+        epistemicState: {
+          certainty: 'grounded',
+        },
+        hostState: {
+          availability: 'open',
+        },
+      },
+      concerns: [{
+        id: 'concern-1',
+        kind: 'co-watch',
+        summary: 'a light nearby move could land without pressure',
+        tension: 0.46,
+        confidence: 0.72,
+        careWeight: 0.42,
+      }],
+      initiative: createInitiative({
+        selectedAction: 'wait',
+        confidence: 0.64,
+        speakDrive: 0.52,
+        silenceDrive: 0.22,
+        shouldSurface: true,
+      }),
+      initiativeArbitration: {
+        selectedProposalId: 'proposal-1',
+        proposals: [{
+          id: 'proposal-1',
+          source: 'desire-memory',
+          score: 0.7,
+          shouldSpeak: true,
+          action: 'whisper',
+          why: 'a small move is available',
+        }],
+      },
+      executiveCycle: {
+        phase: 'acting',
+        currentLine: 'move only if the opening stays light',
+        actionReadiness: 0.82,
+        shouldAct: true,
+      },
+      actionEcology: {
+        mode: 'quiet-accompany',
+        readiness: 0.8,
+        surfacePressure: 0.48,
+        silencePressure: 0.16,
+        shouldSurface: true,
+        shouldSpeak: true,
+        why: 'the opening is there, but it should stay light',
+      },
+      autobiographicalSelf: {
+        activeGoals: [],
+      },
+      motiveEngine: {
+        rulingDrive: 'boundary-respect',
+        returnPressure: 0.18,
+        drives: {
+          companionship: 0.42,
+          boundaryRespect: 0.78,
+          truthDiscipline: 0.34,
+          restProtection: 0.12,
+          unfinishedThreadReturn: 0.18,
+          selfDirection: 0.44,
+        },
+        backgroundAgendas: [{
+          id: 'agenda-1',
+          kind: 'stay-near-lightly',
+          status: 'foreground',
+          weight: 0.82,
+          summary: 'stay nearby without crowding the host',
+        }],
+        longTermGoals: [],
+      },
+      habitPolicy: {
+        dominantMode: 'light-touch-companionship',
+        requiresGroundingBeforeSurface: false,
+        prefersQuietCompanionship: true,
+        blocksDirectSpeakWhenBusy: false,
+        protectsRestWindow: false,
+        returnViaRecheck: false,
+      },
+    }))
+
+    const direct = buildAutonomySnapshot(createBaseInput({
+      context: createContext({
+        system: {
+          inputActivity: 'idle',
+          fullscreenLikely: false,
+        },
+        relationship: {
+          fatigue: 20,
+        },
+      }),
+      worldModel: {
+        activeThread: {
+          id: 'thread-companionship',
+          kind: 'browser-browsing',
+          title: 'quiet docs pass',
+          summary: 'The host is browsing quietly with room for a light move.',
+          status: 'active',
+          significance: 0.62,
+          confidence: 0.76,
+          unresolved: false,
+        },
+        epistemicState: {
+          certainty: 'grounded',
+        },
+        hostState: {
+          availability: 'open',
+        },
+      },
+      concerns: [{
+        id: 'concern-1',
+        kind: 'co-watch',
+        summary: 'a light nearby move could land without pressure',
+        tension: 0.46,
+        confidence: 0.72,
+        careWeight: 0.42,
+      }],
+      initiative: createInitiative({
+        selectedAction: 'wait',
+        confidence: 0.64,
+        speakDrive: 0.52,
+        silenceDrive: 0.22,
+        shouldSurface: true,
+      }),
+      initiativeArbitration: {
+        selectedProposalId: 'proposal-1',
+        proposals: [{
+          id: 'proposal-1',
+          source: 'desire-memory',
+          score: 0.7,
+          shouldSpeak: true,
+          action: 'whisper',
+          why: 'a small move is available',
+        }],
+      },
+      executiveCycle: {
+        phase: 'acting',
+        currentLine: 'move if the opening is real',
+        actionReadiness: 0.82,
+        shouldAct: true,
+      },
+      actionEcology: {
+        mode: 'surface-nudge',
+        readiness: 0.8,
+        surfacePressure: 0.48,
+        silencePressure: 0.16,
+        shouldSurface: true,
+        shouldSpeak: true,
+        why: 'the opening is there',
+      },
+      autobiographicalSelf: {
+        activeGoals: [],
+      },
+      motiveEngine: {
+        rulingDrive: 'companionship',
+        returnPressure: 0.18,
+        drives: {
+          companionship: 0.72,
+          boundaryRespect: 0.24,
+          truthDiscipline: 0.34,
+          restProtection: 0.12,
+          unfinishedThreadReturn: 0.18,
+          selfDirection: 0.74,
+        },
+        backgroundAgendas: [{
+          id: 'agenda-1',
+          kind: 'stay-near-lightly',
+          status: 'foreground',
+          weight: 0.78,
+          summary: 'move first when the opening is real',
+        }],
+        longTermGoals: [],
+      },
+      habitPolicy: {
+        dominantMode: 'light-touch-companionship',
+        requiresGroundingBeforeSurface: false,
+        prefersQuietCompanionship: false,
+        blocksDirectSpeakWhenBusy: false,
+        protectsRestWindow: false,
+        returnViaRecheck: false,
+      },
+    }))
+
+    expect(observant.visibleAction).toBe('hover')
+    expect(observant.whyNow).toContain('persona')
+    expect(observant.whyNow).toContain('observe')
+    expect(direct.visibleAction).toBe('whisper')
+    expect(direct.whyNow).toContain('persona')
+    expect(direct.whyNow).toContain('direct')
+  })
 })

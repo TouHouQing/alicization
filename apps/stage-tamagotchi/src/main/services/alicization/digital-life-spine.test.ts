@@ -441,8 +441,25 @@ describe('digital life spine', () => {
       shouldSurface: false,
       shouldSpeak: false,
     } as any
+    ;(state as any).derivedMindStateBundle = {
+      personalityState: {
+        identityKernel: {
+          relationshipPosture: 'guardian',
+          initiativeStyle: 'high-participation',
+        },
+        initiativeBaseline: {
+          silenceReconnect: 'direct-approach',
+          comfortStyle: 'take-charge',
+        },
+      },
+    }
 
     const spine = deriveAlicizationDigitalLifeSpine(state)
+    spine.runtimeSurface.memory.personStateProjection = {
+      ...spine.runtimeSurface.memory.personStateProjection,
+      preferredProactiveStyle: 'light-nudge',
+      openingGuidance: 'Open directly with the live answer first and keep the approach lighter.',
+    } as any
     const sameFromSurface = deriveAlicizationDigitalLifeSpineFromSurface(spine.runtimeSurface)
 
     expect(spine.version).toBe('digital-life-spine-v1')
@@ -454,77 +471,85 @@ describe('digital life spine', () => {
     expect(sameFromSurface.architecture).toEqual(spine.architecture)
 
     const digest = projectAlicizationDigitalLifeSpineDigest(spine)
-    expect(digest).toEqual(expect.objectContaining({
-      version: 'digital-life-spine-digest-v1',
-      runtime: expect.objectContaining({
-        watchMode: 'symbiotic-vision',
-        sceneScenario: 'coding',
-        activeThreadId: 'thread-spine',
-        dominantMode: 'tracking',
-        answerIntent: 'guide',
-        preferredPresence: 'attentive',
+    expect(digest?.version).toBe('digital-life-spine-digest-v1')
+    expect(digest?.runtime).toEqual(expect.objectContaining({
+      watchMode: 'symbiotic-vision',
+      sceneScenario: 'coding',
+      activeThreadId: 'thread-spine',
+      dominantMode: 'tracking',
+      answerIntent: 'guide',
+      preferredPresence: 'attentive',
+    }))
+    expect(digest?.architecture).toEqual(expect.objectContaining({
+      operatingMode: expect.any(String),
+      dominantSystem: expect.any(String),
+    }))
+    expect(digest?.continuitySignal).toEqual(expect.objectContaining({
+      label: 'digital-life-line',
+      summary: expect.stringContaining('watch=symbiotic-vision'),
+    }))
+    expect(digest?.proactive).toEqual(expect.objectContaining({
+      activeThreadId: 'thread-spine',
+      preferredPresence: 'attentive',
+      personaBias: expect.objectContaining({
+        relationshipPosture: 'guardian',
+        initiativeStyle: 'high-participation',
+        silenceReconnect: 'direct-approach',
+        comfortStyle: 'take-charge',
+        preferredProactiveStyle: 'light-nudge',
+        manifestationCadenceSummary: expect.stringContaining('direct reconnect'),
+        openingGuidance: expect.stringContaining('Open directly'),
+        whySummary: 'stay close and guide gently',
       }),
-      architecture: expect.objectContaining({
-        operatingMode: expect.any(String),
-        dominantSystem: expect.any(String),
+    }))
+    expect(digest?.motive).toEqual(expect.objectContaining({
+      rulingDrive: 'truth-discipline',
+      leadingAgendaKind: 'preserve-trust',
+    }))
+    expect(digest?.habit).toEqual(expect.objectContaining({
+      dominantMode: 'repair-before-fluency',
+      requiresGroundingBeforeSurface: true,
+    }))
+    expect(digest?.embodiment).toEqual(expect.objectContaining({
+      privateThought: expect.objectContaining({
+        embodiedPresence: 'attentive',
+        emotionalTension: 'focused-flow',
       }),
-      continuitySignal: expect.objectContaining({
-        label: 'digital-life-line',
-        summary: expect.stringContaining('watch=symbiotic-vision'),
+      autobiographicalSelf: expect.objectContaining({
+        expressionStyle: 'warm',
+        careBias: 0.74,
       }),
-      proactive: expect.objectContaining({
-        activeThreadId: 'thread-spine',
-        preferredPresence: 'attentive',
+      relationship: expect.objectContaining({
+        climate: 'warm',
+        approachVector: 'care',
       }),
-      motive: expect.objectContaining({
-        rulingDrive: 'truth-discipline',
-        leadingAgendaKind: 'preserve-trust',
+      selfState: expect.objectContaining({
+        stance: 'accompany',
+        feltCloseness: 0.72,
       }),
-      habit: expect.objectContaining({
-        dominantMode: 'repair-before-fluency',
-        requiresGroundingBeforeSurface: true,
-      }),
-      embodiment: expect.objectContaining({
-        privateThought: expect.objectContaining({
-          embodiedPresence: 'attentive',
-          emotionalTension: 'focused-flow',
+      mindEcology: expect.objectContaining({
+        moodLabel: expect.any(String),
+        temperament: expect.objectContaining({
+          tenderness: expect.any(Number),
         }),
-        autobiographicalSelf: expect.objectContaining({
-          expressionStyle: 'warm',
-          careBias: 0.74,
-        }),
-        relationship: expect.objectContaining({
-          climate: 'warm',
-          approachVector: 'care',
-        }),
-        selfState: expect.objectContaining({
-          stance: 'accompany',
-          feltCloseness: 0.72,
-        }),
-        mindEcology: expect.objectContaining({
-          moodLabel: expect.any(String),
-          temperament: expect.objectContaining({
-            tenderness: expect.any(Number),
-          }),
-          climate: expect.objectContaining({
-            socialNeed: expect.any(Number),
-          }),
-        }),
-        initiative: expect.objectContaining({
-          preferredStyle: 'gentle-care',
-          confidence: 0.68,
+        climate: expect.objectContaining({
+          socialNeed: expect.any(Number),
         }),
       }),
-      memory: expect.objectContaining({
-        recentEpisodeCount: 1,
-        leadingGoalSummary: 'keep one living architecture line',
-        recallMode: 'thread',
-        reflectionPressure: 0.63,
-        longHorizonSummary: expect.stringContaining('Remembered open loop'),
-        rememberedConstraintSummary: 'Remembered boundary: do not crowd the host when focused.',
-        rememberedPlanSummary: 'Remembered open loop: assistant remember return to unresolved runtime threads',
-        longHorizonCueCount: 1,
+      initiative: expect.objectContaining({
+        preferredStyle: 'gentle-care',
+        confidence: 0.68,
       }),
+    }))
+    expect(digest?.memory).toEqual(expect.objectContaining({
+      recentEpisodeCount: 1,
+      leadingGoalSummary: 'keep one living architecture line',
+      recallMode: 'thread',
+      reflectionPressure: 0.63,
+      longHorizonSummary: expect.stringContaining('Remembered open loop'),
+      rememberedConstraintSummary: 'Remembered boundary: do not crowd the host when focused.',
+      rememberedPlanSummary: 'Remembered open loop: assistant remember return to unresolved runtime threads',
+      longHorizonCueCount: 1,
     }))
     expect(digest?.outcomeLearning).toEqual(expect.objectContaining({
       latestInflection: 'Route memory and dialogue through one spine.',

@@ -237,6 +237,7 @@ export function createAlicizationChatPerceptionAugmentRuntime(options: CreateAli
       currentForeground,
       perceptionState,
       durabilityPulse: null,
+      personalityAuthority: soulForPerception.frontmatter.personality,
       inspectionRequested,
       inspectionState: inspectionIntent.inspectionState,
       turnOwnershipHint: inspectionIntent.turnOwnershipHint,

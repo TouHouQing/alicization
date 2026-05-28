@@ -44,8 +44,16 @@ import { computed, onUnmounted, readonly, ref, watch } from 'vue'
 
 import { playBrowserSpeechAudio } from '../../libs/speech-audio-playback'
 import { buildAlicizationEmbodimentSpeechPlan } from '../../services/embodiment/speech-planner'
-import type { EmbodimentPlaybackTelemetry } from '../../services/embodiment/playback-reconciler'
-import { reconcileEmbodimentPlayback } from '../../services/embodiment/playback-reconciler'
+import type {
+  EmbodimentPlaybackDriverTelemetry,
+  EmbodimentPlaybackTelemetry,
+} from '../../services/embodiment/playback-reconciler'
+import {
+  cloneEmbodimentPlaybackTelemetry,
+  resolveEmbodimentPlaybackProsodyAuthority,
+  reconcileEmbodimentPlayback,
+  resolveEmbodimentPlaybackDriverAuthority,
+} from '../../services/embodiment/playback-reconciler'
 import { resolveLive2DFaceDriverState } from './drivers/live2d-face-driver'
 import { resolveLive2DLipSyncDriverState } from './drivers/live2d-lipsync-driver'
 import { resolveLive2DMotionDriverState } from './drivers/live2d-motion-driver'
@@ -141,31 +149,6 @@ function sanitizeSpineToken(raw: unknown, maxChars = 96) {
 
 function cloneSpeechMetadata(metadata: Record<string, unknown> | null | undefined) {
   return metadata ? { ...metadata } : null
-}
-
-function cloneEmbodimentPlaybackMetadata(
-  metadata: EmbodimentPlaybackTelemetry | null | undefined,
-): EmbodimentPlaybackTelemetry | null {
-  if (!metadata)
-    return null
-
-  return {
-    actualDurationMs: metadata.actualDurationMs,
-    driftMs: metadata.driftMs,
-    plannedDurationMs: metadata.plannedDurationMs,
-    settleMs: metadata.settleMs,
-    stopReason: metadata.stopReason,
-    drivers: {
-      face: metadata.drivers.face ? { ...metadata.drivers.face } : null,
-      lipsync: metadata.drivers.lipsync
-        ? {
-            ...metadata.drivers.lipsync,
-            visemeHints: [...metadata.drivers.lipsync.visemeHints],
-          }
-        : null,
-      motion: metadata.drivers.motion ? { ...metadata.drivers.motion } : null,
-    },
-  }
 }
 
 function updateStableSignature(hash: number, raw: unknown) {
@@ -401,7 +384,7 @@ function resolveEmbodimentPlaybackMetadataFromMetadata(
     return null
 
   const typedCandidate = candidate as EmbodimentPlaybackTelemetry
-  return cloneEmbodimentPlaybackMetadata(typedCandidate)
+  return cloneEmbodimentPlaybackTelemetry(typedCandidate)
 }
 
 function resolveSpeechDriverPhaseMetadata(
@@ -418,6 +401,29 @@ function resolveSpeechDriverPhaseMetadata(
   return { idleCuePhase }
 }
 
+function resolvePlaybackTelemetryCue(input: {
+  cue?: AlicizationDialogueSpeechTimelineSegment | null
+  digitalLifeFrame?: AlicizationDigitalLifeFrame | null
+  metadata: Record<string, unknown> | null | undefined
+  segmentId: string | null | undefined
+  special?: string | null | undefined
+  text: string
+}) {
+  return createStageEmbodimentSpeechPlaybackItem({
+    intentId: null,
+    streamId: null,
+    segmentId: input.segmentId,
+    ownerId: null,
+    text: input.text,
+    special: input.special,
+    continuityHoldMs: 0,
+    playbackDurationMs: null,
+    metadata: input.metadata,
+    cue: input.cue ?? null,
+    digitalLifeFrame: input.digitalLifeFrame ?? null,
+  }).cue
+}
+
 function resolveActivePlaybackVisemeHints(
   item: {
     metadata?: Record<string, unknown> | null | undefined
@@ -427,6 +433,7 @@ function resolveActivePlaybackVisemeHints(
   const playbackMetadata = resolveEmbodimentPlaybackMetadataFromMetadata(item?.metadata)
   const visemeHints = playbackMetadata?.drivers.lipsync?.visemeHints ?? []
   const segmentId = playbackMetadata?.drivers.lipsync?.segmentId?.trim()
+    || playbackMetadata?.driverAuthority?.segmentId?.trim()
     || item?.segmentId?.trim()
   if (!segmentId)
     return [...visemeHints]
@@ -448,7 +455,7 @@ function resolvePlaybackDriverMetadata(input: {
   script: AlicizationEmbodimentScriptV1 | null
   segmentId: string | null | undefined
   playbackPhase: 'idle' | 'playing'
-}): EmbodimentPlaybackTelemetry['drivers'] {
+}): EmbodimentPlaybackDriverTelemetry {
   return {
     face: resolveLive2DFaceDriverState({
       idleCuePhase: input.idleCuePhase,
@@ -470,15 +477,28 @@ function resolvePlaybackDriverMetadata(input: {
 }
 
 function enrichSpeechMetadataWithDrivers(input: {
+  cue?: AlicizationDialogueSpeechTimelineSegment | null
+  digitalLifeFrame?: AlicizationDigitalLifeFrame | null
   idleCuePhase?: 'pre-utterance' | 'post-utterance'
   metadata: Record<string, unknown> | null | undefined
   script: AlicizationEmbodimentScriptV1 | null
   segmentId: string | null | undefined
   playbackPhase: 'idle' | 'playing'
+  special?: string | null | undefined
+  text: string
 }) {
   const metadata = cloneSpeechMetadata(input.metadata)
   if (!input.script)
     return metadata
+
+  const projectedCue = resolvePlaybackTelemetryCue({
+    cue: input.cue,
+    digitalLifeFrame: input.digitalLifeFrame,
+    metadata,
+    segmentId: input.segmentId,
+    special: input.special,
+    text: input.text,
+  })
 
   const nextPlayback = resolveEmbodimentPlaybackMetadataFromMetadata(metadata) ?? {
     actualDurationMs: 0,
@@ -486,6 +506,8 @@ function enrichSpeechMetadataWithDrivers(input: {
     plannedDurationMs: 0,
     settleMs: Math.max(0, Math.round(input.script.speechPlan.settleMs ?? 0)),
     stopReason: null,
+    rendererTarget: input.script.rendererTarget,
+    cue: projectedCue,
     drivers: {
       face: null,
       lipsync: null,
@@ -493,11 +515,23 @@ function enrichSpeechMetadataWithDrivers(input: {
     },
   }
 
+  nextPlayback.cue = projectedCue
+
   nextPlayback.drivers = resolvePlaybackDriverMetadata({
     idleCuePhase: input.idleCuePhase,
     script: input.script,
     segmentId: input.segmentId,
     playbackPhase: input.playbackPhase,
+  })
+  nextPlayback.driverAuthority = resolveEmbodimentPlaybackDriverAuthority({
+    drivers: nextPlayback.drivers,
+    rendererTarget: input.script.rendererTarget,
+    segmentId: input.segmentId,
+  })
+  nextPlayback.prosodyAuthority = resolveEmbodimentPlaybackProsodyAuthority({
+    cue: projectedCue,
+    driverAuthority: nextPlayback.driverAuthority,
+    drivers: nextPlayback.drivers,
   })
 
   return {
@@ -517,21 +551,36 @@ function resolveSpeechMetadataIdleCuePhase(
 
 function enrichSpeechMetadataWithReconciliation(input: {
   actualDurationMs: number
+  cue?: AlicizationDialogueSpeechTimelineSegment | null
+  digitalLifeFrame?: AlicizationDigitalLifeFrame | null
   metadata: Record<string, unknown> | null | undefined
   plannedDurationMs: number
   segmentId: string | null | undefined
+  special?: string | null | undefined
   stopReason: string
+  text: string
 }) {
   const script = resolveEmbodimentScriptFromMetadata(input.metadata)
   const metadataWithDrivers = enrichSpeechMetadataWithDrivers({
+    cue: input.cue,
+    digitalLifeFrame: input.digitalLifeFrame,
     idleCuePhase: 'post-utterance',
     metadata: input.metadata,
     script,
     segmentId: input.segmentId,
     playbackPhase: 'idle',
+    special: input.special,
+    text: input.text,
   })
   if (!script)
     return metadataWithDrivers
+
+  const drivers = resolvePlaybackDriverMetadata({
+    idleCuePhase: 'post-utterance',
+    script,
+    segmentId: input.segmentId,
+    playbackPhase: 'idle',
+  })
 
   return {
     ...metadataWithDrivers,
@@ -542,11 +591,36 @@ function enrichSpeechMetadataWithReconciliation(input: {
         script,
         stopReason: input.stopReason,
       }),
-      drivers: resolvePlaybackDriverMetadata({
-        idleCuePhase: 'post-utterance',
-        script,
+      rendererTarget: script.rendererTarget,
+      cue: resolvePlaybackTelemetryCue({
+        cue: input.cue,
+        digitalLifeFrame: input.digitalLifeFrame,
+        metadata: metadataWithDrivers,
         segmentId: input.segmentId,
-        playbackPhase: 'idle',
+        special: input.special,
+        text: input.text,
+      }),
+      drivers,
+      driverAuthority: resolveEmbodimentPlaybackDriverAuthority({
+        drivers,
+        rendererTarget: script.rendererTarget,
+        segmentId: input.segmentId,
+      }),
+      prosodyAuthority: resolveEmbodimentPlaybackProsodyAuthority({
+        cue: resolvePlaybackTelemetryCue({
+          cue: input.cue,
+          digitalLifeFrame: input.digitalLifeFrame,
+          metadata: metadataWithDrivers,
+          segmentId: input.segmentId,
+          special: input.special,
+          text: input.text,
+        }),
+        driverAuthority: resolveEmbodimentPlaybackDriverAuthority({
+          drivers,
+          rendererTarget: script.rendererTarget,
+          segmentId: input.segmentId,
+        }),
+        drivers,
       }),
     },
   } satisfies Record<string, unknown>
@@ -1440,11 +1514,15 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
       ? 'idle'
       : descriptor.playbackDurationMs == null && !advanceTimeline ? 'idle' : 'playing'
     const enrichedMetadata = enrichSpeechMetadataWithDrivers({
+      cue,
+      digitalLifeFrame,
       idleCuePhase,
       metadata: descriptor.metadata,
       script: resolveEmbodimentScriptFromMetadata(descriptor.metadata),
       segmentId: descriptor.segmentId,
       playbackPhase,
+      special: descriptor.special,
+      text: descriptor.text,
     })
     return createStageEmbodimentSpeechPlaybackItem({
       ...descriptor,
@@ -1542,10 +1620,14 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
 
     const digitalLifeFrame = resolveDigitalLifeFrame(descriptor, cue)
     const enrichedMetadata = enrichSpeechMetadataWithDrivers({
+      cue,
+      digitalLifeFrame,
       metadata: descriptor.metadata,
       script: resolveEmbodimentScriptFromMetadata(descriptor.metadata),
       segmentId: descriptor.segmentId,
       playbackPhase: 'idle',
+      special: descriptor.special,
+      text: descriptor.text,
     })
     const previewItem = createStageEmbodimentSpeechPlaybackItem({
       ...descriptor,
@@ -1812,10 +1894,14 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
     beginSpeechArticulation(performance.now())
     const continuityHoldMs = resolveSpeechPlanContinuityHoldMs(item)
     const metadata = enrichSpeechMetadataWithDrivers({
+      cue: null,
+      digitalLifeFrame: null,
       metadata: item.metadata,
       script: resolveEmbodimentScriptFromMetadata(item.metadata),
       segmentId: item.segmentId,
       playbackPhase: 'playing',
+      special: item.special,
+      text: item.text,
     })
     commitPlaybackState({
       phase: 'playing',
@@ -1862,6 +1948,8 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
       actualDurationMs: speechPlaybackState.value.startedAt == null
         ? item.playbackDurationMs ?? 0
         : Math.max(0, endedAt - speechPlaybackState.value.startedAt),
+      cue: speechPlaybackState.value.item?.cue ?? null,
+      digitalLifeFrame: speechPlaybackState.value.item?.digitalLifeFrame ?? null,
       metadata: item.metadata,
       plannedDurationMs: item.playbackDurationMs ?? estimateStageEmbodimentSpeechPlaybackDurationMs({
         text: item.text,
@@ -1869,7 +1957,9 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
         metadata: item.metadata,
       }),
       segmentId: item.segmentId,
+      special: item.special,
       stopReason: stopReason ?? 'ended',
+      text: item.text,
     })
     const playbackReconciliation = resolveEmbodimentPlaybackMetadataFromMetadata(metadata)
     const continuityHoldMs = Math.max(
@@ -1911,10 +2001,14 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
     syntheticSpeech = createIdleSyntheticSpeechState()
     currentAudioSource.value = source
     const metadata = enrichSpeechMetadataWithDrivers({
+      cue: speechPlaybackState.value.item?.cue ?? null,
+      digitalLifeFrame: speechPlaybackState.value.item?.digitalLifeFrame ?? null,
       metadata: item.metadata,
       script: resolveEmbodimentScriptFromMetadata(item.metadata),
       segmentId: item.segmentId,
       playbackPhase: 'playing',
+      special: item.special,
+      text: item.text,
     })
     commitPlaybackState({
       phase: 'playing',
@@ -2198,10 +2292,14 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
     }
 
     const playbackMetadata = enrichSpeechMetadataWithDrivers({
+      cue: null,
+      digitalLifeFrame: null,
       metadata: cloneSpeechMetadata(segment.metadata),
       script: resolveEmbodimentScriptFromMetadata(segment.metadata),
       segmentId: segment.segmentId,
       playbackPhase: 'playing',
+      special: segment.special,
+      text,
     })
     const playbackItem = createStageEmbodimentSpeechPlaybackItem({
       streamId: segment.streamId,

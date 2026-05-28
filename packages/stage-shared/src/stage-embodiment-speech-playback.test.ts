@@ -252,4 +252,108 @@ describe('stage embodiment speech playback dynamics', () => {
 
     expect(withoutProsody).toEqual(baseline)
   })
+
+  it('recovers a segment cue from embodimentScript metadata when no explicit cue is provided', () => {
+    const item = createStageEmbodimentSpeechPlaybackItem({
+      intentId: 'intent-script-cue-recovery',
+      streamId: 'stream-script-cue-recovery',
+      segmentId: 'segment-script-cue-recovery',
+      text: '继续看这里。',
+      special: null,
+      metadata: {
+        embodimentScript: {
+          version: 'embodiment-script-v1',
+          turnId: 'turn-script-cue-recovery',
+          rendererTarget: 'vrm',
+          replyText: '继续看这里。',
+          state: {
+            baseEmotion: 'thinking',
+            delivery: 'calm',
+            emphasis: 1,
+            residentMode: 'dialogue',
+          },
+          speechPlan: {
+            interruptPolicy: 'soft-settle',
+            preRollMs: 20,
+            settleMs: 260,
+        segments: [{
+          id: 'segment-script-cue-recovery',
+          index: 0,
+          text: '继续看这里。',
+          interruptPolicy: 'soft-settle',
+          preRollMs: 20,
+          settleMs: 260,
+          rendererSettle: {
+            live2dFacialReleaseMs: 320,
+            live2dMotionFollowThroughMs: 420,
+            vrmActionFadeMs: 220,
+            vrmExpressionBlendMs: 260,
+          },
+          rendererHints: {
+            preferredExpressionAliases: ['CalmInspect'],
+            preferredMotionAliases: ['ObserveSoft'],
+          },
+        }],
+      },
+          facePlan: {
+            speakingCues: [{
+              segmentId: 'segment-script-cue-recovery',
+              emotion: 'thinking',
+              facialCue: 'focused',
+              intensity: 0.58,
+              holdMs: 320,
+              preUtteranceCue: 'steady-inhale',
+              postUtteranceCue: 'soft-release',
+              source: 'prosody-authority',
+              confidence: 0.94,
+            }],
+          },
+          motionPlan: {
+            idleBase: 'idle_settle',
+            actionBursts: [{
+              segmentId: 'segment-script-cue-recovery',
+              actionCue: 'observe_focus',
+              intensity: 0.44,
+              holdMs: 220,
+              source: 'timeline-projection',
+              confidence: 0.88,
+            }],
+            attentionMode: 'attentive',
+          },
+          lipsyncPlan: {
+            mode: 'energy-phoneme-hybrid',
+            visemeHints: [
+              { segmentId: 'segment-script-cue-recovery', viseme: 'I', weight: 0.35, source: 'prosody-authority', confidence: 0.94 },
+            ],
+          },
+        },
+      },
+    })
+
+    expect(item.cue).toEqual(expect.objectContaining({
+      id: 'segment-script-cue-recovery',
+      text: '继续看这里。',
+      emotion: 'thinking',
+      facialCue: 'focused',
+      actionCue: 'observe_focus',
+      facialWeight: 0.58,
+      gestureWeight: 0.44,
+      mouthWeight: 0.35,
+      facialHoldMs: 320,
+      actionHoldMs: 220,
+      emotionHoldMs: 320,
+      rendererSettle: {
+        live2dFacialReleaseMs: 320,
+        live2dMotionFollowThroughMs: 420,
+        vrmActionFadeMs: 220,
+        vrmExpressionBlendMs: 260,
+      },
+      rendererHints: {
+        preferredExpressionAliases: ['CalmInspect'],
+        preferredMotionAliases: ['ObserveSoft'],
+      },
+      actionWindow: 'segment-start',
+      interruptMode: 'soft-interrupt',
+    }))
+  })
 })

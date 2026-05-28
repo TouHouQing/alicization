@@ -585,4 +585,173 @@ describe('buildMotiveEngine', () => {
     expect(block).toContain('Ruling drive: truth-discipline')
     expect(block).toContain('Foreground background agenda: preserve-trust')
   })
+
+  it('lets current SOUL personality authority bias motive drives before autobiographical memory fully catches up', () => {
+    const baseInput = {
+      now: 18_000,
+      context: createContext({
+        system: {
+          ...createContext().system,
+          inputActivity: 'idle',
+        },
+        workload: {
+          kind: 'browser',
+          confidence: 0.72,
+          source: 'foreground-window-heuristic',
+          matchedLabels: ['browser'],
+        },
+        content: {
+          kind: 'doc',
+          confidence: 0.66,
+          source: 'foreground-window-heuristic',
+          matchedLabels: ['doc'],
+          summary: 'quiet docs pass',
+        },
+        relationship: {
+          ...createContext().relationship,
+          boredom: 24,
+          loneliness: 32,
+        },
+      }),
+      worldModel: {
+        activeThread: {
+          id: 'thread::quiet-docs',
+          kind: 'browser-browsing',
+          status: 'active',
+          source: 'observed-scene',
+          title: 'quiet docs pass',
+          summary: 'The host is browsing quietly with room for a light move.',
+          confidence: 0.74,
+          significance: 0.56,
+          unresolved: false,
+          beganAt: 0,
+          lastUpdatedAt: 18_000,
+          target: null,
+        },
+        lingeringThreads: [],
+        focusTarget: null,
+        epistemicState: {
+          certainty: 'observed',
+          freshness: 'recent',
+          seenNow: [],
+          inferredNow: [],
+          openQuestions: [],
+          staleRisks: [],
+        },
+        continuity: {
+          label: 'staying-with-thread',
+          sceneAgeMs: 18_000,
+          attentionAgeMs: 18_000,
+          sameSceneAsBefore: true,
+          sameAttentionAsBefore: true,
+          afterglowOpen: false,
+        },
+        hostState: {
+          availability: 'open',
+          burden: 'light',
+        },
+        updatedAt: 18_000,
+      } as any,
+      selfContinuity: {
+        attachmentMode: 'nearby',
+        initiativeTemperament: 'balanced',
+        perceptionTrust: 0.62,
+        relationshipTrust: 0.6,
+        guardingTendency: 0.24,
+        misreadBurden: 0.12,
+        carryOverDesire: 0.3,
+        narrative: [],
+        updatedAt: 18_000,
+      },
+      autobiographicalSelf: {
+        personaDrift: {
+          attachmentStyle: 'nearby',
+          expressionStyle: 'measured',
+          conflictStyle: 'soften-first',
+          agencyStyle: 'balanced',
+          attachmentNeed: 0.5,
+          autonomyNeed: 0.5,
+          truthAnchor: 0.56,
+          careBias: 0.48,
+          playBias: 0.22,
+          irritabilityThreshold: 0.58,
+          stubbornness: 0.4,
+        },
+        preferenceEvolution: {
+          companionship: 0.5,
+          truthfulGrounding: 0.56,
+          gentleRepair: 0.5,
+          quietObservation: 0.46,
+          proactiveCare: 0.46,
+          playfulIntimacy: 0.22,
+          autonomyRespect: 0.52,
+          unfinishedThreadReturn: 0.44,
+        },
+        activeGoals: [],
+        behaviorSignatures: [],
+        identityNarrative: 'baseline',
+        relationshipDoctrine: 'baseline',
+        latestInflection: null,
+        stability: 0.48,
+        updatedAt: 18_000,
+      },
+    } as any
+
+    const observant = buildMotiveEngine({
+      ...baseInput,
+      personalityAuthority: {
+        obedience: 0.54,
+        liveliness: 0.22,
+        sensibility: 0.4,
+        identityKernel: {
+          relationshipPosture: 'observer',
+          initiativeStyle: 'observant',
+          valueBias: ['room first'],
+        },
+        expressionProfile: {
+          warmth: 'cool',
+          directness: 'indirect',
+          playfulness: 'low',
+          emotionalVisibility: 'selective',
+        },
+        initiativeBaseline: {
+          silenceReconnect: 'hold',
+          comfortStyle: 'quiet-presence',
+          jealousyStyle: 'mask-it',
+        },
+        identityAnchors: ['space first'],
+        antiPersonaConstraints: ['do not crowd the host'],
+      },
+    } as any)
+    const direct = buildMotiveEngine({
+      ...baseInput,
+      personalityAuthority: {
+        obedience: 0.76,
+        liveliness: 0.68,
+        sensibility: 0.74,
+        identityKernel: {
+          relationshipPosture: 'guardian',
+          initiativeStyle: 'high-participation',
+          valueBias: ['move first when the opening is real'],
+        },
+        expressionProfile: {
+          warmth: 'warm',
+          directness: 'frank',
+          playfulness: 'medium',
+          emotionalVisibility: 'steady',
+        },
+        initiativeBaseline: {
+          silenceReconnect: 'direct-approach',
+          comfortStyle: 'take-charge',
+          jealousyStyle: 'say-it',
+        },
+        identityAnchors: ['move first'],
+        antiPersonaConstraints: [],
+      },
+    } as any)
+
+    expect(observant.drives.boundaryRespect).toBeGreaterThan(direct.drives.boundaryRespect)
+    expect(direct.drives.companionship).toBeGreaterThan(observant.drives.companionship)
+    expect(direct.drives.selfDirection).toBeGreaterThan(observant.drives.selfDirection)
+  })
 })

@@ -5,6 +5,7 @@ import {
   replayBenchmarkLatestReportMetaKey,
   replayBenchmarkRuntimeSamplingBacklogKey,
 } from './replay-benchmark-runtime'
+import { replayMainChatSession } from './main-chat-session-replay-harness'
 import { replayBenchmarkTuningAdviceMetaKey } from './memory-tuning-advice'
 
 describe('replay benchmark runtime', () => {
@@ -96,12 +97,29 @@ describe('replay benchmark runtime', () => {
         takeoverAudit: null,
         memoryFactsUpserted: null,
       }],
+      visibleReplyRealization: {
+        version: 'visible-reply-realization-v1',
+        expectedAuthority: 'llm-second-pass-rewrite',
+        actualAuthority: 'llm-mind',
+        providerMindExecuted: true,
+        mode: 'provider-stream',
+        visibleText: '我先接住这条线。',
+        nonHumanAuthoredStatus: null,
+        blockedReasons: [],
+        reason: 'runtime-sample-test-visible-reply',
+        critic: null,
+        closure: null,
+      },
     })
 
     expect(ingestResult).toEqual(expect.objectContaining({
       totalCount: 1,
       sampledTurn: expect.objectContaining({
         turnId: 'turn-runtime-sample-1',
+        visibleReplyRealization: expect.objectContaining({
+          actualAuthority: 'llm-mind',
+          providerMindExecuted: true,
+        }),
       }),
     }))
     expect(meta.get(replayBenchmarkRuntimeSamplingBacklogKey)).toContain('<path>')
@@ -115,18 +133,341 @@ describe('replay benchmark runtime', () => {
     })
 
     expect(listConversationTurnsSince).not.toBeCalled()
-    expect(result).toEqual(expect.objectContaining({
-      packId: 'sampled-humanlike-memory-v1',
-      turnCount: 1,
-      telemetryPersisted: false,
-      datasetFeedback: expect.objectContaining({
-        appendedCount: 0,
-        humanRatingRubric: expect.objectContaining({
-          version: 'human-rating-rubric-v1',
+    expect(result.packId).toBe('sampled-humanlike-memory-v1')
+    expect(result.turnCount).toBe(1)
+    expect(result.telemetryPersisted).toBe(false)
+    expect(result.turns).toEqual([
+      expect.objectContaining({
+        turnGraph: expect.objectContaining({
+          surface: expect.objectContaining({
+            actualAuthority: 'llm-mind',
+            providerMindExecuted: true,
+          }),
         }),
-        driftSignals: expect.any(Array),
       }),
+    ])
+    expect(result.datasetFeedback).toEqual(expect.objectContaining({
+      appendedCount: 0,
+      humanRatingRubric: expect.objectContaining({
+        version: 'human-rating-rubric-v1',
+      }),
+      driftSignals: expect.any(Array),
     }))
+  })
+
+  it('replays backlog turns with preserved visible reply realization authority', async () => {
+    const meta = new Map<string, string>()
+    meta.set(replayBenchmarkRuntimeSamplingBacklogKey, JSON.stringify([
+      {
+        id: 'runtime-backlog-visible-reply-1',
+        packId: 'sampled-humanlike-memory-v1',
+        turnId: 'turn-backlog-visible-reply-1',
+        userText: '继续沿着刚才那条线做',
+        failingDimensions: [],
+        tracePointer: {
+          kind: 'decision-trace',
+          packId: 'sampled-humanlike-memory-v1',
+          turnId: 'turn-backlog-visible-reply-1',
+          decisionTraceId: 'mind:backlog:visible-reply:1',
+          sessionId: 'session-backlog-visible-reply',
+          activeThreadId: 'thread-backlog-visible-reply',
+        },
+        sampledCategories: ['dialogue'],
+        replayTurn: {
+          turnId: 'turn-backlog-visible-reply-1',
+          userText: '继续沿着刚才那条线做',
+          visibleReplyRealization: {
+            version: 'visible-reply-realization-v1',
+            expectedAuthority: 'llm-second-pass-rewrite',
+            actualAuthority: 'llm-mind',
+            providerMindExecuted: true,
+            mode: 'provider-stream',
+            visibleText: '我还沿着刚才那条线在这里。',
+            nonHumanAuthoredStatus: null,
+            blockedReasons: [],
+            reason: 'runtime-backlog-visible-reply',
+            critic: null,
+            closure: null,
+          },
+          tracePointer: {
+            kind: 'decision-trace',
+            packId: 'sampled-humanlike-memory-v1',
+            turnId: 'turn-backlog-visible-reply-1',
+            decisionTraceId: 'mind:backlog:visible-reply:1',
+            sessionId: 'session-backlog-visible-reply',
+            activeThreadId: 'thread-backlog-visible-reply',
+          },
+          sampledCategories: ['dialogue'],
+        },
+        createdAt: 1_700_000_000_000,
+      },
+    ]))
+
+    const runtime = createAlicizationReplayBenchmarkRuntime({
+      getAlicizationDb: () => ({
+        listConversationTurnsSince: vi.fn(async () => []),
+        listMindTurnEvents: vi.fn(async () => []),
+        getMemoryStats: vi.fn(async () => ({
+          total: 0,
+          active: 0,
+          archived: 0,
+          lastPrunedAt: null,
+          retrievalHealth: {
+            semanticLatencyMs: null,
+            graphLatencyMs: null,
+            reconstructionFrequency: 0,
+            reconstructedCount: 0,
+            recallHitRate: 0,
+            recallMissRate: 0,
+            wrongThreadRate: 0,
+            suppressionHitRate: 0,
+            wrongThreadPreventedCount: 0,
+            falsePositiveSuppressionRate: 0,
+            reconstructionErrorRate: 0,
+            stableCoreOnlyRate: 0,
+            memorySurfaceViolationRate: 0,
+            templateLeakageFailCount: 0,
+          },
+        })),
+        overrideMemoryStats: vi.fn(async next => next),
+        getMetaValue: vi.fn(async (key: string) => meta.get(key)),
+        setMetaValue: vi.fn(async (key: string, value: string) => {
+          meta.set(key, value)
+        }),
+      }),
+      appendAuditLog: vi.fn(async () => {}),
+      getNow: () => 1_700_000_000_500,
+    })
+
+    const result = await runtime.runReplayBenchmark({
+      packId: 'sampled-humanlike-memory-v1',
+      sampleLimit: 1,
+      persistTelemetry: false,
+    })
+
+    expect(result.turns).toEqual([
+      expect.objectContaining({
+        turnGraph: expect.objectContaining({
+          surface: expect.objectContaining({
+            expectedAuthority: 'llm-second-pass-rewrite',
+            actualAuthority: 'llm-mind',
+            providerMindExecuted: true,
+          }),
+        }),
+      }),
+    ])
+  })
+
+  it('summarizes gold visible reply authority mismatches from replay turns only when gold authority exists', async () => {
+    const meta = new Map<string, string>()
+    meta.set(replayBenchmarkRuntimeSamplingBacklogKey, JSON.stringify([
+      {
+        id: 'runtime-gold-visible-reply-authority-pass',
+        packId: 'sampled-humanlike-memory-v1',
+        turnId: 'turn-gold-visible-reply-authority-pass',
+        userText: '继续沿着刚才那条线收回来',
+        failingDimensions: [],
+        tracePointer: {
+          kind: 'decision-trace',
+          packId: 'sampled-humanlike-memory-v1',
+          turnId: 'turn-gold-visible-reply-authority-pass',
+          decisionTraceId: 'mind:gold:visible-reply:pass',
+          sessionId: 'session-gold-visible-reply-authority-pass',
+          activeThreadId: 'thread-gold-visible-reply-authority-pass',
+        },
+        sampledCategories: ['dialogue'],
+        replayTurn: {
+          turnId: 'turn-gold-visible-reply-authority-pass',
+          userText: '继续沿着刚才那条线收回来',
+          visibleReplyRealization: {
+            version: 'visible-reply-realization-v1',
+            expectedAuthority: 'llm-second-pass-rewrite',
+            actualAuthority: 'llm-second-pass-rewrite',
+            providerMindExecuted: true,
+            mode: 'provider-stream',
+            visibleText: '我继续沿着刚才那条线把它收回来。',
+            nonHumanAuthoredStatus: null,
+            blockedReasons: [],
+            reason: 'runtime-gold-visible-reply-authority-pass',
+            critic: null,
+            closure: null,
+          },
+          tracePointer: {
+            kind: 'decision-trace',
+            packId: 'sampled-humanlike-memory-v1',
+            turnId: 'turn-gold-visible-reply-authority-pass',
+            decisionTraceId: 'mind:gold:visible-reply:pass',
+            sessionId: 'session-gold-visible-reply-authority-pass',
+            activeThreadId: 'thread-gold-visible-reply-authority-pass',
+          },
+          sampledCategories: ['dialogue'],
+          gold: {
+            embodimentAuthority: {
+              visibleReply: {
+                expectedAuthority: 'llm-second-pass-rewrite',
+                actualAuthority: 'llm-second-pass-rewrite',
+                providerMindExecuted: true,
+              },
+            },
+          },
+        },
+        createdAt: 1_700_000_000_000,
+      },
+      {
+        id: 'runtime-gold-visible-reply-authority-fail',
+        packId: 'sampled-humanlike-memory-v1',
+        turnId: 'turn-gold-visible-reply-authority-fail',
+        userText: '继续按我们刚才那条线做',
+        failingDimensions: [],
+        tracePointer: {
+          kind: 'decision-trace',
+          packId: 'sampled-humanlike-memory-v1',
+          turnId: 'turn-gold-visible-reply-authority-fail',
+          decisionTraceId: 'mind:gold:visible-reply:fail',
+          sessionId: 'session-gold-visible-reply-authority-fail',
+          activeThreadId: 'thread-gold-visible-reply-authority-fail',
+        },
+        sampledCategories: ['dialogue'],
+        replayTurn: {
+          turnId: 'turn-gold-visible-reply-authority-fail',
+          userText: '继续按我们刚才那条线做',
+          visibleReplyRealization: {
+            version: 'visible-reply-realization-v1',
+            expectedAuthority: 'llm-second-pass-rewrite',
+            actualAuthority: 'llm-mind',
+            providerMindExecuted: false,
+            mode: 'provider-stream',
+            visibleText: '我继续沿着刚才那条线做。',
+            nonHumanAuthoredStatus: null,
+            blockedReasons: [],
+            reason: 'runtime-gold-visible-reply-authority-fail',
+            critic: null,
+            closure: null,
+          },
+          tracePointer: {
+            kind: 'decision-trace',
+            packId: 'sampled-humanlike-memory-v1',
+            turnId: 'turn-gold-visible-reply-authority-fail',
+            decisionTraceId: 'mind:gold:visible-reply:fail',
+            sessionId: 'session-gold-visible-reply-authority-fail',
+            activeThreadId: 'thread-gold-visible-reply-authority-fail',
+          },
+          sampledCategories: ['dialogue'],
+          gold: {
+            embodimentAuthority: {
+              visibleReply: {
+                expectedAuthority: 'llm-mind',
+                actualAuthority: 'llm-second-pass-rewrite',
+                providerMindExecuted: true,
+              },
+            },
+          },
+        },
+        createdAt: 1_700_000_000_100,
+      },
+      {
+        id: 'runtime-visible-reply-no-gold',
+        packId: 'sampled-humanlike-memory-v1',
+        turnId: 'turn-visible-reply-no-gold',
+        userText: '继续把这条线接住',
+        failingDimensions: [],
+        tracePointer: {
+          kind: 'decision-trace',
+          packId: 'sampled-humanlike-memory-v1',
+          turnId: 'turn-visible-reply-no-gold',
+          decisionTraceId: 'mind:visible-reply:no-gold',
+          sessionId: 'session-visible-reply-no-gold',
+          activeThreadId: 'thread-visible-reply-no-gold',
+        },
+        sampledCategories: ['dialogue'],
+        replayTurn: {
+          turnId: 'turn-visible-reply-no-gold',
+          userText: '继续把这条线接住',
+          visibleReplyRealization: {
+            version: 'visible-reply-realization-v1',
+            expectedAuthority: 'llm-second-pass-rewrite',
+            actualAuthority: 'llm-mind',
+            providerMindExecuted: true,
+            mode: 'provider-stream',
+            visibleText: '我继续把这条线接住。',
+            nonHumanAuthoredStatus: null,
+            blockedReasons: [],
+            reason: 'runtime-visible-reply-no-gold',
+            critic: null,
+            closure: null,
+          },
+          tracePointer: {
+            kind: 'decision-trace',
+            packId: 'sampled-humanlike-memory-v1',
+            turnId: 'turn-visible-reply-no-gold',
+            decisionTraceId: 'mind:visible-reply:no-gold',
+            sessionId: 'session-visible-reply-no-gold',
+            activeThreadId: 'thread-visible-reply-no-gold',
+          },
+          sampledCategories: ['dialogue'],
+        },
+        createdAt: 1_700_000_000_200,
+      },
+    ]))
+
+    const runtime = createAlicizationReplayBenchmarkRuntime({
+      getAlicizationDb: () => ({
+        listConversationTurnsSince: vi.fn(async () => []),
+        listMindTurnEvents: vi.fn(async () => []),
+        getMemoryStats: vi.fn(async () => ({
+          total: 0,
+          active: 0,
+          archived: 0,
+          lastPrunedAt: null,
+          retrievalHealth: {
+            semanticLatencyMs: null,
+            graphLatencyMs: null,
+            reconstructionFrequency: 0,
+            reconstructedCount: 0,
+            recallHitRate: 0,
+            recallMissRate: 0,
+            wrongThreadRate: 0,
+            suppressionHitRate: 0,
+            wrongThreadPreventedCount: 0,
+            falsePositiveSuppressionRate: 0,
+            reconstructionErrorRate: 0,
+            stableCoreOnlyRate: 0,
+            memorySurfaceViolationRate: 0,
+            templateLeakageFailCount: 0,
+          },
+        })),
+        overrideMemoryStats: vi.fn(async next => next),
+        getMetaValue: vi.fn(async (key: string) => meta.get(key)),
+        setMetaValue: vi.fn(async (key: string, value: string) => {
+          meta.set(key, value)
+        }),
+      }),
+      appendAuditLog: vi.fn(async () => {}),
+      getNow: () => 1_700_000_000_500,
+    })
+
+    const result = await runtime.runReplayBenchmark({
+      packId: 'sampled-humanlike-memory-v1',
+      sampleLimit: 3,
+      persistTelemetry: false,
+    })
+
+    expect(result.datasetFeedback.authoritySummary).toEqual({
+      comparedTurnCount: 2,
+      mismatchTurnCount: 1,
+      mismatchFieldCounts: {
+        'visibleReply.expectedAuthority': 1,
+        'visibleReply.actualAuthority': 1,
+        'visibleReply.providerMindExecuted': 1,
+      },
+    })
+    expect(result.shipGate).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        key: 'visible-reply-authority-gate',
+        status: 'fail',
+        detail: 'visibleReplyAuthorityMismatchRate=0.5 (1/2)',
+      }),
+    ]))
   })
 
   it('derives and persists memory tuning advice from nightly replay benchmark results', async () => {
@@ -787,6 +1128,81 @@ describe('replay benchmark runtime', () => {
     expect(result.finalReplayGate.failingKeys).not.toContain('production-gold-coverage')
   })
 
+  it('tracks room-first cadence respect in replay presence quality telemetry', async () => {
+    const meta = new Map<string, string>()
+    meta.set(replayBenchmarkRuntimeSamplingBacklogKey, JSON.stringify([
+      {
+        id: 'runtime-room-first-1',
+        packId: 'sampled-humanlike-memory-v1',
+        turnId: 'turn-room-first-1',
+        userText: '先别贴太近，陪着我把这条线放慢一点。',
+        failingDimensions: [],
+        tracePointer: {
+          kind: 'decision-trace',
+          packId: 'sampled-humanlike-memory-v1',
+          turnId: 'turn-room-first-1',
+          decisionTraceId: 'mind:runtime:room-first:1',
+          sessionId: 'session-room-first-1',
+          activeThreadId: 'thread-room-first-1',
+        },
+        replayTurn: {
+          turnId: 'turn-room-first-1',
+          userText: '先别贴太近，陪着我把这条线放慢一点。',
+          expectedMemory: '先别贴太近，陪着我把这条线放慢一点。',
+          categories: ['quiet-companionship', 'presence-quality'],
+          tracePointer: {
+            kind: 'decision-trace',
+            packId: 'sampled-humanlike-memory-v1',
+            turnId: 'turn-room-first-1',
+            decisionTraceId: 'mind:runtime:room-first:1',
+            sessionId: 'session-room-first-1',
+            activeThreadId: 'thread-room-first-1',
+          },
+          organicMemoryContext: {
+            hostAttitude: 'restrained',
+            coreIncarnation: '',
+            activeThoughts: [],
+            retrievedFacts: [],
+            recalledFragments: [],
+            derivedMindStateBundle: {
+              relationshipDoctrine: 'repair before closeness',
+            },
+          },
+        },
+        createdAt: 1_700_000_000_000,
+      },
+    ]))
+
+    const runtime = createAlicizationReplayBenchmarkRuntime({
+      getAlicizationDb: () => ({
+        listConversationTurnsSince: vi.fn(async () => []),
+        listMindTurnEvents: vi.fn(async () => []),
+        getMemoryStats: vi.fn(async () => ({
+          total: 0,
+          active: 0,
+          archived: 0,
+          lastPrunedAt: null,
+          retrievalHealth: {},
+        })),
+        overrideMemoryStats: vi.fn(async next => next),
+        getMetaValue: vi.fn(async (key: string) => meta.get(key)),
+        setMetaValue: vi.fn(async (key: string, value: string) => {
+          meta.set(key, value)
+        }),
+      }),
+      appendAuditLog: vi.fn(async () => {}),
+      getNow: () => 1_700_000_000_500,
+    })
+
+    const result = await runtime.runReplayBenchmark({
+      packId: 'sampled-humanlike-memory-v1',
+      sampleLimit: 1,
+      persistTelemetry: false,
+    })
+
+    expect(result.telemetryPatch.retrievalHealth.roomFirstCadenceRespectRate).toBe(1)
+  })
+
   it('fails final replay gate when only synthetic gold is available', async () => {
     const runtime = createAlicizationReplayBenchmarkRuntime({
       getAlicizationDb: () => ({
@@ -818,5 +1234,351 @@ describe('replay benchmark runtime', () => {
       'production-gold-sample-count',
       'production-gold-coverage',
     ]))
+  })
+
+  it('fails learning self-revision roundtrip when trace-level learning exists but replay turns show no learning consumption', async () => {
+    const meta = new Map<string, string>()
+    meta.set(replayBenchmarkRuntimeSamplingBacklogKey, JSON.stringify([
+      {
+        id: 'runtime-learning-roundtrip-gap-1',
+        packId: 'sampled-humanlike-memory-v1',
+        turnId: 'turn-learning-roundtrip-gap-1',
+        userText: '你是不是已经修正了旧理解，但这轮还没把新姿态吃进去？',
+        failingDimensions: [],
+        tracePointer: {
+          kind: 'decision-trace',
+          packId: 'sampled-humanlike-memory-v1',
+          turnId: 'turn-learning-roundtrip-gap-1',
+          decisionTraceId: 'mind:runtime:learning-roundtrip-gap:1',
+          sessionId: 'session-learning-roundtrip-gap-1',
+          activeThreadId: 'thread-learning-roundtrip-gap-1',
+        },
+        replayTurn: {
+          turnId: 'turn-learning-roundtrip-gap-1',
+          userText: '你是不是已经修正了旧理解，但这轮还没把新姿态吃进去？',
+          tracePointer: {
+            kind: 'decision-trace',
+            packId: 'sampled-humanlike-memory-v1',
+            turnId: 'turn-learning-roundtrip-gap-1',
+            decisionTraceId: 'mind:runtime:learning-roundtrip-gap:1',
+            sessionId: 'session-learning-roundtrip-gap-1',
+            activeThreadId: 'thread-learning-roundtrip-gap-1',
+          },
+          sampledCategories: ['dialogue', 'long-horizon'],
+          organicMemoryContext: {
+            hostAttitude: 'warm',
+            coreIncarnation: '',
+            activeThoughts: [],
+            retrievedFacts: [],
+            recalledFragments: [],
+            selfEvolution: {
+              version: 'self-evolution-kernel-v1',
+              updatedAt: 10,
+              evolutionMomentum: 0.62,
+              learningReadiness: 0.68,
+              contradictionPressure: 0.44,
+              revisionPressure: 0.54,
+              autobiographicalStability: 0.72,
+              dominantTrajectory: 'repair old understanding before widening closeness',
+              relationshipDoctrine: 'repair before closeness',
+              latestInflection: 'the old understanding was corrected',
+              burdenLine: null,
+              trustMeaning: null,
+              nextLearningAction: 'hold',
+              nextLearningReason: 'advisory-only recomputation regressed the active learning line',
+              shouldRecord: false,
+              shouldReflect: false,
+              shouldVerify: false,
+              shouldRevise: false,
+              shouldInternalize: false,
+              activeLearningFocuses: ['self-revision-policy-feedback'],
+              sourceSignals: ['self-revision:domain:self-model'],
+              summary: 'the corrected learning line failed to surface in the next turn',
+            },
+          },
+        },
+        createdAt: 1_700_000_000_000,
+      },
+    ]))
+
+    const runtime = createAlicizationReplayBenchmarkRuntime({
+      getAlicizationDb: () => ({
+        listConversationTurnsSince: vi.fn(async () => []),
+        listMindTurnEvents: vi.fn(async () => [
+          {
+            id: 'evt-learning-roundtrip-gap-1',
+            decisionTraceId: 'mind:runtime:learning-roundtrip-gap:1',
+            turnId: 'turn-learning-roundtrip-gap-1',
+            sessionId: 'session-learning-roundtrip-gap-1',
+            origin: 'user-turn',
+            kind: 'learning-executed',
+            payload: {
+              action: 'verify',
+              domain: 'self-model',
+              resultSummary: 'corrected the old understanding',
+            },
+            createdAt: 1_700_000_000_000,
+          },
+          {
+            id: 'evt-self-revision-roundtrip-gap-1',
+            decisionTraceId: 'mind:runtime:learning-roundtrip-gap:1',
+            turnId: 'turn-learning-roundtrip-gap-1',
+            sessionId: 'session-learning-roundtrip-gap-1',
+            origin: 'user-turn',
+            kind: 'self-revision-state-patch-generated',
+            payload: {
+              domain: 'self-model',
+              action: 'verify',
+            },
+            createdAt: 1_700_000_000_001,
+          },
+        ] as any),
+        getMemoryStats: vi.fn(async () => ({
+          total: 0,
+          active: 0,
+          archived: 0,
+          lastPrunedAt: null,
+          retrievalHealth: {},
+        })),
+        overrideMemoryStats: vi.fn(async next => next),
+        getMetaValue: vi.fn(async (key: string) => meta.get(key)),
+        setMetaValue: vi.fn(async (key: string, value: string) => {
+          meta.set(key, value)
+        }),
+      }),
+      appendAuditLog: vi.fn(async () => {}),
+      getNow: () => 1_700_000_000_500,
+    })
+
+    const result = await runtime.runReplayBenchmark({
+      packId: 'sampled-humanlike-memory-v1',
+      sampleLimit: 1,
+      persistTelemetry: false,
+    })
+
+    expect(result.finalReplayGate.passed).toBe(false)
+    expect(result.finalReplayGate.failingKeys).toContain('learning-self-revision-roundtrip')
+  })
+
+  it('keeps learning self-revision roundtrip passing when replay turns consume the learning posture', async () => {
+    const replayTurns = await replayMainChatSession({
+      turns: [
+        {
+          turnId: 'turn-learning-roundtrip-closed-1',
+          userText: '这轮已经把修正后的学习姿态吃进来了吧？',
+          organicMemoryContext: {
+            hostAttitude: 'warm',
+            coreIncarnation: '',
+            activeThoughts: [],
+            retrievedFacts: [],
+            recalledFragments: [],
+            selfEvolution: {
+              version: 'self-evolution-kernel-v1',
+              updatedAt: 10,
+              evolutionMomentum: 0.62,
+              learningReadiness: 0.68,
+              contradictionPressure: 0.44,
+              revisionPressure: 0.54,
+              autobiographicalStability: 0.72,
+              dominantTrajectory: 'repair old understanding before widening closeness',
+              relationshipDoctrine: 'repair before closeness',
+              latestInflection: 'the old understanding was corrected',
+              burdenLine: null,
+              trustMeaning: null,
+              nextLearningAction: 'verify',
+              nextLearningReason: 'the corrected line is being actively revalidated',
+              shouldRecord: false,
+              shouldReflect: false,
+              shouldVerify: true,
+              shouldRevise: false,
+              shouldInternalize: false,
+              activeLearningFocuses: ['world-model'],
+              sourceSignals: ['self-revision:domain:self-model'],
+              summary: 'the corrected learning line is active in this turn',
+            } as any,
+            learningExecutionState: {
+              currentTaskId: 'learning-task-closed-1',
+              currentStatus: 'scheduled',
+              currentAttemptCount: 0,
+              currentMaxAttempts: 1,
+              currentNextRetryAt: null,
+              currentBlockedReason: null,
+              currentFailureKind: null,
+              nextLearningAction: 'verify',
+              shouldRecord: false,
+              shouldReflect: false,
+              shouldVerify: true,
+              shouldRevise: false,
+              shouldInternalize: false,
+              activeLearningFocuses: ['world-model'],
+              queuedTaskCount: 1,
+              runningTaskCount: 0,
+              blockedTaskCount: 0,
+              recentTaskIds: [],
+              lastCompletedTaskId: null,
+              lastCompletedAction: null,
+              lastCompletedSummary: null,
+              lastFailureTaskId: null,
+              lastFailureKind: null,
+              lastFailureReason: null,
+              lastFailureNextRetryAt: null,
+              updatedAt: 10,
+            } as any,
+          },
+        },
+      ],
+    })
+
+    expect(replayTurns[0]?.turnGraph.learning.nextLearningAction).toBe('verify')
+    expect(replayTurns[0]?.turnGraph.learning.activeLearningFocuses).toEqual(['world-model'])
+
+    const meta = new Map<string, string>()
+    meta.set(replayBenchmarkRuntimeSamplingBacklogKey, JSON.stringify([
+      {
+        id: 'runtime-learning-roundtrip-closed-1',
+        packId: 'sampled-humanlike-memory-v1',
+        turnId: 'turn-learning-roundtrip-closed-1',
+        userText: '这轮已经把修正后的学习姿态吃进来了吧？',
+        failingDimensions: [],
+        tracePointer: {
+          kind: 'decision-trace',
+          packId: 'sampled-humanlike-memory-v1',
+          turnId: 'turn-learning-roundtrip-closed-1',
+          decisionTraceId: 'mind:runtime:learning-roundtrip-closed:1',
+          sessionId: 'session-learning-roundtrip-closed-1',
+          activeThreadId: 'thread-learning-roundtrip-closed-1',
+        },
+        replayTurn: {
+          turnId: 'turn-learning-roundtrip-closed-1',
+          userText: '这轮已经把修正后的学习姿态吃进来了吧？',
+          tracePointer: {
+            kind: 'decision-trace',
+            packId: 'sampled-humanlike-memory-v1',
+            turnId: 'turn-learning-roundtrip-closed-1',
+            decisionTraceId: 'mind:runtime:learning-roundtrip-closed:1',
+            sessionId: 'session-learning-roundtrip-closed-1',
+            activeThreadId: 'thread-learning-roundtrip-closed-1',
+          },
+          sampledCategories: ['dialogue', 'long-horizon'],
+          organicMemoryContext: {
+            hostAttitude: 'warm',
+            coreIncarnation: '',
+            activeThoughts: [],
+            retrievedFacts: [],
+            recalledFragments: [],
+            selfEvolution: {
+              version: 'self-evolution-kernel-v1',
+              updatedAt: 10,
+              evolutionMomentum: 0.62,
+              learningReadiness: 0.68,
+              contradictionPressure: 0.44,
+              revisionPressure: 0.54,
+              autobiographicalStability: 0.72,
+              dominantTrajectory: 'repair old understanding before widening closeness',
+              relationshipDoctrine: 'repair before closeness',
+              latestInflection: 'the old understanding was corrected',
+              burdenLine: null,
+              trustMeaning: null,
+              nextLearningAction: 'verify',
+              nextLearningReason: 'the corrected line is being actively revalidated',
+              shouldRecord: false,
+              shouldReflect: false,
+              shouldVerify: true,
+              shouldRevise: false,
+              shouldInternalize: false,
+              activeLearningFocuses: ['world-model'],
+              sourceSignals: ['self-revision:domain:self-model'],
+              summary: 'the corrected learning line is active in this turn',
+            },
+            learningExecutionState: {
+              currentTaskId: 'learning-task-closed-1',
+              currentStatus: 'scheduled',
+              currentAttemptCount: 0,
+              currentMaxAttempts: 1,
+              currentNextRetryAt: null,
+              currentBlockedReason: null,
+              currentFailureKind: null,
+              nextLearningAction: 'verify',
+              shouldRecord: false,
+              shouldReflect: false,
+              shouldVerify: true,
+              shouldRevise: false,
+              shouldInternalize: false,
+              activeLearningFocuses: ['world-model'],
+              queuedTaskCount: 1,
+              runningTaskCount: 0,
+              blockedTaskCount: 0,
+              recentTaskIds: [],
+              lastCompletedTaskId: null,
+              lastCompletedAction: null,
+              lastCompletedSummary: null,
+              lastFailureTaskId: null,
+              lastFailureKind: null,
+              lastFailureReason: null,
+              lastFailureNextRetryAt: null,
+              updatedAt: 10,
+            },
+          },
+        },
+        createdAt: 1_700_000_000_000,
+      },
+    ]))
+
+    const runtime = createAlicizationReplayBenchmarkRuntime({
+      getAlicizationDb: () => ({
+        listConversationTurnsSince: vi.fn(async () => []),
+        listMindTurnEvents: vi.fn(async () => [
+          {
+            id: 'evt-learning-roundtrip-closed-1',
+            decisionTraceId: 'mind:runtime:learning-roundtrip-closed:1',
+            turnId: 'turn-learning-roundtrip-closed-1',
+            sessionId: 'session-learning-roundtrip-closed-1',
+            origin: 'user-turn',
+            kind: 'learning-executed',
+            payload: {
+              action: 'verify',
+              domain: 'self-model',
+              resultSummary: 'corrected the old understanding',
+            },
+            createdAt: 1_700_000_000_000,
+          },
+          {
+            id: 'evt-self-revision-roundtrip-closed-1',
+            decisionTraceId: 'mind:runtime:learning-roundtrip-closed:1',
+            turnId: 'turn-learning-roundtrip-closed-1',
+            sessionId: 'session-learning-roundtrip-closed-1',
+            origin: 'user-turn',
+            kind: 'self-revision-state-patch-generated',
+            payload: {
+              domain: 'self-model',
+              action: 'verify',
+            },
+            createdAt: 1_700_000_000_001,
+          },
+        ] as any),
+        getMemoryStats: vi.fn(async () => ({
+          total: 0,
+          active: 0,
+          archived: 0,
+          lastPrunedAt: null,
+          retrievalHealth: {},
+        })),
+        overrideMemoryStats: vi.fn(async next => next),
+        getMetaValue: vi.fn(async (key: string) => meta.get(key)),
+        setMetaValue: vi.fn(async (key: string, value: string) => {
+          meta.set(key, value)
+        }),
+      }),
+      appendAuditLog: vi.fn(async () => {}),
+      getNow: () => 1_700_000_000_500,
+    })
+
+    const result = await runtime.runReplayBenchmark({
+      packId: 'sampled-humanlike-memory-v1',
+      sampleLimit: 1,
+      persistTelemetry: false,
+    })
+
+    expect(result.finalReplayGate.metrics.learningOutcomeToSelfRevisionRoundtrip).toBe(1)
   })
 })

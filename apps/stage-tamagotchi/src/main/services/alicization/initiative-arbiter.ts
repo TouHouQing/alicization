@@ -10,6 +10,7 @@ import type {
   AlicizationMindActionTendency,
   AlicizationMindDynamicsSnapshot,
   AlicizationMotiveEngineSnapshot,
+  AlicizationPersonalityState,
   AlicizationProactiveStyle,
   AlicizationRelationshipModelSnapshot,
   AlicizationSelfContinuitySnapshot,
@@ -22,8 +23,10 @@ import type {
   AlicizationWorldOntologySnapshot,
 } from '../../../shared/eventa'
 import type { AlicizationProactiveLayeredContext } from './proactive-layered-context'
+import type { AlicizationMemoryTuningAdvice } from './memory-tuning-advice'
 
 import { pickDominantAutobiographicalGoal } from './autobiographical-self'
+import { deriveAlicizationPersonaAuthorityInfluence } from './personality-continuity-state'
 
 function clamp01(value: number) {
   if (!Number.isFinite(value))
@@ -35,6 +38,14 @@ function sanitizeText(raw: unknown, maxChars = 220) {
   if (typeof raw !== 'string')
     return ''
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
+}
+
+function hasRememberedFamiliarityRestraint(memoryTuningAdvice?: AlicizationMemoryTuningAdvice | null) {
+  if (!memoryTuningAdvice)
+    return false
+
+  return (memoryTuningAdvice.surfaceAdjustments.provenanceLabelBias ?? 0) >= 0.14
+    && (memoryTuningAdvice.personStateAdjustments.closenessCapBias ?? 0) >= 0.14
 }
 
 function actionSpeaks(action: AlicizationMindActionTendency) {
@@ -210,30 +221,41 @@ function autobiographicalPreferenceGain(input: {
   action: AlicizationMindActionTendency
   source: AlicizationInitiativeProposalSnapshot['source']
   autobiographicalSelf?: AlicizationAutobiographicalSelfSnapshot | null
+  personalityAuthority?: AlicizationPersonalityState | null
 }) {
   const snapshot = input.autobiographicalSelf
-  if (!snapshot)
+  const personaAuthority = deriveAlicizationPersonaAuthorityInfluence(input.personalityAuthority ?? null)
+  if (!snapshot && !input.personalityAuthority)
     return 0
 
-  const preferences = snapshot.preferenceEvolution
+  const preferences = snapshot?.preferenceEvolution ?? {
+    companionship: 0,
+    truthfulGrounding: 0,
+    gentleRepair: 0,
+    quietObservation: 0,
+    proactiveCare: 0,
+    playfulIntimacy: 0,
+    autonomyRespect: 0,
+    unfinishedThreadReturn: 0,
+  }
   const dominantGoal = pickDominantAutobiographicalGoal(snapshot)
   let gain = 0
   switch (input.action) {
     case 'recheck':
-      gain += preferences.truthfulGrounding * 0.16 + preferences.gentleRepair * 0.08
+      gain += preferences.truthfulGrounding * 0.16 + preferences.gentleRepair * 0.08 + personaAuthority.repairBias * 0.18
       break
     case 'hover':
     case 'wait':
-      gain += preferences.quietObservation * 0.12 + preferences.autonomyRespect * 0.08
+      gain += preferences.quietObservation * 0.12 + preferences.autonomyRespect * 0.08 + personaAuthority.roomBias * 0.18
       break
     case 'whisper':
-      gain += preferences.companionship * 0.08 + preferences.playfulIntimacy * 0.08
+      gain += preferences.companionship * 0.08 + preferences.playfulIntimacy * 0.08 + personaAuthority.warmthBias * 0.1 + personaAuthority.directnessBias * 0.08
       break
     case 'warn':
-      gain += preferences.proactiveCare * 0.12 + preferences.truthfulGrounding * 0.06
+      gain += preferences.proactiveCare * 0.12 + preferences.truthfulGrounding * 0.06 + personaAuthority.warmthBias * 0.06
       break
     case 'speak':
-      gain += preferences.companionship * 0.08 + preferences.proactiveCare * 0.06
+      gain += preferences.companionship * 0.08 + preferences.proactiveCare * 0.06 + personaAuthority.directnessBias * 0.12 + personaAuthority.warmthBias * 0.08
       break
   }
 
@@ -273,8 +295,10 @@ function proposalBias(input: {
   motiveEngine?: AlicizationMotiveEngineSnapshot | null
   habitPolicy?: AlicizationHabitPolicySnapshot | null
   concern?: AlicizationConcernSnapshot | null
+  memoryTuningAdvice?: AlicizationMemoryTuningAdvice | null
 }) {
   let bias = 0
+  const rememberedFamiliarityRestraint = hasRememberedFamiliarityRestraint(input.memoryTuningAdvice ?? null)
 
   switch (input.proposal.action) {
     case 'recheck':
@@ -288,6 +312,10 @@ function proposalBias(input: {
       bias += (input.motiveEngine?.drives.companionship ?? 0) * 0.08
       bias += input.habitPolicy?.prefersQuietCompanionship ? 0.12 : 0
       bias += input.habitPolicy?.blocksDirectSpeakWhenBusy ? 0.06 : 0
+      if (rememberedFamiliarityRestraint && input.proposal.action === 'hover')
+        bias += input.proposal.source === 'counterfactual' ? 0.22 : 0.16
+      if (rememberedFamiliarityRestraint && input.proposal.action === 'whisper')
+        bias -= input.proposal.source === 'counterfactual' ? 0.16 : 0.18
       break
     case 'warn':
       bias += (input.motiveEngine?.drives.restProtection ?? 0) * 0.14
@@ -297,10 +325,14 @@ function proposalBias(input: {
       bias += (input.motiveEngine?.drives.restProtection ?? 0) * 0.08
       bias += (input.motiveEngine?.drives.companionship ?? 0) * 0.04
       bias -= input.habitPolicy?.blocksDirectSpeakWhenBusy ? 0.12 : 0
+      if (rememberedFamiliarityRestraint)
+        bias -= input.proposal.source === 'counterfactual' ? 0.18 : 0.22
       break
     case 'wait':
       bias += (input.motiveEngine?.drives.boundaryRespect ?? 0) * 0.08
       bias += input.habitPolicy?.blocksDirectSpeakWhenBusy ? 0.12 : 0
+      if (rememberedFamiliarityRestraint)
+        bias += 0.06
       break
   }
 
@@ -308,6 +340,34 @@ function proposalBias(input: {
     bias += (input.motiveEngine?.drives.restProtection ?? 0) * 0.08
 
   return Math.max(-0.18, Math.min(0.22, Number(bias.toFixed(2))))
+}
+
+function buildPersonaProposalWhy(input: {
+  personalityAuthority?: AlicizationPersonalityState | null
+  action: AlicizationMindActionTendency
+  baseWhy: string
+}) {
+  const authority = deriveAlicizationPersonaAuthorityInfluence(input.personalityAuthority ?? null)
+  const initiativeStyle = input.personalityAuthority?.identityKernel?.initiativeStyle ?? null
+  const silenceReconnect = input.personalityAuthority?.initiativeBaseline?.silenceReconnect ?? null
+  const relationshipPosture = input.personalityAuthority?.identityKernel?.relationshipPosture ?? null
+
+  const personaLine = (() => {
+    if ((initiativeStyle === 'observant' || silenceReconnect === 'hold') && (input.action === 'hover' || input.action === 'wait'))
+      return 'persona prefers observe-first room before a closer move.'
+    if ((initiativeStyle === 'high-participation' || silenceReconnect === 'direct-approach') && (input.action === 'whisper' || input.action === 'speak'))
+      return 'persona prefers a direct reconnect once the opening is real.'
+    if (relationshipPosture === 'guardian' && (input.action === 'warn' || input.action === 'speak' || input.action === 'whisper'))
+      return 'persona carries a guardian-like care bias in this opening.'
+    if (authority.preferredProactiveStyle === 'silent-observe' && input.action === 'hover')
+      return 'persona keeps the move in observe-first posture.'
+    return ''
+  })()
+
+  return sanitizeText([
+    input.baseWhy,
+    personaLine ? `persona=${personaLine}` : '',
+  ].filter(Boolean).join(' '), 220) || input.baseWhy
 }
 
 function createProposal(input: {
@@ -322,6 +382,7 @@ function createProposal(input: {
   relationshipModel?: AlicizationRelationshipModelSnapshot | null
   selfContinuity?: AlicizationSelfContinuitySnapshot | null
   autobiographicalSelf?: AlicizationAutobiographicalSelfSnapshot | null
+  personalityAuthority?: AlicizationPersonalityState | null
   style?: AlicizationProactiveStyle
   presence?: AlicizationInitiativeProposalSnapshot['embodiedPresence']
   targetBeliefId?: string | null
@@ -360,6 +421,7 @@ function createProposal(input: {
     action: input.action,
     source: input.source,
     autobiographicalSelf: input.autobiographicalSelf,
+    personalityAuthority: input.personalityAuthority,
   })
   return {
     id: sanitizeText(input.id, 180) || `${input.source}:${input.action}`,
@@ -395,7 +457,11 @@ function createProposal(input: {
     }),
     shouldSpeak: actionSpeaks(input.action),
     shouldSurface: input.action !== 'wait' || (input.presence ?? defaultPresence(input.action)) !== 'none',
-    why: sanitizeText(input.why, 220) || 'The inner line is still deciding how close to come.',
+    why: buildPersonaProposalWhy({
+      personalityAuthority: input.personalityAuthority ?? null,
+      action: input.action,
+      baseWhy: sanitizeText(input.why, 220) || 'The inner line is still deciding how close to come.',
+    }),
   }
 }
 
@@ -410,6 +476,7 @@ export function buildInitiativeArbitration(input: {
   relationshipModel?: AlicizationRelationshipModelSnapshot | null
   selfContinuity?: AlicizationSelfContinuitySnapshot | null
   autobiographicalSelf?: AlicizationAutobiographicalSelfSnapshot | null
+  personalityAuthority?: AlicizationPersonalityState | null
   motiveEngine?: AlicizationMotiveEngineSnapshot | null
   habitPolicy?: AlicizationHabitPolicySnapshot | null
   selfGovernor?: AlicizationSelfGovernorSnapshot | null
@@ -418,6 +485,7 @@ export function buildInitiativeArbitration(input: {
   commitmentLedger?: AlicizationCommitmentLedgerSnapshot | null
   counterfactualDeliberation?: AlicizationCounterfactualDeliberationSnapshot | null
   desireMemory?: AlicizationDesireMemorySnapshot | null
+  memoryTuningAdvice?: AlicizationMemoryTuningAdvice | null
 }): AlicizationInitiativeArbitrationSnapshot {
   const concern = dominantConcern(input.concerns)
   const runtimeThread = foregroundRuntimeThread(input.threadRuntime)
@@ -456,6 +524,7 @@ export function buildInitiativeArbitration(input: {
       relationshipModel: input.relationshipModel,
       selfContinuity: input.selfContinuity,
       autobiographicalSelf: input.autobiographicalSelf,
+      personalityAuthority: input.personalityAuthority,
       style: option.style,
       presence: option.embodiedPresence,
       targetCounterfactualOptionId: option.id,
@@ -494,6 +563,7 @@ export function buildInitiativeArbitration(input: {
       relationshipModel: input.relationshipModel,
       selfContinuity: input.selfContinuity,
       autobiographicalSelf: input.autobiographicalSelf,
+      personalityAuthority: input.personalityAuthority,
       style: concern.kind === 'care-body'
         ? (input.context.relationship.fatigue >= 80 ? 'firm-warning' : 'gentle-care')
         : concern.kind === 'co-watch'
@@ -534,6 +604,7 @@ export function buildInitiativeArbitration(input: {
       relationshipModel: input.relationshipModel,
       selfContinuity: input.selfContinuity,
       autobiographicalSelf: input.autobiographicalSelf,
+      personalityAuthority: input.personalityAuthority,
       targetCommitmentId: commitment.id,
       targetRuntimeThreadId: runtimeThread?.id ?? null,
       targetThoughtThreadId: thoughtThread?.id ?? null,
@@ -570,6 +641,7 @@ export function buildInitiativeArbitration(input: {
       relationshipModel: input.relationshipModel,
       selfContinuity: input.selfContinuity,
       autobiographicalSelf: input.autobiographicalSelf,
+      personalityAuthority: input.personalityAuthority,
       targetThoughtThreadId: thoughtThread.id,
       targetConcernId: concern?.id ?? null,
     }))
@@ -597,6 +669,7 @@ export function buildInitiativeArbitration(input: {
       relationshipModel: input.relationshipModel,
       selfContinuity: input.selfContinuity,
       autobiographicalSelf: input.autobiographicalSelf,
+      personalityAuthority: input.personalityAuthority,
       presence: runtimeThread.suggestedPresence,
       targetRuntimeThreadId: runtimeThread.id,
       targetThreadId: runtimeThread.sourceThreadId ?? null,
@@ -628,6 +701,7 @@ export function buildInitiativeArbitration(input: {
       relationshipModel: input.relationshipModel,
       selfContinuity: input.selfContinuity,
       autobiographicalSelf: input.autobiographicalSelf,
+      personalityAuthority: input.personalityAuthority,
       targetGovernorIntentionId: governorIntention.id,
       targetConcernId: concern?.id ?? null,
     }))
@@ -657,6 +731,7 @@ export function buildInitiativeArbitration(input: {
       relationshipModel: input.relationshipModel,
       selfContinuity: input.selfContinuity,
       autobiographicalSelf: input.autobiographicalSelf,
+      personalityAuthority: input.personalityAuthority,
       targetDesireId: desire.id,
       targetConcernId: concern?.id ?? null,
     }))
@@ -690,6 +765,7 @@ export function buildInitiativeArbitration(input: {
       relationshipModel: input.relationshipModel,
       selfContinuity: input.selfContinuity,
       autobiographicalSelf: input.autobiographicalSelf,
+      personalityAuthority: input.personalityAuthority,
       targetThreadId: input.worldModel.activeThread.id,
       targetRuntimeThreadId: runtimeThread?.id ?? null,
       targetThoughtThreadId: thoughtThread?.id ?? null,
@@ -711,6 +787,7 @@ export function buildInitiativeArbitration(input: {
       relationshipModel: input.relationshipModel,
       selfContinuity: input.selfContinuity,
       autobiographicalSelf: input.autobiographicalSelf,
+      personalityAuthority: input.personalityAuthority,
       targetConcernId: concern?.id ?? null,
     }))
   }
@@ -723,6 +800,7 @@ export function buildInitiativeArbitration(input: {
         motiveEngine: input.motiveEngine ?? null,
         habitPolicy: input.habitPolicy ?? null,
         concern,
+        memoryTuningAdvice: input.memoryTuningAdvice ?? null,
       })),
     }))
     .sort((left, right) => right.score - left.score)

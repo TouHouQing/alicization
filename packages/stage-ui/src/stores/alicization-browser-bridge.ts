@@ -497,7 +497,10 @@ function parseSimpleFrontmatter(raw: string): Partial<AlicizationSoulFrontmatter
 
 function normalizeFrontmatter(raw: Partial<AlicizationSoulFrontmatter> | null | undefined): AlicizationSoulFrontmatter {
   const frontmatter = raw ?? {}
-  const normalizedFrontmatter = {
+  const normalizedPersonaKernel = resolveAlicizationPersonaKernel({
+    personality: frontmatter.personality,
+  })
+  const normalizedFrontmatter: AlicizationSoulFrontmatter = {
     schemaVersion: typeof frontmatter.schemaVersion === 'number' ? frontmatter.schemaVersion : defaultFrontmatter.schemaVersion,
     initialized: typeof frontmatter.initialized === 'boolean' ? frontmatter.initialized : defaultFrontmatter.initialized,
     custom_directives: normalizeCustomDirectives(frontmatter.custom_directives),
@@ -513,9 +516,7 @@ function normalizeFrontmatter(raw: Partial<AlicizationSoulFrontmatter> | null | 
       mindAge: normalizeMindAge(frontmatter.profile?.mindAge),
     },
     personality: {
-      obedience: clamp01(frontmatter.personality?.obedience ?? defaultFrontmatter.personality.obedience),
-      liveliness: clamp01(frontmatter.personality?.liveliness ?? defaultFrontmatter.personality.liveliness),
-      sensibility: clamp01(frontmatter.personality?.sensibility ?? defaultFrontmatter.personality.sensibility),
+      ...normalizedPersonaKernel.personality,
     },
     boundaries: {
       killSwitch: typeof frontmatter.boundaries?.killSwitch === 'boolean' ? frontmatter.boundaries.killSwitch : defaultFrontmatter.boundaries.killSwitch,
@@ -2418,11 +2419,43 @@ export function installBrowserAlicizationBridge(options?: { runtime?: BrowserRun
       }
 
       const parsed = parseSoul(current.content)
-      const nextPersonality = {
-        obedience: clamp01(parsed.frontmatter.personality.obedience + (payload.deltas.obedience ?? 0)),
-        liveliness: clamp01(parsed.frontmatter.personality.liveliness + (payload.deltas.liveliness ?? 0)),
-        sensibility: clamp01(parsed.frontmatter.personality.sensibility + (payload.deltas.sensibility ?? 0)),
-      }
+      const nextPersonality = normalizeFrontmatter({
+        ...parsed.frontmatter,
+        personality: {
+          ...parsed.frontmatter.personality,
+          obedience: clamp01(parsed.frontmatter.personality.obedience + (payload.deltas.obedience ?? 0)),
+          liveliness: clamp01(parsed.frontmatter.personality.liveliness + (payload.deltas.liveliness ?? 0)),
+          sensibility: clamp01(parsed.frontmatter.personality.sensibility + (payload.deltas.sensibility ?? 0)),
+          identityKernel: {
+            ...parsed.frontmatter.personality.identityKernel,
+            temperament: {
+              obedience: clamp01(
+                (parsed.frontmatter.personality.identityKernel?.temperament?.obedience ?? parsed.frontmatter.personality.obedience)
+                + (payload.deltas.obedience ?? 0),
+              ),
+              liveliness: clamp01(
+                (parsed.frontmatter.personality.identityKernel?.temperament?.liveliness ?? parsed.frontmatter.personality.liveliness)
+                + (payload.deltas.liveliness ?? 0),
+              ),
+              sensibility: clamp01(
+                (parsed.frontmatter.personality.identityKernel?.temperament?.sensibility ?? parsed.frontmatter.personality.sensibility)
+                + (payload.deltas.sensibility ?? 0),
+              ),
+            },
+          },
+          expressionProfile: {
+            ...parsed.frontmatter.personality.expressionProfile,
+          },
+          initiativeBaseline: {
+            ...parsed.frontmatter.personality.initiativeBaseline,
+          },
+          evolutionSeed: {
+            ...parsed.frontmatter.personality.evolutionSeed,
+          },
+          identityAnchors: [...(parsed.frontmatter.personality.identityAnchors ?? [])],
+          antiPersonaConstraints: [...(parsed.frontmatter.personality.antiPersonaConstraints ?? [])],
+        },
+      }).personality
       const nextFrontmatter = normalizeFrontmatter({
         ...parsed.frontmatter,
         personality: nextPersonality,

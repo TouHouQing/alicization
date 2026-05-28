@@ -1,0 +1,171 @@
+<style>
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 20px;
+    margin-top: 20px;
+  }
+  .panel {
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 18px;
+    padding: 18px;
+    background: rgba(255,255,255,0.04);
+    cursor: pointer;
+  }
+  .panel.selected {
+    border-color: #7dd3fc;
+    box-shadow: 0 0 0 1px rgba(125,211,252,0.55), 0 12px 32px rgba(14,165,233,0.18);
+    background: rgba(14,165,233,0.08);
+  }
+  .badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    margin-bottom: 10px;
+    background: rgba(255,255,255,0.08);
+  }
+  .badge.rec {
+    background: rgba(34,197,94,0.16);
+    color: #bbf7d0;
+  }
+  h3 {
+    margin: 4px 0 10px;
+    font-size: 20px;
+  }
+  .score {
+    display: grid;
+    grid-template-columns: 96px 1fr;
+    gap: 8px;
+    align-items: center;
+    margin: 8px 0;
+    font-size: 13px;
+  }
+  .bar {
+    height: 8px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.08);
+    overflow: hidden;
+  }
+  .fill {
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #38bdf8, #34d399);
+  }
+  .path {
+    margin-top: 14px;
+    padding: 12px;
+    border-radius: 14px;
+    background: rgba(0,0,0,0.16);
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .small {
+    font-size: 13px;
+    color: rgba(255,255,255,0.72);
+  }
+  .compare {
+    margin-top: 22px;
+    display: grid;
+    grid-template-columns: 1.15fr 1fr;
+    gap: 20px;
+  }
+  .box {
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 18px;
+    padding: 18px;
+    background: rgba(255,255,255,0.04);
+  }
+  .loop {
+    display: grid;
+    gap: 10px;
+    margin-top: 12px;
+  }
+  .node {
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.08);
+  }
+  .danger {
+    color: #fca5a5;
+  }
+  .good {
+    color: #86efac;
+  }
+  @media (max-width: 1100px) {
+    .grid, .compare {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+
+<h2>数字生命长期架构路线对比</h2>
+<p class="subtitle">目标已经明确：产品表现像单人数字伴侣，但底层骨架要能承载具身 agent；一期以 Live2D、桌宠式交互、中文优先、生命感和低延迟为主。</p>
+
+<div class="grid">
+  <div class="panel" data-choice="route-a" onclick="toggleSelect(this)">
+    <div class="badge">路线 A</div>
+    <h3>继续强化现有双层拼接</h3>
+    <p class="small">保留现在的 `mind governance -> presence dispatcher -> speech/performance runtime` 结构，只做局部加固。</p>
+    <div class="score"><span>生命感</span><div class="bar"><div class="fill" style="width:70%"></div></div></div>
+    <div class="score"><span>实时性</span><div class="bar"><div class="fill" style="width:72%"></div></div></div>
+    <div class="score"><span>开发速度</span><div class="bar"><div class="fill" style="width:88%"></div></div></div>
+    <div class="score"><span>可维护性</span><div class="bar"><div class="fill" style="width:45%"></div></div></div>
+    <div class="path">
+      优点：最省改动，短期能继续堆功能。<br>
+      风险：心智层和具身层会继续出现“有状态但不同步”的问题，后面做实时打断、动作优先级、表情过渡会越来越难。
+    </div>
+  </div>
+
+  <div class="panel" data-choice="route-b" onclick="toggleSelect(this)">
+    <div class="badge rec">推荐路线 B</div>
+    <h3>建立单一“演出总线”</h3>
+    <p class="small">把 `mind-turn` 的最终结果收束为统一的 `performance script / embodiment timeline`，再分别驱动 TTS、口型、表情、动作。</p>
+    <div class="score"><span>生命感</span><div class="bar"><div class="fill" style="width:92%"></div></div></div>
+    <div class="score"><span>实时性</span><div class="bar"><div class="fill" style="width:90%"></div></div></div>
+    <div class="score"><span>开发速度</span><div class="bar"><div class="fill" style="width:68%"></div></div></div>
+    <div class="score"><span>可维护性</span><div class="bar"><div class="fill" style="width:90%"></div></div></div>
+    <div class="path">
+      优点：最适合你现在这个仓库，因为心智层已经很强，只差一个“具身权威层”把 reply、prosody、mouth、face、body 真正绑定在同一时序里。<br>
+      风险：需要一次明确的中层重构，不是纯补丁。
+    </div>
+  </div>
+
+  <div class="panel" data-choice="route-c" onclick="toggleSelect(this)">
+    <div class="badge">路线 C</div>
+    <h3>外置成多进程数字生命平台</h3>
+    <p class="small">像 `N.E.K.O` 一类架构那样拆成 agent/server/client/tts/animation 等多个服务，本仓库变成前端壳。</p>
+    <div class="score"><span>生命感</span><div class="bar"><div class="fill" style="width:82%"></div></div></div>
+    <div class="score"><span>实时性</span><div class="bar"><div class="fill" style="width:78%"></div></div></div>
+    <div class="score"><span>开发速度</span><div class="bar"><div class="fill" style="width:38%"></div></div></div>
+    <div class="score"><span>可维护性</span><div class="bar"><div class="fill" style="width:74%"></div></div></div>
+    <div class="path">
+      优点：平台化强，后续接 Web、移动端、远程服务更舒服。<br>
+      风险：对你当前“本地活着”的目标来说太重，短中期会把大量精力花在基础设施而不是生命感闭环。
+    </div>
+  </div>
+</div>
+
+<div class="compare">
+  <div class="box">
+    <h3>我建议的闭环形态</h3>
+    <p class="small">不是 “LLM 回一句话，然后各模块自己猜该怎么动”，而是先生成一条受心智治理约束的演出脚本，再由多个执行器消费同一条时间线。</p>
+    <div class="loop">
+      <div class="node">1. Main Runtime 产出 `mind-turn-v1`</div>
+      <div class="node">2. Embodiment Director 产出统一 `performance script`</div>
+      <div class="node">3. Speech Planner 产出 prosody / 分段 / 可中断策略</div>
+      <div class="node">4. LipSync Driver 消费音频 + phoneme/energy/viseme</div>
+      <div class="node">5. Face Driver 消费 emotion / facial cue / micro-expression</div>
+      <div class="node">6. Motion Driver 消费 action cue / posture / idle state</div>
+      <div class="node">7. Telemetry 回流，修正下次演出与实时策略</div>
+    </div>
+  </div>
+
+  <div class="box">
+    <h3>关键判断</h3>
+    <p class="good">你现在最值钱的资产：`Alicization` 的 mind/runtime/governance 已经足够深。</p>
+    <p class="danger">你现在最大的结构问题：具身层仍然偏“并行派发”，而不是“统一编排”。</p>
+    <p class="small">如果继续沿路线 A 迭代，你会越来越常见这些问题：表情和语音错位、动作抢占不稳定、实时打断后状态悬挂、不同渲染器行为不一致、从聊天到常驻陪伴时的 resident state 很难统一。</p>
+  </div>
+</div>

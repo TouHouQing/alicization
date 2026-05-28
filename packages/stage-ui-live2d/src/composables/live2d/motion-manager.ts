@@ -639,6 +639,7 @@ export function useMotionUpdatePluginPerformanceLayers(): MotionManagerPlugin {
   const speechContinuityState = createLive2DSpeechContinuityState()
   // Keep the last runtime-authored facial release window alive briefly after a cue clears.
   const rendererSettleState = {
+    activeCueKey: '',
     facialReleaseMs: 0,
     facialReleaseUntil: 0,
   }
@@ -780,12 +781,19 @@ export function useMotionUpdatePluginPerformanceLayers(): MotionManagerPlugin {
     const embodiedPerformance = performanceState?.performance
     const posture = ctx.presencePosture.value
     const params = ctx.modelParameters.value
+    const activeCueKey = [
+      performanceState?.activeCue?.id ?? '',
+      performanceState?.activeCueSource ?? 'none',
+      speech?.item?.segmentId ?? '',
+    ].join('|')
     const runtimeFacialReleaseMs = Number(performanceState?.activeCue?.rendererSettle?.live2dFacialReleaseMs ?? 0)
-    if (runtimeFacialReleaseMs > 0 && performanceState?.activeCueSource !== 'none') {
+    if (runtimeFacialReleaseMs > 0 && performanceState?.activeCueSource !== 'none' && activeCueKey !== rendererSettleState.activeCueKey) {
+      rendererSettleState.activeCueKey = activeCueKey
       rendererSettleState.facialReleaseMs = runtimeFacialReleaseMs
       rendererSettleState.facialReleaseUntil = ctx.now + runtimeFacialReleaseMs
     }
     else if (ctx.now >= rendererSettleState.facialReleaseUntil) {
+      rendererSettleState.activeCueKey = ''
       rendererSettleState.facialReleaseMs = 0
       rendererSettleState.facialReleaseUntil = 0
     }

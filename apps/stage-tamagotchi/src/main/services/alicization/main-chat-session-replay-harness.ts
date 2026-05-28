@@ -15,6 +15,7 @@ import type { AlicizationPreparedMainChatPrelude } from './main-chat-session-run
 import type { AlicizationPreparedMainChatExecutionResult } from './main-chat-session-runtime'
 import type { OrganicMemoryPromptContext } from './runtime-soul'
 import type { AlicizationTurnGraph } from './turn-os/turn-graph'
+import type { AlicizationVisibleReplyRealizationArtifact } from './visible-reply/facade'
 
 import {
   deriveAlicizationMemoryClosureDiscipline,
@@ -29,12 +30,16 @@ import {
   readRecollectionSpeechPlanFromDerivedMindStateBundle,
 } from '@proj-alicization/stage-shared'
 import { createAlicizationAgentRuntime } from './agent-runtime'
+import { projectAlicizationDigitalLifeSpineDigest } from './digital-life-spine'
 import { createAlicizationMainChatSessionRuntime } from './main-chat-session-runtime'
 import {
   buildAlicizationMemoryRecallFeedbackSample,
   summarizeAlicizationMemoryRecallFeedback,
 } from './memory-os/recall-feedback-runtime'
-import { alicizationTurnGraphCanonicalStageOrder } from './turn-os/turn-graph'
+import {
+  alicizationTurnGraphCanonicalStageOrder,
+  buildAlicizationTurnGraphFromSettlements,
+} from './turn-os/turn-graph'
 
 const executionChannels = [
   'cli',
@@ -250,6 +255,8 @@ export interface AlicizationReplayTurn {
   expectedMemory?: string
   categories?: string[]
   organicMemoryContext?: OrganicMemoryPromptContext
+  performanceManifest?: AlicizationPreparedMainChatExecutionResult['performanceManifest']
+  visibleReplyRealization?: AlicizationVisibleReplyRealizationArtifact | null
   prelude?: AlicizationPreparedMainChatPrelude
   messages?: Message[]
   tracePointer?: AlicizationReplayBenchmarkTracePointer
@@ -271,6 +278,7 @@ interface AlicizationReplayGoldExpectation {
   replyAuthority?: string | null
   latencyBudgetClass?: AlicizationReplayLatencyBudgetClass
   latencyBudgetPass?: boolean
+  embodimentAuthority?: AlicizationMemoryDecisionTraceRecord['embodimentAuthority']
 }
 
 interface AlicizationReplayBenchmarkSampleConversationTurn {
@@ -286,6 +294,8 @@ type AlicizationReplayBenchmarkSampleCategory
   = 'dialogue'
     | 'execution'
     | 'proactive'
+    | 'quiet-companionship'
+    | 'presence-quality'
     | 'repair'
     | 'wrong-thread'
     | 'deferred-followup'
@@ -521,6 +531,7 @@ function summarizeReplayTurnGraph(turnGraph: AlicizationTurnGraph | null | undef
     learning: {
       selfEvolutionKernelVersion: turnGraph.learning.selfEvolutionKernelVersion,
       nextLearningAction: turnGraph.learning.nextLearningAction,
+      activeLearningFocuses: [...(turnGraph.learning.activeLearningFocuses ?? [])],
       activeSelfRevisionPatchId: turnGraph.learning.activeSelfRevisionPatchId,
       activeSelfRevisionDecisionTraceId: turnGraph.learning.activeSelfRevisionDecisionTraceId,
       activeSelfEvolutionCandidateId: turnGraph.learning.activeSelfEvolutionCandidateId,
@@ -807,6 +818,7 @@ export function buildReplayBenchmarkMemoryStatsPatch(input: {
             wrongThreadSuppression: input.goldMetrics.wrongThreadSuppression,
             claimAccuracy: input.goldMetrics.claimAccuracy,
             replyAuthorityAccuracy: input.goldMetrics.replyAuthorityAccuracy,
+            embodiedAuthorityAccuracy: input.goldMetrics.embodiedAuthorityAccuracy,
             latencyBudgetPass: input.goldMetrics.latencyBudgetPass,
             sampleCount: input.goldMetrics.evaluatedTurnCount,
             productionGoldSampleCount: input.goldMetrics.productionEvaluatedTurnCount,
@@ -949,6 +961,7 @@ function parseReplayGoldExpectation(raw: unknown): AlicizationReplayGoldExpectat
   const latencyBudgetPass = typeof candidate.latencyBudgetPass === 'boolean'
     ? candidate.latencyBudgetPass
     : undefined
+  const embodimentAuthority = asObject(candidate.embodimentAuthority)
   if (
     selectedCandidateIds.length === 0
     && suppressedCandidateIds.length === 0
@@ -956,6 +969,7 @@ function parseReplayGoldExpectation(raw: unknown): AlicizationReplayGoldExpectat
     && !replyAuthority
     && !latencyBudgetClass
     && latencyBudgetPass == null
+    && !embodimentAuthority
   ) {
     return undefined
   }
@@ -966,6 +980,7 @@ function parseReplayGoldExpectation(raw: unknown): AlicizationReplayGoldExpectat
     replyAuthority: replyAuthority || null,
     latencyBudgetClass,
     latencyBudgetPass,
+    embodimentAuthority: embodimentAuthority as AlicizationReplayGoldExpectation['embodimentAuthority'],
   }
 }
 
@@ -1501,7 +1516,7 @@ export function buildSampledHumanlikeMemoryBenchmarkPack(input: {
   conversationTurns: AlicizationReplayBenchmarkSampleConversationTurn[]
   memoryDecisionTraces: AlicizationMemoryDecisionTraceRecord[]
   limit?: number
-}) {
+}): AlicizationReplayTurn[] {
   const limit = Math.max(1, Math.min(24, Math.floor(input.limit ?? 12)))
   const traceByTurnId = new Map<string, AlicizationMemoryDecisionTraceRecord>()
   for (const trace of [...input.memoryDecisionTraces].sort((left, right) => right.lastUpdatedAt - left.lastUpdatedAt)) {
@@ -2474,6 +2489,7 @@ interface AlicizationReplayGoldMetrics {
   wrongThreadSuppression: number
   claimAccuracy: number
   replyAuthorityAccuracy: number
+  embodiedAuthorityAccuracy: number
   latencyBudgetPass: boolean
 }
 
@@ -2510,6 +2526,149 @@ function readPreparedReplyAuthority(prepared: AlicizationPreparedMainChatExecuti
 function readPreparedLatencyBudgetClass(prepared: AlicizationPreparedMainChatExecutionResult) {
   const derivedBundle = prepared.organicMemoryContext?.derivedMindStateBundle ?? null
   return readString(derivedBundle?.recallLatencyPolicy?.budgetClass, 64) || null
+}
+
+function rebuildReplayPreparedTurnGraph(
+  prepared: AlicizationPreparedMainChatExecutionResult,
+  surface: AlicizationVisibleReplyRealizationArtifact | null,
+) {
+  return buildAlicizationTurnGraphFromSettlements({
+    prepared,
+    cardId: 'default',
+    turnId: prepared.turnGraph.ids.turnId,
+    actionObligation: prepared.runtimeSurface?.action ?? null,
+    memory: prepared.memoryTurnArtifact ?? null,
+    surface,
+    routingRequired: prepared.runtimeSurface?.tooling?.routingRequired ?? false,
+    stageSettlements: prepared.turnRuntimeContext?.stageSettlements ?? prepared.turnGraph?.stageSettlements ?? [],
+    activeSelfRevision: {
+      patchId: prepared.turnRuntimeContext?.selfRevisionConsumption.activePatchId ?? null,
+      decisionTraceId: prepared.turnRuntimeContext?.selfRevisionConsumption.activePatchDecisionTraceId ?? null,
+      candidateId: prepared.turnRuntimeContext?.selfRevisionConsumption.activeCandidateId ?? null,
+    },
+  })
+}
+
+function readPreparedEmbodimentAuthority(prepared: AlicizationPreparedMainChatExecutionResult) {
+  const runtimeSurface = prepared.runtimeSurface ?? null
+  const spine = runtimeSurface?.digitalLifeSpine ?? null
+  const spineDigest = projectAlicizationDigitalLifeSpineDigest(spine)
+  const mode = readString(spine?.architecture?.operatingMode, 64) || null
+  const actionCue = readString(spineDigest?.runtime?.selectedAction, 64) || null
+  const preferredPresence = readString(spineDigest?.runtime?.preferredPresence, 64) || null
+  const rendererTarget = readString(prepared.performanceManifest?.renderer, 64) || null
+  const actualAuthority = readString(prepared.turnGraph.surface?.actualAuthority, 64) || null
+  const providerMindExecuted = typeof prepared.turnGraph.surface?.providerMindExecuted === 'boolean'
+    ? prepared.turnGraph.surface.providerMindExecuted
+    : null
+  const expectedAuthority = readString(
+    prepared.turnGraph.surface?.expectedAuthority
+      ?? prepared.replyExecutionPlan?.expectedVisibleReplyAuthority
+      ?? runtimeSurface?.replyExecutionPlan?.expectedVisibleReplyAuthority
+      ?? runtimeSurface?.replyAuthority?.expectedVisibleReplyAuthority,
+    64,
+  ) || null
+  if (!mode && !actionCue && !preferredPresence && !rendererTarget && !expectedAuthority && !actualAuthority && providerMindExecuted == null)
+    return null
+
+  return {
+    embodimentScript: rendererTarget
+      ? { rendererTarget }
+      : null,
+    visibleReply: {
+      expectedAuthority,
+      actualAuthority,
+      providerMindExecuted,
+    },
+    digitalLife: {
+      mode,
+      preferredPresence,
+      action: {
+        actionCue,
+      },
+    },
+  }
+}
+
+function matchesEmbodiedAuthority(input: {
+  expected: NonNullable<AlicizationReplayGoldExpectation['embodimentAuthority']>
+  actual: ReturnType<typeof readPreparedEmbodimentAuthority>
+}) {
+  const expectedRendererTarget = readString(input.expected.embodimentScript?.rendererTarget, 64) || null
+  const actualRendererTarget = readString(input.actual?.embodimentScript?.rendererTarget, 64) || null
+  const expectedVisibleReplyAuthority = readString(input.expected.visibleReply?.expectedAuthority, 64) || null
+  const actualVisibleReplyAuthority = readString(input.actual?.visibleReply?.expectedAuthority, 64) || null
+  const expectedActualVisibleReplyAuthority = readString(input.expected.visibleReply?.actualAuthority, 64) || null
+  const actualActualVisibleReplyAuthority = readString(input.actual?.visibleReply?.actualAuthority, 64) || null
+  const expectedProviderMindExecuted = typeof input.expected.visibleReply?.providerMindExecuted === 'boolean'
+    ? input.expected.visibleReply.providerMindExecuted
+    : null
+  const actualProviderMindExecuted = typeof input.actual?.visibleReply?.providerMindExecuted === 'boolean'
+    ? input.actual.visibleReply.providerMindExecuted
+    : null
+  const expectedMode = readString(input.expected.digitalLife?.mode, 64) || null
+  const expectedActionCue = readString(input.expected.digitalLife?.action?.actionCue, 64) || null
+  const expectedPreferredPresence = readString(input.expected.digitalLife?.preferredPresence, 64) || null
+  const actualMode = readString(input.actual?.digitalLife?.mode, 64) || null
+  const actualActionCue = readString(input.actual?.digitalLife?.action?.actionCue, 64) || null
+  const actualPreferredPresence = readString(input.actual?.digitalLife?.preferredPresence, 64) || null
+  if (expectedRendererTarget && expectedRendererTarget !== actualRendererTarget)
+    return false
+  if (expectedVisibleReplyAuthority && expectedVisibleReplyAuthority !== actualVisibleReplyAuthority)
+    return false
+  if (expectedActualVisibleReplyAuthority && expectedActualVisibleReplyAuthority !== actualActualVisibleReplyAuthority)
+    return false
+  if (expectedProviderMindExecuted != null && expectedProviderMindExecuted !== actualProviderMindExecuted)
+    return false
+  if (expectedMode && expectedMode !== actualMode)
+    return false
+  if (expectedActionCue && expectedActionCue !== actualActionCue)
+    return false
+  if (expectedPreferredPresence && expectedPreferredPresence !== actualPreferredPresence)
+    return false
+  return true
+}
+
+function buildEmbodiedAuthorityDiagnostics(input: {
+  expected?: AlicizationReplayGoldExpectation['embodimentAuthority']
+  actual?: ReturnType<typeof readPreparedEmbodimentAuthority>
+}) {
+  const diagnostics: NonNullable<AlicizationReplayBenchmarkFailureTurnRecord['embodiedAuthorityDiagnostics']> = []
+  const expectedVisibleReplyExpectedAuthority = readString(input.expected?.visibleReply?.expectedAuthority, 64) || null
+  const actualVisibleReplyExpectedAuthority = readString(input.actual?.visibleReply?.expectedAuthority, 64) || null
+  if (expectedVisibleReplyExpectedAuthority && expectedVisibleReplyExpectedAuthority !== actualVisibleReplyExpectedAuthority) {
+    diagnostics.push({
+      field: 'visibleReply.expectedAuthority',
+      expectedValue: expectedVisibleReplyExpectedAuthority,
+      actualValue: actualVisibleReplyExpectedAuthority,
+    })
+  }
+
+  const expectedVisibleReplyActualAuthority = readString(input.expected?.visibleReply?.actualAuthority, 64) || null
+  const actualVisibleReplyActualAuthority = readString(input.actual?.visibleReply?.actualAuthority, 64) || null
+  if (expectedVisibleReplyActualAuthority && expectedVisibleReplyActualAuthority !== actualVisibleReplyActualAuthority) {
+    diagnostics.push({
+      field: 'visibleReply.actualAuthority',
+      expectedValue: expectedVisibleReplyActualAuthority,
+      actualValue: actualVisibleReplyActualAuthority,
+    })
+  }
+
+  const expectedProviderMindExecuted = typeof input.expected?.visibleReply?.providerMindExecuted === 'boolean'
+    ? String(input.expected.visibleReply.providerMindExecuted)
+    : null
+  const actualProviderMindExecuted = typeof input.actual?.visibleReply?.providerMindExecuted === 'boolean'
+    ? String(input.actual.visibleReply.providerMindExecuted)
+    : null
+  if (expectedProviderMindExecuted && expectedProviderMindExecuted !== actualProviderMindExecuted) {
+    diagnostics.push({
+      field: 'visibleReply.providerMindExecuted',
+      expectedValue: expectedProviderMindExecuted,
+      actualValue: actualProviderMindExecuted,
+    })
+  }
+
+  return diagnostics.length > 0 ? diagnostics : null
 }
 
 function buildIndependentReplayGoldExpectationFromTrace(input: {
@@ -2554,6 +2713,7 @@ function buildIndependentReplayGoldExpectationFromTrace(input: {
     replyAuthority,
     latencyBudgetClass: readReplayLatencyBudgetClass(asObject(input.trace.derivedMindStateBundle)?.recallLatencyPolicyBudgetClass),
     latencyBudgetPass: true,
+    embodimentAuthority: input.trace.embodimentAuthority ?? undefined,
   }
 }
 
@@ -2580,6 +2740,8 @@ function evaluateReplayGoldMetrics(input: {
   let claimDenominator = 0
   let replyAuthorityMatches = 0
   let replyAuthorityDenominator = 0
+  let embodiedAuthorityMatches = 0
+  let embodiedAuthorityDenominator = 0
   let latencyBudgetMatches = 0
   let latencyBudgetDenominator = 0
   const recallFeedbackSamples: ReturnType<typeof buildAlicizationMemoryRecallFeedbackSample>[] = []
@@ -2654,6 +2816,15 @@ function evaluateReplayGoldMetrics(input: {
         replyAuthorityMatches += 1
     }
 
+    if (gold.embodimentAuthority) {
+      embodiedAuthorityDenominator += 1
+      if (matchesEmbodiedAuthority({
+        expected: gold.embodimentAuthority,
+        actual: readPreparedEmbodimentAuthority(prepared),
+      }))
+        embodiedAuthorityMatches += 1
+    }
+
     if (gold.latencyBudgetClass || gold.latencyBudgetPass != null) {
       latencyBudgetDenominator += 1
       const budgetMatch = !gold.latencyBudgetClass || actualLatencyBudgetClass === gold.latencyBudgetClass
@@ -2676,6 +2847,7 @@ function evaluateReplayGoldMetrics(input: {
     wrongThreadSuppression: ratioOrZero(wrongThreadHits, wrongThreadDenominator),
     claimAccuracy: ratioOrZero(claimMatches, claimDenominator),
     replyAuthorityAccuracy: ratioOrZero(replyAuthorityMatches, replyAuthorityDenominator),
+    embodiedAuthorityAccuracy: ratioOrZero(embodiedAuthorityMatches, embodiedAuthorityDenominator),
     latencyBudgetPass: latencyBudgetDenominator <= 0 || latencyBudgetMatches === latencyBudgetDenominator,
   }
 }
@@ -2730,6 +2902,10 @@ export function buildReplayBenchmarkFailingTurnSet(input: {
           prepared,
         }),
         turnGraphSummary: summarizeReplayTurnGraph(prepared?.turnGraph),
+        embodiedAuthorityDiagnostics: buildEmbodiedAuthorityDiagnostics({
+          expected: turn?.gold?.embodimentAuthority,
+          actual: prepared ? readPreparedEmbodimentAuthority(prepared) : null,
+        }),
         sampledCategories: turn?.sampledCategories ?? null,
         paritySummary: buildReplayBenchmarkParitySummary(turn),
         resolutionLedgerSummary: turn?.organicMemoryContext?.memoryResolutionLedger
@@ -2864,6 +3040,9 @@ function parseReplayTurnFromDatasetBacklogEntry(raw: unknown): AlicizationReplay
     userText: readString(replayTurnRaw?.userText, 240) || userText,
     expectedMemory: readString(replayTurnRaw?.expectedMemory, 240) || undefined,
     categories: readStringArray(replayTurnRaw?.categories, 8, 64),
+    visibleReplyRealization: asObject(replayTurnRaw?.visibleReplyRealization)
+      ? replayTurnRaw?.visibleReplyRealization as AlicizationVisibleReplyRealizationArtifact
+      : undefined,
     organicMemoryContext: asObject(replayTurnRaw?.organicMemoryContext)
       ? replayTurnRaw?.organicMemoryContext as OrganicMemoryPromptContext
       : undefined,
@@ -3344,7 +3523,7 @@ export async function replayMainChatSession(input: {
       ok: true,
       summary: 'noop',
     } as any),
-    getPerformanceManifest: async () => null,
+    getPerformanceManifest: async () => activeTurn?.performanceManifest ?? null,
     getSensorySnapshot,
     latestUserMessageContainsVisualInput: () => false,
     openAgentTurn: async (turnInput) => {
@@ -3394,7 +3573,12 @@ export async function replayMainChatSession(input: {
       } as any,
       prelude,
     })
-    results.push(prepared)
+    results.push(turn.visibleReplyRealization
+      ? {
+          ...prepared,
+          turnGraph: rebuildReplayPreparedTurnGraph(prepared, turn.visibleReplyRealization),
+        }
+      : prepared)
   }
 
   return results

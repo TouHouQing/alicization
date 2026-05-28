@@ -181,6 +181,7 @@ export interface AlicizationPresenceQualityStats {
   quietCompanionshipCoverage: number
   silentPresenceNuisanceRate: number
   continuityMindCarryRate: number
+  roomFirstCadenceRespectRate: number
 }
 
 export interface AlicizationMemoryStats {

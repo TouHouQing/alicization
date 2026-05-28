@@ -18,6 +18,7 @@ import type {
   AlicizationWorldModelSnapshot,
 } from '../../../shared/eventa'
 import type { AlicizationProactiveLayeredContext } from './proactive-layered-context'
+import type { AlicizationMemoryTuningAdvice } from './memory-tuning-advice'
 
 function clamp01(value: number) {
   if (!Number.isFinite(value))
@@ -29,6 +30,14 @@ function sanitizeText(raw: unknown, maxChars = 180) {
   if (typeof raw !== 'string')
     return ''
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
+}
+
+function hasRememberedFamiliarityRestraint(memoryTuningAdvice?: AlicizationMemoryTuningAdvice | null) {
+  if (!memoryTuningAdvice)
+    return false
+
+  return (memoryTuningAdvice.surfaceAdjustments.provenanceLabelBias ?? 0) >= 0.14
+    && (memoryTuningAdvice.personStateAdjustments.closenessCapBias ?? 0) >= 0.14
 }
 
 function topHostGoal(input: {
@@ -153,6 +162,7 @@ function buildWhy(input: {
   uncertain: boolean
   careUrgent: boolean
   afterglowOpen: boolean
+  rememberedFamiliarityRestraint: boolean
   concern?: AlicizationConcernSnapshot
   commitmentSummary?: string
   threadSummary?: string
@@ -177,6 +187,8 @@ function buildWhy(input: {
         return 'The shared thread just loosened; a light touch belongs better than a full interruption.'
       return input.concern?.summary ?? 'A soft edge-of-scene check-in fits better than full speech.'
     case 'hover':
+      if (input.rememberedFamiliarityRestraint)
+        return '记忆里的熟悉感可以留在这里，但现在先把它当作记忆握住，不要直接把它变成更近的可见靠近。'
       return input.afterglowOpen
         ? 'The thread is still warm, but presence fits better than words for one more breath.'
         : 'Staying near preserves continuity without forcing the opening.'
@@ -223,6 +235,7 @@ export function buildCounterfactualDeliberation(input: {
   threadRuntime?: AlicizationThreadRuntimeStateSnapshot | null
   mindDynamics: AlicizationMindDynamicsSnapshot
   mindKernel?: AlicizationMindKernelSnapshot | null
+  memoryTuningAdvice?: AlicizationMemoryTuningAdvice | null
   previous?: AlicizationCounterfactualDeliberationSnapshot | null
 }): AlicizationCounterfactualDeliberationSnapshot {
   const relationshipNeed = topRelationshipNeed(input)
@@ -253,6 +266,7 @@ export function buildCounterfactualDeliberation(input: {
   const careUrgent = input.context.relationship.fatigue >= 80
     || input.worldModel.activeThread?.kind === 'late-night-endurance'
     || concern?.kind === 'care-body'
+  const rememberedFamiliarityRestraint = hasRememberedFamiliarityRestraint(input.memoryTuningAdvice ?? null)
   const guidanceWindow = (hostGoal === 'resolve-problem' || hostGoal === 'inspect-change')
     && (
       worldCertainty === 'grounded'
@@ -447,6 +461,7 @@ export function buildCounterfactualDeliberation(input: {
         uncertain,
         careUrgent,
         afterglowOpen,
+        rememberedFamiliarityRestraint,
         concern,
         commitmentSummary: commitment?.summary,
         threadSummary: runtimeThread?.summary,

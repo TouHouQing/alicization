@@ -1,4 +1,8 @@
-import type { StageEmbodimentPresencePostureMode } from '@proj-alicization/stage-shared'
+import type {
+  AlicizationEmotion,
+  CharacterFacialCapability,
+  StageEmbodimentPresencePostureMode,
+} from '@proj-alicization/stage-shared'
 
 export interface VrmActionBinding {
   id: string
@@ -27,6 +31,8 @@ export interface VrmCustomExpressionBinding {
 
 export interface VrmRuntimeCapabilitySnapshot {
   supportedExpressionNames: string[]
+  supportedBaseEmotions: AlicizationEmotion[]
+  supportedFacialCues: CharacterFacialCapability[]
   supportsLookAt: boolean
   supportsVisemeLipSync: boolean
   supportsMicroDynamics: boolean

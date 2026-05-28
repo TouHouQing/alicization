@@ -5,6 +5,7 @@ import type { NativeImage } from 'electron'
 
 import type {
   AlicizationConversationTurnInput,
+  AlicizationDigitalLifeEnvelope,
   AlicizationDialogueEmbodimentEnvelope,
   AlicizationDialoguePerformancePayload,
   AlicizationDialogueRespondedPayload,
@@ -15,6 +16,7 @@ import type {
   AlicizationMindTurnEventInput,
   AlicizationMindTurnGovernance,
   AlicizationProactiveMetadata,
+  AlicizationProactiveStaticReasonCode,
   AlicizationResidentPerformanceSnapshot,
   CharacterPerformanceCapabilitiesManifest,
 } from '../../../shared/eventa'
@@ -85,49 +87,29 @@ import {
   uniqueTechnicalSpecificityCues,
 } from './visible-reply/dialogue-first-contamination'
 import { resolveAlicizationVisibleReplyGovernanceAuditAuthority } from './visible-reply/governance-audit'
+import {
+  resolveAlicizationOpeningGuidanceHoldDetail,
+  resolveAlicizationOpeningGuidanceViolationReason,
+} from './proactive-opening-guidance'
 
 export function createAbortError(reason?: string) {
   return new DOMException(`Alicization runtime aborted: ${reason ?? 'unknown'}`, 'AbortError')
 }
 
-function deriveRuntimeGovernanceSegmentProsody(segment: AlicizationDialogueSpeechTimeline['segments'][number]) {
-  const trimmed = segment.text.trim()
-  const pauseClass = trimmed.endsWith('？') || trimmed.endsWith('?')
-    ? 'question'
-    : trimmed.endsWith('！') || trimmed.endsWith('!')
-      ? 'exclaim'
-      : trimmed.endsWith('。') || trimmed.endsWith('.')
-        ? 'full-stop'
-        : trimmed.endsWith('，') || trimmed.endsWith(',')
-          ? 'comma'
-          : trimmed.endsWith('、')
-            ? 'enumeration'
-            : 'none'
-  const phraseBoundary = pauseClass === 'comma' || pauseClass === 'enumeration'
-    ? 'soft'
-    : pauseClass === 'full-stop' || pauseClass === 'question' || pauseClass === 'exclaim'
-      ? 'hard'
-      : 'none'
-  const contour = pauseClass === 'question'
-    ? 'rising'
-    : pauseClass === 'comma' || pauseClass === 'full-stop' || pauseClass === 'exclaim'
-      ? 'falling'
-      : 'flat'
-
-  return {
-    language: 'zh-CN' as const,
-    pauseClass,
-    phraseBoundary,
-    contour,
-    emphasisWord: null,
-    emphasisStrength: Number(Math.max(0, Math.min(1, segment.prosodyWeight ?? 0.5)).toFixed(2)),
-    tempoShift: 0,
-  }
-}
-
 function buildRuntimeGovernanceEmbodimentSpeechSegment(
   segment: AlicizationDialogueSpeechTimeline['segments'][number],
 ) {
+  const pauseClass = trimmedPauseClass(segment.text)
+  const phraseBoundary = pauseClass === 'comma' || pauseClass === 'enumeration'
+    ? 'soft' as const
+    : pauseClass === 'full-stop' || pauseClass === 'question' || pauseClass === 'exclaim'
+      ? 'hard' as const
+      : 'none' as const
+  const contour = pauseClass === 'question'
+    ? 'rising' as const
+    : pauseClass === 'comma' || pauseClass === 'full-stop' || pauseClass === 'exclaim'
+      ? 'falling' as const
+      : 'flat' as const
   return {
     id: segment.id,
     index: segment.index,
@@ -144,8 +126,31 @@ function buildRuntimeGovernanceEmbodimentSpeechSegment(
       segment.facialHoldMs ?? 0,
       segment.actionHoldMs ?? 0,
     ),
-    prosody: deriveRuntimeGovernanceSegmentProsody(segment),
+    prosody: {
+      language: 'zh-CN' as const,
+      pauseClass,
+      phraseBoundary,
+      contour,
+      emphasisWord: null,
+      emphasisStrength: Number(Math.max(0, Math.min(1, segment.prosodyWeight ?? 0.5)).toFixed(2)),
+      tempoShift: 0,
+    },
   }
+}
+
+function trimmedPauseClass(text: string) {
+  const trimmed = text.trim()
+  if (trimmed.endsWith('？') || trimmed.endsWith('?'))
+    return 'question' as const
+  if (trimmed.endsWith('！') || trimmed.endsWith('!'))
+    return 'exclaim' as const
+  if (trimmed.endsWith('。') || trimmed.endsWith('.'))
+    return 'full-stop' as const
+  if (trimmed.endsWith('，') || trimmed.endsWith(','))
+    return 'comma' as const
+  if (trimmed.endsWith('、'))
+    return 'enumeration' as const
+  return 'none' as const
 }
 
 export function isAbortError(error: unknown) {
@@ -352,12 +357,168 @@ function applyDialoguePerformanceSeedToEmbodiment(
   }
 }
 
+function mergeAuthoritativeDigitalLifeFace(
+  provided: AlicizationDigitalLifeEnvelope['face'],
+  authoritative: AlicizationDigitalLifeEnvelope['face'],
+) {
+  return {
+    ...provided,
+    emotion: authoritative.emotion,
+    facialCue: authoritative.facialCue,
+    expressionMode: authoritative.expressionMode,
+    rendererHints: provided.rendererHints ?? authoritative.rendererHints,
+  }
+}
+
+function mergeAuthoritativeDigitalLifeAction(
+  provided: AlicizationDigitalLifeEnvelope['action'],
+  authoritative: AlicizationDigitalLifeEnvelope['action'],
+) {
+  return {
+    ...provided,
+    actionCue: authoritative.actionCue,
+    actionMode: authoritative.actionMode,
+    rendererHints: provided.rendererHints ?? authoritative.rendererHints,
+  }
+}
+
+function reconcileProvidedDigitalLifeWithAuthority(input: {
+  provided: AlicizationDigitalLifeEnvelope
+  authoritative: AlicizationDigitalLifeEnvelope
+}): AlicizationDigitalLifeEnvelope {
+  const authoritativeFrames = input.authoritative.frames
+  const providedFrames = input.provided.frames
+  const providedFrameById = new Map(providedFrames.map(frame => [frame.id, frame] as const))
+
+  return {
+    ...input.provided,
+    version: input.authoritative.version,
+    variationToken: input.authoritative.variationToken,
+    emotion: input.authoritative.emotion,
+    mode: input.authoritative.mode,
+    postureHint: input.authoritative.postureHint,
+    performance: input.authoritative.performance,
+    speechStyle: input.authoritative.speechStyle,
+    rendererHints: input.provided.rendererHints ?? input.authoritative.rendererHints,
+    face: mergeAuthoritativeDigitalLifeFace(input.provided.face, input.authoritative.face),
+    action: mergeAuthoritativeDigitalLifeAction(input.provided.action, input.authoritative.action),
+    frames: authoritativeFrames.map((authoritativeFrame, index) => {
+      const providedFrame = providedFrameById.get(authoritativeFrame.id) ?? providedFrames[index]
+      if (!providedFrame)
+        return authoritativeFrame
+
+      return {
+        ...providedFrame,
+        id: authoritativeFrame.id,
+        index: authoritativeFrame.index,
+        startOffset: authoritativeFrame.startOffset,
+        endOffset: authoritativeFrame.endOffset,
+        text: authoritativeFrame.text,
+        mode: authoritativeFrame.mode,
+        interruptPolicy: authoritativeFrame.interruptPolicy,
+        settleMode: authoritativeFrame.settleMode,
+        face: mergeAuthoritativeDigitalLifeFace(providedFrame.face, authoritativeFrame.face),
+        action: mergeAuthoritativeDigitalLifeAction(providedFrame.action, authoritativeFrame.action),
+      }
+    }),
+  }
+}
+
 export interface AlicizationChatStreamEmbodimentMeta {
   governance: AlicizationMindTurnGovernance | null
   embodiment: AlicizationDialogueEmbodimentEnvelope | null
   embodimentScript: AlicizationDialogueStructuredPayload['embodimentScript']
   speechTimeline: AlicizationDialogueSpeechTimeline | null
   digitalLife: AlicizationDialogueStructuredPayload['digitalLife']
+}
+
+function resolveEmbodimentScriptRendererTarget(
+  performanceManifest?: CharacterPerformanceCapabilitiesManifest | null,
+) {
+  return performanceManifest?.renderer === 'vrm' ? 'vrm' : 'live2d'
+}
+
+function buildRuntimeGovernanceEmbodimentScript(input: {
+  decisionTraceId?: string | null
+  turnId: string
+  replyText: string
+  performance: AlicizationDialoguePerformancePayload
+  speechTimeline: AlicizationDialogueSpeechTimeline | null
+  performanceManifest?: CharacterPerformanceCapabilitiesManifest | null
+  residentMode: 'dialogue' | 'idle-recovering'
+}) {
+  if (!input.speechTimeline)
+    return null
+
+  return normalizeAlicizationEmbodimentScript({
+    version: 'embodiment-script-v1',
+    decisionTraceId: input.decisionTraceId ?? null,
+    turnId: input.turnId,
+    rendererTarget: resolveEmbodimentScriptRendererTarget(input.performanceManifest),
+    replyText: input.replyText,
+    state: {
+      baseEmotion: input.performance.baseEmotion,
+      delivery: input.performance.delivery,
+      emphasis: input.performance.emphasis,
+      residentMode: input.residentMode,
+    },
+    speechPlan: {
+      segments: input.speechTimeline.segments.map(segment => ({
+        id: segment.id,
+        index: segment.index,
+        text: segment.text,
+        interruptPolicy: segment.interruptMode === 'hard-interrupt' ? 'hard-stop' : 'soft-settle',
+        preRollMs: segment.actionWindow === 'segment-start'
+          ? 40
+          : segment.actionWindow === 'cadence-peak'
+            ? 20
+            : 0,
+        settleMs: Math.max(
+          120,
+          segment.emotionHoldMs ?? 0,
+          segment.facialHoldMs ?? 0,
+          segment.actionHoldMs ?? 0,
+        ),
+      })),
+      interruptPolicy: input.speechTimeline.segments.some(segment => segment.interruptMode === 'hard-interrupt')
+        ? 'hard-stop'
+        : 'soft-settle',
+      preRollMs: input.speechTimeline.segments.some(segment => segment.actionWindow === 'segment-start') ? 40 : 0,
+      settleMs: input.speechTimeline.segments.reduce((max, segment) => {
+        return Math.max(max, segment.emotionHoldMs ?? 0, segment.facialHoldMs ?? 0, segment.actionHoldMs ?? 0)
+      }, 120),
+    },
+    facePlan: {
+      preUtteranceCue: null,
+      postUtteranceCue: null,
+      speakingCues: input.speechTimeline.segments.map(segment => buildAlicizationEmbodimentFaceCue({
+        segment: buildRuntimeGovernanceEmbodimentSpeechSegment(segment),
+        timelineSegment: segment,
+        fallbackEmotion: input.performance.baseEmotion,
+        fallbackFacialCue: input.performance.facialCue ?? null,
+        fallbackIntensity: 0.5,
+      })),
+    },
+    motionPlan: {
+      idleBase: input.performance.actionCue ?? 'idle_settle',
+      actionBursts: input.speechTimeline.segments.map(segment => buildAlicizationEmbodimentMotionBurst({
+        segment: buildRuntimeGovernanceEmbodimentSpeechSegment(segment),
+        timelineSegment: segment,
+        fallbackActionCue: input.performance.actionCue ?? null,
+        fallbackIntensity: 0,
+      })),
+      attentionMode: 'attentive',
+    },
+    lipsyncPlan: {
+      mode: input.performanceManifest?.supportsVisemeLipSync === true ? 'energy-phoneme-hybrid' : 'energy-only',
+      visemeHints: input.performanceManifest?.supportsVisemeLipSync === true
+        ? input.speechTimeline.segments.flatMap(segment => buildAlicizationEmbodimentLipSyncHints({
+            segment: buildRuntimeGovernanceEmbodimentSpeechSegment(segment),
+            timelineSegment: segment,
+          }))
+        : undefined,
+    },
+  })
 }
 
 export function buildAlicizationChatStreamEmbodimentMeta(input: {
@@ -404,77 +565,15 @@ export function buildAlicizationChatStreamEmbodimentMeta(input: {
     embodiment,
     performanceManifest: input.performanceManifest,
   })
-  const embodimentScript = speechTimeline
-    ? normalizeAlicizationEmbodimentScript({
-        version: 'embodiment-script-v1',
-        decisionTraceId: governance.decisionTraceId ?? null,
-        turnId: input.turnId ?? 'unknown-turn',
-        rendererTarget: 'live2d',
-        replyText: reply,
-        state: {
-          baseEmotion: embodiment.performance.baseEmotion,
-          delivery: embodiment.performance.delivery,
-          emphasis: embodiment.performance.emphasis,
-          residentMode: 'dialogue',
-        },
-        speechPlan: {
-          segments: speechTimeline.segments.map(segment => ({
-            id: segment.id,
-            index: segment.index,
-            text: segment.text,
-            interruptPolicy: segment.interruptMode === 'hard-interrupt' ? 'hard-stop' : 'soft-settle',
-            preRollMs: segment.actionWindow === 'segment-start'
-              ? 40
-              : segment.actionWindow === 'cadence-peak'
-                ? 20
-                : 0,
-            settleMs: Math.max(
-              120,
-              segment.emotionHoldMs ?? 0,
-              segment.facialHoldMs ?? 0,
-              segment.actionHoldMs ?? 0,
-            ),
-          })),
-          interruptPolicy: speechTimeline.segments.some(segment => segment.interruptMode === 'hard-interrupt')
-            ? 'hard-stop'
-            : 'soft-settle',
-          preRollMs: speechTimeline.segments.some(segment => segment.actionWindow === 'segment-start') ? 40 : 0,
-          settleMs: speechTimeline.segments.reduce((max, segment) => {
-            return Math.max(max, segment.emotionHoldMs ?? 0, segment.facialHoldMs ?? 0, segment.actionHoldMs ?? 0)
-          }, 120),
-        },
-        facePlan: {
-          preUtteranceCue: null,
-          postUtteranceCue: null,
-          speakingCues: speechTimeline.segments.map(segment => buildAlicizationEmbodimentFaceCue({
-            segment: buildRuntimeGovernanceEmbodimentSpeechSegment(segment),
-            timelineSegment: segment,
-            fallbackEmotion: embodiment.performance.baseEmotion,
-            fallbackFacialCue: embodiment.performance.facialCue ?? null,
-            fallbackIntensity: 0.5,
-          })),
-        },
-        motionPlan: {
-          idleBase: embodiment.performance.actionCue ?? 'idle_settle',
-          actionBursts: speechTimeline.segments.map(segment => buildAlicizationEmbodimentMotionBurst({
-            segment: buildRuntimeGovernanceEmbodimentSpeechSegment(segment),
-            timelineSegment: segment,
-            fallbackActionCue: embodiment.performance.actionCue ?? null,
-            fallbackIntensity: 0,
-          })),
-          attentionMode: 'attentive',
-        },
-        lipsyncPlan: {
-          mode: input.performanceManifest?.supportsVisemeLipSync === true ? 'energy-phoneme-hybrid' : 'energy-only',
-          visemeHints: input.performanceManifest?.supportsVisemeLipSync === true
-            ? speechTimeline.segments.flatMap(segment => buildAlicizationEmbodimentLipSyncHints({
-                segment: buildRuntimeGovernanceEmbodimentSpeechSegment(segment),
-                timelineSegment: segment,
-              }))
-            : undefined,
-        },
-      })
-    : null
+  const embodimentScript = buildRuntimeGovernanceEmbodimentScript({
+    decisionTraceId: governance.decisionTraceId ?? null,
+    turnId: input.turnId ?? 'unknown-turn',
+    replyText: reply,
+    performance: embodiment.performance,
+    speechTimeline,
+    performanceManifest: input.performanceManifest,
+    residentMode: 'dialogue',
+  })
 
   return {
     governance,
@@ -510,51 +609,85 @@ export function normalizeProactiveMetadata(raw: unknown): AlicizationProactiveMe
     return undefined
 
   const rawReasonCodes = Array.isArray(candidate.reasonCodes) ? candidate.reasonCodes : []
+  const staticReasonCodes = new Set<AlicizationProactiveStaticReasonCode>([
+    'busy-host',
+    'fullscreen-host',
+    'kill-switch-suspended',
+    'global-cooldown-active',
+    'attention-anchor-active',
+    'recent-observation-memory',
+    'invited-inspection-active',
+    'scenario-bias-raised',
+    'recent-ignored-penalty',
+    'recent-dismiss-penalty',
+    'recent-positive-feedback',
+    'cadence-opening-ready',
+    'cadence-initiative-trust',
+    'cadence-pressure-rising',
+    'coding-focus',
+    'media-playback',
+    'late-night-activity',
+    'late-night-fatigue',
+    'high-loneliness',
+    'high-boredom',
+    'user-idle',
+    'foreground-error',
+    'foreground-diff',
+    'reminder-backlog',
+    'afterglow-opening',
+    'durability-pulse',
+    'durability-process-gone',
+    'durability-anr-likely',
+    'private-thought-observe-only',
+    'private-thought-uncertain',
+    'belief-tentative',
+    'belief-contradicted',
+    'inquiry-open',
+    'relationship-guarded',
+    'relationship-attuned',
+    'relationship-correction-sensitive',
+    'living-world-open-loop',
+    'governor-withhold',
+    'governor-repair',
+    'governor-care',
+    'thought-thread-ripe',
+    'thought-thread-waiting',
+    'watch-mode-symbiotic',
+    'watch-mode-invited-inspection',
+    'watch-mode-recovering',
+    'runtime-dialogue-ready',
+    'runtime-observe-dominant',
+    'runtime-control-ready',
+    'runtime-continuity-pressure',
+    'runtime-companionship-pressure',
+    'continuity-internal-only',
+    'continuity-after-payoff',
+    'continuity-next-open-window',
+    'continuity-execution-callback',
+    'relationship-cadence-residue',
+    'relationship-residue-delay-warmth',
+    'relationship-residue-protect-rest',
+  ])
   const reasonCodes = rawReasonCodes
     .filter((reasonCode): reasonCode is AlicizationProactiveMetadata['reasonCodes'][number] => {
-      return typeof reasonCode === 'string' && [
-        'busy-host',
-        'fullscreen-host',
-        'kill-switch-suspended',
-        'global-cooldown-active',
-        'attention-anchor-active',
-        'recent-observation-memory',
-        'invited-inspection-active',
-        'scenario-bias-raised',
-        'recent-ignored-penalty',
-        'recent-dismiss-penalty',
-        'recent-positive-feedback',
-        'coding-focus',
-        'media-playback',
-        'late-night-activity',
-        'late-night-fatigue',
-        'high-loneliness',
-        'high-boredom',
-        'user-idle',
-        'foreground-error',
-        'foreground-diff',
-        'reminder-backlog',
-        'afterglow-opening',
-        'durability-pulse',
-        'durability-process-gone',
-        'durability-anr-likely',
-        'private-thought-observe-only',
-        'private-thought-uncertain',
-        'watch-mode-symbiotic',
-        'watch-mode-invited-inspection',
-        'watch-mode-recovering',
-        'runtime-dialogue-ready',
-        'runtime-observe-dominant',
-        'runtime-control-ready',
-        'runtime-continuity-pressure',
-        'runtime-companionship-pressure',
-      ].includes(reasonCode)
+      if (typeof reasonCode !== 'string')
+        return false
+      if (staticReasonCodes.has(reasonCode as AlicizationProactiveStaticReasonCode))
+        return true
+      if (/^learning:(record|reflect|verify|revise|internalize|hold)$/u.test(reasonCode))
+        return true
+      if (reasonCode.startsWith('learning-focus:')) {
+        const focus = readStringValue(reasonCode.slice('learning-focus:'.length)).trim()
+        return focus.length > 0
+      }
+      return false
     })
 
   const confidence = Number(candidate.confidence)
   const cooldownMs = Number(candidate.cooldownMs)
   const feedbackWindowMs = Number(candidate.feedbackWindowMs)
   const policyVersion = readStringValue(candidate.policyVersion).trim()
+  const openingGuidance = readStringValue(candidate.openingGuidance).trim()
   if (!policyVersion || !Number.isFinite(confidence) || !Number.isFinite(cooldownMs) || !Number.isFinite(feedbackWindowMs))
     return undefined
 
@@ -568,6 +701,7 @@ export function normalizeProactiveMetadata(raw: unknown): AlicizationProactiveMe
     scenario,
     policyVersion,
     feedbackWindowMs: Math.max(1_000, Math.floor(feedbackWindowMs)),
+    openingGuidance: openingGuidance || null,
   }
 }
 
@@ -1311,6 +1445,7 @@ function buildGovernedVisibleReplyRewriteRequest(input: {
   reasons: string[]
   coherentGovernance: AlicizationMindTurnGovernance
   fallbackPatternId: string
+  openingGuidanceHoldDetail?: string | null
   renderedOverrideReply?: string | null
   governedSurfaceReply?: string | null
   candidateReply: string
@@ -1334,6 +1469,8 @@ function buildGovernedVisibleReplyRewriteRequest(input: {
     input.renderedOverrideReply ?? '',
     input.governedSurfaceReply ?? '',
   ].filter(item => item && input.candidateReply.includes(item)), 10)
+  if (input.reasons.some(reason => reason.startsWith('opening-guidance-')))
+    mustDrop.push('same-her opening drift')
   const memoryTruthDiscipline = deriveAlicizationTruthDiscipline({
     answerSubject: input.coherentGovernance.answerSubject ?? input.coherentGovernance.mindTurnFrame?.relation.subject ?? null,
     screenReferenceMode: input.coherentGovernance.screenReferenceMode ?? null,
@@ -1352,6 +1489,7 @@ function buildGovernedVisibleReplyRewriteRequest(input: {
     reasonCodes: uniqueCarryAnchors(input.reasons, 12),
     mustPreserve,
     mustDrop,
+    openingGuidanceHoldDetail: input.openingGuidanceHoldDetail ?? null,
     surfaceContract: input.coherentGovernance.answerIntent ?? input.coherentGovernance.openingMove ?? null,
     memoryTruthDiscipline,
     fallbackPatternId: input.fallbackPatternId,
@@ -1461,6 +1599,19 @@ export function coerceConversationTurnToMindGovernedPayload(
     userText: input.userText,
     governance: coherentGovernance,
   })
+  const openingGuidanceViolationReason = coherentGovernance.openingMove
+    ? resolveAlicizationOpeningGuidanceViolationReason({
+        reply: candidateReply,
+        openingGuidance: coherentGovernance.openingMove,
+      })
+    : null
+  const openingGuidanceHoldDetail = openingGuidanceViolationReason
+    ? resolveAlicizationOpeningGuidanceHoldDetail({
+        reply: candidateReply,
+        openingGuidance: coherentGovernance.openingMove ?? '',
+        openingGuidanceViolationReason,
+      })
+    : null
   const conflictingAnchors = detectReplyConflictingAnchors(
     candidateReply,
     coherentGovernance,
@@ -1524,6 +1675,9 @@ export function coerceConversationTurnToMindGovernedPayload(
     leakedGovernedSurface ? 'reply-leaked-internal-governance' : '',
     weakGroundedSceneCue ? 'reply-used-weak-grounded-scene-cue' : '',
     unsupportedTechnicalSpecificity.unsupportedCues.length > 0 ? 'reply-introduced-unsupported-technical-specificity' : '',
+    openingGuidanceViolationReason
+      ? openingGuidanceViolationReason.replace('proactive-opening-guidance-violation:', 'opening-guidance-')
+      : '',
     scriptMismatch ? 'reply-script-mismatch-with-user-turn' : '',
     conflictingAnchors.reason,
     dialogueFirstVisibleReply.contaminated && !(
@@ -1544,6 +1698,7 @@ export function coerceConversationTurnToMindGovernedPayload(
     || (
       weakGroundedSceneCue
       || unsupportedTechnicalSpecificity.shouldOverride
+      || Boolean(openingGuidanceViolationReason)
       || scriptMismatch
       || conflictingAnchors.hasConflict
       || dialogueFirstOverrideRequired
@@ -1615,6 +1770,7 @@ export function coerceConversationTurnToMindGovernedPayload(
     reasons,
     coherentGovernance,
     fallbackPatternId,
+    openingGuidanceHoldDetail,
     renderedOverrideReply: renderedOverrideSurface?.reply ?? null,
     governedSurfaceReply: governedSurface?.reply ?? null,
     candidateReply,
@@ -1719,77 +1875,15 @@ export function coerceConversationTurnToMindGovernedPayload(
     digitalLife: finalDigitalLife,
     digitalLifeSpine: finalDigitalLifeSpine,
   })
-  const finalEmbodimentScript = finalSpeechTimeline
-    ? normalizeAlicizationEmbodimentScript({
-        version: 'embodiment-script-v1',
-        decisionTraceId: finalEmbodimentSeed.decisionTraceId ?? null,
-        turnId: finalEmbodimentSeed.turnId,
-        rendererTarget: 'live2d',
-        replyText: finalEmbodimentSeed.replyText,
-        state: {
-          baseEmotion: finalPerformance.baseEmotion,
-          delivery: finalPerformance.delivery,
-          emphasis: finalPerformance.emphasis,
-          residentMode: finalDigitalLife?.mode === 'recovering' ? 'idle-recovering' : 'dialogue',
-        },
-        speechPlan: {
-          segments: finalSpeechTimeline.segments.map(segment => ({
-            id: segment.id,
-            index: segment.index,
-            text: segment.text,
-            interruptPolicy: segment.interruptMode === 'hard-interrupt' ? 'hard-stop' : 'soft-settle',
-            preRollMs: segment.actionWindow === 'segment-start'
-              ? 40
-              : segment.actionWindow === 'cadence-peak'
-                ? 20
-                : 0,
-            settleMs: Math.max(
-              120,
-              segment.emotionHoldMs ?? 0,
-              segment.facialHoldMs ?? 0,
-              segment.actionHoldMs ?? 0,
-            ),
-          })),
-          interruptPolicy: finalSpeechTimeline.segments.some(segment => segment.interruptMode === 'hard-interrupt')
-            ? 'hard-stop'
-            : 'soft-settle',
-          preRollMs: finalSpeechTimeline.segments.some(segment => segment.actionWindow === 'segment-start') ? 40 : 0,
-          settleMs: finalSpeechTimeline.segments.reduce((max, segment) => {
-            return Math.max(max, segment.emotionHoldMs ?? 0, segment.facialHoldMs ?? 0, segment.actionHoldMs ?? 0)
-          }, 120),
-        },
-        facePlan: {
-          preUtteranceCue: null,
-          postUtteranceCue: null,
-          speakingCues: finalSpeechTimeline.segments.map(segment => buildAlicizationEmbodimentFaceCue({
-            segment: buildRuntimeGovernanceEmbodimentSpeechSegment(segment),
-            timelineSegment: segment,
-            fallbackEmotion: finalPerformance.baseEmotion,
-            fallbackFacialCue: finalPerformance.facialCue ?? null,
-            fallbackIntensity: 0.5,
-          })),
-        },
-        motionPlan: {
-          idleBase: finalPerformance.actionCue ?? 'idle_settle',
-          actionBursts: finalSpeechTimeline.segments.map(segment => buildAlicizationEmbodimentMotionBurst({
-            segment: buildRuntimeGovernanceEmbodimentSpeechSegment(segment),
-            timelineSegment: segment,
-            fallbackActionCue: finalPerformance.actionCue ?? null,
-            fallbackIntensity: 0,
-          })),
-          attentionMode: 'attentive',
-        },
-        lipsyncPlan: {
-          mode: performanceManifest?.supportsVisemeLipSync === true ? 'energy-phoneme-hybrid' : 'energy-only',
-          visemeHints: performanceManifest?.supportsVisemeLipSync === true
-            ? finalSpeechTimeline.segments.flatMap(segment => buildAlicizationEmbodimentLipSyncHints({
-                segment: buildRuntimeGovernanceEmbodimentSpeechSegment(segment),
-                timelineSegment: segment,
-              }))
-            : undefined,
-        },
-      })
-    : null
+  const finalEmbodimentScript = buildRuntimeGovernanceEmbodimentScript({
+    decisionTraceId: finalEmbodimentSeed.decisionTraceId ?? null,
+    turnId: finalEmbodimentSeed.turnId,
+    replyText: finalEmbodimentSeed.replyText,
+    performance: finalPerformance,
+    speechTimeline: finalSpeechTimeline,
+    performanceManifest,
+    residentMode: finalDigitalLife?.mode === 'recovering' ? 'idle-recovering' : 'dialogue',
+  })
 
   return {
     payload: {
@@ -1899,6 +1993,7 @@ export function coerceConversationTurnToMindGovernedPayload(
       visible_reply_authority: visibleReplyAuditAuthority.visibleReplyAuthority,
       visible_reply_realization_authority: visibleReplyAuditAuthority.visibleReplyRealizationAuthority,
       visible_reply_rewrite_request: visibleReplyRewriteRequest,
+      opening_guidance_hold_detail: openingGuidanceHoldDetail,
       reply_kept_despite_mismatch: replyKeptDespiteMismatch,
       organic_direct_reply: organicDirectReply,
     },
@@ -2531,6 +2626,51 @@ export function buildMindTurnTraceEvents(input: {
         embodimentVariationToken: input.dialoguePayload.structured.embodiment?.variationToken ?? null,
         embodimentPostureHint: input.dialoguePayload.structured.embodiment?.postureHint ?? null,
         speechTimelineSegments: input.dialoguePayload.structured.speechTimeline?.segments.length ?? 0,
+        visibleReply: {
+          expectedAuthority: readStringValue(((input.dialoguePayload.structured as unknown) as Record<string, unknown>)?.visibleReplyAuthority).trim() || null,
+          actualAuthority: null,
+          providerMindExecuted: true,
+        },
+        performance: {
+          baseEmotion: input.dialoguePayload.structured.performance.baseEmotion,
+          facialCue: input.dialoguePayload.structured.performance.facialCue ?? null,
+          actionCue: input.dialoguePayload.structured.performance.actionCue ?? null,
+          delivery: input.dialoguePayload.structured.performance.delivery,
+          emphasis: input.dialoguePayload.structured.performance.emphasis,
+        },
+        digitalLife: input.dialoguePayload.structured.digitalLife
+          ? {
+              emotion: input.dialoguePayload.structured.digitalLife.emotion,
+              mode: input.dialoguePayload.structured.digitalLife.mode,
+              performance: {
+                baseEmotion: input.dialoguePayload.structured.digitalLife.performance.baseEmotion,
+                facialCue: input.dialoguePayload.structured.digitalLife.performance.facialCue ?? null,
+                actionCue: input.dialoguePayload.structured.digitalLife.performance.actionCue ?? null,
+              },
+              face: {
+                emotion: input.dialoguePayload.structured.digitalLife.face.emotion,
+                facialCue: input.dialoguePayload.structured.digitalLife.face.facialCue ?? null,
+              },
+              action: {
+                actionCue: input.dialoguePayload.structured.digitalLife.action.actionCue ?? null,
+                actionMode: input.dialoguePayload.structured.digitalLife.action.actionMode,
+              },
+            }
+          : null,
+        embodimentScript: input.dialoguePayload.structured.embodimentScript
+          ? {
+              rendererTarget: input.dialoguePayload.structured.embodimentScript.rendererTarget,
+              state: {
+                baseEmotion: input.dialoguePayload.structured.embodimentScript.state.baseEmotion,
+                delivery: input.dialoguePayload.structured.embodimentScript.state.delivery,
+                emphasis: input.dialoguePayload.structured.embodimentScript.state.emphasis,
+              },
+              speechPlan: {
+                segmentCount: input.dialoguePayload.structured.embodimentScript.speechPlan.segments.length,
+                interruptPolicy: input.dialoguePayload.structured.embodimentScript.speechPlan.interruptPolicy,
+              },
+            }
+          : null,
         digitalLifeSpine: dialogueDigitalLifeSpine,
         derivedMindStateBundle: ((input.dialoguePayload.structured as unknown) as Record<string, unknown>)?.derivedMindStateBundle
           && typeof ((input.dialoguePayload.structured as unknown) as Record<string, unknown>)?.derivedMindStateBundle === 'object'
@@ -2641,14 +2781,29 @@ export function normalizeDialogueRespondedPayload(
   const digitalLifeSpine = normalizeAlicizationDigitalLifeSpineDigest(
     (structuredPayload as Record<string, unknown>).digitalLifeSpine,
   )
+  const authoritativeDigitalLife = buildAlicizationDigitalLifeEnvelope({
+    embodiment,
+    digitalLifeSpine,
+    speechTimeline,
+    performanceManifest,
+  })
   const digitalLife = normalizedDigitalLife && !residentSeeded
-    ? normalizedDigitalLife
-    : buildAlicizationDigitalLifeEnvelope({
-        embodiment,
-        digitalLifeSpine,
-        speechTimeline,
-        performanceManifest,
-      })
+    ? authoritativeDigitalLife
+      ? reconcileProvidedDigitalLifeWithAuthority({
+          provided: normalizedDigitalLife,
+          authoritative: authoritativeDigitalLife,
+        })
+      : normalizedDigitalLife
+    : authoritativeDigitalLife
+  const embodimentScript = buildRuntimeGovernanceEmbodimentScript({
+    decisionTraceId: governance?.decisionTraceId ?? null,
+    turnId,
+    replyText: reply,
+    performance: embodiment.performance,
+    speechTimeline,
+    performanceManifest,
+    residentMode: digitalLife?.mode === 'recovering' ? 'idle-recovering' : 'dialogue',
+  })
   const isFallback = contractFailed || !['json', 'repair-json'].includes(parsePath)
   const origin = input.origin === 'subconscious-proactive'
     ? 'subconscious-proactive'
@@ -2667,6 +2822,7 @@ export function normalizeDialogueRespondedPayload(
         : governance?.visibleReplyAuthority ?? null,
       performance: embodiment.performance,
       embodiment,
+      embodimentScript,
       speechTimeline,
       digitalLife,
       digitalLifeSpine,

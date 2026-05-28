@@ -84,4 +84,56 @@ describe('proactive visible utterance policy', () => {
     expect(decision.action).toBe('hold')
     expect(decision.reason).toBe('active-self-revision-proactive-restraint-holds-visible-utterance')
   })
+
+  it('holds mind-authored proactive visible text when remembered-familiarity restraint is jointly raised by provenance and closeness learning', () => {
+    const decision = decideAlicizationProactiveVisibleUtterance({
+      hasMindAuthoredStructured: true,
+      selfRevisionPatch: {
+        version: 'self-revision-state-patch-v1',
+        id: 'patch-remembered-familiarity-hold',
+        sourceEventId: 'event-remembered-familiarity',
+        sourceTurnId: 'turn-remembered-familiarity',
+        decisionTraceId: 'trace-remembered-familiarity',
+        domain: 'relationship',
+        action: 'internalize',
+        resultStatus: 'completed',
+        lanes: ['memory-policy', 'relationship-posture', 'response-posture'],
+        memoryPolicy: {
+          strictnessBias: 0,
+          wrongThreadSuppressionBias: 0,
+          provenanceLabelBias: 0.18,
+          recallExpansionBias: 0,
+          shouldQuarantineUnsupportedCarry: false,
+        },
+        relationshipPosture: {
+          repairWindowBias: 0,
+          closenessCapBias: 0.2,
+          warmthReleaseBias: 0,
+        },
+        responsePosture: {
+          secondPassRequiredBias: 0,
+          hypothesisLabelBias: 0,
+          specificityClampBias: 0,
+          templateShellSuppressionBias: 0,
+        },
+        proactivePolicy: {
+          restraintBias: 0,
+          learningProposalBias: 0,
+          actuationCooldownBias: 0,
+        },
+        validation: {
+          requiresRollbackCheck: false,
+          requiresRevalidation: false,
+          rollbackPlan: [],
+        },
+        reasonCodes: ['domain:relationship', 'remembered-familiarity-restraint'],
+        summary: 'remembered familiarity should stay explicitly remembered before visible closeness widens again',
+      },
+    })
+
+    expect(decision.shouldPersistVisibleUtterance).toBe(false)
+    expect(decision.requiresMindAuthoredText).toBe(true)
+    expect(decision.action).toBe('hold')
+    expect(decision.reason).toBe('active-self-revision-remembered-familiarity-restraint-holds-visible-utterance')
+  })
 })

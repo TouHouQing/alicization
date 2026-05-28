@@ -515,7 +515,7 @@ describe('mind continuity', () => {
         },
         activeGoals: [{
           id: 'autobio-goal::grow-shared-language',
-          kind: 'grow-shared-language',
+          kind: 'stay-near',
           status: 'active',
           weight: 0.76,
           summary: 'Keep growing a more shared way of understanding this relationship without forcing it.',
@@ -548,7 +548,7 @@ describe('mind continuity', () => {
     expect(seed).toContain('inquiry_plan:localize-problem')
     expect(seed).toContain('mind_kernel:tracking')
     expect(seed).toContain('action_ecology:surface-nudge')
-    expect(seed).toContain('autobio_goal:grow-shared-language/active')
+    expect(seed).toContain('autobio_goal:stay-near/active')
     expect(seed).toContain('ecology_mood:')
     expect(seed).toContain('ecology_reply:')
     expect(runtimeSeed).toContain('Locate the exact locus of the knot.')
@@ -557,7 +557,7 @@ describe('mind continuity', () => {
     expect(runtimeSeed).toContain('inquiry_plan:localize-problem')
     expect(runtimeSeed).toContain('mind_kernel:tracking')
     expect(runtimeSeed).toContain('action_ecology:surface-nudge')
-    expect(runtimeSeed).toContain('autobio_goal:grow-shared-language/active')
+    expect(runtimeSeed).toContain('autobio_goal:stay-near/active')
     expect(runtimeSeed).toContain('ecology_mood:')
     expect(runtimeSeed).toContain('ecology_reply:')
   })

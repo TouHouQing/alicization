@@ -44,6 +44,9 @@ function sortMemoryDecisionTraces(records: AlicizationMemoryDecisionTraceRecord[
 function normalizeReplayQuery(payload: AlicizationListMindTurnEventsPayload): AlicizationListMindTurnEventsPayload {
   const decisionTraceId = payload.decisionTraceId?.trim()
   const turnId = payload.turnId?.trim()
+  const activeSelfEvolutionCandidateId = 'activeSelfEvolutionCandidateId' in payload && typeof payload.activeSelfEvolutionCandidateId === 'string'
+    ? payload.activeSelfEvolutionCandidateId.trim()
+    : undefined
   const requestedLimit = Number(payload.limit)
   const limit = Number.isFinite(requestedLimit)
     ? Math.max(1, Math.min(maxQueryLimit, Math.floor(requestedLimit)))
@@ -52,6 +55,7 @@ function normalizeReplayQuery(payload: AlicizationListMindTurnEventsPayload): Al
   return {
     decisionTraceId: decisionTraceId || undefined,
     turnId: turnId || undefined,
+    activeSelfEvolutionCandidateId: activeSelfEvolutionCandidateId || undefined,
     limit,
   }
 }
@@ -800,7 +804,7 @@ export const useAlicizationMindReplayStore = defineStore('alicization-mind-repla
   async function queryReplayLab(payload: AlicizationListMindTurnEventsPayload | AlicizationListMemoryDecisionTracesPayload) {
     const query = normalizeReplayQuery(payload)
     lastQuery.value = query
-    if (!query.decisionTraceId && !query.turnId) {
+    if (!query.decisionTraceId && !query.turnId && !('activeSelfEvolutionCandidateId' in query && query.activeSelfEvolutionCandidateId)) {
       events.value = []
       traceRecords.value = []
       lastError.value = null

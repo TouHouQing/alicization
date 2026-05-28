@@ -6,6 +6,7 @@ import {
   createIdleStageEmbodimentSpeechRenderState,
   createStageEmbodimentSpeechPlaybackItem,
 } from '@proj-alicization/stage-shared'
+import type { StageEmbodimentPerformanceCueSource } from '@proj-alicization/stage-shared'
 import { describe, expect, it, vi } from 'vitest'
 import { ref } from 'vue'
 
@@ -175,8 +176,18 @@ function createPerformanceState(input: {
   delivery: 'energetic' | 'firm' | 'calm'
   facialCue: string
   motor?: ReturnType<typeof createMotorProfile>
+  activeCueSource?: StageEmbodimentPerformanceCueSource
+  actionIntensity?: number
+  expressionIntensity?: number
+  facialCueIntensity?: number
+  motionPulse?: number
+  rendererSettle?: {
+    live2dFacialReleaseMs?: number
+    live2dMotionFollowThroughMs?: number
+  } | null
 }) {
   const idleState = createIdleStageEmbodimentPerformanceState()
+  const activeCueSource: StageEmbodimentPerformanceCueSource = input.activeCueSource ?? 'segment'
 
   return {
     ...idleState,
@@ -193,14 +204,37 @@ function createPerformanceState(input: {
       emphasis: 2 as const,
     },
     activeFacialCue: input.facialCue,
-    activeFacialCueSource: 'segment' as const,
+    activeFacialCueSource: activeCueSource,
     activeActionCue: 'observe_focus',
-    activeActionCueSource: 'segment' as const,
-    activeCueSource: 'segment' as const,
-    expressionIntensity: 0.9,
-    facialCueIntensity: 0.86,
-    actionIntensity: 0.64,
-    motionPulse: 0.72,
+    activeActionCueSource: activeCueSource,
+    activeCueSource,
+    activeCue: {
+      id: 'segment-motion',
+      index: 0,
+      startOffset: 0,
+      endOffset: 4,
+      text: '请继续说。',
+      emotion: input.baseEmotion,
+      gestureWeight: 0.44,
+      facialWeight: 0.58,
+      prosodyWeight: 0.5,
+      beatWeight: 0.44,
+      mouthWeight: 0.35,
+      headWeight: 0.44,
+      facialHoldMs: 320,
+      actionHoldMs: 220,
+      emotionHoldMs: 320,
+      facialCue: input.facialCue,
+      actionCue: 'observe_focus',
+      actionWindow: 'segment-start',
+      interruptMode: 'soft-interrupt',
+      rendererSettle: input.rendererSettle ?? null,
+      rendererHints: null,
+    },
+    expressionIntensity: input.expressionIntensity ?? 0.9,
+    facialCueIntensity: input.facialCueIntensity ?? 0.86,
+    actionIntensity: input.actionIntensity ?? 0.64,
+    motionPulse: input.motionPulse ?? 0.72,
     prosodyDrive: 0.58,
     breathDrive: 0.52,
     focusDrive: input.baseEmotion === 'thinking' ? 0.82 : 0.56,
@@ -466,4 +500,79 @@ describe('live2d motion manager performance layers', () => {
     expect(readParameter(model, 'ParamBrowForm')).toBeLessThan(-0.22)
     expect(readParameter(model, 'ParamBodyAngleZ')).toBeGreaterThan(3.8)
   })
+
+  it('renders stronger face and body overlays for segment-grade cues than resident-grade cues with the same labels', async () => {
+    const { useMotionUpdatePluginPerformanceLayers } = await import('./motion-manager')
+    const plugin = useMotionUpdatePluginPerformanceLayers()
+    const segmentModel = createMockModel(createModelParameterIds())
+    const residentModel = createMockModel(createModelParameterIds())
+
+    drivePlugin(plugin, createPluginContext({
+      model: segmentModel,
+      performanceState: createPerformanceState({
+        baseEmotion: 'happy',
+        delivery: 'energetic',
+        facialCue: 'bright-smile',
+        activeCueSource: 'segment',
+        expressionIntensity: 0.92,
+        facialCueIntensity: 0.88,
+        actionIntensity: 0.76,
+        motionPulse: 0.78,
+        motor: createMotorProfile({
+          facial: {
+            eyeOpenness: 0.64,
+            browLift: 0.1,
+            browTension: 0.18,
+            cheekLift: 0.34,
+            mouthSpread: 0.42,
+            mouthRound: 0.12,
+            jawOpenBias: 0.32,
+          },
+          body: {
+            sway: 0.14,
+            lean: -0.08,
+            openness: 0.78,
+            settle: 0.42,
+          },
+        }),
+      }),
+    }))
+
+    drivePlugin(plugin, createPluginContext({
+      model: residentModel,
+      performanceState: createPerformanceState({
+        baseEmotion: 'happy',
+        delivery: 'energetic',
+        facialCue: 'bright-smile',
+        activeCueSource: 'resident',
+        expressionIntensity: 0.28,
+        facialCueIntensity: 0.18,
+        actionIntensity: 0.12,
+        motionPulse: 0.18,
+        motor: createMotorProfile({
+          facial: {
+            eyeOpenness: 0.64,
+            browLift: 0.1,
+            browTension: 0.18,
+            cheekLift: 0.34,
+            mouthSpread: 0.42,
+            mouthRound: 0.12,
+            jawOpenBias: 0.32,
+          },
+          body: {
+            sway: 0.14,
+            lean: -0.08,
+            openness: 0.78,
+            settle: 0.42,
+          },
+        }),
+      }),
+    }))
+
+    expect(readParameter(segmentModel, 'ParamMouthSmile')).toBeGreaterThan(readParameter(residentModel, 'ParamMouthSmile'))
+    expect(readParameter(segmentModel, 'ParamCheek')).toBeGreaterThan(readParameter(residentModel, 'ParamCheek'))
+    expect(readParameter(segmentModel, 'ParamBodyAngleZ')).toBeGreaterThan(readParameter(residentModel, 'ParamBodyAngleZ'))
+    expect(readParameter(segmentModel, 'ParamBodyAngleX')).toBeGreaterThan(readParameter(residentModel, 'ParamBodyAngleX'))
+  })
+
 })

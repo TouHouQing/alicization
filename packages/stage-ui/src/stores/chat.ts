@@ -6,6 +6,7 @@ import type { StructuredOutputResult, StructuredValidationIssue } from '../compo
 import type { AlicizationAbortReason } from '../composables/alicization-turn-abort'
 import type { ChatAssistantMessage, ChatAssistantStructuredPayload, ChatSlices, ChatSlicesExecutionStatus, ChatStreamEventContext, StreamingAssistantMessage } from '../types/chat'
 import type {
+  AlicizationConversationTurnInput,
   AlicizationDialogueEmbodimentEnvelope,
   AlicizationEmbodimentScriptV1,
   AlicizationDialogueSpeechTimeline,
@@ -1593,6 +1594,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
     let turnDigitalLife: AlicizationDigitalLifeEnvelope | null = null
     let turnDigitalLifeSpine: AlicizationDigitalLifeSpineDigest | null = null
     let turnRuntimeDigest: AlicizationRuntimeDigest | null = null
+    let turnVisibleReplyExecution: AlicizationConversationTurnInput['visibleReplyExecution'] | null = null
 
     const getTurnStructuredRuntimeMeta = () => ({
       embodiment: turnEmbodiment,
@@ -2135,6 +2137,8 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
                       sawMeta = true
                       touch('liveness')
                     }
+                    if (event.type === 'finish')
+                      turnVisibleReplyExecution = (event as { visibleReplyExecution?: AlicizationConversationTurnInput['visibleReplyExecution'] }).visibleReplyExecution ?? turnVisibleReplyExecution
                     if (event.type === 'text-delta' || event.type === 'tool-call' || event.type === 'tool-result') {
                       sawProgress = true
                       touch('progress')
@@ -2246,6 +2250,8 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
             onStreamEvent: async (event) => {
               if (event.type === 'meta')
                 touch('liveness')
+              if (event.type === 'finish')
+                turnVisibleReplyExecution = (event as { visibleReplyExecution?: AlicizationConversationTurnInput['visibleReplyExecution'] }).visibleReplyExecution ?? turnVisibleReplyExecution
               if (event.type === 'text-delta' || event.type === 'tool-call' || event.type === 'tool-result')
                 touch('progress')
               await streamOptions.onStreamEvent?.(event)
@@ -2801,6 +2807,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
             userText: sendingMessage,
             assistantText: assistantOutputText,
             structured: buildingMessage.structured ? { ...buildingMessage.structured } : undefined,
+            visibleReplyExecution: turnVisibleReplyExecution,
             governance: turnMindGovernance,
             createdAt: Date.now(),
           }).catch(() => {})
@@ -4061,6 +4068,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
             userText: sendingMessage,
             assistantText: assistantOutputText,
             structured: buildingMessage.structured ? { ...buildingMessage.structured } : undefined,
+            visibleReplyExecution: turnVisibleReplyExecution,
             governance: turnMindGovernance,
             createdAt: Date.now(),
           }).catch(() => {})

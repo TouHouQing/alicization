@@ -151,6 +151,7 @@ export function createAlicizationMemoryMindStateRuntime(
     decisionTraceId?: string
     turnId?: string
     activeThreadId?: string
+    activeSelfEvolutionCandidateId?: string
     kind?: AlicizationMindTurnEventKind
     limit?: number
   }) {
@@ -163,10 +164,13 @@ export function createAlicizationMemoryMindStateRuntime(
     const activeThreadId = typeof inputQuery.activeThreadId === 'string'
       ? inputQuery.activeThreadId.trim()
       : ''
+    const activeSelfEvolutionCandidateId = typeof inputQuery.activeSelfEvolutionCandidateId === 'string'
+      ? inputQuery.activeSelfEvolutionCandidateId.trim()
+      : ''
     const kind = typeof inputQuery.kind === 'string'
       ? inputQuery.kind.trim() as AlicizationMindTurnEventKind
       : ''
-    if (!decisionTraceId && !turnId && !kind)
+    if (!decisionTraceId && !turnId && !activeSelfEvolutionCandidateId && !kind)
       return [] as AlicizationMindTurnEventRecord[]
 
     const limit = Math.max(1, Math.min(5_000, Math.floor(inputQuery.limit ?? 300)))
@@ -267,11 +271,24 @@ export function createAlicizationMemoryMindStateRuntime(
         createdAt: row.created_at,
       }))
 
-    if (!activeThreadId)
-      return mappedRows
+    const activeThreadFiltered = !activeThreadId
+      ? mappedRows
+      : mappedRows.filter((row) => {
+          return input.resolveMindTurnEventActiveThreadId(row.payload) === activeThreadId
+        })
 
-    return mappedRows.filter((row) => {
-      return input.resolveMindTurnEventActiveThreadId(row.payload) === activeThreadId
+    if (!activeSelfEvolutionCandidateId)
+      return activeThreadFiltered
+
+    return activeThreadFiltered.filter((row) => {
+      const bundle = row.payload?.derivedMindStateBundle
+      const activeSelfRevision = bundle && typeof bundle === 'object' && !Array.isArray(bundle)
+        ? (bundle as Record<string, unknown>).activeSelfRevision
+        : null
+      const candidateId = activeSelfRevision && typeof activeSelfRevision === 'object' && !Array.isArray(activeSelfRevision)
+        ? (activeSelfRevision as Record<string, unknown>).candidateId
+        : null
+      return typeof candidateId === 'string' && candidateId.trim() === activeSelfEvolutionCandidateId
     })
   }
 

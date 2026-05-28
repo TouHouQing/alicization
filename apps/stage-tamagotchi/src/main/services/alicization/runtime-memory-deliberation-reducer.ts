@@ -227,6 +227,7 @@ export function applyMemoryDeliberationToDigitalLifeRuntimeSurface(input: {
     return surface
 
   const shouldStayInward = deliberationKernel.shouldStayInward
+  const resolvedSurfacePolicy = deliberationKernel.surfacePolicy
   const selectedChainSummary = deliberationKernel.selectedChainSummary
   const selectedChainStance = deliberationKernel.selectedChainStance
   const selectedChainPosture = deliberationKernel.selectedChainPosture
@@ -258,7 +259,7 @@ export function applyMemoryDeliberationToDigitalLifeRuntimeSurface(input: {
     surface.dialogue.currentConsciousFrame?.speakingIntention ?? null,
     shouldStayInward
       ? 'Let remembered continuity shape the answer before any explicit memory mention.'
-      : `Let remembered continuity guide the answer through ${deliberation.surfacePolicy}.`,
+      : `Let remembered continuity guide the answer through ${resolvedSurfacePolicy}.`,
     `Memory latent controls: ${memoryControlSummary}.`,
   ])
   const consciousNeed = mergeGuidanceLine([
@@ -296,7 +297,7 @@ export function applyMemoryDeliberationToDigitalLifeRuntimeSurface(input: {
         narrative: mergeUniqueRules([
           ...(mindTurnFrame.narrative ?? []),
           'memory-deliberation',
-          `memory-deliberation:surface:${deliberation.surfacePolicy}`,
+          `memory-deliberation:surface:${resolvedSurfacePolicy}`,
         ], 12),
       }
     : mindTurnFrame
@@ -321,13 +322,13 @@ export function applyMemoryDeliberationToDigitalLifeRuntimeSurface(input: {
     selectedMotive: surface.dialogue.replyDeliberation?.selectedMotive ?? mapAnswerActToReplyMotive(governance.answerAct),
     speakingFrom: deriveMemoryDeliberationSurfaceMode({
       shouldStayInward,
-      surfacePolicy: deliberation.surfacePolicy,
+      surfacePolicy: resolvedSurfacePolicy,
       answerSubject: governance.answerSubject,
     }),
     memoryMode: deriveMemoryDeliberationMemoryMode({
       existingMode: surface.dialogue.replyDeliberation?.memoryMode ?? null,
       shouldStayInward,
-      surfacePolicy: deliberation.surfacePolicy,
+      surfacePolicy: resolvedSurfacePolicy,
     }),
     openingBeat: openingMove || surface.dialogue.replyDeliberation?.openingBeat || whyNow || '',
     whyThisReplyNow: replyWhyNow || surface.dialogue.replyDeliberation?.whyThisReplyNow || whyNow || '',
@@ -368,7 +369,7 @@ export function applyMemoryDeliberationToDigitalLifeRuntimeSurface(input: {
     narrative: mergeUniqueRules([
       ...(surface.dialogue.replyDeliberation?.narrative ?? []),
       'memory-deliberation',
-      `memory-deliberation:surface:${deliberation.surfacePolicy}`,
+      `memory-deliberation:surface:${resolvedSurfacePolicy}`,
       followUpAffordance?.preferredTiming ? `memory-deliberation:followup:${followUpAffordance.preferredTiming}` : null,
     ], 10),
     updatedAt: input.now,
@@ -416,7 +417,7 @@ export function applyMemoryDeliberationToDigitalLifeRuntimeSurface(input: {
     narrative: mergeUniqueRules([
       ...(surface.dialogue.answerPlanner?.narrative ?? []),
       'memory-deliberation',
-      `memory-deliberation:surface:${deliberation.surfacePolicy}`,
+      `memory-deliberation:surface:${resolvedSurfacePolicy}`,
     ], 10),
     updatedAt: input.now,
   }
@@ -430,7 +431,7 @@ export function applyMemoryDeliberationToDigitalLifeRuntimeSurface(input: {
           : 'resolve-problem'
     ),
     relationNeed: surface.dialogue.dialogueActKernel?.relationNeed ?? (
-      deliberation.surfacePolicy === 'relationship-continuity'
+      resolvedSurfacePolicy === 'relationship-continuity'
         ? 'companionship'
         : governance.answerAct === 'care'
           ? 'care'
@@ -440,7 +441,7 @@ export function applyMemoryDeliberationToDigitalLifeRuntimeSurface(input: {
     ),
     activeProject: surface.dialogue.dialogueActKernel?.activeProject ?? selectedProcedureSummary ?? selectedPeriodSummary ?? null,
     truthMode: surface.dialogue.dialogueActKernel?.truthMode ?? (
-      shouldStayInward || deliberation.surfacePolicy === 'relationship-continuity'
+      shouldStayInward || resolvedSurfacePolicy === 'relationship-continuity'
         ? 'memory-only'
         : governance.evidenceMode ?? 'continuity-carry'
     ),
@@ -478,7 +479,7 @@ export function applyMemoryDeliberationToDigitalLifeRuntimeSurface(input: {
     sourceTrace: mergeUniqueRules([
       ...(surface.dialogue.dialogueActKernel?.sourceTrace ?? []),
       'memory-deliberation',
-      `memory-deliberation:surface:${deliberation.surfacePolicy}`,
+      `memory-deliberation:surface:${resolvedSurfacePolicy}`,
     ], 10),
     confidence: Math.max(surface.dialogue.dialogueActKernel?.confidence ?? 0, deliberation.confidence),
     updatedAt: input.now,
@@ -488,6 +489,11 @@ export function applyMemoryDeliberationToDigitalLifeRuntimeSurface(input: {
     ...surface,
     memory: {
       ...surface.memory,
+      hostPersonModel: input.context.hostPersonModel ?? surface.memory.hostPersonModel ?? null,
+      personalityContinuityState: input.context.personStateProjection?.personalityContinuityState
+        ?? surface.memory.personalityContinuityState
+        ?? null,
+      personStateProjection: input.context.personStateProjection ?? surface.memory.personStateProjection ?? null,
       recollectionPlan: input.context.recollectionPlan ?? surface.memory.recollectionPlan ?? null,
       recollectionSpeechPlan: input.context.recollectionSpeechPlan ?? surface.memory.recollectionSpeechPlan ?? null,
       memoryDeliberation: deliberation,

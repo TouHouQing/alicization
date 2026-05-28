@@ -3,6 +3,7 @@ import type {
   AlicizationAutonomySnapshot,
   AlicizationAnswerCompilerSnapshot,
   AlicizationAnswerPlannerSnapshot,
+  AlicizationDerivedMindStateBundle,
   AlicizationAutobiographicalSelfSnapshot,
   AlicizationBeliefLedgerSnapshot,
   AlicizationBeliefRevisionSnapshot,
@@ -47,6 +48,7 @@ import type {
   AlicizationRelationshipModelSnapshot,
   AlicizationRepairLedgerSnapshot,
   AlicizationReplyDeliberationSnapshot,
+  AlicizationSelfEvolutionKernelSnapshot,
   AlicizationSelfContinuitySnapshot,
   AlicizationSelfGovernorSnapshot,
   AlicizationSelfStateSnapshot,
@@ -124,13 +126,33 @@ function normalizePresenceAuthorityCurrentInwardPreoccupation(raw: unknown) {
 }
 
 function withResidentPerformance(state: AlicizationVisualPresenceStateSnapshot): AlicizationVisualPresenceStateSnapshot {
+  const autobiographicalSelf = state.autobiographicalSelf ?? null
+  const selfEvolution = ((state as AlicizationVisualPresenceStateSnapshot & {
+    selfEvolution?: AlicizationSelfEvolutionKernelSnapshot | null
+  }).selfEvolution) ?? null
   return {
     ...state,
     residentPerformance: deriveAlicizationResidentPerformanceSnapshot({
       watchMode: state.watchMode,
+      currentBodyState: state.currentBodyState,
+      continuityMode: state.continuityMode,
+      currentInwardPreoccupation: state.currentInwardPreoccupation,
+      quietLineMs: state.quietLineMs,
       currentScene: state.currentScene,
       attention: state.attention,
       privateThought: state.privateThought,
+      relationshipTimingBias: selfEvolution
+        ? {
+            ...selfEvolution,
+            source: 'self-evolution',
+          }
+        : autobiographicalSelf?.relationshipDoctrine || autobiographicalSelf?.latestInflection
+          ? {
+              relationshipDoctrine: autobiographicalSelf.relationshipDoctrine,
+              latestInflection: autobiographicalSelf.latestInflection ?? null,
+              source: 'autobiographical-self',
+            }
+          : null,
       captureState: state.captureState,
       updatedAt: state.updatedAt,
     }, {
@@ -2061,6 +2083,9 @@ export function createDefaultVisualPresenceState(now = Date.now()): AlicizationV
     replyDeliberation: null,
     recallGovernor: null,
     answerPlanner: null,
+    selfEvolution: null,
+    learningExecutionState: null,
+    derivedMindStateBundle: null,
     privateThought: null,
     captureState: {
       permission: 'unknown',
@@ -2178,6 +2203,16 @@ export function normalizeVisualPresenceState(raw: unknown, now = Date.now()): Al
   base.answerPlanner = candidate.answerPlanner && typeof candidate.answerPlanner === 'object'
     ? candidate.answerPlanner as AlicizationAnswerPlannerSnapshot
     : null
+  base.selfEvolution = candidate.selfEvolution && typeof candidate.selfEvolution === 'object'
+    ? candidate.selfEvolution as AlicizationSelfEvolutionKernelSnapshot
+    : null
+  base.learningExecutionState = candidate.learningExecutionState && typeof candidate.learningExecutionState === 'object'
+    ? candidate.learningExecutionState as AlicizationLearningExecutionStateSnapshot
+    : null
+  ;(base as AlicizationVisualPresenceStateSnapshot & { derivedMindStateBundle?: AlicizationDerivedMindStateBundle | null }).derivedMindStateBundle
+    = candidate.derivedMindStateBundle && typeof candidate.derivedMindStateBundle === 'object'
+      ? candidate.derivedMindStateBundle as AlicizationDerivedMindStateBundle
+      : null
   base.privateThought = candidate.privateThought && typeof candidate.privateThought === 'object'
     ? candidate.privateThought as AlicizationPrivateThoughtSnapshot
     : null
@@ -2323,6 +2358,9 @@ export function updateVisualPresenceState(input: {
   replyDeliberation?: AlicizationReplyDeliberationSnapshot | null
   recallGovernor?: AlicizationRecallGovernorSnapshot | null
   answerPlanner?: AlicizationAnswerPlannerSnapshot | null
+  selfEvolution?: AlicizationSelfEvolutionKernelSnapshot | null
+  learningExecutionState?: AlicizationLearningExecutionStateSnapshot | null
+  derivedMindStateBundle?: AlicizationDerivedMindStateBundle | null
   privateThought: AlicizationPrivateThoughtSnapshot | null
   captureState?: AlicizationVisualPresenceStateSnapshot['captureState']
   durabilityPulse?: AlicizationDurabilityPulseSnapshot | null
@@ -2403,6 +2441,11 @@ export function updateVisualPresenceState(input: {
     replyDeliberation: input.replyDeliberation ?? previousState.replyDeliberation ?? null,
     recallGovernor: input.recallGovernor ?? previousState.recallGovernor ?? null,
     answerPlanner: input.answerPlanner ?? previousState.answerPlanner ?? null,
+    selfEvolution: input.selfEvolution ?? previousState.selfEvolution ?? null,
+    learningExecutionState: input.learningExecutionState ?? previousState.learningExecutionState ?? null,
+    derivedMindStateBundle: input.derivedMindStateBundle ?? (previousState as AlicizationVisualPresenceStateSnapshot & {
+      derivedMindStateBundle?: AlicizationDerivedMindStateBundle | null
+    }).derivedMindStateBundle ?? null,
     privateThought: input.privateThought,
     captureState: input.captureState ?? previousState.captureState,
     durabilityPulse: input.durabilityPulse && input.durabilityPulse.kind !== 'none'

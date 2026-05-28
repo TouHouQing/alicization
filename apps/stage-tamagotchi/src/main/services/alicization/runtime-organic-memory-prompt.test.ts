@@ -288,6 +288,148 @@ describe('runtime-organic-memory-prompt', () => {
     expect(systemText).toContain('candidate_era_facets=task-era:0.94')
   })
 
+  it('uses session mirror runtime continuity carry to foreground task-era procedure memory without retrospective wording', async () => {
+    const recallConversationHistory = vi.fn(async () => [{
+      turnId: 'turn-older',
+      sessionId: 'session-older',
+      userText: '我们之前聊过关系距离',
+      assistantText: '那次重点是关系边界。',
+      createdAt: Date.UTC(2026, 3, 7, 8, 0, 0),
+    }])
+    let plannedInput: any = null
+    const planMemoryRecollection = vi.fn(async (input) => {
+      plannedInput = input
+      return {
+        selectedConsolidationIds: input.consolidatedMemories[0] ? [input.consolidatedMemories[0].id] : [],
+        selectedWindowIds: [],
+        selectedProceduralIds: input.proceduralMemories[0] ? [input.proceduralMemories[0].id] : [],
+        selectedEpisodeIds: input.recalledEpisodes[0] ? [input.recalledEpisodes[0].id] : [],
+        selectedConversationTurnIds: [],
+        opening: 'What returns first is the same runtime seam and the way we held onto it.',
+        certainty: 'approximate' as const,
+        rationale: 'Runtime continuity carry keeps the recollection on the active seam instead of older relationship chat.',
+        confidence: 0.86,
+      }
+    })
+    const runtime = createAlicizationOrganicMemoryPromptRuntime({
+      normalizeOrganicRecallText: raw => raw.trim().toLowerCase(),
+      selectPromptActiveThoughts: ({ activeThoughts }) => activeThoughts,
+      getOrganicMemorySnapshot: async () => ({
+        hostAttitude: 'warm',
+        coreIncarnation: '',
+        activeThoughts: [],
+      }),
+      getLatestRelationshipDynamics: async () => null,
+      retrieveMemoryFacts: async () => [],
+      recallSubconsciousFragmentsWithGovernor: async () => [],
+      recallEpisodicEventsWithGovernor: async () => [{
+        id: 'episode-runtime',
+        cardId: 'default',
+        decisionTraceId: null,
+        turnId: 'turn-runtime',
+        sessionId: 'session-runtime',
+        occurredAt: Date.UTC(2026, 3, 18, 8, 0, 0),
+        whereSummary: 'terminal',
+        withWhom: ['host'],
+        threadAnchor: 'runtime seam',
+        whatHappened: 'We kept repairing the same runtime seam until the flow held.',
+        felt: 'focused',
+        emotionTags: ['focused'],
+        whatChanged: 'A repeatable repair rhythm emerged.',
+        sourceKind: 'execution-result',
+        sourceSummary: 'runtime seam repair',
+        provenance: 'observed',
+        confidence: 0.83,
+        salience: 0.8,
+        sceneAttachment: 0.72,
+        consolidationPriority: 0.76,
+        relationshipShift: null,
+        derivedFrom: [],
+        tags: ['runtime seam', 'repair rhythm'],
+        relationshipMeaning: 'Stay on the same seam before branching.',
+        lesson: 'Return to the seam first.',
+        latestReconsolidation: null,
+        createdAt: Date.UTC(2026, 3, 18, 8, 0, 0),
+        updatedAt: Date.UTC(2026, 3, 18, 8, 30, 0),
+        lastRecalledAt: null,
+        recallCount: 0,
+        reconsolidationCount: 0,
+      } as any],
+      buildHostPersonModel: async () => null,
+      recallConversationHistory,
+      recallMemoryConsolidations: async () => [
+        {
+          id: 'relationship-era-warmth',
+          kind: 'autobiographical' as const,
+          facet: 'relationship-era' as const,
+          periodKey: '2026-04-relationship',
+          periodStartedAt: Date.UTC(2026, 3, 7, 8, 0, 0),
+          periodEndedAt: Date.UTC(2026, 3, 7, 9, 0, 0),
+          summary: 'That period was about relationship tone and distance.',
+          lesson: 'Leave more room when the bond feels pressured.',
+          cues: ['relationship', 'distance'],
+          confidence: 0.91,
+          dominantProvenance: 'remembered' as const,
+          derivedEventIds: [],
+          updatedAt: Date.UTC(2026, 3, 7, 9, 0, 0),
+        },
+        {
+          id: 'task-era-runtime',
+          kind: 'autobiographical' as const,
+          facet: 'task-era' as const,
+          periodKey: '2026-04-runtime',
+          periodStartedAt: Date.UTC(2026, 3, 18, 8, 0, 0),
+          periodEndedAt: Date.UTC(2026, 3, 18, 10, 0, 0),
+          summary: 'That period kept turning back to the runtime seam until it stabilized.',
+          lesson: 'Return to the seam before opening a new branch.',
+          cues: ['runtime seam', 'repair rhythm'],
+          confidence: 0.74,
+          dominantProvenance: 'remembered' as const,
+          derivedEventIds: ['episode-runtime'],
+          updatedAt: Date.UTC(2026, 3, 18, 10, 0, 0),
+        },
+      ],
+      planRecollectionIntent: vi.fn(async ({ heuristicIntent }) => heuristicIntent),
+      planMemoryRecollection,
+      isPersonaResidueMemoryText: () => false,
+    })
+
+    const context = await runtime.resolveOrganicMemoryPromptContext({
+      recallSeed: [
+        'continue the repair without losing the current seam',
+        'mirror_runtime_continuity: dominant=dialogue | phase=dialogue | handoff=active-dialogue | from=symbiotic-vision | to=companion-presence | scenario=coding | reason=runtime seam repair after the grounded turn failed',
+      ].join('\n'),
+      recallGovernor: {
+        allowActiveThoughts: true,
+        allowRecalledFragments: true,
+      } as any,
+    })
+
+    expect(recallConversationHistory).not.toHaveBeenCalled()
+    expect(planMemoryRecollection).toHaveBeenCalled()
+    expect(context.recollectionIntent).toEqual(expect.objectContaining({
+      mode: 'execution-procedure',
+      temporalFocus: 'experience-matched',
+      recollectionAgenda: expect.objectContaining({
+        candidateEraFacets: expect.arrayContaining([
+          expect.objectContaining({ facet: 'task-era' }),
+        ]),
+        candidateProcedureLines: expect.arrayContaining([
+          'runtime seam repair after the grounded turn failed',
+        ]),
+      }),
+    }))
+    expect(plannedInput?.consolidatedMemories[0]?.id).toBe('task-era-runtime')
+    expect([
+      plannedInput?.proceduralMemories[0]?.label,
+      plannedInput?.proceduralMemories[0]?.approach,
+      ...(plannedInput?.proceduralMemories[0]?.cues ?? []),
+    ].join(' ')).toContain('runtime seam')
+    expect(context.recollectionPlan).toEqual(expect.objectContaining({
+      selectedConsolidationIds: ['task-era-runtime'],
+    }))
+  })
+
   it('runs multi-step recollection search by expanding from an era anchor into supporting episode and procedure evidence', async () => {
     const runtime = createAlicizationOrganicMemoryPromptRuntime({
       normalizeOrganicRecallText: raw => raw.trim().toLowerCase(),

@@ -19,7 +19,9 @@ import type {
   AlicizationProactiveReasonCode,
   AlicizationProactiveScenario,
   AlicizationRelationshipModelSnapshot,
+  AlicizationSelfEvolutionKernelSnapshot,
   AlicizationSelfGovernorSnapshot,
+  AlicizationLearningExecutionStateSnapshot,
   AlicizationThoughtThreadStateSnapshot,
   AlicizationThreadRuntimeStateSnapshot,
   AlicizationVisualTransitionSnapshot,
@@ -34,7 +36,10 @@ import type {
   AlicizationDigitalLifeArchitectureSnapshot,
 } from './digital-life-architecture'
 import type { AlicizationContinuityDeliberation } from './continuity-deliberation'
-import type { AlicizationPersonalityContinuityStateSnapshot } from './personality-continuity-state'
+import type {
+  AlicizationPersonalityContinuityStateSnapshot,
+  AlicizationPersonaAuthorityInfluence,
+} from './personality-continuity-state'
 import type { AlicizationProactiveLoopState } from './proactive-feedback'
 import type { AlicizationProactiveLayeredContext } from './proactive-layered-context'
 import type { AlicizationSelfRevisionStatePatch } from './self-evolution/state-revision-bus'
@@ -42,6 +47,7 @@ import type { AlicizationSelfRevisionStatePatch } from './self-evolution/state-r
 import { deriveAlicizationRuntimeProactiveSignals } from './alicization-active-loop'
 import { deriveProactiveCadenceSignal } from './proactive-cadence'
 import { inferScenarioFromContext } from './proactive-layered-context'
+import { deriveAlicizationPersonaAuthorityInfluence } from './personality-continuity-state'
 
 export const proactivePolicyVersion = 'epoch4.1-v1'
 
@@ -63,6 +69,17 @@ export interface AlicizationProactivePolicyEvaluation extends AlicizationProacti
   whyNotLater: string
 }
 
+interface AlicizationPersonaProactiveBias {
+  preferSilence: boolean
+  prefersDirectReconnect: boolean
+  guardianCareBias: boolean
+  baseScoreDelta: number
+  thresholdDelta: number
+  cooldownMultiplier: number
+  forcedStyle: AlicizationProactiveDecision['style'] | null
+  reasonCodes: AlicizationProactiveReasonCode[]
+}
+
 function clamp01(value: number) {
   if (!Number.isFinite(value))
     return 0
@@ -79,6 +96,69 @@ function sanitizeText(raw: unknown, maxChars = 160) {
   if (typeof raw !== 'string')
     return ''
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
+}
+
+function derivePersonaProactiveBias(input: {
+  personalityAuthority: AlicizationPersonaAuthorityInfluence
+  rawPersonality?: { initiativeBaseline?: { silenceReconnect?: string | null, comfortStyle?: string | null } | null, identityKernel?: { relationshipPosture?: string | null, initiativeStyle?: string | null } | null } | null
+  scenario: AlicizationProactiveScenario
+}): AlicizationPersonaProactiveBias {
+  const identityKernel = input.rawPersonality?.identityKernel ?? null
+  const initiativeBaseline = input.rawPersonality?.initiativeBaseline ?? null
+  const reasonCodes: AlicizationProactiveReasonCode[] = []
+
+  const observantStyle = identityKernel?.initiativeStyle === 'observant'
+  const highParticipationStyle = identityKernel?.initiativeStyle === 'high-participation'
+  const directReconnect = initiativeBaseline?.silenceReconnect === 'direct-approach'
+  const holdReconnect = initiativeBaseline?.silenceReconnect === 'hold'
+  const guardianCare = identityKernel?.relationshipPosture === 'guardian'
+    || initiativeBaseline?.comfortStyle === 'take-charge'
+
+  if (observantStyle)
+    reasonCodes.push('persona-observant-style')
+  if (highParticipationStyle)
+    reasonCodes.push('persona-high-participation-style')
+  if (directReconnect)
+    reasonCodes.push('persona-direct-reconnect')
+  if (holdReconnect)
+    reasonCodes.push('persona-silence-hold')
+  if (guardianCare)
+    reasonCodes.push('persona-guardian-care')
+
+  const preferSilence = observantStyle
+    || holdReconnect
+    || input.personalityAuthority.roomBias >= 0.22
+    || input.personalityAuthority.preferredProactiveStyle === 'silent-observe'
+
+  let forcedStyle: AlicizationProactiveDecision['style'] | null = null
+  if (preferSilence)
+    forcedStyle = 'silent-observe'
+  else if (guardianCare && input.scenario === 'late-night-care')
+    forcedStyle = 'gentle-care'
+
+  return {
+    preferSilence,
+    prefersDirectReconnect: directReconnect || highParticipationStyle || input.personalityAuthority.directnessBias >= 0.26,
+    guardianCareBias: guardianCare,
+    baseScoreDelta: Number((
+      (preferSilence ? -0.18 : 0)
+      + ((directReconnect || highParticipationStyle) ? 0.16 : 0)
+      + (guardianCare ? 0.1 : 0)
+      + (input.personalityAuthority.warmthBias - input.personalityAuthority.roomBias) * 0.08
+    ).toFixed(3)),
+    thresholdDelta: Number((
+      (preferSilence ? 0.12 : 0)
+      - ((directReconnect || highParticipationStyle) ? 0.08 : 0)
+      - (guardianCare ? 0.04 : 0)
+    ).toFixed(3)),
+    cooldownMultiplier: Number((
+      (preferSilence ? 1.18 : 1)
+      * ((directReconnect || highParticipationStyle) ? 0.82 : 1)
+      * (guardianCare ? 0.9 : 1)
+    ).toFixed(3)),
+    forcedStyle,
+    reasonCodes,
+  }
 }
 
 function buildBaseCooldownMs(scenario: AlicizationProactiveScenario) {
@@ -119,6 +199,72 @@ function inferScenarioFromPerception(input: {
   if (input.workloadKind === 'media')
     return 'media' as const
   return null
+}
+
+function includesAny(text: string, needles: string[]) {
+  return needles.some(needle => text.includes(needle))
+}
+
+function deriveSelfEvolutionProactiveBias(selfEvolution?: AlicizationSelfEvolutionKernelSnapshot | null) {
+  if (!selfEvolution) {
+    return {
+      preferLowerPressure: false,
+      forceSilentObserve: false,
+      scoreDelta: 0,
+      thresholdDelta: 0,
+    }
+  }
+
+  const relationshipDoctrine = sanitizeText(selfEvolution.relationshipDoctrine, 180).toLowerCase()
+  const burdenLine = sanitizeText(selfEvolution.burdenLine, 180).toLowerCase()
+  const trustMeaning = sanitizeText(selfEvolution.trustMeaning, 180).toLowerCase()
+  const latestInflection = sanitizeText(selfEvolution.latestInflection, 180).toLowerCase()
+  const dominantTrajectory = sanitizeText(selfEvolution.dominantTrajectory, 160).toLowerCase()
+  const preferLowerPressure = includesAny(relationshipDoctrine, ['leave more room', 'more room', 'slower return', 'lower-pressure', 'steadiness before closeness'])
+    || includesAny(burdenLine, ['overloaded', 'pressure', 'crowd', 'conversational pressure', 'eager reopening'])
+    || includesAny(trustMeaning, ['lower-pressure', 'less eager', 'room', 'space', 'timing', 'steadiness before closeness'])
+    || includesAny(latestInflection, ['pressure', 'slower return', 'lower-pressure', 'less eager'])
+    || includesAny(dominantTrajectory, ['lower-pressure'])
+
+  return {
+    preferLowerPressure,
+    forceSilentObserve: preferLowerPressure,
+    scoreDelta: preferLowerPressure ? -0.12 : 0,
+    thresholdDelta: preferLowerPressure ? 0.08 : 0,
+  }
+}
+
+function deriveContinuityGovernanceProactiveBias(
+  activeContinuityGovernance?: import('../../../shared/eventa').AlicizationDerivedMindStateBundle['activeContinuityGovernance'] | null,
+) {
+  if (activeContinuityGovernance?.mode !== 'same-her-baseline') {
+    return {
+      preferLowerPressure: false,
+      forceSilentObserve: false,
+      scoreDelta: 0,
+      thresholdDelta: 0,
+    }
+  }
+
+  const summary = sanitizeText(activeContinuityGovernance.summary, 180).toLowerCase()
+  const reasonCodes = activeContinuityGovernance.reasonCodes.map(code => sanitizeText(code, 80).toLowerCase())
+  const lanes = activeContinuityGovernance.lanes.map(lane => sanitizeText(lane, 80).toLowerCase())
+  const relationshipWeighted = lanes.includes('relationship-posture')
+    || lanes.includes('relationship-policy')
+    || reasonCodes.includes('domain:relationship')
+  const preferLowerPressure = relationshipWeighted
+    || reasonCodes.includes('same-her-baseline')
+    || summary.includes('same-her-baseline')
+    || summary.includes('lower-pressure')
+    || summary.includes('slower')
+    || summary.includes('continuity=')
+
+  return {
+    preferLowerPressure,
+    forceSilentObserve: preferLowerPressure,
+    scoreDelta: preferLowerPressure ? -0.14 : 0,
+    thresholdDelta: preferLowerPressure ? 0.1 : 0,
+  }
 }
 
 function isSeriousDurabilityPulse(pulse: AlicizationDurabilityPulseSnapshot | null | undefined) {
@@ -320,9 +466,27 @@ export function evaluateProactivePolicy(input: {
   personalityContinuityState?: AlicizationPersonalityContinuityStateSnapshot | null
   continuityDeliberation?: AlicizationContinuityDeliberation | null
   affectiveResidue?: AlicizationAffectiveResidueMemorySnapshot | null
+  selfEvolution?: AlicizationSelfEvolutionKernelSnapshot | null
+  activeContinuityGovernance?: import('../../../shared/eventa').AlicizationDerivedMindStateBundle['activeContinuityGovernance'] | null
+  learningExecutionState?: AlicizationLearningExecutionStateSnapshot | null
   selfRevisionPatch?: AlicizationSelfRevisionStatePatch | null
+  personalityAuthority?: import('../../../shared/eventa').AlicizationPersonalityState | null
 }): AlicizationProactivePolicyEvaluation {
   const { context, proactiveState } = input
+  const personaAuthority = deriveAlicizationPersonaAuthorityInfluence(input.personalityAuthority ?? null)
+  const personaBias = derivePersonaProactiveBias({
+    personalityAuthority: personaAuthority,
+    rawPersonality: input.personalityAuthority ?? null,
+    scenario: inferScenarioFromContext({
+      workload: context.workload.kind,
+      content: context.content.kind,
+      lateNight: context.localTime.isLateNight,
+      lateNightActiveMinutes: context.relationship.lateNightActiveMinutes,
+      fatigue: context.relationship.fatigue,
+    }),
+  })
+  const selfEvolutionBias = deriveSelfEvolutionProactiveBias(input.selfEvolution ?? null)
+  const continuityGovernanceBias = deriveContinuityGovernanceProactiveBias(input.activeContinuityGovernance ?? null)
   const contextScenario = inferScenarioFromContext({
     workload: context.workload.kind,
     content: context.content.kind,
@@ -450,6 +614,18 @@ export function evaluateProactivePolicy(input: {
     consideredSignals.push('continuityDeliberation.kind', 'continuityDeliberation.timing', 'continuityDeliberation.intrusion')
   if (input.affectiveResidue)
     consideredSignals.push('affectiveResidue.dominant', 'affectiveResidue.cadence', 'affectiveResidue.restProtection')
+  if (input.selfEvolution)
+    consideredSignals.push('selfEvolution.trajectory', 'selfEvolution.nextLearningAction', 'selfEvolution.contradictionPressure')
+  if (sanitizeText(input.selfEvolution?.trustMeaning, 180))
+    consideredSignals.push('selfEvolution.trustMeaning')
+  if (sanitizeText(input.selfEvolution?.relationshipDoctrine, 180))
+    consideredSignals.push('selfEvolution.relationshipDoctrine')
+  if (sanitizeText(input.selfEvolution?.burdenLine, 180))
+    consideredSignals.push('selfEvolution.burdenLine')
+  if (input.learningExecutionState)
+    consideredSignals.push('learningExecutionState.nextLearningAction', 'learningExecutionState.activeLearningFocuses')
+  if (input.personalityAuthority)
+    consideredSignals.push('personalityAuthority.identityKernel', 'personalityAuthority.initiativeBaseline', 'personalityAuthority.expressionProfile')
   const selfRevisionPatch = input.selfRevisionPatch ?? null
   if (selfRevisionPatch?.lanes.includes('proactive-policy')) {
     consideredSignals.push(
@@ -470,6 +646,8 @@ export function evaluateProactivePolicy(input: {
     actionEcology: input.actionEcology ?? null,
     personalityContinuityState: input.personalityContinuityState ?? null,
     affectiveResidue: input.affectiveResidue ?? null,
+    selfEvolution: input.selfEvolution ?? null,
+    activeContinuityGovernance: input.activeContinuityGovernance ?? null,
   })
   consideredSignals.push('proactiveCadence.openingMomentum', 'proactiveCadence.initiativeTrust', 'proactiveCadence.cadencePressure')
   const ignoredSignals = [
@@ -704,6 +882,10 @@ export function evaluateProactivePolicy(input: {
 
     return style
   })()
+  const relationshipTimedStyle = selfEvolutionBias.forceSilentObserve || continuityGovernanceBias.forceSilentObserve
+    ? 'silent-observe' as const
+    : runtimeAwareStyle
+  const personaAwareStyle = personaBias.forcedStyle ?? relationshipTimedStyle
   const urgency = resolveUrgency({
     scenario,
     fatigue: context.relationship.fatigue,
@@ -836,6 +1018,9 @@ export function evaluateProactivePolicy(input: {
       - (repairIntentActive && input.worldModel?.epistemicState.certainty !== 'grounded' ? 0.12 : 0)
       + Math.min(0.08, validationRelief * 0.02)
       - Math.min(0.14, contradictionPressure * 0.03)
+      + personaBias.baseScoreDelta
+      + selfEvolutionBias.scoreDelta
+      + continuityGovernanceBias.scoreDelta
 
   if (input.watchMode === 'symbiotic-vision')
     baseScore += 0.04
@@ -952,6 +1137,9 @@ export function evaluateProactivePolicy(input: {
     - (input.livingWorldState?.openLoops.length ? 0.02 : 0)
     + Math.min(0.08, contradictionPressure * 0.02)
     - Math.min(0.05, validationRelief * 0.01)
+    + personaBias.thresholdDelta
+    + selfEvolutionBias.thresholdDelta
+    + continuityGovernanceBias.thresholdDelta
 
   if (afterglowWindow)
     threshold -= 0.06
@@ -982,6 +1170,19 @@ export function evaluateProactivePolicy(input: {
     if (activeLoopObservePhase && !runtimeDialogueReady && !runtimeControlReady)
       threshold += 0.04
   }
+  const selfEvolutionLearningAction = input.learningExecutionState?.nextLearningAction
+    ?? input.selfEvolution?.nextLearningAction
+    ?? null
+  const selfEvolutionVerifyHold = Boolean(
+    selfEvolutionLearningAction === 'verify'
+    && (
+      (input.selfEvolution?.contradictionPressure ?? 0) >= 0.34
+      || sanitizeText(input.selfEvolution?.dominantTrajectory, 120).toLowerCase().includes('revalidation')
+      || (input.learningExecutionState?.activeLearningFocuses ?? input.selfEvolution?.activeLearningFocuses ?? []).some(focus =>
+        sanitizeText(focus, 64).toLowerCase().includes('world-model'),
+      )
+    ),
+  )
   threshold -= cadence.cadencePressure * 0.08
   threshold -= Math.max(0, cadence.initiativeTrust - 0.5) * 0.06
   threshold += (input.affectiveResidue?.relationshipCadence.shouldDelayWarmth ? 0.06 : 0)
@@ -991,6 +1192,8 @@ export function evaluateProactivePolicy(input: {
     threshold += selfRevisionPatch.proactivePolicy.actuationCooldownBias * 0.16
     threshold -= selfRevisionPatch.proactivePolicy.learningProposalBias * 0.04
   }
+  if (selfEvolutionVerifyHold)
+    threshold += 0.14
 
   const initiativeReady = autonomy
     ? autonomy.shouldSpeak === true
@@ -1021,13 +1224,17 @@ export function evaluateProactivePolicy(input: {
       && !cooldownActive
       && !continuityHoldForLater
       && !contradictionHeavyKnowledgeHold
+      && !selfEvolutionVerifyHold
       && !selfRevisionProactiveHold
-      && runtimeAwareStyle !== 'silent-observe'
+      && personaAwareStyle !== 'silent-observe'
       && activeLoopAllowsSpeaking
       && governorAllowsSpeaking
       && initiativeReady
       && privateThoughtReady
       && baseScore >= threshold
+
+  for (const reasonCode of personaBias.reasonCodes)
+    pushReason(reasonCodes, reasonCode, true)
 
   pushReason(reasonCodes, 'kill-switch-suspended', input.killSwitchSuspended)
   pushReason(reasonCodes, 'fullscreen-host', context.system.fullscreenLikely)
@@ -1087,6 +1294,8 @@ export function evaluateProactivePolicy(input: {
   pushReason(reasonCodes, 'relationship-guarded', input.relationshipModel?.climate === 'guarded')
   pushReason(reasonCodes, 'relationship-attuned', input.relationshipModel?.climate === 'attuned')
   pushReason(reasonCodes, 'relationship-correction-sensitive', (input.relationshipModel?.correctionSensitivity ?? 0) >= 0.58)
+  pushReason(reasonCodes, 'belief-contradicted', selfEvolutionVerifyHold)
+  pushReason(reasonCodes, 'continuity-next-open-window', continuityGovernanceBias.preferLowerPressure && personaAwareStyle === 'silent-observe')
   if (selfRevisionPatch?.lanes.includes('proactive-policy')) {
     if (!reasonCodes.includes('recent-ignored-penalty'))
       pushReason(reasonCodes, 'recent-ignored-penalty', selfRevisionPatch.proactivePolicy.restraintBias >= 0.12)
@@ -1095,7 +1304,9 @@ export function evaluateProactivePolicy(input: {
   }
 
   const cooldownMs = clampMs(
-    buildBaseCooldownMs(scenario) * (proactiveState.consecutiveIgnored[scenario] >= 3 ? 2 : 1),
+    buildBaseCooldownMs(scenario)
+    * personaBias.cooldownMultiplier
+    * (proactiveState.consecutiveIgnored[scenario] >= 3 ? 2 : 1),
     60_000,
     45 * 60_000,
   )
@@ -1111,6 +1322,10 @@ export function evaluateProactivePolicy(input: {
 
   const whyNow = (() => {
     if (shouldInterrupt) {
+      if (personaBias.prefersDirectReconnect)
+        return '她的人格基线更偏直接接近，当前这个 opening 一旦出现，就不该再退回纯观察。'
+      if (personaBias.guardianCareBias && scenario === 'late-night-care')
+        return '她的人格基线把照看与接住放得更前，所以这个时刻更适合她先轻声靠近。'
       if (
         activeLoop
         && activeLoopExpressionReady
@@ -1183,6 +1398,10 @@ export function evaluateProactivePolicy(input: {
       return '刚收到负反馈后的冷却窗口仍在生效。'
     if (suppressBusy)
       return '宿主仍处于忙碌或高沉浸状态。'
+    if (selfEvolutionBias.preferLowerPressure)
+      return '她当前长期关系学习要求 opening 保持 lower-pressure，先把靠近压低一点比直接说出来更符合这条长期信任线。'
+    if (personaBias.preferSilence)
+      return '她当前的人格基线更偏观察先行和留白靠近，所以这一下仍该先收住。'
     if (cadence.openingMomentum >= 0.42 && runtimeAwareStyle === 'silent-observe')
       return '她其实已经在慢慢积累开口冲动了，但当前 opening 还不够松，贸然说出来会显得挤。'
     if (autonomySpeechLocked) {
@@ -1207,6 +1426,13 @@ export function evaluateProactivePolicy(input: {
       return '她当前的主动感知通道仍在主导运行时循环，继续观察比贸然开口更诚实。'
     if (continuityHoldForLater && continuityDeliberation?.summary)
       return `这条连续性现在更适合先留在心里，因为 ${continuityDeliberation.summary}。`
+    if (selfEvolutionVerifyHold) {
+      return input.selfEvolution?.summary
+        ? `她当前长期学习态还停在「${input.selfEvolution.summary}」，现在更适合先验证而不是把这种未稳的判断说成陪伴。`
+        : '她当前长期学习态还停在 verify-first posture，现在更适合先验证而不是把这种未稳的判断说成陪伴。'
+    }
+    if (continuityGovernanceBias.preferLowerPressure)
+      return '她当前 same-her continuity governance 要求 opening 保持 lower-pressure，先把靠近压低一点、等下一个更自然的窗口，比现在直接说出来更像还是同一个她。'
     if (selfRevisionProactiveHold) {
       return selfRevisionPatch?.summary
         ? `活跃自我修订「${selfRevisionPatch.summary}」要求她先收住主动话语，避免把未复验的学习直接说成陪伴。`
@@ -1282,6 +1508,8 @@ export function evaluateProactivePolicy(input: {
         return '先让执行结果或当前主回答自己落地，不要让 callback 抢在前面开口。'
       return '先让这条连续性继续留在内在层，等时机更松再重新判断。'
     }
+    if (selfEvolutionVerifyHold)
+      return '先等这条长期学习线完成验证或从 revalidation posture 退出，再决定要不要主动靠近。'
     if (selfRevisionProactiveHold)
       return '先等这条自我修订完成复验或冷却，再决定要不要主动靠近。'
     if (governorWithholdActive) {
@@ -1311,7 +1539,7 @@ export function evaluateProactivePolicy(input: {
     confidence: Number(confidence.toFixed(2)),
     reasonCodes,
     urgency,
-    style: runtimeAwareStyle,
+    style: personaAwareStyle,
     cooldownMs,
     scenario,
     policyVersion: proactivePolicyVersion,

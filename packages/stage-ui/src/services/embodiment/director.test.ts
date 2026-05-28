@@ -101,6 +101,28 @@ function createResidentPerformance(source: 'main-runtime' | 'browser-fallback'):
   }
 }
 
+function createQuietAccompanimentResidentPerformance(): AlicizationResidentPerformanceSnapshot {
+  return {
+    version: 'resident-performance-v1' as const,
+    source: 'main-runtime',
+    performance: {
+      baseEmotion: 'thinking' as const,
+      emotion: 'thinking' as const,
+      facialCue: 'focus',
+      actionCue: 'steady_focus',
+      delivery: 'gentle' as const,
+      emphasis: 2 as const,
+    },
+    embodiedPresence: 'attentive' as const,
+    stance: 'accompany' as const,
+    emotionalTension: 'soft-covision' as const,
+    confidence: 0.84,
+    reasonTags: ['subconscious-proactive', 'silent-observe', 'continuity:quiet-accompaniment'],
+    signature: 'resident|main-runtime|accompanying|quiet-accompaniment|subconscious-proactive|silent-observe',
+    updatedAt: 1,
+  }
+}
+
 describe('embodiment director', () => {
   it('produces one normalized live2d script from the local seed shape and preserves decision trace id', () => {
     const script = buildAlicizationEmbodimentScript({
@@ -297,5 +319,136 @@ describe('embodiment director', () => {
     expect(script.speechPlan.segments[1]?.settleMs).toBeGreaterThan(180)
     expect(script.motionPlan.actionBursts[0]?.holdMs).toBe(140)
     expect(script.motionPlan.actionBursts[1]?.holdMs).toBe(180)
+  })
+
+  it('keeps quiet-companionship fallback scripts aligned to steady focus when resident authority is silent-observe accompaniment', () => {
+    const script = buildAlicizationEmbodimentScript({
+      seed: {
+        ...createSeed({
+          turnId: 'turn-quiet-companionship-1',
+          replyText: '我在这里继续陪着你。',
+        }),
+        performance: {
+          baseEmotion: 'thinking',
+          emotion: 'thinking',
+          facialCue: 'focus',
+          actionCue: 'steady_focus',
+          delivery: 'gentle',
+          emphasis: 2,
+        },
+        speechTimeline: {
+          version: 'speech-timeline-v1',
+          variationToken: 'turn-quiet-companionship-1',
+          reply: '我在这里继续陪着你。',
+          emotion: 'thinking',
+          segments: [
+            {
+              id: 'segment-1',
+              index: 0,
+              startOffset: 0,
+              endOffset: 11,
+              text: '我在这里继续陪着你。',
+              emotion: 'thinking',
+              gestureWeight: 0.24,
+              facialWeight: 0.38,
+              prosodyWeight: 0.42,
+              beatWeight: 0.48,
+              facialHoldMs: 160,
+              actionHoldMs: 160,
+              actionCue: 'observe_focus',
+              facialCue: 'focus',
+              actionWindow: 'none',
+              interruptMode: 'continue',
+            },
+          ],
+        },
+      },
+      manifest: {
+        renderer: 'vrm',
+        supportedBaseEmotions: ['neutral', 'thinking'],
+        supportedFacialCues: [],
+        supportedActions: [
+          { key: 'steady_focus', label: 'Steady Focus', description: 'steady focus', source: 'builtin' },
+          { key: 'observe_focus', label: 'Observe Focus', description: 'observe focus', source: 'builtin' },
+        ],
+        supportsLookAt: true,
+        supportsVisemeLipSync: true,
+        supportsMicroDynamics: true,
+      } as any,
+      residentPerformance: createQuietAccompanimentResidentPerformance(),
+      rendererTarget: 'vrm',
+    })
+
+    expect(script.state.residentMode).toBe('quiet-companionship')
+    expect(script.motionPlan.idleBase).toBe('steady_focus')
+    expect(script.motionPlan.actionBursts[0]?.actionCue).toBe('steady_focus')
+    expect(script.facePlan.speakingCues[0]?.facialCue).toBe('focus')
+  })
+
+  it('keeps quiet-companionship fallback scripts in a low-interruption accompaniment posture across speech, face, and attention planning', () => {
+    const script = buildAlicizationEmbodimentScript({
+      seed: {
+        ...createSeed({
+          turnId: 'turn-quiet-companionship-posture-1',
+          replyText: '我先在旁边看着，你继续就好。',
+        }),
+        performance: {
+          baseEmotion: 'thinking',
+          emotion: 'thinking',
+          facialCue: 'focus',
+          actionCue: 'steady_focus',
+          delivery: 'gentle',
+          emphasis: 1,
+        },
+        speechTimeline: {
+          version: 'speech-timeline-v1',
+          variationToken: 'turn-quiet-companionship-posture-1',
+          reply: '我先在旁边看着，你继续就好。',
+          emotion: 'thinking',
+          segments: [
+            {
+              id: 'segment-1',
+              index: 0,
+              startOffset: 0,
+              endOffset: 14,
+              text: '我先在旁边看着，你继续就好。',
+              emotion: 'thinking',
+              gestureWeight: 0.18,
+              facialWeight: 0.28,
+              prosodyWeight: 0.36,
+              beatWeight: 0.32,
+              facialHoldMs: 220,
+              actionHoldMs: 220,
+              actionCue: 'observe_focus',
+              facialCue: 'focus',
+              actionWindow: 'none',
+              interruptMode: 'soft-interrupt',
+            },
+          ],
+        },
+      },
+      manifest: {
+        renderer: 'vrm',
+        supportedBaseEmotions: ['neutral', 'thinking'],
+        supportedFacialCues: [],
+        supportedActions: [
+          { key: 'steady_focus', label: 'Steady Focus', description: 'steady focus', source: 'builtin' },
+          { key: 'observe_focus', label: 'Observe Focus', description: 'observe focus', source: 'builtin' },
+        ],
+        supportsLookAt: true,
+        supportsVisemeLipSync: true,
+        supportsMicroDynamics: true,
+      } as any,
+      residentPerformance: createQuietAccompanimentResidentPerformance(),
+      rendererTarget: 'vrm',
+    })
+
+    expect(script.state.residentMode).toBe('quiet-companionship')
+    expect(script.speechPlan.interruptPolicy).toBe('soft-settle')
+    expect(script.facePlan.preUtteranceCue).toBe('soft-breath')
+    expect(script.facePlan.postUtteranceCue).toBe('soft-release')
+    expect(script.motionPlan.attentionMode).toBe('ambient')
+    expect(script.motionPlan.idleBase).toBe('steady_focus')
+    expect(script.motionPlan.actionBursts[0]?.actionCue).toBe('steady_focus')
   })
 })

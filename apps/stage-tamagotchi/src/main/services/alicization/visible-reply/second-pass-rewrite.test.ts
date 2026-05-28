@@ -189,6 +189,101 @@ describe('visible-reply second-pass rewrite', () => {
     expect(String(providerInput?.messages.at(-1)?.content ?? '')).toContain('我先直接回答你')
   })
 
+  it('passes same-her opening drift rewrite semantics through the second-pass request payload', async () => {
+    const provider = vi.fn(async (_input: ProviderCall) => ({
+      finishReason: 'stop',
+      fullText: JSON.stringify({
+        format: 'mind-turn-v1',
+        thought: 'obligation=answer; truth=dialogue-grounded; focus=current-host-turn; move=answer-with-lower-pressure; tone=warm',
+        emotion: 'thinking',
+        reply: '我先把这件事安静接住，再陪你往下走。',
+        performance: {
+          baseEmotion: 'thinking',
+          facialCue: null,
+          actionCue: null,
+          delivery: 'calm',
+          emphasis: 0,
+        },
+      }),
+    }))
+
+    await rewriteAlicizationVisibleReplySecondPass({
+      cardId: 'card-1',
+      turnId: 'turn-same-her-rewrite',
+      sessionId: 'session-1',
+      userText: '你仔细看看呢',
+      rawFullText: '我现在就贴过来陪你，把这件事的靠近感直接拉满。',
+      prepared: createPrepared(),
+      visibleReplyExecution: {
+        mode: 'provider-stream',
+        expectedVisibleReplyAuthority: 'llm-mind',
+        actualVisibleReplyAuthority: 'llm-mind',
+        providerMindExecuted: true,
+        reason: 'provider-stream',
+      },
+      provider,
+      forceRewrite: true,
+      forceReasonCodes: ['opening-guidance-lower-pressure', 'mind-contract-not-closed'],
+    })
+
+    expect(provider).toHaveBeenCalledOnce()
+    const providerInput = provider.mock.calls[0]?.[0]
+    const rewritePayload = String(providerInput?.messages.at(-1)?.content ?? '')
+    expect(rewritePayload).toContain('opening-guidance-lower-pressure')
+    expect(rewritePayload).toContain('same-her opening drift')
+  })
+
+  it('passes memory-familiarity hold detail through the second-pass request payload', async () => {
+    const provider = vi.fn(async (_input: ProviderCall) => ({
+      finishReason: 'stop',
+      fullText: JSON.stringify({
+        format: 'mind-turn-v1',
+        thought: 'obligation=answer; truth=dialogue-grounded; focus=current-host-turn; move=answer-directly; tone=warm',
+        emotion: 'thinking',
+        reply: '我先把这份熟悉停在记得的地方，再按你这句轻一点接住。',
+        performance: {
+          baseEmotion: 'thinking',
+          facialCue: null,
+          actionCue: null,
+          delivery: 'calm',
+          emphasis: 0,
+        },
+      }),
+    }))
+
+    await rewriteAlicizationVisibleReplySecondPass({
+      cardId: 'card-1',
+      turnId: 'turn-same-her-memory-detail-rewrite',
+      sessionId: 'session-1',
+      userText: '你仔细看看呢',
+      rawFullText: '我记得我们之前一直都这么亲近，所以这次我也想像以前那样靠近一点，先陪在你身侧。',
+      prepared: createPrepared({
+        governance: {
+          ...createPrepared().governance,
+          openingMove: 'Stay inside the current same-her baseline. Keep the opening lower-pressure and leave room before widening closeness.',
+        },
+      }),
+      visibleReplyExecution: {
+        mode: 'provider-stream',
+        expectedVisibleReplyAuthority: 'llm-mind',
+        actualVisibleReplyAuthority: 'llm-mind',
+        providerMindExecuted: true,
+        reason: 'provider-stream',
+      },
+      provider,
+      forceRewrite: true,
+      forceReasonCodes: ['opening-guidance-lower-pressure'],
+    })
+
+    expect(provider).toHaveBeenCalledOnce()
+    const providerInput = provider.mock.calls[0]?.[0]
+    const rewritePayload = String(providerInput?.messages.at(-1)?.content ?? '')
+    expect(rewritePayload).toContain('memory-familiarity-closeness-cap')
+    expect(rewritePayload).toContain('[OPENING_GUIDANCE_REWRITE_GUIDANCE]')
+    expect(rewritePayload).toContain('Keep remembered familiarity explicitly framed as memory')
+    expect(rewritePayload).toContain('do not let it reopen visible closeness faster than the host\'s current room allows')
+  })
+
   it('blocks visible reply on transport failure instead of replaying local status text', () => {
     const result = buildAlicizationSecondPassTransportFailureReply({
       governedStructured: {

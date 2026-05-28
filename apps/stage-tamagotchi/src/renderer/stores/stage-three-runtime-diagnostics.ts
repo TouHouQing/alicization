@@ -11,6 +11,7 @@ import type {
   VrmSceneSummarySnapshot,
   VrmUpdateFrameTracePayload,
 } from '@proj-alicization/stage-ui-three/trace'
+import type { StageEmbodimentSpeechArticulationState } from '@proj-alicization/stage-shared'
 
 import type { StageThreeRuntimeTraceEnvelope, StageThreeRuntimeTraceForwardedPayload } from '../../shared/eventa'
 
@@ -51,6 +52,10 @@ export interface StageThreeRuntimeThreeRenderDiagnostics {
 }
 
 export interface StageThreeRuntimeVrmUpdateDiagnostics {
+  lastConsumedExpressionAliases: string[]
+  lastConsumedMotionAliases: string[]
+  lastConsumedVrmActionFadeMs: number | null
+  lastConsumedVrmExpressionBlendMs: number | null
   animationMixerMs: number
   blinkAndSaccadeMs: number
   deltaMs: number
@@ -103,6 +108,320 @@ export interface StageThreeRuntimeResourceSnapshotDiagnostics {
   lastBeforeDispose?: StageThreeRuntimeResourceSnapshotRecord
 }
 
+export interface StageThreeRuntimeSpeechEmbodimentDiagnostics {
+  phase: 'idle' | 'starting' | 'playing' | 'stopping'
+  playbackPhase: 'idle' | 'playing'
+  speechEnergy: number
+  prosodyIntensity: number
+  emphasisLevel: number
+  cadencePulse: number
+  visemeIntensity: number
+  articulation: StageEmbodimentSpeechArticulationState | null
+  runtimeDynamics: {
+    profile: 'default' | 'quiet-accompaniment' | 'protective-watch'
+    variationToken: string | null
+    residentEmotion: string | null
+    residentDelivery: string | null
+    residentFacialCue: string | null
+    residentActionCue: string | null
+    actionIntensity: number
+    breathDrive: number
+    focusDrive: number
+    provenance: {
+      watchMode: string | null
+      bodyState: string | null
+      continuityMode: string | null
+      thoughtStance: string | null
+      thoughtShouldSpeak: boolean | null
+      thoughtTension: string | null
+      runtimeChannel: string | null
+      runtimeSummary: string | null
+      activeThreadId: string | null
+      activeThreadTitle: string | null
+      preferredPresence: string | null
+      selectedAction: string | null
+      personaBiasSummary: string | null
+      personaOpeningGuidance: string | null
+      scene: string | null
+      scenario: string | null
+    }
+    eventPointers: {
+      recentTransition: {
+        fromWatchMode: string | null
+        toWatchMode: string | null
+        fromScenario: string | null
+        durationMs: number
+        reason: string | null
+        occurredAt: number
+      } | null
+      rationaleTags: string[]
+      focusBeliefId: string | null
+      focusInquiryId: string | null
+      commitmentId: string | null
+      runtimeThreadId: string | null
+      governorDrive: string | null
+      governorIntentionId: string | null
+      selectedThoughtThreadId: string | null
+    }
+  } | null
+  recentDrivingEvent: {
+    kind: string | null
+    decisionTraceId: string | null
+    summary: string | null
+    createdAt: number | null
+  } | null
+  recentDrivingTraceRecord: {
+    decisionTraceId: string
+    activeThreadId: string | null
+    turnMode: string | null
+    truthState: string | null
+    repairState: string | null
+    finalSurfacePolicy: string | null
+    closureState: string | null
+    suppressionTags: string[]
+  } | null
+  recentDrivingTraceEvents: Array<{
+    kind: string | null
+    summary: string | null
+    createdAt: number | null
+  }>
+  recentDrivingTraceDetails: Array<{
+    kind: string | null
+    summary: string | null
+    createdAt: number | null
+    details: Array<{
+      label: string
+      value: string
+    }>
+  }>
+  traceSummary: {
+    cueId?: string | null
+    decisionTraceId: string
+    turnMode: string | null
+    truthState: string | null
+    repairState: string | null
+    finalSurfacePolicy: string | null
+    closureState: string | null
+    activeThreadId: string | null
+    suppressionTags: string[]
+    latestEventSummary: string | null
+    segmentBinding: {
+      matched: boolean
+      rendererTarget: 'live2d' | 'vrm' | null
+      matchedDrivers: Array<'face' | 'motion' | 'lipsync'>
+      matchedSources: string[]
+    }
+  } | null
+  driverSummary: {
+    rendererTarget: 'live2d' | 'vrm' | null
+    face: {
+      cue: string | null
+      source: string | null
+      confidence: number | null
+      segmentId: string | null
+    } | null
+    motion: {
+      cue: string | null
+      source: string | null
+      confidence: number | null
+      segmentId: string | null
+    } | null
+    lipsync: {
+      cue: string | null
+      source: string | null
+      confidence: number | null
+      segmentId: string | null
+      mode: string | null
+    } | null
+  } | null
+  rendererAlignment: {
+    live2d: {
+      predicted: string | null
+      actual: string | null
+      reason: string | null
+      status: 'aligned' | 'predicted-only' | 'actual-only' | 'drifted'
+      driftKind: 'aligned' | 'resident-not-yet-applied' | 'runtime-only-visible' | 'alias-resolution-drift'
+      driverCue: string | null
+      driverSource: string | null
+    } | null
+    vrm: {
+      predicted: string | null
+      actual: string | null
+      reason: string | null
+      status: 'aligned' | 'predicted-only' | 'actual-only' | 'drifted'
+      driftKind: 'aligned' | 'resident-not-yet-applied' | 'runtime-only-visible' | 'alias-resolution-drift'
+      driverCue: string | null
+      driverSource: string | null
+    } | null
+  }
+  rendererDriftSummary: {
+    live2d: string | null
+    vrm: string | null
+    primary: string | null
+  } | null
+  articulationSummary: {
+    voice: string | null
+    topVisemes: string | null
+  } | null
+  authoritySummary: {
+    cueId: string | null
+    segmentId: string | null
+    rendererTarget: 'live2d' | 'vrm' | null
+    matchedDrivers: Array<'face' | 'motion' | 'lipsync'>
+    matchedSources: string[]
+    bindingSummary: string
+    matchSummary: string
+    authorityTrustSummary?: string | null
+    prosodyAuthoritySummary?: string | null
+    authorityMismatchSummary: string | null
+    authorityMismatchReasonSummary: string | null
+    authorityMismatchDisplay: string | null
+    settleSummary: string
+    traceEmbodimentSummary?: string | null
+  } | null
+  speechEvidence: {
+    voiceSummary: string | null
+    authorityMatchSummary: string | null
+    topVisemeSummary: string | null
+    cueSummary: string | null
+    cueIdentityPresent: boolean
+    cueProsodyPresent: boolean
+    personaStyleSummary: string | null
+    prosodyAuthoritySummary?: string | null
+    timingSummary: string | null
+    driverExecutionSummary: string | null
+    visemeHintsSummary: string | null
+  } | null
+  cueMicroSummary: {
+    cueId: string | null
+    cueText: string | null
+    cue: string | null
+    personaStyle: string | null
+    timing: string | null
+  } | null
+  driverExecutionSummary: string | null
+  live2dExecution: {
+    activeExpression: {
+      name: string | null
+      reason: 'emotion' | 'facial-cue' | 'neutral' | 'preferred' | null
+      score: number | null
+      segmentId: string | null
+    } | null
+    activeMotion: {
+      group: string | null
+      index: number | null
+      segmentId: string | null
+    } | null
+    cue: {
+      emotion: string | null
+      facialCue: string | null
+      preferredExpressionAliases: string[]
+      live2dFacialReleaseMs: number | null
+      live2dMotionFollowThroughMs: number | null
+    } | null
+  } | null
+  visemeHintsSummary: string | null
+  playbackTelemetry: {
+    actualDurationMs: number | null
+    plannedDurationMs: number | null
+    driftMs: number | null
+    settleMs: number | null
+    stopReason: string | null
+    rendererTarget: 'live2d' | 'vrm' | null
+    driverAuthority: {
+      segmentId: string | null
+      rendererTarget: 'live2d' | 'vrm' | null
+      matchedDrivers: Array<'face' | 'motion' | 'lipsync'>
+      sources: string[]
+      faceSegmentMatched: boolean
+      motionSegmentMatched: boolean
+      lipsyncSegmentMatched: boolean
+      prosodyAuthority?: {
+        segmentId: string | null
+        provenance: 'authority-bound' | 'fallback-derived'
+        source: string | null
+        mode: string | null
+        cueProsodyWeight: number | null
+        cueMouthWeight: number | null
+        cueHeadWeight: number | null
+        visemePeakWeight: number | null
+      } | null
+    } | null
+    prosodyAuthority?: {
+      segmentId: string | null
+      provenance: 'authority-bound' | 'fallback-derived'
+      source: string | null
+      mode: string | null
+      cueProsodyWeight: number | null
+      cueMouthWeight: number | null
+      cueHeadWeight: number | null
+      visemePeakWeight: number | null
+      summary?: string | null
+    } | null
+    cue: {
+      id: string | null
+      text?: string | null
+      prosodyWeight?: number | null
+      mouthWeight?: number | null
+      headWeight?: number | null
+      personaStyleSummary?: string | null
+      facialHoldMs?: number | null
+      actionHoldMs?: number | null
+      emotionHoldMs?: number | null
+      facialCue?: string | null
+      actionCue?: string | null
+      actionWindow?: string | null
+      interruptMode?: string | null
+      settleMode?: string | null
+      rendererHints: {
+        preferredExpressionAliases?: string[]
+        preferredMotionAliases?: string[]
+      } | null
+      rendererSettle: {
+        live2dFacialReleaseMs: number | null
+        live2dMotionFollowThroughMs: number | null
+        vrmActionFadeMs: number | null
+        vrmExpressionBlendMs: number | null
+      } | null
+    } | null
+    drivers: {
+      face: {
+        emotion: string | null
+        facialCue: string | null
+        intensity: number | null
+        holdMs: number | null
+        source: string | null
+        confidence: number | null
+        preUtteranceCue: string | null
+        postUtteranceCue: string | null
+        segmentId: string | null
+      } | null
+      lipsync: {
+        mode: string | null
+        playbackPhase: string | null
+        segmentId: string | null
+        visemeHints: Array<{
+          segmentId: string | null
+          viseme: string | null
+          weight: number | null
+          source: string | null
+          confidence: number | null
+        }>
+      } | null
+      motion: {
+        idleBase: string | null
+        attentionMode: string | null
+        actionCue: string | null
+        intensity: number | null
+        holdMs: number | null
+        source: string | null
+        confidence: number | null
+        segmentId: string | null
+      } | null
+    } | null
+  } | null
+}
+
 export function createDefaultStageThreeRenderDiagnostics(): StageThreeRuntimeThreeRenderDiagnostics {
   return {
     drawCalls: 0,
@@ -118,6 +437,10 @@ export function createDefaultStageThreeRenderDiagnostics(): StageThreeRuntimeThr
 
 export function createDefaultStageVrmUpdateDiagnostics(): StageThreeRuntimeVrmUpdateDiagnostics {
   return {
+    lastConsumedExpressionAliases: [],
+    lastConsumedMotionAliases: [],
+    lastConsumedVrmActionFadeMs: null,
+    lastConsumedVrmExpressionBlendMs: null,
     animationMixerMs: 0,
     blinkAndSaccadeMs: 0,
     deltaMs: 0,
@@ -164,6 +487,39 @@ export function createDefaultStageResourceSnapshotDiagnostics(): StageThreeRunti
   }
 }
 
+export function createDefaultStageSpeechEmbodimentDiagnostics(): StageThreeRuntimeSpeechEmbodimentDiagnostics {
+  return {
+    phase: 'idle',
+    playbackPhase: 'idle',
+    speechEnergy: 0,
+    prosodyIntensity: 0,
+    emphasisLevel: 0,
+    cadencePulse: 0,
+    visemeIntensity: 0,
+    articulation: null,
+    runtimeDynamics: null,
+    recentDrivingEvent: null,
+    recentDrivingTraceRecord: null,
+    recentDrivingTraceEvents: [],
+    recentDrivingTraceDetails: [],
+    traceSummary: null,
+    driverSummary: null,
+    rendererAlignment: {
+      live2d: null,
+      vrm: null,
+    },
+    rendererDriftSummary: null,
+    articulationSummary: null,
+    authoritySummary: null,
+    speechEvidence: null,
+    cueMicroSummary: null,
+    driverExecutionSummary: null,
+    live2dExecution: null,
+    visemeHintsSummary: null,
+    playbackTelemetry: null,
+  }
+}
+
 export function pushTraceHistory(
   history: StageThreeRuntimeResourceSnapshotRecord[],
   record: StageThreeRuntimeResourceSnapshotRecord,
@@ -207,6 +563,14 @@ export function applyVrmUpdateTracePayload(
   payload: VrmUpdateFrameTracePayload,
 ): StageThreeRuntimeVrmUpdateDiagnostics {
   return {
+    lastConsumedExpressionAliases: payload.activeCuePreferredExpressionAliases
+      ? [...payload.activeCuePreferredExpressionAliases]
+      : current.lastConsumedExpressionAliases,
+    lastConsumedMotionAliases: payload.activeCuePreferredMotionAliases
+      ? [...payload.activeCuePreferredMotionAliases]
+      : current.lastConsumedMotionAliases,
+    lastConsumedVrmActionFadeMs: payload.activeCueVrmActionFadeMs ?? current.lastConsumedVrmActionFadeMs,
+    lastConsumedVrmExpressionBlendMs: payload.activeCueVrmExpressionBlendMs ?? current.lastConsumedVrmExpressionBlendMs,
     animationMixerMs: payload.animationMixerMs,
     blinkAndSaccadeMs: payload.blinkAndSaccadeMs,
     deltaMs: payload.deltaMs,
@@ -327,6 +691,7 @@ export const useStageThreeRuntimeDiagnosticsStore = defineStore('stageThreeRunti
   const hitTest = ref<StageThreeRuntimeHitTestDiagnostics>(createDefaultStageHitTestDiagnostics())
   const vrmLifecycle = ref<StageThreeRuntimeVrmLifecycleDiagnostics>(createDefaultStageVrmLifecycleDiagnostics())
   const resourceSnapshots = ref<StageThreeRuntimeResourceSnapshotDiagnostics>(createDefaultStageResourceSnapshotDiagnostics())
+  const speechEmbodiment = ref<StageThreeRuntimeSpeechEmbodimentDiagnostics>(createDefaultStageSpeechEmbodimentDiagnostics())
 
   const localTraceContext = getStageThreeRuntimeTraceContext()
   const remoteTraceContext = getStageThreeRuntimeTraceBroadcastContext()
@@ -343,6 +708,11 @@ export const useStageThreeRuntimeDiagnosticsStore = defineStore('stageThreeRunti
     hitTest.value = createDefaultStageHitTestDiagnostics()
     vrmLifecycle.value = createDefaultStageVrmLifecycleDiagnostics()
     resourceSnapshots.value = createDefaultStageResourceSnapshotDiagnostics()
+    speechEmbodiment.value = createDefaultStageSpeechEmbodimentDiagnostics()
+  }
+
+  function setSpeechEmbodiment(next: StageThreeRuntimeSpeechEmbodimentDiagnostics) {
+    speechEmbodiment.value = next
   }
 
   function applyRenderPayload(payload: ThreeSceneRenderInfoTracePayload) {
@@ -478,6 +848,8 @@ export const useStageThreeRuntimeDiagnosticsStore = defineStore('stageThreeRunti
     hitTest,
     resourceSnapshots,
     resetSamples,
+    setSpeechEmbodiment,
+    speechEmbodiment,
     startTracing,
     stopTracing,
     threeRender,

@@ -4,6 +4,115 @@ import { deriveAlicizationBrowserMainParitySummary } from './alicization-browser
 import { normalizeAlicizationDerivedMindStateBundle } from './alicization-transport-contracts'
 
 describe('alicization-browser-main-parity', () => {
+  it('flags rendererTarget divergence inside embodimentScript authority', () => {
+    const summary = deriveAlicizationBrowserMainParitySummary({
+      mainBundle: normalizeAlicizationDerivedMindStateBundle({
+        source: 'main-runtime',
+        producedAt: 1,
+        structured: {
+          thought: 'focus',
+          emotion: 'neutral',
+          reply: '你好',
+          performance: {
+            baseEmotion: 'neutral',
+            emotion: 'neutral',
+            facialCue: null,
+            actionCue: null,
+            delivery: 'calm',
+            emphasis: 0,
+          },
+          embodimentScript: {
+            version: 'embodiment-script-v1',
+            decisionTraceId: 'trace-renderer-authority',
+            turnId: 'turn-renderer-authority',
+            rendererTarget: 'vrm',
+            replyText: '你好',
+            state: {
+              baseEmotion: 'neutral',
+              delivery: 'calm',
+              emphasis: 0,
+              residentMode: 'dialogue',
+            },
+            speechPlan: {
+              segments: [],
+              interruptPolicy: 'hard-stop',
+              preRollMs: 0,
+              settleMs: 160,
+            },
+            facePlan: {
+              speakingCues: [],
+            },
+            motionPlan: {
+              idleBase: 'idle_settle',
+              actionBursts: [],
+              attentionMode: 'attentive',
+            },
+            lipsyncPlan: {
+              mode: 'energy-only',
+            },
+          },
+        },
+      } as any),
+      browserBundle: normalizeAlicizationDerivedMindStateBundle({
+        source: 'browser-fallback',
+        producedAt: 2,
+        structured: {
+          thought: 'focus',
+          emotion: 'neutral',
+          reply: '你好',
+          performance: {
+            baseEmotion: 'neutral',
+            emotion: 'neutral',
+            facialCue: null,
+            actionCue: null,
+            delivery: 'calm',
+            emphasis: 0,
+          },
+          embodimentScript: {
+            version: 'embodiment-script-v1',
+            decisionTraceId: 'trace-renderer-authority',
+            turnId: 'turn-renderer-authority',
+            rendererTarget: 'live2d',
+            replyText: '你好',
+            state: {
+              baseEmotion: 'neutral',
+              delivery: 'calm',
+              emphasis: 0,
+              residentMode: 'dialogue',
+            },
+            speechPlan: {
+              segments: [],
+              interruptPolicy: 'hard-stop',
+              preRollMs: 0,
+              settleMs: 160,
+            },
+            facePlan: {
+              speakingCues: [],
+            },
+            motionPlan: {
+              idleBase: 'idle_settle',
+              actionBursts: [],
+              attentionMode: 'attentive',
+            },
+            lipsyncPlan: {
+              mode: 'energy-only',
+            },
+          },
+        },
+      } as any),
+    })
+
+    expect(summary.passed).toBe(false)
+    expect(summary.divergentFields).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        field: 'bundle.structuredEmbodimentScriptRendererTarget',
+        mainValue: 'vrm',
+        browserValue: 'live2d',
+        layer: 'bundle',
+      }),
+    ]))
+  })
+
   it('passes when main and browser shared surfaces stay aligned', () => {
     const summary = deriveAlicizationBrowserMainParitySummary({
       mainBundle: {

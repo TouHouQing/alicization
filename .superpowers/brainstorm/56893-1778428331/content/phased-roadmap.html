@@ -1,0 +1,205 @@
+<style>
+  .timeline {
+    display: grid;
+    gap: 18px;
+    margin-top: 18px;
+  }
+  .phase {
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 18px;
+    padding: 18px;
+    background: rgba(255,255,255,0.04);
+  }
+  .head {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    align-items: baseline;
+    margin-bottom: 10px;
+  }
+  .head h3 {
+    margin: 0;
+    font-size: 20px;
+  }
+  .span {
+    font-size: 12px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.10);
+  }
+  .small {
+    font-size: 13px;
+    color: rgba(255,255,255,0.72);
+    line-height: 1.58;
+  }
+  .cols {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+    margin-top: 12px;
+  }
+  .subbox {
+    border-radius: 14px;
+    padding: 14px;
+    background: rgba(0,0,0,0.16);
+    border: 1px solid rgba(255,255,255,0.08);
+  }
+  .subbox h4 {
+    margin: 0 0 8px;
+    font-size: 15px;
+  }
+  .list {
+    margin: 0;
+    padding-left: 18px;
+    line-height: 1.6;
+  }
+  .summary {
+    margin-top: 22px;
+    display: grid;
+    grid-template-columns: 1.1fr 0.9fr;
+    gap: 18px;
+  }
+  .good { color: #86efac; }
+  .warn { color: #fca5a5; }
+  @media (max-width: 1050px) {
+    .cols, .summary {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+
+<h2>12-18 个月阶段路线图</h2>
+<p class="subtitle">顺序原则：先把“像活着的桌宠”做稳，再逐步拉高实时性、动作细腻度和本地化比例。不要一开始追满配。</p>
+
+<div class="timeline">
+  <div class="phase">
+    <div class="head">
+      <h3>P0 演出权威收口</h3>
+      <span class="span">0-2 个月</span>
+    </div>
+    <p class="small">目标不是新增很多功能，而是让现有聊天闭环从“能跑”变成“同一时序下稳定演出”。</p>
+    <div class="cols">
+      <div class="subbox">
+        <h4>必须完成</h4>
+        <ul class="list">
+          <li>抽出独立 `Embodiment Director`。</li>
+          <li>定义统一 `performance script` / `speech segment metadata` 契约。</li>
+          <li>把 Live2D 作为唯一主渲染目标打磨通。</li>
+          <li>为 TTS、口型、表情、动作建立统一 interrupt / cancel / settle 协议。</li>
+          <li>记录 first-byte、actual duration、interrupt、cue miss 等 telemetry。</li>
+        </ul>
+      </div>
+      <div class="subbox">
+        <h4>刻意不做</h4>
+        <ul class="list">
+          <li>不做全双工语音。</li>
+          <li>不做 VRM 同权支持。</li>
+          <li>不做太多 TTS provider UI。</li>
+          <li>不做复杂 agent 行为编排。</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="phase">
+    <div class="head">
+      <h3>P1 生命感与中文语音细化</h3>
+      <span class="span">2-5 个月</span>
+    </div>
+    <p class="small">这一阶段的目标是让用户开始觉得“她不是播报器，而是在活着地说话”。</p>
+    <div class="cols">
+      <div class="subbox">
+        <h4>重点建设</h4>
+        <ul class="list">
+          <li>中文优先的 prosody profile、停顿、呼吸、语尾、轻重音规则。</li>
+          <li>口型从纯能量驱动升级到 `能量 + phoneme/viseme` 混合驱动。</li>
+          <li>表情系统增加 micro-expression、pre-utterance cue、post-utterance settle。</li>
+          <li>resident performance 与 quiet companionship 进入稳定常驻循环。</li>
+          <li>建立“说之前、说之中、说完后”的状态转换图。</li>
+        </ul>
+      </div>
+      <div class="subbox">
+        <h4>借鉴对象</h4>
+        <ul class="list">
+          <li><strong>N.E.K.O.</strong>：学它统一 TTS queue、可中断流式输出，但不要照搬三服务器。</li>
+          <li><strong>Open-LLM-VTuber</strong>：学它对 interruption、first response latency、并发分段 TTS 的重视。</li>
+          <li><strong>你自己的 Alicization</strong>：把 `digitalLifeSpine` 真正变成 resident performance 的长期来源。</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="phase">
+    <div class="head">
+      <h3>P2 半实时语音与陪伴闭环</h3>
+      <span class="span">5-9 个月</span>
+    </div>
+    <p class="small">当桌宠式说话闭环足够稳，才把按键/按钮交互向半实时语音陪伴扩展。</p>
+    <div class="cols">
+      <div class="subbox">
+        <h4>新增能力</h4>
+        <ul class="list">
+          <li>Push-to-talk 与短句 VAD 并存。</li>
+          <li>半双工 interruption：用户插话即停播，角色平滑收口。</li>
+          <li>ASR 中间态驱动 anticipation animation。</li>
+          <li>主动陪伴与静默陪伴统一进同一 director 协议。</li>
+          <li>增加英语 secondary support，但不抢中文优化优先级。</li>
+        </ul>
+      </div>
+      <div class="subbox">
+        <h4>风险控制</h4>
+        <ul class="list">
+          <li>不要把 ASR 中间态直接污染心智层。</li>
+          <li>不要因为追低延迟把情绪和口型质量拉垮。</li>
+          <li>保持“半实时”而不是急着上全双工。</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="phase">
+    <div class="head">
+      <h3>P3 本地数字生命平台化</h3>
+      <span class="span">9-18 个月</span>
+    </div>
+    <p class="small">这时再逐步把它从“一个很活的桌宠”推向“本地数字生命平台”。</p>
+    <div class="cols">
+      <div class="subbox">
+        <h4>可以进入的方向</h4>
+        <ul class="list">
+          <li>VRM 作为第二执行栈接入同一 director。</li>
+          <li>本地优先 TTS / ASR / 小模型 fallback。</li>
+          <li>角色卡、声音包、动作包、表情包的内容层抽象。</li>
+          <li>多端同步：桌面、Web、移动端共享心智，具身层按端能力退化。</li>
+          <li>长期记忆、日常节律、主动行为进入“生活化系统”。</li>
+        </ul>
+      </div>
+      <div class="subbox">
+        <h4>这时才值得考虑</h4>
+        <ul class="list">
+          <li>多进程/多服务拆分。</li>
+          <li>远程 agent server。</li>
+          <li>完整创作者平台。</li>
+          <li>全双工实时语音默认开启。</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="summary">
+  <div class="phase">
+    <div class="head">
+      <h3>一句话路线</h3>
+      <span class="span">推荐</span>
+    </div>
+    <p class="small"><span class="good">先做一个非常像活着的 Live2D 中文桌宠，</span>再把它平滑扩展成半实时陪伴体，最后才是本地数字生命平台。</p>
+  </div>
+  <div class="phase">
+    <div class="head">
+      <h3>最常见的失败路线</h3>
+      <span class="span">避免</span>
+    </div>
+    <p class="small"><span class="warn">一开始就想同时拿下</span> 全双工语音、VRM、纯本地、平台化、多角色工作坊，最后每条线都半成品。</p>
+  </div>
+</div>

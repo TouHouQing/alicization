@@ -5,6 +5,11 @@ import {
   buildAlicizationVisibleReplyRealizationArtifact,
   createAlicizationVisibleReplyExecution,
 } from '../visible-reply/facade'
+import {
+  buildAlicizationOpeningGuidanceBlockedReason,
+  resolveAlicizationOpeningGuidanceHoldDetail,
+  resolveAlicizationOpeningGuidanceViolationReason,
+} from '../proactive-opening-guidance'
 import { decideAlicizationProactiveVisibleUtterance } from './visible-utterance-policy'
 
 export type AlicizationProactiveVisibleUtteranceKind
@@ -28,6 +33,18 @@ function readVisibleReply(structured: unknown) {
     : ''
 }
 
+function readProactiveOpeningGuidance(structured: unknown) {
+  if (!structured || typeof structured !== 'object')
+    return ''
+  const proactive = (structured as { proactive?: unknown }).proactive
+  if (!proactive || typeof proactive !== 'object')
+    return ''
+  const openingGuidance = (proactive as { openingGuidance?: unknown }).openingGuidance
+  return typeof openingGuidance === 'string'
+    ? openingGuidance.trim()
+    : ''
+}
+
 export function resolveAlicizationProactiveVisibleUtterance(input: {
   kind: AlicizationProactiveVisibleUtteranceKind
   structured: Record<string, unknown> | null | undefined
@@ -39,19 +56,27 @@ export function resolveAlicizationProactiveVisibleUtterance(input: {
   selfRevisionPatch?: AlicizationSelfRevisionStatePatch | null
 }) {
   const reply = readVisibleReply(input.structured)
+  const openingGuidance = readProactiveOpeningGuidance(input.structured)
   const hasMindAuthoredVisibleText = input.hasMindAuthoredStructured && Boolean(reply)
+  const shouldCheckOpeningGuidance = Boolean(reply)
+  const openingGuidanceViolationReason = shouldCheckOpeningGuidance
+    ? resolveAlicizationOpeningGuidanceViolationReason({
+        reply,
+        openingGuidance,
+      })
+    : null
+  const openingGuidanceViolated = Boolean(openingGuidanceViolationReason)
   const actualVisibleReplyAuthority = hasMindAuthoredVisibleText
     ? input.actualVisibleReplyAuthority ?? 'llm-mind'
     : 'local-deterministic-fallback'
-  const decisionReason = hasMindAuthoredVisibleText
-    ? input.reason ?? `mind-authored-${input.kind}`
-    : input.hasMindAuthoredStructured
-      ? `provider-mind-empty-visible-text-for-${input.kind}`
-      : input.reason ?? `provider-mind-unavailable-for-${input.kind}`
   const decision = decideAlicizationProactiveVisibleUtterance({
-    hasMindAuthoredStructured: hasMindAuthoredVisibleText,
-    allowDeterministicVisibleFallback: input.allowDeterministicVisibleFallback,
-    reason: decisionReason,
+    hasMindAuthoredStructured: hasMindAuthoredVisibleText && !openingGuidanceViolated,
+    allowDeterministicVisibleFallback: openingGuidanceViolated
+      ? true
+      : input.allowDeterministicVisibleFallback,
+    reason: openingGuidanceViolated
+      ? openingGuidanceViolationReason
+      : input.reason ?? null,
     selfRevisionPatch: input.selfRevisionPatch ?? null,
   })
   const persistedVisibleReplyAuthority = actualVisibleReplyAuthority === 'llm-second-pass-rewrite'
@@ -60,23 +85,42 @@ export function resolveAlicizationProactiveVisibleUtterance(input: {
       ? 'local-deterministic-fallback'
       : 'llm-mind'
   const visibleReplyExecution = createAlicizationVisibleReplyExecution({
-    mode: hasMindAuthoredVisibleText ? 'provider-one-shot' : 'local-fallback',
+    mode: hasMindAuthoredVisibleText && !openingGuidanceViolated ? 'provider-one-shot' : 'local-fallback',
     expectedVisibleReplyAuthority: input.expectedVisibleReplyAuthority ?? 'llm-mind',
-    actualVisibleReplyAuthority,
-    providerMindExecuted: hasMindAuthoredVisibleText,
+    actualVisibleReplyAuthority: hasMindAuthoredVisibleText && !openingGuidanceViolated
+      ? actualVisibleReplyAuthority
+      : 'local-deterministic-fallback',
+    providerMindExecuted: hasMindAuthoredVisibleText && !openingGuidanceViolated,
     reason: decision.reason,
   })
   const visibleReplyRealization = buildAlicizationVisibleReplyRealizationArtifact({
     fullText: stringifyStructuredForRealization(input.structured),
     visibleReplyExecution,
   })
+  const openingGuidanceBlockedReason = buildAlicizationOpeningGuidanceBlockedReason(openingGuidanceViolationReason)
+  const openingGuidanceHoldDetail = openingGuidanceViolationReason
+    ? resolveAlicizationOpeningGuidanceHoldDetail({
+        reply,
+        openingGuidance,
+        openingGuidanceViolationReason,
+      })
+    : null
+  const visibleReplyRealizationWithGuidance = openingGuidanceBlockedReason
+    ? {
+        ...visibleReplyRealization,
+        blockedReasons: visibleReplyRealization.blockedReasons.includes(openingGuidanceBlockedReason)
+          ? visibleReplyRealization.blockedReasons
+          : [...visibleReplyRealization.blockedReasons, openingGuidanceBlockedReason],
+        openingGuidanceHoldDetail,
+      }
+    : visibleReplyRealization
   const structuredForPersistence: (Record<string, unknown> & { reply?: unknown }) | null = decision.shouldPersistVisibleUtterance && input.structured
     ? {
         ...input.structured,
         visibleReplyAuthority: persistedVisibleReplyAuthority,
         replyRealizationMode: 'provider-mind-required',
         visibleReplyExecution,
-        visibleReplyRealization,
+        visibleReplyRealization: visibleReplyRealizationWithGuidance,
       }
     : null
 
@@ -88,6 +132,6 @@ export function resolveAlicizationProactiveVisibleUtterance(input: {
     assistantText: decision.shouldPersistVisibleUtterance ? reply : '',
     structuredForPersistence,
     visibleReplyExecution,
-    visibleReplyRealization,
+    visibleReplyRealization: visibleReplyRealizationWithGuidance,
   }
 }

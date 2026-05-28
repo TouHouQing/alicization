@@ -155,7 +155,8 @@ export function applyAlicizationSelfEvolutionReplayValidation(input: {
       activatedAt: canActivate ? input.now : candidate.activatedAt,
     }
   })
-  const activeCandidateId = candidates.find(candidate => candidate.status === 'active')?.id
+  const activeCandidateId = candidates.find(candidate => candidate.id === input.candidateId && candidate.status === 'active')?.id
+    ?? candidates.find(candidate => candidate.status === 'active')?.id
     ?? input.snapshot.activeCandidateId
   return buildAlicizationSelfEvolutionVersionRuntimeSnapshot({
     candidates,

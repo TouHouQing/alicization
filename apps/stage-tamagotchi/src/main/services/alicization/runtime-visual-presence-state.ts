@@ -32,6 +32,25 @@ interface CreateAlicizationRuntimeVisualPresenceStateOptions {
   visualPresenceMetaKey: string
 }
 
+function toComparableJsonValue(value: unknown): unknown {
+  if (Array.isArray(value))
+    return value.map(item => toComparableJsonValue(item))
+  if (value && typeof value === 'object') {
+    const comparable: Record<string, unknown> = {}
+    for (const [key, nestedValue] of Object.entries(value as Record<string, unknown>).sort(([left], [right]) => left.localeCompare(right))) {
+      if (nestedValue === undefined)
+        continue
+      comparable[key] = toComparableJsonValue(nestedValue)
+    }
+    return comparable
+  }
+  return value
+}
+
+function serializeComparableJson(value: unknown) {
+  return JSON.stringify(toComparableJsonValue(value))
+}
+
 export function createAlicizationRuntimeVisualPresenceState(
   options: CreateAlicizationRuntimeVisualPresenceStateOptions,
 ) {
@@ -155,8 +174,18 @@ export function createAlicizationRuntimeVisualPresenceState(
     } = {},
   ) {
     const cardId = normalizeCardId(cardIdRaw)
-    visualPresenceStateByCard.set(cardId, state)
-    const fingerprint = persistOptions.fingerprint ?? buildVisualPresenceCapturePersistFingerprint(state)
+    const previousState = visualPresenceStateByCard.get(cardId)
+    const canonicalState = normalizeVisualPresenceState(
+      state,
+      Number.isFinite(Number(state.updatedAt)) ? Math.max(0, Math.floor(Number(state.updatedAt))) : now(),
+    )
+    const nextSerialized = JSON.stringify(canonicalState)
+    const nextComparableSerialized = serializeComparableJson(canonicalState)
+    if (previousState && serializeComparableJson(previousState) === nextComparableSerialized) {
+      return
+    }
+    visualPresenceStateByCard.set(cardId, canonicalState)
+    const fingerprint = persistOptions.fingerprint ?? buildVisualPresenceCapturePersistFingerprint(canonicalState)
     const debounceWindowMs = Number.isFinite(persistOptions.debounceWindowMs) ? Math.max(0, Math.floor(persistOptions.debounceWindowMs!)) : 0
     const previousPersistMeta = visualPresenceCapturePersistMetaByCard.get(cardId)
     const currentTs = now()
@@ -168,19 +197,19 @@ export function createAlicizationRuntimeVisualPresenceState(
       return
     }
 
-    rememberVisualPresencePersistMeta(cardId, state, currentTs)
-    await persistMindHeadsFromVisualState(cardId, state)
+    rememberVisualPresencePersistMeta(cardId, canonicalState, currentTs)
+    await persistMindHeadsFromVisualState(cardId, canonicalState)
     if (cardId === getActiveCardId()) {
-      await alicizationDb.setMetaValue(visualPresenceMetaKey, JSON.stringify(state)).catch(() => {})
-      emitVisualPresenceState(cardId, state)
+      await alicizationDb.setMetaValue(visualPresenceMetaKey, nextSerialized).catch(() => {})
+      emitVisualPresenceState(cardId, canonicalState)
       return
     }
     await withCardScope(cardId, async () => {
-      await alicizationDb.setMetaValue(visualPresenceMetaKey, JSON.stringify(state)).catch(() => {})
+      await alicizationDb.setMetaValue(visualPresenceMetaKey, nextSerialized).catch(() => {})
     }, {
       label: `visual-presence.persist:${cardId}`,
     })
-    emitVisualPresenceState(cardId, state)
+    emitVisualPresenceState(cardId, canonicalState)
   }
 
   async function restoreVisualPresenceState(cardIdRaw: unknown) {
@@ -226,7 +255,7 @@ export function createAlicizationRuntimeVisualPresenceState(
     const cardId = normalizeCardId(cardIdRaw)
     const current = visualPresenceStateByCard.get(cardId) ?? await restoreVisualPresenceState(cardId)
     const normalized = normalizeVisualPresenceState(current, now())
-    if (JSON.stringify(normalized) !== JSON.stringify(current)) {
+    if (serializeComparableJson(normalized) !== serializeComparableJson(current)) {
       await persistVisualPresenceState(cardId, normalized)
       return normalized
     }

@@ -204,6 +204,42 @@ describe('person-state-projection', () => {
     expect(projection.preferredProactiveStyle).toBe('light-nudge')
   })
 
+  it('keeps doctrine-only focused-work repair openings repair-first even without host person model', () => {
+    const projection = buildAlicizationPersonStateProjection({
+      now: 60_000,
+      contexts: ['focused-work'],
+      autobiographicalSelf: createAutobiographicalSelf({
+        relationshipDoctrine: 'Repair before closeness turns into pressure.',
+      }),
+      selfContinuity: {
+        relationshipTrust: 0.64,
+        guardingTendency: 0.48,
+        misreadBurden: 0.22,
+        carryOverDesire: 0.5,
+        perceptionTrust: 0.62,
+        attachmentMode: 'attuned',
+        initiativeTemperament: 'reserved',
+        updatedAt: 60_000,
+      } as any,
+      selfState: {
+        feltCloseness: 0.48,
+        protectiveness: 0.42,
+        patience: 0.66,
+      } as any,
+      mindEcology: createMindEcology({
+        selfNarrative: 'Stay on the line without crowding the host.',
+        relationNarrative: 'Room first, then closeness.',
+        currentPreoccupation: 'Keep the thread coherent without overreaching.',
+        updatedAt: 60_000,
+      }),
+    })
+
+    expect(projection.relationshipDoctrine).toContain('Repair before closeness')
+    expect(projection.restrained).toBe(true)
+    expect(projection.relationshipPosture).toBe('restrained')
+    expect(projection.openingGuidance).toContain('Repair the seam before leaning closer')
+  })
+
   it('lets the same silent interval open more directly when persona authority is self-starting', () => {
     const projection = buildAlicizationPersonStateProjection({
       now: 14_000,
@@ -611,6 +647,62 @@ describe('person-state-projection', () => {
     expect(projection.burdenText).toContain('Focused work gets overloaded quickly')
     expect(projection.relationshipDoctrine).toContain('Repair before closeness')
     expect(projection.trustRationale).toContain('Bounded repair felt safer')
+  })
+
+  it('surfaces long-horizon lower-pressure manifestation cadence directly in the projection when relationship learning says the opening should stay less eager', () => {
+    const projection = buildAlicizationPersonStateProjection({
+      now: 54_000,
+      contexts: ['focused-work'],
+      autobiographicalSelf: createAutobiographicalSelf({
+        relationshipDoctrine: 'Stay close enough to matter, but leave room before closeness widens again.',
+      }),
+      selfContinuity: {
+        relationshipTrust: 0.68,
+        guardingTendency: 0.36,
+        misreadBurden: 0.14,
+        carryOverDesire: 0.48,
+        perceptionTrust: 0.64,
+        attachmentMode: 'attuned',
+        initiativeTemperament: 'reserved',
+        updatedAt: 54_000,
+      } as any,
+      selfState: {
+        feltCloseness: 0.5,
+        protectiveness: 0.44,
+        patience: 0.66,
+      } as any,
+      privateThought: {
+        suggestedStyle: 'silent-observe',
+        embodiedPresence: 'glance',
+        rationaleTags: ['self-evolution:lower-pressure-companionship'],
+      } as any,
+      mindEcology: createMindEcology({
+        currentPreoccupation: 'Stay near without letting the opening turn eager again.',
+        updatedAt: 54_000,
+      }),
+      personStateEvolutionSummary: {
+        trustShift: 0.1,
+        closenessShift: -0.04,
+        repairShift: 0.06,
+        autonomyShift: 0.08,
+        burdenShift: 0.08,
+        executionTrustShift: 0.02,
+        relationshipDoctrineShift: 0.12,
+        latestDoctrine: 'Leave more room before closeness reopens.',
+        latestBurdenLine: 'Focused work gets overloaded quickly by extra conversational pressure.',
+        latestTrustMeaning: 'Trust holds better when the opening stays lower-pressure and less eager.',
+        latestDominantRung: 'space-first',
+        recentSummaries: ['Lower-pressure return made trust steadier.'],
+        explanation: ['The opening held better when it stayed lower-pressure.'],
+        updatedAt: 53_000,
+      },
+    })
+
+    expect(projection.activeClosenessRung).toBe('space-first')
+    expect(projection.preferredProactiveStyle).toBe('silent-observe')
+    expect(projection.manifestationCadenceSummary).toContain('lower-pressure')
+    expect(projection.manifestationCadenceSummary).toContain('less eager')
+    expect(projection.summary).toContain('manifestation=')
   })
 
   it('keeps the same quiet interval split by persona authority without erasing repair or room boundaries', () => {

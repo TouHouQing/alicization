@@ -503,7 +503,7 @@ export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizat
 
     try {
       if (await skipIfInlineSurfaced('pre-generate'))
-        return true
+        return false
 
       const deliveryPolicy = await options.resolveExecutionResultDeliveryPolicy({
         agentTurn,
@@ -620,6 +620,39 @@ export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizat
           }
       const deliverySource = selectedReply.source
       const activeSelfRevisionPatch = await options.getActiveSelfRevisionStatePatch?.().catch(() => null) ?? null
+      const rawMindCallbackVisibleUtterance = llmStructured
+        ? resolveAlicizationProactiveVisibleUtterance({
+            kind: 'execution-callback',
+            structured: llmStructured,
+            hasMindAuthoredStructured: true,
+            actualVisibleReplyAuthority: 'llm-mind',
+            reason: 'mind-authored-execution-callback-preflight',
+            allowDeterministicVisibleFallback: true,
+            selfRevisionPatch: activeSelfRevisionPatch,
+          })
+        : null
+      if (rawMindCallbackVisibleUtterance && !rawMindCallbackVisibleUtterance.shouldPersistVisibleUtterance) {
+        options.executionDeliveryRuntime.requeue(pendingDelivery)
+        await options.persistExecutionDeliveryState(options.getActiveCardId())
+        options.queueSubconsciousWake(options.getActiveCardId(), `execution-delivery-requeue:${pendingDelivery.threadId}`, 1_500)
+        await options.appendAuditLog({
+          level: 'warning',
+          category: 'alicization.executor.delivery',
+          action: 'requeued-mind-authored-required',
+          message: 'Execution callback visible reply was deferred because the raw mind-authored callback violated the current same-her opening guidance.',
+          payload: {
+            trigger,
+            threadId: pendingDelivery.threadId,
+            sessionId: pendingDelivery.sessionId,
+            status: pendingDelivery.status,
+            source: 'llm-preflight',
+            surfaceReason: selectedReply.reason ?? null,
+            visibleUtteranceDecision: rawMindCallbackVisibleUtterance.decision,
+            visibleReplyRealization: rawMindCallbackVisibleUtterance.visibleReplyRealization,
+          },
+        })
+        return false
+      }
       const hasMindAuthoredCallbackSurface = Boolean(llmStructured) || selectedReply.source === 'llm-repaired'
       const allowDeterministicCallbackVisibleFallback = selectedReply.source === 'deterministic'
       const callbackVisibleUtterance = resolveAlicizationProactiveVisibleUtterance({

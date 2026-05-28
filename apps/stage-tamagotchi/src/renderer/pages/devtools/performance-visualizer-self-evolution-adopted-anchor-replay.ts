@@ -1,0 +1,41 @@
+interface SelfEvolutionAdoptedAnchorTraceabilityLike {
+  patternKey: string
+  workflowHeadline: string | null
+  supportingLines?: string[]
+}
+
+interface SelfEvolutionAdoptedAnchorHistoryTransitionLike {
+  transitionKey: string
+  selectedSide: 'current' | 'previous'
+  summaryLine: string
+}
+
+interface SelfEvolutionAdoptedAnchorTraceEventSelectionLike {
+  eventId: string
+  summaryLine: string
+}
+
+export function buildSelfEvolutionAdoptedAnchorReplayPlan(input: {
+  traceability: SelfEvolutionAdoptedAnchorTraceabilityLike | null
+  historyTransition: SelfEvolutionAdoptedAnchorHistoryTransitionLike | null
+  traceEventSelection: SelfEvolutionAdoptedAnchorTraceEventSelectionLike | null
+}) {
+  if (!input.traceability || !input.historyTransition || !input.traceEventSelection)
+    return null
+
+  return {
+    patternKey: input.traceability.patternKey,
+    transitionKey: input.historyTransition.transitionKey,
+    selectedSide: input.historyTransition.selectedSide,
+    eventId: input.traceEventSelection.eventId,
+    summaryLine: '回放当前默认连续性锚点：恢复对应工作流、历史转移和事件定位。',
+    supportingLines: [
+      `工作流：${input.traceability.workflowHeadline ?? 'n/a'}`,
+      `历史转移：${input.historyTransition.summaryLine}`,
+      `事件定位：${input.traceEventSelection.summaryLine}`,
+      ...((input.traceability.supportingLines ?? [])
+        .filter(line => line.startsWith('采纳前提仍然可追溯到'))
+        .map(line => `连续性前提：${line}`)),
+    ],
+  }
+}

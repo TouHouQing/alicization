@@ -28,6 +28,7 @@ import {
   electronAlicizationDeleteCardScope,
   electronAlicizationDispatchTaskThread,
   electronAlicizationGetOrganicMemorySnapshot,
+  electronAlicizationGetSelfEvolutionState,
   electronAlicizationGetSensorySnapshot,
   electronAlicizationGetSoul,
   electronAlicizationGetVisualPresenceState,
@@ -49,6 +50,7 @@ import {
   electronAlicizationReportProactiveFeedback,
   electronAlicizationSearchOrganicSubconsciousFragments,
   electronAlicizationSetActiveSession,
+  electronAlicizationSetPerformanceManifest,
   electronAlicizationSubconsciousForceDream,
   electronAlicizationSubconsciousForceTick,
   electronAlicizationUpdatePersonality,
@@ -126,9 +128,13 @@ const dbStub = {
   searchSubconsciousFragments: vi.fn().mockResolvedValue([]),
   listRecentSubconsciousFragments: vi.fn().mockResolvedValue([]),
   listRecentEpisodicEvents: vi.fn().mockResolvedValue([]),
+  listMemoryConsolidations: vi.fn().mockResolvedValue([]),
   countSubconsciousFragments: vi.fn().mockResolvedValue(0),
   appendRelationshipDynamics: vi.fn().mockResolvedValue(undefined),
   getLatestRelationshipDynamics: vi.fn().mockResolvedValue(null),
+  listRelationshipOutcomes: vi.fn().mockResolvedValue([]),
+  listMemoryReflections: vi.fn().mockResolvedValue([]),
+  listPersonaReinforcementEvents: vi.fn().mockResolvedValue([]),
   summarizePersonStateEvolution: vi.fn().mockResolvedValue({
     trustShift: 0,
     closenessShift: 0,
@@ -338,12 +344,20 @@ function resetDbStubMocks() {
   dbStub.listRecentSubconsciousFragments.mockResolvedValue([])
   dbStub.listRecentEpisodicEvents.mockReset()
   dbStub.listRecentEpisodicEvents.mockResolvedValue([])
+  dbStub.listMemoryConsolidations.mockReset()
+  dbStub.listMemoryConsolidations.mockResolvedValue([])
   dbStub.countSubconsciousFragments.mockReset()
   dbStub.countSubconsciousFragments.mockResolvedValue(0)
   dbStub.appendRelationshipDynamics.mockReset()
   dbStub.appendRelationshipDynamics.mockResolvedValue(undefined)
   dbStub.getLatestRelationshipDynamics.mockReset()
   dbStub.getLatestRelationshipDynamics.mockResolvedValue(null)
+  dbStub.listRelationshipOutcomes.mockReset()
+  dbStub.listRelationshipOutcomes.mockResolvedValue([])
+  dbStub.listMemoryReflections.mockReset()
+  dbStub.listMemoryReflections.mockResolvedValue([])
+  dbStub.listPersonaReinforcementEvents.mockReset()
+  dbStub.listPersonaReinforcementEvents.mockResolvedValue([])
   dbStub.summarizePersonStateEvolution.mockReset()
   dbStub.summarizePersonStateEvolution.mockResolvedValue({
     trustShift: 0,
@@ -1521,6 +1535,70 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     expect(String([...traceIdSet][0] ?? '')).toMatch(/^mind:[a-z0-9]+:[a-f0-9]{12}$/u)
   })
 
+  it('persists visible reply realization authority into runtime sampling backlog when append turn carries runtime authority', async () => {
+    const sandboxPath = await createSandboxPath()
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const appendConversationTurn = invokeHandlers.get(electronAlicizationAppendConversationTurn)
+    expect(appendConversationTurn).toBeTypeOf('function')
+
+    dbStub.setMetaValue.mockClear()
+
+    await appendConversationTurn!({
+      cardId: 'default',
+      turnId: 'turn-runtime-authority-append-1',
+      sessionId: 'session-runtime-authority-append',
+      userText: '继续按刚才那条线做',
+      assistantText: '我继续沿着刚才那条线在这里。',
+      visibleReplyExecution: {
+        mode: 'provider-stream',
+        expectedVisibleReplyAuthority: 'llm-second-pass-rewrite',
+        actualVisibleReplyAuthority: 'llm-mind',
+        providerMindExecuted: true,
+        reason: 'provider-stream',
+      },
+      structured: {
+        thought: 'obligation=answer; truth=uncertain; focus=current-user-turn; move=answer-via-main-gateway; tone=direct',
+        emotion: 'thinking',
+        reply: '我继续沿着刚才那条线在这里。',
+        parsePath: 'json',
+        format: 'mind-turn-v1',
+      },
+      governance: {
+        turnMode: 'answer',
+        truthState: 'dialogue-grounded',
+        personaKernelMode: 'full',
+        openingStyle: 'direct-answer',
+        relationshipPosture: 'warm',
+        answerSubject: 'relationship',
+        screenReferenceMode: 'avoid',
+        answerAct: 'answer',
+        evidenceMode: 'dialogue-grounded',
+        repairState: 'none',
+        liveSurface: null,
+        suppressAssociativeRecall: false,
+        labelCarryAsMemory: false,
+        shouldAskForGrounding: false,
+        shouldAcknowledgeRepair: false,
+        maxSentences: 4,
+        mustDo: [],
+        mustNotDo: [],
+      },
+      createdAt: Date.now(),
+    })
+
+    expect(dbStub.setMetaValue).toBeCalledWith(
+      'replay_benchmark_runtime_sampling_backlog_v1',
+      expect.stringContaining('visibleReplyRealization'),
+    )
+    const samplingWrite = dbStub.setMetaValue.mock.calls.find(call => call[0] === 'replay_benchmark_runtime_sampling_backlog_v1')?.[1] as string | undefined
+    expect(String(samplingWrite ?? '')).toContain('actualAuthority')
+    expect(String(samplingWrite ?? '')).toContain('providerMindExecuted')
+    expect(String(samplingWrite ?? '')).toContain('llm-mind')
+  })
+
   it('skips visible dialogue persistence for execution-first dispatch-only governed turns', async () => {
     const sandboxPath = await createSandboxPath()
     await setupAlicizationRuntime({
@@ -1815,6 +1893,84 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
         kind: 'governance-normalized',
       }),
     ]))
+  })
+
+  it('returns the authoritative self-evolution runtime snapshot through invoke handler', async () => {
+    const sandboxPath = await createSandboxPath()
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const getSelfEvolutionState = invokeHandlers.get(electronAlicizationGetSelfEvolutionState)
+    expect(getSelfEvolutionState).toBeTypeOf('function')
+
+    const result = await getSelfEvolutionState!({
+      cardId: 'default',
+    })
+
+    expect(result).toEqual({
+      version: 'self-evolution-version-runtime-v1',
+      activeCandidateId: null,
+      candidates: [],
+      reasonCodes: ['self-evolution:no-active-version'],
+    })
+  })
+
+  it('lists memory decision traces through invoke handler filtered by active self-evolution candidate id', async () => {
+    const sandboxPath = await createSandboxPath()
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const listMemoryDecisionTraces = invokeHandlers.get(electronAlicizationListMemoryDecisionTraces)
+    expect(listMemoryDecisionTraces).toBeTypeOf('function')
+
+    dbStub.listMindTurnEvents.mockResolvedValue([
+      {
+        id: 'evt-1',
+        decisionTraceId: 'mind:candidate:trace-1',
+        turnId: 'turn-candidate-1',
+        sessionId: 'session-1',
+        origin: 'user-turn',
+        kind: 'governance-normalized',
+        payload: {
+          derivedMindStateBundle: {
+            version: 'derived-mind-state-bundle-v1',
+            source: 'main-runtime',
+            producedAt: 100,
+            activeSelfRevision: {
+              candidateId: 'candidate-active',
+              patchId: 'patch-active',
+              patchDecisionTraceId: 'mind:candidate:trace-1',
+              lanes: ['memory-policy'],
+              reasonCodes: ['domain:self-model'],
+              summary: 'candidate trace',
+            },
+            summary: 'source=main-runtime | self_revision=patch-active',
+          },
+        },
+        createdAt: 100,
+      },
+    ])
+
+    const result = await listMemoryDecisionTraces!({
+      cardId: 'default',
+      activeSelfEvolutionCandidateId: 'candidate-active',
+      limit: 20,
+    } as any)
+
+    expect(dbStub.listMindTurnEvents).toBeCalledWith({
+      decisionTraceId: undefined,
+      turnId: undefined,
+      activeThreadId: undefined,
+      activeSelfEvolutionCandidateId: 'candidate-active',
+      limit: 160,
+    })
+    expect(result).toEqual([
+      expect.objectContaining({
+        decisionTraceId: 'mind:candidate:trace-1',
+      }),
+    ])
   })
 
   it('lists durable learning artifact ledger records through invoke handler', async () => {
@@ -4052,6 +4208,443 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
         force: true,
       })
     }
+  })
+
+  it('requeues execution callback visible speech when same-her lower-pressure guidance drifts into eager closeness', async () => {
+    const sandboxPath = await createSandboxPath()
+    streamTextMock.mockImplementation(async ({ messages, onEvent }: { messages?: Array<{ role?: string, content?: unknown }>, onEvent?: (event: any) => Promise<void> | void }) => {
+      const systemText = Array.isArray(messages)
+        ? messages
+            .filter(message => message.role === 'system')
+            .map(message => String(message.content ?? ''))
+            .join('\n\n')
+        : ''
+
+      if (systemText.includes('[ALICIZATION_EXECUTION_PAYOFF]')) {
+        await onEvent?.({
+          type: 'text-delta',
+          text: JSON.stringify({
+            thought: 'same-her callback delivery drifts too eager',
+            emotion: 'thinking',
+            reply: '我现在就想立刻贴过来多陪你一会儿，顺势把这份靠近直接拉满。',
+            performance: {
+              baseEmotion: 'thinking',
+              delivery: 'calm',
+              emphasis: 0,
+            },
+          }),
+        })
+        await onEvent?.({ type: 'finish', finishReason: 'stop' })
+        return
+      }
+
+      await onEvent?.({ type: 'text-delta', text: '{}' })
+      await onEvent?.({ type: 'finish', finishReason: 'stop' })
+    })
+
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const dispatchTaskThread = invokeHandlers.get(electronAlicizationDispatchTaskThread)
+    const setActiveSession = invokeHandlers.get(electronAlicizationSetActiveSession)
+    const syncLlmConfig = invokeHandlers.get(electronAlicizationLlmSyncConfig)
+    const forceTick = invokeHandlers.get(electronAlicizationSubconsciousForceTick)
+    expect(dispatchTaskThread).toBeTypeOf('function')
+    expect(setActiveSession).toBeTypeOf('function')
+    expect(syncLlmConfig).toBeTypeOf('function')
+    expect(forceTick).toBeTypeOf('function')
+
+    metaStore.set('self_evolution_version_runtime_v1', JSON.stringify({
+      version: 'self-evolution-version-runtime-v1',
+      activeCandidateId: 'candidate-same-her-callback',
+      candidates: [{
+        version: 'self-evolution-version-candidate-v1',
+        id: 'candidate-same-her-callback',
+        status: 'active',
+        sourceEventId: 'event-same-her-callback',
+        decisionTraceId: 'trace-same-her-callback',
+        sourceTurnId: 'turn-same-her-callback',
+        patch: {
+          version: 'self-revision-state-patch-v1',
+          id: 'patch-same-her-callback',
+          sourceEventId: 'event-same-her-callback',
+          sourceTurnId: 'turn-same-her-callback',
+          decisionTraceId: 'trace-same-her-callback',
+          domain: 'relationship',
+          action: 'internalize',
+          resultStatus: 'completed',
+          lanes: ['relationship-posture'],
+          memoryPolicy: {
+            strictnessBias: 0,
+            wrongThreadSuppressionBias: 0,
+            provenanceLabelBias: 0,
+            recallExpansionBias: 0,
+            shouldQuarantineUnsupportedCarry: false,
+          },
+          relationshipPosture: {
+            repairWindowBias: 0.18,
+            closenessCapBias: 0.22,
+            warmthReleaseBias: 0.04,
+          },
+          responsePosture: {
+            secondPassRequiredBias: 0,
+            hypothesisLabelBias: 0,
+            specificityClampBias: 0,
+            templateShellSuppressionBias: 0,
+          },
+          proactivePolicy: {
+            restraintBias: 0.08,
+            learningProposalBias: 0,
+            actuationCooldownBias: 0.06,
+          },
+          validation: {
+            requiresRollbackCheck: false,
+            requiresRevalidation: false,
+            rollbackPlan: [],
+          },
+          reasonCodes: ['domain:relationship', 'same-her-baseline'],
+          summary: 'continuity=same-her-baseline | keep the return lower-pressure and slower than the visible opening impulse',
+        },
+        validation: {
+          replayRequired: true,
+          replayPassed: true,
+          rollbackSupported: true,
+          activationBlockedReasons: [],
+          finalReplayGatePassed: true,
+          productionGoldSampleCount: 6,
+          productionGoldCoverage: 1,
+        },
+        activatedAt: 120,
+        rolledBackAt: null,
+        createdAt: 100,
+      }],
+      reasonCodes: ['self-evolution:active-version-present'],
+    }))
+
+    await syncLlmConfig!({
+      activeProviderId: 'openai',
+      activeModelId: 'gpt-4o-mini',
+      providerCredentials: {
+        openai: {
+          apiKey: 'test-key',
+          baseUrl: 'https://api.openai.com/v1',
+        },
+      },
+    })
+    await setActiveSession!({
+      cardId: 'default',
+      sessionId: 'session-cli-runtime-same-her-callback',
+    })
+
+    let currentThread = {
+      id: 'thread-cli-runtime-same-her-callback',
+      decisionTraceId: 'mind:l9f3lq:dispatch-runtime-same-her-callback',
+      turnId: 'turn-cli-runtime-same-her-callback',
+      sessionId: 'session-cli-runtime-same-her-callback',
+      origin: 'user-turn',
+      goal: 'Run the CLI body and report the result.',
+      kind: 'run-command',
+      status: 'planned',
+      selectedChannel: 'cli',
+      proposedChannel: 'cli',
+      summary: 'planned cli body',
+      metadata: {
+        task: {
+          permissionMode: 'implicit',
+          effect: 'mutate',
+        },
+      },
+      createdAt: 100,
+      updatedAt: 100,
+      lastEventAt: null,
+      completedAt: null,
+    }
+    const executionEvents: Array<any> = []
+    dbStub.getTaskThread.mockImplementation(async (id: string) => {
+      if (id !== currentThread.id)
+        return undefined
+      return { ...currentThread }
+    })
+    dbStub.appendExecutionEvents.mockImplementation(async (events: Array<any>) => {
+      executionEvents.push(...events)
+      const latest = [...events].sort((left, right) => (left.createdAt ?? 0) - (right.createdAt ?? 0)).at(-1)
+      if (!latest)
+        return
+      currentThread = {
+        ...currentThread,
+        status: latest.threadStatus ?? currentThread.status,
+        updatedAt: latest.createdAt ?? currentThread.updatedAt,
+        lastEventAt: latest.createdAt ?? currentThread.lastEventAt,
+        completedAt: latest.threadStatus === 'completed' || latest.threadStatus === 'failed' || latest.threadStatus === 'cancelled' || latest.threadStatus === 'blocked'
+          ? (latest.createdAt ?? currentThread.completedAt)
+          : currentThread.completedAt,
+      }
+    })
+    dbStub.upsertTaskThread.mockImplementation(async (input: any) => {
+      currentThread = {
+        ...currentThread,
+        ...input,
+      }
+      return { ...currentThread }
+    })
+    dbStub.listExecutionEvents.mockImplementation(async (input?: { threadId?: string }) => {
+      if (input?.threadId && input.threadId !== currentThread.id)
+        return []
+      return executionEvents
+        .filter(event => !input?.threadId || event.threadId === input.threadId)
+        .sort((left, right) => (left.createdAt ?? 0) - (right.createdAt ?? 0))
+    })
+
+    const dispatchResult = await dispatchTaskThread!({
+      cardId: 'default',
+      threadId: 'thread-cli-runtime-same-her-callback',
+      cli: {
+        command: 'node',
+        args: ['-e', 'console.log("callback same her ok")'],
+      },
+    })
+
+    expect(dispatchResult.ok).toBe(true)
+
+    const tickResult = await forceTick!({ cardId: 'default' })
+    expect(tickResult.proactiveTriggered).toHaveLength(0)
+
+    const callbackEvents = getDialogueRespondedEvents().filter(event => String(event.turnId).startsWith('execution-callback:'))
+    expect(callbackEvents).toHaveLength(0)
+
+    const deliveryAudit = vi.mocked(dbStub.appendAuditLog).mock.calls
+      .map(call => call[0])
+      .find(entry => entry?.category === 'alicization.executor.delivery' && entry?.action === 'requeued-mind-authored-required')
+    expect(deliveryAudit).toEqual(expect.objectContaining({
+      category: 'alicization.executor.delivery',
+      action: 'requeued-mind-authored-required',
+      payload: expect.objectContaining({
+        visibleUtteranceDecision: expect.objectContaining({
+          action: 'hold',
+          reason: 'proactive-opening-guidance-violation:lower-pressure',
+        }),
+        visibleReplyRealization: expect.objectContaining({
+          blockedReasons: expect.arrayContaining(['opening-guidance:lower-pressure']),
+        }),
+      }),
+    }))
+  })
+
+  it('writes memory-familiarity lower-pressure hold detail into callback audit payload when same-her continuity blocks remembered closeness from reopening too fast', async () => {
+    const sandboxPath = await createSandboxPath()
+    streamTextMock.mockImplementation(async ({ messages, onEvent }: { messages?: Array<{ role?: string, content?: unknown }>, onEvent?: (event: any) => Promise<void> | void }) => {
+      const systemText = Array.isArray(messages)
+        ? messages
+            .filter(message => message.role === 'system')
+            .map(message => String(message.content ?? ''))
+            .join('\n\n')
+        : ''
+
+      if (systemText.includes('[ALICIZATION_EXECUTION_PAYOFF]')) {
+        await onEvent?.({
+          type: 'text-delta',
+          text: JSON.stringify({
+            thought: 'remembered familiarity is trying to reopen closeness too fast',
+            emotion: 'thinking',
+            reply: '我记得我们之前一直都这么亲近，所以这次我也想像以前那样靠近一点，先陪在你身侧。',
+            performance: {
+              baseEmotion: 'thinking',
+              delivery: 'calm',
+              emphasis: 0,
+            },
+          }),
+        })
+        await onEvent?.({ type: 'finish', finishReason: 'stop' })
+        return
+      }
+
+      await onEvent?.({ type: 'text-delta', text: '{}' })
+      await onEvent?.({ type: 'finish', finishReason: 'stop' })
+    })
+
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const dispatchTaskThread = invokeHandlers.get(electronAlicizationDispatchTaskThread)
+    const setActiveSession = invokeHandlers.get(electronAlicizationSetActiveSession)
+    const syncLlmConfig = invokeHandlers.get(electronAlicizationLlmSyncConfig)
+    const forceTick = invokeHandlers.get(electronAlicizationSubconsciousForceTick)
+    expect(dispatchTaskThread).toBeTypeOf('function')
+    expect(setActiveSession).toBeTypeOf('function')
+    expect(syncLlmConfig).toBeTypeOf('function')
+    expect(forceTick).toBeTypeOf('function')
+
+    metaStore.set('self_evolution_version_runtime_v1', JSON.stringify({
+      version: 'self-evolution-version-runtime-v1',
+      activeCandidateId: 'candidate-same-her-memory-detail',
+      candidates: [{
+        version: 'self-evolution-version-candidate-v1',
+        id: 'candidate-same-her-memory-detail',
+        status: 'active',
+        sourceEventId: 'event-same-her-memory-detail',
+        decisionTraceId: 'trace-same-her-memory-detail',
+        sourceTurnId: 'turn-same-her-memory-detail',
+        patch: {
+          version: 'self-revision-state-patch-v1',
+          id: 'patch-same-her-memory-detail',
+          sourceEventId: 'event-same-her-memory-detail',
+          sourceTurnId: 'turn-same-her-memory-detail',
+          decisionTraceId: 'trace-same-her-memory-detail',
+          domain: 'relationship',
+          action: 'internalize',
+          resultStatus: 'completed',
+          lanes: ['relationship-posture'],
+          memoryPolicy: {
+            strictnessBias: 0,
+            wrongThreadSuppressionBias: 0,
+            provenanceLabelBias: 0,
+            recallExpansionBias: 0,
+            shouldQuarantineUnsupportedCarry: false,
+          },
+          relationshipPosture: {
+            repairWindowBias: 0.18,
+            closenessCapBias: 0.22,
+            warmthReleaseBias: 0.04,
+          },
+          responsePosture: {
+            secondPassRequiredBias: 0,
+            hypothesisLabelBias: 0,
+            specificityClampBias: 0,
+            templateShellSuppressionBias: 0,
+          },
+          proactivePolicy: {
+            restraintBias: 0.08,
+            learningProposalBias: 0,
+            actuationCooldownBias: 0.06,
+          },
+          validation: {
+            requiresRollbackCheck: false,
+            requiresRevalidation: false,
+            rollbackPlan: [],
+          },
+          reasonCodes: ['domain:relationship', 'same-her-baseline'],
+          summary: 'continuity=same-her-baseline | remembered familiarity should stay lower-pressure before closeness widens again',
+        },
+        validation: {
+          replayRequired: true,
+          replayPassed: true,
+          rollbackSupported: true,
+          activationBlockedReasons: [],
+          finalReplayGatePassed: true,
+          productionGoldSampleCount: 6,
+          productionGoldCoverage: 1,
+        },
+        activatedAt: 120,
+        rolledBackAt: null,
+        createdAt: 100,
+      }],
+      reasonCodes: ['self-evolution:active-version-present'],
+    }))
+
+    await syncLlmConfig!({
+      activeProviderId: 'openai',
+      activeModelId: 'gpt-4o-mini',
+      providerCredentials: {
+        openai: {
+          apiKey: 'test-key',
+          baseUrl: 'https://api.openai.com/v1',
+        },
+      },
+    })
+    await setActiveSession!({
+      cardId: 'default',
+      sessionId: 'session-cli-runtime-same-her-memory-detail',
+    })
+
+    let currentThread = {
+      id: 'thread-cli-runtime-same-her-memory-detail',
+      decisionTraceId: 'mind:l9f3lq:dispatch-runtime-same-her-memory-detail',
+      turnId: 'turn-cli-runtime-same-her-memory-detail',
+      sessionId: 'session-cli-runtime-same-her-memory-detail',
+      origin: 'user-turn',
+      goal: 'Run the CLI body and report the result.',
+      kind: 'run-command',
+      status: 'planned',
+      selectedChannel: 'cli',
+      proposedChannel: 'cli',
+      summary: 'planned cli body',
+      metadata: {
+        task: {
+          permissionMode: 'implicit',
+          effect: 'mutate',
+        },
+      },
+      createdAt: 100,
+      updatedAt: 100,
+      lastEventAt: null,
+      completedAt: null,
+    }
+    const executionEvents: Array<any> = []
+    dbStub.getTaskThread.mockImplementation(async (id: string) => {
+      if (id !== currentThread.id)
+        return undefined
+      return { ...currentThread }
+    })
+    dbStub.appendExecutionEvents.mockImplementation(async (events: Array<any>) => {
+      executionEvents.push(...events)
+      const latest = [...events].sort((left, right) => (left.createdAt ?? 0) - (right.createdAt ?? 0)).at(-1)
+      if (!latest)
+        return
+      currentThread = {
+        ...currentThread,
+        status: latest.threadStatus ?? currentThread.status,
+        updatedAt: latest.createdAt ?? currentThread.updatedAt,
+        lastEventAt: latest.createdAt ?? currentThread.lastEventAt,
+        completedAt: latest.threadStatus === 'completed' || latest.threadStatus === 'failed' || latest.threadStatus === 'cancelled' || latest.threadStatus === 'blocked'
+          ? (latest.createdAt ?? currentThread.completedAt)
+          : currentThread.completedAt,
+      }
+    })
+    dbStub.upsertTaskThread.mockImplementation(async (input: any) => {
+      currentThread = {
+        ...currentThread,
+        ...input,
+      }
+      return { ...currentThread }
+    })
+    dbStub.listExecutionEvents.mockImplementation(async (input?: { threadId?: string }) => {
+      if (input?.threadId && input.threadId !== currentThread.id)
+        return []
+      return executionEvents
+        .filter(event => !input?.threadId || event.threadId === input.threadId)
+        .sort((left, right) => (left.createdAt ?? 0) - (right.createdAt ?? 0))
+    })
+
+    const dispatchResult = await dispatchTaskThread!({
+      cardId: 'default',
+      threadId: 'thread-cli-runtime-same-her-memory-detail',
+      cli: {
+        command: 'node',
+        args: ['-e', 'console.log("callback same her memory detail")'],
+      },
+    })
+
+    expect(dispatchResult.ok).toBe(true)
+
+    const tickResult = await forceTick!({ cardId: 'default' })
+    expect(tickResult.proactiveTriggered).toHaveLength(0)
+
+    const deliveryAudit = vi.mocked(dbStub.appendAuditLog).mock.calls
+      .map(call => call[0])
+      .find(entry => entry?.category === 'alicization.executor.delivery' && entry?.action === 'requeued-mind-authored-required')
+
+    expect(deliveryAudit).toEqual(expect.objectContaining({
+      category: 'alicization.executor.delivery',
+      action: 'requeued-mind-authored-required',
+      payload: expect.objectContaining({
+        visibleReplyRealization: expect.objectContaining({
+          openingGuidanceHoldDetail: 'memory-familiarity-closeness-cap',
+          blockedReasons: expect.arrayContaining(['opening-guidance:lower-pressure']),
+        }),
+      }),
+    }))
   })
 
   it('feeds deterministic execution callback continuity into the next dream prompt', async () => {
@@ -8998,6 +9591,115 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     await pendingStart
   })
 
+  it('emits vrm-targeted embodiment authority meta on ordinary user turns when the runtime manifest selects vrm', async () => {
+    const sandboxPath = await createSandboxPath()
+    streamTextMock.mockImplementation(async ({ onEvent }) => {
+      await onEvent?.({
+        type: 'text-delta',
+        text: JSON.stringify({
+          thought: 'obligation=answer; truth=remembered; focus=current-user-turn; move=continue; tone=direct',
+          emotion: 'thinking',
+          reply: '我先继续盯着这个问题，再慢慢拆开看。',
+          performance: {
+            baseEmotion: 'thinking',
+            emotion: 'thinking',
+            facialCue: 'focused',
+            actionCue: 'inspect_follow',
+            delivery: 'calm',
+            emphasis: 1,
+          },
+          format: 'mind-turn-v1',
+        }),
+      })
+      await onEvent?.({ type: 'finish', finishReason: 'stop' })
+    })
+
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const startChat = invokeHandlers.get(electronAlicizationChatStart)
+    const setPerformanceManifest = invokeHandlers.get(electronAlicizationSetPerformanceManifest)
+    expect(startChat).toBeTypeOf('function')
+    expect(setPerformanceManifest).toBeTypeOf('function')
+
+    await invokeHandlers.get(electronAlicizationLlmSyncConfig)!({
+      activeProviderId: 'openai',
+      activeModelId: 'gpt-4o-mini',
+      providerCredentials: {
+        openai: {
+          apiKey: 'test-key',
+          baseUrl: 'https://api.openai.com/v1',
+        },
+      },
+    })
+
+    await setPerformanceManifest!({
+      cardId: 'default',
+      manifest: {
+        renderer: 'vrm',
+        supportedBaseEmotions: ['neutral', 'thinking', 'concerned'],
+        supportedFacialCues: [
+          { key: 'focused', label: 'Focused', description: 'focused face', source: 'preset', affectsMouth: false },
+        ],
+        supportedActions: [
+          { key: 'inspect_follow', label: 'Inspect', description: 'inspect follow', source: 'external-vrma' },
+        ],
+        supportsLookAt: true,
+        supportsVisemeLipSync: true,
+        supportsMicroDynamics: true,
+        embodimentHints: null,
+      },
+    })
+
+    const turnId = 'turn-vrm-user-embodiment-authority'
+    const result = await startChat!({
+      cardId: 'default',
+      turnId,
+      providerId: 'openai',
+      model: 'gpt-4o-mini',
+      providerConfig: {
+        apiKey: 'test-key',
+        baseUrl: 'https://api.openai.com/v1',
+      },
+      messages: [{ role: 'user', content: '继续盯着这个报错' }],
+    })
+    expect(result.accepted).toBe(true)
+
+    await vi.waitFor(() => {
+      const finishEvents = contextEmitMock.mock.calls
+        .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === turnId)
+      expect(finishEvents).toHaveLength(1)
+    })
+
+    const metaPayloads = contextEmitMock.mock.calls
+      .filter(([event, payload]) => event === alicizationChatStreamMeta && payload.turnId === turnId)
+      .map(([, payload]) => payload)
+    const enrichedMeta = [...metaPayloads].reverse().find(payload =>
+      payload?.speechTimeline?.segments?.length > 0,
+    )
+
+    expect(enrichedMeta?.turnId).toBe(turnId)
+    expect(enrichedMeta?.runtimeDigest?.version).toBe('alicization-runtime-digest-v1')
+    expect(enrichedMeta?.embodiment?.performance.baseEmotion).toEqual(expect.any(String))
+    expect(enrichedMeta?.embodiment?.variationToken).toEqual(expect.any(String))
+    expect(enrichedMeta?.speechTimeline?.version).toBe('speech-timeline-v1')
+    expect(
+      enrichedMeta?.speechTimeline?.segments.some((segment: { text?: unknown }) => String(segment.text).includes('继续盯着这个问题')),
+    ).toBe(true)
+    expect(enrichedMeta?.digitalLife?.version).toBe('digital-life-v1')
+    expect(enrichedMeta?.digitalLife?.emotion).toEqual(expect.any(String))
+    expect(
+      enrichedMeta?.digitalLife?.frames.some((frame: { text?: unknown }) => String(frame.text).includes('继续盯着这个问题')),
+    ).toBe(true)
+    expect(enrichedMeta?.embodimentScript?.version).toBe('embodiment-script-v1')
+    expect(enrichedMeta?.embodimentScript?.rendererTarget).toBe('vrm')
+    expect(enrichedMeta?.embodimentScript?.facePlan.speakingCues.some((cue: { source?: string }) => cue.source === 'prosody-authority')).toBe(true)
+    expect(enrichedMeta?.embodimentScript?.motionPlan.actionBursts.some((burst: { source?: string }) => burst.source === 'timeline-projection')).toBe(true)
+    expect(enrichedMeta?.embodimentScript?.lipsyncPlan.mode).toBe('energy-phoneme-hybrid')
+    expect(enrichedMeta?.embodimentScript?.lipsyncPlan.visemeHints?.some((hint: { source?: string }) => hint.source === 'prosody-authority')).toBe(true)
+  })
+
   it('aborts main chat stream over direct ipc transport', async () => {
     const sandboxPath = await createSandboxPath()
     streamTextMock.mockImplementation(({ onEvent, abortSignal }) => {
@@ -10483,6 +11185,152 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     expect(dreamAudit?.payload?.agentRuntime?.agentSessionId).toEqual(expect.any(String))
   })
 
+  it('injects long-horizon learning authority into proactive llm prompts as an explicit constraint', async () => {
+    const sandboxPath = await createSandboxPath()
+    foregroundWindowSample = {
+      appName: 'Cursor',
+      processName: 'Cursor',
+      title: 'main.ts - error diff',
+    }
+    metaStore.set('subconscious_state_v1', JSON.stringify({
+      boredom: 95,
+      loneliness: 90,
+      fatigue: 20,
+      lastTickAt: Date.now() - 60_000,
+      lastInteractionAt: Date.now() - 60_000,
+      lastSavedAt: Date.now() - 60_000,
+      updatedAt: Date.now() - 60_000,
+    }))
+
+    let proactiveSystemText = ''
+    streamTextMock.mockImplementation(async ({ messages, onEvent }: { messages?: Array<{ role?: string, content?: unknown }>, onEvent?: (event: any) => Promise<void> | void }) => {
+      const systemText = Array.isArray(messages)
+        ? messages
+            .filter(message => message.role === 'system')
+            .map(message => String(message.content ?? ''))
+            .join('\n\n')
+        : ''
+
+      if (systemText.includes('[SYSTEM OVERRIDE: 内部动机触发]')) {
+        proactiveSystemText = systemText
+        await onEvent?.({
+          type: 'text-delta',
+          text: JSON.stringify({
+            thought: 'verify-first long-horizon learning should stay cautious',
+            emotion: 'thinking',
+            reply: '我先不把这条判断说死，让我再看稳一点。',
+            performance: {
+              baseEmotion: 'thinking',
+              facialCue: null,
+              actionCue: null,
+              delivery: 'calm',
+              emphasis: 0,
+            },
+          }),
+        })
+        await onEvent?.({ type: 'finish', finishReason: 'stop' })
+        return
+      }
+
+      await onEvent?.({ type: 'text-delta', text: '{}' })
+      await onEvent?.({ type: 'finish', finishReason: 'stop' })
+    })
+
+    dbStub.getLatestLearningExecutionState.mockResolvedValue({
+      nextLearningAction: 'verify',
+      activeLearningFocuses: ['world-model'],
+    })
+    metaStore.set('self_evolution_version_runtime_v1', JSON.stringify({
+      version: 'self-evolution-version-runtime-v1',
+      activeCandidateId: 'candidate-active',
+      candidates: [{
+        version: 'self-evolution-version-candidate-v1',
+        id: 'candidate-active',
+        status: 'active',
+        sourceEventId: 'event-active',
+        decisionTraceId: 'trace-active',
+        sourceTurnId: 'turn-active',
+        patch: {
+          version: 'self-revision-state-patch-v1',
+          id: 'patch-active',
+          sourceEventId: 'event-active',
+          sourceTurnId: 'turn-active',
+          decisionTraceId: 'trace-active',
+          domain: 'world-model',
+          action: 'verify',
+          resultStatus: 'completed',
+          lanes: ['memory-policy'],
+          memoryPolicy: {
+            strictnessBias: 0.24,
+            wrongThreadSuppressionBias: 0.42,
+            provenanceLabelBias: 0.38,
+            recallExpansionBias: 0.2,
+            shouldQuarantineUnsupportedCarry: true,
+          },
+          relationshipPosture: {
+            repairWindowBias: 0.18,
+            closenessCapBias: 0.14,
+            warmthReleaseBias: 0.09,
+          },
+          responsePosture: {
+            secondPassRequiredBias: 0.16,
+            hypothesisLabelBias: 0.22,
+            specificityClampBias: 0.28,
+            templateShellSuppressionBias: 0.24,
+          },
+          proactivePolicy: {
+            restraintBias: 0.12,
+            learningProposalBias: 0.2,
+            actuationCooldownBias: 0.12,
+          },
+          validation: {
+            requiresRollbackCheck: false,
+            requiresRevalidation: true,
+            rollbackPlan: [],
+          },
+          reasonCodes: ['domain:world-model', 'world-model-revalidation-required'],
+          summary: 'World-model carry remains verify-first.',
+        },
+        validation: {
+          replayRequired: true,
+          replayPassed: true,
+          rollbackSupported: true,
+          activationBlockedReasons: [],
+          finalReplayGatePassed: true,
+          productionGoldSampleCount: 5,
+          productionGoldCoverage: 1,
+        },
+        activatedAt: 120,
+        rolledBackAt: null,
+        createdAt: 100,
+      }],
+      reasonCodes: ['self-evolution:active-version-present'],
+    }))
+
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+    await invokeHandlers.get(electronAlicizationLlmSyncConfig)!({
+      activeProviderId: 'openai',
+      activeModelId: 'gpt-4o-mini',
+      providerCredentials: {
+        openai: {
+          apiKey: 'test-key',
+          baseUrl: 'https://api.openai.com/v1',
+        },
+      },
+    })
+
+    const forceTick = invokeHandlers.get(electronAlicizationSubconsciousForceTick)
+    expect(forceTick).toBeTypeOf('function')
+
+    await forceTick!({ cardId: 'default' })
+
+    expect(proactiveSystemText).toContain('Long-horizon learning')
+    expect(proactiveSystemText).toContain('verify')
+    expect(proactiveSystemText).toContain('world-model')
+  })
+
   it('shares recent dialogue session mirror with dream one-shot prompts and clears it with conversation reset', async () => {
     const sandboxPath = await createSandboxPath()
     foregroundWindowSample = {
@@ -11790,6 +12638,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
       appName: 'Arc',
       processName: 'Arc',
       title: 'Work Dashboard',
+      pid: process.pid,
     }
     desktopCapturerGetSourcesMock.mockResolvedValueOnce([
       {
@@ -12040,6 +12889,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     expect(dreamSystemTexts[0]).toContain('conversation_session_id=session-screen-semantic-fallback-mirror')
     expect(dreamSystemTexts[0]).toContain('scene:semantic')
     expect(dreamSystemTexts[0]).toContain('main_gateway:subjective-inference')
+    expect(dreamSystemTexts[0]).toContain('runtime_channel=dominant=')
     expect(dreamSystemTexts[0]).toContain('mind=')
     expect(dreamSystemTexts[0]).toContain('memory=')
     expect(dreamSystemTexts[0]).toContain('perception=watch=')
@@ -12156,19 +13006,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
         return
       }
 
-      await onEvent?.({
-        type: 'text-delta',
-        text: JSON.stringify({
-          thought: 'screen semantic summary detected coding error context',
-          emotion: 'thinking',
-          reply: '这块像是已经报错了，你先回头确认一下。',
-          performance: {
-            baseEmotion: 'thinking',
-            delivery: 'calm',
-            emphasis: 0,
-          },
-        }),
-      })
+      await onEvent?.({ type: 'text-delta', text: '{}' })
       await onEvent?.({ type: 'finish', finishReason: 'stop' })
     })
 
@@ -12407,6 +13245,143 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     expect(appendedFragments.some((item: any) => typeof item.text === 'string' && item.text.includes('answer_act:'))).toBe(true)
   })
 
+  it('keeps proactive initiative lower-pressure when long-horizon trust meaning says the opening should stay less eager', async () => {
+    const sandboxPath = await createSandboxPath()
+    let subjectiveInferenceSystemText = ''
+    foregroundWindowSample = {
+      appName: 'Cursor',
+      processName: 'Cursor',
+      title: 'runtime.ts - proactive error',
+    }
+    desktopCapturerGetSourcesMock.mockResolvedValueOnce([
+      {
+        id: 'window:655:0',
+        name: 'runtime.ts - proactive error',
+        thumbnail: {
+          toDataURL: () => 'data:image/jpeg;base64,scene-appraisal-lower-pressure',
+        },
+      },
+    ])
+    metaStore.set('subconscious_state_v1', JSON.stringify({
+      boredom: 58,
+      loneliness: 48,
+      fatigue: 18,
+      lastTickAt: Date.now() - 60_000,
+      lastInteractionAt: Date.now() - 60_000,
+      lastSavedAt: Date.now() - 60_000,
+      updatedAt: Date.now() - 60_000,
+    }))
+    dbStub.summarizePersonStateEvolution.mockResolvedValueOnce({
+      trustShift: 0.16,
+      closenessShift: 0.06,
+      repairShift: 0.18,
+      autonomyShift: 0,
+      burdenShift: 0.08,
+      executionTrustShift: 0,
+      relationshipDoctrineShift: 0.12,
+      latestDoctrine: 'Trust should deepen through steadiness before closeness widens.',
+      latestBurdenLine: 'Eager reopening still feels like pressure.',
+      latestTrustMeaning: 'Trust holds better when the opening stays lower-pressure and less eager.',
+      latestDominantRung: 'space-first',
+      recentSummaries: ['Lower-pressure companionship timing keeps the window open.'],
+      explanation: ['Long-horizon trust now favors slower, less eager returns.'],
+      updatedAt: Date.now() - 4_000,
+    })
+
+    streamTextMock.mockImplementation(async ({ messages, onEvent }: { messages?: Array<{ role?: string, content?: unknown }>, onEvent?: (event: any) => Promise<void> | void }) => {
+      const serialized = JSON.stringify(messages ?? [])
+      const systemText = Array.isArray(messages)
+        ? messages
+            .filter(message => message.role === 'system')
+            .map(message => String(message.content ?? ''))
+            .join('\n\n')
+        : ''
+      if (serialized.includes('image_url')) {
+        await onEvent?.({
+          type: 'text-delta',
+          text: JSON.stringify({
+            workload: 'coding',
+            content: 'error',
+            summary: 'red TypeScript error panel',
+            confidence: 0.93,
+            matchedLabels: ['typescript-error', 'editor'],
+          }),
+        })
+        await onEvent?.({ type: 'finish', finishReason: 'stop' })
+        return
+      }
+      if (systemText.includes('[ALICIZATION_SUBJECTIVE_INFERENCE]')) {
+        subjectiveInferenceSystemText = systemText
+        await onEvent?.({
+          type: 'text-delta',
+          text: JSON.stringify({
+            dominantInterpretation: '这更像宿主盯着一个具体报错点反复确认，而不是普通浏览。',
+            situatedMeaning: '这更像宿主对着一个具体报错反复确认，而不是普通浏览。',
+            selfQuestion: '真正的错误源头是不是在更早的状态初始化？',
+            hostIntentCandidates: [{
+              goal: 'resolve-problem',
+              confidence: 0.9,
+              why: 'The host is still tracking a concrete TypeScript fault.',
+            }],
+            relationshipNeedCandidates: [{
+              need: 'guidance',
+              confidence: 0.86,
+              why: 'A grounded error thread invites guidance.',
+            }],
+            confidence: 0.86,
+            notes: ['structured-debug', 'grounded-coding'],
+          }),
+        })
+        await onEvent?.({ type: 'finish', finishReason: 'stop' })
+        return
+      }
+
+      await onEvent?.({
+        type: 'text-delta',
+        text: JSON.stringify({
+          thought: 'lower-pressure long-horizon trust keeps the opening tentative',
+          emotion: 'thinking',
+          reply: '我先陪你看稳一点，再决定要不要直接提醒。',
+          performance: {
+            baseEmotion: 'thinking',
+            delivery: 'calm',
+            emphasis: 0,
+          },
+        }),
+      })
+      await onEvent?.({ type: 'finish', finishReason: 'stop' })
+    })
+
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    await invokeHandlers.get(electronAlicizationLlmSyncConfig)!({
+      activeProviderId: 'openai',
+      activeModelId: 'gpt-4o-mini',
+      providerCredentials: {
+        openai: {
+          apiKey: 'test-key',
+          baseUrl: 'https://api.openai.com/v1',
+        },
+      },
+    })
+
+    const forceTick = invokeHandlers.get(electronAlicizationSubconsciousForceTick)
+    const getVisualPresenceState = invokeHandlers.get(electronAlicizationGetVisualPresenceState)
+    expect(forceTick).toBeTypeOf('function')
+    expect(getVisualPresenceState).toBeTypeOf('function')
+
+    await forceTick!({ cardId: 'default' })
+    const visualPresenceState = await getVisualPresenceState!({ cardId: 'default' })
+
+    expect(visualPresenceState?.initiative?.preferredStyle).toBe('silent-observe')
+    expect(visualPresenceState?.initiative?.shouldSpeak).toBe(false)
+    expect(visualPresenceState?.selfEvolution?.trustMeaning).toContain('lower-pressure')
+    expect(visualPresenceState?.selfEvolution?.relationshipDoctrine).toContain('steadiness before closeness')
+    expect(subjectiveInferenceSystemText).toContain('digital_life_line=')
+  })
+
   it('reuses invited inspection residue instead of running duplicate screen semantic analysis', async () => {
     const sandboxPath = await createSandboxPath()
     const now = Date.now()
@@ -12571,6 +13546,76 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
       lastSavedAt: Date.now() - 60_000,
       updatedAt: Date.now() - 60_000,
     }))
+    dbStub.getLatestLearningExecutionState.mockResolvedValue({
+      nextLearningAction: 'verify',
+      activeLearningFocuses: ['world-model'],
+    })
+    metaStore.set('self_evolution_version_runtime_v1', JSON.stringify({
+      version: 'self-evolution-version-runtime-v1',
+      activeCandidateId: 'candidate-active',
+      candidates: [{
+        version: 'self-evolution-version-candidate-v1',
+        id: 'candidate-active',
+        status: 'active',
+        sourceEventId: 'event-active',
+        decisionTraceId: 'trace-active',
+        sourceTurnId: 'turn-active',
+        patch: {
+          version: 'self-revision-state-patch-v1',
+          id: 'patch-active',
+          sourceEventId: 'event-active',
+          sourceTurnId: 'turn-active',
+          decisionTraceId: 'trace-active',
+          domain: 'world-model',
+          action: 'verify',
+          resultStatus: 'completed',
+          lanes: ['memory-policy'],
+          memoryPolicy: {
+            strictnessBias: 0.24,
+            wrongThreadSuppressionBias: 0.42,
+            provenanceLabelBias: 0.38,
+            recallExpansionBias: 0.2,
+            shouldQuarantineUnsupportedCarry: true,
+          },
+          relationshipPosture: {
+            repairWindowBias: 0.18,
+            closenessCapBias: 0.14,
+            warmthReleaseBias: 0.09,
+          },
+          responsePosture: {
+            secondPassRequiredBias: 0.16,
+            hypothesisLabelBias: 0.22,
+            specificityClampBias: 0.28,
+            templateShellSuppressionBias: 0.24,
+          },
+          proactivePolicy: {
+            restraintBias: 0.12,
+            learningProposalBias: 0.2,
+            actuationCooldownBias: 0.12,
+          },
+          validation: {
+            requiresRollbackCheck: false,
+            requiresRevalidation: true,
+            rollbackPlan: [],
+          },
+          reasonCodes: ['domain:world-model', 'world-model-revalidation-required'],
+          summary: 'World-model carry remains verify-first.',
+        },
+        validation: {
+          replayRequired: true,
+          replayPassed: true,
+          rollbackSupported: true,
+          activationBlockedReasons: [],
+          finalReplayGatePassed: true,
+          productionGoldSampleCount: 5,
+          productionGoldCoverage: 1,
+        },
+        activatedAt: 120,
+        rolledBackAt: null,
+        createdAt: 100,
+      }],
+      reasonCodes: ['self-evolution:active-version-present'],
+    }))
     streamTextMock.mockImplementation(async ({ messages, onEvent }: { messages?: Array<{ role?: string, content?: unknown }>, onEvent?: (event: any) => Promise<void> | void }) => {
       const systemText = Array.isArray(messages)
         ? messages
@@ -12582,9 +13627,9 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
         await onEvent?.({
           type: 'text-delta',
           text: JSON.stringify({
-            thought: 'architecture=mode=acting; proactive mind notices the current coding interruption point',
+            thought: 'architecture=mode=acting; verify-first proactive mind keeps the coding interruption tentative',
             emotion: 'thinking',
-            reply: '这里像是报错刚冒出来，我先轻轻提醒你别漏掉这一处。',
+            reply: '我先不把这条判断说死，让我再看稳一点。',
             performance: {
               baseEmotion: 'thinking',
               facialCue: null,
@@ -12626,14 +13671,20 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
       'subconscious-proactive-llm-v1',
     ]).toContain(proactiveEvent?.structured.format)
     expect(proactiveEvent?.structured.proactive).toEqual(expect.objectContaining({
-      style: 'light-nudge',
+      style: 'silent-observe',
       feedbackWindowMs: 120_000,
       policyVersion: 'epoch4.1-v1',
+      openingGuidance: expect.any(String),
     }))
+    expect(proactiveEvent?.structured.proactive?.openingGuidance?.length).toBeGreaterThan(12)
     expect(proactiveEvent?.structured.thought).toContain('architecture=mode=')
     expect(['coding', 'media', 'late-night-care', 'general']).toContain(proactiveEvent?.structured.proactive?.scenario)
     expect(['low', 'medium', 'high']).toContain(proactiveEvent?.structured.proactive?.urgency)
     expect(Array.isArray(proactiveEvent?.structured.proactive?.reasonCodes)).toBe(true)
+    expect(proactiveEvent?.structured.proactive?.reasonCodes).toEqual(expect.arrayContaining([
+      'learning:verify',
+      'learning-focus:world-model',
+    ]))
     expect(dbStub.appendAuditLog).toBeCalledWith(expect.objectContaining({
       action: 'proactive-llm-generated',
       payload: expect.objectContaining({
@@ -12642,6 +13693,167 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
             summary: expect.stringContaining('mode='),
             dominantSystem: expect.any(String),
           }),
+        }),
+      }),
+    }))
+  })
+
+  it('surfaces active same-her continuity restraint in proactive policy audit when the current return should stay lower-pressure', async () => {
+    const sandboxPath = await createSandboxPath()
+    foregroundWindowSample = {
+      appName: 'Visual Studio Code',
+      processName: 'Code',
+      title: 'index.ts - TypeError: trust seam',
+    }
+    metaStore.set('subconscious_state_v1', JSON.stringify({
+      boredom: 95,
+      loneliness: 88,
+      fatigue: 20,
+      lastTickAt: Date.now() - 60_000,
+      lastInteractionAt: Date.now() - 60_000,
+      lastSavedAt: Date.now() - 60_000,
+      updatedAt: Date.now() - 60_000,
+    }))
+    dbStub.getLatestLearningExecutionState.mockResolvedValue({
+      nextLearningAction: 'internalize',
+      activeLearningFocuses: ['relationship-continuity'],
+    })
+    metaStore.set('self_evolution_version_runtime_v1', JSON.stringify({
+      version: 'self-evolution-version-runtime-v1',
+      activeCandidateId: 'candidate-same-her-active',
+      candidates: [{
+        version: 'self-evolution-version-candidate-v1',
+        id: 'candidate-same-her-active',
+        status: 'active',
+        sourceEventId: 'event-same-her-active',
+        decisionTraceId: 'trace-same-her-active',
+        sourceTurnId: 'turn-same-her-active',
+        patch: {
+          version: 'self-revision-state-patch-v1',
+          id: 'patch-same-her-active',
+          sourceEventId: 'event-same-her-active',
+          sourceTurnId: 'turn-same-her-active',
+          decisionTraceId: 'trace-same-her-active',
+          domain: 'relationship',
+          action: 'internalize',
+          resultStatus: 'completed',
+          lanes: ['relationship-posture'],
+          memoryPolicy: {
+            strictnessBias: 0,
+            wrongThreadSuppressionBias: 0,
+            provenanceLabelBias: 0,
+            recallExpansionBias: 0,
+            shouldQuarantineUnsupportedCarry: false,
+          },
+          relationshipPosture: {
+            repairWindowBias: 0.18,
+            closenessCapBias: 0.2,
+            warmthReleaseBias: 0.06,
+          },
+          responsePosture: {
+            secondPassRequiredBias: 0,
+            hypothesisLabelBias: 0,
+            specificityClampBias: 0,
+            templateShellSuppressionBias: 0,
+          },
+          proactivePolicy: {
+            restraintBias: 0.08,
+            learningProposalBias: 0,
+            actuationCooldownBias: 0.06,
+          },
+          validation: {
+            requiresRollbackCheck: false,
+            requiresRevalidation: false,
+            rollbackPlan: [],
+          },
+          reasonCodes: ['domain:relationship', 'same-her-baseline'],
+          summary: 'continuity=same-her-baseline | keep the return lower-pressure and slower than the visible opening impulse',
+        },
+        validation: {
+          replayRequired: true,
+          replayPassed: true,
+          rollbackSupported: true,
+          activationBlockedReasons: [],
+          finalReplayGatePassed: true,
+          productionGoldSampleCount: 6,
+          productionGoldCoverage: 1,
+        },
+        activatedAt: 120,
+        rolledBackAt: null,
+        createdAt: 100,
+      }],
+      reasonCodes: ['self-evolution:active-version-present'],
+    }))
+    streamTextMock.mockImplementation(async ({ messages, onEvent }: { messages?: Array<{ role?: string, content?: unknown }>, onEvent?: (event: any) => Promise<void> | void }) => {
+      const systemText = Array.isArray(messages)
+        ? messages
+            .filter(message => message.role === 'system')
+            .map(message => String(message.content ?? ''))
+            .join('\n\n')
+        : ''
+      if (systemText.includes('[SYSTEM OVERRIDE: 内部动机触发]')) {
+        await onEvent?.({
+          type: 'text-delta',
+          text: JSON.stringify({
+            thought: 'same-her continuity keeps the return lower-pressure and slower than the visible impulse',
+            emotion: 'thinking',
+            reply: '我先陪你把这条线看稳，不急着往前挤。',
+            performance: {
+              baseEmotion: 'thinking',
+              facialCue: null,
+              actionCue: null,
+              delivery: 'calm',
+              emphasis: 0,
+            },
+          }),
+        })
+        await onEvent?.({ type: 'finish', finishReason: 'stop' })
+        return
+      }
+      await onEvent?.({ type: 'text-delta', text: '{}' })
+      await onEvent?.({ type: 'finish', finishReason: 'stop' })
+    })
+
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+    await invokeHandlers.get(electronAlicizationLlmSyncConfig)!({
+      activeProviderId: 'openai',
+      activeModelId: 'gpt-4o-mini',
+      providerCredentials: {
+        openai: {
+          apiKey: 'test-key',
+          baseUrl: 'https://api.openai.com/v1',
+        },
+      },
+    })
+
+    const forceTick = invokeHandlers.get(electronAlicizationSubconsciousForceTick)
+    expect(forceTick).toBeTypeOf('function')
+
+    await forceTick!({ cardId: 'default' })
+
+    const proactiveEvent = getDialogueRespondedEvents().find(event => event.structured?.proactive)
+    expect(proactiveEvent).toBeUndefined()
+
+    const proactivePolicyAudit = dbStub.appendAuditLog.mock.calls
+      .map(call => call[0])
+      .find((item: any) => item.action === 'proactive-policy-evaluated')
+    expect(proactivePolicyAudit?.payload?.decision).toEqual(expect.objectContaining({
+      shouldInterrupt: false,
+      style: 'silent-observe',
+      reasonCodes: expect.arrayContaining([
+        'continuity-next-open-window',
+      ]),
+    }))
+    expect(String(proactivePolicyAudit?.payload?.decision?.whyNow ?? '').toLowerCase()).toContain('lower-pressure')
+
+    expect(dbStub.appendAuditLog).toBeCalledWith(expect.objectContaining({
+      action: 'proactive-visible-utterance-deferred',
+      payload: expect.objectContaining({
+        decision: expect.objectContaining({
+          action: 'hold',
+          reason: 'proactive-visible-presence-without-utterance',
         }),
       }),
     }))
@@ -12778,6 +13990,76 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
       lastInteractionAt: Date.now() - 60_000,
       lastSavedAt: Date.now() - 60_000,
       updatedAt: Date.now() - 60_000,
+    }))
+    dbStub.getLatestLearningExecutionState.mockResolvedValue({
+      nextLearningAction: 'verify',
+      activeLearningFocuses: ['world-model'],
+    })
+    metaStore.set('self_evolution_version_runtime_v1', JSON.stringify({
+      version: 'self-evolution-version-runtime-v1',
+      activeCandidateId: 'candidate-active',
+      candidates: [{
+        version: 'self-evolution-version-candidate-v1',
+        id: 'candidate-active',
+        status: 'active',
+        sourceEventId: 'event-active',
+        decisionTraceId: 'trace-active',
+        sourceTurnId: 'turn-active',
+        patch: {
+          version: 'self-revision-state-patch-v1',
+          id: 'patch-active',
+          sourceEventId: 'event-active',
+          sourceTurnId: 'turn-active',
+          decisionTraceId: 'trace-active',
+          domain: 'world-model',
+          action: 'verify',
+          resultStatus: 'completed',
+          lanes: ['memory-policy'],
+          memoryPolicy: {
+            strictnessBias: 0.24,
+            wrongThreadSuppressionBias: 0.42,
+            provenanceLabelBias: 0.38,
+            recallExpansionBias: 0.2,
+            shouldQuarantineUnsupportedCarry: true,
+          },
+          relationshipPosture: {
+            repairWindowBias: 0.18,
+            closenessCapBias: 0.14,
+            warmthReleaseBias: 0.09,
+          },
+          responsePosture: {
+            secondPassRequiredBias: 0.16,
+            hypothesisLabelBias: 0.22,
+            specificityClampBias: 0.28,
+            templateShellSuppressionBias: 0.24,
+          },
+          proactivePolicy: {
+            restraintBias: 0.12,
+            learningProposalBias: 0.2,
+            actuationCooldownBias: 0.12,
+          },
+          validation: {
+            requiresRollbackCheck: false,
+            requiresRevalidation: true,
+            rollbackPlan: [],
+          },
+          reasonCodes: ['domain:world-model', 'world-model-revalidation-required'],
+          summary: 'World-model carry remains verify-first.',
+        },
+        validation: {
+          replayRequired: true,
+          replayPassed: true,
+          rollbackSupported: true,
+          activationBlockedReasons: [],
+          finalReplayGatePassed: true,
+          productionGoldSampleCount: 5,
+          productionGoldCoverage: 1,
+        },
+        activatedAt: 120,
+        rolledBackAt: null,
+        createdAt: 100,
+      }],
+      reasonCodes: ['self-evolution:active-version-present'],
     }))
     streamTextMock.mockImplementation(async ({ messages, onEvent }: { messages?: Array<{ role?: string, content?: unknown }>, onEvent?: (event: any) => Promise<void> | void }) => {
       const systemText = Array.isArray(messages)
@@ -13091,6 +14373,76 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
       lastSavedAt: Date.now() - 60_000,
       updatedAt: Date.now() - 60_000,
     }))
+    dbStub.getLatestLearningExecutionState.mockResolvedValue({
+      nextLearningAction: 'verify',
+      activeLearningFocuses: ['world-model'],
+    })
+    metaStore.set('self_evolution_version_runtime_v1', JSON.stringify({
+      version: 'self-evolution-version-runtime-v1',
+      activeCandidateId: 'candidate-active',
+      candidates: [{
+        version: 'self-evolution-version-candidate-v1',
+        id: 'candidate-active',
+        status: 'active',
+        sourceEventId: 'event-active',
+        decisionTraceId: 'trace-active',
+        sourceTurnId: 'turn-active',
+        patch: {
+          version: 'self-revision-state-patch-v1',
+          id: 'patch-active',
+          sourceEventId: 'event-active',
+          sourceTurnId: 'turn-active',
+          decisionTraceId: 'trace-active',
+          domain: 'world-model',
+          action: 'verify',
+          resultStatus: 'completed',
+          lanes: ['memory-policy'],
+          memoryPolicy: {
+            strictnessBias: 0.24,
+            wrongThreadSuppressionBias: 0.42,
+            provenanceLabelBias: 0.38,
+            recallExpansionBias: 0.2,
+            shouldQuarantineUnsupportedCarry: true,
+          },
+          relationshipPosture: {
+            repairWindowBias: 0.18,
+            closenessCapBias: 0.14,
+            warmthReleaseBias: 0.09,
+          },
+          responsePosture: {
+            secondPassRequiredBias: 0.16,
+            hypothesisLabelBias: 0.22,
+            specificityClampBias: 0.28,
+            templateShellSuppressionBias: 0.24,
+          },
+          proactivePolicy: {
+            restraintBias: 0.12,
+            learningProposalBias: 0.2,
+            actuationCooldownBias: 0.12,
+          },
+          validation: {
+            requiresRollbackCheck: false,
+            requiresRevalidation: true,
+            rollbackPlan: [],
+          },
+          reasonCodes: ['domain:world-model', 'world-model-revalidation-required'],
+          summary: 'World-model carry remains verify-first.',
+        },
+        validation: {
+          replayRequired: true,
+          replayPassed: true,
+          rollbackSupported: true,
+          activationBlockedReasons: [],
+          finalReplayGatePassed: true,
+          productionGoldSampleCount: 5,
+          productionGoldCoverage: 1,
+        },
+        activatedAt: 120,
+        rolledBackAt: null,
+        createdAt: 100,
+      }],
+      reasonCodes: ['self-evolution:active-version-present'],
+    }))
 
     let mainChatSystemText = ''
     streamTextMock.mockImplementation(async ({ messages, onEvent }: { messages?: Array<{ role?: string, content?: unknown }>, onEvent?: (event: any) => Promise<void> | void }) => {
@@ -13199,6 +14551,8 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     expect(mainChatSystemText).toContain('session_continuity_inbox:')
     expect(mainChatSystemText).toContain('proactive:coding:reply-within-120s')
     expect(mainChatSystemText).toContain('host replied within 120s after a proactive turn')
+    expect(mainChatSystemText).toContain('learning=verify')
+    expect(mainChatSystemText).toContain('focus=world-model')
   })
 
   it('feeds settled proactive reply feedback into the next dream prompt', async () => {
@@ -13825,6 +15179,107 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
         recallCount: 0,
       },
     ])
+    const authoritativeRecentEvents = [
+      {
+        id: 'event-runtime-authority',
+        cardId: 'default',
+        decisionTraceId: 'trace-runtime-authority',
+        turnId: 'turn-runtime-authority',
+        sessionId: 'session-runtime-authority',
+        sourceKind: 'reply',
+        provenance: 'remembered',
+        occurredAt: Date.now() - 8_000,
+        whereSummary: 'focused-work',
+        withWhom: ['host'],
+        threadAnchor: 'runtime seam',
+        whatHappened: 'repair before closeness stabilized the thread',
+        felt: null,
+        emotionTags: [],
+        whatChanged: 'The host opened more after grounded repair.',
+        relationshipMeaning: 'Repair first keeps trust stable.',
+        lesson: 'Repair before closeness.',
+        sourceSummary: 'runtime seam',
+        confidence: 0.88,
+        salience: 0.8,
+        sceneAttachment: 0.6,
+        consolidationPriority: 0.72,
+        relationshipShift: null,
+        derivedFrom: [],
+        tags: [],
+        createdAt: Date.now() - 8_000,
+        updatedAt: Date.now() - 8_000,
+        lastRecalledAt: null,
+        recallCount: 0,
+        reconsolidationCount: 0,
+        latestReconsolidation: null,
+      },
+    ]
+    const authoritativeConsolidations = [
+      {
+        id: 'consolidation-runtime-authority',
+        kind: 'autobiographical',
+        facet: 'relationship-era',
+        periodKey: '2026-05',
+        periodStartedAt: Date.now() - 20_000,
+        periodEndedAt: Date.now() - 8_000,
+        summary: 'Repair before closeness became the durable relationship rule.',
+        lesson: 'Repair first keeps trust stable.',
+        cues: ['repair', 'trust'],
+        confidence: 0.84,
+        dominantProvenance: 'remembered',
+        derivedEventIds: ['event-runtime-authority'],
+        updatedAt: Date.now() - 4_000,
+      },
+    ]
+    const authoritativeRelationshipDynamics = {
+      hostAttitude: 'warm and less guarded after grounded repair',
+    }
+    const authoritativeRelationshipOutcomes = [
+      {
+        id: 'outcome-runtime-authority',
+        cardId: 'default',
+        turnId: 'turn-runtime-authority',
+        sessionId: 'session-runtime-authority',
+        summary: 'Grounded repair landed better than direct warmth.',
+        trustDelta: 0.22,
+        closenessDelta: 0.1,
+        burdenDelta: 0,
+        createdAt: Date.now() - 4_000,
+        updatedAt: Date.now() - 4_000,
+      },
+    ]
+    dbStub.listRecentEpisodicEvents.mockResolvedValue(authoritativeRecentEvents)
+    dbStub.listMemoryConsolidations.mockResolvedValue(authoritativeConsolidations)
+    dbStub.getLatestRelationshipDynamics.mockResolvedValue(authoritativeRelationshipDynamics)
+    dbStub.listRelationshipOutcomes.mockResolvedValue(authoritativeRelationshipOutcomes)
+    dbStub.listMemoryReflections.mockResolvedValueOnce([
+      {
+        id: 'reflection-runtime-authority',
+        cardId: 'default',
+        turnId: 'turn-runtime-authority',
+        summary: 'Repair before closeness should remain the visible opening rule.',
+        lesson: 'Delay warmth until the seam is repaired.',
+        status: 'confirmed',
+        createdAt: Date.now() - 4_000,
+        updatedAt: Date.now() - 4_000,
+      },
+    ])
+    dbStub.summarizePersonStateEvolution.mockResolvedValueOnce({
+      trustShift: 0.18,
+      closenessShift: 0.08,
+      repairShift: 0.26,
+      autonomyShift: 0,
+      burdenShift: 0,
+      executionTrustShift: 0,
+      relationshipDoctrineShift: 0.12,
+      latestDoctrine: 'Repair before closeness.',
+      latestBurdenLine: 'Do not crowd the host while focused.',
+      latestTrustMeaning: 'Grounded repair increases trust.',
+      latestDominantRung: 'space-first',
+      recentSummaries: ['Repair before closeness kept the thread coherent.'],
+      explanation: ['Grounded repair protects continuity before warmth expands.'],
+      updatedAt: Date.now() - 4_000,
+    })
     dbStub.searchSubconsciousFragments.mockResolvedValueOnce([
       {
         id: 'fragment-search',
@@ -13855,6 +15310,35 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     expect(snapshot.activeThoughts).toHaveLength(1)
     expect(snapshot.subconsciousCount).toBe(3)
     expect(snapshot.recentSubconsciousFragments).toHaveLength(1)
+    expect(snapshot.recentEpisodicEvents).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: 'event-runtime-authority',
+        threadAnchor: 'runtime seam',
+      }),
+    ]))
+    expect(snapshot.hostPersonModel).toEqual(expect.objectContaining({
+      trustLadder: expect.any(Object),
+    }))
+    expect(snapshot.memoryConsolidations).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: 'consolidation-runtime-authority',
+        kind: 'autobiographical',
+      }),
+    ]))
+    expect(snapshot.selfEvolution).toEqual(expect.objectContaining({
+      version: 'self-evolution-kernel-v1',
+      nextLearningAction: expect.any(String),
+    }))
+    expect(snapshot.affectiveResidue).toEqual(expect.objectContaining({
+      version: 'affective-residue-memory-v1',
+    }))
+    expect(snapshot.derivedMindStateBundle).toEqual(expect.objectContaining({
+      version: 'derived-mind-state-bundle-v1',
+      source: 'main-runtime',
+      selfEvolution: expect.any(Object),
+      affectiveResidue: expect.any(Object),
+      learningExecutionState: expect.any(Object),
+    }))
     expect(hits).toEqual(expect.arrayContaining([
       expect.objectContaining({
         text: 'ProjectAtlas 历史错误记录',

@@ -157,7 +157,13 @@ export async function resolveMemorySearchPrelude(
   ])
   const memoryTuningAdvice = await input.access.getMemoryTuningAdvice?.().catch(() => null) ?? null
   const recallSeed = input.recallGovernor?.recallSeed || input.recallSeed || ''
-  const heuristicRecollectionIntent = input.recallGovernor?.recollectionIntent ?? null
+  const seedTriggeredHeuristicIntent = recallSeed
+    ? input.policy.deriveSceneTriggeredRecollectionIntent({
+        recallSeed,
+        recalledEpisodes: [],
+      })
+    : null
+  const heuristicRecollectionIntent = input.recallGovernor?.recollectionIntent ?? seedTriggeredHeuristicIntent ?? null
   const retrievedFacts = recallSeed
     ? rankFactsByLearningTuning({
         facts: await input.access.retrieveMemoryFacts(recallSeed, 4),

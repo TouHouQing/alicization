@@ -618,4 +618,127 @@ describe('buildAlicizationMindTurnGovernance', () => {
     expect(result.mustDo).toContain('Keep direct observation and any hypothesis in separate clauses.')
     expect(result.mustNotDo).toContain('Do not introduce file names, class names, enum names, or field changes that this turn has not actually evidenced.')
   })
+
+  it('preserves same-seam procedural continuity discipline into final mind-turn governance', () => {
+    const result = buildAlicizationMindTurnGovernance({
+      brief: {
+        turnMode: 'guide-current-knot',
+        liveSurface: 'Cursor | runtime seam repair diff',
+        carriedThread: 'active runtime seam',
+        truthState: 'remembered',
+        separateCarryFromSurface: true,
+        shouldCompactHistory: true,
+        maxRecentUserTurns: 2,
+        mustDo: [],
+        mustNotDo: [],
+      },
+      charter: {
+        epistemicMode: 'memory-only',
+        responseMode: 'guide-current-knot',
+        governingFocus: 'Stay on the same active runtime seam.',
+        governingConcern: null,
+        governingCommitment: null,
+        governingInquiry: null,
+        governingProject: null,
+        latestRevision: null,
+        executivePhase: 'acting',
+        truthFrame: 'remembered',
+        mindMode: 'tracking',
+        relationshipPosture: 'warm',
+        reasons: [],
+        mustDo: [
+          'If same-seam procedure carry becomes visible, frame it as remembered prior procedure that keeps the current thread intact.',
+        ],
+        mustNotDo: [
+          'Do not turn same-seam procedure carry into retrospective narration or execution impersonation.',
+        ],
+      },
+      surfaceContract: {
+        openingStyle: 'direct-answer',
+        maxParagraphs: 2,
+        maxSentences: 4,
+        personaKernelMode: 'backgrounded',
+        allowAffectionatePreface: false,
+        allowStageDirections: false,
+        allowBodyNarration: false,
+        labelCarryAsMemory: true,
+        suppressAssociativeRecall: true,
+        mustDo: [],
+        mustNotDo: [],
+      },
+      mindTurnContract: {
+        version: 'mind-turn-contract-v1',
+        answerIntent: 'Stay on the same active runtime seam before branching.',
+        answerAct: 'guide',
+        turnMode: 'guide-current-knot',
+        responseMode: 'guide-current-knot',
+        evidenceMode: 'continuity-carry',
+        openingStyle: 'direct-answer',
+        expectedVisibleReplyAuthority: 'llm-mind',
+        replyRealizationMode: 'provider-mind-required',
+        personaKernelMode: 'backgrounded',
+        activeClosenessContext: 'focused-work',
+        activeClosenessRung: 'measured-room',
+        relationshipPosture: 'warm',
+        labelCarryAsMemory: true,
+        suppressAssociativeRecall: true,
+        allowAffectionatePreface: false,
+        allowStageDirections: false,
+        allowBodyNarration: false,
+        maxParagraphs: 2,
+        maxSentences: 4,
+        mustDo: [
+          'If same-seam procedure carry becomes visible, frame it as remembered prior procedure that keeps the current thread intact.',
+        ],
+        mustNotDo: [
+          'Do not turn same-seam procedure carry into retrospective narration or execution impersonation.',
+        ],
+        governingFocus: 'Stay on the same active runtime seam.',
+        governingConcern: null,
+        governingCommitment: null,
+        governingInquiry: null,
+        governingProject: null,
+        reasons: ['memory-deliberation:surface:procedural-carry'],
+        updatedAt: 1,
+      },
+      answerCompiler: {
+        answerSubject: 'task-knot',
+        screenReferenceMode: 'helpful',
+        speechObligation: 'guide-task',
+        relationMove: 'guide',
+        turnMode: 'guide-current-knot',
+        responseMode: 'guide-current-knot',
+        recommendedAct: 'guide',
+        evidenceMode: 'continuity-carry',
+        openingStyle: 'direct-answer',
+        personaKernelMode: 'backgrounded',
+        relationshipPosture: 'warm',
+        openingDirective: 'Stay on the same active runtime seam before branching.',
+        openingClaim: 'The active runtime seam is still the line to hold.',
+        supportingReality: ['The active runtime seam is still the line to hold.'],
+        uncertaintyBoundary: null,
+        careVector: null,
+        nextMove: 'Return to the same seam before widening out.',
+        suppressAssociativeRecall: true,
+        labelCarryAsMemory: true,
+        maxSentences: 4,
+        mustDo: [
+          'If same-seam procedure carry becomes visible, frame it as remembered prior procedure that keeps the current thread intact.',
+        ],
+        mustNotDo: [
+          'Do not turn same-seam procedure carry into retrospective narration or execution impersonation.',
+        ],
+        confidence: 0.82,
+        narrative: ['memory-deliberation:surface:procedural-carry'],
+        updatedAt: 1,
+      },
+    })
+
+    expect(result.mustDo).toContain(
+      'If same-seam procedure carry becomes visible, frame it as remembered prior procedure that keeps the current thread intact.',
+    )
+    expect(result.mustNotDo).toContain(
+      'Do not turn same-seam procedure carry into retrospective narration or execution impersonation.',
+    )
+  })
 })

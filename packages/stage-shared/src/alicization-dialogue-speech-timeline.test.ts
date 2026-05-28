@@ -157,4 +157,124 @@ describe('alicization dialogue speech timeline', () => {
       },
     })
   })
+
+  it('lets persona observe-first versus direct reconnect bias settle and timing cues under the same delivery', () => {
+    const observeFirst = buildAlicizationDialogueSpeechTimeline({
+      reply: '继续吧。',
+      candidateEmotion: 'thinking',
+      candidatePerformance: {
+        baseEmotion: 'thinking',
+        emotion: 'thinking',
+        facialCue: 'focus',
+        actionCue: 'observe_focus',
+        delivery: 'gentle',
+        emphasis: 1,
+      },
+      digitalLifeSpine: {
+        version: 'digital-life-spine-digest-v1',
+        runtime: {
+          watchMode: 'symbiotic-vision',
+          sceneScenario: 'coding',
+          sceneSummary: 'observe first',
+          activeThreadId: 'thread-observe',
+          activeThreadTitle: 'observe line',
+          dominantMode: 'thinking',
+          dominantDrive: 'understand',
+          answerIntent: 'guide',
+          preferredPresence: 'attentive',
+          selectedAction: 'hover',
+          updatedAt: 1_000,
+        },
+        architecture: null,
+        continuitySignal: null,
+        proactive: {
+          selectedAction: 'hover',
+          preferredStyle: 'silent-observe',
+          confidence: 0.7,
+          shouldSpeak: false,
+          activeThreadId: 'thread-observe',
+          activeThreadTitle: 'observe line',
+          dominantConcernKind: null,
+          dominantConcernSummary: null,
+          leadingGoalId: null,
+          leadingGoalSummary: null,
+          preferredPresence: 'attentive',
+          personaBias: {
+            relationshipPosture: 'observer',
+            initiativeStyle: 'observant',
+            silenceReconnect: 'hold',
+            comfortStyle: 'quiet-presence',
+            preferredProactiveStyle: 'silent-observe',
+            openingGuidance: 'Open by observing first and keep the approach lighter.',
+            whySummary: 'persona prefers observe-first room before a closer move.',
+          },
+        },
+        embodiment: null,
+        memory: null,
+      },
+    })
+
+    const directReconnect = buildAlicizationDialogueSpeechTimeline({
+      reply: '继续吧。',
+      candidateEmotion: 'thinking',
+      candidatePerformance: {
+        baseEmotion: 'thinking',
+        emotion: 'thinking',
+        facialCue: 'focus',
+        actionCue: 'observe_focus',
+        delivery: 'gentle',
+        emphasis: 1,
+      },
+      digitalLifeSpine: {
+        version: 'digital-life-spine-digest-v1',
+        runtime: {
+          watchMode: 'symbiotic-vision',
+          sceneScenario: 'coding',
+          sceneSummary: 'direct reconnect',
+          activeThreadId: 'thread-direct',
+          activeThreadTitle: 'direct line',
+          dominantMode: 'thinking',
+          dominantDrive: 'guide',
+          answerIntent: 'guide',
+          preferredPresence: 'attentive',
+          selectedAction: 'whisper',
+          updatedAt: 1_000,
+        },
+        architecture: null,
+        continuitySignal: null,
+        proactive: {
+          selectedAction: 'whisper',
+          preferredStyle: 'light-nudge',
+          confidence: 0.82,
+          shouldSpeak: true,
+          activeThreadId: 'thread-direct',
+          activeThreadTitle: 'direct line',
+          dominantConcernKind: null,
+          dominantConcernSummary: null,
+          leadingGoalId: null,
+          leadingGoalSummary: null,
+          preferredPresence: 'attentive',
+          personaBias: {
+            relationshipPosture: 'guardian',
+            initiativeStyle: 'high-participation',
+            silenceReconnect: 'direct-approach',
+            comfortStyle: 'take-charge',
+            preferredProactiveStyle: 'light-nudge',
+            openingGuidance: 'Open directly with the live answer first and keep the approach lighter.',
+            whySummary: 'persona prefers a direct reconnect once the opening is real.',
+          },
+        },
+        embodiment: null,
+        memory: null,
+      },
+    })
+
+    expect(observeFirst?.segments[0]).toBeTruthy()
+    expect(directReconnect?.segments[0]).toBeTruthy()
+    expect(observeFirst?.segments[0]?.settleMode).not.toBe(directReconnect?.segments[0]?.settleMode)
+    expect((observeFirst?.segments[0]?.prosodyWeight ?? 0)).toBeLessThan(directReconnect?.segments[0]?.prosodyWeight ?? 0)
+    expect((observeFirst?.segments[0]?.beatWeight ?? 0)).toBeLessThan(directReconnect?.segments[0]?.beatWeight ?? 0)
+    expect((observeFirst?.segments[0]?.mouthWeight ?? 0)).toBeLessThan(directReconnect?.segments[0]?.mouthWeight ?? 0)
+    expect((observeFirst?.segments[0]?.headWeight ?? 0)).toBeGreaterThan(directReconnect?.segments[0]?.headWeight ?? 0)
+  })
 })

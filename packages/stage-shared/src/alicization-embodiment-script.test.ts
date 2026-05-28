@@ -6,6 +6,40 @@ import {
 } from './index'
 
 describe('alicization embodiment script', () => {
+  it('accepts vrm as a valid embodiment renderer target', () => {
+    const script = normalizeAlicizationEmbodimentScript({
+      version: 'embodiment-script-v1',
+      turnId: 'turn-vrm-renderer-target',
+      rendererTarget: 'vrm',
+      replyText: '我会继续看着这个问题。',
+      state: {
+        baseEmotion: 'thinking',
+        delivery: 'calm',
+        emphasis: 0,
+        residentMode: 'dialogue',
+      },
+      speechPlan: {
+        segments: [],
+        interruptPolicy: 'soft-settle',
+        preRollMs: 0,
+        settleMs: 180,
+      },
+      facePlan: {
+        speakingCues: [],
+      },
+      motionPlan: {
+        idleBase: 'idle_settle',
+        actionBursts: [],
+        attentionMode: 'attentive',
+      },
+      lipsyncPlan: {
+        mode: 'energy-only',
+      },
+    })
+
+    expect(script?.rendererTarget).toBe('vrm')
+  })
+
   it('normalizes one live2d embodiment script with speech, face, motion, and lipsync plans', () => {
     const script = normalizeAlicizationEmbodimentScript({
       version: 'embodiment-script-v1',
@@ -27,6 +61,16 @@ describe('alicization embodiment script', () => {
           interruptPolicy: 'soft-settle',
           preRollMs: 60,
           settleMs: 240,
+          rendererSettle: {
+            live2dFacialReleaseMs: 320,
+            live2dMotionFollowThroughMs: 420,
+            vrmActionFadeMs: 220,
+            vrmExpressionBlendMs: 260,
+          },
+          rendererHints: {
+            preferredExpressionAliases: ['CalmInspect'],
+            preferredMotionAliases: ['ObserveSoft'],
+          },
           prosody: {
             language: 'zh-CN',
             pauseClass: 'comma',
@@ -86,6 +130,16 @@ describe('alicization embodiment script', () => {
     expect(script?.facePlan.preUtteranceCue).toBe('soft-breath')
     expect(script?.facePlan.postUtteranceCue).toBe('settle-smile')
     expect(script?.speechPlan.segments[0]?.interruptPolicy).toBe('soft-settle')
+    expect(script?.speechPlan.segments[0]?.rendererSettle).toEqual({
+      live2dFacialReleaseMs: 320,
+      live2dMotionFollowThroughMs: 420,
+      vrmActionFadeMs: 220,
+      vrmExpressionBlendMs: 260,
+    })
+    expect(script?.speechPlan.segments[0]?.rendererHints).toEqual({
+      preferredExpressionAliases: ['CalmInspect'],
+      preferredMotionAliases: ['ObserveSoft'],
+    })
     expect(script?.speechPlan.segments[0]?.prosody).toEqual({
       language: 'zh-CN',
       pauseClass: 'comma',

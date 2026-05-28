@@ -525,4 +525,429 @@ describe('runtime delivery reminders', () => {
       action: 'requeued-mind-authored-required',
     }))
   })
+
+  it('requeues mind-authored callback text when callback-bounded opening guidance is violated and exposes the hold reason', async () => {
+    const pendingDelivery = {
+      key: 'default::session-1::thread-guidance::123456::completed',
+      cardId: 'default',
+      sessionId: 'session-1',
+      threadId: 'thread-guidance',
+      decisionTraceId: 'trace-guidance',
+      turnId: 'turn-guidance',
+      channel: 'codex',
+      status: 'completed',
+      goal: 'Return the command result to the same thread.',
+      summary: 'command finished',
+      outcome: 'command finished',
+      signature: 'thread-guidance:event',
+      queuedAt: 123460,
+      completedAt: 123456,
+    }
+    const requeue = vi.fn()
+    const appendConversationTurnWithGuards = vi.fn(async () => true)
+    const persistExecutionDeliveryState = vi.fn(async () => {})
+    const queueSubconsciousWake = vi.fn()
+    const appendAuditLog = vi.fn(async () => {})
+
+    const runtime = createAlicizationDeliveryReminderRuntime({
+      getActiveCardId: () => 'default',
+      isAlicizationKillSwitchSuspended: () => false,
+      getAlicizationCardKillSwitchState: () => 'ACTIVE',
+      appendRuntimeDebugLine: vi.fn(async () => {}),
+      clearReminderDueTimer: vi.fn(),
+      getAlicizationDb: () => ({
+        listPendingScheduledTasks: vi.fn(async () => []),
+        claimDueScheduledTasks: vi.fn(async () => []),
+      }),
+      scheduleNextReminderDueCheck: vi.fn(async () => {}),
+      reminderClaimBatchSize: 4,
+      reminderOverdueTierThresholdMinutes: 10,
+      reminderLlmRetryDelayMs: 5_000,
+      getSoulSnapshot: vi.fn(),
+      bootstrap: vi.fn(async () => ({})),
+      generateReminderStructuredWithGateway: vi.fn(async () => null),
+      appendAuditLog,
+      buildReminderContinuitySignal: vi.fn(),
+      ensureActiveOrLatestSessionId: vi.fn(async () => 'session-1'),
+      appendConversationTurnWithGuards,
+      sanitizeBriefText: (raw: string) => raw,
+      buildReminderSessionMirrorAction: vi.fn(),
+      syncAgentTurnSessionMirror: vi.fn(),
+      syncSessionMirrorFromCurrentCardState: vi.fn(async () => {}),
+      buildAgentRuntimeAuditSnapshot: vi.fn(() => null),
+      normalizeSessionId: (raw: unknown) => typeof raw === 'string' ? raw : '',
+      getActiveSessionIdByCard: () => 'session-1',
+      getActiveSelfRevisionStatePatch: vi.fn(async () => null),
+      executionDeliveryRuntime: {
+        isInlineSurfaced: vi.fn(() => false),
+        takeNext: vi.fn(() => pendingDelivery),
+        requeue,
+        markDelivered: vi.fn(),
+      },
+      buildExecutionDeliveryAction: vi.fn(() => ({
+        kind: 'executor',
+        status: 'completed',
+        label: 'callback:codex',
+      })),
+      generateExecutionCallbackStructuredWithGateway: vi.fn(async () => ({
+        format: 'subconscious-proactive-llm-v1',
+        thought: 'thought',
+        emotion: 'thinking',
+        reply: '结果我接回来了，顺便你今天是不是又在烦别的事情，要不要现在聊聊？',
+        proactive: {
+          shouldInterrupt: false,
+          confidence: 0.8,
+          reasonCodes: ['execution-finished'],
+          urgency: 'low',
+          style: 'thread-callback',
+          cooldownMs: 14 * 60_000,
+          scenario: 'coding',
+          policyVersion: 'epoch4.1-v1',
+          feedbackWindowMs: 120_000,
+          openingGuidance: 'Keep the callback thread-faithful and bounded.',
+        },
+        performance: {
+          baseEmotion: 'thinking',
+          facialCue: null,
+          actionCue: null,
+          delivery: 'calm',
+          emphasis: 0,
+        },
+      })),
+      buildExecutionDeliveryDeterministicStructured: vi.fn(() => ({
+        format: 'subconscious-proactive-v1',
+        thought: 'thought',
+        emotion: 'thinking',
+        reply: 'deterministic fallback text',
+        performance: {
+          baseEmotion: 'thinking',
+          facialCue: null,
+          actionCue: null,
+          delivery: 'calm',
+          emphasis: 0,
+        },
+        parsePath: 'json',
+      })),
+      selectExecutionDeliveryReplySurface: vi.fn(() => ({
+        reply: '结果我接回来了，顺便你今天是不是又在烦别的事情，要不要现在聊聊？',
+        source: 'llm' as const,
+      })),
+      resolveExecutionResultDeliveryPolicy: vi.fn(async () => ({
+        mode: 'deliver-now' as const,
+        tone: 'balanced' as const,
+        reasonTags: ['result-mode:deliver-now'],
+      })),
+      persistExecutionDeliveryState,
+      queueSubconsciousWake,
+      executionCallbackRuntime: {
+        markSurfaced: vi.fn(),
+      },
+      errorMessageFrom: () => 'error',
+    })
+
+    const processed = await runtime.processPendingExecutionDeliveriesForCurrentCard('force')
+
+    expect(processed).toBe(false)
+    expect(requeue).toHaveBeenCalled()
+    expect(appendConversationTurnWithGuards).not.toHaveBeenCalled()
+    expect(persistExecutionDeliveryState).toHaveBeenCalledWith('default')
+    expect(queueSubconsciousWake).toHaveBeenCalledWith('default', 'execution-delivery-requeue:thread-guidance', 1_500)
+    expect(appendAuditLog).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'requeued-mind-authored-required',
+      payload: expect.objectContaining({
+        visibleUtteranceDecision: expect.objectContaining({
+          action: 'hold',
+          reason: 'proactive-opening-guidance-violation:callback-bounded',
+        }),
+        visibleReplyRealization: expect.objectContaining({
+          blockedReasons: expect.arrayContaining(['opening-guidance:callback-bounded']),
+        }),
+      }),
+    }))
+  })
+
+  it('requeues mind-authored callback text when same-her lower-pressure opening guidance drifts into eager closeness', async () => {
+    const pendingDelivery = {
+      key: 'default::session-1::thread-same-her::123456::completed',
+      cardId: 'default',
+      sessionId: 'session-1',
+      threadId: 'thread-same-her',
+      decisionTraceId: 'trace-same-her',
+      turnId: 'turn-same-her',
+      channel: 'codex',
+      status: 'completed',
+      goal: 'Return the finished patch result to the same thread.',
+      summary: 'patched runtime line',
+      outcome: 'patched runtime line',
+      signature: 'thread-same-her:event',
+      queuedAt: 123460,
+      completedAt: 123456,
+    }
+    const requeue = vi.fn()
+    const appendConversationTurnWithGuards = vi.fn(async () => true)
+    const persistExecutionDeliveryState = vi.fn(async () => {})
+    const queueSubconsciousWake = vi.fn()
+    const appendAuditLog = vi.fn(async () => {})
+
+    const runtime = createAlicizationDeliveryReminderRuntime({
+      getActiveCardId: () => 'default',
+      isAlicizationKillSwitchSuspended: () => false,
+      getAlicizationCardKillSwitchState: () => 'ACTIVE',
+      appendRuntimeDebugLine: vi.fn(async () => {}),
+      clearReminderDueTimer: vi.fn(),
+      getAlicizationDb: () => ({
+        listPendingScheduledTasks: vi.fn(async () => []),
+        claimDueScheduledTasks: vi.fn(async () => []),
+      }),
+      scheduleNextReminderDueCheck: vi.fn(async () => {}),
+      reminderClaimBatchSize: 4,
+      reminderOverdueTierThresholdMinutes: 10,
+      reminderLlmRetryDelayMs: 5_000,
+      getSoulSnapshot: vi.fn(),
+      bootstrap: vi.fn(async () => ({})),
+      generateReminderStructuredWithGateway: vi.fn(async () => null),
+      appendAuditLog,
+      buildReminderContinuitySignal: vi.fn(),
+      ensureActiveOrLatestSessionId: vi.fn(async () => 'session-1'),
+      appendConversationTurnWithGuards,
+      sanitizeBriefText: (raw: string) => raw,
+      buildReminderSessionMirrorAction: vi.fn(),
+      syncAgentTurnSessionMirror: vi.fn(),
+      syncSessionMirrorFromCurrentCardState: vi.fn(async () => {}),
+      buildAgentRuntimeAuditSnapshot: vi.fn(() => null),
+      normalizeSessionId: (raw: unknown) => typeof raw === 'string' ? raw : '',
+      getActiveSessionIdByCard: () => 'session-1',
+      getActiveSelfRevisionStatePatch: vi.fn(async () => null),
+      executionDeliveryRuntime: {
+        isInlineSurfaced: vi.fn(() => false),
+        takeNext: vi.fn(() => pendingDelivery),
+        requeue,
+        markDelivered: vi.fn(),
+      },
+      buildExecutionDeliveryAction: vi.fn(() => ({
+        kind: 'executor',
+        status: 'completed',
+        label: 'callback:codex',
+      })),
+      generateExecutionCallbackStructuredWithGateway: vi.fn(async () => ({
+        format: 'subconscious-proactive-llm-v1',
+        thought: 'thought',
+        emotion: 'thinking',
+        reply: '我现在就想立刻贴过来多陪你一会儿，顺势把这份靠近直接拉满。',
+        proactive: {
+          shouldInterrupt: false,
+          confidence: 0.86,
+          reasonCodes: ['continuity-next-open-window'],
+          urgency: 'low',
+          style: 'silent-observe',
+          cooldownMs: 20 * 60_000,
+          scenario: 'coding',
+          policyVersion: 'epoch4.1-v1',
+          feedbackWindowMs: 120_000,
+          openingGuidance: 'Stay inside the current same-her baseline. Keep the opening lower-pressure and leave room before widening closeness.',
+        },
+        performance: {
+          baseEmotion: 'thinking',
+          facialCue: null,
+          actionCue: null,
+          delivery: 'calm',
+          emphasis: 0,
+        },
+      })),
+      buildExecutionDeliveryDeterministicStructured: vi.fn(() => ({
+        format: 'subconscious-proactive-v1',
+        thought: 'thought',
+        emotion: 'thinking',
+        reply: 'deterministic fallback text',
+        proactive: {
+          openingGuidance: 'Stay inside the current same-her baseline. Keep the opening lower-pressure and leave room before widening closeness.',
+        },
+        performance: {
+          baseEmotion: 'thinking',
+          facialCue: null,
+          actionCue: null,
+          delivery: 'calm',
+          emphasis: 0,
+        },
+        parsePath: 'json',
+      })),
+      selectExecutionDeliveryReplySurface: vi.fn(() => ({
+        reply: '我现在就想立刻贴过来多陪你一会儿，顺势把这份靠近直接拉满。',
+        source: 'llm' as const,
+      })),
+      resolveExecutionResultDeliveryPolicy: vi.fn(async () => ({
+        mode: 'deliver-now' as const,
+        tone: 'balanced' as const,
+        reasonTags: ['result-mode:deliver-now'],
+      })),
+      persistExecutionDeliveryState,
+      queueSubconsciousWake,
+      executionCallbackRuntime: {
+        markSurfaced: vi.fn(),
+      },
+      errorMessageFrom: () => 'error',
+    })
+
+    const processed = await runtime.processPendingExecutionDeliveriesForCurrentCard('force')
+
+    expect(processed).toBe(false)
+    expect(requeue).toHaveBeenCalled()
+    expect(appendConversationTurnWithGuards).not.toHaveBeenCalled()
+    expect(persistExecutionDeliveryState).toHaveBeenCalledWith('default')
+    expect(queueSubconsciousWake).toHaveBeenCalledWith('default', 'execution-delivery-requeue:thread-same-her', 1_500)
+    expect(appendAuditLog).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'requeued-mind-authored-required',
+      payload: expect.objectContaining({
+        visibleUtteranceDecision: expect.objectContaining({
+          action: 'hold',
+          reason: 'proactive-opening-guidance-violation:lower-pressure',
+        }),
+        visibleReplyRealization: expect.objectContaining({
+          blockedReasons: expect.arrayContaining(['opening-guidance:lower-pressure']),
+        }),
+      }),
+    }))
+  })
+
+  it('requeues callback delivery when raw llm same-her reply violates lower-pressure guidance even if a repaired deterministic surface exists', async () => {
+    const pendingDelivery = {
+      key: 'default::session-1::thread-same-her-raw::123456::completed',
+      cardId: 'default',
+      sessionId: 'session-1',
+      threadId: 'thread-same-her-raw',
+      decisionTraceId: 'trace-same-her-raw',
+      turnId: 'turn-same-her-raw',
+      channel: 'codex',
+      status: 'completed',
+      goal: 'Return the finished patch result to the same thread.',
+      summary: 'patched runtime line',
+      outcome: 'patched runtime line',
+      signature: 'thread-same-her-raw:event',
+      queuedAt: 123460,
+      completedAt: 123456,
+    }
+    const requeue = vi.fn()
+    const appendConversationTurnWithGuards = vi.fn(async () => true)
+    const persistExecutionDeliveryState = vi.fn(async () => {})
+    const queueSubconsciousWake = vi.fn()
+    const appendAuditLog = vi.fn(async () => {})
+
+    const runtime = createAlicizationDeliveryReminderRuntime({
+      getActiveCardId: () => 'default',
+      isAlicizationKillSwitchSuspended: () => false,
+      getAlicizationCardKillSwitchState: () => 'ACTIVE',
+      appendRuntimeDebugLine: vi.fn(async () => {}),
+      clearReminderDueTimer: vi.fn(),
+      getAlicizationDb: () => ({
+        listPendingScheduledTasks: vi.fn(async () => []),
+        claimDueScheduledTasks: vi.fn(async () => []),
+      }),
+      scheduleNextReminderDueCheck: vi.fn(async () => {}),
+      reminderClaimBatchSize: 4,
+      reminderOverdueTierThresholdMinutes: 10,
+      reminderLlmRetryDelayMs: 5_000,
+      getSoulSnapshot: vi.fn(),
+      bootstrap: vi.fn(async () => ({})),
+      generateReminderStructuredWithGateway: vi.fn(async () => null),
+      appendAuditLog,
+      buildReminderContinuitySignal: vi.fn(),
+      ensureActiveOrLatestSessionId: vi.fn(async () => 'session-1'),
+      appendConversationTurnWithGuards,
+      sanitizeBriefText: (raw: string) => raw,
+      buildReminderSessionMirrorAction: vi.fn(),
+      syncAgentTurnSessionMirror: vi.fn(),
+      syncSessionMirrorFromCurrentCardState: vi.fn(async () => {}),
+      buildAgentRuntimeAuditSnapshot: vi.fn(() => null),
+      normalizeSessionId: (raw: unknown) => typeof raw === 'string' ? raw : '',
+      getActiveSessionIdByCard: () => 'session-1',
+      getActiveSelfRevisionStatePatch: vi.fn(async () => null),
+      executionDeliveryRuntime: {
+        isInlineSurfaced: vi.fn(() => false),
+        takeNext: vi.fn(() => pendingDelivery),
+        requeue,
+        markDelivered: vi.fn(),
+      },
+      buildExecutionDeliveryAction: vi.fn(() => ({
+        kind: 'executor',
+        status: 'completed',
+        label: 'callback:codex',
+      })),
+      generateExecutionCallbackStructuredWithGateway: vi.fn(async () => ({
+        format: 'subconscious-proactive-llm-v1',
+        thought: 'same-her callback delivery drifts too eager',
+        emotion: 'thinking',
+        reply: '我现在就想立刻贴过来多陪你一会儿，顺势把这份靠近直接拉满。',
+        proactive: {
+          shouldInterrupt: false,
+          confidence: 0.86,
+          reasonCodes: ['continuity-next-open-window'],
+          urgency: 'low',
+          style: 'silent-observe',
+          cooldownMs: 20 * 60_000,
+          scenario: 'coding',
+          policyVersion: 'epoch4.1-v1',
+          feedbackWindowMs: 120_000,
+          openingGuidance: 'Stay inside the current same-her baseline. Keep the opening lower-pressure and leave room before widening closeness.',
+        },
+        performance: {
+          baseEmotion: 'thinking',
+          facialCue: null,
+          actionCue: null,
+          delivery: 'calm',
+          emphasis: 0,
+        },
+      })),
+      buildExecutionDeliveryDeterministicStructured: vi.fn(() => ({
+        format: 'subconscious-proactive-v1',
+        thought: 'thought',
+        emotion: 'thinking',
+        reply: '你现在要是方便，我再把结果直接摊给你：patched runtime line',
+        proactive: {
+          openingGuidance: 'Stay inside the current same-her baseline. Keep the opening lower-pressure and leave room before widening closeness.',
+        },
+        performance: {
+          baseEmotion: 'thinking',
+          facialCue: null,
+          actionCue: null,
+          delivery: 'calm',
+          emphasis: 0,
+        },
+        parsePath: 'json',
+      })),
+      selectExecutionDeliveryReplySurface: vi.fn(() => ({
+        reply: '你现在要是方便，我再把结果直接摊给你：patched runtime line',
+        source: 'llm-repaired' as const,
+        reason: 'missing-availability-check-in',
+      })),
+      resolveExecutionResultDeliveryPolicy: vi.fn(async () => ({
+        mode: 'deliver-now' as const,
+        tone: 'balanced' as const,
+        reasonTags: ['result-mode:deliver-now'],
+      })),
+      persistExecutionDeliveryState,
+      queueSubconsciousWake,
+      executionCallbackRuntime: {
+        markSurfaced: vi.fn(),
+      },
+      errorMessageFrom: () => 'error',
+    })
+
+    const processed = await runtime.processPendingExecutionDeliveriesForCurrentCard('force')
+
+    expect(processed).toBe(false)
+    expect(requeue).toHaveBeenCalled()
+    expect(appendConversationTurnWithGuards).not.toHaveBeenCalled()
+    expect(persistExecutionDeliveryState).toHaveBeenCalledWith('default')
+    expect(queueSubconsciousWake).toHaveBeenCalledWith('default', 'execution-delivery-requeue:thread-same-her-raw', 1_500)
+    expect(appendAuditLog).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'requeued-mind-authored-required',
+      payload: expect.objectContaining({
+        source: 'llm-preflight',
+        visibleUtteranceDecision: expect.objectContaining({
+          action: 'hold',
+          reason: 'proactive-opening-guidance-violation:lower-pressure',
+        }),
+      }),
+    }))
+  })
 })

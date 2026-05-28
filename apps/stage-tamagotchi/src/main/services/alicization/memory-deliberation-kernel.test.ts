@@ -121,6 +121,76 @@ describe('memory-deliberation-kernel', () => {
     expect(kernel?.followUpAffordance?.preferredTiming).toBe('same-turn-if-invited')
   })
 
+  it('prefers procedural-carry surface policy when runtime seam continuity is explicitly procedural', () => {
+    const kernel = buildAlicizationMemoryDeliberationKernel({
+      deliberation: {
+        shouldRecall: true,
+        surfacePolicy: 'answer-anchoring',
+        confidence: 0.86,
+        whyNow: 'The active runtime seam should keep shaping the live answer.',
+        ambiguityPosture: 'settled',
+        conflictSeverity: 'none',
+        stableCore: ['Stay on the same active dialogue seam before branching.'],
+        unsafeDetails: [],
+        selectedPeriods: [],
+        selectedEras: [{
+          id: 'era-runtime',
+          facet: 'task-era',
+          summary: 'That task era kept returning to the same active dialogue seam.',
+        }],
+        selectedEpisodes: [],
+        selectedProcedures: [{
+          label: 'active dialogue seam first',
+          approach: 'Stay on the same active dialogue seam before branching.',
+        }],
+        selectedBundles: [{
+          id: 'bundle-runtime',
+          summary: 'The active dialogue seam kept holding the same runtime thread.',
+          confidence: 0.85,
+        }],
+        selectedChains: [{
+          kind: 'task-procedure',
+          summary: 'The answer should continue from the same active dialogue seam.',
+          currentStance: 'Stay on the same active dialogue seam.',
+          answerPosture: 'Carry the same active dialogue seam before widening out.',
+          confidence: 0.84,
+        }],
+        selectedRelationshipLines: [],
+        followUpAffordance: {
+          summary: 'Carry the same active dialogue seam inside the current payoff.',
+          whyNow: 'The host is still in the same runtime repair lane.',
+          intrusionRisk: 'low',
+          payoffDependency: 'can-surface-softly',
+          preferredTiming: 'same-turn-if-invited',
+        },
+      } as any,
+      speech: {
+        shouldSurface: true,
+        surfaceMode: 'procedural-carry',
+        placement: 'inside-payoff',
+        certainty: 'approximate',
+        confidence: 0.82,
+      } as any,
+      recollectionIntent: {
+        mode: 'execution-procedure',
+        temporalFocus: 'experience-matched',
+        confidence: 0.86,
+        rationale: 'The turn is continuing the same runtime seam.',
+        recollectionAgenda: {
+          goalSimilarity: 0.92,
+          relationshipNeed: 0.12,
+          uncertaintyTolerance: 'medium',
+          candidateProcedureLines: ['active-dialogue', 'runtime seam'],
+        },
+      } as any,
+    })
+
+    expect(kernel?.surfacePolicy).toBe('procedural-carry')
+    expect(kernel?.speechControls?.continuityRole).toBe('procedure-carry')
+    expect(kernel?.selectedChainPosture).toContain('active dialogue seam')
+    expect(kernel?.memoryControlSummary).toContain('relationship_vector=procedural')
+  })
+
   it('lets learning revision tuning pull relationship continuity back inward', () => {
     const kernel = buildAlicizationMemoryDeliberationKernel({
       deliberation: {

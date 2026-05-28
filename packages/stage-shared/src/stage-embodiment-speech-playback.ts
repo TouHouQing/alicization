@@ -149,20 +149,55 @@ function resolvePlaybackSegmentProsodyIntent(item: StageEmbodimentSpeechPlayback
   return textMatches[0]?.prosody ?? null
 }
 
-function cloneRendererHints(
-  hints: AlicizationDialogueEmbodimentRendererHints | null | undefined,
-): AlicizationDialogueEmbodimentRendererHints | null {
-  if (!hints)
+function resolvePlaybackScriptSegment(item: StageEmbodimentSpeechPlaybackItem | null) {
+  const script = normalizeEmbodimentScriptFromPlaybackMetadata(item?.metadata)
+  if (!script)
     return null
 
-  return {
-    preferredExpressionAliases: hints.preferredExpressionAliases
-      ? [...hints.preferredExpressionAliases]
-      : undefined,
-    preferredMotionAliases: hints.preferredMotionAliases
-      ? [...hints.preferredMotionAliases]
-      : undefined,
-  }
+  const directMatch = item?.segmentId
+    ? script.speechPlan.segments.find(segment => segment.id === item.segmentId)
+    : null
+  if (directMatch)
+    return directMatch
+
+  const normalizedText = normalizePlaybackText(item?.text)
+  if (!normalizedText)
+    return null
+
+  const textMatches = script.speechPlan.segments.filter(
+    segment => normalizePlaybackText(segment.text) === normalizedText,
+  )
+  if (textMatches.length !== 1)
+    return null
+
+  return textMatches[0] ?? null
+}
+
+function resolvePlaybackScriptFaceCue(item: StageEmbodimentSpeechPlaybackItem | null) {
+  const script = normalizeEmbodimentScriptFromPlaybackMetadata(item?.metadata)
+  const segment = resolvePlaybackScriptSegment(item)
+  if (!script || !segment)
+    return null
+
+  return script.facePlan.speakingCues.find(cue => cue.segmentId === segment.id) ?? null
+}
+
+function resolvePlaybackScriptMotionBurst(item: StageEmbodimentSpeechPlaybackItem | null) {
+  const script = normalizeEmbodimentScriptFromPlaybackMetadata(item?.metadata)
+  const segment = resolvePlaybackScriptSegment(item)
+  if (!script || !segment)
+    return null
+
+  return script.motionPlan.actionBursts.find(burst => burst.segmentId === segment.id) ?? null
+}
+
+function resolvePlaybackScriptVisemeHint(item: StageEmbodimentSpeechPlaybackItem | null) {
+  const script = normalizeEmbodimentScriptFromPlaybackMetadata(item?.metadata)
+  const segment = resolvePlaybackScriptSegment(item)
+  if (!script || !segment)
+    return null
+
+  return script.lipsyncPlan.visemeHints?.find(hint => hint.segmentId === segment.id) ?? null
 }
 
 function mergeRendererHintAliases(values: Array<readonly string[] | undefined>) {
@@ -328,13 +363,18 @@ function resolveProjectedRendererSettleHints(
 export function projectStageEmbodimentSpeechCue(input: {
   cue?: AlicizationDialogueSpeechTimelineSegment | null
   digitalLifeFrame?: AlicizationDigitalLifeFrame | null
+  playbackItem?: StageEmbodimentSpeechPlaybackItem | null
 }): AlicizationDialogueSpeechTimelineSegment | null {
   const cue = input.cue ?? null
   const frame = input.digitalLifeFrame ?? null
-  if (!cue && !frame)
+  const scriptSegment = resolvePlaybackScriptSegment(input.playbackItem ?? null)
+  const scriptFaceCue = resolvePlaybackScriptFaceCue(input.playbackItem ?? null)
+  const scriptMotionBurst = resolvePlaybackScriptMotionBurst(input.playbackItem ?? null)
+  const scriptVisemeHint = resolvePlaybackScriptVisemeHint(input.playbackItem ?? null)
+  if (!cue && !frame && !scriptSegment && !scriptFaceCue && !scriptMotionBurst && !scriptVisemeHint)
     return null
 
-  const text = cue?.text ?? frame?.text ?? ''
+  const text = cue?.text ?? frame?.text ?? scriptSegment?.text ?? ''
   if (!text)
     return cue ? { ...cue } : null
 
@@ -351,35 +391,49 @@ export function projectStageEmbodimentSpeechCue(input: {
         frame.action.rendererHints,
         cue?.rendererHints,
       ])
-    : cloneRendererHints(cue?.rendererHints)
+    : mergeRendererHints([
+        cue?.rendererHints,
+        scriptSegment?.rendererHints ?? null,
+      ])
+  const scriptMouthWeight = scriptVisemeHint?.weight
   const projectedActionCue = frame
     ? frame.action.actionMode === 'none'
       ? null
       : normalizeCueToken(frame.action.actionCue)
-    : normalizeCueToken(cue?.actionCue)
+    : normalizeCueToken(cue?.actionCue) ?? normalizeCueToken(scriptMotionBurst?.actionCue)
   const projectedFacialCue = frame
     ? normalizeCueToken(frame.face.facialCue)
-    : normalizeCueToken(cue?.facialCue)
+    : normalizeCueToken(cue?.facialCue) ?? normalizeCueToken(scriptFaceCue?.facialCue)
 
   return {
-    id: frame?.id ?? cue?.id ?? 'stage-embodiment:segment',
-    index: frame?.index ?? cue?.index ?? 0,
+    id: frame?.id ?? cue?.id ?? scriptSegment?.id ?? 'stage-embodiment:segment',
+    index: frame?.index ?? cue?.index ?? scriptSegment?.index ?? 0,
     startOffset,
     endOffset,
     text,
-    emotion: frame?.face.emotion ?? cue?.emotion,
-    gestureWeight: frame ? clampUnit(frame.action.intensity, cue?.gestureWeight ?? 0) : clampUnit(cue?.gestureWeight ?? 0),
-    facialWeight: frame ? clampUnit(frame.face.intensity, cue?.facialWeight ?? 0) : clampUnit(cue?.facialWeight ?? 0),
-    prosodyWeight: frame ? clampUnit(frame.voice.cadence, cue?.prosodyWeight ?? 0) : clampUnit(cue?.prosodyWeight ?? 0),
-    beatWeight: frame ? resolveProjectedCueBeatWeight(frame) : clampUnit(cue?.beatWeight ?? 0),
-    mouthWeight: frame ? resolveProjectedCueMouthWeight(frame) : cue?.mouthWeight,
-    headWeight: frame ? clampUnit(frame.action.intensity, cue?.headWeight ?? cue?.gestureWeight ?? 0) : cue?.headWeight,
+    emotion: frame?.face.emotion ?? cue?.emotion ?? scriptFaceCue?.emotion,
+    gestureWeight: frame
+      ? clampUnit(frame.action.intensity, cue?.gestureWeight ?? 0)
+      : clampUnit(cue?.gestureWeight ?? scriptMotionBurst?.intensity ?? 0),
+    facialWeight: frame
+      ? clampUnit(frame.face.intensity, cue?.facialWeight ?? 0)
+      : clampUnit(cue?.facialWeight ?? scriptFaceCue?.intensity ?? 0),
+    prosodyWeight: frame
+      ? clampUnit(frame.voice.cadence, cue?.prosodyWeight ?? 0)
+      : clampUnit(cue?.prosodyWeight ?? scriptMouthWeight ?? 0),
+    beatWeight: frame
+      ? resolveProjectedCueBeatWeight(frame)
+      : clampUnit(cue?.beatWeight ?? scriptMotionBurst?.intensity ?? scriptMouthWeight ?? 0),
+    mouthWeight: frame ? resolveProjectedCueMouthWeight(frame) : cue?.mouthWeight ?? scriptMouthWeight,
+    headWeight: frame
+      ? clampUnit(frame.action.intensity, cue?.headWeight ?? cue?.gestureWeight ?? 0)
+      : cue?.headWeight ?? clampUnit(scriptMotionBurst?.intensity ?? 0),
     facialHoldMs: frame
       ? Math.round(clampRange(frame.face.holdMs, 80, 960))
-      : cue?.facialHoldMs,
+      : cue?.facialHoldMs ?? scriptFaceCue?.holdMs,
     actionHoldMs: frame
       ? Math.round(clampRange(frame.action.holdMs, 70, 720))
-      : cue?.actionHoldMs,
+      : cue?.actionHoldMs ?? scriptMotionBurst?.holdMs,
     emotionHoldMs: frame
       ? Math.round(clampRange(
           Math.max(
@@ -390,11 +444,11 @@ export function projectStageEmbodimentSpeechCue(input: {
           80,
           960,
         ))
-      : cue?.emotionHoldMs,
+      : cue?.emotionHoldMs ?? (Math.max(scriptFaceCue?.holdMs ?? 0, scriptMotionBurst?.holdMs ?? 0) || undefined),
     settleMode: frame?.settleMode ?? cue?.settleMode,
     rendererSettle: frame
       ? resolveProjectedRendererSettleHints(frame, cue?.rendererSettle)
-      : cloneRendererSettleHints(cue?.rendererSettle),
+      : cloneRendererSettleHints(cue?.rendererSettle ?? scriptSegment?.rendererSettle ?? null),
     rendererHints,
     actionCue: projectedActionCue,
     facialCue: projectedFacialCue,
@@ -404,8 +458,8 @@ export function projectStageEmbodimentSpeechCue(input: {
         : cue?.actionWindow === 'cadence-peak' || resolveProjectedCueBeatWeight(frame) >= 0.66
           ? 'cadence-peak'
           : 'segment-start'
-      : cue?.actionWindow ?? 'none',
-    interruptMode: frame?.interruptPolicy ?? cue?.interruptMode ?? 'continue',
+      : cue?.actionWindow ?? (projectedActionCue ? 'segment-start' : 'none'),
+    interruptMode: frame?.interruptPolicy ?? cue?.interruptMode ?? (projectedActionCue || projectedFacialCue ? 'soft-interrupt' : 'continue'),
   }
 }
 
@@ -734,6 +788,19 @@ export function createStageEmbodimentSpeechPlaybackItem(input: {
     cue: projectStageEmbodimentSpeechCue({
       cue: input.cue,
       digitalLifeFrame,
+      playbackItem: {
+        intentId: input.intentId ?? null,
+        streamId: input.streamId ?? null,
+        segmentId: input.segmentId ?? null,
+        ownerId: input.ownerId ?? null,
+        text: input.text,
+        special: input.special ?? null,
+        continuityHoldMs: normalizeStageEmbodimentSpeechContinuityHoldMs(input.continuityHoldMs),
+        playbackDurationMs: normalizeStageEmbodimentSpeechPlaybackDurationMs(input.playbackDurationMs),
+        metadata: input.metadata ? { ...input.metadata } : null,
+        cue: input.cue ?? null,
+        digitalLifeFrame,
+      },
     }),
     digitalLifeFrame,
   }

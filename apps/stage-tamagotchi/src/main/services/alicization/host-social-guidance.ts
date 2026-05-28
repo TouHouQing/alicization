@@ -1,6 +1,8 @@
 import type {
   AlicizationHostPersonModelSnapshot,
+  AlicizationLearningExecutionStateSnapshot,
   AlicizationProactiveStyle,
+  AlicizationSelfEvolutionKernelSnapshot,
 } from '../../../shared/eventa'
 
 function sanitizeText(raw: unknown, maxChars = 180) {
@@ -77,11 +79,29 @@ export function adjustProactiveStyleFromHostPersonModel(input: {
   currentStyle: AlicizationProactiveStyle
   hostPersonModel?: AlicizationHostPersonModelSnapshot | null
   contexts: string[]
+  selfEvolution?: AlicizationSelfEvolutionKernelSnapshot | null
+  learningExecutionState?: AlicizationLearningExecutionStateSnapshot | null
 }) {
   const guidance = buildHostSocialGuidance({
     hostPersonModel: input.hostPersonModel ?? null,
     contexts: input.contexts,
   })
+  const learningAction = input.learningExecutionState?.nextLearningAction
+    ?? input.selfEvolution?.nextLearningAction
+    ?? null
+  const verifyFirstRevalidation = Boolean(
+    learningAction === 'verify'
+    && (
+      (input.selfEvolution?.contradictionPressure ?? 0) >= 0.34
+      || sanitizeText(input.selfEvolution?.dominantTrajectory, 120).toLowerCase().includes('revalidation')
+      || (input.learningExecutionState?.activeLearningFocuses ?? input.selfEvolution?.activeLearningFocuses ?? []).some(focus =>
+        sanitizeText(focus, 64).toLowerCase().includes('world-model'),
+      )
+    ),
+  )
+
+  if (verifyFirstRevalidation && input.currentStyle !== 'firm-warning')
+    return 'silent-observe' as const
 
   if (guidance.preferredProactiveStyle === 'gentle-care')
     return 'gentle-care' as const
@@ -92,4 +112,36 @@ export function adjustProactiveStyleFromHostPersonModel(input: {
   if (guidance.restrained && input.currentStyle === 'gentle-care')
     return 'light-nudge' as const
   return input.currentStyle
+}
+
+export function adjustProactiveReplyFromLongHorizonLearning(input: {
+  currentReply: string
+  selfEvolution?: AlicizationSelfEvolutionKernelSnapshot | null
+  learningExecutionState?: AlicizationLearningExecutionStateSnapshot | null
+}) {
+  const currentReply = sanitizeText(input.currentReply, 220)
+  if (!currentReply)
+    return ''
+
+  const learningAction = input.learningExecutionState?.nextLearningAction
+    ?? input.selfEvolution?.nextLearningAction
+    ?? null
+  const verifyFirstRevalidation = Boolean(
+    learningAction === 'verify'
+    && (
+      (input.selfEvolution?.contradictionPressure ?? 0) >= 0.34
+      || sanitizeText(input.selfEvolution?.dominantTrajectory, 120).toLowerCase().includes('revalidation')
+      || (input.learningExecutionState?.activeLearningFocuses ?? input.selfEvolution?.activeLearningFocuses ?? []).some(focus =>
+        sanitizeText(focus, 64).toLowerCase().includes('world-model'),
+      )
+    ),
+  )
+
+  if (!verifyFirstRevalidation)
+    return currentReply
+  if (/先别说死/u.test(currentReply))
+    return currentReply
+
+  const withoutTrailingPunctuation = currentReply.replace(/[。！!？?]+$/u, '')
+  return `${withoutTrailingPunctuation}，先别说死，我再看稳一点。`
 }
