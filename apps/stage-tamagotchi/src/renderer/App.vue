@@ -1,7 +1,10 @@
 <script setup lang="ts">
-import type { AlicizationBridgeChatStreamEvent } from '@proj-alicization/stage-ui/stores/alicization-bridge'
+import type {
+  AlicizationBridgeChatStreamEvent,
+  AlicizationVisualPresenceStateSnapshot as AlicizationBridgeVisualPresenceStateSnapshot,
+} from '@proj-alicization/stage-ui/stores/alicization-bridge'
 
-import type { AlicizationCardScope, AlicizationChatAbortPayload, AlicizationChatAbortResult, AlicizationChatErrorEvent, AlicizationChatFinishEvent, AlicizationChatMetaEvent, AlicizationChatStartPayload, AlicizationChatStartResult, AlicizationChatStreamChunkEvent, AlicizationChatStreamDispatchPayload, AlicizationChatToolCallEvent, AlicizationChatToolResultEvent, AlicizationDialogueRespondedPayload, AlicizationKillSwitchSnapshot, AlicizationLlmConfigPayload, AlicizationPresencePulsePayload, AlicizationSafetyPermissionRequest, AlicizationSoulSnapshot, AlicizationVisualPresenceStateChangedPayload, AlicizationVisualPresenceStateSnapshot } from '../shared/eventa'
+import type { AlicizationCardScope, AlicizationChatAbortPayload, AlicizationChatAbortResult, AlicizationChatErrorEvent, AlicizationChatFinishEvent, AlicizationChatMetaEvent, AlicizationChatStartPayload, AlicizationChatStartResult, AlicizationChatStreamChunkEvent, AlicizationChatStreamDispatchPayload, AlicizationChatToolCallEvent, AlicizationChatToolResultEvent, AlicizationDialogueRespondedPayload, AlicizationKillSwitchSnapshot, AlicizationLlmConfigPayload, AlicizationPresencePulsePayload, AlicizationSafetyPermissionRequest, AlicizationSoulSnapshot, AlicizationVisualPresenceStateChangedPayload } from '../shared/eventa'
 
 import { defineInvokeHandler } from '@moeru/eventa'
 import { useElectronEventaContext, useElectronEventaInvoke } from '@proj-alicization/electron-vueuse'
@@ -22,6 +25,10 @@ import { useAiriCardStore } from '@proj-alicization/stage-ui/stores/modules/airi
 import { useConsciousnessStore } from '@proj-alicization/stage-ui/stores/modules/consciousness'
 import { usePerfTracerBridgeStore } from '@proj-alicization/stage-ui/stores/perf-tracer-bridge'
 import { listProvidersForPluginHost, shouldPublishPluginHostCapabilities } from '@proj-alicization/stage-ui/stores/plugin-host-capabilities'
+import {
+  projectStateObservationToContinuitySnapshot,
+  readConversationTurnProjectStateObservation,
+} from '@proj-alicization/stage-ui/stores/project-state-observation'
 import { useProvidersStore } from '@proj-alicization/stage-ui/stores/providers'
 import { useSettings } from '@proj-alicization/stage-ui/stores/settings'
 import { useTheme } from '@proj-alicization/ui'
@@ -58,13 +65,14 @@ import {
   electronAlicizationChatAbort,
   electronAlicizationChatStart,
   electronAlicizationClearAllConversations,
+  electronAlicizationCorrectHumanlikeMemoryAudit,
   electronAlicizationDeleteAllData,
   electronAlicizationDeleteCardScope,
   electronAlicizationDispatchTaskThread,
   electronAlicizationGetMemoryStats,
   electronAlicizationGetOrganicMemorySnapshot,
-  electronAlicizationGetSelfEvolutionState,
   electronAlicizationGetPerformanceManifest,
+  electronAlicizationGetSelfEvolutionState,
   electronAlicizationGetSensorySnapshot,
   electronAlicizationGetSoul,
   electronAlicizationGetVisualPresenceState,
@@ -76,9 +84,9 @@ import {
   electronAlicizationListConversationTurns,
   electronAlicizationListExecutionEvents,
   electronAlicizationListExecutorSessions,
+  electronAlicizationListHumanlikeMemoryAudit,
   electronAlicizationListMemoryDecisionTraces,
   electronAlicizationListMindTurnEvents,
-  electronAlicizationRunReplayBenchmark,
   electronAlicizationListTaskThreads,
   electronAlicizationLlmGetConfig,
   electronAlicizationLlmSyncConfig,
@@ -91,6 +99,7 @@ import {
   electronAlicizationReplayDialogues,
   electronAlicizationReportProactiveFeedback,
   electronAlicizationRunMemoryPrune,
+  electronAlicizationRunReplayBenchmark,
   electronAlicizationSafetyResolvePermission,
   electronAlicizationSearchOrganicSubconsciousFragments,
   electronAlicizationSetActiveSession,
@@ -122,6 +131,7 @@ import {
   pluginProtocolListProviders,
   pluginProtocolListProvidersEventName,
 } from '../shared/eventa'
+import { bridgeAlicizationChatMetaEventToStreamEvent } from './alicization-chat-stream-bridge'
 import { normalizeChatStructuredRecord, resolveVisibleReasoning } from './alicization-chat-structured-record'
 import { initializeStageThreeRuntimeTraceBridge } from './bridges/stage-three-runtime-trace'
 import { useServerChannelSettingsStore } from './stores/settings/server-channel'
@@ -175,6 +185,8 @@ const alicizationResumeKillSwitch = useElectronEventaInvoke(electronAlicizationK
 const alicizationListConversationTurns = useElectronEventaInvoke(electronAlicizationListConversationTurns)
 const alicizationListMindTurnEvents = useElectronEventaInvoke(electronAlicizationListMindTurnEvents)
 const alicizationListMemoryDecisionTraces = useElectronEventaInvoke(electronAlicizationListMemoryDecisionTraces)
+const alicizationListHumanlikeMemoryAudit = useElectronEventaInvoke(electronAlicizationListHumanlikeMemoryAudit)
+const alicizationCorrectHumanlikeMemoryAudit = useElectronEventaInvoke(electronAlicizationCorrectHumanlikeMemoryAudit)
 const alicizationRunReplayBenchmark = useElectronEventaInvoke(electronAlicizationRunReplayBenchmark)
 const alicizationUpsertTaskThread = useElectronEventaInvoke(electronAlicizationUpsertTaskThread)
 const alicizationListTaskThreads = useElectronEventaInvoke(electronAlicizationListTaskThreads)
@@ -231,6 +243,8 @@ const llmConfigHydrated = ref(false)
 const pendingAlicizationChatStreams = new Map<string, {
   onStreamEvent?: (event: AlicizationBridgeChatStreamEvent) => Promise<void> | void
   visibleReplyExecution?: AlicizationChatFinishEvent['visibleReplyExecution']
+  visibleReplyCritic?: AlicizationChatFinishEvent['visibleReplyCritic']
+  visibleReplyClosure?: AlicizationChatFinishEvent['visibleReplyClosure']
   resolve: () => void
   reject: (error: unknown) => void
 }>()
@@ -276,6 +290,31 @@ function estimateJsonPayloadBytes(value: unknown) {
   catch {
     return null
   }
+}
+
+async function readLatestRendererProjectStateObservation() {
+  const sessionId = activeSessionId.value?.trim() ?? ''
+  if (!sessionId)
+    return null
+
+  const turns = await alicizationListConversationTurns({
+    ...resolveAlicizationScope(),
+    sessionId,
+    limit: 240,
+  }).catch(() => [])
+
+  for (let index = turns.length - 1; index >= 0; index -= 1) {
+    const observation = readConversationTurnProjectStateObservation({
+      ...turns[index],
+      origin: 'user-turn',
+      visibleReplyCritic: null,
+      visibleReplyClosure: null,
+    })
+    if (observation)
+      return observation
+  }
+
+  return null
 }
 
 function cloneProviderCredentials() {
@@ -697,14 +736,7 @@ function handleAlicizationChatStreamMeta(payload?: AlicizationChatMetaEvent) {
   const pending = resolvePendingAlicizationStream(payload.cardId, payload.turnId)
   if (!pending)
     return
-  void pending.onStreamEvent?.({
-    type: 'meta',
-    governance: payload.governance ?? null,
-    embodiment: payload.embodiment ?? null,
-    speechTimeline: payload.speechTimeline ?? null,
-    digitalLife: payload.digitalLife ?? null,
-    digitalLifeSpine: payload.digitalLifeSpine ?? null,
-  })
+  void pending.onStreamEvent?.(bridgeAlicizationChatMetaEventToStreamEvent(payload))
 }
 
 function handleAlicizationChatStreamToolCall(payload?: AlicizationChatToolCallEvent) {
@@ -758,10 +790,14 @@ function handleAlicizationChatStreamFinish(payload?: AlicizationChatFinishEvent)
   if (!pending)
     return
   pending.visibleReplyExecution = payload.visibleReplyExecution ?? null
+  pending.visibleReplyCritic = payload.visibleReplyCritic ?? null
+  pending.visibleReplyClosure = payload.visibleReplyClosure ?? null
   if (payload.status === 'completed') {
     void pending.onStreamEvent?.({
       type: 'finish',
       visibleReplyExecution: pending.visibleReplyExecution ?? null,
+      visibleReplyCritic: pending.visibleReplyCritic ?? null,
+      visibleReplyClosure: pending.visibleReplyClosure ?? null,
     } as AlicizationBridgeChatStreamEvent)
     pending.resolve()
     return
@@ -825,7 +861,7 @@ function handleAlicizationDialogueRespondedPayload(payload?: AlicizationDialogue
 }
 
 const visualPresencePulseListeners = new Set<(payload: AlicizationPresencePulsePayload) => void>()
-const visualPresenceStateListeners = new Set<(state: AlicizationVisualPresenceStateSnapshot | null) => void>()
+const visualPresenceStateListeners = new Set<(state: AlicizationBridgeVisualPresenceStateSnapshot | null) => void>()
 
 function handleAlicizationVisualPresencePayload(payload?: AlicizationPresencePulsePayload) {
   if (!payload || !isCurrentAlicizationCard(payload.cardId))
@@ -933,6 +969,10 @@ setAlicizationBridge({
   upsertMemoryFacts: async payload => await alicizationUpsertMemoryFacts({ ...resolveAlicizationScope(), ...payload }),
   importLegacyMemory: async payload => await alicizationImportLegacyMemory({ ...resolveAlicizationScope(), ...payload }),
   getOrganicMemorySnapshot: async () => await alicizationGetOrganicMemorySnapshot(resolveAlicizationScope()),
+  getLatestProjectStateObservation: async () => await readLatestRendererProjectStateObservation(),
+  getProjectStateContinuitySnapshot: async () => projectStateObservationToContinuitySnapshot(
+    await readLatestRendererProjectStateObservation(),
+  ),
   getSelfEvolutionState: async () => await alicizationGetSelfEvolutionState(resolveAlicizationScope()),
   searchOrganicSubconsciousFragments: async payload => await alicizationSearchOrganicSubconsciousFragments({ ...resolveAlicizationScope(), ...payload }),
   getPerformanceManifest: async () => await alicizationGetPerformanceManifest(resolveAlicizationScope()),
@@ -940,6 +980,8 @@ setAlicizationBridge({
   appendConversationTurn: async payload => await alicizationAppendConversationTurn({ ...resolveAlicizationScope(), ...payload }),
   listMindTurnEvents: async payload => await alicizationListMindTurnEvents({ ...resolveAlicizationScope(), ...payload }),
   listMemoryDecisionTraces: async payload => await alicizationListMemoryDecisionTraces({ ...resolveAlicizationScope(), ...payload }),
+  listHumanlikeMemoryAudit: async payload => await alicizationListHumanlikeMemoryAudit({ ...resolveAlicizationScope(), ...payload }),
+  correctHumanlikeMemoryAudit: async payload => await alicizationCorrectHumanlikeMemoryAudit({ ...resolveAlicizationScope(), ...payload }),
   runReplayBenchmark: async payload => await alicizationRunReplayBenchmark({ ...resolveAlicizationScope(), ...payload }),
   upsertTaskThread: async payload => await alicizationUpsertTaskThread({ ...resolveAlicizationScope(), ...payload }),
   listTaskThreads: async payload => await alicizationListTaskThreads({ ...resolveAlicizationScope(), ...payload }),
@@ -1024,6 +1066,8 @@ setAlicizationBridge({
       pendingAlicizationChatStreams.set(key, {
         onStreamEvent: options.onStreamEvent,
         visibleReplyExecution: null,
+        visibleReplyCritic: null,
+        visibleReplyClosure: null,
         resolve: resolveAndDispose,
         reject: rejectAndDispose,
       })
@@ -1153,7 +1197,7 @@ setAlicizationBridge({
   deleteAllData: async () => await alicizationDeleteAllData(),
 })
 
-type EventEnvelope<T> = { body?: T }
+interface EventEnvelope<T> { body?: T }
 
 context.value.on(alicizationSoulChanged, (event: EventEnvelope<AlicizationCardScope & AlicizationSoulSnapshot>) => {
   const payload = event?.body

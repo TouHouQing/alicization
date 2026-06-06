@@ -1,8 +1,47 @@
+import { readFileSync } from 'node:fs'
+
 import { describe, expect, it } from 'vitest'
 
 import { clampAlicizationPerformancePayloadToManifest } from './alicization-bridge'
 
 describe('alicization performance manifest clamp', () => {
+  it('keeps bridge project-state observation and continuity types explicitly legacy-aware for latestProgress-based continuity payloads', () => {
+    const source = readFileSync(new URL('./alicization-bridge.ts', import.meta.url), 'utf8')
+
+    expect(source).toContain('export interface AlicizationProjectStateObservation')
+    expect(source).toContain('export interface AlicizationProjectStateContinuitySnapshot')
+    expect(source).toContain('latestProgress?: string | null')
+  })
+
+  it('keeps project-state as a first-class answer subject so visual presence snapshots can carry Phase 1 self-awareness', () => {
+    const source = readFileSync(new URL('./alicization-bridge.ts', import.meta.url), 'utf8')
+
+    expect(source).toContain('export type AlicizationDialogueAnswerSubject')
+    expect(source).toContain(`| 'project-state'`)
+  })
+
+  it('keeps humanlike memory audit and correction on the shared bridge contract', () => {
+    const source = readFileSync(new URL('./alicization-bridge.ts', import.meta.url), 'utf8')
+
+    expect(source).toContain('export interface AlicizationListHumanlikeMemoryAuditPayload')
+    expect(source).toContain('export interface AlicizationCorrectHumanlikeMemoryAuditPayload')
+    expect(source).toContain('export type AlicizationHumanlikeMemoryAuditEntry')
+    expect(source).toContain('export type AlicizationHumanlikeMemoryCorrectionRecord')
+    expect(source).toContain('listHumanlikeMemoryAudit?: (payload: AlicizationListHumanlikeMemoryAuditPayload) => Promise<AlicizationHumanlikeMemoryAuditEntry[]>')
+    expect(source).toContain('correctHumanlikeMemoryAudit?: (payload: AlicizationCorrectHumanlikeMemoryAuditPayload) => Promise<AlicizationHumanlikeMemoryCorrectionRecord>')
+  })
+
+  it('keeps the Electron renderer bridge wired to humanlike memory audit invoke channels', () => {
+    const source = readFileSync(new URL('../../../../apps/stage-tamagotchi/src/renderer/App.vue', import.meta.url), 'utf8')
+
+    expect(source).toContain('electronAlicizationListHumanlikeMemoryAudit')
+    expect(source).toContain('electronAlicizationCorrectHumanlikeMemoryAudit')
+    expect(source).toContain('const alicizationListHumanlikeMemoryAudit = useElectronEventaInvoke(electronAlicizationListHumanlikeMemoryAudit)')
+    expect(source).toContain('const alicizationCorrectHumanlikeMemoryAudit = useElectronEventaInvoke(electronAlicizationCorrectHumanlikeMemoryAudit)')
+    expect(source).toContain('listHumanlikeMemoryAudit: async payload => await alicizationListHumanlikeMemoryAudit({ ...resolveAlicizationScope(), ...payload })')
+    expect(source).toContain('correctHumanlikeMemoryAudit: async payload => await alicizationCorrectHumanlikeMemoryAudit({ ...resolveAlicizationScope(), ...payload })')
+  })
+
   it('drops unsupported cues and downgrades unsupported base emotions', () => {
     const result = clampAlicizationPerformancePayloadToManifest({
       baseEmotion: 'angry',

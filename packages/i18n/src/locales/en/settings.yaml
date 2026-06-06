@@ -58,7 +58,7 @@ dialogs:
         obedience: Obedience
         liveliness: Liveliness
         sensibility: Sensibility
-        summary: Current read: {summary}
+        summary: 'Current read: {summary}'
         freeDescription: Short persona description
         examplesTitle: Helpful prompts
         examplesBody: Try describing the tone, attachment style, or how she should react under pressure. You can revise it on the next screen.
@@ -78,7 +78,7 @@ dialogs:
           sayIt: Say it
         comfortStyle: Comfort style
         jealousyStyle: Jealousy style
-        summary: Current calibration: {summary}
+        summary: 'Current calibration: {summary}'
         examplesBody: If you are unsure, choose the softer option first. The preview screen will translate this into a concise system summary.
       preview:
         title: Review the system interpretation
@@ -89,12 +89,12 @@ dialogs:
         notesTitle: What the system inferred
         notesEmpty: No notes yet.
         emptyDescription: No free-description text yet.
-        relationshipPosture: Relationship posture: {value}
-        relationshipPostureDefault: Relationship posture: companion
-        initiativeStyle: Initiative style: {value}
-        initiativeStyleDefault: Initiative style: Measured approach
-        reconnectAfterSilence: Reconnect after silence: {value}
-        reconnectAfterSilenceDefault: Reconnect after silence: Light probe
+        relationshipPosture: 'Relationship posture: {value}'
+        relationshipPostureDefault: 'Relationship posture: companion'
+        initiativeStyle: 'Initiative style: {value}'
+        initiativeStyleDefault: 'Initiative style: Measured approach'
+        reconnectAfterSilence: 'Reconnect after silence: {value}'
+        reconnectAfterSilenceDefault: 'Reconnect after silence: Light probe'
         genesisAccepted: Genesis accepted.
         relationshipPostureLabels:
           companion: Companion
