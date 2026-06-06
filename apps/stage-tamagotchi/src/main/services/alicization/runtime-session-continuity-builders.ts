@@ -14,6 +14,17 @@ import type {
   AlicizationRecentProactiveOutcome,
 } from './proactive-feedback'
 
+import {
+  buildAlicizationProjectPreDialogueAwarenessLine,
+  isAlicizationThinProjectAwarenessLine,
+  resolveAlicizationProjectPreDialogueAwarenessLine,
+  resolveAlicizationProjectStateBrief,
+} from './project-state-brief'
+import {
+  deriveCompactProjectStateNextFocusSummary,
+  deriveCompactProjectStateOpenFocusSummary,
+} from './project-state-focus'
+
 interface CreateAlicizationSessionContinuityBuildersRuntimeOptions {
   sanitizeText: (raw: unknown, fallback?: string) => string
   sanitizeBriefText: (raw: string, maxChars: number) => string
@@ -53,10 +64,195 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
       : []
   }
 
+  function hasGenericContinuityModeMenu(text: string | null | undefined) {
+    const normalized = typeof text === 'string' ? text.trim().toLowerCase() : ''
+    if (!normalized)
+      return false
+
+    return /measured-return\s*\/\s*repair-before-closeness|(?:one\s+)?measured-return,\s*repair-before-closeness,\s*or\s*rest-protective/u.test(normalized)
+  }
+
+  function hasExplicitRepairBeforeClosenessAuthority(text: string | null | undefined) {
+    const normalized = typeof text === 'string' ? text.trim().toLowerCase() : ''
+    if (!normalized)
+      return false
+
+    const mentionsRepairBeforeCloseness
+      = /repair-before-closeness|repair before closeness|repair-first|repair first|先修复|修复优先|先把身体收稳|先让修复落稳|let repair settle|repair settles first/u.test(normalized)
+    if (!mentionsRepairBeforeCloseness)
+      return false
+
+    if (!hasGenericContinuityModeMenu(normalized))
+      return true
+
+    return /same-her callback repair seam|callback repair|repair seam|repair line|repair-before-closeness still holds|repair-before-closeness still owns|keep this (?:callback )?return repair-before-closeness|keep repair-before-closeness on the same living line|embodiment repair-before-closeness on the same living line|repair still needs to land|before any warmer reopening|until repair settles|until the room settles|先修复再靠近|修复线|修补线/u.test(normalized)
+  }
+
   function normalizeExecutionDeliveryStatus(
     status: AlicizationTaskThreadRecord['status'],
   ): AlicizationAgentSessionActionInput['status'] {
     return status === 'completed' ? 'completed' : 'failed'
+  }
+
+  function resolveProjectStateCarryFromEvent(event: AlicizationEpisodicEventRecord) {
+    const metadata = asRecord((event as { metadata?: unknown }).metadata)
+    const projectState = resolveAlicizationProjectStateBrief()
+    const projectLatestLandedProgress = sanitizeBriefText(
+      typeof metadata?.projectLatestLandedProgress === 'string'
+        ? metadata.projectLatestLandedProgress
+        : projectState.continuityProgressSummary ?? projectState.latestProgress,
+      220,
+    ) || null
+    const projectStateSameHerSelfLine = sanitizeBriefText(
+      typeof metadata?.projectStateSameHerSelfLine === 'string'
+        ? metadata.projectStateSameHerSelfLine
+        : '',
+      220,
+    ) || null
+    const projectPrimaryOpenLoop = sanitizeBriefText(
+      typeof metadata?.projectPrimaryOpenLoop === 'string'
+        ? metadata.projectPrimaryOpenLoop
+        : projectState.openLoops[0] ?? '',
+      220,
+    ) || null
+    const projectNextClosureTarget = sanitizeBriefText(
+      typeof metadata?.projectNextClosureTarget === 'string'
+        ? metadata.projectNextClosureTarget
+        : projectState.nextClosureTarget,
+      220,
+    ) || null
+    const projectStateOpenFocusSummary = sanitizeBriefText(
+      typeof metadata?.projectStateOpenFocusSummary === 'string'
+        ? metadata.projectStateOpenFocusSummary
+        : deriveCompactProjectStateOpenFocusSummary(projectPrimaryOpenLoop) ?? '',
+      220,
+    ) || null
+    const projectStateNextFocusSummary = sanitizeBriefText(
+      typeof metadata?.projectStateNextFocusSummary === 'string'
+        ? metadata.projectStateNextFocusSummary
+        : deriveCompactProjectStateNextFocusSummary(projectNextClosureTarget) ?? '',
+      220,
+    ) || null
+    const projectIdentity = sanitizeBriefText(
+      typeof metadata?.projectIdentity === 'string'
+        ? metadata.projectIdentity
+        : projectState.identity,
+      180,
+    ) || null
+    const projectPhase = sanitizeBriefText(
+      typeof metadata?.projectPhase === 'string'
+        ? metadata.projectPhase
+        : projectState.currentPhase,
+      140,
+    ) || null
+    const rawEventProjectAwarenessLine = sanitizeBriefText(
+      typeof metadata?.projectStatePreDialogueAwarenessLine === 'string'
+        ? metadata.projectStatePreDialogueAwarenessLine
+        : '',
+      220,
+    ) || null
+    const eventCompanionBriefingLine = sanitizeBriefText(
+      typeof metadata?.projectStateCompanionBriefingLine === 'string'
+        ? metadata.projectStateCompanionBriefingLine
+        : '',
+      220,
+    ) || null
+    const shouldPreferCanonicalSameHerAwareness
+      = !projectStateSameHerSelfLine
+        && isAlicizationThinProjectAwarenessLine(rawEventProjectAwarenessLine)
+        && !eventCompanionBriefingLine
+    const shouldCompactCanonicalSameHerAwareness
+      = Boolean(projectStateSameHerSelfLine)
+        && isAlicizationThinProjectAwarenessLine(rawEventProjectAwarenessLine)
+        && !eventCompanionBriefingLine
+    const preferredEventProjectAwarenessLine = isAlicizationThinProjectAwarenessLine(rawEventProjectAwarenessLine)
+      ? eventCompanionBriefingLine || rawEventProjectAwarenessLine
+      : rawEventProjectAwarenessLine
+    const compactProjectIdentity = /local-first digital life project/i.test(projectIdentity ?? '')
+      ? 'Alicization is a local-first digital life project'
+      : projectIdentity
+        ? sanitizeBriefText(projectIdentity.split(/[.。]/u)[0]?.trim() ?? projectIdentity, 120)
+        : 'Alicization is still the same local-first digital life project'
+    const compactProjectPhase = /phase 1:\s*local digital life/i.test(projectPhase ?? '')
+      ? 'Phase 1: Local Digital Life'
+      : projectPhase
+        ? sanitizeBriefText(projectPhase.split(/[.。]/u)[0]?.trim() ?? projectPhase, 80)
+        : ''
+    const compactCanonicalSameHerAwareness = shouldCompactCanonicalSameHerAwareness
+      ? sanitizeBriefText([
+          compactProjectIdentity
+            ? `Before answering, remember: ${compactProjectIdentity.replace(/[.。!！?？;；:：]+$/u, '')}.`
+            : 'Before answering, remember this still belongs to the same digital life project.',
+          compactProjectPhase
+            ? `She is still inside ${compactProjectPhase.replace(/[.。!！?？;；:：]+$/u, '')}.`
+            : '',
+          projectStateSameHerSelfLine,
+        ].filter(Boolean).join(' '), 220)
+      : ''
+    const compactCanonicalProjectAwareness = shouldPreferCanonicalSameHerAwareness
+      ? sanitizeBriefText(
+          buildAlicizationProjectPreDialogueAwarenessLine({
+            identity: projectIdentity ?? projectState.identity,
+            currentPhase: projectPhase ?? projectState.currentPhase,
+            latestLandedProgress: projectLatestLandedProgress,
+            primaryOpenLoop: projectPrimaryOpenLoop,
+            nextClosureTarget: projectNextClosureTarget,
+            sameHerSelfLine: projectStateSameHerSelfLine,
+          }) ?? '',
+          220,
+        )
+      : ''
+
+    return {
+      projectStatePreDialogueAwarenessLine: (
+        compactCanonicalSameHerAwareness
+        || compactCanonicalProjectAwareness
+        || sanitizeBriefText(
+          resolveAlicizationProjectPreDialogueAwarenessLine({
+            runtimeProjectState: {
+              identity: projectIdentity,
+              currentPhase: projectPhase,
+              preDialogueAwarenessLine: shouldPreferCanonicalSameHerAwareness
+                ? projectState.preDialogueAwarenessLine ?? null
+                : projectStateSameHerSelfLine
+                  ?? preferredEventProjectAwarenessLine,
+              awarenessLine: shouldPreferCanonicalSameHerAwareness
+                ? projectState.sameHerSelfLine
+                : projectStateSameHerSelfLine
+                  ?? preferredEventProjectAwarenessLine,
+              openClosureSummary: projectPrimaryOpenLoop,
+              nextClosureTarget: projectNextClosureTarget,
+              companionBriefingLine: eventCompanionBriefingLine,
+              preflightSummary: metadata?.projectStatePreflightSummary,
+            },
+            fallbackProjectState: {
+              identity: projectIdentity,
+              currentPhase: projectPhase,
+              preDialogueAwarenessLine: projectState.preDialogueAwarenessLine ?? null,
+              openClosureSummary: projectPrimaryOpenLoop,
+              nextClosureTarget: projectNextClosureTarget,
+              sameHerSelfLine: projectStateSameHerSelfLine ?? projectState.sameHerSelfLine,
+              preflightSummary: projectState.preflightSummary ?? null,
+            },
+          }) ?? '',
+          220,
+        )
+      ) || null,
+      projectStatePreflightSummary: sanitizeBriefText(
+        typeof metadata?.projectStatePreflightSummary === 'string'
+          ? metadata.projectStatePreflightSummary
+          : projectState.preflightSummary ?? '',
+        220,
+      ) || null,
+      projectLatestLandedProgress,
+      projectIdentity,
+      projectPhase,
+      projectStateSameHerSelfLine,
+      projectPrimaryOpenLoop,
+      projectNextClosureTarget,
+      projectStateOpenFocusSummary,
+      projectStateNextFocusSummary,
+    }
   }
 
   function buildExecutionDeliveryAction(entry: {
@@ -301,6 +497,12 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
           .filter(Boolean)
           .slice(0, 3)
       : []
+    const projectStateEmotionalClosureCue = sanitizeBriefText(outcome.projectStateEmotionalClosureCue ?? '', 220) || null
+    const restProtectiveQuietCompanionshipCarry = outcome.outcome === 'reply-within-120s'
+      && /rest-protective|quiet-companionship|fatigue-aware|late-night-drain/u.test([
+        projectStateEmotionalClosureCue,
+        ...learningFocuses,
+      ].filter(Boolean).join(' ').toLowerCase())
 
     return {
       kind: 'proactive',
@@ -311,6 +513,14 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
         `scenario=${scenario}`,
         learningAction ? `learning=${learningAction}` : '',
         learningFocuses[0] ? `focus=${learningFocuses.join('|')}` : '',
+        outcome.outcome === 'reply-within-120s' ? 'continuity=same-thread-continuation' : '',
+        outcome.outcome === 'reply-within-120s' ? 'timing=next-open-window' : '',
+        outcome.outcome === 'reply-within-120s'
+          ? `cadence=${restProtectiveQuietCompanionshipCarry ? 'rest-protective' : 'measured-return'}`
+          : '',
+        restProtectiveQuietCompanionshipCarry || (outcome.outcome === 'reply-within-120s' && learningFocuses.some(focus => /same-her-inward-carry|quiet-companionship|quiet same-her continuity/i.test(focus)))
+          ? 'resident=quiet-companionship | continuity=quiet-same-her'
+          : '',
       ].filter(Boolean).join(' | '),
       signature: [
         'proactive-outcome',
@@ -325,6 +535,9 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
         outcome: outcomeName,
         learningAction,
         learningFocuses,
+        projectStateOpenFocusSummary: sanitizeBriefText(outcome.projectStateOpenFocusSummary ?? '', 220) || null,
+        projectStateNextFocusSummary: sanitizeBriefText(outcome.projectStateNextFocusSummary ?? '', 220) || null,
+        projectStateEmotionalClosureCue,
       },
     }
   }
@@ -419,6 +632,258 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
         feedbackWindowMs: Math.max(1_000, Math.floor(Number(input.pending.feedbackWindowMs) || proactiveReplyWindowMs)),
         learningAction,
         learningFocuses,
+        projectStateOpenFocusSummary: sanitizeBriefText(input.pending.projectStateOpenFocusSummary ?? '', 220) || null,
+        projectStateNextFocusSummary: sanitizeBriefText(input.pending.projectStateNextFocusSummary ?? '', 220) || null,
+        projectStateEmotionalClosureCue: sanitizeBriefText(input.pending.projectStateEmotionalClosureCue ?? '', 220) || null,
+      },
+    }
+  }
+
+  function buildDeferredAutonomyContinuitySignal(input: {
+    now: number
+    turnId: string
+    scenario: string
+    reason: string
+    projectState?: {
+      preflightSummary?: string | null
+      preDialogueAwarenessLine?: string | null
+      preDialogueAwarenessSummary?: string | null
+      companionBriefingLine?: string | null
+      identity?: string | null
+      currentPhase?: string | null
+      latestLandedProgress?: string | null
+      primaryOpenLoop?: string | null
+      nextClosureTarget?: string | null
+      sameHerSelfLine?: string | null
+      sameHerHoldDetail?: string | null
+      sameHerDriftRisk?: string | null
+      openFocusSummary?: string | null
+      nextFocusSummary?: string | null
+      emotionalClosureCue?: string | null
+    } | null
+    autonomy?: {
+      deferReason?: string | null
+      whyNow?: string | null
+      sourceThreadId?: string | null
+      sourceThoughtThreadId?: string | null
+      sourceConcernId?: string | null
+      executionIntent?: {
+        kind?: string | null
+        summary?: string | null
+        targetThreadId?: string | null
+      } | null
+    } | null
+  }): AlicizationAgentSessionContinuityInput {
+    const scenario = sanitizeText(input.scenario) || 'general'
+    const turnId = sanitizeBriefText(input.turnId, 120)
+    const reason = sanitizeBriefText(input.reason, 120)
+    const deferReason = sanitizeBriefText(input.autonomy?.deferReason ?? '', 120)
+    const whyNow = sanitizeBriefText(input.autonomy?.whyNow ?? '', 180)
+    const sourceThreadId = sanitizeBriefText(input.autonomy?.sourceThreadId ?? '', 120)
+    const sourceThoughtThreadId = sanitizeBriefText(input.autonomy?.sourceThoughtThreadId ?? '', 120)
+    const sourceConcernId = sanitizeBriefText(input.autonomy?.sourceConcernId ?? '', 120)
+    const executionIntentKind = sanitizeBriefText(input.autonomy?.executionIntent?.kind ?? '', 64)
+    const executionIntentSummary = sanitizeBriefText(input.autonomy?.executionIntent?.summary ?? '', 180)
+    const targetThreadId = sanitizeBriefText(input.autonomy?.executionIntent?.targetThreadId ?? '', 120)
+    const hasHeldAutonomyThreadAnchor = Boolean(sourceThoughtThreadId)
+      || Boolean(sourceConcernId)
+    const explicitHeldAutonomyIntent = Boolean(executionIntentKind)
+      || Boolean(executionIntentSummary)
+      || hasHeldAutonomyThreadAnchor
+    const visibleUtteranceWasDeferred
+      = reason === 'proactive-visible-presence-without-utterance'
+        || reason === 'provider-mind-unavailable-for-proactive-visible-utterance'
+    const shouldUseDeferredProactiveLine
+      = visibleUtteranceWasDeferred
+        && (
+          !explicitHeldAutonomyIntent
+          || executionIntentKind === 'repair'
+        )
+    const projectStateBrief = resolveAlicizationProjectStateBrief()
+    const projectStatePreDialogueAwarenessLine = sanitizeBriefText(
+      resolveAlicizationProjectPreDialogueAwarenessLine({
+        runtimeProjectState: {
+          preDialogueAwarenessLine: input.projectState?.preDialogueAwarenessLine ?? null,
+          preDialogueAwarenessSummary: input.projectState?.preDialogueAwarenessSummary ?? null,
+          companionBriefingLine: input.projectState?.companionBriefingLine ?? null,
+          preflightSummary: input.projectState?.preflightSummary ?? null,
+        },
+        fallbackProjectState: {
+          preDialogueAwarenessLine: projectStateBrief.preDialogueAwarenessLine ?? null,
+          preflightSummary: projectStateBrief.preflightSummary ?? null,
+        },
+      }) ?? '',
+      220,
+    ) || null
+    const projectStatePreflightSummary = sanitizeBriefText(input.projectState?.preflightSummary ?? '', 220) || null
+    const projectIdentity = sanitizeBriefText(input.projectState?.identity ?? '', 180) || null
+    const projectPhase = sanitizeBriefText(input.projectState?.currentPhase ?? '', 140) || null
+    const projectLatestLandedProgress = sanitizeBriefText(
+      input.projectState?.latestLandedProgress ?? projectStateBrief.continuityProgressSummary ?? projectStateBrief.latestProgress ?? '',
+      220,
+    ) || null
+    const projectPrimaryOpenLoop = sanitizeBriefText(input.projectState?.primaryOpenLoop ?? '', 220) || null
+    const projectNextClosureTarget = sanitizeBriefText(input.projectState?.nextClosureTarget ?? '', 220) || null
+    const projectStateOpenFocusSummary = sanitizeBriefText(
+      input.projectState?.openFocusSummary
+      ?? deriveCompactProjectStateOpenFocusSummary(input.projectState?.primaryOpenLoop ?? null, {
+        emotionalClosureCue: input.projectState?.emotionalClosureCue ?? null,
+      })
+      ?? '',
+      220,
+    ) || null
+    const projectStateNextFocusSummary = sanitizeBriefText(
+      input.projectState?.nextFocusSummary
+      ?? deriveCompactProjectStateNextFocusSummary(input.projectState?.nextClosureTarget ?? null, {
+        emotionalClosureCue: input.projectState?.emotionalClosureCue ?? null,
+      })
+      ?? '',
+      220,
+    ) || null
+    const preferredProjectStateSameHerSelfLine = sanitizeBriefText(
+      input.projectState?.sameHerSelfLine ?? '',
+      220,
+    ) || null
+    const projectStateSameHerSelfLine = (
+      isAlicizationThinProjectAwarenessLine(preferredProjectStateSameHerSelfLine)
+        ? null
+        : preferredProjectStateSameHerSelfLine
+    ) ?? (
+      sanitizeBriefText(
+        projectStateBrief.sameHerSelfLine ?? '',
+        220,
+      ) || null
+    )
+    const projectStateSameHerDriftRisk = sanitizeBriefText(
+      input.projectState?.sameHerDriftRisk ?? projectStateBrief.sameHerDriftRisk ?? '',
+      220,
+    ) || null
+    const projectStateSameHerHoldDetail = sanitizeBriefText(
+      input.projectState?.sameHerHoldDetail ?? '',
+      220,
+    ) || null
+    const projectStateEmotionalClosureCue = sanitizeBriefText(
+      typeof (input.projectState as { emotionalClosureCue?: unknown } | null)?.emotionalClosureCue === 'string'
+        ? (input.projectState as { emotionalClosureCue?: string | null } | null)?.emotionalClosureCue ?? ''
+        : '',
+      220,
+    ) || null
+    const projectStateCompanionBriefingLine = sanitizeBriefText(
+      typeof (input.projectState as { companionBriefingLine?: unknown } | null)?.companionBriefingLine === 'string'
+        ? (input.projectState as { companionBriefingLine?: string | null } | null)?.companionBriefingLine ?? ''
+        : '',
+      220,
+    ) || null
+    const projectStatePreferredPreDialogueAwarenessLine = isAlicizationThinProjectAwarenessLine(projectStatePreDialogueAwarenessLine)
+      ? projectStateCompanionBriefingLine || projectStatePreDialogueAwarenessLine
+      : projectStatePreDialogueAwarenessLine
+    const repairBeforeClosenessProjectAuthority = [
+      projectStateEmotionalClosureCue,
+      projectNextClosureTarget,
+      projectStateSameHerSelfLine,
+      projectStatePreferredPreDialogueAwarenessLine,
+    ].find(candidate => hasExplicitRepairBeforeClosenessAuthority(candidate))
+    ?? null
+    const repairBeforeClosenessSummaryLead = repairBeforeClosenessProjectAuthority
+      ? /same living line|one living her|same line|same-her|同一条线|同一生命线/u.test(repairBeforeClosenessProjectAuthority)
+        ? repairBeforeClosenessProjectAuthority
+        : `${repairBeforeClosenessProjectAuthority} Keep this return repair-before-closeness on the same living line before widening outward.`
+      : null
+
+    if (shouldUseDeferredProactiveLine) {
+      return {
+        kind: 'proactive',
+        state: 'pending',
+        label: `proactive:${scenario}:deferred`,
+        summary: [
+          'no mind-authored visible reply was available',
+          reason ? `reason=${reason}` : '',
+          repairBeforeClosenessSummaryLead || whyNow || executionIntentSummary || '',
+          sourceThreadId ? `thread=${sourceThreadId}` : '',
+          `scenario=${scenario}`,
+        ].filter(Boolean).join(' | '),
+        signature: [
+          'proactive-deferred',
+          turnId || 'turn',
+          sourceThreadId || targetThreadId || 'global',
+          scenario,
+        ].join(':'),
+        createdAt: input.now,
+        metadata: {
+          source: 'proactive-deferred',
+          turnId: turnId || null,
+          scenario,
+          reason: reason || null,
+          deferReason: deferReason || null,
+          whyNow: whyNow || null,
+          sourceThreadId: sourceThreadId || null,
+          sourceThoughtThreadId: sourceThoughtThreadId || null,
+          sourceConcernId: sourceConcernId || null,
+          executionIntentKind: null,
+          executionIntentSummary: executionIntentSummary || null,
+          targetThreadId: targetThreadId || null,
+          projectStatePreDialogueAwarenessLine: projectStatePreferredPreDialogueAwarenessLine,
+          projectStatePreflightSummary,
+          projectLatestLandedProgress,
+          projectIdentity,
+          projectPhase,
+          projectPrimaryOpenLoop,
+          projectNextClosureTarget,
+          projectStateOpenFocusSummary,
+          projectStateNextFocusSummary,
+          projectStateSameHerSelfLine,
+          projectStateSameHerHoldDetail,
+          projectStateSameHerDriftRisk,
+          projectStateEmotionalClosureCue,
+        },
+      }
+    }
+
+    return {
+      kind: 'proactive',
+      state: 'observed',
+      label: `proactive:${executionIntentKind || scenario}:held-autonomy`,
+      summary: [
+        repairBeforeClosenessSummaryLead || executionIntentSummary || whyNow || 'a proactive autonomy line was held for a better opening',
+        executionIntentKind ? `intent=${executionIntentKind}` : '',
+        deferReason ? `defer=${deferReason}` : '',
+        reason ? `reason=${reason}` : '',
+        sourceThreadId ? `thread=${sourceThreadId}` : '',
+        `scenario=${scenario}`,
+      ].filter(Boolean).join(' | '),
+      signature: [
+        'proactive-held-autonomy',
+        turnId,
+        sourceThreadId || targetThreadId || 'global',
+        executionIntentKind || scenario,
+      ].join(':'),
+      createdAt: input.now,
+      metadata: {
+        source: 'proactive-held-autonomy',
+        turnId: turnId || null,
+        scenario,
+        reason: reason || null,
+        deferReason: deferReason || null,
+        whyNow: whyNow || null,
+        sourceThreadId: sourceThreadId || null,
+        sourceThoughtThreadId: sourceThoughtThreadId || null,
+        sourceConcernId: sourceConcernId || null,
+        executionIntentKind: executionIntentKind || null,
+        executionIntentSummary: executionIntentSummary || null,
+        targetThreadId: targetThreadId || null,
+        projectStatePreDialogueAwarenessLine,
+        projectStatePreflightSummary,
+        projectLatestLandedProgress,
+        projectIdentity,
+        projectPhase,
+        projectPrimaryOpenLoop,
+        projectNextClosureTarget,
+        projectStateOpenFocusSummary,
+        projectStateNextFocusSummary,
+        projectStateSameHerSelfLine,
+        projectStateSameHerHoldDetail,
+        projectStateSameHerDriftRisk,
+        projectStateEmotionalClosureCue,
       },
     }
   }
@@ -435,8 +900,16 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
       .sort((left, right) => left.createdAt - right.createdAt)
       .at(-1)
 
+    const pendingIsSupersededByLatestOutcome = Boolean(
+      latestPending
+      && latestOutcome
+      && latestPending.turnId === latestOutcome.turnId
+      && latestOutcome.createdAt >= latestPending.deliveredAt,
+    )
+
     if (
       latestPending
+      && !pendingIsSupersededByLatestOutcome
       && now - latestPending.deliveredAt <= Math.max(latestPending.feedbackWindowMs, proactiveImplicitIgnoredAfterMs)
     ) {
       signals.push(buildPendingProactiveContinuitySignal({
@@ -609,6 +1082,27 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
     return candidates.map((event) => {
       const ageMinutes = Math.max(0, (now - event.occurredAt) / 60_000)
       const threadAnchor = sanitizeBriefText(event.threadAnchor ?? '', 120)
+      const tags = event.tags.map(tag => sanitizeBriefText(tag, 80).toLowerCase()).filter(Boolean)
+      const sourceSummary = sanitizeBriefText(event.sourceSummary ?? '', 180).toLowerCase()
+      const projectStateCarry = resolveProjectStateCarryFromEvent(event)
+      const relationshipMeaning = sanitizeBriefText(event.relationshipMeaning ?? '', 180).toLowerCase()
+      const lesson = sanitizeBriefText(event.lesson ?? '', 180).toLowerCase()
+      const looksLikeExecutionCallback = tags.some(tag => /execution-callback|callback|result-mode|result-lead|soft-handoff/u.test(tag))
+        || /execution-callback|callback|result-mode|result-lead|soft-handoff/u.test(sourceSummary)
+      const carryMode = looksLikeExecutionCallback
+        ? (
+            tags.some(tag => /repair-before-closeness|repair-first|callback-repair/u.test(tag))
+            || hasExplicitRepairBeforeClosenessAuthority(`${relationshipMeaning} ${lesson} ${sourceSummary}`)
+              ? 'repair-before-closeness'
+              : tags.some(tag => /lower-pressure|leave-room|bounded-room|space-first/u.test(tag))
+                || /lower-pressure|leave room|keep room|space first/u.test(`${relationshipMeaning} ${lesson} ${sourceSummary}`)
+                ? 'lower-pressure'
+                : tags.some(tag => /trust-warming|soft-handoff|trust-open/u.test(tag))
+                  || /trust warming|soft handoff|trust opened|trust warmed/u.test(`${relationshipMeaning} ${lesson} ${sourceSummary}`)
+                  ? 'trust-warming'
+                  : 'execution-callback'
+          )
+        : null
       const summaryLine = sanitizeBriefText(
         event.relationshipMeaning
         || event.lesson
@@ -624,9 +1118,13 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
       return {
         kind: 'runtime' as const,
         state: ageMinutes <= 360 ? 'fresh' as const : 'observed' as const,
-        label: `afterglow:${sourceTag}`,
+        label: looksLikeExecutionCallback
+          ? `afterglow:execution-callback:${carryMode}`
+          : `afterglow:${sourceTag}`,
         summary: [
           threadAnchor ? `thread=${threadAnchor}` : '',
+          looksLikeExecutionCallback ? 'continuity=execution-callback' : '',
+          carryMode ? `carry-mode=${carryMode}` : '',
           summaryLine ? `carry=${summaryLine}` : '',
           `source=${event.sourceKind}`,
           `provenance=${event.latestReconsolidation?.provenance ?? event.provenance}`,
@@ -648,6 +1146,9 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
           sessionId: event.sessionId ?? null,
           fromPreviousSession: Boolean(activeSessionId && event.sessionId && event.sessionId !== activeSessionId),
           afterglowTag: sourceTag,
+          continuityKind: looksLikeExecutionCallback ? 'execution-callback' : 'afterglow',
+          executionCallbackCarryMode: carryMode,
+          ...projectStateCarry,
         },
       } satisfies AlicizationAgentSessionContinuityInput
     })
@@ -660,6 +1161,8 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
     buildReminderContinuitySignal,
     buildReminderSessionMirrorAction,
     buildProactiveFeedbackSessionMirrorAction,
+    buildProactiveOutcomeContinuitySignal,
+    buildDeferredAutonomyContinuitySignal,
     buildPendingProactiveContinuitySignal,
     buildProactiveContinuitySignals,
     buildDialogueContinuitySignal,

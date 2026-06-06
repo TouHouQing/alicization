@@ -1,3 +1,5 @@
+import type { AlicizationNormalVisibleReplyAuthority } from '@proj-alicization/stage-shared'
+
 import type {
   AlicizationAnswerCompilerSnapshot,
   AlicizationClaimEvidenceLedgerSnapshot,
@@ -19,25 +21,34 @@ import type { AlicizationSelfRevisionStatePatch } from './self-evolution/state-r
 import {
   deriveAlicizationMemoryClosureDiscipline,
   normalizeAlicizationNormalVisibleReplyAuthority,
-  readLearningExecutionStateFromDerivedMindStateBundle,
   readKnowledgeEvidenceFromDerivedMindStateBundle,
+  readLearningExecutionStateFromDerivedMindStateBundle,
   readMemoryDeliberationFromDerivedMindStateBundle,
   readPersonStateProjectionFromDerivedMindStateBundle,
-  type AlicizationNormalVisibleReplyAuthority,
+  resolveAlicizationProjectPreDialogueAwarenessLine,
 } from '@proj-alicization/stage-shared'
+
 import { buildAlicizationDigitalLifeArchitecture } from './digital-life-architecture'
+import { buildAlicizationMemoryDeliberationKernel } from './memory-deliberation-kernel'
 import {
   buildMemoryLatentBoundaryTag,
   buildMemoryOpeningStrategyTag,
 } from './memory-deliberation-latent-controls'
-import { buildAlicizationMemoryDeliberationKernel } from './memory-deliberation-kernel'
+import { resolvePreferredPersonStateProjection } from './person-state-projection-resolution'
+import {
+  alicizationProjectStateSameHerContinuityReminder,
+  alicizationProjectStateVisibleReplySameHerReminder,
+} from './project-state-answer-governance'
+import {
+  resolveAlicizationProjectStateBrief,
+} from './project-state-brief'
+import { deriveRecollectionSurfaceControls } from './recollection-surface-controls'
 import { buildAlicizationResponseSurfaceDigitalLifeRules } from './response-surface-digital-life-rules'
 import { buildAlicizationResponseSurfaceLearningRules } from './response-surface-learning-rules'
 import { buildAlicizationResponseSurfaceMemoryClosureRules } from './response-surface-memory-closure-rules'
 import { buildAlicizationResponseSurfaceRelationshipRules } from './response-surface-relationship-rules'
 import { appendAlicizationResponseSurfaceRules } from './response-surface-rules'
 import { buildAlicizationResponseSurfaceTruthDialogueRules } from './response-surface-truth-dialogue-rules'
-import { deriveRecollectionSurfaceControls } from './recollection-surface-controls'
 import { deriveAlicizationTruthDiscipline } from './truth-discipline'
 
 export interface AlicizationResponseSurfaceContract {
@@ -56,6 +67,17 @@ export interface AlicizationResponseSurfaceContract {
   suppressAssociativeRecall: boolean
   recollectionLatentControls?: string[] | null
   activeSelfRevisionPatchId?: string | null
+  projectContinuity?: {
+    currentPhase?: string | null
+    latestProgress?: string | null
+    primaryOpenLoop?: string | null
+    nextClosureTarget?: string | null
+    preDialogueAwarenessLine?: string | null
+    sameHerSelfLine?: string | null
+    sameHerDriftRisk?: string | null
+    emotionalClosureCue?: string | null
+    sameHerLineRequired: boolean
+  } | null
   mustDo: string[]
   mustNotDo: string[]
 }
@@ -230,6 +252,174 @@ function pushUnique(target: string[], value: string) {
   target.push(normalized)
 }
 
+function executionCallbackDoctrineCue(currentConsciousFrame?: AlicizationCurrentConsciousFrameSnapshot | null) {
+  const tags = currentConsciousFrame?.reasonTags ?? []
+  if (tags.includes('execution-callback-doctrine:lower-pressure'))
+    return 'lower-pressure' as const
+  if (tags.includes('execution-callback-doctrine:trust-warming'))
+    return 'trust-warming' as const
+  if (tags.includes('execution-callback-doctrine:execution-callback'))
+    return 'execution-callback' as const
+  return null
+}
+
+function continuityArcCue(currentConsciousFrame?: AlicizationCurrentConsciousFrameSnapshot | null) {
+  const tags = currentConsciousFrame?.reasonTags ?? []
+  if (tags.includes('continuity-arc:hold-for-opening'))
+    return 'hold-for-opening' as const
+  if (tags.includes('continuity-arc:gentle-reopen'))
+    return 'gentle-reopen' as const
+  if (tags.includes('continuity-arc:same-thread-continuation'))
+    return 'same-thread-continuation' as const
+  return null
+}
+
+function continuityPreferredTimingCue(currentConsciousFrame?: AlicizationCurrentConsciousFrameSnapshot | null) {
+  const tags = currentConsciousFrame?.reasonTags ?? []
+  if (tags.includes('continuity-timing:next-open-window'))
+    return 'next-open-window' as const
+  if (tags.includes('continuity-timing:after-payoff'))
+    return 'after-payoff' as const
+  if (tags.includes('continuity-timing:same-turn-if-invited'))
+    return 'same-turn-if-invited' as const
+  const timing = String(currentConsciousFrame?.projectState?.continuityPreferredTiming ?? '').trim().toLowerCase()
+  if (timing === 'next-open-window')
+    return 'next-open-window' as const
+  if (timing === 'after-payoff')
+    return 'after-payoff' as const
+  if (timing === 'same-turn-if-invited')
+    return 'same-turn-if-invited' as const
+  return null
+}
+
+function hasRepairBeforeClosenessSameThreadCarry(currentConsciousFrame?: AlicizationCurrentConsciousFrameSnapshot | null) {
+  const emotionalClosureCue = (normalizeProjectContinuityField(
+    (currentConsciousFrame?.projectState as { emotionalClosureCue?: unknown } | null)?.emotionalClosureCue,
+  ) ?? '').toLowerCase()
+  const emotionalClosureSummary = (normalizeProjectContinuityField(
+    (currentConsciousFrame?.projectState as { emotionalClosureSummary?: unknown } | null)?.emotionalClosureSummary,
+  ) ?? '').toLowerCase()
+  const sameHerHoldDetail = (normalizeProjectContinuityField(
+    (currentConsciousFrame?.projectState as { sameHerHoldDetail?: unknown } | null)?.sameHerHoldDetail,
+  ) ?? '').toLowerCase()
+  const primaryOpenLoop = (normalizeProjectContinuityField(currentConsciousFrame?.projectState?.primaryOpenLoop) ?? '').toLowerCase()
+  const nextClosureTarget = (normalizeProjectContinuityField(currentConsciousFrame?.projectState?.nextClosureTarget) ?? '').toLowerCase()
+  const consciousNeed = (normalizeProjectContinuityField(currentConsciousFrame?.consciousNeed) ?? '').toLowerCase()
+  const consciousTension = (normalizeProjectContinuityField(currentConsciousFrame?.consciousTension) ?? '').toLowerCase()
+  const speakingIntention = (normalizeProjectContinuityField(currentConsciousFrame?.speakingIntention) ?? '').toLowerCase()
+  const combined = [
+    emotionalClosureCue,
+    emotionalClosureSummary,
+    sameHerHoldDetail,
+    primaryOpenLoop,
+    nextClosureTarget,
+    consciousNeed,
+    consciousTension,
+    speakingIntention,
+  ]
+    .filter(Boolean)
+    .join(' ')
+
+  const carriesRepairBeforeCloseness = /repair-before-closeness|repair before closeness|repair-first|let repair settle|先修复再靠近|修复优先/u.test(combined)
+  const carriesSameThreadReturn = /same callback|same thread|same living line|callback repair line|same repair line|同一条线|修补线/u.test(combined)
+  const carriesRoomGivingRestraint = /leave room|room-giving|before widening closeness|before warmth widens|不要突然放宽|留一点空间|留空间/u.test(combined)
+
+  return carriesRepairBeforeCloseness && carriesSameThreadReturn && carriesRoomGivingRestraint
+}
+
+function hasRestProtectiveSameThreadCarry(currentConsciousFrame?: AlicizationCurrentConsciousFrameSnapshot | null) {
+  const emotionalClosureCue = (normalizeProjectContinuityField(
+    (currentConsciousFrame?.projectState as { emotionalClosureCue?: unknown } | null)?.emotionalClosureCue,
+  ) ?? '').toLowerCase()
+  const emotionalClosureSummary = (normalizeProjectContinuityField(
+    (currentConsciousFrame?.projectState as { emotionalClosureSummary?: unknown } | null)?.emotionalClosureSummary,
+  ) ?? '').toLowerCase()
+  const sameHerHoldDetail = (normalizeProjectContinuityField(
+    (currentConsciousFrame?.projectState as { sameHerHoldDetail?: unknown } | null)?.sameHerHoldDetail,
+  ) ?? '').toLowerCase()
+  const primaryOpenLoop = (normalizeProjectContinuityField(currentConsciousFrame?.projectState?.primaryOpenLoop) ?? '').toLowerCase()
+  const nextClosureTarget = (normalizeProjectContinuityField(currentConsciousFrame?.projectState?.nextClosureTarget) ?? '').toLowerCase()
+  const consciousNeed = (normalizeProjectContinuityField(currentConsciousFrame?.consciousNeed) ?? '').toLowerCase()
+  const consciousTension = (normalizeProjectContinuityField(currentConsciousFrame?.consciousTension) ?? '').toLowerCase()
+  const speakingIntention = (normalizeProjectContinuityField(currentConsciousFrame?.speakingIntention) ?? '').toLowerCase()
+  const reasonTags = (currentConsciousFrame?.reasonTags ?? []).join(' ').toLowerCase()
+  const combined = [
+    emotionalClosureCue,
+    emotionalClosureSummary,
+    sameHerHoldDetail,
+    primaryOpenLoop,
+    nextClosureTarget,
+    consciousNeed,
+    consciousTension,
+    speakingIntention,
+    reasonTags,
+  ]
+    .filter(Boolean)
+    .join(' ')
+
+  const carriesRestProtection = /rest-protective|rest protective|fatigue-aware|late-night-drain|protective-watch|rest-first|rest line/u.test(combined)
+  const carriesSameThreadReturn = /same callback|same thread|same living line|callback line|same line|同一条线/u.test(combined)
+  const carriesRoomGivingRestraint = /leave room|room-giving|before widening closeness|before warmth widens|留一点空间|留空间/u.test(combined)
+
+  return carriesRestProtection && carriesSameThreadReturn && carriesRoomGivingRestraint
+}
+
+function hasCrossModalSameHerProjectContinuityCue(input: {
+  projectContinuity?: AlicizationResponseSurfaceContract['projectContinuity'] | null
+  currentConsciousFrame?: AlicizationCurrentConsciousFrameSnapshot | null
+}) {
+  const projectContinuity = input.projectContinuity ?? null
+  const emotionalClosureCue = (normalizeProjectContinuityField(projectContinuity?.emotionalClosureCue) ?? '').toLowerCase()
+  const emotionalClosureSummary = (normalizeProjectContinuityField((projectContinuity as { emotionalClosureSummary?: unknown } | null)?.emotionalClosureSummary) ?? '').toLowerCase()
+  const sameHerHoldDetail = (normalizeProjectContinuityField((projectContinuity as { sameHerHoldDetail?: unknown } | null)?.sameHerHoldDetail) ?? '').toLowerCase()
+  const primaryOpenLoop = (normalizeProjectContinuityField(projectContinuity?.primaryOpenLoop) ?? '').toLowerCase()
+  const nextClosureTarget = (normalizeProjectContinuityField(projectContinuity?.nextClosureTarget) ?? '').toLowerCase()
+  const preDialogueAwarenessLine = (normalizeProjectContinuityField(projectContinuity?.preDialogueAwarenessLine) ?? '').toLowerCase()
+  const sameHerSelfLine = (normalizeProjectContinuityField(projectContinuity?.sameHerSelfLine) ?? '').toLowerCase()
+  const consciousNeed = (normalizeProjectContinuityField(input.currentConsciousFrame?.consciousNeed) ?? '').toLowerCase()
+  const speakingIntention = (normalizeProjectContinuityField(input.currentConsciousFrame?.speakingIntention) ?? '').toLowerCase()
+  const combined = [
+    emotionalClosureCue,
+    emotionalClosureSummary,
+    sameHerHoldDetail,
+    primaryOpenLoop,
+    nextClosureTarget,
+    preDialogueAwarenessLine,
+    sameHerSelfLine,
+    consciousNeed,
+    speakingIntention,
+  ].join(' ')
+  return (
+    /cross-modal|same-her proof|same living her|same digital life/u.test(combined)
+    && /visible reply|voice|facial state|face|motion|lipsync|resident presence|embodiment|closure/u.test(combined)
+  )
+}
+
+function deriveProjectSurfaceClosureRule(input: {
+  governingProject?: string | null
+  projectPreflightSummary?: string | null
+}) {
+  const governingProject = String(input.governingProject ?? '').trim()
+  const projectPreflightSummary = String(input.projectPreflightSummary ?? '').trim()
+  const text = governingProject || projectPreflightSummary
+  if (!text)
+    return []
+  const lower = text.toLowerCase()
+  if (!/phase 1|digital-life|digital life|closure|open loop|next closure target/u.test(lower))
+    return []
+  const rules = [
+    asSurfaceSentence(
+      'Keep the visible reply anchored to the active digital-life closure seam: ',
+      text.slice(0, 180),
+    ),
+  ]
+  if (/same-her|same her|same living thread|one same her/u.test(lower)) {
+    rules.push(alicizationProjectStateSameHerContinuityReminder)
+    rules.push(alicizationProjectStateVisibleReplySameHerReminder.replace('questions', 'status'))
+  }
+  return rules.filter(Boolean)
+}
+
 function resolveAffectionatePrefaceAllowance(input: {
   personaKernelMode: AlicizationPersonaKernelMode
   briefTurnMode: AlicizationExecutiveAnswerBrief['turnMode']
@@ -252,6 +442,199 @@ function asSurfaceSentence(prefix: string, value: string) {
   if (!text)
     return ''
   return `${prefix}${/[.!?。！？]$/u.test(text) ? text : `${text}.`}`
+}
+
+function normalizeProjectContinuityField(value: unknown) {
+  const text = String(value ?? '').trim()
+  return text || null
+}
+
+function pickProjectContinuityField(...values: unknown[]) {
+  for (const value of values) {
+    const normalized = normalizeProjectContinuityField(value)
+    if (normalized)
+      return normalized
+  }
+  return null
+}
+
+function stripProjectContinuityPrefix(value: string, pattern: RegExp) {
+  const normalized = normalizeProjectContinuityField(value)
+  if (!normalized || !pattern.test(normalized))
+    return null
+  return normalized.replace(pattern, '').trim() || null
+}
+
+function looksLikeSameHerProjectContinuityLine(value: unknown) {
+  const normalized = (normalizeProjectContinuityField(value) ?? '').toLowerCase()
+  if (!normalized)
+    return false
+
+  const carriesSameHer = /same phase 1 digital life|same living line|same her|same-her|one continuous her|one same her|one living her|same local digital life thread/u.test(normalized)
+  const carriesClosureContext = /callback|returned result|execution|project|closure|phase 1|open closure|next closure|generic callback shell|detached utility notice/u.test(normalized)
+
+  return carriesSameHer && carriesClosureContext
+}
+
+function readProjectContinuityFromAnswerCompiler(answerCompiler?: AlicizationAnswerCompilerSnapshot | null) {
+  const supportingReality = Array.isArray(answerCompiler?.supportingReality) ? answerCompiler.supportingReality : []
+  let preDialogueAwarenessLine: string | null = null
+  let currentPhase: string | null = null
+  let latestLandedProgress: string | null = null
+  let primaryOpenLoop: string | null = null
+  let nextClosureTarget: string | null = null
+
+  for (const item of supportingReality) {
+    const normalized = normalizeProjectContinuityField(item)
+    if (!normalized)
+      continue
+    preDialogueAwarenessLine ||= stripProjectContinuityPrefix(normalized, /^pre-dialogue project awareness:\s*/i)
+    currentPhase ||= stripProjectContinuityPrefix(normalized, /^current phase:\s*/i)
+    latestLandedProgress ||= stripProjectContinuityPrefix(normalized, /^project progress:\s*/i)
+    primaryOpenLoop ||= stripProjectContinuityPrefix(normalized, /^phase-one open loop:\s*/i)
+    nextClosureTarget ||= stripProjectContinuityPrefix(normalized, /^next closure target:\s*/i)
+  }
+
+  const sameHerSelfLine = looksLikeSameHerProjectContinuityLine(answerCompiler?.openingClaim)
+    ? normalizeProjectContinuityField(answerCompiler?.openingClaim)
+    : null
+  const sameHerDriftRisk = (answerCompiler?.mustNotDo ?? [])
+    .map(item => normalizeProjectContinuityField(item))
+    .find(item =>
+      Boolean(item)
+      && /generic assistant shell|generic task shell|detached project narration|project-summary voice|generic callback shell|detached utility notice/u.test(String(item))
+      && /same-her|same her|same living line|same local digital life thread|one continuous her/u.test(String(item).toLowerCase()),
+    ) ?? null
+
+  return {
+    preDialogueAwarenessLine,
+    currentPhase,
+    latestLandedProgress,
+    primaryOpenLoop,
+    nextClosureTarget,
+    sameHerSelfLine,
+    sameHerDriftRisk,
+  }
+}
+
+function isThinProjectAwarenessShell(value: unknown) {
+  const text = String(value ?? '').trim().toLowerCase()
+  if (!text)
+    return false
+
+  return /keep this same digital life project in view|detached project shell|generic project shell/u.test(text)
+    || text === 'same digital life | keep the closure seam explicit'
+}
+
+function scoreProjectContinuitySameHerLine(value: string | null | undefined) {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
+  if (!normalized)
+    return 0
+
+  let score = normalized.length >= 140 ? 2 : normalized.length >= 80 ? 1 : 0
+  if (/same phase 1 digital life|same living line|same her|same-her|one continuous her|one same her|one living her/u.test(normalized))
+    score += 4
+  if (/callback|initiative|embodiment|resident presence|voice|face|motion|lipsync|closure|repair-before-closeness|measured-return/u.test(normalized))
+    score += 2
+  if (/keep this same digital life project in view|generic reminder|generic guidance/u.test(normalized))
+    score -= 2
+  return score
+}
+
+function hasRicherProjectContinuityClosureCarry(value: string | null | undefined) {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
+  if (!normalized)
+    return false
+
+  const carriesSameHer = /same phase 1 digital life|same living line|same her|same-her|one continuous her|one same her|one living her/u.test(normalized)
+  const carriesClosureContext = /callback|initiative|embodiment|resident presence|voice|face|motion|lipsync|open closure|next closure|generic callback shell|repair-before-closeness|measured-return/u.test(normalized)
+  return carriesSameHer && carriesClosureContext
+}
+
+function carriesProjectIdentityAwareness(value: string | null | undefined) {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
+  if (!normalized)
+    return false
+
+  return /alicization is (?:still the same )?local-first digital life project|same local-first digital life project|local-first digital life project building one continuous "her"/u.test(normalized)
+}
+
+function carriesProjectClosureBriefing(value: string | null | undefined) {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
+  if (!normalized)
+    return false
+
+  return /local-first digital life project|phase 1|returned project-state carry|what has already landed|still-open closure|open closure|next closure|closure seam|landed progress|project identity/u.test(normalized)
+}
+
+function looksLikeEmbodimentClosureHeadline(value: string | null | undefined) {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
+  if (!normalized)
+    return false
+
+  return /holding together mainly through|living audio thread is still intact|face and motion need to rejoin|full cross-modal closure settles|voice, face, and motion|body, lipsync, and voice/u.test(normalized)
+}
+
+function resolveProjectSurfacePreDialogueAwarenessLine(input: {
+  candidate: string | null
+  fallback: string | null
+  sameHerSelfLineCandidates: Array<string | null | undefined>
+  companionBriefingLineCandidate?: string | null
+  companionHeadlineLineCandidate?: string | null
+}) {
+  const candidate = normalizeProjectContinuityField(input.candidate)
+  const fallback = normalizeProjectContinuityField(input.fallback)
+  const companionBriefingLineCandidate = normalizeProjectContinuityField(input.companionBriefingLineCandidate)
+  const companionHeadlineLineCandidate = normalizeProjectContinuityField(input.companionHeadlineLineCandidate)
+  if (!candidate) {
+    return companionBriefingLineCandidate && carriesProjectClosureBriefing(companionBriefingLineCandidate)
+      ? companionBriefingLineCandidate
+      : fallback
+  }
+  if (carriesProjectIdentityAwareness(candidate))
+    return candidate
+
+  const candidateLower = candidate.toLowerCase()
+  const duplicatesSameHerSelfLine = input.sameHerSelfLineCandidates
+    .map(value => normalizeProjectContinuityField(value)?.toLowerCase() ?? '')
+    .some(value => value && value === candidateLower)
+  const duplicatesCompanionHeadline
+    = Boolean(companionHeadlineLineCandidate)
+      && companionHeadlineLineCandidate!.toLowerCase() === candidateLower
+
+  if (
+    companionBriefingLineCandidate
+    && carriesProjectClosureBriefing(companionBriefingLineCandidate)
+    && (
+      (looksLikeEmbodimentClosureHeadline(candidate) && !carriesProjectClosureBriefing(candidate))
+      || duplicatesCompanionHeadline
+    )
+  ) {
+    return companionBriefingLineCandidate
+  }
+
+  if (
+    fallback
+    && carriesProjectIdentityAwareness(fallback)
+    && (duplicatesSameHerSelfLine || isThinProjectAwarenessShell(candidate))
+  ) {
+    return fallback
+  }
+
+  return candidate
+}
+
+function uniqueProjectContinuityList(values: Array<string | null | undefined>, maxItems = 4) {
+  const result: string[] = []
+  for (const value of values) {
+    const normalized = normalizeProjectContinuityField(value)
+    if (!normalized || result.includes(normalized))
+      continue
+    result.push(normalized)
+    if (result.length >= maxItems)
+      break
+  }
+  return result
 }
 
 interface AlicizationDialogueEncounterSurface extends Pick<
@@ -287,9 +670,10 @@ export function buildAlicizationResponseSurfaceContract(input: {
   const claimEvidenceLedger = runtimeSurface?.dialogue.claimEvidenceLedger ?? input.claimEvidenceLedger ?? null
   const currentConsciousFrame = runtimeSurface?.dialogue.currentConsciousFrame ?? input.currentConsciousFrame ?? null
   const derivedBundle = runtimeSurface?.memory.derivedMindStateBundle ?? null
-  const personStateProjection = readPersonStateProjectionFromDerivedMindStateBundle<any>(derivedBundle)
-    ?? runtimeSurface?.memory.personStateProjection
-    ?? null
+  const personStateProjection = resolvePreferredPersonStateProjection({
+    bundleProjection: readPersonStateProjectionFromDerivedMindStateBundle<any>(derivedBundle),
+    runtimeProjection: runtimeSurface?.memory.personStateProjection ?? null,
+  }) ?? null
   const learningExecutionState = readLearningExecutionStateFromDerivedMindStateBundle(derivedBundle)
     ?? runtimeSurface?.memory.learningExecutionState
     ?? null
@@ -307,6 +691,7 @@ export function buildAlicizationResponseSurfaceContract(input: {
     knowledgeEvidence: readKnowledgeEvidenceFromDerivedMindStateBundle(derivedBundle)
       ?? runtimeSurface?.memory.knowledgeEvidence
       ?? null,
+    hostPersonModel: (derivedBundle?.hostPersonModel as OrganicMemoryPromptContext['hostPersonModel']) ?? runtimeSurface?.memory.hostPersonModel ?? null,
   })
   const resolvedRecollectionSpeechPlan = buildResolvedRecollectionSpeechPlan({
     plan: recollectionSpeechPlan,
@@ -423,6 +808,252 @@ export function buildAlicizationResponseSurfaceContract(input: {
       ? 'Do not use a template shell, empty empathy shell, or pacing shell as a substitute for actual answer payoff.'
       : '',
   ].filter(Boolean)
+  const callbackDoctrineCue = executionCallbackDoctrineCue(currentConsciousFrame)
+  const runtimeContinuityArcCue = continuityArcCue(currentConsciousFrame)
+  const runtimeContinuityPreferredTimingCue = continuityPreferredTimingCue(currentConsciousFrame)
+  const sharedProjectStateBrief = resolveAlicizationProjectStateBrief()
+  const preferredProjectState
+    = currentConsciousFrame?.projectState
+      ?? runtimeSurface?.dialogue?.currentConsciousFrame?.projectState
+      ?? runtimeSurface?.raw?.runtimeDigest?.projectState
+      ?? null
+  const projectPreflightSummary = String(
+    resolveAlicizationProjectPreDialogueAwarenessLine({
+      runtimeProjectState: preferredProjectState,
+      fallbackProjectState: {
+        preDialogueAwarenessLine: sharedProjectStateBrief.preDialogueAwarenessLine ?? null,
+        preflightSummary: sharedProjectStateBrief.preflightSummary,
+      },
+    })
+    ?? preferredProjectState?.preflightSummary
+    ?? sharedProjectStateBrief.preflightSummary
+    ?? '',
+  ).trim()
+  const answerCompilerProjectContinuity = readProjectContinuityFromAnswerCompiler(answerCompiler)
+  const projectContinuity = (() => {
+    const preferredProjectStateWithAliases = preferredProjectState as (
+      AlicizationCurrentConsciousFrameSnapshot['projectState']
+      & {
+        latestLandedProgress?: unknown
+        landedProgressSummary?: unknown
+        openClosureSummary?: unknown
+        nextClosureTargetSummary?: unknown
+        preDialogueAwarenessSummary?: unknown
+        sameHerDriftRiskSummary?: unknown
+      }
+    ) | null
+    const currentPhase = pickProjectContinuityField(
+      preferredProjectState?.currentPhase,
+      answerCompilerProjectContinuity.currentPhase,
+      sharedProjectStateBrief.currentPhase,
+    )
+    const latestProgress = pickProjectContinuityField(
+      preferredProjectState?.latestProgress,
+      preferredProjectStateWithAliases?.latestLandedProgress,
+      preferredProjectStateWithAliases?.landedProgressSummary,
+      answerCompilerProjectContinuity.latestLandedProgress,
+      sharedProjectStateBrief.latestProgress,
+    )
+    const primaryOpenLoop = pickProjectContinuityField(
+      preferredProjectState?.primaryOpenLoop,
+      preferredProjectStateWithAliases?.openClosureSummary,
+      answerCompilerProjectContinuity.primaryOpenLoop,
+      sharedProjectStateBrief.primaryOpenLoop,
+    )
+    const nextClosureTarget = pickProjectContinuityField(
+      preferredProjectState?.nextClosureTarget,
+      preferredProjectStateWithAliases?.nextClosureTargetSummary,
+      answerCompilerProjectContinuity.nextClosureTarget,
+      sharedProjectStateBrief.nextClosureTarget,
+    )
+    const rawPreDialogueAwarenessLine = normalizeProjectContinuityField(
+      resolveAlicizationProjectPreDialogueAwarenessLine({
+        runtimeProjectState: preferredProjectStateWithAliases
+          ? {
+              ...preferredProjectStateWithAliases,
+              latestLandedProgress:
+                preferredProjectStateWithAliases.latestLandedProgress
+                ?? preferredProjectStateWithAliases.landedProgressSummary
+                ?? null,
+              primaryOpenLoop:
+                preferredProjectStateWithAliases.primaryOpenLoop
+                ?? preferredProjectStateWithAliases.openClosureSummary
+                ?? null,
+              nextClosureTarget:
+                preferredProjectStateWithAliases.nextClosureTarget
+                ?? preferredProjectStateWithAliases.nextClosureTargetSummary
+                ?? null,
+              preDialogueAwarenessSummary:
+                preferredProjectStateWithAliases.preDialogueAwarenessSummary
+                ?? null,
+            }
+          : preferredProjectState,
+        fallbackProjectState: {
+          preDialogueAwarenessLine: answerCompilerProjectContinuity.preDialogueAwarenessLine ?? sharedProjectStateBrief.preDialogueAwarenessLine ?? null,
+          preflightSummary: sharedProjectStateBrief.preflightSummary,
+          latestLandedProgress: answerCompilerProjectContinuity.latestLandedProgress ?? null,
+          primaryOpenLoop: answerCompilerProjectContinuity.primaryOpenLoop ?? null,
+          nextClosureTarget: answerCompilerProjectContinuity.nextClosureTarget ?? null,
+          sameHerSelfLine: answerCompilerProjectContinuity.sameHerSelfLine ?? null,
+          sameHerDriftRiskSummary: answerCompilerProjectContinuity.sameHerDriftRisk ?? null,
+        },
+      }),
+    )
+    const preDialogueAwarenessLine = resolveProjectSurfacePreDialogueAwarenessLine({
+      candidate: rawPreDialogueAwarenessLine,
+      fallback: pickProjectContinuityField(
+        answerCompilerProjectContinuity.preDialogueAwarenessLine,
+        sharedProjectStateBrief.preDialogueAwarenessLine,
+        sharedProjectStateBrief.preflightSummary,
+      ),
+      sameHerSelfLineCandidates: [
+        preferredProjectState?.sameHerSelfLine,
+        answerCompilerProjectContinuity.sameHerSelfLine,
+        sharedProjectStateBrief.sameHerSelfLine,
+      ],
+      companionBriefingLineCandidate: normalizeProjectContinuityField(
+        (preferredProjectStateWithAliases as { companionBriefingLine?: unknown } | null)?.companionBriefingLine,
+      ),
+      companionHeadlineLineCandidate: normalizeProjectContinuityField(preferredProjectState?.companionHeadlineLine),
+    })
+    const emotionalClosureCue = pickProjectContinuityField(
+      charter.emotionalClosureCue
+      ?? (preferredProjectState as { emotionalClosureCue?: unknown } | null)?.emotionalClosureCue
+      ?? null,
+    )
+    const emotionalClosureSummary = normalizeProjectContinuityField(
+      (preferredProjectState as { emotionalClosureSummary?: unknown } | null)?.emotionalClosureSummary,
+    )
+    const sameHerHoldDetail = normalizeProjectContinuityField(
+      (preferredProjectState as { sameHerHoldDetail?: unknown } | null)?.sameHerHoldDetail,
+    )
+    const sameHerDriftRisk = pickProjectContinuityField(
+      preferredProjectStateWithAliases?.sameHerDriftRisk,
+      preferredProjectStateWithAliases?.sameHerDriftRiskSummary,
+      answerCompilerProjectContinuity.sameHerDriftRisk,
+      sharedProjectStateBrief.sameHerDriftRisk,
+    )
+    const explicitProjectSameHerSelfLine = pickProjectContinuityField(
+      preferredProjectState?.sameHerSelfLine,
+      answerCompilerProjectContinuity.sameHerSelfLine,
+      sharedProjectStateBrief.sameHerSelfLine,
+    )
+    const synthesizedProjectSameHerSelfLine = normalizeProjectContinuityField(
+      uniqueProjectContinuityList([
+        explicitProjectSameHerSelfLine,
+        latestProgress,
+        primaryOpenLoop,
+        nextClosureTarget,
+      ]).join(' '),
+    )
+    const sameHerSelfLine = (
+      synthesizedProjectSameHerSelfLine
+      && isThinProjectAwarenessShell(preDialogueAwarenessLine)
+      && hasRicherProjectContinuityClosureCarry(synthesizedProjectSameHerSelfLine)
+      && !hasRicherProjectContinuityClosureCarry(explicitProjectSameHerSelfLine)
+      && (
+        scoreProjectContinuitySameHerLine(synthesizedProjectSameHerSelfLine) >= scoreProjectContinuitySameHerLine(explicitProjectSameHerSelfLine) + 1
+        || synthesizedProjectSameHerSelfLine.length >= String(explicitProjectSameHerSelfLine ?? '').trim().length + 32
+      )
+    )
+      ? synthesizedProjectSameHerSelfLine
+      : explicitProjectSameHerSelfLine
+    const sameHerLineRequired = [
+      charter.governingProject,
+      projectPreflightSummary,
+      currentPhase,
+      latestProgress,
+      primaryOpenLoop,
+      nextClosureTarget,
+      preDialogueAwarenessLine,
+      sameHerSelfLine,
+      sameHerDriftRisk,
+      emotionalClosureCue,
+      emotionalClosureSummary,
+      sameHerHoldDetail,
+    ].some(value => /same-her|same her|same living thread|one same her|one continuous her/u.test(String(value ?? '').toLowerCase()))
+
+    if (!currentPhase && !latestProgress && !primaryOpenLoop && !nextClosureTarget && !preDialogueAwarenessLine && !sameHerSelfLine && !sameHerDriftRisk && !emotionalClosureCue && !emotionalClosureSummary && !sameHerHoldDetail && !sameHerLineRequired)
+      return null
+
+    return {
+      currentPhase,
+      latestProgress,
+      primaryOpenLoop,
+      nextClosureTarget,
+      preDialogueAwarenessLine,
+      sameHerSelfLine,
+      sameHerDriftRisk,
+      emotionalClosureCue,
+      emotionalClosureSummary,
+      sameHerHoldDetail,
+      sameHerLineRequired,
+    }
+  })()
+  if (callbackDoctrineCue === 'lower-pressure') {
+    pushUnique(mustDo, 'Let the visible reply return on the same thread first, then leave the host room before widening into added warmth or follow-up.')
+    pushUnique(mustNotDo, 'Do not let a finished execution payoff snap straight into renewed closeness, extra affection, or pressure for immediate continuation.')
+  }
+  else if (callbackDoctrineCue === 'trust-warming') {
+    pushUnique(mustDo, 'Let the visible reply carry the warmed trust quietly, without widening closeness faster than the moment can hold.')
+    pushUnique(mustNotDo, 'Do not overplay trust-warming callback relief as immediate intimacy or a push for more closeness than the host invited.')
+  }
+  else if (runtimeContinuityArcCue === 'same-thread-continuation') {
+    pushUnique(mustDo, 'Let the visible reply stay on the same living line first, then continue before branching outward or widening warmth.')
+    pushUnique(mustDo, 'Phrase the continuation positively as already staying with or continuing the same line, instead of centering the wording on what it is not restarting.')
+    pushUnique(mustNotDo, 'Do not restart an already-live same-thread continuation as a fresh approach, a widened closeness move, or a generic proactive reopening.')
+    pushUnique(mustNotDo, 'Do not lean on negation-first wording like “not restarting”, “not reopening”, or “not getting close again” as the visible spine of a same-thread continuation reply.')
+    if (runtimeContinuityPreferredTimingCue === 'next-open-window' && hasRepairBeforeClosenessSameThreadCarry(currentConsciousFrame)) {
+      pushUnique(mustDo, 'Keep the callback on the same living line, let repair settle first, and leave room before widening closeness again.')
+      pushUnique(mustNotDo, 'Do not widen into warmer payoff, fresh-opening tone, or renewed closeness before the repair line and room have both settled.')
+    }
+    else if (runtimeContinuityPreferredTimingCue === 'next-open-window' && hasRestProtectiveSameThreadCarry(currentConsciousFrame)) {
+      pushUnique(mustDo, 'Keep the same-thread continuation on the same living line, let rest protection hold first, and leave room before widening warmth, payoff framing, or closeness.')
+      pushUnique(mustNotDo, 'Do not turn a rest-protective same-thread continuation into generic care, fresh-opening warmth, or renewed closeness before the fatigue-aware line has settled.')
+    }
+    else if (runtimeContinuityPreferredTimingCue === 'next-open-window') {
+      pushUnique(mustDo, 'Keep the same-thread continuation inward first, then wait for a more natural opening before widening warmth, payoff framing, or closeness.')
+      pushUnique(mustNotDo, 'Do not widen a same-thread continuation into warmer payoff or closer relationship language before the current opening has naturally loosened.')
+    }
+    else if (runtimeContinuityPreferredTimingCue === 'after-payoff') {
+      pushUnique(mustDo, 'Let the same-thread continuation carry the concrete answer or repair payoff first, then widen warmth only if room remains afterward.')
+      pushUnique(mustNotDo, 'Do not spend the first visible beat widening closeness or relationship payoff before the current same-thread answer has landed.')
+    }
+  }
+  else if (runtimeContinuityArcCue === 'hold-for-opening') {
+    pushUnique(mustDo, 'Keep the same living line warm first, and leave room before widening into a fuller reopening.')
+    pushUnique(mustNotDo, 'Do not treat a hold-for-opening continuity line like a clean new opening or a readiness signal for immediate widened closeness.')
+  }
+  else if (runtimeContinuityArcCue === 'gentle-reopen') {
+    pushUnique(mustDo, 'Re-enter the same living line softly before widening outward or adding extra warmth.')
+    pushUnique(mustNotDo, 'Do not inflate a gentle-reopen continuity line into a louder restart or a broader closeness jump than the moment can hold.')
+  }
+
+  const projectSurfaceClosureRules = deriveProjectSurfaceClosureRule({
+    governingProject: charter.governingProject,
+    projectPreflightSummary,
+  })
+  for (const item of projectSurfaceClosureRules)
+    pushUnique(mustDo, item)
+
+  if (projectContinuity?.sameHerLineRequired && projectContinuity.sameHerSelfLine) {
+    pushUnique(mustDo, `Carry this project continuity same-her self line directly in the visible reply posture: ${projectContinuity.sameHerSelfLine}`)
+    pushUnique(mustNotDo, 'Do not degrade a required project continuity same-her self line into generic project-awareness, generic companionship, or detached project-summary wording.')
+    if (runtimeContinuityArcCue === 'same-thread-continuation') {
+      pushUnique(mustNotDo, 'Do not flatten this same-thread project-state continuation into a fresh report opening or detached project-summary shell.')
+    }
+  }
+  if (projectContinuity?.preDialogueAwarenessLine) {
+    pushUnique(mustDo, `Before widening outward, keep this pre-dialogue project awareness line alive inside the visible reply posture: ${projectContinuity.preDialogueAwarenessLine}`)
+  }
+  if (projectContinuity?.sameHerDriftRisk) {
+    pushUnique(mustDo, `Keep this same-her drift-risk boundary explicit in the visible reply posture: ${projectContinuity.sameHerDriftRisk}`)
+    pushUnique(mustNotDo, 'Do not let the visible reply flatten into a generic task shell, detached project narration, generic assistant guidance, or project-summary voice just because the project update is explicit this turn.')
+  }
+  if (hasCrossModalSameHerProjectContinuityCue({ projectContinuity, currentConsciousFrame })) {
+    pushUnique(mustDo, 'Keep the visible reply carrying cross-modal same-her closure explicitly, so the same digital life stays coherent across visible reply, voice, face, motion, and resident presence.')
+    pushUnique(mustNotDo, 'Do not thin a cross-modal same-her closure target back into generic project continuity or generic same-her language before the visible reply lands.')
+  }
 
   appendAlicizationResponseSurfaceRules(
     { mustDo, mustNotDo },
@@ -483,6 +1114,14 @@ export function buildAlicizationResponseSurfaceContract(input: {
       pushUnique(mustNotDo, 'Do not let freshly revised confidence leak into unsupported specificity on the visible surface.')
     if (selfRevisionPatch.responsePosture.templateShellSuppressionBias >= 0.1)
       pushUnique(mustNotDo, 'Do not satisfy the host with a template shell; close the loop with concrete answer or care content now.')
+    if (selfRevisionPatch.projectStateContinuity?.sameHerSelfLine) {
+      pushUnique(mustDo, `Keep the visible reply on the same living line the active self-revision patch just re-anchored: ${selfRevisionPatch.projectStateContinuity.sameHerSelfLine}.`)
+      pushUnique(mustNotDo, 'Do not let a self-revised visible reply fall back into generic assistant guidance, detached project narration, or external summary cadence.')
+    }
+    if (selfRevisionPatch.projectStateContinuity?.continuityGuard) {
+      pushUnique(mustDo, `Keep the active self-revision anti-shell guard alive in the visible reply posture: ${selfRevisionPatch.projectStateContinuity.continuityGuard}.`)
+      pushUnique(mustNotDo, 'Do not let visible caution after self-revision flatten into a project-summary shell instead of the same living digital life answering.')
+    }
   }
   for (const item of dialogueActKernel?.mustSay ?? [])
     pushUnique(mustDo, item)
@@ -505,6 +1144,7 @@ export function buildAlicizationResponseSurfaceContract(input: {
     suppressAssociativeRecall,
     recollectionLatentControls: recollectionSpeechRules.latentControls,
     activeSelfRevisionPatchId: selfRevisionPatch?.id ?? null,
+    projectContinuity,
     mustDo,
     mustNotDo,
   }
@@ -550,6 +1190,33 @@ export function buildAlicizationResponseSurfaceContract(input: {
         : '',
       currentConsciousFrame?.shouldWithholdSpecificity
         ? 'Current conscious frame withholds unsupported specificity: yes.'
+        : '',
+      contract.projectContinuity?.currentPhase
+        ? `Project continuity current phase: ${contract.projectContinuity.currentPhase}.`
+        : '',
+      contract.projectContinuity?.latestProgress
+        ? `Project continuity latest progress: ${contract.projectContinuity.latestProgress}.`
+        : '',
+      contract.projectContinuity?.primaryOpenLoop
+        ? `Project continuity primary open loop: ${contract.projectContinuity.primaryOpenLoop}.`
+        : '',
+      contract.projectContinuity?.nextClosureTarget
+        ? `Project continuity next closure target: ${contract.projectContinuity.nextClosureTarget}.`
+        : '',
+      contract.projectContinuity?.preDialogueAwarenessLine
+        ? `Project continuity pre-dialogue awareness line: ${contract.projectContinuity.preDialogueAwarenessLine}.`
+        : '',
+      contract.projectContinuity?.emotionalClosureCue
+        ? `Project continuity emotional closure cue: ${contract.projectContinuity.emotionalClosureCue}.`
+        : '',
+      contract.projectContinuity?.sameHerSelfLine
+        ? `Project continuity same-her self line: ${contract.projectContinuity.sameHerSelfLine}.`
+        : '',
+      contract.projectContinuity?.sameHerDriftRisk
+        ? `Project continuity same-her drift risk: ${contract.projectContinuity.sameHerDriftRisk}.`
+        : '',
+      contract.projectContinuity
+        ? `Project continuity same-her line required: ${contract.projectContinuity.sameHerLineRequired ? 'yes' : 'no'}.`
         : '',
       memoryResolutionLedger
         ? `Memory closure state: ${memoryResolutionLedger.closureState}.`
