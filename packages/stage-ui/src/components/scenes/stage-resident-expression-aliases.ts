@@ -2,6 +2,11 @@ import type { StageEmbodimentPresencePostureState } from '@proj-alicization/stag
 
 import type { AlicizationVisualPresenceStateSnapshot } from '../../stores/alicization-bridge'
 
+import {
+  hasAlicizationAudibleSameHerCarry,
+  hasAlicizationSoftenedSameHerCarry,
+} from '@proj-alicization/stage-shared'
+
 function uniqueAliases(values: Array<string | null | undefined>) {
   const seen = new Set<string>()
   const result: string[] = []
@@ -26,11 +31,18 @@ function hasLowerPressureTiming(
   visualPresenceState: AlicizationVisualPresenceStateSnapshot | null | undefined,
 ) {
   const residentReasonTags = visualPresenceState?.residentPerformance?.reasonTags ?? []
-  if (residentReasonTags.includes('timing:lower-pressure-opening'))
+  if (
+    residentReasonTags.includes('timing:lower-pressure-opening')
+    || residentReasonTags.includes('measured-return')
+    || residentReasonTags.includes('repair-before-closeness')
+  ) {
     return true
+  }
 
   const rationaleTags = visualPresenceState?.privateThought?.rationaleTags ?? []
   return rationaleTags.includes('timing:lower-pressure-opening')
+    || rationaleTags.includes('measured-return')
+    || rationaleTags.includes('repair-before-closeness')
 }
 
 function hasQuietAccompanimentResidentSignature(
@@ -62,6 +74,34 @@ function hasQuietAccompanimentResidentSignature(
     )
 }
 
+function hasAudibleSameHerResidentSignature(
+  visualPresenceState: AlicizationVisualPresenceStateSnapshot | null | undefined,
+) {
+  const resident = visualPresenceState?.residentPerformance
+  const privateThought = visualPresenceState?.privateThought
+  return hasAlicizationAudibleSameHerCarry({
+    signature: resident?.signature ?? null,
+    reasonTags: [
+      ...(resident?.reasonTags ?? []),
+      ...(privateThought?.rationaleTags ?? []),
+    ],
+  })
+}
+
+function hasSoftenedSameHerResidentSignature(
+  visualPresenceState: AlicizationVisualPresenceStateSnapshot | null | undefined,
+) {
+  const resident = visualPresenceState?.residentPerformance
+  const privateThought = visualPresenceState?.privateThought
+  return hasAlicizationSoftenedSameHerCarry({
+    signature: resident?.signature ?? null,
+    reasonTags: [
+      ...(resident?.reasonTags ?? []),
+      ...(privateThought?.rationaleTags ?? []),
+    ],
+  })
+}
+
 function isQuietLowerPressureAttentivePosture(
   presencePosture: StageEmbodimentPresencePostureState | null | undefined,
 ) {
@@ -80,18 +120,21 @@ export function resolveResidentLive2DPreferredExpressionAliases(input: {
   visualPresenceState: AlicizationVisualPresenceStateSnapshot | null | undefined
 }) {
   const lowerPressureTiming = hasLowerPressureTiming(input.visualPresenceState)
+  const audibleSameHerResident = hasAudibleSameHerResidentSignature(input.visualPresenceState)
+  const softenedSameHerResident = hasSoftenedSameHerResidentSignature(input.visualPresenceState)
   const quietLowerPressureAttentive = (
     lowerPressureTiming
     || hasQuietAccompanimentResidentSignature(input.visualPresenceState)
+    || softenedSameHerResident
   )
-    && isQuietLowerPressureAttentivePosture(input.presencePosture)
+  && isQuietLowerPressureAttentivePosture(input.presencePosture)
 
   if (!quietLowerPressureAttentive)
     return uniqueAliases([...input.configuredAliases ?? [], input.emotion])
 
   return uniqueAliases([
-    'soft-gaze',
-    'relaxed',
+    ...(audibleSameHerResident ? ['relaxed'] : ['soft-gaze']),
+    ...(audibleSameHerResident ? ['soft-gaze'] : ['relaxed']),
     'half-lid',
     ...input.configuredAliases ?? [],
     input.emotion,
@@ -105,17 +148,21 @@ export function resolveResidentVrmPreferredExpressionAliases(input: {
   visualPresenceState: AlicizationVisualPresenceStateSnapshot | null | undefined
 }) {
   const lowerPressureTiming = hasLowerPressureTiming(input.visualPresenceState)
+  const audibleSameHerResident = hasAudibleSameHerResidentSignature(input.visualPresenceState)
+  const softenedSameHerResident = hasSoftenedSameHerResidentSignature(input.visualPresenceState)
   const quietLowerPressureAttentive = (
     lowerPressureTiming
     || hasQuietAccompanimentResidentSignature(input.visualPresenceState)
+    || softenedSameHerResident
   )
-    && isQuietLowerPressureAttentivePosture(input.presencePosture)
+  && isQuietLowerPressureAttentivePosture(input.presencePosture)
 
   if (!quietLowerPressureAttentive)
     return uniqueAliases([...input.configuredAliases ?? [], input.emotion])
 
   return uniqueAliases([
     'relaxed',
+    ...(audibleSameHerResident ? ['soft'] : []),
     ...input.configuredAliases ?? [],
     input.emotion,
   ])
@@ -133,15 +180,20 @@ export function resolveResidentFacialCueBias(input: {
     return null
 
   const lowerPressureTiming = hasLowerPressureTiming(input.visualPresenceState)
+  const audibleSameHerResident = hasAudibleSameHerResidentSignature(input.visualPresenceState)
+  const softenedSameHerResident = hasSoftenedSameHerResidentSignature(input.visualPresenceState)
   const quietLowerPressureAttentive = (
     lowerPressureTiming
     || hasQuietAccompanimentResidentSignature(input.visualPresenceState)
+    || softenedSameHerResident
   )
-    && isQuietLowerPressureAttentivePosture(input.presencePosture)
+  && isQuietLowerPressureAttentivePosture(input.presencePosture)
 
   if (!quietLowerPressureAttentive)
     return configuredCue
 
+  if (audibleSameHerResident && (configuredCue === 'focus' || configuredCue === 'focused'))
+    return 'relaxed'
   if (configuredCue === 'focus' || configuredCue === 'focused')
     return 'soft-gaze'
 

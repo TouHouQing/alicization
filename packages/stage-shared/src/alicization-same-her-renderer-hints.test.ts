@@ -1,0 +1,125 @@
+import { describe, expect, it } from 'vitest'
+
+import {
+  hasAlicizationAudibleSameHerCarry,
+  hasAlicizationQuieterSameHerCarry,
+  hasAlicizationSoftenedSameHerCarry,
+  hasAlicizationStillVoicedSameHerCarry,
+  normalizeAlicizationRendererHintToken,
+  normalizeAlicizationRendererHintTokens,
+} from './alicization-same-her-renderer-hints'
+
+describe('alicization same-her renderer hints', () => {
+  it('normalizes hyphenated renderer hint tokens into the shared underscore form', () => {
+    expect(normalizeAlicizationRendererHintToken(' embodiment:audible-same-her-line ')).toBe(
+      'embodiment:audible_same_her_line',
+    )
+    expect(normalizeAlicizationRendererHintToken(' embodiment:body-lipsync-voice-rejoin ')).toBe(
+      'embodiment:body_lipsync_voice_rejoin',
+    )
+  })
+
+  it('deduplicates normalized renderer hint tokens', () => {
+    expect(normalizeAlicizationRendererHintTokens([
+      'embodiment:body+voice-only',
+      'embodiment:body+voice_only',
+      ' embodiment:body+voice-only ',
+    ])).toEqual([
+      'embodiment:body+voice_only',
+    ])
+  })
+
+  it('treats coordinator-style body+voice-only continuity as an audible same-her carry', () => {
+    expect(hasAlicizationAudibleSameHerCarry({
+      signature: 'embodiment:audible_same_her_line',
+      reasonTags: ['embodiment:body+voice-only'],
+    })).toBe(true)
+  })
+
+  it('accepts resident freeform signatures that still carry the same-her audible line', () => {
+    expect(hasAlicizationAudibleSameHerCarry({
+      signature: 'resident|main-runtime|embodiment:audible_same_her_line|body+voice-only',
+      reasonTags: ['companionship'],
+    })).toBe(true)
+  })
+
+  it('treats body-lipsync-voice-rejoin continuity as an audible same-her carry across signature and reason-tag variants', () => {
+    expect(hasAlicizationAudibleSameHerCarry({
+      signature: 'embodiment:audible-same-her-line',
+      reasonTags: ['embodiment:body-lipsync-voice-rejoin'],
+    })).toBe(true)
+
+    expect(hasAlicizationAudibleSameHerCarry({
+      signature: 'resident|main-runtime|embodiment:audible_same_her_line|body_lipsync_voice_rejoin',
+      reasonTags: ['companionship'],
+    })).toBe(true)
+  })
+
+  it('treats body+lipsync-only and lipsync+voice-only continuity as quieter same-her carry', () => {
+    expect(hasAlicizationQuieterSameHerCarry({
+      signature: 'resident|main-runtime|same-thread',
+      reasonTags: ['embodiment:body+lipsync-only'],
+    })).toBe(true)
+
+    expect(hasAlicizationQuieterSameHerCarry({
+      signature: 'resident|main-runtime|same-thread',
+      reasonTags: ['embodiment:lipsync+voice-only'],
+    })).toBe(true)
+  })
+
+  it('treats still-voiced face and motion continuity as still-voiced same-her carry', () => {
+    expect(hasAlicizationStillVoicedSameHerCarry({
+      signature: 'embodiment:still-voiced-face-line',
+      reasonTags: ['companionship'],
+    })).toBe(true)
+
+    expect(hasAlicizationStillVoicedSameHerCarry({
+      signature: 'resident|main-runtime|same-thread',
+      reasonTags: ['embodiment:still-voiced-motion-line'],
+    })).toBe(true)
+
+    expect(hasAlicizationStillVoicedSameHerCarry({
+      signature: 'resident|main-runtime|accompanying|quiet-accompaniment|still-voiced-motion-line',
+      reasonTags: ['companionship'],
+    })).toBe(true)
+  })
+
+  it('treats audible, quieter, and still-voiced continuity as softened same-her carry', () => {
+    expect(hasAlicizationSoftenedSameHerCarry({
+      signature: 'embodiment:audible_same_her_line',
+      reasonTags: ['companionship'],
+    })).toBe(true)
+
+    expect(hasAlicizationSoftenedSameHerCarry({
+      signature: 'resident|main-runtime|same-thread',
+      reasonTags: ['embodiment:body+lipsync-only'],
+    })).toBe(true)
+
+    expect(hasAlicizationSoftenedSameHerCarry({
+      signature: 'resident|main-runtime|same-thread',
+      reasonTags: ['embodiment:still-voiced-face-line'],
+    })).toBe(true)
+  })
+
+  it('does not overstate unrelated continuity cues into audible same-her carry', () => {
+    expect(hasAlicizationAudibleSameHerCarry({
+      signature: 'resident|ordinary-thinking',
+      reasonTags: ['companionship', 'timing:lower-pressure-opening'],
+    })).toBe(false)
+
+    expect(hasAlicizationQuieterSameHerCarry({
+      signature: 'resident|ordinary-thinking',
+      reasonTags: ['companionship', 'timing:lower-pressure-opening'],
+    })).toBe(false)
+
+    expect(hasAlicizationStillVoicedSameHerCarry({
+      signature: 'resident|ordinary-thinking',
+      reasonTags: ['companionship', 'timing:lower-pressure-opening'],
+    })).toBe(false)
+
+    expect(hasAlicizationSoftenedSameHerCarry({
+      signature: 'resident|ordinary-thinking',
+      reasonTags: ['companionship', 'timing:lower-pressure-opening'],
+    })).toBe(false)
+  })
+})

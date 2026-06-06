@@ -2,15 +2,18 @@ import type { Live2DLipSync, Live2DLipSyncOptions } from '@proj-alicization/mode
 import type { Profile } from '@proj-alicization/model-driver-lipsync/shared/wlipsync'
 import type { PlaybackItem, PlaybackManagerOptions, TextSegment } from '@proj-alicization/pipelines-audio'
 import type {
-  AlicizationEmbodimentLipSyncVisemeHint,
-  AlicizationEmbodimentScriptV1,
-  AlicizationEmbodimentSpeechPlan,
+  AlicizationDialogueEmbodimentRendererHints,
+  AlicizationDialogueSpeechRendererSettleHints,
   AlicizationDialogueSpeechTimeline,
   AlicizationDialogueSpeechTimelineSegment,
   AlicizationDigitalLifeEnvelope,
   AlicizationDigitalLifeFrame,
   AlicizationDigitalLifeMode,
   AlicizationDigitalLifeSpineDigest,
+  AlicizationEmbodimentLipSyncVisemeHint,
+  AlicizationEmbodimentScriptV1,
+  AlicizationEmbodimentSpeechPlan,
+  AlicizationEmotion,
   StageEmbodimentSpeechPlaybackEvent,
   StageEmbodimentSpeechPlaybackState,
   StageEmbodimentSpeechRenderState,
@@ -18,6 +21,10 @@ import type {
 import type { Ref } from 'vue'
 
 import type { BrowserSpeechAudioSource } from '../../libs/speech-audio-playback'
+import type {
+  EmbodimentPlaybackDriverTelemetry,
+  EmbodimentPlaybackTelemetry,
+} from '../../services/embodiment/playback-reconciler'
 import type { StageModelRenderer } from '../../stores/settings'
 
 import { createLive2DLipSync } from '@proj-alicization/model-driver-lipsync'
@@ -25,7 +32,6 @@ import { wlipsyncProfile } from '@proj-alicization/model-driver-lipsync/shared/w
 import {
   alignAlicizationDialogueSpeechTimelineSegment,
   createIdleStageEmbodimentSpeechArticulationState,
-  createIdleStageEmbodimentMotorState,
   createIdleStageEmbodimentSpeechDynamicsState,
   createIdleStageEmbodimentSpeechPlaybackState,
   createIdleStageEmbodimentSpeechRenderState,
@@ -35,25 +41,24 @@ import {
   deriveStageEmbodimentSpeechDynamicsState,
   deriveStageEmbodimentSpeechRenderState,
   estimateStageEmbodimentSpeechPlaybackDurationMs,
+  hasAlicizationSoftenedSameHerCarry,
   normalizeAlicizationDialogueSpeechTimeline,
   normalizeAlicizationDigitalLifeEnvelope,
+  normalizeAlicizationEmotion,
   resolveAlicizationDialogueSpeechTimelineConsumedOffset,
+  resolveProjectClosureSpeechEmbodimentBiasFromCue,
   resolveStageEmbodimentSpeechStopLingerMs,
 } from '@proj-alicization/stage-shared'
-import { computed, onUnmounted, readonly, ref, watch } from 'vue'
+import { computed, getCurrentInstance, onUnmounted, readonly, ref, watch } from 'vue'
 
 import { playBrowserSpeechAudio } from '../../libs/speech-audio-playback'
-import { buildAlicizationEmbodimentSpeechPlan } from '../../services/embodiment/speech-planner'
-import type {
-  EmbodimentPlaybackDriverTelemetry,
-  EmbodimentPlaybackTelemetry,
-} from '../../services/embodiment/playback-reconciler'
 import {
   cloneEmbodimentPlaybackTelemetry,
-  resolveEmbodimentPlaybackProsodyAuthority,
   reconcileEmbodimentPlayback,
   resolveEmbodimentPlaybackDriverAuthority,
+  resolveEmbodimentPlaybackProsodyAuthority,
 } from '../../services/embodiment/playback-reconciler'
+import { buildAlicizationEmbodimentSpeechPlan } from '../../services/embodiment/speech-planner'
 import { resolveLive2DFaceDriverState } from './drivers/live2d-face-driver'
 import { resolveLive2DLipSyncDriverState } from './drivers/live2d-lipsync-driver'
 import { resolveLive2DMotionDriverState } from './drivers/live2d-motion-driver'
@@ -73,7 +78,9 @@ interface SpeechPlaybackDescriptor {
   ownerId?: string | null
   text: string
   special: string | null | undefined
+  cue?: AlicizationDialogueSpeechTimelineSegment | null | undefined
   continuityHoldMs?: number | null | undefined
+  digitalLifeFrame?: AlicizationDigitalLifeFrame | null | undefined
   metadata?: Record<string, unknown> | null | undefined
   playbackDurationMs?: number | null | undefined
 }
@@ -103,6 +110,131 @@ interface SyntheticSpeechState {
   baselineEnergy: number
   amplitudeEnergy: number
   phaseOffset: number
+}
+
+function readMotorGazeStability(motor: AlicizationDigitalLifeFrame['motor'] | null | undefined) {
+  if (!motor)
+    return null
+  return Number.isFinite((motor as { gazeStability?: unknown }).gazeStability)
+    ? Number((motor as { gazeStability?: number }).gazeStability)
+    : Number.isFinite(motor.gaze?.stability)
+      ? Number(motor.gaze.stability)
+      : null
+}
+
+function readMotorBreathAmplitude(motor: AlicizationDigitalLifeFrame['motor'] | null | undefined) {
+  if (!motor)
+    return null
+  return Number.isFinite((motor as { breathAmplitude?: unknown }).breathAmplitude)
+    ? Number((motor as { breathAmplitude?: number }).breathAmplitude)
+    : Number.isFinite(motor.breath?.amplitude)
+      ? Number(motor.breath.amplitude)
+      : null
+}
+
+function resolveDigitalLifeLipSyncMode(
+  mode: AlicizationEmbodimentScriptV1['lipsyncPlan']['mode'] | AlicizationDigitalLifeFrame['lipSync']['mode'],
+) {
+  if (mode === 'energy-phoneme-hybrid')
+    return 'hybrid' as const
+  if (mode === 'energy-only')
+    return 'energy' as const
+  return mode
+}
+
+function resolveTimelineInterruptModeFromPolicy(
+  interruptPolicy: AlicizationEmbodimentSpeechPlan['segments'][number]['interruptPolicy'] | null | undefined,
+): AlicizationDialogueSpeechTimelineSegment['interruptMode'] {
+  return interruptPolicy === 'hard-stop'
+    ? 'hard-interrupt'
+    : 'soft-interrupt'
+}
+
+function resolveProjectedDigitalLifeMode(input: {
+  residentMode: AlicizationEmbodimentScriptV1['state']['residentMode'] | null
+  emotion: AlicizationEmotion
+  text: string
+}) {
+  if (input.residentMode === 'repair-before-closeness')
+    return 'thinking' as const
+  if (input.residentMode === 'measured-return')
+    return input.text.trim() ? 'speaking' as const : 'thinking' as const
+  if (input.emotion === 'thinking' && !input.text.trim())
+    return 'thinking' as const
+  return 'acting' as const
+}
+
+function normalizeEmbodimentResidentMode(
+  residentMode: unknown,
+): AlicizationEmbodimentScriptV1['state']['residentMode'] | null {
+  return residentMode === 'dialogue'
+    || residentMode === 'quiet-companionship'
+    || residentMode === 'measured-return'
+    || residentMode === 'repair-before-closeness'
+    || residentMode === 'idle-recovering'
+    ? residentMode
+    : null
+}
+
+function resolveRestrainedResidentModeFromRendererHints(
+  rendererHints: { residentMode?: string | null | undefined } | null | undefined,
+) {
+  const residentMode = normalizeEmbodimentResidentMode(rendererHints?.residentMode?.trim())
+  return residentMode === 'repair-before-closeness' || residentMode === 'measured-return'
+    ? residentMode
+    : null
+}
+
+function resolveEffectiveSpeechResidentMode(input: {
+  residentMode: AlicizationEmbodimentScriptV1['state']['residentMode'] | null | undefined
+  rendererHints: { residentMode?: string | null | undefined } | null | undefined
+}) {
+  const residentMode = input.residentMode ?? null
+  if (residentMode === 'repair-before-closeness' || residentMode === 'measured-return')
+    return residentMode
+
+  return resolveRestrainedResidentModeFromRendererHints(input.rendererHints)
+}
+
+function resolveEffectiveSpeechResidentModeFromCueOrFrame(input: {
+  residentMode: AlicizationEmbodimentScriptV1['state']['residentMode'] | null | undefined
+  cue?: AlicizationDialogueSpeechTimelineSegment | null
+  digitalLifeFrame?: AlicizationDigitalLifeFrame | null
+}) {
+  return resolveEffectiveSpeechResidentMode({
+    residentMode: input.residentMode,
+    rendererHints: input.cue?.rendererHints
+      ?? input.digitalLifeFrame?.face.rendererHints
+      ?? input.digitalLifeFrame?.action.rendererHints
+      ?? null,
+  })
+}
+
+function shouldForceRestrainedStopTailBodySuppression(input: {
+  scriptResidentMode: AlicizationEmbodimentScriptV1['state']['residentMode'] | null | undefined
+  residentMode: AlicizationEmbodimentScriptV1['state']['residentMode'] | 'measured-return' | 'repair-before-closeness' | null | undefined
+  cue?: AlicizationDialogueSpeechTimelineSegment | null
+  digitalLifeFrame?: AlicizationDigitalLifeFrame | null
+}) {
+  const scriptResidentMode = input.scriptResidentMode ?? null
+  if (scriptResidentMode === 'measured-return' || scriptResidentMode === 'repair-before-closeness')
+    return false
+
+  const residentMode = input.residentMode ?? null
+  if (residentMode !== 'repair-before-closeness')
+    return false
+
+  const cueResidentMode = resolveRestrainedResidentModeFromRendererHints(input.cue?.rendererHints ?? null)
+  const faceResidentMode = resolveRestrainedResidentModeFromRendererHints(input.digitalLifeFrame?.face.rendererHints ?? null)
+  const actionResidentMode = resolveRestrainedResidentModeFromRendererHints(input.digitalLifeFrame?.action.rendererHints ?? null)
+  const residentModeConfirmed = cueResidentMode === residentMode
+    || faceResidentMode === residentMode
+    || actionResidentMode === residentMode
+  if (!residentModeConfirmed)
+    return false
+
+  const settleMode = input.digitalLifeFrame?.settleMode ?? input.cue?.settleMode ?? null
+  return settleMode === 'hold'
 }
 
 export interface UseStageEmbodimentSpeechOptions {
@@ -149,6 +281,16 @@ function sanitizeSpineToken(raw: unknown, maxChars = 96) {
 
 function cloneSpeechMetadata(metadata: Record<string, unknown> | null | undefined) {
   return metadata ? { ...metadata } : null
+}
+
+function resolveDigitalLifeEmotion(input: {
+  emotion: unknown
+  baseEmotion?: unknown
+  fallback?: unknown
+}) {
+  return normalizeAlicizationEmotion(
+    input.emotion ?? input.baseEmotion ?? input.fallback ?? 'neutral',
+  ).emotion
 }
 
 function updateStableSignature(hash: number, raw: unknown) {
@@ -203,6 +345,155 @@ function resolveBrowserSpeechAudioDurationMs(audio: BrowserSpeechAudioSource | n
     return Math.round(audio.audio.duration * 1000)
 
   return null
+}
+
+function isDurableMeasuredReturnFrame(frame: AlicizationDigitalLifeFrame | null | undefined) {
+  const faceHints = frame?.face.rendererHints
+  const actionHints = frame?.action.rendererHints
+  return (
+    (
+      faceHints?.residentMode === 'measured-return'
+      && (
+        (
+          faceHints.preferredGazeMode === 'steady'
+          && faceHints.preferredBlinkCadence === 'quiet'
+        )
+        || (
+          faceHints.preferredGazeMode === 'soften'
+          && faceHints.preferredBlinkCadence === 'linger'
+        )
+      )
+    )
+    || (
+      actionHints?.residentMode === 'measured-return'
+      && (
+        (
+          actionHints.preferredGazeMode === 'steady'
+          && actionHints.preferredBlinkCadence === 'quiet'
+        )
+        || (
+          actionHints.preferredGazeMode === 'soften'
+          && actionHints.preferredBlinkCadence === 'linger'
+        )
+      )
+    )
+  )
+}
+
+function isStrongDurableMeasuredReturnFrame(frame: AlicizationDigitalLifeFrame | null | undefined) {
+  const faceHints = frame?.face.rendererHints
+  const actionHints = frame?.action.rendererHints
+  return (
+    (
+      faceHints?.residentMode === 'measured-return'
+      && faceHints.preferredGazeMode === 'steady'
+      && faceHints.preferredBlinkCadence === 'quiet'
+    )
+    || (
+      actionHints?.residentMode === 'measured-return'
+      && actionHints.preferredGazeMode === 'steady'
+      && actionHints.preferredBlinkCadence === 'quiet'
+    )
+  )
+}
+
+function isDurableMeasuredReturnCue(
+  cue: AlicizationDialogueSpeechTimelineSegment | null | undefined,
+) {
+  const hints = cue?.rendererHints
+  return (
+    hints?.residentMode === 'measured-return'
+    && (
+      (
+        hints.preferredGazeMode === 'steady'
+        && hints.preferredBlinkCadence === 'quiet'
+      )
+      || (
+        hints.preferredGazeMode === 'soften'
+        && hints.preferredBlinkCadence === 'linger'
+      )
+    )
+  )
+}
+
+function isStrongDurableMeasuredReturnCue(
+  cue: AlicizationDialogueSpeechTimelineSegment | null | undefined,
+) {
+  const hints = cue?.rendererHints
+  return (
+    hints?.residentMode === 'measured-return'
+    && hints.preferredGazeMode === 'steady'
+    && hints.preferredBlinkCadence === 'quiet'
+  )
+}
+
+function isRepairBeforeClosenessFrame(frame: AlicizationDigitalLifeFrame | null | undefined) {
+  const faceHints = frame?.face.rendererHints
+  const actionHints = frame?.action.rendererHints
+  return faceHints?.residentMode === 'repair-before-closeness'
+    || actionHints?.residentMode === 'repair-before-closeness'
+    || frame?.settleMode === 'hold'
+}
+
+function isRepairBeforeClosenessCue(
+  cue: AlicizationDialogueSpeechTimelineSegment | null | undefined,
+) {
+  const hints = cue?.rendererHints
+  return hints?.residentMode === 'repair-before-closeness'
+}
+
+function buildDigitalLifeEnvelopeFromFrames(input: {
+  variationToken: string
+  emotion: AlicizationDialogueSpeechTimeline['emotion'] | null | undefined
+  frames: AlicizationDigitalLifeFrame[]
+}) {
+  const frames = input.frames
+  if (frames.length === 0)
+    return null
+
+  const lastFrame = frames.at(-1)
+  if (!lastFrame)
+    return null
+
+  return normalizeAlicizationDigitalLifeEnvelope({
+    version: 'digital-life-v1',
+    variationToken: input.variationToken,
+    emotion: input.emotion ?? lastFrame.face.emotion,
+    mode: lastFrame.mode,
+    postureHint: lastFrame.mode === 'recovering'
+      ? 'concerned'
+      : lastFrame.mode === 'thinking'
+        ? 'inspection'
+        : 'attentive',
+    performance: {
+      baseEmotion: input.emotion ?? lastFrame.face.emotion,
+      emotion: lastFrame.face.emotion,
+      facialCue: lastFrame.face.facialCue,
+      actionCue: lastFrame.action.actionCue,
+      delivery: lastFrame.mode === 'recovering'
+        ? 'gentle'
+        : lastFrame.action.actionCue
+          ? 'firm'
+          : 'calm',
+      emphasis: lastFrame.action.intensity >= 0.55 ? 2 : lastFrame.action.intensity > 0 ? 1 : 0,
+    },
+    speechStyle: {
+      pitchDelta: lastFrame.voice.pitchDelta,
+      rateMultiplier: lastFrame.voice.rateMultiplier,
+    },
+    voice: { ...lastFrame.voice },
+    lipSync: { ...lastFrame.lipSync },
+    face: {
+      ...lastFrame.face,
+      rendererHints: lastFrame.face.rendererHints ?? null,
+    },
+    action: {
+      ...lastFrame.action,
+      rendererHints: lastFrame.action.rendererHints ?? null,
+    },
+    motor: lastFrame.motor,
+    frames,
+  })
 }
 
 function resolveSpineFallbackMode(digest: AlicizationDigitalLifeSpineDigest): AlicizationDigitalLifeMode {
@@ -274,6 +565,82 @@ function resolveSpineFallbackActionCue(
         ? 'idle_settle'
         : 'observe_focus'
   }
+}
+
+function hasSoftenedSameHerRendererCarry(
+  rendererHints: AlicizationDialogueEmbodimentRendererHints | null | undefined,
+) {
+  return hasAlicizationSoftenedSameHerCarry(rendererHints)
+}
+
+function resolveAudibleSameHerPreviewRestraint(
+  rendererHints: AlicizationDialogueEmbodimentRendererHints | null | undefined,
+) {
+  return hasSoftenedSameHerRendererCarry(rendererHints)
+    ? {
+        voiceEnergyScale: 0.9,
+        voiceCadenceScale: 0.92,
+        lipSyncVisemeScale: 0.92,
+        lipSyncEnergyScale: 0.9,
+        mouthScale: 0.94,
+        faceIntensityScale: 0.93,
+        actionIntensityScale: 0.88,
+        settleMode: 'linger' as const,
+      }
+    : null
+}
+
+function resolveSpineFallbackVoiceRestraint(
+  residentMode: AlicizationEmbodimentScriptV1['state']['residentMode'] | null | undefined,
+  rendererHints?: AlicizationDialogueEmbodimentRendererHints | null | undefined,
+) {
+  if (residentMode === 'repair-before-closeness') {
+    return {
+      pitchDeltaOffset: -2,
+      rateMultiplierOffset: -0.04,
+      energyOffset: -0.12,
+      cadenceOffset: -0.1,
+    }
+  }
+
+  if (residentMode === 'measured-return') {
+    return {
+      pitchDeltaOffset: -1,
+      rateMultiplierOffset: -0.02,
+      energyOffset: -0.06,
+      cadenceOffset: -0.05,
+    }
+  }
+
+  if (hasSoftenedSameHerRendererCarry(rendererHints)) {
+    return {
+      pitchDeltaOffset: -1,
+      rateMultiplierOffset: -0.015,
+      energyOffset: -0.04,
+      cadenceOffset: -0.035,
+    }
+  }
+
+  return {
+    pitchDeltaOffset: 0,
+    rateMultiplierOffset: 0,
+    energyOffset: 0,
+    cadenceOffset: 0,
+  }
+}
+
+function clampRestrainedPreviewActionCue(
+  actionCue: string | null | undefined,
+  residentMode: AlicizationEmbodimentScriptV1['state']['residentMode'] | null | undefined,
+) {
+  const normalized = actionCue?.trim() || null
+  if (!normalized)
+    return null
+
+  if (residentMode === 'repair-before-closeness')
+    return 'idle_settle'
+
+  return normalized
 }
 
 function estimateSyntheticSegmentDurationMs(input: {
@@ -365,6 +732,72 @@ function normalizeSpeechMetadataRecord(metadata: Record<string, unknown> | null 
     : null
 }
 
+function resolveProjectClosureSpeechEmbodimentBiasFromMetadata(
+  metadata: Record<string, unknown> | null | undefined,
+) {
+  const normalizedMetadata = normalizeSpeechMetadataRecord(metadata)
+  const projectState = normalizedMetadata?.projectState
+    && typeof normalizedMetadata.projectState === 'object'
+    && !Array.isArray(normalizedMetadata.projectState)
+    ? normalizedMetadata.projectState as Record<string, unknown>
+    : null
+  const preDialogueAwareness = normalizedMetadata?.preDialogueAwareness
+    && typeof normalizedMetadata.preDialogueAwareness === 'object'
+    && !Array.isArray(normalizedMetadata.preDialogueAwareness)
+    ? normalizedMetadata.preDialogueAwareness as Record<string, unknown>
+    : null
+
+  const emotionalClosureCues = [
+    projectState?.emotionalClosureCue,
+    preDialogueAwareness?.emotionalClosureCue,
+  ]
+
+  for (const cue of emotionalClosureCues) {
+    const bias = resolveProjectClosureSpeechEmbodimentBiasFromCue(
+      typeof cue === 'string' ? cue : null,
+    )
+    if (bias)
+      return bias
+  }
+
+  return null
+}
+
+function resolveProjectClosureSpeechResidentModeFromMetadata(
+  metadata: Record<string, unknown> | null | undefined,
+) {
+  return normalizeEmbodimentResidentMode(
+    resolveProjectClosureSpeechEmbodimentBiasFromMetadata(metadata)?.residentMode ?? null,
+  )
+}
+
+function resolveProjectClosureRendererHintsFromMetadata(
+  metadata: Record<string, unknown> | null | undefined,
+): AlicizationDialogueEmbodimentRendererHints | null {
+  const projectClosureBias = resolveProjectClosureSpeechEmbodimentBiasFromMetadata(metadata)
+  if (!projectClosureBias)
+    return null
+
+  const preferredExpressionAliases = projectClosureBias.residentMode === 'repair-before-closeness'
+    ? ['RecoverSoft']
+    : projectClosureBias.residentMode === 'measured-return'
+      ? ['CalmInspect']
+      : undefined
+  const preferredMotionAliases = projectClosureBias.residentMode === 'repair-before-closeness'
+    ? ['StillnessGuard']
+    : projectClosureBias.residentMode === 'measured-return'
+      ? ['ObserveSoft']
+      : undefined
+
+  return {
+    residentMode: projectClosureBias.residentMode,
+    preferredExpressionAliases,
+    preferredMotionAliases,
+    preferredBlinkCadence: projectClosureBias.preferredBlinkCadence,
+    preferredGazeMode: projectClosureBias.preferredGazeMode,
+  }
+}
+
 function resolveEmbodimentScriptFromMetadata(
   metadata: Record<string, unknown> | null | undefined,
 ): AlicizationEmbodimentScriptV1 | null {
@@ -409,10 +842,19 @@ function resolvePlaybackTelemetryCue(input: {
   special?: string | null | undefined
   text: string
 }) {
-  return createStageEmbodimentSpeechPlaybackItem({
+  const script = resolveEmbodimentScriptFromMetadata(input.metadata)
+  const authoritativeSegmentId = resolvePlaybackDriverSegmentId({
+    cue: input.cue,
+    digitalLifeFrame: input.digitalLifeFrame,
+    metadata: input.metadata,
+    script,
+    segmentId: input.segmentId,
+    text: input.text,
+  })
+  const projectedCue = createStageEmbodimentSpeechPlaybackItem({
     intentId: null,
     streamId: null,
-    segmentId: input.segmentId,
+    segmentId: authoritativeSegmentId,
     ownerId: null,
     text: input.text,
     special: input.special,
@@ -422,6 +864,51 @@ function resolvePlaybackTelemetryCue(input: {
     cue: input.cue ?? null,
     digitalLifeFrame: input.digitalLifeFrame ?? null,
   }).cue
+  const seededPlaybackCue = resolveEmbodimentPlaybackMetadataFromMetadata(input.metadata)?.cue ?? null
+  if (!projectedCue)
+    return seededPlaybackCue
+
+  const rendererSettle = projectedCue.rendererSettle ?? input.cue?.rendererSettle ?? seededPlaybackCue?.rendererSettle ?? null
+  const effectiveRendererHints = projectedCue.rendererHints ?? input.cue?.rendererHints ?? seededPlaybackCue?.rendererHints ?? null
+  const effectiveResidentMode = resolveEffectiveSpeechResidentMode({
+    residentMode: script?.state.residentMode ?? null,
+    rendererHints: effectiveRendererHints,
+  })
+  const hesitantMeasuredReturnVrmCue = Boolean(
+    script?.rendererTarget === 'vrm'
+    && effectiveResidentMode === 'measured-return'
+    && script.state.delivery === 'hesitant',
+  )
+  const softenedSameHerVrmCue = Boolean(
+    script?.rendererTarget === 'vrm'
+    && hasSoftenedSameHerRendererCarry(effectiveRendererHints)
+    && (
+      effectiveRendererHints?.preferredBlinkCadence === 'linger'
+      || effectiveRendererHints?.preferredBlinkCadence === 'quiet'
+      || effectiveRendererHints?.preferredGazeMode === 'soften'
+      || effectiveRendererHints?.preferredGazeMode === 'steady'
+    ),
+  )
+
+  return {
+    ...projectedCue,
+    rendererHints: effectiveRendererHints,
+    rendererSettle: rendererSettle
+      ? {
+          ...rendererSettle,
+          vrmActionFadeMs: hesitantMeasuredReturnVrmCue
+            ? Math.max(rendererSettle.vrmActionFadeMs ?? 0, 300)
+            : softenedSameHerVrmCue
+              ? Math.max(rendererSettle.vrmActionFadeMs ?? 0, 220)
+              : rendererSettle.vrmActionFadeMs,
+          vrmExpressionBlendMs: hesitantMeasuredReturnVrmCue
+            ? Math.max(rendererSettle.vrmExpressionBlendMs ?? 0, 360)
+            : softenedSameHerVrmCue
+              ? Math.max(rendererSettle.vrmExpressionBlendMs ?? 0, 320)
+              : rendererSettle.vrmExpressionBlendMs,
+        }
+      : rendererSettle,
+  }
 }
 
 function resolveActivePlaybackVisemeHints(
@@ -450,30 +937,143 @@ function resolveAuthoritativeHintStrength(hints: AlicizationEmbodimentLipSyncVis
   }, 0)
 }
 
+function resolvePlaybackDriverSegmentId(input: {
+  cue?: AlicizationDialogueSpeechTimelineSegment | null
+  digitalLifeFrame?: AlicizationDigitalLifeFrame | null
+  metadata?: Record<string, unknown> | null | undefined
+  script: AlicizationEmbodimentScriptV1 | null
+  segmentId: string | null | undefined
+  text: string
+}) {
+  const script = input.script
+  const directSegmentId = input.segmentId?.trim() || null
+  if (!script)
+    return directSegmentId
+
+  const playbackMetadata = resolveEmbodimentPlaybackMetadataFromMetadata(input.metadata)
+  const byIdCandidates = [
+    playbackMetadata?.driverAuthority?.segmentId?.trim() || null,
+    playbackMetadata?.prosodyAuthority?.segmentId?.trim() || null,
+    input.digitalLifeFrame?.id?.trim() || null,
+    input.cue?.id?.trim() || null,
+    directSegmentId,
+  ].filter((value): value is string => Boolean(value))
+
+  for (const candidate of byIdCandidates) {
+    const matchedSegment = script.speechPlan.segments.find(segment => segment.id === candidate)
+    if (matchedSegment)
+      return matchedSegment.id
+  }
+
+  const normalizedAuthorityText = normalizeAlignmentText(input.cue?.text ?? input.text)
+  if (!normalizedAuthorityText)
+    return directSegmentId
+
+  const matchedByText = script.speechPlan.segments.find(segment => normalizeAlignmentText(segment.text) === normalizedAuthorityText)
+  return matchedByText?.id ?? directSegmentId
+}
+
 function resolvePlaybackDriverMetadata(input: {
+  continuityHoldMs?: number | null
   idleCuePhase?: 'pre-utterance' | 'post-utterance'
+  metadata?: Record<string, unknown> | null | undefined
   script: AlicizationEmbodimentScriptV1 | null
   segmentId: string | null | undefined
   playbackPhase: 'idle' | 'playing'
+  suppressBodyDriver?: boolean
+  cue?: AlicizationDialogueSpeechTimelineSegment | null
+  digitalLifeFrame?: AlicizationDigitalLifeFrame | null
+  text: string
 }): EmbodimentPlaybackDriverTelemetry {
+  const segmentId = resolvePlaybackDriverSegmentId({
+    cue: input.cue ?? null,
+    digitalLifeFrame: input.digitalLifeFrame ?? null,
+    metadata: input.metadata,
+    script: input.script,
+    segmentId: input.segmentId,
+    text: input.text,
+  })
+
   return {
+    body: input.suppressBodyDriver
+      ? null
+      : input.digitalLifeFrame?.motor
+        ? {
+            frameMode: input.digitalLifeFrame.mode ?? null,
+            stillness: Number.isFinite(input.digitalLifeFrame.motor.stillness) ? Number(input.digitalLifeFrame.motor.stillness) : null,
+            gazeStability: readMotorGazeStability(input.digitalLifeFrame.motor),
+            breathAmplitude: readMotorBreathAmplitude(input.digitalLifeFrame.motor),
+            expressivity: Number.isFinite(input.digitalLifeFrame.motor.expressivity) ? Number(input.digitalLifeFrame.motor.expressivity) : null,
+            segmentId,
+          }
+        : null,
     face: resolveLive2DFaceDriverState({
       idleCuePhase: input.idleCuePhase,
       script: input.script,
-      segmentId: input.segmentId,
+      segmentId,
       playbackPhase: input.playbackPhase,
     }),
     lipsync: resolveLive2DLipSyncDriverState({
       script: input.script,
-      segmentId: input.segmentId,
+      segmentId,
       playbackPhase: input.playbackPhase,
+      continuityHoldMs: input.digitalLifeFrame?.lipSync.continuityHoldMs
+        ?? input.continuityHoldMs
+        ?? input.cue?.emotionHoldMs
+        ?? null,
     }),
     motion: resolveLive2DMotionDriverState({
+      idleCuePhase: input.idleCuePhase,
+      preserveActionBurstOnIdle: input.playbackPhase === 'idle'
+        && shouldSuppressRendererOnlyRejoinBodyDriverFromFrame({
+          digitalLifeFrame: input.digitalLifeFrame ?? null,
+          residentMode: input.script?.state.residentMode ?? null,
+        }),
       script: input.script,
-      segmentId: input.segmentId,
+      segmentId,
       playbackPhase: input.playbackPhase,
     }),
   }
+}
+
+function removeBodyDriverFromPlaybackMetadata(
+  drivers: EmbodimentPlaybackDriverTelemetry,
+): EmbodimentPlaybackDriverTelemetry {
+  return {
+    ...drivers,
+    body: null,
+  }
+}
+
+function shouldSuppressRendererOnlyRejoinBodyDriverFromFrame(input: {
+  digitalLifeFrame?: AlicizationDigitalLifeFrame | null
+  residentMode: AlicizationEmbodimentScriptV1['state']['residentMode'] | null | undefined
+}) {
+  const frame = input.digitalLifeFrame ?? null
+  const residentMode = input.residentMode ?? null
+  if (!frame)
+    return false
+
+  const softenedSameHerRendererCarry = hasSoftenedSameHerRendererCarry(
+    frame.face.rendererHints ?? frame.action.rendererHints ?? null,
+  )
+  if (
+    residentMode !== 'repair-before-closeness'
+    && residentMode !== 'measured-return'
+    && !softenedSameHerRendererCarry
+  ) {
+    return false
+  }
+
+  const rendererAlreadyRejoined = frame.lipSync.continuityHoldMs >= 180
+    && frame.lipSync.mouthScale >= 0.78
+    && frame.settleMode === 'hold'
+  const bodyIsStillWeak = frame.mode === 'recovering'
+    || frame.face.expressionMode === 'recover'
+    || frame.motor.expressivity <= 0.18
+    || (readMotorGazeStability(frame.motor) ?? 1) <= 0.42
+
+  return rendererAlreadyRejoined && bodyIsStillWeak
 }
 
 function enrichSpeechMetadataWithDrivers(input: {
@@ -484,6 +1084,7 @@ function enrichSpeechMetadataWithDrivers(input: {
   script: AlicizationEmbodimentScriptV1 | null
   segmentId: string | null | undefined
   playbackPhase: 'idle' | 'playing'
+  suppressBodyDriver?: boolean
   special?: string | null | undefined
   text: string
 }) {
@@ -491,7 +1092,8 @@ function enrichSpeechMetadataWithDrivers(input: {
   if (!input.script)
     return metadata
 
-  const projectedCue = resolvePlaybackTelemetryCue({
+  const seededPlaybackCue = resolveEmbodimentPlaybackMetadataFromMetadata(metadata)?.cue ?? null
+  const projectedCueCandidate = resolvePlaybackTelemetryCue({
     cue: input.cue,
     digitalLifeFrame: input.digitalLifeFrame,
     metadata,
@@ -499,6 +1101,13 @@ function enrichSpeechMetadataWithDrivers(input: {
     special: input.special,
     text: input.text,
   })
+  const projectedCue = projectedCueCandidate
+    ? {
+        ...projectedCueCandidate,
+        rendererHints: projectedCueCandidate.rendererHints ?? seededPlaybackCue?.rendererHints ?? null,
+        rendererSettle: projectedCueCandidate.rendererSettle ?? seededPlaybackCue?.rendererSettle ?? null,
+      }
+    : seededPlaybackCue
 
   const nextPlayback = resolveEmbodimentPlaybackMetadataFromMetadata(metadata) ?? {
     actualDurationMs: 0,
@@ -509,6 +1118,7 @@ function enrichSpeechMetadataWithDrivers(input: {
     rendererTarget: input.script.rendererTarget,
     cue: projectedCue,
     drivers: {
+      body: null,
       face: null,
       lipsync: null,
       motion: null,
@@ -518,21 +1128,78 @@ function enrichSpeechMetadataWithDrivers(input: {
   nextPlayback.cue = projectedCue
 
   nextPlayback.drivers = resolvePlaybackDriverMetadata({
+    continuityHoldMs: input.digitalLifeFrame?.lipSync.continuityHoldMs,
+    cue: input.cue ?? null,
+    digitalLifeFrame: input.digitalLifeFrame ?? null,
     idleCuePhase: input.idleCuePhase,
+    metadata,
     script: input.script,
     segmentId: input.segmentId,
     playbackPhase: input.playbackPhase,
+    suppressBodyDriver: input.suppressBodyDriver,
+    text: input.text,
+  })
+  const shouldSuppressBodyDriverFromFrame = !input.suppressBodyDriver && shouldSuppressRendererOnlyRejoinBodyDriverFromFrame({
+    digitalLifeFrame: input.digitalLifeFrame ?? null,
+    residentMode: input.script.state.residentMode,
+  })
+  if (shouldSuppressBodyDriverFromFrame)
+    nextPlayback.drivers = removeBodyDriverFromPlaybackMetadata(nextPlayback.drivers)
+  const initialDriverAuthority = resolveEmbodimentPlaybackDriverAuthority({
+    drivers: nextPlayback.drivers,
+    rendererTarget: input.script.rendererTarget,
+    segmentId: input.segmentId,
+  })
+  const seededAuthority = resolveEmbodimentPlaybackMetadataFromMetadata(metadata)?.driverAuthority ?? null
+  const seededRendererOnlyRejoin = Boolean(
+    seededAuthority
+    && !seededAuthority.bodySegmentMatched
+    && seededAuthority.lipsyncSegmentMatched,
+  )
+  const suppressionAuthority = seededRendererOnlyRejoin && initialDriverAuthority
+    ? {
+        ...initialDriverAuthority,
+        bodySegmentMatched: false,
+        matchedDrivers: initialDriverAuthority.matchedDrivers.filter(driver => driver !== 'body'),
+      }
+    : initialDriverAuthority
+  if (!shouldSuppressBodyDriverFromFrame && !input.suppressBodyDriver && shouldSuppressRendererOnlyRejoinBodyDriver({
+    driverAuthority: suppressionAuthority,
+    digitalLifeFrame: input.digitalLifeFrame ?? null,
+    metadata,
+    residentMode: input.script.state.residentMode,
+  })) {
+    nextPlayback.drivers = removeBodyDriverFromPlaybackMetadata(nextPlayback.drivers)
+  }
+  nextPlayback.prosodyAuthority = resolveEmbodimentPlaybackProsodyAuthority({
+    cue: projectedCue,
+    driverAuthority: suppressionAuthority,
+    drivers: nextPlayback.drivers,
   })
   nextPlayback.driverAuthority = resolveEmbodimentPlaybackDriverAuthority({
     drivers: nextPlayback.drivers,
     rendererTarget: input.script.rendererTarget,
     segmentId: input.segmentId,
+    prosodyAuthority: nextPlayback.prosodyAuthority,
   })
-  nextPlayback.prosodyAuthority = resolveEmbodimentPlaybackProsodyAuthority({
-    cue: projectedCue,
-    driverAuthority: nextPlayback.driverAuthority,
+
+  const restrainedRendererOnlyRejoin = shouldRestrainRendererOnlyRejoin({
     drivers: nextPlayback.drivers,
+    driverAuthority: nextPlayback.driverAuthority,
+    metadata,
+    residentMode: input.script.state.residentMode,
   })
+  if (restrainedRendererOnlyRejoin) {
+    nextPlayback.drivers = removeBodyDriverFromPlaybackMetadata(nextPlayback.drivers)
+    nextPlayback.driverAuthority = applyRestrainedRendererOnlyRejoinAuthority({
+      driverAuthority: resolveEmbodimentPlaybackDriverAuthority({
+        drivers: nextPlayback.drivers,
+        rendererTarget: input.script.rendererTarget,
+        segmentId: input.segmentId,
+        prosodyAuthority: nextPlayback.prosodyAuthority,
+      }),
+    })
+  }
 
   return {
     ...metadata,
@@ -547,6 +1214,833 @@ function resolveSpeechMetadataIdleCuePhase(
   metadata: Record<string, unknown> | null | undefined,
 ) {
   return resolveSpeechDriverPhaseMetadata(metadata)?.idleCuePhase
+}
+
+function resolveHesitantMeasuredReturnVrmRendererSettle(input: {
+  rendererSettle: AlicizationDialogueSpeechRendererSettleHints | null | undefined
+  rendererHints: AlicizationDialogueEmbodimentRendererHints | null | undefined
+  script: AlicizationEmbodimentScriptV1
+}) {
+  const rendererSettle = input.rendererSettle
+    ? {
+        live2dFacialReleaseMs: input.rendererSettle.live2dFacialReleaseMs,
+        live2dMotionFollowThroughMs: input.rendererSettle.live2dMotionFollowThroughMs,
+        vrmActionFadeMs: input.rendererSettle.vrmActionFadeMs,
+        vrmExpressionBlendMs: input.rendererSettle.vrmExpressionBlendMs,
+      }
+    : null
+  if (!rendererSettle)
+    return rendererSettle
+
+  const effectiveResidentMode = resolveEffectiveSpeechResidentMode({
+    residentMode: input.script.state.residentMode,
+    rendererHints: input.rendererHints,
+  })
+  const hesitantMeasuredReturnVrm = input.script.rendererTarget === 'vrm'
+    && effectiveResidentMode === 'measured-return'
+    && input.script.state.delivery === 'hesitant'
+    && (
+      input.rendererHints?.preferredBlinkCadence === 'linger'
+      || input.rendererHints?.preferredGazeMode === 'soften'
+    )
+  const softenedSameHerVrm = input.script.rendererTarget === 'vrm'
+    && hasSoftenedSameHerRendererCarry(input.rendererHints)
+    && (
+      input.rendererHints?.preferredBlinkCadence === 'linger'
+      || input.rendererHints?.preferredBlinkCadence === 'quiet'
+      || input.rendererHints?.preferredGazeMode === 'soften'
+      || input.rendererHints?.preferredGazeMode === 'steady'
+    )
+
+  if (!hesitantMeasuredReturnVrm && !softenedSameHerVrm)
+    return rendererSettle
+
+  return {
+    ...rendererSettle,
+    vrmActionFadeMs: Math.max(
+      rendererSettle.vrmActionFadeMs ?? 0,
+      hesitantMeasuredReturnVrm ? 300 : 220,
+    ),
+    vrmExpressionBlendMs: Math.max(
+      rendererSettle.vrmExpressionBlendMs ?? 0,
+      hesitantMeasuredReturnVrm ? 360 : 320,
+    ),
+  } satisfies AlicizationDialogueSpeechRendererSettleHints
+}
+
+function applyHesitantMeasuredReturnVrmPreviewCue(input: {
+  cue: AlicizationDialogueSpeechTimelineSegment | null
+  script: AlicizationEmbodimentScriptV1 | null
+}) {
+  if (!input.cue || !input.script)
+    return input.cue
+
+  const rendererSettle = resolveHesitantMeasuredReturnVrmRendererSettle({
+    rendererSettle: input.cue.rendererSettle ?? null,
+    rendererHints: input.cue.rendererHints ?? null,
+    script: input.script,
+  })
+  if (!rendererSettle)
+    return input.cue
+
+  return {
+    ...input.cue,
+    rendererSettle,
+  } satisfies AlicizationDialogueSpeechTimelineSegment
+}
+
+function resolveProjectedAuthorityCueFromMetadata(input: {
+  descriptor: SpeechPlaybackDescriptor
+  cue: AlicizationDialogueSpeechTimelineSegment | null
+}) {
+  const script = resolveEmbodimentScriptFromMetadata(input.descriptor.metadata)
+  if (!script)
+    return null
+
+  const segmentId = resolvePlaybackDriverSegmentId({
+    cue: input.cue,
+    digitalLifeFrame: null,
+    metadata: input.descriptor.metadata,
+    script,
+    segmentId: input.descriptor.segmentId,
+    text: input.descriptor.text,
+  })
+  const speechSegment = segmentId
+    ? script.speechPlan.segments.find(segment => segment.id === segmentId)
+    : undefined
+  const faceCue = segmentId
+    ? script.facePlan.speakingCues.find(segment => segment.segmentId === segmentId)
+    : undefined
+  const motionCue = segmentId
+    ? script.motionPlan.actionBursts.find(segment => segment.segmentId === segmentId)
+    : undefined
+  const residentMode = resolveEffectiveSpeechResidentMode({
+    residentMode: script.state.residentMode,
+    rendererHints: speechSegment?.rendererHints ?? input.cue?.rendererHints ?? null,
+  })
+
+  const fallbackSettleMode = residentMode === 'measured-return'
+    ? 'linger' as const
+    : residentMode === 'repair-before-closeness'
+      ? 'hold' as const
+      : 'release' as const
+  const metadataCue = speechSegment
+    ? {
+      id: speechSegment.id,
+      index: speechSegment.index,
+      startOffset: Number.isFinite(Number(input.cue?.startOffset)) ? Math.max(0, Number(input.cue?.startOffset)) : 0,
+      endOffset: Number.isFinite(Number(input.cue?.endOffset))
+        ? Math.max(
+            Number.isFinite(Number(input.cue?.startOffset)) ? Math.max(0, Number(input.cue?.startOffset)) : 0,
+            Number(input.cue?.endOffset),
+          )
+        : Math.max(1, Array.from(input.descriptor.text).length),
+      text: input.descriptor.text,
+      emotion: faceCue?.emotion ?? input.cue?.emotion ?? script.state.baseEmotion,
+      gestureWeight: motionCue?.intensity ?? input.cue?.gestureWeight ?? 0,
+      facialWeight: faceCue?.intensity ?? input.cue?.facialWeight ?? 0,
+      prosodyWeight: input.cue?.prosodyWeight ?? 0,
+      beatWeight: input.cue?.beatWeight ?? 0,
+      mouthWeight: input.cue?.mouthWeight ?? faceCue?.intensity ?? 0,
+      headWeight: input.cue?.headWeight ?? motionCue?.intensity ?? 0,
+      facialHoldMs: faceCue?.holdMs ?? speechSegment.settleMs,
+      actionHoldMs: motionCue?.holdMs ?? speechSegment.settleMs,
+      emotionHoldMs: faceCue?.holdMs ?? speechSegment.settleMs,
+      settleMode: input.cue?.settleMode ?? fallbackSettleMode,
+      rendererSettle: resolveHesitantMeasuredReturnVrmRendererSettle({
+        rendererSettle: speechSegment.rendererSettle ?? input.cue?.rendererSettle ?? null,
+        rendererHints: speechSegment.rendererHints ?? input.cue?.rendererHints ?? null,
+        script,
+      }),
+      rendererHints: speechSegment.rendererHints ?? input.cue?.rendererHints ?? null,
+      actionCue: motionCue?.actionCue ?? input.cue?.actionCue ?? null,
+      facialCue: faceCue?.facialCue ?? input.cue?.facialCue ?? null,
+      actionWindow: input.cue?.actionWindow ?? 'none',
+      interruptMode: resolveTimelineInterruptModeFromPolicy(speechSegment.interruptPolicy),
+    } satisfies AlicizationDialogueSpeechTimelineSegment
+    : input.cue
+
+  return resolvePlaybackTelemetryCue({
+    cue: metadataCue,
+    digitalLifeFrame: null,
+    metadata: input.descriptor.metadata,
+    segmentId,
+    special: input.descriptor.special,
+    text: input.descriptor.text,
+  })
+}
+
+function shouldRestrainRendererOnlyRejoin(input: {
+  drivers: EmbodimentPlaybackDriverTelemetry
+  driverAuthority: ReturnType<typeof resolveEmbodimentPlaybackDriverAuthority> | null
+  metadata?: Record<string, unknown> | null | undefined
+  residentMode: AlicizationEmbodimentScriptV1['state']['residentMode'] | null | undefined
+}) {
+  const residentMode = input.residentMode ?? null
+  if (residentMode !== 'repair-before-closeness' && residentMode !== 'measured-return')
+    return false
+
+  const authority = input.driverAuthority
+  if (!authority)
+    return false
+
+  const seededAuthority = resolveEmbodimentPlaybackMetadataFromMetadata(input.metadata)?.driverAuthority ?? null
+  const seededRendererOnlyRejoin = Boolean(
+    seededAuthority
+    && !seededAuthority.bodySegmentMatched
+    && seededAuthority.lipsyncSegmentMatched,
+  )
+  const body = input.drivers.body
+  const weakBodyCarry = !body
+    || body.frameMode === 'recovering'
+    || (typeof body.expressivity === 'number' && body.expressivity <= 0.18)
+    || (typeof body.gazeStability === 'number' && body.gazeStability <= 0.42)
+
+  return (weakBodyCarry || seededRendererOnlyRejoin)
+    && !authority.bodySegmentMatched
+    && authority.lipsyncSegmentMatched
+    && (
+      authority.faceSegmentMatched
+      || authority.motionSegmentMatched
+      || authority.matchedDrivers.includes('lipsync')
+    )
+}
+
+function applyRestrainedRendererOnlyRejoinCue(input: {
+  cue: AlicizationDialogueSpeechTimelineSegment | null
+  residentMode: AlicizationEmbodimentScriptV1['state']['residentMode'] | null | undefined
+}) {
+  if (!input.cue)
+    return input.cue
+
+  const residentMode = input.residentMode ?? null
+  return {
+    ...input.cue,
+    facialCue: residentMode === 'repair-before-closeness' ? 'soft-gaze' : input.cue.facialCue,
+    actionCue: null,
+    settleMode: 'hold' as const,
+    rendererHints: {
+      ...input.cue.rendererHints,
+      residentMode: residentMode ?? undefined,
+      preferredGazeMode: 'soften',
+      preferredBlinkCadence: 'linger',
+    },
+  } satisfies AlicizationDialogueSpeechTimelineSegment
+}
+
+function applyRestrainedRendererOnlyRejoinFrame(input: {
+  frame: AlicizationDigitalLifeFrame | null
+  residentMode: AlicizationEmbodimentScriptV1['state']['residentMode'] | null | undefined
+}) {
+  if (!input.frame)
+    return input.frame
+
+  const repairBeforeCloseness = input.residentMode === 'repair-before-closeness'
+
+  return {
+    ...input.frame,
+    settleMode: 'hold',
+    voice: {
+      ...input.frame.voice,
+      energy: Number(clampRange(
+        repairBeforeCloseness ? input.frame.voice.energy * 0.8125 : input.frame.voice.energy * 0.82,
+        0.16,
+        repairBeforeCloseness ? 0.26 : 0.48,
+      ).toFixed(2)),
+      cadence: Number(clampRange(
+        repairBeforeCloseness ? input.frame.voice.cadence * 0.8928571429 : input.frame.voice.cadence * 0.88,
+        0.16,
+        repairBeforeCloseness ? 0.25 : 0.52,
+      ).toFixed(2)),
+    },
+    lipSync: {
+      ...input.frame.lipSync,
+      visemeBias: Number(clampRange(
+        repairBeforeCloseness ? input.frame.lipSync.visemeBias * 0.8333333333 : input.frame.lipSync.visemeBias * 0.84,
+        0.18,
+        repairBeforeCloseness ? 0.35 : 0.58,
+      ).toFixed(2)),
+      energyBias: Number(clampRange(
+        repairBeforeCloseness ? input.frame.lipSync.energyBias * 0.8125 : input.frame.lipSync.energyBias * 0.82,
+        0.14,
+        repairBeforeCloseness ? 0.26 : 0.46,
+      ).toFixed(2)),
+      mouthScale: Number(clampRange(
+        repairBeforeCloseness ? input.frame.lipSync.mouthScale * 0.9186046512 : input.frame.lipSync.mouthScale * 0.92,
+        0.4,
+        repairBeforeCloseness ? 0.79 : 1.1,
+      ).toFixed(2)),
+      continuityHoldMs: Math.max(input.frame.lipSync.continuityHoldMs, input.frame.face.holdMs),
+    },
+    face: {
+      ...input.frame.face,
+      facialCue: repairBeforeCloseness ? 'soft-gaze' : input.frame.face.facialCue,
+      expressionMode: 'hold',
+      intensity: Number(clampRange(
+        repairBeforeCloseness ? input.frame.face.intensity * 0.8684210526 : input.frame.face.intensity * 0.88,
+        0.18,
+        repairBeforeCloseness ? 0.33 : 0.52,
+      ).toFixed(2)),
+      rendererHints: {
+        ...input.frame.face.rendererHints,
+        residentMode: input.residentMode ?? undefined,
+        preferredGazeMode: 'soften',
+        preferredBlinkCadence: 'linger',
+      },
+    },
+    action: {
+      ...input.frame.action,
+      actionCue: repairBeforeCloseness ? 'idle_settle' : null,
+      actionMode: repairBeforeCloseness ? 'hold' : 'none',
+      intensity: repairBeforeCloseness
+        ? Number(clampRange(input.frame.action.intensity * 0.75, 0.06, 0.18).toFixed(2))
+        : 0,
+      rendererHints: {
+        ...input.frame.action.rendererHints,
+        residentMode: input.residentMode ?? undefined,
+        preferredGazeMode: 'soften',
+        preferredBlinkCadence: 'linger',
+      },
+    },
+  } satisfies AlicizationDigitalLifeFrame
+}
+
+function applyAudibleSameHerRendererOnlyRejoinFrame(
+  frame: AlicizationDigitalLifeFrame | null,
+) {
+  if (!frame)
+    return frame
+
+  const rendererHints = frame.face.rendererHints ?? frame.action.rendererHints ?? null
+
+  return {
+    ...frame,
+    settleMode: frame.settleMode === 'hold' ? 'hold' : 'linger',
+    voice: {
+      ...frame.voice,
+      energy: Number(clampRange(frame.voice.energy * 0.9, 0.16, 0.38).toFixed(2)),
+      cadence: Number(clampRange(frame.voice.cadence * 0.92, 0.16, 0.32).toFixed(2)),
+    },
+    lipSync: {
+      ...frame.lipSync,
+      visemeBias: Number(clampRange(frame.lipSync.visemeBias * 0.92, 0.18, 0.5).toFixed(2)),
+      energyBias: Number(clampRange(frame.lipSync.energyBias * 0.9, 0.14, 0.38).toFixed(2)),
+      mouthScale: Number(clampRange(frame.lipSync.mouthScale * 0.94, 0.4, 0.94).toFixed(2)),
+      continuityHoldMs: Math.max(inputContinuityHoldMs(frame), frame.face.holdMs),
+    },
+    face: {
+      ...frame.face,
+      intensity: Number(clampRange(frame.face.intensity * 0.93, 0.18, 0.46).toFixed(2)),
+      rendererHints: {
+        ...rendererHints ?? frame.face.rendererHints,
+        preferredGazeMode: 'soften',
+        preferredBlinkCadence: 'linger',
+      },
+    },
+    action: {
+      ...frame.action,
+      intensity: frame.action.actionCue
+        ? Number(clampRange(frame.action.intensity * 0.88, 0, 0.2).toFixed(2))
+        : 0,
+      rendererHints: {
+        ...rendererHints ?? frame.action.rendererHints,
+        preferredGazeMode: 'soften',
+        preferredBlinkCadence: 'linger',
+      },
+    },
+  } satisfies AlicizationDigitalLifeFrame
+}
+
+function inputContinuityHoldMs(frame: AlicizationDigitalLifeFrame) {
+  return frame.lipSync.continuityHoldMs
+}
+
+function normalizeRendererOnlyRejoinFrame(input: {
+  frame: AlicizationDigitalLifeFrame | null
+  residentMode: AlicizationEmbodimentScriptV1['state']['residentMode'] | null | undefined
+}) {
+  const frame = input.frame
+  if (!frame)
+    return frame
+
+  const bodyIsStillWeak = frame.mode === 'recovering'
+    || frame.face.expressionMode === 'recover'
+    || frame.motor.expressivity <= 0.18
+    || (readMotorGazeStability(frame.motor) ?? 1) <= 0.42
+
+  const rendererAlreadyRejoined = frame.lipSync.continuityHoldMs >= 180
+    && frame.lipSync.mouthScale >= 0.78
+    && frame.settleMode === 'hold'
+
+  const repairBeforeCloseness = input.residentMode === 'repair-before-closeness'
+  const softenedSameHerRendererCarry = hasSoftenedSameHerRendererCarry(
+    frame.face.rendererHints ?? frame.action.rendererHints ?? null,
+  )
+  const alreadyRestrainedRendererOnlyRejoin = repairBeforeCloseness
+    && frame.face.facialCue === 'soft-gaze'
+    && frame.face.expressionMode === 'hold'
+    && frame.action.actionCue === 'idle_settle'
+    && frame.action.actionMode === 'hold'
+    && frame.voice.energy <= 0.26
+    && frame.voice.cadence <= 0.25
+    && frame.lipSync.visemeBias <= 0.35
+    && frame.lipSync.energyBias <= 0.26
+    && frame.lipSync.mouthScale <= 0.79
+    && frame.face.intensity <= 0.33
+    && frame.action.intensity <= 0.09
+
+  if (!bodyIsStillWeak || !rendererAlreadyRejoined)
+    return frame
+
+  if (alreadyRestrainedRendererOnlyRejoin)
+    return frame
+
+  if (softenedSameHerRendererCarry)
+    return applyAudibleSameHerRendererOnlyRejoinFrame(frame)
+
+  return applyRestrainedRendererOnlyRejoinFrame(input)
+}
+
+function resolveDescriptorScriptDigitalLifeFrame(
+  descriptor: SpeechPlaybackDescriptor,
+  cue: AlicizationDialogueSpeechTimelineSegment | null,
+) {
+  const script = resolveEmbodimentScriptFromMetadata(descriptor.metadata)
+  const metadataResidentMode = resolveProjectClosureSpeechResidentModeFromMetadata(
+    descriptor.metadata,
+  )
+  const residentMode = resolveEffectiveSpeechResidentModeFromCueOrFrame({
+    residentMode: script?.state.residentMode ?? metadataResidentMode,
+    cue,
+    digitalLifeFrame: descriptor.digitalLifeFrame ?? null,
+  })
+  const directFrame = descriptor.digitalLifeFrame
+    ? normalizeRendererOnlyRejoinFrame({
+        frame: descriptor.digitalLifeFrame,
+        residentMode,
+      })
+    : null
+  if (directFrame)
+    return directFrame
+
+  if (!script)
+    return null
+
+  const scriptFrames = normalizeAlicizationDigitalLifeEnvelope(
+    descriptor.metadata?.digitalLife ?? null,
+  )?.frames ?? []
+  if (scriptFrames.length === 0)
+    return null
+
+  const normalizedText = normalizeAlignmentText(descriptor.text)
+  const matchedFrame = scriptFrames.find((frame) => {
+    const frameId = frame.id?.trim() || null
+    if (descriptor.segmentId?.trim() && frameId === descriptor.segmentId.trim())
+      return true
+    if (cue?.id?.trim() && frameId === cue.id.trim())
+      return true
+    return normalizeAlignmentText(frame.text) === normalizedText
+  }) ?? null
+
+  return matchedFrame
+    ? normalizeRendererOnlyRejoinFrame({
+        frame: matchedFrame,
+        residentMode,
+      })
+    : null
+}
+
+function resolveRendererOnlyRejoinStopFrame(input: {
+  cue: AlicizationDialogueSpeechTimelineSegment | null
+  digitalLifeFrame: AlicizationDigitalLifeFrame | null | undefined
+  metadata: Record<string, unknown> | null | undefined
+  segmentId: string | null | undefined
+  text: string
+}) {
+  const frame = input.digitalLifeFrame ?? null
+  const script = resolveEmbodimentScriptFromMetadata(input.metadata)
+  if (!frame || !script)
+    return null
+  const residentMode = resolveEffectiveSpeechResidentModeFromCueOrFrame({
+    residentMode: script.state.residentMode,
+    cue: input.cue,
+    digitalLifeFrame: frame,
+  })
+  const shouldForceBodySuppression = shouldForceRestrainedStopTailBodySuppression({
+    scriptResidentMode: script.state.residentMode,
+    residentMode,
+    cue: input.cue,
+    digitalLifeFrame: frame,
+  })
+  const drivers = shouldForceBodySuppression
+    ? removeBodyDriverFromPlaybackMetadata(resolvePlaybackDriverMetadata({
+        cue: input.cue,
+        digitalLifeFrame: frame,
+        metadata: input.metadata,
+        script,
+        segmentId: input.segmentId,
+        playbackPhase: 'idle',
+        text: input.text,
+      }))
+    : resolvePlaybackDriverMetadata({
+        cue: input.cue,
+        digitalLifeFrame: frame,
+        metadata: input.metadata,
+        script,
+        segmentId: input.segmentId,
+        playbackPhase: 'idle',
+        text: input.text,
+      })
+  const initialDriverAuthority = resolveEmbodimentPlaybackDriverAuthority({
+    drivers,
+    rendererTarget: script.rendererTarget,
+    segmentId: input.segmentId,
+  })
+  const prosodyAuthority = resolveEmbodimentPlaybackProsodyAuthority({
+    cue: input.cue,
+    driverAuthority: initialDriverAuthority,
+    drivers,
+  })
+  const driverAuthority = resolveEmbodimentPlaybackDriverAuthority({
+    drivers,
+    rendererTarget: script.rendererTarget,
+    segmentId: input.segmentId,
+    prosodyAuthority,
+  })
+
+  if (!shouldRestrainRendererOnlyRejoin({
+    drivers,
+    driverAuthority,
+    metadata: input.metadata,
+    residentMode,
+  })) {
+    return null
+  }
+
+  return applyRestrainedRendererOnlyRejoinFrame({
+    frame,
+    residentMode,
+  })
+}
+
+function resolveRestrainedRendererOnlyRejoinDrivers(input: {
+  cue: AlicizationDialogueSpeechTimelineSegment | null
+  digitalLifeFrame: AlicizationDigitalLifeFrame | null | undefined
+  idleCuePhase?: 'pre-utterance' | 'post-utterance'
+  metadata: Record<string, unknown> | null | undefined
+  script: AlicizationEmbodimentScriptV1
+  segmentId: string | null | undefined
+  text: string
+}) {
+  const baseDrivers = resolvePlaybackDriverMetadata({
+    cue: input.cue,
+    digitalLifeFrame: input.digitalLifeFrame ?? null,
+    idleCuePhase: input.idleCuePhase,
+    metadata: input.metadata,
+    script: input.script,
+    segmentId: input.segmentId,
+    playbackPhase: 'idle',
+    text: input.text,
+  })
+  const initialDriverAuthority = resolveEmbodimentPlaybackDriverAuthority({
+    drivers: baseDrivers,
+    rendererTarget: input.script.rendererTarget,
+    segmentId: input.segmentId,
+  })
+  const prosodyAuthority = resolveEmbodimentPlaybackProsodyAuthority({
+    cue: input.cue,
+    driverAuthority: initialDriverAuthority,
+    drivers: baseDrivers,
+  })
+  const driverAuthority = resolveEmbodimentPlaybackDriverAuthority({
+    drivers: baseDrivers,
+    rendererTarget: input.script.rendererTarget,
+    segmentId: input.segmentId,
+    prosodyAuthority,
+  })
+  const residentMode = resolveEffectiveSpeechResidentModeFromCueOrFrame({
+    residentMode: input.script.state.residentMode,
+    cue: input.cue,
+    digitalLifeFrame: input.digitalLifeFrame ?? null,
+  })
+  const restrainedRendererOnlyRejoin = shouldRestrainRendererOnlyRejoin({
+    drivers: baseDrivers,
+    driverAuthority,
+    metadata: input.metadata,
+    residentMode,
+  })
+
+  if (!restrainedRendererOnlyRejoin)
+    return { drivers: baseDrivers, driverAuthority, prosodyAuthority, restrainedRendererOnlyRejoin }
+
+  const restrainedFrame = applyRestrainedRendererOnlyRejoinFrame({
+    frame: input.digitalLifeFrame ?? null,
+    residentMode,
+  })
+  const restrainedDrivers = resolvePlaybackDriverMetadata({
+    cue: input.cue,
+    digitalLifeFrame: restrainedFrame,
+    idleCuePhase: input.idleCuePhase,
+    metadata: input.metadata,
+    script: input.script,
+    segmentId: input.segmentId,
+    playbackPhase: 'idle',
+    text: input.text,
+  })
+  const restrainedInitialDriverAuthority = resolveEmbodimentPlaybackDriverAuthority({
+    drivers: restrainedDrivers,
+    rendererTarget: input.script.rendererTarget,
+    segmentId: input.segmentId,
+  })
+  const restrainedProsodyAuthority = resolveEmbodimentPlaybackProsodyAuthority({
+    cue: input.cue,
+    driverAuthority: restrainedInitialDriverAuthority,
+    drivers: restrainedDrivers,
+  })
+  const restrainedDriverAuthority = resolveEmbodimentPlaybackDriverAuthority({
+    drivers: restrainedDrivers,
+    rendererTarget: input.script.rendererTarget,
+    segmentId: input.segmentId,
+    prosodyAuthority: restrainedProsodyAuthority,
+  })
+
+  return {
+    drivers: restrainedDrivers,
+    driverAuthority: restrainedDriverAuthority,
+    prosodyAuthority: restrainedProsodyAuthority,
+    restrainedRendererOnlyRejoin,
+  }
+}
+
+function applyRestrainedRendererOnlyRejoinPlaybackMetadata(input: {
+  metadata: Record<string, unknown> | null | undefined
+}) {
+  const playback = resolveEmbodimentPlaybackMetadataFromMetadata(input.metadata)
+  if (!playback)
+    return input.metadata
+
+  const drivers = removeBodyDriverFromPlaybackMetadata(playback.drivers)
+  const prosodyAuthority = playback.prosodyAuthority ?? playback.driverAuthority?.prosodyAuthority ?? null
+  const driverAuthority = applyRestrainedRendererOnlyRejoinAuthority({
+    driverAuthority: resolveEmbodimentPlaybackDriverAuthority({
+      drivers,
+      rendererTarget: playback.rendererTarget ?? null,
+      segmentId: playback.driverAuthority?.segmentId ?? prosodyAuthority?.segmentId ?? null,
+      prosodyAuthority,
+    }),
+  })
+
+  return {
+    ...input.metadata,
+    embodimentPlayback: {
+      ...playback,
+      drivers,
+      driverAuthority,
+      prosodyAuthority,
+    },
+  } satisfies Record<string, unknown>
+}
+
+function createRestrainedRendererOnlyRejoinStopItem(input: {
+  continuityHoldMs: number
+  cue: AlicizationDialogueSpeechTimelineSegment | null
+  digitalLifeFrame: AlicizationDigitalLifeFrame
+  item: SpeechPlaybackDescriptor
+  metadata: Record<string, unknown> | null | undefined
+}) {
+  const script = resolveEmbodimentScriptFromMetadata(input.metadata)
+  const rebuiltMetadata = enrichSpeechMetadataWithDrivers({
+    cue: input.cue,
+    digitalLifeFrame: input.digitalLifeFrame,
+    idleCuePhase: 'post-utterance',
+    metadata: input.metadata,
+    script,
+    segmentId: input.item.segmentId,
+    playbackPhase: 'idle',
+    suppressBodyDriver: true,
+    special: input.item.special,
+    text: input.item.text,
+  })
+  const metadata = applyRestrainedRendererOnlyRejoinPlaybackMetadata({
+    metadata: rebuiltMetadata,
+  })
+
+  const playbackItem = createStageEmbodimentSpeechPlaybackItem({
+    ...input.item,
+    continuityHoldMs: input.continuityHoldMs,
+    cue: input.cue,
+    digitalLifeFrame: input.digitalLifeFrame,
+    metadata,
+    playbackDurationMs: input.item.playbackDurationMs ?? estimateStageEmbodimentSpeechPlaybackDurationMs({
+      text: input.item.text,
+      special: input.item.special,
+      metadata,
+      digitalLifeFrame: input.digitalLifeFrame,
+    }),
+  })
+
+  const restrainedPlayback = resolveEmbodimentPlaybackMetadataFromMetadata(metadata)
+
+  return {
+    ...playbackItem,
+    metadata: metadata
+      ? {
+          ...metadata,
+          embodimentPlayback: restrainedPlayback,
+        }
+      : null,
+  }
+}
+
+function createRestrainedRendererOnlyRejoinStartItem(input: {
+  continuityHoldMs: number | null | undefined
+  cue: AlicizationDialogueSpeechTimelineSegment | null
+  digitalLifeFrame: AlicizationDigitalLifeFrame
+  item: SpeechPlaybackDescriptor
+  metadata: Record<string, unknown> | null | undefined
+  playbackDurationMs: number
+}) {
+  const metadata = applyRestrainedRendererOnlyRejoinPlaybackMetadata({
+    metadata: enrichSpeechMetadataWithDrivers({
+      cue: input.cue,
+      digitalLifeFrame: input.digitalLifeFrame,
+      metadata: input.metadata,
+      script: resolveEmbodimentScriptFromMetadata(input.metadata),
+      segmentId: input.item.segmentId,
+      playbackPhase: 'playing',
+      suppressBodyDriver: true,
+      special: input.item.special,
+      text: input.item.text,
+    }),
+  })
+  const playbackItem = createStageEmbodimentSpeechPlaybackItem({
+    ...input.item,
+    continuityHoldMs: input.continuityHoldMs,
+    cue: input.cue,
+    digitalLifeFrame: input.digitalLifeFrame,
+    metadata,
+    playbackDurationMs: input.playbackDurationMs,
+  })
+  const restrainedPlayback = resolveEmbodimentPlaybackMetadataFromMetadata(metadata)
+
+  return {
+    ...playbackItem,
+    metadata: metadata
+      ? {
+          ...metadata,
+          embodimentPlayback: restrainedPlayback,
+        }
+      : null,
+  }
+}
+
+function enforceRestrainedRendererOnlyRejoinPlaybackMetadata(input: {
+  item: ReturnType<typeof createStageEmbodimentSpeechPlaybackItem>
+}) {
+  const metadata = applyRestrainedRendererOnlyRejoinPlaybackMetadata({
+    metadata: input.item.metadata,
+  })
+  const restrainedPlayback = resolveEmbodimentPlaybackMetadataFromMetadata(metadata)
+
+  return {
+    ...input.item,
+    metadata: metadata
+      ? {
+          ...metadata,
+          embodimentPlayback: restrainedPlayback,
+        }
+      : null,
+  }
+}
+
+function shouldPreserveRestrainedRendererOnlyRejoinPlaybackItem(
+  item: StageEmbodimentSpeechPlaybackState['item'],
+) {
+  const playback = resolveEmbodimentPlaybackMetadataFromMetadata(item?.metadata)
+  if (!item || !playback?.driverAuthority)
+    return false
+
+  const softenedSameHerRendererCarry = hasSoftenedSameHerRendererCarry(
+    item.digitalLifeFrame?.face.rendererHints
+    ?? item.digitalLifeFrame?.action.rendererHints
+    ?? item.cue?.rendererHints
+    ?? playback.cue?.rendererHints
+    ?? null,
+  )
+
+  return !playback.driverAuthority.bodySegmentMatched
+    && playback.driverAuthority.lipsyncSegmentMatched
+    && (
+      item.digitalLifeFrame?.settleMode === 'hold'
+      || (softenedSameHerRendererCarry && item.digitalLifeFrame?.settleMode === 'linger')
+    )
+}
+
+function hasRestrainedRendererOnlyRejoinContinuity(
+  playback: ReturnType<typeof resolveEmbodimentPlaybackMetadataFromMetadata> | null | undefined,
+) {
+  const authority = playback?.driverAuthority
+  if (!authority)
+    return false
+
+  return !authority.bodySegmentMatched
+    && authority.lipsyncSegmentMatched
+    && (
+      authority.faceSegmentMatched
+      || authority.motionSegmentMatched
+      || authority.matchedDrivers.includes('lipsync')
+    )
+}
+
+function shouldSuppressRendererOnlyRejoinBodyDriver(input: {
+  driverAuthority?: ReturnType<typeof resolveEmbodimentPlaybackDriverAuthority> | null
+  digitalLifeFrame?: AlicizationDigitalLifeFrame | null
+  metadata?: Record<string, unknown> | null | undefined
+  residentMode: AlicizationEmbodimentScriptV1['state']['residentMode'] | null | undefined
+}) {
+  const seededAuthority = resolveEmbodimentPlaybackMetadataFromMetadata(input.metadata)?.driverAuthority ?? null
+  if (
+    seededAuthority
+    && !seededAuthority.bodySegmentMatched
+    && seededAuthority.lipsyncSegmentMatched
+  ) {
+    return true
+  }
+
+  return shouldRestrainRendererOnlyRejoin({
+    drivers: {
+      body: input.digitalLifeFrame?.motor
+        ? {
+            frameMode: input.digitalLifeFrame.mode ?? null,
+            stillness: Number.isFinite(input.digitalLifeFrame.motor.stillness) ? Number(input.digitalLifeFrame.motor.stillness) : null,
+            gazeStability: readMotorGazeStability(input.digitalLifeFrame.motor),
+            breathAmplitude: readMotorBreathAmplitude(input.digitalLifeFrame.motor),
+            expressivity: Number.isFinite(input.digitalLifeFrame.motor.expressivity) ? Number(input.digitalLifeFrame.motor.expressivity) : null,
+            segmentId: input.digitalLifeFrame.id ?? null,
+          }
+        : null,
+      face: null,
+      lipsync: null,
+      motion: null,
+    },
+    driverAuthority: input.driverAuthority ?? null,
+    metadata: input.metadata,
+    residentMode: input.residentMode,
+  })
+}
+
+function applyRestrainedRendererOnlyRejoinAuthority(input: {
+  driverAuthority: ReturnType<typeof resolveEmbodimentPlaybackDriverAuthority> | null
+}) {
+  const authority = input.driverAuthority
+  if (!authority)
+    return authority
+
+  return {
+    ...authority,
+    matchedDrivers: authority.matchedDrivers.filter(driver => driver !== 'body'),
+    bodySegmentMatched: false,
+  }
 }
 
 function enrichSpeechMetadataWithReconciliation(input: {
@@ -575,12 +2069,68 @@ function enrichSpeechMetadataWithReconciliation(input: {
   if (!script)
     return metadataWithDrivers
 
-  const drivers = resolvePlaybackDriverMetadata({
+  const {
+    drivers,
+    driverAuthority,
+    restrainedRendererOnlyRejoin,
+  } = resolveRestrainedRendererOnlyRejoinDrivers({
     idleCuePhase: 'post-utterance',
+    cue: input.cue ?? null,
+    digitalLifeFrame: input.digitalLifeFrame ?? null,
+    metadata: metadataWithDrivers,
     script,
     segmentId: input.segmentId,
-    playbackPhase: 'idle',
+    text: input.text,
   })
+  const residentMode = resolveEffectiveSpeechResidentModeFromCueOrFrame({
+    residentMode: script.state.residentMode,
+    cue: input.cue ?? null,
+    digitalLifeFrame: input.digitalLifeFrame ?? null,
+  })
+  const restrainedPlaybackFrame = restrainedRendererOnlyRejoin
+    ? applyRestrainedRendererOnlyRejoinFrame({
+        frame: input.digitalLifeFrame ?? null,
+        residentMode,
+      })
+    : input.digitalLifeFrame ?? null
+  const reconciledCue = resolvePlaybackTelemetryCue({
+    cue: input.cue,
+    digitalLifeFrame: restrainedPlaybackFrame,
+    metadata: metadataWithDrivers,
+    segmentId: input.segmentId,
+    special: input.special,
+    text: input.text,
+  })
+  const normalizedProsodyAuthority = resolveEmbodimentPlaybackProsodyAuthority({
+    cue: reconciledCue,
+    driverAuthority,
+    drivers,
+  })
+  const normalizedDriverAuthority = resolveEmbodimentPlaybackDriverAuthority({
+    drivers,
+    rendererTarget: script.rendererTarget,
+    segmentId: input.segmentId,
+    prosodyAuthority: normalizedProsodyAuthority,
+  })
+  const finalizedDrivers = restrainedRendererOnlyRejoin
+    ? removeBodyDriverFromPlaybackMetadata(drivers)
+    : drivers
+  const finalizedDriverAuthority = restrainedRendererOnlyRejoin
+    ? applyRestrainedRendererOnlyRejoinAuthority({
+        driverAuthority: resolveEmbodimentPlaybackDriverAuthority({
+          drivers: finalizedDrivers,
+          rendererTarget: script.rendererTarget,
+          segmentId: input.segmentId,
+          prosodyAuthority: normalizedProsodyAuthority,
+        }),
+      })
+    : normalizedDriverAuthority
+  const normalizedCue = restrainedRendererOnlyRejoin
+    ? applyRestrainedRendererOnlyRejoinCue({
+        cue: reconciledCue,
+        residentMode,
+      })
+    : reconciledCue
 
   return {
     ...metadataWithDrivers,
@@ -592,36 +2142,10 @@ function enrichSpeechMetadataWithReconciliation(input: {
         stopReason: input.stopReason,
       }),
       rendererTarget: script.rendererTarget,
-      cue: resolvePlaybackTelemetryCue({
-        cue: input.cue,
-        digitalLifeFrame: input.digitalLifeFrame,
-        metadata: metadataWithDrivers,
-        segmentId: input.segmentId,
-        special: input.special,
-        text: input.text,
-      }),
-      drivers,
-      driverAuthority: resolveEmbodimentPlaybackDriverAuthority({
-        drivers,
-        rendererTarget: script.rendererTarget,
-        segmentId: input.segmentId,
-      }),
-      prosodyAuthority: resolveEmbodimentPlaybackProsodyAuthority({
-        cue: resolvePlaybackTelemetryCue({
-          cue: input.cue,
-          digitalLifeFrame: input.digitalLifeFrame,
-          metadata: metadataWithDrivers,
-          segmentId: input.segmentId,
-          special: input.special,
-          text: input.text,
-        }),
-        driverAuthority: resolveEmbodimentPlaybackDriverAuthority({
-          drivers,
-          rendererTarget: script.rendererTarget,
-          segmentId: input.segmentId,
-        }),
-        drivers,
-      }),
+      cue: normalizedCue,
+      drivers: finalizedDrivers,
+      driverAuthority: finalizedDriverAuthority,
+      prosodyAuthority: normalizedProsodyAuthority,
     },
   } satisfies Record<string, unknown>
 }
@@ -662,11 +2186,16 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
   let speechRenderRevision = 0
   let syntheticSpeech = createIdleSyntheticSpeechState()
   let speechTimelineAlignment = createIdleSpeechTimelineAlignmentState()
-  let speechPlanAlignment = createIdleSpeechPlanAlignmentState()
+  const speechPlanAlignment = createIdleSpeechPlanAlignmentState()
   let speechArticulationState = createIdleStageEmbodimentSpeechArticulationState()
   let speechArticulationStartedAt: number | null = null
+  let speechStopTailMouthOpen = 0
+  let speechStopTailStartedAt: number | null = null
+  let speechStopTailDurationMs = 0
   let digitalLifeEnvelopeSignature = ''
+  let authoritativeDigitalLifeEnvelope: AlicizationDigitalLifeEnvelope | null = null
   const digitalLifeFramesBySegmentId = new Map<string, AlicizationDigitalLifeFrame>()
+  const recentDigitalLifeFramesBySegmentId = new Map<string, AlicizationDigitalLifeFrame>()
   let speechStopLingerTimer: ReturnType<typeof setTimeout> | undefined
   const previewCueCache = new Map<string, AlicizationDialogueSpeechTimelineSegment>()
   let lastSpeechSignalsTickAt = 0
@@ -684,15 +2213,20 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
 
   function finalizeSpeechStopLinger() {
     speechStopLingerTimer = undefined
+    speechStopTailMouthOpen = 0
+    speechStopTailStartedAt = null
+    speechStopTailDurationMs = 0
+    setEmbodimentMouthOpenSize(0, false)
     speechRenderRevision += 1
     syncSpeechRenderState(null)
   }
 
   function scheduleSpeechStopLinger(item: SpeechPlaybackDescriptor, stopReason: string | null) {
     clearSpeechStopLinger()
+    const authoritativeItem = speechPlaybackState.value.item
 
     const lingerMs = resolveStageEmbodimentSpeechStopLingerMs({
-      item: createStageEmbodimentSpeechPlaybackItem({
+      item: authoritativeItem ?? createStageEmbodimentSpeechPlaybackItem({
         ...item,
         continuityHoldMs: item.continuityHoldMs,
       }),
@@ -704,6 +2238,8 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
       return
     }
 
+    speechStopTailStartedAt = performance.now()
+    speechStopTailDurationMs = lingerMs
     speechStopLingerTimer = setTimeout(() => {
       finalizeSpeechStopLinger()
     }, lingerMs)
@@ -855,47 +2391,173 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
     const lipSyncProfile = speechPlaybackState.value.item?.digitalLifeFrame?.lipSync
     const visemeBias = clampRange(lipSyncProfile?.visemeBias ?? 0.58, 0.16, 1)
     const energyBias = clampRange(lipSyncProfile?.energyBias ?? 0.42, 0.12, 1)
+    const durableMeasuredReturnTail = (
+      baseArticulation.progress >= 0.72
+      && speechPlaybackState.value.item?.digitalLifeFrame?.mode === 'recovering'
+      && speechPlaybackState.value.item?.digitalLifeFrame?.settleMode === 'linger'
+      && (
+        isDurableMeasuredReturnFrame(speechPlaybackState.value.item?.digitalLifeFrame)
+        || isDurableMeasuredReturnCue(speechPlaybackState.value.item?.cue)
+      )
+    )
+    const repairBeforeClosenessTail = (
+      baseArticulation.progress >= 0.72
+      && speechPlaybackState.value.item?.digitalLifeFrame?.mode === 'recovering'
+      && (
+        isRepairBeforeClosenessFrame(speechPlaybackState.value.item?.digitalLifeFrame)
+        || isRepairBeforeClosenessCue(speechPlaybackState.value.item?.cue)
+      )
+    )
+    const strongDurableMeasuredReturnTail = durableMeasuredReturnTail && (
+      isStrongDurableMeasuredReturnFrame(speechPlaybackState.value.item?.digitalLifeFrame)
+      || isStrongDurableMeasuredReturnCue(speechPlaybackState.value.item?.cue)
+    )
+    const durableTailOpenBias = strongDurableMeasuredReturnTail
+      ? 0.72
+      : durableMeasuredReturnTail
+        ? 0.86
+        : repairBeforeClosenessTail
+          ? 0.8
+          : 1
+    const durableTailClosureBias = strongDurableMeasuredReturnTail
+      ? 1.18
+      : durableMeasuredReturnTail
+        ? 1.08
+        : repairBeforeClosenessTail
+          ? 1.12
+          : 1
+    const durableTailClosureCarry = strongDurableMeasuredReturnTail
+      ? clampUnit(Math.max(
+          baseArticulation.lipClosure,
+          baseArticulation.visemes.closed,
+        ) * 1.08 + 0.12)
+      : durableMeasuredReturnTail
+        ? clampUnit(Math.max(
+            baseArticulation.lipClosure,
+            baseArticulation.visemes.closed,
+          ) * 1.02 + 0.06)
+        : repairBeforeClosenessTail
+          ? clampUnit(Math.max(
+              baseArticulation.lipClosure,
+              baseArticulation.visemes.closed,
+            ) * 1.04 + 0.08)
+          : 0
     const effectiveVisemeBias = clampRange(
-      visemeBias + hintStrength * 0.24 + authoritativeHintStrength * 0.22,
-      authoritativeHintStrength > 0 ? Math.max(visemeBias, 0.86) : visemeBias,
+      (
+        visemeBias + hintStrength * 0.24 + authoritativeHintStrength * 0.22
+      ) * (
+        strongDurableMeasuredReturnTail
+          ? 0.72
+          : durableMeasuredReturnTail
+            ? 0.84
+            : repairBeforeClosenessTail
+              ? 0.76
+              : 1
+      ),
+      authoritativeHintStrength > 0
+        ? Math.max(
+            visemeBias * (
+              strongDurableMeasuredReturnTail
+                ? 0.72
+                : durableMeasuredReturnTail
+                  ? 0.84
+                  : repairBeforeClosenessTail
+                    ? 0.76
+                    : 1
+            ),
+            strongDurableMeasuredReturnTail
+              ? 0.62
+              : durableMeasuredReturnTail
+                ? 0.74
+                : repairBeforeClosenessTail
+                  ? 0.68
+                  : 0.86,
+          )
+        : visemeBias * (
+          strongDurableMeasuredReturnTail
+            ? 0.72
+            : durableMeasuredReturnTail
+              ? 0.84
+              : repairBeforeClosenessTail
+                ? 0.76
+                : 1
+        ),
       1,
     )
     const effectiveEnergyBias = clampRange(
-      energyBias + hintedClosure * 0.18 + authoritativeHintStrength * 0.16,
-      authoritativeHintStrength > 0 ? Math.max(energyBias, 0.72) : energyBias,
+      energyBias
+      + hintedClosure * 0.18
+      + authoritativeHintStrength * 0.16
+      + (
+        strongDurableMeasuredReturnTail
+          ? 0.12
+          : durableMeasuredReturnTail
+            ? 0.06
+            : repairBeforeClosenessTail
+              ? 0.08
+              : 0
+      ),
+      authoritativeHintStrength > 0
+        ? Math.max(
+            energyBias + (
+              strongDurableMeasuredReturnTail
+                ? 0.12
+                : durableMeasuredReturnTail
+                  ? 0.06
+                  : repairBeforeClosenessTail
+                    ? 0.08
+                    : 0
+            ),
+            strongDurableMeasuredReturnTail
+              ? 0.72
+              : durableMeasuredReturnTail
+                ? 0.66
+                : repairBeforeClosenessTail
+                  ? 0.68
+                  : 0.72,
+          )
+        : energyBias + (
+          strongDurableMeasuredReturnTail
+            ? 0.12
+            : durableMeasuredReturnTail
+              ? 0.06
+              : repairBeforeClosenessTail
+                ? 0.08
+                : 0
+        ),
       1,
     )
     const voice = baseArticulation.voice
     const audioRound = clampUnit(
-      audioVisemes.U * 0.92
-      + audioVisemes.O * 0.68
+      audioVisemes.U * 0.92 * durableTailOpenBias
+      + audioVisemes.O * 0.68 * durableTailOpenBias
       + (voice?.roundBias ?? 0) * 0.18,
     )
     const audioSpread = clampUnit(
-      audioVisemes.I * 0.9
-      + audioVisemes.E * 0.66
+      audioVisemes.I * 0.9 * durableTailOpenBias
+      + audioVisemes.E * 0.66 * durableTailOpenBias
       + (voice?.spreadBias ?? 0) * 0.18,
     )
     const audioJaw = clampUnit(
-      audioVisemes.A * 0.88
-      + audioVisemes.O * 0.42
-      + speechEnergy * 0.22
+      audioVisemes.A * 0.88 * durableTailOpenBias
+      + audioVisemes.O * 0.42 * durableTailOpenBias
+      + speechEnergy * 0.22 * durableTailOpenBias
       + (voice?.jawBias ?? 0) * 0.12,
     )
     const hintedRound = clampUnit(
-      hintedVisemes.U * 0.94
-      + hintedVisemes.O * 0.72
+      hintedVisemes.U * 0.94 * durableTailOpenBias
+      + hintedVisemes.O * 0.72 * durableTailOpenBias
       + (voice?.roundBias ?? 0) * 0.18,
     )
     const hintedSpread = clampUnit(
-      hintedVisemes.I * 0.92
-      + hintedVisemes.E * 0.68
+      hintedVisemes.I * 0.92 * durableTailOpenBias
+      + hintedVisemes.E * 0.68 * durableTailOpenBias
       + (voice?.spreadBias ?? 0) * 0.18,
     )
     const hintedJaw = clampUnit(
-      hintedVisemes.A * 0.76
-      + hintedVisemes.O * 0.34
-      + speechEnergy * 0.16
+      hintedVisemes.A * 0.76 * durableTailOpenBias
+      + hintedVisemes.O * 0.34 * durableTailOpenBias
+      + speechEnergy * 0.16 * durableTailOpenBias
       + (voice?.jawBias ?? 0) * 0.1,
     )
     const roundTarget = clampUnit(Math.max(
@@ -913,17 +2575,18 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
     const opennessTarget = clampUnit(
       Math.max(
         baseArticulation.openness,
-        audioPeak * (0.68 + speechEnergy * 0.18),
+        audioPeak * (0.68 + speechEnergy * 0.18) * durableTailOpenBias,
         jawTarget * 0.9,
-        hintedPeak * (0.52 + speechEnergy * 0.18),
-      ) * (1 - baseArticulation.lipClosure * 0.18),
+        hintedPeak * (0.52 + speechEnergy * 0.18) * durableTailOpenBias,
+      ) * (1 - baseArticulation.lipClosure * (durableMeasuredReturnTail || repairBeforeClosenessTail ? 0.28 : 0.18)),
     )
     const closureTarget = clampUnit(
       Math.max(
         baseArticulation.lipClosure * (1 - audioPeak * 0.76),
         baseArticulation.visemes.closed * (1 - audioPeak * 0.72),
         (1 - audioPeak) * 0.16 * energyBias,
-        hintedClosure * (0.28 + hintStrength * 0.36),
+        hintedClosure * (0.28 + hintStrength * 0.36) * durableTailClosureBias,
+        durableTailClosureCarry,
       ),
     )
 
@@ -938,7 +2601,25 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
         baseArticulation.jawOpen,
       ),
       lipClosure: roundHundredths(
-        baseArticulation.lipClosure + (closureTarget - baseArticulation.lipClosure) * effectiveEnergyBias,
+        Math.max(
+          baseArticulation.lipClosure + (closureTarget - baseArticulation.lipClosure) * effectiveEnergyBias,
+          strongDurableMeasuredReturnTail
+            ? clampUnit(Math.max(
+                durableTailClosureCarry,
+                baseArticulation.lipClosure + 0.1,
+              ))
+            : durableMeasuredReturnTail
+              ? clampUnit(Math.max(
+                  durableTailClosureCarry,
+                  baseArticulation.lipClosure + 0.04,
+                ))
+              : repairBeforeClosenessTail
+                ? clampUnit(Math.max(
+                    durableTailClosureCarry,
+                    baseArticulation.lipClosure + 0.06,
+                  ))
+                : 0,
+        ),
         baseArticulation.lipClosure,
       ),
       lipSpread: roundHundredths(
@@ -950,14 +2631,41 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
         baseArticulation.lipRound,
       ),
       visemes: {
-        A: roundHundredths(Math.max(baseArticulation.visemes.A * (1 - effectiveVisemeBias * 0.42), audioVisemes.A * visemeBias, hintedVisemes.A * effectiveVisemeBias)),
-        E: roundHundredths(Math.max(baseArticulation.visemes.E * (1 - effectiveVisemeBias * 0.42), audioVisemes.E * visemeBias, hintedVisemes.E * effectiveVisemeBias)),
-        I: roundHundredths(Math.max(baseArticulation.visemes.I * (1 - effectiveVisemeBias * 0.42), audioVisemes.I * visemeBias, hintedVisemes.I * effectiveVisemeBias)),
-        O: roundHundredths(Math.max(baseArticulation.visemes.O * (1 - effectiveVisemeBias * 0.42), audioVisemes.O * visemeBias, hintedVisemes.O * effectiveVisemeBias)),
-        U: roundHundredths(Math.max(baseArticulation.visemes.U * (1 - effectiveVisemeBias * 0.42), audioVisemes.U * visemeBias, hintedVisemes.U * effectiveVisemeBias)),
+        A: roundHundredths(Math.max(
+          baseArticulation.visemes.A * (1 - effectiveVisemeBias * (durableMeasuredReturnTail || repairBeforeClosenessTail ? 0.58 : 0.42)),
+          audioVisemes.A * visemeBias * durableTailOpenBias,
+          hintedVisemes.A * effectiveVisemeBias * durableTailOpenBias,
+        )),
+        E: roundHundredths(Math.max(
+          baseArticulation.visemes.E * (1 - effectiveVisemeBias * (durableMeasuredReturnTail || repairBeforeClosenessTail ? 0.58 : 0.42)),
+          audioVisemes.E * visemeBias * durableTailOpenBias,
+          hintedVisemes.E * effectiveVisemeBias * durableTailOpenBias,
+        )),
+        I: roundHundredths(Math.max(
+          baseArticulation.visemes.I * (1 - effectiveVisemeBias * (durableMeasuredReturnTail || repairBeforeClosenessTail ? 0.58 : 0.42)),
+          audioVisemes.I * visemeBias * durableTailOpenBias,
+          hintedVisemes.I * effectiveVisemeBias * durableTailOpenBias,
+        )),
+        O: roundHundredths(Math.max(
+          baseArticulation.visemes.O * (1 - effectiveVisemeBias * (durableMeasuredReturnTail || repairBeforeClosenessTail ? 0.58 : 0.42)),
+          audioVisemes.O * visemeBias * durableTailOpenBias,
+          hintedVisemes.O * effectiveVisemeBias * durableTailOpenBias,
+        )),
+        U: roundHundredths(Math.max(
+          baseArticulation.visemes.U * (1 - effectiveVisemeBias * (durableMeasuredReturnTail || repairBeforeClosenessTail ? 0.58 : 0.42)),
+          audioVisemes.U * visemeBias * durableTailOpenBias,
+          hintedVisemes.U * effectiveVisemeBias * durableTailOpenBias,
+        )),
         closed: roundHundredths(Math.max(
           closureTarget,
           hintedClosure * (0.36 + hintStrength * 0.28 + authoritativeHintStrength * 0.2),
+          strongDurableMeasuredReturnTail
+            ? clampUnit(Math.max(durableTailClosureCarry, baseArticulation.visemes.closed + 0.08))
+            : durableMeasuredReturnTail
+              ? clampUnit(Math.max(durableTailClosureCarry, baseArticulation.visemes.closed + 0.03))
+              : repairBeforeClosenessTail
+                ? clampUnit(Math.max(durableTailClosureCarry, baseArticulation.visemes.closed + 0.05))
+                : 0,
         )),
       },
     }
@@ -1053,6 +2761,13 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
 
     queuedSpeechSegments.value = queuedSpeechSegments.value
       .filter(item => item.segmentId !== segmentId)
+  }
+
+  function resolveTelemetrySourceMetadata() {
+    return speechPlaybackState.value.item?.metadata
+      ?? upcomingSpeechSegment.value?.metadata
+      ?? queuedSpeechSegments.value[0]?.metadata
+      ?? null
   }
 
   function rememberSpokenText(text: string, nextConsumedOffset?: number) {
@@ -1203,61 +2918,25 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
       lastSegmentId: timeline?.segments.at(-1)?.id ?? null,
     })
 
+    const frameBackedDigitalLife = buildDigitalLifeEnvelopeFromFrames({
+      variationToken: timeline?.variationToken ?? '',
+      emotion: timeline?.emotion,
+      frames: [
+        ...(digitalLifeFramesBySegmentId.size > 0
+          ? digitalLifeFramesBySegmentId.values()
+          : recentDigitalLifeFramesBySegmentId.values()),
+      ],
+    })
+    const planDigitalLife = authoritativeDigitalLifeEnvelope
+      && authoritativeDigitalLifeEnvelope.variationToken === (timeline?.variationToken ?? '')
+      ? authoritativeDigitalLifeEnvelope
+      : frameBackedDigitalLife
+
     const plan = buildAlicizationEmbodimentSpeechPlan({
       turnId: timeline?.variationToken ?? 'speech-timeline',
       replyText: timeline?.reply ?? '',
       speechTimeline: timeline,
-      digitalLife: normalizeAlicizationDigitalLifeEnvelope(
-        digitalLifeFramesBySegmentId.size > 0
-          ? {
-              version: 'digital-life-v1',
-              variationToken: timeline?.variationToken ?? '',
-              emotion: timeline?.emotion ?? 'neutral',
-              mode: 'speaking',
-              postureHint: 'attentive',
-              performance: {
-                baseEmotion: timeline?.emotion ?? 'neutral',
-                emotion: timeline?.emotion ?? 'neutral',
-                facialCue: null,
-                actionCue: null,
-                delivery: 'calm',
-                emphasis: 0,
-              },
-              speechStyle: {
-                pitchDelta: 0,
-                rateMultiplier: 1,
-              },
-              voice: {
-                pitchDelta: 0,
-                rateMultiplier: 1,
-                energy: 0.5,
-                cadence: 0.5,
-              },
-              lipSync: {
-                mode: 'energy',
-                visemeBias: 0.5,
-                energyBias: 0.5,
-                mouthScale: 1,
-                continuityHoldMs: 160,
-              },
-              face: {
-                emotion: timeline?.emotion ?? 'neutral',
-                facialCue: null,
-                expressionMode: 'blend',
-                intensity: 0.5,
-                holdMs: 160,
-              },
-              action: {
-                actionCue: null,
-                actionMode: 'none',
-                intensity: 0,
-                holdMs: 160,
-              },
-              motor: createIdleStageEmbodimentMotorState(),
-              frames: [...digitalLifeFramesBySegmentId.values()],
-            }
-          : null,
-      ),
+      digitalLife: planDigitalLife,
     })
     speechPlanAlignment.plan = plan
     speechPlanAlignment.signature = createSpeechPlanSignature(plan)
@@ -1266,7 +2945,12 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
 
   function resetDigitalLifeEnvelope() {
     digitalLifeEnvelopeSignature = ''
+    authoritativeDigitalLifeEnvelope = null
+  }
+
+  function clearDigitalLifeFramesCache() {
     digitalLifeFramesBySegmentId.clear()
+    recentDigitalLifeFramesBySegmentId.clear()
   }
 
   function primeDigitalLifeEnvelope(rawDigitalLife: AlicizationDigitalLifeEnvelope | null | undefined) {
@@ -1284,28 +2968,38 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
     }
 
     digitalLifeEnvelopeSignature = signature
+    authoritativeDigitalLifeEnvelope = envelope
     digitalLifeFramesBySegmentId.clear()
+    if (envelope?.frames.length)
+      recentDigitalLifeFramesBySegmentId.clear()
     envelope?.frames.forEach((frame) => {
       digitalLifeFramesBySegmentId.set(frame.id, frame)
+      recentDigitalLifeFramesBySegmentId.set(frame.id, frame)
     })
 
     let replayProjection = false
     if (speechPlaybackState.value.item) {
       const currentItem = speechPlaybackState.value.item
       commitPlaybackState({
-        item: createStageEmbodimentSpeechPlaybackItem({
-          intentId: currentItem.intentId,
-          streamId: currentItem.streamId,
-          segmentId: currentItem.segmentId,
-          ownerId: currentItem.ownerId,
-          text: currentItem.text,
-          special: currentItem.special,
-          continuityHoldMs: currentItem.continuityHoldMs,
-          playbackDurationMs: currentItem.playbackDurationMs,
-          metadata: currentItem.metadata,
-          cue: currentItem.cue,
-          digitalLifeFrame: resolveDigitalLifeFrame(currentItem, currentItem.cue) ?? currentItem.digitalLifeFrame,
-        }),
+        item: shouldPreserveRestrainedRendererOnlyRejoinPlaybackItem(currentItem)
+          ? {
+              ...currentItem,
+              metadata: cloneSpeechMetadata(currentItem.metadata),
+              cue: currentItem.cue ? { ...currentItem.cue } : null,
+            }
+          : createStageEmbodimentSpeechPlaybackItem({
+              intentId: currentItem.intentId,
+              streamId: currentItem.streamId,
+              segmentId: currentItem.segmentId,
+              ownerId: currentItem.ownerId,
+              text: currentItem.text,
+              special: currentItem.special,
+              continuityHoldMs: currentItem.continuityHoldMs,
+              playbackDurationMs: currentItem.playbackDurationMs,
+              metadata: currentItem.metadata,
+              cue: currentItem.cue,
+              digitalLifeFrame: resolveDigitalLifeFrame(currentItem, currentItem.cue) ?? currentItem.digitalLifeFrame,
+            }),
       })
       replayProjection = true
     }
@@ -1351,19 +3045,181 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
   function resolveDigitalLifeFrame(
     descriptor: SpeechPlaybackDescriptor,
     cue: AlicizationDialogueSpeechTimelineSegment | null,
+    resolveOptions?: {
+      allowScriptSynthesis?: boolean
+      preferDescriptorDigitalLifeFrame?: boolean
+    },
   ) {
     const cueId = cue?.id?.trim()
     if (cueId) {
-      const frame = digitalLifeFramesBySegmentId.get(cueId)
+      const frame = digitalLifeFramesBySegmentId.get(cueId) ?? recentDigitalLifeFramesBySegmentId.get(cueId)
       if (frame)
         return frame
     }
 
     const segmentId = descriptor.segmentId?.trim()
     if (segmentId) {
-      const frame = digitalLifeFramesBySegmentId.get(segmentId)
+      const frame = digitalLifeFramesBySegmentId.get(segmentId) ?? recentDigitalLifeFramesBySegmentId.get(segmentId)
       if (frame)
         return frame
+    }
+
+    const script = resolveEmbodimentScriptFromMetadata(descriptor.metadata)
+    if (resolveOptions?.preferDescriptorDigitalLifeFrame && descriptor.digitalLifeFrame) {
+      return normalizeRendererOnlyRejoinFrame({
+        frame: descriptor.digitalLifeFrame,
+        residentMode: script?.state.residentMode
+          ?? resolveProjectClosureSpeechResidentModeFromMetadata(descriptor.metadata)
+          ?? null,
+      })
+    }
+
+    const authorityCue = resolveProjectedAuthorityCueFromMetadata({
+      descriptor,
+      cue,
+    })
+    if (resolveOptions?.allowScriptSynthesis && script && authorityCue) {
+      const text = descriptor.text.trim()
+      const startOffset = Number.isFinite(Number(authorityCue.startOffset))
+        ? Math.max(0, Number(authorityCue.startOffset))
+        : 0
+      const endOffset = Number.isFinite(Number(authorityCue.endOffset))
+        ? Math.max(startOffset, Number(authorityCue.endOffset))
+        : startOffset + Math.max(1, Array.from(text).length)
+      const residentMode = resolveEffectiveSpeechResidentMode({
+        residentMode: script.state.residentMode,
+        rendererHints: authorityCue.rendererHints ?? null,
+      })
+      const audibleSameHerPreviewRestraint = resolveAudibleSameHerPreviewRestraint(
+        authorityCue.rendererHints ?? null,
+      )
+      const delivery = script.state.delivery ?? 'calm'
+      const emphasis = script.state.emphasis ?? 0
+      const facialCue = authorityCue.facialCue ?? null
+      const actionCue = clampRestrainedPreviewActionCue(authorityCue.actionCue ?? null, residentMode)
+      const emotion = resolveDigitalLifeEmotion({
+        emotion: authorityCue.emotion,
+        baseEmotion: authorityCue.emotion,
+        fallback: script.state.baseEmotion,
+      })
+      const voice = {
+        pitchDelta: 0,
+        rateMultiplier: 1,
+        energy: clampUnit(
+          (0.36 + (authorityCue.prosodyWeight ?? 0) * 0.4)
+          * (audibleSameHerPreviewRestraint?.voiceEnergyScale ?? 1),
+          0.68,
+        ),
+        cadence: clampUnit(
+          (0.32 + (authorityCue.beatWeight ?? 0) * 0.44)
+          * (audibleSameHerPreviewRestraint?.voiceCadenceScale ?? 1),
+          0.64,
+        ),
+      }
+      const lipSync = {
+        mode: text ? resolveDigitalLifeLipSyncMode(script.lipsyncPlan.mode) : 'closed' as const,
+        visemeBias: clampUnit(
+          (0.34 + (authorityCue.mouthWeight ?? authorityCue.facialWeight ?? 0) * 0.48)
+          * (audibleSameHerPreviewRestraint?.lipSyncVisemeScale ?? 1),
+          0.82,
+        ),
+        energyBias: clampUnit(
+          (0.28 + (authorityCue.prosodyWeight ?? 0) * 0.42)
+          * (audibleSameHerPreviewRestraint?.lipSyncEnergyScale ?? 1),
+          0.76,
+        ),
+        mouthScale: Number(clampRange(
+          (0.82 + (authorityCue.mouthWeight ?? 0) * 0.3)
+          * (audibleSameHerPreviewRestraint?.mouthScale ?? 1),
+          0.4,
+          1.35,
+        ).toFixed(2)),
+        continuityHoldMs: Math.round(clampRange(
+          authorityCue.emotionHoldMs ?? authorityCue.facialHoldMs ?? 180,
+          60,
+          480,
+        )),
+      }
+      const face = {
+        emotion,
+        facialCue,
+        expressionMode: residentMode === 'measured-return' || residentMode === 'repair-before-closeness'
+          ? 'hold' as const
+          : 'blend' as const,
+        intensity: clampUnit(
+          (authorityCue.facialWeight ?? 0.42)
+          * (audibleSameHerPreviewRestraint?.faceIntensityScale ?? 1),
+          0.72,
+        ),
+        holdMs: Math.round(clampRange(authorityCue.facialHoldMs ?? authorityCue.emotionHoldMs ?? 220, 80, 960)),
+        rendererHints: authorityCue.rendererHints ?? null,
+      }
+      const action = {
+        actionCue,
+        actionMode: actionCue
+          ? residentMode === 'measured-return' || residentMode === 'repair-before-closeness'
+            ? 'hold' as const
+            : 'pulse' as const
+          : 'none' as const,
+        intensity: actionCue
+          ? clampUnit(
+              (authorityCue.gestureWeight ?? 0.3)
+              * (audibleSameHerPreviewRestraint?.actionIntensityScale ?? 1),
+              0.62,
+            )
+          : 0,
+        holdMs: Math.round(clampRange(authorityCue.actionHoldMs ?? 180, 70, 720)),
+        rendererHints: authorityCue.rendererHints ?? null,
+      }
+      const motor = deriveAlicizationDigitalLifeMotorPlan({
+        action,
+        emotion,
+        face,
+        lipSync,
+        digitalLifeSpine: null,
+        performance: {
+          baseEmotion: emotion,
+          emotion,
+          facialCue,
+          actionCue,
+          delivery,
+          emphasis,
+        },
+        postureHint: authorityCue.emotion === 'thinking' ? 'inspection' : 'attentive',
+        segmentWeights: {
+          beat: authorityCue.beatWeight,
+          facial: authorityCue.facialWeight,
+          gesture: authorityCue.gestureWeight,
+          head: authorityCue.headWeight,
+          mouth: authorityCue.mouthWeight,
+        },
+        voice,
+      })
+
+      return normalizeRendererOnlyRejoinFrame({
+        frame: {
+          id: authorityCue.id?.trim() || segmentId || `script:${sanitizeSpineToken(descriptor.intentId ?? '', 48) || 'segment'}:${startOffset}`,
+          index: Number.isFinite(Number(authorityCue.index)) ? Math.max(0, Number(authorityCue.index)) : 0,
+          startOffset,
+          endOffset,
+          text,
+          mode: resolveProjectedDigitalLifeMode({
+            residentMode,
+            emotion,
+            text,
+          }),
+          interruptPolicy: authorityCue.interruptMode ?? 'continue',
+          settleMode: authorityCue.settleMode
+            ?? audibleSameHerPreviewRestraint?.settleMode
+            ?? (residentMode === 'measured-return' ? 'linger' : residentMode === 'repair-before-closeness' ? 'hold' : 'release'),
+          voice,
+          lipSync,
+          face,
+          action,
+          motor,
+        } satisfies AlicizationDigitalLifeFrame,
+        residentMode,
+      })
     }
 
     const digest = options.digitalLifeSpineDigest?.value
@@ -1375,41 +3231,119 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
       const endOffset = Number.isFinite(Number(cue?.endOffset))
         ? Math.max(startOffset, Number(cue?.endOffset))
         : startOffset + Math.max(1, Array.from(text).length)
-      const mode = resolveSpineFallbackMode(digest)
+      const spineFallbackMode = resolveSpineFallbackMode(digest)
       const confidence = clampUnit(digest.proactive?.confidence ?? 0.62, 0.62)
-      const emotion = resolveSpineFallbackEmotion(digest, cue)
-      const actionCue = resolveSpineFallbackActionCue(digest, cue)
-      const facialCue = cue?.facialCue
-        ?? (mode === 'recovering' ? 'soft-gaze' : 'focus')
+      const emotion = authorityCue?.emotion
+        ?? resolveSpineFallbackEmotion(digest, cue)
+      const metadataClosureRendererHints = resolveProjectClosureRendererHintsFromMetadata(
+        descriptor.metadata,
+      )
+      const effectiveRendererHints = authorityCue?.rendererHints
+        ?? cue?.rendererHints
+        ?? metadataClosureRendererHints
+      const residentMode = resolveEmbodimentScriptFromMetadata(descriptor.metadata)?.state.residentMode
+        ?? resolveRestrainedResidentModeFromRendererHints(metadataClosureRendererHints)
+        ?? null
+      const mode = residentMode === 'measured-return' || residentMode === 'repair-before-closeness'
+        ? resolveProjectedDigitalLifeMode({
+            residentMode,
+            emotion,
+            text,
+          })
+        : spineFallbackMode
+      const fallbackActionCue = authorityCue?.actionCue
+        ?? cue?.actionCue
+        ?? (
+          residentMode === 'measured-return'
+            ? null
+            : resolveSpineFallbackActionCue(digest, cue)
+        )
+      const actionCue = clampRestrainedPreviewActionCue(
+        fallbackActionCue,
+        residentMode,
+      )
+      const voiceRestraint = resolveSpineFallbackVoiceRestraint(
+        residentMode,
+        effectiveRendererHints,
+      )
+      const facialCue = authorityCue?.facialCue
+        ?? cue?.facialCue
+        ?? (
+          mode === 'recovering'
+          || residentMode === 'measured-return'
+          || residentMode === 'repair-before-closeness'
+            ? 'soft-gaze'
+            : 'focus'
+        )
       const voice = {
-        pitchDelta: mode === 'recovering' ? -3 : mode === 'acting' ? 3 : 0,
-        rateMultiplier: mode === 'recovering' ? 0.94 : mode === 'acting' ? 1.08 : 1,
-        energy: clampUnit(0.42 + confidence * 0.22 + (cue?.prosodyWeight ?? 0) * 0.18, 0.58),
-        cadence: clampUnit(0.38 + confidence * 0.18 + (cue?.beatWeight ?? 0) * 0.22, 0.54),
+        pitchDelta: Math.round(clampRange(
+          (mode === 'recovering' ? -3 : mode === 'acting' ? 3 : 0)
+          + voiceRestraint.pitchDeltaOffset,
+          -12,
+          12,
+        )),
+        rateMultiplier: Number(clampRange(
+          (mode === 'recovering' ? 0.94 : mode === 'acting' ? 1.08 : 1)
+          + voiceRestraint.rateMultiplierOffset,
+          0.72,
+          1.24,
+        ).toFixed(2)),
+        energy: clampUnit(
+          0.42
+          + confidence * 0.22
+          + ((authorityCue?.prosodyWeight ?? cue?.prosodyWeight) ?? 0) * 0.18
+          + voiceRestraint.energyOffset,
+          0.58,
+        ),
+        cadence: clampUnit(
+          0.38
+          + confidence * 0.18
+          + ((authorityCue?.beatWeight ?? cue?.beatWeight) ?? 0) * 0.22
+          + voiceRestraint.cadenceOffset,
+          0.54,
+        ),
       }
       const lipSync = {
         mode: text ? 'hybrid' as const : 'closed' as const,
         visemeBias: clampUnit(0.5 + confidence * 0.18, 0.62),
         energyBias: clampUnit(0.32 + confidence * 0.22, 0.48),
-        mouthScale: Number(clampRange(0.82 + confidence * 0.24 + (cue?.mouthWeight ?? 0) * 0.12, 0.4, 1.35).toFixed(2)),
-        continuityHoldMs: Math.round(clampRange(cue?.emotionHoldMs ?? cue?.facialHoldMs ?? 180, 60, 480)),
+        mouthScale: Number(clampRange(0.82 + confidence * 0.24 + ((authorityCue?.mouthWeight ?? cue?.mouthWeight) ?? 0) * 0.12, 0.4, 1.35).toFixed(2)),
+        continuityHoldMs: Math.round(clampRange(authorityCue?.emotionHoldMs ?? authorityCue?.facialHoldMs ?? cue?.emotionHoldMs ?? cue?.facialHoldMs ?? 180, 60, 480)),
       }
       const face = {
         emotion,
         facialCue,
-        expressionMode: mode === 'recovering' ? 'recover' as const : 'blend' as const,
-        intensity: clampUnit(0.46 + confidence * 0.18 + (cue?.facialWeight ?? 0) * 0.22, 0.62),
-        holdMs: Math.round(clampRange(cue?.facialHoldMs ?? 220, 80, 960)),
-        rendererHints: cue?.rendererHints ?? null,
+        expressionMode: mode === 'recovering'
+          ? 'recover' as const
+          : residentMode === 'measured-return' || residentMode === 'repair-before-closeness'
+            ? 'hold' as const
+            : 'blend' as const,
+        intensity: clampUnit(
+          residentMode === 'repair-before-closeness'
+            ? 0.38 + confidence * 0.14 + ((authorityCue?.facialWeight ?? cue?.facialWeight) ?? 0) * 0.18
+            : 0.46 + confidence * 0.18 + ((authorityCue?.facialWeight ?? cue?.facialWeight) ?? 0) * 0.22,
+          0.62,
+        ),
+        holdMs: Math.round(clampRange(authorityCue?.facialHoldMs ?? cue?.facialHoldMs ?? 220, 80, 960)),
+        rendererHints: effectiveRendererHints,
       }
       const action = {
         actionCue,
-        actionMode: actionCue ? 'pulse' as const : 'none' as const,
+        actionMode: actionCue
+          ? residentMode === 'repair-before-closeness'
+            ? 'hold' as const
+            : 'pulse' as const
+          : 'none' as const,
         intensity: actionCue
-          ? clampUnit(0.26 + confidence * 0.18 + (cue?.gestureWeight ?? 0) * 0.3, 0.44)
+          ? clampUnit(
+              residentMode === 'repair-before-closeness'
+                ? 0.18 + confidence * 0.12 + ((authorityCue?.gestureWeight ?? cue?.gestureWeight) ?? 0) * 0.18
+                : 0.26 + confidence * 0.18 + ((authorityCue?.gestureWeight ?? cue?.gestureWeight) ?? 0) * 0.3,
+              0.44,
+            )
           : 0,
-        holdMs: Math.round(clampRange(cue?.actionHoldMs ?? 180, 70, 720)),
-        rendererHints: cue?.rendererHints ?? null,
+        holdMs: Math.round(clampRange(authorityCue?.actionHoldMs ?? cue?.actionHoldMs ?? 180, 70, 720)),
+        rendererHints: effectiveRendererHints,
       }
       const motor = deriveAlicizationDigitalLifeMotorPlan({
         action,
@@ -1425,13 +3359,13 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
           delivery: mode === 'recovering' ? 'gentle' : mode === 'acting' ? 'firm' : 'calm',
           emphasis: mode === 'acting' ? 2 : 1,
         },
-        postureHint: cue?.emotion === 'thinking' ? 'inspection' : mode === 'recovering' ? 'concerned' : 'attentive',
+        postureHint: (authorityCue?.emotion ?? cue?.emotion) === 'thinking' ? 'inspection' : mode === 'recovering' ? 'concerned' : 'attentive',
         segmentWeights: {
-          beat: cue?.beatWeight,
-          facial: cue?.facialWeight,
-          gesture: cue?.gestureWeight,
-          head: cue?.headWeight,
-          mouth: cue?.mouthWeight,
+          beat: authorityCue?.beatWeight ?? cue?.beatWeight,
+          facial: authorityCue?.facialWeight ?? cue?.facialWeight,
+          gesture: authorityCue?.gestureWeight ?? cue?.gestureWeight,
+          head: authorityCue?.headWeight ?? cue?.headWeight,
+          mouth: authorityCue?.mouthWeight ?? cue?.mouthWeight,
         },
         voice,
       })
@@ -1447,14 +3381,31 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
         endOffset,
         text,
         mode,
-        interruptPolicy: cue?.interruptMode ?? 'continue',
-        settleMode: cue?.settleMode ?? (mode === 'recovering' ? 'linger' : 'release'),
+        interruptPolicy: authorityCue?.interruptMode ?? cue?.interruptMode ?? 'continue',
+        settleMode: authorityCue?.settleMode
+          ?? cue?.settleMode
+          ?? (
+            mode === 'recovering'
+              ? 'linger'
+              : residentMode === 'measured-return'
+                ? 'linger'
+                : residentMode === 'repair-before-closeness'
+                  ? 'hold'
+                  : 'release'
+          ),
         voice,
         lipSync,
         face,
         action,
         motor,
       } satisfies AlicizationDigitalLifeFrame
+    }
+
+    if (descriptor.digitalLifeFrame) {
+      return normalizeRendererOnlyRejoinFrame({
+        frame: descriptor.digitalLifeFrame,
+        residentMode: script?.state.residentMode ?? null,
+      })
     }
 
     return null
@@ -1481,6 +3432,9 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
     options?: {
       alignTimeline?: boolean
       advanceTimeline?: boolean
+      preferDescriptorCue?: boolean
+      preferDescriptorDigitalLifeFrame?: boolean
+      resolvedDigitalLifeFrame?: AlicizationDigitalLifeFrame | null
     },
   ) {
     const alignTimeline = options?.alignTimeline !== false
@@ -1490,7 +3444,9 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
       ? currentItem?.cue ?? null
       : null
 
-    let cue = cloneSpeechTimelineCue(existingCue) ?? resolvePreviewCue(descriptor.segmentId)
+    let cue = cloneSpeechTimelineCue(existingCue)
+      ?? (options?.preferDescriptorCue ? cloneSpeechTimelineCue(descriptor.cue) : null)
+      ?? resolvePreviewCue(descriptor.segmentId)
     let nextConsumedOffset = cue
       ? Math.max(speechTimelineAlignment.consumedOffset, cue.endOffset)
       : speechTimelineAlignment.consumedOffset
@@ -1508,11 +3464,25 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
     if (advanceTimeline)
       rememberSpokenText(descriptor.text, nextConsumedOffset)
 
-    const digitalLifeFrame = resolveDigitalLifeFrame(descriptor, cue)
+    const digitalLifeFrame = options?.resolvedDigitalLifeFrame === undefined
+      ? resolveDigitalLifeFrame(descriptor, cue, {
+          allowScriptSynthesis: true,
+          preferDescriptorDigitalLifeFrame: options?.preferDescriptorDigitalLifeFrame === true,
+        })
+      : options.resolvedDigitalLifeFrame
     const idleCuePhase = resolveSpeechMetadataIdleCuePhase(descriptor.metadata)
     const playbackPhase = idleCuePhase
       ? 'idle'
       : descriptor.playbackDurationMs == null && !advanceTimeline ? 'idle' : 'playing'
+    const effectiveResidentMode = resolveEffectiveSpeechResidentModeFromCueOrFrame({
+      residentMode: resolveEmbodimentScriptFromMetadata(descriptor.metadata)?.state.residentMode ?? null,
+      cue,
+      digitalLifeFrame,
+    })
+    const suppressRendererOnlyRejoinBodyDriver = shouldSuppressRendererOnlyRejoinBodyDriverFromFrame({
+      digitalLifeFrame,
+      residentMode: effectiveResidentMode,
+    })
     const enrichedMetadata = enrichSpeechMetadataWithDrivers({
       cue,
       digitalLifeFrame,
@@ -1521,6 +3491,7 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
       script: resolveEmbodimentScriptFromMetadata(descriptor.metadata),
       segmentId: descriptor.segmentId,
       playbackPhase,
+      suppressBodyDriver: suppressRendererOnlyRejoinBodyDriver,
       special: descriptor.special,
       text: descriptor.text,
     })
@@ -1587,9 +3558,24 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
     descriptor: SpeechPlaybackDescriptor,
     queueIndex?: number,
   ) {
+    const script = resolveEmbodimentScriptFromMetadata(descriptor.metadata)
+    const directSegmentId = descriptor.segmentId?.trim() || null
+    const authoritySegmentId = script
+      ? resolvePlaybackDriverSegmentId({
+          cue: descriptor.cue ?? null,
+          digitalLifeFrame: descriptor.digitalLifeFrame ?? null,
+          metadata: descriptor.metadata,
+          script,
+          segmentId: descriptor.segmentId,
+          text: descriptor.text,
+        })
+      : descriptor.digitalLifeFrame?.id?.trim()
+        || descriptor.cue?.id?.trim()
+        || directSegmentId
+
     const segment = resolveSpeechPlanSegment({
       metadata: descriptor.metadata,
-      segmentId: descriptor.segmentId,
+      segmentId: authoritySegmentId ?? directSegmentId,
       text: descriptor.text,
       queueIndex,
     })
@@ -1603,7 +3589,8 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
     descriptor: SpeechPlaybackDescriptor,
     index: number,
   ) {
-    let cue = null
+    const script = resolveEmbodimentScriptFromMetadata(descriptor.metadata)
+    let cue = cloneSpeechTimelineCue(descriptor.cue)
     if (speechTimelineAlignment.timeline) {
       const previewConsumedText = resolvePreviewConsumedText(index)
       const previewConsumedOffset = resolveAlicizationDialogueSpeechTimelineConsumedOffset({
@@ -1618,9 +3605,39 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
       }).segment
     }
 
-    const digitalLifeFrame = resolveDigitalLifeFrame(descriptor, cue)
+    const digitalLifeFrame = resolveDescriptorScriptDigitalLifeFrame(descriptor, cue)
+      ?? resolveDigitalLifeFrame(descriptor, cue, {
+        allowScriptSynthesis: true,
+        preferDescriptorDigitalLifeFrame: true,
+      })
+    const authorityCue = cue && digitalLifeFrame
+      ? {
+          ...cue,
+          emotion: digitalLifeFrame.face.emotion,
+          facialCue: digitalLifeFrame.face.facialCue,
+          actionCue: digitalLifeFrame.action.actionCue,
+          interruptMode: digitalLifeFrame.interruptPolicy,
+          settleMode: digitalLifeFrame.settleMode,
+          facialHoldMs: digitalLifeFrame.face.holdMs,
+          actionHoldMs: digitalLifeFrame.action.holdMs,
+          emotionHoldMs: Math.max(
+            digitalLifeFrame.face.holdMs,
+            digitalLifeFrame.lipSync.continuityHoldMs,
+          ),
+          rendererSettle: cue.rendererSettle
+            ?? resolvePlaybackTelemetryCue({
+              cue,
+              digitalLifeFrame,
+              metadata: descriptor.metadata,
+              segmentId: descriptor.segmentId,
+              special: descriptor.special,
+              text: descriptor.text,
+            })?.rendererSettle
+            ?? null,
+        }
+      : cue
     const enrichedMetadata = enrichSpeechMetadataWithDrivers({
-      cue,
+      cue: authorityCue,
       digitalLifeFrame,
       metadata: descriptor.metadata,
       script: resolveEmbodimentScriptFromMetadata(descriptor.metadata),
@@ -1639,11 +3656,18 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
         metadata: enrichedMetadata,
         digitalLifeFrame,
       }),
-      cue: cloneSpeechTimelineCue(cue),
+      cue: cloneSpeechTimelineCue(authorityCue),
       digitalLifeFrame,
     })
-    rememberPreviewCue(descriptor.segmentId, previewItem.cue)
-    return previewItem
+    const finalizedPreviewItem = {
+      ...previewItem,
+      cue: applyHesitantMeasuredReturnVrmPreviewCue({
+        cue: previewItem.cue,
+        script,
+      }),
+    }
+    rememberPreviewCue(descriptor.segmentId, finalizedPreviewItem.cue)
+    return finalizedPreviewItem
   }
 
   function previewSpeechSegment(descriptor: SpeechPlaybackDescriptor) {
@@ -1657,6 +3681,7 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
       ? queuedSpeechSegments.value.findIndex(item => item.segmentId === descriptor.segmentId)
       : -1
     const targetIndex = existingIndex >= 0 ? existingIndex : queuedSpeechSegments.value.length
+    const descriptorScriptDigitalLifeFrame = resolveDescriptorScriptDigitalLifeFrame(descriptor, descriptor.cue ?? null)
     const previewItem = projectPlaybackItem({
       ...descriptor,
       text,
@@ -1664,9 +3689,12 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
         ...descriptor,
         text,
       }, targetIndex) ?? descriptor.continuityHoldMs,
+      digitalLifeFrame: descriptorScriptDigitalLifeFrame ?? descriptor.digitalLifeFrame,
     }, {
       advanceTimeline: false,
       alignTimeline: false,
+      preferDescriptorDigitalLifeFrame: Boolean(descriptorScriptDigitalLifeFrame ?? descriptor.digitalLifeFrame),
+      resolvedDigitalLifeFrame: descriptorScriptDigitalLifeFrame ?? undefined,
     })
     const alignedPreviewItem = projectPreviewPlaybackItem(previewItem, targetIndex)
 
@@ -1801,8 +3829,22 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
     now: number
     speechEnergy: number
   }) {
-    if (speechPlaybackState.value.phase !== 'playing')
+    if (speechPlaybackState.value.phase !== 'playing') {
+      if (
+        options.stageModelRenderer.value === 'live2d'
+        && speechStopTailMouthOpen > 0
+        && speechStopTailStartedAt != null
+        && speechStopTailDurationMs > 0
+      ) {
+        const elapsed = Math.max(0, input.now - speechStopTailStartedAt)
+        const progress = clampUnit(elapsed / speechStopTailDurationMs)
+        const easedTail = speechStopTailMouthOpen * (1 - progress) ** 1.35
+        const continuityFloor = speechStopTailMouthOpen * Math.max(0, 0.28 - progress * 0.18)
+        return Math.max(0, Math.round(Math.max(easedTail, continuityFloor)))
+      }
+
       return 0
+    }
 
     const digitalLifeLipSync = speechPlaybackState.value.item?.digitalLifeFrame?.lipSync
     if (digitalLifeLipSync?.mode === 'closed')
@@ -1823,11 +3865,11 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
     ))
     const articulationDrivenOpen = articulation.active
       ? articulationOpenness
-        * 100
-        * mouthScale
-        * (0.82 + articulation.jawOpen * 0.26)
-        * jawScale
-        * (1 - articulationClosure * 0.58)
+      * 100
+      * mouthScale
+      * (0.82 + articulation.jawOpen * 0.26)
+      * jawScale
+      * (1 - articulationClosure * 0.58)
       : 0
     const prosodyDrivenOpen = input.speechEnergy
       * (54 + dynamics.emphasisLevel * 28)
@@ -1890,31 +3932,88 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
     clearSpeechStopLinger()
     syntheticSpeech = createIdleSyntheticSpeechState()
     lastSpeechSignalsTickAt = 0
+    const previewSeed = item.segmentId
+      ? queuedSpeechSegments.value.find(segment => segment.segmentId === item.segmentId) ?? null
+      : null
+    const continuityHoldMs = resolveSpeechPlanContinuityHoldMs(item)
+    const projectedItem = projectPlaybackItem({
+      ...item,
+      cue: previewSeed?.cue ?? item.cue,
+      continuityHoldMs,
+      digitalLifeFrame: previewSeed?.digitalLifeFrame ?? item.digitalLifeFrame,
+      metadata: item.metadata,
+      playbackDurationMs: item.playbackDurationMs ?? previewSeed?.playbackDurationMs ?? estimateStageEmbodimentSpeechPlaybackDurationMs({
+        text: item.text,
+        special: item.special,
+        metadata: item.metadata,
+      }),
+    }, {
+      preferDescriptorCue: true,
+      preferDescriptorDigitalLifeFrame: true,
+      resolvedDigitalLifeFrame: previewSeed?.digitalLifeFrame,
+    })
     clearUpcomingSpeechSegment(item.segmentId ?? null)
     beginSpeechArticulation(performance.now())
-    const continuityHoldMs = resolveSpeechPlanContinuityHoldMs(item)
     const metadata = enrichSpeechMetadataWithDrivers({
-      cue: null,
-      digitalLifeFrame: null,
-      metadata: item.metadata,
-      script: resolveEmbodimentScriptFromMetadata(item.metadata),
+      cue: projectedItem.cue,
+      digitalLifeFrame: projectedItem.digitalLifeFrame,
+      metadata: projectedItem.metadata,
+      script: resolveEmbodimentScriptFromMetadata(projectedItem.metadata),
       segmentId: item.segmentId,
       playbackPhase: 'playing',
       special: item.special,
       text: item.text,
     })
+    const playbackDurationMs = item.playbackDurationMs ?? previewSeed?.playbackDurationMs ?? estimateStageEmbodimentSpeechPlaybackDurationMs({
+      text: item.text,
+      special: item.special,
+      metadata,
+    })
+    const previewSeedPlayback = resolveEmbodimentPlaybackMetadataFromMetadata(previewSeed?.metadata)
+    const projectedPlayback = resolveEmbodimentPlaybackMetadataFromMetadata(projectedItem.metadata)
+    const effectiveResidentMode = resolveEffectiveSpeechResidentModeFromCueOrFrame({
+      residentMode: resolveEmbodimentScriptFromMetadata(projectedItem.metadata)?.state.residentMode ?? null,
+      cue: projectedItem.cue,
+      digitalLifeFrame: projectedItem.digitalLifeFrame,
+    })
+    const shouldCreateRestrainedRendererOnlyRejoinStartItem = hasRestrainedRendererOnlyRejoinContinuity(previewSeedPlayback)
+      || hasRestrainedRendererOnlyRejoinContinuity(projectedPlayback)
+      || shouldSuppressRendererOnlyRejoinBodyDriver({
+        digitalLifeFrame: projectedItem.digitalLifeFrame,
+        metadata,
+        residentMode: effectiveResidentMode,
+      })
+    const committedPlaybackItem = shouldCreateRestrainedRendererOnlyRejoinStartItem && projectedItem.digitalLifeFrame
+      ? createRestrainedRendererOnlyRejoinStartItem({
+          continuityHoldMs,
+          cue: projectedItem.cue ?? null,
+          digitalLifeFrame: projectedItem.digitalLifeFrame,
+          item,
+          metadata: previewSeedPlayback && hasRestrainedRendererOnlyRejoinContinuity(previewSeedPlayback)
+            ? previewSeed?.metadata ?? metadata
+            : metadata,
+          playbackDurationMs,
+        })
+      : projectPlaybackItem({
+          ...item,
+          continuityHoldMs,
+          cue: projectedItem.cue,
+          digitalLifeFrame: projectedItem.digitalLifeFrame,
+          metadata,
+          playbackDurationMs,
+        }, {
+          preferDescriptorCue: true,
+          preferDescriptorDigitalLifeFrame: true,
+          resolvedDigitalLifeFrame: projectedItem.digitalLifeFrame,
+        })
+    const normalizedCommittedPlaybackItem = shouldPreserveRestrainedRendererOnlyRejoinPlaybackItem(committedPlaybackItem)
+      ? enforceRestrainedRendererOnlyRejoinPlaybackMetadata({
+          item: committedPlaybackItem,
+        })
+      : committedPlaybackItem
     commitPlaybackState({
       phase: 'playing',
-      item: projectPlaybackItem({
-        ...item,
-        continuityHoldMs,
-        metadata,
-        playbackDurationMs: item.playbackDurationMs ?? estimateStageEmbodimentSpeechPlaybackDurationMs({
-          text: item.text,
-          special: item.special,
-          metadata,
-        }),
-      }),
+      item: normalizedCommittedPlaybackItem,
       dynamics: createIdleStageEmbodimentSpeechDynamicsState(),
       startedAt,
       endedAt: null,
@@ -1942,8 +4041,41 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
     syntheticSpeech = createIdleSyntheticSpeechState()
     stopSpeechSignalsLoop()
     clearCurrentAudioSource()
+    const authoritativeSeed = speechPlaybackState.value.item
+    const durableMeasuredReturnTail = (
+      speechPlaybackState.value.item?.digitalLifeFrame
+      && isDurableMeasuredReturnFrame(speechPlaybackState.value.item.digitalLifeFrame)
+    ) || isDurableMeasuredReturnCue(speechPlaybackState.value.item?.cue)
+    const repairBeforeClosenessTail = (
+      speechPlaybackState.value.item?.digitalLifeFrame
+      && isRepairBeforeClosenessFrame(speechPlaybackState.value.item.digitalLifeFrame)
+    ) || isRepairBeforeClosenessCue(speechPlaybackState.value.item?.cue)
+    const strongDurableMeasuredReturnTail = (
+      speechPlaybackState.value.item?.digitalLifeFrame
+      && isStrongDurableMeasuredReturnFrame(speechPlaybackState.value.item.digitalLifeFrame)
+    ) || isStrongDurableMeasuredReturnCue(speechPlaybackState.value.item?.cue)
+    const trailingMouthOpen = durableMeasuredReturnTail
+      ? Math.max(
+          strongDurableMeasuredReturnTail ? 6 : 4,
+          Math.round(clampRange(
+            speechPlaybackState.value.mouthOpenSize * (strongDurableMeasuredReturnTail ? 0.34 : 0.26),
+            0,
+            100,
+          )),
+        )
+      : repairBeforeClosenessTail
+        ? Math.max(
+            5,
+            Math.round(clampRange(
+              speechPlaybackState.value.mouthOpenSize * 0.3,
+              0,
+              100,
+            )),
+          )
+        : 0
+    speechStopTailMouthOpen = trailingMouthOpen
     resetSpeechArticulation()
-    setEmbodimentMouthOpenSize(0, false)
+    setEmbodimentMouthOpenSize(trailingMouthOpen, false)
     const metadata = enrichSpeechMetadataWithReconciliation({
       actualDurationMs: speechPlaybackState.value.startedAt == null
         ? item.playbackDurationMs ?? 0
@@ -1966,18 +4098,62 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
       resolveSpeechPlanContinuityHoldMs(item) ?? 0,
       playbackReconciliation?.settleMs ?? 0,
     )
+    const finalCue = authoritativeSeed?.cue ?? item.cue
+    const preservedRendererOnlyRejoinFrame = resolveRendererOnlyRejoinStopFrame({
+      cue: finalCue ?? null,
+      digitalLifeFrame: authoritativeSeed?.digitalLifeFrame,
+      metadata,
+      segmentId: item.segmentId,
+      text: item.text,
+    })
+    const finalMetadata = preservedRendererOnlyRejoinFrame
+      ? applyRestrainedRendererOnlyRejoinPlaybackMetadata({
+          metadata,
+        })
+      : metadata
+    const finalDigitalLifeFrame = resolveDigitalLifeFrame({
+      ...item,
+      cue: finalCue ?? null,
+      digitalLifeFrame: preservedRendererOnlyRejoinFrame ?? authoritativeSeed?.digitalLifeFrame ?? item.digitalLifeFrame,
+      metadata: finalMetadata,
+      continuityHoldMs,
+      playbackDurationMs: item.playbackDurationMs ?? estimateStageEmbodimentSpeechPlaybackDurationMs({
+        text: item.text,
+        special: item.special,
+        metadata: finalMetadata,
+      }),
+    }, finalCue ?? null, {
+      allowScriptSynthesis: true,
+      preferDescriptorDigitalLifeFrame: true,
+    }) ?? preservedRendererOnlyRejoinFrame ?? authoritativeSeed?.digitalLifeFrame ?? item.digitalLifeFrame
+    const finalPlaybackItem = preservedRendererOnlyRejoinFrame
+      ? createRestrainedRendererOnlyRejoinStopItem({
+          continuityHoldMs,
+          cue: finalCue ?? null,
+          digitalLifeFrame: preservedRendererOnlyRejoinFrame,
+          item,
+          metadata: finalMetadata,
+        })
+      : projectPlaybackItem({
+          ...item,
+          continuityHoldMs,
+          cue: finalCue ?? null,
+          digitalLifeFrame: finalDigitalLifeFrame,
+          metadata: finalMetadata,
+          playbackDurationMs: item.playbackDurationMs ?? estimateStageEmbodimentSpeechPlaybackDurationMs({
+            text: item.text,
+            special: item.special,
+            metadata: finalMetadata,
+          }),
+        }, {
+          advanceTimeline: false,
+          preferDescriptorCue: true,
+          preferDescriptorDigitalLifeFrame: true,
+          resolvedDigitalLifeFrame: finalDigitalLifeFrame,
+        })
     commitPlaybackState({
       phase: 'idle',
-      item: projectPlaybackItem({
-        ...item,
-        continuityHoldMs,
-        metadata,
-        playbackDurationMs: item.playbackDurationMs ?? estimateStageEmbodimentSpeechPlaybackDurationMs({
-          text: item.text,
-          special: item.special,
-          metadata,
-        }),
-      }, { advanceTimeline: false }),
+      item: finalPlaybackItem,
       dynamics: createIdleStageEmbodimentSpeechDynamicsState(),
       endedAt,
       startedAt: speechPlaybackState.value.startedAt,
@@ -2010,13 +4186,21 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
       special: item.special,
       text: item.text,
     })
+    const currentPlaybackItem = speechPlaybackState.value.item
+    const preserveRestrainedRendererOnlyRejoin = shouldPreserveRestrainedRendererOnlyRejoinPlaybackItem(currentPlaybackItem)
     commitPlaybackState({
       phase: 'playing',
-      item: projectPlaybackItem({
-        ...item,
-        metadata,
-        playbackDurationMs: item.playbackDurationMs,
-      }, { advanceTimeline: false }),
+      item: preserveRestrainedRendererOnlyRejoin && currentPlaybackItem
+        ? {
+            ...currentPlaybackItem,
+            metadata: cloneSpeechMetadata(currentPlaybackItem.metadata),
+            cue: currentPlaybackItem.cue ? { ...currentPlaybackItem.cue } : null,
+          }
+        : projectPlaybackItem({
+            ...item,
+            metadata,
+            playbackDurationMs: item.playbackDurationMs,
+          }, { advanceTimeline: false }),
       currentAudioSource: source,
     })
     logSpeechEmbodimentDebug('audio-source-bound', {
@@ -2165,7 +4349,7 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
       return
     }
 
-    setEmbodimentMouthOpenSize(0, false)
+    setEmbodimentMouthOpenSize(speechStopTailMouthOpen, false)
   }
 
   async function setupLive2dLipSync(reason: string) {
@@ -2186,8 +4370,16 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
         wlipsyncProfile as Profile,
         live2dLipSyncOptions,
       )
+      if (!lipSync) {
+        resetLive2dLipSync()
+        logSpeechEmbodimentDebug('lipsync-setup-skipped', {
+          reason,
+          cause: 'driver-unavailable',
+        })
+        return
+      }
       live2dLipSync.value = lipSync
-      lipSyncNode.value = lipSync.node
+      lipSyncNode.value = lipSync.node ?? undefined
       await options.audioContext.resume()
       lipSyncStarted.value = true
       logSpeechEmbodimentDebug('lipsync-setup-ready', {
@@ -2363,6 +4555,7 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
     stopSpeechSignalsLoop()
     resetLive2dLipSync()
     clearCurrentAudioSource()
+    clearDigitalLifeFramesCache()
     commitPlaybackState({
       dynamics: createIdleStageEmbodimentSpeechDynamicsState(),
     })
@@ -2371,9 +4564,11 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
     syncSpeechRenderState(null)
   }
 
-  onUnmounted(() => {
-    dispose()
-  })
+  if (getCurrentInstance()) {
+    onUnmounted(() => {
+      dispose()
+    })
+  }
 
   return {
     audioAnalyser: readonly(audioAnalyser),
@@ -2389,7 +4584,7 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
     primeDigitalLifeEnvelope,
     primeSpeechTimeline,
     applySyntheticSpeechSegment,
-    playbackTelemetry: computed(() => resolveEmbodimentPlaybackMetadataFromMetadata(speechPlaybackState.value.item?.metadata)),
+    playbackTelemetry: computed(() => resolveEmbodimentPlaybackMetadataFromMetadata(resolveTelemetrySourceMetadata())),
     speechPlayback: readonly(speechPlaybackState),
     speechRenderState: readonly(speechRenderState),
     upcomingSpeechSegment: readonly(upcomingSpeechSegment),

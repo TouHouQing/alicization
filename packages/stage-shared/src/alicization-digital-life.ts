@@ -8,7 +8,10 @@ import type {
   AlicizationEmotion,
   CharacterPerformanceCapabilitiesManifest,
 } from './alicization-performance-contracts'
-import type { AlicizationDigitalLifeSpineDigest } from './alicization-transport-contracts'
+import type {
+  AlicizationDigitalLifeSpineDigest,
+  AlicizationRuntimeProjectStateDigest,
+} from './alicization-transport-contracts'
 import type { StageEmbodimentMotorState } from './stage-embodiment-motor-state'
 import type { StageEmbodimentPresencePostureMode } from './stage-embodiment-presence-posture'
 import type { StageEmbodimentSpeechStyleProfile } from './stage-embodiment-profile'
@@ -16,13 +19,14 @@ import type { StageEmbodimentSpeechStyleProfile } from './stage-embodiment-profi
 import { normalizeAlicizationDialogueEmbodimentEnvelope } from './alicization-dialogue-embodiment'
 import { normalizeAlicizationDialogueSpeechTimeline } from './alicization-dialogue-speech-timeline'
 import { normalizeAlicizationEmotion, normalizeAlicizationPerformancePayload } from './alicization-performance-contracts'
+import { hasAlicizationSoftenedSameHerCarry } from './alicization-same-her-renderer-hints'
 import {
   createIdleStageEmbodimentMotorState,
   normalizeStageEmbodimentMotorState,
 } from './stage-embodiment-motor-state'
 
 export type AlicizationDigitalLifeMode = 'thinking' | 'speaking' | 'acting' | 'recovering'
-export type AlicizationDigitalLifeLipSyncMode = 'hybrid' | 'viseme' | 'energy' | 'closed'
+export type AlicizationDigitalLifeLipSyncMode = 'hybrid' | 'viseme' | 'energy' | 'energy-phoneme-hybrid' | 'closed'
 export type AlicizationDigitalLifeExpressionMode = 'blend' | 'hold' | 'recover'
 export type AlicizationDigitalLifeActionMode = 'pulse' | 'hold' | 'none'
 
@@ -98,6 +102,7 @@ export interface BuildAlicizationDigitalLifeEnvelopeInput {
   speechTimeline?: AlicizationDialogueSpeechTimeline | null
   performanceManifest?: CharacterPerformanceCapabilitiesManifest | null
   digitalLifeSpine?: AlicizationDigitalLifeSpineDigest | null
+  projectState?: AlicizationRuntimeProjectStateDigest | null
 }
 
 function clampUnit(value: number | null | undefined, fallback: number = 0) {
@@ -144,11 +149,107 @@ function normalizeCue(raw: unknown) {
   return normalized ? normalized.slice(0, 96) : null
 }
 
+function normalizeRendererHintAliases(raw: unknown) {
+  if (!Array.isArray(raw))
+    return []
+
+  const deduped: string[] = []
+  const seen = new Set<string>()
+  for (const value of raw) {
+    if (typeof value !== 'string')
+      continue
+
+    const normalized = value.trim()
+    if (!normalized || seen.has(normalized))
+      continue
+
+    seen.add(normalized)
+    deduped.push(normalized)
+  }
+
+  return deduped
+}
+
+function normalizeDigitalLifeRendererHints(
+  raw: unknown,
+): AlicizationDialogueEmbodimentRendererHints | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+    return null
+
+  const candidate = raw as Record<string, unknown>
+  const preferredExpressionAliases = normalizeRendererHintAliases(candidate.preferredExpressionAliases)
+  const preferredMotionAliases = normalizeRendererHintAliases(candidate.preferredMotionAliases)
+  const preferredGazeMode = candidate.preferredGazeMode === 'steady'
+    || candidate.preferredGazeMode === 'soften'
+    || candidate.preferredGazeMode === 'drift'
+    ? candidate.preferredGazeMode
+    : undefined
+  const preferredBlinkCadence = candidate.preferredBlinkCadence === 'normal'
+    || candidate.preferredBlinkCadence === 'linger'
+    || candidate.preferredBlinkCadence === 'quiet'
+    ? candidate.preferredBlinkCadence
+    : undefined
+  const residentMode = typeof candidate.residentMode === 'string' && candidate.residentMode.trim()
+    ? candidate.residentMode.trim()
+    : undefined
+  const reasonTags = normalizeRendererHintAliases(candidate.reasonTags)
+  const signature = typeof candidate.signature === 'string' && candidate.signature.trim()
+    ? candidate.signature.trim()
+    : undefined
+  if (
+    preferredExpressionAliases.length === 0
+    && preferredMotionAliases.length === 0
+    && !preferredGazeMode
+    && !preferredBlinkCadence
+    && !residentMode
+    && reasonTags.length === 0
+    && !signature
+  ) {
+    return null
+  }
+
+  return {
+    preferredExpressionAliases: preferredExpressionAliases.length > 0 ? preferredExpressionAliases : undefined,
+    preferredMotionAliases: preferredMotionAliases.length > 0 ? preferredMotionAliases : undefined,
+    preferredGazeMode,
+    preferredBlinkCadence,
+    residentMode,
+    reasonTags: reasonTags.length > 0 ? reasonTags : undefined,
+    signature,
+  }
+}
+
 function normalizeVariationToken(raw: unknown) {
   if (typeof raw !== 'string')
     return ''
 
   return raw.trim().slice(0, 256)
+}
+
+function normalizeRendererHintAlias(value: string | null | undefined) {
+  return typeof value === 'string'
+    ? value.trim().toLowerCase().replace(/-/g, '_')
+    : null
+}
+
+function hasRememberedSeamMoreRoomRendererHints(
+  rendererHints: AlicizationDialogueEmbodimentRendererHints | null | undefined,
+) {
+  const sameHerSoftenedCarry = hasAlicizationSoftenedSameHerCarry({
+    signature: rendererHints?.signature,
+    reasonTags: rendererHints?.reasonTags,
+  })
+
+  if (rendererHints?.residentMode !== 'measured-return' && !sameHerSoftenedCarry)
+    return false
+
+  const primaryExpressionAlias = normalizeRendererHintAlias(rendererHints?.preferredExpressionAliases?.[0] ?? null)
+  const primaryMotionAlias = normalizeRendererHintAlias(rendererHints?.preferredMotionAliases?.[0] ?? null)
+
+  return primaryExpressionAlias === 'soft_gaze'
+    && primaryMotionAlias === 'idle_settle'
+    && rendererHints?.preferredBlinkCadence === 'linger'
+    && rendererHints?.preferredGazeMode === 'soften'
 }
 
 function normalizeDigitalLifeMode(raw: unknown): AlicizationDigitalLifeMode {
@@ -158,7 +259,7 @@ function normalizeDigitalLifeMode(raw: unknown): AlicizationDigitalLifeMode {
 }
 
 function normalizeDigitalLifeLipSyncMode(raw: unknown): AlicizationDigitalLifeLipSyncMode {
-  return raw === 'viseme' || raw === 'energy' || raw === 'closed'
+  return raw === 'viseme' || raw === 'energy' || raw === 'energy-phoneme-hybrid' || raw === 'closed'
     ? raw
     : 'hybrid'
 }
@@ -186,6 +287,23 @@ function averageWeight(
     return sum + clampUnit(selector(segment))
   }, 0)
   return total / segments.length
+}
+
+function resolveCompanionshipResidentMode(input: {
+  rendererHints?: AlicizationDialogueEmbodimentRendererHints | null
+  segments: AlicizationDialogueSpeechTimelineSegment[]
+}) {
+  const envelopeMode = input.rendererHints?.residentMode
+  if (envelopeMode === 'quiet-companionship' || envelopeMode === 'measured-return' || envelopeMode === 'repair-before-closeness')
+    return envelopeMode
+
+  for (const segment of input.segments) {
+    const residentMode = segment.rendererHints?.residentMode
+    if (residentMode === 'quiet-companionship' || residentMode === 'measured-return' || residentMode === 'repair-before-closeness')
+      return residentMode
+  }
+
+  return null
 }
 
 function resolveEmotionMotorBias(emotion: AlicizationEmotion) {
@@ -760,8 +878,8 @@ function resolveSpineEmbodimentMotorBias(
   const relationshipApproach = resolveCategoricalEmbodimentWeight(approachVector, {
     'give-space': 0.2,
     'stay-near': 0.58,
-    guide: 0.78,
-    care: 0.92,
+    'guide': 0.78,
+    'care': 0.92,
   })
   const replyHabitRestraint = resolveCategoricalEmbodimentWeight(mindEcology?.replyHabit, {
     'repair-first': 0.64,
@@ -855,8 +973,8 @@ function resolveSpineEmbodimentMotorBias(
   )
   const directness = clampUnit(
     resolveCategoricalEmbodimentWeight(autobiographicalSelf?.agencyStyle, {
-      reserved: 0.26,
-      balanced: 0.56,
+      'reserved': 0.26,
+      'balanced': 0.56,
       'self-starting': 0.9,
     }) * 0.18
     + initiativeDrive * 0.12
@@ -1122,14 +1240,17 @@ export function deriveAlicizationDigitalLifeMotorPlan(input: {
   } | null
   voice: Pick<AlicizationDigitalLifeVoicePlan, 'cadence' | 'energy'>
   digitalLifeSpine?: AlicizationDigitalLifeSpineDigest | null
+  rendererHints?: AlicizationDialogueEmbodimentRendererHints | null
 }): AlicizationDigitalLifeMotorPlan {
   const idle = createIdleStageEmbodimentMotorState()
+  const rememberedSeamMoreRoom = hasRememberedSeamMoreRoomRendererHints(input.rendererHints)
+  const weightScale = rememberedSeamMoreRoom ? 0.82 : 1
   const emphasis = clampUnit(input.performance.emphasis * 0.5)
-  const gestureWeight = clampUnit(Math.max(input.segmentWeights?.gesture ?? 0, input.action.intensity))
-  const facialWeight = clampUnit(Math.max(input.segmentWeights?.facial ?? 0, input.face.intensity))
+  const gestureWeight = clampUnit(Math.max((input.segmentWeights?.gesture ?? 0) * weightScale, input.action.intensity))
+  const facialWeight = clampUnit(Math.max((input.segmentWeights?.facial ?? 0) * weightScale, input.face.intensity))
   const beatWeight = clampUnit(input.segmentWeights?.beat ?? input.voice.cadence)
-  const mouthWeight = clampUnit(input.segmentWeights?.mouth ?? input.lipSync.mouthScale)
-  const headWeight = clampUnit(Math.max(input.segmentWeights?.head ?? 0, input.action.intensity))
+  const mouthWeight = clampUnit((input.segmentWeights?.mouth ?? input.lipSync.mouthScale) * (rememberedSeamMoreRoom ? 0.88 : 1))
+  const headWeight = clampUnit(Math.max((input.segmentWeights?.head ?? 0) * weightScale, input.action.intensity))
   const energy = clampUnit(input.voice.energy, 0.5)
   const cadence = clampUnit(input.voice.cadence, 0.5)
   const emotionBias = resolveEmotionMotorBias(input.emotion)
@@ -1266,11 +1387,11 @@ export function deriveAlicizationDigitalLifeMotorPlan(input: {
       jawOpenBias: input.lipSync.mode === 'closed'
         ? 0
         : idle.facial.jawOpenBias
-            + emotionBias.jawOpenBias
-            + embodimentBias.jawOpenBias
-            + energy * 0.12
-            + mouthWeight * 0.1
-            + (Number(input.lipSync.mouthScale) - 0.88) * 0.16,
+          + emotionBias.jawOpenBias
+          + embodimentBias.jawOpenBias
+          + energy * 0.12
+          + mouthWeight * 0.1
+          + (Number(input.lipSync.mouthScale) - 0.88) * 0.16,
     },
     body: {
       sway: idle.body.sway
@@ -1337,9 +1458,17 @@ function resolveDeliveryCadenceBoost(delivery: AlicizationDialoguePerformancePay
 }
 
 function resolveEnvelopeMode(input: {
+  rendererHints?: AlicizationDialogueEmbodimentRendererHints | null
   performance: AlicizationDialoguePerformancePayload
   segments: AlicizationDialogueSpeechTimelineSegment[]
 }): AlicizationDigitalLifeMode {
+  const companionshipResidentMode = resolveCompanionshipResidentMode({
+    rendererHints: input.rendererHints,
+    segments: input.segments,
+  })
+  if (companionshipResidentMode === 'measured-return' || companionshipResidentMode === 'repair-before-closeness')
+    return 'thinking'
+
   if (input.segments.some(segment => normalizeCue(segment.actionCue)))
     return 'acting'
 
@@ -1401,15 +1530,18 @@ function resolveLipSyncPlan(input: {
   segments: AlicizationDialogueSpeechTimelineSegment[]
   voice: AlicizationDigitalLifeVoicePlan
   reply: string
+  rendererHints?: AlicizationDialogueEmbodimentRendererHints | null
 }): AlicizationDigitalLifeLipSyncPlan {
   const mode = resolveLipSyncMode({
     performanceManifest: input.performanceManifest,
     reply: input.reply,
   })
+  const rememberedSeamMoreRoom = hasRememberedSeamMoreRoomRendererHints(input.rendererHints)
   const averageMouth = averageWeight(input.segments, segment => segment.mouthWeight)
   const averageHold = averageWeight(input.segments, (segment) => {
     return clampRange((segment.emotionHoldMs ?? 160) / 720, 0, 1, 0.2)
   })
+  const mouthWeight = rememberedSeamMoreRoom ? averageMouth * 0.88 : averageMouth
 
   const visemeBias = mode === 'energy'
     ? 0.22
@@ -1428,7 +1560,7 @@ function resolveLipSyncPlan(input: {
     energyBias: roundHundredths(energyBias),
     mouthScale: clampFactor(
       0.72
-      + averageMouth * 0.34
+      + mouthWeight * 0.34
       + input.voice.energy * 0.2
       + input.performance.emphasis * 0.06,
       0.88,
@@ -1446,6 +1578,10 @@ function resolveFacePlan(input: {
   intensityWeight: number
   expressionMode: AlicizationDigitalLifeExpressionMode
 }): AlicizationDigitalLifeFacePlan {
+  const intensityWeight = hasRememberedSeamMoreRoomRendererHints(input.rendererHints)
+    ? input.intensityWeight * 0.82
+    : input.intensityWeight
+
   return {
     emotion: input.emotion,
     facialCue: input.facialCue,
@@ -1453,7 +1589,7 @@ function resolveFacePlan(input: {
     intensity: roundHundredths(
       0.42
       + input.performance.emphasis * 0.08
-      + input.intensityWeight * 0.28,
+      + intensityWeight * 0.28,
       0.54,
     ),
     holdMs: Math.round(clampRange(input.holdMs, 80, 960, 220)),
@@ -1469,14 +1605,21 @@ function resolveActionPlan(input: {
   intensityWeight: number
   actionMode: AlicizationDigitalLifeActionMode
 }): AlicizationDigitalLifeActionPlan {
+  const residentMode = input.rendererHints?.residentMode ?? null
+  const intensityWeight = hasRememberedSeamMoreRoomRendererHints(input.rendererHints)
+    ? input.intensityWeight * 0.78
+    : input.intensityWeight
+  const actionMode = residentMode === 'measured-return' || residentMode === 'repair-before-closeness'
+    ? 'hold'
+    : input.actionMode
   return {
     actionCue: input.actionCue,
-    actionMode: input.actionMode,
+    actionMode,
     intensity: input.actionCue
       ? roundHundredths(
           0.24
           + input.performance.emphasis * 0.1
-          + input.intensityWeight * 0.42,
+          + intensityWeight * 0.42,
           0.38,
         )
       : 0,
@@ -1492,6 +1635,7 @@ function resolveFrame(input: {
   baseVoice: AlicizationDigitalLifeVoicePlan
   baseLipSync: AlicizationDigitalLifeLipSyncPlan
   digitalLifeSpine?: AlicizationDigitalLifeSpineDigest | null
+  projectState?: AlicizationRuntimeProjectStateDigest | null
 }): AlicizationDigitalLifeFrame {
   const actionCue = normalizeCue(input.segment.actionCue)
   const facialCue = normalizeCue(input.segment.facialCue)
@@ -1507,6 +1651,26 @@ function resolveFrame(input: {
     : facialCue
       ? 'blend'
       : 'recover'
+  const residentMode = input.segment.rendererHints?.residentMode ?? input.envelope.rendererHints?.residentMode ?? null
+  const digitalLifeSpineProjectState = input.projectState ?? null
+  const sameThreadMeasuredReturnClosureText = [
+    digitalLifeSpineProjectState?.sameHerSelfLine,
+    digitalLifeSpineProjectState?.emotionalClosureCue,
+    digitalLifeSpineProjectState?.continuityCue,
+    digitalLifeSpineProjectState?.nextClosureTarget,
+    digitalLifeSpineProjectState?.preDialogueAwarenessLine,
+    digitalLifeSpineProjectState?.sameHerDriftRisk,
+  ].filter(Boolean).join(' ')
+  const sameThreadMeasuredReturnProjectClosure
+    = residentMode === 'measured-return'
+      && digitalLifeSpineProjectState?.continuityArcStage === 'same-thread-continuation'
+      && digitalLifeSpineProjectState?.continuityPreferredTiming === 'next-open-window'
+      && (
+        input.digitalLifeSpine?.proactive?.continuityRestraint === 'measured-return'
+        || /same phase 1 digital life|same living line|continuous her|one continuous her|same callback seam|same thread|callback thread/iu.test(
+          sameThreadMeasuredReturnClosureText,
+        )
+      )
   const voice: AlicizationDigitalLifeVoicePlan = {
     pitchDelta: input.baseVoice.pitchDelta,
     rateMultiplier: clampRateMultiplier(
@@ -1514,16 +1678,31 @@ function resolveFrame(input: {
       * (1 + (input.segment.prosodyWeight - 0.5) * 0.12 + (input.segment.beatWeight - 0.4) * 0.06),
     ),
     energy: roundHundredths(
-      input.baseVoice.energy * 0.62
-      + clampUnit(input.segment.prosodyWeight) * 0.22
-      + clampUnit(input.segment.gestureWeight) * 0.08
-      + clampUnit(input.segment.beatWeight) * 0.08,
+      sameThreadMeasuredReturnProjectClosure
+        ? Math.max(
+            0.49,
+            input.baseVoice.energy * 0.82
+            + clampUnit(input.segment.prosodyWeight) * 0.12
+            + clampUnit(input.segment.gestureWeight) * 0.03
+            + clampUnit(input.segment.beatWeight) * 0.03,
+          )
+        : input.baseVoice.energy * 0.62
+          + clampUnit(input.segment.prosodyWeight) * 0.22
+          + clampUnit(input.segment.gestureWeight) * 0.08
+          + clampUnit(input.segment.beatWeight) * 0.08,
       input.baseVoice.energy,
     ),
     cadence: roundHundredths(
-      input.baseVoice.cadence * 0.58
-      + clampUnit(input.segment.prosodyWeight) * 0.16
-      + clampUnit(input.segment.beatWeight) * 0.26,
+      sameThreadMeasuredReturnProjectClosure
+        ? Math.max(
+            0.49,
+            input.baseVoice.cadence * 0.84
+            + clampUnit(input.segment.prosodyWeight) * 0.08
+            + clampUnit(input.segment.beatWeight) * 0.1,
+          )
+        : input.baseVoice.cadence * 0.58
+          + clampUnit(input.segment.prosodyWeight) * 0.16
+          + clampUnit(input.segment.beatWeight) * 0.26,
       input.baseVoice.cadence,
     ),
   }
@@ -1538,7 +1717,11 @@ function resolveFrame(input: {
     energyBias: lipSyncMode === 'energy' ? 0.76 : input.baseLipSync.energyBias,
     mouthScale: clampFactor(
       input.baseLipSync.mouthScale
-      * (0.82 + clampUnit(input.segment.mouthWeight ?? input.segment.prosodyWeight) * 0.36),
+      * (
+        hasRememberedSeamMoreRoomRendererHints(input.segment.rendererHints)
+          ? 0.78 + clampUnit(input.segment.mouthWeight ?? input.segment.prosodyWeight) * 0.3
+          : 0.82 + clampUnit(input.segment.mouthWeight ?? input.segment.prosodyWeight) * 0.36
+      ),
       input.baseLipSync.mouthScale,
     ),
     continuityHoldMs: Math.round(clampRange(
@@ -1588,6 +1771,7 @@ function resolveFrame(input: {
       mouth: input.segment.mouthWeight,
     },
     voice,
+    rendererHints: input.segment.rendererHints,
   })
 
   return {
@@ -1638,6 +1822,7 @@ export function buildAlicizationDigitalLifeEnvelope(
     segments: speechTimeline.segments,
     voice,
     reply: speechTimeline.reply,
+    rendererHints: embodiment.rendererHints,
   })
   const face = resolveFacePlan({
     emotion: embodiment.emotion,
@@ -1682,7 +1867,9 @@ export function buildAlicizationDigitalLifeEnvelope(
       mouth: averageWeight(speechTimeline.segments, segment => segment.mouthWeight),
     },
     voice,
+    rendererHints: embodiment.rendererHints,
   })
+  const projectState = input.projectState ?? input.digitalLifeSpine?.runtime?.projectState ?? null
   const frames = speechTimeline.segments.map(segment => resolveFrame({
     segment,
     envelope: embodiment,
@@ -1690,6 +1877,7 @@ export function buildAlicizationDigitalLifeEnvelope(
     baseVoice: voice,
     baseLipSync: lipSync,
     digitalLifeSpine: input.digitalLifeSpine,
+    projectState,
   }))
 
   return {
@@ -1697,6 +1885,7 @@ export function buildAlicizationDigitalLifeEnvelope(
     variationToken,
     emotion: embodiment.emotion,
     mode: resolveEnvelopeMode({
+      rendererHints: embodiment.rendererHints,
       performance,
       segments: speechTimeline.segments,
     }),
@@ -1743,9 +1932,7 @@ export function normalizeAlicizationDigitalLifeEnvelope(
         pitchDelta: 0,
         rateMultiplier: 1,
       }
-  const rendererHints = candidate.rendererHints && typeof candidate.rendererHints === 'object' && !Array.isArray(candidate.rendererHints)
-    ? candidate.rendererHints as AlicizationDialogueEmbodimentRendererHints
-    : null
+  const rendererHints = normalizeDigitalLifeRendererHints(candidate.rendererHints)
   const rawFrames = Array.isArray(candidate.frames) ? candidate.frames : []
   const frames = rawFrames
     .map((frame, index): AlicizationDigitalLifeFrame | null => {
@@ -1754,7 +1941,19 @@ export function normalizeAlicizationDigitalLifeEnvelope(
 
       const item = frame as Record<string, unknown>
       const text = typeof item.text === 'string' ? item.text.trim() : ''
-      if (!text)
+      const hasExplicitId = typeof item.id === 'string' && item.id.trim().length > 0
+      const hasFrameTiming = Number.isFinite(Number(item.startOffset)) || Number.isFinite(Number(item.endOffset))
+      const hasStructuredSettleTail
+        = item.settleMode === 'hold'
+          || item.settleMode === 'linger'
+          || (
+            item.lipSync
+            && typeof item.lipSync === 'object'
+            && !Array.isArray(item.lipSync)
+            && (((item.lipSync as Record<string, unknown>).mode === 'closed')
+              || Number((item.lipSync as Record<string, unknown>).continuityHoldMs) > 0)
+          )
+      if (!text && (!hasExplicitId || !hasFrameTiming || !hasStructuredSettleTail))
         return null
 
       const faceRaw = item.face && typeof item.face === 'object' && !Array.isArray(item.face)
@@ -1775,18 +1974,14 @@ export function normalizeAlicizationDigitalLifeEnvelope(
         expressionMode: normalizeDigitalLifeExpressionMode(faceRaw.expressionMode),
         intensity: roundHundredths(Number(faceRaw.intensity), 0.5),
         holdMs: Math.round(clampRange(Number(faceRaw.holdMs), 80, 960, 220)),
-        rendererHints: faceRaw.rendererHints && typeof faceRaw.rendererHints === 'object' && !Array.isArray(faceRaw.rendererHints)
-          ? faceRaw.rendererHints as AlicizationDialogueEmbodimentRendererHints
-          : null,
+        rendererHints: normalizeDigitalLifeRendererHints(faceRaw.rendererHints),
       } satisfies AlicizationDigitalLifeFacePlan
       const action = {
         actionCue: normalizeCue(actionRaw.actionCue),
         actionMode: normalizeDigitalLifeActionMode(actionRaw.actionMode),
         intensity: roundHundredths(Number(actionRaw.intensity), 0.3),
         holdMs: Math.round(clampRange(Number(actionRaw.holdMs), 70, 720, 180)),
-        rendererHints: actionRaw.rendererHints && typeof actionRaw.rendererHints === 'object' && !Array.isArray(actionRaw.rendererHints)
-          ? actionRaw.rendererHints as AlicizationDialogueEmbodimentRendererHints
-          : null,
+        rendererHints: normalizeDigitalLifeRendererHints(actionRaw.rendererHints),
       } satisfies AlicizationDigitalLifeActionPlan
       const lipSync = {
         mode: normalizeDigitalLifeLipSyncMode(lipSyncRaw.mode),
@@ -1811,7 +2006,7 @@ export function normalizeAlicizationDigitalLifeEnvelope(
       })
 
       return {
-        id: typeof item.id === 'string' && item.id.trim() ? item.id.trim() : `digital-life:${index}`,
+        id: hasExplicitId ? (item.id as string).trim() : `digital-life:${index}`,
         index: Math.max(0, Math.floor(Number(item.index) || index)),
         startOffset: Math.max(0, Math.floor(Number(item.startOffset) || 0)),
         endOffset: Math.max(0, Math.floor(Number(item.endOffset) || text.length)),
@@ -1876,18 +2071,14 @@ export function normalizeAlicizationDigitalLifeEnvelope(
     expressionMode: normalizeDigitalLifeExpressionMode(faceRaw.expressionMode),
     intensity: roundHundredths(Number(faceRaw.intensity), 0.5),
     holdMs: Math.round(clampRange(Number(faceRaw.holdMs), 80, 960, 220)),
-    rendererHints: faceRaw.rendererHints && typeof faceRaw.rendererHints === 'object' && !Array.isArray(faceRaw.rendererHints)
-      ? faceRaw.rendererHints as AlicizationDialogueEmbodimentRendererHints
-      : rendererHints,
+    rendererHints: normalizeDigitalLifeRendererHints(faceRaw.rendererHints) ?? rendererHints,
   } satisfies AlicizationDigitalLifeFacePlan
   const action = {
     actionCue: normalizeCue(actionRaw.actionCue ?? performance.actionCue),
     actionMode: normalizeDigitalLifeActionMode(actionRaw.actionMode),
     intensity: roundHundredths(Number(actionRaw.intensity), 0.3),
     holdMs: Math.round(clampRange(Number(actionRaw.holdMs), 70, 720, 180)),
-    rendererHints: actionRaw.rendererHints && typeof actionRaw.rendererHints === 'object' && !Array.isArray(actionRaw.rendererHints)
-      ? actionRaw.rendererHints as AlicizationDialogueEmbodimentRendererHints
-      : rendererHints,
+    rendererHints: normalizeDigitalLifeRendererHints(actionRaw.rendererHints) ?? rendererHints,
   } satisfies AlicizationDigitalLifeActionPlan
   const fallbackMotor = deriveAlicizationDigitalLifeMotorPlan({
     action,

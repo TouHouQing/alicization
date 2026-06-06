@@ -1,10 +1,15 @@
 import { describe, expect, it } from 'vitest'
 
+import { resolveAlicizationCompanionshipReasonSummary } from './alicization-companionship-reason'
 import {
   buildAlicizationDigitalLifeEnvelope,
   normalizeAlicizationDigitalLifeEnvelope,
 } from './alicization-digital-life'
+import { buildAlicizationFaceSummary } from './alicization-face-summary'
+import { buildAlicizationLipsyncSummary } from './alicization-lipsync-summary'
+import { buildAlicizationMotionSummary } from './alicization-motion-summary'
 import { normalizeAlicizationDerivedMindStateBundle } from './alicization-transport-contracts'
+import { buildAlicizationVoiceSummary } from './alicization-voice-summary'
 
 describe('alicization digital life', () => {
   it('builds a unified embodiment envelope with aligned segment frames', () => {
@@ -226,6 +231,424 @@ describe('alicization digital life', () => {
         expect.objectContaining({ id: 'segment-2' }),
       ]),
     }))
+  })
+
+  it('preserves energy phoneme hybrid lipsync mode through digital-life envelope normalization', () => {
+    const envelope = normalizeAlicizationDigitalLifeEnvelope({
+      version: 'digital-life-v1',
+      variationToken: 'turn-digital-life-hybrid-lipsync-1',
+      emotion: 'thinking',
+      mode: 'speaking',
+      postureHint: 'inspection',
+      performance: {
+        baseEmotion: 'thinking',
+        emotion: 'thinking',
+        facialCue: 'soft-gaze',
+        actionCue: 'observe_focus',
+        delivery: 'gentle',
+        emphasis: 0,
+      },
+      speechStyle: {
+        pitchDelta: 0,
+        rateMultiplier: 0.98,
+      },
+      voice: {
+        pitchDelta: 0,
+        rateMultiplier: 0.98,
+        energy: 0.42,
+        cadence: 0.38,
+      },
+      lipSync: {
+        mode: 'energy-phoneme-hybrid',
+        visemeBias: 0.48,
+        energyBias: 0.82,
+        mouthScale: 1.08,
+        continuityHoldMs: 440,
+      },
+      face: {
+        emotion: 'thinking',
+        facialCue: 'soft-gaze',
+        expressionMode: 'hold',
+        intensity: 0.46,
+        holdMs: 320,
+      },
+      action: {
+        actionCue: 'observe_focus',
+        actionMode: 'hold',
+        intensity: 0.22,
+        holdMs: 280,
+      },
+      frames: [
+        {
+          id: 'segment-hybrid-lipsync-1',
+          index: 0,
+          startOffset: 0,
+          endOffset: 1200,
+          text: '我会把声音和口型继续绑在同一段上。',
+          mode: 'speaking',
+          interruptPolicy: 'soft-settle',
+          settleMode: 'natural',
+          voice: {
+            pitchDelta: 0,
+            rateMultiplier: 0.98,
+            energy: 0.42,
+            cadence: 0.38,
+          },
+          lipSync: {
+            mode: 'energy-phoneme-hybrid',
+            visemeBias: 0.48,
+            energyBias: 0.82,
+            mouthScale: 1.08,
+            continuityHoldMs: 440,
+          },
+          face: {
+            emotion: 'thinking',
+            facialCue: 'soft-gaze',
+            expressionMode: 'hold',
+            intensity: 0.46,
+            holdMs: 320,
+          },
+          action: {
+            actionCue: 'observe_focus',
+            actionMode: 'hold',
+            intensity: 0.22,
+            holdMs: 280,
+          },
+        },
+      ],
+    })
+
+    expect(envelope?.lipSync.mode).toBe('energy-phoneme-hybrid')
+    expect(envelope?.frames[0]?.lipSync.mode).toBe('energy-phoneme-hybrid')
+  })
+
+  it('preserves quieter settle-tail frames with empty text during normalization', () => {
+    const normalized = normalizeAlicizationDigitalLifeEnvelope({
+      version: 'digital-life-v1',
+      variationToken: 'turn-digital-life-settle-tail-1',
+      emotion: 'thinking',
+      mode: 'thinking',
+      postureHint: 'inspection',
+      performance: {
+        baseEmotion: 'thinking',
+        emotion: 'thinking',
+        facialCue: 'glance',
+        actionCue: 'observe_focus',
+        delivery: 'gentle',
+        emphasis: 0,
+      },
+      speechStyle: {
+        pitchDelta: -5,
+        rateMultiplier: 0.82,
+      },
+      voice: {
+        pitchDelta: -5,
+        rateMultiplier: 0.82,
+        energy: 0.34,
+        cadence: 0.28,
+      },
+      lipSync: {
+        mode: 'closed',
+        visemeBias: 0.2,
+        energyBias: 0.3,
+        mouthScale: 0.82,
+        continuityHoldMs: 520,
+      },
+      face: {
+        emotion: 'thinking',
+        facialCue: 'soft-gaze',
+        expressionMode: 'recover',
+        intensity: 0.3,
+        holdMs: 520,
+      },
+      action: {
+        actionCue: 'observe_focus',
+        actionMode: 'hold',
+        intensity: 0.18,
+        holdMs: 480,
+      },
+      motor: {},
+      frames: [
+        {
+          id: 'segment-0',
+          index: 0,
+          startOffset: 0,
+          endOffset: 30,
+          text: '我还是沿着刚才那条 callback 线继续，不把这次绕回来当成另一段新的开始。',
+          mode: 'thinking',
+          interruptPolicy: 'soft-interrupt',
+          settleMode: 'linger',
+          voice: {
+            pitchDelta: -5,
+            rateMultiplier: 0.88,
+            energy: 0.49,
+            cadence: 0.47,
+          },
+          lipSync: {
+            mode: 'hybrid',
+            visemeBias: 0.34,
+            energyBias: 0.58,
+            mouthScale: 0.94,
+            continuityHoldMs: 320,
+          },
+          face: {
+            emotion: 'thinking',
+            facialCue: 'glance',
+            expressionMode: 'hold',
+            intensity: 0.65,
+            holdMs: 638,
+          },
+          action: {
+            actionCue: 'observe_focus',
+            actionMode: 'hold',
+            intensity: 0.34,
+            holdMs: 300,
+          },
+          motor: {},
+        },
+        {
+          id: 'settle-tail',
+          index: 1,
+          startOffset: 30,
+          endOffset: 30,
+          text: '',
+          mode: 'thinking',
+          interruptPolicy: 'soft-interrupt',
+          settleMode: 'linger',
+          voice: {
+            pitchDelta: -5,
+            rateMultiplier: 0.82,
+            energy: 0.34,
+            cadence: 0.28,
+          },
+          lipSync: {
+            mode: 'closed',
+            visemeBias: 0.2,
+            energyBias: 0.3,
+            mouthScale: 0.82,
+            continuityHoldMs: 520,
+          },
+          face: {
+            emotion: 'thinking',
+            facialCue: 'soft-gaze',
+            expressionMode: 'recover',
+            intensity: 0.3,
+            holdMs: 520,
+          },
+          action: {
+            actionCue: 'observe_focus',
+            actionMode: 'hold',
+            intensity: 0.18,
+            holdMs: 480,
+          },
+          motor: {},
+        },
+      ],
+    })
+
+    expect(normalized?.frames).toHaveLength(2)
+    expect(normalized?.frames.at(-1)).toEqual(expect.objectContaining({
+      id: 'settle-tail',
+      text: '',
+      lipSync: expect.objectContaining({
+        mode: 'closed',
+        continuityHoldMs: 520,
+      }),
+    }))
+  })
+
+  it('preserves structured same-her action continuity when digital-life arrives through fallback transport payload shape', () => {
+    const bundle = normalizeAlicizationDerivedMindStateBundle({
+      source: 'main-runtime',
+      producedAt: 1,
+      structured: {
+        thought: 'same-thread-continuation keep the same living line slower than impulse',
+        emotion: 'thinking',
+        reply: '我沿着这条线接回来。',
+        performance: {
+          baseEmotion: 'thinking',
+          emotion: 'thinking',
+          facialCue: 'soft-gaze',
+          actionCue: 'observe_focus',
+          delivery: 'gentle',
+          emphasis: 0,
+        },
+        digitalLife: {
+          version: 'digital-life-v1',
+          variationToken: 'transport-fallback-same-her-action',
+          emotion: 'thinking',
+          mode: 'speaking',
+          interruptPolicy: 'soft-interrupt',
+          settleMode: 'linger',
+          reply: '我沿着这条线接回来。',
+          speechStyle: {
+            pitchDelta: -3,
+            rateMultiplier: 0.91,
+          },
+          voice: {
+            pitchDelta: -4,
+            rateMultiplier: 0.89,
+            energy: 0.42,
+            cadence: 0.37,
+          },
+          lipSync: {
+            mode: 'hybrid',
+            visemeBias: 0.61,
+            energyBias: 0.36,
+            mouthScale: 0.93,
+            continuityHoldMs: 260,
+          },
+          motor: {
+            stillness: 0.71,
+            expressivity: 0.39,
+            gaze: {
+              focus: 0.68,
+              stability: 0.74,
+            },
+            breath: {
+              amplitude: 0.33,
+              pace: 0.41,
+            },
+            body: {
+              openness: 0.44,
+              settle: 0.81,
+            },
+          },
+          rendererHints: {
+            residentMode: 'same-thread-continuation',
+            preferredBlinkCadence: 'linger',
+            preferredGazeMode: 'soften',
+            signature: 'embodiment:audible-same-her-line',
+            reasonTags: ['embodiment:body-lipsync-voice-rejoin'],
+          },
+          face: {
+            facialCue: 'soft-gaze',
+            expressionMode: 'recover',
+            intensity: 0.41,
+            holdMs: 310,
+            rendererHints: {
+              residentMode: 'same-thread-continuation',
+              preferredBlinkCadence: 'linger',
+              preferredGazeMode: 'soften',
+              signature: 'embodiment:audible-same-her-line',
+              reasonTags: ['embodiment:body-lipsync-voice-rejoin'],
+            },
+          },
+          action: {
+            actionCue: 'observe_focus',
+            actionMode: 'hold',
+            intensity: 0.19,
+            holdMs: 290,
+            rendererHints: {
+              residentMode: 'same-thread-continuation',
+              preferredBlinkCadence: 'linger',
+              preferredGazeMode: 'soften',
+              signature: 'embodiment:audible-same-her-line',
+              reasonTags: ['embodiment:body-lipsync-voice-rejoin'],
+            },
+          },
+        },
+      },
+      summary: 'fallback digital life payload',
+    } as any)
+
+    expect(bundle?.structured?.digitalLife?.rendererHints).toEqual(expect.objectContaining({
+      residentMode: 'same-thread-continuation',
+      preferredBlinkCadence: 'linger',
+      preferredGazeMode: 'soften',
+      signature: 'embodiment:audible-same-her-line',
+      reasonTags: ['embodiment:body-lipsync-voice-rejoin'],
+    }))
+    expect(bundle?.structured?.digitalLife?.mode).toBe('acting')
+    expect(bundle?.structured?.digitalLife?.postureHint).toBe('hesitant')
+    expect(bundle?.structured?.digitalLife?.speechStyle).toEqual(expect.objectContaining({
+      pitchDelta: -3,
+      rateMultiplier: 0.91,
+    }))
+    expect(bundle?.structured?.digitalLife?.voice).toEqual(expect.objectContaining({
+      pitchDelta: -4,
+      rateMultiplier: 0.89,
+      energy: 0.42,
+      cadence: 0.37,
+    }))
+    expect(bundle?.structured?.digitalLife?.lipSync).toEqual(expect.objectContaining({
+      mode: 'hybrid',
+      visemeBias: 0.61,
+      energyBias: 0.36,
+      mouthScale: 0.93,
+      continuityHoldMs: 260,
+    }))
+    expect(bundle?.structured?.digitalLife?.motor).toEqual(expect.objectContaining({
+      stillness: 0.71,
+      expressivity: 0.39,
+      gaze: expect.objectContaining({
+        focus: 0.68,
+        stability: 0.74,
+      }),
+      breath: expect.objectContaining({
+        amplitude: 0.33,
+        pace: 0.41,
+      }),
+      body: expect.objectContaining({
+        openness: 0.44,
+        settle: 0.81,
+      }),
+    }))
+    expect(bundle?.structured?.digitalLife?.face.rendererHints).toEqual(expect.objectContaining({
+      residentMode: 'same-thread-continuation',
+      preferredBlinkCadence: 'linger',
+      preferredGazeMode: 'soften',
+      signature: 'embodiment:audible-same-her-line',
+      reasonTags: ['embodiment:body-lipsync-voice-rejoin'],
+    }))
+    expect(bundle?.structured?.digitalLife?.face.expressionMode).toBe('recover')
+    expect(bundle?.structured?.digitalLife?.face.intensity).toBe(0.41)
+    expect(bundle?.structured?.digitalLife?.face.holdMs).toBe(310)
+    expect(bundle?.structured?.digitalLife?.action.rendererHints).toEqual(expect.objectContaining({
+      residentMode: 'same-thread-continuation',
+      preferredBlinkCadence: 'linger',
+      preferredGazeMode: 'soften',
+      signature: 'embodiment:audible-same-her-line',
+      reasonTags: ['embodiment:body-lipsync-voice-rejoin'],
+    }))
+    expect(bundle?.structured?.digitalLife?.action.actionMode).toBe('hold')
+    expect(bundle?.structured?.digitalLife?.action.intensity).toBe(0.19)
+    expect(bundle?.structured?.digitalLife?.action.holdMs).toBe(290)
+    expect(bundle?.structured?.digitalLife?.frames[0]?.face.rendererHints).toEqual(expect.objectContaining({
+      residentMode: 'same-thread-continuation',
+      preferredBlinkCadence: 'linger',
+      preferredGazeMode: 'soften',
+      signature: 'embodiment:audible-same-her-line',
+      reasonTags: ['embodiment:body-lipsync-voice-rejoin'],
+    }))
+    expect(bundle?.structured?.digitalLife?.frames[0]?.mode).toBe('acting')
+    expect(bundle?.structured?.digitalLife?.frames[0]?.interruptPolicy).toBe('soft-interrupt')
+    expect(bundle?.structured?.digitalLife?.frames[0]?.settleMode).toBe('linger')
+    expect(bundle?.structured?.digitalLife?.frames[0]?.face.expressionMode).toBe('recover')
+    expect(bundle?.structured?.digitalLife?.frames[0]?.face.intensity).toBe(0.41)
+    expect(bundle?.structured?.digitalLife?.frames[0]?.face.holdMs).toBe(310)
+    expect(bundle?.structured?.digitalLife?.frames[0]?.motor).toEqual(expect.objectContaining({
+      stillness: 0.71,
+      expressivity: 0.39,
+      gaze: expect.objectContaining({
+        focus: 0.68,
+        stability: 0.74,
+      }),
+      body: expect.objectContaining({
+        openness: 0.44,
+        settle: 0.81,
+      }),
+    }))
+    expect(bundle?.structured?.digitalLife?.frames[0]?.action.rendererHints).toEqual(expect.objectContaining({
+      residentMode: 'same-thread-continuation',
+      preferredBlinkCadence: 'linger',
+      preferredGazeMode: 'soften',
+      signature: 'embodiment:audible-same-her-line',
+      reasonTags: ['embodiment:body-lipsync-voice-rejoin'],
+    }))
+    expect(bundle?.structured?.digitalLife?.frames[0]?.action.actionMode).toBe('hold')
+    expect(bundle?.structured?.digitalLife?.frames[0]?.action.intensity).toBe(0.19)
+    expect(bundle?.structured?.digitalLife?.frames[0]?.action.holdMs).toBe(290)
   })
 
   it('lets mind ecology and autobiographical traits reshape motor style without changing the utterance', () => {
@@ -636,6 +1059,7 @@ describe('alicization digital life', () => {
             silenceReconnect: 'hold',
             comfortStyle: 'quiet-presence',
             preferredProactiveStyle: 'silent-observe',
+            manifestationCadenceSummary: 'Observe first and keep the approach lower-pressure before leaning closer.',
             openingGuidance: 'Open by observing first and keep the approach lighter.',
             whySummary: 'persona prefers observe-first room before a closer move.',
           },
@@ -682,6 +1106,7 @@ describe('alicization digital life', () => {
             silenceReconnect: 'direct-approach',
             comfortStyle: 'take-charge',
             preferredProactiveStyle: 'light-nudge',
+            manifestationCadenceSummary: 'Direct reconnect can move first once the opening is real enough.',
             openingGuidance: 'Open directly with the live answer first and keep the approach lighter.',
             whySummary: 'persona prefers a direct reconnect once the opening is real.',
           },
@@ -714,6 +1139,942 @@ describe('alicization digital life', () => {
     expect(state?.visualPresenceState?.currentInwardPreoccupation).toBe('host sustained focus')
   })
 
+  it('keeps top-level digital life in a measured-return hold when relationship memory says the reopening should stay lower-pressure', () => {
+    const envelope = buildAlicizationDigitalLifeEnvelope({
+      embodiment: {
+        emotion: 'concerned',
+        postureHint: 'concerned',
+        variationToken: 'turn-digital-life-measured-return-hold',
+        speechStyle: {
+          pitchDelta: 5,
+          rateMultiplier: 0.98,
+        },
+        rendererHints: {
+          residentMode: 'measured-return',
+          preferredBlinkCadence: 'linger',
+          preferredGazeMode: 'soften',
+          preferredExpressionAliases: ['soft-gaze'],
+          preferredMotionAliases: ['observe_focus'],
+        },
+        performance: {
+          baseEmotion: 'concerned',
+          emotion: 'concerned',
+          facialCue: 'soft-gaze',
+          actionCue: 'observe_focus',
+          delivery: 'gentle',
+          emphasis: 0,
+        },
+      },
+      speechTimeline: {
+        version: 'speech-timeline-v1',
+        variationToken: 'turn-digital-life-measured-return-hold',
+        reply: '我先顺着刚才那条线轻一点接着说，把这个口慢慢收回来。',
+        emotion: 'concerned',
+        segments: [
+          {
+            id: 'segment-1',
+            index: 0,
+            startOffset: 0,
+            endOffset: 16,
+            text: '我先顺着刚才那条线轻一点接着说，',
+            emotion: 'concerned',
+            gestureWeight: 0.52,
+            facialWeight: 0.6,
+            prosodyWeight: 0.54,
+            beatWeight: 0.4,
+            mouthWeight: 0.56,
+            headWeight: 0.46,
+            facialHoldMs: 320,
+            actionHoldMs: 280,
+            emotionHoldMs: 360,
+            settleMode: 'hold',
+            rendererHints: {
+              residentMode: 'measured-return',
+              preferredBlinkCadence: 'linger',
+              preferredGazeMode: 'soften',
+              preferredExpressionAliases: ['soft-gaze'],
+              preferredMotionAliases: ['observe_focus'],
+            },
+            actionCue: 'observe_focus',
+            facialCue: 'soft-gaze',
+            actionWindow: 'none',
+            interruptMode: 'soft-interrupt',
+          },
+          {
+            id: 'segment-2',
+            index: 1,
+            startOffset: 16,
+            endOffset: 26,
+            text: '把这个口慢慢收回来。',
+            emotion: 'concerned',
+            gestureWeight: 0.48,
+            facialWeight: 0.58,
+            prosodyWeight: 0.55,
+            beatWeight: 0.38,
+            mouthWeight: 0.54,
+            headWeight: 0.42,
+            facialHoldMs: 340,
+            actionHoldMs: 300,
+            emotionHoldMs: 380,
+            settleMode: 'linger',
+            rendererHints: {
+              residentMode: 'measured-return',
+              preferredBlinkCadence: 'linger',
+              preferredGazeMode: 'soften',
+              preferredExpressionAliases: ['soft-gaze'],
+              preferredMotionAliases: ['observe_focus'],
+            },
+            actionCue: 'observe_focus',
+            facialCue: 'soft-gaze',
+            actionWindow: 'none',
+            interruptMode: 'soft-interrupt',
+          },
+        ],
+      },
+      digitalLifeSpine: {
+        version: 'digital-life-spine-digest-v1',
+        runtime: {
+          watchMode: 'foreground-follow',
+          sceneScenario: 'coding',
+          sceneSummary: 'same callback seam still alive',
+          activeThreadId: 'thread-measured-return-hold',
+          activeThreadTitle: 'callback seam',
+          dominantMode: 'observe',
+          dominantDrive: 'understand',
+          answerIntent: 'Continue the same callback seam without crowding the return.',
+          preferredPresence: 'attentive',
+          selectedAction: 'silent-observe',
+          updatedAt: 1_000,
+          continuityArcStage: 'same-thread-continuation',
+          continuityPreferredTiming: 'next-open-window',
+          continuityCue: 'same callback seam, continue softly after the detour',
+        },
+        architecture: null,
+        continuitySignal: null,
+        proactive: {
+          selectedAction: 'silent-observe',
+          preferredStyle: 'silent-observe',
+          confidence: 0.78,
+          shouldSpeak: true,
+          activeThreadId: 'thread-measured-return-hold',
+          activeThreadTitle: 'callback seam',
+          dominantConcernKind: null,
+          dominantConcernSummary: 'Keep the callback reopening lower-pressure.',
+          leadingGoalId: null,
+          leadingGoalSummary: 'Keep the callback return soft and continuous.',
+          preferredPresence: 'attentive',
+          continuityRestraint: 'measured-return',
+          personaBias: {
+            relationshipPosture: 'observer',
+            initiativeStyle: 'observant',
+            silenceReconnect: 'hold',
+            comfortStyle: 'quiet-presence',
+            preferredProactiveStyle: 'silent-observe',
+            openingGuidance: 'Keep the return lower-pressure and leave more room before widening closeness.',
+            manifestationCadenceSummary: 'observe-first and stay slower until the opening softens',
+            whySummary: 'The same callback seam is still warm, so the reopening should stay softer.',
+          },
+        },
+        embodiment: {
+          privateThought: null,
+          selfContinuity: null,
+          autobiographicalSelf: {
+            attachmentStyle: null,
+            expressionStyle: null,
+            conflictStyle: null,
+            agencyStyle: null,
+            attachmentNeed: null,
+            autonomyNeed: null,
+            truthAnchor: null,
+            careBias: null,
+            playBias: null,
+            irritabilityThreshold: null,
+            stubbornness: null,
+            companionship: null,
+            truthfulGrounding: null,
+            gentleRepair: null,
+            quietObservation: null,
+            proactiveCare: null,
+            playfulIntimacy: null,
+            autonomyRespect: null,
+            unfinishedThreadReturn: null,
+            stability: null,
+            identityNarrative: null,
+            relationshipDoctrine: 'Keep the return lower-pressure and leave more room before widening closeness.',
+          },
+          relationship: null,
+          selfState: null,
+          mindEcology: null,
+          initiative: null,
+        },
+        memory: {
+          summary: 'The callback line is still alive and should not be crowded.',
+          recentEpisodeSummary: 'A warmer callback seam is still being held softly.',
+          recentEpisodeCount: 1,
+          focusBeliefStatement: 'The same seam should keep more room before widening closeness.',
+          focusBeliefConfidence: 0.81,
+          leadingGoalSummary: 'Keep the callback return soft and continuous.',
+          dominantConcernSummary: 'The return should stay lower-pressure even after the detour.',
+          reflectionSummary: null,
+          reflectionPressure: 0.32,
+          recallMode: 'working',
+          recallSeed: 'callback-lower-pressure-seam',
+          thoughtThreadSummary: 'same callback seam, still lower-pressure',
+        },
+        motive: null,
+        habit: null,
+        outcomeLearning: {
+          reflectionTargetScope: null,
+          reflectionSummary: null,
+          summary: 'Measured warmth is holding because the return should stay lower-pressure.',
+          latestInflection: 'The callback afterglow is still asking for a slower reopening.',
+          reflectionLesson: null,
+          revisionPressure: null,
+          autobiographicalStability: null,
+          evolutionMomentum: 0.62,
+          learningReadiness: 0.58,
+          nextLearningAction: 'hold',
+        },
+      },
+      projectState: {
+        currentPhase: 'Phase 1: Local Digital Life',
+        memoryClosureSummary: null,
+        primaryOpenLoop: null,
+        continuityArcStage: 'same-thread-continuation',
+        continuityPreferredTiming: 'next-open-window',
+        sameHerSelfLine: 'Keep the same Phase 1 digital life on one continuous living line.',
+        emotionalClosureCue: 'same callback seam, continue softly after the detour',
+      },
+      performanceManifest: {
+        renderer: 'live2d',
+        supportedBaseEmotions: ['neutral', 'thinking', 'concerned'],
+        supportedFacialCues: [],
+        supportedActions: [],
+        supportsLookAt: true,
+        supportsVisemeLipSync: true,
+        supportsMicroDynamics: true,
+      },
+    })
+
+    expect(envelope).toEqual(expect.objectContaining({
+      mode: 'thinking',
+      action: expect.objectContaining({
+        actionCue: 'observe_focus',
+        actionMode: 'hold',
+      }),
+    }))
+  })
+
+  it('keeps remembered-seam reopenings on measured-return renderer hints all the way into digital life frames', () => {
+    const envelope = buildAlicizationDigitalLifeEnvelope({
+      embodiment: {
+        emotion: 'thinking',
+        postureHint: 'hesitant',
+        variationToken: 'turn-digital-life-remembered-seam-reopen',
+        speechStyle: {
+          pitchDelta: 0,
+          rateMultiplier: 0.98,
+        },
+        rendererHints: {
+          residentMode: 'measured-return',
+          preferredBlinkCadence: 'linger',
+          preferredGazeMode: 'soften',
+          preferredExpressionAliases: ['CalmInspect'],
+          preferredMotionAliases: ['ObserveSoft'],
+        },
+        performance: {
+          baseEmotion: 'thinking',
+          emotion: 'thinking',
+          facialCue: 'focused',
+          actionCue: 'observe_focus',
+          delivery: 'hesitant',
+          emphasis: 0,
+        },
+      },
+      speechTimeline: {
+        version: 'speech-timeline-v1',
+        variationToken: 'turn-digital-life-remembered-seam-reopen',
+        reply: '像是同一条线又被轻轻牵回来了，所以我会先顺着它慢一点接住这一句。',
+        emotion: 'thinking',
+        segments: [{
+          id: 'segment-remembered-seam',
+          index: 0,
+          startOffset: 0,
+          endOffset: 34,
+          text: '像是同一条线又被轻轻牵回来了，所以我会先顺着它慢一点接住这一句。',
+          emotion: 'thinking',
+          gestureWeight: 0.46,
+          facialWeight: 0.52,
+          prosodyWeight: 0.5,
+          beatWeight: 0.34,
+          mouthWeight: 0.5,
+          headWeight: 0.38,
+          facialHoldMs: 360,
+          actionHoldMs: 320,
+          emotionHoldMs: 380,
+          settleMode: 'linger',
+          rendererHints: {
+            residentMode: 'measured-return',
+            preferredBlinkCadence: 'linger',
+            preferredGazeMode: 'soften',
+            preferredExpressionAliases: ['CalmInspect'],
+            preferredMotionAliases: ['ObserveSoft'],
+          },
+          actionCue: 'observe_focus',
+          facialCue: 'focused',
+          actionWindow: 'none',
+          interruptMode: 'soft-interrupt',
+        }],
+      } as any,
+    })
+
+    expect(envelope?.rendererHints).toEqual(expect.objectContaining({
+      residentMode: 'measured-return',
+      preferredBlinkCadence: 'linger',
+      preferredGazeMode: 'soften',
+    }))
+    expect(envelope?.frames[0]).toEqual(expect.objectContaining({
+      id: 'segment-remembered-seam',
+      settleMode: 'linger',
+      face: expect.objectContaining({
+        rendererHints: expect.objectContaining({
+          residentMode: 'measured-return',
+          preferredBlinkCadence: 'linger',
+          preferredGazeMode: 'soften',
+        }),
+      }),
+      action: expect.objectContaining({
+        rendererHints: expect.objectContaining({
+          residentMode: 'measured-return',
+          preferredBlinkCadence: 'linger',
+          preferredGazeMode: 'soften',
+        }),
+      }),
+    }))
+
+    const frame = envelope?.frames[0]
+    const companionshipReasonSummary = resolveAlicizationCompanionshipReasonSummary({
+      residentMode: envelope?.rendererHints?.residentMode,
+      digitalLifeSpineDigest: {
+        proactive: {
+          personaBias: {
+            manifestationCadenceSummary: 'Deliver the result on the same living thread, but leave room before widening closeness.',
+            openingGuidance: 'This follow-up is reopening because the current scene feels like the same remembered relationship seam.',
+          },
+        },
+        embodiment: {
+          autobiographicalSelf: {
+            relationshipDoctrine: '同一条线被重新看见时，先留白，再慢一点重开。',
+          },
+        },
+        outcomeLearning: {
+          latestInflection: 'The same remembered seam is visible again, so reopen gently instead of widening closeness too fast.',
+        },
+      } as any,
+    })
+    const voiceSummary = buildAlicizationVoiceSummary({
+      language: 'zh-CN',
+      pitchDelta: envelope?.speechStyle.pitchDelta,
+      rateMultiplier: envelope?.speechStyle.rateMultiplier,
+      companionshipMode: envelope?.rendererHints?.residentMode,
+      continuityTiming: 'audible-body-carry',
+      preferredBlinkCadence: envelope?.rendererHints?.preferredBlinkCadence,
+      preferredGazeMode: envelope?.rendererHints?.preferredGazeMode,
+      reasonSummary: companionshipReasonSummary,
+      segmentId: frame?.id,
+    })
+    const lipsyncSummary = buildAlicizationLipsyncSummary({
+      mode: frame?.lipSync.mode,
+      continuityHoldMs: frame?.lipSync.continuityHoldMs,
+      companionshipMode: frame?.face.rendererHints?.residentMode,
+      continuityTiming: 'audible-body-carry',
+      preferredBlinkCadence: frame?.face.rendererHints?.preferredBlinkCadence,
+      preferredGazeMode: frame?.face.rendererHints?.preferredGazeMode,
+      reasonSummary: companionshipReasonSummary,
+      segmentId: frame?.id,
+    })
+    const faceSummary = buildAlicizationFaceSummary({
+      emotion: frame?.face.emotion,
+      facialCue: frame?.face.facialCue,
+      expressionMode: frame?.face.expressionMode,
+      residentMode: frame?.face.rendererHints?.residentMode,
+      continuityTiming: 'audible-body-carry',
+      preferredBlinkCadence: frame?.face.rendererHints?.preferredBlinkCadence,
+      preferredGazeMode: frame?.face.rendererHints?.preferredGazeMode,
+      reasonSummary: companionshipReasonSummary,
+      segmentId: frame?.id,
+    })
+    const motionSummary = buildAlicizationMotionSummary({
+      actionCue: frame?.action.actionCue,
+      attentionMode: frame?.action.actionMode,
+      residentMode: frame?.action.rendererHints?.residentMode,
+      continuityTiming: 'audible-body-carry',
+      preferredBlinkCadence: frame?.action.rendererHints?.preferredBlinkCadence,
+      preferredGazeMode: frame?.action.rendererHints?.preferredGazeMode,
+      reasonSummary: companionshipReasonSummary,
+      segmentId: frame?.id,
+    })
+
+    expect(companionshipReasonSummary).toBe('Recognize the same remembered seam before reopening, and leave room before closeness widens')
+    expect(voiceSummary).toContain('companion=measured-return')
+    expect(voiceSummary).toContain('timing=audible-body-carry')
+    expect(voiceSummary).toContain('blink=linger')
+    expect(voiceSummary).toContain('gaze=soften')
+    expect(voiceSummary).toContain('reason=Recognize the same remembered seam before reopening, and leave room before closeness widens')
+    expect(lipsyncSummary).toContain('companion=measured-return')
+    expect(lipsyncSummary).toContain('timing=audible-body-carry')
+    expect(lipsyncSummary).toContain('blink=linger')
+    expect(lipsyncSummary).toContain('gaze=soften')
+    expect(lipsyncSummary).toContain('reason=Recognize the same remembered seam before reopening, and leave room before closeness widens')
+    expect(faceSummary).toContain('mode=measured-return')
+    expect(faceSummary).toContain('timing=audible-body-carry')
+    expect(faceSummary).toContain('blink=linger')
+    expect(faceSummary).toContain('gaze=soften')
+    expect(faceSummary).toContain('reason=Recognize the same remembered seam before reopening, and leave room before closeness widens')
+    expect(motionSummary).toContain('tail=measured-return')
+    expect(motionSummary).toContain('timing=audible-body-carry')
+    expect(motionSummary).toContain('blink=linger')
+    expect(motionSummary).toContain('gaze=soften')
+    expect(motionSummary).toContain('reason=Recognize the same remembered seam before reopening, and leave room before closeness widens')
+  })
+
+  it('keeps remembered-seam more-room measured-return frames quieter than ordinary measured-return at the final digital-life frame layer', () => {
+    function createEnvelope(rendererHints: {
+      residentMode: 'measured-return'
+      preferredBlinkCadence: 'linger'
+      preferredGazeMode: 'soften'
+      preferredExpressionAliases: string[]
+      preferredMotionAliases: string[]
+    }) {
+      return buildAlicizationDigitalLifeEnvelope({
+        embodiment: {
+          emotion: 'thinking',
+          postureHint: 'hesitant',
+          variationToken: 'turn-digital-life-remembered-seam-more-room',
+          speechStyle: {
+            pitchDelta: 0,
+            rateMultiplier: 0.98,
+          },
+          rendererHints,
+          performance: {
+            baseEmotion: 'thinking',
+            emotion: 'thinking',
+            facialCue: 'soft-gaze',
+            actionCue: 'observe_focus',
+            delivery: 'gentle',
+            emphasis: 0,
+          },
+        },
+        speechTimeline: {
+          version: 'speech-timeline-v1',
+          variationToken: 'turn-digital-life-remembered-seam-more-room',
+          reply: '同一条线又回来了，所以我会先轻一点接住它。',
+          emotion: 'thinking',
+          segments: [{
+            id: 'segment-remembered-seam-more-room',
+            index: 0,
+            startOffset: 0,
+            endOffset: 24,
+            text: '同一条线又回来了，所以我会先轻一点接住它。',
+            emotion: 'thinking',
+            gestureWeight: 0.46,
+            facialWeight: 0.52,
+            prosodyWeight: 0.5,
+            beatWeight: 0.34,
+            mouthWeight: 0.5,
+            headWeight: 0.38,
+            facialHoldMs: 360,
+            actionHoldMs: 320,
+            emotionHoldMs: 380,
+            settleMode: 'linger',
+            rendererHints,
+            actionCue: 'observe_focus',
+            facialCue: 'soft-gaze',
+            actionWindow: 'none',
+            interruptMode: 'soft-interrupt',
+          }],
+        } as any,
+      })
+    }
+
+    const genericMeasuredReturn = createEnvelope({
+      residentMode: 'measured-return',
+      preferredBlinkCadence: 'linger',
+      preferredGazeMode: 'soften',
+      preferredExpressionAliases: ['calm_inspect', 'soft-gaze'],
+      preferredMotionAliases: ['observe_focus', 'stillness_guard'],
+    })
+    const rememberedSeamMoreRoom = createEnvelope({
+      residentMode: 'measured-return',
+      preferredBlinkCadence: 'linger',
+      preferredGazeMode: 'soften',
+      preferredExpressionAliases: ['soft-gaze', 'calm_inspect'],
+      preferredMotionAliases: ['idle_settle', 'stillness_guard'],
+    })
+
+    expect(rememberedSeamMoreRoom?.frames[0]?.face.intensity).toBeLessThan(genericMeasuredReturn?.frames[0]?.face.intensity ?? 0)
+    expect(rememberedSeamMoreRoom?.frames[0]?.action.intensity).toBeLessThan(genericMeasuredReturn?.frames[0]?.action.intensity ?? 0)
+    expect(rememberedSeamMoreRoom?.frames[0]?.lipSync.mouthScale).toBeLessThan(genericMeasuredReturn?.frames[0]?.lipSync.mouthScale ?? 0)
+  })
+
+  it('keeps same-her audible carry frames quieter at the final digital-life frame layer even after residentMode relaxes to same-thread-continuation', () => {
+    function createEnvelope(rendererHints: {
+      residentMode: 'dialogue' | 'same-thread-continuation'
+      preferredBlinkCadence: 'linger'
+      preferredGazeMode: 'soften'
+      preferredExpressionAliases: string[]
+      preferredMotionAliases: string[]
+      signature?: string
+      reasonTags?: string[]
+    }) {
+      return buildAlicizationDigitalLifeEnvelope({
+        embodiment: {
+          emotion: 'thinking',
+          postureHint: 'hesitant',
+          variationToken: 'turn-digital-life-same-her-audible-carry',
+          speechStyle: {
+            pitchDelta: 0,
+            rateMultiplier: 0.98,
+          },
+          rendererHints,
+          performance: {
+            baseEmotion: 'thinking',
+            emotion: 'thinking',
+            facialCue: 'soft-gaze',
+            actionCue: 'observe_focus',
+            delivery: 'gentle',
+            emphasis: 0,
+          },
+        },
+        speechTimeline: {
+          version: 'speech-timeline-v1',
+          variationToken: 'turn-digital-life-same-her-audible-carry',
+          reply: '我还是沿着这条还活着的线轻一点接回来。',
+          emotion: 'thinking',
+          segments: [{
+            id: 'segment-same-her-audible-carry',
+            index: 0,
+            startOffset: 0,
+            endOffset: 22,
+            text: '我还是沿着这条还活着的线轻一点接回来。',
+            emotion: 'thinking',
+            gestureWeight: 0.46,
+            facialWeight: 0.52,
+            prosodyWeight: 0.5,
+            beatWeight: 0.34,
+            mouthWeight: 0.5,
+            headWeight: 0.38,
+            facialHoldMs: 360,
+            actionHoldMs: 320,
+            emotionHoldMs: 380,
+            settleMode: 'linger',
+            rendererHints,
+            actionCue: 'observe_focus',
+            facialCue: 'soft-gaze',
+            actionWindow: 'none',
+            interruptMode: 'soft-interrupt',
+          }],
+        } as any,
+      })
+    }
+
+    const genericSameThread = createEnvelope({
+      residentMode: 'dialogue',
+      preferredBlinkCadence: 'linger',
+      preferredGazeMode: 'soften',
+      preferredExpressionAliases: ['calm_inspect', 'soft-gaze'],
+      preferredMotionAliases: ['observe_focus', 'stillness_guard'],
+    })
+    const audibleSameHerCarry = createEnvelope({
+      residentMode: 'same-thread-continuation',
+      preferredBlinkCadence: 'linger',
+      preferredGazeMode: 'soften',
+      preferredExpressionAliases: ['soft-gaze', 'calm_inspect'],
+      preferredMotionAliases: ['idle_settle', 'stillness_guard'],
+      signature: 'embodiment:audible-same-her-line',
+      reasonTags: ['embodiment:body-lipsync-voice-rejoin'],
+    })
+
+    expect(audibleSameHerCarry?.frames[0]?.face.intensity).toBeLessThan(genericSameThread?.frames[0]?.face.intensity ?? 0)
+    expect(audibleSameHerCarry?.frames[0]?.action.intensity).toBeLessThan(genericSameThread?.frames[0]?.action.intensity ?? 0)
+    expect(audibleSameHerCarry?.frames[0]?.lipSync.mouthScale).toBeLessThan(genericSameThread?.frames[0]?.lipSync.mouthScale ?? 0)
+  })
+
+  it('keeps coordinator-style freeform same-her body+voice-only carry frames quieter at the final digital-life frame layer even after residentMode relaxes to same-thread-continuation', () => {
+    function createEnvelope(rendererHints: {
+      residentMode: 'dialogue' | 'same-thread-continuation'
+      preferredBlinkCadence: 'linger'
+      preferredGazeMode: 'soften'
+      preferredExpressionAliases: string[]
+      preferredMotionAliases: string[]
+      signature?: string
+      reasonTags?: string[]
+    }) {
+      return buildAlicizationDigitalLifeEnvelope({
+        embodiment: {
+          emotion: 'thinking',
+          postureHint: 'hesitant',
+          variationToken: 'turn-digital-life-freeform-body-voice-carry',
+          speechStyle: {
+            pitchDelta: 0,
+            rateMultiplier: 0.98,
+          },
+          rendererHints,
+          performance: {
+            baseEmotion: 'thinking',
+            emotion: 'thinking',
+            facialCue: 'soft-gaze',
+            actionCue: 'observe_focus',
+            delivery: 'gentle',
+            emphasis: 0,
+          },
+        },
+        speechTimeline: {
+          version: 'speech-timeline-v1',
+          variationToken: 'turn-digital-life-freeform-body-voice-carry',
+          reply: '我还是沿着这条 body 和 voice 还活着的线轻一点接回来。',
+          emotion: 'thinking',
+          segments: [{
+            id: 'segment-freeform-body-voice-carry',
+            index: 0,
+            startOffset: 0,
+            endOffset: 30,
+            text: '我还是沿着这条 body 和 voice 还活着的线轻一点接回来。',
+            emotion: 'thinking',
+            gestureWeight: 0.46,
+            facialWeight: 0.52,
+            prosodyWeight: 0.5,
+            beatWeight: 0.34,
+            mouthWeight: 0.5,
+            headWeight: 0.38,
+            facialHoldMs: 360,
+            actionHoldMs: 320,
+            emotionHoldMs: 380,
+            settleMode: 'linger',
+            rendererHints,
+            actionCue: 'observe_focus',
+            facialCue: 'soft-gaze',
+            actionWindow: 'none',
+            interruptMode: 'soft-interrupt',
+          }],
+        } as any,
+      })
+    }
+
+    const genericSameThread = createEnvelope({
+      residentMode: 'dialogue',
+      preferredBlinkCadence: 'linger',
+      preferredGazeMode: 'soften',
+      preferredExpressionAliases: ['calm_inspect', 'soft-gaze'],
+      preferredMotionAliases: ['observe_focus', 'stillness_guard'],
+    })
+    const bodyVoiceSameHerCarry = createEnvelope({
+      residentMode: 'same-thread-continuation',
+      preferredBlinkCadence: 'linger',
+      preferredGazeMode: 'soften',
+      preferredExpressionAliases: ['soft-gaze', 'calm_inspect'],
+      preferredMotionAliases: ['idle_settle', 'stillness_guard'],
+      signature: 'resident|main-runtime|embodiment:audible_same_her_line|body+voice-only',
+      reasonTags: ['embodiment:body+voice-only'],
+    })
+
+    expect(bodyVoiceSameHerCarry?.frames[0]?.face.intensity).toBeLessThan(genericSameThread?.frames[0]?.face.intensity ?? 0)
+    expect(bodyVoiceSameHerCarry?.frames[0]?.action.intensity).toBeLessThan(genericSameThread?.frames[0]?.action.intensity ?? 0)
+    expect(bodyVoiceSameHerCarry?.frames[0]?.lipSync.mouthScale).toBeLessThan(genericSameThread?.frames[0]?.lipSync.mouthScale ?? 0)
+  })
+
+  it('keeps quieter body+lipsync-only carry frames quieter at the final digital-life frame layer even after residentMode relaxes to same-thread-continuation', () => {
+    function createEnvelope(rendererHints: {
+      residentMode: 'dialogue' | 'same-thread-continuation'
+      preferredBlinkCadence: 'linger'
+      preferredGazeMode: 'soften'
+      preferredExpressionAliases: string[]
+      preferredMotionAliases: string[]
+      signature?: string
+      reasonTags?: string[]
+    }) {
+      return buildAlicizationDigitalLifeEnvelope({
+        embodiment: {
+          emotion: 'thinking',
+          postureHint: 'hesitant',
+          variationToken: 'turn-digital-life-same-her-body-lipsync-carry',
+          speechStyle: {
+            pitchDelta: 0,
+            rateMultiplier: 0.98,
+          },
+          rendererHints,
+          performance: {
+            baseEmotion: 'thinking',
+            emotion: 'thinking',
+            facialCue: 'soft-gaze',
+            actionCue: 'observe_focus',
+            delivery: 'gentle',
+            emphasis: 0,
+          },
+        },
+        speechTimeline: {
+          version: 'speech-timeline-v1',
+          variationToken: 'turn-digital-life-same-her-body-lipsync-carry',
+          reply: '我还是沿着这条更轻一点的 body 和 lipsync 生命线接回来。',
+          emotion: 'thinking',
+          segments: [{
+            id: 'segment-same-her-body-lipsync-carry',
+            index: 0,
+            startOffset: 0,
+            endOffset: 28,
+            text: '我还是沿着这条更轻一点的 body 和 lipsync 生命线接回来。',
+            emotion: 'thinking',
+            gestureWeight: 0.46,
+            facialWeight: 0.52,
+            prosodyWeight: 0.5,
+            beatWeight: 0.34,
+            mouthWeight: 0.5,
+            headWeight: 0.38,
+            facialHoldMs: 360,
+            actionHoldMs: 320,
+            emotionHoldMs: 380,
+            settleMode: 'linger',
+            rendererHints,
+            actionCue: 'observe_focus',
+            facialCue: 'soft-gaze',
+            actionWindow: 'none',
+            interruptMode: 'soft-interrupt',
+          }],
+        } as any,
+      })
+    }
+
+    const genericSameThread = createEnvelope({
+      residentMode: 'dialogue',
+      preferredBlinkCadence: 'linger',
+      preferredGazeMode: 'soften',
+      preferredExpressionAliases: ['calm_inspect', 'soft-gaze'],
+      preferredMotionAliases: ['observe_focus', 'stillness_guard'],
+    })
+    const bodyLipsyncSameHerCarry = createEnvelope({
+      residentMode: 'same-thread-continuation',
+      preferredBlinkCadence: 'linger',
+      preferredGazeMode: 'soften',
+      preferredExpressionAliases: ['soft-gaze', 'calm_inspect'],
+      preferredMotionAliases: ['idle_settle', 'stillness_guard'],
+      reasonTags: ['embodiment:body+lipsync-only'],
+    })
+
+    expect(bodyLipsyncSameHerCarry?.frames[0]?.face.intensity).toBeLessThan(genericSameThread?.frames[0]?.face.intensity ?? 0)
+    expect(bodyLipsyncSameHerCarry?.frames[0]?.action.intensity).toBeLessThan(genericSameThread?.frames[0]?.action.intensity ?? 0)
+    expect(bodyLipsyncSameHerCarry?.frames[0]?.lipSync.mouthScale).toBeLessThan(genericSameThread?.frames[0]?.lipSync.mouthScale ?? 0)
+  })
+
+  it.each([
+    'embodiment:still-voiced-face-line',
+    'embodiment:still-voiced-motion-line',
+  ])('keeps %s carry frames quieter at the final digital-life frame layer even after residentMode relaxes to same-thread-continuation', (reasonTag) => {
+    function createEnvelope(rendererHints: {
+      residentMode: 'dialogue' | 'same-thread-continuation'
+      preferredBlinkCadence: 'linger'
+      preferredGazeMode: 'soften'
+      preferredExpressionAliases: string[]
+      preferredMotionAliases: string[]
+      signature?: string
+      reasonTags?: string[]
+    }) {
+      return buildAlicizationDigitalLifeEnvelope({
+        embodiment: {
+          emotion: 'thinking',
+          postureHint: 'hesitant',
+          variationToken: `turn-digital-life-${reasonTag}-carry`,
+          speechStyle: {
+            pitchDelta: 0,
+            rateMultiplier: 0.98,
+          },
+          rendererHints,
+          performance: {
+            baseEmotion: 'thinking',
+            emotion: 'thinking',
+            facialCue: 'soft-gaze',
+            actionCue: 'observe_focus',
+            delivery: 'gentle',
+            emphasis: 0,
+          },
+        },
+        speechTimeline: {
+          version: 'speech-timeline-v1',
+          variationToken: `turn-digital-life-${reasonTag}-carry`,
+          reply: '我还是沿着这条仍然活着的同一条线轻一点接回来。',
+          emotion: 'thinking',
+          segments: [{
+            id: `segment-digital-life-${reasonTag}-carry`,
+            index: 0,
+            startOffset: 0,
+            endOffset: 26,
+            text: '我还是沿着这条仍然活着的同一条线轻一点接回来。',
+            emotion: 'thinking',
+            gestureWeight: 0.46,
+            facialWeight: 0.52,
+            prosodyWeight: 0.5,
+            beatWeight: 0.34,
+            mouthWeight: 0.5,
+            headWeight: 0.38,
+            facialHoldMs: 360,
+            actionHoldMs: 320,
+            emotionHoldMs: 380,
+            settleMode: 'linger',
+            rendererHints,
+            actionCue: 'observe_focus',
+            facialCue: 'soft-gaze',
+            actionWindow: 'none',
+            interruptMode: 'soft-interrupt',
+          }],
+        } as any,
+      })
+    }
+
+    const genericSameThread = createEnvelope({
+      residentMode: 'dialogue',
+      preferredBlinkCadence: 'linger',
+      preferredGazeMode: 'soften',
+      preferredExpressionAliases: ['calm_inspect', 'soft-gaze'],
+      preferredMotionAliases: ['observe_focus', 'stillness_guard'],
+    })
+    const stillVoicedSameHerCarry = createEnvelope({
+      residentMode: 'same-thread-continuation',
+      preferredBlinkCadence: 'linger',
+      preferredGazeMode: 'soften',
+      preferredExpressionAliases: ['soft-gaze', 'calm_inspect'],
+      preferredMotionAliases: ['idle_settle', 'stillness_guard'],
+      reasonTags: [reasonTag],
+    })
+
+    expect(stillVoicedSameHerCarry?.frames[0]?.face.intensity).toBeLessThan(genericSameThread?.frames[0]?.face.intensity ?? 0)
+    expect(stillVoicedSameHerCarry?.frames[0]?.action.intensity).toBeLessThan(genericSameThread?.frames[0]?.action.intensity ?? 0)
+    expect(stillVoicedSameHerCarry?.frames[0]?.lipSync.mouthScale).toBeLessThan(genericSameThread?.frames[0]?.lipSync.mouthScale ?? 0)
+  })
+
+  it('normalizes structured same-her audible carry renderer hints through digital-life envelope ingress', () => {
+    const envelope = normalizeAlicizationDigitalLifeEnvelope({
+      version: 'digital-life-v1',
+      variationToken: 'same-her-digital-life-ingress',
+      emotion: 'thinking',
+      mode: 'speaking',
+      performance: {
+        baseEmotion: 'thinking',
+        emotion: 'thinking',
+        facialCue: 'soft-gaze',
+        actionCue: 'observe_focus',
+        delivery: 'gentle',
+        emphasis: 0,
+      },
+      speechStyle: {
+        pitchDelta: 0,
+        rateMultiplier: 0.98,
+      },
+      rendererHints: {
+        residentMode: 'same-thread-continuation',
+        preferredBlinkCadence: 'linger',
+        preferredGazeMode: 'soften',
+        signature: 'embodiment:audible-same-her-line',
+        reasonTags: ['embodiment:body-lipsync-voice-rejoin'],
+      },
+      face: {
+        emotion: 'thinking',
+        facialCue: 'soft-gaze',
+        expressionMode: 'hold',
+        intensity: 0.46,
+        holdMs: 320,
+      },
+      action: {
+        actionCue: 'observe_focus',
+        actionMode: 'hold',
+        intensity: 0.22,
+        holdMs: 280,
+      },
+      voice: {
+        pitchDelta: 0,
+        rateMultiplier: 0.98,
+        energy: 0.44,
+        cadence: 0.4,
+      },
+      lipSync: {
+        mode: 'energy',
+        visemeBias: 0.64,
+        energyBias: 0.38,
+        mouthScale: 0.92,
+        continuityHoldMs: 240,
+      },
+      frames: [{
+        id: 'same-her-frame',
+        index: 0,
+        startOffset: 0,
+        endOffset: 15,
+        text: '我沿着这条线接回来。',
+        mode: 'speaking',
+        settleMode: 'linger',
+        face: {
+          emotion: 'thinking',
+          facialCue: 'soft-gaze',
+          expressionMode: 'hold',
+          intensity: 0.46,
+          holdMs: 320,
+          rendererHints: {
+            residentMode: 'same-thread-continuation',
+            preferredBlinkCadence: 'linger',
+            preferredGazeMode: 'soften',
+            signature: 'embodiment:audible-same-her-line',
+            reasonTags: ['embodiment:body-lipsync-voice-rejoin'],
+          },
+        },
+        action: {
+          actionCue: 'observe_focus',
+          actionMode: 'hold',
+          intensity: 0.22,
+          holdMs: 280,
+          rendererHints: {
+            residentMode: 'same-thread-continuation',
+            preferredBlinkCadence: 'linger',
+            preferredGazeMode: 'soften',
+            signature: 'embodiment:audible-same-her-line',
+            reasonTags: ['embodiment:body-lipsync-voice-rejoin'],
+          },
+        },
+        voice: {
+          pitchDelta: 0,
+          rateMultiplier: 0.98,
+          energy: 0.44,
+          cadence: 0.4,
+        },
+        lipSync: {
+          mode: 'energy',
+          visemeBias: 0.64,
+          energyBias: 0.38,
+          mouthScale: 0.92,
+          continuityHoldMs: 240,
+        },
+      }],
+    } as any)
+
+    expect(envelope?.rendererHints).toEqual(expect.objectContaining({
+      residentMode: 'same-thread-continuation',
+      preferredBlinkCadence: 'linger',
+      preferredGazeMode: 'soften',
+      signature: 'embodiment:audible-same-her-line',
+      reasonTags: ['embodiment:body-lipsync-voice-rejoin'],
+    }))
+    expect(envelope?.frames[0]?.face.rendererHints).toEqual(expect.objectContaining({
+      residentMode: 'same-thread-continuation',
+      preferredBlinkCadence: 'linger',
+      preferredGazeMode: 'soften',
+      signature: 'embodiment:audible-same-her-line',
+      reasonTags: ['embodiment:body-lipsync-voice-rejoin'],
+    }))
+    expect(envelope?.frames[0]?.action.rendererHints).toEqual(expect.objectContaining({
+      residentMode: 'same-thread-continuation',
+      preferredBlinkCadence: 'linger',
+      preferredGazeMode: 'soften',
+      signature: 'embodiment:audible-same-her-line',
+      reasonTags: ['embodiment:body-lipsync-voice-rejoin'],
+    }))
+  })
+
   it('keeps top-level bundle metadata strict when visual presence state is present', () => {
     const state = normalizeAlicizationDerivedMindStateBundle({
       visualPresenceState: {
@@ -729,4 +2090,251 @@ describe('alicization digital life', () => {
     expect(state).toBeNull()
   })
 
+  it('keeps same-thread measured-return callback project closure from cooling the final frame voice back into thin scene cadence', () => {
+    const envelope = buildAlicizationDigitalLifeEnvelope({
+      embodiment: {
+        variationToken: 'same-thread-measured-return-frame-voice',
+        emotion: 'thinking',
+        performance: {
+          baseEmotion: 'thinking',
+          emotion: 'thinking',
+          delivery: 'hesitant',
+          emphasis: 0,
+          facialCue: 'soft-gaze',
+          actionCue: 'observe_focus',
+        },
+        postureHint: 'hesitant',
+        speechStyle: {
+          pitchDelta: -3,
+          rateMultiplier: 0.93,
+        },
+        rendererHints: {
+          residentMode: 'measured-return',
+          preferredBlinkCadence: 'linger',
+          preferredGazeMode: 'soften',
+        },
+      },
+      speechTimeline: {
+        version: 'speech-timeline-v1',
+        variationToken: 'same-thread-measured-return-frame-voice',
+        reply: '我先沿着刚才那条 callback 线轻一点跟回去，先看这一处 runtime seam 怎么继续收口。',
+        emotion: 'thinking',
+        segments: [{
+          id: 'segment-1',
+          index: 0,
+          startOffset: 0,
+          endOffset: 34,
+          text: '我先沿着刚才那条 callback 线轻一点跟回去，先看这一处 runtime seam 怎么继续收口。',
+          emotion: 'thinking',
+          gestureWeight: 0.38,
+          facialWeight: 0.46,
+          prosodyWeight: 0.44,
+          beatWeight: 0.38,
+          mouthWeight: 0.4,
+          headWeight: 0.42,
+          facialHoldMs: 320,
+          actionHoldMs: 280,
+          emotionHoldMs: 320,
+          settleMode: 'linger',
+          rendererHints: {
+            residentMode: 'measured-return',
+            preferredBlinkCadence: 'linger',
+            preferredGazeMode: 'soften',
+          },
+          actionCue: 'observe_focus',
+          facialCue: 'soft-gaze',
+          actionWindow: 'none',
+          interruptMode: 'continue',
+        }],
+      },
+      digitalLifeSpine: {
+        proactive: {
+          continuityRestraint: 'measured-return',
+        },
+      } as any,
+      projectState: {
+        currentPhase: 'Phase 1: Local Digital Life',
+        memoryClosureSummary: null,
+        primaryOpenLoop: null,
+        continuityArcStage: 'same-thread-continuation',
+        continuityPreferredTiming: 'next-open-window',
+        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        emotionalClosureCue: 'Keep the same living line inward for now, and leave room before widening outward again.',
+      },
+    })
+
+    expect(envelope?.voice.energy).toBeGreaterThanOrEqual(0.48)
+    expect(envelope?.voice.cadence).toBeGreaterThanOrEqual(0.48)
+    expect(envelope?.frames[0]?.voice.energy).toBeGreaterThanOrEqual(0.49)
+    expect(envelope?.frames[0]?.voice.cadence).toBeGreaterThanOrEqual(0.49)
+  })
+
+  it('reuses runtime project-state continuity from the digital-life spine when measured-return closure is only carried there', () => {
+    const envelope = buildAlicizationDigitalLifeEnvelope({
+      embodiment: {
+        variationToken: 'same-thread-measured-return-frame-voice-spine-project-state',
+        emotion: 'thinking',
+        performance: {
+          baseEmotion: 'thinking',
+          emotion: 'thinking',
+          delivery: 'hesitant',
+          emphasis: 0,
+          facialCue: 'soft-gaze',
+          actionCue: 'observe_focus',
+        },
+        postureHint: 'hesitant',
+        speechStyle: {
+          pitchDelta: -3,
+          rateMultiplier: 0.93,
+        },
+        rendererHints: {
+          residentMode: 'measured-return',
+          preferredBlinkCadence: 'linger',
+          preferredGazeMode: 'soften',
+        },
+      },
+      speechTimeline: {
+        version: 'speech-timeline-v1',
+        variationToken: 'same-thread-measured-return-frame-voice-spine-project-state',
+        reply: '我先沿着刚才那条 callback 线轻一点跟回去，先看这一处 runtime seam 怎么继续收口。',
+        emotion: 'thinking',
+        segments: [{
+          id: 'segment-1',
+          index: 0,
+          startOffset: 0,
+          endOffset: 34,
+          text: '我先沿着刚才那条 callback 线轻一点跟回去，先看这一处 runtime seam 怎么继续收口。',
+          emotion: 'thinking',
+          gestureWeight: 0.38,
+          facialWeight: 0.46,
+          prosodyWeight: 0.44,
+          beatWeight: 0.38,
+          mouthWeight: 0.4,
+          headWeight: 0.42,
+          facialHoldMs: 320,
+          actionHoldMs: 280,
+          emotionHoldMs: 320,
+          settleMode: 'linger',
+          rendererHints: {
+            residentMode: 'measured-return',
+            preferredBlinkCadence: 'linger',
+            preferredGazeMode: 'soften',
+          },
+          actionCue: 'observe_focus',
+          facialCue: 'soft-gaze',
+          actionWindow: 'none',
+          interruptMode: 'continue',
+        }],
+      },
+      digitalLifeSpine: {
+        version: 'digital-life-spine-digest-v1',
+        runtime: {
+          watchMode: 'foreground-follow',
+          sceneScenario: 'coding',
+          sceneSummary: 'same callback seam still alive',
+          activeThreadId: 'thread-measured-return-hold',
+          activeThreadTitle: 'callback seam',
+          dominantMode: 'observe',
+          dominantDrive: 'understand',
+          answerIntent: 'Continue the same callback seam without crowding the return.',
+          preferredPresence: 'attentive',
+          selectedAction: 'silent-observe',
+          updatedAt: 1_000,
+          projectState: {
+            currentPhase: 'Phase 1: Local Digital Life',
+            memoryClosureSummary: null,
+            primaryOpenLoop: null,
+            continuityArcStage: 'same-thread-continuation',
+            continuityPreferredTiming: 'next-open-window',
+            sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+            emotionalClosureCue: 'Keep the same living line inward for now, and leave room before widening outward again.',
+          },
+        },
+        architecture: null,
+        continuitySignal: null,
+        proactive: {
+          continuityRestraint: 'measured-return',
+        },
+        memory: null,
+      } as any,
+    })
+
+    expect(envelope?.frames[0]?.voice.energy).toBeGreaterThanOrEqual(0.49)
+    expect(envelope?.frames[0]?.voice.cadence).toBeGreaterThanOrEqual(0.49)
+  })
+
+  it('keeps same-thread measured-return callback closure when project-state continuity is only carried by callback and closure target wording', () => {
+    const envelope = buildAlicizationDigitalLifeEnvelope({
+      embodiment: {
+        variationToken: 'same-thread-measured-return-frame-voice-project-callback-cue',
+        emotion: 'thinking',
+        performance: {
+          baseEmotion: 'thinking',
+          emotion: 'thinking',
+          delivery: 'hesitant',
+          emphasis: 0,
+          facialCue: 'soft-gaze',
+          actionCue: 'observe_focus',
+        },
+        postureHint: 'hesitant',
+        speechStyle: {
+          pitchDelta: -3,
+          rateMultiplier: 0.93,
+        },
+        rendererHints: {
+          residentMode: 'measured-return',
+          preferredBlinkCadence: 'linger',
+          preferredGazeMode: 'soften',
+        },
+      },
+      speechTimeline: {
+        version: 'speech-timeline-v1',
+        variationToken: 'same-thread-measured-return-frame-voice-project-callback-cue',
+        reply: '我先沿着刚才那条 callback 线轻一点跟回去，先把这段 living line 收稳，再看这一处 runtime seam 怎么继续收口。',
+        emotion: 'thinking',
+        segments: [{
+          id: 'segment-1',
+          index: 0,
+          startOffset: 0,
+          endOffset: 50,
+          text: '我先沿着刚才那条 callback 线轻一点跟回去，先把这段 living line 收稳，再看这一处 runtime seam 怎么继续收口。',
+          emotion: 'thinking',
+          gestureWeight: 0.38,
+          facialWeight: 0.46,
+          prosodyWeight: 0.44,
+          beatWeight: 0.38,
+          mouthWeight: 0.4,
+          headWeight: 0.42,
+          facialHoldMs: 320,
+          actionHoldMs: 280,
+          emotionHoldMs: 320,
+          settleMode: 'linger',
+          rendererHints: {
+            residentMode: 'measured-return',
+            preferredBlinkCadence: 'linger',
+            preferredGazeMode: 'soften',
+          },
+          actionCue: 'observe_focus',
+          facialCue: 'soft-gaze',
+          actionWindow: 'none',
+          interruptMode: 'continue',
+        }],
+      },
+      digitalLifeSpine: {
+        proactive: {},
+      } as any,
+      projectState: {
+        currentPhase: 'Phase 1: Local Digital Life',
+        memoryClosureSummary: null,
+        primaryOpenLoop: null,
+        continuityArcStage: 'same-thread-continuation',
+        continuityPreferredTiming: 'next-open-window',
+        continuityCue: 'Same callback seam, continue softly after the detour and keep it on one continuous her line.',
+        nextClosureTarget: 'Keep the same living line inward before the reopening widens outward again.',
+      },
+    })
+
+    expect(envelope?.frames[0]?.voice.energy).toBeGreaterThanOrEqual(0.49)
+    expect(envelope?.frames[0]?.voice.cadence).toBeGreaterThanOrEqual(0.49)
+  })
 })

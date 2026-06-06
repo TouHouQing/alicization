@@ -18,7 +18,13 @@ import { deriveMainChatActionObligation } from './main-chat-action-obligation'
 import {
   detectMainGatewayExecutionRoutingIntent,
 } from './main-chat-execution-surface'
+import {
+  assertAlicizationCanonicalProjectState,
+  carriesAlicizationCanonicalProjectState,
+} from './main-chat-project-state-guard'
+import { resolveAlicizationChatStartPayloadPreDialogueSendIdentity } from './main-chat-start-awareness'
 import { emptyAlicizationExecutionLedgerContext } from './memory-ledger-runtime'
+import { buildAlicizationProjectStateExtraSystemBlocks } from './project-state-brief'
 import { preserveLatestUserMultimodalContent } from './runtime-transport-content'
 
 interface CreateAlicizationMainChatPreludeRuntimeOptions {
@@ -67,8 +73,9 @@ export function createAlicizationMainChatPreludeRuntime(options: CreateAlicizati
     mainGateway: MainGatewayResolvedConfig,
     invokeOptions?: { raw?: { ipcMainEvent?: IpcMainEvent, event?: unknown } },
   ): Promise<AlicizationPreparedMainChatPrelude> {
+    const normalizedPayload = resolveAlicizationChatStartPayloadPreDialogueSendIdentity(payload)
     const chatConfig = mainGateway.provider.chat(mainGateway.model)
-    const latestUserText = readLatestUserMessageText(payload.messages)
+    const latestUserText = readLatestUserMessageText(normalizedPayload.messages)
     const senderWebContentsId = senderWebContentsIdFromInvokeOptions(invokeOptions)
     const executionCapabilityInquiry = detectAlicizationExecutionCapabilityInquiry(latestUserText || '')
     const explicitExecutionRoutingIntent = detectMainGatewayExecutionRoutingIntent({
@@ -78,26 +85,26 @@ export function createAlicizationMainChatPreludeRuntime(options: CreateAlicizati
     const shouldBypassPerception = latestUserText
       ? isInternalAlicizationRepairPrompt(latestUserText)
       : false
-    let messages = resolveChatMessages(payload, {
+    let messages = resolveChatMessages(normalizedPayload, {
       redactStaleInspectionHistoryForUserText: shouldBypassPerception ? '' : latestUserText,
     })
     messages = preserveLatestUserMultimodalContent({
-      originalMessages: payload.messages,
+      originalMessages: normalizedPayload.messages,
       resolvedMessages: messages,
     })
 
     const contextualStringPromise = shouldBypassPerception
       ? Promise.resolve('')
-      : buildMainChatContextualString(payload)
+      : buildMainChatContextualString(normalizedPayload)
     const executionCallbackContextPromise = shouldBypassPerception
       ? Promise.resolve(emptyAlicizationExecutionCallbackContext)
-      : buildMainChatExecutionCallbackContext(payload)
+      : buildMainChatExecutionCallbackContext(normalizedPayload)
     const executionLedgerContextPromise = shouldBypassPerception
       ? Promise.resolve(emptyAlicizationExecutionLedgerContext)
-      : buildMainChatExecutionLedgerContext(payload)
+      : buildMainChatExecutionLedgerContext(normalizedPayload)
     const perceptionAugmentation = latestUserText && !shouldBypassPerception
       ? await augmentMainChatMessagesWithPerception({
-          cardId: payload.cardId,
+          cardId: normalizedPayload.cardId,
           userText: latestUserText,
           messages,
           senderWebContentsId,
@@ -124,12 +131,19 @@ export function createAlicizationMainChatPreludeRuntime(options: CreateAlicizati
           },
         }
     messages = perceptionAugmentation.messages
+    if (!carriesAlicizationCanonicalProjectState(messages)) {
+      messages = [
+        ...buildAlicizationProjectStateExtraSystemBlocks().map(content => ({ role: 'system', content }) as Message),
+        ...messages,
+      ]
+    }
+    assertAlicizationCanonicalProjectState(messages, 'stream')
     const actionObligation = deriveMainChatActionObligation({
       userText: latestUserText || '',
       capabilityInquiry: executionCapabilityInquiry,
       explicitRoutingIntent: explicitExecutionRoutingIntent,
       pendingAffirmationThread: latestUserText && !shouldBypassPerception
-        ? await buildMainChatPendingAffirmationThread(payload)
+        ? await buildMainChatPendingAffirmationThread(normalizedPayload)
         : null,
       runtimeSurface: perceptionAugmentation.digitalLifeRuntimeSurface,
     })
@@ -152,9 +166,10 @@ export function createAlicizationMainChatPreludeRuntime(options: CreateAlicizati
     mainGateway: MainGatewayResolvedConfig,
     preludePromise?: Promise<AlicizationPreparedMainChatPrelude>,
   ): Promise<AlicizationPreparedMainChatExecutionResult> {
-    const prelude = await (preludePromise ?? prepareMainChatPrelude(payload, mainGateway))
+    const normalizedPayload = resolveAlicizationChatStartPayloadPreDialogueSendIdentity(payload)
+    const prelude = await (preludePromise ?? prepareMainChatPrelude(normalizedPayload, mainGateway))
     return await prepareMainChatSessionExecution({
-      payload,
+      payload: normalizedPayload,
       prelude,
     })
   }
