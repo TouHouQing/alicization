@@ -284,6 +284,18 @@ describe('alicization embodiment closure', () => {
     })).toBe('Right now I am still holding together through face and lipsync together, so that remembered face-and-mouth line is keeping the same-her carry alive while body, motion, and voice need to rejoin before full cross-modal closure settles.')
   })
 
+  it('keeps long-horizon emotional memory motion-lipsync carry on a remembered motion-and-mouth line', () => {
+    expect(describeAlicizationEmbodimentClosureReminder({
+      authoritySummary: 'lane=motion+lipsync-only | convergence=emotion-memory-motion-lipsync | long-horizon remembered emotional carry says motion and lipsync are still carrying the same living line.',
+      currentBodyState: 'same living line is still moving through motion and held through lipsync while body, face, and voice catch up.',
+    })).toBe('Right now her visible same-her continuity is still being carried through motion and lipsync together, and that remembered motion-and-mouth line is keeping the same-her carry alive while body, face, and voice rejoin before full cross-modal embodiment closure can be treated as finished.')
+
+    expect(describeAlicizationEmbodimentClosureHeadline({
+      authoritySummary: 'lane=motion+lipsync-only | convergence=emotion-memory-motion-lipsync | long-horizon remembered emotional carry says motion and lipsync are still carrying the same living line.',
+      currentBodyState: 'same living line is still moving through motion and held through lipsync while body, face, and voice catch up.',
+    })).toBe('Right now I am still holding together through motion and lipsync together, so that remembered motion-and-mouth line is keeping the same-her carry alive while body, face, and voice need to rejoin before full cross-modal closure settles.')
+  })
+
   it('keeps same-segment face-motion re-formation visible when only the shared body line is carrying continuity', () => {
     expect(describeAlicizationEmbodimentClosureReminder({
       authoritySummary: 'same-segment face+motion recovery@segment-face-motion-reformed-1',
