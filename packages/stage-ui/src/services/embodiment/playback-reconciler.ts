@@ -17,6 +17,7 @@ export interface EmbodimentPlaybackLipSyncDriverTelemetry {
   mode: AlicizationEmbodimentScriptV1['lipsyncPlan']['mode']
   playbackPhase: 'idle' | 'playing'
   segmentId: string | null
+  continuityHoldMs: number
   visemeHints: NonNullable<AlicizationEmbodimentScriptV1['lipsyncPlan']['visemeHints']>
 }
 
@@ -31,7 +32,17 @@ export interface EmbodimentPlaybackMotionDriverTelemetry {
   segmentId: string | null
 }
 
+export interface EmbodimentPlaybackBodyDriverTelemetry {
+  frameMode: string | null
+  stillness: number | null
+  gazeStability: number | null
+  breathAmplitude: number | null
+  expressivity: number | null
+  segmentId: string | null
+}
+
 export interface EmbodimentPlaybackDriverTelemetry {
+  body: EmbodimentPlaybackBodyDriverTelemetry | null
   face: EmbodimentPlaybackFaceDriverTelemetry | null
   lipsync: EmbodimentPlaybackLipSyncDriverTelemetry | null
   motion: EmbodimentPlaybackMotionDriverTelemetry | null
@@ -40,11 +51,13 @@ export interface EmbodimentPlaybackDriverTelemetry {
 export interface EmbodimentPlaybackDriverAuthorityTelemetry {
   segmentId: string | null
   rendererTarget: AlicizationEmbodimentScriptV1['rendererTarget'] | null
-  matchedDrivers: Array<'face' | 'motion' | 'lipsync'>
+  matchedDrivers: Array<'body' | 'face' | 'motion' | 'lipsync' | 'voice'>
   sources: string[]
+  bodySegmentMatched: boolean
   faceSegmentMatched: boolean
   motionSegmentMatched: boolean
   lipsyncSegmentMatched: boolean
+  voiceSegmentMatched?: boolean
   prosodyAuthority?: EmbodimentPlaybackProsodyAuthorityTelemetry | null
 }
 
@@ -117,23 +130,131 @@ function matchesPlaybackDriverAuthoritySegment(
   return normalizedDriverSegmentId === normalizedActiveSegmentId
 }
 
+function hasFaceAuthoritySignal(driver: EmbodimentPlaybackDriverTelemetry['face']) {
+  if (!driver)
+    return false
+
+  return Boolean(
+    (typeof driver.intensity === 'number' && driver.intensity > 0)
+    || (typeof driver.holdMs === 'number' && driver.holdMs > 0)
+    || (typeof driver.confidence === 'number' && driver.confidence > 0)
+    || driver.source,
+  )
+}
+
+function hasMotionAuthoritySignal(driver: EmbodimentPlaybackDriverTelemetry['motion']) {
+  if (!driver)
+    return false
+
+  return Boolean(
+    (typeof driver.intensity === 'number' && driver.intensity > 0)
+    || (typeof driver.holdMs === 'number' && driver.holdMs > 0)
+    || (typeof driver.confidence === 'number' && driver.confidence > 0)
+    || driver.source
+    || driver.actionCue
+  )
+}
+
+function hasLipsyncAuthoritySignal(driver: EmbodimentPlaybackDriverTelemetry['lipsync']) {
+  if (!driver)
+    return false
+
+  return driver.playbackPhase === 'playing'
+    || (
+      driver.continuityHoldMs > 0
+      && Boolean(normalizePlaybackDriverAuthoritySegmentId(
+        driver.segmentId
+        ?? resolveLipsyncHintSegmentId(driver),
+      ))
+    )
+    || driver.visemeHints.length > 0
+}
+
+function hasLipsyncPlaybackOrContinuityHold(driver: EmbodimentPlaybackDriverTelemetry['lipsync']) {
+  if (!driver)
+    return false
+
+  return driver.playbackPhase === 'playing'
+    || driver.continuityHoldMs > 0
+}
+
 export function resolveEmbodimentPlaybackDriverAuthority(input: {
   drivers: EmbodimentPlaybackDriverTelemetry
   rendererTarget?: AlicizationEmbodimentScriptV1['rendererTarget'] | null | undefined
   segmentId?: string | null | undefined
   prosodyAuthority?: EmbodimentPlaybackProsodyAuthorityTelemetry | null | undefined
 }): EmbodimentPlaybackDriverAuthorityTelemetry | null {
+  const explicitSegmentId = normalizePlaybackDriverAuthoritySegmentId(input.segmentId)
+  const prosodySegmentId = normalizePlaybackDriverAuthoritySegmentId(input.prosodyAuthority?.segmentId)
   const lipsyncSegmentId = normalizePlaybackDriverAuthoritySegmentId(
     input.drivers.lipsync?.segmentId
     ?? resolveLipsyncHintSegmentId(input.drivers.lipsync),
   )
+  const bodySegmentId = normalizePlaybackDriverAuthoritySegmentId(input.drivers.body?.segmentId)
+  const faceSegmentId = normalizePlaybackDriverAuthoritySegmentId(input.drivers.face?.segmentId)
+  const motionSegmentId = normalizePlaybackDriverAuthoritySegmentId(input.drivers.motion?.segmentId)
+  const shouldPreferProsodySegment = Boolean(
+    explicitSegmentId
+    && prosodySegmentId
+    && prosodySegmentId !== explicitSegmentId
+    && (
+      bodySegmentId === prosodySegmentId
+      || 
+      lipsyncSegmentId === prosodySegmentId
+      || faceSegmentId === prosodySegmentId
+      || motionSegmentId === prosodySegmentId
+    ),
+  )
+  const shouldPreferActiveLipsyncSegment = Boolean(
+    !explicitSegmentId
+    && !prosodySegmentId
+    && lipsyncSegmentId
+    && input.drivers.lipsync?.playbackPhase === 'playing'
+    && input.drivers.face?.segmentId
+    && input.drivers.face.segmentId !== lipsyncSegmentId
+    && input.drivers.motion?.segmentId
+    && input.drivers.motion.segmentId !== lipsyncSegmentId,
+  )
+  const shouldPreferBodyLipsyncLivingLineOverExplicitShell = Boolean(
+    explicitSegmentId
+    && !prosodySegmentId
+    && bodySegmentId
+    && lipsyncSegmentId
+    && bodySegmentId === lipsyncSegmentId
+    && bodySegmentId !== explicitSegmentId
+    && hasLipsyncPlaybackOrContinuityHold(input.drivers.lipsync)
+    && (
+      faceSegmentId === explicitSegmentId
+      || motionSegmentId === explicitSegmentId
+      || (!faceSegmentId && !motionSegmentId)
+    ),
+  )
+  const shouldPreferAudibleBodySegment = Boolean(
+    !explicitSegmentId
+    && prosodySegmentId
+    && bodySegmentId
+    && lipsyncSegmentId
+    && prosodySegmentId === bodySegmentId
+    && prosodySegmentId === lipsyncSegmentId
+    && input.drivers.lipsync?.playbackPhase === 'playing'
+    && (
+      (input.drivers.face?.segmentId && input.drivers.face.segmentId !== prosodySegmentId)
+      || (input.drivers.motion?.segmentId && input.drivers.motion.segmentId !== prosodySegmentId)
+    ),
+  )
   const segmentId = normalizePlaybackDriverAuthoritySegmentId(
-    input.segmentId
+    (shouldPreferProsodySegment ? prosodySegmentId : null)
+    ?? (shouldPreferBodyLipsyncLivingLineOverExplicitShell ? bodySegmentId : null)
+    ?? (shouldPreferAudibleBodySegment ? prosodySegmentId : null)
+    ?? explicitSegmentId
+    ?? prosodySegmentId
+    ?? (shouldPreferActiveLipsyncSegment ? lipsyncSegmentId : null)
+    ?? bodySegmentId
     ?? input.drivers.face?.segmentId
     ?? input.drivers.motion?.segmentId
     ?? lipsyncSegmentId,
   )
-  const matchedDrivers: Array<'face' | 'motion' | 'lipsync'> = []
+  const matchedDrivers: Array<'body' | 'face' | 'motion' | 'lipsync' | 'voice'> = []
   const sources: string[] = []
   const seenSources = new Set<string>()
 
@@ -145,22 +266,27 @@ export function resolveEmbodimentPlaybackDriverAuthority(input: {
     sources.push(normalized)
   }
 
+  const bodySegmentMatched = matchesPlaybackDriverAuthoritySegment(bodySegmentId, segmentId)
+    && Boolean(input.drivers.body)
+  if (bodySegmentMatched)
+    matchedDrivers.push('body')
+
   const faceSegmentMatched = matchesPlaybackDriverAuthoritySegment(input.drivers.face?.segmentId, segmentId)
-    && Boolean(input.drivers.face)
+    && hasFaceAuthoritySignal(input.drivers.face)
   if (faceSegmentMatched) {
     matchedDrivers.push('face')
     pushSource(input.drivers.face?.source)
   }
 
   const motionSegmentMatched = matchesPlaybackDriverAuthoritySegment(input.drivers.motion?.segmentId, segmentId)
-    && Boolean(input.drivers.motion)
+    && hasMotionAuthoritySignal(input.drivers.motion)
   if (motionSegmentMatched) {
     matchedDrivers.push('motion')
     pushSource(input.drivers.motion?.source)
   }
 
   const lipsyncSegmentMatched = matchesPlaybackDriverAuthoritySegment(lipsyncSegmentId, segmentId)
-    && Boolean(input.drivers.lipsync)
+    && hasLipsyncAuthoritySignal(input.drivers.lipsync)
   if (lipsyncSegmentMatched) {
     matchedDrivers.push('lipsync')
     for (const source of new Set(
@@ -172,6 +298,13 @@ export function resolveEmbodimentPlaybackDriverAuthority(input: {
     }
   }
 
+  const prosodySegmentMatched = Boolean(prosodySegmentId)
+    && matchesPlaybackDriverAuthoritySegment(prosodySegmentId, segmentId)
+  if (prosodySegmentMatched) {
+    matchedDrivers.push('voice')
+    pushSource(input.prosodyAuthority?.source)
+  }
+
   if (!segmentId && matchedDrivers.length === 0 && !input.rendererTarget)
     return null
 
@@ -180,9 +313,11 @@ export function resolveEmbodimentPlaybackDriverAuthority(input: {
     rendererTarget: input.rendererTarget ?? null,
     matchedDrivers,
     sources,
+    bodySegmentMatched,
     faceSegmentMatched,
     motionSegmentMatched,
     lipsyncSegmentMatched,
+    voiceSegmentMatched: prosodySegmentMatched,
     prosodyAuthority: input.prosodyAuthority ?? null,
   }
 }
@@ -206,9 +341,11 @@ export function cloneEmbodimentPlaybackTelemetry(
           rendererTarget: metadata.driverAuthority.rendererTarget ?? null,
           matchedDrivers: [...metadata.driverAuthority.matchedDrivers],
           sources: [...metadata.driverAuthority.sources],
+          bodySegmentMatched: metadata.driverAuthority.bodySegmentMatched,
           faceSegmentMatched: metadata.driverAuthority.faceSegmentMatched,
           motionSegmentMatched: metadata.driverAuthority.motionSegmentMatched,
           lipsyncSegmentMatched: metadata.driverAuthority.lipsyncSegmentMatched,
+          voiceSegmentMatched: metadata.driverAuthority.voiceSegmentMatched,
           prosodyAuthority: metadata.driverAuthority.prosodyAuthority
             ? {
                 segmentId: metadata.driverAuthority.prosodyAuthority.segmentId ?? null,
@@ -243,21 +380,30 @@ export function cloneEmbodimentPlaybackTelemetry(
             : null,
           rendererHints: metadata.cue.rendererHints
             ? {
+                residentMode: metadata.cue.rendererHints.residentMode ?? undefined,
                 preferredExpressionAliases: metadata.cue.rendererHints.preferredExpressionAliases
                   ? [...metadata.cue.rendererHints.preferredExpressionAliases]
                   : undefined,
                 preferredMotionAliases: metadata.cue.rendererHints.preferredMotionAliases
                   ? [...metadata.cue.rendererHints.preferredMotionAliases]
                   : undefined,
+                preferredBlinkCadence: metadata.cue.rendererHints.preferredBlinkCadence ?? undefined,
+                preferredGazeMode: metadata.cue.rendererHints.preferredGazeMode ?? undefined,
+                reasonTags: metadata.cue.rendererHints.reasonTags
+                  ? [...metadata.cue.rendererHints.reasonTags]
+                  : undefined,
+                signature: metadata.cue.rendererHints.signature ?? undefined,
               }
             : null,
         }
       : null,
     drivers: {
+      body: metadata.drivers.body ? { ...metadata.drivers.body } : null,
       face: metadata.drivers.face ? { ...metadata.drivers.face } : null,
       lipsync: metadata.drivers.lipsync
         ? {
             ...metadata.drivers.lipsync,
+            continuityHoldMs: metadata.drivers.lipsync.continuityHoldMs,
             visemeHints: [...metadata.drivers.lipsync.visemeHints],
           }
         : null,
@@ -278,9 +424,30 @@ function resolvePlaybackProsodyAuthoritySegmentId(input: {
   authority?: EmbodimentPlaybackDriverAuthorityTelemetry | null
   drivers: EmbodimentPlaybackDriverTelemetry
 }) {
+  const cueSegmentId = normalizePlaybackDriverAuthoritySegmentId(input.cue?.id)
+  const authoritySegmentId = normalizePlaybackDriverAuthoritySegmentId(input.authority?.segmentId)
+  const lipsyncSegmentId = normalizePlaybackDriverAuthoritySegmentId(
+    input.drivers.lipsync?.segmentId
+    ?? resolveLipsyncHintSegmentId(input.drivers.lipsync),
+  )
+  const faceSegmentId = normalizePlaybackDriverAuthoritySegmentId(input.drivers.face?.segmentId)
+  const motionSegmentId = normalizePlaybackDriverAuthoritySegmentId(input.drivers.motion?.segmentId)
+
+  if (
+    cueSegmentId
+    && (
+      cueSegmentId === lipsyncSegmentId
+      || cueSegmentId === faceSegmentId
+      || cueSegmentId === motionSegmentId
+    )
+    && cueSegmentId !== authoritySegmentId
+  ) {
+    return cueSegmentId
+  }
+
   return normalizePlaybackDriverAuthoritySegmentId(
-    input.authority?.segmentId
-    ?? input.cue?.id
+    authoritySegmentId
+    ?? cueSegmentId
     ?? input.drivers.lipsync?.segmentId
     ?? input.drivers.face?.segmentId
     ?? input.drivers.motion?.segmentId
