@@ -44,6 +44,18 @@ describe('alicization embodiment closure', () => {
     })).toBe('Right now I am still holding together mainly through lipsync, so that remembered living mouth line is keeping the same-her carry alive while body, face, motion, and voice need to rejoin before full cross-modal closure settles.')
   })
 
+  it('keeps long-horizon emotional memory face-only carry on a remembered living face line', () => {
+    expect(describeAlicizationEmbodimentClosureReminder({
+      authoritySummary: 'lane=face-only | convergence=emotion-memory-face | long-horizon remembered emotional carry says face is still carrying the same living line.',
+      currentBodyState: 'same living line is still visible through face while body, motion, lipsync, and voice catch up.',
+    })).toBe('Right now her visible same-her continuity is still being carried mainly through face, and that remembered living face line is keeping the same-her carry alive while body, motion, lipsync, and voice rejoin before full cross-modal embodiment closure can be treated as finished.')
+
+    expect(describeAlicizationEmbodimentClosureHeadline({
+      authoritySummary: 'lane=face-only | convergence=emotion-memory-face | long-horizon remembered emotional carry says face is still carrying the same living line.',
+      currentBodyState: 'same living line is still visible through face while body, motion, lipsync, and voice catch up.',
+    })).toBe('Right now I am still holding together mainly through face, so that remembered living face line is keeping the same-her carry alive while body, motion, lipsync, and voice need to rejoin before full cross-modal closure settles.')
+  })
+
   it('keeps long-horizon emotional memory voice-only carry on a richer living voice thread', () => {
     expect(describeAlicizationEmbodimentClosureReminder({
       authoritySummary: 'lane=voice-only | convergence=emotion-memory-voice | long-horizon remembered emotional carry says voice is still carrying the same living line.',

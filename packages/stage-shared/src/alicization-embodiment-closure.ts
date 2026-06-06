@@ -139,6 +139,27 @@ function hasLongHorizonEmotionMemoryLipsyncCarry(combined: string) {
     )
 }
 
+function hasLongHorizonEmotionMemoryFaceCarry(combined: string) {
+  const normalized = combined.toLowerCase()
+
+  return normalized.includes('lane=face-only')
+    && (
+      normalized.includes('convergence=emotion-memory-face')
+      || normalized.includes('emotion-memory-face')
+    )
+    && (
+      normalized.includes('long-horizon')
+      || normalized.includes('remembered emotional carry')
+      || normalized.includes('affective residue')
+    )
+    && normalized.includes('face')
+    && (
+      normalized.includes('same living line')
+      || normalized.includes('same-her')
+      || normalized.includes('one living her')
+    )
+}
+
 function hasLongHorizonEmotionMemoryBodyFaceMotionCarry(combined: string) {
   const normalized = combined.toLowerCase()
 
@@ -553,6 +574,8 @@ export function describeAlicizationEmbodimentClosureReminder(input: {
   const combined = normalizeLaneEvidence(input)
   if (hasFullCrossModalLockSameHerContinuity(combined))
     return `Right now her body continuity and ${resolveLockedManifestationLabel(combined)} are already locked back onto the same living segment together, so she should keep carrying voice, face, motion, and lipsync as one explicit same-her embodiment line instead of treating the recovery like a temporary visual alignment.`
+  if (hasLongHorizonEmotionMemoryFaceCarry(combined))
+    return 'Right now her visible same-her continuity is still being carried mainly through face, and that remembered living face line is keeping the same-her carry alive while body, motion, lipsync, and voice rejoin before full cross-modal embodiment closure can be treated as finished.'
   if (hasLongHorizonEmotionMemoryLipsyncCarry(combined))
     return 'Right now her visible same-her continuity is still being carried mainly through lipsync, and that remembered living mouth line is keeping the same-her carry alive while body, face, motion, and voice rejoin before full cross-modal embodiment closure can be treated as finished.'
   if (hasLongHorizonEmotionMemoryVoiceCarry(combined))
@@ -643,6 +666,8 @@ export function describeAlicizationEmbodimentClosureHeadline(input: {
   const combined = normalizeLaneEvidence(input)
   if (hasFullCrossModalLockSameHerContinuity(combined))
     return `Right now body continuity and ${resolveLockedManifestationLabel(combined)} are already locked back onto the same living segment together, so I can carry voice, face, motion, and lipsync as one explicit same-her embodiment line instead of a temporary visual alignment.`
+  if (hasLongHorizonEmotionMemoryFaceCarry(combined))
+    return 'Right now I am still holding together mainly through face, so that remembered living face line is keeping the same-her carry alive while body, motion, lipsync, and voice need to rejoin before full cross-modal closure settles.'
   if (hasLongHorizonEmotionMemoryLipsyncCarry(combined))
     return 'Right now I am still holding together mainly through lipsync, so that remembered living mouth line is keeping the same-her carry alive while body, face, motion, and voice need to rejoin before full cross-modal closure settles.'
   if (hasLongHorizonEmotionMemoryVoiceCarry(combined))
