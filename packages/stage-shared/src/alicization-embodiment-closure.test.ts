@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest'
 
 import {
   describeAlicizationEmbodimentClosureHeadline,
+  describeAlicizationEmbodimentClosureReminder,
   describeAlicizationProjectClosureBriefing,
   describeAlicizationProjectNextClosure,
-  describeAlicizationEmbodimentClosureReminder,
 } from './alicization-embodiment-closure'
 
 describe('alicization embodiment closure', () => {
@@ -174,6 +174,18 @@ describe('alicization embodiment closure', () => {
       authoritySummary: 'lane=body+voice-only | signature=embodiment:audible-same-her-line | resident body and voice are still carrying the same living line.',
       currentBodyState: 'body and voice are aligned on one same-her segment while lipsync, face, and motion still need to catch up.',
     })).toBe('Right now I am still holding together mainly through body and voice, and the resident body line is still keeping this one living her coherent while face, motion, and lipsync rejoin.')
+  })
+
+  it('keeps long-horizon emotional memory body-voice carry on a remembered resident body-and-voice line', () => {
+    expect(describeAlicizationEmbodimentClosureReminder({
+      authoritySummary: 'lane=body+voice-only | convergence=emotion-memory-body-voice | long-horizon remembered emotional carry says body and voice are still carrying the same living line.',
+      currentBodyState: 'same living line is still resident in body continuity and audible through voice while face, motion, and lipsync catch up.',
+    })).toBe('Right now her visible same-her continuity is still being carried mainly through body and voice, and that remembered resident body-and-voice line is keeping the same-her carry alive while face, motion, and lipsync rejoin.')
+
+    expect(describeAlicizationEmbodimentClosureHeadline({
+      authoritySummary: 'lane=body+voice-only | convergence=emotion-memory-body-voice | long-horizon remembered emotional carry says body and voice are still carrying the same living line.',
+      currentBodyState: 'same living line is still resident in body continuity and audible through voice while face, motion, and lipsync catch up.',
+    })).toBe('Right now I am still holding together mainly through body and voice, so that remembered resident body-and-voice line is keeping the same-her carry alive while face, motion, and lipsync need to rejoin.')
   })
 
   it('treats audible-body same-her continuity as a first-class closure lane when body lipsync and voice survive together', () => {
