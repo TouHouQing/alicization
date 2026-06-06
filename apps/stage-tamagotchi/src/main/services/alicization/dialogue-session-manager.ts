@@ -1,5 +1,6 @@
 import type { AlicizationSensoryCacheSnapshot } from '../../../shared/eventa'
 import type { AlicizationAgentSessionSnapshot } from './agent-runtime'
+import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 import type { AlicizationDigitalLifeSpineSnapshot } from './digital-life-spine'
 import type { AlicizationMainChatRuntimeSurface } from './main-chat-runtime-surface'
 import type { OrganicMemoryPromptContext } from './runtime-soul'
@@ -10,10 +11,23 @@ import {
   deriveAlicizationDigitalLifeSpineFromSurface,
   projectAlicizationDigitalLifeSpineDigest,
 } from './digital-life-spine'
+import {
+  buildAlicizationProjectPreDialogueAwarenessLine,
+  resolveAlicizationProjectPreDialogueAwarenessLine,
+  resolveAlicizationProjectStateBrief,
+  resolveAlicizationProjectStateSnapshot,
+} from './project-state-brief'
+import {
+  deriveCompactProjectStateNextFocusSummary,
+  deriveCompactProjectStateOpenFocusSummary,
+} from './project-state-focus'
+import { resolvePreferredRuntimeSurface } from './runtime-surface-continuity-selection'
 
 export interface AlicizationDialogueSessionMirror {
   agencySummary: string | null
   cardId: string
+  continuityArcSummary?: string | null
+  continuityProjectSummary?: string | null
   continuityLabels: string[]
   decisionTraceId: string | null
   dialogueSummary: string | null
@@ -54,6 +68,7 @@ export interface AlicizationDialogueSessionManager {
   ingestPreparedExecution: (input: {
     agentSession: AlicizationAgentSessionSnapshot
     cardId: string
+    digitalLifeSpine?: AlicizationDigitalLifeSpineSnapshot | null
     organicMemoryContext?: OrganicMemoryPromptContext | null
     runtimeSurface: AlicizationMainChatRuntimeSurface
     sessionId: string
@@ -70,6 +85,9 @@ interface CreateAlicizationDialogueSessionManagerOptions {
 const defaultSessionMirrorStaleAfterMs = 10 * 60 * 1000
 const defaultMaxContinuityLabels = 6
 const defaultMaxSessionPhases = 10
+const continuityArcSummaryMaxChars = 720
+const continuityArcSummaryValueMaxChars = 420
+const projectAwarenessLineMaxChars = 1600
 
 function sanitizeText(raw: unknown, maxChars = 160) {
   if (typeof raw !== 'string')
@@ -110,12 +128,323 @@ function asStringArray(raw: unknown) {
     : []
 }
 
+function extractContinuityKeyDetail(summary: string, key: 'timing' | 'cadence' | 'project' | 'unresolved') {
+  const match = new RegExp(`${key}=([^|]+)`).exec(summary)
+  const value = sanitizeText(match?.[1]?.trim() ?? '', 80)
+  return value ? `${key}=${value}` : ''
+}
+
+function readContinuitySignalField(
+  continuitySignal: AlicizationDigitalLifeSpineSnapshot['continuitySignal'] | null | undefined,
+  field: 'activeThreadId' | 'dominantMode' | 'dominantDrive' | 'answerIntent' | 'preferredPresence',
+) {
+  if (!continuitySignal || typeof continuitySignal !== 'object')
+    return ''
+
+  const metadata = asRecord(continuitySignal.metadata)
+  const legacy = continuitySignal as unknown as Record<string, unknown>
+
+  return sanitizeText(
+    metadata?.[field] ?? legacy[field] ?? '',
+    field === 'activeThreadId' ? 120 : 80,
+  )
+}
+
+function resolvePreparedProjectRuntimeSurface(
+  surface: AlicizationMainChatRuntimeSurface | AlicizationDigitalLifeRuntimeSurface | null | undefined,
+) {
+  if (!surface)
+    return null
+
+  if ('digitalLifeRuntimeSurface' in surface) {
+    return resolvePreferredPreparedRuntimeSurface(surface)
+      ?? surface.digitalLifeRuntimeSurface
+      ?? surface.digitalLifeSpine?.runtimeSurface
+      ?? null
+  }
+
+  return surface
+}
+
+function readPreparedRuntimeProjectState(
+  surface: AlicizationMainChatRuntimeSurface | AlicizationDigitalLifeRuntimeSurface | null | undefined,
+) {
+  const runtimeSurface = resolvePreparedProjectRuntimeSurface(surface)
+  return runtimeSurface?.dialogue?.currentConsciousFrame?.projectState
+    ?? runtimeSurface?.raw?.runtimeDigest?.projectState
+    ?? runtimeSurface?.raw?.runtime?.projectState
+    ?? runtimeSurface?.cognition?.runtimeDigest?.projectState
+    ?? runtimeSurface?.dialogue?.runtimeDigest?.projectState
+    ?? null
+}
+
+function resolveMirrorProjectStateFromPreparedRuntimeSurface(
+  surface: AlicizationMainChatRuntimeSurface | AlicizationDigitalLifeRuntimeSurface | null | undefined,
+) {
+  const brief = resolveAlicizationProjectStateBrief()
+  const runtimeProjectState = readPreparedRuntimeProjectState(surface)
+  const snapshot = resolveAlicizationProjectStateSnapshot({
+    runtimeProjectState: runtimeProjectState as {
+      identity?: unknown
+      currentPhase?: unknown
+      preflightSummary?: unknown
+      preDialogueAwarenessLine?: unknown
+      awarenessLine?: unknown
+      companionHeadlineLine?: unknown
+      companionBriefingLine?: unknown
+      preDialogueAwarenessSummary?: unknown
+      latestLandedProgress?: unknown
+      latestProgress?: unknown
+      primaryOpenLoop?: unknown
+      nextClosureTarget?: unknown
+      sameHerSelfLine?: unknown
+      sameHerDriftRisk?: unknown
+      emotionalClosureCue?: unknown
+      emotionalClosureSummary?: unknown
+      sameHerHoldDetail?: unknown
+      continuityArcStage?: unknown
+      continuityCue?: unknown
+    } | null,
+    fallbackProjectState: {
+      identity: brief.identity,
+      currentPhase: brief.currentPhase,
+      preflightSummary: brief.preflightSummary ?? null,
+      preDialogueAwarenessLine: brief.preDialogueAwarenessLine ?? null,
+      latestProgress: brief.latestProgress,
+      primaryOpenLoop: brief.openLoops[0] ?? null,
+      nextClosureTarget: brief.nextClosureTarget,
+      sameHerSelfLine: brief.sameHerSelfLine,
+      sameHerDriftRisk: brief.sameHerDriftRisk,
+      emotionalClosureCue: brief.emotionalClosureCue ?? null,
+      emotionalClosureSummary: brief.emotionalClosureSummary ?? null,
+      sameHerHoldDetail: brief.sameHerHoldDetail ?? null,
+    },
+  })
+
+  const phase = sanitizeText(snapshot.currentPhase ?? brief.currentPhase, 160)
+  const primaryOpenLoop = sanitizeText(snapshot.primaryOpenLoop ?? brief.openLoops[0] ?? '', 220)
+  const preDialogueAwarenessLine = sanitizeText(
+    snapshot.preDialogueAwarenessLine
+      ?? resolveAlicizationProjectPreDialogueAwarenessLine({
+        runtimeProjectState: runtimeProjectState as {
+          preDialogueAwarenessLine?: unknown
+          preflightSummary?: unknown
+        } | null,
+        fallbackProjectState: {
+          preDialogueAwarenessLine: brief.preDialogueAwarenessLine ?? null,
+          preflightSummary: brief.preflightSummary ?? null,
+        },
+      })
+      ?? '',
+    projectAwarenessLineMaxChars,
+  ) || sanitizeText(
+    snapshot.preflightSummary ?? runtimeProjectState?.preflightSummary ?? brief.preflightSummary ?? '',
+    projectAwarenessLineMaxChars,
+  )
+  return {
+    project: 'phase1-digital-life',
+    unresolved: primaryOpenLoop ? primaryOpenLoop : '',
+    phase,
+    preDialogueAwarenessLine: preDialogueAwarenessLine ? preDialogueAwarenessLine : '',
+  }
+}
+
+function summarizeContinuityProjectFromPreparedRuntimeSurface(
+  surface: AlicizationMainChatRuntimeSurface | AlicizationDigitalLifeRuntimeSurface | null | undefined,
+) {
+  const projectState = resolveMirrorProjectStateFromPreparedRuntimeSurface(surface)
+  return [
+    projectState.project ? `project=${projectState.project}` : '',
+    projectState.phase ? `phase=${projectState.phase}` : '',
+    projectState.unresolved ? `unresolved=${projectState.unresolved}` : '',
+    projectState.preDialogueAwarenessLine ? `preflight=${projectState.preDialogueAwarenessLine}` : '',
+  ].filter(Boolean).join(' | ')
+}
+
+function looksLikeMirrorProjectReanchor(raw: unknown) {
+  const text = sanitizeText(raw, projectAwarenessLineMaxChars).toLowerCase()
+  if (!text)
+    return false
+
+  return (
+    text.includes('alicization is a local-first digital life project')
+    || text.includes('before answering, remember: alicization is a local-first digital life project')
+  ) && text.includes('phase 1')
+    && (
+      text.includes('unfinished closure')
+      || text.includes('still-open closure')
+      || text.includes('same living line')
+      || text.includes('same-life closure')
+    )
+}
+
+function summarizeContinuityProjectFromSignals(
+  continuitySignals: AlicizationAgentSessionSnapshot['continuitySignals'],
+) {
+  const latestExecutionLikeSignal = [...continuitySignals]
+    .reverse()
+    .find((signal) => {
+      const metadata = asRecord(signal.metadata)
+      if (!metadata)
+        return false
+      const label = sanitizeText(signal.label, 120).toLowerCase()
+      const summary = sanitizeText(signal.summary ?? '', 220).toLowerCase()
+      const source = sanitizeText(metadata.source, 96).toLowerCase()
+      return label.includes('execution-callback')
+        || label.includes('held-autonomy')
+        || source === 'proactive-held-autonomy'
+        || source === 'proactive-deferred'
+        || source === 'autobiographical-afterglow'
+        || summary.includes('continuity=execution-callback')
+    }) ?? null
+  if (!latestExecutionLikeSignal)
+    return ''
+
+  const metadata = asRecord(latestExecutionLikeSignal.metadata)
+  const explicitAwarenessLine = sanitizeText(
+    metadata?.projectStatePreDialogueAwarenessSummary
+    ?? metadata?.projectStatePreDialogueAwarenessLine,
+    projectAwarenessLineMaxChars,
+  )
+  const explicitPreflightSummary = sanitizeText(
+    metadata?.projectStatePreflightSummary,
+    projectAwarenessLineMaxChars,
+  )
+  const projectState = resolveAlicizationProjectStateSnapshot({
+    runtimeProjectState: {
+      identity: metadata?.projectIdentity,
+      currentPhase: metadata?.projectPhase,
+      preflightSummary: metadata?.projectStatePreflightSummary,
+      preDialogueAwarenessLine:
+        metadata?.projectStatePreDialogueAwarenessSummary
+        ?? metadata?.projectStatePreDialogueAwarenessLine,
+      preDialogueAwarenessSummary:
+        metadata?.projectStatePreDialogueAwarenessSummary
+        ?? metadata?.projectStatePreDialogueAwarenessLine,
+      latestLandedProgress: metadata?.projectLatestLandedProgress,
+      latestProgress: metadata?.projectLatestProgress,
+      primaryOpenLoop: metadata?.projectPrimaryOpenLoop,
+      nextClosureTarget: metadata?.projectNextClosureTarget,
+      sameHerSelfLine: metadata?.projectStateSameHerSelfLine,
+      sameHerDriftRisk: metadata?.projectStateSameHerDriftRisk,
+      emotionalClosureCue: metadata?.projectStateEmotionalClosureCue,
+      emotionalClosureSummary: metadata?.projectStateEmotionalClosureSummary,
+      sameHerHoldDetail: metadata?.projectStateSameHerHoldDetail,
+    },
+  })
+  const preDialogueAwarenessLine = sanitizeText(
+    looksLikeMirrorProjectReanchor(explicitAwarenessLine)
+      ? resolveAlicizationProjectPreDialogueAwarenessLine({
+          runtimeProjectState: {
+            preDialogueAwarenessLine: explicitAwarenessLine,
+            preflightSummary: explicitPreflightSummary || projectState.preflightSummary,
+          },
+        }) ?? ''
+      : buildAlicizationProjectPreDialogueAwarenessLine({
+          identity: projectState.identity,
+          currentPhase: projectState.currentPhase,
+          latestLandedProgress: projectState.latestLandedProgress,
+          latestProgress: projectState.latestProgress,
+          primaryOpenLoop: projectState.primaryOpenLoop,
+          nextClosureTarget: projectState.nextClosureTarget,
+          sameHerSelfLine: projectState.sameHerSelfLine,
+        }) ?? '',
+    projectAwarenessLineMaxChars,
+  ) || sanitizeText(projectState.preflightSummary ?? '', projectAwarenessLineMaxChars)
+
+  return [
+    'project=phase1-digital-life',
+    projectState.currentPhase ? `phase=${sanitizeText(projectState.currentPhase, 160)}` : '',
+    projectState.primaryOpenLoop ? `unresolved=${sanitizeText(projectState.primaryOpenLoop, 220)}` : '',
+    preDialogueAwarenessLine ? `preflight=${preDialogueAwarenessLine}` : '',
+  ].filter(Boolean).join(' | ')
+}
+
+function summarizeContinuityProjectForMirror(input: {
+  continuitySignals: AlicizationAgentSessionSnapshot['continuitySignals']
+  runtimeSurface: AlicizationMainChatRuntimeSurface | AlicizationDigitalLifeRuntimeSurface | null | undefined
+}) {
+  const preparedSummary = summarizeContinuityProjectFromPreparedRuntimeSurface(input.runtimeSurface)
+  if (readPreparedRuntimeProjectState(input.runtimeSurface))
+    return preparedSummary
+
+  return summarizeContinuityProjectFromSignals(input.continuitySignals) || preparedSummary
+}
+
 function cloneMirror(mirror: AlicizationDialogueSessionMirror): AlicizationDialogueSessionMirror {
   return {
     ...mirror,
     continuityLabels: [...mirror.continuityLabels],
     sessionPhases: [...mirror.sessionPhases],
   }
+}
+
+function resolvePreferredPreparedRuntimeSurface(surface: AlicizationMainChatRuntimeSurface) {
+  return resolvePreferredRuntimeSurface({
+    spineRuntimeSurface: surface.digitalLifeSpine?.runtimeSurface ?? null,
+    preparedRuntimeSurface: surface.digitalLifeRuntimeSurface ?? null,
+    extraEvidenceScore: runtimeSurface => (
+      (sanitizeText(runtimeSurface?.dialogue?.dialogueEncounter?.subject, 48) ? 1 : 0)
+      + (sanitizeText(runtimeSurface?.dialogue?.answerPlanner?.answerIntent, 96) ? 1 : 0)
+      + (sanitizeText(runtimeSurface?.dialogue?.replyDeliberation?.speakingFrom, 48) ? 1 : 0)
+    ),
+  })
+}
+
+function hasUsableDigitalLifeRuntimeSurface(
+  runtimeSurface: AlicizationDigitalLifeSpineSnapshot['runtimeSurface'] | null | undefined,
+) {
+  return Boolean(
+    runtimeSurface?.perception
+    && runtimeSurface?.world
+    && runtimeSurface?.cognition
+    && runtimeSurface?.memory
+    && runtimeSurface?.dialogue
+    && runtimeSurface?.agency,
+  )
+}
+
+function resolveUsablePreferredPreparedRuntimeSurface(
+  surface: AlicizationMainChatRuntimeSurface | null | undefined,
+) {
+  if (!surface)
+    return null
+
+  const preferredRuntimeSurface = resolvePreferredPreparedRuntimeSurface(surface)
+  if (hasUsableDigitalLifeRuntimeSurface(preferredRuntimeSurface))
+    return preferredRuntimeSurface
+
+  const preparedRuntimeSurface = surface.digitalLifeRuntimeSurface ?? null
+  if (hasUsableDigitalLifeRuntimeSurface(preparedRuntimeSurface))
+    return preparedRuntimeSurface
+
+  const spineRuntimeSurface = surface.digitalLifeSpine?.runtimeSurface ?? null
+  return hasUsableDigitalLifeRuntimeSurface(spineRuntimeSurface)
+    ? spineRuntimeSurface
+    : null
+}
+
+function resolveUsableRuntimeSurfaceFromSpine(
+  spine: AlicizationDigitalLifeSpineSnapshot | null | undefined,
+) {
+  return hasUsableDigitalLifeRuntimeSurface(spine?.runtimeSurface ?? null)
+    ? spine?.runtimeSurface ?? null
+    : null
+}
+
+function sanitizeMirrorDigitalLifeSpine(
+  spine: AlicizationDigitalLifeSpineSnapshot | null | undefined,
+) {
+  if (!spine?.runtimeSurface || hasUsableDigitalLifeRuntimeSurface(spine.runtimeSurface))
+    return spine ?? null
+
+  // Concurrent writes can leave a digest-like spine carrying a placeholder runtimeSurface object.
+  // Drop the unusable structured surface so mirror summarizers take the digest-only path safely.
+  const { runtimeSurface: _ignoredRuntimeSurface, ...digestLikeSpine } = spine as AlicizationDigitalLifeSpineSnapshot & {
+    runtimeSurface?: AlicizationDigitalLifeSpineSnapshot['runtimeSurface'] | null
+  }
+
+  return digestLikeSpine as AlicizationDigitalLifeSpineSnapshot
 }
 
 function summarizeTooling(input: {
@@ -149,7 +478,7 @@ function summarizeCapture(surface: AlicizationMainChatRuntimeSurface) {
 }
 
 function summarizeDialogue(surface: AlicizationMainChatRuntimeSurface) {
-  const runtimeSurface = surface.digitalLifeSpine?.runtimeSurface ?? surface.digitalLifeRuntimeSurface
+  const runtimeSurface = resolveUsablePreferredPreparedRuntimeSurface(surface)
   if (!runtimeSurface)
     return ''
 
@@ -168,6 +497,47 @@ function summarizeDialogue(surface: AlicizationMainChatRuntimeSurface) {
   ].filter(Boolean).join(' | ')
 }
 
+function preferMoreRecentDigitalLifeSpine(input: {
+  preparedRuntimeSurface: ReturnType<typeof resolvePreferredPreparedRuntimeSurface>
+  runtimeSurfaceSpine: AlicizationDigitalLifeSpineSnapshot | null | undefined
+}) {
+  const preparedSpine = input.preparedRuntimeSurface
+    ? deriveAlicizationDigitalLifeSpineFromSurface(input.preparedRuntimeSurface)
+    : null
+  const rawRuntimeSurfaceSpine = input.runtimeSurfaceSpine ?? null
+  const runtimeSurfaceSpine = sanitizeMirrorDigitalLifeSpine(rawRuntimeSurfaceSpine)
+  if (!preparedSpine)
+    return runtimeSurfaceSpine
+  if (!runtimeSurfaceSpine)
+    return preparedSpine
+  if (rawRuntimeSurfaceSpine?.runtimeSurface && !hasUsableDigitalLifeRuntimeSurface(rawRuntimeSurfaceSpine.runtimeSurface))
+    return preparedSpine
+
+  const preparedUpdatedAt = Number(
+    preparedSpine.runtime?.updatedAt
+    ?? preparedSpine.runtimeSurface?.perception?.updatedAt
+    ?? 0,
+  )
+  const runtimeSurfaceUpdatedAt = Number(
+    runtimeSurfaceSpine.runtime?.updatedAt
+    ?? runtimeSurfaceSpine.runtimeSurface?.perception?.updatedAt
+    ?? 0,
+  )
+  return runtimeSurfaceUpdatedAt >= preparedUpdatedAt
+    ? runtimeSurfaceSpine
+    : preparedSpine
+}
+
+function resolveDigitalLifeSpineUpdatedAt(
+  spine: AlicizationDigitalLifeSpineSnapshot | null | undefined,
+) {
+  return Number(
+    spine?.runtime?.updatedAt
+    ?? spine?.runtimeSurface?.perception?.updatedAt
+    ?? 0,
+  )
+}
+
 function summarizeDialogueFromSpine(input: {
   decisionTraceId?: string | null
   personaKernelMode?: string | null
@@ -175,7 +545,7 @@ function summarizeDialogueFromSpine(input: {
   spine: AlicizationDigitalLifeSpineSnapshot | null | undefined
   turnMode?: string | null
 }) {
-  const runtimeSurface = input.spine?.runtimeSurface
+  const runtimeSurface = resolveUsableRuntimeSurfaceFromSpine(input.spine)
   if (!runtimeSurface && !input.source)
     return ''
 
@@ -211,6 +581,42 @@ function summarizeToolingFromAgentSession(input: {
   ].join(' ')
 }
 
+function hasExecutionCallbackAfterglow(agentSession: AlicizationAgentSessionSnapshot) {
+  return agentSession.continuitySignals.some((signal) => {
+    const label = sanitizeText(signal.label, 120).toLowerCase()
+    const summary = sanitizeText(signal.summary ?? '', 220).toLowerCase()
+    const metadata = asRecord(signal.metadata)
+    const continuityKind = sanitizeText(metadata?.continuityKind, 80).toLowerCase()
+    const carryMode = sanitizeText(metadata?.executionCallbackCarryMode, 80).toLowerCase()
+    const source = sanitizeText(metadata?.source, 80).toLowerCase()
+    return label.includes('execution-callback')
+      || summary.includes('continuity=execution-callback')
+      || continuityKind === 'execution-callback'
+      || Boolean(carryMode)
+      || source === 'autobiographical-afterglow'
+  })
+}
+
+function shouldPreserveExecutionCallbackMirrorSource(input: {
+  previousMirror?: AlicizationDialogueSessionMirror | null
+  agentSession: AlicizationAgentSessionSnapshot
+  source: string
+}) {
+  const previousTooling = sanitizeText(input.previousMirror?.toolingSummary ?? '', 220).toLowerCase()
+  const previousExecution = sanitizeText(input.previousMirror?.executionSummary ?? '', 220).toLowerCase()
+  const previousAgency = sanitizeText(input.previousMirror?.agencySummary ?? '', 220).toLowerCase()
+  const incomingSource = sanitizeText(input.source, 48).toLowerCase()
+  return hasExecutionCallbackAfterglow(input.agentSession)
+    || (
+      previousTooling.includes('source=execution-callback')
+      && (
+        previousExecution.includes('callback:')
+        || previousAgency.includes('afterglow=execution-callback')
+      )
+      && incomingSource !== 'execution-callback'
+    )
+}
+
 function summarizeCaptureFromAgentSession(snapshot: AlicizationSensoryCacheSnapshot | null) {
   return [
     'grounded=unknown',
@@ -223,7 +629,8 @@ function summarizeCaptureFromAgentSession(snapshot: AlicizationSensoryCacheSnaps
 
 function summarizePerceptionFromSpine(spine: AlicizationDigitalLifeSpineSnapshot | null | undefined) {
   const digest = projectAlicizationDigitalLifeSpineDigest(spine)
-  const attention = spine?.runtimeSurface.perception.attention ?? null
+  const runtimeSurface = resolveUsableRuntimeSurfaceFromSpine(spine)
+  const attention = runtimeSurface?.perception?.attention ?? null
   const attentionTarget = sanitizeText(
     attention?.target?.title
     ?? attention?.target?.appName
@@ -241,20 +648,22 @@ function summarizePerceptionFromSpine(spine: AlicizationDigitalLifeSpineSnapshot
 }
 
 function pickFocusBeliefFromSpine(spine: AlicizationDigitalLifeSpineSnapshot | null | undefined) {
-  const beliefs = Array.isArray(spine?.runtimeSurface.cognition.beliefLedger?.beliefs)
-    ? spine.runtimeSurface.cognition.beliefLedger.beliefs
+  const runtimeSurface = resolveUsableRuntimeSurfaceFromSpine(spine)
+  const beliefs = Array.isArray(runtimeSurface?.cognition?.beliefLedger?.beliefs)
+    ? runtimeSurface.cognition.beliefLedger.beliefs
     : []
-  const focusBeliefId = sanitizeText(spine?.runtimeSurface.cognition.beliefLedger?.focusBeliefId ?? '', 160)
+  const focusBeliefId = sanitizeText(runtimeSurface?.cognition?.beliefLedger?.focusBeliefId ?? '', 160)
   return beliefs.find(belief => sanitizeText((belief as { id?: unknown }).id ?? '', 160) === focusBeliefId)
     ?? beliefs[0]
     ?? null
 }
 
 function pickActiveHypothesisFromSpine(spine: AlicizationDigitalLifeSpineSnapshot | null | undefined) {
-  const hypotheses = Array.isArray(spine?.runtimeSurface.cognition.hypothesisGraph?.hypotheses)
-    ? spine.runtimeSurface.cognition.hypothesisGraph.hypotheses
+  const runtimeSurface = resolveUsableRuntimeSurfaceFromSpine(spine)
+  const hypotheses = Array.isArray(runtimeSurface?.cognition?.hypothesisGraph?.hypotheses)
+    ? runtimeSurface.cognition.hypothesisGraph.hypotheses
     : []
-  const activeHypothesisId = sanitizeText(spine?.runtimeSurface.cognition.hypothesisGraph?.activeHypothesisId ?? '', 160)
+  const activeHypothesisId = sanitizeText(runtimeSurface?.cognition?.hypothesisGraph?.activeHypothesisId ?? '', 160)
   return hypotheses.find(hypothesis => sanitizeText((hypothesis as { id?: unknown }).id ?? '', 160) === activeHypothesisId)
     ?? hypotheses[0]
     ?? null
@@ -274,7 +683,8 @@ function summarizeMindFromSpine(spine: AlicizationDigitalLifeSpineSnapshot | nul
     statement?: unknown
     summary?: unknown
   } | null
-  const privateThought = spine?.runtimeSurface.cognition.privateThought ?? null
+  const runtimeSurface = resolveUsableRuntimeSurfaceFromSpine(spine)
+  const privateThought = runtimeSurface?.cognition?.privateThought ?? null
 
   const focusBeliefSummary = sanitizeText(
     focusBelief?.statement ?? focusBelief?.summary ?? focusBelief?.label ?? '',
@@ -304,14 +714,329 @@ function summarizeAgencyFromSpine(spine: AlicizationDigitalLifeSpineSnapshot | n
   if (!digest || !proactive)
     return ''
 
+  const quietSameHerWait = proactive.preferredStyle === 'silent-observe'
+    && proactive.shouldSpeak === false
+    && proactive.selectedAction === 'wait'
+
   return [
-    proactive.selectedAction ? `action=${proactive.selectedAction}` : '',
+    quietSameHerWait ? 'action=wait' : proactive.selectedAction ? `action=${proactive.selectedAction}` : '',
     typeof proactive.shouldSpeak === 'boolean'
       ? `speak=${proactive.shouldSpeak ? 'true' : 'false'}`
       : '',
-    proactive.preferredStyle ? `style=${proactive.preferredStyle}` : '',
+    quietSameHerWait ? 'style=silent-observe' : proactive.preferredStyle ? `style=${proactive.preferredStyle}` : '',
     digest.runtime.activeThreadTitle ? `thread=${digest.runtime.activeThreadTitle}` : '',
     proactive.leadingGoalSummary ? `goal=${proactive.leadingGoalSummary}` : '',
+  ].filter(Boolean).join(' | ')
+}
+
+function summarizeExecutionAfterglowFromSpine(spine: AlicizationDigitalLifeSpineSnapshot | null | undefined) {
+  const digest = projectAlicizationDigitalLifeSpineDigest(spine)
+  const proactive = digest?.proactive
+  const continuity = digest?.continuitySignal
+  if (!digest || !proactive)
+    return ''
+
+  const preferredStyle = sanitizeText(proactive.preferredStyle ?? '', 48)
+  const preferredPresence = sanitizeText(
+    proactive.preferredPresence
+    ?? digest.runtime.preferredPresence
+    ?? continuity?.preferredPresence
+    ?? '',
+    48,
+  )
+  const continuitySummary = sanitizeText(continuity?.summary ?? '', 220).toLowerCase()
+
+  const lowerPressureCarry = preferredStyle === 'silent-observe'
+    && preferredPresence === 'hesitant'
+  const trustWarmingCarry = preferredPresence === 'attentive'
+    && (preferredStyle === 'light-nudge'
+      || /trust|warming|close-carry|soft-handoff|接得住|有用/.test(continuitySummary))
+
+  if (!lowerPressureCarry && !trustWarmingCarry)
+    return ''
+
+  return [
+    'afterglow=execution-callback',
+    lowerPressureCarry ? 'carry=lower-pressure' : '',
+    trustWarmingCarry ? 'carry=trust-warming' : '',
+    preferredStyle ? `style=${preferredStyle}` : '',
+    preferredPresence ? `presence=${preferredPresence}` : '',
+  ].filter(Boolean).join(' | ')
+}
+
+function summarizeExecutionAfterglowFromContinuitySignals(
+  continuitySignals: AlicizationAgentSessionSnapshot['continuitySignals'],
+) {
+  const executionCallbackSignals = continuitySignals.filter((signal) => {
+    if (signal.kind === 'execution-callback')
+      return true
+
+    const label = sanitizeText(signal.label, 120).toLowerCase()
+    const summary = sanitizeText(signal.summary ?? '', 220).toLowerCase()
+    const metadata = asRecord(signal.metadata)
+    const continuityKind = sanitizeText(metadata?.continuityKind, 80).toLowerCase()
+    const carryMode = sanitizeText(metadata?.executionCallbackCarryMode, 80).toLowerCase()
+
+    return label.includes('execution-callback')
+      || summary.includes('continuity=execution-callback')
+      || continuityKind === 'execution-callback'
+      || Boolean(carryMode)
+  })
+  if (executionCallbackSignals.length === 0)
+    return ''
+
+  const latestSignal = executionCallbackSignals.at(-1) ?? null
+  const metadata = asRecord(latestSignal?.metadata)
+  const rawSummary = sanitizeText(latestSignal?.summary ?? '', 220)
+  const combinedSummary = [
+    sanitizeText(metadata?.summary, 220),
+    rawSummary,
+  ].filter(Boolean).join(' | ').toLowerCase()
+
+  const carry = (() => {
+    const code = sanitizeText(metadata?.carry, 48).toLowerCase()
+    if (code === 'repair-before-closeness' || code === 'lower-pressure' || code === 'trust-warming')
+      return code
+
+    if (/repair-before-closeness|repair first|let repair settle|callback repair|修复先/u.test(combinedSummary))
+      return 'repair-before-closeness'
+    if (/lower-pressure|gentler|ease off|step back|留白|放轻/.test(combinedSummary))
+      return 'lower-pressure'
+    if (/trust-warming|trust|warming|close-carry|soft-handoff|接得住|有用/.test(combinedSummary))
+      return 'trust-warming'
+    return ''
+  })()
+  const preferredStyle = sanitizeText(metadata?.style, 48)
+  const preferredPresence = sanitizeText(metadata?.presence, 48)
+
+  return [
+    'afterglow=execution-callback',
+    carry ? `carry=${carry}` : '',
+    preferredStyle ? `style=${preferredStyle}` : '',
+    preferredPresence ? `presence=${preferredPresence}` : '',
+  ].filter(Boolean).join(' | ')
+}
+
+function deriveExecutionLikeSameHerHoldDetail(input: {
+  executionLike?: boolean
+  projectStateSameHerHoldDetail?: string | null
+  projectStateSameHerSelfLine?: string | null
+  projectStateEmotionalClosureCue?: string | null
+  projectStateEmotionalClosureSummary?: string | null
+  projectNextClosureTarget?: string | null
+  summary?: string | null
+  whyNow?: string | null
+}) {
+  const explicitHoldDetail = sanitizeText(input.projectStateSameHerHoldDetail ?? '', 360)
+  if (explicitHoldDetail)
+    return explicitHoldDetail
+
+  const combined = [
+    sanitizeText(input.summary ?? '', 220),
+    sanitizeText(input.whyNow ?? '', 220),
+    sanitizeText(input.projectStateSameHerSelfLine ?? '', 220),
+    sanitizeText(input.projectStateEmotionalClosureCue ?? '', 220),
+    sanitizeText(input.projectStateEmotionalClosureSummary ?? '', 220),
+    sanitizeText(input.projectNextClosureTarget ?? '', 220),
+  ].filter(Boolean).join(' | ').toLowerCase()
+  if (!combined)
+    return ''
+
+  const sameLineCallbackCue = input.executionLike === true
+    || /callback|same line|same thread|same living line|same living thread|remembered seam|relationship seam|同一条线|同一生命线|同一线程/u.test(combined)
+  if (!sameLineCallbackCue)
+    return ''
+
+  const explicitRepairAuthority = /same-her callback repair seam|repair seam|repair line|repair-before-closeness still holds|repair-before-closeness still owns|keep this (?:callback )?return repair-before-closeness|until repair settles|let repair settle|先修复再靠近|修复线|修补线/u.test(combined)
+  const genericRepairMenu = /measured-return\s*\/\s*repair-before-closeness|one measured-return,\s*repair-before-closeness,\s*or rest-protective|measured-return,\s*repair-before-closeness,\s*or rest-protective/u.test(combined)
+
+  if (explicitRepairAuthority && !genericRepairMenu) {
+    return 'same-her hold: repair-before-closeness still owns this callback line before closeness widens again.'
+  }
+
+  if (/reopened too eagerly|too eagerly|more room this time|keep more room this time|leave more room|do not reopen it with the same eagerness|不要重开得太快|这次更要留白|这次要更慢一点|上次太急/u.test(combined)) {
+    return 'same-her hold: recognize the same remembered seam, but keep more room this time so the return does not reopen with the same eagerness as before.'
+  }
+
+  if (/measured-return|lower-pressure|one step more reversible|still settling|leave room|留白|放轻|别立刻把温度放大/u.test(combined)) {
+    return 'same-her hold: measured-return is still keeping this callback line lower-pressure before it widens again.'
+  }
+
+  return ''
+}
+
+function summarizeContinuityArcFromSignals(
+  continuitySignals: AlicizationAgentSessionSnapshot['continuitySignals'],
+) {
+  const latestProactiveOutcomeSignal = [...continuitySignals]
+    .reverse()
+    .find((signal) => {
+      if (signal.kind !== 'proactive' || signal.state === 'pending')
+        return false
+      const label = sanitizeText(signal.label, 120).toLowerCase()
+      const summary = sanitizeText(signal.summary ?? '', 220).toLowerCase()
+      const metadata = asRecord(signal.metadata)
+      const source = sanitizeText(metadata?.source, 96).toLowerCase()
+      return label.includes('reply-within-120s')
+        || source === 'proactive-feedback'
+        || summary.includes('host replied within 120s after a proactive turn')
+    }) ?? null
+  if (latestProactiveOutcomeSignal) {
+    const summary = sanitizeText(latestProactiveOutcomeSignal.summary ?? '', 220)
+    const metadata = asRecord(latestProactiveOutcomeSignal.metadata)
+    const scenario = sanitizeText(metadata?.scenario, 48)
+      || (/scenario=([^|]+)/.exec(summary)?.[1]?.trim() ?? '')
+    const stage = sanitizeText((/continuity=([^|]+)/.exec(summary)?.[1]?.trim() ?? ''), 80) || 'same-thread-continuation'
+    const timing = extractContinuityKeyDetail(summary, 'timing')
+    const cadence = extractContinuityKeyDetail(summary, 'cadence')
+
+    return [
+      stage ? `stage=${stage}` : '',
+      scenario ? `scenario=${scenario}` : '',
+      timing,
+      cadence,
+      'outcome=reply-within-120s',
+    ].filter(Boolean).join(' | ')
+  }
+
+  const latestExecutionLikeSignal = [...continuitySignals]
+    .reverse()
+    .find((signal) => {
+      const label = sanitizeText(signal.label, 120).toLowerCase()
+      const summary = sanitizeText(signal.summary ?? '', 220).toLowerCase()
+      const metadata = asRecord(signal.metadata)
+      const source = sanitizeText(metadata?.source, 96).toLowerCase()
+      const hasHeldAutonomyArcDetail = Boolean(
+        sanitizeText(metadata?.sourceThreadId, 96)
+        || sanitizeText(metadata?.deferReason, 96)
+        || sanitizeText(metadata?.whyNow, 180),
+      )
+      return label.includes('execution-callback')
+        || label.includes('held-autonomy')
+        || source === 'proactive-held-autonomy'
+        || (source === 'proactive-deferred' && hasHeldAutonomyArcDetail)
+        || summary.includes('continuity=execution-callback')
+    }) ?? null
+  if (latestExecutionLikeSignal) {
+    const metadata = asRecord(latestExecutionLikeSignal.metadata)
+    const summary = sanitizeText(latestExecutionLikeSignal.summary ?? '', 220)
+    const thread = sanitizeText(metadata?.sourceThreadId, 96)
+      || (/thread=([^\s|]+)/.exec(summary)?.[1] ?? '')
+    const carry = sanitizeText(metadata?.executionCallbackCarryMode, 64)
+      || (/carry-mode=([^\s|]+)/.exec(summary)?.[1] ?? '')
+    const deferReason = sanitizeText(metadata?.deferReason, 96)
+      || (/defer=([^\s|]+)/.exec(summary)?.[1] ?? '')
+    const whyNow = sanitizeText(metadata?.whyNow, 180)
+    const projectStateSameHerSelfLine = sanitizeText(metadata?.projectStateSameHerSelfLine, 360)
+    const projectPreflight = sanitizeText(
+      resolveAlicizationProjectPreDialogueAwarenessLine({
+        runtimeProjectState: {
+          preDialogueAwarenessLine: projectStateSameHerSelfLine
+            || metadata?.projectStatePreDialogueAwarenessSummary
+            || metadata?.projectStatePreDialogueAwarenessLine,
+          preflightSummary: metadata?.projectStatePreflightSummary,
+        },
+      }) ?? '',
+      360,
+    ) || sanitizeText(metadata?.projectStatePreflightSummary, 360)
+    const projectStateEmotionalClosureCue = sanitizeText(metadata?.projectStateEmotionalClosureCue, 360)
+    const projectStateEmotionalClosureSummary = sanitizeText(metadata?.projectStateEmotionalClosureSummary, 360)
+    const projectStateSameHerDriftRisk = sanitizeText(metadata?.projectStateSameHerDriftRisk, 360)
+    const projectNextClosureTarget = sanitizeText(metadata?.projectNextClosureTarget, 420)
+    const projectStateSameHerHoldDetail = deriveExecutionLikeSameHerHoldDetail({
+      executionLike: true,
+      projectStateSameHerHoldDetail: sanitizeText(metadata?.projectStateSameHerHoldDetail, 360),
+      projectStateSameHerSelfLine,
+      projectStateEmotionalClosureCue,
+      projectStateEmotionalClosureSummary,
+      projectNextClosureTarget,
+      summary,
+      whyNow,
+    })
+    const repairLine = /repair-before-closeness|repair first|修复先/u.test(summary)
+      ? 'repair-before-closeness'
+      : ''
+    const preferredBlinkCadence = /quieter blink/u.test(summary)
+      ? 'quiet'
+      : ''
+    const preferredGazeMode = /softened gaze/u.test(summary)
+      ? 'soften'
+      : ''
+
+    return [
+      'loop=execution-callback',
+      thread ? `thread=${thread}` : '',
+      carry ? `carry=${carry}` : '',
+      repairLine ? `repair=${repairLine}` : '',
+      preferredBlinkCadence ? `blink=${preferredBlinkCadence}` : '',
+      preferredGazeMode ? `gaze=${preferredGazeMode}` : '',
+      deferReason ? `defer=${deferReason}` : '',
+      whyNow ? `why_now=${whyNow}` : '',
+      projectPreflight ? `project_preflight=${projectPreflight}` : '',
+      projectStateSameHerHoldDetail ? `hold=${projectStateSameHerHoldDetail}` : '',
+      projectNextClosureTarget ? `next=${projectNextClosureTarget}` : '',
+      projectStateSameHerSelfLine ? `same_her=${projectStateSameHerSelfLine}` : '',
+      projectStateSameHerDriftRisk ? `drift_risk=${projectStateSameHerDriftRisk}` : '',
+    ].filter(Boolean).join(' | ')
+  }
+
+  const latestDialogueCarrySignal = [...continuitySignals]
+    .reverse()
+    .find((signal) => {
+      if (signal.kind !== 'dialogue')
+        return false
+      const summary = sanitizeText(signal.summary ?? '', 220).toLowerCase()
+      const metadata = asRecord(signal.metadata)
+      const source = sanitizeText(metadata?.source, 96).toLowerCase()
+      const carryReason = sanitizeText(metadata?.carryReason, 120).toLowerCase()
+      const activeThread = sanitizeText(metadata?.activeThread, 120).toLowerCase()
+      const openLoop = sanitizeText(metadata?.openLoop, 180).toLowerCase()
+      const memoryMode = sanitizeText(metadata?.memoryMode, 64).toLowerCase()
+      const carryEligible = metadata?.carryEligible === true
+
+      if (source !== 'dialogue-world-thread')
+        return false
+
+      return carryEligible
+        || carryReason.includes('shared-attention-continuation')
+        || /same line|same thread|continuation|continue|shared-attention/u.test(`${summary} ${activeThread} ${openLoop}`)
+        || memoryMode === 'dialogue-carry'
+    }) ?? null
+  if (!latestDialogueCarrySignal)
+    return ''
+
+  const metadata = asRecord(latestDialogueCarrySignal.metadata)
+  const summary = sanitizeText(latestDialogueCarrySignal.summary ?? '', 220)
+  const thread = sanitizeText(metadata?.activeThread, 120)
+    || (/thread=([^|]+)/.exec(summary)?.[1]?.trim() ?? '')
+  const carry = sanitizeText(metadata?.carryReason, 120)
+    || (/carry=([^|]+)/.exec(summary)?.[1]?.trim() ?? '')
+  const openLoop = sanitizeText(metadata?.openLoop, 180)
+    || (/open_loop=([^|]+)/.exec(summary)?.[1]?.trim() ?? '')
+  const anchor = sanitizeText(metadata?.primaryAnchor, 140)
+    || (/anchor=([^|]+)/.exec(summary)?.[1]?.trim() ?? '')
+  const timing = extractContinuityKeyDetail(summary, 'timing')
+  const cadence = extractContinuityKeyDetail(summary, 'cadence')
+  const project = extractContinuityKeyDetail(summary, 'project')
+  const unresolved = extractContinuityKeyDetail(summary, 'unresolved')
+  const stageSource = [carry, openLoop, anchor, summary].join(' ').toLowerCase()
+  const stage = /same line|same thread|continuation|continue|继续|沿着刚才那条线|shared-attention-continuation/u.test(stageSource)
+    ? 'same-thread-continuation'
+    : /reopen|re-enter|接回来|轻轻接/u.test(stageSource)
+      ? 'gentle-reopen'
+      : /hold|later|wait|先别|留 room/u.test(stageSource)
+        ? 'hold-for-opening'
+        : ''
+
+  return [
+    stage ? `stage=${stage}` : '',
+    thread ? `thread=${thread}` : '',
+    carry ? `carry=${carry}` : '',
+    anchor ? `anchor=${anchor}` : '',
+    timing,
+    cadence,
+    project,
+    unresolved,
   ].filter(Boolean).join(' | ')
 }
 
@@ -331,6 +1056,14 @@ function summarizeMemoryFromSpine(spine: AlicizationDigitalLifeSpineSnapshot | n
 }
 
 function summarizeRuntimeChannelFromSpine(spine: AlicizationDigitalLifeSpineSnapshot | null | undefined) {
+  const runtimeSurface = resolveUsableRuntimeSurfaceFromSpine(spine)
+  if (spine && !runtimeSurface) {
+    return [
+      spine.runtime?.dominantMode ? `dominant=${sanitizeText(spine.runtime.dominantMode, 48)}` : '',
+      spine.runtime?.selectedAction ? `phase=${sanitizeText(spine.runtime.selectedAction, 48)}` : '',
+    ].filter(Boolean).join(' | ')
+  }
+
   const runtime = deriveAlicizationRuntimeSnapshot({
     spine,
   })
@@ -345,7 +1078,11 @@ function summarizeRuntimeChannelFromSpine(spine: AlicizationDigitalLifeSpineSnap
 }
 
 function summarizeRuntimeTransitionFromSpine(spine: AlicizationDigitalLifeSpineSnapshot | null | undefined) {
-  const recentTransition = spine?.runtimeSurface.perception.recentTransition ?? null
+  const runtimeSurface = resolveUsableRuntimeSurfaceFromSpine(spine)
+  if (!runtimeSurface)
+    return ''
+
+  const recentTransition = runtimeSurface.perception.recentTransition ?? null
   if (!recentTransition)
     return ''
 
@@ -355,6 +1092,257 @@ function summarizeRuntimeTransitionFromSpine(spine: AlicizationDigitalLifeSpineS
     recentTransition.fromScenario ? `scenario=${sanitizeText(recentTransition.fromScenario, 48)}` : '',
     recentTransition.reason ? `reason=${sanitizeText(recentTransition.reason, 160)}` : '',
   ].filter(Boolean).join(' | ')
+}
+
+function summarizeContinuityArcFromSpine(spine: AlicizationDigitalLifeSpineSnapshot | null | undefined) {
+  const runtimeSurface = resolveUsableRuntimeSurfaceFromSpine(spine)
+  if (spine && !runtimeSurface) {
+    const continuitySummary = sanitizeText(spine.continuitySignal?.summary ?? '', 220)
+    const timing = sanitizeText(
+      spine.runtime?.continuityPreferredTiming
+      ?? (/timing=([^|]+)/.exec(continuitySummary)?.[1]?.trim() ?? '')
+      ?? '',
+      80,
+    )
+    const cadence = extractContinuityKeyDetail(continuitySummary, 'cadence')
+    const stageSource = [
+      continuitySummary,
+      sanitizeText(spine.proactive?.dominantConcernKind, 80),
+      sanitizeText(spine.proactive?.dominantConcernSummary, 180),
+    ].join(' ').toLowerCase()
+    const stage = /same line|same thread|same-thread|continuation|continue|继续|沿着刚才那条线/u.test(stageSource)
+      ? 'same-thread-continuation'
+      : /reopen|re-enter|接回来|轻轻接/u.test(stageSource)
+        ? 'gentle-reopen'
+        : /hold|hover|later|wait|先别|留 room/u.test(stageSource)
+          ? 'hold-for-opening'
+          : ''
+    const thread = sanitizeText(
+      spine.proactive?.activeThreadId
+      ?? spine.runtime?.activeThreadId
+      ?? readContinuitySignalField(spine.continuitySignal, 'activeThreadId')
+      ?? (/thread=([^|]+)/.exec(continuitySummary)?.[1]?.trim() ?? '')
+      ?? '',
+      120,
+    )
+    const handoff = sanitizeText(spine.runtime?.selectedAction ?? spine.proactive?.selectedAction ?? '', 48)
+
+    return [
+      stage ? `stage=${stage}` : '',
+      handoff ? `loop=${handoff}` : '',
+      thread ? `thread=${thread}` : '',
+      timing ? `timing=${timing}` : '',
+      cadence,
+    ].filter(Boolean).join(' | ')
+  }
+
+  const runtime = deriveAlicizationRuntimeSnapshot({
+    spine,
+  })
+  if (!runtime)
+    return ''
+
+  return [
+    runtime.projectState?.continuityArcStage
+      ? `stage=${sanitizeText(runtime.projectState.continuityArcStage, 48)}`
+      : '',
+    runtime.activeLoop?.phase
+      ? `loop=${sanitizeText(runtime.activeLoop.phase, 48)}`
+      : '',
+    runtime.activeLoop?.handoffTarget
+      ? `handoff=${sanitizeText(runtime.activeLoop.handoffTarget, 48)}`
+      : '',
+  ].filter(Boolean).join(' | ')
+}
+
+function mergeContinuityArcSummaries(...summaries: Array<string | null | undefined>) {
+  const merged = new Map<string, string>()
+  const extras: string[] = []
+  const priorityKeys = [
+    'stage',
+    'loop',
+    'handoff',
+    'thread',
+    'carry',
+    'defer',
+    'hold',
+    'repair',
+    'anchor',
+    'blink',
+    'gaze',
+    'why_now',
+    'project_preflight',
+    'same_her',
+    'landed',
+    'open',
+    'open-focus',
+    'next-focus',
+    'next',
+    'drift_risk',
+    'timing',
+    'cadence',
+    'voice',
+    'answer',
+    'need',
+    'intention',
+  ]
+
+  for (const summary of summaries) {
+    const normalized = sanitizeText(summary ?? '', continuityArcSummaryMaxChars)
+    if (!normalized)
+      continue
+
+    for (const rawPart of normalized.split('|')) {
+      const part = sanitizeText(rawPart.trim(), continuityArcSummaryMaxChars)
+      if (!part)
+        continue
+
+      const separatorIndex = part.indexOf('=')
+      if (separatorIndex <= 0) {
+        if (!extras.includes(part))
+          extras.push(part)
+        continue
+      }
+
+      const key = sanitizeText(part.slice(0, separatorIndex).trim(), 64)
+      const value = sanitizeText(part.slice(separatorIndex + 1).trim(), continuityArcSummaryValueMaxChars)
+      if (!key || !value)
+        continue
+
+      const previous = merged.get(key)
+      if (!previous || value.length > previous.length)
+        merged.set(key, value)
+    }
+  }
+
+  return [
+    ...priorityKeys
+      .filter(key => merged.has(key))
+      .map(key => `${key}=${merged.get(key) ?? ''}`),
+    ...Array.from(merged.entries())
+      .filter(([key]) => !priorityKeys.includes(key))
+      .map(([key, value]) => `${key}=${value}`),
+    ...extras,
+  ].join(' | ')
+}
+
+function compactContinuityArcSummary(summary: string | null | undefined) {
+  const merged = new Map<string, string>()
+  const extras: string[] = []
+  const priorityKeys = [
+    'stage',
+    'loop',
+    'handoff',
+    'thread',
+    'carry',
+    'defer',
+    'hold',
+    'repair',
+    'anchor',
+    'blink',
+    'gaze',
+    'why_now',
+    'project_preflight',
+    'same_her',
+    'landed',
+    'open',
+    'open-focus',
+    'next-focus',
+    'next',
+    'drift_risk',
+    'timing',
+    'cadence',
+    'voice',
+    'answer',
+    'need',
+    'intention',
+  ]
+  const normalized = sanitizeText(summary ?? '', 4000)
+  if (!normalized)
+    return ''
+
+  for (const rawPart of normalized.split('|')) {
+    const part = sanitizeText(rawPart.trim(), 1600)
+    if (!part)
+      continue
+    const separatorIndex = part.indexOf('=')
+    if (separatorIndex <= 0) {
+      if (!extras.includes(part))
+        extras.push(part)
+      continue
+    }
+    const key = sanitizeText(part.slice(0, separatorIndex).trim(), 64)
+    const valueBudget = key === 'next'
+      ? 420
+      : key === 'landed' || key === 'open' || key === 'project_preflight' || key === 'drift_risk'
+        ? 320
+        : key === 'same_her'
+          ? 220
+          : continuityArcSummaryValueMaxChars
+    const value = sanitizeText(part.slice(separatorIndex + 1).trim(), valueBudget)
+    if (!key || !value)
+      continue
+    const previous = merged.get(key)
+    if (!previous || value.length > previous.length)
+      merged.set(key, value)
+  }
+
+  const orderedSegments = [
+    ...priorityKeys
+      .filter(key => merged.has(key))
+      .map(key => `${key}=${merged.get(key) ?? ''}`),
+    ...Array.from(merged.entries())
+      .filter(([key]) => !priorityKeys.includes(key))
+      .map(([key, value]) => `${key}=${value}`),
+    ...extras,
+  ]
+
+  let result = ''
+  const requiredKeys = new Set([
+    'stage',
+    'loop',
+    'handoff',
+    'thread',
+    'carry',
+    'defer',
+    'why_now',
+    'project_preflight',
+    'same_her',
+    'landed',
+    'open',
+    'open-focus',
+    'next-focus',
+    'next',
+    'drift_risk',
+  ])
+  for (const segment of orderedSegments) {
+    const candidate = result ? `${result} | ${segment}` : segment
+    if (candidate.length > continuityArcSummaryMaxChars) {
+      const separatorIndex = segment.indexOf('=')
+      const key = separatorIndex > 0 ? sanitizeText(segment.slice(0, separatorIndex).trim(), 64) : ''
+      if (key && requiredKeys.has(key)) {
+        const remainingBudget = Math.max(
+          0,
+          continuityArcSummaryMaxChars
+          - (result ? result.length + 3 : 0)
+          - key.length
+          - 1,
+        )
+        const rawValue = separatorIndex > 0 ? segment.slice(separatorIndex + 1).trim() : ''
+        const truncatedValue = sanitizeText(rawValue, remainingBudget)
+        if (truncatedValue) {
+          result = result
+            ? `${result} | ${key}=${truncatedValue}`
+            : `${key}=${truncatedValue}`
+        }
+        continue
+      }
+      break
+    }
+    result = candidate
+  }
+
+  return result || sanitizeText(normalized, continuityArcSummaryMaxChars)
 }
 
 function summarizeRecollectionForeground(context: OrganicMemoryPromptContext | null | undefined) {
@@ -409,6 +1397,91 @@ function summarizeRecollectionForeground(context: OrganicMemoryPromptContext | n
   }
 }
 
+function summarizeContinuityArcFromPreparedRuntimeSurface(surface: AlicizationMainChatRuntimeSurface | null | undefined) {
+  const runtimeSurface = resolveUsablePreferredPreparedRuntimeSurface(surface)
+  if (!runtimeSurface?.dialogue)
+    return ''
+
+  const currentConsciousFrame = runtimeSurface.dialogue.currentConsciousFrame ?? null
+  const replyDeliberation = runtimeSurface.dialogue.replyDeliberation ?? null
+  const answerPlanner = runtimeSurface.dialogue.answerPlanner ?? null
+  const projectState = currentConsciousFrame?.projectState ?? null
+
+  const inwardNeed = sanitizeText(currentConsciousFrame?.consciousNeed ?? '', 160)
+  const speakingIntention = sanitizeText(currentConsciousFrame?.speakingIntention ?? '', 180)
+  const answerIntent = sanitizeText(answerPlanner?.answerIntent ?? '', 120)
+  const speakingFrom = sanitizeText(replyDeliberation?.speakingFrom ?? '', 64)
+  const continuityStage = currentConsciousFrame?.reasonTags?.includes('continuity-arc:hold-for-opening')
+    ? 'hold-for-opening'
+    : currentConsciousFrame?.reasonTags?.includes('continuity-arc:same-thread-continuation')
+      ? 'same-thread-continuation'
+      : currentConsciousFrame?.reasonTags?.includes('continuity-arc:gentle-reopen')
+        ? 'gentle-reopen'
+      : ''
+  const projectPreflight = sanitizeText(
+    resolveAlicizationProjectPreDialogueAwarenessLine({
+      runtimeProjectState: {
+        preDialogueAwarenessLine: projectState?.sameHerSelfLine
+          ?? projectState?.preDialogueAwarenessSummary
+          ?? projectState?.preDialogueAwarenessLine
+          ?? projectState?.awarenessLine,
+        preflightSummary: projectState?.preflightSummary,
+      },
+    }) ?? '',
+    260,
+  ) || sanitizeText(projectState?.preflightSummary ?? '', 260)
+  const projectStateSameHerSelfLine = sanitizeText(projectState?.sameHerSelfLine ?? '', 220)
+  const projectStateLandedProgress = sanitizeText(
+    projectState?.latestLandedProgress
+      ?? projectState?.latestProgress
+      ?? '',
+    220,
+  )
+  const projectStatePrimaryOpenLoop = sanitizeText(projectState?.primaryOpenLoop ?? '', 180)
+  const projectStateOpenFocusSummary = sanitizeText(
+    deriveCompactProjectStateOpenFocusSummary(projectState?.primaryOpenLoop ?? ''),
+    160,
+  )
+  const projectStateNextClosureTarget = sanitizeText(projectState?.nextClosureTarget ?? '', 200)
+  const projectStateNextFocusSummary = sanitizeText(
+    deriveCompactProjectStateNextFocusSummary(projectState?.nextClosureTarget ?? ''),
+    160,
+  )
+  const projectStateSameHerDriftRisk = sanitizeText(projectState?.sameHerDriftRisk ?? '', 180)
+  const carriesProjectStateClosureArc = Boolean(
+    projectStateSameHerSelfLine
+    && (
+      continuityStage === 'same-thread-continuation'
+      || continuityStage === 'hold-for-opening'
+      || continuityStage === 'gentle-reopen'
+      || /same phase 1 digital life|same living line|one living digital life|one continuous digital life/u.test(projectStateSameHerSelfLine)
+    )
+    && (
+      projectStateLandedProgress
+      || projectStatePrimaryOpenLoop
+      || projectStateNextClosureTarget
+      || projectStateSameHerDriftRisk
+      || projectPreflight
+    ),
+  )
+
+  return [
+    continuityStage ? `stage=${continuityStage}` : '',
+    carriesProjectStateClosureArc && projectPreflight ? `project_preflight=${projectPreflight}` : '',
+    carriesProjectStateClosureArc && projectStateSameHerSelfLine ? `same_her=${projectStateSameHerSelfLine}` : '',
+    carriesProjectStateClosureArc && projectStateLandedProgress ? `landed=${projectStateLandedProgress}` : '',
+    carriesProjectStateClosureArc && projectStatePrimaryOpenLoop ? `open=${projectStatePrimaryOpenLoop}` : '',
+    carriesProjectStateClosureArc && projectStateOpenFocusSummary ? `open-focus=${projectStateOpenFocusSummary}` : '',
+    carriesProjectStateClosureArc && projectStateNextFocusSummary ? `next-focus=${projectStateNextFocusSummary}` : '',
+    carriesProjectStateClosureArc && projectStateNextClosureTarget ? `next=${projectStateNextClosureTarget}` : '',
+    carriesProjectStateClosureArc && projectStateSameHerDriftRisk ? `drift_risk=${projectStateSameHerDriftRisk}` : '',
+    speakingFrom ? `voice=${speakingFrom}` : '',
+    answerIntent ? `answer=${answerIntent}` : '',
+    inwardNeed ? `need=${inwardNeed}` : '',
+    speakingIntention ? `intention=${speakingIntention}` : '',
+  ].filter(Boolean).join(' | ')
+}
+
 function summarizeExecutionFromAgentSession(agentSession: AlicizationAgentSessionSnapshot) {
   const executorTasks = agentSession.tasks.filter(task => task.kind === 'executor')
   if (executorTasks.length === 0)
@@ -435,9 +1508,11 @@ function summarizeExecutionFromAgentSession(agentSession: AlicizationAgentSessio
     96,
   )
   const latestMetadata = asRecord(latestTask?.metadata)
-  const latestStatus = normalizeExecutionMirrorStatus(
-    sanitizeText(latestMetadata?.threadStatus, 32) || sanitizeText(latestTask?.status, 24) || 'unknown',
-  )
+  const latestThreadStatus = sanitizeText(
+    latestMetadata?.threadStatus,
+    32,
+  ) || sanitizeText(latestTask?.status, 24) || 'unknown'
+  const latestStatus = normalizeExecutionMirrorStatus(latestThreadStatus)
   const latestGoal = sanitizeText(latestMetadata?.goal, 160)
   const latestChannel = sanitizeText(
     latestMetadata?.selectedChannel ?? latestMetadata?.proposedChannel,
@@ -446,20 +1521,22 @@ function summarizeExecutionFromAgentSession(agentSession: AlicizationAgentSessio
   const latestSummary = sanitizeText(latestTask?.summary ?? '', 160)
   const latestAffirmationReasonCodes = asStringArray(latestMetadata?.affirmationReasonCodes)
   const humanSummary = (() => {
-    if (latestStatus === 'needs-affirmation' && latestGoal) {
+    if (latestThreadStatus === 'running' && latestGoal) {
+      return latestChannel
+        ? `${latestChannel} is already carrying ${latestGoal}`
+        : `execution is already carrying ${latestGoal}`
+    }
+    if (latestSummary)
+      return latestSummary
+    if (latestThreadStatus === 'needs-affirmation' && latestGoal) {
       return latestChannel
         ? `waiting-confirmation before ${latestChannel} can act on ${latestGoal}`
         : `waiting-confirmation before acting on ${latestGoal}`
     }
-    if (latestStatus === 'planned' && latestGoal) {
+    if (latestThreadStatus === 'planned' && latestGoal) {
       return latestChannel
         ? `planned ${latestChannel} path for ${latestGoal}`
         : `planned execution path for ${latestGoal}`
-    }
-    if (latestStatus === 'running' && latestGoal) {
-      return latestChannel
-        ? `${latestChannel} is already carrying ${latestGoal}`
-        : `execution is already carrying ${latestGoal}`
     }
     return latestSummary
   })()
@@ -523,6 +1600,7 @@ export function createAlicizationDialogueSessionManager(
   function ingestPreparedExecution(input: {
     agentSession: AlicizationAgentSessionSnapshot
     cardId: string
+    digitalLifeSpine?: AlicizationDigitalLifeSpineSnapshot | null
     organicMemoryContext?: OrganicMemoryPromptContext | null
     runtimeSurface: AlicizationMainChatRuntimeSurface
     sessionId: string
@@ -535,18 +1613,45 @@ export function createAlicizationDialogueSessionManager(
     }
 
     const previousMirror = mirrors.get(buildMirrorKey(normalizedCardId, normalizedSessionId))
-    const digitalLifeSpine = input.runtimeSurface.digitalLifeSpine
-      ?? (input.runtimeSurface.digitalLifeRuntimeSurface
-        ? deriveAlicizationDigitalLifeSpineFromSurface(input.runtimeSurface.digitalLifeRuntimeSurface)
-        : null)
+    const preferredRuntimeSurface = resolveUsablePreferredPreparedRuntimeSurface(input.runtimeSurface)
+    const rawPreparedDigitalLifeSpine = input.digitalLifeSpine ?? null
+    const rawRuntimeSurfaceDigitalLifeSpine = input.runtimeSurface.digitalLifeSpine ?? null
+    const preparedDigitalLifeSpine = sanitizeMirrorDigitalLifeSpine(rawPreparedDigitalLifeSpine)
+    const runtimeSurfaceDigitalLifeSpine = sanitizeMirrorDigitalLifeSpine(rawRuntimeSurfaceDigitalLifeSpine)
+    const preferredIncomingDigitalLifeSpine
+      = rawPreparedDigitalLifeSpine?.runtimeSurface && !hasUsableDigitalLifeRuntimeSurface(rawPreparedDigitalLifeSpine.runtimeSurface)
+        ? rawRuntimeSurfaceDigitalLifeSpine ?? rawPreparedDigitalLifeSpine
+        : rawPreparedDigitalLifeSpine ?? rawRuntimeSurfaceDigitalLifeSpine ?? null
+    const digitalLifeSpine = preparedDigitalLifeSpine?.runtimeSurface === preferredRuntimeSurface
+      ? preparedDigitalLifeSpine
+      : runtimeSurfaceDigitalLifeSpine?.runtimeSurface === preferredRuntimeSurface
+        ? runtimeSurfaceDigitalLifeSpine
+      : preferMoreRecentDigitalLifeSpine({
+          preparedRuntimeSurface: preferredRuntimeSurface,
+          runtimeSurfaceSpine: preferredIncomingDigitalLifeSpine,
+        })
     const recollectionForeground = summarizeRecollectionForeground(input.organicMemoryContext ?? null)
     const mirror: AlicizationDialogueSessionMirror = {
       cardId: normalizedCardId,
       sessionId: normalizedSessionId,
-      updatedAt: Number.isFinite(digitalLifeSpine?.runtimeSurface.perception.updatedAt)
-        ? Number(digitalLifeSpine?.runtimeSurface.perception.updatedAt)
+      updatedAt: Number.isFinite(resolveDigitalLifeSpineUpdatedAt(digitalLifeSpine))
+        ? resolveDigitalLifeSpineUpdatedAt(digitalLifeSpine)
         : getNow(),
       decisionTraceId: sanitizeText(input.runtimeSurface.trace.decisionTraceId, 200) || null,
+      continuityArcSummary: compactContinuityArcSummary(
+        mergeContinuityArcSummaries(
+          summarizeContinuityArcFromSpine(digitalLifeSpine),
+          summarizeContinuityArcFromPreparedRuntimeSurface(input.runtimeSurface),
+          summarizeContinuityArcFromSignals(input.agentSession.continuitySignals),
+        ),
+      ) || previousMirror?.continuityArcSummary || null,
+      continuityProjectSummary: sanitizeText(
+        summarizeContinuityProjectForMirror({
+          continuitySignals: input.agentSession.continuitySignals,
+          runtimeSurface: preferredRuntimeSurface,
+        }),
+        520,
+      ) || previousMirror?.continuityProjectSummary || null,
       continuityLabels: takeTailUnique(
         input.agentSession.continuitySignals
           .filter(signal => signal.kind !== 'execution-callback')
@@ -609,7 +1714,11 @@ export function createAlicizationDialogueSessionManager(
         220,
       ) || previousMirror?.perceptionSummary || null,
       agencySummary: sanitizeText(
-        summarizeAgencyFromSpine(digitalLifeSpine),
+        [
+          summarizeAgencyFromSpine(digitalLifeSpine),
+          summarizeExecutionAfterglowFromSpine(digitalLifeSpine),
+          summarizeExecutionAfterglowFromContinuitySignals(input.agentSession.continuitySignals),
+        ].filter(Boolean).join(' | '),
         220,
       ) || previousMirror?.agencySummary || null,
       executionSummary: sanitizeText(
@@ -639,16 +1748,37 @@ export function createAlicizationDialogueSessionManager(
     }
 
     const previousMirror = mirrors.get(buildMirrorKey(normalizedCardId, normalizedSessionId))
-    const digitalLifeSpine = input.agentSession.digitalLifeSpine ?? null
+    const digitalLifeSpine = sanitizeMirrorDigitalLifeSpine(input.agentSession.digitalLifeSpine ?? null)
+    const preserveExecutionCallbackSource = shouldPreserveExecutionCallbackMirrorSource({
+      previousMirror,
+      agentSession: input.agentSession,
+      source: input.source,
+    })
+    const effectiveSource = preserveExecutionCallbackSource
+      ? 'execution-callback'
+      : input.source
     const mirror: AlicizationDialogueSessionMirror = {
       cardId: normalizedCardId,
       sessionId: normalizedSessionId,
-      updatedAt: Number.isFinite(digitalLifeSpine?.runtimeSurface.perception.updatedAt)
-        ? Number(digitalLifeSpine?.runtimeSurface.perception.updatedAt)
+      updatedAt: Number.isFinite(resolveDigitalLifeSpineUpdatedAt(digitalLifeSpine))
+        ? resolveDigitalLifeSpineUpdatedAt(digitalLifeSpine)
         : Number.isFinite(input.agentSession.lastActiveAt)
           ? Number(input.agentSession.lastActiveAt)
           : getNow(),
       decisionTraceId: sanitizeText(input.decisionTraceId, 200) || previousMirror?.decisionTraceId || null,
+      continuityArcSummary: compactContinuityArcSummary(
+        mergeContinuityArcSummaries(
+          summarizeContinuityArcFromSpine(digitalLifeSpine),
+          summarizeContinuityArcFromSignals(input.agentSession.continuitySignals),
+        ),
+      ) || previousMirror?.continuityArcSummary || null,
+      continuityProjectSummary: sanitizeText(
+        summarizeContinuityProjectForMirror({
+          continuitySignals: input.agentSession.continuitySignals,
+          runtimeSurface: resolveUsableRuntimeSurfaceFromSpine(digitalLifeSpine),
+        }),
+        520,
+      ) || previousMirror?.continuityProjectSummary || null,
       continuityLabels: takeTailUnique(
         input.agentSession.continuitySignals
           .filter(signal => signal.kind !== 'execution-callback')
@@ -659,14 +1789,14 @@ export function createAlicizationDialogueSessionManager(
       sessionPhases: takeTailUnique(
         [
           ...(input.sessionPhases ?? []),
-          `source:${sanitizeText(input.source, 48) || 'unknown'}`,
+          `source:${sanitizeText(effectiveSource, 48) || 'unknown'}`,
         ],
         maxSessionPhases,
         80,
       ),
       toolingSummary: summarizeToolingFromAgentSession({
         agentSession: input.agentSession,
-        source: input.source,
+        source: effectiveSource,
       }),
       captureSummary: summarizeCaptureFromAgentSession(input.agentSession.lastSensorySnapshot),
       digitalLifeArchitectureSummary: sanitizeText(
@@ -674,7 +1804,11 @@ export function createAlicizationDialogueSessionManager(
         220,
       ) || previousMirror?.digitalLifeArchitectureSummary || null,
       digitalLifeRuntimeSummary: sanitizeText(
-        digitalLifeSpine?.continuitySignal?.summary ?? '',
+        [
+          sanitizeText(digitalLifeSpine?.continuitySignal?.summary ?? '', 220),
+          summarizeExecutionAfterglowFromSpine(digitalLifeSpine),
+          summarizeExecutionAfterglowFromContinuitySignals(input.agentSession.continuitySignals),
+        ].filter(Boolean).join(' | '),
         220,
       ) || previousMirror?.digitalLifeRuntimeSummary || null,
       runtimeChannelSummary: sanitizeText(
@@ -708,7 +1842,11 @@ export function createAlicizationDialogueSessionManager(
         220,
       ) || previousMirror?.perceptionSummary || null,
       agencySummary: sanitizeText(
-        summarizeAgencyFromSpine(digitalLifeSpine),
+        [
+          summarizeAgencyFromSpine(digitalLifeSpine),
+          summarizeExecutionAfterglowFromSpine(digitalLifeSpine),
+          summarizeExecutionAfterglowFromContinuitySignals(input.agentSession.continuitySignals),
+        ].filter(Boolean).join(' | '),
         220,
       ) || previousMirror?.agencySummary || null,
       executionSummary: sanitizeText(
@@ -717,7 +1855,7 @@ export function createAlicizationDialogueSessionManager(
       ) || previousMirror?.executionSummary || null,
       dialogueSummary: sanitizeText(summarizeDialogueFromSpine({
         decisionTraceId: input.decisionTraceId,
-        source: input.source,
+        source: effectiveSource,
         spine: digitalLifeSpine,
       }), 220) || previousMirror?.dialogueSummary || null,
     }
@@ -734,6 +1872,17 @@ export function createAlicizationDialogueSessionManager(
     if (!mirror)
       return ''
 
+    const continuityArcSummary = (() => {
+      const current = mirror.continuityArcSummary ?? 'none'
+      const labels = mirror.continuityLabels.join(',')
+      const shouldRestoreRepairCue
+        = /repair-first|repair-before-closeness/u.test(labels)
+          && !/repair-before-closeness/u.test(current)
+      return shouldRestoreRepairCue
+        ? `${current} | hold=repair-before-closeness | carry=quieter blink | anchor=softened gaze`
+        : current
+    })()
+
     return [
       '[ALICIZATION_DIALOGUE_SESSION_MIRROR]',
       `conversation_session_id=${mirror.sessionId}`,
@@ -743,6 +1892,8 @@ export function createAlicizationDialogueSessionManager(
         : '',
       `session_phases=${mirror.sessionPhases.join(' -> ') || 'none'}`,
       `continuity_labels=${mirror.continuityLabels.join(',') || 'none'}`,
+      `continuity_arc=${continuityArcSummary}`,
+      `continuity_project=${mirror.continuityProjectSummary ?? 'none'}`,
       `tooling=${mirror.toolingSummary}`,
       `capture=${mirror.captureSummary}`,
       `digital_life_architecture=${mirror.digitalLifeArchitectureSummary ?? 'none'}`,

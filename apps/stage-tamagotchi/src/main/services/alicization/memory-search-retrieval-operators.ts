@@ -14,11 +14,13 @@ import type { AlicizationMemoryTuningAdvice } from './memory-tuning-advice'
 import type { AlicizationMemoryRetrievalBudgetClass } from './memory-retrieval-telemetry'
 import type { AlicizationTurnRetrievalPolicySnapshot } from './memory-accessibility-runtime'
 import type { AlicizationRelationshipDynamicsState } from './relationship-dynamics-state'
+import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 import type { OrganicMemoryPromptContext } from './runtime-soul'
 
 import { buildProceduralMemoryAbstractions } from './memory-procedural-abstraction'
 import { buildMemoryRecollectionWindows } from './memory-recollection-windows'
 import { rankFactsByLearningTuning } from './learning-tuned-fact-ranking'
+import { isPresentFacingSelfCritiqueRecallSeed } from './runtime-organic-memory-search-prelude'
 
 function clamp01(value: number) {
   if (!Number.isFinite(value))
@@ -114,6 +116,7 @@ export interface AlicizationMemorySearchPolicyAccess {
     activeThoughts: OrganicMemoryPromptContext['activeThoughts']
     hostPersonModel?: OrganicMemoryPromptContext['hostPersonModel']
     relationshipDynamics?: OrganicMemoryPromptContext['relationshipDynamics']
+    digitalLifeRuntimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
   }) => Promise<OrganicMemoryPromptContext['recollectionIntent'] | null>
   deriveSceneTriggeredRecollectionIntent: (input: {
     recallSeed: string
@@ -131,6 +134,7 @@ export interface AlicizationMemorySearchPreludeInput {
   turnId?: string | null
   budgetClass?: AlicizationMemoryRetrievalBudgetClass
   retrievalPolicySnapshot?: AlicizationTurnRetrievalPolicySnapshot | null
+  digitalLifeRuntimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
 }
 
 export interface AlicizationMemorySearchPreludeResult {
@@ -156,7 +160,11 @@ export async function resolveMemorySearchPrelude(
     input.access.buildHostPersonModel().catch(() => null),
   ])
   const memoryTuningAdvice = await input.access.getMemoryTuningAdvice?.().catch(() => null) ?? null
-  const recallSeed = input.recallGovernor?.recallSeed || input.recallSeed || ''
+  const recallSeed = uniqueList([
+    input.recallSeed,
+    input.recallGovernor?.recallSeed,
+  ], 8).join('\n')
+  const suppressAssociativeRecall = input.recallGovernor?.suppressAssociativeRecall === true
   const seedTriggeredHeuristicIntent = recallSeed
     ? input.policy.deriveSceneTriggeredRecollectionIntent({
         recallSeed,
@@ -164,6 +172,36 @@ export async function resolveMemorySearchPrelude(
       })
     : null
   const heuristicRecollectionIntent = input.recallGovernor?.recollectionIntent ?? seedTriggeredHeuristicIntent ?? null
+  if (recallSeed && isPresentFacingSelfCritiqueRecallSeed(recallSeed)) {
+    return {
+      snapshot,
+      relationshipDynamics: relationshipDynamics ?? null,
+      hostPersonModel,
+      recallSeed,
+      heuristicRecollectionIntent: null,
+      retrievedFacts: [],
+      recalledFragments: [],
+      recalledEpisodes: [],
+      recollectionIntent: null,
+      activeRecollectionIntent: null,
+      memoryTuningAdvice,
+    }
+  }
+  if (recallSeed && suppressAssociativeRecall && !heuristicRecollectionIntent) {
+    return {
+      snapshot,
+      relationshipDynamics: relationshipDynamics ?? null,
+      hostPersonModel,
+      recallSeed,
+      heuristicRecollectionIntent: null,
+      retrievedFacts: [],
+      recalledFragments: [],
+      recalledEpisodes: [],
+      recollectionIntent: null,
+      activeRecollectionIntent: null,
+      memoryTuningAdvice,
+    }
+  }
   const retrievedFacts = recallSeed
     ? rankFactsByLearningTuning({
         facts: await input.access.retrieveMemoryFacts(recallSeed, 4),
@@ -191,6 +229,7 @@ export async function resolveMemorySearchPrelude(
         activeThoughts: snapshot.activeThoughts,
         hostPersonModel,
         relationshipDynamics,
+        digitalLifeRuntimeSurface: input.digitalLifeRuntimeSurface ?? null,
       }).catch(() => null)
     : null
   const preliminaryRecollectionIntent = plannedRecollectionIntent ?? heuristicRecollectionIntent ?? null

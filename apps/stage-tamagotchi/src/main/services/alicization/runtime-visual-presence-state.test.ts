@@ -28,6 +28,27 @@ function createVisualPresenceState(updatedAt: number): AlicizationVisualPresence
   } as unknown as AlicizationVisualPresenceStateSnapshot
 }
 
+function createPerceptionState(input: {
+  updatedAt: number
+  recentSceneResidue?: {
+    observedAt: number
+    source: 'invited-inspection' | 'screen-semantic-summary'
+    workloadKind: 'coding' | 'media' | 'browser' | 'terminal' | 'game' | 'chat' | 'document' | 'unknown'
+    contentKind: 'error' | 'diff' | 'doc' | 'video' | 'music' | 'chat' | 'gameplay' | 'unknown'
+    summary?: string
+    confidence: number
+  } | null
+}) {
+  return {
+    attentionAnchor: null,
+    lastNonSelfForegroundTarget: null,
+    recentObservations: [],
+    invitedInspection: null,
+    recentSceneResidue: input.recentSceneResidue ?? null,
+    updatedAt: input.updatedAt,
+  }
+}
+
 describe('runtime visual presence state', () => {
   it('derives quiet co-vision presence for sustained focus without forcing speech', () => {
     const kernel = createAlicizationBodyKernel({ now: () => 1000 })
@@ -310,6 +331,138 @@ describe('runtime visual presence state', () => {
     expect(emitVisualPresenceState).toHaveBeenCalledWith('default', state)
   })
 
+  it('persists body-authorized measured-return presence when emotional-kernel continuity is the strongest surviving authority', async () => {
+    const meta = new Map<string, string>()
+    const upsertMindHead = vi.fn(async (cardId: string, key: string, value: unknown) => {
+      meta.set(`mind:${cardId}:${key}`, JSON.stringify(value))
+    })
+    const emitVisualPresenceState = vi.fn()
+    const runtime = createAlicizationRuntimeVisualPresenceState({
+      now: () => 210_000,
+      normalizeCardId: raw => String(raw ?? '').trim() || 'default',
+      getActiveCardId: () => 'default',
+      withCardScope: async (_cardId, task) => await task(),
+      alicizationDb: {
+        getMetaValue: async key => meta.get(key),
+        setMetaValue: async (key, value) => {
+          meta.set(key, value)
+        },
+        upsertMindHead,
+      },
+      perceptionStateByCard: new Map(),
+      visualPresenceStateByCard: new Map(),
+      visualPresenceCapturePersistMetaByCard: new Map(),
+      createDefaultPerceptionState: (now) => ({ lastObservedAt: now } as any),
+      normalizePerceptionState: raw => raw as any,
+      createDefaultVisualPresenceState: createVisualPresenceState,
+      normalizeVisualPresenceState: raw => raw as AlicizationVisualPresenceStateSnapshot,
+      buildVisualPresenceCapturePersistFingerprint: state => `fp:${state.updatedAt}`,
+      emitVisualPresenceState,
+      perceptionMetaKey: 'perception_state_v1',
+      visualPresenceMetaKey: 'visual_presence_state_v1',
+    })
+
+    const kernel = createAlicizationBodyKernel({ now: () => 210_000 })
+    const previousState = createVisualPresenceState(100_000)
+    const candidateState = {
+      ...createVisualPresenceState(100_000),
+      watchMode: 'mnemonic-passive',
+      currentScene: {
+        workloadKind: 'coding',
+        contentKind: 'doc',
+        scenario: 'same-line-measured-return',
+        summary: 'same-her closure is still settling and should stay lower-pressure',
+        source: 'screen-semantic-summary',
+        confidence: 0.82,
+        beganAt: 20_000,
+        lastSeenAt: 210_000,
+      },
+      emotionalKernel: {
+        version: 'emotional-kernel-v1',
+        dominantEmotion: 'measured-companionship',
+        initiativeMode: 'observe',
+        memoryRecallMode: 'low-pressure-presence',
+        embodimentTone: 'measured-return',
+        valence: 0.58,
+        arousal: 0.24,
+        guardedness: 0.42,
+        closenessDrive: 0.62,
+        repairNeed: 0.16,
+        initiativePressure: 0.2,
+        reasonTags: ['measured-return', 'quiet-companionship'],
+        why: 'Remembered feeling, quiet initiative, and body tone are all asking for a lower-pressure same-line return.',
+      },
+      initiative: {
+        selectedAction: 'wait',
+        selectedProposalId: null,
+        selectedTruthFrame: null,
+        selectedCounterfactualOptionId: null,
+        selectedConcernId: null,
+        selectedBeliefId: null,
+        selectedInquiryId: null,
+        selectedCommitmentId: null,
+        selectedInquiryPlanId: null,
+        selectedHypothesisId: null,
+        selectedThreadId: null,
+        selectedRuntimeThreadId: null,
+        selectedThoughtThreadId: null,
+        selectedGovernorIntentionId: null,
+        actionEcologyMode: 'silent-presence',
+        confidence: 0.74,
+        motives: { accompany: 0.62, 'stay-silent': 0.84 },
+        speakDrive: 0.14,
+        silenceDrive: 0.82,
+        preferredStyle: 'silent-observe',
+        preferredPresence: 'attentive',
+        continuityRestraint: null,
+        why: 'Stay on the same lower-pressure line nearby.',
+        shouldSurface: false,
+        shouldSpeak: false,
+      },
+      privateThought: {
+        selectedOptionId: null,
+        selectedAction: 'wait',
+        confidence: 0.64,
+        dominantTradeoff: 'same-line-measured-return',
+        options: [],
+        narrative: [],
+        updatedAt: 210_000,
+        stance: 'accompany',
+        rationaleTags: [],
+        thoughtText: 'stay nearby',
+        shouldSpeak: false,
+        suggestedStyle: 'silent-observe',
+        embodiedPresence: 'attentive',
+        expiresAt: 270_000,
+        emotionalTension: 'soft-covision',
+      },
+      relationshipModel: {
+        receptivity: 0.06,
+        sharedAttentionTrust: 0.08,
+        reciprocityExpectation: 0.07,
+      },
+    } as any
+
+    const persistedState = kernel.applyToVisualPresenceState({
+      now: 210_000,
+      previousState,
+      candidateState,
+      activeConversation: false,
+    })
+
+    await runtime.persistVisualPresenceState('default', persistedState)
+
+    const stored = JSON.parse(String(meta.get('visual_presence_state_v1'))) as AlicizationVisualPresenceStateSnapshot
+    expect(stored.currentBodyState).toBe('accompanying')
+    expect(stored.continuityMode).toBe('quiet-accompaniment')
+    expect(stored.emotionalKernel?.embodimentTone).toBe('measured-return')
+    expect(stored.currentInwardPreoccupation).toContain('lower-pressure same-line return')
+    expect(emitVisualPresenceState).toHaveBeenCalledWith('default', expect.objectContaining({
+      currentBodyState: 'accompanying',
+      continuityMode: 'quiet-accompaniment',
+    }))
+  })
+
   it('does not re-persist or re-emit an identical visual presence state for the active card', async () => {
     const meta = new Map<string, string>()
     const upsertMindHead = vi.fn(async (cardId: string, key: string, value: unknown) => {
@@ -453,5 +606,78 @@ describe('runtime visual presence state', () => {
 
     expect(perception).toEqual({ observed: 'other-card' })
     expect(visualPresence.updatedAt).toBe(8_000)
+  })
+
+  it('serializes perception mutations so an older write cannot wipe a newer scene residue', async () => {
+    const meta = new Map<string, string>()
+    let releaseFirstPersist: () => void = () => {}
+    const firstPersistBlocked = new Promise<void>((resolve) => {
+      releaseFirstPersist = resolve
+    })
+    let persistCallCount = 0
+
+    const runtime = createAlicizationRuntimeVisualPresenceState({
+      now: () => 9_000,
+      normalizeCardId: raw => String(raw ?? '').trim() || 'default',
+      getActiveCardId: () => 'default',
+      withCardScope: async (_cardId, task) => await task(),
+      alicizationDb: {
+        getMetaValue: async key => meta.get(key),
+        setMetaValue: async (key, value) => {
+          persistCallCount += 1
+          if (key === 'perception_state_v1' && persistCallCount === 1)
+            await firstPersistBlocked
+          meta.set(key, value)
+        },
+        upsertMindHead: async () => {},
+      },
+      perceptionStateByCard: new Map(),
+      visualPresenceStateByCard: new Map(),
+      visualPresenceCapturePersistMetaByCard: new Map(),
+      createDefaultPerceptionState: createPerceptionState as any,
+      normalizePerceptionState: raw => raw as any,
+      createDefaultVisualPresenceState: createVisualPresenceState,
+      normalizeVisualPresenceState: raw => raw as AlicizationVisualPresenceStateSnapshot,
+      buildVisualPresenceCapturePersistFingerprint: state => `fp:${state.updatedAt}`,
+      emitVisualPresenceState: () => {},
+      perceptionMetaKey: 'perception_state_v1',
+      visualPresenceMetaKey: 'visual_presence_state_v1',
+    })
+
+    const firstMutation = runtime.queuePerceptionStateMutation('default', async (current) => {
+      expect(current.recentSceneResidue).toBeNull()
+      return {
+        ...current,
+        updatedAt: 1_000,
+      }
+    })
+
+    await vi.waitFor(() => {
+      expect(persistCallCount).toBe(1)
+    })
+
+    const secondMutation = runtime.queuePerceptionStateMutation('default', async (current) => {
+      expect(current.updatedAt).toBe(1_000)
+      return {
+        ...current,
+        updatedAt: 2_000,
+        recentSceneResidue: {
+          observedAt: 2_000,
+          source: 'screen-semantic-summary',
+          workloadKind: 'coding',
+          contentKind: 'diff',
+          summary: 'runtime.ts diff with removed null guard',
+          confidence: 0.94,
+        },
+      }
+    })
+
+    releaseFirstPersist()
+
+    await Promise.all([firstMutation, secondMutation])
+
+    const persisted = JSON.parse(meta.get('perception_state_v1') ?? '{}')
+    expect(persisted.recentSceneResidue?.summary).toBe('runtime.ts diff with removed null guard')
+    expect(persisted.updatedAt).toBe(2_000)
   })
 })

@@ -60,6 +60,7 @@ import type {
   AlicizationInfraVisibleReplyAuthority as SharedAlicizationInfraVisibleReplyAuthority,
   AlicizationVisibleReplyExecutionAuthority as SharedAlicizationVisibleReplyExecutionAuthority,
   AlicizationPersistentPresenceAuthoritySnapshot as SharedAlicizationPersistentPresenceAuthoritySnapshot,
+  AlicizationEmotionalKernelSnapshot as SharedAlicizationEmotionalKernelSnapshot,
   AlicizationSelfEvolutionKernelSnapshot as SharedAlicizationSelfEvolutionKernelSnapshot,
   AlicizationSelfEvolutionVersionRuntimeSnapshot as SharedAlicizationSelfEvolutionVersionRuntimeSnapshot,
   AlicizationMemoryProvenance as SharedAlicizationMemoryProvenance,
@@ -80,6 +81,7 @@ import type {
   AlicizationRealtimeSurface as SharedAlicizationRealtimeSurface,
   AlicizationResidentPerformanceSnapshot as SharedAlicizationResidentPerformanceSnapshot,
   AlicizationRuntimeDigest as SharedAlicizationRuntimeDigest,
+  AlicizationRuntimeProjectStateDigest as SharedAlicizationRuntimeProjectStateDigest,
   AlicizationSensoryCacheSnapshot as SharedAlicizationSensoryCacheSnapshot,
   AlicizationSensoryCaptureHealth as SharedAlicizationSensoryCaptureHealth,
   AlicizationSensoryCaptureLeaseStatus as SharedAlicizationSensoryCaptureLeaseStatus,
@@ -111,6 +113,8 @@ import type {
 import {
   alicizationEmotionWhitelist as sharedAlicizationEmotionWhitelist,
   clampAlicizationPerformancePayloadToManifest as sharedClampAlicizationPerformancePayloadToManifest,
+  normalizeAlicizationEmbodimentScript as sharedNormalizeAlicizationEmbodimentScript,
+  normalizeAlicizationDigitalLifeEnvelope as sharedNormalizeAlicizationDigitalLifeEnvelope,
   normalizeAlicizationDigitalLifeSpineDigest as sharedNormalizeAlicizationDigitalLifeSpineDigest,
   normalizeAlicizationEmotion as sharedNormalizeAlicizationEmotion,
   normalizeAlicizationPerformanceDelivery as sharedNormalizeAlicizationPerformanceDelivery,
@@ -364,8 +368,91 @@ export interface AlicizationConversationTurnInput {
   assistantText?: string
   structured?: Record<string, unknown>
   visibleReplyExecution?: AlicizationVisibleReplyExecution | null
+  visibleReplyCritic?: Record<string, unknown> | null
+  visibleReplyClosure?: Record<string, unknown> | null
   governance?: AlicizationMindTurnGovernance | null
   createdAt?: number
+}
+
+export interface AlicizationProjectStateObservation {
+  turnId: string
+  sessionId: string
+  origin: 'user-turn' | 'subconscious-proactive'
+  nonHumanAuthoredStatus: string | null
+  preDialogueAwareness?: {
+    status: 'grounded' | 'partial' | 'drift'
+    summaryLine: string | null
+    companionHeadlineLine?: string | null
+    companionBriefingLine?: string | null
+    companionNextClosureLine?: string | null
+    awarenessLine?: string | null
+    emotionalClosureCue?: string | null
+    reasonPreview: string[]
+  } | null
+  preDialogueClosure?: {
+    status: 'grounded' | 'partial' | 'drift' | 'rewritten' | null
+    summaryLine: string | null
+    emotionalClosureCue?: string | null
+    companionHeadlineLine?: string | null
+    sameHerDriftRiskLine?: string | null
+    companionshipReasonLine?: string | null
+    companionBriefingLine?: string | null
+    companionNextClosureLine?: string | null
+    briefingLines?: string[]
+    reasons: string[]
+  } | null
+  projectState: {
+    identity: string
+    currentPhase: string
+    latestLandedProgress: string | null
+    latestProgress?: string | null
+    primaryOpenLoop: string | null
+    nextClosureTarget: string
+    continuitySummary?: string | null
+    sameHerSelfLine?: string | null
+    sameHerHoldDetail?: string | null
+    sameHerDriftRisk?: string | null
+  }
+}
+
+export interface AlicizationProjectStateContinuitySnapshot {
+  identity: string
+  currentPhase: string
+  latestLandedProgress: string | null
+  latestProgress?: string | null
+  primaryOpenLoop: string | null
+  nextClosureTarget: string
+  continuitySummary?: string | null
+  sameHerSelfLine?: string | null
+  sameHerHoldDetail?: string | null
+  sameHerDriftRisk?: string | null
+  emotionalClosureCue?: string | null
+  preDialogueAwareness?: {
+    status: 'grounded' | 'partial' | 'drift'
+    summaryLine: string | null
+    companionHeadlineLine?: string | null
+    companionBriefingLine?: string | null
+    companionNextClosureLine?: string | null
+    awarenessLine?: string | null
+    emotionalClosureCue?: string | null
+    reasonPreview: string[]
+  } | null
+  preDialogueClosure?: {
+    status: 'grounded' | 'partial' | 'drift' | 'rewritten' | null
+    summaryLine: string | null
+    emotionalClosureCue?: string | null
+    companionHeadlineLine?: string | null
+    sameHerDriftRiskLine?: string | null
+    companionshipReasonLine?: string | null
+    companionBriefingLine?: string | null
+    companionNextClosureLine?: string | null
+    briefingLines?: string[]
+    reasons: string[]
+  } | null
+  nonHumanAuthoredStatus: string | null
+  turnId: string
+  sessionId: string
+  origin: 'user-turn' | 'subconscious-proactive'
 }
 
 export type AlicizationMindTurnEventKind = SharedAlicizationMindTurnEventKind
@@ -550,6 +637,7 @@ export type AlicizationHostGoalHypothesis
     | 'rest'
     | 'chat'
     | 'browse'
+    | 'continue-phase-1-line'
     | 'unknown'
 export type AlicizationRelationshipNeed = 'space' | 'companionship' | 'guidance' | 'care' | 'unclear'
 export type AlicizationConcernKind
@@ -1228,6 +1316,7 @@ export interface AlicizationExecutiveCycleSnapshot {
 
 export type AlicizationDialogueAnswerSubject
   = | 'alicization-self'
+    | 'project-state'
     | 'relationship'
     | 'host-state'
     | 'task-knot'
@@ -1837,6 +1926,8 @@ export type AlicizationEmbodimentScriptV1 = SharedAlicizationEmbodimentScriptV1
 export type AlicizationDigitalLifeEnvelope = SharedAlicizationDigitalLifeEnvelope
 export type AlicizationDigitalLifeSpineDigest = SharedAlicizationDigitalLifeSpineDigest
 export type AlicizationRuntimeDigest = SharedAlicizationRuntimeDigest
+export type AlicizationRuntimeProjectStateDigest = SharedAlicizationRuntimeProjectStateDigest
+export type AlicizationEmotionalKernelSnapshot = SharedAlicizationEmotionalKernelSnapshot
 export type AlicizationDialogueSpeechTimeline = SharedAlicizationDialogueSpeechTimeline
 export type AlicizationResidentPerformanceSnapshot = SharedAlicizationResidentPerformanceSnapshot
 export type CharacterFacialCapability = SharedCharacterFacialCapability
@@ -1849,6 +1940,8 @@ export const normalizeAlicizationEmotion = sharedNormalizeAlicizationEmotion
 export const normalizeAlicizationPerformanceDelivery = sharedNormalizeAlicizationPerformanceDelivery
 export const normalizeAlicizationPerformancePayload = sharedNormalizeAlicizationPerformancePayload
 export const clampAlicizationPerformancePayloadToManifest = sharedClampAlicizationPerformancePayloadToManifest
+export const normalizeAlicizationEmbodimentScript = sharedNormalizeAlicizationEmbodimentScript
+export const normalizeAlicizationDigitalLifeEnvelope = sharedNormalizeAlicizationDigitalLifeEnvelope
 export const normalizeAlicizationDigitalLifeSpineDigest = sharedNormalizeAlicizationDigitalLifeSpineDigest
 export const normalizeAlicizationRuntimeDigest = sharedNormalizeAlicizationRuntimeDigest
 
@@ -1889,6 +1982,19 @@ export interface AlicizationLlmConfigPayload {
   providerCredentials: Record<string, Record<string, unknown>>
 }
 
+export interface AlicizationPreDialogueSendIdentity {
+  status: 'grounded' | 'partial' | 'drift'
+  summaryLine: string | null
+  companionHeadlineLine?: string | null
+  companionBriefingLine?: string | null
+  companionNextClosureLine?: string | null
+  awarenessLine?: string | null
+  emotionalClosureCue?: string | null
+  projectState?: AlicizationRuntimeProjectStateDigest | null
+  emotionalKernel?: AlicizationEmotionalKernelSnapshot | null
+  reasonPreview: string[]
+}
+
 export interface AlicizationChatStartPayload extends AlicizationCardScope {
   turnId: string
   providerId: string
@@ -1902,6 +2008,7 @@ export interface AlicizationChatStartPayload extends AlicizationCardScope {
   }>
   supportsTools?: boolean
   waitForTools?: boolean
+  preDialogueSendIdentity?: AlicizationPreDialogueSendIdentity | null
 }
 
 export type AlicizationMindTurnGovernance = SharedAlicizationMindTurnGovernance
@@ -1977,6 +2084,8 @@ interface AlicizationBridge {
   upsertMemoryFacts: (payload: { facts: AlicizationMemoryFactInput[], source: AlicizationMemorySource, trace?: AlicizationMemoryUpsertTrace | null }) => Promise<void>
   importLegacyMemory: (payload: AlicizationMemoryLegacySnapshot) => Promise<AlicizationMemoryMigrationResult>
   getOrganicMemorySnapshot?: () => Promise<AlicizationOrganicMemorySnapshot>
+  getLatestProjectStateObservation?: () => Promise<AlicizationProjectStateObservation | null>
+  getProjectStateContinuitySnapshot?: () => Promise<AlicizationProjectStateContinuitySnapshot | null>
   getSelfEvolutionState?: () => Promise<AlicizationSelfEvolutionVersionRuntimeSnapshot>
   searchOrganicSubconsciousFragments?: (payload: { query: string, limit?: number }) => Promise<AlicizationSubconsciousFragment[]>
   getPerformanceManifest?: () => Promise<CharacterPerformanceCapabilitiesManifest | null>

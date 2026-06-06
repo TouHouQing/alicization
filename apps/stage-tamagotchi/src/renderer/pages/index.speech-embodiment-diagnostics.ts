@@ -2,6 +2,7 @@ import type {
   AlicizationMemoryDecisionTraceRecord,
   AlicizationMindTurnEventRecord,
 } from '@proj-alicization/stage-ui/stores/alicization-bridge'
+import type { TraceEmbodimentDriver } from './devtools/performance-visualizer-trace-embodiment'
 
 import type { StageThreeRuntimeSpeechEmbodimentDiagnostics } from '../stores/stage-three-runtime-diagnostics'
 import {
@@ -12,6 +13,75 @@ import {
 import { buildTraceTelemetrySummary } from './devtools/performance-visualizer-trace-telemetry'
 
 type RendererSpeechPlaybackTelemetry = NonNullable<StageThreeRuntimeSpeechEmbodimentDiagnostics['playbackTelemetry']>
+type RendererSpeechDriverAuthority = NonNullable<RendererSpeechPlaybackTelemetry['driverAuthority']>
+type RendererSpeechProsodyAuthority = NonNullable<RendererSpeechPlaybackTelemetry['prosodyAuthority']>
+type RendererSpeechPlaybackCue = NonNullable<RendererSpeechPlaybackTelemetry['cue']>
+type RendererSpeechPlaybackDrivers = NonNullable<RendererSpeechPlaybackTelemetry['drivers']>
+type RendererSpeechPlaybackBodyDriver = NonNullable<RendererSpeechPlaybackDrivers['body']>
+
+type RendererSpeechDriverAuthorityInput = {
+  segmentId?: RendererSpeechDriverAuthority['segmentId']
+  rendererTarget?: RendererSpeechDriverAuthority['rendererTarget']
+  matchedDrivers?: RendererSpeechDriverAuthority['matchedDrivers']
+  sources?: RendererSpeechDriverAuthority['sources']
+  bodySegmentMatched?: RendererSpeechDriverAuthority['bodySegmentMatched']
+  faceSegmentMatched?: RendererSpeechDriverAuthority['faceSegmentMatched']
+  motionSegmentMatched?: RendererSpeechDriverAuthority['motionSegmentMatched']
+  lipsyncSegmentMatched?: RendererSpeechDriverAuthority['lipsyncSegmentMatched']
+  voiceSegmentMatched?: RendererSpeechDriverAuthority['voiceSegmentMatched'] | null
+  prosodyAuthority?: RendererSpeechDriverAuthority['prosodyAuthority']
+}
+
+type RendererSpeechPlaybackCueInput = {
+  id?: RendererSpeechPlaybackCue['id']
+  text?: RendererSpeechPlaybackCue['text']
+  emotion?: RendererSpeechPlaybackCue['emotion']
+  prosodyWeight?: RendererSpeechPlaybackCue['prosodyWeight']
+  mouthWeight?: RendererSpeechPlaybackCue['mouthWeight']
+  headWeight?: RendererSpeechPlaybackCue['headWeight']
+  personaStyleSummary?: RendererSpeechPlaybackCue['personaStyleSummary']
+  facialHoldMs?: RendererSpeechPlaybackCue['facialHoldMs']
+  actionHoldMs?: RendererSpeechPlaybackCue['actionHoldMs']
+  emotionHoldMs?: RendererSpeechPlaybackCue['emotionHoldMs']
+  facialCue?: RendererSpeechPlaybackCue['facialCue']
+  actionCue?: RendererSpeechPlaybackCue['actionCue']
+  actionWindow?: RendererSpeechPlaybackCue['actionWindow']
+  interruptMode?: RendererSpeechPlaybackCue['interruptMode']
+  settleMode?: RendererSpeechPlaybackCue['settleMode']
+  rendererHints?: RendererSpeechPlaybackCue['rendererHints']
+  rendererSettle?: RendererSpeechPlaybackCue['rendererSettle']
+}
+
+type RendererSpeechPlaybackBodyDriverInput = {
+  frameMode?: RendererSpeechPlaybackBodyDriver['frameMode']
+  stillness?: RendererSpeechPlaybackBodyDriver['stillness']
+  gazeStability?: RendererSpeechPlaybackBodyDriver['gazeStability']
+  breathAmplitude?: RendererSpeechPlaybackBodyDriver['breathAmplitude']
+  expressivity?: RendererSpeechPlaybackBodyDriver['expressivity']
+  source?: RendererSpeechPlaybackBodyDriver['source']
+  confidence?: RendererSpeechPlaybackBodyDriver['confidence']
+  segmentId?: RendererSpeechPlaybackBodyDriver['segmentId']
+}
+
+type RendererSpeechPlaybackDriversInput = {
+  body?: RendererSpeechPlaybackBodyDriverInput | null
+  face?: RendererSpeechPlaybackDrivers['face']
+  lipsync?: RendererSpeechPlaybackDrivers['lipsync']
+  motion?: RendererSpeechPlaybackDrivers['motion']
+}
+
+type RendererSpeechPlaybackTelemetryInput = {
+  actualDurationMs?: RendererSpeechPlaybackTelemetry['actualDurationMs']
+  plannedDurationMs?: RendererSpeechPlaybackTelemetry['plannedDurationMs']
+  driftMs?: RendererSpeechPlaybackTelemetry['driftMs']
+  settleMs?: RendererSpeechPlaybackTelemetry['settleMs']
+  stopReason?: RendererSpeechPlaybackTelemetry['stopReason']
+  rendererTarget?: RendererSpeechPlaybackTelemetry['rendererTarget']
+  driverAuthority?: RendererSpeechDriverAuthorityInput | null
+  prosodyAuthority?: RendererSpeechPlaybackTelemetry['prosodyAuthority']
+  cue?: RendererSpeechPlaybackCueInput | null
+  drivers?: RendererSpeechPlaybackDriversInput | null
+}
 
 function cloneCue<T>(value: T): T {
   if (!value || typeof value !== 'object')
@@ -37,6 +107,268 @@ function cloneVisemeHints(value: unknown) {
       confidence: typeof candidate?.confidence === 'number' && Number.isFinite(candidate.confidence) ? candidate.confidence : null,
     }
   })
+}
+
+function normalizeRendererSpeechProsodyAuthority(
+  value: RendererSpeechProsodyAuthority | null | undefined,
+): RendererSpeechProsodyAuthority | null {
+  if (!value)
+    return null
+
+  return {
+    segmentId: value.segmentId ?? null,
+    provenance: value.provenance,
+    source: value.source ?? null,
+    mode: value.mode ?? null,
+    cueProsodyWeight: value.cueProsodyWeight ?? null,
+    cueMouthWeight: value.cueMouthWeight ?? null,
+    cueHeadWeight: value.cueHeadWeight ?? null,
+    visemePeakWeight: value.visemePeakWeight ?? null,
+    ...('summary' in value ? { summary: value.summary ?? null } : {}),
+  }
+}
+
+function normalizeRendererSpeechDriverAuthority(
+  value: RendererSpeechDriverAuthorityInput | null | undefined,
+): RendererSpeechDriverAuthority | null {
+  if (!value)
+    return null
+
+  return {
+    segmentId: value.segmentId ?? null,
+    rendererTarget: value.rendererTarget ?? null,
+    matchedDrivers: value.matchedDrivers ? [...value.matchedDrivers] : [],
+    sources: value.sources ? [...value.sources] : [],
+    bodySegmentMatched: value.bodySegmentMatched ?? null,
+    faceSegmentMatched: value.faceSegmentMatched ?? null,
+    motionSegmentMatched: value.motionSegmentMatched ?? null,
+    lipsyncSegmentMatched: value.lipsyncSegmentMatched ?? null,
+    ...(value.voiceSegmentMatched != null
+      ? { voiceSegmentMatched: value.voiceSegmentMatched }
+      : {}),
+    prosodyAuthority: normalizeRendererSpeechProsodyAuthority(value.prosodyAuthority ?? null),
+  }
+}
+
+function normalizeRendererSpeechPlaybackCue(
+  value: RendererSpeechPlaybackCueInput | null | undefined,
+): RendererSpeechPlaybackCue | null {
+  if (!value)
+    return null
+
+  return {
+    id: value.id ?? null,
+    text: value.text ?? null,
+    ...('emotion' in value ? { emotion: value.emotion ?? null } : {}),
+    prosodyWeight: value.prosodyWeight ?? null,
+    mouthWeight: value.mouthWeight ?? null,
+    headWeight: value.headWeight ?? null,
+    personaStyleSummary: value.personaStyleSummary ?? null,
+    facialHoldMs: value.facialHoldMs ?? null,
+    actionHoldMs: value.actionHoldMs ?? null,
+    emotionHoldMs: value.emotionHoldMs ?? null,
+    facialCue: value.facialCue ?? null,
+    actionCue: value.actionCue ?? null,
+    actionWindow: value.actionWindow ?? null,
+    interruptMode: value.interruptMode ?? null,
+    settleMode: value.settleMode ?? null,
+    rendererHints: value.rendererHints
+      ? {
+          residentMode: value.rendererHints.residentMode ?? null,
+          preferredBlinkCadence: value.rendererHints.preferredBlinkCadence ?? null,
+          preferredExpressionAliases: value.rendererHints.preferredExpressionAliases
+            ? [...value.rendererHints.preferredExpressionAliases]
+            : undefined,
+          preferredGazeMode: value.rendererHints.preferredGazeMode ?? null,
+          preferredMotionAliases: value.rendererHints.preferredMotionAliases
+            ? [...value.rendererHints.preferredMotionAliases]
+            : undefined,
+          ...(value.rendererHints.reasonTags?.length
+            ? { reasonTags: [...value.rendererHints.reasonTags] }
+            : {}),
+          ...(value.rendererHints.signature
+            ? { signature: value.rendererHints.signature }
+            : {}),
+        }
+      : null,
+    rendererSettle: value.rendererSettle
+      ? {
+          live2dFacialReleaseMs: value.rendererSettle.live2dFacialReleaseMs ?? null,
+          live2dMotionFollowThroughMs: value.rendererSettle.live2dMotionFollowThroughMs ?? null,
+          vrmActionFadeMs: value.rendererSettle.vrmActionFadeMs ?? null,
+          vrmExpressionBlendMs: value.rendererSettle.vrmExpressionBlendMs ?? null,
+        }
+      : null,
+  }
+}
+
+function normalizeRendererSpeechPlaybackDrivers(
+  value: RendererSpeechPlaybackDriversInput | null | undefined,
+): RendererSpeechPlaybackTelemetry['drivers'] {
+  if (!value)
+    return null
+
+  return {
+    ...('body' in value
+      ? {
+          body: value.body
+            ? {
+                frameMode: value.body.frameMode ?? null,
+                stillness: value.body.stillness ?? null,
+                gazeStability: value.body.gazeStability ?? null,
+                breathAmplitude: value.body.breathAmplitude ?? null,
+                expressivity: value.body.expressivity ?? null,
+                source: value.body.source ?? null,
+                confidence: value.body.confidence ?? null,
+                segmentId: value.body.segmentId ?? null,
+              }
+            : null,
+        }
+      : {}),
+    face: value.face
+      ? {
+          emotion: value.face.emotion ?? null,
+          facialCue: value.face.facialCue ?? null,
+          intensity: value.face.intensity ?? null,
+          holdMs: value.face.holdMs ?? null,
+          source: value.face.source ?? null,
+          confidence: value.face.confidence ?? null,
+          preUtteranceCue: value.face.preUtteranceCue ?? null,
+          postUtteranceCue: value.face.postUtteranceCue ?? null,
+          segmentId: value.face.segmentId ?? null,
+        }
+      : null,
+    lipsync: value.lipsync
+      ? {
+          mode: value.lipsync.mode ?? null,
+          playbackPhase: value.lipsync.playbackPhase ?? null,
+          segmentId: value.lipsync.segmentId ?? null,
+          continuityHoldMs: typeof value.lipsync.continuityHoldMs === 'number'
+            && Number.isFinite(value.lipsync.continuityHoldMs)
+            ? value.lipsync.continuityHoldMs
+            : null,
+          visemeHints: cloneVisemeHints(value.lipsync.visemeHints),
+        }
+      : null,
+    motion: value.motion
+      ? {
+          idleBase: value.motion.idleBase ?? null,
+          attentionMode: value.motion.attentionMode ?? null,
+          actionCue: value.motion.actionCue ?? null,
+          intensity: value.motion.intensity ?? null,
+          holdMs: value.motion.holdMs ?? null,
+          source: value.motion.source ?? null,
+          confidence: value.motion.confidence ?? null,
+          segmentId: value.motion.segmentId ?? null,
+        }
+      : null,
+  }
+}
+
+function normalizeRendererSpeechPlaybackTelemetry(
+  value: RendererSpeechPlaybackTelemetryInput | null | undefined,
+): RendererSpeechPlaybackTelemetry | null {
+  if (!value)
+    return null
+
+  return {
+    actualDurationMs: value.actualDurationMs ?? null,
+    plannedDurationMs: value.plannedDurationMs ?? null,
+    driftMs: value.driftMs ?? null,
+    settleMs: value.settleMs ?? null,
+    stopReason: value.stopReason ?? null,
+    rendererTarget: value.rendererTarget ?? null,
+    driverAuthority: normalizeRendererSpeechDriverAuthority(value.driverAuthority ?? null),
+    ...('prosodyAuthority' in value
+      ? { prosodyAuthority: normalizeRendererSpeechProsodyAuthority(value.prosodyAuthority ?? null) }
+      : {}),
+    cue: normalizeRendererSpeechPlaybackCue(value.cue ?? null),
+    drivers: normalizeRendererSpeechPlaybackDrivers(value.drivers ?? null),
+  }
+}
+
+function normalizeUniqueTextList(values: ReadonlyArray<string | null | undefined> | null | undefined) {
+  const unique = new Set<string>()
+  for (const value of values ?? []) {
+    const normalized = typeof value === 'string' ? value.trim() : ''
+    if (!normalized || unique.has(normalized))
+      continue
+    unique.add(normalized)
+  }
+  return [...unique]
+}
+
+function isTraceEmbodimentDriver(value: string): value is TraceEmbodimentDriver {
+  return value === 'body' || value === 'face' || value === 'motion' || value === 'lipsync'
+}
+
+function filterTraceEmbodimentDrivers(
+  values: ReadonlyArray<string> | null | undefined,
+): TraceEmbodimentDriver[] {
+  return (values ?? []).filter(isTraceEmbodimentDriver)
+}
+
+function normalizeText(value: unknown) {
+  return typeof value === 'string' && value.trim()
+    ? value.trim()
+    : null
+}
+
+function extractStructuredSegmentId(summary: string | null | undefined) {
+  const normalized = normalizeText(summary)
+  if (!normalized)
+    return null
+
+  const match = normalized.match(/(?:^|\s|\|)(?:segment|seg)=([^|\s]+)/)
+  return normalizeText(match?.[1])
+}
+
+function matchesActiveSegment(segmentId: string | null | undefined, activeSegmentId: string | null) {
+  const normalizedSegmentId = normalizeText(segmentId)
+  return !activeSegmentId || !normalizedSegmentId || normalizedSegmentId === activeSegmentId
+}
+
+function structuredSummaryMatchesActiveSegment(summary: string | null | undefined, activeSegmentId: string | null) {
+  const structuredSegmentId = extractStructuredSegmentId(summary)
+  return !activeSegmentId || !structuredSegmentId || structuredSegmentId === activeSegmentId
+}
+
+function resolvePlaybackCueId(
+  playbackTelemetry: RendererSpeechPlaybackTelemetry | null | undefined,
+) {
+  return normalizeText(playbackTelemetry?.cue?.id)
+}
+
+function resolvePlaybackActiveSegmentId(
+  playbackTelemetry: RendererSpeechPlaybackTelemetry | null | undefined,
+) {
+  return normalizeText(playbackTelemetry?.driverAuthority?.segmentId)
+    ?? resolvePlaybackCueId(playbackTelemetry)
+    ?? normalizeText(playbackTelemetry?.driverAuthority?.prosodyAuthority?.segmentId)
+    ?? normalizeText(playbackTelemetry?.prosodyAuthority?.segmentId)
+    ?? null
+}
+
+function resolveAuthoritySummaryPlaybackScope(input: {
+  authoritySummary: StageThreeRuntimeSpeechEmbodimentDiagnostics['authoritySummary'] | null | undefined
+  playbackTelemetry: RendererSpeechPlaybackTelemetry | null | undefined
+}) {
+  const authoritySummaryCueId = normalizeText(input.authoritySummary?.cueId)
+  const authoritySummarySegmentId = normalizeText(input.authoritySummary?.segmentId)
+  const playbackCueId = resolvePlaybackCueId(input.playbackTelemetry)
+  const activeSegmentId = resolvePlaybackActiveSegmentId(input.playbackTelemetry)
+  const authoritySummaryMatchesPlaybackCue = !playbackCueId || !authoritySummaryCueId || authoritySummaryCueId === playbackCueId
+  const authoritySummaryMatchesActiveSegment = matchesActiveSegment(authoritySummarySegmentId, activeSegmentId)
+
+  return {
+    playbackCueId,
+    activeSegmentId,
+    authoritySummaryCueId,
+    authoritySummarySegmentId,
+    authoritySummaryMatchesPlaybackCue,
+    authoritySummaryMatchesActiveSegment,
+    authoritySummaryMatchesPlaybackScope: authoritySummaryMatchesPlaybackCue && authoritySummaryMatchesActiveSegment,
+  }
 }
 
 function appendFinalSurfacePolicy(
@@ -157,7 +489,7 @@ function enrichAuthoritySummaryWithTraceEmbodimentSummary(input: {
     turnMode: traceRecord.turnMode,
     closureState: traceRecord.closureState,
     finalSurfacePolicy: traceRecord.finalSurfacePolicy,
-    matchedDrivers: authoritySummary.matchedDrivers,
+    matchedDrivers: filterTraceEmbodimentDrivers(authoritySummary.matchedDrivers),
     driverExecutionSummary: input.driverExecutionSummary ?? null,
     traceEmbodimentSummary: localTraceEmbodimentSummary,
   })
@@ -193,24 +525,75 @@ function scopeAuthoritySummaryToPlaybackCue(input: {
   if (!authoritySummary)
     return null
 
-  const playbackCueId = typeof input.playbackTelemetry?.cue?.id === 'string' && input.playbackTelemetry.cue.id.trim()
-    ? input.playbackTelemetry.cue.id.trim()
-    : null
-  const authoritySummaryCueId = typeof authoritySummary.cueId === 'string' && authoritySummary.cueId.trim()
-    ? authoritySummary.cueId.trim()
-    : null
-  const authoritySummaryMatchesPlaybackCue = !authoritySummaryCueId || !playbackCueId || authoritySummaryCueId === playbackCueId
-  if (authoritySummaryMatchesPlaybackCue)
-    return cloneCue(authoritySummary)
+  const {
+    activeSegmentId,
+    authoritySummaryMatchesPlaybackScope,
+  } = resolveAuthoritySummaryPlaybackScope(input)
+
+  if (authoritySummaryMatchesPlaybackScope) {
+    return {
+      ...cloneCue(authoritySummary),
+      authorityTrustSummary: structuredSummaryMatchesActiveSegment(authoritySummary.authorityTrustSummary, activeSegmentId)
+        ? authoritySummary.authorityTrustSummary ?? null
+        : null,
+      settleSummary: structuredSummaryMatchesActiveSegment(authoritySummary.settleSummary, activeSegmentId)
+        ? authoritySummary.settleSummary ?? null
+        : null,
+    }
+  }
 
   return {
     ...cloneCue(authoritySummary),
+    rendererTarget: null,
+    matchedDrivers: [],
+    matchedSources: [],
     bindingSummary: null,
     matchSummary: null,
     authorityMismatchSummary: null,
     authorityMismatchReasonSummary: null,
     authorityMismatchDisplay: null,
     settleSummary: null,
+  }
+}
+
+function enrichTraceSummaryWithPlaybackAuthoritySources(input: {
+  traceSummary: StageThreeRuntimeSpeechEmbodimentDiagnostics['traceSummary'] | null | undefined
+  authoritySummary: StageThreeRuntimeSpeechEmbodimentDiagnostics['authoritySummary'] | null | undefined
+  playbackTelemetry: RendererSpeechPlaybackTelemetry | null | undefined
+}) {
+  const traceSummary = input.traceSummary
+  if (!traceSummary)
+    return null
+
+  const playbackCueId = resolvePlaybackCueId(input.playbackTelemetry)
+  const traceCueId = normalizeText(traceSummary.cueId)
+  const traceMatchesPlaybackCue = !traceCueId || !playbackCueId || traceCueId === playbackCueId
+  const { authoritySummaryMatchesPlaybackScope } = resolveAuthoritySummaryPlaybackScope({
+    authoritySummary: input.authoritySummary,
+    playbackTelemetry: input.playbackTelemetry,
+  })
+
+  const enrichedMatchedSources = normalizeUniqueTextList([
+    ...(traceSummary.segmentBinding?.matchedSources ?? []),
+    ...(traceMatchesPlaybackCue ? input.playbackTelemetry?.driverAuthority?.sources ?? [] : []),
+    ...(authoritySummaryMatchesPlaybackScope ? input.authoritySummary?.matchedSources ?? [] : []),
+  ])
+
+  const originalMatchedSources = normalizeUniqueTextList(traceSummary.segmentBinding?.matchedSources ?? [])
+  const changed = enrichedMatchedSources.length !== originalMatchedSources.length
+    || enrichedMatchedSources.some((source, index) => source !== originalMatchedSources[index])
+
+  if (!changed)
+    return cloneCue(traceSummary)
+
+  return {
+    ...cloneCue(traceSummary),
+    segmentBinding: traceSummary.segmentBinding
+      ? {
+          ...cloneCue(traceSummary.segmentBinding),
+          matchedSources: enrichedMatchedSources,
+        }
+      : null,
   }
 }
 
@@ -227,6 +610,27 @@ function normalizeStructuredVoiceSummary(input: {
   if (!summary.includes('closure=') || summary.includes('provenance='))
     return summary
 
+  const residentMode = input.playbackTelemetry?.cue?.rendererHints?.residentMode?.trim() || null
+  const driverAuthority = input.playbackTelemetry?.driverAuthority ?? null
+  const carriesAudibleBodySegmentAuthority = residentMode === 'measured-return'
+    && driverAuthority?.bodySegmentMatched === true
+    && driverAuthority?.lipsyncSegmentMatched === true
+    && driverAuthority?.faceSegmentMatched === false
+    && driverAuthority?.motionSegmentMatched === false
+  const voiceEmotion = (
+    residentMode === 'repair-before-closeness'
+    || carriesAudibleBodySegmentAuthority
+  )
+    ? input.playbackTelemetry?.cue?.emotion?.trim()
+    : null
+  const normalizedSummary = voiceEmotion && !summary.includes('emotion=')
+    ? (() => {
+        const companionIndex = summary.indexOf(' | companion=')
+        if (companionIndex >= 0)
+          return `${summary.slice(0, companionIndex)} | emotion=${voiceEmotion}${summary.slice(companionIndex)}`
+        return `${summary} | emotion=${voiceEmotion}`
+      })()
+    : summary
   const provenance = input.playbackTelemetry?.driverAuthority ? 'authority-bound' : 'fallback-derived'
   const segmentId = (
     input.playbackTelemetry?.driverAuthority?.segmentId
@@ -240,11 +644,43 @@ function normalizeStructuredVoiceSummary(input: {
     ?? input.playbackTelemetry?.drivers?.motion?.source
   )?.trim() || 'n/a'
 
-  return `${summary} | provenance=${provenance} | segment=${segmentId} | source=${source}`
+  return `${normalizedSummary} | provenance=${provenance} | segment=${segmentId} | source=${source}`
+}
+
+function formatDriverExecutionSummaryFromPlaybackTelemetry(
+  playbackTelemetry: RendererSpeechPlaybackTelemetry | null | undefined,
+  cueId?: string | null,
+) {
+  const driverExecution = playbackTelemetry?.drivers
+  if (!driverExecution)
+    return null
+
+  const lines: string[] = []
+
+  if (driverExecution.face && (!cueId || driverExecution.face.segmentId === cueId)) {
+    lines.push(
+      `face=${driverExecution.face.emotion ?? 'n/a'}/${driverExecution.face.facialCue ?? 'n/a'}@${typeof driverExecution.face.intensity === 'number' && Number.isFinite(driverExecution.face.intensity) ? driverExecution.face.intensity.toFixed(2) : 'n/a'} hold=${typeof driverExecution.face.holdMs === 'number' && Number.isFinite(driverExecution.face.holdMs) ? Math.round(driverExecution.face.holdMs) : 'n/a'} pre=${driverExecution.face.preUtteranceCue ?? 'n/a'} post=${driverExecution.face.postUtteranceCue ?? 'n/a'} src=${driverExecution.face.source ?? 'n/a'} conf=${typeof driverExecution.face.confidence === 'number' && Number.isFinite(driverExecution.face.confidence) ? driverExecution.face.confidence.toFixed(2) : 'n/a'}`,
+    )
+  }
+
+  if (driverExecution.motion && (!cueId || driverExecution.motion.segmentId === cueId)) {
+    lines.push(
+      `motion=${driverExecution.motion.actionCue ?? 'n/a'} mode=${driverExecution.motion.attentionMode ?? 'n/a'} idle=${driverExecution.motion.idleBase ?? 'n/a'}@${typeof driverExecution.motion.intensity === 'number' && Number.isFinite(driverExecution.motion.intensity) ? driverExecution.motion.intensity.toFixed(2) : 'n/a'} hold=${typeof driverExecution.motion.holdMs === 'number' && Number.isFinite(driverExecution.motion.holdMs) ? Math.round(driverExecution.motion.holdMs) : 'n/a'} src=${driverExecution.motion.source ?? 'n/a'} conf=${typeof driverExecution.motion.confidence === 'number' && Number.isFinite(driverExecution.motion.confidence) ? driverExecution.motion.confidence.toFixed(2) : 'n/a'}`,
+    )
+  }
+
+  if (driverExecution.lipsync && (!cueId || driverExecution.lipsync.segmentId === cueId)) {
+    lines.push(
+      `lipsync=${driverExecution.lipsync.mode ?? 'n/a'} phase=${driverExecution.lipsync.playbackPhase ?? 'n/a'}`,
+    )
+  }
+
+  return lines.length > 0 ? lines.join(' | ') : null
 }
 
 function buildSpeechEvidenceSummary(input: {
   articulationSummary: StageThreeRuntimeSpeechEmbodimentDiagnostics['articulationSummary'] | null | undefined
+  bodyContinuitySummary?: string | null | undefined
   authoritySummary: StageThreeRuntimeSpeechEmbodimentDiagnostics['authoritySummary'] | null | undefined
   cueMicroSummary: StageThreeRuntimeSpeechEmbodimentDiagnostics['cueMicroSummary'] | null | undefined
   driverExecutionSummary: StageThreeRuntimeSpeechEmbodimentDiagnostics['driverExecutionSummary'] | null | undefined
@@ -252,16 +688,13 @@ function buildSpeechEvidenceSummary(input: {
   playbackTelemetry: RendererSpeechPlaybackTelemetry | null | undefined
 }): StageThreeRuntimeSpeechEmbodimentDiagnostics['speechEvidence'] {
   const cue = input.playbackTelemetry?.cue ?? null
-  const playbackCueId = typeof cue?.id === 'string' && cue.id.trim()
-    ? cue.id.trim()
-    : null
-  const authoritySummaryCueId = typeof input.authoritySummary?.cueId === 'string' && input.authoritySummary.cueId.trim()
-    ? input.authoritySummary.cueId.trim()
-    : null
-  const cueMicroSummaryCueId = typeof input.cueMicroSummary?.cueId === 'string' && input.cueMicroSummary.cueId.trim()
-    ? input.cueMicroSummary.cueId.trim()
-    : null
-  const authorityMatchSummary = (!playbackCueId || !authoritySummaryCueId || authoritySummaryCueId === playbackCueId)
+  const playbackCueId = resolvePlaybackCueId(input.playbackTelemetry)
+  const cueMicroSummaryCueId = normalizeText(input.cueMicroSummary?.cueId)
+  const { authoritySummaryMatchesPlaybackScope } = resolveAuthoritySummaryPlaybackScope({
+    authoritySummary: input.authoritySummary,
+    playbackTelemetry: input.playbackTelemetry,
+  })
+  const authorityMatchSummary = authoritySummaryMatchesPlaybackScope
     ? input.authoritySummary?.matchSummary ?? null
     : null
   const cueSummary = (!playbackCueId || !cueMicroSummaryCueId || cueMicroSummaryCueId === playbackCueId)
@@ -280,15 +713,21 @@ function buildSpeechEvidenceSummary(input: {
   const cueProsodyPresent = Number.isFinite(cue?.prosodyWeight)
     || Number.isFinite(cue?.mouthWeight)
     || Number.isFinite(cue?.headWeight)
+  const resolvedDriverExecutionSummary = authorityMatchSummary === 'face:yes motion:yes lipsync:yes'
+    ? formatDriverExecutionSummaryFromPlaybackTelemetry(input.playbackTelemetry ?? null, playbackCueId)
+      ?? input.driverExecutionSummary
+      ?? null
+    : input.driverExecutionSummary ?? null
 
   const hasEvidence = Boolean(
     input.articulationSummary?.voice
+    || input.bodyContinuitySummary
     || input.articulationSummary?.topVisemes
     || authorityMatchSummary
     || cueSummary
     || personaStyleSummary
     || timingSummary
-    || input.driverExecutionSummary
+    || resolvedDriverExecutionSummary
     || input.visemeHintsSummary
     || cueIdentityPresent
     || cueProsodyPresent,
@@ -302,6 +741,7 @@ function buildSpeechEvidenceSummary(input: {
       summary: input.articulationSummary?.voice ?? null,
       playbackTelemetry: input.playbackTelemetry ?? null,
     }),
+    bodyContinuitySummary: input.bodyContinuitySummary ?? null,
     authorityMatchSummary,
     topVisemeSummary: input.articulationSummary?.topVisemes ?? null,
     cueSummary,
@@ -309,7 +749,7 @@ function buildSpeechEvidenceSummary(input: {
     cueProsodyPresent,
     personaStyleSummary,
     timingSummary,
-    driverExecutionSummary: input.driverExecutionSummary ?? null,
+    driverExecutionSummary: resolvedDriverExecutionSummary,
     visemeHintsSummary: input.visemeHintsSummary ?? null,
   }
 }
@@ -317,8 +757,16 @@ function buildSpeechEvidenceSummary(input: {
 function formatRendererDriftEntry(
   entry: NonNullable<StageThreeRuntimeSpeechEmbodimentDiagnostics['rendererAlignment']['live2d']>,
 ) {
-  const authority = entry.driverCue || entry.driverSource
-    ? ` | cue ${entry.driverCue ?? 'none'}@${entry.driverSource ?? 'unknown'}`
+  const authorityParts = [
+    entry.faceDriverCue || entry.faceDriverSource
+      ? `face ${entry.faceDriverCue ?? 'none'}@${entry.faceDriverSource ?? 'unknown'}`
+      : null,
+    entry.motionDriverCue || entry.motionDriverSource
+      ? `motion ${entry.motionDriverCue ?? 'none'}@${entry.motionDriverSource ?? 'unknown'}`
+      : null,
+  ].filter(Boolean)
+  const authority = authorityParts.length > 0
+    ? ` | ${authorityParts.join(' | ')}`
     : ''
 
   if (entry.driftKind === 'alias-resolution-drift')
@@ -409,6 +857,7 @@ export function resolveRecentDrivingEventFromMindTurnEvents(
     'reply-memory-coherence': 0,
     'memory-facts-upserted': 0,
     'memory-reconsolidated': 0,
+    'humanlike-memory-corrected': 0,
     'learning-executed': 0,
   }
 
@@ -586,55 +1035,15 @@ export function mapSpeechEmbodimentDiagnosticsForRenderer(
     rendererDriftSummary?: StageThreeRuntimeSpeechEmbodimentDiagnostics['rendererDriftSummary']
     articulationSummary?: StageThreeRuntimeSpeechEmbodimentDiagnostics['articulationSummary']
     authoritySummary?: StageThreeRuntimeSpeechEmbodimentDiagnostics['authoritySummary']
+    convergence?: StageThreeRuntimeSpeechEmbodimentDiagnostics['convergence']
+    speechEvidence?: StageThreeRuntimeSpeechEmbodimentDiagnostics['speechEvidence']
+    bodyContinuitySummary?: string | null
     cueMicroSummary?: StageThreeRuntimeSpeechEmbodimentDiagnostics['cueMicroSummary']
     driverSummary?: StageThreeRuntimeSpeechEmbodimentDiagnostics['driverSummary']
     driverExecutionSummary?: StageThreeRuntimeSpeechEmbodimentDiagnostics['driverExecutionSummary']
     live2dExecution?: StageThreeRuntimeSpeechEmbodimentDiagnostics['live2dExecution']
     visemeHintsSummary?: StageThreeRuntimeSpeechEmbodimentDiagnostics['visemeHintsSummary']
-    playbackTelemetry?: {
-      actualDurationMs?: number | null
-      plannedDurationMs?: number | null
-      driftMs?: number | null
-      settleMs?: number | null
-      stopReason?: string | null
-      rendererTarget?: 'live2d' | 'vrm' | null
-      driverAuthority?: {
-        segmentId?: string | null
-        rendererTarget?: 'live2d' | 'vrm' | null
-        matchedDrivers?: Array<'face' | 'motion' | 'lipsync'>
-        sources?: string[]
-        faceSegmentMatched?: boolean
-        motionSegmentMatched?: boolean
-        lipsyncSegmentMatched?: boolean
-      } | null
-      cue?: {
-        id?: string | null
-        text?: string | null
-        prosodyWeight?: number | null
-        mouthWeight?: number | null
-        headWeight?: number | null
-        personaStyleSummary?: string | null
-        facialHoldMs?: number | null
-        actionHoldMs?: number | null
-        emotionHoldMs?: number | null
-        facialCue?: string | null
-        actionCue?: string | null
-        actionWindow?: string | null
-        interruptMode?: string | null
-        settleMode?: string | null
-        rendererHints?: {
-          preferredExpressionAliases?: string[]
-          preferredMotionAliases?: string[]
-        } | null
-        rendererSettle?: {
-          live2dFacialReleaseMs?: number | null
-          live2dMotionFollowThroughMs?: number | null
-          vrmActionFadeMs?: number | null
-          vrmExpressionBlendMs?: number | null
-        } | null
-      } | null
-      drivers?: RendererSpeechPlaybackTelemetry['drivers']
-    } | null
+    playbackTelemetry?: RendererSpeechPlaybackTelemetryInput | null
   } | null | undefined,
 ): StageThreeRuntimeSpeechEmbodimentDiagnostics {
   if (!speech) {
@@ -660,6 +1069,8 @@ export function mapSpeechEmbodimentDiagnosticsForRenderer(
       rendererDriftSummary: null,
       articulationSummary: null,
       authoritySummary: null,
+      convergence: null,
+      speechEvidence: null,
       cueMicroSummary: null,
       driverSummary: null,
       driverExecutionSummary: null,
@@ -668,6 +1079,8 @@ export function mapSpeechEmbodimentDiagnosticsForRenderer(
       playbackTelemetry: null,
     }
   }
+
+  const playbackTelemetry = normalizeRendererSpeechPlaybackTelemetry(speech.playbackTelemetry ?? null)
 
   return {
     phase: speech.phase ?? 'idle',
@@ -688,9 +1101,13 @@ export function mapSpeechEmbodimentDiagnosticsForRenderer(
       ? speech.recentDrivingTraceDetails.map(event => cloneCue(event))
       : [],
     traceSummary: speech.traceSummary
-      ? cloneCue(speech.traceSummary)
+      ? enrichTraceSummaryWithPlaybackAuthoritySources({
+          traceSummary: speech.traceSummary,
+          authoritySummary: speech.authoritySummary ?? null,
+          playbackTelemetry,
+        })
       : buildTraceTelemetrySummary({
-          cueId: speech.playbackTelemetry?.cue?.id
+          cueId: playbackTelemetry?.cue?.id
             ?? speech.authoritySummary?.cueId
             ?? null,
           traceContext: {
@@ -698,7 +1115,7 @@ export function mapSpeechEmbodimentDiagnosticsForRenderer(
             recentDrivingTraceRecord: speech.recentDrivingTraceRecord ?? null,
             recentDrivingTraceEvents: speech.recentDrivingTraceEvents ?? [],
             driverSummary: speech.driverSummary ?? null,
-            playbackTelemetry: speech.playbackTelemetry ?? null,
+            playbackTelemetry,
           },
         }),
     rendererAlignment: speech.rendererAlignment
@@ -719,136 +1136,42 @@ export function mapSpeechEmbodimentDiagnosticsForRenderer(
             speech.authoritySummary ?? null,
             speech.recentDrivingTraceRecord ?? null,
           ),
-          playbackTelemetry: speech.playbackTelemetry ?? null,
+          playbackTelemetry,
         }),
-        playbackTelemetry: speech.playbackTelemetry ?? null,
+        playbackTelemetry,
       }),
       recentDrivingTraceRecord: speech.recentDrivingTraceRecord ?? null,
       recentDrivingTraceDetails: speech.recentDrivingTraceDetails ?? [],
       driverExecutionSummary: speech.driverExecutionSummary ?? null,
     }),
+    convergence: speech.convergence
+      ? {
+          segmentId: normalizeText(speech.convergence.segmentId),
+          state: speech.convergence.state,
+          line: normalizeText(speech.convergence.line) ?? 'none',
+          matchedDrivers: speech.convergence.matchedDrivers
+            ? [...speech.convergence.matchedDrivers]
+            : [],
+          missingDrivers: speech.convergence.missingDrivers
+            ? [...speech.convergence.missingDrivers]
+            : [],
+          summary: normalizeText(speech.convergence.summary) ?? '',
+        }
+      : null,
     speechEvidence: buildSpeechEvidenceSummary({
       articulationSummary: speech.articulationSummary ?? null,
+      bodyContinuitySummary: speech.bodyContinuitySummary ?? speech.speechEvidence?.bodyContinuitySummary ?? null,
       authoritySummary: speech.authoritySummary ?? null,
       cueMicroSummary: speech.cueMicroSummary ?? null,
       driverExecutionSummary: speech.driverExecutionSummary ?? null,
       visemeHintsSummary: speech.visemeHintsSummary ?? null,
-      playbackTelemetry: speech.playbackTelemetry ?? null,
+      playbackTelemetry,
     }),
     cueMicroSummary: speech.cueMicroSummary ? cloneCue(speech.cueMicroSummary) : null,
     driverSummary: speech.driverSummary ? cloneCue(speech.driverSummary) : null,
     driverExecutionSummary: speech.driverExecutionSummary ?? null,
     live2dExecution: speech.live2dExecution ? cloneCue(speech.live2dExecution) : null,
     visemeHintsSummary: speech.visemeHintsSummary ?? null,
-    playbackTelemetry: speech.playbackTelemetry
-      ? {
-          actualDurationMs: speech.playbackTelemetry.actualDurationMs ?? null,
-          plannedDurationMs: speech.playbackTelemetry.plannedDurationMs ?? null,
-          driftMs: speech.playbackTelemetry.driftMs ?? null,
-          settleMs: speech.playbackTelemetry.settleMs ?? null,
-          stopReason: speech.playbackTelemetry.stopReason ?? null,
-          rendererTarget: speech.playbackTelemetry.rendererTarget ?? null,
-          driverAuthority: speech.playbackTelemetry.driverAuthority
-            ? {
-                segmentId: speech.playbackTelemetry.driverAuthority.segmentId ?? null,
-                rendererTarget: speech.playbackTelemetry.driverAuthority.rendererTarget ?? null,
-                matchedDrivers: speech.playbackTelemetry.driverAuthority.matchedDrivers
-                  ? [...speech.playbackTelemetry.driverAuthority.matchedDrivers]
-                  : [],
-                sources: speech.playbackTelemetry.driverAuthority.sources
-                  ? [...speech.playbackTelemetry.driverAuthority.sources]
-                  : [],
-                faceSegmentMatched: speech.playbackTelemetry.driverAuthority.faceSegmentMatched ?? false,
-                motionSegmentMatched: speech.playbackTelemetry.driverAuthority.motionSegmentMatched ?? false,
-                lipsyncSegmentMatched: speech.playbackTelemetry.driverAuthority.lipsyncSegmentMatched ?? false,
-                prosodyAuthority: speech.playbackTelemetry.driverAuthority.prosodyAuthority
-                  ? {
-                      segmentId: speech.playbackTelemetry.driverAuthority.prosodyAuthority.segmentId ?? null,
-                      provenance: speech.playbackTelemetry.driverAuthority.prosodyAuthority.provenance,
-                      source: speech.playbackTelemetry.driverAuthority.prosodyAuthority.source ?? null,
-                      mode: speech.playbackTelemetry.driverAuthority.prosodyAuthority.mode ?? null,
-                      cueProsodyWeight: speech.playbackTelemetry.driverAuthority.prosodyAuthority.cueProsodyWeight ?? null,
-                      cueMouthWeight: speech.playbackTelemetry.driverAuthority.prosodyAuthority.cueMouthWeight ?? null,
-                      cueHeadWeight: speech.playbackTelemetry.driverAuthority.prosodyAuthority.cueHeadWeight ?? null,
-                      visemePeakWeight: speech.playbackTelemetry.driverAuthority.prosodyAuthority.visemePeakWeight ?? null,
-                    }
-                  : null,
-              }
-            : null,
-          cue: speech.playbackTelemetry.cue
-            ? {
-                id: speech.playbackTelemetry.cue.id ?? null,
-                text: speech.playbackTelemetry.cue.text ?? null,
-                prosodyWeight: speech.playbackTelemetry.cue.prosodyWeight ?? null,
-                mouthWeight: speech.playbackTelemetry.cue.mouthWeight ?? null,
-                headWeight: speech.playbackTelemetry.cue.headWeight ?? null,
-                personaStyleSummary: speech.playbackTelemetry.cue.personaStyleSummary ?? null,
-                facialHoldMs: speech.playbackTelemetry.cue.facialHoldMs ?? null,
-                actionHoldMs: speech.playbackTelemetry.cue.actionHoldMs ?? null,
-                emotionHoldMs: speech.playbackTelemetry.cue.emotionHoldMs ?? null,
-                facialCue: speech.playbackTelemetry.cue.facialCue ?? null,
-                actionCue: speech.playbackTelemetry.cue.actionCue ?? null,
-                actionWindow: speech.playbackTelemetry.cue.actionWindow ?? null,
-                interruptMode: speech.playbackTelemetry.cue.interruptMode ?? null,
-                settleMode: speech.playbackTelemetry.cue.settleMode ?? null,
-                rendererHints: speech.playbackTelemetry.cue.rendererHints
-                  ? {
-                      preferredExpressionAliases: speech.playbackTelemetry.cue.rendererHints.preferredExpressionAliases
-                        ? [...speech.playbackTelemetry.cue.rendererHints.preferredExpressionAliases]
-                        : undefined,
-                      preferredMotionAliases: speech.playbackTelemetry.cue.rendererHints.preferredMotionAliases
-                        ? [...speech.playbackTelemetry.cue.rendererHints.preferredMotionAliases]
-                        : undefined,
-                    }
-                  : null,
-                rendererSettle: speech.playbackTelemetry.cue.rendererSettle
-                  ? {
-                      live2dFacialReleaseMs: speech.playbackTelemetry.cue.rendererSettle.live2dFacialReleaseMs ?? null,
-                      live2dMotionFollowThroughMs: speech.playbackTelemetry.cue.rendererSettle.live2dMotionFollowThroughMs ?? null,
-                      vrmActionFadeMs: speech.playbackTelemetry.cue.rendererSettle.vrmActionFadeMs ?? null,
-                      vrmExpressionBlendMs: speech.playbackTelemetry.cue.rendererSettle.vrmExpressionBlendMs ?? null,
-                    }
-                  : null,
-              }
-            : null,
-          drivers: speech.playbackTelemetry.drivers
-            ? {
-                face: speech.playbackTelemetry.drivers.face
-                  ? {
-                      emotion: speech.playbackTelemetry.drivers.face.emotion ?? null,
-                      facialCue: speech.playbackTelemetry.drivers.face.facialCue ?? null,
-                      intensity: speech.playbackTelemetry.drivers.face.intensity ?? null,
-                      holdMs: speech.playbackTelemetry.drivers.face.holdMs ?? null,
-                      source: speech.playbackTelemetry.drivers.face.source ?? null,
-                      confidence: speech.playbackTelemetry.drivers.face.confidence ?? null,
-                      preUtteranceCue: speech.playbackTelemetry.drivers.face.preUtteranceCue ?? null,
-                      postUtteranceCue: speech.playbackTelemetry.drivers.face.postUtteranceCue ?? null,
-                      segmentId: speech.playbackTelemetry.drivers.face.segmentId ?? null,
-                    }
-                  : null,
-                lipsync: speech.playbackTelemetry.drivers.lipsync
-                  ? {
-                      mode: speech.playbackTelemetry.drivers.lipsync.mode ?? null,
-                      playbackPhase: speech.playbackTelemetry.drivers.lipsync.playbackPhase ?? null,
-                      segmentId: speech.playbackTelemetry.drivers.lipsync.segmentId ?? null,
-                      visemeHints: cloneVisemeHints(speech.playbackTelemetry.drivers.lipsync.visemeHints),
-                    }
-                  : null,
-                motion: speech.playbackTelemetry.drivers.motion
-                  ? {
-                      idleBase: speech.playbackTelemetry.drivers.motion.idleBase ?? null,
-                      attentionMode: speech.playbackTelemetry.drivers.motion.attentionMode ?? null,
-                      actionCue: speech.playbackTelemetry.drivers.motion.actionCue ?? null,
-                      intensity: speech.playbackTelemetry.drivers.motion.intensity ?? null,
-                      holdMs: speech.playbackTelemetry.drivers.motion.holdMs ?? null,
-                      source: speech.playbackTelemetry.drivers.motion.source ?? null,
-                      confidence: speech.playbackTelemetry.drivers.motion.confidence ?? null,
-                      segmentId: speech.playbackTelemetry.drivers.motion.segmentId ?? null,
-                    }
-                  : null,
-              }
-            : null,
-        }
-      : null,
+    playbackTelemetry,
   }
 }

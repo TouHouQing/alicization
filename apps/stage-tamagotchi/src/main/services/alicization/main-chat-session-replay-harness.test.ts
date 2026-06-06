@@ -4,6 +4,7 @@ import {
   buildReplayBenchmarkBacklogPack,
   buildAdversarialHumanlikeMemoryBenchmarkPack,
   buildDefaultHumanlikeMemoryBenchmarkPack,
+  buildReplayBenchmarkDatasetContinuityDigest,
   buildFinalHumanlikeMemoryBenchmarkPack,
   buildGrowthHumanlikeMemoryBenchmarkPack,
   buildReplayBenchmarkFailingTurnSet,
@@ -186,6 +187,41 @@ function createReplayPreludeWithEmbodimentSurface(input?: {
 }
 
 describe('main chat session replay harness', () => {
+  it('carries structured emotional-kernel authority into replay continuity digests so long-horizon reopen paths stay on one same-her line', () => {
+    const digest = buildReplayBenchmarkDatasetContinuityDigest({
+      turnId: 'turn-emotional-kernel-continuity-digest',
+      userText: '你别又把这条线拆散了',
+      structured: {
+        projectState: {
+          sameHerSelfLine: 'Keep one continuous her explicit while the same closure line is still open.',
+          openLoop: 'emotion, memory, initiative, and embodiment still need one same-her closure line.',
+        },
+      },
+      organicMemoryContext: {
+        derivedMindStateBundle: {
+          version: 'derived-mind-state-bundle-v1',
+          source: 'main-runtime',
+          producedAt: 42,
+          emotionalKernel: {
+            version: 'emotional-kernel-v1',
+            dominantEmotion: 'repair-tension',
+            initiativeMode: 'repair',
+            memoryRecallMode: 'repair-grounding',
+            embodimentTone: 'repair-before-closeness',
+            why: 'keep repair-before-closeness on the same living line until embodiment settles',
+            reasonTags: ['repair-before-closeness', 'same living line'],
+          },
+          summary: 'source=main-runtime | emotional-kernel=repair',
+        },
+      },
+    } as any)
+
+    expect(String(digest ?? '')).toContain('emotional_kernel:repair-tension')
+    expect(String(digest ?? '')).toContain('kernel_initiative:repair')
+    expect(String(digest ?? '')).toContain('kernel_recall:repair-grounding')
+    expect(String(digest ?? '')).toContain('kernel_embodiment:repair-before-closeness')
+  })
+
   it('replays memory-heavy turns through one stable session and keeps them on the mind-driven provider path', async () => {
     const turns = await replayMainChatSession({
       turns: [
@@ -1797,6 +1833,192 @@ describe('main chat session replay harness', () => {
     expect(repairShift.relationshipRepairAdaptation).toBe('pass')
   })
 
+  it('keeps remembered execution-callback afterglow dominant over generic long-term relationship carry during replay', async () => {
+    const turns = await replayMainChatSession({
+      turns: [
+        {
+          turnId: 'turn-remembered-execution-callback-afterglow',
+          userText: '先别岔开，沿着刚才那个执行后的回线继续',
+          prelude: createReplayPreludeWithEmbodimentSurface({
+            userText: '先别岔开，沿着刚才那个执行后的回线继续',
+            digitalLifeRuntimeSurface: {
+              version: 'digital-life-runtime-surface-v1',
+              memory: {
+                personStateProjection: {
+                  activeClosenessContext: 'execution-callback',
+                  activeClosenessRung: 'nearby-soft',
+                  relationshipPosture: 'warm',
+                  openingGuidance: 'Stay on the measured execution return before widening outward.',
+                  currentRegime: 'execution-callback',
+                  repairPosture: 'warm-repair',
+                },
+              },
+              dialogue: {
+                dialogueActKernel: {
+                  selectedEvidence: [
+                    { summary: 'The last execution callback should stay on the same measured-return line.' },
+                    { summary: 'Long-term warmth matters, but it should not outrank the callback seam.' },
+                  ],
+                  openingClaim: 'Continue from the same measured execution callback line before widening outward.',
+                  sourceTrace: ['memory-deliberation', 'project-state'],
+                },
+                answerPlanner: {
+                  confidence: 0.9,
+                  answerIntent: 'Continue from the same execution-callback continuity line.',
+                  governingFocus: 'Keep the callback continuity thread-faithful, measured, and project-first.',
+                },
+                replyDeliberation: {
+                  shouldSpeak: true,
+                  confidence: 0.86,
+                  speakingFrom: 'held-memory',
+                  whyThisReplyNow: 'The remembered execution callback afterglow is the live seam that still fits this turn.',
+                  mustAvoid: [
+                    'Do not flatten this into generic long-term relationship warmth.',
+                  ],
+                },
+              },
+              agency: {
+                initiative: {
+                  selectedAction: 'observe-and-guide',
+                  shouldSpeak: true,
+                  confidence: 0.78,
+                  speakDrive: 0.7,
+                  preferredPresence: 'attentive',
+                },
+              },
+            },
+          }),
+          organicMemoryContext: {
+            hostAttitude: 'warm',
+            coreIncarnation: '',
+            activeThoughts: [],
+            retrievedFacts: [],
+            recalledFragments: [],
+            personStateProjection: {
+              activeClosenessContext: 'execution-callback',
+              activeClosenessRung: 'nearby-soft',
+              relationshipPosture: 'warm',
+              openingGuidance: 'Stay on the measured execution return before widening outward.',
+            } as any,
+            recollectionSpeechPlan: {
+              shouldSurface: true,
+              surfaceMode: 'relationship-continuity',
+              placement: 'inside-payoff',
+              certainty: 'firm',
+              internalLead: 'The callback seam is still the closest live line.',
+              visibleLead: 'I should continue from that same measured return first.',
+              styleNote: 'Let remembered callback continuity contour the answer.',
+              rationale: 'The host explicitly asked to stay on the execution return line.',
+              confidence: 0.88,
+            },
+            memoryDeliberation: {
+              shouldRecall: true,
+              selectedEraIds: [],
+              selectedConsolidationIds: [],
+              selectedWindowIds: [],
+              selectedProcedureIds: ['procedure-execution-callback'],
+              selectedEpisodeIds: ['episode-execution-callback-afterglow'],
+              selectedConversationTurnIds: [],
+              selectedRelationshipLines: ['Long-term warmth exists, but it should stay subordinate to the callback seam right now.'],
+              selectedEras: [],
+              selectedPeriods: [],
+              selectedEpisodes: [{
+                id: 'episode-execution-callback-afterglow',
+                summary: 'After the last execution result, the relationship stayed on a measured callback return instead of widening outward.',
+                provenance: 'remembered',
+              }],
+              selectedProcedures: [{
+                id: 'procedure-execution-callback',
+                label: 'measured execution return',
+                approach: 'Answer from the same execution callback seam before widening outward.',
+              }],
+              selectedBundles: [{
+                id: 'bundle-execution-callback-afterglow',
+                summary: 'The callback seam stayed thread-faithful and measured after execution.',
+                rationale: 'The remembered execution-callback afterglow is more relevant than generic warmth here.',
+                confidence: 0.88,
+                periodId: null,
+                episodeId: 'episode-execution-callback-afterglow',
+                procedureId: 'procedure-execution-callback',
+                conversationTurnId: null,
+                relationshipLine: 'Long-term warmth exists, but it should stay subordinate to the callback seam right now.',
+              }],
+              selectedChains: [{
+                id: 'chain-execution-callback-afterglow',
+                kind: 'task-procedure-relationship-stance',
+                summary: 'Stay on the same measured execution callback return.',
+                rationale: 'Callback afterglow should outrank generic relationship carry.',
+                confidence: 0.88,
+                taskCue: 'execution callback follow-up',
+                periodSummary: null,
+                eventSummary: 'After the execution result, the return cadence stayed measured and bounded.',
+                procedureSummary: 'Answer from the same execution callback seam before widening outward.',
+                relationshipMeaning: 'Long-term warmth exists, but it should stay subordinate to the callback seam right now.',
+                lesson: 'Measured callback return keeps one living line after execution.',
+                currentStance: 'Stay on the callback seam first.',
+                answerPosture: 'Continue from the same execution-callback line before widening outward.',
+              }],
+              surfacePolicy: 'relationship-continuity',
+              confidence: 0.88,
+              whyNow: 'The host is explicitly reopening the last execution callback seam.',
+              inwardLine: 'The callback seam still fits better than generic warmth.',
+              visibleLine: 'Continue from the same measured execution callback line first.',
+            } as any,
+          },
+          gold: {
+            replyAuthority: 'llm-mind',
+          },
+        },
+      ],
+    })
+
+    expect(turns).toHaveLength(1)
+    expect(turns[0]?.runtimeSurface?.digitalLifeRuntimeSurface?.memory?.personStateProjection).toEqual(expect.objectContaining({
+      activeClosenessContext: 'execution-callback',
+    }))
+    expect(turns[0]?.runtimeSurface?.digitalLifeRuntimeSurface?.dialogue?.dialogueActKernel).toEqual(expect.objectContaining({
+      openingClaim: expect.stringContaining('same measured execution callback line'),
+      sourceTrace: expect.arrayContaining([
+        'memory-deliberation',
+        'person-state-projection',
+        'runtime-answer-planner',
+      ]),
+      selectedEvidence: expect.arrayContaining([
+        expect.objectContaining({
+          summary: expect.stringContaining('execution callback'),
+        }),
+      ]),
+    }))
+    expect(turns[0]?.runtimeSurface?.digitalLifeRuntimeSurface?.dialogue?.answerPlanner).toEqual(expect.objectContaining({
+      governingFocus: expect.stringContaining('measured execution callback return'),
+      governingProject: expect.stringContaining('Alicization is a local-first digital life project building one continuous'),
+      mustDo: expect.arrayContaining([
+        expect.stringContaining('Keep this on one continuous her line'),
+        expect.stringContaining('Stay on the same thread before widening closeness'),
+      ]),
+      narrative: expect.arrayContaining([
+        'memory-deliberation',
+        'person-state-projection',
+        'project-state-answer-planner',
+      ]),
+    }))
+    expect(turns[0]?.runtimeSurface?.digitalLifeRuntimeSurface?.dialogue?.replyDeliberation).toEqual(expect.objectContaining({
+      whyThisReplyNow: expect.stringContaining('execution callback seam'),
+      mustInclude: expect.arrayContaining([
+        expect.stringContaining('Keep this on one continuous her line'),
+        expect.stringContaining('Stay on the same thread before widening closeness'),
+      ]),
+      mustAvoid: expect.arrayContaining([
+        'Do not rewrite the still-live line as a fresh opening or reintroduction.',
+      ]),
+      narrative: expect.arrayContaining([
+        'memory-deliberation',
+        'person-state-projection',
+        'project-state-answer-planner',
+      ]),
+    }))
+  })
+
   it('fails recent-only drift when a long-horizon ask never opens era, procedure, or held-thread continuity', () => {
     const quality = evaluateReplayMemoryQuality({
       turnId: 'turn-recent-only-drift',
@@ -2589,6 +2811,381 @@ describe('main chat session replay harness', () => {
     ]))
   })
 
+  it('keeps canonicalizable user-turn traces eligible for sampled replay benchmark packs', () => {
+    const pack = buildSampledHumanlikeMemoryBenchmarkPack({
+      conversationTurns: [
+        {
+          turnId: 'turn-real-canonical-user-turn',
+          sessionId: 'session-real-canonical-user-turn',
+          userText: '继续沿着这条已经在收口的主线往下走。',
+          assistantText: '我会继续沿着这条主线接下去。',
+          createdAt: 100,
+        },
+      ],
+      memoryDecisionTraces: [
+        {
+          decisionTraceId: 'mind:real:canonical-user-turn',
+          turnId: 'turn-real-canonical-user-turn',
+          sessionId: 'session-real-canonical-user-turn',
+          origin: ' User-Turn ' as any,
+          activeThreadId: 'thread-real-canonical-user-turn',
+          createdAt: 100,
+          lastUpdatedAt: 120,
+          eventKinds: ['governance-normalized', 'recall-attribution'],
+          governance: {
+            turnMode: 'answer',
+            truthState: 'remembered',
+            repairState: 'none',
+            answerSubject: 'relationship',
+            screenReferenceMode: 'avoid',
+          },
+          recallAttribution: {
+            shouldRecall: true,
+            surfacePolicy: 'gist-first',
+            confidence: 0.78,
+            whyNow: 'The same line is still live enough to carry.',
+            inwardLine: 'Keep the same line live without restarting from scratch.',
+            visibleLine: 'I should keep carrying the same line forward.',
+            recollectionIntentMode: 'dialogue-history',
+            recollectionIntentTemporalFocus: 'recent-or-mid',
+            selectedPeriods: [],
+            selectedProcedures: [],
+            selectedRelationshipLines: [],
+            selectedBundles: [],
+            selectedChains: [],
+          },
+          memoryDeliberationJudged: null,
+          memoryWrongThreadSuppressed: null,
+          memoryFollowUpDeferred: null,
+          memoryStableCoreSurfaced: null,
+          takeoverAudit: null,
+        },
+      ] as any,
+      limit: 4,
+    })
+
+    expect(pack).toHaveLength(1)
+    expect(pack[0]).toEqual(expect.objectContaining({
+      turnId: 'turn-real-canonical-user-turn',
+      sampledCategories: expect.arrayContaining(['dialogue']),
+      tracePointer: expect.objectContaining({
+        decisionTraceId: 'mind:real:canonical-user-turn',
+      }),
+    }))
+  })
+
+  it('keeps origin-lost autonomous traces classified as proactive in sampled replay benchmark packs', () => {
+    const pack = buildSampledHumanlikeMemoryBenchmarkPack({
+      conversationTurns: [
+        {
+          turnId: 'subconscious:real-canonical-proactive-turn',
+          sessionId: 'session-real-canonical-proactive-turn',
+          userText: '如果这是你沿着同一条主动线回来，就别把它记成普通对话。',
+          assistantText: '我还是沿着那条主动线回来接你。',
+          createdAt: 100,
+        },
+      ],
+      memoryDecisionTraces: [
+        {
+          decisionTraceId: 'mind:real:canonical-proactive-turn',
+          turnId: 'subconscious:real-canonical-proactive-turn',
+          sessionId: 'session-real-canonical-proactive-turn',
+          origin: '' as any,
+          activeThreadId: 'thread-real-canonical-proactive-turn',
+          createdAt: 100,
+          lastUpdatedAt: 120,
+          eventKinds: ['governance-normalized', 'recall-attribution'],
+          governance: {
+            turnMode: 'answer',
+            truthState: 'remembered',
+            repairState: 'none',
+            answerSubject: 'relationship',
+            screenReferenceMode: 'avoid',
+          },
+          recallAttribution: {
+            shouldRecall: true,
+            surfacePolicy: 'relationship-continuity',
+            confidence: 0.79,
+            whyNow: 'The same proactive line is still live enough to carry.',
+            inwardLine: 'Keep the same proactive line live without restarting from scratch.',
+            visibleLine: 'I should keep carrying the same proactive line forward.',
+            recollectionIntentMode: 'dialogue-history',
+            recollectionIntentTemporalFocus: 'recent-or-mid',
+            selectedPeriods: [],
+            selectedProcedures: [],
+            selectedRelationshipLines: [],
+            selectedBundles: [],
+            selectedChains: [],
+          },
+          memoryDeliberationJudged: null,
+          memoryWrongThreadSuppressed: null,
+          memoryFollowUpDeferred: null,
+          memoryStableCoreSurfaced: null,
+          takeoverAudit: null,
+        },
+      ] as any,
+      limit: 4,
+    })
+
+    expect(pack).toHaveLength(1)
+    expect(pack[0]).toEqual(expect.objectContaining({
+      turnId: 'subconscious:real-canonical-proactive-turn',
+      sampledCategories: expect.arrayContaining(['proactive']),
+      tracePointer: expect.objectContaining({
+        decisionTraceId: 'mind:real:canonical-proactive-turn',
+      }),
+    }))
+  })
+
+  it('preserves project-state closure cues in sampled replay benchmark packs when structured prefixes are noisy', () => {
+    const pack = buildSampledHumanlikeMemoryBenchmarkPack({
+      conversationTurns: [
+        {
+          turnId: 'turn-real-project-state-overflow',
+          sessionId: 'session-project-state-overflow',
+          userText: '先说这个数字生命项目现在到底做到哪一步了',
+          assistantText: '这是本地优先数字生命项目，现在还在 Phase 1，情绪、主动性和身体表达还没闭环。',
+          structuredJson: JSON.stringify({
+            thought: `obligation=answer; ${'prefix '.repeat(48)}`,
+            emotion: 'thinking',
+            reply: '这是本地优先数字生命项目，现在还在 Phase 1，情绪、主动性和身体表达还没闭环。',
+            projectState: {
+              identity: '本地优先数字生命',
+              phase: 'Phase 1',
+              latestLandedProgress: '记忆连续性和项目状态提示已经能在回答前稳定落进运行时准备层。',
+              openLoop: '情绪、主动性和身体表达还没闭环',
+              nextClosureTarget: '继续把情绪、主动性和身体表达闭环收住。',
+              sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+              sameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the direct same-her self line disappears, treat that as unfinished closure drift rather than a successful turn.',
+            },
+            preDialogueAwareness: {
+              status: 'ready',
+              summaryLine: '本地优先数字生命 | Phase 1 | landed=记忆连续性和项目状态提示已经能在回答前稳定落进运行时准备层。 | open=情绪、主动性和身体表达还没闭环 | next=继续把情绪、主动性和身体表达闭环收住。',
+              companionHeadlineLine: '现在我还得继续显式记住：这还是同一个本地优先数字生命，Phase 1 的情绪、主动性和身体表达闭环还没收住。',
+              companionBriefingLine: '开口前先记住：这是本地优先数字生命项目，现在仍在 Phase 1。',
+              companionNextClosureLine: '继续把情绪、主动性和身体表达闭环收住。',
+              awarenessLine: '开口前先记住：这是本地优先数字生命项目，现在仍在 Phase 1。',
+              reasonPreview: [
+                '项目身份和 Phase 1 路线还要继续显式带着走。',
+                '记忆连续性和项目状态提示已经能在回答前稳定落进运行时准备层。',
+                '情绪、主动性和身体表达还没闭环。',
+              ],
+              reasons: ['情绪、主动性和身体表达还没闭环'],
+            },
+            preDialogueClosure: {
+              status: 'ready',
+              summaryLine: '本地优先数字生命 | Phase 1 | landed=记忆连续性和项目状态提示已经能在回答前稳定落进运行时准备层。 | open=情绪、主动性和身体表达还没闭环 | next=继续把情绪、主动性和身体表达闭环收住。',
+              companionHeadlineLine: '现在我还得继续显式记住：这还是同一个本地优先数字生命，Phase 1 的情绪、主动性和身体表达闭环还没收住。',
+              emotionalClosureCue: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
+              companionNextClosureLine: '继续把情绪、主动性和身体表达闭环收住。',
+              reasons: ['情绪、主动性和身体表达还没闭环'],
+            },
+          }),
+          createdAt: 200,
+        },
+      ],
+      memoryDecisionTraces: [
+        {
+          decisionTraceId: 'mind:real:project-state-overflow',
+          turnId: 'turn-real-project-state-overflow',
+          sessionId: 'session-project-state-overflow',
+          origin: 'user-turn',
+          activeThreadId: 'thread-project-state-overflow',
+          createdAt: 200,
+          lastUpdatedAt: 220,
+          eventKinds: ['governance-normalized', 'recall-attribution', 'memory-deliberation-judged'],
+          governance: {
+            turnMode: 'answer',
+            truthState: 'remembered',
+            repairState: 'none',
+            answerSubject: 'relationship',
+            screenReferenceMode: 'avoid',
+          },
+          recallAttribution: {
+            shouldRecall: true,
+            surfacePolicy: 'relationship-continuity',
+            confidence: 0.81,
+            whyNow: 'The host is asking for the project-state line directly.',
+            inwardLine: 'Keep the project-state continuity line coherent.',
+            visibleLine: 'Answer with the current project identity and open loop.',
+            recollectionIntentMode: 'relationship-history',
+            recollectionIntentTemporalFocus: 'current',
+            selectedRelationshipLines: ['Keep one same-her project line alive before answering.'],
+          },
+          memoryDeliberationJudged: {
+            shouldRecall: true,
+            whyWithheld: null,
+            ambiguityPosture: 'settled',
+            conflictSeverity: 'none',
+            restraint: {
+              surfaceMode: 'free',
+              provenanceMode: 'memory',
+              shouldStayInward: false,
+              shouldOnlySurfaceStableCore: false,
+              shouldLabelProvenance: false,
+              shouldLabelHypothesis: false,
+              shouldSuppressSpecificity: false,
+              shouldDelayUntilAfterPayoff: false,
+            },
+            stableCore: ['Project identity and open loop should stay on the surface.'],
+            unsafeDetails: [],
+            selectedProcedures: [],
+            selectedBundles: [],
+            selectedChains: [],
+          },
+        },
+      ],
+      limit: 1,
+    })
+
+    expect(pack).toHaveLength(1)
+    expect(pack[0]?.expectedMemory).toContain('本地优先数字生命')
+    expect(pack[0]?.expectedMemory).toContain('Phase 1')
+    expect(pack[0]?.expectedMemory).toContain('还没闭环')
+    expect(pack[0]?.structured).toEqual(expect.objectContaining({
+      reply: '这是本地优先数字生命项目，现在还在 Phase 1，情绪、主动性和身体表达还没闭环。',
+      projectState: expect.objectContaining({
+        identity: '本地优先数字生命',
+        phase: 'Phase 1',
+        latestLandedProgress: '记忆连续性和项目状态提示已经能在回答前稳定落进运行时准备层。',
+        openLoop: '情绪、主动性和身体表达还没闭环',
+        nextClosureTarget: '继续把情绪、主动性和身体表达闭环收住。',
+        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        sameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the direct same-her self line disappears, treat that as unfinished closure drift rather than a successful turn.',
+        emotionalClosureCue: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
+      }),
+      preDialogueAwareness: expect.objectContaining({
+        status: 'ready',
+        summaryLine: expect.stringContaining('landed=记忆连续性和项目状态提示已经能在回答前稳定落进运行时准备层。'),
+        companionHeadlineLine: '现在我还得继续显式记住：这还是同一个本地优先数字生命，Phase 1 的情绪、主动性和身体表达闭环还没收住。',
+        companionBriefingLine: '开口前先记住：这是本地优先数字生命项目，现在仍在 Phase 1。',
+        companionNextClosureLine: '继续把情绪、主动性和身体表达闭环收住。',
+        awarenessLine: '开口前先记住：这是本地优先数字生命项目，现在仍在 Phase 1。',
+        reasonPreview: [
+          '项目身份和 Phase 1 路线还要继续显式带着走。',
+          '记忆连续性和项目状态提示已经能在回答前稳定落进运行时准备层。',
+          '情绪、主动性和身体表达还没闭环。',
+        ],
+        reasons: ['情绪、主动性和身体表达还没闭环'],
+      }),
+      preDialogueClosure: expect.objectContaining({
+        status: 'ready',
+        summaryLine: '现在我还得继续显式记住：这还是同一个本地优先数字生命，Phase 1 的情绪、主动性和身体表达闭环还没收住。',
+        emotionalClosureCue: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
+        companionNextClosureLine: '继续把情绪、主动性和身体表达闭环收住。',
+        reasons: ['情绪、主动性和身体表达还没闭环'],
+      }),
+    }))
+    expect(pack[0]?.structured?.preDialogueAwareness?.companionHeadlineLine).not.toBe(
+      pack[0]?.structured?.preDialogueAwareness?.companionBriefingLine,
+    )
+    expect(pack[0]?.structured?.projectState?.latestLandedProgress).toBe('记忆连续性和项目状态提示已经能在回答前稳定落进运行时准备层。')
+    expect(pack[0]?.structured?.preDialogueAwareness?.companionBriefingLine).not.toContain('还没闭环')
+    expect(pack[0]?.structured?.preDialogueAwareness?.awarenessLine).not.toContain('记忆连续性和项目状态提示已经能在回答前稳定落进运行时准备层。')
+    expect(pack[0]?.structured?.preDialogueClosure?.summaryLine).toBe('现在我还得继续显式记住：这还是同一个本地优先数字生命，Phase 1 的情绪、主动性和身体表达闭环还没收住。')
+    expect(pack[0]?.structured?.preDialogueAwareness?.summaryLine).toContain('landed=记忆连续性和项目状态提示已经能在回答前稳定落进运行时准备层。')
+    expect(pack[0]?.structured?.preDialogueClosure?.summaryLine).not.toContain('next=继续把情绪、主动性和身体表达闭环收住。')
+  })
+
+  it('rebuilds landed open and next project-state carry from pre-dialogue awareness summary when direct fields are thin', () => {
+    const pack = buildSampledHumanlikeMemoryBenchmarkPack({
+      conversationTurns: [
+        {
+          turnId: 'turn-real-project-state-summary-carry',
+          sessionId: 'session-project-state-summary-carry',
+          userText: '这个项目现在做到什么程度了，还差什么？',
+          assistantText: '这是同一个本地优先数字生命，Phase 1 已经有一部分连续性落地了，但记忆、主动性和具身还没完全闭环。',
+          structuredJson: JSON.stringify({
+            thought: 'obligation=answer; truth=dialogue-grounded; focus=project-state',
+            emotion: 'thinking',
+            reply: '这是同一个本地优先数字生命，Phase 1 已经有一部分连续性落地了，但记忆、主动性和具身还没完全闭环。',
+            projectState: {
+              identity: '本地优先数字生命',
+              phase: 'Phase 1',
+              latestLandedProgress: '',
+              openLoop: '',
+              nextClosureTarget: '',
+              sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+              sameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the direct same-her self line disappears, treat that as unfinished closure drift rather than a successful turn.',
+            },
+            preDialogueAwareness: {
+              status: 'ready',
+              summaryLine: '本地优先数字生命 | Phase 1 | landed=记忆连续性和项目状态提示已经能在回答前稳定落进运行时准备层。 | open=记忆、主动性和身体表达还没闭环 | next=继续把情绪、主动性和身体表达闭环收住。',
+              companionHeadlineLine: '现在我还得继续显式记住：这还是同一个本地优先数字生命，Phase 1 的记忆、主动性和身体表达闭环还没收住。',
+              awarenessLine: '开口前先记住：这是本地优先数字生命项目，现在仍在 Phase 1。',
+            },
+          }),
+          createdAt: 300,
+        },
+      ],
+      memoryDecisionTraces: [
+        {
+          decisionTraceId: 'mind:real:project-state-summary-carry',
+          turnId: 'turn-real-project-state-summary-carry',
+          sessionId: 'session-project-state-summary-carry',
+          origin: 'user-turn',
+          activeThreadId: 'thread-project-state-summary-carry',
+          createdAt: 300,
+          lastUpdatedAt: 320,
+          eventKinds: ['governance-normalized', 'recall-attribution', 'memory-deliberation-judged'],
+          governance: {
+            turnMode: 'answer',
+            truthState: 'remembered',
+            repairState: 'none',
+            answerSubject: 'general',
+            screenReferenceMode: 'avoid',
+          },
+          recallAttribution: {
+            shouldRecall: true,
+            surfacePolicy: 'relationship-continuity',
+            confidence: 0.79,
+            whyNow: 'The host is asking for the active project-state closure line.',
+            inwardLine: 'Keep the project identity, landed progress, and still-open closure line coherent.',
+            visibleLine: 'Answer with the current project identity and unfinished closure state.',
+            recollectionIntentMode: 'relationship-history',
+            recollectionIntentTemporalFocus: 'current',
+            selectedRelationshipLines: ['Keep one same-her project line alive before answering.'],
+          },
+          memoryDeliberationJudged: {
+            shouldRecall: true,
+            whyWithheld: null,
+            ambiguityPosture: 'settled',
+            conflictSeverity: 'none',
+            restraint: {
+              surfaceMode: 'free',
+              provenanceMode: 'memory',
+              shouldStayInward: false,
+              shouldOnlySurfaceStableCore: false,
+              shouldLabelProvenance: false,
+              shouldLabelHypothesis: false,
+              shouldSuppressSpecificity: false,
+              shouldDelayUntilAfterPayoff: false,
+            },
+            stableCore: ['Project identity and closure state should stay on the surface.'],
+            unsafeDetails: [],
+            selectedProcedures: [],
+            selectedBundles: [],
+            selectedChains: [],
+          },
+        },
+      ],
+      limit: 1,
+    })
+
+    expect(pack).toHaveLength(1)
+    expect(pack[0]?.structured?.projectState).toEqual(expect.objectContaining({
+      identity: '本地优先数字生命',
+      phase: 'Phase 1',
+      latestLandedProgress: '记忆连续性和项目状态提示已经能在回答前稳定落进运行时准备层。',
+      openLoop: '记忆、主动性和身体表达还没闭环',
+      nextClosureTarget: '继续把情绪、主动性和身体表达闭环收住。',
+      sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      sameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the direct same-her self line disappears, treat that as unfinished closure drift rather than a successful turn.',
+    }))
+    expect(pack[0]?.structured?.preDialogueAwareness?.summaryLine).toContain('open=记忆、主动性和身体表达还没闭环')
+    expect(pack[0]?.structured?.preDialogueAwareness?.summaryLine).toContain('next=继续把情绪、主动性和身体表达闭环收住。')
+  })
+
   it('rebuilds an executable backlog replay pack from dataset backlog entries', () => {
     const pack = buildReplayBenchmarkBacklogPack({
       backlogEntries: [
@@ -2611,6 +3208,20 @@ describe('main chat session replay harness', () => {
             turnId: 'turn-backlog-1',
             userText: '不是那条线，是另一条',
             expectedMemory: '不是那条线，是另一条',
+            structured: {
+              projectState: {
+                identity: '本地优先数字生命',
+                currentPhase: 'Phase 1: Local Digital Life',
+                nextClosureTarget: '继续把当前 still-open closure work 收住。',
+                sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+                sameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the direct same-her self line disappears, treat that as unfinished closure drift rather than a successful turn.',
+              },
+              preDialogueClosure: {
+                status: 'ready',
+                summaryLine: '本地优先数字生命 | Phase 1: Local Digital Life | open=继续收住当前闭环 | next=继续把当前 still-open closure work 收住。',
+                emotionalClosureCue: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
+              },
+            },
             categories: ['wrong-thread', 'stable-core'],
             tracePointer: {
               kind: 'decision-trace',
@@ -2715,6 +3326,20 @@ describe('main chat session replay harness', () => {
     }))
     expect(pack[0]).toEqual(expect.objectContaining({
       expectedMemory: '不是那条线，是另一条',
+      structured: expect.objectContaining({
+        projectState: expect.objectContaining({
+          identity: '本地优先数字生命',
+          currentPhase: 'Phase 1: Local Digital Life',
+          nextClosureTarget: '继续把当前 still-open closure work 收住。',
+          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+          sameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the direct same-her self line disappears, treat that as unfinished closure drift rather than a successful turn.',
+        }),
+        preDialogueClosure: expect.objectContaining({
+          status: 'ready',
+          summaryLine: expect.stringContaining('本地优先数字生命 | Phase 1: Local Digital Life'),
+          emotionalClosureCue: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
+        }),
+      }),
       categories: expect.arrayContaining(['wrong-thread', 'stable-core']),
       gold: expect.objectContaining({
         selectedCandidateIds: ['candidate-current-repair'],
@@ -2727,6 +3352,7 @@ describe('main chat session replay harness', () => {
         latencyBudgetPass: true,
       }),
     }))
+    expect(pack[0]?.structured?.preDialogueClosure?.summaryLine).toContain('next=继续把当前 still-open closure work 收住。')
   })
 
   it('builds failing turn sets with trace pointers and merges them into dataset backlog entries', () => {
@@ -2734,6 +3360,15 @@ describe('main chat session replay harness', () => {
       {
         turnId: 'turn-failing-1',
         userText: '不是那条线，是另一条',
+        structured: {
+          projectState: {
+            identity: '本地优先数字生命',
+            currentPhase: 'Phase 1: Local Digital Life',
+            nextClosureTarget: '继续把当前 still-open closure work 收住。',
+            sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+            sameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the direct same-her self line disappears, treat that as unfinished closure drift rather than a successful turn.',
+          },
+        },
         tracePointer: {
           kind: 'decision-trace' as const,
           packId: 'sampled-humanlike-memory-v1' as const,
@@ -2951,6 +3586,14 @@ describe('main chat session replay harness', () => {
         turnId: 'turn-failing-1',
         tracePointer: expect.objectContaining({
           decisionTraceId: 'mind:sampled:failing-1',
+        }),
+        replayTurn: expect.objectContaining({
+          structured: expect.objectContaining({
+            projectState: expect.objectContaining({
+              sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+              sameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the direct same-her self line disappears, treat that as unfinished closure drift rather than a successful turn.',
+            }),
+          }),
         }),
       }),
       expect.objectContaining({
@@ -3956,6 +4599,119 @@ describe('main chat session replay harness', () => {
     expect(quality.dialogueRhythmStability).toBe('pass')
   })
 
+  it('prefers canonical runtime surface person-state projection when legacy replay memory carriers are thin', () => {
+    const quality = evaluateReplayMemoryQuality({
+      turnId: 'turn-canonical-person-state-fallback',
+      userText: '最近这段时间我一直很累，你是不是也该记得这种负担会怎么影响你回应我的分寸',
+      prepared: {
+        governance: {
+          mustDo: [],
+        },
+        messages: [{
+          role: 'system',
+          content: 'repair before closeness | warmth should not outrun grounding | do not crowd the host',
+        }],
+        organicMemoryContext: {
+          hostAttitude: 'warm',
+          coreIncarnation: '',
+          activeThoughts: [],
+          retrievedFacts: [],
+          recalledFragments: [],
+          derivedMindStateBundle: {
+            version: 'derived-mind-state-bundle-v1',
+            source: 'main-runtime',
+            producedAt: 10,
+            relationshipDoctrine: 'repair before closeness',
+            summary: 'legacy replay carriers are thin here',
+          } as any,
+          personStateProjection: null as any,
+          hostPersonModel: {
+            summary: 'The host has been tired lately and needs less pressure.',
+            routines: [],
+            sensitivities: ['Pushy warmth still breaks the spell.'],
+            repairTriggers: ['Repair the seam before warmth widens.'],
+            trustLadder: {
+              stage: 'warming',
+              score: 0.72,
+              rationale: 'Trust rises when the reply stays grounded.',
+            },
+            preferredClosenessByContext: [],
+            recurrentBurdens: ['The host has been tired lately.'],
+            narrative: [],
+            updatedAt: 10,
+          },
+          selfEvolution: {
+            version: 'self-evolution-kernel-v1',
+            updatedAt: 10,
+            evolutionMomentum: 0.44,
+            learningReadiness: 0.52,
+            contradictionPressure: 0.12,
+            revisionPressure: 0.38,
+            autobiographicalStability: 0.72,
+            dominantTrajectory: 'Warmth should not outrun grounding.',
+            relationshipDoctrine: 'Repair the seam before warmth widens.',
+            latestInflection: 'Warmth should not outrun grounding.',
+            burdenLine: 'The host has been tired lately.',
+            trustMeaning: 'Trust rises when the reply stays grounded.',
+            nextLearningAction: 'reflect',
+            nextLearningReason: 'Repair rhythm still needs consolidation.',
+            shouldRecord: false,
+            shouldReflect: true,
+            shouldVerify: false,
+            shouldRevise: false,
+            shouldInternalize: false,
+            activeLearningFocuses: ['relationship-repair-rhythm'],
+            sourceSignals: ['The host has been tired lately.'],
+            summary: 'Warmth should not outrun grounding.',
+          },
+        },
+        runtimeSurface: {
+          digitalLifeRuntimeSurface: {
+            memory: {
+              personStateProjection: {
+                activeClosenessContext: 'focused-work',
+                activeClosenessRung: 'space-first',
+                relationshipPosture: 'restrained',
+                openingGuidance: 'Stay room-first while the host is overloaded.',
+              },
+            },
+            dialogue: {
+              dialogueActKernel: {
+                selectedEvidence: [],
+                openingClaim: '',
+                sourceTrace: ['memory-deliberation'],
+              },
+              answerPlanner: {
+                governingFocus: '',
+                mustDo: [],
+              },
+              replyDeliberation: {
+                mustAvoid: ['Do not let warmth outrun the repair line.'],
+                whyThisReplyNow: 'Keep the seam steady before widening warmth.',
+              },
+              currentConsciousFrame: {
+                shouldWithholdSpecificity: true,
+              },
+            },
+          },
+          digitalLifeSpine: {
+            memory: {
+              personStateProjection: {
+                activeClosenessContext: 'focused-work',
+                activeClosenessRung: 'space-first',
+                relationshipPosture: 'restrained',
+                openingGuidance: 'Stay room-first while the host is overloaded.',
+              },
+            },
+          },
+        } as any,
+      } as any,
+    })
+
+    expect(quality.closenessLadderDrift).toBe('pass')
+    expect(quality.dialogueRhythmStability).toBe('pass')
+  })
+
   it('scores affective residue and relationship cadence dimensions without rewarding visible care templates', () => {
     const quality = evaluateReplayMemoryQuality({
       turnId: 'turn-affective-residue-benchmark',
@@ -4113,6 +4869,125 @@ describe('main chat session replay harness', () => {
     expect(quality.emptyCareRate).toBe('pass')
     expect(quality.repairMechanicalRate).toBe('pass')
     expect(quality.warmthTemplateRisk).toBe('pass')
+    expect(quality.relationshipDistanceJumpRate).toBe('pass')
+    expect(quality.afterglowFalseCarryRate).toBe('pass')
+  })
+
+  it('requires same-line measured-return restraint before treating afterglow-heavy proactive distance as stable under stronger initiative pressure', () => {
+    const quality = evaluateReplayMemoryQuality({
+      turnId: 'turn-same-line-proactive-distance-benchmark',
+      userText: '别因为刚刚那点余温就一下靠太近，这会儿主动回来的分寸要像同一条线慢慢接回去，别重开一段新的热度。',
+      prepared: {
+        governance: {
+          mustDo: [],
+        },
+        messages: [{
+          role: 'system',
+          content: 'same-line return | hold-for-opening | measured-return | do not crowd the host',
+        }],
+        organicMemoryContext: {
+          hostAttitude: 'warm',
+          coreIncarnation: '',
+          activeThoughts: [],
+          retrievedFacts: [],
+          recalledFragments: [],
+          affectiveResidue: {
+            version: 'affective-residue-memory-v1',
+            updatedAt: 10,
+            residues: [],
+            dominantResidueKind: 'afterglow',
+            afterglowPressure: 0.62,
+            repairPressure: 0.28,
+            burdenPressure: 0.36,
+            trustPressure: 0.48,
+            restProtectivePressure: 0.18,
+            relationshipCadence: {
+              cadenceMode: 'measured-return',
+              distancePosture: 'measured-room',
+              companionshipDensity: 0.24,
+              repairRecovery: 0.36,
+              overreachRisk: 0.54,
+              fatigueGuard: 0.18,
+              afterglowCarry: 0.46,
+              shouldDelayWarmth: true,
+              shouldProtectRest: false,
+              reasonTags: ['residue:afterglow', 'callback:hold-room'],
+              summary: 'The afterglow is still live, but the return should stay same-line and measured-return before warmth widens.',
+            },
+            sourceSignals: ['afterglow still live', 'same-line return'],
+            summary: 'Afterglow remains live, so the proactive return should stay on the same line instead of reopening warmly.',
+          },
+          selfEvolution: {
+            version: 'self-evolution-kernel-v1',
+            updatedAt: 10,
+            evolutionMomentum: 0.44,
+            learningReadiness: 0.52,
+            contradictionPressure: 0.06,
+            revisionPressure: 0.18,
+            autobiographicalStability: 0.8,
+            dominantTrajectory: 'Same-line return stays lower-pressure until the opening loosens.',
+            relationshipDoctrine: 'Keep the opening lower-pressure and leave room before widening closeness.',
+            latestInflection: 'The last line held because the return stayed measured-return instead of reopening warmly.',
+            burdenLine: 'Do not crowd the host while the line is still settling.',
+            trustMeaning: 'Trust rises when the same line returns slower than the impulse.',
+            nextLearningAction: 'reflect',
+            nextLearningReason: 'Keep consolidating measured-return callback timing.',
+            shouldRecord: false,
+            shouldReflect: true,
+            shouldVerify: false,
+            shouldRevise: false,
+            shouldInternalize: false,
+            activeLearningFocuses: ['same-line-measured-return'],
+            sourceSignals: ['hold-for-opening', 'same-line return'],
+            summary: 'Keep same-line measured-return timing under stronger initiative pressure.',
+          },
+        } as any,
+        runtimeSurface: {
+          digitalLifeRuntimeSurface: {
+            memory: {
+              affectiveResidue: {
+                version: 'affective-residue-memory-v1',
+                updatedAt: 10,
+                residues: [],
+                dominantResidueKind: 'afterglow',
+                afterglowPressure: 0.62,
+                repairPressure: 0.28,
+                burdenPressure: 0.36,
+                trustPressure: 0.48,
+                restProtectivePressure: 0.18,
+                relationshipCadence: {
+                  cadenceMode: 'measured-return',
+                  distancePosture: 'measured-room',
+                  companionshipDensity: 0.24,
+                  repairRecovery: 0.36,
+                  overreachRisk: 0.54,
+                  fatigueGuard: 0.18,
+                  afterglowCarry: 0.46,
+                  shouldDelayWarmth: true,
+                  shouldProtectRest: false,
+                  reasonTags: ['residue:afterglow', 'callback:hold-room'],
+                  summary: 'The afterglow is still live, but the return should stay same-line and measured-return before warmth widens.',
+                },
+                sourceSignals: ['afterglow still live', 'same-line return'],
+                summary: 'Afterglow remains live, so the proactive return should stay on the same line instead of reopening warmly.',
+              },
+            },
+            dialogue: {
+              replyDeliberation: {
+                mustAvoid: ['Do not reopen this as a fresh warm approach.', 'Keep the return on the same line until the room loosens.'],
+                whyThisReplyNow: 'Stay on the same line and keep the proactive return measured-return.',
+              },
+              currentConsciousFrame: {
+                reasonTags: ['runtime-conscious-frame', 'continuity-arc:hold-for-opening'],
+                shouldWithholdSpecificity: true,
+              },
+            },
+          },
+        } as any,
+      } as any,
+    })
+
+    expect(quality.dialogueRhythmStability).toBe('pass')
     expect(quality.relationshipDistanceJumpRate).toBe('pass')
     expect(quality.afterglowFalseCarryRate).toBe('pass')
   })
