@@ -811,6 +811,17 @@ function hasActiveSameSegmentLipSyncRejoin(input: {
   )
 }
 
+function hasTelemetryLipsyncPlaybackOrContinuityHold(
+  telemetry: EmbodimentPlaybackTelemetry | null | undefined,
+) {
+  const lipsync = telemetry?.drivers.lipsync
+  if (!lipsync)
+    return false
+
+  return lipsync.playbackPhase === 'playing'
+    || Math.max(0, Math.round(lipsync.continuityHoldMs ?? 0)) > 0
+}
+
 function resolveExplicitPlaybackCueMetadata(input: {
   segmentId?: string | null
   telemetry: EmbodimentPlaybackTelemetry | null | undefined
@@ -905,8 +916,40 @@ function resolveDriverAuthoritySnapshot(input: {
   }
 
   const derivedLipSyncSegmentId = resolveDerivedLipSyncHintSegmentId(input.telemetry)
-  const segmentId = normalizeDriverSegmentId(
+  const explicitSegmentId = normalizeDriverSegmentId(
+    input.item?.segmentId
+    ?? input.cue?.id
+    ?? null,
+  )
+  const bodySegmentId = normalizeDriverSegmentId(input.telemetry?.drivers.body?.segmentId)
+  const faceSegmentId = normalizeDriverSegmentId(
     input.face?.segmentId
+    ?? input.telemetry?.drivers.face?.segmentId
+    ?? null,
+  )
+  const motionSegmentId = normalizeDriverSegmentId(
+    input.motion?.segmentId
+    ?? input.telemetry?.drivers.motion?.segmentId
+    ?? null,
+  )
+  const lipsyncSegmentId = normalizeDriverSegmentId(
+    input.lipsync?.segmentId
+    ?? input.telemetry?.drivers.lipsync?.segmentId
+    ?? derivedLipSyncSegmentId,
+  )
+  const shouldPreferQuieterBodyLipsyncContinuityLine = Boolean(
+    explicitSegmentId
+    && bodySegmentId === explicitSegmentId
+    && lipsyncSegmentId === explicitSegmentId
+    && hasTelemetryLipsyncPlaybackOrContinuityHold(input.telemetry)
+    && (
+      faceSegmentId !== explicitSegmentId
+      || motionSegmentId !== explicitSegmentId
+    ),
+  )
+  const segmentId = normalizeDriverSegmentId(
+    (shouldPreferQuieterBodyLipsyncContinuityLine ? explicitSegmentId : null)
+    ?? input.face?.segmentId
     ?? input.motion?.segmentId
     ?? input.lipsync?.segmentId
     ?? input.telemetry?.drivers.face?.segmentId
@@ -976,13 +1019,19 @@ function resolveDriverAuthoritySnapshot(input: {
       ?? derivedLipSyncSegmentId,
     segmentId,
   )
-    && Boolean(input.lipsync)
+    && Boolean(
+      input.lipsync
+      || (
+        bodySegmentMatched
+        && hasTelemetryLipsyncPlaybackOrContinuityHold(input.telemetry)
+      ),
+    )
   if (lipsyncSegmentMatched) {
     matchedDrivers.push('lipsync')
     for (const source of new Set(
-      input.lipsync?.visemeHints
+      (input.lipsync?.visemeHints ?? input.telemetry?.drivers.lipsync?.visemeHints ?? [])
         .map(hint => hint.source?.trim() || '')
-        .filter(Boolean) ?? [],
+        .filter(Boolean),
     )) {
       pushSource(source)
     }

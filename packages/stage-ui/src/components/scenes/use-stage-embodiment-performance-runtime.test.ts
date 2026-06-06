@@ -7307,6 +7307,107 @@ describe('stage embodiment performance runtime', () => {
     scope.stop()
   })
 
+  it('reconstructs quieter body+lipsync continuity authority ahead of stale face and motion shells when runtime must derive the living line itself', async () => {
+    const speechRenderState = ref(createSpeechRenderStateFixture({
+      active: true,
+      dynamics: {
+        speechEnergy: 0.17,
+        prosodyIntensity: 0.13,
+        emphasisLevel: 0.11,
+        cadencePulse: 0.18,
+      },
+      item: createStageEmbodimentSpeechPlaybackItem({
+        intentId: 'intent-derived-quieter-body-lipsync-authority',
+        segmentId: 'segment-derived-quieter-body-lipsync-authority',
+        special: null,
+        streamId: 'stream-derived-quieter-body-lipsync-authority',
+        text: '我先沿着这条还连着的线轻一点接回来。',
+      }),
+      phase: 'playing',
+      revision: 1,
+      visemeIntensity: 0.05,
+      articulation: {
+        voice: createSpeechVoiceFixture({
+          language: 'zh-CN',
+          closureBias: 0.6,
+          consonantPrecision: 0.82,
+        }),
+      },
+    }))
+    const playbackTelemetry = ref<EmbodimentPlaybackTelemetry | null>({
+      actualDurationMs: 240,
+      plannedDurationMs: 240,
+      driftMs: 0,
+      settleMs: 280,
+      stopReason: null,
+      rendererTarget: 'vrm',
+      driverAuthority: null,
+      prosodyAuthority: null,
+      cue: null,
+      drivers: {
+        body: {
+          frameMode: 'measured-return',
+          stillness: 0.83,
+          gazeStability: 0.75,
+          breathAmplitude: 0.22,
+          expressivity: 0.28,
+          segmentId: 'segment-derived-quieter-body-lipsync-authority',
+        },
+        face: {
+          emotion: 'thinking',
+          facialCue: 'focused',
+          intensity: 0.46,
+          holdMs: 280,
+          source: 'digital-life-projection',
+          confidence: 0.88,
+          preUtteranceCue: 'steady-inhale',
+          postUtteranceCue: 'soft-release',
+          segmentId: 'segment-stale-face-shell',
+        },
+        lipsync: {
+          mode: 'energy-phoneme-hybrid',
+          playbackPhase: 'idle',
+          segmentId: 'segment-derived-quieter-body-lipsync-authority',
+          continuityHoldMs: 220,
+          visemeHints: [
+            { segmentId: 'segment-derived-quieter-body-lipsync-authority', viseme: 'I', weight: 0.38, source: 'prosody-authority', confidence: 0.92 },
+            { segmentId: 'segment-derived-quieter-body-lipsync-authority', viseme: 'closed', weight: 0.64, source: 'prosody-authority', confidence: 0.89 },
+          ],
+        },
+        motion: {
+          idleBase: 'steady_focus',
+          attentionMode: 'attentive',
+          actionCue: 'observe_focus',
+          intensity: 0.32,
+          holdMs: 220,
+          source: 'timeline-projection',
+          confidence: 0.86,
+          segmentId: 'segment-stale-motion-shell',
+        },
+      },
+    })
+    const scope = effectScope()
+    const runtime = scope.run(() => useStageEmbodimentPerformanceRuntime({
+      playbackTelemetry,
+      speechRenderState,
+    }))!
+
+    expect(runtime.state.value.driverAuthority).toEqual({
+      segmentId: 'segment-derived-quieter-body-lipsync-authority',
+      rendererTarget: 'vrm',
+      matchedDrivers: ['body', 'lipsync'],
+      sources: ['prosody-authority'],
+      bodySegmentMatched: true,
+      faceSegmentMatched: false,
+      motionSegmentMatched: false,
+      lipsyncSegmentMatched: true,
+      voiceSegmentMatched: false,
+      prosodyAuthority: null,
+    })
+
+    scope.stop()
+  })
+
   it('realigns face and motion with a late same-segment cue after lipsync already leads', async () => {
     const speechRenderState = ref(createIdleStageEmbodimentSpeechRenderState())
     const playbackTelemetry = ref<EmbodimentPlaybackTelemetry | null>(null)
