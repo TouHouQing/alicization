@@ -1388,6 +1388,7 @@ export type AlicizationMindTurnEventKind
     | 'memory-reconsolidated'
     | 'presence-pulse-dispatched'
     | 'person-state-updated'
+    | 'humanlike-memory-corrected'
     | 'learning-executed'
 
 export interface AlicizationMindTurnEventInput {
@@ -1451,6 +1452,34 @@ export interface AlicizationListPersonStateUpdatesInput {
   decisionTraceId?: string
   turnId?: string
   limit?: number
+}
+
+export interface AlicizationListHumanlikeMemoryAuditInput {
+  decisionTraceId?: string
+  turnId?: string
+  limit?: number
+}
+
+export type AlicizationHumanlikeMemoryCorrectionField
+  = | 'relationshipContext'
+    | 'emotionalResidue'
+    | 'initiativeOpportunity'
+    | 'embodimentTrace'
+    | 'autobiographicalImpact'
+    | 'metabolism'
+    | 'naturalRecallLine'
+    | 'longTermWorthiness'
+    | string
+
+export interface AlicizationCorrectHumanlikeMemoryAuditInput {
+  decisionTraceId?: string | null
+  turnId?: string | null
+  sessionId?: string | null
+  candidateId: string
+  field: AlicizationHumanlikeMemoryCorrectionField
+  previousValue?: string | null
+  correctedValue: string
+  reason?: string | null
 }
 
 export type AlicizationSelfEvolutionVersionStatus
@@ -2408,6 +2437,40 @@ export interface AlicizationPersonStateUpdateRecord extends AlicizationPersonSta
     reflections: number
     memoryFacts: number
   }
+}
+
+export interface AlicizationHumanlikeMemoryAuditEntry {
+  id: string
+  turnId: string | null
+  sessionId: string | null
+  createdAt: number
+  sourceChannels: string[]
+  relationshipContext: string
+  relationshipThreadAnchor: string
+  emotionalResidueTags: string[]
+  initiativeKind: string
+  embodimentSummary: string
+  autobiographicalImpact: string
+  whyRemember: string
+  confidence: number
+  naturalRecallLine: string
+  userCorrectableFields: string[]
+  revisionMemoryIds: string[]
+  downrankMemoryIds: string[]
+  corrections: AlicizationHumanlikeMemoryCorrectionRecord[]
+}
+
+export interface AlicizationHumanlikeMemoryCorrectionRecord {
+  status: 'recorded'
+  candidateId: string
+  field: string
+  previousValue: string | null
+  correctedValue: string
+  reason: string | null
+  decisionTraceId: string | null
+  turnId: string | null
+  sessionId: string | null
+  createdAt: number
 }
 
 export type AlicizationPersonStateEvolutionShiftKind

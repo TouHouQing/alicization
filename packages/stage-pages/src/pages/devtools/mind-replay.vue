@@ -8,6 +8,7 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import MindReplayDiagnosisPanel from './components/mind-replay-diagnosis-panel.vue'
+import MindReplayHumanlikeMemoryAuditPanel from './components/mind-replay-humanlike-memory-audit-panel.vue'
 import MindReplayMemoryTraceCard from './components/mind-replay-memory-trace-card.vue'
 
 const store = useAlicizationMindReplayStore()
@@ -335,6 +336,12 @@ async function inspectBenchmarkTurn(turnId: string | null) {
       @update:selected-dimension="store.setSelectedDiagnosisDimension($event)"
       @update:selected-turn-id="store.setSelectedDiagnosisTurnId($event)"
       @inspect-turn="inspectBenchmarkTurn"
+    />
+
+    <MindReplayHumanlikeMemoryAuditPanel
+      :decision-trace-id="decisionTraceId.trim() || null"
+      :turn-id="turnId.trim() || null"
+      :limit="normalizedLimit"
     />
 
     <section
