@@ -2,20 +2,24 @@ import type {
   AlicizationAuditLogInput,
   AlicizationConversationTurnInput,
   AlicizationConversationTurnRecord,
+  AlicizationCorrectHumanlikeMemoryAuditPayload,
   AlicizationDialogueRespondedPayload,
+  AlicizationHumanlikeMemoryAuditEntry,
+  AlicizationHumanlikeMemoryCorrectionRecord,
   AlicizationLearningArtifactLedgerRecord,
+  AlicizationListHumanlikeMemoryAuditPayload,
   AlicizationListLearningArtifactLedgerPayload,
-  AlicizationListPersonStateUpdatesPayload,
-  AlicizationRunReplayBenchmarkPayload,
-  AlicizationRunReplayBenchmarkResult,
   AlicizationListMemoryDecisionTracesPayload,
-  AlicizationMemoryDecisionTraceRecord,
   AlicizationListMindTurnEventsPayload,
+  AlicizationListPersonStateUpdatesPayload,
+  AlicizationMemoryDecisionTraceRecord,
   AlicizationMindTurnEventRecord,
   AlicizationPersonStateUpdateRecord,
-  AlicizationSelfEvolutionVersionRuntimeSnapshot,
   AlicizationProactiveFeedbackKind,
   AlicizationProactiveFeedbackPayload,
+  AlicizationRunReplayBenchmarkPayload,
+  AlicizationRunReplayBenchmarkResult,
+  AlicizationSelfEvolutionVersionRuntimeSnapshot,
   CharacterPerformanceCapabilitiesManifest,
 } from '../../../shared/eventa'
 import type {
@@ -34,17 +38,20 @@ import {
   electronAlicizationAckDialogue,
   electronAlicizationAppendConversationTurn,
   electronAlicizationClearAllConversations,
+  electronAlicizationCorrectHumanlikeMemoryAudit,
   electronAlicizationGetSelfEvolutionState,
   electronAlicizationListConversationTurns,
+  electronAlicizationListHumanlikeMemoryAudit,
   electronAlicizationListLearningArtifactLedger,
   electronAlicizationListMemoryDecisionTraces,
   electronAlicizationListMindTurnEvents,
   electronAlicizationListPersonStateUpdates,
-  electronAlicizationRunReplayBenchmark,
   electronAlicizationReplayDialogues,
   electronAlicizationReportProactiveFeedback,
+  electronAlicizationRunReplayBenchmark,
   electronAlicizationSetActiveSession,
 } from '../../../shared/eventa'
+import { buildHumanlikeMemoryAuditEntriesFromMindTurnEvents } from './humanlike-memory'
 import { personStateUpdateRecordFromMindTurnEvent } from './person-state-update-surface'
 import {
   createAlicizationReplayBenchmarkRuntime,
@@ -117,6 +124,15 @@ interface RegisterAlicizationDialogueInvokeHandlersOptions {
       kind?: AlicizationMindTurnEventRecord['kind']
       limit?: number
     }) => Promise<AlicizationMindTurnEventRecord[]>
+    appendMindTurnEvents?: (events: Array<{
+      decisionTraceId: string
+      turnId?: string | null
+      sessionId?: string | null
+      origin?: 'user-turn' | 'subconscious-proactive' | 'system'
+      kind: 'humanlike-memory-corrected'
+      payload?: Record<string, unknown> | null
+      createdAt?: number
+    }>) => Promise<void>
     overrideMemoryStats: (next: any) => Promise<any>
     getMetaValue: (key: string) => Promise<string | undefined>
     setMetaValue: (key: string, value: string) => Promise<void>
@@ -336,6 +352,61 @@ export function registerAlicizationDialogueInvokeHandlers(options: RegisterAlici
       .map(row => personStateUpdateRecordFromMindTurnEvent(row))
       .filter((row): row is AlicizationPersonStateUpdateRecord => Boolean(row))
       .slice(0, Math.max(1, payload.limit ?? 20))
+  }))
+  registerInvokeHandler(electronAlicizationListHumanlikeMemoryAudit, async (payload: AlicizationListHumanlikeMemoryAuditPayload) => await withCardScope(payload.cardId, async () => {
+    const rows = await getAlicizationDb().listMindTurnEvents({
+      decisionTraceId: payload.decisionTraceId,
+      turnId: payload.turnId,
+      limit: payload.limit ? Math.max(payload.limit * 6, payload.limit) : 180,
+    })
+    return buildHumanlikeMemoryAuditEntriesFromMindTurnEvents(rows)
+      .slice(0, Math.max(1, payload.limit ?? 20)) as AlicizationHumanlikeMemoryAuditEntry[]
+  }))
+  registerInvokeHandler(electronAlicizationCorrectHumanlikeMemoryAudit, async (payload: AlicizationCorrectHumanlikeMemoryAuditPayload) => await withCardScope(payload.cardId, async () => {
+    const candidateId = sanitizeText(payload.candidateId)
+    const field = sanitizeText(payload.field)
+    const correctedValue = sanitizeText(payload.correctedValue, '')
+    if (!candidateId || !field || !correctedValue)
+      throw new Error('humanlike memory correction requires candidateId, field, and correctedValue')
+
+    const decisionTraceId = sanitizeText(payload.decisionTraceId) || `humanlike-memory-correction:${candidateId}`
+    const turnId = sanitizeText(payload.turnId) || null
+    const sessionId = normalizeSessionId(payload.sessionId) || null
+    const previousValue = sanitizeText(payload.previousValue) || null
+    const reason = sanitizeText(payload.reason) || null
+    const createdAt = Date.now()
+    const record: AlicizationHumanlikeMemoryCorrectionRecord = {
+      status: 'recorded',
+      candidateId,
+      field,
+      previousValue,
+      correctedValue,
+      reason,
+      decisionTraceId,
+      turnId,
+      sessionId,
+      createdAt,
+    }
+    const alicizationDb = getAlicizationDb()
+    if (typeof alicizationDb.appendMindTurnEvents !== 'function')
+      throw new Error('humanlike memory correction requires mind-turn event persistence')
+
+    await alicizationDb.appendMindTurnEvents([{
+      decisionTraceId,
+      turnId,
+      sessionId,
+      origin: 'user-turn',
+      kind: 'humanlike-memory-corrected',
+      payload: {
+        candidateId,
+        field,
+        previousValue,
+        correctedValue,
+        reason,
+      },
+      createdAt,
+    }])
+    return record
   }))
   registerInvokeHandler(electronAlicizationGetSelfEvolutionState, async payload => await withCardScope(payload.cardId, async () => await getSelfEvolutionState()))
 

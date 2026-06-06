@@ -1,4 +1,4 @@
-import type { AlicizationGender, AlicizationPersonalityState } from '@proj-alicization/stage-ui/stores/alicization-bridge'
+import type { AlicizationGender } from '@proj-alicization/stage-ui/stores/alicization-bridge'
 
 import {
   defaultAlicizationCardName,
@@ -28,8 +28,10 @@ export interface SoulForgeDraft {
   customDirectives: string
 }
 
+export type SoulForgeTraitKey = keyof Pick<SoulForgeDraft, 'obedience' | 'liveliness' | 'sensibility'>
+
 export interface SoulForgeTraitMeta {
-  key: keyof AlicizationPersonalityState
+  key: SoulForgeTraitKey
 }
 
 export const soulForgeTraitMetas: SoulForgeTraitMeta[] = [

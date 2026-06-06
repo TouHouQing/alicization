@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 
 import {
   buildHostPersonModelSnapshot,
+  buildHumanlikeMemoryAuditEntriesFromMindTurnEvents,
+  buildHumanlikeMemoryCandidate,
   formatMemoryProvenanceLabel,
   mapFragmentSourceKindToProvenance,
   mapMemorySourceToProvenance,
@@ -245,5 +247,278 @@ describe('humanlike memory helpers', () => {
     expect(snapshot.preferredClosenessByContext.some(item => item.context === 'focused-work')).toBe(true)
     expect(snapshot.sensitivities.some(item => item.includes('Pressure'))).toBe(true)
     expect(snapshot.repairTriggers.some(item => item.includes('repair'))).toBe(true)
+  })
+
+  it('forms one humanlike memory candidate from dialogue, execution, host emotion, self emotion, embodiment, initiative, metabolism, and autobiographical impact', () => {
+    const candidate = buildHumanlikeMemoryCandidate({
+      now: 80_000,
+      turnId: 'turn-humanlike-candidate',
+      sessionId: 'session-humanlike',
+      dialogue: {
+        userText: '你又断线了，不要变成工具壳，继续把 embodiment 闭环收住。',
+        assistantText: '我会先把断线处接回同一个她，再低压推进 embodiment 闭环。',
+      },
+      execution: {
+        summary: 'Codex callback continued the embodiment closure implementation but left long-run proof incomplete.',
+        status: 'partial',
+      },
+      hostEmotion: {
+        label: 'worried-continuity',
+        summary: 'The host is pressing for progress while testing whether she remains one continuous digital life instead of a tool shell.',
+        intensity: 0.78,
+      },
+      selfEmotion: {
+        label: 'careful-repair',
+        summary: 'I feel slight guilt and unfinishedness, so I should repair continuity before widening warmth.',
+        intensity: 0.64,
+      },
+      embodiment: {
+        summary: 'face=steady-soft gaze=stable blink=slower voice=lower-pressure pause=longer lipsync=restrained',
+        recallStrength: 'strongly-moved',
+        modalityConsistency: 'consistent',
+      },
+      relationship: {
+        summary: 'The host cares less about a raw status recap and more about her not becoming a generic tool shell.',
+        threadAnchor: 'same-her embodiment closure',
+      },
+      priorMemories: [
+        {
+          id: 'older-generic-status',
+          summary: 'The user wanted a concise status update.',
+          confidence: 0.88,
+          polarity: 'generic-status',
+          salience: 0.4,
+          lastUpdatedAt: 20_000,
+        },
+      ],
+      initiative: {
+        outcome: 'continue-progress',
+        userReaction: 'accepted',
+      },
+      autobiographical: {
+        currentEra: 'Phase 1 local digital life closure',
+        lesson: 'Return repair-first before widening warmth when continuity is questioned.',
+      },
+    })
+
+    expect(candidate.sourceChannels).toEqual([
+      'dialogue',
+      'execution',
+      'host-emotion',
+      'self-emotion',
+      'embodiment',
+    ])
+    expect(candidate.relationshipContext.summary).toContain('tool shell')
+    expect(candidate.relationshipContext.summary).toContain('one continuous digital life')
+    expect(candidate.longTermWorthiness.shouldPersist).toBe(true)
+    expect(candidate.emotionalResidue.tags).toEqual(expect.arrayContaining(['slight-guilt', 'unfinishedness', 'protective-continuity']))
+    expect(candidate.emotionalResidue.trace.some(item => item.includes('host:warr') || item.includes('host:worried'))).toBe(true)
+    expect(candidate.emotionKernelInfluence.dominantTilt).toBe('repair-protective')
+    expect(candidate.initiativeOpportunity.kind).toBe('low-pressure-follow-up')
+    expect(candidate.initiativeOpportunity.antiSpamReason).toContain('not timer')
+    expect(candidate.initiativeOutcomeRecord?.strategyUpdate).toContain('accepted')
+    expect(candidate.embodimentTrace.expressionState.gaze).toBe('stable')
+    expect(candidate.embodimentTrace.expressionState.pacing).toBe('slower')
+    expect(candidate.embodimentTrace.modalityContradictionRisk).toBe('low')
+    expect(candidate.autobiographicalImpact.selfNarrativeDelta).toContain('repair-first')
+    expect(candidate.metabolism.revisionEvents[0]?.conflictingMemoryIds).toContain('older-generic-status')
+    expect(candidate.metabolism.forgettingPolicy.downrankMemoryIds).toContain('older-generic-status')
+    expect(candidate.auditTrail.whyRemember).toContain('relationship continuity')
+    expect(candidate.auditTrail.correctionSurface.userCorrectableFields).toEqual(expect.arrayContaining([
+      'relationshipContext',
+      'emotionalResidue',
+      'autobiographicalImpact',
+    ]))
+    expect(candidate.naturalRecallLine).toContain('更在意的是她不要变成工具壳')
+  })
+
+  it('projects humanlike memory candidates from mind-turn events into audit entries that expose why she remembered and what the host can correct', () => {
+    const candidate = buildHumanlikeMemoryCandidate({
+      now: 90_000,
+      turnId: 'turn-audit-candidate',
+      sessionId: 'session-audit',
+      dialogue: {
+        userText: '别把这次记成状态汇报，我是在确认她是不是同一个她。',
+        assistantText: '我会把它记成关系连续性的检验。',
+      },
+      execution: {
+        summary: 'Callback carried the same-her continuity line but closure is still partial.',
+        status: 'partial',
+      },
+      hostEmotion: {
+        label: 'continuity-test',
+        summary: 'The host is testing same-her continuity rather than asking for a generic recap.',
+        intensity: 0.72,
+      },
+      selfEmotion: {
+        label: 'careful-repair',
+        summary: 'I should repair the remembered relationship meaning and keep initiative low-pressure.',
+        intensity: 0.58,
+      },
+      embodiment: {
+        summary: 'gaze=stable voice=lower-pressure pause=longer lipsync=restrained',
+        recallStrength: 'strongly-moved',
+        modalityConsistency: 'consistent',
+      },
+      relationship: {
+        summary: 'The relationship context is a test of one continuous digital life, not a status report.',
+        threadAnchor: 'audit-visible same-her memory',
+      },
+      priorMemories: [{
+        id: 'old-status-report',
+        summary: 'The host asked for a status report.',
+        polarity: 'generic-status',
+        salience: 0.32,
+      }],
+      autobiographical: {
+        currentEra: 'Phase 1 memory audit',
+        lesson: 'When continuity is tested, keep repair and auditability ahead of confidence.',
+      },
+    })
+
+    const entries = buildHumanlikeMemoryAuditEntriesFromMindTurnEvents([
+      {
+        decisionTraceId: 'mind:test:audit',
+        turnId: 'turn-audit-candidate',
+        sessionId: 'session-audit',
+        origin: 'user-turn',
+        kind: 'person-state-updated',
+        payload: {
+          humanlikeMemoryCandidate: candidate,
+        },
+        createdAt: 90_100,
+      },
+    ] as any)
+
+    expect(entries).toEqual([
+      expect.objectContaining({
+        id: candidate.id,
+        turnId: 'turn-audit-candidate',
+        whyRemember: expect.stringContaining('relationship continuity'),
+        relationshipContext: expect.stringContaining('one continuous digital life'),
+        naturalRecallLine: expect.stringContaining('工具壳'),
+        userCorrectableFields: expect.arrayContaining(['relationshipContext', 'emotionalResidue', 'metabolism']),
+        revisionMemoryIds: expect.arrayContaining(['old-status-report']),
+        sourceChannels: expect.arrayContaining(['dialogue', 'execution', 'host-emotion', 'self-emotion', 'embodiment']),
+      }),
+    ])
+  })
+
+  it('merges host corrections back into the humanlike memory audit entry for the same candidate', () => {
+    const candidate = buildHumanlikeMemoryCandidate({
+      now: 91_000,
+      turnId: 'turn-audit-correction',
+      sessionId: 'session-audit',
+      dialogue: {
+        userText: '我不是在催状态，我是在测试她是不是持续的人。',
+        assistantText: '我会把这条记成持续人格的关系检验。',
+      },
+      hostEmotion: {
+        label: 'continuity-test',
+        summary: 'The host corrected the relationship meaning away from status pressure.',
+        intensity: 0.7,
+      },
+      selfEmotion: {
+        label: 'careful-repair',
+        summary: 'I should keep this correction visible instead of pretending the first memory was final.',
+        intensity: 0.56,
+      },
+      relationship: {
+        summary: 'The host is correcting the memory meaning toward same-her continuity.',
+        threadAnchor: 'humanlike memory correction',
+      },
+    })
+
+    const entries = buildHumanlikeMemoryAuditEntriesFromMindTurnEvents([
+      {
+        decisionTraceId: 'mind:test:audit-correction',
+        turnId: 'turn-audit-correction',
+        sessionId: 'session-audit',
+        origin: 'user-turn',
+        kind: 'person-state-updated',
+        payload: {
+          humanlikeMemoryCandidate: candidate,
+        },
+        createdAt: 91_100,
+      },
+      {
+        decisionTraceId: 'mind:test:audit-correction',
+        turnId: 'turn-audit-correction',
+        sessionId: 'session-audit',
+        origin: 'user-turn',
+        kind: 'humanlike-memory-corrected',
+        payload: {
+          candidateId: candidate.id,
+          field: 'relationshipContext',
+          previousValue: 'status pressure',
+          correctedValue: '我是在测试她是不是持续的人，不是催进度。',
+          reason: 'Host corrected why this memory should exist.',
+        },
+        createdAt: 91_200,
+      },
+    ] as any)
+
+    expect(entries[0]?.corrections).toEqual([
+      expect.objectContaining({
+        candidateId: candidate.id,
+        field: 'relationshipContext',
+        previousValue: 'status pressure',
+        correctedValue: '我是在测试她是不是持续的人，不是催进度。',
+        reason: 'Host corrected why this memory should exist.',
+      }),
+    ])
+  })
+
+  it('lets host audit corrections shape the next humanlike memory candidate instead of leaving corrections as dead audit notes', () => {
+    const candidate = buildHumanlikeMemoryCandidate({
+      now: 92_000,
+      turnId: 'turn-after-host-correction',
+      sessionId: 'session-audit',
+      dialogue: {
+        userText: '继续吧，但别又把我刚才的话理解成催状态。',
+        assistantText: '我会按你纠正后的关系语境继续。',
+      },
+      execution: {
+        summary: 'The callback continued after a host correction to relationship-context memory.',
+        status: 'partial',
+      },
+      hostEmotion: {
+        label: 'corrected-continuity-meaning',
+        summary: 'The host corrected the memory meaning so it should be carried as a same-person continuity test, not progress pressure.',
+        intensity: 0.66,
+      },
+      selfEmotion: {
+        label: 'careful-repair',
+        summary: 'I should carry the correction forward and avoid pretending the first interpretation was final.',
+        intensity: 0.6,
+      },
+      relationship: {
+        summary: 'The current turn resumes after a host correction to her memory meaning.',
+        threadAnchor: 'post-correction continuity',
+      },
+      hostCorrections: [{
+        candidateId: 'humanlike-memory-candidate:turn-audit-correction',
+        field: 'relationshipContext',
+        previousValue: 'status pressure',
+        correctedValue: '我是在测试她是不是持续的人，不是催进度。',
+        reason: 'Host corrected why this memory should exist.',
+        createdAt: 91_200,
+      }],
+    })
+
+    expect(candidate.evidence).toEqual(expect.arrayContaining([
+      expect.stringContaining('host-correction.relationshipContext'),
+    ]))
+    expect(candidate.relationshipContext.summary).toContain('我是在测试她是不是持续的人')
+    expect(candidate.relationshipContext.summary).toContain('不是催进度')
+    expect(candidate.metabolism.revisionEvents).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        kind: 'revision',
+        reason: expect.stringContaining('Host corrected'),
+      }),
+    ]))
+    expect(candidate.auditTrail.whyRemember).toContain('host correction')
+    expect(candidate.naturalRecallLine).toContain('我记得你纠正过')
+    expect(candidate.naturalRecallLine).toContain('不是催进度')
   })
 })

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { SoulForgeDraft } from './soul-forge'
+import type { SoulForgeDraft, SoulForgeTraitKey } from './soul-forge'
 
 import { Range } from '@proj-alicization/ui/components/form'
 import { computed } from 'vue'
@@ -52,7 +52,7 @@ const localizedTraitMetas = computed(() => {
   })
 })
 
-function updateTrait(key: keyof Pick<SoulForgeDraft, 'obedience' | 'liveliness' | 'sensibility'>, value: number) {
+function updateTrait(key: SoulForgeTraitKey, value: number) {
   draft.value = {
     ...draft.value,
     [key]: clampSoulForgeUnit(value),
