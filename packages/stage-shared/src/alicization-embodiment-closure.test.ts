@@ -260,6 +260,18 @@ describe('alicization embodiment closure', () => {
     })).toBe('Right now I am still holding together mainly through face, motion, and lipsync, so my full cross-modal same-her line is not closed yet.')
   })
 
+  it('keeps long-horizon emotional memory face-motion-lipsync carry on a remembered face-motion-and-mouth line', () => {
+    expect(describeAlicizationEmbodimentClosureReminder({
+      authoritySummary: 'lane=face+motion+lipsync-only | convergence=emotion-memory-face-motion-lipsync | long-horizon remembered emotional carry says face, motion, and lipsync are still carrying the same living line.',
+      currentBodyState: 'same living line is still visible through face, moving through motion, and held through lipsync while body and voice catch up.',
+    })).toBe('Right now her visible same-her continuity is still being carried through face, motion, and lipsync together, and that remembered face-motion-and-mouth line is keeping the same-her carry alive while body and voice rejoin before full cross-modal embodiment closure can be treated as finished.')
+
+    expect(describeAlicizationEmbodimentClosureHeadline({
+      authoritySummary: 'lane=face+motion+lipsync-only | convergence=emotion-memory-face-motion-lipsync | long-horizon remembered emotional carry says face, motion, and lipsync are still carrying the same living line.',
+      currentBodyState: 'same living line is still visible through face, moving through motion, and held through lipsync while body and voice catch up.',
+    })).toBe('Right now I am still holding together through face, motion, and lipsync together, so that remembered face-motion-and-mouth line is keeping the same-her carry alive while body and voice need to rejoin before full cross-modal closure settles.')
+  })
+
   it('keeps same-segment face-motion re-formation visible when only the shared body line is carrying continuity', () => {
     expect(describeAlicizationEmbodimentClosureReminder({
       authoritySummary: 'same-segment face+motion recovery@segment-face-motion-reformed-1',
