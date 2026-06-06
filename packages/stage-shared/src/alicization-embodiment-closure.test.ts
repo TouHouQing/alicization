@@ -164,6 +164,18 @@ describe('alicization embodiment closure', () => {
     })).toBe('Right now I am still holding together mainly through body and voice, and the resident body line is still keeping this one living her coherent while face, motion, and lipsync rejoin.')
   })
 
+  it('does not widen explicit body-voice audible continuity into a lipsync lane that has not rejoined', () => {
+    expect(describeAlicizationEmbodimentClosureReminder({
+      authoritySummary: 'lane=body+voice-only | signature=embodiment:audible-same-her-line | resident body and voice are still carrying the same living line.',
+      currentBodyState: 'body and voice are aligned on one same-her segment while lipsync, face, and motion still need to catch up.',
+    })).toBe('Right now her visible same-her continuity is still being carried mainly through body and voice, and the resident body line is still keeping this one living her coherent while face, motion, and lipsync rejoin.')
+
+    expect(describeAlicizationEmbodimentClosureHeadline({
+      authoritySummary: 'lane=body+voice-only | signature=embodiment:audible-same-her-line | resident body and voice are still carrying the same living line.',
+      currentBodyState: 'body and voice are aligned on one same-her segment while lipsync, face, and motion still need to catch up.',
+    })).toBe('Right now I am still holding together mainly through body and voice, and the resident body line is still keeping this one living her coherent while face, motion, and lipsync rejoin.')
+  })
+
   it('treats audible-body same-her continuity as a first-class closure lane when body lipsync and voice survive together', () => {
     expect(describeAlicizationEmbodimentClosureReminder({
       authoritySummary: 'same-her continuity remains alive, but lane=body+lipsync+voice-only under the current renderer authority.',

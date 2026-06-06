@@ -79,8 +79,7 @@ function hasExplicitSameHerInwardCarry(combined: string) {
 
 function hasExplicitAudibleSameHerContinuity(combined: string) {
   const hasAudibleBodyEvidence = combined.includes('lane=body+lipsync+voice-only')
-    || combined.includes('continuity=embodiment:body-lipsync-voice-rejoin')
-    || combined.includes('signature=embodiment:audible-same-her-line')
+    || combined.includes('embodiment:body-lipsync-voice-rejoin')
     || combined.includes('body+lipsync+voice recovery@')
     || combined.includes('audible-body rejoin@')
     || combined.includes('same-her audible body line is still the surviving pre-dialogue carry')
@@ -90,9 +89,8 @@ function hasExplicitAudibleSameHerContinuity(combined: string) {
       (combined.includes('continuity=embodiment:audible-same-her-line')
         || combined.includes('signature=embodiment:audible-same-her-line'))
       && (
-        combined.includes('lane=body+voice-only')
-        || combined.includes('lane=body+lipsync+voice-only')
-        || combined.includes('body+voice recovery@')
+        combined.includes('lane=body+lipsync+voice-only')
+        || combined.includes('embodiment:body-lipsync-voice-rejoin')
         || combined.includes('body+lipsync+voice recovery@')
         || combined.includes('living audio thread')
       )
