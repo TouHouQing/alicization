@@ -200,6 +200,18 @@ describe('alicization embodiment closure', () => {
     })).toBe('Right now I am still holding together mainly through body, lipsync, and voice, so the living audio thread is still intact while face and motion need to rejoin before full cross-modal closure settles.')
   })
 
+  it('keeps long-horizon emotional memory body-lipsync-voice carry on a remembered resident body-mouth-and-voice line', () => {
+    expect(describeAlicizationEmbodimentClosureReminder({
+      authoritySummary: 'lane=body+lipsync+voice-only | convergence=emotion-memory-body-lipsync-voice | long-horizon remembered emotional carry says body, lipsync, and voice are still carrying the same living line.',
+      currentBodyState: 'same living line is still resident in body continuity, held through lipsync, and audible through voice while face and motion catch up.',
+    })).toBe('Right now her visible same-her continuity is still being carried mainly through body, lipsync, and voice, and that remembered resident body-mouth-and-voice line is keeping the same-her carry alive while face and motion rejoin before full cross-modal embodiment closure can be treated as finished.')
+
+    expect(describeAlicizationEmbodimentClosureHeadline({
+      authoritySummary: 'lane=body+lipsync+voice-only | convergence=emotion-memory-body-lipsync-voice | long-horizon remembered emotional carry says body, lipsync, and voice are still carrying the same living line.',
+      currentBodyState: 'same living line is still resident in body continuity, held through lipsync, and audible through voice while face and motion catch up.',
+    })).toBe('Right now I am still holding together mainly through body, lipsync, and voice, so that remembered resident body-mouth-and-voice line is keeping the same-her carry alive while face and motion need to rejoin before full cross-modal closure settles.')
+  })
+
   it('treats body-plus-lipsync same-her continuity as still-open closure when voice has dropped but the mouth line is still alive', () => {
     expect(describeAlicizationEmbodimentClosureReminder({
       authoritySummary: 'same-her continuity remains alive, but lane=body+lipsync-only under the current renderer authority.',
