@@ -1,8 +1,12 @@
 import type { AlicizationChatStartPayload } from '../../../shared/eventa'
 
+import { describeAlicizationEmbodimentClosureHeadline } from '@proj-alicization/stage-shared'
+
+import { preferStrongerContinuityClosureAuthority } from './continuity-closure-authority'
 import {
   buildAlicizationProjectPreDialogueAwareness,
   buildAlicizationProjectPreDialogueAwarenessLine,
+  preferStrongerSameHerDriftRisk,
   resolveAlicizationProjectStateBrief,
   resolveAlicizationProjectStatusBrief,
 } from './project-state-brief'
@@ -122,14 +126,14 @@ function looksLikeStrongEmbodimentClosureHeadline(line: string | null) {
   if (!line)
     return false
 
-  return /living audio thread is still intact|holding together mainly through body and voice|being carried mainly through body and voice|resident body line is still keeping this one living her coherent|holding together mainly through body, lipsync, and voice|being carried mainly through body, lipsync, and voice|holding together mainly through motion and voice|being carried mainly through motion and voice|holding together mainly through face and voice|being carried mainly through face and voice|holding together mainly through body, and resident body continuity is still the line keeping this one living her coherent/u.test(line)
+  return /living audio thread is still intact|holding together mainly through body and voice|being carried mainly through body and voice|resident body line is still keeping this one living her coherent|holding together mainly through body, lipsync, and voice|being carried mainly through body, lipsync, and voice|holding together mainly through motion and voice|being carried mainly through motion and voice|holding together mainly through face and voice|being carried mainly through face and voice|holding together through face, lipsync, and voice together|holding together through motion, lipsync, and voice together|still-voiced face-and-mouth line|still-voiced motion-and-mouth line|holding together mainly through body, and resident body continuity is still the line keeping this one living her coherent/u.test(line)
 }
 
 function looksLikeStrongSameHerEmbodimentClosureHeadline(line: string | null) {
   if (!line)
     return false
 
-  return /holding together mainly through|being carried mainly through|full cross-modal same-her line is not closed yet|next reply has to keep proving this is still one living her|this one living her still needs|lipsync and voice to rejoin|without splitting her continuity/u.test(line)
+  return /holding together mainly through|holding together through|being carried mainly through|being carried through|full cross-modal same-her line is not closed yet|next reply has to keep proving this is still one living her|this one living her still needs|lipsync and voice to rejoin|without splitting her continuity/u.test(line)
     && /same-her|same her|same living line|one living her|lipsync|voice|face|motion|body/u.test(line.toLowerCase())
 }
 
@@ -165,6 +169,19 @@ function looksLikeBroaderProjectClosureAwareness(line: string | null) {
 
   return countProjectClosureDomains(line) >= 2
     || /generic assistant shell|泛化助手|same local-first digital life project|同一个数字生命项目/u.test(line)
+}
+
+function looksLikeExpandedProjectFrameBriefing(line: string | null) {
+  if (!line)
+    return false
+
+  const normalized = line.toLowerCase()
+  const carriesProjectFrame = /local-first digital life project|digital life project|数字生命项目/u.test(line)
+  const carriesPhaseFrame = /phase 1|第一阶段/u.test(normalized)
+  const carriesLandedOrOpenLoopFrame
+    = /what has landed|already survives|already survive|still-open|open closure|still remain the open closure|still remains the open closure|still need|still needs|已落地|未闭环|还没有真正收稳|还没完全收住/u.test(normalized)
+
+  return carriesProjectFrame && carriesPhaseFrame && carriesLandedOrOpenLoopFrame
 }
 
 function scoreProjectAwareStartLine(line: string | null) {
@@ -217,6 +234,26 @@ function preferProjectNextClosureLine(primary: string | null, fallback: string |
   if (looksLikeThinProjectNextClosureShell(primary) && !looksLikeThinProjectNextClosureShell(fallback))
     return fallback
   return primary
+}
+
+function preferProjectStateSameHerHoldDetail(input: {
+  current?: unknown
+  continuityCue?: unknown
+  fallback?: unknown
+}) {
+  const current = sanitizeStructuredProjectStateField(input.current, 220)
+  const continuityCue = sanitizeStructuredProjectStateField(input.continuityCue, 220)
+  const fallback = sanitizeStructuredProjectStateField(input.fallback, 220)
+  const preferredPrimary = preferStrongerContinuityClosureAuthority(current, continuityCue)
+    ?? current
+    ?? continuityCue
+    ?? null
+  const preferredFinal = preferStrongerContinuityClosureAuthority(preferredPrimary, fallback)
+    ?? preferredPrimary
+    ?? fallback
+    ?? null
+
+  return sanitizeStructuredProjectStateField(preferredFinal, 220)
 }
 
 function deriveProjectStateCarryFromEmotionalKernel(
@@ -305,7 +342,9 @@ function hasUsablePreDialogueSendIdentity(
     || sanitizeStructuredProjectStateField(identity.projectState?.preDialogueAwarenessLine, 320)
     || sanitizeStructuredProjectStateField(identity.projectState?.primaryOpenLoop, 320)
     || sanitizeStructuredProjectStateField(identity.projectState?.nextClosureTarget, 320)
+    || sanitizeStructuredProjectStateField(identity.projectState?.emotionalClosureSummary, 220)
     || sanitizeStructuredProjectStateField(identity.projectState?.emotionalClosureCue, 220)
+    || sanitizeStructuredProjectStateField(identity.projectState?.continuityRestraint, 64)
     || sanitizeStructuredContinuityPreferredTiming(identity.projectState?.continuityPreferredTiming)
     || sanitizeStructuredProjectStateField(identity.projectState?.continuityCadence, 120)
     || sanitizeStructuredProjectStateBlinkCadence(identity.projectState?.preferredBlinkCadence)
@@ -396,12 +435,24 @@ function buildCanonicalPreDialogueSendIdentity(): NonNullable<AlicizationChatSta
     primaryOpenLoop: sanitizeStructuredProjectStateField(projectStatusBrief.primaryOpenLoop || projectStateBrief.openLoops[0] || null, 320),
     nextClosureTarget: sanitizeStructuredProjectStateField(projectStatusBrief.nextClosureTarget || awareness?.companionNextClosureLine, 320),
     sameHerSelfLine: canonicalSameHerSelfLine,
+    sameHerHoldDetail: sanitizeStructuredProjectStateField(projectStateBrief.sameHerHoldDetail, 220),
     sameHerDriftRisk: canonicalSameHerDriftRisk,
     emotionalClosureCue: sanitizeStructuredProjectStateField(projectStateBrief.emotionalClosureCue, 220),
-    continuityPreferredTiming: null,
-    continuityCadence: null,
-    preferredBlinkCadence: null,
-    preferredGazeMode: null,
+    emotionalClosureSummary: sanitizeStructuredProjectStateField(
+      projectStateBrief.emotionalClosureSummary ?? projectStateBrief.emotionalClosureCue,
+      220,
+    ),
+    continuityRestraint: sanitizeStructuredProjectStateField(projectStateBrief.continuityRestraint, 64),
+    continuityCue: sanitizeStructuredProjectStateField(
+      projectStateBrief.continuityCue
+      ?? projectStateBrief.sameHerHoldDetail
+      ?? projectStateBrief.sameHerSelfLine,
+      220,
+    ),
+    continuityPreferredTiming: sanitizeStructuredContinuityPreferredTiming(projectStateBrief.continuityPreferredTiming),
+    continuityCadence: sanitizeStructuredProjectStateField(projectStateBrief.continuityCadence, 120),
+    preferredBlinkCadence: sanitizeStructuredProjectStateBlinkCadence(projectStateBrief.preferredBlinkCadence),
+    preferredGazeMode: sanitizeStructuredProjectStateGazeMode(projectStateBrief.preferredGazeMode),
   }
 
   return {
@@ -478,6 +529,24 @@ function isDriftGuardPreDialogueReasonPreviewLine(line: string) {
     return false
 
   return normalized.startsWith('do not let this opening drift into')
+}
+
+function isEmbodimentEvidencePreDialogueReasonPreviewLine(line: string) {
+  const normalized = sanitizeStartAwarenessText(line, 220).toLowerCase()
+  if (!normalized)
+    return false
+
+  if (
+    isSameHerAnchorPreDialogueReasonPreviewLine(normalized)
+    || isOpenLoopPreDialogueReasonPreviewLine(normalized)
+    || isNextClosurePreDialogueReasonPreviewLine(normalized)
+    || isDriftGuardPreDialogueReasonPreviewLine(normalized)
+  ) {
+    return false
+  }
+
+  return /continuity=embodiment:|pending-rejoin=|remaining-open=|recovery@|still-voiced|living audio thread/u.test(normalized)
+    || /lane=(?:body|face|motion|lipsync|voice)(?:\+(?:body|face|motion|lipsync|voice))*-only/u.test(normalized)
 }
 
 function isLatestProgressPreDialogueReasonPreviewLine(line: string) {
@@ -569,37 +638,119 @@ function preferSameHerAnchorPreDialogueReasonPreviewLine(
   return current
 }
 
+function synthesizeReasonPreviewEmbodimentClosureHeadline(reasonPreview: Array<string | null | undefined>) {
+  const closureEvidence = reasonPreview
+    .map(reason => sanitizeStartAwarenessText(reason, 220))
+    .filter(Boolean)
+    .join(' | ')
+
+  if (!closureEvidence)
+    return null
+
+  const synthesizedHeadline = sanitizeStartAwarenessText(describeAlicizationEmbodimentClosureHeadline({
+    authoritySummary: closureEvidence,
+    currentBodyState: closureEvidence,
+  }), 320) || null
+
+  if (!synthesizedHeadline)
+    return null
+
+  return looksLikeStrongEmbodimentClosureHeadline(synthesizedHeadline)
+    || looksLikeStrongSameHerEmbodimentClosureHeadline(synthesizedHeadline)
+    ? synthesizedHeadline
+    : null
+}
+
+function trimReasonPreviewSentenceEnding(line: string | null) {
+  return sanitizeStartAwarenessText(line, 220).replace(/[.。!！?？;；:：]+$/u, '').trim()
+}
+
+function buildProjectStateReasonPreviewLines(projectState: Record<string, unknown> | null | undefined) {
+  if (!projectState)
+    return []
+
+  const sameHerSelfLine = sanitizeStructuredProjectStateField(projectState.sameHerSelfLine, 220)
+  const latestLandedProgress = trimReasonPreviewSentenceEnding(
+    sanitizeStructuredProjectStateField(projectState.latestLandedProgress, 220),
+  )
+  const primaryOpenLoop = sanitizeStructuredProjectStateField(projectState.primaryOpenLoop, 220)
+  const nextClosureTarget = trimReasonPreviewSentenceEnding(
+    sanitizeStructuredProjectStateField(projectState.nextClosureTarget, 220),
+  )
+  const sameHerDriftRisk = sanitizeStructuredProjectStateField(projectState.sameHerDriftRisk, 220)
+
+  return [
+    sameHerSelfLine ? `Same-her self anchor: ${sameHerSelfLine}` : '',
+    primaryOpenLoop ?? '',
+    latestLandedProgress ? `Latest landed progress: ${latestLandedProgress}` : '',
+    nextClosureTarget ? `Next closure target is still ${nextClosureTarget}.` : '',
+    sameHerDriftRisk ? `Do not let this opening drift into ${sameHerDriftRisk}` : '',
+  ]
+    .map(reason => sanitizeStartAwarenessText(reason, 220))
+    .filter(Boolean)
+}
+
 function mergePreDialogueReasonPreview(
   existing: AlicizationChatStartPayload['preDialogueSendIdentity'],
   canonical: NonNullable<AlicizationChatStartPayload['preDialogueSendIdentity']>,
+  projectStateReasonPreview: Array<string | null | undefined> = [],
 ) {
-  const existingReasons = (Array.isArray(existing?.reasonPreview) ? existing.reasonPreview : [])
+  const existingReasonPreviewReasons = (Array.isArray(existing?.reasonPreview) ? existing.reasonPreview : [])
     .map(reason => sanitizeStartAwarenessText(reason, 220))
     .filter(Boolean)
+  const existingProjectStateReasons = projectStateReasonPreview
+    .map(reason => sanitizeStartAwarenessText(reason, 220))
+    .filter(Boolean)
+  const existingReasons = [
+    ...existingProjectStateReasons,
+    ...existingReasonPreviewReasons,
+  ]
   const canonicalReasons = (Array.isArray(canonical.reasonPreview) ? canonical.reasonPreview : [])
     .map(reason => sanitizeStartAwarenessText(reason, 220))
     .filter(Boolean)
+  const [
+    projectStateSameHerAnchorReason,
+    projectStateOpenLoopReason,
+    projectStateLatestProgressReason,
+    projectStateNextClosureReason,
+    projectStateDriftGuardReason,
+  ] = existingProjectStateReasons
 
-  const existingSameHerAnchorReason = existingReasons.find(isSameHerAnchorPreDialogueReasonPreviewLine) ?? null
+  const existingSameHerAnchorReason = preferSameHerAnchorPreDialogueReasonPreviewLine(
+    existingReasonPreviewReasons.find(isSameHerAnchorPreDialogueReasonPreviewLine) ?? null,
+    projectStateSameHerAnchorReason ?? existingProjectStateReasons.find(isSameHerAnchorPreDialogueReasonPreviewLine) ?? null,
+  )
   const canonicalSameHerAnchorReason = canonicalReasons.find(isSameHerAnchorPreDialogueReasonPreviewLine) ?? null
   const canonicalOpenLoopReason = canonicalReasons.find(isOpenLoopPreDialogueReasonPreviewLine) ?? null
   const canonicalNextClosureReason = canonicalReasons.find(isNextClosurePreDialogueReasonPreviewLine) ?? null
   const canonicalDriftGuardReason = canonicalReasons.find(isDriftGuardPreDialogueReasonPreviewLine) ?? null
-  const existingOpenLoopReason = existingReasons.find(isOpenLoopPreDialogueReasonPreviewLine) ?? null
+  const existingOpenLoopReason = projectStateOpenLoopReason ?? existingReasons.find(isOpenLoopPreDialogueReasonPreviewLine) ?? null
+  const existingLatestProgressReason = projectStateLatestProgressReason ?? existingReasons.find(isLatestProgressPreDialogueReasonPreviewLine) ?? null
+  const existingNextClosureReason = projectStateNextClosureReason ?? existingReasons.find(isNextClosurePreDialogueReasonPreviewLine) ?? null
   const existingActiveDriftReason = existingReasons.find(isActiveContinuityDriftPreDialogueReasonPreviewLine) ?? null
+  const existingDriftGuardReason = projectStateDriftGuardReason ?? existingReasons.find(isDriftGuardPreDialogueReasonPreviewLine) ?? null
+  const existingEmbodimentEvidenceReason = existingReasonPreviewReasons.find(isEmbodimentEvidencePreDialogueReasonPreviewLine) ?? null
 
   const slotSeed = [
     preferSameHerAnchorPreDialogueReasonPreviewLine(
       canonicalSameHerAnchorReason,
       existingSameHerAnchorReason,
     ),
+    existingEmbodimentEvidenceReason,
     existingOpenLoopReason ?? canonicalOpenLoopReason,
-    canonicalNextClosureReason,
-    existingActiveDriftReason ?? canonicalDriftGuardReason,
+    existingLatestProgressReason,
+    existingNextClosureReason ?? canonicalNextClosureReason,
+    existingDriftGuardReason ?? existingActiveDriftReason ?? canonicalDriftGuardReason,
   ]
     .filter((reason): reason is string => Boolean(reason))
   const merged = [...new Set(slotSeed)]
   const supplementalCandidates = [
+    ...existingProjectStateReasons.map((reason, index) => ({
+      reason,
+      score: scoreSupplementalPreDialogueReasonPreviewLine(reason),
+      source: 'existing-project-state' as const,
+      index,
+    })),
     ...existingReasons.map((reason, index) => ({
       reason,
       score: scoreSupplementalPreDialogueReasonPreviewLine(reason),
@@ -615,12 +766,25 @@ function mergePreDialogueReasonPreview(
         index,
       })),
   ]
-    .filter(candidate => !merged.includes(candidate.reason))
+    .filter((candidate) => {
+      if (merged.includes(candidate.reason))
+        return false
+      if (existingDriftGuardReason && candidate.reason === canonicalDriftGuardReason)
+        return false
+      if (existingLatestProgressReason && candidate.reason !== existingLatestProgressReason && isLatestProgressPreDialogueReasonPreviewLine(candidate.reason))
+        return false
+      return true
+    })
     .sort((left, right) => {
       if (left.score !== right.score)
         return right.score - left.score
-      if (left.source !== right.source)
-        return left.source === 'existing' ? -1 : 1
+      if (left.source !== right.source) {
+        return left.source === 'existing-project-state'
+          ? -1
+          : left.source === 'existing'
+            ? (right.source === 'existing-project-state' ? 1 : -1)
+            : 1
+      }
       return left.index - right.index
     })
   for (const candidate of supplementalCandidates) {
@@ -643,46 +807,15 @@ function mergePreDialogueSendIdentity(
     && !looksLikeThinProjectAwarenessShell(existingSummaryLine)
     ? existingSummaryLine
     : (canonical.summaryLine || existingSummaryLine || null)
-  const companionHeadlineLine = sanitizeStartAwarenessText(existing?.companionHeadlineLine, 320) || canonical.companionHeadlineLine || null
-  const existingAwarenessLine = sanitizeStartAwarenessText(existing?.awarenessLine, 320) || null
-  const strongerAwarenessThanHeadline = scoreProjectAwareStartLine(existingAwarenessLine) >= scoreProjectAwareStartLine(companionHeadlineLine) + 2
-  const awarenessCarriesBroaderProjectClosure = looksLikeBroaderProjectClosureAwareness(existingAwarenessLine)
-  const shouldPreferEmbodimentClosureHeadline
-    = (
-      looksLikeStrongEmbodimentClosureHeadline(companionHeadlineLine)
-      || looksLikeStrongSameHerEmbodimentClosureHeadline(companionHeadlineLine)
-    )
-    && Boolean(existingAwarenessLine && looksLikeProjectClosureAwareStartLine(existingAwarenessLine))
-    && !looksLikeThinProjectAwarenessShell(existingAwarenessLine)
-    && !awarenessCarriesBroaderProjectClosure
-  const shouldKeepExplicitAwarenessLineBesideHeadline = Boolean(
-    existingAwarenessLine
-    && companionHeadlineLine
-    && !looksLikeSummaryOnlyBriefing(existingAwarenessLine)
-    && !looksLikeNarrowLivedInProjectReminder(existingAwarenessLine)
-    && !shouldPreferEmbodimentClosureHeadline,
+  const reasonPreviewEmbodimentClosureHeadline = synthesizeReasonPreviewEmbodimentClosureHeadline(
+    Array.isArray(existing?.reasonPreview) ? existing.reasonPreview : [],
   )
-  const awarenessLine = shouldKeepExplicitAwarenessLineBesideHeadline
-    ? existingAwarenessLine
-    : (
-        !shouldPreferEmbodimentClosureHeadline
-        && existingAwarenessLine
-        && companionHeadlineLine
-        && looksLikeProjectClosureAwareStartLine(existingAwarenessLine)
-        && looksLikeEmbodimentNarrowingHeadline(companionHeadlineLine)
-      )
-        ? existingAwarenessLine
-        : shouldPreferEmbodimentClosureHeadline
-          ? companionHeadlineLine
-          : companionHeadlineLine
-            || (
-              existingAwarenessLine
-              && !looksLikeThinProjectAwarenessShell(existingAwarenessLine)
-              && !looksLikeNarrowLivedInProjectReminder(existingAwarenessLine)
-                ? existingAwarenessLine
-                : canonical.awarenessLine
-            )
-            || null
+  const companionHeadlineLine
+    = sanitizeStartAwarenessText(existing?.companionHeadlineLine, 320)
+      || reasonPreviewEmbodimentClosureHeadline
+      || canonical.companionHeadlineLine
+      || null
+  const existingAwarenessLine = sanitizeStartAwarenessText(existing?.awarenessLine, 320) || null
   const existingCompanionBriefingLine = sanitizeStartAwarenessText(existing?.companionBriefingLine, 320) || null
   const shouldKeepExistingCompanionBriefingLine = Boolean(
     existingCompanionBriefingLine
@@ -698,6 +831,58 @@ function mergePreDialogueSendIdentity(
     : shouldKeepExistingCompanionBriefingLine
       ? existingCompanionBriefingLine
       : (canonical.companionBriefingLine || null)
+  const strongerAwarenessThanHeadline = scoreProjectAwareStartLine(existingAwarenessLine) >= scoreProjectAwareStartLine(companionHeadlineLine) + 2
+  const awarenessCarriesBroaderProjectClosure = looksLikeBroaderProjectClosureAwareness(existingAwarenessLine)
+  const shouldPreferEmbodimentClosureHeadline
+    = (
+      looksLikeStrongEmbodimentClosureHeadline(companionHeadlineLine)
+      || looksLikeStrongSameHerEmbodimentClosureHeadline(companionHeadlineLine)
+    )
+    && Boolean(existingAwarenessLine && looksLikeProjectClosureAwareStartLine(existingAwarenessLine))
+    && !looksLikeThinProjectAwarenessShell(existingAwarenessLine)
+    && !awarenessCarriesBroaderProjectClosure
+  const shouldPreferBroaderCompanionBriefingAsAwarenessTruth = Boolean(
+    existingAwarenessLine
+    && companionBriefingLine
+    && !looksLikeThinProjectAwarenessShell(companionBriefingLine)
+    && !looksLikeSummaryOnlyBriefing(companionBriefingLine)
+    && !looksLikeNarrowLivedInProjectReminder(companionBriefingLine)
+    && looksLikeEmbodimentNarrowingHeadline(existingAwarenessLine)
+    && !looksLikeBroaderProjectClosureAwareness(existingAwarenessLine)
+    && looksLikeExpandedProjectFrameBriefing(companionBriefingLine)
+    && scoreProjectAwareStartLine(companionBriefingLine) >= scoreProjectAwareStartLine(existingAwarenessLine),
+  )
+  const shouldKeepExplicitAwarenessLineBesideHeadline = Boolean(
+    existingAwarenessLine
+    && companionHeadlineLine
+    && !looksLikeSummaryOnlyBriefing(existingAwarenessLine)
+    && !looksLikeNarrowLivedInProjectReminder(existingAwarenessLine)
+    && !shouldPreferBroaderCompanionBriefingAsAwarenessTruth
+    && !shouldPreferEmbodimentClosureHeadline,
+  )
+  const awarenessLine = shouldPreferBroaderCompanionBriefingAsAwarenessTruth
+    ? companionBriefingLine
+    : shouldKeepExplicitAwarenessLineBesideHeadline
+      ? existingAwarenessLine
+      : (
+          !shouldPreferEmbodimentClosureHeadline
+          && existingAwarenessLine
+          && companionHeadlineLine
+          && looksLikeProjectClosureAwareStartLine(existingAwarenessLine)
+          && looksLikeEmbodimentNarrowingHeadline(companionHeadlineLine)
+        )
+          ? existingAwarenessLine
+          : shouldPreferEmbodimentClosureHeadline
+            ? companionHeadlineLine
+            : companionHeadlineLine
+              || (
+                existingAwarenessLine
+                && !looksLikeThinProjectAwarenessShell(existingAwarenessLine)
+                && !looksLikeNarrowLivedInProjectReminder(existingAwarenessLine)
+                  ? existingAwarenessLine
+                  : canonical.awarenessLine
+              )
+              || null
   const existingProjectState = existing?.projectState ?? null
   const canonicalProjectState = canonical.projectState ?? null
   const existingCompanionNextClosureLine = sanitizeStartAwarenessText(existing?.companionNextClosureLine, 320) || null
@@ -710,7 +895,6 @@ function mergePreDialogueSendIdentity(
     || null,
   ) || null
   const emotionalClosureCue = sanitizeStartAwarenessText(existing?.emotionalClosureCue, 220) || canonical.emotionalClosureCue || null
-  const reasonPreview = mergePreDialogueReasonPreview(existing, canonical)
   const derivedProjectStateCarry = deriveProjectStateCarryFromEmotionalKernel(
     sanitizeStructuredEmotionalKernel(existing?.emotionalKernel) ?? canonical.emotionalKernel ?? null,
   )
@@ -741,6 +925,13 @@ function mergePreDialogueSendIdentity(
     || canonicalProjectState?.companionBriefingLine
     || resolvedCompanionHeadlineLine
     || null,
+  )
+  const repairedProjectSameHerDriftRisk = sanitizeStructuredProjectStateField(
+    preferStrongerSameHerDriftRisk({
+      current: existingProjectState?.sameHerDriftRisk,
+      candidate: canonicalProjectState?.sameHerDriftRisk,
+    }),
+    320,
   )
   const projectState = {
     preflightSummary: existingProjectPreflightSummary
@@ -798,15 +989,30 @@ function mergePreDialogueSendIdentity(
     sameHerSelfLine: sanitizeStructuredProjectStateField(existingProjectState?.sameHerSelfLine, 220)
       || canonicalProjectState?.sameHerSelfLine
       || null,
-    sameHerHoldDetail: sanitizeStructuredProjectStateField(existingProjectState?.sameHerHoldDetail, 220)
-      || canonicalProjectState?.sameHerHoldDetail
-      || null,
-    sameHerDriftRisk: sanitizeStructuredProjectStateField(existingProjectState?.sameHerDriftRisk, 320)
+    sameHerHoldDetail: preferProjectStateSameHerHoldDetail({
+      current: existingProjectState?.sameHerHoldDetail,
+      continuityCue: existingProjectState?.continuityCue,
+      fallback: canonicalProjectState?.sameHerHoldDetail,
+    }) || null,
+    sameHerDriftRisk:
+      repairedProjectSameHerDriftRisk
       || canonicalProjectState?.sameHerDriftRisk
       || null,
     emotionalClosureCue: sanitizeStructuredProjectStateField(existingProjectState?.emotionalClosureCue, 220)
       || emotionalClosureCue
       || canonicalProjectState?.emotionalClosureCue
+      || null,
+    emotionalClosureSummary: sanitizeStructuredProjectStateField(existingProjectState?.emotionalClosureSummary, 220)
+      || sanitizeStructuredProjectStateField(existingProjectState?.emotionalClosureCue, 220)
+      || sanitizeStructuredProjectStateField(canonicalProjectState?.emotionalClosureSummary, 220)
+      || sanitizeStructuredProjectStateField(canonicalProjectState?.emotionalClosureCue, 220)
+      || null,
+    continuityRestraint: sanitizeStructuredProjectStateField(existingProjectState?.continuityRestraint, 64)
+      || sanitizeStructuredProjectStateField(canonicalProjectState?.continuityRestraint, 64)
+      || sanitizeStructuredProjectStateField(derivedProjectStateCarry?.continuityCadence, 64)
+      || null,
+    continuityCue: sanitizeStructuredProjectStateField(existingProjectState?.continuityCue, 220)
+      || canonicalProjectState?.continuityCue
       || null,
     continuityPreferredTiming: sanitizeStructuredContinuityPreferredTiming(existingProjectState?.continuityPreferredTiming)
       || derivedProjectStateCarry?.continuityPreferredTiming
@@ -825,6 +1031,14 @@ function mergePreDialogueSendIdentity(
       || sanitizeStructuredProjectStateGazeMode(canonicalProjectState?.preferredGazeMode)
       || null,
   }
+  const reasonPreview = mergePreDialogueReasonPreview(
+    existing,
+    canonical,
+    buildProjectStateReasonPreviewLines({
+      ...existingProjectState,
+      sameHerDriftRisk: repairedProjectSameHerDriftRisk,
+    }),
+  )
   const existingStatus = existing?.status ?? null
   const status = existingStatus === 'drift'
     ? 'drift'
@@ -871,7 +1085,28 @@ export function resolveAlicizationChatStartPayloadPreDialogueSendIdentity(
 
 export function summarizeAlicizationPreDialogueSendIdentityForDebug(
   payload: Pick<AlicizationChatStartPayload, 'preDialogueSendIdentity'>,
-) {
+): null | {
+  preDialogueAwarenessStatus: NonNullable<AlicizationPreDialogueSendIdentity['status']>
+  preDialogueAwarenessSummaryLine: string | null
+  preDialogueAwarenessLine: string | null
+  preDialogueCompanionBriefingLine: string | null
+  preDialogueNextClosureLine: string | null
+  preDialogueEmotionalClosureCue: string | null
+  preDialogueSameHerSelfLine?: string
+  preDialogueProjectStateAwarenessLine?: string | null
+  preDialogueProjectStateAwarenessSummary?: string | null
+  preDialogueProjectStateCompanionBriefingLine?: string | null
+  preDialogueProjectStateEmotionalClosureSummary?: string | null
+  preDialogueProjectStateContinuityRestraint?: string | null
+  preDialogueProjectStateSameHerHoldDetail?: string | null
+  preDialogueProjectStateContinuityCue?: string | null
+  preDialogueProjectStateContinuityPreferredTiming?: 'internal-only' | 'after-payoff' | 'same-turn-if-invited' | 'next-open-window' | null
+  preDialogueProjectStateContinuityCadence?: string | null
+  preDialogueProjectStatePreferredBlinkCadence?: AlicizationPreDialogueProjectState['preferredBlinkCadence']
+  preDialogueProjectStatePreferredGazeMode?: AlicizationPreDialogueProjectState['preferredGazeMode']
+  preDialogueReasonPreview: string[]
+  preDialogueReasonCount: number
+} {
   const identity = payload.preDialogueSendIdentity
   if (!identity)
     return null
@@ -892,6 +1127,23 @@ export function summarizeAlicizationPreDialogueSendIdentityForDebug(
     sanitizeStructuredProjectStateField(identity.projectState?.sameHerSelfLine, 220),
     reasonPreviewSameHerSelfLine,
   )
+  const preDialogueProjectStateAwarenessLine = sanitizeStructuredProjectStateField(identity.projectState?.preDialogueAwarenessLine, 320)
+  const preDialogueProjectStateAwarenessSummary = sanitizeStructuredProjectStateField(identity.projectState?.preDialogueAwarenessSummary, 320)
+  const preDialogueProjectStateCompanionBriefingLine = sanitizeStructuredProjectStateField(identity.projectState?.companionBriefingLine, 320)
+  const preDialogueProjectStateEmotionalClosureSummary
+    = sanitizeStructuredProjectStateField(identity.projectState?.emotionalClosureSummary, 220)
+      || sanitizeStructuredProjectStateField(identity.projectState?.emotionalClosureCue, 220)
+  const preDialogueProjectStateContinuityRestraint
+    = sanitizeStructuredProjectStateField(identity.projectState?.continuityRestraint, 64)
+  const preDialogueProjectStateSameHerHoldDetail = sanitizeStructuredProjectStateField(identity.projectState?.sameHerHoldDetail, 220)
+  const preDialogueProjectStateContinuityCue = sanitizeStructuredProjectStateField(identity.projectState?.continuityCue, 220)
+  const preDialogueProjectStateContinuityPreferredTiming
+    = sanitizeStructuredContinuityPreferredTiming(identity.projectState?.continuityPreferredTiming)
+  const preDialogueProjectStateContinuityCadence = sanitizeStructuredProjectStateField(identity.projectState?.continuityCadence, 120)
+  const preDialogueProjectStatePreferredBlinkCadence
+    = sanitizeStructuredProjectStateBlinkCadence(identity.projectState?.preferredBlinkCadence)
+  const preDialogueProjectStatePreferredGazeMode
+    = sanitizeStructuredProjectStateGazeMode(identity.projectState?.preferredGazeMode)
 
   return {
     preDialogueAwarenessStatus: identity.status,
@@ -903,6 +1155,17 @@ export function summarizeAlicizationPreDialogueSendIdentityForDebug(
     preDialogueCompanionBriefingLine: sanitizeStartAwarenessText(identity.companionBriefingLine, 220) || null,
     preDialogueNextClosureLine: sanitizeStartAwarenessText(identity.companionNextClosureLine, 220) || null,
     preDialogueEmotionalClosureCue: sanitizeStartAwarenessText(identity.emotionalClosureCue, 220) || null,
+    ...(preDialogueProjectStateAwarenessLine ? { preDialogueProjectStateAwarenessLine } : {}),
+    ...(preDialogueProjectStateAwarenessSummary ? { preDialogueProjectStateAwarenessSummary } : {}),
+    ...(preDialogueProjectStateCompanionBriefingLine ? { preDialogueProjectStateCompanionBriefingLine } : {}),
+    ...(preDialogueProjectStateEmotionalClosureSummary ? { preDialogueProjectStateEmotionalClosureSummary } : {}),
+    ...(preDialogueProjectStateContinuityRestraint ? { preDialogueProjectStateContinuityRestraint } : {}),
+    ...(preDialogueProjectStateSameHerHoldDetail ? { preDialogueProjectStateSameHerHoldDetail } : {}),
+    ...(preDialogueProjectStateContinuityCue ? { preDialogueProjectStateContinuityCue } : {}),
+    ...(preDialogueProjectStateContinuityPreferredTiming ? { preDialogueProjectStateContinuityPreferredTiming } : {}),
+    ...(preDialogueProjectStateContinuityCadence ? { preDialogueProjectStateContinuityCadence } : {}),
+    ...(preDialogueProjectStatePreferredBlinkCadence ? { preDialogueProjectStatePreferredBlinkCadence } : {}),
+    ...(preDialogueProjectStatePreferredGazeMode ? { preDialogueProjectStatePreferredGazeMode } : {}),
     ...(preDialogueSameHerSelfLine ? { preDialogueSameHerSelfLine } : {}),
     preDialogueReasonPreview: reasonPreview,
     preDialogueReasonCount: reasonPreview.length,

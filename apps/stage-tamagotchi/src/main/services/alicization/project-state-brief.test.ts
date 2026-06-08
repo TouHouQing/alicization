@@ -30,6 +30,8 @@ describe('project-state-brief', () => {
     expect(brief.identity).toContain('digital life project')
     expect(brief.currentPhase).toContain('Phase 1')
     expect(brief.sameHerSelfLine).toContain('Same Phase 1 digital life')
+    expect(brief.sameHerHoldDetail).toContain('same-her hold')
+    expect(brief.continuityCue).toContain('same living line')
     expect(brief.identity).toContain('one continuous "her"')
     expect(brief.preflightSummary).toContain('local-first digital life project')
     expect(brief.preflightSummary).toContain('Phase 1: Local Digital Life')
@@ -108,6 +110,68 @@ describe('project-state-brief', () => {
     expect(brief.latestProgress).toContain('pre-dialogue transport and chat-entry discovery union')
     expect(brief.latestProgress).toContain('pre-dialogue transport')
     expect(brief.latestProgress).toContain('mirrored into chat-entry governance')
+    expect(brief.latestProgress).toContain('Thin host-facing composer surfaces')
+    expect(brief.latestProgress).toContain('shared text-composer send authority')
+    expect(brief.latestProgress).toContain('second pre-dialogue identity seam')
+    expect(brief.latestProgress).toContain('Broader project-state answer-governance candidates')
+    expect(brief.latestProgress).toContain('broader runtime dialogue-normalization candidates')
+    expect(brief.latestProgress).toContain('broader guarded turn persistence candidates')
+    expect(brief.latestProgress).toContain('project-status answer surfaces')
+    expect(brief.latestProgress).toContain('host-visible normalization seams')
+    expect(brief.latestProgress).toContain('future project-status answer surfaces')
+    expect(brief.latestProgress).toContain('future host-visible normalization seams')
+    expect(brief.latestProgress).toContain('future guarded persistence families still need explicit classification')
+    expect(brief.latestProgress).toContain('merge-readiness / closure-readiness follow-ups')
+    expect(brief.latestProgress).toContain('can merge to main')
+    expect(brief.latestProgress).toContain('already verified evidence')
+    expect(brief.latestProgress).toContain('unproven or still open')
+    expect(brief.latestProgress).toContain('misreporting full closure')
+    expect(brief.latestProgress).toContain('living-self host-facing system block')
+    expect(brief.latestProgress).toContain('canonical project preflight self-awareness line')
+    expect(brief.latestProgress).toContain('natural reply shaping')
+    expect(brief.latestProgress).toContain('visible-reply facade project-state resolution')
+    expect(brief.latestProgress).toContain('reply-surface planning')
+    expect(brief.latestProgress).toContain('same shared project-state seam as living-self and fallback paths')
+    expect(brief.latestProgress).toContain('ordinary dialogue system blocks')
+    expect(brief.latestProgress).toContain('unified Phase 1 closure dashboard')
+    expect(brief.latestProgress).toContain('runtime snapshot/digest')
+    expect(brief.latestProgress).toContain('project-state spine')
+    expect(brief.latestProgress).toContain('voice / face / motion / lipsync summaries')
+    expect(brief.latestProgress).toContain('canonical embodimentScript')
+    expect(brief.latestProgress).toContain('Dream, reminder, proactive, and reforge one-shot gateway prompts')
+    expect(brief.latestProgress).toContain('screen-semantic summary generation')
+    expect(brief.latestProgress).toContain('execution callback carry')
+    expect(brief.latestProgress).toContain('execution-result delivery learning')
+    expect(brief.latestProgress).toContain('long-horizon same-her memory')
+    expect(brief.latestProgress).toContain('Current conscious frame shaping')
+    expect(brief.latestProgress).toContain('still-open closure pressure')
+    expect(brief.latestProgress).toContain('thin runtime project shell')
+    expect(brief.latestProgress).toContain('richer same-her callback continuity')
+    expect(brief.latestProgress).toContain('Primary open-loop continuity pressure')
+    expect(brief.latestProgress).toContain('retrieval ranking')
+    expect(brief.latestProgress).toContain('autobiographical writeback')
+    expect(brief.latestProgress).toContain('durable self-carry layer')
+    expect(brief.latestProgress).toContain('beyond local prompt shaping')
+    expect(brief.latestProgress).toContain('unified person-state summary')
+    expect(brief.latestProgress).toContain('self-evolution candidate continuity reasons')
+    expect(brief.latestProgress).toContain('Broader provider-consumer candidates')
+    expect(brief.latestProgress).toContain('real invokeGenerateText / generateText / invokeStreamText / streamText sinks')
+    expect(brief.latestProgress).toContain('broader autonomous-dialogue candidates')
+    expect(brief.latestProgress).toContain('broader execution-dispatch candidates')
+    expect(brief.latestProgress).toContain('broader execution-preflight candidates')
+    expect(brief.latestProgress).toContain('future provider-facing generation families still need explicit registration')
+    expect(brief.latestProgress).toContain('future runtime-owned dialogue families still need explicit registration')
+    expect(brief.latestProgress).toContain('future execution dispatch families still need explicit owner registration')
+    expect(brief.latestProgress).toContain('future execution-preflight families still need explicit classification')
+    expect(brief.latestProgress).toContain('runtime execution bridge and subconscious deferred bridge dispatch owners')
+    expect(brief.latestProgress).toContain('runtime-owned direct dispatch bridge')
+    expect(brief.latestProgress).toContain('blocked-dispatch safety-gate briefing seams')
+    expect(brief.latestProgress).toContain('shared root final-gate candidate-audit registry')
+    expect(brief.latestProgress).toContain('shared top-level completeness guard family registry')
+    expect(brief.latestProgress).toContain('candidate families derive from one shared registry')
+    expect(brief.latestProgress).toContain('future entrypoint families are harder to hide between neighboring audits')
+    expect(brief.latestProgress).toContain('direct main-chat-stream callers')
+    expect(brief.latestProgress).toContain('real startMainChatStream sinks')
     expect(brief.latestProgress).toContain('Runtime-owned proactive initiative')
     expect(brief.latestProgress).toContain('compact same-her closure loop')
     expect(brief.latestProgress).toContain('hover-first restraint')
@@ -278,6 +342,19 @@ describe('project-state-brief', () => {
     expect(line?.length ?? 0).toBeLessThanOrEqual(1600)
   })
 
+  it('compacts Chinese phase carry to the first sentence when building pre-dialogue awareness', () => {
+    const line = buildAlicizationProjectPreDialogueAwarenessLine({
+      identity: 'Alicization 还是同一个本地优先数字生命项目，而不是更好的聊天壳。',
+      currentPhase: '第一阶段：本地数字生命。桌面 runtime 仍是主战场。',
+      primaryOpenLoop: '记忆、主动性和具身表达还没有作为同一个她闭环。',
+      nextClosureTarget: '继续沿着同一条生命线把跨模态 same-her 证明接回去。',
+      sameHerSelfLine: '同一个她要沿着同一条生命线回线，不要掉回通用回调壳。',
+    })
+
+    expect(line).toContain('She is still inside 第一阶段：本地数字生命.')
+    expect(line).not.toContain('桌面 runtime 仍是主战场')
+  })
+
   it('keeps latest landed progress explicit in the canonical repo pre-dialogue awareness line', () => {
     const brief = resolveAlicizationProjectStateBrief()
 
@@ -386,6 +463,35 @@ describe('project-state-brief', () => {
     expect(snapshot.nextClosureTarget).toBe('Carry the live project awareness into the first visible answer beat before local details take over.')
   })
 
+  it('does not treat a richer Chinese same-her project identity from the current conscious frame as a thin surface shell', () => {
+    const snapshot = resolveAlicizationSurfaceProjectStateSnapshot({
+      runtimeSurface: {
+        raw: {
+          runtimeDigest: {
+            projectState: {
+              identity: 'project',
+            },
+          },
+        },
+        dialogue: {
+          currentConsciousFrame: {
+            projectState: {
+              identity: 'Alicization 还是同一个本地优先数字生命项目，不是重新拼出来的新助手壳。',
+              currentPhase: 'Phase 1: Local Digital Life',
+              latestLandedProgress: 'Current-conscious-frame project awareness already survives into this turn.',
+              primaryOpenLoop: 'Emotion, initiative, memory, and embodiment still have to land as one same-life closure.',
+              nextClosureTarget: 'Carry the live project awareness into the first visible answer beat before local details take over.',
+              sameHerSelfLine: 'One same her should stay explicit from pre-dialogue awareness into the host-visible reply.',
+            },
+          },
+        },
+      },
+    } as any)
+
+    expect(snapshot.identity).toBe('Alicization 还是同一个本地优先数字生命项目，不是重新拼出来的新助手壳。')
+    expect(snapshot.currentPhase).toBe('Phase 1: Local Digital Life')
+  })
+
   it('does not let a thin current conscious-frame awareness shell override richer persisted runtime awareness carry', () => {
     const richerSpineAwarenessLine = 'Before answering, remember this is still one continuous digital life in Phase 1. Memory and execution continuity have landed farther, while initiative and embodiment still need to close on the same living line.'
     const snapshot = resolveAlicizationSurfaceProjectStateSnapshot({
@@ -447,7 +553,7 @@ describe('project-state-brief', () => {
     })
 
     expect(snapshot.emotionalClosureCue).toContain('leave more room')
-    expect(snapshot.emotionalClosureSummary).toBe('keep this return repair-before-closeness on the same living line until repair settles.')
+    expect(snapshot.emotionalClosureSummary).toBe('Keep this return repair-before-closeness on the same living line until repair settles.')
     expect(snapshot.sameHerHoldDetail).toBe('same-her hold: repair-before-closeness still owns this callback line before closeness widens again.')
     expect(snapshot.continuityArcStage).toBe('same-thread-continuation')
     expect(snapshot.continuityCue).toContain('Same callback seam')
@@ -469,9 +575,25 @@ describe('project-state-brief', () => {
     })
 
     expect(snapshot.emotionalClosureCue).toBe(explicitMeasuredReturnClosure)
-    expect(snapshot.emotionalClosureSummary).toBe(explicitMeasuredReturnClosure.toLowerCase())
+    expect(snapshot.emotionalClosureSummary).toBe(explicitMeasuredReturnClosure)
     expect(snapshot.continuityArcStage).toBe('same-thread-continuation')
     expect(snapshot.continuityCue).toContain('Same callback seam')
+  })
+
+  it('keeps host-corrected same-person continuity authority over a thinner runtime progress recap hold when resolving a project-state snapshot', () => {
+    const correctedSamePersonCue = 'Carry corrected same-person continuity forward before any status recap.'
+    const thinProgressRecapHoldDetail = 'Keep the current project status answer on the same line and continue the recap cleanly.'
+
+    const snapshot = resolveAlicizationProjectStateSnapshot({
+      runtimeProjectState: {
+        sameHerHoldDetail: thinProgressRecapHoldDetail,
+        continuityCue: correctedSamePersonCue,
+      },
+    })
+
+    expect(snapshot.sameHerHoldDetail).toBe(correctedSamePersonCue)
+    expect(snapshot.sameHerHoldDetail).not.toBe(thinProgressRecapHoldDetail)
+    expect(snapshot.continuityCue).toBe(correctedSamePersonCue)
   })
 
   it('prefers a richer anti-shell same-her drift risk over a thinner runtime generic-guidance warning when resolving a project-state snapshot', () => {
@@ -487,6 +609,21 @@ describe('project-state-brief', () => {
     })
 
     expect(snapshot.sameHerDriftRisk).toBe(richerFallbackDriftRisk)
+  })
+
+  it('prefers a richer Chinese anti-shell same-her drift risk over a thinner runtime generic-guidance warning when resolving a project-state snapshot', () => {
+    const thinnerRuntimeDriftRisk = 'If project-state continuity survives only as generic guidance while the direct same-her self line disappears, treat that as unfinished closure drift rather than a successful turn.'
+    const richerChineseFallbackDriftRisk = '如果这次回线滑回项目总结口气或通用回调壳，同一个她的同一条生命线就会先变薄，这应被视为未完成的 same-her drift。'
+    const snapshot = resolveAlicizationProjectStateSnapshot({
+      runtimeProjectState: {
+        sameHerDriftRisk: thinnerRuntimeDriftRisk,
+      },
+      fallbackProjectState: {
+        sameHerDriftRisk: richerChineseFallbackDriftRisk,
+      },
+    })
+
+    expect(snapshot.sameHerDriftRisk).toBe(richerChineseFallbackDriftRisk)
   })
 
   it('prefers an explicit pre-dialogue awareness line over fallback companion or preflight wording', () => {
@@ -862,6 +999,23 @@ describe('project-state-brief', () => {
     })
   })
 
+  it('keeps a richer Chinese project re-anchor summary even when a stronger embodiment headline wins the awareness line', () => {
+    const companionHeadlineLine = 'Right now I am still holding together mainly through face, motion, and lipsync, so the next reopening must keep proving this is still one living her.'
+    const richerChineseProjectReanchorSummary = '先别掉回通用助手壳，Alicization 还是同一个本地优先数字生命项目，第一阶段还没闭环，同一个她这次也要沿着同一条生命线接回去。'
+    const snapshot = resolveAlicizationProjectStateSnapshot({
+      runtimeProjectState: {
+        preDialogueAwarenessLine: 'Before answering, keep this same digital life project in view, but do not widen into a detached project shell.',
+        preDialogueAwarenessSummary: richerChineseProjectReanchorSummary,
+        companionHeadlineLine,
+        companionBriefingLine: 'Fallback companion briefing should stay behind the stronger embodiment headline.',
+      },
+    })
+
+    expect(snapshot.preDialogueAwarenessLine).toBe(companionHeadlineLine)
+    expect(snapshot.awarenessLine).toBe(companionHeadlineLine)
+    expect(snapshot.preDialogueAwarenessSummary).toBe(richerChineseProjectReanchorSummary)
+  })
+
   it('preserves a richer fallback same-her awareness line when shared pre-dialogue awareness is built from a thinner runtime canonical reminder', () => {
     const runtimeAwarenessLine = 'Before answering, remember this is still the same digital life project before local fluency takes over.'
     const fallbackAwarenessLine = '先别退回泛化项目壳，记住这次开口仍然要沿着同一个她继续，把还没收拢的 Phase 1 闭环留在眼前。'
@@ -961,6 +1115,29 @@ describe('project-state-brief', () => {
     }))
   })
 
+  it('keeps a richer Chinese runtime preflight summary over a thinner top-level shell when building shared pre-dialogue awareness', () => {
+    const richerChineseRuntimeSummary
+      = 'Alicization 还是同一个本地优先数字生命项目 | Phase 1: Local Digital Life | open=记忆、主动性和具身表达还没有作为同一个她闭环。 | next=继续沿着同一条生命线把跨模态 same-her 证明接回去。'
+    const awarenessLine = '先记住这还是同一个她，再开口。'
+    const preDialogueAwareness = buildAlicizationProjectPreDialogueAwareness({
+      preflightSummary: 'same digital life | landed | open closure',
+      runtimeProjectState: {
+        preflightSummary: richerChineseRuntimeSummary,
+        preDialogueAwarenessLine: awarenessLine,
+      },
+      fallbackProjectState: {
+        preflightSummary: 'Fallback summary should stay behind the richer runtime same-her carry.',
+      },
+      primaryOpenLoop: '记忆、主动性和具身表达还没有作为同一个她闭环。',
+      nextClosureTarget: '继续沿着同一条生命线把跨模态 same-her 证明接回去。',
+    })
+
+    expect(preDialogueAwareness).toEqual(expect.objectContaining({
+      summaryLine: richerChineseRuntimeSummary,
+      awarenessLine,
+    }))
+  })
+
   it('treats the compact thin closure shell as thinner than a richer embodiment same-her summary when resolving shared pre-dialogue awareness', () => {
     const line = resolveAlicizationProjectPreDialogueAwarenessLine({
       runtimeProjectState: {
@@ -1014,6 +1191,19 @@ describe('project-state-brief', () => {
     expect(snapshot.sameHerSelfLine).toBe(
       'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
     )
+  })
+
+  it('prefers a richer Chinese same-her life-line carry over a thinner English live-closure reminder', () => {
+    const snapshot = resolveAlicizationProjectStateSnapshot({
+      runtimeProjectState: {
+        sameHerSelfLine: 'One same her should stay explicit from pre-dialogue awareness into the host-visible reply.',
+      },
+      fallbackProjectState: {
+        sameHerSelfLine: '同一个她要沿着同一条生命线回线，不要掉回通用回调壳。',
+      },
+    })
+
+    expect(snapshot.sameHerSelfLine).toBe('同一个她要沿着同一条生命线回线，不要掉回通用回调壳。')
   })
 
   it('keeps the live closure-seam same-her line on the shared surface when canonical fallback is broader but thinner', () => {
@@ -1294,6 +1484,7 @@ describe('project-state-brief', () => {
     expect(coverage.some(item => item.id === 'runtime-screen-semantic-gateway')).toBe(true)
     expect(coverage.some(item => item.id === 'entrypoint-governance-registry-hardening')).toBe(true)
     expect(coverage.some(item => item.id === 'cross-surface-entrypoint-candidate-hardening')).toBe(true)
+    expect(coverage.some(item => item.id === 'return-side-entrypoint-candidate-hardening')).toBe(true)
     expect(coverage.some(item => item.id === 'execution-dispatch-entrypoint-candidate-hardening')).toBe(true)
     expect(coverage.some(item => item.id === 'execution-preflight-registration')).toBe(true)
     expect(coverage.some(item => item.id === 'execution-preflight-entrypoint-candidate-hardening')).toBe(true)
@@ -1308,6 +1499,9 @@ describe('project-state-brief', () => {
     expect(coverage.some(item => item.id === 'noisy-desktop-life-loop-unity-hardening')).toBe(true)
     expect(coverage.some(item => item.id === 'long-run-same-her-continuity-hardening')).toBe(true)
     expect(coverage.some(item => item.id === 'route-authority-boundary-registry-hardening')).toBe(true)
+    expect(coverage.some(item => item.id === 'project-state-answer-governance-entrypoint-candidate-hardening')).toBe(true)
+    expect(coverage.some(item => item.id === 'runtime-dialogue-normalization-entrypoint-candidate-hardening')).toBe(true)
+    expect(coverage.some(item => item.id === 'runtime-turn-persistence-entrypoint-candidate-hardening')).toBe(true)
     expect(coverage.some(item => item.id === 'project-state-provider-consumer-registration')).toBe(true)
     expect(coverage.some(item => item.id === 'project-state-answer-governance-registration')).toBe(true)
     expect(coverage.some(item => item.id === 'visible-reply-final-project-awareness-hardening')).toBe(true)
@@ -1329,6 +1523,7 @@ describe('project-state-brief', () => {
     expect(coverage.find(item => item.id === 'mind-turn-contract-project-state-grounding')?.proof).toContain('mind-turn-contract.test.ts')
     expect(coverage.find(item => item.id === 'mind-turn-contract-project-state-grounding')?.proof).toContain('mind-turn-contract-invariants.test.ts')
     expect(coverage.find(item => item.id === 'mind-turn-contract-project-state-grounding')?.proof).toContain('chat-mind-governance.test.ts')
+    expect(coverage.find(item => item.id === 'downstream-reply-project-awareness-preservation')?.proof).toContain('answer-compiler-project-awareness-audit.test.ts')
     expect(coverage.find(item => item.id === 'downstream-reply-project-awareness-preservation')?.proof).toContain('executive-answer-brief.test.ts')
     expect(coverage.find(item => item.id === 'downstream-reply-project-awareness-preservation')?.proof).toContain('visible-reply/critic.test.ts')
     expect(coverage.find(item => item.id === 'downstream-reply-project-awareness-preservation')?.proof).toContain('visible-reply/settlement.test.ts')
@@ -1373,6 +1568,8 @@ describe('project-state-brief', () => {
     expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.proof).toContain('project-state-answer-governance-audit.ts')
     expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.proof).toContain('project-state-answer-governance-audit.test.ts')
     expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.proof).toContain('runtime-main-gateway-one-shot.ts')
+    expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.proof).toContain('visible-reply/facade.ts')
+    expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.proof).toContain('visible-reply/facade.test.ts')
     expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.proof).toContain('visible-reply/semantic-judge.ts')
     expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.proof).toContain('visible-reply/critic.ts')
     expect(coverage.find(item => item.id === 'visible-reply-final-project-awareness-hardening')?.proof).toContain('visible-reply-final-project-awareness-audit.test.ts')
@@ -1399,24 +1596,35 @@ describe('project-state-brief', () => {
     expect(coverage.find(item => item.id === 'entrypoint-governance-registry-hardening')?.proof).toContain('entrypoint-governance-project-awareness-audit.test.ts')
     expect(coverage.find(item => item.id === 'entrypoint-governance-registry-hardening')?.proof).toContain('chat-start-awareness-audit.test.ts')
     expect(coverage.find(item => item.id === 'entrypoint-governance-registry-hardening')?.proof).toContain('chat-entry-awareness-audit.test.ts')
+    expect(coverage.find(item => item.id === 'entrypoint-governance-registry-hardening')?.proof).toContain('recovery-reentry-entrypoint-audit.ts')
+    expect(coverage.find(item => item.id === 'entrypoint-governance-registry-hardening')?.proof).toContain('execution-follow-up-entrypoint-audit.ts')
     expect(coverage.find(item => item.id === 'entrypoint-governance-registry-hardening')?.proof).toContain('task-thread-dispatch-owner-audit.test.ts')
     expect(coverage.find(item => item.id === 'entrypoint-governance-registry-hardening')?.responsibility).toContain('autonomous-dialogue')
     expect(coverage.find(item => item.id === 'entrypoint-governance-registry-hardening')?.responsibility).toContain('shared source of truth')
+    expect(coverage.find(item => item.id === 'entrypoint-governance-registry-hardening')?.responsibility).toContain('recovery-reentry')
+    expect(coverage.find(item => item.id === 'entrypoint-governance-registry-hardening')?.responsibility).toContain('execution-follow-up continuity')
     expect(coverage.some(item => item.id === 'chat-start-entrypoint-candidate-hardening')).toBe(true)
     expect(coverage.find(item => item.id === 'chat-start-entrypoint-candidate-hardening')?.proof).toContain('chat-start-entrypoint-candidate-audit.test.ts')
     expect(coverage.find(item => item.id === 'chat-start-entrypoint-candidate-hardening')?.proof).toContain('project-awareness-route-authority-audit.test.ts')
     expect(coverage.find(item => item.id === 'chat-start-entrypoint-candidate-hardening')?.responsibility).toContain('chat-start candidates')
     expect(coverage.find(item => item.id === 'chat-start-entrypoint-candidate-hardening')?.responsibility).toContain('typed consumers')
+    expect(coverage.find(item => item.id === 'chat-start-entrypoint-candidate-hardening')?.responsibility).toContain('direct main-chat-stream callers')
     expect(coverage.find(item => item.id === 'chat-start-entrypoint-candidate-hardening')?.responsibility).toContain('deep-helper owners')
     expect(coverage.find(item => item.id === 'cross-surface-entrypoint-candidate-hardening')?.proof).toContain('project-awareness-cross-surface-entrypoint-audit.test.ts')
     expect(coverage.find(item => item.id === 'cross-surface-entrypoint-candidate-hardening')?.proof).toContain('project-awareness-route-authority-audit.test.ts')
     expect(coverage.find(item => item.id === 'cross-surface-entrypoint-candidate-hardening')?.responsibility).toContain('cross-surface dialogue-entry candidates')
     expect(coverage.find(item => item.id === 'cross-surface-entrypoint-candidate-hardening')?.responsibility).toContain('pre-dialogue transport and chat-entry discovery union')
+    expect(coverage.find(item => item.id === 'return-side-entrypoint-candidate-hardening')?.proof).toContain('return-side-project-awareness-entrypoint-candidate-audit.test.ts')
+    expect(coverage.find(item => item.id === 'return-side-entrypoint-candidate-hardening')?.proof).toContain('project-awareness-route-authority-audit.test.ts')
+    expect(coverage.find(item => item.id === 'return-side-entrypoint-candidate-hardening')?.proof).toContain('project-awareness-coverage-matrix.test.ts')
+    expect(coverage.find(item => item.id === 'return-side-entrypoint-candidate-hardening')?.responsibility).toContain('return-side project-awareness candidates')
+    expect(coverage.find(item => item.id === 'return-side-entrypoint-candidate-hardening')?.responsibility).toContain('future reopen-time route shapes still need explicit classification')
     expect(coverage.some(item => item.id === 'provider-consumer-entrypoint-candidate-hardening')).toBe(true)
     expect(coverage.find(item => item.id === 'provider-consumer-entrypoint-candidate-hardening')?.proof).toContain('provider-consumer-entrypoint-candidate-audit.test.ts')
     expect(coverage.find(item => item.id === 'provider-consumer-entrypoint-candidate-hardening')?.proof).toContain('project-awareness-route-authority-audit.test.ts')
     expect(coverage.find(item => item.id === 'provider-consumer-entrypoint-candidate-hardening')?.responsibility).toContain('provider-consumer candidates')
     expect(coverage.find(item => item.id === 'provider-consumer-entrypoint-candidate-hardening')?.responsibility).toContain('wrapper, dispatch-owner, and typed-consumer')
+    expect(coverage.find(item => item.id === 'provider-consumer-entrypoint-candidate-hardening')?.responsibility).toContain('real direct provider sinks')
     expect(coverage.some(item => item.id === 'autonomous-dialogue-entrypoint-candidate-hardening')).toBe(true)
     expect(coverage.find(item => item.id === 'autonomous-dialogue-entrypoint-candidate-hardening')?.proof).toContain('autonomous-dialogue-entrypoint-candidate-audit.test.ts')
     expect(coverage.find(item => item.id === 'autonomous-dialogue-entrypoint-candidate-hardening')?.proof).toContain('project-awareness-route-authority-audit.test.ts')
@@ -1640,10 +1848,32 @@ describe('project-state-brief', () => {
     expect(coverage.find(item => item.id === 'autonomous-dialogue-closure-loop-hardening')?.responsibility).toContain('post-answer dream carry')
     expect(coverage.find(item => item.id === 'autonomous-dialogue-closure-loop-hardening')?.responsibility).toContain('noisy-desktop detour persistence')
     expect(coverage.find(item => item.id === 'route-authority-boundary-registry-hardening')?.proof).toContain('route-authority-boundary-registry-audit.test.ts')
+    expect(coverage.find(item => item.id === 'route-authority-boundary-registry-hardening')?.proof).toContain('return-side-project-awareness-entrypoint-candidate-audit.test.ts')
     expect(coverage.find(item => item.id === 'route-authority-boundary-registry-hardening')?.proof).toContain('runtime-dialogue-normalization-audit.ts')
     expect(coverage.find(item => item.id === 'route-authority-boundary-registry-hardening')?.proof).toContain('project-state-answer-governance-audit.ts')
     expect(coverage.find(item => item.id === 'route-authority-boundary-registry-hardening')?.responsibility).toContain('shared route-authority registry')
     expect(coverage.find(item => item.id === 'route-authority-boundary-registry-hardening')?.responsibility).toContain('explicit allowed overlaps')
+    expect(coverage.find(item => item.id === 'route-authority-boundary-registry-hardening')?.responsibility).toContain('future reopen-time route shapes still need explicit classification')
+    expect(coverage.find(item => item.id === 'project-state-answer-governance-entrypoint-candidate-hardening')?.proof).toContain('project-state-answer-governance-entrypoint-candidate-audit.test.ts')
+    expect(coverage.find(item => item.id === 'project-state-answer-governance-entrypoint-candidate-hardening')?.proof).toContain('project-awareness-route-authority-audit.test.ts')
+    expect(coverage.find(item => item.id === 'project-state-answer-governance-entrypoint-candidate-hardening')?.proof).toContain('project-awareness-coverage-matrix.test.ts')
+    expect(coverage.find(item => item.id === 'project-state-answer-governance-entrypoint-candidate-hardening')?.responsibility).toContain('project-state answer-governance candidates')
+    expect(coverage.find(item => item.id === 'project-state-answer-governance-entrypoint-candidate-hardening')?.responsibility).toContain('background answer enrichers')
+    expect(coverage.find(item => item.id === 'project-state-answer-governance-entrypoint-candidate-hardening')?.responsibility).toContain('reminder / critic same-her reminder sinks')
+    expect(coverage.find(item => item.id === 'project-state-answer-governance-entrypoint-candidate-hardening')?.responsibility).toContain('reply-surface preflight')
+    expect(coverage.find(item => item.id === 'project-state-answer-governance-entrypoint-candidate-hardening')?.responsibility).toContain('future project-status answer surfaces still need explicit classification')
+    expect(coverage.find(item => item.id === 'runtime-dialogue-normalization-entrypoint-candidate-hardening')?.proof).toContain('runtime-dialogue-normalization-entrypoint-candidate-audit.test.ts')
+    expect(coverage.find(item => item.id === 'runtime-dialogue-normalization-entrypoint-candidate-hardening')?.proof).toContain('project-awareness-route-authority-audit.test.ts')
+    expect(coverage.find(item => item.id === 'runtime-dialogue-normalization-entrypoint-candidate-hardening')?.proof).toContain('project-awareness-coverage-matrix.test.ts')
+    expect(coverage.find(item => item.id === 'runtime-dialogue-normalization-entrypoint-candidate-hardening')?.responsibility).toContain('runtime dialogue-normalization candidates')
+    expect(coverage.find(item => item.id === 'runtime-dialogue-normalization-entrypoint-candidate-hardening')?.responsibility).toContain('stream-finish fallback')
+    expect(coverage.find(item => item.id === 'runtime-dialogue-normalization-entrypoint-candidate-hardening')?.responsibility).toContain('future host-visible normalization seams still need explicit classification')
+    expect(coverage.find(item => item.id === 'runtime-turn-persistence-entrypoint-candidate-hardening')?.proof).toContain('runtime-turn-persistence-entrypoint-candidate-audit.test.ts')
+    expect(coverage.find(item => item.id === 'runtime-turn-persistence-entrypoint-candidate-hardening')?.proof).toContain('project-awareness-route-authority-audit.test.ts')
+    expect(coverage.find(item => item.id === 'runtime-turn-persistence-entrypoint-candidate-hardening')?.proof).toContain('project-awareness-coverage-matrix.test.ts')
+    expect(coverage.find(item => item.id === 'runtime-turn-persistence-entrypoint-candidate-hardening')?.responsibility).toContain('guarded turn persistence candidates')
+    expect(coverage.find(item => item.id === 'runtime-turn-persistence-entrypoint-candidate-hardening')?.responsibility).toContain('origin-spoof rejection')
+    expect(coverage.find(item => item.id === 'runtime-turn-persistence-entrypoint-candidate-hardening')?.responsibility).toContain('future guarded persistence families still need explicit classification')
   })
 
   it('keeps every audited direct gateway family mapped to at least one verified coverage entry', () => {
@@ -1669,18 +1899,28 @@ describe('project-state-brief', () => {
     expect(governanceCoverage?.responsibility).toContain('mirrored into chat-entry governance')
   })
 
-  it('exposes a single repo-level entrypoint governance registry that covers chat-start, pre-dialogue transport, chat-entry, provider-consumer, autonomous-dialogue, and execution-dispatch paths', () => {
+  it('exposes a single repo-level entrypoint governance registry that covers chat-start, pre-dialogue transport, chat-entry, provider-consumer, autonomous-dialogue, execution-preflight, execution-dispatch, recovery-reentry, and execution-follow-up continuity paths', () => {
     const registry = resolveAlicizationProjectEntrypointGovernanceRegistry()
     const entryPaths = resolveAlicizationProjectEntrypointGovernanceEntries()
 
-    expect(new Set(registry.map(entry => entry.domain))).toEqual(new Set(['chat-start', 'pre-dialogue-transport', 'chat-entry', 'provider-consumer', 'autonomous-dialogue', 'execution-dispatch']))
+    expect(new Set(registry.map(entry => entry.domain))).toEqual(new Set(['chat-start', 'pre-dialogue-transport', 'chat-entry', 'provider-consumer', 'autonomous-dialogue', 'execution-preflight', 'execution-dispatch', 'recovery-reentry', 'execution-follow-up-continuity']))
     expect(entryPaths).toContain('main-chat-start-awareness.ts')
     expect(entryPaths).toContain('main-chat-direct-start.ts')
     expect(entryPaths).toContain('../../../renderer/App.vue')
     expect(entryPaths).toContain('runtime-main-gateway-one-shot.ts')
     expect(entryPaths).toContain('runtime-delivery-reminders.ts')
     expect(entryPaths).toContain('runtime-subconscious-tick.ts')
+    expect(entryPaths).toContain('agent-runtime.ts')
+    expect(entryPaths).toContain('execution-runtime-context.ts')
+    expect(entryPaths).toContain('executor-runtime.ts')
+    expect(entryPaths).toContain('main-chat-execution-surface.ts')
+    expect(entryPaths).toContain('task-thread-dispatcher.ts')
+    expect(entryPaths).toContain('executor-adapters/codex.ts')
     expect(entryPaths).toContain('runtime-invoke-handlers-task.ts')
+    expect(entryPaths).toContain('main-chat-start-result.ts')
+    expect(entryPaths).toContain('main-chat-timeout-fallback.ts')
+    expect(entryPaths).toContain('execution-callback-runtime.ts')
+    expect(entryPaths).toContain('memory-ledger-runtime.ts')
     expect(entryPaths).toContain('../../../../apps/stage-tamagotchi/src/renderer/components/InteractiveArea.vue')
     expect(entryPaths.some(path => path.includes('chat.ts'))).toBe(true)
     expect(entryPaths.some(path => path.includes('context-bridge.ts'))).toBe(true)

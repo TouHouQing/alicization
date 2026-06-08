@@ -47,6 +47,16 @@ interface AlicizationAffectivePressureVector {
   restProtective: number
 }
 
+interface AlicizationInitiativeStrategyResidueCarry {
+  cadenceMode: AlicizationAffectiveResidueMemorySnapshot['relationshipCadence']['cadenceMode']
+  shouldDelayWarmth: boolean
+  summary: string
+  reasonTag: string
+  companionshipDensityDelta: number
+  overreachRiskDelta: number
+  afterglowCarryDelta: number
+}
+
 function clamp01(value: number) {
   if (!Number.isFinite(value))
     return 0
@@ -76,6 +86,59 @@ function uniqueTexts(values: Array<string | null | undefined>, maxItems = 12) {
 
 function compactTextSignals(values: Array<string | null | undefined>) {
   return values.filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+}
+
+function deriveInitiativeStrategyResidueCarry(input: {
+  outcomes: AlicizationRelationshipOutcomeRecord[]
+  reflections: AlicizationMemoryReflectionRecord[]
+  personStateSummary: AlicizationPersonStateEvolutionSummary | null
+}) {
+  const combined = uniqueTexts([
+    ...input.outcomes.flatMap(outcome => [
+      outcome.summary,
+      ...(((outcome as unknown as { sourceSignals?: string[] | null }).sourceSignals) ?? []),
+    ]),
+    ...input.reflections.flatMap(reflection => [
+      reflection.summary,
+      reflection.lesson,
+      ...(((reflection as unknown as { sourceSignals?: string[] | null }).sourceSignals) ?? []),
+    ]),
+    input.personStateSummary?.latestDoctrine ?? null,
+    input.personStateSummary?.latestTrustMeaning ?? null,
+    input.personStateSummary?.latestBurdenLine ?? null,
+    ...(input.personStateSummary?.recentSummaries ?? []),
+  ], 24).join(' ').toLowerCase()
+
+  if (!combined)
+    return null
+
+  const memoryLedCarry = /memory-led|still receiving them|received without obvious resistance|continue gently|gentle.*lower-pressure/u.test(combined)
+  if (memoryLedCarry) {
+    return {
+      cadenceMode: 'warm-hold',
+      shouldDelayWarmth: false,
+      summary: 'The opening is still receiving gentle memory-led initiative, so warmth can stay near without widening too fast.',
+      reasonTag: 'initiative-memory-led-carry',
+      companionshipDensityDelta: 0.08,
+      overreachRiskDelta: -0.08,
+      afterglowCarryDelta: 0.12,
+    } satisfies AlicizationInitiativeStrategyResidueCarry
+  }
+
+  const cautiousCarry = /clearer opening|fresher opening|leave more room|less eager|lower-pressure|quieter timing|quieter timing/u.test(combined)
+  if (cautiousCarry) {
+    return {
+      cadenceMode: 'measured-return',
+      shouldDelayWarmth: true,
+      summary: 'The line should stay lower-pressure, leave more room, and wait for a clearer opening before the next reopen.',
+      reasonTag: 'initiative-cautious-carry',
+      companionshipDensityDelta: -0.04,
+      overreachRiskDelta: 0.12,
+      afterglowCarryDelta: 0.08,
+    } satisfies AlicizationInitiativeStrategyResidueCarry
+  }
+
+  return null
 }
 
 function summarizeOutcomePressure(outcomes: AlicizationRelationshipOutcomeRecord[]) {
@@ -173,14 +236,18 @@ function buildRelationshipCadence(input: {
   hostPersonModel: AlicizationHostPersonModelSnapshot | null
   personStateSummary: AlicizationPersonStateEvolutionSummary | null
   pressure: AlicizationAffectivePressureVector
+  initiativeStrategyCarry?: AlicizationInitiativeStrategyResidueCarry | null
 }) {
   const continuity = input.continuity
   const hostPersonModel = input.hostPersonModel
   const personStateSummary = input.personStateSummary
   const { afterglow, burden, repair, restProtective, trust } = input.pressure
+  const initiativeStrategyCarry = input.initiativeStrategyCarry ?? null
 
   return {
-    cadenceMode: continuity?.rhythmState?.cadenceMode ?? (repair >= 0.54 || restProtective >= 0.5 || burden >= 0.62 ? 'cooldown' : trust >= 0.56 ? 'warm-hold' : afterglow >= 0.42 ? 'measured-return' : 'ready-return'),
+    cadenceMode: continuity?.rhythmState?.cadenceMode
+      ?? initiativeStrategyCarry?.cadenceMode
+      ?? (repair >= 0.54 || restProtective >= 0.5 || burden >= 0.62 ? 'cooldown' : trust >= 0.56 ? 'warm-hold' : afterglow >= 0.42 ? 'measured-return' : 'ready-return'),
     distancePosture: restProtective >= 0.5 || burden >= 0.56
       ? 'protect-space'
       : repair >= 0.56
@@ -192,7 +259,8 @@ function buildRelationshipCadence(input: {
       trust * 0.44
       + afterglow * 0.18
       - burden * 0.34
-      - restProtective * 0.28,
+      - restProtective * 0.28
+      + (initiativeStrategyCarry?.companionshipDensityDelta ?? 0),
     ),
     repairRecovery: clamp01(
       repair * 0.62
@@ -203,7 +271,8 @@ function buildRelationshipCadence(input: {
       burden * 0.52
       + repair * 0.24
       + (continuity?.autonomyPosture === 'protect-space' ? 0.14 : 0)
-      - trust * 0.12,
+      - trust * 0.12
+      + (initiativeStrategyCarry?.overreachRiskDelta ?? 0),
     ),
     fatigueGuard: clamp01(
       restProtective * 0.62
@@ -212,9 +281,10 @@ function buildRelationshipCadence(input: {
     ),
     afterglowCarry: clamp01(
       afterglow * 0.68
-      + Math.max(0, continuity?.rhythmState?.memoryResonance ?? 0) * 0.18,
+      + Math.max(0, continuity?.rhythmState?.memoryResonance ?? 0) * 0.18
+      + (initiativeStrategyCarry?.afterglowCarryDelta ?? 0),
     ),
-    shouldDelayWarmth: repair >= 0.54 || burden >= 0.58,
+    shouldDelayWarmth: initiativeStrategyCarry?.shouldDelayWarmth ?? (repair >= 0.54 || burden >= 0.58),
     shouldProtectRest: restProtective >= 0.5,
     reasonTags: uniqueTexts([
       `cadence-mode:${continuity?.rhythmState?.cadenceMode ?? 'derived'}`,
@@ -223,9 +293,11 @@ function buildRelationshipCadence(input: {
       continuity?.currentRegime ? `regime:${continuity.currentRegime}` : null,
       hostPersonModel?.trustLadder.stage ? `trust-stage:${hostPersonModel.trustLadder.stage}` : null,
       personStateSummary?.latestDoctrine ? `doctrine:${personStateSummary.latestDoctrine}` : null,
+      initiativeStrategyCarry?.reasonTag ?? null,
     ], 10),
     summary: sanitizeText(
-      restProtective >= 0.56
+      initiativeStrategyCarry?.summary
+      ?? (restProtective >= 0.56
         ? 'Rest protection should lead the line before warmth widens again.'
         : repair >= 0.56
           ? 'Repair is still active, so warmth should wait until the seam settles.'
@@ -233,7 +305,7 @@ function buildRelationshipCadence(input: {
             ? 'The line can stay warmly near without crowding the host.'
             : afterglow >= 0.42
               ? 'The line is still carrying afterglow, so timing should stay measured.'
-              : 'The line can return in a measured way without forcing closeness.',
+              : 'The line can return in a measured way without forcing closeness.'),
       200,
     ),
   } satisfies AlicizationAffectiveResidueMemorySnapshot['relationshipCadence']
@@ -271,6 +343,11 @@ export function buildAlicizationAffectiveResidueMemory(input: {
   const personStateSummary = input.personStateEvolutionSummary ?? null
   const hostPersonModel = input.hostPersonModel ?? null
   const relationshipDynamics = input.relationshipDynamics ?? null
+  const initiativeStrategyCarry = deriveInitiativeStrategyResidueCarry({
+    outcomes,
+    reflections,
+    personStateSummary,
+  })
 
   const outcomePressure = summarizeOutcomePressure(outcomes)
   const reflectionPressure = summarizeReflectionPressure(reflections)
@@ -317,6 +394,7 @@ export function buildAlicizationAffectiveResidueMemory(input: {
     hostPersonModel,
     personStateSummary,
     pressure,
+    initiativeStrategyCarry,
   })
 
   const residues = [
@@ -395,8 +473,7 @@ export function buildAlicizationAffectiveResidueMemory(input: {
       ]),
       lastUpdatedAt: input.now,
     }),
-  ].filter((item): item is AlicizationAffectiveResidueEntrySnapshot => Boolean(item))
-    .sort((left, right) => right.intensity - left.intensity)
+  ].filter((item): item is AlicizationAffectiveResidueEntrySnapshot => Boolean(item)).sort((left, right) => right.intensity - left.intensity)
 
   const dominantResidueKind = residues[0]?.kind ?? null
 
@@ -527,8 +604,7 @@ export function buildAlicizationBrowserAffectiveResidueMemory(input: {
       ]),
       lastUpdatedAt: input.now,
     }),
-  ].filter((item): item is AlicizationAffectiveResidueEntrySnapshot => Boolean(item))
-    .sort((left, right) => right.intensity - left.intensity)
+  ].filter((item): item is AlicizationAffectiveResidueEntrySnapshot => Boolean(item)).sort((left, right) => right.intensity - left.intensity)
 
   const dominantResidueKind = residues[0]?.kind ?? deriveDominantResidueKind(pressure)
 
