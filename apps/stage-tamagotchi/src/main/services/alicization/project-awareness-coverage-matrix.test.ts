@@ -1076,6 +1076,25 @@ const coverageRows = [
     ],
   },
   {
+    entry: 'visible-reply-facade-project-awareness',
+    proofKind: 'dynamic',
+    file: './visible-reply-facade-project-awareness-audit.test.ts',
+    evidence: 'visible-reply facade now has dedicated route-level proof that live project-awareness precedence, richer same-her summary precedence, anti-restart closure-pressure unification, dialogue-runtime same-her hold carry, callback continuity carry, and fresher same-her self-line precedence all stay explicit before final host-visible wording settles',
+    fileMustContain: [
+      'keeps one explicit route-level proof that visible-reply facade preserves same-her project awareness before final host-visible wording settles',
+      'expect.objectContaining({ entry: \'visible-reply-facade-live-project-awareness-precedence\' })',
+      'expect.objectContaining({ entry: \'visible-reply-facade-richer-summary-precedence\' })',
+      'expect.objectContaining({ entry: \'visible-reply-facade-anti-restart-closure-pressure-unification\' })',
+      'expect.objectContaining({ entry: \'visible-reply-facade-dialogue-runtime-same-her-hold-carry\' })',
+      'expect.objectContaining({ entry: \'visible-reply-facade-callback-project-continuity-carry\' })',
+      'expect.objectContaining({ entry: \'visible-reply-facade-fresher-same-her-self-line-precedence\' })',
+      'expect(matrixSource).toContain(\'visible-reply-facade-project-awareness-audit.test.ts\')',
+      'expect(auditSource).toContain(\'visible-reply-facade-project-awareness-audit.test.ts\')',
+      'expect(coverageSource).toContain(\'visible-reply-facade-project-awareness-audit.test.ts\')',
+      'Long-run proof is still incomplete',
+    ],
+  },
+  {
     entry: 'answer-planner',
     proofKind: 'dynamic',
     file: './answer-planner-project-awareness-audit.test.ts',
@@ -3832,6 +3851,7 @@ describe('project awareness coverage matrix', () => {
       expect.objectContaining({ entry: 'answer-compiler-project-awareness', proofKind: 'dynamic' }),
       expect.objectContaining({ entry: 'reply-deliberator-project-awareness', proofKind: 'dynamic' }),
       expect.objectContaining({ entry: 'executive-answer-brief-project-awareness', proofKind: 'dynamic' }),
+      expect.objectContaining({ entry: 'visible-reply-facade-project-awareness', proofKind: 'dynamic' }),
       expect.objectContaining({ entry: 'answer-planner', proofKind: 'dynamic' }),
       expect.objectContaining({ entry: 'memory-recollection-ranking-continuity', proofKind: 'dynamic' }),
       expect.objectContaining({ entry: 'humanlike-memory-corrected-same-person-recall', proofKind: 'dynamic' }),
@@ -4022,6 +4042,7 @@ describe('project awareness coverage matrix', () => {
     expect(coverageRows.some(row => row.entry === 'visible-reply-final-project-awareness')).toBe(true)
     expect(coverageRows.some(row => row.entry === 'action-obligation-project-awareness')).toBe(true)
     expect(coverageRows.some(row => row.entry === 'executive-answer-brief-project-awareness')).toBe(true)
+    expect(coverageRows.some(row => row.entry === 'visible-reply-facade-project-awareness')).toBe(true)
     expect(coverageRows.some(row => row.entry === 'memory-recollection-ranking-continuity')).toBe(true)
     expect(coverageRows.some(row => row.entry === 'recollection-visible-reply-same-life')).toBe(true)
     expect(coverageRows.some(row => row.entry === 'response-charter-project-awareness')).toBe(true)
