@@ -1058,6 +1058,24 @@ const coverageRows = [
     ],
   },
   {
+    entry: 'executive-answer-brief-project-awareness',
+    proofKind: 'dynamic',
+    file: './executive-answer-brief-project-awareness-audit.test.ts',
+    evidence: 'executive-answer-brief now has dedicated route-level proof that live project-state closure triad carry, summary-only landed progress carry, broader same-her headline precedence, thin-shell rejection, and audible-body same-her project carry all stay explicit before visible reply wording begins',
+    fileMustContain: [
+      'keeps one explicit route-level proof that executive-answer-brief preserves same-her project awareness before visible reply wording begins',
+      'expect.objectContaining({ entry: \'executive-brief-live-project-state-closure-triad-carry\' })',
+      'expect.objectContaining({ entry: \'executive-brief-summary-only-landed-progress-carry\' })',
+      'expect.objectContaining({ entry: \'executive-brief-broader-same-her-headline-precedence\' })',
+      'expect.objectContaining({ entry: \'executive-brief-thin-shell-rejection\' })',
+      'expect.objectContaining({ entry: \'executive-brief-audible-body-project-carry\' })',
+      'expect(matrixSource).toContain(\'executive-answer-brief-project-awareness-audit.test.ts\')',
+      'expect(auditSource).toContain(\'executive-answer-brief-project-awareness-audit.test.ts\')',
+      'expect(coverageSource).toContain(\'executive-answer-brief-project-awareness-audit.test.ts\')',
+      'Long-run proof is still incomplete',
+    ],
+  },
+  {
     entry: 'answer-planner',
     proofKind: 'dynamic',
     file: './answer-planner-project-awareness-audit.test.ts',
@@ -3813,6 +3831,7 @@ describe('project awareness coverage matrix', () => {
       expect.objectContaining({ entry: 'action-obligation-project-awareness', proofKind: 'dynamic' }),
       expect.objectContaining({ entry: 'answer-compiler-project-awareness', proofKind: 'dynamic' }),
       expect.objectContaining({ entry: 'reply-deliberator-project-awareness', proofKind: 'dynamic' }),
+      expect.objectContaining({ entry: 'executive-answer-brief-project-awareness', proofKind: 'dynamic' }),
       expect.objectContaining({ entry: 'answer-planner', proofKind: 'dynamic' }),
       expect.objectContaining({ entry: 'memory-recollection-ranking-continuity', proofKind: 'dynamic' }),
       expect.objectContaining({ entry: 'humanlike-memory-corrected-same-person-recall', proofKind: 'dynamic' }),
@@ -4002,6 +4021,7 @@ describe('project awareness coverage matrix', () => {
     expect(coverageRows.some(row => row.entry === 'visible-second-pass')).toBe(true)
     expect(coverageRows.some(row => row.entry === 'visible-reply-final-project-awareness')).toBe(true)
     expect(coverageRows.some(row => row.entry === 'action-obligation-project-awareness')).toBe(true)
+    expect(coverageRows.some(row => row.entry === 'executive-answer-brief-project-awareness')).toBe(true)
     expect(coverageRows.some(row => row.entry === 'memory-recollection-ranking-continuity')).toBe(true)
     expect(coverageRows.some(row => row.entry === 'recollection-visible-reply-same-life')).toBe(true)
     expect(coverageRows.some(row => row.entry === 'response-charter-project-awareness')).toBe(true)
