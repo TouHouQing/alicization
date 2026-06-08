@@ -17,6 +17,7 @@ import {
 } from '@proj-alicization/stage-shared'
 
 import { resolveOpenClawEventChannel } from './embodied-channel'
+import { resolveThreadPermissionMode } from './thread-permission'
 
 const openClawDefaultTimeoutMs = 300_000
 const openClawMaxTimeoutMs = 900_000
@@ -26,7 +27,6 @@ const openClawMaxPreviewChars = 4_000
 const openClawDefaultSenderId = 'alicization_host'
 const openClawDefaultRoleName = 'alicization'
 
-type AlicizationTaskPermissionMode = 'none' | 'implicit' | 'explicit'
 type AlicizationTaskEffect = 'observe' | 'mutate' | 'high-impact'
 
 interface AlicizationOpenClawRuntimeConfig {
@@ -243,17 +243,6 @@ function resolveOpenClawConfig(): AlicizationOpenClawRuntimeConfig {
   }
 }
 
-function resolveThreadPermissionMode(thread: AlicizationTaskThreadRecord): AlicizationTaskPermissionMode {
-  const metadataTask = thread.metadata?.task
-  if (metadataTask && typeof metadataTask === 'object' && 'permissionMode' in metadataTask) {
-    const permissionMode = (metadataTask as { permissionMode?: unknown }).permissionMode
-    if (permissionMode === 'explicit' || permissionMode === 'implicit' || permissionMode === 'none')
-      return permissionMode
-  }
-
-  return thread.origin === 'user-turn' ? 'implicit' : 'none'
-}
-
 function resolveThreadEffect(thread: AlicizationTaskThreadRecord): AlicizationTaskEffect {
   const metadataTask = thread.metadata?.task
   if (metadataTask && typeof metadataTask === 'object' && 'effect' in metadataTask) {
@@ -263,6 +252,39 @@ function resolveThreadEffect(thread: AlicizationTaskThreadRecord): AlicizationTa
   }
 
   return 'mutate'
+}
+
+function readTaskMetadataText(thread: AlicizationTaskThreadRecord, key: 'riskBudget' | 'justification') {
+  const metadataTask = thread.metadata?.task
+  if (!metadataTask || typeof metadataTask !== 'object')
+    return null
+
+  const value = (metadataTask as Record<string, unknown>)[key]
+  return typeof value === 'string'
+    ? value.trim().slice(0, 80) || null
+    : null
+}
+
+function buildBlockedDispatchSafetyGate(thread: AlicizationTaskThreadRecord, errorCode: string) {
+  if (errorCode !== 'OPENCLAW_PERMISSION_REQUIRED')
+    return null
+
+  const effect = resolveThreadEffect(thread)
+  const permissionMode = resolveThreadPermissionMode(thread)
+  const riskPolicy = effect === 'high-impact'
+    ? 'explicit-confirmation-required'
+    : 'implicit-or-explicit-confirmation-required'
+
+  return {
+    effect,
+    permissionMode,
+    riskBudget: readTaskMetadataText(thread, 'riskBudget'),
+    justification: readTaskMetadataText(thread, 'justification'),
+    confirmationRequired: true,
+    riskPolicy,
+    auditability: 'blocked-before-dispatch',
+    interruptibility: 'no-network-request-started',
+  }
 }
 
 function readGovernorSessionResume(thread: AlicizationTaskThreadRecord) {
@@ -646,6 +668,7 @@ export async function executeOpenClawTaskThread(input: AlicizationOpenClawAdapte
   const normalized = buildOpenClawCommandSpec(input)
   if (!normalized.ok) {
     const createdAt = now()
+    const runtimeContext = normalizeAlicizationExecutionRuntimeContext(input.command.runtimeContext)
     return {
       ok: false,
       summary: buildFailureSummary(thread, normalized.errorMessage),
@@ -663,12 +686,16 @@ export async function executeOpenClawTaskThread(input: AlicizationOpenClawAdapte
         kind: 'result',
         threadStatus: 'failed',
         payload: {
+          adapter: 'openclaw',
           instruction: input.command.instruction,
           transportChannel: 'openclaw',
           channelId: normalizeOptionalText(input.command.channelId, 120) ?? 'neko',
           conversationId: normalizeOptionalText(input.command.conversationId, 160) ?? normalizeOptionalText(thread.sessionId, 160) ?? null,
           errorCode: normalized.errorCode,
           errorMessage: normalized.errorMessage,
+          safetyGate: buildBlockedDispatchSafetyGate(thread, normalized.errorCode),
+          hasRuntimeContext: runtimeContext !== null,
+          runtimeContext,
         },
         createdAt,
       }],

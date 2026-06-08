@@ -14,9 +14,13 @@ import { basename, isAbsolute, relative, resolve } from 'node:path'
 import { cwd as processCwd, env as processEnv } from 'node:process'
 
 import { errorMessageFrom } from '@moeru/std'
-import { normalizeAlicizationExecutionRuntimeContext } from '@proj-alicization/stage-shared'
+import {
+  buildAlicizationExecutionRuntimeContextBlock,
+  normalizeAlicizationExecutionRuntimeContext,
+} from '@proj-alicization/stage-shared'
 
 import { buildAlicizationExecutionEnv } from '../execution-command-env'
+import { resolveThreadPermissionMode } from './thread-permission'
 
 const cliDefaultTimeoutMs = 300_000
 const cliMaxTimeoutMs = 1_800_000
@@ -93,10 +97,11 @@ const packageManagerCommands = new Set([
   'node',
   'git',
 ])
+const cliTemplateHomeAlias = `${'$'}{HOME}`
 const cliHomeAliasExactTokens = new Set([
   '~',
   '$HOME',
-  '${HOME}',
+  cliTemplateHomeAlias,
   '%USERPROFILE%',
 ])
 const cliHomeAliasPrefixes = [
@@ -104,13 +109,13 @@ const cliHomeAliasPrefixes = [
   '~\\',
   '$HOME/',
   '$HOME\\',
-  '${HOME}/',
-  '${HOME}\\',
+  `${cliTemplateHomeAlias}/`,
+  `${cliTemplateHomeAlias}\\`,
   '%USERPROFILE%/',
   '%USERPROFILE%\\',
 ]
 const cliDesktopSegmentPattern = /(^|[\\/])(Desktop|桌面)(?=([\\/]|$))/u
-const cliUriEncodedTokenPattern = /^(?:%[0-9A-Fa-f]{2}){2,}$/u
+const cliUriEncodedTokenPattern = /^(?:%[0-9A-F]{2}){2,}$/iu
 
 type AlicizationCliRiskLevel = 'safe' | 'sensitive' | 'danger'
 type AlicizationCliActionCategory = 'read' | 'write' | 'delete' | 'execute' | 'network'
@@ -595,17 +600,6 @@ function aggregateClassifications(classifications: Array<{
   })
 }
 
-function resolveThreadPermissionMode(thread: AlicizationTaskThreadRecord) {
-  const metadataTask = thread.metadata?.task
-  if (metadataTask && typeof metadataTask === 'object' && 'permissionMode' in metadataTask) {
-    const permissionMode = (metadataTask as { permissionMode?: unknown }).permissionMode
-    if (permissionMode === 'explicit' || permissionMode === 'implicit' || permissionMode === 'none')
-      return permissionMode
-  }
-
-  return thread.origin === 'user-turn' ? 'implicit' : 'none'
-}
-
 function resolveThreadEffect(thread: AlicizationTaskThreadRecord) {
   const metadataTask = thread.metadata?.task
   if (metadataTask && typeof metadataTask === 'object' && 'effect' in metadataTask) {
@@ -615,6 +609,103 @@ function resolveThreadEffect(thread: AlicizationTaskThreadRecord) {
   }
 
   return 'mutate'
+}
+
+function readTaskMetadataText(thread: AlicizationTaskThreadRecord, key: 'riskBudget' | 'justification') {
+  const metadataTask = thread.metadata?.task
+  if (!metadataTask || typeof metadataTask !== 'object')
+    return null
+
+  const value = (metadataTask as Record<string, unknown>)[key]
+  return typeof value === 'string'
+    ? value.trim().slice(0, 80) || null
+    : null
+}
+
+function resolveCliSafetyGateClassification(input: AlicizationCliAdapterInput) {
+  const workspaceRoot = resolve(input.workspaceRoot ?? processCwd())
+  const homeDirectory = resolveCliHomeDirectory()
+  const rawCommand = typeof input.command.command === 'string'
+    ? input.command.command.trim()
+    : ''
+  if (!rawCommand)
+    return null
+
+  const rawArgs = normalizeArgs(input.command.args)
+  const normalizedArgs = rawArgs.map(arg => normalizeCliPathTokenAliases(arg, homeDirectory).value)
+  const parsedCommandWords = parseCommandWords(rawCommand)
+  const normalizedParsedCommandWords = parsedCommandWords?.map(
+    word => normalizeCliPathTokenAliases(word, homeDirectory).value,
+  ) ?? null
+  const shellExecutionRequired = requiresShellExecution(rawCommand)
+    || requiresShellExecutionFromArgs(normalizedArgs)
+
+  if (shellExecutionRequired) {
+    const shellCommandExpression = buildShellCommandExpression({
+      rawCommand,
+      rawArgs: normalizedArgs,
+      parsedCommandWords: normalizedParsedCommandWords,
+    })
+
+    return aggregateClassifications(
+      splitCompoundCommandSegments(shellCommandExpression)
+        .map((segment) => {
+          const words = parseCommandWords(segment) ?? segment.split(/\s+/).filter(Boolean)
+          if (words.length === 0)
+            return null
+          return classifyCliCommand(words[0], words.slice(1))
+        })
+        .filter((item): item is ReturnType<typeof classifyCliCommand> => Boolean(item)),
+    )
+  }
+
+  let executableCommand = rawCommand
+  let executableArgs = [...normalizedArgs]
+
+  if (parsedCommandWords && parsedCommandWords.length > 0) {
+    const normalizedWords = normalizedParsedCommandWords ?? parsedCommandWords
+    executableCommand = normalizedWords[0]
+    executableArgs = [...normalizedWords.slice(1), ...normalizedArgs]
+  }
+  else {
+    executableCommand = normalizeCliPathTokenAliases(rawCommand, homeDirectory).value
+  }
+
+  const normalizedPath = normalizeCommandPath(executableCommand, workspaceRoot)
+  return classifyCliCommand(
+    normalizedPath.ok ? normalizedPath.command : executableCommand,
+    executableArgs,
+  )
+}
+
+function buildBlockedDispatchSafetyGate(
+  thread: AlicizationTaskThreadRecord,
+  errorCode: string,
+  classification: ReturnType<typeof resolveCliSafetyGateClassification>,
+) {
+  if (errorCode !== 'CLI_PERMISSION_REQUIRED' && errorCode !== 'CLI_EFFECT_MISMATCH')
+    return null
+
+  const effect = resolveThreadEffect(thread)
+  const permissionMode = resolveThreadPermissionMode(thread)
+  const riskPolicy = errorCode === 'CLI_EFFECT_MISMATCH'
+    ? 'observe-only-mutations-blocked'
+    : classification?.riskLevel === 'danger'
+      ? 'explicit-confirmation-required'
+      : 'implicit-or-explicit-confirmation-required'
+
+  return {
+    effect,
+    permissionMode,
+    riskBudget: readTaskMetadataText(thread, 'riskBudget'),
+    justification: readTaskMetadataText(thread, 'justification'),
+    confirmationRequired: true,
+    riskPolicy,
+    auditability: 'blocked-before-dispatch',
+    interruptibility: 'no-process-started',
+    riskLevel: classification?.riskLevel ?? null,
+    actionCategory: classification?.actionCategory ?? null,
+  }
 }
 
 function buildCliCommandSpec(input: AlicizationCliAdapterInput) {
@@ -762,14 +853,29 @@ function buildCliRuntimeEnv(runtimeContext: AlicizationExecutionRuntimeContext |
   if (!runtimeContext)
     return buildAlicizationExecutionEnv(processEnv)
 
+  const runtimeContextBlock = buildAlicizationExecutionRuntimeContextBlock(runtimeContext)
+  const projectBriefing = runtimeContext.projectBriefing
+
   return buildAlicizationExecutionEnv(processEnv, {
     ALICIZATION_EXECUTION_RUNTIME_CONTEXT_JSON: JSON.stringify(runtimeContext),
+    ALICIZATION_EXECUTION_RUNTIME_CONTEXT_BLOCK: runtimeContextBlock || undefined,
     ALICIZATION_EXECUTION_CONTEXT_GENERATED_AT: String(runtimeContext.generatedAt),
     ALICIZATION_EXECUTION_FOREGROUND_WINDOW: [
       runtimeContext.sensory.foregroundWindow?.appName,
       runtimeContext.sensory.foregroundWindow?.processName,
       runtimeContext.sensory.foregroundWindow?.title,
     ].filter(Boolean).join(' | '),
+    ALICIZATION_EXECUTION_PROJECT_IDENTITY: projectBriefing?.identity ?? undefined,
+    ALICIZATION_EXECUTION_PROJECT_PHASE: projectBriefing?.currentPhase ?? undefined,
+    ALICIZATION_EXECUTION_PROJECT_LANDED_PROGRESS: projectBriefing?.latestLandedProgress ?? undefined,
+    ALICIZATION_EXECUTION_PROJECT_OPEN_LOOP: projectBriefing?.primaryOpenLoop ?? undefined,
+    ALICIZATION_EXECUTION_PROJECT_NEXT_CLOSURE: projectBriefing?.nextClosureTarget ?? undefined,
+    ALICIZATION_EXECUTION_PROJECT_SAME_HER: projectBriefing?.sameHerSelfLine ?? undefined,
+    ALICIZATION_EXECUTION_PROJECT_SAME_HER_HOLD: projectBriefing?.sameHerHoldDetail ?? undefined,
+    ALICIZATION_EXECUTION_PROJECT_SAME_HER_DRIFT_RISK: projectBriefing?.sameHerDriftRisk ?? undefined,
+    ALICIZATION_EXECUTION_PROJECT_CONTINUITY: projectBriefing?.continuityCue ?? undefined,
+    ALICIZATION_EXECUTION_PROJECT_PREFLIGHT: projectBriefing?.preflightSummary ?? undefined,
+    ALICIZATION_EXECUTION_PROJECT_AWARENESS: projectBriefing?.preDialogueAwarenessLine ?? undefined,
   })
 }
 
@@ -1125,6 +1231,12 @@ export async function executeCliTaskThread(input: AlicizationCliAdapterInput): P
   const normalized = buildCliCommandSpec(input)
   if (!normalized.ok) {
     const createdAt = now()
+    const runtimeContext = normalizeAlicizationExecutionRuntimeContext(input.command.runtimeContext)
+    const safetyGate = buildBlockedDispatchSafetyGate(
+      thread,
+      normalized.errorCode,
+      resolveCliSafetyGateClassification(input),
+    )
     return {
       ok: false,
       summary: buildFailureSummary(thread, normalized.errorMessage),
@@ -1142,10 +1254,14 @@ export async function executeCliTaskThread(input: AlicizationCliAdapterInput): P
         kind: 'result',
         threadStatus: 'failed',
         payload: {
+          adapter: 'cli',
           command: input.command.command,
           args: input.command.args ?? [],
           errorCode: normalized.errorCode,
           errorMessage: normalized.errorMessage,
+          safetyGate,
+          hasRuntimeContext: runtimeContext !== null,
+          runtimeContext,
         },
         createdAt,
       }],
@@ -1164,6 +1280,7 @@ export async function executeCliTaskThread(input: AlicizationCliAdapterInput): P
     kind: 'dispatch',
     threadStatus: 'running',
     payload: {
+      adapter: 'cli',
       command: spec.commandLabel,
       args: spec.args,
       cwd: spec.cwd,
@@ -1238,6 +1355,7 @@ export async function executeCliTaskThread(input: AlicizationCliAdapterInput): P
           kind: 'cancel',
           threadStatus: 'cancelled',
           payload: {
+            adapter: 'cli',
             command: spec.commandLabel,
             args: spec.args,
             cwd: spec.cwd,
@@ -1286,6 +1404,7 @@ export async function executeCliTaskThread(input: AlicizationCliAdapterInput): P
         kind: 'result',
         threadStatus: success ? 'completed' : 'failed',
         payload: {
+          adapter: 'cli',
           command: spec.commandLabel,
           args: spec.args,
           cwd: spec.cwd,

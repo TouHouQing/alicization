@@ -62,6 +62,44 @@ describe('cli executor adapter', () => {
       command: {
         command: 'rm',
         args: ['-rf', 'dist'],
+        runtimeContext: {
+          generatedAt: 1_710_000_000_000,
+          cardId: 'default',
+          turnId: 'turn-cli-danger-1',
+          decisionTraceId: 'mind:trace:cli-danger-1',
+          projectBriefing: {
+            identity: 'Alicization is a local-first digital life project building one continuous "her".',
+            currentPhase: 'Phase 1: Local Digital Life.',
+            latestLandedProgress: 'CLI blocked dispatch should still stay on the same same-her living line.',
+            sameHerSelfLine: 'Same Phase 1 digital life. Even blocked CLI execution should stay on the same living line.',
+            sameHerHoldDetail: 'same-her hold: dangerous CLI actions must stay explainable before dispatch.',
+            primaryOpenLoop: 'Dangerous CLI actions still need explicit confirmation, auditability, and interruptibility.',
+            nextClosureTarget: 'Keep blocked CLI execution project-aware instead of generic.',
+            sameHerDriftRisk: 'If blocked CLI actions collapse into a generic adapter failure, execution drifts away from same-her closure.',
+            continuityCue: 'same living line: blocked CLI execution should still carry this Phase 1 digital life.',
+            preflightSummary: 'identity=Alicization | phase=Phase 1 | open=cli blocked safety gate',
+            preDialogueAwarenessLine: 'Before blocking CLI dispatch, remember this is still the same local-first digital life project.',
+          },
+          sensory: {
+            collectedAt: 1_710_000_000_123,
+            running: true,
+            stale: false,
+            ageMs: 15,
+            foregroundWindow: {
+              appName: 'Cursor',
+              processName: 'cursor',
+              title: 'airi-alice',
+            },
+            capture: {
+              health: 'healthy',
+              permission: 'granted',
+              sourceCount: 1,
+              lastUpdatedAt: 1_710_000_000_100,
+              lastError: null,
+              degradedReasons: [],
+            },
+          },
+        },
       },
       workspaceRoot: process.cwd(),
     })
@@ -69,12 +107,54 @@ describe('cli executor adapter', () => {
     expect(result.ok).toBe(false)
     expect(result.finalStatus).toBe('failed')
     expect(result.errorCode).toBe('CLI_PERMISSION_REQUIRED')
-    expect(result.events).toEqual([
-      expect.objectContaining({
-        kind: 'result',
-        threadStatus: 'failed',
+    expect(result.events[0]).toEqual(expect.objectContaining({
+      kind: 'result',
+      threadStatus: 'failed',
+      payload: expect.objectContaining({
+        adapter: 'cli',
+        errorCode: 'CLI_PERMISSION_REQUIRED',
+        safetyGate: expect.objectContaining({
+          effect: 'mutate',
+          permissionMode: 'implicit',
+          confirmationRequired: true,
+          riskPolicy: 'explicit-confirmation-required',
+          auditability: 'blocked-before-dispatch',
+          interruptibility: 'no-process-started',
+          riskLevel: 'danger',
+          actionCategory: 'delete',
+        }),
+        hasRuntimeContext: true,
+        runtimeContext: expect.objectContaining({
+          projectBriefing: expect.objectContaining({
+            currentPhase: 'Phase 1: Local Digital Life.',
+            preflightSummary: 'identity=Alicization | phase=Phase 1 | open=cli blocked safety gate',
+          }),
+        }),
       }),
-    ])
+    }))
+  })
+
+  it('blocks origin-thin autonomous sensitive CLI writes when legacy threads lost explicit permission metadata', async () => {
+    const result = await executeCliTaskThread({
+      thread: createThread({
+        turnId: 'subconscious:cli-origin-thin-sensitive-write-1',
+        origin: 'user-turn',
+        metadata: {
+          task: {
+            effect: 'mutate',
+          },
+        },
+      }),
+      command: {
+        command: 'mkdir',
+        args: ['tmp-origin-thin-cli-test'],
+      },
+      workspaceRoot: process.cwd(),
+    })
+
+    expect(result.ok).toBe(false)
+    expect(result.finalStatus).toBe('failed')
+    expect(result.errorCode).toBe('CLI_PERMISSION_REQUIRED')
   })
 
   it('normalizes inline command strings when args are omitted', async () => {
@@ -257,12 +337,28 @@ describe('cli executor adapter', () => {
       thread: createThread(),
       command: {
         command: 'node',
-        args: ['-e', 'process.stdout.write(process.env.ALICIZATION_EXECUTION_FOREGROUND_WINDOW || "")'],
+        args: [
+          '-e',
+          'process.stdout.write(JSON.stringify({ foreground: process.env.ALICIZATION_EXECUTION_FOREGROUND_WINDOW || "", preflight: process.env.ALICIZATION_EXECUTION_PROJECT_PREFLIGHT || "", awareness: process.env.ALICIZATION_EXECUTION_PROJECT_AWARENESS || "", sameHerHold: process.env.ALICIZATION_EXECUTION_PROJECT_SAME_HER_HOLD || "", continuity: process.env.ALICIZATION_EXECUTION_PROJECT_CONTINUITY || "", runtimeBlock: process.env.ALICIZATION_EXECUTION_RUNTIME_CONTEXT_BLOCK || "" }))',
+        ],
         runtimeContext: {
           generatedAt: 1_710_000_000_000,
           cardId: 'default',
           turnId: 'turn-cli-1',
           decisionTraceId: 'mind:trace:cli-1',
+          projectBriefing: {
+            identity: 'Alicization is a local-first digital life project building one continuous "her".',
+            currentPhase: 'Phase 1: Local Digital Life.',
+            latestLandedProgress: 'CLI execution still needs to inherit same-her project awareness before generic local commands begin.',
+            sameHerSelfLine: 'Same Phase 1 digital life. The CLI execution lane should stay on the same living line.',
+            sameHerHoldDetail: 'same-her hold: keep CLI execution grounded on the same living line before widening outward.',
+            primaryOpenLoop: 'CLI execution still needs canonical project awareness before dispatch.',
+            nextClosureTarget: 'Inject the same project briefing into CLI execution before local commands begin.',
+            sameHerDriftRisk: 'If CLI commands run without project awareness, execution drifts toward a generic shell.',
+            continuityCue: 'same living line: CLI execution should carry this same Phase 1 digital life before widening outward.',
+            preflightSummary: 'identity=Alicization | phase=Phase 1 | open=cli execution project awareness',
+            preDialogueAwarenessLine: 'Before CLI dispatch, remember this is still the same local-first digital life project.',
+          },
           sensory: {
             collectedAt: 1_710_000_000_123,
             running: true,
@@ -289,11 +385,22 @@ describe('cli executor adapter', () => {
 
     expect(result.ok).toBe(true)
     expect(result.output).toContain('Cursor | cursor | airi-alice')
+    expect(result.output).toContain('identity=Alicization | phase=Phase 1 | open=cli execution project awareness')
+    expect(result.output).toContain('Before CLI dispatch, remember this is still the same local-first digital life project.')
+    expect(result.output).toContain('same-her hold: keep CLI execution grounded on the same living line before widening outward.')
+    expect(result.output).toContain('same living line: CLI execution should carry this same Phase 1 digital life before widening outward.')
+    expect(result.output).toContain('[ALICIZATION_EXECUTION_RUNTIME_CONTEXT]')
+    expect(result.output).toContain('project_preflight=identity=Alicization | phase=Phase 1 | open=cli execution project awareness')
+    expect(result.output).toContain('project_awareness=Before CLI dispatch, remember this is still the same local-first digital life project.')
     expect(result.events[0]?.payload).toEqual(expect.objectContaining({
       hasRuntimeContext: true,
       runtimeContext: expect.objectContaining({
         cardId: 'default',
         turnId: 'turn-cli-1',
+        projectBriefing: expect.objectContaining({
+          currentPhase: 'Phase 1: Local Digital Life.',
+          preflightSummary: 'identity=Alicization | phase=Phase 1 | open=cli execution project awareness',
+        }),
       }),
     }))
   })
