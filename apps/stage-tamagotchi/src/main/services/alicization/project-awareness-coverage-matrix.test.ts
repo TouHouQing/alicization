@@ -1114,6 +1114,21 @@ const coverageRows = [
     ],
   },
   {
+    entry: 'visible-reply-governance-project-awareness',
+    proofKind: 'dynamic',
+    file: './visible-reply-governance-project-awareness-audit.test.ts',
+    evidence: 'visible-reply governance now has dedicated route-level proof that the structured mind path and rewrite takeover path keep explicit audited authority names instead of flattening back into generic assistant-structured labels, so reply/governance boundaries stay inspectable before final host-visible shaping proceeds',
+    fileMustContain: [
+      'keeps one explicit route-level proof that visible-reply governance keeps normal mind authority distinct from rewrite takeover authority',
+      'expect.objectContaining({ entry: \'visible-reply-governance-structured-mind-authority\' })',
+      'expect.objectContaining({ entry: \'visible-reply-governance-rewrite-takeover-authority\' })',
+      'expect(matrixSource).toContain(\'visible-reply-governance-project-awareness-audit.test.ts\')',
+      'expect(auditSource).toContain(\'visible-reply-governance-project-awareness-audit.test.ts\')',
+      'expect(coverageSource).toContain(\'visible-reply-governance-project-awareness-audit.test.ts\')',
+      'Long-run proof is still incomplete',
+    ],
+  },
+  {
     entry: 'answer-planner',
     proofKind: 'dynamic',
     file: './answer-planner-project-awareness-audit.test.ts',
@@ -3872,6 +3887,7 @@ describe('project awareness coverage matrix', () => {
       expect.objectContaining({ entry: 'executive-answer-brief-project-awareness', proofKind: 'dynamic' }),
       expect.objectContaining({ entry: 'visible-reply-facade-project-awareness', proofKind: 'dynamic' }),
       expect.objectContaining({ entry: 'visible-reply-settlement-project-awareness', proofKind: 'dynamic' }),
+      expect.objectContaining({ entry: 'visible-reply-governance-project-awareness', proofKind: 'dynamic' }),
       expect.objectContaining({ entry: 'answer-planner', proofKind: 'dynamic' }),
       expect.objectContaining({ entry: 'memory-recollection-ranking-continuity', proofKind: 'dynamic' }),
       expect.objectContaining({ entry: 'humanlike-memory-corrected-same-person-recall', proofKind: 'dynamic' }),
@@ -4064,6 +4080,7 @@ describe('project awareness coverage matrix', () => {
     expect(coverageRows.some(row => row.entry === 'executive-answer-brief-project-awareness')).toBe(true)
     expect(coverageRows.some(row => row.entry === 'visible-reply-facade-project-awareness')).toBe(true)
     expect(coverageRows.some(row => row.entry === 'visible-reply-settlement-project-awareness')).toBe(true)
+    expect(coverageRows.some(row => row.entry === 'visible-reply-governance-project-awareness')).toBe(true)
     expect(coverageRows.some(row => row.entry === 'memory-recollection-ranking-continuity')).toBe(true)
     expect(coverageRows.some(row => row.entry === 'recollection-visible-reply-same-life')).toBe(true)
     expect(coverageRows.some(row => row.entry === 'response-charter-project-awareness')).toBe(true)
