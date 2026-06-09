@@ -6,6 +6,7 @@ import { preferStrongerContinuityClosureAuthority } from './continuity-closure-a
 import {
   buildAlicizationProjectPreDialogueAwareness,
   buildAlicizationProjectPreDialogueAwarenessLine,
+  isAlicizationThinProjectAwarenessLine,
   preferStrongerSameHerDriftRisk,
   resolveAlicizationProjectStateBrief,
   resolveAlicizationProjectStatusBrief,
@@ -16,11 +17,23 @@ type AlicizationPreDialogueProjectState = NonNullable<AlicizationPreDialogueSend
 type AlicizationPreDialogueEmotionalKernel = AlicizationPreDialogueSendIdentity['emotionalKernel']
 
 const PRE_DIALOGUE_REASON_PREVIEW_LIMIT = 5
+const START_AWARENESS_PLACEHOLDER_VALUES = new Set([
+  'none',
+  'null',
+  'unknown',
+  'n/a',
+  'na',
+])
 
 function sanitizeStartAwarenessText(raw: unknown, maxChars = 220) {
   if (typeof raw !== 'string')
     return ''
-  return upgradeLegacySameLifeSeamText(raw.trim().replace(/\s+/g, ' ')).slice(0, maxChars)
+
+  const normalized = raw.trim().replace(/\s+/g, ' ')
+  if (!normalized || START_AWARENESS_PLACEHOLDER_VALUES.has(normalized.toLowerCase()))
+    return ''
+
+  return upgradeLegacySameLifeSeamText(normalized).slice(0, maxChars)
 }
 
 function upgradeLegacySameLifeSeamText(text: string) {
@@ -79,6 +92,16 @@ function sanitizeStructuredEmotionalKernel(raw: AlicizationPreDialogueEmotionalK
     : null
 }
 
+function readStructuredProjectStateAliasField(
+  projectState: AlicizationPreDialogueSendIdentity['projectState'] | null | undefined,
+  field: 'landedProgressSummary' | 'nextClosureTargetSummary' | 'openClosureSummary',
+) {
+  if (!projectState || typeof projectState !== 'object')
+    return null
+
+  return (projectState as Record<typeof field, unknown>)[field] ?? null
+}
+
 function looksLikeSummaryOnlyBriefing(line: string | null) {
   if (!line)
     return false
@@ -91,7 +114,7 @@ function looksLikeThinProjectAwarenessShell(line: string | null) {
   if (!line)
     return false
 
-  return /keep the same digital life project in view|generic reminder|generic guidance|same digital life \| keep the closure seam explicit/u.test(line.toLowerCase())
+  return isAlicizationThinProjectAwarenessLine(line)
 }
 
 function looksLikeThinProjectNextClosureShell(line: string | null) {
@@ -212,6 +235,87 @@ function looksLikeStrongSameHerAnchor(line: string | null) {
   return /same phase 1 digital life|same living line|same-her|same her|one continuous her|continuous her|without splitting her continuity|同一个 her|同一个她|人格连续/u.test(line.toLowerCase())
 }
 
+function looksLikeProjectAwareBriefingReminder(line: string | null) {
+  if (!line)
+    return false
+
+  const normalized = line.toLowerCase()
+  return (
+    normalized.startsWith('before speaking')
+    || normalized.startsWith('before answering')
+  )
+  && (
+    normalized.includes('digital life project')
+    || normalized.includes('same digital life project')
+    || normalized.includes('one living digital life project')
+  )
+  && (
+    normalized.includes('what has landed')
+    || normalized.includes('already survives')
+    || normalized.includes('already survive')
+    || normalized.includes('life loop is still open')
+    || normalized.includes('which life loop is still open')
+    || normalized.includes('still-open life loop')
+    || normalized.includes('open closure')
+      || normalized.includes('still remains open')
+      || normalized.includes('still remain open')
+      || normalized.includes('still remains the open closure')
+      || normalized.includes('still remain the open closure')
+  )
+}
+
+function looksLikeThinSamePhaseProjectCarry(line: string | null) {
+  if (!line)
+    return false
+
+  const normalized = line.toLowerCase()
+  return normalized.startsWith('same phase 1 digital life.')
+    && normalized.includes('some closure already landed')
+    && normalized.includes('same living line')
+    && !normalized.includes('before speaking')
+    && !normalized.includes('what has landed')
+    && !normalized.includes('life loop is still open')
+}
+
+function looksLikeLivedInSameHerHoldDetail(line: string | null) {
+  if (!line)
+    return false
+
+  if (looksLikeBroaderProjectStateSameHerShell(line))
+    return false
+
+  const normalized = line.toLowerCase()
+  return normalized.includes('same-her hold')
+    || normalized.includes('same remembered seam')
+    || normalized.includes('measured-return')
+    || normalized.includes('repair-before-closeness')
+    || normalized.includes('rest-protective')
+    || normalized.includes('lower-pressure')
+    || normalized.includes('callback line')
+    || normalized.includes('keep more room this time')
+}
+
+function looksLikeBroaderProjectStateSameHerShell(line: string | null) {
+  if (!line)
+    return false
+
+  return line.toLowerCase().includes('same-her hold: keep this project-state answer on the same living line before widening outward')
+}
+
+function carriesSpecificSameHerHoldCadence(line: string | null) {
+  if (!line)
+    return false
+
+  const normalized = line.toLowerCase()
+  return normalized.includes('measured-return')
+    || normalized.includes('callback line')
+    || normalized.includes('keep more room this time')
+    || normalized.includes('same remembered seam')
+    || normalized.includes('lower-pressure')
+    || normalized.includes('repair-before-closeness')
+    || normalized.includes('rest-protective')
+}
+
 function prefersExplicitProjectAwarenessLine(primary: string | null, fallback: string | null) {
   if (!primary)
     return fallback
@@ -221,9 +325,22 @@ function prefersExplicitProjectAwarenessLine(primary: string | null, fallback: s
     return fallback
   if (looksLikeThinProjectAwarenessShell(primary) && !looksLikeThinProjectAwarenessShell(fallback))
     return fallback
+  if (looksLikeThinSamePhaseProjectCarry(primary) && looksLikeProjectAwareBriefingReminder(fallback))
+    return fallback
   if (/before answering, remember/iu.test(fallback) && !/before answering, remember/iu.test(primary))
     return fallback
   return primary
+}
+
+function looksLikeThinProjectAwarenessSummaryShell(line: string | null) {
+  if (!line)
+    return false
+
+  const normalized = line.toLowerCase()
+  return looksLikeThinProjectAwarenessShell(line)
+    || normalized.includes('generic continuity fallback')
+    || normalized.includes('generic continuity reminder')
+    || normalized.includes('generic same-her reminder')
 }
 
 function preferProjectNextClosureLine(primary: string | null, fallback: string | null) {
@@ -248,6 +365,16 @@ function preferProjectStateSameHerHoldDetail(input: {
     ?? current
     ?? continuityCue
     ?? null
+  if (looksLikeProjectAwareBriefingReminder(preferredPrimary) && looksLikeBroaderProjectStateSameHerShell(fallback))
+    return sanitizeStructuredProjectStateField(preferredPrimary, 220)
+  if (carriesSpecificSameHerHoldCadence(preferredPrimary) && looksLikeBroaderProjectStateSameHerShell(fallback))
+    return sanitizeStructuredProjectStateField(preferredPrimary, 220)
+  if (looksLikeLivedInSameHerHoldDetail(preferredPrimary) && !looksLikeLivedInSameHerHoldDetail(fallback))
+    return sanitizeStructuredProjectStateField(preferredPrimary, 220)
+  if (!looksLikeLivedInSameHerHoldDetail(preferredPrimary) && carriesSpecificSameHerHoldCadence(fallback))
+    return sanitizeStructuredProjectStateField(fallback, 220)
+  if (!looksLikeLivedInSameHerHoldDetail(preferredPrimary) && looksLikeLivedInSameHerHoldDetail(fallback))
+    return sanitizeStructuredProjectStateField(fallback, 220)
   const preferredFinal = preferStrongerContinuityClosureAuthority(preferredPrimary, fallback)
     ?? preferredPrimary
     ?? fallback
@@ -339,12 +466,28 @@ function hasUsablePreDialogueSendIdentity(
   || Boolean(
     sanitizeStructuredProjectStateField(identity.projectState?.identity, 220)
     || sanitizeStructuredProjectStateField(identity.projectState?.currentPhase, 220)
+    || sanitizeStructuredProjectStateField(identity.projectState?.preflightSummary, 320)
+    || sanitizeStructuredProjectStateField(identity.projectState?.latestLandedProgress, 320)
+    || sanitizeStructuredProjectStateField(readStructuredProjectStateAliasField(identity.projectState, 'landedProgressSummary'), 320)
+    || sanitizeStructuredProjectStateField(identity.projectState?.latestProgress, 320)
     || sanitizeStructuredProjectStateField(identity.projectState?.preDialogueAwarenessLine, 320)
+    || sanitizeStructuredProjectStateField(identity.projectState?.preDialogueAwarenessSummary, 320)
+    || sanitizeStructuredProjectStateField(identity.projectState?.awarenessLine, 320)
+    || sanitizeStructuredProjectStateField(identity.projectState?.companionHeadlineLine, 320)
+    || sanitizeStructuredProjectStateField(identity.projectState?.companionBriefingLine, 320)
+    || sanitizeStructuredProjectStateField(identity.projectState?.memoryClosureSummary, 320)
+    || sanitizeStructuredProjectStateField(readStructuredProjectStateAliasField(identity.projectState, 'openClosureSummary'), 320)
     || sanitizeStructuredProjectStateField(identity.projectState?.primaryOpenLoop, 320)
     || sanitizeStructuredProjectStateField(identity.projectState?.nextClosureTarget, 320)
+    || sanitizeStructuredProjectStateField(readStructuredProjectStateAliasField(identity.projectState, 'nextClosureTargetSummary'), 320)
+    || sanitizeStructuredProjectStateField(identity.projectState?.sameHerSelfLine, 220)
+    || sanitizeStructuredProjectStateField(identity.projectState?.sameHerHoldDetail, 220)
+    || sanitizeStructuredProjectStateField(identity.projectState?.sameHerDriftRisk, 320)
+    || sanitizeStructuredProjectStateField(identity.projectState?.proactiveSameHerGap, 320)
     || sanitizeStructuredProjectStateField(identity.projectState?.emotionalClosureSummary, 220)
     || sanitizeStructuredProjectStateField(identity.projectState?.emotionalClosureCue, 220)
     || sanitizeStructuredProjectStateField(identity.projectState?.continuityRestraint, 64)
+    || sanitizeStructuredProjectStateField(identity.projectState?.continuityCue, 220)
     || sanitizeStructuredContinuityPreferredTiming(identity.projectState?.continuityPreferredTiming)
     || sanitizeStructuredProjectStateField(identity.projectState?.continuityCadence, 120)
     || sanitizeStructuredProjectStateBlinkCadence(identity.projectState?.preferredBlinkCadence)
@@ -671,11 +814,17 @@ function buildProjectStateReasonPreviewLines(projectState: Record<string, unknow
 
   const sameHerSelfLine = sanitizeStructuredProjectStateField(projectState.sameHerSelfLine, 220)
   const latestLandedProgress = trimReasonPreviewSentenceEnding(
-    sanitizeStructuredProjectStateField(projectState.latestLandedProgress, 220),
+    sanitizeStructuredProjectStateField(
+      projectState.latestLandedProgress ?? projectState.landedProgressSummary ?? projectState.latestProgress,
+      220,
+    ),
   )
-  const primaryOpenLoop = sanitizeStructuredProjectStateField(projectState.primaryOpenLoop, 220)
+  const primaryOpenLoop = sanitizeStructuredProjectStateField(
+    projectState.primaryOpenLoop ?? projectState.openClosureSummary ?? projectState.memoryClosureSummary,
+    220,
+  )
   const nextClosureTarget = trimReasonPreviewSentenceEnding(
-    sanitizeStructuredProjectStateField(projectState.nextClosureTarget, 220),
+    sanitizeStructuredProjectStateField(projectState.nextClosureTarget ?? projectState.nextClosureTargetSummary, 220),
   )
   const sameHerDriftRisk = sanitizeStructuredProjectStateField(projectState.sameHerDriftRisk, 220)
 
@@ -708,17 +857,31 @@ function mergePreDialogueReasonPreview(
   const canonicalReasons = (Array.isArray(canonical.reasonPreview) ? canonical.reasonPreview : [])
     .map(reason => sanitizeStartAwarenessText(reason, 220))
     .filter(Boolean)
-  const [
-    projectStateSameHerAnchorReason,
-    projectStateOpenLoopReason,
-    projectStateLatestProgressReason,
-    projectStateNextClosureReason,
-    projectStateDriftGuardReason,
-  ] = existingProjectStateReasons
+  const projectStateSameHerAnchorReason
+    = existingProjectStateReasons.find(isSameHerAnchorPreDialogueReasonPreviewLine) ?? null
+  const projectStateLatestProgressReason
+    = existingProjectStateReasons.find(isLatestProgressPreDialogueReasonPreviewLine) ?? null
+  const projectStateNextClosureReason
+    = existingProjectStateReasons.find(isNextClosurePreDialogueReasonPreviewLine) ?? null
+  const projectStateDriftGuardReason
+    = existingProjectStateReasons.find(isDriftGuardPreDialogueReasonPreviewLine) ?? null
+  const classifiedProjectStateReasons = new Set(
+    [
+      projectStateSameHerAnchorReason,
+      projectStateLatestProgressReason,
+      projectStateNextClosureReason,
+      projectStateDriftGuardReason,
+    ]
+      .filter((reason): reason is string => Boolean(reason)),
+  )
+  const projectStateOpenLoopReason
+    = existingProjectStateReasons.find(reason => !classifiedProjectStateReasons.has(reason))
+      ?? existingProjectStateReasons.find(isOpenLoopPreDialogueReasonPreviewLine)
+      ?? null
 
   const existingSameHerAnchorReason = preferSameHerAnchorPreDialogueReasonPreviewLine(
     existingReasonPreviewReasons.find(isSameHerAnchorPreDialogueReasonPreviewLine) ?? null,
-    projectStateSameHerAnchorReason ?? existingProjectStateReasons.find(isSameHerAnchorPreDialogueReasonPreviewLine) ?? null,
+    projectStateSameHerAnchorReason,
   )
   const canonicalSameHerAnchorReason = canonicalReasons.find(isSameHerAnchorPreDialogueReasonPreviewLine) ?? null
   const canonicalOpenLoopReason = canonicalReasons.find(isOpenLoopPreDialogueReasonPreviewLine) ?? null
@@ -802,11 +965,26 @@ function mergePreDialogueSendIdentity(
   existing: AlicizationChatStartPayload['preDialogueSendIdentity'],
   canonical: NonNullable<AlicizationChatStartPayload['preDialogueSendIdentity']>,
 ): NonNullable<AlicizationChatStartPayload['preDialogueSendIdentity']> {
+  const existingProjectState = existing?.projectState ?? null
+  const canonicalProjectState = canonical.projectState ?? null
+  const structuredProjectSummaryLine = [
+    sanitizeStructuredProjectStateField(existingProjectState?.preflightSummary, 320),
+    sanitizeStructuredProjectStateField(existingProjectState?.preDialogueAwarenessSummary, 320),
+  ].find(line => line && !looksLikeThinProjectAwarenessSummaryShell(line)) || null
+  const structuredProjectBriefingCandidate = prefersExplicitProjectAwarenessLine(
+    sanitizeStructuredProjectStateField(existingProjectState?.companionBriefingLine, 320),
+    sanitizeStructuredProjectStateField(existingProjectState?.sameHerHoldDetail, 220),
+  )
+  const structuredProjectAwarenessCandidate = prefersExplicitProjectAwarenessLine(
+    sanitizeStructuredProjectStateField(existingProjectState?.preDialogueAwarenessLine, 320)
+    || sanitizeStructuredProjectStateField(existingProjectState?.awarenessLine, 320),
+    null,
+  )
   const existingSummaryLine = sanitizeStartAwarenessText(existing?.summaryLine, 320) || null
   const summaryLine = existingSummaryLine
-    && !looksLikeThinProjectAwarenessShell(existingSummaryLine)
+    && !looksLikeThinProjectAwarenessSummaryShell(existingSummaryLine)
     ? existingSummaryLine
-    : (canonical.summaryLine || existingSummaryLine || null)
+    : (structuredProjectSummaryLine || canonical.summaryLine || existingSummaryLine || null)
   const reasonPreviewEmbodimentClosureHeadline = synthesizeReasonPreviewEmbodimentClosureHeadline(
     Array.isArray(existing?.reasonPreview) ? existing.reasonPreview : [],
   )
@@ -817,12 +995,23 @@ function mergePreDialogueSendIdentity(
       || null
   const existingAwarenessLine = sanitizeStartAwarenessText(existing?.awarenessLine, 320) || null
   const existingCompanionBriefingLine = sanitizeStartAwarenessText(existing?.companionBriefingLine, 320) || null
+  const shouldPreferStructuredProjectBriefingLine = Boolean(
+    structuredProjectBriefingCandidate
+    && looksLikeProjectAwareBriefingReminder(structuredProjectBriefingCandidate)
+    && (
+      !existingCompanionBriefingLine
+      || looksLikeThinProjectAwarenessShell(existingCompanionBriefingLine)
+      || looksLikeThinSamePhaseProjectCarry(existingCompanionBriefingLine)
+    ),
+  )
   const shouldKeepExistingCompanionBriefingLine = Boolean(
     existingCompanionBriefingLine
     && !looksLikeThinProjectAwarenessShell(existingCompanionBriefingLine)
     && !looksLikeSummaryOnlyBriefing(existingCompanionBriefingLine),
   )
-  const companionBriefingLine = (
+  const companionBriefingLine = shouldPreferStructuredProjectBriefingLine
+    ? structuredProjectBriefingCandidate
+    : (
     shouldKeepExistingCompanionBriefingLine
     && looksLikeStrongSameHerAnchor(existingCompanionBriefingLine)
     && !looksLikeStrongSameHerAnchor(companionHeadlineLine)
@@ -860,7 +1049,7 @@ function mergePreDialogueSendIdentity(
     && !shouldPreferBroaderCompanionBriefingAsAwarenessTruth
     && !shouldPreferEmbodimentClosureHeadline,
   )
-  const awarenessLine = shouldPreferBroaderCompanionBriefingAsAwarenessTruth
+  const baseAwarenessLine = shouldPreferBroaderCompanionBriefingAsAwarenessTruth
     ? companionBriefingLine
     : shouldKeepExplicitAwarenessLineBesideHeadline
       ? existingAwarenessLine
@@ -880,13 +1069,30 @@ function mergePreDialogueSendIdentity(
                 && !looksLikeThinProjectAwarenessShell(existingAwarenessLine)
                 && !looksLikeNarrowLivedInProjectReminder(existingAwarenessLine)
                   ? existingAwarenessLine
-                  : canonical.awarenessLine
+                  : structuredProjectAwarenessCandidate
+                    || canonical.awarenessLine
               )
               || null
-  const existingProjectState = existing?.projectState ?? null
-  const canonicalProjectState = canonical.projectState ?? null
+  const preferredProjectStateSameHerHoldDetail = preferProjectStateSameHerHoldDetail({
+    current: existingProjectState?.sameHerHoldDetail,
+    continuityCue: existingProjectState?.continuityCue,
+    fallback: canonicalProjectState?.sameHerHoldDetail,
+  }) || null
+  const shouldPreferProjectStateSameHerHoldAsAwarenessTruth = () => Boolean(
+    existingAwarenessLine
+    && companionBriefingLine
+    && existingAwarenessLine === companionBriefingLine
+    && looksLikeProjectAwareBriefingReminder(existingAwarenessLine)
+    && looksLikeLivedInSameHerHoldDetail(preferredProjectStateSameHerHoldDetail),
+  )
+  const awarenessLine = shouldPreferProjectStateSameHerHoldAsAwarenessTruth()
+    ? preferredProjectStateSameHerHoldDetail
+    : baseAwarenessLine
   const existingCompanionNextClosureLine = sanitizeStartAwarenessText(existing?.companionNextClosureLine, 320) || null
-  const existingProjectNextClosureTarget = sanitizeStructuredProjectStateField(existingProjectState?.nextClosureTarget, 320)
+  const existingProjectNextClosureTarget = sanitizeStructuredProjectStateField(
+    existingProjectState?.nextClosureTarget ?? readStructuredProjectStateAliasField(existingProjectState, 'nextClosureTargetSummary'),
+    320,
+  )
   const companionNextClosureLine = preferProjectNextClosureLine(
     existingCompanionNextClosureLine,
     existingProjectNextClosureTarget
@@ -902,16 +1108,25 @@ function mergePreDialogueSendIdentity(
   const existingProjectPreDialogueAwarenessSummary = sanitizeStructuredProjectStateField(existingProjectState?.preDialogueAwarenessSummary, 320)
   const existingProjectPreDialogueAwarenessLine = sanitizeStructuredProjectStateField(existingProjectState?.preDialogueAwarenessLine, 320)
   const existingProjectAwarenessLine = sanitizeStructuredProjectStateField(existingProjectState?.awarenessLine, 320)
-  const canonicalSummaryLine = sanitizeStructuredProjectStateField(summaryLine, 320)
-  const repairedProjectAwarenessTruth = prefersExplicitProjectAwarenessLine(
-    existingProjectPreDialogueAwarenessLine || existingProjectAwarenessLine,
-    awarenessLine
-    || canonicalProjectState?.preDialogueAwarenessLine
-    || canonicalProjectState?.awarenessLine
-    || null,
+  const existingProjectLatestLandedProgress = sanitizeStructuredProjectStateField(
+    existingProjectState?.latestLandedProgress ?? readStructuredProjectStateAliasField(existingProjectState, 'landedProgressSummary') ?? existingProjectState?.latestProgress,
+    320,
   )
+  const canonicalSummaryLine = sanitizeStructuredProjectStateField(summaryLine, 320)
+  const repairedProjectAwarenessTruth = shouldPreferProjectStateSameHerHoldAsAwarenessTruth()
+    ? preferredProjectStateSameHerHoldDetail
+    : prefersExplicitProjectAwarenessLine(
+        existingProjectPreDialogueAwarenessLine || existingProjectAwarenessLine,
+        awarenessLine
+        || canonicalProjectState?.preDialogueAwarenessLine
+        || canonicalProjectState?.awarenessLine
+        || null,
+      )
+  const strongerAwarenessHeadlineSource = looksLikeThinProjectAwarenessShell(existingAwarenessLine)
+    ? (baseAwarenessLine || awarenessLine)
+    : (existingAwarenessLine || awarenessLine)
   const resolvedCompanionHeadlineLine = strongerAwarenessThanHeadline && !shouldPreferEmbodimentClosureHeadline
-    ? (existingAwarenessLine || companionHeadlineLine)
+    ? (strongerAwarenessHeadlineSource || companionHeadlineLine)
     : companionHeadlineLine
   const repairedProjectCompanionHeadlineTruth = prefersExplicitProjectAwarenessLine(
     sanitizeStructuredProjectStateField(existingProjectState?.companionHeadlineLine, 320),
@@ -931,6 +1146,14 @@ function mergePreDialogueSendIdentity(
       current: existingProjectState?.sameHerDriftRisk,
       candidate: canonicalProjectState?.sameHerDriftRisk,
     }),
+    320,
+  )
+  const existingProjectProactiveSameHerGap = sanitizeStructuredProjectStateField(
+    existingProjectState?.proactiveSameHerGap,
+    320,
+  )
+  const existingProjectPrimaryOpenLoop = sanitizeStructuredProjectStateField(
+    existingProjectState?.primaryOpenLoop ?? readStructuredProjectStateAliasField(existingProjectState, 'openClosureSummary') ?? existingProjectState?.memoryClosureSummary,
     320,
   )
   const projectState = {
@@ -970,15 +1193,24 @@ function mergePreDialogueSendIdentity(
     currentPhase: sanitizeStructuredProjectStateField(existingProjectState?.currentPhase, 220)
       || canonicalProjectState?.currentPhase
       || null,
-    latestLandedProgress: sanitizeStructuredProjectStateField(existingProjectState?.latestLandedProgress, 320)
+    latestLandedProgress: existingProjectLatestLandedProgress
+      || canonicalProjectState?.latestLandedProgress
+      || null,
+    latestProgress: existingProjectLatestLandedProgress
       || canonicalProjectState?.latestLandedProgress
       || null,
     memoryClosureSummary: sanitizeStructuredProjectStateField(existingProjectState?.memoryClosureSummary, 320)
-      || sanitizeStructuredProjectStateField(existingProjectState?.primaryOpenLoop, 320)
+      || sanitizeStructuredProjectStateField(
+        existingProjectState?.primaryOpenLoop ?? readStructuredProjectStateAliasField(existingProjectState, 'openClosureSummary'),
+        320,
+      )
       || canonicalProjectState?.memoryClosureSummary
       || null,
-    primaryOpenLoop: sanitizeStructuredProjectStateField(existingProjectState?.primaryOpenLoop, 320)
+    primaryOpenLoop: existingProjectPrimaryOpenLoop
       || canonicalProjectState?.primaryOpenLoop
+      || null,
+    proactiveSameHerGap: existingProjectProactiveSameHerGap
+      || canonicalProjectState?.proactiveSameHerGap
       || null,
     nextClosureTarget: preferProjectNextClosureLine(
       existingProjectNextClosureTarget,
@@ -989,11 +1221,7 @@ function mergePreDialogueSendIdentity(
     sameHerSelfLine: sanitizeStructuredProjectStateField(existingProjectState?.sameHerSelfLine, 220)
       || canonicalProjectState?.sameHerSelfLine
       || null,
-    sameHerHoldDetail: preferProjectStateSameHerHoldDetail({
-      current: existingProjectState?.sameHerHoldDetail,
-      continuityCue: existingProjectState?.continuityCue,
-      fallback: canonicalProjectState?.sameHerHoldDetail,
-    }) || null,
+    sameHerHoldDetail: preferredProjectStateSameHerHoldDetail,
     sameHerDriftRisk:
       repairedProjectSameHerDriftRisk
       || canonicalProjectState?.sameHerDriftRisk
@@ -1093,6 +1321,11 @@ export function summarizeAlicizationPreDialogueSendIdentityForDebug(
   preDialogueNextClosureLine: string | null
   preDialogueEmotionalClosureCue: string | null
   preDialogueSameHerSelfLine?: string
+  preDialogueProjectStateLatestLandedProgress?: string | null
+  preDialogueProjectStatePrimaryOpenLoop?: string | null
+  preDialogueProjectStateNextClosureTarget?: string | null
+  preDialogueProjectStateSameHerDriftRisk?: string | null
+  preDialogueProjectStateProactiveSameHerGap?: string | null
   preDialogueProjectStateAwarenessLine?: string | null
   preDialogueProjectStateAwarenessSummary?: string | null
   preDialogueProjectStateCompanionBriefingLine?: string | null
@@ -1127,6 +1360,24 @@ export function summarizeAlicizationPreDialogueSendIdentityForDebug(
     sanitizeStructuredProjectStateField(identity.projectState?.sameHerSelfLine, 220),
     reasonPreviewSameHerSelfLine,
   )
+  const preDialogueProjectStateLatestLandedProgress = sanitizeStructuredProjectStateField(
+    identity.projectState?.latestLandedProgress
+    ?? readStructuredProjectStateAliasField(identity.projectState, 'landedProgressSummary')
+    ?? identity.projectState?.latestProgress,
+    320,
+  )
+  const preDialogueProjectStatePrimaryOpenLoop = sanitizeStructuredProjectStateField(
+    identity.projectState?.primaryOpenLoop
+    ?? readStructuredProjectStateAliasField(identity.projectState, 'openClosureSummary')
+    ?? identity.projectState?.memoryClosureSummary,
+    320,
+  )
+  const preDialogueProjectStateNextClosureTarget = sanitizeStructuredProjectStateField(
+    identity.projectState?.nextClosureTarget ?? readStructuredProjectStateAliasField(identity.projectState, 'nextClosureTargetSummary'),
+    320,
+  )
+  const preDialogueProjectStateSameHerDriftRisk = sanitizeStructuredProjectStateField(identity.projectState?.sameHerDriftRisk, 220)
+  const preDialogueProjectStateProactiveSameHerGap = sanitizeStructuredProjectStateField(identity.projectState?.proactiveSameHerGap, 220)
   const preDialogueProjectStateAwarenessLine = sanitizeStructuredProjectStateField(identity.projectState?.preDialogueAwarenessLine, 320)
   const preDialogueProjectStateAwarenessSummary = sanitizeStructuredProjectStateField(identity.projectState?.preDialogueAwarenessSummary, 320)
   const preDialogueProjectStateCompanionBriefingLine = sanitizeStructuredProjectStateField(identity.projectState?.companionBriefingLine, 320)
@@ -1155,6 +1406,11 @@ export function summarizeAlicizationPreDialogueSendIdentityForDebug(
     preDialogueCompanionBriefingLine: sanitizeStartAwarenessText(identity.companionBriefingLine, 220) || null,
     preDialogueNextClosureLine: sanitizeStartAwarenessText(identity.companionNextClosureLine, 220) || null,
     preDialogueEmotionalClosureCue: sanitizeStartAwarenessText(identity.emotionalClosureCue, 220) || null,
+    ...(preDialogueProjectStateLatestLandedProgress ? { preDialogueProjectStateLatestLandedProgress } : {}),
+    ...(preDialogueProjectStatePrimaryOpenLoop ? { preDialogueProjectStatePrimaryOpenLoop } : {}),
+    ...(preDialogueProjectStateNextClosureTarget ? { preDialogueProjectStateNextClosureTarget } : {}),
+    ...(preDialogueProjectStateSameHerDriftRisk ? { preDialogueProjectStateSameHerDriftRisk } : {}),
+    ...(preDialogueProjectStateProactiveSameHerGap ? { preDialogueProjectStateProactiveSameHerGap } : {}),
     ...(preDialogueProjectStateAwarenessLine ? { preDialogueProjectStateAwarenessLine } : {}),
     ...(preDialogueProjectStateAwarenessSummary ? { preDialogueProjectStateAwarenessSummary } : {}),
     ...(preDialogueProjectStateCompanionBriefingLine ? { preDialogueProjectStateCompanionBriefingLine } : {}),

@@ -326,6 +326,16 @@ interface CreateAlicizationMainChatSessionRuntimeOptions {
   browserSearchWeb?: BuildMainGatewayToolsOptions['browserSearchWeb']
   browserReadPage?: BuildMainGatewayToolsOptions['browserReadPage']
   browserClickElement?: BuildMainGatewayToolsOptions['browserClickElement']
+  browserTypeText?: BuildMainGatewayToolsOptions['browserTypeText']
+  browserNavigate?: BuildMainGatewayToolsOptions['browserNavigate']
+  browserScroll?: BuildMainGatewayToolsOptions['browserScroll']
+  browserWait?: BuildMainGatewayToolsOptions['browserWait']
+  desktopListInteractables?: BuildMainGatewayToolsOptions['desktopListInteractables']
+  desktopClickElement?: BuildMainGatewayToolsOptions['desktopClickElement']
+  desktopTypeText?: BuildMainGatewayToolsOptions['desktopTypeText']
+  desktopPressKeys?: BuildMainGatewayToolsOptions['desktopPressKeys']
+  desktopWait?: BuildMainGatewayToolsOptions['desktopWait']
+  desktopInspectScene?: BuildMainGatewayToolsOptions['desktopInspectScene']
   desktopOpenApplication?: BuildMainGatewayToolsOptions['desktopOpenApplication']
   resolveTaskPlanningCapabilities: BuildMainGatewayToolsOptions['resolveTaskPlanningCapabilities']
   scheduleReminderTask: BuildMainGatewayToolsOptions['scheduleReminderTask']
@@ -969,6 +979,24 @@ function normalizeProviderFacingProjectText(raw: unknown, maxChars = 1600) {
   return normalized || null
 }
 
+const PROVIDER_FACING_PROJECT_AWARENESS_PLACEHOLDER_VALUES = new Set([
+  'none',
+  'null',
+  'unknown',
+  'n/a',
+  'na',
+])
+
+function normalizeProviderFacingProjectAwarenessPayloadText(raw: unknown, maxChars = 1600) {
+  const normalized = normalizeProviderFacingProjectText(raw, maxChars)
+  if (!normalized)
+    return null
+
+  return PROVIDER_FACING_PROJECT_AWARENESS_PLACEHOLDER_VALUES.has(normalized.toLowerCase())
+    ? null
+    : normalized
+}
+
 const SELF_CONTINUITY_AUTHORITY_LINE_MAX_CHARS = 320
 const SELF_CONTINUITY_AUTHORITY_SUMMARY_MAX_CHARS = 1600
 
@@ -1195,6 +1223,59 @@ function isThinProjectAwarenessAuthorityLine(value: unknown) {
     )
 }
 
+function carriesLivedInSameHerAuthorityLine(value: unknown) {
+  const normalized = normalizeProviderFacingProjectText(value, 1600)
+  if (!normalized || isThinProjectAwarenessAuthorityLine(normalized))
+    return false
+
+  if (
+    looksLikeBroadProjectAwareReminderLine(normalized)
+    && !carriesSpecificSameHerAuthorityLine(normalized)
+    && !/same-her hold|same remembered seam|callback line|keep more room this time|同一个她|同一个 her|数字生命主线|泛化助手/u.test(
+      normalized,
+    )
+  ) {
+    return false
+  }
+
+  return /same-her hold|same remembered seam|callback line|keep more room this time|repair-before-closeness/iu.test(
+    normalized,
+  )
+    || /继续|沿着|别飘回|不要退回|不要掉回|同一个她|同一个 her|数字生命主线|泛化助手|generic assistant|project shell/u.test(
+      normalized,
+    )
+    || carriesSpecificSameHerAuthorityLine(normalized)
+}
+
+function looksLikeBroadProjectAwareReminderLine(value: unknown) {
+  const normalized = normalizeProviderFacingProjectText(value, 1600)
+  if (!normalized)
+    return false
+
+  return /^(before answering|before speaking)/iu.test(normalized)
+    && (
+      /digital life project|phase 1|still-open|closure|what has already landed is|life loop|local-first digital life/u.test(
+        normalized.toLowerCase(),
+      )
+      || /数字生命项目|闭环|已落地|还没闭环|还没收住|主线/u.test(normalized)
+    )
+}
+
+function carriesStructuredLandedProgressProjectAwareness(value: unknown) {
+  const normalized = normalizeProviderFacingProjectText(value, 1600)
+  if (!normalized)
+    return false
+
+  const lowerCased = normalized.toLowerCase()
+  const carriesPhase = /phase 1|第一阶段|阶段一/iu.test(normalized)
+  const carriesLandedProgress = /\blanded:|what has already landed is/u.test(lowerCased) || /已落地/u.test(normalized)
+  const carriesStillOpenClosure
+    = /the still-open closure is|still-open closure|open=|still need/u.test(lowerCased)
+      || /未闭环|还没闭环|还差|还没收住/u.test(normalized)
+
+  return carriesPhase && carriesLandedProgress && carriesStillOpenClosure
+}
+
 function isStrongerSameHerProjectHeadline(candidate: unknown, baseline?: unknown) {
   const candidateText = normalizeProviderFacingProjectText(candidate, 1600)
   if (!candidateText || isThinProjectAwarenessAuthorityLine(candidateText))
@@ -1208,6 +1289,21 @@ function isStrongerSameHerProjectHeadline(candidate: unknown, baseline?: unknown
         /same living line|same-her|same her|without splitting her continuity|one living her|one continuous her/u.test(candidateText.toLowerCase())
         && /phase 1|memory|initiative|embodiment|voice|face|motion|lipsync|closure/u.test(candidateText.toLowerCase())
       )
+  }
+
+  if (
+    carriesLivedInSameHerAuthorityLine(baselineText)
+    && !carriesLivedInSameHerAuthorityLine(candidateText)
+    && (looksLikeBroadProjectAwareReminderLine(candidateText) || isCanonicalStructuredProjectAwareness(candidateText))
+  ) {
+    return false
+  }
+  if (
+    carriesLivedInSameHerAuthorityLine(candidateText)
+    && !carriesLivedInSameHerAuthorityLine(baselineText)
+    && (looksLikeBroadProjectAwareReminderLine(baselineText) || isCanonicalStructuredProjectAwareness(baselineText))
+  ) {
+    return true
   }
 
   return candidateScore > scoreAlicizationProjectAwarenessLine(baselineText)
@@ -1382,6 +1478,14 @@ function resolvePreferredPayloadAwarenessLine(input: {
     return headlineLine
   if (!headlineLine)
     return awarenessLine
+
+  if (
+    carriesLivedInSameHerAuthorityLine(awarenessLine)
+    && !carriesLivedInSameHerAuthorityLine(headlineLine)
+    && (looksLikeBroadProjectAwareReminderLine(headlineLine) || isCanonicalStructuredProjectAwareness(headlineLine))
+  ) {
+    return awarenessLine
+  }
 
   const awarenessCarriesProjectClosure = /phase 1|memory|initiative|embodiment|closure/u.test(awarenessLine.toLowerCase())
   const headlineLooksNarrowEmbodiment
@@ -2715,10 +2819,14 @@ function readRuntimeProjectStateFromSurface(
     companionBriefingLine,
     latestLandedProgress,
     latestProgress: latestLandedProgress,
+    landedProgressSummary: latestLandedProgress,
     primaryOpenLoop,
+    openClosureSummary: primaryOpenLoop,
     nextClosureTarget,
+    nextClosureTargetSummary: nextClosureTarget,
     sameHerSelfLine,
     sameHerDriftRisk,
+    sameHerDriftRiskSummary: sameHerDriftRisk,
     sameHerHoldDetail,
     emotionalClosureCue: normalizeProviderFacingProjectText(mergedProjectState.emotionalClosureCue, 1600),
     emotionalClosureSummary,
@@ -3134,43 +3242,27 @@ function seedPreparedRuntimeProjectAwareness(input: {
   const directPayloadProjectState
     = (directPayloadIdentity?.projectState as Record<string, unknown> | null | undefined)
       ?? null
-  const directPayloadAwarenessLine = normalizeProviderFacingProjectText(
-    directPayloadProjectState?.preDialogueAwarenessLine
-    ?? directPayloadProjectState?.awarenessLine
-    ?? directPayloadIdentity?.awarenessLine,
-    1600,
-  )
-  const directPayloadAwarenessSummary = normalizeProviderFacingProjectText(
-    directPayloadProjectState?.preDialogueAwarenessSummary,
-    1600,
-  )
-  const directPayloadCompanionBriefingLine = normalizeProviderFacingProjectText(
-    directPayloadProjectState?.companionBriefingLine
-    ?? directPayloadIdentity?.companionBriefingLine,
-    1600,
-  )
-  const directPayloadCompanionHeadlineLine = normalizeProviderFacingProjectText(
-    directPayloadProjectState?.companionHeadlineLine
-    ?? directPayloadIdentity?.companionHeadlineLine,
-    1600,
-  )
-  const directPayloadSameHerSelfLine = normalizeProviderFacingProjectText(
-    directPayloadProjectState?.sameHerSelfLine,
-    1600,
-  )
-  const directPayloadSameHerHoldDetail = normalizeProviderFacingProjectText(
-    directPayloadProjectState?.sameHerHoldDetail,
-    1600,
-  )
-  const directPayloadSameHerDriftRisk = normalizeProviderFacingProjectText(
-    directPayloadProjectState?.sameHerDriftRisk,
-    1600,
-  )
-  const directPayloadPreflightSummary = normalizeProviderFacingProjectText(
-    directPayloadProjectState?.preflightSummary
-    ?? directPayloadIdentity?.summaryLine,
-    1600,
-  )
+  const directPayloadAwarenessLine
+    = normalizeProviderFacingProjectAwarenessPayloadText(directPayloadProjectState?.preDialogueAwarenessLine, 1600)
+      ?? normalizeProviderFacingProjectAwarenessPayloadText(directPayloadProjectState?.awarenessLine, 1600)
+      ?? normalizeProviderFacingProjectAwarenessPayloadText(directPayloadIdentity?.awarenessLine, 1600)
+  const directPayloadAwarenessSummary
+    = normalizeProviderFacingProjectAwarenessPayloadText(directPayloadProjectState?.preDialogueAwarenessSummary, 1600)
+  const directPayloadCompanionBriefingLine
+    = normalizeProviderFacingProjectAwarenessPayloadText(directPayloadProjectState?.companionBriefingLine, 1600)
+      ?? normalizeProviderFacingProjectAwarenessPayloadText(directPayloadIdentity?.companionBriefingLine, 1600)
+  const directPayloadCompanionHeadlineLine
+    = normalizeProviderFacingProjectAwarenessPayloadText(directPayloadProjectState?.companionHeadlineLine, 1600)
+      ?? normalizeProviderFacingProjectAwarenessPayloadText(directPayloadIdentity?.companionHeadlineLine, 1600)
+  const directPayloadSameHerSelfLine
+    = normalizeProviderFacingProjectAwarenessPayloadText(directPayloadProjectState?.sameHerSelfLine, 1600)
+  const directPayloadSameHerHoldDetail
+    = normalizeProviderFacingProjectAwarenessPayloadText(directPayloadProjectState?.sameHerHoldDetail, 1600)
+  const directPayloadSameHerDriftRisk
+    = normalizeProviderFacingProjectAwarenessPayloadText(directPayloadProjectState?.sameHerDriftRisk, 1600)
+  const directPayloadPreflightSummary
+    = normalizeProviderFacingProjectAwarenessPayloadText(directPayloadProjectState?.preflightSummary, 1600)
+      ?? normalizeProviderFacingProjectAwarenessPayloadText(directPayloadIdentity?.summaryLine, 1600)
   const directPayloadPreflightSummaryLooksThin = Boolean(
     directPayloadPreflightSummary
     && (
@@ -5761,11 +5853,8 @@ function readDirectPayloadPreflightSummary(
     = (directPayloadIdentity?.projectState as Record<string, unknown> | null | undefined)
       ?? null
 
-  return normalizeProviderFacingProjectText(
-    directPayloadProjectState?.preflightSummary
-    ?? directPayloadIdentity?.summaryLine,
-    maxChars,
-  )
+  return normalizeProviderFacingProjectAwarenessPayloadText(directPayloadProjectState?.preflightSummary, maxChars)
+    ?? normalizeProviderFacingProjectAwarenessPayloadText(directPayloadIdentity?.summaryLine, maxChars)
 }
 
 function preferPreparedRuntimeSpecificMindTurnContractAwareness(input: {
@@ -5947,13 +6036,13 @@ function readProviderFacingPayloadProjectState(
 ) {
   const payload = rawPayload ? resolveAlicizationChatStartPayloadPreDialogueSendIdentity(rawPayload) : null
   const readSameHerDriftRiskPayloadFromReason = (value: unknown) => {
-    const normalized = normalizeProviderFacingProjectText(value, 1600)
+    const normalized = normalizeProviderFacingProjectAwarenessPayloadText(value, 1600)
     if (!normalized)
       return null
 
     const matchedPayload = normalized.match(/^Do not let this opening drift into\s+(.*)$/iu)?.[1] ?? null
     if (matchedPayload)
-      return normalizeProviderFacingProjectText(matchedPayload, 1600)
+      return normalizeProviderFacingProjectAwarenessPayloadText(matchedPayload, 1600)
 
     return /drift|generic guidance|project-state continuity|generic assistant shell|generic callback shell|generic project shell|detached project narration|detached project shell|project-summary voice|phase-summary shell|unfinished closure drift|flatten|collapse|unsettled|still settling/iu.test(normalized)
       ? normalized
@@ -5985,8 +6074,8 @@ function readProviderFacingPayloadProjectState(
     direct: unknown
     repaired: unknown
   }) => {
-    const directLine = normalizeProviderFacingProjectText(input.direct, 1600)
-    const repairedLine = normalizeProviderFacingProjectText(input.repaired, 1600)
+    const directLine = normalizeProviderFacingProjectAwarenessPayloadText(input.direct, 1600)
+    const repairedLine = normalizeProviderFacingProjectAwarenessPayloadText(input.repaired, 1600)
     if (!directLine)
       return repairedLine
     if (!repairedLine || directLine === repairedLine)
@@ -6013,8 +6102,8 @@ function readProviderFacingPayloadProjectState(
     direct: unknown
     repaired: unknown
   }) => {
-    const directLine = normalizeProviderFacingProjectText(input.direct, 1600)
-    const repairedLine = normalizeProviderFacingProjectText(input.repaired, 1600)
+    const directLine = normalizeProviderFacingProjectAwarenessPayloadText(input.direct, 1600)
+    const repairedLine = normalizeProviderFacingProjectAwarenessPayloadText(input.repaired, 1600)
     if (!directLine)
       return repairedLine
     if (!repairedLine || directLine === repairedLine)
@@ -6031,8 +6120,8 @@ function readProviderFacingPayloadProjectState(
     direct: unknown
     repaired: unknown
   }) => {
-    const directLine = normalizeProviderFacingProjectText(input.direct, 1600)
-    const repairedLine = normalizeProviderFacingProjectText(input.repaired, 1600)
+    const directLine = normalizeProviderFacingProjectAwarenessPayloadText(input.direct, 1600)
+    const repairedLine = normalizeProviderFacingProjectAwarenessPayloadText(input.repaired, 1600)
     if (!directLine)
       return repairedLine
     if (!repairedLine || directLine === repairedLine)
@@ -6053,13 +6142,13 @@ function readProviderFacingPayloadProjectState(
     direct: unknown
     repaired: unknown
   }) => {
-    const directLine = normalizeProviderFacingProjectText(input.direct, 1600)
-    const repairedLine = normalizeProviderFacingProjectText(input.repaired, 1600)
+    const directLine = normalizeProviderFacingProjectAwarenessPayloadText(input.direct, 1600)
+    const repairedLine = normalizeProviderFacingProjectAwarenessPayloadText(input.repaired, 1600)
     if (!directLine)
       return repairedLine
     if (!repairedLine || directLine === repairedLine)
       return directLine
-    return normalizeProviderFacingProjectText(preferStrongerSameHerDriftRisk({
+    return normalizeProviderFacingProjectAwarenessPayloadText(preferStrongerSameHerDriftRisk({
       current: directLine,
       candidate: repairedLine,
     }), 1600) ?? directLine
@@ -6079,46 +6168,39 @@ function readProviderFacingPayloadProjectState(
   const reasonPreview = Array.isArray(normalizedPayloadIdentity?.reasonPreview)
     ? normalizedPayloadIdentity.reasonPreview.filter(reason => typeof reason === 'string')
     : []
-  const directPayloadNextClosureTarget = normalizeProviderFacingProjectText(
-    directPayloadProjectState?.nextClosureTarget
-    ?? directPayloadIdentity?.companionNextClosureLine,
-    1600,
-  )
+  const directPayloadNextClosureTarget
+    = normalizeProviderFacingProjectAwarenessPayloadText(directPayloadProjectState?.nextClosureTarget, 1600)
+      ?? normalizeProviderFacingProjectAwarenessPayloadText(directPayloadIdentity?.companionNextClosureLine, 1600)
   const directPayloadProjectHeadline = preferResolvedPayloadHeadlineTruth({
     direct:
-    directPayloadProjectState?.companionHeadlineLine
-    ?? directPayloadIdentity?.companionHeadlineLine,
+      normalizeProviderFacingProjectAwarenessPayloadText(directPayloadProjectState?.companionHeadlineLine, 1600)
+      ?? normalizeProviderFacingProjectAwarenessPayloadText(directPayloadIdentity?.companionHeadlineLine, 1600),
     repaired:
-      (resolvedPayloadIdentity?.projectState as Record<string, unknown> | null | undefined)?.companionHeadlineLine
-      ?? resolvedPayloadIdentity?.companionHeadlineLine,
+      normalizeProviderFacingProjectAwarenessPayloadText(
+        (resolvedPayloadIdentity?.projectState as Record<string, unknown> | null | undefined)?.companionHeadlineLine,
+        1600,
+      )
+      ?? normalizeProviderFacingProjectAwarenessPayloadText(resolvedPayloadIdentity?.companionHeadlineLine, 1600),
   })
-  const directPayloadProjectBaseAwarenessLine = normalizeProviderFacingProjectText(
-    directPayloadProjectState?.preDialogueAwarenessLine
-    ?? directPayloadProjectState?.awarenessLine
-    ?? directPayloadIdentity?.awarenessLine,
-    1600,
-  )
-  const directPayloadProjectAwarenessSummary = normalizeProviderFacingProjectText(
-    directPayloadProjectState?.preDialogueAwarenessSummary,
-    1600,
-  )
-  const directPayloadProjectCompanionBriefingLine = normalizeProviderFacingProjectText(
-    directPayloadProjectState?.companionBriefingLine
-    ?? directPayloadIdentity?.companionBriefingLine,
-    1600,
-  )
+  const directPayloadProjectBaseAwarenessLine
+    = normalizeProviderFacingProjectAwarenessPayloadText(directPayloadProjectState?.preDialogueAwarenessLine, 1600)
+      ?? normalizeProviderFacingProjectAwarenessPayloadText(directPayloadProjectState?.awarenessLine, 1600)
+      ?? normalizeProviderFacingProjectAwarenessPayloadText(directPayloadIdentity?.awarenessLine, 1600)
+  const directPayloadProjectAwarenessSummary
+    = normalizeProviderFacingProjectAwarenessPayloadText(directPayloadProjectState?.preDialogueAwarenessSummary, 1600)
+  const directPayloadProjectCompanionBriefingLine
+    = normalizeProviderFacingProjectAwarenessPayloadText(directPayloadProjectState?.companionBriefingLine, 1600)
+      ?? normalizeProviderFacingProjectAwarenessPayloadText(directPayloadIdentity?.companionBriefingLine, 1600)
   const directReasonPreview = Array.isArray(directPayloadIdentity?.reasonPreview)
     ? directPayloadIdentity.reasonPreview.filter(reason => typeof reason === 'string')
     : []
   const resolvedReasonPreview = Array.isArray(resolvedPayloadIdentity?.reasonPreview)
     ? resolvedPayloadIdentity.reasonPreview.filter(reason => typeof reason === 'string')
     : []
-  const directPayloadProjectSameHerDriftRisk = normalizeProviderFacingProjectText(
-    directPayloadProjectState?.sameHerDriftRisk
-    ?? readPreferredSameHerDriftRiskReason(directReasonPreview),
-    1600,
-  )
-  const repairedPayloadProjectSameHerDriftRisk = normalizeProviderFacingProjectText(
+  const directPayloadProjectSameHerDriftRisk
+    = normalizeProviderFacingProjectAwarenessPayloadText(directPayloadProjectState?.sameHerDriftRisk, 1600)
+      ?? normalizeProviderFacingProjectAwarenessPayloadText(readPreferredSameHerDriftRiskReason(directReasonPreview), 1600)
+  const repairedPayloadProjectSameHerDriftRisk = normalizeProviderFacingProjectAwarenessPayloadText(
     preferStrongerSameHerDriftRisk({
       current:
         (resolvedPayloadIdentity?.projectState as Record<string, unknown> | null | undefined)?.sameHerDriftRisk,
@@ -6126,14 +6208,10 @@ function readProviderFacingPayloadProjectState(
     }),
     1600,
   )
-  const directPayloadProjectSameHerSelfLine = normalizeProviderFacingProjectText(
-    directPayloadProjectState?.sameHerSelfLine,
-    1600,
-  )
-  const directPayloadProjectSameHerHoldDetail = normalizeProviderFacingProjectText(
-    directPayloadProjectState?.sameHerHoldDetail,
-    1600,
-  )
+  const directPayloadProjectSameHerSelfLine
+    = normalizeProviderFacingProjectAwarenessPayloadText(directPayloadProjectState?.sameHerSelfLine, 1600)
+  const directPayloadProjectSameHerHoldDetail
+    = normalizeProviderFacingProjectAwarenessPayloadText(directPayloadProjectState?.sameHerHoldDetail, 1600)
   const hasDirectPayloadProjectAwarenessAuthority = Boolean(
     directPayloadProjectBaseAwarenessLine
     || directPayloadProjectAwarenessSummary
@@ -6174,13 +6252,49 @@ function readProviderFacingPayloadProjectState(
       : null,
     1600,
   )
+  const repairedPayloadProjectAwarenessLine
+    = normalizeProviderFacingProjectAwarenessPayloadText(
+      (resolvedPayloadIdentity?.projectState as Record<string, unknown> | null | undefined)?.preDialogueAwarenessLine,
+      1600,
+    )
+      ?? normalizeProviderFacingProjectAwarenessPayloadText(
+        (resolvedPayloadIdentity?.projectState as Record<string, unknown> | null | undefined)?.awarenessLine,
+        1600,
+      )
+      ?? normalizeProviderFacingProjectAwarenessPayloadText(
+        (resolvedPayloadIdentity?.projectState as Record<string, unknown> | null | undefined)?.preDialogueAwarenessSummary,
+        1600,
+      )
+      ?? normalizeProviderFacingProjectAwarenessPayloadText(resolvedPayloadIdentity?.awarenessLine, 1600)
+      ?? normalizeProviderFacingProjectAwarenessPayloadText(resolvedPayloadIdentity?.companionBriefingLine, 1600)
   const directPayloadProjectSameHerAwarenessLine = pickProjectAwarenessLineWithoutCompactSummaryShell([
     directPayloadProjectSameHerHoldDetail,
     directPayloadProjectSameHerSelfLine,
   ], 1600)
+  const directPayloadStructuredProjectAwarenessLine = pickProjectAwarenessLineWithoutCompactSummaryShell([
+    carriesStructuredLandedProgressProjectAwareness(directPayloadProjectBaseAwarenessLine)
+      ? directPayloadProjectBaseAwarenessLine
+      : null,
+    carriesStructuredLandedProgressProjectAwareness(directPayloadProjectHeadline)
+      ? directPayloadProjectHeadline
+      : null,
+    carriesStructuredLandedProgressProjectAwareness(directPayloadProjectAwarenessLine)
+      ? directPayloadProjectAwarenessLine
+      : null,
+  ], 1600)
+  const shouldPreferDirectPayloadSameHerHoldDetailOverBroaderReminder = Boolean(
+    directPayloadProjectSameHerHoldDetail
+    && directPayloadProjectSameHerAwarenessLine === directPayloadProjectSameHerHoldDetail
+    && directPayloadProjectAwarenessLine
+    && awarenessCarriesBroaderProjectFrame(directPayloadProjectAwarenessLine)
+    && !carriesSpecificSameHerAuthorityLine(directPayloadProjectAwarenessLine)
+    && !directPayloadStructuredProjectAwarenessLine
+  )
   const repairedDirectPayloadProjectAwarenessLine = (
     directPayloadProjectSameHerAwarenessLine
     && (
+      shouldPreferDirectPayloadSameHerHoldDetailOverBroaderReminder
+      || (
       !directPayloadProjectAwarenessLine
       || isThinProjectAwarenessAuthorityLine(directPayloadProjectAwarenessLine)
       || shouldPreserveProjectAwarenessLineVerbatim(
@@ -6191,35 +6305,72 @@ function readProviderFacingPayloadProjectState(
         directPayloadProjectSameHerAwarenessLine,
         directPayloadProjectAwarenessLine,
       )
+      )
     )
   )
     ? directPayloadProjectSameHerAwarenessLine
     : directPayloadProjectAwarenessLine
-  const directPayloadProjectPreflightSummary = normalizeProviderFacingProjectText(
-    directPayloadProjectState?.preflightSummary
-    ?? directPayloadIdentity?.summaryLine,
-    1600,
+  const directPayloadSameHerHoldDetailLooksLivedIn = Boolean(
+    directPayloadProjectSameHerHoldDetail
+    && /same-her hold|same remembered seam|measured-return|repair-before-closeness|rest-protective|lower-pressure|callback line|keep more room this time/iu.test(
+      directPayloadProjectSameHerHoldDetail,
+    ),
   )
+  const shouldPreferPayloadSameHerHoldDetailAsAwarenessTruth = Boolean(
+    directPayloadSameHerHoldDetailLooksLivedIn
+    && repairedDirectPayloadProjectAwarenessLine === directPayloadProjectSameHerHoldDetail
+    && !directPayloadStructuredProjectAwarenessLine
+  )
+  const preferredDirectPayloadProjectAwarenessLine = directPayloadStructuredProjectAwarenessLine
+    ?? (
+      !shouldPreferPayloadSameHerHoldDetailAsAwarenessTruth
+      && directPayloadProjectCompanionBriefingLine
+      && !isThinProjectAwarenessAuthorityLine(directPayloadProjectCompanionBriefingLine)
+        ? (
+            pickProjectAwarenessLineWithoutCompactSummaryShell([
+              directPayloadProjectCompanionBriefingLine,
+              repairedDirectPayloadProjectAwarenessLine,
+            ], 1600)
+            ?? directPayloadProjectCompanionBriefingLine
+          )
+        : repairedDirectPayloadProjectAwarenessLine
+    )
+  const directPayloadProjectPreflightSummary
+    = normalizeProviderFacingProjectAwarenessPayloadText(directPayloadProjectState?.preflightSummary, 1600)
+      ?? normalizeProviderFacingProjectAwarenessPayloadText(directPayloadIdentity?.summaryLine, 1600)
 
   return {
     explicitPayloadProjectHeadline:
       directPayloadProjectHeadline
-      ?? normalizeProviderFacingProjectText(
-        payloadProjectState?.companionHeadlineLine
-        ?? normalizedPayloadIdentity?.companionHeadlineLine,
+      ?? normalizeProviderFacingProjectAwarenessPayloadText(payloadProjectState?.companionHeadlineLine, 1600)
+      ?? normalizeProviderFacingProjectAwarenessPayloadText(normalizedPayloadIdentity?.companionHeadlineLine, 1600)
+      ?? normalizeProviderFacingProjectAwarenessPayloadText(
+        (resolvedPayloadIdentity?.projectState as Record<string, unknown> | null | undefined)?.companionHeadlineLine,
         1600,
-      ),
+      )
+      ?? normalizeProviderFacingProjectAwarenessPayloadText(resolvedPayloadIdentity?.companionHeadlineLine, 1600),
     explicitPayloadProjectAwarenessLine:
-      repairedDirectPayloadProjectAwarenessLine
-      ?? normalizeProviderFacingProjectText(
-        directPayloadProjectBaseAwarenessLine
-        ?? directPayloadProjectAwarenessSummary
-        ?? normalizedPayloadIdentity?.awarenessLine
-        ?? normalizedPayloadIdentity?.companionBriefingLine
-        ?? directPayloadProjectCompanionBriefingLine
-        ?? directPayloadProjectState?.companionBriefingLine,
+      preferredDirectPayloadProjectAwarenessLine
+      ?? directPayloadProjectBaseAwarenessLine
+      ?? directPayloadProjectAwarenessSummary
+      ?? directPayloadProjectCompanionBriefingLine
+      ?? normalizeProviderFacingProjectAwarenessPayloadText(normalizedPayloadIdentity?.awarenessLine, 1600)
+      ?? normalizeProviderFacingProjectAwarenessPayloadText(normalizedPayloadIdentity?.companionBriefingLine, 1600)
+      ?? repairedPayloadProjectAwarenessLine
+      ?? normalizeProviderFacingProjectAwarenessPayloadText(
+        (resolvedPayloadIdentity?.projectState as Record<string, unknown> | null | undefined)?.preDialogueAwarenessLine,
         1600,
-      ),
+      )
+      ?? normalizeProviderFacingProjectAwarenessPayloadText(
+        (resolvedPayloadIdentity?.projectState as Record<string, unknown> | null | undefined)?.awarenessLine,
+        1600,
+      )
+      ?? normalizeProviderFacingProjectAwarenessPayloadText(
+        (resolvedPayloadIdentity?.projectState as Record<string, unknown> | null | undefined)?.preDialogueAwarenessSummary,
+        1600,
+      )
+      ?? normalizeProviderFacingProjectAwarenessPayloadText(resolvedPayloadIdentity?.awarenessLine, 1600)
+      ?? normalizeProviderFacingProjectAwarenessPayloadText(resolvedPayloadIdentity?.companionBriefingLine, 1600),
     explicitPayloadProjectPreflightSummary: preferResolvedPayloadPreflightSummaryTruth({
       direct:
         directPayloadProjectState?.preflightSummary
@@ -6228,12 +6379,9 @@ function readProviderFacingPayloadProjectState(
         (resolvedPayloadIdentity?.projectState as Record<string, unknown> | null | undefined)?.preflightSummary
         ?? (resolvedPayloadIdentity?.projectState as Record<string, unknown> | null | undefined)?.preDialogueAwarenessSummary
         ?? resolvedPayloadIdentity?.summaryLine,
-    }) ?? normalizeProviderFacingProjectText(
-      payloadProjectState?.preflightSummary
-      ?? normalizedPayloadIdentity?.summaryLine,
-      1600,
-    ),
-    explicitPayloadProjectSameHerDriftRisk: normalizeProviderFacingProjectText(
+    }) ?? normalizeProviderFacingProjectAwarenessPayloadText(payloadProjectState?.preflightSummary, 1600)
+      ?? normalizeProviderFacingProjectAwarenessPayloadText(normalizedPayloadIdentity?.summaryLine, 1600),
+    explicitPayloadProjectSameHerDriftRisk: normalizeProviderFacingProjectAwarenessPayloadText(
       preferResolvedPayloadSameHerDriftRiskTruth({
         direct: directPayloadProjectSameHerDriftRisk,
         repaired: repairedPayloadProjectSameHerDriftRisk,
@@ -6249,11 +6397,8 @@ function readProviderFacingPayloadProjectState(
       repaired:
         (resolvedPayloadIdentity?.projectState as Record<string, unknown> | null | undefined)?.nextClosureTarget
         ?? resolvedPayloadIdentity?.companionNextClosureLine,
-    }) ?? normalizeProviderFacingProjectText(
-      payloadProjectState?.nextClosureTarget
-      ?? normalizedPayloadIdentity?.companionNextClosureLine,
-      1600,
-    ),
+    }) ?? normalizeProviderFacingProjectAwarenessPayloadText(payloadProjectState?.nextClosureTarget, 1600)
+      ?? normalizeProviderFacingProjectAwarenessPayloadText(normalizedPayloadIdentity?.companionNextClosureLine, 1600),
     hasDirectPayloadProjectHeadline: Boolean(directPayloadProjectHeadline),
     hasDirectPayloadProjectAwarenessLine: Boolean(
       directPayloadProjectAwarenessLine
@@ -7148,6 +7293,8 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       : undefined
 
     let executionRuntimeProjectBriefing: Parameters<typeof buildAlicizationExecutionRuntimeContext>[0]['projectBriefing'] = null
+    let executionRuntimeAffectiveResidue: Parameters<typeof buildAlicizationExecutionRuntimeContext>[0]['affectiveResidue'] = null
+    let executionRuntimeDerivedMindStateBundle: Parameters<typeof buildAlicizationExecutionRuntimeContext>[0]['derivedMindStateBundle'] = null
     const sessionBoundToolOptions: Pick<BuildMainGatewayToolsOptions, 'executeTaskThread'
       | 'resumeTaskThread'
       | 'buildExecutionRuntimeContext'
@@ -7155,6 +7302,16 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       | 'browserSearchWeb'
       | 'browserReadPage'
       | 'browserClickElement'
+      | 'browserTypeText'
+      | 'browserNavigate'
+      | 'browserScroll'
+      | 'browserWait'
+      | 'desktopListInteractables'
+      | 'desktopClickElement'
+      | 'desktopTypeText'
+      | 'desktopPressKeys'
+      | 'desktopWait'
+      | 'desktopInspectScene'
       | 'desktopOpenApplication'
       | 'getSensorySnapshot'
       | 'invokeMcpCallTool'
@@ -7163,9 +7320,11 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       | 'scheduleReminderTask'> = {
       buildExecutionRuntimeContext: async (toolContext) => {
         return await agentTurn.buildExecutionRuntimeContext({
+          affectiveResidue: executionRuntimeAffectiveResidue ?? null,
           cardId: toolContext.cardId,
           turnId: toolContext.turnId,
           decisionTraceId: toolContext.decisionTraceId ?? null,
+          derivedMindStateBundle: executionRuntimeDerivedMindStateBundle ?? null,
           projectBriefing: executionRuntimeProjectBriefing ?? undefined,
           sessionId: toolContext.sessionId ?? agentTurn.conversationSessionId,
         })
@@ -7286,13 +7445,19 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
             label: 'browser_open_url',
             metadata: {
               browser: nextPayload.browser ?? 'default',
-              url: nextPayload.url,
+              site: nextPayload.site ?? null,
+              url: nextPayload.url ?? 'about:blank',
             },
             traceMetadata: {
               browser: nextPayload.browser ?? 'default',
+              site: nextPayload.site ?? null,
             },
             run: async () => await options.browserOpenUrl!(nextPayload),
-            summarizeSuccess: () => `opened url ${nextPayload.url}`,
+            summarizeSuccess: () => nextPayload.url
+              ? `opened url ${nextPayload.url}`
+              : nextPayload.site
+                ? `opened site ${nextPayload.site}`
+                : `opened ${nextPayload.browser ?? 'default'} browser`,
           })
         }
         : undefined,
@@ -7341,13 +7506,227 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
             label: 'browser_click_element',
             metadata: {
               browser: nextPayload.browser ?? 'default',
+              ordinal: nextPayload.ordinal ?? null,
               selector: nextPayload.selector,
+              targetType: nextPayload.targetType ?? null,
+              text: nextPayload.text ?? null,
             },
             traceMetadata: {
               browser: nextPayload.browser ?? 'default',
             },
             run: async () => await options.browserClickElement!(nextPayload),
-            summarizeSuccess: () => `clicked browser selector ${nextPayload.selector}`,
+            summarizeSuccess: () => nextPayload.selector
+              ? `clicked browser selector ${nextPayload.selector}`
+              : nextPayload.ordinal
+                ? `clicked browser ${nextPayload.targetType ?? 'element'} #${nextPayload.ordinal}`
+              : `clicked browser element ${nextPayload.text ?? 'target'}`,
+          })
+        }
+        : undefined,
+      browserTypeText: options.browserTypeText
+        ? async (nextPayload) => {
+          return await agentTurn.trackTool({
+            phaseId: 'tool:browser-type-text',
+            kind: 'runtime',
+            label: 'browser_type_text',
+            metadata: {
+              browser: nextPayload.browser ?? 'default',
+              ordinal: nextPayload.ordinal ?? null,
+              selector: nextPayload.selector ?? null,
+              targetText: nextPayload.targetText ?? null,
+              submit: nextPayload.submit === true,
+            },
+            traceMetadata: {
+              browser: nextPayload.browser ?? 'default',
+            },
+            run: async () => await options.browserTypeText!(nextPayload),
+            summarizeSuccess: () => `typed text into browser${nextPayload.targetText ? ` via ${nextPayload.targetText}` : nextPayload.selector ? ` via ${nextPayload.selector}` : ''}`,
+          })
+        }
+        : undefined,
+      browserNavigate: options.browserNavigate
+        ? async (nextPayload) => {
+          return await agentTurn.trackTool({
+            phaseId: 'tool:browser-navigate',
+            kind: 'runtime',
+            label: 'browser_navigate',
+            metadata: {
+              browser: nextPayload.browser ?? 'default',
+              action: nextPayload.action,
+            },
+            traceMetadata: {
+              browser: nextPayload.browser ?? 'default',
+            },
+            run: async () => await options.browserNavigate!(nextPayload),
+            summarizeSuccess: () => nextPayload.action === 'reload'
+              ? 'reloaded browser page'
+              : `navigated browser ${nextPayload.action}`,
+          })
+        }
+        : undefined,
+      browserScroll: options.browserScroll
+        ? async (nextPayload) => {
+          return await agentTurn.trackTool({
+            phaseId: 'tool:browser-scroll',
+            kind: 'runtime',
+            label: 'browser_scroll',
+            metadata: {
+              browser: nextPayload.browser ?? 'default',
+              action: nextPayload.action,
+              amount: nextPayload.amount ?? 1,
+            },
+            traceMetadata: {
+              browser: nextPayload.browser ?? 'default',
+            },
+            run: async () => await options.browserScroll!(nextPayload),
+            summarizeSuccess: () => `scrolled browser ${nextPayload.action}${nextPayload.amount && nextPayload.amount > 1 ? ` x${nextPayload.amount}` : ''}`,
+          })
+        }
+        : undefined,
+      browserWait: options.browserWait
+        ? async (nextPayload) => {
+          return await agentTurn.trackTool({
+            phaseId: 'tool:browser-wait',
+            kind: 'runtime',
+            label: 'browser_wait',
+            metadata: {
+              browser: nextPayload.browser ?? 'default',
+              state: nextPayload.state ?? 'complete',
+              text: nextPayload.text ?? null,
+              urlIncludes: nextPayload.urlIncludes ?? null,
+              timeoutMs: nextPayload.timeoutMs ?? null,
+            },
+            traceMetadata: {
+              browser: nextPayload.browser ?? 'default',
+            },
+            run: async () => await options.browserWait!(nextPayload),
+            summarizeSuccess: () => `waited for browser ${nextPayload.state ?? 'complete'} readiness`,
+          })
+        }
+        : undefined,
+      desktopListInteractables: options.desktopListInteractables
+        ? async (nextPayload) => {
+          return await agentTurn.trackTool({
+            phaseId: 'tool:desktop-list-interactables',
+            kind: 'runtime',
+            label: 'desktop_list_interactables',
+            metadata: {
+              role: nextPayload.role ?? null,
+              maxItems: nextPayload.maxItems ?? null,
+            },
+            traceMetadata: {
+              turnId: payload.turnId,
+            },
+            run: async () => await options.desktopListInteractables!(nextPayload),
+            summarizeSuccess: () => `listed desktop interactables${nextPayload.role ? ` for ${nextPayload.role}` : ''}`,
+          })
+        }
+        : undefined,
+      desktopClickElement: options.desktopClickElement
+        ? async (nextPayload) => {
+          return await agentTurn.trackTool({
+            phaseId: 'tool:desktop-click-element',
+            kind: 'runtime',
+            label: 'desktop_click_element',
+            metadata: {
+              role: nextPayload.role ?? null,
+              ordinal: nextPayload.ordinal ?? null,
+              text: nextPayload.text ?? null,
+            },
+            traceMetadata: {
+              turnId: payload.turnId,
+            },
+            run: async () => await options.desktopClickElement!(nextPayload),
+            summarizeSuccess: () => nextPayload.ordinal
+              ? `clicked desktop ${nextPayload.role ?? 'element'} #${nextPayload.ordinal}`
+              : `clicked desktop element ${nextPayload.text ?? 'target'}`,
+          })
+        }
+        : undefined,
+      desktopTypeText: options.desktopTypeText
+        ? async (nextPayload) => {
+          return await agentTurn.trackTool({
+            phaseId: 'tool:desktop-type-text',
+            kind: 'runtime',
+            label: 'desktop_type_text',
+            metadata: {
+              role: nextPayload.role ?? null,
+              ordinal: nextPayload.ordinal ?? null,
+              targetText: nextPayload.targetText ?? null,
+              submit: nextPayload.submit === true,
+            },
+            traceMetadata: {
+              turnId: payload.turnId,
+            },
+            run: async () => await options.desktopTypeText!(nextPayload),
+            summarizeSuccess: () => `typed text into desktop${nextPayload.targetText ? ` via ${nextPayload.targetText}` : ''}`,
+          })
+        }
+        : undefined,
+      desktopPressKeys: options.desktopPressKeys
+        ? async (nextPayload) => {
+          return await agentTurn.trackTool({
+            phaseId: 'tool:desktop-press-keys',
+            kind: 'runtime',
+            label: 'desktop_press_keys',
+            metadata: {
+              shortcut: nextPayload.shortcut ?? '',
+              repeat: nextPayload.repeat ?? 1,
+            },
+            traceMetadata: {
+              turnId: payload.turnId,
+            },
+            run: async () => await options.desktopPressKeys!(nextPayload),
+            summarizeSuccess: () => `pressed desktop shortcut ${nextPayload.shortcut ?? 'unknown'}`,
+          })
+        }
+        : undefined,
+      desktopWait: options.desktopWait
+        ? async (nextPayload) => {
+          return await agentTurn.trackTool({
+            phaseId: 'tool:desktop-wait',
+            kind: 'runtime',
+            label: 'desktop_wait',
+            metadata: {
+              appName: nextPayload.appName ?? null,
+              titleIncludes: nextPayload.titleIncludes ?? null,
+              timeoutMs: nextPayload.timeoutMs ?? null,
+            },
+            traceMetadata: {
+              turnId: payload.turnId,
+            },
+            run: async () => await options.desktopWait!(nextPayload),
+            summarizeSuccess: () => `waited for desktop target ${nextPayload.appName ?? nextPayload.titleIncludes ?? 'frontmost window'}`,
+          })
+        }
+        : undefined,
+      desktopInspectScene: options.desktopInspectScene
+        ? async (nextPayload) => {
+          return await agentTurn.trackTool({
+            phaseId: 'tool:desktop-inspect-scene',
+            kind: 'runtime',
+            label: 'desktop_inspect_scene',
+            metadata: {
+              question: nextPayload.question ?? '',
+              forceRefresh: nextPayload.forceRefresh === true,
+              maxSuggestedActions: nextPayload.maxSuggestedActions ?? null,
+            },
+            traceMetadata: {
+              turnId: payload.turnId,
+            },
+            run: async () => await options.desktopInspectScene!(nextPayload),
+            summarizeSuccess: result => {
+              const payload = result && typeof result === 'object' && !Array.isArray(result)
+                ? result as Record<string, unknown>
+                : null
+              const foregroundWindow = payload?.foregroundWindow && typeof payload.foregroundWindow === 'object' && !Array.isArray(payload.foregroundWindow)
+                ? payload.foregroundWindow as Record<string, unknown>
+                : null
+              const appName = typeof foregroundWindow?.appName === 'string' ? foregroundWindow.appName : ''
+              const processName = typeof foregroundWindow?.processName === 'string' ? foregroundWindow.processName : ''
+              const title = typeof foregroundWindow?.title === 'string' ? foregroundWindow.title : ''
+              return `inspected desktop scene around ${appName || processName || title || 'current foreground'}`
+            },
           })
         }
         : undefined,
@@ -7401,6 +7780,16 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
             browserSearchWeb: sessionBoundToolOptions.browserSearchWeb,
             browserReadPage: sessionBoundToolOptions.browserReadPage,
             browserClickElement: sessionBoundToolOptions.browserClickElement,
+            browserTypeText: sessionBoundToolOptions.browserTypeText,
+            browserNavigate: sessionBoundToolOptions.browserNavigate,
+            browserScroll: sessionBoundToolOptions.browserScroll,
+            browserWait: sessionBoundToolOptions.browserWait,
+            desktopListInteractables: sessionBoundToolOptions.desktopListInteractables,
+            desktopClickElement: sessionBoundToolOptions.desktopClickElement,
+            desktopTypeText: sessionBoundToolOptions.desktopTypeText,
+            desktopPressKeys: sessionBoundToolOptions.desktopPressKeys,
+            desktopWait: sessionBoundToolOptions.desktopWait,
+            desktopInspectScene: sessionBoundToolOptions.desktopInspectScene,
             desktopOpenApplication: sessionBoundToolOptions.desktopOpenApplication,
             executionCapabilityChannels: options.executionCapabilityChannels,
             getSensorySnapshot: sessionBoundToolOptions.getSensorySnapshot,
@@ -7498,11 +7887,15 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
     executionRuntimeProjectBriefing = runtimeSurfaceForBuilder
       ? readRuntimeProjectStateFromSurface(runtimeSurfaceForBuilder)
       : null
+    executionRuntimeAffectiveResidue = runtimeSurfaceForBuilder?.memory?.affectiveResidue ?? null
+    executionRuntimeDerivedMindStateBundle = runtimeSurfaceForBuilder?.memory?.derivedMindStateBundle ?? null
     const executionCapabilityRuntimeContext = buildAlicizationExecutionRuntimeContext({
       agentSessionId: agentTurn.agentSessionId,
+      affectiveResidue: executionRuntimeAffectiveResidue ?? null,
       cardId: payload.cardId,
       turnId: payload.turnId,
       decisionTraceId: prelude.perceptionAugmentation.chatGovernance.mindTurnGovernance?.decisionTraceId ?? null,
+      derivedMindStateBundle: executionRuntimeDerivedMindStateBundle ?? null,
       sessionId: agentTurn.conversationSessionId,
       projectBriefing: executionRuntimeProjectBriefing,
       sensorySnapshot: agentSessionSensorySnapshot,
@@ -7791,7 +8184,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
           && !isCanonicalStructuredProjectAwareness(preferredSeedCompanionCandidate)
           && (!carriesBroaderProjectClosureFrame(preferredSeedAwarenessLine)
             || !hasDistinctEmbodimentClosureCue(preferredSeedCompanionCandidate)
-          || carriesBroaderProjectClosureFrame(preferredSeedCompanionCandidate))
+            || carriesBroaderProjectClosureFrame(preferredSeedCompanionCandidate))
         )
       ),
     )
@@ -8477,20 +8870,20 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
                 normalizedLatestLandedProgress
                 && normalizedLatestLandedProgress !== canonicalLatestLandedProgress
                 && normalizedAwarenessLine.includes(normalizedLatestLandedProgress)
-              && !canonicalAwarenessLine.includes(normalizedLatestLandedProgress)
+                && !canonicalAwarenessLine.includes(normalizedLatestLandedProgress)
               )
               || (
                 normalizedPrimaryOpenLoop
-              && normalizedPrimaryOpenLoop !== canonicalPrimaryOpenLoop
-              && normalizedAwarenessLine.includes(normalizedPrimaryOpenLoop)
-              && !canonicalAwarenessLine.includes(normalizedPrimaryOpenLoop)
+                && normalizedPrimaryOpenLoop !== canonicalPrimaryOpenLoop
+                && normalizedAwarenessLine.includes(normalizedPrimaryOpenLoop)
+                && !canonicalAwarenessLine.includes(normalizedPrimaryOpenLoop)
               )
-            || (
-              normalizedNextClosureTarget
-              && normalizedNextClosureTarget !== canonicalNextClosureTarget
-              && normalizedAwarenessLine.includes(normalizedNextClosureTarget)
-              && !canonicalAwarenessLine.includes(normalizedNextClosureTarget)
-            )
+              || (
+                normalizedNextClosureTarget
+                && normalizedNextClosureTarget !== canonicalNextClosureTarget
+                && normalizedAwarenessLine.includes(normalizedNextClosureTarget)
+                && !canonicalAwarenessLine.includes(normalizedNextClosureTarget)
+              )
             ),
           )
           const normalizedAwarenessCarriesSpecificRuntimeSameHerAuthorityOmittedByCanonical = Boolean(

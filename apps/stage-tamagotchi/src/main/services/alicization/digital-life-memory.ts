@@ -30,35 +30,43 @@ function firstNonEmptyText(...values: unknown[]) {
   return ''
 }
 
-function pickFocusBelief(surface: AlicizationDigitalLifeRuntimeSurface) {
-  const beliefs = asArray(surface.cognition.beliefLedger?.beliefs)
+function pickFocusBelief(surface: Partial<AlicizationDigitalLifeRuntimeSurface>) {
+  const beliefs = asArray(surface.cognition?.beliefLedger?.beliefs)
   return beliefs.find(
-    belief => belief.id === surface.cognition.beliefLedger?.focusBeliefId,
+    belief => belief.id === surface.cognition?.beliefLedger?.focusBeliefId,
   ) ?? beliefs[0] ?? null
 }
 
-function pickLeadingGoal(surface: AlicizationDigitalLifeRuntimeSurface) {
-  const goals = asArray(surface.memory.goalStack?.alicizationGoals)
+function pickLeadingGoal(surface: Partial<AlicizationDigitalLifeRuntimeSurface>) {
+  const goals = asArray(surface.memory?.goalStack?.alicizationGoals)
   return goals.find(
-    goal => goal.id === surface.memory.goalStack?.leadingAlicizationGoalId,
+    goal => goal.id === surface.memory?.goalStack?.leadingAlicizationGoalId,
   ) ?? goals[0] ?? null
 }
 
-function pickDominantConcern(surface: AlicizationDigitalLifeRuntimeSurface) {
-  return surface.memory.concerns?.[0] ?? null
+function pickDominantConcern(surface: Partial<AlicizationDigitalLifeRuntimeSurface>) {
+  return surface.memory?.concerns?.[0] ?? null
 }
 
-function pickForegroundThoughtThread(surface: AlicizationDigitalLifeRuntimeSurface) {
-  const thoughtThreads = surface.memory.thoughtThreads
-  return thoughtThreads?.threads.find(
-    thread => thread.id === thoughtThreads.foregroundThreadId,
-  ) ?? thoughtThreads?.threads[0] ?? null
+function pickForegroundThoughtThread(surface: Partial<AlicizationDigitalLifeRuntimeSurface>) {
+  const thoughtThreads = surface.memory?.thoughtThreads
+  const threads = asArray(thoughtThreads?.threads)
+  const foregroundThreadId = thoughtThreads?.foregroundThreadId ?? null
+  return threads.find(
+    thread => thread.id === foregroundThreadId,
+  ) ?? threads[0] ?? null
 }
 
-function latestReflectionEntry(surface: AlicizationDigitalLifeRuntimeSurface): AlicizationReflectionEntrySnapshot | null {
-  const ledger = surface.memory.reflectionLedger
-  return ledger?.entries.find(entry => entry.id === ledger.latestEntryId)
-    ?? ledger?.entries[0]
+function latestReflectionEntry(surface: Partial<AlicizationDigitalLifeRuntimeSurface>): AlicizationReflectionEntrySnapshot | null {
+  const ledger = surface.memory?.reflectionLedger
+  const entries = asArray(ledger?.entries)
+  const latestEntryId = ledger?.latestEntryId ?? null
+  const latest = entries.find(entry => entry.id === latestEntryId)
+  if (latest && latest.outcome !== 'released')
+    return latest
+
+  return entries.find(entry => entry.outcome !== 'released')
+    ?? entries[0]
     ?? null
 }
 
@@ -76,14 +84,16 @@ export function buildAlicizationDigitalLifeMemoryDigest(
   if (!surface)
     return null
 
-  const recentEpisode = asArray(surface.memory.workingMemoryEpisodes).at(-1) ?? null
+  const memory = surface.memory ?? null
+
+  const recentEpisode = asArray(memory?.workingMemoryEpisodes).at(-1) ?? null
   const focusBelief = pickFocusBelief(surface)
   const leadingGoal = pickLeadingGoal(surface)
   const dominantConcern = pickDominantConcern(surface)
   const latestReflection = latestReflectionEntry(surface)
-  const recallGovernor = surface.memory.recallGovernor ?? null
+  const recallGovernor = memory?.recallGovernor ?? null
   const thoughtThread = pickForegroundThoughtThread(surface)
-  const longHorizonMemory = surface.memory.longHorizonMemory ?? null
+  const longHorizonMemory = memory?.longHorizonMemory ?? null
 
   const recentEpisodeSummary = sanitizeText(recentEpisode?.summary, 180) || null
   const focusBeliefStatement = sanitizeText(focusBelief?.statement, 160) || null
@@ -124,6 +134,9 @@ export function buildAlicizationDigitalLifeMemoryDigest(
   const longHorizonCueCount = Array.isArray(longHorizonMemory?.anchorFacts)
     ? longHorizonMemory.anchorFacts.length
     : 0
+  const selfEvolution = memory?.selfEvolution ?? null
+  const derivedMindStateBundleAffectiveResidue = memory?.derivedMindStateBundle?.affectiveResidue ?? null
+  const personStateProjection = memory?.personStateProjection ?? null
 
   return {
     summary: [
@@ -138,13 +151,13 @@ export function buildAlicizationDigitalLifeMemoryDigest(
       longHorizonSummary ? `durable=${sanitizeText(longHorizonSummary, 72)}` : '',
     ].filter(Boolean).join(' | ') || null,
     recentEpisodeSummary,
-    recentEpisodeCount: asArray(surface.memory.workingMemoryEpisodes).length,
+    recentEpisodeCount: asArray(memory?.workingMemoryEpisodes).length,
     focusBeliefStatement,
     focusBeliefConfidence: normalizeUnit(focusBelief?.confidence),
     leadingGoalSummary,
     dominantConcernSummary,
     reflectionSummary,
-    reflectionPressure: normalizeUnit(surface.memory.reflectionLedger?.revisionPressure),
+    reflectionPressure: normalizeUnit(memory?.reflectionLedger?.revisionPressure),
     recallMode,
     recallSeed,
     recollectionSummary,
@@ -156,5 +169,42 @@ export function buildAlicizationDigitalLifeMemoryDigest(
     rememberedConstraintSummary,
     rememberedPlanSummary,
     longHorizonCueCount,
+    selfEvolution: selfEvolution
+      ? {
+          relationshipDoctrine: sanitizeText(selfEvolution.relationshipDoctrine, 220) || null,
+          relationshipCadenceSummary: sanitizeText(selfEvolution.relationshipCadenceSummary, 220) || null,
+          latestInflection: sanitizeText(selfEvolution.latestInflection, 220) || null,
+          burdenLine: sanitizeText(selfEvolution.burdenLine, 220) || null,
+          trustMeaning: sanitizeText(selfEvolution.trustMeaning, 220) || null,
+          summary: sanitizeText(selfEvolution.summary, 220) || null,
+        }
+      : null,
+    affectiveResidue: memory?.affectiveResidue ?? null,
+    derivedMindStateBundle: derivedMindStateBundleAffectiveResidue
+      ? {
+          affectiveResidue: derivedMindStateBundleAffectiveResidue,
+        }
+      : null,
+    personStateProjection: personStateProjection
+      ? {
+          summary: sanitizeText(personStateProjection.summary, 220) || null,
+          selfContinuityAuthority: personStateProjection.selfContinuityAuthority
+            ? {
+                selfLine: sanitizeText(personStateProjection.selfContinuityAuthority.selfLine, 220) || null,
+                relationshipLine: sanitizeText(personStateProjection.selfContinuityAuthority.relationshipLine, 220) || null,
+                motiveLine: sanitizeText(personStateProjection.selfContinuityAuthority.motiveLine, 220) || null,
+                habitLine: sanitizeText(personStateProjection.selfContinuityAuthority.habitLine, 220) || null,
+                inwardLine: sanitizeText(personStateProjection.selfContinuityAuthority.inwardLine, 220) || null,
+                authoritySummary: sanitizeText(personStateProjection.selfContinuityAuthority.authoritySummary, 220) || null,
+              }
+            : null,
+          activeClosenessContext: sanitizeText(personStateProjection.activeClosenessContext, 64) || null,
+          activeClosenessRung: sanitizeText(personStateProjection.activeClosenessRung, 64) || null,
+          relationshipPosture: sanitizeText(personStateProjection.relationshipPosture, 64) || null,
+          openingGuidance: sanitizeText(personStateProjection.openingGuidance, 220) || null,
+          preferredProactiveStyle: sanitizeText(personStateProjection.preferredProactiveStyle, 64) || null,
+          manifestationCadenceSummary: sanitizeText(personStateProjection.manifestationCadenceSummary, 220) || null,
+        }
+      : null,
   }
 }
