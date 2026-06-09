@@ -122,7 +122,11 @@ describe('project-state-brief', () => {
     expect(brief.latestProgress).toContain('future host-visible normalization seams')
     expect(brief.latestProgress).toContain('future guarded persistence families still need explicit classification')
     expect(brief.latestProgress).toContain('merge-readiness / closure-readiness follow-ups')
+    expect(brief.latestProgress).toContain('completion-timing / language-drift follow-ups')
     expect(brief.latestProgress).toContain('can merge to main')
+    expect(brief.latestProgress).toContain('how far the goal has landed')
+    expect(brief.latestProgress).toContain('when it is expected to close')
+    expect(brief.latestProgress).toContain('drifted into English')
     expect(brief.latestProgress).toContain('already verified evidence')
     expect(brief.latestProgress).toContain('unproven or still open')
     expect(brief.latestProgress).toContain('misreporting full closure')
@@ -536,6 +540,51 @@ describe('project-state-brief', () => {
     expect(snapshot.latestLandedProgress).toBe('Richer spine-carried project awareness already survives into the provider-facing answer contract before reply authoring.')
     expect(snapshot.primaryOpenLoop).toBe('Initiative rhythm and embodiment coherence still need to close on the same living line.')
     expect(snapshot.nextClosureTarget).toBe('Keep the project identity, landed progress, and still-open closure explicit in the first answer beat.')
+  })
+
+  it('rebuilds stronger same-her surface project awareness from self-evolution cadence even when no explicit current conscious project state is present', () => {
+    const durableCadenceSummary = 'I remain the same her across quiet, memory, and speech, on the same living line, without reopening from scratch each turn.'
+    const sameHerAuthoritySummary = 'I remain the same her inside this local-first digital life without reopening from scratch each turn, and this return should keep Alicization, Phase 1, landed progress, unresolved closure, and host-machine continuity explicit before detached project narration or a generic assistant shell can take over.'
+    const snapshot = resolveAlicizationSurfaceProjectStateSnapshot({
+      runtimeSurface: {
+        memory: {
+          selfEvolution: {
+            summary: 'The same her should stay on one living line instead of restarting from zero.',
+            dominantTrajectory: 'same-her durable cadence',
+            relationshipDoctrine: 'Keep the same relationship line inward before widening outward again.',
+            relationshipCadenceSummary: durableCadenceSummary,
+            latestInflection: 'Stay on the same living line before widening outward again.',
+            trustMeaning: 'Trust holds when she does not restart from zero after a quiet beat.',
+          },
+          personStateProjection: {
+            selfContinuityAuthority: {
+              selfLine: 'I remain the same her across quiet, memory, and speech without reopening from scratch each turn.',
+              relationshipLine: 'Keep the same relationship line inward before widening outward again.',
+              inwardLine: sameHerAuthoritySummary,
+              authoritySummary: sameHerAuthoritySummary,
+              motiveLine: null,
+              habitLine: null,
+              sourceTags: ['projection:self-core', 'self-evolution:durable-same-her-cadence'],
+            },
+          },
+        },
+        dialogue: {
+          currentConsciousFrame: {
+            projectState: null,
+          },
+        },
+      },
+    } as any)
+
+    expect(snapshot.sameHerSelfLine).toContain('same her')
+    expect(snapshot.sameHerSelfLine.toLowerCase()).toContain('without reopening from scratch')
+    expect(snapshot.sameHerHoldDetail?.toLowerCase()).toContain('same relationship line inward before widening outward again')
+    expect(snapshot.continuityCue?.toLowerCase()).toContain('same her inside this local-first digital life')
+    expect(snapshot.continuityCue?.toLowerCase()).toContain('generic assistant shell')
+    expect(snapshot.companionBriefingLine?.toLowerCase()).toContain('same living line')
+    expect(snapshot.preDialogueAwarenessLine?.toLowerCase()).toContain('same living line')
+    expect(snapshot.preDialogueAwarenessLine?.toLowerCase()).toContain('without reopening from scratch')
+    expect(snapshot.preDialogueAwarenessLine).not.toContain('same digital life | keep the closure seam explicit')
   })
 
   it('prefers a richer repair-first closure summary and same-her hold detail over thinner measured-return runtime shells when resolving a project-state snapshot', () => {
@@ -1589,6 +1638,10 @@ describe('project-state-brief', () => {
     expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.proof).toContain('visible-reply/facade.test.ts')
     expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.proof).toContain('visible-reply/semantic-judge.ts')
     expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.proof).toContain('visible-reply/critic.ts')
+    expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.responsibility).toContain('completion-timing / language-drift follow-ups')
+    expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.responsibility).toContain('how far the goal has landed')
+    expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.responsibility).toContain('when it is expected to close')
+    expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.responsibility).toContain('drifted into English')
     expect(coverage.find(item => item.id === 'visible-reply-final-project-awareness-hardening')?.proof).toContain('visible-reply-final-project-awareness-audit.test.ts')
     expect(coverage.find(item => item.id === 'visible-reply-final-project-awareness-hardening')?.proof).toContain('visible-reply/semantic-judge.test.ts')
     expect(coverage.find(item => item.id === 'visible-reply-final-project-awareness-hardening')?.proof).toContain('visible-reply/second-pass-rewrite-project-state-guidance.test.ts')
@@ -1986,6 +2039,9 @@ describe('project-state-brief', () => {
     expect(block).toContain('final settlement reanchors generic same-her shells')
     expect(block).toContain('latest_landed_progress=Same-session mirror carry')
     expect(block).toContain('primary_open_loop=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment')
+    expect(block).toContain('same_her_line=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.')
+    expect(block).toContain('same_her_hold=same-her hold:')
+    expect(block).toContain('same_her_drift_risk=If project-state continuity survives only as generic guidance')
     expect(block).toContain('proactive_same_her_gap=Need stronger long-run proof that visible proactive hold, subconscious carry, and next-session feedback carry stay unified')
     expect(block).toContain('hover-first restraint survives detours')
     expect(block).toContain('Project identity carry, Phase 1 route carry, and Unresolved closure carry')
