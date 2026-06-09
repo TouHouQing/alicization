@@ -1076,6 +1076,22 @@ const coverageRows = [
     ],
   },
   {
+    entry: 'runtime-governance-project-awareness',
+    proofKind: 'dynamic',
+    file: './runtime-governance-project-awareness-audit.test.ts',
+    evidence: 'runtime-governance now has dedicated route-level proof that governed rewrite continuity preserves stronger same-her project carry, treats thin english and chinese reminder shells as thin, prefers fresher living-self continuity over thinner carried summaries, and keeps host-confirmed resume confirmation boundaries bounded before visible reply wording widens outward',
+    fileMustContain: [
+      'keeps one explicit route-level proof that runtime-governance preserves same-her project continuity and bounded rewrite carry before visible reply wording widens outward',
+      'expect.objectContaining({ entry: \'runtime-governance-same-life-rewrite-preserve\' })',
+      'expect.objectContaining({ entry: \'runtime-governance-thin-project-shell-treated-thin\' })',
+      'expect.objectContaining({ entry: \'runtime-governance-thin-chinese-same-her-reminder-rejected\' })',
+      'expect.objectContaining({ entry: \'runtime-governance-living-self-line-precedence\' })',
+      'expect.objectContaining({ entry: \'runtime-governance-resume-confirmation-boundary-preserve\' })',
+      'expect(coverageSource).toContain(\'runtime-governance-project-awareness-audit.test.ts\')',
+      'Long-run proof is still incomplete',
+    ],
+  },
+  {
     entry: 'visible-reply-facade-project-awareness',
     proofKind: 'dynamic',
     file: './visible-reply-facade-project-awareness-audit.test.ts',
@@ -1799,6 +1815,29 @@ const coverageRows = [
       'requires visible reply and persistence continuity surfaces to keep shared same-her / landed / open / next reminders explicit',
       'expect(source).toContain(\'alicizationProjectStateVisibleReplySameHerReminder\')',
       'expect(source).toContain(\'alicizationProjectStatePersistenceLandedReminder\')',
+    ],
+  },
+  {
+    entry: 'project-state-answer-governance-closure-readiness-route',
+    proofKind: 'dynamic',
+    file: './project-state-answer-governance-project-awareness-audit.test.ts',
+    evidence: 'current project-state answer-governance routes now have one explicit route-level proof that merge-readiness and goal-closure follow-ups plus completion-timing and language-drift follow-ups stay on the same same-her project-state line across governance authority, compact active-dialogue follow-up classification, semantics classification, answer planning, response charter shaping, executive answer briefing, provider-facing runtime rebuild, and host-visible normalization, while future project-status answer surfaces still need explicit classification',
+    fileMustContain: [
+      'keeps one explicit route-level proof that project-state answer governance preserves same-her merge-readiness boundaries across authority, fast-path follow-up classification, provider-facing rebuild, executive answer briefing, and host-visible normalization',
+      'keeps one explicit route-level proof that project-state answer governance preserves same-her completion-timing and language-drift follow-ups across semantics classification, fast-path follow-up classification, answer planning, response charter shaping, executive answer briefing, provider-facing runtime rebuild, and host-visible normalization',
+      'expect.objectContaining({ entry: \'governance-authority-closure-readiness-rules\' })',
+      'expect.objectContaining({ entry: \'active-dialogue-fast-path-closure-readiness-follow-up\' })',
+      'expect.objectContaining({ entry: \'semantics-completion-timing-language-drift-classification\' })',
+      'expect.objectContaining({ entry: \'answer-planner-completion-timing-language-drift-fail-closed\' })',
+      'expect.objectContaining({ entry: \'response-charter-completion-timing-language-drift-fails-closed\' })',
+      'expect.objectContaining({ entry: \'session-runtime-provider-facing-completion-timing-language-drift-governance\' })',
+      'expect.objectContaining({ entry: \'host-visible-normalization-completion-timing-language-drift-boundary\' })',
+      'expect.objectContaining({ entry: \'executive-answer-brief-closure-readiness-governance\' })',
+      'expect.objectContaining({ entry: \'session-runtime-provider-facing-closure-readiness-governance\' })',
+      'expect.objectContaining({ entry: \'host-visible-normalization-closure-readiness-boundary\' })',
+      'expect(coverageSource).toContain(\'project-state-answer-governance-project-awareness-audit.test.ts\')',
+      'expect(coverageSource).toContain(\'completion-timing / language-drift follow-ups\')',
+      'expect(coverageSource).toContain(\'future project-status answer surfaces still need explicit classification\')',
     ],
   },
   {
@@ -3885,6 +3924,7 @@ describe('project awareness coverage matrix', () => {
       expect.objectContaining({ entry: 'answer-compiler-project-awareness', proofKind: 'dynamic' }),
       expect.objectContaining({ entry: 'reply-deliberator-project-awareness', proofKind: 'dynamic' }),
       expect.objectContaining({ entry: 'executive-answer-brief-project-awareness', proofKind: 'dynamic' }),
+      expect.objectContaining({ entry: 'runtime-governance-project-awareness', proofKind: 'dynamic' }),
       expect.objectContaining({ entry: 'visible-reply-facade-project-awareness', proofKind: 'dynamic' }),
       expect.objectContaining({ entry: 'visible-reply-settlement-project-awareness', proofKind: 'dynamic' }),
       expect.objectContaining({ entry: 'visible-reply-governance-project-awareness', proofKind: 'dynamic' }),
@@ -3920,6 +3960,7 @@ describe('project awareness coverage matrix', () => {
       expect.objectContaining({ entry: 'runtime-turn-persistence-origin-spoof-rejection', proofKind: 'dynamic' }),
       expect.objectContaining({ entry: 'runtime-turn-persistence-continuity', proofKind: 'dynamic' }),
       expect.objectContaining({ entry: 'project-state-answer-governance-registration', proofKind: 'static' }),
+      expect.objectContaining({ entry: 'project-state-answer-governance-closure-readiness-route', proofKind: 'dynamic' }),
       expect.objectContaining({ entry: 'project-state-answer-governance-entrypoint-candidate-scan', proofKind: 'static' }),
       expect.objectContaining({ entry: 'runtime-dialogue-normalization-entrypoint-candidate-scan', proofKind: 'static' }),
       expect.objectContaining({ entry: 'runtime-turn-persistence-entrypoint-candidate-scan', proofKind: 'static' }),
@@ -4078,6 +4119,7 @@ describe('project awareness coverage matrix', () => {
     expect(coverageRows.some(row => row.entry === 'visible-reply-final-project-awareness')).toBe(true)
     expect(coverageRows.some(row => row.entry === 'action-obligation-project-awareness')).toBe(true)
     expect(coverageRows.some(row => row.entry === 'executive-answer-brief-project-awareness')).toBe(true)
+    expect(coverageRows.some(row => row.entry === 'runtime-governance-project-awareness')).toBe(true)
     expect(coverageRows.some(row => row.entry === 'visible-reply-facade-project-awareness')).toBe(true)
     expect(coverageRows.some(row => row.entry === 'visible-reply-settlement-project-awareness')).toBe(true)
     expect(coverageRows.some(row => row.entry === 'visible-reply-governance-project-awareness')).toBe(true)
@@ -4116,6 +4158,7 @@ describe('project awareness coverage matrix', () => {
     expect(coverageRows.some(row => row.entry === 'runtime-turn-persistence-origin-spoof-rejection')).toBe(true)
     expect(coverageRows.some(row => row.entry === 'runtime-turn-persistence-continuity')).toBe(true)
     expect(coverageRows.some(row => row.entry === 'project-state-answer-governance-registration')).toBe(true)
+    expect(coverageRows.some(row => row.entry === 'project-state-answer-governance-closure-readiness-route')).toBe(true)
     expect(coverageRows.some(row => row.entry === 'project-state-answer-governance-entrypoint-candidate-scan')).toBe(true)
     expect(coverageRows.some(row => row.entry === 'runtime-dialogue-normalization-entrypoint-candidate-scan')).toBe(true)
     expect(coverageRows.some(row => row.entry === 'runtime-turn-persistence-entrypoint-candidate-scan')).toBe(true)
