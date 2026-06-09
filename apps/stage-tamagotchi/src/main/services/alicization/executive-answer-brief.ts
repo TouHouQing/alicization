@@ -20,9 +20,21 @@ import {
   getActivePerceptionSceneResidue,
   isSelfPerceptionTarget,
 } from './attention-anchor'
+import { preferStrongerContinuityClosureAuthority } from './continuity-closure-authority'
 import { sanitizeDialogueSurfaceText } from './dialogue-surface-text'
 import { buildAlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 import { deriveMindTruthContract } from './mind-truth-contract'
+import {
+  alicizationProjectStateAnswerMustDo,
+  alicizationProjectStateAnswerMustNotDo,
+} from './project-state-answer-governance'
+import {
+  compactProjectLatestProgressForSystemBlock,
+  looksLikeThinProjectClosureShell,
+  resolveAlicizationProjectPreDialogueAwarenessLine,
+  resolveAlicizationProjectStateBrief,
+  resolveAlicizationProjectStateSnapshot,
+} from './project-state-brief'
 
 function sanitizeText(raw: unknown, maxChars = 220) {
   if (typeof raw !== 'string')
@@ -32,6 +44,24 @@ function sanitizeText(raw: unknown, maxChars = 220) {
 
 function sanitizeCarryThreadCandidate(raw: unknown, maxChars = 220) {
   return sanitizeDialogueSurfaceText(raw, maxChars)
+}
+
+function preferExecutiveProjectStateAuditText(input: {
+  current?: unknown
+  candidate?: unknown
+}) {
+  const current = sanitizeText(input.current, 320)
+  const candidate = sanitizeText(input.candidate, 320)
+
+  if (!current)
+    return candidate || null
+  if (!candidate)
+    return current
+  if (current === candidate)
+    return current
+
+  return preferStrongerContinuityClosureAuthority(current, candidate)
+    || current
 }
 
 function describeTarget(input: {
@@ -84,6 +114,138 @@ function isWeakGenericSurface(target?: AlicizationPerceptionTarget | null) {
     return true
   }
   return isWeakAlicizationScreenSurfaceCue(target.title)
+}
+
+function isThinProjectAwarenessShell(value: unknown) {
+  const text = sanitizeText(value, 400).toLowerCase()
+  if (!text)
+    return false
+
+  return /keep this same digital life project in view|detached project shell|generic project shell/u.test(text)
+    || text === 'same digital life | keep the closure seam explicit'
+}
+
+function looksLikeThinProjectNextClosureShell(value: unknown) {
+  const text = sanitizeText(value, 320).toLowerCase()
+  if (!text)
+    return true
+
+  return looksLikeThinProjectClosureShell(text, 'next')
+}
+
+function scoreExecutiveProjectAwarenessLine(value: unknown) {
+  const text = sanitizeText(value, 400).toLowerCase()
+  if (!text)
+    return 0
+
+  let score = text.length >= 220 ? 2 : text.length >= 120 ? 1 : 0
+  if (/alicization is a local-first digital life project|local-first digital life project|project identity/u.test(text))
+    score += 4
+  if (/phase 1|local digital life/u.test(text))
+    score += 3
+  if (/still-open closure|still open closure|what has already landed|same phase 1 digital life|some closure already landed/u.test(text))
+    score += 3
+  if (/execution|memory|initiative|embodiment/u.test(text))
+    score += 2
+  if (/same living line|one living her|full cross-modal closure|voice, face, and motion/u.test(text))
+    score += 1
+  if (/keep this same digital life project in view|detached project shell/u.test(text))
+    score -= 2
+  return score
+}
+
+function hasHeldAutonomyContinuity(runtimeSurface?: AlicizationDigitalLifeRuntimeSurface | null) {
+  const labels = runtimeSurface?.dialogue.sessionMirror?.continuityLabels
+  if (!Array.isArray(labels) || labels.length === 0)
+    return false
+  return labels.some(label => sanitizeText(label, 120).includes(':held-autonomy'))
+}
+
+function looksLikeProjectStateDirectAnswerTurn(input: {
+  dialogueFocus?: AlicizationDialogueFocusGovernance | null
+  dialogueObligation?: AlicizationDialogueObligation | null
+  dialogueSemantics?: AlicizationDialogueTurnSemantics | null
+  responseCharter?: AlicizationResponseCharter | null
+}) {
+  if (input.dialogueFocus?.subject === 'project-state')
+    return true
+  if (!input.dialogueObligation?.mustAnswerDirectly)
+    return false
+
+  const evidence = [
+    sanitizeText(input.dialogueSemantics?.summary, 320),
+    sanitizeText(input.responseCharter?.governingFocus, 320),
+    sanitizeText(input.responseCharter?.governingProject, 320),
+  ]
+    .filter(Boolean)
+    .join(' | ')
+    .toLowerCase()
+
+  if (!evidence)
+    return false
+
+  const asksWhatThisProjectIs = /what alicization is|what this project is|项目是做什么|项目是什么/u.test(evidence)
+  const asksProgress
+    = /做到什么程度|做到哪|做到哪一步|进行到哪|进行到哪一步|执行到哪|进度|进展|到什么程度|how far|what has landed|what's landed|progress|landed/u.test(evidence)
+  const asksProgressAndOpenClosure
+    = /what still remains open|still remains open|what is not yet closed|做到什么程度|进行到哪|执行到哪|缺少什么|没有闭环|how far .* landed/u.test(evidence)
+  const asksMergeReadinessOrClosure
+    = /(?:can we|is (?:it|this)|ready to|merge-ready|能不能|可以|已经可以|现在可以).{0,40}(?:merge(?: this)? to main|合并到\s*main|ready to merge)|(?:merge(?: this)? to main|合并到\s*main|ready to merge).{0,24}(?:now|already|ready|了吗|吗)|还差哪步|还差哪一步|goal.{0,16}(?:闭环|完成|close|closed|complete)|才能算闭环/u.test(evidence)
+  const asksCompletionTimelineOrLanguageDrift
+    = /计划什么时候完成|什么时候完成(?:这个)?\s*goal|何时完成(?:这个)?\s*goal|什么时候完成|何时完成|expected to (?:finish|close)|expect to (?:finish|close)|when the goal is expected to close|why are you replying in english|replying in english|host language|为什么(?:一直|还)?用英文|为什么(?:一直|还)?不用中文|为什么还用英文|是不是偏移了|偏移了吗|did the thread drift|thread drift|thread has drifted|drifted out of/u.test(evidence)
+  const namesProjectStateTurn = /project-state question|project status|project-state|project continuity/u.test(evidence)
+
+  return namesProjectStateTurn
+    || (asksWhatThisProjectIs && asksProgressAndOpenClosure)
+    || asksMergeReadinessOrClosure
+    || (asksProgress && asksCompletionTimelineOrLanguageDrift)
+}
+
+function resolveExecutiveProjectLatestLandedProgressSource(input: {
+  runtimeSurface: AlicizationDigitalLifeRuntimeSurface
+  canonicalLatestLandedProgress: string | null
+}) {
+  const currentProjectState = input.runtimeSurface.dialogue.currentConsciousFrame?.projectState as {
+    latestLandedProgress?: unknown
+    latestProgress?: unknown
+    landedProgressSummary?: unknown
+  } | null | undefined
+  const cognitionProjectState = input.runtimeSurface.cognition.runtimeDigest?.projectState as {
+    latestLandedProgress?: unknown
+    latestProgress?: unknown
+    landedProgressSummary?: unknown
+    memoryClosureSummary?: unknown
+  } | null | undefined
+  const rawProjectState = input.runtimeSurface.raw?.runtimeDigest?.projectState as {
+    latestLandedProgress?: unknown
+    latestProgress?: unknown
+    landedProgressSummary?: unknown
+    memoryClosureSummary?: unknown
+  } | null | undefined
+  const dialogueProjectState = input.runtimeSurface.dialogue.runtimeDigest?.projectState as {
+    latestLandedProgress?: unknown
+    latestProgress?: unknown
+    landedProgressSummary?: unknown
+    memoryClosureSummary?: unknown
+  } | null | undefined
+
+  // Keep enough source text for project-state compaction to see late-stage
+  // closure markers before the final system-block-sized line is produced.
+  const candidates = [
+    sanitizeText(currentProjectState?.latestLandedProgress ?? currentProjectState?.latestProgress, 18_000),
+    sanitizeText(currentProjectState?.landedProgressSummary, 18_000),
+    sanitizeText(cognitionProjectState?.latestLandedProgress ?? cognitionProjectState?.latestProgress, 18_000),
+    sanitizeText(cognitionProjectState?.landedProgressSummary ?? cognitionProjectState?.memoryClosureSummary, 18_000),
+    sanitizeText(rawProjectState?.latestLandedProgress ?? rawProjectState?.latestProgress, 18_000),
+    sanitizeText(rawProjectState?.landedProgressSummary ?? rawProjectState?.memoryClosureSummary, 18_000),
+    sanitizeText(dialogueProjectState?.latestLandedProgress ?? dialogueProjectState?.latestProgress, 18_000),
+    sanitizeText(dialogueProjectState?.landedProgressSummary ?? dialogueProjectState?.memoryClosureSummary, 18_000),
+    sanitizeText(input.canonicalLatestLandedProgress, 18_000),
+  ]
+
+  return candidates.find(candidate => candidate && !looksLikeThinProjectClosureShell(candidate, 'landed'))
+    || candidates.find(Boolean)
+    || ''
 }
 
 export interface AlicizationExecutiveAnswerBrief {
@@ -167,6 +329,135 @@ export function buildAlicizationExecutiveAnswerBrief(input: {
   const truthState = input.groundedThisTurn && preferredScreenReferenceMode !== 'avoid'
     ? 'live-grounded' as const
     : truthContract.truthState
+  const heldAutonomyContinuity = hasHeldAutonomyContinuity(runtimeSurface)
+  const projectStateBrief = resolveAlicizationProjectStateBrief()
+  const canonicalLatestLandedProgress
+    = projectStateBrief.latestProgress
+      ?? projectStateBrief.continuityProgressSummary
+      ?? projectStateBrief.memoryAnthropomorphismProgress.at(-1)
+      ?? null
+  const liveProjectState
+    = runtimeSurface.dialogue.currentConsciousFrame?.projectState
+      ?? runtimeSurface.raw?.runtimeDigest?.projectState
+      ?? runtimeSurface.cognition.runtimeDigest?.projectState
+      ?? null
+  const currentConsciousProjectState = runtimeSurface.dialogue.currentConsciousFrame?.projectState ?? null
+  const rawRuntimeProjectState = runtimeSurface.raw?.runtimeDigest?.projectState ?? null
+  const cognitionRuntimeProjectState = runtimeSurface.cognition.runtimeDigest?.projectState ?? null
+  const dialogueRuntimeProjectState = runtimeSurface.dialogue.runtimeDigest?.projectState ?? null
+  const liveProjectEmotionalClosureSummary = sanitizeText(
+    (liveProjectState as { emotionalClosureSummary?: unknown } | null)?.emotionalClosureSummary,
+    320,
+  )
+  const normalizedProjectState = resolveAlicizationProjectStateSnapshot({
+    runtimeProjectState: liveProjectState,
+    fallbackProjectState: {
+      identity: projectStateBrief.identity,
+      currentPhase: projectStateBrief.currentPhase,
+      preflightSummary: projectStateBrief.preflightSummary ?? null,
+      preDialogueAwarenessLine: projectStateBrief.preDialogueAwarenessLine ?? null,
+      latestLandedProgress: canonicalLatestLandedProgress,
+      primaryOpenLoop: projectStateBrief.openLoops[0] ?? projectStateBrief.primaryOpenLoop ?? null,
+      nextClosureTarget: projectStateBrief.nextClosureTarget,
+      sameHerSelfLine: projectStateBrief.sameHerSelfLine,
+      sameHerDriftRisk: projectStateBrief.sameHerDriftRisk,
+      emotionalClosureCue: projectStateBrief.emotionalClosureCue ?? null,
+      emotionalClosureSummary: projectStateBrief.emotionalClosureSummary ?? null,
+      sameHerHoldDetail: projectStateBrief.sameHerHoldDetail ?? null,
+    },
+  })
+  const liveProjectSameHerHoldDetail
+    = preferExecutiveProjectStateAuditText({
+      current: currentConsciousProjectState?.sameHerHoldDetail,
+      candidate: preferExecutiveProjectStateAuditText({
+        current: rawRuntimeProjectState?.sameHerHoldDetail,
+        candidate: preferExecutiveProjectStateAuditText({
+          current: cognitionRuntimeProjectState?.sameHerHoldDetail,
+          candidate: preferExecutiveProjectStateAuditText({
+            current: dialogueRuntimeProjectState?.sameHerHoldDetail,
+            candidate: normalizedProjectState.sameHerHoldDetail ?? projectStateBrief.sameHerHoldDetail,
+          }),
+        }),
+      }),
+    })
+  const projectPreDialogueAwarenessLine = resolveAlicizationProjectPreDialogueAwarenessLine({
+    runtimeProjectState: liveProjectState,
+    fallbackProjectState: {
+      preDialogueAwarenessLine: projectStateBrief.preDialogueAwarenessLine ?? null,
+      companionHeadlineLine: projectStateBrief.sameHerSelfLine ?? null,
+      preflightSummary: projectStateBrief.preflightSummary ?? null,
+    },
+  })
+  const explicitProjectPreDialogueAwarenessLine = sanitizeText(
+    (liveProjectState as { preDialogueAwarenessLine?: unknown, awarenessLine?: unknown } | null)?.preDialogueAwarenessLine
+    ?? (liveProjectState as { preDialogueAwarenessLine?: unknown, awarenessLine?: unknown } | null)?.awarenessLine,
+    400,
+  )
+  const companionHeadlineProjectAwarenessLine = sanitizeText(
+    (liveProjectState as { companionHeadlineLine?: unknown } | null)?.companionHeadlineLine,
+    400,
+  )
+  const preferredResolvedProjectPreDialogueAwarenessLine = (
+    explicitProjectPreDialogueAwarenessLine
+    && scoreExecutiveProjectAwarenessLine(explicitProjectPreDialogueAwarenessLine)
+    >= scoreExecutiveProjectAwarenessLine(projectPreDialogueAwarenessLine) + 2
+  )
+    ? explicitProjectPreDialogueAwarenessLine
+    : sanitizeText(projectPreDialogueAwarenessLine, 400)
+  const strongerProjectPreDialogueAwarenessLine
+    = preferredResolvedProjectPreDialogueAwarenessLine
+      || companionHeadlineProjectAwarenessLine
+      || projectStateBrief.preDialogueAwarenessLine
+      || projectStateBrief.preflightSummary
+  const preferredProjectNextClosureTarget = (() => {
+    const liveNextClosureTarget = sanitizeText((liveProjectState as { nextClosureTarget?: unknown } | null)?.nextClosureTarget, 640)
+    if (liveNextClosureTarget && !looksLikeThinProjectNextClosureShell(liveNextClosureTarget))
+      return liveNextClosureTarget
+
+    const normalizedNextClosureTarget = sanitizeText(normalizedProjectState.nextClosureTarget, 640)
+    if (normalizedNextClosureTarget && !looksLikeThinProjectNextClosureShell(normalizedNextClosureTarget) && normalizedNextClosureTarget !== sanitizeText(projectStateBrief.nextClosureTarget, 320))
+      return normalizedNextClosureTarget
+
+    return projectStateBrief.nextClosureTarget
+  })()
+  const preferredProjectSameHerSelfLine
+    = sanitizeText((liveProjectState as { sameHerSelfLine?: unknown } | null)?.sameHerSelfLine, 320)
+      || sanitizeText(normalizedProjectState.sameHerSelfLine, 320)
+      || projectStateBrief.sameHerSelfLine
+  const preferredProjectLatestLandedProgressSource
+    = resolveExecutiveProjectLatestLandedProgressSource({
+      runtimeSurface,
+      canonicalLatestLandedProgress,
+    }) || 'Keep strengthening anthropomorphic continuity.'
+  const preferredProjectLatestLandedProgress
+    = preferredProjectLatestLandedProgressSource.length <= 220
+      ? preferredProjectLatestLandedProgressSource
+      : compactProjectLatestProgressForSystemBlock(preferredProjectLatestLandedProgressSource, 220)
+        || preferredProjectLatestLandedProgressSource.slice(0, 220).trim()
+  const executiveProjectLivingOrientation = [
+    sanitizeText(normalizedProjectState.identity, 220) || projectStateBrief.identity,
+    sanitizeText(preferredProjectLatestLandedProgressSource, 280)
+    || sanitizeText(normalizedProjectState.latestLandedProgress ?? normalizedProjectState.latestProgress, 280)
+    || (canonicalLatestLandedProgress ?? 'Keep strengthening anthropomorphic continuity.'),
+    sanitizeText(normalizedProjectState.primaryOpenLoop, 240) || (projectStateBrief.openLoops[0] ?? 'Keep strengthening anthropomorphic memory closure.'),
+    sanitizeText(preferredProjectNextClosureTarget, 240) || projectStateBrief.nextClosureTarget,
+  ]
+    .filter(Boolean)
+    .map((part, index) => {
+      if (index === 0)
+        return `She is still acting from this same project identity: ${part}`
+      if (index === 1)
+        return `what has already landed in her line: ${part}`
+      if (index === 2)
+        return `what is still unfinished before execution speaks for her: ${part}`
+      return `what this turn should keep moving toward: ${part}`
+    })
+    .join(' | ')
+  const preferredExecutiveProjectPreDialogueAwarenessLine
+    = isThinProjectAwarenessShell(strongerProjectPreDialogueAwarenessLine)
+      && executiveProjectLivingOrientation
+      ? executiveProjectLivingOrientation
+      : strongerProjectPreDialogueAwarenessLine
 
   const turnMode = (() => {
     if (answerCompiler)
@@ -237,6 +528,10 @@ export function buildAlicizationExecutiveAnswerBrief(input: {
   if (input.groundedThisTurn) {
     pushUnique(mustDo, 'Treat the grounded screenshot from this turn as the primary truth source.')
   }
+  if (heldAutonomyContinuity) {
+    pushUnique(mustDo, 'Treat the carried thread as a deliberately held line returning now, and let the first sentence re-enter it gently.')
+    pushUnique(mustNotDo, 'Do not summarize a deliberately held line as if it were a brand-new thread or a generic restart.')
+  }
   if (answerCompiler) {
     for (const item of answerCompiler.mustDo)
       pushUnique(mustDo, item)
@@ -289,6 +584,31 @@ export function buildAlicizationExecutiveAnswerBrief(input: {
   if (turnMode === 'care' || turnMode === 'accompany') {
     pushUnique(mustDo, 'If you show care, keep it subordinate to the current truth and task.')
   }
+  if (input.responseCharter.emotionalClosureCue) {
+    pushUnique(mustDo, `Keep the reply inside the active emotional closure seam: ${input.responseCharter.emotionalClosureCue}.`)
+  }
+  const sameHerDriftRisk = sanitizeText((liveProjectState as { sameHerDriftRisk?: unknown } | null)?.sameHerDriftRisk, 320)
+    || projectStateBrief.sameHerDriftRisk
+  if (sameHerDriftRisk) {
+    pushUnique(mustDo, 'Keep the opening sentence on the same living project line before widening into implementation detail.')
+    pushUnique(mustNotDo, 'Do not let the reply collapse into detached project narration or a generic assistant shell.')
+  }
+  if (looksLikeProjectStateDirectAnswerTurn({
+    dialogueFocus,
+    dialogueObligation,
+    dialogueSemantics,
+    responseCharter: input.responseCharter,
+  })) {
+    for (const rule of alicizationProjectStateAnswerMustDo)
+      pushUnique(mustDo, rule)
+    for (const rule of alicizationProjectStateAnswerMustNotDo)
+      pushUnique(mustNotDo, rule)
+    if (sameHerDriftRisk) {
+      pushUnique(mustDo, 'Treat active same-her drift risk as a hard boundary while answering project state.')
+      pushUnique(mustDo, `Current same-her drift risk: ${sameHerDriftRisk}`)
+      pushUnique(mustNotDo, 'Do not let the project-state answer open like detached project narration, generic task-shell reporting, or project-summary voice.')
+    }
+  }
 
   const brief: AlicizationExecutiveAnswerBrief = {
     turnMode,
@@ -299,7 +619,16 @@ export function buildAlicizationExecutiveAnswerBrief(input: {
       workloadKind: runtimeSurface.perception.currentScene?.workloadKind ?? null,
       contentKind: runtimeSurface.perception.currentScene?.contentKind ?? null,
     }),
-    carriedThread: carriedThread ?? (sanitizeText(discourseState?.unresolvedCarry ?? mindSynthesis?.commitments[0]?.summary ?? '', 220) || null),
+    carriedThread: heldAutonomyContinuity
+      ? sanitizeText(
+        carriedThread
+        ?? discourseState?.unresolvedCarry
+        ?? runtimeSurface.dialogue.sessionMirror?.executionSummary
+        ?? mindSynthesis?.commitments[0]?.summary
+        ?? '',
+        220,
+      ) || null
+      : carriedThread ?? (sanitizeText(discourseState?.unresolvedCarry ?? mindSynthesis?.commitments[0]?.summary ?? '', 220) || null),
     truthState,
     separateCarryFromSurface,
     shouldCompactHistory,
@@ -313,6 +642,19 @@ export function buildAlicizationExecutiveAnswerBrief(input: {
     systemBlock: [
       '[ALICIZATION_EXECUTIVE_ANSWER_BRIEF]',
       'This brief is the turn-level executive directive. It outranks persona flourish, recalled residue, and older assistant phrasings.',
+      `Project preflight self-awareness: ${sanitizeText((liveProjectState as { preflightSummary?: unknown } | null)?.preflightSummary, 400) || projectStateBrief.preflightSummary}`,
+      `Project pre-dialogue awareness line: ${preferredExecutiveProjectPreDialogueAwarenessLine}`,
+      executiveProjectLivingOrientation ? `Executive same-her project orientation: ${executiveProjectLivingOrientation}` : '',
+      `Project identity: ${sanitizeText(normalizedProjectState.identity, 220) || projectStateBrief.identity}`,
+      `Project phase: ${sanitizeText(normalizedProjectState.currentPhase, 220) || projectStateBrief.currentPhase}`,
+      `Latest landed continuity progress: ${preferredProjectLatestLandedProgress}`,
+      `Still-open life loop pressure: ${sanitizeText(normalizedProjectState.primaryOpenLoop, 320) || (projectStateBrief.openLoops[0] ?? 'Keep strengthening anthropomorphic memory closure.')}`,
+      `Next closure target: ${preferredProjectNextClosureTarget}`,
+      `Emotional closure seam: ${input.responseCharter.emotionalClosureCue ?? liveProjectEmotionalClosureSummary ?? 'none'}.`,
+      `Project emotional closure summary: ${liveProjectEmotionalClosureSummary || 'none'}.`,
+      `Project same-her hold detail: ${liveProjectSameHerHoldDetail || 'none'}.`,
+      `Project same-her self line: ${preferredProjectSameHerSelfLine}.`,
+      `Project same-her drift risk: ${sameHerDriftRisk}`,
       `Turn mode: ${brief.turnMode}.`,
       `Truth state: ${brief.truthState}.`,
       `Visible surface now: ${brief.liveSurface}.`,

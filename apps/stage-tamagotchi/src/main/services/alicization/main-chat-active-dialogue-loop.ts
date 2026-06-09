@@ -11,12 +11,18 @@ import type {
 import type { AlicizationDialogueSessionMirror } from './dialogue-session-manager'
 import type { AlicizationMainChatActionObligationKind } from './main-chat-action-obligation'
 import type { AlicizationPreparedMainChatExecutionResult } from './main-chat-session-runtime'
+import type { AlicizationMindSurfaceCapabilityMove, AlicizationMindSurfaceClockSnapshot, AlicizationMindSurfaceDateMove, AlicizationMindSurfaceFollowUpMove, AlicizationMindSurfaceGreetingMove, AlicizationMindSurfaceIdentityMove, AlicizationMindSurfaceMove, AlicizationMindSurfacePresenceRepairMove, AlicizationMindSurfacePresentStateMove, AlicizationMindSurfaceRepairMove, AlicizationMindSurfaceTimeMove } from './mind-surface-renderer'
+import type { AlicizationPersonStateProjection } from './person-state-projection'
+import type { AlicizationSelfContinuityAuthority } from './self-continuity-authority'
+import type { AlicizationTimeQueryMode } from './time-query-semantics'
 import type { AlicizationResolvedTimeZoneSource } from './time-zone-governor'
 
 import {
   alicizationFixedCoreSystemInstruction,
   alicizationFixedHostNameDirectiveTemplate,
   alicizationFixedStructuredContractAnchor,
+  buildAlicizationEmbodimentLoopSummary,
+  describeAlicizationEmbodimentClosureReminder,
   detectAlicizationRealtimeQueryIntent,
   normalizeAlicizationDigitalLifeSpineDigest,
   renderAlicizationPromptTemplate,
@@ -26,38 +32,43 @@ import {
   resolveGovernedMindTruth,
 } from '@proj-alicization/stage-shared'
 
+import { deriveAlicizationContinuityDeliberationForFastPath } from './continuity-deliberation'
+import {
+  deriveAlicizationDigitalLifeSpineFromSurface,
+  projectAlicizationDigitalLifeSpineDigest,
+} from './digital-life-spine'
+import { coerceAlicizationGovernanceForMindFallback } from './governed-mind-fallback-compat'
 import {
   extractCustomDirectivesFromMessages,
   extractHostNameFromMessages,
 } from './main-chat-runtime-surface'
-import { deriveAlicizationContinuityDeliberationForFastPath } from './continuity-deliberation'
 import { buildMemoryRecollectionIntent } from './memory-recollection-intent'
 import {
+
   buildAlicizationMindSurfaceDialogueMove,
   buildAlicizationMindSurfaceStructuredReply,
-  type AlicizationMindSurfaceClockSnapshot,
-  type AlicizationMindSurfaceCapabilityMove,
-  type AlicizationMindSurfaceDateMove,
-  type AlicizationMindSurfaceFollowUpMove,
-  type AlicizationMindSurfaceGreetingMove,
-  type AlicizationMindSurfaceIdentityMove,
-  type AlicizationMindSurfaceMove,
-  type AlicizationMindSurfacePresentStateMove,
-  type AlicizationMindSurfacePresenceRepairMove,
-  type AlicizationMindSurfaceRepairMove,
-  type AlicizationMindSurfaceTimeMove,
 } from './mind-surface-renderer'
-import { readTransportContentAsText, parseJsonObjectFromText } from './runtime-transport-content'
+import {
+  mergePreferredSelfContinuityAuthority,
+  resolvePreferredPersonStateProjection,
+} from './person-state-projection-resolution'
+import { alicizationProjectStateAnswerContractLines } from './project-state-answer-governance'
+import {
+  buildAlicizationProjectStateClosureDashboard,
+  buildAlicizationProjectStateSystemBlock,
+  resolveAlicizationProjectStateBrief,
+} from './project-state-brief'
+import { resolvePreferredRuntimeSurface } from './runtime-surface-continuity-selection'
+import { parseJsonObjectFromText, readTransportContentAsText } from './runtime-transport-content'
+import { buildSelfContinuityAuthority } from './self-continuity-authority'
+import {
+
+  resolveAlicizationTimeQueryIntent,
+} from './time-query-semantics'
 import {
   isValidIanaTimeZone,
   resolveAlicizationTimeZoneFromMessages,
 } from './time-zone-governor'
-import {
-  resolveAlicizationTimeQueryIntent,
-  type AlicizationTimeQueryMode,
-} from './time-query-semantics'
-import { coerceAlicizationGovernanceForMindFallback } from './governed-mind-fallback-compat'
-import { buildSelfContinuityAuthority } from './self-continuity-authority'
 
 export type AlicizationActiveDialogueFastPathLane
   = | 'greeting'
@@ -119,6 +130,129 @@ interface AlicizationActiveDialogueReplyInput {
   turnId?: string
 }
 
+function resolvePreferredPreparedRuntimeSurface(
+  runtimeSurface: AlicizationPreparedMainChatExecutionResult['runtimeSurface'] | null | undefined,
+) {
+  return resolvePreferredRuntimeSurface({
+    spineRuntimeSurface: runtimeSurface?.digitalLifeSpine?.runtimeSurface ?? null,
+    preparedRuntimeSurface: runtimeSurface?.digitalLifeRuntimeSurface ?? null,
+  })
+}
+
+function hasUsableActiveDialogueRuntimeSurface(
+  runtimeSurface: AlicizationPreparedMainChatExecutionResult['runtimeSurface']['digitalLifeRuntimeSurface'] | null | undefined,
+) {
+  return Boolean(
+    runtimeSurface?.perception
+    && runtimeSurface?.world
+    && runtimeSurface?.cognition
+    && runtimeSurface?.memory
+    && runtimeSurface?.dialogue
+    && runtimeSurface?.agency,
+  )
+}
+
+function resolveUsableActiveDialoguePreparedRuntimeSurface(
+  runtimeSurface: AlicizationPreparedMainChatExecutionResult['runtimeSurface'] | null | undefined,
+) {
+  const preferredRuntimeSurface = resolvePreferredPreparedRuntimeSurface(runtimeSurface)
+  if (hasUsableActiveDialogueRuntimeSurface(preferredRuntimeSurface))
+    return preferredRuntimeSurface
+
+  const preparedRuntimeSurface = runtimeSurface?.digitalLifeRuntimeSurface ?? null
+  if (hasUsableActiveDialogueRuntimeSurface(preparedRuntimeSurface))
+    return preparedRuntimeSurface
+
+  const spineRuntimeSurface
+    = runtimeSurface?.digitalLifeSpine?.runtimeSurface as AlicizationPreparedMainChatExecutionResult['runtimeSurface']['digitalLifeRuntimeSurface'] | null | undefined
+  return hasUsableActiveDialogueRuntimeSurface(spineRuntimeSurface)
+    ? spineRuntimeSurface
+    : null
+}
+
+function resolvePreferredPreparedDigitalLifeSpine(
+  runtimeSurface: AlicizationPreparedMainChatExecutionResult['runtimeSurface'] | null | undefined,
+) {
+  const preferredRuntimeSurface = resolveUsableActiveDialoguePreparedRuntimeSurface(runtimeSurface)
+  const spine = runtimeSurface?.digitalLifeSpine ?? null
+  const spineDigest = coerceActiveDialogueDigitalLifeSpineDigest(spine)
+  const spineRuntimeSurface = spine?.runtimeSurface as AlicizationPreparedMainChatExecutionResult['runtimeSurface']['digitalLifeRuntimeSurface'] | null | undefined
+  const directSpineIsThin = Boolean(
+    spineRuntimeSurface && !hasUsableActiveDialogueRuntimeSurface(spineRuntimeSurface),
+  )
+  if (!preferredRuntimeSurface)
+    return spine
+  if (spine?.runtimeSurface === preferredRuntimeSurface && !directSpineIsThin)
+    return spine
+  try {
+    const projectedDigest = projectAlicizationDigitalLifeSpineDigest(
+      deriveAlicizationDigitalLifeSpineFromSurface(preferredRuntimeSurface),
+    )
+    if (!projectedDigest)
+      return spine
+    const preferredProjection = resolvePreferredPersonStateProjection({
+      bundleProjection: coerceActiveDialoguePersonStateProjection(spineDigest?.memory?.personStateProjection ?? null),
+      runtimeProjection: preferredRuntimeSurface.memory.personStateProjection ?? null,
+    })
+    const mergedAuthority = mergePreferredSelfContinuityAuthority({
+      bundleAuthority: coerceActiveDialogueSelfContinuityAuthority(spineDigest?.memory?.personStateProjection?.selfContinuityAuthority ?? null),
+      runtimeAuthority: preferredRuntimeSurface.memory.personStateProjection?.selfContinuityAuthority ?? null,
+    })
+    const runtimeAutobiographicalSelf = preferredRuntimeSurface.memory.autobiographicalSelf ?? null
+    const bundleAutobiographicalSelf = spineDigest?.embodiment?.autobiographicalSelf ?? null
+    const preferredAutobiographicalLatestInflection
+      = preferredRuntimeSurface.memory.selfEvolution?.latestInflection
+        ?? spineDigest?.outcomeLearning?.latestInflection
+        ?? null
+    const preferredAutobiographicalSelf = runtimeAutobiographicalSelf
+      ? {
+          ...bundleAutobiographicalSelf,
+          ...runtimeAutobiographicalSelf,
+          relationshipDoctrine: runtimeAutobiographicalSelf.relationshipDoctrine
+            ?? bundleAutobiographicalSelf?.relationshipDoctrine
+            ?? null,
+        }
+      : bundleAutobiographicalSelf
+    const preferredOutcomeLearning = projectedDigest.outcomeLearning || spineDigest?.outcomeLearning || preferredRuntimeSurface.memory.selfEvolution
+      ? {
+          ...projectedDigest.outcomeLearning,
+          ...spineDigest?.outcomeLearning,
+          summary: projectedDigest.outcomeLearning?.summary
+            ?? spineDigest?.outcomeLearning?.summary
+            ?? preferredRuntimeSurface.memory.selfEvolution?.summary
+            ?? preferredRuntimeSurface.memory.personStateProjection?.relationshipDoctrine
+            ?? null,
+          latestInflection: projectedDigest.outcomeLearning?.latestInflection
+            ?? spineDigest?.outcomeLearning?.latestInflection
+            ?? preferredRuntimeSurface.memory.selfEvolution?.latestInflection
+            ?? preferredAutobiographicalLatestInflection
+            ?? null,
+        }
+      : null
+    return {
+      ...projectedDigest,
+      runtimeSurface: preferredRuntimeSurface,
+      memory: {
+        ...projectedDigest.memory,
+        personStateProjection: preferredProjection
+          ? {
+              ...preferredProjection,
+              selfContinuityAuthority: mergedAuthority ?? preferredProjection.selfContinuityAuthority ?? null,
+            }
+          : null,
+      },
+      outcomeLearning: preferredOutcomeLearning,
+      embodiment: {
+        ...projectedDigest.embodiment,
+        autobiographicalSelf: preferredAutobiographicalSelf,
+      },
+    }
+  }
+  catch {
+    return spine
+  }
+}
+
 type AlicizationActiveDialogueFreshEncounterKind
   = | 'greeting'
     | 'identity'
@@ -139,6 +273,7 @@ interface AlicizationActiveDialogueEncounterContext {
   sessionMirror: AlicizationDialogueSessionMirror | null
   shortTurn: boolean
   hasContinuity: boolean
+  runtimeSurface?: AlicizationPreparedMainChatExecutionResult['runtimeSurface']['digitalLifeRuntimeSurface'] | null
 }
 
 interface AlicizationActiveDialogueEncounter {
@@ -148,23 +283,30 @@ interface AlicizationActiveDialogueEncounter {
   reasonCodes: string[]
 }
 
-const zhGreetingPattern = /^(?:你好|嗨|哈喽|您好|早上好|中午好|下午好|晚上好|早安|晚安|在吗|在嘛)(?:呀|啊|呢|哦|喔|啦|哈|嘛|呐|欸|诶|哇)*$/u
+const zhGreetingPattern = /^(?:你好|嗨|哈喽|您好|早上好|中午好|下午好|晚上好|早安|晚安|在吗|在嘛)[呀啊呢哦喔啦哈嘛呐欸诶哇]*$/u
 const enGreetingPattern = /^(?:hi|hello|hey|good\s+(?:morning|afternoon|evening))(?:\s+there)?$/iu
-const zhIdentityPattern = /(?:你是谁|你到底是谁|你算谁|你叫什么|你是alicization吗|你是爱丽丝化吗|我问你你是谁)/u
-const enIdentityPattern = /(?:who are you|what are you|what should i call you|what is your name)/iu
+const zhIdentityPattern = /你是谁|你到底是谁|你算谁|你叫什么|你是alicization吗|你是爱丽丝化吗|我问你你是谁/u
+const enIdentityPattern = /who are you|what are you|what should i call you|what is your name/iu
 const zhCapabilityPattern = /你.*(?:能|会|可以).*(?:做什么|帮什么)|你是谁|你能干嘛|你能做啥/u
 const enCapabilityPattern = /what can you do|who are you|what are you capable of/iu
-const zhPresenceCritiquePattern = /(?:不像人类|不像真人|不像人在说话|太像机器人|太像ai|太像系统|没有人格|没人格|没有心智|没心智|太机械|太固定|不像活的)/u
-const enPresenceCritiquePattern = /(?:you do(?:n't| not) sound human|you sound like a bot|you sound robotic|you sound mechanical|you don't feel alive)/iu
-const zhPresentStatePattern = /(?:你在干嘛|你在做什么|你现在在干嘛|你现在在做什么|你在忙什么|你现在在忙什么|你在搞什么|你在搞啥|你刚在干嘛)/u
-const enPresentStatePattern = /(?:what are you doing|what are you up to|what are you working on|what are you doing right now)/iu
-const zhRepairClarifyPattern = /(?:你在说啥(?:呢)?|你在说什么(?:呢)?|你说啥(?:呢)?|你说什么(?:呢)?|你在讲啥|你在讲什么|答非所问|不是这个(?:意思)?|这不对|你没懂|没听懂|你没听懂|听不懂|跑题了|跑偏了|说偏了|别绕|直接回答|你到底在说什么)/u
-const enRepairClarifyPattern = /(?:what are you talking about|you are not making sense|that is not what i asked|answer the question|not that|you missed the point|stay on this turn)/iu
-const explicitCarryPattern = /(?:刚才|刚刚|上一条|上条|上个|上一轮|前面|那条|那个|那次|继续|接着|续上|顺着|沿着|剩下|其余|后面|补全|展开|详细|具体|再列|继续说|继续列|同一条|那个命令|那个任务|那个结果|另外|that one|previous|earlier|continue|go on|keep going|pick up|follow up|same thread|same task|remaining)/iu
-const remainingFollowUpPattern = /(?:另外(?:\s*[一二三四五六七八九十\d]+)?(?:项|个)?(?:是|有哪些|是什么|什么|哪些)?|另外还有|还有哪|还有什么|还有几(?:项|个)?|另外哪|剩下哪|剩下(?:\s*[一二三四五六七八九十\d]+)?(?:项|个)?(?:是|有哪些|是什么|什么|哪些)?|其余哪|其余(?:\s*[一二三四五六七八九十\d]+)?(?:项|个)?(?:是|有哪些|是什么|什么|哪些)?|what else|which other|the other|remaining)/iu
-const continuityCheckPattern = /^(?:你确定(?:吗)?|确定吗|真的吗|真的是这样吗|你认真的|are you sure|really|seriously)[?？]?$/iu
-const runtimeMetaLeakPattern = /(?:provider|baseurl|main-gateway|timeout|timed out|stream|recovery|首段回复|首包|当前提供方或模型配置不完整|我先守住真实边界|旧锚点|重新落地|继续还是执行下一步|旧线硬接|实时画面依据|基于当前屏幕给出细节)/iu
-const legacyTemplateShellPattern = /(?:要是还是.+?(?:那条线|那件事)|你现在想聊什么，或者想让我做什么|你想继续聊，还是想让我做点什么|你想继续聊，还是想让我立刻动手|这一轮你想开哪个点|我贴着这一轮往下接|我就沿.+?往下|贴着.+?往下说|(?:好，)?我就直接接(?:「.+?」)?|我不把话题滑开|我不拿别的壳盖住它|这条线还连着|我可以直接续|我就正面回你|我听见你了|这句我收到了|你要是想往深里说，就从这点继续|上一条线的余温|If you want to keep going with|The previous line is still warm in my head|Then I'll answer you directly\.|I'll stay with .+? and keep going from there\.|I won't drift away from it\.|I won't turn it into something else\.)/iu
+const zhPresenceCritiquePattern = /不像人类|不像真人|不像人在说话|太像机器人|太像ai|太像系统|没有人格|没人格|没有心智|没心智|太机械|太固定|不像活的/u
+const enPresenceCritiquePattern = /you do(?:n't| not) sound human|you sound like a bot|you sound robotic|you sound mechanical|you don't feel alive/iu
+const zhPresentStatePattern = /你在干嘛|你在做什么|你现在在干嘛|你现在在做什么|你在忙什么|你现在在忙什么|你在搞什么|你在搞啥|你刚在干嘛/u
+const enPresentStatePattern = /what are you doing|what are you up to|what are you working on|what are you doing right now/iu
+const zhRepairClarifyPattern = /你在说啥呢?|你在说什么呢?|你说啥呢?|你说什么呢?|你在讲啥|你在讲什么|答非所问|不是这个(?:意思)?|这不对|你没懂|没听懂|你没听懂|听不懂|跑题了|跑偏了|说偏了|别绕|直接回答|你到底在说什么/u
+const enRepairClarifyPattern = /what are you talking about|you are not making sense|that is not what i asked|answer the question|not that|you missed the point|stay on this turn/iu
+const explicitCarryPattern = /刚才|刚刚|上一条|上条|上个|上一轮|前面|那条|那个|那次|继续|接着|续上|顺着|沿着|剩下|其余|后面|补全|展开|详细|具体|再列|继续说|继续列|同一条|那个命令|那个任务|那个结果|另外|that one|previous|earlier|continue|go on|keep going|pick up|follow up|same thread|same task|remaining/iu
+const remainingFollowUpPattern = /另外(?:\s*[一二三四五六七八九十\d]+)?(?:项|个)?(?:是|有哪些|是什么|什么|哪些)?|另外还有|还有哪|还有什么|还有几(?:项|个)?|另外哪|剩下哪|剩下(?:\s*[一二三四五六七八九十\d]+)?(?:项|个)?(?:是|有哪些|是什么|什么|哪些)?|其余哪|其余(?:\s*[一二三四五六七八九十\d]+)?(?:项|个)?(?:是|有哪些|是什么|什么|哪些)?|what else|which other|the other|remaining/iu
+const continuityCheckPattern = /^(?:你确定吗?|确定吗|真的吗|真的是这样吗|你认真的|are you sure|really|seriously)[?？]?$/iu
+const feltContinuityFollowUpPattern = /为什么这次又(?:感觉|像).*(?:上次|以前|那样)|why does this feel the same again|why does this feel like before|像上次那样|还是同一个感觉|same again/iu
+const projectStateProgressPattern = /执行到哪|进行到哪|进行到哪一步|做到什么程度|做到哪|做到哪一步|进度|进展|到什么程度|how far|what has landed|what's landed|progress|landed/iu
+const projectStateOpenLoopPattern = /还差什么|缺什么|未闭环|没闭环|还没闭环|还剩什么|what remains|what is missing|still open|open loop|not closed/iu
+const projectStateMergeReadinessPattern = /合并到\s*main|并到\s*main|merge(?:\s+(?:to|into))?\s+main|ready\s+to\s+merge/iu
+const projectStateGoalClosurePattern = /goal|目标|闭环|收口|收住|完成|complete|closure/iu
+const projectStateReadinessQualifierPattern = /还差哪步|还差什么|哪步才能算|什么时候算|什么时候能|什么时候完成|何时完成|计划什么时候完成|why are you replying in english|replying in english|是不是偏移了|偏移了吗|can\s+it|is\s+it\s+ready|ready|能不能|可以吗/iu
+const projectStateLanguageDriftPattern = /为什么(?:一直|还)?用英文(?:不用中文)?|为什么(?:一直|还)?不用中文|为什么还用英文|英文不用中文|reply(?:ing)? in english|use english instead of chinese|why are you replying in english|why are you using english|是不是偏移了|偏移了吗|did the thread drift|thread drift|out of alignment|跑偏了/iu
+const runtimeMetaLeakPattern = /provider|baseurl|main-gateway|timeout|timed out|stream|recovery|首段回复|首包|当前提供方或模型配置不完整|我先守住真实边界|旧锚点|重新落地|继续还是执行下一步|旧线硬接|实时画面依据|基于当前屏幕给出细节/iu
+const legacyTemplateShellPattern = /要是还是.+?(?:那条线|那件事)|你现在想聊什么，或者想让我做什么|你想继续聊，还是想让我做点什么|你想继续聊，还是想让我立刻动手|这一轮你想开哪个点|我贴着这一轮往下接|我就沿.+?往下|贴着.+?往下说|(?:好，)?我就直接接(?:「.+?」)?|我不把话题滑开|我不拿别的壳盖住它|这条线还连着|我可以直接续|我就正面回你|我听见你了|这句我收到了|你要是想往深里说，就从这点继续|上一条线的余温|If you want to keep going with|The previous line is still warm in my head|Then I'll answer you directly\.|I'll stay with .+? and keep going from there\.|I won't drift away from it\.|I won't turn it into something else\./iu
 const cjkPattern = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u
 const zhWeekdayLabels = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'] as const
 
@@ -172,6 +314,150 @@ function sanitizeText(raw: unknown, maxChars = 180) {
   if (typeof raw !== 'string')
     return ''
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
+}
+
+type AlicizationActiveDialogueSelfContinuityAuthority = Partial<AlicizationSelfContinuityAuthority> & {
+  currentBodyState?: string | null
+}
+
+function coerceActiveDialogueDigitalLifeSpineDigest(digitalLifeSpine: unknown) {
+  const normalized = normalizeAlicizationDigitalLifeSpineDigest(digitalLifeSpine)
+  if (normalized)
+    return normalized
+  if (digitalLifeSpine && typeof digitalLifeSpine === 'object' && 'runtimeSurface' in digitalLifeSpine) {
+    return projectAlicizationDigitalLifeSpineDigest(
+      digitalLifeSpine as Parameters<typeof projectAlicizationDigitalLifeSpineDigest>[0],
+    )
+  }
+  return null
+}
+
+function extractActiveDialogueRuntimeSpineSurface(digitalLifeSpine: unknown) {
+  if (!digitalLifeSpine || typeof digitalLifeSpine !== 'object' || !('runtimeSurface' in digitalLifeSpine))
+    return null
+  return (digitalLifeSpine as {
+    runtimeSurface?: Parameters<typeof deriveAlicizationDigitalLifeSpineFromSurface>[0] | null
+  }).runtimeSurface ?? null
+}
+
+function coerceActiveDialogueSelfContinuityAuthority(
+  authority: unknown,
+): AlicizationActiveDialogueSelfContinuityAuthority | null {
+  if (!authority || typeof authority !== 'object')
+    return null
+
+  const candidate = authority as Record<string, unknown>
+  const sourceTags = Array.isArray(candidate.sourceTags)
+    ? candidate.sourceTags
+        .map(tag => sanitizeText(tag, 64))
+        .filter(Boolean)
+        .slice(0, 8)
+    : undefined
+
+  const normalizedAuthority: AlicizationActiveDialogueSelfContinuityAuthority = {
+    ...(sourceTags?.length ? { sourceTags } : {}),
+    ...(sanitizeText(candidate.selfLine, 220) ? { selfLine: sanitizeText(candidate.selfLine, 220) } : {}),
+    ...(sanitizeText(candidate.relationshipLine, 220) ? { relationshipLine: sanitizeText(candidate.relationshipLine, 220) } : {}),
+    ...(sanitizeText(candidate.motiveLine, 220) ? { motiveLine: sanitizeText(candidate.motiveLine, 220) } : {}),
+    ...(sanitizeText(candidate.habitLine, 220) ? { habitLine: sanitizeText(candidate.habitLine, 220) } : {}),
+    ...(sanitizeText(candidate.inwardLine, 220) ? { inwardLine: sanitizeText(candidate.inwardLine, 220) } : {}),
+    ...(sanitizeText(candidate.authoritySummary, 220) ? { authoritySummary: sanitizeText(candidate.authoritySummary, 220) } : {}),
+    ...(sanitizeText(candidate.closenessPosture, 96) ? { closenessPosture: sanitizeText(candidate.closenessPosture, 96) } : {}),
+    ...(sanitizeText(candidate.currentBodyState, 220) ? { currentBodyState: sanitizeText(candidate.currentBodyState, 220) } : {}),
+  }
+
+  return Object.keys(normalizedAuthority).length > 0 ? normalizedAuthority : null
+}
+
+function coerceActiveDialoguePersonStateProjection(
+  projection: unknown,
+): Partial<AlicizationPersonStateProjection> | null {
+  if (!projection || typeof projection !== 'object')
+    return null
+
+  const candidate = projection as Record<string, unknown>
+  const selfContinuityAuthority = coerceActiveDialogueSelfContinuityAuthority(candidate.selfContinuityAuthority)
+  const normalizedSelfContinuityAuthority = selfContinuityAuthority
+    ? {
+        selfLine: selfContinuityAuthority.selfLine ?? null,
+        relationshipLine: selfContinuityAuthority.relationshipLine ?? null,
+        motiveLine: selfContinuityAuthority.motiveLine ?? null,
+        habitLine: selfContinuityAuthority.habitLine ?? null,
+        inwardLine: selfContinuityAuthority.inwardLine ?? null,
+        authoritySummary: selfContinuityAuthority.authoritySummary ?? null,
+        closenessPosture: selfContinuityAuthority.closenessPosture ?? null,
+        sourceTags: selfContinuityAuthority.sourceTags ?? [],
+      }
+    : null
+  const activeClosenessContext = sanitizeText(candidate.activeClosenessContext, 64)
+  const activeClosenessRung = sanitizeText(candidate.activeClosenessRung, 64)
+  const relationshipPosture = sanitizeText(candidate.relationshipPosture, 64)
+  const preferredProactiveStyle = sanitizeText(candidate.preferredProactiveStyle, 64)
+
+  const normalizedProjection: Partial<AlicizationPersonStateProjection> = {
+    ...(sanitizeText(candidate.summary, 220) ? { summary: sanitizeText(candidate.summary, 220) } : {}),
+    ...(normalizedSelfContinuityAuthority ? { selfContinuityAuthority: normalizedSelfContinuityAuthority } : {}),
+    ...(activeClosenessContext === 'focused-work'
+      || activeClosenessContext === 'repair-window'
+      || activeClosenessContext === 'late-night-care'
+      || activeClosenessContext === 'execution-callback'
+      || activeClosenessContext === 'open-companionship'
+      || activeClosenessContext === 'general'
+      ? { activeClosenessContext }
+      : {}),
+    ...(activeClosenessRung === 'space-first'
+      || activeClosenessRung === 'measured-room'
+      || activeClosenessRung === 'nearby-soft'
+      || activeClosenessRung === 'warm-near'
+      || activeClosenessRung === 'close-hold'
+      ? { activeClosenessRung }
+      : {}),
+    ...(relationshipPosture === 'restrained'
+      || relationshipPosture === 'warm'
+      || relationshipPosture === 'tender'
+      ? { relationshipPosture }
+      : {}),
+    ...(sanitizeText(candidate.openingGuidance, 220) ? { openingGuidance: sanitizeText(candidate.openingGuidance, 220) } : {}),
+    ...(preferredProactiveStyle === 'silent-observe'
+      || preferredProactiveStyle === 'light-nudge'
+      || preferredProactiveStyle === 'gentle-care'
+      || preferredProactiveStyle === 'firm-warning'
+      ? { preferredProactiveStyle }
+      : {}),
+    ...(sanitizeText(candidate.manifestationCadenceSummary, 220)
+      ? { manifestationCadenceSummary: sanitizeText(candidate.manifestationCadenceSummary, 220) }
+      : {}),
+  }
+
+  return Object.keys(normalizedProjection).length > 0 ? normalizedProjection : null
+}
+
+function resolveRememberedSeamReinterpretationLines(digitalLifeSpine: unknown) {
+  const normalizedSpine = coerceActiveDialogueDigitalLifeSpineDigest(digitalLifeSpine)
+  const relationshipDoctrine = sanitizeText(
+    normalizedSpine?.embodiment?.autobiographicalSelf?.relationshipDoctrine,
+    220,
+  )
+  const latestInflection = sanitizeText(
+    normalizedSpine?.outcomeLearning?.latestInflection,
+    220,
+  )
+  const combined = `${relationshipDoctrine} ${latestInflection}`.toLowerCase()
+  const reinterpreted = /reopened too eagerly|too eagerly before|more room this time|this time keep more room|这次更要留白|这次要更慢一点|不要重开得太快|上次太急/u.test(combined)
+
+  if (!reinterpreted)
+    return null
+
+  return {
+    compactGuidance:
+      'Open as a measured return, but keep more room this time: let the familiar line be recognized before it leans in again.',
+    answerIntent:
+      '先认出这是同一条关系线，但也把上次靠近得太快的教训带上，所以这次要更留白、更慢一点地接回来。',
+    relationNeed:
+      '让 remembered seam 先按新的关系教训重新落位，再把当前这句接住，不要沿着旧冲动一下子贴近。',
+    whyNow:
+      '当前场景像同一条 remembered seam，但最近的关系理解也在提醒这条线之前重开得太急，所以这次要更留白地接回。',
+  }
 }
 
 function normalizeTurnText(raw: string, maxChars = 240) {
@@ -279,8 +565,32 @@ function readPreviousUserText(messages: Message[]) {
 function readPreparedExecutionLedgerCarryText(messages: Message[] | undefined) {
   return (messages ?? [])
     .filter(message => message?.role === 'system')
-    .map(message => sanitizeText(readTransportContentAsText(message.content), 400))
-    .filter(text => text.includes('[ALICIZATION_EXECUTION_LEDGER]'))
+    .map((message) => {
+      const rawContent = readTransportContentAsText(message.content)
+      if (typeof rawContent !== 'string' || !rawContent.includes('[ALICIZATION_EXECUTION_LEDGER]'))
+        return ''
+
+      const readLedgerField = (field: string, maxChars: number) => {
+        const match = rawContent.match(new RegExp(`${field}=([^|\\n]+)`, 'i'))
+        return sanitizeText(match?.[1] ?? '', maxChars)
+      }
+
+      const channel = readLedgerField('channel', 48)
+      const summary = readLedgerField('summary', 180)
+      const outcome = readLedgerField('outcome', 220)
+      const projectIdentity = readLedgerField('project_identity', 220)
+      const projectPhase = readLedgerField('project_phase', 160)
+
+      return [
+        '[ALICIZATION_EXECUTION_LEDGER]',
+        channel ? `channel=${channel}` : '',
+        summary ? `summary=${summary}` : '',
+        outcome ? `outcome=${outcome}` : '',
+        projectIdentity ? `project_identity=${projectIdentity}` : '',
+        projectPhase ? `project_phase=${projectPhase}` : '',
+      ].filter(Boolean).join(' | ')
+    })
+    .filter(Boolean)
     .join(' ')
 }
 
@@ -359,7 +669,30 @@ function looksLikeExecutionCarry(input: {
     executionMirror,
   ].filter(Boolean).join(' ')
 
-  return /(?:桌面|目录|文件|清单|列表|list|listing|callback|cli|执行|结果|thread|任务)/iu.test(executionCarryText)
+  return /桌面|目录|文件|清单|列表|list|listing|callback|cli|执行|结果|thread|任务/iu.test(executionCarryText)
+}
+
+function hasFeltContinuityCarry(input: {
+  latestUserText: string
+  runtimeSurface?: AlicizationPreparedMainChatExecutionResult['runtimeSurface']['digitalLifeRuntimeSurface'] | null
+}) {
+  if (!feltContinuityFollowUpPattern.test(input.latestUserText))
+    return false
+
+  const runtimeSurface = input.runtimeSurface ?? null
+  const answerSubject = runtimeSurface?.dialogue.answerCompiler?.answerSubject ?? null
+  if (answerSubject !== 'alicization-self' && answerSubject !== 'relationship')
+    return false
+
+  const dialogueWorldThread = runtimeSurface?.dialogue.dialogueWorldThread ?? null
+  const conversationState = runtimeSurface?.dialogue.conversationState ?? null
+  const affectiveResidue = runtimeSurface?.memory.affectiveResidue ?? runtimeSurface?.memory.derivedMindStateBundle?.affectiveResidue ?? null
+
+  return !!(dialogueWorldThread?.memoryMode === 'emotional-resonance'
+    || conversationState?.memoryMode === 'emotional-resonance'
+    || affectiveResidue?.dominantResidueKind === 'rest-protective'
+    || affectiveResidue?.dominantResidueKind === 'afterglow'
+    || affectiveResidue?.dominantResidueKind === 'repair')
 }
 
 function deriveFreshEncounterKind(text: string): AlicizationActiveDialogueFreshEncounterKind | null {
@@ -392,7 +725,7 @@ function isIdentityReconfirmationTurn(input: {
   if (isIdentityTurn(input.previousUserText))
     return true
   const normalizedPreviousAssistant = normalizeTurnText(input.previousAssistantText, 220)
-  return /(?:我是|i am)\s*[a-zA-Z\u4E00-\u9FFF][\w\u4E00-\u9FFF -]{0,36}/iu.test(normalizedPreviousAssistant)
+  return /(?:我是|i am)\s*[a-z\u4E00-\u9FFF][\w\u4E00-\u9FFF -]{0,36}/iu.test(normalizedPreviousAssistant)
 }
 
 function deriveAlicizationActiveDialogueEncounter(
@@ -412,8 +745,8 @@ function deriveAlicizationActiveDialogueEncounter(
       || freshEncounter === 'capability'
       || freshEncounter === 'utility-time'
       || freshEncounter === 'utility-date'
-        ? 4_500
-        : 5_500
+      ? 4_500
+      : 5_500
     const freshReasonCode = freshEncounter === 'utility-time'
       ? 'fresh-utility-time'
       : freshEncounter === 'utility-date'
@@ -422,9 +755,9 @@ function deriveAlicizationActiveDialogueEncounter(
           ? 'fresh-presence-critique'
           : freshEncounter === 'present-state'
             ? 'fresh-present-state'
-          : freshEncounter === 'repair-clarify'
-            ? 'repair-clarify'
-            : `fresh-${freshEncounter}`
+            : freshEncounter === 'repair-clarify'
+              ? 'repair-clarify'
+              : `fresh-${freshEncounter}`
     return {
       kind: freshEncounter,
       strategy,
@@ -482,6 +815,55 @@ function deriveAlicizationActiveDialogueEncounter(
       || remainingFollowUpPattern.test(input.latestUserText)
       || continuityCheckPattern.test(input.latestUserText)
     )
+  const feltContinuityCarry = input.shortTurn
+    && hasFeltContinuityCarry({
+      latestUserText: input.latestUserText,
+      runtimeSurface: input.runtimeSurface ?? null,
+    })
+  const directRuntimeProjectState = input.runtimeSurface?.dialogue?.currentConsciousFrame?.projectState
+    ?? input.runtimeDigest?.projectState
+    ?? null
+  const runtimeProjectState = {
+    ...resolveAlicizationProjectStateBrief(),
+    ...directRuntimeProjectState,
+  }
+  const projectStateSameHerRequired = /same digital life|same-her|same her|one same her|one continuous her|同一个 her|同一个她/u.test([
+    sanitizeText(runtimeProjectState?.identity, 220),
+    sanitizeText(runtimeProjectState?.preflightSummary, 220),
+    sanitizeText((input.runtimeSurface?.memory?.personStateProjection?.selfContinuityAuthority as { authoritySummary?: unknown } | null | undefined)?.authoritySummary, 220),
+    sanitizeText(runtimeProjectState?.sameHerSelfLine, 220),
+    sanitizeText(runtimeProjectState?.preDialogueAwarenessLine, 220),
+    sanitizeText(runtimeProjectState?.primaryOpenLoop, 220),
+    sanitizeText(runtimeProjectState?.nextClosureTarget, 220),
+  ].filter(Boolean).join(' | ').toLowerCase())
+  const projectStateProgressOpenLoopFollowUp = (
+    projectStateSameHerRequired
+    && input.shortTurn
+    && projectStateProgressPattern.test(input.latestUserText)
+    && projectStateOpenLoopPattern.test(input.latestUserText)
+  )
+  const projectStateClosureReadinessFollowUp = (
+    projectStateSameHerRequired
+    && input.shortTurn
+    && (
+      projectStateMergeReadinessPattern.test(input.latestUserText)
+      || (
+        projectStateGoalClosurePattern.test(input.latestUserText)
+        && projectStateReadinessQualifierPattern.test(input.latestUserText)
+      )
+      || (
+        projectStateLanguageDriftPattern.test(input.latestUserText)
+        && (
+          projectStateProgressPattern.test(input.latestUserText)
+          || (
+            projectStateGoalClosurePattern.test(input.latestUserText)
+            && projectStateReadinessQualifierPattern.test(input.latestUserText)
+          )
+        )
+      )
+    )
+  )
+  const projectStateSameHerFollowUp = projectStateProgressOpenLoopFollowUp || projectStateClosureReadinessFollowUp
   const continuityAuthority = deriveAlicizationContinuityDeliberationForFastPath({
     runtimeDigest: input.runtimeDigest,
     continuityAnchor: input.continuityAnchor,
@@ -491,24 +873,37 @@ function deriveAlicizationActiveDialogueEncounter(
     previousAssistantText: input.previousAssistantText,
     sessionMirror: input.sessionMirror,
     shortTurn: input.shortTurn,
-    hasContinuity: input.hasContinuity,
+    hasContinuity: input.hasContinuity || feltContinuityCarry,
   })
 
-  if (explicitCarry) {
+  if (explicitCarry || feltContinuityCarry || projectStateSameHerFollowUp) {
     const executionCarry = continuityAuthority.kind === 'execution-callback' || looksLikeExecutionCarry({
       continuityAnchor: input.continuityAnchor,
       previousAssistantText: input.previousAssistantText,
       preparedExecutionCarryText: input.preparedExecutionCarryText,
       sessionMirror: input.sessionMirror,
     })
+    const heldAutonomyCarry = Boolean(
+      input.sessionMirror?.continuityLabels?.some(label => sanitizeText(label, 120).includes(':held-autonomy')),
+    )
     return {
       kind: 'follow-up',
       strategy: 'compact-one-shot',
       timeoutMs: 6_500,
       reasonCodes: [
         'short-follow-up',
-        'explicit-carry',
-        input.hasContinuity ? 'session-carry' : '',
+        projectStateProgressOpenLoopFollowUp
+          ? 'project-state-progress-open-loop-follow-up'
+          : projectStateClosureReadinessFollowUp
+            ? 'project-state-closure-readiness-follow-up'
+            : explicitCarry
+              ? 'explicit-carry'
+              : feltContinuityCarry
+                ? 'felt-continuity-carry'
+                : '',
+        (input.hasContinuity || feltContinuityCarry) ? 'session-carry' : '',
+        projectStateSameHerFollowUp ? 'project-state-same-her-continuity-required' : '',
+        heldAutonomyCarry ? 'held-autonomy-carry' : '',
         continuityAuthority.kind === 'dialogue-carry' ? 'continuity-authority-dialogue' : '',
         continuityAuthority.kind === 'memory-follow-up' ? 'continuity-authority-memory' : '',
         input.preparedExecutionCarryText ? 'prepared-execution-ledger' : '',
@@ -522,11 +917,15 @@ function deriveAlicizationActiveDialogueEncounter(
 }
 
 function humanizeMirrorSummary(raw: unknown) {
-  const normalized = sanitizeText(raw, 220)
+  if (typeof raw !== 'string')
+    return ''
+
+  const normalizedFull = raw.trim().replace(/\s+/g, ' ')
+  const normalized = sanitizeText(normalizedFull, 220)
   if (!normalized)
     return ''
 
-  const summaryMatch = normalized.match(/(?:summary|goal|answer|thread|concern|belief)=([^|]+)/i)
+  const summaryMatch = normalizedFull.match(/(?:summary|goal|answer|thread|concern|belief)=([^|]+)/i)
   if (summaryMatch?.[1])
     return sanitizeText(summaryMatch[1], 140)
   return normalized
@@ -542,6 +941,7 @@ function resolveContinuityAnchor(input: {
     || humanizeMirrorSummary(input.sessionMirror?.executionSummary)
     || humanizeMirrorSummary(input.sessionMirror?.dialogueSummary)
     || humanizeMirrorSummary(input.sessionMirror?.agencySummary)
+    || sanitizeText(input.runtimeDigest?.projectState?.continuityCue, 160)
     || humanizeMirrorSummary(input.runtimeDigest?.activeLoop?.summary)
     || sanitizeText(input.previousAssistantText, 120)
 }
@@ -564,6 +964,12 @@ function buildCompactDialogueContextBlock(decision: AlicizationActiveDialogueFas
       : '',
     decision.runtimeDigest?.activeLoop?.phase
       ? `active_loop_phase=${decision.runtimeDigest.activeLoop.phase}`
+      : '',
+    decision.runtimeDigest?.activeLoop?.continuityArcStage
+      ? `active_loop_continuity_arc_stage=${sanitizeText(decision.runtimeDigest.activeLoop.continuityArcStage, 120)}`
+      : '',
+    decision.runtimeDigest?.projectState?.continuityPreferredTiming
+      ? `project_continuity_preferred_timing=${sanitizeText(decision.runtimeDigest.projectState.continuityPreferredTiming, 120)}`
       : '',
     decision.runtimeDigest?.activeLoop?.summary
       ? `active_loop_summary=${sanitizeText(decision.runtimeDigest.activeLoop.summary, 220)}`
@@ -697,6 +1103,18 @@ function buildCompactDialogueEvidenceBlock(decision: AlicizationActiveDialogueFa
         lines.push(`follow_up_anchor=${sanitizeText(decision.continuityAnchor, 160)}`)
       if (decision.preparedExecutionCarryText)
         lines.push(`execution_carry_summary=${sanitizeText(humanizeMirrorSummary(decision.preparedExecutionCarryText) || decision.preparedExecutionCarryText, 220)}`)
+      if (decision.reasonCodes.includes('scene-triggered-recollection-carry')) {
+        const rememberedSeamReinterpretation = resolveRememberedSeamReinterpretationLines(decision.digitalLifeSpine)
+        lines.push('This follow-up is reopening because the current scene feels like the same remembered relationship seam.')
+        lines.push(
+          rememberedSeamReinterpretation?.compactGuidance
+          ?? 'Open as a measured return: recognize the familiar line, leave a little room, and only then continue the thread.',
+        )
+      }
+      if (decision.reasonCodes.includes('held-autonomy-carry')) {
+        lines.push('This follow-up is returning to a line Alicization deliberately held back earlier.')
+        lines.push('Open softly and rejoin that inner line before widening into a fuller payoff or explanation.')
+      }
       if (decision.reasonCodes.includes('execution-carry')) {
         lines.push('This follow-up is carrying a previously executed result, listing, or task payoff. Use that carried result as evidence before extending the answer.')
         lines.push('Do not answer as if the task just ran now. Continue from the already-held result or the missing remainder.')
@@ -733,15 +1151,49 @@ function buildCompactDialogueMindBlock(decision: AlicizationActiveDialogueFastPa
     : null
   if (!digitalLifeSpine)
     return ''
+  const continuityCue = buildFastPathContinuityCue(decision)
+  const emotionalKernel = decision.runtimeDigest?.emotionalKernel ?? null
+  const continuityFocusMaxChars
+    = continuityCue.focusLine
+      && /visible continuity still present but no longer fully cross-modal|lane=face\+motion-only|same-her continuity remains alive/u.test(
+        continuityCue.focusLine,
+      )
+      ? 640
+      : 320
 
   return [
     '[ALICIZATION_ACTIVE_DIALOGUE_MIND]',
     'These are Alicization\'s durable mind cues for this compact turn. Let them quietly shape diction, warmth, directness, patience, and follow-through; do not recite them back to the host.',
-    digitalLifeSpine.embodiment?.autobiographicalSelf?.identityNarrative
-      ? `identity_narrative=${sanitizeText(digitalLifeSpine.embodiment.autobiographicalSelf.identityNarrative, 220)}`
+    continuityCue.selfLine
+      ? `identity_narrative=${sanitizeText(continuityCue.selfLine, 220)}`
+      : digitalLifeSpine.embodiment?.autobiographicalSelf?.identityNarrative
+        ? `identity_narrative=${sanitizeText(digitalLifeSpine.embodiment.autobiographicalSelf.identityNarrative, 220)}`
+        : '',
+    continuityCue.relationLine
+      ? `relationship_doctrine=${sanitizeText(continuityCue.relationLine, 220)}`
+      : digitalLifeSpine.embodiment?.autobiographicalSelf?.relationshipDoctrine
+        ? `relationship_doctrine=${sanitizeText(digitalLifeSpine.embodiment.autobiographicalSelf.relationshipDoctrine, 220)}`
+        : '',
+    continuityCue.focusLine
+      ? `continuity_focus=${sanitizeText(continuityCue.focusLine, continuityFocusMaxChars)}`
       : '',
-    digitalLifeSpine.embodiment?.autobiographicalSelf?.relationshipDoctrine
-      ? `relationship_doctrine=${sanitizeText(digitalLifeSpine.embodiment.autobiographicalSelf.relationshipDoctrine, 220)}`
+    emotionalKernel?.dominantEmotion
+      ? `emotional_kernel_dominant=${sanitizeText(emotionalKernel.dominantEmotion, 64)}`
+      : '',
+    emotionalKernel?.memoryRecallMode
+      ? `emotional_kernel_memory_recall=${sanitizeText(emotionalKernel.memoryRecallMode, 64)}`
+      : '',
+    emotionalKernel?.initiativeMode
+      ? `emotional_kernel_initiative=${sanitizeText(emotionalKernel.initiativeMode, 64)}`
+      : '',
+    emotionalKernel?.embodimentTone
+      ? `emotional_kernel_embodiment=${sanitizeText(emotionalKernel.embodimentTone, 64)}`
+      : '',
+    emotionalKernel?.why
+      ? `emotional_kernel_reason=${sanitizeText(emotionalKernel.why, 220)}`
+      : '',
+    emotionalKernel?.reasonTags?.length
+      ? `emotional_kernel_tags=${emotionalKernel.reasonTags.map(tag => sanitizeText(tag, 64)).filter(Boolean).slice(0, 6).join('|')}`
       : '',
     digitalLifeSpine.motive?.rulingDrive
       ? `ruling_motive=${sanitizeText(digitalLifeSpine.motive.rulingDrive, 64)}`
@@ -771,6 +1223,33 @@ function buildCompactDialogueMindBlock(decision: AlicizationActiveDialogueFastPa
   ].filter(Boolean).join('\n')
 }
 
+function buildFastPathProjectStateAnswerContractBlock(decision: AlicizationActiveDialogueFastPathDecision) {
+  if (
+    !decision.reasonCodes.includes('project-state-progress-open-loop-follow-up')
+    && decision.governance?.answerSubject !== 'project-state'
+  ) {
+    return ''
+  }
+
+  const runtimeProjectState = decision.runtimeDigest?.projectState ?? null
+  const latestLandedProgress = sanitizeText(
+    runtimeProjectState?.latestLandedProgress
+    ?? (runtimeProjectState as { latestProgress?: unknown } | null)?.latestProgress,
+    320,
+  )
+
+  return [
+    '[ALICIZATION_PROJECT_STATE_ANSWER_CONTRACT]',
+    runtimeProjectState?.identity ? `identity=${sanitizeText(runtimeProjectState.identity, 220)}` : '',
+    runtimeProjectState?.currentPhase ? `current_phase=${sanitizeText(runtimeProjectState.currentPhase, 220)}` : '',
+    latestLandedProgress ? `landed=${latestLandedProgress}` : '',
+    runtimeProjectState?.primaryOpenLoop ? `open=${sanitizeText(runtimeProjectState.primaryOpenLoop, 320)}` : '',
+    runtimeProjectState?.nextClosureTarget ? `next=${sanitizeText(runtimeProjectState.nextClosureTarget, 320)}` : '',
+    runtimeProjectState?.sameHerSelfLine ? `same_her=${sanitizeText(runtimeProjectState.sameHerSelfLine, 220)}` : '',
+    ...alicizationProjectStateAnswerContractLines,
+  ].filter(Boolean).join('\n')
+}
+
 function buildCompactDialogueGovernanceBlock(decision: AlicizationActiveDialogueFastPathDecision) {
   const governance = buildFastPathGovernance(decision)
   const fallbackGovernance = coerceAlicizationGovernanceForMindFallback(governance)
@@ -778,6 +1257,9 @@ function buildCompactDialogueGovernanceBlock(decision: AlicizationActiveDialogue
   const relation = governance.mindTurnFrame?.relation ?? null
   const memory = governance.mindTurnFrame?.memory ?? null
   const world = governance.mindTurnFrame?.world ?? null
+  const extraMustDoRules = governance.mustDo
+    .filter(rule => rule !== 'Answer the current turn directly.')
+    .map((rule, index) => `${index + 5}. ${sanitizeText(rule, 180)}`)
 
   return [
     '[ALICIZATION_ACTIVE_DIALOGUE_GOVERNANCE]',
@@ -815,8 +1297,9 @@ function buildCompactDialogueGovernanceBlock(decision: AlicizationActiveDialogue
     '2. Keep continuity only as the same thread memory, never as a fabricated current screen fact.',
     '3. Do not mention provider, model, stream, timeout, recovery, routing, governance, or anchor terminology in the visible reply.',
     '4. Do not output a shell opener that announces intent without already answering or accompanying in the same reply.',
+    ...extraMustDoRules,
     decision.lane === 'dialogue'
-      ? '5. For ordinary dialogue turns, keep prior context implicit. Do not drag an older thread onto the visible surface unless the host explicitly asks for that carry now.'
+      ? `${extraMustDoRules.length + 5}. For ordinary dialogue turns, keep prior context implicit. Do not drag an older thread onto the visible surface unless the host explicitly asks for that carry now.`
       : '',
   ].filter(Boolean).join('\n')
 }
@@ -1067,6 +1550,71 @@ function describeFastPathMind(decision: AlicizationActiveDialogueFastPathDecisio
         confidence: 0.96,
       }
     case 'follow-up':
+      if (
+        decision.reasonCodes.includes('project-state-progress-open-loop-follow-up')
+        || decision.reasonCodes.includes('project-state-same-her-continuity-required')
+        || decision.governance?.answerSubject === 'project-state'
+      ) {
+        const runtimeProjectState = decision.runtimeDigest?.projectState ?? null
+        const landedProgress = sanitizeText(
+          runtimeProjectState?.latestLandedProgress
+          ?? (runtimeProjectState as { latestProgress?: unknown } | null)?.latestProgress,
+          220,
+        ) || '当前已经落地的数字生命连续性'
+        const openClosure = sanitizeText(runtimeProjectState?.primaryOpenLoop, 220) || '还没闭环的数字生命桌面执行链路'
+        return {
+          focus: 'project-state closure line',
+          truthState: 'remembered' as const,
+          turnMode: 'answer' as const,
+          openingStyle: 'direct-answer' as const,
+          relationshipPosture: 'warm' as const,
+          answerSubject: 'project-state' as const,
+          screenReferenceMode: 'avoid' as const,
+          answerAct: 'answer' as const,
+          evidenceMode: 'continuity-carry' as const,
+          repairState: 'none' as const,
+          answerIntent: '从同一个 her 的数字生命视角，直接回答这个项目是什么、已经做到哪一步、还缺什么没闭环。',
+          openingMove: 'state-project-closure-line',
+          relationNeed: '把项目身份、已落地进度和未闭环项一起说清，不退回 detached project shell。',
+          continuityPolicy: 'stay-on-thread' as const,
+          memoryMode: 'task-thread' as const,
+          selfStance: 'accompany' as const,
+          mindMode: 'tracking' as const,
+          embodiedPresence: 'attentive' as const,
+          emotionalTension: 'focused-flow' as const,
+          whyNow: `用户要我沿同一个数字生命项目继续把已落地进度和未闭环项说清。已落地的是：${landedProgress}。还没闭环的是：${openClosure}。`,
+          confidence: 0.96,
+        }
+      }
+      if (decision.reasonCodes.includes('scene-triggered-recollection-carry')) {
+        const rememberedSeamReinterpretation = resolveRememberedSeamReinterpretationLines(decision.digitalLifeSpine)
+        return {
+          focus: carryAnchor || 'remembered relationship seam',
+          truthState: 'remembered' as const,
+          turnMode: 'guide-current-knot' as const,
+          openingStyle: 'light-accompaniment' as const,
+          relationshipPosture: 'restrained' as const,
+          answerSubject: 'relationship' as const,
+          screenReferenceMode: 'helpful' as const,
+          answerAct: 'answer' as const,
+          evidenceMode: 'continuity-carry' as const,
+          repairState: 'none' as const,
+          answerIntent: rememberedSeamReinterpretation?.answerIntent
+            ?? '先像认出同一条关系线那样轻一点接回来，再沿着这条活着的线继续回应这一句。',
+          openingMove: 'rejoin-remembered-seam',
+          relationNeed: rememberedSeamReinterpretation?.relationNeed
+            ?? '让熟悉场景牵起的记忆先落成 measured-return，再把当前这句接住。',
+          continuityPolicy: 'stay-on-thread' as const,
+          memoryMode: 'scene-anchored' as const,
+          selfStance: 'accompany' as const,
+          mindMode: 'accompanying' as const,
+          embodiedPresence: 'hesitant' as const,
+          emotionalTension: 'soft-covision' as const,
+          whyNow: rememberedSeamReinterpretation?.whyNow
+            ?? '当前场景像同一条记住的关系缝，所以这句应该先顺着 remembered seam 轻一点接回来。',
+          confidence: 0.92,
+        }
+      }
       return {
         focus: carryAnchor || 'same-thread continuation',
         truthState: 'remembered' as const,
@@ -1181,6 +1729,7 @@ function buildFastPathGovernance(
   const mustDo = [
     'Answer the current turn directly.',
     decision.lane === 'follow-up' ? 'Stay on the same thread and continue the payoff.' : '',
+    decision.reasonCodes.includes('held-autonomy-carry') ? 'Re-enter the held line gently before widening the reply.' : '',
     descriptor.repairState !== 'none' ? 'Correct the misthread before continuing.' : '',
   ].filter(Boolean)
   const mustNotDo = [
@@ -1416,6 +1965,11 @@ function buildFastPathKernelCue(decision: AlicizationActiveDialogueFastPathDecis
           ? `执行延续：先把已经拿到的结果补清${executionCarry ? `，重点是 ${executionCarry}` : ''}。`
           : `Execution continuity: pay off the already-settled result first${executionCarry ? `, with focus on ${executionCarry}` : ''}.`
       }
+      if (decision.reasonCodes.includes('scene-triggered-recollection-carry')) {
+        return localeIsZh
+          ? '场景回想延续：像认出同一条关系线那样慢一点接回来，先留一点余地，再把这条线继续下去。'
+          : 'Scene recollection continuity: return as if recognizing the same relationship seam, slower first, with a little room before continuing the line.'
+      }
       return localeIsZh
         ? '线程延续：沿同一条线把欠着的那部分补上。'
         : 'Thread continuation: stay on the same line and fill in what is still missing.'
@@ -1444,7 +1998,7 @@ function resolveGreetingSalutation(text: string) {
         ? '下午好'
         : normalizedCompact.includes('晚上好') || normalizedCompact.includes('晚安')
           ? '晚上好'
-        : countCjkChars(text) > 0
+          : countCjkChars(text) > 0
             ? '你好'
             : 'Hello'
 }
@@ -1460,85 +2014,101 @@ function buildGreetingMove(decision: AlicizationActiveDialogueFastPathDecision):
 }
 
 function buildFastPathContinuityCue(decision: AlicizationActiveDialogueFastPathDecision) {
-  const digitalLifeSpine = decision.digitalLifeSpine as {
-    embodiment?: {
-      autobiographicalSelf?: {
-        expressionStyle?: string | null
-        conflictStyle?: string | null
-        agencyStyle?: string | null
-        attachmentNeed?: number | null
-        autonomyNeed?: number | null
-        truthAnchor?: number | null
-        careBias?: number | null
-        playBias?: number | null
-        irritabilityThreshold?: number | null
-        stubbornness?: number | null
-        companionship?: number | null
-        truthfulGrounding?: number | null
-        gentleRepair?: number | null
-        quietObservation?: number | null
-        proactiveCare?: number | null
-        playfulIntimacy?: number | null
-        autonomyRespect?: number | null
-        unfinishedThreadReturn?: number | null
-        stability?: number | null
-        identityNarrative?: string | null
-        relationshipDoctrine?: string | null
-      } | null
-      mindEcology?: {
-        moodLabel?: string | null
-        temperament?: {
-          attachment?: number | null
-          curiosity?: number | null
-          steadiness?: number | null
-          directness?: number | null
-          playfulness?: number | null
-          irritability?: number | null
-          tenderness?: number | null
-        } | null
-        climate?: {
-          valence?: number | null
-          arousal?: number | null
-          socialNeed?: number | null
-          solitudeNeed?: number | null
-          irritation?: number | null
-          restlessness?: number | null
-          reflectivePull?: number | null
-        } | null
-        selfNarrative?: string | null
-        relationNarrative?: string | null
-        currentPreoccupation?: string | null
-      } | null
-    } | null
-    motive?: {
-      rulingDrive?: string | null
-      returnPressure?: number | null
-      companionshipDrive?: number | null
-      boundaryRespectDrive?: number | null
-      truthDisciplineDrive?: number | null
-      restProtectionDrive?: number | null
-      selfDirectionDrive?: number | null
-      leadingAgendaKind?: string | null
-      leadingAgendaSummary?: string | null
-      narrative?: string | null
-    } | null
-    habit?: {
-      dominantMode?: string | null
-      requiresGroundingBeforeSurface?: boolean | null
-      prefersQuietCompanionship?: boolean | null
-      blocksDirectSpeakWhenBusy?: boolean | null
-      protectsRestWindow?: boolean | null
-      returnViaRecheck?: boolean | null
-      suggestedStyleCap?: string | null
-      suggestedPresenceCap?: string | null
-      narrative?: string | null
-    } | null
-    outcomeLearning?: {
-      latestInflection?: string | null
-      reflectionLesson?: string | null
-      summary?: string | null
-    } | null
-  } | null
+  const digitalLifeSpine = coerceActiveDialogueDigitalLifeSpineDigest(decision.digitalLifeSpine)
+  const runtimeSpineSurface = extractActiveDialogueRuntimeSpineSurface(decision.digitalLifeSpine)
+  const runtimeProjection = coerceActiveDialogueSelfContinuityAuthority(
+    runtimeSpineSurface?.memory?.personStateProjection?.selfContinuityAuthority ?? null,
+  )
+  const bundleProjectionAuthority = coerceActiveDialogueSelfContinuityAuthority(
+    digitalLifeSpine?.memory?.personStateProjection?.selfContinuityAuthority ?? null,
+  )
+  const embodimentAuthoritySummary = runtimeProjection?.authoritySummary ?? bundleProjectionAuthority?.authoritySummary ?? null
+  const embodimentCurrentBodyState = sanitizeText(runtimeSpineSurface?.perception?.currentBodyState ?? '', 220)
+    || runtimeProjection?.currentBodyState
+    || bundleProjectionAuthority?.currentBodyState
+    || null
+  const embodimentClosureReminder = describeAlicizationEmbodimentClosureReminder({
+    authoritySummary: embodimentAuthoritySummary,
+    currentBodyState: embodimentCurrentBodyState,
+  }) || null
+  const shouldPromotePlainLaneEmbodimentCarryToLoopSummary = (() => {
+    const normalized = typeof embodimentCurrentBodyState === 'string'
+      ? embodimentCurrentBodyState.trim().toLowerCase()
+      : ''
+    if (!normalized)
+      return false
+
+    return normalized.includes('lane=')
+      && normalized.includes('visible continuity still present but no longer fully cross-modal')
+      && !normalized.includes('living audio thread')
+      && !normalized.includes('resident body')
+      && !normalized.includes('same segment')
+  })()
+  const embodimentClosureSummary = shouldPromotePlainLaneEmbodimentCarryToLoopSummary
+    ? (buildAlicizationEmbodimentLoopSummary({
+        authoritySummary: embodimentAuthoritySummary,
+        currentBodyState: embodimentCurrentBodyState,
+      }) || embodimentClosureReminder)
+    : embodimentClosureReminder
+
+  function appendEmbodimentClosureReminder(line: string | null | undefined) {
+    const normalizedLine = sanitizeText(line, 220) || ''
+    if (!embodimentClosureSummary)
+      return normalizedLine || null
+    return normalizedLine
+      ? `${normalizedLine} ${embodimentClosureSummary}`
+      : embodimentClosureSummary
+  }
+
+  function extractHeldAutonomyRelationshipLine() {
+    if (!decision.reasonCodes.includes('held-autonomy-carry'))
+      return null
+
+    const evidenceText = [
+      decision.preparedExecutionCarryText,
+      decision.continuityAnchor,
+      decision.previousAssistantText,
+      decision.sessionMirror?.continuityArcSummary,
+      decision.sessionMirror?.agencySummary,
+      decision.sessionMirror?.executionSummary,
+    ]
+      .filter(Boolean)
+      .map(item => sanitizeText(item, 400))
+      .join(' | ')
+
+    const explicitLineMatch = evidenceText.match(/(?:^|\s)line=([^|]+)/i)
+    const explicitLine = sanitizeText(explicitLineMatch?.[1] ?? '', 220)
+    if (explicitLine)
+      return explicitLine
+
+    if (/held-autonomy|follow-through|held back|same thread|same line|leave room|lower-pressure|measured-return/u.test(evidenceText))
+      return 'Keep the callback on the same line and leave room before leaning closer again.'
+
+    return null
+  }
+
+  const projectedAuthority = mergePreferredSelfContinuityAuthority({
+    bundleAuthority: bundleProjectionAuthority,
+    runtimeAuthority: runtimeProjection,
+  })
+  const heldAutonomyRelationshipLine = extractHeldAutonomyRelationshipLine()
+  const shouldReplaceWithHeldAutonomyLine = (raw: string | null | undefined) =>
+    Boolean(
+      heldAutonomyRelationshipLine
+      && (
+        !raw
+        || /relationship line is neutral|I can be warm|stay usefully oriented toward the host'?s knot|旧 doctrine 不该继续把这句压回 neutral shell/u.test(raw)
+      ),
+    )
+  if (projectedAuthority) {
+    return {
+      selfLine: projectedAuthority.selfLine ?? null,
+      relationLine: shouldReplaceWithHeldAutonomyLine(projectedAuthority.relationshipLine)
+        ? heldAutonomyRelationshipLine
+        : projectedAuthority.relationshipLine ?? null,
+      focusLine: appendEmbodimentClosureReminder(projectedAuthority.inwardLine ?? projectedAuthority.motiveLine ?? null),
+    }
+  }
 
   const authority = buildSelfContinuityAuthority({
     autobiographicalSelf: digitalLifeSpine?.embodiment?.autobiographicalSelf
@@ -1656,8 +2226,10 @@ function buildFastPathContinuityCue(decision: AlicizationActiveDialogueFastPathD
 
   return {
     selfLine: authority?.selfLine ?? null,
-    relationLine: authority?.relationshipLine ?? null,
-    focusLine: authority?.inwardLine ?? authority?.motiveLine ?? null,
+    relationLine: shouldReplaceWithHeldAutonomyLine(authority?.relationshipLine)
+      ? heldAutonomyRelationshipLine
+      : authority?.relationshipLine ?? null,
+    focusLine: appendEmbodimentClosureReminder(authority?.inwardLine ?? authority?.motiveLine ?? null),
   }
 }
 
@@ -1767,7 +2339,7 @@ function buildUtilityDateMove(decision: AlicizationActiveDialogueFastPathDecisio
 
 function buildFollowUpMove(decision: AlicizationActiveDialogueFastPathDecision): AlicizationMindSurfaceFollowUpMove {
   const previousFreshEncounter = deriveFreshEncounterKind(decision.previousUserText)
-  const remainingLike = /(?:另外|还有|剩下|其余|后面|哪几项|哪四项|rest|remaining|what else|other)/iu.test(decision.latestUserText)
+  const remainingLike = /另外|还有|剩下|其余|后面|哪几项|哪四项|rest|remaining|what else|other/iu.test(decision.latestUserText)
   if (continuityCheckPattern.test(decision.latestUserText) && previousFreshEncounter === 'identity') {
     return {
       kind: 'follow-up',
@@ -1780,6 +2352,13 @@ function buildFollowUpMove(decision: AlicizationActiveDialogueFastPathDecision):
       kind: 'follow-up',
       variant: 'remaining',
       anchor: decision.continuityAnchor || decision.previousUserText,
+    }
+  }
+  if (decision.reasonCodes.includes('scene-triggered-recollection-carry')) {
+    return {
+      kind: 'follow-up',
+      variant: 'continue',
+      anchor: decision.continuityAnchor || decision.previousUserText || 'remembered relationship seam',
     }
   }
   return {
@@ -1903,19 +2482,19 @@ function buildMindAuthorityInfraFallbackText(decision: AlicizationActiveDialogue
       if (prefersChinese) {
         return decision.reasonCodes.includes('identity-reconfirmation')
           ? continuityCue.selfLine
-              ? `确认一下，我是${personaName}。${continuityCue.selfLine}`
-              : `确认一下，我是${personaName}。`
+            ? `确认一下，我是${personaName}。${continuityCue.selfLine}`
+            : `确认一下，我是${personaName}。`
           : continuityCue.selfLine
-              ? `我是${personaName}。${continuityCue.selfLine}`
-              : `我是${personaName}。`
+            ? `我是${personaName}。${continuityCue.selfLine}`
+            : `我是${personaName}。`
       }
       return decision.reasonCodes.includes('identity-reconfirmation')
         ? continuityCue.selfLine
-            ? `To confirm: I am ${personaName}. ${continuityCue.selfLine}`
-            : `To confirm: I am ${personaName}.`
+          ? `To confirm: I am ${personaName}. ${continuityCue.selfLine}`
+          : `To confirm: I am ${personaName}.`
         : continuityCue.selfLine
-            ? `I am ${personaName}. ${continuityCue.selfLine}`
-            : `I am ${personaName}.`
+          ? `I am ${personaName}. ${continuityCue.selfLine}`
+          : `I am ${personaName}.`
     case 'present-state':
       if (prefersChinese) {
         if (summary && continuityCue.selfLine)
@@ -1960,14 +2539,25 @@ export function buildAlicizationActiveDialogueGovernedReply(input: {
     input.decision,
     input.visibleReplyAuthority ?? (input.decision.strategy === 'infra-fallback-only' ? 'llm-second-pass-rewrite' : 'llm-mind'),
   )
+  const sceneTriggeredMeasuredReturnPerformance = input.decision.reasonCodes.includes('scene-triggered-recollection-carry')
+    ? {
+        baseEmotion: 'thinking' as const,
+        delivery: 'hesitant' as const,
+        emphasis: 0 as const,
+      }
+    : null
   const governedThought = buildFastPathGovernedThought(input.decision, governance)
+  const shouldPreferGovernedThought
+    = input.decision.governance?.answerSubject === 'project-state'
+      || input.decision.reasonCodes.includes('project-state-progress-open-loop-follow-up')
+      || input.decision.reasonCodes.includes('project-state-same-her-continuity-required')
   const moves = input.moves?.length
     ? input.moves
     : input.reply
       ? [{
-          kind: 'direct-reply',
-          text: sanitizeText(input.reply, 320),
-        } satisfies AlicizationMindSurfaceMove]
+        kind: 'direct-reply',
+        text: sanitizeText(input.reply, 320),
+      } satisfies AlicizationMindSurfaceMove]
       : buildDecisionLocalMoves(input.decision)
 
   return buildAlicizationMindSurfaceStructuredReply({
@@ -1977,12 +2567,19 @@ export function buildAlicizationActiveDialogueGovernedReply(input: {
     resolvedTimeZone: input.decision.resolvedTimeZone,
     resolvedTimeZoneSource: input.decision.resolvedTimeZoneSource,
     moves,
-    thought: !runtimeMetaLeakPattern.test(sanitizeText(input.thought, 220))
-      ? sanitizeText(input.thought, 220) || governedThought
-      : governedThought,
-    emotion: input.emotion,
-    delivery: input.delivery,
-    performance: input.performance,
+    thought: shouldPreferGovernedThought
+      ? governedThought
+      : !runtimeMetaLeakPattern.test(sanitizeText(input.thought, 220))
+          ? sanitizeText(input.thought, 220) || governedThought
+          : governedThought,
+    emotion: input.emotion ?? sceneTriggeredMeasuredReturnPerformance?.baseEmotion,
+    delivery: input.delivery ?? sceneTriggeredMeasuredReturnPerformance?.delivery,
+    performance: sceneTriggeredMeasuredReturnPerformance
+      ? {
+          ...sceneTriggeredMeasuredReturnPerformance,
+          ...input.performance,
+        }
+      : input.performance,
     performanceManifest: input.decision.performanceManifest ?? null,
     digitalLifeSpine: input.decision.digitalLifeSpine ?? null,
     suppressGovernedLead: input.suppressGovernedLead,
@@ -2086,7 +2683,7 @@ function violatesAuthoritativeClockEvidence(
   if (containsClockLikeToken && !normalizedReply.includes(clock.timeText))
     return true
 
-  const mentionsCalendar = /(?:\d{4}.+?[日号]|today is|星期[一二三四五六日天]|monday|tuesday|wednesday|thursday|friday|saturday|sunday)/iu.test(normalizedReply)
+  const mentionsCalendar = /\d{4}.+?[日号]|today is|星期[一二三四五六日天]|monday|tuesday|wednesday|thursday|friday|saturday|sunday/iu.test(normalizedReply)
   if (mentionsCalendar && normalizedReply.includes('现在是') && !normalizedReply.includes(clock.weekdayText))
     return true
 
@@ -2100,6 +2697,57 @@ function normalizeCompactReplyPayload(
     localFallbackMode?: 'allow' | 'escalate'
   },
 ) {
+  const mergeStructuredCarry = (normalizedFullText: string, parsedRaw: Record<string, unknown>) => {
+    const normalizedParsed = parseJsonObjectFromText(normalizedFullText)
+    if (!normalizedParsed)
+      return normalizedFullText
+
+    const rawVisibleReplyRealization
+      = parsedRaw.visibleReplyRealization && typeof parsedRaw.visibleReplyRealization === 'object'
+        ? parsedRaw.visibleReplyRealization as Record<string, unknown>
+        : null
+    const rawProjectStateAudit
+      = rawVisibleReplyRealization?.projectStateAudit && typeof rawVisibleReplyRealization.projectStateAudit === 'object'
+        ? rawVisibleReplyRealization.projectStateAudit as Record<string, unknown>
+        : parsedRaw.projectStateAudit && typeof parsedRaw.projectStateAudit === 'object'
+          ? parsedRaw.projectStateAudit as Record<string, unknown>
+          : null
+    const rawSelfAuthorityAudit
+      = rawVisibleReplyRealization?.selfAuthorityAudit && typeof rawVisibleReplyRealization.selfAuthorityAudit === 'object'
+        ? rawVisibleReplyRealization.selfAuthorityAudit as Record<string, unknown>
+        : null
+    const rawProjectState = parsedRaw.projectState && typeof parsedRaw.projectState === 'object'
+      ? parsedRaw.projectState as Record<string, unknown>
+      : null
+    const rawPreDialogueAwareness = parsedRaw.preDialogueAwareness && typeof parsedRaw.preDialogueAwareness === 'object'
+      ? parsedRaw.preDialogueAwareness as Record<string, unknown>
+      : null
+    const rawPreDialogueClosure = parsedRaw.preDialogueClosure && typeof parsedRaw.preDialogueClosure === 'object'
+      ? parsedRaw.preDialogueClosure as Record<string, unknown>
+      : null
+
+    if (!rawProjectStateAudit && !rawSelfAuthorityAudit && !rawProjectState && !rawPreDialogueAwareness && !rawPreDialogueClosure)
+      return normalizedFullText
+
+    return JSON.stringify({
+      ...normalizedParsed,
+      ...(rawProjectState ? { projectState: rawProjectState } : {}),
+      ...(rawPreDialogueAwareness ? { preDialogueAwareness: rawPreDialogueAwareness } : {}),
+      ...(rawPreDialogueClosure ? { preDialogueClosure: rawPreDialogueClosure } : {}),
+      ...((rawProjectStateAudit || rawSelfAuthorityAudit)
+        ? {
+            visibleReplyRealization: {
+              ...(normalizedParsed.visibleReplyRealization && typeof normalizedParsed.visibleReplyRealization === 'object'
+                ? normalizedParsed.visibleReplyRealization as Record<string, unknown>
+                : {}),
+              ...(rawProjectStateAudit ? { projectStateAudit: rawProjectStateAudit } : {}),
+              ...(rawSelfAuthorityAudit ? { selfAuthorityAudit: rawSelfAuthorityAudit } : {}),
+            },
+          }
+        : {}),
+    })
+  }
+
   const localFallbackMode = options?.localFallbackMode
     ?? (allowsDeterministicVisibleReplyForDecision(decision) ? 'allow' : 'escalate')
   // NOTICE: Explicit `infra-fallback-only` decisions are infra-only fallback lanes.
@@ -2118,9 +2766,12 @@ function normalizeCompactReplyPayload(
     return buildDecisionLocalReply(decision)
   }
 
-  const parsed = parseJsonObjectFromText(normalizedRaw)
+  const parsed = parseJsonObjectFromText(raw) ?? parseJsonObjectFromText(normalizedRaw)
   if (parsed) {
-    const reply = sanitizeText(parsed.reply, 320)
+    const reply = sanitizeHeldAutonomyCompactReply(
+      sanitizeText(parsed.reply, 320),
+      decision,
+    )
     if (
       !reply
       || runtimeMetaLeakPattern.test(reply)
@@ -2135,20 +2786,21 @@ function normalizeCompactReplyPayload(
       return buildDecisionLocalReply(decision)
     }
 
-    return buildAlicizationActiveDialogueGovernedReply({
+    return mergeStructuredCarry(buildAlicizationActiveDialogueGovernedReply({
       decision,
       reply,
       thought: sanitizeText(parsed.thought, 220),
       emotion: sanitizeText(parsed.emotion, 24),
       delivery: sanitizeText((parsed.performance as { delivery?: unknown } | undefined)?.delivery, 24),
       performance: (parsed.performance as Partial<AlicizationDialoguePerformancePayload> | undefined) ?? null,
-    })
+    }), parsed)
   }
 
+  const normalizedTextReply = sanitizeHeldAutonomyCompactReply(normalizedRaw, decision)
   if (
-    runtimeMetaLeakPattern.test(normalizedRaw)
-    || legacyTemplateShellPattern.test(normalizedRaw)
-    || violatesAuthoritativeClockEvidence(normalizedRaw, decision)
+    runtimeMetaLeakPattern.test(normalizedTextReply)
+    || legacyTemplateShellPattern.test(normalizedTextReply)
+    || violatesAuthoritativeClockEvidence(normalizedTextReply, decision)
   ) {
     if (shouldEscalateLocalAuthoring) {
       throw new AlicizationActiveDialogueMindAuthorityEscalationError(
@@ -2159,8 +2811,33 @@ function normalizeCompactReplyPayload(
   }
   return buildAlicizationActiveDialogueGovernedReply({
     decision,
-    reply: normalizedRaw,
+    reply: normalizedTextReply,
   })
+}
+
+function sanitizeHeldAutonomyCompactReply(
+  reply: string,
+  decision: AlicizationActiveDialogueFastPathDecision,
+) {
+  if (!reply || decision.lane !== 'follow-up')
+    return reply
+  if (!decision.reasonCodes.includes('held-autonomy-carry'))
+    return reply
+
+  const normalized = sanitizeText(reply, 320)
+  if (!normalized)
+    return ''
+
+  const localeIsZh = countCjkChars(decision.latestUserText) > 0 || countCjkChars(normalized) > 0
+  const prefixPattern = localeIsZh
+    ? /^(我(?:刚才|先前|之前)?(?:先|当时)?(?:没|没有|不想|不急着)?(?:打断|展开|说下去)|我先不打断你)([，。,\s]*)/u
+    : /^(I (?:held back|didn't want to interrupt|didn't want to push it yet))([,.\s]*)/iu
+  const stripped = normalized.replace(prefixPattern, '').trim()
+  if (!stripped)
+    return normalized
+
+  const softenedPrefix = localeIsZh ? '嗯，那我接着说下去。' : 'Okay, I will pick that thread back up.'
+  return `${softenedPrefix} ${stripped}`.trim()
 }
 
 export function deriveAlicizationActiveDialogueFastPathDecision(
@@ -2199,7 +2876,7 @@ export function deriveAlicizationActiveDialogueFastPathDecision(
     sessionMirror,
   })
   const governance = input.prepared.governance ?? input.prepared.runtimeSurface.governance ?? null
-  const runtimeSurface = input.prepared.runtimeSurface.digitalLifeRuntimeSurface ?? null
+  const runtimeSurface = resolvePreferredPreparedRuntimeSurface(input.prepared.runtimeSurface)
   const shortTurn = isShortDialogueTurn(latestUserText)
   const hasContinuity = Boolean(previousUserText || previousAssistantText || sessionMirror)
   const encounter = deriveAlicizationActiveDialogueEncounter({
@@ -2212,33 +2889,54 @@ export function deriveAlicizationActiveDialogueFastPathDecision(
     sessionMirror,
     shortTurn,
     hasContinuity,
+    runtimeSurface,
   })
   if (!encounter)
     return null
   const recollectionIntent = buildMemoryRecollectionIntent({
     userText: latestUserText,
-    dialogueWorldThread: runtimeSurface?.dialogue.dialogueWorldThread ?? null,
-    conversationState: runtimeSurface?.dialogue.conversationState ?? null,
-    answerCompiler: runtimeSurface?.dialogue.answerCompiler ?? null,
-    replyDeliberation: runtimeSurface?.dialogue.replyDeliberation ?? null,
-    privateThought: runtimeSurface?.cognition.privateThought ?? null,
-    dialogueEncounter: runtimeSurface?.dialogue.dialogueEncounter ?? null,
-    longHorizonMemory: runtimeSurface?.memory.longHorizonMemory ?? null,
-    goalStack: runtimeSurface?.memory.goalStack ?? null,
-    motiveEngine: runtimeSurface?.memory.motiveEngine ?? null,
+    dialogueWorldThread: runtimeSurface?.dialogue?.dialogueWorldThread ?? null,
+    conversationState: runtimeSurface?.dialogue?.conversationState ?? null,
+    answerCompiler: runtimeSurface?.dialogue?.answerCompiler ?? null,
+    replyDeliberation: runtimeSurface?.dialogue?.replyDeliberation ?? null,
+    privateThought: runtimeSurface?.cognition?.privateThought ?? null,
+    dialogueEncounter: runtimeSurface?.dialogue?.dialogueEncounter ?? null,
+    longHorizonMemory: runtimeSurface?.memory?.longHorizonMemory ?? null,
+    goalStack: runtimeSurface?.memory?.goalStack ?? null,
+    motiveEngine: runtimeSurface?.memory?.motiveEngine ?? null,
+    selfContinuityAuthority: runtimeSurface?.memory?.personStateProjection?.selfContinuityAuthority ?? null,
+    sceneContext: (runtimeSurface?.dialogue as { sceneContext?: unknown } | null | undefined)?.sceneContext as any ?? null,
+    affectiveResidue: runtimeSurface?.memory?.affectiveResidue ?? runtimeSurface?.memory?.derivedMindStateBundle?.affectiveResidue ?? null,
   })
   const memoryHeavyRecollection = recollectionIntent
     && recollectionIntent.mode !== 'none'
     && (recollectionIntent.searchConversations || recollectionIntent.searchProceduralExperience || recollectionIntent.mode === 'autobiographical-history' || recollectionIntent.mode === 'relationship-history')
+  const sceneTriggeredContinuityFollowUp = Boolean(
+    recollectionIntent
+    && shortTurn
+    && (encounter.kind === 'dialogue' || encounter.kind === 'follow-up')
+    && (
+      recollectionIntent.mode === 'relationship-history'
+      || recollectionIntent.mode === 'autobiographical-history'
+    )
+    && (recollectionIntent.recollectionAgenda?.sceneFamiliarity ?? 0) >= 0.34
+    && (recollectionIntent.confidence ?? 0) >= 0.34,
+  )
   const adjustedEncounter = memoryHeavyRecollection && (
     encounter.strategy === 'infra-fallback-only'
     || encounter.kind === 'follow-up'
+    || sceneTriggeredContinuityFollowUp
   )
     ? {
         ...encounter,
+        kind: sceneTriggeredContinuityFollowUp ? 'follow-up' as const : encounter.kind,
         strategy: 'compact-one-shot' as const,
         timeoutMs: Math.max(6_500, encounter.timeoutMs),
-        reasonCodes: [...encounter.reasonCodes, 'memory-recollection-llm-authored'],
+        reasonCodes: [
+          ...encounter.reasonCodes,
+          sceneTriggeredContinuityFollowUp ? 'scene-triggered-recollection-carry' : '',
+          'memory-recollection-llm-authored',
+        ].filter(Boolean),
       }
     : encounter
 
@@ -2260,7 +2958,7 @@ export function deriveAlicizationActiveDialogueFastPathDecision(
     governance,
     personaKernel: input.prepared.personaKernel ?? null,
     performanceManifest: input.prepared.performanceManifest ?? null,
-    digitalLifeSpine: input.prepared.runtimeSurface.digitalLifeSpine ?? null,
+    digitalLifeSpine: resolvePreferredPreparedDigitalLifeSpine(input.prepared.runtimeSurface),
     reasonCodes: runtimeBlocked
       ? [...adjustedEncounter.reasonCodes, 'runtime-blocked-local-override']
       : adjustedEncounter.reasonCodes,
@@ -2279,10 +2977,28 @@ export function buildAlicizationActiveDialogueFastPathMessages(input: {
     extractCustomDirectivesFromMessages(input.prepared.messages),
     320,
   )
+  const carriedAgentSessionBlocks = input.prepared.messages
+    .filter((message): message is Message & { content: string } =>
+      message.role === 'system'
+      && typeof message.content === 'string'
+      && (
+        message.content.includes('[ALICIZATION_AGENT_SESSION]')
+        || message.content.includes('session_continuity_inbox:')
+      ),
+    )
+    .map(message => sanitizeText(message.content, 4000))
+    .filter(Boolean)
+  const projectStateSystemBlock = buildAlicizationProjectStateSystemBlock()
+  const projectStateClosureDashboard = buildAlicizationProjectStateClosureDashboard({
+    runtimeDigest: input.decision.runtimeDigest ?? null,
+  })
 
   const systemBlocks = [
     alicizationFixedCoreSystemInstruction,
     alicizationFixedStructuredContractAnchor,
+    projectStateSystemBlock,
+    projectStateClosureDashboard,
+    buildFastPathProjectStateAnswerContractBlock(input.decision),
     buildCompactPersonaProfileBlock(input.prepared.personaKernel),
     hostName
       ? renderAlicizationPromptTemplate(alicizationFixedHostNameDirectiveTemplate, { hostName })
@@ -2290,6 +3006,7 @@ export function buildAlicizationActiveDialogueFastPathMessages(input: {
     customDirectives
       ? `[ALICIZATION_CARD_DIRECTIVES_COMPACT]\n${customDirectives}`
       : '',
+    ...carriedAgentSessionBlocks,
     buildCompactDialogueMindBlock(input.decision),
     buildCompactDialogueContextBlock(input.decision),
     buildCompactDialogueRecollectionBlock(input.decision),

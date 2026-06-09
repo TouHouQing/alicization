@@ -120,6 +120,20 @@ const selfToneAdjustmentCuePattern
   = /\b(?:be happier|be more cheerful|sound normal|speak normally|talk like a human|be more natural|be gentler)\b|你能不能(?:表现得|说话)?(?:开心|高兴|正常|自然|温柔|轻松)(?:一点)?|你能不能说人话|你说话(?:正常|自然|温柔|轻松)一点|你别那么(?:僵硬|机械|冷)|说话像个人/iu
 const selfIdentityAffirmationCuePattern
   = /(?:这个人|那个人|这人|那人|说的就?是|没错|对啊?).{0,8}(?:就是你|是你)|(?:就是|正是)(?:你|妳)[啊呀呢嘛]?|\b(?:that(?:'s| is) you|it(?:'s| is) you|you(?:'re| are) the one|this person is you|that person is you)\b/iu
+const projectStateContinuityCuePattern
+  = /这个项目.*(?:做到什么程度|还差什么|没闭环|执行到哪)|what this project is.*(?:what has landed|what still remains open)|project.*(?:what has landed|still remains open|closure)/iu
+const projectStateProgressCuePattern
+  = /执行到哪|进行到哪|进行到哪一步|做到哪|做到哪一步|做到什么程度|进度|进展|到什么程度|how far|what has landed|what's landed|progress|landed/iu
+const projectStateMergeReadinessCuePattern
+  = /(?:可以|能不能|现在可以|已经可以|can we|is (?:it|this)|ready to|merge-ready).{0,40}(?:合并到\s*main|merge(?:\s+this)?\s+to\s+main|ready to merge|merge-ready)|(?:合并到\s*main|merge(?:\s+this)?\s+to\s+main|ready to merge|merge-ready).{0,24}(?:了吗|吗|now|already|ready|可以|能不能)/iu
+const projectStateClosureReadinessCuePattern
+  = /还差哪步|还差哪一步|还差什么|才能算闭环|算闭环|goal.{0,16}(?:闭环|完成|close|closed|complete)|what still needs to close|what remains before .*closed|still open|not yet closed/iu
+const projectStateCompletionTimelineCuePattern
+  = /计划什么时候完成|什么时候完成(?:这个)?\s*goal|何时完成(?:这个)?\s*goal|什么时候完成|何时完成|when (?:will|do).{0,24}(?:finish|complete|close)|expected to finish|expect to finish|completion timeline/iu
+const projectStateLanguageDriftCuePattern
+  = /为什么(?:一直|还)?用英文(?:不用中文)?|为什么(?:一直|还)?不用中文|为什么还用英文|英文不用中文|reply(?:ing)? in english|use english instead of chinese|why are you replying in english|why are you using english|是不是偏移了|偏移了吗|did the thread drift|thread drift|out of alignment|跑偏了/iu
+const mergeProcedureCuePattern
+  = /(?:怎么|如何|how to).{0,24}(?:合并到\s*main|merge(?:\s+this)?\s+to\s+main)/iu
 
 function questionWeight(text: string) {
   const normalized = normalizeDialogueText(text)
@@ -174,6 +188,37 @@ function looksLikeSelfToneAdjustment(text: string) {
 
 function looksLikeSelfIdentityAffirmation(text: string) {
   return selfIdentityAffirmationCuePattern.test(normalizeDialogueText(text))
+}
+
+function looksLikeProjectStateContinuityQuestion(text: string) {
+  const normalized = normalizeDialogueText(text)
+  if (!normalized)
+    return false
+
+  if (projectStateContinuityCuePattern.test(normalized))
+    return true
+  if (mergeProcedureCuePattern.test(normalized))
+    return false
+
+  const asksMergeReadiness = projectStateMergeReadinessCuePattern.test(normalized)
+  const asksClosureReadiness = projectStateClosureReadinessCuePattern.test(normalized)
+  const asksProgress = projectStateProgressCuePattern.test(normalized)
+  const asksCompletionTimeline = projectStateCompletionTimelineCuePattern.test(normalized)
+  const asksLanguageDrift = projectStateLanguageDriftCuePattern.test(normalized)
+
+  return (
+    asksMergeReadiness
+    && (
+      asksClosureReadiness
+      || /现在|now|already|ready|了吗|吗/iu.test(normalized)
+    )
+  ) || (
+    asksCompletionTimeline
+    && (asksProgress || asksClosureReadiness || asksLanguageDrift)
+  ) || (
+    asksLanguageDrift
+    && (asksProgress || asksCompletionTimeline || asksClosureReadiness)
+  )
 }
 
 function terseTurn(text: string) {
@@ -237,6 +282,7 @@ function buildDialogueFirstSummary(input: {
   careRequest: boolean
   companionshipBid: boolean
   hostStateDisclosure: boolean
+  projectStateContinuityQuestion: boolean
   userText: string
 }) {
   if (input.answerRepairFollowUp) {
@@ -250,6 +296,22 @@ function buildDialogueFirstSummary(input: {
   }
   if (input.companionshipBid || input.subjectPreference === 'relationship') {
     return 'The host is reaching for shared presence and wants Alicization to answer the relationship bid itself.'
+  }
+  if (input.projectStateContinuityQuestion) {
+    const normalizedUserText = normalizeDialogueText(input.userText)
+    const asksMergeReadiness = projectStateMergeReadinessCuePattern.test(normalizedUserText)
+    const asksCompletionTimeline = projectStateCompletionTimelineCuePattern.test(normalizedUserText)
+    const asksLanguageDrift = projectStateLanguageDriftCuePattern.test(normalizedUserText)
+
+    if (asksMergeReadiness) {
+      return 'The host is asking Alicization to answer what this project is, how far Phase 1 has landed, what still remains open, and whether the current work is actually merge-ready, from one continuous her line.'
+    }
+
+    if (asksCompletionTimeline || asksLanguageDrift) {
+      return 'The host is asking Alicization to answer how far the current Phase 1 line has landed, what still remains open, when the goal should close, and whether the thread drifted out of the host language or project line, from one continuous her line.'
+    }
+
+    return 'The host is asking Alicization to answer what this project is, how far Phase 1 has landed, and what still remains open, from one continuous her line.'
   }
   if (input.subjectPreference === 'alicization-self') {
     return 'The host is turning the dialogue back toward Alicization herself and expects a plain direct answer.'
@@ -308,6 +370,7 @@ export function buildDialogueTurnSemantics(input: {
   const selfInquiry = looksLikeSelfInquiry(userText)
   const selfToneAdjustment = looksLikeSelfToneAdjustment(userText)
   const selfIdentityAffirmation = looksLikeSelfIdentityAffirmation(userText)
+  const projectStateContinuityQuestion = looksLikeProjectStateContinuityQuestion(userText)
   const currentActivityQuestion = looksLikeCurrentActivityQuestion(userText)
     && Boolean(input.currentScene || input.worldModel?.activeThread)
   const codingLike = input.context.workload.kind === 'coding'
@@ -455,7 +518,7 @@ export function buildDialogueTurnSemantics(input: {
     && !sceneBoundQuestion
     && !helpSeeking
     && !currentActivityQuestion
-    && (greetingBid || selfInquiry || selfToneAdjustment || selfIdentityAffirmation)
+    && (greetingBid || selfInquiry || selfToneAdjustment || selfIdentityAffirmation || projectStateContinuityQuestion)
   ) {
     if (greetingBid && !selfInquiry && !selfToneAdjustment) {
       act = 'social-bid'
@@ -474,6 +537,15 @@ export function buildDialogueTurnSemantics(input: {
       subjectPreference = 'alicization-self'
       personaSuppression = clamp01(personaSuppression + 0.02)
       reasonTags.push('self-identity-affirmation')
+    }
+    else if (projectStateContinuityQuestion) {
+      act = 'ask-help'
+      responseNeed = 'answer'
+      truthExpectation = 'normal'
+      affectiveTone = 'neutral'
+      subjectPreference = 'alicization-self'
+      personaSuppression = clamp01(personaSuppression + 0.1)
+      reasonTags.push('project-state-continuity-question')
     }
     else {
       act = selfToneAdjustment ? 'challenge' : 'ask-help'
@@ -619,6 +691,7 @@ export function buildDialogueTurnSemantics(input: {
           careRequest,
           companionshipBid,
           hostStateDisclosure,
+          projectStateContinuityQuestion,
           userText,
         })
       : taskAnchor
