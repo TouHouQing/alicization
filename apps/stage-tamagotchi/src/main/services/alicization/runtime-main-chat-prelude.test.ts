@@ -398,6 +398,91 @@ describe('runtime main chat prelude', () => {
     expect(canonicalProjectStateBlocks[0]).not.toBe('[ALICIZATION_PROJECT_STATE]\nproject_preflight=Alicization is a local-first digital life project.')
   })
 
+  it('repairs placeholder-filled canonical-looking project-state shells in the prelude layer before session execution preparation', async () => {
+    const prepareMainChatSessionExecution = vi.fn(async input => input) as any
+    const placeholderBlock = [
+      '[ALICIZATION_PROJECT_STATE]',
+      'project_preflight=Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
+      'current_phase=Phase 1: Local Digital Life',
+      'current_objective=Build a local companion on the host computer with continuous personhood, stable memory, emotional state, initiative, execution ability, embodied expression, and natural dialogue.',
+      'latest_landed_progress=none',
+      'same_her_self_line=Same Phase 1 digital life. Unfinished closure still needs the same living line.',
+      'same_her_drift_risk=none',
+      'primary_open_loop=none',
+      'next_closure_target=none',
+    ].join('\n')
+
+    const runtime = createAlicizationMainChatPreludeRuntime({
+      readLatestUserMessageText: messages => String(messages.at(-1)?.content ?? ''),
+      senderWebContentsIdFromInvokeOptions: () => null,
+      resolveChatMessages: payload => payload.messages as any,
+      buildMainChatContextualString: vi.fn(async () => ''),
+      buildMainChatExecutionCallbackContext: vi.fn(async () => ({
+        pending: [],
+        recent: [],
+        actions: [],
+        continuitySignals: [],
+        systemBlock: '',
+      })),
+      buildMainChatExecutionLedgerContext: vi.fn(async () => ({
+        systemBlock: '',
+        entries: [],
+        recallText: '',
+      })) as any,
+      buildMainChatPendingAffirmationThread: vi.fn(async () => null),
+      augmentMainChatMessagesWithPerception: vi.fn(async input => ({
+        messages: input.messages,
+        systemBlocks: [],
+        promptSystemBlocks: [],
+        digitalLifeRuntimeSurface: null,
+        memoryRecallSeed: '',
+        recallGovernor: null,
+        capture: {
+          inspectionRequested: false,
+          groundedThisTurn: false,
+          snapshot: null,
+          fallbackReason: null,
+        },
+        chatGovernance: {
+          suppressAssociativeRecall: false,
+          turnMode: 'answer' as const,
+          personaKernelMode: 'full' as const,
+          mindTurnGovernance: null,
+        },
+      })),
+      prepareMainChatSessionExecution,
+    })
+
+    const execution = await runtime.prepareMainChatExecution({
+      cardId: 'card-prelude-placeholder-project-state-shell',
+      turnId: 'turn-prelude-placeholder-project-state-shell',
+      providerId: 'openai',
+      model: 'gpt-5',
+      providerConfig: {},
+      messages: [
+        { role: 'system', content: placeholderBlock },
+        { role: 'user', content: '继续，但别把项目状态退化成 none 占位。' },
+      ],
+    } as any, {
+      provider: {
+        chat: vi.fn(() => ({ provider: 'test-chat' })),
+      },
+      model: 'gpt-5',
+    } as any)
+
+    const preparedMessages = (execution as any).prelude.messages as Array<{ role?: string, content?: string }>
+    const canonicalProjectStateBlocks = preparedMessages
+      .filter(message => message.role === 'system' && typeof message.content === 'string' && message.content.includes('[ALICIZATION_PROJECT_STATE]'))
+      .map(message => message.content ?? '')
+
+    expect(prepareMainChatSessionExecution).toHaveBeenCalledOnce()
+    expect(canonicalProjectStateBlocks[0]).not.toBe(placeholderBlock)
+    expect(canonicalProjectStateBlocks[0]).not.toContain('latest_landed_progress=none')
+    expect(canonicalProjectStateBlocks[0]).not.toContain('same_her_drift_risk=none')
+    expect(canonicalProjectStateBlocks[0]).not.toContain('primary_open_loop=none')
+    expect(canonicalProjectStateBlocks[0]).not.toContain('next_closure_target=none')
+  })
+
   it('keeps project identity, landed progress, and still-open closure explicit together through prelude normalization before downstream builders run', async () => {
     const triadAwarenessLine = 'Before answering, remember: this is still one living digital life project, Phase 1 is still active, some closure has already landed, and the still-open life loop must remain explicit before this turn widens outward.'
 

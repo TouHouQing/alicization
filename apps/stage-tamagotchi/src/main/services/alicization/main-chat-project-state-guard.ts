@@ -13,9 +13,24 @@ const alicizationCanonicalProjectStateRequiredFields = [
   'next_closure_target',
 ] as const
 
+const alicizationCanonicalProjectStatePlaceholderValues = new Set([
+  'none',
+  'null',
+  'unknown',
+  'n/a',
+  'na',
+])
+
 function readCanonicalProjectStateField(content: string, field: (typeof alicizationCanonicalProjectStateRequiredFields)[number]) {
   const match = content.match(new RegExp(`^${field}=(.+)$`, 'm'))
   return typeof match?.[1] === 'string' ? match[1].trim() : ''
+}
+
+function hasUsableCanonicalProjectStateFieldValue(value: string) {
+  if (!value)
+    return false
+
+  return !alicizationCanonicalProjectStatePlaceholderValues.has(value.trim().toLowerCase())
 }
 
 function carriesCanonicalProjectIdentity(content: string) {
@@ -29,7 +44,10 @@ function isCanonicalProjectStateMessageContent(content: string) {
   if (!carriesCanonicalProjectIdentity(content))
     return false
 
-  return alicizationCanonicalProjectStateRequiredFields.every(field => Boolean(readCanonicalProjectStateField(content, field)))
+  return alicizationCanonicalProjectStateRequiredFields.every((field) => {
+    const value = readCanonicalProjectStateField(content, field)
+    return hasUsableCanonicalProjectStateFieldValue(value)
+  })
 }
 
 export function carriesAlicizationCanonicalProjectState(messages: Message[]) {

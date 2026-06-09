@@ -63,4 +63,28 @@ describe('main-chat-project-state-guard', () => {
       'Alicization stream messages must include canonical project-state context before generation.',
     )
   })
+
+  it('rejects marker blocks whose required closure fields are filled with placeholder none values instead of real project-state knowledge', () => {
+    const placeholderFilledBlock = [
+      '[ALICIZATION_PROJECT_STATE]',
+      'project_preflight=Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
+      'current_phase=Phase 1: Local Digital Life',
+      'current_objective=Build a local companion on the host computer with continuous personhood, stable memory, emotional state, initiative, execution ability, embodied expression, and natural dialogue.',
+      'latest_landed_progress=none',
+      'same_her_self_line=Same Phase 1 digital life. Unfinished closure still needs the same living line.',
+      'same_her_drift_risk=none',
+      'primary_open_loop=none',
+      'next_closure_target=none',
+    ].join('\n')
+
+    const messages = [
+      { role: 'system', content: placeholderFilledBlock },
+      { role: 'user', content: '继续，但别把项目状态伪装成 none 占位。' },
+    ] satisfies Message[]
+
+    expect(carriesAlicizationCanonicalProjectState(messages)).toBe(false)
+    expect(() => assertAlicizationCanonicalProjectState(messages, 'one-shot')).toThrowError(
+      'Alicization one-shot messages must include canonical project-state context before generation.',
+    )
+  })
 })
