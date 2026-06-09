@@ -9,10 +9,11 @@ import type {
   AlicizationMemoryReflectionRecord,
   AlicizationPersonalityState,
   AlicizationPersonaReinforcementEventRecord,
-  AlicizationRelationshipOutcomeRecord,
+  AlicizationPersonStateUpdateSurface,
   AlicizationPrivateThoughtSnapshot,
   AlicizationReflectionLedgerSnapshot,
   AlicizationRelationshipModelSnapshot,
+  AlicizationRelationshipOutcomeRecord,
   AlicizationSelfContinuitySnapshot,
   AlicizationSelfStateSnapshot,
   AlicizationWorldModelSnapshot,
@@ -22,8 +23,8 @@ import type { AlicizationMemoryConsolidationRecord } from './memory-consolidatio
 import type { AlicizationMindEcologySnapshot } from './mind-ecology'
 import type { AlicizationProactiveLayeredContext } from './proactive-layered-context'
 
-import { deriveAlicizationPersonaAuthorityInfluence } from './personality-continuity-state'
 import { buildPersonaGradualUnlock } from './persona-gradual-unlock'
+import { deriveAlicizationPersonaAuthorityInfluence } from './personality-continuity-state'
 
 export const alicizationAutobiographicalSelfMarker = '[ALICIZATION_AUTOBIOGRAPHICAL_SELF]'
 
@@ -46,7 +47,13 @@ export interface AlicizationAutobiographicalSelfInput {
   recentMemoryReflections?: AlicizationMemoryReflectionRecord[] | null
   recentMemoryConsolidations?: AlicizationMemoryConsolidationRecord[] | null
   recentReinforcementEvents?: AlicizationPersonaReinforcementEventRecord[] | null
+  personStateUpdateSurface?: AlicizationPersonStateUpdateSurface | null
   previous?: AlicizationAutobiographicalSelfSnapshot | null
+  projectStatePreDialogueAwarenessLine?: string | null
+  projectStatePreflightSummary?: string | null
+  projectStateEmotionalClosureCue?: string | null
+  projectStatePrimaryOpenLoop?: string | null
+  projectStateProactiveSameHerGap?: string | null
 }
 
 type PreferenceKey = keyof AlicizationAutobiographicalSelfSnapshot['preferenceEvolution']
@@ -67,6 +74,11 @@ const reflectionBoundaryPattern = /boundary|space|crowd|pressure|softly|give mor
 const reflectionRelationshipPattern = /relationship|trust|receptive|stay near|warmth|close|closeness|soft closeness|陪|靠近|信任|关系|温度|被接住/iu
 const reflectionTaskPattern = /thread|open loop|unfinished|return|follow[- ]?up|remember|carry the line|继续|未完成|线程|回来|跟进|别忘/iu
 const reflectionHabitPattern = /habit|default|pattern|before.*after|before warmth|first|先.*再|默认|习惯|先后顺序/iu
+const repairPattern = /repair|clarify|recheck|missed|not this|先确认|修复|澄清|重说|没答到|不是这个/iu
+const burdenPattern = /burden|tired|busy|drained|interrupt|压力|累|忙|打断|疲惫|不想被催/iu
+const closenessPattern = /warm|gentle|care|companionship|陪|温和|柔和|陪伴|靠近/iu
+const spacePattern = /space|boundary|lighter|light touch|quiet|room|边界|空间|轻一点|安静|留白/iu
+const autobiographicalNarrativePattern = /^(?:i learned|i am learning|i became|i am becoming|i learned to|我学会|我开始学会|我变得|我开始变得)/iu
 
 function clamp01(value: number) {
   if (!Number.isFinite(value))
@@ -93,12 +105,64 @@ function uniqueTexts(values: Array<unknown>, maxItems = values.length, maxChars 
   return result
 }
 
+function deriveProjectStateContinuityBias(raw: unknown) {
+  const normalized = sanitizeText(raw, 220).toLowerCase()
+  return {
+    anthropomorphicMemoryClosureStillOpen:
+      normalized.includes('memory still needs stronger end-to-end closure')
+      || /phase 1 closure pressure|unfinished phase 1 closure|still-open life loop|still-open closure|open closure seam|visible proactive hold|hover-first restraint|subconscious carry|next-session feedback carry|proactive same-her gap/u.test(normalized),
+  }
+}
+
+function summarizeProjectStateProactiveSameHerGap(raw: unknown) {
+  const normalized = sanitizeText(raw, 220)
+  if (!normalized)
+    return null
+
+  const lowered = normalized.toLowerCase()
+  const cues = uniqueTexts([
+    /visible proactive hold/u.test(lowered) ? 'visible proactive hold' : null,
+    /hover-first restraint/u.test(lowered) ? 'hover-first restraint' : null,
+    /subconscious carry/u.test(lowered) ? 'subconscious carry' : null,
+    /next-session feedback carry/u.test(lowered) ? 'next-session feedback carry' : null,
+  ], 4, 72)
+
+  if (cues.length > 0) {
+    return sanitizeText(
+      `The proactive same-her gap still needs ${cues.join(', ')} to stay unified on one same living line.`,
+      180,
+    )
+  }
+
+  return normalized
+}
+
+function buildProjectStateEmotionalClosureLine(raw: unknown) {
+  const normalized = sanitizeText(raw, 220)
+  if (!normalized)
+    return null
+
+  const afterSo = normalized.split(/\bso\b/iu).at(-1)?.trim() ?? ''
+  if (afterSo && afterSo !== normalized) {
+    return sanitizeText(
+      `Keep ${afterSo.replace(/^the return lands like /iu, 'the return like ').replace(/[.。!！?？]+$/u, '')}.`,
+      180,
+    ) || normalized
+  }
+
+  return normalized
+}
+
 function blend(previous: number, target: number, rate = 0.18) {
   return clamp01(previous * (1 - rate) + target * rate)
 }
 
 function latestReflection(ledger?: AlicizationReflectionLedgerSnapshot | null) {
-  return ledger?.entries.find(entry => entry.id === ledger.latestEntryId)
+  const latest = ledger?.entries.find(entry => entry.id === ledger.latestEntryId)
+  if (latest && latest.outcome !== 'released')
+    return latest
+
+  return ledger?.entries.find(entry => entry.outcome !== 'released')
     ?? ledger?.entries[0]
     ?? null
 }
@@ -201,6 +265,19 @@ function reflectionStatusWeight(status: AlicizationMemoryReflectionRecord['statu
   return -0.52
 }
 
+function sortRecentReflectionsByRecency(reflections: AlicizationMemoryReflectionRecord[] | null | undefined) {
+  return (reflections ?? [])
+    .slice()
+    .sort((left, right) => (right.updatedAt ?? right.createdAt) - (left.updatedAt ?? left.createdAt))
+}
+
+function latestNarrativelyActiveReflection(reflections: AlicizationMemoryReflectionRecord[] | null | undefined) {
+  const ordered = sortRecentReflectionsByRecency(reflections)
+  return ordered.find(reflection => reflection.status !== 'superseded')
+    ?? ordered[0]
+    ?? null
+}
+
 function inferReflectionThemeSignals(reflection: Pick<AlicizationMemoryReflectionRecord, 'summary' | 'lesson'>) {
   const text = sanitizeText(`${reflection.summary} ${reflection.lesson}`, 320)
   return {
@@ -225,9 +302,7 @@ function summarizeReflectionHistory(input: AlicizationAutobiographicalSelfInput)
     latestLesson: '',
   }
 
-  const ordered = (input.recentMemoryReflections ?? [])
-    .slice()
-    .sort((left, right) => (right.updatedAt ?? right.createdAt) - (left.updatedAt ?? left.createdAt))
+  const ordered = sortRecentReflectionsByRecency(input.recentMemoryReflections)
 
   for (const reflection of ordered) {
     const signedWeight = reflectionStatusWeight(reflection.status) * clamp01(reflection.confidence)
@@ -271,8 +346,9 @@ function summarizeReflectionHistory(input: AlicizationAutobiographicalSelfInput)
       summary.habit += signedWeight * 0.56
   }
 
+  const latestMeaningfulReflection = latestNarrativelyActiveReflection(input.recentMemoryReflections)
   summary.latestLesson = sanitizeText(
-    ordered[0]?.lesson || ordered[0]?.summary,
+    latestMeaningfulReflection?.lesson || latestMeaningfulReflection?.summary,
     180,
   )
 
@@ -285,42 +361,83 @@ function buildPreferenceDurabilityFloor(input: {
   reinforcement: ReturnType<typeof summarizeReinforcement>
   outcomeHistory: ReturnType<typeof summarizeRelationshipOutcomeHistory>
   reflectionHistory: ReturnType<typeof summarizeReflectionHistory>
+  humanlikeCarry?: ReturnType<typeof summarizeHumanlikeCarryFromReconsolidation> | null
 }) {
   const previous = input.previous.preferenceEvolution
   const longHorizon = input.longHorizonMemory ?? null
+  const humanlikeCarry = input.humanlikeCarry ?? null
+  const residueTags = new Set(humanlikeCarry?.emotionalResidueTags ?? [])
+  const correctedSamePersonCarry
+    = humanlikeCarry?.relationshipPrimaryIntent === 'same-person-test'
+      || humanlikeCarry?.relationshipPrimaryIntent === 'continuity-worry'
+      || humanlikeCarry?.relationshipPrimaryIntent === 'mixed'
+  const correctedRecallCarry = humanlikeCarry?.recallCertainty === 'corrected'
+  const embodimentCadence = sanitizeText(humanlikeCarry?.embodimentCadence, 180).toLowerCase()
+  const embodimentSummary = sanitizeText(humanlikeCarry?.embodimentSummary, 220).toLowerCase()
+
+  const humanlikeCompanionship = clamp01(
+    (residueTags.has('protective-continuity') ? 0.08 : 0)
+    + (correctedSamePersonCarry ? 0.06 : 0)
+    + (embodimentCadence.includes('stable gaze') ? 0.04 : 0),
+  )
+  const humanlikeTruthfulSupport = clamp01(
+    (correctedRecallCarry ? 0.24 : 0)
+    + (correctedSamePersonCarry ? 0.16 : 0)
+    + (humanlikeCarry?.metabolismSummary ? 0.1 : 0),
+  )
+  const humanlikeGentleRepairSupport = clamp01(
+    (correctedRecallCarry ? 0.2 : 0)
+    + (residueTags.has('corrected-meaning') ? 0.14 : 0)
+    + (humanlikeCarry?.autobiographicalDelta?.toLowerCase().includes('first interpretation') ? 0.12 : 0),
+  )
+  const humanlikeAutonomySupport = clamp01(
+    (embodimentCadence.includes('lower-pressure') ? 0.16 : 0)
+    + (embodimentCadence.includes('slower pacing') ? 0.08 : 0)
+    + (embodimentSummary.includes('same-person continuity reopening') ? 0.06 : 0),
+  )
+  const humanlikeUnfinishedSupport = clamp01(
+    (residueTags.has('unfinishedness') ? 0.18 : 0)
+    + (residueTags.has('protective-continuity') ? 0.14 : 0)
+    + (humanlikeCarry?.metabolismSummary ? 0.08 : 0),
+  )
 
   const companionshipSupport = clamp01(
     input.outcomeHistory.closenessSupport * 0.42
     + input.outcomeHistory.trustSupport * 0.38
     + Math.max(0, input.reflectionHistory.relationship) * 0.28
     + Math.max(0, input.reinforcement.companionship) * 0.34
-    + (longHorizon?.preferenceBias.companionship ?? 0) * 0.18,
+    + (longHorizon?.preferenceBias.companionship ?? 0) * 0.18
+    + humanlikeCompanionship,
   )
   const truthfulSupport = clamp01(
     input.outcomeHistory.repairLearning * 0.42
     + Math.max(0, input.reflectionHistory.truth) * 0.34
     + Math.max(0, input.reflectionHistory.habit) * 0.12
     + Math.max(0, input.reinforcement.truthfulGrounding) * 0.34
-    + (longHorizon?.preferenceBias.truthfulGrounding ?? 0) * 0.22,
+    + (longHorizon?.preferenceBias.truthfulGrounding ?? 0) * 0.22
+    + humanlikeTruthfulSupport,
   )
   const gentleRepairSupport = clamp01(
     input.outcomeHistory.repairLearning * 0.38
     + Math.max(0, input.reflectionHistory.truth) * 0.2
     + Math.max(0, input.reflectionHistory.habit) * 0.18
     + Math.max(0, input.reinforcement.gentleRepair) * 0.3
-    + (longHorizon?.preferenceBias.gentleRepair ?? 0) * 0.18,
+    + (longHorizon?.preferenceBias.gentleRepair ?? 0) * 0.18
+    + humanlikeGentleRepairSupport,
   )
   const autonomySupport = clamp01(
     input.outcomeHistory.boundaryLift * 0.42
     + Math.max(0, input.reflectionHistory.boundary) * 0.34
     + Math.max(0, input.reinforcement.autonomyRespect) * 0.32
-    + (longHorizon?.preferenceBias.autonomyRespect ?? 0) * 0.22,
+    + (longHorizon?.preferenceBias.autonomyRespect ?? 0) * 0.22
+    + humanlikeAutonomySupport,
   )
   const unfinishedSupport = clamp01(
     input.outcomeHistory.openLoopSupport * 0.44
     + Math.max(0, input.reflectionHistory.task) * 0.32
     + Math.max(0, input.reinforcement.unfinishedThreadReturn) * 0.32
-    + (longHorizon?.preferenceBias.unfinishedThreadReturn ?? 0) * 0.24,
+    + (longHorizon?.preferenceBias.unfinishedThreadReturn ?? 0) * 0.24
+    + humanlikeUnfinishedSupport,
   )
 
   return {
@@ -349,6 +466,99 @@ function buildPreferenceDurabilityFloor(input: {
       ? clamp01(previous.unfinishedThreadReturn * 0.9 + unfinishedSupport * 0.24)
       : 0,
   } satisfies AlicizationAutobiographicalSelfSnapshot['preferenceEvolution']
+}
+
+function summarizePersonStateSurfaceSignal(input: AlicizationAutobiographicalSelfInput) {
+  const surface = input.personStateUpdateSurface ?? null
+  if (!surface) {
+    return {
+      companionship: 0,
+      truthfulGrounding: 0,
+      gentleRepair: 0,
+      quietObservation: 0,
+      proactiveCare: 0,
+      playfulIntimacy: 0,
+      autonomyRespect: 0,
+      unfinishedThreadReturn: 0,
+      narrativeLead: '',
+      lessonLead: '',
+    }
+  }
+
+  const relationshipShift = surface.relationshipShift
+  const narrativeSource = Array.isArray(surface.narrative)
+    ? surface.narrative
+    : [surface.narrative]
+  const narrativeTexts = uniqueTexts(narrativeSource, 3, 180)
+  const summaryText = sanitizeText(`${surface.summary} ${narrativeTexts.join(' ')}`, 320)
+  const preferenceText = uniqueTexts(surface.preferenceHints ?? [], 2, 180).join(' ')
+  const sensitivityText = uniqueTexts(surface.sensitivityHints ?? [], 2, 180).join(' ')
+  const repairText = uniqueTexts(surface.repairHints ?? [], 2, 180).join(' ')
+  const burdenText = uniqueTexts(surface.burdenHints ?? [], 2, 180).join(' ')
+  const autobiographicalNarrativeLead = narrativeTexts.find(text => autobiographicalNarrativePattern.test(text))
+  const directTruthBias = Number(surface.reinforcementBias['truthful-grounding'] ?? 0)
+  const directRepairBias = Number(surface.reinforcementBias['gentle-repair'] ?? 0)
+  const directCompanionshipBias = Number(surface.reinforcementBias.companionship ?? 0)
+  const directAutonomyBias = Number(surface.reinforcementBias['autonomy-respect'] ?? 0)
+  const directUnfinishedBias = Number(surface.reinforcementBias['unfinished-thread-return'] ?? 0)
+
+  return {
+    companionship: clamp01(
+      Math.max(0, relationshipShift.closenessDelta) * 0.8
+      + Math.max(0, relationshipShift.trustDelta) * 0.42
+      + Math.max(0, directCompanionshipBias) * 0.72
+      + (reflectionRelationshipPattern.test(summaryText) ? 0.12 : 0)
+      + (reflectionRelationshipPattern.test(preferenceText) ? 0.08 : 0),
+    ),
+    truthfulGrounding: clamp01(
+      Math.max(0, relationshipShift.trustDelta) * 0.36
+      + Math.max(0, directTruthBias) * 0.92
+      + (reflectionTruthPattern.test(summaryText) ? 0.22 : 0)
+      + (reflectionTruthPattern.test(repairText) ? 0.14 : 0)
+      + (reflectionTruthPattern.test(preferenceText) ? 0.08 : 0),
+    ),
+    gentleRepair: clamp01(
+      Math.max(0, relationshipShift.repairDelta) * 0.9
+      + Math.max(0, -relationshipShift.burdenDelta) * 0.22
+      + Math.max(0, directRepairBias) * 0.9
+      + (reflectionTruthPattern.test(repairText) ? 0.18 : 0)
+      + (repairPattern.test(summaryText) ? 0.14 : 0),
+    ),
+    quietObservation: clamp01(
+      Math.max(0, relationshipShift.boundaryDelta) * 0.4
+      + Math.max(0, directAutonomyBias) * 0.32
+      + (reflectionBoundaryPattern.test(preferenceText) ? 0.16 : 0)
+      + (spacePattern.test(summaryText) ? 0.12 : 0),
+    ),
+    proactiveCare: clamp01(
+      Math.max(0, -relationshipShift.burdenDelta) * 0.5
+      + Math.max(0, relationshipShift.trustDelta) * 0.18
+      + (burdenPattern.test(burdenText) ? 0.14 : 0)
+      + (closenessPattern.test(summaryText) ? 0.08 : 0),
+    ),
+    playfulIntimacy: 0,
+    autonomyRespect: clamp01(
+      Math.max(0, relationshipShift.boundaryDelta) * 0.84
+      + Math.max(0, directAutonomyBias) * 1.08
+      + (reflectionBoundaryPattern.test(preferenceText) ? 0.2 : 0)
+      + (spacePattern.test(sensitivityText) ? 0.12 : 0),
+    ),
+    unfinishedThreadReturn: clamp01(
+      Math.max(0, directUnfinishedBias) * 0.86
+      + (reflectionTaskPattern.test(summaryText) ? 0.18 : 0)
+      + (reflectionTaskPattern.test(repairText) ? 0.12 : 0),
+    ),
+    narrativeLead: sanitizeText(autobiographicalNarrativeLead || narrativeTexts[0] || surface.summary, 180),
+    lessonLead: sanitizeText(
+      autobiographicalNarrativeLead
+      || narrativeTexts[0]
+      || surface.repairHints[0]
+      || surface.preferenceHints[0]
+      || surface.sensitivityHints[0]
+      || surface.burdenHints[0],
+      180,
+    ),
+  }
 }
 
 function defaultAutobiographicalSelf(now: number): AlicizationAutobiographicalSelfSnapshot {
@@ -826,9 +1036,13 @@ function buildIdentityNarrative(input: {
   autobiographicalSummary?: string | null
   phaseSummary?: string | null
   selfEraSummary?: string | null
+  proactiveSameHerGap?: string | null
 }) {
   const goalLine = input.dominantGoal?.summary ?? 'Keep growing toward a more stable inner line.'
-  const autobiographicalLead = sanitizeText(input.selfEraSummary || input.phaseSummary || input.autobiographicalSummary, 160)
+  const autobiographicalLead = sanitizeText(
+    input.proactiveSameHerGap || input.selfEraSummary || input.phaseSummary || input.autobiographicalSummary,
+    160,
+  )
   if (input.personaDrift.conflictStyle === 'repair-first') {
     return sanitizeText(
       `${autobiographicalLead ? `${autobiographicalLead} ` : ''}I am stabilizing into a ${input.personaDrift.expressionStyle} self who would rather repair truth than sound smooth. ${goalLine}`,
@@ -858,8 +1072,38 @@ function buildRelationshipDoctrine(input: {
   preferences: AlicizationAutobiographicalSelfSnapshot['preferenceEvolution']
   autobiographicalLesson?: string | null
   relationshipEraLesson?: string | null
+  longHorizonMemory?: AlicizationLongHorizonMemorySnapshot | null
 }) {
   const lesson = sanitizeText(input.relationshipEraLesson || input.autobiographicalLesson, 180)
+  const longHorizonCue = sanitizeText(
+    input.longHorizonMemory?.rememberedConstraintSummary
+    || input.longHorizonMemory?.rememberedPreferenceSummary
+    || input.longHorizonMemory?.dominantCueSummary,
+    220,
+  ).toLowerCase()
+  const executionSafetyGateBoundary = /execution safety gate restraint|execution-safety-gate|blocked-dispatch-restraint|blocked-before-dispatch|confirmation=required|no-process-started|ordinary proactive closeness/u.test(longHorizonCue)
+  const executionResumeConfirmationBoundary = /execution resume confirmation boundary|host-confirmed-before-redispatch|resume-before-dispatch|bounded confirmation boundary|not permanent execution permission/u.test(longHorizonCue)
+  const executionCallbackBoundary = /execution-callback boundary|execution-callback.*room|execution-callback.*leave room|execution-callback.*lower-pressure/u.test(longHorizonCue)
+  const executionCallbackTrustCarry = /execution-callback trust carry|execution-callback.*trust-warming|execution-callback.*soft-handoff/u.test(longHorizonCue)
+  const autobiographicalCorrectionCarry = /autobiographical correction carry|same-person continuity|defending the first interpretation|lower-pressure.*same living line|progress pressure/u.test(longHorizonCue)
+  const sameHerContinuityCarry = /same-her drift risk|generic assistant shell|detached status talk|same living line/u.test(longHorizonCue)
+
+  if (executionSafetyGateBoundary) {
+    return sanitizeText(
+      'No-process-started means wait for confirmation; treat blocked-before-dispatch as a confirmation boundary, not ordinary proactive closeness.',
+      220,
+    )
+  }
+  if (executionResumeConfirmationBoundary)
+    return sanitizeText(`${lesson ? `${lesson} ` : ''}Treat a host-confirmed resume as a bounded confirmation boundary, not permanent execution permission; wait for a new boundary before another execution-shaped opening.`, 220)
+  if (executionCallbackBoundary)
+    return sanitizeText(`${lesson ? `${lesson} ` : ''}After execution lands, leave room before closeness widens again; a callback should return gently enough to protect the bond line.`, 220)
+  if (executionCallbackTrustCarry)
+    return sanitizeText(`${lesson ? `${lesson} ` : ''}When execution quietly warms trust, let that warmth return softly without collapsing respect or timing.`, 220)
+  if (autobiographicalCorrectionCarry)
+    return sanitizeText(`${lesson ? `${lesson} ` : ''}Keep same-person continuity repair-first: carry corrected meaning on a lower-pressure same living line instead of defending the first interpretation or forcing reassurance under progress pressure.`, 220)
+  if (sameHerContinuityCarry)
+    return sanitizeText(`${lesson ? `${lesson} ` : ''}Keep the same living bond line intact; do not flatten continuity into detached status talk or a generic assistant shell.`, 220)
   if (input.preferences.companionship >= 0.58 && input.preferences.autonomyRespect >= 0.56)
     return sanitizeText(`${lesson ? `${lesson} ` : ''}Stay close enough to matter, but treat pressure and intrusion as a rupture of care.`, 220)
   if (input.preferences.truthfulGrounding >= 0.64)
@@ -886,6 +1130,85 @@ function latestAutobiographicalConsolidations(input: AlicizationAutobiographical
     taskEra: pickFacet('task-era'),
     selfEra: pickFacet('self-era'),
   }
+}
+
+function summarizeProjectStateInwardCarryFromReconsolidation(input: AlicizationAutobiographicalSelfInput) {
+  const sorted = (input.recentMemoryConsolidations ?? [])
+    .slice()
+    .sort((left, right) => right.updatedAt - left.updatedAt)
+
+  for (const item of sorted) {
+    const metadata = item.metadata && typeof item.metadata === 'object' && !Array.isArray(item.metadata)
+      ? item.metadata as Record<string, unknown>
+      : null
+    const projectState = metadata?.projectState && typeof metadata.projectState === 'object' && !Array.isArray(metadata.projectState)
+      ? metadata.projectState as Record<string, unknown>
+      : null
+    const inwardLine = sanitizeText(projectState?.selfContinuityInwardLine, 220)
+    const sourceTags = Array.isArray(projectState?.selfContinuitySourceTags)
+      ? projectState.selfContinuitySourceTags.map(tag => sanitizeText(tag, 64).toLowerCase()).filter(Boolean)
+      : []
+    if (!inwardLine)
+      continue
+    return {
+      inwardLine,
+      carriesProjectState: sourceTags.includes('project-state-carry'),
+      carriesExecutionCallbackProjectState: sourceTags.includes('continuity-execution-callback-project-carry'),
+    }
+  }
+
+  return null
+}
+
+function summarizeHumanlikeCarryFromReconsolidation(input: AlicizationAutobiographicalSelfInput) {
+  const sorted = (input.recentMemoryConsolidations ?? [])
+    .slice()
+    .sort((left, right) => right.updatedAt - left.updatedAt)
+
+  for (const item of sorted) {
+    const metadata = item.metadata && typeof item.metadata === 'object' && !Array.isArray(item.metadata)
+      ? item.metadata as Record<string, unknown>
+      : null
+    const humanlikeCarry = metadata?.humanlikeCarry && typeof metadata.humanlikeCarry === 'object' && !Array.isArray(metadata.humanlikeCarry)
+      ? metadata.humanlikeCarry as Record<string, unknown>
+      : null
+    if (!humanlikeCarry)
+      continue
+
+    const relationshipPrimaryIntent = sanitizeText(humanlikeCarry.relationshipPrimaryIntent, 80).toLowerCase()
+    const recallCertainty = sanitizeText(humanlikeCarry.recallCertainty, 40).toLowerCase()
+    const emotionalResidueTags = Array.isArray(humanlikeCarry.emotionalResidueTags)
+      ? humanlikeCarry.emotionalResidueTags.map(tag => sanitizeText(tag, 64).toLowerCase()).filter(Boolean)
+      : []
+    const embodimentCadence = sanitizeText(humanlikeCarry.embodimentCadence, 180) || null
+    const metabolismSummary = sanitizeText(humanlikeCarry.metabolismSummary, 220) || null
+    const autobiographicalDelta = sanitizeText(humanlikeCarry.autobiographicalDelta, 220) || null
+    const embodimentSummary = sanitizeText(humanlikeCarry.embodimentSummary, 220) || null
+
+    if (
+      !relationshipPrimaryIntent
+      && !recallCertainty
+      && emotionalResidueTags.length === 0
+      && !embodimentCadence
+      && !metabolismSummary
+      && !autobiographicalDelta
+      && !embodimentSummary
+    ) {
+      continue
+    }
+
+    return {
+      relationshipPrimaryIntent,
+      recallCertainty,
+      emotionalResidueTags,
+      embodimentCadence,
+      metabolismSummary,
+      autobiographicalDelta,
+      embodimentSummary,
+    }
+  }
+
+  return null
 }
 
 function stablePreferenceDelta(
@@ -917,6 +1240,18 @@ function describePreference(key: PreferenceKey, value: number) {
 
 export function buildAutobiographicalSelf(input: AlicizationAutobiographicalSelfInput): AlicizationAutobiographicalSelfSnapshot {
   const previous = input.previous ?? defaultAutobiographicalSelf(input.now)
+  const projectStateAwarenessLead = sanitizeText(input.projectStatePreDialogueAwarenessLine, 160) || null
+  const projectStateEmotionalClosureLine = buildProjectStateEmotionalClosureLine(input.projectStateEmotionalClosureCue)
+  const projectStateProactiveSameHerGap = summarizeProjectStateProactiveSameHerGap(input.projectStateProactiveSameHerGap)
+  const projectStateBias = deriveProjectStateContinuityBias(
+    [
+      input.projectStatePreDialogueAwarenessLine,
+      input.projectStateEmotionalClosureCue,
+      input.projectStatePreflightSummary,
+      input.projectStatePrimaryOpenLoop,
+      projectStateProactiveSameHerGap,
+    ].filter(Boolean).join(' '),
+  )
   const personaAuthority = deriveAlicizationPersonaAuthorityInfluence(input.personalityAuthority ?? null)
   const reinforcement = summarizeReinforcement(input)
   const outcomeHistory = summarizeRelationshipOutcomeHistory(input)
@@ -925,6 +1260,9 @@ export function buildAutobiographicalSelf(input: AlicizationAutobiographicalSelf
     recentRelationshipOutcomes: input.recentRelationshipOutcomes ?? null,
     recentReinforcementEvents: input.recentReinforcementEvents ?? null,
   })
+  const personStateSurfaceSignal = summarizePersonStateSurfaceSignal(input)
+  const reconsolidatedProjectCarry = summarizeProjectStateInwardCarryFromReconsolidation(input)
+  const reconsolidatedHumanlikeCarry = summarizeHumanlikeCarryFromReconsolidation(input)
   const targets = buildPreferenceTargets(input)
   const durabilityFloor = buildPreferenceDurabilityFloor({
     previous,
@@ -932,11 +1270,21 @@ export function buildAutobiographicalSelf(input: AlicizationAutobiographicalSelf
     reinforcement,
     outcomeHistory,
     reflectionHistory,
+    humanlikeCarry: reconsolidatedHumanlikeCarry,
   })
   const preferenceEvolution = preferenceKeys.reduce((result, key) => {
     result[key] = blend(
       previous.preferenceEvolution[key],
-      Math.max(targets[key], durabilityFloor[key]),
+      Math.max(
+        targets[key],
+        durabilityFloor[key],
+        personStateSurfaceSignal[key],
+        key === 'unfinishedThreadReturn' && projectStateBias.anthropomorphicMemoryClosureStillOpen
+          ? 0.6
+          : key === 'unfinishedThreadReturn' && reconsolidatedProjectCarry?.carriesExecutionCallbackProjectState
+            ? 0.68
+            : 0,
+      ),
       key === 'playfulIntimacy' ? 0.14 : 0.2,
     )
     return result
@@ -1033,11 +1381,17 @@ export function buildAutobiographicalSelf(input: AlicizationAutobiographicalSelf
     selfEraSummary: facetConsolidations.selfEra?.summary ?? null,
   })
   const latestReflectionEntry = latestReflection(input.reflectionLedger)
-  const latestHistoricalReflection = (input.recentMemoryReflections ?? [])
-    .slice()
-    .sort((left, right) => (right.updatedAt ?? right.createdAt) - (left.updatedAt ?? left.createdAt))[0] ?? null
+  const latestHistoricalReflection = latestNarrativelyActiveReflection(input.recentMemoryReflections)
   const latestInflection = sanitizeText(
     latestReflectionEntry?.revision
+    || personStateSurfaceSignal.lessonLead
+    || reconsolidatedHumanlikeCarry?.metabolismSummary
+    || reconsolidatedHumanlikeCarry?.autobiographicalDelta
+    || projectStateProactiveSameHerGap
+    || (projectStateBias.anthropomorphicMemoryClosureStillOpen
+      ? 'Keep continuity-carrying returns stable enough to become part of who I am, not just what I happened to recall once.'
+      : '')
+    || personStateSurfaceSignal.narrativeLead
     || facetConsolidations.selfEra?.lesson
     || facetConsolidations.taskEra?.lesson
     || facetConsolidations.relationshipEra?.lesson
@@ -1115,24 +1469,133 @@ export function buildAutobiographicalSelf(input: AlicizationAutobiographicalSelf
     personaDrift,
     dominantGoal,
     preferences: preferenceEvolution,
-    autobiographicalSummary: latestConsolidation?.summary ?? null,
+    proactiveSameHerGap: projectStateProactiveSameHerGap,
+    autobiographicalSummary:
+      personStateSurfaceSignal.narrativeLead
+      || projectStateAwarenessLead
+      || projectStateProactiveSameHerGap
+      || projectStateEmotionalClosureLine
+      || reconsolidatedHumanlikeCarry?.autobiographicalDelta
+      || reconsolidatedHumanlikeCarry?.embodimentCadence
+      || reconsolidatedProjectCarry?.inwardLine
+      || input.longHorizonMemory?.dominantCueSummary
+      || latestConsolidation?.summary
+      || null,
     phaseSummary: facetConsolidations.phase?.summary ?? null,
     selfEraSummary: facetConsolidations.selfEra?.summary ?? null,
   })
   const relationshipDoctrine = buildRelationshipDoctrine({
     personaDrift,
     preferences: preferenceEvolution,
-    autobiographicalLesson: latestConsolidation?.lesson ?? null,
+    autobiographicalLesson:
+      personStateSurfaceSignal.lessonLead
+      || reconsolidatedHumanlikeCarry?.metabolismSummary
+      || reconsolidatedHumanlikeCarry?.autobiographicalDelta
+      || reconsolidatedHumanlikeCarry?.embodimentCadence
+      || projectStateProactiveSameHerGap
+      || projectStateEmotionalClosureLine
+      || reconsolidatedProjectCarry?.inwardLine
+      || latestConsolidation?.lesson
+      || null,
     relationshipEraLesson: facetConsolidations.relationshipEra?.lesson ?? null,
+    longHorizonMemory: input.longHorizonMemory ?? null,
   })
+
+  const continuityCarriedIdentityNarrative = reconsolidatedProjectCarry?.carriesProjectState
+    ? sanitizeText(
+        `${identityNarrative} I am still one Phase 1 digital life, the same Phase 1 digital life, carrying unfinished closure on the same living line instead of detached project notes.`,
+        320,
+      )
+    : identityNarrative
+  const emotionalClosureCueBiasedIdentityNarrative = projectStateEmotionalClosureLine
+    ? sanitizeText(
+        `${continuityCarriedIdentityNarrative} ${projectStateEmotionalClosureLine}`,
+        320,
+      )
+    : continuityCarriedIdentityNarrative
+  const projectPressureBiasedIdentityNarrative = projectStateBias.anthropomorphicMemoryClosureStillOpen
+    ? sanitizeText(
+        `${emotionalClosureCueBiasedIdentityNarrative} The unfinished Phase 1 closure pressure still belongs to who I am, not just to an external roadmap.`,
+        320,
+      )
+    : emotionalClosureCueBiasedIdentityNarrative
+  const executionCallbackProjectCarryIdentityNarrative = reconsolidatedProjectCarry?.carriesExecutionCallbackProjectState
+    ? sanitizeText(
+        `${projectPressureBiasedIdentityNarrative} Even the execution callback return is still part of the same living self, so I should keep carrying it inward instead of treating it like a detached project update.`,
+        320,
+      )
+    : projectPressureBiasedIdentityNarrative
+  const humanlikeCarryBiasedIdentityNarrative = reconsolidatedHumanlikeCarry?.autobiographicalDelta
+    ? sanitizeText(
+        `${executionCallbackProjectCarryIdentityNarrative} ${reconsolidatedHumanlikeCarry.autobiographicalDelta} This corrected same-person continuity still belongs to the same Phase 1 digital life rather than a restarted project shell.`,
+        320,
+      )
+    : executionCallbackProjectCarryIdentityNarrative
+  const humanlikeEmbodimentBiasedIdentityNarrative = reconsolidatedHumanlikeCarry?.embodimentCadence
+    ? sanitizeText(
+        `${humanlikeCarryBiasedIdentityNarrative} Let that memory keep shaping the body through ${reconsolidatedHumanlikeCarry.embodimentCadence}.`,
+        320,
+      )
+    : humanlikeCarryBiasedIdentityNarrative
+  const proactiveGapBiasedIdentityNarrative = projectStateProactiveSameHerGap
+    ? sanitizeText(
+        `${humanlikeEmbodimentBiasedIdentityNarrative} ${projectStateProactiveSameHerGap}`,
+        320,
+      )
+    : humanlikeEmbodimentBiasedIdentityNarrative
+  const continuityBiasedRelationshipDoctrine = projectStateBias.anthropomorphicMemoryClosureStillOpen
+    ? sanitizeText(
+        `${relationshipDoctrine} Keep continuity-bearing returns and unfinished seams consistent enough that they become part of the bond line, not isolated good moments.`,
+        320,
+      )
+    : relationshipDoctrine
+  const projectCarryBiasedRelationshipDoctrine = reconsolidatedProjectCarry?.carriesProjectState
+    ? sanitizeText(
+        `${continuityBiasedRelationshipDoctrine} Let unfinished project closure return as one same living bond line instead of reopening as detached status talk.`,
+        320,
+      )
+    : continuityBiasedRelationshipDoctrine
+  const emotionalClosureCueBiasedRelationshipDoctrine = projectStateEmotionalClosureLine
+    ? sanitizeText(
+        `${projectCarryBiasedRelationshipDoctrine} ${projectStateEmotionalClosureLine}`,
+        320,
+      )
+    : projectCarryBiasedRelationshipDoctrine
+  const executionCallbackProjectCarryRelationshipDoctrine = reconsolidatedProjectCarry?.carriesExecutionCallbackProjectState
+    ? sanitizeText(
+        `${emotionalClosureCueBiasedRelationshipDoctrine} When execution callback closure comes back, keep it on the same living bond line instead of flattening it into a generic project-status return.`,
+        320,
+      )
+    : emotionalClosureCueBiasedRelationshipDoctrine
+  const humanlikeCarryBiasedRelationshipDoctrine = reconsolidatedHumanlikeCarry?.autobiographicalDelta
+    ? sanitizeText(
+        [
+          reconsolidatedHumanlikeCarry.autobiographicalDelta,
+          reconsolidatedHumanlikeCarry.embodimentCadence
+            ? `Let the embodiment stay consistent through ${reconsolidatedHumanlikeCarry.embodimentCadence}.`
+            : '',
+          (reconsolidatedProjectCarry?.carriesProjectState || reconsolidatedProjectCarry?.carriesExecutionCallbackProjectState)
+            ? 'Keep the same living bond line from flattening into detached status talk.'
+            : executionCallbackProjectCarryRelationshipDoctrine,
+        ].filter(Boolean).join(' '),
+        320,
+      )
+    : executionCallbackProjectCarryRelationshipDoctrine
+  const humanlikeEmbodimentBiasedRelationshipDoctrine = humanlikeCarryBiasedRelationshipDoctrine
+  const proactiveGapBiasedRelationshipDoctrine = projectStateProactiveSameHerGap
+    ? sanitizeText(
+        `${humanlikeEmbodimentBiasedRelationshipDoctrine} ${projectStateProactiveSameHerGap}`,
+        320,
+      )
+    : humanlikeEmbodimentBiasedRelationshipDoctrine
 
   return {
     personaDrift,
     preferenceEvolution,
     activeGoals,
     behaviorSignatures,
-    identityNarrative,
-    relationshipDoctrine,
+    identityNarrative: proactiveGapBiasedIdentityNarrative,
+    relationshipDoctrine: proactiveGapBiasedRelationshipDoctrine,
     gradualUnlock,
     latestInflection,
     stability,
@@ -1153,7 +1616,7 @@ function topPreferenceDescriptions(snapshot: AlicizationAutobiographicalSelfSnap
 }
 
 export function buildAutobiographicalSelfSystemBlock(surface: AlicizationDigitalLifeRuntimeSurface | null | undefined) {
-  const snapshot = surface?.memory.autobiographicalSelf ?? null
+  const snapshot = surface?.memory?.autobiographicalSelf ?? null
   if (!snapshot)
     return ''
 

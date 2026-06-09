@@ -51,7 +51,7 @@ describe('memory consolidation runtime', () => {
   })
 
   it('rebuilds consolidation rows from episodic events and persists them', async () => {
-    const run = vi.fn(async () => ({}))
+    const run = vi.fn(async (_database: unknown, _sql: string, _params?: unknown[]) => ({}))
     const runtime = createAlicizationMemoryConsolidationRuntime({
       database: {} as never,
       all: (vi.fn(async () => []) as any),
@@ -71,6 +71,13 @@ describe('memory consolidation runtime', () => {
         dominantProvenance: 'remembered' as const,
         derivedEventIds: ['event-1'],
         updatedAt: 3,
+        metadata: {
+          humanlikeCarry: {
+            relationshipPrimaryIntent: 'same-person-test',
+            recallCertainty: 'corrected',
+            emotionalResidueTags: ['protective-continuity'],
+          },
+        },
       }]) as any),
       searchRecords: vi.fn(() => []),
     })
@@ -84,5 +91,14 @@ describe('memory consolidation runtime', () => {
     expect(records).toHaveLength(1)
     expect(run).toHaveBeenCalledWith(expect.anything(), 'DELETE FROM memory_consolidations')
     expect(run).toHaveBeenCalledWith(expect.anything(), expect.stringContaining('INSERT INTO memory_consolidations'), expect.any(Array))
+    expect(run.mock.calls[1]?.[2]).toEqual(expect.arrayContaining([
+      JSON.stringify({
+        humanlikeCarry: {
+          relationshipPrimaryIntent: 'same-person-test',
+          recallCertainty: 'corrected',
+          emotionalResidueTags: ['protective-continuity'],
+        },
+      }),
+    ]))
   })
 })

@@ -17,6 +17,7 @@ interface MemoryConsolidationRowLike {
   confidence: number
   dominant_provenance: AlicizationMemoryConsolidationRecord['dominantProvenance']
   derived_event_ids_json: string | null
+  metadata_json: string | null
   updated_at: number
 }
 
@@ -113,8 +114,9 @@ export function createAlicizationMemoryConsolidationRuntime(
           confidence,
           dominant_provenance,
           derived_event_ids_json,
+          metadata_json,
           updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
         [
           record.id,
@@ -131,6 +133,9 @@ export function createAlicizationMemoryConsolidationRuntime(
           record.confidence,
           record.dominantProvenance,
           JSON.stringify(record.derivedEventIds),
+          record.metadata && typeof record.metadata === 'object'
+            ? JSON.stringify(record.metadata)
+            : null,
           record.updatedAt,
         ],
       )

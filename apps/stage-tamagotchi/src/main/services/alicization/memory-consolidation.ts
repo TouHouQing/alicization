@@ -30,6 +30,7 @@ export interface AlicizationMemoryConsolidationRecord {
   derivedEventIds: string[]
   updatedAt: number
   memoryTier?: 'hot' | 'warm' | 'cold' | null
+  metadata?: Record<string, unknown> | null
 }
 
 function clamp01(value: number) {
@@ -57,6 +58,159 @@ function uniqueList(values: Array<string | null | undefined>, maxItems = 6) {
       break
   }
   return result
+}
+
+function lowerText(...values: Array<string | null | undefined>) {
+  return values.map(value => sanitizeText(value, 320)).filter(Boolean).join(' ').toLowerCase()
+}
+
+const samePersonContinuityPattern = /same[- ]?person|same[- ]?her|same living line|continuous digital life|tool shell|generic shell|同一个她|同一条线|数字生命|工具壳/u
+const progressPressurePattern = /progress pressure|status recap|status report|generic recap|催进度|催状态|状态汇报/u
+const progressPressureNegationPattern = /not a status report|not .*status recap|不是状态汇报|不是催进度|不是催状态/u
+const continuityWorryPattern = /worr|afraid|drift|split|断线|滑成|担心/u
+const correctedMeaningPattern = /corrected|host corrected|纠正|更正|corrected meaning|first interpretation/u
+const tentativeRecallPattern = /tentative|not sure|uncertain|maybe|might|seems|不完全确定|似乎|也许/u
+const phaseOneDigitalLifePattern = /phase[- ]?1|local digital life|digital life|数字生命/u
+const executionCallbackPattern = /execution callback|callback|回调/u
+const unfinishedClosurePattern = /unfinished|open loop|closure|still open|same living line|未完成|闭环|还缺/u
+const lowerPressurePattern = /lower-pressure|lower pressure|低压|轻一点|measured-return|leave more room/u
+const slowerPacingPattern = /slower pacing|slower|慢一点|更慢/u
+const stableGazePattern = /stable gaze|gaze stable|steady gaze|视线更稳|视线稳定/u
+const metabolismPattern = /downrank|merge|forget|superseded|older status shell|temporary noise|stale emotional wobble/u
+
+function collectEventTexts(event: AlicizationEpisodicEventRecord) {
+  return [
+    event.threadAnchor,
+    event.whereSummary,
+    event.whatHappened,
+    event.felt,
+    event.whatChanged,
+    event.relationshipMeaning,
+    event.lesson,
+    event.sourceSummary,
+    event.latestReconsolidation?.reason ?? null,
+    event.latestReconsolidation?.relationshipMeaning ?? null,
+    event.latestReconsolidation?.lesson ?? null,
+    ...event.emotionTags,
+    ...(event.latestReconsolidation?.emotionTags ?? []),
+    ...event.tags,
+  ]
+}
+
+function inferRelationshipPrimaryIntent(text: string) {
+  const samePerson = samePersonContinuityPattern.test(text)
+  const continuityWorry = continuityWorryPattern.test(text)
+  const progressPressure = progressPressurePattern.test(text) && !progressPressureNegationPattern.test(text)
+  if (progressPressure && (samePerson || continuityWorry))
+    return 'mixed'
+  if (samePerson)
+    return 'same-person-test'
+  if (continuityWorry)
+    return 'continuity-worry'
+  if (progressPressure)
+    return 'progress-pressure'
+  return 'ordinary-relationship'
+}
+
+function buildHumanlikeCarryMetadata(events: AlicizationEpisodicEventRecord[]) {
+  const textParts = events.flatMap(collectEventTexts)
+  const combined = lowerText(...textParts)
+  if (!combined)
+    return null
+
+  const relationshipPrimaryIntent = inferRelationshipPrimaryIntent(combined)
+  const emotionalResidueTags = uniqueList(events.flatMap(event => [
+    ...event.emotionTags,
+    ...(event.latestReconsolidation?.emotionTags ?? []),
+  ]), 8)
+  const embodimentCadenceParts = uniqueList([
+    lowerPressurePattern.test(combined) ? 'lower-pressure voice' : null,
+    slowerPacingPattern.test(combined) ? 'slower pacing' : null,
+    stableGazePattern.test(combined) ? 'stable gaze' : null,
+  ], 4)
+  const metabolismSummary = uniqueList(events.map((event) => {
+    const reason = sanitizeText(event.latestReconsolidation?.reason, 220)
+    return metabolismPattern.test(reason) ? reason : null
+  }), 1)[0]
+    || (correctedMeaningPattern.test(combined) && samePersonContinuityPattern.test(combined)
+      ? 'Downrank the older status shell and keep the corrected same-person continuity meaning active.'
+      : null)
+  const autobiographicalDelta = uniqueList([
+    ...events.map(event => sanitizeText(event.latestReconsolidation?.lesson, 220) || null),
+    ...events.map(event => sanitizeText(event.lesson, 220) || null),
+    correctedMeaningPattern.test(combined) && samePersonContinuityPattern.test(combined)
+      ? 'I learned to carry corrected same-person continuity on a lower-pressure same living line instead of defending the first interpretation.'
+      : null,
+  ], 1)[0] ?? null
+
+  return {
+    relationshipPrimaryIntent,
+    relationshipSignals: uniqueList([
+      samePersonContinuityPattern.test(combined) ? 'same-person-continuity' : null,
+      continuityWorryPattern.test(combined) ? 'continuity-worry' : null,
+      progressPressurePattern.test(combined) && !progressPressureNegationPattern.test(combined) ? 'progress-pressure' : null,
+      correctedMeaningPattern.test(combined) ? 'host-corrected-meaning' : null,
+    ], 6),
+    recallCertainty: correctedMeaningPattern.test(combined)
+      ? 'corrected'
+      : tentativeRecallPattern.test(combined)
+        ? 'tentative'
+        : 'steady',
+    emotionalResidueTags,
+    embodimentSummary: uniqueList(events.flatMap(event => [
+      event.relationshipMeaning,
+      event.whatChanged,
+      event.latestReconsolidation?.relationshipMeaning ?? null,
+    ]), 2).join(' '),
+    embodimentCadence: embodimentCadenceParts.join(', ') || null,
+    metabolismSummary,
+    autobiographicalDelta,
+  } satisfies Record<string, unknown>
+}
+
+function buildProjectStateCarryMetadata(events: AlicizationEpisodicEventRecord[]) {
+  const combined = lowerText(...events.flatMap(collectEventTexts))
+  const sourceTags = uniqueList([
+    (phaseOneDigitalLifePattern.test(combined) || samePersonContinuityPattern.test(combined) || unfinishedClosurePattern.test(combined))
+      ? 'project-state-carry'
+      : null,
+    executionCallbackPattern.test(combined)
+      ? 'continuity-execution-callback-project-carry'
+      : null,
+  ], 4)
+
+  if (sourceTags.length === 0)
+    return null
+
+  const inwardLine = sanitizeText([
+    (phaseOneDigitalLifePattern.test(combined) || samePersonContinuityPattern.test(combined))
+      ? 'Same Phase 1 digital life.'
+      : '',
+    executionCallbackPattern.test(combined)
+      ? 'Some closure already landed.'
+      : '',
+    unfinishedClosurePattern.test(combined)
+      ? 'Unfinished closure still needs the same living line.'
+      : '',
+  ].filter(Boolean).join(' '), 220)
+
+  return inwardLine
+    ? {
+        selfContinuityInwardLine: inwardLine,
+        selfContinuitySourceTags: sourceTags,
+      }
+    : null
+}
+
+function buildConsolidationMetadata(events: AlicizationEpisodicEventRecord[]) {
+  const humanlikeCarry = buildHumanlikeCarryMetadata(events)
+  const projectState = buildProjectStateCarryMetadata(events)
+  if (!humanlikeCarry && !projectState)
+    return null
+  return {
+    ...(humanlikeCarry ? { humanlikeCarry } : {}),
+    ...(projectState ? { projectState } : {}),
+  } satisfies Record<string, unknown>
 }
 
 function buildDayKey(timestamp: number) {
@@ -110,7 +264,7 @@ function buildLesson(events: AlicizationEpisodicEventRecord[]) {
   return lessons[0] ?? null
 }
 
-function inferAutobiographicalFacet(event: AlicizationEpisodicEventRecord): NonNullable<AlicizationMemoryConsolidationRecord['facet']> {
+function inferAutobiographicalFacets(event: AlicizationEpisodicEventRecord): Array<NonNullable<AlicizationMemoryConsolidationRecord['facet']>> {
   const text = [
     event.threadAnchor,
     event.whereSummary,
@@ -124,32 +278,34 @@ function inferAutobiographicalFacet(event: AlicizationEpisodicEventRecord): NonN
     ...event.tags,
   ].filter(Boolean).join(' ').toLowerCase()
 
-  if (
-    event.sourceKind === 'execution-proposal'
-    || event.sourceKind === 'execution-result'
-    || /runtime|cli|codex|claude|patch|verify|test|workflow|procedure|task|执行|修复|continuity/u.test(text)
-  ) {
-    return 'task-era'
-  }
+  const facets = new Set<NonNullable<AlicizationMemoryConsolidationRecord['facet']>>()
 
   if (
     event.sourceKind === 'dream'
     || event.sourceKind === 'dream-reforge'
     || event.sourceKind === 'reflection'
     || event.sourceKind === 'maintenance'
-    || /identity|self|incarnation|doctrine|persona|temperament|我更想|我开始|我学会|我不再/u.test(text)
-  ) {
-    return 'self-era'
-  }
+    || /identity|self|incarnation|doctrine|persona|temperament|same[- ]?person|same[- ]?her|same living line|continuous digital life|tool shell|generic shell|corrected meaning|defending the first interpretation|我更想|我开始|我学会|我不再|同一个她|同一条线|数字生命|工具壳/u.test(text)
+  )
+    facets.add('self-era')
 
   if (
     event.sourceKind === 'dialogue-feedback'
-    || /relationship|bond|closeness|distance|repair|boundary|intrusive|lighter touch|space before closeness|host needed space|room before closeness/u.test(text)
-  ) {
-    return 'relationship-era'
-  }
+    || /relationship|bond|closeness|distance|repair|boundary|intrusive|lighter touch|space before closeness|host needed space|room before closeness|same[- ]?person|same[- ]?her|tool shell|generic shell|host corrected|not a status report|not .*status recap|progress pressure|same living line|同一个她|工具壳|不是状态汇报|不是催进度/u.test(text)
+  )
+    facets.add('relationship-era')
 
-  return 'phase'
+  if (
+    event.sourceKind === 'execution-proposal'
+    || event.sourceKind === 'execution-result'
+    || /runtime|cli|codex|claude|patch|verify|test|workflow|procedure|task|执行|修复|continuity/u.test(text)
+  )
+    facets.add('task-era')
+
+  if (facets.size === 0)
+    facets.add('phase')
+
+  return [...facets]
 }
 
 function deriveDominantMood(events: AlicizationEpisodicEventRecord[]) {
@@ -255,6 +411,7 @@ export function buildMemoryConsolidationRecords(input: {
       confidence: buildConfidence(bucketEvents),
       dominantProvenance: pickDominantProvenance(sorted.map(event => event.latestReconsolidation?.provenance ?? event.provenance)),
       derivedEventIds: sorted.map(event => event.id),
+      metadata: buildConsolidationMetadata(sorted),
       updatedAt: input.now,
     }
     record.memoryTier = deriveConsolidationMemoryTier(record, input.now)
@@ -281,6 +438,7 @@ export function buildMemoryConsolidationRecords(input: {
       confidence: buildConfidence(bucketEvents),
       dominantProvenance: pickDominantProvenance(sorted.map(event => event.latestReconsolidation?.provenance ?? event.provenance)),
       derivedEventIds: sorted.map(event => event.id),
+      metadata: buildConsolidationMetadata(sorted),
       updatedAt: input.now,
     }
     weeklyRecord.memoryTier = deriveConsolidationMemoryTier(weeklyRecord, input.now)
@@ -289,8 +447,8 @@ export function buildMemoryConsolidationRecords(input: {
     if (bucketEvents.length >= 2) {
       const autobiographicalBuckets = new Map<NonNullable<AlicizationMemoryConsolidationRecord['facet']>, AlicizationEpisodicEventRecord[]>()
       for (const event of bucketEvents) {
-        const facet = inferAutobiographicalFacet(event)
-        autobiographicalBuckets.set(facet, [...(autobiographicalBuckets.get(facet) ?? []), event])
+        for (const facet of inferAutobiographicalFacets(event))
+          autobiographicalBuckets.set(facet, [...(autobiographicalBuckets.get(facet) ?? []), event])
       }
       autobiographicalBuckets.set('phase', bucketEvents)
 
@@ -315,6 +473,7 @@ export function buildMemoryConsolidationRecords(input: {
           confidence: buildConfidence(facetEvents),
           dominantProvenance: pickDominantProvenance(rankedEvents.map(event => event.latestReconsolidation?.provenance ?? event.provenance)),
           derivedEventIds: rankedEvents.map(event => event.id),
+          metadata: buildConsolidationMetadata(rankedEvents),
           updatedAt: input.now,
         }
         autobiographicalRecord.memoryTier = deriveConsolidationMemoryTier(autobiographicalRecord, input.now)
@@ -337,7 +496,7 @@ export function buildMemoryConsolidationRecords(input: {
     episodes: events,
   })
   for (const item of procedural) {
-    const supporting = events.filter(event => {
+    const supporting = events.filter((event) => {
       const anchor = `${event.threadAnchor ?? ''} ${event.whereSummary ?? ''} ${event.whatHappened} ${event.lesson ?? ''}`
       return anchor.toLowerCase().includes(item.label.toLowerCase())
         || item.cues.some(cue => anchor.toLowerCase().includes(cue.toLowerCase()))
@@ -357,6 +516,7 @@ export function buildMemoryConsolidationRecords(input: {
       confidence: item.confidence,
       dominantProvenance: pickDominantProvenance(supporting.map(event => event.latestReconsolidation?.provenance ?? event.provenance)),
       derivedEventIds: supporting.map(event => event.id),
+      metadata: buildConsolidationMetadata(supporting),
       updatedAt: input.now,
     }
     proceduralRecord.memoryTier = deriveConsolidationMemoryTier(proceduralRecord, input.now)
@@ -446,16 +606,16 @@ export function searchMemoryConsolidationRecords(input: {
       const distantBoost = (intent?.temporalFocus === 'cross-session' || intent?.temporalFocus === 'distant') && record.kind !== 'daily' ? 0.18 : 0
       const agendaProcedureBoost = agenda && agenda.candidateProcedureLines.length > 0
         ? agenda.candidateProcedureLines.some(line => haystack.includes(line.toLowerCase()))
-            ? 0.08 + clamp01(agenda.goalSimilarity) * 0.12
-            : 0
+          ? 0.08 + clamp01(agenda.goalSimilarity) * 0.12
+          : 0
         : 0
       const agendaFacetBoost = agenda && record.facet
         ? (agenda.candidateEraFacets.find(item => item.facet === record.facet)?.weight ?? 0) * 0.18
         : 0
       const agendaTimeBoost = agenda && agenda.candidateTimeScopes.some(item => item.scope === 'cross-session' || item.scope === 'distant')
         ? record.kind !== 'daily'
-            ? Math.max(...agenda.candidateTimeScopes.map(item => clamp01(item.weight))) * 0.12
-            : 0
+          ? Math.max(...agenda.candidateTimeScopes.map(item => clamp01(item.weight))) * 0.12
+          : 0
         : 0
       const semanticScore = scoreSemanticRecall({
         queryTexts: [query, ...hints, ...(agenda?.candidateProcedureLines ?? [])],
