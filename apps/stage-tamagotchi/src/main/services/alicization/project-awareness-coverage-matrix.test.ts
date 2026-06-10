@@ -2986,6 +2986,29 @@ const coverageRows = [
     ],
   },
   {
+    entry: 'devtools-self-evolution-focus-plan',
+    proofKind: 'dynamic',
+    file: '../../../renderer/pages/devtools/performance-visualizer-self-evolution-focus-plan-project-awareness-audit.test.ts',
+    evidence: 'self-evolution focus plan keeps project-state-first inspection order and quieter face+lipsync / motion+lipsync continuity notes explicit on the devtools surface, so same-her repair focus does not widen into generic body-loss or detached panel browsing before deeper repair planning starts',
+    fileMustContain: [
+      'keeps one explicit route-level proof that self-evolution focus plan preserves same-her project-state and embodiment focus semantics on the devtools surface',
+      'expect.objectContaining({ entry: \'self-evolution-focus-plan-project-state-first-check\' })',
+      'expect.objectContaining({ entry: \'self-evolution-focus-plan-body-only-hold-note\' })',
+      'expect.objectContaining({ entry: \'self-evolution-focus-plan-quieter-face-lipsync-note\' })',
+      'expect.objectContaining({ entry: \'self-evolution-focus-plan-quieter-motion-lipsync-note\' })',
+      'expect(matrixSource).toContain(\'performance-visualizer-self-evolution-focus-plan-project-awareness-audit.test.ts\')',
+      'expect(matrixSource).toContain(\'self-evolution focus plan\')',
+      'expect(matrixSource).toContain(\'quieter face+lipsync / motion+lipsync focus note\')',
+      'expect(matrixSource).toContain(\'Project identity carry -> Phase 1 route carry -> Unresolved closure carry\')',
+      'expect(matrixSource).toContain(\'body-only-hold\')',
+      'expect(auditSource).toContain(\'self-evolution focus plan\')',
+      'expect(auditSource).toContain(\'quieter face+lipsync / motion+lipsync focus note\')',
+      'expect(auditSource).toContain(\'Project identity carry -> Phase 1 route carry -> Unresolved closure carry\')',
+      'expect(auditSource).toContain(\'body-only-hold\')',
+      'expect(matrixSource).toContain(\'This is still not full long-run closure proof under noisy desktop use.\')',
+    ],
+  },
+  {
     entry: 'devtools-self-evolution-active-workflow-focus',
     proofKind: 'dynamic',
     file: '../../../renderer/pages/devtools/performance-visualizer-self-evolution-active-workflow-focus-project-awareness-audit.test.ts',
@@ -4011,6 +4034,7 @@ describe('project awareness coverage matrix', () => {
       expect.objectContaining({ entry: 'devtools-self-evolution-diagnostic-summaries', proofKind: 'dynamic' }),
       expect.objectContaining({ entry: 'devtools-self-evolution-triage-view', proofKind: 'dynamic' }),
       expect.objectContaining({ entry: 'devtools-self-evolution-triage-targets', proofKind: 'dynamic' }),
+      expect.objectContaining({ entry: 'devtools-self-evolution-focus-plan', proofKind: 'dynamic' }),
       expect.objectContaining({ entry: 'devtools-self-evolution-repair-action-feedback', proofKind: 'dynamic' }),
       expect.objectContaining({ entry: 'devtools-self-evolution-repair-followup-navigation', proofKind: 'dynamic' }),
       expect.objectContaining({ entry: 'devtools-self-evolution-active-workflow-focus', proofKind: 'dynamic' }),
@@ -4215,6 +4239,7 @@ describe('project awareness coverage matrix', () => {
     expect(coverageRows.some(row => row.entry === 'devtools-self-evolution-diagnostic-summaries')).toBe(true)
     expect(coverageRows.some(row => row.entry === 'devtools-self-evolution-triage-view')).toBe(true)
     expect(coverageRows.some(row => row.entry === 'devtools-self-evolution-triage-targets')).toBe(true)
+    expect(coverageRows.some(row => row.entry === 'devtools-self-evolution-focus-plan')).toBe(true)
     expect(coverageRows.some(row => row.entry === 'devtools-self-evolution-active-workflow-focus')).toBe(true)
     expect(coverageRows.some(row => row.entry === 'devtools-self-evolution-repair-session')).toBe(true)
     expect(coverageRows.some(row => row.entry === 'devtools-self-evolution-repair-closure')).toBe(true)
