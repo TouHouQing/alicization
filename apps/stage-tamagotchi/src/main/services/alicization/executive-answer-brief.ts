@@ -27,6 +27,7 @@ import { deriveMindTruthContract } from './mind-truth-contract'
 import {
   alicizationProjectStateAnswerMustDo,
   alicizationProjectStateAnswerMustNotDo,
+  enrichProjectStateAnswerGovernanceIfNeeded,
 } from './project-state-answer-governance'
 import {
   compactProjectLatestProgressForSystemBlock,
@@ -189,14 +190,19 @@ function looksLikeProjectStateDirectAnswerTurn(input: {
     = /做到什么程度|做到哪|做到哪一步|进行到哪|进行到哪一步|执行到哪|进度|进展|到什么程度|how far|what has landed|what's landed|progress|landed/u.test(evidence)
   const asksProgressAndOpenClosure
     = /what still remains open|still remains open|what is not yet closed|做到什么程度|进行到哪|执行到哪|缺少什么|没有闭环|how far .* landed/u.test(evidence)
+  const asksCurrentWork
+    = /\b(?:what are you doing|what are you up to|what are you working on|what are you doing right now|currently doing|current work)\b|你(?:现在)?在(?:干嘛|做什么|忙什么|搞什么|做啥)/u.test(evidence)
+  const asksStillPushingSameDigitalLifeClosure
+    = /(?:still|还在|现在还在).{0,32}(?:complete|completing|finish|finishing|working on|doing|pushing|推进|完成|开发|做).{0,72}(?:digital[- ]life|数字生命|anthropomorphic|拟人|agency|主动性|closure|闭环|goal|phase 1|same (?:digital[- ]life|project line))|(?:digital[- ]life|数字生命|anthropomorphic|拟人|agency|主动性|closure|闭环|goal|phase 1|same (?:digital[- ]life|project line)).{0,72}(?:still|还在|现在还在).{0,32}(?:complete|completing|finish|finishing|working on|doing|pushing|推进|完成|开发|做)/u.test(evidence)
   const asksMergeReadinessOrClosure
-    = /(?:can we|is (?:it|this)|ready to|merge-ready|能不能|可以|已经可以|现在可以).{0,40}(?:merge(?: this)? to main|合并到\s*main|ready to merge)|(?:merge(?: this)? to main|合并到\s*main|ready to merge).{0,24}(?:now|already|ready|了吗|吗)|还差哪步|还差哪一步|goal.{0,16}(?:闭环|完成|close|closed|complete)|才能算闭环/u.test(evidence)
+    = /(?:can we|is (?:it|this)|ready to|merge-ready|能不能|可以|已经可以|现在可以).{0,40}(?:merge(?: this)? to main|合并到\s*main|ready to merge)|(?:merge(?: this)? to main|合并到\s*main|ready to merge).{0,24}(?:now|already|ready|了吗|吗)|还差哪步|还差哪一步|goal.{0,16}(?:闭环|完成|close|closed|complete)|才能算闭环|(?:已经在|已在|already (?:landed|on)|already contains|already on).{0,32}(?:本地\s*main|local\s+main)|(?:本地\s*main|local\s+main).{0,32}(?:已经|已|already).{0,24}(?:包含|落地|landed|contains|on)|(?:origin\/main).{0,32}(?:安全|safe|update|push|推)|(?:安全|safe).{0,16}(?:推到|push to|update).{0,24}(?:origin\/main)|(?:会把|会不会把|without carrying|carry).{0,48}(?:别的提交|unrelated commits|other commits)|带上去/u.test(evidence)
   const asksCompletionTimelineOrLanguageDrift
     = /计划什么时候完成|什么时候完成(?:这个)?\s*goal|何时完成(?:这个)?\s*goal|什么时候完成|何时完成|expected to (?:finish|close)|expect to (?:finish|close)|when the goal is expected to close|why are you replying in english|replying in english|host language|为什么(?:一直|还)?用英文|为什么(?:一直|还)?不用中文|为什么还用英文|是不是偏移了|偏移了吗|did the thread drift|thread drift|thread has drifted|drifted out of/u.test(evidence)
   const namesProjectStateTurn = /project-state question|project status|project-state|project continuity/u.test(evidence)
 
   return namesProjectStateTurn
     || (asksWhatThisProjectIs && asksProgressAndOpenClosure)
+    || (asksCurrentWork && asksStillPushingSameDigitalLifeClosure)
     || asksMergeReadinessOrClosure
     || (asksProgress && asksCompletionTimelineOrLanguageDrift)
 }
@@ -599,9 +605,19 @@ export function buildAlicizationExecutiveAnswerBrief(input: {
     dialogueSemantics,
     responseCharter: input.responseCharter,
   })) {
-    for (const rule of alicizationProjectStateAnswerMustDo)
+    const enrichedProjectStateGovernance = enrichProjectStateAnswerGovernanceIfNeeded({
+      answerSubject: 'project-state',
+      answerIntent: dialogueSemantics?.summary ?? null,
+      governingFocus: input.responseCharter.governingFocus ?? null,
+      governingProject: input.responseCharter.governingProject ?? null,
+      reasons: input.responseCharter.reasons ?? [],
+      mustDo: [...alicizationProjectStateAnswerMustDo],
+      mustNotDo: [...alicizationProjectStateAnswerMustNotDo],
+    })
+
+    for (const rule of enrichedProjectStateGovernance?.mustDo ?? [])
       pushUnique(mustDo, rule)
-    for (const rule of alicizationProjectStateAnswerMustNotDo)
+    for (const rule of enrichedProjectStateGovernance?.mustNotDo ?? [])
       pushUnique(mustNotDo, rule)
     if (sameHerDriftRisk) {
       pushUnique(mustDo, 'Treat active same-her drift risk as a hard boundary while answering project state.')

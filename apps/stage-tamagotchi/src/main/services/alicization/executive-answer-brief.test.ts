@@ -898,6 +898,59 @@ describe('buildAlicizationExecutiveAnswerBrief', () => {
     expect(result.systemBlock).toContain('If the host asks whether the work is merge-ready, complete, or closed, separate what is already verified from what is still unproven or still open.')
   })
 
+  it('treats remote-main push-readiness follow-ups as project-state direct-answer turns that must separate local-main landing from origin-main safety', () => {
+    const visualPresenceState = createDefaultVisualPresenceState(5_2815)
+
+    const result = buildAlicizationExecutiveAnswerBrief({
+      now: 5_2815,
+      inspectionRequested: false,
+      groundedThisTurn: false,
+      perceptionState: {
+        attentionAnchor: null,
+        lastNonSelfForegroundTarget: null,
+        recentObservations: [],
+        invitedInspection: null,
+        recentSceneResidue: null,
+        updatedAt: 5_2815,
+      },
+      visualPresenceState,
+      runtimeSurface: buildAlicizationDigitalLifeRuntimeSurface(visualPresenceState),
+      responseCharter: {
+        epistemicMode: 'memory-only',
+        responseMode: 'answer-naturally',
+        governingFocus: '已经在本地 main 了，那现在可以安全推到 origin/main 吗？还是会把别的提交一起带上去？',
+        governingConcern: null,
+        governingCommitment: null,
+        governingInquiry: null,
+        governingProject: null,
+        emotionalClosureCue: null,
+        latestRevision: null,
+        executivePhase: null,
+        truthFrame: null,
+        mindMode: null,
+        relationshipPosture: 'restrained',
+        reasons: [],
+        mustDo: [],
+        mustNotDo: [],
+      },
+      dialogueObligation: {
+        kind: 'answer',
+        mustAnswerDirectly: true,
+      } as any,
+      dialogueSemantics: {
+        currentTurnSummary: 'The host is asking whether the work already landed on local main and whether origin/main is actually safe to update, from one continuous her line.',
+      } as any,
+      dialogueFocus: {
+        subject: 'alicization-self',
+        screenReferenceMode: 'avoid',
+      } as any,
+    })
+
+    expect(result.brief.mustDo).toContain('If the host asks whether local main already contains the work or whether origin/main is safe to update, answer those as separate facts and keep both on the same verified project-state line.')
+    expect(result.brief.mustNotDo).toContain('Do not treat already being on local main, or already merging locally, as proof that origin/main is safe to push.')
+    expect(result.systemBlock).toContain('If the host asks whether local main already contains the work or whether origin/main is safe to update, answer those as separate facts and keep both on the same verified project-state line.')
+  })
+
   it('still treats completion-timing and language-drift follow-ups as project-state direct-answer turns even when focus was not explicitly pre-labeled as project-state', () => {
     const visualPresenceState = createDefaultVisualPresenceState(5_282)
 
@@ -951,6 +1004,62 @@ describe('buildAlicizationExecutiveAnswerBrief', () => {
     expect(result.brief.mustDo).toContain('Keep the still-open closure work explicit so the answer says what is not yet closed.')
     expect(result.brief.mustDo).toContain('If the host asks whether the work is merge-ready, complete, or closed, separate what is already verified from what is still unproven or still open.')
     expect(result.brief.mustNotDo).toContain('Do not claim merge-readiness, full closure, or goal completion unless the current evidence already proves it.')
+    expect(result.systemBlock).toContain('Answer project-state questions from one same-her continuity instead of a detached project narrator shell.')
+  })
+
+  it('still treats current-work follow-ups about whether the same digital-life closure is still being pushed as project-state direct-answer turns', () => {
+    const visualPresenceState = createDefaultVisualPresenceState(5_283)
+
+    const result = buildAlicizationExecutiveAnswerBrief({
+      now: 5_283,
+      inspectionRequested: false,
+      groundedThisTurn: false,
+      perceptionState: {
+        attentionAnchor: null,
+        lastNonSelfForegroundTarget: null,
+        recentObservations: [],
+        invitedInspection: null,
+        recentSceneResidue: null,
+        updatedAt: 5_283,
+      },
+      visualPresenceState,
+      runtimeSurface: buildAlicizationDigitalLifeRuntimeSurface(visualPresenceState),
+      responseCharter: {
+        epistemicMode: 'memory-only',
+        responseMode: 'answer-naturally',
+        governingFocus: '你在干嘛？还在完成数字生命拟人主动性闭环开发吗？',
+        governingConcern: null,
+        governingCommitment: null,
+        governingInquiry: null,
+        governingProject: null,
+        emotionalClosureCue: null,
+        latestRevision: null,
+        executivePhase: null,
+        truthFrame: null,
+        mindMode: null,
+        relationshipPosture: 'restrained',
+        reasons: [],
+        mustDo: [],
+        mustNotDo: [],
+      },
+      dialogueObligation: {
+        kind: 'answer',
+        mustAnswerDirectly: true,
+      } as any,
+      dialogueSemantics: {
+        currentTurnSummary: 'The host is asking what Alicization is currently doing and whether she is still carrying the same digital-life anthropomorphic agency closure work forward instead of drifting away from the active Phase 1 line.',
+      } as any,
+      dialogueFocus: {
+        subject: 'alicization-self',
+        screenReferenceMode: 'avoid',
+      } as any,
+    })
+
+    expect(result.brief.mustDo).toContain('Answer what Alicization is before drifting into tone, metaphor, or adjacent status commentary.')
+    expect(result.brief.mustDo).toContain('Make the latest landed Phase 1 progress explicit instead of replying with only aspiration or direction.')
+    expect(result.brief.mustDo).toContain('Keep the still-open closure work explicit so the answer says what is not yet closed.')
+    expect(result.brief.mustDo).toContain('Make the next closure target explicit so the answer says what should close next rather than stopping at current status.')
+    expect(result.brief.mustDo).toContain('Answer project-state questions from one same-her continuity instead of a detached project narrator shell.')
     expect(result.systemBlock).toContain('Answer project-state questions from one same-her continuity instead of a detached project narrator shell.')
   })
 

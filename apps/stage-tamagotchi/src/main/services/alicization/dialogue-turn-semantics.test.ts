@@ -1308,6 +1308,72 @@ describe('dialogue-turn-semantics', () => {
     ]))
   })
 
+  it('treats local-main landed vs origin-main push-readiness follow-ups as project-state continuity questions instead of detached git procedure repair', () => {
+    const semantics = buildDialogueTurnSemantics({
+      userText: '已经在本地 main 了，那现在可以安全推到 origin/main 吗？还是会把别的 177 个提交一起带上去？',
+      context: codingContext,
+      currentScene: {
+        workloadKind: 'coding',
+        contentKind: 'diff',
+        scenario: 'coding',
+        summary: 'runtime.ts diff',
+        source: 'foreground-window-heuristic',
+        confidence: 0.84,
+        target: null,
+        beganAt: 0,
+        lastSeenAt: 30_000,
+      },
+      worldModel: {
+        activeThread: {
+          id: 'thread::runtime',
+          kind: 'change-review',
+          status: 'active',
+          source: 'continuity',
+          title: 'runtime.ts diff',
+          summary: 'The host is still in a coding thread, but is now asking whether local main already landed the work and whether remote main is actually safe to update.',
+          confidence: 0.72,
+          significance: 0.83,
+          unresolved: true,
+          beganAt: 0,
+          lastUpdatedAt: 30_000,
+          target: null,
+        },
+        lingeringThreads: [],
+        focusTarget: null,
+        epistemicState: {
+          certainty: 'uncertain',
+          freshness: 'stale',
+          seenNow: [],
+          inferredNow: [],
+          openQuestions: [],
+          staleRisks: ['stale anchor'],
+        },
+        continuity: {
+          label: 'staying-with-thread',
+          sceneAgeMs: 30_000,
+          attentionAgeMs: 30_000,
+          sameSceneAsBefore: true,
+          sameAttentionAsBefore: true,
+          afterglowOpen: false,
+        },
+        hostState: {
+          availability: 'focused',
+          burden: 'moderate',
+        },
+        updatedAt: 30_000,
+      },
+    })
+
+    expect(semantics.subjectPreference).toBe('alicization-self')
+    expect(semantics.responseNeed).toBe('answer')
+    expect(semantics.summary).toContain('merge-ready')
+    expect(semantics.reasonTags).toEqual(expect.arrayContaining([
+      'project-state-continuity-question',
+      'dialogue-first-turn',
+      'scene-detached-turn',
+    ]))
+  })
+
   it('treats completion-timing and language-drift complaints as the same project-state continuity line instead of detached style repair', () => {
     const semantics = buildDialogueTurnSemantics({
       userText: '你进行到哪一步了？计划什么时候完成这个 goal？为什么一直用英文不用中文，是不是偏移了？',
@@ -1372,5 +1438,72 @@ describe('dialogue-turn-semantics', () => {
       'scene-detached-turn',
     ]))
     expect(semantics.reasonTags).not.toContain('answer-repair-follow-up')
+  })
+
+  it('treats current-work follow-ups about still pushing the same digital-life closure as project-state continuity questions instead of ordinary present-state chatter', () => {
+    const semantics = buildDialogueTurnSemantics({
+      userText: '你在干嘛？还在完成数字生命拟人主动性闭环开发吗？',
+      context: codingContext,
+      currentScene: {
+        workloadKind: 'coding',
+        contentKind: 'diff',
+        scenario: 'coding',
+        summary: 'runtime.ts diff',
+        source: 'foreground-window-heuristic',
+        confidence: 0.84,
+        target: null,
+        beganAt: 0,
+        lastSeenAt: 30_000,
+      },
+      worldModel: {
+        activeThread: {
+          id: 'thread::runtime',
+          kind: 'change-review',
+          status: 'active',
+          source: 'continuity',
+          title: 'runtime.ts diff',
+          summary: 'The host is still in the same coding thread and is now checking whether Alicization is still pushing the same digital-life closure line.',
+          confidence: 0.72,
+          significance: 0.83,
+          unresolved: true,
+          beganAt: 0,
+          lastUpdatedAt: 30_000,
+          target: null,
+        },
+        lingeringThreads: [],
+        focusTarget: null,
+        epistemicState: {
+          certainty: 'uncertain',
+          freshness: 'stale',
+          seenNow: [],
+          inferredNow: [],
+          openQuestions: [],
+          staleRisks: ['stale anchor'],
+        },
+        continuity: {
+          label: 'staying-with-thread',
+          sceneAgeMs: 30_000,
+          attentionAgeMs: 30_000,
+          sameSceneAsBefore: true,
+          sameAttentionAsBefore: true,
+          afterglowOpen: false,
+        },
+        hostState: {
+          availability: 'focused',
+          burden: 'moderate',
+        },
+        updatedAt: 30_000,
+      },
+    })
+
+    expect(semantics.subjectPreference).toBe('alicization-self')
+    expect(semantics.responseNeed).toBe('answer')
+    expect(semantics.summary).toContain('Phase 1')
+    expect(semantics.reasonTags).toEqual(expect.arrayContaining([
+      'project-state-continuity-question',
+      'dialogue-first-turn',
+      'scene-detached-turn',
+    ]))
+    expect(semantics.reasonTags).not.toContain('current-activity-question')
   })
 })

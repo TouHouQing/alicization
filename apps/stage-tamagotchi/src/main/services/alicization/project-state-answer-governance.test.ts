@@ -25,6 +25,23 @@ describe('project state answer governance', () => {
     )
   })
 
+  it('adds remote-main push-readiness rules when the host asks whether local main already landed but origin/main is actually safe to update', () => {
+    const enriched = enrichProjectStateAnswerGovernanceIfNeeded({
+      answerSubject: 'project-state',
+      answerIntent: 'same digital life line: tell the host whether this already landed on local main and whether it is actually safe to push to origin/main without carrying unrelated commits.',
+      governingFocus: '已经在本地 main 了，那现在可以安全推到 origin/main 吗？还是会把别的提交一起带上去？',
+      mustDo: [],
+      mustNotDo: [],
+    })
+
+    expect(enriched?.mustDo).toContain(
+      'If the host asks whether local main already contains the work or whether origin/main is safe to update, answer those as separate facts and keep both on the same verified project-state line.',
+    )
+    expect(enriched?.mustNotDo).toContain(
+      'Do not treat already being on local main, or already merging locally, as proof that origin/main is safe to push.',
+    )
+  })
+
   it('does not add completion-timing and language-drift rules on generic direct project-state turns that are not asking about completion timing or host-language drift', () => {
     const enriched = enrichProjectStateAnswerGovernanceIfNeeded({
       answerSubject: 'project-state',

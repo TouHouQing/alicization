@@ -1,4 +1,4 @@
-import type { AlicizationChannelCapability } from '@proj-alicization/stage-shared'
+import type { AlicizationChannelCapability, AlicizationExecutionRoutingIntent } from '@proj-alicization/stage-shared'
 import type { Message } from '@xsai/shared-chat'
 
 import type {
@@ -75,19 +75,11 @@ function createPrelude(overrides?: {
     confidence: number
     kind: 'answer' | 'clarify' | 'inspect' | 'execute' | 'continue-task'
     reasonCodes: string[]
-    routingIntent: {
-      reasonCodes: string[]
-      requestedChannels: Array<'cli' | 'codex' | 'claude-code' | 'openclaw'>
-      requiredToolNames: Array<'executor_run_cli' | 'executor_run_codex' | 'executor_run_claude_code' | 'executor_run_openclaw'>
-    } | null
+    routingIntent: AlicizationExecutionRoutingIntent | null
     source: 'capability-inquiry' | 'explicit-routing' | 'dialogue-governance'
     summary: string
   }
-  executionRoutingIntent?: {
-    reasonCodes: string[]
-    requestedChannels: Array<'cli' | 'codex' | 'claude-code' | 'openclaw'>
-    requiredToolNames: Array<'executor_run_cli' | 'executor_run_codex' | 'executor_run_claude_code' | 'executor_run_openclaw'>
-  } | null
+  executionRoutingIntent?: AlicizationExecutionRoutingIntent | null
   messages?: Message[]
 }): PreparedPreludeWithRuntimeSurface {
   return {
@@ -875,6 +867,26 @@ describe('main chat session runtime', () => {
     ]))
   })
 
+  it('keeps local-main landed vs origin-main push-readiness governance rules when rebuilding a project-state contract', () => {
+    const rebuilt = rebuildProviderFacingMindTurnContract({
+      contract: null,
+      governance: {
+        answerSubject: 'project-state',
+        answerIntent: 'Tell the host whether this already landed on local main and whether it is actually safe to push to origin/main without carrying unrelated commits.',
+        governingFocus: '已经在本地 main 了，那现在可以安全推到 origin/main 吗？还是会把别的提交一起带上去？',
+        reasons: ['The host asked whether this is already on local main and whether origin/main is actually safe to update.'],
+      } as any,
+      runtimeSurface: null,
+    })
+
+    expect(rebuilt.mustDo).toEqual(expect.arrayContaining([
+      'If the host asks whether local main already contains the work or whether origin/main is safe to update, answer those as separate facts and keep both on the same verified project-state line.',
+    ]))
+    expect(rebuilt.mustNotDo).toEqual(expect.arrayContaining([
+      'Do not treat already being on local main, or already merging locally, as proof that origin/main is safe to push.',
+    ]))
+  })
+
   it('keeps merge-readiness and goal-closure governance rules when normalizing a project-state contract', () => {
     const canonical = resolveAlicizationProjectStateBrief()
     const normalized = normalizeProviderFacingMindTurnContract({
@@ -1569,6 +1581,246 @@ describe('main chat session runtime', () => {
 
     expect(result.tools?.some((entry: any) => String(entry?.function?.name) === 'sensory_capture_state')).toBe(false)
     expect(result.getSessionTrace().phaseOrder).not.toContain('tool:sensory-capture-state')
+  })
+
+  it('carries browser workflow continuation overrides into prepared execution when routing narrows to a local browser tool', async () => {
+    const getSensorySnapshot = vi.fn(async () => ({
+      running: true,
+      stale: false,
+      ageMs: 10,
+      nextTickAt: 20,
+      sample: {
+        collectedAt: 10,
+        time: {
+          iso: '2026-04-04T00:00:00.000Z',
+          local: '2026-04-04 08:00',
+          timezone: 'Asia/Shanghai',
+        },
+        cpu: {
+          usagePercent: 10,
+          windowMs: 1000,
+        },
+        memory: {
+          freeMB: 1024,
+          totalMB: 8192,
+          usagePercent: 87.5,
+        },
+      },
+      capture: null,
+    } satisfies AlicizationSensoryCacheSnapshot))
+    const runtime = createAlicizationMainChatSessionRuntime({
+      executionCapabilityChannels: executionChannels,
+      buildMainRuntimeCorePromptBlocks: ({ hostName }: MainRuntimeCorePromptBlocksInput) => [`[CORE:${hostName}]`],
+      buildOrganicMemorySystemBlocks: context => [`[ORGANIC:${context.hostAttitude}]`],
+      buildPerformanceManifestSystemBlocks: manifest => manifest ? ['[VESSEL]'] : [],
+      executeMainGatewayTaskThread: vi.fn(),
+      getPerformanceManifest: vi.fn(async () => ({ rigVersion: 1 } as any)),
+      getSensorySnapshot,
+      latestUserMessageContainsVisualInput: () => false,
+      openAgentTurn: createOpenAgentTurn(getSensorySnapshot),
+      resolveCardCustomDirectives: vi.fn(async () => ({
+        text: '优先观察，不要臆测。',
+        source: 'card-soul' as const,
+      })),
+      resolveCardHostName: vi.fn(async () => 'Kirito'),
+      resolveCardPersonaKernel: vi.fn(async () => null),
+      resolveExecutionCapabilitiesForPrompt: vi.fn(async () => createCapabilities()),
+      prewarmOrganicMemoryAccessibility: vi.fn(async () => null),
+      resolveOrganicMemoryPromptContext: vi.fn(async () => ({
+        hostAttitude: '礼貌而克制，保持观察',
+        coreIncarnation: '',
+        activeThoughts: [],
+        retrievedFacts: [],
+        recalledFragments: [],
+      })),
+      resolveSessionContinuitySignals: vi.fn(async () => []),
+      resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      tuneOrganicMemoryPromptContextForExecutiveTurn: (input: ExecutiveTurnOrganicMemoryTuneInput) => input.context,
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
+    })
+
+    const browserWorkflowRoutingIntent: AlicizationExecutionRoutingIntent = {
+      requestedChannels: ['browser'],
+      requiredToolNames: ['browser_open_url'],
+      reasonCodes: ['action-verb', 'local-browser-open-known-site'],
+      toolInputOverrides: {
+        browser_open_url: {
+          browser: 'default',
+          site: 'weibo',
+          url: 'https://weibo.com',
+          expectedPhase: 'social-feed',
+          reinspectAfterAction: true,
+          autoContinueSuggestedActions: true,
+          maxAutoContinueSteps: 2,
+          inspectionQuestion: '打开微博然后继续发微博',
+        },
+      },
+    }
+
+    const prelude = createPrelude({
+      actionObligation: {
+        confidence: 0.95,
+        kind: 'execute',
+        routingIntent: browserWorkflowRoutingIntent,
+        source: 'explicit-routing',
+        reasonCodes: ['action-verb', 'local-browser-open-known-site'],
+        summary: 'The host explicitly requested a browser workflow continuation.',
+      },
+      executionRoutingIntent: browserWorkflowRoutingIntent,
+      messages: [{
+        role: 'user',
+        content: '打开微博然后继续发微博',
+      } as Message],
+    })
+
+    const result = await runtime.prepareExecution({
+      payload: {
+        cardId: 'default',
+        turnId: 'turn-browser-workflow',
+        messages: [{
+          role: 'user',
+          content: '打开微博然后继续发微博',
+        }],
+        supportsTools: true,
+      } as any,
+      prelude,
+    })
+
+    expect(result.toolChoice).toEqual({
+      type: 'function',
+      function: { name: 'browser_open_url' },
+    })
+    expect(result.executionToolInputOverrides).toEqual({
+      browser_open_url: {
+        browser: 'default',
+        site: 'weibo',
+        url: 'https://weibo.com',
+        expectedPhase: 'social-feed',
+        reinspectAfterAction: true,
+        autoContinueSuggestedActions: true,
+        maxAutoContinueSteps: 2,
+        inspectionQuestion: '打开微博然后继续发微博',
+      },
+    })
+  })
+
+  it('carries desktop workflow continuation overrides into prepared execution when routing narrows to a local desktop tool', async () => {
+    const getSensorySnapshot = vi.fn(async () => ({
+      running: true,
+      stale: false,
+      ageMs: 10,
+      nextTickAt: 20,
+      sample: {
+        collectedAt: 10,
+        time: {
+          iso: '2026-04-04T00:00:00.000Z',
+          local: '2026-04-04 08:00',
+          timezone: 'Asia/Shanghai',
+        },
+        cpu: {
+          usagePercent: 10,
+          windowMs: 1000,
+        },
+        memory: {
+          freeMB: 1024,
+          totalMB: 8192,
+          usagePercent: 87.5,
+        },
+      },
+      capture: null,
+    } satisfies AlicizationSensoryCacheSnapshot))
+    const runtime = createAlicizationMainChatSessionRuntime({
+      executionCapabilityChannels: executionChannels,
+      buildMainRuntimeCorePromptBlocks: ({ hostName }: MainRuntimeCorePromptBlocksInput) => [`[CORE:${hostName}]`],
+      buildOrganicMemorySystemBlocks: () => ['[ORGANIC]'],
+      buildPerformanceManifestSystemBlocks: () => [],
+      executeMainGatewayTaskThread: vi.fn(),
+      getPerformanceManifest: vi.fn(async () => null),
+      getSensorySnapshot,
+      latestUserMessageContainsVisualInput: () => false,
+      openAgentTurn: createOpenAgentTurn(getSensorySnapshot),
+      resolveCardCustomDirectives: vi.fn(async () => ({
+        text: '优先观察，不要臆测。',
+        source: 'card-soul' as const,
+      })),
+      resolveCardHostName: vi.fn(async () => 'Kirito'),
+      resolveCardPersonaKernel: vi.fn(async () => null),
+      resolveExecutionCapabilitiesForPrompt: vi.fn(async () => createCapabilities()),
+      prewarmOrganicMemoryAccessibility: vi.fn(async () => null),
+      resolveOrganicMemoryPromptContext: vi.fn(async () => ({
+        hostAttitude: '礼貌而克制，保持观察',
+        coreIncarnation: '',
+        activeThoughts: [],
+        retrievedFacts: [],
+        recalledFragments: [],
+      })),
+      resolveSessionContinuitySignals: vi.fn(async () => []),
+      resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      tuneOrganicMemoryPromptContextForExecutiveTurn: (input: ExecutiveTurnOrganicMemoryTuneInput) => input.context,
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
+    })
+
+    const desktopWorkflowRoutingIntent: AlicizationExecutionRoutingIntent = {
+      requestedChannels: ['desktop'],
+      requiredToolNames: ['desktop_inspect_scene'],
+      reasonCodes: ['action-verb', 'local-desktop-inspect-scene'],
+      toolInputOverrides: {
+        desktop_inspect_scene: {
+          question: '帮我继续上传',
+          forceRefresh: false,
+          maxSuggestedActions: 5,
+          autoContinueSuggestedActions: true,
+          maxAutoContinueSteps: 2,
+        },
+      },
+    }
+
+    const prelude = createPrelude({
+      actionObligation: {
+        confidence: 0.95,
+        kind: 'continue-task',
+        routingIntent: desktopWorkflowRoutingIntent,
+        source: 'explicit-routing',
+        reasonCodes: ['action-verb', 'local-desktop-inspect-scene'],
+        summary: 'The host explicitly requested a desktop workflow continuation.',
+      },
+      executionRoutingIntent: desktopWorkflowRoutingIntent,
+      messages: [{
+        role: 'user',
+        content: '帮我继续上传',
+      } as Message],
+    })
+
+    const result = await runtime.prepareExecution({
+      payload: {
+        cardId: 'default',
+        turnId: 'turn-desktop-workflow',
+        messages: [{
+          role: 'user',
+          content: '帮我继续上传',
+        }],
+        supportsTools: true,
+      } as any,
+      prelude,
+    })
+
+    expect(result.toolChoice).toEqual({
+      type: 'function',
+      function: { name: 'desktop_inspect_scene' },
+    })
+    expect(result.executionToolInputOverrides).toEqual({
+      desktop_inspect_scene: {
+        question: '帮我继续上传',
+        forceRefresh: false,
+        maxSuggestedActions: 5,
+        autoContinueSuggestedActions: true,
+        maxAutoContinueSteps: 2,
+      },
+    })
   })
 
   it('passes summary-only same-her project briefing through the main-session execution capability entrypoint before execution answers widen outward', async () => {
