@@ -819,6 +819,27 @@ const coverageRows = [
     ],
   },
   {
+    entry: 'execution-boundary-project-awareness',
+    proofKind: 'dynamic',
+    file: './execution-boundary-project-awareness-audit.test.ts',
+    evidence: 'execution-boundary project awareness now has dedicated route-level proof that the shared execution runtime-context block and main-process runtime-context sanitization keep project identity, landed progress, and still-open closure explicit before dispatch begins, so execution no longer relies only on broader execution-chain or preflight-registry prose',
+    fileMustContain: [
+      'keeps one explicit route-level proof that the execution boundary carries richer same-her project awareness before dispatch begins instead of leaving the shared runtime-context block implicit inside broader execution-chain audits',
+      'expect.objectContaining({ entry: \'shared-runtime-context-block-project-awareness\' })',
+      'expect.objectContaining({ entry: \'shared-runtime-context-legacy-landed-progress-carry\' })',
+      'expect.objectContaining({ entry: \'shared-runtime-context-thin-awareness-upgrade\' })',
+      'expect.objectContaining({ entry: \'runtime-context-sanitization-anti-shell\' })',
+      'expect(coverage.find(item => item.id === \'execution-preflight-registration\')?.proof).toContain(\'execution-boundary-project-awareness-audit.test.ts\')',
+      'expect(coverage.find(item => item.id === \'execution-preflight-registration\')?.responsibility).toContain(\'execution-boundary project awareness\')',
+      'expect(matrixSource).toContain(\'execution-boundary-project-awareness-audit.test.ts\')',
+      'expect(matrixSource).toContain(\'execution-boundary project awareness\')',
+      'expect(matrixSource).toContain(\'Before execution begins, remember what this digital life project is, what has landed, and which life loop is still open.\')',
+      'expect(matrixSource).toContain(\'future execution-preflight families still need explicit classification\')',
+      'expect(matrixSource).toContain(\'Long-run proof is still incomplete\')',
+      'expect(auditSource).toContain(\'shared execution runtime-context block\')',
+    ],
+  },
+  {
     entry: 'execution-autonomy-ownership-proof',
     proofKind: 'dynamic',
     file: './execution-autonomy-ownership-project-awareness-audit.test.ts',
@@ -3931,6 +3952,7 @@ describe('project awareness coverage matrix', () => {
       expect.objectContaining({ entry: 'task-thread-dispatch-owner-registration', proofKind: 'static' }),
       expect.objectContaining({ entry: 'execution-dispatch-entrypoint-candidate-scan', proofKind: 'static' }),
       expect.objectContaining({ entry: 'execution-preflight-registration', proofKind: 'static' }),
+      expect.objectContaining({ entry: 'execution-boundary-project-awareness', proofKind: 'dynamic' }),
       expect.objectContaining({ entry: 'execution-autonomy-ownership-proof', proofKind: 'dynamic' }),
       expect.objectContaining({ entry: 'execution-autonomy-handoff-continuity', proofKind: 'dynamic' }),
       expect.objectContaining({ entry: 'execution-preflight-entrypoint-candidate-scan', proofKind: 'static' }),
@@ -4129,6 +4151,7 @@ describe('project awareness coverage matrix', () => {
     expect(coverageRows.some(row => row.entry === 'task-thread-dispatch-runtime-context')).toBe(true)
     expect(coverageRows.some(row => row.entry === 'task-thread-dispatch-owner-registration')).toBe(true)
     expect(coverageRows.some(row => row.entry === 'execution-preflight-registration')).toBe(true)
+    expect(coverageRows.some(row => row.entry === 'execution-boundary-project-awareness')).toBe(true)
     expect(coverageRows.some(row => row.entry === 'execution-autonomy-ownership-proof')).toBe(true)
     expect(coverageRows.some(row => row.entry === 'execution-autonomy-handoff-continuity')).toBe(true)
     expect(coverageRows.some(row => row.entry === 'execution-preflight-entrypoint-candidate-scan')).toBe(true)
@@ -4309,6 +4332,7 @@ describe('project awareness coverage matrix', () => {
     const executionChainEntries = coverageRows
       .filter(row => [
         'agent-runtime-execution-context',
+        'execution-boundary-project-awareness',
         'execution-runtime-context-sanitization',
         'task-thread-dispatch-runtime-context',
         'execution-capability-routing-dialogue',
@@ -4320,6 +4344,7 @@ describe('project awareness coverage matrix', () => {
 
     expect(executionChainEntries).toEqual([
       'agent-runtime-execution-context',
+      'execution-boundary-project-awareness',
       'execution-callback-dialogue',
       'execution-capability-routing-dialogue',
       'execution-result-feedback-dialogue',
@@ -4328,6 +4353,7 @@ describe('project awareness coverage matrix', () => {
     ])
 
     const agentRuntimeRow = coverageRows.find(row => row.entry === 'agent-runtime-execution-context')
+    const executionBoundaryRow = coverageRows.find(row => row.entry === 'execution-boundary-project-awareness')
     const executionRuntimeContextRow = coverageRows.find(row => row.entry === 'execution-runtime-context-sanitization')
     const dispatchRow = coverageRows.find(row => row.entry === 'task-thread-dispatch-runtime-context')
     const capabilityRow = coverageRows.find(row => row.entry === 'execution-capability-routing-dialogue')
@@ -4335,6 +4361,7 @@ describe('project awareness coverage matrix', () => {
     const feedbackRow = coverageRows.find(row => row.entry === 'execution-result-feedback-dialogue')
 
     expect(agentRuntimeRow?.file).toBe('./desktop-execution-chain-project-awareness-audit.test.ts')
+    expect(executionBoundaryRow?.file).toBe('./execution-boundary-project-awareness-audit.test.ts')
     expect(executionRuntimeContextRow?.file).toBe('./desktop-execution-chain-project-awareness-audit.test.ts')
     expect(dispatchRow?.file).toBe('./desktop-execution-chain-project-awareness-audit.test.ts')
     expect(capabilityRow?.file).toBe('./execution-surface-project-awareness-audit.test.ts')
