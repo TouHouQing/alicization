@@ -4746,6 +4746,14 @@ export function rebuildProviderFacingMindTurnContract(input: {
               })
             : runtimeProjectState.sameHerDriftRisk
               ?? null,
+        sameHerDriftRiskSummary:
+          payloadProjectState.hasDirectPayloadProjectSameHerDriftRisk
+            ? preferStrongerSameHerDriftRisk({
+                current: runtimeProjectState.sameHerDriftRisk,
+                candidate: payloadProjectState.explicitPayloadProjectSameHerDriftRisk,
+              })
+            : runtimeProjectState.sameHerDriftRisk
+              ?? null,
         emotionalClosureCue: runtimeProjectState.emotionalClosureCue ?? null,
         emotionalClosureSummary: runtimeProjectState.emotionalClosureSummary ?? null,
         continuityRestraint: normalizeProviderFacingContinuityRestraint(runtimeProjectState.continuityRestraint),
@@ -5771,6 +5779,7 @@ export function normalizeProviderFacingMindTurnContract(
         nextClosureTarget: preferredNormalizedNextClosureTarget ?? null,
         sameHerHoldDetail: rescuedNormalizedSameHerHoldDetail ?? null,
         sameHerDriftRisk: finalSameHerDriftRisk ?? null,
+        sameHerDriftRiskSummary: finalSameHerDriftRisk ?? null,
         emotionalClosureSummary:
           pickPreferredRuntimeProjectStateDetail([
             (contract.projectState as Record<string, unknown> | null)?.emotionalClosureSummary,
