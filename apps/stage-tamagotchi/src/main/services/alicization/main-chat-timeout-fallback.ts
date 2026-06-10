@@ -326,6 +326,7 @@ function preferTimeoutFallbackProjectNextClosureTarget(...values: Array<unknown>
 function buildTimeoutFallbackProjectStateAuditContinuitySummary(input: {
   identitySummary: string | null | undefined
   sameHerSummary: string | null | undefined
+  sameHerDriftRiskSummary?: string | null | undefined
   currentPhaseSummary: string | null | undefined
   landedProgressSummary: string | null | undefined
   openClosureSummary: string | null | undefined
@@ -337,6 +338,7 @@ function buildTimeoutFallbackProjectStateAuditContinuitySummary(input: {
     projectStateContinuityAnchors: [
       input.identitySummary ? `identity=${input.identitySummary}` : '',
       input.sameHerSummary ? `same-her=${input.sameHerSummary}` : '',
+      input.sameHerDriftRiskSummary ? `drift=${input.sameHerDriftRiskSummary}` : '',
       input.currentPhaseSummary ? `phase=${input.currentPhaseSummary}` : '',
       input.landedProgressSummary ? `landed=${input.landedProgressSummary}` : '',
       input.openClosureSummary ? `open=${input.openClosureSummary}` : '',
@@ -828,6 +830,7 @@ export function buildAlicizationMainGatewayTimeoutFallbackReply(input: {
           return {
             identitySummary: canonicalStructuredProjectState.identity,
             sameHerSummary: projectStateSameHerSummary,
+            sameHerDriftRiskSummary: sameHerDriftRisk,
             currentPhaseSummary: canonicalStructuredProjectState.currentPhase,
             landedProgressSummary: canonicalStructuredProjectState.latestLandedProgress,
             openClosureSummary: canonicalStructuredProjectState.primaryOpenLoop,
@@ -841,6 +844,7 @@ export function buildAlicizationMainGatewayTimeoutFallbackReply(input: {
             continuitySummary: buildTimeoutFallbackProjectStateAuditContinuitySummary({
               identitySummary: canonicalStructuredProjectState.identity,
               sameHerSummary: projectStateSameHerSummary,
+              sameHerDriftRiskSummary: sameHerDriftRisk,
               currentPhaseSummary: canonicalStructuredProjectState.currentPhase,
               landedProgressSummary: canonicalStructuredProjectState.latestLandedProgress,
               openClosureSummary: canonicalStructuredProjectState.primaryOpenLoop,
