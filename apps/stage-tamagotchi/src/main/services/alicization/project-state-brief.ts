@@ -2794,6 +2794,12 @@ const alicizationProjectEntrypointGovernanceRegistry = [
     responsibility: 'OpenClaw blocked-dispatch safety gates must audit effect, permission mode, confirmation requirement, interruptibility, and the same-her execution runtime context before refusing embodied execution, so dangerous outward control stays explainable instead of disappearing as a generic adapter failure.',
   },
   {
+    domain: 'execution-preflight',
+    relativePath: 'executor-adapters/local-visual.ts',
+    mode: 'blocked-dispatch-safety-gate',
+    responsibility: 'Local-visual blocked-dispatch safety gates must audit effect, permission mode, confirmation requirement, risk policy, interruptibility, and the same-her execution runtime context before refusing local GUI execution, so dangerous desktop inspection or mutation stays explainable instead of disappearing as a generic adapter failure.',
+  },
+  {
     domain: 'execution-dispatch',
     relativePath: 'runtime-invoke-handlers-task.ts',
     mode: 'dispatch-owner',

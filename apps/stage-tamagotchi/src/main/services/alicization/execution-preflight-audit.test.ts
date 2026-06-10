@@ -179,6 +179,7 @@ describe('execution-preflight-audit', () => {
       'executor-adapters/claude-code.ts',
       'executor-adapters/cli.ts',
       'executor-adapters/codex.ts',
+      'executor-adapters/local-visual.ts',
       'executor-adapters/openclaw.ts',
     ])
 
@@ -188,11 +189,15 @@ describe('execution-preflight-audit', () => {
       expect(resolveAlicizationExecutionPreflightMode(entry.relativePath)).toBe('blocked-dispatch-safety-gate')
       expect(source).toContain('function buildBlockedDispatchSafetyGate(')
       expect(source).toContain('confirmationRequired: true')
-      expect(source).toContain('auditability: \'blocked-before-dispatch\'')
       expect(source).toContain('normalizeAlicizationExecutionRuntimeContext(input.command.runtimeContext)')
       expect(source).toContain('runtimeContext,')
 
-      if (entry.relativePath === 'executor-adapters/openclaw.ts')
+      if (entry.relativePath === 'executor-adapters/local-visual.ts')
+        expect(source).toContain('auditability: \'blocked-before-local-visual-dispatch\'')
+      else
+        expect(source).toContain('auditability: \'blocked-before-dispatch\'')
+
+      if (entry.relativePath === 'executor-adapters/openclaw.ts' || entry.relativePath === 'executor-adapters/local-visual.ts')
         expect(source).toContain('interruptibility: \'no-network-request-started\'')
       else
         expect(source).toContain('interruptibility: \'no-process-started\'')
