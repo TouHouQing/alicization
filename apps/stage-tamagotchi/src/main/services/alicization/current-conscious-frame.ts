@@ -192,13 +192,22 @@ function preferProjectStateSameHerSelfLine(input: {
 
   const resolvedLower = resolved.toLowerCase()
   const fallbackLower = fallback.toLowerCase()
+  const resolvedLooksDurableSelfAuthority
+    = (
+      /^i remain\b/u.test(resolvedLower)
+      || /^i am still\b/u.test(resolvedLower)
+      || /across quiet, memory, and speech/u.test(resolvedLower)
+      || /without reopening from scratch(?: each turn)?/u.test(resolvedLower)
+      || /inside this local-first digital life/u.test(resolvedLower)
+    )
+      && !/same phase 1 digital life|phase 1|callback|closure|same living line|same closure line|landed|unfinished|open loop|project|host-machine/u.test(resolvedLower)
   const resolvedLooksGenericSelfContinuity
     = /one living self inside this local-first digital life|one continuous her/u.test(resolvedLower)
       && !/same phase 1 digital life|same digital life|same[- ]her|same living line/u.test(resolvedLower)
   const fallbackCarriesExplicitSameHerProjectLine
     = /same phase 1 digital life|same digital life|same[- ]her|same living line/u.test(fallbackLower)
 
-  return resolvedLooksGenericSelfContinuity && fallbackCarriesExplicitSameHerProjectLine
+  return (resolvedLooksGenericSelfContinuity || resolvedLooksDurableSelfAuthority) && fallbackCarriesExplicitSameHerProjectLine
     ? fallback
     : resolved
 }
@@ -427,6 +436,73 @@ function pickPreferredProjectStateField(
   }
 
   return ''
+}
+
+function resolveContinuityBehaviorMode(input: {
+  continuityRestraint?: unknown
+  continuityCadence?: unknown
+}) {
+  const continuityCadence = sanitizeText(input.continuityCadence, 120).toLowerCase()
+  const continuityRestraint = sanitizeText(input.continuityRestraint, 64).toLowerCase()
+
+  if (
+    continuityCadence === 'repair-before-closeness'
+    || continuityCadence === 'measured-return'
+    || continuityCadence === 'rest-protective'
+  ) {
+    return continuityCadence
+  }
+
+  if (
+    continuityRestraint === 'repair-before-closeness'
+    || continuityRestraint === 'measured-return'
+    || continuityRestraint === 'rest-protective'
+  ) {
+    return continuityRestraint
+  }
+
+  return null
+}
+
+function deriveSameHerHoldDetailFromContinuityBehavior(mode: string | null) {
+  if (mode === 'repair-before-closeness')
+    return 'same-her hold: repair-before-closeness still owns this callback line before closeness widens again.'
+  if (mode === 'rest-protective')
+    return 'same-her hold: rest-protective companionship is still keeping this return inward and fatigue-aware.'
+  if (mode === 'measured-return')
+    return 'same-her hold: measured-return is still keeping this callback line lower-pressure before it widens again.'
+  return ''
+}
+
+function deriveContinuityCueFromBehavior(mode: string | null) {
+  if (mode === 'repair-before-closeness')
+    return 'Keep this return repair-before-closeness on the same living line until repair settles.'
+  if (mode === 'rest-protective')
+    return 'Keep this return rest-protective and on the same living line inward before widening outward.'
+  if (mode === 'measured-return')
+    return 'Keep this return measured-return on the same living line before widening outward.'
+  return ''
+}
+
+function resolveEffectiveProjectStateContinuityCarry(input: {
+  sameHerHoldDetail?: unknown
+  continuityCue?: unknown
+  continuityRestraint?: unknown
+  continuityCadence?: unknown
+}) {
+  const behaviorMode = resolveContinuityBehaviorMode({
+    continuityRestraint: input.continuityRestraint,
+    continuityCadence: input.continuityCadence,
+  })
+
+  return {
+    sameHerHoldDetail:
+      sanitizeText(input.sameHerHoldDetail, 220)
+      || deriveSameHerHoldDetailFromContinuityBehavior(behaviorMode),
+    continuityCue:
+      sanitizeText(input.continuityCue, 220)
+      || deriveContinuityCueFromBehavior(behaviorMode),
+  }
 }
 
 function resolveProjectStateConsciousHoldDetail(input: {
@@ -1078,14 +1154,16 @@ function buildProjectStateConsciousFrameGrounding(input?: {
     ? resolveAlicizationSurfaceProjectStateSnapshot({
         runtimeSurface: input.runtimeSurface,
       })
-    : {
-        ...projectStateSnapshot,
-        continuityRestraint: projectStateSnapshot.continuityRestraint ?? null,
-        continuityPreferredTiming: null,
-        continuityCadence: null,
-        preferredBlinkCadence: null,
-        preferredGazeMode: null,
-      }
+      : {
+          ...projectStateSnapshot,
+          continuityRestraint: projectStateSnapshot.continuityRestraint ?? null,
+          continuityPreferredTiming: null,
+          continuityCadence: null,
+          preferredBlinkCadence: null,
+          preferredGazeMode: null,
+          preferredVoiceMode: null,
+          preferredPacingMode: null,
+        }
   const explicitLatestProgressInput = sanitizeText(
     (typeof preferredRuntimeProjectState?.latestLandedProgress === 'string' ? preferredRuntimeProjectState.latestLandedProgress : null)
     ?? (typeof preferredRuntimeProjectState?.latestProgress === 'string' ? preferredRuntimeProjectState.latestProgress : null)
@@ -1273,6 +1351,22 @@ function buildProjectStateConsciousFrameGrounding(input?: {
     (rawCognitionRuntimeDigestProjectState as { continuityCue?: unknown } | null)?.continuityCue,
     (rawRuntimeStateProjectState as { continuityCue?: unknown } | null)?.continuityCue,
   )
+  const explicitAwarenessContinuityRestraint = pickPreferredProjectStateField(
+    64,
+    (rawConsciousFrameProjectState as { continuityRestraint?: unknown } | null)?.continuityRestraint,
+    (rawDialogueRuntimeDigestProjectState as { continuityRestraint?: unknown } | null)?.continuityRestraint,
+    (rawRuntimeDigestProjectState as { continuityRestraint?: unknown } | null)?.continuityRestraint,
+    (rawCognitionRuntimeDigestProjectState as { continuityRestraint?: unknown } | null)?.continuityRestraint,
+    (rawRuntimeStateProjectState as { continuityRestraint?: unknown } | null)?.continuityRestraint,
+  )
+  const explicitAwarenessContinuityCadence = pickPreferredProjectStateField(
+    120,
+    (rawConsciousFrameProjectState as { continuityCadence?: unknown } | null)?.continuityCadence,
+    (rawDialogueRuntimeDigestProjectState as { continuityCadence?: unknown } | null)?.continuityCadence,
+    (rawRuntimeDigestProjectState as { continuityCadence?: unknown } | null)?.continuityCadence,
+    (rawCognitionRuntimeDigestProjectState as { continuityCadence?: unknown } | null)?.continuityCadence,
+    (rawRuntimeStateProjectState as { continuityCadence?: unknown } | null)?.continuityCadence,
+  )
   const explicitAwarenessSameHerHoldDetail = pickPreferredProjectStateField(
     220,
     (rawConsciousFrameProjectState as { sameHerHoldDetail?: unknown } | null)?.sameHerHoldDetail,
@@ -1290,9 +1384,53 @@ function buildProjectStateConsciousFrameGrounding(input?: {
     (rawRuntimeStateProjectState as { continuityCue?: unknown } | null)?.continuityCue,
     (projectState as { continuityCue?: unknown }).continuityCue,
   )
+  const shouldDeriveContinuityCarryFromBehavior
+    = !explicitAwarenessSameHerHoldDetail
+      && !explicitAwarenessContinuityCue
+  const behaviorDerivedContinuityCarry = shouldDeriveContinuityCarryFromBehavior
+    ? resolveEffectiveProjectStateContinuityCarry({
+        continuityRestraint:
+          explicitAwarenessContinuityRestraint
+          || preferredRuntimeProjectState?.continuityRestraint
+          || surfaceProjectState.continuityRestraint
+          || normalizedProjectState.continuityRestraint
+          || projectState.continuityRestraint,
+        continuityCadence:
+          explicitAwarenessContinuityCadence
+          || preferredRuntimeProjectState?.continuityCadence
+          || surfaceProjectState.continuityCadence
+          || normalizedProjectState.continuityCadence
+          || projectState.continuityCadence,
+      })
+    : {
+        sameHerHoldDetail: '',
+        continuityCue: '',
+      }
+  const sameHerHoldDetailForAwareness = sanitizeText(
+    explicitAwarenessSameHerHoldDetail
+    || behaviorDerivedContinuityCarry.sameHerHoldDetail
+    || projectState.sameHerHoldDetail
+    || '',
+    220,
+  )
+  const continuityCueForAwareness = sanitizeText(
+    explicitAwarenessContinuityCue
+    || (!sameHerHoldDetailForAwareness
+      ? behaviorDerivedContinuityCarry.continuityCue || continuityCue
+      : '')
+    || '',
+    220,
+  )
+  const resolvedContinuityCue = sanitizeText(
+    explicitAwarenessContinuityCue
+    || behaviorDerivedContinuityCarry.continuityCue
+    || continuityCue
+    || '',
+    220,
+  )
   const resolvedSameHerHoldDetailForAwareness = resolveProjectStateConsciousHoldDetail({
-    sameHerHoldDetail: explicitAwarenessSameHerHoldDetail,
-    continuityCue: explicitAwarenessContinuityCue,
+    sameHerHoldDetail: sameHerHoldDetailForAwareness,
+    continuityCue: continuityCueForAwareness,
   })
   const resolvedPreDialogueAwarenessLine = sanitizeText(resolveAlicizationProjectPreDialogueAwarenessLine({
     runtimeProjectState: {
@@ -1302,6 +1440,15 @@ function buildProjectStateConsciousFrameGrounding(input?: {
         ?? null,
       sameHerSelfLine: resolvedSameHerSelfLine || null,
       sameHerHoldDetail: resolvedSameHerHoldDetailForAwareness || null,
+      continuityCue: continuityCueForAwareness || null,
+      continuityRestraint:
+        (typeof preferredRuntimeProjectState?.continuityRestraint === 'string' ? preferredRuntimeProjectState.continuityRestraint : null)
+        ?? surfaceProjectState.continuityRestraint
+        ?? null,
+      continuityCadence:
+        (typeof preferredRuntimeProjectState?.continuityCadence === 'string' ? preferredRuntimeProjectState.continuityCadence : null)
+        ?? surfaceProjectState.continuityCadence
+        ?? null,
       sameHerDriftRiskSummary: resolvedSameHerDriftRisk || null,
       companionHeadlineLine: preferredRuntimeCompanionHeadline,
       preDialogueAwarenessLine:
@@ -1328,6 +1475,15 @@ function buildProjectStateConsciousFrameGrounding(input?: {
         ?? null,
       sameHerSelfLine: resolvedSameHerSelfLine || null,
       sameHerHoldDetail: resolvedSameHerHoldDetailForAwareness || null,
+      continuityCue: continuityCueForAwareness || null,
+      continuityRestraint:
+        (typeof preferredRuntimeProjectState?.continuityRestraint === 'string' ? preferredRuntimeProjectState.continuityRestraint : null)
+        ?? projectState.continuityRestraint
+        ?? null,
+      continuityCadence:
+        (typeof preferredRuntimeProjectState?.continuityCadence === 'string' ? preferredRuntimeProjectState.continuityCadence : null)
+        ?? projectState.continuityCadence
+        ?? null,
       sameHerDriftRiskSummary: resolvedSameHerDriftRisk || null,
       companionHeadlineLine: preferredRuntimeCompanionHeadline,
       preDialogueAwarenessLine:
@@ -1504,7 +1660,7 @@ function buildProjectStateConsciousFrameGrounding(input?: {
       (projectState as { emotionalClosureSummary?: unknown }).emotionalClosureSummary,
     ),
     sameHerHoldDetail: resolvedSameHerHoldDetailForAwareness,
-    continuityCue: continuityCue || null,
+    continuityCue: resolvedContinuityCue || null,
     continuityPreferredTiming: sanitizeConsciousContinuityPreferredTiming(
       sanitizeText(
         (typeof preferredRuntimeProjectState?.continuityPreferredTiming === 'string' ? preferredRuntimeProjectState.continuityPreferredTiming : null)
@@ -2223,6 +2379,7 @@ export function buildCurrentConsciousFrameSystemBlock(
     `Project emotional closure seam: ${(frame.projectState as { emotionalClosureCue?: string | null } | null)?.emotionalClosureCue ?? 'none'}.`,
     `Project emotional closure summary: ${(frame.projectState as { emotionalClosureSummary?: string | null } | null)?.emotionalClosureSummary ?? 'none'}.`,
     `Project same-her hold detail: ${(frame.projectState as { sameHerHoldDetail?: string | null } | null)?.sameHerHoldDetail ?? 'none'}.`,
+    `Project continuity cue: ${(frame.projectState as { continuityCue?: string | null } | null)?.continuityCue ?? 'none'}.`,
     `Project continuity timing: ${frame.projectState?.continuityPreferredTiming ?? 'none'}.`,
     `Project continuity cadence: ${frame.projectState?.continuityCadence ?? 'none'}.`,
     `Reason tags: ${frame.reasonTags.join(' | ') || 'none'}.`,

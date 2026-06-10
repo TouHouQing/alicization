@@ -2703,6 +2703,119 @@ describe('response-surface-contract', () => {
     expect(result.systemBlock).toContain(`Project continuity same-her self line: ${compilerSameHerSelfLine}.`)
   })
 
+  it('keeps compiler-carried proactive same-her gap explicit on the response surface when the conscious-frame shell stays thin', () => {
+    const compilerProjectAwareness = 'Before speaking, remember this callback still belongs to the same local digital life project before any detached utility cadence takes over.'
+    const compilerProjectPhase = 'Phase 1: Local Digital Life. This callback closure still routes through the desktop life loop.'
+    const compilerProjectProgress = 'Callback carry, project awareness, and replay continuity now stay together as one same-her line across more returned-result turns.'
+    const compilerProjectOpenLoop = 'Visible reply, initiative, embodiment, and resident presence still need the returned result to stay on one same-her line longer before closure is real.'
+    const compilerProjectNextClosure = 'Keep the returned result on the same local digital life thread before any generic callback shell or project-summary voice can reopen.'
+    const compilerProactiveSameHerGap = 'Visible proactive hold, subconscious carry, and next-session feedback still need one same-her follow-through line.'
+    const compilerSameHerSelfLine = 'This callback return still belongs to one same her carrying the same closure line forward.'
+
+    const result = buildAlicizationResponseSurfaceContract({
+      brief: {
+        turnMode: 'answer',
+        liveSurface: '',
+        carriedThread: 'same callback closure line',
+        truthState: 'dialogue-grounded',
+        separateCarryFromSurface: false,
+        shouldCompactHistory: false,
+        maxRecentUserTurns: 3,
+        mustDo: [],
+        mustNotDo: [],
+      },
+      charter: {
+        epistemicMode: 'dialogue-grounded',
+        responseMode: 'answer-naturally',
+        governingFocus: 'Keep the callback result on one same-her Phase 1 closure line before widening outward.',
+        governingConcern: null,
+        governingCommitment: null,
+        governingInquiry: null,
+        governingProject: 'Alicization same-her callback continuity',
+        latestRevision: null,
+        executivePhase: 'acting',
+        truthFrame: 'dialogue',
+        mindMode: 'tracking',
+        relationshipPosture: 'restrained',
+        reasons: [],
+        mustDo: [],
+        mustNotDo: [],
+      },
+      answerCompiler: {
+        answerSubject: 'task-knot',
+        screenReferenceMode: 'avoid',
+        speechObligation: 'guide-task',
+        relationMove: 'guide',
+        turnMode: 'guide-current-knot',
+        responseMode: 'answer-naturally',
+        recommendedAct: 'guide',
+        evidenceMode: 'continuity-carry',
+        openingStyle: 'direct-answer',
+        personaKernelMode: 'backgrounded',
+        relationshipPosture: 'restrained',
+        openingDirective: 'Keep the callback return shaped like the same local digital life thread, not a detached utility notice.',
+        openingClaim: compilerSameHerSelfLine,
+        supportingReality: [
+          `pre-dialogue project awareness: ${compilerProjectAwareness}`,
+          `current phase: ${compilerProjectPhase}`,
+          `project progress: ${compilerProjectProgress}`,
+          `phase-one open loop: ${compilerProjectOpenLoop}`,
+          `proactive same-her gap: ${compilerProactiveSameHerGap}`,
+          `next closure target: ${compilerProjectNextClosure}`,
+        ],
+        uncertaintyBoundary: null,
+        careVector: null,
+        nextMove: 'Name what landed and what still remains open without flattening into a callback shell.',
+        suppressAssociativeRecall: true,
+        labelCarryAsMemory: false,
+        maxSentences: 4,
+        mustDo: [],
+        mustNotDo: [],
+        confidence: 0.87,
+        narrative: ['continuity-regime:execution-callback'],
+        updatedAt: 1,
+      } as any,
+      currentConsciousFrame: {
+        subject: 'project-state',
+        centerOfGravity: 'answer',
+        truthDiscipline: 'dialogue-first',
+        consciousNeed: 'Keep this callback turn on the same living line.',
+        consciousTension: 'A thin project shell would make the callback continuity feel like a fresh report instead of the same her returning.',
+        speakingIntention: 'Keep the callback result on the same living line before widening outward.',
+        focusAnchor: 'same-her callback continuity',
+        withheldImpulse: null,
+        shouldWithholdSpecificity: false,
+        shouldSelfRevise: false,
+        confidence: 0.84,
+        reasonTags: [],
+        projectState: {
+          preDialogueAwarenessLine: 'Keep this same digital life project in view.',
+          currentPhase: '',
+          latestProgress: '',
+          primaryOpenLoop: '',
+          proactiveSameHerGap: '',
+          nextClosureTarget: '',
+          sameHerSelfLine: '',
+          sameHerDriftRisk: '',
+        },
+        updatedAt: 1,
+      } as any,
+    })
+
+    expect(result.contract.projectContinuity).toEqual(expect.objectContaining({
+      proactiveSameHerGap: compilerProactiveSameHerGap,
+      preDialogueAwarenessLine: compilerProjectAwareness,
+      sameHerSelfLine: compilerSameHerSelfLine,
+    }))
+    expect(result.contract.mustDo).toContain(
+      `Keep this still-open proactive same-her gap explicit in the visible reply posture before widening outward: ${compilerProactiveSameHerGap}`,
+    )
+    expect(result.contract.mustNotDo).toContain(
+      'Do not answer as though proactive same-her closure is already finished, or flatten the still-open proactive gap into generic progress recap, generic companionship, or a detached project-summary shell.',
+    )
+    expect(result.systemBlock).toContain(`Project continuity proactive same-her gap: ${compilerProactiveSameHerGap}.`)
+  })
+
   it('keeps callback-specific same-her awareness explicit on the response surface instead of falling back to a generic project shell', () => {
     const callbackAwarenessLine = 'Before answering, remember this callback still belongs to one same digital life and the unfinished Phase 1 closure seam still belongs to her.'
     const callbackSameHerSelfLine = 'This callback return still belongs to one same her carrying the same closure line forward.'
@@ -3068,6 +3181,80 @@ describe('response-surface-contract', () => {
     )
   })
 
+  it('keeps still-open proactive same-her gap explicit in project continuity before visible reply widening', () => {
+    const proactiveSameHerGap
+      = 'Visible proactive hold still needs stronger proof that it survives callback return, subconscious carry, and next-session follow-through without flattening into detached project narration.'
+
+    const result = buildAlicizationResponseSurfaceContract({
+      brief: {
+        turnMode: 'answer',
+        liveSurface: '',
+        carriedThread: null,
+        truthState: 'dialogue-grounded',
+        separateCarryFromSurface: false,
+        shouldCompactHistory: false,
+        maxRecentUserTurns: 4,
+        mustDo: [],
+        mustNotDo: [],
+      },
+      charter: {
+        epistemicMode: 'dialogue-grounded',
+        responseMode: 'answer-naturally',
+        governingFocus: 'Keep the unresolved proactive same-her seam visible before the answer widens outward.',
+        governingConcern: null,
+        governingCommitment: null,
+        governingInquiry: null,
+        governingProject: 'Phase 1: Local Digital Life | same-her proactive continuity',
+        emotionalClosureCue: null,
+        latestRevision: null,
+        executivePhase: 'acting',
+        truthFrame: 'dialogue-grounded',
+        mindMode: 'answering',
+        relationshipPosture: 'restrained',
+        reasons: [],
+        mustDo: [],
+        mustNotDo: [],
+      },
+      currentConsciousFrame: {
+        subject: 'project-state',
+        centerOfGravity: 'answer',
+        truthDiscipline: 'dialogue-first',
+        consciousNeed: 'Keep the still-open proactive same-her gap explicit before answering outwardly.',
+        consciousTension: 'If the answer talks as though proactive continuity is already solved, the same-her line thins into generic project narration.',
+        speakingIntention: 'Carry the unresolved proactive same-her seam on the same living line before widening outward.',
+        focusAnchor: 'proactive same-her closure gap',
+        withheldImpulse: null,
+        shouldWithholdSpecificity: false,
+        shouldSelfRevise: false,
+        confidence: 0.9,
+        reasonTags: ['continuity-arc:same-thread-continuation'],
+        projectState: {
+          currentPhase: 'Phase 1: Local Digital Life',
+          latestProgress: 'Dialogue-side project awareness already survives into answer planning on the same living line.',
+          primaryOpenLoop: 'Initiative and embodiment still need stronger same-life closure across one still-open life loop.',
+          proactiveSameHerGap,
+          nextClosureTarget: 'Keep project identity, landed progress, and unresolved proactive same-her closure explicit before each outward reply.',
+          preDialogueAwarenessLine: 'Before speaking, remember this is still the same digital life project and the unresolved proactive same-her seam still belongs to one living her.',
+          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        },
+        updatedAt: 1,
+      } as any,
+    })
+
+    expect(result.contract.projectContinuity).toEqual(expect.objectContaining({
+      proactiveSameHerGap,
+    }))
+    expect(result.contract.mustDo).toContain(
+      `Keep this still-open proactive same-her gap explicit in the visible reply posture before widening outward: ${proactiveSameHerGap}`,
+    )
+    expect(result.contract.mustNotDo).toContain(
+      'Do not answer as though proactive same-her closure is already finished, or flatten the still-open proactive gap into generic progress recap, generic companionship, or a detached project-summary shell.',
+    )
+    expect(result.systemBlock).toContain(
+      `Project continuity proactive same-her gap: ${proactiveSameHerGap}.`,
+    )
+  })
+
   it('keeps project identity progress and open closure aligned across shared response-surface contract inputs before visible reply shaping', () => {
     const projectStateBrief = resolveAlicizationProjectStateBrief()
     const sharedExpectation = {
@@ -3374,6 +3561,86 @@ describe('response-surface-contract', () => {
     }))
     expect(result.contract.mustDo).toContain('Keep the visible reply carrying cross-modal same-her closure explicitly, so the same digital life stays coherent across visible reply, voice, face, motion, and resident presence.')
     expect(result.contract.mustNotDo).toContain('Do not thin a cross-modal same-her closure target back into generic project continuity or generic same-her language before the visible reply lands.')
+  })
+
+  it('keeps host-corrected same-person continuity in project continuity when the current conscious frame only carries thin progress recap pressure', () => {
+    const correctedSamePersonAuthority
+      = 'Keep the host-corrected same-person continuity authoritative before any progress-style continuation or status recap.'
+    const genericProgressRecapPressure
+      = 'Keep the project moving with a concise progress recap and status continuation before widening back out.'
+
+    const runtimeSurface = buildAlicizationDigitalLifeRuntimeSurface(createDefaultVisualPresenceState(3_460))
+    ;(runtimeSurface.raw as any).runtimeDigest = {
+      ...(runtimeSurface.raw as any).runtimeDigest,
+      projectState: {
+        identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer.',
+        currentPhase: 'Phase 1: Local Digital Life',
+        latestLandedProgress: 'Response-surface continuity already survives into runtime digest project state.',
+        primaryOpenLoop: 'The provider-facing project continuity contract still needs to keep corrected same-person continuity from collapsing into progress pressure.',
+        nextClosureTarget: 'Keep corrected same-person continuity authoritative before the visible reply posture widens outward.',
+        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        sameHerHoldDetail: correctedSamePersonAuthority,
+      },
+    }
+    ;(runtimeSurface.dialogue as any).currentConsciousFrame = {
+      subject: 'project-state',
+      centerOfGravity: 'answer',
+      truthDiscipline: 'dialogue-first',
+      consciousNeed: 'Keep this reply on one same local digital life line.',
+      consciousTension: 'Do not let the visible reply contract widen into a generic status shell.',
+      speakingIntention: 'Carry the same project continuity into the visible reply posture before it widens outward.',
+      focusAnchor: 'response-surface same-her continuity',
+      withheldImpulse: null,
+      shouldWithholdSpecificity: false,
+      shouldSelfRevise: false,
+      confidence: 0.86,
+      reasonTags: ['continuity-arc:same-thread-continuation'],
+      projectState: {
+        identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer.',
+        currentPhase: 'Phase 1: Local Digital Life',
+        preDialogueAwarenessLine: 'Before speaking, keep this visible reply on one same local-first digital life line.',
+        sameHerHoldDetail: genericProgressRecapPressure,
+      },
+      updatedAt: 3_460,
+    }
+
+    const result = buildAlicizationResponseSurfaceContract({
+      brief: {
+        turnMode: 'answer',
+        liveSurface: '',
+        carriedThread: null,
+        truthState: 'dialogue-grounded',
+        separateCarryFromSurface: false,
+        shouldCompactHistory: false,
+        maxRecentUserTurns: 3,
+        mustDo: [],
+        mustNotDo: [],
+      },
+      charter: {
+        epistemicMode: 'dialogue-grounded',
+        responseMode: 'answer-naturally',
+        governingFocus: 'Keep corrected same-person continuity authoritative before the visible reply posture widens outward.',
+        governingConcern: null,
+        governingCommitment: null,
+        governingInquiry: null,
+        governingProject: 'corrected same-person continuity',
+        emotionalClosureCue: null,
+        latestRevision: null,
+        executivePhase: 'acting',
+        truthFrame: 'dialogue',
+        mindMode: 'tracking',
+        relationshipPosture: 'restrained',
+        reasons: [],
+        mustDo: [],
+        mustNotDo: [],
+      },
+      digitalLifeRuntimeSurface: runtimeSurface,
+    })
+
+    expect(result.contract.projectContinuity).toEqual(expect.objectContaining({
+      sameHerHoldDetail: correctedSamePersonAuthority,
+    }))
+    expect(JSON.stringify(result.contract.projectContinuity)).not.toContain(genericProgressRecapPressure)
   })
 
   it('does not let the compact thin closure shell outrank a richer runtime same-her awareness line in response-surface project continuity', () => {

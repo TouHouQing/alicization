@@ -35,6 +35,7 @@ import type { OrganicMemoryPromptContext } from './runtime-soul'
 
 import { resolveAlicizationProjectPreDialogueAwarenessLine } from '@proj-alicization/stage-shared'
 
+import { preferStrongerContinuityClosureAuthority } from './continuity-closure-authority'
 import { sanitizeDialogueAnchorText } from './dialogue-surface-text'
 import { deriveMindTruthContract } from './mind-truth-contract'
 import {
@@ -87,6 +88,47 @@ function sanitizeText(raw: unknown, maxChars = 220) {
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
 }
 
+function buildProjectedPlannerFocusCarry(input: {
+  repairTriggerText?: unknown
+  sensitivityText?: unknown
+}) {
+  const repairTriggerText = sanitizeText(input.repairTriggerText, 220)
+  const sensitivityText = sanitizeText(input.sensitivityText, 220)
+
+  return sanitizeText([
+    repairTriggerText
+      ? /repair before continuing|repair the seam|repair first/u.test(repairTriggerText.toLowerCase())
+        ? 'repair first'
+        : repairTriggerText
+      : '',
+    sensitivityText && /template-like speech|living reply|机械|模板/u.test(sensitivityText)
+      ? 'template-like wording breaks the sense of a living reply'
+      : '',
+  ].filter(Boolean).join(' '), 220)
+}
+
+function buildProjectedPlannerAnswerCarry(input: {
+  openingGuidance?: unknown
+  burdenText?: unknown
+}) {
+  const openingGuidance = sanitizeText(input.openingGuidance, 220)
+  const burdenText = sanitizeText(input.burdenText, 220)
+
+  return sanitizeText([
+    openingGuidance,
+    burdenText,
+  ].filter(Boolean).join(' '), 220)
+}
+
+function summarizeProjectedPlannerCadence(raw: unknown) {
+  const text = sanitizeText(raw, 220)
+  if (!text)
+    return ''
+  if (/observe-first/u.test(text))
+    return 'observe-first'
+  return text
+}
+
 function pickUserFacingAnchor(...values: unknown[]) {
   for (const value of values) {
     const normalized = sanitizeDialogueAnchorText(value, 180)
@@ -117,9 +159,6 @@ function looksLikeProjectStateDirectAnswerTurn(input: {
   conversationState?: AlicizationConversationStateSnapshot | null
   replyReason?: unknown
 }) {
-  if (!input.dialogueObligation?.mustAnswerDirectly)
-    return false
-
   const evidence = [
     sanitizeText(input.dialogueSemantics?.summary, 320),
     sanitizeText(input.discourseState?.currentTurnSummary, 320),
@@ -138,9 +177,35 @@ function looksLikeProjectStateDirectAnswerTurn(input: {
   const asksWhatThisProjectIs = /what alicization is|what this project is|项目是做什么|项目是什么/u.test(evidence)
   const asksProgressAndOpenClosure
     = /what still remains open|still remains open|what is not yet closed|做到什么程度|还差什么|没闭环|how far .* landed/u.test(evidence)
+  const asksCompletionTimelineOrLanguageDrift
+    = /计划什么时候完成|什么时候完成(?:这个)?\s*goal|何时完成(?:这个)?\s*goal|什么时候完成|何时完成|when (?:will|do).{0,24}(?:finish|complete|close)|expected to (?:finish|close)|expect to (?:finish|close)|when the goal is expected to close|why are you replying in english|replying in english|host language|为什么(?:一直|还)?用英文|为什么(?:一直|还)?不用中文|为什么还用英文|英文不用中文|是不是偏移了|偏移了吗|did the thread drift|thread drift|thread has drifted|drifted out of|out of alignment|跑偏了/u.test(evidence)
   const namesProjectStateTurn = /project-state question|project status|project-state|project continuity/u.test(evidence)
+  const hasStrongProjectStateCue = namesProjectStateTurn
+    || (asksWhatThisProjectIs && asksProgressAndOpenClosure)
+    || (asksCompletionTimelineOrLanguageDrift && asksProgressAndOpenClosure)
 
-  return namesProjectStateTurn || (asksWhatThisProjectIs && asksProgressAndOpenClosure)
+  if (input.dialogueObligation?.mustAnswerDirectly)
+    return hasStrongProjectStateCue
+
+  return hasStrongProjectStateCue
+}
+
+function shortenProjectStateDirectAnswerIntent(value: unknown) {
+  const text = sanitizeText(value, 220)
+  if (!text)
+    return ''
+
+  const normalized = text.toLowerCase()
+  const asksCompletionTimelineOrLanguageDrift
+    = /计划什么时候完成|什么时候完成(?:这个)?\s*goal|何时完成(?:这个)?\s*goal|什么时候完成|何时完成|when (?:will|do).{0,24}(?:finish|complete|close)|expected to (?:finish|close)|expect to (?:finish|close)|when the goal is expected to close|why are you replying in english|replying in english|host language|为什么(?:一直|还)?用英文|为什么(?:一直|还)?不用中文|为什么还用英文|英文不用中文|是不是偏移了|偏移了吗|did the thread drift|thread drift|thread has drifted|drifted out of|out of alignment|跑偏了/u.test(normalized)
+  const asksProgress
+    = /how far .* landed|how far phase 1 has landed|how far the current phase 1 line has landed|做到什么程度|做到哪了|进行到哪一步/u.test(normalized)
+
+  if (asksCompletionTimelineOrLanguageDrift && asksProgress) {
+    return 'same digital life line: Phase 1 landed progress, when the goal is expected to close, and whether the thread drifted out of the host language or project line still need one direct answer.'
+  }
+
+  return text
 }
 
 interface AlicizationAnswerPlannerRuntimeProjectState {
@@ -151,12 +216,33 @@ interface AlicizationAnswerPlannerRuntimeProjectState {
   latestLandedProgress?: string | null
   latestProgress?: string | null
   primaryOpenLoop?: string | null
+  proactiveSameHerGap?: string | null
   nextClosureTarget?: string | null
   sameHerSelfLine?: string | null
   sameHerHoldDetail?: string | null
   sameHerDriftRisk?: string | null
   continuityArcStage?: string | null
   continuityCue?: string | null
+}
+
+function readAnswerPlannerProjectContinuityFromAnswerCompiler(
+  answerCompiler?: AlicizationAnswerCompilerSnapshot | null,
+) {
+  const supportingReality = Array.isArray(answerCompiler?.supportingReality) ? answerCompiler.supportingReality : []
+  let proactiveSameHerGap: string | null = null
+
+  for (const item of supportingReality) {
+    const normalized = sanitizeText(item, 320)
+    if (!normalized)
+      continue
+    if (!/^proactive same-her gap:\s*/i.test(normalized))
+      continue
+    proactiveSameHerGap ||= normalized.replace(/^proactive same-her gap:\s*/i, '').trim() || null
+  }
+
+  return {
+    proactiveSameHerGap,
+  }
 }
 
 function resolveAnswerPlannerProjectStateText(input: {
@@ -180,6 +266,25 @@ function resolveAnswerPlannerProjectStateText(input: {
   }
 
   return ''
+}
+
+function preferAnswerPlannerProjectStateAuditText(input: {
+  current?: unknown
+  candidate?: unknown
+  maxChars?: number
+}) {
+  const current = sanitizeText(input.current, input.maxChars ?? 320)
+  const candidate = sanitizeText(input.candidate, input.maxChars ?? 320)
+
+  if (!current)
+    return candidate || ''
+  if (!candidate)
+    return current
+  if (current === candidate)
+    return current
+
+  return preferStrongerContinuityClosureAuthority(current, candidate)
+    || current
 }
 
 function resolveAnswerPlannerSurfaceProjectState(
@@ -251,6 +356,15 @@ function resolveAnswerPlannerSurfaceProjectState(
       ]),
       maxChars: 320,
     }) || null,
+    proactiveSameHerGap: resolveAnswerPlannerProjectStateText({
+      current: currentProjectState?.proactiveSameHerGap,
+      summary: currentProjectState?.proactiveSameHerGapSummary,
+      fallbacks: persistedSources.flatMap(source => [
+        source?.proactiveSameHerGap,
+        source?.proactiveSameHerGapSummary,
+      ]),
+      maxChars: 320,
+    }) || null,
     nextClosureTarget: resolveAnswerPlannerProjectStateText({
       current: currentProjectState?.nextClosureTarget,
       summary: currentProjectState?.nextClosureTargetSummary,
@@ -265,9 +379,17 @@ function resolveAnswerPlannerSurfaceProjectState(
       fallbacks: persistedSources.map(source => source?.sameHerSelfLine),
       maxChars: 320,
     }) || null,
-    sameHerHoldDetail: resolveAnswerPlannerProjectStateText({
+    sameHerHoldDetail: preferAnswerPlannerProjectStateAuditText({
       current: currentProjectState?.sameHerHoldDetail,
-      fallbacks: persistedSources.map(source => source?.sameHerHoldDetail),
+      candidate: preferAnswerPlannerProjectStateAuditText({
+        current: dialogueRuntimeProjectState?.sameHerHoldDetail,
+        candidate: preferAnswerPlannerProjectStateAuditText({
+          current: rawRuntimeProjectState?.sameHerHoldDetail,
+          candidate: cognitionRuntimeProjectState?.sameHerHoldDetail,
+          maxChars: 320,
+        }),
+        maxChars: 320,
+      }),
       maxChars: 320,
     }) || null,
     sameHerDriftRisk: resolveAnswerPlannerProjectStateText({
@@ -506,6 +628,8 @@ function projectStateLineScore(value: unknown) {
     return -1
 
   let score = 0
+  if (hasExecutionResumeConfirmationBoundary(text))
+    score += 5
   if (text.includes('same digital life'))
     score += 1
   if (text.includes('phase 1'))
@@ -533,16 +657,33 @@ function projectStateLineScore(value: unknown) {
   return score
 }
 
+function hasExecutionResumeConfirmationBoundary(value: unknown) {
+  const text = sanitizeText(value, 320).toLowerCase()
+  if (!text)
+    return false
+
+  return /execution-resume-confirmation|execution resume confirmation|host-confirmed-before-redispatch|resume-before-dispatch|bounded confirmation boundary|not permanent execution permission|another execution-shaped opening|standing execution permission|generic autonomous continuation/u.test(text)
+}
+
 function isThinProjectAwarenessShell(value: unknown) {
   const text = sanitizeText(value, 320).toLowerCase()
   if (!text)
     return false
+
+  const carriesThinChineseSameHerReminderShell
+    = (
+      /回答前先记住|先记住这是同一个她|先记住这是同一个 her/u.test(text)
+      && text.includes('数字生命项目')
+      && (/同一个她|同一个 her/u.test(text))
+      && /别把这条线忘了|别把这条线弄丢/u.test(text)
+    )
 
   return text === 'same digital life | keep the closure seam explicit'
     || text.includes('closure seam explicit')
     || text.includes('detached project shell')
     || text.includes('generic project shell')
     || text.includes('keep this same digital life project in view')
+    || carriesThinChineseSameHerReminderShell
 }
 
 function preferProjectStateLine(primary: unknown, fallback: unknown) {
@@ -691,6 +832,7 @@ function buildAnswerPlannerCanonicalProjectAwarenessFallback(
       ?? canonicalProjectState.memoryAnthropomorphismProgress[0]
       ?? null,
     primaryOpenLoop: canonicalProjectState.openLoops[0] ?? null,
+    proactiveSameHerGap: canonicalProjectState.proactiveSameHerGap ?? null,
     nextClosureTarget: canonicalProjectState.nextClosureTarget ?? null,
     sameHerSelfLine: canonicalProjectState.sameHerSelfLine ?? null,
     sameHerDriftRisk: canonicalProjectState.sameHerDriftRisk ?? null,
@@ -727,11 +869,13 @@ function resolveAnswerPlannerProjectAwarenessLead(input: {
 
 function buildAnswerPlannerGoverningProject(input: {
   runtimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
+  answerCompiler?: AlicizationAnswerCompilerSnapshot | null
 }) {
   const canonicalProjectState = resolveAlicizationProjectStateBrief()
   const surfaceProjectState = resolveAnswerPlannerSurfaceProjectState(input.runtimeSurface)
   const consciousProjectState = input.runtimeSurface?.dialogue.currentConsciousFrame?.projectState ?? null
   const projectState = surfaceProjectState ?? consciousProjectState ?? null
+  const answerCompilerProjectContinuity = readAnswerPlannerProjectContinuityFromAnswerCompiler(input.answerCompiler)
   const strongerCompanionHeadline = sanitizeText(consciousProjectState?.companionHeadlineLine, 320)
   const fallbackCompanionHeadline = sanitizeText(projectState?.companionHeadlineLine, 320)
   const preferredAwarenessLine = resolveAlicizationProjectPreDialogueAwarenessLine({
@@ -756,6 +900,11 @@ function buildAnswerPlannerGoverningProject(input: {
       : projectState?.primaryOpenLoop,
     canonicalProjectState.openLoops[0] ?? '',
   )
+  const proactiveSameHerGap = preferProjectStateLine(
+    projectState?.proactiveSameHerGap,
+    answerCompilerProjectContinuity.proactiveSameHerGap
+      || canonicalProjectState.proactiveSameHerGap,
+  )
   const runtimeLandedProgress
     = projectState?.latestLandedProgress
       ?? projectState?.latestProgress
@@ -775,10 +924,10 @@ function buildAnswerPlannerGoverningProject(input: {
     projectState?.sameHerSelfLine,
     canonicalProjectState.sameHerSelfLine,
   )
-  const sameHerHoldDetail = preferProjectStateLine(
+  const sameHerHoldDetail = sanitizeText(
     projectState?.sameHerHoldDetail,
-    canonicalProjectState.sameHerHoldDetail,
-  )
+    320,
+  ) || sanitizeText(canonicalProjectState.sameHerHoldDetail, 320)
   const sameHerDriftRisk = preferProjectStateLine(
     projectState?.sameHerDriftRisk,
     canonicalProjectState.sameHerDriftRisk,
@@ -799,6 +948,7 @@ function buildAnswerPlannerGoverningProject(input: {
     currentPhase,
     latestLandedProgress,
     primaryOpenLoop,
+    proactiveSameHerGap,
     nextClosureTarget,
   ]
     .map(value => sanitizeText(value, 320))
@@ -955,7 +1105,11 @@ function dominantProject(intentionStream?: AlicizationIntentionStreamSnapshot | 
 }
 
 function latestReflection(reflectionLedger?: AlicizationReflectionLedgerSnapshot | null) {
-  return reflectionLedger?.entries.find(entry => entry.id === reflectionLedger.latestEntryId)
+  const latest = reflectionLedger?.entries.find(entry => entry.id === reflectionLedger.latestEntryId)
+  if (latest && latest.outcome !== 'released')
+    return latest
+
+  return reflectionLedger?.entries.find(entry => entry.outcome !== 'released')
     ?? reflectionLedger?.entries[0]
     ?? null
 }
@@ -1552,6 +1706,7 @@ export function buildAnswerPlanner(input: {
       && turnProfile.screenReferenceMode === 'avoid'
   const governingProject = buildAnswerPlannerGoverningProject({
     runtimeSurface,
+    answerCompiler,
   })
   const preDialogueClosureLine = buildAnswerPlannerPreDialogueClosureLine({
     runtimeSurface,
@@ -1560,6 +1715,22 @@ export function buildAnswerPlanner(input: {
   const sameHerProjectDriftRiskFromSurface = readSameHerProjectDriftRiskFromRuntimeSurface(runtimeSurface)
   const correctedSamePersonContinuityCarry
     = hasCorrectedSamePersonContinuityCarryFromRuntimeSurface(runtimeSurface)
+  const resumeConfirmationBoundaryCarry
+    = hasExecutionResumeConfirmationBoundary(surfaceProjectState?.sameHerHoldDetail)
+      || hasExecutionResumeConfirmationBoundary(surfaceProjectState?.continuityCue)
+      || hasExecutionResumeConfirmationBoundary(surfaceProjectState?.primaryOpenLoop)
+      || hasExecutionResumeConfirmationBoundary(surfaceProjectState?.nextClosureTarget)
+  const projectedPlannerFocusCarry = buildProjectedPlannerFocusCarry({
+    repairTriggerText: preferredPersonStateProjection?.repairTriggerText,
+    sensitivityText: preferredPersonStateProjection?.sensitivityText,
+  })
+  const projectedPlannerAnswerCarry = buildProjectedPlannerAnswerCarry({
+    openingGuidance: preferredPersonStateProjection?.openingGuidance,
+    burdenText: preferredPersonStateProjection?.burdenText,
+  })
+  const projectedPlannerCadenceCarry = summarizeProjectedPlannerCadence(
+    preferredPersonStateProjection?.manifestationCadenceSummary,
+  )
 
   if (answerCompiler) {
     const sameHerProjectStateReplyReason = isSameHerProjectStateReplyReason(replyDeliberation?.whyThisReplyNow)
@@ -1620,6 +1791,9 @@ export function buildAnswerPlanner(input: {
       conversationState,
       replyReason: replyDeliberation?.whyThisReplyNow,
     })
+    const shortenedProjectStateDirectAnswerIntent = implicitProjectStateDirectAnswerTurn
+      ? shortenProjectStateDirectAnswerIntent(replyDeliberation?.whyThisReplyNow)
+      : ''
     const preferredRelationshipAnchor = buildRelationshipFacingAuthorityAnchor({
       turnProfile,
       selfContinuityAuthority,
@@ -1631,6 +1805,7 @@ export function buildAnswerPlanner(input: {
     const focus = sanitizeText(
       relationshipTruthDoctrinePrefix
         ? `${relationshipTruthDoctrinePrefix} | ${pickUserFacingAnchor(
+          shortenedProjectStateDirectAnswerIntent,
           sameHerProjectStateReplyReason,
           implicitProjectStateDirectAnswerTurn ? replyDeliberation?.whyThisReplyNow : '',
           shouldThreadSameHerPlannerAuthority
@@ -1651,6 +1826,7 @@ export function buildAnswerPlanner(input: {
           mindSynthesis?.interiorSummary,
         )}`
         : pickUserFacingAnchor(
+            shortenedProjectStateDirectAnswerIntent,
             sameHerProjectStateReplyReason,
             implicitProjectStateDirectAnswerTurn ? replyDeliberation?.whyThisReplyNow : '',
             preferredRelationshipAnchor,
@@ -1675,6 +1851,10 @@ export function buildAnswerPlanner(input: {
           ),
       220,
     ) || 'Stay with the current compiled turn spine.'
+    const projectionShapedFocus = sanitizeText(
+      [focus, projectedPlannerFocusCarry].filter(Boolean).join(' '),
+      220,
+    ) || focus
     const shouldAskForGrounding = input.groundedThisTurn === true
       ? false
       : answerCompiler.recommendedAct === 'ask-reground'
@@ -1708,21 +1888,39 @@ export function buildAnswerPlanner(input: {
       mustNotDo.push('Do not let landed progress or still-open closure pressure spill into an external project-summary voice before the same living answer lands.')
       narrative.push('project_state_carry:same-her project awareness should keep landed progress and next closure inward-first until the live payoff lands.')
     }
-
-    return {
-      act: answerCompiler.recommendedAct,
-      evidenceMode: answerCompiler.evidenceMode,
-      confidence: answerCompiler.confidence,
-      governingFocus: focus,
-      governingProject,
-      openingMove: replyDeliberation?.openingBeat ?? answerCompiler.openingDirective,
-      answerIntent: sanitizeText(
-        relationshipTruthDoctrinePrefix
-          ? `${relationshipTruthDoctrinePrefix} | ${pickUserFacingAnchor(
+    if (resumeConfirmationBoundaryCarry) {
+      mustDo.push('Treat the remembered host-confirmed resume as a bounded confirmation boundary before another execution-shaped opening.')
+      mustNotDo.push('Do not let this callback answer imply permanent execution permission or reusable autonomous continuation from one confirmed resume.')
+      narrative.push('resume_confirmation_boundary:host-confirmed resume carry must stay a bounded confirmation boundary during callback answer planning.')
+    }
+    const baseAnswerIntent = sanitizeText(
+      relationshipTruthDoctrinePrefix
+        ? `${relationshipTruthDoctrinePrefix} | ${pickUserFacingAnchor(
+          shortenedProjectStateDirectAnswerIntent,
+          sameHerProjectStateReplyReason,
+          implicitProjectStateDirectAnswerTurn ? replyDeliberation?.whyThisReplyNow : '',
+          shouldThreadSameHerPlannerAuthority
+            ? selfContinuityAuthority?.authoritySummary
+            : '',
+          conversationState?.primaryTurnAnchor,
+          discourseState?.primaryTurnAnchor,
+          conversationState?.hostMove,
+          dialogueWorldThread?.currentQuestion,
+          conversationState?.activeProject,
+          answerCompiler.openingClaim,
+          answerCompiler.nextMove,
+          discourseState?.currentTurnSummary,
+          mindSynthesis?.openingIntent,
+          replyDeliberation?.whyThisReplyNow,
+        )}`
+        : pickUserFacingAnchor(
+            shortenedProjectStateDirectAnswerIntent,
             sameHerProjectStateReplyReason,
             implicitProjectStateDirectAnswerTurn ? replyDeliberation?.whyThisReplyNow : '',
+            preferredRelationshipAnchor,
             shouldThreadSameHerPlannerAuthority
-              ? selfContinuityAuthority?.authoritySummary
+            && !preferredRelationshipAnchor
+              ? threadedSameHerPlannerIntentLine
               : '',
             conversationState?.primaryTurnAnchor,
             discourseState?.primaryTurnAnchor,
@@ -1734,28 +1932,21 @@ export function buildAnswerPlanner(input: {
             discourseState?.currentTurnSummary,
             mindSynthesis?.openingIntent,
             replyDeliberation?.whyThisReplyNow,
-          )}`
-          : pickUserFacingAnchor(
-              sameHerProjectStateReplyReason,
-              implicitProjectStateDirectAnswerTurn ? replyDeliberation?.whyThisReplyNow : '',
-              preferredRelationshipAnchor,
-              shouldThreadSameHerPlannerAuthority
-              && !preferredRelationshipAnchor
-                ? threadedSameHerPlannerIntentLine
-                : '',
-              conversationState?.primaryTurnAnchor,
-              discourseState?.primaryTurnAnchor,
-              conversationState?.hostMove,
-              dialogueWorldThread?.currentQuestion,
-              conversationState?.activeProject,
-              answerCompiler.openingClaim,
-              answerCompiler.nextMove,
-              discourseState?.currentTurnSummary,
-              mindSynthesis?.openingIntent,
-              replyDeliberation?.whyThisReplyNow,
-            ),
-        160,
-      ) || answerCompiler.openingClaim,
+          ),
+      160,
+    ) || answerCompiler.openingClaim
+
+    return {
+      act: answerCompiler.recommendedAct,
+      evidenceMode: answerCompiler.evidenceMode,
+      confidence: answerCompiler.confidence,
+      governingFocus: projectionShapedFocus,
+      governingProject,
+      openingMove: replyDeliberation?.openingBeat ?? answerCompiler.openingDirective,
+      answerIntent: sanitizeText([
+        baseAnswerIntent,
+        projectedPlannerAnswerCarry,
+      ].filter(Boolean).join(' '), 220) || answerCompiler.openingClaim,
       relationshipPosture: answerCompiler.relationshipPosture,
       activeClosenessContext: compiledActiveClosenessContext,
       activeClosenessRung: compiledActiveClosenessRung,
@@ -1775,11 +1966,12 @@ export function buildAnswerPlanner(input: {
       narrative: [
         preDialogueClosureLine ? `pre-dialogue closure: ${preDialogueClosureLine}` : '',
         ...narrative,
+        projectedPlannerCadenceCarry ? `projection_cadence:${projectedPlannerCadenceCarry}` : '',
         compiledActiveClosenessContext && compiledActiveClosenessRung
           ? `closeness-ladder:${compiledActiveClosenessContext}/${compiledActiveClosenessRung}`
           : '',
         discourseState ? `compiled-subject:${discourseState.currentTurnSubject}` : '',
-        focus,
+        projectionShapedFocus,
       ].filter(Boolean),
       updatedAt: input.now,
     } satisfies AlicizationAnswerPlannerSnapshot
@@ -1861,6 +2053,10 @@ export function buildAnswerPlanner(input: {
     mustDo.push('Keep the host-corrected same-person continuity authoritative before any progress-style continuation or status recap.')
     mustNotDo.push('Do not reopen the turn as generic progress pressure, status recap, or task-shell continuity after the host corrected it back toward same-person continuity.')
   }
+  if (resumeConfirmationBoundaryCarry) {
+    mustDo.push('Treat the remembered host-confirmed resume as a bounded confirmation boundary before another execution-shaped opening.')
+    mustNotDo.push('Do not let this callback answer imply permanent execution permission or reusable autonomous continuation from one confirmed resume.')
+  }
   const emotionalClosureCue = deriveAnswerPlannerEmotionalClosureCue({
     privateThought,
     mustDo,
@@ -1902,6 +2098,10 @@ export function buildAnswerPlanner(input: {
         220,
       )
     : focus
+  const projectionShapedFallbackFocus = sanitizeText(
+    [normalizedFocus, projectedPlannerFocusCarry].filter(Boolean).join(' '),
+    220,
+  ) || normalizedFocus
   const normalizedAnswerIntent = (turnProfile.subject === 'alicization-self' || turnProfile.subject === 'relationship')
     && (genericRelationshipTruthDoctrinePrefix || selfContinuityAuthority?.selfLine)
     ? sanitizeText(`${answerIntent({
@@ -1932,6 +2132,10 @@ export function buildAnswerPlanner(input: {
         dialogueWorldThread,
         replyDeliberation,
       })
+  const projectionShapedFallbackAnswerIntent = sanitizeText(
+    [normalizedAnswerIntent, projectedPlannerAnswerCarry].filter(Boolean).join(' '),
+    220,
+  ) || normalizedAnswerIntent
   return {
     act,
     evidenceMode: mode,
@@ -1945,7 +2149,7 @@ export function buildAnswerPlanner(input: {
       + Math.max(0, selectedReflection?.confidenceShift ?? 0) * 0.08
       + (selectedInquiry ? 0.08 : 0.04),
     ),
-    governingFocus: normalizedFocus,
+    governingFocus: projectionShapedFallbackFocus,
     governingProject,
     openingMove: openingMove({
       act,
@@ -1955,7 +2159,7 @@ export function buildAnswerPlanner(input: {
       privateThought,
       runtimeSurface,
     }),
-    answerIntent: normalizedAnswerIntent,
+    answerIntent: projectionShapedFallbackAnswerIntent,
     relationshipPosture: posture,
     activeClosenessContext: compiledActiveClosenessContext,
     activeClosenessRung: compiledActiveClosenessRung,
@@ -1977,6 +2181,7 @@ export function buildAnswerPlanner(input: {
       `answer_act:${act}`,
       `evidence_mode:${mode}`,
       emotionalClosureCue ? `emotional_closure:${emotionalClosureCue}` : '',
+      projectedPlannerCadenceCarry ? `projection_cadence:${projectedPlannerCadenceCarry}` : '',
       `relationship_posture:${posture}`,
       compiledActiveClosenessContext && compiledActiveClosenessRung
         ? `closeness-ladder:${compiledActiveClosenessContext}/${compiledActiveClosenessRung}`
@@ -1988,7 +2193,7 @@ export function buildAnswerPlanner(input: {
       executiveCycle?.phase ? `executive_phase:${executiveCycle.phase}` : '',
       selectedProject ? `mind_project:${selectedProject.kind}` : '',
       selectedReflection ? `reflection:${selectedReflection.outcome}` : '',
-      normalizedFocus,
+      projectionShapedFallbackFocus,
     ],
     updatedAt: input.now,
   } satisfies AlicizationAnswerPlannerSnapshot
