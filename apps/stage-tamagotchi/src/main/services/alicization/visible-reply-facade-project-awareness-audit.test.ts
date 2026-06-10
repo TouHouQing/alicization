@@ -33,6 +33,17 @@ const proofRows = [
     ],
   },
   {
+    entry: 'visible-reply-facade-richer-project-state-continuity-precedence',
+    file: './visible-reply/facade.test.ts',
+    snippets: [
+      'keeps richer project-state continuity while still honoring fallback conscious-frame phase override when building the visible reply surface contract',
+      'Project-state continuity already survives into runtime preparation.',
+      'same still-open closure work across memory, initiative, and embodiment.',
+      'Carry the same-her project briefing into the live answer before any local detail takes over.',
+      'Project pre-dialogue awareness line: Before answering, remember: Alicization is a local-first digital life project building one continuous "her".',
+    ],
+  },
+  {
     entry: 'visible-reply-facade-dialogue-runtime-same-her-hold-carry',
     file: './visible-reply/facade.test.ts',
     snippets: [
@@ -46,9 +57,10 @@ const proofRows = [
     entry: 'visible-reply-facade-callback-project-continuity-carry',
     file: './visible-reply/facade.test.ts',
     snippets: [
-      'keeps compiler-carried same-her callback project continuity in final visible-reply system blocks when the conscious frame stays thin',
+      'keeps compiler-carried same-her callback project continuity explicit in final visible-reply system blocks when the conscious frame stays thin',
       'This callback return still belongs to one same her carrying the same closure line forward.',
       'Same-her callback continuity already survives through answer compilation and response-surface carry before the final visible reply forms.',
+      'Before widening outward, keep this pre-dialogue project awareness line alive inside the visible reply posture: Before answering, remember this callback still belongs to one same digital life and the unfinished Phase 1 closure seam still belongs to her.',
       'Do not let same-her callback continuity collapse into a generic callback shell or detached utility notice once the final visible reply is formed.',
     ],
   },
@@ -61,6 +73,17 @@ const proofRows = [
       'Project same-her drift risk: If project-state continuity survives only as generic guidance while the direct same-her self line disappears, treat that as unfinished closure drift rather than a successful turn..',
     ],
   },
+  {
+    entry: 'visible-reply-facade-repair-truth-doctrine-carry',
+    file: './visible-reply/facade.test.ts',
+    snippets: [
+      'carries same-her repair-truth doctrine into provider-facing visible reply system blocks for relationship turns',
+      'I would rather repair truth than sound smooth.',
+      'Stay close enough to matter, but do not let closeness outrun truth.',
+      'Repair truth before flourish.',
+      'Relationship truth doctrine:',
+    ],
+  },
 ] as const
 
 describe('visible reply facade project awareness audit', () => {
@@ -69,9 +92,11 @@ describe('visible reply facade project awareness audit', () => {
       expect.objectContaining({ entry: 'visible-reply-facade-live-project-awareness-precedence' }),
       expect.objectContaining({ entry: 'visible-reply-facade-richer-summary-precedence' }),
       expect.objectContaining({ entry: 'visible-reply-facade-anti-restart-closure-pressure-unification' }),
+      expect.objectContaining({ entry: 'visible-reply-facade-richer-project-state-continuity-precedence' }),
       expect.objectContaining({ entry: 'visible-reply-facade-dialogue-runtime-same-her-hold-carry' }),
       expect.objectContaining({ entry: 'visible-reply-facade-callback-project-continuity-carry' }),
       expect.objectContaining({ entry: 'visible-reply-facade-fresher-same-her-self-line-precedence' }),
+      expect.objectContaining({ entry: 'visible-reply-facade-repair-truth-doctrine-carry' }),
     ])
 
     expect(proofRows.every(row => row.snippets.length > 0)).toBe(true)

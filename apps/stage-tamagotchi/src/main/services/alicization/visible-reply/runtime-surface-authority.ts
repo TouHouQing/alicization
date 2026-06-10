@@ -4,10 +4,51 @@ import type { AlicizationMindTurnGovernance } from '../../../../shared/eventa'
 
 import { normalizeAlicizationNormalVisibleReplyAuthority } from '@proj-alicization/stage-shared'
 
+export interface AlicizationMainChatReplyProjectStateAudit {
+  sameHerSummary?: string | null
+  sameHerHoldDetail?: string | null
+  continuityArcStage?: string | null
+  continuityCue?: string | null
+  sameHerDriftRiskSummary?: string | null
+  proactiveSameHerGapSummary?: string | null
+  currentPhaseSummary?: string | null
+  landedProgressSummary?: string | null
+  openClosureSummary?: string | null
+  openFocusSummary?: string | null
+  nextFocusSummary?: string | null
+  nextClosureTargetSummary?: string | null
+  continuitySummary?: string | null
+  embodimentClosureSummary?: string | null
+  preDialogueAwarenessSummary?: string | null
+  preservedIntoRewrite?: boolean
+  rewriteClosureApplied?: boolean
+}
+
+export interface AlicizationMainChatReplyResponseSurfaceContract {
+  projectContinuity?: {
+    currentPhase?: string | null
+    latestProgress?: string | null
+    primaryOpenLoop?: string | null
+    nextClosureTarget?: string | null
+    preDialogueAwarenessLine?: string | null
+    sameHerSelfLine?: string | null
+    sameHerDriftRisk?: string | null
+    emotionalClosureCue?: string | null
+    sameHerLineRequired?: boolean
+  } | null
+}
+
+export interface AlicizationMainChatVisibleReplyClosureSurface {
+  projectStateAudit?: AlicizationMainChatReplyProjectStateAudit | null
+}
+
 export interface AlicizationMainChatReplyAuthoritySurface {
   replyRealizationMode: 'provider-mind-required' | 'fallback-locally-allowed'
   expectedVisibleReplyAuthority: AlicizationNormalVisibleReplyAuthority
   whyProviderMindRequired: string | null
+  projectStateAudit?: AlicizationMainChatReplyProjectStateAudit | null
+  responseSurfaceContract?: AlicizationMainChatReplyResponseSurfaceContract | null
+  visibleReplyClosure?: AlicizationMainChatVisibleReplyClosureSurface | null
 }
 
 export interface AlicizationMainChatReplyExecutionPlanSurface {

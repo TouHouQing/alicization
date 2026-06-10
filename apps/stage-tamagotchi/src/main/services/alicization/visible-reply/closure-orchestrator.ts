@@ -1,8 +1,8 @@
 import type { AlicizationVisibleReplyExecution } from '../../../../shared/eventa'
 import type { AlicizationPreparedMainChatExecutionResult } from '../main-chat-session-runtime'
-import type { AlicizationSecondPassRewriteResult } from './second-pass-rewrite'
 import type { AlicizationVisibleReplyCriticArtifact } from './critic'
 import type { AlicizationVisibleReplyClosureArtifact } from './realization-engine'
+import type { AlicizationSecondPassRewriteResult } from './second-pass-rewrite'
 
 import {
   buildAlicizationVisibleReplyCriticArtifact,
@@ -58,11 +58,13 @@ export async function closeAlicizationVisibleReply(input: {
   prepared: AlicizationPreparedMainChatExecutionResult
   forceRewrite?: boolean
   forceReasonCodes?: string[]
+  forceMustPreserve?: string[]
   rewriteSecondPass: (input: {
     fullText: string
     visibleReplyExecution: AlicizationVisibleReplyExecution
     forceRewrite: boolean
     forceReasonCodes: string[]
+    mustPreserve: string[]
   }) => Promise<AlicizationSecondPassRewriteResult | null>
 }): Promise<AlicizationVisibleReplyClosureResult | null> {
   const initialCritic = buildAlicizationVisibleReplyCriticArtifact({
@@ -74,6 +76,10 @@ export async function closeAlicizationVisibleReply(input: {
   const forceReasonCodes = uniqueReasonCodes([
     ...(input.forceReasonCodes ?? []),
     ...initialCritic.repairReasonCodes,
+  ])
+  const mustPreserve = uniqueReasonCodes([
+    ...(input.forceMustPreserve ?? []),
+    ...initialCritic.mustPreserve,
   ])
 
   if (!forceRewrite) {
@@ -96,6 +102,7 @@ export async function closeAlicizationVisibleReply(input: {
     visibleReplyExecution: input.draft.visibleReplyExecution,
     forceRewrite,
     forceReasonCodes,
+    mustPreserve,
   })
   if (!rewritten?.rewritten) {
     const closure = buildClosureArtifact({

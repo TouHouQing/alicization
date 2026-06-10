@@ -23,6 +23,16 @@ const proofRows = [
     ],
   },
   {
+    entry: 'visible-reply-settlement-thin-chinese-same-her-reminder-rejected',
+    file: './visible-reply/settlement.test.ts',
+    snippets: [
+      'preserves richer chinese phase-1 awareness carry through final settlement when runtime project-state is already stronger than thin chinese shells',
+      'const thinCarriedReminder = \'回答前先记住这是同一个她的数字生命项目，别把这条线忘了。\'',
+      '.toBe(richerChineseAwarenessLine)',
+      '.toContain(\'本地优先数字生命项目\')',
+    ],
+  },
+  {
     entry: 'visible-reply-settlement-generic-same-her-reanchor',
     file: './visible-reply/settlement.test.ts',
     snippets: [
@@ -66,6 +76,7 @@ describe('visible reply settlement project awareness audit', () => {
     expect(proofRows).toEqual([
       expect.objectContaining({ entry: 'visible-reply-settlement-phase1-same-her-authority' }),
       expect.objectContaining({ entry: 'visible-reply-settlement-callback-specific-project-awareness' }),
+      expect.objectContaining({ entry: 'visible-reply-settlement-thin-chinese-same-her-reminder-rejected' }),
       expect.objectContaining({ entry: 'visible-reply-settlement-generic-same-her-reanchor' }),
       expect.objectContaining({ entry: 'visible-reply-settlement-repair-first-closure-summary' }),
       expect.objectContaining({ entry: 'visible-reply-settlement-rest-protective-closure-summary' }),
