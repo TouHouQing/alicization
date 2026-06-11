@@ -8768,6 +8768,7 @@ describe('main chat background run', () => {
     const sameHerHoldDetail = 'background side-channel hold: keep the already-settled provider-stream reply on the same Phase 1 living line'
     const continuityArcStage = 'background-side-channel-provider-stream-carry'
     const continuityCue = 'background side-channel cue: preserve the same-her hold after host-visible rebuild'
+    const proactiveSameHerGapSummary = 'Background side-channel carry still needs stronger proof that host-visible project-state audits keep the proactive same-her gap explicit across delayed lifecycle handoffs.'
     vi.mocked(runAlicizationMainChatStream).mockResolvedValueOnce(createStreamResult({
       fullText: JSON.stringify({
         format: 'mind-turn-v1',
@@ -8780,6 +8781,7 @@ describe('main chat background run', () => {
         sameHerHoldDetail,
         continuityArcStage,
         continuityCue,
+        proactiveSameHerGapSummary,
         currentPhaseSummary: 'Phase 1',
         landedProgressSummary: 'landed',
         openClosureSummary: 'open closure',
@@ -8851,6 +8853,7 @@ describe('main chat background run', () => {
           sameHerHoldDetail?: string | null
           continuityArcStage?: string | null
           continuityCue?: string | null
+          proactiveSameHerGapSummary?: string | null
           continuitySummary?: string | null
         } | null
       } | null
@@ -8876,6 +8879,7 @@ describe('main chat background run', () => {
           sameHerHoldDetail?: string | null
           continuityArcStage?: string | null
           continuityCue?: string | null
+          proactiveSameHerGapSummary?: string | null
           continuitySummary?: string | null
         } | null
       } | null
@@ -8906,13 +8910,17 @@ describe('main chat background run', () => {
     expect(finishedPayload?.visibleReplyRealization?.projectStateAudit?.sameHerHoldDetail).toBe(sameHerHoldDetail)
     expect(finishedPayload?.visibleReplyRealization?.projectStateAudit?.continuityArcStage).toBe(continuityArcStage)
     expect(finishedPayload?.visibleReplyRealization?.projectStateAudit?.continuityCue).toBe(continuityCue)
+    expect(finishedPayload?.visibleReplyRealization?.projectStateAudit?.proactiveSameHerGapSummary).toBe(proactiveSameHerGapSummary)
     expect(String(finishedPayload?.visibleReplyRealization?.projectStateAudit?.continuitySummary ?? '')).toContain(`hold=${sameHerHoldDetail}`)
     expect(String(finishedPayload?.visibleReplyRealization?.projectStateAudit?.continuitySummary ?? '')).toContain(`arc=${continuityArcStage}`)
     expect(String(finishedPayload?.visibleReplyRealization?.projectStateAudit?.continuitySummary ?? '')).toContain(`cue=${continuityCue}`)
+    expect(String(finishedPayload?.visibleReplyRealization?.projectStateAudit?.continuitySummary ?? '')).toContain(`proactive-gap=${proactiveSameHerGapSummary}`)
     expect(finishedStructured.visibleReplyRealization?.projectStateAudit?.sameHerHoldDetail).toBe(sameHerHoldDetail)
     expect(finishedStructured.visibleReplyRealization?.projectStateAudit?.continuityArcStage).toBe(continuityArcStage)
     expect(finishedStructured.visibleReplyRealization?.projectStateAudit?.continuityCue).toBe(continuityCue)
+    expect(finishedStructured.visibleReplyRealization?.projectStateAudit?.proactiveSameHerGapSummary).toBe(proactiveSameHerGapSummary)
     expect(String(finishedStructured.visibleReplyRealization?.projectStateAudit?.preDialogueAwarenessSummary ?? '')).not.toBe('same digital life | keep the closure seam explicit')
+    expect(String(finishedStructured.visibleReplyRealization?.projectStateAudit?.continuitySummary ?? '')).toContain(`proactive-gap=${proactiveSameHerGapSummary}`)
   })
 
   it('escalates invalid compact utility timeout candidates into the generic non-streaming retry chain', async () => {
@@ -9668,6 +9676,250 @@ describe('main chat background run', () => {
     expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.visible-reply-second-pass-started', expect.objectContaining({
       cardId: 'card-1',
       turnId: 'turn-inline',
+    }))
+  })
+
+  it('uses prepared browser workflow overrides during execution-first inline dispatch', async () => {
+    const executeDeterministicTool = vi.fn(async () => ({
+      ok: true,
+      status: 'completed',
+      channel: 'browser',
+      threadStatus: 'completed',
+      sessionId: 'session-inline-browser',
+      threadId: 'thread-inline-browser',
+      completedAt: 123456,
+      summary: 'Opened Weibo and continued the posting workflow.',
+      output: 'https://weibo.com',
+    }))
+    vi.mocked(generateAlicizationMainChatNonStreaming)
+      .mockResolvedValueOnce({
+        finishReason: 'stop',
+        fullText: JSON.stringify({
+          thought: 'obligation=guide; truth=grounded; focus=weibo-workflow; move=pay-off-finished-result; tone=direct',
+          emotion: 'thinking',
+          reply: '微博已经打开，并且我继续沿着发微博流程往下走了。',
+          performance: {
+            baseEmotion: 'thinking',
+            facialCue: 'attentive',
+            actionCue: 'focus',
+            delivery: 'calm',
+            emphasis: 0,
+          },
+        }),
+      })
+      .mockResolvedValueOnce({
+        finishReason: 'stop',
+        fullText: JSON.stringify({
+          format: 'mind-turn-v1',
+          thought: 'obligation=guide; truth=grounded; focus=weibo-workflow; move=pay-off-finished-result; tone=direct',
+          emotion: 'thinking',
+          reply: '我已经把微博打开了，也继续沿着发微博这条流程往下推进了。',
+          performance: {
+            baseEmotion: 'thinking',
+            facialCue: 'attentive',
+            actionCue: 'focus',
+            delivery: 'calm',
+            emphasis: 0,
+          },
+        }),
+      })
+    const input = createInput({
+      key: 'card-1::turn-inline-browser-workflow',
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-inline-browser-workflow',
+        providerId: 'openai',
+        model: 'gpt-test',
+        providerConfig: {},
+        messages: [
+          { role: 'user' as const, content: '打开微博然后继续发微博' },
+        ],
+      } as any,
+      suppressInlineExecutionDeliveries: vi.fn(async () => {}),
+      preparationPromise: Promise.resolve(createPrepared({
+        waitForTools: true,
+        messages: [
+          { role: 'user' as const, content: '打开微博然后继续发微博' },
+        ] as Message[],
+        tools: [
+          {
+            function: { name: 'browser_open_url' },
+            execute: executeDeterministicTool,
+          },
+        ],
+        toolChoice: {
+          type: 'function',
+          function: { name: 'browser_open_url' },
+        },
+        executionToolInputOverrides: {
+          browser_open_url: {
+            browser: 'safari',
+            site: 'weibo',
+            url: 'https://weibo.com',
+            expectedPhase: 'social-feed',
+            reinspectAfterAction: true,
+            autoContinueSuggestedActions: true,
+            maxAutoContinueSteps: 3,
+            inspectionQuestion: '继续沿着微博发帖流程自动推进',
+          },
+        },
+        runtimeSurface: {
+          trace: {
+            decisionTraceId: 'trace-inline-browser-workflow',
+            personaKernelMode: 'full',
+            turnMode: 'answer',
+          },
+          action: {
+            kind: 'execute',
+          },
+          capture: {
+            health: 'healthy',
+            permission: 'granted',
+            fallbackReason: null,
+          },
+          tooling: {
+            enforcedToolNames: ['browser_open_url'],
+            routingRequired: true,
+          },
+        },
+      })),
+    })
+
+    await runAlicizationMainChatBackground(input)
+
+    expect(runAlicizationMainChatStream).not.toHaveBeenCalled()
+    expect(executeDeterministicTool).toHaveBeenCalledWith({
+      browser: 'safari',
+      site: 'weibo',
+      url: 'https://weibo.com',
+      expectedPhase: 'social-feed',
+      reinspectAfterAction: true,
+      autoContinueSuggestedActions: true,
+      maxAutoContinueSteps: 3,
+      inspectionQuestion: '继续沿着微博发帖流程自动推进',
+    })
+    expect(input.runStateController.finishRun).toHaveBeenCalledWith(input.key, expect.objectContaining({
+      status: 'completed',
+      finishReason: 'execution-first-inline',
+    }))
+  })
+
+  it('uses prepared desktop workflow overrides during execution-first inline dispatch', async () => {
+    const executeDeterministicTool = vi.fn(async () => ({
+      ok: true,
+      status: 'completed',
+      channel: 'desktop',
+      threadStatus: 'completed',
+      sessionId: 'session-inline-desktop',
+      threadId: 'thread-inline-desktop',
+      completedAt: 123456,
+      summary: 'Inspected the current desktop upload workflow and continued it.',
+      output: 'upload-flow-ready',
+    }))
+    vi.mocked(generateAlicizationMainChatNonStreaming)
+      .mockResolvedValueOnce({
+        finishReason: 'stop',
+        fullText: JSON.stringify({
+          thought: 'obligation=guide; truth=grounded; focus=desktop-upload-workflow; move=pay-off-finished-result; tone=direct',
+          emotion: 'thinking',
+          reply: '我已经继续沿着当前上传流程往下推进了。',
+          performance: {
+            baseEmotion: 'thinking',
+            facialCue: 'attentive',
+            actionCue: 'focus',
+            delivery: 'calm',
+            emphasis: 0,
+          },
+        }),
+      })
+      .mockResolvedValueOnce({
+        finishReason: 'stop',
+        fullText: JSON.stringify({
+          format: 'mind-turn-v1',
+          thought: 'obligation=guide; truth=grounded; focus=desktop-upload-workflow; move=pay-off-finished-result; tone=direct',
+          emotion: 'thinking',
+          reply: '我已经把当前桌面上传流程继续往下推进了。',
+          performance: {
+            baseEmotion: 'thinking',
+            facialCue: 'attentive',
+            actionCue: 'focus',
+            delivery: 'calm',
+            emphasis: 0,
+          },
+        }),
+      })
+    const input = createInput({
+      key: 'card-1::turn-inline-desktop-workflow',
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-inline-desktop-workflow',
+        providerId: 'openai',
+        model: 'gpt-test',
+        providerConfig: {},
+        messages: [
+          { role: 'user' as const, content: '帮我继续上传' },
+        ],
+      } as any,
+      suppressInlineExecutionDeliveries: vi.fn(async () => {}),
+      preparationPromise: Promise.resolve(createPrepared({
+        waitForTools: true,
+        messages: [
+          { role: 'user' as const, content: '帮我继续上传' },
+        ] as Message[],
+        tools: [
+          {
+            function: { name: 'desktop_inspect_scene' },
+            execute: executeDeterministicTool,
+          },
+        ],
+        toolChoice: {
+          type: 'function',
+          function: { name: 'desktop_inspect_scene' },
+        },
+        executionToolInputOverrides: {
+          desktop_inspect_scene: {
+            question: '继续沿着上传流程自动推进',
+            forceRefresh: true,
+            maxSuggestedActions: 5,
+            autoContinueSuggestedActions: true,
+            maxAutoContinueSteps: 3,
+          },
+        },
+        runtimeSurface: {
+          trace: {
+            decisionTraceId: 'trace-inline-desktop-workflow',
+            personaKernelMode: 'full',
+            turnMode: 'answer',
+          },
+          action: {
+            kind: 'continue-task',
+          },
+          capture: {
+            health: 'healthy',
+            permission: 'granted',
+            fallbackReason: null,
+          },
+          tooling: {
+            enforcedToolNames: ['desktop_inspect_scene'],
+            routingRequired: true,
+          },
+        },
+      })),
+    })
+
+    await runAlicizationMainChatBackground(input)
+
+    expect(runAlicizationMainChatStream).not.toHaveBeenCalled()
+    expect(executeDeterministicTool).toHaveBeenCalledWith({
+      question: '继续沿着上传流程自动推进',
+      forceRefresh: true,
+      maxSuggestedActions: 5,
+      autoContinueSuggestedActions: true,
+      maxAutoContinueSteps: 3,
+    })
+    expect(input.runStateController.finishRun).toHaveBeenCalledWith(input.key, expect.objectContaining({
+      status: 'completed',
+      finishReason: 'execution-first-inline',
     }))
   })
 
@@ -11086,6 +11338,15 @@ describe('main chat background run', () => {
     const finishedPayload = readFinishedPayload(input) as {
       finishReason?: string
       fullText?: string
+      visibleReplyRealization?: {
+        projectStateAudit?: {
+          sameHerSummary?: string | null
+          currentPhaseSummary?: string | null
+          landedProgressSummary?: string | null
+          openClosureSummary?: string | null
+          nextClosureTargetSummary?: string | null
+        } | null
+      } | null
     } | undefined
     const recoveredStructured = parseStructuredMindTurn(String(finishedPayload?.fullText ?? '{}'))
     const recoveredPayload = finishedPayload?.fullText
@@ -11139,6 +11400,13 @@ describe('main chat background run', () => {
       } | null
     }
     expect(recoveredRealization.visibleReplyRealization?.projectStateAudit).toEqual(expect.objectContaining({
+      sameHerSummary: expect.stringContaining(projectState.sameHerSelfLine),
+      currentPhaseSummary: projectState.currentPhase,
+      landedProgressSummary: projectState.continuityProgressSummary ?? null,
+      openClosureSummary: projectState.openLoops[0] ?? null,
+      nextClosureTargetSummary: projectState.nextClosureTarget,
+    }))
+    expect(finishedPayload?.visibleReplyRealization?.projectStateAudit).toEqual(expect.objectContaining({
       sameHerSummary: expect.stringContaining(projectState.sameHerSelfLine),
       currentPhaseSummary: projectState.currentPhase,
       landedProgressSummary: projectState.continuityProgressSummary ?? null,
@@ -13275,6 +13543,131 @@ describe('main chat background run', () => {
     expect(recoveredStructured.visibleReplyRealization?.projectStateAudit?.preDialogueAwarenessSummary).toBe(richerRuntimeHeadline)
   })
 
+  it('rebuilds a richer renderer-rejoin-without-body runtime headline from authority-only embodiment evidence during active-dialogue compact timeout recovery', async () => {
+    vi.mocked(runAlicizationMainChatStream).mockRejectedValue(new Error('stream exploded'))
+    vi.mocked(recoverAlicizationMainChatFromTimeout).mockResolvedValueOnce(JSON.stringify({
+      format: 'mind-turn-v1',
+      thought: 'obligation=answer; truth=live-grounded; focus=project-state; move=continue-same-thread; tone=direct',
+      emotion: 'thinking',
+      reply: '我会继续沿着这条还没等 body 完整回来的 same-her 线回答。',
+      performance: {
+        baseEmotion: 'thinking',
+        facialCue: null,
+        actionCue: null,
+        delivery: 'calm',
+        emphasis: 0,
+      },
+    }))
+
+    const authorityOnlyHeadline = 'Right now I am still holding together through face, motion, lipsync, and voice together, so the visible same-her line has already rejoined without body carry while body still needs to rejoin before full cross-modal closure settles.'
+    const authorityOnlyStructuredReason = 'lane=face+motion+lipsync+voice-only | face+motion+lipsync+voice recovery@segment-live2d-visible-rejoin-no-body-1 | pending-rejoin=body'
+    const thinAwarenessShell = 'Before answering, keep the same digital life project in view.'
+    const payload = {
+      cardId: 'card-1',
+      turnId: 'turn-active-dialogue-compact-runtime-authority-only-renderer-rejoin-without-body-headline',
+      providerId: 'openai',
+      model: 'gpt-test',
+      providerConfig: {},
+      messages: [
+        { role: 'user' as const, content: '继续，但别把这条 renderer 已 visible rejoin、只差 body 的 same-her 线压回薄一点的项目说明。' },
+      ],
+      preDialogueSendIdentity: {
+        status: 'grounded',
+        summaryLine: 'same digital life | keep the closure seam explicit',
+        awarenessLine: thinAwarenessShell,
+        companionHeadlineLine: null,
+        companionBriefingLine: thinAwarenessShell,
+        companionNextClosureLine: 'Keep body rejoining the already visible same-her line before calling full cross-modal closure settled.',
+      },
+    } as any
+
+    const input = createInput({
+      key: 'card-1::turn-active-dialogue-compact-runtime-authority-only-renderer-rejoin-without-body-headline',
+      payload,
+      preparationPromise: Promise.resolve(createPrepared({
+        messages: [
+          { role: 'user' as const, content: '继续，但别把这条 renderer 已 visible rejoin、只差 body 的 same-her 线压回薄一点的项目说明。' },
+        ] as Message[],
+        runtimeSurface: {
+          ...createPrepared().runtimeSurface,
+          digitalLifeRuntimeSurface: {
+            memory: {
+              personStateProjection: {
+                selfContinuityAuthority: {
+                  authoritySummary: authorityOnlyStructuredReason,
+                  currentBodyState: authorityOnlyStructuredReason,
+                },
+              },
+            },
+            raw: {
+              runtimeDigest: {
+                projectState: {
+                  preDialogueAwarenessLine: thinAwarenessShell,
+                  awarenessLine: thinAwarenessShell,
+                  preDialogueAwarenessSummary: 'same digital life | keep the closure seam explicit',
+                  companionBriefingLine: thinAwarenessShell,
+                  companionHeadlineLine: null,
+                },
+              },
+              personStateProjection: {
+                selfContinuityAuthority: {
+                  authoritySummary: authorityOnlyStructuredReason,
+                  currentBodyState: authorityOnlyStructuredReason,
+                },
+              },
+            },
+            dialogue: {
+              currentConsciousFrame: {
+                projectState: {
+                  preDialogueAwarenessLine: thinAwarenessShell,
+                  awarenessLine: thinAwarenessShell,
+                  preDialogueAwarenessSummary: 'same digital life | keep the closure seam explicit',
+                  companionBriefingLine: thinAwarenessShell,
+                  companionHeadlineLine: null,
+                },
+              },
+            },
+          },
+        },
+      })),
+    })
+
+    await runAlicizationMainChatBackground(input)
+
+    const failureInput = vi.mocked(handleAlicizationMainChatRunFailure).mock.calls.at(-1)?.[0]
+    const recoveryResult = await failureInput?.recoverFromTimeout({
+      chatConfig: createPrepared().chatConfig,
+      messages: [
+        { role: 'user', content: '继续，但别把这条 renderer 已 visible rejoin、只差 body 的 same-her 线压回薄一点的项目说明。' },
+      ] as Message[],
+      headers: input.headers,
+      tools: undefined,
+      toolChoice: undefined,
+      timeoutMs: 1_500,
+    })
+
+    const recoveredStructured = parseStructuredMindTurn(String(recoveryResult?.recoveredReply.fullText ?? '{}')) as {
+      projectState?: {
+        preDialogueAwarenessLine?: string | null
+      } | null
+      preDialogueAwareness?: {
+        awarenessLine?: string | null
+      } | null
+      visibleReplyRealization?: {
+        projectStateAudit?: {
+          preDialogueAwarenessSummary?: string | null
+        } | null
+      } | null
+    }
+
+    expectPhase1RecoveryProjectStateInvariant({
+      structured: recoveredStructured as any,
+    })
+    expect(recoveredStructured.projectState?.preDialogueAwarenessLine).toBe(authorityOnlyHeadline)
+    expect(recoveredStructured.preDialogueAwareness?.awarenessLine).toBe(authorityOnlyHeadline)
+    expect(recoveredStructured.visibleReplyRealization?.projectStateAudit?.preDialogueAwarenessSummary).toBe(authorityOnlyHeadline)
+  })
+
   it('promotes a richer payload project summary over a thinner payload awareness shell during active-dialogue compact timeout recovery', async () => {
     vi.mocked(runAlicizationMainChatStream).mockRejectedValue(new Error('stream exploded'))
     vi.mocked(recoverAlicizationMainChatFromTimeout).mockResolvedValueOnce(JSON.stringify({
@@ -13471,6 +13864,8 @@ describe('main chat background run', () => {
       visibleReplyRealization?: {
         projectStateAudit?: {
           preDialogueAwarenessSummary?: string | null
+          sameHerDriftRiskSummary?: string | null
+          continuitySummary?: string | null
         } | null
       } | null
     }
@@ -13480,5 +13875,8 @@ describe('main chat background run', () => {
     expect(recoveredStructured.projectState?.sameHerDriftRisk).toBe(antiShellDriftRisk)
     expect(String(recoveredStructured.preDialogueAwareness?.awarenessLine ?? '')).toContain('local-first digital life project')
     expect(String(recoveredStructured.visibleReplyRealization?.projectStateAudit?.preDialogueAwarenessSummary ?? '')).toContain('local-first digital life project')
+    expect(recoveredStructured.visibleReplyRealization?.projectStateAudit?.sameHerDriftRiskSummary).toBe(antiShellDriftRisk)
+    expect(String(recoveredStructured.visibleReplyRealization?.projectStateAudit?.continuitySummary ?? ''))
+      .toContain(`drift=${antiShellDriftRisk}`)
   })
 })
