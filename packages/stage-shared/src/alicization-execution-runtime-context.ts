@@ -6,7 +6,10 @@ import type {
 } from './alicization-transport-contracts'
 
 import { normalizeAlicizationDerivedMindStateBundle } from './alicization-transport-contracts'
-import { resolveAlicizationProjectPreDialogueAwarenessLine } from './alicization-project-awareness'
+import {
+  isAlicizationThinProjectAwarenessLine,
+  resolveAlicizationProjectPreDialogueAwarenessLine,
+} from './alicization-project-awareness'
 
 function sanitizeText(raw: unknown, maxChars = 200) {
   if (typeof raw !== 'string')
@@ -133,6 +136,24 @@ function resolveProjectBriefingLatestLandedProgress(value: Record<string, unknow
     || null
 }
 
+function resolveProjectBriefingPrimaryOpenLoop(value: Record<string, unknown>) {
+  return sanitizeExecutionProjectBriefingText(value.primaryOpenLoop, 320)
+    || sanitizeExecutionProjectBriefingText(value.openClosureSummary, 320)
+    || null
+}
+
+function resolveProjectBriefingNextClosureTarget(value: Record<string, unknown>) {
+  return sanitizeExecutionProjectBriefingText(value.nextClosureTarget, 320)
+    || sanitizeExecutionProjectBriefingText(value.nextClosureTargetSummary, 320)
+    || null
+}
+
+function resolveProjectBriefingSameHerDriftRisk(value: Record<string, unknown>) {
+  return sanitizeExecutionProjectBriefingText(value.sameHerDriftRisk, 320)
+    || sanitizeExecutionProjectBriefingText(value.sameHerDriftRiskSummary, 320)
+    || null
+}
+
 function normalizeProjectBriefingContinuityPreferredTiming(raw: unknown) {
   const value = sanitizeExecutionProjectBriefingText(raw, 120)
   return value === 'internal-only'
@@ -161,6 +182,33 @@ function normalizeProjectBriefingGazeMode(raw: unknown) {
     : null
 }
 
+function normalizeProjectBriefingContinuityRestraint(raw: unknown) {
+  const value = sanitizeExecutionProjectBriefingText(raw, 64)
+  return value === 'lower-pressure'
+    || value === 'measured-return'
+    || value === 'repair-before-closeness'
+    || value === 'rest-protective'
+    || value === 'single-thread'
+    ? value
+    : null
+}
+
+function normalizeProjectBriefingVoiceMode(raw: unknown) {
+  const value = sanitizeExecutionProjectBriefingText(raw, 32)
+  return value === 'lower-pressure'
+    || value === 'even'
+    ? value
+    : null
+}
+
+function normalizeProjectBriefingPacingMode(raw: unknown) {
+  const value = sanitizeExecutionProjectBriefingText(raw, 32)
+  return value === 'slower'
+    || value === 'natural'
+    ? value
+    : null
+}
+
 function normalizeProjectBriefing(raw: unknown): NonNullable<AlicizationExecutionRuntimeContext['projectBriefing']> | null {
   if (!raw || typeof raw !== 'object')
     return null
@@ -169,17 +217,18 @@ function normalizeProjectBriefing(raw: unknown): NonNullable<AlicizationExecutio
   const identity = sanitizeExecutionProjectBriefingText(value.identity, 220) || null
   const currentPhase = sanitizeExecutionProjectBriefingText(value.currentPhase, 220) || null
   const latestLandedProgress = resolveProjectBriefingLatestLandedProgress(value)
-  const primaryOpenLoop = sanitizeExecutionProjectBriefingText(value.primaryOpenLoop, 320) || null
-  const nextClosureTarget = sanitizeExecutionProjectBriefingText(value.nextClosureTarget, 320) || null
+  const primaryOpenLoop = resolveProjectBriefingPrimaryOpenLoop(value)
+  const nextClosureTarget = resolveProjectBriefingNextClosureTarget(value)
   const sameHerSelfLine = sanitizeExecutionProjectBriefingText(value.sameHerSelfLine, 220) || null
   const sameHerHoldDetail = sanitizeExecutionProjectBriefingText(value.sameHerHoldDetail, 220) || null
-  const sameHerDriftRisk = sanitizeExecutionProjectBriefingText(value.sameHerDriftRisk, 320) || null
+  const sameHerDriftRisk = resolveProjectBriefingSameHerDriftRisk(value)
   const proactiveSameHerGap = sanitizeExecutionProjectBriefingText(value.proactiveSameHerGap, 320) || null
   const companionBriefingLine = sanitizeExecutionProjectBriefingText(value.companionBriefingLine, 320) || null
   const emotionalClosureSummary = sanitizeExecutionProjectBriefingText(value.emotionalClosureSummary, 240) || null
   const preflightSummary = sanitizeExecutionProjectBriefingText(value.preflightSummary, 320) || null
   const explicitPreDialogueAwarenessLine = sanitizeExecutionProjectBriefingText(value.preDialogueAwarenessLine, 320) || null
-  const preDialogueAwarenessLine = resolveAlicizationProjectPreDialogueAwarenessLine({
+  const preDialogueAwarenessSummary = sanitizeExecutionProjectBriefingText(value.preDialogueAwarenessSummary, 320) || null
+  const resolvedPreDialogueAwarenessLine = resolveAlicizationProjectPreDialogueAwarenessLine({
     runtimeProjectState: {
       identity,
       currentPhase,
@@ -194,9 +243,17 @@ function normalizeProjectBriefing(raw: unknown): NonNullable<AlicizationExecutio
       emotionalClosureSummary,
       preflightSummary,
       preDialogueAwarenessLine: explicitPreDialogueAwarenessLine,
+      preDialogueAwarenessSummary,
       awarenessLine: explicitPreDialogueAwarenessLine,
     },
-  }) ?? explicitPreDialogueAwarenessLine
+  }) ?? preDialogueAwarenessSummary ?? explicitPreDialogueAwarenessLine
+  const preDialogueAwarenessLine
+    = explicitPreDialogueAwarenessLine
+      && isAlicizationThinProjectAwarenessLine(explicitPreDialogueAwarenessLine)
+      && preDialogueAwarenessSummary
+      && !isAlicizationThinProjectAwarenessLine(preDialogueAwarenessSummary)
+      ? preDialogueAwarenessSummary
+      : resolvedPreDialogueAwarenessLine
 
   const next = {
     identity,
@@ -210,13 +267,17 @@ function normalizeProjectBriefing(raw: unknown): NonNullable<AlicizationExecutio
     proactiveSameHerGap,
     companionBriefingLine,
     emotionalClosureSummary,
+    continuityRestraint: normalizeProjectBriefingContinuityRestraint(value.continuityRestraint),
     continuityCue: sanitizeExecutionProjectBriefingText(value.continuityCue, 220) || null,
     continuityPreferredTiming: normalizeProjectBriefingContinuityPreferredTiming(value.continuityPreferredTiming),
     continuityCadence: sanitizeExecutionProjectBriefingText(value.continuityCadence, 120) || null,
     preferredBlinkCadence: normalizeProjectBriefingBlinkCadence(value.preferredBlinkCadence),
     preferredGazeMode: normalizeProjectBriefingGazeMode(value.preferredGazeMode),
+    preferredVoiceMode: normalizeProjectBriefingVoiceMode(value.preferredVoiceMode),
+    preferredPacingMode: normalizeProjectBriefingPacingMode(value.preferredPacingMode),
     preflightSummary,
     preDialogueAwarenessLine,
+    preDialogueAwarenessSummary,
   } satisfies NonNullable<AlicizationExecutionRuntimeContext['projectBriefing']>
 
   return Object.values(next).some(Boolean) ? next : null
@@ -341,6 +402,7 @@ export function buildAlicizationExecutionRuntimeContextBlock(raw: unknown) {
     context.projectBriefing?.proactiveSameHerGap ? `project_proactive_same_her_gap=${context.projectBriefing.proactiveSameHerGap}` : '',
     context.projectBriefing?.companionBriefingLine ? `project_companion_briefing=${context.projectBriefing.companionBriefingLine}` : '',
     context.projectBriefing?.emotionalClosureSummary ? `project_emotional_closure=${context.projectBriefing.emotionalClosureSummary}` : '',
+    context.projectBriefing?.continuityRestraint ? `project_continuity_restraint=${context.projectBriefing.continuityRestraint}` : '',
     context.projectBriefing?.continuityCue ? `project_continuity=${context.projectBriefing.continuityCue}` : '',
     context.projectBriefing?.preflightSummary ? `project_preflight=${context.projectBriefing.preflightSummary}` : '',
     context.projectBriefing?.preDialogueAwarenessLine ? `project_awareness=${context.projectBriefing.preDialogueAwarenessLine}` : '',
@@ -348,6 +410,8 @@ export function buildAlicizationExecutionRuntimeContextBlock(raw: unknown) {
     context.projectBriefing?.continuityCadence ? `project_continuity_cadence=${context.projectBriefing.continuityCadence}` : '',
     context.projectBriefing?.preferredBlinkCadence ? `project_preferred_blink_cadence=${context.projectBriefing.preferredBlinkCadence}` : '',
     context.projectBriefing?.preferredGazeMode ? `project_preferred_gaze_mode=${context.projectBriefing.preferredGazeMode}` : '',
+    context.projectBriefing?.preferredVoiceMode ? `project_preferred_voice_mode=${context.projectBriefing.preferredVoiceMode}` : '',
+    context.projectBriefing?.preferredPacingMode ? `project_preferred_pacing_mode=${context.projectBriefing.preferredPacingMode}` : '',
     `recent_runtime_actions=${formatRecentActions(context.recentActions)}`,
     `sensory_running=${context.sensory.running ? 'true' : 'false'}`,
     `sensory_stale=${context.sensory.stale ? 'true' : 'false'}`,

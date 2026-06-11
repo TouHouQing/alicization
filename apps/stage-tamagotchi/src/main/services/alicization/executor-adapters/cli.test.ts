@@ -339,7 +339,7 @@ describe('cli executor adapter', () => {
         command: 'node',
         args: [
           '-e',
-          'process.stdout.write(JSON.stringify({ foreground: process.env.ALICIZATION_EXECUTION_FOREGROUND_WINDOW || "", preflight: process.env.ALICIZATION_EXECUTION_PROJECT_PREFLIGHT || "", awareness: process.env.ALICIZATION_EXECUTION_PROJECT_AWARENESS || "", sameHerHold: process.env.ALICIZATION_EXECUTION_PROJECT_SAME_HER_HOLD || "", continuity: process.env.ALICIZATION_EXECUTION_PROJECT_CONTINUITY || "", runtimeBlock: process.env.ALICIZATION_EXECUTION_RUNTIME_CONTEXT_BLOCK || "" }))',
+          'process.stdout.write(JSON.stringify({ foreground: process.env.ALICIZATION_EXECUTION_FOREGROUND_WINDOW || "", preflight: process.env.ALICIZATION_EXECUTION_PROJECT_PREFLIGHT || "", awareness: process.env.ALICIZATION_EXECUTION_PROJECT_AWARENESS || "", sameHerHold: process.env.ALICIZATION_EXECUTION_PROJECT_SAME_HER_HOLD || "", continuity: process.env.ALICIZATION_EXECUTION_PROJECT_CONTINUITY || "", continuityRestraint: process.env.ALICIZATION_EXECUTION_PROJECT_CONTINUITY_RESTRAINT || "", preferredVoiceMode: process.env.ALICIZATION_EXECUTION_PROJECT_PREFERRED_VOICE_MODE || "", preferredPacingMode: process.env.ALICIZATION_EXECUTION_PROJECT_PREFERRED_PACING_MODE || "", runtimeBlock: process.env.ALICIZATION_EXECUTION_RUNTIME_CONTEXT_BLOCK || "" }))',
         ],
         runtimeContext: {
           generatedAt: 1_710_000_000_000,
@@ -355,7 +355,10 @@ describe('cli executor adapter', () => {
             primaryOpenLoop: 'CLI execution still needs canonical project awareness before dispatch.',
             nextClosureTarget: 'Inject the same project briefing into CLI execution before local commands begin.',
             sameHerDriftRisk: 'If CLI commands run without project awareness, execution drifts toward a generic shell.',
+            continuityRestraint: 'measured-return',
             continuityCue: 'same living line: CLI execution should carry this same Phase 1 digital life before widening outward.',
+            preferredVoiceMode: 'lower-pressure',
+            preferredPacingMode: 'slower',
             preflightSummary: 'identity=Alicization | phase=Phase 1 | open=cli execution project awareness',
             preDialogueAwarenessLine: 'Before CLI dispatch, remember this is still the same local-first digital life project.',
           },
@@ -389,9 +392,15 @@ describe('cli executor adapter', () => {
     expect(result.output).toContain('Before CLI dispatch, remember this is still the same local-first digital life project.')
     expect(result.output).toContain('same-her hold: keep CLI execution grounded on the same living line before widening outward.')
     expect(result.output).toContain('same living line: CLI execution should carry this same Phase 1 digital life before widening outward.')
+    expect(result.output).toContain('measured-return')
+    expect(result.output).toContain('lower-pressure')
+    expect(result.output).toContain('slower')
     expect(result.output).toContain('[ALICIZATION_EXECUTION_RUNTIME_CONTEXT]')
+    expect(result.output).toContain('project_continuity_restraint=measured-return')
     expect(result.output).toContain('project_preflight=identity=Alicization | phase=Phase 1 | open=cli execution project awareness')
     expect(result.output).toContain('project_awareness=Before CLI dispatch, remember this is still the same local-first digital life project.')
+    expect(result.output).toContain('project_preferred_voice_mode=lower-pressure')
+    expect(result.output).toContain('project_preferred_pacing_mode=slower')
     expect(result.events[0]?.payload).toEqual(expect.objectContaining({
       hasRuntimeContext: true,
       runtimeContext: expect.objectContaining({
@@ -400,6 +409,88 @@ describe('cli executor adapter', () => {
         projectBriefing: expect.objectContaining({
           currentPhase: 'Phase 1: Local Digital Life.',
           preflightSummary: 'identity=Alicization | phase=Phase 1 | open=cli execution project awareness',
+        }),
+      }),
+    }))
+  })
+
+  it('hydrates alias-only project briefing closure summaries into the CLI execution environment before dispatch', async () => {
+    const aliasOpenClosure = 'Alias open closure keeps execution on the same living line before widening outward.'
+    const aliasNextClosure = 'Alias next closure keeps project identity carry and execution follow-through on one living line.'
+    const aliasDriftRisk = 'Alias drift risk: if blank legacy project briefing fields collapse execution into a generic shell, treat that as unfinished same-her drift.'
+
+    const result = await executeCliTaskThread({
+      thread: createThread(),
+      command: {
+        command: 'node',
+        args: [
+          '-e',
+          'process.stdout.write(JSON.stringify({ open: process.env.ALICIZATION_EXECUTION_PROJECT_OPEN_LOOP || "", next: process.env.ALICIZATION_EXECUTION_PROJECT_NEXT_CLOSURE || "", drift: process.env.ALICIZATION_EXECUTION_PROJECT_SAME_HER_DRIFT_RISK || "", runtimeBlock: process.env.ALICIZATION_EXECUTION_RUNTIME_CONTEXT_BLOCK || "" }))',
+        ],
+        runtimeContext: {
+          generatedAt: 1_710_000_000_000,
+          cardId: 'default',
+          turnId: 'turn-cli-alias-project-briefing',
+          decisionTraceId: 'mind:trace:cli-alias-project-briefing',
+          projectBriefing: {
+            identity: 'Alicization is a local-first digital life project building one continuous "her".',
+            currentPhase: 'Phase 1: Local Digital Life.',
+            latestLandedProgress: ' ',
+            primaryOpenLoop: ' ',
+            nextClosureTarget: '',
+            sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+            sameHerDriftRisk: ' ',
+            landedProgressSummary: 'Alias landed progress already survives execution re-entry before generic local command dispatch begins.',
+            openClosureSummary: aliasOpenClosure,
+            nextClosureTargetSummary: aliasNextClosure,
+            sameHerDriftRiskSummary: aliasDriftRisk,
+            preDialogueAwarenessLine: 'Before CLI dispatch, remember this is still the same local-first digital life project.',
+          } as any,
+          sensory: {
+            collectedAt: 1_710_000_000_123,
+            running: true,
+            stale: false,
+            ageMs: 17,
+            foregroundWindow: {
+              appName: 'Cursor',
+              processName: 'cursor',
+              title: 'airi-alice',
+            },
+            capture: {
+              health: 'healthy',
+              permission: 'granted',
+              sourceCount: 2,
+              lastUpdatedAt: 1_710_000_000_100,
+              lastError: null,
+              degradedReasons: [],
+            },
+          },
+        },
+      },
+      workspaceRoot: process.cwd(),
+    })
+
+    expect(result.ok).toBe(true)
+    const parsed = JSON.parse(result.output ?? '{}') as {
+      open?: string
+      next?: string
+      drift?: string
+      runtimeBlock?: string
+    }
+
+    expect(parsed.open).toBe(aliasOpenClosure)
+    expect(parsed.next).toBe(aliasNextClosure)
+    expect(parsed.drift).toBe(aliasDriftRisk)
+    expect(parsed.runtimeBlock).toContain(`project_open_loop=${aliasOpenClosure}`)
+    expect(parsed.runtimeBlock).toContain(`project_next_closure=${aliasNextClosure}`)
+    expect(parsed.runtimeBlock).toContain(`project_same_her_drift_risk=${aliasDriftRisk}`)
+    expect(result.events[0]?.payload).toEqual(expect.objectContaining({
+      hasRuntimeContext: true,
+      runtimeContext: expect.objectContaining({
+        projectBriefing: expect.objectContaining({
+          primaryOpenLoop: aliasOpenClosure,
+          nextClosureTarget: aliasNextClosure,
+          sameHerDriftRisk: aliasDriftRisk,
         }),
       }),
     }))

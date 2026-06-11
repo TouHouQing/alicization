@@ -873,9 +873,12 @@ function buildCliRuntimeEnv(runtimeContext: AlicizationExecutionRuntimeContext |
     ALICIZATION_EXECUTION_PROJECT_SAME_HER: projectBriefing?.sameHerSelfLine ?? undefined,
     ALICIZATION_EXECUTION_PROJECT_SAME_HER_HOLD: projectBriefing?.sameHerHoldDetail ?? undefined,
     ALICIZATION_EXECUTION_PROJECT_SAME_HER_DRIFT_RISK: projectBriefing?.sameHerDriftRisk ?? undefined,
+    ALICIZATION_EXECUTION_PROJECT_CONTINUITY_RESTRAINT: projectBriefing?.continuityRestraint ?? undefined,
     ALICIZATION_EXECUTION_PROJECT_CONTINUITY: projectBriefing?.continuityCue ?? undefined,
     ALICIZATION_EXECUTION_PROJECT_PREFLIGHT: projectBriefing?.preflightSummary ?? undefined,
     ALICIZATION_EXECUTION_PROJECT_AWARENESS: projectBriefing?.preDialogueAwarenessLine ?? undefined,
+    ALICIZATION_EXECUTION_PROJECT_PREFERRED_VOICE_MODE: projectBriefing?.preferredVoiceMode ?? undefined,
+    ALICIZATION_EXECUTION_PROJECT_PREFERRED_PACING_MODE: projectBriefing?.preferredPacingMode ?? undefined,
   })
 }
 
