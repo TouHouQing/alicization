@@ -3145,14 +3145,14 @@ export function buildPrioritizedProjectStateRewritePreserveLines(input: {
     findProjectStatePreserveLine('hold='),
     findProjectStatePreserveLine('arc='),
     findProjectStatePreserveLine('cue='),
-    findProjectStatePreserveLine('proactive-gap='),
+    findProjectStatePreserveLine('drift='),
     findProjectStatePreserveLine('phase='),
     findProjectStatePreserveLine('landed='),
     findProjectStatePreserveLine('open='),
     findProjectStatePreserveLine('next='),
+    findProjectStatePreserveLine('proactive-gap='),
     findProjectStatePreserveLine('closure='),
     findProjectStatePreserveLine('body='),
-    findProjectStatePreserveLine('drift='),
   ].filter(Boolean)
   const nonProjectStateContinuityAnchors = projectStateContinuityAnchors.filter(
     anchor => !/^(?:same-her|hold|arc|cue|proactive-gap|phase|landed|open|next|closure|body|drift)=/i.test(anchor),
