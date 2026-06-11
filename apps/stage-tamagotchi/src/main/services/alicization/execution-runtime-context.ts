@@ -57,36 +57,66 @@ function looksLikeEmbodimentOnlyExecutionAwarenessLead(raw: unknown) {
   return carriesEmbodimentLane && !carriesBroaderProjectFrame
 }
 
+function carriesExecutionProjectAwarenessAnchor(raw: unknown) {
+  const text = sanitizeBoundedText(raw, 320).toLowerCase()
+  if (!text)
+    return false
+
+  return text.includes('before answering')
+    || text.includes('before speaking')
+    || /回答前|开口前/u.test(text)
+}
+
 function buildExecutionProjectContinuityCueFallback(input: {
+  continuityBehaviorMode?: unknown
   currentPhase?: unknown
   fallback?: unknown
   sameHerSelfLine?: unknown
 }) {
   const fallback = sanitizeExecutionProjectBriefingText(input.fallback, 220)
+  const continuityBehaviorMode = sanitizeExecutionProjectBriefingText(input.continuityBehaviorMode, 64)
   const currentPhase = sanitizeExecutionProjectBriefingText(input.currentPhase, 220)
   const sameHerSelfLine = sanitizeExecutionProjectBriefingText(input.sameHerSelfLine, 220)
+  if (continuityBehaviorMode === 'repair-before-closeness')
+    return 'Keep this return repair-before-closeness on the same living line until repair settles.'
+  if (continuityBehaviorMode === 'rest-protective')
+    return 'Keep this return rest-protective and on the same living line inward before widening outward.'
+  if (continuityBehaviorMode === 'measured-return')
+    return 'Keep this return measured-return on the same living line before widening outward.'
   if (
     /phase 1: local digital life/iu.test(currentPhase)
     || /same phase 1 digital life/iu.test(sameHerSelfLine)
   ) {
-    return 'same living line: execution should keep carrying this same Phase 1 digital life before widening outward.'
+    const genericContinuityCue = 'same living line: execution should keep carrying this same Phase 1 digital life before widening outward.'
+    return preferStrongerContinuityClosureAuthority(genericContinuityCue, fallback)
+      || genericContinuityCue
   }
   return fallback || null
 }
 
 function buildExecutionProjectSameHerHoldDetailFallback(input: {
+  continuityBehaviorMode?: unknown
   currentPhase?: unknown
   fallback?: unknown
   sameHerSelfLine?: unknown
 }) {
   const fallback = sanitizeExecutionProjectBriefingText(input.fallback, 220)
+  const continuityBehaviorMode = sanitizeExecutionProjectBriefingText(input.continuityBehaviorMode, 64)
   const currentPhase = sanitizeExecutionProjectBriefingText(input.currentPhase, 220)
   const sameHerSelfLine = sanitizeExecutionProjectBriefingText(input.sameHerSelfLine, 220)
+  if (continuityBehaviorMode === 'repair-before-closeness')
+    return 'same-her hold: repair-before-closeness still owns this callback line before closeness widens again.'
+  if (continuityBehaviorMode === 'rest-protective')
+    return 'same-her hold: rest-protective companionship is still keeping this return inward and fatigue-aware.'
+  if (continuityBehaviorMode === 'measured-return')
+    return 'same-her hold: measured-return is still keeping this callback line lower-pressure before it widens again.'
   if (
     /phase 1: local digital life/iu.test(currentPhase)
     || /same phase 1 digital life/iu.test(sameHerSelfLine)
   ) {
-    return 'same-her hold: execution should keep this same project line inward before widening outward.'
+    const genericSameHerHoldDetail = 'same-her hold: execution should keep this same project line inward before widening outward.'
+    return preferStrongerContinuityClosureAuthority(genericSameHerHoldDetail, fallback)
+      || genericSameHerHoldDetail
   }
   return fallback || null
 }
@@ -100,23 +130,19 @@ function preferExecutionProjectSameHerHoldDetail(input: {
   const continuityCue = sanitizeExecutionProjectBriefingText(input.continuityCue, 220)
   const fallback = sanitizeExecutionProjectBriefingText(input.fallback, 220)
   if (!current) {
-    const preferredFallback
-      = preferStrongerContinuityClosureAuthority(fallback, continuityCue)
-        || fallback
-        || continuityCue
-        || null
+    const preferredFallback = fallback || continuityCue || null
     return sanitizeBoundedText(preferredFallback, 220) || null
   }
 
   const preferredPrimary
-    = preferStrongerContinuityClosureAuthority(current, continuityCue)
+    = preferStrongerContinuityClosureAuthority(current, fallback)
       || current
-      || continuityCue
+      || fallback
       || null
   const preferredFinal
-    = preferStrongerContinuityClosureAuthority(preferredPrimary, fallback)
+    = preferStrongerContinuityClosureAuthority(preferredPrimary, continuityCue)
       || preferredPrimary
-      || fallback
+      || continuityCue
       || null
 
   return sanitizeBoundedText(preferredFinal, 220) || null
@@ -140,6 +166,7 @@ export function buildAlicizationExecutionRuntimeContext(input: {
     nextClosureTargetSummary?: string | null
     sameHerSelfLine?: string | null
     sameHerHoldDetail?: string | null
+    continuityRestraint?: 'lower-pressure' | 'measured-return' | 'repair-before-closeness' | 'rest-protective' | 'single-thread' | null
     sameHerDriftRisk?: string | null
     sameHerDriftRiskSummary?: string | null
     proactiveSameHerGap?: string | null
@@ -150,6 +177,8 @@ export function buildAlicizationExecutionRuntimeContext(input: {
     continuityCadence?: string | null
     preferredBlinkCadence?: 'normal' | 'linger' | 'quiet' | null
     preferredGazeMode?: 'steady' | 'soften' | 'drift' | null
+    preferredVoiceMode?: 'lower-pressure' | 'even' | null
+    preferredPacingMode?: 'slower' | 'natural' | null
     preflightSummary?: string | null
     preDialogueAwarenessLine?: string | null
   } | null
@@ -176,10 +205,13 @@ export function buildAlicizationExecutionRuntimeContext(input: {
     companionBriefingLine: null,
     emotionalClosureSummary: fallbackProjectBrief.emotionalClosureSummary ?? fallbackProjectBrief.emotionalClosureCue ?? null,
     continuityCue: fallbackProjectBrief.continuityCue ?? null,
+    continuityRestraint: fallbackProjectBrief.continuityRestraint ?? null,
     continuityPreferredTiming: null,
     continuityCadence: null,
     preferredBlinkCadence: fallbackProjectBrief.preferredBlinkCadence ?? null,
     preferredGazeMode: fallbackProjectBrief.preferredGazeMode ?? null,
+    preferredVoiceMode: fallbackProjectBrief.preferredVoiceMode ?? null,
+    preferredPacingMode: fallbackProjectBrief.preferredPacingMode ?? null,
     preflightSummary: fallbackProjectBrief.preflightSummary ?? null,
     preDialogueAwarenessLine: fallbackProjectBrief.preDialogueAwarenessLine ?? null,
   }
@@ -198,6 +230,7 @@ export function buildAlicizationExecutionRuntimeContext(input: {
   const resolvedCompanionBriefingLineInput = sanitizeExecutionProjectBriefingText(resolvedProjectBriefing?.companionBriefingLine ?? null, 320)
   const resolvedEmotionalClosureSummaryInput = sanitizeExecutionProjectBriefingText(resolvedProjectBriefing?.emotionalClosureSummary ?? null, 240)
   const resolvedContinuityCueInput = sanitizeExecutionProjectBriefingText(resolvedProjectBriefing?.continuityCue ?? null, 220)
+  const resolvedContinuityRestraintInput = sanitizeExecutionProjectBriefingText(resolvedProjectBriefing?.continuityRestraint ?? null, 64)
   const resolvedContinuityCadenceInput = sanitizeExecutionProjectBriefingText(resolvedProjectBriefing?.continuityCadence ?? null, 120)
   const resolvedPreflightSummaryInput = sanitizeExecutionProjectBriefingText(resolvedProjectBriefing?.preflightSummary ?? null, 320)
   const resolvedPreDialogueAwarenessLineInput = sanitizeExecutionProjectBriefingText(resolvedProjectBriefing?.preDialogueAwarenessLine ?? null, 320)
@@ -231,10 +264,13 @@ export function buildAlicizationExecutionRuntimeContext(input: {
           companionBriefingLine: resolvedCompanionBriefingLineInput || null,
           emotionalClosureSummary: resolvedEmotionalClosureSummaryInput || null,
           continuityCue: resolvedContinuityCueInput || null,
+          continuityRestraint: resolvedContinuityRestraintInput || null,
           continuityPreferredTiming: resolvedProjectBriefing.continuityPreferredTiming ?? null,
           continuityCadence: resolvedContinuityCadenceInput || null,
           preferredBlinkCadence: resolvedProjectBriefing.preferredBlinkCadence ?? null,
           preferredGazeMode: resolvedProjectBriefing.preferredGazeMode ?? null,
+          preferredVoiceMode: resolvedProjectBriefing.preferredVoiceMode ?? null,
+          preferredPacingMode: resolvedProjectBriefing.preferredPacingMode ?? null,
           preflightSummary: resolvedPreflightSummaryInput || null,
           preDialogueAwarenessLine: resolvedPreDialogueAwarenessLineInput || null,
           awarenessLine: resolvedPreDialogueAwarenessLineInput || null,
@@ -266,56 +302,72 @@ export function buildAlicizationExecutionRuntimeContext(input: {
   const preferredPreDialogueAwarenessLine = (() => {
     const rawInputAwarenessLine = resolvedPreDialogueAwarenessLineInput || null
     const normalizedRawInputAwarenessLine = rawInputAwarenessLine ?? ''
-    if (
-      normalizedRawInputAwarenessLine
-      && (
-        looksLikeEmbodimentOnlyExecutionAwarenessLead(normalizedRawInputAwarenessLine)
+    const sharedResolvedAwarenessLine = resolveAlicizationProjectPreDialogueAwarenessLine({
+      runtimeProjectState: {
+        identity: normalizedProjectBriefing?.identity ?? resolvedIdentityInput ?? null,
+        currentPhase: normalizedProjectBriefing?.currentPhase ?? resolvedCurrentPhaseInput ?? null,
+        latestLandedProgress:
+          normalizedProjectBriefing?.latestLandedProgress
+          ?? normalizedProjectBriefing?.latestProgress
+          ?? liveLatestProgressInput
+          ?? null,
+        primaryOpenLoop: normalizedProjectBriefing?.primaryOpenLoop ?? livePrimaryOpenLoopInput ?? null,
+        nextClosureTarget: normalizedProjectBriefing?.nextClosureTarget ?? liveNextClosureTargetInput ?? null,
+        sameHerSelfLine: normalizedProjectBriefing?.sameHerSelfLine ?? resolvedSameHerSelfLineInput ?? null,
+        sameHerHoldDetail: normalizedProjectBriefing?.sameHerHoldDetail ?? resolvedSameHerHoldDetailInput ?? null,
+        sameHerDriftRisk: normalizedProjectBriefing?.sameHerDriftRisk ?? liveSameHerDriftRiskInput ?? null,
+        sameHerDriftRiskSummary: normalizedProjectBriefing?.sameHerDriftRisk ?? liveSameHerDriftRiskInput ?? null,
+        preDialogueAwarenessLine: normalizedRawInputAwarenessLine,
+        awarenessLine: normalizedRawInputAwarenessLine,
+        companionHeadlineLine: normalizedProjectBriefing?.companionHeadlineLine ?? null,
+        companionBriefingLine: normalizedProjectBriefing?.companionBriefingLine ?? resolvedCompanionBriefingLineInput ?? null,
+        preDialogueAwarenessSummary: normalizedProjectBriefing?.preDialogueAwarenessSummary ?? null,
+        continuityRestraint: resolvedContinuityRestraintInput || null,
+        continuityCadence: resolvedContinuityCadenceInput || null,
+        preflightSummary: canonicalPreflightSummary ?? normalizedProjectBriefing?.preflightSummary ?? resolvedPreflightSummaryInput ?? null,
+      },
+    })
+    const rawInputAwarenessLooksWeak
+      = !normalizedRawInputAwarenessLine
+        || looksLikeEmbodimentOnlyExecutionAwarenessLead(normalizedRawInputAwarenessLine)
         || isAlicizationThinProjectAwarenessLine(normalizedRawInputAwarenessLine)
-      )
+        || !carriesExecutionProjectAwarenessAnchor(normalizedRawInputAwarenessLine)
+    if (
+      sharedResolvedAwarenessLine
+      && sharedResolvedAwarenessLine !== normalizedRawInputAwarenessLine
+      && rawInputAwarenessLooksWeak
+      && carriesExecutionProjectAwarenessAnchor(sharedResolvedAwarenessLine)
+      && !isAlicizationThinProjectAwarenessLine(sharedResolvedAwarenessLine)
     ) {
-      const sharedResolvedAwarenessLine = resolveAlicizationProjectPreDialogueAwarenessLine({
-        runtimeProjectState: {
-          identity: normalizedProjectBriefing?.identity ?? resolvedIdentityInput ?? null,
-          currentPhase: normalizedProjectBriefing?.currentPhase ?? resolvedCurrentPhaseInput ?? null,
-          latestLandedProgress:
-            normalizedProjectBriefing?.latestLandedProgress
-            ?? normalizedProjectBriefing?.latestProgress
-            ?? liveLatestProgressInput
-            ?? null,
-          primaryOpenLoop: normalizedProjectBriefing?.primaryOpenLoop ?? livePrimaryOpenLoopInput ?? null,
-          nextClosureTarget: normalizedProjectBriefing?.nextClosureTarget ?? liveNextClosureTargetInput ?? null,
-          sameHerSelfLine: normalizedProjectBriefing?.sameHerSelfLine ?? resolvedSameHerSelfLineInput ?? null,
-          sameHerHoldDetail: normalizedProjectBriefing?.sameHerHoldDetail ?? resolvedSameHerHoldDetailInput ?? null,
-          sameHerDriftRisk: normalizedProjectBriefing?.sameHerDriftRisk ?? liveSameHerDriftRiskInput ?? null,
-          sameHerDriftRiskSummary: normalizedProjectBriefing?.sameHerDriftRisk ?? liveSameHerDriftRiskInput ?? null,
-          preDialogueAwarenessLine: normalizedRawInputAwarenessLine,
-          awarenessLine: normalizedRawInputAwarenessLine,
-          companionHeadlineLine: normalizedProjectBriefing?.companionHeadlineLine ?? null,
-          companionBriefingLine: normalizedProjectBriefing?.companionBriefingLine ?? resolvedCompanionBriefingLineInput ?? null,
-          preDialogueAwarenessSummary: normalizedProjectBriefing?.preDialogueAwarenessSummary ?? null,
-          preflightSummary: canonicalPreflightSummary ?? normalizedProjectBriefing?.preflightSummary ?? resolvedPreflightSummaryInput ?? null,
-        },
-      })
-      if (
-        sharedResolvedAwarenessLine
-        && sharedResolvedAwarenessLine !== normalizedRawInputAwarenessLine
-        && !isAlicizationThinProjectAwarenessLine(sharedResolvedAwarenessLine)
-      ) {
-        return sharedResolvedAwarenessLine
-      }
+      return sharedResolvedAwarenessLine
     }
-    if (rawInputAwarenessLine && !isAlicizationThinProjectAwarenessLine(rawInputAwarenessLine))
+    if (
+      rawInputAwarenessLine
+      && !isAlicizationThinProjectAwarenessLine(rawInputAwarenessLine)
+      && carriesExecutionProjectAwarenessAnchor(rawInputAwarenessLine)
+    ) {
       return rawInputAwarenessLine
+    }
 
     const normalizedAwarenessSummary = normalizedProjectBriefing?.preDialogueAwarenessSummary ?? null
-    if (normalizedAwarenessSummary && !isAlicizationThinProjectAwarenessLine(normalizedAwarenessSummary))
+    if (
+      normalizedAwarenessSummary
+      && !isAlicizationThinProjectAwarenessLine(normalizedAwarenessSummary)
+      && carriesExecutionProjectAwarenessAnchor(normalizedAwarenessSummary)
+    ) {
       return normalizedAwarenessSummary
+    }
 
     const normalizedAwarenessLine = normalizedProjectBriefing?.preDialogueAwarenessLine ?? null
-    if (normalizedAwarenessLine && !isAlicizationThinProjectAwarenessLine(normalizedAwarenessLine))
+    if (
+      normalizedAwarenessLine
+      && !isAlicizationThinProjectAwarenessLine(normalizedAwarenessLine)
+      && carriesExecutionProjectAwarenessAnchor(normalizedAwarenessLine)
+    ) {
       return normalizedAwarenessLine
+    }
 
-    if (canonicalPreDialogueAwarenessLine && !isAlicizationThinProjectAwarenessLine(canonicalPreDialogueAwarenessLine))
+    if (canonicalPreDialogueAwarenessLine)
       return canonicalPreDialogueAwarenessLine
 
     return canonicalPreflightSummary
@@ -327,9 +379,16 @@ export function buildAlicizationExecutionRuntimeContext(input: {
       ?? rawInputAwarenessLine
       ?? null
   })()
+  const explicitExecutionContinuityBehaviorMode
+    = sanitizeExecutionProjectBriefingText(
+      resolvedContinuityCadenceInput
+      ?? resolvedContinuityRestraintInput,
+      64,
+    ) || null
   const executionContinuityCue = sanitizeBoundedText(
     resolvedContinuityCueInput
     || buildExecutionProjectContinuityCueFallback({
+      continuityBehaviorMode: explicitExecutionContinuityBehaviorMode,
       currentPhase: normalizedProjectBriefing?.currentPhase ?? resolvedProjectBriefing?.currentPhase,
       sameHerSelfLine: normalizedProjectBriefing?.sameHerSelfLine ?? resolvedProjectBriefing?.sameHerSelfLine,
       fallback: normalizedProjectBriefing?.continuityCue,
@@ -337,6 +396,7 @@ export function buildAlicizationExecutionRuntimeContext(input: {
     220,
   ) || null
   const executionSameHerHoldDetailFallback = buildExecutionProjectSameHerHoldDetailFallback({
+    continuityBehaviorMode: explicitExecutionContinuityBehaviorMode,
     currentPhase: normalizedProjectBriefing?.currentPhase ?? resolvedProjectBriefing?.currentPhase,
     sameHerSelfLine: normalizedProjectBriefing?.sameHerSelfLine ?? resolvedProjectBriefing?.sameHerSelfLine,
     fallback: normalizedProjectBriefing?.sameHerHoldDetail,
@@ -347,6 +407,16 @@ export function buildAlicizationExecutionRuntimeContext(input: {
   const executionEmotionalClosureSummary = sanitizeExecutionProjectBriefingText(normalizedProjectBriefing?.emotionalClosureSummary, 240)
     || resolvedEmotionalClosureSummaryInput
     || null
+  const executionContinuityRestraint = normalizedProjectBriefing?.continuityRestraint
+    ?? (
+      resolvedProjectBriefing?.continuityRestraint === 'lower-pressure'
+      || resolvedProjectBriefing?.continuityRestraint === 'measured-return'
+      || resolvedProjectBriefing?.continuityRestraint === 'repair-before-closeness'
+      || resolvedProjectBriefing?.continuityRestraint === 'rest-protective'
+      || resolvedProjectBriefing?.continuityRestraint === 'single-thread'
+        ? resolvedProjectBriefing.continuityRestraint
+        : null
+    )
   const executionContinuityPreferredTiming = normalizedProjectBriefing?.continuityPreferredTiming
     ?? (
       resolvedProjectBriefing?.continuityPreferredTiming === 'internal-only'
@@ -373,6 +443,20 @@ export function buildAlicizationExecutionRuntimeContext(input: {
       || resolvedProjectBriefing?.preferredGazeMode === 'soften'
       || resolvedProjectBriefing?.preferredGazeMode === 'drift'
         ? resolvedProjectBriefing.preferredGazeMode
+        : null
+    )
+  const executionPreferredVoiceMode = normalizedProjectBriefing?.preferredVoiceMode
+    ?? (
+      resolvedProjectBriefing?.preferredVoiceMode === 'lower-pressure'
+      || resolvedProjectBriefing?.preferredVoiceMode === 'even'
+        ? resolvedProjectBriefing.preferredVoiceMode
+        : null
+    )
+  const executionPreferredPacingMode = normalizedProjectBriefing?.preferredPacingMode
+    ?? (
+      resolvedProjectBriefing?.preferredPacingMode === 'slower'
+      || resolvedProjectBriefing?.preferredPacingMode === 'natural'
+        ? resolvedProjectBriefing.preferredPacingMode
         : null
     )
   const affectiveResidue = input.affectiveResidue ?? null
@@ -427,11 +511,14 @@ export function buildAlicizationExecutionRuntimeContext(input: {
           ) || null,
           companionBriefingLine: executionCompanionBriefingLine,
           emotionalClosureSummary: executionEmotionalClosureSummary,
+          continuityRestraint: executionContinuityRestraint,
           continuityCue: executionContinuityCue,
           continuityPreferredTiming: executionContinuityPreferredTiming,
           continuityCadence: executionContinuityCadence,
           preferredBlinkCadence: executionPreferredBlinkCadence,
           preferredGazeMode: executionPreferredGazeMode,
+          preferredVoiceMode: executionPreferredVoiceMode,
+          preferredPacingMode: executionPreferredPacingMode,
           preflightSummary: sanitizeExecutionProjectBriefingText(canonicalPreflightSummary ?? normalizedProjectBriefing?.preflightSummary ?? resolvedPreflightSummaryInput, 320) || null,
           preDialogueAwarenessLine: sanitizeExecutionProjectBriefingText(preferredPreDialogueAwarenessLine, 320) || null,
         }
