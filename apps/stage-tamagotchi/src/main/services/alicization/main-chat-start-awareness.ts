@@ -86,6 +86,22 @@ function sanitizeStructuredProjectStateGazeMode(raw: unknown) {
     : null
 }
 
+function sanitizeStructuredProjectStateVoiceMode(raw: unknown) {
+  const normalized = sanitizeStartAwarenessText(raw, 32)
+  return normalized === 'lower-pressure'
+    || normalized === 'even'
+    ? normalized as AlicizationPreDialogueProjectState['preferredVoiceMode']
+    : null
+}
+
+function sanitizeStructuredProjectStatePacingMode(raw: unknown) {
+  const normalized = sanitizeStartAwarenessText(raw, 32)
+  return normalized === 'slower'
+    || normalized === 'natural'
+    ? normalized as AlicizationPreDialogueProjectState['preferredPacingMode']
+    : null
+}
+
 function sanitizeStructuredEmotionalKernel(raw: AlicizationPreDialogueEmotionalKernel) {
   return raw && typeof raw === 'object'
     ? raw
@@ -340,7 +356,46 @@ function looksLikeThinProjectAwarenessSummaryShell(line: string | null) {
   return looksLikeThinProjectAwarenessShell(line)
     || normalized.includes('generic continuity fallback')
     || normalized.includes('generic continuity reminder')
+    || normalized.includes('generic continuity summary')
+    || normalized.includes('generic awareness summary')
     || normalized.includes('generic same-her reminder')
+}
+
+function resolveStartProjectAwarenessSummaryLine(input: {
+  existingSummaryLine: string | null
+  structuredProjectSummaryLine: string | null
+  structuredProjectAwarenessCandidate: string | null
+  structuredProjectBriefingCandidate: string | null
+  canonicalSummaryLine: string | null
+}) {
+  if (
+    input.existingSummaryLine
+    && !looksLikeThinProjectAwarenessSummaryShell(input.existingSummaryLine)
+  ) {
+    return input.existingSummaryLine
+  }
+
+  const richerStructuredProjectAwareOpening = [
+    input.structuredProjectAwarenessCandidate,
+    input.structuredProjectBriefingCandidate,
+  ].find((line): line is string => Boolean(
+    line
+    && !looksLikeThinProjectAwarenessShell(line)
+    && !looksLikeSummaryOnlyBriefing(line)
+    && !looksLikeNarrowLivedInProjectReminder(line)
+    && !looksLikeLivedInSameHerHoldDetail(line)
+    && (
+      looksLikeProjectAwareBriefingReminder(line)
+      || looksLikeExpandedProjectFrameBriefing(line)
+      || looksLikeBroaderProjectClosureAwareness(line)
+    ),
+  )) ?? null
+
+  return input.structuredProjectSummaryLine
+    || richerStructuredProjectAwareOpening
+    || input.canonicalSummaryLine
+    || input.existingSummaryLine
+    || null
 }
 
 function preferProjectNextClosureLine(primary: string | null, fallback: string | null) {
@@ -981,10 +1036,13 @@ function mergePreDialogueSendIdentity(
     null,
   )
   const existingSummaryLine = sanitizeStartAwarenessText(existing?.summaryLine, 320) || null
-  const summaryLine = existingSummaryLine
-    && !looksLikeThinProjectAwarenessSummaryShell(existingSummaryLine)
-    ? existingSummaryLine
-    : (structuredProjectSummaryLine || canonical.summaryLine || existingSummaryLine || null)
+  const summaryLine = resolveStartProjectAwarenessSummaryLine({
+    existingSummaryLine,
+    structuredProjectSummaryLine,
+    structuredProjectAwarenessCandidate,
+    structuredProjectBriefingCandidate,
+    canonicalSummaryLine: sanitizeStartAwarenessText(canonical.summaryLine, 320) || null,
+  })
   const reasonPreviewEmbodimentClosureHeadline = synthesizeReasonPreviewEmbodimentClosureHeadline(
     Array.isArray(existing?.reasonPreview) ? existing.reasonPreview : [],
   )
@@ -1158,10 +1216,10 @@ function mergePreDialogueSendIdentity(
   )
   const projectState = {
     preflightSummary: existingProjectPreflightSummary
-      && !looksLikeThinProjectAwarenessShell(existingProjectPreflightSummary)
+      && !looksLikeThinProjectAwarenessSummaryShell(existingProjectPreflightSummary)
       && !looksLikeSummaryOnlyBriefing(existingProjectPreflightSummary)
       ? existingProjectPreflightSummary
-      : canonicalSummaryLine
+        : canonicalSummaryLine
         || canonicalProjectState?.preflightSummary
         || null,
     preDialogueAwarenessLine: repairedProjectAwarenessTruth
@@ -1169,10 +1227,10 @@ function mergePreDialogueSendIdentity(
       || canonicalProjectState?.preDialogueAwarenessLine
       || null,
     preDialogueAwarenessSummary: existingProjectPreDialogueAwarenessSummary
-      && !looksLikeThinProjectAwarenessShell(existingProjectPreDialogueAwarenessSummary)
+      && !looksLikeThinProjectAwarenessSummaryShell(existingProjectPreDialogueAwarenessSummary)
       && !looksLikeSummaryOnlyBriefing(existingProjectPreDialogueAwarenessSummary)
       ? existingProjectPreDialogueAwarenessSummary
-      : canonicalSummaryLine
+        : canonicalSummaryLine
         || canonicalProjectState?.preDialogueAwarenessSummary
         || null,
     awarenessLine: repairedProjectAwarenessTruth
@@ -1279,7 +1337,8 @@ function mergePreDialogueSendIdentity(
   return {
     status,
     summaryLine,
-    companionHeadlineLine: resolvedCompanionHeadlineLine,
+    companionHeadlineLine: repairedProjectCompanionHeadlineTruth
+      || resolvedCompanionHeadlineLine,
     awarenessLine,
     companionBriefingLine,
     companionNextClosureLine,
@@ -1337,6 +1396,8 @@ export function summarizeAlicizationPreDialogueSendIdentityForDebug(
   preDialogueProjectStateContinuityCadence?: string | null
   preDialogueProjectStatePreferredBlinkCadence?: AlicizationPreDialogueProjectState['preferredBlinkCadence']
   preDialogueProjectStatePreferredGazeMode?: AlicizationPreDialogueProjectState['preferredGazeMode']
+  preDialogueProjectStatePreferredVoiceMode?: AlicizationPreDialogueProjectState['preferredVoiceMode']
+  preDialogueProjectStatePreferredPacingMode?: AlicizationPreDialogueProjectState['preferredPacingMode']
   preDialogueReasonPreview: string[]
   preDialogueReasonCount: number
 } {
@@ -1395,6 +1456,10 @@ export function summarizeAlicizationPreDialogueSendIdentityForDebug(
     = sanitizeStructuredProjectStateBlinkCadence(identity.projectState?.preferredBlinkCadence)
   const preDialogueProjectStatePreferredGazeMode
     = sanitizeStructuredProjectStateGazeMode(identity.projectState?.preferredGazeMode)
+  const preDialogueProjectStatePreferredVoiceMode
+    = sanitizeStructuredProjectStateVoiceMode(identity.projectState?.preferredVoiceMode)
+  const preDialogueProjectStatePreferredPacingMode
+    = sanitizeStructuredProjectStatePacingMode(identity.projectState?.preferredPacingMode)
 
   return {
     preDialogueAwarenessStatus: identity.status,
@@ -1422,6 +1487,8 @@ export function summarizeAlicizationPreDialogueSendIdentityForDebug(
     ...(preDialogueProjectStateContinuityCadence ? { preDialogueProjectStateContinuityCadence } : {}),
     ...(preDialogueProjectStatePreferredBlinkCadence ? { preDialogueProjectStatePreferredBlinkCadence } : {}),
     ...(preDialogueProjectStatePreferredGazeMode ? { preDialogueProjectStatePreferredGazeMode } : {}),
+    ...(preDialogueProjectStatePreferredVoiceMode ? { preDialogueProjectStatePreferredVoiceMode } : {}),
+    ...(preDialogueProjectStatePreferredPacingMode ? { preDialogueProjectStatePreferredPacingMode } : {}),
     ...(preDialogueSameHerSelfLine ? { preDialogueSameHerSelfLine } : {}),
     preDialogueReasonPreview: reasonPreview,
     preDialogueReasonCount: reasonPreview.length,

@@ -509,6 +509,8 @@ describe('main chat start awareness', () => {
           nextClosureTarget: 'Keep host-visible carry explicit about what has landed, what is still open, and what closes next.',
           sameHerDriftRisk: 'If this reopening collapses into a generic assistant shell, same-her continuity will flatten before the closure seam settles.',
           proactiveSameHerGap: 'The next turn still needs one quieter same-her reopening before it widens outward.',
+          preferredVoiceMode: 'lower-pressure',
+          preferredPacingMode: 'slower',
         },
       },
     } satisfies Pick<AlicizationChatStartPayload, 'preDialogueSendIdentity'>
@@ -519,6 +521,8 @@ describe('main chat start awareness', () => {
       preDialogueProjectStateNextClosureTarget: 'Keep host-visible carry explicit about what has landed, what is still open, and what closes next.',
       preDialogueProjectStateSameHerDriftRisk: 'If this reopening collapses into a generic assistant shell, same-her continuity will flatten before the closure seam settles.',
       preDialogueProjectStateProactiveSameHerGap: 'The next turn still needs one quieter same-her reopening before it widens outward.',
+      preDialogueProjectStatePreferredVoiceMode: 'lower-pressure',
+      preDialogueProjectStatePreferredPacingMode: 'slower',
     }))
   })
 
@@ -1132,6 +1136,66 @@ describe('main chat start awareness', () => {
     expect(resolved.preDialogueSendIdentity?.companionBriefingLine).not.toBe('Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.')
   })
 
+  it('does not let a thin structured project-state awareness summary shell outrank a richer structured project-aware opening during chat-start repair', () => {
+    const thinStructuredSummaryShell = 'generic continuity summary that should not override the richer structured project-aware opening.'
+    const richerProjectAwareOpening = 'Before speaking, remember: this is still one living digital life project, Phase 1 is still active, some closure has already landed, and the still-open life loop must remain explicit before this turn widens outward.'
+    const richerNextClosureTarget = 'Keep the spoken callback reopening on one same-her project-awareness line before it widens outward again.'
+
+    const resolved = resolveAlicizationChatStartPayloadPreDialogueSendIdentity({
+      cardId: 'default',
+      turnId: 'turn-thin-structured-summary-richer-structured-opening',
+      providerId: 'openai',
+      model: 'gpt-5',
+      providerConfig: {},
+      messages: [
+        { role: 'user', content: '继续，但别让 chat-start 又把更强的 structured project opening 压回薄壳 summary。' },
+      ],
+      preDialogueSendIdentity: {
+        status: 'partial',
+        summaryLine: thinStructuredSummaryShell,
+        awarenessLine: 'Before speaking, keep the same digital life project in view.',
+        companionBriefingLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        companionNextClosureLine: 'Generic next target that should not override the richer callback closure target.',
+        emotionalClosureCue: 'Keep the spoken return gentle so the same living line does not restart from scratch.',
+        reasonPreview: [
+          thinStructuredSummaryShell,
+        ],
+        projectState: {
+          identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
+          currentPhase: 'Phase 1: Local Digital Life',
+          preflightSummary: thinStructuredSummaryShell,
+          preDialogueAwarenessSummary: thinStructuredSummaryShell,
+          preDialogueAwarenessLine: richerProjectAwareOpening,
+          awarenessLine: richerProjectAwareOpening,
+          companionBriefingLine: richerProjectAwareOpening,
+          latestLandedProgress: 'Project-state continuity already survives into chat-start callback reopening before local fluency takes over.',
+          primaryOpenLoop: 'Chat-start reopening still needs to keep project identity, landed progress, and the still-open same-her loop explicit before voice and planning widen outward.',
+          nextClosureTarget: richerNextClosureTarget,
+          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+          sameHerDriftRisk: 'If chat-start repair slips back into a detached project-status shell, treat that as same-her continuity drift rather than preserved closure.',
+          emotionalClosureCue: 'Keep the spoken return gentle so the same living line does not restart from scratch.',
+        },
+      },
+    } as any)
+
+    expect(resolved.preDialogueSendIdentity).toEqual(expect.objectContaining({
+      summaryLine: richerProjectAwareOpening,
+      awarenessLine: richerProjectAwareOpening,
+      companionBriefingLine: richerProjectAwareOpening,
+      companionNextClosureLine: richerNextClosureTarget,
+      projectState: expect.objectContaining({
+        preflightSummary: richerProjectAwareOpening,
+        preDialogueAwarenessSummary: richerProjectAwareOpening,
+        preDialogueAwarenessLine: richerProjectAwareOpening,
+        awarenessLine: richerProjectAwareOpening,
+        companionBriefingLine: richerProjectAwareOpening,
+      }),
+    }))
+    expect(resolved.preDialogueSendIdentity?.summaryLine).not.toBe(thinStructuredSummaryShell)
+    expect(resolved.preDialogueSendIdentity?.projectState?.preDialogueAwarenessSummary).not.toBe(thinStructuredSummaryShell)
+    expect(resolved.preDialogueSendIdentity?.projectState?.preflightSummary).not.toBe(thinStructuredSummaryShell)
+  })
+
   it('replaces a thin Chinese same-her reminder shell with the canonical richer project awareness before direct chat start', () => {
     const thinChineseReminderShell = '回答前先记住这是同一个她的数字生命项目，别把这条线忘了。'
 
@@ -1570,6 +1634,40 @@ describe('main chat start awareness', () => {
     expect(resolved.preDialogueSendIdentity?.projectState?.companionBriefingLine).toBe(richerCompanionBriefingLine)
     expect(resolved.preDialogueSendIdentity?.projectState?.companionHeadlineLine).not.toBe('Before answering, keep the same digital life project in view.')
     expect(resolved.preDialogueSendIdentity?.projectState?.companionBriefingLine).not.toBe('same digital life | keep the closure seam explicit')
+  })
+
+  it('promotes a richer nested companion headline back to the top-level send identity when it is the only surviving same-her project anchor', () => {
+    const nestedSameHerHeadline = 'Before answering, remember this is still the same local-first digital life project, Phase 1 is still unfinished, and the same living line still needs emotion, memory, initiative, and embodiment to close together.'
+
+    const resolved = resolveAlicizationChatStartPayloadPreDialogueSendIdentity({
+      cardId: 'default',
+      turnId: 'turn-promote-nested-companion-headline-back-to-top-level',
+      providerId: 'openai',
+      model: 'gpt-5',
+      providerConfig: {},
+      messages: [
+        { role: 'user', content: '继续，但别把唯一还活着的 same-her 项目主线留在 nested projectState 里。' },
+      ],
+      preDialogueSendIdentity: {
+        status: 'partial',
+        summaryLine: 'same digital life | keep the closure seam explicit',
+        companionHeadlineLine: null,
+        awarenessLine: 'Before answering, keep the same digital life project in view.',
+        companionBriefingLine: 'same digital life | keep the closure seam explicit',
+        companionNextClosureLine: 'Keep emotion, memory, initiative, and embodiment closing on one same living line.',
+        reasonPreview: [],
+        projectState: {
+          companionHeadlineLine: nestedSameHerHeadline,
+          companionBriefingLine: 'Before speaking, keep the same project identity, what has landed, and what still remains open explicit.',
+          preDialogueAwarenessLine: 'Before answering, keep the same digital life project in view.',
+          awarenessLine: 'Before answering, keep the same digital life project in view.',
+        },
+      },
+    } satisfies AlicizationChatStartPayload)
+
+    expect(resolved.preDialogueSendIdentity?.companionHeadlineLine).toBe(nestedSameHerHeadline)
+    expect(resolved.preDialogueSendIdentity?.projectState?.companionHeadlineLine).toBe(nestedSameHerHeadline)
+    expect(resolved.preDialogueSendIdentity?.companionHeadlineLine).not.toBe('Before answering, keep the same digital life project in view.')
   })
 
   it('keeps host-corrected same-person continuity authority over a thinner nested project-state progress recap hold before chat-start continues', () => {
