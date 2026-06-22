@@ -20,6 +20,15 @@ export type AlicizationPerformanceDelivery
     | 'hesitant'
     | 'teasing'
 
+export type AlicizationPerformanceResidentMode
+  = | 'dialogue'
+    | 'quiet-companionship'
+    | 'quiet-accompaniment'
+    | 'measured-return'
+    | 'repair-before-closeness'
+    | 'same-thread-continuation'
+    | 'idle-recovering'
+
 export interface AlicizationDialoguePerformancePayload {
   baseEmotion: AlicizationEmotion
   emotion: AlicizationEmotion
@@ -27,6 +36,13 @@ export interface AlicizationDialoguePerformancePayload {
   actionCue?: string | null
   delivery: AlicizationPerformanceDelivery
   emphasis: 0 | 1 | 2
+  residentMode?: AlicizationPerformanceResidentMode | null
+  face?: {
+    residentMode?: AlicizationPerformanceResidentMode | null
+  } | null
+  action?: {
+    residentMode?: AlicizationPerformanceResidentMode | null
+  } | null
 }
 
 export interface CharacterFacialCapability {
@@ -102,6 +118,26 @@ function normalizePerformanceEmphasis(raw: unknown): 0 | 1 | 2 {
   if (parsed >= 2)
     return 2
   return 1
+}
+
+function normalizePerformanceResidentMode(raw: unknown): AlicizationPerformanceResidentMode | null {
+  if (typeof raw !== 'string')
+    return null
+
+  const normalized = raw.trim()
+  if (
+    normalized === 'dialogue'
+    || normalized === 'quiet-companionship'
+    || normalized === 'quiet-accompaniment'
+    || normalized === 'measured-return'
+    || normalized === 'repair-before-closeness'
+    || normalized === 'same-thread-continuation'
+    || normalized === 'idle-recovering'
+  ) {
+    return normalized
+  }
+
+  return null
 }
 
 function normalizeHintAlias(raw: unknown) {
@@ -216,6 +252,17 @@ export function normalizeAlicizationPerformancePayload(
     actionCue: normalizePerformanceCue(candidate.actionCue),
     delivery: normalizeAlicizationPerformanceDelivery(candidate.delivery),
     emphasis: normalizePerformanceEmphasis(candidate.emphasis),
+    residentMode: normalizePerformanceResidentMode(candidate.residentMode),
+    face: candidate.face && typeof candidate.face === 'object' && !Array.isArray(candidate.face)
+      ? {
+          residentMode: normalizePerformanceResidentMode((candidate.face as Record<string, unknown>).residentMode),
+        }
+      : null,
+    action: candidate.action && typeof candidate.action === 'object' && !Array.isArray(candidate.action)
+      ? {
+          residentMode: normalizePerformanceResidentMode((candidate.action as Record<string, unknown>).residentMode),
+        }
+      : null,
   }
 }
 
