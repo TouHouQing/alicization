@@ -47,8 +47,44 @@ export interface AlicizationPerceptionSceneResidue {
   captureStrategy?: 'window-title' | 'app-name' | 'process-name' | 'screen-fallback'
 }
 
+export type AlicizationPerceptionBrowserWorkflowPhase
+  = | 'unknown'
+    | 'login'
+    | 'search-results'
+    | 'social-feed'
+    | 'browser-desktop-handoff'
+    | 'content-detail'
+    | 'form-entry'
+    | 'upload-flow'
+
+export type AlicizationPerceptionBrowserWorkflowProgressState
+  = | 'started'
+    | 'holding'
+    | 'advanced'
+    | 'regressed'
+
+export interface AlicizationPerceptionBrowserWorkflowHistoryEntry {
+  observedAt: number
+  pagePhase: AlicizationPerceptionBrowserWorkflowPhase
+  title?: string | null
+  url?: string | null
+}
+
+export interface AlicizationPerceptionBrowserWorkflowState {
+  currentPhase: AlicizationPerceptionBrowserWorkflowPhase
+  history: AlicizationPerceptionBrowserWorkflowHistoryEntry[]
+  lastObservedAt: number
+  previousPhase?: AlicizationPerceptionBrowserWorkflowPhase | null
+  progressState: AlicizationPerceptionBrowserWorkflowProgressState
+  targetPhase: AlicizationPerceptionBrowserWorkflowPhase
+  taskKey: string
+  title?: string | null
+  url?: string | null
+}
+
 export interface AlicizationPerceptionState {
   attentionAnchor: AlicizationAttentionAnchor | null
+  browserWorkflowState: AlicizationPerceptionBrowserWorkflowState | null
   lastNonSelfForegroundTarget: AlicizationPerceptionObservation | null
   recentObservations: AlicizationPerceptionObservation[]
   invitedInspection: AlicizationInvitedInspectionMode | null
@@ -269,6 +305,74 @@ function normalizeSceneResidue(raw: unknown): AlicizationPerceptionSceneResidue 
   }
 }
 
+function normalizeBrowserWorkflowPhase(raw: unknown): AlicizationPerceptionBrowserWorkflowPhase | null {
+  return raw === 'unknown'
+    || raw === 'login'
+    || raw === 'search-results'
+    || raw === 'social-feed'
+    || raw === 'browser-desktop-handoff'
+    || raw === 'content-detail'
+    || raw === 'form-entry'
+    || raw === 'upload-flow'
+    ? raw
+    : null
+}
+
+function normalizeBrowserWorkflowProgressState(raw: unknown): AlicizationPerceptionBrowserWorkflowProgressState | null {
+  return raw === 'started'
+    || raw === 'holding'
+    || raw === 'advanced'
+    || raw === 'regressed'
+    ? raw
+    : null
+}
+
+function normalizeBrowserWorkflowHistoryEntry(raw: unknown): AlicizationPerceptionBrowserWorkflowHistoryEntry | null {
+  const source = raw && typeof raw === 'object' ? raw as Record<string, unknown> : null
+  const observedAt = Number(source?.observedAt)
+  const pagePhase = normalizeBrowserWorkflowPhase(source?.pagePhase)
+  if (!Number.isFinite(observedAt) || !pagePhase)
+    return null
+
+  return {
+    observedAt: Math.max(0, Math.floor(observedAt)),
+    pagePhase,
+    title: sanitizeTargetText(source?.title) || null,
+    url: sanitizeTargetText(source?.url) || null,
+  }
+}
+
+function normalizeBrowserWorkflowState(raw: unknown): AlicizationPerceptionBrowserWorkflowState | null {
+  const source = raw && typeof raw === 'object' ? raw as Record<string, unknown> : null
+  const currentPhase = normalizeBrowserWorkflowPhase(source?.currentPhase)
+  const targetPhase = normalizeBrowserWorkflowPhase(source?.targetPhase)
+  const previousPhase = normalizeBrowserWorkflowPhase(source?.previousPhase)
+  const progressState = normalizeBrowserWorkflowProgressState(source?.progressState)
+  const lastObservedAt = Number(source?.lastObservedAt)
+  const taskKey = sanitizeTargetText(source?.taskKey)
+  if (!currentPhase || !targetPhase || !progressState || !Number.isFinite(lastObservedAt) || !taskKey)
+    return null
+
+  const history = Array.isArray(source?.history)
+    ? source.history
+        .map(normalizeBrowserWorkflowHistoryEntry)
+        .filter((entry): entry is AlicizationPerceptionBrowserWorkflowHistoryEntry => Boolean(entry))
+        .slice(-8)
+    : []
+
+  return {
+    currentPhase,
+    history,
+    lastObservedAt: Math.max(0, Math.floor(lastObservedAt)),
+    previousPhase,
+    progressState,
+    targetPhase,
+    taskKey,
+    title: sanitizeTargetText(source?.title) || null,
+    url: sanitizeTargetText(source?.url) || null,
+  }
+}
+
 function isInspectionActive(mode: AlicizationInvitedInspectionMode | null | undefined, now: number) {
   return Boolean(mode && mode.activeUntil > now)
 }
@@ -282,6 +386,7 @@ function trimRecentObservations(observations: AlicizationPerceptionObservation[]
 export function createDefaultPerceptionState(now = Date.now()): AlicizationPerceptionState {
   return {
     attentionAnchor: null,
+    browserWorkflowState: null,
     lastNonSelfForegroundTarget: null,
     recentObservations: [],
     invitedInspection: null,
@@ -294,6 +399,7 @@ export function normalizePerceptionState(raw: unknown, now = Date.now()): Aliciz
   const source = raw && typeof raw === 'object' ? raw as Record<string, unknown> : {}
   const next = createDefaultPerceptionState(now)
   next.attentionAnchor = normalizeAnchor(source.attentionAnchor)
+  next.browserWorkflowState = normalizeBrowserWorkflowState(source.browserWorkflowState)
   next.lastNonSelfForegroundTarget = normalizeObservation(source.lastNonSelfForegroundTarget)
   next.recentObservations = Array.isArray(source.recentObservations)
     ? trimRecentObservations(source.recentObservations
@@ -514,6 +620,60 @@ export function rememberPerceptionSceneResidue(input: {
       focusTarget: normalizeTarget(input.residue.focusTarget),
       captureSourceName: sanitizeTargetText(input.residue.captureSourceName) || undefined,
       confidence: clampConfidence(input.residue.confidence),
+    },
+    updatedAt: input.now,
+  } satisfies AlicizationPerceptionState
+}
+
+export function rememberPerceptionBrowserWorkflowState(input: {
+  state: AlicizationPerceptionState
+  now: number
+  currentPhase: AlicizationPerceptionBrowserWorkflowPhase
+  targetPhase: AlicizationPerceptionBrowserWorkflowPhase
+  taskKey: string
+  title?: string | null
+  url?: string | null
+}) {
+  const taskKey = sanitizeTargetText(input.taskKey)
+  if (!taskKey) {
+    return {
+      ...input.state,
+      updatedAt: input.now,
+    } satisfies AlicizationPerceptionState
+  }
+
+  const previous = input.state.browserWorkflowState?.taskKey === taskKey
+    ? input.state.browserWorkflowState
+    : null
+  const previousPhase = previous?.currentPhase ?? null
+  const progressState: AlicizationPerceptionBrowserWorkflowProgressState = previous
+    ? previous.currentPhase === input.currentPhase
+      ? 'holding'
+      : input.currentPhase === input.targetPhase
+        ? 'advanced'
+        : previous.currentPhase === input.targetPhase && input.currentPhase !== input.targetPhase
+          ? 'regressed'
+          : 'advanced'
+    : 'started'
+  const entry: AlicizationPerceptionBrowserWorkflowHistoryEntry = {
+    observedAt: Math.max(0, Math.floor(input.now)),
+    pagePhase: input.currentPhase,
+    title: sanitizeTargetText(input.title) || null,
+    url: sanitizeTargetText(input.url) || null,
+  }
+
+  return {
+    ...input.state,
+    browserWorkflowState: {
+      currentPhase: input.currentPhase,
+      history: [...(previous?.history ?? []), entry].slice(-8),
+      lastObservedAt: Math.max(0, Math.floor(input.now)),
+      previousPhase,
+      progressState,
+      targetPhase: input.targetPhase,
+      taskKey,
+      title: entry.title,
+      url: entry.url,
     },
     updatedAt: input.now,
   } satisfies AlicizationPerceptionState

@@ -197,8 +197,100 @@ function describeContentKind(value: unknown): string {
 }
 
 export function summarizeAlicizationChatStartPayloadForTransport(payload: AlicizationChatStartPayload) {
+  const preDialogueSendIdentity = payload.preDialogueSendIdentity
+  const hasPreDialogueSendIdentity = Boolean(
+    preDialogueSendIdentity
+    && typeof preDialogueSendIdentity === 'object'
+    && !Array.isArray(preDialogueSendIdentity),
+  )
+  const preDialogueSendIdentityStatus = hasPreDialogueSendIdentity
+    && typeof preDialogueSendIdentity?.status === 'string'
+    ? preDialogueSendIdentity.status
+    : null
+  const hasPreDialogueSummaryLine = hasPreDialogueSendIdentity
+    && typeof preDialogueSendIdentity?.summaryLine === 'string'
+    && preDialogueSendIdentity.summaryLine.trim().length > 0
+  const hasPreDialogueAwarenessLine = hasPreDialogueSendIdentity
+    && typeof preDialogueSendIdentity?.awarenessLine === 'string'
+    && preDialogueSendIdentity.awarenessLine.trim().length > 0
+  const hasPreDialogueNextClosureLine = hasPreDialogueSendIdentity
+    && typeof preDialogueSendIdentity?.companionNextClosureLine === 'string'
+    && preDialogueSendIdentity.companionNextClosureLine.trim().length > 0
+  const hasPreDialogueCompanionHeadlineLine = hasPreDialogueSendIdentity
+    && typeof preDialogueSendIdentity?.companionHeadlineLine === 'string'
+    && preDialogueSendIdentity.companionHeadlineLine.trim().length > 0
+  const hasPreDialogueCompanionBriefingLine = hasPreDialogueSendIdentity
+    && typeof preDialogueSendIdentity?.companionBriefingLine === 'string'
+    && preDialogueSendIdentity.companionBriefingLine.trim().length > 0
+  const hasPreDialogueEmotionalClosureCue = hasPreDialogueSendIdentity
+    && typeof preDialogueSendIdentity?.emotionalClosureCue === 'string'
+    && preDialogueSendIdentity.emotionalClosureCue.trim().length > 0
+  const hasPreDialogueReasonPreview = hasPreDialogueSendIdentity
+    && Array.isArray(preDialogueSendIdentity?.reasonPreview)
+    && preDialogueSendIdentity.reasonPreview.some(reason => typeof reason === 'string' && reason.trim().length > 0)
+  const hasPreDialogueProjectState = Boolean(
+    hasPreDialogueSendIdentity
+    && preDialogueSendIdentity?.projectState
+    && typeof preDialogueSendIdentity.projectState === 'object'
+    && !Array.isArray(preDialogueSendIdentity.projectState),
+  )
+  const hasPreDialogueProjectIdentity = hasPreDialogueProjectState
+    && typeof preDialogueSendIdentity?.projectState?.identity === 'string'
+    && preDialogueSendIdentity.projectState.identity.trim().length > 0
+  const hasPreDialogueProjectPhase = hasPreDialogueProjectState
+    && typeof preDialogueSendIdentity?.projectState?.currentPhase === 'string'
+    && preDialogueSendIdentity.projectState.currentPhase.trim().length > 0
+  const hasPreDialogueLatestLandedProgress = hasPreDialogueProjectState
+    && (
+      (typeof preDialogueSendIdentity?.projectState?.latestLandedProgress === 'string'
+        && preDialogueSendIdentity.projectState.latestLandedProgress.trim().length > 0)
+      || (typeof preDialogueSendIdentity?.projectState?.latestProgress === 'string'
+        && preDialogueSendIdentity.projectState.latestProgress.trim().length > 0)
+    )
+  const hasPreDialoguePrimaryOpenLoop = hasPreDialogueProjectState
+    && typeof preDialogueSendIdentity?.projectState?.primaryOpenLoop === 'string'
+    && preDialogueSendIdentity.projectState.primaryOpenLoop.trim().length > 0
+  const hasPreDialogueNextClosureTarget = hasPreDialogueProjectState
+    && typeof preDialogueSendIdentity?.projectState?.nextClosureTarget === 'string'
+    && preDialogueSendIdentity.projectState.nextClosureTarget.trim().length > 0
+  const hasPreDialogueContinuitySummary = hasPreDialogueProjectState
+    && typeof preDialogueSendIdentity?.projectState?.continuitySummary === 'string'
+    && preDialogueSendIdentity.projectState.continuitySummary.trim().length > 0
+  const hasPreDialogueSameHerSelfLine = hasPreDialogueProjectState
+    && typeof preDialogueSendIdentity?.projectState?.sameHerSelfLine === 'string'
+    && preDialogueSendIdentity.projectState.sameHerSelfLine.trim().length > 0
+  const hasPreDialogueSameHerDriftRisk = hasPreDialogueProjectState
+    && typeof preDialogueSendIdentity?.projectState?.sameHerDriftRisk === 'string'
+    && preDialogueSendIdentity.projectState.sameHerDriftRisk.trim().length > 0
+  const hasPreDialogueSameHerHoldDetail = hasPreDialogueProjectState
+    && typeof preDialogueSendIdentity?.projectState?.sameHerHoldDetail === 'string'
+    && preDialogueSendIdentity.projectState.sameHerHoldDetail.trim().length > 0
+  const hasPreDialogueProactiveSameHerGap = hasPreDialogueProjectState
+    && typeof preDialogueSendIdentity?.projectState?.proactiveSameHerGap === 'string'
+    && preDialogueSendIdentity.projectState.proactiveSameHerGap.trim().length > 0
+
   return {
     providerConfigKeys: Object.keys(payload.providerConfig ?? {}),
+    hasPreDialogueSendIdentity,
+    preDialogueSendIdentityStatus,
+    hasPreDialogueSummaryLine,
+    hasPreDialogueAwarenessLine,
+    hasPreDialogueNextClosureLine,
+    hasPreDialogueCompanionHeadlineLine,
+    hasPreDialogueCompanionBriefingLine,
+    hasPreDialogueEmotionalClosureCue,
+    hasPreDialogueReasonPreview,
+    hasPreDialogueProjectState,
+    hasPreDialogueProjectIdentity,
+    hasPreDialogueProjectPhase,
+    hasPreDialogueLatestLandedProgress,
+    hasPreDialoguePrimaryOpenLoop,
+    hasPreDialogueNextClosureTarget,
+    hasPreDialogueContinuitySummary,
+    hasPreDialogueSameHerSelfLine,
+    hasPreDialogueSameHerDriftRisk,
+    hasPreDialogueSameHerHoldDetail,
+    hasPreDialogueProactiveSameHerGap,
     messageSchema: payload.messages.map(message => ({
       role: message.role,
       contentKind: describeContentKind(message.content),

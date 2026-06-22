@@ -958,7 +958,7 @@ function syncLive2DRuntimeCapabilities(snapshot?: Live2DRuntimeCapabilitySnapsho
       .filter(Boolean))].sort((left, right) => left.localeCompare(right)),
     supportedBaseEmotions: [...new Set(snapshot.supportedBaseEmotions)],
     supportedFacialCues: dedupeCapabilityItemsByKey(snapshot.supportedFacialCues),
-    supportedActions: dedupeCapabilityItemsByKey(snapshot.supportedActions),
+    supportedActions: dedupeCapabilityItemsByKey(snapshot.supportedActions ?? []),
   }
 }
 
@@ -979,7 +979,7 @@ function syncVrmRuntimeCapabilities(snapshot?: VrmRuntimeCapabilitySnapshot | nu
       .filter(Boolean))].sort((left, right) => left.localeCompare(right)),
     supportedBaseEmotions: [...new Set(snapshot.supportedBaseEmotions)],
     supportedFacialCues: dedupeCapabilityItemsByKey(snapshot.supportedFacialCues),
-    supportedActions: dedupeCapabilityItemsByKey(snapshot.supportedActions),
+    supportedActions: dedupeCapabilityItemsByKey(snapshot.supportedActions ?? []),
     supportsLookAt: snapshot.supportsLookAt === true,
     supportsVisemeLipSync: snapshot.supportsVisemeLipSync === true,
     supportsMicroDynamics: snapshot.supportsMicroDynamics === true,

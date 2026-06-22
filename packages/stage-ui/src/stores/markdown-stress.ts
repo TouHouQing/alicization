@@ -3,11 +3,13 @@ import type { ChatProvider } from '@xsai-ext/providers/utils'
 
 import type { StreamEvent } from './llm'
 
-import { defaultPerfTracer, exportCsv as exportCsvFile } from '@proj-alicization/stage-shared'
+import { defaultPerfTracer, exportCsv as exportCsvFile, hasAlicizationChatEntryPreDialogueSendIdentity } from '@proj-alicization/stage-shared'
 import { defineStore, storeToRefs } from 'pinia'
 import { ref } from 'vue'
 
+import { useAlicizationSelfEvolutionInspectorStore } from './alicization-self-evolution-inspector'
 import { useChatOrchestratorStore } from './chat'
+import { buildPreDialogueSendIdentityFromInspectorSnapshots } from './chat/pre-dialogue-send-identity'
 import { useLLM } from './llm'
 import { useConsciousnessStore } from './modules/consciousness'
 import { usePerfTracerBridgeStore } from './perf-tracer-bridge'
@@ -168,7 +170,13 @@ export const useMarkdownStressStore = defineStore('markdownStress', () => {
 
   const providersStore = useProvidersStore()
   const consciousnessStore = useConsciousnessStore()
+  const selfEvolutionInspectorStore = useAlicizationSelfEvolutionInspectorStore()
   const { activeProvider, activeModel } = storeToRefs(consciousnessStore)
+  const {
+    preDialogueAwarenessSnapshot,
+    preDialogueClosureSnapshot,
+    projectStateContinuitySnapshot,
+  } = storeToRefs(selfEvolutionInspectorStore)
   const perfTracerBridge = usePerfTracerBridgeStore()
 
   let unsubscribe: (() => void) | undefined
@@ -291,9 +299,29 @@ export const useMarkdownStressStore = defineStore('markdownStress', () => {
     ].join('\n\n')
   }
 
+  function buildMarkdownStressPreDialogueSendIdentity() {
+    const identity = buildPreDialogueSendIdentityFromInspectorSnapshots({
+      projectStateContinuitySnapshot: projectStateContinuitySnapshot.value,
+      preDialogueClosureSnapshot: preDialogueClosureSnapshot.value,
+      preDialogueAwarenessSnapshot: preDialogueAwarenessSnapshot.value,
+    })
+
+    if (hasAlicizationChatEntryPreDialogueSendIdentity(identity))
+      return identity
+
+    console.error('[markdown-stress] Missing explicit pre-dialogue send identity')
+    return null
+  }
+
   async function runOnlineScenario() {
     const chatStore = useChatOrchestratorStore()
     const targetScenario = ensureScenario()
+    const preDialogueSendIdentity = buildMarkdownStressPreDialogueSendIdentity()
+
+    if (!preDialogueSendIdentity) {
+      stopCapture()
+      return
+    }
 
     const provider = await providersStore.getProviderInstance(activeProvider.value) as ChatProvider | undefined
     if (!provider || !activeModel.value) {
@@ -315,6 +343,7 @@ export const useMarkdownStressStore = defineStore('markdownStress', () => {
             chatProvider: provider,
             providerConfig: providersStore.getProviderConfig(activeProvider.value),
             origin: 'system',
+            preDialogueSendIdentity,
           })
         }
         catch (error) {
@@ -329,6 +358,12 @@ export const useMarkdownStressStore = defineStore('markdownStress', () => {
     const chatStore = useChatOrchestratorStore()
     const llm = useLLM()
     const targetScenario = ensureScenario()
+    const preDialogueSendIdentity = buildMarkdownStressPreDialogueSendIdentity()
+
+    if (!preDialogueSendIdentity) {
+      stopCapture()
+      return
+    }
     const modelToUse = mockModelId
     const mockProvider: ChatProvider = {
       chat(model: string) {
@@ -372,6 +407,7 @@ export const useMarkdownStressStore = defineStore('markdownStress', () => {
             model: modelToUse,
             chatProvider: mockProvider,
             origin: 'system',
+            preDialogueSendIdentity,
           })
         }
         catch (error) {

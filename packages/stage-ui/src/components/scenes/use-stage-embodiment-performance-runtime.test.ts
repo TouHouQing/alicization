@@ -1,17 +1,19 @@
-import type { AlicizationDigitalLifeSpineDigest } from '../../stores/alicization-bridge'
-import type { EmbodimentPlaybackTelemetry } from '../../services/embodiment/playback-reconciler'
 import type { PlaybackItem } from '@proj-alicization/pipelines-audio'
+import type { AlicizationDigitalLifeFrame, StageEmbodimentSpeechPlaybackItem } from '@proj-alicization/stage-shared'
+
+import type { BrowserSpeechAudioSource } from '../../libs/speech-audio-playback'
+import type { EmbodimentPlaybackTelemetry } from '../../services/embodiment/playback-reconciler'
+import type { AlicizationDigitalLifeSpineDigest } from '../../stores/alicization-bridge'
 
 import { createBufferedSpeechAudioSource } from '@proj-alicization/pipelines-audio'
 import {
+
   createIdleStageEmbodimentMotorState,
   createIdleStageEmbodimentSpeechArticulationState,
-  type AlicizationDigitalLifeFrame,
-  type StageEmbodimentSpeechPlaybackItem,
   createIdleStageEmbodimentSpeechRenderState,
   createStageEmbodimentSpeechPlaybackItem,
+
 } from '@proj-alicization/stage-shared'
-import type { BrowserSpeechAudioSource } from '../../libs/speech-audio-playback'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { effectScope, nextTick, ref } from 'vue'
 
@@ -401,6 +403,7 @@ function createDigitalLifeSpineDigest(input: {
         stability: null,
         identityNarrative: null,
         relationshipDoctrine: null,
+        latestInflection: null,
       },
       relationship: null,
       selfState: null,
@@ -1432,6 +1435,7 @@ describe('stage embodiment performance runtime', () => {
           stability: null,
           identityNarrative: null,
           relationshipDoctrine: 'Repair should settle before closeness expands, and the opening should keep more room.',
+          latestInflection: 'The last seam held because pressure stayed low and the return stayed slower.',
         },
         relationship: null,
         selfState: null,
@@ -8792,26 +8796,30 @@ describe('stage embodiment performance runtime', () => {
         emphasisLevel: 0.12,
         cadencePulse: 0.2,
       },
-      item: preview ? {
-        ...preview,
-        metadata: preview.metadata ? { ...preview.metadata } : preview.metadata,
-        cue: preview.cue ? { ...preview.cue } : null,
-        digitalLifeFrame: preview.digitalLifeFrame ? {
-          ...preview.digitalLifeFrame,
-          face: { ...preview.digitalLifeFrame.face },
-          action: { ...preview.digitalLifeFrame.action },
-          lipSync: { ...preview.digitalLifeFrame.lipSync },
-          voice: { ...preview.digitalLifeFrame.voice },
-          motor: {
-            ...preview.digitalLifeFrame.motor,
-            gaze: { ...preview.digitalLifeFrame.motor.gaze },
-            head: { ...preview.digitalLifeFrame.motor.head },
-            breath: { ...preview.digitalLifeFrame.motor.breath },
-            facial: { ...preview.digitalLifeFrame.motor.facial },
-            body: { ...preview.digitalLifeFrame.motor.body },
-          },
-        } : null,
-      } : null,
+      item: preview
+        ? {
+            ...preview,
+            metadata: preview.metadata ? { ...preview.metadata } : preview.metadata,
+            cue: preview.cue ? { ...preview.cue } : null,
+            digitalLifeFrame: preview.digitalLifeFrame
+              ? {
+                  ...preview.digitalLifeFrame,
+                  face: { ...preview.digitalLifeFrame.face },
+                  action: { ...preview.digitalLifeFrame.action },
+                  lipSync: { ...preview.digitalLifeFrame.lipSync },
+                  voice: { ...preview.digitalLifeFrame.voice },
+                  motor: {
+                    ...preview.digitalLifeFrame.motor,
+                    gaze: { ...preview.digitalLifeFrame.motor.gaze },
+                    head: { ...preview.digitalLifeFrame.motor.head },
+                    breath: { ...preview.digitalLifeFrame.motor.breath },
+                    facial: { ...preview.digitalLifeFrame.motor.facial },
+                    body: { ...preview.digitalLifeFrame.motor.body },
+                  },
+                }
+              : null,
+          }
+        : null,
       phase: 'playing',
       revision: 1,
       visemeIntensity: 0.06,
@@ -9022,26 +9030,30 @@ describe('stage embodiment performance runtime', () => {
         emphasisLevel: 0.12,
         cadencePulse: 0.2,
       },
-      item: preview ? {
-        ...preview,
-        metadata: preview.metadata ? { ...preview.metadata } : preview.metadata,
-        cue: preview.cue ? { ...preview.cue } : null,
-        digitalLifeFrame: preview.digitalLifeFrame ? {
-          ...preview.digitalLifeFrame,
-          face: { ...preview.digitalLifeFrame.face },
-          action: { ...preview.digitalLifeFrame.action },
-          lipSync: { ...preview.digitalLifeFrame.lipSync },
-          voice: { ...preview.digitalLifeFrame.voice },
-          motor: {
-            ...preview.digitalLifeFrame.motor,
-            gaze: { ...preview.digitalLifeFrame.motor.gaze },
-            head: { ...preview.digitalLifeFrame.motor.head },
-            breath: { ...preview.digitalLifeFrame.motor.breath },
-            facial: { ...preview.digitalLifeFrame.motor.facial },
-            body: { ...preview.digitalLifeFrame.motor.body },
-          },
-        } : null,
-      } : null,
+      item: preview
+        ? {
+            ...preview,
+            metadata: preview.metadata ? { ...preview.metadata } : preview.metadata,
+            cue: preview.cue ? { ...preview.cue } : null,
+            digitalLifeFrame: preview.digitalLifeFrame
+              ? {
+                  ...preview.digitalLifeFrame,
+                  face: { ...preview.digitalLifeFrame.face },
+                  action: { ...preview.digitalLifeFrame.action },
+                  lipSync: { ...preview.digitalLifeFrame.lipSync },
+                  voice: { ...preview.digitalLifeFrame.voice },
+                  motor: {
+                    ...preview.digitalLifeFrame.motor,
+                    gaze: { ...preview.digitalLifeFrame.motor.gaze },
+                    head: { ...preview.digitalLifeFrame.motor.head },
+                    breath: { ...preview.digitalLifeFrame.motor.breath },
+                    facial: { ...preview.digitalLifeFrame.motor.facial },
+                    body: { ...preview.digitalLifeFrame.motor.body },
+                  },
+                }
+              : null,
+          }
+        : null,
       phase: 'playing',
       revision: 1,
       visemeIntensity: 0.06,
@@ -9252,26 +9264,30 @@ describe('stage embodiment performance runtime', () => {
         emphasisLevel: 0.12,
         cadencePulse: 0.2,
       },
-      item: preview ? {
-        ...preview,
-        metadata: preview.metadata ? { ...preview.metadata } : preview.metadata,
-        cue: preview.cue ? { ...preview.cue } : null,
-        digitalLifeFrame: preview.digitalLifeFrame ? {
-          ...preview.digitalLifeFrame,
-          face: { ...preview.digitalLifeFrame.face },
-          action: { ...preview.digitalLifeFrame.action },
-          lipSync: { ...preview.digitalLifeFrame.lipSync },
-          voice: { ...preview.digitalLifeFrame.voice },
-          motor: {
-            ...preview.digitalLifeFrame.motor,
-            gaze: { ...preview.digitalLifeFrame.motor.gaze },
-            head: { ...preview.digitalLifeFrame.motor.head },
-            breath: { ...preview.digitalLifeFrame.motor.breath },
-            facial: { ...preview.digitalLifeFrame.motor.facial },
-            body: { ...preview.digitalLifeFrame.motor.body },
-          },
-        } : null,
-      } : null,
+      item: preview
+        ? {
+            ...preview,
+            metadata: preview.metadata ? { ...preview.metadata } : preview.metadata,
+            cue: preview.cue ? { ...preview.cue } : null,
+            digitalLifeFrame: preview.digitalLifeFrame
+              ? {
+                  ...preview.digitalLifeFrame,
+                  face: { ...preview.digitalLifeFrame.face },
+                  action: { ...preview.digitalLifeFrame.action },
+                  lipSync: { ...preview.digitalLifeFrame.lipSync },
+                  voice: { ...preview.digitalLifeFrame.voice },
+                  motor: {
+                    ...preview.digitalLifeFrame.motor,
+                    gaze: { ...preview.digitalLifeFrame.motor.gaze },
+                    head: { ...preview.digitalLifeFrame.motor.head },
+                    breath: { ...preview.digitalLifeFrame.motor.breath },
+                    facial: { ...preview.digitalLifeFrame.motor.facial },
+                    body: { ...preview.digitalLifeFrame.motor.body },
+                  },
+                }
+              : null,
+          }
+        : null,
       phase: 'playing',
       revision: 1,
       visemeIntensity: 0.06,
@@ -9482,26 +9498,30 @@ describe('stage embodiment performance runtime', () => {
         emphasisLevel: 0.12,
         cadencePulse: 0.2,
       },
-      item: preview ? {
-        ...preview,
-        metadata: preview.metadata ? { ...preview.metadata } : preview.metadata,
-        cue: preview.cue ? { ...preview.cue } : null,
-        digitalLifeFrame: preview.digitalLifeFrame ? {
-          ...preview.digitalLifeFrame,
-          face: { ...preview.digitalLifeFrame.face },
-          action: { ...preview.digitalLifeFrame.action },
-          lipSync: { ...preview.digitalLifeFrame.lipSync },
-          voice: { ...preview.digitalLifeFrame.voice },
-          motor: {
-            ...preview.digitalLifeFrame.motor,
-            gaze: { ...preview.digitalLifeFrame.motor.gaze },
-            head: { ...preview.digitalLifeFrame.motor.head },
-            breath: { ...preview.digitalLifeFrame.motor.breath },
-            facial: { ...preview.digitalLifeFrame.motor.facial },
-            body: { ...preview.digitalLifeFrame.motor.body },
-          },
-        } : null,
-      } : null,
+      item: preview
+        ? {
+            ...preview,
+            metadata: preview.metadata ? { ...preview.metadata } : preview.metadata,
+            cue: preview.cue ? { ...preview.cue } : null,
+            digitalLifeFrame: preview.digitalLifeFrame
+              ? {
+                  ...preview.digitalLifeFrame,
+                  face: { ...preview.digitalLifeFrame.face },
+                  action: { ...preview.digitalLifeFrame.action },
+                  lipSync: { ...preview.digitalLifeFrame.lipSync },
+                  voice: { ...preview.digitalLifeFrame.voice },
+                  motor: {
+                    ...preview.digitalLifeFrame.motor,
+                    gaze: { ...preview.digitalLifeFrame.motor.gaze },
+                    head: { ...preview.digitalLifeFrame.motor.head },
+                    breath: { ...preview.digitalLifeFrame.motor.breath },
+                    facial: { ...preview.digitalLifeFrame.motor.facial },
+                    body: { ...preview.digitalLifeFrame.motor.body },
+                  },
+                }
+              : null,
+          }
+        : null,
       phase: 'playing',
       revision: 1,
       visemeIntensity: 0.06,
@@ -9718,21 +9738,23 @@ describe('stage embodiment performance runtime', () => {
             ...preview,
             metadata: preview.metadata ? { ...preview.metadata } : preview.metadata,
             cue: preview.cue ? { ...preview.cue } : null,
-            digitalLifeFrame: preview.digitalLifeFrame ? {
-              ...preview.digitalLifeFrame,
-              face: { ...preview.digitalLifeFrame.face },
-              action: { ...preview.digitalLifeFrame.action },
-              lipSync: { ...preview.digitalLifeFrame.lipSync },
-              voice: { ...preview.digitalLifeFrame.voice },
-              motor: {
-                ...preview.digitalLifeFrame.motor,
-                gaze: { ...preview.digitalLifeFrame.motor.gaze },
-                head: { ...preview.digitalLifeFrame.motor.head },
-                breath: { ...preview.digitalLifeFrame.motor.breath },
-                facial: { ...preview.digitalLifeFrame.motor.facial },
-                body: { ...preview.digitalLifeFrame.motor.body },
-              },
-            } : null,
+            digitalLifeFrame: preview.digitalLifeFrame
+              ? {
+                  ...preview.digitalLifeFrame,
+                  face: { ...preview.digitalLifeFrame.face },
+                  action: { ...preview.digitalLifeFrame.action },
+                  lipSync: { ...preview.digitalLifeFrame.lipSync },
+                  voice: { ...preview.digitalLifeFrame.voice },
+                  motor: {
+                    ...preview.digitalLifeFrame.motor,
+                    gaze: { ...preview.digitalLifeFrame.motor.gaze },
+                    head: { ...preview.digitalLifeFrame.motor.head },
+                    breath: { ...preview.digitalLifeFrame.motor.breath },
+                    facial: { ...preview.digitalLifeFrame.motor.facial },
+                    body: { ...preview.digitalLifeFrame.motor.body },
+                  },
+                }
+              : null,
           }
         : null,
     )
@@ -9957,21 +9979,23 @@ describe('stage embodiment performance runtime', () => {
             ...preview,
             metadata: preview.metadata ? { ...preview.metadata } : preview.metadata,
             cue: preview.cue ? { ...preview.cue } : null,
-            digitalLifeFrame: preview.digitalLifeFrame ? {
-              ...preview.digitalLifeFrame,
-              face: { ...preview.digitalLifeFrame.face },
-              action: { ...preview.digitalLifeFrame.action },
-              lipSync: { ...preview.digitalLifeFrame.lipSync },
-              voice: { ...preview.digitalLifeFrame.voice },
-              motor: {
-                ...preview.digitalLifeFrame.motor,
-                gaze: { ...preview.digitalLifeFrame.motor.gaze },
-                head: { ...preview.digitalLifeFrame.motor.head },
-                breath: { ...preview.digitalLifeFrame.motor.breath },
-                facial: { ...preview.digitalLifeFrame.motor.facial },
-                body: { ...preview.digitalLifeFrame.motor.body },
-              },
-            } : null,
+            digitalLifeFrame: preview.digitalLifeFrame
+              ? {
+                  ...preview.digitalLifeFrame,
+                  face: { ...preview.digitalLifeFrame.face },
+                  action: { ...preview.digitalLifeFrame.action },
+                  lipSync: { ...preview.digitalLifeFrame.lipSync },
+                  voice: { ...preview.digitalLifeFrame.voice },
+                  motor: {
+                    ...preview.digitalLifeFrame.motor,
+                    gaze: { ...preview.digitalLifeFrame.motor.gaze },
+                    head: { ...preview.digitalLifeFrame.motor.head },
+                    breath: { ...preview.digitalLifeFrame.motor.breath },
+                    facial: { ...preview.digitalLifeFrame.motor.facial },
+                    body: { ...preview.digitalLifeFrame.motor.body },
+                  },
+                }
+              : null,
           }
         : null,
     )
@@ -10189,21 +10213,23 @@ describe('stage embodiment performance runtime', () => {
             ...preview,
             metadata: preview.metadata ? { ...preview.metadata } : preview.metadata,
             cue: preview.cue ? { ...preview.cue } : null,
-            digitalLifeFrame: preview.digitalLifeFrame ? {
-              ...preview.digitalLifeFrame,
-              face: { ...preview.digitalLifeFrame.face },
-              action: { ...preview.digitalLifeFrame.action },
-              lipSync: { ...preview.digitalLifeFrame.lipSync },
-              voice: { ...preview.digitalLifeFrame.voice },
-              motor: {
-                ...preview.digitalLifeFrame.motor,
-                gaze: { ...preview.digitalLifeFrame.motor.gaze },
-                head: { ...preview.digitalLifeFrame.motor.head },
-                breath: { ...preview.digitalLifeFrame.motor.breath },
-                facial: { ...preview.digitalLifeFrame.motor.facial },
-                body: { ...preview.digitalLifeFrame.motor.body },
-              },
-            } : null,
+            digitalLifeFrame: preview.digitalLifeFrame
+              ? {
+                  ...preview.digitalLifeFrame,
+                  face: { ...preview.digitalLifeFrame.face },
+                  action: { ...preview.digitalLifeFrame.action },
+                  lipSync: { ...preview.digitalLifeFrame.lipSync },
+                  voice: { ...preview.digitalLifeFrame.voice },
+                  motor: {
+                    ...preview.digitalLifeFrame.motor,
+                    gaze: { ...preview.digitalLifeFrame.motor.gaze },
+                    head: { ...preview.digitalLifeFrame.motor.head },
+                    breath: { ...preview.digitalLifeFrame.motor.breath },
+                    facial: { ...preview.digitalLifeFrame.motor.facial },
+                    body: { ...preview.digitalLifeFrame.motor.body },
+                  },
+                }
+              : null,
           }
         : null,
     )
@@ -10421,21 +10447,23 @@ describe('stage embodiment performance runtime', () => {
             ...preview,
             metadata: preview.metadata ? { ...preview.metadata } : preview.metadata,
             cue: preview.cue ? { ...preview.cue } : null,
-            digitalLifeFrame: preview.digitalLifeFrame ? {
-              ...preview.digitalLifeFrame,
-              face: { ...preview.digitalLifeFrame.face },
-              action: { ...preview.digitalLifeFrame.action },
-              lipSync: { ...preview.digitalLifeFrame.lipSync },
-              voice: { ...preview.digitalLifeFrame.voice },
-              motor: {
-                ...preview.digitalLifeFrame.motor,
-                gaze: { ...preview.digitalLifeFrame.motor.gaze },
-                head: { ...preview.digitalLifeFrame.motor.head },
-                breath: { ...preview.digitalLifeFrame.motor.breath },
-                facial: { ...preview.digitalLifeFrame.motor.facial },
-                body: { ...preview.digitalLifeFrame.motor.body },
-              },
-            } : null,
+            digitalLifeFrame: preview.digitalLifeFrame
+              ? {
+                  ...preview.digitalLifeFrame,
+                  face: { ...preview.digitalLifeFrame.face },
+                  action: { ...preview.digitalLifeFrame.action },
+                  lipSync: { ...preview.digitalLifeFrame.lipSync },
+                  voice: { ...preview.digitalLifeFrame.voice },
+                  motor: {
+                    ...preview.digitalLifeFrame.motor,
+                    gaze: { ...preview.digitalLifeFrame.motor.gaze },
+                    head: { ...preview.digitalLifeFrame.motor.head },
+                    breath: { ...preview.digitalLifeFrame.motor.breath },
+                    facial: { ...preview.digitalLifeFrame.motor.facial },
+                    body: { ...preview.digitalLifeFrame.motor.body },
+                  },
+                }
+              : null,
           }
         : null,
     )

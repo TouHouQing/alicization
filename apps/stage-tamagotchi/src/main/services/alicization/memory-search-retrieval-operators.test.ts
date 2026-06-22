@@ -4,9 +4,60 @@ import {
   resolveMemorySearchPrelude,
   retrieveMemorySearchCandidates,
 } from './memory-search-retrieval-operators'
-import { deriveSceneTriggeredRecollectionIntent } from './runtime-organic-memory-search-prelude'
+import {
+  deriveSceneTriggeredRecollectionIntent,
+  isPresentFacingSelfCritiqueRecallSeed,
+} from './runtime-organic-memory-search-prelude'
 
 describe('memory-search-retrieval-operators', () => {
+  it('keeps present-facing self critique recall seeds out of associative memory retrieval', async () => {
+    const retrieveMemoryFacts = vi.fn(async () => [])
+    const recallSubconsciousFragmentsWithGovernor = vi.fn(async () => [])
+    const recallEpisodicEventsWithGovernor = vi.fn(async () => [])
+    const planRecollectionIntent = vi.fn(async input => input.heuristicIntent)
+    const recallSeed = [
+      'current_turn_subject=alicization-self',
+      'dialogue-first',
+      '你为什么这样回我，刚才那句太公式化了，像个人一点。',
+    ].join('\n')
+
+    expect(isPresentFacingSelfCritiqueRecallSeed(recallSeed)).toBe(true)
+
+    const prelude = await resolveMemorySearchPrelude({
+      access: {
+        getOrganicMemorySnapshot: async () => ({
+          hostAttitude: 'warm',
+          coreIncarnation: '',
+          activeThoughts: [],
+        }),
+        getLatestRelationshipDynamics: async () => null,
+        retrieveMemoryFacts,
+        recallSubconsciousFragmentsWithGovernor,
+        recallEpisodicEventsWithGovernor,
+        buildHostPersonModel: async () => null,
+      },
+      policy: {
+        planRecollectionIntent,
+        deriveSceneTriggeredRecollectionIntent,
+        isPersonaResidueMemoryText: () => false,
+      },
+      recallSeed,
+      recallGovernor: {
+        allowRecalledFragments: true,
+      } as any,
+    })
+
+    expect(prelude.recollectionIntent).toBeNull()
+    expect(prelude.activeRecollectionIntent).toBeNull()
+    expect(prelude.retrievedFacts).toEqual([])
+    expect(prelude.recalledFragments).toEqual([])
+    expect(prelude.recalledEpisodes).toEqual([])
+    expect(planRecollectionIntent).not.toHaveBeenCalled()
+    expect(retrieveMemoryFacts).not.toHaveBeenCalled()
+    expect(recallSubconsciousFragmentsWithGovernor).not.toHaveBeenCalled()
+    expect(recallEpisodicEventsWithGovernor).not.toHaveBeenCalled()
+  })
+
   it('derives heuristic recollection intent from session mirror runtime continuity carry', async () => {
     let plannedInput: any = null
     const prelude = await resolveMemorySearchPrelude({

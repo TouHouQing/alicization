@@ -280,6 +280,7 @@ function createDigitalLifeSpineDigestFixture(input: {
         stability: null,
         identityNarrative: null,
         relationshipDoctrine: null,
+        latestInflection: null,
       },
       relationship: null,
       selfState: null,
@@ -2754,6 +2755,7 @@ describe('stage embodiment speech contract', () => {
             stability: 0.76,
             identityNarrative: 'hold the line and keep the claim surface clean',
             relationshipDoctrine: 'guide firmly when truth is at risk',
+            latestInflection: 'truth pressure should keep the body measured before the line sharpens.',
           },
           relationship: {
             climate: 'guarded',
@@ -2950,6 +2952,7 @@ describe('stage embodiment speech contract', () => {
             stability: 0.8,
             identityNarrative: 'return on the same line without crowding it',
             relationshipDoctrine: 'repair should settle before closeness expands',
+            latestInflection: 'repair stayed warmer when the return kept more room.',
           },
           relationship: {
             climate: 'guarded',
@@ -3289,6 +3292,7 @@ describe('stage embodiment speech contract', () => {
             stability: 0.76,
             identityNarrative: 'hold the line and keep the claim surface clean',
             relationshipDoctrine: 'guide firmly when truth is at risk',
+            latestInflection: 'truth pressure should keep the body measured before the line sharpens.',
           },
           relationship: {
             climate: 'guarded',

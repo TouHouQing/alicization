@@ -4,8 +4,11 @@ import type { AlicizationVisualPresenceStateSnapshot } from '../../stores/aliciz
 
 import {
   hasAlicizationAudibleSameHerCarry,
+  hasAlicizationBodyVoiceOnlySameHerCarry,
   hasAlicizationSoftenedSameHerCarry,
 } from '@proj-alicization/stage-shared'
+
+import { mergePreferredAliases } from './stage-runtime-embodiment-cues'
 
 function uniqueAliases(values: Array<string | null | undefined>) {
   const seen = new Set<string>()
@@ -85,6 +88,12 @@ function hasAudibleSameHerResidentSignature(
       ...(resident?.reasonTags ?? []),
       ...(privateThought?.rationaleTags ?? []),
     ],
+  }) || hasAlicizationBodyVoiceOnlySameHerCarry({
+    signature: resident?.signature ?? null,
+    reasonTags: [
+      ...(resident?.reasonTags ?? []),
+      ...(privateThought?.rationaleTags ?? []),
+    ],
   })
 }
 
@@ -111,6 +120,31 @@ function isQuietLowerPressureAttentivePosture(
     && presencePosture.breathBoost <= 0.14
     && Math.abs(presencePosture.bodyYaw) <= 0.03
     && presencePosture.bodyPitch <= 0.24
+}
+
+function resolveResidentConfiguredAliasesFromRuntimeState(input: {
+  emotion: string
+  configuredAliases: readonly string[] | null | undefined
+  runtimeSegmentExpressionAliasesByEmotion: Partial<Record<string, string[]>>
+  runtimeTurnExpressionAliasesByEmotion: Partial<Record<string, string[]>>
+}) {
+  return mergePreferredAliases(
+    input.runtimeSegmentExpressionAliasesByEmotion[input.emotion],
+    mergePreferredAliases(
+      input.runtimeTurnExpressionAliasesByEmotion[input.emotion],
+      input.configuredAliases,
+    ),
+  )
+}
+
+function preserveAuthoritativeSegmentAliases(
+  authoritativeSegmentAliases: readonly string[] | null | undefined,
+  resolvedAliases: readonly string[] | null | undefined,
+) {
+  return mergePreferredAliases(
+    authoritativeSegmentAliases,
+    resolvedAliases,
+  )
 }
 
 export function resolveResidentLive2DPreferredExpressionAliases(input: {
@@ -141,6 +175,27 @@ export function resolveResidentLive2DPreferredExpressionAliases(input: {
   ])
 }
 
+export function resolveResidentLive2DPreferredExpressionAliasesFromRuntimeState(input: {
+  emotion: string
+  configuredAliases: readonly string[] | null | undefined
+  runtimeSegmentExpressionAliasesByEmotion: Partial<Record<string, string[]>>
+  runtimeTurnExpressionAliasesByEmotion: Partial<Record<string, string[]>>
+  presencePosture: StageEmbodimentPresencePostureState | null | undefined
+  visualPresenceState: AlicizationVisualPresenceStateSnapshot | null | undefined
+}) {
+  const authoritativeSegmentAliases = input.runtimeSegmentExpressionAliasesByEmotion[input.emotion]
+
+  return preserveAuthoritativeSegmentAliases(
+    authoritativeSegmentAliases,
+    resolveResidentLive2DPreferredExpressionAliases({
+      emotion: input.emotion,
+      configuredAliases: resolveResidentConfiguredAliasesFromRuntimeState(input),
+      presencePosture: input.presencePosture,
+      visualPresenceState: input.visualPresenceState,
+    }),
+  )
+}
+
 export function resolveResidentVrmPreferredExpressionAliases(input: {
   emotion: string
   configuredAliases: readonly string[] | null | undefined
@@ -166,6 +221,27 @@ export function resolveResidentVrmPreferredExpressionAliases(input: {
     ...input.configuredAliases ?? [],
     input.emotion,
   ])
+}
+
+export function resolveResidentVrmPreferredExpressionAliasesFromRuntimeState(input: {
+  emotion: string
+  configuredAliases: readonly string[] | null | undefined
+  runtimeSegmentExpressionAliasesByEmotion: Partial<Record<string, string[]>>
+  runtimeTurnExpressionAliasesByEmotion: Partial<Record<string, string[]>>
+  presencePosture: StageEmbodimentPresencePostureState | null | undefined
+  visualPresenceState: AlicizationVisualPresenceStateSnapshot | null | undefined
+}) {
+  const authoritativeSegmentAliases = input.runtimeSegmentExpressionAliasesByEmotion[input.emotion]
+
+  return preserveAuthoritativeSegmentAliases(
+    authoritativeSegmentAliases,
+    resolveResidentVrmPreferredExpressionAliases({
+      emotion: input.emotion,
+      configuredAliases: resolveResidentConfiguredAliasesFromRuntimeState(input),
+      presencePosture: input.presencePosture,
+      visualPresenceState: input.visualPresenceState,
+    }),
+  )
 }
 
 export function resolveResidentFacialCueBias(input: {

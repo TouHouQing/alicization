@@ -233,6 +233,71 @@ describe('alicization embodiment script', () => {
     expect(invalidLipSyncAuthority).toBeNull()
   })
 
+  it('preserves measured-return resident renderer hints through embodiment script normalization', () => {
+    const script = normalizeAlicizationEmbodimentScript({
+      version: 'embodiment-script-v1',
+      turnId: 'turn-measured-return-renderer-hints',
+      rendererTarget: 'live2d',
+      replyText: '我会慢一点接回来。',
+      state: {
+        baseEmotion: 'thinking',
+        delivery: 'gentle',
+        emphasis: 0,
+        residentMode: 'measured-return',
+      },
+      speechPlan: {
+        segments: [{
+          id: 'segment-measured-return',
+          index: 0,
+          text: '我会慢一点接回来。',
+          interruptPolicy: 'soft-settle',
+          preRollMs: 40,
+          settleMs: 260,
+          rendererHints: {
+            residentMode: 'repair-before-closeness',
+            preferredExpressionAliases: ['Soft Gaze'],
+            preferredMotionAliases: ['Idle Settle'],
+            preferredBlinkCadence: 'linger',
+            preferredGazeMode: 'soften',
+            preferredPauseMode: 'longer',
+            preferredLipsyncMode: 'restrained',
+            preferredVoiceMode: 'lower-pressure',
+            preferredPacingMode: 'slower',
+            reasonTags: ['same-her-inward-carry', 'measured-return'],
+            signature: 'resident|same-her|measured-return',
+          },
+        }],
+        interruptPolicy: 'soft-settle',
+        preRollMs: 40,
+        settleMs: 260,
+      },
+      facePlan: { speakingCues: [] },
+      motionPlan: {
+        idleBase: 'idle_settle',
+        actionBursts: [],
+        attentionMode: 'ambient',
+      },
+      lipsyncPlan: {
+        mode: 'energy-only',
+      },
+    })
+
+    expect(script?.state.residentMode).toBe('measured-return')
+    expect(script?.speechPlan.segments[0]?.rendererHints).toEqual({
+      preferredBlinkCadence: 'linger',
+      preferredExpressionAliases: ['Soft Gaze'],
+      preferredGazeMode: 'soften',
+      preferredLipsyncMode: 'restrained',
+      preferredMotionAliases: ['Idle Settle'],
+      preferredPacingMode: 'slower',
+      preferredPauseMode: 'longer',
+      preferredVoiceMode: 'lower-pressure',
+      reasonTags: ['same-her-inward-carry', 'measured-return'],
+      residentMode: 'repair-before-closeness',
+      signature: 'resident|same-her|measured-return',
+    })
+  })
+
   it('preserves null cue semantics for face and motion entries when the rest of the entry is valid', () => {
     const script = normalizeAlicizationEmbodimentScript({
       version: 'embodiment-script-v1',

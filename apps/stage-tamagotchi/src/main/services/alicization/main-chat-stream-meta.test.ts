@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import {
+  buildAlicizationChatMetaPayload,
   buildAlicizationChatMetaSignature,
   createAlicizationChatStreamMetaEmitter,
+  repairContinuitySourceTagsFromRuntimeDigest,
   shouldEmitAlicizationChatMetaUpdate,
 } from './main-chat-stream-meta'
 
@@ -967,5 +969,111 @@ describe('main chat stream meta', () => {
     })
 
     expect(signatureA).not.toBe(signatureB)
+  })
+
+  it('builds meta payloads with runtime project-state awareness for renderer continuity', () => {
+    const payload = buildAlicizationChatMetaPayload({
+      cardId: 'card-project-state-1',
+      turnId: 'turn-project-state-1',
+      governance: {
+        decisionTraceId: 'trace-project-state-1',
+      } as any,
+      runtimeDigest: {
+        version: 'alicization-runtime-digest-v1',
+        dominantChannel: 'active-dialogue',
+        shouldProactivelySpeak: true,
+        shouldProactivelyAct: false,
+        continuityPressure: 0.72,
+        companionshipPressure: 0.81,
+        channels: [],
+        summary: 'same her project state carried into meta',
+        projectState: {
+          identity: 'Alicization is a local-first digital life project.',
+          currentPhase: 'Phase 1: Local Digital Life',
+          preflightSummary: 'Phase 1 memory and presence loop is being closed.',
+          preDialogueAwarenessLine: 'Keep one continuous her visible before speaking.',
+          companionHeadlineLine: 'memory and body are being rejoined',
+          latestLandedProgress: 'runtime authored presence expression reaches the renderer',
+        },
+      } as any,
+    })
+
+    expect(payload).toEqual(expect.objectContaining({
+      cardId: 'card-project-state-1',
+      turnId: 'turn-project-state-1',
+      projectState: expect.objectContaining({
+        currentPhase: 'Phase 1: Local Digital Life',
+        latestLandedProgress: 'runtime authored presence expression reaches the renderer',
+      }),
+      preDialogueAwareness: expect.objectContaining({
+        status: 'grounded',
+        summaryLine: 'Phase 1 memory and presence loop is being closed.',
+        awarenessLine: 'Keep one continuous her visible before speaking.',
+      }),
+    }))
+  })
+
+  it('repairs digital-life spine continuity source tags from runtime project state', () => {
+    const repaired = repairContinuitySourceTagsFromRuntimeDigest({
+      runtimeDigest: {
+        version: 'alicization-runtime-digest-v1',
+        dominantChannel: 'active-dialogue',
+        shouldProactivelySpeak: true,
+        shouldProactivelyAct: false,
+        continuityPressure: 0.72,
+        companionshipPressure: 0.81,
+        channels: [],
+        summary: 'same living line',
+        projectState: {
+          sameHerSelfLine: 'she is one continuous local digital life',
+          continuityCue: 'same living line from memory into body',
+        },
+      } as any,
+      digitalLifeSpine: {
+        version: 'digital-life-spine-digest-v1',
+        runtime: {
+          watchMode: 'symbiotic-vision',
+          sceneScenario: 'coding',
+          sceneSummary: 'runtime diff',
+          activeThreadId: 'thread-1',
+          activeThreadTitle: 'runtime diff',
+          dominantMode: 'tracking',
+          dominantDrive: 'understand',
+          answerIntent: 'guide',
+          preferredPresence: 'attentive',
+          selectedAction: 'wait',
+          updatedAt: 1_000,
+        },
+        memory: {
+          summary: 'same her memory',
+          personStateProjection: {
+            summary: 'same-her projection',
+            selfContinuityAuthority: {
+              sourceTags: ['conversation-state'],
+              selfLine: null,
+              relationshipLine: null,
+              motiveLine: null,
+              habitLine: null,
+              inwardLine: null,
+              authoritySummary: null,
+            },
+            activeClosenessContext: null,
+            activeClosenessRung: null,
+            relationshipPosture: null,
+            openingGuidance: null,
+            preferredProactiveStyle: null,
+            manifestationCadenceSummary: null,
+          },
+        },
+      } as any,
+    }) as any
+
+    expect(repaired.memory.personStateProjection.selfContinuityAuthority).toEqual(expect.objectContaining({
+      inwardLine: 'she is one continuous local digital life',
+      sourceTags: expect.arrayContaining([
+        'conversation-state',
+        'project-state-carry',
+      ]),
+    }))
   })
 })

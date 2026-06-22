@@ -13,7 +13,9 @@ import { useBackgroundStore } from '@proj-alicization/stage-layouts/stores/backg
 import { WidgetStage } from '@proj-alicization/stage-ui/components/scenes'
 import { useAudioRecorder } from '@proj-alicization/stage-ui/composables/audio/audio-recorder'
 import { useVAD } from '@proj-alicization/stage-ui/stores/ai/models/vad'
+import { useAlicizationSelfEvolutionInspectorStore } from '@proj-alicization/stage-ui/stores/alicization-self-evolution-inspector'
 import { useChatOrchestratorStore } from '@proj-alicization/stage-ui/stores/chat'
+import { buildPreDialogueSendIdentityFromInspectorSnapshots } from '@proj-alicization/stage-ui/stores/chat/pre-dialogue-send-identity'
 import { useLive2d } from '@proj-alicization/stage-ui/stores/live2d'
 import { useConsciousnessStore } from '@proj-alicization/stage-ui/stores/modules/consciousness'
 import { useHearingSpeechInputPipeline } from '@proj-alicization/stage-ui/stores/modules/hearing'
@@ -22,6 +24,8 @@ import { useSettingsAudioDevice } from '@proj-alicization/stage-ui/stores/settin
 import { breakpointsTailwind, useBreakpoints, useMouse } from '@vueuse/core'
 import { storeToRefs } from 'pinia'
 import { computed, onMounted, onUnmounted, ref, useTemplateRef, watch } from 'vue'
+
+import { dispatchPocketVoiceTurn } from './index.voice'
 
 const paused = ref(false)
 
@@ -50,8 +54,14 @@ const { transcribeForRecording, transcribeForMediaStream, stopStreamingTranscrip
 const { supportsStreamInput } = storeToRefs(hearingPipeline)
 const providersStore = useProvidersStore()
 const consciousnessStore = useConsciousnessStore()
+const selfEvolutionInspectorStore = useAlicizationSelfEvolutionInspectorStore()
 const { activeProvider: activeChatProvider, activeModel: activeChatModel } = storeToRefs(consciousnessStore)
 const chatStore = useChatOrchestratorStore()
+const {
+  preDialogueAwarenessSnapshot,
+  preDialogueClosureSnapshot,
+  projectStateContinuitySnapshot,
+} = storeToRefs(selfEvolutionInspectorStore)
 
 const shouldUseStreamInput = computed(() => supportsStreamInput.value && !!stream.value)
 
@@ -67,6 +77,14 @@ const {
 })
 
 let stopOnStopRecord: (() => void) | undefined
+
+function buildVoicePreDialogueSendIdentity() {
+  return buildPreDialogueSendIdentityFromInspectorSnapshots({
+    projectStateContinuitySnapshot: projectStateContinuitySnapshot.value,
+    preDialogueClosureSnapshot: preDialogueClosureSnapshot.value,
+    preDialogueAwarenessSnapshot: preDialogueAwarenessSnapshot.value,
+  })
+}
 
 async function startAudioInteraction() {
   try {
@@ -85,11 +103,14 @@ async function startAudioInteraction() {
         if (!provider || !activeChatModel.value)
           return
 
-        await chatStore.ingest(text, {
+        await dispatchPocketVoiceTurn({
+          text,
           providerId: activeChatProvider.value,
           model: activeChatModel.value,
           chatProvider: provider as ChatProvider,
           providerConfig: providersStore.getProviderConfig(activeChatProvider.value),
+          preDialogueSendIdentity: buildVoicePreDialogueSendIdentity(),
+          ingest: chatStore.ingest,
         })
       }
       catch (err) {
@@ -119,11 +140,14 @@ async function handleSpeechStart() {
             if (!provider || !activeChatModel.value)
               return
 
-            await chatStore.ingest(finalText, {
+            await dispatchPocketVoiceTurn({
+              text: finalText,
               providerId: activeChatProvider.value,
               model: activeChatModel.value,
               chatProvider: provider as ChatProvider,
               providerConfig: providersStore.getProviderConfig(activeChatProvider.value),
+              preDialogueSendIdentity: buildVoicePreDialogueSendIdentity(),
+              ingest: chatStore.ingest,
             })
           }
           catch (err) {

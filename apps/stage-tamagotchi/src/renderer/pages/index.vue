@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { AlicizationMindTurnEventRecord } from '@proj-alicization/stage-ui/stores/alicization-bridge'
 import type { ChatProvider } from '@xsai-ext/providers/utils'
 
 import workletUrl from '@proj-alicization/stage-ui/workers/vad/process.worklet?worker&url'
@@ -15,10 +16,11 @@ import { useModelStore, useThreeSceneIsTransparentAtPoint } from '@proj-alicizat
 import { WidgetStage } from '@proj-alicization/stage-ui/components/scenes'
 import { useAudioRecorder } from '@proj-alicization/stage-ui/composables/audio/audio-recorder'
 import { useCanvasPixelIsTransparentAtPoint } from '@proj-alicization/stage-ui/composables/canvas-alpha'
-import { getAlicizationBridge, hasAlicizationBridge } from '@proj-alicization/stage-ui/stores/alicization-bridge'
-import type { AlicizationMindTurnEventRecord } from '@proj-alicization/stage-ui/stores/alicization-bridge'
 import { useVAD } from '@proj-alicization/stage-ui/stores/ai/models/vad'
+import { getAlicizationBridge, hasAlicizationBridge } from '@proj-alicization/stage-ui/stores/alicization-bridge'
+import { useAlicizationSelfEvolutionInspectorStore } from '@proj-alicization/stage-ui/stores/alicization-self-evolution-inspector'
 import { useChatOrchestratorStore } from '@proj-alicization/stage-ui/stores/chat'
+import { buildPreDialogueSendIdentityFromInspectorSnapshots } from '@proj-alicization/stage-ui/stores/chat/pre-dialogue-send-identity'
 import { useDisplayModelsStore } from '@proj-alicization/stage-ui/stores/display-models'
 import { useLive2d } from '@proj-alicization/stage-ui/stores/live2d'
 import { useConsciousnessStore } from '@proj-alicization/stage-ui/stores/modules/consciousness'
@@ -40,18 +42,19 @@ import { useStageThreeRuntimeDiagnosticsStore } from '../stores/stage-three-runt
 import { useStageWindowLifecycleStore } from '../stores/stage-window-lifecycle'
 import { useWindowStore } from '../stores/window'
 import {
-  buildRecentDrivingEventQueryInput,
-  buildRecentDrivingTraceRecordSummaryFromMemoryDecisionTraces,
-  buildRecentDrivingTraceDetailsFromMindTurnEvents,
-  buildRecentDrivingTraceEventsFromMindTurnEvents,
-  mapSpeechEmbodimentDiagnosticsForRenderer,
-  resolveRecentDrivingEventFromMindTurnEvents,
-} from './index.speech-embodiment-diagnostics'
-import {
+  dispatchDesktopVoiceTurn,
   resetDesktopLayoutState,
   resolveDesktopMouseCaptureState,
   runStageStartupOnboardingCheck,
 } from './index.desktop'
+import {
+  buildRecentDrivingEventQueryInput,
+  buildRecentDrivingTraceDetailsFromMindTurnEvents,
+  buildRecentDrivingTraceEventsFromMindTurnEvents,
+  buildRecentDrivingTraceRecordSummaryFromMemoryDecisionTraces,
+  mapSpeechEmbodimentDiagnosticsForRenderer,
+  resolveRecentDrivingEventFromMindTurnEvents,
+} from './index.speech-embodiment-diagnostics'
 
 const controlsIslandRef = ref<InstanceType<typeof ControlsIsland>>()
 const widgetStageRef = ref<InstanceType<typeof WidgetStage>>()
@@ -343,8 +346,14 @@ const {
 const { supportsStreamInput } = storeToRefs(hearingPipeline)
 const providersStore = useProvidersStore()
 const consciousnessStore = useConsciousnessStore()
+const selfEvolutionInspectorStore = useAlicizationSelfEvolutionInspectorStore()
 const { activeProvider: activeChatProvider, activeModel: activeChatModel } = storeToRefs(consciousnessStore)
 const chatStore = useChatOrchestratorStore()
+const {
+  preDialogueAwarenessSnapshot,
+  preDialogueClosureSnapshot,
+  projectStateContinuitySnapshot,
+} = storeToRefs(selfEvolutionInspectorStore)
 const shouldUseStreamInput = computed(() => supportsStreamInput.value && !!stream.value)
 
 const {
@@ -363,6 +372,14 @@ const {
 })
 
 let stopOnStopRecord: (() => void) | undefined
+
+function buildVoicePreDialogueSendIdentity() {
+  return buildPreDialogueSendIdentityFromInspectorSnapshots({
+    projectStateContinuitySnapshot: projectStateContinuitySnapshot.value,
+    preDialogueClosureSnapshot: preDialogueClosureSnapshot.value,
+    preDialogueAwarenessSnapshot: preDialogueAwarenessSnapshot.value,
+  })
+}
 
 // Caption overlay broadcast channel
 type CaptionChannelEvent
@@ -430,12 +447,15 @@ async function startAudioInteraction() {
               }
 
               console.info('[Main Page] Sending transcription to chat:', finalText)
-              await chatStore.ingest(finalText, {
+              await dispatchDesktopVoiceTurn({
+                text: finalText,
                 providerId: activeChatProvider.value,
                 model: activeChatModel.value,
                 chatProvider: provider as ChatProvider,
                 providerConfig: providersStore.getProviderConfig(activeChatProvider.value),
+                preDialogueSendIdentity: buildVoicePreDialogueSendIdentity(),
                 origin: 'ui-user',
+                ingest: chatStore.ingest,
               })
             }
             catch (err) {
@@ -476,12 +496,15 @@ async function startAudioInteraction() {
         if (!provider || !activeChatModel.value)
           return
 
-        await chatStore.ingest(text, {
+        await dispatchDesktopVoiceTurn({
+          text,
           providerId: activeChatProvider.value,
           model: activeChatModel.value,
           chatProvider: provider as ChatProvider,
           providerConfig: providersStore.getProviderConfig(activeChatProvider.value),
+          preDialogueSendIdentity: buildVoicePreDialogueSendIdentity(),
           origin: 'ui-user',
+          ingest: chatStore.ingest,
         })
       }
       catch (err) {

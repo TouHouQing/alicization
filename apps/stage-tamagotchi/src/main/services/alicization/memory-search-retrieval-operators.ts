@@ -4,22 +4,22 @@ import type {
   AlicizationMemoryProvenance,
   AlicizationRecallGovernorSnapshot,
 } from '../../../shared/eventa'
+import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
+import type { AlicizationTurnRetrievalPolicySnapshot } from './memory-accessibility-runtime'
 import type {
   AlicizationProceduralMemoryAbstraction,
 } from './memory-procedural-abstraction'
 import type {
   AlicizationMemoryRecollectionWindow,
 } from './memory-recollection-windows'
-import type { AlicizationMemoryTuningAdvice } from './memory-tuning-advice'
 import type { AlicizationMemoryRetrievalBudgetClass } from './memory-retrieval-telemetry'
-import type { AlicizationTurnRetrievalPolicySnapshot } from './memory-accessibility-runtime'
+import type { AlicizationMemoryTuningAdvice } from './memory-tuning-advice'
 import type { AlicizationRelationshipDynamicsState } from './relationship-dynamics-state'
-import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 import type { OrganicMemoryPromptContext } from './runtime-soul'
 
+import { rankFactsByLearningTuning } from './learning-tuned-fact-ranking'
 import { buildProceduralMemoryAbstractions } from './memory-procedural-abstraction'
 import { buildMemoryRecollectionWindows } from './memory-recollection-windows'
-import { rankFactsByLearningTuning } from './learning-tuned-fact-ranking'
 import { isPresentFacingSelfCritiqueRecallSeed } from './runtime-organic-memory-search-prelude'
 
 function clamp01(value: number) {
@@ -38,6 +38,23 @@ function uniqueList(values: Array<string | null | undefined>, maxItems = 6) {
   const result: string[] = []
   for (const value of values) {
     const normalized = sanitizeText(value)
+    if (!normalized)
+      continue
+    if (result.some(item => item.toLowerCase() === normalized.toLowerCase()))
+      continue
+    result.push(normalized)
+    if (result.length >= maxItems)
+      break
+  }
+  return result
+}
+
+function uniqueRecallSeedBlocks(values: Array<string | null | undefined>, maxItems = 8) {
+  const result: string[] = []
+  for (const value of values) {
+    if (typeof value !== 'string')
+      continue
+    const normalized = value.trim()
     if (!normalized)
       continue
     if (result.some(item => item.toLowerCase() === normalized.toLowerCase()))
@@ -160,7 +177,7 @@ export async function resolveMemorySearchPrelude(
     input.access.buildHostPersonModel().catch(() => null),
   ])
   const memoryTuningAdvice = await input.access.getMemoryTuningAdvice?.().catch(() => null) ?? null
-  const recallSeed = uniqueList([
+  const recallSeed = uniqueRecallSeedBlocks([
     input.recallSeed,
     input.recallGovernor?.recallSeed,
   ], 8).join('\n')

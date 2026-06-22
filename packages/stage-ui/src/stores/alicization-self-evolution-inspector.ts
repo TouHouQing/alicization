@@ -3,16 +3,45 @@ import type {
   AlicizationMemoryDecisionTraceRecord,
   AlicizationMindTurnEventRecord,
   AlicizationOrganicMemorySnapshot,
-  AlicizationSoulSnapshot,
+  AlicizationProjectStateContinuitySnapshot,
+  AlicizationProjectStateObservation,
   AlicizationSelfEvolutionVersionRuntimeSnapshot,
+  AlicizationSoulSnapshot,
   AlicizationVisualPresenceStateSnapshot,
 } from './alicization-bridge'
 
+import {
+  isAlicizationThinProjectAwarenessLine,
+  resolveAlicizationProjectPreDialogueAwarenessLine,
+  scoreAlicizationProjectAwarenessLine,
+} from '@proj-alicization/stage-shared'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 
+import { normalizeStructuredPreDialogueClosurePayload } from '../composables/alicization-structured-output'
 import { getAlicizationBridge, hasAlicizationBridge } from './alicization-bridge'
 import { useAlicizationMindReplayStore } from './alicization-mind-replay'
+import { resolvePreDialogueClosureCompanionHeadlineLine } from './chat/pre-dialogue-send-identity'
+import { projectStateObservationToContinuitySnapshot } from './project-state-observation'
+
+type AlicizationLegacyAwareProjectStateContinuitySnapshot
+  = AlicizationProjectStateContinuitySnapshot & {
+    landedProgressSummary?: string | null
+  }
+
+interface BirthPersonaAuthoritySummary {
+  status: 'grounded' | 'partial' | 'missing'
+  birthMode: string
+  dominantDrift: string | null
+  lines: string[]
+}
+
+interface ProactiveDecisionConsumptionSummary {
+  status: 'grounded' | 'partial' | 'missing'
+  decisionMode: 'birth-anchored-restraint' | 'restraint-overridden' | 'converging'
+  dominantDrift: string | null
+  lines: string[]
+}
 
 function summarizeTraceEvent(event: AlicizationMindTurnEventRecord) {
   const payload = event.payload && typeof event.payload === 'object'
@@ -101,6 +130,13 @@ function summarizeTraceEvent(event: AlicizationMindTurnEventRecord) {
   return summary?.trim() || null
 }
 
+function readTraceOutcomeLearningAction(trace: AlicizationMemoryDecisionTraceRecord) {
+  const action = trace.governance?.digitalLifeSpine?.outcomeLearning?.nextLearningAction
+  return typeof action === 'string' && action.trim()
+    ? action.trim()
+    : null
+}
+
 function asTracePayloadObject(raw: unknown) {
   return raw && typeof raw === 'object' && !Array.isArray(raw)
     ? raw as Record<string, unknown>
@@ -160,6 +196,205 @@ function uniquePreviewReasons(values: Array<string | null | undefined>, maxItems
       break
   }
   return result
+}
+
+const PRE_DIALOGUE_AWARENESS_REASON_PREVIEW_LIMIT = 16
+
+interface NormalizedPreDialogueAwarenessSnapshot {
+  status: 'grounded' | 'partial' | 'drift'
+  summaryLine: string | null
+  companionHeadlineLine: string | null
+  companionBriefingLine: string | null
+  companionNextClosureLine: string | null
+  awarenessLine: string | null
+  emotionalClosureCue: string | null
+  reasonPreview: string[]
+}
+
+interface NormalizedPreDialogueClosureSnapshot {
+  status: 'grounded' | 'partial' | 'drift' | 'rewritten' | null
+  summaryLine: string | null
+  companionHeadlineLine: string | null
+  companionBriefingLine: string | null
+  companionNextClosureLine: string | null
+  sameHerDriftRiskLine: string | null
+  companionshipReasonLine: string | null
+  emotionalClosureCue: string | null
+  briefingLines: string[]
+  reasons: string[]
+}
+
+function normalizeInspectorText(value: unknown) {
+  return typeof value === 'string' ? value.trim() : ''
+}
+
+function normalizePreDialogueAwarenessSnapshot(raw: unknown): NormalizedPreDialogueAwarenessSnapshot | null {
+  const payload = raw && typeof raw === 'object' && !Array.isArray(raw)
+    ? raw as Record<string, unknown>
+    : null
+  if (!payload)
+    return null
+
+  const status = payload.status === 'grounded' || payload.status === 'partial' || payload.status === 'drift'
+    ? payload.status
+    : null
+  const summaryLine = normalizeInspectorText(payload.summaryLine)
+  const companionHeadlineLine = normalizeInspectorText(payload.companionHeadlineLine)
+  const companionBriefingLine = normalizeInspectorText(payload.companionBriefingLine)
+  const companionNextClosureLine = normalizeInspectorText(payload.companionNextClosureLine)
+  const awarenessLine = normalizeInspectorText(payload.awarenessLine)
+  const emotionalClosureCue = normalizeInspectorText(payload.emotionalClosureCue)
+  const reasonPreview = Array.isArray(payload.reasonPreview)
+    ? payload.reasonPreview.map(normalizeInspectorText).filter(Boolean)
+    : []
+
+  if (!status && !summaryLine && !companionHeadlineLine && !companionBriefingLine && !awarenessLine && reasonPreview.length === 0)
+    return null
+
+  return {
+    status: status ?? 'partial',
+    summaryLine: summaryLine || null,
+    companionHeadlineLine: companionHeadlineLine || null,
+    companionBriefingLine: companionBriefingLine || null,
+    companionNextClosureLine: companionNextClosureLine || null,
+    awarenessLine: awarenessLine || companionHeadlineLine || companionBriefingLine || summaryLine || null,
+    emotionalClosureCue: emotionalClosureCue || null,
+    reasonPreview,
+  }
+}
+
+function normalizePreDialogueClosureSnapshot(raw: unknown): NormalizedPreDialogueClosureSnapshot | null {
+  const normalized = normalizeStructuredPreDialogueClosurePayload(raw)
+  if (!normalized)
+    return null
+
+  return {
+    status: normalized.status,
+    summaryLine: normalized.summaryLine ?? null,
+    companionHeadlineLine: normalized.companionHeadlineLine ?? null,
+    companionBriefingLine: normalized.companionBriefingLine ?? null,
+    companionNextClosureLine: normalized.companionNextClosureLine ?? null,
+    sameHerDriftRiskLine: normalized.sameHerDriftRiskLine ?? null,
+    companionshipReasonLine: normalized.companionshipReasonLine ?? null,
+    emotionalClosureCue: normalized.emotionalClosureCue ?? null,
+    briefingLines: normalized.briefingLines ?? [],
+    reasons: normalized.reasons ?? [],
+  }
+}
+
+function looksLikeThinContinuityReminder(value: string | null | undefined) {
+  const normalized = normalizeInspectorText(value).toLowerCase()
+  if (!normalized)
+    return true
+
+  return isAlicizationThinProjectAwarenessLine(normalized)
+    || normalized.includes('generic continuity reminder')
+    || normalized.includes('generic awareness reminder')
+    || normalized.includes('generic awareness summary')
+    || normalized.includes('generic same-her reminder')
+}
+
+function looksLikeThinContinuityNextClosureLine(value: string | null | undefined) {
+  const normalized = normalizeInspectorText(value).toLowerCase()
+  if (!normalized)
+    return false
+
+  return normalized.includes('generic next target')
+    || normalized.includes('generic next closure')
+    || normalized.includes('generic closure shell')
+    || normalized.includes('generic closure summary')
+}
+
+function carriesBroaderInspectorProjectFrame(value: string | null | undefined) {
+  const normalized = normalizeInspectorText(value)
+  if (!normalized)
+    return false
+
+  return /\b(?:project|digital life project|life loop|still-open|what has landed|before speaking|before answering|local-first digital life)\b/i.test(normalized)
+    || /数字生命项目|闭环|主线|已落地|开口前|先记住/u.test(normalized)
+}
+
+function resolveContinuityLatestLandedProgress(
+  continuity: AlicizationProjectStateContinuitySnapshot | null | undefined,
+) {
+  const legacyAwareContinuity = continuity as AlicizationLegacyAwareProjectStateContinuitySnapshot | null | undefined
+  return continuity?.latestLandedProgress?.trim()
+    || continuity?.latestProgress?.trim()
+    || legacyAwareContinuity?.landedProgressSummary?.trim()
+    || ''
+}
+
+function mergePreDialogueAwarenessWithContinuitySnapshot(
+  awareness: NormalizedPreDialogueAwarenessSnapshot | null,
+  continuitySnapshot: AlicizationProjectStateContinuitySnapshot | null,
+) {
+  if (!awareness)
+    return null
+
+  const continuitySummary = normalizeInspectorText(continuitySnapshot?.continuitySummary)
+  const sameHerSelfLine = normalizeInspectorText(continuitySnapshot?.sameHerSelfLine)
+  const sameHerHoldDetail = normalizeInspectorText(continuitySnapshot?.sameHerHoldDetail)
+  const latestLandedProgress = resolveContinuityLatestLandedProgress(continuitySnapshot)
+  const primaryOpenLoop = normalizeInspectorText(continuitySnapshot?.primaryOpenLoop)
+  const sameHerDriftRisk = normalizeInspectorText(continuitySnapshot?.sameHerDriftRisk)
+  const nextClosureTarget = normalizeInspectorText(continuitySnapshot?.nextClosureTarget)
+  const proactiveSameHerGap = normalizeInspectorText((continuitySnapshot as { proactiveSameHerGap?: unknown } | null)?.proactiveSameHerGap)
+
+  const summaryLine = continuitySummary || awareness.summaryLine
+  const companionBriefingLine = looksLikeThinContinuityReminder(awareness.companionBriefingLine)
+    ? sameHerHoldDetail || proactiveSameHerGap || sameHerSelfLine || awareness.companionBriefingLine
+    : awareness.companionBriefingLine
+  const companionNextClosureLine = looksLikeThinContinuityNextClosureLine(awareness.companionNextClosureLine)
+    ? nextClosureTarget || awareness.companionNextClosureLine
+    : awareness.companionNextClosureLine
+
+  const projectAwarenessLine = resolveAlicizationProjectPreDialogueAwarenessLine({
+    runtimeProjectState: {
+      preDialogueAwarenessLine: awareness.awarenessLine,
+      awarenessLine: awareness.awarenessLine,
+      companionHeadlineLine: awareness.companionHeadlineLine,
+      companionBriefingLine,
+      preDialogueAwarenessSummary: summaryLine,
+      latestLandedProgress,
+      landedProgressSummary: latestLandedProgress,
+      primaryOpenLoop,
+      nextClosureTarget,
+      sameHerSelfLine,
+      sameHerHoldDetail,
+      proactiveSameHerGap,
+      sameHerDriftRisk,
+      emotionalClosureCue: awareness.emotionalClosureCue ?? continuitySnapshot?.emotionalClosureCue ?? null,
+    },
+  })
+  const awarenessLineLooksThin = looksLikeThinContinuityReminder(awareness.awarenessLine)
+  const awarenessLineCarriesBroaderProject = carriesBroaderInspectorProjectFrame(awareness.awarenessLine)
+  const awarenessLine = awarenessLineLooksThin
+    ? sameHerHoldDetail || proactiveSameHerGap || sameHerSelfLine || projectAwarenessLine || awareness.awarenessLine
+    : awarenessLineCarriesBroaderProject
+      || scoreAlicizationProjectAwarenessLine(awareness.awarenessLine) >= scoreAlicizationProjectAwarenessLine(awareness.companionHeadlineLine)
+      ? awareness.awarenessLine
+      : projectAwarenessLine || awareness.awarenessLine
+
+  return {
+    ...awareness,
+    summaryLine,
+    companionBriefingLine,
+    companionNextClosureLine,
+    awarenessLine,
+    emotionalClosureCue: awareness.emotionalClosureCue ?? continuitySnapshot?.emotionalClosureCue ?? null,
+    reasonPreview: uniquePreviewReasons([
+      ...awareness.reasonPreview,
+      awareness.awarenessLine,
+      summaryLine,
+      latestLandedProgress,
+      primaryOpenLoop,
+      sameHerDriftRisk,
+      sameHerHoldDetail,
+      sameHerSelfLine,
+      nextClosureTarget,
+      proactiveSameHerGap,
+    ], PRE_DIALOGUE_AWARENESS_REASON_PREVIEW_LIMIT),
+  }
 }
 
 function describeVisibleReplyRealizationReason(reason: string | null) {
@@ -260,7 +495,7 @@ function latestTakeoverAuditOpeningGuidanceHoldDetail(events: AlicizationMindTur
 }
 
 type AlicizationInitiativePersonaBias = NonNullable<AlicizationInitiativeSnapshot['personaBias']>
-type AlicizationSelfEvolutionBaselineAdoptionRecordLike = {
+interface AlicizationSelfEvolutionBaselineAdoptionRecordLike {
   adoptedAt: number
   snapshotCapturedAt: number
   candidateId: string | null
@@ -366,6 +601,8 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
   const soulSnapshot = ref<AlicizationSoulSnapshot | null>(null)
   const visualPresenceState = ref<AlicizationVisualPresenceStateSnapshot | null>(null)
   const organicMemorySnapshot = ref<AlicizationOrganicMemorySnapshot | null>(null)
+  const latestProjectStateObservation = ref<AlicizationProjectStateObservation | null>(null)
+  const projectStateContinuitySnapshot = ref<AlicizationProjectStateContinuitySnapshot | null>(null)
   const selectedCandidateId = ref<string | null>(null)
   const selectedTraceEventId = ref<string | null>(null)
   const drilledTraceResult = ref<{
@@ -575,7 +812,7 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
   const selectedCandidateConsumedTraceSummaries = computed(() => {
     const candidate = selectedCandidate.value
     const traceRecords = drilledTraceResult.value?.traceRecords ?? []
-    if (!candidate)
+    if (!candidate) {
       return [] as Array<{
         decisionTraceId: string
         turnId: string | null
@@ -585,27 +822,26 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
         learningAction: string | null
         trajectorySummary: string
       }>
+    }
 
     return traceRecords
       .filter((trace) => {
         const activeSelfRevision = trace.derivedMindStateBundle?.activeSelfRevision ?? null
         return activeSelfRevision?.candidateId === candidate.id
       })
-      .map(trace => ({
-        decisionTraceId: trace.decisionTraceId,
-        turnId: trace.turnId ?? null,
-        consumedAt: trace.lastUpdatedAt,
-        lanes: [...(trace.derivedMindStateBundle?.activeSelfRevision?.lanes ?? [])],
-        summary: trace.derivedMindStateBundle?.activeSelfRevision?.summary ?? null,
-        learningAction: typeof trace.governance?.digitalLifeSpine?.memory?.nextLearningAction === 'string'
-          ? trace.governance.digitalLifeSpine.memory.nextLearningAction
-          : null,
-        trajectorySummary: `lanes=${[...(trace.derivedMindStateBundle?.activeSelfRevision?.lanes ?? [])].join(', ') || 'n/a'} | learning=${
-          typeof trace.governance?.digitalLifeSpine?.memory?.nextLearningAction === 'string'
-            ? trace.governance.digitalLifeSpine.memory.nextLearningAction
-            : 'n/a'
-        }`,
-      }))
+      .map((trace) => {
+        const lanes = [...(trace.derivedMindStateBundle?.activeSelfRevision?.lanes ?? [])]
+        const learningAction = readTraceOutcomeLearningAction(trace)
+        return {
+          decisionTraceId: trace.decisionTraceId,
+          turnId: trace.turnId ?? null,
+          consumedAt: trace.lastUpdatedAt,
+          lanes,
+          summary: trace.derivedMindStateBundle?.activeSelfRevision?.summary ?? null,
+          learningAction,
+          trajectorySummary: `lanes=${lanes.join(', ') || 'n/a'} | learning=${learningAction ?? 'n/a'}`,
+        }
+      })
       .sort((left, right) => {
         if (left.consumedAt !== right.consumedAt)
           return right.consumedAt - left.consumedAt
@@ -844,7 +1080,7 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
       : null
     const openingGuidance = personaProvenance?.openingGuidance ?? null
 
-    if (!personaPreferredAction && !runtimeSelectedAction && runtimeShouldSpeak == null && !latestOpeningGuidanceHold)
+    if (!personaPreferredAction && !runtimeSelectedAction && runtimeShouldSpeak == null && !latestOpeningGuidanceHold) {
       return null as null | {
         status: 'grounded' | 'partial' | 'missing'
         personaPreferredAction: string | null
@@ -857,6 +1093,7 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
         driftingSignals: string[]
         reasons: string[]
       }
+    }
 
     const postureAligned = (() => {
       if (!personaPreferredAction)
@@ -932,7 +1169,7 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
     const actionChain = selectedCandidateProactiveActionChain.value
     const personaPreferredAction = actionChain?.personaPreferredAction ?? null
 
-    if (!counterfactual || !selectedOptionId)
+    if (!counterfactual || !selectedOptionId) {
       return null as null | {
         status: 'grounded' | 'partial' | 'missing'
         selectedOptionId: string | null
@@ -949,6 +1186,7 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
         }>
         reasons: string[]
       }
+    }
 
     const selectedOption = counterfactual.options.find(option => option.id === selectedOptionId) ?? null
     const selectedAction = selectedOption?.action ?? counterfactual.selectedAction ?? null
@@ -978,8 +1216,8 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
       reasons: uniquePreviewReasons([
         `Counterfactual deliberation currently selected ${selectedAction} under the dominant tradeoff ${counterfactual.dominantTradeoff}.`,
         selectedAction === 'hover'
-          && alternatives.some(option => option.action === 'speak')
-          && describesRememberedFamiliarityRestraint(selectedOption?.why)
+        && alternatives.some(option => option.action === 'speak')
+        && describesRememberedFamiliarityRestraint(selectedOption?.why)
           ? 'Counterfactual competition kept hover ahead because remembered familiarity was held as memory before visible closeness widened, so the more direct speak return was intentionally declined.'
           : null,
         alternatives.length > 0
@@ -1157,7 +1395,7 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
     const missingSignals = uniquePreviewReasons([
       expectedStyle && !privateThoughtStyle ? 'private-thought-style' : null,
       expectedPresence && !privateThoughtPresence ? 'private-thought-presence' : null,
-        visibleReplyRealizationReason && !visibleReplyBlockedReason ? 'visible-reply-blocked-reason' : null,
+      visibleReplyRealizationReason && !visibleReplyBlockedReason ? 'visible-reply-blocked-reason' : null,
     ])
 
     const driftingSignals = uniquePreviewReasons([
@@ -1248,7 +1486,7 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
       expectedStance && resident.stance && resident.stance !== expectedStance ? `resident-stance:${resident.stance}` : null,
       expectedTension && resident.emotionalTension && resident.emotionalTension !== expectedTension ? `resident-tension:${resident.emotionalTension}` : null,
       privateThoughtChain?.privateThoughtShouldSpeak === false
-        && resident.performance?.delivery === 'firm'
+      && resident.performance?.delivery === 'firm'
         ? 'resident-delivery:firm'
         : null,
     ])
@@ -1330,15 +1568,15 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
 
     const driftingSignals = uniquePreviewReasons([
       selectedCandidateResidentPerformanceProjection.value?.residentEmbodiedPresence === 'attentive'
-        && currentBodyState === 'warning'
+      && currentBodyState === 'warning'
         ? 'projected-body:warning'
         : null,
       selectedCandidatePrivateThoughtGovernanceChain.value?.privateThoughtShouldSpeak === false
-        && continuityMode === 'active-dialogue'
+      && continuityMode === 'active-dialogue'
         ? 'projected-continuity:active-dialogue'
         : null,
       selectedCandidatePrivateThoughtGovernanceChain.value?.privateThoughtShouldSpeak === false
-        && projectedDelivery === 'firm'
+      && projectedDelivery === 'firm'
         ? 'projected-delivery:firm'
         : null,
     ])
@@ -1393,13 +1631,13 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
     const status = dominantDrift
       ? 'partial' as const
       : coveragePresent === 4
-          ? 'grounded' as const
-          : normalizeSummaryStatus([
-              persona?.status,
-              proactive?.status,
-              resident?.status,
-              embodiment?.status,
-            ]) ?? 'missing'
+        ? 'grounded' as const
+        : normalizeSummaryStatus([
+          persona?.status,
+          proactive?.status,
+          resident?.status,
+          embodiment?.status,
+        ]) ?? 'missing'
 
     return {
       status,
@@ -1454,11 +1692,12 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
     }) | null
     const latestAdoption = runtimeSnapshot?.baselineAdoptionHistory?.[0] ?? null
 
-    if (!candidate || !latestAdoption)
+    if (!candidate || !latestAdoption) {
       return null as null | {
         status: 'grounded'
         lines: string[]
       }
+    }
 
     if (
       latestAdoption.candidateId !== candidate.id
@@ -1506,8 +1745,8 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
     const status = dominantDrift
       ? 'partial' as const
       : stability && preview && runtimeAlignment && selfEvolutionSummary
-          ? 'grounded' as const
-          : 'missing' as const
+        ? 'grounded' as const
+        : 'missing' as const
 
     const relationshipImpact = runtimeAlignment
       ? `${runtimeAlignment.relationship.expectedPosture} | ${runtimeAlignment.relationship.status === 'aligned' ? 'planner/compiler aligned' : 'planner/compiler drift'}`
@@ -1561,11 +1800,11 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
     const status = dominantDrift
       ? 'partial' as const
       : impactSummary?.status === 'grounded' && selfEvolutionSummary?.status === 'grounded'
-          ? 'grounded' as const
-          : normalizeSummaryStatus([
-              impactSummary?.status,
-              selfEvolutionSummary?.status,
-            ]) ?? 'missing'
+        ? 'grounded' as const
+        : normalizeSummaryStatus([
+          impactSummary?.status,
+          selfEvolutionSummary?.status,
+        ]) ?? 'missing'
 
     const expectedPosture = preview?.relationship.resolvedPosture ?? null
     const rememberedFamiliarityTrajectory = Boolean([
@@ -1651,12 +1890,12 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
     const status = dominantDrift
       ? 'partial' as const
       : persona && proactive && manifestation
-          ? 'grounded' as const
-          : normalizeSummaryStatus([
-              persona?.status,
-              proactive?.status,
-              manifestation?.status,
-            ]) ?? 'missing'
+        ? 'grounded' as const
+        : normalizeSummaryStatus([
+          persona?.status,
+          proactive?.status,
+          manifestation?.status,
+        ]) ?? 'missing'
 
     const biasMode = describePersonaBiasMode({
       relationshipPosture: persona?.relationshipPosture,
@@ -1694,16 +1933,11 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
     }
   })
 
-  const birthPersonaAuthoritySummary = computed(() => {
+  const birthPersonaAuthoritySummary = computed<BirthPersonaAuthoritySummary | null>(() => {
     const birthPersonality = soulSnapshot.value?.frontmatter?.personality ?? null
     const currentMapping = selectedCandidatePersonaAuthorityMappingSummary.value
     if (!birthPersonality && !currentMapping) {
-      return null as null | {
-        status: 'grounded' | 'partial' | 'missing'
-        birthMode: string
-        dominantDrift: string | null
-        lines: string[]
-      }
+      return null
     }
 
     const birthAuthorityLine = uniquePreviewReasons([
@@ -1729,7 +1963,6 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
       preferredProactiveStyle: currentMapping?.biasMode === 'observe-first restraint' ? 'silent-observe' : null,
     })
     const rememberedFamiliarityAuthority = Boolean([
-      selectedCandidateProactiveDecisionConsumptionSummary.value?.lines?.join(' | '),
       selectedCandidateRejectedActionAlternatives.value?.reasons?.join(' | '),
       selectedCandidatePrivateThoughtGovernanceChain.value?.reasons?.join(' | '),
     ].find(value => describesRememberedFamiliarityRestraint(value)))
@@ -1738,8 +1971,8 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
     const status = dominantDrift
       ? 'partial' as const
       : birthPersonality && currentMapping
-          ? 'grounded' as const
-          : 'missing' as const
+        ? 'grounded' as const
+        : 'missing' as const
 
     return {
       status,
@@ -1783,24 +2016,23 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
       currentMapping?.dominantDrift,
       trajectorySummary?.dominantDrift,
       impactSummary?.dominantDrift,
-    ].filter((signal): signal is string => Boolean(signal))
-      .filter((signal) => {
-        if (signal.startsWith('focus:'))
-          return false
-        return true
-      })
+    ].filter((signal): signal is string => Boolean(signal)).filter((signal) => {
+      if (signal.startsWith('focus:'))
+        return false
+      return true
+    })
     const dominantDrift = firstDrift(governanceRelevantDriftSignals)
     const status = dominantDrift
       ? 'partial' as const
       : birthPersonality && birthAuthority && currentMapping && trajectorySummary
-          ? 'grounded' as const
-          : 'missing' as const
+        ? 'grounded' as const
+        : 'missing' as const
 
     const governanceMode = dominantDrift
       ? 'boundary-violation' as const
       : status === 'grounded'
-          ? 'bounded-growth' as const
-          : 'watchful-convergence' as const
+        ? 'bounded-growth' as const
+        : 'watchful-convergence' as const
 
     const identityAnchors = uniquePreviewReasons(birthPersonality?.identityAnchors ?? [], 2)
     const antiPersonaConstraints = uniquePreviewReasons(birthPersonality?.antiPersonaConstraints ?? [], 2)
@@ -1834,8 +2066,8 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
         governanceMode === 'bounded-growth'
           ? 'governance: bounded growth is preserving identity'
           : governanceMode === 'boundary-violation'
-              ? 'governance: growth crossed persona boundary'
-              : 'governance: identity continuity is still converging',
+            ? 'governance: growth crossed persona boundary'
+            : 'governance: identity continuity is still converging',
         boundaryLine,
         identityAnchors.length > 0 ? `identity-anchors: ${identityAnchors.join(' | ')}` : null,
         governanceMode === 'boundary-violation' && antiPersonaConstraints.length > 0
@@ -1851,7 +2083,7 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
     }
   })
 
-  const selectedCandidateProactiveDecisionConsumptionSummary = computed(() => {
+  const selectedCandidateProactiveDecisionConsumptionSummary = computed<ProactiveDecisionConsumptionSummary | null>(() => {
     const birthAuthority = birthPersonaAuthoritySummary.value
     const actionChain = selectedCandidateProactiveActionChain.value
     const manifestationChain = selectedCandidateProactiveManifestationChain.value
@@ -1859,12 +2091,7 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
     const selfEvolution = organicMemorySnapshot.value?.selfEvolution ?? null
 
     if (!birthAuthority && !actionChain && !manifestationChain && !rejectedAlternatives && !selfEvolution) {
-      return null as null | {
-        status: 'grounded' | 'partial' | 'missing'
-        decisionMode: 'birth-anchored-restraint' | 'restraint-overridden' | 'converging'
-        dominantDrift: string | null
-        lines: string[]
-      }
+      return null
     }
 
     const dominantDrift = firstDrift([
@@ -1874,13 +2101,13 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
     const status = dominantDrift
       ? 'partial' as const
       : birthAuthority && actionChain && manifestationChain
-          ? 'grounded' as const
-          : 'missing' as const
+        ? 'grounded' as const
+        : 'missing' as const
     const decisionMode = dominantDrift
       ? 'restraint-overridden' as const
       : status === 'grounded'
-          ? 'birth-anchored-restraint' as const
-          : 'converging' as const
+        ? 'birth-anchored-restraint' as const
+        : 'converging' as const
 
     const selectedAlternative = rejectedAlternatives?.selectedAction ?? null
     const rejectedAlternative = rejectedAlternatives?.alternatives?.[0] ?? null
@@ -2207,8 +2434,8 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
         .map(focus => `focus:${focus}`),
     ])
     const learningMissingSignals = uniquePreviewReasons(expectedFocuses
-        .filter(focus => !activeFocuses.includes(focus))
-        .map(focus => `focus:${focus}`))
+      .filter(focus => !activeFocuses.includes(focus))
+      .map(focus => `focus:${focus}`))
     const learningDriftingSignals = uniquePreviewReasons([
       runtimeAction && runtimeAction !== expectedAction ? `runtimeAction:${runtimeAction}` : null,
       kernelAction && kernelAction !== expectedAction ? `kernelAction:${kernelAction}` : null,
@@ -2268,8 +2495,8 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
             : expectedHold && shouldSpeak === true
               ? 'Initiative still wants to speak even though the candidate expects a proactive hold.'
               : !expectedHold && shouldSpeak === true
-                ? 'Initiative still surfaces speech, matching the candidate allowing proactive expression.'
-                : null,
+                  ? 'Initiative still surfaces speech, matching the candidate allowing proactive expression.'
+                  : null,
           personaBias?.initiativeStyle || personaBias?.silenceReconnect || personaBias?.preferredProactiveStyle
             ? `Persona baseline currently biases proactive surfacing toward observe-first restraint (initiativeStyle=${personaBias?.initiativeStyle ?? 'n/a'}, silenceReconnect=${personaBias?.silenceReconnect ?? 'n/a'}, preferredProactiveStyle=${personaBias?.preferredProactiveStyle ?? 'n/a'}).`
             : null,
@@ -2311,6 +2538,47 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
         ]),
       },
     }
+  })
+
+  const preDialogueClosureSnapshot = computed<NormalizedPreDialogueClosureSnapshot | null>(() => {
+    return normalizePreDialogueClosureSnapshot(
+      projectStateContinuitySnapshot.value?.preDialogueClosure
+      ?? latestProjectStateObservation.value?.preDialogueClosure
+      ?? null,
+    )
+  })
+
+  const preDialogueAwarenessSnapshot = computed<NormalizedPreDialogueAwarenessSnapshot | null>(() => {
+    const continuitySnapshot = projectStateContinuitySnapshot.value
+    const continuityAwareness = normalizePreDialogueAwarenessSnapshot(
+      continuitySnapshot?.preDialogueAwareness ?? null,
+    )
+    if (continuityAwareness)
+      return mergePreDialogueAwarenessWithContinuitySnapshot(continuityAwareness, continuitySnapshot)
+
+    const closure = preDialogueClosureSnapshot.value
+    if (!closure)
+      return null
+
+    const synthesizedCompanionHeadlineLine = resolvePreDialogueClosureCompanionHeadlineLine(closure)
+    return mergePreDialogueAwarenessWithContinuitySnapshot({
+      status: closure.status === 'grounded' || closure.status === 'partial' || closure.status === 'drift'
+        ? closure.status
+        : 'partial',
+      summaryLine: closure.summaryLine,
+      companionHeadlineLine: synthesizedCompanionHeadlineLine ?? null,
+      companionBriefingLine: closure.companionBriefingLine,
+      companionNextClosureLine: closure.companionNextClosureLine,
+      awarenessLine: synthesizedCompanionHeadlineLine ?? closure.companionBriefingLine ?? closure.summaryLine,
+      emotionalClosureCue: closure.emotionalClosureCue,
+      reasonPreview: uniquePreviewReasons([
+        synthesizedCompanionHeadlineLine,
+        closure.companionshipReasonLine,
+        closure.companionBriefingLine,
+        closure.summaryLine,
+        ...closure.reasons,
+      ]),
+    }, continuitySnapshot)
   })
 
   const selectedCandidateAuthoritySurfaces = computed(() => {
@@ -2494,9 +2762,9 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
       acc[candidate.status] += 1
       return acc
     }, {
-      shadow: 0,
-      active: 0,
-      rejected: 0,
+      'shadow': 0,
+      'active': 0,
+      'rejected': 0,
       'rolled-back': 0,
     })
   })
@@ -2505,6 +2773,10 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
     if (!hasAlicizationBridge()) {
       snapshot.value = null
       soulSnapshot.value = null
+      visualPresenceState.value = null
+      organicMemorySnapshot.value = null
+      latestProjectStateObservation.value = null
+      projectStateContinuitySnapshot.value = null
       lastError.value = null
       return null
     }
@@ -2515,6 +2787,8 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
       soulSnapshot.value = null
       visualPresenceState.value = null
       organicMemorySnapshot.value = null
+      latestProjectStateObservation.value = null
+      projectStateContinuitySnapshot.value = null
       lastError.value = null
       return null
     }
@@ -2530,16 +2804,60 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
       const nextOrganicMemoryPromise = bridge.getOrganicMemorySnapshot
         ? Promise.resolve(bridge.getOrganicMemorySnapshot()).catch(() => null)
         : Promise.resolve(null)
-      const [next, nextSoul, nextVisualPresence, nextOrganicMemory] = await Promise.all([
+      const nextProjectStateContinuitySnapshotPromise = bridge.getProjectStateContinuitySnapshot
+        ? Promise.resolve(bridge.getProjectStateContinuitySnapshot()).catch(() => null)
+        : Promise.resolve(null)
+      const nextProjectStateObservationPromise = bridge.getLatestProjectStateObservation
+        ? Promise.resolve(bridge.getLatestProjectStateObservation()).catch(() => null)
+        : Promise.resolve(null)
+      const [
+        next,
+        nextSoul,
+        nextVisualPresence,
+        nextOrganicMemory,
+        nextProjectStateContinuitySnapshot,
+        nextProjectStateObservation,
+      ] = await Promise.all([
         bridge.getSelfEvolutionState(),
         nextSoulPromise,
         nextVisualPresencePromise,
         nextOrganicMemoryPromise,
+        nextProjectStateContinuitySnapshotPromise,
+        nextProjectStateObservationPromise,
       ])
       snapshot.value = next ?? null
       soulSnapshot.value = nextSoul ?? null
       visualPresenceState.value = nextVisualPresence ?? null
       organicMemorySnapshot.value = nextOrganicMemory ?? null
+      latestProjectStateObservation.value = nextProjectStateObservation ?? null
+      const observedContinuitySnapshot = nextProjectStateObservation
+        ? projectStateObservationToContinuitySnapshot(nextProjectStateObservation)
+        : null
+      const effectiveContinuitySnapshot = nextProjectStateContinuitySnapshot ?? observedContinuitySnapshot ?? null
+      if (effectiveContinuitySnapshot) {
+        projectStateContinuitySnapshot.value = {
+          ...effectiveContinuitySnapshot,
+          latestLandedProgress:
+            resolveContinuityLatestLandedProgress(effectiveContinuitySnapshot)
+            || resolveContinuityLatestLandedProgress(observedContinuitySnapshot)
+            || null,
+          emotionalClosureCue:
+            effectiveContinuitySnapshot.emotionalClosureCue
+            ?? observedContinuitySnapshot?.emotionalClosureCue
+            ?? null,
+          preDialogueAwareness:
+            effectiveContinuitySnapshot.preDialogueAwareness
+            ?? observedContinuitySnapshot?.preDialogueAwareness
+            ?? null,
+          preDialogueClosure:
+            effectiveContinuitySnapshot.preDialogueClosure
+            ?? observedContinuitySnapshot?.preDialogueClosure
+            ?? null,
+        }
+      }
+      else {
+        projectStateContinuitySnapshot.value = null
+      }
       if (!snapshot.value?.candidates.some(candidate => candidate.id === selectedCandidateId.value))
         selectedCandidateId.value = snapshot.value?.activeCandidateId ?? snapshot.value?.candidates[0]?.id ?? null
       lastError.value = null
@@ -2551,6 +2869,8 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
       soulSnapshot.value = null
       visualPresenceState.value = null
       organicMemorySnapshot.value = null
+      latestProjectStateObservation.value = null
+      projectStateContinuitySnapshot.value = null
       return null
     }
     finally {
@@ -2563,6 +2883,8 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
     soulSnapshot.value = null
     visualPresenceState.value = null
     organicMemorySnapshot.value = null
+    latestProjectStateObservation.value = null
+    projectStateContinuitySnapshot.value = null
     selectedCandidateId.value = null
     selectedTraceEventId.value = null
     drilledTraceResult.value = null
@@ -2603,6 +2925,10 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
     soulSnapshot,
     visualPresenceState,
     organicMemorySnapshot,
+    latestProjectStateObservation,
+    projectStateContinuitySnapshot,
+    preDialogueClosureSnapshot,
+    preDialogueAwarenessSnapshot,
     selectedCandidateAuthoritySurfaces,
     sortedCandidates,
     activeCandidate,

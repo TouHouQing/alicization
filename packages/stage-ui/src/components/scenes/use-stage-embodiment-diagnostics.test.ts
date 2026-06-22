@@ -1,13 +1,16 @@
-import {
-  createIdleStageEmbodimentSpeechArticulationState,
-  type AlicizationDigitalLifeSpineDigest,
-  createIdleStageEmbodimentPerformanceState,
-  createIdleStageEmbodimentPresencePostureState,
-  createIdleStageEmbodimentSpeechRenderState,
-} from '@proj-alicization/stage-shared'
+import type { AlicizationDigitalLifeSpineDigest } from '@proj-alicization/stage-shared'
+
+import type { Live2DRuntimeCapabilitySnapshot } from '../../../../stage-ui-live2d/src/composables/live2d/expression-runtime'
 import type { VrmResolvedRuntimeCapabilitySnapshot } from '../../../../stage-ui-three/src/composables/vrm/capabilities'
 import type { VrmExecutionDiagnosticsSnapshot } from '../../../../stage-ui-three/src/composables/vrm/execution-diagnostics'
-import type { Live2DRuntimeCapabilitySnapshot } from '../../../../stage-ui-live2d/src/composables/live2d/expression-runtime'
+
+import {
+
+  createIdleStageEmbodimentPerformanceState,
+  createIdleStageEmbodimentPresencePostureState,
+  createIdleStageEmbodimentSpeechArticulationState,
+  createIdleStageEmbodimentSpeechRenderState,
+} from '@proj-alicization/stage-shared'
 import { describe, expect, it } from 'vitest'
 import { ref } from 'vue'
 
@@ -93,20 +96,22 @@ describe('stage embodiment diagnostics', () => {
       playbackTelemetry: ref({
         actualDurationMs: 1280,
         plannedDurationMs: 900,
-      driftMs: 380,
-      settleMs: 560,
-      stopReason: 'ended',
-      driverAuthority: {
-        segmentId: 'segment-1',
-        rendererTarget: 'live2d',
-        matchedDrivers: ['face', 'motion', 'lipsync'],
-        sources: ['prosody-authority', 'timeline-projection'],
-        faceSegmentMatched: true,
-        motionSegmentMatched: true,
-        lipsyncSegmentMatched: true,
-      },
-      drivers: {
-        face: {
+        driftMs: 380,
+        settleMs: 560,
+        stopReason: 'ended',
+        driverAuthority: {
+          segmentId: 'segment-1',
+          rendererTarget: 'live2d',
+          matchedDrivers: ['face', 'motion', 'lipsync'],
+          sources: ['prosody-authority', 'timeline-projection'],
+          bodySegmentMatched: false,
+          faceSegmentMatched: true,
+          motionSegmentMatched: true,
+          lipsyncSegmentMatched: true,
+        },
+        drivers: {
+          body: null,
+          face: {
             emotion: 'happy',
             facialCue: 'smile',
             intensity: 0.8,
@@ -121,6 +126,7 @@ describe('stage embodiment diagnostics', () => {
             mode: 'energy-phoneme-hybrid',
             playbackPhase: 'idle',
             segmentId: 'segment-1',
+            continuityHoldMs: 0,
             visemeHints: [],
           },
           motion: {
@@ -231,6 +237,7 @@ describe('stage embodiment diagnostics', () => {
         rendererTarget: 'live2d',
         matchedDrivers: ['face', 'motion', 'lipsync'],
         sources: ['prosody-authority', 'timeline-projection'],
+        bodySegmentMatched: false,
         faceSegmentMatched: true,
         motionSegmentMatched: true,
         lipsyncSegmentMatched: true,
@@ -238,6 +245,7 @@ describe('stage embodiment diagnostics', () => {
       prosodyAuthority: null,
       cue: null,
       drivers: {
+        body: null,
         face: {
           emotion: 'happy',
           facialCue: 'smile',
@@ -253,6 +261,7 @@ describe('stage embodiment diagnostics', () => {
           mode: 'energy-phoneme-hybrid',
           playbackPhase: 'idle',
           segmentId: 'segment-1',
+          continuityHoldMs: 0,
           visemeHints: [],
         },
         motion: {
@@ -304,6 +313,7 @@ describe('stage embodiment diagnostics', () => {
         activeMotion: {
           group: 'ObserveSoft',
           index: 1,
+          segmentId: 'segment-zh-focus-1',
         },
         cue: {
           emotion: 'thinking',
@@ -329,7 +339,7 @@ describe('stage embodiment diagnostics', () => {
       activeMotion: {
         group: 'ObserveSoft',
         index: 1,
-        segmentId: null,
+        segmentId: 'segment-zh-focus-1',
       },
       cue: {
         emotion: 'thinking',
@@ -423,6 +433,7 @@ describe('stage embodiment diagnostics', () => {
         settleMs: 420,
         stopReason: 'ended',
         drivers: {
+          body: null,
           face: {
             emotion: 'thinking',
             facialCue: 'focused',
@@ -438,6 +449,7 @@ describe('stage embodiment diagnostics', () => {
             mode: 'energy-phoneme-hybrid',
             playbackPhase: 'playing',
             segmentId: 'segment-1',
+            continuityHoldMs: 0,
             visemeHints: [
               { segmentId: 'segment-1', viseme: 'U', weight: 0.92, source: 'prosody-authority', confidence: 0.89 },
               { segmentId: 'segment-1', viseme: 'closed', weight: 0.58, source: 'prosody-authority', confidence: 0.77 },
@@ -515,6 +527,7 @@ describe('stage embodiment diagnostics', () => {
     })
     expect(diagnostics.snapshot.value.speech.driverSummary).toEqual({
       rendererTarget: null,
+      body: null,
       face: {
         cue: 'focused',
         source: 'prosody-authority',
@@ -534,6 +547,7 @@ describe('stage embodiment diagnostics', () => {
         segmentId: 'segment-1',
         mode: 'energy-phoneme-hybrid',
       },
+      voice: null,
     })
     expect(diagnostics.snapshot.value.speech.driverExecutionSummary).toBe(
       'face=thinking/focused@0.46 hold=420 pre=steady-inhale post=eyes-soften src=prosody-authority conf=0.94 | motion=idle_gentle_nod mode=attentive idle=idle_settle@0.32 hold=180 src=timeline-projection conf=0.88 | lipsync=energy-phoneme-hybrid phase=playing',
@@ -555,6 +569,7 @@ describe('stage embodiment diagnostics', () => {
         settleMs: 220,
         stopReason: null,
         drivers: {
+          body: null,
           face: {
             emotion: 'happy',
             facialCue: 'reassure_smile',
@@ -570,6 +585,7 @@ describe('stage embodiment diagnostics', () => {
             mode: 'energy-phoneme-hybrid',
             playbackPhase: 'playing',
             segmentId: 'segment-2',
+            continuityHoldMs: 0,
             visemeHints: [
               { segmentId: 'segment-2', viseme: 'I', weight: 0.35, source: 'prosody-authority', confidence: 0.94 },
               { segmentId: 'segment-2', viseme: 'closed', weight: 0.75, source: 'prosody-authority', confidence: 0.94 },
@@ -626,6 +642,7 @@ describe('stage embodiment diagnostics', () => {
     ])
     expect(diagnostics.snapshot.value.speech.driverSummary).toEqual({
       rendererTarget: null,
+      body: null,
       face: {
         cue: 'reassure_smile',
         source: 'prosody-authority',
@@ -645,6 +662,7 @@ describe('stage embodiment diagnostics', () => {
         segmentId: 'segment-2',
         mode: 'energy-phoneme-hybrid',
       },
+      voice: null,
     })
   })
 
@@ -690,6 +708,7 @@ describe('stage embodiment diagnostics', () => {
           },
         },
         drivers: {
+          body: null,
           face: {
             emotion: 'thinking',
             facialCue: 'focused',
@@ -715,6 +734,7 @@ describe('stage embodiment diagnostics', () => {
             mode: 'energy-phoneme-hybrid',
             playbackPhase: 'playing',
             segmentId: 'segment-explicit-playback-cue-metadata',
+            continuityHoldMs: 0,
             visemeHints: [
               { segmentId: 'segment-explicit-playback-cue-metadata', viseme: 'I', weight: 0.35, source: 'prosody-authority', confidence: 0.94 },
             ],
@@ -810,14 +830,22 @@ describe('stage embodiment diagnostics', () => {
           rendererTarget: 'vrm',
           matchedDrivers: ['face', 'motion', 'lipsync'],
           sources: ['prosody-authority'],
+          bodySegmentMatched: false,
           faceSegmentMatched: true,
           motionSegmentMatched: true,
           lipsyncSegmentMatched: true,
         },
         cue: {
           id: 'segment-zh-1',
+          index: 0,
+          startOffset: 0,
+          endOffset: 6,
           text: '继续看这里。',
+          emotion: 'thinking',
+          gestureWeight: 0.34,
+          facialWeight: 0.52,
           prosodyWeight: 0.36,
+          beatWeight: 0.3,
           mouthWeight: 0.28,
           headWeight: 0.32,
           personaStyleSummary: 'observe-first | prosody=-0.07 beat=-0.06 mouth=-0.04 head=+0.08',
@@ -833,6 +861,7 @@ describe('stage embodiment diagnostics', () => {
           rendererSettle: null,
         },
         drivers: {
+          body: null,
           face: null,
           motion: null,
           lipsync: null,
@@ -868,11 +897,13 @@ describe('stage embodiment diagnostics', () => {
           rendererTarget: 'vrm',
           matchedDrivers: ['face', 'motion', 'lipsync'],
           sources: ['seeded-face', 'seeded-motion', 'seeded-lipsync'],
+          bodySegmentMatched: false,
           faceSegmentMatched: true,
           motionSegmentMatched: true,
           lipsyncSegmentMatched: true,
         },
         drivers: {
+          body: null,
           face: {
             emotion: 'thinking',
             facialCue: 'focused',
@@ -898,6 +929,7 @@ describe('stage embodiment diagnostics', () => {
             mode: 'energy-phoneme-hybrid',
             playbackPhase: 'playing',
             segmentId: 'segment-vrm-1',
+            continuityHoldMs: 0,
             visemeHints: [
               { segmentId: 'segment-vrm-1', viseme: 'I', weight: 0.35, source: 'prosody-authority', confidence: 0.94 },
             ],
@@ -943,6 +975,7 @@ describe('stage embodiment diagnostics', () => {
 
     expect(diagnostics.snapshot.value.speech.driverSummary).toEqual({
       rendererTarget: 'vrm',
+      body: null,
       face: {
         cue: 'focused',
         source: 'prosody-authority',
@@ -962,6 +995,7 @@ describe('stage embodiment diagnostics', () => {
         segmentId: 'segment-vrm-1',
         mode: 'energy-phoneme-hybrid',
       },
+      voice: null,
     })
     expect(diagnostics.snapshot.value.speech.playbackTelemetry?.rendererTarget).toBe('vrm')
     expect(diagnostics.snapshot.value.speech.playbackTelemetry?.driverAuthority).toEqual({
@@ -969,6 +1003,7 @@ describe('stage embodiment diagnostics', () => {
       rendererTarget: 'vrm',
       matchedDrivers: ['face', 'motion', 'lipsync'],
       sources: ['seeded-face', 'seeded-motion', 'seeded-lipsync'],
+      bodySegmentMatched: false,
       faceSegmentMatched: true,
       motionSegmentMatched: true,
       lipsyncSegmentMatched: true,
@@ -990,24 +1025,34 @@ describe('stage embodiment diagnostics', () => {
           rendererTarget: 'vrm',
           matchedDrivers: ['lipsync'],
           sources: ['prosody-authority'],
+          bodySegmentMatched: false,
           faceSegmentMatched: false,
           motionSegmentMatched: false,
           lipsyncSegmentMatched: true,
         },
         drivers: {
+          body: null,
           face: null,
           motion: null,
           lipsync: {
             mode: 'energy-phoneme-hybrid',
             playbackPhase: 'playing',
             segmentId: 'segment-authority-drift-1',
+            continuityHoldMs: 0,
             visemeHints: [],
           },
         },
         cue: {
           id: 'segment-authority-drift-1',
+          index: 0,
+          startOffset: 0,
+          endOffset: 6,
           text: '继续看这里。',
+          emotion: 'thinking',
+          gestureWeight: 0.34,
+          facialWeight: 0.52,
           prosodyWeight: 0.36,
+          beatWeight: 0.3,
           mouthWeight: 0.28,
           headWeight: 0.32,
           personaStyleSummary: null,
@@ -1018,7 +1063,6 @@ describe('stage embodiment diagnostics', () => {
           actionCue: 'observe_focus',
           actionWindow: 'segment-start',
           interruptMode: 'soft-interrupt',
-          settleMode: null,
           rendererHints: null,
           rendererSettle: null,
         },
@@ -1035,11 +1079,11 @@ describe('stage embodiment diagnostics', () => {
       rendererTarget: 'vrm',
       matchedDrivers: ['lipsync'],
       matchedSources: ['prosody-authority'],
-      bindingSummary: 'target=vrm | drivers=lipsync | sources=prosody-authority | matches=face:no motion:no lipsync:yes',
-      matchSummary: 'face:no motion:no lipsync:yes',
-      authorityMismatchSummary: 'face-mismatch, motion-mismatch',
-      authorityMismatchReasonSummary: '表情、动作 authority 漂移，当前绑定来源是 prosody-authority，实际执行落点是口型。',
-      authorityMismatchDisplay: '表情、动作 authority 漂移，当前绑定来源是 prosody-authority，实际执行落点是口型。',
+      bindingSummary: 'target=vrm | drivers=lipsync | sources=prosody-authority | matches=body:no face:no motion:no lipsync:yes voice:n/a',
+      matchSummary: 'body:no face:no motion:no lipsync:yes voice:n/a',
+      authorityMismatchSummary: 'body-mismatch, face-mismatch, motion-mismatch',
+      authorityMismatchReasonSummary: '身体、表情、动作 authority 漂移，当前绑定来源是 prosody-authority，实际执行落点是口型。',
+      authorityMismatchDisplay: '身体、表情、动作 authority 漂移，当前绑定来源是 prosody-authority，实际执行落点是口型。',
       settleSummary: 'authority-bound | segment=segment-authority-drift-1 | target=vrm | drivers=lipsync | sources=prosody-authority',
     })
   })
@@ -1646,6 +1690,7 @@ describe('stage embodiment diagnostics', () => {
         stopReason: null,
         rendererTarget: 'live2d',
         drivers: {
+          body: null,
           face: {
             emotion: 'thinking',
             facialCue: 'focused',
@@ -1717,12 +1762,14 @@ describe('stage embodiment diagnostics', () => {
         rendererTarget: 'vrm' as const,
         matchedDrivers: ['face', 'motion', 'lipsync'] as Array<'face' | 'motion' | 'lipsync'>,
         sources: ['seeded-face', 'seeded-motion', 'seeded-lipsync'],
+        bodySegmentMatched: false,
         faceSegmentMatched: true,
         motionSegmentMatched: true,
         lipsyncSegmentMatched: true,
       },
       cue: null,
       drivers: {
+        body: null,
         face: {
           emotion: 'thinking',
           facialCue: 'focused',
@@ -1738,6 +1785,7 @@ describe('stage embodiment diagnostics', () => {
           mode: 'energy-phoneme-hybrid',
           playbackPhase: 'playing' as const,
           segmentId: 'segment-vrm-1',
+          continuityHoldMs: 0,
           visemeHints: [
             { segmentId: 'segment-vrm-1', viseme: 'I', weight: 0.35, source: 'prosody-authority', confidence: 0.94 },
           ],

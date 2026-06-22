@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
-import { inferAlicizationInspectionIntent } from './alicization-inspection-intent'
+import {
+  inferAlicizationInspectionIntent,
+  resolveAlicizationKnownWebsiteBySite,
+  resolveAlicizationKnownWebsiteInText,
+} from './alicization-inspection-intent'
 
 describe('inferAlicizationInspectionIntent', () => {
   it('does not treat dialogue complaints as inspection continuation under shared-attention carry', () => {
@@ -109,5 +113,14 @@ describe('inferAlicizationInspectionIntent', () => {
     expect(result.reasonCodes).toContain('observe-cue')
     expect(result.signalProfile.actionable).toBe(false)
     expect(result.signalProfile.decisive).toBe(false)
+  })
+
+  it('resolves known website requests for local browser execution', () => {
+    expect(resolveAlicizationKnownWebsiteBySite(' 微博 ')?.url).toBe('https://weibo.com')
+    expect(resolveAlicizationKnownWebsiteInText('帮我打开微博然后搜索 Alicization')).toEqual(expect.objectContaining({
+      site: 'weibo',
+      label: '微博',
+      url: 'https://weibo.com',
+    }))
   })
 })

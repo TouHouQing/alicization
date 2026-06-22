@@ -840,13 +840,17 @@ export interface AlicizationExecutionRuntimeContext {
     proactiveSameHerGap?: string | null
     companionBriefingLine?: string | null
     emotionalClosureSummary?: string | null
+    continuityRestraint?: 'lower-pressure' | 'measured-return' | 'repair-before-closeness' | 'rest-protective' | 'single-thread' | null
     continuityCue: string | null
     continuityPreferredTiming?: 'internal-only' | 'after-payoff' | 'same-turn-if-invited' | 'next-open-window' | null
     continuityCadence?: string | null
     preferredBlinkCadence?: 'normal' | 'linger' | 'quiet' | null
     preferredGazeMode?: 'steady' | 'soften' | 'drift' | null
+    preferredVoiceMode?: 'lower-pressure' | 'even' | null
+    preferredPacingMode?: 'slower' | 'natural' | null
     preflightSummary: string | null
     preDialogueAwarenessLine: string | null
+    preDialogueAwarenessSummary?: string | null
   } | null
   recentActions?: AlicizationExecutionRuntimeContextActionDigest[] | null
   sensory: AlicizationExecutionRuntimeContextSensory

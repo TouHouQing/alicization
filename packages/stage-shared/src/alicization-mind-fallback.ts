@@ -5,9 +5,11 @@
 // Keep this module framework-free and main-safe so both renderer and main can
 // share the same governed reply surface without pulling Vue-side sources.
 
+import type { AlicizationExecutionDispatchChannel } from './alicization-execution-intent'
+
 import {
+
   analyzeAlicizationExecutionTurnAuthority,
-  type AlicizationExecutionDispatchChannel,
 } from './alicization-execution-intent'
 import {
   deriveAlicizationInspectionSignalProfile,
@@ -27,10 +29,10 @@ const windowTracePattern = /\s\|\s|(?:^|[\s(,.:;-])(?:general unknown|entire scr
 const cjkPattern = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u
 const englishMetaWordPattern = /\b(?:the|this|host|turn|dialogue|relationship|answer|current|should|would|expects|wants)\b/iu
 const tentativeSceneReadPattern = /我猜|看起来|像是|可能|应该|大概|估计|猜测|maybe|looks like|seems|probably|might be/iu
-const decorativeRepairDriftPattern = /(?:主人|欸|呀|呢|嘛|啦|哟|喵|抱抱|亲亲|我好心疼|心疼你|眼睛一定很累|先休息|辛苦了|～|……{2,})/iu
-const repairCorrectionPattern = /(?:不是刚才|不是上一条|不是上一个|旧锚点|旧画面|旧页面|旧线程|上一条线|前一条线|刚才那页|刚才那张|那不是现在|借错了参照|错带进这句里|不是你现在这幕|前一段残影)/iu
-const repairRegroundPattern = /(?:新画面|新页面|当前画面|当前屏幕|现在这张|现在这一页|按这次|按现在|按你现在|重新说|重新看|重新落地|重新判断)/iu
-const repairBoundaryPattern = /(?:真实边界|实时画面根据|旧记忆当成当前屏幕|旧记忆当成你现在的屏幕|不拿旧印象硬说现在|重新看稳当前画面|这轮的新落点|truth boundary|stable enough live view|older memory as your current screen|fresh enough view of the current scene)/iu
+const decorativeRepairDriftPattern = /主人|[欸呀呢嘛啦哟喵～]|抱抱|亲亲|我好心疼|心疼你|眼睛一定很累|先休息|辛苦了|…{3,}/u
+const repairCorrectionPattern = /不是刚才|不是上一条|不是上一个|旧锚点|旧画面|旧页面|旧线程|上一条线|前一条线|刚才那页|刚才那张|那不是现在|借错了参照|错带进这句里|不是你现在这幕|前一段残影/u
+const repairRegroundPattern = /新画面|新页面|当前画面|当前屏幕|现在这张|现在这一页|按这次|按现在|按你现在|重新说|重新看|重新落地|重新判断/u
+const repairBoundaryPattern = /真实边界|实时画面根据|旧记忆当成当前屏幕|旧记忆当成你现在的屏幕|不拿旧印象硬说现在|重新看稳当前画面|这轮的新落点|truth boundary|stable enough live view|older memory as your current screen|fresh enough view of the current scene/iu
 
 function countCjkChars(raw: string) {
   return [...raw].filter(char => cjkPattern.test(char)).length
@@ -51,6 +53,7 @@ export const alicizationGovernedMindEmotionWhitelist = [
 export type AlicizationGovernedMindEmotion = typeof alicizationGovernedMindEmotionWhitelist[number]
 export type AlicizationGovernedMindAnswerSubject
   = | 'alicization-self'
+    | 'project-state'
     | 'relationship'
     | 'host-state'
     | 'task-knot'
@@ -824,8 +827,9 @@ export function shouldForceGovernedMindSurface(
   if (!resolveVisibleRepairSurfaceDecision({
     governance,
     userText,
-  }).allowed)
+  }).allowed) {
     return false
+  }
 
   if (governance.repairState === 'stale-anchor')
     return true
@@ -863,7 +867,7 @@ export function replyLooksThinGovernedShell(
   if (sentenceCount > 1 || (cjkChars > 14 && asciiWords > 7))
     return false
 
-  if (/^(?:我(?:直接说|直接答你|就正面回你)|(?:(?:let me|then i'll|i'll)\s+answer(?:\s+you)?\s+directly))[。！？.!?]*$/iu.test(normalizedReply))
+  if (/^(?:我(?:直接说|直接答你|就正面回你)|(?:let me|then i'll|i'll)\s+answer(?:\s+you)?\s+directly)[。！？.!?]*$/iu.test(normalizedReply))
     return true
 
   if (normalizedThinShellCue && normalizedReply === normalizedThinShellCue)
@@ -1121,7 +1125,7 @@ export function buildMindGovernedFallbackSurface(input: {
     && (
       governance.groundedThisTurn === true
       || truthMode === 'grounded'
-  )
+    )
   let thinShellCue = ''
 
   if (visibleRepairState === 'stale-anchor') {

@@ -49,6 +49,15 @@ export interface AlicizationDialogueEmbodimentEnvelope {
 export interface AlicizationDialogueEmbodimentRendererHints {
   preferredExpressionAliases?: readonly string[]
   preferredMotionAliases?: readonly string[]
+  preferredGazeMode?: 'steady' | 'soften' | 'drift'
+  preferredBlinkCadence?: 'normal' | 'linger' | 'quiet'
+  preferredPauseMode?: 'longer' | 'natural'
+  preferredLipsyncMode?: 'restrained' | 'matched'
+  preferredVoiceMode?: 'lower-pressure' | 'even'
+  preferredPacingMode?: 'slower' | 'natural'
+  residentMode?: string
+  reasonTags?: readonly string[]
+  signature?: string
 }
 
 export interface ResolveAlicizationDialogueEmbodimentInput {

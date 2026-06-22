@@ -1,8 +1,13 @@
 import type {
+  VrmActionBinding,
+  VrmCustomExpressionBinding,
+} from '@proj-alicization/stage-ui-three'
+
+import type {
   AlicizationEmotion,
+  CharacterActionCapability,
   CharacterFacialCapability,
 } from '../../stores/alicization-bridge'
-import type { VrmCustomExpressionBinding } from '@proj-alicization/stage-ui-three'
 
 function dedupeCapabilityItemsByKey<T extends { key: string }>(items: T[]) {
   const seen = new Set<string>()
@@ -47,4 +52,19 @@ export function resolveVrmManifestBaseEmotions(input: {
     : input.fallbackBaseEmotions
 
   return [...new Set(nextBaseEmotions)]
+}
+
+export function resolveVrmManifestActionCapabilities(input: {
+  runtimeSupportedActions: CharacterActionCapability[]
+  actionBindings: VrmActionBinding[]
+}) {
+  return dedupeCapabilityItemsByKey([
+    ...input.actionBindings.map(item => ({
+      key: item.actionKey,
+      label: item.label,
+      description: item.description,
+      source: item.source,
+    })),
+    ...input.runtimeSupportedActions,
+  ])
 }

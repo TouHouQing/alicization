@@ -1,6 +1,7 @@
 import type {
   AlicizationEmotion,
   AlicizationPerformanceDelivery,
+  CharacterActionCapability,
   CharacterFacialCapability,
   StageEmbodimentCanonicalEmotion,
 } from '@proj-alicization/stage-shared'
@@ -17,6 +18,7 @@ export interface Live2DRuntimeCapabilitySnapshot {
   supportedExpressionNames: string[]
   supportedBaseEmotions: AlicizationEmotion[]
   supportedFacialCues: CharacterFacialCapability[]
+  supportedActions?: CharacterActionCapability[]
 }
 
 export interface ResolveLive2DExpressionSelectionInput {
@@ -36,19 +38,19 @@ export interface Live2DResolvedExpressionSelection {
 }
 
 const live2dFacialCueExpressionAliases: Record<string, string[]> = {
-  blink: ['blink', 'sleep', 'tired'],
+  'blink': ['blink', 'sleep', 'tired'],
   'brow-furrow': ['brow', 'furrow', 'angry', 'stern', 'serious'],
   'bright-smile': ['bright', 'smile', 'happy', 'joy', 'cheer', 'grin'],
-  downcast: ['downcast', 'sad', 'sorry', 'apology', 'apologetic'],
-  focus: ['focus', 'focused', 'serious', 'inspect', 'observe', 'thinking'],
+  'downcast': ['downcast', 'sad', 'sorry', 'apology', 'apologetic'],
+  'focus': ['focus', 'focused', 'serious', 'inspect', 'observe', 'thinking'],
   'half-lid': ['half', 'lid', 'tired', 'sleep', 'relaxed'],
-  frown: ['frown', 'sad', 'worry', 'concern', 'concerned'],
-  glance: ['glance', 'side', 'curious', 'tease'],
-  glare: ['glare', 'angry', 'mad', 'stern', 'firm'],
-  pout: ['pout', 'shy', 'awkward', 'sulky', 'tsundere'],
-  relaxed: ['relaxed', 'calm', 'neutral', 'soft', 'gentle'],
-  shock: ['shock', 'surprise', 'surprised', 'wide'],
-  smile: ['smile', 'happy', 'joy', 'cheer', 'grin'],
+  'frown': ['frown', 'sad', 'worry', 'concern', 'concerned'],
+  'glance': ['glance', 'side', 'curious', 'tease'],
+  'glare': ['glare', 'angry', 'mad', 'stern', 'firm'],
+  'pout': ['pout', 'shy', 'awkward', 'sulky', 'tsundere'],
+  'relaxed': ['relaxed', 'calm', 'neutral', 'soft', 'gentle'],
+  'shock': ['shock', 'surprise', 'surprised', 'wide'],
+  'smile': ['smile', 'happy', 'joy', 'cheer', 'grin'],
   'slow-blink': ['slow', 'blink', 'tired', 'gentle'],
   'soft-gaze': ['soft', 'gaze', 'gentle', 'care', 'comfort', 'warm'],
   'wide-eye': ['wide', 'eye', 'surprise', 'alert', 'shock'],
@@ -317,5 +319,6 @@ export function buildLive2DRuntimeCapabilitySnapshot(
     supportedExpressionNames,
     supportedBaseEmotions,
     supportedFacialCues,
+    supportedActions: [],
   }
 }

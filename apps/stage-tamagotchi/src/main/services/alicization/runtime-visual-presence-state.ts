@@ -2,7 +2,6 @@ import type {
   AlicizationMindHeadKey,
   AlicizationVisualPresenceStateSnapshot,
 } from '../../../shared/eventa'
-
 import type { AlicizationPerceptionState } from './attention-anchor'
 import type { CardScopeOptions } from './runtime-soul'
 
@@ -72,6 +71,7 @@ export function createAlicizationRuntimeVisualPresenceState(
     perceptionMetaKey,
     visualPresenceMetaKey,
   } = options
+  const perceptionMutationQueueByCard = new Map<string, Promise<AlicizationPerceptionState>>()
 
   function rememberVisualPresencePersistMeta(cardIdRaw: unknown, state: AlicizationVisualPresenceStateSnapshot, persistedAt: number = now()) {
     const cardId = normalizeCardId(cardIdRaw)
@@ -93,6 +93,32 @@ export function createAlicizationRuntimeVisualPresenceState(
     }, {
       label: `perception.persist:${cardId}`,
     })
+  }
+
+  async function queuePerceptionStateMutation(
+    cardIdRaw: unknown,
+    mutate: (current: AlicizationPerceptionState) => AlicizationPerceptionState | Promise<AlicizationPerceptionState>,
+  ) {
+    const cardId = normalizeCardId(cardIdRaw)
+    const previous = perceptionMutationQueueByCard.get(cardId) ?? Promise.resolve(
+      perceptionStateByCard.get(cardId) ?? createDefaultPerceptionState(now()),
+    )
+    const run = previous
+      .catch(() => perceptionStateByCard.get(cardId) ?? createDefaultPerceptionState(now()))
+      .then(async () => {
+        const current = await ensurePerceptionState(cardId)
+        const next = await mutate(current)
+        await persistPerceptionState(cardId, next)
+        return next
+      })
+    perceptionMutationQueueByCard.set(cardId, run)
+    try {
+      return await run
+    }
+    finally {
+      if (perceptionMutationQueueByCard.get(cardId) === run)
+        perceptionMutationQueueByCard.delete(cardId)
+    }
   }
 
   async function restorePerceptionState(cardIdRaw: unknown) {
@@ -265,6 +291,7 @@ export function createAlicizationRuntimeVisualPresenceState(
   return {
     rememberVisualPresencePersistMeta,
     persistPerceptionState,
+    queuePerceptionStateMutation,
     restorePerceptionState,
     ensurePerceptionState,
     persistMindHeadsFromVisualState,

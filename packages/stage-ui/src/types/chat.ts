@@ -8,8 +8,10 @@ import type {
   AlicizationDialogueStructuredFormat,
   AlicizationDigitalLifeEnvelope,
   AlicizationDigitalLifeSpineDigest,
+  AlicizationEmotionalKernelSnapshot,
   AlicizationMindTurnGovernance,
   AlicizationProactiveMetadata,
+  AlicizationRuntimeProjectStateDigest,
 } from '../stores/alicization-bridge'
 
 export interface ChatSlicesText {
@@ -56,6 +58,29 @@ export interface ChatAssistantStructuredPayload {
   digitalLifeSpine?: AlicizationDigitalLifeSpineDigest | null
   proactive?: AlicizationProactiveMetadata
   governance?: AlicizationMindTurnGovernance | null
+  projectState?: AlicizationRuntimeProjectStateDigest | null
+  preDialogueClosure?: {
+    status: 'grounded' | 'partial' | 'drift' | 'rewritten' | null
+    summaryLine: string | null
+    companionHeadlineLine?: string | null
+    sameHerDriftRiskLine?: string | null
+    companionshipReasonLine?: string | null
+    companionBriefingLine?: string | null
+    companionNextClosureLine?: string | null
+    emotionalClosureCue?: string | null
+    briefingLines: string[]
+    reasons: string[]
+  } | null
+  preDialogueAwareness?: {
+    status: 'grounded' | 'partial' | 'drift'
+    summaryLine: string | null
+    companionHeadlineLine?: string | null
+    companionBriefingLine?: string | null
+    companionNextClosureLine?: string | null
+    awarenessLine?: string | null
+    emotionalClosureCue?: string | null
+    reasonPreview: string[]
+  } | null
   policyLocked?: string
 }
 
@@ -95,6 +120,18 @@ export interface ChatStreamEventContext {
   contexts: Record<string, ContextMessage[]>
   composedMessage: Array<Message>
   input?: WebSocketEventInputs
+  preDialogueSendIdentity?: {
+    status: 'grounded' | 'partial' | 'drift'
+    summaryLine: string | null
+    companionHeadlineLine?: string | null
+    companionBriefingLine?: string | null
+    companionNextClosureLine?: string | null
+    awarenessLine?: string | null
+    emotionalClosureCue?: string | null
+    projectState?: AlicizationRuntimeProjectStateDigest | null
+    emotionalKernel?: AlicizationEmotionalKernelSnapshot | null
+    reasonPreview: string[]
+  } | null
 }
 
 export type ChatStreamEvent

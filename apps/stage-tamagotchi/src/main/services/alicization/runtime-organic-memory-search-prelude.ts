@@ -34,6 +34,16 @@ function uniqueList(values: Array<string | null | undefined>, maxItems = 6) {
   return result
 }
 
+export function isPresentFacingSelfCritiqueRecallSeed(recallSeed: string) {
+  const normalized = sanitizePromptText(recallSeed, 420).toLowerCase()
+  if (!normalized)
+    return false
+
+  const selfOwned = /subject=alicization-self|current_turn_subject=alicization-self|dialogue-first|answer-self|self-owned/u.test(normalized)
+  const styleComplaint = /表现得.*开心|开心一点|说人话|别这么(?:客气|冷淡|温柔|直接)|为什么这样回我|别这样回我|太公式化|像个人一点|sound more human|be happier|too polite|too cold|why are you talking like this/u.test(normalized)
+  return selfOwned && styleComplaint
+}
+
 function parseRuntimeContinuityCarry(recallSeed: string) {
   const line = recallSeed
     .split('\n')
@@ -170,6 +180,9 @@ export function deriveSceneTriggeredRecollectionIntent(input: {
   recallSeed: string
   recalledEpisodes: AlicizationEpisodicEventRecord[]
 }): OrganicMemoryPromptContext['recollectionIntent'] | null {
+  if (isPresentFacingSelfCritiqueRecallSeed(input.recallSeed))
+    return null
+
   const runtimeContinuityIntent = deriveRuntimeContinuityTriggeredIntent({
     recallSeed: input.recallSeed,
   })

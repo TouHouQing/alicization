@@ -2,7 +2,7 @@ import type { AlicizationMindTurnGovernance } from '../stores/alicization-bridge
 
 import { describe, expect, it } from 'vitest'
 
-import { calibrateSentimentConfidence, enforceGovernedMindTurn, normalizeStructuredOutput, parseLastActEmotion, repairStructuredContractLocally, validateStructuredContract } from './alicization-structured-output'
+import { calibrateSentimentConfidence, enforceGovernedMindTurn, normalizeStructuredOutput, normalizeStructuredProjectStatePayload, parseLastActEmotion, repairStructuredContractLocally, validateStructuredContract } from './alicization-structured-output'
 
 function translateMindFallback(path: string, params?: Record<string, unknown>) {
   const map: Record<string, string> = {
@@ -31,6 +31,40 @@ function translateMindFallback(path: string, params?: Record<string, unknown>) {
 }
 
 describe('alicization structured output', () => {
+  it('normalizes project-state payloads for return-side awareness without placeholder shells', () => {
+    const normalized = normalizeStructuredProjectStatePayload({
+      identity: ' Alicization is a local-first digital life project. ',
+      currentPhase: ' Phase 1: Local Digital Life ',
+      latestProgress: ' memory and presence now reconnect across runtime and renderer ',
+      primaryOpenLoop: ' keep one same her visible through memory, emotion, initiative, execution, and embodiment ',
+      nextClosureTarget: ' run the desktop life loop and feel it as one presence ',
+      sameHerSelfLine: ' she is one continuous local digital life ',
+      continuityRestraint: ' rest-protective ',
+      preferredBlinkCadence: 'quiet',
+      preferredGazeMode: 'soften',
+      unknownField: 'do not leak',
+    })
+
+    expect(normalized).toEqual(expect.objectContaining({
+      identity: 'Alicization is a local-first digital life project.',
+      currentPhase: 'Phase 1: Local Digital Life',
+      latestLandedProgress: 'memory and presence now reconnect across runtime and renderer',
+      primaryOpenLoop: 'keep one same her visible through memory, emotion, initiative, execution, and embodiment',
+      nextClosureTarget: 'run the desktop life loop and feel it as one presence',
+      sameHerSelfLine: 'she is one continuous local digital life',
+      continuityRestraint: 'rest-protective',
+      preferredBlinkCadence: 'quiet',
+      preferredGazeMode: 'soften',
+    }))
+    expect(normalized).not.toHaveProperty('unknownField')
+
+    expect(normalizeStructuredProjectStatePayload({
+      identity: 'none',
+      currentPhase: 'unknown',
+      latestLandedProgress: 'n/a',
+    })).toBeNull()
+  })
+
   it('parses last ACT emotion', () => {
     const emotion = parseLastActEmotion('hello <|ACT:{"emotion":"happy"}|>world <|ACT:{"emotion":"sad"}|>!')
     expect(emotion).toBe('sad')

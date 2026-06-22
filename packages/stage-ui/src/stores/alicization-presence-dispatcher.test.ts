@@ -616,7 +616,7 @@ describe('alicization presence dispatcher', () => {
   it('restores the previous embodimentScript builder when the latest registration is disposed', async () => {
     const store = useAlicizationPresenceDispatcherStore()
     const applyPerformance = vi.fn()
-    const firstDispose = store.setEmbodimentScriptBuilder((payload) => ({
+    const firstDispose = store.setEmbodimentScriptBuilder(payload => ({
       version: 'embodiment-script-v1',
       turnId: payload.turnId,
       rendererTarget: 'live2d',
@@ -641,7 +641,7 @@ describe('alicization presence dispatcher', () => {
       },
       lipsyncPlan: { mode: 'energy-only' },
     }))
-    const secondDispose = store.setEmbodimentScriptBuilder((payload) => ({
+    const secondDispose = store.setEmbodimentScriptBuilder(payload => ({
       version: 'embodiment-script-v1',
       turnId: payload.turnId,
       rendererTarget: 'live2d',
@@ -812,6 +812,7 @@ describe('alicization presence dispatcher', () => {
           urgency: 'low',
           style: 'silent-observe',
           cooldownMs: 90_000,
+          feedbackWindowMs: 120_000,
           scenario: 'coding',
           policyVersion: 'test-policy-v1',
         },

@@ -2,6 +2,7 @@ import type {
   AlicizationPersistentPresenceAuthoritySnapshot,
   AlicizationVisualWatchMode,
 } from '@proj-alicization/stage-shared'
+
 import type { AlicizationVisualPresenceStateSnapshot } from '../../../shared/eventa'
 
 import { deriveAlicizationAutobiographicalPersonaSummary } from './personality-continuity-state'
@@ -25,6 +26,35 @@ interface AlicizationBodyKernelApplyInput {
   previousState: AlicizationVisualPresenceStateSnapshot
   candidateState: AlicizationVisualPresenceStateSnapshot
   activeConversation: boolean
+}
+
+function sanitizeBodyKernelText(raw: unknown, maxChars = 240) {
+  if (typeof raw !== 'string')
+    return ''
+  return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
+}
+
+function hasMeasuredReturnContinuityAuthority(state: AlicizationVisualPresenceStateSnapshot) {
+  const emotionalKernel = state.emotionalKernel ?? null
+  const privateThought = state.privateThought ?? null
+  const initiative = state.initiative ?? null
+  const sceneSummary = sanitizeBodyKernelText(state.currentScene?.summary, 320).toLowerCase()
+  const emotionalWhy = sanitizeBodyKernelText(emotionalKernel?.why, 320).toLowerCase()
+
+  return emotionalKernel?.embodimentTone === 'measured-return'
+    || emotionalKernel?.dominantEmotion === 'measured-companionship'
+    || emotionalKernel?.reasonTags?.includes('measured-return')
+    || privateThought?.dominantTradeoff === 'same-line-measured-return'
+    || initiative?.actionEcologyMode === 'silent-presence'
+    || emotionalWhy.includes('lower-pressure same-line return')
+    || sceneSummary.includes('same-her closure')
+}
+
+function deriveMeasuredReturnPreoccupation(state: AlicizationVisualPresenceStateSnapshot) {
+  return sanitizeBodyKernelText(state.emotionalKernel?.why, 320)
+    || sanitizeBodyKernelText(state.initiative?.why, 240)
+    || sanitizeBodyKernelText(state.currentScene?.summary, 240)
+    || 'lower-pressure same-line return'
 }
 
 export function createAlicizationBodyKernel(options: CreateAlicizationBodyKernelOptions = {}) {
@@ -109,13 +139,26 @@ export function createAlicizationBodyKernel(options: CreateAlicizationBodyKernel
     applyToVisualPresenceState(input: AlicizationBodyKernelApplyInput): AlicizationVisualPresenceStateSnapshot {
       const personaAuthoritySummary = input.candidateState.autobiographicalSelf?.relationshipDoctrine ?? null
       const personaKernelSummary = deriveAlicizationAutobiographicalPersonaSummary(input.candidateState.autobiographicalSelf ?? null)
+      const sustainedFocusMs = deriveSustainedFocusMs({
+        now: input.now,
+        state: input.candidateState,
+      })
+      const shouldSpeak = input.candidateState.privateThought?.shouldSpeak === true
+      if (!input.activeConversation && !shouldSpeak && hasMeasuredReturnContinuityAuthority(input.candidateState)) {
+        return {
+          ...input.candidateState,
+          currentBodyState: 'accompanying',
+          continuityMode: 'quiet-accompaniment',
+          quietLineMs: sustainedFocusMs,
+          currentInwardPreoccupation: deriveMeasuredReturnPreoccupation(input.candidateState),
+          updatedAt: input.now,
+        }
+      }
+
       const authority = this.reduce({
-        sustainedFocusMs: deriveSustainedFocusMs({
-          now: input.now,
-          state: input.candidateState,
-        }),
+        sustainedFocusMs,
         watchMode: input.candidateState.watchMode,
-        shouldSpeak: input.candidateState.privateThought?.shouldSpeak === true,
+        shouldSpeak,
         activeConversation: input.activeConversation,
         relationshipPressure: Math.max(0, Math.min(1, Number(
           (

@@ -19,6 +19,50 @@ interface AlicizationPersonalityState {
   sensibility: number
 }
 
+interface AlicizationProjectStateContinuitySnapshot {
+  identity: string
+  currentPhase: string
+  latestLandedProgress: string | null
+  latestProgress?: string | null
+  landedProgressSummary?: string | null
+  primaryOpenLoop: string | null
+  nextClosureTarget: string
+  continuitySummary?: string | null
+  nonHumanAuthoredStatus: string | null
+  sameHerSelfLine?: string | null
+  sameHerHoldDetail?: string | null
+  sameHerDriftRisk?: string | null
+  proactiveSameHerGap?: string | null
+  emotionalClosureCue?: string | null
+  turnId: string
+  sessionId: string
+  origin: 'user-turn' | 'subconscious-proactive'
+}
+
+interface AlicizationPreDialogueAwarenessSnapshot {
+  status: 'grounded' | 'partial' | 'drift'
+  summaryLine: string | null
+  companionHeadlineLine?: string | null
+  companionBriefingLine?: string | null
+  companionNextClosureLine?: string | null
+  awarenessLine?: string | null
+  emotionalClosureCue?: string | null
+  reasonPreview?: string[]
+}
+
+interface AlicizationPreDialogueClosureSnapshot {
+  status: 'grounded' | 'partial' | 'drift' | 'rewritten' | null
+  summaryLine: string | null
+  companionHeadlineLine?: string | null
+  sameHerDriftRiskLine?: string | null
+  companionshipReasonLine?: string | null
+  companionBriefingLine?: string | null
+  companionNextClosureLine?: string | null
+  emotionalClosureCue?: string | null
+  briefingLines?: string[]
+  reasons: string[]
+}
+
 export interface AlicizationPersonalityDirectiveResult {
   block: string
   triggered: Array<'obedience' | 'liveliness' | 'sensibility'>
@@ -270,12 +314,25 @@ function buildAlicizationContextSections(contextsSnapshot: Record<string, Contex
   }
 }
 
+function resolveProjectStateLatestLandedProgress(snapshot: AlicizationProjectStateContinuitySnapshot) {
+  return [
+    snapshot.latestLandedProgress,
+    snapshot.latestProgress,
+    snapshot.landedProgressSummary,
+  ]
+    .map(value => typeof value === 'string' ? value.trim() : '')
+    .find(value => value.length > 0) ?? null
+}
+
 export function composeAlicizationPromptMessages(input: {
   messages: Message[]
   soulContent?: string | null
   hostName?: string | null
   personalityState?: AlicizationPersonalityState | null
   contextsSnapshot?: Record<string, ContextMessage[]>
+  projectStateContinuitySnapshot?: AlicizationProjectStateContinuitySnapshot | null
+  preDialogueAwarenessSnapshot?: AlicizationPreDialogueAwarenessSnapshot | null
+  preDialogueClosureSnapshot?: AlicizationPreDialogueClosureSnapshot | null
 }): ComposeAlicizationPromptMessagesResult {
   const nextMessages = stripLegacySystemMessages(input.messages)
   const anchorSystemSections: string[] = []
@@ -307,6 +364,83 @@ export function composeAlicizationPromptMessages(input: {
       iso: '',
       local: '',
     }).trim())
+  }
+
+  const projectStateContinuitySnapshot = input.projectStateContinuitySnapshot
+  if (projectStateContinuitySnapshot) {
+    const latestLandedProgress = resolveProjectStateLatestLandedProgress(projectStateContinuitySnapshot)
+    runtimeSystemSections.push([
+      'Project state continuity before this turn:',
+      `- Identity: ${projectStateContinuitySnapshot.identity}`,
+      `- Current phase: ${projectStateContinuitySnapshot.currentPhase}`,
+      `- Latest landed progress: ${latestLandedProgress ?? 'none yet'}`,
+      `- Primary open loop: ${projectStateContinuitySnapshot.primaryOpenLoop ?? 'none recorded'}`,
+      `- Next closure target: ${projectStateContinuitySnapshot.nextClosureTarget}`,
+      `- Continuity summary: ${projectStateContinuitySnapshot.continuitySummary ?? 'none recorded'}`,
+      `- Observation status: ${projectStateContinuitySnapshot.nonHumanAuthoredStatus ?? 'human-visible continuity snapshot'}`,
+      projectStateContinuitySnapshot.sameHerSelfLine
+        ? `- Same-her self line: ${projectStateContinuitySnapshot.sameHerSelfLine}`
+        : null,
+      projectStateContinuitySnapshot.sameHerHoldDetail
+        ? `- Same-her hold detail: ${projectStateContinuitySnapshot.sameHerHoldDetail}`
+        : null,
+      projectStateContinuitySnapshot.sameHerDriftRisk
+        ? `- Same-her drift risk: ${projectStateContinuitySnapshot.sameHerDriftRisk}`
+        : null,
+      projectStateContinuitySnapshot.proactiveSameHerGap
+        ? `- Proactive same-her gap: ${projectStateContinuitySnapshot.proactiveSameHerGap}`
+        : null,
+      `- Emotional closure cue: ${projectStateContinuitySnapshot.emotionalClosureCue ?? 'none recorded'}`,
+      '- Treat this as same-thread project continuity, not as disposable metadata.',
+    ].filter(Boolean).join('\n'))
+  }
+
+  const preDialogueAwarenessSnapshot = input.preDialogueAwarenessSnapshot
+  if (preDialogueAwarenessSnapshot) {
+    runtimeSystemSections.push([
+      'Pre-dialogue project self-brief before this turn:',
+      `Status: ${preDialogueAwarenessSnapshot.status}`,
+      `Summary: ${preDialogueAwarenessSnapshot.summaryLine ?? 'none recorded'}`,
+      preDialogueAwarenessSnapshot.companionHeadlineLine
+        ? `Companion headline: ${preDialogueAwarenessSnapshot.companionHeadlineLine}`
+        : null,
+      preDialogueAwarenessSnapshot.companionBriefingLine
+        ? `Companion briefing: ${preDialogueAwarenessSnapshot.companionBriefingLine}`
+        : null,
+      preDialogueAwarenessSnapshot.companionNextClosureLine
+        ? `Companion next closure: ${preDialogueAwarenessSnapshot.companionNextClosureLine}`
+        : null,
+      preDialogueAwarenessSnapshot.awarenessLine
+        ? `Awareness line: ${preDialogueAwarenessSnapshot.awarenessLine}`
+        : null,
+      preDialogueAwarenessSnapshot.emotionalClosureCue
+        ? `Emotional closure cue: ${preDialogueAwarenessSnapshot.emotionalClosureCue}`
+        : null,
+      ...(preDialogueAwarenessSnapshot.reasonPreview ?? []).map((reason, index) => `Preview ${index + 1}: ${reason}`),
+    ].filter(Boolean).join('\n'))
+  }
+
+  const preDialogueClosureSnapshot = input.preDialogueClosureSnapshot
+  if (preDialogueClosureSnapshot) {
+    runtimeSystemSections.push([
+      'Pre-dialogue closure snapshot before this turn:',
+      `Status: ${preDialogueClosureSnapshot.status ?? 'partial'}`,
+      `Summary: ${preDialogueClosureSnapshot.summaryLine ?? 'none recorded'}`,
+      preDialogueClosureSnapshot.sameHerDriftRiskLine
+        ? `Same-her drift risk: ${preDialogueClosureSnapshot.sameHerDriftRiskLine}`
+        : null,
+      preDialogueClosureSnapshot.companionBriefingLine
+        ? `Companion briefing: ${preDialogueClosureSnapshot.companionBriefingLine}`
+        : null,
+      preDialogueClosureSnapshot.companionNextClosureLine
+        ? `Companion next closure: ${preDialogueClosureSnapshot.companionNextClosureLine}`
+        : null,
+      preDialogueClosureSnapshot.emotionalClosureCue
+        ? `Emotional closure cue: ${preDialogueClosureSnapshot.emotionalClosureCue}`
+        : null,
+      ...(preDialogueClosureSnapshot.briefingLines ?? []).map((line, index) => `Briefing ${index + 1}: ${line}`),
+      ...preDialogueClosureSnapshot.reasons.map((reason, index) => `Reason ${index + 1}: ${reason}`),
+    ].filter(Boolean).join('\n'))
   }
 
   const { sections: contextSections, sensorySections } = buildAlicizationContextSections(input.contextsSnapshot ?? {})

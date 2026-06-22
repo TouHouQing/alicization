@@ -1,3 +1,10 @@
+import type {
+  AlicizationChatEntryIngest,
+  AlicizationChatEntryPreDialogueSendIdentity,
+} from '@proj-alicization/stage-shared/alicization-chat-entry-dispatch'
+
+import { assertAlicizationChatEntryPreDialogueSendIdentity } from '@proj-alicization/stage-shared/alicization-chat-entry-dispatch'
+
 export interface DesktopMouseCaptureStateInput {
   fadeOnHoverEnabled: boolean
   hearingDialogOpen: boolean
@@ -31,6 +38,22 @@ export interface StageStartupOnboardingInput {
   initializeSetupCheck: () => void
   needsOnboarding: boolean
   openOnboarding: () => void
+}
+
+type DesktopVoiceTurnOrigin = 'ui-user' | 'tool-output' | 'context-recall' | 'system'
+
+export interface DesktopVoiceTurnDispatchInput<
+  TPreDialogueSendIdentity = AlicizationChatEntryPreDialogueSendIdentity | null | undefined,
+  TChatProvider = unknown,
+> {
+  text: string
+  providerId: string
+  model: string
+  chatProvider: TChatProvider
+  providerConfig: Record<string, unknown>
+  preDialogueSendIdentity: TPreDialogueSendIdentity
+  origin?: DesktopVoiceTurnOrigin
+  ingest: AlicizationChatEntryIngest<TPreDialogueSendIdentity, TChatProvider>
 }
 
 export function resolveDesktopMouseCaptureState(input: DesktopMouseCaptureStateInput) {
@@ -77,4 +100,22 @@ export function runStageStartupOnboardingCheck(input: StageStartupOnboardingInpu
   input.initializeSetupCheck()
   if (input.needsOnboarding)
     input.openOnboarding()
+}
+
+export async function dispatchDesktopVoiceTurn<TPreDialogueSendIdentity, TChatProvider>(
+  input: DesktopVoiceTurnDispatchInput<TPreDialogueSendIdentity, TChatProvider>,
+) {
+  assertAlicizationChatEntryPreDialogueSendIdentity(
+    input.preDialogueSendIdentity as AlicizationChatEntryPreDialogueSendIdentity | null | undefined,
+    'dispatchDesktopVoiceTurn',
+  )
+
+  return input.ingest(input.text, {
+    providerId: input.providerId,
+    model: input.model,
+    chatProvider: input.chatProvider,
+    providerConfig: input.providerConfig,
+    preDialogueSendIdentity: input.preDialogueSendIdentity,
+    origin: input.origin,
+  })
 }

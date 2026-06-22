@@ -1,6 +1,7 @@
 import type {
-  StageEmbodimentPerformanceState,
+  StageEmbodimentPerformanceMatchedDriver,
   StageEmbodimentPerformancePhase,
+  StageEmbodimentPerformanceState,
   StageEmbodimentPresencePostureState,
   StageEmbodimentSpeechArticulationState,
   StageEmbodimentSpeechRenderPhase,
@@ -9,39 +10,39 @@ import type {
 import type { ComputedRef, Ref } from 'vue'
 
 import type {
+  Live2DExecutionDiagnosticsSnapshot,
+} from '../../../../stage-ui-live2d/src/composables/live2d/execution-diagnostics'
+import type {
+  Live2DResolvedExpressionSelection,
+  Live2DRuntimeCapabilitySnapshot,
+} from '../../../../stage-ui-live2d/src/composables/live2d/expression-runtime'
+import type { VrmResolvedRuntimeCapabilitySnapshot } from '../../../../stage-ui-three/src/composables/vrm/capabilities'
+import type { VrmExecutionDiagnosticsSnapshot } from '../../../../stage-ui-three/src/composables/vrm/execution-diagnostics'
+import type { EmbodimentPlaybackTelemetry } from '../../services/embodiment/playback-reconciler'
+import type {
   AlicizationDigitalLifeSpineDigest,
   AlicizationRuntimeDigest,
   AlicizationVisualPresenceStateSnapshot,
 } from '../../stores/alicization-bridge'
-import type { EmbodimentPlaybackTelemetry } from '../../services/embodiment/playback-reconciler'
 import type { StageEmbodimentAttentionPresenceState } from './use-stage-embodiment-attention'
-import type { VrmResolvedRuntimeCapabilitySnapshot } from '../../../../stage-ui-three/src/composables/vrm/capabilities'
-import type { VrmExecutionDiagnosticsSnapshot } from '../../../../stage-ui-three/src/composables/vrm/execution-diagnostics'
-import type {
-  Live2DExecutionDiagnosticsSnapshot,
-} from '../../../../stage-ui-live2d/src/composables/live2d/execution-diagnostics'
-import type {
-  Live2DRuntimeCapabilitySnapshot,
-  Live2DResolvedExpressionSelection,
-} from '../../../../stage-ui-live2d/src/composables/live2d/expression-runtime'
 
-import { computed, readonly } from 'vue'
 import { cloneStageEmbodimentSpeechArticulationState } from '@proj-alicization/stage-shared'
+import { computed, readonly } from 'vue'
+
 import {
   resolveLive2DExpressionSelection,
 } from '../../../../stage-ui-live2d/src/composables/live2d/expression-runtime'
 import {
   resolveSupportedVrmExpressionName,
 } from '../../../../stage-ui-three/src/composables/vrm/capabilities'
-
-import {
-  resolveStageEmbodimentRuntimeAttentionBias,
-  resolveStageEmbodimentRuntimePresence,
-} from './use-stage-embodiment-attention'
 import {
   resolveResidentLive2DPreferredExpressionAliases,
   resolveResidentVrmPreferredExpressionAliases,
 } from './stage-resident-expression-aliases'
+import {
+  resolveStageEmbodimentRuntimeAttentionBias,
+  resolveStageEmbodimentRuntimePresence,
+} from './use-stage-embodiment-attention'
 
 interface Point2D {
   x: number
@@ -54,9 +55,11 @@ interface Size2D {
 }
 
 interface StageEmbodimentAuthorityMatchFlags {
+  bodySegmentMatched?: boolean | null
   faceSegmentMatched?: boolean | null
   motionSegmentMatched?: boolean | null
   lipsyncSegmentMatched?: boolean | null
+  voiceSegmentMatched?: boolean | null
 }
 
 export interface StageEmbodimentDriverAuthoritySummaryEntry {
@@ -72,9 +75,11 @@ export interface StageEmbodimentLipsyncDriverAuthoritySummaryEntry extends Stage
 
 export interface StageEmbodimentDriverSummary {
   rendererTarget: 'live2d' | 'vrm' | null
+  body: StageEmbodimentDriverAuthoritySummaryEntry | null
   face: StageEmbodimentDriverAuthoritySummaryEntry | null
   motion: StageEmbodimentDriverAuthoritySummaryEntry | null
   lipsync: StageEmbodimentLipsyncDriverAuthoritySummaryEntry | null
+  voice: StageEmbodimentDriverAuthoritySummaryEntry | null
 }
 
 export interface StageEmbodimentDiagnosticsSnapshot {
@@ -194,7 +199,7 @@ export interface StageEmbodimentDiagnosticsSnapshot {
       cueId: string | null
       segmentId: string | null
       rendererTarget: 'live2d' | 'vrm' | null
-      matchedDrivers: Array<'face' | 'motion' | 'lipsync'>
+      matchedDrivers: StageEmbodimentPerformanceMatchedDriver[]
       matchedSources: string[]
       bindingSummary: string
       matchSummary: string
@@ -250,12 +255,15 @@ export interface StageEmbodimentDiagnosticsSnapshot {
       driverAuthority: {
         segmentId: string | null
         rendererTarget: 'live2d' | 'vrm' | null
-        matchedDrivers: Array<'face' | 'motion' | 'lipsync'>
+        matchedDrivers: StageEmbodimentPerformanceMatchedDriver[]
         sources: string[]
+        bodySegmentMatched: boolean
         faceSegmentMatched: boolean
         motionSegmentMatched: boolean
         lipsyncSegmentMatched: boolean
+        voiceSegmentMatched?: boolean
       } | null
+      prosodyAuthority: EmbodimentPlaybackTelemetry['prosodyAuthority'] | null
       cue?: {
         id: string | null
         text: string | null
@@ -331,12 +339,16 @@ function buildAuthorityMismatchSummary(
     return null
 
   const mismatches: string[] = []
+  if (authority.bodySegmentMatched === false)
+    mismatches.push('body-mismatch')
   if (authority.faceSegmentMatched === false)
     mismatches.push('face-mismatch')
   if (authority.motionSegmentMatched === false)
     mismatches.push('motion-mismatch')
   if (authority.lipsyncSegmentMatched === false)
     mismatches.push('lipsync-mismatch')
+  if (authority.voiceSegmentMatched === false)
+    mismatches.push('voice-mismatch')
 
   return mismatches.length > 0 ? mismatches.join(', ') : null
 }
@@ -345,15 +357,18 @@ function buildAuthorityMismatchReasonSummary(input: {
   authority: StageEmbodimentAuthorityMatchFlags | null | undefined
   matchedSources?: string[] | null
   driverExecutionSummary?: string | null
+  finalSurfacePolicy?: string | null
 }) {
   const mismatchSummary = buildAuthorityMismatchSummary(input.authority)
   if (!mismatchSummary)
     return null
 
   const labelMap: Record<string, string> = {
+    'body-mismatch': '身体',
     'face-mismatch': '表情',
     'motion-mismatch': '动作',
     'lipsync-mismatch': '口型',
+    'voice-mismatch': '声音',
   }
   const mismatchLabels = mismatchSummary
     .split(', ')
@@ -362,12 +377,16 @@ function buildAuthorityMismatchReasonSummary(input: {
   const sourceText = (input.matchedSources ?? []).filter(Boolean).join('、') || '无来源'
   const driverExecutionSummary = input.driverExecutionSummary?.trim() ?? ''
   const executionKinds: string[] = []
+  if (driverExecutionSummary.includes('body='))
+    executionKinds.push('身体')
   if (driverExecutionSummary.includes('face='))
     executionKinds.push('表情')
   if (driverExecutionSummary.includes('motion='))
     executionKinds.push('动作')
   if (driverExecutionSummary.includes('lipsync='))
     executionKinds.push('口型')
+  if (driverExecutionSummary.includes('voice='))
+    executionKinds.push('声音')
   const executionText = executionKinds.join('、') || '无执行'
   return `${mismatchLabels.join('、') || '未知'} authority 漂移，当前绑定来源是 ${sourceText}，实际执行落点是${executionText}。`
 }
@@ -482,7 +501,7 @@ function normalizeRuntimeDynamicsSummary(
       selectedAction: normalizeSummaryString(input.digitalLifeSpineDigest?.runtime.selectedAction),
       personaBiasSummary: normalizeSummaryString(
         input.digitalLifeSpineDigest?.proactive?.personaBias?.manifestationCadenceSummary
-          ?? input.digitalLifeSpineDigest?.proactive?.personaBias?.whySummary,
+        ?? input.digitalLifeSpineDigest?.proactive?.personaBias?.whySummary,
       ),
       personaOpeningGuidance: normalizeSummaryString(input.digitalLifeSpineDigest?.proactive?.personaBias?.openingGuidance),
       scene: normalizeSummaryString(input.visualPresenceState?.currentScene?.workloadKind),
@@ -513,7 +532,10 @@ function normalizeRuntimeDynamicsSummary(
   }
 }
 
-function normalizePlaybackTelemetry(raw: EmbodimentPlaybackTelemetry | null | undefined) {
+type NormalizedPlaybackTelemetry = StageEmbodimentDiagnosticsSnapshot['speech']['playbackTelemetry']
+type NormalizedPlaybackTelemetryRecord = NonNullable<NormalizedPlaybackTelemetry>
+
+function normalizePlaybackTelemetry(raw: EmbodimentPlaybackTelemetry | null | undefined): NormalizedPlaybackTelemetry {
   if (!raw)
     return null
 
@@ -530,9 +552,11 @@ function normalizePlaybackTelemetry(raw: EmbodimentPlaybackTelemetry | null | un
           rendererTarget: raw.driverAuthority.rendererTarget ?? null,
           matchedDrivers: [...raw.driverAuthority.matchedDrivers],
           sources: [...raw.driverAuthority.sources],
+          bodySegmentMatched: raw.driverAuthority.bodySegmentMatched,
           faceSegmentMatched: raw.driverAuthority.faceSegmentMatched,
           motionSegmentMatched: raw.driverAuthority.motionSegmentMatched,
           lipsyncSegmentMatched: raw.driverAuthority.lipsyncSegmentMatched,
+          voiceSegmentMatched: raw.driverAuthority.voiceSegmentMatched,
         }
       : null,
     prosodyAuthority: raw.prosodyAuthority
@@ -618,6 +642,11 @@ function normalizeDriverExecutionSummary(raw: EmbodimentPlaybackTelemetry['drive
     return null
 
   const parts: string[] = []
+  if (raw.body) {
+    parts.push(
+      `body=${raw.body.frameMode ?? 'none'} still=${Number(raw.body.stillness ?? 0).toFixed(2)} gaze=${Number(raw.body.gazeStability ?? 0).toFixed(2)} breath=${Number(raw.body.breathAmplitude ?? 0).toFixed(2)} expr=${Number(raw.body.expressivity ?? 0).toFixed(2)}`,
+    )
+  }
   if (raw.face) {
     parts.push(
       `face=${raw.face.emotion ?? 'none'}/${raw.face.facialCue ?? 'none'}@${Number(raw.face.intensity ?? 0).toFixed(2)} hold=${raw.face.holdMs ?? 0} pre=${raw.face.preUtteranceCue ?? 'none'} post=${raw.face.postUtteranceCue ?? 'none'} src=${raw.face.source ?? 'none'} conf=${Number(raw.face.confidence ?? 0).toFixed(2)}`,
@@ -668,8 +697,8 @@ function normalizeStructuredPersonaStyleSummary(input: {
 
 function normalizeStructuredVoiceSummary(input: {
   summary: string | null | undefined
-  driverAuthority: ReturnType<typeof normalizePlaybackTelemetry>['driverAuthority']
-  drivers: ReturnType<typeof normalizePlaybackTelemetry>['drivers']
+  driverAuthority: NormalizedPlaybackTelemetryRecord['driverAuthority']
+  drivers: NormalizedPlaybackTelemetryRecord['drivers']
 }) {
   const summary = normalizeSummaryString(input.summary)
   if (!summary)
@@ -681,35 +710,39 @@ function normalizeStructuredVoiceSummary(input: {
   const provenance = input.driverAuthority ? 'authority-bound' : 'fallback-derived'
   const segmentId = normalizeSummaryString(
     input.driverAuthority?.segmentId
-      ?? input.drivers?.lipsync?.segmentId
-      ?? input.drivers?.face?.segmentId
-      ?? input.drivers?.motion?.segmentId,
+    ?? input.drivers?.lipsync?.segmentId
+    ?? input.drivers?.face?.segmentId
+    ?? input.drivers?.motion?.segmentId,
   ) ?? 'n/a'
   const source = normalizeSummaryString(
     input.drivers?.lipsync?.visemeHints?.[0]?.source
-      ?? input.drivers?.face?.source
-      ?? input.drivers?.motion?.source,
+    ?? input.drivers?.face?.source
+    ?? input.drivers?.motion?.source,
   ) ?? 'n/a'
 
   return `${summary} | provenance=${provenance} | segment=${segmentId} | source=${source}`
 }
 
-function normalizeAuthoritySummary(playbackTelemetry: ReturnType<typeof normalizePlaybackTelemetry>) {
+function normalizeAuthoritySummary(playbackTelemetry: NormalizedPlaybackTelemetry) {
   if (!playbackTelemetry?.cue)
     return null
 
   const matchedDrivers = playbackTelemetry.driverAuthority?.matchedDrivers ?? []
   const matchedSources = playbackTelemetry.driverAuthority?.sources ?? []
+  const bodyMatched = playbackTelemetry.driverAuthority?.bodySegmentMatched
   const faceMatched = playbackTelemetry.driverAuthority?.faceSegmentMatched
   const motionMatched = playbackTelemetry.driverAuthority?.motionSegmentMatched
   const lipsyncMatched = playbackTelemetry.driverAuthority?.lipsyncSegmentMatched
+  const voiceMatched = playbackTelemetry.driverAuthority?.voiceSegmentMatched
   const target = playbackTelemetry.rendererTarget ?? playbackTelemetry.driverAuthority?.rendererTarget ?? null
-  const matchSummary = `face:${faceMatched == null ? 'n/a' : faceMatched ? 'yes' : 'no'} motion:${motionMatched == null ? 'n/a' : motionMatched ? 'yes' : 'no'} lipsync:${lipsyncMatched == null ? 'n/a' : lipsyncMatched ? 'yes' : 'no'}`
+  const matchSummary = `body:${bodyMatched == null ? 'n/a' : bodyMatched ? 'yes' : 'no'} face:${faceMatched == null ? 'n/a' : faceMatched ? 'yes' : 'no'} motion:${motionMatched == null ? 'n/a' : motionMatched ? 'yes' : 'no'} lipsync:${lipsyncMatched == null ? 'n/a' : lipsyncMatched ? 'yes' : 'no'} voice:${voiceMatched == null ? 'n/a' : voiceMatched ? 'yes' : 'no'}`
   const authority = playbackTelemetry.driverAuthority
     ? {
+        bodySegmentMatched: playbackTelemetry.driverAuthority.bodySegmentMatched,
         faceSegmentMatched: playbackTelemetry.driverAuthority.faceSegmentMatched,
         motionSegmentMatched: playbackTelemetry.driverAuthority.motionSegmentMatched,
         lipsyncSegmentMatched: playbackTelemetry.driverAuthority.lipsyncSegmentMatched,
+        voiceSegmentMatched: playbackTelemetry.driverAuthority.voiceSegmentMatched,
       }
     : null
   const authorityMismatchSummary = buildAuthorityMismatchSummary(authority)
@@ -742,7 +775,7 @@ function normalizeAuthoritySummary(playbackTelemetry: ReturnType<typeof normaliz
   }
 }
 
-function normalizeCueMicroSummary(playbackTelemetry: ReturnType<typeof normalizePlaybackTelemetry>) {
+function normalizeCueMicroSummary(playbackTelemetry: NormalizedPlaybackTelemetry) {
   if (!playbackTelemetry?.cue)
     return null
 
@@ -940,14 +973,14 @@ function normalizeRendererAlignment(input: {
           status: resolveAlignmentStatus(
             input.residentVrmResolvedExpression?.name ?? null,
             input.vrmExecution?.activeEmotion?.resolvedExpressionNames[0]
-              ?? input.vrmExecution?.activeEmotion?.name
-              ?? null,
+            ?? input.vrmExecution?.activeEmotion?.name
+            ?? null,
           ),
           driftKind: resolveDriftKind(
             input.residentVrmResolvedExpression?.name ?? null,
             input.vrmExecution?.activeEmotion?.resolvedExpressionNames[0]
-              ?? input.vrmExecution?.activeEmotion?.name
-              ?? null,
+            ?? input.vrmExecution?.activeEmotion?.name
+            ?? null,
           ),
           driverCue: input.driverSummary?.rendererTarget === 'vrm'
             ? input.driverSummary.face?.cue ?? null
@@ -996,7 +1029,7 @@ function buildDriverAuthoritySummaryEntry(
   }
 }
 
-function buildDriverSummary(playbackTelemetry: ReturnType<typeof normalizePlaybackTelemetry>): StageEmbodimentDriverSummary | null {
+function buildDriverSummary(playbackTelemetry: NormalizedPlaybackTelemetry): StageEmbodimentDriverSummary | null {
   if (!playbackTelemetry?.drivers)
     return null
 
@@ -1004,6 +1037,14 @@ function buildDriverSummary(playbackTelemetry: ReturnType<typeof normalizePlayba
 
   return {
     rendererTarget: playbackTelemetry.rendererTarget ?? null,
+    body: playbackTelemetry.drivers.body
+      ? {
+          cue: normalizeSummaryString(playbackTelemetry.drivers.body.frameMode),
+          source: 'body-telemetry',
+          confidence: null,
+          segmentId: normalizeSummaryString(playbackTelemetry.drivers.body.segmentId),
+        }
+      : null,
     face: buildDriverAuthoritySummaryEntry(
       playbackTelemetry.drivers.face?.facialCue,
       playbackTelemetry.drivers.face,
@@ -1033,6 +1074,14 @@ function buildDriverSummary(playbackTelemetry: ReturnType<typeof normalizePlayba
             mode: playbackTelemetry.drivers.lipsync.mode,
           }
         })()
+      : null,
+    voice: playbackTelemetry.prosodyAuthority
+      ? {
+          cue: playbackTelemetry.prosodyAuthority.mode ?? null,
+          source: normalizeSummaryString(playbackTelemetry.prosodyAuthority.source),
+          confidence: null,
+          segmentId: normalizeSummaryString(playbackTelemetry.prosodyAuthority.segmentId),
+        }
       : null,
   }
 }

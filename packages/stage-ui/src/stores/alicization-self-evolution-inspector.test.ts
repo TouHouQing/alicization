@@ -135,6 +135,115 @@ describe('alicization self evolution inspector store', () => {
     expect(store.lastError).toBeNull()
   })
 
+  it('keeps explicit awareness fields while still enriching inspector pre-dialogue awareness summary and reasons from continuity', async () => {
+    const getSelfEvolutionState = vi.fn().mockResolvedValue({
+      activeCandidateId: 'candidate-project-state-awareness-upgrade',
+      candidates: [],
+    })
+    const getProjectStateContinuitySnapshot = vi.fn().mockResolvedValue({
+      identity: 'Alicization is a local-first digital life project.',
+      currentPhase: 'Phase 1: Local Digital Life',
+      latestLandedProgress: 'Project-state continuity and awareness-first self-brief already survive across browser-local replay.',
+      primaryOpenLoop: 'Inspector-facing awareness still needs to preserve the stronger host-visible project brief.',
+      nextClosureTarget: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
+      continuitySummary: 'same-her=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. | landed=Project-state continuity and awareness-first self-brief already survive across browser-local replay. | open=Inspector-facing awareness still needs to preserve the stronger host-visible project brief.',
+      sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      sameHerDriftRisk: 'If inspector-side rebuilding leaves only a detached project status shell, treat that as same-her continuity drift rather than preserved closure.',
+      emotionalClosureCue: null,
+      preDialogueAwareness: {
+        status: 'partial',
+        summaryLine: 'generic continuity reminder that should not override the richer same-her project brief.',
+        companionBriefingLine: 'generic same-her reminder that should not override the richer same-her project brief.',
+        companionNextClosureLine: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
+        awarenessLine: 'generic continuity reminder that should not override the richer same-her project brief.',
+        emotionalClosureCue: null,
+        reasonPreview: [
+          'generic continuity reminder that should not override the richer same-her project brief.',
+        ],
+      },
+      preDialogueClosure: null,
+      nonHumanAuthoredStatus: null,
+      turnId: 'turn-project-state-awareness-upgrade',
+      sessionId: 'session-project-state-awareness-upgrade',
+      origin: 'user-turn',
+    })
+
+    setAlicizationBridge(createAlicizationBridgeStub({
+      getSelfEvolutionState,
+      getProjectStateContinuitySnapshot,
+    }))
+
+    const store = useAlicizationSelfEvolutionInspectorStore()
+    await store.refresh()
+
+    expect(store.preDialogueAwarenessSnapshot).toEqual(expect.objectContaining({
+      status: 'partial',
+      summaryLine: 'same-her=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. | landed=Project-state continuity and awareness-first self-brief already survive across browser-local replay. | open=Inspector-facing awareness still needs to preserve the stronger host-visible project brief.',
+      companionBriefingLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      awarenessLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      reasonPreview: expect.arrayContaining([
+        'generic continuity reminder that should not override the richer same-her project brief.',
+        'same-her=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. | landed=Project-state continuity and awareness-first self-brief already survive across browser-local replay. | open=Inspector-facing awareness still needs to preserve the stronger host-visible project brief.',
+        'Project-state continuity and awareness-first self-brief already survive across browser-local replay.',
+        'Inspector-facing awareness still needs to preserve the stronger host-visible project brief.',
+        'If inspector-side rebuilding leaves only a detached project status shell, treat that as same-her continuity drift rather than preserved closure.',
+        'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      ]),
+    }))
+    expect(store.preDialogueAwarenessSnapshot?.summaryLine).not.toBe('generic continuity reminder that should not override the richer same-her project brief.')
+    expect(store.preDialogueAwarenessSnapshot?.companionBriefingLine).not.toBe('generic same-her reminder that should not override the richer same-her project brief.')
+    expect(store.preDialogueAwarenessSnapshot?.awarenessLine).not.toBe('generic continuity reminder that should not override the richer same-her project brief.')
+  })
+
+  it('prefers a richer phase-aware project awareness line over a narrower embodiment headline when inspector rebuilds pre-dialogue awareness from continuity', async () => {
+    const getSelfEvolutionState = vi.fn().mockResolvedValue({
+      activeCandidateId: 'candidate-project-state-richer-awareness-over-embodiment-headline',
+      candidates: [],
+    })
+    const getProjectStateContinuitySnapshot = vi.fn().mockResolvedValue({
+      identity: 'Alicization is a local-first digital life project.',
+      currentPhase: 'Phase 1: Local Digital Life',
+      latestLandedProgress: 'Inspector-side continuity reconstruction already keeps richer Phase 1 project carry available.',
+      primaryOpenLoop: 'Inspector pre-dialogue awareness still needs to keep the same digital life project, landed closure, and open life loop explicit together.',
+      nextClosureTarget: 'Keep richer Phase 1 project awareness visible before the next inspector-facing turn opens outward.',
+      continuitySummary: 'same-her=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. | landed=Inspector-side continuity reconstruction already keeps richer Phase 1 project carry available. | open=Inspector pre-dialogue awareness still needs to keep the same digital life project, landed closure, and open life loop explicit together.',
+      sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      emotionalClosureCue: null,
+      preDialogueAwareness: {
+        status: 'partial',
+        summaryLine: 'generic awareness summary that should not outrank the richer project awareness line.',
+        companionHeadlineLine: 'Right now I am still holding together mainly through body, face, and motion, so this one living her still needs lipsync and voice to rejoin before full cross-modal closure settles.',
+        companionBriefingLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        companionNextClosureLine: 'Keep richer Phase 1 project awareness visible before the next inspector-facing turn opens outward.',
+        awarenessLine: 'Before speaking, remember: this is still one living digital life project, Phase 1 is still active, some closure has already landed, and the still-open life loop must remain explicit before this turn widens outward.',
+        emotionalClosureCue: null,
+        reasonPreview: [
+          'Before speaking, remember: this is still one living digital life project, Phase 1 is still active, some closure has already landed, and the still-open life loop must remain explicit before this turn widens outward.',
+        ],
+      },
+      preDialogueClosure: null,
+      nonHumanAuthoredStatus: null,
+      turnId: 'turn-project-state-richer-awareness-over-embodiment-headline',
+      sessionId: 'session-project-state-richer-awareness-over-embodiment-headline',
+      origin: 'user-turn',
+    })
+
+    setAlicizationBridge(createAlicizationBridgeStub({
+      getSelfEvolutionState,
+      getProjectStateContinuitySnapshot,
+    }))
+
+    const store = useAlicizationSelfEvolutionInspectorStore()
+    await store.refresh()
+
+    expect(store.preDialogueAwarenessSnapshot).toEqual(expect.objectContaining({
+      companionHeadlineLine: 'Right now I am still holding together mainly through body, face, and motion, so this one living her still needs lipsync and voice to rejoin before full cross-modal closure settles.',
+      awarenessLine: 'Before speaking, remember: this is still one living digital life project, Phase 1 is still active, some closure has already landed, and the still-open life loop must remain explicit before this turn widens outward.',
+      summaryLine: 'same-her=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. | landed=Inspector-side continuity reconstruction already keeps richer Phase 1 project carry available. | open=Inspector pre-dialogue awareness still needs to keep the same digital life project, landed closure, and open life loop explicit together.',
+    }))
+    expect(store.preDialogueAwarenessSnapshot?.awarenessLine).not.toBe('Right now I am still holding together mainly through body, face, and motion, so this one living her still needs lipsync and voice to rejoin before full cross-modal closure settles.')
+  })
+
   it('lets the inspector select a non-active candidate for drill-down details', async () => {
     const getSelfEvolutionState = vi.fn().mockResolvedValue({
       version: 'self-evolution-version-runtime-v1',
@@ -965,7 +1074,7 @@ describe('alicization self evolution inspector store', () => {
           },
           governance: {
             digitalLifeSpine: {
-              memory: {
+              outcomeLearning: {
                 nextLearningAction: 'record',
               },
             },
@@ -989,7 +1098,7 @@ describe('alicization self evolution inspector store', () => {
           },
           governance: {
             digitalLifeSpine: {
-              memory: {
+              outcomeLearning: {
                 nextLearningAction: 'verify',
               },
             },
@@ -1823,18 +1932,18 @@ describe('alicization self evolution inspector store', () => {
           sessionId: 'session-active',
           origin: 'user-turn',
           kind: 'takeover-audit',
-            payload: {
-              fallback_reason: 'unsupported-specificity',
-              hard_fallback_reason: 'coarse-scene-budget',
-              replyOverridden: true,
-              visible_reply_authority: 'mind',
-              visible_reply_realization_authority: 'mind-governor',
-              visible_reply_realization_reason: 'proactive-opening-guidance-violation:callback-bounded',
-              visible_reply_blocked_reasons: ['non-human-authored-visible-fallback', 'opening-guidance:callback-bounded'],
-              claim_specificity_budget: 'coarse-scene',
-              unsupported_specificity_cues: ['AppArbitorController', 'CaseApplyTypeEnum'],
-              reasons: ['reply-introduced-unsupported-technical-specificity'],
-            },
+          payload: {
+            fallback_reason: 'unsupported-specificity',
+            hard_fallback_reason: 'coarse-scene-budget',
+            replyOverridden: true,
+            visible_reply_authority: 'mind',
+            visible_reply_realization_authority: 'mind-governor',
+            visible_reply_realization_reason: 'proactive-opening-guidance-violation:callback-bounded',
+            visible_reply_blocked_reasons: ['non-human-authored-visible-fallback', 'opening-guidance:callback-bounded'],
+            claim_specificity_budget: 'coarse-scene',
+            unsupported_specificity_cues: ['AppArbitorController', 'CaseApplyTypeEnum'],
+            reasons: ['reply-introduced-unsupported-technical-specificity'],
+          },
           createdAt: 100,
         },
         {

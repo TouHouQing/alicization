@@ -1,5 +1,6 @@
 import type {
   AlicizationEmotion,
+  CharacterActionCapability,
   CharacterFacialCapability,
   StageEmbodimentPresencePostureMode,
 } from '@proj-alicization/stage-shared'
@@ -33,6 +34,7 @@ export interface VrmRuntimeCapabilitySnapshot {
   supportedExpressionNames: string[]
   supportedBaseEmotions: AlicizationEmotion[]
   supportedFacialCues: CharacterFacialCapability[]
+  supportedActions?: CharacterActionCapability[]
   supportsLookAt: boolean
   supportsVisemeLipSync: boolean
   supportsMicroDynamics: boolean

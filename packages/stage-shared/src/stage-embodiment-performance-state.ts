@@ -11,6 +11,7 @@ import { createIdleStageEmbodimentMotorState } from './stage-embodiment-motor-st
 
 export type StageEmbodimentPerformancePhase = 'idle' | 'armed' | 'speaking' | 'cooldown'
 export type StageEmbodimentPerformanceCueSource = 'none' | 'resident' | 'segment' | 'preview'
+export type StageEmbodimentPerformanceMatchedDriver = 'body' | 'face' | 'motion' | 'lipsync' | 'voice'
 
 export type StageEmbodimentPerformanceActionPulseReason
   = | 'dialogue'
@@ -35,11 +36,13 @@ export interface StageEmbodimentPerformanceState {
   driverAuthority: {
     segmentId: string | null
     rendererTarget: 'live2d' | 'vrm' | null
-    matchedDrivers: Array<'face' | 'motion' | 'lipsync'>
+    matchedDrivers: StageEmbodimentPerformanceMatchedDriver[]
     sources: string[]
+    bodySegmentMatched: boolean
     faceSegmentMatched: boolean
     motionSegmentMatched: boolean
     lipsyncSegmentMatched: boolean
+    voiceSegmentMatched?: boolean
     prosodyAuthority?: {
       segmentId: string | null
       provenance: 'authority-bound' | 'fallback-derived'
@@ -52,6 +55,7 @@ export interface StageEmbodimentPerformanceState {
     } | null
   } | null
   residentPerformance: AlicizationDialoguePerformancePayload
+  residentReasonTags: string[]
   performance: AlicizationDialoguePerformancePayload
   activeFacialCue: string | null
   activeFacialCueSource: StageEmbodimentPerformanceCueSource
@@ -87,6 +91,7 @@ export function createIdleStageEmbodimentPerformanceState(): StageEmbodimentPerf
     driverRendererTarget: null,
     driverAuthority: null,
     residentPerformance: { ...idlePerformance },
+    residentReasonTags: [],
     performance: { ...idlePerformance },
     activeFacialCue: null,
     activeFacialCueSource: 'none',

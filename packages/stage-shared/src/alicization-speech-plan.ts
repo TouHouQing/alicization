@@ -1,10 +1,10 @@
-export type AlicizationEmbodimentSpeechInterruptPolicy = 'hard-stop' | 'soft-settle'
-
 import type { AlicizationDialogueEmbodimentRendererHints } from './alicization-dialogue-embodiment'
 import type { AlicizationDialogueSpeechRendererSettleHints } from './alicization-dialogue-speech-timeline'
 import type { AlicizationSpeechProsodyIntent } from './alicization-speech-prosody-contracts'
 
 import { normalizeAlicizationSpeechProsodyIntent } from './alicization-speech-prosody-contracts'
+
+export type AlicizationEmbodimentSpeechInterruptPolicy = 'hard-stop' | 'soft-settle'
 
 export interface AlicizationEmbodimentSpeechSegment {
   id: string
@@ -70,6 +70,13 @@ function normalizeRendererHintAliases(raw: unknown) {
   }))
 }
 
+function normalizeRendererHintText(raw: unknown, maxChars: number) {
+  if (typeof raw !== 'string')
+    return ''
+
+  return raw.trim().slice(0, maxChars)
+}
+
 function normalizeSegmentRendererHints(raw: unknown): AlicizationDialogueEmbodimentRendererHints | null {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw))
     return null
@@ -77,12 +84,63 @@ function normalizeSegmentRendererHints(raw: unknown): AlicizationDialogueEmbodim
   const candidate = raw as Record<string, unknown>
   const preferredExpressionAliases = normalizeRendererHintAliases(candidate.preferredExpressionAliases)
   const preferredMotionAliases = normalizeRendererHintAliases(candidate.preferredMotionAliases)
-  if (preferredExpressionAliases.length === 0 && preferredMotionAliases.length === 0)
+  const preferredGazeMode = candidate.preferredGazeMode === 'steady'
+    || candidate.preferredGazeMode === 'soften'
+    || candidate.preferredGazeMode === 'drift'
+    ? candidate.preferredGazeMode
+    : undefined
+  const preferredBlinkCadence = candidate.preferredBlinkCadence === 'normal'
+    || candidate.preferredBlinkCadence === 'linger'
+    || candidate.preferredBlinkCadence === 'quiet'
+    ? candidate.preferredBlinkCadence
+    : undefined
+  const preferredPauseMode = candidate.preferredPauseMode === 'longer'
+    || candidate.preferredPauseMode === 'natural'
+    ? candidate.preferredPauseMode
+    : undefined
+  const preferredLipsyncMode = candidate.preferredLipsyncMode === 'restrained'
+    || candidate.preferredLipsyncMode === 'matched'
+    ? candidate.preferredLipsyncMode
+    : undefined
+  const preferredVoiceMode = candidate.preferredVoiceMode === 'lower-pressure'
+    || candidate.preferredVoiceMode === 'even'
+    ? candidate.preferredVoiceMode
+    : undefined
+  const preferredPacingMode = candidate.preferredPacingMode === 'slower'
+    || candidate.preferredPacingMode === 'natural'
+    ? candidate.preferredPacingMode
+    : undefined
+  const residentMode = normalizeRendererHintText(candidate.residentMode, 80) || undefined
+  const reasonTags = normalizeRendererHintAliases(candidate.reasonTags)
+  const signature = normalizeRendererHintText(candidate.signature, 240) || undefined
+  if (
+    preferredExpressionAliases.length === 0
+    && preferredMotionAliases.length === 0
+    && !preferredGazeMode
+    && !preferredBlinkCadence
+    && !preferredPauseMode
+    && !preferredLipsyncMode
+    && !preferredVoiceMode
+    && !preferredPacingMode
+    && !residentMode
+    && reasonTags.length === 0
+    && !signature
+  ) {
     return null
+  }
 
   return {
-    preferredExpressionAliases: preferredExpressionAliases.length > 0 ? preferredExpressionAliases : undefined,
-    preferredMotionAliases: preferredMotionAliases.length > 0 ? preferredMotionAliases : undefined,
+    ...(preferredBlinkCadence ? { preferredBlinkCadence } : {}),
+    ...(preferredExpressionAliases.length > 0 ? { preferredExpressionAliases } : {}),
+    ...(preferredGazeMode ? { preferredGazeMode } : {}),
+    ...(preferredLipsyncMode ? { preferredLipsyncMode } : {}),
+    ...(preferredMotionAliases.length > 0 ? { preferredMotionAliases } : {}),
+    ...(preferredPacingMode ? { preferredPacingMode } : {}),
+    ...(preferredPauseMode ? { preferredPauseMode } : {}),
+    ...(preferredVoiceMode ? { preferredVoiceMode } : {}),
+    ...(reasonTags.length > 0 ? { reasonTags } : {}),
+    ...(residentMode ? { residentMode } : {}),
+    ...(signature ? { signature } : {}),
   }
 }
 

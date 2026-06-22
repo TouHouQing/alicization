@@ -10,6 +10,160 @@ import type {
 import { shouldEmitAlicizationChatMetaUpdate } from './main-chat-stream-meta-policy'
 import { buildAlicizationChatStreamEmbodimentMeta, readStringValue } from './runtime-governance'
 
+function sanitizeMetaText(raw: unknown, maxChars = 320) {
+  return typeof raw === 'string'
+    ? raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
+    : ''
+}
+
+function uniqueMetaList(values: unknown[], maxItems = 8) {
+  const seen = new Set<string>()
+  const normalized: string[] = []
+  for (const value of values) {
+    const text = sanitizeMetaText(value, 64)
+    if (!text || seen.has(text))
+      continue
+    seen.add(text)
+    normalized.push(text)
+    if (normalized.length >= maxItems)
+      break
+  }
+  return normalized
+}
+
+function deriveProjectStateCarrySourceTags(input: {
+  projectState?: AlicizationRuntimeDigest['projectState'] | null
+  runtimeDigest?: AlicizationRuntimeDigest | null
+}) {
+  const joined = [
+    input.projectState?.sameHerSelfLine,
+    input.projectState?.sameHerHoldDetail,
+    input.projectState?.continuityCue,
+    input.projectState?.latestLandedProgress,
+    input.projectState?.memoryClosureSummary,
+    input.runtimeDigest?.summary,
+    input.runtimeDigest?.activeLoop?.summary,
+  ]
+    .map(value => sanitizeMetaText(value).toLowerCase())
+    .filter(Boolean)
+    .join(' ')
+  return [
+    'project-state-carry',
+    ...(
+      joined.includes('execution-callback')
+      || joined.includes('callback')
+      || joined.includes('continuity-execution-callback')
+        ? ['continuity-execution-callback-project-carry']
+        : []
+    ),
+  ]
+}
+
+function deriveMetaPreDialogueAwareness(input: {
+  projectState?: AlicizationRuntimeDigest['projectState'] | null
+}): AlicizationChatMetaEvent['preDialogueAwareness'] {
+  const projectState = input.projectState
+  if (!projectState)
+    return null
+
+  const summaryLine = sanitizeMetaText(projectState.preflightSummary)
+    || sanitizeMetaText(projectState.preDialogueAwarenessSummary)
+    || sanitizeMetaText(projectState.awarenessLine)
+    || sanitizeMetaText(projectState.preDialogueAwarenessLine)
+    || null
+  const awarenessLine = sanitizeMetaText(projectState.preDialogueAwarenessLine)
+    || sanitizeMetaText(projectState.awarenessLine)
+    || null
+  const companionHeadlineLine = sanitizeMetaText(projectState.companionHeadlineLine) || null
+  const companionBriefingLine = sanitizeMetaText(projectState.companionBriefingLine) || null
+  const emotionalClosureCue = sanitizeMetaText(projectState.emotionalClosureCue) || null
+  if (!summaryLine && !awarenessLine && !companionHeadlineLine && !companionBriefingLine && !emotionalClosureCue)
+    return null
+
+  return {
+    status: summaryLine && awarenessLine ? 'grounded' : 'partial',
+    summaryLine,
+    companionHeadlineLine,
+    companionBriefingLine,
+    companionNextClosureLine: sanitizeMetaText(projectState.nextClosureTarget) || null,
+    awarenessLine,
+    emotionalClosureCue,
+    reasonPreview: uniqueMetaList([
+      projectState.identity,
+      projectState.currentPhase,
+      projectState.latestLandedProgress,
+      projectState.primaryOpenLoop,
+      projectState.nextClosureTarget,
+    ], 4),
+  }
+}
+
+export function repairContinuitySourceTagsFromRuntimeDigest(input: {
+  digitalLifeSpine: AlicizationChatMetaEvent['digitalLifeSpine'] | null | undefined
+  runtimeDigest?: AlicizationRuntimeDigest | null
+}) {
+  const digitalLifeSpine = input.digitalLifeSpine
+  if (!digitalLifeSpine)
+    return null
+
+  const projectState = input.runtimeDigest?.projectState ?? null
+  const sameHerSelfLine = sanitizeMetaText(projectState?.sameHerSelfLine, 220)
+    || sanitizeMetaText(projectState?.continuityCue, 220)
+  if (!sameHerSelfLine)
+    return digitalLifeSpine
+
+  const sourceTags = deriveProjectStateCarrySourceTags({
+    projectState,
+    runtimeDigest: input.runtimeDigest ?? null,
+  })
+  const memory = digitalLifeSpine.memory as (NonNullable<AlicizationChatMetaEvent['digitalLifeSpine']>['memory'] & {
+    personStateProjection?: Record<string, unknown> | null
+  }) | null | undefined
+  const projection = memory?.personStateProjection && typeof memory.personStateProjection === 'object'
+    ? memory.personStateProjection
+    : null
+  const authority = projection?.selfContinuityAuthority && typeof projection.selfContinuityAuthority === 'object'
+    ? projection.selfContinuityAuthority as Record<string, unknown>
+    : null
+  const nextAuthority = {
+    ...authority,
+    sourceTags: uniqueMetaList([
+      ...(
+        Array.isArray(authority?.sourceTags)
+          ? authority.sourceTags
+          : []
+      ),
+      ...sourceTags,
+    ]),
+    selfLine: authority?.selfLine ?? null,
+    relationshipLine: authority?.relationshipLine ?? null,
+    motiveLine: authority?.motiveLine ?? null,
+    habitLine: authority?.habitLine ?? null,
+    inwardLine: sanitizeMetaText(authority?.inwardLine, 220) || sameHerSelfLine,
+    authoritySummary: authority?.authoritySummary ?? null,
+  }
+
+  return {
+    ...digitalLifeSpine,
+    memory: {
+      ...memory,
+      personStateProjection: {
+        ...projection,
+        selfContinuityAuthority: nextAuthority,
+      },
+    },
+  } satisfies AlicizationChatMetaEvent['digitalLifeSpine']
+}
+
+export function buildAlicizationChatMetaPayload(input: AlicizationChatMetaEvent): AlicizationChatMetaEvent {
+  const projectState = input.projectState ?? input.runtimeDigest?.projectState ?? null
+  return {
+    ...input,
+    projectState,
+    preDialogueAwareness: input.preDialogueAwareness ?? deriveMetaPreDialogueAwareness({ projectState }),
+  }
+}
+
 export function buildAlicizationChatMetaSignature(body: Pick<AlicizationChatMetaEvent, 'governance' | 'visibleReplyExecution' | 'embodiment' | 'embodimentScript' | 'speechTimeline' | 'digitalLife' | 'digitalLifeSpine' | 'runtimeDigest'>) {
   const lastSegment = body.speechTimeline?.segments.at(-1)
   const lastFrame = body.digitalLife?.frames.at(-1)

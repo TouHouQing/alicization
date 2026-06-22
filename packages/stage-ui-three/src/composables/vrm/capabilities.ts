@@ -1,6 +1,6 @@
-import { alicizationEmotionWhitelist, resolveStageEmbodimentVrmBaseExpressionName } from '@proj-alicization/stage-shared'
+import type { AlicizationEmotion, CharacterActionCapability, CharacterFacialCapability } from '@proj-alicization/stage-shared'
 
-import type { AlicizationEmotion, CharacterFacialCapability } from '@proj-alicization/stage-shared'
+import { alicizationEmotionWhitelist, resolveStageEmbodimentVrmBaseExpressionName } from '@proj-alicization/stage-shared'
 
 export interface VrmPresetFacialCapabilityDefinition {
   key: string
@@ -14,6 +14,7 @@ export interface VrmResolvedRuntimeCapabilitySnapshot {
   supportedExpressionNames: string[]
   supportedBaseEmotions: AlicizationEmotion[]
   supportedFacialCues: CharacterFacialCapability[]
+  supportedActions?: CharacterActionCapability[]
   supportsLookAt: boolean
   supportsVisemeLipSync: boolean
   supportsMicroDynamics: boolean
@@ -222,6 +223,7 @@ export function buildVrmRuntimeCapabilitySnapshot(input: {
       source: 'preset' as const,
       affectsMouth: item.affectsMouth,
     })),
+    supportedActions: [],
     supportsLookAt: input.supportsLookAt,
     supportsVisemeLipSync: supportsVrmVisemeLipSync(supportedExpressionNames),
     supportsMicroDynamics: true,

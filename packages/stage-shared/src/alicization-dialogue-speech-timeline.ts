@@ -8,7 +8,10 @@ import type {
   AlicizationPerformanceDelivery,
   CharacterPerformanceCapabilitiesManifest,
 } from './alicization-performance-contracts'
-import type { AlicizationDigitalLifeSpineDigest } from './alicization-transport-contracts'
+import type {
+  AlicizationDigitalLifeSpineDigest,
+  AlicizationRuntimeProjectStateDigest,
+} from './alicization-transport-contracts'
 
 import {
   normalizeAlicizationEmotion,
@@ -73,6 +76,23 @@ export interface BuildAlicizationDialogueSpeechTimelineInput {
   embodiment?: AlicizationDialogueEmbodimentEnvelope | null
   digitalLifeSpine?: AlicizationDigitalLifeSpineDigest | null
   performanceManifest?: CharacterPerformanceCapabilitiesManifest | null
+  projectState?: AlicizationRuntimeProjectStateDigest | null
+}
+
+export interface ProjectClosureSpeechEmbodimentBias {
+  actionCue: string | null
+  facialCue: string | null
+  preferredBlinkCadence: NonNullable<AlicizationDialogueEmbodimentRendererHints['preferredBlinkCadence']>
+  preferredExpressionAliases: string[]
+  preferredGazeMode: NonNullable<AlicizationDialogueEmbodimentRendererHints['preferredGazeMode']>
+  preferredMotionAliases: string[]
+  preferredLipsyncMode: NonNullable<AlicizationDialogueEmbodimentRendererHints['preferredLipsyncMode']>
+  preferredPacingMode: NonNullable<AlicizationDialogueEmbodimentRendererHints['preferredPacingMode']>
+  preferredVoiceMode: NonNullable<AlicizationDialogueEmbodimentRendererHints['preferredVoiceMode']>
+  reasonTags: string[]
+  residentMode: 'measured-return' | 'repair-before-closeness'
+  settleMode: AlicizationDialogueSpeechSettleMode
+  signature: string
 }
 
 interface StringChunk {
@@ -145,12 +165,72 @@ function normalizeSegmentRendererHints(raw: unknown): AlicizationDialogueEmbodim
   const candidate = raw as Record<string, unknown>
   const preferredExpressionAliases = normalizeRendererHintAliases(candidate.preferredExpressionAliases)
   const preferredMotionAliases = normalizeRendererHintAliases(candidate.preferredMotionAliases)
-  if (preferredExpressionAliases.length === 0 && preferredMotionAliases.length === 0)
+  const preferredGazeMode = candidate.preferredGazeMode === 'steady'
+    || candidate.preferredGazeMode === 'soften'
+    || candidate.preferredGazeMode === 'drift'
+    ? candidate.preferredGazeMode
+    : undefined
+  const preferredBlinkCadence = candidate.preferredBlinkCadence === 'normal'
+    || candidate.preferredBlinkCadence === 'linger'
+    || candidate.preferredBlinkCadence === 'quiet'
+    ? candidate.preferredBlinkCadence
+    : undefined
+  const preferredPauseMode = candidate.preferredPauseMode === 'longer'
+    || candidate.preferredPauseMode === 'natural'
+    ? candidate.preferredPauseMode
+    : undefined
+  const preferredLipsyncMode = candidate.preferredLipsyncMode === 'restrained'
+    || candidate.preferredLipsyncMode === 'matched'
+    ? candidate.preferredLipsyncMode
+    : undefined
+  const preferredVoiceMode = candidate.preferredVoiceMode === 'lower-pressure'
+    || candidate.preferredVoiceMode === 'even'
+    ? candidate.preferredVoiceMode
+    : undefined
+  const preferredPacingMode = candidate.preferredPacingMode === 'slower'
+    || candidate.preferredPacingMode === 'natural'
+    ? candidate.preferredPacingMode
+    : undefined
+  const residentMode = typeof candidate.residentMode === 'string' && candidate.residentMode.trim()
+    ? candidate.residentMode.trim().slice(0, 80)
+    : undefined
+  const reasonTags = Array.isArray(candidate.reasonTags)
+    ? candidate.reasonTags
+        .map(tag => typeof tag === 'string' ? tag.trim().slice(0, 80) : '')
+        .filter(Boolean)
+        .slice(0, 8)
+    : []
+  const signature = typeof candidate.signature === 'string' && candidate.signature.trim()
+    ? candidate.signature.trim().slice(0, 120)
+    : undefined
+  if (
+    preferredExpressionAliases.length === 0
+    && preferredMotionAliases.length === 0
+    && !preferredGazeMode
+    && !preferredBlinkCadence
+    && !preferredPauseMode
+    && !preferredLipsyncMode
+    && !preferredVoiceMode
+    && !preferredPacingMode
+    && !residentMode
+    && reasonTags.length === 0
+    && !signature
+  ) {
     return null
+  }
 
   return {
     preferredExpressionAliases: preferredExpressionAliases.length > 0 ? preferredExpressionAliases : undefined,
     preferredMotionAliases: preferredMotionAliases.length > 0 ? preferredMotionAliases : undefined,
+    ...(preferredGazeMode ? { preferredGazeMode } : {}),
+    ...(preferredBlinkCadence ? { preferredBlinkCadence } : {}),
+    ...(preferredPauseMode ? { preferredPauseMode } : {}),
+    ...(preferredLipsyncMode ? { preferredLipsyncMode } : {}),
+    ...(preferredVoiceMode ? { preferredVoiceMode } : {}),
+    ...(preferredPacingMode ? { preferredPacingMode } : {}),
+    ...(residentMode ? { residentMode } : {}),
+    ...(reasonTags.length > 0 ? { reasonTags } : {}),
+    ...(signature ? { signature } : {}),
   }
 }
 
@@ -467,6 +547,89 @@ function resolvePersonaSpeechStyleSummary(personaBias: PersonaSpeechTimingBias, 
   return null
 }
 
+function includesAny(text: string, needles: string[]) {
+  return needles.some(needle => text.includes(needle))
+}
+
+function normalizeProjectClosureCueText(raw: string | null | undefined) {
+  return typeof raw === 'string'
+    ? raw.trim().replace(/\s+/g, ' ').toLowerCase().slice(0, 320)
+    : ''
+}
+
+export function resolveProjectClosureSpeechEmbodimentBiasFromCue(
+  rawCue: string | null | undefined,
+): ProjectClosureSpeechEmbodimentBias | null {
+  const cue = normalizeProjectClosureCueText(rawCue)
+  if (!cue)
+    return null
+
+  const repairBeforeClosenessSignal = includesAny(cue, [
+    'repair-before-closeness',
+    'repair before closeness',
+    'repair should settle before closeness expands',
+    'repair lands before closeness returns',
+    'repair lands first',
+    'rest-protective',
+    '先修复再靠近',
+    '修复优先',
+    '先把身体收稳',
+  ])
+  const measuredReturnSignal = includesAny(cue, [
+    'low-pressure',
+    'lower-pressure',
+    'leave more room',
+    'more room',
+    'measured-return',
+    'without reopening from scratch',
+    'same living line',
+    'return stayed slower',
+    'slower return',
+    '先留白',
+    '同一条生命线',
+    '别立刻把温度放大',
+    '不要从头重开',
+    '慢一点回来',
+  ])
+
+  if (!repairBeforeClosenessSignal && !measuredReturnSignal)
+    return null
+
+  if (repairBeforeClosenessSignal) {
+    return {
+      actionCue: 'idle_settle',
+      facialCue: 'soft-gaze',
+      preferredBlinkCadence: 'quiet',
+      preferredExpressionAliases: ['RecoverSoft'],
+      preferredGazeMode: 'soften',
+      preferredMotionAliases: ['StillnessGuard'],
+      preferredLipsyncMode: 'restrained',
+      preferredPacingMode: 'slower',
+      preferredVoiceMode: 'lower-pressure',
+      reasonTags: ['project-emotional-closure', 'repair-before-closeness'],
+      residentMode: 'repair-before-closeness',
+      settleMode: 'hold',
+      signature: 'project-closure-repair-before-closeness',
+    }
+  }
+
+  return {
+    actionCue: null,
+    facialCue: 'soft-gaze',
+    preferredBlinkCadence: 'linger',
+    preferredExpressionAliases: ['CalmInspect'],
+    preferredGazeMode: 'soften',
+    preferredMotionAliases: ['ObserveSoft'],
+    preferredLipsyncMode: 'restrained',
+    preferredPacingMode: 'slower',
+    preferredVoiceMode: 'lower-pressure',
+    reasonTags: ['project-emotional-closure', 'measured-return'],
+    residentMode: 'measured-return',
+    settleMode: 'linger',
+    signature: 'project-closure-measured-return',
+  }
+}
+
 function resolveSegmentEmotion(input: {
   delivery: AlicizationPerformanceDelivery
   text: string
@@ -511,28 +674,48 @@ function resolveSegmentEmotion(input: {
 function resolveSegmentRendererHints(input: {
   embodiment?: AlicizationDialogueEmbodimentEnvelope | null
   performanceManifest?: CharacterPerformanceCapabilitiesManifest | null
+  projectClosureBias?: ProjectClosureSpeechEmbodimentBias | null
   segmentEmotion: AlicizationEmotion
   turnEmotion: AlicizationEmotion
 }) {
   const manifestHints = resolveManifestEmotionHints(input.performanceManifest, input.segmentEmotion)
   const useTurnEnvelopeAliases = input.segmentEmotion === input.turnEmotion
   const preferredExpressionAliases = dedupeCuePool([
+    ...(input.projectClosureBias?.preferredExpressionAliases ?? []),
     ...(useTurnEnvelopeAliases ? input.embodiment?.rendererHints?.preferredExpressionAliases ?? [] : []),
     ...(manifestHints?.preferredExpressionAliases ?? []),
     ...resolveStageEmbodimentLive2DExpressionAliases(input.segmentEmotion),
     ...resolveStageEmbodimentVrmBaseExpressionCandidates(input.segmentEmotion),
   ])
   const preferredMotionAliases = dedupeCuePool([
+    ...(input.projectClosureBias?.preferredMotionAliases ?? []),
     ...(useTurnEnvelopeAliases ? input.embodiment?.rendererHints?.preferredMotionAliases ?? [] : []),
     ...(manifestHints?.preferredMotionAliases ?? []),
     ...resolveStageEmbodimentLive2DMotionAliases(input.segmentEmotion),
   ])
-  if (preferredExpressionAliases.length === 0 && preferredMotionAliases.length === 0)
+  if (
+    preferredExpressionAliases.length === 0
+    && preferredMotionAliases.length === 0
+    && !input.projectClosureBias
+  ) {
     return null
+  }
 
   return {
     preferredExpressionAliases: preferredExpressionAliases.length > 0 ? preferredExpressionAliases : undefined,
     preferredMotionAliases: preferredMotionAliases.length > 0 ? preferredMotionAliases : undefined,
+    ...(input.projectClosureBias
+      ? {
+          preferredBlinkCadence: input.projectClosureBias.preferredBlinkCadence,
+          preferredGazeMode: input.projectClosureBias.preferredGazeMode,
+          preferredLipsyncMode: input.projectClosureBias.preferredLipsyncMode,
+          preferredPacingMode: input.projectClosureBias.preferredPacingMode,
+          preferredVoiceMode: input.projectClosureBias.preferredVoiceMode,
+          reasonTags: input.projectClosureBias.reasonTags,
+          residentMode: input.projectClosureBias.residentMode,
+          signature: input.projectClosureBias.signature,
+        }
+      : {}),
   } satisfies AlicizationDialogueEmbodimentRendererHints
 }
 
@@ -950,6 +1133,10 @@ export function buildAlicizationDialogueSpeechTimeline(
   const personaTimingBias = resolvePersonaSpeechTimingBias(input.digitalLifeSpine)
   const personaStyleBias = resolvePersonaSpeechStyleBias(personaTimingBias)
   const personaStyleSummary = resolvePersonaSpeechStyleSummary(personaTimingBias, personaStyleBias)
+  const projectState = input.projectState ?? input.digitalLifeSpine?.runtime.projectState ?? null
+  const projectClosureBias = resolveProjectClosureSpeechEmbodimentBiasFromCue(
+    projectState?.emotionalClosureCue ?? null,
+  )
   const variationToken = normalizeVariationToken(embodiment?.variationToken) ?? reply
   const segments: AlicizationDialogueSpeechTimelineSegment[] = []
   let searchOffset = 0
@@ -988,11 +1175,12 @@ export function buildAlicizationDialogueSpeechTimeline(
     const rendererHints = resolveSegmentRendererHints({
       embodiment,
       performanceManifest: input.performanceManifest,
+      projectClosureBias,
       segmentEmotion,
       turnEmotion: emotion,
     })
     const facialBias = resolveEmotionFacialBias(segmentEmotion)
-    const settleMode = resolveSegmentSettleMode({
+    const settleMode = projectClosureBias?.settleMode ?? resolveSegmentSettleMode({
       delivery: performance.delivery,
       emotion: segmentEmotion,
       personaBias: personaTimingBias,
@@ -1032,7 +1220,7 @@ export function buildAlicizationDialogueSpeechTimeline(
       1,
       0.52,
     )
-    const facialCue = selectSegmentCue({
+    const facialCue: string | null = projectClosureBias?.facialCue ?? selectSegmentCue({
       channel: 'facial',
       candidates: facialCuePool,
       excitation,
@@ -1042,16 +1230,18 @@ export function buildAlicizationDialogueSpeechTimeline(
       text,
       variationToken,
     })
-    const actionCue = selectSegmentCue({
-      channel: 'action',
-      candidates: actionCuePool,
-      excitation,
-      previousCue: previousActionCue,
-      segmentCount: chunks.length,
-      segmentIndex: index,
-      text,
-      variationToken,
-    })
+    const actionCue: string | null = projectClosureBias
+      ? projectClosureBias.actionCue
+      : selectSegmentCue({
+          channel: 'action',
+          candidates: actionCuePool,
+          excitation,
+          previousCue: previousActionCue,
+          segmentCount: chunks.length,
+          segmentIndex: index,
+          text,
+          variationToken,
+        })
     const microDynamics = resolveSegmentMicroDynamics({
       beatWeight,
       delivery: performance.delivery,

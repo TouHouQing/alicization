@@ -31,6 +31,32 @@ const inspectionDeicticCues = ['这个', '这首', '这页', '这段', '这张',
 const inspectionQuestionCues = ['?', '？', '什么', '怎么', '哪里', '哪个', '哪首', '为什么', '怎么样', '叫什么', 'what', 'which', 'where', 'how', 'why', 'name', '何', 'なに', 'どこ', 'どう', 'どうして', 'なんで']
 const inspectionContinuationCues = ['呢', '怎么样', '喜欢吗', '能看出来', '看出来了吗', '是什么', '有问题吗', 'what about', 'how about', 'かな', 'どうかな']
 const inspectionAssistantPresenceCues = ['我在看', '我看着', '我在盯着', '一起看', '共视', '屏幕上', '窗口里', '当前画面', 'i can see', 'i\'m looking', 'still looking', 'on your screen', '見えてる', '見てる', 'まだ見てる']
+const knownWebsites = [
+  {
+    site: 'weibo',
+    label: '微博',
+    url: 'https://weibo.com',
+    aliases: ['weibo', '微博', '新浪微博'],
+  },
+  {
+    site: 'bilibili',
+    label: '哔哩哔哩',
+    url: 'https://www.bilibili.com',
+    aliases: ['bilibili', 'b站', '哔哩哔哩'],
+  },
+  {
+    site: 'github',
+    label: 'GitHub',
+    url: 'https://github.com',
+    aliases: ['github'],
+  },
+  {
+    site: 'youtube',
+    label: 'YouTube',
+    url: 'https://www.youtube.com',
+    aliases: ['youtube', '油管'],
+  },
+] as const
 const cjkSequencePattern = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]+/u
 const alphaNumericPattern = /^[\p{Letter}\p{Number}]+$/u
 const stopwords = new Set([
@@ -199,6 +225,46 @@ function normalizeInspectionIntentText(value: string) {
     .toLowerCase()
     .replace(/\s+/g, ' ')
     .trim()
+}
+
+export type AlicizationKnownWebsite = Omit<typeof knownWebsites[number], 'aliases'>
+
+function normalizeKnownWebsiteLookupText(raw: unknown) {
+  return typeof raw === 'string'
+    ? raw.normalize('NFKC').toLowerCase().replace(/\s+/g, ' ').trim()
+    : ''
+}
+
+export function resolveAlicizationKnownWebsiteBySite(site: unknown): AlicizationKnownWebsite | null {
+  const normalized = normalizeKnownWebsiteLookupText(site)
+  if (!normalized)
+    return null
+
+  const matched = knownWebsites.find(entry => entry.aliases.some(alias => normalizeKnownWebsiteLookupText(alias) === normalized))
+  return matched
+    ? {
+        site: matched.site,
+        label: matched.label,
+        url: matched.url,
+      }
+    : null
+}
+
+export function resolveAlicizationKnownWebsiteInText(text: unknown): AlicizationKnownWebsite | null {
+  const normalized = normalizeKnownWebsiteLookupText(text)
+  if (!normalized)
+    return null
+
+  const matched = knownWebsites.find(entry =>
+    entry.aliases.some(alias => normalized.includes(normalizeKnownWebsiteLookupText(alias))),
+  )
+  return matched
+    ? {
+        site: matched.site,
+        label: matched.label,
+        url: matched.url,
+      }
+    : null
 }
 
 function containsInspectionCue(text: string, cues: string[]) {
