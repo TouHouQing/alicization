@@ -40,14 +40,6 @@ import { useI18n } from 'vue-i18n'
 
 import StageDialoguePanel from './stage-dialogue-panel.vue'
 import StageEmbodimentDiagnosticsOverlay from './stage-embodiment-diagnostics-overlay.vue'
-import {
-  resolveVrmManifestBaseEmotions,
-  resolveVrmManifestFacialCapabilities,
-} from './stage-vrm-performance-manifest'
-import {
-  attachEmbodimentScriptToSpeechMetadata,
-  createStageChatIntentBridge,
-} from './stage-chat-intent-bridge'
 
 import { useDelayMessageQueue, useEmotionsMessageQueue } from '../../composables/queues'
 import { llmInferenceEndToken } from '../../constants'
@@ -71,21 +63,41 @@ import { useSpeechRuntimeStore } from '../../stores/speech-runtime'
 import { isVrmCustomExpressionConfigured, resolveLive2DActionBindingForMotion, useStagePerformanceStore } from '../../stores/stage-performance'
 import { resolveStageBubblePlacement, resolveStageBubbleText } from '../../utils'
 import { resolveStageProactiveFeedbackTarget } from '../../utils/stage-dialogue'
-import { useStageDesktopInteractions } from './use-stage-desktop-interactions'
-import { useStageDialogueHoverVisibility } from './use-stage-dialogue-hover-visibility'
-import { useStageEmbodimentRuntime } from './use-stage-embodiment-runtime'
-import { resolveResidentLive2DPreferredExpressionAliases } from './stage-resident-expression-aliases'
-import { resolveResidentVrmPreferredExpressionAliases } from './stage-resident-expression-aliases'
+import { resolveStageEmbodimentMetaAuthority, shouldDeferLive2DEmotionMotionOverride } from './runtime'
+import {
+  attachEmbodimentScriptToSpeechMetadata,
+  attachFallbackDialogueMetadataToSpeechMetadata,
+  attachPreDialogueSendIdentityToSpeechMetadata,
+  createStageChatIntentBridge,
+} from './stage-chat-intent-bridge'
+import {
+  gateStageExecutionDiagnostics,
+  gateStageRuntimeCapabilities,
+} from './stage-execution-diagnostics-gate'
+import { resolveLive2DManifestActionCapabilities } from './stage-live2d-performance-manifest'
+import { resolveStagePresencePulsePerformance } from './stage-presence-pulse-performance'
+import {
+  resolveResidentLive2DPreferredExpressionAliasesFromRuntimeState,
+  resolveResidentVrmPreferredExpressionAliasesFromRuntimeState,
+} from './stage-resident-expression-aliases'
 import {
   applyRuntimeEmbodimentActiveCueState,
   applyRuntimeEmbodimentEnvelopeCueState,
   clearRuntimeSegmentEmbodimentCueState,
   createEmptyStageRuntimeEmbodimentCueState,
+  resolveActiveCueWatchKey,
   resolveLive2DSegmentMotionCueSelection,
   resolvePreferredExpressionAliasesFromRuntimeState,
   resolvePreferredMotionAliasesFromRuntimeState,
 } from './stage-runtime-embodiment-cues'
-import { resolveStagePresencePulsePerformance } from './stage-presence-pulse-performance'
+import {
+  resolveVrmManifestActionCapabilities,
+  resolveVrmManifestBaseEmotions,
+  resolveVrmManifestFacialCapabilities,
+} from './stage-vrm-performance-manifest'
+import { useStageDesktopInteractions } from './use-stage-desktop-interactions'
+import { useStageDialogueHoverVisibility } from './use-stage-dialogue-hover-visibility'
+import { useStageEmbodimentRuntime } from './use-stage-embodiment-runtime'
 
 const props = withDefaults(defineProps<{
   paused?: boolean
@@ -221,10 +233,40 @@ const stageBounds = ref({ width: 0, height: 0 })
 const directDesktopInteractionActive = ref(false)
 const dialoguePanelInteractionActive = ref(false)
 const live2dExecutionDiagnostics = computed(() => {
-  return live2dSceneRef.value?.executionDiagnostics?.() ?? null
+  return gateStageExecutionDiagnostics({
+    componentState: componentState.value,
+    currentRenderer: stageModelRenderer.value,
+    diagnostics: live2dSceneRef.value?.executionDiagnostics?.() ?? null,
+    renderer: 'live2d',
+    showStage: showStage.value,
+  })
 })
 const vrmExecutionDiagnostics = computed(() => {
-  return vrmViewerRef.value?.executionDiagnostics?.() ?? null
+  return gateStageExecutionDiagnostics({
+    componentState: componentState.value,
+    currentRenderer: stageModelRenderer.value,
+    diagnostics: vrmViewerRef.value?.executionDiagnostics?.() ?? null,
+    renderer: 'vrm',
+    showStage: showStage.value,
+  })
+})
+const live2dDiagnosticsRuntimeCapabilities = computed(() => {
+  return gateStageRuntimeCapabilities({
+    componentState: componentState.value,
+    currentRenderer: stageModelRenderer.value,
+    renderer: 'live2d',
+    runtimeCapabilities: currentLive2DRuntimeCapabilities.value,
+    showStage: showStage.value,
+  })
+})
+const vrmDiagnosticsRuntimeCapabilities = computed(() => {
+  return gateStageRuntimeCapabilities({
+    componentState: componentState.value,
+    currentRenderer: stageModelRenderer.value,
+    renderer: 'vrm',
+    runtimeCapabilities: currentVrmRuntimeCapabilities.value,
+    showStage: showStage.value,
+  })
 })
 
 useResizeObserver(stageRootRef, (entries) => {
@@ -437,13 +479,46 @@ function resolveSpeechSynthesisMetadata() {
   }
 }
 
-function createSpeechIntentMetadata(intentSource: 'chat' | 'fallback'): Record<string, unknown> {
+function resolveRuntimeSpeechSynthesisMetadata(input: {
+  speechStyle: { pitchDelta: number, rateMultiplier: number } | null | undefined
+  voice: { pitchDelta: number, rateMultiplier: number } | null | undefined
+}) {
+  const pitchDelta = Number.isFinite(input.voice?.pitchDelta)
+    ? Number(input.voice?.pitchDelta)
+    : Number.isFinite(input.speechStyle?.pitchDelta)
+      ? Number(input.speechStyle?.pitchDelta)
+      : null
+  const rateMultiplier = Number.isFinite(input.voice?.rateMultiplier)
+    ? Number(input.voice?.rateMultiplier)
+    : Number.isFinite(input.speechStyle?.rateMultiplier)
+      ? Number(input.speechStyle?.rateMultiplier)
+      : null
+
+  if (pitchDelta == null && rateMultiplier == null)
+    return null
+
+  return {
+    ...(pitchDelta != null ? { pitchDelta } : {}),
+    ...(rateMultiplier != null ? { rateMultiplier } : {}),
+  }
+}
+
+function createSpeechIntentMetadata(
+  intentSource: 'chat' | 'fallback',
+  preDialogueSendIdentity?: Parameters<typeof attachPreDialogueSendIdentityToSpeechMetadata>[1],
+): Record<string, unknown> {
   const digest = embodimentRuntime?.digitalLifeSpineDigest.value ?? null
   if (!digest) {
-    return {
+    return attachPreDialogueSendIdentityToSpeechMetadata({
       source: 'stage',
       intentSource,
       speechSynthesis: resolveSpeechSynthesisMetadata(),
+      runtimeDigest: runtimeDigest.value,
+    }, preDialogueSendIdentity) ?? {
+      source: 'stage',
+      intentSource,
+      speechSynthesis: resolveSpeechSynthesisMetadata(),
+      runtimeDigest: runtimeDigest.value,
     }
   }
 
@@ -451,7 +526,7 @@ function createSpeechIntentMetadata(intentSource: 'chat' | 'fallback'): Record<s
   const proactive = digest.proactive
   const architecture = digest.architecture
 
-  return {
+  return attachPreDialogueSendIdentityToSpeechMetadata({
     source: 'stage',
     intentSource,
     generatedAt: Date.now(),
@@ -482,16 +557,39 @@ function createSpeechIntentMetadata(intentSource: 'chat' | 'fallback'): Record<s
           }
         : null,
     },
-    runtimeDigest: runtimeDigest.value
-      ? {
-          dominantChannel: runtimeDigest.value.dominantChannel,
-          shouldProactivelySpeak: runtimeDigest.value.shouldProactivelySpeak,
-          shouldProactivelyAct: runtimeDigest.value.shouldProactivelyAct,
-          continuityPressure: runtimeDigest.value.continuityPressure,
-          companionshipPressure: runtimeDigest.value.companionshipPressure,
-          summary: runtimeDigest.value.summary,
-        }
-      : null,
+    runtimeDigest: runtimeDigest.value,
+  }, preDialogueSendIdentity) ?? {
+    source: 'stage',
+    intentSource,
+    generatedAt: Date.now(),
+    speechSynthesis: resolveSpeechSynthesisMetadata(),
+    digitalLifeSpine: {
+      runtime: {
+        activeThreadId: runtime.activeThreadId,
+        watchMode: runtime.watchMode,
+        dominantMode: runtime.dominantMode,
+        answerIntent: runtime.answerIntent,
+        preferredPresence: runtime.preferredPresence,
+        selectedAction: runtime.selectedAction,
+        updatedAt: runtime.updatedAt,
+      },
+      architecture: architecture
+        ? {
+            operatingMode: architecture.operatingMode,
+            dominantSystem: architecture.dominantSystem,
+          }
+        : null,
+      proactive: proactive
+        ? {
+            activeThreadId: proactive.activeThreadId,
+            selectedAction: proactive.selectedAction,
+            preferredStyle: proactive.preferredStyle,
+            confidence: proactive.confidence,
+            shouldSpeak: proactive.shouldSpeak,
+          }
+        : null,
+    },
+    runtimeDigest: runtimeDigest.value,
   }
 }
 
@@ -522,14 +620,6 @@ function resolvePreferredVrmExpressionAliases(emotion: string) {
   )
 }
 
-function resolvePreferredLive2DExpressionAliases(emotion: string) {
-  return resolvePreferredExpressionAliasesFromRuntimeState(
-    runtimeEmbodimentCueState,
-    emotion,
-    stagePerformanceStore.resolveLive2DEmotionExpressionAliases(stageModelSelected.value, emotion),
-  )
-}
-
 function resolvePreferredLive2DMotionAliases(emotion: string) {
   return resolvePreferredMotionAliasesFromRuntimeState(
     runtimeEmbodimentCueState,
@@ -543,6 +633,14 @@ function setCurrentMotionIfChanged(nextMotion: { group: string, index?: number }
     return
 
   currentMotion.value = nextMotion
+}
+
+function shouldHoldRuntimeSegmentMotionAuthority() {
+  return shouldDeferLive2DEmotionMotionOverride({
+    stageModelRenderer: stageModelRenderer.value,
+    runtimeSegmentMotionActive: runtimeSegmentMotionActive.value,
+    runtimeSegmentMotionFollowThroughMs,
+  })
 }
 
 function applyLive2DSegmentMotionHint(cue: {
@@ -650,6 +748,15 @@ const emotionsQueue = createQueue<EmotionPayload>({
       else if (stageModelRenderer.value === 'live2d') {
         if (ctx.data.suppressLive2DMotion === true)
           return
+
+        if (shouldHoldRuntimeSegmentMotionAuthority()) {
+          logStageEmbodimentDebug('deferred-emotion-motion-override-during-follow-through', {
+            emotion: ctx.data.name,
+            followThroughMs: runtimeSegmentMotionFollowThroughMs,
+            currentMotionGroup: currentMotion.value.group,
+          })
+          return
+        }
 
         const resolvedMotion = live2dStore.resolveEmotionMotionSelection(stageModelSelected.value, ctx.data.name, {
           preferredMotionAliases: resolvePreferredLive2DMotionAliases(ctx.data.name),
@@ -850,6 +957,7 @@ function syncLive2DRuntimeCapabilities(snapshot?: Live2DRuntimeCapabilitySnapsho
       .filter(Boolean))].sort((left, right) => left.localeCompare(right)),
     supportedBaseEmotions: [...new Set(snapshot.supportedBaseEmotions)],
     supportedFacialCues: dedupeCapabilityItemsByKey(snapshot.supportedFacialCues),
+    supportedActions: dedupeCapabilityItemsByKey(snapshot.supportedActions),
   }
 }
 
@@ -870,6 +978,7 @@ function syncVrmRuntimeCapabilities(snapshot?: VrmRuntimeCapabilitySnapshot | nu
       .filter(Boolean))].sort((left, right) => left.localeCompare(right)),
     supportedBaseEmotions: [...new Set(snapshot.supportedBaseEmotions)],
     supportedFacialCues: dedupeCapabilityItemsByKey(snapshot.supportedFacialCues),
+    supportedActions: dedupeCapabilityItemsByKey(snapshot.supportedActions),
     supportsLookAt: snapshot.supportsLookAt === true,
     supportsVisemeLipSync: snapshot.supportsVisemeLipSync === true,
     supportsMicroDynamics: snapshot.supportsMicroDynamics === true,
@@ -908,6 +1017,13 @@ const currentLive2DResolvedActionCapabilities = computed(() => {
   }))
 })
 
+const currentLive2DManifestActionCapabilities = computed(() => {
+  return resolveLive2DManifestActionCapabilities({
+    motionCapabilities: currentLive2DResolvedActionCapabilities.value,
+    runtimeSupportedActions: currentLive2DRuntimeCapabilities.value?.supportedActions ?? [],
+  })
+})
+
 const currentVrmCustomExpressionBindings = computed(() => {
   const scanned = new Set(stagePerformanceStore.listVrmCustomExpressionNames(stageModelSelected.value))
   return stagePerformanceStore.listVrmCustomExpressions(stageModelSelected.value)
@@ -934,11 +1050,13 @@ const currentVrmBaseExpressionOverrides = computed(() => {
   return Object.fromEntries(
     alicizationEmotionWhitelist.map(emotion => [
       emotion,
-      resolveResidentVrmPreferredExpressionAliases({
+      resolveResidentVrmPreferredExpressionAliasesFromRuntimeState({
         emotion,
-        configuredAliases: resolvePreferredVrmExpressionAliases(emotion),
-        presencePosture: presencePosture.value,
-        visualPresenceState: visualPresenceState.value,
+        configuredAliases: stagePerformanceStore.resolveVrmEmotionExpressionAliases(stageModelSelected.value, emotion),
+        runtimeSegmentExpressionAliasesByEmotion: runtimeSegmentExpressionAliasesByEmotion.value,
+        runtimeTurnExpressionAliasesByEmotion: runtimeTurnExpressionAliasesByEmotion.value,
+        presencePosture: embodimentRuntime?.presencePosture.value,
+        visualPresenceState: embodimentRuntime?.visualPresenceState.value,
       }),
     ]),
   )
@@ -1059,7 +1177,7 @@ const currentPerformanceManifest = computed(() => {
       supportedFacialCues: runtimeSupportedFacialCues.length > 0
         ? runtimeSupportedFacialCues
         : listStageEmbodimentLive2DFacialCapabilities(),
-      supportedActions: currentLive2DResolvedActionCapabilities.value,
+      supportedActions: currentLive2DManifestActionCapabilities.value,
       supportsLookAt: !live2dDisableFocus.value,
       supportsVisemeLipSync: true,
       supportsMicroDynamics: true,
@@ -1077,12 +1195,10 @@ const currentPerformanceManifest = computed(() => {
         fallbackBaseEmotions: currentVrmSupportedBaseEmotions.value,
       }),
       supportedFacialCues: currentVrmFacialCapabilities.value,
-      supportedActions: dedupeCapabilityItemsByKey(currentVrmActionBindings.value.map(item => ({
-        key: item.actionKey,
-        label: item.label,
-        description: item.description,
-        source: item.source,
-      }))),
+      supportedActions: resolveVrmManifestActionCapabilities({
+        runtimeSupportedActions: currentVrmRuntimeCapabilities.value?.supportedActions ?? [],
+        actionBindings: currentVrmActionBindings.value,
+      }),
       supportsLookAt: currentVrmRuntimeCapabilities.value?.supportsLookAt === true,
       supportsVisemeLipSync: currentVrmRuntimeCapabilities.value?.supportsVisemeLipSync === true,
       supportsMicroDynamics: currentVrmRuntimeCapabilities.value?.supportsMicroDynamics === true,
@@ -1130,7 +1246,7 @@ embodimentRuntime = useStageEmbodimentRuntime({
   focusAt: computed(() => props.focusAt),
   live2dActionCapabilities: currentLive2DActionCapabilities,
   live2dExecutionDiagnostics,
-  live2dRuntimeCapabilities: currentLive2DRuntimeCapabilities,
+  live2dRuntimeCapabilities: live2dDiagnosticsRuntimeCapabilities,
   mouthOpenSize,
   paused: computed(() => Boolean(props.paused)),
   performanceManifest: currentPerformanceManifest,
@@ -1151,9 +1267,9 @@ embodimentRuntime = useStageEmbodimentRuntime({
       ownerId: activeCardId.value,
       priority: 'normal',
       behavior: 'queue',
-      metadata: attachEmbodimentScriptToSpeechMetadata(
+      metadata: attachFallbackDialogueMetadataToSpeechMetadata(
         createSpeechIntentMetadata('fallback'),
-        (metadata as Record<string, unknown> | null | undefined)?.embodimentScript,
+        metadata as Record<string, unknown> | null | undefined,
       ),
     })
     fallbackIntent.writeLiteral(normalizedReply)
@@ -1164,7 +1280,7 @@ embodimentRuntime = useStageEmbodimentRuntime({
   stageModelRenderer,
   vrmActionBindings: currentVrmActionBindings,
   vrmExecutionDiagnostics,
-  vrmRuntimeCapabilities: currentVrmRuntimeCapabilities,
+  vrmRuntimeCapabilities: vrmDiagnosticsRuntimeCapabilities,
 })
 logStageStartupTrace('after-embodiment-runtime')
 const {
@@ -1192,9 +1308,11 @@ const currentLive2DPreferredExpressionAliases = computed(() => {
     ?? performanceState.value?.performance.baseEmotion
     ?? runtimeResidentEmotion.value
   return emotion
-    ? resolveResidentLive2DPreferredExpressionAliases({
+    ? resolveResidentLive2DPreferredExpressionAliasesFromRuntimeState({
         emotion,
-        configuredAliases: resolvePreferredLive2DExpressionAliases(emotion),
+        configuredAliases: stagePerformanceStore.resolveLive2DEmotionExpressionAliases(stageModelSelected.value, emotion),
+        runtimeSegmentExpressionAliasesByEmotion: runtimeSegmentExpressionAliasesByEmotion.value,
+        runtimeTurnExpressionAliasesByEmotion: runtimeTurnExpressionAliasesByEmotion.value,
         presencePosture: presencePosture.value,
         visualPresenceState: visualPresenceState.value,
       })
@@ -1259,11 +1377,7 @@ watch(
 logStageStartupTrace('before-watch-active-cue')
 watch(
   [
-    () => performanceState.value?.activeCue?.id ?? '',
-    () => performanceState.value?.activeCue?.emotion ?? '',
-    () => performanceState.value?.activeCue?.rendererHints?.preferredExpressionAliases?.join('|') ?? '',
-    () => performanceState.value?.activeCue?.rendererHints?.preferredMotionAliases?.join('|') ?? '',
-    () => performanceState.value?.activeCue?.rendererSettle?.live2dMotionFollowThroughMs ?? 0,
+    () => resolveActiveCueWatchKey(performanceState.value?.activeCue),
   ],
   () => {
     const performanceCue = performanceState.value?.activeCue
@@ -1413,7 +1527,7 @@ chatHookCleanups.push(onPlaybackEvent((event) => {
     playSpecialToken(event.state.item.special)
 }))
 
-chatHookCleanups.push(onBeforeMessageComposed(async () => {
+chatHookCleanups.push(onBeforeMessageComposed(async (_message, context) => {
   const prepareStartedAt = performance.now()
   speechRuntimeStore.cancelOwner(activeCardId.value, 'new-message')
   clearRuntimeEmbodimentEnvelope({ preserveTurnEnvelope: true })
@@ -1440,7 +1554,7 @@ chatHookCleanups.push(onBeforeMessageComposed(async () => {
     ownerId: activeCardId.value,
     priority: 'normal',
     behavior: 'queue',
-    metadata: createSpeechIntentMetadata('chat'),
+    metadata: createSpeechIntentMetadata('chat', context.preDialogueSendIdentity ?? null),
   })
 }))
 
@@ -1448,42 +1562,59 @@ chatHookCleanups.push(onEmbodimentMeta(async (meta) => {
   runtimeDigest.value = meta.runtimeDigest ?? null
 
   const embodimentScript = meta.embodimentScript ?? null
-  if (embodimentScript)
-    currentChatIntent.value = chatIntentBridge.attachEmbodimentScript(embodimentScript)
+  const authoritativeMeta = resolveStageEmbodimentMetaAuthority({
+    embodiment: meta.embodiment,
+    embodimentScript,
+    digitalLife: meta.digitalLife ?? null,
+    speechTimeline: meta.speechTimeline ?? null,
+  })
+  if (embodimentScript || meta.runtimeDigest || authoritativeMeta.voice || authoritativeMeta.speechStyle) {
+    currentChatIntent.value = chatIntentBridge.attachRuntimeMetadata({
+      embodimentScript,
+      runtimeDigest: meta.runtimeDigest ?? null,
+      speechSynthesis: resolveRuntimeSpeechSynthesisMetadata({
+        speechStyle: authoritativeMeta.speechStyle,
+        voice: authoritativeMeta.voice,
+      }),
+    })
+  }
 
   if (meta.digitalLifeSpine)
     embodimentRuntime?.applyTransientDigitalLifeSpine(meta.digitalLifeSpine)
 
-  if (meta.digitalLife)
-    embodimentRuntime?.primeDigitalLifeEnvelope(meta.digitalLife)
+  if (authoritativeMeta.digitalLife)
+    embodimentRuntime?.primeDigitalLifeEnvelope(authoritativeMeta.digitalLife)
 
   if (meta.speechTimeline)
     embodimentRuntime?.primeSpeechTimeline(meta.speechTimeline)
 
   if (!meta.embodiment || !embodimentRuntime)
     return
-
+  const authoritativeEmbodiment = {
+    ...meta.embodiment,
+    rendererHints: authoritativeMeta.rendererHints ?? null,
+  }
   armDialoguePerformance(meta.embodiment.performance, {
-    variationToken: meta.embodiment.variationToken ?? null,
+    variationToken: authoritativeMeta.variationToken,
   })
-  applyRuntimeEmbodimentEnvelope(meta.embodiment)
+  applyRuntimeEmbodimentEnvelope(authoritativeEmbodiment)
   embodimentRuntime.applyEmotionSpeechStyle(
     embodimentRuntime.normalizePresenceEmotionName(meta.embodiment.emotion),
-    meta.embodiment.speechStyle,
+    authoritativeMeta.speechStyle,
   )
   logStageEmbodimentDebug('embodiment-meta', {
     emotion: meta.embodiment.emotion,
     delivery: meta.embodiment.performance.delivery,
     facialCue: meta.embodiment.performance.facialCue ?? null,
     actionCue: meta.embodiment.performance.actionCue ?? null,
-    variationToken: meta.embodiment.variationToken ?? null,
+    variationToken: authoritativeMeta.variationToken,
     hasEmbodimentScript: Boolean(embodimentScript),
     hasSpeechTimeline: Boolean(meta.speechTimeline?.segments.length),
-    hasDigitalLife: Boolean(meta.digitalLife?.frames.length),
+    hasDigitalLife: Boolean(authoritativeMeta.digitalLife?.frames.length),
     speechTimelineSegments: meta.speechTimeline?.segments.length ?? 0,
     speechTimelineLastSegmentId: meta.speechTimeline?.segments.at(-1)?.id ?? null,
-    digitalLifeFrames: meta.digitalLife?.frames.length ?? 0,
-    digitalLifeLastFrameId: meta.digitalLife?.frames.at(-1)?.id ?? null,
+    digitalLifeFrames: authoritativeMeta.digitalLife?.frames.length ?? 0,
+    digitalLifeLastFrameId: authoritativeMeta.digitalLife?.frames.at(-1)?.id ?? null,
   })
 }))
 

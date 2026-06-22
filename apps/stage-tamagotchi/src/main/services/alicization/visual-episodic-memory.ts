@@ -1,10 +1,9 @@
 import type {
   AlicizationActionEcologySnapshot,
-  AlicizationAutonomySnapshot,
   AlicizationAnswerCompilerSnapshot,
   AlicizationAnswerPlannerSnapshot,
-  AlicizationDerivedMindStateBundle,
   AlicizationAutobiographicalSelfSnapshot,
+  AlicizationAutonomySnapshot,
   AlicizationBeliefLedgerSnapshot,
   AlicizationBeliefRevisionSnapshot,
   AlicizationClaimEvidenceLedgerSnapshot,
@@ -15,6 +14,7 @@ import type {
   AlicizationCounterfactualDeliberationSnapshot,
   AlicizationCurrentConsciousFrameSnapshot,
   AlicizationDeliberationStateSnapshot,
+  AlicizationDerivedMindStateBundle,
   AlicizationDesireMemorySnapshot,
   AlicizationDialogueAct,
   AlicizationDialogueActKernelSnapshot,
@@ -25,6 +25,7 @@ import type {
   AlicizationDialogueWorldThreadSnapshot,
   AlicizationDiscourseStateSnapshot,
   AlicizationDurabilityPulseSnapshot,
+  AlicizationEmotionalKernelSnapshot,
   AlicizationEntityWorldModelSnapshot,
   AlicizationExecutiveCycleSnapshot,
   AlicizationGoalStackSnapshot,
@@ -35,8 +36,9 @@ import type {
   AlicizationInquiryPlannerSnapshot,
   AlicizationInspectionTurnState,
   AlicizationIntentionStreamSnapshot,
-  AlicizationLongHorizonMemorySnapshot,
+  AlicizationLearningExecutionStateSnapshot,
   AlicizationLivingWorldStateSnapshot,
+  AlicizationLongHorizonMemorySnapshot,
   AlicizationMindDynamicsSnapshot,
   AlicizationMindKernelSnapshot,
   AlicizationMindSynthesisSnapshot,
@@ -48,8 +50,9 @@ import type {
   AlicizationRelationshipModelSnapshot,
   AlicizationRepairLedgerSnapshot,
   AlicizationReplyDeliberationSnapshot,
-  AlicizationSelfEvolutionKernelSnapshot,
+  AlicizationRuntimeDigest,
   AlicizationSelfContinuitySnapshot,
+  AlicizationSelfEvolutionKernelSnapshot,
   AlicizationSelfGovernorSnapshot,
   AlicizationSelfStateSnapshot,
   AlicizationSubconsciousFragmentSourceKind,
@@ -70,14 +73,19 @@ import type {
 import {
   deriveAlicizationResidentPerformanceSnapshot,
   normalizeAlicizationNormalVisibleReplyAuthority,
+  normalizeAlicizationRuntimeDigest,
+  readRecollectionIntentFromDerivedMindStateBundle,
 } from '@proj-alicization/stage-shared'
 
 import { normalizeClaimEvidenceLedger } from './claim-evidence-ledger'
 import { normalizeDialogueActKernel } from './dialogue-act-kernel'
+import { buildAlicizationEmotionalKernel } from './emotional-kernel'
 import { normalizeMindTurnFrame } from './mind-turn-frame'
 
 export const visualWorkingMemoryTtlMs = 10 * 60_000
 const visualWorkingMemoryLimit = 8
+type AlicizationCurrentConsciousProjectState = NonNullable<NonNullable<AlicizationCurrentConsciousFrameSnapshot['projectState']>>
+type AlicizationVisualPresenceRuntimeState = NonNullable<NonNullable<AlicizationVisualPresenceStateSnapshot['runtime']>>
 
 function clamp01(value: number) {
   if (!Number.isFinite(value))
@@ -89,6 +97,114 @@ function sanitizeText(raw: unknown, maxChars = 240) {
   if (typeof raw !== 'string')
     return ''
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
+}
+
+function normalizeProjectStateContinuityPreferredTiming(raw: unknown): AlicizationCurrentConsciousFrameSnapshot['continuityPreferredTiming'] {
+  return raw === 'internal-only'
+    || raw === 'after-payoff'
+    || raw === 'same-turn-if-invited'
+    || raw === 'next-open-window'
+    ? raw
+    : null
+}
+
+function normalizeProjectStateBlinkCadence(raw: unknown): AlicizationCurrentConsciousProjectState['preferredBlinkCadence'] {
+  const normalized = sanitizeText(raw, 32)
+  return normalized === 'normal'
+    || normalized === 'linger'
+    || normalized === 'quiet'
+    ? normalized
+    : null
+}
+
+function normalizeProjectStateGazeMode(raw: unknown): AlicizationCurrentConsciousProjectState['preferredGazeMode'] {
+  const normalized = sanitizeText(raw, 32)
+  return normalized === 'steady'
+    || normalized === 'soften'
+    || normalized === 'drift'
+    ? normalized
+    : null
+}
+
+function normalizeProjectStateSnapshot(raw: unknown): AlicizationCurrentConsciousProjectState | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+    return null
+
+  const candidate = raw as Record<string, unknown>
+  const explicitLatestLandedProgress = sanitizeText(candidate.latestLandedProgress ?? candidate.latestProgress, 320)
+  const summaryLatestLandedProgress = sanitizeText(candidate.landedProgressSummary, 320)
+  const resolvedLatestLandedProgress = explicitLatestLandedProgress || summaryLatestLandedProgress || null
+
+  const explicitPrimaryOpenLoop = sanitizeText(candidate.primaryOpenLoop, 320)
+  const summaryPrimaryOpenLoop = sanitizeText(candidate.openClosureSummary, 320)
+  const resolvedPrimaryOpenLoop = explicitPrimaryOpenLoop || summaryPrimaryOpenLoop || null
+
+  const explicitNextClosureTarget = sanitizeText(candidate.nextClosureTarget, 420)
+  const summaryNextClosureTarget = sanitizeText(candidate.nextClosureTargetSummary, 420)
+  const resolvedNextClosureTarget = explicitNextClosureTarget || summaryNextClosureTarget || null
+
+  const explicitSameHerDriftRisk = sanitizeText(candidate.sameHerDriftRisk, 320)
+  const summarySameHerDriftRisk = sanitizeText(candidate.sameHerDriftRiskSummary, 320)
+  const resolvedSameHerDriftRisk = explicitSameHerDriftRisk || summarySameHerDriftRisk || null
+
+  const normalized: AlicizationCurrentConsciousProjectState = {
+    preflightSummary: sanitizeText(candidate.preflightSummary, 480) || null,
+    preDialogueAwarenessLine: sanitizeText(candidate.preDialogueAwarenessLine, 480) || null,
+    preDialogueAwarenessSummary: sanitizeText(candidate.preDialogueAwarenessSummary, 480) || null,
+    awarenessLine: sanitizeText(candidate.awarenessLine, 480) || null,
+    companionHeadlineLine: sanitizeText(candidate.companionHeadlineLine, 480) || null,
+    companionBriefingLine: sanitizeText(candidate.companionBriefingLine, 480) || null,
+    identity: sanitizeText(candidate.identity, 320) || null,
+    currentPhase: sanitizeText(candidate.currentPhase, 320) || null,
+    latestProgress: resolvedLatestLandedProgress,
+    latestLandedProgress: resolvedLatestLandedProgress,
+    memoryClosureSummary: sanitizeText(candidate.memoryClosureSummary, 320) || null,
+    primaryOpenLoop: resolvedPrimaryOpenLoop,
+    nextClosureTarget: resolvedNextClosureTarget,
+    sameHerSelfLine: sanitizeText(candidate.sameHerSelfLine, 320) || null,
+    sameHerHoldDetail: sanitizeText(candidate.sameHerHoldDetail, 320) || null,
+    sameHerDriftRisk: resolvedSameHerDriftRisk,
+    emotionalClosureCue: sanitizeText(candidate.emotionalClosureCue, 320) || null,
+    emotionalClosureSummary: sanitizeText(candidate.emotionalClosureSummary, 320) || null,
+    continuityArcStage: sanitizeText(candidate.continuityArcStage, 120) || null,
+    continuityCue: sanitizeText(candidate.continuityCue, 420) || null,
+    preferredBlinkCadence: normalizeProjectStateBlinkCadence(candidate.preferredBlinkCadence),
+    preferredGazeMode: normalizeProjectStateGazeMode(candidate.preferredGazeMode),
+    continuityPreferredTiming: normalizeProjectStateContinuityPreferredTiming(candidate.continuityPreferredTiming),
+    continuityCadence: sanitizeText(candidate.continuityCadence, 120) || null,
+  }
+
+  return Object.values(normalized).some(value => value !== null && value !== undefined)
+    ? normalized
+    : null
+}
+
+function normalizeVisualPresenceRuntimeState(raw: unknown): AlicizationVisualPresenceRuntimeState | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+    return null
+
+  const candidate = raw as Record<string, unknown>
+  const normalized: AlicizationVisualPresenceRuntimeState = {
+    projectState: normalizeProjectStateSnapshot(candidate.projectState),
+    memoryDeliberationProjectStateDiagnostics:
+      candidate.memoryDeliberationProjectStateDiagnostics
+      && typeof candidate.memoryDeliberationProjectStateDiagnostics === 'object'
+      && !Array.isArray(candidate.memoryDeliberationProjectStateDiagnostics)
+        ? candidate.memoryDeliberationProjectStateDiagnostics as Record<string, unknown>
+        : null,
+    effectiveRuntimeAwarenessDiagnostics:
+      candidate.effectiveRuntimeAwarenessDiagnostics
+      && typeof candidate.effectiveRuntimeAwarenessDiagnostics === 'object'
+      && !Array.isArray(candidate.effectiveRuntimeAwarenessDiagnostics)
+        ? candidate.effectiveRuntimeAwarenessDiagnostics as Record<string, unknown>
+        : null,
+  }
+
+  return normalized.projectState
+    || normalized.memoryDeliberationProjectStateDiagnostics
+    || normalized.effectiveRuntimeAwarenessDiagnostics
+    ? normalized
+    : null
 }
 
 function normalizePresenceAuthorityCurrentBodyState(raw: unknown): AlicizationVisualPresenceStateSnapshot['currentBodyState'] {
@@ -141,6 +257,8 @@ function withResidentPerformance(state: AlicizationVisualPresenceStateSnapshot):
       currentScene: state.currentScene,
       attention: state.attention,
       privateThought: state.privateThought,
+      currentConsciousFrame: state.currentConsciousFrame ?? null,
+      affectiveResidue: state.affectiveResidue ?? state.derivedMindStateBundle?.affectiveResidue ?? null,
       relationshipTimingBias: selfEvolution
         ? {
             ...selfEvolution,
@@ -569,6 +687,12 @@ function normalizeAppraisal(raw: unknown): AlicizationSubjectiveSceneAppraisal |
     && inferredHostGoal !== 'rest'
     && inferredHostGoal !== 'chat'
     && inferredHostGoal !== 'browse'
+    && inferredHostGoal !== 'stay-connected'
+    && inferredHostGoal !== 'continue-thread'
+    && inferredHostGoal !== 'keep-going'
+    && inferredHostGoal !== 'finish-one-more-step'
+    && inferredHostGoal !== 'resume-work'
+    && inferredHostGoal !== 'continue-phase-1-line'
     && inferredHostGoal !== 'unknown'
   ) {
     return null
@@ -1135,6 +1259,7 @@ function normalizeInitiative(raw: unknown): AlicizationInitiativeSnapshot | null
 
   const preferredStyle = candidate.preferredStyle
   const preferredPresence = candidate.preferredPresence
+  const continuityRestraint = candidate.continuityRestraint
   return {
     selectedAction,
     selectedProposalId: sanitizeText(candidate.selectedProposalId, 160) || null,
@@ -1180,6 +1305,12 @@ function normalizeInitiative(raw: unknown): AlicizationInitiativeSnapshot | null
       || preferredPresence === 'concerned'
       ? preferredPresence
       : 'glance',
+    continuityRestraint: continuityRestraint === 'lower-pressure'
+      || continuityRestraint === 'measured-return'
+      || continuityRestraint === 'repair-before-closeness'
+      || continuityRestraint === 'rest-protective'
+      ? continuityRestraint
+      : null,
     why: sanitizeText(candidate.why, 200),
     shouldSurface: candidate.shouldSurface === true,
     shouldSpeak: candidate.shouldSpeak === true,
@@ -1797,21 +1928,26 @@ function normalizeCurrentConsciousFrame(raw: unknown): AlicizationCurrentConscio
   const subject = candidate.subject
   const centerOfGravity = candidate.centerOfGravity
   const truthDiscipline = normalizeConsciousTruthDiscipline(candidate.truthDiscipline)
+  const normalizedSubject = subject === 'alicization-self'
+    || subject === 'project-state'
+    || subject === 'relationship'
+    || subject === 'host-state'
+    || subject === 'task-knot'
+    || subject === 'visible-scene'
+    || subject === 'general'
+    ? subject
+    : 'general'
+  const normalizedCenterOfGravity = centerOfGravity === 'repair'
+    || centerOfGravity === 'guide'
+    || centerOfGravity === 'answer'
+    || centerOfGravity === 'care'
+    || centerOfGravity === 'attune'
+    || centerOfGravity === 'witness'
+    || centerOfGravity === 'defer'
+    ? centerOfGravity
+    : 'defer'
   if (
-    (subject !== 'alicization-self'
-      && subject !== 'relationship'
-      && subject !== 'host-state'
-      && subject !== 'task-knot'
-      && subject !== 'visible-scene'
-      && subject !== 'general')
-    || (centerOfGravity !== 'repair'
-      && centerOfGravity !== 'guide'
-      && centerOfGravity !== 'answer'
-      && centerOfGravity !== 'care'
-      && centerOfGravity !== 'attune'
-      && centerOfGravity !== 'witness'
-      && centerOfGravity !== 'defer')
-    || !truthDiscipline
+    !truthDiscipline
   ) {
     return null
   }
@@ -1822,9 +1958,18 @@ function normalizeCurrentConsciousFrame(raw: unknown): AlicizationCurrentConscio
   if (!consciousNeed || !consciousTension || !speakingIntention)
     return null
 
+  const projectStateRaw = candidate.projectState
+  const normalizedProjectState = normalizeProjectStateSnapshot(projectStateRaw)
+  const continuityPreferredTiming = normalizeProjectStateContinuityPreferredTiming(candidate.continuityPreferredTiming)
+  const continuityCadence = sanitizeText(candidate.continuityCadence, 120) || null
+  const projectStateContinuityPreferredTiming = normalizeProjectStateContinuityPreferredTiming(
+    normalizedProjectState?.continuityPreferredTiming,
+  )
+  const projectStateContinuityCadence = normalizedProjectState?.continuityCadence ?? null
+
   return {
-    subject,
-    centerOfGravity,
+    subject: normalizedSubject,
+    centerOfGravity: normalizedCenterOfGravity,
     truthDiscipline,
     consciousNeed,
     consciousTension,
@@ -1837,6 +1982,33 @@ function normalizeCurrentConsciousFrame(raw: unknown): AlicizationCurrentConscio
     reasonTags: Array.isArray(candidate.reasonTags)
       ? candidate.reasonTags.filter((item): item is string => typeof item === 'string').map(item => sanitizeText(item, 96)).filter(Boolean).slice(0, 10)
       : [],
+    continuityPreferredTiming: continuityPreferredTiming ?? projectStateContinuityPreferredTiming ?? null,
+    continuityCadence: continuityCadence ?? projectStateContinuityCadence ?? null,
+    projectState: normalizedProjectState
+      ? {
+          ...normalizedProjectState,
+          continuityPreferredTiming:
+            normalizedProjectState.continuityPreferredTiming
+            ?? continuityPreferredTiming
+            ?? projectStateContinuityPreferredTiming
+            ?? null,
+          continuityCadence:
+            normalizedProjectState.continuityCadence
+            ?? continuityCadence
+            ?? projectStateContinuityCadence
+            ?? null,
+        }
+      : projectStateContinuityPreferredTiming || projectStateContinuityCadence
+        ? {
+            continuityPreferredTiming: projectStateContinuityPreferredTiming ?? null,
+            continuityCadence: projectStateContinuityCadence ?? null,
+          }
+        : continuityPreferredTiming || continuityCadence
+          ? {
+              continuityPreferredTiming: continuityPreferredTiming ?? null,
+              continuityCadence: continuityCadence ?? null,
+            }
+          : null,
     updatedAt: Number.isFinite(Number(candidate.updatedAt))
       ? Math.max(0, Math.floor(Number(candidate.updatedAt)))
       : Date.now(),
@@ -1982,6 +2154,31 @@ function normalizeRecallGovernor(raw: unknown): AlicizationRecallGovernorSnapsho
   return {
     mode,
     recallSeed: sanitizeText(candidate.recallSeed, 400),
+    threadAnchors: Array.isArray(candidate.threadAnchors)
+      ? candidate.threadAnchors.filter((item): item is string => typeof item === 'string').map(item => sanitizeText(item, 180)).filter(Boolean).slice(0, 12)
+      : [],
+    affectAnchors: Array.isArray(candidate.affectAnchors)
+      ? candidate.affectAnchors.filter((item): item is string => typeof item === 'string').map(item => sanitizeText(item, 180)).filter(Boolean).slice(0, 12)
+      : [],
+    relationshipAnchors: Array.isArray(candidate.relationshipAnchors)
+      ? candidate.relationshipAnchors.filter((item): item is string => typeof item === 'string').map(item => sanitizeText(item, 180)).filter(Boolean).slice(0, 8)
+      : [],
+    salienceBias: Number.isFinite(Number(candidate.salienceBias))
+      ? Math.max(0, Math.min(1, Number(candidate.salienceBias)))
+      : undefined,
+    sceneAnchor: sanitizeText(candidate.sceneAnchor, 220) || null,
+    sceneFamiliarityHint: Number.isFinite(Number(candidate.sceneFamiliarityHint))
+      ? Math.max(0, Math.min(1, Number(candidate.sceneFamiliarityHint)))
+      : null,
+    affectiveCarry: candidate.affectiveCarry && typeof candidate.affectiveCarry === 'object'
+      ? candidate.affectiveCarry as AlicizationRecallGovernorSnapshot['affectiveCarry']
+      : null,
+    embodiedCarry: candidate.embodiedCarry && typeof candidate.embodiedCarry === 'object'
+      ? candidate.embodiedCarry as AlicizationRecallGovernorSnapshot['embodiedCarry']
+      : null,
+    recollectionIntent: candidate.recollectionIntent && typeof candidate.recollectionIntent === 'object'
+      ? candidate.recollectionIntent as AlicizationRecallGovernorSnapshot['recollectionIntent']
+      : null,
     suppressAssociativeRecall: candidate.suppressAssociativeRecall === true,
     allowActiveThoughts: candidate.allowActiveThoughts === true,
     allowRecalledFragments,
@@ -2078,14 +2275,26 @@ export function createDefaultVisualPresenceState(now = Date.now()): AlicizationV
     dialogueWorldThread: null,
     dialogueActKernel: null,
     answerCompiler: null,
+    personStateProjection: null,
+    projectState: null,
     currentConsciousFrame: null,
     claimEvidenceLedger: null,
     replyDeliberation: null,
     recallGovernor: null,
     answerPlanner: null,
     selfEvolution: null,
+    affectiveResidue: null,
+    emotionalKernel: null,
     learningExecutionState: null,
     derivedMindStateBundle: null,
+    runtime: null,
+    raw: {
+      personStateProjection: null,
+      projectState: null,
+      runtimeDigest: null,
+      runtime: null,
+    },
+    runtimeDigest: null,
     privateThought: null,
     captureState: {
       permission: 'unknown',
@@ -2104,6 +2313,9 @@ export function normalizeVisualPresenceState(raw: unknown, now = Date.now()): Al
 
   const candidate = raw as Record<string, unknown>
   const base = createDefaultVisualPresenceState(now)
+  const rawCandidate = candidate.raw && typeof candidate.raw === 'object' && !Array.isArray(candidate.raw)
+    ? candidate.raw as Record<string, unknown>
+    : null
   base.currentBodyState = normalizePresenceAuthorityCurrentBodyState(candidate.currentBodyState)
   base.continuityMode = normalizePresenceAuthorityContinuityMode(candidate.continuityMode)
   base.quietLineMs = normalizePresenceAuthorityQuietLineMs(candidate.quietLineMs)
@@ -2196,7 +2408,32 @@ export function normalizeVisualPresenceState(raw: unknown, now = Date.now()): Al
   base.dialogueWorldThread = normalizeDialogueWorldThread(candidate.dialogueWorldThread)
   base.dialogueActKernel = normalizeDialogueActKernel(candidate.dialogueActKernel)
   base.answerCompiler = normalizeAnswerCompiler(candidate.answerCompiler)
+  base.personStateProjection = (candidate.personStateProjection ?? rawCandidate?.personStateProjection)
+    && typeof (candidate.personStateProjection ?? rawCandidate?.personStateProjection) === 'object'
+    ? (candidate.personStateProjection ?? rawCandidate?.personStateProjection) as AlicizationVisualPresenceStateSnapshot['personStateProjection']
+    : null
   base.currentConsciousFrame = normalizeCurrentConsciousFrame(candidate.currentConsciousFrame)
+  base.runtimeDigest = normalizeAlicizationRuntimeDigest(candidate.runtimeDigest ?? rawCandidate?.runtimeDigest)
+  base.runtime = normalizeVisualPresenceRuntimeState(candidate.runtime ?? rawCandidate?.runtime)
+  base.projectState = normalizeProjectStateSnapshot(
+    candidate.projectState
+    ?? rawCandidate?.projectState
+    ?? base.runtime?.projectState
+    ?? base.runtimeDigest?.projectState
+    ?? base.currentConsciousFrame?.projectState,
+  )
+  if (base.runtime && !base.runtime.projectState && base.projectState) {
+    base.runtime = {
+      ...base.runtime,
+      projectState: base.projectState,
+    }
+  }
+  base.raw = {
+    personStateProjection: base.personStateProjection ?? null,
+    projectState: base.projectState ?? null,
+    runtimeDigest: base.runtimeDigest ?? null,
+    runtime: base.runtime ?? null,
+  }
   base.claimEvidenceLedger = normalizeClaimEvidenceLedger(candidate.claimEvidenceLedger)
   base.replyDeliberation = normalizeReplyDeliberation(candidate.replyDeliberation)
   base.recallGovernor = normalizeRecallGovernor(candidate.recallGovernor)
@@ -2205,6 +2442,12 @@ export function normalizeVisualPresenceState(raw: unknown, now = Date.now()): Al
     : null
   base.selfEvolution = candidate.selfEvolution && typeof candidate.selfEvolution === 'object'
     ? candidate.selfEvolution as AlicizationSelfEvolutionKernelSnapshot
+    : null
+  base.affectiveResidue = candidate.affectiveResidue && typeof candidate.affectiveResidue === 'object'
+    ? candidate.affectiveResidue as AlicizationVisualPresenceStateSnapshot['affectiveResidue']
+    : null
+  base.emotionalKernel = candidate.emotionalKernel && typeof candidate.emotionalKernel === 'object'
+    ? candidate.emotionalKernel as AlicizationEmotionalKernelSnapshot
     : null
   base.learningExecutionState = candidate.learningExecutionState && typeof candidate.learningExecutionState === 'object'
     ? candidate.learningExecutionState as AlicizationLearningExecutionStateSnapshot
@@ -2301,6 +2544,200 @@ function buildEpisode(input: {
   return episode
 }
 
+function hasRememberedSeamMoreRoomCarry(text: string | null | undefined) {
+  const normalized = sanitizeText(text, 420).toLowerCase()
+  if (!normalized)
+    return false
+
+  const rememberedSeamPresent
+    = /remembered seam|same remembered relationship seam|same remembered seam|relationship seam|same line|same thread|callback line|同一条线|关系线|记住的关系缝|留白/u.test(normalized)
+  if (!rememberedSeamPresent)
+    return false
+
+  return /reopened too eagerly|too eagerly before|more room this time|this time keep more room|keep more room this time|leave more room|do not reopen it with the same eagerness|before leaning in again|这次更要留白|这次要更慢一点|不要重开得太快|上次太急/u.test(normalized)
+}
+
+function derivePresenceOnlyResidentHoldInwardPreoccupation(input: {
+  initiative?: AlicizationInitiativeSnapshot | null
+  privateThought: AlicizationPrivateThoughtSnapshot | null
+  personStateProjection: AlicizationVisualPresenceStateSnapshot['personStateProjection']
+  projectState: AlicizationVisualPresenceStateSnapshot['projectState'] | null
+  affectiveResidue: AlicizationVisualPresenceStateSnapshot['affectiveResidue']
+  derivedMindStateBundle: AlicizationDerivedMindStateBundle | null
+  fallback: string | null | undefined
+}) {
+  const fallback = sanitizeText(input.fallback, 160)
+  const recollectionIntent = readRecollectionIntentFromDerivedMindStateBundle<AlicizationRecallGovernorSnapshot['recollectionIntent']>(
+    input.derivedMindStateBundle,
+  )
+  const recollectionAuthority = [
+    recollectionIntent?.mode,
+    recollectionIntent?.rationale,
+    recollectionIntent?.recollectionAgenda?.whyRecallNow,
+    ...(recollectionIntent?.queryHints ?? []),
+    ...(recollectionIntent?.recollectionAgenda?.candidateProcedureLines ?? []),
+    recollectionIntent?.recollectionAgenda?.uncertaintyTolerance
+      ? `uncertainty-${sanitizeText(recollectionIntent.recollectionAgenda.uncertaintyTolerance, 32)}`
+      : '',
+  ]
+    .map(candidate => sanitizeText(candidate, 220).toLowerCase())
+    .filter(Boolean)
+    .join(' ')
+  if (!recollectionAuthority)
+    return fallback || null
+
+  const cautiousEmbodimentCueCount = [
+    'embodiment_recall_strength=cautious-avoidance',
+    'reply should stay quieter and slower',
+    'body stays calmer',
+    'embodiment_face=neutral-soft',
+    'embodiment_gaze=soft',
+    'embodiment_voice=even',
+    'embodiment_pause=natural',
+    'embodiment_pacing=natural',
+  ].reduce((count, cue) => count + (recollectionAuthority.includes(cue) ? 1 : 0), 0)
+
+  if (cautiousEmbodimentCueCount < 2)
+    return fallback || null
+
+  const continuityAuthorityText = [
+    input.initiative?.why,
+    input.privateThought?.thoughtText,
+    input.personStateProjection?.summary,
+    input.personStateProjection?.openingGuidance,
+    input.personStateProjection?.manifestationCadenceSummary,
+    input.projectState?.sameHerSelfLine,
+    input.projectState?.sameHerHoldDetail,
+    input.projectState?.continuityCue,
+    input.projectState?.emotionalClosureCue,
+    input.projectState?.emotionalClosureSummary,
+    input.projectState?.nextClosureTarget,
+    input.affectiveResidue?.summary,
+    input.affectiveResidue?.relationshipCadence?.summary,
+    ...(input.affectiveResidue?.sourceSignals ?? []),
+    fallback,
+  ]
+    .map(candidate => sanitizeText(candidate, 240).toLowerCase())
+    .filter(Boolean)
+    .join(' | ')
+
+  const hasSameLineCarry
+    = /same remembered seam|remembered seam|same callback line|callback line|same thread|same line|same living line|同一条线|同一条生命线/u.test(continuityAuthorityText)
+  const hasMeasuredRoomCarry
+    = /leave more room|more room|lower-pressure|slower|quieter|before widening outward|before warmth widens|do not reopen from scratch|留白|慢一点/u.test(continuityAuthorityText)
+  if (!hasRememberedSeamMoreRoomCarry(continuityAuthorityText) && (!hasSameLineCarry || !hasMeasuredRoomCarry))
+    return fallback || null
+
+  return 'The same remembered seam is back, so leave more room and let the return stay slower before warmth widens again.'
+}
+
+function derivePresenceOnlyResidentHoldContinuityRestraint(input: {
+  initiative?: AlicizationInitiativeSnapshot | null
+  privateThought: AlicizationPrivateThoughtSnapshot | null
+  selfEvolution: AlicizationSelfEvolutionKernelSnapshot | null
+  personStateProjection: AlicizationVisualPresenceStateSnapshot['personStateProjection']
+  projectState: AlicizationVisualPresenceStateSnapshot['projectState'] | null
+  affectiveResidue: AlicizationVisualPresenceStateSnapshot['affectiveResidue']
+}) {
+  const continuityRestraint = input.initiative?.continuityRestraint
+  if (continuityRestraint !== 'lower-pressure')
+    return continuityRestraint
+
+  const continuityAuthorityText = [
+    input.initiative?.why,
+    input.privateThought?.thoughtText,
+    input.personStateProjection?.summary,
+    input.personStateProjection?.openingGuidance,
+    input.personStateProjection?.manifestationCadenceSummary,
+    input.projectState?.sameHerSelfLine,
+    input.projectState?.sameHerHoldDetail,
+    input.projectState?.continuityCue,
+    input.projectState?.emotionalClosureCue,
+    input.projectState?.emotionalClosureSummary,
+    input.projectState?.nextClosureTarget,
+    input.selfEvolution?.relationshipDoctrine,
+    input.selfEvolution?.trustMeaning,
+    input.selfEvolution?.relationshipCadenceSummary,
+    input.selfEvolution?.latestInflection,
+    input.affectiveResidue?.summary,
+    input.affectiveResidue?.relationshipCadence?.summary,
+    ...(input.affectiveResidue?.sourceSignals ?? []),
+  ]
+    .map(candidate => sanitizeText(candidate, 240))
+    .filter(Boolean)
+    .join(' | ')
+
+  const inferredMeasuredReturn = hasRememberedSeamMoreRoomCarry(continuityAuthorityText)
+    || (
+      /measured-return|same callback seam|same callback line|same living seam|same remembered seam|remembered relationship seam|without reopening from scratch|before widening outward|continue as the same living seam|same-thread return|same thread return|callback afterglow|same line|same living line/iu.test(continuityAuthorityText)
+      && /lower-pressure|leave more room|more room|slower|quieter|same line|same living line|same seam|same thread|callback|do not reopen from scratch|leave room before warmth returns|warmth should return slowly|留白|余韵/u.test(continuityAuthorityText)
+    )
+
+  return inferredMeasuredReturn ? 'measured-return' : continuityRestraint
+}
+
+function rebuildPresenceOnlyResidentHoldEmotionalKernel(input: {
+  initiative?: AlicizationInitiativeSnapshot | null
+  privateThought: AlicizationPrivateThoughtSnapshot | null
+  selfState: AlicizationSelfStateSnapshot | null
+  selfEvolution: AlicizationSelfEvolutionKernelSnapshot | null
+  personStateProjection: AlicizationVisualPresenceStateSnapshot['personStateProjection']
+  projectState: AlicizationVisualPresenceStateSnapshot['projectState'] | null
+  affectiveResidue: AlicizationVisualPresenceStateSnapshot['affectiveResidue']
+  derivedMindStateBundle: AlicizationDerivedMindStateBundle | null
+  fallbackEmotionalKernel: AlicizationEmotionalKernelSnapshot | null
+}): AlicizationEmotionalKernelSnapshot | null {
+  const continuityRestraint = derivePresenceOnlyResidentHoldContinuityRestraint({
+    initiative: input.initiative,
+    privateThought: input.privateThought,
+    selfEvolution: input.selfEvolution,
+    personStateProjection: input.personStateProjection,
+    projectState: input.projectState,
+    affectiveResidue: input.affectiveResidue ?? input.derivedMindStateBundle?.affectiveResidue ?? null,
+  })
+  if (
+    !input.initiative
+    || input.initiative.shouldSpeak !== false
+    || input.initiative.preferredStyle !== 'silent-observe'
+    || (
+      continuityRestraint !== 'measured-return'
+      && continuityRestraint !== 'repair-before-closeness'
+      && continuityRestraint !== 'rest-protective'
+    )
+  ) {
+    return input.fallbackEmotionalKernel
+  }
+
+  const rebuiltKernel = buildAlicizationEmotionalKernel({
+    selfState: input.selfState,
+    privateThought: input.privateThought,
+    affectiveResidue: input.affectiveResidue ?? input.derivedMindStateBundle?.affectiveResidue ?? null,
+    personStateProjection: input.personStateProjection ?? null,
+    recollectionIntent: readRecollectionIntentFromDerivedMindStateBundle<AlicizationRecallGovernorSnapshot['recollectionIntent']>(
+      input.derivedMindStateBundle,
+    ),
+    selfEvolution: input.selfEvolution,
+    projectState: input.projectState,
+  })
+
+  if (continuityRestraint !== 'rest-protective')
+    return rebuiltKernel
+
+  return {
+    ...rebuiltKernel,
+    dominantEmotion: 'rest-protective-companionship',
+    initiativeMode: 'observe',
+    memoryRecallMode: 'rest-protective-presence',
+    embodimentTone: 'rest-protective',
+    reasonTags: Array.from(new Set([
+      ...rebuiltKernel.reasonTags,
+      'rest-protective',
+      'quiet-companionship',
+    ])),
+    why: 'Care is still present, but this presence-only hold is protecting rest first, so memory, initiative, and embodiment should stay quietly nearby on the same inward line.',
+  }
+}
+
 export function updateVisualPresenceState(input: {
   now: number
   previousState?: AlicizationVisualPresenceStateSnapshot | null
@@ -2353,14 +2790,20 @@ export function updateVisualPresenceState(input: {
   dialogueWorldThread?: AlicizationDialogueWorldThreadSnapshot | null
   dialogueActKernel?: AlicizationDialogueActKernelSnapshot | null
   answerCompiler?: AlicizationAnswerCompilerSnapshot | null
+  personStateProjection?: AlicizationVisualPresenceStateSnapshot['personStateProjection']
+  projectState?: AlicizationVisualPresenceStateSnapshot['projectState'] | null
   currentConsciousFrame?: AlicizationCurrentConsciousFrameSnapshot | null
   claimEvidenceLedger?: AlicizationClaimEvidenceLedgerSnapshot | null
   replyDeliberation?: AlicizationReplyDeliberationSnapshot | null
   recallGovernor?: AlicizationRecallGovernorSnapshot | null
   answerPlanner?: AlicizationAnswerPlannerSnapshot | null
   selfEvolution?: AlicizationSelfEvolutionKernelSnapshot | null
+  affectiveResidue?: AlicizationVisualPresenceStateSnapshot['affectiveResidue']
+  emotionalKernel?: AlicizationEmotionalKernelSnapshot | null
   learningExecutionState?: AlicizationLearningExecutionStateSnapshot | null
   derivedMindStateBundle?: AlicizationDerivedMindStateBundle | null
+  runtime?: AlicizationVisualPresenceStateSnapshot['runtime'] | null
+  runtimeDigest?: AlicizationRuntimeDigest | null
   privateThought: AlicizationPrivateThoughtSnapshot | null
   captureState?: AlicizationVisualPresenceStateSnapshot['captureState']
   durabilityPulse?: AlicizationDurabilityPulseSnapshot | null
@@ -2369,6 +2812,36 @@ export function updateVisualPresenceState(input: {
 }): AlicizationVisualPresenceStateSnapshot {
   const previousState = input.previousState ?? createDefaultVisualPresenceState(input.now)
   let workingMemoryEpisodes = pruneWorkingMemoryEpisodes(previousState.workingMemoryEpisodes, input.now)
+  const initiativePresenceRetune = input.initiative
+    && input.initiative.shouldSpeak === false
+    && input.initiative.preferredStyle === 'silent-observe'
+    && (
+      input.initiative.continuityRestraint === 'lower-pressure'
+      || input.initiative.continuityRestraint === 'measured-return'
+      || input.initiative.continuityRestraint === 'repair-before-closeness'
+      || input.initiative.continuityRestraint === 'rest-protective'
+    )
+    ? {
+        currentBodyState: input.initiative.preferredPresence === 'concerned'
+          ? (
+              input.initiative.continuityRestraint === 'rest-protective'
+                ? 'accompanying' as const
+                : 'recovering' as const
+            )
+          : 'accompanying' as const,
+        continuityMode: input.initiative.continuityRestraint === 'repair-before-closeness'
+          ? 'protective-watch' as const
+          : 'quiet-accompaniment' as const,
+        quietLineMs: Math.max(previousState.quietLineMs, 180_000),
+        currentInwardPreoccupation: sanitizeText(
+          input.initiative.why
+          || input.privateThought?.thoughtText
+          || previousState.currentInwardPreoccupation
+          || '',
+          160,
+        ) || previousState.currentInwardPreoccupation,
+      }
+    : null
 
   if (previousState.currentScene && sceneSignature(previousState.currentScene) !== sceneSignature(input.scene)) {
     const previousEpisode = buildEpisode({
@@ -2381,11 +2854,59 @@ export function updateVisualPresenceState(input: {
     workingMemoryEpisodes = [...workingMemoryEpisodes, previousEpisode].slice(-visualWorkingMemoryLimit)
   }
 
+  const personStateProjection = input.personStateProjection ?? previousState.personStateProjection ?? null
+  const runtime = input.runtime ?? previousState.runtime ?? null
+  const runtimeDigestBase = input.runtimeDigest ?? previousState.runtimeDigest ?? null
+  const currentConsciousFrame = input.currentConsciousFrame ?? previousState.currentConsciousFrame ?? null
+  const derivedMindStateBundle = input.derivedMindStateBundle ?? (previousState as AlicizationVisualPresenceStateSnapshot & {
+    derivedMindStateBundle?: AlicizationDerivedMindStateBundle | null
+  }).derivedMindStateBundle ?? null
+  const projectState = input.projectState
+    ?? currentConsciousFrame?.projectState
+    ?? previousState.projectState
+    ?? previousState.currentConsciousFrame?.projectState
+    ?? runtime?.projectState
+    ?? runtimeDigestBase?.projectState
+    ?? null
+  const affectiveResidue = input.affectiveResidue
+    ?? input.derivedMindStateBundle?.affectiveResidue
+    ?? previousState.affectiveResidue
+    ?? derivedMindStateBundle?.affectiveResidue
+    ?? null
+  const emotionalKernel = rebuildPresenceOnlyResidentHoldEmotionalKernel({
+    initiative: input.initiative,
+    privateThought: input.privateThought,
+    selfState: input.selfState ?? previousState.selfState ?? null,
+    selfEvolution: input.selfEvolution ?? previousState.selfEvolution ?? null,
+    personStateProjection,
+    projectState,
+    affectiveResidue,
+    derivedMindStateBundle,
+    fallbackEmotionalKernel: input.emotionalKernel ?? previousState.emotionalKernel ?? null,
+  })
+  const runtimeDigest = runtimeDigestBase
+    ? {
+        ...runtimeDigestBase,
+        emotionalKernel,
+      }
+    : runtimeDigestBase
+  const retunedInwardPreoccupation = initiativePresenceRetune
+    ? derivePresenceOnlyResidentHoldInwardPreoccupation({
+        initiative: input.initiative,
+        privateThought: input.privateThought,
+        personStateProjection,
+        projectState,
+        affectiveResidue,
+        derivedMindStateBundle,
+        fallback: initiativePresenceRetune.currentInwardPreoccupation ?? previousState.currentInwardPreoccupation,
+      })
+    : null
+
   return withResidentPerformance({
-    currentBodyState: previousState.currentBodyState,
-    continuityMode: previousState.continuityMode,
-    quietLineMs: previousState.quietLineMs,
-    currentInwardPreoccupation: previousState.currentInwardPreoccupation,
+    currentBodyState: initiativePresenceRetune?.currentBodyState ?? previousState.currentBodyState,
+    continuityMode: initiativePresenceRetune?.continuityMode ?? previousState.continuityMode,
+    quietLineMs: initiativePresenceRetune?.quietLineMs ?? previousState.quietLineMs,
+    currentInwardPreoccupation: retunedInwardPreoccupation ?? previousState.currentInwardPreoccupation,
     watchMode: input.watchMode,
     currentScene: input.scene,
     attention: input.attention,
@@ -2436,16 +2957,26 @@ export function updateVisualPresenceState(input: {
     dialogueWorldThread: input.dialogueWorldThread ?? previousState.dialogueWorldThread ?? null,
     dialogueActKernel: input.dialogueActKernel ?? previousState.dialogueActKernel ?? null,
     answerCompiler: input.answerCompiler ?? previousState.answerCompiler ?? null,
-    currentConsciousFrame: input.currentConsciousFrame ?? previousState.currentConsciousFrame ?? null,
+    personStateProjection,
+    projectState,
+    currentConsciousFrame,
     claimEvidenceLedger: input.claimEvidenceLedger ?? previousState.claimEvidenceLedger ?? null,
     replyDeliberation: input.replyDeliberation ?? previousState.replyDeliberation ?? null,
     recallGovernor: input.recallGovernor ?? previousState.recallGovernor ?? null,
     answerPlanner: input.answerPlanner ?? previousState.answerPlanner ?? null,
     selfEvolution: input.selfEvolution ?? previousState.selfEvolution ?? null,
+    affectiveResidue,
+    emotionalKernel,
     learningExecutionState: input.learningExecutionState ?? previousState.learningExecutionState ?? null,
-    derivedMindStateBundle: input.derivedMindStateBundle ?? (previousState as AlicizationVisualPresenceStateSnapshot & {
-      derivedMindStateBundle?: AlicizationDerivedMindStateBundle | null
-    }).derivedMindStateBundle ?? null,
+    derivedMindStateBundle,
+    runtime,
+    raw: {
+      personStateProjection,
+      projectState,
+      runtimeDigest,
+      runtime,
+    },
+    runtimeDigest,
     privateThought: input.privateThought,
     captureState: input.captureState ?? previousState.captureState,
     durabilityPulse: input.durabilityPulse && input.durabilityPulse.kind !== 'none'

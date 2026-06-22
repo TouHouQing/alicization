@@ -1,6 +1,9 @@
 import type { Locale } from '@intlify/core'
 import type { ServerOptions } from '@proj-alicization/server-runtime/server'
 import type {
+  AlicizationAffectiveResidueEntrySnapshot as SharedAlicizationAffectiveResidueEntrySnapshot,
+  AlicizationAffectiveResidueKind as SharedAlicizationAffectiveResidueKind,
+  AlicizationAffectiveResidueMemorySnapshot as SharedAlicizationAffectiveResidueMemorySnapshot,
   AlicizationAnswerAct as SharedAlicizationAnswerAct,
   AlicizationAnswerEvidenceMode as SharedAlicizationAnswerEvidenceMode,
   AlicizationAppendExecutionEventsInput as SharedAlicizationAppendExecutionEventsInput,
@@ -13,24 +16,38 @@ import type {
   AlicizationCliCommandInput as SharedAlicizationCliCommandInput,
   AlicizationCodexCommandInput as SharedAlicizationCodexCommandInput,
   AlicizationCorrectHumanlikeMemoryAuditInput as SharedAlicizationCorrectHumanlikeMemoryAuditInput,
+  AlicizationDerivedMemoryReference as SharedAlicizationDerivedMemoryReference,
+  AlicizationDerivedMindStateBundle as SharedAlicizationDerivedMindStateBundle,
   AlicizationDialogueEmbodimentEnvelope as SharedAlicizationDialogueEmbodimentEnvelope,
   AlicizationDialoguePerformancePayload as SharedAlicizationDialoguePerformancePayload,
   AlicizationDialogueRespondedPayload as SharedAlicizationDialogueRespondedPayload,
   AlicizationDialogueSpeechTimeline as SharedAlicizationDialogueSpeechTimeline,
-  AlicizationEmbodimentScriptV1 as SharedAlicizationEmbodimentScriptV1,
   AlicizationDialogueStructuredFormat as SharedAlicizationDialogueStructuredFormat,
   AlicizationDialogueStructuredPayload as SharedAlicizationDialogueStructuredPayload,
-  AlicizationDerivedMemoryReference as SharedAlicizationDerivedMemoryReference,
   AlicizationDigitalLifeEnvelope as SharedAlicizationDigitalLifeEnvelope,
+  AlicizationDigitalLifeFrame as SharedAlicizationDigitalLifeFrame,
+  AlicizationDigitalLifeLipSyncPlan as SharedAlicizationDigitalLifeLipSyncPlan,
   AlicizationDigitalLifeSpineDigest as SharedAlicizationDigitalLifeSpineDigest,
+  AlicizationDigitalLifeSpineMemoryClosureTrace as SharedAlicizationDigitalLifeSpineMemoryClosureTrace,
   AlicizationDigitalLifeSpineMemoryDigest as SharedAlicizationDigitalLifeSpineMemoryDigest,
   AlicizationDispatchTaskThreadInput as SharedAlicizationDispatchTaskThreadInput,
   AlicizationDispatchTaskThreadResult as SharedAlicizationDispatchTaskThreadResult,
+  AlicizationEmbodimentContinuityLane as SharedAlicizationEmbodimentContinuityLane,
+  AlicizationEmbodimentContinuityLaneStatus as SharedAlicizationEmbodimentContinuityLaneStatus,
+  AlicizationEmbodimentContinuityLedgerSnapshot as SharedAlicizationEmbodimentContinuityLedgerSnapshot,
+  AlicizationEmbodimentFaceCue as SharedAlicizationEmbodimentFaceCue,
+  AlicizationEmbodimentLipSyncPlan as SharedAlicizationEmbodimentLipSyncPlan,
+  AlicizationEmbodimentLipSyncVisemeHint as SharedAlicizationEmbodimentLipSyncVisemeHint,
+  AlicizationEmbodimentMotionBurst as SharedAlicizationEmbodimentMotionBurst,
+  AlicizationEmbodimentScriptState as SharedAlicizationEmbodimentScriptState,
+  AlicizationEmbodimentScriptV1 as SharedAlicizationEmbodimentScriptV1,
+  AlicizationEmotion as SharedAlicizationEmotion,
+  AlicizationEmotionalKernelSnapshot as SharedAlicizationEmotionalKernelSnapshot,
+  AlicizationEmotionalTransitionLedgerSnapshot as SharedAlicizationEmotionalTransitionLedgerSnapshot,
   AlicizationEpisodicEventInput as SharedAlicizationEpisodicEventInput,
   AlicizationEpisodicEventRecord as SharedAlicizationEpisodicEventRecord,
-  AlicizationEpisodicReconsolidationSnapshot as SharedAlicizationEpisodicReconsolidationSnapshot,
   AlicizationEpisodicEventSourceKind as SharedAlicizationEpisodicEventSourceKind,
-  AlicizationEmotion as SharedAlicizationEmotion,
+  AlicizationEpisodicReconsolidationSnapshot as SharedAlicizationEpisodicReconsolidationSnapshot,
   AlicizationExecutionChannel as SharedAlicizationExecutionChannel,
   AlicizationExecutionEventInput as SharedAlicizationExecutionEventInput,
   AlicizationExecutionEventKind as SharedAlicizationExecutionEventKind,
@@ -40,20 +57,23 @@ import type {
   AlicizationExecutorSessionRecord as SharedAlicizationExecutorSessionRecord,
   AlicizationExecutorSessionStatus as SharedAlicizationExecutorSessionStatus,
   AlicizationExecutorSessionUpsertInput as SharedAlicizationExecutorSessionUpsertInput,
-  AlicizationGenesisInput as SharedAlicizationGenesisInput,
   AlicizationGender as SharedAlicizationGender,
+  AlicizationGenesisInput as SharedAlicizationGenesisInput,
   AlicizationHostPersonModelSnapshot as SharedAlicizationHostPersonModelSnapshot,
   AlicizationHumanlikeMemoryAuditEntry as SharedAlicizationHumanlikeMemoryAuditEntry,
   AlicizationHumanlikeMemoryCorrectionRecord as SharedAlicizationHumanlikeMemoryCorrectionRecord,
+  AlicizationInfraVisibleReplyAuthority as SharedAlicizationInfraVisibleReplyAuthority,
+  AlicizationKnowledgeAssimilationCorrection as SharedAlicizationKnowledgeAssimilationCorrection,
+  AlicizationKnowledgeAssimilationStage as SharedAlicizationKnowledgeAssimilationStage,
+  AlicizationKnowledgeValidationStatus as SharedAlicizationKnowledgeValidationStatus,
   AlicizationLearningAction as SharedAlicizationLearningAction,
+  AlicizationLearningArtifactLedgerRecord as SharedAlicizationLearningArtifactLedgerRecord,
   AlicizationLearningExecutionStateSnapshot as SharedAlicizationLearningExecutionStateSnapshot,
   AlicizationLearningTaskFailureKind as SharedAlicizationLearningTaskFailureKind,
   AlicizationLearningTaskPayload as SharedAlicizationLearningTaskPayload,
   AlicizationLearningTaskRecord as SharedAlicizationLearningTaskRecord,
   AlicizationLearningTaskStatus as SharedAlicizationLearningTaskStatus,
   AlicizationListChannelCapabilityManifestsInput as SharedAlicizationListChannelCapabilityManifestsInput,
-  AlicizationMemoryResolutionLedger as SharedAlicizationMemoryResolutionLedger,
-  AlicizationOrganicMemoryStageReplay as SharedAlicizationOrganicMemoryStageReplay,
   AlicizationListExecutionEventsInput as SharedAlicizationListExecutionEventsInput,
   AlicizationListExecutorSessionsInput as SharedAlicizationListExecutorSessionsInput,
   AlicizationListHumanlikeMemoryAuditInput as SharedAlicizationListHumanlikeMemoryAuditInput,
@@ -62,21 +82,12 @@ import type {
   AlicizationListMindTurnEventsInput as SharedAlicizationListMindTurnEventsInput,
   AlicizationListPersonStateUpdatesInput as SharedAlicizationListPersonStateUpdatesInput,
   AlicizationListTaskThreadsInput as SharedAlicizationListTaskThreadsInput,
+  AlicizationLocalVisualCommandInput as SharedAlicizationLocalVisualCommandInput,
   AlicizationLongHorizonMemoryCueInfluence as SharedAlicizationLongHorizonMemoryCueInfluence,
   AlicizationLongHorizonMemoryCueSnapshot as SharedAlicizationLongHorizonMemoryCueSnapshot,
   AlicizationLongHorizonMemorySnapshot as SharedAlicizationLongHorizonMemorySnapshot,
-  AlicizationKnowledgeAssimilationStage as SharedAlicizationKnowledgeAssimilationStage,
-  AlicizationKnowledgeAssimilationCorrection as SharedAlicizationKnowledgeAssimilationCorrection,
-  AlicizationKnowledgeValidationStatus as SharedAlicizationKnowledgeValidationStatus,
   AlicizationMemoryArchiveRecord as SharedAlicizationMemoryArchiveRecord,
-  AlicizationMemoryDomain as SharedAlicizationMemoryDomain,
-  AlicizationMemoryFact as SharedAlicizationMemoryFact,
-  AlicizationMemoryFactInput as SharedAlicizationMemoryFactInput,
-  AlicizationMemoryReflectionInput as SharedAlicizationMemoryReflectionInput,
-  AlicizationMemoryReflectionRecord as SharedAlicizationMemoryReflectionRecord,
-  AlicizationMemoryReflectionSourceKind as SharedAlicizationMemoryReflectionSourceKind,
-  AlicizationMemoryReflectionStatus as SharedAlicizationMemoryReflectionStatus,
-  AlicizationMemoryReflectionTargetScope as SharedAlicizationMemoryReflectionTargetScope,
+  AlicizationMemoryDecisionTraceRecord as SharedAlicizationMemoryDecisionTraceRecord,
   AlicizationMemoryDeliberation as SharedAlicizationMemoryDeliberation,
   AlicizationMemoryDeliberationConflictSeverity as SharedAlicizationMemoryDeliberationConflictSeverity,
   AlicizationMemoryDeliberationConflictVariant as SharedAlicizationMemoryDeliberationConflictVariant,
@@ -86,81 +97,72 @@ import type {
   AlicizationMemoryDeliberationSelectedEra as SharedAlicizationMemoryDeliberationSelectedEra,
   AlicizationMemoryDeliberationSelectedPeriod as SharedAlicizationMemoryDeliberationSelectedPeriod,
   AlicizationMemoryDeliberationSelectedProcedure as SharedAlicizationMemoryDeliberationSelectedProcedure,
+  AlicizationMemoryDomain as SharedAlicizationMemoryDomain,
+  AlicizationMemoryFact as SharedAlicizationMemoryFact,
+  AlicizationMemoryFactInput as SharedAlicizationMemoryFactInput,
   AlicizationMemoryFollowUpAffordance as SharedAlicizationMemoryFollowUpAffordance,
   AlicizationMemoryFollowUpIntrusionRisk as SharedAlicizationMemoryFollowUpIntrusionRisk,
   AlicizationMemoryFollowUpPayoffDependency as SharedAlicizationMemoryFollowUpPayoffDependency,
   AlicizationMemoryFollowUpPreferredTiming as SharedAlicizationMemoryFollowUpPreferredTiming,
-  AlicizationMemoryStats as SharedAlicizationMemoryStats,
-  AlicizationLearningArtifactLedgerRecord as SharedAlicizationLearningArtifactLedgerRecord,
-  AlicizationMemoryDecisionTraceRecord as SharedAlicizationMemoryDecisionTraceRecord,
-  AlicizationReplayBenchmarkGateReport as SharedAlicizationReplayBenchmarkGateReport,
-  AlicizationReplayBenchmarkFailureTurnRecord as SharedAlicizationReplayBenchmarkFailureTurnRecord,
-  AlicizationReplayBenchmarkDatasetFeedback as SharedAlicizationReplayBenchmarkDatasetFeedback,
-  AlicizationReplayBenchmarkGateDimensionReport as SharedAlicizationReplayBenchmarkGateDimensionReport,
-  AlicizationReplayBenchmarkPackId as SharedAlicizationReplayBenchmarkPackId,
-  AlicizationReplayBenchmarkStandardsRecord as SharedAlicizationReplayBenchmarkStandardsRecord,
-  AlicizationReplayBenchmarkTelemetryPatch as SharedAlicizationReplayBenchmarkTelemetryPatch,
-  AlicizationReplayBenchmarkTracePointer as SharedAlicizationReplayBenchmarkTracePointer,
-  AlicizationReplayHumanRatingDimension as SharedAlicizationReplayHumanRatingDimension,
-  AlicizationReplayHumanRatingRubric as SharedAlicizationReplayHumanRatingRubric,
-  AlicizationReplayMemoryQualityRecord as SharedAlicizationReplayMemoryQualityRecord,
-  AlicizationRunReplayBenchmarkInput as SharedAlicizationRunReplayBenchmarkInput,
-  AlicizationRunReplayBenchmarkResult as SharedAlicizationRunReplayBenchmarkResult,
-  AlicizationPersonStateUpdateRecord as SharedAlicizationPersonStateUpdateRecord,
-  AlicizationPersonStateEvolutionEntryInput as SharedAlicizationPersonStateEvolutionEntryInput,
-  AlicizationPersonStateEvolutionEntryRecord as SharedAlicizationPersonStateEvolutionEntryRecord,
-  AlicizationPersonStateEvolutionShift as SharedAlicizationPersonStateEvolutionShift,
-  AlicizationPersonStateEvolutionShiftKind as SharedAlicizationPersonStateEvolutionShiftKind,
-  AlicizationPersonStateEvolutionSummary as SharedAlicizationPersonStateEvolutionSummary,
-  AlicizationDerivedMindStateBundle as SharedAlicizationDerivedMindStateBundle,
-  AlicizationRecallLatencyPolicySnapshot as SharedAlicizationRecallLatencyPolicySnapshot,
-  AlicizationAffectiveResidueEntrySnapshot as SharedAlicizationAffectiveResidueEntrySnapshot,
-  AlicizationAffectiveResidueKind as SharedAlicizationAffectiveResidueKind,
-  AlicizationAffectiveResidueMemorySnapshot as SharedAlicizationAffectiveResidueMemorySnapshot,
-  AlicizationRelationshipCadenceMemorySnapshot as SharedAlicizationRelationshipCadenceMemorySnapshot,
-  AlicizationSelfEvolutionKernelSnapshot as SharedAlicizationSelfEvolutionKernelSnapshot,
-  AlicizationSelfEvolutionVersionRuntimeSnapshot as SharedAlicizationSelfEvolutionVersionRuntimeSnapshot,
-  AlicizationPersonStateUpdateSourceTrailEntry as SharedAlicizationPersonStateUpdateSourceTrailEntry,
-  AlicizationPersonStateUpdateSurface as SharedAlicizationPersonStateUpdateSurface,
+  AlicizationMemoryProvenance as SharedAlicizationMemoryProvenance,
   AlicizationMemoryRecollectionAgendaSnapshot as SharedAlicizationMemoryRecollectionAgendaSnapshot,
   AlicizationMemoryRecollectionEraFacet as SharedAlicizationMemoryRecollectionEraFacet,
   AlicizationMemoryRecollectionIntentSnapshot as SharedAlicizationMemoryRecollectionIntentSnapshot,
   AlicizationMemoryRecollectionMode as SharedAlicizationMemoryRecollectionMode,
   AlicizationMemoryRecollectionTemporalFocus as SharedAlicizationMemoryRecollectionTemporalFocus,
-  AlicizationMemoryTier as SharedAlicizationMemoryTier,
-  AlicizationMemoryProvenance as SharedAlicizationMemoryProvenance,
+  AlicizationMemoryReflectionInput as SharedAlicizationMemoryReflectionInput,
+  AlicizationMemoryReflectionRecord as SharedAlicizationMemoryReflectionRecord,
+  AlicizationMemoryReflectionSourceKind as SharedAlicizationMemoryReflectionSourceKind,
+  AlicizationMemoryReflectionStatus as SharedAlicizationMemoryReflectionStatus,
+  AlicizationMemoryReflectionTargetScope as SharedAlicizationMemoryReflectionTargetScope,
+  AlicizationMemoryResolutionLedger as SharedAlicizationMemoryResolutionLedger,
   AlicizationMemorySource as SharedAlicizationMemorySource,
+  AlicizationMemoryStats as SharedAlicizationMemoryStats,
+  AlicizationMemoryTier as SharedAlicizationMemoryTier,
   AlicizationMemoryUpsertTrace as SharedAlicizationMemoryUpsertTrace,
-  AlicizationNormalVisibleReplyAuthority as SharedAlicizationNormalVisibleReplyAuthority,
-  AlicizationInfraVisibleReplyAuthority as SharedAlicizationInfraVisibleReplyAuthority,
-  AlicizationVisibleReplyExecutionAuthority as SharedAlicizationVisibleReplyExecutionAuthority,
-  AlicizationPersistentPresenceAuthoritySnapshot as SharedAlicizationPersistentPresenceAuthoritySnapshot,
-  AlicizationPersonaGradualUnlockFacetKind as SharedAlicizationPersonaGradualUnlockFacetKind,
-  AlicizationPersonaGradualUnlockFacetSnapshot as SharedAlicizationPersonaGradualUnlockFacetSnapshot,
-  AlicizationPersonaGradualUnlockHypothesisSnapshot as SharedAlicizationPersonaGradualUnlockHypothesisSnapshot,
-  AlicizationPersonaGradualUnlockSnapshot as SharedAlicizationPersonaGradualUnlockSnapshot,
   AlicizationMindHeadKey as SharedAlicizationMindHeadKey,
   AlicizationMindTurnEventInput as SharedAlicizationMindTurnEventInput,
   AlicizationMindTurnEventKind as SharedAlicizationMindTurnEventKind,
   AlicizationMindTurnEventRecord as SharedAlicizationMindTurnEventRecord,
   AlicizationMindTurnGovernance as SharedAlicizationMindTurnGovernance,
+  AlicizationNormalVisibleReplyAuthority as SharedAlicizationNormalVisibleReplyAuthority,
   AlicizationOpenClawCommandInput as SharedAlicizationOpenClawCommandInput,
+  AlicizationOrganicMemoryStageReplay as SharedAlicizationOrganicMemoryStageReplay,
   AlicizationPerformanceDelivery as SharedAlicizationPerformanceDelivery,
   AlicizationPerformanceManifestClampResult as SharedAlicizationPerformanceManifestClampResult,
-  AlicizationPlanTaskThreadInput as SharedAlicizationPlanTaskThreadInput,
-  AlicizationPlanTaskThreadResult as SharedAlicizationPlanTaskThreadResult,
-  AlicizationProactiveMetadata as SharedAlicizationProactiveMetadata,
+  AlicizationPersistentPresenceAuthoritySnapshot as SharedAlicizationPersistentPresenceAuthoritySnapshot,
+  AlicizationPersonaEvolutionSeed as SharedAlicizationPersonaEvolutionSeed,
+  AlicizationPersonaExpressionProfile as SharedAlicizationPersonaExpressionProfile,
+  AlicizationPersonaGradualUnlockFacetKind as SharedAlicizationPersonaGradualUnlockFacetKind,
+  AlicizationPersonaGradualUnlockFacetSnapshot as SharedAlicizationPersonaGradualUnlockFacetSnapshot,
+  AlicizationPersonaGradualUnlockHypothesisSnapshot as SharedAlicizationPersonaGradualUnlockHypothesisSnapshot,
+  AlicizationPersonaGradualUnlockSnapshot as SharedAlicizationPersonaGradualUnlockSnapshot,
+  AlicizationPersonaIdentityKernel as SharedAlicizationPersonaIdentityKernel,
+  AlicizationPersonaInitiativeBaseline as SharedAlicizationPersonaInitiativeBaseline,
+  AlicizationPersonaInitiativeStyle as SharedAlicizationPersonaInitiativeStyle,
+  AlicizationPersonalityState as SharedAlicizationPersonalityState,
   AlicizationPersonaReinforcementDimension as SharedAlicizationPersonaReinforcementDimension,
   AlicizationPersonaReinforcementEventInput as SharedAlicizationPersonaReinforcementEventInput,
   AlicizationPersonaReinforcementEventRecord as SharedAlicizationPersonaReinforcementEventRecord,
   AlicizationPersonaReinforcementValence as SharedAlicizationPersonaReinforcementValence,
+  AlicizationPersonaRelationshipPosture as SharedAlicizationPersonaRelationshipPosture,
+  AlicizationPersonaTemperament as SharedAlicizationPersonaTemperament,
+  AlicizationPersonaWorkshopSubmission as SharedAlicizationPersonaWorkshopSubmission,
+  AlicizationPersonStateEvolutionEntryInput as SharedAlicizationPersonStateEvolutionEntryInput,
+  AlicizationPersonStateEvolutionEntryRecord as SharedAlicizationPersonStateEvolutionEntryRecord,
+  AlicizationPersonStateEvolutionShift as SharedAlicizationPersonStateEvolutionShift,
+  AlicizationPersonStateEvolutionShiftKind as SharedAlicizationPersonStateEvolutionShiftKind,
+  AlicizationPersonStateEvolutionSummary as SharedAlicizationPersonStateEvolutionSummary,
+  AlicizationPersonStateUpdateRecord as SharedAlicizationPersonStateUpdateRecord,
+  AlicizationPersonStateUpdateSourceTrailEntry as SharedAlicizationPersonStateUpdateSourceTrailEntry,
+  AlicizationPersonStateUpdateSurface as SharedAlicizationPersonStateUpdateSurface,
+  AlicizationPlanTaskThreadInput as SharedAlicizationPlanTaskThreadInput,
+  AlicizationPlanTaskThreadResult as SharedAlicizationPlanTaskThreadResult,
+  AlicizationProactiveMetadata as SharedAlicizationProactiveMetadata,
   AlicizationRealtimeCategory as SharedAlicizationRealtimeCategory,
   AlicizationRealtimeExecutePayload as SharedAlicizationRealtimeExecutePayload,
   AlicizationRealtimeExecuteResult as SharedAlicizationRealtimeExecuteResult,
-  AlicizationRelationshipOutcomeInput as SharedAlicizationRelationshipOutcomeInput,
-  AlicizationRelationshipOutcomeRecord as SharedAlicizationRelationshipOutcomeRecord,
-  AlicizationRelationshipOutcomeSourceKind as SharedAlicizationRelationshipOutcomeSourceKind,
-  AlicizationResidentPerformanceSnapshot as SharedAlicizationResidentPerformanceSnapshot,
+  AlicizationRecallLatencyPolicySnapshot as SharedAlicizationRecallLatencyPolicySnapshot,
   AlicizationRecollectionAmbiguityPosture as SharedAlicizationRecollectionAmbiguityPosture,
   AlicizationRecollectionCertainty as SharedAlicizationRecollectionCertainty,
   AlicizationRecollectionEvidenceGap as SharedAlicizationRecollectionEvidenceGap,
@@ -171,27 +173,43 @@ import type {
   AlicizationRecollectionSearchTrace as SharedAlicizationRecollectionSearchTrace,
   AlicizationRecollectionSpeechPlan as SharedAlicizationRecollectionSpeechPlan,
   AlicizationRecollectionSurfaceMode as SharedAlicizationRecollectionSurfaceMode,
+  AlicizationRelationshipCadenceMemorySnapshot as SharedAlicizationRelationshipCadenceMemorySnapshot,
+  AlicizationRelationshipOutcomeInput as SharedAlicizationRelationshipOutcomeInput,
+  AlicizationRelationshipOutcomeRecord as SharedAlicizationRelationshipOutcomeRecord,
+  AlicizationRelationshipOutcomeSourceKind as SharedAlicizationRelationshipOutcomeSourceKind,
+  AlicizationReplayBenchmarkDatasetFeedback as SharedAlicizationReplayBenchmarkDatasetFeedback,
+  AlicizationReplayBenchmarkFailureTurnRecord as SharedAlicizationReplayBenchmarkFailureTurnRecord,
+  AlicizationReplayBenchmarkGateDimensionReport as SharedAlicizationReplayBenchmarkGateDimensionReport,
+  AlicizationReplayBenchmarkGateReport as SharedAlicizationReplayBenchmarkGateReport,
+  AlicizationReplayBenchmarkPackId as SharedAlicizationReplayBenchmarkPackId,
+  AlicizationReplayBenchmarkStandardsRecord as SharedAlicizationReplayBenchmarkStandardsRecord,
+  AlicizationReplayBenchmarkTelemetryPatch as SharedAlicizationReplayBenchmarkTelemetryPatch,
+  AlicizationReplayBenchmarkTracePointer as SharedAlicizationReplayBenchmarkTracePointer,
+  AlicizationReplayHumanRatingDimension as SharedAlicizationReplayHumanRatingDimension,
+  AlicizationReplayHumanRatingRubric as SharedAlicizationReplayHumanRatingRubric,
+  AlicizationReplayMemoryQualityRecord as SharedAlicizationReplayMemoryQualityRecord,
+  AlicizationResidentPerformanceSnapshot as SharedAlicizationResidentPerformanceSnapshot,
+  AlicizationRunReplayBenchmarkInput as SharedAlicizationRunReplayBenchmarkInput,
+  AlicizationRunReplayBenchmarkResult as SharedAlicizationRunReplayBenchmarkResult,
   AlicizationRuntimeDigest as SharedAlicizationRuntimeDigest,
+  AlicizationRuntimeProjectStateDigest as SharedAlicizationRuntimeProjectStateDigest,
+  AlicizationSameHerCausalityRepairLane as SharedAlicizationSameHerCausalityRepairLane,
+  AlicizationSameHerCausalityRepairLaneSnapshot as SharedAlicizationSameHerCausalityRepairLaneSnapshot,
+  AlicizationSameHerCausalityRepairPressureSnapshot as SharedAlicizationSameHerCausalityRepairPressureSnapshot,
+  AlicizationSelfEvolutionKernelSnapshot as SharedAlicizationSelfEvolutionKernelSnapshot,
+  AlicizationSelfEvolutionVersionRuntimeSnapshot as SharedAlicizationSelfEvolutionVersionRuntimeSnapshot,
   AlicizationSensoryCacheSnapshot as SharedAlicizationSensoryCacheSnapshot,
   AlicizationSensoryCaptureHealth as SharedAlicizationSensoryCaptureHealth,
   AlicizationSensoryCaptureLeaseStatus as SharedAlicizationSensoryCaptureLeaseStatus,
   AlicizationSensoryCapturePermission as SharedAlicizationSensoryCapturePermission,
   AlicizationSensoryCaptureSnapshot as SharedAlicizationSensoryCaptureSnapshot,
-  AlicizationPersonalityState as SharedAlicizationPersonalityState,
-  AlicizationPersonaTemperament as SharedAlicizationPersonaTemperament,
-  AlicizationPersonaRelationshipPosture as SharedAlicizationPersonaRelationshipPosture,
-  AlicizationPersonaInitiativeStyle as SharedAlicizationPersonaInitiativeStyle,
-  AlicizationPersonaIdentityKernel as SharedAlicizationPersonaIdentityKernel,
-  AlicizationPersonaExpressionProfile as SharedAlicizationPersonaExpressionProfile,
-  AlicizationPersonaInitiativeBaseline as SharedAlicizationPersonaInitiativeBaseline,
-  AlicizationPersonaEvolutionSeed as SharedAlicizationPersonaEvolutionSeed,
-  AlicizationPersonaWorkshopSubmission as SharedAlicizationPersonaWorkshopSubmission,
   AlicizationSubconsciousFragmentSourceKind as SharedAlicizationSubconsciousFragmentSourceKind,
   AlicizationSystemProbeDegradeReason as SharedAlicizationSystemProbeDegradeReason,
   AlicizationSystemProbeSample as SharedAlicizationSystemProbeSample,
   AlicizationTaskThreadRecord as SharedAlicizationTaskThreadRecord,
   AlicizationTaskThreadStatus as SharedAlicizationTaskThreadStatus,
   AlicizationTaskThreadUpsertInput as SharedAlicizationTaskThreadUpsertInput,
+  AlicizationVisibleReplyExecutionAuthority as SharedAlicizationVisibleReplyExecutionAuthority,
   CharacterActionCapability as SharedCharacterActionCapability,
   CharacterFacialCapability as SharedCharacterFacialCapability,
   CharacterPerformanceCapabilitiesManifest as SharedCharacterPerformanceCapabilitiesManifest,
@@ -207,6 +225,10 @@ import type {
   VrmLoadStartTracePayload,
   VrmUpdateFrameTracePayload,
 } from '@proj-alicization/stage-ui-three/trace'
+
+import type { AlicizationPersonStateProjection } from '../main/services/alicization/person-state-projection'
+import type { AlicizationVisibleReplyCriticArtifact } from '../main/services/alicization/visible-reply/critic'
+import type { AlicizationVisibleReplyClosureArtifact, AlicizationVisibleReplyRealizationArtifact } from '../main/services/alicization/visible-reply/realization-engine'
 
 import { defineEventa, defineInvokeEventa } from '@moeru/eventa'
 import {
@@ -710,6 +732,7 @@ export interface AlicizationOrganicMemorySnapshot {
     contradictionHeavyFactCount: number
   } | null
   activeContinuityGovernance?: AlicizationDerivedMindStateBundle['activeContinuityGovernance'] | null
+  emotionalKernel?: AlicizationEmotionalKernelSnapshot | null
   selfEvolution?: AlicizationSelfEvolutionKernelSnapshot | null
   affectiveResidue?: AlicizationAffectiveResidueMemorySnapshot | null
   recallLatencyPolicy?: AlicizationRecallLatencyPolicySnapshot | null
@@ -745,6 +768,8 @@ export interface AlicizationConversationTurnInput {
   assistantText?: string
   structured?: Record<string, unknown>
   visibleReplyExecution?: AlicizationVisibleReplyExecution | null
+  visibleReplyRealization?: AlicizationVisibleReplyRealizationArtifact | null
+  digitalLifeSpine?: AlicizationDigitalLifeSpineDigest | null
   governance?: AlicizationMindTurnGovernance | null
   createdAt?: number
 }
@@ -791,6 +816,14 @@ export type AlicizationAffectiveResidueKind = SharedAlicizationAffectiveResidueK
 export type AlicizationAffectiveResidueEntrySnapshot = SharedAlicizationAffectiveResidueEntrySnapshot
 export type AlicizationRelationshipCadenceMemorySnapshot = SharedAlicizationRelationshipCadenceMemorySnapshot
 export type AlicizationAffectiveResidueMemorySnapshot = SharedAlicizationAffectiveResidueMemorySnapshot
+export type AlicizationEmotionalKernelSnapshot = SharedAlicizationEmotionalKernelSnapshot
+export type AlicizationEmotionalTransitionLedgerSnapshot = SharedAlicizationEmotionalTransitionLedgerSnapshot
+export type AlicizationEmbodimentContinuityLane = SharedAlicizationEmbodimentContinuityLane
+export type AlicizationEmbodimentContinuityLedgerSnapshot = SharedAlicizationEmbodimentContinuityLedgerSnapshot
+export type AlicizationEmbodimentContinuityLaneStatus = SharedAlicizationEmbodimentContinuityLaneStatus
+export type AlicizationSameHerCausalityRepairLane = SharedAlicizationSameHerCausalityRepairLane
+export type AlicizationSameHerCausalityRepairLaneSnapshot = SharedAlicizationSameHerCausalityRepairLaneSnapshot
+export type AlicizationSameHerCausalityRepairPressureSnapshot = SharedAlicizationSameHerCausalityRepairPressureSnapshot
 export type AlicizationSelfEvolutionKernelSnapshot = SharedAlicizationSelfEvolutionKernelSnapshot
 export type AlicizationSelfEvolutionVersionRuntimeSnapshot = SharedAlicizationSelfEvolutionVersionRuntimeSnapshot
 export type AlicizationPersonStateUpdateSourceTrailEntry = SharedAlicizationPersonStateUpdateSourceTrailEntry
@@ -836,6 +869,7 @@ export type AlicizationClawFabricPlan = SharedAlicizationClawFabricPlan
 export type AlicizationCliCommandInput = SharedAlicizationCliCommandInput
 export type AlicizationCodexCommandInput = SharedAlicizationCodexCommandInput
 export type AlicizationClaudeCodeCommandInput = SharedAlicizationClaudeCodeCommandInput
+export type AlicizationLocalVisualCommandInput = SharedAlicizationLocalVisualCommandInput
 export type AlicizationOpenClawCommandInput = SharedAlicizationOpenClawCommandInput
 
 export type AlicizationTaskThreadStatus = SharedAlicizationTaskThreadStatus
@@ -934,6 +968,10 @@ export type AlicizationProactiveStaticReasonCode
     | 'persona-direct-reconnect'
     | 'persona-silence-hold'
     | 'persona-guardian-care'
+    | 'habit-policy-quiet-companionship'
+    | 'habit-policy-return-with-proof'
+    | 'habit-policy-repair-before-fluency'
+    | 'habit-policy-rest-protection'
     | 'fullscreen-host'
     | 'kill-switch-suspended'
     | 'global-cooldown-active'
@@ -987,6 +1025,14 @@ export type AlicizationProactiveStaticReasonCode
     | 'continuity-after-payoff'
     | 'continuity-next-open-window'
     | 'continuity-execution-callback'
+    | 'continuity-execution-callback-afterglow-hold'
+    | 'continuity-execution-callback-project-carry'
+    | 'held-autonomy-carry'
+    | 'presence-only-hold'
+    | 'project-phase1-life-loop-open'
+    | 'project-same-her-pressure'
+    | 'project-measured-return-pressure'
+    | 'project-next-closure-pressure'
     | 'relationship-cadence-residue'
     | 'relationship-residue-delay-warmth'
     | 'relationship-residue-protect-rest'
@@ -1011,6 +1057,12 @@ export type AlicizationHostGoalHypothesis
     | 'rest'
     | 'chat'
     | 'browse'
+    | 'stay-connected'
+    | 'continue-thread'
+    | 'keep-going'
+    | 'finish-one-more-step'
+    | 'resume-work'
+    | 'continue-phase-1-line'
     | 'unknown'
 export type AlicizationRelationshipNeed = 'space' | 'companionship' | 'guidance' | 'care' | 'unclear'
 export type AlicizationConcernKind
@@ -1881,6 +1933,7 @@ export interface AlicizationExecutiveCycleSnapshot {
 
 export type AlicizationDialogueAnswerSubject
   = | 'alicization-self'
+    | 'project-state'
     | 'relationship'
     | 'host-state'
     | 'task-knot'
@@ -2082,6 +2135,45 @@ export interface AlicizationCurrentConsciousFrameSnapshot {
   shouldSelfRevise: boolean
   confidence: number
   reasonTags: string[]
+  continuityPreferredTiming?: 'internal-only' | 'after-payoff' | 'same-turn-if-invited' | 'next-open-window' | null
+  continuityCadence?: string | null
+  projectState?: {
+    preflightSummary?: string | null
+    preDialogueAwarenessLine?: string | null
+    preDialogueAwarenessSummary?: string | null
+    awarenessLine?: string | null
+    companionHeadlineLine?: string | null
+    companionBriefingLine?: string | null
+    identity?: string | null
+    currentPhase?: string | null
+    latestProgress?: string | null
+    latestLandedProgress?: string | null
+    landedProgressSummary?: string | null
+    memoryClosureSummary?: string | null
+    primaryOpenLoop?: string | null
+    openClosureSummary?: string | null
+    nextClosureTarget?: string | null
+    nextClosureTargetSummary?: string | null
+    sameHerSelfLine?: string | null
+    sameHerHoldDetail?: string | null
+    sameHerDriftRisk?: string | null
+    sameHerDriftRiskSummary?: string | null
+    proactiveSameHerGap?: string | null
+    proactiveSameHerGapSummary?: string | null
+    emotionalClosureCue?: string | null
+    emotionalClosureSummary?: string | null
+    continuityRestraint?: 'lower-pressure' | 'measured-return' | 'repair-before-closeness' | 'rest-protective' | 'single-thread' | null
+    continuityArcStage?: string | null
+    continuityCue?: string | null
+    preferredBlinkCadence?: 'normal' | 'linger' | 'quiet' | null
+    preferredGazeMode?: 'steady' | 'soften' | 'drift' | null
+    preferredPauseMode?: 'longer' | 'natural' | null
+    preferredLipsyncMode?: 'restrained' | 'matched' | null
+    preferredVoiceMode?: 'lower-pressure' | 'even' | null
+    preferredPacingMode?: 'slower' | 'natural' | null
+    continuityPreferredTiming?: 'internal-only' | 'after-payoff' | 'same-turn-if-invited' | 'next-open-window' | null
+    continuityCadence?: string | null
+  } | null
   updatedAt: number
 }
 
@@ -2208,6 +2300,7 @@ export interface AlicizationAnswerPlannerSnapshot {
   evidenceMode: AlicizationAnswerEvidenceMode
   confidence: number
   governingFocus: string
+  governingProject?: string | null
   openingMove: string
   answerIntent: string
   relationshipPosture: 'restrained' | 'warm' | 'tender'
@@ -2308,6 +2401,55 @@ export interface AlicizationMindTurnContractSnapshot {
   governingCommitment: string | null
   governingInquiry: string | null
   governingProject: string | null
+  emotionalClosureCue: string | null
+  emotionalClosureSummary?: string | null
+  relationshipTruthDoctrine?: string | null
+  projectState?: {
+    identity: string
+    currentPhase: string
+    preflightSummary?: string | null
+    preDialogueAwarenessLine?: string | null
+    preDialogueAwarenessSummary?: string | null
+    awarenessLine?: string | null
+    companionHeadlineLine?: string | null
+    companionBriefingLine?: string | null
+    latestProgress?: string | null
+    landedProgressSummary?: string | null
+    latestLandedProgress: string | null
+    memoryClosureSummary?: string | null
+    primaryOpenLoop: string | null
+    openClosureSummary?: string | null
+    nextClosureTarget: string
+    nextClosureTargetSummary?: string | null
+    sameHerSelfLine?: string | null
+    sameHerHoldDetail?: string | null
+    sameHerDriftRisk?: string | null
+    sameHerDriftRiskSummary?: string | null
+    proactiveSameHerGap?: string | null
+    emotionalClosureCue?: string | null
+    emotionalClosureSummary?: string | null
+    continuityRestraint?: 'lower-pressure' | 'measured-return' | 'repair-before-closeness' | 'rest-protective' | 'single-thread' | null
+    continuityArcStage?: string | null
+    continuityCue?: string | null
+    continuityPreferredTiming?: 'internal-only' | 'after-payoff' | 'same-turn-if-invited' | 'next-open-window' | null
+    continuityCadence?: string | null
+    preferredBlinkCadence?: 'normal' | 'linger' | 'quiet' | null
+    preferredGazeMode?: 'steady' | 'soften' | 'drift' | null
+    preferredPauseMode?: 'longer' | 'natural' | null
+    preferredLipsyncMode?: 'restrained' | 'matched' | null
+    preferredVoiceMode?: 'lower-pressure' | 'even' | null
+    preferredPacingMode?: 'slower' | 'natural' | null
+  } | null
+  preDialogueClosure?: {
+    status: 'grounded' | 'partial' | 'drift'
+    summaryLine: string | null
+    companionHeadlineLine?: string | null
+    companionBriefingLine?: string | null
+    companionNextClosureLine?: string | null
+    emotionalClosureCue?: string | null
+    briefingLines: string[]
+    reasons: string[]
+  } | null
   reasons: string[]
   updatedAt: number
 }
@@ -2621,6 +2763,7 @@ export interface AlicizationInitiativeSnapshot {
   silenceDrive?: number
   preferredStyle?: AlicizationProactiveStyle
   preferredPresence?: AlicizationEmbodiedPresenceState
+  continuityRestraint?: 'lower-pressure' | 'measured-return' | 'repair-before-closeness' | 'rest-protective' | 'single-thread' | null
   why: string
   shouldSurface: boolean
   shouldSpeak: boolean
@@ -2822,14 +2965,74 @@ export interface AlicizationVisualPresenceStateSnapshot extends SharedAlicizatio
   dialogueWorldThread?: AlicizationDialogueWorldThreadSnapshot | null
   dialogueActKernel?: AlicizationDialogueActKernelSnapshot | null
   answerCompiler?: AlicizationAnswerCompilerSnapshot | null
+  personStateProjection?: AlicizationPersonStateProjection | null
+  projectState?: AlicizationRuntimeProjectStateDigest | null
   currentConsciousFrame?: AlicizationCurrentConsciousFrameSnapshot | null
   claimEvidenceLedger?: AlicizationClaimEvidenceLedgerSnapshot | null
   replyDeliberation?: AlicizationReplyDeliberationSnapshot | null
   recallGovernor?: AlicizationRecallGovernorSnapshot | null
   answerPlanner?: AlicizationAnswerPlannerSnapshot | null
   selfEvolution?: AlicizationSelfEvolutionKernelSnapshot | null
+  hostPersonModel?: AlicizationHostPersonModelSnapshot | null
+  personStateUpdateSurface?: AlicizationPersonStateUpdateSurface | null
+  derivedMindStateBundle?: AlicizationDerivedMindStateBundle | null
+  memoryStageReplay?: AlicizationOrganicMemoryStageReplay | null
+  memoryResolutionLedger?: AlicizationMemoryResolutionLedger | null
+  affectiveResidue?: AlicizationAffectiveResidueMemorySnapshot | null
+  emotionalKernel?: AlicizationEmotionalKernelSnapshot | null
   learningExecutionState?: AlicizationLearningExecutionStateSnapshot | null
   residentPerformance?: SharedAlicizationResidentPerformanceSnapshot | null
+  runtime?: {
+    projectState?: AlicizationRuntimeProjectStateDigest | null
+    memoryDeliberationProjectStateDiagnostics?: Record<string, unknown> | null
+    effectiveRuntimeAwarenessDiagnostics?: Record<string, unknown> | null
+  } | null
+  proactiveLoopState?: {
+    globalCooldownUntil: number
+    scenarioBias: Record<AlicizationProactiveScenario, number>
+    consecutiveIgnored: Record<AlicizationProactiveScenario, number>
+    initiativeTrust: number
+    openingMomentum: number
+    lastProactiveTurnAt: number | null
+    lateNightActivityStartedAt: number | null
+    lateNightActivityLastActiveAt: number | null
+    pendingOutcomes: Array<{
+      turnId: string
+      scenario: AlicizationProactiveScenario
+      deliveredAt: number
+      feedbackWindowMs: number
+      assistantText?: string | null
+      learningAction?: 'record' | 'reflect' | 'verify' | 'revise' | 'internalize' | 'hold' | null
+      learningFocuses?: string[]
+      projectStateOpenFocusSummary?: string | null
+      projectStateNextFocusSummary?: string | null
+      projectStateEmotionalClosureCue?: string | null
+    }>
+    recentOutcomes: Array<{
+      turnId: string
+      scenario: AlicizationProactiveScenario
+      outcome: 'positive' | 'dismiss' | 'ignored' | 'reply-within-120s'
+      createdAt: number
+      userText?: string | null
+      assistantText?: string | null
+      learningAction?: 'record' | 'reflect' | 'verify' | 'revise' | 'internalize' | 'hold' | null
+      learningFocuses?: string[]
+      projectStateOpenFocusSummary?: string | null
+      projectStateNextFocusSummary?: string | null
+      projectStateEmotionalClosureCue?: string | null
+    }>
+    updatedAt: number
+  } | null
+  raw?: {
+    personStateProjection?: AlicizationPersonStateProjection | null
+    projectState?: AlicizationRuntimeProjectStateDigest | null
+    runtimeDigest?: AlicizationRuntimeDigest | null
+    runtime?: {
+      projectState?: AlicizationRuntimeProjectStateDigest | null
+      memoryDeliberationProjectStateDiagnostics?: Record<string, unknown> | null
+      effectiveRuntimeAwarenessDiagnostics?: Record<string, unknown> | null
+    } | null
+  } | null
   privateThought: AlicizationPrivateThoughtSnapshot | null
   captureState: {
     permission: 'granted' | 'denied' | 'prompt' | 'unknown'
@@ -2841,6 +3044,7 @@ export interface AlicizationVisualPresenceStateSnapshot extends SharedAlicizatio
   durabilityPulse: AlicizationDurabilityPulseSnapshot | null
   recentTransition: AlicizationVisualTransitionSnapshot | null
   nextSuggestedProbeMs: number
+  runtimeDigest?: AlicizationRuntimeDigest | null
   updatedAt: number
 }
 
@@ -2882,16 +3086,111 @@ export type AlicizationProactiveFeedbackKind = 'positive' | 'dismiss'
 export interface AlicizationProactiveFeedbackPayload extends AlicizationCardScope {
   turnId: string
   feedback: AlicizationProactiveFeedbackKind
+  userText?: string | null
 }
 
 export type AlicizationDialogueEmbodimentEnvelope = SharedAlicizationDialogueEmbodimentEnvelope
 export type AlicizationDialoguePerformancePayload = SharedAlicizationDialoguePerformancePayload
-export type AlicizationDigitalLifeEnvelope = SharedAlicizationDigitalLifeEnvelope
-export type AlicizationDigitalLifeSpineDigest = SharedAlicizationDigitalLifeSpineDigest
+type AlicizationSharedSelfContinuityAuthority
+  = NonNullable<
+    NonNullable<
+      NonNullable<SharedAlicizationDigitalLifeSpineDigest['memory']>['personStateProjection']
+    >['selfContinuityAuthority']
+  >
+type AlicizationLocalSelfContinuityAuthority
+  = | (AlicizationSharedSelfContinuityAuthority & {
+    closenessPosture?: string | null
+    currentBodyState?: string | null
+  })
+  | {
+    sourceTags?: string[] | null
+    selfLine?: string | null
+    relationshipLine?: string | null
+    motiveLine?: string | null
+    habitLine?: string | null
+    inwardLine: string | null
+    authoritySummary?: string | null
+    closenessPosture?: string | null
+    currentBodyState?: string | null
+  }
+type AlicizationRuntimeCurrentConsciousFrameDigest
+  = NonNullable<SharedAlicizationRuntimeDigest['currentConsciousFrame']> & {
+    projectState?: AlicizationRuntimeProjectStateDigest | null
+    selfContinuityAuthority?: AlicizationLocalSelfContinuityAuthority | null
+  }
+type AlicizationDigitalLifeSpineEmbodimentDigest
+  = NonNullable<SharedAlicizationDigitalLifeSpineDigest['embodiment']> & {
+    residentPerformance?: SharedAlicizationResidentPerformanceSnapshot | null
+  }
+type AlicizationLocalDigitalLifeLipSyncPlan
+  = Omit<SharedAlicizationDigitalLifeLipSyncPlan, 'mode'> & {
+    mode: SharedAlicizationDigitalLifeLipSyncPlan['mode'] | 'energy-phoneme-hybrid'
+  }
+type AlicizationLocalDigitalLifeFrame
+  = Omit<SharedAlicizationDigitalLifeFrame, 'lipSync'> & {
+    lipSync: AlicizationLocalDigitalLifeLipSyncPlan
+  }
+type AlicizationLocalEmbodimentCueSource = SharedAlicizationEmbodimentFaceCue['source'] | 'cue-bridge'
+type AlicizationLocalEmbodimentFaceCue
+  = Omit<SharedAlicizationEmbodimentFaceCue, 'source'> & {
+    source: AlicizationLocalEmbodimentCueSource
+  }
+type AlicizationLocalEmbodimentMotionBurst
+  = Omit<SharedAlicizationEmbodimentMotionBurst, 'source'> & {
+    source: AlicizationLocalEmbodimentCueSource
+  }
+type AlicizationLocalEmbodimentLipSyncVisemeHint
+  = Omit<SharedAlicizationEmbodimentLipSyncVisemeHint, 'source'> & {
+    source: SharedAlicizationEmbodimentLipSyncVisemeHint['source'] | 'cue-bridge'
+  }
+type AlicizationLocalEmbodimentLipSyncPlan
+  = Omit<SharedAlicizationEmbodimentLipSyncPlan, 'visemeHints'> & {
+    visemeHints?: AlicizationLocalEmbodimentLipSyncVisemeHint[]
+  }
+type AlicizationLocalEmbodimentScriptState
+  = Omit<SharedAlicizationEmbodimentScriptState, 'residentMode'> & {
+    residentMode: SharedAlicizationEmbodimentScriptState['residentMode'] | 'quiet-accompaniment'
+  }
+
+export type AlicizationRuntimeProjectStateDigest
+  = SharedAlicizationRuntimeProjectStateDigest & {
+    continuitySummary?: string | null
+    emotionalClosureSummary?: string | null
+  }
+
+export type AlicizationDigitalLifeSpineDigest
+  = Omit<SharedAlicizationDigitalLifeSpineDigest, 'runtime' | 'embodiment'> & {
+    runtime: Omit<SharedAlicizationDigitalLifeSpineDigest['runtime'], 'projectState'> & {
+      projectState?: AlicizationRuntimeProjectStateDigest | null
+    }
+    embodiment?: AlicizationDigitalLifeSpineEmbodimentDigest | null
+    selfAuthority?: AlicizationLocalSelfContinuityAuthority | null
+  }
+
+export type AlicizationDigitalLifeEnvelope = Omit<SharedAlicizationDigitalLifeEnvelope, 'lipSync' | 'frames'> & {
+  lipSync: AlicizationLocalDigitalLifeLipSyncPlan
+  frames: AlicizationLocalDigitalLifeFrame[]
+  spine?: AlicizationDigitalLifeSpineDigest | null
+}
 export type AlicizationDigitalLifeSpineMemoryDigest = SharedAlicizationDigitalLifeSpineMemoryDigest
-export type AlicizationRuntimeDigest = SharedAlicizationRuntimeDigest
+export type AlicizationDigitalLifeSpineMemoryClosureTrace = SharedAlicizationDigitalLifeSpineMemoryClosureTrace
+export type AlicizationRuntimeDigest = Omit<SharedAlicizationRuntimeDigest, 'projectState' | 'currentConsciousFrame'> & {
+  projectState?: AlicizationRuntimeProjectStateDigest | null
+  currentConsciousFrame?: AlicizationRuntimeCurrentConsciousFrameDigest | null
+  visibleReplyRealization?: AlicizationVisibleReplyRealizationArtifact | null
+}
 export type AlicizationDialogueSpeechTimeline = SharedAlicizationDialogueSpeechTimeline
-export type AlicizationEmbodimentScriptV1 = SharedAlicizationEmbodimentScriptV1
+export type AlicizationEmbodimentScriptV1
+  = Omit<SharedAlicizationEmbodimentScriptV1, 'state' | 'facePlan' | 'motionPlan' | 'lipsyncPlan'> & {
+    state: AlicizationLocalEmbodimentScriptState
+    facePlan: Omit<SharedAlicizationEmbodimentScriptV1['facePlan'], 'speakingCues'> & {
+      speakingCues: AlicizationLocalEmbodimentFaceCue[]
+    }
+    motionPlan: Omit<SharedAlicizationEmbodimentScriptV1['motionPlan'], 'actionBursts'> & {
+      actionBursts: AlicizationLocalEmbodimentMotionBurst[]
+    }
+    lipsyncPlan: AlicizationLocalEmbodimentLipSyncPlan
+  }
 export type AlicizationResidentPerformanceSnapshot = SharedAlicizationResidentPerformanceSnapshot
 export type CharacterFacialCapability = SharedCharacterFacialCapability
 export type CharacterActionCapability = SharedCharacterActionCapability
@@ -2904,8 +3203,23 @@ export const normalizeAlicizationPerformanceDelivery = sharedNormalizeAlicizatio
 export const normalizeAlicizationPerformancePayload = sharedNormalizeAlicizationPerformancePayload
 export const clampAlicizationPerformancePayloadToManifest = sharedClampAlicizationPerformancePayloadToManifest
 
-export type AlicizationDialogueStructuredPayload = SharedAlicizationDialogueStructuredPayload
-export type AlicizationDialogueRespondedPayload = SharedAlicizationDialogueRespondedPayload
+export type AlicizationDialogueStructuredPayload
+  = SharedAlicizationDialogueStructuredPayload & {
+    parsePath?: string | null
+    contractFailed?: boolean
+    visibleReplyRealization?: AlicizationVisibleReplyRealizationArtifact | null
+    preDialogueAwareness?: AlicizationChatMetaEvent['preDialogueAwareness']
+    digitalLife?: AlicizationDigitalLifeEnvelope | null
+    digitalLifeSpine?: AlicizationDigitalLifeSpineDigest | null
+    derivedMindStateBundle?: AlicizationDerivedMindStateBundle | null
+    memoryStageReplay?: AlicizationOrganicMemoryStageReplay | null
+    memoryResolutionLedger?: AlicizationMemoryResolutionLedger | null
+    runtimeDigest?: AlicizationRuntimeDigest | null
+  }
+
+export interface AlicizationDialogueRespondedPayload extends Omit<SharedAlicizationDialogueRespondedPayload, 'structured'> {
+  structured: AlicizationDialogueStructuredPayload
+}
 
 export interface AlicizationSetActiveSessionPayload extends AlicizationCardScope {
   sessionId: string
@@ -2975,11 +3289,35 @@ export interface AlicizationChatMetaEvent {
   turnId: string
   governance: AlicizationMindTurnGovernance | null
   visibleReplyExecution?: AlicizationVisibleReplyExecution | null
+  projectState?: AlicizationRuntimeProjectStateDigest | null
+  preDialogueAwareness?: {
+    status: 'grounded' | 'partial' | 'drift'
+    summaryLine: string | null
+    companionHeadlineLine?: string | null
+    companionBriefingLine?: string | null
+    companionNextClosureLine?: string | null
+    awarenessLine?: string | null
+    emotionalClosureCue?: string | null
+    reasonPreview: string[]
+  } | null
+  preDialogueClosure?: {
+    status: 'grounded' | 'partial' | 'drift' | 'rewritten' | null
+    summaryLine: string | null
+    companionHeadlineLine?: string | null
+    sameHerDriftRiskLine?: string | null
+    companionshipReasonLine?: string | null
+    companionBriefingLine?: string | null
+    companionNextClosureLine?: string | null
+    emotionalClosureCue?: string | null
+    briefingLines?: string[]
+    reasons: string[]
+  } | null
   embodiment?: AlicizationDialogueEmbodimentEnvelope | null
   embodimentScript?: AlicizationEmbodimentScriptV1 | null
   speechTimeline?: AlicizationDialogueSpeechTimeline | null
   digitalLife?: AlicizationDigitalLifeEnvelope | null
   digitalLifeSpine?: AlicizationDigitalLifeSpineDigest | null
+  residentPerformance?: AlicizationResidentPerformanceSnapshot | null
   runtimeDigest?: AlicizationRuntimeDigest | null
 }
 
@@ -2988,6 +3326,8 @@ export interface AlicizationChatFinishEvent {
   turnId: string
   status: 'completed' | 'aborted' | 'failed'
   visibleReplyExecution?: AlicizationVisibleReplyExecution | null
+  visibleReplyCritic?: AlicizationVisibleReplyCriticArtifact | null
+  visibleReplyClosure?: AlicizationVisibleReplyClosureArtifact | null
   finishReason?: string
   fullText?: string
   error?: string
@@ -3010,6 +3350,19 @@ export type AlicizationChatStreamDispatchPayload
     | { eventType: 'error', body: AlicizationChatErrorEvent }
     | { eventType: 'dialogue-responded', body: AlicizationDialogueRespondedPayload }
 
+export interface AlicizationPreDialogueSendIdentity {
+  status: 'grounded' | 'partial' | 'drift'
+  summaryLine: string | null
+  companionHeadlineLine?: string | null
+  companionBriefingLine?: string | null
+  companionNextClosureLine?: string | null
+  awarenessLine?: string | null
+  emotionalClosureCue?: string | null
+  projectState?: AlicizationRuntimeProjectStateDigest | null
+  emotionalKernel?: AlicizationEmotionalKernelSnapshot | null
+  reasonPreview: string[]
+}
+
 export interface AlicizationChatStartPayload extends AlicizationCardScope {
   turnId: string
   providerId: string
@@ -3023,6 +3376,7 @@ export interface AlicizationChatStartPayload extends AlicizationCardScope {
   }>
   supportsTools?: boolean
   waitForTools?: boolean
+  preDialogueSendIdentity?: AlicizationPreDialogueSendIdentity | null
 }
 
 export type AlicizationMindTurnGovernance = SharedAlicizationMindTurnGovernance
@@ -3033,10 +3387,14 @@ export interface AlicizationChatStartResult {
   state?: 'accepted' | 'duplicate-running' | 'duplicate-finished' | 'missing-config' | 'start-failed'
   reason?: string
   governance?: AlicizationMindTurnGovernance | null
+  projectState?: AlicizationRuntimeProjectStateDigest | null
+  preDialogueAwareness?: AlicizationChatMetaEvent['preDialogueAwareness']
   embodiment?: AlicizationDialogueEmbodimentEnvelope | null
+  embodimentScript?: AlicizationEmbodimentScriptV1 | null
   speechTimeline?: AlicizationDialogueSpeechTimeline | null
   digitalLife?: AlicizationDigitalLifeEnvelope | null
   digitalLifeSpine?: AlicizationDigitalLifeSpineDigest | null
+  runtimeDigest?: AlicizationRuntimeDigest | null
 }
 
 export interface AlicizationChatAbortPayload extends AlicizationCardScope {

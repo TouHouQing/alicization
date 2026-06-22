@@ -12,8 +12,6 @@ import type {
   AlicizationSoulUpdatePayload,
 } from '../../../shared/eventa'
 
-import { compilePersonaWorkshopAuthority } from './persona-workshop-compiler'
-
 import {
   electronAlicizationBootstrap,
   electronAlicizationGetSensorySnapshot,
@@ -26,6 +24,9 @@ import {
   electronAlicizationUpdatePersonality,
   electronAlicizationUpdateSoul,
 } from '../../../shared/eventa'
+import { deriveAlicizationRuntimeSnapshot, projectAlicizationRuntimeDigest } from './alicization-runtime-architecture'
+import { deriveAlicizationDigitalLifeSpine } from './digital-life-spine'
+import { compilePersonaWorkshopAuthority } from './persona-workshop-compiler'
 import { deriveSensoryCaptureSnapshotFromDiagnostics } from './sensory-capture'
 
 interface RegisterAlicizationSoulStateInvokeHandlersOptions {
@@ -263,6 +264,21 @@ export function registerAlicizationSoulStateInvokeHandlers(options: RegisterAlic
   })
 
   registerInvokeHandler(electronAlicizationGetVisualPresenceState, async (scope: AlicizationCardScope) => {
-    return await withCardScope(cardIdFrom(scope), async () => await ensureVisualPresenceState(getActiveCardId()))
+    const targetCardId = cardIdFrom(scope)
+    return await withCardScope(targetCardId, async () => {
+      const state = await ensureVisualPresenceState(targetCardId) as Record<string, unknown> | null
+      if (!state || typeof state !== 'object')
+        return state
+
+      const runtimeDigest = projectAlicizationRuntimeDigest(
+        deriveAlicizationRuntimeSnapshot({
+          spine: deriveAlicizationDigitalLifeSpine(state as any),
+        }),
+      )
+      return {
+        ...state,
+        runtimeDigest,
+      }
+    })
   })
 }
