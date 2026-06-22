@@ -22,6 +22,7 @@ import type {
   AlicizationGenesisInput,
   AlicizationMindHeadKey,
   AlicizationPersonalityState,
+  AlicizationPresenceExpressionSnapshot,
   AlicizationPresencePulsePayload,
   AlicizationProactiveMetadata,
   AlicizationProactiveReasonCode,
@@ -208,6 +209,7 @@ import {
 } from './outcome-reinforcement'
 import { buildAlicizationPersonStateProjection } from './person-state-projection'
 import { mergePreferredSelfContinuityAuthority } from './person-state-projection-resolution'
+import { buildAlicizationPresenceExpression } from './presence-expression'
 import { progressProactiveCadenceState } from './proactive-cadence'
 import {
   createDefaultProactiveLoopState,
@@ -2836,6 +2838,122 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     resolveProactiveScreenSemanticSummary,
   } = mainGatewayOneShotRuntime
   const mainGatewayTextProvider: AlicizationMainGatewayTextProvider = generateMainGatewayText
+  function buildPresenceExpressionGroundingPayload(input: {
+    now: number
+    trigger: AlicizationPresenceExpressionSnapshot['trigger']
+    previousState: AlicizationVisualPresenceStateSnapshot | null
+    state: AlicizationVisualPresenceStateSnapshot
+  }) {
+    const state = input.state
+    const previousState = input.previousState
+    return {
+      trigger: input.trigger,
+      now: input.now,
+      body: {
+        currentBodyState: state.currentBodyState,
+        continuityMode: state.continuityMode,
+        quietLineMs: state.quietLineMs,
+        currentInwardPreoccupation: sanitizeBriefText(state.currentInwardPreoccupation ?? '', 180) || null,
+      },
+      privateThought: state.privateThought
+        ? {
+            stance: state.privateThought.stance,
+            thoughtText: sanitizeBriefText(state.privateThought.thoughtText ?? '', 180) || null,
+            shouldSpeak: state.privateThought.shouldSpeak === true,
+            suggestedStyle: state.privateThought.suggestedStyle,
+            embodiedPresence: state.privateThought.embodiedPresence,
+            emotionalTension: sanitizeBriefText(state.privateThought.emotionalTension ?? '', 120) || null,
+            rationaleTags: state.privateThought.rationaleTags.slice(0, 8),
+          }
+        : null,
+      emotionalKernel: state.emotionalKernel
+        ? {
+            dominantEmotion: state.emotionalKernel.dominantEmotion,
+            initiativeMode: state.emotionalKernel.initiativeMode,
+            memoryRecallMode: state.emotionalKernel.memoryRecallMode,
+            embodimentTone: state.emotionalKernel.embodimentTone,
+            guardedness: state.emotionalKernel.guardedness,
+            closenessDrive: state.emotionalKernel.closenessDrive,
+            repairNeed: state.emotionalKernel.repairNeed,
+            why: sanitizeBriefText(state.emotionalKernel.why ?? '', 220) || null,
+            reasonTags: state.emotionalKernel.reasonTags.slice(0, 8),
+          }
+        : null,
+      initiative: state.initiative
+        ? {
+            selectedAction: state.initiative.selectedAction,
+            preferredStyle: state.initiative.preferredStyle,
+            preferredPresence: state.initiative.preferredPresence,
+            shouldSpeak: state.initiative.shouldSpeak === true,
+            speakDrive: state.initiative.speakDrive,
+            silenceDrive: state.initiative.silenceDrive,
+            continuityRestraint: state.initiative.continuityRestraint,
+            why: sanitizeBriefText(state.initiative.why ?? '', 220) || null,
+          }
+        : null,
+      affectiveResidue: state.affectiveResidue
+        ? {
+            dominantResidueKind: state.affectiveResidue.dominantResidueKind,
+            summary: sanitizeBriefText(state.affectiveResidue.summary ?? '', 180) || null,
+            relationshipCadence: state.affectiveResidue.relationshipCadence ?? null,
+          }
+        : null,
+      previous: previousState
+        ? {
+            currentBodyState: previousState.currentBodyState,
+            continuityMode: previousState.continuityMode,
+            currentInwardPreoccupation: sanitizeBriefText(previousState.currentInwardPreoccupation ?? '', 160) || null,
+          }
+        : null,
+    }
+  }
+
+  async function generatePresenceExpressionWithGateway(input: {
+    state: AlicizationVisualPresenceStateSnapshot
+    previousState: AlicizationVisualPresenceStateSnapshot | null
+    trigger: AlicizationPresenceExpressionSnapshot['trigger']
+    now: number
+  }) {
+    const raw = await mainGatewayTextProvider({
+      system: [
+        '[ALICIZATION_PRESENCE_EXPRESSION]',
+        'Write Alicization\'s inward near-body presence expression from the provided internal state.',
+        'This is not a visible proactive interruption and not a chat reply. It may only appear as a short near-body whisper if runtime validation accepts it.',
+        'The line should feel authored by a real inner life in this exact moment, not selected from a template.',
+        'Output valid JSON only with keys: text, confidence.',
+        'text must be one short lived line. Keep it under 80 characters. No markdown.',
+        'Do not use fixed templates, canned reassurance, or these exact rejected lines: 我在旁边，先不打扰你。 / 这条线我还记着，先轻一点。',
+        'Do not mention project status, modules, Phase 1, runtime, debug, visualPresenceState, prompt, JSON, or internal labels.',
+        'Do not ask the host to do anything. No instructions, no suggestions, no questions.',
+        'Let the wording come from memory, emotion, initiative, and body state. If the state is too thin, return {"text":"","confidence":0}.',
+      ].join('\n'),
+      user: `Presence grounding JSON: ${JSON.stringify(buildPresenceExpressionGroundingPayload(input))}`,
+      timeoutMs: 8_000,
+      source: 'proactive',
+      cardId: activeCardId,
+      injectCustomDirectives: false,
+      injectPerformanceManifest: false,
+      digitalLifeRuntimeSurface: buildAlicizationDigitalLifeRuntimeSurface(input.state),
+    }).catch(() => null)
+    if (!raw)
+      return null
+
+    const parsed = parseJsonObjectFromText(raw)
+    if (!parsed)
+      return null
+
+    const text = typeof parsed.text === 'string'
+      ? sanitizeBriefText(parsed.text, 120)
+      : ''
+    if (!text)
+      return null
+
+    return {
+      text,
+      confidence: clamp01(Number(parsed.confidence ?? 0.7)),
+    }
+  }
+
   async function resolveMemoryGatewayDigitalLifeRuntimeSurface(cardIdRaw: unknown) {
     const cardId = normalizeCardId(cardIdRaw)
     const readRuntimeSurface = async () => {
@@ -7675,6 +7793,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     buildMindContinuityRecallSeed,
     getOrganicMemorySnapshot,
     resolveOrganicMemoryPromptContext,
+    generatePresenceExpression: generatePresenceExpressionWithGateway,
     generateProactiveStructuredWithGateway,
     buildProactiveStructured,
     getPerformanceManifest,
@@ -8204,6 +8323,30 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     rememberPerceptionObservation,
     getActiveCardId: () => activeCardId,
     ensureVisualPresenceState,
+    refreshVisualPresenceForStartupRestore: async ({ cardId, state }) => {
+      const currentTs = Date.now()
+      const visualPresenceState = state as unknown as AlicizationVisualPresenceStateSnapshot
+      if ((visualPresenceState.presenceExpression?.display?.expiresAt ?? 0) > currentTs)
+        return state
+
+      const expression = await buildAlicizationPresenceExpression({
+        now: currentTs,
+        trigger: 'startup-restore',
+        previousState: null,
+        state: visualPresenceState,
+        generate: generatePresenceExpressionWithGateway,
+      })
+      if (!expression)
+        return state
+
+      const nextState = {
+        ...visualPresenceState,
+        presenceExpression: expression,
+        updatedAt: currentTs,
+      }
+      await persistVisualPresenceState(cardId, nextState)
+      return nextState as unknown as Record<string, unknown>
+    },
     getScreenCaptureDiagnosticsForWebContentsId,
   })
   registerAlicizationMemoryInvokeHandlers({

@@ -42,12 +42,12 @@ import {
   electronAlicizationListMemoryDecisionTraces,
   electronAlicizationListMindTurnEvents,
   electronAlicizationListPersonStateUpdates,
-  electronAlicizationRunReplayBenchmark,
   electronAlicizationLlmSyncConfig,
   electronAlicizationMemoryUpsertFacts,
   electronAlicizationPlanTaskThread,
   electronAlicizationReminderSchedule,
   electronAlicizationReportProactiveFeedback,
+  electronAlicizationRunReplayBenchmark,
   electronAlicizationSearchOrganicSubconsciousFragments,
   electronAlicizationSetActiveSession,
   electronAlicizationSetPerformanceManifest,
@@ -4191,9 +4191,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
       expect(callbackReply).toContain('小砖猿')
       expect(callbackReply).not.toContain('Listed entries')
       expect(callbackReply).not.toContain(encodedName)
-      const deliveryAudit = vi.mocked(dbStub.appendAuditLog).mock.calls
-        .map(call => call[0])
-        .find(entry => entry?.category === 'alicization.executor.delivery' && entry?.action === 'delivered')
+      const deliveryAudit = vi.mocked(dbStub.appendAuditLog).mock.calls.map(call => call[0]).find(entry => entry?.category === 'alicization.executor.delivery' && entry?.action === 'delivered')
       expect(deliveryAudit).toEqual(expect.objectContaining({
         category: 'alicization.executor.delivery',
         action: 'delivered',
@@ -4413,9 +4411,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     const callbackEvents = getDialogueRespondedEvents().filter(event => String(event.turnId).startsWith('execution-callback:'))
     expect(callbackEvents).toHaveLength(0)
 
-    const deliveryAudit = vi.mocked(dbStub.appendAuditLog).mock.calls
-      .map(call => call[0])
-      .find(entry => entry?.category === 'alicization.executor.delivery' && entry?.action === 'requeued-mind-authored-required')
+    const deliveryAudit = vi.mocked(dbStub.appendAuditLog).mock.calls.map(call => call[0]).find(entry => entry?.category === 'alicization.executor.delivery' && entry?.action === 'requeued-mind-authored-required')
     expect(deliveryAudit).toEqual(expect.objectContaining({
       category: 'alicization.executor.delivery',
       action: 'requeued-mind-authored-required',
@@ -4631,9 +4627,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     const tickResult = await forceTick!({ cardId: 'default' })
     expect(tickResult.proactiveTriggered).toHaveLength(0)
 
-    const deliveryAudit = vi.mocked(dbStub.appendAuditLog).mock.calls
-      .map(call => call[0])
-      .find(entry => entry?.category === 'alicization.executor.delivery' && entry?.action === 'requeued-mind-authored-required')
+    const deliveryAudit = vi.mocked(dbStub.appendAuditLog).mock.calls.map(call => call[0]).find(entry => entry?.category === 'alicization.executor.delivery' && entry?.action === 'requeued-mind-authored-required')
 
     expect(deliveryAudit).toEqual(expect.objectContaining({
       category: 'alicization.executor.delivery',
@@ -13052,6 +13046,108 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     // add another grounded capture-driven persist/emit for the unchanged screenshot state.
     expect(visualPresenceWritesAfterSecond).toHaveLength(visualPresenceWritesAfterFirst.length + 1)
     expect(visualPresenceEventsAfterSecond).toHaveLength(visualPresenceEventsAfterFirst.length + 1)
+  })
+
+  it('refreshes startup visual presence with a runtime-authored near-body expression', async () => {
+    const sandboxPath = await createSandboxPath()
+    const now = Date.now()
+    let presenceExpressionSystemText = ''
+    metaStore.set('visual_presence_state_v1', JSON.stringify({
+      currentBodyState: 'accompanying',
+      continuityMode: 'quiet-accompaniment',
+      quietLineMs: 180_000,
+      currentInwardPreoccupation: 'same-her lower-pressure return is being held quietly',
+      watchMode: 'mnemonic-passive',
+      privateThought: {
+        stance: 'accompany',
+        confidence: 0.84,
+        rationaleTags: ['same-her-inward-carry', 'quiet-companionship'],
+        thoughtText: 'The room should stay quieter before it opens again.',
+        shouldSpeak: false,
+        suggestedStyle: 'silent-observe',
+        embodiedPresence: 'attentive',
+        expiresAt: now + 60_000,
+        emotionalTension: 'soft-covision',
+      },
+      emotionalKernel: {
+        version: 'emotional-kernel-v1',
+        dominantEmotion: 'measured-companionship',
+        initiativeMode: 'observe',
+        memoryRecallMode: 'same-her-carry',
+        embodimentTone: 'measured-return',
+        valence: 0.36,
+        arousal: 0.22,
+        guardedness: 0.7,
+        closenessDrive: 0.44,
+        repairNeed: 0.16,
+        initiativePressure: 0.18,
+        reasonTags: ['measured-return', 'quiet-companionship'],
+        why: 'Memory, emotion, initiative, and body tone all prefer a softer return.',
+      },
+      initiative: {
+        shouldSpeak: false,
+        selectedAction: 'wait',
+        preferredStyle: 'silent-observe',
+        preferredPresence: 'attentive',
+        continuityRestraint: 'measured-return',
+        confidence: 0.82,
+        why: 'Stay near without pushing the host into a visible proactive interruption.',
+      },
+      presenceExpression: null,
+      updatedAt: now - 20_000,
+    }))
+
+    streamTextMock.mockImplementation(async ({ messages, onEvent }: { messages?: Array<{ role?: string, content?: unknown }>, onEvent?: (event: any) => Promise<void> | void }) => {
+      presenceExpressionSystemText = Array.isArray(messages)
+        ? messages
+            .filter(message => message.role === 'system')
+            .map(message => String(message.content ?? ''))
+            .join('\n\n')
+        : ''
+      await onEvent?.({
+        type: 'text-delta',
+        text: JSON.stringify({
+          text: '嗯，先让这里慢下来一点。',
+          confidence: 0.86,
+        }),
+      })
+      await onEvent?.({ type: 'finish', finishReason: 'stop' })
+    })
+
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    await invokeHandlers.get(electronAlicizationLlmSyncConfig)!({
+      activeProviderId: 'openai',
+      activeModelId: 'gpt-4o-mini',
+      providerCredentials: {
+        openai: {
+          apiKey: 'test-key',
+          baseUrl: 'https://api.openai.com/v1',
+        },
+      },
+    })
+
+    const getVisualPresenceState = invokeHandlers.get(electronAlicizationGetVisualPresenceState)
+    expect(getVisualPresenceState).toBeTypeOf('function')
+
+    const visualPresenceState = await getVisualPresenceState!({ cardId: 'default' })
+
+    expect(visualPresenceState?.presenceExpression).toEqual(expect.objectContaining({
+      version: 'presence-expression-v1',
+      trigger: 'startup-restore',
+      text: '嗯，先让这里慢下来一点。',
+    }))
+    expect(presenceExpressionSystemText).toContain('[ALICIZATION_PRESENCE_EXPRESSION]')
+    expect(presenceExpressionSystemText).toContain('not a visible proactive interruption')
+    expect(presenceExpressionSystemText).toContain('Output valid JSON only')
+
+    const stored = JSON.parse(String(metaStore.get('visual_presence_state_v1')))
+    expect(stored.presenceExpression).toEqual(expect.objectContaining({
+      trigger: 'startup-restore',
+      text: '嗯，先让这里慢下来一点。',
+    }))
   })
 
   it('hydrates hybrid subjective appraisal and initiative from grounded perception before speaking', async () => {
