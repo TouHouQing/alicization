@@ -44,6 +44,7 @@ import type {
   AlicizationMindSynthesisSnapshot,
   AlicizationMindTurnFrameSnapshot,
   AlicizationPersonaKernelMode,
+  AlicizationPresenceExpressionSnapshot,
   AlicizationPrivateThoughtSnapshot,
   AlicizationRecallGovernorSnapshot,
   AlicizationReflectionLedgerSnapshot,
@@ -239,6 +240,91 @@ function normalizePresenceAuthorityQuietLineMs(raw: unknown) {
 function normalizePresenceAuthorityCurrentInwardPreoccupation(raw: unknown) {
   const value = sanitizeText(raw, 160)
   return value || null
+}
+
+function normalizePresenceExpressionTrigger(
+  raw: unknown,
+): AlicizationPresenceExpressionSnapshot['trigger'] | null {
+  return raw === 'startup-restore'
+    || raw === 'state-shift'
+    || raw === 'presence-only-hold'
+    || raw === 'memory-carry-return'
+    ? raw
+    : null
+}
+
+function normalizePresenceExpression(raw: unknown, now: number): AlicizationPresenceExpressionSnapshot | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+    return null
+
+  const candidate = raw as Record<string, unknown>
+  const trigger = normalizePresenceExpressionTrigger(candidate.trigger)
+  const text = sanitizeText(candidate.text, 120)
+  const id = sanitizeText(candidate.id, 160)
+  const display = candidate.display && typeof candidate.display === 'object' && !Array.isArray(candidate.display)
+    ? candidate.display as Record<string, unknown>
+    : null
+  const grounding = candidate.grounding && typeof candidate.grounding === 'object' && !Array.isArray(candidate.grounding)
+    ? candidate.grounding as Record<string, unknown>
+    : null
+  const audit = candidate.audit && typeof candidate.audit === 'object' && !Array.isArray(candidate.audit)
+    ? candidate.audit as Record<string, unknown>
+    : null
+  const createdAt = Math.max(0, Math.floor(Number(display?.createdAt)))
+  const expiresAt = Math.max(0, Math.floor(Number(display?.expiresAt)))
+  const confidence = clamp01(Number(grounding?.confidence))
+  const sourceRefs = Array.isArray(grounding?.sourceRefs)
+    ? grounding.sourceRefs.map(item => sanitizeText(item, 64)).filter(Boolean).slice(0, 12)
+    : []
+  const reasonTags = Array.isArray(grounding?.reasonTags)
+    ? grounding.reasonTags.map(item => sanitizeText(item, 64)).filter(Boolean).slice(0, 12)
+    : []
+  const stateFingerprint = sanitizeText(grounding?.stateFingerprint, 180)
+  const qualityFlags = Array.isArray(audit?.qualityFlags)
+    ? audit.qualityFlags.map(item => sanitizeText(item, 64)).filter(Boolean).slice(0, 12)
+    : []
+
+  if (
+    candidate.version !== 'presence-expression-v1'
+    || !id
+    || !text
+    || !trigger
+    || display?.mode !== 'near-body-whisper'
+    || (display?.intensity !== 'barely-there' && display?.intensity !== 'soft')
+    || !Number.isFinite(createdAt)
+    || !Number.isFinite(expiresAt)
+    || expiresAt <= now
+    || expiresAt <= createdAt
+    || sourceRefs.length === 0
+    || !stateFingerprint
+  ) {
+    return null
+  }
+
+  return {
+    version: 'presence-expression-v1',
+    id,
+    text,
+    trigger,
+    display: {
+      mode: 'near-body-whisper',
+      allowAutoShow: display.allowAutoShow === true,
+      createdAt,
+      expiresAt,
+      intensity: display.intensity,
+    },
+    grounding: {
+      sourceRefs,
+      reasonTags,
+      stateFingerprint,
+      confidence,
+    },
+    audit: {
+      generated: audit?.generated === true,
+      withheldReason: sanitizeText(audit?.withheldReason, 160) || null,
+      qualityFlags,
+    },
+  }
 }
 
 function withResidentPerformance(state: AlicizationVisualPresenceStateSnapshot): AlicizationVisualPresenceStateSnapshot {
@@ -2287,6 +2373,7 @@ export function createDefaultVisualPresenceState(now = Date.now()): AlicizationV
     emotionalKernel: null,
     learningExecutionState: null,
     derivedMindStateBundle: null,
+    presenceExpression: null,
     runtime: null,
     raw: {
       personStateProjection: null,
@@ -2456,6 +2543,7 @@ export function normalizeVisualPresenceState(raw: unknown, now = Date.now()): Al
     = candidate.derivedMindStateBundle && typeof candidate.derivedMindStateBundle === 'object'
       ? candidate.derivedMindStateBundle as AlicizationDerivedMindStateBundle
       : null
+  base.presenceExpression = normalizePresenceExpression(candidate.presenceExpression, now)
   base.privateThought = candidate.privateThought && typeof candidate.privateThought === 'object'
     ? candidate.privateThought as AlicizationPrivateThoughtSnapshot
     : null
@@ -2804,6 +2892,7 @@ export function updateVisualPresenceState(input: {
   derivedMindStateBundle?: AlicizationDerivedMindStateBundle | null
   runtime?: AlicizationVisualPresenceStateSnapshot['runtime'] | null
   runtimeDigest?: AlicizationRuntimeDigest | null
+  presenceExpression?: AlicizationVisualPresenceStateSnapshot['presenceExpression']
   privateThought: AlicizationPrivateThoughtSnapshot | null
   captureState?: AlicizationVisualPresenceStateSnapshot['captureState']
   durabilityPulse?: AlicizationDurabilityPulseSnapshot | null
@@ -2969,6 +3058,9 @@ export function updateVisualPresenceState(input: {
     emotionalKernel,
     learningExecutionState: input.learningExecutionState ?? previousState.learningExecutionState ?? null,
     derivedMindStateBundle,
+    presenceExpression: input.presenceExpression === undefined
+      ? previousState.presenceExpression ?? null
+      : normalizePresenceExpression(input.presenceExpression, input.now),
     runtime,
     raw: {
       personStateProjection,

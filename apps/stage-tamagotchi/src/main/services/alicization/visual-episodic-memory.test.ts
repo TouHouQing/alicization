@@ -2253,4 +2253,100 @@ describe('visual episodic memory', () => {
       manifestationCadenceSummary: expect.stringContaining('measured-return'),
     }))
   })
+
+  it('normalizes a runtime-authored presence expression on visual presence state', () => {
+    const state = normalizeVisualPresenceState({
+      presenceExpression: {
+        version: 'presence-expression-v1',
+        id: 'presence-expression:restore:1',
+        text: 'A short grounded line from runtime.',
+        trigger: 'startup-restore',
+        display: {
+          mode: 'near-body-whisper',
+          allowAutoShow: true,
+          createdAt: 9_000,
+          expiresAt: 15_000,
+          intensity: 'soft',
+        },
+        grounding: {
+          sourceRefs: ['privateThought', 'emotionalKernel'],
+          reasonTags: ['recovering', 'protective-watch'],
+          stateFingerprint: 'recovering:protective-watch:9000',
+          confidence: 0.82,
+        },
+        audit: {
+          generated: true,
+          qualityFlags: [],
+        },
+      },
+    }, 10_000)
+
+    expect(state.presenceExpression).toEqual(expect.objectContaining({
+      version: 'presence-expression-v1',
+      id: 'presence-expression:restore:1',
+      text: 'A short grounded line from runtime.',
+      trigger: 'startup-restore',
+    }))
+    expect(state.presenceExpression?.display).toEqual(expect.objectContaining({
+      mode: 'near-body-whisper',
+      allowAutoShow: true,
+      intensity: 'soft',
+    }))
+  })
+
+  it('drops malformed or expired presence expressions during visual presence normalization', () => {
+    const malformed = normalizeVisualPresenceState({
+      presenceExpression: {
+        version: 'presence-expression-v1',
+        id: '',
+        text: '',
+        trigger: 'startup-restore',
+        display: {
+          mode: 'near-body-whisper',
+          allowAutoShow: true,
+          createdAt: 9_000,
+          expiresAt: 15_000,
+          intensity: 'soft',
+        },
+        grounding: {
+          sourceRefs: [],
+          reasonTags: [],
+          stateFingerprint: '',
+          confidence: 0,
+        },
+        audit: {
+          generated: true,
+          qualityFlags: [],
+        },
+      },
+    }, 10_000)
+    const expired = normalizeVisualPresenceState({
+      presenceExpression: {
+        version: 'presence-expression-v1',
+        id: 'presence-expression:expired',
+        text: 'already gone',
+        trigger: 'state-shift',
+        display: {
+          mode: 'near-body-whisper',
+          allowAutoShow: true,
+          createdAt: 1_000,
+          expiresAt: 2_000,
+          intensity: 'barely-there',
+        },
+        grounding: {
+          sourceRefs: ['privateThought'],
+          reasonTags: ['stale'],
+          stateFingerprint: 'old',
+          confidence: 0.8,
+        },
+        audit: {
+          generated: true,
+          qualityFlags: [],
+        },
+      },
+    }, 10_000)
+
+    expect(malformed.presenceExpression).toBeNull()
+    expect(expired.presenceExpression).toBeNull()
+  })
 })

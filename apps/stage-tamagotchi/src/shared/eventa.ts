@@ -2914,6 +2914,35 @@ export interface AlicizationPrivateThoughtSnapshot {
   livingWorldObjectId?: string | null
 }
 
+export interface AlicizationPresenceExpressionSnapshot {
+  version: 'presence-expression-v1'
+  id: string
+  text: string
+  trigger:
+    | 'startup-restore'
+    | 'state-shift'
+    | 'presence-only-hold'
+    | 'memory-carry-return'
+  display: {
+    mode: 'near-body-whisper'
+    allowAutoShow: boolean
+    createdAt: number
+    expiresAt: number
+    intensity: 'barely-there' | 'soft'
+  }
+  grounding: {
+    sourceRefs: string[]
+    reasonTags: string[]
+    stateFingerprint: string
+    confidence: number
+  }
+  audit: {
+    generated: boolean
+    withheldReason?: string | null
+    qualityFlags: string[]
+  }
+}
+
 export interface AlicizationVisualPresenceStateSnapshot extends SharedAlicizationPersistentPresenceAuthoritySnapshot {
   watchMode: AlicizationVisualWatchMode
   currentScene: AlicizationVisualSceneSnapshot | null
@@ -2982,6 +3011,7 @@ export interface AlicizationVisualPresenceStateSnapshot extends SharedAlicizatio
   emotionalKernel?: AlicizationEmotionalKernelSnapshot | null
   learningExecutionState?: AlicizationLearningExecutionStateSnapshot | null
   residentPerformance?: SharedAlicizationResidentPerformanceSnapshot | null
+  presenceExpression?: AlicizationPresenceExpressionSnapshot | null
   runtime?: {
     projectState?: AlicizationRuntimeProjectStateDigest | null
     memoryDeliberationProjectStateDiagnostics?: Record<string, unknown> | null
