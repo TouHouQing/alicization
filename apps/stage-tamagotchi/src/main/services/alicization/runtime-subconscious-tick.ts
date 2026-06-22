@@ -8,6 +8,7 @@ import { buildAlicizationEmotionalKernel } from './emotional-kernel'
 import { resolveAlicizationEmotionalTransitionDecay } from './emotional-ledger'
 import { adjustProactiveStyleFromHostPersonModel, inferHostSocialContextsFromText } from './host-social-guidance'
 import { resolveHumanlikeMemoryRecallSeedFromEventHistory } from './humanlike-memory-recall-seed'
+import { buildAlicizationPresenceExpression } from './presence-expression'
 import { applyProactiveMemoryBoundaryRestraint } from './proactive-memory-boundary'
 import { resolveAlicizationProactiveVisibleUtterance } from './proactive-mind/visible-utterance-realization'
 import {
@@ -1508,6 +1509,7 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
     listHumanlikeMemoryRecallEvents,
     getOrganicMemorySnapshot,
     resolveOrganicMemoryPromptContext,
+    generatePresenceExpression,
     generateProactiveStructuredWithGateway,
     buildProactiveStructured,
     getPerformanceManifest,
@@ -2950,8 +2952,24 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
               },
               activeConversation: false,
             })
-            await persistVisualPresenceState(activeCardId, nextPresenceStateWithBodyAuthority)
-            visualPresenceState = nextPresenceStateWithBodyAuthority
+            const presenceExpression = await buildAlicizationPresenceExpression({
+              now,
+              trigger: 'presence-only-hold',
+              previousState: persistedPresenceState,
+              state: nextPresenceStateWithBodyAuthority,
+              generate: generatePresenceExpression,
+            })
+            const nextPresenceStateWithExpression = presenceExpression
+              ? {
+                  ...nextPresenceStateWithBodyAuthority,
+                  presenceExpression,
+                }
+              : {
+                  ...nextPresenceStateWithBodyAuthority,
+                  presenceExpression: null,
+                }
+            await persistVisualPresenceState(activeCardId, nextPresenceStateWithExpression)
+            visualPresenceState = nextPresenceStateWithExpression
           }
           catch (error) {
             await appendAuditLog({
