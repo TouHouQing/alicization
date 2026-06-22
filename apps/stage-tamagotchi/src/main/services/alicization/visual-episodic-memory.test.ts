@@ -2258,8 +2258,8 @@ describe('visual episodic memory', () => {
     const state = normalizeVisualPresenceState({
       presenceExpression: {
         version: 'presence-expression-v1',
-        id: 'presence-expression:restore:1',
-        text: 'A short grounded line from runtime.',
+        id: '  presence-expression:restore:1  ',
+        text: '  A short grounded line from runtime.  ',
         trigger: 'startup-restore',
         display: {
           mode: 'near-body-whisper',
@@ -2269,29 +2269,43 @@ describe('visual episodic memory', () => {
           intensity: 'soft',
         },
         grounding: {
-          sourceRefs: ['privateThought', 'emotionalKernel'],
-          reasonTags: ['recovering', 'protective-watch'],
-          stateFingerprint: 'recovering:protective-watch:9000',
-          confidence: 0.82,
+          sourceRefs: [' privateThought ', '', 'emotionalKernel'],
+          reasonTags: [' recovering ', 'protective-watch'],
+          stateFingerprint: '  recovering:protective-watch:9000  ',
+          confidence: 1.82,
         },
         audit: {
           generated: true,
-          qualityFlags: [],
+          withheldReason: '  waiting for a quieter visual beat  ',
+          qualityFlags: ['  concise ', '', ' grounded '],
         },
       },
     }, 10_000)
 
-    expect(state.presenceExpression).toEqual(expect.objectContaining({
+    expect(state.presenceExpression).toEqual({
       version: 'presence-expression-v1',
       id: 'presence-expression:restore:1',
       text: 'A short grounded line from runtime.',
       trigger: 'startup-restore',
-    }))
-    expect(state.presenceExpression?.display).toEqual(expect.objectContaining({
-      mode: 'near-body-whisper',
-      allowAutoShow: true,
-      intensity: 'soft',
-    }))
+      display: {
+        mode: 'near-body-whisper',
+        allowAutoShow: true,
+        createdAt: 9_000,
+        expiresAt: 15_000,
+        intensity: 'soft',
+      },
+      grounding: {
+        sourceRefs: ['privateThought', 'emotionalKernel'],
+        reasonTags: ['recovering', 'protective-watch'],
+        stateFingerprint: 'recovering:protective-watch:9000',
+        confidence: 1,
+      },
+      audit: {
+        generated: true,
+        withheldReason: 'waiting for a quieter visual beat',
+        qualityFlags: ['concise', 'grounded'],
+      },
+    })
   })
 
   it('drops malformed or expired presence expressions during visual presence normalization', () => {
@@ -2345,8 +2359,93 @@ describe('visual episodic memory', () => {
         },
       },
     }, 10_000)
+    const invalidConfidence = normalizeVisualPresenceState({
+      presenceExpression: {
+        version: 'presence-expression-v1',
+        id: 'presence-expression:invalid-confidence',
+        text: 'confidence must be real',
+        trigger: 'state-shift',
+        display: {
+          mode: 'near-body-whisper',
+          allowAutoShow: true,
+          createdAt: 9_000,
+          expiresAt: 15_000,
+          intensity: 'soft',
+        },
+        grounding: {
+          sourceRefs: ['privateThought'],
+          reasonTags: ['invalid-confidence'],
+          stateFingerprint: 'invalid-confidence',
+          confidence: 'not-a-number',
+        },
+        audit: {
+          generated: true,
+          qualityFlags: [],
+        },
+      },
+    }, 10_000)
 
     expect(malformed.presenceExpression).toBeNull()
+    expect(expired.presenceExpression).toBeNull()
+    expect(invalidConfidence.presenceExpression).toBeNull()
+  })
+
+  it('renormalizes carried presence expressions during visual presence updates', () => {
+    const previousState = normalizeVisualPresenceState({
+      presenceExpression: {
+        version: 'presence-expression-v1',
+        id: 'presence-expression:carry',
+        text: 'still near enough to carry',
+        trigger: 'presence-only-hold',
+        display: {
+          mode: 'near-body-whisper',
+          allowAutoShow: true,
+          createdAt: 9_000,
+          expiresAt: 15_000,
+          intensity: 'barely-there',
+        },
+        grounding: {
+          sourceRefs: ['privateThought'],
+          reasonTags: ['carry'],
+          stateFingerprint: 'carry:9000',
+          confidence: 0.72,
+        },
+        audit: {
+          generated: true,
+          qualityFlags: [],
+        },
+      },
+    }, 10_000)
+
+    const carried = updateVisualPresenceState({
+      now: 12_000,
+      previousState,
+      watchMode: previousState.watchMode,
+      scene: previousState.currentScene,
+      attention: previousState.attention,
+      privateThought: previousState.privateThought,
+      captureState: previousState.captureState,
+      durabilityPulse: previousState.durabilityPulse,
+      recentTransition: previousState.recentTransition,
+      nextSuggestedProbeMs: previousState.nextSuggestedProbeMs,
+    })
+    const expired = updateVisualPresenceState({
+      now: 16_000,
+      previousState,
+      watchMode: previousState.watchMode,
+      scene: previousState.currentScene,
+      attention: previousState.attention,
+      privateThought: previousState.privateThought,
+      captureState: previousState.captureState,
+      durabilityPulse: previousState.durabilityPulse,
+      recentTransition: previousState.recentTransition,
+      nextSuggestedProbeMs: previousState.nextSuggestedProbeMs,
+    })
+
+    expect(carried.presenceExpression).toEqual(expect.objectContaining({
+      id: 'presence-expression:carry',
+      text: 'still near enough to carry',
+    }))
     expect(expired.presenceExpression).toBeNull()
   })
 })

@@ -272,7 +272,8 @@ function normalizePresenceExpression(raw: unknown, now: number): AlicizationPres
     : null
   const createdAt = Math.max(0, Math.floor(Number(display?.createdAt)))
   const expiresAt = Math.max(0, Math.floor(Number(display?.expiresAt)))
-  const confidence = clamp01(Number(grounding?.confidence))
+  const rawConfidence = Number(grounding?.confidence)
+  const confidence = clamp01(rawConfidence)
   const sourceRefs = Array.isArray(grounding?.sourceRefs)
     ? grounding.sourceRefs.map(item => sanitizeText(item, 64)).filter(Boolean).slice(0, 12)
     : []
@@ -293,6 +294,7 @@ function normalizePresenceExpression(raw: unknown, now: number): AlicizationPres
     || (display?.intensity !== 'barely-there' && display?.intensity !== 'soft')
     || !Number.isFinite(createdAt)
     || !Number.isFinite(expiresAt)
+    || !Number.isFinite(rawConfidence)
     || expiresAt <= now
     || expiresAt <= createdAt
     || sourceRefs.length === 0
@@ -3059,7 +3061,7 @@ export function updateVisualPresenceState(input: {
     learningExecutionState: input.learningExecutionState ?? previousState.learningExecutionState ?? null,
     derivedMindStateBundle,
     presenceExpression: input.presenceExpression === undefined
-      ? previousState.presenceExpression ?? null
+      ? normalizePresenceExpression(previousState.presenceExpression, input.now)
       : normalizePresenceExpression(input.presenceExpression, input.now),
     runtime,
     raw: {
