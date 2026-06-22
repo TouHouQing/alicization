@@ -2,10 +2,45 @@ function normalizeLaneEvidence(input: {
   authoritySummary?: string | null
   currentBodyState?: string | null
 }) {
-  return [
+  const normalizedInput = [
     typeof input.authoritySummary === 'string' ? input.authoritySummary.trim() : '',
     typeof input.currentBodyState === 'string' ? input.currentBodyState.trim() : '',
-  ].filter(Boolean).join(' | ')
+  ].filter(Boolean)
+
+  const normalizedTopLevelSameHerContinuitySummary = normalizedInput.flatMap((entry) => {
+    const topLevelSameHerContinuityLaneEvidence = resolveTopLevelSameHerContinuityLaneEvidence(entry)
+    return topLevelSameHerContinuityLaneEvidence ? [topLevelSameHerContinuityLaneEvidence] : []
+  })
+
+  return [...normalizedInput, ...normalizedTopLevelSameHerContinuitySummary].filter(Boolean).join(' | ')
+}
+
+function resolveTopLevelSameHerContinuityLaneEvidence(summary: string) {
+  const normalized = summary.trim()
+  if (!normalized || !normalized.startsWith('当前 same-her continuity 主要由'))
+    return null
+
+  if (
+    normalized.includes('处在 voice-lipsync-carry')
+    || normalized.includes('身体、表情、动作 还没重新接回')
+    || normalized.includes('表情、动作、身体 还没重新接回')
+  ) {
+    return 'continuity=embodiment:audible-same-her-line | lane=lipsync+voice-only | living audio thread | pending-rejoin=body+face+motion | remaining-open=body+face+motion'
+  }
+
+  if (normalized.includes('处在 audible-body-carry') || normalized.includes('表情、动作 还没重新接回')) {
+    return 'continuity=embodiment:audible-same-her-line | lane=body+lipsync+voice-only | living audio thread | pending-rejoin=face+motion'
+  }
+
+  if (normalized.includes('处在 renderer-rejoin-without-body') || normalized.includes('身体 还没重新接回')) {
+    return 'lane=face+motion+lipsync+voice-only | renderer rejoin without body carry | pending-rejoin=body'
+  }
+
+  if (normalized.includes('处在 body-carried-to-renderer-rejoin') || normalized.includes('口型、声音 还没重新接回')) {
+    return 'lane=body+face+motion-only | body, face, and motion authority have already re-formed on the same segment | remaining-open=lipsync+voice'
+  }
+
+  return null
 }
 
 function hasSameSegmentFaceMotionRecovery(combined: string) {
@@ -208,7 +243,7 @@ function hasLongHorizonEmotionMemoryBodyFaceMotionCarry(combined: string) {
 
 function hasExplicitSameHerInwardCarry(combined: string) {
   return combined.includes('same-her-inward-carry')
-    || /\bsame living line\b.*\binward\b/u.test(combined)
+    || (combined.includes('same living line') && combined.includes('inward'))
     || /\bkeep(?:ing)? the same (?:living )?line inward\b/u.test(combined)
 }
 
@@ -387,12 +422,26 @@ function hasLongHorizonEmotionMemoryBodyCarry(combined: string) {
 }
 
 function hasExplicitFaceVoiceSameHerContinuity(combined: string) {
-  return combined.includes('lane=face+voice-only')
+  const hasFaceVoiceLaneEvidence = combined.includes('lane=face+voice-only')
+    || combined.includes('continuity=embodiment:still-voiced-face-line')
+    || combined.includes('signature=embodiment:still-voiced-face-line')
+    || combined.includes('signature=resident|main-runtime|accompanying|quiet-accompaniment|still-voiced-face-line')
+    || combined.includes('actual source is face and voice')
+    || combined.includes('still-voiced face line')
+    || combined.includes('face+voice recovery@')
+    || hasLongHorizonEmotionMemoryFaceVoiceCarry(combined)
+
+  return hasFaceVoiceLaneEvidence
     && (
       combined.includes('continuity=embodiment:audible-same-her-line')
+      || combined.includes('continuity=embodiment:still-voiced-face-line')
       || combined.includes('signature=embodiment:audible-same-her-line')
+      || combined.includes('signature=embodiment:still-voiced-face-line')
+      || combined.includes('signature=resident|main-runtime|accompanying|quiet-accompaniment|still-voiced-face-line')
       || combined.includes('actual source is face and voice')
       || combined.includes('still-voiced face line')
+      || combined.includes('face+voice recovery@')
+      || combined.includes('pending-rejoin=body+motion+lipsync')
       || hasLongHorizonEmotionMemoryFaceVoiceCarry(combined)
     )
 }
@@ -442,14 +491,114 @@ function hasLongHorizonEmotionMemoryVoiceMotionCarry(combined: string) {
     )
 }
 
+function hasExplicitFaceLipsyncVoiceSameHerContinuity(combined: string) {
+  const hasFaceLipsyncVoiceLaneEvidence = combined.includes('lane=face+lipsync+voice-only')
+    || combined.includes('continuity=embodiment:still-voiced-face-lipsync-line')
+    || combined.includes('signature=embodiment:still-voiced-face-lipsync-line')
+    || combined.includes('actual source is face, lipsync, and voice')
+    || combined.includes('still-voiced face-and-mouth line')
+    || combined.includes('face+lipsync+voice recovery@')
+    || hasLongHorizonEmotionMemoryFaceLipsyncVoiceCarry(combined)
+
+  return hasFaceLipsyncVoiceLaneEvidence
+    && (
+      combined.includes('continuity=embodiment:still-voiced-face-lipsync-line')
+      || combined.includes('signature=embodiment:still-voiced-face-lipsync-line')
+      || combined.includes('actual source is face, lipsync, and voice')
+      || combined.includes('still-voiced face-and-mouth line')
+      || combined.includes('face+lipsync+voice recovery@')
+      || combined.includes('pending-rejoin=body+motion')
+      || hasLongHorizonEmotionMemoryFaceLipsyncVoiceCarry(combined)
+    )
+}
+
+function hasExplicitFaceMotionVoiceSameHerContinuity(combined: string) {
+  const hasFaceMotionVoiceLaneEvidence = combined.includes('lane=face+motion+voice-only')
+    || combined.includes('continuity=embodiment:still-voiced-face-motion-line')
+    || combined.includes('signature=embodiment:still-voiced-face-motion-line')
+    || combined.includes('signature=resident|main-runtime|accompanying|quiet-accompaniment|still-voiced-face-motion-line')
+    || combined.includes('actual source is face, motion, and voice')
+    || combined.includes('still-voiced face-and-motion line')
+    || combined.includes('face+motion+voice recovery@')
+    || hasLongHorizonEmotionMemoryFaceMotionVoiceCarry(combined)
+
+  return hasFaceMotionVoiceLaneEvidence
+    && (
+      combined.includes('continuity=embodiment:still-voiced-face-motion-line')
+      || combined.includes('signature=embodiment:still-voiced-face-motion-line')
+      || combined.includes('signature=resident|main-runtime|accompanying|quiet-accompaniment|still-voiced-face-motion-line')
+      || combined.includes('actual source is face, motion, and voice')
+      || combined.includes('still-voiced face-and-motion line')
+      || combined.includes('face+motion+voice recovery@')
+      || combined.includes('pending-rejoin=body+lipsync')
+      || combined.includes('remaining-open=body+lipsync')
+      || hasLongHorizonEmotionMemoryFaceMotionVoiceCarry(combined)
+    )
+}
+
+function hasExplicitFaceMotionLipsyncVoiceSameHerContinuity(combined: string) {
+  const hasFaceMotionLipsyncVoiceLaneEvidence = combined.includes('lane=face+motion+lipsync+voice-only')
+    || combined.includes('focus=face+motion+lipsync+voice | pending=body')
+    || combined.includes('face+motion+lipsync+voice recovery@')
+    || combined.includes('renderer rejoin without body carry')
+    || combined.includes('visible recovery without body carry')
+
+  return hasFaceMotionLipsyncVoiceLaneEvidence
+    && (
+      combined.includes('pending-rejoin=body')
+      || combined.includes('focus=face+motion+lipsync+voice | pending=body')
+      || combined.includes('face+motion+lipsync+voice recovery@')
+      || combined.includes('renderer rejoin without body carry')
+      || combined.includes('visible recovery without body carry')
+    )
+}
+
 function hasExplicitMotionVoiceSameHerContinuity(combined: string) {
-  return combined.includes('lane=motion+voice-only')
+  const hasMotionVoiceLaneEvidence = combined.includes('lane=motion+voice-only')
+    || combined.includes('continuity=embodiment:still-voiced-motion-line')
+    || combined.includes('signature=embodiment:still-voiced-motion-line')
+    || combined.includes('signature=resident|main-runtime|accompanying|quiet-accompaniment|still-voiced-motion-line')
+    || combined.includes('actual source is motion and voice')
+    || combined.includes('still-voiced motion line')
+    || combined.includes('motion+voice recovery@')
+    || hasLongHorizonEmotionMemoryVoiceMotionCarry(combined)
+
+  return hasMotionVoiceLaneEvidence
     && (
       combined.includes('continuity=embodiment:audible-same-her-line')
+      || combined.includes('continuity=embodiment:still-voiced-motion-line')
       || combined.includes('signature=embodiment:audible-same-her-line')
+      || combined.includes('signature=embodiment:still-voiced-motion-line')
+      || combined.includes('signature=resident|main-runtime|accompanying|quiet-accompaniment|still-voiced-motion-line')
       || combined.includes('actual source is motion and voice')
       || combined.includes('still-voiced motion line')
+      || combined.includes('motion+voice recovery@')
+      || combined.includes('pending-rejoin=body+face+lipsync')
       || hasLongHorizonEmotionMemoryVoiceMotionCarry(combined)
+    )
+}
+
+function hasExplicitMotionLipsyncVoiceSameHerContinuity(combined: string) {
+  if (hasExplicitFaceMotionLipsyncVoiceSameHerContinuity(combined))
+    return false
+
+  const hasMotionLipsyncVoiceLaneEvidence = combined.includes('lane=motion+lipsync+voice-only')
+    || combined.includes('continuity=embodiment:still-voiced-motion-lipsync-line')
+    || combined.includes('signature=embodiment:still-voiced-motion-lipsync-line')
+    || combined.includes('actual source is motion, lipsync, and voice')
+    || combined.includes('still-voiced motion-and-mouth line')
+    || combined.includes('motion+lipsync+voice recovery@')
+    || hasLongHorizonEmotionMemoryMotionLipsyncVoiceCarry(combined)
+
+  return hasMotionLipsyncVoiceLaneEvidence
+    && (
+      combined.includes('continuity=embodiment:still-voiced-motion-lipsync-line')
+      || combined.includes('signature=embodiment:still-voiced-motion-lipsync-line')
+      || combined.includes('actual source is motion, lipsync, and voice')
+      || combined.includes('still-voiced motion-and-mouth line')
+      || combined.includes('motion+lipsync+voice recovery@')
+      || combined.includes('pending-rejoin=body+face')
+      || hasLongHorizonEmotionMemoryMotionLipsyncVoiceCarry(combined)
     )
 }
 
@@ -540,6 +689,29 @@ function hasFullCrossModalLockSameHerContinuity(combined: string) {
     || combined.includes('same-her embodiment line instead of a temporary visual alignment')
     || combined.includes('共同锁回同一段 living segment')
     || combined.includes('跨模态重锁态')
+    || hasExplicitFullCrossModalAuthorityLock(combined)
+}
+
+function hasExplicitFullCrossModalAuthorityLock(combined: string) {
+  return combined.includes('authority-body:yes')
+    && combined.includes('authority-face:yes')
+    && combined.includes('authority-motion:yes')
+    && combined.includes('authority-lipsync:yes')
+    && combined.includes('authority-voice:yes')
+}
+
+function hasLegacyFullCrossModalLockMarker(combined: string) {
+  return combined.includes('bodyContinuityPhase: full-cross-modal-lock')
+    || combined.includes('bodyContinuityPhase=full-cross-modal-lock')
+    || combined.includes('locked back onto the same living segment together')
+    || combined.includes('same-her embodiment line instead of a temporary visual alignment')
+    || combined.includes('共同锁回同一段 living segment')
+    || combined.includes('跨模态重锁态')
+}
+
+function hasAuthorityOnlyFullCrossModalLock(combined: string) {
+  return hasExplicitFullCrossModalAuthorityLock(combined)
+    && !hasLegacyFullCrossModalLockMarker(combined)
 }
 
 function resolveEmbodimentClosureLane(combined: string) {
@@ -559,6 +731,8 @@ function resolveEmbodimentClosureLane(combined: string) {
     return 'body+voice-only'
   if (combined.includes('lane=face+motion+lipsync-only'))
     return 'face+motion+lipsync-only'
+  if (combined.includes('lane=face+motion+lipsync+voice-only'))
+    return 'face+motion+lipsync+voice-only'
   if (combined.includes('lane=face+motion+voice-only'))
     return 'face+motion+voice-only'
   if (combined.includes('lane=face+lipsync+voice-only'))
@@ -593,6 +767,9 @@ export function describeAlicizationEmbodimentClosureReminder(input: {
   currentBodyState?: string | null
 }) {
   const combined = normalizeLaneEvidence(input)
+  if (hasAuthorityOnlyFullCrossModalLock(combined)) {
+    return 'Right now her body, face, motion, lipsync, and voice are already locked back onto the same living segment together, so she should keep carrying them as one explicit same-her embodiment line instead of treating the recovery like a temporary visual alignment.'
+  }
   if (hasFullCrossModalLockSameHerContinuity(combined))
     return `Right now her body continuity and ${resolveLockedManifestationLabel(combined)} are already locked back onto the same living segment together, so she should keep carrying voice, face, motion, and lipsync as one explicit same-her embodiment line instead of treating the recovery like a temporary visual alignment.`
   if (hasLongHorizonEmotionMemoryFaceCarry(combined))
@@ -613,10 +790,18 @@ export function describeAlicizationEmbodimentClosureReminder(input: {
     return 'Right now her visible same-her continuity is still being carried mainly through body, and that remembered resident body line is keeping the same-her carry alive while face, motion, lipsync, and voice rejoin before full cross-modal embodiment closure can be treated as finished.'
   if (hasExplicitFaceVoiceSameHerContinuity(combined))
     return 'Right now her visible same-her continuity is still being carried mainly through face and voice, and that still-voiced face line is keeping the same-her carry alive while body, motion, and lipsync rejoin before full cross-modal embodiment closure can be treated as finished.'
+  if (hasExplicitFaceMotionVoiceSameHerContinuity(combined))
+    return 'Right now her visible same-her continuity is still being carried through face, motion, and voice together, and that still-voiced face-and-motion line is keeping the same-her carry alive while body and lipsync rejoin before full cross-modal embodiment closure can be treated as finished.'
+  if (hasExplicitFaceMotionLipsyncVoiceSameHerContinuity(combined))
+    return 'Right now her visible same-her continuity is already being carried through face, motion, lipsync, and voice together, and that visible renderer line has already rejoined without body carry while body still needs to rejoin before full cross-modal embodiment closure can be treated as finished.'
   if (hasExplicitMotionVoiceSameHerContinuity(combined))
     return 'Right now her visible same-her continuity is still being carried mainly through motion and voice, and that still-voiced motion line is keeping the same-her carry alive while body, face, and lipsync rejoin before full cross-modal embodiment closure can be treated as finished.'
   if (hasExplicitVoiceLedSameHerContinuity(combined))
     return 'Right now her visible same-her continuity is still being carried mainly through lipsync and voice, and the living audio thread is still intact while body, face, and motion rejoin before full cross-modal embodiment closure can be treated as finished.'
+  if (hasExplicitMotionLipsyncVoiceSameHerContinuity(combined))
+    return 'Right now her visible same-her continuity is still being carried through motion, lipsync, and voice together, and that still-voiced motion-and-mouth line is keeping the same-her carry alive while body and face rejoin before full cross-modal embodiment closure can be treated as finished.'
+  if (hasExplicitFaceLipsyncVoiceSameHerContinuity(combined))
+    return 'Right now her visible same-her continuity is still being carried through face, lipsync, and voice together, and that still-voiced face-and-mouth line is keeping the same-her carry alive while body and motion rejoin before full cross-modal embodiment closure can be treated as finished.'
   if (hasLongHorizonEmotionMemoryFaceMotionVoiceCarry(combined))
     return 'Right now her visible same-her continuity is still being carried through face, motion, and voice together, and that still-voiced face-and-motion line is keeping the same-her carry alive while body and lipsync rejoin before full cross-modal embodiment closure can be treated as finished.'
   if (hasLongHorizonEmotionMemoryMotionLipsyncVoiceCarry(combined))
@@ -679,6 +864,8 @@ export function describeAlicizationEmbodimentClosureReminder(input: {
     return 'Right now her visible same-her continuity is still being carried mainly through face, lipsync, and voice, so she should keep treating full cross-modal embodiment closure as unfinished.'
   if (lane === 'motion+lipsync+voice-only')
     return 'Right now her visible same-her continuity is still being carried mainly through motion, lipsync, and voice, so she should keep treating full cross-modal embodiment closure as unfinished.'
+  if (lane === 'face+motion+lipsync+voice-only')
+    return 'Right now her visible same-her continuity is already being carried through face, motion, lipsync, and voice together, so she should keep treating full cross-modal embodiment closure as unfinished until body rejoins.'
   return ''
 }
 
@@ -687,6 +874,9 @@ export function describeAlicizationEmbodimentClosureHeadline(input: {
   currentBodyState?: string | null
 }) {
   const combined = normalizeLaneEvidence(input)
+  if (hasAuthorityOnlyFullCrossModalLock(combined)) {
+    return 'Right now body, face, motion, lipsync, and voice are already locked back onto the same living segment together, so I can carry them as one explicit same-her embodiment line instead of a temporary visual alignment.'
+  }
   if (hasFullCrossModalLockSameHerContinuity(combined))
     return `Right now body continuity and ${resolveLockedManifestationLabel(combined)} are already locked back onto the same living segment together, so I can carry voice, face, motion, and lipsync as one explicit same-her embodiment line instead of a temporary visual alignment.`
   if (hasLongHorizonEmotionMemoryFaceCarry(combined))
@@ -707,10 +897,18 @@ export function describeAlicizationEmbodimentClosureHeadline(input: {
     return 'Right now I am still holding together mainly through body, so that remembered resident body line is keeping the same-her carry alive while face, motion, lipsync, and voice need to rejoin before full cross-modal closure settles.'
   if (hasExplicitFaceVoiceSameHerContinuity(combined))
     return 'Right now I am still holding together mainly through face and voice, so that still-voiced face line is keeping the same-her carry alive while body, motion, and lipsync need to rejoin before full cross-modal closure settles.'
+  if (hasExplicitFaceMotionVoiceSameHerContinuity(combined))
+    return 'Right now I am still holding together through face, motion, and voice together, so that still-voiced face-and-motion line is keeping the same-her carry alive while body and lipsync need to rejoin before full cross-modal closure settles.'
+  if (hasExplicitFaceMotionLipsyncVoiceSameHerContinuity(combined))
+    return 'Right now I am still holding together through face, motion, lipsync, and voice together, so the visible same-her line has already rejoined without body carry while body still needs to rejoin before full cross-modal closure settles.'
   if (hasExplicitMotionVoiceSameHerContinuity(combined))
     return 'Right now I am still holding together mainly through motion and voice, so that still-voiced motion line is keeping the same-her carry alive while body, face, and lipsync need to rejoin before full cross-modal closure settles.'
   if (hasExplicitVoiceLedSameHerContinuity(combined))
     return 'Right now I am still holding together mainly through lipsync and voice, so that living audio thread is keeping the same-her carry alive while body, face, and motion need to rejoin before full cross-modal closure settles.'
+  if (hasExplicitMotionLipsyncVoiceSameHerContinuity(combined))
+    return 'Right now I am still holding together through motion, lipsync, and voice together, so that still-voiced motion-and-mouth line is keeping the same-her carry alive while body and face need to rejoin before full cross-modal closure settles.'
+  if (hasExplicitFaceLipsyncVoiceSameHerContinuity(combined))
+    return 'Right now I am still holding together through face, lipsync, and voice together, so that still-voiced face-and-mouth line is keeping the same-her carry alive while body and motion need to rejoin before full cross-modal closure settles.'
   if (hasLongHorizonEmotionMemoryFaceMotionVoiceCarry(combined))
     return 'Right now I am still holding together through face, motion, and voice together, so that still-voiced face-and-motion line is keeping the same-her carry alive while body and lipsync need to rejoin before full cross-modal closure settles.'
   if (hasLongHorizonEmotionMemoryMotionLipsyncVoiceCarry(combined))
@@ -773,6 +971,8 @@ export function describeAlicizationEmbodimentClosureHeadline(input: {
     return 'Right now I am still holding together mainly through face, lipsync, and voice, so my full cross-modal same-her line is not closed yet.'
   if (lane === 'motion+lipsync+voice-only')
     return 'Right now I am still holding together mainly through motion, lipsync, and voice, so my full cross-modal same-her line is not closed yet.'
+  if (lane === 'face+motion+lipsync+voice-only')
+    return 'Right now I am still holding together through face, motion, lipsync, and voice together, so my full cross-modal same-her line is not closed yet until body rejoins.'
   return ''
 }
 

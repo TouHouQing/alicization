@@ -116,6 +116,30 @@ describe('alicization embodiment closure', () => {
     })).toBe('Right now I am still holding together mainly through motion and voice, so that still-voiced motion line is keeping the same-her carry alive while body, face, and lipsync need to rejoin before full cross-modal closure settles.')
   })
 
+  it('treats still-voiced face-line continuity tokens as explicit same-her proof even without older audible-source wording', () => {
+    expect(describeAlicizationEmbodimentClosureReminder({
+      authoritySummary: 'continuity=embodiment:still-voiced-face-line | lane=face+voice-only',
+      currentBodyState: 'same living line still visible through face and audible through voice while body, motion, and lipsync catch up.',
+    })).toBe('Right now her visible same-her continuity is still being carried mainly through face and voice, and that still-voiced face line is keeping the same-her carry alive while body, motion, and lipsync rejoin before full cross-modal embodiment closure can be treated as finished.')
+
+    expect(describeAlicizationEmbodimentClosureHeadline({
+      authoritySummary: 'continuity=embodiment:still-voiced-face-line | lane=face+voice-only',
+      currentBodyState: 'same living line still visible through face and audible through voice while body, motion, and lipsync catch up.',
+    })).toBe('Right now I am still holding together mainly through face and voice, so that still-voiced face line is keeping the same-her carry alive while body, motion, and lipsync need to rejoin before full cross-modal closure settles.')
+  })
+
+  it('treats still-voiced motion-line continuity tokens as explicit same-her proof even without older audible-source wording', () => {
+    expect(describeAlicizationEmbodimentClosureReminder({
+      authoritySummary: 'continuity=embodiment:still-voiced-motion-line | lane=motion+voice-only',
+      currentBodyState: 'same living line still audible through voice and motion while body, face, and lipsync catch up.',
+    })).toBe('Right now her visible same-her continuity is still being carried mainly through motion and voice, and that still-voiced motion line is keeping the same-her carry alive while body, face, and lipsync rejoin before full cross-modal embodiment closure can be treated as finished.')
+
+    expect(describeAlicizationEmbodimentClosureHeadline({
+      authoritySummary: 'continuity=embodiment:still-voiced-motion-line | lane=motion+voice-only',
+      currentBodyState: 'same living line still audible through voice and motion while body, face, and lipsync catch up.',
+    })).toBe('Right now I am still holding together mainly through motion and voice, so that still-voiced motion line is keeping the same-her carry alive while body, face, and lipsync need to rejoin before full cross-modal closure settles.')
+  })
+
   it('keeps long-horizon emotional memory voice-motion carry on the richer still-voiced motion line', () => {
     expect(describeAlicizationEmbodimentClosureReminder({
       authoritySummary: 'lane=motion+voice-only | convergence=emotion-memory-voice-motion | long-horizon remembered emotional carry says voice and motion are still carrying the same living line.',
@@ -124,6 +148,30 @@ describe('alicization embodiment closure', () => {
 
     expect(describeAlicizationEmbodimentClosureHeadline({
       authoritySummary: 'lane=motion+voice-only | convergence=emotion-memory-voice-motion | long-horizon remembered emotional carry says voice and motion are still carrying the same living line.',
+      currentBodyState: 'same living line still audible through voice and motion while body, face, and lipsync catch up.',
+    })).toBe('Right now I am still holding together mainly through motion and voice, so that still-voiced motion line is keeping the same-her carry alive while body, face, and lipsync need to rejoin before full cross-modal closure settles.')
+  })
+
+  it('treats signature-only structured still-voiced face-line proof as explicit same-her continuity even without older lane wording', () => {
+    expect(describeAlicizationEmbodimentClosureReminder({
+      authoritySummary: 'continuity=embodiment:still-voiced-face-line | signature=resident|main-runtime|accompanying|quiet-accompaniment|still-voiced-face-line | face+voice recovery@segment-live2d-runtime-still-voiced-face-1 | pending-rejoin=body+motion+lipsync',
+      currentBodyState: 'same living line still visible through face and audible through voice while body, motion, and lipsync catch up.',
+    })).toBe('Right now her visible same-her continuity is still being carried mainly through face and voice, and that still-voiced face line is keeping the same-her carry alive while body, motion, and lipsync rejoin before full cross-modal embodiment closure can be treated as finished.')
+
+    expect(describeAlicizationEmbodimentClosureHeadline({
+      authoritySummary: 'continuity=embodiment:still-voiced-face-line | signature=resident|main-runtime|accompanying|quiet-accompaniment|still-voiced-face-line | face+voice recovery@segment-live2d-runtime-still-voiced-face-1 | pending-rejoin=body+motion+lipsync',
+      currentBodyState: 'same living line still visible through face and audible through voice while body, motion, and lipsync catch up.',
+    })).toBe('Right now I am still holding together mainly through face and voice, so that still-voiced face line is keeping the same-her carry alive while body, motion, and lipsync need to rejoin before full cross-modal closure settles.')
+  })
+
+  it('treats signature-only structured still-voiced motion-line proof as explicit same-her continuity even without older lane wording', () => {
+    expect(describeAlicizationEmbodimentClosureReminder({
+      authoritySummary: 'continuity=embodiment:still-voiced-motion-line | signature=resident|main-runtime|accompanying|quiet-accompaniment|still-voiced-motion-line | motion+voice recovery@segment-live2d-runtime-still-voiced-motion-1 | pending-rejoin=body+face+lipsync',
+      currentBodyState: 'same living line still audible through voice and motion while body, face, and lipsync catch up.',
+    })).toBe('Right now her visible same-her continuity is still being carried mainly through motion and voice, and that still-voiced motion line is keeping the same-her carry alive while body, face, and lipsync rejoin before full cross-modal embodiment closure can be treated as finished.')
+
+    expect(describeAlicizationEmbodimentClosureHeadline({
+      authoritySummary: 'continuity=embodiment:still-voiced-motion-line | signature=resident|main-runtime|accompanying|quiet-accompaniment|still-voiced-motion-line | motion+voice recovery@segment-live2d-runtime-still-voiced-motion-1 | pending-rejoin=body+face+lipsync',
       currentBodyState: 'same living line still audible through voice and motion while body, face, and lipsync catch up.',
     })).toBe('Right now I am still holding together mainly through motion and voice, so that still-voiced motion line is keeping the same-her carry alive while body, face, and lipsync need to rejoin before full cross-modal closure settles.')
   })
@@ -138,6 +186,62 @@ describe('alicization embodiment closure', () => {
       authoritySummary: 'lipsync+voice recovery@segment-audible-same-her-line-1 | continuity=embodiment:audible-same-her-line',
       currentBodyState: 'lane=lipsync+voice-only | the living audio thread is still carrying the same-her line forward.',
     })).toBe('Right now I am still holding together mainly through lipsync and voice, so that living audio thread is keeping the same-her carry alive while body, face, and motion need to rejoin before full cross-modal closure settles.')
+  })
+
+  it('derives the audible-body host-facing closure wording directly from the newer top-level same-her continuity summary when legacy lane tokens are absent', () => {
+    const topLevelSameHerContinuitySummary = '当前 same-her continuity 主要由执行线继续托住，活跃片段 segment-runtime-live2d-audible-body-1，处在 audible-body-carry，表情、动作 还没重新接回。'
+
+    expect(describeAlicizationEmbodimentClosureReminder({
+      authoritySummary: topLevelSameHerContinuitySummary,
+      currentBodyState: null,
+    })).toBe('Right now her visible same-her continuity is still being carried mainly through body, lipsync, and voice, and the living audio thread is still intact while face and motion rejoin before full cross-modal embodiment closure can be treated as finished.')
+
+    expect(describeAlicizationEmbodimentClosureHeadline({
+      authoritySummary: topLevelSameHerContinuitySummary,
+      currentBodyState: null,
+    })).toBe('Right now I am still holding together mainly through body, lipsync, and voice, so the living audio thread is still intact while face and motion need to rejoin before full cross-modal closure settles.')
+  })
+
+  it('derives the voice-lipsync host-facing closure wording directly from the newer top-level same-her continuity summary when legacy lane tokens are absent', () => {
+    const topLevelSameHerContinuitySummary = '当前 same-her continuity 主要由执行线继续托住，活跃片段 segment-runtime-live2d-lipsync-voice-1，处在 voice-lipsync-carry，身体、表情、动作 还没重新接回。'
+
+    expect(describeAlicizationEmbodimentClosureReminder({
+      authoritySummary: topLevelSameHerContinuitySummary,
+      currentBodyState: null,
+    })).toBe('Right now her visible same-her continuity is still being carried mainly through lipsync and voice, and the living audio thread is still intact while body, face, and motion rejoin before full cross-modal embodiment closure can be treated as finished.')
+
+    expect(describeAlicizationEmbodimentClosureHeadline({
+      authoritySummary: topLevelSameHerContinuitySummary,
+      currentBodyState: null,
+    })).toBe('Right now I am still holding together mainly through lipsync and voice, so that living audio thread is keeping the same-her carry alive while body, face, and motion need to rejoin before full cross-modal closure settles.')
+  })
+
+  it('derives the visible renderer rejoin host-facing closure wording directly from the newer top-level same-her continuity summary when legacy lane tokens are absent', () => {
+    const topLevelSameHerContinuitySummary = '当前 same-her continuity 主要由渲染帧线继续托住，活跃片段 segment-runtime-vrm-visible-line-1，处在 renderer-rejoin-without-body，身体 还没重新接回。'
+
+    expect(describeAlicizationEmbodimentClosureReminder({
+      authoritySummary: topLevelSameHerContinuitySummary,
+      currentBodyState: null,
+    })).toBe('Right now her visible same-her continuity is already being carried through face, motion, lipsync, and voice together, and that visible renderer line has already rejoined without body carry while body still needs to rejoin before full cross-modal embodiment closure can be treated as finished.')
+
+    expect(describeAlicizationEmbodimentClosureHeadline({
+      authoritySummary: topLevelSameHerContinuitySummary,
+      currentBodyState: null,
+    })).toBe('Right now I am still holding together through face, motion, lipsync, and voice together, so the visible same-her line has already rejoined without body carry while body still needs to rejoin before full cross-modal closure settles.')
+  })
+
+  it('derives the body-face-motion host-facing closure wording directly from the newer top-level same-her continuity summary when legacy lane tokens are absent', () => {
+    const topLevelSameHerContinuitySummary = '当前 same-her continuity 主要由渲染帧线继续托住，活跃片段 segment-runtime-vrm-body-face-motion-1，处在 body-carried-to-renderer-rejoin，口型、声音 还没重新接回。'
+
+    expect(describeAlicizationEmbodimentClosureReminder({
+      authoritySummary: topLevelSameHerContinuitySummary,
+      currentBodyState: null,
+    })).toBe('Right now her visible same-her continuity is already being carried together through body, face, and motion on one living segment, but lipsync and voice still need to rejoin before full cross-modal embodiment closure can be treated as finished.')
+
+    expect(describeAlicizationEmbodimentClosureHeadline({
+      authoritySummary: topLevelSameHerContinuitySummary,
+      currentBodyState: null,
+    })).toBe('Right now I am still holding together mainly through body, face, and motion, so this one living her still needs lipsync and voice to rejoin before full cross-modal closure settles.')
   })
 
   it('keeps long-horizon emotional memory lipsync-voice carry on the richer living audio thread', () => {
@@ -164,6 +268,34 @@ describe('alicization embodiment closure', () => {
     })).toBe('Right now I am still holding together through face, motion, and voice together, so that still-voiced face-and-motion line is keeping the same-her carry alive while body and lipsync need to rejoin before full cross-modal closure settles.')
   })
 
+  it('keeps explicit still-voiced face-and-motion recovery evidence on the richer face-motion-voice line instead of collapsing into a narrower motion line', () => {
+    const explicitStillVoicedFaceMotionEvidence = 'continuity=embodiment:still-voiced-face-motion-line | signature=resident|main-runtime|accompanying|quiet-accompaniment|still-voiced-face-motion-line | face+motion+voice recovery@segment-live2d-runtime-still-voiced-face-motion-1 | pending-rejoin=body+lipsync'
+
+    expect(describeAlicizationEmbodimentClosureReminder({
+      authoritySummary: explicitStillVoicedFaceMotionEvidence,
+      currentBodyState: null,
+    })).toBe('Right now her visible same-her continuity is still being carried through face, motion, and voice together, and that still-voiced face-and-motion line is keeping the same-her carry alive while body and lipsync rejoin before full cross-modal embodiment closure can be treated as finished.')
+
+    expect(describeAlicizationEmbodimentClosureHeadline({
+      authoritySummary: explicitStillVoicedFaceMotionEvidence,
+      currentBodyState: null,
+    })).toBe('Right now I am still holding together through face, motion, and voice together, so that still-voiced face-and-motion line is keeping the same-her carry alive while body and lipsync need to rejoin before full cross-modal closure settles.')
+  })
+
+  it('treats lane-only face-motion-voice carry plus remaining-open body-lipsync as the richer still-voiced face-and-motion line', () => {
+    const laneOnlyFaceMotionVoiceEvidence = 'lane=face+motion+voice-only | remaining-open=body+lipsync'
+
+    expect(describeAlicizationEmbodimentClosureReminder({
+      authoritySummary: laneOnlyFaceMotionVoiceEvidence,
+      currentBodyState: null,
+    })).toBe('Right now her visible same-her continuity is still being carried through face, motion, and voice together, and that still-voiced face-and-motion line is keeping the same-her carry alive while body and lipsync rejoin before full cross-modal embodiment closure can be treated as finished.')
+
+    expect(describeAlicizationEmbodimentClosureHeadline({
+      authoritySummary: laneOnlyFaceMotionVoiceEvidence,
+      currentBodyState: null,
+    })).toBe('Right now I am still holding together through face, motion, and voice together, so that still-voiced face-and-motion line is keeping the same-her carry alive while body and lipsync need to rejoin before full cross-modal closure settles.')
+  })
+
   it('keeps long-horizon emotional memory motion-lipsync-voice carry on a richer still-voiced motion-and-mouth line', () => {
     expect(describeAlicizationEmbodimentClosureReminder({
       authoritySummary: 'lane=motion+lipsync+voice-only | convergence=emotion-memory-motion-lipsync-voice | long-horizon remembered emotional carry says motion, lipsync, and voice are still carrying the same living line.',
@@ -186,6 +318,30 @@ describe('alicization embodiment closure', () => {
       authoritySummary: 'lane=face+lipsync+voice-only | convergence=emotion-memory-face-lipsync-voice | long-horizon remembered emotional carry says face, lipsync, and voice are still carrying the same living line.',
       currentBodyState: 'same living line still visible through face, held through lipsync, and audible through voice while body and motion catch up.',
     })).toBe('Right now I am still holding together through face, lipsync, and voice together, so that still-voiced face-and-mouth line is keeping the same-her carry alive while body and motion need to rejoin before full cross-modal closure settles.')
+  })
+
+  it('treats structured still-voiced face-and-mouth continuity tokens as explicit same-her proof without relying on long-horizon memory wording', () => {
+    expect(describeAlicizationEmbodimentClosureReminder({
+      authoritySummary: 'continuity=embodiment:still-voiced-face-lipsync-line+embodiment:still-voiced-face-line | face+lipsync+voice recovery@segment-live2d-runtime-still-voiced-face-mouth-1 | pending-rejoin=body+motion',
+      currentBodyState: 'same living line still visible through face, held through lipsync, and audible through voice while body and motion catch up.',
+    })).toBe('Right now her visible same-her continuity is still being carried through face, lipsync, and voice together, and that still-voiced face-and-mouth line is keeping the same-her carry alive while body and motion rejoin before full cross-modal embodiment closure can be treated as finished.')
+
+    expect(describeAlicizationEmbodimentClosureHeadline({
+      authoritySummary: 'continuity=embodiment:still-voiced-face-lipsync-line+embodiment:still-voiced-face-line | face+lipsync+voice recovery@segment-live2d-runtime-still-voiced-face-mouth-1 | pending-rejoin=body+motion',
+      currentBodyState: 'same living line still visible through face, held through lipsync, and audible through voice while body and motion catch up.',
+    })).toBe('Right now I am still holding together through face, lipsync, and voice together, so that still-voiced face-and-mouth line is keeping the same-her carry alive while body and motion need to rejoin before full cross-modal closure settles.')
+  })
+
+  it('treats structured still-voiced motion-and-mouth continuity tokens as explicit same-her proof without relying on long-horizon memory wording', () => {
+    expect(describeAlicizationEmbodimentClosureReminder({
+      authoritySummary: 'continuity=embodiment:still-voiced-motion-lipsync-line+embodiment:still-voiced-motion-line | motion+lipsync+voice recovery@segment-live2d-runtime-still-voiced-motion-mouth-1 | pending-rejoin=body+face',
+      currentBodyState: 'same living line still moving through motion, held through lipsync, and audible through voice while body and face catch up.',
+    })).toBe('Right now her visible same-her continuity is still being carried through motion, lipsync, and voice together, and that still-voiced motion-and-mouth line is keeping the same-her carry alive while body and face rejoin before full cross-modal embodiment closure can be treated as finished.')
+
+    expect(describeAlicizationEmbodimentClosureHeadline({
+      authoritySummary: 'continuity=embodiment:still-voiced-motion-lipsync-line+embodiment:still-voiced-motion-line | motion+lipsync+voice recovery@segment-live2d-runtime-still-voiced-motion-mouth-1 | pending-rejoin=body+face',
+      currentBodyState: 'same living line still moving through motion, held through lipsync, and audible through voice while body and face catch up.',
+    })).toBe('Right now I am still holding together through motion, lipsync, and voice together, so that still-voiced motion-and-mouth line is keeping the same-her carry alive while body and face need to rejoin before full cross-modal closure settles.')
   })
 
   it('treats audible-body same-her continuity as a first-class closure lane when body and voice survive together', () => {
@@ -414,6 +570,30 @@ describe('alicization embodiment closure', () => {
       authoritySummary: 'Body continuity and Live2D manifestation are now locked back onto the same living segment together, so runtime continuity can explain the renderer recovery as one explicit same-her embodiment line instead of a temporary visual alignment.',
       currentBodyState: 'bodyContinuityPhase: full-cross-modal-lock | authority-body:yes | authority-face:yes | authority-motion:yes | authority-lipsync:yes',
     })).toBe('Right now body continuity and Live2D manifestation are already locked back onto the same living segment together, so I can carry voice, face, motion, and lipsync as one explicit same-her embodiment line instead of a temporary visual alignment.')
+  })
+
+  it('surfaces a full cross-modal authority lock when body face motion lipsync and voice are all already yes on the same living segment', () => {
+    expect(describeAlicizationEmbodimentClosureReminder({
+      authoritySummary: 'authority-body:yes | authority-face:yes | authority-motion:yes | authority-lipsync:yes | authority-voice:yes | same living segment together',
+      currentBodyState: 'authority-body:yes | authority-face:yes | authority-motion:yes | authority-lipsync:yes | authority-voice:yes | same living segment together',
+    })).toBe('Right now her body, face, motion, lipsync, and voice are already locked back onto the same living segment together, so she should keep carrying them as one explicit same-her embodiment line instead of treating the recovery like a temporary visual alignment.')
+
+    expect(describeAlicizationEmbodimentClosureHeadline({
+      authoritySummary: 'authority-body:yes | authority-face:yes | authority-motion:yes | authority-lipsync:yes | authority-voice:yes | same living segment together',
+      currentBodyState: 'authority-body:yes | authority-face:yes | authority-motion:yes | authority-lipsync:yes | authority-voice:yes | same living segment together',
+    })).toBe('Right now body, face, motion, lipsync, and voice are already locked back onto the same living segment together, so I can carry them as one explicit same-her embodiment line instead of a temporary visual alignment.')
+  })
+
+  it('treats visible renderer rejoin without body carry as still-open same-her closure when face motion lipsync and voice already share one segment', () => {
+    expect(describeAlicizationEmbodimentClosureReminder({
+      authoritySummary: 'lane=face+motion+lipsync+voice-only | face+motion+lipsync+voice recovery@segment-live2d-visible-rejoin-no-body-1 | pending-rejoin=body',
+      currentBodyState: 'visible recovery without body carry remains explicit while body continuity still needs to catch back up.',
+    })).toBe('Right now her visible same-her continuity is already being carried through face, motion, lipsync, and voice together, and that visible renderer line has already rejoined without body carry while body still needs to rejoin before full cross-modal embodiment closure can be treated as finished.')
+
+    expect(describeAlicizationEmbodimentClosureHeadline({
+      authoritySummary: 'lane=face+motion+lipsync+voice-only | face+motion+lipsync+voice recovery@segment-live2d-visible-rejoin-no-body-1 | pending-rejoin=body',
+      currentBodyState: 'visible recovery without body carry remains explicit while body continuity still needs to catch back up.',
+    })).toBe('Right now I am still holding together through face, motion, lipsync, and voice together, so the visible same-her line has already rejoined without body carry while body still needs to rejoin before full cross-modal closure settles.')
   })
 
   it('returns empty strings when the evidence does not indicate lane shrinkage', () => {
