@@ -26,7 +26,7 @@ const roboticPattern = /robotic|template|system|模板|机械|机器人|系统�
 const repairPattern = /repair|clarify|recheck|not this|missed|澄清|修复|重说|不是这个|没答到/iu
 const routinePattern = /habit|routine|always|usually|often|习惯|经常|总是|会在|晚点|深夜/iu
 const burdenPattern = /burden|tired|busy|drained|interrupt|压力|累|忙|打断|疲惫|不想被催/iu
-const closenessPattern = /warm|gentle|care|companionship|陪|温和|柔和|陪伴|靠近/iu
+const closenessPattern = /warm|gentle|care|companionship|陪|温和|柔和|靠近/iu
 const spacePattern = /space|boundary|lighter|light touch|quiet|room|边界|空间|轻一点|安静|留白/iu
 const positiveMemoryPolarityPattern = /trust up|closer|lighter|gentle|useful|accepted|received|repair|soft|safe|靠近|变轻|被接住|有用|接受|修复|更稳/u
 const negativeMemoryPolarityPattern = /trust down|intrusive|doubted|denied|pressure|heavy|failed|robotic|not this|boundary|down|拒绝|怀疑|压迫|打扰|失败|机械|不是这个|边界/u
@@ -206,6 +206,20 @@ export function sanitizeHumanlikeMemoryText(raw: unknown, maxChars = 180) {
   if (typeof raw !== 'string')
     return ''
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
+}
+
+export function normalizeHumanlikeSentenceEnding(raw: unknown, maxChars = 180) {
+  const normalized = sanitizeHumanlikeMemoryText(raw, maxChars)
+  if (!normalized)
+    return ''
+  if (/[。.!！？?]$/u.test(normalized))
+    return normalized
+
+  const trimmed = normalized.length >= maxChars
+    ? normalized.slice(0, Math.max(0, maxChars - 1)).trimEnd()
+    : normalized
+  const ending = /\p{Script=Han}/u.test(trimmed) ? '。' : '.'
+  return `${trimmed}${ending}`
 }
 
 function uniqueTexts(values: Array<string | null | undefined>, maxItems = 6) {
@@ -480,7 +494,7 @@ function buildHumanlikeInitiativeOutcomeRecord(input: AlicizationHumanlikeMemory
   const userReaction = sanitizeHumanlikeMemoryText(input.initiative?.userReaction, 80)
   if (!outcome && !userReaction)
     return null
-  const accepted = /accepted|continue|continued|推进|接受/u.test(`${outcome} ${userReaction}`)
+  const accepted = /accepted|continue|推进|接受/u.test(`${outcome} ${userReaction}`)
   const rejected = /reject|反感|拒绝|ignored|忽略/u.test(`${outcome} ${userReaction}`)
   return {
     outcome: outcome || 'unknown',

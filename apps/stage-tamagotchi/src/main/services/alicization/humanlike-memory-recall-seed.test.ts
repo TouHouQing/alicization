@@ -724,6 +724,48 @@ describe('humanlike memory recall seed', () => {
     expect(seed).toContain('embodiment_pacing=slower')
   })
 
+  it('keeps rest-protective affective residue recall from falling back to mechanical do-not-disturb wording', () => {
+    const seed = buildHumanlikeMemoryRecallSeedFromMindTurnEvents([{
+      kind: 'person-state-updated',
+      payload: {
+        affectiveResidue: {
+          version: 'affective-residue-memory-v1',
+          updatedAt: 90_850,
+          residues: [],
+          dominantResidueKind: 'rest-protective',
+          afterglowPressure: 0.08,
+          repairPressure: 0.14,
+          burdenPressure: 0.22,
+          trustPressure: 0.28,
+          restProtectivePressure: 0.71,
+          relationshipCadence: {
+            cadenceMode: 'cooldown',
+            distancePosture: 'measured-room',
+            companionshipDensity: 0.24,
+            repairRecovery: 0.38,
+            overreachRisk: 0.41,
+            fatigueGuard: 0.72,
+            afterglowCarry: 0.09,
+            shouldDelayWarmth: true,
+            shouldProtectRest: true,
+            reasonTags: ['same-her', 'rest-protective'],
+            summary: 'Keep care present without making the host manage another opening while rest is fragile.',
+          },
+          sourceSignals: ['host fatigue', 'care-before-analysis'],
+          summary: 'The line should stay caring and quieter while rest has room.',
+        },
+      },
+      createdAt: 91_000,
+    }])
+
+    expect(seed).toContain('humanlike_memory_recall:')
+    expect(seed).toContain('轻一点')
+    expect(seed).toContain('慢一点')
+    expect(seed).toContain('休息')
+    expect(seed).not.toContain('先不打扰')
+    expect(seed).not.toContain('不打扰你')
+  })
+
   it('prefers older same-her continuity recall over a newer generic progress memory when recall slots are limited', () => {
     const seed = buildHumanlikeMemoryRecallSeedFromMindTurnEvents([
       {

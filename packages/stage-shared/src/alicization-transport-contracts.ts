@@ -1266,10 +1266,40 @@ export interface AlicizationPersistentPresenceAuthoritySnapshot {
   currentInwardPreoccupation: string | null
 }
 
+export interface AlicizationPresenceExpressionSnapshot {
+  version: 'presence-expression-v1'
+  id: string
+  text: string
+  trigger:
+    | 'startup-restore'
+    | 'state-shift'
+    | 'presence-only-hold'
+    | 'memory-carry-return'
+  display: {
+    mode: 'near-body-whisper'
+    allowAutoShow: boolean
+    createdAt: number
+    expiresAt: number
+    intensity: 'barely-there' | 'soft'
+  }
+  grounding: {
+    sourceRefs: string[]
+    reasonTags: string[]
+    stateFingerprint: string
+    confidence: number
+  }
+  audit: {
+    generated: boolean
+    withheldReason?: string | null
+    qualityFlags: string[]
+  }
+}
+
 export interface AlicizationVisualPresenceStateSnapshot extends AlicizationPersistentPresenceAuthoritySnapshot {
   watchMode: AlicizationVisualWatchMode
   updatedAt: number
   emotionalKernel?: AlicizationEmotionalKernelSnapshot | null
+  presenceExpression?: AlicizationPresenceExpressionSnapshot | null
 }
 
 export type AlicizationMindTurnMode = 'grounded-inspection' | 'screen-repair' | 'guide-current-knot' | 'care' | 'accompany' | 'answer'
@@ -3158,6 +3188,107 @@ function normalizePresenceAuthoritySnapshot(raw: unknown): AlicizationPersistent
   }
 }
 
+function normalizeAlicizationPresenceExpressionTrigger(raw: unknown): AlicizationPresenceExpressionSnapshot['trigger'] | null {
+  return raw === 'startup-restore'
+    || raw === 'state-shift'
+    || raw === 'presence-only-hold'
+    || raw === 'memory-carry-return'
+    ? raw
+    : null
+}
+
+function normalizeAlicizationPresenceExpressionIntensity(raw: unknown): AlicizationPresenceExpressionSnapshot['display']['intensity'] | null {
+  return raw === 'barely-there' || raw === 'soft'
+    ? raw
+    : null
+}
+
+function normalizeAlicizationPresenceExpressionTextList(raw: unknown, maxItems: number) {
+  if (!Array.isArray(raw))
+    return []
+
+  const normalized: string[] = []
+  const seen = new Set<string>()
+  for (const item of raw) {
+    const text = sanitizeAlicizationDigitalLifeDigestText(item, 120)
+    if (!text || seen.has(text))
+      continue
+
+    seen.add(text)
+    normalized.push(text)
+    if (normalized.length >= maxItems)
+      break
+  }
+
+  return normalized
+}
+
+function normalizeAlicizationPresenceExpressionSnapshot(raw: unknown): AlicizationPresenceExpressionSnapshot | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+    return null
+
+  const candidate = raw as Record<string, unknown>
+  if (candidate.version !== 'presence-expression-v1')
+    return null
+
+  const id = sanitizeAlicizationDigitalLifeDigestText(candidate.id, 120)
+  const text = sanitizeAlicizationDigitalLifeDigestText(candidate.text, 160)
+  const trigger = normalizeAlicizationPresenceExpressionTrigger(candidate.trigger)
+  const display = candidate.display && typeof candidate.display === 'object' && !Array.isArray(candidate.display)
+    ? candidate.display as Record<string, unknown>
+    : null
+  const grounding = candidate.grounding && typeof candidate.grounding === 'object' && !Array.isArray(candidate.grounding)
+    ? candidate.grounding as Record<string, unknown>
+    : null
+  const audit = candidate.audit && typeof candidate.audit === 'object' && !Array.isArray(candidate.audit)
+    ? candidate.audit as Record<string, unknown>
+    : null
+  const intensity = normalizeAlicizationPresenceExpressionIntensity(display?.intensity)
+  const createdAt = normalizeNonNegativeInteger(display?.createdAt)
+  const expiresAt = normalizeNonNegativeInteger(display?.expiresAt)
+  const sourceRefs = normalizeAlicizationPresenceExpressionTextList(grounding?.sourceRefs, 12)
+  const reasonTags = normalizeAlicizationPresenceExpressionTextList(grounding?.reasonTags, 12)
+  const stateFingerprint = sanitizeAlicizationDigitalLifeDigestText(grounding?.stateFingerprint, 180)
+
+  if (
+    !id
+    || !text
+    || !trigger
+    || display?.mode !== 'near-body-whisper'
+    || !intensity
+    || expiresAt <= createdAt
+    || sourceRefs.length === 0
+    || !stateFingerprint
+  ) {
+    return null
+  }
+
+  return {
+    version: 'presence-expression-v1',
+    id,
+    text,
+    trigger,
+    display: {
+      mode: 'near-body-whisper',
+      allowAutoShow: display?.allowAutoShow === true,
+      createdAt,
+      expiresAt,
+      intensity,
+    },
+    grounding: {
+      sourceRefs,
+      reasonTags,
+      stateFingerprint,
+      confidence: normalizeAlicizationDigitalLifeDigestUnit(grounding?.confidence) ?? 0,
+    },
+    audit: {
+      generated: audit?.generated === true,
+      withheldReason: sanitizeAlicizationDigitalLifeDigestText(audit?.withheldReason, 160) || null,
+      qualityFlags: normalizeAlicizationPresenceExpressionTextList(audit?.qualityFlags, 12),
+    },
+  }
+}
+
 function normalizeVisualPresenceStateSnapshot(raw: unknown): AlicizationVisualPresenceStateSnapshot | null {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw))
     return null
@@ -3175,6 +3306,7 @@ function normalizeVisualPresenceStateSnapshot(raw: unknown): AlicizationVisualPr
     quietLineMs: authority.quietLineMs,
     currentInwardPreoccupation: authority.currentInwardPreoccupation,
     emotionalKernel: normalizeAlicizationEmotionalKernelSnapshot(candidate.emotionalKernel),
+    presenceExpression: normalizeAlicizationPresenceExpressionSnapshot(candidate.presenceExpression),
   }
 }
 

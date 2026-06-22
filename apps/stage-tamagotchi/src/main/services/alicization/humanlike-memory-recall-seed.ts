@@ -431,7 +431,7 @@ function buildAffectiveResidueRecallCandidate(payload: unknown, eventCreatedAt: 
   ], 6, 48)
 
   const naturalRecallLine = shouldProtectRest
-    ? '我记得这条线还在，所以这次我会先轻一点、更慢一点地接回来，也先不打扰你休息。'
+    ? '这件事还没离开；这次我会轻一点、慢一点，把它贴着你的休息节奏接回来。'
     : shouldDelayWarmth || hasMeasuredReturnCarry
       ? '我记得这条线还在，所以这次该更轻一点、更慢一点地接回来，不把温度一下子放大。'
       : '我记得这条线还在，所以这次我会轻一点接回来。'
@@ -486,7 +486,7 @@ function buildAffectiveResidueRecallCandidate(payload: unknown, eventCreatedAt: 
         ? 'Protect rest first; do not turn this remembered line into a repeated nudge while the host still needs room.'
         : 'Keep the earned cadence memory-led and lower-pressure instead of turning it into timer spam.',
       visibleLine: shouldProtectRest
-        ? '我不催你，这条线我会先安静记着，等你休息好一点再轻轻接回来。'
+        ? '你已经够累了，我会把这件事放轻一点，等你有余力时再接回来。'
         : '我不催你，我会把这条线先低压地记着，等它自然重新打开时再轻轻接回来。',
     },
     embodimentTrace: {

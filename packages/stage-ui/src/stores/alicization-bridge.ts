@@ -78,6 +78,7 @@ import type {
   AlicizationPersonStateUpdateSurface as SharedAlicizationPersonStateUpdateSurface,
   AlicizationPlanTaskThreadInput as SharedAlicizationPlanTaskThreadInput,
   AlicizationPlanTaskThreadResult as SharedAlicizationPlanTaskThreadResult,
+  AlicizationPresenceExpressionSnapshot as SharedAlicizationPresenceExpressionSnapshot,
   AlicizationProactiveMetadata as SharedAlicizationProactiveMetadata,
   AlicizationRealtimeCategory as SharedAlicizationRealtimeCategory,
   AlicizationRealtimeExecutePayload as SharedAlicizationRealtimeExecutePayload,
@@ -1879,6 +1880,7 @@ export interface AlicizationVisualPresenceStateSnapshot extends SharedAlicizatio
   answerPlanner?: AlicizationAnswerPlannerSnapshot | null
   learningExecutionState?: SharedAlicizationLearningExecutionStateSnapshot | null
   residentPerformance?: SharedAlicizationResidentPerformanceSnapshot | null
+  presenceExpression?: SharedAlicizationPresenceExpressionSnapshot | null
   privateThought: AlicizationPrivateThoughtSnapshot | null
   captureState: {
     permission: 'granted' | 'denied' | 'prompt' | 'unknown'
@@ -1938,6 +1940,7 @@ export type AlicizationRuntimeProjectStateDigest = SharedAlicizationRuntimeProje
 export type AlicizationEmotionalKernelSnapshot = SharedAlicizationEmotionalKernelSnapshot
 export type AlicizationDialogueSpeechTimeline = SharedAlicizationDialogueSpeechTimeline
 export type AlicizationResidentPerformanceSnapshot = SharedAlicizationResidentPerformanceSnapshot
+export type AlicizationPresenceExpressionSnapshot = SharedAlicizationPresenceExpressionSnapshot
 export type CharacterFacialCapability = SharedCharacterFacialCapability
 export type CharacterActionCapability = SharedCharacterActionCapability
 export type CharacterPerformanceEmbodimentHints = SharedCharacterPerformanceEmbodimentHints

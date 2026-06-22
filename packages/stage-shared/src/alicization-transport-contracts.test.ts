@@ -317,6 +317,30 @@ describe('alicization transport contracts', () => {
         continuityMode: 'quiet-accompaniment',
         quietLineMs: 2400,
         currentInwardPreoccupation: ' keep the callback line alive quietly ',
+        presenceExpression: {
+          version: 'presence-expression-v1',
+          id: ' presence-expression:test ',
+          text: ' 嗯，先让这里慢下来一点。 ',
+          trigger: 'presence-only-hold',
+          display: {
+            mode: 'near-body-whisper',
+            allowAutoShow: true,
+            createdAt: 400,
+            expiresAt: 1400,
+            intensity: 'soft',
+          },
+          grounding: {
+            sourceRefs: [' privateThought ', '', 'emotionalKernel'],
+            reasonTags: [' quiet-companionship ', '', 'same living line'],
+            stateFingerprint: ' same-her-presence:fingerprint ',
+            confidence: 0.82,
+          },
+          audit: {
+            generated: true,
+            withheldReason: '',
+            qualityFlags: [' runtime-authored ', ''],
+          },
+        },
         emotionalKernel: {
           version: 'emotional-kernel-v1',
           dominantEmotion: 'repair-tension',
@@ -364,6 +388,30 @@ describe('alicization transport contracts', () => {
       initiativePressure: 0.42,
       reasonTags: ['repair-first', 'same living line'],
       why: 'keep repair-before-closeness on the same living line until embodiment settles',
+    })
+    expect(bundle?.visualPresenceState?.presenceExpression).toEqual({
+      version: 'presence-expression-v1',
+      id: 'presence-expression:test',
+      text: '嗯，先让这里慢下来一点。',
+      trigger: 'presence-only-hold',
+      display: {
+        mode: 'near-body-whisper',
+        allowAutoShow: true,
+        createdAt: 400,
+        expiresAt: 1400,
+        intensity: 'soft',
+      },
+      grounding: {
+        sourceRefs: ['privateThought', 'emotionalKernel'],
+        reasonTags: ['quiet-companionship', 'same living line'],
+        stateFingerprint: 'same-her-presence:fingerprint',
+        confidence: 0.82,
+      },
+      audit: {
+        generated: true,
+        withheldReason: null,
+        qualityFlags: ['runtime-authored'],
+      },
     })
   })
 
