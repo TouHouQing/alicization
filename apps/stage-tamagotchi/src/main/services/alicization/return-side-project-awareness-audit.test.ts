@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import {
   alicizationReturnSideBrowserObservationPersistenceFiles,
   alicizationReturnSideChatStreamIngestFiles,
+  alicizationReturnSideInspectorFallbackRebuildFiles,
   alicizationReturnSideProjectStateObservationReducerFiles,
   alicizationReturnSideRendererMetaBridgeFiles,
   alicizationReturnSideSessionSanitizationFiles,
@@ -29,6 +30,7 @@ describe('return-side-project-awareness-audit', () => {
       '../../../renderer/alicization-chat-stream-bridge.ts',
       '../../../../../../packages/stage-ui/src/composables/alicization-structured-output.ts',
       '../../../../../../packages/stage-ui/src/stores/alicization-browser-bridge.ts',
+      '../../../../../../packages/stage-ui/src/stores/alicization-self-evolution-inspector.ts',
       '../../../../../../packages/stage-ui/src/stores/chat.ts',
       '../../../../../../packages/stage-ui/src/stores/chat/session-store.ts',
       '../../../../../../packages/stage-ui/src/stores/project-state-observation.ts',
@@ -116,11 +118,34 @@ describe('return-side-project-awareness-audit', () => {
       expect(source).toContain('projectStateAudit?.continuitySummary')
       expect(source).toContain('const strongerPreDialogueAwarenessSummary')
       expect(source).toContain('const strongerContinuitySummary')
-      expect(source).toContain('const summaryLine = shouldPreferRicherProjectAwareSummary')
-      expect(source).toContain('? strongerContinuitySummary')
+      expect(source).toContain('const projectStateReasonPreviewCarry = [')
+      expect(source).toContain('identity,')
+      expect(source).toContain('effectiveLatestLandedProgress,')
+      expect(source).toContain('strongerNextClosureTarget,')
+      expect(source).toContain('const summaryLine = shouldPreferRicherSameHerLine')
+      expect(source).toContain('? resolveObservationAwarenessSummaryLine({')
+      expect(source).toContain('richerProjectAwareSummary,')
+      expect(source).toContain('strongerContinuitySummary,')
       expect(source).toContain(': preferredAwarenessSummaryLine')
       expect(source).toContain('|| strongerContinuitySummary')
+      expect(source).toContain('? [strongerContinuitySummary, ...projectStateReasonPreviewCarry]')
+      expect(source).toContain(': projectStateReasonPreviewCarry')
       expect(source).toContain('export function projectStateObservationToContinuitySnapshot(')
+    }
+  })
+
+  it('requires self-evolution inspector fallback rebuild boundaries to rematerialize same-her continuity snapshots from the latest project-state observation before the next outward turn', () => {
+    for (const relativePath of alicizationReturnSideInspectorFallbackRebuildFiles) {
+      const source = readFileSync(new URL(relativePath, import.meta.url), 'utf8')
+
+      expect(resolveAlicizationReturnSideProjectAwarenessAuditMode(relativePath)).toBe('inspector-fallback-rebuild')
+      expect(source).toContain('getLatestProjectStateObservation')
+      expect(source).toContain('projectStateObservationToContinuitySnapshot(')
+      expect(source).toContain('const observedContinuitySnapshot = nextProjectStateObservation')
+      expect(source).toContain('projectStateContinuitySnapshot.value = {')
+      expect(source).toContain('projectStateContinuitySnapshot.value = observedContinuitySnapshot')
+      expect(source).toContain('const preDialogueAwarenessSnapshot = computed')
+      expect(source).toContain('const preDialogueClosureSnapshot = computed')
     }
   })
 })
