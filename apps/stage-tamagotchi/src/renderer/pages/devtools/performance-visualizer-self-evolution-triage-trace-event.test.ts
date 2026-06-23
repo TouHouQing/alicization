@@ -32,7 +32,7 @@ describe('performance visualizer self evolution triage trace event', () => {
         id: 'repair-path',
         label: '修复路径',
         layer: null,
-        detail: 'renderer drift renderer-drift:resident Soft Gaze -> actual Focus Inspect | cue focused@prosody-authority -> authority trace 口型 authority 漂移，当前绑定来源仍然正确，但落点已经不同步。 -> continuity anchor turn=care | closure=grounded-recall | surface=procedural-carry',
+        detail: 'renderer drift renderer-drift:resident Soft Gaze -> actual Focus Inspect | face focused@prosody-authority | motion observe_focus@cue-bridge -> authority trace 口型 authority 漂移，当前绑定来源仍然正确，但落点已经不同步。 -> continuity anchor turn=care | closure=grounded-recall | surface=procedural-carry',
       },
       [
         {
@@ -65,5 +65,118 @@ describe('performance visualizer self evolution triage trace event', () => {
         },
       ],
     )).toBeNull()
+  })
+
+  it('prefers takeover-audit for project-state continuity checks so same-her carry drift lands on the continuity audit first', () => {
+    expect(recommendSelfEvolutionTraceEventId(
+      {
+        id: 'first-check',
+        label: '首查点',
+        layer: 'continuity',
+        detail: 'Project identity carry -> Phase 1 route carry -> Unresolved closure carry',
+      },
+      [
+        {
+          id: 'event-governance',
+          kind: 'governance-normalized',
+          summary: 'phase-1 continuity remains normalized for local digital life.',
+        },
+        {
+          id: 'event-takeover',
+          kind: 'takeover-audit',
+          summary: 'project identity and open loops were not carried strongly enough before the turn.',
+        },
+      ],
+    )).toBe('event-takeover')
+  })
+
+  it('prefers takeover-audit for body continuity checks so body-led same-segment carry lands on the continuity audit first', () => {
+    expect(recommendSelfEvolutionTraceEventId(
+      {
+        id: 'first-check',
+        label: '首查点',
+        layer: 'continuity',
+        detail: 'body continuity governance',
+      },
+      [
+        {
+          id: 'event-governance',
+          kind: 'governance-normalized',
+          summary: 'body continuity normalized after renderer authority settled.',
+        },
+        {
+          id: 'event-takeover',
+          kind: 'takeover-audit',
+          summary: 'body line nearly lost the living segment before face and motion rejoined it.',
+        },
+      ],
+    )).toBe('event-takeover')
+  })
+
+  it('treats explicit renderer rejoin repair paths as same-segment body continuity checks instead of generic renderer drift', () => {
+    expect(recommendSelfEvolutionTraceEventId(
+      {
+        id: 'repair-path',
+        label: '修复路径',
+        layer: null,
+        detail: 'continuity governance renderer rejoin -> body-led-same-segment-carry -> Live2D authority recovery -> cue bridge recovery',
+      },
+      [
+        {
+          id: 'event-presence',
+          kind: 'presence-pulse-dispatched',
+          summary: 'live2d authority pulse rejoined the same body-carried line.',
+        },
+        {
+          id: 'event-person-state',
+          kind: 'person-state-updated',
+          summary: 'live2d authority was remapped onto the same living segment the body line kept carrying.',
+        },
+        {
+          id: 'event-governance',
+          kind: 'governance-normalized',
+          summary: 'renderer rejoin was normalized as same-her manifestation recovery.',
+        },
+        {
+          id: 'event-takeover',
+          kind: 'takeover-audit',
+          summary: 'audited that live2d authority rejoined the same living segment instead of branching identity.',
+        },
+      ],
+    )).toBe('event-takeover')
+  })
+
+  it('treats structured speech renderer rejoin cards as same-segment body continuity checks even when the wording becomes generic', () => {
+    expect(recommendSelfEvolutionTraceEventId(
+      {
+        id: 'repair-path',
+        label: '修复路径',
+        layer: null,
+        detail: 'continuity governance manifestation authority recovery -> cue bridge recovery',
+        rendererRejoinSurfaceKey: 'authority:renderer-rejoin:speech',
+      },
+      [
+        {
+          id: 'event-presence',
+          kind: 'presence-pulse-dispatched',
+          summary: 'speech authority pulse rejoined the same body-carried line.',
+        },
+        {
+          id: 'event-person-state',
+          kind: 'person-state-updated',
+          summary: 'speech authority was remapped onto the same living segment the body line kept carrying.',
+        },
+        {
+          id: 'event-governance',
+          kind: 'governance-normalized',
+          summary: 'speech manifestation rejoin was normalized as same-her recovery.',
+        },
+        {
+          id: 'event-takeover',
+          kind: 'takeover-audit',
+          summary: 'audited that speech authority rejoined the same living segment instead of branching identity.',
+        },
+      ],
+    )).toBe('event-takeover')
   })
 })

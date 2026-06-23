@@ -8,6 +8,23 @@ interface SelfEvolutionTraceEventCandidate {
   summary?: string | null
 }
 
+function isBodyContinuityRendererRejoin(detail: string) {
+  return detail.includes('body-led-same-segment-carry')
+    || detail.includes('body authority carry')
+    || detail.includes('renderer rejoin')
+    || detail.includes('显形补回')
+}
+
+function isStructuredBodyContinuityRendererRejoin(
+  triageCard: PerformanceVisualizerSelfEvolutionTriageCard,
+) {
+  return triageCard.bodyContinuityPhase === 'body-only-hold'
+    || triageCard.bodyContinuityPhase === 'body-carried-to-renderer-rejoin'
+    || triageCard.bodyContinuityPhase === 'full-cross-modal-lock'
+    || triageCard.bodyContinuityPhase === 'renderer-rejoin-without-body'
+    || triageCard.rendererRejoinSurfaceKey != null
+}
+
 export function recommendSelfEvolutionTraceEventId(
   triageCard: PerformanceVisualizerSelfEvolutionTriageCard | null | undefined,
   traceEvents: SelfEvolutionTraceEventCandidate[],
@@ -30,6 +47,24 @@ export function recommendSelfEvolutionTraceEventId(
   if (triageCard.detail.startsWith('continuity governance ') || triageCard.detail === 'same-her continuity governance') {
     return traceEvents.find(event => event.kind === 'takeover-audit')?.id
       ?? traceEvents.find(event => event.kind === 'governance-normalized')?.id
+      ?? null
+  }
+
+  if (triageCard.detail === 'relationship cadence governance') {
+    return traceEvents.find(event => event.kind === 'takeover-audit')?.id
+      ?? traceEvents.find(event => event.kind === 'governance-normalized')?.id
+      ?? null
+  }
+
+  if (
+    triageCard.detail === 'body continuity governance'
+    || isBodyContinuityRendererRejoin(triageCard.detail)
+    || isStructuredBodyContinuityRendererRejoin(triageCard)
+  ) {
+    return traceEvents.find(event => event.kind === 'takeover-audit')?.id
+      ?? traceEvents.find(event => event.kind === 'governance-normalized')?.id
+      ?? traceEvents.find(event => event.kind === 'person-state-updated')?.id
+      ?? traceEvents.find(event => event.kind === 'presence-pulse-dispatched')?.id
       ?? null
   }
 
