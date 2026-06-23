@@ -3,11 +3,14 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
 import {
+  alicizationProjectStateAnswerGovernanceAnswerPlanningFiles,
   alicizationProjectStateAnswerGovernanceAuthorityFiles,
   alicizationProjectStateAnswerGovernanceContinuitySurfaceFiles,
   alicizationProjectStateAnswerGovernanceContractSurfaceFiles,
   alicizationProjectStateAnswerGovernanceEnricherFiles,
   alicizationProjectStateAnswerGovernanceReplySurfacePreflightFiles,
+  alicizationProjectStateAnswerGovernanceResponseCharterFiles,
+  alicizationProjectStateAnswerGovernanceSemanticsClassificationFiles,
   resolveAlicizationProjectStateAnswerGovernanceAuditedFiles,
   resolveAlicizationProjectStateAnswerGovernanceAuditRegistry,
   resolveAlicizationProjectStateAnswerGovernanceMode,
@@ -30,6 +33,7 @@ describe('project state answer governance audit', () => {
     expect(resolveAlicizationProjectStateAnswerGovernanceAuditRegistry().map(entry => entry.relativePath).sort())
       .toEqual(discoveredFiles)
     expect(discoveredFiles).toContain('visible-reply/facade.ts')
+    expect(discoveredFiles).toContain('runtime-governance.ts')
   })
 
   it('keeps a single canonical governance authority and requires runtime answer-preparation seams to enrich project-state answers through it', () => {
@@ -105,6 +109,12 @@ describe('project state answer governance audit', () => {
         expect(source).toContain('alicizationProjectStatePersistenceNextClosureReminder')
         expect(source).toContain('continuitySummary:')
       }
+      else if (relativePath === 'runtime-governance.ts') {
+        expect(source).toContain('function resolveProjectStateContinuityCarry(')
+        expect(source).toContain('preDialogueAwarenessSummary')
+        expect(source).toContain('landedProgressSummary')
+        expect(source).toContain('openClosureSummary')
+      }
       else {
         expect(source).toContain('alicizationProjectStateVisibleReplySameHerReminder')
         expect(source).toContain('alicizationProjectStatePersistenceLandedReminder')
@@ -130,5 +140,39 @@ describe('project state answer governance audit', () => {
     expect(executiveAnswerBriefIndex).toBeGreaterThan(responseCharterIndex)
     expect(responseSurfaceContractIndex).toBeGreaterThan(responseCharterIndex)
     expect(source).toContain('preflightSummary')
+  })
+
+  it('requires project-status semantics, answer planning, and response charter shaping surfaces to keep direct project-state same-her governance explicit before later answer-contract or visible-reply layers begin', () => {
+    expect(alicizationProjectStateAnswerGovernanceSemanticsClassificationFiles).toEqual(['dialogue-turn-semantics.ts'])
+    expect(alicizationProjectStateAnswerGovernanceAnswerPlanningFiles).toEqual(['answer-planner.ts'])
+    expect(alicizationProjectStateAnswerGovernanceResponseCharterFiles).toEqual(['response-charter.ts'])
+
+    for (const relativePath of alicizationProjectStateAnswerGovernanceSemanticsClassificationFiles) {
+      const source = readFileSync(new URL(`./${relativePath}`, import.meta.url), 'utf8')
+
+      expect(resolveAlicizationProjectStateAnswerGovernanceMode(relativePath)).toBe('semantics-classification')
+      expect(source).toContain('const projectStateMergeReadinessCuePattern')
+      expect(source).toContain('const projectStateCompletionTimelineCuePattern')
+      expect(source).toContain('const projectStateLanguageDriftCuePattern')
+      expect(source).toContain(`reasonTags.push('project-state-continuity-question')`)
+    }
+
+    for (const relativePath of alicizationProjectStateAnswerGovernanceAnswerPlanningFiles) {
+      const source = readFileSync(new URL(`./${relativePath}`, import.meta.url), 'utf8')
+
+      expect(resolveAlicizationProjectStateAnswerGovernanceMode(relativePath)).toBe('answer-planning-surface')
+      expect(source).toContain('function looksLikeProjectStateDirectAnswerTurn(')
+      expect(source).toContain('same digital life line: Phase 1 landed progress, when the goal is expected to close, and whether the thread drifted out of the host language or project line still need one direct answer.')
+      expect(source).toContain('Keep direct project-state answers inward-first so landed progress and the next closure target stay behind the live payoff until it lands.')
+    }
+
+    for (const relativePath of alicizationProjectStateAnswerGovernanceResponseCharterFiles) {
+      const source = readFileSync(new URL(`./${relativePath}`, import.meta.url), 'utf8')
+
+      expect(resolveAlicizationProjectStateAnswerGovernanceMode(relativePath)).toBe('response-charter-surface')
+      expect(source).toContain('const namesProjectStateTurn = /project-state question|project status|project-state|project continuity/u.test(evidence)')
+      expect(source).toContain('Keep direct project-state answers inward-first so the live payoff lands before any project-summary voice appears.')
+      expect(source).toContain('Do not reopen this same-thread project-state turn from scratch or let it flatten into a fresh report opening.')
+    }
   })
 })

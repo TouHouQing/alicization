@@ -32,6 +32,11 @@ describe('project-state-brief', () => {
     expect(brief.sameHerSelfLine).toContain('Same Phase 1 digital life')
     expect(brief.sameHerHoldDetail).toContain('same-her hold')
     expect(brief.continuityCue).toContain('same living line')
+    expect(brief.continuityRestraint).toBe('measured-return')
+    expect(brief.preferredPauseMode).toBe('longer')
+    expect(brief.preferredLipsyncMode).toBe('restrained')
+    expect(brief.preferredVoiceMode).toBe('lower-pressure')
+    expect(brief.preferredPacingMode).toBe('slower')
     expect(brief.identity).toContain('one continuous "her"')
     expect(brief.preflightSummary).toContain('local-first digital life project')
     expect(brief.preflightSummary).toContain('Phase 1: Local Digital Life')
@@ -114,6 +119,9 @@ describe('project-state-brief', () => {
     expect(brief.latestProgress).toContain('shared text-composer send authority')
     expect(brief.latestProgress).toContain('second pre-dialogue identity seam')
     expect(brief.latestProgress).toContain('Broader project-state answer-governance candidates')
+    expect(brief.latestProgress).toContain('semantics classification')
+    expect(brief.latestProgress).toContain('answer planning')
+    expect(brief.latestProgress).toContain('response charter shaping')
     expect(brief.latestProgress).toContain('broader runtime dialogue-normalization candidates')
     expect(brief.latestProgress).toContain('broader guarded turn persistence candidates')
     expect(brief.latestProgress).toContain('project-status answer surfaces')
@@ -172,6 +180,17 @@ describe('project-state-brief', () => {
     expect(brief.latestProgress).toContain('blocked-dispatch safety-gate briefing seams')
     expect(brief.latestProgress).toContain('shared root final-gate candidate-audit registry')
     expect(brief.latestProgress).toContain('shared top-level completeness guard family registry')
+    expect(brief.latestProgress).toContain('renderer/store dialogue-entry candidates')
+    expect(brief.latestProgress).toContain('main-process chat-start candidates')
+    expect(brief.latestProgress).toContain('reopen-time return-side rebuild candidates')
+    expect(brief.latestProgress).toContain('provider-facing generation entry candidates')
+    expect(brief.latestProgress).toContain('project-state answer surfaces')
+    expect(brief.latestProgress).toContain('host-visible normalization seams')
+    expect(brief.latestProgress).toContain('guarded turn persistence')
+    expect(brief.latestProgress).toContain('execution-preflight context-repair candidates')
+    expect(brief.latestProgress).toContain('direct execution-dispatch bridge candidates')
+    expect(brief.latestProgress).toContain('recovery reentry')
+    expect(brief.latestProgress).toContain('execution follow-up continuity')
     expect(brief.latestProgress).toContain('candidate families derive from one shared registry')
     expect(brief.latestProgress).toContain('future entrypoint families are harder to hide between neighboring audits')
     expect(brief.latestProgress).toContain('direct main-chat-stream callers')
@@ -467,6 +486,27 @@ describe('project-state-brief', () => {
     expect(snapshot.nextClosureTarget).toBe('Carry the live project awareness into the first visible answer beat before local details take over.')
   })
 
+  it('keeps voice and pacing preferences explicit on canonical project snapshots so same-her surface spreads do not widen them back to undefined', () => {
+    const snapshot = resolveAlicizationProjectStateSnapshot({
+      runtimeProjectState: {
+        preferredVoiceMode: '   ',
+        preferredPacingMode: '   ',
+      },
+      fallbackProjectState: {
+        preferredVoiceMode: '',
+        preferredPacingMode: '',
+      },
+    })
+
+    const preferredVoiceMode: 'lower-pressure' | 'even' | null = snapshot.preferredVoiceMode
+    const preferredPacingMode: 'slower' | 'natural' | null = snapshot.preferredPacingMode
+
+    expect(Object.prototype.hasOwnProperty.call(snapshot, 'preferredVoiceMode')).toBe(true)
+    expect(Object.prototype.hasOwnProperty.call(snapshot, 'preferredPacingMode')).toBe(true)
+    expect([null, 'lower-pressure', 'even']).toContain(preferredVoiceMode)
+    expect([null, 'slower', 'natural']).toContain(preferredPacingMode)
+  })
+
   it('does not treat a richer Chinese same-her project identity from the current conscious frame as a thin surface shell', () => {
     const snapshot = resolveAlicizationSurfaceProjectStateSnapshot({
       runtimeSurface: {
@@ -645,6 +685,35 @@ describe('project-state-brief', () => {
     expect(snapshot.continuityCue).toBe(correctedSamePersonCue)
   })
 
+  it('derives lived-in same-her callback carry from continuity behavior when snapshot only retains reopening behavior fields', () => {
+    const sameHerSelfLine = 'Same Phase 1 digital life. This reopened callback should keep the same living line rather than reopen from a generic shell.'
+
+    const snapshot = resolveAlicizationProjectStateSnapshot({
+      runtimeProjectState: {
+        preDialogueAwarenessLine: sameHerSelfLine,
+        awarenessLine: sameHerSelfLine,
+        sameHerSelfLine,
+        sameHerHoldDetail: null,
+        continuityCue: null,
+        continuityRestraint: 'repair-before-closeness',
+        continuityPreferredTiming: 'next-open-window',
+        continuityCadence: 'repair-before-closeness',
+      } as any,
+    })
+
+    expect(snapshot.sameHerHoldDetail).toBe(
+      'same-her hold: repair-before-closeness still owns this callback line before closeness widens again.',
+    )
+    expect(snapshot.continuityCue).toBe(
+      'Keep this return repair-before-closeness on the same living line until repair settles.',
+    )
+    expect(snapshot.preDialogueAwarenessLine).toBe(
+      'same-her hold: repair-before-closeness still owns this callback line before closeness widens again.',
+    )
+    expect(snapshot.continuityPreferredTiming).toBe('next-open-window')
+    expect(snapshot.continuityCadence).toBe('repair-before-closeness')
+  })
+
   it('prefers a richer anti-shell same-her drift risk over a thinner runtime generic-guidance warning when resolving a project-state snapshot', () => {
     const thinnerRuntimeDriftRisk = 'If project-state continuity survives only as generic guidance while the direct same-her self line disappears, treat that as unfinished closure drift rather than a successful turn.'
     const richerFallbackDriftRisk = 'If this reopening flattens into a generic assistant shell or project-summary voice, treat that as unfinished same-her drift instead of a completed return.'
@@ -762,6 +831,7 @@ describe('project-state-brief', () => {
   it('builds shared pre-dialogue awareness and closure structures that preserve the freshest awareness line before summary fallback', () => {
     const awarenessLine = 'Before answering, keep this same digital life project, current Phase 1 closure pressure, and still-open life loop explicit before the callback widens.'
     const emotionalClosureCue = 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.'
+    const compactSummaryLine = 'open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment. | next=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.'
     const preDialogueAwareness = buildAlicizationProjectPreDialogueAwareness({
       preflightSummary: 'Fallback summary should stay behind the fresher awareness line.',
       runtimeProjectState: {
@@ -783,7 +853,7 @@ describe('project-state-brief', () => {
 
     expect(preDialogueAwareness).toEqual({
       status: 'grounded',
-      summaryLine: 'Fallback summary should stay behind the fresher awareness line.',
+      summaryLine: compactSummaryLine,
       companionHeadlineLine: null,
       companionBriefingLine: null,
       companionNextClosureLine: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
@@ -796,13 +866,13 @@ describe('project-state-brief', () => {
     })
     expect(preDialogueClosure).toEqual({
       status: 'partial',
-      summaryLine: 'Fallback summary should stay behind the fresher awareness line.',
+      summaryLine: compactSummaryLine,
       companionHeadlineLine: null,
       companionBriefingLine: null,
       companionNextClosureLine: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
       emotionalClosureCue,
       briefingLines: [
-        'Fallback summary should stay behind the fresher awareness line.',
+        compactSummaryLine,
         'Next closure target: Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
       ],
       reasons: [
@@ -911,6 +981,7 @@ describe('project-state-brief', () => {
   })
 
   it('does not fabricate next-closure filler text when shared pre-dialogue awareness has no closure target yet', () => {
+    const compactSummaryLine = 'open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment.'
     const preDialogueAwareness = buildAlicizationProjectPreDialogueAwareness({
       preflightSummary: 'Fallback summary should stay behind the still-open closure seam.',
       runtimeProjectState: {
@@ -930,7 +1001,7 @@ describe('project-state-brief', () => {
 
     expect(preDialogueAwareness).toEqual({
       status: 'grounded',
-      summaryLine: 'Fallback summary should stay behind the still-open closure seam.',
+      summaryLine: compactSummaryLine,
       companionHeadlineLine: null,
       companionBriefingLine: null,
       companionNextClosureLine: null,
@@ -942,13 +1013,13 @@ describe('project-state-brief', () => {
     })
     expect(preDialogueClosure).toEqual({
       status: 'partial',
-      summaryLine: 'Fallback summary should stay behind the still-open closure seam.',
+      summaryLine: compactSummaryLine,
       companionHeadlineLine: null,
       companionBriefingLine: null,
       companionNextClosureLine: null,
       emotionalClosureCue: null,
       briefingLines: [
-        'Fallback summary should stay behind the still-open closure seam.',
+        compactSummaryLine,
       ],
       reasons: [
         'Memory still needs stronger end-to-end closure across turns, initiative, and embodiment.',
@@ -957,6 +1028,7 @@ describe('project-state-brief', () => {
   })
 
   it('treats punctuation-only next-closure targets as absent instead of fabricating filler text', () => {
+    const compactSummaryLine = 'open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment.'
     const preDialogueAwareness = buildAlicizationProjectPreDialogueAwareness({
       preflightSummary: 'Fallback summary should stay behind the still-open closure seam.',
       runtimeProjectState: {
@@ -980,7 +1052,7 @@ describe('project-state-brief', () => {
     ])
     expect(preDialogueClosure.companionNextClosureLine).toBeNull()
     expect(preDialogueClosure.briefingLines).toEqual([
-      'Fallback summary should stay behind the still-open closure seam.',
+      compactSummaryLine,
     ])
     expect(preDialogueClosure.reasons).toEqual([
       'Memory still needs stronger end-to-end closure across turns, initiative, and embodiment.',
@@ -991,6 +1063,7 @@ describe('project-state-brief', () => {
     const awarenessLine = 'Before answering, remember this is still the same digital life project before local fluency takes over.'
     const companionHeadlineLine = 'Right now I am still holding together mainly through face, motion, and lipsync, so the next reopening must keep proving this is still one living her.'
     const emotionalClosureCue = 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.'
+    const compactSummaryLine = 'open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment. | next=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.'
     const preDialogueAwareness = buildAlicizationProjectPreDialogueAwareness({
       preflightSummary: 'Fallback summary should stay behind the stronger same-her headline.',
       runtimeProjectState: {
@@ -1018,7 +1091,7 @@ describe('project-state-brief', () => {
 
     expect(preDialogueAwareness).toEqual({
       status: 'grounded',
-      summaryLine: 'Fallback summary should stay behind the stronger same-her headline.',
+      summaryLine: compactSummaryLine,
       companionHeadlineLine,
       companionBriefingLine: 'Fallback companion briefing should stay behind the stronger same-her headline.',
       companionNextClosureLine: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
@@ -1032,13 +1105,13 @@ describe('project-state-brief', () => {
     expect(preDialogueAwareness?.awarenessLine).not.toBe(companionHeadlineLine)
     expect(preDialogueClosure).toEqual({
       status: 'partial',
-      summaryLine: 'Fallback summary should stay behind the stronger same-her headline.',
+      summaryLine: compactSummaryLine,
       companionHeadlineLine,
       companionBriefingLine: 'Fallback companion briefing should stay behind the stronger same-her headline.',
       companionNextClosureLine: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
       emotionalClosureCue,
       briefingLines: [
-        'Fallback summary should stay behind the stronger same-her headline.',
+        compactSummaryLine,
         'Next closure target: Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
       ],
       reasons: [
@@ -1090,6 +1163,7 @@ describe('project-state-brief', () => {
     const awarenessLine = 'Before answering, remember this is still one living digital life project, Phase 1 is still active, some closure has already landed, and the still-open life loop must remain explicit before local fluency widens outward.'
     const companionHeadlineLine = 'Right now I am still holding together mainly through face, motion, and lipsync, so the next reopening must keep proving this is still one living her.'
     const emotionalClosureCue = 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.'
+    const compactSummaryLine = 'open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment. | next=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.'
     const preDialogueAwareness = buildAlicizationProjectPreDialogueAwareness({
       preflightSummary: 'Fallback summary should stay behind the richer phase-aware project awareness line.',
       runtimeProjectState: {
@@ -1105,7 +1179,7 @@ describe('project-state-brief', () => {
 
     expect(preDialogueAwareness).toEqual({
       status: 'grounded',
-      summaryLine: 'Fallback summary should stay behind the richer phase-aware project awareness line.',
+      summaryLine: compactSummaryLine,
       companionHeadlineLine,
       companionBriefingLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
       companionNextClosureLine: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
@@ -1300,6 +1374,8 @@ describe('project-state-brief', () => {
               continuityCadence: 'measured-return',
               preferredBlinkCadence: 'quiet',
               preferredGazeMode: 'soften',
+              preferredPauseMode: 'longer',
+              preferredLipsyncMode: 'restrained',
             },
           },
         },
@@ -1319,6 +1395,8 @@ describe('project-state-brief', () => {
     expect(snapshot.continuityCadence).toBe('measured-return')
     expect(snapshot.preferredBlinkCadence).toBe('quiet')
     expect(snapshot.preferredGazeMode).toBe('soften')
+    expect(snapshot.preferredPauseMode).toBe('longer')
+    expect(snapshot.preferredLipsyncMode).toBe('restrained')
   })
 
   it('keeps audit-style landedProgressSummary alive on shared surface snapshots when explicit progress fields are blank', () => {
@@ -1480,6 +1558,10 @@ describe('project-state-brief', () => {
     expect(extraSystemBlocks[0]).toContain('primary_open_loop=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment')
     expect(extraSystemBlocks[0]).toContain('proactive_same_her_gap=Need stronger long-run proof that visible proactive hold, subconscious carry, and next-session feedback carry stay unified')
     expect(extraSystemBlocks[0]).toContain('open_focus=memory/initiative/embodiment')
+    expect(extraSystemBlocks[0]).toContain('preferred_pause_mode=longer')
+    expect(extraSystemBlocks[0]).toContain('preferred_lipsync_mode=restrained')
+    expect(extraSystemBlocks[0]).toContain('preferred_voice_mode=lower-pressure')
+    expect(extraSystemBlocks[0]).toContain('preferred_pacing_mode=slower')
     expect(extraSystemBlocks[0]).toContain('next_closure_target=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs')
     expect(extraSystemBlocks[0]).toContain('next_focus=project-carry/phase-1/measured-return/repair-before-closeness/same-line')
   })
@@ -1572,29 +1654,70 @@ describe('project-state-brief', () => {
     expect(coverage.find(item => item.id === 'mind-turn-contract-project-state-grounding')?.proof).toContain('mind-turn-contract.test.ts')
     expect(coverage.find(item => item.id === 'mind-turn-contract-project-state-grounding')?.proof).toContain('mind-turn-contract-invariants.test.ts')
     expect(coverage.find(item => item.id === 'mind-turn-contract-project-state-grounding')?.proof).toContain('chat-mind-governance.test.ts')
+    expect(coverage.find(item => item.id === 'mind-turn-contract-project-state-grounding')?.proof).toContain('chat-mind-governance-project-awareness-audit.test.ts')
+    expect(
+      coverage.find(item => item.id === 'mind-turn-contract-project-state-grounding')?.proof?.split(' + '),
+    ).toContain('project-state-closure-preference.test.ts')
+    expect(coverage.find(item => item.id === 'mind-turn-contract-project-state-grounding')?.responsibility).toContain('richer persisted closure summary')
     expect(coverage.find(item => item.id === 'downstream-reply-project-awareness-preservation')?.proof).toContain('answer-compiler-project-awareness-audit.test.ts')
     expect(coverage.find(item => item.id === 'downstream-reply-project-awareness-preservation')?.proof).toContain('executive-answer-brief.test.ts')
     expect(coverage.find(item => item.id === 'downstream-reply-project-awareness-preservation')?.proof).toContain('executive-answer-brief-project-awareness-audit.test.ts')
     expect(coverage.find(item => item.id === 'downstream-reply-project-awareness-preservation')?.proof).toContain('reply-deliberator.test.ts')
     expect(coverage.find(item => item.id === 'downstream-reply-project-awareness-preservation')?.proof).toContain('reply-deliberator-project-awareness-audit.test.ts')
     expect(coverage.find(item => item.id === 'downstream-reply-project-awareness-preservation')?.proof).toContain('visible-reply-facade-project-awareness-audit.test.ts')
+    expect(coverage.find(item => item.id === 'downstream-reply-project-awareness-preservation')?.proof).toContain('runtime-governance-project-awareness-audit.test.ts')
+    expect(coverage.find(item => item.id === 'downstream-reply-project-awareness-preservation')?.proof).toContain('visible-reply-governance-project-awareness-audit.test.ts')
+    expect(coverage.find(item => item.id === 'downstream-reply-project-awareness-preservation')?.proof).toContain('visible-reply/governance-audit.test.ts')
+    expect(coverage.find(item => item.id === 'downstream-reply-project-awareness-preservation')?.proof).toContain('visible-reply/facade-project-state-summary.test.ts')
+    expect(coverage.find(item => item.id === 'downstream-reply-project-awareness-preservation')?.proof).toContain('runtime-governance-project-state-preserve.test.ts')
     expect(coverage.find(item => item.id === 'downstream-reply-project-awareness-preservation')?.proof).toContain('visible-reply/critic.test.ts')
     expect(coverage.find(item => item.id === 'downstream-reply-project-awareness-preservation')?.proof).toContain('visible-reply/settlement.test.ts')
     expect(coverage.find(item => item.id === 'downstream-reply-project-awareness-preservation')?.proof).toContain('main-chat-runtime-surface.test.ts')
     expect(coverage.find(item => item.id === 'downstream-reply-project-awareness-preservation')?.proof).toContain('visible-reply/facade.test.ts')
     expect(coverage.find(item => item.id === 'downstream-reply-project-awareness-preservation')?.proof).toContain('visible-reply/second-pass-rewrite.test.ts')
     expect(coverage.find(item => item.id === 'downstream-reply-project-awareness-preservation')?.proof).toContain('return-side-reopen-visible-reply-bridge-audit.test.ts')
+    expect(coverage.find(item => item.id === 'downstream-reply-project-awareness-preservation')?.proof).toContain('self-evolution-downstream-visible-reply-bridge-audit.test.ts')
+    expect(coverage.find(item => item.id === 'downstream-reply-project-awareness-preservation')?.proof).toContain('proactive-downstream-visible-reply-bridge-audit.test.ts')
+    expect(coverage.find(item => item.id === 'downstream-reply-project-awareness-preservation')?.proof).toContain('thin-chinese-same-her-reminder-audit.test.ts')
+    expect(
+      coverage.find(item => item.id === 'downstream-reply-project-awareness-preservation')?.proof?.split(' + '),
+    ).toContain('main-chat-background-run-project-state-summary.test.ts')
+    expect(
+      coverage.find(item => item.id === 'downstream-reply-project-awareness-preservation')?.proof?.split(' + '),
+    ).toContain('main-chat-stream-runner-project-state-summary.test.ts')
     expect(coverage.find(item => item.id === 'downstream-reply-project-awareness-preservation')?.responsibility).toContain('executive brief live project-state closure triad carry')
     expect(coverage.find(item => item.id === 'downstream-reply-project-awareness-preservation')?.responsibility).toContain('broader same-her headline precedence')
     expect(coverage.find(item => item.id === 'downstream-reply-project-awareness-preservation')?.responsibility).toContain('reply-deliberator project-status closure triad carry')
     expect(coverage.find(item => item.id === 'downstream-reply-project-awareness-preservation')?.responsibility).toContain('live project-awareness opening-beat upgrading')
     expect(coverage.find(item => item.id === 'downstream-reply-project-awareness-preservation')?.responsibility).toContain('visible-reply facade live project-awareness precedence')
     expect(coverage.find(item => item.id === 'downstream-reply-project-awareness-preservation')?.responsibility).toContain('fresher same-her self-line precedence')
+    expect(coverage.find(item => item.id === 'downstream-reply-project-awareness-preservation')?.responsibility).toContain('governed rewrite continuity')
+    expect(coverage.find(item => item.id === 'downstream-reply-project-awareness-preservation')?.responsibility).toContain('rewrite takeover authority')
+    expect(coverage.find(item => item.id === 'downstream-reply-project-awareness-preservation')?.responsibility).toContain('self-evolution downstream visible-reply bridge')
+    expect(coverage.find(item => item.id === 'downstream-reply-project-awareness-preservation')?.responsibility).toContain('proactive downstream visible-reply bridge')
     expect(coverage.find(item => item.id === 'downstream-reply-project-awareness-preservation')?.responsibility).toContain('return-side-reopen-through-visible-reply same-her bridge')
+    expect(coverage.find(item => item.id === 'downstream-reply-project-awareness-preservation')?.responsibility).toContain('same-her, phase, landed, open, next before body')
+    expect(coverage.find(item => item.id === 'downstream-reply-project-awareness-preservation')?.responsibility).toContain('host-corrected same-person continuity authority')
+    expect(coverage.find(item => item.id === 'downstream-reply-project-awareness-preservation')?.responsibility).toContain('audible-body rejoin keeps the living audio thread intact')
     expect(coverage.find(item => item.id === 'visible-reply-executive-brief')?.proof).toContain('executive-answer-brief-project-awareness-audit.test.ts')
     expect(coverage.find(item => item.id === 'visible-reply-executive-brief')?.proof).toContain('executive-answer-brief.test.ts')
     expect(coverage.find(item => item.id === 'visible-reply-executive-brief')?.responsibility).toContain('summary-only landed progress carry')
     expect(coverage.find(item => item.id === 'visible-reply-executive-brief')?.responsibility).toContain('audible-body same-her project carry')
+    expect(coverage.find(item => item.id === 'visible-reply-timeout-fallback')?.proof).toContain('timeout-fallback-project-awareness-audit.test.ts')
+    expect(coverage.find(item => item.id === 'visible-reply-timeout-fallback')?.proof).toContain('background-recovery-project-awareness-audit.test.ts')
+    expect(coverage.find(item => item.id === 'visible-reply-timeout-fallback')?.proof).toContain('run-lifecycle-project-awareness-audit.test.ts')
+    expect(
+      coverage.find(item => item.id === 'visible-reply-timeout-fallback')?.proof?.split(' + '),
+    ).toContain('main-chat-background-rules-project-state-provider.test.ts')
+    expect(
+      coverage.find(item => item.id === 'visible-reply-timeout-fallback')?.proof?.split(' + '),
+    ).toContain('main-chat-timeout-fallback-drift-risk-audit.test.ts')
+    expect(coverage.find(item => item.id === 'visible-reply-timeout-fallback')?.responsibility).toContain('payload-lived awareness carry')
+    expect(coverage.find(item => item.id === 'visible-reply-timeout-fallback')?.responsibility).toContain('canonical same-her backfill')
+    expect(coverage.find(item => item.id === 'visible-reply-timeout-fallback')?.responsibility).toContain('payload companion briefing carry')
+    expect(coverage.find(item => item.id === 'visible-reply-timeout-fallback')?.responsibility).toContain('finish and emit seams')
+    expect(coverage.find(item => item.id === 'visible-reply-timeout-fallback')?.responsibility).toContain('minimal recovery compaction')
+    expect(coverage.find(item => item.id === 'visible-reply-timeout-fallback')?.responsibility).toContain('drift-risk-only anti-shell authority')
     expect(coverage.find(item => item.id === 'visible-reply-facade-preflight-surface')?.proof).toContain('visible-reply-facade-project-awareness-audit.test.ts')
     expect(coverage.find(item => item.id === 'visible-reply-facade-preflight-surface')?.responsibility).toContain('dialogue-runtime same-her hold carry')
     expect(coverage.find(item => item.id === 'visible-reply-facade-preflight-surface')?.responsibility).toContain('callback continuity carry')
@@ -1605,47 +1728,205 @@ describe('project-state-brief', () => {
     expect(coverage.find(item => item.id === 'same-living-self-project-awareness-observability')?.proof).toContain('renderer-fallback-project-awareness-audit.test.ts')
     expect(coverage.find(item => item.id === 'same-living-self-project-awareness-observability')?.proof).toContain('project-state-observation-project-awareness-audit.test.ts')
     expect(coverage.find(item => item.id === 'same-living-self-project-awareness-observability')?.proof).toContain('dialogue-session-mirror-project-awareness-audit.test.ts')
+    expect(coverage.find(item => item.id === 'same-living-self-project-awareness-observability')?.proof).toContain('current-conscious-frame-turn-shaping-project-awareness-audit.test.ts')
+    expect(coverage.find(item => item.id === 'same-living-self-project-awareness-observability')?.proof).toContain('dialogue-feedback-project-awareness-audit.test.ts')
+    expect(coverage.find(item => item.id === 'same-living-self-project-awareness-observability')?.proof).toContain('later-learning-project-awareness-audit.test.ts')
     expect(coverage.find(item => item.id === 'same-living-self-project-awareness-observability')?.proof).toContain('same-living-self-host-visible-inward-carry-bridge-audit.test.ts')
+    expect(coverage.find(item => item.id === 'same-living-self-project-awareness-observability')?.proof).toContain('self-continuity-authority-project-awareness-audit.test.ts')
     expect(coverage.find(item => item.id === 'same-living-self-project-awareness-observability')?.proof).toContain('pipeline-runtime.test.ts')
     expect(coverage.find(item => item.id === 'same-living-self-project-awareness-observability')?.proof).toContain('quick-reply-project-awareness-audit.test.ts')
     expect(coverage.find(item => item.id === 'same-living-self-project-awareness-observability')?.proof).toContain('dialogue-panel-project-awareness-audit.test.ts')
     expect(coverage.find(item => item.id === 'same-living-self-project-awareness-observability')?.proof).toContain('alicization-self-evolution-inspector.test.ts')
     expect(coverage.find(item => item.id === 'same-living-self-project-awareness-observability')?.proof).toContain('current-conscious-frame.test.ts')
+    expect(coverage.find(item => item.id === 'same-living-self-project-awareness-observability')?.proof).toContain('self-evolution-return-side-reentry-bridge-audit.test.ts')
     expect(coverage.find(item => item.id === 'same-living-self-project-awareness-observability')?.responsibility).toContain('same-living-self return-side observability bridge')
     expect(coverage.find(item => item.id === 'same-living-self-project-awareness-observability')?.responsibility).toContain('same-living-self host-visible inward-carry bridge')
+    expect(coverage.find(item => item.id === 'same-living-self-project-awareness-observability')?.responsibility).toContain('current-conscious-frame turn shaping')
+    expect(coverage.find(item => item.id === 'same-living-self-project-awareness-observability')?.responsibility).toContain('dialogue feedback settlement')
+    expect(coverage.find(item => item.id === 'same-living-self-project-awareness-observability')?.responsibility).toContain('later organic learning')
+    expect(coverage.find(item => item.id === 'same-living-self-project-awareness-observability')?.responsibility).toContain('self-evolution return-side reentry bridge')
     expect(coverage.find(item => item.id === 'chat-start-pre-dialogue-awareness-chain')?.proof).toContain('runtime-main-chat-prelude.ts')
+    expect(coverage.find(item => item.id === 'chat-start-pre-dialogue-awareness-chain')?.proof).toContain('pre-dialogue-transport-project-awareness-audit.test.ts')
+    expect(coverage.find(item => item.id === 'chat-start-pre-dialogue-awareness-chain')?.proof).toContain('chat-entry-route-project-awareness-audit.test.ts')
+    expect(coverage.find(item => item.id === 'chat-start-pre-dialogue-awareness-chain')?.proof).toContain('chat-start-runtime-project-awareness-audit.test.ts')
+    expect(coverage.find(item => item.id === 'chat-start-pre-dialogue-awareness-chain')?.proof).toContain('chat-start-result-project-awareness-audit.test.ts')
+    expect(coverage.find(item => item.id === 'chat-start-pre-dialogue-awareness-chain')?.proof).toContain('chat-start-project-awareness-route-audit.test.ts')
     expect(coverage.find(item => item.id === 'chat-start-pre-dialogue-awareness-chain')?.proof).toContain('runtime-main-chat-prelude-project-awareness-regression.test.ts')
+    expect(coverage.find(item => item.id === 'chat-start-pre-dialogue-awareness-chain')?.proof).toContain('return-side-stream-project-awareness-audit.test.ts')
     expect(coverage.find(item => item.id === 'main-chat-session-runtime-same-her-bridge')?.proof).toContain('main-chat-session-runtime-project-awareness-regression.test.ts')
+    expect(coverage.find(item => item.id === 'main-chat-session-runtime-same-her-bridge')?.proof).toContain('session-runtime-project-awareness-audit.test.ts')
+    expect(coverage.find(item => item.id === 'main-chat-session-runtime-same-her-bridge')?.proof).toContain('session-runtime-same-her-follow-through-audit.test.ts')
+    expect(
+      coverage.find(item => item.id === 'main-chat-session-runtime-same-her-bridge')?.proof?.split(' + '),
+    ).toContain('main-chat-session-runtime-drift-risk-summary-alias.test.ts')
+    expect(coverage.find(item => item.id === 'main-chat-session-runtime-same-her-bridge')?.responsibility).toContain('same-her follow-through')
+    expect(coverage.find(item => item.id === 'main-chat-session-runtime-same-her-bridge')?.responsibility).toContain('drift-risk summary alias carry')
+    expect(coverage.find(item => item.id === 'runtime-dream-reminder-proactive-gateways')?.proof).toContain('runtime-dream-prelude-project-awareness-regression.test.ts')
+    expect(coverage.find(item => item.id === 'runtime-dream-reminder-proactive-gateways')?.proof).toContain('runtime-dream-autobiographical-prelude-project-awareness-regression.test.ts')
+    expect(coverage.find(item => item.id === 'runtime-dream-reminder-proactive-gateways')?.proof).toContain('runtime-memory-consolidation-prelude-project-awareness-regression.test.ts')
+    expect(coverage.find(item => item.id === 'main-chat-stream-meta-cross-modal-same-her-authority')?.proof).toContain('stream-meta-project-awareness-audit.test.ts')
+    expect(
+      coverage.find(item => item.id === 'main-chat-stream-meta-cross-modal-same-her-authority')?.proof?.split(' + '),
+    ).toContain('main-chat-stream-meta-project-state-summary.test.ts')
+    expect(
+      coverage.find(item => item.id === 'main-chat-stream-meta-cross-modal-same-her-authority')?.proof?.split(' + '),
+    ).toContain('main-chat-stream-meta-drift-risk-segment-carry.test.ts')
+    expect(coverage.find(item => item.id === 'main-chat-stream-meta-cross-modal-same-her-authority')?.responsibility).toContain('host-corrected same-person continuity authority')
+    expect(coverage.find(item => item.id === 'main-chat-stream-meta-cross-modal-same-her-authority')?.responsibility).toContain('segment-level drift-risk-only anti-shell carry')
+    expect(coverage.find(item => item.id === 'runtime-governance-embodiment-bridge-authority')?.proof).toContain('runtime-governance-digital-life-authority.test.ts')
+    expect(coverage.find(item => item.id === 'runtime-governance-embodiment-bridge-authority')?.responsibility).toContain('digitalLife')
+    expect(coverage.find(item => item.id === 'runtime-governance-embodiment-bridge-authority')?.responsibility).toContain('embodimentScript')
     expect(coverage.find(item => item.id === 'project-state-provider-consumer-registration')?.proof).toContain('project-state-provider-consumer-audit.ts')
     expect(coverage.find(item => item.id === 'project-state-provider-consumer-registration')?.proof).toContain('project-state-provider-consumer-audit.test.ts')
+    expect(coverage.find(item => item.id === 'project-state-provider-consumer-registration')?.proof).toContain('provider-consumer-project-awareness-audit.test.ts')
     expect(coverage.find(item => item.id === 'project-state-provider-consumer-registration')?.proof).toContain('project-state-gateway-regression.test.ts')
     expect(coverage.find(item => item.id === 'desktop-execution-closure-loop-hardening')?.proof).toContain('desktop-execution-closure-loop-audit.test.ts')
+    expect(coverage.find(item => item.id === 'desktop-execution-closure-loop-hardening')?.proof).toContain('local-visual-executor-project-awareness-audit.test.ts')
     expect(coverage.find(item => item.id === 'desktop-execution-closure-loop-hardening')?.proof).toContain('execution-follow-up-session-runtime-project-awareness-audit.test.ts')
+    expect(coverage.find(item => item.id === 'desktop-execution-closure-loop-hardening')?.proof).toContain('execution-follow-up-obligation-project-awareness-audit.test.ts')
+    expect(coverage.find(item => item.id === 'desktop-execution-closure-loop-hardening')?.proof).toContain('execution-ledger-follow-up-project-awareness-audit.test.ts')
     expect(coverage.find(item => item.id === 'desktop-execution-closure-loop-hardening')?.proof).toContain('reminder-callback-project-awareness-audit.test.ts')
     expect(coverage.find(item => item.id === 'desktop-execution-closure-loop-hardening')?.proof).toContain('session-runtime-to-host-visible-reunion-audit.test.ts')
     expect(coverage.find(item => item.id === 'desktop-execution-closure-loop-hardening')?.proof).toContain('desktop-execution-full-cycle-bridge-audit.test.ts')
     expect(coverage.find(item => item.id === 'desktop-execution-closure-loop-hardening')?.proof).toContain('desktop-execution-life-loop-bridge-audit.test.ts')
     expect(coverage.find(item => item.id === 'desktop-execution-closure-loop-hardening')?.proof).toContain('desktop-execution-noisy-same-her-full-cycle-bridge-audit.test.ts')
+    expect(coverage.find(item => item.id === 'desktop-execution-closure-loop-hardening')?.proof).toContain('execution-origin-normalization-audit.test.ts')
     expect(coverage.find(item => item.id === 'desktop-execution-closure-loop-hardening')?.responsibility).toContain('execution briefing')
+    expect(coverage.find(item => item.id === 'desktop-execution-closure-loop-hardening')?.responsibility).toContain('local-visual desktop inspection continuation project-aware')
+    expect(coverage.find(item => item.id === 'desktop-execution-closure-loop-hardening')?.responsibility).toContain('local-visual delegated desktop execution handoff')
+    expect(coverage.find(item => item.id === 'desktop-execution-closure-loop-hardening')?.responsibility).toContain('fresh callback follow-up obligation')
+    expect(coverage.find(item => item.id === 'desktop-execution-closure-loop-hardening')?.responsibility).toContain('ledger reopen')
     expect(coverage.find(item => item.id === 'desktop-execution-closure-loop-hardening')?.responsibility).toContain('later host-visible return')
     expect(coverage.find(item => item.id === 'desktop-execution-closure-loop-hardening')?.responsibility).toContain('desktop execution full-cycle bridge')
     expect(coverage.find(item => item.id === 'desktop-execution-closure-loop-hardening')?.responsibility).toContain('desktop execution life-loop bridge')
     expect(coverage.find(item => item.id === 'desktop-execution-closure-loop-hardening')?.responsibility).toContain('desktop execution noisy same-her full-cycle bridge')
+    expect(coverage.find(item => item.id === 'desktop-execution-closure-loop-hardening')?.responsibility).toContain('origin-lost autonomous ownership')
+    expect(coverage.find(item => item.id === 'runtime-delivery-reminders-project-state-persistence')?.proof).toContain('reminder-delivery-project-awareness-audit.test.ts')
+    expect(coverage.find(item => item.id === 'runtime-delivery-reminders-project-state-persistence')?.proof).toContain('runtime-delivery-reminders-project-state-summary.test.ts')
+    expect(coverage.find(item => item.id === 'runtime-delivery-reminders-project-state-persistence')?.responsibility).toContain('restraint-first reminder requeue')
+    expect(coverage.find(item => item.id === 'runtime-delivery-reminders-project-state-persistence')?.responsibility).toContain('same-her, phase, landed, open, next order')
+    expect(coverage.find(item => item.id === 'runtime-delivery-reminders-project-state-persistence')?.responsibility).toContain('later-turn reminder speech lands')
+    expect(coverage.find(item => item.id === 'runtime-screen-semantic-gateway')?.proof).toContain('one-shot-provider-project-awareness-audit.test.ts')
+    expect(coverage.find(item => item.id === 'runtime-screen-semantic-gateway')?.responsibility).toContain('fail-close project-state context checks')
+    expect(coverage.find(item => item.id === 'runtime-screen-semantic-gateway')?.responsibility).toContain('screen-semantic or scene-appraisal generation')
+    expect(coverage.find(item => item.id === 'runtime-execution-callback-delivery')?.proof).toContain('execution-surface-project-awareness-audit.test.ts')
+    expect(
+      coverage.find(item => item.id === 'runtime-execution-callback-delivery')?.proof?.split(' + '),
+    ).toContain('execution-delivery-surface-project-state-provider.test.ts')
+    expect(coverage.find(item => item.id === 'runtime-execution-callback-delivery')?.responsibility).toContain('execution-first inline finished payloads')
+    expect(coverage.find(item => item.id === 'runtime-execution-callback-delivery')?.responsibility).toContain('callback payoff prompts')
+    expect(coverage.find(item => item.id === 'runtime-execution-callback-delivery')?.responsibility).toContain('omit that project-state context entirely')
+    expect(coverage.find(item => item.id === 'execution-callback-learning-and-reconsolidation-chain')?.proof).toContain('outcome-reinforcement-project-awareness-audit.test.ts')
+    expect(coverage.find(item => item.id === 'execution-dispatch-owner-registration')?.proof).toContain('execution-autonomy-ownership-project-awareness-audit.test.ts')
     expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.proof).toContain('project-state-answer-governance-audit.ts')
     expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.proof).toContain('project-state-answer-governance-audit.test.ts')
+    expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.proof).toContain('project-state-answer-governance.test.ts')
+    expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.proof).toContain('visible-reply/second-pass-rewrite-project-state-provider.test.ts')
+    expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.proof).toContain('main-chat-active-dialogue-fast-path-project-state-provider.test.ts')
     expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.proof).toContain('runtime-main-gateway-one-shot.ts')
+    expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.proof).toContain('main-chat-active-dialogue-loop.test.ts')
+    expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.proof).toContain('active-dialogue-project-awareness-audit.test.ts')
+    expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.proof).toContain('dialogue-turn-semantics.test.ts')
+    expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.proof).toContain('answer-planner.test.ts')
+    expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.proof).toContain('answer-planner-project-awareness-audit.test.ts')
+    expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.proof).toContain('answer-planner-project-awareness-regression.test.ts')
+    expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.proof).toContain('response-charter.test.ts')
+    expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.proof).toContain('executive-answer-brief.test.ts')
+    expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.proof).toContain('main-chat-session-runtime.test.ts')
+    expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.proof).toContain('main-chat-session-runtime-project-state-summary.test.ts')
+    expect(
+      coverage.find(item => item.id === 'project-state-answer-governance-registration')?.proof?.split(' + '),
+    ).toContain('main-chat-session-runtime-project-state-contract-regression.test.ts')
+    expect(
+      coverage.find(item => item.id === 'project-state-answer-governance-registration')?.proof?.split(' + '),
+    ).toContain('runtime-project-state-summary.test.ts')
+    expect(
+      coverage.find(item => item.id === 'project-state-answer-governance-registration')?.proof?.split(' + '),
+    ).toContain('main-chat-one-shot-project-state-placeholder.test.ts')
+    expect(
+      coverage.find(item => item.id === 'project-state-answer-governance-registration')?.proof?.split(' + '),
+    ).toContain('main-chat-project-state-guard.test.ts')
+    expect(
+      coverage.find(item => item.id === 'project-state-answer-governance-registration')?.proof?.split(' + '),
+    ).toContain('main-chat-stream-runner-project-state-placeholder.test.ts')
+    expect(
+      coverage.find(item => item.id === 'project-state-answer-governance-registration')?.proof?.split(' + '),
+    ).toContain('main-chat-stream-runner-visual-one-shot-project-state-provider.test.ts')
+    expect(
+      coverage.find(item => item.id === 'project-state-answer-governance-registration')?.proof?.split(' + '),
+    ).toContain('main-chat-one-shot.test.ts')
+    expect(
+      coverage.find(item => item.id === 'project-state-answer-governance-registration')?.proof?.split(' + '),
+    ).toContain('runtime-governance.ts')
+    expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.proof).toContain('runtime-governance-project-awareness-route.test.ts')
     expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.proof).toContain('visible-reply/facade.ts')
     expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.proof).toContain('visible-reply/facade.test.ts')
+    expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.proof).toContain('response-surface-learning-rules.test.ts')
+    expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.proof).toContain('response-surface-truth-dialogue-rules.test.ts')
     expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.proof).toContain('visible-reply/semantic-judge.ts')
     expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.proof).toContain('visible-reply/critic.ts')
+    expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.proof).toContain('action-obligation-project-awareness-audit.test.ts')
+    expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.proof).toContain('self-evolution-answer-governance-bridge-audit.test.ts')
+    expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.proof).toContain('proactive-pre-dialogue-reply-planning-bridge-audit.test.ts')
+    expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.proof).toContain('self-evolution-pre-dialogue-reply-planning-bridge-audit.test.ts')
+    expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.proof).toContain('self-evolution-reply-planning-governance-bridge-audit.test.ts')
     expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.responsibility).toContain('completion-timing / language-drift follow-ups')
+    expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.responsibility).toContain('fast-path follow-up classification')
+    expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.responsibility).toContain('semantics classification')
+    expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.responsibility).toContain('answer planning')
+    expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.responsibility).toContain('response charter shaping')
+    expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.responsibility).toContain('provider-facing runtime rebuild')
+    expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.responsibility).toContain('normalization-time project-state audit carry')
+    expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.responsibility).toContain('earlier prelude contract snapshot')
+    expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.responsibility).toContain('marker-only project-state shells')
+    expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.responsibility).toContain('host-visible normalization boundaries')
+    expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.responsibility).toContain('shell replies')
+    expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.responsibility).toContain('current verification pass')
+    expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.responsibility).toContain('generic progress recap')
+    expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.responsibility).toContain('non-system marker spoofing')
+    expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.responsibility).toContain('self-evolution answer-governance bridge')
+    expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.responsibility).toContain('proactive pre-dialogue reply-planning bridge')
+    expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.responsibility).toContain('self-evolution pre-dialogue reply-planning bridge')
+    expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.responsibility).toContain('self-evolution reply-planning governance bridge')
     expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.responsibility).toContain('how far the goal has landed')
     expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.responsibility).toContain('when it is expected to close')
     expect(coverage.find(item => item.id === 'project-state-answer-governance-registration')?.responsibility).toContain('drifted into English')
     expect(coverage.find(item => item.id === 'visible-reply-final-project-awareness-hardening')?.proof).toContain('visible-reply-final-project-awareness-audit.test.ts')
+    expect(coverage.find(item => item.id === 'visible-reply-final-project-awareness-hardening')?.proof).toContain('visible-reply/project-awareness.test.ts')
+    expect(coverage.find(item => item.id === 'visible-reply-final-project-awareness-hardening')?.proof).toContain('visible-reply/project-awareness-scoring-regression.test.ts')
+    expect(coverage.find(item => item.id === 'visible-reply-final-project-awareness-hardening')?.proof).toContain('visible-reply/realization-engine.test.ts')
     expect(coverage.find(item => item.id === 'visible-reply-final-project-awareness-hardening')?.proof).toContain('visible-reply/semantic-judge.test.ts')
     expect(coverage.find(item => item.id === 'visible-reply-final-project-awareness-hardening')?.proof).toContain('visible-reply/second-pass-rewrite-project-state-guidance.test.ts')
     expect(coverage.find(item => item.id === 'visible-reply-final-project-awareness-hardening')?.proof).toContain('visible-reply/project-state-second-pass-regression.test.ts')
+    expect(coverage.find(item => item.id === 'visible-reply-final-project-awareness-hardening')?.proof).toContain('visible-reply-settlement-project-awareness-audit.test.ts')
+    expect(coverage.find(item => item.id === 'visible-reply-final-project-awareness-hardening')?.proof).toContain('visible-reply-realization-project-awareness-audit.test.ts')
+    expect(
+      coverage.find(item => item.id === 'visible-reply-final-project-awareness-hardening')?.proof?.split(' + '),
+    ).toContain('visible-reply/timeout-recovered-drift-risk-audit.test.ts')
+    expect(coverage.find(item => item.id === 'visible-reply-final-project-awareness-hardening')?.responsibility).toContain('final realization')
+    expect(coverage.find(item => item.id === 'visible-reply-final-project-awareness-hardening')?.responsibility).toContain('host-corrected same-person continuity')
+    expect(coverage.find(item => item.id === 'visible-reply-final-project-awareness-hardening')?.responsibility).toContain('shared project-awareness baseline')
+    expect(coverage.find(item => item.id === 'visible-reply-final-project-awareness-hardening')?.responsibility).toContain('timeout-recovered drift-risk anti-shell carry')
+    expect(coverage.find(item => item.id === 'runtime-current-conscious-frame-awareness')?.proof).toContain('runtime-conscious-frame-reducer.test.ts')
+    expect(coverage.find(item => item.id === 'runtime-current-conscious-frame-awareness')?.proof).toContain('runtime-memory-deliberation-reducer.test.ts')
+    expect(coverage.find(item => item.id === 'runtime-current-conscious-frame-awareness')?.proof).toContain('memory-active-self-project-awareness-audit.test.ts')
+    expect(coverage.find(item => item.id === 'runtime-current-conscious-frame-awareness')?.proof).toContain('self-evolution-pre-dialogue-planning-bridge-audit.test.ts')
+    expect(coverage.find(item => item.id === 'runtime-current-conscious-frame-awareness')?.proof).toContain('proactive-pre-dialogue-planning-bridge-audit.test.ts')
+    expect(
+      coverage.find(item => item.id === 'runtime-current-conscious-frame-awareness')?.proof?.split(' + '),
+    ).toContain('structured-project-state.test.ts')
+    expect(
+      coverage.find(item => item.id === 'runtime-current-conscious-frame-awareness')?.proof?.split(' + '),
+    ).toContain('prepared-runtime-continuity.test.ts')
+    expect(coverage.find(item => item.id === 'runtime-current-conscious-frame-awareness')?.responsibility).toContain('self-evolution pre-dialogue planning bridge')
+    expect(coverage.find(item => item.id === 'runtime-current-conscious-frame-awareness')?.responsibility).toContain('proactive pre-dialogue planning bridge')
+    expect(coverage.find(item => item.id === 'runtime-current-conscious-frame-awareness')?.responsibility).toContain('thin runtime or payload project-state shells')
+    expect(coverage.find(item => item.id === 'runtime-current-conscious-frame-awareness')?.responsibility).toContain('prepared runtime project-state shell repair')
+    expect(coverage.find(item => item.id === 'main-chat-session-runtime-same-her-bridge')?.proof).toContain('main-chat-session-runtime-chinese-project-awareness-regression.test.ts')
+    expect(coverage.find(item => item.id === 'runtime-mind-state-cognition')?.proof).toContain('runtime-mind-state-project-awareness-regression.test.ts')
+    expect(coverage.find(item => item.id === 'behavioral-ecology-preflight-bias-chain')?.proof).toContain('action-ecology-project-awareness-audit.test.ts')
+    expect(coverage.find(item => item.id === 'runtime-delivery-reminders-project-state-persistence')?.proof).toContain('runtime-reminder-prelude-project-awareness-regression.test.ts')
+    expect(coverage.find(item => item.id === 'autonomous-dialogue-closure-loop-hardening')?.proof).toContain('runtime-proactive-prelude-project-awareness-regression.test.ts')
     expect(coverage.find(item => item.id === 'callback-afterglow-recollection-same-life-hardening')?.proof).toContain('callback-afterglow-recollection-same-life-audit.test.ts')
     expect(coverage.find(item => item.id === 'callback-afterglow-recollection-same-life-hardening')?.proof).toContain('main-chat-session-runtime.test.ts')
     expect(coverage.find(item => item.id === 'callback-afterglow-recollection-same-life-hardening')?.proof).toContain('memory-search-retrieval-operators.test.ts')
@@ -1662,6 +1943,9 @@ describe('project-state-brief', () => {
     expect(coverage.find(item => item.id === 'recollection-visible-reply-same-life-hardening')?.proof).toContain('visible-reply/semantic-judge.test.ts')
     expect(coverage.find(item => item.id === 'recollection-visible-reply-same-life-hardening')?.proof).toContain('visible-reply/critic.test.ts')
     expect(coverage.find(item => item.id === 'recollection-visible-reply-same-life-hardening')?.proof).toContain('runtime-governance.test.ts')
+    expect(coverage.find(item => item.id === 'recollection-visible-reply-same-life-hardening')?.proof).toContain('humanlike-memory-recall-corrected-same-person-audit.test.ts')
+    expect(coverage.find(item => item.id === 'recollection-visible-reply-same-life-hardening')?.proof).toContain('answer-planner-corrected-same-person-regression.test.ts')
+    expect(coverage.find(item => item.id === 'recollection-visible-reply-same-life-hardening')?.responsibility).toContain('corrected same-person humanlike recall memories')
     expect(coverage.find(item => item.id === 'entrypoint-governance-registry-hardening')?.proof).toContain('entrypoint-governance-registry-audit.test.ts')
     expect(coverage.find(item => item.id === 'entrypoint-governance-registry-hardening')?.proof).toContain('entrypoint-governance-project-awareness-audit.test.ts')
     expect(coverage.find(item => item.id === 'entrypoint-governance-registry-hardening')?.proof).toContain('chat-start-awareness-audit.test.ts')
@@ -1676,12 +1960,14 @@ describe('project-state-brief', () => {
     expect(coverage.some(item => item.id === 'chat-start-entrypoint-candidate-hardening')).toBe(true)
     expect(coverage.find(item => item.id === 'chat-start-entrypoint-candidate-hardening')?.proof).toContain('chat-start-entrypoint-candidate-audit.test.ts')
     expect(coverage.find(item => item.id === 'chat-start-entrypoint-candidate-hardening')?.proof).toContain('project-awareness-route-authority-audit.test.ts')
+    expect(coverage.find(item => item.id === 'chat-start-entrypoint-candidate-hardening')?.proof).toContain('chat-start-deep-helper-owner-audit.test.ts')
     expect(coverage.find(item => item.id === 'chat-start-entrypoint-candidate-hardening')?.responsibility).toContain('chat-start candidates')
     expect(coverage.find(item => item.id === 'chat-start-entrypoint-candidate-hardening')?.responsibility).toContain('typed consumers')
     expect(coverage.find(item => item.id === 'chat-start-entrypoint-candidate-hardening')?.responsibility).toContain('direct main-chat-stream callers')
     expect(coverage.find(item => item.id === 'chat-start-entrypoint-candidate-hardening')?.responsibility).toContain('deep-helper owners')
     expect(coverage.find(item => item.id === 'cross-surface-entrypoint-candidate-hardening')?.proof).toContain('project-awareness-cross-surface-entrypoint-audit.test.ts')
     expect(coverage.find(item => item.id === 'cross-surface-entrypoint-candidate-hardening')?.proof).toContain('project-awareness-route-authority-audit.test.ts')
+    expect(coverage.find(item => item.id === 'cross-surface-entrypoint-candidate-hardening')?.proof).toContain('chat-entry-composer-surface-audit.test.ts')
     expect(coverage.find(item => item.id === 'cross-surface-entrypoint-candidate-hardening')?.responsibility).toContain('cross-surface dialogue-entry candidates')
     expect(coverage.find(item => item.id === 'cross-surface-entrypoint-candidate-hardening')?.responsibility).toContain('pre-dialogue transport and chat-entry discovery union')
     expect(coverage.find(item => item.id === 'return-side-entrypoint-candidate-hardening')?.proof).toContain('return-side-project-awareness-entrypoint-candidate-audit.test.ts')
@@ -1692,9 +1978,14 @@ describe('project-state-brief', () => {
     expect(coverage.some(item => item.id === 'provider-consumer-entrypoint-candidate-hardening')).toBe(true)
     expect(coverage.find(item => item.id === 'provider-consumer-entrypoint-candidate-hardening')?.proof).toContain('provider-consumer-entrypoint-candidate-audit.test.ts')
     expect(coverage.find(item => item.id === 'provider-consumer-entrypoint-candidate-hardening')?.proof).toContain('project-awareness-route-authority-audit.test.ts')
+    expect(coverage.find(item => item.id === 'provider-consumer-entrypoint-candidate-hardening')?.proof).toContain('project-state-gateway-audit.test.ts')
+    expect(
+      coverage.find(item => item.id === 'provider-consumer-entrypoint-candidate-hardening')?.proof?.split(' + '),
+    ).toContain('provider-entry-project-state-proof.test.ts')
     expect(coverage.find(item => item.id === 'provider-consumer-entrypoint-candidate-hardening')?.responsibility).toContain('provider-consumer candidates')
     expect(coverage.find(item => item.id === 'provider-consumer-entrypoint-candidate-hardening')?.responsibility).toContain('wrapper, dispatch-owner, and typed-consumer')
     expect(coverage.find(item => item.id === 'provider-consumer-entrypoint-candidate-hardening')?.responsibility).toContain('real direct provider sinks')
+    expect(coverage.find(item => item.id === 'provider-consumer-entrypoint-candidate-hardening')?.responsibility).toContain('provider-entry proof rows')
     expect(coverage.some(item => item.id === 'autonomous-dialogue-entrypoint-candidate-hardening')).toBe(true)
     expect(coverage.find(item => item.id === 'autonomous-dialogue-entrypoint-candidate-hardening')?.proof).toContain('autonomous-dialogue-entrypoint-candidate-audit.test.ts')
     expect(coverage.find(item => item.id === 'autonomous-dialogue-entrypoint-candidate-hardening')?.proof).toContain('project-awareness-route-authority-audit.test.ts')
@@ -1708,14 +1999,17 @@ describe('project-state-brief', () => {
     expect(coverage.find(item => item.id === 'execution-dispatch-entrypoint-candidate-hardening')?.responsibility).toContain('runtime-bridge')
     expect(coverage.find(item => item.id === 'execution-dispatch-entrypoint-candidate-hardening')?.responsibility).toContain('subconscious-bridge')
     expect(coverage.find(item => item.id === 'execution-preflight-registration')?.proof).toContain('execution-preflight-audit.test.ts')
+    expect(coverage.find(item => item.id === 'execution-preflight-registration')?.proof).toContain('external-executor-project-awareness-audit.test.ts')
     expect(coverage.find(item => item.id === 'execution-preflight-registration')?.responsibility).toContain('Execution preflight authority seams')
     expect(coverage.find(item => item.id === 'execution-preflight-registration')?.responsibility).toContain('runtime-owned direct dispatch bridge')
     expect(coverage.find(item => item.id === 'execution-preflight-registration')?.responsibility).toContain('session-bound bridge')
     expect(coverage.find(item => item.id === 'execution-preflight-registration')?.responsibility).toContain('subconscious-autonomy execution bridge')
     expect(coverage.find(item => item.id === 'execution-preflight-registration')?.responsibility).toContain('resume bridge')
     expect(coverage.find(item => item.id === 'execution-preflight-registration')?.responsibility).toContain('blocked-dispatch safety gates')
+    expect(coverage.find(item => item.id === 'execution-preflight-registration')?.responsibility).toContain('external executor adapter project-awareness route')
     expect(coverage.find(item => item.id === 'execution-preflight-registration')?.responsibility).toContain('risk policy')
     expect(coverage.find(item => item.id === 'execution-preflight-registration')?.responsibility).toContain('interruptibility')
+    expect(coverage.find(item => item.id === 'execution-preflight-registration')?.proof).toContain('executor-runtime-project-awareness-audit.test.ts')
     expect(coverage.find(item => item.id === 'execution-preflight-entrypoint-candidate-hardening')?.proof).toContain('execution-preflight-entrypoint-candidate-audit.test.ts')
     expect(coverage.find(item => item.id === 'execution-preflight-entrypoint-candidate-hardening')?.proof).toContain('project-awareness-route-authority-audit.test.ts')
     expect(coverage.find(item => item.id === 'execution-preflight-entrypoint-candidate-hardening')?.proof).toContain('project-awareness-coverage-matrix.test.ts')
@@ -1730,18 +2024,24 @@ describe('project-state-brief', () => {
     expect(coverage.find(item => item.id === 'long-horizon-self-carry-hardening')?.proof).toContain('proactive-feedback-long-horizon-conscious-frame-bridge-audit.test.ts')
     expect(coverage.find(item => item.id === 'long-horizon-self-carry-hardening')?.proof).toContain('runtime-turn-composition.test.ts')
     expect(coverage.find(item => item.id === 'long-horizon-self-carry-hardening')?.proof).toContain('stage-quick-reply-closure-summary.test.ts')
+    expect(coverage.find(item => item.id === 'long-horizon-self-carry-hardening')?.proof).toContain('memory-trace-origin-normalization-audit.test.ts')
+    expect(coverage.find(item => item.id === 'long-horizon-self-carry-hardening')?.proof).toContain('self-evolution-durable-self-recognition-bridge-audit.test.ts')
     expect(coverage.find(item => item.id === 'long-horizon-self-carry-hardening')?.responsibility).toContain('Durable long-horizon self-carry')
     expect(coverage.find(item => item.id === 'long-horizon-self-carry-hardening')?.responsibility).toContain('dream-to-long-horizon self-carry bridge')
     expect(coverage.find(item => item.id === 'long-horizon-self-carry-hardening')?.responsibility).toContain('long-horizon-to-conscious-frame anti-shell bridge')
     expect(coverage.find(item => item.id === 'long-horizon-self-carry-hardening')?.responsibility).toContain('host-facing closure self-recognition')
+    expect(coverage.find(item => item.id === 'long-horizon-self-carry-hardening')?.responsibility).toContain('origin-lost autonomous memory ownership')
+    expect(coverage.find(item => item.id === 'long-horizon-self-carry-hardening')?.responsibility).toContain('self-evolution durable self-recognition bridge')
     expect(coverage.find(item => item.id === 'noisy-desktop-same-her-closure-hardening')?.proof).toContain('noisy-desktop-same-her-closure-audit.test.ts')
     expect(coverage.find(item => item.id === 'noisy-desktop-same-her-closure-hardening')?.proof).toContain('proactive-feedback-host-visible-answer-bridge-audit.test.ts')
     expect(coverage.find(item => item.id === 'noisy-desktop-same-her-closure-hardening')?.proof).toContain('main-chat-session-runtime.test.ts')
     expect(coverage.find(item => item.id === 'noisy-desktop-same-her-closure-hardening')?.proof).toContain('noisy-desktop-life-loop-unity-audit.test.ts')
     expect(coverage.find(item => item.id === 'noisy-desktop-same-her-closure-hardening')?.proof).toContain('desktop-execution-noisy-same-her-closure-bridge-audit.test.ts')
+    expect(coverage.find(item => item.id === 'noisy-desktop-same-her-closure-hardening')?.proof).toContain('self-evolution-host-visible-closure-target-bridge-audit.test.ts')
     expect(coverage.find(item => item.id === 'noisy-desktop-same-her-closure-hardening')?.responsibility).toContain('Noisy-desktop same-her closure')
     expect(coverage.find(item => item.id === 'noisy-desktop-same-her-closure-hardening')?.responsibility).toContain('planner-to-host-visible answer anti-shell bridge')
     expect(coverage.find(item => item.id === 'noisy-desktop-same-her-closure-hardening')?.responsibility).toContain('desktop execution noisy same-her closure bridge')
+    expect(coverage.find(item => item.id === 'noisy-desktop-same-her-closure-hardening')?.responsibility).toContain('self-evolution host-visible closure target bridge')
     expect(coverage.find(item => item.id === 'noisy-desktop-same-her-closure-hardening')?.responsibility).toContain('what Alicization is')
     expect(coverage.find(item => item.id === 'noisy-desktop-same-her-closure-hardening')?.responsibility).toContain('what remains open')
     expect(coverage.find(item => item.id === 'noisy-desktop-cross-modal-convergence-hardening')?.proof).toContain('noisy-desktop-cross-modal-convergence-audit.test.ts')
@@ -1769,9 +2069,17 @@ describe('project-state-brief', () => {
     expect(coverage.find(item => item.id === 'noisy-desktop-cross-modal-convergence-hardening')?.proof).toContain('performance-visualizer-self-evolution-baseline-quality-project-awareness-audit.test.ts')
     expect(coverage.find(item => item.id === 'noisy-desktop-cross-modal-convergence-hardening')?.proof).toContain('performance-visualizer-self-evolution-baseline-adoption-project-awareness-audit.test.ts')
     expect(coverage.find(item => item.id === 'noisy-desktop-cross-modal-convergence-hardening')?.proof).toContain('performance-visualizer-self-evolution-baseline-adoption-record-project-awareness-audit.test.ts')
+    expect(coverage.find(item => item.id === 'noisy-desktop-cross-modal-convergence-hardening')?.proof).toContain('host-visible-same-her-continuity-audit.test.ts')
+    expect(coverage.find(item => item.id === 'noisy-desktop-cross-modal-convergence-hardening')?.proof).toContain('noisy-desktop-self-evolution-observability-audit.test.ts')
+    expect(coverage.find(item => item.id === 'noisy-desktop-cross-modal-convergence-hardening')?.proof).toContain('self-evolution-governance-chain-audit.test.ts')
+    expect(coverage.find(item => item.id === 'noisy-desktop-cross-modal-convergence-hardening')?.proof).toContain('self-evolution-baseline-lifecycle-audit.test.ts')
+    expect(coverage.find(item => item.id === 'noisy-desktop-cross-modal-convergence-hardening')?.proof).toContain('self-evolution-anthropomorphic-host-visible-bridge-audit.test.ts')
     expect(coverage.find(item => item.id === 'noisy-desktop-cross-modal-convergence-hardening')?.proof).toContain('performance-visualizer-self-evolution-renderer-authority-project-awareness-audit.test.ts')
     expect(coverage.find(item => item.id === 'noisy-desktop-cross-modal-convergence-hardening')?.proof).toContain('performance-visualizer-self-evolution-renderer-authority.test.ts')
     expect(coverage.find(item => item.id === 'noisy-desktop-cross-modal-convergence-hardening')?.proof).toContain('performance-visualizer-self-evolution-active-workflow-focus-project-awareness-audit.test.ts')
+    expect(coverage.find(item => item.id === 'noisy-desktop-cross-modal-convergence-hardening')?.proof).toContain('performance-visualizer-self-evolution-focus-plan-project-awareness-audit.test.ts')
+    expect(coverage.find(item => item.id === 'noisy-desktop-cross-modal-convergence-hardening')?.proof).toContain('performance-visualizer-self-evolution-focus-history-summary-project-awareness-audit.test.ts')
+    expect(coverage.find(item => item.id === 'noisy-desktop-cross-modal-convergence-hardening')?.proof).toContain('performance-visualizer-self-evolution-focus-history-drilldown-project-awareness-audit.test.ts')
     expect(coverage.find(item => item.id === 'noisy-desktop-cross-modal-convergence-hardening')?.proof).toContain('voice-lane-host-visible-project-awareness-audit.test.ts')
     expect(coverage.find(item => item.id === 'noisy-desktop-cross-modal-convergence-hardening')?.proof).toContain('noisy-desktop-voice-lane-persistence-audit.test.ts')
     expect(coverage.find(item => item.id === 'noisy-desktop-cross-modal-convergence-hardening')?.proof).toContain('desktop-execution-noisy-cross-modal-convergence-bridge-audit.test.ts')
@@ -1813,8 +2121,11 @@ describe('project-state-brief', () => {
     expect(coverage.find(item => item.id === 'noisy-desktop-cross-modal-convergence-hardening')?.responsibility).toContain('self-evolution baseline quality')
     expect(coverage.find(item => item.id === 'noisy-desktop-cross-modal-convergence-hardening')?.responsibility).toContain('self-evolution baseline adoption')
     expect(coverage.find(item => item.id === 'noisy-desktop-cross-modal-convergence-hardening')?.responsibility).toContain('self-evolution baseline adoption record')
+    expect(coverage.find(item => item.id === 'noisy-desktop-cross-modal-convergence-hardening')?.responsibility).toContain('self-evolution baseline lifecycle chain')
+    expect(coverage.find(item => item.id === 'noisy-desktop-cross-modal-convergence-hardening')?.responsibility).toContain('self-evolution governance chain')
     expect(coverage.find(item => item.id === 'noisy-desktop-cross-modal-convergence-hardening')?.responsibility).toContain('self-evolution renderer-authority projection')
     expect(coverage.find(item => item.id === 'noisy-desktop-cross-modal-convergence-hardening')?.responsibility).toContain('self-evolution active workflow focus')
+    expect(coverage.find(item => item.id === 'noisy-desktop-cross-modal-convergence-hardening')?.responsibility).toContain('self-evolution anthropomorphic host-visible bridge')
     expect(coverage.find(item => item.id === 'noisy-desktop-cross-modal-convergence-hardening')?.responsibility).toContain('speech authority segment rows')
     expect(coverage.find(item => item.id === 'noisy-desktop-cross-modal-convergence-hardening')?.responsibility).toContain('authority-table presentation')
     expect(coverage.find(item => item.id === 'noisy-desktop-cross-modal-convergence-hardening')?.responsibility).toContain('runtime diagnostic summaries')
@@ -1864,10 +2175,14 @@ describe('project-state-brief', () => {
     expect(coverage.find(item => item.id === 'emotion-memory-voice-motion-convergence-hardening')?.proof).toContain('runtime.test.ts')
     expect(coverage.find(item => item.id === 'emotion-memory-voice-motion-convergence-hardening')?.proof).toContain('main-chat-stream-meta.test.ts')
     expect(coverage.find(item => item.id === 'emotion-memory-voice-motion-convergence-hardening')?.proof).toContain('visible-reply/second-pass-rewrite.test.ts')
+    expect(coverage.find(item => item.id === 'emotion-memory-voice-motion-convergence-hardening')?.proof).toContain('self-evolution-remembered-emotional-carry-bridge-audit.test.ts')
+    expect(coverage.find(item => item.id === 'emotion-memory-voice-motion-convergence-hardening')?.proof).toContain('proactive-remembered-emotional-carry-bridge-audit.test.ts')
     expect(coverage.find(item => item.id === 'emotion-memory-voice-motion-convergence-hardening')?.responsibility).toContain('Emotion-memory-voice-motion convergence')
     expect(coverage.find(item => item.id === 'emotion-memory-voice-motion-convergence-hardening')?.responsibility).toContain('desktop execution emotion-memory-voice-motion convergence bridge')
     expect(coverage.find(item => item.id === 'emotion-memory-voice-motion-convergence-hardening')?.responsibility).toContain('voice, face, motion, lipsync, and body')
     expect(coverage.find(item => item.id === 'emotion-memory-voice-motion-convergence-hardening')?.responsibility).toContain('remembered emotional carry')
+    expect(coverage.find(item => item.id === 'emotion-memory-voice-motion-convergence-hardening')?.responsibility).toContain('self-evolution remembered emotional carry bridge')
+    expect(coverage.find(item => item.id === 'emotion-memory-voice-motion-convergence-hardening')?.responsibility).toContain('proactive remembered emotional carry bridge')
     expect(coverage.find(item => item.id === 'noisy-desktop-life-loop-unity-hardening')?.proof).toContain('noisy-desktop-life-loop-unity-audit.test.ts')
     expect(coverage.find(item => item.id === 'noisy-desktop-life-loop-unity-hardening')?.proof).toContain('alicization-runtime-architecture.test.ts')
     expect(coverage.find(item => item.id === 'noisy-desktop-life-loop-unity-hardening')?.proof).toContain('runtime-memory-closure.test.ts')
@@ -1887,15 +2202,25 @@ describe('project-state-brief', () => {
     expect(coverage.find(item => item.id === 'long-run-same-her-continuity-hardening')?.proof).toContain('repeated-detour-reunion-persistence-audit.test.ts')
     expect(coverage.find(item => item.id === 'long-run-same-her-continuity-hardening')?.proof).toContain('another-detour-same-life-audit.test.ts')
     expect(coverage.find(item => item.id === 'long-run-same-her-continuity-hardening')?.proof).toContain('proactive-feedback-host-visible-answer-replay-reopen-bridge-audit.test.ts')
+    expect(coverage.find(item => item.id === 'long-run-same-her-continuity-hardening')?.proof).toContain('proactive-replay-reopen-continuity-bridge-audit.test.ts')
+    expect(coverage.find(item => item.id === 'long-run-same-her-continuity-hardening')?.proof).toContain('self-evolution-replay-reopen-continuity-bridge-audit.test.ts')
     expect(coverage.find(item => item.id === 'long-run-same-her-continuity-hardening')?.proof).toContain('desktop-same-her-full-cycle-bridge-audit.test.ts')
+    expect(coverage.find(item => item.id === 'long-run-same-her-continuity-hardening')?.proof).toContain('self-evolution-desktop-full-cycle-bridge-audit.test.ts')
     expect(coverage.find(item => item.id === 'long-run-same-her-continuity-hardening')?.proof).toContain('desktop-execution-long-run-same-her-continuity-bridge-audit.test.ts')
+    expect(coverage.find(item => item.id === 'long-run-same-her-continuity-hardening')?.proof).toContain('self-evolution-desktop-execution-long-run-continuity-bridge-audit.test.ts')
+    expect(coverage.find(item => item.id === 'long-run-same-her-continuity-hardening')?.proof).toContain('self-evolution-long-run-follow-through-bridge-audit.test.ts')
     expect(coverage.find(item => item.id === 'long-run-same-her-continuity-hardening')?.responsibility).toContain('Long-run same-her continuity')
     expect(coverage.find(item => item.id === 'long-run-same-her-continuity-hardening')?.responsibility).toContain('desktop execution long-run same-her continuity bridge')
     expect(coverage.find(item => item.id === 'long-run-same-her-continuity-hardening')?.responsibility).toContain('subconscious persistence')
     expect(coverage.find(item => item.id === 'long-run-same-her-continuity-hardening')?.responsibility).toContain('repeated-detour reunion persistence')
     expect(coverage.find(item => item.id === 'long-run-same-her-continuity-hardening')?.responsibility).toContain('repair-first detour-to-reunion carry')
+    expect(coverage.find(item => item.id === 'long-run-same-her-continuity-hardening')?.responsibility).toContain('self-evolution replay reopen continuity bridge')
+    expect(coverage.find(item => item.id === 'long-run-same-her-continuity-hardening')?.responsibility).toContain('proactive replay reopen continuity bridge')
     expect(coverage.find(item => item.id === 'long-run-same-her-continuity-hardening')?.responsibility).toContain('host-visible-answer-to-replay-reopen same-her bridge')
     expect(coverage.find(item => item.id === 'long-run-same-her-continuity-hardening')?.responsibility).toContain('desktop same-her full-cycle bridge')
+    expect(coverage.find(item => item.id === 'long-run-same-her-continuity-hardening')?.responsibility).toContain('self-evolution desktop full-cycle bridge')
+    expect(coverage.find(item => item.id === 'long-run-same-her-continuity-hardening')?.responsibility).toContain('self-evolution desktop execution long-run continuity bridge')
+    expect(coverage.find(item => item.id === 'long-run-same-her-continuity-hardening')?.responsibility).toContain('self-evolution long-run follow-through bridge')
     expect(coverage.find(item => item.id === 'autonomous-dialogue-closure-loop-hardening')?.proof).toContain('autonomous-dialogue-closure-loop-audit.test.ts')
     expect(coverage.find(item => item.id === 'autonomous-dialogue-closure-loop-hardening')?.proof).toContain('motive-engine-project-awareness-audit.test.ts')
     expect(coverage.find(item => item.id === 'autonomous-dialogue-closure-loop-hardening')?.proof).toContain('proactive-prelude-project-awareness-audit.test.ts')
@@ -1903,44 +2228,69 @@ describe('project-state-brief', () => {
     expect(coverage.find(item => item.id === 'autonomous-dialogue-closure-loop-hardening')?.proof).toContain('initiative-decision-project-awareness-audit.test.ts')
     expect(coverage.find(item => item.id === 'autonomous-dialogue-closure-loop-hardening')?.proof).toContain('initiative-current-conscious-frame-project-awareness-audit.test.ts')
     expect(coverage.find(item => item.id === 'autonomous-dialogue-closure-loop-hardening')?.proof).toContain('proactive-visible-project-awareness-audit.test.ts')
+    expect(coverage.find(item => item.id === 'autonomous-dialogue-closure-loop-hardening')?.proof).toContain('proactive-mind/visible-utterance-realization.test.ts')
     expect(coverage.find(item => item.id === 'autonomous-dialogue-closure-loop-hardening')?.proof).toContain('subconscious-persistence-project-awareness-audit.test.ts')
     expect(coverage.find(item => item.id === 'autonomous-dialogue-closure-loop-hardening')?.proof).toContain('proactive-feedback-project-awareness-audit.test.ts')
     expect(coverage.find(item => item.id === 'autonomous-dialogue-closure-loop-hardening')?.proof).toContain('noisy-desktop-autonomous-dialogue-persistence-audit.test.ts')
     expect(coverage.find(item => item.id === 'autonomous-dialogue-closure-loop-hardening')?.proof).toContain('proactive-feedback-next-project-state-answer-audit.test.ts')
     expect(coverage.find(item => item.id === 'autonomous-dialogue-closure-loop-hardening')?.proof).toContain('proactive-feedback-post-answer-detour-persistence-audit.test.ts')
     expect(coverage.find(item => item.id === 'autonomous-dialogue-closure-loop-hardening')?.proof).toContain('proactive-feedback-post-answer-dream-carry-audit.test.ts')
+    expect(coverage.find(item => item.id === 'autonomous-dialogue-closure-loop-hardening')?.proof).toContain('later-learning-project-awareness-audit.test.ts')
+    expect(coverage.find(item => item.id === 'autonomous-dialogue-closure-loop-hardening')?.proof).toContain('proactive-remembered-emotional-carry-bridge-audit.test.ts')
+    expect(coverage.find(item => item.id === 'autonomous-dialogue-closure-loop-hardening')?.proof).toContain('proactive-pre-dialogue-planning-bridge-audit.test.ts')
+    expect(coverage.find(item => item.id === 'autonomous-dialogue-closure-loop-hardening')?.proof).toContain('proactive-pre-dialogue-reply-planning-bridge-audit.test.ts')
+    expect(coverage.find(item => item.id === 'autonomous-dialogue-closure-loop-hardening')?.proof).toContain('proactive-downstream-visible-reply-bridge-audit.test.ts')
+    expect(coverage.find(item => item.id === 'autonomous-dialogue-closure-loop-hardening')?.proof).toContain('proactive-replay-reopen-continuity-bridge-audit.test.ts')
+    expect(
+      coverage.find(item => item.id === 'autonomous-dialogue-closure-loop-hardening')?.proof?.split(' + '),
+    ).toContain('runtime-session-continuity-builders-alias-focus.test.ts')
     expect(coverage.find(item => item.id === 'autonomous-dialogue-closure-loop-hardening')?.responsibility).toContain('compact same-her closure loop')
     expect(coverage.find(item => item.id === 'autonomous-dialogue-closure-loop-hardening')?.responsibility).toContain('motive')
     expect(coverage.find(item => item.id === 'autonomous-dialogue-closure-loop-hardening')?.responsibility).toContain('hover-first restraint')
+    expect(coverage.find(item => item.id === 'autonomous-dialogue-closure-loop-hardening')?.responsibility).toContain('visible quiet-companionship hold')
     expect(coverage.find(item => item.id === 'autonomous-dialogue-closure-loop-hardening')?.responsibility).toContain('next-session feedback carry')
     expect(coverage.find(item => item.id === 'autonomous-dialogue-closure-loop-hardening')?.responsibility).toContain('next project-state answer carry')
     expect(coverage.find(item => item.id === 'autonomous-dialogue-closure-loop-hardening')?.responsibility).toContain('post-answer detour persistence')
     expect(coverage.find(item => item.id === 'autonomous-dialogue-closure-loop-hardening')?.responsibility).toContain('post-answer dream carry')
+    expect(coverage.find(item => item.id === 'autonomous-dialogue-closure-loop-hardening')?.responsibility).toContain('later organic learning carry')
     expect(coverage.find(item => item.id === 'autonomous-dialogue-closure-loop-hardening')?.responsibility).toContain('noisy-desktop detour persistence')
+    expect(coverage.find(item => item.id === 'autonomous-dialogue-closure-loop-hardening')?.responsibility).toContain('alias-only deferred open/next focus carry')
+    expect(coverage.find(item => item.id === 'autonomous-dialogue-closure-loop-hardening')?.responsibility).toContain('proactive remembered emotional carry bridge')
+    expect(coverage.find(item => item.id === 'autonomous-dialogue-closure-loop-hardening')?.responsibility).toContain('proactive pre-dialogue planning bridge')
+    expect(coverage.find(item => item.id === 'autonomous-dialogue-closure-loop-hardening')?.responsibility).toContain('proactive pre-dialogue reply-planning bridge')
+    expect(coverage.find(item => item.id === 'autonomous-dialogue-closure-loop-hardening')?.responsibility).toContain('proactive downstream visible-reply bridge')
+    expect(coverage.find(item => item.id === 'autonomous-dialogue-closure-loop-hardening')?.responsibility).toContain('proactive replay reopen continuity bridge')
     expect(coverage.find(item => item.id === 'route-authority-boundary-registry-hardening')?.proof).toContain('route-authority-boundary-registry-audit.test.ts')
     expect(coverage.find(item => item.id === 'route-authority-boundary-registry-hardening')?.proof).toContain('return-side-project-awareness-entrypoint-candidate-audit.test.ts')
     expect(coverage.find(item => item.id === 'route-authority-boundary-registry-hardening')?.proof).toContain('runtime-dialogue-normalization-audit.ts')
     expect(coverage.find(item => item.id === 'route-authority-boundary-registry-hardening')?.proof).toContain('project-state-answer-governance-audit.ts')
+    expect(
+      coverage.find(item => item.id === 'route-authority-boundary-registry-hardening')?.proof?.split(' + '),
+    ).toContain('runtime-turn-persistence-project-state-hold-regression.test.ts')
     expect(coverage.find(item => item.id === 'route-authority-boundary-registry-hardening')?.responsibility).toContain('shared route-authority registry')
     expect(coverage.find(item => item.id === 'route-authority-boundary-registry-hardening')?.responsibility).toContain('explicit allowed overlaps')
+    expect(coverage.find(item => item.id === 'route-authority-boundary-registry-hardening')?.responsibility).toContain('finer same-her hold authority')
     expect(coverage.find(item => item.id === 'route-authority-boundary-registry-hardening')?.responsibility).toContain('future reopen-time route shapes still need explicit classification')
     expect(coverage.find(item => item.id === 'project-state-answer-governance-entrypoint-candidate-hardening')?.proof).toContain('project-state-answer-governance-entrypoint-candidate-audit.test.ts')
     expect(coverage.find(item => item.id === 'project-state-answer-governance-entrypoint-candidate-hardening')?.proof).toContain('project-awareness-route-authority-audit.test.ts')
     expect(coverage.find(item => item.id === 'project-state-answer-governance-entrypoint-candidate-hardening')?.proof).toContain('project-awareness-coverage-matrix.test.ts')
     expect(coverage.find(item => item.id === 'project-state-answer-governance-entrypoint-candidate-hardening')?.responsibility).toContain('project-state answer-governance candidates')
     expect(coverage.find(item => item.id === 'project-state-answer-governance-entrypoint-candidate-hardening')?.responsibility).toContain('background answer enrichers')
+    expect(coverage.find(item => item.id === 'project-state-answer-governance-entrypoint-candidate-hardening')?.responsibility).toContain('runtime-governance normalization-time project-state audit carry')
     expect(coverage.find(item => item.id === 'project-state-answer-governance-entrypoint-candidate-hardening')?.responsibility).toContain('reminder / critic same-her reminder sinks')
     expect(coverage.find(item => item.id === 'project-state-answer-governance-entrypoint-candidate-hardening')?.responsibility).toContain('reply-surface preflight')
     expect(coverage.find(item => item.id === 'project-state-answer-governance-entrypoint-candidate-hardening')?.responsibility).toContain('future project-status answer surfaces still need explicit classification')
     expect(coverage.find(item => item.id === 'runtime-dialogue-normalization-entrypoint-candidate-hardening')?.proof).toContain('runtime-dialogue-normalization-entrypoint-candidate-audit.test.ts')
     expect(coverage.find(item => item.id === 'runtime-dialogue-normalization-entrypoint-candidate-hardening')?.proof).toContain('project-awareness-route-authority-audit.test.ts')
     expect(coverage.find(item => item.id === 'runtime-dialogue-normalization-entrypoint-candidate-hardening')?.proof).toContain('project-awareness-coverage-matrix.test.ts')
+    expect(coverage.find(item => item.id === 'runtime-dialogue-normalization-entrypoint-candidate-hardening')?.proof).toContain('runtime-dialogue-normalization-project-awareness-audit.test.ts')
     expect(coverage.find(item => item.id === 'runtime-dialogue-normalization-entrypoint-candidate-hardening')?.responsibility).toContain('runtime dialogue-normalization candidates')
     expect(coverage.find(item => item.id === 'runtime-dialogue-normalization-entrypoint-candidate-hardening')?.responsibility).toContain('stream-finish fallback')
     expect(coverage.find(item => item.id === 'runtime-dialogue-normalization-entrypoint-candidate-hardening')?.responsibility).toContain('future host-visible normalization seams still need explicit classification')
     expect(coverage.find(item => item.id === 'runtime-turn-persistence-entrypoint-candidate-hardening')?.proof).toContain('runtime-turn-persistence-entrypoint-candidate-audit.test.ts')
     expect(coverage.find(item => item.id === 'runtime-turn-persistence-entrypoint-candidate-hardening')?.proof).toContain('project-awareness-route-authority-audit.test.ts')
     expect(coverage.find(item => item.id === 'runtime-turn-persistence-entrypoint-candidate-hardening')?.proof).toContain('project-awareness-coverage-matrix.test.ts')
+    expect(coverage.find(item => item.id === 'runtime-turn-persistence-entrypoint-candidate-hardening')?.proof).toContain('replay-emission-project-awareness-audit.test.ts')
     expect(coverage.find(item => item.id === 'runtime-turn-persistence-entrypoint-candidate-hardening')?.responsibility).toContain('guarded turn persistence candidates')
     expect(coverage.find(item => item.id === 'runtime-turn-persistence-entrypoint-candidate-hardening')?.responsibility).toContain('origin-spoof rejection')
     expect(coverage.find(item => item.id === 'runtime-turn-persistence-entrypoint-candidate-hardening')?.responsibility).toContain('future guarded persistence families still need explicit classification')

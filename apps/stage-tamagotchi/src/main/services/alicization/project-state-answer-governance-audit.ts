@@ -7,6 +7,9 @@ type AlicizationProjectStateAnswerGovernanceRouteAuthorityEntry = Extract<
 
 export type AlicizationProjectStateAnswerGovernanceAuditMode
   = 'governance-authority'
+    | 'semantics-classification'
+    | 'answer-planning-surface'
+    | 'response-charter-surface'
     | 'answer-governance-enricher'
     | 'answer-contract-surface'
     | 'reply-surface-preflight'
@@ -29,6 +32,21 @@ export const alicizationProjectStateAnswerGovernanceAuditRegistry = resolveAlici
 export const alicizationProjectStateAnswerGovernanceAuthorityFiles
   = alicizationProjectStateAnswerGovernanceAuditRegistry
     .filter(entry => entry.mode === 'governance-authority')
+    .map(entry => entry.relativePath)
+
+export const alicizationProjectStateAnswerGovernanceSemanticsClassificationFiles
+  = alicizationProjectStateAnswerGovernanceAuditRegistry
+    .filter(entry => entry.mode === 'semantics-classification')
+    .map(entry => entry.relativePath)
+
+export const alicizationProjectStateAnswerGovernanceAnswerPlanningFiles
+  = alicizationProjectStateAnswerGovernanceAuditRegistry
+    .filter(entry => entry.mode === 'answer-planning-surface')
+    .map(entry => entry.relativePath)
+
+export const alicizationProjectStateAnswerGovernanceResponseCharterFiles
+  = alicizationProjectStateAnswerGovernanceAuditRegistry
+    .filter(entry => entry.mode === 'response-charter-surface')
     .map(entry => entry.relativePath)
 
 export const alicizationProjectStateAnswerGovernanceEnricherFiles

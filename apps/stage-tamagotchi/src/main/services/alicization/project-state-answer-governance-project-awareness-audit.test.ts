@@ -168,6 +168,7 @@ describe('project state answer governance project awareness audit', () => {
     const runtimeGovernanceSource = readFileSync(new URL('./runtime-governance-project-awareness-route.test.ts', import.meta.url), 'utf8')
     const executiveBriefSource = readFileSync(new URL('./executive-answer-brief.test.ts', import.meta.url), 'utf8')
     const coverageSource = readFileSync(new URL('./project-awareness-coverage-matrix.test.ts', import.meta.url), 'utf8')
+    const matrixSource = readFileSync(new URL('../../../../../../docs/pre-dialogue-project-awareness-matrix.md', import.meta.url), 'utf8')
 
     expect(governanceSource).toContain('Do not claim merge-readiness, full closure, or goal completion unless the current evidence already proves it.')
     expect(activeDialogueSource).toContain('project-state-closure-readiness-follow-up')
@@ -178,5 +179,9 @@ describe('project state answer governance project awareness audit', () => {
     expect(coverageSource).toContain('project-state-answer-governance-project-awareness-audit.test.ts')
     expect(coverageSource).toContain('future project-status answer surfaces still need explicit classification')
     expect(coverageSource).toContain('completion-timing / language-drift follow-ups')
+    expect(matrixSource).toContain('project-state-answer-governance-project-awareness-audit.test.ts')
+    expect(matrixSource).toContain('completion-timing / language-drift follow-ups')
+    expect(matrixSource).toContain('semantics classification, answer planning, response charter shaping, executive answer briefing, provider-facing runtime rebuild, and host-visible normalization')
+    expect(matrixSource).toContain('future project-status answer surfaces still need explicit classification')
   })
 })

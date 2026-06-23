@@ -1,5 +1,3 @@
-import type { AlicizationRuntimeDigest } from '../../../shared/eventa'
-
 import {
   buildAlicizationProjectPreDialogueAwarenessLine,
   isAlicizationThinProjectAwarenessLine,
@@ -438,7 +436,7 @@ function buildStructuredAwarenessFromClosureFields(input: {
 }
 
 export function resolveCanonicalStructuredProjectState(input: {
-  normalizedProjectState?: Partial<NonNullable<AlicizationRuntimeDigest['projectState']>> | null
+  normalizedProjectState?: Record<string, unknown> | null
   runtimePreflightSummary?: string | null
   preparedPreflightSummary?: string | null
   payloadPreflightSummary?: string | null
