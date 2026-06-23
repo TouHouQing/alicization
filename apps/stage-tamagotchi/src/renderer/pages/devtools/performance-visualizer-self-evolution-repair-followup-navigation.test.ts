@@ -48,4 +48,96 @@ describe('performance visualizer self evolution repair followup navigation', () 
       refreshedScrollTarget: null,
     })).toBeNull()
   })
+
+  it('keeps body continuity follow-up on the overridden trace timeline surface while still scrolling to the concrete evidence panel', () => {
+    expect(buildSelfEvolutionRepairFollowupNavigation({
+      executedRoute: {
+        surfaceKey: 'authority:renderer-rejoin:live2d',
+        targetType: 'evidence',
+        targetId: 'renderer-authority-projection',
+      },
+      refreshedRoute: {
+        surfaceKey: 'authority:renderer-rejoin:live2d',
+        targetType: 'evidence',
+        targetId: 'renderer-authority-projection',
+      },
+      refreshedScrollTarget: {
+        scrollTargetId: 'self-evolution-authority:live2d-comparison',
+        targetType: 'evidence',
+        targetId: 'renderer-authority-projection',
+      },
+    })).toEqual({
+      activeSurfaceKey: 'authority:renderer-rejoin:live2d',
+      scrollTargetId: 'self-evolution-authority:live2d-comparison',
+    })
+  })
+
+  it('relands project-identity carry on candidate-trajectory evidence so same-her project-state repair does not fall back to generic runtime continuity', () => {
+    expect(buildSelfEvolutionRepairFollowupNavigation({
+      executedRoute: {
+        surfaceKey: 'evidence:runtime-continuity-projection',
+        targetType: 'evidence',
+        targetId: 'runtime-continuity-projection',
+      },
+      refreshedRoute: {
+        surfaceKey: 'evidence:candidate-trajectory-summary',
+        targetType: 'evidence',
+        targetId: 'candidate-trajectory-summary',
+      },
+      refreshedScrollTarget: {
+        scrollTargetId: 'self-evolution-evidence:candidate-trajectory-summary',
+        targetType: 'evidence',
+        targetId: 'candidate-trajectory-summary',
+      },
+    })).toEqual({
+      activeSurfaceKey: 'evidence:candidate-trajectory-summary',
+      scrollTargetId: 'self-evolution-evidence:candidate-trajectory-summary',
+    })
+  })
+
+  it('relands current-phase carry on identity-governance evidence so Phase 1 route drift stays on a concrete project-state panel', () => {
+    expect(buildSelfEvolutionRepairFollowupNavigation({
+      executedRoute: {
+        surfaceKey: 'evidence:runtime-continuity-projection',
+        targetType: 'evidence',
+        targetId: 'runtime-continuity-projection',
+      },
+      refreshedRoute: {
+        surfaceKey: 'evidence:identity-drift-governance-summary',
+        targetType: 'evidence',
+        targetId: 'identity-drift-governance-summary',
+      },
+      refreshedScrollTarget: {
+        scrollTargetId: 'self-evolution-evidence:identity-drift-governance-summary',
+        targetType: 'evidence',
+        targetId: 'identity-drift-governance-summary',
+      },
+    })).toEqual({
+      activeSurfaceKey: 'evidence:identity-drift-governance-summary',
+      scrollTargetId: 'self-evolution-evidence:identity-drift-governance-summary',
+    })
+  })
+
+  it('keeps speech renderer rejoin follow-up on the authority surface while scrolling to the concrete speech hotspots panel', () => {
+    expect(buildSelfEvolutionRepairFollowupNavigation({
+      executedRoute: {
+        surfaceKey: 'trace:selected-trace-event',
+        targetType: 'trace',
+        targetId: 'selected-trace-event',
+      },
+      refreshedRoute: {
+        surfaceKey: 'authority:renderer-rejoin:speech',
+        targetType: 'evidence',
+        targetId: 'renderer-authority-projection',
+      },
+      refreshedScrollTarget: {
+        scrollTargetId: 'self-evolution-authority:speech-hotspots',
+        targetType: 'evidence',
+        targetId: 'renderer-authority-projection',
+      },
+    })).toEqual({
+      activeSurfaceKey: 'authority:renderer-rejoin:speech',
+      scrollTargetId: 'self-evolution-authority:speech-hotspots',
+    })
+  })
 })
