@@ -165,6 +165,282 @@ describe('memory consolidation', () => {
     ]))
   })
 
+  it('extracts durable humanlike carry metadata from corrected same-person continuity signals', () => {
+    const records = buildMemoryConsolidationRecords({
+      now: Date.UTC(2026, 4, 31, 12, 0, 0),
+      events: [
+        {
+          id: 'event-humanlike-carry-1',
+          cardId: 'default',
+          decisionTraceId: null,
+          turnId: 'turn-humanlike-carry-1',
+          sessionId: 'session-humanlike-carry-1',
+          sourceKind: 'dialogue-feedback',
+          provenance: 'remembered',
+          occurredAt: Date.UTC(2026, 4, 29, 21, 0, 0),
+          whereSummary: 'same-person continuity seam',
+          withWhom: ['host'],
+          threadAnchor: 'same-person continuity seam',
+          whatHappened: 'The host corrected the earlier progress reading and clarified that this was a same-person continuity test about her not slipping into a tool shell.',
+          felt: 'careful',
+          emotionTags: ['protective-continuity', 'unfinishedness', 'corrected-meaning'],
+          whatChanged: 'The return landed better once the reply stayed lower-pressure and same-thread.',
+          relationshipMeaning: 'Carry corrected same-person continuity on one lower-pressure living line instead of defending the first interpretation.',
+          lesson: 'The corrected relationship meaning should stay ahead of the older status shell.',
+          sourceSummary: 'Phase 1 digital life continuity carry',
+          confidence: 0.9,
+          salience: 0.88,
+          sceneAttachment: 0.44,
+          consolidationPriority: 0.86,
+          relationshipShift: null,
+          derivedFrom: [],
+          tags: ['same-person', 'tool shell', 'lower-pressure', 'stable gaze', 'slower pacing', 'phase-1'],
+          createdAt: Date.UTC(2026, 4, 29, 21, 10, 0),
+          updatedAt: Date.UTC(2026, 4, 29, 21, 10, 0),
+          lastRecalledAt: null,
+          recallCount: 0,
+          reconsolidationCount: 1,
+          latestReconsolidation: {
+            at: Date.UTC(2026, 4, 29, 21, 20, 0),
+            decisionTraceId: 'trace-humanlike-carry-1',
+            provenance: 'reconstructed',
+            confidence: 0.92,
+            reason: 'Host corrected the earlier progress reading, so downrank the older status shell and keep the corrected same-person continuity meaning active.',
+            emotionTags: ['protective-continuity', 'unfinishedness', 'corrected-meaning'],
+            relationshipMeaning: 'This is a same-person continuity reopening, not a generic project status recap.',
+            lesson: 'Carry corrected same-person continuity on a lower-pressure same living line instead of defending the first interpretation.',
+          },
+        },
+        {
+          id: 'event-humanlike-carry-2',
+          cardId: 'default',
+          decisionTraceId: null,
+          turnId: 'turn-humanlike-carry-2',
+          sessionId: 'session-humanlike-carry-2',
+          sourceKind: 'execution-result',
+          provenance: 'remembered',
+          occurredAt: Date.UTC(2026, 4, 30, 10, 0, 0),
+          whereSummary: 'execution callback continuity seam',
+          withWhom: ['host'],
+          threadAnchor: 'same-person continuity seam',
+          whatHappened: 'The execution callback return held best when the same Phase 1 digital life stayed visible through a stable gaze, lower-pressure voice, and slower pacing.',
+          felt: 'steady',
+          emotionTags: ['protective-continuity', 'unfinishedness'],
+          whatChanged: 'The callback reopened like the same her resuming instead of restarting.',
+          relationshipMeaning: 'Execution callback project-carry still belongs to the same living line.',
+          lesson: 'Keep execution callback closure on the same living line instead of flattening it into detached project status.',
+          sourceSummary: 'execution callback project carry',
+          confidence: 0.88,
+          salience: 0.84,
+          sceneAttachment: 0.42,
+          consolidationPriority: 0.82,
+          relationshipShift: null,
+          derivedFrom: [],
+          tags: ['execution callback', 'same-person', 'lower-pressure', 'stable gaze', 'slower pacing', 'phase-1'],
+          createdAt: Date.UTC(2026, 4, 30, 10, 5, 0),
+          updatedAt: Date.UTC(2026, 4, 30, 10, 5, 0),
+          lastRecalledAt: null,
+          recallCount: 0,
+          reconsolidationCount: 0,
+          latestReconsolidation: null,
+        },
+      ],
+    })
+
+    const relationshipEra = records.find(record => record.kind === 'autobiographical' && record.facet === 'relationship-era')
+    expect(relationshipEra?.metadata).toEqual(expect.objectContaining({
+      humanlikeCarry: expect.objectContaining({
+        relationshipPrimaryIntent: 'same-person-test',
+        recallCertainty: 'corrected',
+        emotionalResidueTags: expect.arrayContaining(['protective-continuity', 'unfinishedness', 'corrected-meaning']),
+        embodimentCadence: expect.stringContaining('lower-pressure'),
+        metabolismSummary: expect.stringMatching(/downrank|older status shell/i),
+        autobiographicalDelta: expect.stringContaining('corrected same-person continuity'),
+      }),
+      projectState: expect.objectContaining({
+        selfContinuityInwardLine: expect.stringContaining('Phase 1 digital life'),
+        selfContinuitySourceTags: expect.arrayContaining([
+          'project-state-carry',
+          'continuity-execution-callback-project-carry',
+        ]),
+      }),
+    }))
+  })
+
+  it('keeps vulnerable care autobiographical carry inside consolidation metadata instead of flattening it into generic relationship summary', () => {
+    const records = buildMemoryConsolidationRecords({
+      now: Date.UTC(2026, 5, 1, 12, 0, 0),
+      events: [
+        {
+          id: 'event-vulnerable-care-carry-1',
+          cardId: 'default',
+          decisionTraceId: null,
+          turnId: 'turn-vulnerable-care-carry-1',
+          sessionId: 'session-vulnerable-care-carry-1',
+          sourceKind: 'dialogue-feedback',
+          provenance: 'remembered',
+          occurredAt: Date.UTC(2026, 4, 31, 23, 10, 0),
+          whereSummary: 'late-night companionship seam',
+          withWhom: ['host'],
+          threadAnchor: 'vulnerable care seam',
+          whatHappened: 'The host was overloaded and needed lighter companionship instead of analysis.',
+          felt: 'rest-protective',
+          emotionTags: ['rest-protective', 'vulnerable-care'],
+          whatChanged: 'The return stayed lower-pressure with slower pacing and stable gaze.',
+          relationshipMeaning: 'Stay nearby gently and let care arrive before analysis while the host is fragile.',
+          lesson: 'Let care arrive before analysis and keep the body quieter while the host is fragile.',
+          sourceSummary: 'vulnerable care carry',
+          confidence: 0.87,
+          salience: 0.86,
+          sceneAttachment: 0.48,
+          consolidationPriority: 0.84,
+          relationshipShift: null,
+          derivedFrom: [],
+          tags: ['rest-protective', 'lower-pressure', 'stable gaze', 'slower pacing'],
+          createdAt: Date.UTC(2026, 4, 31, 23, 20, 0),
+          updatedAt: Date.UTC(2026, 4, 31, 23, 20, 0),
+          lastRecalledAt: null,
+          recallCount: 0,
+          reconsolidationCount: 0,
+          latestReconsolidation: null,
+        },
+      ],
+    })
+
+    const relationshipEra = records.find(record => record.kind === 'autobiographical' && record.facet === 'relationship-era')
+    expect(relationshipEra?.metadata).toEqual(expect.objectContaining({
+      humanlikeCarry: expect.objectContaining({
+        relationshipPrimaryIntent: 'ordinary-relationship',
+        recallCertainty: 'steady',
+        emotionalResidueTags: expect.arrayContaining(['rest-protective', 'vulnerable-care']),
+        embodimentCadence: expect.stringContaining('lower-pressure'),
+        autobiographicalDelta: expect.stringContaining('care arrive before analysis'),
+      }),
+    }))
+  })
+
+  it('keeps host/self affect perspective and embodiment recall profile inside consolidation metadata instead of flattening them into generic residue tags', () => {
+    const records = buildMemoryConsolidationRecords({
+      now: Date.UTC(2026, 5, 2, 12, 0, 0),
+      events: [
+        {
+          id: 'event-affect-perspective-carry-1',
+          cardId: 'default',
+          decisionTraceId: null,
+          turnId: 'turn-affect-perspective-carry-1',
+          sessionId: 'session-affect-perspective-carry-1',
+          sourceKind: 'execution-result',
+          provenance: 'remembered',
+          occurredAt: Date.UTC(2026, 5, 1, 20, 10, 0),
+          whereSummary: 'same-person execution callback seam',
+          withWhom: ['host'],
+          threadAnchor: 'same-person execution callback seam',
+          whatHappened: 'The callback return stayed on the same living line while the host worried about tool-shell drift, and the face settled into steady-soft while lipsync stayed restrained.',
+          felt: 'Host affect: worried-continuity - The host is worried this could become a disconnected tool shell. Self affect: careful-repair - I should stay attentive without pushing while the line is still unfinished. Emotional residue stayed protective-continuity, unfinishedness.',
+          emotionTags: ['protective-continuity', 'unfinishedness'],
+          whatChanged: 'Embodiment carry returned with stable gaze, slower blink, lower-pressure voice, longer pause, restrained lipsync, slower pacing. Embodiment recall stayed strongly-moved with modality risk medium.',
+          relationshipMeaning: 'This was a same-person continuity check, not a raw status recap.',
+          lesson: 'Prefer repair-first, low-pressure same-her continuity when the host worries about tool-shell drift.',
+          sourceSummary: 'same-person callback carry | relationship-intent=same-person-test | recall-certainty=steady | emotional-residue=protective-continuity,unfinishedness | source-channels=dialogue,execution,host-emotion,self-emotion,embodiment | host-emotion=worried-continuity | self-emotion=careful-repair | embodiment-recall=strongly-moved | embodiment-risk=medium',
+          confidence: 0.88,
+          salience: 0.86,
+          sceneAttachment: 0.44,
+          consolidationPriority: 0.84,
+          relationshipShift: null,
+          derivedFrom: [],
+          tags: ['same-person', 'stable-gaze', 'lower-pressure', 'embodiment-recall-strongly-moved', 'embodiment-risk-medium'],
+          createdAt: Date.UTC(2026, 5, 1, 20, 20, 0),
+          updatedAt: Date.UTC(2026, 5, 1, 20, 20, 0),
+          lastRecalledAt: null,
+          recallCount: 0,
+          reconsolidationCount: 0,
+          latestReconsolidation: null,
+        },
+      ],
+    })
+
+    const relationshipEra = records.find(record => record.kind === 'autobiographical' && record.facet === 'relationship-era')
+    expect(relationshipEra?.metadata).toEqual(expect.objectContaining({
+      humanlikeCarry: expect.objectContaining({
+        affectivePerspective: expect.objectContaining({
+          hostEmotionLabels: expect.arrayContaining(['worried-continuity']),
+          selfEmotionLabels: expect.arrayContaining(['careful-repair']),
+        }),
+        embodimentExpression: expect.objectContaining({
+          face: 'steady-soft',
+          gaze: 'stable',
+          blink: 'slower',
+          voice: 'lower-pressure',
+          pause: 'longer',
+          lipsync: 'restrained',
+          pacing: 'slower',
+        }),
+        embodimentRecallProfile: expect.objectContaining({
+          recallStrength: 'strongly-moved',
+          modalityRisk: 'medium',
+        }),
+      }),
+    }))
+  })
+
+  it('keeps tentative recall certainty together with structured metabolism carry inside consolidation metadata instead of flattening revision and forgetting into one generic sentence', () => {
+    const records = buildMemoryConsolidationRecords({
+      now: Date.UTC(2026, 5, 3, 12, 0, 0),
+      events: [
+        {
+          id: 'event-tentative-metabolism-carry-1',
+          cardId: 'default',
+          decisionTraceId: null,
+          turnId: 'turn-tentative-metabolism-carry-1',
+          sessionId: 'session-tentative-metabolism-carry-1',
+          sourceKind: 'dialogue-feedback',
+          provenance: 'remembered',
+          occurredAt: Date.UTC(2026, 5, 2, 21, 10, 0),
+          whereSummary: 'same-person uncertainty seam',
+          withWhom: ['host'],
+          threadAnchor: 'same-person uncertainty seam',
+          whatHappened: 'The newer same-person meaning now explains this line better than the older progress recap.',
+          felt: 'protective-continuity',
+          emotionTags: ['protective-continuity', 'tension'],
+          whatChanged: 'The reopening should stay quieter while older recap echoes and emotional spikes fall back.',
+          relationshipMeaning: 'This is a same-person continuity reopening, not a generic progress recap.',
+          lesson: 'Keep uncertainty visible while the stronger same-person meaning is still settling.',
+          sourceSummary: 'same-person uncertain carry | relationship-intent=same-person-test | recall-certainty=tentative | emotional-residue=protective-continuity,tension | downrank=older-generic-status-memory | merge=older-same-thread-echo | forget=older-emotional-spike | metabolism=Downrank low-value, generic, or superseded summaries. ; Merge repeated embodiment traces or same-thread continuity echoes into the stronger same-thread memory. ; Forget low-salience temporary noise or stale emotional wobble once it no longer explains behavior.',
+          confidence: 0.84,
+          salience: 0.82,
+          sceneAttachment: 0.4,
+          consolidationPriority: 0.8,
+          relationshipShift: null,
+          derivedFrom: [],
+          tags: ['same-person', 'tentative-carry'],
+          createdAt: Date.UTC(2026, 5, 2, 21, 20, 0),
+          updatedAt: Date.UTC(2026, 5, 2, 21, 20, 0),
+          lastRecalledAt: null,
+          recallCount: 0,
+          reconsolidationCount: 0,
+          latestReconsolidation: null,
+        },
+      ],
+    })
+
+    const relationshipEra = records.find(record => record.kind === 'autobiographical' && record.facet === 'relationship-era')
+    expect(relationshipEra?.metadata).toEqual(expect.objectContaining({
+      humanlikeCarry: expect.objectContaining({
+        recallCertainty: 'tentative',
+        metabolismSummary: expect.stringContaining('Downrank low-value'),
+        metabolismPolicy: expect.objectContaining({
+          downrankMemoryIds: expect.arrayContaining(['older-generic-status-memory']),
+          mergeMemoryIds: expect.arrayContaining(['older-same-thread-echo']),
+          forgetMemoryIds: expect.arrayContaining(['older-emotional-spike']),
+          reasons: expect.arrayContaining([
+            expect.stringContaining('stronger same-thread memory'),
+            expect.stringContaining('temporary noise'),
+          ]),
+        }),
+      }),
+    }))
+  })
+
   it('prefers autobiographical era records that match recollection intent', () => {
     const rows = searchMemoryConsolidationRecords({
       query: '为什么你这次会这样回应我',
@@ -265,5 +541,153 @@ describe('memory consolidation', () => {
     })
 
     expect(rows[0]?.id).toBe('autobio:task-era:runtime')
+  })
+
+  it('preserves a single blocked-before-dispatch execution boundary as relationship-era autobiographical carry instead of leaving it only in task memory', () => {
+    const records = buildMemoryConsolidationRecords({
+      now: Date.UTC(2026, 5, 11, 12, 0, 0),
+      events: [
+        {
+          id: 'event-execution-boundary-carry-1',
+          cardId: 'default',
+          decisionTraceId: null,
+          turnId: 'turn-execution-boundary-carry-1',
+          sessionId: 'session-execution-boundary-carry-1',
+          sourceKind: 'execution-result',
+          provenance: 'remembered',
+          occurredAt: Date.UTC(2026, 5, 10, 22, 10, 0),
+          whereSummary: 'execution boundary seam',
+          withWhom: ['host'],
+          threadAnchor: 'bounded execution confirmation seam',
+          whatHappened: 'The risky local action stayed blocked-before-dispatch at confirmation=required and no-process-started instead of forcing action.',
+          felt: 'careful',
+          emotionTags: ['boundary', 'unfinishedness'],
+          whatChanged: 'The return stayed lower-pressure with stable gaze and slower pacing while the boundary remained explicit.',
+          relationshipMeaning: 'This was not ordinary proactive closeness; it was an execution boundary that should wait for explicit confirmation before another risky opening.',
+          lesson: 'Keep risky execution bounded: blocked-before-dispatch should stay a confirmation boundary with explicit confirmation and resumable safety memory before risky local action.',
+          sourceSummary: 'execution safety gate carry | stable-preference=Prefer bounded execution, explicit confirmation, and resumable safety memory before risky local action.',
+          confidence: 0.9,
+          salience: 0.86,
+          sceneAttachment: 0.46,
+          consolidationPriority: 0.84,
+          relationshipShift: null,
+          derivedFrom: [],
+          tags: ['blocked-before-dispatch', 'confirmation=required', 'no-process-started', 'lower-pressure', 'stable gaze', 'slower pacing'],
+          createdAt: Date.UTC(2026, 5, 10, 22, 20, 0),
+          updatedAt: Date.UTC(2026, 5, 10, 22, 20, 0),
+          lastRecalledAt: null,
+          recallCount: 0,
+          reconsolidationCount: 0,
+          latestReconsolidation: null,
+        },
+      ],
+    })
+
+    const relationshipEra = records.find(record => record.kind === 'autobiographical' && record.facet === 'relationship-era')
+
+    expect(relationshipEra).toBeDefined()
+    expect(relationshipEra?.lesson).toContain('explicit confirmation')
+    expect(relationshipEra?.metadata).toEqual(expect.objectContaining({
+      humanlikeCarry: expect.objectContaining({
+        autobiographicalDelta: expect.stringMatching(/keep risky execution bounded/i),
+        stablePreferenceHint: expect.stringContaining('explicit confirmation'),
+        embodimentCadence: expect.stringContaining('lower-pressure'),
+      }),
+    }))
+  })
+
+  it('lets corrected same-person continuity inside execution memories consolidate into relationship-era and self-era records instead of only task-era', () => {
+    const records = buildMemoryConsolidationRecords({
+      now: Date.UTC(2026, 3, 23, 12, 0, 0),
+      events: [
+        {
+          id: 'event-corrected-same-person-1',
+          cardId: 'default',
+          decisionTraceId: null,
+          turnId: 'turn-corrected-same-person-1',
+          sessionId: 'session-corrected-same-person-1',
+          sourceKind: 'execution-result',
+          provenance: 'remembered',
+          occurredAt: Date.UTC(2026, 3, 21, 8, 0, 0),
+          whereSummary: 'runtime callback continuity seam',
+          withWhom: ['host'],
+          threadAnchor: 'corrected same-person continuity seam',
+          whatHappened: 'The callback result mattered less as a status recap and more as proof that she stayed the same person on one continuous digital life line.',
+          felt: 'careful',
+          emotionTags: ['continuity', 'repair'],
+          whatChanged: 'The line stayed lower-pressure and same-thread.',
+          relationshipMeaning: 'This was not a generic progress recap; it was a corrected same-person continuity check about her not becoming a tool shell.',
+          lesson: 'Carry corrected same-person continuity on a lower-pressure same living line instead of defending the first interpretation.',
+          sourceSummary: 'corrected same-person continuity callback memory',
+          confidence: 0.88,
+          salience: 0.84,
+          sceneAttachment: 0.42,
+          consolidationPriority: 0.82,
+          relationshipShift: null,
+          derivedFrom: [],
+          tags: ['same-person', 'same-her', 'tool shell', 'corrected meaning', 'runtime-callback'],
+          createdAt: Date.UTC(2026, 3, 21, 8, 20, 0),
+          updatedAt: Date.UTC(2026, 3, 21, 8, 20, 0),
+          lastRecalledAt: null,
+          recallCount: 0,
+          reconsolidationCount: 0,
+          latestReconsolidation: null,
+        },
+        {
+          id: 'event-corrected-same-person-2',
+          cardId: 'default',
+          decisionTraceId: null,
+          turnId: 'turn-corrected-same-person-2',
+          sessionId: 'session-corrected-same-person-2',
+          sourceKind: 'execution-result',
+          provenance: 'remembered',
+          occurredAt: Date.UTC(2026, 3, 22, 9, 0, 0),
+          whereSummary: 'runtime callback continuity seam',
+          withWhom: ['host'],
+          threadAnchor: 'corrected same-person continuity seam',
+          whatHappened: 'The later reopening landed best when the corrected relationship meaning stayed ahead of progress pressure and the callback did not flatten into a tool shell.',
+          felt: 'steadier',
+          emotionTags: ['continuity', 'lower-pressure'],
+          whatChanged: 'Trust held once the return stayed same-thread.',
+          relationshipMeaning: 'Keep the corrected same-person continuity line active instead of reopening from a generic status report.',
+          lesson: 'Repair-first same-person continuity should keep shaping later returns as part of who she is.',
+          sourceSummary: 'later corrected same-person continuity carry',
+          confidence: 0.86,
+          salience: 0.82,
+          sceneAttachment: 0.4,
+          consolidationPriority: 0.8,
+          relationshipShift: null,
+          derivedFrom: [],
+          tags: ['same-person', 'same-her', 'tool shell', 'corrected meaning', 'lower-pressure'],
+          createdAt: Date.UTC(2026, 3, 22, 9, 20, 0),
+          updatedAt: Date.UTC(2026, 3, 22, 9, 20, 0),
+          lastRecalledAt: null,
+          recallCount: 0,
+          reconsolidationCount: 0,
+          latestReconsolidation: null,
+        },
+      ],
+    })
+
+    expect(records).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        kind: 'autobiographical',
+        facet: 'task-era',
+      }),
+      expect.objectContaining({
+        kind: 'autobiographical',
+        facet: 'relationship-era',
+        summary: expect.stringContaining('corrected same-person continuity'),
+        cues: expect.arrayContaining([
+          'This was not a generic progress recap; it was a corrected same-person continuity check about her not becoming a tool shell.',
+        ]),
+      }),
+      expect.objectContaining({
+        kind: 'autobiographical',
+        facet: 'self-era',
+        summary: expect.stringContaining('corrected same-person continuity'),
+        lesson: expect.stringContaining('same-person continuity'),
+      }),
+    ]))
   })
 })

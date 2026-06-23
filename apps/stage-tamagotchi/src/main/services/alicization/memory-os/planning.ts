@@ -8,6 +8,7 @@ import type {
 } from '../runtime-organic-memory-prompt-types'
 import type { OrganicMemoryPromptContext } from '../runtime-soul'
 
+import { buildAlicizationMemoryRestraintJudge } from '../memory-restraint-judge'
 import { sanitizeOrganicMemoryText } from '../runtime-organic-memory-search-prelude'
 
 function uniqueList(values: Array<string | null | undefined>, maxItems = 6) {
@@ -39,6 +40,10 @@ function countRecallTermOverlap(base: string, candidate: string) {
       overlap += 1
   }
   return overlap / candidateTerms.size
+}
+
+function isQuietSameHerContinuityText(text: string) {
+  return /quiet same-her continuity|same-her-inward-carry|quiet-companionship|same living line stays inward|line stayed inward|line holds inward|同一个她|同一条线|安静陪着|先别外扩/u.test(text)
 }
 
 function pickAdditionalIds<T>(input: {
@@ -670,13 +675,22 @@ export function resolveRecollectionPlanSearch(input: {
 export function applyMemoryDeliberationToSpeechPlan(input: {
   deliberation: NonNullable<OrganicMemoryPromptContext['memoryDeliberation']> | null
   speechPlan: NonNullable<OrganicMemoryPromptContext['recollectionSpeechPlan']> | null
+  hostPersonModel?: OrganicMemoryPromptContext['hostPersonModel']
 }) {
   const deliberation = input.deliberation ?? null
   const speechPlan = input.speechPlan ?? null
   if (!deliberation)
     return speechPlan
 
-  const shouldSurface = deliberation.shouldRecall && deliberation.surfacePolicy !== 'internal-only'
+  const preliminaryShouldSurface = deliberation.shouldRecall && deliberation.surfacePolicy !== 'internal-only'
+  const restraint = buildAlicizationMemoryRestraintJudge({
+    shouldRecall: deliberation.shouldRecall,
+    shouldStayInward: deliberation.surfacePolicy === 'internal-only',
+    hostPersonModel: input.hostPersonModel ?? null,
+    memoryControl: null,
+    followUpAffordance: deliberation.followUpAffordance ?? null,
+  })
+  const shouldSurface = preliminaryShouldSurface && !restraint.shouldStayInward && restraint.surfaceMode !== 'inward-only'
   return {
     shouldSurface,
     surfaceMode: shouldSurface ? deliberation.surfacePolicy : 'internal-only',
@@ -707,6 +721,11 @@ export function rankMemoryDeliberationBundles(input: {
   return [...input.bundles]
     .map((bundle) => {
       let coherence = 0
+      const quietSameHerContinuity = isQuietSameHerContinuityText([
+        bundle.summary,
+        bundle.rationale,
+        bundle.relationshipLine,
+      ].filter(Boolean).join(' '))
       if (bundle.periodId && bundle.episodeId)
         coherence += 0.18
       if (bundle.procedureId && bundle.episodeId)
@@ -723,6 +742,8 @@ export function rankMemoryDeliberationBundles(input: {
         coherence += 0.16
       if (bundle.relationshipLine && intentMode === 'relationship-history')
         coherence += 0.18
+      if (quietSameHerContinuity)
+        coherence += 0.08
       return {
         bundle,
         score: bundle.confidence + coherence,
@@ -741,6 +762,14 @@ export function rankMemoryDeliberationChains(input: {
   return [...input.chains]
     .map((chain) => {
       let coherence = 0
+      const quietSameHerContinuity = isQuietSameHerContinuityText([
+        chain.summary,
+        chain.rationale,
+        chain.currentStance,
+        chain.answerPosture,
+        chain.relationshipMeaning,
+        chain.lesson,
+      ].filter(Boolean).join(' '))
       if (chain.currentStance)
         coherence += 0.12
       if (chain.answerPosture)
@@ -755,6 +784,8 @@ export function rankMemoryDeliberationChains(input: {
         coherence += 0.24
       if (chain.kind === 'period-event-lesson-posture' && (intentMode === 'relationship-history' || intentMode === 'autobiographical-history' || intentMode === 'conversation-history'))
         coherence += 0.22
+      if (quietSameHerContinuity)
+        coherence += 0.08
       return {
         chain,
         score: chain.confidence + coherence,
@@ -814,7 +845,13 @@ export function selectMemoryDeliberationEras(input: {
         ? eraCandidates.filter(item => item.facet === inferredFacet || item.facet === 'window')
         : eraCandidates
   return [...prioritized]
-    .sort((left, right) => right.confidence - left.confidence)
+    .sort((left, right) => {
+      const leftQuietSameHer = isQuietSameHerContinuityText(left.summary)
+      const rightQuietSameHer = isQuietSameHerContinuityText(right.summary)
+      if (leftQuietSameHer !== rightQuietSameHer)
+        return rightQuietSameHer ? 1 : -1
+      return right.confidence - left.confidence
+    })
     .map(item => ({
       id: item.id,
       facet: item.facet,

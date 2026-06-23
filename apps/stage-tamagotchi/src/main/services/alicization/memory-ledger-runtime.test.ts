@@ -71,6 +71,12 @@ describe('memory ledger runtime', () => {
     expect(context.recallText).toContain('execution_channel:cli')
     expect(context.recallText).toContain('execution_status:completed')
     expect(context.recallText).toContain('execution_outcome:all tests passed')
+    expect(context.recallText).toContain('execution_project_identity:Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.')
+    expect(context.recallText).toContain('execution_project_phase:Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.')
+    expect(context.recallText).toContain('execution_same_her_line:Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.')
+    expect(context.recallText).toContain('execution_same_her_hold:same-her hold: keep this project-state answer on the same living line before widening outward, because some closure already landed and the unfinished closure still belongs to one continuous "her".')
+    expect(context.recallText).toContain('execution_project_continuity:same living line: some closure already landed, so project-state carry should keep continuing as the same Phase 1 digital life before widening outward.')
+    expect(context.recallText).toContain('execution_project_boundary:This recalled execution history still belongs to the same local-first digital life project and one living her, not a detached task shell.')
     expect(context.entries).toEqual([{
       activityAt: 2_000,
       channel: 'cli',
@@ -81,6 +87,17 @@ describe('memory ledger runtime', () => {
       summary: 'pnpm test completed successfully',
     }])
     expect(context.systemBlock).toContain('[ALICIZATION_EXECUTION_LEDGER]')
+    expect(context.systemBlock).toContain('This recalled execution history still belongs to the same local-first digital life project and one living her.')
+    expect(context.systemBlock).toContain('project_identity=Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.')
+    expect(context.systemBlock).toContain('project_phase=Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.')
+    expect(context.systemBlock).toContain('latest_landed_progress=')
+    expect(context.systemBlock).toContain('primary_open_loop=')
+    expect(context.systemBlock).toContain('next_closure_target=')
+    expect(context.systemBlock).toContain('same_her_line=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.')
+    expect(context.systemBlock).toContain('same_her_hold=same-her hold: keep this project-state answer on the same living line before widening outward, because some closure already landed and the unfinished closure still belongs to one continuous "her".')
+    expect(context.systemBlock).toContain('same_her_drift_risk=If project-state continuity survives only as generic guidance while the direct same-her self line disappears, treat that as unfinished closure drift rather than a successful turn.')
+    expect(context.systemBlock).toContain('project_continuity=same living line: some closure already landed, so project-state carry should keep continuing as the same Phase 1 digital life before widening outward.')
+    expect(context.systemBlock).toContain('project_boundary=This recalled execution history still belongs to the same local-first digital life project and one living her, not a detached task shell.')
     expect(context.systemBlock).toContain('channel=cli')
     expect(context.systemBlock).toContain('summary=pnpm test completed successfully')
     expect(context.systemBlock).toContain('outcome=all tests passed')

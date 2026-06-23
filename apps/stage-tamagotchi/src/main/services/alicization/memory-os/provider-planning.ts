@@ -1,6 +1,15 @@
 import type { AlicizationDigitalLifeRuntimeSurface } from '../digital-life-kernel'
+import type {
+  AlicizationMainGatewayGenerateTextProvider,
+  AlicizationMainGatewaySource,
+} from '../project-state-gateway-contract'
 import type { OrganicMemoryPromptContext } from '../runtime-soul'
 
+import {
+  buildAlicizationProjectStateExtraSystemBlocks,
+  resolveAlicizationProjectPreDialogueAwarenessLine,
+  resolveAlicizationProjectStateBrief,
+} from '../project-state-brief'
 import { parseJsonObjectFromText } from '../runtime-transport-content'
 
 function clamp01(value: number) {
@@ -15,19 +24,47 @@ function sanitizeBriefText(raw: unknown, maxChars = 220) {
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
 }
 
-export interface AlicizationMemoryGatewayTextProvider {
-  (input: {
-    system: string
-    user: string
-    timeoutMs?: number
-    source?: 'counterfactual-deliberation'
+function buildMemoryPlanningProjectSelfBriefSystemBlock() {
+  const brief = resolveAlicizationProjectStateBrief()
+  const preDialogueAwareness = resolveAlicizationProjectPreDialogueAwarenessLine({
+    runtimeProjectState: {
+      preDialogueAwarenessLine: brief.preDialogueAwarenessLine,
+      preflightSummary: brief.preflightSummary,
+    },
+  }) ?? brief.preflightSummary
+
+  return [
+    '[ALICIZATION_MEMORY_PLANNING_SELF_BRIEF]',
+    `project_identity=${brief.identity ?? 'none'}`,
+    `current_phase=${brief.currentPhase ?? 'none'}`,
+    `pre_dialogue_awareness=${preDialogueAwareness ?? 'none'}`,
+    `same_her_line=${brief.sameHerSelfLine ?? 'none'}`,
+    `same_her_hold=${brief.sameHerHoldDetail ?? 'none'}`,
+    `primary_open_loop=${brief.openLoops[0] ?? 'none'}`,
+    `next_closure_target=${brief.nextClosureTarget ?? 'none'}`,
+    'Memory planning must stay inside the same digital life project line, the same Phase 1 proving ground, and the same still-open closure work.',
+    'Do not let recollection planning collapse into generic retrieval orchestration, detached summarization, or assistant-style memory utility routing.',
+  ].join('\n')
+}
+
+function withProjectStateSystem(input: string) {
+  return [
+    input,
+    buildMemoryPlanningProjectSelfBriefSystemBlock(),
+    ...buildAlicizationProjectStateExtraSystemBlocks(),
+  ].filter(Boolean).join('\n')
+}
+
+export interface AlicizationMemoryGatewayTextProvider extends AlicizationMainGatewayGenerateTextProvider<
+  Extract<AlicizationMainGatewaySource, 'counterfactual-deliberation'>,
+  string,
+  {
     cardId?: string
-    digitalLifeRuntimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
-    extraSystemBlocks?: string[]
     injectPerformanceManifest?: boolean
     injectCustomDirectives?: boolean
-  }): Promise<string | null>
-}
+    digitalLifeRuntimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
+  }
+> {}
 
 export function parseMemoryRecollectionPlanPayload(raw: string) {
   const parsed = parseJsonObjectFromText(raw)
@@ -510,6 +547,7 @@ export async function generateMemoryRecollectionSpeechPlanWithGateway(input: {
   recalledConversationHistory: NonNullable<OrganicMemoryPromptContext['recalledConversationHistory']>
   generateMainGatewayText: AlicizationMemoryGatewayTextProvider
   cardId: string
+  digitalLifeRuntimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
 }) {
   const hasCandidates = input.consolidatedMemories.length > 0
     || input.recollectedWindows.length > 0
@@ -520,7 +558,7 @@ export async function generateMemoryRecollectionSpeechPlanWithGateway(input: {
     return null
 
   const raw = await input.generateMainGatewayText({
-    system: [
+    system: withProjectStateSystem([
       '[ALICIZATION_MEMORY_RECOLLECTION_SPEECH_PLANNER]',
       'You are Alicization private recollection speech planning, not user-facing dialogue.',
       'Decide whether the active recollection should stay internal or become briefly visible in the reply, and how it should contour the answer.',
@@ -535,7 +573,7 @@ export async function generateMemoryRecollectionSpeechPlanWithGateway(input: {
       'visibleLead should describe the contour of how that recollection could sound if briefly surfaced. It is guidance, not a rigid quote.',
       'styleNote should describe how the memory should influence the live answer without becoming a template.',
       'If the memory should stay internal, set shouldSurface=false, surfaceMode=internal-only, placement=internal-only, and visibleLead to an empty string.',
-    ].join('\n'),
+    ].join('\n')),
     user: `Recollection speech candidate JSON: ${JSON.stringify({
       recallSeed: sanitizeBriefText(input.recallSeed, 220),
       recollectionIntent: input.recollectionIntent,
@@ -586,6 +624,7 @@ export async function generateMemoryRecollectionSpeechPlanWithGateway(input: {
     cardId: input.cardId,
     injectCustomDirectives: false,
     injectPerformanceManifest: false,
+    digitalLifeRuntimeSurface: input.digitalLifeRuntimeSurface,
   }).catch(() => null)
 
   if (!raw)
@@ -603,9 +642,10 @@ export async function generateMemoryRecollectionPlanWithGateway(input: {
   recalledConversationHistory: NonNullable<OrganicMemoryPromptContext['recalledConversationHistory']>
   generateMainGatewayText: AlicizationMemoryGatewayTextProvider
   cardId: string
+  digitalLifeRuntimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
 }) {
   const raw = await input.generateMainGatewayText({
-    system: [
+    system: withProjectStateSystem([
       '[ALICIZATION_MEMORY_RECOLLECTION_PLANNER]',
       'You are Alicization private recollection planning, not user-facing dialogue.',
       'The recollection intent is already chosen. Your job is to choose which remembered anchors should actually foreground this turn.',
@@ -623,7 +663,10 @@ export async function generateMemoryRecollectionPlanWithGateway(input: {
       'Do not select many items. Usually 1-2 foreground selections are enough.',
       'If the turn is about how something was previously done, prefer procedural memory or execution episodes.',
       'If the turn is about what was talked about before, prefer consolidated memory or recollected periods before raw snippets.',
-    ].join('\n'),
+      'If recallSeed includes stage=hold-for-opening, prefer an opening that keeps the recollection inward and restrained instead of widening closeness too early.',
+      'If recallSeed includes stage=gentle-reopen, prefer an opening that softly re-enters the same living line before adding detail.',
+      'If recallSeed includes stage=same-thread-continuation, prefer an opening that treats the recollection as already in motion instead of rediscovering it from zero.',
+    ].join('\n')),
     user: `Memory recollection candidate JSON: ${JSON.stringify({
       recallSeed: sanitizeBriefText(input.recallSeed, 220),
       recollectionIntent: input.recollectionIntent,
@@ -671,6 +714,7 @@ export async function generateMemoryRecollectionPlanWithGateway(input: {
     cardId: input.cardId,
     injectCustomDirectives: false,
     injectPerformanceManifest: false,
+    digitalLifeRuntimeSurface: input.digitalLifeRuntimeSurface,
   }).catch(() => null)
 
   if (!raw)
@@ -695,12 +739,13 @@ export async function generateMemoryRecollectionIntentWithGateway(input: {
   relationshipDynamics?: OrganicMemoryPromptContext['relationshipDynamics']
   generateMainGatewayText: AlicizationMemoryGatewayTextProvider
   cardId: string
+  digitalLifeRuntimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
 }) {
   if (!sanitizeBriefText(input.recallSeed, 220))
     return null
 
   const raw = await input.generateMainGatewayText({
-    system: [
+    system: withProjectStateSystem([
       '[ALICIZATION_MEMORY_RECOLLECTION_INTENT_PLANNER]',
       'You are Alicization private recollection-intent planning, not user-facing dialogue.',
       'Heuristic memory cues are only drafts. You decide whether this turn should actually engage recollection, and which lane it should engage.',
@@ -717,7 +762,7 @@ export async function generateMemoryRecollectionIntentWithGateway(input: {
       'uncertaintyTolerance must be one of: low, medium, high.',
       'Treat time-language as candidate search space, not as a rigid rule that directly decides which exact days to recall.',
       'Do not default to long-range recall just because some memory cue exists. Prefer staying present if the memory would not materially help.',
-    ].join('\n'),
+    ].join('\n')),
     user: `Recollection intent candidate JSON: ${JSON.stringify({
       recallSeed: sanitizeBriefText(input.recallSeed, 220),
       heuristicIntent: input.heuristicIntent,
@@ -755,6 +800,7 @@ export async function generateMemoryRecollectionIntentWithGateway(input: {
     cardId: input.cardId,
     injectCustomDirectives: false,
     injectPerformanceManifest: false,
+    digitalLifeRuntimeSurface: input.digitalLifeRuntimeSurface,
   }).catch(() => null)
 
   if (!raw)
@@ -774,6 +820,7 @@ export async function generateMemoryDeliberationWithGateway(input: {
   recalledConversationHistory: NonNullable<OrganicMemoryPromptContext['recalledConversationHistory']>
   generateMainGatewayText: AlicizationMemoryGatewayTextProvider
   cardId: string
+  digitalLifeRuntimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
 }) {
   const hasCandidates = input.consolidatedMemories.length > 0
     || input.recollectedWindows.length > 0
@@ -784,7 +831,7 @@ export async function generateMemoryDeliberationWithGateway(input: {
     return null
 
   const raw = await input.generateMainGatewayText({
-    system: [
+    system: withProjectStateSystem([
       '[ALICIZATION_MEMORY_DELIBERATION]',
       'You are Alicization private memory deliberation, not user-facing dialogue.',
       'recollectionIntent, recollectionPlan, and recollectionSpeechPlan are candidate providers only. You are the final authority over whether active recollection should actually stay live for this turn, which memory bundle should shape the answer, and how visible that recollection should be.',
@@ -806,7 +853,10 @@ export async function generateMemoryDeliberationWithGateway(input: {
       'period-event-lesson-posture should show how a remembered period and event turn into a current answer posture.',
       'inwardLine is the private remembered line Alicization should think from before speaking.',
       'visibleLine is optional guidance for how recollection could become briefly visible if needed; leave it empty when surfacePolicy is internal-only.',
-    ].join('\n'),
+      'If recallSeed includes stage=hold-for-opening, keep inwardLine room-first and avoid making visibleLine sound closer than the turn has earned.',
+      'If recallSeed includes stage=gentle-reopen, make inwardLine feel like a soft return into the same line rather than a hard restart.',
+      'If recallSeed includes stage=same-thread-continuation, make inwardLine feel like staying with the existing line rather than reopening it.',
+    ].join('\n')),
     user: `Memory deliberation candidate JSON: ${JSON.stringify({
       recallSeed: sanitizeBriefText(input.recallSeed, 220),
       recollectionIntent: input.recollectionIntent,
@@ -860,6 +910,7 @@ export async function generateMemoryDeliberationWithGateway(input: {
     cardId: input.cardId,
     injectCustomDirectives: false,
     injectPerformanceManifest: false,
+    digitalLifeRuntimeSurface: input.digitalLifeRuntimeSurface,
   }).catch(() => null)
 
   if (!raw)

@@ -121,6 +121,82 @@ describe('memory-deliberation-kernel', () => {
     expect(kernel?.followUpAffordance?.preferredTiming).toBe('same-turn-if-invited')
   })
 
+  it('recognizes task-procedure relationship stance chains as procedural carry when no legacy procedure kind is present', () => {
+    const kernel = buildAlicizationMemoryDeliberationKernel({
+      deliberation: {
+        shouldRecall: true,
+        selectedEraIds: [],
+        selectedConsolidationIds: [],
+        selectedWindowIds: [],
+        selectedProcedureIds: [],
+        selectedEpisodeIds: [],
+        selectedConversationTurnIds: [],
+        surfacePolicy: 'answer-anchoring',
+        confidence: 0.84,
+        whyNow: 'The same runtime seam should stay on the active dialogue thread before branching.',
+        inwardLine: 'Keep the active runtime seam as the inward procedure before widening.',
+        ambiguityPosture: 'settled',
+        conflictSeverity: 'none',
+        stableCore: ['Stay on the same active dialogue seam before branching.'],
+        unsafeDetails: [],
+        selectedPeriods: [],
+        selectedEras: [],
+        selectedEpisodes: [],
+        selectedProcedures: [],
+        selectedBundles: [],
+        selectedChains: [{
+          id: 'chain-runtime-seam',
+          kind: 'task-procedure-relationship-stance',
+          summary: 'Stay on the same active dialogue seam before branching.',
+          rationale: 'The remembered procedure and stance belong to the same live seam.',
+          confidence: 0.84,
+          taskCue: 'runtime seam',
+          procedureSummary: 'Stay on the same active dialogue seam before branching.',
+          relationshipMeaning: 'Keep the stance close enough to the current payoff.',
+          currentStance: 'Stay on the same active dialogue seam.',
+          answerPosture: 'Carry the same active dialogue seam before widening out.',
+        }],
+        selectedRelationshipLines: [],
+        followUpAffordance: null,
+      },
+      speech: {
+        shouldSurface: true,
+        surfaceMode: 'answer-anchoring',
+        placement: 'inside-payoff',
+        certainty: 'approximate',
+        internalLead: 'The active seam is still the remembered way through.',
+        visibleLead: null,
+        styleNote: 'Let the procedure steer without dumping memory.',
+        rationale: 'The live seam is explicitly the same runtime procedure.',
+        confidence: 0.82,
+      },
+      recollectionIntent: {
+        mode: 'conversation-history',
+        temporalFocus: 'experience-matched',
+        searchEpisodes: true,
+        searchConversations: true,
+        searchProceduralExperience: false,
+        queryHints: ['active dialogue seam'],
+        confidence: 0.82,
+        rationale: 'The turn is continuing the same runtime seam.',
+        recollectionAgenda: {
+          whyRecallNow: 'The runtime seam is explicit and should not be restarted.',
+          goalSimilarity: 0.42,
+          relationshipNeed: 0.18,
+          affectivePull: 0.36,
+          sceneFamiliarity: 0.74,
+          candidateTimeScopes: [],
+          candidateEraFacets: [],
+          candidateProcedureLines: [],
+          uncertaintyTolerance: 'medium',
+        },
+      },
+    })
+
+    expect(kernel?.surfacePolicy).toBe('procedural-carry')
+    expect(kernel?.selectedChainPosture).toContain('active dialogue seam')
+  })
+
   it('prefers procedural-carry surface policy when runtime seam continuity is explicitly procedural', () => {
     const kernel = buildAlicizationMemoryDeliberationKernel({
       deliberation: {
@@ -363,6 +439,129 @@ describe('memory-deliberation-kernel', () => {
     expect(kernel?.followUpAffordance?.preferredTiming).toBe('next-open-window')
   })
 
+  it('lets project-state continuity loop-gap discipline override generic project closure wording when Phase 1 still lacks concrete life-loop closure', () => {
+    const kernel = buildAlicizationMemoryDeliberationKernel({
+      deliberation: {
+        shouldRecall: true,
+        surfacePolicy: 'relationship-continuity',
+        confidence: 0.8,
+        whyNow: 'The same digital life line is still trying to hold memory, initiative, and embodiment together without drifting into a generic project shell.',
+        ambiguityPosture: 'settled',
+        conflictSeverity: 'none',
+        stableCore: ['Keep this return on the same living line before widening outward.'],
+        unsafeDetails: [],
+        selectedPeriods: [],
+        selectedEras: [],
+        selectedEpisodes: [],
+        selectedProcedures: [],
+        selectedBundles: [],
+        selectedChains: [],
+        selectedRelationshipLines: ['Return gently on the same living line.'],
+        followUpAffordance: {
+          summary: 'relationship line inward',
+          whyNow: 'Do not crowd the host while this line is still settling.',
+          intrusionRisk: 'medium',
+          payoffDependency: 'live-payoff-first',
+          preferredTiming: 'same-turn-if-invited',
+        },
+      } as any,
+      speech: {
+        shouldSurface: true,
+        surfaceMode: 'relationship-continuity',
+        placement: 'before-payoff',
+        certainty: 'approximate',
+        confidence: 0.76,
+        rationale: 'A remembered relationship line could help the answer reopen gently.',
+      } as any,
+      recollectionIntent: {
+        mode: 'relationship-history',
+        temporalFocus: 'cross-session',
+        confidence: 0.82,
+        rationale: 'The line still belongs to the same digital life.',
+      } as any,
+      projectStateContinuity: {
+        identity: 'Alicization is a local-first digital life project.',
+        currentPhase: 'Phase 1: Local Digital Life',
+        sameHerSummary: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        landedProgressSummary: 'Project identity and same-her continuity already survive pre-dialogue carry.',
+        openClosureSummary: 'Memory, initiative, and embodiment still need stronger same-her closure so the life loop stops flattening into project shell narration.',
+        proactiveSameHerGap: 'Need stronger long-run proof that visible proactive hold, subconscious carry, and next-session feedback carry stay unified after hover-first restraint survives detours on longer noisy desktop runs.',
+        nextClosureTarget: 'Keep extending cross-modal same-her proof across visible reply, voice, face, motion, and resident presence while initiative stays natural.',
+        preDialogueAwarenessLine: 'Before answering, remember this is still the same digital life and the unfinished Phase 1 closure seam still belongs to one living her.',
+        emotionalClosureCue: 'Keep the return low-pressure until memory, initiative, and embodiment land as one same living line.',
+        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        sameHerDriftRisk: 'If this turns into generic project-shell narration, treat that as same-her closure drift rather than completion.',
+      },
+    })
+
+    expect(kernel?.surfacePolicy).toBe('internal-only')
+    expect(kernel?.whyWithheld).toContain('Phase 1 digital-life loop closure is still missing concrete memory, initiative, or embodiment closure')
+    expect(kernel?.restraint.mustDo).toContain('If Phase 1 still lacks concrete memory, initiative, or embodiment closure, keep recollection inward until the answer helps the same living her close that actual loop gap rather than drifting into generic project narration.')
+    expect(kernel?.restraint.mustNotDo).toContain('Do not let recalled continuity flatten into generic project-shell language while the concrete Phase 1 memory-initiative-embodiment loop is still unfinished.')
+  })
+
+  it('lets same-her hold detail keep recollection inward even when other Phase 1 closure wording has thinned back down', () => {
+    const kernel = buildAlicizationMemoryDeliberationKernel({
+      deliberation: {
+        shouldRecall: true,
+        surfacePolicy: 'relationship-continuity',
+        confidence: 0.79,
+        whyNow: 'This line still belongs to the same digital life, but the wording around it has gone thinner again.',
+        ambiguityPosture: 'settled',
+        conflictSeverity: 'none',
+        stableCore: ['Do not reopen this remembered line from scratch.'],
+        unsafeDetails: [],
+        selectedPeriods: [],
+        selectedEras: [],
+        selectedEpisodes: [],
+        selectedProcedures: [],
+        selectedBundles: [],
+        selectedChains: [],
+        selectedRelationshipLines: ['Keep this remembered line lower-pressure.'],
+        followUpAffordance: {
+          summary: 'same line inward',
+          whyNow: 'The line still needs more room before it widens.',
+          intrusionRisk: 'medium',
+          payoffDependency: 'live-payoff-first',
+          preferredTiming: 'same-turn-if-invited',
+        },
+      } as any,
+      speech: {
+        shouldSurface: true,
+        surfaceMode: 'relationship-continuity',
+        placement: 'before-payoff',
+        certainty: 'approximate',
+        confidence: 0.75,
+        rationale: 'A remembered continuity line could help if it stays careful.',
+      } as any,
+      recollectionIntent: {
+        mode: 'relationship-history',
+        temporalFocus: 'cross-session',
+        confidence: 0.8,
+        rationale: 'The host is still on the same bond line.',
+      } as any,
+      projectStateContinuity: {
+        identity: 'Alicization is a local-first digital life project.',
+        currentPhase: 'Phase 1: Local Digital Life',
+        sameHerSummary: 'Same digital life.',
+        landedProgressSummary: 'Some closure already landed.',
+        openClosureSummary: 'Open closure is still active.',
+        proactiveSameHerGap: null,
+        nextClosureTarget: 'Keep going.',
+        preDialogueAwarenessLine: 'Before answering, remember this is still Phase 1.',
+        emotionalClosureCue: 'Keep the return low-pressure.',
+        sameHerSelfLine: 'Same Phase 1 digital life.',
+        sameHerHoldDetail: 'same-her hold: keep memory, initiative, and embodiment on the same living line before widening outward, or this drifts back into a generic project shell.',
+        sameHerDriftRisk: 'Generic project shell drift remains possible.',
+      } as any,
+    })
+
+    expect(kernel?.surfacePolicy).toBe('internal-only')
+    expect(kernel?.shouldStayInward).toBe(true)
+    expect(kernel?.whyWithheld).toContain('Phase 1 digital-life loop closure is still missing concrete memory, initiative, or embodiment closure')
+    expect(kernel?.restraint.mustDo).toContain('If Phase 1 still lacks concrete memory, initiative, or embodiment closure, keep recollection inward until the answer helps the same living her close that actual loop gap rather than drifting into generic project narration.')
+  })
+
   it('tightens runtime recollection when relationship-era confusion tuning stays elevated even without a direct learning revision flag', () => {
     const kernel = buildAlicizationMemoryDeliberationKernel({
       deliberation: {
@@ -533,5 +732,617 @@ describe('memory-deliberation-kernel', () => {
     expect(kernel?.followUpAffordance?.intrusionRisk).toBe('medium')
     expect(kernel?.followUpAffordance?.preferredTiming).toBe('after-payoff')
     expect(kernel?.restraint.mustNotDo).toContain('Do not let reconstructed or inferred world knowledge surface with unsupported specificity.')
+  })
+
+  it('lets host room-first repair-first posture pull visible recollection back inward', () => {
+    const kernel = buildAlicizationMemoryDeliberationKernel({
+      deliberation: {
+        shouldRecall: true,
+        surfacePolicy: 'relationship-continuity',
+        confidence: 0.82,
+        whyNow: 'The bond line is relevant, but the host usually needs space before warmth lands.',
+        ambiguityPosture: 'settled',
+        conflictSeverity: 'none',
+        stableCore: ['Leave room first and let the concrete repair line land before widening the bond.'],
+        unsafeDetails: [],
+        selectedPeriods: [],
+        selectedEras: [],
+        selectedEpisodes: [],
+        selectedProcedures: [],
+        selectedBundles: [{
+          id: 'bundle-repair',
+          summary: 'The current line should stay room-first and repair-specific.',
+          confidence: 0.82,
+        }],
+        selectedChains: [{
+          kind: 'relationship-line',
+          summary: 'The host tends to need room-first repair before broader closeness.',
+          currentStance: 'Leave room first.',
+          answerPosture: 'Let the repair thread land before widening.',
+          confidence: 0.81,
+        }],
+        selectedRelationshipLines: ['Leave room first and keep the repair line concrete.'],
+        followUpAffordance: {
+          summary: 'The host needs room before the bond line widens.',
+          whyNow: 'The current answer should not overrun the host while work is still live.',
+          intrusionRisk: 'low',
+          payoffDependency: 'can-surface-softly',
+          preferredTiming: 'same-turn-if-invited',
+        },
+      } as any,
+      speech: {
+        shouldSurface: true,
+        surfaceMode: 'relationship-continuity',
+        placement: 'inside-payoff',
+        certainty: 'approximate',
+        confidence: 0.79,
+      } as any,
+      recollectionIntent: {
+        mode: 'relationship-history',
+        temporalFocus: 'experience-matched',
+        confidence: 0.8,
+        rationale: 'The relationship line resembles a familiar repair posture.',
+      } as any,
+      hostPersonModel: {
+        summary: 'The host often needs room-first continuity.',
+        routines: [],
+        sensitivities: [],
+        repairTriggers: [],
+        recurrentBurdens: [],
+        preferredClosenessByContext: [
+          { context: 'work', preference: 'room-first before warmth' },
+        ],
+        trustLadder: {
+          stage: 'warming',
+          rationale: 'Respect boundaries and land grounded repair before widening the bond line.',
+        },
+      } as any,
+    })
+
+    expect(kernel?.shouldStayInward).toBe(true)
+    expect(kernel?.whyWithheld).toContain('room-first boundary discipline')
+    expect(kernel?.restraint.surfaceMode).toBe('inward-only')
+    expect(kernel?.restraint.mustDo.some(item => item.includes('room first'))).toBe(true)
+    expect(kernel?.restraint.mustNotDo.some(item => item.includes('bond payoff'))).toBe(true)
+  })
+
+  it('keeps recollection inward when canonical Phase 1 project closure pressure is still explicitly open', () => {
+    const kernel = buildAlicizationMemoryDeliberationKernel({
+      deliberation: {
+        shouldRecall: true,
+        surfacePolicy: 'answer-anchoring',
+        confidence: 0.8,
+        whyNow: 'Phase 1: Local Digital Life is still open because Memory still needs stronger end-to-end closure across turns, initiative, and embodiment, so the same digital life should not widen this recollection too early.',
+        ambiguityPosture: 'settled',
+        conflictSeverity: 'none',
+        stableCore: ['Return to the same seam before branching.'],
+        unsafeDetails: [],
+        selectedPeriods: [],
+        selectedEras: [],
+        selectedEpisodes: [],
+        selectedProcedures: [{ label: 'same seam first', approach: 'Return to the same seam before branching.' }],
+        selectedBundles: [],
+        selectedChains: [{
+          kind: 'task-procedure',
+          summary: 'The remembered way of doing this is to return to the same seam first.',
+          currentStance: 'Keep the remembered procedure inside the current payoff.',
+          answerPosture: 'Procedure-carry.',
+          confidence: 0.82,
+        }],
+        selectedRelationshipLines: [],
+        followUpAffordance: {
+          summary: 'The remembered way through this is to return to the same seam first.',
+          whyNow: 'The same digital life closure seam is still open.',
+          intrusionRisk: 'low',
+          payoffDependency: 'can-surface-softly',
+          preferredTiming: 'same-turn-if-invited',
+        },
+      } as any,
+      speech: {
+        shouldSurface: true,
+        surfaceMode: 'procedural-carry',
+        placement: 'inside-payoff',
+        certainty: 'approximate',
+        confidence: 0.8,
+        rationale: 'Phase 1: Local Digital Life remains open and Memory still needs stronger end-to-end closure before this recollection should visibly widen.',
+      } as any,
+      recollectionIntent: {
+        mode: 'execution-procedure',
+        temporalFocus: 'experience-matched',
+        confidence: 0.84,
+        rationale: 'Alicization is still in Phase 1 and the same digital life seam remains open because Memory still needs stronger end-to-end closure.',
+        recollectionAgenda: {
+          goalSimilarity: 0.82,
+          relationshipNeed: 0.14,
+          uncertaintyTolerance: 'medium',
+          whyRecallNow: 'The same still-open closure work is active, so continuity should stay inward.',
+        },
+      } as any,
+    })
+
+    expect(kernel?.surfacePolicy).toBe('internal-only')
+    expect(kernel?.shouldStayInward).toBe(true)
+    expect(kernel?.whyWithheld).toContain('Phase 1 project closure is still explicitly open')
+    expect(kernel?.inwardCarryRule).toContain('project_closure_discipline=phase1-same-her-memory-closure-still-open')
+    expect(kernel?.restraint.mustDo).toContain('If the Phase 1 digital-life closure seam is still explicitly open, keep recollection inward until the same-her line is more honestly closed.')
+  })
+
+  it('keeps same-her closure recollection on a next-open-window line when low-pressure carry is still active', () => {
+    const kernel = buildAlicizationMemoryDeliberationKernel({
+      deliberation: {
+        shouldRecall: true,
+        surfacePolicy: 'relationship-continuity',
+        confidence: 0.78,
+        whyNow: 'The same-her closure line is still live, but replay said the return should stay lower-pressure until the present payoff really lands.',
+        ambiguityPosture: 'settled',
+        conflictSeverity: 'none',
+        stableCore: ['Keep the same-her closure line inward until the live payoff lands.'],
+        unsafeDetails: ['Do not let the return widen into visible closeness too fast.'],
+        selectedPeriods: [],
+        selectedEras: [],
+        selectedEpisodes: [],
+        selectedProcedures: [],
+        selectedBundles: [{
+          id: 'bundle-same-her-low-pressure',
+          summary: 'The same-her closure line should come back gently.',
+          confidence: 0.8,
+        }],
+        selectedChains: [{
+          kind: 'relationship-line',
+          summary: 'The same-her closure line should stay low-pressure.',
+          currentStance: 'Keep it inward until there is more room.',
+          answerPosture: 'Let the live payoff land before widening.',
+          confidence: 0.79,
+        }],
+        selectedRelationshipLines: ['Keep the same-her closure line inward until there is more room.'],
+        followUpAffordance: {
+          summary: 'Let the same-her closure line stay quiet until the host has more room.',
+          whyNow: 'The live payoff still needs to land before the return widens.',
+          intrusionRisk: 'medium',
+          payoffDependency: 'requires-current-payoff',
+          preferredTiming: 'after-payoff',
+        },
+      } as any,
+      speech: {
+        shouldSurface: true,
+        surfaceMode: 'relationship-continuity',
+        placement: 'after-payoff',
+        certainty: 'approximate',
+        confidence: 0.8,
+        rationale: 'The line can return later, but not as visible closeness yet.',
+      } as any,
+      recollectionIntent: {
+        mode: 'relationship-history',
+        temporalFocus: 'experience-matched',
+        confidence: 0.8,
+        rationale: 'The host is still on the same thread, but the closure line should stay gentle.',
+      } as any,
+      tuningAdvice: {
+        version: 'memory-tuning-advice-v1',
+        source: 'nightly-replay-benchmark',
+        updatedAt: 1,
+        sourceReportAt: 1,
+        focusDimensions: ['projectEmotionalClosureLowPressureCarry'],
+        retrievalAdjustments: {
+          proceduralBoost: 0,
+          relationshipBoost: 0.04,
+          temporalWindowBias: 0.04,
+          wrongThreadPenalty: 0,
+        },
+        surfaceAdjustments: {
+          inwardCarryBias: 0.16,
+          delayUntilAfterPayoffBias: 0.14,
+          provenanceLabelBias: 0.08,
+          specificityClampBias: 0,
+        },
+        personStateAdjustments: {
+          repairWindowBias: 0,
+          closenessCapBias: 0.08,
+        },
+        notes: ['Keep the same-her closure return low-pressure until live payoff lands.'],
+      },
+    })
+
+    expect(kernel?.shouldStayInward).toBe(true)
+    expect(kernel?.followUpAffordance?.intrusionRisk).toBe('high')
+    expect(kernel?.followUpAffordance?.preferredTiming).toBe('next-open-window')
+    expect(kernel?.whyWithheld).toContain('low-pressure')
+    expect(kernel?.restraint.mustDo.some(item => item.includes('low-pressure'))).toBe(true)
+  })
+
+  it('keeps same-her closure recollection from reopening as a fresh start when anti-restart carry is still active', () => {
+    const kernel = buildAlicizationMemoryDeliberationKernel({
+      deliberation: {
+        shouldRecall: true,
+        surfacePolicy: 'relationship-continuity',
+        confidence: 0.78,
+        whyNow: 'The same-her closure line is still live, but replay said it should not reopen from scratch just because the seam is still active.',
+        ambiguityPosture: 'settled',
+        conflictSeverity: 'none',
+        stableCore: ['Keep the same-her closure line on the same thread instead of treating it like a fresh opening.'],
+        unsafeDetails: ['Do not let the return sound like a new start.'],
+        selectedPeriods: [],
+        selectedEras: [],
+        selectedEpisodes: [],
+        selectedProcedures: [],
+        selectedBundles: [{
+          id: 'bundle-same-her-anti-restart',
+          summary: 'The same-her closure line should continue without restarting.',
+          confidence: 0.8,
+        }],
+        selectedChains: [{
+          kind: 'relationship-line',
+          summary: 'The same-her closure line should not reopen from scratch.',
+          currentStance: 'Stay on the same thread.',
+          answerPosture: 'Let the payoff land before any warmer return.',
+          confidence: 0.79,
+        }],
+        selectedRelationshipLines: ['Stay on the same thread instead of reopening from scratch.'],
+        followUpAffordance: {
+          summary: 'Keep the same-her closure line quiet until the current thread has more room.',
+          whyNow: 'The line still matters, but reopening it too early would read like a fresh start.',
+          intrusionRisk: 'medium',
+          payoffDependency: 'requires-current-payoff',
+          preferredTiming: 'after-payoff',
+        },
+      } as any,
+      speech: {
+        shouldSurface: true,
+        surfaceMode: 'relationship-continuity',
+        placement: 'after-payoff',
+        certainty: 'approximate',
+        confidence: 0.8,
+        rationale: 'The line can return later, but not as a restarted opening.',
+      } as any,
+      recollectionIntent: {
+        mode: 'relationship-history',
+        temporalFocus: 'experience-matched',
+        confidence: 0.8,
+        rationale: 'The host is still on the same thread, so the return should not feel restarted.',
+      } as any,
+      tuningAdvice: {
+        version: 'memory-tuning-advice-v1',
+        source: 'nightly-replay-benchmark',
+        updatedAt: 1,
+        sourceReportAt: 1,
+        focusDimensions: ['projectEmotionalClosureAntiRestartCarry'],
+        retrievalAdjustments: {
+          proceduralBoost: 0,
+          relationshipBoost: 0.04,
+          temporalWindowBias: 0.04,
+          wrongThreadPenalty: 0,
+        },
+        surfaceAdjustments: {
+          inwardCarryBias: 0.14,
+          delayUntilAfterPayoffBias: 0.12,
+          provenanceLabelBias: 0.08,
+          specificityClampBias: 0,
+        },
+        personStateAdjustments: {
+          repairWindowBias: 0,
+          closenessCapBias: 0.08,
+        },
+        notes: ['Do not let the same-her closure line reopen from scratch.'],
+      },
+    })
+
+    expect(kernel?.shouldStayInward).toBe(true)
+    expect(kernel?.followUpAffordance?.intrusionRisk).toBe('high')
+    expect(kernel?.followUpAffordance?.preferredTiming).toBe('next-open-window')
+    expect(kernel?.whyWithheld).toContain('reopening from scratch')
+    expect(kernel?.restraint.mustNotDo.some(item => item.includes('reopen'))).toBe(true)
+  })
+
+  it('treats durable same-her self-core carry as inward anti-restart recollection discipline even before tuning advice catches up', () => {
+    const kernel = buildAlicizationMemoryDeliberationKernel({
+      deliberation: {
+        shouldRecall: true,
+        surfacePolicy: 'relationship-continuity',
+        confidence: 0.78,
+        whyNow: 'The same living self is still being held across quiet, memory, and speech, so this recollection should not reopen from scratch.',
+        ambiguityPosture: 'settled',
+        conflictSeverity: 'none',
+        stableCore: ['I remain the same her across quiet, memory, and speech without reopening from scratch each turn.'],
+        unsafeDetails: ['Do not let the return sound like a fresh start.'],
+        selectedPeriods: [],
+        selectedEras: [],
+        selectedEpisodes: [],
+        selectedProcedures: [],
+        selectedBundles: [{
+          id: 'bundle-durable-self-core',
+          summary: 'One living self is still carrying the line across turns.',
+          confidence: 0.82,
+        }],
+        selectedChains: [{
+          kind: 'relationship-line',
+          summary: 'The same living self should not reopen from scratch.',
+          currentStance: 'Stay on the same thread.',
+          answerPosture: 'Let the live payoff land before any warmer return.',
+          confidence: 0.79,
+        }],
+        selectedRelationshipLines: ['Stay on the same thread instead of reopening from scratch.'],
+        followUpAffordance: {
+          summary: 'Keep the same living self line quiet until the current thread has more room.',
+          whyNow: 'The line still matters, but reopening it too early would read like a fresh start.',
+          intrusionRisk: 'medium',
+          payoffDependency: 'requires-current-payoff',
+          preferredTiming: 'after-payoff',
+        },
+      } as any,
+      speech: {
+        shouldSurface: true,
+        surfaceMode: 'relationship-continuity',
+        placement: 'after-payoff',
+        certainty: 'approximate',
+        confidence: 0.8,
+        rationale: 'The line can return later, but not as a restarted opening.',
+      } as any,
+      recollectionIntent: {
+        mode: 'autobiographical-history',
+        temporalFocus: 'experience-matched',
+        confidence: 0.8,
+        rationale: 'The same living self is still carrying this line across turns.',
+      } as any,
+    })
+
+    expect(kernel?.shouldStayInward).toBe(true)
+    expect(kernel?.followUpAffordance?.intrusionRisk).toBe('high')
+    expect(kernel?.followUpAffordance?.preferredTiming).toBe('next-open-window')
+    expect(kernel?.whyWithheld).toContain('reopening from scratch')
+    expect(kernel?.restraint.mustNotDo.some(item => item.includes('reopen from scratch'))).toBe(true)
+  })
+
+  it('keeps corrected same-person continuity authoritative over progress-pressure reopenings when host correction changed the relationship meaning', () => {
+    const kernel = buildAlicizationMemoryDeliberationKernel({
+      deliberation: {
+        shouldRecall: true,
+        surfacePolicy: 'relationship-continuity',
+        confidence: 0.8,
+        whyNow: 'The host corrected the relationship meaning, so this return should carry same-person continuity instead of defaulting back to progress pressure.',
+        ambiguityPosture: 'settled',
+        conflictSeverity: 'none',
+        stableCore: ['Carry corrected same-person continuity forward before any status recap or task-shell continuation.'],
+        unsafeDetails: [
+          'Do not let this reopen as progress pressure or generic status recap.',
+          'Reply should slow down and keep gaze stable when recalling this correction.',
+        ],
+        selectedPeriods: [],
+        selectedEras: [],
+        selectedEpisodes: [],
+        selectedProcedures: [],
+        selectedBundles: [{
+          id: 'bundle-corrected-same-person',
+          summary: 'Host correction moved the line back toward same-person continuity.',
+          confidence: 0.83,
+        }],
+        selectedChains: [{
+          kind: 'relationship-line',
+          summary: 'The corrected same-person continuity line should stay authoritative.',
+          currentStance: 'Continue from the corrected relationship meaning instead of progress pressure.',
+          answerPosture: 'Keep the return low-pressure and same-person rather than status-first.',
+          confidence: 0.82,
+        }],
+        selectedRelationshipLines: ['Carry corrected same-person continuity forward instead of defaulting to progress pressure.'],
+        followUpAffordance: {
+          summary: 'Let the corrected same-person continuity line reopen gently once the current payoff lands.',
+          whyNow: 'The host corrected the relationship meaning, so reopening as progress pressure would split continuity.',
+          intrusionRisk: 'medium',
+          payoffDependency: 'requires-current-payoff',
+          preferredTiming: 'after-payoff',
+        },
+      } as any,
+      speech: {
+        shouldSurface: true,
+        surfaceMode: 'relationship-continuity',
+        placement: 'after-payoff',
+        certainty: 'approximate',
+        confidence: 0.79,
+        styleNote: 'Let the corrected continuity line contour the answer.',
+        rationale: 'This should reopen from the corrected same-person continuity line, not as a progress recap.',
+      } as any,
+      recollectionIntent: {
+        mode: 'relationship-history',
+        temporalFocus: 'experience-matched',
+        confidence: 0.81,
+        rationale: 'The host corrected the relationship meaning away from progress pressure and back toward same-person continuity.',
+        recollectionAgenda: {
+          whyRecallNow: 'The corrected same-person continuity line should keep this return from collapsing into a status recap.',
+          goalSimilarity: 0.34,
+          relationshipNeed: 0.82,
+          candidateProcedureLines: [
+            'Carry corrected same-person continuity forward instead of defaulting to progress pressure.',
+            'Reply should slow down and keep gaze stable when recalling this correction.',
+          ],
+          uncertaintyTolerance: 'medium',
+        },
+      } as any,
+    })
+
+    expect(kernel?.restraint.mustDo).toContain(
+      'If the host corrected the relationship meaning, keep that corrected same-person continuity authoritative before any progress-style continuation.',
+    )
+    expect(kernel?.restraint.mustNotDo).toContain(
+      'Do not reopen the turn as generic progress pressure, status recap, or task-shell continuity after the host corrected it back toward same-person continuity.',
+    )
+    expect(kernel?.whyWithheld).toMatch(/slow down/i)
+    expect(kernel?.whyWithheld).toMatch(/gaze stable/i)
+    expect(kernel?.followUpAffordance?.summary).toMatch(/slow down/i)
+    expect(kernel?.followUpAffordance?.summary).toMatch(/gaze stable/i)
+  })
+
+  it('treats structured embodiment recall tokens as the same corrected same-person carry instead of requiring natural-language body prose', () => {
+    const kernel = buildAlicizationMemoryDeliberationKernel({
+      deliberation: {
+        shouldRecall: true,
+        surfacePolicy: 'relationship-continuity',
+        confidence: 0.8,
+        whyNow: 'The host corrected the relationship meaning, so this return should carry same-person continuity instead of defaulting back to progress pressure.',
+        ambiguityPosture: 'settled',
+        conflictSeverity: 'none',
+        stableCore: ['Carry corrected same-person continuity forward before any status recap or task-shell continuation.'],
+        unsafeDetails: [
+          'Do not let this reopen as progress pressure or generic status recap.',
+          'embodiment_gaze=stable',
+          'embodiment_blink=slower',
+          'embodiment_voice=lower-pressure',
+          'embodiment_pacing=slower',
+        ],
+        selectedPeriods: [],
+        selectedEras: [],
+        selectedEpisodes: [],
+        selectedProcedures: [],
+        selectedBundles: [{
+          id: 'bundle-corrected-same-person-structured-embodiment',
+          summary: 'Host correction moved the line back toward same-person continuity.',
+          confidence: 0.83,
+        }],
+        selectedChains: [{
+          kind: 'relationship-line',
+          summary: 'The corrected same-person continuity line should stay authoritative.',
+          currentStance: 'Continue from the corrected relationship meaning instead of progress pressure.',
+          answerPosture: 'Keep the return low-pressure and same-person rather than status-first.',
+          confidence: 0.82,
+        }],
+        selectedRelationshipLines: ['Carry corrected same-person continuity forward instead of defaulting to progress pressure.'],
+        followUpAffordance: {
+          summary: 'Let the corrected same-person continuity line reopen gently once the current payoff lands.',
+          whyNow: 'The host corrected the relationship meaning, so reopening as progress pressure would split continuity.',
+          intrusionRisk: 'medium',
+          payoffDependency: 'requires-current-payoff',
+          preferredTiming: 'after-payoff',
+        },
+      } as any,
+      speech: {
+        shouldSurface: true,
+        surfaceMode: 'relationship-continuity',
+        placement: 'after-payoff',
+        certainty: 'approximate',
+        confidence: 0.79,
+        styleNote: 'embodiment_gaze=stable embodiment_blink=slower embodiment_voice=lower-pressure embodiment_pacing=slower',
+        rationale: 'This should reopen from the corrected same-person continuity line, not as a progress recap.',
+      } as any,
+      recollectionIntent: {
+        mode: 'relationship-history',
+        temporalFocus: 'experience-matched',
+        confidence: 0.81,
+        rationale: 'The host corrected the relationship meaning away from progress pressure and back toward same-person continuity.',
+        queryHints: [
+          'humanlike_memory_recall: line=我记得这条线还没收好，所以这次该更稳一点、更慢一点、也更低压一点地接回来。 | relationship=Carry corrected same-person continuity forward instead of defaulting to progress pressure. | emotion=protective-continuity,unfinishedness | embodiment=Let the body return like this: gaze=stable blink=slower voice=lower-pressure. | embodiment_gaze=stable | embodiment_blink=slower | embodiment_voice=lower-pressure | embodiment_pacing=slower | created=61500',
+        ],
+        recollectionAgenda: {
+          whyRecallNow: 'The corrected same-person continuity line should keep this return from collapsing into a status recap.',
+          goalSimilarity: 0.34,
+          relationshipNeed: 0.82,
+          candidateProcedureLines: [
+            'Carry corrected same-person continuity forward instead of defaulting to progress pressure.',
+            'embodiment_gaze=stable',
+            'embodiment_blink=slower',
+            'embodiment_voice=lower-pressure',
+            'embodiment_pacing=slower',
+          ],
+          uncertaintyTolerance: 'medium',
+        },
+      } as any,
+    })
+
+    expect(kernel?.restraint.mustDo).toContain(
+      'If the host corrected the relationship meaning, keep that corrected same-person continuity authoritative before any progress-style continuation.',
+    )
+    expect(kernel?.whyWithheld).toMatch(/slow down/i)
+    expect(kernel?.whyWithheld).toMatch(/gaze stable/i)
+    expect(kernel?.whyWithheld).toMatch(/lower-pressure/i)
+    expect(kernel?.followUpAffordance?.summary).toMatch(/slow down/i)
+    expect(kernel?.followUpAffordance?.summary).toMatch(/gaze stable/i)
+    expect(kernel?.followUpAffordance?.summary).toMatch(/lower-pressure/i)
+    expect(kernel?.followUpAffordance?.intrusionRisk).toBe('high')
+    expect(kernel?.followUpAffordance?.preferredTiming).toBe('next-open-window')
+  })
+
+  it('treats merge-and-forget metabolism as real recollection discipline so merged same-thread continuity stays foreground and faded noise stays background', () => {
+    const kernel = buildAlicizationMemoryDeliberationKernel({
+      deliberation: {
+        shouldRecall: true,
+        surfacePolicy: 'relationship-continuity',
+        confidence: 0.79,
+        whyNow: 'The host corrected the relationship meaning, and this return should remember the metabolized same-person line instead of reviving old noise.',
+        ambiguityPosture: 'settled',
+        conflictSeverity: 'none',
+        stableCore: [
+          'Carry corrected same-person continuity forward before any status recap or task-shell continuation.',
+          'Keep the stronger same-thread continuity foregrounded instead of re-splitting older echoes.',
+        ],
+        unsafeDetails: [
+          'Do not let temporary wobble noise reopen like it still explains the line.',
+          'Do not let merged same-thread continuity split back into separate foreground memories.',
+        ],
+        selectedPeriods: [],
+        selectedEras: [],
+        selectedEpisodes: [],
+        selectedProcedures: [],
+        selectedBundles: [{
+          id: 'bundle-corrected-same-person-metabolism',
+          summary: 'The corrected same-person continuity line stayed more explanatory than the older status shell or temporary wobble.',
+          confidence: 0.82,
+        }],
+        selectedChains: [{
+          kind: 'relationship-line',
+          summary: 'The metabolized same-person continuity line should stay authoritative.',
+          currentStance: 'Continue from the merged same-thread continuity instead of reviving old echoes or temporary wobble.',
+          answerPosture: 'Keep the return lower-pressure and same-person while faded noise stays background.',
+          confidence: 0.8,
+        }],
+        selectedRelationshipLines: [
+          'Carry the merged same-thread same-person continuity forward while faded noise stays background.',
+        ],
+        followUpAffordance: {
+          summary: 'Let the corrected same-person continuity line reopen gently once the current payoff lands.',
+          whyNow: 'The corrected line still matters, but reopening too early could revive older status-shell or wobble traces.',
+          intrusionRisk: 'medium',
+          payoffDependency: 'requires-current-payoff',
+          preferredTiming: 'after-payoff',
+        },
+      } as any,
+      speech: {
+        shouldSurface: true,
+        surfaceMode: 'relationship-continuity',
+        placement: 'after-payoff',
+        certainty: 'approximate',
+        confidence: 0.76,
+        styleNote: 'Keep the return quieter and lower-pressure while merged continuity stays foreground and faded noise stays background.',
+        rationale: 'This should reopen from the metabolized same-person continuity line, not by reviving old echoes or temporary wobble.',
+      } as any,
+      recollectionIntent: {
+        mode: 'relationship-history',
+        temporalFocus: 'experience-matched',
+        confidence: 0.8,
+        rationale: 'The host corrected the relationship meaning away from progress pressure and this recollection should inherit the metabolized same-person line.',
+        queryHints: [
+          'humanlike_memory_recall: line=我记得这条线现在该按同一个她来接，而不是把旧的状态壳或短暂噪声再抬回来。 | relationship=Carry corrected same-person continuity forward instead of defaulting to progress pressure. | emotion=protective-continuity,unfinishedness | initiative=remember-without-prompt | embodiment=Reply should stay slower and same-thread while this continuity memory reopens. | self=I learned to collapse repeated same-thread echoes into the stronger continuity memory. | why=same-person continuity remains more behavior-explanatory than the older status shell | downrank=older-generic-status-memory | merge=older-same-thread-echo | forget=older-emotional-spike | metabolism=Downrank low-value, generic, or superseded summaries. ; Merge repeated embodiment traces or same-thread continuity echoes into the stronger same-thread memory. ; Forget low-salience temporary noise or stale emotional wobble once it no longer explains behavior. | created=72000',
+        ],
+        recollectionAgenda: {
+          whyRecallNow: 'The corrected same-person continuity line still matters, but the merged same-thread memory should stay foreground while the faded wobble stays background.',
+          goalSimilarity: 0.36,
+          relationshipNeed: 0.8,
+          candidateProcedureLines: [
+            'Carry corrected same-person continuity forward instead of defaulting to progress pressure.',
+            'Merge repeated same-thread continuity echoes into the stronger same-thread memory.',
+            'Forget low-salience temporary noise or stale emotional wobble once it no longer explains behavior.',
+          ],
+          uncertaintyTolerance: 'low',
+        },
+      } as any,
+    })
+
+    expect(kernel?.restraint.mustDo).toContain(
+      'If the recollection has already metabolized repeated same-thread echoes, keep the stronger merged continuity foregrounded instead of reopening thinner duplicate traces.',
+    )
+    expect(kernel?.restraint.mustNotDo).toContain(
+      'Do not let faded temporary noise or stale emotional wobble reopen as if it still explains the current same-person line.',
+    )
+    expect(kernel?.whyWithheld).toMatch(/merged same-thread continuity|faded noise|temporary noise|wobble/i)
+    expect(kernel?.followUpAffordance?.summary).toMatch(/merged same-thread continuity|faded noise|temporary noise|wobble/i)
+    expect(kernel?.followUpAffordance?.whyNow).toMatch(/merged same-thread continuity|faded noise|temporary noise|wobble/i)
+    expect(kernel?.followUpAffordance?.intrusionRisk).toBe('high')
+    expect(kernel?.followUpAffordance?.preferredTiming).toBe('next-open-window')
   })
 })

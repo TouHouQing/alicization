@@ -152,9 +152,23 @@ export function buildAlicizationMemoryAccessibilityPlan(input: {
   const relationshipCarry = (governor?.relationshipAnchors?.length ?? 0) > 0
   const affectCarry = (governor?.affectAnchors?.length ?? 0) > 0
   const longHorizon = temporalFocus === 'cross-session' || temporalFocus === 'distant'
+  const continuityArcHold = seed.includes('stage=hold-for-opening')
+  const continuityArcReopen = seed.includes('stage=gentle-reopen')
+  const continuityArcContinuation = seed.includes('stage=same-thread-continuation')
   const taskMigrationLike = /继续|接回去|旧方法|之前那样|migration|callback|回调|repair|修复/u.test(seed)
-  const deepThread = longHorizon || taskMigrationLike || temporalFocus === 'experience-matched'
-  const fastDialogue = !deepThread && (mode === 'relationship-history' || mode === 'conversation-history')
+  const deepThread = !continuityArcHold && (
+    longHorizon
+    || taskMigrationLike
+    || temporalFocus === 'experience-matched'
+    || continuityArcReopen
+  )
+  const fastDialogue = !deepThread
+    && !continuityArcContinuation
+    && (
+      mode === 'relationship-history'
+      || mode === 'conversation-history'
+      || continuityArcHold
+    )
 
   const recallLatencyPolicy = deriveAlicizationRecallLatencyPolicy({
     recallSeed: input.recallSeed,
@@ -175,9 +189,11 @@ export function buildAlicizationMemoryAccessibilityPlan(input: {
     ? 'summary-first'
     : deepThread
       ? 'deep-thread'
-      : fastDialogue
-        ? 'summary-first'
-        : 'balanced'
+      : continuityArcContinuation
+        ? 'balanced'
+        : fastDialogue
+          ? 'summary-first'
+          : 'balanced'
   const prewarmKey = uniqueList([
     recallLatencyPolicy.hotPathKey,
     governor?.threadAnchors?.[0] ?? null,

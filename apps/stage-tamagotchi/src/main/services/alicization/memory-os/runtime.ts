@@ -191,9 +191,9 @@ export async function runAlicizationMemoryOsTurnRuntime(input: {
   sessionId?: string | null
   budgetClass?: string | null
   retrievalPolicySnapshot?: AlicizationTurnRetrievalPolicySnapshot | null
-  digitalLifeRuntimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
   suppressAssociativeRecall?: boolean | null
   personaKernelMode?: string | null
+  digitalLifeRuntimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
   resolveContext: (input: {
     recallSeed: string
     recallGovernor?: unknown
@@ -220,7 +220,7 @@ export async function runAlicizationMemoryOsTurnRuntime(input: {
     sessionId: input.sessionId,
     budgetClass: input.budgetClass,
     retrievalPolicySnapshot: input.retrievalPolicySnapshot,
-    digitalLifeRuntimeSurface: input.digitalLifeRuntimeSurface,
+    digitalLifeRuntimeSurface: input.digitalLifeRuntimeSurface ?? null,
   })
   const context = input.tuneContext
     ? await input.tuneContext({

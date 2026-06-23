@@ -75,6 +75,18 @@ function clusterTokens(normalizeOrganicRecallText: (raw: string) => string, text
   )
 }
 
+function rankClusterKeyTokens(tokens: string[]) {
+  const weighted = tokens.map((token, index) => {
+    const relationshipLineSignal = /bond|room|space|closeness|warm|repair|boundary|distance|living|foreground|靠近|空间|边界|距离|修复|温和|关系线|同一条线/u.test(token)
+    const score = (relationshipLineSignal ? 2 : 0) + Math.max(0, 6 - index) * 0.1
+    return { token, score, index }
+  })
+
+  return weighted
+    .sort((left, right) => right.score !== left.score ? right.score - left.score : left.index - right.index)
+    .map(item => item.token)
+}
+
 export function countRecallTermOverlap(normalizeOrganicRecallText: (raw: string) => string, base: string, candidate: string) {
   const baseTerms = new Set(
     normalizeOrganicRecallText(base)
@@ -304,7 +316,7 @@ function scoreSceneMoodEmbodiedCarryText(input: {
 }
 
 export function deriveMemoryClusterKey(normalizeOrganicRecallText: (raw: string) => string, text: string) {
-  const tokens = clusterTokens(normalizeOrganicRecallText, text)
+  const tokens = rankClusterKeyTokens(clusterTokens(normalizeOrganicRecallText, text))
   if (tokens.length === 0)
     return ''
   return tokens.slice(0, 4).join(':')
@@ -385,7 +397,15 @@ function deriveHostSocialRecallBias(input: {
     doctrineText: projection?.relationshipDoctrine || input.coreIncarnation,
     contexts,
   })
+  const authority = projection?.selfContinuityAuthority ?? null
+  const authorityRelationshipLine = authority?.relationshipLine?.toLowerCase() ?? ''
+  const authorityRoomFirst = /room|space|leave more room|space-first|lighter|边界|空间|留白|轻一点/u.test(authorityRelationshipLine)
+  const authorityBondFirst = /living bond|bond line|same line|same her|foreground|关系线|同一条线|同一个她/u.test(authorityRelationshipLine)
   const biasTexts = uniqueList([
+    authority?.relationshipLine,
+    authority?.selfLine,
+    authority?.inwardLine,
+    authority?.authoritySummary,
     projection?.preferenceText,
     projection?.sensitivityText,
     projection?.repairTriggerText,
@@ -411,9 +431,13 @@ function deriveHostSocialRecallBias(input: {
     cautious: projection?.cautious ?? guidance.cautious,
     restrained: projection?.restrained ?? guidance.restrained,
     doctrineGuidance,
-    trustStage: projection?.personalityContinuityState.trustStage ?? hostPersonModel?.trustLadder.stage ?? null,
+    trustStage: projection?.personalityContinuityState?.trustStage ?? hostPersonModel?.trustLadder.stage ?? null,
     activeClosenessContext: projection?.activeClosenessContext ?? null,
     activeClosenessRung: projection?.activeClosenessRung ?? null,
+    relationshipLine: authority?.relationshipLine ?? null,
+    selfLine: authority?.selfLine ?? null,
+    authorityRoomFirst,
+    authorityBondFirst,
     biasTexts,
   }
 }
@@ -438,6 +462,7 @@ function deriveRelationshipStageAlignmentScore(input: {
   const repairLike = /repair|space|room|lighter|boundary|distance|pressure|back off|leave room|修复|空间|边界|轻一点|距离|压力/u.test(normalized)
   const warmLike = /warm|close|closeness|directness|companionship|tender|care|open window|温和|靠近|亲密|直接|陪伴/u.test(normalized)
   const procedureLike = /runtime|procedure|patch|verify|result|callback|task|execution|focused|bounded|thread-faithful|修复节奏|回调|执行|任务|线程/u.test(normalized)
+  const authorityRelationshipLike = /same line|living bond|bond line|same her|continuity|same self|同一条线|活的关系线|同一个她|连续性/u.test(normalized)
   let score = 0
   if ((socialBias.trustStage === 'guarded' || socialBias.trustStage === 'cautious-open') && repairLike)
     score += 0.22
@@ -479,6 +504,13 @@ function deriveRelationshipStageAlignmentScore(input: {
   }
   if ((socialBias.activeClosenessRung === 'warm-near' || socialBias.activeClosenessRung === 'close-hold') && warmLike)
     score += 0.08
+  if (authorityRelationshipLike) {
+    score += input.recollectionIntent?.mode === 'relationship-history'
+      ? 0.12
+      : input.recollectionIntent?.mode === 'autobiographical-history'
+        ? 0.08
+        : 0.04
+  }
   return score
 }
 
@@ -514,9 +546,31 @@ export function rankByHostSocialAffinity<T>(input: {
         0,
       )
       const normalized = input.normalizeOrganicRecallText(text)
+      const relationshipLineOverlap = socialBias.relationshipLine
+        ? countRecallTermOverlap(input.normalizeOrganicRecallText, socialBias.relationshipLine, text)
+        : 0
+      const selfLineOverlap = socialBias.selfLine
+        ? countRecallTermOverlap(input.normalizeOrganicRecallText, socialBias.selfLine, text)
+        : 0
       const hasRepairBias = /repair|space|room|lighter|boundary|back off|leave room|压力|空间|边界|轻一点|修复/u.test(normalized)
       const hasClosenessBias = /warm|close|closeness|companionship|tender|care|温和|靠近|亲密/u.test(normalized)
       let score = overlap * 0.26
+      if (intentMode === 'relationship-history')
+        score += relationshipLineOverlap * 0.34
+      if (intentMode === 'autobiographical-history')
+        score += selfLineOverlap * 0.28
+      if (intentMode === 'relationship-history' && socialBias.authorityRoomFirst) {
+        if (hasRepairBias)
+          score += 0.22
+        if (hasClosenessBias)
+          score -= 0.14
+      }
+      if (intentMode === 'relationship-history' && socialBias.authorityBondFirst) {
+        if (hasClosenessBias)
+          score += 0.18
+        if (hasRepairBias && !hasClosenessBias)
+          score -= 0.08
+      }
       if ((intentMode === 'relationship-history' || intentMode === 'autobiographical-history') && (socialBias.cautious || socialBias.restrained)) {
         if (hasRepairBias)
           score += 0.18
@@ -571,6 +625,7 @@ export function rankByRecollectionAgendaAffinity<T>(input: {
   toText: (item: T) => string
   getFacet?: (item: T) => NonNullable<NonNullable<OrganicMemoryPromptContext['recollectionIntent']>['recollectionAgenda']>['candidateEraFacets'][number]['facet'] | null
   getAgeDays?: (item: T) => number | null
+  personStateProjection?: OrganicMemoryPromptContext['personStateProjection'] | null
 }) {
   const agenda = input.recollectionIntent?.recollectionAgenda ?? null
   if (input.items.length <= 1 || !agenda)
@@ -581,6 +636,7 @@ export function rankByRecollectionAgendaAffinity<T>(input: {
   )
   const procedureLines = agenda.candidateProcedureLines ?? []
   const procedureLineVariants = expandProcedureLineVariants(procedureLines, 18)
+  const activeRelationshipLine = input.personStateProjection?.selfContinuityAuthority?.relationshipLine ?? null
   const emotionalPattern = /drain|mess|overwhelm|care|warm|cold|tender|annoyed|压力|[累乱烦]|温和|冷淡|情绪/u
   const relationshipPattern = /relationship|bond|trust|repair|boundary|tone|space|回应|关系|信任|修复|边界|语气|空间/u
 
@@ -597,6 +653,13 @@ export function rankByRecollectionAgendaAffinity<T>(input: {
       const procedureExactCue = scoreExactCuePresence(input.normalizeOrganicRecallText, text, procedureLines)
       const procedureVariantExactCue = scoreExactCuePresence(input.normalizeOrganicRecallText, text, procedureLineVariants)
       const facetWeight = input.getFacet ? (facetWeights.get(input.getFacet(item) ?? 'phase') ?? 0) : 0
+      const relationshipLineAffinity = (
+        input.recollectionIntent?.mode === 'relationship-history'
+        && input.getFacet?.(item) === 'relationship-era'
+        && activeRelationshipLine
+      )
+        ? countRecallTermOverlap(input.normalizeOrganicRecallText, activeRelationshipLine, text) * 0.34
+        : 0
       const timeWeight = input.getAgeDays
         ? Math.max(
             ...((agenda.candidateTimeScopes ?? []).map(scope => scoreAgeForCandidateScope(input.getAgeDays?.(item) ?? 0, scope.scope) * scope.weight)),
@@ -617,6 +680,7 @@ export function rankByRecollectionAgendaAffinity<T>(input: {
         + procedureExactCue * (0.18 + agenda.goalSimilarity * 0.16)
         + procedureVariantExactCue * (0.16 + agenda.goalSimilarity * 0.14)
         + facetWeight * 0.28
+        + relationshipLineAffinity
         + timeWeight * 0.24
         + relationshipAffinity
         + affectAffinity
@@ -660,6 +724,7 @@ export function analyzeMemoryClusters(input: {
   const hintTexts = input.recollectionIntent?.queryHints ?? []
   const procedureLines = agenda?.candidateProcedureLines ?? []
   const procedureLineVariants = expandProcedureLineVariants(procedureLines, 18)
+  const activeRelationshipLine = input.personStateProjection?.selfContinuityAuthority?.relationshipLine ?? null
   const clusterEntries = new Map<string, {
     summary: string
     score: number
@@ -687,6 +752,12 @@ export function analyzeMemoryClusters(input: {
       coreIncarnation: input.coreIncarnation,
       recallSeed: input.recallSeed,
     })
+    const relationshipLineClusterAffinity = (
+      input.recollectionIntent?.mode === 'relationship-history'
+      && activeRelationshipLine
+    )
+      ? countRecallTermOverlap(input.normalizeOrganicRecallText, activeRelationshipLine, probe.text)
+      : 0
     const carryScore = scoreSceneMoodEmbodiedCarryText({
       normalizeOrganicRecallText: input.normalizeOrganicRecallText,
       text: probe.text,
@@ -699,6 +770,7 @@ export function analyzeMemoryClusters(input: {
       + procedureExactCue * 0.22
       + procedureVariantExactCue * 0.2
       + relationshipStageScore
+      + relationshipLineClusterAffinity * 0.42
       + carryScore * 0.48
       + 0.08
     const current = clusterEntries.get(probe.clusterKey) ?? {

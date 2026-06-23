@@ -1,3 +1,4 @@
+import type { AlicizationHostPersonModelSnapshot } from '../../../shared/eventa'
 import type {
   AlicizationMemoryDeliberationLatentControls,
 } from './memory-deliberation-latent-controls'
@@ -30,6 +31,15 @@ export interface AlicizationMemoryRestraintJudge {
   mustNotDo: string[]
 }
 
+export interface AlicizationMemorySocialBoundarySummary {
+  trustStage: AlicizationHostPersonModelSnapshot['trustLadder']['stage'] | null
+  preferredCloseness: string | null
+  trustRationale: string | null
+  roomFirstSignal: boolean
+  boundaryFirstSignal: boolean
+  repairFirstSignal: boolean
+}
+
 function sanitizeText(raw: unknown, maxChars = 220) {
   if (typeof raw !== 'string')
     return ''
@@ -51,10 +61,31 @@ function uniqueList(values: Array<string | null | undefined>, maxItems = 8) {
   return result
 }
 
+function buildMemorySocialBoundarySummary(hostPersonModel: AlicizationHostPersonModelSnapshot | null | undefined): AlicizationMemorySocialBoundarySummary | null {
+  const model = hostPersonModel ?? null
+  if (!model)
+    return null
+
+  const preferredCloseness = sanitizeText(model.preferredClosenessByContext?.[0]?.preference, 160) || null
+  const trustRationale = sanitizeText(model.trustLadder?.rationale, 220) || null
+  const cueText = [preferredCloseness, trustRationale].filter(Boolean).join(' ')
+
+  return {
+    trustStage: model.trustLadder?.stage ?? null,
+    preferredCloseness,
+    trustRationale,
+    roomFirstSignal: /room[-\s]?first|leave room|give space|work[-\s]?focus|respect.*space|先留空间|先给空间|工作优先/u.test(cueText),
+    boundaryFirstSignal: /boundary|respect.*boundary|do not crowd|avoid pressure|边界|别逼|不要压/u.test(cueText),
+    repairFirstSignal: /repair|grounded repair|specific repair|stabilize|修复|先修|先稳住/u.test(cueText),
+  }
+}
+
 export function buildAlicizationMemoryRestraintJudge(input: {
   shouldRecall: boolean
   shouldStayInward: boolean
   memoryControl: AlicizationMemoryDeliberationLatentControls | null
+  hostPersonModel?: AlicizationHostPersonModelSnapshot | null
+  socialBoundarySummary?: AlicizationMemorySocialBoundarySummary | null
   knowledgeEvidence?: {
     validationCount?: number | null
     contradictionCount?: number | null
@@ -68,13 +99,25 @@ export function buildAlicizationMemoryRestraintJudge(input: {
   truthDiscipline?: Pick<AlicizationTruthDisciplineFlags, 'shouldLabelHypothesis' | 'forbidUnsupportedSpecificity'> | null
 }) {
   const memoryControl = input.memoryControl ?? null
+  const socialBoundarySummary = input.socialBoundarySummary
+    ?? buildMemorySocialBoundarySummary(input.hostPersonModel)
+    ?? null
   const unsafeDetails = memoryControl?.unsafeDetails ?? []
   const stableCore = memoryControl?.stableCore ?? []
   const contradictionPressure = (input.knowledgeEvidence?.contradictionCount ?? 0)
     + (input.knowledgeEvidence?.contradictionHeavyFactCount ?? 0) * 2
   const validationRelief = (input.knowledgeEvidence?.validationCount ?? 0)
     + (input.knowledgeEvidence?.stronglyValidatedProcedureCount ?? 0)
+  const hostBoundaryPressure = Number(
+    Boolean(socialBoundarySummary?.roomFirstSignal)
+    || Boolean(socialBoundarySummary?.boundaryFirstSignal)
+    || Boolean(socialBoundarySummary?.repairFirstSignal),
+  )
   const shouldDelayUntilAfterPayoff = input.followUpAffordance?.payoffDependency === 'requires-current-payoff'
+    || (
+      hostBoundaryPressure > 0
+      && input.followUpAffordance?.payoffDependency !== 'memory-only'
+    )
   const provenanceMode = (() => {
     if (!memoryControl)
       return 'none' as const
@@ -94,6 +137,7 @@ export function buildAlicizationMemoryRestraintJudge(input: {
     || memoryControl?.labelUncertainty === true
     || shouldDelayUntilAfterPayoff
     || contradictionPressure > validationRelief
+    || hostBoundaryPressure > 0
   )
   const shouldLabelProvenance = provenanceMode !== 'memory' && provenanceMode !== 'none'
   const shouldLabelHypothesis = input.truthDiscipline?.shouldLabelHypothesis === true
@@ -111,10 +155,16 @@ export function buildAlicizationMemoryRestraintJudge(input: {
     if (input.shouldStayInward) {
       if (input.followUpAffordance?.intrusionRisk === 'high')
         return 'The recollection is still too intrusive to surface before the host has room for it.'
+      if (socialBoundarySummary?.roomFirstSignal || socialBoundarySummary?.boundaryFirstSignal)
+        return 'The host boundary line still asks for room first, so recollection should contour the answer without pressing forward.'
       if (unsafeDetails.length > 0)
         return 'The stable core can shape the answer, but unstable remembered detail should stay inward.'
       return 'The recollection should contour the answer from the inside instead of becoming visible.'
     }
+    if (socialBoundarySummary?.repairFirstSignal)
+      return 'The remembered repair line should land through present payoff first; only the stable core may surface before the bond line widens.'
+    if (socialBoundarySummary?.roomFirstSignal || socialBoundarySummary?.boundaryFirstSignal)
+      return 'The remembered bond line still asks for room-first boundaries, so only the stable core should surface for now.'
     if (contradictionPressure > validationRelief + 1)
       return 'The remembered knowledge is still contradiction-heavy, so recollection should stay compressed until it stabilizes.'
     if (shouldDelayUntilAfterPayoff)
@@ -151,6 +201,12 @@ export function buildAlicizationMemoryRestraintJudge(input: {
     input.followUpAffordance?.intrusionRisk === 'high'
       ? 'If recollection is pressing forward too hard, keep recollection inward until the host has room for it.'
       : null,
+    socialBoundarySummary?.roomFirstSignal || socialBoundarySummary?.boundaryFirstSignal
+      ? 'If recollection becomes visible, keep it room-first and boundary-respecting rather than intimacy-seeking.'
+      : null,
+    socialBoundarySummary?.repairFirstSignal
+      ? 'If recollection becomes visible, let present repair payoff land before widening into relationship continuity.'
+      : null,
   ], 8)
 
   const mustNotDo = uniqueList([
@@ -158,12 +214,21 @@ export function buildAlicizationMemoryRestraintJudge(input: {
     input.followUpAffordance?.intrusionRisk === 'high'
       ? 'Do not force recollection forward before the host has room for it.'
       : null,
+    socialBoundarySummary?.roomFirstSignal || socialBoundarySummary?.boundaryFirstSignal
+      ? 'Do not turn recollection into pressure when the host model is asking for room and boundary respect.'
+      : null,
+    socialBoundarySummary?.repairFirstSignal
+      ? 'Do not widen recollection into relationship payoff before the concrete repair thread has landed.'
+      : null,
     ...unsafeDetails.map(item => `Do not surface unstable remembered detail as settled fact: ${item}`),
   ], 10)
 
   const summary = uniqueList([
     `surface_mode=${surfaceMode}`,
     `provenance_mode=${provenanceMode}`,
+    socialBoundarySummary?.roomFirstSignal ? 'host_room_first=yes' : null,
+    socialBoundarySummary?.boundaryFirstSignal ? 'host_boundary_first=yes' : null,
+    socialBoundarySummary?.repairFirstSignal ? 'host_repair_first=yes' : null,
     shouldLabelHypothesis ? 'label_hypothesis=yes' : 'label_hypothesis=no',
     shouldSuppressSpecificity ? 'suppress_specificity=yes' : 'suppress_specificity=no',
     whyWithheld ? `why_withheld=${whyWithheld}` : null,

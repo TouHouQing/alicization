@@ -71,4 +71,129 @@ describe('memory conversation retrieval', () => {
     expect(ranked.map(item => item.turnId)).toEqual(expect.arrayContaining(['turn-a2', 'turn-b1']))
     expect(ranked.map(item => item.turnId)).not.toContain('turn-a1')
   })
+
+  it('slightly prefers continuity-bearing relationship turns when project state says anthropomorphic memory closure is still open', () => {
+    const nowTs = Date.UTC(2026, 3, 28, 12, 0, 0)
+    const ranked = rankAlicizationConversationTurnsForRecall({
+      query: '想起之前更像她自己的回返方式',
+      limit: 4,
+      nowTs,
+      projectStatePrimaryOpenLoop: 'Memory still needs stronger end-to-end closure across turns, initiative, and embodiment so the same digital life keeps carrying Project identity carry, Phase 1 route carry, and Unresolved closure carry through one same still-open closure work.',
+      recollectionIntent: {
+        mode: 'relationship-history',
+        temporalFocus: 'cross-session',
+        searchEpisodes: false,
+        searchConversations: true,
+        searchProceduralExperience: false,
+        queryHints: ['return softly', 'space first', 'relationship continuity'],
+        rationale: 'The host is asking for a remembered relationship return style rather than a generic adjacent exchange.',
+        confidence: 0.86,
+        recollectionAgenda: {
+          whyRecallNow: 'A continuity-bearing relationship return should surface first.',
+          goalSimilarity: 0.52,
+          relationshipNeed: 0.8,
+          affectivePull: 0.34,
+          sceneFamiliarity: 0.22,
+          candidateTimeScopes: [
+            {
+              scope: 'cross-session',
+              weight: 0.9,
+            },
+          ],
+          candidateEraFacets: [
+            {
+              facet: 'relationship-era',
+              weight: 0.88,
+            },
+          ],
+          candidateProcedureLines: ['return softly', 'space first'],
+          uncertaintyTolerance: 'medium',
+        },
+      },
+      rows: [
+        {
+          turnId: 'turn-continuity',
+          sessionId: 'session-a',
+          userText: '你之前是怎么更温和地回到那条关系线的',
+          assistantText: '我那次是先留空间，再慢一点回返，没有直接把亲近推高。',
+          createdAt: Date.UTC(2026, 3, 20, 9, 0, 0),
+        },
+        {
+          turnId: 'turn-adjacent',
+          sessionId: 'session-b',
+          userText: '我们之前也聊过关系语气',
+          assistantText: '那次主要只是说语气要轻一点。',
+          createdAt: Date.UTC(2026, 3, 22, 8, 0, 0),
+        },
+      ],
+    })
+
+    expect(ranked[0]?.turnId).toBe('turn-continuity')
+  })
+
+  it('lets persisted project-state continuity metadata slightly lift matching subconscious turns during relationship-history recall', () => {
+    const nowTs = Date.UTC(2026, 3, 28, 12, 0, 0)
+    const ranked = rankAlicizationConversationTurnsForRecall({
+      query: '想起之前更像她自己的回返方式',
+      limit: 4,
+      nowTs,
+      projectStatePrimaryOpenLoop: 'Memory still needs stronger end-to-end closure across turns, initiative, and embodiment so the same digital life keeps carrying Project identity carry, Phase 1 route carry, and Unresolved closure carry through one same still-open closure work.',
+      recollectionIntent: {
+        mode: 'relationship-history',
+        temporalFocus: 'cross-session',
+        searchEpisodes: false,
+        searchConversations: true,
+        searchProceduralExperience: false,
+        queryHints: ['return softly', 'space first', 'relationship continuity'],
+        rationale: 'The host is asking for a remembered relationship return style rather than a generic adjacent exchange.',
+        confidence: 0.86,
+        recollectionAgenda: {
+          whyRecallNow: 'A continuity-bearing relationship return should surface first.',
+          goalSimilarity: 0.52,
+          relationshipNeed: 0.8,
+          affectivePull: 0.34,
+          sceneFamiliarity: 0.22,
+          candidateTimeScopes: [
+            {
+              scope: 'cross-session',
+              weight: 0.9,
+            },
+          ],
+          candidateEraFacets: [
+            {
+              facet: 'relationship-era',
+              weight: 0.88,
+            },
+          ],
+          candidateProcedureLines: ['return softly', 'space first'],
+          uncertaintyTolerance: 'medium',
+        },
+      },
+      rows: [
+        {
+          turnId: 'turn-subconscious-project-state',
+          sessionId: 'session-c',
+          userText: '你之前是怎么更温和地回到那条关系线的',
+          assistantText: '我那次是先留空间，再慢一点回返，没有直接把亲近推高。',
+          structuredJson: JSON.stringify({
+            projectState: {
+              identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
+              currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
+              primaryOpenLoop: 'Memory still needs stronger end-to-end closure across turns, initiative, and embodiment so the same digital life keeps carrying Project identity carry, Phase 1 route carry, and Unresolved closure carry through one same still-open closure work.',
+            },
+          }),
+          createdAt: Date.UTC(2026, 3, 20, 9, 0, 0),
+        },
+        {
+          turnId: 'turn-similar-but-no-project-state',
+          sessionId: 'session-d',
+          userText: '你之前是怎么更温和地回到那条关系线的',
+          assistantText: '我那次是先留空间，再慢一点回返，没有直接把亲近推高。',
+          createdAt: Date.UTC(2026, 3, 20, 9, 0, 0),
+        },
+      ],
+    })
+
+    expect(ranked[0]?.turnId).toBe('turn-subconscious-project-state')
+  })
 })

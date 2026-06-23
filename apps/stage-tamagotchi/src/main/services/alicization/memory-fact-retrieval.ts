@@ -113,12 +113,17 @@ export function rankAlicizationMemoryFacts(input: {
   query: string
   limit: number
   currentTs: number
+  projectStatePrimaryOpenLoop?: string | null
 }) {
   const normalizedQuery = input.query.trim()
   if (!normalizedQuery)
     return []
 
   const queryTokens = tokenizeMemoryFactText(normalizedQuery)
+  const projectStatePrimaryOpenLoop = typeof input.projectStatePrimaryOpenLoop === 'string'
+    ? input.projectStatePrimaryOpenLoop.trim().toLowerCase()
+    : ''
+  const anthropomorphicMemoryClosureStillOpen = projectStatePrimaryOpenLoop.includes('memory still needs stronger end-to-end closure')
   return input.facts
     .map(fact => ({
       fact,
@@ -126,7 +131,15 @@ export function rankAlicizationMemoryFacts(input: {
         queryTokens,
         fact,
         currentTs: input.currentTs,
-      }),
+      })
+      + (
+        anthropomorphicMemoryClosureStillOpen
+        && /relationship|boundary|repair|closeness|distance|self|identity|continuity|return softly|space first|关系|边界|自我|连续性|回返/u.test(
+          `${fact.subject} ${fact.predicate} ${fact.object}`,
+        )
+          ? (fact.memoryDomain === 'relationship' || fact.memoryDomain === 'self-model' ? 0.08 : 0.04)
+          : 0
+      ),
     }))
     .filter(item => item.score > 0.01)
     .sort((left, right) => right.score - left.score)

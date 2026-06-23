@@ -90,6 +90,7 @@ export interface AlicizationMemoryRetrievalTelemetrySnapshot {
   selfEvolutionReasonCodes: string[]
   relationshipCadenceRegressionRate: number
   selfModelStaleBeliefRate: number
+  runtimeMemoryClosureLongRunClosureRate: number
   lastUpdatedAt: number | null
 }
 
@@ -177,6 +178,7 @@ export interface AlicizationMemoryRetrievalHealthOverride {
   selfEvolutionReasonCodes?: string[]
   relationshipCadenceRegressionRate?: number
   selfModelStaleBeliefRate?: number
+  runtimeMemoryClosureLongRunClosureRate?: number
 }
 
 export type AlicizationMemoryRetrievalBudgetClass
@@ -212,7 +214,7 @@ interface CreateAlicizationMemoryRetrievalTelemetryRuntimeOptions {
   enqueueWrite: <T>(task: () => Promise<T>) => Promise<T>
 }
 
-interface AlicizationLearningExecutionTelemetryInput {
+export interface AlicizationLearningExecutionTelemetryInput {
   status: 'completed' | 'failed' | 'blocked' | 'reopened' | 'downgraded' | 'cancelled'
   domain?: 'procedure' | 'relationship' | 'self-model' | 'world-model' | null
   internalizedAsValidatedOnly?: boolean
@@ -372,6 +374,7 @@ export function defaultAlicizationMemoryRetrievalTelemetry(): AlicizationMemoryR
     selfEvolutionReasonCodes: [],
     relationshipCadenceRegressionRate: 0,
     selfModelStaleBeliefRate: 0,
+    runtimeMemoryClosureLongRunClosureRate: 0,
     lastUpdatedAt: null,
   }
 }
@@ -480,6 +483,7 @@ export function normalizeAlicizationMemoryRetrievalTelemetry(raw: unknown): Alic
     : []
   const relationshipCadenceRegressionRate = Number(candidate.relationshipCadenceRegressionRate)
   const selfModelStaleBeliefRate = Number(candidate.selfModelStaleBeliefRate)
+  const runtimeMemoryClosureLongRunClosureRate = Number(candidate.runtimeMemoryClosureLongRunClosureRate)
   const lastUpdatedAt = Number(candidate.lastUpdatedAt)
   return {
     semanticLatencyMs: Number.isFinite(semanticLatencyMs) ? Math.max(0, semanticLatencyMs) : null,
@@ -648,6 +652,7 @@ export function normalizeAlicizationMemoryRetrievalTelemetry(raw: unknown): Alic
       .slice(0, 24),
     relationshipCadenceRegressionRate: Number.isFinite(relationshipCadenceRegressionRate) ? Math.max(0, Math.min(1, relationshipCadenceRegressionRate)) : 0,
     selfModelStaleBeliefRate: Number.isFinite(selfModelStaleBeliefRate) ? Math.max(0, Math.min(1, selfModelStaleBeliefRate)) : 0,
+    runtimeMemoryClosureLongRunClosureRate: Number.isFinite(runtimeMemoryClosureLongRunClosureRate) ? Math.max(0, Math.min(1, runtimeMemoryClosureLongRunClosureRate)) : 0,
     lastUpdatedAt: Number.isFinite(lastUpdatedAt) ? Math.max(0, Math.floor(lastUpdatedAt)) : null,
   }
 }
@@ -1445,6 +1450,9 @@ export function createAlicizationMemoryRetrievalTelemetryRuntime(
       selfModelStaleBeliefRate: Number.isFinite(next.selfModelStaleBeliefRate)
         ? Math.max(0, Math.min(1, Number(next.selfModelStaleBeliefRate)))
         : telemetry.selfModelStaleBeliefRate,
+      runtimeMemoryClosureLongRunClosureRate: Number.isFinite(next.runtimeMemoryClosureLongRunClosureRate)
+        ? Math.max(0, Math.min(1, Number(next.runtimeMemoryClosureLongRunClosureRate)))
+        : telemetry.runtimeMemoryClosureLongRunClosureRate,
       sampleCount: Number.isFinite(next.sampleCount)
         ? Math.max(0, Math.floor(Number(next.sampleCount)))
         : telemetry.sampleCount,

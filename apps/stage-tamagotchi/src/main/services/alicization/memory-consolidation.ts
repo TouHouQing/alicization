@@ -77,6 +77,10 @@ const lowerPressurePattern = /lower-pressure|lower pressure|低压|轻一点|mea
 const slowerPacingPattern = /slower pacing|slower|慢一点|更慢/u
 const stableGazePattern = /stable gaze|gaze stable|steady gaze|视线更稳|视线稳定/u
 const metabolismPattern = /downrank|merge|forget|superseded|older status shell|temporary noise|stale emotional wobble/u
+const hostEmotionLabelPattern = /host(?: affect|[- ]emotion)[=:]\s*([a-z-]+)/giu
+const selfEmotionLabelPattern = /self(?: affect|[- ]emotion)[=:]\s*([a-z-]+)/giu
+const embodimentRecallStrengthPattern = /embodiment(?:[- ]recall)?(?:[=:]\s*| stayed )([a-z-]+)/giu
+const embodimentRiskPattern = /(?:embodiment-risk=|modality risk )([a-z-]+)/giu
 
 function collectEventTexts(event: AlicizationEpisodicEventRecord) {
   return [
@@ -95,6 +99,215 @@ function collectEventTexts(event: AlicizationEpisodicEventRecord) {
     ...(event.latestReconsolidation?.emotionTags ?? []),
     ...event.tags,
   ]
+}
+
+function collectPatternMatches(
+  texts: Array<string | null | undefined>,
+  pattern: RegExp,
+  maxItems = 4,
+) {
+  const result: string[] = []
+  for (const rawText of texts) {
+    const text = sanitizeText(rawText, 320)
+    if (!text)
+      continue
+    pattern.lastIndex = 0
+    for (const match of text.matchAll(pattern)) {
+      const value = sanitizeText(match[1], 80).toLowerCase()
+      if (!value || result.includes(value))
+        continue
+      result.push(value)
+      if (result.length >= maxItems)
+        return result
+    }
+  }
+  return result
+}
+
+function extractEmbodimentKeyValue(text: string, key: string) {
+  const match = new RegExp(`(?:^|\\s)${key}=([^\\s]+)`, 'iu').exec(text)
+  return sanitizeText(match?.[1], 48).toLowerCase()
+}
+
+function escapeStructuredCarryKey(key: string) {
+  return key.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')
+}
+
+function collectStructuredCarryValues(
+  texts: Array<string | null | undefined>,
+  key: string,
+  maxItems = 4,
+  maxChars = 220,
+) {
+  const result: string[] = []
+  const pattern = new RegExp(`(?:^|\\s*\\|\\s*)${escapeStructuredCarryKey(key)}=([^|]+)`, 'giu')
+
+  for (const rawText of texts) {
+    const text = sanitizeText(rawText, 320)
+    if (!text)
+      continue
+    pattern.lastIndex = 0
+    for (const match of text.matchAll(pattern)) {
+      const value = sanitizeText(match[1], maxChars)
+      if (!value || result.some(item => item.toLowerCase() === value.toLowerCase()))
+        continue
+      result.push(value)
+      if (result.length >= maxItems)
+        return result
+    }
+  }
+
+  return result
+}
+
+function collectStructuredCarryList(
+  texts: Array<string | null | undefined>,
+  key: string,
+  maxItems = 8,
+  maxChars = 96,
+) {
+  return uniqueList(
+    collectStructuredCarryValues(texts, key, maxItems, 320).flatMap((value) => {
+      return value
+        .split(',')
+        .map(item => sanitizeText(item, maxChars).toLowerCase() || null)
+    }),
+    maxItems,
+  )
+}
+
+function buildStructuredMetabolismPolicyMetadata(
+  events: AlicizationEpisodicEventRecord[],
+  textParts: Array<string | null | undefined>,
+) {
+  const downrankMemoryIds = collectStructuredCarryList(textParts, 'downrank', 8)
+  const mergeMemoryIds = collectStructuredCarryList(textParts, 'merge', 8)
+  const forgetMemoryIds = collectStructuredCarryList(textParts, 'forget', 8)
+  const structuredReasons = uniqueList(
+    collectStructuredCarryValues(textParts, 'metabolism', 4, 320).flatMap((value) => {
+      return value
+        .split(/\s*;\s*/u)
+        .map(item => sanitizeText(item, 220) || null)
+    }),
+    6,
+  )
+  const reconsolidationReasons = uniqueList(events.map((event) => {
+    const reason = sanitizeText(event.latestReconsolidation?.reason, 220)
+    return metabolismPattern.test(reason) ? reason : null
+  }), 3)
+  const reasons = uniqueList([
+    ...structuredReasons,
+    ...reconsolidationReasons,
+    downrankMemoryIds.length > 0 ? 'Downrank low-value, generic, or superseded summaries.' : null,
+    mergeMemoryIds.length > 0 ? 'Merge repeated embodiment traces or same-thread continuity echoes into the stronger same-thread memory.' : null,
+    forgetMemoryIds.length > 0 ? 'Forget low-salience temporary noise or stale emotional wobble once it no longer explains behavior.' : null,
+  ], 6)
+
+  if (
+    downrankMemoryIds.length === 0
+    && mergeMemoryIds.length === 0
+    && forgetMemoryIds.length === 0
+    && reasons.length === 0
+  ) {
+    return null
+  }
+
+  return {
+    downrankMemoryIds,
+    mergeMemoryIds,
+    forgetMemoryIds,
+    reasons,
+  } satisfies Record<string, unknown>
+}
+
+function normalizeEmbodimentExpressionValue(
+  key: 'face' | 'gaze' | 'blink' | 'voice' | 'pause' | 'lipsync' | 'pacing',
+  raw: string,
+) {
+  const normalized = sanitizeText(raw, 48).toLowerCase()
+  if (!normalized)
+    return ''
+
+  switch (key) {
+    case 'face':
+      if (/^steady(?:-s(?:o(?:ft?)?)?)?$/u.test(normalized))
+        return 'steady-soft'
+      if (/^neutral(?:-s(?:o(?:ft?)?)?)?$/u.test(normalized))
+        return 'neutral-soft'
+      return normalized
+    case 'gaze':
+      if (/^soft(?:en?)?$/u.test(normalized))
+        return 'soft'
+      if (/^st(?:a(?:b(?:le?)?)?|ead(?:y|ier)?)$/u.test(normalized))
+        return 'stable'
+      if (/^dr(?:i(?:ft?)?)?$/u.test(normalized))
+        return 'drift'
+      return normalized
+    case 'blink':
+      if (/^sl(?:o(?:w(?:er?)?)?)?$/u.test(normalized) || /^ling(?:er?)?$/u.test(normalized))
+        return 'slower'
+      if (/^nat(?:u(?:r(?:al?)?)?)?$/u.test(normalized))
+        return 'natural'
+      return normalized
+    case 'voice':
+      if (/^lower(?:-p(?:r(?:e(?:s(?:s(?:u(?:re?)?)?)?)?)?)?)?$/u.test(normalized))
+        return 'lower-pressure'
+      if (/^even$/u.test(normalized))
+        return 'even'
+      return normalized
+    case 'pause':
+      if (/^long(?:er?)?$/u.test(normalized))
+        return 'longer'
+      if (/^nat(?:u(?:r(?:al?)?)?)?$/u.test(normalized))
+        return 'natural'
+      return normalized
+    case 'lipsync':
+      if (/^restr(?:a(?:i(?:n(?:ed?)?)?)?)?$/u.test(normalized))
+        return 'restrained'
+      if (/^match(?:ed?)?$/u.test(normalized))
+        return 'matched'
+      return normalized
+    case 'pacing':
+      if (/^sl(?:o(?:w(?:er?)?)?)?$/u.test(normalized))
+        return 'slower'
+      if (/^nat(?:u(?:r(?:al?)?)?)?$/u.test(normalized))
+        return 'natural'
+      return normalized
+  }
+}
+
+function buildEmbodimentExpressionMetadata(textParts: Array<string | null | undefined>) {
+  const combined = lowerText(...textParts)
+  if (!combined)
+    return null
+
+  const face = normalizeEmbodimentExpressionValue('face', extractEmbodimentKeyValue(combined, 'face'))
+    || (/steady[- ]soft|steady soft/u.test(combined) ? 'steady-soft' : /neutral[- ]soft|neutral soft/u.test(combined) ? 'neutral-soft' : '')
+  const gaze = normalizeEmbodimentExpressionValue('gaze', extractEmbodimentKeyValue(combined, 'gaze'))
+    || (stableGazePattern.test(combined) ? 'stable' : /soft gaze|gaze soft|视线放软|目光放软/u.test(combined) ? 'soft' : '')
+  const blink = normalizeEmbodimentExpressionValue('blink', extractEmbodimentKeyValue(combined, 'blink'))
+    || (/slower blink|blink slower|linger blink|blink linger|眨眼更慢|眨眼放慢/u.test(combined) ? 'slower' : /natural blink/u.test(combined) ? 'natural' : '')
+  const voice = normalizeEmbodimentExpressionValue('voice', extractEmbodimentKeyValue(combined, 'voice'))
+    || (lowerPressurePattern.test(combined) ? 'lower-pressure' : /even voice|voice even/u.test(combined) ? 'even' : '')
+  const pause = normalizeEmbodimentExpressionValue('pause', extractEmbodimentKeyValue(combined, 'pause'))
+    || (/longer pause|pause longer|停顿更长|停顿拉长/u.test(combined) ? 'longer' : /natural pause/u.test(combined) ? 'natural' : '')
+  const lipsync = normalizeEmbodimentExpressionValue('lipsync', extractEmbodimentKeyValue(combined, 'lipsync'))
+    || (/restrained lipsync|lipsync restrained|restrained lip sync|lip sync restrained|口型更克制/u.test(combined) ? 'restrained' : /matched lipsync|lipsync matched|matched lip sync|lip sync matched/u.test(combined) ? 'matched' : '')
+  const pacing = normalizeEmbodimentExpressionValue('pacing', extractEmbodimentKeyValue(combined, 'pacing'))
+    || (slowerPacingPattern.test(combined) || /reply should slow down|reply slower|放慢|慢下来|放缓/u.test(combined) ? 'slower' : /natural pacing|pacing natural/u.test(combined) ? 'natural' : '')
+
+  if (!face && !gaze && !blink && !voice && !pause && !lipsync && !pacing)
+    return null
+
+  return {
+    face,
+    gaze,
+    blink,
+    voice,
+    pause,
+    lipsync,
+    pacing,
+  } satisfies Record<string, string>
 }
 
 function inferRelationshipPrimaryIntent(text: string) {
@@ -118,23 +331,46 @@ function buildHumanlikeCarryMetadata(events: AlicizationEpisodicEventRecord[]) {
   if (!combined)
     return null
 
-  const relationshipPrimaryIntent = inferRelationshipPrimaryIntent(combined)
-  const emotionalResidueTags = uniqueList(events.flatMap(event => [
-    ...event.emotionTags,
-    ...(event.latestReconsolidation?.emotionTags ?? []),
-  ]), 8)
+  const structuredRelationshipIntent = sanitizeText(
+    collectStructuredCarryValues(textParts, 'relationship-intent', 1, 80)[0],
+    80,
+  ).toLowerCase()
+  const structuredRecallCertainty = sanitizeText(
+    collectStructuredCarryValues(textParts, 'recall-certainty', 1, 48)[0],
+    48,
+  ).toLowerCase()
+  const relationshipPrimaryIntent = structuredRelationshipIntent || inferRelationshipPrimaryIntent(combined)
+  const emotionalResidueTags = uniqueList([
+    ...events.flatMap(event => [
+      ...event.emotionTags,
+      ...(event.latestReconsolidation?.emotionTags ?? []),
+    ]),
+    ...collectStructuredCarryList(textParts, 'emotional-residue', 8, 64),
+  ], 8)
+  const embodimentExpression = buildEmbodimentExpressionMetadata(textParts)
   const embodimentCadenceParts = uniqueList([
-    lowerPressurePattern.test(combined) ? 'lower-pressure voice' : null,
-    slowerPacingPattern.test(combined) ? 'slower pacing' : null,
-    stableGazePattern.test(combined) ? 'stable gaze' : null,
+    embodimentExpression?.voice === 'lower-pressure' || lowerPressurePattern.test(combined) ? 'lower-pressure voice' : null,
+    embodimentExpression?.pacing === 'slower' || slowerPacingPattern.test(combined) ? 'slower pacing' : null,
+    embodimentExpression?.gaze === 'stable' || stableGazePattern.test(combined) ? 'stable gaze' : null,
   ], 4)
-  const metabolismSummary = uniqueList(events.map((event) => {
-    const reason = sanitizeText(event.latestReconsolidation?.reason, 220)
-    return metabolismPattern.test(reason) ? reason : null
-  }), 1)[0]
-  || (correctedMeaningPattern.test(combined) && samePersonContinuityPattern.test(combined)
-    ? 'Downrank the older status shell and keep the corrected same-person continuity meaning active.'
-    : null)
+  const metabolismPolicy = buildStructuredMetabolismPolicyMetadata(events, textParts)
+  const metabolismSummary = collectStructuredCarryValues(textParts, 'metabolism', 1, 320)[0]
+    || uniqueList(events.map((event) => {
+      const reason = sanitizeText(event.latestReconsolidation?.reason, 220)
+      return metabolismPattern.test(reason) ? reason : null
+    }), 1)[0]
+    || metabolismPolicy?.reasons.join(' ')
+    || (correctedMeaningPattern.test(combined) && samePersonContinuityPattern.test(combined)
+      ? 'Downrank the older status shell and keep the corrected same-person continuity meaning active.'
+      : null)
+  const stablePreferenceHint = collectStructuredCarryValues(textParts, 'stable-preference', 2, 220).join(' ')
+    || uniqueList(textParts.flatMap((text) => {
+      const normalized = sanitizeText(text, 320)
+      if (!normalized)
+        return []
+      return normalized.match(/Prefer [^.?!]+[.?!]?/giu) ?? []
+    }), 2).join(' ')
+    || null
   const autobiographicalDelta = uniqueList([
     ...events.map(event => sanitizeText(event.latestReconsolidation?.lesson, 220) || null),
     ...events.map(event => sanitizeText(event.lesson, 220) || null),
@@ -142,6 +378,10 @@ function buildHumanlikeCarryMetadata(events: AlicizationEpisodicEventRecord[]) {
       ? 'I learned to carry corrected same-person continuity on a lower-pressure same living line instead of defending the first interpretation.'
       : null,
   ], 1)[0] ?? null
+  const hostEmotionLabels = collectPatternMatches(textParts, hostEmotionLabelPattern, 4)
+  const selfEmotionLabels = collectPatternMatches(textParts, selfEmotionLabelPattern, 4)
+  const embodimentRecallStrength = collectPatternMatches(textParts, embodimentRecallStrengthPattern, 1)[0] ?? null
+  const embodimentRisk = collectPatternMatches(textParts, embodimentRiskPattern, 1)[0] ?? null
 
   return {
     relationshipPrimaryIntent,
@@ -151,11 +391,16 @@ function buildHumanlikeCarryMetadata(events: AlicizationEpisodicEventRecord[]) {
       progressPressurePattern.test(combined) && !progressPressureNegationPattern.test(combined) ? 'progress-pressure' : null,
       correctedMeaningPattern.test(combined) ? 'host-corrected-meaning' : null,
     ], 6),
-    recallCertainty: correctedMeaningPattern.test(combined)
-      ? 'corrected'
-      : tentativeRecallPattern.test(combined)
-        ? 'tentative'
-        : 'steady',
+    recallCertainty:
+      structuredRecallCertainty === 'corrected'
+      || structuredRecallCertainty === 'tentative'
+      || structuredRecallCertainty === 'steady'
+        ? structuredRecallCertainty
+        : correctedMeaningPattern.test(combined)
+          ? 'corrected'
+          : tentativeRecallPattern.test(combined)
+            ? 'tentative'
+            : 'steady',
     emotionalResidueTags,
     embodimentSummary: uniqueList(events.flatMap(event => [
       event.relationshipMeaning,
@@ -163,7 +408,22 @@ function buildHumanlikeCarryMetadata(events: AlicizationEpisodicEventRecord[]) {
       event.latestReconsolidation?.relationshipMeaning ?? null,
     ]), 2).join(' '),
     embodimentCadence: embodimentCadenceParts.join(', ') || null,
+    ...(embodimentExpression ? { embodimentExpression } : {}),
+    affectivePerspective: hostEmotionLabels.length > 0 || selfEmotionLabels.length > 0
+      ? {
+          hostEmotionLabels,
+          selfEmotionLabels,
+        }
+      : null,
+    embodimentRecallProfile: embodimentRecallStrength || embodimentRisk
+      ? {
+          recallStrength: embodimentRecallStrength,
+          modalityRisk: embodimentRisk,
+        }
+      : null,
     metabolismSummary,
+    ...(metabolismPolicy ? { metabolismPolicy } : {}),
+    stablePreferenceHint,
     autobiographicalDelta,
   } satisfies Record<string, unknown>
 }
@@ -373,6 +633,82 @@ function buildConfidence(events: AlicizationEpisodicEventRecord[]) {
   return clamp01(total / events.length)
 }
 
+function shouldPreserveSingleEventAutobiographicalCarry(input: {
+  facet: NonNullable<AlicizationMemoryConsolidationRecord['facet']>
+  events: AlicizationEpisodicEventRecord[]
+}) {
+  if (input.events.length !== 1)
+    return false
+  if (input.facet === 'phase' || input.facet === 'task-era')
+    return false
+
+  const [event] = input.events
+  const humanlikeCarry = buildHumanlikeCarryMetadata(input.events)
+  if (!humanlikeCarry)
+    return false
+
+  const signalText = lowerText(
+    ...collectEventTexts(event),
+    humanlikeCarry.autobiographicalDelta,
+    humanlikeCarry.embodimentSummary,
+    humanlikeCarry.embodimentCadence,
+    humanlikeCarry.metabolismSummary,
+    ...(humanlikeCarry.metabolismPolicy?.reasons ?? []),
+  )
+  const residueTags = new Set(humanlikeCarry.emotionalResidueTags.map(tag => sanitizeText(tag, 64).toLowerCase()))
+  const metabolismPolicy = humanlikeCarry.metabolismPolicy ?? null
+  const vulnerableCareCarry
+    = residueTags.has('rest-protective')
+      || residueTags.has('vulnerable-care')
+      || /overloaded|fragile|vulnerable|care arrive before analysis|stay nearby gently|lighter companionship|care-before-analysis|先陪|轻一点|不要分析太多/u.test(signalText)
+  const correctedSamePersonCarry
+    = (
+      humanlikeCarry.relationshipPrimaryIntent === 'same-person-test'
+      || humanlikeCarry.relationshipPrimaryIntent === 'continuity-worry'
+      || humanlikeCarry.relationshipPrimaryIntent === 'mixed'
+    ) && (
+      humanlikeCarry.recallCertainty === 'corrected'
+      || /same[- ]?person|same[- ]?her|same living line|tool shell|corrected same-person continuity|defending the first interpretation|同一个她|工具壳/u.test(signalText)
+    )
+  const durableMetabolismCarry
+    = (
+      Boolean(humanlikeCarry.metabolismSummary)
+      || Boolean(
+        metabolismPolicy
+        && (
+          metabolismPolicy.downrankMemoryIds.length > 0
+          || metabolismPolicy.mergeMemoryIds.length > 0
+          || metabolismPolicy.forgetMemoryIds.length > 0
+          || metabolismPolicy.reasons.length > 0
+        ),
+      )
+    ) && (
+      humanlikeCarry.relationshipPrimaryIntent === 'same-person-test'
+      || humanlikeCarry.relationshipPrimaryIntent === 'continuity-worry'
+      || humanlikeCarry.relationshipPrimaryIntent === 'mixed'
+      || /same[- ]?person|same[- ]?her|same living line|tool shell|同一个她|工具壳/u.test(signalText)
+    )
+  const durableExecutionBoundaryCarry
+    = /blocked-before-dispatch|confirmation=required|no-process-started|explicit confirmation|explicit consent|bounded execution|execution boundary|wait for explicit confirmation|wait for confirmation|risky local action|host-confirmed-before-redispatch|resume-before-dispatch|bounded confirmation boundary/u.test(signalText)
+      && (
+        lowerPressurePattern.test(signalText)
+        || slowerPacingPattern.test(signalText)
+        || stableGazePattern.test(signalText)
+        || /ordinary proactive closeness|resumable safety memory|not permanent execution permission/u.test(signalText)
+      )
+  const embodiedCarry
+    = lowerPressurePattern.test(signalText)
+      || slowerPacingPattern.test(signalText)
+      || stableGazePattern.test(signalText)
+  const autobiographicalWeight
+    = buildConfidence(input.events) >= 0.82
+      || (event.salience >= 0.84 && event.consolidationPriority >= 0.82)
+
+  return autobiographicalWeight
+    && (embodiedCarry || durableMetabolismCarry || durableExecutionBoundaryCarry)
+    && (vulnerableCareCarry || correctedSamePersonCarry || durableMetabolismCarry || durableExecutionBoundaryCarry)
+}
+
 export function buildMemoryConsolidationRecords(input: {
   events: AlicizationEpisodicEventRecord[]
   now: number
@@ -447,41 +783,48 @@ export function buildMemoryConsolidationRecords(input: {
     weeklyRecord.memoryTier = deriveConsolidationMemoryTier(weeklyRecord, input.now)
     consolidated.push(weeklyRecord)
 
-    if (bucketEvents.length >= 2) {
-      const autobiographicalBuckets = new Map<NonNullable<AlicizationMemoryConsolidationRecord['facet']>, AlicizationEpisodicEventRecord[]>()
-      for (const event of bucketEvents) {
-        for (const facet of inferAutobiographicalFacets(event))
-          autobiographicalBuckets.set(facet, [...(autobiographicalBuckets.get(facet) ?? []), event])
-      }
+    const autobiographicalBuckets = new Map<NonNullable<AlicizationMemoryConsolidationRecord['facet']>, AlicizationEpisodicEventRecord[]>()
+    for (const event of bucketEvents) {
+      for (const facet of inferAutobiographicalFacets(event))
+        autobiographicalBuckets.set(facet, [...(autobiographicalBuckets.get(facet) ?? []), event])
+    }
+    if (bucketEvents.length >= 2)
       autobiographicalBuckets.set('phase', bucketEvents)
 
-      for (const [facet, facetEvents] of autobiographicalBuckets) {
-        if (facet !== 'phase' && facetEvents.length < 2)
-          continue
-        const rankedEvents = sortEvents(facetEvents)
-        const autobiographicalRecord: AlicizationMemoryConsolidationRecord = {
-          id: `autobio:${facet}:${periodKey}`,
-          kind: 'autobiographical',
+    for (const [facet, facetEvents] of autobiographicalBuckets) {
+      const rankedEvents = sortEvents(facetEvents)
+      if (
+        facet !== 'phase'
+        && facetEvents.length < 2
+        && !shouldPreserveSingleEventAutobiographicalCarry({
+          facet,
+          events: rankedEvents,
+        })
+      ) {
+        continue
+      }
+      const autobiographicalRecord: AlicizationMemoryConsolidationRecord = {
+        id: `autobio:${facet}:${periodKey}`,
+        kind: 'autobiographical',
+        facet,
+        periodKey,
+        periodStartedAt: Math.min(...facetEvents.map(event => event.occurredAt)),
+        periodEndedAt: Math.max(...facetEvents.map(event => event.occurredAt)),
+        summary: buildAutobiographicalSummary({
           facet,
           periodKey,
-          periodStartedAt: Math.min(...facetEvents.map(event => event.occurredAt)),
-          periodEndedAt: Math.max(...facetEvents.map(event => event.occurredAt)),
-          summary: buildAutobiographicalSummary({
-            facet,
-            periodKey,
-            events: facetEvents,
-          }),
-          lesson: buildLesson(facetEvents),
-          cues: buildAutobiographicalCues(facetEvents),
-          confidence: buildConfidence(facetEvents),
-          dominantProvenance: pickDominantProvenance(rankedEvents.map(event => event.latestReconsolidation?.provenance ?? event.provenance)),
-          derivedEventIds: rankedEvents.map(event => event.id),
-          metadata: buildConsolidationMetadata(rankedEvents),
-          updatedAt: input.now,
-        }
-        autobiographicalRecord.memoryTier = deriveConsolidationMemoryTier(autobiographicalRecord, input.now)
-        consolidated.push(autobiographicalRecord)
+          events: facetEvents,
+        }),
+        lesson: buildLesson(facetEvents),
+        cues: buildAutobiographicalCues(facetEvents),
+        confidence: buildConfidence(facetEvents),
+        dominantProvenance: pickDominantProvenance(rankedEvents.map(event => event.latestReconsolidation?.provenance ?? event.provenance)),
+        derivedEventIds: rankedEvents.map(event => event.id),
+        metadata: buildConsolidationMetadata(rankedEvents),
+        updatedAt: input.now,
       }
+      autobiographicalRecord.memoryTier = deriveConsolidationMemoryTier(autobiographicalRecord, input.now)
+      consolidated.push(autobiographicalRecord)
     }
   }
 

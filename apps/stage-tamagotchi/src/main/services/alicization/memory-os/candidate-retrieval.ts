@@ -13,6 +13,7 @@ export type AlicizationMemoryCandidateKind
     | 'window'
     | 'consolidation'
     | 'procedure'
+    | 'situation'
 
 export interface AlicizationMemoryCandidateRetrievalItem {
   id: string
@@ -79,13 +80,15 @@ function clamp01(raw: unknown, fallback = 0) {
 function itemId(raw: unknown, fallback: string) {
   const record = asRecord(raw)
   return normalizeText(record?.id, 120)
+    ?? normalizeText(record?.candidateId, 120)
     ?? normalizeText(record?.turnId, 120)
     ?? fallback
 }
 
 function itemSummary(raw: unknown) {
   const record = asRecord(raw)
-  return normalizeText(record?.summary)
+  const summaryMaxChars = record?.candidateId != null || record?.situationKind != null ? 520 : 220
+  return normalizeText(record?.summary, summaryMaxChars)
     ?? normalizeText(record?.lesson)
     ?? normalizeText(record?.content)
     ?? normalizeText(record?.text)
@@ -122,15 +125,20 @@ function itemMetadata(raw: unknown) {
   return {
     threadId: normalizeText(record?.threadId, 120)
       ?? normalizeText(record?.threadAnchor, 120)
+      ?? normalizeText(record?.relationshipArcKey, 120)
+      ?? normalizeText(record?.procedureKey, 120)
       ?? null,
     sessionId: normalizeText(record?.sessionId, 120) ?? null,
     eraId: normalizeText(record?.eraId, 120)
+      ?? normalizeText(record?.eraKey, 120)
       ?? normalizeText(record?.periodKey, 120)
       ?? null,
     sourceConfidence: normalizeNumber(record?.sourceConfidence)
       ?? normalizeNumber(record?.confidence)
       ?? null,
-    conflictIds: itemStringList(record?.conflictsWith),
+    conflictIds: itemStringList(record?.conflictsWith).length > 0
+      ? itemStringList(record?.conflictsWith)
+      : itemStringList(record?.competingCandidateIds),
     supersedes: itemStringList(record?.supersedes),
     lastValidatedAt: normalizeNumber(record?.lastValidatedAt)
       ?? normalizeNumber(record?.validatedAt)
@@ -143,6 +151,7 @@ function itemUpdatedAt(raw: unknown) {
   const record = asRecord(raw)
   const candidates = [
     record?.updatedAt,
+    record?.producedAt,
     record?.createdAt,
     record?.occurredAt,
     record?.endedAt,
@@ -186,6 +195,7 @@ function collectCandidateReferenceNow(context: OrganicMemoryPromptContext, expli
     ...(context.recollectedWindows ?? []).map(itemUpdatedAt),
     ...(context.consolidatedMemories ?? []).map(itemUpdatedAt),
     ...(context.proceduralMemories ?? []).map(itemUpdatedAt),
+    ...(context.memorySituationCandidates?.candidates ?? []).map(itemUpdatedAt),
   ].filter((value): value is number => value != null)
 
   return timestamps.length > 0
@@ -254,6 +264,96 @@ function deriveRanking(input: {
   }
 }
 
+function humanizeCandidateKey(raw: unknown, maxChars = 160) {
+  const normalized = normalizeText(raw, maxChars)
+  if (!normalized)
+    return null
+  return normalized.replace(/[-_]+/g, ' ')
+}
+
+function pickSituationRelationshipContext(context: OrganicMemoryPromptContext, raw: Record<string, unknown>) {
+  const queryText = (context.memorySituationCandidates?.queryTexts ?? [])
+    .map(item => normalizeText(item, 180))
+    .find((item): item is string => Boolean(item))
+  return queryText
+    ?? humanizeCandidateKey(raw.relationshipArcKey)
+    ?? humanizeCandidateKey(raw.procedureKey)
+    ?? null
+}
+
+function buildSituationCandidateSummary(input: {
+  context: OrganicMemoryPromptContext
+  raw: Record<string, unknown>
+}) {
+  const baseSummary = normalizeText(input.raw.summary, 280)
+  const relationshipContext = pickSituationRelationshipContext(input.context, input.raw)
+  const hostAttitude = normalizeText(input.context.hostAttitude, 180)
+  const affectiveResidue = normalizeText(input.context.affectiveResidue?.summary, 180)
+  const executionCarry = normalizeText(
+    input.context.learningExecutionState?.lastCompletedSummary
+    ?? input.context.learningExecutionState?.currentBlockedReason
+    ?? null,
+    180,
+  )
+  const embodimentCarry = normalizeText(
+    input.context.personStateProjection?.manifestationCadenceSummary
+    ?? input.context.personStateProjection?.relationshipDoctrine
+    ?? input.context.personStateProjection?.summary
+    ?? null,
+    180,
+  )
+
+  return [
+    baseSummary,
+    relationshipContext ? `relationship context: ${relationshipContext}` : null,
+    hostAttitude ? `host attitude: ${hostAttitude}` : null,
+    affectiveResidue ? `affective residue: ${affectiveResidue}` : null,
+    executionCarry ? `execution carry: ${executionCarry}` : null,
+    embodimentCarry ? `embodiment carry: ${embodimentCarry}` : null,
+  ].filter((item): item is string => Boolean(item)).join(' | ')
+}
+
+function buildMemorySituationCandidateItems(context: OrganicMemoryPromptContext) {
+  const producedAt = Number.isFinite(context.memorySituationCandidates?.producedAt)
+    ? Number(context.memorySituationCandidates?.producedAt)
+    : null
+  return (context.memorySituationCandidates?.candidates ?? []).map((candidate) => {
+    const raw = asRecord(candidate) ?? {}
+    const confidence = clamp01(raw.confidence, 0.55)
+    const competingCandidateIds = itemStringList(raw.competingCandidateIds, 12)
+    const suppressionReasons = itemStringList(raw.suppressionReasons, 12)
+    const selected = normalizeText(raw.status, 32) === 'selected'
+    const relationshipArcKey = normalizeText(raw.relationshipArcKey, 160)
+    const procedureKey = normalizeText(raw.procedureKey, 160)
+    const eraKey = normalizeText(raw.eraKey, 160)
+
+    return {
+      ...raw,
+      id: normalizeText(raw.candidateId, 180) ?? null,
+      summary: buildSituationCandidateSummary({
+        context,
+        raw,
+      }),
+      provenance: 'reconstructed',
+      producedAt,
+      updatedAt: producedAt,
+      sourceConfidence: confidence,
+      semanticScore: confidence,
+      graphAffinity: confidence,
+      relationshipThreadMatch: relationshipArcKey || procedureKey ? 0.92 : selected ? 0.84 : 0.68,
+      conflictPressure: suppressionReasons.length > 0
+        ? Math.min(1, Number((0.18 + suppressionReasons.length * 0.08).toFixed(2)))
+        : 0,
+      conflictsWith: competingCandidateIds,
+      threadId: relationshipArcKey ?? procedureKey ?? eraKey ?? null,
+      eraId: eraKey,
+      status: normalizeText(raw.status, 32) ?? null,
+      selectedEvidenceIds: itemStringList(raw.selectedEvidenceIds, 24),
+      sourceKinds: itemStringList(raw.sourceKinds, 10),
+    }
+  })
+}
+
 function selectedIds(context: OrganicMemoryPromptContext) {
   const deliberation = context.memoryDeliberation ?? null
   return new Set([
@@ -284,7 +384,7 @@ function appendCandidates(input: {
     const id = itemId(item, `${input.kind}:${index + 1}`)
     const provenance = itemProvenance(item)
     const confidence = itemConfidence(item)
-    const selected = input.selected.has(id)
+    const selected = input.selected.has(id) || normalizeText(asRecord(item)?.status, 32) === 'selected'
     const metadata = itemMetadata(item)
     input.result.push({
       id,
@@ -361,6 +461,13 @@ export function deriveAlicizationMemoryCandidateRetrieval(input: {
     selected,
     referenceNow,
   })
+  appendCandidates({
+    result: candidates,
+    kind: 'situation',
+    items: buildMemorySituationCandidateItems(input.context),
+    selected,
+    referenceNow,
+  })
 
   const counts = candidates.reduce<Record<AlicizationMemoryCandidateKind, number>>((acc, item) => {
     acc[item.kind] += 1
@@ -373,6 +480,7 @@ export function deriveAlicizationMemoryCandidateRetrieval(input: {
     window: 0,
     consolidation: 0,
     procedure: 0,
+    situation: 0,
   })
 
   return {

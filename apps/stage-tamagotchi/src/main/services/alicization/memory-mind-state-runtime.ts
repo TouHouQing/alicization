@@ -7,6 +7,11 @@ import type {
   AlicizationMindTurnEventRecord,
 } from '../../../shared/eventa'
 
+import {
+  resolveAlicizationAutonomousDialogueFamilyClassification,
+  resolveAlicizationAutonomousDialogueOrigin,
+} from './runtime-structured-format'
+
 export interface AlicizationMemoryMindStateRuntimeWriteOptions {
   signal?: AbortSignal
 }
@@ -84,19 +89,27 @@ export function createAlicizationMemoryMindStateRuntime(
         const kind = event.kind
         if (!kind)
           return null
+        const normalizedOrigin = typeof event.origin === 'string'
+          ? event.origin.trim().toLowerCase()
+          : ''
+        const normalizedTurnId = typeof event.turnId === 'string' && event.turnId.trim()
+          ? event.turnId.trim()
+          : null
+        const autonomousDialogueFamily = resolveAlicizationAutonomousDialogueFamilyClassification({
+          turnId: normalizedTurnId,
+          origin: normalizedOrigin,
+        })
 
         return {
           id: input.randomUUID(),
           decisionTraceId,
-          turnId: typeof event.turnId === 'string' && event.turnId.trim()
-            ? event.turnId.trim()
-            : null,
+          turnId: normalizedTurnId,
           sessionId: typeof event.sessionId === 'string' && event.sessionId.trim()
             ? event.sessionId.trim()
             : null,
-          origin: event.origin === 'subconscious-proactive'
-            ? 'subconscious-proactive'
-            : event.origin === 'system'
+          origin: autonomousDialogueFamily.isAutonomous
+            ? autonomousDialogueFamily.canonicalOrigin ?? resolveAlicizationAutonomousDialogueOrigin('proactive')
+            : normalizedOrigin === 'system'
               ? 'system'
               : 'user-turn' as const,
           kind,

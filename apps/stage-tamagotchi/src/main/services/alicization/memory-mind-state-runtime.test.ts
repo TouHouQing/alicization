@@ -263,4 +263,120 @@ describe('memory mind state runtime', () => {
     expect(filteredRows).toHaveLength(1)
     expect(filteredRows[0]?.kind).toBe('learning-executed')
   })
+
+  it('canonicalizes proactive origins before persisting replayable mind-turn events', async () => {
+    const rows: any[] = []
+    const runtime = createAlicizationMemoryMindStateRuntime({
+      database: {} as sqlite3.Database,
+      now: () => 100,
+      randomUUID: () => 'evt-1',
+      getMetaValue: async () => undefined,
+      upsertMeta: async () => {},
+      run: async (_database, sql, params = []) => {
+        if (!normalizeSql(sql).includes('INSERT INTO mind_turn_events'))
+          return
+
+        const [id, decisionTraceId, turnId, sessionId, origin, kind, payloadJson, createdAt] = params as [
+          string,
+          string,
+          string | null,
+          string | null,
+          'user-turn' | 'subconscious-proactive' | 'system',
+          string,
+          string | null,
+          number,
+        ]
+
+        rows.push({
+          id,
+          decision_trace_id: decisionTraceId,
+          turn_id: turnId,
+          session_id: sessionId,
+          origin,
+          kind,
+          payload_json: payloadJson,
+          created_at: createdAt,
+        })
+      },
+      all: async () => [],
+      runInTransaction: async (_database, task) => await task(),
+      enqueueWrite: async task => await task(),
+      assertWriteNotAborted: () => {},
+      parseMindTurnEventPayload: () => null,
+      resolveMindTurnEventActiveThreadId: () => null,
+    })
+
+    await runtime.appendMindTurnEvents([
+      {
+        decisionTraceId: 'trace-1',
+        turnId: 'turn-1',
+        sessionId: 'session-1',
+        origin: ' SubConscious-Proactive ' as any,
+        kind: 'persistence-written',
+        payload: { format: 'mind-turn-v1' },
+        createdAt: 120,
+      },
+    ])
+
+    expect(rows).toHaveLength(1)
+    expect(rows[0]?.origin).toBe('subconscious-proactive')
+  })
+
+  it('canonicalizes origin-lost autonomous turn ids before persisting replayable mind-turn events', async () => {
+    const rows: any[] = []
+    const runtime = createAlicizationMemoryMindStateRuntime({
+      database: {} as sqlite3.Database,
+      now: () => 100,
+      randomUUID: () => 'evt-1',
+      getMetaValue: async () => undefined,
+      upsertMeta: async () => {},
+      run: async (_database, sql, params = []) => {
+        if (!normalizeSql(sql).includes('INSERT INTO mind_turn_events'))
+          return
+
+        const [id, decisionTraceId, turnId, sessionId, origin, kind, payloadJson, createdAt] = params as [
+          string,
+          string,
+          string | null,
+          string | null,
+          'user-turn' | 'subconscious-proactive' | 'system',
+          string,
+          string | null,
+          number,
+        ]
+
+        rows.push({
+          id,
+          decision_trace_id: decisionTraceId,
+          turn_id: turnId,
+          session_id: sessionId,
+          origin,
+          kind,
+          payload_json: payloadJson,
+          created_at: createdAt,
+        })
+      },
+      all: async () => [],
+      runInTransaction: async (_database, task) => await task(),
+      enqueueWrite: async task => await task(),
+      assertWriteNotAborted: () => {},
+      parseMindTurnEventPayload: () => null,
+      resolveMindTurnEventActiveThreadId: () => null,
+    })
+
+    await runtime.appendMindTurnEvents([
+      {
+        decisionTraceId: 'trace-1',
+        turnId: 'subconscious:trace-1',
+        sessionId: 'session-1',
+        kind: 'persistence-written',
+        payload: { format: 'mind-turn-v1' },
+        createdAt: 120,
+      },
+    ])
+
+    expect(rows).toHaveLength(1)
+    expect(rows[0]?.turn_id).toBe('subconscious:trace-1')
+    expect(rows[0]?.origin).toBe('subconscious-proactive')
+  })
 })

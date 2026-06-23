@@ -63,7 +63,34 @@ export interface AlicizationConversationTurnRecallRow {
   sessionId: string
   userText: string | null
   assistantText: string | null
+  structuredJson?: string | null
   createdAt: number
+}
+
+function readConversationTurnProjectStateSignals(structuredJson: string | null | undefined) {
+  if (typeof structuredJson !== 'string' || !structuredJson.trim())
+    return null
+
+  try {
+    const parsed = JSON.parse(structuredJson) as Record<string, unknown>
+    const projectState = parsed.projectState && typeof parsed.projectState === 'object' && !Array.isArray(parsed.projectState)
+      ? parsed.projectState as Record<string, unknown>
+      : null
+    if (!projectState)
+      return null
+
+    const identity = normalizeOrganicRecallText(typeof projectState.identity === 'string' ? projectState.identity : '').slice(0, 220).toLowerCase()
+    const currentPhase = normalizeOrganicRecallText(typeof projectState.currentPhase === 'string' ? projectState.currentPhase : '').slice(0, 180).toLowerCase()
+    const primaryOpenLoop = normalizeOrganicRecallText(typeof projectState.primaryOpenLoop === 'string' ? projectState.primaryOpenLoop : '').slice(0, 220).toLowerCase()
+    return {
+      identity,
+      currentPhase,
+      primaryOpenLoop,
+    }
+  }
+  catch {
+    return null
+  }
 }
 
 export function rankAlicizationConversationTurnsForRecall(input: {
@@ -72,6 +99,7 @@ export function rankAlicizationConversationTurnsForRecall(input: {
   limit: number
   nowTs: number
   recollectionIntent?: AlicizationMemoryRecollectionIntentLite | null
+  projectStatePrimaryOpenLoop?: string | null
 }) {
   const query = normalizeOrganicRecallText(input.query).slice(0, 240)
   if (!query)
@@ -79,9 +107,15 @@ export function rankAlicizationConversationTurnsForRecall(input: {
 
   const terms = extractOrganicRecallTerms(query)
   const recollectionIntent = input.recollectionIntent ?? null
+  const projectStatePrimaryOpenLoop = typeof input.projectStatePrimaryOpenLoop === 'string'
+    ? input.projectStatePrimaryOpenLoop.trim().toLowerCase()
+    : ''
+  const anthropomorphicMemoryClosureStillOpen = projectStatePrimaryOpenLoop.includes('memory still needs stronger end-to-end closure')
   const retrospective = recollectionIntent?.temporalFocus === 'cross-session'
     || recollectionIntent?.mode === 'conversation-history'
     || recollectionIntent?.mode === 'relationship-history'
+    || recollectionIntent?.mode === 'autobiographical-history'
+  const continuitySensitiveConversationRecall = recollectionIntent?.mode === 'relationship-history'
     || recollectionIntent?.mode === 'autobiographical-history'
 
   const ranked = input.rows
@@ -91,6 +125,7 @@ export function rankAlicizationConversationTurnsForRecall(input: {
       const combined = `${userText} ${assistantText}`.trim()
       if (!combined)
         return null
+      const projectStateSignals = readConversationTurnProjectStateSignals(row.structuredJson)
       const combinedLower = combined.toLowerCase()
       let lexicalScore = 0
       for (const term of terms) {
@@ -101,12 +136,15 @@ export function rankAlicizationConversationTurnsForRecall(input: {
           lexicalScore += normalizedTerm.length >= 6 ? 2.5 : 1
       }
       let intentScore = 0
+      let exactHintMatches = 0
       for (const hint of recollectionIntent?.queryHints ?? []) {
         const normalizedHint = normalizeOrganicRecallText(hint).slice(0, 120).toLowerCase()
         if (!normalizedHint)
           continue
-        if (combinedLower.includes(normalizedHint))
+        if (combinedLower.includes(normalizedHint)) {
           intentScore += normalizedHint.length >= 10 ? 1.8 : 0.8
+          exactHintMatches += 1
+        }
       }
       const ageHours = Math.max(0, (input.nowTs - row.createdAt) / (60 * 60 * 1000))
       const ageDays = ageHours / 24
@@ -126,6 +164,26 @@ export function rankAlicizationConversationTurnsForRecall(input: {
         && /relationship|bond|tone|repair|回应|关系|语气|修复/u.test(combined)
         ? clamp01(recollectionIntent?.recollectionAgenda?.relationshipNeed ?? 0) * 0.08
         : 0
+      const retrospectiveContinuationBoost = retrospective
+        && /然后|又聊了|继续|后面|接着|还没彻底收口|follow-up|continued|later that day|next turn|unfinished|payoff/u.test(combined)
+        ? 0.14
+        : 0
+      const retrospectiveQueryLineBoost = retrospective && exactHintMatches > 0
+        ? Math.min(0.12, exactHintMatches * 0.06)
+        : 0
+      const continuityBearingConversationBoost = anthropomorphicMemoryClosureStillOpen
+        && continuitySensitiveConversationRecall
+        && /continuity|return softly|space first|relationship|bond|repair|boundary|self|identity|continuity payoff|关系|边界|回返|像她|自我/u.test(combined)
+        ? retrospective ? 0.08 : 0.04
+        : 0
+      const projectStateContinuityBoost = anthropomorphicMemoryClosureStillOpen
+        && continuitySensitiveConversationRecall
+        && projectStateSignals
+        && projectStateSignals.identity.includes('digital life project')
+        && projectStateSignals.currentPhase.includes('phase 1')
+        && projectStateSignals.primaryOpenLoop.includes('memory still needs stronger end-to-end closure')
+        ? 0.05
+        : 0
       const score = lexicalScore * 0.38
         + intentScore * 0.22
         + recencyScore * 0.12
@@ -134,6 +192,10 @@ export function rankAlicizationConversationTurnsForRecall(input: {
         + agendaTimeBoost
         + agendaProcedureBoost
         + relationshipBoost
+        + retrospectiveContinuationBoost
+        + retrospectiveQueryLineBoost
+        + continuityBearingConversationBoost
+        + projectStateContinuityBoost
         - antiRecentPenalty
       return {
         turnId: row.turnId,

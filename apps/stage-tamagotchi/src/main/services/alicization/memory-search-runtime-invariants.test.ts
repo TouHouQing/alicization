@@ -271,6 +271,7 @@ describe('memory-search-runtime invariants', () => {
         governingCommitment: null,
         governingInquiry: null,
         governingProject: null,
+        emotionalClosureCue: null,
         latestRevision: null,
         executivePhase: 'acting',
         truthFrame: 'remembered',

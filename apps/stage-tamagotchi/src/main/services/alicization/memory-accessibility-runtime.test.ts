@@ -94,6 +94,69 @@ describe('memory-accessibility-runtime', () => {
     })).toContain('conversation')
   })
 
+  it('biases continuity arc hold toward summary-first retrieval so the line stays gentle before reopening', () => {
+    const plan = buildAlicizationMemoryAccessibilityPlan({
+      recallSeed: 'mirror_runtime_continuity: stage=hold-for-opening loop=dialogue handoff=active-dialogue',
+      recallGovernor: {
+        recollectionIntent: {
+          mode: 'conversation-history',
+          temporalFocus: 'cross-session',
+          searchEpisodes: true,
+          searchConversations: true,
+          searchProceduralExperience: false,
+          queryHints: ['hold-for-opening'],
+          rationale: 'Keep the same line warm without widening too fast.',
+          confidence: 0.76,
+        },
+      } as any,
+    })
+
+    expect(plan.expansionMode).toBe('summary-first')
+    expect(plan.preferredLayers[0]).toBe('summary-layer')
+  })
+
+  it('biases continuity arc gentle reopen toward deep-thread retrieval so the same line can be re-entered coherently', () => {
+    const plan = buildAlicizationMemoryAccessibilityPlan({
+      recallSeed: 'mirror_runtime_continuity: stage=gentle-reopen loop=dialogue handoff=active-dialogue',
+      recallGovernor: {
+        recollectionIntent: {
+          mode: 'conversation-history',
+          temporalFocus: 'cross-session',
+          searchEpisodes: true,
+          searchConversations: true,
+          searchProceduralExperience: true,
+          queryHints: ['gentle-reopen'],
+          rationale: 'Re-enter the same living line instead of summarizing it away.',
+          confidence: 0.8,
+        },
+      } as any,
+    })
+
+    expect(plan.expansionMode).toBe('deep-thread')
+    expect(plan.preferredLayers[0]).toBe('hot-index')
+  })
+
+  it('biases same-thread continuation toward balanced retrieval so the line can continue without over-expanding', () => {
+    const plan = buildAlicizationMemoryAccessibilityPlan({
+      recallSeed: 'mirror_runtime_continuity: stage=same-thread-continuation loop=dialogue handoff=active-dialogue',
+      recallGovernor: {
+        recollectionIntent: {
+          mode: 'conversation-history',
+          temporalFocus: 'recent',
+          searchEpisodes: true,
+          searchConversations: true,
+          searchProceduralExperience: false,
+          queryHints: ['same-thread-continuation'],
+          rationale: 'Continue the current line without resetting or digging too far outward.',
+          confidence: 0.74,
+        },
+      } as any,
+    })
+
+    expect(plan.expansionMode).toBe('balanced')
+    expect(plan.preferredLayers[0]).toBe('summary-layer')
+  })
+
   it('tunes consolidation search input from the plan', () => {
     const plan = buildAlicizationMemoryAccessibilityPlan({
       recallSeed: '继续按之前那样修这个 runtime seam',
@@ -293,6 +356,7 @@ describe('memory-accessibility-runtime', () => {
           requiresRevalidation: false,
           rollbackPlan: ['revalidate-old-relationship-line'],
         },
+        projectStateContinuity: null,
         reasonCodes: ['quarantine-unsupported-carry'],
         summary: 'Old relationship line needs provenance before visible reuse.',
       },

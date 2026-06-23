@@ -1,8 +1,10 @@
 import type { AlicizationTurnRetrievalPolicySnapshot } from '../memory-accessibility-runtime'
 import type { OrganicMemoryPromptContext } from '../runtime-soul'
+import type { AlicizationMemoryClosureTrace } from './memory-closure-trace'
 
 import { deriveAlicizationMemoryCandidateCompetition } from './candidate-competition'
 import { deriveAlicizationMemoryCandidateRetrieval } from './candidate-retrieval'
+import { buildAlicizationMemoryClosureTrace } from './memory-closure-trace'
 import { deriveAlicizationMemoryDeliberation } from './memory-deliberation'
 import { settleAlicizationMemoryTurn } from './memory-settlement'
 import { deriveAlicizationMemoryRecallIntent } from './recall-intent'
@@ -30,6 +32,7 @@ export interface AlicizationMemoryTurnArtifact {
     topRankedCandidates: Array<{
       id: string
       kind: string
+      summary: string | null
       selected: boolean
       finalScore: number
       confidence: number | null
@@ -97,6 +100,7 @@ export interface AlicizationMemoryTurnArtifact {
     latencyPressure: number
     reasons: string[]
   }
+  memoryClosureTrace: AlicizationMemoryClosureTrace
 }
 
 export function buildAlicizationMemoryTurnArtifact(input: {
@@ -141,6 +145,14 @@ export function buildAlicizationMemoryTurnArtifact(input: {
     speechPosture,
     latencyMs: input.latencyMs,
   })
+  const memoryClosureTrace = buildAlicizationMemoryClosureTrace({
+    context,
+    retrieval,
+    competition,
+    deliberation: memoryDeliberation,
+    speechPosture,
+    settlement,
+  })
 
   return {
     version: 'memory-turn-artifact-v1',
@@ -162,6 +174,7 @@ export function buildAlicizationMemoryTurnArtifact(input: {
         .map(item => ({
           id: item.id,
           kind: item.kind,
+          summary: item.summary,
           selected: item.selected,
           finalScore: item.ranking.finalScore,
           confidence: item.confidence,
@@ -178,5 +191,6 @@ export function buildAlicizationMemoryTurnArtifact(input: {
     withheld: settlement.withheld,
     metrics: settlement.metrics,
     visibleMemoryGate: settlement.visibleMemoryGate,
+    memoryClosureTrace,
   }
 }

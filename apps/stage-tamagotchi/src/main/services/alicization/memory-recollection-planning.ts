@@ -1,3 +1,4 @@
+import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 import type { AlicizationRelationshipLineCandidate } from './memory-search-retrieval-operators'
 import type { MemoryClusterState, RecollectionPlanSnapshot } from './runtime-organic-memory-prompt-types'
 import type { OrganicMemoryPromptContext } from './runtime-soul'
@@ -14,6 +15,7 @@ export interface OrganicMemoryRecollectionPlanningStageInput {
   recalledEpisodes: NonNullable<OrganicMemoryPromptContext['recalledEpisodes']>
   recalledConversationHistory: NonNullable<OrganicMemoryPromptContext['recalledConversationHistory']>
   clusterState?: MemoryClusterState | null
+  digitalLifeRuntimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
   planMemoryRecollection?: ((input: {
     recallSeed: string
     recollectionIntent: NonNullable<OrganicMemoryPromptContext['recollectionIntent']>
@@ -22,6 +24,7 @@ export interface OrganicMemoryRecollectionPlanningStageInput {
     proceduralMemories: NonNullable<OrganicMemoryPromptContext['proceduralMemories']>
     recalledEpisodes: NonNullable<OrganicMemoryPromptContext['recalledEpisodes']>
     recalledConversationHistory: NonNullable<OrganicMemoryPromptContext['recalledConversationHistory']>
+    digitalLifeRuntimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
   }) => Promise<NonNullable<OrganicMemoryPromptContext['recollectionPlan']> | null>) | undefined
   planRecollectionSpeech?: ((input: {
     recallSeed: string
@@ -32,6 +35,7 @@ export interface OrganicMemoryRecollectionPlanningStageInput {
     proceduralMemories: NonNullable<OrganicMemoryPromptContext['proceduralMemories']>
     recalledEpisodes: NonNullable<OrganicMemoryPromptContext['recalledEpisodes']>
     recalledConversationHistory: NonNullable<OrganicMemoryPromptContext['recalledConversationHistory']>
+    digitalLifeRuntimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
   }) => Promise<NonNullable<OrganicMemoryPromptContext['recollectionSpeechPlan']> | null>) | undefined
   planMemoryDeliberation?: ((input: {
     recallSeed: string
@@ -43,6 +47,7 @@ export interface OrganicMemoryRecollectionPlanningStageInput {
     proceduralMemories: NonNullable<OrganicMemoryPromptContext['proceduralMemories']>
     recalledEpisodes: NonNullable<OrganicMemoryPromptContext['recalledEpisodes']>
     recalledConversationHistory: NonNullable<OrganicMemoryPromptContext['recalledConversationHistory']>
+    digitalLifeRuntimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
   }) => Promise<NonNullable<OrganicMemoryPromptContext['memoryDeliberation']> | null>) | undefined
   resolveRecollectionPlanSearch: (input: {
     recollectionIntent: NonNullable<OrganicMemoryPromptContext['recollectionIntent']> | null
@@ -76,6 +81,7 @@ export async function resolveOrganicMemoryRecollectionPlanningStage(input: Organ
         proceduralMemories: input.proceduralMemories,
         recalledEpisodes: input.recalledEpisodes,
         recalledConversationHistory: input.recalledConversationHistory,
+        digitalLifeRuntimeSurface: input.digitalLifeRuntimeSurface ?? null,
       }).catch(() => null)
     : null
   const recollectionPlan = input.resolveRecollectionPlanSearch({
@@ -136,6 +142,7 @@ export async function resolveOrganicMemoryRecollectionPlanningStage(input: Organ
         proceduralMemories: plannedProceduralMemories,
         recalledEpisodes: plannedEpisodes,
         recalledConversationHistory: plannedConversationHistory,
+        digitalLifeRuntimeSurface: input.digitalLifeRuntimeSurface ?? null,
       }).catch(() => null)
     : null
   void input.recordMemorySpeechPlanLatency?.(Date.now() - speechPlanStartedAt).catch(() => {})
@@ -158,6 +165,7 @@ export async function resolveOrganicMemoryRecollectionPlanningStage(input: Organ
         proceduralMemories: input.proceduralMemories,
         recalledEpisodes: input.recalledEpisodes,
         recalledConversationHistory: input.recalledConversationHistory,
+        digitalLifeRuntimeSurface: input.digitalLifeRuntimeSurface ?? null,
       }).catch(() => null)
     : null
 

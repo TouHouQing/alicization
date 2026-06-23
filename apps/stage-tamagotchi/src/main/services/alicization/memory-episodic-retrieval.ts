@@ -3,7 +3,11 @@ import type {
   AlicizationEpisodicReconsolidationSnapshot,
 } from '../../../shared/eventa'
 
-import { deriveMemoryContradictionSignal, deriveMemoryInterferencePenalty } from './humanlike-memory'
+import {
+  deriveMemoryContradictionSignal,
+  deriveMemoryInterferencePenalty,
+  deriveMemorySupersessionSignal,
+} from './humanlike-memory'
 import { scoreSemanticGraphWalk, scoreSemanticRecall } from './memory-semantic-retrieval'
 import { deriveEpisodicMemoryTier, scoreMemoryTierReachability } from './memory-tiering'
 import { normalizeOrganicMemoryText } from './organic-memory-hygiene'
@@ -109,6 +113,74 @@ function buildReconsolidationSearchText(event: AlicizationEpisodicEventRecord) {
   ].filter(Boolean).join(' ')
 }
 
+function deriveExecutionCallbackCarryMode(event: AlicizationEpisodicEventRecord) {
+  const haystack = [
+    event.threadAnchor,
+    event.whatHappened,
+    event.whatChanged,
+    event.relationshipMeaning,
+    event.lesson,
+    event.sourceSummary,
+    ...event.tags,
+    ...event.emotionTags,
+  ].filter(Boolean).join(' ').toLowerCase()
+  if (!/execution-callback|callback|soft-handoff|result-mode|result-lead/u.test(haystack))
+    return null
+  if (/repair-before-closeness|repair first|let repair settle|callback repair/u.test(haystack))
+    return 'repair-before-closeness' as const
+  if (/lower-pressure|leave room|keep room|space first|bounded/u.test(haystack))
+    return 'lower-pressure' as const
+  if (/trust warming|trust warmed|trust open|soft handoff/u.test(haystack))
+    return 'trust-warming' as const
+  return 'execution-callback' as const
+}
+
+function readLegacyEventMetadata(event: AlicizationEpisodicEventRecord) {
+  const metadata = (event as unknown as { metadata?: unknown }).metadata
+  return metadata && typeof metadata === 'object' && !Array.isArray(metadata)
+    ? metadata as Record<string, unknown>
+    : null
+}
+
+function isProjectStateCarryText(raw: unknown) {
+  if (typeof raw !== 'string')
+    return false
+  const normalized = raw.trim().toLowerCase()
+  if (!normalized)
+    return false
+  return /alicization|digital life|local-first|phase 1|same-her|same living|one living|project[-\s]?carry|project state|pre[-\s]?dialogue|preflight|unfinished closure|still-open|closure seam|life loop|task-shell|generic task shell|数字生命|同一个她|同一条线|闭环|具身/u.test(normalized)
+}
+
+function readProjectStateCarryText(event: AlicizationEpisodicEventRecord) {
+  const metadata = readLegacyEventMetadata(event)
+  const formalEventCarryText = [
+    event.threadAnchor,
+    event.whatHappened,
+    event.whatChanged,
+    event.relationshipMeaning,
+    event.lesson,
+    event.sourceSummary,
+    event.latestReconsolidation?.reason,
+    event.latestReconsolidation?.relationshipMeaning,
+    event.latestReconsolidation?.lesson,
+    ...event.tags,
+    ...event.emotionTags,
+  ].filter(isProjectStateCarryText)
+
+  return [
+    ...formalEventCarryText,
+    typeof metadata?.projectStatePreDialogueAwarenessLine === 'string' ? metadata.projectStatePreDialogueAwarenessLine : '',
+    typeof metadata?.projectStateSameHerSelfLine === 'string' ? metadata.projectStateSameHerSelfLine : '',
+    typeof metadata?.projectStatePreflightSummary === 'string' ? metadata.projectStatePreflightSummary : '',
+    typeof metadata?.projectIdentity === 'string' ? metadata.projectIdentity : '',
+    typeof metadata?.projectPhase === 'string' ? metadata.projectPhase : '',
+    typeof metadata?.projectPrimaryOpenLoop === 'string' ? metadata.projectPrimaryOpenLoop : '',
+    typeof metadata?.projectNextClosureTarget === 'string' ? metadata.projectNextClosureTarget : '',
+  ]
+    .filter(Boolean)
+    .join(' ')
+}
+
 function scoreAgendaTimeScope(input: {
   ageDays: number
   recollectionIntent?: AlicizationMemoryRecollectionIntentLite | null
@@ -173,6 +245,7 @@ export function rankAlicizationEpisodicEvents(input: {
   recollectionIntent?: AlicizationMemoryRecollectionIntentLite | null
   correctionShapingRationale?: string
   graphBoostByEventId?: Map<string, number> | null
+  projectStatePrimaryOpenLoop?: string | null
 }) {
   const threadTokens = tokenizeEpisodeText((input.threadAnchors ?? []).join(' '))
   const affectTokens = tokenizeEpisodeText((input.affectAnchors ?? []).join(' '))
@@ -222,6 +295,10 @@ export function rankAlicizationEpisodicEvents(input: {
     getId: node => node.id,
   })
   const persistentGraphBoostByEventId = input.graphBoostByEventId ?? null
+  const projectStatePrimaryOpenLoop = typeof input.projectStatePrimaryOpenLoop === 'string'
+    ? input.projectStatePrimaryOpenLoop.trim().toLowerCase()
+    : ''
+  const anthropomorphicMemoryClosureStillOpen = projectStatePrimaryOpenLoop.includes('memory still needs stronger end-to-end closure')
 
   const ranked = input.events
     .filter((event) => {
@@ -242,6 +319,7 @@ export function rankAlicizationEpisodicEvents(input: {
         event.relationshipMeaning,
         event.lesson,
         event.sourceSummary,
+        readProjectStateCarryText(event),
         ...event.withWhom,
         ...event.emotionTags,
         ...event.tags,
@@ -270,9 +348,37 @@ export function rankAlicizationEpisodicEvents(input: {
         ? Math.exp(-Math.max(0, input.nowTs - event.latestReconsolidation.at) / (14 * dayMs))
         : 0
       const ageDays = Math.max(0, (input.nowTs - event.occurredAt) / dayMs)
+      const executionCallbackCarryMode = deriveExecutionCallbackCarryMode(event)
+      const projectStateCarryText = readProjectStateCarryText(event).toLowerCase()
+      const projectStateCarryTagged = projectStateCarryText.length > 0
+      const executionCallbackProjectCarryTagged = projectStateCarryTagged
+        && (
+          projectStateCarryText.includes('continuity-execution-callback-project-carry')
+          || projectStateCarryText.includes('execution-callback project-carry')
+          || projectStateCarryText.includes('callback project-carry')
+        )
       const continuityTagged = event.sourceKind === 'maintenance'
         || event.tags.some(tag => /afterthought|continuity|session-mirror|dream/u.test(tag))
         || /session mirror|dream continuity|afterthought/u.test(`${event.sourceSummary ?? ''} ${event.whatChanged ?? ''}`)
+      const anthropomorphicContinuityCarrier = continuityTagged
+        || Boolean(event.relationshipMeaning?.trim())
+        || Boolean(event.lesson?.trim())
+        || Boolean(event.threadAnchor?.trim())
+      const projectClosureContinuityBoost = anthropomorphicMemoryClosureStillOpen
+        && anthropomorphicContinuityCarrier
+        && (
+          threadScore >= 0.08
+          || relationshipScore >= 0.08
+          || intentScore >= 0.08
+          || reconsolidationThreadScore >= 0.08
+          || reconsolidationRelationshipScore >= 0.08
+        )
+        ? continuityTagged
+          ? 0.08
+          : event.relationshipMeaning && event.lesson
+            ? 0.06
+            : 0.04
+        : 0
       const distantBoost = recollectionIntent?.temporalFocus === 'cross-session' && ageDays >= 2 ? 0.12 : 0
       const experienceMatchedBoost = recollectionIntent?.temporalFocus === 'experience-matched' && ageDays >= 1 ? 0.1 : 0
       const agendaTimeBoost = scoreAgendaTimeScope({
@@ -314,6 +420,42 @@ export function rankAlicizationEpisodicEvents(input: {
         )
         && (threadScore >= 0.14 || intentScore >= 0.12 || agendaProcedureBoost >= 0.08)
         ? 0.12
+        : 0
+      const executionCallbackCarryBoost = executionCallbackCarryMode
+        && ageDays <= 14
+        && (
+          recollectionIntent?.mode === 'execution-procedure'
+          || recollectionIntent?.temporalFocus === 'experience-matched'
+          || threadScore >= 0.1
+          || intentScore >= 0.08
+          || agendaProcedureBoost >= 0.04
+          || relationshipScore >= 0.08
+        )
+        ? executionCallbackCarryMode === 'lower-pressure'
+          ? 0.18
+          : executionCallbackCarryMode === 'trust-warming'
+            ? 0.16
+            : 0.1
+        : 0
+      const executionCallbackCrossSessionBoost = executionCallbackCarryMode
+        && Boolean(input.sessionId && event.sessionId && input.sessionId !== event.sessionId)
+        && input.carryAsMemory
+        ? executionCallbackCarryMode === 'lower-pressure' ? 0.08 : 0.06
+        : 0
+      const projectStateCarryBoost = executionCallbackCarryMode
+        && projectStateCarryTagged
+        && (
+          intentScore >= 0.08
+          || reconsolidationIntentScore >= 0.08
+          || lexicalScore >= 0.08
+          || relationshipScore >= 0.08
+          || correctionShapingRationale.includes('project')
+          || correctionShapingRationale.includes('phase 1')
+          || correctionShapingRationale.includes('same digital life')
+        )
+        ? executionCallbackProjectCarryTagged
+          ? 0.12
+          : 0.08
         : 0
       const proceduralBoost = recollectionIntent?.searchProceduralExperience
         && (
@@ -433,11 +575,15 @@ export function rankAlicizationEpisodicEvents(input: {
           + afterglowCarryBoost
           + crossSessionAfterglowBoost
           + sessionMirrorCarryBoost
+          + executionCallbackCarryBoost
+          + executionCallbackCrossSessionBoost
+          + projectStateCarryBoost
           + proceduralBoost
           + relationshipTriggerBoost
           + moodCongruentBoost
           + sceneAttachmentBoost
           + tierBoost
+          + projectClosureContinuityBoost
           - provenancePenalty
           - unstableReconstructionPenalty
 
@@ -477,6 +623,23 @@ export function rankAlicizationEpisodicEvents(input: {
       adjustedScore: item.score - item.interferencePenalty - item.contradictionSignal.penalty,
     }))
     .filter(item => item.adjustedScore >= 0.15)
+    .filter((item, _index, items) => !items.some((candidate) => {
+      if (candidate.event.id === item.event.id)
+        return false
+      return deriveMemorySupersessionSignal({
+        current: item.event,
+        candidate: candidate.event,
+      }).suppressCurrent
+    }))
+    .sort((left, right) => {
+      if (left.adjustedScore !== right.adjustedScore)
+        return right.adjustedScore - left.adjustedScore
+      if (left.score !== right.score)
+        return right.score - left.score
+      if (left.event.salience !== right.event.salience)
+        return right.event.salience - left.event.salience
+      return right.event.occurredAt - left.event.occurredAt
+    })
     .slice(0, input.limit)
 }
 

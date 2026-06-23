@@ -223,6 +223,52 @@ describe('memory fact retrieval', () => {
     expect(ranked[0]?.fact.id).toBe('fact-procedure')
   })
 
+  it('slightly prefers relationship or self-continuity facts when project state says anthropomorphic memory closure is still open', () => {
+    const nowTs = Date.UTC(2026, 3, 27, 12, 0, 0)
+    const ranked = rankAlicizationMemoryFacts({
+      query: 'space first return softly relationship continuity',
+      limit: 5,
+      currentTs: nowTs,
+      projectStatePrimaryOpenLoop: 'Memory still needs stronger end-to-end closure across turns, initiative, and embodiment so the same digital life keeps carrying Project identity carry, Phase 1 route carry, and Unresolved closure carry through one same still-open closure work.',
+      facts: [
+        {
+          id: 'fact-continuity',
+          subject: 'relationship',
+          predicate: 'prefers',
+          object: 'space first and softer return before closeness widens',
+          confidence: 0.78,
+          source: 'async-llm',
+          dedupeKey: 'relationship|prefers|space first and softer return before closeness widens',
+          createdAt: nowTs,
+          updatedAt: nowTs,
+          lastAccessAt: null,
+          accessCount: 1,
+          memoryDomain: 'relationship',
+          provenance: 'inferred',
+          memoryTier: 'warm',
+        } as any,
+        {
+          id: 'fact-adjacent',
+          subject: 'assistant',
+          predicate: 'noted',
+          object: 'lighter tone can help',
+          confidence: 0.8,
+          source: 'async-llm',
+          dedupeKey: 'assistant|noted|lighter tone can help',
+          createdAt: nowTs,
+          updatedAt: nowTs,
+          lastAccessAt: null,
+          accessCount: 1,
+          memoryDomain: 'preference',
+          provenance: 'inferred',
+          memoryTier: 'warm',
+        } as any,
+      ],
+    })
+
+    expect(ranked[0]?.fact.id).toBe('fact-continuity')
+  })
+
   it('projects facts into domain-native views with distinct recall semantics', () => {
     const nowTs = Date.UTC(2026, 3, 27, 12, 0, 0)
     const views = buildAlicizationDomainNativeMemoryViews([

@@ -99,6 +99,7 @@ interface AlicizationMemoryRetrievalTelemetryLike {
   selfEvolutionReasonCodes?: string[]
   relationshipCadenceRegressionRate?: number
   selfModelStaleBeliefRate?: number
+  runtimeMemoryClosureLongRunClosureRate?: number
 }
 
 function tokenize(text: string) {
@@ -192,6 +193,7 @@ export function buildAlicizationMemoryStatsProjection(input: {
   const selfModelStaleBeliefRate = input.retrievalTelemetry.selfModelStaleBeliefRate
     ?? input.retrievalTelemetry.staleSelfModelVetoRate
     ?? 0
+  const runtimeMemoryClosureLongRunClosureRate = input.retrievalTelemetry.runtimeMemoryClosureLongRunClosureRate ?? 0
 
   return {
     total: active,
@@ -313,6 +315,7 @@ export function buildAlicizationMemoryStatsProjection(input: {
       selfEvolutionReasonCodes: input.retrievalTelemetry.selfEvolutionReasonCodes ?? [],
       relationshipCadenceRegressionRate: Number((relationshipCadenceRegressionRate ?? 0).toFixed(2)),
       selfModelStaleBeliefRate: Number((selfModelStaleBeliefRate ?? 0).toFixed(2)),
+      runtimeMemoryClosureLongRunClosureRate: Number((runtimeMemoryClosureLongRunClosureRate ?? 0).toFixed(2)),
     },
     integrity: deriveAlicizationMemoryIntegrity({
       facts: input.facts,

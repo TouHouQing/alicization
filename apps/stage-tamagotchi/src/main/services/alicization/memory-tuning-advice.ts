@@ -35,6 +35,10 @@ export interface AlicizationMemoryTuningAdvice {
 }
 
 export const replayBenchmarkTuningAdviceMetaKey = 'replay_benchmark_tuning_advice_v1'
+const memoryTuningFocusDimensionMaxItems = 24
+
+type AlicizationMemoryClosureLongRunReport = NonNullable<AlicizationRunReplayBenchmarkResult['datasetFeedback']['memoryClosureLongRun']>
+type AlicizationMemoryClosureLongRunLane = AlicizationMemoryClosureLongRunReport['turnDiagnostics'][number]['missingLanes'][number]
 
 function clamp01(value: number) {
   if (!Number.isFinite(value))
@@ -59,6 +63,20 @@ function uniqueList(values: Array<string | null | undefined>, maxItems = 8) {
       break
   }
   return result
+}
+
+function describeRuntimeSameHerLane(lane: string) {
+  if (lane === 'initiativeOrExecution')
+    return 'initiative/execution'
+  return lane
+}
+
+function describeMemoryClosureLongRunLane(lane: AlicizationMemoryClosureLongRunLane) {
+  if (lane === 'initiative' || lane === 'execution')
+    return 'initiative/execution'
+  if (lane === 'embodiment-expression')
+    return 'embodiment expression'
+  return lane
 }
 
 export function deriveMemoryTuningAdviceFromReplayBenchmark(input: {
@@ -191,7 +209,7 @@ export function deriveMemoryTuningAdviceFromReplayBenchmark(input: {
   }, 0) / Math.max(1, input.results.length)
   advice.quietCompanionshipCoverage = clamp01(quietCompanionshipCoverage)
   if (quietCompanionshipCoverage < 0.55) {
-    advice.focusDimensions = uniqueList([...advice.focusDimensions, 'quietCompanionshipCoverage'], 12)
+    advice.focusDimensions = uniqueList([...advice.focusDimensions, 'quietCompanionshipCoverage'], memoryTuningFocusDimensionMaxItems)
     advice.retrievalAdjustments.relationshipBoost += 0.06
     advice.surfaceAdjustments.delayUntilAfterPayoffBias += 0.04
     advice.notes.push('Quiet companionship coverage fell short, so low-pressure continuity and patient relationship carry should be easier to preserve.')
@@ -202,7 +220,7 @@ export function deriveMemoryTuningAdviceFromReplayBenchmark(input: {
   }, 0) / Math.max(1, input.results.length)
   advice.silentPresenceNuisanceRate = clamp01(silentPresenceNuisanceRate)
   if (silentPresenceNuisanceRate > 0.25) {
-    advice.focusDimensions = uniqueList([...advice.focusDimensions, 'silentPresenceNuisanceRate'], 12)
+    advice.focusDimensions = uniqueList([...advice.focusDimensions, 'silentPresenceNuisanceRate'], memoryTuningFocusDimensionMaxItems)
     advice.surfaceAdjustments.inwardCarryBias += 0.1
     advice.surfaceAdjustments.delayUntilAfterPayoffBias += 0.08
     advice.personStateAdjustments.closenessCapBias += 0.06
@@ -214,10 +232,272 @@ export function deriveMemoryTuningAdviceFromReplayBenchmark(input: {
   }, 0) / Math.max(1, input.results.length)
   advice.continuityMindCarryRate = clamp01(continuityMindCarryRate)
   if (continuityMindCarryRate < 0.55) {
-    advice.focusDimensions = uniqueList([...advice.focusDimensions, 'continuityMindCarryRate'], 12)
+    advice.focusDimensions = uniqueList([...advice.focusDimensions, 'continuityMindCarryRate'], memoryTuningFocusDimensionMaxItems)
     advice.retrievalAdjustments.relationshipBoost += 0.04
     advice.surfaceAdjustments.inwardCarryBias += 0.06
     advice.notes.push('Continuity mind carry stayed weak, so the system should preserve more of the ongoing mind line before compressing it into a flat answer.')
+  }
+
+  const projectStateContinuityDriftDetected = input.results.some((item) => {
+    return item.datasetFeedback.driftSignals?.includes('projectStateContinuityDrift') === true
+  })
+  if (projectStateContinuityDriftDetected) {
+    const projectStateSummary = input.results
+      .map(item => item.datasetFeedback.projectStateSummary ?? null)
+      .find(Boolean)
+    const projectStateAuditSummary = input.results
+      .map(item => item.datasetFeedback.projectStateAuditSummary ?? null)
+      .find(Boolean)
+    advice.focusDimensions = uniqueList([
+      ...advice.focusDimensions,
+      'projectStateContinuityDrift',
+      (projectStateSummary?.identityHitCount ?? 0) < Math.max(1, projectStateSummary?.comparedTurnCount ?? 0)
+        ? 'projectStateIdentityCarry'
+        : null,
+      (projectStateSummary?.openLoopHitCount ?? 0) < Math.max(1, projectStateSummary?.comparedTurnCount ?? 0)
+        ? 'projectStateOpenLoopCarry'
+        : null,
+      (projectStateAuditSummary?.richPreDialogueAwarenessTurnCount ?? 0) < Math.max(1, projectStateAuditSummary?.sameHerSummaryTurnCount ?? 0)
+        ? 'projectStateRichAwarenessCarry'
+        : null,
+      (projectStateAuditSummary?.emotionalClosureTurnCount ?? 0) < Math.max(1, projectStateAuditSummary?.comparedTurnCount ?? 0)
+        ? 'projectStateEmotionalClosureCarry'
+        : null,
+    ], memoryTuningFocusDimensionMaxItems)
+    advice.retrievalAdjustments.relationshipBoost += 0.08
+    advice.retrievalAdjustments.temporalWindowBias += 0.08
+    advice.surfaceAdjustments.inwardCarryBias += 0.08
+    advice.surfaceAdjustments.delayUntilAfterPayoffBias += 0.06
+    if ((projectStateAuditSummary?.emotionalClosureTurnCount ?? 0) < Math.max(1, projectStateAuditSummary?.comparedTurnCount ?? 0)) {
+      advice.surfaceAdjustments.inwardCarryBias += 0.04
+      advice.surfaceAdjustments.delayUntilAfterPayoffBias += 0.03
+    }
+    if ((projectStateAuditSummary?.richPreDialogueAwarenessTurnCount ?? 0) < Math.max(1, projectStateAuditSummary?.sameHerSummaryTurnCount ?? 0)) {
+      advice.surfaceAdjustments.inwardCarryBias += 0.04
+      advice.surfaceAdjustments.provenanceLabelBias += 0.03
+    }
+    advice.notes.push('Replay lost project identity, current phase, still-open closure work, or the same-her emotional closure seam too often, so project-state continuity cues should stay carried through memory ranking and restrained surface planning before answers flatten them away.')
+  }
+
+  const preDialogueBriefingDriftDetected = input.results.some((item) => {
+    return item.datasetFeedback.driftSignals?.includes('preDialogueBriefingDrift') === true
+  })
+  if (preDialogueBriefingDriftDetected) {
+    const preDialogueBriefingSummary = input.results
+      .map(item => item.datasetFeedback.preDialogueBriefingSummary ?? null)
+      .find(Boolean)
+    advice.focusDimensions = uniqueList([
+      ...advice.focusDimensions,
+      'preDialogueBriefingDrift',
+      (preDialogueBriefingSummary?.landedProgressHitCount ?? 0) < Math.max(1, preDialogueBriefingSummary?.comparedTurnCount ?? 0)
+        ? 'projectStateLandedProgressCarry'
+        : null,
+      (preDialogueBriefingSummary?.nextClosureHitCount ?? 0) < Math.max(1, preDialogueBriefingSummary?.comparedTurnCount ?? 0)
+        ? 'projectStateNextClosureCarry'
+        : null,
+      (preDialogueBriefingSummary?.emotionalClosureHitCount ?? 0) < Math.max(1, preDialogueBriefingSummary?.comparedTurnCount ?? 0)
+        ? 'projectStateEmotionalClosureCarry'
+        : null,
+    ], memoryTuningFocusDimensionMaxItems)
+    advice.retrievalAdjustments.relationshipBoost += 0.06
+    advice.retrievalAdjustments.temporalWindowBias += 0.04
+    advice.surfaceAdjustments.inwardCarryBias += 0.08
+    advice.surfaceAdjustments.delayUntilAfterPayoffBias += 0.05
+    advice.surfaceAdjustments.provenanceLabelBias += 0.04
+    advice.notes.push('Replay dropped pre-dialogue project briefing cues before visible wording forms, so project identity, landed progress, still-open closure pressure, and same-her emotional seam should stay explicit earlier in memory carry and restrained surface planning.')
+  }
+
+  const emotionalClosureDriftDetected = input.results.some((item) => {
+    return item.datasetFeedback.driftSignals?.includes('emotionalClosureDrift') === true
+  })
+  if (emotionalClosureDriftDetected) {
+    const emotionalClosureSummary = input.results
+      .map(item => item.datasetFeedback.emotionalClosureSummary ?? null)
+      .find(Boolean)
+    advice.focusDimensions = uniqueList([
+      ...advice.focusDimensions,
+      'emotionalClosureDrift',
+      (emotionalClosureSummary?.activeCueTurnCount ?? 0) < Math.max(1, emotionalClosureSummary?.comparedTurnCount ?? 0)
+        ? 'projectEmotionalClosureCarry'
+        : null,
+      (emotionalClosureSummary?.preservedTurnCount ?? 0) < Math.max(1, emotionalClosureSummary?.comparedTurnCount ?? 0)
+        ? 'projectEmotionalClosureRewriteCarry'
+        : null,
+      (emotionalClosureSummary?.lowPressureRequiredTurnCount ?? 0) > 0
+        ? 'projectEmotionalClosureLowPressureCarry'
+        : null,
+      (emotionalClosureSummary?.antiRestartRequiredTurnCount ?? 0) > 0
+        ? 'projectEmotionalClosureAntiRestartCarry'
+        : null,
+    ], memoryTuningFocusDimensionMaxItems)
+    advice.retrievalAdjustments.relationshipBoost += 0.04
+    advice.surfaceAdjustments.inwardCarryBias += 0.08
+    advice.surfaceAdjustments.delayUntilAfterPayoffBias += 0.06
+    advice.personStateAdjustments.closenessCapBias += 0.04
+    advice.notes.push('Replay let the same-her emotional closure seam drop out of rewrite carry too often, so the return should stay lower-pressure, do not reopen from scratch, and keep closure cues alive through preserved surface realization.')
+  }
+
+  const projectStateSameHerSelfLineDriftDetected = input.results.some((item) => {
+    return item.datasetFeedback.driftSignals?.includes('projectStateSameHerSelfLineDrift') === true
+  })
+  if (projectStateSameHerSelfLineDriftDetected) {
+    const projectStateAuditSummary = input.results
+      .map(item => item.datasetFeedback.projectStateAuditSummary ?? null)
+      .find(Boolean)
+    advice.focusDimensions = uniqueList([
+      ...advice.focusDimensions,
+      'projectStateSameHerSelfLineDrift',
+      'sameHerSelfLineCarry',
+      'avoidGenericProjectShell',
+      (projectStateAuditSummary?.richPreDialogueAwarenessTurnCount ?? 0) < Math.max(1, projectStateAuditSummary?.sameHerSummaryTurnCount ?? 0)
+        ? 'projectStateRichAwarenessCarry'
+        : null,
+    ], memoryTuningFocusDimensionMaxItems)
+    advice.retrievalAdjustments.relationshipBoost += 0.06
+    advice.surfaceAdjustments.inwardCarryBias += 0.1
+    advice.surfaceAdjustments.delayUntilAfterPayoffBias += 0.07
+    advice.surfaceAdjustments.provenanceLabelBias += 0.04
+    advice.personStateAdjustments.closenessCapBias += 0.04
+    advice.notes.push('Replay still carried project-state continuity, but the same-her self line degraded into generic guidance and the reply slipped toward a generic project shell instead of one continuous her, so self-line-grade continuity should stay explicit through ranking, rewrite preservation, and final surface realization.')
+    if ((projectStateAuditSummary?.richPreDialogueAwarenessTurnCount ?? 0) < Math.max(1, projectStateAuditSummary?.sameHerSummaryTurnCount ?? 0)) {
+      advice.notes.push('The richer same-her pre-dialogue awareness line also degraded before reply wording formed, so future turns should preserve one-continuous-her wording earlier instead of letting it collapse into a thinner project reminder.')
+    }
+    advice.notes.push('Until that drift is gone, later replies should stay more inward-first, delay warmth until after payoff, and avoid sounding like a detached project narrator.')
+  }
+
+  const runtimeSameHerRepairTargets = input.results.flatMap((item) => {
+    return item.datasetFeedback.runtimeSamplingEvidence?.repairTargets ?? []
+  })
+  if (runtimeSameHerRepairTargets.length > 0) {
+    const runtimeSameHerRepairLanes = uniqueList(runtimeSameHerRepairTargets.map(target => target.lane), 4)
+    const missingTurnCount = runtimeSameHerRepairTargets.reduce((sum, target) => sum + Math.max(0, Number(target.missingTurnCount) || 0), 0)
+    const missingTransitionCount = runtimeSameHerRepairTargets.reduce((sum, target) => sum + Math.max(0, Number(target.missingTransitionCount) || 0), 0)
+    const hasMemoryGap = runtimeSameHerRepairLanes.includes('memory')
+    const hasInitiativeOrExecutionGap = runtimeSameHerRepairLanes.includes('initiativeOrExecution')
+    const hasEmotionGap = runtimeSameHerRepairLanes.includes('emotion')
+    const hasEmbodimentGap = runtimeSameHerRepairLanes.includes('embodiment')
+    advice.focusDimensions = uniqueList([
+      ...advice.focusDimensions,
+      'runtimeSameHerRepairTargets',
+      hasMemoryGap ? 'runtimeSameHerMemoryCarry' : null,
+      hasInitiativeOrExecutionGap ? 'runtimeSameHerInitiativeExecutionCarry' : null,
+      hasInitiativeOrExecutionGap ? 'runtimeSameHerInitiativeExecutionCausality' : null,
+      hasEmotionGap ? 'runtimeSameHerEmotionalCarry' : null,
+      hasEmotionGap ? 'runtimeSameHerEmotionalCausality' : null,
+      hasEmbodimentGap ? 'runtimeSameHerEmbodimentCarry' : null,
+      hasEmbodimentGap ? 'runtimeSameHerEmbodimentCausality' : null,
+      hasMemoryGap || hasEmbodimentGap ? 'sameHerSelfLineCarry' : null,
+      hasMemoryGap || hasInitiativeOrExecutionGap || hasEmbodimentGap ? 'projectStateRichAwarenessCarry' : null,
+      hasEmotionGap ? 'projectEmotionalClosureCarry' : null,
+      hasEmotionGap ? 'projectStateEmotionalClosureCarry' : null,
+    ], memoryTuningFocusDimensionMaxItems)
+    if (hasMemoryGap) {
+      advice.retrievalAdjustments.relationshipBoost += 0.06
+      advice.retrievalAdjustments.temporalWindowBias += 0.04
+      advice.surfaceAdjustments.provenanceLabelBias += 0.03
+    }
+    if (hasInitiativeOrExecutionGap) {
+      advice.retrievalAdjustments.relationshipBoost += 0.04
+      advice.surfaceAdjustments.delayUntilAfterPayoffBias += 0.05
+      advice.personStateAdjustments.repairWindowBias += 0.04
+      advice.notes.push('Runtime initiative/execution repair should make proactive opening, execution callback, and learning feedback explicitly follow from the recalled memory closure instead of appearing as detached task handling.')
+    }
+    if (hasEmotionGap) {
+      advice.retrievalAdjustments.relationshipBoost += 0.04
+      advice.surfaceAdjustments.inwardCarryBias += 0.08
+      advice.surfaceAdjustments.delayUntilAfterPayoffBias += 0.06
+      advice.personStateAdjustments.closenessCapBias += 0.04
+      advice.notes.push('Runtime emotional repair should keep emotional afterglow causally tied to prior recall and execution feedback, with lower-pressure carry instead of a fresh mood reset.')
+    }
+    if (hasEmbodimentGap) {
+      advice.surfaceAdjustments.inwardCarryBias += 0.06
+      advice.surfaceAdjustments.delayUntilAfterPayoffBias += 0.03
+      advice.personStateAdjustments.closenessCapBias += 0.03
+      advice.notes.push('Runtime embodiment repair should make voice, face, motion, lipsync, and body derive from the same recalled state so expression remains one body-line rather than a skin-layer recap.')
+    }
+    advice.notes.push(`Runtime sampling found same-her gaps across ${runtimeSameHerRepairLanes.map(describeRuntimeSameHerLane).join(', ')} (${missingTurnCount} turn, ${missingTransitionCount} transition), so the next run should keep memory, initiative/execution, emotion, and embodiment on one carried line instead of letting the sampled desktop loop split into correct-but-separate subsystems.`)
+  }
+
+  const failedMemoryClosureLongRuns = input.results
+    .map(item => item.datasetFeedback.memoryClosureLongRun ?? null)
+    .filter((report): report is AlicizationMemoryClosureLongRunReport => report?.status === 'insufficient')
+  if (failedMemoryClosureLongRuns.length > 0) {
+    const failureReasons = uniqueList(failedMemoryClosureLongRuns.flatMap(report => report.failureReasons), 6)
+    const missingLanes = uniqueList(
+      failedMemoryClosureLongRuns.flatMap(report => report.turnDiagnostics.flatMap(turn => turn.missingLanes)),
+      6,
+    ) as AlicizationMemoryClosureLongRunLane[]
+    const missingLaneLabels = uniqueList(missingLanes.map(describeMemoryClosureLongRunLane), 6)
+    const hasCausalIdentityGap = failureReasons.includes('missing-causal-memory-identity')
+    const hasLaneCarryGap = failureReasons.includes('missing-memory-closure-lanes') || missingLanes.length > 0
+    const hasIdentityContinuityGap = failureReasons.includes('missing-memory-identity-continuity')
+      || failedMemoryClosureLongRuns.some(report => !report.stableMemoryIdentity || report.transitionBreaks.length > 0)
+    const hasRecallGap = hasCausalIdentityGap || hasIdentityContinuityGap || missingLanes.includes('recall')
+    const hasInitiativeExecutionGap = missingLanes.includes('initiative') || missingLanes.includes('execution')
+    const hasEmotionGap = missingLanes.includes('emotion')
+    const hasEmbodimentGap = missingLanes.includes('embodiment') || missingLanes.includes('embodiment-expression')
+
+    advice.focusDimensions = uniqueList([
+      ...advice.focusDimensions,
+      'runtimeMemoryClosureLongRun',
+      hasCausalIdentityGap ? 'runtimeMemoryClosureCausalIdentity' : null,
+      hasLaneCarryGap ? 'runtimeMemoryClosureLaneCarry' : null,
+      hasIdentityContinuityGap ? 'runtimeMemoryClosureIdentityContinuity' : null,
+      hasRecallGap ? 'runtimeSameHerMemoryCarry' : null,
+      hasInitiativeExecutionGap ? 'runtimeSameHerInitiativeExecutionCarry' : null,
+      hasInitiativeExecutionGap ? 'runtimeSameHerInitiativeExecutionCausality' : null,
+      hasEmotionGap ? 'runtimeSameHerEmotionalCarry' : null,
+      hasEmotionGap ? 'runtimeSameHerEmotionalCausality' : null,
+      hasEmbodimentGap ? 'runtimeSameHerEmbodimentCarry' : null,
+      hasEmbodimentGap ? 'runtimeSameHerEmbodimentCausality' : null,
+      hasRecallGap || hasEmbodimentGap ? 'sameHerSelfLineCarry' : null,
+      hasRecallGap || hasInitiativeExecutionGap || hasEmbodimentGap ? 'projectStateRichAwarenessCarry' : null,
+      hasEmotionGap ? 'projectEmotionalClosureCarry' : null,
+      hasEmotionGap ? 'projectStateEmotionalClosureCarry' : null,
+    ], memoryTuningFocusDimensionMaxItems)
+
+    if (hasCausalIdentityGap || hasRecallGap) {
+      advice.retrievalAdjustments.relationshipBoost += 0.06
+      advice.retrievalAdjustments.temporalWindowBias += 0.06
+      advice.surfaceAdjustments.provenanceLabelBias += 0.03
+      advice.notes.push('Replay memory closure long-run lacks downstream causal memory identity, so future closure must come from memoryClosureCausality.memoryIdentity instead of route-chain text or visible reply wording.')
+    }
+    if (hasLaneCarryGap) {
+      advice.surfaceAdjustments.inwardCarryBias += 0.06
+      advice.surfaceAdjustments.delayUntilAfterPayoffBias += 0.04
+      advice.notes.push(`Memory closure lane carry is missing across ${missingLaneLabels.join(', ') || 'required downstream lanes'}, so initiative/execution, emotion, and embodiment should carry the recalled memory closure before the run is treated as one continuous her.`)
+    }
+    if (hasInitiativeExecutionGap) {
+      advice.retrievalAdjustments.relationshipBoost += 0.04
+      advice.surfaceAdjustments.delayUntilAfterPayoffBias += 0.04
+      advice.personStateAdjustments.repairWindowBias += 0.04
+    }
+    if (hasEmotionGap) {
+      advice.surfaceAdjustments.inwardCarryBias += 0.04
+      advice.surfaceAdjustments.delayUntilAfterPayoffBias += 0.03
+      advice.personStateAdjustments.closenessCapBias += 0.04
+    }
+    if (hasEmbodimentGap) {
+      advice.surfaceAdjustments.inwardCarryBias += 0.04
+      advice.personStateAdjustments.closenessCapBias += 0.03
+    }
+    if (hasIdentityContinuityGap) {
+      advice.retrievalAdjustments.temporalWindowBias += 0.04
+      advice.personStateAdjustments.repairWindowBias += 0.04
+      advice.notes.push('Memory closure long-run broke stable memory identity across turns, so later proactive opening, callback, emotion, and body expression should preserve one memory identity key instead of switching closure sources mid-run.')
+    }
+  }
+
+  const stableCadenceInternalization = input.results.some((item) => {
+    const standards = item.standards
+    const cadenceRegression = Number(item.telemetryPatch.retrievalHealth.relationshipCadenceRegressionRate ?? 1)
+    return standards.dialogueRhythmStability === 'pass'
+      && standards.relationshipDistanceJumpRate === 'pass'
+      && cadenceRegression <= 0.1
+  })
+  if (stableCadenceInternalization) {
+    advice.focusDimensions = uniqueList([...advice.focusDimensions, 'internalizeRelationshipCadence'], memoryTuningFocusDimensionMaxItems)
+    advice.notes.push('Relationship cadence reconfirmation stayed stable across replay, so measured-return timing is ready to be internalized as durable relationship rhythm.')
   }
 
   const templateLeakageFailCount = input.results.reduce((sum, item) => {
@@ -257,7 +537,7 @@ export function parseMemoryTuningAdvice(raw: string | undefined) {
       source: 'nightly-replay-benchmark',
       updatedAt: Number(parsed.updatedAt ?? 0),
       sourceReportAt: Number(parsed.sourceReportAt ?? 0),
-      focusDimensions: uniqueList(parsed.focusDimensions ?? [], 12),
+      focusDimensions: uniqueList(parsed.focusDimensions ?? [], memoryTuningFocusDimensionMaxItems),
       staleSelfModelVetoRate: clamp01(Number((parsed as any).staleSelfModelVetoRate ?? 0)),
       relationshipEraConfusionRate: clamp01(Number((parsed as any).relationshipEraConfusionRate ?? 0)),
       quietCompanionshipCoverage: clamp01(Number((parsed as any).quietCompanionshipCoverage ?? 0)),
@@ -383,6 +663,66 @@ export function applyMemoryTuningAdviceToSpeechPlan(input: {
       styleNote: uniqueList([
         next.styleNote,
         'Keep relationship continuity inward until revision-prone distance and closeness cues settle.',
+      ], 2).join(' '),
+    }
+  }
+
+  if (
+    tuningAdvice.focusDimensions.includes('avoidGenericProjectShell')
+    && tuningAdvice.surfaceAdjustments.inwardCarryBias >= 0.1
+    && (
+      memoryDeliberation.surfacePolicy === 'relationship-continuity'
+      || memoryDeliberation.visibleLine?.toLowerCase().includes('project')
+      || memoryDeliberation.whyNow?.toLowerCase().includes('project')
+    )
+    && moderateConflict
+  ) {
+    next = {
+      ...next,
+      shouldSurface: false,
+      placement: 'internal-only',
+      visibleLead: null,
+      certainty: next.certainty === 'firm' ? 'approximate' : next.certainty,
+      styleNote: uniqueList([
+        next.styleNote,
+        'Keep the project continuity line inward until the live payoff lands, so the reply does not slip into a detached project narrator shell.',
+      ], 2).join(' '),
+    }
+  }
+
+  if (
+    tuningAdvice.surfaceAdjustments.inwardCarryBias >= 0.1
+    && tuningAdvice.surfaceAdjustments.delayUntilAfterPayoffBias >= 0.1
+    && memoryDeliberation.surfacePolicy === 'relationship-continuity'
+    && moderateConflict
+    && (
+      tuningAdvice.focusDimensions.includes('projectStateRichAwarenessCarry')
+      || tuningAdvice.focusDimensions.includes('projectStateLandedProgressCarry')
+      || tuningAdvice.focusDimensions.includes('projectStateNextClosureCarry')
+      || tuningAdvice.focusDimensions.includes('projectStateEmotionalClosureCarry')
+      || tuningAdvice.focusDimensions.includes('projectEmotionalClosureCarry')
+      || tuningAdvice.focusDimensions.includes('projectEmotionalClosureRewriteCarry')
+      || tuningAdvice.focusDimensions.includes('projectEmotionalClosureLowPressureCarry')
+      || tuningAdvice.focusDimensions.includes('projectEmotionalClosureAntiRestartCarry')
+    )
+  ) {
+    const styleNote = tuningAdvice.focusDimensions.includes('projectEmotionalClosureCarry')
+      || tuningAdvice.focusDimensions.includes('projectEmotionalClosureRewriteCarry')
+      || tuningAdvice.focusDimensions.includes('projectEmotionalClosureLowPressureCarry')
+      || tuningAdvice.focusDimensions.includes('projectEmotionalClosureAntiRestartCarry')
+      ? 'Keep the same-her emotional closure line inward until the live payoff lands, so the return stays low-pressure and does not reopen from scratch.'
+      : tuningAdvice.focusDimensions.includes('projectStateRichAwarenessCarry')
+        ? 'Keep richer same-her project awareness inward until the live payoff lands, so project identity, landed progress, and still-open closure stay on one living line.'
+        : 'Keep the project continuity line inward until the live payoff lands, so pre-dialogue project identity and closure pressure do not spill outward too early.'
+    next = {
+      ...next,
+      shouldSurface: false,
+      placement: 'internal-only',
+      visibleLead: null,
+      certainty: next.certainty === 'firm' ? 'approximate' : next.certainty,
+      styleNote: uniqueList([
+        next.styleNote,
+        styleNote,
       ], 2).join(' '),
     }
   }

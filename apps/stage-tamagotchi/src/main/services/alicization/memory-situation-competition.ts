@@ -8,6 +8,18 @@ import type { OrganicMemoryPromptContext } from './runtime-soul'
 
 import { normalizeAlicizationMemorySituationCandidateSet } from '@proj-alicization/stage-shared'
 
+const validSituationSourceKinds = [
+  'event-graph',
+  'episodic-event',
+  'conversation-turn',
+  'fact',
+  'consolidation',
+  'procedure',
+  'relationship',
+  'self-model',
+  'world-model',
+] as const
+
 function sanitizeText(raw: unknown, maxChars = 260) {
   if (typeof raw !== 'string')
     return ''
@@ -20,11 +32,11 @@ function clamp01(value: number) {
   return Math.max(0, Math.min(1, Number(value.toFixed(2))))
 }
 
-function uniqueList(values: Array<string | null | undefined>, maxItems = 12) {
+function uniqueList(values: Array<string | null | undefined>, maxItems = 12, maxChars = 180) {
   const result: string[] = []
   const seen = new Set<string>()
   for (const value of values) {
-    const normalized = sanitizeText(value, 180)
+    const normalized = sanitizeText(value, maxChars)
     if (!normalized)
       continue
     const key = normalized.toLowerCase()
@@ -36,6 +48,16 @@ function uniqueList(values: Array<string | null | undefined>, maxItems = 12) {
       break
   }
   return result
+}
+
+function mergeSourceKinds(
+  existing: AlicizationMemorySituationCandidate['sourceKinds'],
+  additions: string[],
+): AlicizationMemorySituationCandidate['sourceKinds'] {
+  return uniqueList([...existing, ...additions], validSituationSourceKinds.length)
+    .filter((item): item is AlicizationMemorySituationCandidate['sourceKinds'][number] =>
+      (validSituationSourceKinds as readonly string[]).includes(item),
+    )
 }
 
 function tokenOverlapScore(queryTexts: string[], candidateTexts: string[]) {
@@ -118,8 +140,102 @@ function factKey(fact: AlicizationMemoryFact) {
   return sanitizeText(fact.dedupeKey || `${fact.subject}:${fact.predicate}`, 180) || fact.id
 }
 
-function scoreCandidatePriority(candidate: AlicizationMemorySituationCandidate) {
-  const graphSelectedBoost = candidate.sourceKinds.includes('event-graph') && candidate.status === 'selected'
+function normalizeSituationCompetitionText(...values: Array<string | null | undefined>) {
+  return values
+    .map(value => sanitizeText(value, 520))
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase()
+}
+
+function parseHumanlikeRecallTargets(queryTexts: string[], label: 'downrank' | 'merge' | 'forget') {
+  const targets: string[] = []
+  const rawText = queryTexts
+    .map(text => sanitizeText(text, 1200))
+    .filter(Boolean)
+    .join('\n')
+
+  for (const match of rawText.matchAll(new RegExp(`${label}=([^|\\n]+)`, 'giu'))) {
+    const payload = sanitizeText(match[1], 260)
+    if (!payload)
+      continue
+    for (const rawTarget of payload.split(',')) {
+      const target = sanitizeText(rawTarget, 180).toLowerCase()
+      if (!target || targets.includes(target))
+        continue
+      targets.push(target)
+    }
+  }
+
+  return targets
+}
+
+function deriveHumanlikeRecallCompetitionAuthority(queryTexts: string[]) {
+  const normalized = normalizeSituationCompetitionText(...queryTexts)
+  if (!normalized.includes('humanlike_memory_recall:'))
+    return null
+
+  const samePersonCarry = /\bsame[- ]?person\b|\bsame[- ]?her\b|\bsame living line\b|\bone continuous\b|\bcontinuous digital life\b|\btool shell\b|同一个她|同一条线|持续的人|持续人格|数字生命|工具壳/u.test(normalized)
+  const correctedMeaning = /\bhost corrected this memory meaning\b|\bcertainty=corrected\b|\bcorrected[- ]?meaning\b|我记得你纠正过/u.test(normalized)
+  const genericStatusSuppressed = /\bnot a status report\b|\bnot .*status recap\b|\bnot .*generic recap\b|不是状态汇报|不是要状态汇报|不是催进度/u.test(normalized)
+  const protectiveContinuity = /\bprotective-continuity\b|\bunfinishedness\b|\bcorrected-meaning\b|\bhost correction\b|\bsame-person continuity\b|\bsame living line\b|\btool shell\b|未完成|工具壳/u.test(normalized)
+  if (!samePersonCarry)
+    return null
+
+  return {
+    correctedMeaning,
+    genericStatusSuppressed,
+    protectiveContinuity,
+    downrankTargets: parseHumanlikeRecallTargets(queryTexts, 'downrank'),
+    mergeTargets: parseHumanlikeRecallTargets(queryTexts, 'merge'),
+    forgetTargets: parseHumanlikeRecallTargets(queryTexts, 'forget'),
+  }
+}
+
+function candidateMatchesHumanlikeRecallTarget(
+  candidate: AlicizationMemorySituationCandidate,
+  targets: string[],
+) {
+  if (targets.length === 0)
+    return false
+
+  const candidateId = sanitizeText(candidate.candidateId, 180).toLowerCase()
+  if (candidateId && targets.includes(candidateId))
+    return true
+
+  return candidate.selectedEvidenceIds.some((item) => {
+    const normalized = sanitizeText(item, 180).toLowerCase()
+    return normalized ? targets.includes(normalized) : false
+  })
+}
+
+function candidateLooksLikeGenericProgressShell(candidate: AlicizationMemorySituationCandidate) {
+  const text = normalizeSituationCompetitionText(
+    candidate.summary,
+    candidate.evidenceSummary,
+    candidate.relationshipArcKey,
+    candidate.procedureKey,
+    candidate.eraKey,
+  )
+  return /\bprogress\b|\bstatus recap\b|\bstatus report\b|\bgeneric recap\b|\bprogress update\b|\bconcise\b|进度|状态汇报|简短汇报/u.test(text)
+}
+
+function candidateLooksLikeCorrectedSamePersonContinuity(candidate: AlicizationMemorySituationCandidate) {
+  const text = normalizeSituationCompetitionText(
+    candidate.summary,
+    candidate.evidenceSummary,
+    candidate.relationshipArcKey,
+    candidate.procedureKey,
+    candidate.eraKey,
+  )
+  return /\bsame[- ]?person\b|\bsame[- ]?her\b|\bsame living line\b|\bone continuous\b|\bcontinuous digital life\b|\btool shell\b|\bnot a status report\b|\bnot .*status recap\b|同一个她|同一条线|持续的人|数字生命|工具壳|不是状态汇报/u.test(text)
+}
+
+function scoreCandidatePriority(
+  candidate: AlicizationMemorySituationCandidate,
+  humanlikeRecallAuthority?: ReturnType<typeof deriveHumanlikeRecallCompetitionAuthority> | null,
+) {
+  let graphSelectedBoost = candidate.sourceKinds.includes('event-graph') && candidate.status === 'selected'
     ? 0.28
     : 0
   const graphSourceBoost = candidate.sourceKinds.includes('event-graph')
@@ -128,7 +244,33 @@ function scoreCandidatePriority(candidate: AlicizationMemorySituationCandidate) 
   const evidenceBoost = Math.min(0.12, candidate.selectedEvidenceIds.length * 0.025)
   const crossSourceBoost = Math.min(0.08, Math.max(0, candidate.sourceKinds.length - 1) * 0.025)
   const latencyPenalty = Math.min(0.18, candidate.latencyCost * 0.08)
-  return Number((candidate.confidence + graphSelectedBoost + graphSourceBoost + evidenceBoost + crossSourceBoost - latencyPenalty).toFixed(4))
+
+  let humanlikeRecallAdjustment = 0
+  if (humanlikeRecallAuthority) {
+    const correctedSamePersonCandidate = candidateLooksLikeCorrectedSamePersonContinuity(candidate)
+    const genericProgressCandidate = candidateLooksLikeGenericProgressShell(candidate)
+    const explicitlyDownranked = candidateMatchesHumanlikeRecallTarget(candidate, humanlikeRecallAuthority.downrankTargets)
+    const mergedAway = candidateMatchesHumanlikeRecallTarget(candidate, humanlikeRecallAuthority.mergeTargets)
+    const forgotten = candidateMatchesHumanlikeRecallTarget(candidate, humanlikeRecallAuthority.forgetTargets)
+
+    if (mergedAway || forgotten)
+      graphSelectedBoost = 0
+
+    if (correctedSamePersonCandidate)
+      humanlikeRecallAdjustment += humanlikeRecallAuthority.correctedMeaning ? 0.38 : 0.24
+    if (humanlikeRecallAuthority.protectiveContinuity && correctedSamePersonCandidate)
+      humanlikeRecallAdjustment += 0.14
+    if (humanlikeRecallAuthority.genericStatusSuppressed && genericProgressCandidate)
+      humanlikeRecallAdjustment -= 0.3
+    if (explicitlyDownranked)
+      humanlikeRecallAdjustment -= 0.38
+    if (mergedAway)
+      humanlikeRecallAdjustment -= 0.34
+    if (forgotten)
+      humanlikeRecallAdjustment -= 0.42
+  }
+
+  return Number((candidate.confidence + graphSelectedBoost + graphSourceBoost + evidenceBoost + crossSourceBoost + humanlikeRecallAdjustment - latencyPenalty).toFixed(4))
 }
 
 function hasTextualConflict(left: string | null | undefined, right: string | null | undefined) {
@@ -143,14 +285,122 @@ function hasTextualConflict(left: string | null | undefined, right: string | nul
   return true
 }
 
+function buildCandidateLifeContext(input: {
+  candidate: AlicizationMemorySituationCandidate
+  hostAttitude?: OrganicMemoryPromptContext['hostAttitude']
+  affectiveResidue?: OrganicMemoryPromptContext['affectiveResidue']
+  learningExecutionState?: OrganicMemoryPromptContext['learningExecutionState']
+  personStateProjection?: OrganicMemoryPromptContext['personStateProjection']
+  executionCallbackCarry?: OrganicMemoryPromptContext['executionCallbackCarry']
+}) {
+  const relationshipContext = sanitizeText(
+    input.candidate.relationshipArcKey
+    ?? input.candidate.summary
+    ?? '',
+    180,
+  )
+  const hostAttitude = sanitizeText(input.hostAttitude, 180)
+  const affectiveResidue = sanitizeText(input.affectiveResidue?.summary, 180)
+  const executionCarry = sanitizeText(
+    input.learningExecutionState?.lastCompletedSummary
+    ?? input.executionCallbackCarry?.summary
+    ?? input.learningExecutionState?.lastFailureReason
+    ?? input.learningExecutionState?.currentBlockedReason
+    ?? '',
+    180,
+  )
+  const embodimentCarry = sanitizeText(
+    input.personStateProjection?.manifestationCadenceSummary
+    ?? input.personStateProjection?.relationshipDoctrine
+    ?? input.personStateProjection?.summary
+    ?? '',
+    180,
+  )
+
+  return {
+    relationshipContext,
+    hostAttitude,
+    affectiveResidue,
+    executionCarry,
+    embodimentCarry,
+  }
+}
+
+function enrichCandidateWithLifeContext(input: {
+  candidate: AlicizationMemorySituationCandidate
+  hostAttitude?: OrganicMemoryPromptContext['hostAttitude']
+  affectiveResidue?: OrganicMemoryPromptContext['affectiveResidue']
+  learningExecutionState?: OrganicMemoryPromptContext['learningExecutionState']
+  personStateProjection?: OrganicMemoryPromptContext['personStateProjection']
+  executionCallbackCarry?: OrganicMemoryPromptContext['executionCallbackCarry']
+}) {
+  const {
+    relationshipContext,
+    hostAttitude,
+    affectiveResidue,
+    executionCarry,
+    embodimentCarry,
+  } = buildCandidateLifeContext(input)
+  const relationshipRelevant = Boolean(input.candidate.relationshipArcKey)
+    || input.candidate.situationKind === 'relationship-arc'
+    || input.candidate.situationKind === 'mixed'
+  const procedureRelevant = Boolean(input.candidate.procedureKey)
+    || input.candidate.situationKind === 'procedure'
+    || input.candidate.situationKind === 'task-thread'
+    || (
+      input.executionCallbackCarry?.threadAnchor != null
+      && input.candidate.summary.toLowerCase().includes('callback')
+    )
+  const selfModelRelevant = input.candidate.situationKind === 'self-model'
+    || input.candidate.situationKind === 'relationship-arc'
+    || input.candidate.situationKind === 'mixed'
+  const additions = [
+    relationshipRelevant && relationshipContext ? `relationship-context=${relationshipContext}` : null,
+    selfModelRelevant && hostAttitude ? `host-attitude=${hostAttitude}` : null,
+    selfModelRelevant && affectiveResidue ? `affective-residue=${affectiveResidue}` : null,
+    procedureRelevant && executionCarry ? `execution-carry=${executionCarry}` : null,
+    selfModelRelevant && embodimentCarry ? `embodiment-carry=${embodimentCarry}` : null,
+  ]
+
+  return {
+    ...input.candidate,
+    sourceKinds: mergeSourceKinds(input.candidate.sourceKinds, [
+      relationshipRelevant && relationshipContext ? 'relationship' : '',
+      procedureRelevant && (input.candidate.procedureKey || executionCarry) ? 'procedure' : '',
+      selfModelRelevant && (hostAttitude || affectiveResidue || embodimentCarry) ? 'self-model' : '',
+    ]),
+    evidenceSummary: sanitizeText(uniqueList([
+      input.candidate.evidenceSummary,
+      ...additions,
+    ], 10).join(' | '), 520) || null,
+  } satisfies AlicizationMemorySituationCandidate
+}
+
 function inferCandidateSuppression(input: {
   candidate: AlicizationMemorySituationCandidate
   winner: AlicizationMemorySituationCandidate | null
   priority: number
+  humanlikeRecallAuthority?: ReturnType<typeof deriveHumanlikeRecallCompetitionAuthority> | null
 }) {
   const reasons: string[] = []
   if (input.candidate.suppressionReasons.some(reason => /suppressed|wrong-thread|stale-thread|conflict|contradict/u.test(reason)))
     reasons.push('source-marked-suppressed')
+
+  if (input.humanlikeRecallAuthority) {
+    if (candidateMatchesHumanlikeRecallTarget(input.candidate, input.humanlikeRecallAuthority.downrankTargets))
+      reasons.push('downranked-by-humanlike-recall')
+    if (candidateMatchesHumanlikeRecallTarget(input.candidate, input.humanlikeRecallAuthority.mergeTargets))
+      reasons.push('merged-away-by-humanlike-recall')
+    if (candidateMatchesHumanlikeRecallTarget(input.candidate, input.humanlikeRecallAuthority.forgetTargets))
+      reasons.push('forgotten-by-humanlike-recall')
+    if (
+      input.humanlikeRecallAuthority.correctedMeaning
+      && input.humanlikeRecallAuthority.genericStatusSuppressed
+      && candidateLooksLikeGenericProgressShell(input.candidate)
+    ) {
+      reasons.push('generic-progress-shell-under-corrected-recall')
+    }
+  }
 
   if (input.winner) {
     if (
@@ -203,8 +453,15 @@ export function buildMemorySituationCompetition(input: {
   recalledConversationHistory?: NonNullable<OrganicMemoryPromptContext['recalledConversationHistory']>
   consolidatedMemories?: NonNullable<OrganicMemoryPromptContext['consolidatedMemories']>
   proceduralMemories?: NonNullable<OrganicMemoryPromptContext['proceduralMemories']>
+  hostAttitude?: OrganicMemoryPromptContext['hostAttitude']
+  affectiveResidue?: OrganicMemoryPromptContext['affectiveResidue']
+  learningExecutionState?: OrganicMemoryPromptContext['learningExecutionState']
+  personStateProjection?: OrganicMemoryPromptContext['personStateProjection']
+  executionCallbackCarry?: OrganicMemoryPromptContext['executionCallbackCarry']
 }) {
+  const rawQueryTexts = uniqueList(input.queryTexts, 8, 1200)
   const queryTexts = uniqueList(input.queryTexts, 8)
+  const humanlikeRecallAuthority = deriveHumanlikeRecallCompetitionAuthority(rawQueryTexts)
   const candidates: AlicizationMemorySituationCandidate[] = [
     ...(normalizeAlicizationMemorySituationCandidateSet(input.eventGraphCandidates)?.candidates ?? []),
   ]
@@ -320,11 +577,22 @@ export function buildMemorySituationCompetition(input: {
     }))
   }
 
-  const ranked = candidates
+  const contextEnrichedCandidates = candidates.map(candidate =>
+    enrichCandidateWithLifeContext({
+      candidate,
+      hostAttitude: input.hostAttitude,
+      affectiveResidue: input.affectiveResidue,
+      learningExecutionState: input.learningExecutionState,
+      personStateProjection: input.personStateProjection,
+      executionCallbackCarry: input.executionCallbackCarry,
+    }),
+  )
+
+  const ranked = contextEnrichedCandidates
     .filter(candidate => candidate.summary)
     .sort((left, right) => {
-      const leftPriority = scoreCandidatePriority(left)
-      const rightPriority = scoreCandidatePriority(right)
+      const leftPriority = scoreCandidatePriority(left, humanlikeRecallAuthority)
+      const rightPriority = scoreCandidatePriority(right, humanlikeRecallAuthority)
       if (rightPriority !== leftPriority)
         return rightPriority - leftPriority
       const leftGraphSelected = left.sourceKinds.includes('event-graph') && left.status === 'selected'
@@ -340,13 +608,14 @@ export function buildMemorySituationCompetition(input: {
   const winner = ranked[0] ?? null
   const winnerId = winner?.candidateId ?? null
   const withStatuses: AlicizationMemorySituationCandidate[] = ranked.map((candidate, index): AlicizationMemorySituationCandidate => {
-    const priority = scoreCandidatePriority(candidate)
+    const priority = scoreCandidatePriority(candidate, humanlikeRecallAuthority)
     const suppressionReasons = index === 0
       ? []
       : inferCandidateSuppression({
           candidate,
           winner,
           priority,
+          humanlikeRecallAuthority,
         })
     const nextStatus: AlicizationMemorySituationCandidate['status'] = index === 0
       ? 'selected'

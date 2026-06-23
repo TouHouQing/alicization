@@ -139,4 +139,64 @@ describe('memory-restraint-judge', () => {
     expect(judge.surfaceMode).toBe('stable-core-only')
     expect(judge.whyWithheld).toContain('contradiction-heavy')
   })
+
+  it('keeps room-first repair-sensitive recollection compressed even when recall is otherwise allowed', () => {
+    const judge = buildAlicizationMemoryRestraintJudge({
+      shouldRecall: true,
+      shouldStayInward: false,
+      memoryControl: {
+        memoryPressure: 'medium',
+        certaintyPosture: 'approximate',
+        certaintyFloor: 'approximate',
+        relationshipVector: 'relational',
+        procedureCarryStrength: 0.68,
+        conflictBurden: 'low',
+        dominantProvenance: 'remembered',
+        provenancePosture: 'remembered-memory',
+        detailAssertionBudget: 'open',
+        surfacePermission: 'soft-surface',
+        retrospectiveDepth: 'thread',
+        openingStrategy: 'brief-relationship-carry',
+        answerStrategy: 'relationship-anchor',
+        visibilityDiscipline: 'embedded-visible-memory',
+        labelUncertainty: false,
+        frameAsPriorProcedure: false,
+        avoidArchiveDump: true,
+        avoidDateRecital: true,
+        avoidExecutionImpersonation: false,
+        stableCore: ['Give the host room first, then let repair land before widening the bond line.'],
+        unsafeDetails: [],
+      },
+      hostPersonModel: {
+        summary: 'The host needs room-first repair-sensitive continuity.',
+        routines: [],
+        sensitivities: [],
+        repairTriggers: [],
+        recurrentBurdens: [],
+        preferredClosenessByContext: [
+          { context: 'work', preference: 'room-first and work-focus before warmth' },
+        ],
+        trustLadder: {
+          stage: 'warming',
+          rationale: 'Respect boundaries, leave room, and land specific repair before widening the bond line.',
+        },
+      } as any,
+      followUpAffordance: {
+        intrusionRisk: 'low',
+        payoffDependency: 'can-surface-softly',
+      },
+      truthDiscipline: {
+        shouldLabelHypothesis: false,
+        forbidUnsupportedSpecificity: false,
+      },
+    })
+
+    expect(judge.surfaceMode).toBe('stable-core-only')
+    expect(judge.shouldOnlySurfaceStableCore).toBe(true)
+    expect(judge.shouldDelayUntilAfterPayoff).toBe(true)
+    expect(judge.whyWithheld).toContain('repair line')
+    expect(judge.summary).toContain('host_room_first=yes')
+    expect(judge.mustDo.some(item => item.includes('repair payoff'))).toBe(true)
+    expect(judge.mustNotDo.some(item => item.includes('room and boundary respect'))).toBe(true)
+  })
 })
