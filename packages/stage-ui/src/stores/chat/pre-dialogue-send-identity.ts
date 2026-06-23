@@ -7,16 +7,15 @@ import type {
 import {
   describeAlicizationEmbodimentClosureHeadline,
   isAlicizationThinProjectAwarenessLine,
-  isAlicizationThinSamePhaseCarryLine,
+  isAlicizationThinSamePhaseCarryLine as isThinSamePhaseCarryLine,
   resolveAlicizationProjectPreDialogueAwarenessLine,
-  scoreAlicizationProjectAwarenessLine,
 } from '@proj-alicization/stage-shared'
 
-type AlicizationPreDialogueAwarenessSnapshot = NonNullable<AlicizationProjectStateContinuitySnapshot['preDialogueAwareness']>
+type AlicizationPreDialogueAwarenessSnapshot = AlicizationProjectStateContinuitySnapshot['preDialogueAwareness']
 
 interface AlicizationPreDialogueClosureSnapshot {
-  status?: 'grounded' | 'partial' | 'drift' | 'rewritten' | null
-  summaryLine?: string | null
+  status: 'grounded' | 'partial' | 'drift'
+  summaryLine: string | null
   companionHeadlineLine?: string | null
   sameHerDriftRiskLine?: string | null
   companionBriefingLine?: string | null
@@ -27,32 +26,6 @@ interface AlicizationPreDialogueClosureSnapshot {
   reasons?: string[]
 }
 
-interface AlicizationLegacyAwareProjectStateContinuitySnapshot
-  extends Partial<AlicizationProjectStateContinuitySnapshot> {
-  latestProgress?: string | null
-  landedProgressSummary?: string | null
-  memoryClosureSummary?: string | null
-  openClosureSummary?: string | null
-  openFocusSummary?: string | null
-  nextFocusSummary?: string | null
-  nextClosureTargetSummary?: string | null
-  emotionalClosureSummary?: string | null
-  proactiveSameHerGap?: string | null
-  continuityRestraint?: string | null
-  continuityArcStage?: string | null
-  continuityPreferredTiming?: string | null
-  continuityCadence?: string | null
-  continuityCue?: string | null
-  preferredBlinkCadence?: 'normal' | 'linger' | 'quiet' | null
-  preferredGazeMode?: 'steady' | 'soften' | 'drift' | null
-  preflightSummary?: string | null
-  preDialogueAwarenessLine?: string | null
-  preDialogueAwarenessSummary?: string | null
-  awarenessLine?: string | null
-  companionHeadlineLine?: string | null
-  companionBriefingLine?: string | null
-}
-
 interface BuildPreDialogueSendIdentityInput {
   projectStateContinuitySnapshot?: AlicizationProjectStateContinuitySnapshot | null
   preDialogueClosureSnapshot?: AlicizationPreDialogueClosureSnapshot | null
@@ -60,119 +33,51 @@ interface BuildPreDialogueSendIdentityInput {
   continuitySummary?: string | null
 }
 
-function normalizeText(value: unknown) {
-  return typeof value === 'string' ? value.trim() : ''
-}
+type AlicizationLegacyAwareProjectStateContinuitySnapshot
+  = AlicizationProjectStateContinuitySnapshot & {
+    latestProgress?: string | null
+    landedProgressSummary?: string | null
+  }
 
-function normalizeNullableText(value: unknown) {
-  return normalizeText(value) || null
-}
-
-function pushUniqueLine(lines: string[], value: unknown) {
-  const normalized = normalizeText(value)
+function pushUniqueLine(lines: string[], value: string | null | undefined) {
+  const normalized = typeof value === 'string' ? value.trim() : ''
   if (!normalized || lines.includes(normalized))
     return
 
   lines.push(normalized)
 }
 
-function normalizeReasonPreview(values: unknown[]) {
+function normalizeReasonPreview(value: Array<string | null | undefined>) {
   const reasonPreview: string[] = []
-  for (const value of values) {
-    if (Array.isArray(value)) {
-      for (const item of value)
-        pushUniqueLine(reasonPreview, item)
-      continue
-    }
-    pushUniqueLine(reasonPreview, value)
-  }
+  for (const reason of value)
+    pushUniqueLine(reasonPreview, reason)
   return reasonPreview
 }
 
-function normalizeSendIdentityStatus(value: unknown): AlicizationPreDialogueSendIdentity['status'] {
-  return value === 'grounded' || value === 'drift'
-    ? value
-    : 'partial'
-}
-
 function resolveContinuityLatestLandedProgress(
-  continuity: AlicizationLegacyAwareProjectStateContinuitySnapshot | null | undefined,
+  continuity: AlicizationProjectStateContinuitySnapshot | null | undefined,
 ) {
+  const legacyAwareContinuity = continuity as AlicizationLegacyAwareProjectStateContinuitySnapshot | null | undefined
   return continuity?.latestLandedProgress?.trim()
-    || continuity?.latestProgress?.trim()
-    || continuity?.landedProgressSummary?.trim()
+    || legacyAwareContinuity?.latestProgress?.trim()
+    || legacyAwareContinuity?.landedProgressSummary?.trim()
     || ''
-}
-
-function looksLikeThinContinuityReminder(value: unknown) {
-  const normalized = normalizeText(value)
-  if (!normalized)
-    return true
-
-  const lowered = normalized.toLowerCase()
-  return isAlicizationThinProjectAwarenessLine(normalized)
-    || isAlicizationThinSamePhaseCarryLine(normalized)
-    || lowered.includes('generic continuity fallback')
-    || lowered.includes('generic continuity reminder')
-    || lowered.includes('generic same-her reminder')
-}
-
-function looksLikeLivedInSameHerLine(value: unknown) {
-  const normalized = normalizeText(value).toLowerCase()
-  if (!normalized)
-    return false
-
-  return normalized.includes('same-her hold')
-    || normalized.includes('measured-return')
-    || normalized.includes('same callback')
-    || normalized.includes('same living line')
-    || normalized.includes('one continuous her')
-    || normalized.includes('one living her')
-    || normalized.includes('同一个她')
-}
-
-function chooseStrongerAwarenessLine(...values: unknown[]) {
-  const candidates = values
-    .map(value => normalizeText(value))
-    .filter(Boolean)
-
-  if (candidates.length === 0)
-    return null
-
-  return candidates.reduce((best, current) => {
-    if (!best)
-      return current
-
-    const bestIsThin = looksLikeThinContinuityReminder(best)
-    const currentIsThin = looksLikeThinContinuityReminder(current)
-    if (bestIsThin !== currentIsThin)
-      return currentIsThin ? best : current
-
-    const bestIsLivedIn = looksLikeLivedInSameHerLine(best)
-    const currentIsLivedIn = looksLikeLivedInSameHerLine(current)
-    if (bestIsLivedIn !== currentIsLivedIn)
-      return currentIsLivedIn ? current : best
-
-    const bestScore = scoreAlicizationProjectAwarenessLine(best)
-    const currentScore = scoreAlicizationProjectAwarenessLine(current)
-    if (bestScore !== currentScore)
-      return currentScore > bestScore ? current : best
-
-    return current.length > best.length ? current : best
-  }, '')
 }
 
 export function resolvePreDialogueClosureCompanionHeadlineLine(
   closure: AlicizationPreDialogueClosureSnapshot | null | undefined,
 ) {
-  const explicitCompanionHeadlineLine = normalizeText(closure?.companionHeadlineLine)
+  if (!closure)
+    return null
+
+  const explicitCompanionHeadlineLine = closure.companionHeadlineLine?.trim() || ''
   if (explicitCompanionHeadlineLine)
     return explicitCompanionHeadlineLine
 
-  const candidateEvidenceLines = normalizeReasonPreview([
-    closure?.reasons ?? [],
-    closure?.summaryLine,
-  ])
+  const candidateEvidenceLines = [
+    ...(closure.reasons ?? []),
+    closure.summaryLine?.trim() || null,
+  ].filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
 
   for (const candidateEvidenceLine of candidateEvidenceLines) {
     const synthesizedCompanionHeadlineLine = describeAlicizationEmbodimentClosureHeadline({
@@ -184,195 +89,791 @@ export function resolvePreDialogueClosureCompanionHeadlineLine(
       return synthesizedCompanionHeadlineLine
   }
 
-  return null
+  const closureEvidence = [
+    closure.summaryLine?.trim() || null,
+    ...(closure.reasons ?? []),
+  ].filter((value): value is string => typeof value === 'string' && value.trim().length > 0).join(' | ')
+
+  const synthesizedCompanionHeadlineLine = describeAlicizationEmbodimentClosureHeadline({
+    authoritySummary: closureEvidence,
+    currentBodyState: closureEvidence,
+  }).trim()
+
+  return synthesizedCompanionHeadlineLine || null
+}
+
+function preferClosureAwareProjectLine(input: {
+  companionHeadlineLine?: string | null
+  companionBriefingLine?: string | null
+  summaryLine?: string | null
+}) {
+  const normalizedCompanionHeadlineLine = typeof input.companionHeadlineLine === 'string'
+    ? input.companionHeadlineLine.trim()
+    : ''
+  const normalizedCompanionBriefingLine = typeof input.companionBriefingLine === 'string'
+    ? input.companionBriefingLine.trim()
+    : ''
+  const preferredProjectAwareLine = normalizedCompanionBriefingLine || ''
+
+  if (!normalizedCompanionHeadlineLine)
+    return preferredProjectAwareLine || null
+  if (!preferredProjectAwareLine)
+    return normalizedCompanionHeadlineLine || null
+
+  const lowerHeadline = normalizedCompanionHeadlineLine.toLowerCase()
+  const lowerProjectAwareLine = preferredProjectAwareLine.toLowerCase()
+  const projectAwareLineCarriesBroaderPhaseClosure = (
+    lowerProjectAwareLine.includes('phase 1')
+    || lowerProjectAwareLine.includes('digital life project')
+    || lowerProjectAwareLine.includes('this digital life')
+    || lowerProjectAwareLine.includes('what has landed')
+    || lowerProjectAwareLine.includes('life loop that remains open')
+    || lowerProjectAwareLine.includes('life loop is still open')
+    || lowerProjectAwareLine.includes('still-open life loop')
+    || lowerProjectAwareLine.includes('the project still needs')
+    || lowerProjectAwareLine.includes('project still needs')
+  ) && (
+    lowerProjectAwareLine.includes('before speaking')
+    || lowerProjectAwareLine.includes('remember')
+    || lowerProjectAwareLine.includes('keep ')
+    || lowerProjectAwareLine.includes('explicit pre-dialogue carry path')
+    || lowerProjectAwareLine.includes('same-her')
+    || lowerProjectAwareLine.includes('embodiment closure')
+    || lowerProjectAwareLine.includes('widening outward')
+    || lowerProjectAwareLine.includes('flatten back')
+    || lowerProjectAwareLine.includes('generic assistant')
+  )
+  const headlineLooksEmbodimentOnly = lowerHeadline.includes('body')
+    || lowerHeadline.includes('face')
+    || lowerHeadline.includes('motion')
+    || lowerHeadline.includes('lipsync')
+    || lowerHeadline.includes('voice')
+    || lowerHeadline.includes('full cross-modal same-her line is not closed yet')
+    || lowerHeadline.includes('this one living her')
+  const headlineLooksGenericClosureStatus = lowerHeadline.includes('closure is still incomplete')
+    || lowerHeadline.includes('closure line is still settling')
+  const briefingLooksSpecificCarryGap = lowerProjectAwareLine.includes('explicit pre-dialogue carry path')
+    || lowerProjectAwareLine.includes('explicit carry gap')
+    || lowerProjectAwareLine.includes('self core')
+
+  if (projectAwareLineCarriesBroaderPhaseClosure && headlineLooksEmbodimentOnly)
+    return preferredProjectAwareLine
+  if (briefingLooksSpecificCarryGap && headlineLooksGenericClosureStatus)
+    return preferredProjectAwareLine
+  if (headlineLooksEmbodimentOnly || headlineLooksGenericClosureStatus)
+    return normalizedCompanionHeadlineLine
+
+  return preferredProjectAwareLine || normalizedCompanionHeadlineLine || null
+}
+
+function looksGenericClosureStatusHeadline(value: string | null | undefined) {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
+  if (!normalized)
+    return false
+
+  return normalized.includes('closure is still incomplete')
+    || normalized.includes('closure line is still settling')
 }
 
 export function resolvePreferredCompanionHeadlineLine(input: {
   awarenessCompanionHeadlineLine?: string | null
   closureCompanionHeadlineLine?: string | null
 }) {
-  const awarenessCompanionHeadlineLine = normalizeText(input.awarenessCompanionHeadlineLine)
-  const closureCompanionHeadlineLine = normalizeText(input.closureCompanionHeadlineLine)
+  const awarenessCompanionHeadlineLine = typeof input.awarenessCompanionHeadlineLine === 'string'
+    ? input.awarenessCompanionHeadlineLine.trim()
+    : ''
+  const closureCompanionHeadlineLine = typeof input.closureCompanionHeadlineLine === 'string'
+    ? input.closureCompanionHeadlineLine.trim()
+    : ''
 
   if (!awarenessCompanionHeadlineLine)
     return closureCompanionHeadlineLine || null
   if (!closureCompanionHeadlineLine)
     return awarenessCompanionHeadlineLine || null
 
-  const awarenessLooksGenericClosure = awarenessCompanionHeadlineLine.toLowerCase().includes('closure is still incomplete')
-    || awarenessCompanionHeadlineLine.toLowerCase().includes('closure line is still settling')
-  const closureLooksGenericClosure = closureCompanionHeadlineLine.toLowerCase().includes('closure is still incomplete')
-    || closureCompanionHeadlineLine.toLowerCase().includes('closure line is still settling')
+  if (
+    looksGenericClosureStatusHeadline(awarenessCompanionHeadlineLine)
+    && !looksGenericClosureStatusHeadline(closureCompanionHeadlineLine)
+  ) {
+    return closureCompanionHeadlineLine
+  }
 
-  return awarenessLooksGenericClosure && !closureLooksGenericClosure
-    ? closureCompanionHeadlineLine
-    : awarenessCompanionHeadlineLine
+  return awarenessCompanionHeadlineLine
+}
+
+function looksLikeThinContinuityReminder(value: string | null | undefined) {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
+  if (!normalized)
+    return false
+  return isAlicizationThinProjectAwarenessLine(normalized)
+    || normalized.includes('generic continuity fallback')
+    || normalized.includes('generic continuity reminder')
+    || normalized.includes('generic same-her reminder')
+    || (normalized.startsWith('same-her=') && normalized.includes('| landed=') && normalized.includes('| open='))
+}
+
+function looksLikeThinContinuityNextClosureLine(value: string | null | undefined) {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
+  if (!normalized)
+    return false
+
+  return normalized.includes('generic next target')
+    || normalized.includes('generic next closure')
+    || normalized.includes('generic closure shell')
+    || normalized.includes('generic closure summary')
+    || normalized.includes('steadier carry of this project, this phase, and the life loop that remains open')
+}
+
+function looksLikeProjectAwareBriefingReminder(value: string | null | undefined) {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
+  if (!normalized)
+    return false
+
+  return normalized.startsWith('before speaking')
+    && (
+      normalized.includes('digital life project')
+      || normalized.includes('same digital life project')
+      || normalized.includes('one living digital life project')
+    )
+    && (
+      normalized.includes('what has landed')
+      || normalized.includes('life loop is still open')
+      || normalized.includes('which life loop is still open')
+      || normalized.includes('still-open life loop')
+    )
+}
+
+function looksLikeLivedInSameHerHoldDetail(value: string | null | undefined) {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
+  if (!normalized)
+    return false
+
+  return normalized.includes('same-her hold')
+    || normalized.includes('same remembered seam')
+    || normalized.includes('measured-return')
+    || normalized.includes('repair-before-closeness')
+    || normalized.includes('rest-protective')
+    || normalized.includes('lower-pressure')
+    || normalized.includes('callback line')
+    || normalized.includes('keep more room this time')
+}
+
+function resolveContinuityBehaviorMode(input: {
+  continuityRestraint?: string | null
+  continuityCadence?: string | null
+}) {
+  const continuityCadence = typeof input.continuityCadence === 'string'
+    ? input.continuityCadence.trim().toLowerCase()
+    : ''
+  const continuityRestraint = typeof input.continuityRestraint === 'string'
+    ? input.continuityRestraint.trim().toLowerCase()
+    : ''
+
+  if (
+    continuityCadence === 'repair-before-closeness'
+    || continuityCadence === 'measured-return'
+    || continuityCadence === 'rest-protective'
+  ) {
+    return continuityCadence
+  }
+
+  if (
+    continuityRestraint === 'repair-before-closeness'
+    || continuityRestraint === 'measured-return'
+    || continuityRestraint === 'rest-protective'
+  ) {
+    return continuityRestraint
+  }
+
+  return null
+}
+
+function deriveSameHerHoldDetailFromContinuityBehavior(mode: string | null) {
+  if (mode === 'repair-before-closeness')
+    return 'same-her hold: repair-before-closeness still owns this callback line before closeness widens again.'
+  if (mode === 'rest-protective')
+    return 'same-her hold: rest-protective companionship is still keeping this return inward and fatigue-aware.'
+  if (mode === 'measured-return')
+    return 'same-her hold: measured-return is still keeping this callback line lower-pressure before it widens again.'
+  return null
+}
+
+function deriveContinuityCueFromBehavior(mode: string | null) {
+  if (mode === 'repair-before-closeness')
+    return 'Keep this return repair-before-closeness on the same living line until repair settles.'
+  if (mode === 'rest-protective')
+    return 'Keep this return rest-protective and on the same living line inward before widening outward.'
+  if (mode === 'measured-return')
+    return 'Keep this return measured-return on the same living line before widening outward.'
+  return null
+}
+
+function resolveEffectiveContinuityReopenCarry(
+  continuity: AlicizationProjectStateContinuitySnapshot | null | undefined,
+) {
+  const mode = resolveContinuityBehaviorMode({
+    continuityRestraint: continuity?.continuityRestraint ?? null,
+    continuityCadence: continuity?.continuityCadence ?? null,
+  })
+  const sameHerHoldDetail = continuity?.sameHerHoldDetail?.trim()
+    || deriveSameHerHoldDetailFromContinuityBehavior(mode)
+    || ''
+  const continuityCue = continuity?.continuityCue?.trim()
+    || deriveContinuityCueFromBehavior(mode)
+    || ''
+
+  return {
+    sameHerHoldDetail,
+    continuityCue,
+  }
+}
+
+function isSameHerInwardLowPressureHeadline(value: string | null | undefined) {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
+  if (!normalized)
+    return false
+
+  return normalized.includes('holding together mainly through')
+    && normalized.includes('low-pressure')
+    && (
+      normalized.includes('same line inward')
+      || normalized.includes('same living line')
+      || normalized.includes('same-her-inward-carry')
+      || normalized.includes('quiet-companionship')
+    )
+}
+
+function buildCompactSameHerInwardLowPressureAwarenessLine(companionBriefingLine: string) {
+  return `${companionBriefingLine} Right now this one living her is still keeping the same line inward and low-pressure while lipsync and voice rejoin.`
+}
+
+function isAnthropomorphicHostFacingSameHerHeadline(value: string | null | undefined) {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
+  if (!normalized)
+    return false
+
+  return normalized.includes('anthropomorphic emotional closure')
+    && normalized.includes('same-her inward-carry observability')
+    && normalized.includes('measured-return')
+}
+
+function buildCompactAnthropomorphicHostFacingAwarenessLine(companionBriefingLine: string) {
+  return `${companionBriefingLine} Right now this one living her still needs anthropomorphic emotional closure and same-her inward-carry observability to stay on one measured-return line before anything reopens outward.`
+}
+
+function compactSameHerInwardLowPressureFallbackAwareness(
+  awareness: AlicizationPreDialogueSendIdentity | null,
+) {
+  if (!awareness)
+    return null
+
+  const companionBriefingLine = awareness.companionBriefingLine?.trim() || ''
+  const companionHeadlineLine = awareness.companionHeadlineLine?.trim() || ''
+  const awarenessLine = awareness.awarenessLine?.trim() || ''
+  if (
+    !companionBriefingLine
+    || !companionHeadlineLine
+    || !awarenessLine
+    || awarenessLine !== companionHeadlineLine
+    || !isThinSamePhaseCarryLine(companionBriefingLine)
+    || !isSameHerInwardLowPressureHeadline(companionHeadlineLine)
+  ) {
+    return awareness
+  }
+
+  return {
+    ...awareness,
+    awarenessLine: buildCompactSameHerInwardLowPressureAwarenessLine(companionBriefingLine),
+  }
+}
+
+function compactAnthropomorphicHostFacingFallbackAwareness(
+  awareness: AlicizationPreDialogueSendIdentity | null,
+) {
+  if (!awareness)
+    return null
+
+  const companionBriefingLine = awareness.companionBriefingLine?.trim() || ''
+  const companionHeadlineLine = awareness.companionHeadlineLine?.trim() || ''
+  const awarenessLine = awareness.awarenessLine?.trim() || ''
+  if (
+    !companionBriefingLine
+    || !companionHeadlineLine
+    || !awarenessLine
+    || awarenessLine !== companionHeadlineLine
+    || !isThinSamePhaseCarryLine(companionBriefingLine)
+    || !isAnthropomorphicHostFacingSameHerHeadline(companionHeadlineLine)
+  ) {
+    return awareness
+  }
+
+  return {
+    ...awareness,
+    awarenessLine: buildCompactAnthropomorphicHostFacingAwarenessLine(companionBriefingLine),
+  }
+}
+
+function normalizePreDialogueAwarenessSnapshot(
+  snapshot: AlicizationPreDialogueAwarenessSnapshot | null | undefined,
+): AlicizationPreDialogueSendIdentity | null {
+  if (!snapshot)
+    return null
+
+  const reasonPreview: string[] = []
+  for (const reason of snapshot.reasonPreview ?? [])
+    pushUniqueLine(reasonPreview, reason)
+
+  const summaryLine = snapshot.summaryLine?.trim() || null
+  const companionHeadlineLine = snapshot.companionHeadlineLine?.trim() || null
+  const companionBriefingLine = snapshot.companionBriefingLine?.trim() || null
+  const companionNextClosureLine = snapshot.companionNextClosureLine?.trim() || null
+  const emotionalClosureCue = snapshot.emotionalClosureCue?.trim() || null
+  const explicitAwarenessSeed = snapshot.awarenessLine?.trim()
+    || companionBriefingLine
+    || summaryLine
+    || null
+  const resolvedAwarenessLine = resolveAlicizationProjectPreDialogueAwarenessLine({
+    runtimeProjectState: {
+      preDialogueAwarenessLine: explicitAwarenessSeed,
+      awarenessLine: explicitAwarenessSeed,
+      companionHeadlineLine,
+      companionBriefingLine,
+      preDialogueAwarenessSummary: summaryLine,
+      emotionalClosureSummary: emotionalClosureCue,
+    },
+  })
+  const awarenessLine = resolvedAwarenessLine === emotionalClosureCue
+    && explicitAwarenessSeed
+    && explicitAwarenessSeed !== emotionalClosureCue
+    ? explicitAwarenessSeed
+    : resolvedAwarenessLine
+
+  if (!summaryLine && !companionHeadlineLine && !companionBriefingLine && !companionNextClosureLine && !awarenessLine && reasonPreview.length === 0)
+    return null
+
+  return {
+    status: snapshot.status,
+    summaryLine,
+    companionHeadlineLine,
+    companionBriefingLine,
+    companionNextClosureLine,
+    awarenessLine,
+    emotionalClosureCue,
+    reasonPreview,
+  }
+}
+
+function upgradePreDialogueSendIdentityWithContinuity(
+  awareness: AlicizationPreDialogueSendIdentity | null,
+  continuity: AlicizationProjectStateContinuitySnapshot | null,
+) {
+  if (!awareness)
+    return null
+
+  const continuitySummary = continuity?.continuitySummary?.trim() || ''
+  const latestLandedProgress = resolveContinuityLatestLandedProgress(continuity)
+  const primaryOpenLoop = continuity?.primaryOpenLoop?.trim() || ''
+  const nextClosureTarget = continuity?.nextClosureTarget?.trim() || ''
+  const continuityAwarenessSummary = continuity?.preDialogueAwareness?.summaryLine?.trim() || ''
+  const continuityAwarenessLine = continuity?.preDialogueAwareness?.awarenessLine?.trim() || ''
+  const continuityAwarenessHeadlineLine = continuity?.preDialogueAwareness?.companionHeadlineLine?.trim() || ''
+  const continuityAwarenessBriefingLine = continuity?.preDialogueAwareness?.companionBriefingLine?.trim() || ''
+  const continuityAwarenessReasonPreview = continuity?.preDialogueAwareness?.reasonPreview ?? []
+  const {
+    sameHerHoldDetail,
+    continuityCue,
+  } = resolveEffectiveContinuityReopenCarry(continuity)
+  const sameHerSelfLine = continuity?.sameHerSelfLine?.trim() || ''
+  const proactiveSameHerGap = continuity?.proactiveSameHerGap?.trim() || ''
+  const richerContinuityAwarenessSummary = looksLikeThinContinuityReminder(continuityAwarenessSummary)
+    ? (!looksLikeThinContinuityReminder(continuityAwarenessLine)
+        ? continuityAwarenessLine
+        : !looksLikeThinContinuityReminder(continuityAwarenessHeadlineLine)
+            ? continuityAwarenessHeadlineLine
+            : !looksLikeThinContinuityReminder(continuityAwarenessBriefingLine)
+                ? continuityAwarenessBriefingLine
+                : '')
+              || sameHerHoldDetail
+              || continuityCue
+              || sameHerSelfLine
+              || ''
+    : continuityAwarenessSummary
+  const richerSameHerCarry
+    = sameHerHoldDetail
+      || continuityCue
+      || sameHerSelfLine
+      || ''
+  const richerContinuityProjectCarry = (
+    !looksLikeThinContinuityReminder(continuityAwarenessBriefingLine)
+      ? continuityAwarenessBriefingLine
+      : !looksLikeThinContinuityReminder(continuityAwarenessLine)
+          ? continuityAwarenessLine
+          : !looksLikeThinContinuityReminder(continuityAwarenessHeadlineLine)
+              ? continuityAwarenessHeadlineLine
+              : ''
+  ) || richerSameHerCarry
+  const awarenessLooksThin = looksLikeThinContinuityReminder(awareness.awarenessLine)
+  const companionBriefingLooksThin = looksLikeThinContinuityReminder(awareness.companionBriefingLine)
+  const companionNextClosureLooksThin = looksLikeThinContinuityNextClosureLine(awareness.companionNextClosureLine)
+  const awarenessCarriesCompactSamePhaseLine = isThinSamePhaseCarryLine(awareness.awarenessLine)
+  const companionBriefingCarriesCompactSamePhaseLine = isThinSamePhaseCarryLine(awareness.companionBriefingLine)
+  const awarenessLineMatchesCompanionBriefing = (awareness.awarenessLine?.trim() || '') !== ''
+    && awareness.awarenessLine?.trim() === (awareness.companionBriefingLine?.trim() || '')
+  const shouldPreferLivedInSameHerHoldDetailCarry = looksLikeLivedInSameHerHoldDetail(sameHerHoldDetail)
+    && (awarenessCarriesCompactSamePhaseLine || companionBriefingCarriesCompactSamePhaseLine)
+  const shouldPromoteProjectAwareHoldDetailIntoCompanionBriefing = looksLikeProjectAwareBriefingReminder(sameHerHoldDetail)
+    && companionBriefingCarriesCompactSamePhaseLine
+  const shouldPromoteProjectAwareHoldDetailIntoAwarenessLine = looksLikeProjectAwareBriefingReminder(sameHerHoldDetail)
+    && (awarenessLooksThin || awarenessCarriesCompactSamePhaseLine)
+  const shouldPromoteSameHerHoldDetailIntoAwarenessLine = awarenessLineMatchesCompanionBriefing
+    && looksLikeProjectAwareBriefingReminder(awareness.awarenessLine)
+    && looksLikeLivedInSameHerHoldDetail(sameHerHoldDetail)
+
+  const summaryLine = richerContinuityAwarenessSummary || awareness.summaryLine || continuitySummary || null
+
+  return {
+    ...awareness,
+    summaryLine,
+    companionBriefingLine: shouldPreferLivedInSameHerHoldDetailCarry && companionBriefingCarriesCompactSamePhaseLine
+      ? sameHerHoldDetail
+      : shouldPromoteProjectAwareHoldDetailIntoCompanionBriefing
+        ? sameHerHoldDetail
+        : companionBriefingLooksThin && richerContinuityProjectCarry
+          ? richerContinuityProjectCarry
+          : awareness.companionBriefingLine,
+    awarenessLine: shouldPromoteSameHerHoldDetailIntoAwarenessLine
+      ? sameHerHoldDetail
+      : shouldPreferLivedInSameHerHoldDetailCarry && awarenessCarriesCompactSamePhaseLine
+        ? sameHerHoldDetail
+        : shouldPromoteProjectAwareHoldDetailIntoAwarenessLine
+          ? sameHerHoldDetail
+          : awarenessLooksThin && richerContinuityProjectCarry
+            ? richerContinuityProjectCarry
+            : awareness.awarenessLine,
+    companionNextClosureLine: companionNextClosureLooksThin && nextClosureTarget
+      ? nextClosureTarget
+      : awareness.companionNextClosureLine,
+    emotionalClosureCue: awareness.emotionalClosureCue ?? (continuity?.emotionalClosureCue?.trim() || null),
+    reasonPreview: (() => {
+      const reasonPreview = normalizeReasonPreview(awareness.reasonPreview)
+      mergeReasonPreview(reasonPreview, [
+        ...(awarenessLooksThin || companionBriefingLooksThin
+          ? continuityAwarenessReasonPreview
+          : []),
+        awareness.awarenessLine,
+        continuitySummary,
+        latestLandedProgress,
+        continuityCue,
+        primaryOpenLoop,
+        proactiveSameHerGap,
+        nextClosureTarget,
+      ])
+      return reasonPreview
+    })(),
+  }
+}
+
+function mergeReasonPreview(target: string[], values: Array<string | null | undefined>) {
+  for (const value of values)
+    pushUniqueLine(target, value)
 }
 
 function buildPreDialogueSendIdentityProjectState(input: {
-  continuity: AlicizationLegacyAwareProjectStateContinuitySnapshot | null
+  continuity: AlicizationProjectStateContinuitySnapshot | null
   summaryLine: string | null
   companionHeadlineLine: string | null
   companionBriefingLine: string | null
   awarenessLine: string | null
   emotionalClosureCue: string | null
-}): AlicizationRuntimeProjectStateDigest {
+}): AlicizationRuntimeProjectStateDigest | null {
   const continuity = input.continuity
+  const identity = continuity?.identity?.trim() || null
+  const currentPhase = continuity?.currentPhase?.trim() || null
   const latestLandedProgress = resolveContinuityLatestLandedProgress(continuity) || null
-  const primaryOpenLoop = normalizeNullableText(continuity?.primaryOpenLoop)
-    ?? normalizeNullableText(continuity?.memoryClosureSummary)
-    ?? normalizeNullableText(continuity?.openClosureSummary)
-  const preDialogueAwarenessSummary = normalizeNullableText(continuity?.preDialogueAwarenessSummary)
-    ?? input.summaryLine
+  const primaryOpenLoop = continuity?.primaryOpenLoop?.trim() || null
+  const nextClosureTarget = continuity?.nextClosureTarget?.trim() || null
+  const continuityRestraint = continuity?.continuityRestraint?.trim() || null
+  const continuityArcStage = continuity?.continuityArcStage?.trim() || null
+  const continuityPreferredTiming = continuity?.continuityPreferredTiming?.trim() || null
+  const continuityCadence = continuity?.continuityCadence?.trim() || null
+  const {
+    sameHerHoldDetail: effectiveSameHerHoldDetail,
+    continuityCue: effectiveContinuityCue,
+  } = resolveEffectiveContinuityReopenCarry(continuity)
+  const sameHerSelfLine = continuity?.sameHerSelfLine?.trim() || null
+  const sameHerDriftRisk = continuity?.sameHerDriftRisk?.trim() || null
+  const proactiveSameHerGap = continuity?.proactiveSameHerGap?.trim() || null
 
-  const continuitySummary = normalizeNullableText(continuity?.continuitySummary)
+  if (
+    !input.summaryLine
+    && !input.companionHeadlineLine
+    && !input.companionBriefingLine
+    && !input.awarenessLine
+    && !identity
+    && !currentPhase
+    && !latestLandedProgress
+    && !primaryOpenLoop
+    && !nextClosureTarget
+    && !continuityRestraint
+    && !continuityArcStage
+    && !continuityPreferredTiming
+    && !continuityCadence
+    && !effectiveContinuityCue
+    && !sameHerSelfLine
+    && !effectiveSameHerHoldDetail
+    && !sameHerDriftRisk
+    && !proactiveSameHerGap
+    && !input.emotionalClosureCue
+  ) {
+    return null
+  }
 
   return {
     preflightSummary: input.summaryLine,
     preDialogueAwarenessLine: input.awarenessLine,
-    preDialogueAwarenessSummary,
+    preDialogueAwarenessSummary: input.summaryLine,
     awarenessLine: input.awarenessLine,
     companionHeadlineLine: input.companionHeadlineLine,
     companionBriefingLine: input.companionBriefingLine,
-    identity: normalizeNullableText(continuity?.identity),
-    currentPhase: normalizeNullableText(continuity?.currentPhase),
+    identity,
+    currentPhase,
     latestLandedProgress,
     memoryClosureSummary: primaryOpenLoop,
     primaryOpenLoop,
-    nextClosureTarget: normalizeNullableText(continuity?.nextClosureTarget)
-      ?? normalizeNullableText(continuity?.nextClosureTargetSummary),
-    sameHerSelfLine: normalizeNullableText(continuity?.sameHerSelfLine),
-    sameHerHoldDetail: normalizeNullableText(continuity?.sameHerHoldDetail),
-    sameHerDriftRisk: normalizeNullableText(continuity?.sameHerDriftRisk),
+    nextClosureTarget,
+    ...(continuityRestraint
+      ? { continuityRestraint }
+      : {}),
+    ...(continuityArcStage
+      ? { continuityArcStage }
+      : {}),
+    ...(continuityPreferredTiming
+      ? { continuityPreferredTiming }
+      : {}),
+    ...(continuityCadence
+      ? { continuityCadence }
+      : {}),
+    ...(effectiveContinuityCue
+      ? { continuityCue: effectiveContinuityCue }
+      : {}),
+    sameHerSelfLine,
+    sameHerHoldDetail: effectiveSameHerHoldDetail || null,
+    sameHerDriftRisk,
+    ...(proactiveSameHerGap
+      ? { proactiveSameHerGap }
+      : {}),
     emotionalClosureCue: input.emotionalClosureCue,
-    ...(continuitySummary ? { continuitySummary } : {}),
-    ...(normalizeText(continuity?.proactiveSameHerGap)
-      ? { proactiveSameHerGap: normalizeText(continuity?.proactiveSameHerGap) }
-      : {}),
-    ...(normalizeText(continuity?.continuityRestraint)
-      ? { continuityRestraint: normalizeText(continuity?.continuityRestraint) }
-      : {}),
-    ...(normalizeText(continuity?.continuityArcStage)
-      ? { continuityArcStage: normalizeText(continuity?.continuityArcStage) }
-      : {}),
-    ...(normalizeText(continuity?.continuityPreferredTiming)
-      ? { continuityPreferredTiming: normalizeText(continuity?.continuityPreferredTiming) }
-      : {}),
-    ...(normalizeText(continuity?.continuityCadence)
-      ? { continuityCadence: normalizeText(continuity?.continuityCadence) }
-      : {}),
-    ...(normalizeText(continuity?.continuityCue)
-      ? { continuityCue: normalizeText(continuity?.continuityCue) }
-      : {}),
-    ...(continuity?.preferredBlinkCadence
-      ? { preferredBlinkCadence: continuity.preferredBlinkCadence }
-      : {}),
-    ...(continuity?.preferredGazeMode
-      ? { preferredGazeMode: continuity.preferredGazeMode }
-      : {}),
   }
 }
 
 export function buildPreDialogueSendIdentityFromSnapshots(
   input: BuildPreDialogueSendIdentityInput,
 ): AlicizationPreDialogueSendIdentity | null {
-  const continuity = input.projectStateContinuitySnapshot as AlicizationLegacyAwareProjectStateContinuitySnapshot | null | undefined ?? null
-  const closure = input.preDialogueClosureSnapshot ?? continuity?.preDialogueClosure ?? null
-  const awareness = input.preDialogueAwarenessSnapshot ?? continuity?.preDialogueAwareness ?? null
-  const closureCompanionHeadlineLine = resolvePreDialogueClosureCompanionHeadlineLine(closure)
-  const awarenessLineFromProjectState = resolveAlicizationProjectPreDialogueAwarenessLine({
-    runtimeProjectState: {
-      identity: continuity?.identity,
-      currentPhase: continuity?.currentPhase,
-      preDialogueAwarenessLine: continuity?.preDialogueAwarenessLine,
-      awarenessLine: continuity?.awarenessLine,
-      companionHeadlineLine: continuity?.companionHeadlineLine,
-      companionBriefingLine: continuity?.companionBriefingLine,
-      preDialogueAwarenessSummary: continuity?.preDialogueAwarenessSummary,
-      preflightSummary: continuity?.preflightSummary,
-      latestLandedProgress: continuity?.latestLandedProgress,
-      latestProgress: continuity?.latestProgress,
-      landedProgressSummary: continuity?.landedProgressSummary,
-      primaryOpenLoop: continuity?.primaryOpenLoop,
-      openClosureSummary: continuity?.openClosureSummary,
-      nextClosureTarget: continuity?.nextClosureTarget,
-      nextClosureTargetSummary: continuity?.nextClosureTargetSummary,
-      emotionalClosureCue: continuity?.emotionalClosureCue,
-      emotionalClosureSummary: continuity?.emotionalClosureSummary,
-      sameHerSelfLine: continuity?.sameHerSelfLine,
-      sameHerHoldDetail: continuity?.sameHerHoldDetail,
-      continuityCue: continuity?.continuityCue,
-      continuityRestraint: continuity?.continuityRestraint,
-      continuityPreferredTiming: continuity?.continuityPreferredTiming,
-      continuityCadence: continuity?.continuityCadence,
-      proactiveSameHerGap: continuity?.proactiveSameHerGap,
-      sameHerDriftRisk: continuity?.sameHerDriftRisk,
-    },
-  })
-  const summaryLine = normalizeNullableText(awareness?.summaryLine)
-    ?? normalizeNullableText(closure?.summaryLine)
-    ?? normalizeNullableText(continuity?.preflightSummary)
-    ?? normalizeNullableText(input.continuitySummary)
-    ?? normalizeNullableText(continuity?.continuitySummary)
-  const companionHeadlineLine = resolvePreferredCompanionHeadlineLine({
-    awarenessCompanionHeadlineLine: awareness?.companionHeadlineLine ?? continuity?.companionHeadlineLine ?? null,
-    closureCompanionHeadlineLine,
-  })
-  const companionBriefingLine = normalizeNullableText(awareness?.companionBriefingLine)
-    ?? normalizeNullableText(closure?.companionBriefingLine)
-    ?? normalizeNullableText(continuity?.companionBriefingLine)
-  const companionNextClosureLine = normalizeNullableText(awareness?.companionNextClosureLine)
-    ?? normalizeNullableText(closure?.companionNextClosureLine)
-    ?? normalizeNullableText(continuity?.nextClosureTarget)
-  const emotionalClosureCue = normalizeNullableText(awareness?.emotionalClosureCue)
-    ?? normalizeNullableText(closure?.emotionalClosureCue)
-    ?? normalizeNullableText(continuity?.emotionalClosureCue)
-  const explicitAwarenessLine = normalizeText(awareness?.awarenessLine)
-  const awarenessLine = explicitAwarenessLine && !looksLikeThinContinuityReminder(explicitAwarenessLine)
-    ? explicitAwarenessLine
-    : chooseStrongerAwarenessLine(
-        awareness?.awarenessLine,
-        continuity?.sameHerHoldDetail,
-        continuity?.continuityCue,
-        companionBriefingLine,
-        awarenessLineFromProjectState,
-        continuity?.sameHerSelfLine,
-        input.continuitySummary,
-        summaryLine,
-        resolveContinuityLatestLandedProgress(continuity),
+  const directAwareness = normalizePreDialogueAwarenessSnapshot(
+    input.preDialogueAwarenessSnapshot ?? input.projectStateContinuitySnapshot?.preDialogueAwareness ?? null,
+  )
+  const continuity = input.projectStateContinuitySnapshot ?? null
+  const upgradedAwareness = upgradePreDialogueSendIdentityWithContinuity(directAwareness, continuity)
+  const closure = input.preDialogueClosureSnapshot ?? null
+  const continuitySummary = input.continuitySummary?.trim()
+    || continuity?.continuitySummary?.trim()
+    || ''
+  const reasonPreview = upgradedAwareness?.reasonPreview ? normalizeReasonPreview(upgradedAwareness.reasonPreview) : []
+  const hasExplicitAwarenessSnapshot = Boolean(input.preDialogueAwarenessSnapshot)
+  const hasContinuityAwarenessFallback = !hasExplicitAwarenessSnapshot && Boolean(continuity?.preDialogueAwareness)
+  const resolvedFallbackAwareness = hasContinuityAwarenessFallback
+    ? compactAnthropomorphicHostFacingFallbackAwareness(
+        compactSameHerInwardLowPressureFallbackAwareness(upgradedAwareness),
       )
-  const reasonPreview = normalizeReasonPreview([
-    awareness?.reasonPreview ?? [],
-    closure?.reasons ?? [],
-    closure?.briefingLines ?? [],
-    awarenessLine,
-    emotionalClosureCue,
-    continuity?.identity,
-    continuity?.currentPhase,
-    resolveContinuityLatestLandedProgress(continuity),
-    continuity?.sameHerSelfLine,
-    continuity?.sameHerHoldDetail,
-    continuity?.sameHerDriftRisk,
-    continuity?.primaryOpenLoop,
-    continuity?.nextClosureTarget,
-    continuity?.proactiveSameHerGap,
-    continuity?.continuityCue,
-  ])
+    : upgradedAwareness
 
-  if (
-    !summaryLine
-    && !companionHeadlineLine
-    && !companionBriefingLine
-    && !companionNextClosureLine
-    && !awarenessLine
-    && !emotionalClosureCue
-    && reasonPreview.length === 0
-  ) {
-    return null
+  if (hasExplicitAwarenessSnapshot && (continuity || closure)) {
+    mergeReasonPreview(reasonPreview, [
+      resolvedFallbackAwareness?.companionBriefingLine ?? null,
+      resolvedFallbackAwareness?.awarenessLine ?? null,
+      resolvedFallbackAwareness?.companionNextClosureLine ?? null,
+      closure?.companionshipReasonLine?.trim() ?? null,
+    ])
   }
+  for (const reason of closure?.reasons ?? [])
+    pushUniqueLine(reasonPreview, reason)
+  if (continuity) {
+    const {
+      sameHerHoldDetail,
+      continuityCue,
+    } = resolveEffectiveContinuityReopenCarry(continuity)
+    if (hasExplicitAwarenessSnapshot || hasContinuityAwarenessFallback) {
+      mergeReasonPreview(reasonPreview, [
+        continuity?.identity,
+        continuity?.currentPhase,
+        resolveContinuityLatestLandedProgress(continuity),
+        sameHerHoldDetail || null,
+        continuityCue || null,
+        continuity?.sameHerSelfLine ?? null,
+        continuity?.sameHerDriftRisk ?? null,
+        continuity?.proactiveSameHerGap ?? null,
+        continuity?.primaryOpenLoop,
+        continuity?.nextClosureTarget,
+      ])
+    }
+    else {
+      mergeReasonPreview(reasonPreview, [
+        continuity?.identity,
+        continuity?.currentPhase,
+        resolveContinuityLatestLandedProgress(continuity),
+        sameHerHoldDetail || null,
+        continuityCue || null,
+        continuity?.sameHerSelfLine ?? null,
+        continuity?.sameHerDriftRisk ?? null,
+        continuity?.proactiveSameHerGap ?? null,
+        continuity?.primaryOpenLoop,
+        continuity?.nextClosureTarget,
+      ])
+    }
+  }
+  if (hasExplicitAwarenessSnapshot && closure) {
+    mergeReasonPreview(reasonPreview, [
+      closure?.companionHeadlineLine ?? null,
+      closure?.companionBriefingLine ?? null,
+      closure?.companionshipReasonLine ?? null,
+      closure?.summaryLine ?? null,
+    ])
+  }
+  else if (closure?.companionshipReasonLine?.trim()) {
+    pushUniqueLine(reasonPreview, closure.companionshipReasonLine.trim())
+  }
+  if (!directAwareness && continuitySummary)
+    pushUniqueLine(reasonPreview, continuitySummary)
+
+  const effectiveContinuityReopenCarry = resolveEffectiveContinuityReopenCarry(continuity)
+  const effectiveSameHerHoldDetail = effectiveContinuityReopenCarry.sameHerHoldDetail || null
+  const effectiveContinuityCue = effectiveContinuityReopenCarry.continuityCue || null
+  const closureSummaryLine = closure?.summaryLine?.trim() || null
+  const preferredProjectAwareCarryLine = [
+    closure?.companionBriefingLine?.trim() ?? null,
+    effectiveSameHerHoldDetail,
+    effectiveContinuityCue,
+    continuity?.preDialogueAwareness?.companionBriefingLine?.trim() ?? null,
+    continuity?.preDialogueAwareness?.awarenessLine?.trim() ?? null,
+  ].find((value): value is string => looksLikeProjectAwareBriefingReminder(value)) ?? null
+  const preferredProjectAwareCompanionBriefingLine = [
+    closure?.companionBriefingLine?.trim() ?? null,
+    effectiveSameHerHoldDetail,
+    effectiveContinuityCue,
+    continuity?.preDialogueAwareness?.companionBriefingLine?.trim() ?? null,
+  ].find((value): value is string => looksLikeProjectAwareBriefingReminder(value)) ?? null
+  const resolvedSummaryLooksThin = looksLikeThinContinuityReminder(resolvedFallbackAwareness?.summaryLine)
+  const resolvedCompanionBriefingLooksThin = looksLikeThinContinuityReminder(resolvedFallbackAwareness?.companionBriefingLine)
+    || isThinSamePhaseCarryLine(resolvedFallbackAwareness?.companionBriefingLine)
+  const resolvedAwarenessCollapsesIntoEmotionalCue = Boolean(
+    preferredProjectAwareCarryLine
+    && (resolvedFallbackAwareness?.awarenessLine?.trim() || '') !== ''
+    && resolvedFallbackAwareness?.awarenessLine?.trim() === (resolvedFallbackAwareness?.emotionalClosureCue?.trim() || ''),
+  )
+  const resolvedAwarenessLooksThin = looksLikeThinContinuityReminder(resolvedFallbackAwareness?.awarenessLine)
+    || isThinSamePhaseCarryLine(resolvedFallbackAwareness?.awarenessLine)
+    || resolvedAwarenessCollapsesIntoEmotionalCue
+  const resolvedCompanionNextClosureLooksThin = looksLikeThinContinuityNextClosureLine(resolvedFallbackAwareness?.companionNextClosureLine)
+  const richerResolvedAwarenessSummary = resolvedSummaryLooksThin
+    ? [
+        resolvedFallbackAwareness?.awarenessLine ?? null,
+        resolvedFallbackAwareness?.companionBriefingLine ?? null,
+      ].find((value): value is string => looksLikeProjectAwareBriefingReminder(value)) ?? null
+    : null
+  const summaryLine
+    = (resolvedSummaryLooksThin
+      ? (closureSummaryLine ?? richerResolvedAwarenessSummary)
+      : resolvedFallbackAwareness?.summaryLine)
+    ?? closureSummaryLine
+    ?? richerResolvedAwarenessSummary
+    ?? continuitySummary
+    ?? resolveContinuityLatestLandedProgress(continuity)
+    ?? continuity?.currentPhase?.trim()
+    ?? continuity?.identity?.trim()
+    ?? null
+  const synthesizedClosureCompanionHeadlineLine = resolvePreDialogueClosureCompanionHeadlineLine(closure)
+  const companionHeadlineLine
+    = resolvePreferredCompanionHeadlineLine({
+      awarenessCompanionHeadlineLine: resolvedFallbackAwareness?.companionHeadlineLine ?? null,
+      closureCompanionHeadlineLine: synthesizedClosureCompanionHeadlineLine,
+    })
+    ?? null
+  const companionBriefingLine
+    = resolvedCompanionBriefingLooksThin && preferredProjectAwareCompanionBriefingLine
+      ? preferredProjectAwareCompanionBriefingLine
+      : resolvedFallbackAwareness?.companionBriefingLine
+        ?? closure?.companionBriefingLine?.trim()
+        ?? effectiveSameHerHoldDetail
+        ?? effectiveContinuityCue
+        ?? continuity?.sameHerSelfLine?.trim()
+        ?? continuity?.identity?.trim()
+        ?? null
+  const companionNextClosureLine
+    = resolvedCompanionNextClosureLooksThin && closure?.companionNextClosureLine?.trim()
+      ? closure.companionNextClosureLine.trim()
+      : resolvedFallbackAwareness?.companionNextClosureLine
+        ?? closure?.companionNextClosureLine?.trim()
+        ?? continuity?.nextClosureTarget?.trim()
+        ?? null
+  const closureAwareProjectLine = preferClosureAwareProjectLine({
+    companionHeadlineLine: synthesizedClosureCompanionHeadlineLine,
+    companionBriefingLine: closure?.companionBriefingLine?.trim() ?? null,
+    summaryLine: closure?.summaryLine?.trim() ?? null,
+  })
+  const explicitFallbackAwarenessLine
+    = closureAwareProjectLine
+      ?? effectiveSameHerHoldDetail
+      ?? effectiveContinuityCue
+      ?? continuity?.sameHerSelfLine?.trim()
+      ?? continuitySummary
+      ?? null
+  const explicitFallbackAwarenessSummary
+    = closureSummaryLine
+      ?? continuitySummary
+      ?? null
+  const awarenessLine
+    = resolvedAwarenessLooksThin && preferredProjectAwareCarryLine
+      ? preferredProjectAwareCarryLine
+      : resolvedFallbackAwareness?.awarenessLine
+        ?? resolveAlicizationProjectPreDialogueAwarenessLine({
+          runtimeProjectState: {
+            identity: continuity?.identity?.trim() || null,
+            currentPhase: continuity?.currentPhase?.trim() || null,
+            preDialogueAwarenessLine: explicitFallbackAwarenessLine,
+            awarenessLine: explicitFallbackAwarenessLine,
+            companionHeadlineLine: synthesizedClosureCompanionHeadlineLine,
+            companionBriefingLine: closure?.companionBriefingLine?.trim() ?? null,
+            preDialogueAwarenessSummary: explicitFallbackAwarenessSummary,
+            emotionalClosureSummary: closure?.emotionalClosureCue?.trim() ?? null,
+            latestLandedProgress: resolveContinuityLatestLandedProgress(continuity) || null,
+            landedProgressSummary: resolveContinuityLatestLandedProgress(continuity) || null,
+            primaryOpenLoop: continuity?.primaryOpenLoop?.trim() ?? null,
+            openClosureSummary: continuity?.primaryOpenLoop?.trim() ?? null,
+            nextClosureTarget: continuity?.nextClosureTarget?.trim() ?? null,
+            sameHerDriftRiskSummary: continuity?.sameHerDriftRisk?.trim() ?? null,
+          },
+        })
+        ?? effectiveSameHerHoldDetail
+        ?? effectiveContinuityCue
+        ?? continuity?.sameHerSelfLine?.trim()
+        ?? continuitySummary
+        ?? resolveContinuityLatestLandedProgress(continuity)
+        ?? summaryLine
+        ?? null
+
+  if (!directAwareness && !closure?.companionHeadlineLine?.trim() && synthesizedClosureCompanionHeadlineLine)
+    pushUniqueLine(reasonPreview, synthesizedClosureCompanionHeadlineLine)
+  const emotionalClosureCue
+    = resolvedFallbackAwareness?.emotionalClosureCue?.trim()
+      || closure?.emotionalClosureCue?.trim()
+      || continuity?.emotionalClosureCue?.trim()
+      || null
+
+  if (!summaryLine && !companionHeadlineLine && !companionBriefingLine && !companionNextClosureLine && !awarenessLine && reasonPreview.length === 0)
+    return null
 
   return {
-    status: awareness?.status ?? normalizeSendIdentityStatus(closure?.status),
+    status: resolvedFallbackAwareness?.status ?? closure?.status ?? 'partial',
     summaryLine,
     companionHeadlineLine,
     companionBriefingLine,
