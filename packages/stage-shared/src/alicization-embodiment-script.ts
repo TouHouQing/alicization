@@ -139,12 +139,6 @@ function normalizeAttentionMode(raw: unknown): AlicizationEmbodimentAttentionMod
   return raw === 'ambient' ? 'ambient' : 'attentive'
 }
 
-function normalizeRendererTarget(raw: unknown): AlicizationEmbodimentScriptRendererTarget | null {
-  return raw === 'live2d' || raw === 'vrm'
-    ? raw
-    : null
-}
-
 function dedupeCuePool(values: Array<string | null | undefined>) {
   const deduped: string[] = []
   const seen = new Set<string>()
@@ -171,13 +165,6 @@ function normalizeRendererHintAliases(raw: unknown) {
   return dedupeCuePool(raw.map((value) => {
     return typeof value === 'string' ? value : null
   }))
-}
-
-function normalizeRendererHintText(raw: unknown, maxChars: number) {
-  if (typeof raw !== 'string')
-    return ''
-
-  return raw.trim().slice(0, maxChars)
 }
 
 function normalizeRendererHints(raw: unknown): AlicizationDialogueEmbodimentRendererHints | null {
@@ -213,10 +200,13 @@ function normalizeRendererHints(raw: unknown): AlicizationDialogueEmbodimentRend
     || candidate.preferredPacingMode === 'natural'
     ? candidate.preferredPacingMode
     : undefined
-  const residentMode = normalizeRendererHintText(candidate.residentMode, 80) || undefined
+  const residentMode = typeof candidate.residentMode === 'string' && candidate.residentMode.trim()
+    ? candidate.residentMode.trim()
+    : undefined
   const reasonTags = normalizeRendererHintAliases(candidate.reasonTags)
-  const signature = normalizeRendererHintText(candidate.signature, 240) || undefined
-
+  const signature = typeof candidate.signature === 'string' && candidate.signature.trim()
+    ? candidate.signature.trim()
+    : undefined
   if (
     preferredExpressionAliases.length === 0
     && preferredMotionAliases.length === 0
@@ -234,18 +224,24 @@ function normalizeRendererHints(raw: unknown): AlicizationDialogueEmbodimentRend
   }
 
   return {
-    ...(preferredBlinkCadence ? { preferredBlinkCadence } : {}),
-    ...(preferredExpressionAliases.length > 0 ? { preferredExpressionAliases } : {}),
-    ...(preferredGazeMode ? { preferredGazeMode } : {}),
-    ...(preferredLipsyncMode ? { preferredLipsyncMode } : {}),
-    ...(preferredMotionAliases.length > 0 ? { preferredMotionAliases } : {}),
-    ...(preferredPacingMode ? { preferredPacingMode } : {}),
-    ...(preferredPauseMode ? { preferredPauseMode } : {}),
-    ...(preferredVoiceMode ? { preferredVoiceMode } : {}),
-    ...(reasonTags.length > 0 ? { reasonTags } : {}),
-    ...(residentMode ? { residentMode } : {}),
-    ...(signature ? { signature } : {}),
+    preferredBlinkCadence,
+    preferredExpressionAliases: preferredExpressionAliases.length > 0 ? preferredExpressionAliases : undefined,
+    preferredGazeMode,
+    preferredLipsyncMode,
+    preferredMotionAliases: preferredMotionAliases.length > 0 ? preferredMotionAliases : undefined,
+    preferredPacingMode,
+    preferredPauseMode,
+    preferredVoiceMode,
+    reasonTags: reasonTags.length > 0 ? reasonTags : undefined,
+    residentMode,
+    signature,
   }
+}
+
+function normalizeRendererTarget(raw: unknown): AlicizationEmbodimentScriptRendererTarget | null {
+  return raw === 'live2d' || raw === 'vrm'
+    ? raw
+    : null
 }
 
 function normalizeExecutionCueSource(raw: unknown): AlicizationEmbodimentExecutionCueSource | null {
@@ -374,7 +370,6 @@ export function normalizeAlicizationEmbodimentScript(raw: unknown): AlicizationE
     return null
 
   const baseEmotion = normalizeAlicizationEmotion(stateCandidate.baseEmotion).emotion
-  const rendererHints = normalizeRendererHints(stateCandidate.rendererHints)
   const digitalLife = normalizeAlicizationDigitalLifeEnvelope(candidate.digitalLife, baseEmotion)
 
   return {
@@ -388,7 +383,7 @@ export function normalizeAlicizationEmbodimentScript(raw: unknown): AlicizationE
       delivery: normalizeAlicizationPerformanceDelivery(stateCandidate.delivery),
       emphasis: normalizeEmphasis(stateCandidate.emphasis),
       residentMode: normalizeResidentMode(stateCandidate.residentMode),
-      ...(rendererHints ? { rendererHints } : {}),
+      rendererHints: normalizeRendererHints(stateCandidate.rendererHints),
     },
     speechPlan,
     facePlan,

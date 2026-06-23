@@ -18,6 +18,12 @@ import {
   normalizeAlicizationPerformancePayload,
 } from './alicization-performance-contracts'
 import {
+  hasAlicizationAudibleSameHerCarry,
+  hasAlicizationBodyVoiceOnlySameHerCarry,
+  hasAlicizationQuieterSameHerCarry,
+  hasAlicizationStillVoicedSameHerCarry,
+} from './alicization-same-her-renderer-hints'
+import {
   resolveStageEmbodimentCueCandidates,
   resolveStageEmbodimentLive2DExpressionAliases,
   resolveStageEmbodimentLive2DMotionAliases,
@@ -75,24 +81,8 @@ export interface BuildAlicizationDialogueSpeechTimelineInput {
   candidatePerformance?: AlicizationDialoguePerformancePayload | null
   embodiment?: AlicizationDialogueEmbodimentEnvelope | null
   digitalLifeSpine?: AlicizationDigitalLifeSpineDigest | null
-  performanceManifest?: CharacterPerformanceCapabilitiesManifest | null
   projectState?: AlicizationRuntimeProjectStateDigest | null
-}
-
-export interface ProjectClosureSpeechEmbodimentBias {
-  actionCue: string | null
-  facialCue: string | null
-  preferredBlinkCadence: NonNullable<AlicizationDialogueEmbodimentRendererHints['preferredBlinkCadence']>
-  preferredExpressionAliases: string[]
-  preferredGazeMode: NonNullable<AlicizationDialogueEmbodimentRendererHints['preferredGazeMode']>
-  preferredMotionAliases: string[]
-  preferredLipsyncMode: NonNullable<AlicizationDialogueEmbodimentRendererHints['preferredLipsyncMode']>
-  preferredPacingMode: NonNullable<AlicizationDialogueEmbodimentRendererHints['preferredPacingMode']>
-  preferredVoiceMode: NonNullable<AlicizationDialogueEmbodimentRendererHints['preferredVoiceMode']>
-  reasonTags: string[]
-  residentMode: 'measured-return' | 'repair-before-closeness'
-  settleMode: AlicizationDialogueSpeechSettleMode
-  signature: string
+  performanceManifest?: CharacterPerformanceCapabilitiesManifest | null
 }
 
 interface StringChunk {
@@ -110,6 +100,16 @@ interface PersonaSpeechStyleBias {
   beat: number
   mouth: number
   head: number
+}
+
+interface ProjectClosureSpeechEmbodimentBias {
+  preferredBlinkCadence?: 'normal' | 'linger' | 'quiet'
+  preferredGazeMode?: 'steady' | 'soften' | 'drift'
+  preferredPauseMode?: 'longer' | 'natural'
+  preferredLipsyncMode?: 'restrained' | 'matched'
+  preferredVoiceMode?: 'lower-pressure' | 'even'
+  preferredPacingMode?: 'slower' | 'natural'
+  residentMode?: string
 }
 
 const keptPunctuations = new Set(['?', '？', '!', '！'])
@@ -149,7 +149,63 @@ function dedupeCuePool(values: Array<string | null | undefined>) {
   return deduped
 }
 
+function filterCompanionshipResidentModeAliases(input: {
+  aliases: string[]
+  kind: 'expression' | 'motion'
+  reasonTags?: string[]
+  residentMode: unknown
+  signature?: string | null
+}) {
+  const sameHerAudibleCarry = hasAlicizationAudibleSameHerCarry({
+    signature: input.signature,
+    reasonTags: input.reasonTags,
+  })
+  const sameHerBodyVoiceOnlyCarry = hasAlicizationBodyVoiceOnlySameHerCarry({
+    signature: input.signature,
+    reasonTags: input.reasonTags,
+  })
+  const sameHerQuieterCarry = hasAlicizationQuieterSameHerCarry({
+    signature: input.signature,
+    reasonTags: input.reasonTags,
+  })
+  const sameHerStillVoicedCarry = hasAlicizationStillVoicedSameHerCarry({
+    signature: input.signature,
+    reasonTags: input.reasonTags,
+  })
+  if (
+    input.residentMode !== 'measured-return'
+    && input.residentMode !== 'repair-before-closeness'
+    && input.residentMode !== 'quiet-companionship'
+    && !sameHerAudibleCarry
+    && !sameHerBodyVoiceOnlyCarry
+    && !sameHerQuieterCarry
+    && !sameHerStillVoicedCarry
+  ) {
+    return input.aliases
+  }
+
+  const warmExpressionPattern = /smile|joy|cheer|bright|grin|happy/iu
+  const warmMotionPattern = /happy|joy|cheer|smile|wave|excited|raise|sway_relaxed/iu
+
+  return input.aliases.filter((alias) => {
+    if (typeof alias !== 'string')
+      return false
+    if (input.kind === 'expression')
+      return !warmExpressionPattern.test(alias)
+    return !warmMotionPattern.test(alias)
+  })
+}
+
 function normalizeRendererHintAliases(raw: unknown) {
+  if (!Array.isArray(raw))
+    return []
+
+  return dedupeCuePool(raw.map((value) => {
+    return typeof value === 'string' ? value : null
+  }))
+}
+
+function normalizeRendererHintReasonTags(raw: unknown) {
   if (!Array.isArray(raw))
     return []
 
@@ -165,6 +221,7 @@ function normalizeSegmentRendererHints(raw: unknown): AlicizationDialogueEmbodim
   const candidate = raw as Record<string, unknown>
   const preferredExpressionAliases = normalizeRendererHintAliases(candidate.preferredExpressionAliases)
   const preferredMotionAliases = normalizeRendererHintAliases(candidate.preferredMotionAliases)
+  const reasonTags = normalizeRendererHintReasonTags(candidate.reasonTags)
   const preferredGazeMode = candidate.preferredGazeMode === 'steady'
     || candidate.preferredGazeMode === 'soften'
     || candidate.preferredGazeMode === 'drift'
@@ -192,16 +249,10 @@ function normalizeSegmentRendererHints(raw: unknown): AlicizationDialogueEmbodim
     ? candidate.preferredPacingMode
     : undefined
   const residentMode = typeof candidate.residentMode === 'string' && candidate.residentMode.trim()
-    ? candidate.residentMode.trim().slice(0, 80)
+    ? candidate.residentMode.trim()
     : undefined
-  const reasonTags = Array.isArray(candidate.reasonTags)
-    ? candidate.reasonTags
-        .map(tag => typeof tag === 'string' ? tag.trim().slice(0, 80) : '')
-        .filter(Boolean)
-        .slice(0, 8)
-    : []
   const signature = typeof candidate.signature === 'string' && candidate.signature.trim()
-    ? candidate.signature.trim().slice(0, 120)
+    ? candidate.signature.trim()
     : undefined
   if (
     preferredExpressionAliases.length === 0
@@ -220,17 +271,17 @@ function normalizeSegmentRendererHints(raw: unknown): AlicizationDialogueEmbodim
   }
 
   return {
+    preferredBlinkCadence,
     preferredExpressionAliases: preferredExpressionAliases.length > 0 ? preferredExpressionAliases : undefined,
+    preferredGazeMode,
+    preferredLipsyncMode,
     preferredMotionAliases: preferredMotionAliases.length > 0 ? preferredMotionAliases : undefined,
-    ...(preferredGazeMode ? { preferredGazeMode } : {}),
-    ...(preferredBlinkCadence ? { preferredBlinkCadence } : {}),
-    ...(preferredPauseMode ? { preferredPauseMode } : {}),
-    ...(preferredLipsyncMode ? { preferredLipsyncMode } : {}),
-    ...(preferredVoiceMode ? { preferredVoiceMode } : {}),
-    ...(preferredPacingMode ? { preferredPacingMode } : {}),
-    ...(residentMode ? { residentMode } : {}),
-    ...(reasonTags.length > 0 ? { reasonTags } : {}),
-    ...(signature ? { signature } : {}),
+    preferredPacingMode,
+    preferredPauseMode,
+    preferredVoiceMode,
+    residentMode,
+    reasonTags: reasonTags.length > 0 ? reasonTags : undefined,
+    signature,
   }
 }
 
@@ -547,86 +598,135 @@ function resolvePersonaSpeechStyleSummary(personaBias: PersonaSpeechTimingBias, 
   return null
 }
 
-function includesAny(text: string, needles: string[]) {
-  return needles.some(needle => text.includes(needle))
-}
-
-function normalizeProjectClosureCueText(raw: string | null | undefined) {
-  return typeof raw === 'string'
-    ? raw.trim().replace(/\s+/g, ' ').toLowerCase().slice(0, 320)
-    : ''
-}
-
 export function resolveProjectClosureSpeechEmbodimentBiasFromCue(
-  rawCue: string | null | undefined,
+  emotionalClosureCue?: string | null,
 ): ProjectClosureSpeechEmbodimentBias | null {
-  const cue = normalizeProjectClosureCueText(rawCue)
-  if (!cue)
+  const normalizedClosureCue = typeof emotionalClosureCue === 'string'
+    ? emotionalClosureCue.trim().toLowerCase()
+    : ''
+  if (!normalizedClosureCue)
     return null
 
-  const repairBeforeClosenessSignal = includesAny(cue, [
-    'repair-before-closeness',
-    'repair before closeness',
-    'repair should settle before closeness expands',
-    'repair lands before closeness returns',
-    'repair lands first',
-    'rest-protective',
-    '先修复再靠近',
-    '修复优先',
-    '先把身体收稳',
-  ])
-  const measuredReturnSignal = includesAny(cue, [
-    'low-pressure',
-    'lower-pressure',
-    'leave more room',
-    'more room',
-    'measured-return',
-    'without reopening from scratch',
-    'same living line',
-    'return stayed slower',
-    'slower return',
-    '先留白',
-    '同一条生命线',
-    '别立刻把温度放大',
-    '不要从头重开',
-    '慢一点回来',
-  ])
-
-  if (!repairBeforeClosenessSignal && !measuredReturnSignal)
-    return null
+  const repairBeforeClosenessSignal
+    = /repair-before-closeness|repair before closeness|repair-first|先修复再靠近|先把身体收稳/iu.test(normalizedClosureCue)
+  const rememberedSeamMoreRoomSignal
+    = /remembered seam|same remembered relationship seam|same-her|same living line|同一条生命线|同一条线/u.test(normalizedClosureCue)
+      && /reopened too eagerly|too eagerly before|more room this time|this time keep more room|keep more room this time|do not reopen it with the same eagerness|same eagerness as before|这次更要留白|这次要更慢一点|不要重开得太快|上次太急/u.test(normalizedClosureCue)
+  const measuredReturnSignal
+    = /same living line|same-her|lower-pressure|leave more room|more room|do not reopen from scratch|do not widen outward|先留白|同一条生命线|慢一点/u.test(normalizedClosureCue)
 
   if (repairBeforeClosenessSignal) {
     return {
-      actionCue: 'idle_settle',
-      facialCue: 'soft-gaze',
       preferredBlinkCadence: 'quiet',
-      preferredExpressionAliases: ['RecoverSoft'],
       preferredGazeMode: 'soften',
-      preferredMotionAliases: ['StillnessGuard'],
+      preferredPauseMode: 'longer',
       preferredLipsyncMode: 'restrained',
-      preferredPacingMode: 'slower',
-      preferredVoiceMode: 'lower-pressure',
-      reasonTags: ['project-emotional-closure', 'repair-before-closeness'],
       residentMode: 'repair-before-closeness',
-      settleMode: 'hold',
-      signature: 'project-closure-repair-before-closeness',
     }
   }
 
+  if (rememberedSeamMoreRoomSignal) {
+    return {
+      preferredBlinkCadence: 'quiet',
+      preferredGazeMode: 'soften',
+      preferredPauseMode: 'longer',
+      preferredLipsyncMode: 'restrained',
+      residentMode: 'measured-return',
+    }
+  }
+
+  if (measuredReturnSignal) {
+    return {
+      preferredBlinkCadence: 'linger',
+      preferredGazeMode: 'soften',
+      residentMode: 'measured-return',
+    }
+  }
+
+  return null
+}
+
+export function resolveProjectClosureSpeechEmbodimentBias(
+  projectState?: AlicizationRuntimeProjectStateDigest | null,
+): ProjectClosureSpeechEmbodimentBias | null {
+  const emotionalClosureCue = typeof projectState?.emotionalClosureCue === 'string'
+    ? projectState.emotionalClosureCue
+    : null
+  const cueBias = resolveProjectClosureSpeechEmbodimentBiasFromCue(emotionalClosureCue)
+  const continuityCadence = typeof projectState?.continuityCadence === 'string'
+    ? projectState.continuityCadence.trim().toLowerCase()
+    : ''
+  const explicitResidentMode = continuityCadence === 'repair-before-closeness'
+    ? 'repair-before-closeness'
+    : continuityCadence === 'measured-return'
+      ? 'measured-return'
+      : continuityCadence === 'rest-protective'
+        ? 'quiet-companionship'
+        : undefined
+  const explicitBlinkCadence = projectState?.preferredBlinkCadence === 'normal'
+    || projectState?.preferredBlinkCadence === 'linger'
+    || projectState?.preferredBlinkCadence === 'quiet'
+    ? projectState.preferredBlinkCadence
+    : undefined
+  const explicitGazeMode = projectState?.preferredGazeMode === 'steady'
+    || projectState?.preferredGazeMode === 'soften'
+    || projectState?.preferredGazeMode === 'drift'
+    ? projectState.preferredGazeMode
+    : undefined
+  const explicitPauseMode = projectState?.preferredPauseMode === 'longer'
+    || projectState?.preferredPauseMode === 'natural'
+    ? projectState.preferredPauseMode
+    : undefined
+  const explicitLipsyncMode = projectState?.preferredLipsyncMode === 'restrained'
+    || projectState?.preferredLipsyncMode === 'matched'
+    ? projectState.preferredLipsyncMode
+    : undefined
+  const explicitVoiceMode = projectState?.preferredVoiceMode === 'lower-pressure'
+    || projectState?.preferredVoiceMode === 'even'
+    ? projectState.preferredVoiceMode
+    : undefined
+  const explicitPacingMode = projectState?.preferredPacingMode === 'slower'
+    || projectState?.preferredPacingMode === 'natural'
+    ? projectState.preferredPacingMode
+    : undefined
+  const residentMode = explicitResidentMode ?? cueBias?.residentMode
+  const fallbackBlinkCadence = residentMode === 'repair-before-closeness'
+    ? 'quiet'
+    : residentMode === 'measured-return' || residentMode === 'quiet-companionship'
+      ? 'linger'
+      : undefined
+  const fallbackGazeMode = residentMode === 'repair-before-closeness'
+    || residentMode === 'measured-return'
+    || residentMode === 'quiet-companionship'
+    ? 'soften'
+    : undefined
+  const preferredBlinkCadence = explicitBlinkCadence === 'quiet'
+    ? 'quiet'
+    : explicitBlinkCadence ?? cueBias?.preferredBlinkCadence ?? fallbackBlinkCadence
+  const preferredGazeMode = explicitGazeMode ?? cueBias?.preferredGazeMode ?? fallbackGazeMode
+  const preferredPauseMode = explicitPauseMode ?? cueBias?.preferredPauseMode
+  const preferredLipsyncMode = explicitLipsyncMode ?? cueBias?.preferredLipsyncMode
+
+  if (
+    !residentMode
+    && !preferredBlinkCadence
+    && !preferredGazeMode
+    && !preferredPauseMode
+    && !preferredLipsyncMode
+    && !explicitVoiceMode
+    && !explicitPacingMode
+  ) {
+    return null
+  }
+
   return {
-    actionCue: null,
-    facialCue: 'soft-gaze',
-    preferredBlinkCadence: 'linger',
-    preferredExpressionAliases: ['CalmInspect'],
-    preferredGazeMode: 'soften',
-    preferredMotionAliases: ['ObserveSoft'],
-    preferredLipsyncMode: 'restrained',
-    preferredPacingMode: 'slower',
-    preferredVoiceMode: 'lower-pressure',
-    reasonTags: ['project-emotional-closure', 'measured-return'],
-    residentMode: 'measured-return',
-    settleMode: 'linger',
-    signature: 'project-closure-measured-return',
+    preferredBlinkCadence,
+    preferredGazeMode,
+    preferredPauseMode,
+    preferredLipsyncMode,
+    preferredVoiceMode: explicitVoiceMode,
+    preferredPacingMode: explicitPacingMode,
+    residentMode,
   }
 }
 
@@ -673,49 +773,105 @@ function resolveSegmentEmotion(input: {
 
 function resolveSegmentRendererHints(input: {
   embodiment?: AlicizationDialogueEmbodimentEnvelope | null
+  digitalLifeSpine?: AlicizationDigitalLifeSpineDigest | null
+  projectState?: AlicizationRuntimeProjectStateDigest | null
   performanceManifest?: CharacterPerformanceCapabilitiesManifest | null
-  projectClosureBias?: ProjectClosureSpeechEmbodimentBias | null
   segmentEmotion: AlicizationEmotion
   turnEmotion: AlicizationEmotion
 }) {
   const manifestHints = resolveManifestEmotionHints(input.performanceManifest, input.segmentEmotion)
   const useTurnEnvelopeAliases = input.segmentEmotion === input.turnEmotion
-  const preferredExpressionAliases = dedupeCuePool([
-    ...(input.projectClosureBias?.preferredExpressionAliases ?? []),
-    ...(useTurnEnvelopeAliases ? input.embodiment?.rendererHints?.preferredExpressionAliases ?? [] : []),
-    ...(manifestHints?.preferredExpressionAliases ?? []),
-    ...resolveStageEmbodimentLive2DExpressionAliases(input.segmentEmotion),
-    ...resolveStageEmbodimentVrmBaseExpressionCandidates(input.segmentEmotion),
-  ])
-  const preferredMotionAliases = dedupeCuePool([
-    ...(input.projectClosureBias?.preferredMotionAliases ?? []),
-    ...(useTurnEnvelopeAliases ? input.embodiment?.rendererHints?.preferredMotionAliases ?? [] : []),
-    ...(manifestHints?.preferredMotionAliases ?? []),
-    ...resolveStageEmbodimentLive2DMotionAliases(input.segmentEmotion),
-  ])
-  if (
-    preferredExpressionAliases.length === 0
-    && preferredMotionAliases.length === 0
-    && !input.projectClosureBias
-  ) {
-    return null
+  const projectClosureBias = resolveProjectClosureSpeechEmbodimentBias(input.projectState)
+  const envelopeRendererHints = normalizeSegmentRendererHints(input.embodiment?.rendererHints)
+  const residentMode = typeof input.embodiment?.rendererHints === 'object' && input.embodiment?.rendererHints
+    && 'residentMode' in input.embodiment.rendererHints
+    ? (input.embodiment.rendererHints as { residentMode?: unknown }).residentMode
+    : projectClosureBias?.residentMode
+      ? projectClosureBias.residentMode
+      : null
+  const companionshipExpressionAliases = residentMode === 'repair-before-closeness'
+    ? ['RecoverSoft']
+    : residentMode === 'measured-return'
+      ? ['CalmInspect']
+      : residentMode === 'quiet-companionship'
+        ? ['ObserveSoft']
+        : []
+  const companionshipMotionAliases = residentMode === 'repair-before-closeness'
+    ? ['StillnessGuard']
+    : residentMode === 'measured-return'
+      ? ['ObserveSoft']
+      : residentMode === 'quiet-companionship'
+        ? ['StillnessGuard']
+        : []
+  const preferredBlinkCadence = projectClosureBias?.preferredBlinkCadence === 'quiet'
+    ? 'quiet'
+    : envelopeRendererHints?.preferredBlinkCadence ?? projectClosureBias?.preferredBlinkCadence
+  const preferredGazeMode = envelopeRendererHints?.preferredGazeMode ?? projectClosureBias?.preferredGazeMode
+  const preferredPauseMode = envelopeRendererHints?.preferredPauseMode ?? projectClosureBias?.preferredPauseMode
+  const preferredLipsyncMode = envelopeRendererHints?.preferredLipsyncMode ?? projectClosureBias?.preferredLipsyncMode
+  const preferredVoiceMode = envelopeRendererHints?.preferredVoiceMode ?? projectClosureBias?.preferredVoiceMode
+  const preferredPacingMode = envelopeRendererHints?.preferredPacingMode ?? projectClosureBias?.preferredPacingMode
+  const preferredExpressionAliases = filterCompanionshipResidentModeAliases({
+    aliases: dedupeCuePool([
+      ...(useTurnEnvelopeAliases ? envelopeRendererHints?.preferredExpressionAliases ?? [] : []),
+      ...companionshipExpressionAliases,
+      ...(manifestHints?.preferredExpressionAliases ?? []),
+      ...resolveStageEmbodimentLive2DExpressionAliases(input.segmentEmotion),
+      ...resolveStageEmbodimentVrmBaseExpressionCandidates(input.segmentEmotion),
+    ]),
+    kind: 'expression',
+    reasonTags: envelopeRendererHints?.reasonTags ? [...envelopeRendererHints.reasonTags] : undefined,
+    residentMode,
+    signature: envelopeRendererHints?.signature,
+  })
+  const preferredMotionAliases = filterCompanionshipResidentModeAliases({
+    aliases: dedupeCuePool([
+      ...(useTurnEnvelopeAliases ? envelopeRendererHints?.preferredMotionAliases ?? [] : []),
+      ...companionshipMotionAliases,
+      ...(manifestHints?.preferredMotionAliases ?? []),
+      ...resolveStageEmbodimentLive2DMotionAliases(input.segmentEmotion),
+    ]),
+    kind: 'motion',
+    reasonTags: envelopeRendererHints?.reasonTags ? [...envelopeRendererHints.reasonTags] : undefined,
+    residentMode,
+    signature: envelopeRendererHints?.signature,
+  })
+  if (preferredExpressionAliases.length === 0 && preferredMotionAliases.length === 0) {
+    return residentMode
+      || preferredBlinkCadence
+      || preferredGazeMode
+      || preferredPauseMode
+      || preferredLipsyncMode
+      || preferredVoiceMode
+      || preferredPacingMode
+      || envelopeRendererHints?.reasonTags?.length
+      || envelopeRendererHints?.signature
+      ? {
+        preferredBlinkCadence,
+        preferredGazeMode,
+        preferredPauseMode,
+        preferredLipsyncMode,
+        preferredVoiceMode,
+        preferredPacingMode,
+        residentMode: typeof residentMode === 'string' ? residentMode : undefined,
+        reasonTags: envelopeRendererHints?.reasonTags ? [...envelopeRendererHints.reasonTags] : undefined,
+        signature: envelopeRendererHints?.signature,
+      } satisfies AlicizationDialogueEmbodimentRendererHints
+      : null
   }
 
   return {
+    preferredBlinkCadence,
     preferredExpressionAliases: preferredExpressionAliases.length > 0 ? preferredExpressionAliases : undefined,
+    preferredGazeMode,
+    preferredPauseMode,
+    preferredLipsyncMode,
+    preferredVoiceMode,
+    preferredPacingMode,
     preferredMotionAliases: preferredMotionAliases.length > 0 ? preferredMotionAliases : undefined,
-    ...(input.projectClosureBias
-      ? {
-          preferredBlinkCadence: input.projectClosureBias.preferredBlinkCadence,
-          preferredGazeMode: input.projectClosureBias.preferredGazeMode,
-          preferredLipsyncMode: input.projectClosureBias.preferredLipsyncMode,
-          preferredPacingMode: input.projectClosureBias.preferredPacingMode,
-          preferredVoiceMode: input.projectClosureBias.preferredVoiceMode,
-          reasonTags: input.projectClosureBias.reasonTags,
-          residentMode: input.projectClosureBias.residentMode,
-          signature: input.projectClosureBias.signature,
-        }
-      : {}),
+    residentMode: typeof residentMode === 'string' ? residentMode : undefined,
+    reasonTags: envelopeRendererHints?.reasonTags ? [...envelopeRendererHints.reasonTags] : undefined,
+    signature: envelopeRendererHints?.signature,
   } satisfies AlicizationDialogueEmbodimentRendererHints
 }
 
@@ -919,9 +1075,12 @@ function resolveSegmentEmotionHoldMs(input: {
 function resolveSegmentRendererSettleHints(input: {
   delivery: AlicizationPerformanceDelivery
   personaBias: PersonaSpeechTimingBias
+  reasonTags?: string[] | null
+  residentMode?: string | null
   segmentCount: number
   segmentIndex: number
   settleMode: AlicizationDialogueSpeechSettleMode
+  signature?: string | null
   text: string
 }) {
   const phraseTailWeight = resolveSegmentPhraseTailWeight({
@@ -974,6 +1133,57 @@ function resolveSegmentRendererSettleHints(input: {
     : input.personaBias.directReconnect
       ? -40
       : 0
+  const sameHerAudibleCarry = hasAlicizationAudibleSameHerCarry({
+    signature: input.signature,
+    reasonTags: input.reasonTags,
+  })
+  const sameHerQuieterCarry = hasAlicizationQuieterSameHerCarry({
+    signature: input.signature,
+    reasonTags: input.reasonTags,
+  })
+  const sameHerStillVoicedCarry = hasAlicizationStillVoicedSameHerCarry({
+    signature: input.signature,
+    reasonTags: input.reasonTags,
+  })
+  const companionshipFacialReleaseBias = input.residentMode === 'measured-return'
+    ? 120
+    : input.residentMode === 'repair-before-closeness'
+      ? 40
+      : input.residentMode === 'quiet-companionship'
+        ? 60
+        : sameHerAudibleCarry
+          ? 90
+          : sameHerQuieterCarry
+            ? 90
+            : sameHerStillVoicedCarry
+              ? 90
+              : 0
+  const companionshipExpressionBlendBias = input.residentMode === 'measured-return'
+    ? 90
+    : input.residentMode === 'repair-before-closeness'
+      ? 40
+      : input.residentMode === 'quiet-companionship'
+        ? 55
+        : sameHerAudibleCarry
+          ? 75
+          : sameHerQuieterCarry
+            ? 75
+            : sameHerStillVoicedCarry
+              ? 75
+              : 0
+  const companionshipActionFadeBias = input.residentMode === 'measured-return'
+    ? 50
+    : input.residentMode === 'repair-before-closeness'
+      ? 20
+      : input.residentMode === 'quiet-companionship'
+        ? 25
+        : sameHerAudibleCarry
+          ? 40
+          : sameHerQuieterCarry
+            ? 40
+            : sameHerStillVoicedCarry
+              ? 40
+              : 0
   const personaMotionBias = input.personaBias.observeFirst
     ? 40
     : input.personaBias.directReconnect
@@ -982,19 +1192,23 @@ function resolveSegmentRendererSettleHints(input: {
 
   return {
     live2dFacialReleaseMs: Math.round(clampRange(
-      settleFacialReleaseBase + phraseTailWeight * 260 + deliveryFacialReleaseBias + personaFacialReleaseBias,
+      settleFacialReleaseBase
+      + phraseTailWeight * 260
+      + deliveryFacialReleaseBias
+      + personaFacialReleaseBias
+      + companionshipFacialReleaseBias,
       80,
       1600,
       320,
     )),
     vrmExpressionBlendMs: Math.round(clampRange(
-      settleBlendBase + phraseTailWeight * 180 + deliveryBlendBias,
+      settleBlendBase + phraseTailWeight * 180 + deliveryBlendBias + companionshipExpressionBlendBias,
       60,
       960,
       240,
     )),
     vrmActionFadeMs: Math.round(clampRange(
-      settleActionFadeBase + phraseTailWeight * 160 + deliveryActionFadeBias,
+      settleActionFadeBase + phraseTailWeight * 160 + deliveryActionFadeBias + companionshipActionFadeBias,
       80,
       1200,
       220,
@@ -1016,6 +1230,63 @@ function buildSegmentCuePool(input: {
     input.explicitCue ?? null,
     ...input.candidates,
   ])
+}
+
+function isDurableCompanionshipActionCue(actionCue: string) {
+  return actionCue === 'observe_focus' || actionCue === 'steady_focus'
+}
+
+function shouldPreserveExplicitActionCueAcrossSegments(input: {
+  explicitCue?: string | null
+  embodiment?: AlicizationDialogueEmbodimentEnvelope | null
+  performanceManifest?: CharacterPerformanceCapabilitiesManifest | null
+}) {
+  const explicitCue = typeof input.explicitCue === 'string' ? input.explicitCue.trim() : ''
+  if (!explicitCue)
+    return false
+
+  const rendererTarget = input.performanceManifest?.renderer === 'vrm' ? 'vrm' : 'live2d'
+  const residentMode = input.embodiment?.rendererHints?.residentMode ?? null
+  const sameHerAudibleCarry = hasAlicizationAudibleSameHerCarry({
+    signature: input.embodiment?.rendererHints?.signature,
+    reasonTags: input.embodiment?.rendererHints?.reasonTags,
+  })
+  const sameHerBodyVoiceOnlyCarry = hasAlicizationBodyVoiceOnlySameHerCarry({
+    signature: input.embodiment?.rendererHints?.signature,
+    reasonTags: input.embodiment?.rendererHints?.reasonTags,
+  })
+  const sameHerQuieterCarry = hasAlicizationQuieterSameHerCarry({
+    signature: input.embodiment?.rendererHints?.signature,
+    reasonTags: input.embodiment?.rendererHints?.reasonTags,
+  })
+  const sameHerStillVoicedCarry = hasAlicizationStillVoicedSameHerCarry({
+    signature: input.embodiment?.rendererHints?.signature,
+    reasonTags: input.embodiment?.rendererHints?.reasonTags,
+  })
+  const companionshipCarry = residentMode === 'measured-return'
+    || residentMode === 'repair-before-closeness'
+    || residentMode === 'quiet-companionship'
+    || sameHerAudibleCarry
+    || sameHerBodyVoiceOnlyCarry
+    || sameHerQuieterCarry
+    || sameHerStillVoicedCarry
+  if (!companionshipCarry)
+    return false
+
+  if (rendererTarget !== 'vrm')
+    return isDurableCompanionshipActionCue(explicitCue)
+
+  return true
+}
+
+function resolvePreservedSegmentActionCue(input: {
+  explicitCue?: string | null
+  embodiment?: AlicizationDialogueEmbodimentEnvelope | null
+  performanceManifest?: CharacterPerformanceCapabilitiesManifest | null
+}) {
+  return shouldPreserveExplicitActionCueAcrossSegments(input)
+    ? (input.explicitCue?.trim() ?? null)
+    : null
 }
 
 function resolveSegmentCueAnchorIndex(input: {
@@ -1133,10 +1404,6 @@ export function buildAlicizationDialogueSpeechTimeline(
   const personaTimingBias = resolvePersonaSpeechTimingBias(input.digitalLifeSpine)
   const personaStyleBias = resolvePersonaSpeechStyleBias(personaTimingBias)
   const personaStyleSummary = resolvePersonaSpeechStyleSummary(personaTimingBias, personaStyleBias)
-  const projectState = input.projectState ?? input.digitalLifeSpine?.runtime.projectState ?? null
-  const projectClosureBias = resolveProjectClosureSpeechEmbodimentBiasFromCue(
-    projectState?.emotionalClosureCue ?? null,
-  )
   const variationToken = normalizeVariationToken(embodiment?.variationToken) ?? reply
   const segments: AlicizationDialogueSpeechTimelineSegment[] = []
   let searchOffset = 0
@@ -1174,13 +1441,14 @@ export function buildAlicizationDialogueSpeechTimeline(
     })
     const rendererHints = resolveSegmentRendererHints({
       embodiment,
+      digitalLifeSpine: input.digitalLifeSpine,
+      projectState: input.projectState,
       performanceManifest: input.performanceManifest,
-      projectClosureBias,
       segmentEmotion,
       turnEmotion: emotion,
     })
     const facialBias = resolveEmotionFacialBias(segmentEmotion)
-    const settleMode = projectClosureBias?.settleMode ?? resolveSegmentSettleMode({
+    const settleMode = resolveSegmentSettleMode({
       delivery: performance.delivery,
       emotion: segmentEmotion,
       personaBias: personaTimingBias,
@@ -1220,7 +1488,7 @@ export function buildAlicizationDialogueSpeechTimeline(
       1,
       0.52,
     )
-    const facialCue: string | null = projectClosureBias?.facialCue ?? selectSegmentCue({
+    const facialCue = selectSegmentCue({
       channel: 'facial',
       candidates: facialCuePool,
       excitation,
@@ -1230,18 +1498,21 @@ export function buildAlicizationDialogueSpeechTimeline(
       text,
       variationToken,
     })
-    const actionCue: string | null = projectClosureBias
-      ? projectClosureBias.actionCue
-      : selectSegmentCue({
-          channel: 'action',
-          candidates: actionCuePool,
-          excitation,
-          previousCue: previousActionCue,
-          segmentCount: chunks.length,
-          segmentIndex: index,
-          text,
-          variationToken,
-        })
+    const preservedActionCue = resolvePreservedSegmentActionCue({
+      explicitCue: performance.actionCue,
+      embodiment,
+      performanceManifest: input.performanceManifest,
+    })
+    const actionCue: string | null = preservedActionCue || selectSegmentCue({
+      channel: 'action',
+      candidates: actionCuePool,
+      excitation,
+      previousCue: previousActionCue,
+      segmentCount: chunks.length,
+      segmentIndex: index,
+      text,
+      variationToken,
+    })
     const microDynamics = resolveSegmentMicroDynamics({
       beatWeight,
       delivery: performance.delivery,
@@ -1267,9 +1538,12 @@ export function buildAlicizationDialogueSpeechTimeline(
     const rendererSettle = resolveSegmentRendererSettleHints({
       delivery: performance.delivery,
       personaBias: personaTimingBias,
+      reasonTags: rendererHints?.reasonTags ?? null,
+      residentMode: rendererHints?.residentMode ?? null,
       segmentCount: chunks.length,
       segmentIndex: index,
       settleMode,
+      signature: rendererHints?.signature ?? null,
       text,
     })
 

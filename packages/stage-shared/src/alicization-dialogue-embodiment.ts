@@ -26,6 +26,15 @@ export interface AlicizationDialogueEmbodimentGovernanceLike {
   repairState?: string | null
   screenReferenceMode?: string | null
   decisionTraceId?: string | null
+  mindTurnFrame?: {
+    obligation?: {
+      openingMove?: string | null
+    } | null
+    self?: {
+      embodiedPresence?: string | null
+      emotionalTension?: string | null
+    } | null
+  } | null
   turnMode?: string | null
 }
 
@@ -77,10 +86,48 @@ interface DialogueEncounterSnapshot {
   dialogueFirst: boolean
   energeticSignal: boolean
   firmSignal: boolean
+  measuredReturnReopenSignal: boolean
   obligation: string
   questionSignal: boolean
   teasingSignal: boolean
   uncertaintySignal: boolean
+}
+
+function carriesMeasuredReturnCallbackReopenSignal(input: {
+  governance?: AlicizationDialogueEmbodimentGovernanceLike | null
+  thought: string
+}) {
+  const thought = input.thought.toLowerCase()
+  const sameThreadCallbackCarry
+    = /same-thread-continuation|same callback line|same callback seam|callback seam|callback return|callback afterglow|callback detour|same living line|after noisy detours|after noise|unrelated windows intervene|do not reopen from scratch|not widen the line into a fresh approach|should not reopen more eagerly|stays slower than impulse/u.test(thought)
+  const measuredReturnCarry
+    = /measured-return|lower-pressure|slower return|leave room|reopen eagerly|rejoin-remembered-seam|soft-covision/u.test(thought)
+  const governanceRejoin
+    = input.governance?.mindTurnFrame?.obligation?.openingMove === 'rejoin-remembered-seam'
+      || (
+        input.governance?.mindTurnFrame?.self?.embodiedPresence === 'hesitant'
+        && input.governance?.mindTurnFrame?.self?.emotionalTension === 'soft-covision'
+      )
+
+  return governanceRejoin || (sameThreadCallbackCarry && measuredReturnCarry)
+}
+
+function carriesRememberedSeamMoreRoomSignal(input: {
+  governance?: AlicizationDialogueEmbodimentGovernanceLike | null
+  thought: string
+}) {
+  const thought = input.thought.toLowerCase()
+  const rememberedSeamSignal
+    = /remembered seam|same remembered relationship seam|rejoin-remembered-seam|同一条线|轻轻牵回/u.test(thought)
+  if (!rememberedSeamSignal)
+    return false
+
+  const moreRoomSignal
+    = /reopened too eagerly|too eagerly before|more room this time|this time keep more room|keep more room this time|do not reopen it with the same eagerness|same eagerness as before|这次更要留白|这次要更慢一点|不要重开得太快|上次太急/u.test(thought)
+  if (!moreRoomSignal)
+    return false
+
+  return carriesMeasuredReturnCallbackReopenSignal(input)
 }
 
 const deliveryPitchAdjustments: Record<AlicizationPerformanceDelivery, number> = {
@@ -159,6 +206,39 @@ function normalizeRendererHintAliases(raw: unknown) {
   return dedupeCues(raw)
 }
 
+function shouldPreserveExplicitRendererActionCue(input: {
+  candidatePerformance?: AlicizationDialoguePerformancePayload | null
+  performanceManifest?: CharacterPerformanceCapabilitiesManifest | null
+  governance?: AlicizationDialogueEmbodimentGovernanceLike | null
+  previous?: AlicizationDialogueEmbodimentPreviousState | null
+  thought?: string
+}) {
+  const explicitCue = normalizeCue(input.candidatePerformance?.actionCue)
+  if (!explicitCue)
+    return false
+
+  if (input.performanceManifest?.renderer !== 'vrm')
+    return false
+
+  const supportedActionKeys = new Set((input.performanceManifest?.supportedActions ?? []).map(item => item.key))
+  if (!supportedActionKeys.has(explicitCue))
+    return false
+
+  if (normalizeCue(input.previous?.actionCue) === explicitCue)
+    return true
+
+  const thought = typeof input.thought === 'string' ? input.thought.toLowerCase() : ''
+  const continuityCarry = input.governance?.screenReferenceMode === 'avoid'
+    || input.governance?.answerSubject === 'relationship'
+    || input.governance?.answerSubject === 'host-state'
+    || input.governance?.answerSubject === 'alicization-self'
+    || thought.includes('same-thread-continuation')
+    || thought.includes('measured-return')
+    || thought.includes('repair-before-closeness')
+
+  return continuityCarry
+}
+
 function normalizeEmbodimentRendererHints(raw: unknown): AlicizationDialogueEmbodimentRendererHints | null {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw))
     return null
@@ -166,12 +246,67 @@ function normalizeEmbodimentRendererHints(raw: unknown): AlicizationDialogueEmbo
   const candidate = raw as Record<string, unknown>
   const preferredExpressionAliases = normalizeRendererHintAliases(candidate.preferredExpressionAliases)
   const preferredMotionAliases = normalizeRendererHintAliases(candidate.preferredMotionAliases)
-  if (preferredExpressionAliases.length === 0 && preferredMotionAliases.length === 0)
+  const preferredGazeMode = candidate.preferredGazeMode === 'steady'
+    || candidate.preferredGazeMode === 'soften'
+    || candidate.preferredGazeMode === 'drift'
+    ? candidate.preferredGazeMode
+    : undefined
+  const preferredBlinkCadence = candidate.preferredBlinkCadence === 'normal'
+    || candidate.preferredBlinkCadence === 'linger'
+    || candidate.preferredBlinkCadence === 'quiet'
+    ? candidate.preferredBlinkCadence
+    : undefined
+  const preferredPauseMode = candidate.preferredPauseMode === 'longer'
+    || candidate.preferredPauseMode === 'natural'
+    ? candidate.preferredPauseMode
+    : undefined
+  const preferredLipsyncMode = candidate.preferredLipsyncMode === 'restrained'
+    || candidate.preferredLipsyncMode === 'matched'
+    ? candidate.preferredLipsyncMode
+    : undefined
+  const preferredVoiceMode = candidate.preferredVoiceMode === 'lower-pressure'
+    || candidate.preferredVoiceMode === 'even'
+    ? candidate.preferredVoiceMode
+    : undefined
+  const preferredPacingMode = candidate.preferredPacingMode === 'slower'
+    || candidate.preferredPacingMode === 'natural'
+    ? candidate.preferredPacingMode
+    : undefined
+  const residentMode = typeof candidate.residentMode === 'string' && candidate.residentMode.trim()
+    ? candidate.residentMode.trim()
+    : undefined
+  const reasonTags = normalizeRendererHintAliases(candidate.reasonTags)
+  const signature = typeof candidate.signature === 'string' && candidate.signature.trim()
+    ? candidate.signature.trim()
+    : undefined
+  if (
+    preferredExpressionAliases.length === 0
+    && preferredMotionAliases.length === 0
+    && !preferredGazeMode
+    && !preferredBlinkCadence
+    && !preferredPauseMode
+    && !preferredLipsyncMode
+    && !preferredVoiceMode
+    && !preferredPacingMode
+    && !residentMode
+    && reasonTags.length === 0
+    && !signature
+  ) {
     return null
+  }
 
   return {
     preferredExpressionAliases: preferredExpressionAliases.length > 0 ? preferredExpressionAliases : undefined,
     preferredMotionAliases: preferredMotionAliases.length > 0 ? preferredMotionAliases : undefined,
+    preferredGazeMode,
+    preferredBlinkCadence,
+    preferredPauseMode,
+    preferredLipsyncMode,
+    preferredVoiceMode,
+    preferredPacingMode,
+    reasonTags: reasonTags.length > 0 ? reasonTags : undefined,
+    residentMode,
+    signature,
   }
 }
 
@@ -207,6 +342,12 @@ function inferEncounter(input: {
       || input.governance?.answerSubject === 'relationship'
       || input.governance?.answerSubject === 'host-state'
       || input.governance?.screenReferenceMode === 'avoid'
+  const measuredReturnReopenSignal
+    = carriesMeasuredReturnCallbackReopenSignal({
+      governance: input.governance,
+      thought,
+    })
+    || input.governance?.mindTurnFrame?.self?.embodiedPresence === 'hesitant'
 
   return {
     obligation,
@@ -215,10 +356,12 @@ function inferEncounter(input: {
     careSignal: /别急|慢慢|先休息|照顾|没关系|take it easy|rest|care/i.test(reply)
       || obligation === 'care'
       || input.governance?.turnMode === 'care'
-      || input.governance?.turnMode === 'accompany',
+      || input.governance?.turnMode === 'accompany'
+      || /concerned(?:-but-restrained)?|stay gentle|gentle reopen|measured-return/.test(thought),
     firmSignal: /必须|立刻|马上|务必|stop|must|need to/i.test(reply)
       || /tone=\s*direct/.test(thought)
       || (input.governance?.repairState != null && input.governance.repairState !== 'none'),
+    measuredReturnReopenSignal,
     energeticSignal: /[!！]{2,}|太好了|真棒|awesome|great|wow/i.test(reply),
     uncertaintySignal: /也许|可能|不确定|我想|我觉得|maybe|perhaps|i think/i.test(reply)
       || obligation === 'ask-reground',
@@ -240,8 +383,10 @@ function resolveBaseEmotion(input: {
 
   if (encounter.apologySignal)
     resolved = 'apologetic'
-  else if (encounter.firmSignal && encounter.dialogueFirst)
+  else if (encounter.firmSignal && encounter.dialogueFirst && !encounter.measuredReturnReopenSignal)
     resolved = 'angry'
+  else if (encounter.measuredReturnReopenSignal && (candidateEmotion === 'thinking' || candidateEmotion === 'concerned'))
+    resolved = candidateEmotion === 'concerned' ? 'concerned' : 'thinking'
   else if (encounter.careSignal)
     resolved = 'concerned'
   else if (encounter.uncertaintySignal || encounter.questionSignal)
@@ -250,6 +395,17 @@ function resolveBaseEmotion(input: {
     resolved = 'happy'
   else if (encounter.obligation === 'defer')
     resolved = 'tired'
+
+  if (
+    candidateEmotion === 'concerned'
+    && resolved === 'thinking'
+    && !encounter.apologySignal
+    && (!encounter.firmSignal || !encounter.dialogueFirst)
+    && !encounter.energeticSignal
+    && encounter.obligation !== 'defer'
+  ) {
+    resolved = 'concerned'
+  }
 
   const strongSignal
     = encounter.apologySignal
@@ -283,8 +439,10 @@ function resolveDelivery(input: {
 
   if (encounter.teasingSignal)
     resolved = 'teasing'
-  else if (encounter.firmSignal)
+  else if (encounter.firmSignal && !encounter.measuredReturnReopenSignal)
     resolved = 'firm'
+  else if (encounter.measuredReturnReopenSignal && input.emotion === 'thinking')
+    resolved = 'hesitant'
   else if (encounter.careSignal || input.emotion === 'concerned' || input.emotion === 'apologetic')
     resolved = 'gentle'
   else if (encounter.energeticSignal || input.emotion === 'happy' || input.emotion === 'surprised')
@@ -333,6 +491,17 @@ function resolvePostureHint(input: {
   governance?: AlicizationDialogueEmbodimentGovernanceLike | null
 }): StageEmbodimentPresencePostureMode {
   const governance = input.governance
+  if (
+    input.encounter.measuredReturnReopenSignal
+    && (
+      governance?.embodiedPresence === 'hesitant'
+      || input.delivery === 'hesitant'
+      || input.emotion === 'thinking'
+    )
+  ) {
+    return 'hesitant'
+  }
+
   if (
     governance?.embodiedPresence === 'concerned'
     || input.encounter.careSignal
@@ -411,25 +580,47 @@ function resolveSpeechStyle(input: {
 
 function resolveDialogueEmbodimentRendererHints(input: {
   emotion: AlicizationEmotion
+  governance?: AlicizationDialogueEmbodimentGovernanceLike | null
   performanceManifest?: CharacterPerformanceCapabilitiesManifest | null
+  thought?: string
 }): AlicizationDialogueEmbodimentRendererHints | null {
   const manifestHints = input.performanceManifest?.embodimentHints?.[input.emotion]
+  const rememberedSeamMoreRoomSignal = carriesRememberedSeamMoreRoomSignal({
+    governance: input.governance,
+    thought: input.thought ?? '',
+  })
+  const measuredReturnReopenSignal = carriesMeasuredReturnCallbackReopenSignal({
+    governance: input.governance,
+    thought: input.thought ?? '',
+  })
   const preferredExpressionAliases = dedupeCues([
     ...(manifestHints?.preferredExpressionAliases ?? []),
     ...resolveStageEmbodimentLive2DExpressionAliases(input.emotion),
     ...resolveStageEmbodimentVrmBaseExpressionCandidates(input.emotion),
+    ...(measuredReturnReopenSignal ? ['CalmInspect'] : []),
   ])
   const preferredMotionAliases = dedupeCues([
     ...(manifestHints?.preferredMotionAliases ?? []),
     ...resolveStageEmbodimentLive2DMotionAliases(input.emotion),
+    ...(measuredReturnReopenSignal ? ['ObserveSoft'] : []),
   ])
 
-  if (preferredExpressionAliases.length === 0 && preferredMotionAliases.length === 0)
+  if (
+    preferredExpressionAliases.length === 0
+    && preferredMotionAliases.length === 0
+    && !measuredReturnReopenSignal
+  ) {
     return null
+  }
 
   return {
     preferredExpressionAliases: preferredExpressionAliases.length > 0 ? preferredExpressionAliases : undefined,
     preferredMotionAliases: preferredMotionAliases.length > 0 ? preferredMotionAliases : undefined,
+    preferredBlinkCadence: measuredReturnReopenSignal
+      ? (rememberedSeamMoreRoomSignal ? 'quiet' : 'linger')
+      : undefined,
+    preferredGazeMode: measuredReturnReopenSignal ? 'soften' : undefined,
+    residentMode: measuredReturnReopenSignal ? 'measured-return' : undefined,
   }
 }
 
@@ -538,11 +729,19 @@ export function resolveAlicizationDialogueEmbodiment(
     previousCue: input.previous?.facialCue,
     variationToken: `${variationToken}:facial`,
   })
-  const actionCue = selectCueWithVariation({
-    candidates: actionCueCandidates,
-    previousCue: input.previous?.actionCue,
-    variationToken: `${variationToken}:action`,
+  const actionCue = shouldPreserveExplicitRendererActionCue({
+    candidatePerformance: input.candidatePerformance,
+    performanceManifest: input.performanceManifest,
+    governance: input.governance,
+    previous: input.previous,
+    thought,
   })
+    ? normalizeCue(input.candidatePerformance?.actionCue)
+    : selectCueWithVariation({
+        candidates: actionCueCandidates,
+        previousCue: input.previous?.actionCue,
+        variationToken: `${variationToken}:action`,
+      })
 
   const performance = normalizeAlicizationPerformancePayload({
     ...input.candidatePerformance,
@@ -571,7 +770,9 @@ export function resolveAlicizationDialogueEmbodiment(
     }),
     rendererHints: resolveDialogueEmbodimentRendererHints({
       emotion,
+      governance: input.governance,
       performanceManifest: input.performanceManifest,
+      thought,
     }),
     variationToken,
   }
