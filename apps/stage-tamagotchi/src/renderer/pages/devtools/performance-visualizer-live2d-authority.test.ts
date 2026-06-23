@@ -28,6 +28,9 @@ describe('performance visualizer live2d authority comparison view', () => {
             mode: 'energy-phoneme-hybrid',
           },
         },
+        speechEvidence: {
+          voiceSummary: 'zh-CN | closure=0.84 | precision=0.90 | provenance=authority-bound | segment=segment-explicit-playback-cue-metadata | source=prosody-authority',
+        },
         live2dExecution: {
           activeExpression: {
             name: 'CalmInspect',
@@ -86,12 +89,19 @@ describe('performance visualizer live2d authority comparison view', () => {
       lipsyncSource: 'prosody-authority',
       lipsyncConfidence: 0.91,
       lipsyncSegmentAligned: true,
+      consumedVoiceSummary: 'zh-CN | closure=0.84 | precision=0.90 | provenance=authority-bound | segment=segment-explicit-playback-cue-metadata | source=prosody-authority',
+      voiceSource: 'prosody-authority',
+      voiceSegmentAligned: true,
       plannedLive2dFacialReleaseMs: 320,
       consumedLive2dFacialReleaseMs: 320,
       facialReleaseAligned: true,
       plannedLive2dMotionFollowThroughMs: 440,
       consumedLive2dMotionFollowThroughMs: 440,
       motionFollowThroughAligned: true,
+      sameHerExecutionAligned: true,
+      sameHerExecutionAuthoritySegmentId: 'segment-explicit-playback-cue-metadata',
+      sameHerExecutionMismatchDrivers: [],
+      sameHerExecutionSummary: 'aligned | authority=segment-explicit-playback-cue-metadata | active=face, motion, lipsync, voice | closure=renderer-rejoin-without-body | lane=face+motion+lipsync+voice-only | remaining-open=none',
     })
   })
 
@@ -348,6 +358,9 @@ describe('performance visualizer live2d authority comparison view', () => {
       lipsyncSource: null,
       lipsyncConfidence: null,
       lipsyncSegmentAligned: null,
+      consumedVoiceSummary: null,
+      voiceSource: null,
+      voiceSegmentAligned: null,
       plannedLive2dFacialReleaseMs: null,
       consumedLive2dFacialReleaseMs: null,
       facialReleaseAligned: null,
@@ -355,5 +368,214 @@ describe('performance visualizer live2d authority comparison view', () => {
       consumedLive2dMotionFollowThroughMs: null,
       motionFollowThroughAligned: null,
     })
+  })
+
+  it('keeps segment-only live2d shell lanes neutral instead of treating them as authority alignment signals', () => {
+    const view = buildLive2DAuthorityComparisonView({
+      speech: {
+        driverSummary: {
+          rendererTarget: 'live2d',
+          face: {
+            cue: null,
+            source: null,
+            confidence: 0,
+            segmentId: 'segment-live2d-shell-only',
+          },
+          motion: {
+            cue: null,
+            source: null,
+            confidence: 0,
+            segmentId: 'segment-live2d-shell-only',
+          },
+          lipsync: {
+            cue: null,
+            source: null,
+            confidence: 0,
+            segmentId: 'segment-live2d-shell-only',
+            mode: null,
+          },
+        },
+        live2dExecution: {
+          activeExpression: {
+            name: 'CalmInspect',
+            segmentId: 'segment-live2d-shell-only',
+          },
+          activeMotion: {
+            group: 'ObserveSoft',
+            index: 1,
+            segmentId: 'segment-live2d-shell-only',
+          },
+          cue: {
+            facialCue: null,
+            live2dFacialReleaseMs: null,
+            live2dMotionFollowThroughMs: null,
+          },
+        },
+        playbackTelemetry: {
+          cue: {
+            id: 'segment-live2d-shell-only',
+            rendererHints: {
+              preferredExpressionAliases: ['CalmInspect'],
+              preferredMotionAliases: ['ObserveSoft'],
+            },
+            rendererSettle: null,
+          },
+        },
+      },
+    } as any)
+
+    expect(view?.faceSegmentAligned).toBeNull()
+    expect(view?.motionSegmentAligned).toBeNull()
+    expect(view?.lipsyncSegmentAligned).toBeNull()
+  })
+
+  it('summarizes Live2D same-her execution drift when a consumed lane leaves the active authority segment', () => {
+    const view = buildLive2DAuthorityComparisonView({
+      speech: {
+        driverSummary: {
+          rendererTarget: 'live2d',
+          face: {
+            cue: 'soft-gaze',
+            source: 'prosody-authority',
+            confidence: 0.94,
+            segmentId: 'segment-live2d-same-her-current',
+          },
+          motion: {
+            cue: 'observe_focus',
+            source: 'timeline-projection',
+            confidence: 0.88,
+            segmentId: 'segment-live2d-same-her-current',
+          },
+          lipsync: {
+            cue: 'I',
+            source: 'prosody-authority',
+            confidence: 0.91,
+            segmentId: 'segment-live2d-stale-voice',
+          },
+        },
+        live2dExecution: {
+          activeExpression: {
+            name: 'RecoverSoft',
+            segmentId: 'segment-live2d-same-her-current',
+          },
+          activeMotion: {
+            group: 'StillnessGuard',
+            index: 0,
+            segmentId: 'segment-live2d-same-her-current',
+          },
+          cue: {
+            facialCue: 'soft-gaze',
+            live2dFacialReleaseMs: 380,
+            live2dMotionFollowThroughMs: 460,
+          },
+        },
+        playbackTelemetry: {
+          rendererTarget: 'live2d',
+          driverAuthority: {
+            segmentId: 'segment-live2d-same-her-current',
+            rendererTarget: 'live2d',
+            matchedDrivers: ['face', 'motion'],
+            sources: ['prosody-authority', 'timeline-projection'],
+            faceSegmentMatched: true,
+            motionSegmentMatched: true,
+            lipsyncSegmentMatched: false,
+          },
+          cue: {
+            id: 'segment-live2d-same-her-current',
+            rendererHints: {
+              preferredExpressionAliases: ['RecoverSoft'],
+              preferredMotionAliases: ['StillnessGuard'],
+            },
+            rendererSettle: {
+              live2dFacialReleaseMs: 380,
+              live2dMotionFollowThroughMs: 460,
+            },
+          },
+        },
+      },
+    } as any)
+
+    expect(view?.sameHerExecutionAligned).toBe(false)
+    expect(view?.sameHerExecutionMismatchDrivers).toEqual(['lipsync'])
+    expect(view?.sameHerExecutionAuthoritySegmentId).toBe('segment-live2d-same-her-current')
+    expect(view?.sameHerExecutionSummary).toBe('drift | authority=segment-live2d-same-her-current | active=face, motion, lipsync | mismatch=lipsync | lane=face+motion-only | remaining-open=lipsync+voice')
+  })
+
+  it('surfaces Live2D voice authority drift when the audible line points at a stale segment', () => {
+    const view = buildLive2DAuthorityComparisonView({
+      speech: {
+        driverSummary: {
+          rendererTarget: 'live2d',
+          face: {
+            cue: 'soft-gaze',
+            source: 'prosody-authority',
+            confidence: 0.94,
+            segmentId: 'segment-live2d-voice-current',
+          },
+          motion: {
+            cue: 'stillness_guard',
+            source: 'timeline-projection',
+            confidence: 0.88,
+            segmentId: 'segment-live2d-voice-current',
+          },
+          lipsync: {
+            cue: 'I',
+            source: 'prosody-authority',
+            confidence: 0.91,
+            segmentId: 'segment-live2d-voice-current',
+            mode: 'energy-phoneme-hybrid',
+          },
+        },
+        speechEvidence: {
+          voiceSummary: 'zh-CN | closure=0.72 | precision=0.88 | provenance=authority-bound | segment=segment-live2d-voice-stale | source=prosody-authority',
+        },
+        live2dExecution: {
+          activeExpression: {
+            name: 'RecoverSoft',
+            segmentId: 'segment-live2d-voice-current',
+          },
+          activeMotion: {
+            group: 'StillnessGuard',
+            index: 0,
+            segmentId: 'segment-live2d-voice-current',
+          },
+          cue: {
+            facialCue: 'soft-gaze',
+            live2dFacialReleaseMs: 360,
+            live2dMotionFollowThroughMs: 420,
+          },
+        },
+        playbackTelemetry: {
+          driverAuthority: {
+            segmentId: 'segment-live2d-voice-current',
+            rendererTarget: 'live2d',
+            matchedDrivers: ['face', 'motion', 'lipsync'],
+            sources: ['prosody-authority', 'timeline-projection'],
+            faceSegmentMatched: true,
+            motionSegmentMatched: true,
+            lipsyncSegmentMatched: true,
+            voiceSegmentMatched: false,
+          },
+          cue: {
+            id: 'segment-live2d-voice-current',
+            rendererHints: {
+              preferredExpressionAliases: ['RecoverSoft'],
+              preferredMotionAliases: ['StillnessGuard'],
+            },
+            rendererSettle: {
+              live2dFacialReleaseMs: 360,
+              live2dMotionFollowThroughMs: 420,
+            },
+          },
+        },
+      },
+    } as any)
+
+    expect(view?.consumedVoiceSummary).toBe('zh-CN | closure=0.72 | precision=0.88 | provenance=authority-bound | segment=segment-live2d-voice-stale | source=prosody-authority')
+    expect(view?.voiceSource).toBe('prosody-authority')
+    expect(view?.voiceSegmentAligned).toBe(false)
+    expect(view?.sameHerExecutionAligned).toBe(false)
+    expect(view?.sameHerExecutionMismatchDrivers).toEqual(['voice'])
+    expect(view?.sameHerExecutionSummary).toBe('drift | authority=segment-live2d-voice-current | active=face, motion, lipsync, voice | mismatch=voice | lane=face+motion+lipsync-only | remaining-open=voice')
   })
 })

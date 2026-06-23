@@ -85,6 +85,9 @@ const speechDisplayTextLabels: Record<string, string> = {
   'consumed-lipsync-cue': '消费口型线索',
   'lipsync-source': '口型来源',
   'lipsync-segment-aligned': '口型片段对齐',
+  'consumed-voice-summary': '消费语音摘要',
+  'voice-source': '语音来源',
+  'voice-segment-aligned': '语音片段对齐',
   'planned-live2d-facial-release-ms': '规划 Live2D 表情回收毫秒',
   'consumed-live2d-facial-release-ms': '消费 Live2D 表情回收毫秒',
   'facial-release-aligned': '表情回收对齐',
@@ -138,6 +141,12 @@ const speechDisplayTextLabels: Record<string, string> = {
   'geometries': '几何体',
   'last-timestamp-ms': '最近时间戳毫秒',
   'vrm-update-frame': 'VRM 更新帧',
+  'same-her-frame-summary': '同一生命线帧摘要',
+  'same-her-frame-aligned': '同一生命线帧对齐',
+  'same-her-frame-mismatch-drivers': '同一生命线漂移驱动',
+  'same-her-execution-summary': '同一生命线执行摘要',
+  'same-her-execution-aligned': '同一生命线执行对齐',
+  'same-her-execution-mismatch-drivers': '同一生命线执行漂移驱动',
   'last-consumed-expression-aliases': '最近消费表情别名',
   'last-consumed-motion-aliases': '最近消费动作别名',
   'last-consumed-vrm-action-fade-ms': '最近消费 VRM 动作淡出毫秒',
@@ -210,6 +219,7 @@ const speechAuthorityLaneLabels: Record<string, string> = {
   face: '表情',
   action: '动作',
   lipsync: '口型',
+  voice: '语音',
   settle: '稳定段',
 }
 
@@ -273,6 +283,7 @@ const speechAuthorityMismatchFilterLabels: Record<string, string> = {
   'face-mismatch': '表情漂移',
   'motion-mismatch': '动作漂移',
   'lipsync-mismatch': '口型漂移',
+  'voice-mismatch': '语音漂移',
 }
 
 const speechAuthorityRendererDriftFilterLabels: Record<string, string> = {

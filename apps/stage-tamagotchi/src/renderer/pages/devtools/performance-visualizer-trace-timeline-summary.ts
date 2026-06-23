@@ -1,5 +1,10 @@
 import type { StageThreeRuntimeSpeechEmbodimentDiagnostics } from '../../stores/stage-three-runtime-diagnostics'
+import type { PerformanceVisualizerRendererTarget } from './performance-visualizer-driver-authority'
+import type { PerformanceVisualizerPlaybackCueAuthorityView } from './performance-visualizer-playback-cue'
+import type { PerformanceVisualizerRuntimeAuthorityOverview } from './performance-visualizer-runtime-authority-overview'
 
+import { deriveAuthorityTrustSummary } from './performance-visualizer-authority-trust'
+import { resolveAuthorityTrustSummaryWithFallback } from './performance-visualizer-resolve-authority-trust'
 import { formatRendererAlignmentSummary } from './performance-visualizer-speech-observability'
 
 export interface PerformanceVisualizerTraceTimelineSummaryEntry {
@@ -31,6 +36,21 @@ export interface PerformanceVisualizerTraceTimelineBlockEntry {
 
 export interface PerformanceVisualizerTraceTimelineDetailBlockEntry extends PerformanceVisualizerTraceTimelineBlockEntry {
   details: string[]
+}
+
+export interface PerformanceVisualizerTraceTimelineAuthorityContext {
+  prosodyAuthoritySummary?: string | null
+  settleAuthoritySummary?: string | null
+  authoritySegmentId?: string | null
+  authorityRendererTarget?: PerformanceVisualizerRendererTarget
+  residentMode?: string | null
+  preferredBlinkCadence?: string | null
+  preferredGazeMode?: string | null
+  authorityMatchedDrivers?: Array<'body' | 'face' | 'motion' | 'lipsync' | 'voice'>
+  bodySegmentMatched?: boolean | null
+  faceSegmentMatched?: boolean | null
+  motionSegmentMatched?: boolean | null
+  lipsyncSegmentMatched?: boolean | null
 }
 
 function hasValue(value: string | null | undefined) {
@@ -171,6 +191,7 @@ export function buildRecentDrivingEventSummaryEntries(
 
 export function buildRecentDrivingTraceRecordSummaryEntries(
   traceRecord: StageThreeRuntimeSpeechEmbodimentDiagnostics['recentDrivingTraceRecord'] | null | undefined,
+  authorityContext?: PerformanceVisualizerTraceTimelineAuthorityContext | null,
 ): PerformanceVisualizerTraceTimelineSummaryEntry[] {
   if (!traceRecord)
     return []
@@ -216,11 +237,43 @@ export function buildRecentDrivingTraceRecordSummaryEntries(
       ...formatTraceClosureStateDisplay(traceRecord.closureState!),
     })
   }
-  if (hasValue((traceRecord as any).authorityTrustSummary)) {
+  const runtimeAuthorityTrustSummary = hasValue((traceRecord as any).authorityTrustSummary as string | null | undefined)
+    ? (((traceRecord as any).authorityTrustSummary as string | null | undefined)?.trim() ?? null)
+    : null
+  const resolvedAuthorityTrustSummary = resolveAuthorityTrustSummaryWithFallback({
+    authorityTrustSummary: runtimeAuthorityTrustSummary,
+    settleAuthoritySummary: authorityContext?.settleAuthoritySummary ?? null,
+    rendererTarget: authorityContext?.authorityRendererTarget ?? null,
+    residentMode: authorityContext?.residentMode ?? null,
+    preferredBlinkCadence: authorityContext?.preferredBlinkCadence ?? null,
+    preferredGazeMode: authorityContext?.preferredGazeMode ?? null,
+    prosodyAuthoritySummary: authorityContext?.prosodyAuthoritySummary ?? null,
+    authoritySegmentId: authorityContext?.authoritySegmentId ?? null,
+    authorityMatchedDrivers: authorityContext?.authorityMatchedDrivers ?? [],
+    bodySegmentMatched: authorityContext?.bodySegmentMatched ?? null,
+    faceSegmentMatched: authorityContext?.faceSegmentMatched ?? null,
+    motionSegmentMatched: authorityContext?.motionSegmentMatched ?? null,
+    lipsyncSegmentMatched: authorityContext?.lipsyncSegmentMatched ?? null,
+  }) ?? deriveAuthorityTrustSummary({
+    prosodyAuthoritySummary: authorityContext?.prosodyAuthoritySummary ?? null,
+    settleAuthoritySummary: authorityContext?.settleAuthoritySummary ?? null,
+    authoritySegmentId: authorityContext?.authoritySegmentId ?? null,
+    authorityRendererTarget: authorityContext?.authorityRendererTarget ?? null,
+    residentMode: authorityContext?.residentMode ?? null,
+    preferredBlinkCadence: authorityContext?.preferredBlinkCadence ?? null,
+    preferredGazeMode: authorityContext?.preferredGazeMode ?? null,
+    authorityMatchedDrivers: authorityContext?.authorityMatchedDrivers ?? [],
+    bodySegmentMatched: authorityContext?.bodySegmentMatched ?? null,
+    faceSegmentMatched: authorityContext?.faceSegmentMatched ?? null,
+    motionSegmentMatched: authorityContext?.motionSegmentMatched ?? null,
+    lipsyncSegmentMatched: authorityContext?.lipsyncSegmentMatched ?? null,
+  })
+
+  if (hasValue(resolvedAuthorityTrustSummary)) {
     pushSummaryEntry(entries, {
       key: 'trace-authority-trust',
       label: '权威可信性',
-      value: (traceRecord as any).authorityTrustSummary,
+      value: resolvedAuthorityTrustSummary!,
     })
   }
   const suppressionTags = formatList(traceRecord.suppressionTags)
@@ -228,6 +281,41 @@ export function buildRecentDrivingTraceRecordSummaryEntries(
     pushSummaryEntry(entries, { key: 'trace-suppression-tags', label: '抑制标签', value: suppressionTags })
 
   return entries
+}
+
+export function buildRecentDrivingTraceRecordSummaryEntriesFromDiagnostics(input: {
+  speechEmbodiment?: StageThreeRuntimeSpeechEmbodimentDiagnostics | null
+  runtimeAuthorityOverview?: PerformanceVisualizerRuntimeAuthorityOverview | null
+  playbackCueAuthorityView?: PerformanceVisualizerPlaybackCueAuthorityView | null
+}): PerformanceVisualizerTraceTimelineSummaryEntry[] {
+  const traceRecord = input.speechEmbodiment?.recentDrivingTraceRecord
+  if (!traceRecord)
+    return []
+
+  return buildRecentDrivingTraceRecordSummaryEntries(
+    {
+      ...traceRecord,
+      authorityTrustSummary: input.runtimeAuthorityOverview?.authorityTrustSummary
+        ?? input.playbackCueAuthorityView?.authorityTrustSummary
+        ?? null,
+    } as typeof traceRecord & { authorityTrustSummary?: string | null },
+    input.playbackCueAuthorityView
+      ? {
+          prosodyAuthoritySummary: input.playbackCueAuthorityView.prosodyAuthoritySummary ?? null,
+          settleAuthoritySummary: input.playbackCueAuthorityView.settleAuthoritySummary ?? null,
+          authoritySegmentId: input.playbackCueAuthorityView.authoritySegmentId ?? null,
+          authorityRendererTarget: input.playbackCueAuthorityView.authorityRendererTarget ?? null,
+          residentMode: input.playbackCueAuthorityView.residentMode ?? null,
+          preferredBlinkCadence: input.playbackCueAuthorityView.preferredBlinkCadence ?? null,
+          preferredGazeMode: input.playbackCueAuthorityView.preferredGazeMode ?? null,
+          authorityMatchedDrivers: input.playbackCueAuthorityView.authorityMatchedDrivers,
+          bodySegmentMatched: input.playbackCueAuthorityView.bodySegmentMatched ?? null,
+          faceSegmentMatched: input.playbackCueAuthorityView.faceSegmentMatched ?? null,
+          motionSegmentMatched: input.playbackCueAuthorityView.motionSegmentMatched ?? null,
+          lipsyncSegmentMatched: input.playbackCueAuthorityView.lipsyncSegmentMatched ?? null,
+        }
+      : null,
+  )
 }
 
 export function buildRecentDrivingTraceEventEntries(
