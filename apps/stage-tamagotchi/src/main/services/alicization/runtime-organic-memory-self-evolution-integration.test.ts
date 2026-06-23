@@ -2,7 +2,9 @@ import type { AlicizationSelfRevisionStatePatch } from './self-evolution/state-r
 
 import { describe, expect, it } from 'vitest'
 
+import { buildAlicizationEmotionalTransitionLedger } from './emotional-ledger'
 import { buildOrganicMemoryEvolutionState } from './runtime-organic-memory-self-evolution-integration'
+import { buildAlicizationEmotionalSelfRevisionStatePatch } from './self-evolution/emotional-self-revision-bridge'
 
 const historicalSelfRevisionTelemetry = {
   version: 'memory-stats-v1',
@@ -65,6 +67,14 @@ const activeSelfRevisionPatch: AlicizationSelfRevisionStatePatch = {
     rollbackPlan: ['rollback-to-pre-revision-posture'],
   },
   reasonCodes: ['domain:self-model', 'rollback-validation-required'],
+  projectStateContinuity: {
+    sameHerSelfLine: null,
+    sameHerDriftRisk: null,
+    proactiveSameHerGap: 'Need stronger long-run proof that visible proactive hold, subconscious carry, and next-session feedback carry stay unified after hover-first restraint survives detours on longer noisy desktop runs.',
+    emotionalClosureCue: null,
+    continuityGuard: null,
+    continuityPressure: 0.22,
+  },
   summary: 'Do not let unverified self-model revisions drift into durable identity.',
 }
 
@@ -106,6 +116,14 @@ describe('runtime organic memory self evolution integration', () => {
       activeLearningFocuses: expect.arrayContaining(['self-revision-policy-feedback']),
       sourceSignals: expect.arrayContaining(['self-revision:domain:self-model']),
     }))
+    expect(result.selfEvolution?.relationshipCadenceSummary?.toLowerCase()).toContain('proactive')
+    expect(
+      result.selfEvolution?.sourceSignals?.some(signal =>
+        signal.includes('visible proactive hold')
+        && signal.includes('subconscious carry')
+        && signal.includes('next-session feedback carry'),
+      ),
+    ).toBe(true)
     expect(result.derivedMindStateBundle).toEqual(expect.objectContaining({
       activeSelfRevision: expect.objectContaining({
         candidateId: 'candidate-self-evolution-1',
@@ -115,6 +133,113 @@ describe('runtime organic memory self evolution integration', () => {
         reasonCodes: expect.arrayContaining(['domain:self-model', 'rollback-validation-required']),
         summary: 'Do not let unverified self-model revisions drift into durable identity.',
       }),
+    }))
+  })
+
+  it('promotes a repair emotional transition candidate into active self-revision and continuity governance', () => {
+    const ledger = buildAlicizationEmotionalTransitionLedger({
+      createdAt: 120_000,
+      previous: null,
+      next: {
+        version: 'emotional-kernel-v1',
+        dominantEmotion: 'repair-tension',
+        initiativeMode: 'repair',
+        memoryRecallMode: 'repair-grounding',
+        embodimentTone: 'repair-before-closeness',
+        valence: 0.24,
+        arousal: 0.66,
+        guardedness: 0.72,
+        closenessDrive: 0.18,
+        repairNeed: 0.86,
+        initiativePressure: 0.14,
+        reasonTags: ['repair-before-closeness', 'confirmation-boundary'],
+        why: 'Repair should settle before closeness widens again.',
+      },
+      source: {
+        turnId: 'turn-emotion-repair-1',
+        sourceTags: ['affective-residue', 'project-state'],
+      },
+    })
+
+    const emotionalPatch = buildAlicizationEmotionalSelfRevisionStatePatch({
+      ledger,
+      decisionTraceId: 'trace-emotion-repair-1',
+      projectStateContinuity: {
+        sameHerSelfLine: 'Same Phase 1 digital life, repair first before closeness.',
+        sameHerDriftRisk: 'Without this bridge, repair emotion remains replay text instead of shaping the same-her baseline.',
+        proactiveSameHerGap: 'Future proactive returns must stay quieter until the repair line cools.',
+        emotionalClosureCue: 'Keep repair-before-closeness active across memory, initiative, and body.',
+        sameHerHoldDetail: 'Hold warmth behind repair until the seam settles.',
+        continuityGuard: 'Do not reopen from a generic helper shell while repair is active.',
+      },
+    })
+
+    expect(emotionalPatch).toEqual(expect.objectContaining({
+      version: 'self-revision-state-patch-v1',
+      id: 'emotional-transition:turn-emotion-repair-1:120000:state-patch',
+      sourceTurnId: 'turn-emotion-repair-1',
+      decisionTraceId: 'trace-emotion-repair-1',
+      domain: 'dialogue-style',
+      action: 'hold',
+      resultStatus: 'completed',
+      lanes: expect.arrayContaining(['relationship-posture', 'response-posture', 'proactive-policy']),
+      reasonCodes: expect.arrayContaining([
+        'emotion-transition:repair-shift',
+        'emotion-candidate:repair-before-closeness',
+        'emotion-candidate:continue-repair-first',
+        'emotion-memory:relationship-repair',
+        'emotion-initiative:repair-first',
+        'emotion-embodiment:repair-before-closeness',
+        'emotion-decay:hold-until-repair-cools',
+        'emotion-decay-ttl:1800000',
+        'same-her-emotional-closure-carry-active',
+      ]),
+    }))
+    expect(emotionalPatch?.relationshipPosture.repairWindowBias).toBeGreaterThan(0.4)
+    expect(emotionalPatch?.relationshipPosture.closenessCapBias).toBeGreaterThan(0.4)
+    expect(emotionalPatch?.proactivePolicy.restraintBias).toBeGreaterThan(0.4)
+    expect(emotionalPatch?.proactivePolicy.actuationCooldownBias).toBeGreaterThan(0.4)
+    expect(emotionalPatch?.summary).toContain('decay hold-until-repair-cools holds for 1800000ms')
+    expect(emotionalPatch?.projectStateContinuity?.continuityGuard).toContain('expires at 1920000')
+    expect(emotionalPatch?.projectStateContinuity?.continuityPressure).toBeGreaterThan(0.8)
+
+    const result = buildOrganicMemoryEvolutionState({
+      producedAt: 120_000,
+      retrievedFacts: [],
+      proceduralMemories: [],
+      hostPersonModel: null,
+      recollectionIntent: null,
+      recollectionPlan: null,
+      recollectionSpeechPlan: null,
+      memoryDeliberation: null,
+      personStateProjection: null,
+      activeSelfEvolutionCandidateId: 'emotion-repair-baseline',
+      activeSelfRevisionPatch: emotionalPatch,
+      activeContinuityGovernance: {
+        source: 'active-self-evolution-version',
+        mode: 'same-her-baseline',
+        candidateId: 'emotion-repair-baseline',
+        patchId: emotionalPatch?.id ?? null,
+        decisionTraceId: emotionalPatch?.decisionTraceId ?? null,
+        summary: emotionalPatch?.summary ?? null,
+        lanes: emotionalPatch?.lanes ?? [],
+        reasonCodes: emotionalPatch?.reasonCodes ?? [],
+      },
+    })
+
+    expect(result.selfEvolution?.sourceSignals).toEqual(expect.arrayContaining([
+      'self-revision:emotion-transition:repair-shift',
+      'self-revision:emotion-candidate:repair-before-closeness',
+    ]))
+    expect(result.derivedMindStateBundle.activeSelfRevision).toEqual(expect.objectContaining({
+      candidateId: 'emotion-repair-baseline',
+      patchId: emotionalPatch?.id,
+      summary: expect.stringContaining('Repair-first emotional carry'),
+    }))
+    expect(result.derivedMindStateBundle.activeContinuityGovernance).toEqual(expect.objectContaining({
+      mode: 'same-her-baseline',
+      patchId: emotionalPatch?.id,
+      summary: expect.stringContaining('Repair-first emotional carry'),
     }))
   })
 })

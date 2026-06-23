@@ -3,7 +3,9 @@ import type {
   AlicizationLearningExecutionStateSnapshot,
   AlicizationMemoryStats,
   AlicizationPersonStateEvolutionSummary,
+  AlicizationSameHerCausalityRepairPressureSnapshot,
 } from '../../../shared/eventa'
+import type { AlicizationMemoryTuningAdvice } from './memory-tuning-advice'
 import type { AlicizationPersonStateProjection } from './person-state-projection'
 import type { AlicizationRelationshipDynamicsState } from './relationship-dynamics-state'
 import type { OrganicMemoryPromptContext } from './runtime-soul'
@@ -62,6 +64,88 @@ export function deriveKnowledgeEvidence(input: {
   }
 }
 
+function findTuningNote(input: {
+  tuningAdvice: AlicizationMemoryTuningAdvice
+  pattern: RegExp
+  fallback: string
+}) {
+  return input.tuningAdvice.notes.find(note => input.pattern.test(note)) ?? input.fallback
+}
+
+function buildSameHerCausalityRepairPressureFromTuningAdvice(input: {
+  tuningAdvice?: AlicizationMemoryTuningAdvice | null
+}): AlicizationSameHerCausalityRepairPressureSnapshot | null {
+  const tuningAdvice = input.tuningAdvice ?? null
+  if (!tuningAdvice)
+    return null
+
+  const focus = new Set(tuningAdvice.focusDimensions)
+  const lanes: AlicizationSameHerCausalityRepairPressureSnapshot['lanes'] = []
+  if (focus.has('runtimeSameHerInitiativeExecutionCausality')) {
+    lanes.push({
+      lane: 'initiative-execution',
+      reasonTags: ['runtimeSameHerInitiativeExecutionCausality'],
+      summary: findTuningNote({
+        tuningAdvice,
+        pattern: /initiative\/execution|proactive opening|execution callback|learning feedback/iu,
+        fallback: 'Proactive opening, execution callback, and learning feedback still need to follow from the recalled same-her line.',
+      }),
+    })
+  }
+  if (focus.has('runtimeSameHerEmotionalCausality')) {
+    lanes.push({
+      lane: 'emotion',
+      reasonTags: ['runtimeSameHerEmotionalCausality'],
+      summary: findTuningNote({
+        tuningAdvice,
+        pattern: /emotional|afterglow|mood reset/iu,
+        fallback: 'Emotional afterglow still needs to stay causally tied to recall and execution feedback.',
+      }),
+    })
+  }
+  if (focus.has('runtimeSameHerEmbodimentCausality')) {
+    lanes.push({
+      lane: 'embodiment',
+      reasonTags: ['runtimeSameHerEmbodimentCausality'],
+      summary: findTuningNote({
+        tuningAdvice,
+        pattern: /embodiment|voice|face|lipsync|\bbody\b/iu,
+        fallback: 'Voice, face, motion, lipsync, and body still need to derive from the same recalled inner state.',
+      }),
+    })
+  }
+  if (lanes.length === 0)
+    return null
+
+  const memoryIdentityRequirement = focus.has('runtimeMemoryClosureCausalIdentity')
+    ? {
+        status: 'required' as const,
+        proofBoundary: 'downstream-memory-closure-causality' as const,
+        requiredPath: 'memoryClosureCausality.memoryIdentity' as const,
+        excludedProofs: ['route-chain-text' as const, 'visible-reply-wording' as const],
+        continuity: 'stable-memory-identity-key' as const,
+        summary: findTuningNote({
+          tuningAdvice,
+          pattern: /memory closure long-run|memoryClosureCausality\.memoryIdentity|route-chain|visible reply/iu,
+          fallback: 'Real memory closure still needs downstream memoryClosureCausality.memoryIdentity, not route-chain text or visible reply wording.',
+        }),
+      }
+    : null
+
+  return {
+    version: 'same-her-causality-repair-pressure-v1',
+    source: 'memory-tuning-advice',
+    status: 'pending-runtime-evidence',
+    updatedAt: tuningAdvice.updatedAt,
+    sourceReportAt: tuningAdvice.sourceReportAt,
+    focusDimensions: tuningAdvice.focusDimensions.slice(0, 18),
+    lanes,
+    memoryIdentityRequirement,
+    notes: tuningAdvice.notes.slice(0, 6),
+    summary: `pending same-her causality repair: ${lanes.map(item => item.lane).join(', ')}`,
+  }
+}
+
 export function buildOrganicMemoryEvolutionState(input: {
   producedAt: number
   retrievedFacts: OrganicMemoryPromptContext['retrievedFacts']
@@ -78,6 +162,7 @@ export function buildOrganicMemoryEvolutionState(input: {
   learningExecutionState?: AlicizationLearningExecutionStateSnapshot | null
   recallLatencyPolicy?: OrganicMemoryPromptContext['recallLatencyPolicy'] | null
   affectiveResidue?: AlicizationAffectiveResidueMemorySnapshot | null
+  memoryTuningAdvice?: AlicizationMemoryTuningAdvice | null
   recentRelationshipOutcomes?: OrganicMemoryPromptContext['recentRelationshipOutcomes'] | null
   recentMemoryReflections?: OrganicMemoryPromptContext['recentMemoryReflections'] | null
   relationshipDynamics?: AlicizationRelationshipDynamicsState | null
@@ -143,6 +228,7 @@ export function buildOrganicMemoryEvolutionState(input: {
           ].slice(0, 24),
         }
       : null,
+    activeSelfRevisionProjectStateContinuity: activeSelfRevisionPatch?.projectStateContinuity ?? null,
     reflectionSummary: input.personStateEvolutionSummary?.recentSummaries?.[0] ?? null,
     reflectionLesson: input.personStateEvolutionSummary?.explanation?.[0] ?? null,
     reflectionTargetScope: input.personStateEvolutionSummary?.latestDoctrine ? 'relationship' : null,
@@ -158,6 +244,9 @@ export function buildOrganicMemoryEvolutionState(input: {
     personalityContinuityState: input.personStateProjection?.personalityContinuityState ?? null,
     hostPersonModel: input.hostPersonModel,
     relationshipDynamics: input.relationshipDynamics ?? null,
+  })
+  const sameHerCausalityRepairPressure = buildSameHerCausalityRepairPressureFromTuningAdvice({
+    tuningAdvice: input.memoryTuningAdvice ?? null,
   })
   const derivedMindStateBundle = buildDerivedMindStateBundle({
     source: 'main-runtime',
@@ -177,11 +266,13 @@ export function buildOrganicMemoryEvolutionState(input: {
         }
       : null,
     activeContinuityGovernance: input.activeContinuityGovernance ?? null,
+    sameHerCausalityRepairPressure,
     selfEvolution,
     affectiveResidue,
     learningExecutionState: deriveAlicizationLearningExecutionProjection({
       persistedState: input.learningExecutionState ?? null,
       selfEvolution,
+      sameHerCausalityRepairPressure,
       projectionMode: 'advisory-only',
     }),
     recallLatencyPolicy: input.recallLatencyPolicy ?? null,

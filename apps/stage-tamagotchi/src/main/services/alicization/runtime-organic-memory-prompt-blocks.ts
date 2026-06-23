@@ -7,6 +7,44 @@ import { formatMemoryProvenanceLabel } from './humanlike-memory'
 import { buildAlicizationMemoryDeliberationKernel } from './memory-deliberation-kernel'
 import { deriveRecollectionSurfaceControls } from './recollection-surface-controls'
 
+function buildMemoryTuningCausalityLines(context: OrganicMemoryPromptContext) {
+  const tuningAdvice = context.memoryTuningAdvice ?? null
+  const focus = tuningAdvice?.focusDimensions ?? []
+  if (!tuningAdvice || focus.length === 0)
+    return []
+
+  const lines: string[] = []
+  if (focus.includes('runtimeSameHerInitiativeExecutionCausality')) {
+    lines.push('initiative_execution=proactive opening, execution callback, and learning feedback must explicitly follow from the recalled memory closure')
+  }
+  if (focus.includes('runtimeSameHerEmotionalCausality')) {
+    lines.push('emotion=emotional afterglow must stay causally tied to prior recall and execution feedback')
+  }
+  if (focus.includes('runtimeSameHerEmbodimentCausality')) {
+    lines.push('embodiment=voice, face, motion, lipsync, and body must derive from the same recalled state')
+  }
+  if (focus.includes('runtimeMemoryClosureCausalIdentity')) {
+    lines.push('memory_closure_identity=required: closure proof must come from downstream memoryClosureCausality.memoryIdentity')
+    lines.push('proof_boundary=route-chain text and visible reply wording are not closure proof')
+  }
+  if (focus.includes('runtimeMemoryClosureIdentityContinuity')) {
+    lines.push('identity_continuity=preserve one stable memory identity key across recall, initiative, execution, emotion, and embodiment')
+  }
+  if (focus.includes('runtimeMemoryClosureLaneCarry')) {
+    lines.push('lane_carry=recall must causally alter initiative, execution feedback, emotional residue, and embodied expression before the run counts as one her')
+  }
+  if (lines.length === 0)
+    return []
+
+  return [
+    '[ALICIZATION_MEMORY_TUNING_CAUSALITY]',
+    'Nightly replay found that runtime same-her closure can split after memory recall. Treat this as next-turn memory governance, not visible wording.',
+    `source=${tuningAdvice.source}`,
+    ...lines,
+    'same_her_rule=the next reply should keep recall, initiative, execution feedback, emotional residue, and embodied expression on one continuous her-line',
+  ]
+}
+
 export function buildOrganicMemorySystemBlocks(
   context: OrganicMemoryPromptContext,
   memoryTurnArtifact?: ReturnType<typeof buildAlicizationMemoryTurnArtifact> | null,
@@ -17,6 +55,8 @@ export function buildOrganicMemorySystemBlocks(
     speech: context.recollectionSpeechPlan ?? null,
     recollectionIntent: context.recollectionIntent ?? null,
     knowledgeEvidence: context.knowledgeEvidence ?? null,
+    hostPersonModel: context.hostPersonModel ?? null,
+    projectStateContinuity: context.projectStateContinuity ?? null,
     tuningAdvice: context.memoryTuningAdvice ?? null,
   })
   if (context.hostAttitude) {
@@ -26,12 +66,62 @@ export function buildOrganicMemorySystemBlocks(
     ].join('\n'))
   }
 
+  const memoryTuningCausalityLines = buildMemoryTuningCausalityLines(context)
+  if (memoryTuningCausalityLines.length > 0)
+    blocks.push(memoryTuningCausalityLines.join('\n'))
+
   if (context.coreIncarnation) {
     blocks.push([
       '[ALICIZATION_CORE_INCARNATION]',
       '这是你当前的摇光心意。它是你理解宿主、理解自己、理解关系的灵魂基底。',
       context.coreIncarnation,
     ].join('\n'))
+  }
+
+  if (context.projectStateContinuity || context.projectStatePreflightSummary || context.projectStatePreDialogueAwarenessLine) {
+    blocks.push([
+      '[ALICIZATION_PROJECT_STATE_CONTINUITY]',
+      'This is the current Phase 1 digital-life continuity seam the organic memory layer must stay aligned with before speaking.',
+      context.projectStatePreflightSummary
+        ? `preflight_summary=${context.projectStatePreflightSummary}`
+        : '',
+      context.projectStatePreDialogueAwarenessLine
+        ? `pre_dialogue_awareness=${context.projectStatePreDialogueAwarenessLine}`
+        : '',
+      context.projectStateContinuity?.identity
+        ? `identity=${context.projectStateContinuity.identity}`
+        : '',
+      context.projectStateContinuity?.currentPhase
+        ? `current_phase=${context.projectStateContinuity.currentPhase}`
+        : '',
+      context.projectStateContinuity?.landedProgressSummary
+        ? `landed_progress=${context.projectStateContinuity.landedProgressSummary}`
+        : '',
+      context.projectStateContinuity?.openClosureSummary
+        ? `open_closure=${context.projectStateContinuity.openClosureSummary}`
+        : '',
+      context.projectStateContinuity?.proactiveSameHerGap
+        ? `proactive_same_her_gap=${context.projectStateContinuity.proactiveSameHerGap}`
+        : '',
+      context.projectStateContinuity?.nextClosureTarget
+        ? `next_closure_target=${context.projectStateContinuity.nextClosureTarget}`
+        : '',
+      context.projectStateContinuity?.emotionalClosureCue
+        ? `emotional_closure_cue=${context.projectStateContinuity.emotionalClosureCue}`
+        : '',
+      context.projectStateContinuity?.sameHerSummary
+        ? `same_her_summary=${context.projectStateContinuity.sameHerSummary}`
+        : '',
+      context.projectStateContinuity?.sameHerSelfLine
+        ? `same_her_self_line=${context.projectStateContinuity.sameHerSelfLine}`
+        : '',
+      context.projectStateContinuity?.sameHerHoldDetail
+        ? `same_her_hold=${context.projectStateContinuity.sameHerHoldDetail}`
+        : '',
+      context.projectStateContinuity?.sameHerDriftRisk
+        ? `same_her_drift_risk=${context.projectStateContinuity.sameHerDriftRisk}`
+        : '',
+    ].filter(Boolean).join('\n'))
   }
 
   if (context.retrievedFacts.length > 0) {
@@ -130,14 +220,27 @@ export function buildOrganicMemorySystemBlocks(
   }
 
   if ((context.consolidatedMemories ?? []).length > 0) {
+    const hasQuietSameHerContinuity = (context.consolidatedMemories ?? []).some((item) => {
+      const cues = item.cues.map(cue => cue.toLowerCase())
+      const summary = item.summary.toLowerCase()
+      const lesson = String(item.lesson ?? '').toLowerCase()
+      return cues.includes('quiet-same-her-continuity')
+        || cues.includes('same-her-inward-carry')
+        || cues.includes('quiet-companionship')
+        || summary.includes('quiet same-her continuity')
+        || lesson.includes('quiet same-her continuity')
+    })
     blocks.push([
       '[ALICIZATION_CONSOLIDATED_MEMORY]',
       'These are consolidated autobiographical summaries distilled from repeated events over time.',
       'Prefer starting from one of these summaries before unpacking raw memory pieces.',
+      hasQuietSameHerContinuity
+        ? 'If a consolidation is marked as quiet same-her continuity, treat it as inward same-her continuity authority rather than a generic measured-return helper shell.'
+        : '',
       ...(context.consolidatedMemories ?? []).map((item) => {
         return `- kind=${item.kind} | facet=${item.facet ?? 'none'} | period=${item.periodKey} | tier=${item.memoryTier ?? 'warm'} | confidence=${item.confidence.toFixed(2)} | provenance=${item.dominantProvenance} | summary=${item.summary} | lesson=${item.lesson ?? 'none'} | cues=${item.cues.join(' ; ')}`
       }),
-    ].join('\n'))
+    ].filter(Boolean).join('\n'))
   }
 
   if ((context.recollectedWindows ?? []).length > 0) {
@@ -198,6 +301,9 @@ export function buildOrganicMemorySystemBlocks(
       speechControls ? `visibility=${speechControls.visibility}` : '',
       speechControls ? `continuity_role=${speechControls.continuityRole}` : '',
       speechControls ? `template_boundary=${speechControls.templateBoundary}` : '',
+      context.recollectionSpeechPlan.styleNote
+        ? `surface_guidance=${context.recollectionSpeechPlan.styleNote}`
+        : '',
       context.recollectionSpeechPlan.shouldSurface
         ? 'If recollection is surfaced, keep it brief and let it serve the current payoff rather than replacing it.'
         : 'Let recollection stay as inward pressure unless surfacing it is truly needed for the current answer.',
@@ -215,6 +321,12 @@ export function buildOrganicMemorySystemBlocks(
       `why_now=${deliberationKernel?.rationale ?? context.memoryDeliberation.whyNow}`,
       deliberationKernel?.whyWithheld
         ? `why_withheld=${deliberationKernel.whyWithheld}`
+        : '',
+      deliberationKernel?.restraint.mustDo.length
+        ? `must_do=${deliberationKernel.restraint.mustDo.join(' | ')}`
+        : '',
+      deliberationKernel?.restraint.mustNotDo.length
+        ? `must_not_do=${deliberationKernel.restraint.mustNotDo.join(' | ')}`
         : '',
       deliberationKernel?.followUpAffordance?.summary
         ? `follow_up_affordance=${deliberationKernel.followUpAffordance.summary}`
@@ -438,11 +550,38 @@ export function buildOrganicMemorySystemBlocks(
     ].filter(Boolean).join('\n'))
   }
 
+  if (context.executionCallbackCarry) {
+    blocks.push([
+      '[ALICIZATION_EXECUTION_CALLBACK_CARRY]',
+      'This is remembered execution-callback relationship carry, not a generic execution result summary.',
+      'Use it to preserve the same human pacing across follow-up turns: how much room to leave, whether trust warmed, and how the callback should continue living in the bond.',
+      `carry_mode=${context.executionCallbackCarry.carryMode}`,
+      `confidence=${context.executionCallbackCarry.confidence.toFixed(2)}`,
+      context.executionCallbackCarry.threadAnchor
+        ? `thread=${context.executionCallbackCarry.threadAnchor}`
+        : '',
+      context.executionCallbackCarry.episodeId
+        ? `episode=${context.executionCallbackCarry.episodeId}`
+        : '',
+      `summary=${context.executionCallbackCarry.summary}`,
+    ].filter(Boolean).join('\n'))
+  }
+
   if (context.selfEvolution) {
+    const latestInflection = context.selfEvolution.latestInflection ?? ''
+    const relationshipCadenceSummary = context.selfEvolution.relationshipCadenceSummary ?? ''
+    const embodimentCadenceAuthority = /measured-return body line|durable rhythm|durable relationship rhythm|repair-before-closeness|voice, face, motion, and lipsync/u.test(latestInflection)
+    const sameHerDurableCadenceAuthority = /same her|same-her|same living line|without reopening from scratch|without restarting from scratch|across quiet, memory, and speech/u.test(relationshipCadenceSummary.toLowerCase())
     blocks.push([
       '[ALICIZATION_SELF_EVOLUTION]',
       'This is the current long-horizon self-evolution kernel synthesized from reflection, durable memory, and relationship growth.',
       'Use it as live inner trajectory and learning pressure, not as a canned speech template.',
+      embodimentCadenceAuthority
+        ? 'Embodiment-confirmed cadence is current memory authority: let recollection selection, distance, and surface timing stay on that same body-confirmed relationship rhythm.'
+        : '',
+      sameHerDurableCadenceAuthority
+        ? 'Same-her durable cadence is current inward continuity authority: let recollection and distance stay on that same living line instead of reopening from scratch or flattening into a generic helper shell.'
+        : '',
       context.selfEvolution.summary
         ? `summary=${context.selfEvolution.summary}`
         : '',
@@ -451,6 +590,9 @@ export function buildOrganicMemorySystemBlocks(
         : '',
       context.selfEvolution.relationshipDoctrine
         ? `relationship_doctrine=${context.selfEvolution.relationshipDoctrine}`
+        : '',
+      context.selfEvolution.relationshipCadenceSummary
+        ? `relationship_cadence_summary=${context.selfEvolution.relationshipCadenceSummary}`
         : '',
       context.selfEvolution.latestInflection
         ? `latest_inflection=${context.selfEvolution.latestInflection}`

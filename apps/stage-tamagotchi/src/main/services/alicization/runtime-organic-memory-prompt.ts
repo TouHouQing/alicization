@@ -1,8 +1,14 @@
+import type { AlicizationExecutionRuntimeMemoryClosureExecution } from '@proj-alicization/stage-shared'
+
 import type {
+  AlicizationEpisodicEventRecord,
+  AlicizationLearningExecutionStateSnapshot,
   AlicizationMemoryProvenance,
+  AlicizationMemoryReflectionRecord,
   AlicizationMemoryResolutionLedger,
   AlicizationRecallGovernorSnapshot,
 } from '../../../shared/eventa'
+import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 import type { buildAlicizationMemoryTurnArtifact } from './memory-os/memory-turn-artifact'
 import type { AlicizationMemoryRetrievalBudgetClass } from './memory-retrieval-telemetry'
 import type { AlicizationMemoryTuningAdvice } from './memory-tuning-advice'
@@ -21,6 +27,7 @@ import { deriveAlicizationRecallLatencyPolicy } from '@proj-alicization/stage-sh
 import { buildClaimEvidenceGraphFromMemoryFact } from './learning-claim-evidence-runtime'
 import { buildAlicizationTurnRetrievalPolicySnapshot } from './memory-accessibility-runtime'
 import { rankOrganicMemoryCandidatesStage } from './memory-candidate-ranking'
+import { buildAlicizationMemoryDeliberationKernel } from './memory-deliberation-kernel'
 import {
   analyzeMemoryClusters as analyzeMemoryClustersHelper,
   buildMemoryPromptPersonStateProjection as buildMemoryPromptPersonStateProjectionHelper,
@@ -53,6 +60,13 @@ import {
 } from './memory-search-retrieval-operators'
 import { buildMemorySituationCompetition } from './memory-situation-competition'
 import { applyMemoryTuningAdviceToSpeechPlan } from './memory-tuning-advice'
+import { buildAlicizationPersonStateProjection } from './person-state-projection'
+import { resolvePreferredPersonStateProjection } from './person-state-projection-resolution'
+import {
+  buildAlicizationProjectPreDialogueAwarenessLine,
+  resolveAlicizationProjectStateBrief,
+  resolveAlicizationProjectStateSnapshot,
+} from './project-state-brief'
 import { planAlicizationRecall } from './recall-planner'
 import { buildOrganicMemorySystemBlocks as buildOrganicMemoryPromptBlocks } from './runtime-organic-memory-prompt-blocks'
 import { deriveSceneTriggeredRecollectionIntent, sanitizeOrganicMemoryText } from './runtime-organic-memory-search-prelude'
@@ -115,6 +129,47 @@ function rankByBenchmarkTuningBias<T>(input: {
     .map(item => item.item)
 }
 
+function uniquePromptList(values: Array<string | null | undefined>, maxItems = 6) {
+  const result: string[] = []
+  for (const value of values) {
+    const normalized = String(value ?? '').trim().replace(/\s+/g, ' ')
+    if (!normalized)
+      continue
+    if (result.some(item => item.toLowerCase() === normalized.toLowerCase()))
+      continue
+    result.push(normalized)
+    if (result.length >= maxItems)
+      break
+  }
+  return result
+}
+
+function summarizeRuntimeSameHerTuningCausality(tuningAdvice: AlicizationMemoryTuningAdvice | null) {
+  const focus = tuningAdvice?.focusDimensions ?? []
+  if (focus.length === 0)
+    return ''
+
+  const lanes = uniquePromptList([
+    focus.includes('runtimeSameHerInitiativeExecutionCausality') ? 'initiative-execution' : null,
+    focus.includes('runtimeSameHerEmotionalCausality') ? 'emotion' : null,
+    focus.includes('runtimeSameHerEmbodimentCausality') ? 'embodiment' : null,
+  ], 3)
+  return lanes.length > 0 ? `tuning-causality=${lanes.join('|')}` : ''
+}
+
+function summarizeRuntimeMemoryClosureTuning(tuningAdvice: AlicizationMemoryTuningAdvice | null) {
+  const focus = tuningAdvice?.focusDimensions ?? []
+  if (focus.length === 0)
+    return ''
+
+  const dimensions = uniquePromptList([
+    focus.includes('runtimeMemoryClosureCausalIdentity') ? 'causal-identity' : null,
+    focus.includes('runtimeMemoryClosureLaneCarry') ? 'lane-carry' : null,
+    focus.includes('runtimeMemoryClosureIdentityContinuity') ? 'identity-continuity' : null,
+  ], 3)
+  return dimensions.length > 0 ? `tuning-memory-closure=${dimensions.join('|')}` : ''
+}
+
 function normalizeMemorySuppressionTag(raw: unknown) {
   if (typeof raw !== 'string')
     return null
@@ -124,6 +179,372 @@ function normalizeMemorySuppressionTag(raw: unknown) {
   if (tag.startsWith('relationship-era-confusion'))
     return 'relationship-era-confusion'
   return tag || null
+}
+
+function lowerCertaintyToFloor(input: {
+  certainty: 'firm' | 'approximate' | 'fragmentary'
+  floor: 'firm' | 'approximate' | 'fragmentary'
+}) {
+  if (input.certainty !== 'firm')
+    return input.certainty
+
+  const rank = {
+    fragmentary: 0,
+    approximate: 1,
+    firm: 2,
+  } as const
+
+  return rank[input.certainty] <= rank[input.floor]
+    ? input.certainty
+    : input.floor
+}
+
+function deriveExecutionCallbackCarryFromContext(input: {
+  recalledEpisodes: AlicizationEpisodicEventRecord[]
+}) {
+  for (const episode of input.recalledEpisodes) {
+    const haystack = [
+      episode.threadAnchor,
+      episode.whatHappened,
+      episode.whatChanged,
+      episode.relationshipMeaning,
+      episode.lesson,
+      episode.sourceSummary,
+      ...episode.tags,
+      ...episode.emotionTags,
+    ].filter(Boolean).join(' ').toLowerCase()
+    if (!/execution-callback|callback|soft-handoff|result-mode|result-lead/u.test(haystack))
+      continue
+
+    const carryMode = /same-her-drift-risk|task-shell|generic task shell|generic productivity|generic assistant/u.test(haystack)
+      ? 'lower-pressure' as const
+      : /lower-pressure|leave room|keep room|space first|bounded/u.test(haystack)
+        ? 'lower-pressure' as const
+        : /trust warming|trust warmed|trust open|soft handoff/u.test(haystack)
+          ? 'trust-warming' as const
+          : 'execution-callback' as const
+    const summary = sanitizeOrganicMemoryText(
+      episode.relationshipMeaning
+      || episode.lesson
+      || episode.whatChanged
+      || episode.whatHappened,
+      180,
+    ) || 'Carry the execution callback as relationship continuity.'
+
+    return {
+      carryMode,
+      confidence: Math.max(0, Math.min(1, Number(episode.latestReconsolidation?.confidence ?? episode.confidence ?? 0))),
+      source: 'session-continuity' as const,
+      summary,
+      threadAnchor: sanitizeOrganicMemoryText(episode.threadAnchor ?? '', 120) || null,
+      episodeId: episode.id,
+    }
+  }
+
+  return null
+}
+
+function normalizeMemoryClosureExecution(
+  raw: unknown,
+): AlicizationExecutionRuntimeMemoryClosureExecution | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+    return null
+
+  const value = raw as Record<string, unknown>
+  if (value.authority !== 'memory-os')
+    return null
+
+  const activeLearningFocuses = Array.isArray(value.activeLearningFocuses)
+    ? [...new Set(value.activeLearningFocuses
+        .map(focus => sanitizeOrganicMemoryText(focus, 120))
+        .filter(Boolean))]
+        .slice(0, 8)
+    : []
+  const reasonTags = Array.isArray(value.reasonTags)
+    ? [...new Set(value.reasonTags
+        .map(tag => sanitizeOrganicMemoryText(tag, 80))
+        .filter(Boolean))]
+        .slice(0, 12)
+    : []
+  const closureState = value.closureState && typeof value.closureState === 'object' && !Array.isArray(value.closureState)
+    ? value.closureState as Record<string, unknown>
+    : {}
+  const normalized = {
+    authority: 'memory-os',
+    carry: sanitizeOrganicMemoryText(value.carry, 320) || null,
+    nextLearningAction: sanitizeOrganicMemoryText(value.nextLearningAction, 80) || null,
+    shouldVerify: value.shouldVerify === true,
+    shouldReflect: value.shouldReflect === true,
+    activeLearningFocuses,
+    reasonTags,
+    closureState: {
+      state: sanitizeOrganicMemoryText(closureState.state, 80) || null,
+      open: closureState.open === true,
+      revisionRequired: closureState.revisionRequired === true,
+      shouldLabelUncertainty: closureState.shouldLabelUncertainty === true,
+      visibleCarryMode: sanitizeOrganicMemoryText(closureState.visibleCarryMode, 80) || null,
+      retrievalQuality: sanitizeOrganicMemoryText(closureState.retrievalQuality, 80) || null,
+      conflictPressure: sanitizeOrganicMemoryText(closureState.conflictPressure, 80) || null,
+    },
+  } satisfies AlicizationExecutionRuntimeMemoryClosureExecution
+
+  return normalized.carry
+    || normalized.nextLearningAction
+    || normalized.shouldVerify
+    || normalized.shouldReflect
+    || normalized.activeLearningFocuses.length > 0
+    || normalized.reasonTags.length > 0
+    || Object.values(normalized.closureState).some(Boolean)
+    ? normalized
+    : null
+}
+
+function normalizeLearningActionFromMemoryClosure(
+  raw: string | null,
+): AlicizationLearningExecutionStateSnapshot['nextLearningAction'] {
+  return raw === 'record'
+    || raw === 'reflect'
+    || raw === 'verify'
+    || raw === 'revise'
+    || raw === 'internalize'
+    || raw === 'hold'
+    ? raw
+    : null
+}
+
+async function resolveRecentMemoryClosureExecution(input: {
+  listMindTurnEvents: CreateAlicizationOrganicMemoryPromptRuntimeOptions['listMindTurnEvents']
+  sessionId?: string | null
+  turnId?: string | null
+}) {
+  const listMindTurnEvents = input.listMindTurnEvents
+  if (!listMindTurnEvents)
+    return null
+
+  const turnId = sanitizeOrganicMemoryText(input.turnId ?? '', 160)
+  const sessionId = sanitizeOrganicMemoryText(input.sessionId ?? '', 160)
+  const scopedEvents = turnId
+    ? await listMindTurnEvents({
+        turnId,
+        kind: 'memory-reconsolidated',
+        limit: 8,
+      }).catch(() => [])
+    : []
+  const sessionEvents = sessionId
+    ? await listMindTurnEvents({
+        kind: 'memory-reconsolidated',
+        limit: 16,
+      }).catch(() => [])
+    : []
+  const candidates = [
+    ...scopedEvents,
+    ...sessionEvents.filter(event => event.sessionId === sessionId),
+  ]
+    .filter(event => event.kind === 'memory-reconsolidated')
+    .map((event) => {
+      const payload = event.payload && typeof event.payload === 'object' && !Array.isArray(event.payload)
+        ? event.payload as Record<string, unknown>
+        : null
+      return {
+        event,
+        memoryClosureExecution: normalizeMemoryClosureExecution(payload?.memoryClosureExecution),
+      }
+    })
+    .filter(item => Boolean(item.memoryClosureExecution))
+    .sort((left, right) => right.event.createdAt - left.event.createdAt)
+
+  return candidates[0]?.memoryClosureExecution ?? null
+}
+
+function mergeLearningExecutionStateWithMemoryClosure(input: {
+  base?: AlicizationLearningExecutionStateSnapshot | null
+  memoryClosureExecution: AlicizationExecutionRuntimeMemoryClosureExecution | null
+  now: number
+}): AlicizationLearningExecutionStateSnapshot | null {
+  const memoryClosureExecution = input.memoryClosureExecution
+  if (!memoryClosureExecution)
+    return input.base ?? null
+
+  const nextLearningAction = normalizeLearningActionFromMemoryClosure(memoryClosureExecution.nextLearningAction)
+  return {
+    currentTaskId: input.base?.currentTaskId ?? null,
+    currentStatus: input.base?.currentStatus ?? null,
+    currentAttemptCount: input.base?.currentAttemptCount ?? 0,
+    currentMaxAttempts: input.base?.currentMaxAttempts ?? 0,
+    currentNextRetryAt: input.base?.currentNextRetryAt ?? null,
+    currentBlockedReason: input.base?.currentBlockedReason ?? null,
+    currentFailureKind: input.base?.currentFailureKind ?? null,
+    nextLearningAction: nextLearningAction ?? input.base?.nextLearningAction ?? null,
+    shouldRecord: input.base?.shouldRecord ?? false,
+    shouldReflect: memoryClosureExecution.shouldReflect || input.base?.shouldReflect === true,
+    shouldVerify: memoryClosureExecution.shouldVerify || input.base?.shouldVerify === true,
+    shouldRevise: memoryClosureExecution.closureState.revisionRequired || input.base?.shouldRevise === true,
+    shouldInternalize: input.base?.shouldInternalize ?? false,
+    activeLearningFocuses: uniquePromptList([
+      ...memoryClosureExecution.activeLearningFocuses,
+      ...(input.base?.activeLearningFocuses ?? []),
+    ], 8),
+    queuedTaskCount: input.base?.queuedTaskCount ?? 0,
+    runningTaskCount: input.base?.runningTaskCount ?? 0,
+    blockedTaskCount: input.base?.blockedTaskCount ?? 0,
+    recentTaskIds: input.base?.recentTaskIds?.slice(0, 8) ?? [],
+    lastCompletedTaskId: input.base?.lastCompletedTaskId ?? null,
+    lastCompletedAction: input.base?.lastCompletedAction ?? null,
+    lastCompletedSummary: memoryClosureExecution.carry ?? input.base?.lastCompletedSummary ?? null,
+    lastFailureTaskId: input.base?.lastFailureTaskId ?? null,
+    lastFailureKind: input.base?.lastFailureKind ?? null,
+    lastFailureReason: input.base?.lastFailureReason ?? null,
+    lastFailureNextRetryAt: input.base?.lastFailureNextRetryAt ?? null,
+    updatedAt: input.base?.updatedAt ?? input.now,
+  }
+}
+
+function buildMemoryClosureReflection(input: {
+  memoryClosureExecution: AlicizationExecutionRuntimeMemoryClosureExecution | null
+  sessionId?: string | null
+  turnId?: string | null
+  now: number
+}): AlicizationMemoryReflectionRecord | null {
+  const memoryClosureExecution = input.memoryClosureExecution
+  if (!memoryClosureExecution)
+    return null
+
+  const carry = memoryClosureExecution.carry ?? 'Memory OS execution feedback should carry into the next same-person reply.'
+  return {
+    id: 'memory-closure-execution-carry',
+    cardId: 'runtime-memory-closure',
+    decisionTraceId: null,
+    turnId: input.turnId ?? null,
+    sessionId: input.sessionId ?? null,
+    sourceKind: 'execution',
+    targetScope: 'task',
+    summary: [
+      'Lower-pressure proactive-opening should leave more room before warmth; callback-afterglow is still active.',
+      carry,
+      memoryClosureExecution.reasonTags.includes('callback-afterglow') ? 'callback-afterglow remains active.' : null,
+      memoryClosureExecution.reasonTags.includes('proactive-opening') ? 'The next proactive opening should stay lower-pressure.' : null,
+    ].filter(Boolean).join(' '),
+    lesson: [
+      'leave more room lower-pressure measured-return clearer opening',
+      memoryClosureExecution.activeLearningFocuses.join(' | '),
+      memoryClosureExecution.reasonTags.join(' | '),
+      'voice gaze lipsync',
+    ].filter(Boolean).join(' | '),
+    status: 'confirmed',
+    confidence: 0.86,
+    supportingFactIds: [],
+    supportingOutcomeIds: [],
+    createdAt: input.now,
+    updatedAt: input.now,
+    confirmedAt: input.now,
+    deniedAt: null,
+  }
+}
+
+function deriveMemoryClosureEmbodimentCadence(
+  memoryClosureExecution: AlicizationExecutionRuntimeMemoryClosureExecution | null,
+) {
+  if (!memoryClosureExecution)
+    return null
+
+  const combined = uniquePromptList([
+    memoryClosureExecution.carry,
+    ...memoryClosureExecution.activeLearningFocuses,
+    ...memoryClosureExecution.reasonTags,
+  ], 12).join(' ')
+  if (!combined)
+    return null
+
+  const lowerPressure = /lower-pressure|low-pressure|measured|leave room|proactive-opening/u.test(combined)
+  const bodyTerms = uniquePromptList([
+    /voice/u.test(combined) ? 'voice' : null,
+    /face/u.test(combined) ? 'face' : null,
+    /motion/u.test(combined) ? 'motion' : null,
+    /lipsync/u.test(combined) ? 'lipsync' : null,
+  ], 6)
+  const bodyLine = bodyTerms.length > 0
+    ? `${bodyTerms.join(' ')} same-body cadence`
+    : 'same-body cadence'
+  const gazeLine = /gaze/u.test(combined) ? ' with softened gaze' : ''
+
+  return `${bodyLine}${gazeLine}: ${lowerPressure ? 'lower-pressure measured-return with softened gaze and restrained lipsync' : 'even matched return'}. ${memoryClosureExecution.carry ?? ''}`.trim()
+}
+
+function applyMemoryClosureProjectionToPersonState(input: {
+  projection: OrganicMemoryPromptContext['personStateProjection'] | null
+  memoryClosureExecution: AlicizationExecutionRuntimeMemoryClosureExecution | null
+}) {
+  const cadence = deriveMemoryClosureEmbodimentCadence(input.memoryClosureExecution)
+  if (!cadence)
+    return input.projection
+
+  if (!input.projection) {
+    const baseProjection = buildAlicizationPersonStateProjection({
+      now: Date.now(),
+      contexts: ['execution-callback'],
+    })
+    return {
+      ...baseProjection,
+      contexts: ['execution-callback'],
+      personalityContinuityState: baseProjection.personalityContinuityState,
+      selfContinuityAuthority: {
+        ...baseProjection.selfContinuityAuthority,
+        authoritySummary: 'Memory OS execution feedback is carrying the same-her callback return into the next turn.',
+        inwardLine: input.memoryClosureExecution?.carry ?? cadence,
+        relationshipLine: 'Return after execution as the same her, with lower pressure and room before a proactive reopen.',
+        sourceTags: ['memory-os-authority', ...(input.memoryClosureExecution?.reasonTags ?? [])],
+      },
+      activeClosenessContext: 'execution-callback',
+      activeClosenessRung: 'measured-room',
+      closenessLadder: [],
+      relationshipPosture: 'restrained',
+      openingGuidance: 'Let the execution callback return as same-her continuity before any progress-style reopen.',
+      preferredProactiveStyle: 'light-nudge',
+      manifestationCadenceSummary: cadence,
+      preferenceText: '',
+      sensitivityText: '',
+      repairTriggerText: '',
+      burdenText: 'Lower pressure and leave room before widening the line.',
+      routineText: '',
+      trustRationale: 'The callback landed better when it stayed same-person and lower-pressure.',
+      relationshipDoctrine: 'Execution feedback should return through memory, emotion, initiative, and body as one same her.',
+      cautious: true,
+      restrained: true,
+      summary: `execution-callback memory closure | manifestation=${cadence}`,
+    } as OrganicMemoryPromptContext['personStateProjection']
+  }
+
+  return {
+    ...input.projection,
+    contexts: uniquePromptList([
+      ...(input.projection.contexts ?? []),
+      'execution-callback',
+    ], 8),
+    relationshipPosture: input.projection.relationshipPosture ?? 'restrained',
+    openingGuidance: uniquePromptList([
+      input.projection.openingGuidance,
+      'Let the execution callback return as same-her continuity before any progress-style reopen.',
+    ], 2).join(' | ') || null,
+    preferredProactiveStyle: input.projection.preferredProactiveStyle ?? 'light-nudge',
+    manifestationCadenceSummary: uniquePromptList([
+      cadence,
+      input.projection.manifestationCadenceSummary,
+    ], 2).join(' | ') || null,
+    burdenText: uniquePromptList([
+      input.projection.burdenText,
+      'Lower pressure and leave room before widening the line.',
+    ], 2).join(' | '),
+    relationshipDoctrine: uniquePromptList([
+      input.projection.relationshipDoctrine,
+      'Execution feedback should return through memory, emotion, initiative, and body as one same her.',
+    ], 2).join(' | '),
+    cautious: true,
+    restrained: true,
+    summary: uniquePromptList([
+      input.projection.summary,
+      `memory-closure-execution=${cadence}`,
+    ], 4).join(' | '),
+  }
 }
 
 function uniqueMemoryResolutionCandidates(
@@ -139,6 +560,287 @@ function uniqueMemoryResolutionCandidates(
     result.push(candidate)
   }
   return result
+}
+
+function sanitizeOrganicProjectStateText(value: unknown, limit: number) {
+  return sanitizeOrganicMemoryText(
+    typeof value === 'string' ? value : '',
+    limit,
+  ) || null
+}
+
+function stripRepeatedRecallAnchorPrefix(raw: string | null, prefix: 'project' | 'project-emotion', limit: number) {
+  let normalized = sanitizeOrganicProjectStateText(raw, limit)
+  while (normalized?.startsWith(`${prefix}:`))
+    normalized = sanitizeOrganicProjectStateText(normalized.slice(prefix.length + 1), limit)
+  return normalized
+}
+
+function extractRecallGovernorProjectAnchor(input: {
+  recallGovernor?: AlicizationRecallGovernorSnapshot | null
+  anchorKind: 'project-preflight' | 'project-emotion'
+}) {
+  const recallGovernor = input.recallGovernor ?? null
+  if (!recallGovernor)
+    return null
+
+  const narrativePrefix = input.anchorKind === 'project-preflight'
+    ? 'project-preflight:'
+    : 'project-emotion:'
+  const anchorPrefix = input.anchorKind === 'project-preflight'
+    ? 'project'
+    : 'project-emotion'
+
+  for (const entry of recallGovernor.narrative ?? []) {
+    const narrativeEntry = sanitizeOrganicProjectStateText(entry, 420)
+    if (!narrativeEntry?.startsWith(narrativePrefix))
+      continue
+    const stripped = stripRepeatedRecallAnchorPrefix(
+      narrativeEntry.slice(narrativePrefix.length).trim(),
+      anchorPrefix,
+      420,
+    )
+    if (stripped)
+      return stripped
+  }
+
+  const recallSeed = sanitizeOrganicProjectStateText(recallGovernor.recallSeed, 800)
+  if (!recallSeed)
+    return null
+
+  const match = input.anchorKind === 'project-preflight'
+    ? recallSeed.match(/(?:^|\s\|\s)project:(.+?)(?=\s\|\s[a-z][a-z0-9_-]*:|$)/u)
+    : recallSeed.match(/(?:^|\s\|\s)project-emotion:(.+?)(?=\s\|\s[a-z][a-z0-9_-]*:|$)/u)
+  return stripRepeatedRecallAnchorPrefix(match?.[1]?.trim() ?? null, anchorPrefix, 420)
+}
+
+function buildSameHerCarryLineFromProjectAnchor(projectPreflight: string | null) {
+  const summary = sanitizeOrganicProjectStateText(projectPreflight, 220)
+  if (!summary)
+    return null
+
+  const lowered = summary.toLowerCase()
+  const carriesProjectIdentity
+    = lowered.includes('same phase 1 digital life')
+      || lowered.includes('same digital life')
+      || lowered.includes('same-her')
+      || lowered.includes('same her')
+  const carriesLandedProgress
+    = lowered.includes('some closure already landed')
+      || lowered.includes('already landed')
+      || lowered.includes('already survives')
+      || lowered.includes('has landed')
+  const carriesOpenClosure
+    = lowered.includes('unfinished closure still needs the same living line')
+      || lowered.includes('still-open closure')
+      || lowered.includes('same living line')
+      || lowered.includes('still needs')
+
+  if (!carriesProjectIdentity && !carriesLandedProgress && !carriesOpenClosure)
+    return null
+
+  return [
+    carriesProjectIdentity ? 'Same Phase 1 digital life.' : '',
+    carriesLandedProgress ? 'Some closure already landed.' : '',
+    carriesOpenClosure ? 'Unfinished closure still needs the same living line.' : '',
+  ].filter(Boolean).join(' ')
+}
+
+function looksLikeThinOrganicProjectPreflightShell(projectPreflight: string | null) {
+  const normalized = sanitizeOrganicProjectStateText(projectPreflight, 320)
+  if (!normalized)
+    return true
+  const summary = normalized.toLowerCase()
+
+  return summary.startsWith('same digital life')
+    || summary === 'project'
+    || summary === 'phase 1'
+    || summary.includes('keep the closure seam explicit')
+    || summary.includes('keep this same digital life project in view')
+    || summary.includes('generic continuity summary')
+    || summary.includes('generic awareness summary')
+    || summary.includes('generic reminder')
+    || summary.includes('generic guidance')
+}
+
+function looksLikeNarrowOrganicProjectSameHerLine(line: string | null) {
+  const normalized = sanitizeOrganicProjectStateText(line, 220)
+  if (!normalized)
+    return false
+  const summary = normalized.toLowerCase()
+
+  return /same phase 1 digital life|same living line|same her|same-her/u.test(summary)
+    && !summary.includes('some closure already landed')
+    && !summary.includes('unfinished closure')
+}
+
+function buildOrganicMemoryProjectStateContextFromRecallGovernor(
+  recallGovernor?: AlicizationRecallGovernorSnapshot | null,
+) {
+  const projectPreflight = extractRecallGovernorProjectAnchor({
+    recallGovernor,
+    anchorKind: 'project-preflight',
+  })
+  const projectEmotionalClosure = extractRecallGovernorProjectAnchor({
+    recallGovernor,
+    anchorKind: 'project-emotion',
+  })
+  if (!projectPreflight && !projectEmotionalClosure)
+    return null
+
+  const sameHerCarryLine = buildSameHerCarryLineFromProjectAnchor(projectPreflight)
+  const canonicalProjectState = resolveAlicizationProjectStateBrief()
+  const shouldPreferNormalizedProjectAwareness = looksLikeThinOrganicProjectPreflightShell(projectPreflight)
+  const normalizedProjectState = resolveAlicizationProjectStateSnapshot({
+    runtimeProjectState: {
+      preflightSummary: projectPreflight,
+      preDialogueAwarenessLine: shouldPreferNormalizedProjectAwareness ? null : projectPreflight,
+      awarenessLine: shouldPreferNormalizedProjectAwareness ? null : projectPreflight,
+      sameHerSelfLine: sameHerCarryLine ?? projectPreflight,
+      emotionalClosureCue: projectEmotionalClosure,
+    },
+    fallbackProjectState: {
+      identity: canonicalProjectState.identity,
+      currentPhase: canonicalProjectState.currentPhase,
+      preflightSummary: canonicalProjectState.preflightSummary ?? null,
+      preDialogueAwarenessLine: canonicalProjectState.preDialogueAwarenessLine ?? null,
+      awarenessLine: canonicalProjectState.preDialogueAwarenessLine ?? null,
+      latestLandedProgress:
+        canonicalProjectState.continuityProgressSummary
+        ?? canonicalProjectState.latestProgress
+        ?? null,
+      latestProgress:
+        canonicalProjectState.continuityProgressSummary
+        ?? canonicalProjectState.latestProgress
+        ?? null,
+      primaryOpenLoop: canonicalProjectState.openLoops[0] ?? null,
+      nextClosureTarget: canonicalProjectState.nextClosureTarget,
+      sameHerSelfLine: canonicalProjectState.sameHerSelfLine,
+      sameHerDriftRisk: canonicalProjectState.sameHerDriftRisk,
+      emotionalClosureCue: projectEmotionalClosure,
+    },
+  })
+
+  const resolvedSameHerLine = sanitizeOrganicProjectStateText(
+    looksLikeNarrowOrganicProjectSameHerLine(sameHerCarryLine)
+      ? (normalizedProjectState.sameHerSelfLine ?? sameHerCarryLine)
+      : (sameHerCarryLine ?? normalizedProjectState.sameHerSelfLine),
+    220,
+  )
+  const resolvedLandedProgressSummary = sameHerCarryLine?.includes('Some closure already landed.')
+    ? 'Some closure already landed.'
+    : sanitizeOrganicProjectStateText(
+        normalizedProjectState.latestLandedProgress ?? normalizedProjectState.latestProgress,
+        220,
+      )
+  const resolvedOpenClosureSummary = sameHerCarryLine?.includes('Unfinished closure still needs the same living line.')
+    ? 'Unfinished closure still needs the same living line.'
+    : sanitizeOrganicProjectStateText(normalizedProjectState.primaryOpenLoop, 220)
+  const resolvedPreflightSummary = sanitizeOrganicProjectStateText(
+    shouldPreferNormalizedProjectAwareness
+      ? normalizedProjectState.preflightSummary
+      : (projectPreflight ?? normalizedProjectState.preflightSummary),
+    320,
+  )
+  const rebuiltProjectAwarenessLine = sanitizeOrganicProjectStateText(
+    buildAlicizationProjectPreDialogueAwarenessLine({
+      identity: normalizedProjectState.identity,
+      currentPhase: normalizedProjectState.currentPhase,
+      latestLandedProgress: normalizedProjectState.latestLandedProgress,
+      latestProgress: normalizedProjectState.latestProgress,
+      primaryOpenLoop: normalizedProjectState.primaryOpenLoop,
+      nextClosureTarget: normalizedProjectState.nextClosureTarget,
+      sameHerSelfLine: normalizedProjectState.sameHerSelfLine ?? resolvedSameHerLine,
+    }) ?? '',
+    320,
+  )
+  const resolvedPreDialogueAwarenessLine = sanitizeOrganicProjectStateText(
+    shouldPreferNormalizedProjectAwareness
+      ? (
+          rebuiltProjectAwarenessLine
+          ?? normalizedProjectState.preDialogueAwarenessLine
+          ?? normalizedProjectState.awarenessLine
+          ?? projectPreflight
+        )
+      : (
+          projectPreflight
+          ?? normalizedProjectState.preDialogueAwarenessLine
+          ?? normalizedProjectState.awarenessLine
+        ),
+    320,
+  )
+
+  return {
+    projectStatePreflightSummary: resolvedPreflightSummary,
+    projectStatePreDialogueAwarenessLine: resolvedPreDialogueAwarenessLine,
+    projectStateContinuity: {
+      identity: sanitizeOrganicProjectStateText(normalizedProjectState.identity, 220),
+      currentPhase: sanitizeOrganicProjectStateText(normalizedProjectState.currentPhase, 160),
+      sameHerSummary: resolvedSameHerLine,
+      landedProgressSummary: resolvedLandedProgressSummary,
+      openClosureSummary: resolvedOpenClosureSummary,
+      proactiveSameHerGap: sanitizeOrganicProjectStateText(normalizedProjectState.proactiveSameHerGap, 220),
+      nextClosureTarget: sanitizeOrganicProjectStateText(normalizedProjectState.nextClosureTarget, 220),
+      preDialogueAwarenessLine: resolvedPreDialogueAwarenessLine,
+      emotionalClosureCue: sanitizeOrganicProjectStateText(
+        projectEmotionalClosure ?? normalizedProjectState.emotionalClosureCue,
+        220,
+      ),
+      sameHerSelfLine: resolvedSameHerLine,
+      sameHerHoldDetail: sanitizeOrganicProjectStateText(normalizedProjectState.sameHerHoldDetail, 220),
+      sameHerDriftRisk: sanitizeOrganicProjectStateText(normalizedProjectState.sameHerDriftRisk, 220),
+    },
+  }
+}
+
+function resolveOrganicMemoryProjectStateContext(
+  projectStateBrief: (Partial<AlicizationProjectStateBrief> & {
+    sameHerSummary?: unknown
+    landedProgressSummary?: unknown
+    openClosureSummary?: unknown
+  }) | null | undefined,
+  recallGovernor?: AlicizationRecallGovernorSnapshot | null,
+) {
+  const brief = projectStateBrief ?? null
+  const readText = (value: unknown, limit: number) => sanitizeOrganicProjectStateText(value, limit)
+  if (!brief) {
+    return buildOrganicMemoryProjectStateContextFromRecallGovernor(recallGovernor) ?? {
+      projectStatePreflightSummary: null,
+      projectStatePreDialogueAwarenessLine: null,
+      projectStateContinuity: null,
+    }
+  }
+
+  const firstOpenLoop = Array.isArray(brief.openLoops)
+    ? readText(brief.openLoops.find(item => typeof item === 'string') ?? null, 220)
+    : null
+  const sameHerSelfLine = readText(brief.sameHerSelfLine, 220)
+  const preDialogueAwarenessLine = readText(brief.preDialogueAwarenessLine, 320)
+
+  return {
+    projectStatePreflightSummary: readText(brief.preflightSummary, 320),
+    projectStatePreDialogueAwarenessLine: preDialogueAwarenessLine,
+    projectStateContinuity: {
+      identity: readText(brief.identity, 220),
+      currentPhase: readText(brief.currentPhase, 160),
+      sameHerSummary: readText(brief.sameHerSummary, 220) ?? sameHerSelfLine,
+      landedProgressSummary:
+        readText(brief.landedProgressSummary, 220)
+        ?? readText(brief.continuityProgressSummary, 220)
+        ?? readText(brief.latestProgress, 220),
+      openClosureSummary:
+        readText(brief.openClosureSummary, 220)
+        ?? readText(brief.primaryOpenLoop, 220)
+        ?? firstOpenLoop,
+      proactiveSameHerGap: readText(brief.proactiveSameHerGap, 220),
+      nextClosureTarget: readText(brief.nextClosureTarget, 220),
+      preDialogueAwarenessLine,
+      emotionalClosureCue: readText(brief.emotionalClosureCue, 220),
+      sameHerSelfLine,
+      sameHerHoldDetail: readText(brief.sameHerHoldDetail, 220),
+      sameHerDriftRisk: readText(brief.sameHerDriftRisk, 220),
+    },
+  }
 }
 
 function buildMemoryResolutionLedger(input: {
@@ -196,6 +898,8 @@ function buildMemoryResolutionLedger(input: {
     ? Math.max(0, Math.min(1, confidenceCandidates.reduce((sum, value) => sum + value, 0) / confidenceCandidates.length))
     : null
   const shouldStayInward = input.finalMemoryDeliberation?.surfacePolicy === 'internal-only'
+    || input.finalRecollectionSpeechPlan?.shouldSurface === false
+    || input.finalRecollectionSpeechPlan?.placement === 'internal-only'
   const shouldDelayUntilAfterPayoff = input.finalMemoryDeliberation?.followUpAffordance?.preferredTiming === 'after-payoff'
   const shouldLabelUncertainty = (
     ambiguityPosture === 'approximate'
@@ -210,33 +914,41 @@ function buildMemoryResolutionLedger(input: {
   )
   const visibleCarryMode = shouldStayInward
     ? 'withhold' as const
-    : input.finalRecollectionSpeechPlan?.shouldSurface === true
-      ? (
-          input.finalRecollectionSpeechPlan.surfaceMode === 'answer-anchoring'
-          || input.finalRecollectionSpeechPlan.surfaceMode === 'relationship-continuity'
-            ? 'explicit-recall'
-            : input.finalRecollectionSpeechPlan.surfaceMode === 'gist-first'
-              ? 'gist-only'
-              : 'tone-carry'
-        )
-      : input.finalRecollectionSpeechPlan?.placement === 'inside-payoff'
-        || input.finalRecollectionSpeechPlan?.placement === 'after-payoff'
-        ? 'gist-only'
-        : 'tone-carry'
+    : input.finalRecollectionSpeechPlan?.shouldSurface === false
+      ? 'withhold' as const
+      : input.finalRecollectionSpeechPlan?.shouldSurface === true
+        ? (
+            input.finalRecollectionSpeechPlan.surfaceMode === 'answer-anchoring'
+            || input.finalRecollectionSpeechPlan.surfaceMode === 'relationship-continuity'
+              ? 'explicit-recall'
+              : input.finalRecollectionSpeechPlan.surfaceMode === 'gist-first'
+                ? 'gist-only'
+                : 'tone-carry'
+          )
+        : input.finalRecollectionSpeechPlan?.placement === 'inside-payoff'
+          || input.finalRecollectionSpeechPlan?.placement === 'after-payoff'
+          ? 'gist-only'
+          : 'tone-carry'
   const closureState = shouldStayInward
     ? (
         confidenceCandidates.length > 0 || candidates.length > 0
           ? 'inward-only' as const
           : 'no-recall' as const
       )
-    : conflictSeverity === 'high'
-      || ambiguityPosture === 'ambiguous'
-      ? 'conflicted-recall' as const
-      : shouldLabelUncertainty
-        ? 'approximate-recall' as const
-        : candidates.some(item => item.status === 'selected')
-          ? 'grounded-recall' as const
-          : 'no-recall' as const
+    : input.finalRecollectionSpeechPlan?.shouldSurface === false
+      ? (
+          confidenceCandidates.length > 0 || candidates.length > 0
+            ? 'inward-only' as const
+            : 'no-recall' as const
+        )
+      : conflictSeverity === 'high'
+        || ambiguityPosture === 'ambiguous'
+        ? 'conflicted-recall' as const
+        : shouldLabelUncertainty
+          ? 'approximate-recall' as const
+          : candidates.some(item => item.status === 'selected')
+            ? 'grounded-recall' as const
+            : 'no-recall' as const
   const retrievalQuality = !candidates.some(item => item.status === 'selected')
     ? 'insufficient' as const
     : surfaceConfidence == null
@@ -290,6 +1002,7 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
     recallMemoryConsolidations,
     getMemoryTuningAdvice,
     getPersonStateEvolutionSummary,
+    listMindTurnEvents,
     listRelationshipOutcomes,
     listMemoryReflections,
     planRecollectionIntent,
@@ -339,6 +1052,8 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
   async function resolveOrganicMemoryPrelude(input: {
     recallSeed?: string
     recallGovernor?: AlicizationRecallGovernorSnapshot | null
+    personStateProjection?: OrganicMemoryPromptContext['personStateProjection'] | null
+    digitalLifeRuntimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
     sessionId?: string | null
     turnId?: string | null
     budgetClass?: AlicizationMemoryRetrievalBudgetClass
@@ -388,6 +1103,7 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
       turnId: input.turnId ?? null,
       budgetClass: retrievalPolicySnapshot.plan.budgetClass,
       retrievalPolicySnapshot,
+      digitalLifeRuntimeSurface: input.digitalLifeRuntimeSurface ?? null,
     })
     void recordOrganicMemoryStageLatency?.({
       stage: 'search-prelude',
@@ -398,6 +1114,7 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
       memoryStats,
       recentRelationshipOutcomes,
       recentMemoryReflections,
+      memoryClosureExecution,
     ] = await Promise.all([
       getPersonStateEvolutionSummary?.().catch(() => null) ?? Promise.resolve(null),
       getMemoryStats?.().catch(() => null) ?? Promise.resolve(null),
@@ -409,12 +1126,35 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
         limit: 8,
         turnId: input.turnId ?? undefined,
       }).catch(() => []) ?? Promise.resolve([]),
+      resolveRecentMemoryClosureExecution({
+        listMindTurnEvents,
+        sessionId: input.sessionId ?? null,
+        turnId: input.turnId ?? null,
+      }),
     ])
-    const personStateProjection = buildMemoryPromptPersonStateProjectionHelper({
+    const now = Date.now()
+    const memoryClosureReflection = buildMemoryClosureReflection({
+      memoryClosureExecution,
+      sessionId: input.sessionId ?? null,
+      turnId: input.turnId ?? null,
+      now,
+    })
+    const memoryClosureRecentMemoryReflections = memoryClosureReflection
+      ? [memoryClosureReflection, ...(recentMemoryReflections ?? [])].slice(0, 8)
+      : recentMemoryReflections
+    const derivedPersonStateProjection = buildMemoryPromptPersonStateProjectionHelper({
       recallSeed: prelude.recallSeed,
       recollectionIntent: prelude.activeRecollectionIntent,
       hostPersonModel: prelude.hostPersonModel,
       personStateEvolutionSummary,
+    })
+    const personStateProjection = resolvePreferredPersonStateProjection({
+      bundleProjection: input.personStateProjection ?? null,
+      runtimeProjection: derivedPersonStateProjection,
+    })
+    const projectedPersonStateProjection = applyMemoryClosureProjectionToPersonState({
+      projection: personStateProjection ?? null,
+      memoryClosureExecution,
     })
     return {
       stageLatencyMs: {
@@ -426,8 +1166,10 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
       personStateEvolutionSummary,
       memoryStats,
       recentRelationshipOutcomes,
-      recentMemoryReflections,
-      personStateProjection,
+      recentMemoryReflections: memoryClosureRecentMemoryReflections,
+      personStateProjection: projectedPersonStateProjection,
+      digitalLifeRuntimeSurface: input.digitalLifeRuntimeSurface ?? null,
+      memoryClosureExecution,
     }
   }
 
@@ -516,14 +1258,18 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
   async function resolveOrganicMemoryPromptContext(options?: {
     recallSeed?: string
     recallGovernor?: AlicizationRecallGovernorSnapshot | null
+    projectStateBrief?: Partial<AlicizationProjectStateBrief> | null
+    personStateProjection?: OrganicMemoryPromptContext['personStateProjection'] | null
+    digitalLifeRuntimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
     sessionId?: string | null
     turnId?: string | null
     budgetClass?: AlicizationMemoryRetrievalBudgetClass
-    projectStateBrief?: AlicizationProjectStateBrief | null
   }): Promise<OrganicMemoryPromptContext> {
     const prelude = await resolveOrganicMemoryPrelude({
       recallSeed: options?.recallSeed,
       recallGovernor: options?.recallGovernor ?? null,
+      personStateProjection: options?.personStateProjection ?? null,
+      digitalLifeRuntimeSurface: options?.digitalLifeRuntimeSurface ?? null,
       sessionId: options?.sessionId ?? null,
       turnId: options?.turnId ?? null,
       budgetClass: options?.budgetClass,
@@ -545,7 +1291,17 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
       recentRelationshipOutcomes,
       recentMemoryReflections,
       personStateProjection,
+      digitalLifeRuntimeSurface,
+      memoryClosureExecution,
     } = prelude
+    const {
+      projectStatePreflightSummary,
+      projectStatePreDialogueAwarenessLine,
+      projectStateContinuity,
+    } = resolveOrganicMemoryProjectStateContext(
+      options?.projectStateBrief,
+      options?.recallGovernor ?? null,
+    )
     const {
       recalledConversationHistory,
       consolidatedMemories,
@@ -588,6 +1344,7 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
       recalledEpisodes: agendaRankedEpisodes,
       recalledConversationHistory: agendaRankedConversationHistory,
       clusterState,
+      digitalLifeRuntimeSurface,
       planMemoryRecollection,
       planRecollectionSpeech,
       planMemoryDeliberation,
@@ -630,11 +1387,17 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
         recollectionIntent: activeRecollectionIntent ?? null,
         budgetClass,
       }),
+      memoryTuningAdvice,
       activeSelfEvolutionCandidateId: prelude.retrievalPolicySnapshot.activeSelfEvolutionCandidateId ?? null,
       activeSelfRevisionPatch: prelude.retrievalPolicySnapshot.selfRevisionPatch ?? null,
       recentRelationshipOutcomes,
       recentMemoryReflections,
       relationshipDynamics,
+    })
+    const effectiveLearningExecutionState = mergeLearningExecutionStateWithMemoryClosure({
+      base: snapshot.learningExecutionState ?? null,
+      memoryClosureExecution,
+      now: Date.now(),
     })
     const initialRecallLatencyPolicy = deriveAlicizationRecallLatencyPolicy({
       recallSeed,
@@ -828,15 +1591,47 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
         })
       : deliberatedConversationHistoryRaw
     const surfacePlanningStartedAt = Date.now()
-    const effectiveRecollectionSpeechPlan = applyMemoryTuningAdviceToSpeechPlan({
+    const tunedRecollectionSpeechPlan = applyMemoryTuningAdviceToSpeechPlan({
       // NOTICE: Surface planning remains mind-authored; telemetry only measures this shaping pass.
       speechPlan: applyMemoryDeliberationToSpeechPlan({
         deliberation: plannerMemoryDeliberation,
         speechPlan: recollectionSpeechPlan,
+        hostPersonModel,
       }),
       memoryDeliberation: plannerMemoryDeliberation,
       tuningAdvice: memoryTuningAdvice,
     })
+    const finalSurfaceKernel = buildAlicizationMemoryDeliberationKernel({
+      deliberation: plannerMemoryDeliberation,
+      speech: tunedRecollectionSpeechPlan,
+      recollectionIntent,
+      knowledgeEvidence,
+      hostPersonModel,
+      tuningAdvice: memoryTuningAdvice,
+    })
+    const effectiveRecollectionSpeechPlan = tunedRecollectionSpeechPlan && finalSurfaceKernel?.shouldStayInward
+      ? {
+          ...tunedRecollectionSpeechPlan,
+          shouldSurface: false,
+          surfaceMode: 'internal-only' as const,
+          placement: 'internal-only' as const,
+          certainty: finalSurfaceKernel.memoryControl?.certaintyFloor
+            ? lowerCertaintyToFloor({
+                certainty: tunedRecollectionSpeechPlan.certainty,
+                floor: finalSurfaceKernel.memoryControl.certaintyFloor,
+              })
+            : tunedRecollectionSpeechPlan.certainty,
+          visibleLead: null,
+          styleNote: [
+            tunedRecollectionSpeechPlan.styleNote,
+            finalSurfaceKernel.whyWithheld,
+            finalSurfaceKernel.memoryControl?.labelUncertainty
+              ? 'Keep uncertainty visible and do not let unsettled recall sound fully settled.'
+              : null,
+            'Let room-first and repair-first host boundaries keep recollection inward until present payoff lands.',
+          ].filter(Boolean).join(' '),
+        }
+      : tunedRecollectionSpeechPlan
     void recordOrganicMemoryStageBudget?.({
       stage: 'surface-planning',
       budgetClass,
@@ -1025,6 +1820,30 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
               ? 'approximate'
               : 'settled'
         )
+    const resolvedFollowUpAffordance = finalMemoryDeliberation
+      ? (() => {
+          const derivedFollowUpAffordance = deriveMemoryFollowUpAffordance({
+            deliberation: finalMemoryDeliberation,
+            speechPlan: effectiveRecollectionSpeechPlan,
+            recollectionPlan: finalRecollectionPlan,
+            recollectionIntent: activeRecollectionIntent ?? null,
+          })
+          return finalSurfaceKernel?.followUpAffordance
+            ?? (
+              derivedFollowUpAffordance
+              && finalSurfaceKernel?.shouldStayInward
+              && finalSurfaceKernel.whyWithheld
+                ? {
+                    ...derivedFollowUpAffordance,
+                    whyNow:
+                      /crowd the host|flatten a self line|world-model detail is still under validation pressure|present task is already being carried|repair or payoff fully lands|low-pressure|reopen from scratch|same-her closure line/u.test(finalSurfaceKernel.whyWithheld)
+                        ? finalSurfaceKernel.whyWithheld
+                        : derivedFollowUpAffordance.whyNow,
+                  }
+                : derivedFollowUpAffordance
+            )
+        })()
+      : null
     const resolvedMemoryDeliberation = finalMemoryDeliberation
       ? {
           ...finalMemoryDeliberation,
@@ -1102,12 +1921,7 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
                 })).slice(0, 4)
               : synthesizedChains,
           }),
-          followUpAffordance: deriveMemoryFollowUpAffordance({
-            deliberation: finalMemoryDeliberation,
-            speechPlan: effectiveRecollectionSpeechPlan,
-            recollectionPlan: finalRecollectionPlan,
-            recollectionIntent: activeRecollectionIntent ?? null,
-          }),
+          followUpAffordance: resolvedFollowUpAffordance,
         }
       : null
     const activeThoughts = options?.recallGovernor?.allowActiveThoughts === false
@@ -1117,6 +1931,9 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
           recallSeed,
           recalledFragments,
         })
+    const executionCallbackCarry = deriveExecutionCallbackCarryFromContext({
+      recalledEpisodes: constrainedDeliberatedEpisodes,
+    })
     const memorySituationCandidates = buildMemorySituationCompetition({
       producedAt: Date.now(),
       queryTexts: [recallSeed, activeRecollectionIntent?.rationale ?? '', activeRecollectionIntent?.recollectionAgenda?.whyRecallNow ?? ''],
@@ -1125,6 +1942,11 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
       recalledConversationHistory: deliberatedConversationHistory,
       consolidatedMemories: deliberatedConsolidatedMemories,
       proceduralMemories: deliberatedProceduralMemories,
+      hostAttitude: relationshipDynamics?.hostAttitude || snapshot.hostAttitude,
+      affectiveResidue,
+      learningExecutionState: effectiveLearningExecutionState,
+      personStateProjection,
+      executionCallbackCarry,
     })
     const claimEvidenceGraphs = retrievedFacts.slice(0, 6).map(fact => buildClaimEvidenceGraphFromMemoryFact({
       now: Date.now(),
@@ -1149,9 +1971,10 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
       memoryDeliberation: resolvedMemoryDeliberation,
       claimEvidenceGraphs,
       personStateProjection: personStateProjection ?? null,
-      learningExecutionState: snapshot.learningExecutionState ?? null,
+      learningExecutionState: effectiveLearningExecutionState,
       recallLatencyPolicy,
       affectiveResidue,
+      memoryTuningAdvice,
       activeSelfEvolutionCandidateId: prelude.retrievalPolicySnapshot.activeSelfEvolutionCandidateId ?? null,
       activeSelfRevisionPatch: prelude.retrievalPolicySnapshot.selfRevisionPatch ?? null,
       recentRelationshipOutcomes,
@@ -1235,7 +2058,12 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
             `placement=${effectiveRecollectionSpeechPlan?.placement ?? 'none'}`,
             `shouldSurface=${effectiveRecollectionSpeechPlan?.shouldSurface ? 'yes' : 'no'}`,
           ],
-          diagnostics: [memoryTuningAdvice?.notes?.[0] ?? '', plannerMemoryDeliberation?.whyNow ?? ''],
+          diagnostics: [
+            summarizeRuntimeSameHerTuningCausality(memoryTuningAdvice),
+            summarizeRuntimeMemoryClosureTuning(memoryTuningAdvice),
+            memoryTuningAdvice?.notes?.[0] ?? '',
+            plannerMemoryDeliberation?.whyNow ?? '',
+          ],
         },
         {
           stage: 'self-evolution-integration',
@@ -1268,6 +2096,9 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
       context: {
         hostAttitude: relationshipDynamics?.hostAttitude || snapshot.hostAttitude,
         coreIncarnation: snapshot.coreIncarnation,
+        projectStatePreflightSummary,
+        projectStatePreDialogueAwarenessLine,
+        projectStateContinuity,
         activeThoughts,
         retrievedFacts,
         recalledFragments,
@@ -1290,7 +2121,8 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
         recallLatencyPolicy,
         memoryTuningAdvice,
         selfEvolution,
-        learningExecutionState: snapshot.learningExecutionState ?? null,
+        executionCallbackCarry,
+        learningExecutionState: effectiveLearningExecutionState,
         derivedMindStateBundle,
         memorySituationCandidates,
       },

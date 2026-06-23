@@ -162,20 +162,92 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
     expiresAt: number
   }>()
 
+  function isHostFacingMemoryConsolidation(
+    item: AlicizationMemoryConsolidationRecord,
+  ): item is AlicizationMemoryConsolidationRecord & { kind: 'procedural' | 'autobiographical' } {
+    return item.kind === 'procedural' || item.kind === 'autobiographical'
+  }
+
+  function normalizeHostFacingMemoryConsolidation(
+    item: AlicizationMemoryConsolidationRecord & { kind: 'procedural' | 'autobiographical' },
+  ) {
+    const loweredSummary = item.summary.toLowerCase()
+    const loweredLesson = String(item.lesson ?? '').toLowerCase()
+    const loweredCues = item.cues.map(cue => cue.toLowerCase())
+    const hasQuietSameHerCarry = loweredCues.includes('same-her-inward-carry')
+      || loweredCues.includes('quiet-companionship')
+      || loweredSummary.includes('same-her-inward-carry')
+      || loweredSummary.includes('quiet same-her continuity')
+      || loweredLesson.includes('quiet same-her continuity')
+
+    if (!hasQuietSameHerCarry)
+      return item
+
+    const summary = /quiet same-her continuity/i.test(item.summary)
+      ? item.summary
+      : `${item.summary} This period held as quiet same-her continuity rather than a generic measured-return helper state.`
+    const lesson = item.lesson && /quiet same-her continuity/i.test(item.lesson)
+      ? item.lesson
+      : item.lesson
+        ? `${item.lesson} Preserve inward lower-pressure continuity as quiet same-her continuity.`
+        : 'Preserve inward lower-pressure continuity as quiet same-her continuity.'
+    const cues = Array.from(new Set([
+      ...item.cues,
+      'quiet-same-her-continuity',
+    ])).slice(0, 6)
+
+    return {
+      ...item,
+      summary,
+      lesson,
+      cues,
+    }
+  }
+
   function buildActiveContinuityGovernance(input: {
     candidateId: string | null
     activeSelfRevisionPatch: AlicizationSelfRevisionStatePatch | null
   }) {
+    function sanitizeActiveContinuityText(raw: unknown, maxChars = 220) {
+      if (typeof raw !== 'string')
+        return ''
+      return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
+    }
+
+    function uniqueActiveContinuityTexts(values: Array<string | null | undefined>, maxItems = 4) {
+      const result: string[] = []
+      for (const value of values) {
+        const normalized = sanitizeActiveContinuityText(value)
+        if (!normalized)
+          continue
+        if (result.some(item => item.toLowerCase() === normalized.toLowerCase()))
+          continue
+        result.push(normalized)
+        if (result.length >= maxItems)
+          break
+      }
+      return result
+    }
+
     const patch = input.activeSelfRevisionPatch
     if (!patch && !input.candidateId)
       return null
+
+    const continuitySummary = uniqueActiveContinuityTexts([
+      patch?.summary ?? null,
+      patch?.projectStateContinuity?.sameHerHoldDetail ?? null,
+      patch?.projectStateContinuity?.emotionalClosureCue ?? null,
+      patch?.projectStateContinuity?.continuityGuard ?? null,
+      patch?.projectStateContinuity?.sameHerSelfLine ?? null,
+    ]).join(' | ') || null
+
     return {
       source: 'active-self-evolution-version' as const,
       mode: 'same-her-baseline' as const,
       candidateId: input.candidateId,
       patchId: patch?.id ?? null,
       decisionTraceId: patch?.decisionTraceId ?? null,
-      summary: patch?.summary ?? null,
+      summary: continuitySummary,
       lanes: patch ? [...patch.lanes] : [],
       reasonCodes: patch ? [...patch.reasonCodes] : [],
     }
@@ -197,6 +269,14 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
       value,
       expiresAt: now + Math.max(250, ttlMs),
     })
+  }
+
+  function invalidateTransientRecallCacheNamespace(namespace: 'episodic' | 'consolidation' | 'conversation' | 'benchmark') {
+    const prefix = `${namespace}::`
+    for (const key of transientRecallCache.keys()) {
+      if (key.startsWith(prefix))
+        transientRecallCache.delete(key)
+    }
   }
 
   async function resolveTurnRetrievalPolicySnapshot(input: {
@@ -337,9 +417,12 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
     const activeThoughts = filterOrganicMemoryEntries(rawActiveThoughts)
     const recentSubconsciousFragments = rawRecentSubconsciousFragments.filter(fragment => !isPersonaResidueMemoryText(fragment.text))
     const hostPersonModel = await buildHostPersonModel().catch(() => null)
-    const filteredMemoryConsolidations = rawMemoryConsolidations
-      .filter((item): item is AlicizationMemoryConsolidationRecord & { kind: 'procedural' | 'autobiographical' } => item.kind === 'procedural' || item.kind === 'autobiographical')
-    const memoryConsolidations: NonNullable<AlicizationOrganicMemorySnapshot['memoryConsolidations']> = filteredMemoryConsolidations
+    const memoryConsolidations: NonNullable<AlicizationOrganicMemorySnapshot['memoryConsolidations']> = rawMemoryConsolidations
+      .flatMap((item) => {
+        if (!isHostFacingMemoryConsolidation(item))
+          return []
+        return [normalizeHostFacingMemoryConsolidation(item)]
+      })
       .map(item => ({
         id: item.id,
         kind: item.kind as 'procedural' | 'autobiographical',
@@ -532,7 +615,16 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
     retrievalPolicySnapshot?: AlicizationTurnRetrievalPolicySnapshot | null
   }) {
     const recallSeed = normalizeOrganicRecallText(input.recallSeed)
-    if (!recallSeed || input.recallGovernor?.mode === 'scene')
+    const repairGroundingSameLineRecall = input.recallGovernor?.mode === 'scene'
+      && input.recallGovernor?.recollectionIntent?.searchEpisodes === true
+      && input.recallGovernor?.carryAsMemory === true
+      && (
+        (input.recallGovernor?.affectAnchors ?? []).some(anchor =>
+          /emotion_memory_mode:repair-grounding|emotion_tone:repair-before-closeness|emotion:repair-tension/u.test(anchor),
+        )
+        || /repair-before-closeness|repair first|same living line|same line|callback repair seam|先修复/u.test(recallSeed)
+      )
+    if (!recallSeed || (input.recallGovernor?.mode === 'scene' && !repairGroundingSameLineRecall))
       return []
     const snapshot = input.retrievalPolicySnapshot ?? await resolveTurnRetrievalPolicySnapshot({
       recallSeed,
@@ -591,6 +683,8 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
       allowDream: input.recallGovernor?.mode === 'self-continuity' || input.recallGovernor?.mode === 'emotional-resonance',
       recollectionIntent: input.recallGovernor?.recollectionIntent ?? null,
     }).catch(() => [])
+    if ((input.recallGovernor?.carryAsMemory ?? false) && rows.length > 0)
+      invalidateTransientRecallCacheNamespace('consolidation')
     writeTransientRecallCache(cacheKey, rows, plan.cacheTtlMs)
     return rows
   }

@@ -1,3 +1,5 @@
+import type { AlicizationExecutionRuntimeMemoryClosureExecution } from '@proj-alicization/stage-shared'
+
 import type {
   AlicizationEpisodicEventRecord,
   AlicizationHostPersonModelSnapshot,
@@ -7,6 +9,7 @@ import type {
   AlicizationPersonStateEvolutionSummary,
   AlicizationRecallGovernorSnapshot,
 } from '../../../shared/eventa'
+import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 import type { AlicizationTurnRetrievalPolicySnapshot } from './memory-accessibility-runtime'
 import type { AlicizationMemoryRetrievalBudgetClass, AlicizationOrganicMemoryRuntimeStage } from './memory-retrieval-telemetry'
 import type { AlicizationRelationshipLineCandidate } from './memory-search-retrieval-operators'
@@ -50,7 +53,6 @@ export interface CreateAlicizationOrganicMemoryPromptRuntimeOptions {
   listMindTurnEvents?: (input: {
     decisionTraceId?: string
     turnId?: string
-    activeThreadId?: string
     kind?: AlicizationMindTurnEventKind
     limit?: number
   }) => Promise<AlicizationMindTurnEventRecord[]>
@@ -97,6 +99,7 @@ export interface CreateAlicizationOrganicMemoryPromptRuntimeOptions {
     activeThoughts: OrganicMemoryPromptContext['activeThoughts']
     hostPersonModel?: OrganicMemoryPromptContext['hostPersonModel']
     relationshipDynamics?: OrganicMemoryPromptContext['relationshipDynamics']
+    digitalLifeRuntimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
   }) => Promise<OrganicMemoryPromptContext['recollectionIntent'] | null>
   planMemoryRecollection?: (input: {
     recallSeed: string
@@ -106,6 +109,7 @@ export interface CreateAlicizationOrganicMemoryPromptRuntimeOptions {
     proceduralMemories: NonNullable<OrganicMemoryPromptContext['proceduralMemories']>
     recalledEpisodes: NonNullable<OrganicMemoryPromptContext['recalledEpisodes']>
     recalledConversationHistory: NonNullable<OrganicMemoryPromptContext['recalledConversationHistory']>
+    digitalLifeRuntimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
   }) => Promise<NonNullable<OrganicMemoryPromptContext['recollectionPlan']> | null>
   planRecollectionSpeech?: (input: {
     recallSeed: string
@@ -116,6 +120,7 @@ export interface CreateAlicizationOrganicMemoryPromptRuntimeOptions {
     proceduralMemories: NonNullable<OrganicMemoryPromptContext['proceduralMemories']>
     recalledEpisodes: NonNullable<OrganicMemoryPromptContext['recalledEpisodes']>
     recalledConversationHistory: NonNullable<OrganicMemoryPromptContext['recalledConversationHistory']>
+    digitalLifeRuntimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
   }) => Promise<NonNullable<OrganicMemoryPromptContext['recollectionSpeechPlan']> | null>
   planMemoryDeliberation?: (input: {
     recallSeed: string
@@ -127,6 +132,7 @@ export interface CreateAlicizationOrganicMemoryPromptRuntimeOptions {
     proceduralMemories: NonNullable<OrganicMemoryPromptContext['proceduralMemories']>
     recalledEpisodes: NonNullable<OrganicMemoryPromptContext['recalledEpisodes']>
     recalledConversationHistory: NonNullable<OrganicMemoryPromptContext['recalledConversationHistory']>
+    digitalLifeRuntimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
   }) => Promise<NonNullable<OrganicMemoryPromptContext['memoryDeliberation']> | null>
   isPersonaResidueMemoryText: (text: string) => boolean
   recordMemoryCandidateGenerationLatency?: (latencyMs: number) => Promise<void>
@@ -192,6 +198,8 @@ export interface AlicizationOrganicMemoryPreludeResolution {
   recentRelationshipOutcomes: OrganicMemoryPromptContext['recentRelationshipOutcomes']
   recentMemoryReflections: OrganicMemoryPromptContext['recentMemoryReflections']
   personStateProjection: OrganicMemoryPromptContext['personStateProjection'] | null
+  digitalLifeRuntimeSurface: AlicizationDigitalLifeRuntimeSurface | null
+  memoryClosureExecution: AlicizationExecutionRuntimeMemoryClosureExecution | null
 }
 
 export interface AlicizationOrganicMemoryCandidateResolution {
