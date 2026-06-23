@@ -877,6 +877,8 @@ function buildCliRuntimeEnv(runtimeContext: AlicizationExecutionRuntimeContext |
     ALICIZATION_EXECUTION_PROJECT_CONTINUITY: projectBriefing?.continuityCue ?? undefined,
     ALICIZATION_EXECUTION_PROJECT_PREFLIGHT: projectBriefing?.preflightSummary ?? undefined,
     ALICIZATION_EXECUTION_PROJECT_AWARENESS: projectBriefing?.preDialogueAwarenessLine ?? undefined,
+    ALICIZATION_EXECUTION_PROJECT_PREFERRED_PAUSE_MODE: projectBriefing?.preferredPauseMode ?? undefined,
+    ALICIZATION_EXECUTION_PROJECT_PREFERRED_LIPSYNC_MODE: projectBriefing?.preferredLipsyncMode ?? undefined,
     ALICIZATION_EXECUTION_PROJECT_PREFERRED_VOICE_MODE: projectBriefing?.preferredVoiceMode ?? undefined,
     ALICIZATION_EXECUTION_PROJECT_PREFERRED_PACING_MODE: projectBriefing?.preferredPacingMode ?? undefined,
   })

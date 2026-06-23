@@ -91,12 +91,15 @@ interface AlicizationExecutionCallbackRuntimeOptions {
     preDialogueAwarenessSummary?: string | null
     companionBriefingLine?: string | null
     emotionalClosureSummary?: string | null
+    continuityArcStage?: string | null
     continuityRestraint?: string | null
     continuityCue?: string | null
     continuityPreferredTiming?: string | null
     continuityCadence?: string | null
     preferredBlinkCadence?: string | null
     preferredGazeMode?: string | null
+    preferredPauseMode?: string | null
+    preferredLipsyncMode?: string | null
     preferredVoiceMode?: string | null
     preferredPacingMode?: string | null
     latestLandedProgress?: string | null
@@ -121,12 +124,15 @@ type AlicizationExecutionCallbackProjectBriefing = NonNullable<AlicizationExecut
 interface AlicizationExecutionCallbackProjectCarryDetails {
   companionBriefingLine: string | null
   emotionalClosureSummary: string | null
+  continuityArcStage: string | null
   continuityRestraint: string | null
   continuityCue: string | null
   continuityPreferredTiming: string | null
   continuityCadence: string | null
   preferredBlinkCadence: string | null
   preferredGazeMode: string | null
+  preferredPauseMode: string | null
+  preferredLipsyncMode: string | null
   preferredVoiceMode: string | null
   preferredPacingMode: string | null
   sameHerHoldDetail: string | null
@@ -329,12 +335,15 @@ function normalizeExecutionCallbackProjectBriefing(
     preDialogueAwarenessSummary: sanitizeExecutionLedgerText(projectBriefingRecord.preDialogueAwarenessSummary, 320) || null,
     companionBriefingLine: sanitizeExecutionLedgerText(projectBriefingRecord.companionBriefingLine, 320) || null,
     emotionalClosureSummary: sanitizeExecutionLedgerText(projectBriefingRecord.emotionalClosureSummary, 220) || null,
+    continuityArcStage: sanitizeExecutionLedgerText(projectBriefingRecord.continuityArcStage, 120) || null,
     continuityRestraint: sanitizeExecutionLedgerText(projectBriefingRecord.continuityRestraint, 64) || null,
     continuityCue: sanitizeExecutionLedgerText(projectBriefingRecord.continuityCue, 220) || null,
     continuityPreferredTiming: sanitizeExecutionLedgerText(projectBriefingRecord.continuityPreferredTiming, 120) || null,
     continuityCadence: sanitizeExecutionLedgerText(projectBriefingRecord.continuityCadence, 120) || null,
     preferredBlinkCadence: sanitizeExecutionLedgerText(projectBriefingRecord.preferredBlinkCadence, 32) || null,
     preferredGazeMode: sanitizeExecutionLedgerText(projectBriefingRecord.preferredGazeMode, 32) || null,
+    preferredPauseMode: sanitizeExecutionLedgerText(projectBriefingRecord.preferredPauseMode, 32) || null,
+    preferredLipsyncMode: sanitizeExecutionLedgerText(projectBriefingRecord.preferredLipsyncMode, 32) || null,
     preferredVoiceMode: sanitizeExecutionLedgerText(projectBriefingRecord.preferredVoiceMode, 32) || null,
     preferredPacingMode: sanitizeExecutionLedgerText(projectBriefingRecord.preferredPacingMode, 32) || null,
     latestLandedProgress: sanitizeExecutionLedgerText(projectBriefingRecord.latestLandedProgress, 320) || null,
@@ -473,6 +482,10 @@ function mergeExecutionCallbackProjectBriefingPair(input: {
       current: input.current.emotionalClosureSummary,
       candidate: input.candidate.emotionalClosureSummary,
     }),
+    continuityArcStage: preferExecutionCallbackProjectBriefingText({
+      current: input.current.continuityArcStage,
+      candidate: input.candidate.continuityArcStage,
+    }),
     continuityRestraint: preferExecutionCallbackProjectBriefingText({
       current: input.current.continuityRestraint,
       candidate: input.candidate.continuityRestraint,
@@ -496,6 +509,14 @@ function mergeExecutionCallbackProjectBriefingPair(input: {
     preferredGazeMode: preferExecutionCallbackProjectBriefingText({
       current: input.current.preferredGazeMode,
       candidate: input.candidate.preferredGazeMode,
+    }),
+    preferredPauseMode: preferExecutionCallbackProjectBriefingText({
+      current: input.current.preferredPauseMode,
+      candidate: input.candidate.preferredPauseMode,
+    }),
+    preferredLipsyncMode: preferExecutionCallbackProjectBriefingText({
+      current: input.current.preferredLipsyncMode,
+      candidate: input.candidate.preferredLipsyncMode,
     }),
     preferredVoiceMode: preferExecutionCallbackProjectBriefingText({
       current: input.current.preferredVoiceMode,
@@ -609,10 +630,22 @@ function readExecutionCallbackProjectBriefingFromResumeEvents(
     primaryOpenLoop: payload.primaryOpenLoop,
     nextClosureTarget: payload.nextClosureTarget,
     sameHerSelfLine: payload.sameHerLine,
+    sameHerHoldDetail: payload.projectSameHerHoldDetail,
     sameHerDriftRisk: payload.sameHerDriftRisk,
     proactiveSameHerGap: payload.proactiveSameHerGap,
     preflightSummary: payload.projectPreflight,
     preDialogueAwarenessLine: payload.projectAwareness,
+    companionBriefingLine: payload.projectCompanionBriefing,
+    emotionalClosureSummary: payload.projectEmotionalClosure,
+    continuityArcStage: payload.projectContinuityArcStage,
+    continuityRestraint: payload.projectContinuityRestraint,
+    continuityCue: payload.projectContinuityCue,
+    continuityPreferredTiming: payload.projectContinuityPreferredTiming,
+    continuityCadence: payload.projectContinuityCadence,
+    preferredBlinkCadence: payload.projectBlinkCadence,
+    preferredGazeMode: payload.projectGazeMode,
+    preferredPauseMode: payload.projectPauseMode,
+    preferredLipsyncMode: payload.projectLipsyncMode,
     preferredVoiceMode: payload.projectVoiceMode,
     preferredPacingMode: payload.projectPacingMode,
   })
@@ -640,12 +673,15 @@ function buildExecutionCallbackProjectCarryDetails(
       preDialogueAwarenessSummary: projectBriefing.preDialogueAwarenessSummary ?? null,
       companionBriefingLine: projectBriefing.companionBriefingLine ?? null,
       emotionalClosureSummary: projectBriefing.emotionalClosureSummary ?? null,
+      continuityArcStage: projectBriefing.continuityArcStage ?? null,
       continuityRestraint: projectBriefing.continuityRestraint ?? null,
       continuityCue: projectBriefing.continuityCue ?? null,
       continuityPreferredTiming: projectBriefing.continuityPreferredTiming ?? null,
       continuityCadence: projectBriefing.continuityCadence ?? null,
       preferredBlinkCadence: projectBriefing.preferredBlinkCadence ?? null,
       preferredGazeMode: projectBriefing.preferredGazeMode ?? null,
+      preferredPauseMode: projectBriefing.preferredPauseMode ?? null,
+      preferredLipsyncMode: projectBriefing.preferredLipsyncMode ?? null,
       preferredVoiceMode: projectBriefing.preferredVoiceMode ?? null,
       preferredPacingMode: projectBriefing.preferredPacingMode ?? null,
     },
@@ -654,12 +690,15 @@ function buildExecutionCallbackProjectCarryDetails(
   const details = {
     companionBriefingLine: sanitizeExecutionLedgerText(projectStateSnapshot.companionBriefingLine ?? projectBriefing.companionBriefingLine, 320) || null,
     emotionalClosureSummary: sanitizeExecutionLedgerText(projectStateSnapshot.emotionalClosureSummary ?? projectBriefing.emotionalClosureSummary, 220) || null,
+    continuityArcStage: sanitizeExecutionLedgerText(projectStateSnapshot.continuityArcStage ?? projectBriefing.continuityArcStage, 120) || null,
     continuityRestraint: sanitizeExecutionLedgerText(projectStateSnapshot.continuityRestraint ?? projectBriefing.continuityRestraint, 64) || null,
     continuityCue: sanitizeExecutionLedgerText(projectStateSnapshot.continuityCue ?? projectBriefing.continuityCue, 220) || null,
     continuityPreferredTiming: sanitizeExecutionLedgerText(projectStateSnapshot.continuityPreferredTiming ?? projectBriefing.continuityPreferredTiming, 120) || null,
     continuityCadence: sanitizeExecutionLedgerText(projectStateSnapshot.continuityCadence ?? projectBriefing.continuityCadence, 120) || null,
     preferredBlinkCadence: sanitizeExecutionLedgerText(projectStateSnapshot.preferredBlinkCadence ?? projectBriefing.preferredBlinkCadence, 32) || null,
     preferredGazeMode: sanitizeExecutionLedgerText(projectStateSnapshot.preferredGazeMode ?? projectBriefing.preferredGazeMode, 32) || null,
+    preferredPauseMode: sanitizeExecutionLedgerText(projectStateSnapshot.preferredPauseMode ?? projectBriefing.preferredPauseMode, 32) || null,
+    preferredLipsyncMode: sanitizeExecutionLedgerText(projectStateSnapshot.preferredLipsyncMode ?? projectBriefing.preferredLipsyncMode, 32) || null,
     preferredVoiceMode: sanitizeExecutionLedgerText(projectStateSnapshot.preferredVoiceMode ?? projectBriefing.preferredVoiceMode, 32) || null,
     preferredPacingMode: sanitizeExecutionLedgerText(projectStateSnapshot.preferredPacingMode ?? projectBriefing.preferredPacingMode, 32) || null,
     sameHerHoldDetail: sanitizeExecutionLedgerText(projectBriefing.sameHerHoldDetail ?? projectStateSnapshot.sameHerHoldDetail, 320) || null,
@@ -755,6 +794,181 @@ function buildCallbackItem(input: {
   }
 }
 
+function buildCallbackContinuityProjectMetadata(
+  projectBriefing?: AlicizationExecutionCallbackRuntimeOptions['projectBriefing'],
+) {
+  if (!projectBriefing)
+    return {}
+
+  const explicitLatestProgressInput = sanitizeExecutionLedgerText(
+    projectBriefing.latestLandedProgress ?? projectBriefing.latestProgress ?? null,
+    320,
+  )
+  const summaryLatestProgressInput = sanitizeExecutionLedgerText(projectBriefing.landedProgressSummary, 320)
+  const explicitPrimaryOpenLoopInput = sanitizeExecutionLedgerText(projectBriefing.primaryOpenLoop, 320)
+  const summaryPrimaryOpenLoopInput = sanitizeExecutionLedgerText(projectBriefing.openClosureSummary, 320)
+  const explicitNextClosureTargetInput = sanitizeExecutionLedgerText(projectBriefing.nextClosureTarget, 320)
+  const summaryNextClosureTargetInput = sanitizeExecutionLedgerText(projectBriefing.nextClosureTargetSummary, 320)
+  const explicitSameHerDriftRiskInput = sanitizeExecutionLedgerText(projectBriefing.sameHerDriftRisk, 320)
+  const summarySameHerDriftRiskInput = sanitizeExecutionLedgerText(projectBriefing.sameHerDriftRiskSummary, 320)
+  const projectStateSnapshot = resolveAlicizationProjectStateSnapshot({
+    runtimeProjectState: {
+      identity: projectBriefing.identity ?? null,
+      currentPhase: projectBriefing.currentPhase ?? null,
+      latestLandedProgress: explicitLatestProgressInput || summaryLatestProgressInput || null,
+      primaryOpenLoop: explicitPrimaryOpenLoopInput || summaryPrimaryOpenLoopInput || null,
+      nextClosureTarget: explicitNextClosureTargetInput || summaryNextClosureTargetInput || null,
+      sameHerSelfLine: projectBriefing.sameHerSelfLine ?? null,
+      sameHerHoldDetail: projectBriefing.sameHerHoldDetail ?? null,
+      sameHerDriftRisk: explicitSameHerDriftRiskInput || summarySameHerDriftRiskInput || null,
+      proactiveSameHerGap: projectBriefing.proactiveSameHerGap ?? null,
+      preflightSummary: projectBriefing.preflightSummary ?? null,
+      preDialogueAwarenessLine: projectBriefing.preDialogueAwarenessLine ?? null,
+      preDialogueAwarenessSummary: projectBriefing.preDialogueAwarenessSummary ?? null,
+      companionBriefingLine: projectBriefing.companionBriefingLine ?? null,
+      emotionalClosureSummary: projectBriefing.emotionalClosureSummary ?? null,
+      continuityArcStage: projectBriefing.continuityArcStage ?? null,
+      continuityRestraint: projectBriefing.continuityRestraint ?? null,
+      continuityCue: projectBriefing.continuityCue ?? null,
+      continuityPreferredTiming: projectBriefing.continuityPreferredTiming ?? null,
+      continuityCadence: projectBriefing.continuityCadence ?? null,
+      preferredBlinkCadence: projectBriefing.preferredBlinkCadence ?? null,
+      preferredGazeMode: projectBriefing.preferredGazeMode ?? null,
+      preferredPauseMode: projectBriefing.preferredPauseMode ?? null,
+      preferredLipsyncMode: projectBriefing.preferredLipsyncMode ?? null,
+      preferredVoiceMode: projectBriefing.preferredVoiceMode ?? null,
+      preferredPacingMode: projectBriefing.preferredPacingMode ?? null,
+    },
+  })
+  const projectIdentity = sanitizeExecutionLedgerText(projectStateSnapshot.identity ?? projectBriefing.identity, 220)
+  const projectPhase = sanitizeExecutionLedgerText(projectStateSnapshot.currentPhase ?? projectBriefing.currentPhase, 220)
+  const projectStatePreflightSummary = sanitizeExecutionLedgerText(projectBriefing.preflightSummary ?? projectStateSnapshot.preflightSummary, 320)
+  const projectStatePreDialogueAwarenessLine = sanitizeExecutionLedgerText(
+    projectBriefing.preDialogueAwarenessLine ?? projectStateSnapshot.preDialogueAwarenessLine,
+    320,
+  )
+  const projectStatePreDialogueAwarenessSummary = sanitizeExecutionLedgerText(
+    projectBriefing.preDialogueAwarenessSummary
+    ?? projectBriefing.preDialogueAwarenessLine
+    ?? projectStateSnapshot.preDialogueAwarenessSummary
+    ?? projectStateSnapshot.preDialogueAwarenessLine,
+    320,
+  )
+  const projectStateCompanionHeadlineLine = sanitizeExecutionLedgerText(
+    projectBriefing.companionBriefingLine ?? projectStateSnapshot.companionBriefingLine,
+    320,
+  )
+  const projectLatestLandedProgress = sanitizeExecutionLedgerText(
+    projectStateSnapshot.latestLandedProgress
+    ?? projectStateSnapshot.latestProgress
+    ?? projectBriefing.latestLandedProgress
+    ?? projectBriefing.latestProgress
+    ?? projectBriefing.landedProgressSummary,
+    320,
+  )
+  const projectPrimaryOpenLoop = sanitizeExecutionLedgerText(
+    projectStateSnapshot.primaryOpenLoop
+    ?? projectBriefing.primaryOpenLoop
+    ?? projectBriefing.openClosureSummary,
+    320,
+  )
+  const projectNextClosureTarget = sanitizeExecutionLedgerText(
+    projectStateSnapshot.nextClosureTarget
+    ?? projectBriefing.nextClosureTarget
+    ?? projectBriefing.nextClosureTargetSummary,
+    320,
+  )
+  const projectStateSameHerSelfLine = sanitizeExecutionLedgerText(
+    projectBriefing.sameHerSelfLine ?? projectStateSnapshot.sameHerSelfLine,
+    220,
+  )
+  const projectStateSameHerHoldDetail = sanitizeExecutionLedgerText(
+    projectBriefing.sameHerHoldDetail ?? projectStateSnapshot.sameHerHoldDetail,
+    320,
+  )
+  const projectStateSameHerDriftRisk = sanitizeExecutionLedgerText(
+    projectBriefing.sameHerDriftRisk
+    ?? projectBriefing.sameHerDriftRiskSummary
+    ?? projectStateSnapshot.sameHerDriftRisk,
+    320,
+  )
+  const projectStateEmotionalClosureSummary = sanitizeExecutionLedgerText(
+    projectBriefing.emotionalClosureSummary ?? projectStateSnapshot.emotionalClosureSummary,
+    220,
+  )
+  const continuityArcStage = sanitizeExecutionLedgerText(
+    projectBriefing.continuityArcStage ?? projectStateSnapshot.continuityArcStage,
+    120,
+  )
+  const continuityRestraint = sanitizeExecutionLedgerText(
+    projectBriefing.continuityRestraint ?? projectStateSnapshot.continuityRestraint,
+    64,
+  )
+  const continuityCue = sanitizeExecutionLedgerText(
+    projectBriefing.continuityCue ?? projectStateSnapshot.continuityCue,
+    220,
+  )
+  const continuityPreferredTiming = sanitizeExecutionLedgerText(
+    projectBriefing.continuityPreferredTiming ?? projectStateSnapshot.continuityPreferredTiming,
+    120,
+  )
+  const continuityCadence = sanitizeExecutionLedgerText(
+    projectBriefing.continuityCadence ?? projectStateSnapshot.continuityCadence,
+    120,
+  )
+  const preferredBlinkCadence = sanitizeExecutionLedgerText(
+    projectBriefing.preferredBlinkCadence ?? projectStateSnapshot.preferredBlinkCadence,
+    32,
+  )
+  const preferredGazeMode = sanitizeExecutionLedgerText(
+    projectBriefing.preferredGazeMode ?? projectStateSnapshot.preferredGazeMode,
+    32,
+  )
+  const projectStatePreferredPauseMode = sanitizeExecutionLedgerText(
+    projectBriefing.preferredPauseMode ?? projectStateSnapshot.preferredPauseMode,
+    32,
+  )
+  const projectStatePreferredLipsyncMode = sanitizeExecutionLedgerText(
+    projectBriefing.preferredLipsyncMode ?? projectStateSnapshot.preferredLipsyncMode,
+    32,
+  )
+  const projectStatePreferredVoiceMode = sanitizeExecutionLedgerText(
+    projectBriefing.preferredVoiceMode ?? projectStateSnapshot.preferredVoiceMode,
+    32,
+  )
+  const projectStatePreferredPacingMode = sanitizeExecutionLedgerText(
+    projectBriefing.preferredPacingMode ?? projectStateSnapshot.preferredPacingMode,
+    32,
+  )
+
+  return {
+    ...(projectIdentity ? { projectIdentity } : {}),
+    ...(projectPhase ? { projectPhase } : {}),
+    ...(projectStatePreflightSummary ? { projectStatePreflightSummary } : {}),
+    ...(projectStatePreDialogueAwarenessLine ? { projectStatePreDialogueAwarenessLine } : {}),
+    ...(projectStatePreDialogueAwarenessSummary ? { projectStatePreDialogueAwarenessSummary } : {}),
+    ...(projectStateCompanionHeadlineLine ? { projectStateCompanionHeadlineLine } : {}),
+    ...(projectLatestLandedProgress ? { projectLatestLandedProgress } : {}),
+    ...(projectPrimaryOpenLoop ? { projectPrimaryOpenLoop } : {}),
+    ...(projectNextClosureTarget ? { projectNextClosureTarget } : {}),
+    ...(projectStateSameHerSelfLine ? { projectStateSameHerSelfLine } : {}),
+    ...(projectStateSameHerHoldDetail ? { projectStateSameHerHoldDetail } : {}),
+    ...(projectStateSameHerDriftRisk ? { projectStateSameHerDriftRisk } : {}),
+    ...(projectStateEmotionalClosureSummary ? { projectStateEmotionalClosureSummary } : {}),
+    ...(continuityArcStage ? { continuityArcStage } : {}),
+    ...(continuityRestraint ? { continuityRestraint } : {}),
+    ...(continuityCue ? { continuityCue } : {}),
+    ...(continuityPreferredTiming ? { continuityPreferredTiming } : {}),
+    ...(continuityCadence ? { continuityCadence } : {}),
+    ...(preferredBlinkCadence ? { preferredBlinkCadence } : {}),
+    ...(preferredGazeMode ? { preferredGazeMode } : {}),
+    ...(projectStatePreferredPauseMode ? { projectStatePreferredPauseMode } : {}),
+    ...(projectStatePreferredLipsyncMode ? { projectStatePreferredLipsyncMode } : {}),
+    ...(projectStatePreferredVoiceMode ? { projectStatePreferredVoiceMode } : {}),
+    ...(projectStatePreferredPacingMode ? { projectStatePreferredPacingMode } : {}),
+  } satisfies Record<string, string>
+}
+
 function buildCallbackContinuitySignal(item: AlicizationExecutionCallbackItem): AlicizationAgentSessionContinuityInput {
   return {
     kind: 'execution-callback',
@@ -767,6 +981,7 @@ function buildCallbackContinuitySignal(item: AlicizationExecutionCallbackItem): 
       ...item.action.metadata,
       source: 'execution-callback-runtime',
       continuityKind: 'execution-callback',
+      ...buildCallbackContinuityProjectMetadata(item.projectBriefing),
       ...(item.resumeConfirmation
         ? {
             resumeConfirmation: item.resumeConfirmation,
@@ -817,11 +1032,14 @@ function readExecutionCallbackProjectBriefing(
             preDialogueAwarenessSummary?: unknown
             companionBriefingLine?: unknown
             emotionalClosureSummary?: unknown
+            continuityArcStage?: unknown
             continuityCue?: unknown
             continuityPreferredTiming?: unknown
             continuityCadence?: unknown
             preferredBlinkCadence?: unknown
             preferredGazeMode?: unknown
+            preferredPauseMode?: unknown
+            preferredLipsyncMode?: unknown
             preferredVoiceMode?: unknown
             preferredPacingMode?: unknown
             latestLandedProgress?: unknown
@@ -897,6 +1115,8 @@ function buildExecutionCallbackProjectAwarenessLine(projectBriefing?: Alicizatio
       continuityCadence: projectBriefing.continuityCadence ?? null,
       preferredBlinkCadence: projectBriefing.preferredBlinkCadence ?? null,
       preferredGazeMode: projectBriefing.preferredGazeMode ?? null,
+      preferredPauseMode: projectBriefing.preferredPauseMode ?? null,
+      preferredLipsyncMode: projectBriefing.preferredLipsyncMode ?? null,
     },
   })
   const identity = sanitizeExecutionLedgerText(projectStateSnapshot.identity, 220)
@@ -985,6 +1205,7 @@ function buildExecutionCallbackSystemBlock(
     projectAwareness ? `project_awareness=${projectAwareness}` : '',
     projectCarry?.companionBriefingLine ? `project_companion_briefing=${projectCarry.companionBriefingLine}` : '',
     projectCarry?.emotionalClosureSummary ? `project_emotional_closure=${projectCarry.emotionalClosureSummary}` : '',
+    projectCarry?.continuityArcStage ? `project_continuity_arc_stage=${projectCarry.continuityArcStage}` : '',
     projectCarry?.continuityRestraint ? `project_continuity_restraint=${projectCarry.continuityRestraint}` : '',
     projectCarry?.sameHerHoldDetail ? `project_same_her_hold=${projectCarry.sameHerHoldDetail}` : '',
     projectCarry?.continuityCue ? `project_continuity_cue=${projectCarry.continuityCue}` : '',
@@ -992,6 +1213,8 @@ function buildExecutionCallbackSystemBlock(
     projectCarry?.continuityCadence ? `project_continuity_cadence=${projectCarry.continuityCadence}` : '',
     projectCarry?.preferredBlinkCadence ? `project_preferred_blink_cadence=${projectCarry.preferredBlinkCadence}` : '',
     projectCarry?.preferredGazeMode ? `project_preferred_gaze_mode=${projectCarry.preferredGazeMode}` : '',
+    projectCarry?.preferredPauseMode ? `project_pause_mode=${projectCarry.preferredPauseMode}` : '',
+    projectCarry?.preferredLipsyncMode ? `project_lipsync_mode=${projectCarry.preferredLipsyncMode}` : '',
     projectCarry?.preferredVoiceMode ? `project_voice_mode=${projectCarry.preferredVoiceMode}` : '',
     projectCarry?.preferredPacingMode ? `project_pacing_mode=${projectCarry.preferredPacingMode}` : '',
     projectCarry?.proactiveSameHerGap ? `project_proactive_same_her_gap=${projectCarry.proactiveSameHerGap}` : '',
@@ -1083,6 +1306,7 @@ export function createAlicizationExecutionCallbackRuntime(options: AlicizationEx
         projectAwareness ? `execution_callback_project_awareness:${projectAwareness}` : '',
         projectCarry?.companionBriefingLine ? `execution_callback_project_companion_briefing:${projectCarry.companionBriefingLine}` : '',
         projectCarry?.emotionalClosureSummary ? `execution_callback_project_emotional_closure:${projectCarry.emotionalClosureSummary}` : '',
+        projectCarry?.continuityArcStage ? `execution_callback_project_continuity_arc_stage:${projectCarry.continuityArcStage}` : '',
         projectCarry?.continuityRestraint ? `execution_callback_project_continuity_restraint:${projectCarry.continuityRestraint}` : '',
         projectCarry?.sameHerHoldDetail ? `execution_callback_project_same_her_hold:${projectCarry.sameHerHoldDetail}` : '',
         projectCarry?.continuityCue ? `execution_callback_project_continuity_cue:${projectCarry.continuityCue}` : '',
@@ -1090,6 +1314,8 @@ export function createAlicizationExecutionCallbackRuntime(options: AlicizationEx
         projectCarry?.continuityCadence ? `execution_callback_project_continuity_cadence:${projectCarry.continuityCadence}` : '',
         projectCarry?.preferredBlinkCadence ? `execution_callback_project_preferred_blink:${projectCarry.preferredBlinkCadence}` : '',
         projectCarry?.preferredGazeMode ? `execution_callback_project_preferred_gaze:${projectCarry.preferredGazeMode}` : '',
+        projectCarry?.preferredPauseMode ? `execution_callback_project_pause_mode:${projectCarry.preferredPauseMode}` : '',
+        projectCarry?.preferredLipsyncMode ? `execution_callback_project_lipsync_mode:${projectCarry.preferredLipsyncMode}` : '',
         projectCarry?.preferredVoiceMode ? `execution_callback_project_voice_mode:${projectCarry.preferredVoiceMode}` : '',
         projectCarry?.preferredPacingMode ? `execution_callback_project_pacing_mode:${projectCarry.preferredPacingMode}` : '',
         projectCarry?.proactiveSameHerGap ? `execution_callback_project_proactive_same_her_gap:${projectCarry.proactiveSameHerGap}` : '',

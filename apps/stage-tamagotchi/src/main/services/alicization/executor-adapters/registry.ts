@@ -1,28 +1,36 @@
 import type {
   AlicizationDispatchTaskThreadInput,
   AlicizationExecutionChannel,
+  AlicizationLocalVisualCommandInput,
   AlicizationTaskThreadRecord,
 } from '@proj-alicization/stage-shared'
 
 import type { AlicizationClaudeCodeAdapterResult } from './claude-code'
 import type { AlicizationCliAdapterResult } from './cli'
 import type { AlicizationCodexAdapterResult } from './codex'
+import type {
+  AlicizationLocalVisualAdapterResult,
+  AlicizationLocalVisualDispatchSurface,
+} from './local-visual'
 import type { AlicizationOpenClawAdapterResult } from './openclaw'
 
 import { executeClaudeCodeTaskThread } from './claude-code'
 import { executeCliTaskThread } from './cli'
 import { executeCodexTaskThread } from './codex'
 import { resolveExecutionTransportChannel } from './embodied-channel'
+import { executeLocalVisualTaskThread } from './local-visual'
 import { executeOpenClawTaskThread } from './openclaw'
 
 type AlicizationDispatchCommandInput = Pick<AlicizationDispatchTaskThreadInput, 'cli' | 'codex' | 'claudeCode' | 'localVisual' | 'openclaw'>
 
-export type AlicizationDispatchExecutableChannel = 'cli' | 'codex' | 'claude-code' | 'openclaw'
+export type AlicizationDispatchExecutableChannel = 'cli' | 'codex' | 'claude-code' | 'openclaw' | 'browser' | 'software' | 'desktop'
+type AlicizationRegisteredDispatchExecutableChannel = Exclude<AlicizationDispatchExecutableChannel, 'browser' | 'software' | 'desktop'>
 
 export type AlicizationDispatchAdapterResult
   = | AlicizationCliAdapterResult
     | AlicizationCodexAdapterResult
     | AlicizationClaudeCodeAdapterResult
+    | AlicizationLocalVisualAdapterResult
     | AlicizationOpenClawAdapterResult
 
 interface AlicizationDispatchRuntimeInput {
@@ -49,7 +57,7 @@ interface AlicizationDispatchAdapter<Channel extends AlicizationDispatchExecutab
 }
 
 type AlicizationDispatchAdapterRegistry = {
-  [K in AlicizationDispatchExecutableChannel]: AlicizationDispatchAdapter<K>
+  [K in AlicizationRegisteredDispatchExecutableChannel]: AlicizationDispatchAdapter<K>
 }
 
 const dispatchAdapterRegistry = {
@@ -120,7 +128,7 @@ const dispatchAdapterRegistry = {
 
 function isExecutableDispatchChannel(
   channel: AlicizationExecutionChannel | null | undefined,
-): channel is AlicizationDispatchExecutableChannel {
+): channel is AlicizationRegisteredDispatchExecutableChannel {
   return channel === 'cli' || channel === 'codex' || channel === 'claude-code' || channel === 'openclaw'
 }
 
@@ -128,6 +136,7 @@ export type AlicizationPreparedTaskThreadDispatch
   = | {
     ok: true
     channel: AlicizationDispatchExecutableChannel
+    sessionTrackingChannel: AlicizationExecutionChannel | null
     run: (runtime: AlicizationDispatchRuntimeInput) => Promise<AlicizationDispatchAdapterResult>
   }
   | {
@@ -140,8 +149,66 @@ export type AlicizationPreparedTaskThreadDispatch
 export function prepareTaskThreadDispatch(input: {
   thread: AlicizationTaskThreadRecord
   dispatchInput: AlicizationDispatchCommandInput
+  localVisualSurface?: AlicizationLocalVisualDispatchSurface
 }): AlicizationPreparedTaskThreadDispatch {
   const selectedChannel = input.thread.selectedChannel
+  const semanticGuiChannel = selectedChannel === 'browser' || selectedChannel === 'software' || selectedChannel === 'desktop'
+    ? selectedChannel
+    : null
+  if (
+    semanticGuiChannel
+    && input.localVisualSurface?.desktopInspectScene
+  ) {
+    const localVisualSurface = input.localVisualSurface
+    const command = resolveLocalVisualCommand(input.dispatchInput)
+    if (!command) {
+      return {
+        ok: false,
+        summary: `Task thread is assigned to ${semanticGuiChannel}, but no embodied continuation payload was provided for local GUI dispatch.`,
+        errorCode: 'TASK_THREAD_LOCAL_VISUAL_INPUT_REQUIRED',
+        errorMessage: 'Missing local GUI continuation payload for dispatch.',
+      }
+    }
+
+    return {
+      ok: true,
+      channel: semanticGuiChannel,
+      sessionTrackingChannel: null,
+      run: async runtime => await executeLocalVisualTaskThread({
+        thread: input.thread,
+        channel: semanticGuiChannel,
+        command,
+        surface: localVisualSurface,
+        abortSignal: runtime.abortSignal,
+        now: runtime.now,
+      }),
+    }
+  }
+
+  if (semanticGuiChannel) {
+    const command = input.dispatchInput.openclaw
+    if (!command) {
+      return {
+        ok: false,
+        summary: 'OpenClaw fallback dispatch requires a concrete embodied instruction contract.',
+        errorCode: 'TASK_THREAD_OPENCLAW_INPUT_REQUIRED',
+        errorMessage: 'Missing OpenClaw instruction payload for fallback GUI dispatch.',
+      }
+    }
+
+    return {
+      ok: true,
+      channel: semanticGuiChannel,
+      sessionTrackingChannel: 'openclaw',
+      run: async runtime => await executeOpenClawTaskThread({
+        thread: input.thread,
+        command,
+        abortSignal: runtime.abortSignal,
+        now: runtime.now,
+      }),
+    }
+  }
+
   const transportChannel = resolveExecutionTransportChannel(selectedChannel)
   if (!isExecutableDispatchChannel(transportChannel)) {
     return {
@@ -166,6 +233,7 @@ export function prepareTaskThreadDispatch(input: {
   return {
     ok: true,
     channel: adapter.channel,
+    sessionTrackingChannel: adapter.channel,
     run: async runtime => await adapter.execute({
       thread: input.thread,
       command,
@@ -173,5 +241,19 @@ export function prepareTaskThreadDispatch(input: {
       workspaceRoot: runtime.workspaceRoot,
       now: runtime.now,
     }),
+  }
+}
+
+function resolveLocalVisualCommand(input: AlicizationDispatchCommandInput): AlicizationLocalVisualCommandInput | null {
+  if (input.localVisual)
+    return input.localVisual
+
+  if (!input.openclaw)
+    return null
+
+  return {
+    instruction: input.openclaw.instruction,
+    meta: input.openclaw.meta ?? null,
+    runtimeContext: input.openclaw.runtimeContext ?? null,
   }
 }

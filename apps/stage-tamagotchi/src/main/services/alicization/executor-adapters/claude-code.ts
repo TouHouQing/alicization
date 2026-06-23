@@ -20,6 +20,10 @@ import {
   buildAlicizationExecutionEnv,
   resolveAlicizationExecutionBinary,
 } from '../execution-command-env'
+import {
+  isLowRiskAutonomousCodeAgentSelfStartThread,
+  resolveThreadPermissionMode,
+} from './thread-permission'
 
 const claudeCodeDefaultTimeoutMs = 120_000
 const claudeCodeMaxTimeoutMs = 900_000
@@ -27,7 +31,6 @@ const claudeCodeEventChunkChars = 1_500
 const claudeCodeMaxPreviewChars = 4_000
 const claudeCodeMaxBufferBytes = 2 * 1024 * 1024
 
-type AlicizationTaskPermissionMode = 'none' | 'implicit' | 'explicit'
 type AlicizationTaskEffect = 'observe' | 'mutate' | 'high-impact'
 type AlicizationClaudePermissionMode = 'default' | 'acceptEdits' | 'bypassPermissions' | 'delegate' | 'dontAsk' | 'plan'
 
@@ -131,17 +134,6 @@ function normalizeWorkingDirectory(raw: unknown, workspaceRoot: string) {
   }
 }
 
-function resolveThreadPermissionMode(thread: AlicizationTaskThreadRecord): AlicizationTaskPermissionMode {
-  const metadataTask = thread.metadata?.task
-  if (metadataTask && typeof metadataTask === 'object' && 'permissionMode' in metadataTask) {
-    const permissionMode = (metadataTask as { permissionMode?: unknown }).permissionMode
-    if (permissionMode === 'explicit' || permissionMode === 'implicit' || permissionMode === 'none')
-      return permissionMode
-  }
-
-  return thread.origin === 'user-turn' ? 'implicit' : 'none'
-}
-
 function resolveThreadEffect(thread: AlicizationTaskThreadRecord): AlicizationTaskEffect {
   const metadataTask = thread.metadata?.task
   if (metadataTask && typeof metadataTask === 'object' && 'effect' in metadataTask) {
@@ -151,6 +143,35 @@ function resolveThreadEffect(thread: AlicizationTaskThreadRecord): AlicizationTa
   }
 
   return 'mutate'
+}
+
+function readTaskMetadataText(thread: AlicizationTaskThreadRecord, key: 'riskBudget' | 'justification') {
+  const metadataTask = thread.metadata?.task
+  if (!metadataTask || typeof metadataTask !== 'object')
+    return null
+
+  return normalizeOptionalText((metadataTask as Record<string, unknown>)[key], 80)
+}
+
+function buildBlockedDispatchSafetyGate(thread: AlicizationTaskThreadRecord, errorCode: string) {
+  const effect = resolveThreadEffect(thread)
+  const permissionMode = resolveThreadPermissionMode(thread)
+  const riskPolicy = errorCode === 'CLAUDE_CODE_EFFECT_MISMATCH'
+    ? 'observe-only-tools-blocked'
+    : effect === 'high-impact'
+      ? 'explicit-confirmation-required'
+      : 'implicit-or-explicit-confirmation-required'
+
+  return {
+    effect,
+    permissionMode,
+    riskBudget: readTaskMetadataText(thread, 'riskBudget'),
+    justification: readTaskMetadataText(thread, 'justification'),
+    confirmationRequired: true,
+    riskPolicy,
+    auditability: 'blocked-before-dispatch',
+    interruptibility: 'no-process-started',
+  }
 }
 
 function normalizeClaudePermissionMode(raw: unknown): AlicizationClaudePermissionMode | null {
@@ -167,7 +188,7 @@ function normalizeClaudePermissionMode(raw: unknown): AlicizationClaudePermissio
   return null
 }
 
-function deriveDefaultPermissionMode(permissionMode: AlicizationTaskPermissionMode): AlicizationClaudePermissionMode {
+function deriveDefaultPermissionMode(permissionMode: 'none' | 'implicit' | 'explicit'): AlicizationClaudePermissionMode {
   if (permissionMode === 'explicit')
     return 'dontAsk'
   if (permissionMode === 'implicit')
@@ -209,7 +230,7 @@ function buildClaudeCodeCommandSpec(input: AlicizationClaudeCodeAdapterInput) {
       errorMessage: 'High-impact Claude Code dispatch requires explicit permission before execution.',
     }
   }
-  if (allowTools && effect === 'mutate' && permissionMode === 'none') {
+  if (allowTools && effect === 'mutate' && permissionMode === 'none' && !isLowRiskAutonomousCodeAgentSelfStartThread(input.thread)) {
     return {
       ok: false as const,
       errorCode: 'CLAUDE_CODE_PERMISSION_REQUIRED',
@@ -400,6 +421,7 @@ export async function executeClaudeCodeTaskThread(input: AlicizationClaudeCodeAd
   const normalized = buildClaudeCodeCommandSpec(input)
   if (!normalized.ok) {
     const createdAt = now()
+    const runtimeContext = normalizeAlicizationExecutionRuntimeContext(input.command.runtimeContext)
     return {
       ok: false,
       summary: buildFailureSummary(thread, normalized.errorMessage),
@@ -420,6 +442,9 @@ export async function executeClaudeCodeTaskThread(input: AlicizationClaudeCodeAd
           adapter: 'claude-code',
           errorCode: normalized.errorCode,
           errorMessage: normalized.errorMessage,
+          safetyGate: buildBlockedDispatchSafetyGate(thread, normalized.errorCode),
+          hasRuntimeContext: runtimeContext !== null,
+          runtimeContext,
         },
         createdAt,
       }],

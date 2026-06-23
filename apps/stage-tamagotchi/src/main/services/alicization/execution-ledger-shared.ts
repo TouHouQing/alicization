@@ -54,8 +54,10 @@ function readExecutionPayloadOutcome(payload: Record<string, unknown> | null | u
   return ''
 }
 
-export function readLatestExecutionEvent(
-  events: AlicizationExecutionEventRecord[],
+export function readLatestExecutionEvent<
+  Event extends Pick<AlicizationExecutionEventRecord, 'createdAt' | 'kind'>,
+>(
+  events: Event[],
   preferredKinds: string[] = ['result', 'cancel', 'takeover'],
 ) {
   const ordered = [...events].sort((left, right) => left.createdAt - right.createdAt)

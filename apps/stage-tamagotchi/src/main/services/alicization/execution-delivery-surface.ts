@@ -19,6 +19,10 @@ import {
 import { buildHostSocialGuidance, inferHostSocialContextsFromText } from './host-social-guidance'
 import { buildAlicizationActiveDialogueGovernedReply } from './main-chat-active-dialogue-loop'
 import { resolveAlicizationOpeningGuidanceViolationReason } from './proactive-opening-guidance'
+import {
+  buildAlicizationProjectStateClosureDashboard,
+  buildAlicizationProjectStateSystemBlock,
+} from './project-state-brief'
 import { buildRelationshipDoctrineGuidance } from './relationship-doctrine-guidance'
 import { parseJsonObjectFromText } from './runtime-transport-content'
 
@@ -26,6 +30,7 @@ const listingProtocolLeakPattern = /\bListed\s+(?:desktop\s+entries|entries)\s*\
 const shellListingLeakPattern = /(?:^|\s)(?:drwx|total\s+\d+)/iu
 const mechanisticChannelLeadPattern = /^(?:刚才那个|这条)?\s*(?:CLI|Codex|Claude Code|OpenClaw)\b/iu
 const uriEncodedLeakPattern = /%[0-9A-F]{2}/iu
+const callbackClosenessDriftPattern = /(先贴过来陪你|我先贴过来陪你|把这份熟悉直接接回来|像以前那样靠近|先陪在你身侧|贴过来)/u
 
 const allowedExecutionPayoffEmotions = new Set([
   'neutral',
@@ -51,6 +56,13 @@ const allowedExecutionPayoffDeliveries = new Set([
 export type AlicizationExecutionDeliveryReplySource = 'llm' | 'llm-repaired'
 export type AlicizationExecutionPayoffMode = 'inline-execution' | 'callback-delivery'
 
+export interface AlicizationExecutionMemorySurfaceRestraint {
+  shouldStayInward?: boolean | null
+  shouldDelayUntilAfterPayoff?: boolean | null
+  stableCoreOnly?: boolean | null
+  visibleCarryMode?: string | null
+}
+
 export interface AlicizationExecutionDeliveryReplySelection {
   reply: string
   source: AlicizationExecutionDeliveryReplySource
@@ -62,6 +74,7 @@ export interface AlicizationExecutionPayoffStructured {
   emotion: string
   reply: string
   visibleReplyAuthority?: AlicizationMindTurnGovernance['visibleReplyAuthority'] | null
+  proactive?: Record<string, unknown> | null
   performance: {
     baseEmotion: string
     facialCue: string | null
@@ -83,6 +96,30 @@ function sanitizeText(raw: unknown, maxLength: number) {
   if (typeof raw !== 'string')
     return ''
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxLength)
+}
+
+function readExecutionFeedbackReplyPosture(input: {
+  personStateProjection?: AlicizationPersonStateProjection | null
+  hostPersonModel?: AlicizationHostPersonModelSnapshot | null
+}) {
+  const text = [
+    input.personStateProjection?.openingGuidance,
+    input.personStateProjection?.trustRationale,
+    input.personStateProjection?.relationshipDoctrine,
+    input.personStateProjection?.sensitivityText,
+    input.hostPersonModel?.summary,
+    ...(input.hostPersonModel?.sensitivities ?? []),
+    ...(input.hostPersonModel?.repairTriggers ?? []),
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase()
+
+  return {
+    needsRoom: /space|room|lighter|pressure|intrusive|留空间|更轻|太紧|太近|lower-pressure|even and steady|natural and unforced|steady voice|unforced pacing|performative|rushed tempo|太快|别把气氛推高/.test(text),
+    trustOpen: /trust is warming|trust|接得住|有用|落稳|warming|grounded/.test(text),
+    repairFirst: /repair before closeness|repair the seam|先修正|repair-first/.test(text),
+  }
 }
 
 function normalizeChannelLabel(channelRaw: string) {
@@ -160,6 +197,7 @@ function applyExecutionResultDeliveryPolicyToReply(input: {
   hostPersonModel?: AlicizationHostPersonModelSnapshot | null
   selfContinuityAuthority?: AlicizationSelfContinuityAuthority | null
   goal?: string
+  memorySurfaceRestraint?: AlicizationExecutionMemorySurfaceRestraint | null
 }) {
   const policy = input.policy ?? null
   const personStateProjection = input.personStateProjection ?? null
@@ -182,17 +220,33 @@ function applyExecutionResultDeliveryPolicyToReply(input: {
         authority: input.selfContinuityAuthority ?? null,
         contexts,
       })
-  if ((!policy || policy.mode === 'deliver-now') && !hostGuidance.cautious && !doctrineGuidance.cautious)
-    return input.reply
-
+  const replyPosture = readExecutionFeedbackReplyPosture({
+    personStateProjection,
+    hostPersonModel: input.hostPersonModel ?? null,
+  })
+  const memorySurfaceRestraint = input.memorySurfaceRestraint ?? null
+  const memoryBoundaryNeedsRoom = Boolean(
+    memorySurfaceRestraint?.shouldStayInward
+    || memorySurfaceRestraint?.shouldDelayUntilAfterPayoff
+    || memorySurfaceRestraint?.stableCoreOnly
+    || memorySurfaceRestraint?.visibleCarryMode === 'withhold',
+  )
   const normalizedStatus = normalizeOutcomeSurfaceStatus(input.status)
+  if ((!policy || policy.mode === 'deliver-now') && !hostGuidance.cautious && !doctrineGuidance.cautious) {
+    return memoryBoundaryNeedsRoom && normalizedStatus === 'completed'
+      ? sanitizeText(`你现在要是方便，我就把这条结果轻一点地接回来：${sanitizeText(input.reply, 220)}`, 220)
+      : input.reply
+  }
+
   const baseReply = sanitizeText(input.reply, 220)
   if (!baseReply)
     return ''
 
-  if (policy?.mode === 'check-availability-first' || hostGuidance.cautious || doctrineGuidance.cautious) {
+  if (policy?.mode === 'check-availability-first' || hostGuidance.cautious || doctrineGuidance.cautious || memoryBoundaryNeedsRoom) {
     if (normalizedStatus === 'completed') {
-      if (policy?.companionshipFraming === 'close-carry')
+      if ((replyPosture.needsRoom || memoryBoundaryNeedsRoom) && (policy?.tone === 'cautious' || hostGuidance.cautious || doctrineGuidance.cautious || memoryBoundaryNeedsRoom))
+        return sanitizeText(`你现在要是方便，我就把这条结果轻一点地接回来：${baseReply}`, 220)
+      if (policy?.companionshipFraming === 'close-carry' && replyPosture.trustOpen)
         return sanitizeText(`你现在要是能接，我把这条结果轻轻接回来给你：${baseReply}`, 220)
       if (policy?.tone === 'direct')
         return sanitizeText(`你要是现在能接结果，我就直接说：${baseReply}`, 220)
@@ -206,7 +260,7 @@ function applyExecutionResultDeliveryPolicyToReply(input: {
     return sanitizeText(`你现在要是能接，我把这条执行状态直接说清：${baseReply}`, 220)
   }
 
-  if (policy?.resultLeadStyle === 'soft-handoff' && normalizedStatus === 'completed')
+  if (policy?.resultLeadStyle === 'soft-handoff' && normalizedStatus === 'completed' && replyPosture.trustOpen)
     return sanitizeText(`我把这条结果接回来了：${baseReply}`, 220)
 
   return baseReply
@@ -417,6 +471,37 @@ function buildExecutionPayoffDecision(input: {
   }
 }
 
+function resolveExecutionPayoffEmbodimentHandoff(input: {
+  personStateProjection?: AlicizationPersonStateProjection | null
+}) {
+  const projection = input.personStateProjection ?? null
+  if (!projection)
+    return null
+
+  const repairPosture = projection.personalityContinuityState?.repairPosture ?? null
+  const relationshipPosture = projection.relationshipPosture ?? null
+  const preferredProactiveStyle = projection.preferredProactiveStyle ?? null
+
+  const residentMode = repairPosture === 'repair-first'
+    ? 'repair-before-closeness'
+    : relationshipPosture === 'restrained' || preferredProactiveStyle === 'silent-observe'
+      ? 'measured-return'
+      : null
+
+  if (!residentMode)
+    return null
+
+  return {
+    residentMode,
+    preferredBlinkCadence: residentMode === 'repair-before-closeness' ? 'quiet' : 'linger',
+    preferredGazeMode: 'soften',
+    preferredPauseMode: 'longer',
+    preferredLipsyncMode: 'restrained',
+    preferredVoiceMode: 'lower-pressure',
+    preferredPacingMode: 'slower',
+  }
+}
+
 export function buildAlicizationExecutionPayoffStructuredReply(input: {
   mode: AlicizationExecutionPayoffMode
   channel: string
@@ -447,17 +532,35 @@ export function buildAlicizationExecutionPayoffStructuredReply(input: {
   if (!parsed)
     throw new Error('execution-payoff-surface-invalid-json')
   const openingGuidance = sanitizeText(input.personStateProjection?.openingGuidance, 180) || null
+  const relationshipDoctrine = sanitizeText(input.personStateProjection?.relationshipDoctrine, 220) || null
+  const openFocus = (() => {
+    const summary = sanitizeText(input.personStateProjection?.summary, 520)
+    const matched = summary.match(/(?:^|\|)\s*open_focus=([^|]+)/i)
+    return matched?.[1]?.trim() || null
+  })()
+  const nextFocus = (() => {
+    const summary = sanitizeText(input.personStateProjection?.summary, 520)
+    const matched = summary.match(/(?:^|\|)\s*next_focus=([^|]+)/i)
+    return matched?.[1]?.trim() || null
+  })()
+  const embodimentHandoff = resolveExecutionPayoffEmbodimentHandoff({
+    personStateProjection: input.personStateProjection ?? null,
+  })
   return {
     ...parsed,
-    proactive: openingGuidance
+    proactive: openingGuidance || relationshipDoctrine || embodimentHandoff
       ? {
           ...(parsed as { proactive?: Record<string, unknown> | null }).proactive,
-          openingGuidance,
+          ...(openingGuidance ? { openingGuidance } : {}),
+          ...(relationshipDoctrine ? { relationshipDoctrine } : {}),
+          ...(openFocus ? { openFocus } : {}),
+          ...(nextFocus ? { nextFocus } : {}),
+          ...(embodimentHandoff ? { embodimentHandoff } : {}),
         }
       : ((parsed as { proactive?: Record<string, unknown> | null }).proactive ?? null),
     parsePath: 'json',
     format: 'mind-turn-v1',
-  } as unknown as AlicizationExecutionPayoffStructured
+  } as AlicizationExecutionPayoffStructured
 }
 
 export function buildAlicizationInlineExecutionOutcomeReply(input: {
@@ -470,6 +573,7 @@ export function buildAlicizationInlineExecutionOutcomeReply(input: {
   personStateProjection?: AlicizationPersonStateProjection | null
   selfContinuityAuthority?: AlicizationSelfContinuityAuthority | null
   hostPersonModel?: AlicizationHostPersonModelSnapshot | null
+  memorySurfaceRestraint?: AlicizationExecutionMemorySurfaceRestraint | null
 }) {
   const baseReply = buildAlicizationExecutionPayoffStructuredReply({
     ...input,
@@ -483,6 +587,7 @@ export function buildAlicizationInlineExecutionOutcomeReply(input: {
     hostPersonModel: input.hostPersonModel ?? null,
     selfContinuityAuthority: input.selfContinuityAuthority ?? null,
     goal: input.goal,
+    memorySurfaceRestraint: input.memorySurfaceRestraint ?? null,
   })
 }
 
@@ -496,6 +601,7 @@ export function buildAlicizationDeterministicExecutionDeliveryReply(input: {
   personStateProjection?: AlicizationPersonStateProjection | null
   selfContinuityAuthority?: AlicizationSelfContinuityAuthority | null
   hostPersonModel?: AlicizationHostPersonModelSnapshot | null
+  memorySurfaceRestraint?: AlicizationExecutionMemorySurfaceRestraint | null
 }) {
   const baseReply = buildAlicizationExecutionPayoffStructuredReply({
     ...input,
@@ -509,6 +615,7 @@ export function buildAlicizationDeterministicExecutionDeliveryReply(input: {
     hostPersonModel: input.hostPersonModel ?? null,
     selfContinuityAuthority: input.selfContinuityAuthority ?? null,
     goal: input.goal,
+    memorySurfaceRestraint: input.memorySurfaceRestraint ?? null,
   })
 }
 
@@ -533,6 +640,7 @@ export function selectAlicizationExecutionDeliveryReply(input: {
   personStateProjection?: AlicizationPersonStateProjection | null
   selfContinuityAuthority?: AlicizationSelfContinuityAuthority | null
   hostPersonModel?: AlicizationHostPersonModelSnapshot | null
+  memorySurfaceRestraint?: AlicizationExecutionMemorySurfaceRestraint | null
 }): AlicizationExecutionDeliveryReplySelection {
   const deterministicReply = buildAlicizationDeterministicExecutionDeliveryReply({
     channel: input.channel,
@@ -544,6 +652,7 @@ export function selectAlicizationExecutionDeliveryReply(input: {
     personStateProjection: input.personStateProjection ?? null,
     selfContinuityAuthority: input.selfContinuityAuthority,
     hostPersonModel: input.hostPersonModel ?? null,
+    memorySurfaceRestraint: input.memorySurfaceRestraint ?? null,
   })
   const detail = sanitizeText(input.outcome || input.summary, 1_200)
   const normalizedStatus = normalizeOutcomeSurfaceStatus(input.status)
@@ -620,6 +729,19 @@ export function selectAlicizationExecutionDeliveryReply(input: {
       reason: 'missing-availability-check-in',
     }
   }
+  if (
+    (input.memorySurfaceRestraint?.shouldStayInward
+      || input.memorySurfaceRestraint?.shouldDelayUntilAfterPayoff
+      || input.memorySurfaceRestraint?.stableCoreOnly
+      || input.memorySurfaceRestraint?.visibleCarryMode === 'withhold')
+    && callbackClosenessDriftPattern.test(llmReply)
+  ) {
+    return {
+      source: 'llm-repaired',
+      reply: deterministicReply,
+      reason: 'memory-boundary-lower-pressure',
+    }
+  }
 
   return {
     source: 'llm',
@@ -631,6 +753,7 @@ export function selectAlicizationExecutionDeliveryReply(input: {
       hostPersonModel: input.hostPersonModel ?? null,
       selfContinuityAuthority: input.selfContinuityAuthority ?? null,
       goal: input.goal,
+      memorySurfaceRestraint: input.memorySurfaceRestraint ?? null,
     }),
   }
 }
@@ -689,9 +812,13 @@ export function buildAlicizationExecutionPayoffPrompt(input: {
         kind: 'detail',
         detail,
       }
+  const projectStateSystemBlock = buildAlicizationProjectStateSystemBlock()
+  const projectStateClosureDashboard = buildAlicizationProjectStateClosureDashboard()
 
   const system = [
     '[ALICIZATION_EXECUTION_PAYOFF]',
+    projectStateSystemBlock,
+    projectStateClosureDashboard,
     input.mode === 'inline-execution'
       ? 'The required execution for the current user turn has already finished in this same turn.'
       : 'A background execution callback from the current conversation has already settled and must now be paid off naturally.',
@@ -733,11 +860,11 @@ export function buildAlicizationExecutionPayoffPrompt(input: {
       ? `Person-state projection JSON: ${JSON.stringify({
         contexts: input.personStateProjection.contexts,
         summary: sanitizeText(input.personStateProjection.summary, 180) || null,
-        regime: input.personStateProjection.personalityContinuityState.currentRegime,
+        regime: input.personStateProjection.personalityContinuityState?.currentRegime ?? null,
         activeClosenessContext: input.personStateProjection.activeClosenessContext,
         activeClosenessRung: input.personStateProjection.activeClosenessRung,
-        closenessPosture: input.personStateProjection.personalityContinuityState.closenessPosture,
-        repairPosture: input.personStateProjection.personalityContinuityState.repairPosture,
+        closenessPosture: input.personStateProjection.personalityContinuityState?.closenessPosture ?? null,
+        repairPosture: input.personStateProjection.personalityContinuityState?.repairPosture ?? null,
         relationshipPosture: input.personStateProjection.relationshipPosture,
         openingGuidance: sanitizeText(input.personStateProjection.openingGuidance, 180) || null,
         preferredProactiveStyle: input.personStateProjection.preferredProactiveStyle,

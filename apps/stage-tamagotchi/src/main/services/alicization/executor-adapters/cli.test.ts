@@ -339,7 +339,7 @@ describe('cli executor adapter', () => {
         command: 'node',
         args: [
           '-e',
-          'process.stdout.write(JSON.stringify({ foreground: process.env.ALICIZATION_EXECUTION_FOREGROUND_WINDOW || "", preflight: process.env.ALICIZATION_EXECUTION_PROJECT_PREFLIGHT || "", awareness: process.env.ALICIZATION_EXECUTION_PROJECT_AWARENESS || "", sameHerHold: process.env.ALICIZATION_EXECUTION_PROJECT_SAME_HER_HOLD || "", continuity: process.env.ALICIZATION_EXECUTION_PROJECT_CONTINUITY || "", continuityRestraint: process.env.ALICIZATION_EXECUTION_PROJECT_CONTINUITY_RESTRAINT || "", preferredVoiceMode: process.env.ALICIZATION_EXECUTION_PROJECT_PREFERRED_VOICE_MODE || "", preferredPacingMode: process.env.ALICIZATION_EXECUTION_PROJECT_PREFERRED_PACING_MODE || "", runtimeBlock: process.env.ALICIZATION_EXECUTION_RUNTIME_CONTEXT_BLOCK || "" }))',
+          'process.stdout.write(JSON.stringify({ foreground: process.env.ALICIZATION_EXECUTION_FOREGROUND_WINDOW || "", preflight: process.env.ALICIZATION_EXECUTION_PROJECT_PREFLIGHT || "", awareness: process.env.ALICIZATION_EXECUTION_PROJECT_AWARENESS || "", sameHerHold: process.env.ALICIZATION_EXECUTION_PROJECT_SAME_HER_HOLD || "", continuity: process.env.ALICIZATION_EXECUTION_PROJECT_CONTINUITY || "", continuityRestraint: process.env.ALICIZATION_EXECUTION_PROJECT_CONTINUITY_RESTRAINT || "", preferredPauseMode: process.env.ALICIZATION_EXECUTION_PROJECT_PREFERRED_PAUSE_MODE || "", preferredLipsyncMode: process.env.ALICIZATION_EXECUTION_PROJECT_PREFERRED_LIPSYNC_MODE || "", preferredVoiceMode: process.env.ALICIZATION_EXECUTION_PROJECT_PREFERRED_VOICE_MODE || "", preferredPacingMode: process.env.ALICIZATION_EXECUTION_PROJECT_PREFERRED_PACING_MODE || "", runtimeBlock: process.env.ALICIZATION_EXECUTION_RUNTIME_CONTEXT_BLOCK || "" }))',
         ],
         runtimeContext: {
           generatedAt: 1_710_000_000_000,
@@ -357,6 +357,8 @@ describe('cli executor adapter', () => {
             sameHerDriftRisk: 'If CLI commands run without project awareness, execution drifts toward a generic shell.',
             continuityRestraint: 'measured-return',
             continuityCue: 'same living line: CLI execution should carry this same Phase 1 digital life before widening outward.',
+            preferredPauseMode: 'longer',
+            preferredLipsyncMode: 'restrained',
             preferredVoiceMode: 'lower-pressure',
             preferredPacingMode: 'slower',
             preflightSummary: 'identity=Alicization | phase=Phase 1 | open=cli execution project awareness',
@@ -393,12 +395,16 @@ describe('cli executor adapter', () => {
     expect(result.output).toContain('same-her hold: keep CLI execution grounded on the same living line before widening outward.')
     expect(result.output).toContain('same living line: CLI execution should carry this same Phase 1 digital life before widening outward.')
     expect(result.output).toContain('measured-return')
+    expect(result.output).toContain('"preferredPauseMode":"longer"')
+    expect(result.output).toContain('"preferredLipsyncMode":"restrained"')
     expect(result.output).toContain('lower-pressure')
     expect(result.output).toContain('slower')
     expect(result.output).toContain('[ALICIZATION_EXECUTION_RUNTIME_CONTEXT]')
     expect(result.output).toContain('project_continuity_restraint=measured-return')
     expect(result.output).toContain('project_preflight=identity=Alicization | phase=Phase 1 | open=cli execution project awareness')
     expect(result.output).toContain('project_awareness=Before CLI dispatch, remember this is still the same local-first digital life project.')
+    expect(result.output).toContain('project_preferred_pause_mode=longer')
+    expect(result.output).toContain('project_preferred_lipsync_mode=restrained')
     expect(result.output).toContain('project_preferred_voice_mode=lower-pressure')
     expect(result.output).toContain('project_preferred_pacing_mode=slower')
     expect(result.events[0]?.payload).toEqual(expect.objectContaining({

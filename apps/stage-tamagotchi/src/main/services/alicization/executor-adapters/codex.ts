@@ -22,6 +22,10 @@ import {
   buildAlicizationExecutionEnv,
   resolveAlicizationExecutionBinary,
 } from '../execution-command-env'
+import {
+  isLowRiskAutonomousCodeAgentSelfStartThread,
+  resolveThreadPermissionMode,
+} from './thread-permission'
 
 const codexDefaultTimeoutMs = 120_000
 const codexMaxTimeoutMs = 900_000
@@ -29,7 +33,6 @@ const codexEventChunkChars = 1_500
 const codexMaxPreviewChars = 4_000
 const codexMaxBufferBytes = 2 * 1024 * 1024
 
-type AlicizationTaskPermissionMode = 'none' | 'implicit' | 'explicit'
 type AlicizationTaskEffect = 'observe' | 'mutate' | 'high-impact'
 type AlicizationCodexSandboxMode = 'read-only' | 'workspace-write'
 
@@ -133,17 +136,6 @@ function normalizeWorkingDirectory(raw: unknown, workspaceRoot: string) {
   }
 }
 
-function resolveThreadPermissionMode(thread: AlicizationTaskThreadRecord): AlicizationTaskPermissionMode {
-  const metadataTask = thread.metadata?.task
-  if (metadataTask && typeof metadataTask === 'object' && 'permissionMode' in metadataTask) {
-    const permissionMode = (metadataTask as { permissionMode?: unknown }).permissionMode
-    if (permissionMode === 'explicit' || permissionMode === 'implicit' || permissionMode === 'none')
-      return permissionMode
-  }
-
-  return thread.origin === 'user-turn' ? 'implicit' : 'none'
-}
-
 function resolveThreadEffect(thread: AlicizationTaskThreadRecord): AlicizationTaskEffect {
   const metadataTask = thread.metadata?.task
   if (metadataTask && typeof metadataTask === 'object' && 'effect' in metadataTask) {
@@ -153,6 +145,35 @@ function resolveThreadEffect(thread: AlicizationTaskThreadRecord): AlicizationTa
   }
 
   return 'mutate'
+}
+
+function readTaskMetadataText(thread: AlicizationTaskThreadRecord, key: 'riskBudget' | 'justification') {
+  const metadataTask = thread.metadata?.task
+  if (!metadataTask || typeof metadataTask !== 'object')
+    return null
+
+  return normalizeOptionalText((metadataTask as Record<string, unknown>)[key], 80)
+}
+
+function buildBlockedDispatchSafetyGate(thread: AlicizationTaskThreadRecord, errorCode: string) {
+  const effect = resolveThreadEffect(thread)
+  const permissionMode = resolveThreadPermissionMode(thread)
+  const riskPolicy = errorCode === 'CODEX_EFFECT_MISMATCH'
+    ? 'observe-only-sandbox-required'
+    : effect === 'high-impact'
+      ? 'explicit-confirmation-required'
+      : 'implicit-or-explicit-confirmation-required'
+
+  return {
+    effect,
+    permissionMode,
+    riskBudget: readTaskMetadataText(thread, 'riskBudget'),
+    justification: readTaskMetadataText(thread, 'justification'),
+    confirmationRequired: true,
+    riskPolicy,
+    auditability: 'blocked-before-dispatch',
+    interruptibility: 'no-process-started',
+  }
 }
 
 function resolveCodexSandbox(effect: AlicizationTaskEffect, requested: unknown) {
@@ -204,7 +225,7 @@ function buildCodexCommandSpec(input: AlicizationCodexAdapterInput) {
       errorMessage: 'High-impact Codex dispatch requires explicit permission before execution.',
     }
   }
-  if (effect === 'mutate' && permissionMode === 'none') {
+  if (effect === 'mutate' && permissionMode === 'none' && !isLowRiskAutonomousCodeAgentSelfStartThread(input.thread)) {
     return {
       ok: false as const,
       errorCode: 'CODEX_PERMISSION_REQUIRED',
@@ -409,6 +430,7 @@ export async function executeCodexTaskThread(input: AlicizationCodexAdapterInput
   const normalized = buildCodexCommandSpec(input)
   if (!normalized.ok) {
     const createdAt = now()
+    const runtimeContext = normalizeAlicizationExecutionRuntimeContext(input.command.runtimeContext)
     return {
       ok: false,
       summary: buildFailureSummary(thread, normalized.errorMessage),
@@ -429,6 +451,9 @@ export async function executeCodexTaskThread(input: AlicizationCodexAdapterInput
           adapter: 'codex',
           errorCode: normalized.errorCode,
           errorMessage: normalized.errorMessage,
+          safetyGate: buildBlockedDispatchSafetyGate(thread, normalized.errorCode),
+          hasRuntimeContext: runtimeContext !== null,
+          runtimeContext,
         },
         createdAt,
       }],

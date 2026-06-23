@@ -132,7 +132,7 @@ describe('task-thread dispatch adapter registry', () => {
     }
   })
 
-  it('routes browser/software/desktop facade channels through the openclaw transport adapter', async () => {
+  it('preserves browser/software/desktop semantic channels while falling back to openclaw transport', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -162,7 +162,8 @@ describe('task-thread dispatch adapter registry', () => {
       expect(prepared.ok).toBe(true)
       if (!prepared.ok)
         return
-      expect(prepared.channel).toBe('openclaw')
+      expect(prepared.channel).toBe('browser')
+      expect(prepared.sessionTrackingChannel).toBe('openclaw')
 
       const result = await prepared.run({})
 
@@ -175,6 +176,125 @@ describe('task-thread dispatch adapter registry', () => {
     finally {
       vi.unstubAllGlobals()
       delete process.env.ALICIZATION_OPENCLAW_URL
+    }
+  })
+
+  it('prefers local visual dispatch for browser threads when a local GUI surface is available', async () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+
+    try {
+      const prepared = prepareTaskThreadDispatch({
+        thread: createThread({
+          selectedChannel: 'browser',
+          proposedChannel: 'browser',
+          kind: 'browser-automation',
+          goal: 'Submit the visible browser form.',
+        }),
+        dispatchInput: {
+          openclaw: {
+            instruction: 'Submit the visible browser form in the focused tab.',
+          },
+        },
+        localVisualSurface: {
+          desktopInspectScene: vi.fn(async () => ({
+            channel: 'desktop',
+            status: 'completed',
+            operation: 'desktop_inspect_scene',
+            summary: 'Locally inspected the active browser workflow and prepared the next step.',
+            output: 'local visual dispatch ok',
+            pagePhase: 'form-entry',
+            workflowPlan: {
+              continuationMode: 'ready-to-act',
+            },
+            suggestedActions: [],
+            blockingSignals: [],
+          })),
+        },
+      })
+
+      expect(prepared.ok).toBe(true)
+      if (!prepared.ok)
+        return
+      expect(prepared.channel).toBe('browser')
+
+      const result = await prepared.run({})
+
+      expect(result.ok).toBe(true)
+      expect(result.finalStatus).toBe('completed')
+      expect(result.summary).toContain('local visual dispatch ok')
+      expect(result.events[0]?.channel).toBe('browser')
+      expect(fetchMock).not.toBeCalled()
+    }
+    finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('accepts dedicated local visual payloads for browser threads when a local GUI surface is available', async () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+
+    try {
+      const prepared = prepareTaskThreadDispatch({
+        thread: createThread({
+          selectedChannel: 'browser',
+          proposedChannel: 'browser',
+          kind: 'browser-automation',
+          goal: 'Submit the visible browser form.',
+        }),
+        dispatchInput: {
+          localVisual: {
+            instruction: 'Submit the visible browser form in the focused tab.',
+            runtimeContext: {
+              generatedAt: 1_710_000_000_000,
+              cardId: 'default',
+              turnId: 'turn-registry-local-visual',
+              decisionTraceId: 'mind:trace:registry-local-visual',
+              sessionId: 'session-registry-local-visual',
+              sensory: {
+                collectedAt: 1_710_000_000_000,
+                running: true,
+                stale: false,
+                ageMs: 0,
+                foregroundWindow: null,
+                capture: null,
+              },
+            },
+          },
+        } as any,
+        localVisualSurface: {
+          desktopInspectScene: vi.fn(async () => ({
+            channel: 'desktop',
+            status: 'completed',
+            operation: 'desktop_inspect_scene',
+            summary: 'Locally inspected the active browser workflow from a dedicated local visual payload.',
+            output: 'local visual payload dispatch ok',
+            pagePhase: 'form-entry',
+            workflowPlan: {
+              continuationMode: 'ready-to-act',
+            },
+            suggestedActions: [],
+            blockingSignals: [],
+          })),
+        },
+      })
+
+      expect(prepared.ok).toBe(true)
+      if (!prepared.ok)
+        return
+      expect(prepared.channel).toBe('browser')
+
+      const result = await prepared.run({})
+
+      expect(result.ok).toBe(true)
+      expect(result.finalStatus).toBe('completed')
+      expect(result.summary).toContain('dedicated local visual payload')
+      expect(result.events[0]?.channel).toBe('browser')
+      expect(fetchMock).not.toBeCalled()
+    }
+    finally {
+      vi.unstubAllGlobals()
     }
   })
 })

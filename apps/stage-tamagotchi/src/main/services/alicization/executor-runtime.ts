@@ -4,6 +4,7 @@ import type {
   AlicizationChannelCapabilityManifestRecord,
   AlicizationClawTaskIntent,
   AlicizationDispatchTaskThreadPayload,
+  AlicizationExecutionEventInput,
   AlicizationExecutionEventRecord,
   AlicizationTaskThreadRecord,
 } from '../../../shared/eventa'
@@ -20,11 +21,19 @@ import { env, platform } from 'node:process'
 import { errorMessageFrom } from '@moeru/std'
 import { analyzeAlicizationExecutionSemanticSignals } from '@proj-alicization/stage-shared'
 
+import { preferStrongerContinuityClosureAuthority } from './continuity-closure-authority'
 import { locateAlicizationExecutionBinary } from './execution-command-env'
 import { readExecutionOutcome, readLatestExecutionEvent, readTaskThreadActivityAt, sanitizeExecutionLedgerText } from './execution-ledger-shared'
 import { expandOpenClawBackedCapabilities } from './executor-adapters/embodied-channel'
 import { probeOpenClawCapability, readOpenClawCapabilitySnapshot } from './executor-adapters/openclaw'
 import { buildHostPersonModelSnapshot } from './humanlike-memory'
+import {
+  buildAlicizationProjectPreDialogueAwarenessLine,
+  isAlicizationThinProjectAwarenessLine,
+  resolveAlicizationProjectStateBrief,
+  resolveAlicizationProjectStateSnapshot,
+  resolveAlicizationProjectStatusBrief,
+} from './project-state-brief'
 import { createTaskExecutionGovernor } from './task-execution-governor'
 
 type CapabilityManifestSnapshotSource = 'runtime-default-probe' | 'runtime-plan-payload'
@@ -70,6 +79,26 @@ interface AlicizationExecutorRuntimeOptions {
 
 const executionCapabilityProbeTtlMs = 45_000
 
+function preferExecutionResumeSameHerHoldDetail(input: {
+  current?: unknown
+  continuityCue?: unknown
+  fallback?: unknown
+  sanitizeText: (raw: unknown, fallback?: string) => string
+}) {
+  const current = input.sanitizeText(input.current)
+  const continuityCue = input.sanitizeText(input.continuityCue)
+  const fallback = input.sanitizeText(input.fallback)
+  const preferredPrimary = preferStrongerContinuityClosureAuthority(current, continuityCue)
+    ?? current
+    ?? continuityCue
+    ?? ''
+  const preferredFinal = preferStrongerContinuityClosureAuthority(preferredPrimary, fallback)
+    ?? preferredPrimary
+    ?? fallback
+    ?? ''
+
+  return input.sanitizeText(preferredFinal)
+}
 function normalizePlanningCapability(capability: AlicizationChannelCapability): AlicizationChannelCapability {
   return {
     channel: capability.channel,
@@ -94,7 +123,39 @@ function mapManifestToPlanningCapability(manifest: AlicizationChannelCapabilityM
   }
 }
 
-function inferPreferredProcedureChannel(text: string) {
+function mergeExecutionCapabilities(
+  baseCapabilities: AlicizationChannelCapability[],
+  overlayCapabilities: AlicizationChannelCapability[],
+) {
+  const capabilityMap = new Map<string, AlicizationChannelCapability>()
+
+  for (const capability of baseCapabilities)
+    capabilityMap.set(capability.channel, capability)
+
+  for (const capability of overlayCapabilities) {
+    const existing = capabilityMap.get(capability.channel)
+    if (!existing) {
+      capabilityMap.set(capability.channel, capability)
+      continue
+    }
+
+    const mergedReady = existing.ready !== false || capability.ready !== false
+    capabilityMap.set(capability.channel, {
+      channel: capability.channel,
+      available: existing.available !== false || capability.available !== false,
+      enabled: existing.enabled !== false || capability.enabled !== false,
+      ready: mergedReady,
+      sessionAffinity: capability.sessionAffinity ?? existing.sessionAffinity,
+      reason: mergedReady
+        ? null
+        : capability.reason ?? existing.reason ?? null,
+    })
+  }
+
+  return [...capabilityMap.values()]
+}
+
+export function inferPreferredProcedureChannel(text: string) {
   const semanticSignals = analyzeAlicizationExecutionSemanticSignals(text)
   const mentionedChannel = semanticSignals.mentionedChannels.find(channel =>
     channel === 'cli'
@@ -109,7 +170,7 @@ function inferPreferredProcedureChannel(text: string) {
     } as const
   }
 
-  if (/terminal|shell|command|cli|补丁|patch|verify|测试|test/iu.test(text)) {
+  if (/\bterminal\b|\bshell\b|\bcommand\b|\bcli\b|补丁|\bpatch\b|\bverify\b|测试|\btest\b/iu.test(text)) {
     return {
       channel: 'cli' as const,
       reason: 'remembered-procedure-cli-shape',
@@ -127,10 +188,16 @@ function inferPreferredProcedureChannel(text: string) {
       reason: 'remembered-procedure-claude-shape',
     }
   }
-  if (/browser|page|tab|screen|desktop|window|click/iu.test(text)) {
+  if (/browser|page|tab|url|link|search|网页|页面|标签页|浏览器/u.test(text)) {
     return {
-      channel: 'openclaw' as const,
-      reason: 'remembered-procedure-openclaw-shape',
+      channel: 'browser' as const,
+      reason: 'remembered-procedure-browser-shape',
+    }
+  }
+  if (/desktop|window|dialog|file chooser|桌面|窗口|弹窗|对话框|文件选择/u.test(text)) {
+    return {
+      channel: 'desktop' as const,
+      reason: 'remembered-procedure-desktop-shape',
     }
   }
 
@@ -510,14 +577,14 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
   }
 
   async function resolveDefaultPlanningCapabilities() {
-    const localCapabilities = await options.resolveLocalCapabilityChannels?.().catch(() => []) ?? []
-    const [codexReady, claudeReady, openClawCapability] = await Promise.all([
+    const [codexReady, claudeReady, openClawCapability, localCapabilities] = await Promise.all([
       probeBinaryReady('codex'),
       probeBinaryReady('claude'),
       probeOpenClawCapability(),
+      options.resolveLocalCapabilityChannels?.().catch(() => []) ?? [],
     ])
 
-    return [
+    const defaults = [
       {
         channel: 'cli',
         available: true,
@@ -543,7 +610,6 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
         reason: claudeReady ? null : 'claude-cli-binary-missing',
       },
       ...expandOpenClawBackedCapabilities(openClawCapability),
-      ...localCapabilities.map(normalizePlanningCapability),
       {
         channel: 'openfang',
         available: false,
@@ -553,16 +619,18 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
         reason: 'adapter-not-configured',
       },
     ] satisfies AlicizationChannelCapability[]
+
+    return mergeExecutionCapabilities(defaults, localCapabilities)
   }
 
   async function resolveDefaultPromptCapabilities() {
-    const localCapabilities = await options.resolveLocalCapabilityChannels?.().catch(() => []) ?? []
-    const [codexReady, claudeReady] = await Promise.all([
+    const [codexReady, claudeReady, localCapabilities] = await Promise.all([
       probeBinaryReady('codex'),
       probeBinaryReady('claude'),
+      options.resolveLocalCapabilityChannels?.().catch(() => []) ?? [],
     ])
 
-    return [
+    const defaults = [
       {
         channel: 'cli',
         available: true,
@@ -588,7 +656,6 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
         reason: claudeReady ? null : 'claude-cli-binary-missing',
       },
       ...expandOpenClawBackedCapabilities(readOpenClawCapabilitySnapshot()),
-      ...localCapabilities.map(normalizePlanningCapability),
       {
         channel: 'openfang',
         available: false,
@@ -598,6 +665,8 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
         reason: 'adapter-not-configured',
       },
     ] satisfies AlicizationChannelCapability[]
+
+    return mergeExecutionCapabilities(defaults, localCapabilities)
   }
 
   async function persistCapabilityManifestSnapshot(
@@ -732,11 +801,26 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
       .filter((item, index, items) => items.findIndex(entry => entry.id === item.id) === index)
       .sort((left, right) => right.confidence - left.confidence)
       .slice(0, 4)
+    const projectStateBrief = resolveAlicizationProjectStateBrief()
 
     return await taskExecutionGovernor.plan(db, {
       ...input,
       experience: {
         ...input.experience,
+        projectBriefing: {
+          identity: projectStateBrief.identity,
+          currentPhase: projectStateBrief.currentPhase,
+          latestLandedProgress: projectStateBrief.continuityProgressSummary ?? projectStateBrief.latestProgress ?? null,
+          primaryOpenLoop: projectStateBrief.openLoops[0] ?? projectStateBrief.primaryOpenLoop ?? null,
+          nextClosureTarget: projectStateBrief.nextClosureTarget,
+          sameHerSelfLine: projectStateBrief.sameHerSelfLine,
+          sameHerHoldDetail: projectStateBrief.sameHerHoldDetail ?? null,
+          sameHerDriftRisk: projectStateBrief.sameHerDriftRisk,
+          proactiveSameHerGap: projectStateBrief.proactiveSameHerGap ?? null,
+          continuityCue: projectStateBrief.continuityCue ?? null,
+          preflightSummary: projectStateBrief.preflightSummary ?? null,
+          preDialogueAwarenessLine: projectStateBrief.preDialogueAwarenessLine ?? null,
+        },
         rememberedProcedures,
       },
     })
@@ -744,7 +828,7 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
 
   async function executeMainGatewayTaskThread(input: {
     context: MainGatewayExecutionToolContext
-    dispatch: Pick<AlicizationDispatchTaskThreadPayload, 'cli' | 'codex' | 'claudeCode' | 'openclaw'>
+    dispatch: Pick<AlicizationDispatchTaskThreadPayload, 'cli' | 'codex' | 'claudeCode' | 'localVisual' | 'openclaw'>
     task: AlicizationClawTaskIntent
   }): Promise<MainGatewayExecutionTaskThreadResult> {
     const killSwitchSuspended = options.getGlobalKillSwitchState() === 'SUSPENDED'
@@ -799,6 +883,7 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
         cli: input.dispatch.cli,
         codex: input.dispatch.codex,
         claudeCode: input.dispatch.claudeCode,
+        localVisual: input.dispatch.localVisual,
         openclaw: input.dispatch.openclaw,
         killSwitchSuspended,
       },
@@ -824,6 +909,7 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
       proposedChannel: string | null
       selectedChannel: string | null
       summary: string | null
+      metadata?: AlicizationTaskThreadRecord['metadata']
     } | null | undefined
   }) {
     const thread = input.thread
@@ -832,12 +918,285 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
 
     const resumeChannel = thread.selectedChannel ?? thread.proposedChannel
     const goal = options.sanitizeText(thread.goal) || 'the current task'
+    const metadata = thread.metadata && typeof thread.metadata === 'object' && !Array.isArray(thread.metadata)
+      ? thread.metadata as {
+        execution?: {
+          runtimeContext?: {
+            projectBriefing?: {
+              identity?: unknown
+              currentPhase?: unknown
+              latestLandedProgress?: unknown
+              latestProgress?: unknown
+              landedProgressSummary?: unknown
+              primaryOpenLoop?: unknown
+              openClosureSummary?: unknown
+              nextClosureTarget?: unknown
+              nextClosureTargetSummary?: unknown
+              sameHerSelfLine?: unknown
+              sameHerHoldDetail?: unknown
+              sameHerDriftRisk?: unknown
+              sameHerDriftRiskSummary?: unknown
+              proactiveSameHerGap?: unknown
+              continuityCue?: unknown
+              preflightSummary?: unknown
+              preDialogueAwarenessLine?: unknown
+              preDialogueAwarenessSummary?: unknown
+              companionHeadlineLine?: unknown
+              companionBriefingLine?: unknown
+              emotionalClosureCue?: unknown
+              emotionalClosureSummary?: unknown
+              continuityArcStage?: unknown
+              continuityRestraint?: unknown
+              continuityPreferredTiming?: unknown
+              continuityCadence?: unknown
+              preferredBlinkCadence?: unknown
+              preferredGazeMode?: unknown
+              preferredPauseMode?: unknown
+              preferredLipsyncMode?: unknown
+              preferredVoiceMode?: unknown
+              preferredPacingMode?: unknown
+            } | null
+          } | null
+        } | null
+      }
+      : null
+    const storedProjectBriefing = metadata?.execution?.runtimeContext?.projectBriefing
+    const fallbackProjectBrief = resolveAlicizationProjectStateBrief()
+    const summaryAliasProjectBriefing = storedProjectBriefing as {
+      latestProgress?: unknown
+      landedProgressSummary?: unknown
+      openClosureSummary?: unknown
+      nextClosureTargetSummary?: unknown
+      sameHerDriftRiskSummary?: unknown
+    } | null
+    const explicitLatestProgressInput = options.sanitizeText(
+      storedProjectBriefing?.latestLandedProgress ?? summaryAliasProjectBriefing?.latestProgress,
+    )
+    const summaryLatestProgressInput = options.sanitizeText(summaryAliasProjectBriefing?.landedProgressSummary)
+    const explicitPrimaryOpenLoopInput = options.sanitizeText(storedProjectBriefing?.primaryOpenLoop)
+    const summaryPrimaryOpenLoopInput = options.sanitizeText(summaryAliasProjectBriefing?.openClosureSummary)
+    const explicitNextClosureTargetInput = options.sanitizeText(storedProjectBriefing?.nextClosureTarget)
+    const summaryNextClosureTargetInput = options.sanitizeText(summaryAliasProjectBriefing?.nextClosureTargetSummary)
+    const explicitSameHerDriftRiskInput = options.sanitizeText(storedProjectBriefing?.sameHerDriftRisk)
+    const summarySameHerDriftRiskInput = options.sanitizeText(summaryAliasProjectBriefing?.sameHerDriftRiskSummary)
+    const normalizedProjectBriefing = resolveAlicizationProjectStateSnapshot({
+      runtimeProjectState: storedProjectBriefing
+        ? {
+            identity: storedProjectBriefing.identity ?? null,
+            currentPhase: storedProjectBriefing.currentPhase ?? null,
+            latestLandedProgress: explicitLatestProgressInput || summaryLatestProgressInput || null,
+            primaryOpenLoop: explicitPrimaryOpenLoopInput || summaryPrimaryOpenLoopInput || null,
+            nextClosureTarget: explicitNextClosureTargetInput || summaryNextClosureTargetInput || null,
+            sameHerSelfLine: storedProjectBriefing.sameHerSelfLine ?? null,
+            sameHerHoldDetail: storedProjectBriefing.sameHerHoldDetail ?? null,
+            sameHerDriftRisk: explicitSameHerDriftRiskInput || summarySameHerDriftRiskInput || null,
+            proactiveSameHerGap: storedProjectBriefing.proactiveSameHerGap ?? null,
+            continuityCue: storedProjectBriefing.continuityCue ?? null,
+            preflightSummary: storedProjectBriefing.preflightSummary ?? null,
+            preDialogueAwarenessLine: storedProjectBriefing.preDialogueAwarenessLine ?? null,
+            preDialogueAwarenessSummary: storedProjectBriefing.preDialogueAwarenessSummary ?? null,
+            awarenessLine: storedProjectBriefing.preDialogueAwarenessLine ?? null,
+            companionHeadlineLine: storedProjectBriefing.companionHeadlineLine ?? null,
+            companionBriefingLine: storedProjectBriefing.companionBriefingLine ?? null,
+            emotionalClosureCue:
+              storedProjectBriefing.emotionalClosureCue
+              ?? storedProjectBriefing.emotionalClosureSummary
+              ?? null,
+            emotionalClosureSummary: storedProjectBriefing.emotionalClosureSummary ?? null,
+            continuityArcStage: storedProjectBriefing.continuityArcStage ?? null,
+            continuityRestraint: storedProjectBriefing.continuityRestraint ?? null,
+            continuityPreferredTiming: storedProjectBriefing.continuityPreferredTiming ?? null,
+            continuityCadence: storedProjectBriefing.continuityCadence ?? null,
+            preferredBlinkCadence: storedProjectBriefing.preferredBlinkCadence ?? null,
+            preferredGazeMode: storedProjectBriefing.preferredGazeMode ?? null,
+            preferredPauseMode: storedProjectBriefing.preferredPauseMode ?? null,
+            preferredLipsyncMode: storedProjectBriefing.preferredLipsyncMode ?? null,
+            preferredVoiceMode: storedProjectBriefing.preferredVoiceMode ?? null,
+            preferredPacingMode: storedProjectBriefing.preferredPacingMode ?? null,
+          }
+        : null,
+      fallbackProjectState: {
+        identity: fallbackProjectBrief.identity,
+        currentPhase: fallbackProjectBrief.currentPhase,
+        latestLandedProgress: fallbackProjectBrief.continuityProgressSummary ?? fallbackProjectBrief.latestProgress ?? null,
+        primaryOpenLoop: fallbackProjectBrief.openLoops[0] ?? fallbackProjectBrief.primaryOpenLoop ?? null,
+        nextClosureTarget: fallbackProjectBrief.nextClosureTarget,
+        sameHerSelfLine: fallbackProjectBrief.sameHerSelfLine,
+        sameHerHoldDetail: fallbackProjectBrief.sameHerHoldDetail ?? null,
+        sameHerDriftRisk: fallbackProjectBrief.sameHerDriftRisk,
+        proactiveSameHerGap: fallbackProjectBrief.proactiveSameHerGap ?? null,
+        continuityRestraint: fallbackProjectBrief.continuityRestraint ?? null,
+        continuityCue: fallbackProjectBrief.continuityCue ?? null,
+        preferredBlinkCadence: fallbackProjectBrief.preferredBlinkCadence ?? null,
+        preferredGazeMode: fallbackProjectBrief.preferredGazeMode ?? null,
+        preferredVoiceMode: fallbackProjectBrief.preferredVoiceMode ?? null,
+        preferredPacingMode: fallbackProjectBrief.preferredPacingMode ?? null,
+        preflightSummary: fallbackProjectBrief.preflightSummary ?? null,
+        preDialogueAwarenessLine: fallbackProjectBrief.preDialogueAwarenessLine ?? null,
+        awarenessLine: fallbackProjectBrief.preDialogueAwarenessLine ?? null,
+      },
+    })
+    const projectIdentity = options.sanitizeText(normalizedProjectBriefing.identity) || fallbackProjectBrief.identity
+    const projectPhase = options.sanitizeText(normalizedProjectBriefing.currentPhase) || fallbackProjectBrief.currentPhase
+    const latestLandedProgress = (
+      !explicitLatestProgressInput && summaryLatestProgressInput
+        ? summaryLatestProgressInput
+        : options.sanitizeText(normalizedProjectBriefing.latestLandedProgress ?? normalizedProjectBriefing.latestProgress)
+    )
+    || fallbackProjectBrief.continuityProgressSummary
+    || fallbackProjectBrief.latestProgress
+    || ''
+    const primaryOpenLoop = (
+      !explicitPrimaryOpenLoopInput && summaryPrimaryOpenLoopInput
+        ? summaryPrimaryOpenLoopInput
+        : options.sanitizeText(normalizedProjectBriefing.primaryOpenLoop)
+    )
+    || fallbackProjectBrief.openLoops[0]
+    || fallbackProjectBrief.primaryOpenLoop
+    || ''
+    const nextClosureTarget = (
+      !explicitNextClosureTargetInput && summaryNextClosureTargetInput
+        ? summaryNextClosureTargetInput
+        : options.sanitizeText(normalizedProjectBriefing.nextClosureTarget)
+    ) || fallbackProjectBrief.nextClosureTarget
+    const sameHerSelfLine = options.sanitizeText(normalizedProjectBriefing.sameHerSelfLine) || fallbackProjectBrief.sameHerSelfLine
+    const sameHerHoldDetail = preferExecutionResumeSameHerHoldDetail({
+      current: storedProjectBriefing?.sameHerHoldDetail,
+      continuityCue: storedProjectBriefing?.continuityCue ?? normalizedProjectBriefing.continuityCue,
+      fallback: normalizedProjectBriefing.sameHerHoldDetail ?? fallbackProjectBrief.sameHerHoldDetail,
+      sanitizeText: options.sanitizeText,
+    })
+    const sameHerDriftRisk = (
+      !explicitSameHerDriftRiskInput && summarySameHerDriftRiskInput
+        ? summarySameHerDriftRiskInput
+        : options.sanitizeText(normalizedProjectBriefing.sameHerDriftRisk)
+    ) || fallbackProjectBrief.sameHerDriftRisk
+    const continuityArcStage = options.sanitizeText(normalizedProjectBriefing.continuityArcStage)
+      || options.sanitizeText(storedProjectBriefing?.continuityArcStage)
+      || ''
+    const proactiveSameHerGap = options.sanitizeText(normalizedProjectBriefing.proactiveSameHerGap)
+      || options.sanitizeText((storedProjectBriefing as { proactiveSameHerGap?: unknown } | null)?.proactiveSameHerGap)
+      || fallbackProjectBrief.proactiveSameHerGap
+      || ''
+    const continuityRestraint = options.sanitizeText(normalizedProjectBriefing.continuityRestraint)
+      || options.sanitizeText(storedProjectBriefing?.continuityRestraint)
+      || fallbackProjectBrief.continuityRestraint
+      || ''
+    const projectContinuity = options.sanitizeText(normalizedProjectBriefing.continuityCue)
+      || options.sanitizeText(storedProjectBriefing?.continuityCue)
+      || fallbackProjectBrief.continuityCue
+      || ''
+    const emotionalClosureSummary = options.sanitizeText(normalizedProjectBriefing.emotionalClosureSummary)
+      || options.sanitizeText(storedProjectBriefing?.emotionalClosureSummary)
+      || options.sanitizeText(storedProjectBriefing?.emotionalClosureCue)
+      || fallbackProjectBrief.emotionalClosureSummary
+      || fallbackProjectBrief.emotionalClosureCue
+      || ''
+    const projectCompanionHeadline = options.sanitizeText(normalizedProjectBriefing.companionHeadlineLine)
+      || options.sanitizeText(storedProjectBriefing?.companionHeadlineLine)
+      || ''
+    const continuityPreferredTiming = options.sanitizeText(normalizedProjectBriefing.continuityPreferredTiming)
+      || options.sanitizeText(storedProjectBriefing?.continuityPreferredTiming)
+      || options.sanitizeText(fallbackProjectBrief.continuityPreferredTiming)
+      || ''
+    const continuityCadence = options.sanitizeText(normalizedProjectBriefing.continuityCadence)
+      || options.sanitizeText(storedProjectBriefing?.continuityCadence)
+      || options.sanitizeText(fallbackProjectBrief.continuityCadence)
+      || ''
+    const preferredBlinkCadence = options.sanitizeText(normalizedProjectBriefing.preferredBlinkCadence)
+      || options.sanitizeText(storedProjectBriefing?.preferredBlinkCadence)
+      || options.sanitizeText(fallbackProjectBrief.preferredBlinkCadence)
+      || ''
+    const preferredGazeMode = options.sanitizeText(normalizedProjectBriefing.preferredGazeMode)
+      || options.sanitizeText(storedProjectBriefing?.preferredGazeMode)
+      || options.sanitizeText(fallbackProjectBrief.preferredGazeMode)
+      || ''
+    const preferredPauseMode = options.sanitizeText(normalizedProjectBriefing.preferredPauseMode)
+      || options.sanitizeText(storedProjectBriefing?.preferredPauseMode)
+      || options.sanitizeText(fallbackProjectBrief.preferredPauseMode)
+      || ''
+    const preferredLipsyncMode = options.sanitizeText(normalizedProjectBriefing.preferredLipsyncMode)
+      || options.sanitizeText(storedProjectBriefing?.preferredLipsyncMode)
+      || options.sanitizeText(fallbackProjectBrief.preferredLipsyncMode)
+      || ''
+    const preferredVoiceMode = options.sanitizeText(normalizedProjectBriefing.preferredVoiceMode)
+      || options.sanitizeText(storedProjectBriefing?.preferredVoiceMode)
+      || fallbackProjectBrief.preferredVoiceMode
+      || ''
+    const preferredPacingMode = options.sanitizeText(normalizedProjectBriefing.preferredPacingMode)
+      || options.sanitizeText(storedProjectBriefing?.preferredPacingMode)
+      || fallbackProjectBrief.preferredPacingMode
+      || ''
+    const projectPreflight = options.sanitizeText(normalizedProjectBriefing.preflightSummary)
+      || projectCompanionHeadline
+      || sameHerSelfLine
+      || options.sanitizeText(storedProjectBriefing?.preDialogueAwarenessLine)
+      || options.sanitizeText(storedProjectBriefing?.preflightSummary)
+      || fallbackProjectBrief.preflightSummary
+      || ''
+    const storedProjectAwarenessSummary = options.sanitizeText(storedProjectBriefing?.preDialogueAwarenessSummary)
+    const thinStoredProjectAwarenessSummary
+      = Boolean(storedProjectAwarenessSummary)
+        && isAlicizationThinProjectAwarenessLine(storedProjectAwarenessSummary)
+    const threadSpecificCanonicalProjectAwareness
+      = thinStoredProjectAwarenessSummary
+        && Boolean(explicitLatestProgressInput || explicitPrimaryOpenLoopInput || explicitNextClosureTargetInput)
+        ? options.sanitizeText(buildAlicizationProjectPreDialogueAwarenessLine({
+            identity: projectIdentity,
+            currentPhase: projectPhase,
+            latestLandedProgress: latestLandedProgress || null,
+            primaryOpenLoop: primaryOpenLoop || null,
+            nextClosureTarget: nextClosureTarget || null,
+            sameHerSelfLine: sameHerSelfLine || null,
+          }))
+        : ''
+    const usableStoredProjectAwarenessSummary
+      = storedProjectAwarenessSummary && !isAlicizationThinProjectAwarenessLine(storedProjectAwarenessSummary)
+        ? storedProjectAwarenessSummary
+        : ''
+    const projectAwareness = usableStoredProjectAwarenessSummary
+      || projectCompanionHeadline
+      || threadSpecificCanonicalProjectAwareness
+      || options.sanitizeText(normalizedProjectBriefing.preDialogueAwarenessSummary)
+      || options.sanitizeText(normalizedProjectBriefing.preDialogueAwarenessLine)
+      || fallbackProjectBrief.preDialogueAwarenessLine
+    const projectCompanionBriefing = options.sanitizeText(normalizedProjectBriefing.companionBriefingLine)
+      || options.sanitizeText((storedProjectBriefing as { companionBriefingLine?: unknown } | null)?.companionBriefingLine)
+      || ''
+    const projectBriefingLines = [
+      'Keep this execution inside Alicization\'s current project identity and still-open Phase 1 closure work.',
+      projectIdentity ? `project_identity=${projectIdentity}` : '',
+      projectPhase ? `project_phase=${projectPhase}` : '',
+      latestLandedProgress ? `latest_landed_progress=${latestLandedProgress}` : '',
+      primaryOpenLoop ? `primary_open_loop=${primaryOpenLoop}` : '',
+      nextClosureTarget ? `next_closure_target=${nextClosureTarget}` : '',
+      sameHerSelfLine ? `same_her_line=${sameHerSelfLine}` : '',
+      sameHerHoldDetail ? `same_her_hold=${sameHerHoldDetail}` : '',
+      sameHerDriftRisk ? `same_her_drift_risk=${sameHerDriftRisk}` : '',
+      continuityArcStage ? `project_continuity_arc_stage=${continuityArcStage}` : '',
+      proactiveSameHerGap ? `proactive_same_her_gap=${proactiveSameHerGap}` : '',
+      continuityRestraint ? `project_continuity_restraint=${continuityRestraint}` : '',
+      projectContinuity ? `project_continuity=${projectContinuity}` : '',
+      emotionalClosureSummary ? `project_emotional_closure=${emotionalClosureSummary}` : '',
+      continuityPreferredTiming ? `project_continuity_preferred_timing=${continuityPreferredTiming}` : '',
+      continuityCadence ? `project_continuity_cadence=${continuityCadence}` : '',
+      preferredBlinkCadence ? `project_preferred_blink_cadence=${preferredBlinkCadence}` : '',
+      preferredGazeMode ? `project_preferred_gaze_mode=${preferredGazeMode}` : '',
+      preferredPauseMode ? `project_pause_mode=${preferredPauseMode}` : '',
+      preferredLipsyncMode ? `project_lipsync_mode=${preferredLipsyncMode}` : '',
+      preferredVoiceMode ? `project_voice_mode=${preferredVoiceMode}` : '',
+      preferredPacingMode ? `project_pacing_mode=${preferredPacingMode}` : '',
+      projectPreflight ? `project_preflight=${projectPreflight}` : '',
+      projectAwareness ? `project_awareness=${projectAwareness}` : '',
+      projectCompanionBriefing ? `project_companion_briefing=${projectCompanionBriefing}` : '',
+      'Execution guidance must stay inside the same digital life project, the same Phase 1 proving ground, and the same still-open closure work.',
+    ].filter(Boolean).join('\n')
     if (resumeChannel === 'codex') {
       return {
         codex: {
           prompt: thread.kind === 'codebase-edit'
-            ? `Continue the already-confirmed Alicization task directly and make the code change now.\nGoal: ${goal}\nSummary: ${options.sanitizeText(thread.summary) || 'none'}`
-            : `Continue the already-confirmed Alicization task directly in read-only investigation mode.\nGoal: ${goal}\nSummary: ${options.sanitizeText(thread.summary) || 'none'}`,
+            ? `Continue the already-confirmed Alicization task directly and make the code change now.\nGoal: ${goal}\nSummary: ${options.sanitizeText(thread.summary) || 'none'}\n${projectBriefingLines}`
+            : `Continue the already-confirmed Alicization task directly in read-only investigation mode.\nGoal: ${goal}\nSummary: ${options.sanitizeText(thread.summary) || 'none'}\n${projectBriefingLines}`,
           sandbox: thread.kind === 'codebase-edit' ? 'workspace-write' as const : 'read-only' as const,
         },
       }
@@ -846,8 +1205,8 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
       return {
         claudeCode: {
           prompt: thread.kind === 'codebase-edit'
-            ? `Continue the already-confirmed Alicization task directly and make the code change now.\nGoal: ${goal}\nSummary: ${options.sanitizeText(thread.summary) || 'none'}`
-            : `Continue the already-confirmed Alicization task directly in investigation mode.\nGoal: ${goal}\nSummary: ${options.sanitizeText(thread.summary) || 'none'}`,
+            ? `Continue the already-confirmed Alicization task directly and make the code change now.\nGoal: ${goal}\nSummary: ${options.sanitizeText(thread.summary) || 'none'}\n${projectBriefingLines}`
+            : `Continue the already-confirmed Alicization task directly in investigation mode.\nGoal: ${goal}\nSummary: ${options.sanitizeText(thread.summary) || 'none'}\n${projectBriefingLines}`,
           allowTools: thread.kind === 'codebase-edit',
           permissionMode: thread.kind === 'codebase-edit' ? 'acceptEdits' as const : 'plan' as const,
         },
@@ -856,11 +1215,222 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
     if (resumeChannel === 'openclaw') {
       return {
         openclaw: {
-          instruction: `Continue the already-confirmed Alicization task directly.\nGoal: ${goal}\nSummary: ${options.sanitizeText(thread.summary) || 'none'}`,
+          instruction: `Continue the already-confirmed Alicization task directly.\nGoal: ${goal}\nSummary: ${options.sanitizeText(thread.summary) || 'none'}\n${projectBriefingLines}`,
+        },
+      }
+    }
+    if (resumeChannel === 'browser' || resumeChannel === 'software' || resumeChannel === 'desktop') {
+      return {
+        localVisual: {
+          instruction: `Continue the already-confirmed Alicization task directly.\nGoal: ${goal}\nSummary: ${options.sanitizeText(thread.summary) || 'none'}\n${projectBriefingLines}`,
         },
       }
     }
     return null
+  }
+
+  function promoteApprovedTaskMetadata(input: {
+    metadata: AlicizationTaskThreadRecord['metadata']
+  }) {
+    const metadata = input.metadata && typeof input.metadata === 'object'
+      ? input.metadata
+      : {}
+    const taskMetadata = metadata.task && typeof metadata.task === 'object'
+      ? metadata.task as Record<string, unknown>
+      : {}
+
+    return {
+      ...metadata,
+      task: {
+        ...taskMetadata,
+        permissionMode: 'explicit',
+      },
+    }
+  }
+
+  function readResumeRecord(raw: unknown): Record<string, unknown> {
+    return raw && typeof raw === 'object' && !Array.isArray(raw)
+      ? raw as Record<string, unknown>
+      : {}
+  }
+
+  function readResumeStringArray(raw: unknown) {
+    return Array.isArray(raw)
+      ? raw.map(value => options.sanitizeText(value)).filter(Boolean)
+      : []
+  }
+
+  function buildConfirmedResumeExecutionEvent(input: {
+    originalThread: AlicizationTaskThreadRecord
+    resumeChannel: NonNullable<AlicizationTaskThreadRecord['selectedChannel']>
+    resumableThread: AlicizationTaskThreadRecord
+  }): AlicizationExecutionEventInput {
+    const originalMetadata = readResumeRecord(input.originalThread.metadata)
+    const resumableMetadata = readResumeRecord(input.resumableThread.metadata)
+    const originalTaskMetadata = readResumeRecord(originalMetadata.task)
+    const resumableTaskMetadata = readResumeRecord(resumableMetadata.task)
+    const fabricMetadata = readResumeRecord(originalMetadata.fabric)
+    const executionMetadata = readResumeRecord(originalMetadata.execution)
+    const runtimeContext = readResumeRecord(executionMetadata.runtimeContext)
+    const storedProjectBriefing = readResumeRecord(runtimeContext.projectBriefing)
+    const fallbackProjectBrief = resolveAlicizationProjectStateBrief()
+    const fallbackProjectStatusBrief = resolveAlicizationProjectStatusBrief({
+      fallbackProjectState: {
+        identity: fallbackProjectBrief.identity,
+        currentPhase: fallbackProjectBrief.currentPhase,
+        latestLandedProgress: fallbackProjectBrief.continuityProgressSummary ?? fallbackProjectBrief.latestProgress ?? null,
+        primaryOpenLoop: fallbackProjectBrief.openLoops[0] ?? fallbackProjectBrief.primaryOpenLoop ?? null,
+        nextClosureTarget: fallbackProjectBrief.nextClosureTarget,
+        sameHerSelfLine: fallbackProjectBrief.sameHerSelfLine,
+        sameHerDriftRisk: fallbackProjectBrief.sameHerDriftRisk,
+        preflightSummary: fallbackProjectBrief.preflightSummary ?? null,
+        preDialogueAwarenessLine: fallbackProjectBrief.preDialogueAwarenessLine ?? null,
+        awarenessLine: fallbackProjectBrief.preDialogueAwarenessLine ?? null,
+      },
+    })
+    const projectSnapshot = resolveAlicizationProjectStateSnapshot({
+      runtimeProjectState: Object.keys(storedProjectBriefing).length > 0
+        ? {
+            identity: storedProjectBriefing.identity ?? null,
+            currentPhase: storedProjectBriefing.currentPhase ?? null,
+            latestLandedProgress: storedProjectBriefing.latestLandedProgress ?? storedProjectBriefing.latestProgress ?? storedProjectBriefing.landedProgressSummary ?? null,
+            primaryOpenLoop: storedProjectBriefing.primaryOpenLoop ?? storedProjectBriefing.openClosureSummary ?? null,
+            nextClosureTarget: storedProjectBriefing.nextClosureTarget ?? storedProjectBriefing.nextClosureTargetSummary ?? null,
+            sameHerSelfLine: storedProjectBriefing.sameHerSelfLine ?? null,
+            sameHerHoldDetail: storedProjectBriefing.sameHerHoldDetail ?? null,
+            sameHerDriftRisk: storedProjectBriefing.sameHerDriftRisk ?? storedProjectBriefing.sameHerDriftRiskSummary ?? null,
+            proactiveSameHerGap: storedProjectBriefing.proactiveSameHerGap ?? null,
+            continuityRestraint: storedProjectBriefing.continuityRestraint ?? null,
+            continuityArcStage: storedProjectBriefing.continuityArcStage ?? null,
+            continuityCue: storedProjectBriefing.continuityCue ?? null,
+            continuityPreferredTiming: storedProjectBriefing.continuityPreferredTiming ?? null,
+            continuityCadence: storedProjectBriefing.continuityCadence ?? null,
+            preflightSummary: storedProjectBriefing.preflightSummary ?? null,
+            preDialogueAwarenessLine: storedProjectBriefing.preDialogueAwarenessLine ?? null,
+            awarenessLine: storedProjectBriefing.preDialogueAwarenessLine ?? null,
+            companionHeadlineLine: storedProjectBriefing.companionHeadlineLine ?? null,
+            companionBriefingLine: storedProjectBriefing.companionBriefingLine ?? null,
+            emotionalClosureSummary: storedProjectBriefing.emotionalClosureSummary ?? null,
+            preferredBlinkCadence: storedProjectBriefing.preferredBlinkCadence ?? null,
+            preferredGazeMode: storedProjectBriefing.preferredGazeMode ?? null,
+            preferredPauseMode: storedProjectBriefing.preferredPauseMode ?? null,
+            preferredLipsyncMode: storedProjectBriefing.preferredLipsyncMode ?? null,
+            preferredVoiceMode: storedProjectBriefing.preferredVoiceMode ?? null,
+            preferredPacingMode: storedProjectBriefing.preferredPacingMode ?? null,
+          }
+        : null,
+      fallbackProjectState: {
+        identity: fallbackProjectBrief.identity,
+        currentPhase: fallbackProjectBrief.currentPhase,
+        latestLandedProgress: fallbackProjectBrief.continuityProgressSummary ?? fallbackProjectBrief.latestProgress ?? null,
+        primaryOpenLoop: fallbackProjectBrief.openLoops[0] ?? fallbackProjectBrief.primaryOpenLoop ?? null,
+        nextClosureTarget: fallbackProjectBrief.nextClosureTarget,
+        sameHerSelfLine: fallbackProjectBrief.sameHerSelfLine,
+        sameHerDriftRisk: fallbackProjectBrief.sameHerDriftRisk,
+        proactiveSameHerGap: fallbackProjectBrief.proactiveSameHerGap ?? null,
+        continuityRestraint: fallbackProjectBrief.continuityRestraint ?? null,
+        continuityCue: fallbackProjectBrief.continuityCue ?? null,
+        preflightSummary: fallbackProjectBrief.preflightSummary ?? null,
+        preDialogueAwarenessLine: fallbackProjectBrief.preDialogueAwarenessLine ?? null,
+        awarenessLine: fallbackProjectBrief.preDialogueAwarenessLine ?? null,
+        emotionalClosureSummary: fallbackProjectBrief.emotionalClosureSummary ?? null,
+        preferredVoiceMode: fallbackProjectBrief.preferredVoiceMode ?? null,
+        preferredPacingMode: fallbackProjectBrief.preferredPacingMode ?? null,
+      },
+    })
+
+    const projectAwareness = options.sanitizeText(projectSnapshot.preDialogueAwarenessLine)
+      || fallbackProjectBrief.preDialogueAwarenessLine
+    const projectPreflight = options.sanitizeText(projectSnapshot.preflightSummary)
+      || fallbackProjectBrief.preflightSummary
+      || ''
+    const projectContinuityRestraint = options.sanitizeText(projectSnapshot.continuityRestraint)
+      || fallbackProjectBrief.continuityRestraint
+      || null
+    const projectEmotionalClosure = options.sanitizeText(projectSnapshot.emotionalClosureSummary)
+      || fallbackProjectBrief.emotionalClosureSummary
+      || fallbackProjectBrief.emotionalClosureCue
+      || null
+    const projectVoiceMode = options.sanitizeText(projectSnapshot.preferredVoiceMode)
+      || fallbackProjectBrief.preferredVoiceMode
+      || null
+    const projectPacingMode = options.sanitizeText(projectSnapshot.preferredPacingMode)
+      || fallbackProjectBrief.preferredPacingMode
+      || null
+    const projectCompanionBriefing = options.sanitizeText(projectSnapshot.companionBriefingLine)
+      || fallbackProjectStatusBrief.companionBriefingLine
+      || null
+    const projectCompanionHeadline = options.sanitizeText(projectSnapshot.companionHeadlineLine)
+      || fallbackProjectStatusBrief.companionHeadlineLine
+      || null
+    const projectSameHerHoldDetail = options.sanitizeText(projectSnapshot.sameHerHoldDetail)
+      || null
+    const projectContinuityArcStage = options.sanitizeText(projectSnapshot.continuityArcStage)
+      || null
+    const projectContinuityCue = options.sanitizeText(projectSnapshot.continuityCue)
+      || null
+    const projectContinuityPreferredTiming = options.sanitizeText(projectSnapshot.continuityPreferredTiming)
+      || null
+    const projectContinuityCadence = options.sanitizeText(projectSnapshot.continuityCadence)
+      || null
+    const projectBlinkCadence = options.sanitizeText(projectSnapshot.preferredBlinkCadence)
+      || null
+    const projectGazeMode = options.sanitizeText(projectSnapshot.preferredGazeMode)
+      || null
+    const projectPauseMode = options.sanitizeText(projectSnapshot.preferredPauseMode)
+      || null
+    const projectLipsyncMode = options.sanitizeText(projectSnapshot.preferredLipsyncMode)
+      || null
+
+    return {
+      threadId: input.resumableThread.id,
+      decisionTraceId: input.originalThread.decisionTraceId,
+      turnId: input.originalThread.turnId,
+      sessionId: input.originalThread.sessionId,
+      origin: input.originalThread.origin,
+      channel: input.resumeChannel,
+      kind: 'resume',
+      threadStatus: input.resumableThread.status,
+      payload: {
+        approval: 'host-confirmed',
+        previousStatus: input.originalThread.status,
+        resumedStatus: input.resumableThread.status,
+        previousPermissionMode: options.sanitizeText(originalTaskMetadata.permissionMode) || null,
+        permissionMode: options.sanitizeText(resumableTaskMetadata.permissionMode) || 'explicit',
+        effect: options.sanitizeText(originalTaskMetadata.effect) || null,
+        riskBudget: options.sanitizeText(originalTaskMetadata.riskBudget) || null,
+        justification: options.sanitizeText(originalTaskMetadata.justification) || null,
+        affirmationReasonCodes: readResumeStringArray(fabricMetadata.affirmationReasonCodes),
+        confirmationBoundary: 'host-confirmed-before-redispatch',
+        auditability: 'resume-before-dispatch',
+        interruptibility: 'process-not-yet-restarted',
+        projectIdentity: options.sanitizeText(projectSnapshot.identity) || fallbackProjectBrief.identity,
+        projectPhase: options.sanitizeText(projectSnapshot.currentPhase) || fallbackProjectBrief.currentPhase,
+        latestLandedProgress: options.sanitizeText(projectSnapshot.latestLandedProgress ?? projectSnapshot.latestProgress) || null,
+        primaryOpenLoop: options.sanitizeText(projectSnapshot.primaryOpenLoop) || null,
+        nextClosureTarget: options.sanitizeText(projectSnapshot.nextClosureTarget) || null,
+        sameHerLine: options.sanitizeText(projectSnapshot.sameHerSelfLine) || fallbackProjectBrief.sameHerSelfLine,
+        sameHerDriftRisk: options.sanitizeText(projectSnapshot.sameHerDriftRisk) || fallbackProjectBrief.sameHerDriftRisk,
+        projectSameHerHoldDetail,
+        projectCompanionHeadline,
+        projectCompanionBriefing,
+        projectContinuityRestraint,
+        projectContinuityArcStage,
+        projectContinuityCue,
+        projectContinuityPreferredTiming,
+        projectContinuityCadence,
+        projectBlinkCadence,
+        projectGazeMode,
+        projectPauseMode,
+        projectLipsyncMode,
+        projectEmotionalClosure,
+        projectVoiceMode,
+        projectPacingMode,
+        projectPreflight,
+        projectAwareness,
+      },
+      createdAt: Date.now(),
+    }
   }
 
   async function resumeMainGatewayTaskThread(input: {
@@ -907,9 +1477,22 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
           ...originalThread,
           selectedChannel: resumeChannel,
           status: 'planned',
+          metadata: promoteApprovedTaskMetadata({
+            metadata: originalThread.metadata,
+          }),
           updatedAt: Date.now(),
         })
       : originalThread
+
+    if (originalThread.status === 'needs-affirmation') {
+      await db.appendExecutionEvents([
+        buildConfirmedResumeExecutionEvent({
+          originalThread,
+          resumeChannel,
+          resumableThread,
+        }),
+      ])
+    }
 
     const dispatch = buildResumeDispatchPayload({
       thread: resumableThread,
