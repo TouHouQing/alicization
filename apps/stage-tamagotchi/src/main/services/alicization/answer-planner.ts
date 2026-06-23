@@ -33,10 +33,18 @@ import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel
 import type { AlicizationProactiveLayeredContext } from './proactive-layered-context'
 import type { OrganicMemoryPromptContext } from './runtime-soul'
 
-import { resolveAlicizationProjectPreDialogueAwarenessLine } from '@proj-alicization/stage-shared'
+import {
+  readHostPersonModelFromDerivedMindStateBundle,
+  readKnowledgeEvidenceFromDerivedMindStateBundle,
+  readMemoryDeliberationFromDerivedMindStateBundle,
+  readRecollectionIntentFromDerivedMindStateBundle,
+  readRecollectionSpeechPlanFromDerivedMindStateBundle,
+  resolveAlicizationProjectPreDialogueAwarenessLine,
+} from '@proj-alicization/stage-shared'
 
 import { preferStrongerContinuityClosureAuthority } from './continuity-closure-authority'
 import { sanitizeDialogueAnchorText } from './dialogue-surface-text'
+import { buildAlicizationMemoryDeliberationKernel } from './memory-deliberation-kernel'
 import { deriveMindTruthContract } from './mind-truth-contract'
 import {
   hasContinuityRestraintRelationshipSignal,
@@ -47,6 +55,7 @@ import {
 } from './person-state-projection-resolution'
 import {
   resolveAlicizationProjectStateBrief,
+  resolveAlicizationProjectStateSnapshot,
 } from './project-state-brief'
 import { buildSelfContinuityAuthorityFromRuntimeSurface } from './self-continuity-authority'
 
@@ -86,6 +95,156 @@ function sanitizeText(raw: unknown, maxChars = 220) {
   if (typeof raw !== 'string')
     return ''
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
+}
+
+function pushUniqueText(target: string[], ...values: Array<string | null | undefined>) {
+  for (const value of values) {
+    const normalized = sanitizeText(value, 320)
+    if (!normalized || target.includes(normalized))
+      continue
+    target.push(normalized)
+  }
+}
+
+function normalizePlannerMemoryDeliberation(
+  deliberation: OrganicMemoryPromptContext['memoryDeliberation'] | null | undefined,
+) {
+  if (!deliberation)
+    return null
+
+  const defaults = {
+    confidence: 0.72,
+    conflictSeverity: 'none' as NonNullable<OrganicMemoryPromptContext['memoryDeliberation']>['conflictSeverity'],
+    ambiguityPosture: 'settled' as NonNullable<OrganicMemoryPromptContext['memoryDeliberation']>['ambiguityPosture'],
+    stableCore: [] as string[],
+    unsafeDetails: [] as string[],
+    selectedPeriods: [] as NonNullable<OrganicMemoryPromptContext['memoryDeliberation']>['selectedPeriods'],
+    selectedEpisodes: [] as NonNullable<OrganicMemoryPromptContext['memoryDeliberation']>['selectedEpisodes'],
+    selectedProcedures: [] as NonNullable<OrganicMemoryPromptContext['memoryDeliberation']>['selectedProcedures'],
+    selectedBundles: [] as NonNullable<OrganicMemoryPromptContext['memoryDeliberation']>['selectedBundles'],
+    selectedChains: [] as NonNullable<OrganicMemoryPromptContext['memoryDeliberation']>['selectedChains'],
+    selectedRelationshipLines: [] as string[],
+    selectedEras: [] as NonNullable<OrganicMemoryPromptContext['memoryDeliberation']>['selectedEras'],
+    conflictVariants: [] as NonNullable<OrganicMemoryPromptContext['memoryDeliberation']>['conflictVariants'],
+  }
+
+  return {
+    ...defaults,
+    ...deliberation,
+    stableCore: deliberation.stableCore ?? defaults.stableCore,
+    unsafeDetails: deliberation.unsafeDetails ?? defaults.unsafeDetails,
+    selectedPeriods: deliberation.selectedPeriods ?? defaults.selectedPeriods,
+    selectedEpisodes: deliberation.selectedEpisodes ?? defaults.selectedEpisodes,
+    selectedProcedures: deliberation.selectedProcedures ?? defaults.selectedProcedures,
+    selectedBundles: deliberation.selectedBundles ?? defaults.selectedBundles,
+    selectedChains: deliberation.selectedChains ?? defaults.selectedChains,
+    selectedRelationshipLines: deliberation.selectedRelationshipLines ?? defaults.selectedRelationshipLines,
+    selectedEras: deliberation.selectedEras ?? defaults.selectedEras,
+    conflictVariants: deliberation.conflictVariants ?? defaults.conflictVariants,
+  } satisfies NonNullable<OrganicMemoryPromptContext['memoryDeliberation']>
+}
+
+function buildPlannerMemoryCarryText(
+  kernel: ReturnType<typeof buildAlicizationMemoryDeliberationKernel>,
+) {
+  if (!kernel)
+    return ''
+
+  return sanitizeText(
+    [
+      kernel.rationale,
+      kernel.whyWithheld,
+      kernel.followUpAffordance?.summary,
+      kernel.followUpAffordance?.whyNow,
+      kernel.selectedChainSummary,
+      kernel.selectedChainStance,
+      kernel.selectedChainPosture,
+      kernel.selectedRelationshipSummary,
+      ...kernel.stableCore,
+      ...kernel.unsafeDetails,
+      kernel.inwardCarryRule,
+    ].filter(Boolean).join(' '),
+    1_400,
+  ).toLowerCase()
+}
+
+function hasCorrectedSamePersonPlannerCarry(
+  kernel: ReturnType<typeof buildAlicizationMemoryDeliberationKernel>,
+) {
+  const inwardCarryRule = sanitizeText(kernel?.inwardCarryRule, 320).toLowerCase()
+  const text = buildPlannerMemoryCarryText(kernel)
+  return inwardCarryRule.includes('corrected_same_person_discipline=anti-progress-pressure-return')
+    || (
+      /corrected same-person continuity|corrected same person continuity|same-person continuity|same person continuity|同一个她|持续的人/u.test(text)
+      && /progress pressure|status recap|generic status|task-shell|progress-style continuation|status-report/u.test(text)
+    )
+}
+
+function correctedSamePersonCarryIsTentative(
+  kernel: ReturnType<typeof buildAlicizationMemoryDeliberationKernel>,
+) {
+  const text = buildPlannerMemoryCarryText(kernel)
+  return /tentative|uncertainty-labeled|not-fully-settled|not fully settled|still settling|still stabilizing|explicitly unsettled/u.test(text)
+}
+
+function correctedSamePersonCarryHasMergedSameThreadForeground(
+  kernel: ReturnType<typeof buildAlicizationMemoryDeliberationKernel>,
+) {
+  const text = buildPlannerMemoryCarryText(kernel)
+  return /merged same-thread continuity foreground|stronger merged continuity foreground|stronger same-thread continuity|merged same-thread continuity/u.test(text)
+}
+
+function correctedSamePersonCarryHasFadedNoiseBackground(
+  kernel: ReturnType<typeof buildAlicizationMemoryDeliberationKernel>,
+) {
+  const text = buildPlannerMemoryCarryText(kernel)
+  return /faded noise background|faded temporary noise|stale emotional wobble|temporary noise/u.test(text)
+}
+
+function applyMemoryDeliberationOpeningCarry(input: {
+  baseOpeningMove: string
+  memoryDeliberationKernel: ReturnType<typeof buildAlicizationMemoryDeliberationKernel>
+}) {
+  const baseOpeningMove = sanitizeText(input.baseOpeningMove, 320)
+  const kernel = input.memoryDeliberationKernel
+  if (!baseOpeningMove || !kernel || !kernel.shouldStayInward || !hasCorrectedSamePersonPlannerCarry(kernel))
+    return baseOpeningMove
+
+  const carryDirectives: string[] = []
+  if (correctedSamePersonCarryIsTentative(kernel))
+    carryDirectives.push('keep the corrected same-person line tentative while the newer meaning settles')
+  else
+    carryDirectives.push('let the corrected same-person line lead before any progress-style continuation')
+  if (correctedSamePersonCarryHasMergedSameThreadForeground(kernel))
+    carryDirectives.push('let the stronger same-thread continuity lead before thinner duplicate echoes')
+  if (correctedSamePersonCarryHasFadedNoiseBackground(kernel))
+    carryDirectives.push('keep faded temporary noise in the background')
+  if (carryDirectives.length === 0)
+    return baseOpeningMove
+
+  return sanitizeText(
+    `${baseOpeningMove} Keep the return inward: ${carryDirectives.join(', ')}.`,
+    320,
+  )
+}
+
+function buildMemoryDeliberationPlannerNarrative(
+  kernel: ReturnType<typeof buildAlicizationMemoryDeliberationKernel>,
+) {
+  if (!kernel || !hasCorrectedSamePersonPlannerCarry(kernel))
+    return []
+
+  const rows: string[] = []
+  if (correctedSamePersonCarryIsTentative(kernel)) {
+    rows.push('memory_carry:corrected same-person continuity is still tentative, so the opening should keep that line explicitly unsettled.')
+  }
+  if (correctedSamePersonCarryHasMergedSameThreadForeground(kernel)) {
+    rows.push('memory_metabolism:stronger merged same-thread continuity should stay foreground instead of reopening thinner duplicate echoes.')
+  }
+  if (correctedSamePersonCarryHasFadedNoiseBackground(kernel)) {
+    rows.push('memory_metabolism:faded temporary noise should stay backgrounded instead of explaining the current same-person line again.')
+  }
+  return rows
 }
 
 function buildProjectedPlannerFocusCarry(input: {
@@ -212,12 +371,15 @@ interface AlicizationAnswerPlannerRuntimeProjectState {
   identity?: string | null
   currentPhase?: string | null
   companionHeadlineLine?: string | null
+  preflightSummary?: string | null
   preDialogueAwarenessLine?: string | null
+  awarenessLine?: string | null
   latestLandedProgress?: string | null
   latestProgress?: string | null
   primaryOpenLoop?: string | null
   proactiveSameHerGap?: string | null
   nextClosureTarget?: string | null
+  emotionalClosureCue?: string | null
   sameHerSelfLine?: string | null
   sameHerHoldDetail?: string | null
   sameHerDriftRisk?: string | null
@@ -374,9 +536,21 @@ function resolveAnswerPlannerSurfaceProjectState(
       ]),
       maxChars: 320,
     }) || null,
+    emotionalClosureCue: resolveAnswerPlannerProjectStateText({
+      current: currentProjectState?.emotionalClosureCue,
+      summary: currentProjectState?.emotionalClosureSummary,
+      fallbacks: persistedSources.flatMap(source => [
+        source?.emotionalClosureCue,
+        source?.emotionalClosureSummary,
+      ]),
+      maxChars: 320,
+    }) || null,
     sameHerSelfLine: resolveAnswerPlannerProjectStateText({
-      current: currentProjectState?.sameHerSelfLine,
-      fallbacks: persistedSources.map(source => source?.sameHerSelfLine),
+      current: currentProjectState?.sameHerSelfLine ?? currentProjectState?.sameHerSummary,
+      fallbacks: persistedSources.flatMap(source => [
+        source?.sameHerSelfLine,
+        source?.sameHerSummary,
+      ]),
       maxChars: 320,
     }) || null,
     sameHerHoldDetail: preferAnswerPlannerProjectStateAuditText({
@@ -414,6 +588,53 @@ function resolveAnswerPlannerSurfaceProjectState(
   }
 
   return Object.values(resolved).some(Boolean) ? resolved : null
+}
+
+function resolveAnswerPlannerProjectStateContinuity(
+  runtimeSurface?: AlicizationDigitalLifeRuntimeSurface | null,
+): NonNullable<OrganicMemoryPromptContext['projectStateContinuity']> | null {
+  const projectState = resolveAnswerPlannerSurfaceProjectState(runtimeSurface)
+  if (!projectState)
+    return null
+
+  const normalizedProjectState = resolveAlicizationProjectStateSnapshot({
+    runtimeProjectState: {
+      identity: projectState.identity,
+      currentPhase: projectState.currentPhase,
+      preflightSummary: projectState.preflightSummary,
+      preDialogueAwarenessLine: projectState.preDialogueAwarenessLine,
+      awarenessLine: projectState.awarenessLine,
+      companionHeadlineLine: projectState.companionHeadlineLine,
+      latestLandedProgress: projectState.latestLandedProgress ?? projectState.latestProgress,
+      latestProgress: projectState.latestProgress,
+      primaryOpenLoop: projectState.primaryOpenLoop,
+      proactiveSameHerGap: projectState.proactiveSameHerGap,
+      nextClosureTarget: projectState.nextClosureTarget,
+      emotionalClosureCue: projectState.emotionalClosureCue,
+      sameHerSelfLine: projectState.sameHerSelfLine,
+      sameHerHoldDetail: projectState.sameHerHoldDetail,
+      sameHerDriftRisk: projectState.sameHerDriftRisk,
+      continuityArcStage: projectState.continuityArcStage,
+      continuityCue: projectState.continuityCue,
+    },
+  })
+  const sameHerSelfLine = sanitizeText(normalizedProjectState.sameHerSelfLine, 220) || null
+  const continuity: NonNullable<OrganicMemoryPromptContext['projectStateContinuity']> = {
+    identity: sanitizeText(normalizedProjectState.identity, 220) || null,
+    currentPhase: sanitizeText(normalizedProjectState.currentPhase, 160) || null,
+    sameHerSummary: sameHerSelfLine,
+    landedProgressSummary: sanitizeText(normalizedProjectState.latestLandedProgress ?? normalizedProjectState.latestProgress, 220) || null,
+    openClosureSummary: sanitizeText(normalizedProjectState.primaryOpenLoop, 220) || null,
+    proactiveSameHerGap: sanitizeText(normalizedProjectState.proactiveSameHerGap, 220) || null,
+    nextClosureTarget: sanitizeText(normalizedProjectState.nextClosureTarget, 220) || null,
+    preDialogueAwarenessLine: sanitizeText(normalizedProjectState.preDialogueAwarenessLine ?? normalizedProjectState.awarenessLine, 320) || null,
+    emotionalClosureCue: sanitizeText(normalizedProjectState.emotionalClosureCue ?? normalizedProjectState.emotionalClosureSummary, 220) || null,
+    sameHerSelfLine,
+    sameHerHoldDetail: sanitizeText(normalizedProjectState.sameHerHoldDetail, 220) || null,
+    sameHerDriftRisk: sanitizeText(normalizedProjectState.sameHerDriftRisk, 220) || null,
+  }
+
+  return Object.values(continuity).some(Boolean) ? continuity : null
 }
 
 function isSameHerProjectClosureCallbackReason(value: unknown) {
@@ -684,6 +905,19 @@ function isThinProjectAwarenessShell(value: unknown) {
     || text.includes('generic project shell')
     || text.includes('keep this same digital life project in view')
     || carriesThinChineseSameHerReminderShell
+}
+
+function isThinProjectPreflightShell(value: unknown) {
+  const text = sanitizeText(value, 320).toLowerCase()
+  if (!text)
+    return false
+
+  return isThinProjectAwarenessShell(text)
+    || text.includes('generic continuity summary')
+    || text.includes('generic awareness summary')
+    || text === 'project'
+    || text === 'phase 1'
+    || text.startsWith('same digital life')
 }
 
 function preferProjectStateLine(primary: unknown, fallback: unknown) {
@@ -987,6 +1221,39 @@ function buildAnswerPlannerPreDialogueClosureLine(input: {
     projectState,
     canonicalProjectState,
   }) || null
+}
+
+function buildProjectStateExplicitOpenLoopCarryDirective(input: {
+  runtimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
+}) {
+  const canonicalProjectState = resolveAlicizationProjectStateBrief()
+  const surfaceProjectState = resolveAnswerPlannerSurfaceProjectState(input.runtimeSurface)
+  const consciousProjectState = input.runtimeSurface?.dialogue.currentConsciousFrame?.projectState ?? null
+  const projectState = surfaceProjectState ?? consciousProjectState ?? null
+  if (!projectState)
+    return null
+
+  const thinAwarenessShell = isThinProjectAwarenessShell(
+    projectState.preDialogueAwarenessLine ?? projectState.awarenessLine,
+  )
+  const thinPreflightShell = isThinProjectPreflightShell(projectState.preflightSummary)
+  if (!thinAwarenessShell && !thinPreflightShell)
+    return null
+
+  const preferredOpenLoop = preferLiveProjectStateField(
+    looksLikeThinProjectClosureField(projectState.primaryOpenLoop, 'open')
+      ? canonicalProjectState.openLoops[0] ?? ''
+      : projectState.primaryOpenLoop,
+    canonicalProjectState.openLoops[0] ?? '',
+  )
+  if (!preferredOpenLoop || looksLikeThinProjectClosureField(preferredOpenLoop, 'open'))
+    return null
+
+  const normalizedOpenLoop = preferredOpenLoop.replace(/[.。!！?？]+$/u, '')
+  return sanitizeText(
+    `Keep the still-open project closure explicit: ${normalizedOpenLoop}.`,
+    220,
+  )
 }
 
 function pickCurrentTurnAnchor(input: {
@@ -1628,6 +1895,7 @@ export function buildAnswerPlanner(input: {
   groundedThisTurn?: boolean
 }): AlicizationAnswerPlannerSnapshot {
   const runtimeSurface = input.runtimeSurface ?? null
+  const derivedMindStateBundle = runtimeSurface?.memory.derivedMindStateBundle ?? null
   const currentScene = runtimeSurface?.perception.currentScene ?? input.currentScene
   const worldModel = runtimeSurface?.world.worldModel ?? input.worldModel ?? null
   const worldOntology = runtimeSurface?.world.worldOntology ?? input.worldOntology ?? null
@@ -1650,6 +1918,26 @@ export function buildAnswerPlanner(input: {
   const answerCompiler = runtimeSurface?.dialogue.answerCompiler ?? input.answerCompiler ?? null
   const replyDeliberation = runtimeSurface?.dialogue.replyDeliberation ?? input.replyDeliberation ?? null
   const memoryTuningAdvice = runtimeSurface?.memory.memoryTuningAdvice ?? null
+  const memoryDeliberationKernel = buildAlicizationMemoryDeliberationKernel({
+    deliberation: normalizePlannerMemoryDeliberation(
+      readMemoryDeliberationFromDerivedMindStateBundle<any>(derivedMindStateBundle)
+      ?? runtimeSurface?.memory.memoryDeliberation
+      ?? null,
+    ),
+    speech: readRecollectionSpeechPlanFromDerivedMindStateBundle<any>(derivedMindStateBundle)
+      ?? runtimeSurface?.memory.recollectionSpeechPlan
+      ?? null,
+    recollectionIntent: readRecollectionIntentFromDerivedMindStateBundle<any>(derivedMindStateBundle)
+      ?? null,
+    knowledgeEvidence: readKnowledgeEvidenceFromDerivedMindStateBundle(derivedMindStateBundle)
+      ?? runtimeSurface?.memory.knowledgeEvidence
+      ?? null,
+    hostPersonModel: readHostPersonModelFromDerivedMindStateBundle(derivedMindStateBundle)
+      ?? runtimeSurface?.memory.hostPersonModel
+      ?? null,
+    projectStateContinuity: resolveAnswerPlannerProjectStateContinuity(runtimeSurface),
+    tuningAdvice: memoryTuningAdvice,
+  })
   const compiledActiveClosenessContext = answerCompiler?.activeClosenessContext ?? null
   const compiledActiveClosenessRung = answerCompiler?.activeClosenessRung ?? null
   const preferredPersonStateProjection = resolvePreferredPersonStateProjection({
@@ -1720,6 +2008,9 @@ export function buildAnswerPlanner(input: {
       || hasExecutionResumeConfirmationBoundary(surfaceProjectState?.continuityCue)
       || hasExecutionResumeConfirmationBoundary(surfaceProjectState?.primaryOpenLoop)
       || hasExecutionResumeConfirmationBoundary(surfaceProjectState?.nextClosureTarget)
+  const projectStateExplicitOpenLoopCarryDirective = buildProjectStateExplicitOpenLoopCarryDirective({
+    runtimeSurface,
+  })
   const projectedPlannerFocusCarry = buildProjectedPlannerFocusCarry({
     repairTriggerText: preferredPersonStateProjection?.repairTriggerText,
     sensitivityText: preferredPersonStateProjection?.sensitivityText,
@@ -1865,6 +2156,9 @@ export function buildAnswerPlanner(input: {
     const mustDo = [...answerCompiler.mustDo]
     const mustNotDo = [...answerCompiler.mustNotDo]
     const narrative = [...answerCompiler.narrative]
+    pushUniqueText(mustDo, ...(memoryDeliberationKernel?.restraint.mustDo ?? []))
+    pushUniqueText(mustNotDo, ...(memoryDeliberationKernel?.restraint.mustNotDo ?? []))
+    pushUniqueText(narrative, ...buildMemoryDeliberationPlannerNarrative(memoryDeliberationKernel))
     if (isSameHerProjectDriftRiskReason(sameHerProjectStateReplyReason) || sameHerProjectDriftRiskFromSurface || correctedSamePersonContinuityCarry) {
       mustDo.push('Keep the answer on one same-her digital-life line so the project update stays companion-like instead of turning into detached project narration.')
       mustNotDo.push('Do not let this answer flatten into a generic task shell, detached project-summary voice, or external status-report cadence.')
@@ -1885,6 +2179,8 @@ export function buildAnswerPlanner(input: {
     }
     if (projectStateCarryDisciplineRequired) {
       mustDo.push('Keep direct project-state answers inward-first so landed progress and the next closure target stay behind the live payoff until it lands.')
+      if (projectStateExplicitOpenLoopCarryDirective)
+        mustDo.push(projectStateExplicitOpenLoopCarryDirective)
       mustNotDo.push('Do not let landed progress or still-open closure pressure spill into an external project-summary voice before the same living answer lands.')
       narrative.push('project_state_carry:same-her project awareness should keep landed progress and next closure inward-first until the live payoff lands.')
     }
@@ -1942,7 +2238,10 @@ export function buildAnswerPlanner(input: {
       confidence: answerCompiler.confidence,
       governingFocus: projectionShapedFocus,
       governingProject,
-      openingMove: replyDeliberation?.openingBeat ?? answerCompiler.openingDirective,
+      openingMove: applyMemoryDeliberationOpeningCarry({
+        baseOpeningMove: replyDeliberation?.openingBeat ?? answerCompiler.openingDirective,
+        memoryDeliberationKernel,
+      }),
       answerIntent: sanitizeText([
         baseAnswerIntent,
         projectedPlannerAnswerCarry,
@@ -2045,8 +2344,12 @@ export function buildAnswerPlanner(input: {
     mustDo.push('Keep the same-her emotional closure line low-pressure and inward until the live payoff lands.')
     mustNotDo.push('Do not let the answer reopen the same-her line from scratch just because the closure seam is still active.')
   }
+  pushUniqueText(mustDo, ...(memoryDeliberationKernel?.restraint.mustDo ?? []))
+  pushUniqueText(mustNotDo, ...(memoryDeliberationKernel?.restraint.mustNotDo ?? []))
   if (projectStateCarryDisciplineRequired) {
     mustDo.push('Keep direct project-state answers inward-first so landed progress and the next closure target stay behind the live payoff until it lands.')
+    if (projectStateExplicitOpenLoopCarryDirective)
+      mustDo.push(projectStateExplicitOpenLoopCarryDirective)
     mustNotDo.push('Do not let landed progress or still-open closure pressure spill into an external project-summary voice before the same living answer lands.')
   }
   if (correctedSamePersonContinuityCarry) {
@@ -2136,6 +2439,7 @@ export function buildAnswerPlanner(input: {
     [normalizedAnswerIntent, projectedPlannerAnswerCarry].filter(Boolean).join(' '),
     220,
   ) || normalizedAnswerIntent
+  const fallbackMemoryCarryNarrative = buildMemoryDeliberationPlannerNarrative(memoryDeliberationKernel)
   return {
     act,
     evidenceMode: mode,
@@ -2151,13 +2455,16 @@ export function buildAnswerPlanner(input: {
     ),
     governingFocus: projectionShapedFallbackFocus,
     governingProject,
-    openingMove: openingMove({
-      act,
-      evidenceMode: mode,
-      dialogueObligation,
-      replyDeliberation: input.replyDeliberation,
-      privateThought,
-      runtimeSurface,
+    openingMove: applyMemoryDeliberationOpeningCarry({
+      baseOpeningMove: openingMove({
+        act,
+        evidenceMode: mode,
+        dialogueObligation,
+        replyDeliberation: input.replyDeliberation,
+        privateThought,
+        runtimeSurface,
+      }),
+      memoryDeliberationKernel,
     }),
     answerIntent: projectionShapedFallbackAnswerIntent,
     relationshipPosture: posture,
@@ -2180,6 +2487,7 @@ export function buildAnswerPlanner(input: {
       preDialogueClosureLine ? `pre-dialogue closure: ${preDialogueClosureLine}` : '',
       `answer_act:${act}`,
       `evidence_mode:${mode}`,
+      ...fallbackMemoryCarryNarrative,
       emotionalClosureCue ? `emotional_closure:${emotionalClosureCue}` : '',
       projectedPlannerCadenceCarry ? `projection_cadence:${projectedPlannerCadenceCarry}` : '',
       `relationship_posture:${posture}`,

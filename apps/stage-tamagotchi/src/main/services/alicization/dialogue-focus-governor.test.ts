@@ -406,4 +406,116 @@ describe('dialogue-focus-governor', () => {
     expect(focus.weakLiveScene).toBe(false)
     expect(focus.focusSummary).toBe('The runtime diff is still the live knot.')
   })
+
+  it('prefers Alicization-self continuity focus for project-state closure questions when tuning warns against a generic project narrator shell', () => {
+    const runtimeBackedState = createDefaultVisualPresenceState(45_000)
+    runtimeBackedState.currentScene = {
+      ...codingScene,
+      summary: 'Entire screen',
+      target: {
+        appName: 'Finder',
+        processName: 'Finder',
+        title: 'Entire screen',
+        pid: 42,
+      },
+    } as any
+    runtimeBackedState.worldModel = {
+      ...runtimeWorldModel,
+      activeThread: {
+        ...runtimeWorldModel.activeThread,
+        kind: 'unknown',
+        title: 'general unknown',
+        summary: 'stale project shell carry',
+        confidence: 0.44,
+      },
+    } as any
+    ;(runtimeBackedState as any).memoryTuningAdvice = {
+      version: 'memory-tuning-advice-v1',
+      source: 'nightly-replay-benchmark',
+      updatedAt: 45_000,
+      sourceReportAt: 45_000,
+      focusDimensions: ['projectStateSameHerSelfLineDrift', 'sameHerSelfLineCarry', 'avoidGenericProjectShell'],
+      retrievalAdjustments: {
+        proceduralBoost: 0,
+        relationshipBoost: 0.06,
+        temporalWindowBias: 0,
+        wrongThreadPenalty: 0,
+      },
+      surfaceAdjustments: {
+        inwardCarryBias: 0.2,
+        delayUntilAfterPayoffBias: 0.14,
+        provenanceLabelBias: 0.16,
+        specificityClampBias: 0.1,
+      },
+      personStateAdjustments: {
+        repairWindowBias: 0,
+        closenessCapBias: 0.14,
+      },
+      notes: ['Avoid slipping toward a generic project narrator shell.'],
+    } as any
+    ;(runtimeBackedState as any).memoryTuningAdvice = undefined
+    ;(runtimeBackedState as any).memory = {
+      ...(runtimeBackedState as any).memory,
+      memoryTuningAdvice: {
+        version: 'memory-tuning-advice-v1',
+        source: 'nightly-replay-benchmark',
+        updatedAt: 45_000,
+        sourceReportAt: 45_000,
+        focusDimensions: ['projectStateSameHerSelfLineDrift', 'sameHerSelfLineCarry', 'avoidGenericProjectShell'],
+        retrievalAdjustments: {
+          proceduralBoost: 0,
+          relationshipBoost: 0.06,
+          temporalWindowBias: 0,
+          wrongThreadPenalty: 0,
+        },
+        surfaceAdjustments: {
+          inwardCarryBias: 0.2,
+          delayUntilAfterPayoffBias: 0.14,
+          provenanceLabelBias: 0.16,
+          specificityClampBias: 0.1,
+        },
+        personStateAdjustments: {
+          repairWindowBias: 0,
+          closenessCapBias: 0.14,
+        },
+        notes: ['Avoid slipping toward a generic project narrator shell.'],
+      },
+    }
+
+    const focus = buildDialogueFocusGovernance({
+      semantics: {
+        act: 'ask-help',
+        responseNeed: 'answer',
+        truthExpectation: 'normal',
+        affectiveTone: 'neutral',
+        subjectPreference: 'general',
+        taskAnchor: '这个项目现在到底是什么、做到什么程度、还差什么没闭环',
+        sharedAttentionDemand: 0.34,
+        personaSuppression: 0.46,
+        confidence: 0.82,
+        summary: 'The host is asking what this project is, what has landed, and what still remains open.',
+        source: 'hybrid',
+        reasonTags: ['dialogue-first-turn', 'scene-detached-turn', 'question-turn'],
+      },
+      obligation: {
+        kind: 'answer',
+        summary: 'Answer what this project is, what has landed, and what still remains open.',
+        confidence: 0.8,
+        mustRepairFirst: false,
+        mustAnswerDirectly: true,
+        mustStayTaskBound: false,
+        shouldAskClarifyingQuestion: false,
+        personaKernelMode: 'backgrounded',
+        narrative: [],
+      },
+      currentScene: runtimeBackedState.currentScene as any,
+      worldModel: runtimeBackedState.worldModel as any,
+      runtimeSurface: buildAlicizationDigitalLifeRuntimeSurface(runtimeBackedState as any),
+    })
+
+    expect(focus.subject).toBe('alicization-self')
+    expect(focus.screenReferenceMode).toBe('avoid')
+    expect(focus.shouldBypassScreenRepair).toBe(true)
+    expect(focus.reasonTags).toContain('project-state-same-her-continuity')
+  })
 })

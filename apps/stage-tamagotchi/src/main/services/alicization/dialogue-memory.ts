@@ -5,6 +5,8 @@ import type {
 } from '../../../shared/eventa'
 import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 
+import { isAlicizationAutonomousDialogueOrigin } from './runtime-structured-format'
+
 function sanitizeText(raw: unknown, maxChars = 220) {
   if (typeof raw !== 'string')
     return ''
@@ -19,7 +21,10 @@ export function buildDialogueTurnMemoryFragment(input: {
   state?: AlicizationVisualPresenceStateSnapshot | null
   runtimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
 }) {
-  if (input.payload.origin === 'subconscious-proactive')
+  const normalizedOrigin = typeof input.payload.origin === 'string'
+    ? input.payload.origin.trim().toLowerCase()
+    : ''
+  if (isAlicizationAutonomousDialogueOrigin(normalizedOrigin))
     return ''
 
   const governance = input.governance ?? null

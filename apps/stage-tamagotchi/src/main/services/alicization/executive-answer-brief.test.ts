@@ -164,6 +164,10 @@ describe('buildAlicizationExecutiveAnswerBrief', () => {
     expect(result.systemBlock).toContain(`Next closure target: ${projectState.nextClosureTarget}`)
     expect(result.systemBlock).toContain('Project same-her self line: Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.')
     expect(result.systemBlock).toContain(`Project same-her drift risk: ${projectState.sameHerDriftRisk}`)
+    expect(result.systemBlock).toContain(`Project preferred pause mode: ${projectState.preferredPauseMode}.`)
+    expect(result.systemBlock).toContain(`Project preferred lipsync mode: ${projectState.preferredLipsyncMode}.`)
+    expect(result.systemBlock).toContain(`Project preferred voice mode: ${projectState.preferredVoiceMode}.`)
+    expect(result.systemBlock).toContain(`Project preferred pacing mode: ${projectState.preferredPacingMode}.`)
   })
 
   it('prefers the live current-conscious-frame project awareness when building the executive system brief', () => {
@@ -180,6 +184,10 @@ describe('buildAlicizationExecutiveAnswerBrief', () => {
         nextClosureTarget: 'Carry the live pre-dialogue project awareness line through first-pass generation before repair has to catch it.',
         sameHerSelfLine: 'This is still one same her carrying the same project line forward.',
         sameHerDriftRisk: 'If the answer falls back to generic project narration, treat that as unfinished same-her drift.',
+        preferredPauseMode: 'longer',
+        preferredLipsyncMode: 'restrained',
+        preferredVoiceMode: 'even',
+        preferredPacingMode: 'natural',
       },
     }
 
@@ -229,6 +237,10 @@ describe('buildAlicizationExecutiveAnswerBrief', () => {
     expect(result.systemBlock).toContain('Next closure target: Carry the live pre-dialogue project awareness line through first-pass generation before repair has to catch it.')
     expect(result.systemBlock).toContain('Project same-her self line: This is still one same her carrying the same project line forward.')
     expect(result.systemBlock).toContain('Project same-her drift risk: If the answer falls back to generic project narration, treat that as unfinished same-her drift.')
+    expect(result.systemBlock).toContain('Project preferred pause mode: longer.')
+    expect(result.systemBlock).toContain('Project preferred lipsync mode: restrained.')
+    expect(result.systemBlock).toContain('Project preferred voice mode: even.')
+    expect(result.systemBlock).toContain('Project preferred pacing mode: natural.')
   })
 
   it('keeps summary-only landed project progress alive in the executive answer brief before visible reply authoring', () => {
@@ -592,6 +604,68 @@ describe('buildAlicizationExecutiveAnswerBrief', () => {
     expect(result.systemBlock).toContain('Keep the still-open closure work explicit so the answer says what is not yet closed.')
     expect(result.systemBlock).toContain('Make the next closure target explicit so the answer says what should close next rather than stopping at current status.')
     expect(result.systemBlock).toContain('Answer project-state questions from one same-her continuity instead of a detached project narrator shell.')
+  })
+
+  it('keeps compact open and next focus explicit in the executive system block for direct project-state turns', () => {
+    const visualPresenceState = createDefaultVisualPresenceState(5_015)
+    const runtimeSurface = buildAlicizationDigitalLifeRuntimeSurface(visualPresenceState)
+    ;(runtimeSurface.dialogue as any).currentConsciousFrame = {
+      projectState: {
+        identity: 'Alicization is a local-first digital life project growing one continuous her on the host computer.',
+        currentPhase: 'Phase 1: Local Digital Life.',
+        latestLandedProgress: 'Project-state continuity already survives into runtime preparation.',
+        primaryOpenLoop: 'Emotion, memory, initiative, and embodiment still need stronger same-her closure seam before the life loop can be treated as closed.',
+        nextClosureTarget: 'Keep project identity carry on the same Phase 1 line with a measured-return, repair-before-closeness same living line while initiative and embodiment proof keep extending.',
+      },
+    }
+
+    const result = buildAlicizationExecutiveAnswerBrief({
+      now: 5_015,
+      inspectionRequested: false,
+      groundedThisTurn: false,
+      perceptionState: {
+        attentionAnchor: null,
+        lastNonSelfForegroundTarget: null,
+        recentObservations: [],
+        invitedInspection: null,
+        recentSceneResidue: null,
+        updatedAt: 5_015,
+      },
+      visualPresenceState,
+      runtimeSurface,
+      responseCharter: {
+        epistemicMode: 'memory-only',
+        responseMode: 'answer-naturally',
+        governingFocus: 'Answer the project-state question directly.',
+        governingConcern: null,
+        governingCommitment: null,
+        governingInquiry: null,
+        governingProject: null,
+        emotionalClosureCue: 'same-her closure seam: keep this return low-pressure and repair-before-closeness on the same living line until the room settles.',
+        latestRevision: null,
+        executivePhase: null,
+        truthFrame: null,
+        mindMode: null,
+        relationshipPosture: 'restrained',
+        reasons: [],
+        mustDo: [],
+        mustNotDo: [],
+      },
+      dialogueFocus: {
+        subject: 'project-state',
+        screenReferenceMode: 'avoid',
+      } as any,
+      dialogueObligation: {
+        kind: 'answer',
+        mustAnswerDirectly: true,
+      } as any,
+      dialogueSemantics: {
+        currentTurnSummary: 'Answer what Alicization is, what Phase 1 has landed, and what still remains open.',
+      } as any,
+    })
+
+    expect(result.systemBlock).toContain('Open closure focus: emotion/memory/initiative/embodiment/same-line/closure-seam')
+    expect(result.systemBlock).toContain('Next closure focus: project-carry/phase-1/measured-return/repair-before-closeness/same-line/initiative/embodiment')
   })
 
   it('keeps low-pressure and anti-restart same-her discipline explicit on direct project-state turns', () => {

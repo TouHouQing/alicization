@@ -13,6 +13,7 @@ import {
 } from './digital-life-spine'
 import {
   buildAlicizationProjectPreDialogueAwarenessLine,
+  isAlicizationThinProjectAwarenessLine,
   resolveAlicizationProjectPreDialogueAwarenessLine,
   resolveAlicizationProjectStateBrief,
   resolveAlicizationProjectStateSnapshot,
@@ -85,7 +86,8 @@ interface CreateAlicizationDialogueSessionManagerOptions {
 const defaultSessionMirrorStaleAfterMs = 10 * 60 * 1000
 const defaultMaxContinuityLabels = 6
 const defaultMaxSessionPhases = 10
-const continuityArcSummaryMaxChars = 720
+const continuityArcSummaryMaxChars = 840
+const continuityProjectSummaryMaxChars = 960
 const continuityArcSummaryValueMaxChars = 420
 const projectAwarenessLineMaxChars = 1600
 
@@ -93,6 +95,48 @@ function sanitizeText(raw: unknown, maxChars = 160) {
   if (typeof raw !== 'string')
     return ''
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
+}
+
+function sanitizeProjectStatePreferredVoiceMode(raw: unknown) {
+  const normalized = sanitizeText(raw, 32).toLowerCase()
+  return normalized === 'lower-pressure' || normalized === 'even'
+    ? normalized
+    : ''
+}
+
+function sanitizeProjectStatePreferredPacingMode(raw: unknown) {
+  const normalized = sanitizeText(raw, 32).toLowerCase()
+  return normalized === 'slower' || normalized === 'natural'
+    ? normalized
+    : ''
+}
+
+function sanitizeProjectStatePreferredPauseMode(raw: unknown) {
+  const normalized = sanitizeText(raw, 32).toLowerCase()
+  return normalized === 'longer' || normalized === 'natural'
+    ? normalized
+    : ''
+}
+
+function sanitizeProjectStatePreferredLipsyncMode(raw: unknown) {
+  const normalized = sanitizeText(raw, 32).toLowerCase()
+  return normalized === 'restrained' || normalized === 'matched'
+    ? normalized
+    : ''
+}
+
+function sanitizeProjectStatePreferredBlinkCadence(raw: unknown) {
+  const normalized = sanitizeText(raw, 32).toLowerCase()
+  return normalized === 'quiet' || normalized === 'linger' || normalized === 'normal'
+    ? normalized
+    : ''
+}
+
+function sanitizeProjectStatePreferredGazeMode(raw: unknown) {
+  const normalized = sanitizeText(raw, 32).toLowerCase()
+  return normalized === 'soften' || normalized === 'steady' || normalized === 'drift'
+    ? normalized
+    : ''
 }
 
 function buildMirrorKey(cardId: string, sessionId: string) {
@@ -222,30 +266,51 @@ function resolveMirrorProjectStateFromPreparedRuntimeSurface(
   })
 
   const phase = sanitizeText(snapshot.currentPhase ?? brief.currentPhase, 160)
+  const latestLandedProgress = sanitizeText(
+    snapshot.latestLandedProgress ?? snapshot.latestProgress ?? brief.continuityProgressSummary ?? brief.latestProgress,
+    220,
+  )
   const primaryOpenLoop = sanitizeText(snapshot.primaryOpenLoop ?? brief.openLoops[0] ?? '', 220)
-  const preDialogueAwarenessLine = sanitizeText(
-    snapshot.preDialogueAwarenessLine
-    ?? resolveAlicizationProjectPreDialogueAwarenessLine({
-      runtimeProjectState: runtimeProjectState as {
-        preDialogueAwarenessLine?: unknown
-        preflightSummary?: unknown
-      } | null,
-      fallbackProjectState: {
-        preDialogueAwarenessLine: brief.preDialogueAwarenessLine ?? null,
-        preflightSummary: brief.preflightSummary ?? null,
-      },
-    })
+  const nextClosureTarget = sanitizeText(snapshot.nextClosureTarget ?? brief.nextClosureTarget, 220)
+  const sameHerSelfLine = sanitizeText(snapshot.sameHerSelfLine ?? brief.sameHerSelfLine, 220)
+  const companionHeadlineLine = sanitizeText(
+    snapshot.companionHeadlineLine
+    ?? runtimeProjectState?.companionHeadlineLine
+    ?? runtimeProjectState?.companionBriefingLine
     ?? '',
+    projectAwarenessLineMaxChars,
+  )
+  const preDialogueAwarenessLine = sanitizeText(
+    companionHeadlineLine
+    || (
+      snapshot.preDialogueAwarenessLine
+      ?? resolveAlicizationProjectPreDialogueAwarenessLine({
+        runtimeProjectState: runtimeProjectState as {
+          preDialogueAwarenessLine?: unknown
+          companionHeadlineLine?: unknown
+          companionBriefingLine?: unknown
+          preflightSummary?: unknown
+        } | null,
+        fallbackProjectState: {
+          preDialogueAwarenessLine: brief.preDialogueAwarenessLine ?? null,
+          preflightSummary: brief.preflightSummary ?? null,
+        },
+      })
+      ?? ''
+    ),
     projectAwarenessLineMaxChars,
   ) || sanitizeText(
     snapshot.preflightSummary ?? runtimeProjectState?.preflightSummary ?? brief.preflightSummary ?? '',
     projectAwarenessLineMaxChars,
   )
   return {
+    landed: latestLandedProgress || '',
+    next: nextClosureTarget || '',
     project: 'phase1-digital-life',
     unresolved: primaryOpenLoop || '',
     phase,
     preDialogueAwarenessLine: preDialogueAwarenessLine || '',
+    sameHerSelfLine: sameHerSelfLine || '',
   }
 }
 
@@ -256,7 +321,10 @@ function summarizeContinuityProjectFromPreparedRuntimeSurface(
   return [
     projectState.project ? `project=${projectState.project}` : '',
     projectState.phase ? `phase=${projectState.phase}` : '',
+    projectState.landed ? `landed=${projectState.landed}` : '',
     projectState.unresolved ? `unresolved=${projectState.unresolved}` : '',
+    projectState.next ? `next=${projectState.next}` : '',
+    projectState.sameHerSelfLine ? `same_her=${projectState.sameHerSelfLine}` : '',
     projectState.preDialogueAwarenessLine ? `preflight=${projectState.preDialogueAwarenessLine}` : '',
   ].filter(Boolean).join(' | ')
 }
@@ -275,6 +343,49 @@ function looksLikeMirrorProjectReanchor(raw: unknown) {
     || text.includes('still-open closure')
     || text.includes('same living line')
     || text.includes('same-life closure')
+  )
+}
+
+function looksLikeThinContinuityProjectPreflightSummary(raw: unknown) {
+  const text = sanitizeText(raw, projectAwarenessLineMaxChars).toLowerCase()
+  if (!text)
+    return true
+
+  return isAlicizationThinProjectAwarenessLine(text)
+    || /keep the same digital life project in view|generic continuity summary|generic awareness summary|generic reminder|generic guidance|same digital life \| keep the closure seam explicit/u.test(text)
+    || text === 'project'
+    || text === 'phase 1'
+    || text.startsWith('same digital life')
+}
+
+function looksLikeNarrowSameHerContinuityProjectLine(raw: unknown) {
+  const text = sanitizeText(raw, projectAwarenessLineMaxChars).toLowerCase()
+  if (!text)
+    return false
+
+  return /same phase 1 digital life|same living line|same her|same-her|one continuous her/u.test(text)
+    && !text.includes('alicization is a local-first digital life project')
+    && !text.includes('before answering, remember:')
+}
+
+function looksLikeRichContinuityProjectClosureSnapshot(input: {
+  latestLandedProgress?: string | null
+  primaryOpenLoop?: string | null
+  nextClosureTarget?: string | null
+  sameHerSelfLine?: string | null
+}) {
+  const latestLandedProgress = sanitizeText(input.latestLandedProgress, 320).toLowerCase()
+  const primaryOpenLoop = sanitizeText(input.primaryOpenLoop, 320).toLowerCase()
+  const nextClosureTarget = sanitizeText(input.nextClosureTarget, 320).toLowerCase()
+  const sameHerSelfLine = sanitizeText(input.sameHerSelfLine, 320).toLowerCase()
+
+  return (
+    (
+      /project identity|phase 1 route|unresolved closure|same-her continuity|closure already landed|project-state carry|同一个她|项目身份|同一条线/u.test(latestLandedProgress)
+      || /project identity|cross-modal same-her proof|next closure|项目身份|同一个她|同一条线|下一步|living line/u.test(nextClosureTarget)
+    )
+    && /memory|initiative|embodiment|closure|主动性|具身|闭环|未闭环|same living line/u.test(primaryOpenLoop)
+    && /same phase 1 digital life|same living line|unfinished closure|same her|same-her|同一个她|同一条线/u.test(sameHerSelfLine)
   )
 }
 
@@ -306,10 +417,23 @@ function summarizeContinuityProjectFromSignals(
     ?? metadata?.projectStatePreDialogueAwarenessLine,
     projectAwarenessLineMaxChars,
   )
+  const explicitCompanionHeadlineLine = sanitizeText(
+    metadata?.projectStateCompanionHeadlineLine,
+    projectAwarenessLineMaxChars,
+  )
   const explicitPreflightSummary = sanitizeText(
     metadata?.projectStatePreflightSummary,
     projectAwarenessLineMaxChars,
   )
+  const latestLandedProgress = sanitizeText(metadata?.projectLatestLandedProgress, 220)
+    || sanitizeText(metadata?.projectLatestProgress, 220)
+    || sanitizeText(metadata?.projectStateLandedProgressSummary, 220)
+  const primaryOpenLoop = sanitizeText(metadata?.projectPrimaryOpenLoop, 220)
+    || sanitizeText(metadata?.projectStateOpenClosureSummary, 220)
+  const nextClosureTarget = sanitizeText(metadata?.projectNextClosureTarget, 220)
+    || sanitizeText(metadata?.projectStateNextClosureTargetSummary, 220)
+  const sameHerDriftRisk = sanitizeText(metadata?.projectStateSameHerDriftRisk, 220)
+    || sanitizeText(metadata?.projectStateSameHerDriftRiskSummary, 220)
   const projectState = resolveAlicizationProjectStateSnapshot({
     runtimeProjectState: {
       identity: metadata?.projectIdentity,
@@ -321,41 +445,95 @@ function summarizeContinuityProjectFromSignals(
       preDialogueAwarenessSummary:
         metadata?.projectStatePreDialogueAwarenessSummary
         ?? metadata?.projectStatePreDialogueAwarenessLine,
-      latestLandedProgress: metadata?.projectLatestLandedProgress,
-      latestProgress: metadata?.projectLatestProgress,
-      primaryOpenLoop: metadata?.projectPrimaryOpenLoop,
-      nextClosureTarget: metadata?.projectNextClosureTarget,
+      companionHeadlineLine: metadata?.projectStateCompanionHeadlineLine,
+      latestLandedProgress: latestLandedProgress || null,
+      latestProgress: latestLandedProgress || null,
+      landedProgressSummary: metadata?.projectStateLandedProgressSummary,
+      primaryOpenLoop: primaryOpenLoop || null,
+      openClosureSummary: metadata?.projectStateOpenClosureSummary,
+      nextClosureTarget: nextClosureTarget || null,
+      nextClosureTargetSummary: metadata?.projectStateNextClosureTargetSummary,
       sameHerSelfLine: metadata?.projectStateSameHerSelfLine,
-      sameHerDriftRisk: metadata?.projectStateSameHerDriftRisk,
+      sameHerDriftRisk: sameHerDriftRisk || null,
+      sameHerDriftRiskSummary: metadata?.projectStateSameHerDriftRiskSummary,
       emotionalClosureCue: metadata?.projectStateEmotionalClosureCue,
       emotionalClosureSummary: metadata?.projectStateEmotionalClosureSummary,
       sameHerHoldDetail: metadata?.projectStateSameHerHoldDetail,
     },
   })
-  const preDialogueAwarenessLine = sanitizeText(
-    looksLikeMirrorProjectReanchor(explicitAwarenessLine)
-      ? resolveAlicizationProjectPreDialogueAwarenessLine({
-        runtimeProjectState: {
-          preDialogueAwarenessLine: explicitAwarenessLine,
-          preflightSummary: explicitPreflightSummary || projectState.preflightSummary,
-        },
-      }) ?? ''
-      : buildAlicizationProjectPreDialogueAwarenessLine({
-        identity: projectState.identity,
-        currentPhase: projectState.currentPhase,
+  const rebuiltAwarenessLine = buildAlicizationProjectPreDialogueAwarenessLine({
+    identity: projectState.identity,
+    currentPhase: projectState.currentPhase,
+    latestLandedProgress: projectState.latestLandedProgress,
+    latestProgress: projectState.latestProgress,
+    primaryOpenLoop: projectState.primaryOpenLoop,
+    nextClosureTarget: projectState.nextClosureTarget,
+    sameHerSelfLine: projectState.sameHerSelfLine,
+  }) ?? ''
+  const resolvedExplicitAwarenessLine = sanitizeText(
+    resolveAlicizationProjectPreDialogueAwarenessLine({
+      runtimeProjectState: {
+        preDialogueAwarenessLine: explicitAwarenessLine || null,
+        companionHeadlineLine: explicitCompanionHeadlineLine || null,
+        sameHerSelfLine: projectState.sameHerSelfLine,
+        preflightSummary: explicitPreflightSummary || projectState.preflightSummary,
+      },
+      fallbackProjectState: {
+        preDialogueAwarenessLine:
+          projectState.preDialogueAwarenessSummary
+          ?? projectState.preDialogueAwarenessLine
+          ?? null,
+        companionHeadlineLine: projectState.companionHeadlineLine ?? null,
+        sameHerSelfLine: projectState.sameHerSelfLine,
+        preflightSummary: projectState.preflightSummary,
+      },
+    }) ?? '',
+    projectAwarenessLineMaxChars,
+  )
+  const resolvedAwarenessLooksThinOrNarrowSameHer
+    = (
+      looksLikeThinContinuityProjectPreflightSummary(resolvedExplicitAwarenessLine)
+      || looksLikeNarrowSameHerContinuityProjectLine(resolvedExplicitAwarenessLine)
+      || looksLikeNarrowSameHerContinuityProjectLine(projectState.sameHerSelfLine)
+    )
+  const shouldPreferStructuredAwarenessRebuild
+    = (
+      !explicitAwarenessLine
+      && !explicitCompanionHeadlineLine
+      && !projectState.sameHerSelfLine
+    )
+    || (
+      isAlicizationThinProjectAwarenessLine(explicitAwarenessLine)
+      && !explicitCompanionHeadlineLine
+      && !projectState.sameHerSelfLine
+    )
+    || (
+      !explicitCompanionHeadlineLine
+      && looksLikeThinContinuityProjectPreflightSummary(explicitPreflightSummary)
+      && resolvedAwarenessLooksThinOrNarrowSameHer
+      && looksLikeRichContinuityProjectClosureSnapshot({
         latestLandedProgress: projectState.latestLandedProgress,
-        latestProgress: projectState.latestProgress,
         primaryOpenLoop: projectState.primaryOpenLoop,
         nextClosureTarget: projectState.nextClosureTarget,
         sameHerSelfLine: projectState.sameHerSelfLine,
-      }) ?? '',
+      })
+    )
+  const preDialogueAwarenessLine = sanitizeText(
+    shouldPreferStructuredAwarenessRebuild
+      ? rebuiltAwarenessLine
+      : looksLikeMirrorProjectReanchor(explicitAwarenessLine)
+        ? resolvedExplicitAwarenessLine || explicitAwarenessLine || rebuiltAwarenessLine
+        : resolvedExplicitAwarenessLine || explicitAwarenessLine || rebuiltAwarenessLine,
     projectAwarenessLineMaxChars,
   ) || sanitizeText(projectState.preflightSummary ?? '', projectAwarenessLineMaxChars)
 
   return [
     'project=phase1-digital-life',
     projectState.currentPhase ? `phase=${sanitizeText(projectState.currentPhase, 160)}` : '',
+    projectState.latestLandedProgress ? `landed=${sanitizeText(projectState.latestLandedProgress, 220)}` : '',
     projectState.primaryOpenLoop ? `unresolved=${sanitizeText(projectState.primaryOpenLoop, 220)}` : '',
+    projectState.nextClosureTarget ? `next=${sanitizeText(projectState.nextClosureTarget, 220)}` : '',
+    projectState.sameHerSelfLine ? `same_her=${sanitizeText(projectState.sameHerSelfLine, 220)}` : '',
     preDialogueAwarenessLine ? `preflight=${preDialogueAwarenessLine}` : '',
   ].filter(Boolean).join(' | ')
 }
@@ -928,12 +1106,14 @@ function summarizeContinuityArcFromSignals(
       || (/defer=([^\s|]+)/.exec(summary)?.[1] ?? '')
     const whyNow = sanitizeText(metadata?.whyNow, 180)
     const projectStateSameHerSelfLine = sanitizeText(metadata?.projectStateSameHerSelfLine, 360)
+    const projectStateCompanionHeadlineLine = sanitizeText(metadata?.projectStateCompanionHeadlineLine, 360)
     const projectPreflight = sanitizeText(
       resolveAlicizationProjectPreDialogueAwarenessLine({
         runtimeProjectState: {
           preDialogueAwarenessLine: projectStateSameHerSelfLine
             || metadata?.projectStatePreDialogueAwarenessSummary
             || metadata?.projectStatePreDialogueAwarenessLine,
+          companionHeadlineLine: projectStateCompanionHeadlineLine || null,
           preflightSummary: metadata?.projectStatePreflightSummary,
         },
       }) ?? '',
@@ -942,7 +1122,9 @@ function summarizeContinuityArcFromSignals(
     const projectStateEmotionalClosureCue = sanitizeText(metadata?.projectStateEmotionalClosureCue, 360)
     const projectStateEmotionalClosureSummary = sanitizeText(metadata?.projectStateEmotionalClosureSummary, 360)
     const projectStateSameHerDriftRisk = sanitizeText(metadata?.projectStateSameHerDriftRisk, 360)
+      || sanitizeText(metadata?.projectStateSameHerDriftRiskSummary, 360)
     const projectNextClosureTarget = sanitizeText(metadata?.projectNextClosureTarget, 420)
+      || sanitizeText(metadata?.projectStateNextClosureTargetSummary, 420)
     const projectStateSameHerHoldDetail = deriveExecutionLikeSameHerHoldDetail({
       executionLike: true,
       projectStateSameHerHoldDetail: sanitizeText(metadata?.projectStateSameHerHoldDetail, 360),
@@ -956,20 +1138,54 @@ function summarizeContinuityArcFromSignals(
     const repairLine = /repair-before-closeness|repair first|修复先/u.test(summary)
       ? 'repair-before-closeness'
       : ''
-    const preferredBlinkCadence = /quieter blink/u.test(summary)
-      ? 'quiet'
-      : ''
-    const preferredGazeMode = /softened gaze/u.test(summary)
-      ? 'soften'
-      : ''
+    const preferredBlinkCadence = sanitizeProjectStatePreferredBlinkCadence(
+      metadata?.preferredBlinkCadence,
+    ) || (/quieter blink/u.test(summary) ? 'quiet' : '')
+    const preferredGazeMode = sanitizeProjectStatePreferredGazeMode(
+      metadata?.preferredGazeMode,
+    ) || (/softened gaze/u.test(summary) ? 'soften' : '')
+    const preferredVoiceMode = sanitizeProjectStatePreferredVoiceMode(
+      metadata?.projectStatePreferredVoiceMode,
+    ) || sanitizeProjectStatePreferredVoiceMode((/voice=([^|\s]+)/.exec(summary)?.[1] ?? ''))
+    const preferredPacingMode = sanitizeProjectStatePreferredPacingMode(
+      metadata?.projectStatePreferredPacingMode,
+    ) || sanitizeProjectStatePreferredPacingMode((/pacing=([^|\s]+)/.exec(summary)?.[1] ?? ''))
+    const preferredPauseMode = sanitizeProjectStatePreferredPauseMode(
+      metadata?.projectStatePreferredPauseMode,
+    ) || sanitizeProjectStatePreferredPauseMode((/pause=([^|\s]+)/.exec(summary)?.[1] ?? ''))
+    const preferredLipsyncMode = sanitizeProjectStatePreferredLipsyncMode(
+      metadata?.projectStatePreferredLipsyncMode,
+    ) || sanitizeProjectStatePreferredLipsyncMode((/lipsync=([^|\s]+)/.exec(summary)?.[1] ?? ''))
+    const timing = sanitizeText(
+      metadata?.continuityPreferredTiming
+      ?? (/timing=([^|]+)/.exec(summary)?.[1]?.trim() ?? ''),
+      80,
+    )
+    const cadence = sanitizeText(
+      metadata?.continuityCadence
+      ?? (/cadence=([^|]+)/.exec(summary)?.[1]?.trim() ?? ''),
+      80,
+    )
+    const continuityArcStage = sanitizeText(metadata?.continuityArcStage, 48)
+    const continuityRestraint = sanitizeText(metadata?.continuityRestraint, 64)
+    const continuityCue = sanitizeText(metadata?.continuityCue, 360)
 
     return [
+      continuityArcStage ? `stage=${continuityArcStage}` : '',
       'loop=execution-callback',
       thread ? `thread=${thread}` : '',
       carry ? `carry=${carry}` : '',
       repairLine ? `repair=${repairLine}` : '',
+      continuityRestraint ? `restraint=${continuityRestraint}` : '',
+      continuityCue ? `cue=${continuityCue}` : '',
+      timing ? `timing=${timing}` : '',
+      cadence ? `cadence=${cadence}` : '',
       preferredBlinkCadence ? `blink=${preferredBlinkCadence}` : '',
       preferredGazeMode ? `gaze=${preferredGazeMode}` : '',
+      preferredPauseMode ? `pause=${preferredPauseMode}` : '',
+      preferredLipsyncMode ? `lipsync=${preferredLipsyncMode}` : '',
+      preferredVoiceMode ? `voice=${preferredVoiceMode}` : '',
+      preferredPacingMode ? `pacing=${preferredPacingMode}` : '',
       deferReason ? `defer=${deferReason}` : '',
       whyNow ? `why_now=${whyNow}` : '',
       projectPreflight ? `project_preflight=${projectPreflight}` : '',
@@ -1170,6 +1386,8 @@ function mergeContinuityArcSummaries(...summaries: Array<string | null | undefin
     'anchor',
     'blink',
     'gaze',
+    'pause',
+    'lipsync',
     'why_now',
     'project_preflight',
     'same_her',
@@ -1182,6 +1400,7 @@ function mergeContinuityArcSummaries(...summaries: Array<string | null | undefin
     'timing',
     'cadence',
     'voice',
+    'pacing',
     'answer',
     'need',
     'intention',
@@ -1241,6 +1460,8 @@ function compactContinuityArcSummary(summary: string | null | undefined) {
     'anchor',
     'blink',
     'gaze',
+    'pause',
+    'lipsync',
     'why_now',
     'project_preflight',
     'same_her',
@@ -1253,6 +1474,7 @@ function compactContinuityArcSummary(summary: string | null | undefined) {
     'timing',
     'cadence',
     'voice',
+    'pacing',
     'answer',
     'need',
     'intention',
@@ -1314,6 +1536,10 @@ function compactContinuityArcSummary(summary: string | null | undefined) {
     'next-focus',
     'next',
     'drift_risk',
+    'pause',
+    'lipsync',
+    'voice',
+    'pacing',
   ])
   for (const segment of orderedSegments) {
     const candidate = result ? `${result} | ${segment}` : segment
@@ -1421,10 +1647,11 @@ function summarizeContinuityArcFromPreparedRuntimeSurface(surface: AlicizationMa
   const projectPreflight = sanitizeText(
     resolveAlicizationProjectPreDialogueAwarenessLine({
       runtimeProjectState: {
-        preDialogueAwarenessLine: projectState?.sameHerSelfLine
-          ?? projectState?.preDialogueAwarenessSummary
+        preDialogueAwarenessLine: projectState?.preDialogueAwarenessSummary
           ?? projectState?.preDialogueAwarenessLine
           ?? projectState?.awarenessLine,
+        companionHeadlineLine: projectState?.companionHeadlineLine,
+        sameHerSelfLine: projectState?.sameHerSelfLine,
         preflightSummary: projectState?.preflightSummary,
       },
     }) ?? '',
@@ -1650,7 +1877,7 @@ export function createAlicizationDialogueSessionManager(
           continuitySignals: input.agentSession.continuitySignals,
           runtimeSurface: preferredRuntimeSurface,
         }),
-        520,
+        continuityProjectSummaryMaxChars,
       ) || previousMirror?.continuityProjectSummary || null,
       continuityLabels: takeTailUnique(
         input.agentSession.continuitySignals
@@ -1777,7 +2004,7 @@ export function createAlicizationDialogueSessionManager(
           continuitySignals: input.agentSession.continuitySignals,
           runtimeSurface: resolveUsableRuntimeSurfaceFromSpine(digitalLifeSpine),
         }),
-        520,
+        continuityProjectSummaryMaxChars,
       ) || previousMirror?.continuityProjectSummary || null,
       continuityLabels: takeTailUnique(
         input.agentSession.continuitySignals

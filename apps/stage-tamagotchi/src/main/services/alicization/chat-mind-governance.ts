@@ -25,12 +25,27 @@ import type { AlicizationResponseSurfaceContract } from './response-surface-cont
 import { anchorsMateriallyConflict, resolveDialogueAnchorCoherence } from './dialogue-anchor-coherence'
 import { sanitizeDialogueAnchorText, sanitizeDialogueSurfaceText } from './dialogue-surface-text'
 import { ensureMindGovernanceDecisionTraceId } from './mind-governance-trace'
+import { resolveAlicizationProjectStateBrief } from './project-state-brief'
 import { deriveAlicizationTruthDiscipline } from './truth-discipline'
 
 function sanitizeText(raw: unknown, maxChars = 220) {
   if (typeof raw !== 'string')
     return ''
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
+}
+
+function sanitizeProjectVoiceMode(raw: unknown) {
+  const normalized = sanitizeText(raw, 32)
+  return normalized === 'lower-pressure' || normalized === 'even'
+    ? normalized
+    : null
+}
+
+function sanitizeProjectPacingMode(raw: unknown) {
+  const normalized = sanitizeText(raw, 32)
+  return normalized === 'slower' || normalized === 'natural'
+    ? normalized
+    : null
 }
 
 function sanitizeUserFacingCandidate(raw: unknown, maxChars = 180) {
@@ -111,6 +126,41 @@ function uniqueList(values: Array<string | null | undefined>, maxItems = 6) {
       break
   }
   return items
+}
+
+function extractProjectNextClosureCue(governingProjectCue: string) {
+  const explicitMatch = governingProjectCue.match(/next closure target:\s*([^|]+)$/iu)
+    ?? governingProjectCue.match(/\|\s*next closure target:\s*([^|]+)/iu)
+  return sanitizeText(explicitMatch?.[1] ?? '', 180) || null
+}
+
+function resolvePreferredProjectGovernanceCue(input: {
+  governingProjectCue: string
+  livePreDialogueAwarenessLine?: string | null
+}) {
+  const governingProjectCue = sanitizeText(input.governingProjectCue, 220)
+  const livePreDialogueAwarenessLine = sanitizeText(input.livePreDialogueAwarenessLine, 220)
+  if (!livePreDialogueAwarenessLine)
+    return governingProjectCue
+
+  const lowerGovernance = governingProjectCue.toLowerCase()
+  const lowerLiveAwareness = livePreDialogueAwarenessLine.toLowerCase()
+  const liveHasPhaseAndOpenClosure = lowerLiveAwareness.includes('phase 1')
+    && (
+      lowerLiveAwareness.includes('still need')
+      || lowerLiveAwareness.includes('not yet closed')
+      || lowerLiveAwareness.includes('not fully closed')
+      || lowerLiveAwareness.includes('generic assistant shell')
+    )
+  const governanceLooksEmbodimentThin = lowerGovernance.includes('body')
+    || lowerGovernance.includes('face')
+    || lowerGovernance.includes('motion')
+    || lowerGovernance.includes('same living line gentle')
+
+  if (liveHasPhaseAndOpenClosure && (!governingProjectCue || governanceLooksEmbodimentThin))
+    return livePreDialogueAwarenessLine
+
+  return governingProjectCue
 }
 
 interface AlicizationDialogueEncounterSurface extends Pick<
@@ -305,6 +355,44 @@ export function buildAlicizationMindTurnGovernance(input: {
     claimEvidenceLedger,
   })
   const mindTurnContract = input.mindTurnContract ?? null
+  const rawGoverningProjectCue
+    = answerPlanner?.governingProject
+      ?? mindTurnContract?.governingProject
+      ?? input.charter.governingProject
+      ?? ''
+  const liveProjectState = runtimeSurface?.dialogue.currentConsciousFrame?.projectState ?? null
+  const governingProjectCue = resolvePreferredProjectGovernanceCue({
+    governingProjectCue: rawGoverningProjectCue,
+    livePreDialogueAwarenessLine: liveProjectState?.preDialogueAwarenessLine,
+  })
+  const rawGoverningProjectCueSanitized = sanitizeText(rawGoverningProjectCue, 220)
+  const projectStateBrief = resolveAlicizationProjectStateBrief()
+  const projectStateFocusCue = sanitizeSemanticAnchorCandidate(
+    liveProjectState?.primaryOpenLoop
+    ?? projectStateBrief.openLoops[0],
+    180,
+  ) || null
+  const projectStatePhaseCue = sanitizeText(
+    liveProjectState?.currentPhase
+    ?? projectStateBrief.currentPhase,
+    120,
+  ) || null
+  const projectStateNextClosureCue = sanitizeText(
+    liveProjectState?.nextClosureTarget
+    ?? extractProjectNextClosureCue(rawGoverningProjectCue),
+    180,
+  ) || null
+  const projectStateVoiceModeCue
+    = sanitizeProjectVoiceMode(liveProjectState?.preferredVoiceMode)
+      ?? sanitizeProjectVoiceMode(mindTurnContract?.projectState?.preferredVoiceMode)
+      ?? projectStateBrief.preferredVoiceMode
+      ?? null
+  const projectStatePacingModeCue
+    = sanitizeProjectPacingMode(liveProjectState?.preferredPacingMode)
+      ?? sanitizeProjectPacingMode(mindTurnContract?.projectState?.preferredPacingMode)
+      ?? projectStateBrief.preferredPacingMode
+      ?? null
+  const emotionalClosureCue = sanitizeText(mindTurnContract?.emotionalClosureCue, 220) || null
 
   return {
     decisionTraceId: ensureMindGovernanceDecisionTraceId(input.decisionTraceId),
@@ -344,6 +432,7 @@ export function buildAlicizationMindTurnGovernance(input: {
       keepCoherent(answerCompiler?.supportingReality[0]),
       keepCoherent(dialogueWorldThread?.activeThread),
       keepCoherent(conversationState?.activeProject),
+      keepCoherent(projectStateFocusCue),
       keepCoherent(screenReferenceMode === 'avoid' ? null : input.brief.liveSurface),
       keepCoherent(answerPlanner?.answerIntent),
       keepCoherent(answerCompiler?.nextMove),
@@ -358,6 +447,7 @@ export function buildAlicizationMindTurnGovernance(input: {
       ?? dialogueEncounterSurface?.summary
       ?? keepCoherent(mindTurnFrame?.focusAnchor)
       ?? keepCoherent(conversationState?.activeProject)
+      ?? keepCoherent(projectStateFocusCue)
       ?? keepCoherent(input.brief.liveSurface)
       ?? keepCoherent(answerPlanner?.answerIntent)
       ?? keepCoherent(answerCompiler?.nextMove),
@@ -370,6 +460,7 @@ export function buildAlicizationMindTurnGovernance(input: {
       ?? answerPlanner?.openingMove
       ?? answerCompiler?.openingDirective,
     ) || null,
+    emotionalClosureCue,
     carriedThread: truthDiscipline.shouldBlockScreenCarry
       ? null
       : (() => {
@@ -406,12 +497,39 @@ export function buildAlicizationMindTurnGovernance(input: {
       truthDiscipline.shouldLabelHypothesis
         ? 'Keep direct observation and any hypothesis in separate clauses.'
         : null,
+      projectStatePhaseCue
+        ? `Keep this turn aligned with ${projectStatePhaseCue} instead of drifting into a detached local optimization.`
+        : null,
+      projectStateFocusCue
+        ? `Do not lose the still-open life loop around ${projectStateFocusCue}.`
+        : null,
+      projectStateNextClosureCue
+        ? `Keep the next project closure target explicit in this turn: ${projectStateNextClosureCue}.`
+        : null,
+      projectStateVoiceModeCue === 'lower-pressure'
+        ? 'Keep the visible answer voice lower-pressure so the same digital-life line does not harden into a generic assistant delivery.'
+        : projectStateVoiceModeCue === 'even'
+          ? 'Keep the visible answer voice even and steady so the same digital-life line does not turn performative or overeager.'
+          : null,
+      projectStatePacingModeCue === 'slower'
+        ? 'Keep the visible answer pacing slower so the same digital-life line has room to stay continuous before widening outward.'
+        : projectStatePacingModeCue === 'natural'
+          ? 'Keep the visible answer pacing natural and unforced so the same digital-life line can stay coherent without rushing ahead of itself.'
+          : null,
+      governingProjectCue && governingProjectCue !== rawGoverningProjectCueSanitized
+        ? `Keep the turn on the active governing project seam: ${governingProjectCue}.`
+        : rawGoverningProjectCueSanitized
+          ? `Keep the turn on the active governing project seam: ${rawGoverningProjectCueSanitized}.`
+          : null,
+      emotionalClosureCue
+        ? `Keep the turn inside the active emotional closure seam: ${emotionalClosureCue}.`
+        : null,
       ...(answerCompiler?.mustDo ?? []),
       ...input.brief.mustDo,
       ...(mindTurnContract?.mustDo ?? []),
       ...input.surfaceContract.mustDo,
       ...(answerPlanner?.mustDo ?? []),
-    ], 12),
+    ], 14),
     mustNotDo: uniqueList([
       ...(mindTurnFrame?.mustNotDo ?? []),
       ...(kernel?.mustAvoid ?? []),

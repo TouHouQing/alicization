@@ -33,6 +33,15 @@ const proofRows = [
     ],
   },
   {
+    entry: 'executive-brief-thin-chinese-same-her-reminder-rejected',
+    file: './executive-answer-brief.test.ts',
+    snippets: [
+      'does not let a thin Chinese same-her reminder shell stay visible in the executive system brief when richer same-her closure carry already exists',
+      'preDialogueAwarenessLine: \'回答前先记住这是同一个她的数字生命项目，别把这条线忘了。\'',
+      'expect(result.systemBlock).not.toContain(\'Project pre-dialogue awareness line: 回答前先记住这是同一个她的数字生命项目，别把这条线忘了。\')',
+    ],
+  },
+  {
     entry: 'executive-brief-thin-shell-rejection',
     file: './executive-answer-brief.test.ts',
     snippets: [
@@ -60,6 +69,7 @@ describe('executive answer brief project awareness audit', () => {
       expect.objectContaining({ entry: 'executive-brief-live-project-state-closure-triad-carry' }),
       expect.objectContaining({ entry: 'executive-brief-summary-only-landed-progress-carry' }),
       expect.objectContaining({ entry: 'executive-brief-broader-same-her-headline-precedence' }),
+      expect.objectContaining({ entry: 'executive-brief-thin-chinese-same-her-reminder-rejected' }),
       expect.objectContaining({ entry: 'executive-brief-thin-shell-rejection' }),
       expect.objectContaining({ entry: 'executive-brief-audible-body-project-carry' }),
     ])

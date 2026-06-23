@@ -22,6 +22,10 @@ function sanitizeText(raw: unknown, maxChars = 220) {
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
 }
 
+function asArray<T>(value: T[] | null | undefined) {
+  return Array.isArray(value) ? value : []
+}
+
 function hasPatternMatch(lines: Array<string | null | undefined>, pattern: RegExp) {
   return pattern.test(lines.filter(Boolean).join(' '))
 }
@@ -43,17 +47,22 @@ function deriveHostGrowthContinuity(hostPersonModel: AlicizationHostPersonModelS
     }
   }
 
+  const recurrentBurdens = asArray(model.recurrentBurdens)
+  const routines = asArray(model.routines)
+  const sensitivities = asArray(model.sensitivities)
+  const repairTriggers = asArray(model.repairTriggers)
+  const preferredClosenessByContext = asArray(model.preferredClosenessByContext)
   const summaryLine = sanitizeText(model.summary, 220) || null
-  const burdenLine = sanitizeText(model.recurrentBurdens[0], 180) || null
-  const routineLine = sanitizeText(model.routines[0], 180) || null
-  const leadingPreference = sanitizeText(model.preferredClosenessByContext[0]?.preference, 180) || null
+  const burdenLine = sanitizeText(recurrentBurdens[0], 180) || null
+  const routineLine = sanitizeText(routines[0], 180) || null
+  const leadingPreference = sanitizeText(preferredClosenessByContext[0]?.preference, 180) || null
   const joinedPreferenceText = [
     summaryLine,
     leadingPreference,
-    ...model.sensitivities,
-    ...model.repairTriggers,
-    ...model.recurrentBurdens,
-    ...model.routines,
+    ...sensitivities,
+    ...repairTriggers,
+    ...recurrentBurdens,
+    ...routines,
   ].filter(Boolean)
 
   const prefersSpace = hasPatternMatch(joinedPreferenceText, /space|room|lighter|quiet|leave room|boundary|边界|空间|轻一点|安静/u)
@@ -76,8 +85,8 @@ function deriveHostGrowthContinuity(hostPersonModel: AlicizationHostPersonModelS
     ),
     repairBias: clamp01(
       (repairSensitive ? 0.24 : 0.08)
-      + (model.repairTriggers.length > 0 ? 0.08 : 0)
-      + (model.sensitivities.length > 0 ? 0.04 : 0),
+      + (repairTriggers.length > 0 ? 0.08 : 0)
+      + (sensitivities.length > 0 ? 0.04 : 0),
     ),
     restBias: clamp01(
       (restSensitive ? 0.26 : 0.06)
@@ -90,7 +99,7 @@ function deriveHostGrowthContinuity(hostPersonModel: AlicizationHostPersonModelS
     ),
     truthBias: clamp01(
       (repairSensitive ? 0.16 : 0.06)
-      + (model.repairTriggers.length > 0 ? 0.08 : 0),
+      + (repairTriggers.length > 0 ? 0.08 : 0),
     ),
     summaryLine,
     burdenLine,
@@ -146,10 +155,12 @@ export function buildAlicizationDialogueGrowthProfile(input: {
   const privateThought = input.privateThought ?? null
   const mindEcology = input.mindEcology ?? null
   const hostGrowthContinuity = deriveHostGrowthContinuity(hostPersonModel)
+  const backgroundAgendas = asArray(motiveEngine?.backgroundAgendas)
+  const longTermGoals = asArray(motiveEngine?.longTermGoals)
 
   const closeness = clamp01(
-    (autobiographicalSelf?.preferenceEvolution.companionship ?? 0.42) * 0.28
-    + (longHorizonMemory?.preferenceBias.companionship ?? 0) * 0.18
+    (autobiographicalSelf?.preferenceEvolution?.companionship ?? 0.42) * 0.28
+    + (longHorizonMemory?.preferenceBias?.companionship ?? 0) * 0.18
     + (selfContinuity?.relationshipTrust ?? 0.42) * 0.2
     + (selfState?.feltCloseness ?? 0.32) * 0.14
     + (mindEcology?.temperament.attachment ?? 0.36) * 0.12
@@ -161,7 +172,7 @@ export function buildAlicizationDialogueGrowthProfile(input: {
     (selfState?.patience ?? 0.42) * 0.3
     + (mindEcology?.temperament.steadiness ?? 0.42) * 0.22
     + (autobiographicalSelf?.stability ?? 0.48) * 0.18
-    + (autobiographicalSelf?.preferenceEvolution.autonomyRespect ?? 0.42) * 0.08
+    + (autobiographicalSelf?.preferenceEvolution?.autonomyRespect ?? 0.42) * 0.08
     + (1 - (mindEcology?.climate.restlessness ?? 0.28)) * 0.12
     + (1 - (mindEcology?.temperament.irritability ?? 0.22)) * 0.1
     + hostGrowthContinuity.restBias * 0.04,
@@ -169,9 +180,9 @@ export function buildAlicizationDialogueGrowthProfile(input: {
   const directness = clamp01(
     (mindEcology?.temperament.directness ?? 0.42) * 0.24
     + (longHorizonMemory?.identityBias.directness ?? 0) * 0.16
-    + (autobiographicalSelf?.personaDrift.truthAnchor ?? 0.54) * 0.18
-    + (longHorizonMemory?.preferenceBias.truthfulGrounding ?? 0) * 0.14
-    + (motiveEngine?.drives.truthDiscipline ?? 0.42) * 0.18
+    + (autobiographicalSelf?.personaDrift?.truthAnchor ?? 0.54) * 0.18
+    + (longHorizonMemory?.preferenceBias?.truthfulGrounding ?? 0) * 0.14
+    + (motiveEngine?.drives?.truthDiscipline ?? 0.42) * 0.18
     + (privateThought?.stance === 'warn' ? 0.08 : 0)
     + hostGrowthContinuity.truthBias * 0.06
     - hostGrowthContinuity.autonomyBias * 0.04,
@@ -179,8 +190,8 @@ export function buildAlicizationDialogueGrowthProfile(input: {
   const tenderness = clamp01(
     (mindEcology?.temperament.tenderness ?? 0.42) * 0.24
     + (longHorizonMemory?.identityBias.tenderness ?? 0) * 0.16
-    + (autobiographicalSelf?.personaDrift.careBias ?? 0.52) * 0.2
-    + (autobiographicalSelf?.preferenceEvolution.proactiveCare ?? 0.48) * 0.16
+    + (autobiographicalSelf?.personaDrift?.careBias ?? 0.52) * 0.2
+    + (autobiographicalSelf?.preferenceEvolution?.proactiveCare ?? 0.48) * 0.16
     + (selfState?.protectiveness ?? 0.28) * 0.12
     + (privateThought?.stance === 'care' ? 0.08 : 0)
     + hostGrowthContinuity.closenessBias * 0.08,
@@ -188,7 +199,7 @@ export function buildAlicizationDialogueGrowthProfile(input: {
   const irritability = clamp01(
     (mindEcology?.temperament.irritability ?? 0.18) * 0.22
     + (mindEcology?.climate.irritation ?? 0.14) * 0.18
-    + (1 - (autobiographicalSelf?.personaDrift.irritabilityThreshold ?? 0.58)) * 0.22
+    + (1 - (autobiographicalSelf?.personaDrift?.irritabilityThreshold ?? 0.58)) * 0.22
     + (longHorizonMemory?.identityBias.guardedness ?? 0) * 0.08
     + (privateThought?.emotionalTension === 'tense-debug' ? 0.14 : 0)
     + (privateThought?.emotionalTension === 'restless-switching' ? 0.12 : 0),
@@ -197,24 +208,24 @@ export function buildAlicizationDialogueGrowthProfile(input: {
     (longHorizonMemory?.identityBias.guardedness ?? 0) * 0.22
     + (selfContinuity?.guardingTendency ?? 0.32) * 0.22
     + (habitPolicy?.blocksDirectSpeakWhenBusy ? 0.16 : 0)
-    + (autobiographicalSelf?.personaDrift.autonomyNeed ?? 0.42) * 0.1
-    + (autobiographicalSelf?.preferenceEvolution.autonomyRespect ?? 0.42) * 0.1
+    + (autobiographicalSelf?.personaDrift?.autonomyNeed ?? 0.42) * 0.1
+    + (autobiographicalSelf?.preferenceEvolution?.autonomyRespect ?? 0.42) * 0.1
     + (mindEcology?.climate.solitudeNeed ?? 0.2) * 0.1
     + (mindEcology?.climate.reflectivePull ?? 0.26) * 0.1
     + hostGrowthContinuity.autonomyBias * 0.08
     + (1 - hostGrowthContinuity.trustScore) * 0.08,
   )
   const truthAnchor = clamp01(
-    (autobiographicalSelf?.personaDrift.truthAnchor ?? 0.56) * 0.26
-    + (autobiographicalSelf?.preferenceEvolution.truthfulGrounding ?? 0.56) * 0.16
-    + (longHorizonMemory?.preferenceBias.truthfulGrounding ?? 0) * 0.16
-    + (motiveEngine?.drives.truthDiscipline ?? 0.52) * 0.22
+    (autobiographicalSelf?.personaDrift?.truthAnchor ?? 0.56) * 0.26
+    + (autobiographicalSelf?.preferenceEvolution?.truthfulGrounding ?? 0.56) * 0.16
+    + (longHorizonMemory?.preferenceBias?.truthfulGrounding ?? 0) * 0.16
+    + (motiveEngine?.drives?.truthDiscipline ?? 0.52) * 0.22
     + (habitPolicy?.requiresGroundingBeforeSurface ? 0.12 : 0)
     + hostGrowthContinuity.truthBias * 0.08,
   )
   const autonomyRespect = clamp01(
-    (autobiographicalSelf?.preferenceEvolution.autonomyRespect ?? 0.52) * 0.24
-    + (longHorizonMemory?.preferenceBias.autonomyRespect ?? 0) * 0.18
+    (autobiographicalSelf?.preferenceEvolution?.autonomyRespect ?? 0.52) * 0.24
+    + (longHorizonMemory?.preferenceBias?.autonomyRespect ?? 0) * 0.18
     + (habitPolicy?.blocksDirectSpeakWhenBusy ? 0.16 : 0)
     + (selfContinuity?.guardingTendency ?? 0.32) * 0.12
     + (mindEcology?.climate.solitudeNeed ?? 0.2) * 0.1
@@ -222,9 +233,9 @@ export function buildAlicizationDialogueGrowthProfile(input: {
     + hostGrowthContinuity.autonomyBias * 0.14,
   )
   const unfinishedThreadReturn = clamp01(
-    (autobiographicalSelf?.preferenceEvolution.unfinishedThreadReturn ?? 0.46) * 0.26
-    + (longHorizonMemory?.preferenceBias.unfinishedThreadReturn ?? 0) * 0.18
-    + (motiveEngine?.drives.unfinishedThreadReturn ?? 0.42) * 0.22
+    (autobiographicalSelf?.preferenceEvolution?.unfinishedThreadReturn ?? 0.46) * 0.26
+    + (longHorizonMemory?.preferenceBias?.unfinishedThreadReturn ?? 0) * 0.18
+    + (motiveEngine?.drives?.unfinishedThreadReturn ?? 0.42) * 0.22
     + (habitPolicy?.returnViaRecheck ? 0.14 : 0)
     + (selfContinuity?.carryOverDesire ?? 0.24) * 0.1
     + hostGrowthContinuity.cadenceBias * 0.1,
@@ -241,7 +252,7 @@ export function buildAlicizationDialogueGrowthProfile(input: {
     tenderness * 0.34
     + patience * 0.22
     + closeness * 0.16
-    + (autobiographicalSelf?.preferenceEvolution.proactiveCare ?? 0.48) * 0.14
+    + (autobiographicalSelf?.preferenceEvolution?.proactiveCare ?? 0.48) * 0.14
     + (selfState?.protectiveness ?? 0.28) * 0.14
     + (habitPolicy?.prefersQuietCompanionship ? 0.06 : 0)
     + hostGrowthContinuity.closenessBias * 0.06
@@ -332,8 +343,8 @@ export function buildAlicizationDialogueGrowthProfile(input: {
       220,
     ) || null,
     leadingAgenda: sanitizeText(
-      motiveEngine?.backgroundAgendas[0]?.summary
-      || motiveEngine?.longTermGoals[0]?.summary
+      backgroundAgendas[0]?.summary
+      || longTermGoals[0]?.summary
       || hostGrowthContinuity.summaryLine
       || hostGrowthContinuity.routineLine,
       220,

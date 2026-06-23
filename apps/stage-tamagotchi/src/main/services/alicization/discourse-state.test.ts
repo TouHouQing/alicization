@@ -165,6 +165,53 @@ describe('buildDiscourseState', () => {
     }))
   })
 
+  it('marks project-state continuity turns as one continuous her carrying the project line', () => {
+    const state = buildDiscourseState({
+      now: 13_500,
+      userText: '这个项目现在到底做到哪了，还差什么没闭环',
+      dialogueSemantics: {
+        act: 'ask-help',
+        responseNeed: 'answer',
+        truthExpectation: 'normal',
+        affectiveTone: 'neutral',
+        subjectPreference: 'alicization-self',
+        taskAnchor: null,
+        sharedAttentionDemand: 0.42,
+        personaSuppression: 0.36,
+        confidence: 0.91,
+        summary: 'The host is asking Alicization to carry the project line as one continuous her.',
+        source: 'hybrid',
+        reasonTags: ['project-state-continuity-question', 'dialogue-first-turn', 'scene-detached-turn'],
+      },
+      dialogueObligation: {
+        kind: 'answer',
+        summary: 'Answer the project continuity question from Alicization self continuity.',
+        confidence: 0.88,
+        mustRepairFirst: false,
+        mustAnswerDirectly: true,
+        mustStayTaskBound: false,
+        shouldAskClarifyingQuestion: false,
+        personaKernelMode: 'full',
+        narrative: [],
+      },
+      dialogueFocus: {
+        subject: 'alicization-self',
+        screenReferenceMode: 'avoid',
+        shouldBypassScreenRepair: true,
+        weakLiveScene: true,
+        focusSummary: 'The host wants Alicization to explain the project line from one continuous her.',
+        confidence: 0.9,
+        reasonTags: ['project-state-same-her-continuity'],
+      },
+    })
+
+    expect(state).not.toBeNull()
+    const resolvedState = state!
+    expect(resolvedState.currentTurnSubject).toBe('alicization-self')
+    expect(resolvedState.currentTurnSummary).toContain('one continuous her')
+    expect(resolvedState.narrative).toContain('project-state-same-her-continuity')
+  })
+
   it('does not let inspection carry override an already dialogue-first self turn', () => {
     const state = buildDiscourseState({
       now: 14_000,
@@ -423,5 +470,78 @@ describe('buildDiscourseState', () => {
       continuityMode: 'task-first',
     }))
     expect(state?.narrative).toContain('subject:task-knot')
+  })
+
+  it('does not let a released temporary-noise reflection become the ruptureRepair carry for the current turn', () => {
+    const state = buildDiscourseState({
+      now: 17_000,
+      userText: '这条 runtime same-her closure seam 现在到底哪里还没对齐？',
+      dialogueSemantics: {
+        act: 'ask-help',
+        responseNeed: 'repair',
+        truthExpectation: 'strict',
+        affectiveTone: 'neutral',
+        subjectPreference: 'task-knot',
+        taskAnchor: 'runtime same-her closure seam',
+        sharedAttentionDemand: 0.84,
+        personaSuppression: 0.72,
+        confidence: 0.86,
+        summary: 'The host is asking where the runtime same-her closure seam is still misaligned.',
+        source: 'hybrid',
+        reasonTags: ['scene-bound-turn'],
+      },
+      dialogueObligation: {
+        kind: 'repair',
+        summary: 'Repair the runtime same-her closure seam before answering.',
+        confidence: 0.88,
+        mustRepairFirst: true,
+        mustAnswerDirectly: true,
+        mustStayTaskBound: true,
+        shouldAskClarifyingQuestion: false,
+        personaKernelMode: 'muted',
+        narrative: [],
+      },
+      dialogueFocus: {
+        subject: 'task-knot',
+        screenReferenceMode: 'helpful',
+        shouldBypassScreenRepair: false,
+        weakLiveScene: false,
+        focusSummary: 'Stay on the runtime same-her closure seam.',
+        confidence: 0.88,
+        reasonTags: [],
+      },
+      reflectionLedger: {
+        latestEntryId: 'reflection::temporary-noise',
+        entries: [
+          {
+            id: 'reflection::temporary-noise',
+            summary: 'A temporary anxious wobble was already released and should not keep driving repair carry.',
+            expectation: 'Released noise should not become the current ruptureRepair carry.',
+            observedOutcome: 'The wobble has already been let go.',
+            outcome: 'released',
+            revision: 'Do not reopen from the temporary wobble.',
+            confidenceShift: 0.04,
+            createdAt: 16_800,
+          },
+          {
+            id: 'reflection::same-her-repair',
+            summary: 'The same-her repair line is still the meaningful continuity carry.',
+            expectation: 'The steadier repair line should stay active for the current turn.',
+            observedOutcome: 'The same living line still needs a measured return.',
+            outcome: 'missed',
+            revision: 'Keep the same-her repair line active instead of reopening from temporary noise.',
+            confidenceShift: -0.08,
+            createdAt: 16_200,
+          },
+        ],
+        revisionPressure: 0.22,
+        narrative: [],
+        updatedAt: 17_000,
+      } as any,
+    })
+
+    expect(state?.ruptureRepair).toBe('Keep the same-her repair line active instead of reopening from temporary noise.')
+    expect(state?.narrative).toContain('repair:Keep the same-her repair line active instead of reopening from temporary')
+    expect(state?.ruptureRepair).not.toContain('temporary wobble')
   })
 })

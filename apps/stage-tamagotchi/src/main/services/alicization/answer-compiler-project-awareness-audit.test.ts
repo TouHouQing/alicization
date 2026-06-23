@@ -52,6 +52,15 @@ const proofRows = [
       'Before answering, remember this callback still belongs to one same digital life',
     ],
   },
+  {
+    entry: 'answer-compiler-thin-chinese-same-her-reminder-rejected',
+    file: './answer-compiler.test.ts',
+    snippets: [
+      'does not let a thin Chinese same-her reminder shell survive into supporting reality when same-her closure carry is already explicit',
+      'preDialogueAwarenessLine: \'回答前先记住这是同一个她的数字生命项目，别把这条线忘了。\'',
+      'expect(projectAwarenessLine).not.toContain(\'回答前先记住这是同一个她的数字生命项目，别把这条线忘了。\')',
+    ],
+  },
 ] as const
 
 describe('answer compiler project awareness audit', () => {
@@ -62,6 +71,7 @@ describe('answer compiler project awareness audit', () => {
       expect.objectContaining({ entry: 'answer-compiler-proactive-gap-pre-dialogue-carry' }),
       expect.objectContaining({ entry: 'answer-compiler-drift-risk-anti-shell-carry' }),
       expect.objectContaining({ entry: 'answer-compiler-callback-same-her-closure-carry' }),
+      expect.objectContaining({ entry: 'answer-compiler-thin-chinese-same-her-reminder-rejected' }),
     ])
 
     expect(proofRows.every(row => row.snippets.length > 0)).toBe(true)

@@ -304,4 +304,32 @@ describe('dialogue-turn-encounter', () => {
     expect(encounter.summary).toBe('The host is working through a runtime diff.')
     expect(encounter.shouldBypassScreenRepair).toBe(false)
   })
+
+  it('surfaces project-state same-her continuity explicitly in encounter summaries', () => {
+    const encounter = buildDialogueTurnEncounter({
+      semantics: {
+        act: 'ask-help',
+        responseNeed: 'answer',
+        truthExpectation: 'normal',
+        affectiveTone: 'neutral',
+        subjectPreference: 'alicization-self',
+        taskAnchor: '这个项目现在是什么、做到什么程度了、还差什么没闭环？',
+        sharedAttentionDemand: 0.34,
+        personaSuppression: 0.46,
+        confidence: 0.82,
+        summary: 'The host is asking what this project is, what has landed, and what still remains open.',
+        source: 'hybrid',
+        reasonTags: ['project-state-continuity-question', 'dialogue-first-turn', 'scene-detached-turn'],
+      },
+      context: baseContext,
+      currentScene: weakCodingScene,
+      worldModel: baseWorldModel,
+      inspectionRequested: false,
+      inspectionState: 'dialogue-first',
+    })
+
+    expect(encounter.subject).toBe('alicization-self')
+    expect(encounter.summary).toContain('one continuous her line')
+    expect(encounter.reasonTags).toContain('project-state-continuity-question')
+  })
 })

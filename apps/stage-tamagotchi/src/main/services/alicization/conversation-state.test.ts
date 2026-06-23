@@ -544,4 +544,121 @@ describe('buildConversationState', () => {
     }))
     expect(state?.activeCommitments).toContain('Stay on the runtime branch.')
   })
+
+  it('does not let a released temporary-noise reflection become the carried owedRepair for a task thread', () => {
+    const state = buildConversationState({
+      now: 45_000,
+      userText: '你先看这条 runtime 线到底是不是还在同一条 closure 上',
+      dialogueSemantics: {
+        act: 'ask-help',
+        responseNeed: 'guide',
+        truthExpectation: 'strict',
+        affectiveTone: 'neutral',
+        taskAnchor: 'runtime same-her closure seam',
+        sharedAttentionDemand: 0.82,
+        personaSuppression: 0.68,
+        confidence: 0.84,
+        summary: 'The host wants help checking whether the runtime closure seam is still on the same living line.',
+        source: 'hybrid',
+        reasonTags: ['coding-question'],
+      },
+      discourseState: {
+        currentTurnSubject: 'task-knot',
+        screenReferenceMode: 'helpful',
+        currentTurnSummary: 'Stay on the runtime closure seam and carry only the meaningful repair line.',
+        currentQuestion: null,
+        owedAction: 'guide-task',
+        relationMove: 'guide',
+        continuityMode: 'task-first',
+        unresolvedCarry: 'The runtime same-her closure seam is still unresolved.',
+        ruptureRepair: null,
+        confidence: 0.86,
+        narrative: [],
+        updatedAt: 45_000,
+      },
+      worldModel: {
+        activeThread: {
+          id: 'thread::runtime-same-her',
+          kind: 'debugging',
+          status: 'active',
+          source: 'continuity',
+          title: 'runtime same-her closure seam',
+          summary: 'The runtime same-her closure seam is still unresolved.',
+          confidence: 0.84,
+          significance: 0.82,
+          unresolved: true,
+          beganAt: 0,
+          lastUpdatedAt: 45_000,
+          target: null,
+        },
+        lingeringThreads: [],
+        focusTarget: null,
+        epistemicState: {
+          certainty: 'observed',
+          freshness: 'recent',
+          seenNow: [],
+          inferredNow: [],
+          openQuestions: [],
+          staleRisks: [],
+        },
+        continuity: {
+          label: 'staying-with-thread',
+          sceneAgeMs: 20_000,
+          attentionAgeMs: 20_000,
+          sameSceneAsBefore: true,
+          sameAttentionAsBefore: true,
+          afterglowOpen: false,
+        },
+        hostState: {
+          availability: 'focused',
+          burden: 'moderate',
+        },
+        updatedAt: 45_000,
+      } as any,
+      reflectionLedger: {
+        latestEntryId: 'reflection::temporary-noise',
+        entries: [
+          {
+            id: 'reflection::temporary-noise',
+            summary: 'A temporary anxious wobble was already released and should not be carried as repair.',
+            expectation: 'Released noise should not become the current owed repair.',
+            observedOutcome: 'The wobble has already been let go.',
+            outcome: 'released',
+            revision: 'Do not reopen from the temporary wobble.',
+            confidenceShift: 0.04,
+            createdAt: 44_800,
+          },
+          {
+            id: 'reflection::same-her-repair',
+            summary: 'The same-her repair line is still the meaningful continuity carry.',
+            expectation: 'The steadier repair line should stay active for the current thread.',
+            observedOutcome: 'The same living line still needs a measured return.',
+            outcome: 'missed',
+            revision: 'Keep the same-her repair line active instead of reopening from temporary noise.',
+            confidenceShift: -0.08,
+            createdAt: 44_200,
+          },
+        ],
+        revisionPressure: 0.22,
+        narrative: [],
+        updatedAt: 45_000,
+      } as any,
+      privateThought: {
+        stance: 'observe',
+        confidence: 0.72,
+        rationaleTags: ['runtime'],
+        thoughtText: 'Stay with the runtime closure seam.',
+        shouldSpeak: true,
+        suggestedStyle: 'light-nudge',
+        embodiedPresence: 'attentive',
+        expiresAt: 90_000,
+        afterglowFromScenario: null,
+        emotionalTension: 'tense-debug',
+      },
+    })
+
+    expect(state?.owedRepair).toBe('Keep the same-her repair line active instead of reopening from temporary noise.')
+    expect(state?.memoryQueryHints.join(' | ')).toContain('Keep the same-her repair line active')
+    expect(state?.memoryQueryHints.join(' | ')).not.toContain('Do not reopen from the temporary wobble')
+  })
 })

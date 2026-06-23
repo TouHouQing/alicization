@@ -36,6 +36,10 @@ import {
   resolveAlicizationProjectStateBrief,
   resolveAlicizationProjectStateSnapshot,
 } from './project-state-brief'
+import {
+  deriveCompactProjectStateNextFocusSummary,
+  deriveCompactProjectStateOpenFocusSummary,
+} from './project-state-focus'
 
 function sanitizeText(raw: unknown, maxChars = 220) {
   if (typeof raw !== 'string')
@@ -370,6 +374,10 @@ export function buildAlicizationExecutiveAnswerBrief(input: {
       emotionalClosureCue: projectStateBrief.emotionalClosureCue ?? null,
       emotionalClosureSummary: projectStateBrief.emotionalClosureSummary ?? null,
       sameHerHoldDetail: projectStateBrief.sameHerHoldDetail ?? null,
+      preferredPauseMode: projectStateBrief.preferredPauseMode,
+      preferredLipsyncMode: projectStateBrief.preferredLipsyncMode,
+      preferredVoiceMode: projectStateBrief.preferredVoiceMode,
+      preferredPacingMode: projectStateBrief.preferredPacingMode,
     },
   })
   const liveProjectSameHerHoldDetail
@@ -430,6 +438,22 @@ export function buildAlicizationExecutiveAnswerBrief(input: {
     = sanitizeText((liveProjectState as { sameHerSelfLine?: unknown } | null)?.sameHerSelfLine, 320)
       || sanitizeText(normalizedProjectState.sameHerSelfLine, 320)
       || projectStateBrief.sameHerSelfLine
+  const preferredProjectPauseMode
+    = sanitizeText(normalizedProjectState.preferredPauseMode, 32)
+      || projectStateBrief.preferredPauseMode
+      || null
+  const preferredProjectLipsyncMode
+    = sanitizeText(normalizedProjectState.preferredLipsyncMode, 32)
+      || projectStateBrief.preferredLipsyncMode
+      || null
+  const preferredProjectVoiceMode
+    = sanitizeText(normalizedProjectState.preferredVoiceMode, 32)
+      || projectStateBrief.preferredVoiceMode
+      || null
+  const preferredProjectPacingMode
+    = sanitizeText(normalizedProjectState.preferredPacingMode, 32)
+      || projectStateBrief.preferredPacingMode
+      || null
   const preferredProjectLatestLandedProgressSource
     = resolveExecutiveProjectLatestLandedProgressSource({
       runtimeSurface,
@@ -440,6 +464,24 @@ export function buildAlicizationExecutiveAnswerBrief(input: {
       ? preferredProjectLatestLandedProgressSource
       : compactProjectLatestProgressForSystemBlock(preferredProjectLatestLandedProgressSource, 220)
         || preferredProjectLatestLandedProgressSource.slice(0, 220).trim()
+  const preferredProjectOpenFocusSummary = preferExecutiveProjectStateAuditText({
+    current: (liveProjectState as { openFocusSummary?: unknown } | null)?.openFocusSummary,
+    candidate: deriveCompactProjectStateOpenFocusSummary(
+      normalizedProjectState.primaryOpenLoop,
+      {
+        emotionalClosureCue: input.responseCharter.emotionalClosureCue ?? liveProjectEmotionalClosureSummary ?? null,
+      },
+    ),
+  })
+  const preferredProjectNextFocusSummary = preferExecutiveProjectStateAuditText({
+    current: (liveProjectState as { nextFocusSummary?: unknown } | null)?.nextFocusSummary,
+    candidate: deriveCompactProjectStateNextFocusSummary(
+      preferredProjectNextClosureTarget,
+      {
+        emotionalClosureCue: input.responseCharter.emotionalClosureCue ?? liveProjectEmotionalClosureSummary ?? null,
+      },
+    ),
+  })
   const executiveProjectLivingOrientation = [
     sanitizeText(normalizedProjectState.identity, 220) || projectStateBrief.identity,
     sanitizeText(preferredProjectLatestLandedProgressSource, 280)
@@ -665,12 +707,18 @@ export function buildAlicizationExecutiveAnswerBrief(input: {
       `Project phase: ${sanitizeText(normalizedProjectState.currentPhase, 220) || projectStateBrief.currentPhase}`,
       `Latest landed continuity progress: ${preferredProjectLatestLandedProgress}`,
       `Still-open life loop pressure: ${sanitizeText(normalizedProjectState.primaryOpenLoop, 320) || (projectStateBrief.openLoops[0] ?? 'Keep strengthening anthropomorphic memory closure.')}`,
+      `Open closure focus: ${preferredProjectOpenFocusSummary || 'none'}`,
       `Next closure target: ${preferredProjectNextClosureTarget}`,
+      `Next closure focus: ${preferredProjectNextFocusSummary || 'none'}`,
       `Emotional closure seam: ${input.responseCharter.emotionalClosureCue ?? liveProjectEmotionalClosureSummary ?? 'none'}.`,
       `Project emotional closure summary: ${liveProjectEmotionalClosureSummary || 'none'}.`,
       `Project same-her hold detail: ${liveProjectSameHerHoldDetail || 'none'}.`,
       `Project same-her self line: ${preferredProjectSameHerSelfLine}.`,
       `Project same-her drift risk: ${sameHerDriftRisk}`,
+      preferredProjectPauseMode ? `Project preferred pause mode: ${preferredProjectPauseMode}.` : '',
+      preferredProjectLipsyncMode ? `Project preferred lipsync mode: ${preferredProjectLipsyncMode}.` : '',
+      preferredProjectVoiceMode ? `Project preferred voice mode: ${preferredProjectVoiceMode}.` : '',
+      preferredProjectPacingMode ? `Project preferred pacing mode: ${preferredProjectPacingMode}.` : '',
       `Turn mode: ${brief.turnMode}.`,
       `Truth state: ${brief.truthState}.`,
       `Visible surface now: ${brief.liveSurface}.`,

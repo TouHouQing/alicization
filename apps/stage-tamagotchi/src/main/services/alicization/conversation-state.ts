@@ -63,7 +63,11 @@ function governingRepair(repairLedger?: AlicizationRepairLedgerSnapshot | null) 
 }
 
 function latestReflection(reflectionLedger?: AlicizationReflectionLedgerSnapshot | null) {
-  return reflectionLedger?.entries.find(entry => entry.id === reflectionLedger.latestEntryId)
+  const latest = reflectionLedger?.entries.find(entry => entry.id === reflectionLedger.latestEntryId)
+  if (latest && latest.outcome !== 'released')
+    return latest
+
+  return reflectionLedger?.entries.find(entry => entry.outcome !== 'released')
     ?? reflectionLedger?.entries[0]
     ?? null
 }

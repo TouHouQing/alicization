@@ -43,6 +43,29 @@ function uniqueLabels(values: Array<string | null | undefined>, maxItems = 12) {
   return labels
 }
 
+function buildProjectStateContinuitySummary(input: {
+  semantics: AlicizationDialogueTurnSemantics
+  focus: AlicizationDialogueFocusGovernance
+  obligation: AlicizationDialogueObligation
+}) {
+  if (!input.semantics.reasonTags.includes('project-state-continuity-question'))
+    return null
+
+  const continuityLine = 'from one continuous her line.'
+  const baseSummary = sanitizeText(
+    input.focus.focusSummary
+    || input.obligation.summary
+    || 'The host is asking Alicization to answer what this project is, what has landed, and what still remains open.',
+    160,
+  ) || 'The host is asking Alicization to answer what this project is, what has landed, and what still remains open.'
+
+  if (/one continuous her line/i.test(baseSummary))
+    return baseSummary
+
+  return sanitizeText(`${baseSummary.replace(/[.?!]\s*$/, '')} ${continuityLine}`, 180)
+    || 'The host is asking Alicization to answer what this project is, what has landed, and what still remains open from one continuous her line.'
+}
+
 export interface AlicizationDialogueTurnEncounter extends AlicizationDialogueTurnEncounterSnapshot {
   semantics: AlicizationDialogueTurnSemantics
   obligation: AlicizationDialogueObligation
@@ -109,7 +132,11 @@ export function buildDialogueTurnEncounter(input: {
     inspectionState: ownership.inspectionState,
     releaseInspectionCarry: ownership.releaseInspectionCarry,
     taskAnchor: input.semantics.taskAnchor ?? null,
-    summary: sanitizeText(
+    summary: buildProjectStateContinuitySummary({
+      semantics: input.semantics,
+      focus,
+      obligation,
+    }) || sanitizeText(
       focus.focusSummary
       || obligation.summary
       || input.semantics.summary

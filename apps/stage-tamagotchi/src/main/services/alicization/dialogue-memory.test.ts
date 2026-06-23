@@ -139,6 +139,32 @@ describe('buildDialogueTurnMemoryFragment', () => {
     expect(fragment).toBe('')
   })
 
+  it('returns empty for canonicalizable subconscious proactive turns', () => {
+    const fragment = buildDialogueTurnMemoryFragment({
+      payload: {
+        origin: ' SubConscious-Proactive ' as any,
+        userText: '',
+        assistantText: '我还在这里接着你。',
+      },
+      governance: {
+        turnMode: 'accompany',
+        truthState: 'remembered',
+        personaKernelMode: 'backgrounded',
+        openingStyle: 'light-accompaniment',
+        relationshipPosture: 'warm',
+        repairState: 'none',
+        suppressAssociativeRecall: false,
+        labelCarryAsMemory: false,
+        shouldAskForGrounding: false,
+        shouldAcknowledgeRepair: false,
+        maxSentences: 3,
+        mustDo: [],
+        mustNotDo: [],
+      },
+    })
+    expect(fragment).toBe('')
+  })
+
   it('prefers dialogue memory cues from the runtime surface', () => {
     const fragment = buildDialogueTurnMemoryFragment({
       payload: {

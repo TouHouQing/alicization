@@ -36,11 +36,22 @@ function sanitizeText(raw: unknown, maxChars = 220) {
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
 }
 
+function isProjectStateContinuityEncounter(input: {
+  dialogueSemantics?: AlicizationDialogueTurnSemantics | null
+  dialogueEncounter?: AlicizationDialogueEncounterSurface | null
+}) {
+  return input.dialogueSemantics?.reasonTags.includes('project-state-continuity-question')
+    || sanitizeText(input.dialogueEncounter?.summary, 220).toLowerCase().includes('one continuous her line')
+}
+
 function latestReflectionRevision(reflectionLedger?: AlicizationReflectionLedgerSnapshot | null) {
   const latest = reflectionLedger?.entries.find(entry => entry.id === reflectionLedger.latestEntryId)
-    ?? reflectionLedger?.entries[0]
-    ?? null
-  return sanitizeText(latest?.revision ?? '', 180) || null
+  const active = latest?.outcome !== 'released'
+    ? latest
+    : reflectionLedger?.entries.find(entry => entry.outcome !== 'released')
+      ?? reflectionLedger?.entries[0]
+      ?? null
+  return sanitizeText(active?.revision ?? '', 180) || null
 }
 
 function governingRepairSummary(repairLedger?: AlicizationRepairLedgerSnapshot | null) {
@@ -266,8 +277,15 @@ export function buildDiscourseState(input: {
     { source: 'thread', text: worldModel?.activeThread?.summary },
     { source: 'carry', text: dialogueFirst ? null : input.previous?.primaryTurnAnchor },
   ])
+  const projectStateContinuityTurn = isProjectStateContinuityEncounter({
+    dialogueSemantics,
+    dialogueEncounter: dialogueEncounterSurface,
+  })
   const currentTurnSummary = sanitizeText(
-    (dialogueFirst
+    (projectStateContinuityTurn
+      ? 'The host is asking Alicization to answer the project line from one continuous her, including what it is, what has landed, and what still remains open.'
+      : '')
+    || (dialogueFirst
       ? primaryTurnAnchor
       : '')
     || (dialogueFirst
@@ -309,6 +327,7 @@ export function buildDiscourseState(input: {
       `owed:${owedAction}`,
       `relation:${relationMove}`,
       `continuity:${continuityMode}`,
+      projectStateContinuityTurn ? 'project-state-same-her-continuity' : '',
       ownership ? 'ownership-ssot' : '',
       dialogueEncounterSurface?.shouldBypassScreenRepair || dialogueFocus?.shouldBypassScreenRepair ? 'bypass-screen-repair' : '',
       unresolvedCarry ? `carry:${sanitizeDialogueSurfaceText(unresolvedCarry, 72) || sanitizeText(unresolvedCarry, 72)}` : '',

@@ -202,4 +202,70 @@ describe('dialogue growth profile', () => {
     expect(withHostModel.currentPreoccupation).toContain('Late-night fatigue')
     expect(withHostModel.leadingAgenda).toContain('Focused work windows')
   })
+
+  it('keeps dialogue growth usable when host and motive carries lose array scaffolding', () => {
+    const profile = buildAlicizationDialogueGrowthProfile({
+      hostPersonModel: {
+        summary: 'Focused work windows still need room first.',
+        trustLadder: {
+          stage: 'warming',
+          score: 0.68,
+          rationale: 'steady repair-aware trust',
+        },
+      } as any,
+      motiveEngine: {
+        drives: {
+          truthDiscipline: 0.72,
+          unfinishedThreadReturn: 0.64,
+        },
+      } as any,
+      autobiographicalSelf: {
+        personaDrift: {
+          truthAnchor: 0.74,
+          careBias: 0.58,
+          irritabilityThreshold: 0.66,
+          autonomyNeed: 0.48,
+        },
+        preferenceEvolution: {
+          companionship: 0.56,
+          truthfulGrounding: 0.78,
+          proactiveCare: 0.52,
+          autonomyRespect: 0.54,
+          unfinishedThreadReturn: 0.62,
+        },
+        stability: 0.72,
+      } as any,
+      selfContinuity: {
+        relationshipTrust: 0.62,
+        guardingTendency: 0.3,
+        carryOverDesire: 0.56,
+      } as any,
+      selfState: {
+        feltCloseness: 0.54,
+        protectiveness: 0.48,
+        patience: 0.58,
+      } as any,
+      mindEcology: {
+        selfNarrative: 'Keep the same living line gentle and grounded.',
+        relationNarrative: 'Stay nearby without crowding.',
+        temperament: {
+          attachment: 0.58,
+          steadiness: 0.62,
+          directness: 0.44,
+          tenderness: 0.6,
+          irritability: 0.14,
+          playfulness: 0.18,
+        },
+        climate: {
+          socialNeed: 0.5,
+          solitudeNeed: 0.24,
+          restlessness: 0.2,
+          reflectivePull: 0.34,
+        },
+      } as any,
+    })
+
+    expect(profile.leadingAgenda).toContain('Focused work windows still need room first.')
+    expect(profile.selfLine).toContain('Keep the same living line gentle and grounded.')
+  })
 })
