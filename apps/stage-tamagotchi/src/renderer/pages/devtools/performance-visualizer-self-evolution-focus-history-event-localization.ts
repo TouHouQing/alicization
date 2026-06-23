@@ -1,13 +1,13 @@
 type EventLocalizationState = 'recommended' | 'candidate-anchor'
 
 interface SelfEvolutionComparisonSideLike {
-  capturedAt?: number | null
+  capturedAt?: number
   candidateId?: string | null
   decisionTraceId?: string | null
   activeThreadId?: string | null
   selectedCardId?: string | null
-  evidenceTargets?: string[]
   recommendedTraceEventId: string | null
+  evidenceTargets?: string[]
   traceTargets: string[]
 }
 
@@ -15,8 +15,6 @@ interface SelfEvolutionFocusHistoryComparisonLike {
   previous: SelfEvolutionComparisonSideLike
   current: SelfEvolutionComparisonSideLike
   focusCardChanged?: boolean
-  evidenceTargetsChanged?: boolean
-  traceTargetsChanged?: boolean
   traceEventChanged?: boolean
   evidenceGained?: string[]
   evidenceLost?: string[]

@@ -120,4 +120,63 @@ describe('performance visualizer self evolution focus history event localization
       selectedEventState: 'recommended',
     })
   })
+
+  it('keeps body-led continuity localization anchored on takeover plus person-state candidates when runtime continuity and selected trace event stay highlighted together', () => {
+    expect(buildSelfEvolutionFocusHistoryEventLocalization({
+      comparison: {
+        previous: {
+          capturedAt: 220,
+          candidateId: 'candidate-body-1',
+          decisionTraceId: 'trace-body-1',
+          activeThreadId: 'thread-body-1',
+          selectedCardId: 'repair-owner',
+          recommendedTraceEventId: 'event-person-state',
+          evidenceTargets: [
+            'renderer-authority-projection',
+          ],
+          traceTargets: [
+            'trace-timeline',
+          ],
+        },
+        current: {
+          capturedAt: 320,
+          candidateId: 'candidate-body-2',
+          decisionTraceId: 'trace-body-2',
+          activeThreadId: 'thread-body-2',
+          selectedCardId: 'repair-owner',
+          recommendedTraceEventId: 'event-takeover',
+          evidenceTargets: [
+            'renderer-authority-projection',
+            'runtime-continuity-projection',
+          ],
+          traceTargets: [
+            'trace-consumption',
+            'trace-timeline',
+            'selected-trace-event',
+          ],
+        },
+        focusCardChanged: false,
+        traceEventChanged: true,
+        evidenceGained: ['runtime-continuity-projection'],
+        evidenceLost: [],
+        traceTargetsGained: ['trace-consumption', 'selected-trace-event'],
+        traceTargetsLost: [],
+        summaryLines: [
+          '身体连续性：运行时连续性投影持续稳定，显形权威投影在相邻快照间反复出入，说明这段 same living segment 更像先由身体线继续托住。',
+        ],
+      },
+      selectedSide: 'current',
+      traceEvents: [
+        { id: 'event-governance', kind: 'governance-normalized', summary: 'turn=ambient | truth=bounded' },
+        { id: 'event-person-state', kind: 'person-state-updated', summary: 'sourceTrail=body-segment' },
+        { id: 'event-takeover', kind: 'takeover-audit', summary: 'body line still carries the living segment first' },
+      ],
+    })).toEqual({
+      timelineStates: {
+        'event-person-state': 'candidate-anchor',
+        'event-takeover': 'recommended',
+      },
+      selectedEventState: 'recommended',
+    })
+  })
 })
