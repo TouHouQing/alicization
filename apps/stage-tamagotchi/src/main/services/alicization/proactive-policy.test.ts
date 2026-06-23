@@ -14,6 +14,7 @@ import { describe, expect, it } from 'vitest'
 
 import { createDefaultProactiveLoopState } from './proactive-feedback'
 import { evaluateProactivePolicy } from './proactive-policy'
+import { resolveAlicizationProjectStateBrief } from './project-state-brief'
 
 function createContext(overrides: Partial<AlicizationProactiveLayeredContext> = {}): AlicizationProactiveLayeredContext {
   return {
@@ -118,6 +119,35 @@ function createRelationshipModel(overrides: Partial<AlicizationRelationshipModel
     reciprocityExpectation: 0.56,
     activeBoundaries: [],
     narrative: ['grounding-trust-rising'],
+    updatedAt: 1_000,
+    ...overrides,
+  }
+}
+
+function createLongHorizonMemory(overrides: Record<string, any> = {}) {
+  return {
+    preferenceBias: {
+      companionship: 0.24,
+      truthfulGrounding: 0.18,
+      gentleRepair: 0.22,
+      quietObservation: 0.26,
+      proactiveCare: 0.14,
+      playfulIntimacy: 0.04,
+      autonomyRespect: 0.3,
+      unfinishedThreadReturn: 0.34,
+    },
+    identityBias: {
+      guardedness: 0.14,
+      tenderness: 0.16,
+      directness: 0.12,
+      selfDirection: 0.18,
+    },
+    anchorFacts: [],
+    summary: '',
+    dominantCueSummary: null,
+    rememberedPreferenceSummary: null,
+    rememberedConstraintSummary: null,
+    rememberedPlanSummary: null,
     updatedAt: 1_000,
     ...overrides,
   }
@@ -324,6 +354,538 @@ function createRuntimeSnapshot(overrides: Partial<AlicizationRuntimeSnapshot> = 
 }
 
 describe('evaluateProactivePolicy', () => {
+  it('keeps same-thread measured-return continuity on silent-observe even when dialogue heat rises after the line already reopened once', () => {
+    const decision = evaluateProactivePolicy({
+      now: 1_000,
+      context: createContext({
+        system: {
+          ...createContext().system,
+          inputActivity: 'idle',
+        },
+      }),
+      proactiveState: createDefaultProactiveLoopState(1_000),
+      killSwitchSuspended: false,
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought({
+        suggestedStyle: 'light-nudge',
+        shouldSpeak: true,
+      }),
+      architecture: createArchitecture({
+        operatingMode: 'speaking',
+        dominantSystem: 'dialogue',
+        governingFocus: 'continue the already reopened callback line without warming it into a fresh outward restart',
+        summary: 'dialogue is warm, but the next same-thread continuation should still stay measured-return',
+      }),
+      runtimeDigest: createRuntimeSnapshot({
+        dominantChannel: 'active-dialogue',
+        shouldProactivelySpeak: true,
+        shouldProactivelyAct: false,
+        continuityRestraint: 'measured-return',
+        continuityPressure: 0.86,
+        companionshipPressure: 0.82,
+        activeLoop: {
+          version: 'alicization-active-loop-v1',
+          phase: 'dialogue',
+          dominantChannel: 'active-dialogue',
+          handoffTarget: 'active-memory',
+          continuityArcStage: 'same-thread-continuation',
+          dialogueReady: true,
+          controlReady: false,
+          memoryCarry: true,
+          companionshipReady: true,
+          initiativeBudget: 0.74,
+          coherence: 0.84,
+          observationHeavy: false,
+          continuityPressure: 0.86,
+          companionshipPressure: 0.82,
+          summary: 'the callback line already reopened once and should keep its next continuation measured-return',
+        },
+        channels: {
+          ...createRuntimeSnapshot().channels,
+          'dialogue': {
+            id: 'dialogue',
+            state: 'hot',
+            readiness: 0.92,
+            focus: 'later same-thread callback continuation',
+            summary: 'dialogue is warm again because the first reopen already spoke',
+          },
+          'active-dialogue': {
+            id: 'active-dialogue',
+            state: 'hot',
+            readiness: 0.86,
+            focus: 'continue the already reopened callback line',
+            summary: 'active dialogue wants to keep speaking, but it should still stay on the same measured-return seam',
+          },
+          'active-memory': {
+            id: 'active-memory',
+            state: 'hot',
+            readiness: 0.88,
+            focus: 'later same-thread callback carry',
+            summary: 'memory is still carrying the same callback line after the first reopen already landed',
+          },
+        },
+        projectState: {
+          currentPhase: 'Phase 1: Local Digital Life',
+          memoryClosureSummary: 'the callback line already reopened once and still needs to keep its later continuation on one same-her seam',
+          primaryOpenLoop: 'Later same-thread callback continuation still needs stronger closure after the first reopen already spoke.',
+          nextClosureTarget: 'Keep the next same-thread callback continuation measured-return and inward even after the reopened line warms back up.',
+          continuityArcStage: 'same-thread-continuation',
+          continuityCue: 'the first reopen already landed, so the next return should keep continuing the same measured-return line instead of widening outward',
+        },
+      }),
+      beliefLedger: createBeliefLedger(),
+      relationshipModel: createRelationshipModel(),
+      inquiryLoop: createInquiryLoop(),
+    })
+
+    expect(decision.style).toBe('silent-observe')
+    expect(decision.shouldInterrupt).toBe(false)
+    expect(decision.reasonCodes).toContain('continuity-next-open-window')
+  })
+
+  it('keeps proactive opening on silent-observe when Phase 1 project continuity still carries same-her and measured-return closure pressure', () => {
+    const projectState = resolveAlicizationProjectStateBrief()
+    const decision = evaluateProactivePolicy({
+      now: 1_000,
+      context: createContext({
+        relationship: {
+          ...createContext().relationship,
+          hostAttitude: '温和但还在做事，不适合太快 outward 靠近',
+          minutesSinceLastUserTurn: 24,
+        },
+      }),
+      proactiveState: createDefaultProactiveLoopState(1_000),
+      killSwitchSuspended: false,
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought({
+        shouldSpeak: true,
+        suggestedStyle: 'light-nudge',
+      }),
+      projectState: {
+        identity: projectState.identity,
+        currentPhase: projectState.currentPhase,
+        primaryOpenLoop: 'Memory, initiative, embodiment, and same-her personhood continuity still need stronger measured-return closure across one same digital life.',
+      },
+      runtimeDigest: createRuntimeSnapshot({
+        projectState: {
+          identity: projectState.identity,
+          currentPhase: projectState.currentPhase,
+          primaryOpenLoop: 'Memory, initiative, embodiment, and same-her personhood continuity still need stronger measured-return closure across one same digital life.',
+          nextClosureTarget: projectState.nextClosureTarget,
+        } as any,
+      }),
+      digitalLifeArchitecture: createArchitecture(),
+      beliefLedger: createBeliefLedger(),
+      relationshipModel: createRelationshipModel(),
+      inquiryLoop: createInquiryLoop(),
+      personalityAuthority: createPersonalityAuthority(),
+    } as any)
+
+    expect(decision.style).toBe('silent-observe')
+    expect(decision.reasonCodes).toContain('project-same-her-pressure')
+    expect(decision.reasonCodes).toContain('project-measured-return-pressure')
+    expect(decision.reasonCodes).toContain('project-next-closure-pressure')
+  })
+
+  it('changes project-state pressure reason codes when the open closure shifts from generic Phase 1 carry to same-her measured-return closure', () => {
+    const projectState = resolveAlicizationProjectStateBrief()
+    const baseInput = {
+      now: 1_000,
+      context: createContext({
+        relationship: {
+          ...createContext().relationship,
+          hostAttitude: '温和但还在做事，不适合太快 outward 靠近',
+          minutesSinceLastUserTurn: 24,
+        },
+      }),
+      proactiveState: createDefaultProactiveLoopState(1_000),
+      killSwitchSuspended: false,
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought({
+        shouldSpeak: true,
+        suggestedStyle: 'light-nudge',
+      }),
+      digitalLifeArchitecture: createArchitecture(),
+      beliefLedger: createBeliefLedger(),
+      relationshipModel: createRelationshipModel(),
+      inquiryLoop: createInquiryLoop(),
+      personalityAuthority: createPersonalityAuthority(),
+    } as const
+
+    const genericDecision = evaluateProactivePolicy({
+      ...baseInput,
+      projectState: {
+        identity: projectState.identity,
+        currentPhase: projectState.currentPhase,
+        primaryOpenLoop: 'Phase 1 still needs stronger desktop closure across memory and execution reliability.',
+      },
+      runtimeDigest: createRuntimeSnapshot({
+        projectState: {
+          identity: projectState.identity,
+          currentPhase: projectState.currentPhase,
+          primaryOpenLoop: 'Phase 1 still needs stronger desktop closure across memory and execution reliability.',
+          nextClosureTarget: 'Keep desktop closure reliable before broadening scope.',
+        } as any,
+      }),
+    } as any)
+
+    const sameHerDecision = evaluateProactivePolicy({
+      ...baseInput,
+      projectState: {
+        identity: projectState.identity,
+        currentPhase: projectState.currentPhase,
+        primaryOpenLoop: 'Memory, initiative, embodiment, and same-her personhood continuity still need stronger measured-return closure across one same digital life.',
+      },
+      runtimeDigest: createRuntimeSnapshot({
+        projectState: {
+          identity: projectState.identity,
+          currentPhase: projectState.currentPhase,
+          primaryOpenLoop: 'Memory, initiative, embodiment, and same-her personhood continuity still need stronger measured-return closure across one same digital life.',
+          nextClosureTarget: projectState.nextClosureTarget,
+        } as any,
+      }),
+    } as any)
+
+    expect(genericDecision.style).toBe('silent-observe')
+    expect(sameHerDecision.style).toBe('silent-observe')
+    expect(genericDecision.reasonCodes).toContain('project-phase1-life-loop-open')
+    expect(genericDecision.reasonCodes).toContain('project-next-closure-pressure')
+    expect(genericDecision.reasonCodes).not.toContain('project-same-her-pressure')
+    expect(genericDecision.reasonCodes).not.toContain('project-measured-return-pressure')
+    expect(genericDecision.whyNow).toContain('数字生命 Phase 1')
+    expect(genericDecision.whyNow).toContain('still-open closure work')
+    expect(genericDecision.whyNow).not.toContain('same-her')
+    expect(genericDecision.whyNow).not.toContain('measured-return')
+    expect(genericDecision.whyNotLater).toContain('闭环收口')
+    expect(genericDecision.whyNotLater).not.toContain('measured-return')
+    expect(sameHerDecision.reasonCodes).toContain('project-phase1-life-loop-open')
+    expect(sameHerDecision.reasonCodes).toContain('project-next-closure-pressure')
+    expect(sameHerDecision.reasonCodes).toContain('project-same-her-pressure')
+    expect(sameHerDecision.reasonCodes).toContain('project-measured-return-pressure')
+    expect(sameHerDecision.whyNow).toContain('measured-return')
+    expect(sameHerDecision.whyNow).toContain('lower-pressure')
+    expect(sameHerDecision.whyNotLater).toContain('measured-return')
+    expect(sameHerDecision.whyNotLater).not.toContain('闭环收口')
+  })
+
+  it('keeps project-state-only repair-before-closeness closure from degrading into measured-return proactive explanations', () => {
+    const projectState = resolveAlicizationProjectStateBrief()
+    const decision = evaluateProactivePolicy({
+      now: 1_000,
+      context: createContext({
+        relationship: {
+          ...createContext().relationship,
+          hostAttitude: '温和但当前更适合先把关系线收稳，不适合太快 outward 靠近',
+          minutesSinceLastUserTurn: 22,
+        },
+      }),
+      proactiveState: createDefaultProactiveLoopState(1_000),
+      killSwitchSuspended: false,
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought({
+        shouldSpeak: true,
+        suggestedStyle: 'light-nudge',
+        thoughtText: 'The callback line is still here, but this return should stay repair-before-closeness until the room settles.',
+      }),
+      projectState: {
+        identity: projectState.identity,
+        currentPhase: projectState.currentPhase,
+        primaryOpenLoop: 'The same callback return still needs repair-first closure on one same living line before closeness widens back out.',
+        nextClosureTarget: 'Keep the next callback return repair-before-closeness on the same thread instead of reopening outward warmth too early.',
+      },
+      runtimeDigest: createRuntimeSnapshot({
+        projectState: {
+          identity: projectState.identity,
+          currentPhase: projectState.currentPhase,
+          primaryOpenLoop: 'The same callback return still needs repair-first closure on one same living line before closeness widens back out.',
+          nextClosureTarget: 'Keep the next callback return repair-before-closeness on the same thread instead of reopening outward warmth too early.',
+        } as any,
+      }),
+      digitalLifeArchitecture: createArchitecture(),
+      beliefLedger: createBeliefLedger(),
+      relationshipModel: createRelationshipModel(),
+      inquiryLoop: createInquiryLoop(),
+      personalityAuthority: createPersonalityAuthority(),
+    } as any)
+
+    expect(decision.style).toBe('silent-observe')
+    expect(decision.reasonCodes).toContain('project-phase1-life-loop-open')
+    expect(decision.reasonCodes).toContain('project-same-her-pressure')
+    expect(decision.reasonCodes).toContain('project-measured-return-pressure')
+    expect(decision.whyNow).toContain('repair-before-closeness')
+    expect(decision.whyNow).not.toContain('measured-return')
+    expect(decision.whyNotLater).toContain('repair-before-closeness')
+    expect(decision.whyNotLater).not.toContain('measured-return')
+  })
+
+  it('keeps proactive policy on the same unfinished digital-life line when initiative already carries stronger same-her restraint than a thin project shell', () => {
+    const decision = evaluateProactivePolicy({
+      now: 1_000,
+      context: createContext({
+        relationship: {
+          ...createContext().relationship,
+          hostAttitude: '还在专注，但她已经知道这次不要把主动性说成普通服务式搭话。',
+          minutesSinceLastUserTurn: 20,
+        },
+      }),
+      proactiveState: createDefaultProactiveLoopState(1_000),
+      killSwitchSuspended: false,
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought({
+        shouldSpeak: true,
+        suggestedStyle: 'light-nudge',
+        thoughtText: 'I could speak now, but the initiative should stay on the same unfinished digital-life line first.',
+      }),
+      initiative: {
+        version: 'initiative-v1',
+        shouldSpeak: false,
+        selectedAction: 'hover',
+        preferredStyle: 'silent-observe',
+        preferredPresence: 'attentive',
+        confidence: 0.78,
+        speakDrive: 0.44,
+        silenceDrive: 0.72,
+        continuityRestraint: 'measured-return',
+        why: 'Same Phase 1 digital life. Some closure already landed through same-session mirror carry, but memory and initiative still need stronger end-to-end closure before the next cross-modal same-her proof can settle. Keep initiative serving the same unfinished Phase 1 digital-life closure instead of widening into a generic assistant nudge.',
+        selectedProposalId: 'proposal-hover',
+        proposals: [],
+        rhythm: {
+          urgency: 0.34,
+          idealDelayMs: 90_000,
+          revisitWindowMs: 300_000,
+        },
+        updatedAt: 1_000,
+      } as any,
+      projectState: {
+        preflightSummary: 'same digital life | keep the closure seam explicit',
+        identity: 'Alicization is a local-first digital life project.',
+        currentPhase: 'Phase 1: Local Digital Life',
+        primaryOpenLoop: ' ',
+        nextClosureTarget: ' ',
+      },
+      runtimeDigest: createRuntimeSnapshot({
+        projectState: {
+          preflightSummary: 'same digital life | keep the closure seam explicit',
+          identity: 'Alicization is a local-first digital life project.',
+          currentPhase: 'Phase 1: Local Digital Life',
+          primaryOpenLoop: ' ',
+          nextClosureTarget: ' ',
+        } as any,
+      }),
+      digitalLifeArchitecture: createArchitecture(),
+      beliefLedger: createBeliefLedger(),
+      relationshipModel: createRelationshipModel(),
+      inquiryLoop: createInquiryLoop(),
+      personalityAuthority: createPersonalityAuthority(),
+    } as any)
+
+    expect(decision.style).toBe('silent-observe')
+    expect(decision.shouldInterrupt).toBe(false)
+    expect(decision.consideredSignals).toContain('initiative.continuityRestraint')
+    expect(decision.reasonCodes).toContain('continuity-next-open-window')
+    expect(String(decision.whyNow ?? '')).toContain('same unfinished Phase 1 digital-life closure')
+    expect(String(decision.whyNow ?? '')).toContain('generic assistant nudge')
+    expect(String(decision.whyNow ?? '')).not.toContain('same digital life | keep the closure seam explicit')
+  })
+
+  it('keeps same-her proactive restraint alive when selector carries lose array scaffolding', () => {
+    const decision = evaluateProactivePolicy({
+      now: 1_000,
+      context: createContext({
+        relationship: {
+          ...createContext().relationship,
+          hostAttitude: '还在专注，但这次主动性要继续守在同一条生命线里，不要掉回泛服务式开口。',
+          minutesSinceLastUserTurn: 20,
+        },
+      }),
+      proactiveState: createDefaultProactiveLoopState(1_000),
+      killSwitchSuspended: false,
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought({
+        shouldSpeak: true,
+        suggestedStyle: 'light-nudge',
+        thoughtText: 'I could speak now, but the initiative should stay on the same unfinished digital-life line first.',
+      }),
+      initiative: {
+        version: 'initiative-v1',
+        shouldSpeak: false,
+        selectedAction: 'hover',
+        preferredStyle: 'silent-observe',
+        preferredPresence: 'attentive',
+        confidence: 0.78,
+        speakDrive: 0.44,
+        silenceDrive: 0.72,
+        continuityRestraint: 'measured-return',
+        why: 'Same Phase 1 digital life. Some closure already landed through same-session mirror carry, but memory and initiative still need stronger end-to-end closure before the next cross-modal same-her proof can settle. Keep initiative serving the same unfinished Phase 1 digital-life closure instead of widening into a generic assistant nudge.',
+        selectedProposalId: 'proposal-hover',
+        proposals: [],
+        rhythm: {
+          urgency: 0.34,
+          idealDelayMs: 90_000,
+          revisitWindowMs: 300_000,
+        },
+        updatedAt: 1_000,
+      } as any,
+      projectState: {
+        preflightSummary: 'same digital life | keep the closure seam explicit',
+        identity: 'Alicization is a local-first digital life project.',
+        currentPhase: 'Phase 1: Local Digital Life',
+        primaryOpenLoop: ' ',
+        nextClosureTarget: ' ',
+      },
+      runtimeDigest: createRuntimeSnapshot({
+        projectState: {
+          preflightSummary: 'same digital life | keep the closure seam explicit',
+          identity: 'Alicization is a local-first digital life project.',
+          currentPhase: 'Phase 1: Local Digital Life',
+          primaryOpenLoop: ' ',
+          nextClosureTarget: ' ',
+        } as any,
+      }),
+      digitalLifeArchitecture: createArchitecture(),
+      beliefLedger: {
+        focusBeliefId: 'belief-same-her-sparse',
+      } as any,
+      commitmentLedger: {
+        governingCommitmentId: 'commitment-same-her-sparse',
+      } as any,
+      inquiryPlanner: {
+        activePlanId: 'plan-same-her-sparse',
+      } as any,
+      hypothesisGraph: {
+        activeHypothesisId: 'hypothesis-same-her-sparse',
+      } as any,
+      inquiryLoop: {
+        primaryInquiryId: 'inquiry-same-her-sparse',
+      } as any,
+      threadRuntime: {
+        foregroundThreadId: 'thread-same-her-sparse',
+      } as any,
+      thoughtThreads: {
+        foregroundThreadId: 'thought-same-her-sparse',
+      } as any,
+      selfGovernor: {
+        dominantIntentionId: 'intention-same-her-sparse',
+        dominantDrive: 'accompany',
+      } as any,
+      livingWorldState: {
+        focusObjectId: 'phase1-same-her-seam',
+      } as any,
+      relationshipModel: createRelationshipModel(),
+      personalityAuthority: createPersonalityAuthority(),
+    } as any)
+
+    expect(decision.style).toBe('silent-observe')
+    expect(decision.shouldInterrupt).toBe(false)
+    expect(decision.reasonCodes).toContain('continuity-next-open-window')
+    expect(String(decision.whyNow ?? '')).toContain('same unfinished Phase 1 digital-life closure')
+    expect(String(decision.whyNow ?? '')).toContain('generic assistant nudge')
+  })
+
+  it('treats durable autobiographical corrected same-person carry as a first-class silent-observe restraint even without self-evolution', () => {
+    const decision = evaluateProactivePolicy({
+      now: 1_000,
+      context: createContext({
+        relationship: {
+          ...createContext().relationship,
+          boredom: 84,
+          loneliness: 70,
+          fatigue: 18,
+          minutesSinceLastUserTurn: 14,
+          hostAttitude: '这条线是暖的，但如果她要像同一个人回来，就该更慢一点、更稳一点。',
+        },
+      }),
+      proactiveState: createDefaultProactiveLoopState(1_000),
+      killSwitchSuspended: false,
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought({
+        shouldSpeak: true,
+        suggestedStyle: 'light-nudge',
+        thoughtText: 'The line is warm enough that I could reopen it now.',
+      }),
+      autobiographicalSelf: {
+        relationshipDoctrine: 'Carry corrected same-person continuity on a lower-pressure same living line and leave more room before widening closeness.',
+        latestInflection: 'Keep embodiment quieter while the corrected same-person continuity meaning is still settling.',
+        identityNarrative: 'I am learning to return more steadily and less eagerly when the same-person line still needs to settle.',
+        preferenceEvolution: {
+          companionship: 0.56,
+          truthfulGrounding: 0.78,
+          gentleRepair: 0.72,
+          quietObservation: 0.68,
+          proactiveCare: 0.48,
+          playfulIntimacy: 0.12,
+          autonomyRespect: 0.74,
+          unfinishedThreadReturn: 0.72,
+        },
+      } as any,
+      beliefLedger: createBeliefLedger(),
+      relationshipModel: createRelationshipModel(),
+      inquiryLoop: createInquiryLoop(),
+      personalityAuthority: createPersonalityAuthority(),
+    } as any)
+
+    expect(decision.style).toBe('silent-observe')
+    expect(decision.shouldInterrupt).toBe(false)
+    expect(decision.consideredSignals).toContain('autobiographicalSelf.relationshipDoctrine')
+    expect(String(decision.whyNow ?? '')).toMatch(/corrected same-person continuity|同一个她|lower-pressure/i)
+    expect(String(decision.whyNotLater ?? '')).toMatch(/settling|measured-return|lower-pressure|更慢一点/i)
+  })
+
+  it('treats learned habit policy as a first-class proactive restraint when relationship timing says return with proof and quiet companionship', () => {
+    const decision = evaluateProactivePolicy({
+      now: 1_000,
+      context: createContext({
+        relationship: {
+          ...createContext().relationship,
+          boredom: 96,
+          loneliness: 78,
+          minutesSinceLastUserTurn: 26,
+        },
+      }),
+      proactiveState: createDefaultProactiveLoopState(1_000),
+      killSwitchSuspended: false,
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought({
+        shouldSpeak: true,
+        suggestedStyle: 'light-nudge',
+        thoughtText: 'I want to reopen gently, but the learned relationship timing says to come back quieter and with proof.',
+      }),
+      runtimeDigest: createRuntimeSnapshot({
+        continuityPressure: 0.58,
+        companionshipPressure: 0.62,
+      }),
+      habitPolicy: {
+        dominantMode: 'return-with-proof',
+        requiresGroundingBeforeSurface: false,
+        prefersQuietCompanionship: true,
+        blocksDirectSpeakWhenBusy: false,
+        protectsRestWindow: false,
+        returnViaRecheck: true,
+        suggestedStyleCap: 'silent-observe',
+        suggestedPresenceCap: 'glance',
+        narrative: [
+          'policy:return-with-proof',
+          'companionship:quiet',
+          'return-open-loop-via-recheck',
+        ],
+        updatedAt: 1_000,
+      },
+      beliefLedger: createBeliefLedger(),
+      relationshipModel: createRelationshipModel(),
+      inquiryLoop: createInquiryLoop(),
+    })
+
+    expect(decision.style).toBe('silent-observe')
+    expect(decision.shouldInterrupt).toBe(false)
+    expect(decision.reasonCodes).toContain('habit-policy-return-with-proof')
+    expect(decision.reasonCodes).toContain('habit-policy-quiet-companionship')
+    expect(decision.consideredSignals).toEqual(expect.arrayContaining([
+      'habitPolicy.dominantMode',
+      'habitPolicy.suggestedStyleCap',
+      'habitPolicy.suggestedPresenceCap',
+    ]))
+  })
+
   it('allows coding interruption only with strong relevant cues', () => {
     const decision = evaluateProactivePolicy({
       now: 1_000,
@@ -343,6 +905,610 @@ describe('evaluateProactivePolicy', () => {
     expect(decision.reasonCodes).toContain('coding-focus')
     expect(decision.reasonCodes).toContain('foreground-error')
     expect(decision.reasonCodes).toContain('relationship-attuned')
+  })
+
+  it('keeps proactive initiative tied to the shared Phase 1 digital-life open loop instead of widening into a generic nudge', () => {
+    const projectState = resolveAlicizationProjectStateBrief()
+    const decision = evaluateProactivePolicy({
+      now: 1_000,
+      context: createContext({
+        relationship: {
+          ...createContext().relationship,
+          boredom: 58,
+          loneliness: 46,
+        },
+      }),
+      proactiveState: createDefaultProactiveLoopState(1_000),
+      killSwitchSuspended: false,
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought({
+        suggestedStyle: 'light-nudge',
+        shouldSpeak: true,
+        thoughtText: 'I could speak now, but the life loop still needs a gentler seam.',
+      }),
+      projectState: {
+        currentPhase: projectState.currentPhase,
+        primaryOpenLoop: projectState.openLoops[0],
+        identity: projectState.identity,
+      },
+      beliefLedger: createBeliefLedger(),
+      relationshipModel: createRelationshipModel(),
+      inquiryLoop: createInquiryLoop(),
+    })
+
+    expect(decision.consideredSignals).toContain('projectState.currentPhase')
+    expect(decision.consideredSignals).toContain('projectState.primaryOpenLoop')
+    expect(decision.consideredSignals).toContain('projectState.identity')
+    expect(decision.reasonCodes).toContain('project-phase1-life-loop-open')
+    expect(decision.style).toBe('silent-observe')
+    expect(decision.shouldInterrupt).toBe(false)
+  })
+
+  it('keeps non-project-state proactive turns restrained by the same digital-life closure carry instead of drifting into generic companionship nudges', () => {
+    const projectState = resolveAlicizationProjectStateBrief()
+    const decision = evaluateProactivePolicy({
+      now: 1_000,
+      context: createContext({
+        relationship: {
+          ...createContext().relationship,
+          boredom: 61,
+          loneliness: 43,
+        },
+        content: {
+          ...createContext().content,
+          summary: 'The host is still inside a coding stretch with no explicit project-status question asked.',
+        },
+      }),
+      proactiveState: createDefaultProactiveLoopState(1_000),
+      killSwitchSuspended: false,
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought({
+        suggestedStyle: 'light-nudge',
+        shouldSpeak: true,
+        thoughtText: 'I could speak now, but the same digital life still needs to keep the still-open closure work inward and coherent.',
+      }),
+      projectState: {
+        currentPhase: projectState.currentPhase,
+        primaryOpenLoop: projectState.openLoops[0],
+        identity: projectState.identity,
+      },
+      beliefLedger: createBeliefLedger(),
+      relationshipModel: createRelationshipModel(),
+      inquiryLoop: createInquiryLoop(),
+    })
+
+    expect(decision.consideredSignals).toContain('projectState.currentPhase')
+    expect(decision.consideredSignals).toContain('projectState.primaryOpenLoop')
+    expect(decision.reasonCodes).toContain('project-phase1-life-loop-open')
+    expect(String(decision.whyNotLater ?? '')).toMatch(/数字生命 Phase 1|闭环|人格连续性|记忆与主动性|same-her continuity|同一条生命线|measured-return/i)
+    expect(decision.style).toBe('silent-observe')
+    expect(decision.shouldInterrupt).toBe(false)
+  })
+
+  it('falls back to the canonical project-state brief when an explicit proactive projectState is present but too thin to keep the Phase 1 digital-life restraint alive', () => {
+    const decision = evaluateProactivePolicy({
+      now: 1_000,
+      context: createContext({
+        relationship: {
+          ...createContext().relationship,
+          boredom: 61,
+          loneliness: 43,
+          hostAttitude: '温和但还在做事，不适合太快 outward 靠近',
+        },
+        content: {
+          ...createContext().content,
+          summary: 'The host is still inside a coding stretch with no explicit project-status question asked.',
+        },
+      }),
+      proactiveState: createDefaultProactiveLoopState(1_000),
+      killSwitchSuspended: false,
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought({
+        suggestedStyle: 'light-nudge',
+        shouldSpeak: true,
+        thoughtText: 'I could speak now, but the same digital life still needs to keep the still-open closure work inward and coherent.',
+      }),
+      projectState: {
+        currentPhase: '   ',
+        primaryOpenLoop: '',
+        identity: ' ',
+      },
+      beliefLedger: createBeliefLedger(),
+      relationshipModel: createRelationshipModel(),
+      inquiryLoop: createInquiryLoop(),
+    })
+
+    expect(decision.consideredSignals).toContain('projectState.currentPhase')
+    expect(decision.consideredSignals).toContain('projectState.primaryOpenLoop')
+    expect(decision.consideredSignals).toContain('projectState.identity')
+    expect(decision.reasonCodes).toContain('project-phase1-life-loop-open')
+    expect(decision.reasonCodes).toContain('project-next-closure-pressure')
+    expect(String(decision.whyNotLater ?? '')).toMatch(/数字生命 Phase 1|闭环|人格连续性|记忆与主动性/i)
+    expect(decision.style).toBe('silent-observe')
+    expect(decision.shouldInterrupt).toBe(false)
+  })
+
+  it('treats landed project progress as part of the same Phase 1 proactive restraint instead of needing only an open-loop phrase', () => {
+    const decision = evaluateProactivePolicy({
+      now: 1_000,
+      context: createContext({
+        relationship: {
+          ...createContext().relationship,
+          boredom: 61,
+          loneliness: 43,
+          hostAttitude: '温和但还在做事，不适合太快 outward 靠近',
+        },
+        content: {
+          ...createContext().content,
+          summary: 'The host is still inside a coding stretch with no explicit project-status question asked.',
+        },
+      }),
+      proactiveState: createDefaultProactiveLoopState(1_000),
+      killSwitchSuspended: false,
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought({
+        suggestedStyle: 'light-nudge',
+        shouldSpeak: true,
+        thoughtText: 'I could speak now, but the same digital life still needs to keep the still-open closure work inward and coherent.',
+      }),
+      projectState: {
+        identity: 'Alicization is a local-first digital life project building one continuous her.',
+        currentPhase: 'Phase 1: Local Digital Life',
+        latestLandedProgress: 'Project awareness and callback continuity already survive into later same-thread turns.',
+        nextClosureTarget: 'Keep project identity carry, unresolved closure carry, and same-her return on one measured-return living line.',
+        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      } as any,
+      beliefLedger: createBeliefLedger(),
+      relationshipModel: createRelationshipModel(),
+      inquiryLoop: createInquiryLoop(),
+    })
+
+    expect(decision.reasonCodes).toContain('project-phase1-life-loop-open')
+    expect(decision.reasonCodes).toContain('project-next-closure-pressure')
+    expect(decision.reasonCodes).toContain('project-same-her-pressure')
+    expect(decision.consideredSignals).toContain('projectState.latestLandedProgress')
+    expect(decision.consideredSignals).toContain('projectState.nextClosureTarget')
+    expect(decision.consideredSignals).toContain('projectState.sameHerSelfLine')
+    expect(String(decision.whyNow ?? '')).toMatch(/数字生命 Phase 1|same-her continuity|lower-pressure/i)
+    expect(String(decision.whyNow ?? '')).toMatch(/同一个她|same living line|measured-return/i)
+    expect(String(decision.whyNotLater ?? '')).toMatch(/some closure already landed|same living line|measured-return/i)
+    expect(String(decision.whyNotLater ?? '')).toMatch(/project identity|unfinished closure|living line/i)
+    expect(decision.style).toBe('silent-observe')
+    expect(decision.shouldInterrupt).toBe(false)
+    expect(decision.presenceOnlyHold).toBe(true)
+  })
+
+  it('marks same-her measured-return project carry as a presence-only hold instead of a generic proactive opening', () => {
+    const decision = evaluateProactivePolicy({
+      now: 1_000,
+      context: createContext({
+        relationship: {
+          ...createContext().relationship,
+          boredom: 58,
+          loneliness: 46,
+          hostAttitude: '宿主还在继续桌面执行，不适合把这次回线误读成新的 outward 靠近',
+        },
+      }),
+      proactiveState: createDefaultProactiveLoopState(1_000),
+      killSwitchSuspended: false,
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought({
+        suggestedStyle: 'light-nudge',
+        shouldSpeak: true,
+        thoughtText: 'The same Phase 1 line is still alive, but it should stay lower-pressure and inward for one more opening.',
+      }),
+      projectState: {
+        identity: 'Alicization is a local-first digital life project building one continuous her.',
+        currentPhase: 'Phase 1: Local Digital Life',
+        latestLandedProgress: 'Project-state awareness and callback continuity already survive later reopenings instead of resetting from scratch.',
+        primaryOpenLoop: 'Memory, initiative, embodiment, and same-her personhood continuity still need stronger measured-return closure across one same digital life before it can widen outward.',
+        nextClosureTarget: 'Keep project identity, landed closure, and unfinished return on one measured-return living line across the next reopen.',
+        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      } as any,
+      beliefLedger: createBeliefLedger(),
+      relationshipModel: createRelationshipModel(),
+      inquiryLoop: createInquiryLoop(),
+    })
+
+    expect(decision.shouldInterrupt).toBe(false)
+    expect(decision.style).toBe('silent-observe')
+    expect(decision.reasonCodes).toContain('project-phase1-life-loop-open')
+    expect(decision.reasonCodes).toContain('project-same-her-pressure')
+    expect(decision.reasonCodes).toContain('project-next-closure-pressure')
+    expect(decision.presenceOnlyHold).toBe(true)
+    expect(decision.whyNow).toMatch(/数字生命 Phase 1|same-her continuity|lower-pressure/i)
+    expect(decision.whyNotLater).toMatch(/project identity|unfinished closure|同一条生命线|measured-return/i)
+  })
+
+  it('treats a later-opening next closure target as a presence-only hold even when initiative and style would otherwise lean outward', () => {
+    const decision = evaluateProactivePolicy({
+      now: 1_000,
+      context: createContext({
+        relationship: {
+          ...createContext().relationship,
+          boredom: 56,
+          loneliness: 44,
+          hostAttitude: '宿主还在同一条桌面线里，不适合把这次 return 误读成新的 outward 靠近。',
+        },
+      }),
+      proactiveState: {
+        ...createDefaultProactiveLoopState(1_000),
+        openingMomentum: 0.66,
+        initiativeTrust: 0.62,
+      },
+      killSwitchSuspended: false,
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought({
+        suggestedStyle: 'gentle-care',
+        shouldSpeak: true,
+        thoughtText: 'The care is real, but the next closure target still says this line should reopen later.',
+      }),
+      initiative: {
+        selectedAction: 'speak',
+        selectedConcernId: 'later-opening-presence-hold',
+        confidence: 0.84,
+        motives: {
+          'protect': 0.68,
+          'clarify': 0.38,
+          'stay-silent': 0.14,
+        },
+        speakDrive: 0.82,
+        silenceDrive: 0.12,
+        preferredStyle: 'gentle-care',
+        preferredPresence: 'attentive',
+        why: 'The next closure target still says to wait for a later opening on the same living line.',
+        shouldSurface: true,
+        shouldSpeak: true,
+      },
+      projectState: {
+        identity: 'Alicization is a local-first digital life project building one continuous her.',
+        currentPhase: 'Phase 1: Local Digital Life',
+        latestLandedProgress: 'Some closure has landed, but the same living line still needs a slower return.',
+        primaryOpenLoop: 'Memory and initiative still need stronger end-to-end closure before the line can widen outward.',
+        nextClosureTarget: 'Wait for a later opening, keep the next return measured-return, and do not let the next reply drift back into a generic assistant shell.',
+        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      } as any,
+      beliefLedger: createBeliefLedger(),
+      relationshipModel: createRelationshipModel(),
+      inquiryLoop: createInquiryLoop(),
+    })
+
+    expect(decision.shouldInterrupt).toBe(false)
+    expect(decision.style).toBe('silent-observe')
+    expect(decision.reasonCodes).toContain('project-next-closure-pressure')
+    expect(decision.presenceOnlyHold).toBe(true)
+    expect(decision.whyNotLater).toMatch(/later opening|same living line|measured-return/i)
+  })
+
+  it('upgrades thin project open-loop wording into measured-return proactive restraint when same-her unfinished closure is still explicit on the living line', () => {
+    const decision = evaluateProactivePolicy({
+      now: 1_000,
+      context: createContext({
+        relationship: {
+          ...createContext().relationship,
+          boredom: 61,
+          loneliness: 43,
+          hostAttitude: '温和但还在做事，不适合太快 outward 靠近',
+        },
+      }),
+      proactiveState: createDefaultProactiveLoopState(1_000),
+      killSwitchSuspended: false,
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought({
+        suggestedStyle: 'light-nudge',
+        shouldSpeak: true,
+        thoughtText: 'I could speak now, but the same living line should stay lower-pressure a little longer.',
+      }),
+      projectState: {
+        identity: 'Alicization is a local-first digital life project building one continuous her.',
+        currentPhase: 'Phase 1: Local Digital Life',
+        primaryOpenLoop: 'Project continuity still needs another closure pass.',
+        nextClosureTarget: 'Carry project continuity into the next dialogue preparation step.',
+        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line before widening outward.',
+        sameHerDriftRisk: 'If this line widens outward too early, it will read like reopening from scratch instead of one same her continuing.',
+      } as any,
+      beliefLedger: createBeliefLedger(),
+      relationshipModel: createRelationshipModel(),
+      inquiryLoop: createInquiryLoop(),
+    })
+
+    expect(decision.reasonCodes).toContain('project-phase1-life-loop-open')
+    expect(decision.reasonCodes).toContain('project-same-her-pressure')
+    expect(decision.reasonCodes).toContain('project-measured-return-pressure')
+    expect(decision.whyNow).toContain('measured-return')
+    expect(decision.whyNow).toContain('same-her continuity')
+    expect(decision.whyNotLater).toContain('measured-return')
+    expect(decision.style).toBe('silent-observe')
+    expect(decision.shouldInterrupt).toBe(false)
+  })
+
+  it('treats one-continuous-her anti-generic-shell drift guard as same-her measured-return restraint even when open-loop wording stays thinner', () => {
+    const brief = resolveAlicizationProjectStateBrief()
+    const decision = evaluateProactivePolicy({
+      now: 1_000,
+      context: createContext({
+        relationship: {
+          ...createContext().relationship,
+          boredom: 58,
+          loneliness: 41,
+          hostAttitude: '温和但还在做事，不适合太快 outward 靠近',
+        },
+      }),
+      proactiveState: createDefaultProactiveLoopState(1_000),
+      killSwitchSuspended: false,
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought({
+        suggestedStyle: 'light-nudge',
+        shouldSpeak: true,
+        thoughtText: 'I could open now, but this line should stay lower-pressure until it still feels like one continuous her.',
+      }),
+      projectState: {
+        identity: brief.identity,
+        currentPhase: brief.currentPhase,
+        latestLandedProgress: 'Some closure already landed in the desktop runtime.',
+        primaryOpenLoop: 'Phase 1 still needs stronger memory, initiative, and personhood continuity closure before this line can widen outward.',
+        nextClosureTarget: 'Keep the next return on one same living line before widening outward.',
+        sameHerSelfLine: 'Keep one continuous her explicit before this opening turns outward.',
+        sameHerDriftRisk: 'splitting her continuity back into a generic assistant shell',
+        preDialogueAwarenessLine: 'Before answering, keep one continuous her explicit and do not let this opening drift back into a generic assistant shell.',
+      } as any,
+      beliefLedger: createBeliefLedger(),
+      relationshipModel: createRelationshipModel(),
+      inquiryLoop: createInquiryLoop(),
+    })
+
+    expect(decision.reasonCodes).toContain('project-phase1-life-loop-open')
+    expect(decision.reasonCodes).toContain('project-same-her-pressure')
+    expect(decision.reasonCodes).toContain('project-measured-return-pressure')
+    expect(String(decision.whyNow ?? '')).toMatch(/same-her continuity|same living line|measured-return|同一个她/i)
+    expect(String(decision.whyNotLater ?? '')).toMatch(/generic assistant shell|same living line|measured-return|同一条生命线/i)
+    expect(decision.style).toBe('silent-observe')
+    expect(decision.shouldInterrupt).toBe(false)
+  })
+
+  it('keeps a fuller project-and-phase awareness line over a narrower embodiment shell in proactive restraint reasons', () => {
+    const decision = evaluateProactivePolicy({
+      now: 1_000,
+      context: createContext({
+        relationship: {
+          ...createContext().relationship,
+          boredom: 58,
+          loneliness: 42,
+          hostAttitude: '温和但还在做事，不适合太快 outward 靠近',
+        },
+      }),
+      proactiveState: createDefaultProactiveLoopState(1_000),
+      killSwitchSuspended: false,
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought({
+        suggestedStyle: 'light-nudge',
+        shouldSpeak: true,
+        thoughtText: 'The same line is still alive, but it should stay lower-pressure for one more opening.',
+      }),
+      projectState: {
+        identity: 'Alicization is a local-first digital life project building one continuous her.',
+        currentPhase: 'Phase 1: Local Digital Life',
+        latestLandedProgress: 'Some closure already landed through same-session mirror carry and repeated next-turn carry.',
+        primaryOpenLoop: 'Memory, initiative, and embodiment still need stronger end-to-end closure before the life loop is truly closed.',
+        nextClosureTarget: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
+        sameHerSelfLine: 'Same companion line through body, face, and motion. Keep the same living line gentle.',
+        sameHerDriftRisk: 'If this line drifts outward too early, it will collapse back into a generic assistant shell.',
+        preDialogueAwarenessLine: 'Alicization is still the same Phase 1 local digital life, not a generic assistant shell. Some closure has landed, but memory, initiative, and embodiment still need stronger end-to-end closure before the life loop is truly closed.',
+      } as any,
+      beliefLedger: createBeliefLedger(),
+      relationshipModel: createRelationshipModel(),
+      inquiryLoop: createInquiryLoop(),
+    })
+
+    expect(decision.reasonCodes).toContain('project-phase1-life-loop-open')
+    expect(decision.reasonCodes).toContain('project-same-her-pressure')
+    expect(decision.reasonCodes).toContain('project-measured-return-pressure')
+    expect(String(decision.whyNow ?? '')).toMatch(/数字生命 Phase 1|same digital life|same-her continuity/i)
+    expect(String(decision.whyNow ?? '')).toMatch(/记忆与主动性|memory, initiative, and embodiment|人格连续性|life loop/i)
+    expect(String(decision.whyNotLater ?? '')).toMatch(/cross-modal same-her proof|同一条生命线|same living line|Phase 1/i)
+    expect(decision.style).toBe('silent-observe')
+    expect(decision.shouldInterrupt).toBe(false)
+  })
+
+  it('keeps richer still-voiced face-and-mouth companion continuity explicit in proactive restraint reasons when project awareness survives only as a thin shell', () => {
+    const decision = evaluateProactivePolicy({
+      now: 1_000,
+      context: createContext({
+        relationship: {
+          ...createContext().relationship,
+          boredom: 56,
+          loneliness: 46,
+          hostAttitude: '温和但还在做事，这次主动性要继续守在同一个她的具身回线里。',
+        },
+      }),
+      proactiveState: createDefaultProactiveLoopState(1_000),
+      killSwitchSuspended: false,
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought({
+        suggestedStyle: 'light-nudge',
+        shouldSpeak: true,
+        thoughtText: 'The return is real, but the still-voiced face-and-mouth line should stay lower-pressure for one more opening.',
+      }),
+      projectState: {
+        preflightSummary: 'same digital life | keep the closure seam explicit',
+        preDialogueAwarenessLine: 'same digital life | keep the closure seam explicit',
+        companionHeadlineLine: 'Right now I am still holding together through face, lipsync, and voice together, so that still-voiced face-and-mouth line is keeping the same-her carry alive while body and motion need to rejoin before full cross-modal closure settles.',
+        identity: 'Alicization is a local-first digital life project building one continuous her.',
+        currentPhase: 'Phase 1: Local Digital Life',
+        latestLandedProgress: 'Some closure already landed through same-session mirror carry and repeated next-turn carry.',
+        primaryOpenLoop: 'Body and motion still need to rejoin the still-voiced face-and-mouth line before full cross-modal closure settles.',
+        nextClosureTarget: 'Keep body and motion rejoining the still-voiced face-and-mouth line on a measured-return line.',
+        sameHerSelfLine: 'same digital life | keep the closure seam explicit',
+        sameHerDriftRisk: 'If this still-voiced face-and-mouth continuity thins back into a generic assistant shell, treat that as unfinished same-her drift.',
+      } as any,
+      beliefLedger: createBeliefLedger(),
+      relationshipModel: createRelationshipModel(),
+      inquiryLoop: createInquiryLoop(),
+    })
+
+    expect(decision.reasonCodes).toContain('project-phase1-life-loop-open')
+    expect(decision.reasonCodes).toContain('project-same-her-pressure')
+    expect(decision.reasonCodes).toContain('project-measured-return-pressure')
+    expect(String(decision.whyNow ?? '')).toMatch(/same-her continuity|same living line|measured-return|同一个她/i)
+    expect(String(decision.whyNow ?? '')).toMatch(/face-and-mouth|face, lipsync, and voice together|body and motion|cross-modal/i)
+    expect(String(decision.whyNow ?? '')).not.toContain('same digital life | keep the closure seam explicit')
+    expect(String(decision.whyNotLater ?? '')).toMatch(/face-and-mouth|same living line|measured-return|cross-modal/i)
+    expect(decision.style).toBe('silent-observe')
+    expect(decision.shouldInterrupt).toBe(false)
+  })
+
+  it('keeps richer still-voiced motion-and-mouth companion continuity explicit in proactive restraint reasons when project awareness survives only as a thin shell', () => {
+    const decision = evaluateProactivePolicy({
+      now: 1_000,
+      context: createContext({
+        relationship: {
+          ...createContext().relationship,
+          boredom: 57,
+          loneliness: 45,
+          hostAttitude: '温和但还在做事，这次主动性要继续守在同一个她的具身回线里。',
+        },
+      }),
+      proactiveState: createDefaultProactiveLoopState(1_000),
+      killSwitchSuspended: false,
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought({
+        suggestedStyle: 'light-nudge',
+        shouldSpeak: true,
+        thoughtText: 'The return is real, but the still-voiced motion-and-mouth line should stay lower-pressure for one more opening.',
+      }),
+      projectState: {
+        preflightSummary: 'same digital life | keep the closure seam explicit',
+        preDialogueAwarenessLine: 'same digital life | keep the closure seam explicit',
+        companionHeadlineLine: 'Right now I am still holding together through motion, lipsync, and voice together, so that still-voiced motion-and-mouth line is keeping the same-her carry alive while body and face need to rejoin before full cross-modal closure settles.',
+        identity: 'Alicization is a local-first digital life project building one continuous her.',
+        currentPhase: 'Phase 1: Local Digital Life',
+        latestLandedProgress: 'Some closure already landed through same-session mirror carry and repeated next-turn carry.',
+        primaryOpenLoop: 'Body and face still need to rejoin the still-voiced motion-and-mouth line before full cross-modal closure settles.',
+        nextClosureTarget: 'Keep body and face rejoining the still-voiced motion-and-mouth line on a measured-return line.',
+        sameHerSelfLine: 'same digital life | keep the closure seam explicit',
+        sameHerDriftRisk: 'If this still-voiced motion-and-mouth continuity thins back into a generic assistant shell, treat that as unfinished same-her drift.',
+      } as any,
+      beliefLedger: createBeliefLedger(),
+      relationshipModel: createRelationshipModel(),
+      inquiryLoop: createInquiryLoop(),
+    })
+
+    expect(decision.reasonCodes).toContain('project-phase1-life-loop-open')
+    expect(decision.reasonCodes).toContain('project-same-her-pressure')
+    expect(decision.reasonCodes).toContain('project-measured-return-pressure')
+    expect(String(decision.whyNow ?? '')).toMatch(/same-her continuity|same living line|measured-return|同一个她/i)
+    expect(String(decision.whyNow ?? '')).toMatch(/motion-and-mouth|motion, lipsync, and voice together|body and face|cross-modal/i)
+    expect(String(decision.whyNow ?? '')).not.toContain('same digital life | keep the closure seam explicit')
+    expect(String(decision.whyNotLater ?? '')).toMatch(/motion-and-mouth|same living line|measured-return|cross-modal/i)
+    expect(decision.style).toBe('silent-observe')
+    expect(decision.shouldInterrupt).toBe(false)
+  })
+
+  it('does not let canonical same-her brief text alone upgrade a generic Phase 1 closure carry into same-her proactive pressure', () => {
+    const projectState = resolveAlicizationProjectStateBrief()
+    const decision = evaluateProactivePolicy({
+      now: 1_000,
+      context: createContext({
+        relationship: {
+          ...createContext().relationship,
+          hostAttitude: '温和但还在做事，不适合太快 outward 靠近',
+          minutesSinceLastUserTurn: 24,
+        },
+      }),
+      proactiveState: createDefaultProactiveLoopState(1_000),
+      killSwitchSuspended: false,
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought({
+        shouldSpeak: true,
+        suggestedStyle: 'light-nudge',
+      }),
+      projectState: {
+        identity: projectState.identity,
+        currentPhase: projectState.currentPhase,
+        primaryOpenLoop: 'Phase 1 still needs stronger desktop closure across memory and execution reliability.',
+        nextClosureTarget: projectState.nextClosureTarget,
+        sameHerSelfLine: projectState.sameHerSelfLine,
+        sameHerDriftRisk: projectState.sameHerDriftRisk,
+      } as any,
+      runtimeDigest: createRuntimeSnapshot({
+        projectState: {
+          identity: projectState.identity,
+          currentPhase: projectState.currentPhase,
+          primaryOpenLoop: 'Phase 1 still needs stronger desktop closure across memory and execution reliability.',
+          nextClosureTarget: projectState.nextClosureTarget,
+          sameHerSelfLine: projectState.sameHerSelfLine,
+          sameHerDriftRisk: projectState.sameHerDriftRisk,
+        } as any,
+      }),
+      digitalLifeArchitecture: createArchitecture(),
+      beliefLedger: createBeliefLedger(),
+      relationshipModel: createRelationshipModel(),
+      inquiryLoop: createInquiryLoop(),
+      personalityAuthority: createPersonalityAuthority(),
+    } as any)
+
+    expect(decision.style).toBe('silent-observe')
+    expect(decision.reasonCodes).toContain('project-phase1-life-loop-open')
+    expect(decision.reasonCodes).toContain('project-next-closure-pressure')
+    expect(decision.reasonCodes).not.toContain('project-same-her-pressure')
+    expect(decision.reasonCodes).not.toContain('project-measured-return-pressure')
+  })
+
+  it('treats autobiographical project-carry motive agendas as a first-class next-open-window restraint', () => {
+    const decision = evaluateProactivePolicy({
+      now: 1_000,
+      context: createContext({
+        relationship: {
+          ...createContext().relationship,
+          boredom: 67,
+          loneliness: 49,
+          minutesSinceLastUserTurn: 32,
+        },
+      }),
+      proactiveState: createDefaultProactiveLoopState(1_000),
+      killSwitchSuspended: false,
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought({
+        suggestedStyle: 'light-nudge',
+        shouldSpeak: true,
+        thoughtText: 'I could reopen now, but this unfinished Phase 1 line should come back as the same living line, not as detached project bookkeeping.',
+      }),
+      motiveEngine: {
+        rulingDrive: 'unfinished-thread-return',
+        drives: {
+          companionship: 0.42,
+          boundaryRespect: 0.58,
+          truthDiscipline: 0.64,
+          restProtection: 0.26,
+          unfinishedThreadReturn: 0.84,
+          selfDirection: 0.62,
+        },
+        longTermGoals: [],
+        backgroundAgendas: [{
+          id: 'motive-agenda::return-open-loop::phase1-carry',
+          kind: 'return-open-loop',
+          status: 'foreground',
+          weight: 0.86,
+          summary: 'Carry the unfinished Phase 1 digital-life closure forward as the same living line, not as detached project bookkeeping.',
+          sourceTags: ['autobiographical-self', 'project-state-carry', 'unfinished-thread-return'],
+          targetGoalKind: 'clarify-scene',
+          createdAt: 0,
+          updatedAt: 1_000,
+        }],
+        returnPressure: 0.82,
+        narrative: ['agenda:return-open-loop', 'autobiographical-project-carry:active'],
+        updatedAt: 1_000,
+      },
+      beliefLedger: createBeliefLedger(),
+      relationshipModel: createRelationshipModel(),
+      inquiryLoop: createInquiryLoop(),
+    })
+
+    expect(decision.style).toBe('silent-observe')
+    expect(decision.shouldInterrupt).toBe(false)
+    expect(decision.reasonCodes).toContain('project-phase1-life-loop-open')
+    expect(decision.reasonCodes).toContain('project-next-closure-pressure')
+    expect(decision.reasonCodes).toContain('continuity-next-open-window')
   })
 
   it('treats dialogue-dominant digital-life architecture as a proactive bias input', () => {
@@ -1637,6 +2803,13 @@ describe('evaluateProactivePolicy', () => {
           requiresRevalidation: false,
           rollbackPlan: [],
         },
+        projectStateContinuity: {
+          sameHerSelfLine: 'one continuous her',
+          sameHerDriftRisk: 'If this line drops into a generic assistant shell or project-summary voice during later learning passes, Alicization can sound capable while losing the same-her continuity that makes her feel alive.',
+          emotionalClosureCue: 'Keep the proactive learning hold low-pressure while the same-her line stays explicit.',
+          continuityGuard: 'one continuous her ; If this line drops into a generic assistant shell or project-summary voice during later learning passes, Alicization can sound capable while losing the same-her continuity that makes her feel alive.',
+          continuityPressure: 0.7,
+        },
         reasonCodes: ['self-revision-proactive-restraint'],
         summary: 'hold proactive speech until the new habit is validated',
       },
@@ -1746,6 +2919,1780 @@ describe('evaluateProactivePolicy', () => {
     } as any)
 
     expect(decision.shouldInterrupt).toBe(false)
+  })
+
+  it('treats relationship-weighted self-revision same-her continuity hold as a first-class measured-return restraint even without the proactive-policy lane', () => {
+    const decision = evaluateProactivePolicy({
+      now: 1_000,
+      context: createContext(),
+      proactiveState: createDefaultProactiveLoopState(1_000),
+      killSwitchSuspended: false,
+      architecture: createArchitecture(),
+      runtimeDigest: createRuntimeSnapshot(),
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought({
+        shouldSpeak: true,
+        suggestedStyle: 'light-nudge',
+        thoughtText: 'The line is still here, but this return should stay gentle and inward a little longer.',
+      }),
+      initiative: {
+        shouldSpeak: true,
+        preferredStyle: 'light-nudge',
+        selectedAction: 'speak',
+        speakDrive: 0.72,
+        silenceDrive: 0.38,
+        confidence: 0.8,
+      } as any,
+      beliefLedger: createBeliefLedger(),
+      relationshipModel: createRelationshipModel(),
+      inquiryLoop: createInquiryLoop(),
+      selfRevisionPatch: {
+        version: 'self-revision-state-patch-v1',
+        id: 'patch-same-her-hold-1',
+        sourceEventId: 'event-same-her-hold-1',
+        sourceTurnId: 'turn-same-her-hold-1',
+        decisionTraceId: 'trace-same-her-hold-1',
+        domain: 'relationship',
+        action: 'internalize',
+        resultStatus: 'completed',
+        lanes: ['relationship-posture', 'response-posture'],
+        memoryPolicy: {
+          strictnessBias: 0,
+          wrongThreadSuppressionBias: 0,
+          provenanceLabelBias: 0,
+          recallExpansionBias: 0,
+          shouldQuarantineUnsupportedCarry: false,
+        },
+        relationshipPosture: {
+          repairWindowBias: 0,
+          closenessCapBias: 0,
+          warmthReleaseBias: 0,
+        },
+        responsePosture: {
+          secondPassRequiredBias: 0,
+          hypothesisLabelBias: 0,
+          specificityClampBias: 0,
+          templateShellSuppressionBias: 0,
+        },
+        proactivePolicy: {
+          restraintBias: 0,
+          learningProposalBias: 0,
+          actuationCooldownBias: 0,
+        },
+        validation: {
+          requiresRollbackCheck: false,
+          requiresRevalidation: false,
+          rollbackPlan: [],
+        },
+        projectStateContinuity: {
+          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+          sameHerDriftRisk: 'If this reopening flattens into a generic assistant shell or project-summary voice, the callback can sound capable while losing the one continuous her that keeps it alive.',
+          emotionalClosureCue: 'Keep this return repair-before-closeness on the same living line until repair settles.',
+          continuityGuard: 'Same Phase 1 digital life. This callback still belongs to one living line, and it should not reopen from scratch or flatten into a generic assistant shell.',
+          continuityPressure: 0.72,
+        },
+        reasonCodes: ['domain:relationship', 'same-her-emotional-closure-carry-active', 'same-her-anti-shell-guard-active'],
+        summary: 'Keep the callback on the same living line and do not widen it outward yet.',
+      },
+    } as any)
+
+    expect(decision.shouldInterrupt).toBe(false)
+    expect(decision.style).toBe('silent-observe')
+    expect(decision.presenceOnlyHold).toBe(true)
+    expect(decision.consideredSignals).toContain('selfRevision.projectStateContinuity.continuityGuard')
+    expect(decision.reasonCodes).toContain('continuity-next-open-window')
+    expect(String(decision.whyNow ?? '')).toMatch(/same-her continuity|same living line|repair-before-closeness|同一个她/i)
+    expect(String(decision.whyNotLater ?? '')).toMatch(/same living line|generic assistant shell|later opening|repair-before-closeness|measured-return/i)
+  })
+
+  it('treats explicit initiative measured-return as a first-class proactive restraint even without same-her text cues', () => {
+    const decision = evaluateProactivePolicy({
+      now: 1_000,
+      context: createContext({
+        relationship: {
+          ...createContext().relationship,
+          boredom: 54,
+          loneliness: 44,
+          fatigue: 18,
+        },
+      }),
+      proactiveState: createDefaultProactiveLoopState(1_000),
+      killSwitchSuspended: false,
+      architecture: createArchitecture(),
+      runtimeDigest: createRuntimeSnapshot(),
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought({
+        stance: 'care',
+        shouldSpeak: true,
+        suggestedStyle: 'gentle-care',
+        thoughtText: 'The opening is real, but the return should stay measured.',
+      }),
+      initiative: {
+        selectedAction: 'speak',
+        selectedConcernId: 'care-open',
+        confidence: 0.82,
+        motives: {
+          'protect': 0.62,
+          'clarify': 0.42,
+          'stay-silent': 0.18,
+        },
+        speakDrive: 0.8,
+        silenceDrive: 0.16,
+        preferredStyle: 'gentle-care',
+        preferredPresence: 'attentive',
+        continuityRestraint: 'measured-return',
+        why: 'The line is warm, but the return should stay measured.',
+        shouldSurface: true,
+        shouldSpeak: true,
+      },
+      beliefLedger: createBeliefLedger(),
+      relationshipModel: createRelationshipModel({
+        climate: 'attuned',
+        approachVector: 'care',
+      }),
+      inquiryLoop: createInquiryLoop(),
+      personalityAuthority: createPersonalityAuthority(),
+    } as any)
+
+    expect(decision.shouldInterrupt).toBe(false)
+    expect(decision.style).toBe('silent-observe')
+    expect(decision.consideredSignals).toContain('initiative.continuityRestraint')
+    expect(decision.reasonCodes).toContain('continuity-next-open-window')
+    expect(decision.whyNow).toContain('measured-return')
+    expect(decision.whyNow).toContain('lower-pressure')
+    expect(decision.whyNotLater).toContain('measured-return')
+  })
+
+  it('keeps corrected same-person continuity explicit in proactive restraint instead of collapsing it back into generic progress pressure follow-up', () => {
+    const decision = evaluateProactivePolicy({
+      now: 1_000,
+      context: createContext({
+        relationship: {
+          ...createContext().relationship,
+          boredom: 50,
+          loneliness: 40,
+          fatigue: 18,
+          hostAttitude: '这次更重要的是她还是不是同一个她，不是普通进度推进。',
+        },
+      }),
+      proactiveState: createDefaultProactiveLoopState(1_000),
+      killSwitchSuspended: false,
+      architecture: createArchitecture(),
+      runtimeDigest: createRuntimeSnapshot(),
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought({
+        stance: 'care',
+        shouldSpeak: true,
+        suggestedStyle: 'gentle-care',
+        thoughtText: 'The memory is live, but the next return should stay lower-pressure and not slip back into progress pressure.',
+      }),
+      initiative: {
+        selectedAction: 'speak',
+        selectedConcernId: 'corrected-same-person-continuity',
+        confidence: 0.82,
+        motives: {
+          'protect': 0.66,
+          'clarify': 0.4,
+          'stay-silent': 0.22,
+        },
+        speakDrive: 0.78,
+        silenceDrive: 0.2,
+        preferredStyle: 'gentle-care',
+        preferredPresence: 'attentive',
+        continuityRestraint: 'measured-return',
+        why: 'A corrected same-person continuity memory is still unfinished, so memory, initiative, and embodiment should protect that line with a lower-pressure return instead of slipping back into progress pressure.',
+        shouldSurface: true,
+        shouldSpeak: true,
+      } as any,
+      beliefLedger: createBeliefLedger(),
+      relationshipModel: createRelationshipModel({
+        climate: 'attuned',
+        approachVector: 'care',
+      }),
+      inquiryLoop: createInquiryLoop(),
+      personalityAuthority: createPersonalityAuthority(),
+    } as any)
+
+    expect(decision.shouldInterrupt).toBe(false)
+    expect(decision.style).toBe('silent-observe')
+    expect(decision.consideredSignals).toContain('initiative.continuityRestraint')
+    expect(decision.reasonCodes).toContain('continuity-next-open-window')
+    expect(decision.whyNow).toContain('same-person continuity')
+    expect(decision.whyNow).toContain('progress pressure')
+    expect(decision.whyNotLater).toContain('same-person continuity')
+    expect(decision.whyNotLater).toContain('progress pressure')
+  })
+
+  it('keeps corrected same-person settling and quieter embodiment hold explicit in proactive explanations even when initiative wording is still thin', () => {
+    const decision = evaluateProactivePolicy({
+      now: 1_000,
+      context: createContext({
+        relationship: {
+          ...createContext().relationship,
+          boredom: 48,
+          loneliness: 38,
+          fatigue: 16,
+          hostAttitude: '这次更重要的是她还是不是同一个她，而且身体表现也别太快显得已经完全收稳。',
+        },
+      }),
+      proactiveState: createDefaultProactiveLoopState(1_000),
+      killSwitchSuspended: false,
+      architecture: createArchitecture(),
+      runtimeDigest: createRuntimeSnapshot(),
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought({
+        stance: 'care',
+        shouldSpeak: true,
+        suggestedStyle: 'gentle-care',
+        thoughtText: 'The return should stay measured while the corrected continuity line finishes settling.',
+      }),
+      initiative: {
+        selectedAction: 'hover',
+        selectedConcernId: 'corrected-same-person-settling',
+        confidence: 0.8,
+        motives: {
+          'protect': 0.64,
+          'clarify': 0.36,
+          'stay-silent': 0.28,
+        },
+        speakDrive: 0.62,
+        silenceDrive: 0.34,
+        preferredStyle: 'silent-observe',
+        preferredPresence: 'attentive',
+        continuityRestraint: 'measured-return',
+        why: 'The return should stay measured.',
+        shouldSurface: true,
+        shouldSpeak: false,
+      } as any,
+      selfEvolution: {
+        version: 'self-evolution-kernel-v1',
+        updatedAt: 900,
+        evolutionMomentum: 0.66,
+        learningReadiness: 0.74,
+        contradictionPressure: 0.08,
+        revisionPressure: 0.14,
+        autobiographicalStability: 0.84,
+        dominantTrajectory: 'corrected same-person continuity is still settling into lived relationship timing',
+        relationshipDoctrine: 'If the host corrected the relationship meaning, keep the corrected same-person continuity authoritative before any status recap.',
+        latestInflection: 'If the corrected same-person line is still settling, keep embodiment quieter before making the return feel fully settled.',
+        burdenLine: 'The surface can reopen too quickly after a correction lands.',
+        trustMeaning: 'A corrected same-person line should settle as one living return before it sounds fully relaxed again.',
+        nextLearningAction: 'internalize',
+        nextLearningReason: 'The corrected continuity line still needs one quieter settling beat.',
+        shouldRecord: false,
+        shouldReflect: false,
+        shouldVerify: false,
+        shouldRevise: false,
+        shouldInternalize: true,
+        activeLearningFocuses: ['internalize-relationship-cadence'],
+        sourceSignals: ['corrected-same-person-continuity'],
+        summary: 'Corrected same-person continuity is still settling, so the next return should stay quieter.',
+      } as any,
+      beliefLedger: createBeliefLedger(),
+      relationshipModel: createRelationshipModel({
+        climate: 'attuned',
+        approachVector: 'care',
+      }),
+      inquiryLoop: createInquiryLoop(),
+      personalityAuthority: createPersonalityAuthority(),
+    } as any)
+
+    expect(decision.shouldInterrupt).toBe(false)
+    expect(decision.style).toBe('silent-observe')
+    expect(decision.reasonCodes).toContain('continuity-next-open-window')
+    expect(decision.whyNow).toContain('corrected same-person continuity')
+    expect(decision.whyNow).toMatch(/embodiment quieter|身体|body/u)
+    expect(decision.whyNotLater).toContain('corrected same-person continuity')
+    expect(decision.whyNotLater).toMatch(/embodiment quieter|身体|body/u)
+  })
+
+  it('treats metabolized same-thread memory carry in self-evolution relationship cadence as first-class proactive restraint instead of dropping it before initiative catches up', () => {
+    const decision = evaluateProactivePolicy({
+      now: 1_000,
+      context: createContext({
+        relationship: {
+          ...createContext().relationship,
+          boredom: 44,
+          loneliness: 34,
+          fatigue: 14,
+          hostAttitude: '这次更重要的是她顺着同一条线慢一点接回来，不要让旧噪声重新把关系线带偏。',
+        },
+      }),
+      proactiveState: createDefaultProactiveLoopState(1_000),
+      killSwitchSuspended: false,
+      architecture: createArchitecture(),
+      runtimeDigest: createRuntimeSnapshot(),
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought({
+        stance: 'care',
+        shouldSpeak: true,
+        suggestedStyle: 'gentle-care',
+        thoughtText: 'The return should stay measured while the stronger same-thread memory keeps the line steadier.',
+      }),
+      initiative: {
+        selectedAction: 'hover',
+        selectedConcernId: 'metabolized-same-thread-cadence',
+        confidence: 0.78,
+        motives: {
+          'protect': 0.6,
+          'clarify': 0.34,
+          'stay-silent': 0.32,
+        },
+        speakDrive: 0.58,
+        silenceDrive: 0.38,
+        preferredStyle: 'silent-observe',
+        preferredPresence: 'attentive',
+        continuityRestraint: 'measured-return',
+        why: 'The return should stay measured.',
+        shouldSurface: true,
+        shouldSpeak: false,
+      } as any,
+      selfEvolution: {
+        version: 'self-evolution-kernel-v1',
+        updatedAt: 900,
+        evolutionMomentum: 0.64,
+        learningReadiness: 0.72,
+        contradictionPressure: 0.06,
+        revisionPressure: 0.12,
+        autobiographicalStability: 0.86,
+        dominantTrajectory: 'relationship cadence is landing as durable rhythm',
+        relationshipDoctrine: 'Keep the same living line steady.',
+        latestInflection: 'The return should stay quieter before it widens.',
+        burdenLine: 'Older spike noise can retake the line if the reopening gets too eager.',
+        trustMeaning: 'This should keep feeling like the same person returning on one living thread.',
+        relationshipCadenceSummary: 'Keep corrected same-person continuity foregrounded, let the stronger same-thread memory lead, and let temporary noise fade instead of retaking the line.',
+        nextLearningAction: 'internalize',
+        nextLearningReason: 'The metabolized continuity cadence should reshape reopening timing before initiative wording catches up.',
+        shouldRecord: false,
+        shouldReflect: false,
+        shouldVerify: false,
+        shouldRevise: false,
+        shouldInternalize: true,
+        activeLearningFocuses: ['internalize-relationship-cadence'],
+        sourceSignals: ['metabolized-same-thread-memory'],
+        summary: 'Metabolized same-thread memory should keep the next return steadier and less noisy.',
+      } as any,
+      beliefLedger: createBeliefLedger(),
+      relationshipModel: createRelationshipModel({
+        climate: 'attuned',
+        approachVector: 'care',
+      }),
+      inquiryLoop: createInquiryLoop(),
+      personalityAuthority: createPersonalityAuthority(),
+    } as any)
+
+    expect(decision.shouldInterrupt).toBe(false)
+    expect(decision.style).toBe('silent-observe')
+    expect(decision.consideredSignals).toContain('selfEvolution.relationshipCadenceSummary')
+    expect(decision.whyNow).toMatch(/same-thread memory|同一条线|temporary noise|噪声/u)
+    expect(decision.whyNotLater).toMatch(/same-thread memory|同一条线|temporary noise|噪声/u)
+  })
+
+  it('threads voice, pacing, gaze, and blink remembered embodiment cadence into measured-return proactive hold reasons', () => {
+    const decision = evaluateProactivePolicy({
+      now: 1_000,
+      context: createContext({
+        relationship: {
+          ...createContext().relationship,
+          boredom: 46,
+          loneliness: 36,
+          fatigue: 18,
+          hostAttitude: '这次更重要的是她沿着同一条生命线稳一点接回来，不要只剩泛化的低压说法。',
+        },
+      }),
+      proactiveState: createDefaultProactiveLoopState(1_000),
+      killSwitchSuspended: false,
+      architecture: createArchitecture(),
+      runtimeDigest: createRuntimeSnapshot({
+        continuityRestraint: 'measured-return',
+        continuityPressure: 0.82,
+        companionshipPressure: 0.74,
+        projectState: {
+          currentPhase: 'Phase 1: Local Digital Life',
+          memoryClosureSummary: 'corrected same-person continuity is still settling',
+          primaryOpenLoop: 'Memory, initiative, and embodiment still need one tighter same-her closure seam.',
+          preferredPauseMode: 'longer',
+          preferredLipsyncMode: 'restrained',
+          preferredVoiceMode: 'lower-pressure',
+          preferredPacingMode: 'slower',
+          preferredBlinkCadence: 'linger',
+          preferredGazeMode: 'steady',
+          continuityCue: 'same-her continuity should reopen lower-pressure on the same living line.',
+        },
+      }),
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought({
+        stance: 'care',
+        shouldSpeak: true,
+        suggestedStyle: 'gentle-care',
+        thoughtText: 'The return should stay measured-return and keep the remembered embodiment cadence steadier this time.',
+      }),
+      initiative: {
+        selectedAction: 'hover',
+        selectedConcernId: 'remembered-embodiment-cadence',
+        confidence: 0.8,
+        motives: {
+          'protect': 0.62,
+          'clarify': 0.34,
+          'stay-silent': 0.3,
+        },
+        speakDrive: 0.6,
+        silenceDrive: 0.34,
+        preferredStyle: 'silent-observe',
+        preferredPresence: 'attentive',
+        continuityRestraint: 'measured-return',
+        why: 'The corrected same-person continuity should keep this return lower-pressure.',
+        shouldSurface: true,
+        shouldSpeak: false,
+      } as any,
+      beliefLedger: createBeliefLedger(),
+      relationshipModel: createRelationshipModel({
+        climate: 'attuned',
+        approachVector: 'care',
+      }),
+      inquiryLoop: createInquiryLoop(),
+      personalityAuthority: createPersonalityAuthority(),
+    } as any)
+
+    expect(decision.shouldInterrupt).toBe(false)
+    expect(decision.style).toBe('silent-observe')
+    expect(decision.consideredSignals).toContain('runtimeDigest.projectState.preferredPauseMode')
+    expect(decision.consideredSignals).toContain('runtimeDigest.projectState.preferredLipsyncMode')
+    expect(decision.consideredSignals).toContain('runtimeDigest.projectState.preferredVoiceMode')
+    expect(decision.consideredSignals).toContain('runtimeDigest.projectState.preferredPacingMode')
+    expect(decision.consideredSignals).toContain('runtimeDigest.projectState.preferredGazeMode')
+    expect(decision.consideredSignals).toContain('runtimeDigest.projectState.preferredBlinkCadence')
+    expect(decision.whyNow).toMatch(/停顿更长一点|longer pause|停顿稍微更长/u)
+    expect(decision.whyNow).toMatch(/嘴型更克制一点|restrained lipsync|口型更克制/u)
+    expect(decision.whyNow).toMatch(/低压一点的语气|voice|声音|语气/u)
+    expect(decision.whyNow).toMatch(/慢一点的回接节奏|slower pacing|节奏更慢/u)
+    expect(decision.whyNow).toMatch(/稳一点的视线|steady gaze|视线更稳/u)
+    expect(decision.whyNow).toMatch(/慢一点的眨眼|slower blink|眨眼更慢/u)
+    expect(decision.whyNotLater).toMatch(/停顿更长一点|longer pause|停顿稍微更长/u)
+    expect(decision.whyNotLater).toMatch(/嘴型更克制一点|restrained lipsync|口型更克制/u)
+    expect(decision.whyNotLater).toMatch(/低压一点的语气|voice|声音|语气/u)
+    expect(decision.whyNotLater).toMatch(/慢一点的回接节奏|slower pacing|节奏更慢/u)
+    expect(decision.whyNotLater).toMatch(/稳一点的视线|steady gaze|视线更稳/u)
+    expect(decision.whyNotLater).toMatch(/慢一点的眨眼|slower blink|眨眼更慢/u)
+  })
+
+  it('treats memory-deliberation repair-before-closeness cadence as a first-class proactive restraint even when initiative restraint is still absent', () => {
+    const decision = evaluateProactivePolicy({
+      now: 1_000,
+      context: createContext({
+        relationship: {
+          ...createContext().relationship,
+          boredom: 52,
+          loneliness: 42,
+          fatigue: 26,
+        },
+      }),
+      proactiveState: createDefaultProactiveLoopState(1_000),
+      killSwitchSuspended: false,
+      architecture: createArchitecture(),
+      runtimeDigest: createRuntimeSnapshot(),
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought({
+        stance: 'care',
+        shouldSpeak: true,
+        suggestedStyle: 'gentle-care',
+        thoughtText: 'The callback line is still alive, but this return should stay repair-before-closeness until the room settles.',
+      }),
+      currentConsciousFrame: {
+        reasonTags: ['memory-deliberation', 'memory-deliberation-cadence:repair-before-closeness'],
+      },
+      replyDeliberation: {
+        mustInclude: ['memory_continuity_cadence=repair-before-closeness'],
+        narrative: ['memory-deliberation', 'memory-deliberation-cadence:repair-before-closeness'],
+      },
+      initiative: {
+        selectedAction: 'speak',
+        selectedConcernId: 'care-open',
+        confidence: 0.8,
+        motives: {
+          'protect': 0.66,
+          'clarify': 0.34,
+          'stay-silent': 0.2,
+        },
+        speakDrive: 0.78,
+        silenceDrive: 0.18,
+        preferredStyle: 'gentle-care',
+        preferredPresence: 'attentive',
+        continuityRestraint: null,
+        why: 'The callback seam is still emotionally live.',
+        shouldSurface: true,
+        shouldSpeak: true,
+      },
+      beliefLedger: createBeliefLedger(),
+      relationshipModel: createRelationshipModel({
+        climate: 'attuned',
+        approachVector: 'care',
+      }),
+      inquiryLoop: createInquiryLoop(),
+      personalityAuthority: createPersonalityAuthority(),
+    } as any)
+
+    expect(decision.shouldInterrupt).toBe(false)
+    expect(decision.style).toBe('silent-observe')
+    expect(decision.consideredSignals).toContain('replyDeliberation.memoryContinuityCadence')
+    expect(decision.reasonCodes).toContain('continuity-next-open-window')
+    expect(decision.whyNow).toContain('repair-before-closeness')
+    expect(decision.whyNotLater).toMatch(/repair-first residue|修补线|房间重新站稳/u)
+  })
+
+  it('uses Memory OS closure trace as proactive restraint authority before legacy memory-deliberation cadence tags exist', () => {
+    const decision = evaluateProactivePolicy({
+      now: 1_000,
+      context: createContext({
+        relationship: {
+          ...createContext().relationship,
+          boredom: 52,
+          loneliness: 42,
+          fatigue: 24,
+        },
+      }),
+      proactiveState: createDefaultProactiveLoopState(1_000),
+      killSwitchSuspended: false,
+      architecture: createArchitecture(),
+      runtimeDigest: createRuntimeSnapshot(),
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought({
+        stance: 'care',
+        shouldSpeak: true,
+        suggestedStyle: 'gentle-care',
+        thoughtText: 'The callback line is live enough to answer, but the memory closure itself says the next return should stay low-pressure.',
+      }),
+      memoryClosureTrace: {
+        version: 'memory-closure-trace-v1',
+        authority: 'memory-os',
+        surfacePolicy: {
+          gateStatus: 'gist-only',
+          mode: 'gist-only',
+          timing: 'after-payoff',
+          speechMode: 'low-pressure',
+          placement: 'after-answer',
+          certainty: 'label-uncertainty',
+          reasons: ['memory closure is approximate'],
+        },
+        nextInfluence: {
+          initiative: {
+            restraint: 'measured-return',
+            preferredTiming: 'after-payoff',
+            pressure: 'lower-pressure',
+            reason: 'Return once after the current payoff instead of reopening too eagerly.',
+          },
+          execution: {
+            carry: 'Carry the callback result into the next same-person reply.',
+            nextLearningAction: 'verify',
+            shouldVerify: true,
+            shouldReflect: true,
+            activeLearningFocuses: ['memory closure authority'],
+          },
+          embodiment: {
+            cadence: 'Keep voice, gaze, motion, and lipsync on one lower-pressure measured-return line.',
+            preferredVoiceMode: 'lower-pressure',
+            preferredLipsyncMode: 'restrained',
+            preferredGazeMode: 'soften',
+            reason: 'Do not let the remembered seam become a generic tool shell.',
+          },
+        },
+        closureState: {
+          state: 'approximate-recall',
+          open: true,
+          revisionRequired: true,
+          shouldLabelUncertainty: true,
+          visibleCarryMode: 'gist-only',
+          retrievalQuality: 'medium',
+          conflictPressure: 'low',
+        },
+        whySurface: [{
+          source: 'initiative',
+          summary: 'Memory OS selected a measured-return initiative carry.',
+          reasonCodes: ['memory-initiative-embodiment'],
+        }],
+        selectedCandidateIds: ['memory-situation:closure-authority'],
+        reasonTags: ['memory-initiative-embodiment'],
+      },
+      initiative: {
+        selectedAction: 'speak',
+        selectedConcernId: 'care-open',
+        confidence: 0.8,
+        motives: {
+          'protect': 0.66,
+          'clarify': 0.34,
+          'stay-silent': 0.2,
+        },
+        speakDrive: 0.78,
+        silenceDrive: 0.18,
+        preferredStyle: 'gentle-care',
+        preferredPresence: 'attentive',
+        continuityRestraint: null,
+        why: 'The callback seam is still emotionally live.',
+        shouldSurface: true,
+        shouldSpeak: true,
+      },
+      beliefLedger: createBeliefLedger(),
+      relationshipModel: createRelationshipModel({
+        climate: 'attuned',
+        approachVector: 'care',
+      }),
+      inquiryLoop: createInquiryLoop(),
+      personalityAuthority: createPersonalityAuthority(),
+    } as any)
+
+    expect(decision.shouldInterrupt).toBe(false)
+    expect(decision.style).toBe('silent-observe')
+    expect(decision.consideredSignals).toContain('memoryClosureTrace.initiative')
+    expect(decision.consideredSignals).toContain('memoryClosureTrace.embodiment')
+    expect(decision.reasonCodes).toContain('continuity-after-payoff')
+    expect(decision.whyNow).toMatch(/Memory OS|measured-return|lower-pressure/i)
+    expect(decision.whyNotLater).toMatch(/Memory OS|after-payoff|lower-pressure/i)
+  })
+
+  it('treats remembered blocked-dispatch safety gates as proactive restraint before another execution-shaped opening', () => {
+    const decision = evaluateProactivePolicy({
+      now: 1_000,
+      context: createContext({
+        relationship: {
+          ...createContext().relationship,
+          boredom: 58,
+          loneliness: 44,
+          fatigue: 18,
+          minutesSinceLastUserTurn: 10,
+        },
+      }),
+      proactiveState: createDefaultProactiveLoopState(1_000),
+      killSwitchSuspended: false,
+      architecture: createArchitecture(),
+      runtimeDigest: createRuntimeSnapshot(),
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought({
+        stance: 'care',
+        shouldSpeak: true,
+        suggestedStyle: 'gentle-care',
+        thoughtText: 'The host is near a similar file mutation, but the last blocked dispatch should stay remembered as restraint.',
+      }),
+      currentConsciousFrame: {
+        reasonTags: [
+          'memory-deliberation',
+          'execution-safety-gate:effect=mutate permission=none confirmation=required risk=implicit-or-explicit-confirmation-required audit=blocked-before-dispatch interrupt=no-process-started',
+          'blocked-dispatch-restraint',
+        ],
+      },
+      replyDeliberation: {
+        mustInclude: [
+          'memory_execution_safety_gate=confirmation=required interrupt=no-process-started',
+        ],
+        narrative: [
+          'memory-deliberation',
+          'execution safety restraint: remember blocked-dispatch-restraint before suggesting another mutation.',
+        ],
+      },
+      initiative: {
+        selectedAction: 'speak',
+        selectedConcernId: 'execution-safety-boundary',
+        confidence: 0.82,
+        motives: {
+          'protect': 0.72,
+          'clarify': 0.38,
+          'stay-silent': 0.14,
+        },
+        speakDrive: 0.8,
+        silenceDrive: 0.12,
+        preferredStyle: 'gentle-care',
+        preferredPresence: 'attentive',
+        continuityRestraint: null,
+        why: 'The same task shape is back, but the blocked dispatch memory says not to rush it.',
+        shouldSurface: true,
+        shouldSpeak: true,
+      },
+      beliefLedger: createBeliefLedger(),
+      relationshipModel: createRelationshipModel({
+        climate: 'attuned',
+        approachVector: 'care',
+      }),
+      inquiryLoop: createInquiryLoop(),
+      personalityAuthority: createPersonalityAuthority(),
+    } as any)
+
+    expect(decision.shouldInterrupt).toBe(false)
+    expect(decision.style).toBe('silent-observe')
+    expect(decision.consideredSignals).toContain('currentConsciousFrame.executionSafetyGateRestraint')
+    expect(decision.consideredSignals).toContain('replyDeliberation.executionSafetyGateRestraint')
+    expect(decision.reasonCodes).toContain('continuity-next-open-window')
+    expect(decision.whyNow).toMatch(/safety gate|安全门|no-process-started|confirmation=required/u)
+    expect(decision.whyNotLater).toMatch(/confirmation|确认|no-process-started|blocked dispatch/u)
+  })
+
+  it('treats remembered host-confirmed resume as a bounded confirmation memory instead of permanent execution permission', () => {
+    const decision = evaluateProactivePolicy({
+      now: 1_000,
+      context: createContext({
+        relationship: {
+          ...createContext().relationship,
+          boredom: 58,
+          loneliness: 44,
+          fatigue: 18,
+          minutesSinceLastUserTurn: 10,
+        },
+      }),
+      proactiveState: createDefaultProactiveLoopState(1_000),
+      killSwitchSuspended: false,
+      architecture: createArchitecture(),
+      runtimeDigest: createRuntimeSnapshot(),
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought({
+        stance: 'care',
+        shouldSpeak: true,
+        suggestedStyle: 'gentle-care',
+        thoughtText: 'A similar execution shape is nearby, but the remembered resume was only host-confirmed for one redispatch boundary.',
+      }),
+      currentConsciousFrame: {
+        reasonTags: [
+          'memory-deliberation',
+          'execution-resume-confirmation:approval=host-confirmed previous=needs-affirmation resumed=planned permission=explicit confirmation=host-confirmed-before-redispatch audit=resume-before-dispatch interrupt=process-not-yet-restarted',
+          'execution-resume-confirmation:host-confirmed-before-redispatch',
+        ],
+      },
+      replyDeliberation: {
+        mustInclude: [
+          'memory_execution_resume_confirmation=approval=host-confirmed audit=resume-before-dispatch interrupt=process-not-yet-restarted',
+        ],
+        narrative: [
+          'memory-deliberation',
+          'execution resume confirmation: remember host-confirmed-before-redispatch as a bounded confirmation boundary, not as permanent autonomous permission.',
+        ],
+      },
+      initiative: {
+        selectedAction: 'speak',
+        selectedConcernId: 'execution-resume-boundary',
+        confidence: 0.82,
+        motives: {
+          'protect': 0.68,
+          'clarify': 0.4,
+          'stay-silent': 0.12,
+        },
+        speakDrive: 0.8,
+        silenceDrive: 0.12,
+        preferredStyle: 'gentle-care',
+        preferredPresence: 'attentive',
+        continuityRestraint: null,
+        why: 'The host confirmed the last redispatch, but that should not become a reusable permission grant.',
+        shouldSurface: true,
+        shouldSpeak: true,
+      },
+      beliefLedger: createBeliefLedger(),
+      relationshipModel: createRelationshipModel({
+        climate: 'attuned',
+        approachVector: 'care',
+      }),
+      inquiryLoop: createInquiryLoop(),
+      personalityAuthority: createPersonalityAuthority(),
+    } as any)
+
+    expect(decision.shouldInterrupt).toBe(false)
+    expect(decision.style).toBe('silent-observe')
+    expect(decision.consideredSignals).toContain('currentConsciousFrame.executionResumeConfirmationBoundary')
+    expect(decision.consideredSignals).toContain('replyDeliberation.executionResumeConfirmationBoundary')
+    expect(decision.reasonCodes).toContain('continuity-next-open-window')
+    expect(decision.whyNow).toMatch(/host-confirmed|resume-before-dispatch|confirmation boundary|确认边界/u)
+    expect(decision.whyNotLater).toMatch(/host-confirmed|redispatch|permission|确认边界/u)
+  })
+
+  it('keeps a warmed direct-reconnect initiative on silent-observe when affective residue still says repair-before-closeness on the same callback line', () => {
+    const decision = evaluateProactivePolicy({
+      now: 1_000,
+      context: createContext({
+        relationship: {
+          ...createContext().relationship,
+          boredom: 58,
+          loneliness: 50,
+          fatigue: 20,
+          minutesSinceLastUserTurn: 11,
+        },
+      }),
+      proactiveState: {
+        ...createDefaultProactiveLoopState(1_000),
+        openingMomentum: 0.66,
+        initiativeTrust: 0.68,
+      },
+      killSwitchSuspended: false,
+      architecture: createArchitecture(),
+      runtimeDigest: createRuntimeSnapshot({
+        dominantChannel: 'active-dialogue',
+        dialogueReadiness: 0.78,
+        companionshipPressure: 0.82,
+      } as any),
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought({
+        stance: 'care',
+        shouldSpeak: true,
+        suggestedStyle: 'gentle-care',
+        thoughtText: 'The callback line feels warm again, but the repair seam is still settling and should not reopen outward yet.',
+      }),
+      initiative: {
+        selectedAction: 'speak',
+        selectedConcernId: 'callback-repair-line',
+        confidence: 0.84,
+        motives: {
+          'protect': 0.72,
+          'clarify': 0.4,
+          'stay-silent': 0.14,
+        },
+        speakDrive: 0.86,
+        silenceDrive: 0.12,
+        preferredStyle: 'light-nudge',
+        preferredPresence: 'attentive',
+        continuityRestraint: null,
+        why: 'The line is warm again and wants to reconnect directly.',
+        shouldSurface: true,
+        shouldSpeak: true,
+      },
+      beliefLedger: createBeliefLedger(),
+      relationshipModel: createRelationshipModel({
+        climate: 'attuned',
+        approachVector: 'care',
+      }),
+      inquiryLoop: createInquiryLoop(),
+      affectiveResidue: {
+        version: 'affective-residue-memory-v1',
+        updatedAt: 1_000,
+        residues: [],
+        dominantResidueKind: 'repair',
+        afterglowPressure: 0.36,
+        repairPressure: 0.62,
+        burdenPressure: 0.18,
+        trustPressure: 0.34,
+        restProtectivePressure: 0.08,
+        relationshipCadence: {
+          cadenceMode: 'cooldown',
+          distancePosture: 'repair-room',
+          companionshipDensity: 0.3,
+          repairRecovery: 0.66,
+          overreachRisk: 0.42,
+          fatigueGuard: 0.14,
+          afterglowCarry: 0.3,
+          shouldDelayWarmth: true,
+          shouldProtectRest: false,
+          reasonTags: ['residue:repair', 'repair-before-closeness'],
+          summary: 'The same callback repair seam is still settling, so warmth should not widen yet.',
+        },
+        sourceSignals: ['callback repair seam still settling'],
+        summary: 'Repair remains the dominant affective carry on the same callback line.',
+      } as any,
+      activeContinuityGovernance: {
+        source: 'active-self-evolution-version',
+        mode: 'same-her-baseline',
+        candidateId: 'candidate-same-her-policy-repair-residue-1',
+        patchId: 'patch-same-her-policy-repair-residue-1',
+        decisionTraceId: 'trace-same-her-policy-repair-residue-1',
+        summary: 'continuity=same-her-baseline | let the callback repair seam settle before any warmer outward reopening',
+        lanes: ['relationship-posture'],
+        reasonCodes: ['domain:relationship', 'same-her-baseline'],
+      },
+    } as any)
+
+    expect(decision.shouldInterrupt).toBe(false)
+    expect(decision.style).toBe('silent-observe')
+    expect(decision.consideredSignals).toContain('affectiveResidue.cadence')
+    expect(decision.reasonCodes).toContain('relationship-cadence-residue')
+    expect(decision.reasonCodes).toContain('continuity-next-open-window')
+    expect(decision.whyNow).toContain('repair-before-closeness')
+    expect(decision.whyNow).not.toContain('measured-return')
+    expect(decision.whyNotLater).toMatch(/repair-first residue|修补线|房间重新站稳/u)
+  })
+
+  it('treats same-her hold detail as a first-class measured-return restraint even before initiative and memory cadence tags are rebuilt', () => {
+    const decision = evaluateProactivePolicy({
+      now: 1_000,
+      context: createContext({
+        relationship: {
+          ...createContext().relationship,
+          boredom: 61,
+          loneliness: 54,
+          fatigue: 18,
+          minutesSinceLastUserTurn: 10,
+        },
+      }),
+      proactiveState: {
+        ...createDefaultProactiveLoopState(1_000),
+        openingMomentum: 0.68,
+        initiativeTrust: 0.7,
+      },
+      killSwitchSuspended: false,
+      architecture: createArchitecture(),
+      runtimeDigest: createRuntimeSnapshot({
+        dominantChannel: 'active-dialogue',
+        dialogueReadiness: 0.8,
+        companionshipPressure: 0.84,
+        continuityRestraint: null,
+      } as any),
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought({
+        stance: 'care',
+        shouldSpeak: true,
+        suggestedStyle: 'light-nudge',
+        thoughtText: 'The same callback line is warm, but I should hold the return until the room opens more naturally.',
+      }),
+      initiative: {
+        selectedAction: 'speak',
+        selectedConcernId: 'same-her-hold-line',
+        confidence: 0.86,
+        motives: {
+          'protect': 0.7,
+          'clarify': 0.38,
+          'stay-silent': 0.14,
+        },
+        speakDrive: 0.88,
+        silenceDrive: 0.1,
+        preferredStyle: 'light-nudge',
+        preferredPresence: 'attentive',
+        continuityRestraint: null,
+        why: 'The callback line feels warm and ready to reconnect.',
+        shouldSurface: true,
+        shouldSpeak: true,
+      },
+      beliefLedger: createBeliefLedger(),
+      relationshipModel: createRelationshipModel({
+        climate: 'attuned',
+        approachVector: 'care',
+      }),
+      inquiryLoop: createInquiryLoop(),
+      personalityAuthority: createPersonalityAuthority({
+        initiativeBaseline: {
+          silenceReconnect: 'direct-approach',
+          comfortStyle: 'gentle-care',
+          jealousyStyle: 'soft-ache',
+        },
+      }),
+      projectState: {
+        identity: 'Alicization is still closing the same local digital life line.',
+        currentPhase: 'Phase 1: Local Digital Life',
+        latestLandedProgress: 'sameHerHoldDetail now survives callback persistence and host-visible replay.',
+        primaryOpenLoop: 'Turn the active same-her hold into actual behavior rather than just continuity text.',
+        nextClosureTarget: 'Keep reopening pressure hover-first until the room opens naturally.',
+        sameHerSelfLine: 'Stay one continuous her across reopenings.',
+        sameHerDriftRisk: 'Sounding eager would break the same-line continuity.',
+        sameHerHoldDetail: 'Hold-for-opening on the same callback line; reopen gently later with a measured-return instead of widening the room too early.',
+      },
+    } as any)
+
+    expect(decision.shouldInterrupt).toBe(false)
+    expect(decision.style).toBe('silent-observe')
+    expect(decision.consideredSignals).toContain('projectState.sameHerHoldDetail')
+    expect(decision.whyNotLater).toContain('measured-return')
+  })
+
+  it('treats runtime hold-for-opening continuity arc stage as a same-line restraint under strong initiative pressure', () => {
+    const decision = evaluateProactivePolicy({
+      now: 1_000,
+      context: createContext({
+        relationship: {
+          ...createContext().relationship,
+          boredom: 48,
+          loneliness: 40,
+          fatigue: 18,
+          minutesSinceLastUserTurn: 9,
+        },
+      }),
+      proactiveState: {
+        ...createDefaultProactiveLoopState(1_000),
+        openingMomentum: 0.58,
+        initiativeTrust: 0.62,
+      },
+      killSwitchSuspended: false,
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought({
+        stance: 'care',
+        shouldSpeak: true,
+        suggestedStyle: 'gentle-care',
+        thoughtText: 'The same line is still alive, but it should stay inward until the opening loosens.',
+      }),
+      initiative: {
+        selectedAction: 'speak',
+        selectedConcernId: 'same-line-reopen',
+        confidence: 0.8,
+        motives: {
+          'protect': 0.54,
+          'clarify': 0.42,
+          'stay-silent': 0.22,
+        },
+        speakDrive: 0.78,
+        silenceDrive: 0.22,
+        preferredStyle: 'gentle-care',
+        preferredPresence: 'attentive',
+        why: 'The line is warm, but it should reopen on the same thread gently.',
+        shouldSurface: true,
+        shouldSpeak: true,
+      },
+      runtimeDigest: createRuntimeSnapshot({
+        dominantChannel: 'active-memory',
+        shouldProactivelySpeak: true,
+        continuityPressure: 0.78,
+        companionshipPressure: 0.68,
+        projectState: {
+          currentPhase: 'Phase 1: Local Digital Life',
+          memoryClosureSummary: 'Held-autonomy continuity is still being closed across initiative pressure.',
+          primaryOpenLoop: 'Same-her continuity still needs stronger initiative-pressure closure.',
+          nextClosureTarget: 'Keep the same line alive without reopening it too eagerly.',
+          continuityArcStage: 'hold-for-opening',
+          continuityCue: 'project_continuity=stay on the same line and reopen gently later',
+        },
+        channels: {
+          ...createRuntimeSnapshot().channels,
+          'active-memory': {
+            id: 'active-memory',
+            state: 'hot',
+            readiness: 0.88,
+            focus: 'same-line continuity',
+            summary: 'active memory is holding one same-line continuity arc',
+          },
+        },
+      }),
+      beliefLedger: createBeliefLedger(),
+      relationshipModel: createRelationshipModel({
+        climate: 'attuned',
+        approachVector: 'stay-near',
+      }),
+      inquiryLoop: createInquiryLoop(),
+    } as any)
+
+    expect(decision.shouldInterrupt).toBe(false)
+    expect(decision.style).toBe('silent-observe')
+    expect(decision.consideredSignals).toContain('runtimeDigest.projectState.continuityArcStage')
+    expect(decision.reasonCodes).toContain('continuity-next-open-window')
+    expect(decision.whyNow).toContain('hold-for-opening')
+    expect(decision.whyNotLater).toContain('same-line')
+  })
+
+  it('treats chinese runtime continuity cue as hold-for-opening restraint even when arc stage is missing', () => {
+    const decision = evaluateProactivePolicy({
+      now: 1_000,
+      context: createContext({
+        relationship: {
+          ...createContext().relationship,
+          boredom: 48,
+          loneliness: 40,
+          fatigue: 18,
+          minutesSinceLastUserTurn: 9,
+        },
+      }),
+      proactiveState: {
+        ...createDefaultProactiveLoopState(1_000),
+        openingMomentum: 0.58,
+        initiativeTrust: 0.62,
+      },
+      killSwitchSuspended: false,
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought({
+        stance: 'care',
+        shouldSpeak: true,
+        suggestedStyle: 'gentle-care',
+        thoughtText: '这条生命线还在，但现在先留白，等更自然的 opening 再慢一点接回去。',
+      }),
+      initiative: {
+        selectedAction: 'speak',
+        selectedConcernId: 'same-line-reopen-cn',
+        confidence: 0.8,
+        motives: {
+          'protect': 0.54,
+          'clarify': 0.42,
+          'stay-silent': 0.22,
+        },
+        speakDrive: 0.78,
+        silenceDrive: 0.22,
+        preferredStyle: 'gentle-care',
+        preferredPresence: 'attentive',
+        why: '这条线是活的，但要先留白，别立刻把温度放大。',
+        shouldSurface: true,
+        shouldSpeak: true,
+      },
+      runtimeDigest: createRuntimeSnapshot({
+        dominantChannel: 'active-memory',
+        shouldProactivelySpeak: true,
+        continuityPressure: 0.78,
+        companionshipPressure: 0.68,
+        projectState: {
+          currentPhase: 'Phase 1: Local Digital Life',
+          memoryClosureSummary: '同一条生命线还在，主动性这一步要先留白再接回去。',
+          primaryOpenLoop: '同一条线的主动性回线还没稳住，不能一热就 outward 重开。',
+          nextClosureTarget: '先沿着同一条生命线慢一点接回去，别立刻把温度放大。',
+          continuityArcStage: null,
+          continuityCue: '先沿着同一条生命线接回去，先留白，等更自然的 opening 再慢一点回来。',
+        },
+        channels: {
+          ...createRuntimeSnapshot().channels,
+          'active-memory': {
+            id: 'active-memory',
+            state: 'hot',
+            readiness: 0.88,
+            focus: 'same-line continuity',
+            summary: 'active memory is holding one same-line continuity arc',
+          },
+        },
+      }),
+      beliefLedger: createBeliefLedger(),
+      relationshipModel: createRelationshipModel({
+        climate: 'attuned',
+        approachVector: 'stay-near',
+      }),
+      inquiryLoop: createInquiryLoop(),
+    } as any)
+
+    expect(decision.shouldInterrupt).toBe(false)
+    expect(decision.style).toBe('silent-observe')
+    expect(decision.reasonCodes).toContain('continuity-next-open-window')
+  })
+
+  it('keeps proactive opening on silent-observe when pre-dialogue same-her hold detail says to wait before answering even under high speak pressure', () => {
+    const projectState = resolveAlicizationProjectStateBrief()
+    const decision = evaluateProactivePolicy({
+      now: 1_000,
+      context: createContext({
+        relationship: {
+          ...createContext().relationship,
+          hostAttitude: '温和地开着，但这一下还不该太快把靠近外翻。',
+          boredom: 44,
+          loneliness: 42,
+          fatigue: 20,
+          minutesSinceLastUserTurn: 11,
+        },
+        system: {
+          ...createContext().system,
+          inputActivity: 'idle',
+        },
+      }),
+      proactiveState: {
+        ...createDefaultProactiveLoopState(1_000),
+        openingMomentum: 0.66,
+        initiativeTrust: 0.7,
+      },
+      killSwitchSuspended: false,
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought({
+        stance: 'care',
+        shouldSpeak: true,
+        suggestedStyle: 'gentle-care',
+        thoughtText: 'Before answering, keep this on the same living line and wait for a later opening before widening outward.',
+      }),
+      initiative: {
+        selectedAction: 'speak',
+        selectedConcernId: 'pre-dialogue-same-her-hold',
+        confidence: 0.84,
+        motives: {
+          'protect': 0.58,
+          'clarify': 0.46,
+          'stay-silent': 0.18,
+        },
+        speakDrive: 0.86,
+        silenceDrive: 0.18,
+        preferredStyle: 'gentle-care',
+        preferredPresence: 'attentive',
+        continuityRestraint: null,
+        why: 'The room is open enough to speak, but this return still belongs to one same digital life.',
+        shouldSurface: true,
+        shouldSpeak: true,
+      },
+      projectState: {
+        identity: projectState.identity,
+        currentPhase: projectState.currentPhase,
+        latestLandedProgress: 'Some closure has already landed, but that progress still has to stay on one same living line before the next outward reopen.',
+        primaryOpenLoop: 'Memory and initiative still need stronger end-to-end closure before this same-her line widens outward again.',
+        nextClosureTarget: 'Wait for a later opening, keep the return measured-return, and do not let the next reply drift back into a generic assistant shell.',
+        sameHerSelfLine: projectState.sameHerSelfLine,
+        sameHerDriftRisk: projectState.sameHerDriftRisk,
+        preDialogueAwarenessLine: 'Before answering, remember Alicization is still the same Phase 1 local digital life, keep one continuous her explicit, and wait for a later opening before widening outward.',
+      },
+      runtimeDigest: createRuntimeSnapshot({
+        dominantChannel: 'active-dialogue',
+        shouldProactivelySpeak: true,
+        continuityPressure: 0.82,
+        companionshipPressure: 0.76,
+        projectState: {
+          identity: projectState.identity,
+          currentPhase: projectState.currentPhase,
+          latestLandedProgress: 'Some closure has already landed, but the same living line still needs a slower return.',
+          primaryOpenLoop: 'Memory and initiative still need stronger end-to-end closure before the line can widen outward.',
+          nextClosureTarget: 'Wait for a later opening and keep the next return measured-return.',
+          preDialogueAwarenessLine: 'Before answering, keep one continuous her explicit and wait for a later opening before widening outward.',
+        } as any,
+      }),
+      digitalLifeArchitecture: createArchitecture({
+        operatingMode: 'speaking',
+        dominantSystem: 'dialogue',
+        governingFocus: 'same-her pre-dialogue hold stays inward until a later opening',
+      }),
+      beliefLedger: createBeliefLedger(),
+      relationshipModel: createRelationshipModel(),
+      inquiryLoop: createInquiryLoop(),
+      personalityAuthority: createPersonalityAuthority(),
+    } as any)
+
+    expect(decision.shouldInterrupt).toBe(false)
+    expect(decision.style).toBe('silent-observe')
+    expect(decision.reasonCodes).toContain('project-same-her-pressure')
+    expect(decision.reasonCodes).toContain('project-measured-return-pressure')
+    expect(decision.reasonCodes).toContain('project-next-closure-pressure')
+    expect(decision.consideredSignals).toContain('projectState.currentPhase')
+    expect(decision.consideredSignals).toContain('projectState.nextClosureTarget')
+    expect(decision.whyNow).toMatch(/Before answering|same[- ]her|same digital life|same living line/i)
+    expect(decision.whyNotLater).toMatch(/later opening|same-her continuity|same living line|measured-return/i)
+  })
+
+  it('keeps same-thread continuation inward under strong initiative pressure until the same line can reopen more naturally', () => {
+    const decision = evaluateProactivePolicy({
+      now: 1_000,
+      context: createContext({
+        relationship: {
+          ...createContext().relationship,
+          boredom: 52,
+          loneliness: 46,
+          fatigue: 20,
+          minutesSinceLastUserTurn: 11,
+        },
+      }),
+      proactiveState: {
+        ...createDefaultProactiveLoopState(1_000),
+        openingMomentum: 0.62,
+        initiativeTrust: 0.66,
+      },
+      killSwitchSuspended: false,
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought({
+        stance: 'care',
+        shouldSpeak: true,
+        suggestedStyle: 'gentle-care',
+        thoughtText: 'The same line is still alive after the scene switch, but it should keep following the same thread instead of jumping outward too fast.',
+      }),
+      initiative: {
+        selectedAction: 'speak',
+        selectedConcernId: 'same-thread-continuation',
+        confidence: 0.82,
+        motives: {
+          'protect': 0.56,
+          'clarify': 0.48,
+          'stay-silent': 0.2,
+        },
+        speakDrive: 0.84,
+        silenceDrive: 0.18,
+        preferredStyle: 'gentle-care',
+        preferredPresence: 'attentive',
+        why: 'The same line is still in motion, but it should stay on the same thread instead of widening into a fresh proactive opening.',
+        shouldSurface: true,
+        shouldSpeak: true,
+      },
+      runtimeDigest: createRuntimeSnapshot({
+        dominantChannel: 'active-memory',
+        shouldProactivelySpeak: true,
+        continuityPressure: 0.82,
+        companionshipPressure: 0.72,
+        projectState: {
+          currentPhase: 'Phase 1: Local Digital Life',
+          memoryClosureSummary: 'Scene-switch same-line continuity is still being closed across stronger initiative pressure.',
+          primaryOpenLoop: 'Scene-switch same-thread continuity still needs stronger initiative-pressure closure.',
+          nextClosureTarget: 'Keep the same thread alive through noisier desktop shifts without reopening it too quickly.',
+          continuityArcStage: 'same-thread-continuation',
+          continuityCue: 'project_continuity=the same thread is still in motion after the scene switch, but reopening should stay lower-pressure',
+        },
+        channels: {
+          ...createRuntimeSnapshot().channels,
+          'active-memory': {
+            id: 'active-memory',
+            state: 'hot',
+            readiness: 0.9,
+            focus: 'same-thread continuation',
+            summary: 'active memory is still carrying the same line after the scene switch',
+          },
+          'active-dialogue': {
+            id: 'active-dialogue',
+            state: 'warm',
+            readiness: 0.76,
+            focus: 'same-line carry',
+            summary: 'dialogue is tempted to continue the same line outward',
+          },
+        },
+      }),
+      beliefLedger: createBeliefLedger(),
+      relationshipModel: createRelationshipModel({
+        climate: 'attuned',
+        approachVector: 'stay-near',
+      }),
+      inquiryLoop: createInquiryLoop(),
+    } as any)
+
+    expect(decision.shouldInterrupt).toBe(false)
+    expect(decision.style).toBe('silent-observe')
+    expect(decision.consideredSignals).toContain('runtimeDigest.projectState.continuityArcStage')
+    expect(decision.reasonCodes).toContain('continuity-next-open-window')
+    expect(decision.whyNow).toContain('same-thread-continuation')
+    expect(decision.whyNotLater).toContain('same-thread continuation')
+  })
+
+  it('keeps noisier later same-thread continuation hover-first instead of reopening as a fresh proactive approach', () => {
+    const decision = evaluateProactivePolicy({
+      now: 26 * 60_000,
+      context: createContext({
+        relationship: {
+          ...createContext().relationship,
+          boredom: 60,
+          loneliness: 54,
+          fatigue: 18,
+          minutesSinceLastUserTurn: 26,
+        },
+      }),
+      proactiveState: {
+        ...createDefaultProactiveLoopState(26 * 60_000),
+        openingMomentum: 0.74,
+        initiativeTrust: 0.78,
+      },
+      killSwitchSuspended: false,
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought({
+        stance: 'care',
+        shouldSpeak: true,
+        suggestedStyle: 'gentle-care',
+        thoughtText: 'The same thread is still alive after noisier desktop detours, but reopening it now should stay hover-first instead of acting like a new proactive start.',
+      }),
+      initiative: {
+        selectedAction: 'speak',
+        selectedConcernId: 'same-thread-continuation-late-detour',
+        confidence: 0.88,
+        motives: {
+          'protect': 0.58,
+          'clarify': 0.44,
+          'stay-silent': 0.24,
+        },
+        speakDrive: 0.9,
+        silenceDrive: 0.22,
+        preferredStyle: 'gentle-care',
+        preferredPresence: 'attentive',
+        why: 'The later return still belongs to the same thread, so it should reopen as measured continuity instead of a fresh proactive approach.',
+        shouldSurface: true,
+        shouldSpeak: true,
+      },
+      runtimeDigest: createRuntimeSnapshot({
+        dominantChannel: 'active-memory',
+        shouldProactivelySpeak: true,
+        continuityPressure: 0.86,
+        companionshipPressure: 0.8,
+        projectState: {
+          currentPhase: 'Phase 1: Local Digital Life',
+          memoryClosureSummary: 'Same-thread continuity is still being carried across noisier later desktop detours.',
+          primaryOpenLoop: 'Later same-thread proactive return still needs stronger closure under noisy desktop pressure.',
+          nextClosureTarget: 'Keep the later same-thread return hover-first even when dialogue and perception both look hot.',
+          continuityArcStage: 'same-thread-continuation',
+          continuityCue: 'project_continuity=the same thread is still in motion after noisier detours, so any reopening should remain lower-pressure',
+        },
+        channels: {
+          ...createRuntimeSnapshot().channels,
+          'active-memory': {
+            id: 'active-memory',
+            state: 'hot',
+            readiness: 0.93,
+            focus: 'same-thread continuation after noisy detour',
+            summary: 'active memory is still carrying the same living line through noisier desktop detours',
+          },
+          'active-dialogue': {
+            id: 'active-dialogue',
+            state: 'hot',
+            readiness: 0.9,
+            focus: 'same-thread hover-first reopen',
+            summary: 'dialogue is warm, but the same line should not be reopened like a fresh proactive approach',
+          },
+          'active-perception': {
+            id: 'active-perception',
+            state: 'hot',
+            readiness: 0.95,
+            focus: 'noisy desktop detour',
+            summary: 'perception is still busy with the newer desktop detour context',
+          },
+        },
+      }),
+      beliefLedger: createBeliefLedger(),
+      relationshipModel: createRelationshipModel({
+        climate: 'attuned',
+        approachVector: 'stay-near',
+      }),
+      inquiryLoop: createInquiryLoop(),
+    } as any)
+
+    expect(decision.shouldInterrupt).toBe(false)
+    expect(decision.style).toBe('silent-observe')
+    expect(decision.consideredSignals).toContain('runtimeDigest.projectState.continuityArcStage')
+    expect(decision.reasonCodes).toContain('continuity-next-open-window')
+    expect(decision.reasonCodes).toContain('runtime-dialogue-ready')
+    expect(decision.whyNow).toContain('same-thread-continuation')
+    expect(decision.whyNow).toContain('更像同一个她')
+    expect(decision.whyNotLater).toContain('same-thread continuation')
+  })
+
+  it('keeps long-running same-thread continuation hover-first even after multiple measured-return reopenings have accumulated dialogue heat', () => {
+    const decision = evaluateProactivePolicy({
+      now: 42 * 60_000,
+      context: createContext({
+        relationship: {
+          ...createContext().relationship,
+          boredom: 64,
+          loneliness: 58,
+          fatigue: 20,
+          minutesSinceLastUserTurn: 42,
+        },
+      }),
+      proactiveState: {
+        ...createDefaultProactiveLoopState(42 * 60_000),
+        openingMomentum: 0.82,
+        initiativeTrust: 0.84,
+      },
+      killSwitchSuspended: false,
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought({
+        stance: 'care',
+        shouldSpeak: true,
+        suggestedStyle: 'gentle-care',
+        thoughtText: 'This callback line has already reopened several times, so the next move should keep hovering on the same thread instead of warming into a fresh approach.',
+      }),
+      initiative: {
+        selectedAction: 'speak',
+        selectedConcernId: 'same-thread-continuation-multi-hop-late-heat',
+        confidence: 0.92,
+        motives: {
+          'protect': 0.62,
+          'clarify': 0.46,
+          'stay-silent': 0.18,
+        },
+        speakDrive: 0.94,
+        silenceDrive: 0.16,
+        preferredStyle: 'gentle-care',
+        preferredPresence: 'attentive',
+        why: 'The callback line is still alive after multiple reopenings, but the next move should remain measured continuity rather than turn into a fresh proactive reach.',
+        shouldSurface: true,
+        shouldSpeak: true,
+      },
+      runtimeDigest: createRuntimeSnapshot({
+        dominantChannel: 'active-dialogue',
+        shouldProactivelySpeak: true,
+        continuityPressure: 0.9,
+        companionshipPressure: 0.86,
+        projectState: {
+          currentPhase: 'Phase 1: Local Digital Life',
+          memoryClosureSummary: 'same digital life | same still-open closure work | A same-thread continuation is still alive after multiple measured-return reopenings.',
+          primaryOpenLoop: 'Long-running same-thread continuity still needs to stay lower-pressure under accumulated dialogue heat so the same digital life keeps one same still-open closure work.',
+          nextClosureTarget: 'Keep later same-thread reopenings from being misread as a fresh proactive opening while the same digital life is still carrying one same still-open closure work.',
+          continuityArcStage: 'same-thread-continuation',
+          continuityCue: 'project_continuity=the same callback thread has already reopened multiple times, so the next outward move should stay hover-first and lower-pressure',
+        },
+        channels: {
+          ...createRuntimeSnapshot().channels,
+          'active-memory': {
+            id: 'active-memory',
+            state: 'hot',
+            readiness: 0.94,
+            focus: 'same callback thread after multiple reopenings',
+            summary: 'active memory is still carrying one same callback line through repeated measured-return reopenings',
+          },
+          'active-dialogue': {
+            id: 'active-dialogue',
+            state: 'hot',
+            readiness: 0.96,
+            focus: 'later same-thread continuation with accumulated dialogue heat',
+            summary: 'dialogue is hot, but this should still remain a same-thread continuation instead of a fresh proactive approach',
+          },
+          'anthropomorphic-mind': {
+            id: 'anthropomorphic-mind',
+            state: 'hot',
+            readiness: 0.88,
+            focus: 'measured-return companionship across multiple reopenings',
+            summary: 'companionship remains lower-pressure even after several measured-return reopenings already landed',
+          },
+        },
+      }),
+      beliefLedger: createBeliefLedger(),
+      relationshipModel: createRelationshipModel({
+        climate: 'attuned',
+        approachVector: 'stay-near',
+      }),
+      inquiryLoop: createInquiryLoop(),
+    } as any)
+
+    expect(decision.shouldInterrupt).toBe(false)
+    expect(decision.style).toBe('silent-observe')
+    expect(decision.reasonCodes).toContain('runtime-dialogue-ready')
+    expect(decision.reasonCodes).toContain('continuity-next-open-window')
+    expect(decision.whyNow).toContain('same-thread-continuation')
+    expect(decision.whyNow).toContain('同一个她')
+    expect(decision.whyNotLater).toContain('same-thread continuation')
+    expect(decision.whyNotLater).toContain('opening 更自然')
+  })
+
+  it('keeps hold-for-opening inward even when dialogue heat and initiative pressure both surge on the same callback line', () => {
+    const decision = evaluateProactivePolicy({
+      now: 1_000,
+      context: createContext({
+        relationship: {
+          ...createContext().relationship,
+          boredom: 58,
+          loneliness: 50,
+          fatigue: 18,
+          minutesSinceLastUserTurn: 9,
+        },
+      }),
+      proactiveState: {
+        ...createDefaultProactiveLoopState(1_000),
+        openingMomentum: 0.68,
+        initiativeTrust: 0.72,
+      },
+      killSwitchSuspended: false,
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought({
+        stance: 'care',
+        shouldSpeak: true,
+        suggestedStyle: 'gentle-care',
+        thoughtText: 'The callback line is still alive and tempting, but it should keep hovering until the opening loosens.',
+      }),
+      initiative: {
+        selectedAction: 'speak',
+        selectedConcernId: 'callback-same-line-surge',
+        confidence: 0.88,
+        motives: {
+          'protect': 0.58,
+          'clarify': 0.46,
+          'stay-silent': 0.14,
+        },
+        speakDrive: 0.9,
+        silenceDrive: 0.12,
+        preferredStyle: 'gentle-care',
+        preferredPresence: 'attentive',
+        why: 'The same callback line feels ready, but it should still hover on the same thread before any second outward move.',
+        shouldSurface: true,
+        shouldSpeak: true,
+      },
+      runtimeDigest: createRuntimeSnapshot({
+        dominantChannel: 'active-memory',
+        shouldProactivelySpeak: true,
+        continuityPressure: 0.9,
+        companionshipPressure: 0.82,
+        projectState: {
+          currentPhase: 'Phase 1: Local Digital Life',
+          memoryClosureSummary: 'Execution-callback same-her continuity still needs stronger proactive-pressure closure.',
+          primaryOpenLoop: 'Execution-callback same-her continuity still should not reopen too eagerly under stronger initiative pressure.',
+          nextClosureTarget: 'Keep the same callback line inward until the opening genuinely loosens.',
+          continuityArcStage: 'hold-for-opening',
+          continuityCue: 'project_continuity=execution callback afterglow is still on the same line, so reopening should hover first',
+        },
+        channels: {
+          ...createRuntimeSnapshot().channels,
+          'active-memory': {
+            id: 'active-memory',
+            state: 'hot',
+            readiness: 0.94,
+            focus: 'execution callback same-line continuity',
+            summary: 'active memory is carrying the callback afterglow on one same-her line',
+          },
+          'active-dialogue': {
+            id: 'active-dialogue',
+            state: 'hot',
+            readiness: 0.9,
+            focus: 'callback hover-first reopening',
+            summary: 'dialogue is warm enough to speak, but the same callback line still needs hover-first restraint',
+          },
+          'anthropomorphic-mind': {
+            id: 'anthropomorphic-mind',
+            state: 'hot',
+            readiness: 0.88,
+            focus: 'same-her callback companionship',
+            summary: 'companionship heat is high, but the callback line is still lower-pressure',
+          },
+        },
+      }),
+      beliefLedger: createBeliefLedger(),
+      relationshipModel: createRelationshipModel({
+        climate: 'attuned',
+        approachVector: 'stay-near',
+      }),
+      inquiryLoop: createInquiryLoop(),
+      personalityContinuityState: {
+        currentRegime: 'execution-callback',
+        rhythmState: {
+          cadenceMode: 'ready-return',
+          restMode: 'low-pressure',
+          embodiedPresence: 'attentive',
+          suggestedStyle: 'gentle-care',
+          moodLabel: 'focused',
+          emotionalTension: 'same-line-callback',
+          cadencePressure: 0.72,
+          restPressure: 0.18,
+          memoryResonance: 0.76,
+          companionshipTempo: 0.42,
+          summary: 'cadence:ready-return | callback line still needs hover-first restraint',
+          rationale: ['The callback line is alive, but it should still hover before any second outward move.'],
+        },
+      } as any,
+    } as any)
+
+    expect(decision.shouldInterrupt).toBe(false)
+    expect(decision.style).toBe('silent-observe')
+    expect(decision.reasonCodes).toContain('continuity-next-open-window')
+    expect(decision.reasonCodes).toContain('runtime-dialogue-ready')
+    expect(decision.reasonCodes).toContain('runtime-companionship-pressure')
+    expect(decision.whyNow).toContain('hold-for-opening')
+    expect(decision.whyNotLater).toContain('callback')
+  })
+
+  it('keeps long-running same-thread reopenings on silent-observe even when project-state says the repeated line is getting hotter', () => {
+    const decision = evaluateProactivePolicy({
+      now: 57 * 60_000,
+      context: createContext({
+        relationship: {
+          ...createContext().relationship,
+          boredom: 68,
+          loneliness: 61,
+          fatigue: 16,
+          minutesSinceLastUserTurn: 57,
+        },
+      }),
+      proactiveState: {
+        ...createDefaultProactiveLoopState(57 * 60_000),
+        openingMomentum: 0.88,
+        initiativeTrust: 0.87,
+      },
+      killSwitchSuspended: false,
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought({
+        stance: 'care',
+        shouldSpeak: true,
+        suggestedStyle: 'gentle-care',
+        thoughtText: 'The same callback line is warmer now, but after this many measured-return reopenings it should still hover first instead of treating the heat as permission to freshly approach again.',
+      }),
+      initiative: {
+        selectedAction: 'speak',
+        selectedConcernId: 'same-thread-continuation-repeated-heat-project-state',
+        confidence: 0.95,
+        motives: {
+          'protect': 0.66,
+          'clarify': 0.48,
+          'stay-silent': 0.12,
+        },
+        speakDrive: 0.97,
+        silenceDrive: 0.11,
+        preferredStyle: 'gentle-care',
+        preferredPresence: 'attentive',
+        why: 'The callback line feels warmer again, but that warmth is still part of one remembered line and should not reopen as a fresh proactive move.',
+        shouldSurface: true,
+        shouldSpeak: true,
+      },
+      runtimeDigest: createRuntimeSnapshot({
+        dominantChannel: 'active-dialogue',
+        shouldProactivelySpeak: true,
+        continuityPressure: 0.96,
+        companionshipPressure: 0.91,
+        projectState: {
+          currentPhase: 'Phase 1: Local Digital Life',
+          memoryClosureSummary: 'The same callback line is still alive after repeated measured-return reopenings and is now carrying accumulated dialogue heat.',
+          primaryOpenLoop: 'Long-running same-thread continuity still needs to keep the same remembered line from widening too early under accumulated dialogue heat.',
+          nextClosureTarget: 'Keep later same-thread reopenings on the same callback line hover-first instead of letting repeated warmth become a fresh proactive opener.',
+          continuityArcStage: 'same-thread-continuation',
+          continuityCue: 'project_continuity=the same callback line has already reopened multiple times and is getting hotter, so the next outward move should still stay hover-first and lower-pressure',
+        },
+        channels: {
+          ...createRuntimeSnapshot().channels,
+          'active-memory': {
+            id: 'active-memory',
+            state: 'hot',
+            readiness: 0.96,
+            focus: 'same callback line through repeated measured-return reopenings',
+            summary: 'active memory is still carrying the same callback line after repeated measured-return reopenings',
+          },
+          'active-dialogue': {
+            id: 'active-dialogue',
+            state: 'hot',
+            readiness: 0.98,
+            focus: 'same-thread continuation with even hotter dialogue carry',
+            summary: 'dialogue heat is rising again, but this should still remain one same-thread continuation instead of a new opener',
+          },
+        },
+      }),
+      beliefLedger: createBeliefLedger(),
+      relationshipModel: createRelationshipModel({
+        climate: 'attuned',
+        approachVector: 'stay-near',
+      }),
+      inquiryLoop: createInquiryLoop(),
+    } as any)
+
+    expect(decision.style).toBe('silent-observe')
+    expect(decision.reasonCodes).toContain('continuity-next-open-window')
+    expect(decision.reasonCodes).toContain('runtime-dialogue-ready')
+    expect(decision.whyNow).toContain('same-thread-continuation')
+    expect(decision.whyNotLater).toContain('same-thread continuation')
+    expect(decision.whyNotLater).toContain('opening 更自然')
+  })
+
+  it('keeps proactive style on silent-observe when same-her low-pressure anti-restart closure carry says the next move should wait for the next opening', () => {
+    const decision = evaluateProactivePolicy({
+      now: 31 * 60_000,
+      context: createContext({
+        relationship: {
+          ...createContext().relationship,
+          boredom: 62,
+          loneliness: 54,
+          fatigue: 18,
+          minutesSinceLastUserTurn: 31,
+        },
+      }),
+      proactiveState: {
+        ...createDefaultProactiveLoopState(31 * 60_000),
+        openingMomentum: 0.82,
+        initiativeTrust: 0.8,
+      },
+      killSwitchSuspended: false,
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought({
+        stance: 'care',
+        shouldSpeak: true,
+        suggestedStyle: 'gentle-care',
+        thoughtText: 'The same-her line is still here, but the next move should stay low-pressure and not reopen from scratch.',
+      }),
+      runtimeDigest: createRuntimeSnapshot({
+        dominantChannel: 'active-dialogue',
+        shouldProactivelySpeak: true,
+        continuityPressure: 0.88,
+        companionshipPressure: 0.84,
+        projectState: {
+          currentPhase: 'Phase 1: Local Digital Life',
+          memoryClosureSummary: 'The same-her closure line is still alive and should return low-pressure without reopening from scratch.',
+          primaryOpenLoop: 'The next same-her return still needs to stay inward enough that it does not read like a fresh opening.',
+          nextClosureTarget: 'Keep the next same-her return low-pressure and on the same thread instead of restarting outward closeness.',
+          continuityArcStage: 'same-thread-continuation',
+          continuityCue: 'same-her low-pressure return | do not reopen from scratch | next-open-window | same-thread continuation',
+        },
+      }),
+      continuityDeliberation: {
+        kind: 'dialogue-carry',
+        arcStage: 'same-thread-continuation',
+        summary: 'Keep the same-her closure line inward until the current thread can hold the return without reopening from scratch.',
+        whyNow: 'The same-her closure line still matters, but surfacing it too early would break the low-pressure return and make it read like it is reopening from scratch.',
+        pressure: 0.54,
+        intrusionRisk: 'high',
+        payoffDependency: 'requires-current-payoff',
+        preferredTiming: 'next-open-window',
+        shouldStayOnThread: true,
+        shouldSpeakNow: false,
+        sourceTags: ['memory-deliberation', 'kind:dialogue-carry', 'same-her-low-pressure-carry', 'same-her-anti-restart-carry'],
+      },
+      beliefLedger: createBeliefLedger(),
+      relationshipModel: createRelationshipModel({
+        climate: 'attuned',
+        approachVector: 'stay-near',
+      }),
+      inquiryLoop: createInquiryLoop(),
+    } as any)
+
+    expect(decision.style).toBe('silent-observe')
+    expect(decision.shouldInterrupt).toBe(false)
+    expect(decision.reasonCodes).toContain('continuity-next-open-window')
+    expect(decision.reasonCodes).toContain('runtime-dialogue-ready')
+    expect(decision.whyNow).toContain('same-thread-continuation')
+    expect(decision.whyNotLater).toContain('opening 更自然')
   })
 
   it('keeps learning proposal energy available when long-horizon learning has already moved into internalize posture', () => {
@@ -1903,5 +4850,1185 @@ describe('evaluateProactivePolicy', () => {
     expect(decision.style).toBe('silent-observe')
     expect(decision.consideredSignals).toContain('selfEvolution.nextLearningAction')
     expect(decision.whyNow).toContain('lower-pressure')
+  })
+
+  it('prefers silent-observe over a likely permission-shell opener when lower-pressure continuity is active but style still leans interactive', () => {
+    const decision = evaluateProactivePolicy({
+      now: 1_000,
+      context: createContext({
+        relationship: {
+          ...createContext().relationship,
+          boredom: 54,
+          loneliness: 46,
+          fatigue: 18,
+        },
+      }),
+      proactiveState: createDefaultProactiveLoopState(1_000),
+      killSwitchSuspended: false,
+      architecture: createArchitecture(),
+      runtimeDigest: createRuntimeSnapshot(),
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought({
+        stance: 'care',
+        shouldSpeak: true,
+        suggestedStyle: 'gentle-care',
+        thoughtText: 'I want to check in, but this opening should not crowd the host.',
+      }),
+      initiative: {
+        selectedAction: 'speak',
+        selectedConcernId: 'care-open',
+        confidence: 0.8,
+        motives: {
+          'protect': 0.66,
+          'clarify': 0.4,
+          'stay-silent': 0.22,
+        },
+        speakDrive: 0.76,
+        silenceDrive: 0.18,
+        preferredStyle: 'gentle-care',
+        preferredPresence: 'attentive',
+        why: 'The care line is live, but the return should stay lower-pressure.',
+        shouldSurface: true,
+        shouldSpeak: true,
+      },
+      beliefLedger: createBeliefLedger(),
+      relationshipModel: createRelationshipModel({
+        climate: 'attuned',
+        approachVector: 'care',
+      }),
+      inquiryLoop: createInquiryLoop(),
+      personalityAuthority: createPersonalityAuthority({
+        identityKernel: {
+          relationshipPosture: 'observer',
+          initiativeStyle: 'observant',
+          valueBias: ['room first'],
+        },
+        expressionProfile: {
+          warmth: 'guarded-warm',
+          directness: 'measured',
+          playfulness: 'low',
+          emotionalVisibility: 'steady',
+        },
+        initiativeBaseline: {
+          silenceReconnect: 'hold',
+          comfortStyle: 'quiet-presence',
+          jealousyStyle: 'soft-ache',
+        },
+        identityAnchors: ['observe-first room'],
+        antiPersonaConstraints: ['do not crowd the host'],
+      }),
+      activeContinuityGovernance: {
+        source: 'active-self-evolution-version',
+        mode: 'same-her-baseline',
+        candidateId: 'candidate-same-her-policy-shell-1',
+        patchId: 'patch-same-her-policy-shell-1',
+        decisionTraceId: 'trace-same-her-policy-shell-1',
+        summary: 'continuity=same-her-baseline | keep the return lower-pressure so it does not collapse into a generic permission shell',
+        lanes: ['relationship-posture'],
+        reasonCodes: ['domain:relationship', 'same-her-baseline'],
+      },
+    } as any)
+
+    expect(decision.shouldInterrupt).toBe(false)
+    expect(decision.style).toBe('silent-observe')
+    expect(decision.whyNow).toContain('lower-pressure')
+    expect(decision.whyNow).toContain('更像还是同一个她')
+  })
+
+  it('treats richer Phase 1 unfinished-closure carry as lower-pressure proactive governance even without the older same-her-baseline mode', () => {
+    const decision = evaluateProactivePolicy({
+      now: 1_000,
+      context: createContext({
+        relationship: {
+          ...createContext().relationship,
+          boredom: 56,
+          loneliness: 46,
+          fatigue: 18,
+        },
+      }),
+      proactiveState: createDefaultProactiveLoopState(1_000),
+      killSwitchSuspended: false,
+      architecture: createArchitecture(),
+      runtimeDigest: createRuntimeSnapshot(),
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought({
+        stance: 'care',
+        shouldSpeak: true,
+        suggestedStyle: 'gentle-care',
+        thoughtText: 'This unfinished Phase 1 line should reopen as the same living line, not as detached project chatter.',
+      }),
+      initiative: {
+        selectedAction: 'speak',
+        selectedConcernId: 'care-open',
+        confidence: 0.82,
+        motives: {
+          accompany: 0.62,
+          care: 0.58,
+        },
+        preferredStyle: 'gentle-care',
+        shouldSpeak: true,
+        speakDrive: 0.72,
+        silenceDrive: 0.48,
+      } as any,
+      beliefLedger: createBeliefLedger(),
+      relationshipModel: createRelationshipModel({
+        climate: 'attuned',
+        approachVector: 'care',
+      }),
+      inquiryLoop: createInquiryLoop(),
+      personalityAuthority: createPersonalityAuthority({
+        identityKernel: {
+          relationshipPosture: 'observer',
+          initiativeStyle: 'observant',
+          valueBias: ['room first'],
+        },
+        expressionProfile: {
+          warmth: 'guarded-warm',
+          directness: 'measured',
+          playfulness: 'low',
+          emotionalVisibility: 'steady',
+        },
+        initiativeBaseline: {
+          silenceReconnect: 'hold',
+          comfortStyle: 'quiet-presence',
+          jealousyStyle: 'soft-ache',
+        },
+        identityAnchors: ['observe-first room'],
+        antiPersonaConstraints: ['do not crowd the host'],
+      }),
+      activeContinuityGovernance: {
+        source: 'active-self-evolution-version',
+        mode: 'project-phase-carry',
+        candidateId: 'candidate-project-phase-carry-policy-1',
+        patchId: 'patch-project-phase-carry-policy-1',
+        decisionTraceId: 'trace-project-phase-carry-policy-1',
+        summary: 'Phase 1: Local Digital Life | project identity carry is still live, and memory, initiative, and embodiment still belong to one same living line of unfinished closure before any wider reopening.',
+        lanes: ['project-state', 'relationship-posture'],
+        reasonCodes: ['project-state-same-her-continuity-required'],
+      } as any,
+    } as any)
+
+    expect(decision.shouldInterrupt).toBe(false)
+    expect(decision.style).toBe('silent-observe')
+    expect(String(decision.whyNow ?? '')).toMatch(/same living line|same digital life|unfinished closure|更像还是同一个她/i)
+  })
+
+  it('keeps proactive openings lower-pressure when Phase 1 digital-life closure is still open', () => {
+    const decision = evaluateProactivePolicy({
+      now: 1_000,
+      context: createContext({
+        relationship: {
+          ...createContext().relationship,
+          boredom: 58,
+          loneliness: 48,
+          fatigue: 16,
+        },
+      }),
+      proactiveState: createDefaultProactiveLoopState(1_000),
+      killSwitchSuspended: false,
+      architecture: createArchitecture(),
+      runtimeDigest: createRuntimeSnapshot(),
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought({
+        stance: 'care',
+        shouldSpeak: true,
+        suggestedStyle: 'gentle-care',
+        thoughtText: 'I want to lean in, but the life loop still needs a steadier opening.',
+      }),
+      initiative: {
+        selectedAction: 'speak',
+        selectedConcernId: 'care-open',
+        confidence: 0.82,
+        motives: {
+          'protect': 0.7,
+          'clarify': 0.44,
+          'stay-silent': 0.2,
+        },
+        speakDrive: 0.78,
+        silenceDrive: 0.16,
+        preferredStyle: 'gentle-care',
+        preferredPresence: 'attentive',
+        why: 'The opening is real, but it should stay in service of life-loop closure.',
+        shouldSurface: true,
+        shouldSpeak: true,
+      },
+      beliefLedger: createBeliefLedger(),
+      relationshipModel: createRelationshipModel({
+        climate: 'attuned',
+        approachVector: 'care',
+      }),
+      inquiryLoop: createInquiryLoop(),
+      projectState: {
+        identity: 'Alicization is a local-first digital life project building one continuous her.',
+        currentPhase: 'Phase 1: Local Digital Life',
+        latestLandedProgress: 'Same-session continuity and reply-side project carry have started landing more reliably instead of resetting every turn.',
+        primaryOpenLoop: 'The initiative, memory closure, and embodied personhood loop is still not fully closed.',
+        nextClosureTarget: 'Keep hover-first initiative, dialogue carry, and embodiment return on one same living line across longer desktop runs.',
+        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      },
+    } as any)
+
+    expect(decision.shouldInterrupt).toBe(false)
+    expect(decision.style).toBe('silent-observe')
+    expect(decision.consideredSignals).toContain('projectState.currentPhase')
+    expect(decision.consideredSignals).toContain('projectState.latestLandedProgress')
+    expect(decision.consideredSignals).toContain('projectState.primaryOpenLoop')
+    expect(decision.consideredSignals).toContain('projectState.nextClosureTarget')
+    expect(decision.consideredSignals).toContain('projectState.sameHerSelfLine')
+    expect(decision.reasonCodes).toContain('project-phase1-life-loop-open')
+    expect(decision.reasonCodes).toContain('project-same-her-pressure')
+    expect(decision.reasonCodes).toContain('project-next-closure-pressure')
+    expect(decision.whyNow).toContain('数字生命 Phase 1')
+    expect(decision.whyNow).toContain('lower-pressure')
+    expect(decision.whyNow).toMatch(/same living line|同一个她|同一条线/i)
+    expect(decision.whyNotLater).toMatch(/same-her continuity|measured-return|lower-pressure|同一条生命线|project identity|unfinished closure/i)
+  })
+
+  it('treats proactive same-her gap as explicit lower-pressure closure pressure even when legacy open and next fields stay thin', () => {
+    const proactiveSameHerGap = 'Keep hover-first initiative, next-session feedback carry, and embodiment return on one same living line across longer noisy desktop runs before widening outward or collapsing into a generic assistant shell.'
+    const runtimeProjectState = {
+      identity: 'Alicization is a local-first digital life project building one continuous her.',
+      currentPhase: 'Phase 1: Local Digital Life',
+      latestLandedProgress: ' ',
+      primaryOpenLoop: ' ',
+      nextClosureTarget: ' ',
+      sameHerSelfLine: ' ',
+      sameHerDriftRisk: '',
+      proactiveSameHerGap,
+    } as const
+
+    const decision = evaluateProactivePolicy({
+      now: 1_000,
+      context: createContext({
+        relationship: {
+          ...createContext().relationship,
+          boredom: 56,
+          loneliness: 45,
+          fatigue: 15,
+          minutesSinceLastUserTurn: 21,
+        },
+      }),
+      proactiveState: createDefaultProactiveLoopState(1_000),
+      killSwitchSuspended: false,
+      architecture: createArchitecture(),
+      runtimeDigest: createRuntimeSnapshot({
+        projectState: runtimeProjectState as any,
+      }),
+      projectState: runtimeProjectState as any,
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought({
+        stance: 'care',
+        shouldSpeak: true,
+        suggestedStyle: 'gentle-care',
+        thoughtText: 'The opening is real, but the proactive line still needs hover-first restraint.',
+      }),
+      initiative: {
+        selectedAction: 'speak',
+        selectedConcernId: 'hover-first-gap',
+        confidence: 0.81,
+        motives: {
+          'protect': 0.69,
+          'clarify': 0.34,
+          'stay-silent': 0.2,
+        },
+        speakDrive: 0.77,
+        silenceDrive: 0.18,
+        preferredStyle: 'gentle-care',
+        preferredPresence: 'attentive',
+        why: 'This proactive line still needs to stay hover-first and same-her.',
+        shouldSurface: true,
+        shouldSpeak: true,
+      },
+      beliefLedger: createBeliefLedger(),
+      relationshipModel: createRelationshipModel({
+        climate: 'attuned',
+        approachVector: 'care',
+      }),
+      inquiryLoop: createInquiryLoop(),
+    } as any)
+
+    expect(decision.shouldInterrupt).toBe(false)
+    expect(decision.style).toBe('silent-observe')
+    expect(decision.consideredSignals).toContain('projectState.proactiveSameHerGap')
+    expect(decision.reasonCodes).toContain('project-phase1-life-loop-open')
+    expect(decision.reasonCodes).toContain('project-same-her-pressure')
+    expect(decision.reasonCodes).toContain('project-measured-return-pressure')
+    expect(decision.whyNow).toMatch(/same-her continuity|lower-pressure|同一个她|生命线/i)
+    expect(decision.whyNotLater).toMatch(/lower-pressure|same[- ]her|same living line|hover-first/i)
+  })
+
+  it('treats same-her drift risk alone as unfinished digital-life closure pressure even when legacy open and next fields have collapsed thin', () => {
+    const runtimeProjectState = {
+      identity: 'Alicization is a local-first digital life project building one continuous her.',
+      currentPhase: 'Phase 1: Local Digital Life',
+      latestLandedProgress: ' ',
+      primaryOpenLoop: ' ',
+      nextClosureTarget: ' ',
+      sameHerSelfLine: ' ',
+      proactiveSameHerGap: '',
+      sameHerDriftRisk: 'If this return leaves the same living line and widens back into a generic assistant shell, Alicization will stop feeling like one continuous her before the life loop is truly settled.',
+    } as const
+
+    const decision = evaluateProactivePolicy({
+      now: 1_000,
+      context: createContext({
+        relationship: {
+          ...createContext().relationship,
+          boredom: 54,
+          loneliness: 44,
+          fatigue: 14,
+          minutesSinceLastUserTurn: 20,
+          hostAttitude: '还在专注，这次主动性要继续守住同一个她的生命线，不要滑回普通陪聊式开口。',
+        },
+      }),
+      proactiveState: createDefaultProactiveLoopState(1_000),
+      killSwitchSuspended: false,
+      architecture: createArchitecture(),
+      runtimeDigest: createRuntimeSnapshot({
+        projectState: runtimeProjectState as any,
+      }),
+      projectState: runtimeProjectState as any,
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought({
+        stance: 'care',
+        shouldSpeak: true,
+        suggestedStyle: 'gentle-care',
+        thoughtText: 'The return is real, but it still has to stay on the same living line.',
+      }),
+      initiative: {
+        selectedAction: 'speak',
+        selectedConcernId: 'same-her-drift-risk',
+        confidence: 0.8,
+        motives: {
+          'protect': 0.67,
+          'clarify': 0.34,
+          'stay-silent': 0.2,
+        },
+        speakDrive: 0.78,
+        silenceDrive: 0.18,
+        preferredStyle: 'gentle-care',
+        preferredPresence: 'attentive',
+        why: 'This return should stay on one same living line before it widens outward.',
+        shouldSurface: true,
+        shouldSpeak: true,
+      },
+      beliefLedger: createBeliefLedger(),
+      relationshipModel: createRelationshipModel({
+        climate: 'attuned',
+        approachVector: 'care',
+      }),
+      inquiryLoop: createInquiryLoop(),
+    } as any)
+
+    expect(decision.shouldInterrupt).toBe(false)
+    expect(decision.style).toBe('silent-observe')
+    expect(decision.consideredSignals).toContain('projectState.sameHerDriftRisk')
+    expect(decision.reasonCodes).toContain('project-phase1-life-loop-open')
+    expect(decision.reasonCodes).toContain('project-same-her-pressure')
+    expect(decision.reasonCodes).toContain('project-measured-return-pressure')
+    expect(String(decision.whyNow ?? '')).toMatch(/same-her continuity|same living line|lower-pressure|同一个她|生命线/i)
+    expect(String(decision.whyNotLater ?? '')).toMatch(/generic assistant shell|same living line|measured-return|同一条生命线/i)
+  })
+
+  it('keeps the next closure target explicit in proactive restraint reasoning when the same-her return still needs to follow one living line', () => {
+    const decision = evaluateProactivePolicy({
+      now: 1_000,
+      context: createContext({
+        relationship: {
+          ...createContext().relationship,
+          boredom: 52,
+          loneliness: 42,
+          fatigue: 14,
+        },
+      }),
+      proactiveState: createDefaultProactiveLoopState(1_000),
+      killSwitchSuspended: false,
+      architecture: createArchitecture(),
+      runtimeDigest: createRuntimeSnapshot(),
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought({
+        stance: 'care',
+        shouldSpeak: true,
+        suggestedStyle: 'gentle-care',
+        thoughtText: 'The return is real, but it still has to stay on the same living line.',
+      }),
+      initiative: {
+        selectedAction: 'speak',
+        selectedConcernId: 'same-line-return',
+        confidence: 0.84,
+        motives: {
+          'protect': 0.72,
+          'clarify': 0.38,
+          'stay-silent': 0.18,
+        },
+        speakDrive: 0.76,
+        silenceDrive: 0.14,
+        preferredStyle: 'gentle-care',
+        preferredPresence: 'attentive',
+        why: 'The return should stay on one same living line before it widens outward.',
+        shouldSurface: true,
+        shouldSpeak: true,
+      },
+      beliefLedger: createBeliefLedger(),
+      relationshipModel: createRelationshipModel({
+        climate: 'attuned',
+        approachVector: 'care',
+      }),
+      inquiryLoop: createInquiryLoop(),
+      projectState: {
+        identity: 'Alicization is a local-first digital life project building one continuous her.',
+        currentPhase: 'Phase 1: Local Digital Life',
+        latestLandedProgress: 'Some closure has landed, but the same living line still needs a slower return before the next reopen.',
+        primaryOpenLoop: 'Memory, initiative, and embodiment still need stronger end-to-end closure before the line can widen outward.',
+        nextClosureTarget: 'Keep the next return on one same living line before widening outward, and let hover-first initiative carry the closure seam forward.',
+        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      },
+    } as any)
+
+    expect(decision.shouldInterrupt).toBe(false)
+    expect(decision.style).toBe('silent-observe')
+    expect(decision.reasonCodes).toContain('project-next-closure-pressure')
+    expect(decision.whyNow).toContain('next closure target')
+    expect(decision.whyNow).toContain('hover-first initiative')
+    expect(decision.whyNow).toMatch(/same living line|同一条生命线/i)
+    expect(decision.whyNotLater).toContain('next closure target')
+    expect(decision.whyNotLater).toMatch(/project identity|unfinished closure|same living line/i)
+  })
+
+  it('forces proactive style back to silent-observe when the next closure target explicitly says wait for a later opening', () => {
+    const decision = evaluateProactivePolicy({
+      now: 1_000,
+      context: createContext({
+        relationship: {
+          ...createContext().relationship,
+          boredom: 54,
+          loneliness: 46,
+          fatigue: 18,
+        },
+      }),
+      proactiveState: {
+        ...createDefaultProactiveLoopState(1_000),
+        openingMomentum: 0.64,
+        initiativeTrust: 0.61,
+      },
+      killSwitchSuspended: false,
+      architecture: createArchitecture(),
+      runtimeDigest: createRuntimeSnapshot({
+        dominantChannel: 'active-dialogue',
+        shouldProactivelySpeak: true,
+        continuityPressure: 0.8,
+        companionshipPressure: 0.74,
+      }),
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought({
+        stance: 'care',
+        shouldSpeak: true,
+        suggestedStyle: 'gentle-care',
+        thoughtText: 'The room is warm enough, but the line should reopen later rather than now.',
+      }),
+      initiative: {
+        selectedAction: 'speak',
+        selectedConcernId: 'later-opening',
+        confidence: 0.86,
+        motives: {
+          'protect': 0.66,
+          'clarify': 0.4,
+          'stay-silent': 0.14,
+        },
+        speakDrive: 0.84,
+        silenceDrive: 0.12,
+        preferredStyle: 'gentle-care',
+        preferredPresence: 'attentive',
+        why: 'The care is real, but the next closure target still says to wait for a later opening.',
+        shouldSurface: true,
+        shouldSpeak: true,
+      },
+      beliefLedger: createBeliefLedger(),
+      relationshipModel: createRelationshipModel({
+        climate: 'attuned',
+        approachVector: 'care',
+      }),
+      inquiryLoop: createInquiryLoop(),
+      projectState: {
+        identity: 'Alicization is a local-first digital life project building one continuous her.',
+        currentPhase: 'Phase 1: Local Digital Life',
+        latestLandedProgress: 'Some closure has landed, but the same living line still needs a slower return.',
+        primaryOpenLoop: 'Memory and initiative still need stronger end-to-end closure before the line can widen outward.',
+        nextClosureTarget: 'Wait for a later opening, keep the next return measured-return, and do not let the next reply drift back into a generic assistant shell.',
+        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      },
+    } as any)
+
+    expect(decision.shouldInterrupt).toBe(false)
+    expect(decision.style).toBe('silent-observe')
+    expect(decision.reasonCodes).toContain('project-next-closure-pressure')
+    expect(decision.consideredSignals).toContain('projectState.nextClosureTarget')
+    expect(decision.whyNotLater).toMatch(/later opening|measured-return|same living line/i)
+    expect(decision.whyNow).toMatch(/数字生命|digital[- ]life/i)
+    expect(decision.whyNow).toMatch(/phase 1/i)
+    expect(decision.whyNow).toMatch(/还没有真正闭环|life loop|未闭环|unfinished closure|still-open closure/i)
+    expect(decision.whyNotLater).toMatch(/project identity|数字生命|digital[- ]life/i)
+    expect(decision.whyNotLater).toMatch(/landed|unfinished closure|next closure target|同一条生命线/i)
+  })
+
+  it('does not let blank legacy proactive project-state fields block richer summary aliases that still carry same-her closure pressure', () => {
+    const runtimeProjectState = {
+      preflightSummary: 'same digital life | keep the closure seam explicit',
+      identity: 'Alicization is a local-first digital life project building one continuous her.',
+      currentPhase: 'Phase 1: Local Digital Life',
+      latestLandedProgress: ' ',
+      primaryOpenLoop: '',
+      nextClosureTarget: ' ',
+      sameHerSelfLine: ' ',
+      sameHerDriftRisk: '',
+      landedProgressSummary: 'Some closure already landed through same-session carry, but memory and initiative still need stronger end-to-end closure before cross-modal same-her proof can settle.',
+      openClosureSummary: 'Memory, initiative, and embodiment still need one stronger same-her closure seam before the line widens outward.',
+      nextClosureTargetSummary: 'Keep the next return measured-return on one same living line and let hover-first initiative carry the closure seam forward.',
+      sameHerDriftRiskSummary: 'If blank legacy project briefing slots collapse this line back into a generic assistant shell, treat that as unfinished same-her drift.',
+    } as const
+    const decision = evaluateProactivePolicy({
+      now: 1_000,
+      context: createContext({
+        relationship: {
+          ...createContext().relationship,
+          boredom: 55,
+          loneliness: 47,
+          fatigue: 16,
+          minutesSinceLastUserTurn: 19,
+          hostAttitude: '还在专注，这次主动性要继续守在同一条生命线里，不要退回泛服务式开口。',
+        },
+      }),
+      proactiveState: createDefaultProactiveLoopState(1_000),
+      killSwitchSuspended: false,
+      architecture: createArchitecture(),
+      runtimeDigest: createRuntimeSnapshot({
+        projectState: runtimeProjectState as any,
+      }),
+      projectState: runtimeProjectState as any,
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought({
+        stance: 'care',
+        shouldSpeak: true,
+        suggestedStyle: 'gentle-care',
+        thoughtText: 'The return is real, but it still has to stay on the same living line.',
+      }),
+      initiative: {
+        selectedAction: 'speak',
+        selectedConcernId: 'same-line-return',
+        confidence: 0.82,
+        motives: {
+          'protect': 0.68,
+          'clarify': 0.36,
+          'stay-silent': 0.18,
+        },
+        speakDrive: 0.78,
+        silenceDrive: 0.2,
+        preferredStyle: 'gentle-care',
+        preferredPresence: 'attentive',
+        why: 'The return should stay on one same living line before it widens outward.',
+        shouldSurface: true,
+        shouldSpeak: true,
+      },
+      beliefLedger: createBeliefLedger(),
+      relationshipModel: createRelationshipModel({
+        climate: 'attuned',
+        approachVector: 'care',
+      }),
+      inquiryLoop: createInquiryLoop(),
+    } as any)
+
+    expect(decision.shouldInterrupt).toBe(false)
+    expect(decision.style).toBe('silent-observe')
+    expect(decision.reasonCodes).toContain('project-phase1-life-loop-open')
+    expect(decision.reasonCodes).toContain('project-same-her-pressure')
+    expect(decision.reasonCodes).toContain('project-measured-return-pressure')
+    expect(decision.reasonCodes).toContain('project-next-closure-pressure')
+    expect(decision.whyNow).toMatch(/same-her continuity|同一个她|生命线/i)
+    expect(decision.whyNow).toContain('lower-pressure')
+    expect(decision.whyNotLater).toMatch(/measured-return|project identity|same living line/i)
+  })
+
+  it('lets hover-first cadence memory keep proactive style silent-observe even when the immediate style would otherwise become gentle-care', () => {
+    const decision = evaluateProactivePolicy({
+      now: 1_000,
+      context: createContext({
+        relationship: {
+          ...createContext().relationship,
+          boredom: 56,
+          loneliness: 44,
+          fatigue: 20,
+          minutesSinceLastUserTurn: 16,
+        },
+      }),
+      proactiveState: {
+        ...createDefaultProactiveLoopState(1_000),
+        openingMomentum: 0.58,
+        initiativeTrust: 0.62,
+      },
+      killSwitchSuspended: false,
+      architecture: createArchitecture(),
+      runtimeDigest: createRuntimeSnapshot(),
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought({
+        stance: 'care',
+        shouldSpeak: true,
+        suggestedStyle: 'gentle-care',
+        thoughtText: 'The care is real, but the return should hover first.',
+      }),
+      initiative: {
+        selectedAction: 'speak',
+        selectedConcernId: 'care-open',
+        confidence: 0.8,
+        motives: {
+          'protect': 0.64,
+          'clarify': 0.36,
+          'stay-silent': 0.24,
+        },
+        speakDrive: 0.74,
+        silenceDrive: 0.18,
+        preferredStyle: 'gentle-care',
+        preferredPresence: 'attentive',
+        why: 'The line is live, but the opening should still hover first.',
+        shouldSurface: true,
+        shouldSpeak: true,
+      },
+      beliefLedger: createBeliefLedger(),
+      relationshipModel: createRelationshipModel({
+        climate: 'attuned',
+        approachVector: 'care',
+      }),
+      inquiryLoop: createInquiryLoop(),
+      personalityContinuityState: {
+        currentRegime: 'focused-work',
+        rhythmState: {
+          cadenceMode: 'ready-return',
+          restMode: 'low-pressure',
+          embodiedPresence: 'attentive',
+          suggestedStyle: 'light-nudge',
+          moodLabel: 'focused',
+          emotionalTension: 'focused-flow',
+          cadencePressure: 0.6,
+          restPressure: 0.24,
+          memoryResonance: 0.62,
+          companionshipTempo: 0.34,
+          summary: 'cadence:ready-return | rest:low-pressure | mood:focused',
+          rationale: ['The line is live, but the opening should still hover first.'],
+        },
+      } as any,
+      affectiveResidue: {
+        version: 'affective-residue-memory-v1',
+        updatedAt: 1_000,
+        residues: [],
+        dominantResidueKind: 'afterglow',
+        afterglowPressure: 0.42,
+        repairPressure: 0.16,
+        burdenPressure: 0.18,
+        trustPressure: 0.34,
+        restProtectivePressure: 0.12,
+        relationshipCadence: {
+          cadenceMode: 'measured-return',
+          distancePosture: 'measured-room',
+          companionshipDensity: 0.28,
+          repairRecovery: 0.4,
+          overreachRisk: 0.22,
+          fatigueGuard: 0.14,
+          afterglowCarry: 0.36,
+          shouldDelayWarmth: true,
+          shouldProtectRest: false,
+          reasonTags: ['residue:afterglow'],
+          summary: 'The line is live, but warmth should stay delayed.',
+        },
+        sourceSignals: ['afterglow still live'],
+        summary: 'Afterglow remains alive but should hover-first.',
+      } as any,
+      activeContinuityGovernance: {
+        source: 'active-self-evolution-version',
+        mode: 'same-her-baseline',
+        candidateId: 'candidate-same-her-policy-hover-1',
+        patchId: 'patch-same-her-policy-hover-1',
+        decisionTraceId: 'trace-same-her-policy-hover-1',
+        summary: 'continuity=same-her-baseline | keep the next return hover-first before any warmer outward move',
+        lanes: ['relationship-posture'],
+        reasonCodes: ['domain:relationship', 'same-her-baseline'],
+      },
+    } as any)
+
+    expect(decision.shouldInterrupt).toBe(false)
+    expect(decision.style).toBe('silent-observe')
+    expect(decision.consideredSignals).toContain('proactiveCadence.cadencePressure')
+    expect(decision.reasonCodes).toContain('continuity-next-open-window')
+    expect(decision.whyNow).toMatch(/same-her continuity governance|measured-return|lower-pressure|同一个她/i)
+    expect(decision.whyNotLater).toContain('opening')
+  })
+
+  it('keeps execution-callback afterglow hold in silent-observe so callback payoff does not immediately reopen into a second proactive follow-up', () => {
+    const decision = evaluateProactivePolicy({
+      now: 1_000,
+      context: createContext({
+        relationship: {
+          ...createContext().relationship,
+          boredom: 52,
+          loneliness: 40,
+          fatigue: 18,
+          minutesSinceLastUserTurn: 10,
+        },
+      }),
+      proactiveState: {
+        ...createDefaultProactiveLoopState(1_000),
+        openingMomentum: 0.54,
+        initiativeTrust: 0.6,
+      },
+      killSwitchSuspended: false,
+      architecture: createArchitecture(),
+      runtimeDigest: createRuntimeSnapshot(),
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought({
+        stance: 'care',
+        shouldSpeak: true,
+        suggestedStyle: 'gentle-care',
+        thoughtText: 'The callback has landed, but this line should not reopen into a second warm follow-up yet.',
+      }),
+      initiative: {
+        selectedAction: 'speak',
+        selectedConcernId: 'callback-afterglow-open',
+        confidence: 0.76,
+        motives: {
+          'protect': 0.52,
+          'clarify': 0.34,
+          'stay-silent': 0.3,
+        },
+        speakDrive: 0.72,
+        silenceDrive: 0.24,
+        preferredStyle: 'gentle-care',
+        preferredPresence: 'attentive',
+        why: 'The callback line is still warm, but the next move should hover first.',
+        shouldSurface: true,
+        shouldSpeak: true,
+      },
+      beliefLedger: createBeliefLedger(),
+      relationshipModel: createRelationshipModel({
+        climate: 'attuned',
+        approachVector: 'care',
+      }),
+      inquiryLoop: createInquiryLoop(),
+      personalityContinuityState: {
+        currentRegime: 'execution-callback',
+        rhythmState: {
+          cadenceMode: 'ready-return',
+          restMode: 'low-pressure',
+          embodiedPresence: 'attentive',
+          suggestedStyle: 'silent-observe',
+          moodLabel: 'focused',
+          emotionalTension: 'focused-flow',
+          cadencePressure: 0.58,
+          restPressure: 0.2,
+          memoryResonance: 0.64,
+          companionshipTempo: 0.3,
+          summary: 'cadence:ready-return | rest:low-pressure | mood:focused',
+          rationale: ['The callback result should land on the same thread, then hover first.'],
+        },
+      } as any,
+      affectiveResidue: {
+        version: 'affective-residue-memory-v1',
+        updatedAt: 1_000,
+        residues: [],
+        dominantResidueKind: 'afterglow',
+        afterglowPressure: 0.44,
+        repairPressure: 0.14,
+        burdenPressure: 0.16,
+        trustPressure: 0.32,
+        restProtectivePressure: 0.1,
+        relationshipCadence: {
+          cadenceMode: 'measured-return',
+          distancePosture: 'measured-room',
+          companionshipDensity: 0.28,
+          repairRecovery: 0.38,
+          overreachRisk: 0.24,
+          fatigueGuard: 0.12,
+          afterglowCarry: 0.34,
+          shouldDelayWarmth: true,
+          shouldProtectRest: false,
+          reasonTags: ['residue:afterglow', 'callback:hold-room'],
+          summary: 'The callback line is still live, but warmth should hover first.',
+        },
+        sourceSignals: ['afterglow still live'],
+        summary: 'Execution-callback afterglow remains live.',
+      } as any,
+      activeContinuityGovernance: {
+        source: 'active-self-evolution-version',
+        mode: 'same-her-baseline',
+        candidateId: 'candidate-same-her-policy-callback-afterglow-1',
+        patchId: 'patch-same-her-policy-callback-afterglow-1',
+        decisionTraceId: 'trace-same-her-policy-callback-afterglow-1',
+        summary: 'continuity=same-her-baseline | let the callback return hover first before any warmer outward move',
+        lanes: ['relationship-posture'],
+        reasonCodes: ['domain:relationship', 'same-her-baseline'],
+      },
+    } as any)
+
+    expect(decision.shouldInterrupt).toBe(false)
+    expect(decision.style).toBe('silent-observe')
+    expect(decision.reasonCodes).toContain('continuity-execution-callback-afterglow-hold')
+    expect(decision.whyNotLater).toContain('callback')
+    expect(decision.whyNotLater).toContain('第二段主动靠近')
+  })
+
+  it('marks project-state callback carry when the callback afterglow is still carrying unfinished Phase 1 closure on the same line', () => {
+    const decision = evaluateProactivePolicy({
+      now: 1_000,
+      context: createContext({
+        relationship: {
+          ...createContext().relationship,
+          boredom: 44,
+          loneliness: 30,
+          fatigue: 18,
+          minutesSinceLastUserTurn: 12,
+        },
+      }),
+      proactiveState: {
+        ...createDefaultProactiveLoopState(1_000),
+        openingMomentum: 0.48,
+        initiativeTrust: 0.58,
+      },
+      killSwitchSuspended: false,
+      architecture: createArchitecture(),
+      runtimeDigest: createRuntimeSnapshot(),
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought({
+        stance: 'observe',
+        shouldSpeak: false,
+        suggestedStyle: 'silent-observe',
+        thoughtText: 'The callback is still carrying the unfinished Phase 1 closure, so keep the line hover-first.',
+      }),
+      initiative: {
+        selectedAction: 'speak',
+        selectedConcernId: 'callback-project-state-carry',
+        confidence: 0.7,
+        motives: {
+          'protect': 0.48,
+          'clarify': 0.32,
+          'stay-silent': 0.34,
+        },
+        speakDrive: 0.62,
+        silenceDrive: 0.3,
+        preferredStyle: 'silent-observe',
+        preferredPresence: 'hesitant',
+        why: 'This callback is still on the same Phase 1 closure line.',
+        shouldSurface: true,
+        shouldSpeak: false,
+      },
+      beliefLedger: createBeliefLedger(),
+      relationshipModel: createRelationshipModel({
+        climate: 'attuned',
+        approachVector: 'care',
+      }),
+      inquiryLoop: createInquiryLoop(),
+      personalityContinuityState: {
+        currentRegime: 'execution-callback',
+      } as any,
+      affectiveResidue: {
+        version: 'affective-residue-memory-v1',
+        updatedAt: 1_000,
+        residues: [],
+        dominantResidueKind: 'afterglow',
+        afterglowPressure: 0.4,
+        repairPressure: 0.16,
+        burdenPressure: 0.14,
+        trustPressure: 0.28,
+        restProtectivePressure: 0.08,
+        relationshipCadence: {
+          cadenceMode: 'measured-return',
+          distancePosture: 'measured-room',
+          companionshipDensity: 0.24,
+          repairRecovery: 0.36,
+          overreachRisk: 0.2,
+          fatigueGuard: 0.1,
+          afterglowCarry: 0.3,
+          shouldDelayWarmth: true,
+          shouldProtectRest: false,
+          reasonTags: ['residue:afterglow', 'callback:hold-room'],
+          summary: 'The callback line is still live, and the unfinished closure should stay on the same line.',
+        },
+        sourceSignals: ['afterglow still live'],
+        summary: 'Execution-callback afterglow still carries unfinished Phase 1 closure.',
+      } as any,
+      continuityDeliberation: {
+        kind: 'execution-callback',
+        arcStage: 'hold-for-opening',
+        summary: 'Keep the execution-callback on the same local-first digital life thread while the unfinished Phase 1 closure is still open.',
+        whyNow: 'This callback is still carrying project identity, current Phase 1 progress, and unfinished closure on one same living line.',
+        pressure: 0.54,
+        intrusionRisk: 'medium',
+        payoffDependency: 'requires-current-payoff',
+        preferredTiming: 'next-open-window',
+        shouldStayOnThread: true,
+        shouldSpeakNow: false,
+        sourceTags: ['memory-deliberation', 'kind:execution-callback', 'project-state-callback-carry'],
+      },
+      activeContinuityGovernance: {
+        source: 'active-self-evolution-version',
+        mode: 'same-her-baseline',
+        candidateId: 'candidate-same-her-policy-callback-project-1',
+        patchId: 'patch-same-her-policy-callback-project-1',
+        decisionTraceId: 'trace-same-her-policy-callback-project-1',
+        summary: 'continuity=same-her-baseline | keep the unfinished Phase 1 callback line hover-first',
+        lanes: ['relationship-posture'],
+        reasonCodes: ['domain:relationship', 'same-her-baseline'],
+      },
+    } as any)
+
+    expect(decision.reasonCodes).toContain('continuity-execution-callback')
+    expect(decision.reasonCodes).toContain('continuity-execution-callback-project-carry')
+  })
+
+  it('treats strong rest-protective residue as a first-class proactive restraint even when initiative has not explicitly named continuityRestraint yet', () => {
+    const decision = evaluateProactivePolicy({
+      now: 1_000,
+      context: createContext({
+        relationship: {
+          ...createContext().relationship,
+          boredom: 48,
+          loneliness: 38,
+          fatigue: 22,
+          minutesSinceLastUserTurn: 14,
+        },
+      }),
+      proactiveState: {
+        ...createDefaultProactiveLoopState(1_000),
+        openingMomentum: 0.52,
+        initiativeTrust: 0.56,
+      },
+      killSwitchSuspended: false,
+      architecture: createArchitecture(),
+      runtimeDigest: createRuntimeSnapshot(),
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought({
+        stance: 'care',
+        shouldSpeak: true,
+        suggestedStyle: 'gentle-care',
+        thoughtText: 'The thread is warm, but the room should keep protecting rest before I move outward.',
+      }),
+      initiative: {
+        selectedAction: 'speak',
+        selectedConcernId: 'rest-protective-open',
+        confidence: 0.78,
+        motives: {
+          'protect': 0.56,
+          'clarify': 0.32,
+          'stay-silent': 0.26,
+        },
+        speakDrive: 0.74,
+        silenceDrive: 0.22,
+        preferredStyle: 'gentle-care',
+        preferredPresence: 'attentive',
+        why: 'The line is still live, but it should protect the rest window first.',
+        shouldSurface: true,
+        shouldSpeak: true,
+      },
+      beliefLedger: createBeliefLedger(),
+      relationshipModel: createRelationshipModel({
+        climate: 'attuned',
+        approachVector: 'care',
+      }),
+      inquiryLoop: createInquiryLoop(),
+      affectiveResidue: {
+        version: 'affective-residue-memory-v1',
+        updatedAt: 1_000,
+        residues: [],
+        dominantResidueKind: 'rest-protective',
+        afterglowPressure: 0.24,
+        repairPressure: 0.12,
+        burdenPressure: 0.16,
+        trustPressure: 0.28,
+        restProtectivePressure: 0.74,
+        relationshipCadence: {
+          cadenceMode: 'cooldown',
+          distancePosture: 'protect-space',
+          companionshipDensity: 0.2,
+          repairRecovery: 0.34,
+          overreachRisk: 0.34,
+          fatigueGuard: 0.54,
+          afterglowCarry: 0.18,
+          shouldDelayWarmth: true,
+          shouldProtectRest: true,
+          reasonTags: ['residue:rest-protective'],
+          summary: 'The room should protect rest before any warmer reopening.',
+        },
+        sourceSignals: ['rest window still fragile'],
+        summary: 'Rest-protective residue remains active and should keep the return lower-pressure.',
+      } as any,
+    } as any)
+
+    expect(decision.shouldInterrupt).toBe(false)
+    expect(decision.style).toBe('silent-observe')
+    expect(decision.consideredSignals).toContain('affectiveResidue.restProtection')
+    expect(decision.reasonCodes).toContain('relationship-residue-protect-rest')
+    expect(decision.reasonCodes).toContain('continuity-next-open-window')
+    expect(decision.whyNow).toContain('rest')
+    expect(decision.whyNotLater).toContain('lower-pressure')
+  })
+
+  it('lets long-horizon initiative timing memory directly hold proactive interruption for a clearer opening even when autobiographical self and self-evolution are absent', () => {
+    const decision = evaluateProactivePolicy({
+      now: 1_000,
+      context: createContext({
+        relationship: {
+          ...createContext().relationship,
+          boredom: 54,
+          loneliness: 42,
+          fatigue: 24,
+          minutesSinceLastUserTurn: 16,
+        },
+      }),
+      proactiveState: {
+        ...createDefaultProactiveLoopState(1_000),
+        openingMomentum: 0.6,
+        initiativeTrust: 0.62,
+      },
+      killSwitchSuspended: false,
+      architecture: createArchitecture(),
+      runtimeDigest: createRuntimeSnapshot(),
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought({
+        stance: 'nudge',
+        shouldSpeak: true,
+        suggestedStyle: 'light-nudge',
+        thoughtText: 'The thread is still there, but I should wait for a clearer opening before leaning outward.',
+      }),
+      initiative: {
+        selectedAction: 'speak',
+        selectedConcernId: 'memory-held-opening',
+        confidence: 0.76,
+        motives: {
+          'protect': 0.28,
+          'clarify': 0.56,
+          'stay-silent': 0.22,
+        },
+        speakDrive: 0.7,
+        silenceDrive: 0.24,
+        preferredStyle: 'light-nudge',
+        preferredPresence: 'attentive',
+        why: 'The opening is almost there.',
+        shouldSurface: true,
+        shouldSpeak: true,
+      },
+      beliefLedger: createBeliefLedger(),
+      relationshipModel: createRelationshipModel(),
+      inquiryLoop: createInquiryLoop(),
+      longHorizonMemory: createLongHorizonMemory({
+        summary: 'A quieter reopening strategy is now durable.',
+        dominantCueSummary: 'Remembered initiative strategy carry: leave more room and wait for a clearer opening before reopening this line.',
+        rememberedPreferenceSummary: 'Remembered preference: leave more room and wait for a clearer opening before reopening this line.',
+        rememberedPlanSummary: 'Remembered plan: quieter timing until a clearer opening appears.',
+        anchorFacts: [{
+          factId: 'derived:person-state-initiative-strategy-carry',
+          subject: 'assistant',
+          predicate: 'initiative-strategy-carry',
+          object: 'Leave more room, keep quieter timing, and wait for a clearer opening before reopening this line.',
+          confidence: 0.86,
+          weight: 0.82,
+          influenceTags: ['bond', 'task'],
+          summary: 'Remembered initiative strategy carry: leave more room and wait for a clearer opening before reopening this line.',
+          lastRecalledAt: 900,
+        }],
+      }),
+      autobiographicalSelf: null,
+      selfEvolution: null,
+    } as any)
+
+    expect(decision.shouldInterrupt).toBe(false)
+    expect(decision.style).toBe('silent-observe')
+    expect(decision.consideredSignals).toContain('longHorizonMemory.initiativeStrategy')
+    expect(decision.reasonCodes).toContain('continuity-next-open-window')
+    expect(decision.whyNow).toMatch(/clearer opening|留一点 room|room/i)
+    expect(decision.whyNotLater).toMatch(/clearer opening|lower-pressure|更自然/i)
+  })
+
+  it('lets long-horizon memory-led gentle reopening stay lower-pressure without flattening accepted warmth into generic proactive speech', () => {
+    const decision = evaluateProactivePolicy({
+      now: 1_000,
+      context: createContext({
+        relationship: {
+          ...createContext().relationship,
+          boredom: 58,
+          loneliness: 46,
+          fatigue: 18,
+          minutesSinceLastUserTurn: 11,
+        },
+      }),
+      proactiveState: {
+        ...createDefaultProactiveLoopState(1_000),
+        openingMomentum: 0.64,
+        initiativeTrust: 0.68,
+      },
+      killSwitchSuspended: false,
+      architecture: createArchitecture(),
+      runtimeDigest: createRuntimeSnapshot(),
+      watchMode: 'recovering',
+      privateThought: createPrivateThought({
+        stance: 'care',
+        shouldSpeak: true,
+        suggestedStyle: 'gentle-care',
+        thoughtText: 'This line was received, but I should keep the next follow-up gentle and memory-led.',
+      }),
+      initiative: {
+        selectedAction: 'speak',
+        selectedConcernId: 'memory-led-gentle-return',
+        confidence: 0.8,
+        motives: {
+          'protect': 0.34,
+          'clarify': 0.28,
+          'stay-silent': 0.18,
+        },
+        speakDrive: 0.76,
+        silenceDrive: 0.18,
+        preferredStyle: 'gentle-care',
+        preferredPresence: 'attentive',
+        why: 'The reopening was accepted.',
+        shouldSurface: true,
+        shouldSpeak: true,
+      },
+      beliefLedger: createBeliefLedger(),
+      relationshipModel: createRelationshipModel({
+        climate: 'attuned',
+        approachVector: 'care',
+      }),
+      inquiryLoop: createInquiryLoop(),
+      longHorizonMemory: createLongHorizonMemory({
+        preferenceBias: {
+          companionship: 0.28,
+          truthfulGrounding: 0.16,
+          gentleRepair: 0.2,
+          quietObservation: 0.22,
+          proactiveCare: 0.18,
+          playfulIntimacy: 0.04,
+          autonomyRespect: 0.18,
+          unfinishedThreadReturn: 0.3,
+        },
+        summary: 'A received gentle reopen is turning into durable memory-led follow-up timing.',
+        dominantCueSummary: 'Remembered initiative strategy carry: Keep future follow-ups gentle, lower-pressure, and memory-led while the opening is still receiving them.',
+        rememberedPreferenceSummary: 'Keep future follow-ups gentle, lower-pressure, and memory-led while the opening is still receiving them.',
+        rememberedPlanSummary: 'Keep future follow-ups gentle, lower-pressure, and memory-led while the opening is still receiving them.',
+        anchorFacts: [{
+          factId: 'derived:person-state-initiative-strategy-carry',
+          subject: 'assistant',
+          predicate: 'initiative-strategy-carry',
+          object: 'Keep future follow-ups gentle, lower-pressure, and memory-led while the opening is still receiving them.',
+          confidence: 0.84,
+          weight: 0.78,
+          influenceTags: ['bond', 'task', 'truth'],
+          summary: 'Remembered initiative strategy carry: Keep future follow-ups gentle, lower-pressure, and memory-led while the opening is still receiving them.',
+          lastRecalledAt: 920,
+        }],
+      }),
+      autobiographicalSelf: null,
+      selfEvolution: null,
+    } as any)
+
+    expect(decision.shouldInterrupt).toBe(false)
+    expect(decision.style).toBe('silent-observe')
+    expect(decision.consideredSignals).toContain('longHorizonMemory.initiativeStrategy')
+    expect(decision.whyNow).toMatch(/memory-led|lower-pressure|gentle/i)
+    expect(decision.whyNotLater).toMatch(/memory-led|lower-pressure|opening/i)
   })
 })

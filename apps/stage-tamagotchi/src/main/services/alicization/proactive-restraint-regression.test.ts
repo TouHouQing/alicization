@@ -101,6 +101,7 @@ describe('proactive restraint regression', () => {
       runtimeDigest: createRuntimeDigest(),
       continuityDeliberation: {
         kind: 'memory-follow-up',
+        arcStage: 'hold-for-opening',
         summary: 'The remembered seam should stay inward until the host opens the door again.',
         whyNow: 'The seam is relevant, but surfacing it now would crowd the current line.',
         pressure: 0.82,
@@ -133,6 +134,7 @@ describe('proactive restraint regression', () => {
       }),
       continuityDeliberation: {
         kind: 'dialogue-carry',
+        arcStage: 'hold-for-opening',
         summary: 'The remembered seam is relevant, but it belongs after the current payoff lands.',
         whyNow: 'This continuity should contour the current answer after it has already paid off the live ask.',
         pressure: 0.8,
@@ -164,6 +166,7 @@ describe('proactive restraint regression', () => {
       }),
       continuityDeliberation: {
         kind: 'execution-callback',
+        arcStage: 'same-thread-continuation',
         summary: 'A settled callback is waiting, but it should not jump ahead of the current answer.',
         whyNow: 'The callback is real, but it still needs the live answer or payoff window first.',
         pressure: 0.88,
@@ -263,6 +266,7 @@ describe('proactive restraint regression', () => {
       } as any,
       continuityDeliberation: {
         kind: 'dialogue-carry',
+        arcStage: 'hold-for-opening',
         summary: 'The remembered line is still relevant, but it should wait for the next safer opening.',
         whyNow: 'The remembered line would be relevant later, but not while the repair seam is still unstable.',
         pressure: 0.82,

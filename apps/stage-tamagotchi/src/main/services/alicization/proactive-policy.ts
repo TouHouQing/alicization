@@ -1,12 +1,14 @@
 import type {
   AlicizationActionEcologySnapshot,
   AlicizationAffectiveResidueMemorySnapshot,
+  AlicizationAutobiographicalSelfSnapshot,
   AlicizationAutonomySnapshot,
   AlicizationBeliefLedgerSnapshot,
   AlicizationBeliefRevisionSnapshot,
   AlicizationCommitmentLedgerSnapshot,
   AlicizationCurrentConsciousFrameSnapshot,
   AlicizationDeliberationStateSnapshot,
+  AlicizationDigitalLifeSpineMemoryClosureTrace,
   AlicizationDurabilityPulseSnapshot,
   AlicizationHabitPolicySnapshot,
   AlicizationHypothesisGraphSnapshot,
@@ -15,6 +17,7 @@ import type {
   AlicizationInquiryPlannerSnapshot,
   AlicizationLearningExecutionStateSnapshot,
   AlicizationLivingWorldStateSnapshot,
+  AlicizationLongHorizonMemorySnapshot,
   AlicizationMindKernelSnapshot,
   AlicizationMotiveEngineSnapshot,
   AlicizationPrivateThoughtSnapshot,
@@ -89,8 +92,9 @@ interface AlicizationPersonaProactiveBias {
 }
 
 interface AlicizationExplicitContinuityRestraintBias {
-  source: 'initiative' | 'runtime-digest' | 'memory-deliberation' | 'self-revision' | null
+  source: 'initiative' | 'runtime-digest' | 'memory-deliberation' | 'memory-os' | 'self-revision' | null
   restraint: 'lower-pressure' | 'measured-return' | 'repair-before-closeness' | null
+  preferredTiming: string | null
   preferLowerPressure: boolean
   forceSilentObserve: boolean
   guardAgainstGenericShell: boolean
@@ -138,6 +142,16 @@ interface AlicizationMotiveAgendaProactiveBias {
   reasonCodes: AlicizationProactiveReasonCode[]
 }
 
+interface AlicizationLongHorizonMemoryProactiveBias {
+  preferLowerPressure: boolean
+  forceSilentObserve: boolean
+  quieterOrRoomMaking: boolean
+  gentleMemoryLed: boolean
+  scoreDelta: number
+  thresholdDelta: number
+  explanation: string
+}
+
 function clamp01(value: number) {
   if (!Number.isFinite(value))
     return 0
@@ -158,6 +172,25 @@ function sanitizeText(raw: unknown, maxChars = 160) {
 
 function asArray<T>(value: T[] | null | undefined) {
   return Array.isArray(value) ? value : []
+}
+
+function buildLongHorizonMemoryProactiveText(longHorizonMemory?: AlicizationLongHorizonMemorySnapshot | null) {
+  return [
+    longHorizonMemory?.rememberedPlanSummary,
+    longHorizonMemory?.rememberedConstraintSummary,
+    longHorizonMemory?.rememberedPreferenceSummary,
+    longHorizonMemory?.dominantCueSummary,
+    longHorizonMemory?.summary,
+    ...(longHorizonMemory?.anchorFacts ?? [])
+      .filter(item =>
+        sanitizeText(item.predicate, 64).toLowerCase() === 'initiative-strategy-carry'
+        || sanitizeText(item.factId, 96).toLowerCase().includes('initiative-strategy-carry'),
+      )
+      .flatMap(item => [item.object, item.summary]),
+  ]
+    .map(value => sanitizeText(value, 260).toLowerCase())
+    .filter(Boolean)
+    .join(' | ')
 }
 
 function initiativeCarriesSameHerWhy(raw: unknown) {
@@ -230,13 +263,69 @@ function sanitizeProactiveEmbodimentGazeMode(raw: unknown) {
     : null
 }
 
+function sanitizeProactiveEmbodimentPauseMode(raw: unknown) {
+  const normalized = sanitizeText(raw, 32).toLowerCase()
+  return normalized === 'longer' || normalized === 'natural'
+    ? normalized
+    : null
+}
+
+function sanitizeProactiveEmbodimentLipsyncMode(raw: unknown) {
+  const normalized = sanitizeText(raw, 32).toLowerCase()
+  return normalized === 'restrained' || normalized === 'matched'
+    ? normalized
+    : null
+}
+
+function sanitizeProactiveEmbodimentVoiceMode(raw: unknown) {
+  const normalized = sanitizeText(raw, 32).toLowerCase()
+  return normalized === 'lower-pressure' || normalized === 'even'
+    ? normalized
+    : null
+}
+
+function sanitizeProactiveEmbodimentPacingMode(raw: unknown) {
+  const normalized = sanitizeText(raw, 32).toLowerCase()
+  return normalized === 'slower' || normalized === 'natural'
+    ? normalized
+    : null
+}
+
 function describeProactiveEmbodimentCadenceCue(input: {
   preferredBlinkCadence?: unknown
   preferredGazeMode?: unknown
+  preferredPauseMode?: unknown
+  preferredLipsyncMode?: unknown
+  preferredVoiceMode?: unknown
+  preferredPacingMode?: unknown
 }) {
   const preferredBlinkCadence = sanitizeProactiveEmbodimentBlinkCadence(input.preferredBlinkCadence)
   const preferredGazeMode = sanitizeProactiveEmbodimentGazeMode(input.preferredGazeMode)
+  const preferredPauseMode = sanitizeProactiveEmbodimentPauseMode(input.preferredPauseMode)
+  const preferredLipsyncMode = sanitizeProactiveEmbodimentLipsyncMode(input.preferredLipsyncMode)
+  const preferredVoiceMode = sanitizeProactiveEmbodimentVoiceMode(input.preferredVoiceMode)
+  const preferredPacingMode = sanitizeProactiveEmbodimentPacingMode(input.preferredPacingMode)
   const clauses = [
+    preferredPauseMode === 'longer'
+      ? '停顿更长一点'
+      : preferredPauseMode === 'natural'
+        ? '停顿更自然一点'
+        : null,
+    preferredLipsyncMode === 'restrained'
+      ? '嘴型更克制一点'
+      : preferredLipsyncMode === 'matched'
+        ? '更贴合一点的嘴型'
+        : null,
+    preferredVoiceMode === 'lower-pressure'
+      ? '更低压一点的语气'
+      : preferredVoiceMode === 'even'
+        ? '更平一点的语气'
+        : null,
+    preferredPacingMode === 'slower'
+      ? '慢一点的回接节奏'
+      : preferredPacingMode === 'natural'
+        ? '更自然一点的回接节奏'
+        : null,
     preferredGazeMode === 'steady'
       ? '更稳一点的视线'
       : preferredGazeMode === 'soften'
@@ -606,6 +695,84 @@ function deriveMotiveAgendaProactiveBias(
   }
 }
 
+function deriveLongHorizonMemoryProactiveBias(
+  longHorizonMemory?: AlicizationLongHorizonMemorySnapshot | null,
+): AlicizationLongHorizonMemoryProactiveBias {
+  if (!longHorizonMemory) {
+    return {
+      preferLowerPressure: false,
+      forceSilentObserve: false,
+      quieterOrRoomMaking: false,
+      gentleMemoryLed: false,
+      scoreDelta: 0,
+      thresholdDelta: 0,
+      explanation: '',
+    }
+  }
+
+  const combined = buildLongHorizonMemoryProactiveText(longHorizonMemory)
+  if (!combined) {
+    return {
+      preferLowerPressure: false,
+      forceSilentObserve: false,
+      quieterOrRoomMaking: false,
+      gentleMemoryLed: false,
+      scoreDelta: 0,
+      thresholdDelta: 0,
+      explanation: '',
+    }
+  }
+
+  const quieterOrRoomMaking = includesAny(combined, [
+    'leave more room',
+    'clearer opening',
+    'fresher opening',
+    'wait for a clearer opening',
+    'wait for a fresher opening',
+    'quieter timing',
+    'quiet until',
+    'less eager',
+    'later opening',
+    '先留白',
+    '留一点 room',
+    '等更自然的 opening',
+  ])
+  const gentleMemoryLed = includesAny(combined, [
+    'gentle',
+    'memory-led',
+    'still receiving',
+    'accepted or continued',
+    'received without obvious resistance',
+    'accepted',
+    'received',
+    '被接住',
+  ])
+
+  if (!quieterOrRoomMaking && !gentleMemoryLed) {
+    return {
+      preferLowerPressure: false,
+      forceSilentObserve: false,
+      quieterOrRoomMaking: false,
+      gentleMemoryLed: false,
+      scoreDelta: 0,
+      thresholdDelta: 0,
+      explanation: '',
+    }
+  }
+
+  return {
+    preferLowerPressure: true,
+    forceSilentObserve: true,
+    quieterOrRoomMaking,
+    gentleMemoryLed,
+    scoreDelta: quieterOrRoomMaking ? -0.16 : -0.12,
+    thresholdDelta: quieterOrRoomMaking ? 0.12 : 0.08,
+    explanation: quieterOrRoomMaking
+      ? '长期记忆已经把这条 follow-up timing 固化成 leave room / clearer opening 的节奏，所以这次 opening 先继续 lower-pressure。'
+      : '长期记忆已经把这条 reopening 固化成 gentle、memory-led、still receiving 的节奏，所以这次 opening 先继续 lower-pressure。',
+  }
+}
+
 function deriveSelfEvolutionProactiveBias(selfEvolution?: AlicizationSelfEvolutionKernelSnapshot | null) {
   if (!selfEvolution) {
     return {
@@ -615,6 +782,7 @@ function deriveSelfEvolutionProactiveBias(selfEvolution?: AlicizationSelfEvoluti
       thresholdDelta: 0,
       correctedSamePersonSettling: false,
       quieterEmbodimentSettling: false,
+      metabolizedSameThreadSettling: false,
     }
   }
 
@@ -623,7 +791,8 @@ function deriveSelfEvolutionProactiveBias(selfEvolution?: AlicizationSelfEvoluti
   const trustMeaning = sanitizeText(selfEvolution.trustMeaning, 180).toLowerCase()
   const latestInflection = sanitizeText(selfEvolution.latestInflection, 180).toLowerCase()
   const dominantTrajectory = sanitizeText(selfEvolution.dominantTrajectory, 160).toLowerCase()
-  const combined = `${relationshipDoctrine} ${burdenLine} ${trustMeaning} ${latestInflection} ${dominantTrajectory}`
+  const relationshipCadenceSummary = sanitizeText(selfEvolution.relationshipCadenceSummary, 220).toLowerCase()
+  const combined = `${relationshipDoctrine} ${burdenLine} ${trustMeaning} ${latestInflection} ${dominantTrajectory} ${relationshipCadenceSummary}`
   const correctedSamePersonSettling = includesAny(combined, [
     'corrected same-person continuity',
     'corrected same person continuity',
@@ -644,17 +813,105 @@ function deriveSelfEvolutionProactiveBias(selfEvolution?: AlicizationSelfEvoluti
     '先把身体收稳',
     '身体更安静',
   ])
+  const metabolizedSameThreadSettling = includesAny(relationshipCadenceSummary, [
+    'same-thread memory lead',
+    'same thread memory lead',
+    'stronger same-thread memory',
+    'stronger same thread memory',
+    'temporary noise fade',
+    'temporary noise fades',
+    'let temporary noise fade',
+    'fade instead of retaking the line',
+  ])
+  && includesAny(relationshipCadenceSummary, [
+    'corrected same-person continuity',
+    'corrected same person continuity',
+    'same-person continuity',
+    'same person continuity',
+  ])
   const preferLowerPressure = includesAny(relationshipDoctrine, ['leave more room', 'more room', 'slower return', 'lower-pressure', 'steadiness before closeness'])
     || includesAny(burdenLine, ['overloaded', 'pressure', 'crowd', 'conversational pressure', 'eager reopening'])
     || includesAny(trustMeaning, ['lower-pressure', 'less eager', 'room', 'space', 'timing', 'steadiness before closeness'])
     || includesAny(latestInflection, ['pressure', 'slower return', 'lower-pressure', 'less eager'])
     || includesAny(dominantTrajectory, ['lower-pressure'])
+    || metabolizedSameThreadSettling
+
+  return {
+    preferLowerPressure: preferLowerPressure || correctedSamePersonSettling || quieterEmbodimentSettling || metabolizedSameThreadSettling,
+    forceSilentObserve: preferLowerPressure || correctedSamePersonSettling || quieterEmbodimentSettling || metabolizedSameThreadSettling,
+    scoreDelta: preferLowerPressure || correctedSamePersonSettling || quieterEmbodimentSettling || metabolizedSameThreadSettling ? -0.12 : 0,
+    thresholdDelta: preferLowerPressure || correctedSamePersonSettling || quieterEmbodimentSettling || metabolizedSameThreadSettling ? 0.08 : 0,
+    correctedSamePersonSettling,
+    quieterEmbodimentSettling,
+    metabolizedSameThreadSettling,
+  }
+}
+
+function deriveAutobiographicalSelfProactiveBias(autobiographicalSelf?: AlicizationAutobiographicalSelfSnapshot | null) {
+  if (!autobiographicalSelf) {
+    return {
+      preferLowerPressure: false,
+      forceSilentObserve: false,
+      scoreDelta: 0,
+      thresholdDelta: 0,
+      correctedSamePersonSettling: false,
+      quieterEmbodimentSettling: false,
+    }
+  }
+
+  const relationshipDoctrine = sanitizeText(autobiographicalSelf.relationshipDoctrine, 180).toLowerCase()
+  const latestInflection = sanitizeText(autobiographicalSelf.latestInflection, 180).toLowerCase()
+  const identityNarrative = sanitizeText(autobiographicalSelf.identityNarrative, 180).toLowerCase()
+  const combined = `${relationshipDoctrine} ${latestInflection} ${identityNarrative}`
+  const correctedSamePersonSettling = includesAny(combined, [
+    'corrected same-person continuity',
+    'corrected same person continuity',
+    'corrected same-person line',
+    'same living line',
+    '同一个人连续性',
+    '纠正后的同一人格连续性',
+  ])
+  const quieterEmbodimentSettling = includesAny(combined, [
+    'keep embodiment quieter',
+    'embodiment quieter',
+    'body quieter',
+    'quieter embodiment',
+    'more steadily',
+    'more slowly',
+    '先把身体收稳',
+    '身体更安静',
+  ])
+  const preferLowerPressure = includesAny(relationshipDoctrine, [
+    'leave more room',
+    'more room',
+    'slower return',
+    'lower-pressure',
+    'steadiness before closeness',
+    'bounded-return',
+    'measured-return',
+  ])
+  || includesAny(latestInflection, [
+    'slower',
+    'steadier',
+    'lower-pressure',
+    'less eager',
+    'same-person continuity',
+    'same person continuity',
+    'measured-return',
+  ])
+  || includesAny(identityNarrative, [
+    'return more slowly',
+    'return more steadily',
+    'less eagerly',
+    'same living line',
+    '同一个她',
+  ])
 
   return {
     preferLowerPressure: preferLowerPressure || correctedSamePersonSettling || quieterEmbodimentSettling,
     forceSilentObserve: preferLowerPressure || correctedSamePersonSettling || quieterEmbodimentSettling,
-    scoreDelta: preferLowerPressure || correctedSamePersonSettling || quieterEmbodimentSettling ? -0.12 : 0,
-    thresholdDelta: preferLowerPressure || correctedSamePersonSettling || quieterEmbodimentSettling ? 0.08 : 0,
+    scoreDelta: preferLowerPressure || correctedSamePersonSettling || quieterEmbodimentSettling ? -0.1 : 0,
+    thresholdDelta: preferLowerPressure || correctedSamePersonSettling || quieterEmbodimentSettling ? 0.06 : 0,
     correctedSamePersonSettling,
     quieterEmbodimentSettling,
   }
@@ -729,6 +986,7 @@ function deriveSelfRevisionProjectStateContinuityRestraint(
     || lanes.includes('response-posture')
     || reasonCodes.includes('domain:relationship')
     || reasonCodes.includes('same-her-emotional-closure-carry-active')
+    || reasonCodes.includes('same-her-hold-detail-active')
     || reasonCodes.includes('same-her-baseline')
     || reasonCodes.includes('same-her-anti-shell-guard-active')
   if (!relationshipWeighted)
@@ -742,6 +1000,7 @@ function deriveSelfRevisionProjectStateContinuityRestraint(
     continuity.sameHerSelfLine,
     continuity.sameHerDriftRisk,
     continuity.emotionalClosureCue,
+    continuity.sameHerHoldDetail,
     continuity.continuityGuard,
   ]
     .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
@@ -778,6 +1037,7 @@ function deriveSelfRevisionProjectStateContinuityRestraint(
 
 function deriveExplicitContinuityRestraintBias(input: {
   initiative?: AlicizationInitiativeSnapshot | null
+  memoryClosureTrace?: AlicizationDigitalLifeSpineMemoryClosureTrace | null
   runtimeDigest?: AlicizationRuntimeSnapshot | null
   currentConsciousFrame?: { reasonTags?: string[] | null } | null
   replyDeliberation?: { mustInclude?: string[] | null, narrative?: string[] | null } | null
@@ -789,6 +1049,16 @@ function deriveExplicitContinuityRestraintBias(input: {
   selfRevisionProjectStateContinuityRestraint?: AlicizationSelfRevisionProjectStateContinuityRestraint | null
 }): AlicizationExplicitContinuityRestraintBias {
   const initiativeRestraint = sanitizeText(input.initiative?.continuityRestraint, 64)
+  const memoryClosureTrace = input.memoryClosureTrace?.authority === 'memory-os'
+    ? input.memoryClosureTrace
+    : null
+  const memoryOsRawRestraint = sanitizeText(memoryClosureTrace?.nextInfluence.initiative.restraint, 64)
+  const memoryOsRestraint = memoryOsRawRestraint === 'repair-before-closeness'
+    ? 'repair-before-closeness'
+    : memoryOsRawRestraint === 'measured-return' || memoryOsRawRestraint === 'lower-pressure'
+      ? memoryOsRawRestraint
+      : ''
+  const memoryOsPreferredTiming = sanitizeText(memoryClosureTrace?.nextInfluence.initiative.preferredTiming, 64)
   const runtimeRestraint = sanitizeText(input.runtimeDigest?.continuityRestraint, 64)
   const sameHerHoldDetail = sanitizeText(input.projectState?.sameHerHoldDetail, 220).toLowerCase()
   const emotionalClosureSummary = sanitizeText(input.projectState?.emotionalClosureSummary, 220).toLowerCase()
@@ -858,6 +1128,7 @@ function deriveExplicitContinuityRestraintBias(input: {
         : ''
   const restraint = (
     initiativeRestraint
+    || memoryOsRestraint
     || runtimeRestraint
     || memoryDeliberationRestraint
     || (safetyGateRestraint ? 'measured-return' : '')
@@ -876,6 +1147,7 @@ function deriveExplicitContinuityRestraintBias(input: {
       guardAgainstGenericShell: false,
       safetyGateRestraint: false,
       resumeConfirmationBoundary: false,
+      preferredTiming: null,
       scoreDelta: 0,
       thresholdDelta: 0,
     }
@@ -883,15 +1155,17 @@ function deriveExplicitContinuityRestraintBias(input: {
 
   const source = initiativeRestraint
     ? 'initiative'
-    : runtimeRestraint
-      ? 'runtime-digest'
-      : memoryDeliberationRestraint
-        || safetyGateRestraint
-        || resumeConfirmationBoundary
-        ? 'memory-deliberation'
-        : holdDetailRestraint
-          ? 'runtime-digest'
-          : 'self-revision'
+    : memoryOsRestraint
+      ? 'memory-os'
+      : runtimeRestraint
+        ? 'runtime-digest'
+        : memoryDeliberationRestraint
+          || safetyGateRestraint
+          || resumeConfirmationBoundary
+          ? 'memory-deliberation'
+          : holdDetailRestraint
+            ? 'runtime-digest'
+            : 'self-revision'
 
   if (restraint === 'repair-before-closeness') {
     return {
@@ -902,6 +1176,7 @@ function deriveExplicitContinuityRestraintBias(input: {
       guardAgainstGenericShell: source === 'self-revision' && input.selfRevisionProjectStateContinuityRestraint?.guardAgainstGenericShell === true,
       safetyGateRestraint,
       resumeConfirmationBoundary,
+      preferredTiming: source === 'memory-os' ? memoryOsPreferredTiming || null : null,
       scoreDelta: -0.16,
       thresholdDelta: 0.12,
     }
@@ -916,6 +1191,7 @@ function deriveExplicitContinuityRestraintBias(input: {
       guardAgainstGenericShell: source === 'self-revision' && input.selfRevisionProjectStateContinuityRestraint?.guardAgainstGenericShell === true,
       safetyGateRestraint,
       resumeConfirmationBoundary,
+      preferredTiming: source === 'memory-os' ? memoryOsPreferredTiming || null : null,
       scoreDelta: -0.14,
       thresholdDelta: 0.1,
     }
@@ -929,6 +1205,7 @@ function deriveExplicitContinuityRestraintBias(input: {
     guardAgainstGenericShell: source === 'self-revision' && input.selfRevisionProjectStateContinuityRestraint?.guardAgainstGenericShell === true,
     safetyGateRestraint,
     resumeConfirmationBoundary,
+    preferredTiming: source === 'memory-os' ? memoryOsPreferredTiming || null : null,
     scoreDelta: -0.12,
     thresholdDelta: 0.08,
   }
@@ -1022,6 +1299,10 @@ function deriveProjectStateProactiveBias(input?: {
   identity?: string | null
   preferredBlinkCadence?: unknown
   preferredGazeMode?: unknown
+  preferredPauseMode?: unknown
+  preferredLipsyncMode?: unknown
+  preferredVoiceMode?: unknown
+  preferredPacingMode?: unknown
 } | null) {
   if (!input) {
     return {
@@ -1086,6 +1367,7 @@ function deriveProjectStateProactiveBias(input?: {
   const proactiveSameHerGap = sanitizeText(projectState.proactiveSameHerGap, 220).toLowerCase()
   const nextClosureTarget = sanitizeText(projectState.nextClosureTarget, 220).toLowerCase()
   const identity = sanitizeText(projectState.identity, 160).toLowerCase()
+  const sameHerDriftRisk = sanitizeText(projectState.sameHerDriftRisk, 220).toLowerCase()
   const companionHeadlineLine = sanitizeText(projectState.companionHeadlineLine || explicitCompanionHeadlineInput, 320)
   const normalizedCompanionHeadlineLine = companionHeadlineLine.toLowerCase()
   const combinedProjectState = [
@@ -1095,6 +1377,7 @@ function deriveProjectStateProactiveBias(input?: {
     primaryOpenLoop,
     proactiveSameHerGap,
     nextClosureTarget,
+    sameHerDriftRisk,
     identity,
     normalizedCompanionHeadlineLine,
   ].filter(Boolean).join(' | ')
@@ -1171,6 +1454,14 @@ function deriveProjectStateProactiveBias(input?: {
     'still-voiced motion-and-mouth line',
     'holding together through face, lipsync, and voice together',
     'holding together through motion, lipsync, and voice together',
+    'same living line',
+    'same-her drift',
+    'generic assistant shell',
+    'one continuous her',
+    'life loop',
+    '同一条生命线',
+    '同一个她',
+    '泛化助手',
   ])
   const digitalLifeIdentity = includesAny(combinedProjectState, [
     'digital life',
@@ -1299,6 +1590,10 @@ function deriveProjectStateProactiveBias(input?: {
       || describeProactiveEmbodimentCadenceCue({
         preferredBlinkCadence: input.preferredBlinkCadence,
         preferredGazeMode: input.preferredGazeMode,
+        preferredPauseMode: input.preferredPauseMode,
+        preferredLipsyncMode: input.preferredLipsyncMode,
+        preferredVoiceMode: input.preferredVoiceMode,
+        preferredPacingMode: input.preferredPacingMode,
       })
   const richerEmbodimentClosureAwareness = Boolean(specificEmbodimentContinuityCue)
 
@@ -1526,7 +1821,10 @@ export function evaluateProactivePolicy(input: {
   replyDeliberation?: AlicizationReplyDeliberationSnapshot | null
   personalityContinuityState?: AlicizationPersonalityContinuityStateSnapshot | null
   continuityDeliberation?: AlicizationContinuityDeliberation | null
+  memoryClosureTrace?: AlicizationDigitalLifeSpineMemoryClosureTrace | null
   affectiveResidue?: AlicizationAffectiveResidueMemorySnapshot | null
+  longHorizonMemory?: AlicizationLongHorizonMemorySnapshot | null
+  autobiographicalSelf?: AlicizationAutobiographicalSelfSnapshot | null
   selfEvolution?: AlicizationSelfEvolutionKernelSnapshot | null
   activeContinuityGovernance?: import('../../../shared/eventa').AlicizationDerivedMindStateBundle['activeContinuityGovernance'] | null
   learningExecutionState?: AlicizationLearningExecutionStateSnapshot | null
@@ -1555,6 +1853,10 @@ export function evaluateProactivePolicy(input: {
     sameHerHoldDetail?: string | null
     preferredBlinkCadence?: 'normal' | 'linger' | 'quiet' | null
     preferredGazeMode?: 'steady' | 'soften' | 'drift' | null
+    preferredPauseMode?: 'longer' | 'natural' | null
+    preferredLipsyncMode?: 'restrained' | 'matched' | null
+    preferredVoiceMode?: 'lower-pressure' | 'even' | null
+    preferredPacingMode?: 'slower' | 'natural' | null
   } | null
 }): AlicizationProactivePolicyEvaluation {
   const { context, proactiveState } = input
@@ -1570,6 +1872,7 @@ export function evaluateProactivePolicy(input: {
       fatigue: context.relationship.fatigue,
     }),
   })
+  const autobiographicalSelfBias = deriveAutobiographicalSelfProactiveBias(input.autobiographicalSelf ?? null)
   const selfEvolutionBias = deriveSelfEvolutionProactiveBias(input.selfEvolution ?? null)
   const continuityGovernanceBias = deriveContinuityGovernanceProactiveBias(input.activeContinuityGovernance ?? null)
   const selfRevisionProjectStateContinuityRestraint = deriveSelfRevisionProjectStateContinuityRestraint(input.selfRevisionPatch ?? null)
@@ -1584,9 +1887,30 @@ export function evaluateProactivePolicy(input: {
       ?? input.currentConsciousFrame?.projectState?.preferredGazeMode
       ?? input.runtimeDigest?.projectState?.preferredGazeMode
       ?? null,
+    preferredPauseMode:
+      input.projectState?.preferredPauseMode
+      ?? input.currentConsciousFrame?.projectState?.preferredPauseMode
+      ?? input.runtimeDigest?.projectState?.preferredPauseMode
+      ?? null,
+    preferredLipsyncMode:
+      input.projectState?.preferredLipsyncMode
+      ?? input.currentConsciousFrame?.projectState?.preferredLipsyncMode
+      ?? input.runtimeDigest?.projectState?.preferredLipsyncMode
+      ?? null,
+    preferredVoiceMode:
+      input.projectState?.preferredVoiceMode
+      ?? input.currentConsciousFrame?.projectState?.preferredVoiceMode
+      ?? input.runtimeDigest?.projectState?.preferredVoiceMode
+      ?? null,
+    preferredPacingMode:
+      input.projectState?.preferredPacingMode
+      ?? input.currentConsciousFrame?.projectState?.preferredPacingMode
+      ?? input.runtimeDigest?.projectState?.preferredPacingMode
+      ?? null,
   })
   const explicitContinuityRestraintBias = deriveExplicitContinuityRestraintBias({
     initiative: input.initiative ?? null,
+    memoryClosureTrace: input.memoryClosureTrace ?? null,
     runtimeDigest: input.runtimeDigest ?? null,
     currentConsciousFrame: input.currentConsciousFrame ?? null,
     replyDeliberation: input.replyDeliberation ?? null,
@@ -1597,6 +1921,7 @@ export function evaluateProactivePolicy(input: {
   const affectiveResidueBias = deriveAffectiveResidueProactiveBias(input.affectiveResidue ?? null)
   const habitPolicyBias = deriveHabitPolicyProactiveBias(input.habitPolicy ?? null)
   const motiveAgendaBias = deriveMotiveAgendaProactiveBias(input.motiveEngine ?? null)
+  const longHorizonMemoryBias = deriveLongHorizonMemoryProactiveBias(input.longHorizonMemory ?? null)
   const projectStateBias = deriveProjectStateProactiveBias(input.projectState ?? null)
   const contextScenario = inferScenarioFromContext({
     workload: context.workload.kind,
@@ -1745,6 +2070,14 @@ export function evaluateProactivePolicy(input: {
       consideredSignals.push('runtimeDigest.projectState.preferredBlinkCadence')
     if (input.runtimeDigest.projectState?.preferredGazeMode)
       consideredSignals.push('runtimeDigest.projectState.preferredGazeMode')
+    if (input.runtimeDigest.projectState?.preferredPauseMode)
+      consideredSignals.push('runtimeDigest.projectState.preferredPauseMode')
+    if (input.runtimeDigest.projectState?.preferredLipsyncMode)
+      consideredSignals.push('runtimeDigest.projectState.preferredLipsyncMode')
+    if (input.runtimeDigest.projectState?.preferredVoiceMode)
+      consideredSignals.push('runtimeDigest.projectState.preferredVoiceMode')
+    if (input.runtimeDigest.projectState?.preferredPacingMode)
+      consideredSignals.push('runtimeDigest.projectState.preferredPacingMode')
     if (input.runtimeDigest.activeLoop) {
       consideredSignals.push(
         'runtimeDigest.activeLoop.phase',
@@ -1758,12 +2091,35 @@ export function evaluateProactivePolicy(input: {
     consideredSignals.push('currentConsciousFrame.projectState.preferredBlinkCadence')
   if (input.currentConsciousFrame?.projectState?.preferredGazeMode)
     consideredSignals.push('currentConsciousFrame.projectState.preferredGazeMode')
+  if (input.currentConsciousFrame?.projectState?.preferredPauseMode)
+    consideredSignals.push('currentConsciousFrame.projectState.preferredPauseMode')
+  if (input.currentConsciousFrame?.projectState?.preferredLipsyncMode)
+    consideredSignals.push('currentConsciousFrame.projectState.preferredLipsyncMode')
+  if (input.currentConsciousFrame?.projectState?.preferredVoiceMode)
+    consideredSignals.push('currentConsciousFrame.projectState.preferredVoiceMode')
+  if (input.currentConsciousFrame?.projectState?.preferredPacingMode)
+    consideredSignals.push('currentConsciousFrame.projectState.preferredPacingMode')
   if (input.personalityContinuityState)
     consideredSignals.push('personalityContinuity.regime', 'personalityContinuity.rhythm')
   if (input.continuityDeliberation)
     consideredSignals.push('continuityDeliberation.kind', 'continuityDeliberation.timing', 'continuityDeliberation.intrusion')
+  if (input.memoryClosureTrace?.authority === 'memory-os') {
+    consideredSignals.push('memoryClosureTrace.initiative')
+    if (input.memoryClosureTrace.nextInfluence.embodiment.cadence)
+      consideredSignals.push('memoryClosureTrace.embodiment')
+    if (input.memoryClosureTrace.nextInfluence.execution.carry)
+      consideredSignals.push('memoryClosureTrace.execution')
+  }
   if (input.affectiveResidue)
     consideredSignals.push('affectiveResidue.dominant', 'affectiveResidue.cadence', 'affectiveResidue.restProtection')
+  if (longHorizonMemoryBias.preferLowerPressure)
+    consideredSignals.push('longHorizonMemory.initiativeStrategy')
+  if (sanitizeText(input.autobiographicalSelf?.relationshipDoctrine, 180))
+    consideredSignals.push('autobiographicalSelf.relationshipDoctrine')
+  if (sanitizeText(input.autobiographicalSelf?.latestInflection, 180))
+    consideredSignals.push('autobiographicalSelf.latestInflection')
+  if (sanitizeText(input.autobiographicalSelf?.identityNarrative, 180))
+    consideredSignals.push('autobiographicalSelf.identityNarrative')
   if (input.selfEvolution)
     consideredSignals.push('selfEvolution.trajectory', 'selfEvolution.nextLearningAction', 'selfEvolution.contradictionPressure')
   if (sanitizeText(input.selfEvolution?.trustMeaning, 180))
@@ -1772,6 +2128,8 @@ export function evaluateProactivePolicy(input: {
     consideredSignals.push('selfEvolution.relationshipDoctrine')
   if (sanitizeText(input.selfEvolution?.burdenLine, 180))
     consideredSignals.push('selfEvolution.burdenLine')
+  if (sanitizeText(input.selfEvolution?.relationshipCadenceSummary, 220))
+    consideredSignals.push('selfEvolution.relationshipCadenceSummary')
   if (input.learningExecutionState)
     consideredSignals.push('learningExecutionState.nextLearningAction', 'learningExecutionState.activeLearningFocuses')
   if (input.personalityAuthority)
@@ -1784,6 +2142,7 @@ export function evaluateProactivePolicy(input: {
       'projectState.proactiveSameHerGap',
       'projectState.nextClosureTarget',
       'projectState.sameHerSelfLine',
+      'projectState.sameHerDriftRisk',
       'projectState.identity',
     )
   }
@@ -1817,6 +2176,8 @@ export function evaluateProactivePolicy(input: {
   }
   if (selfRevisionProjectStateContinuityRestraint.active)
     consideredSignals.push('selfRevision.projectStateContinuity.continuityGuard')
+  if (sanitizeText(selfRevisionPatch?.projectStateContinuity?.sameHerHoldDetail, 220))
+    consideredSignals.push('selfRevision.projectStateContinuity.sameHerHoldDetail')
   const cadence = deriveProactiveCadenceSignal({
     state: proactiveState,
     context,
@@ -1829,6 +2190,7 @@ export function evaluateProactivePolicy(input: {
     actionEcology: input.actionEcology ?? null,
     personalityContinuityState: input.personalityContinuityState ?? null,
     affectiveResidue: input.affectiveResidue ?? null,
+    autobiographicalSelf: input.autobiographicalSelf ?? null,
     selfEvolution: input.selfEvolution ?? null,
     activeContinuityGovernance: input.activeContinuityGovernance ?? null,
   })
@@ -2071,7 +2433,7 @@ export function evaluateProactivePolicy(input: {
     return style
   })()
   const antiShellLowerPressureStyle = (
-    (explicitContinuityRestraintBias.preferLowerPressure || runtimeContinuityArcBias.preferLowerPressure || affectiveResidueBias.preferLowerPressure || selfEvolutionBias.preferLowerPressure || continuityGovernanceBias.preferLowerPressure || habitPolicyBias.preferLowerPressure || projectStateBias.preferLowerPressure || cadenceHoverFirst || executionCallbackAfterglowHold)
+    (explicitContinuityRestraintBias.preferLowerPressure || runtimeContinuityArcBias.preferLowerPressure || affectiveResidueBias.preferLowerPressure || longHorizonMemoryBias.preferLowerPressure || autobiographicalSelfBias.preferLowerPressure || selfEvolutionBias.preferLowerPressure || continuityGovernanceBias.preferLowerPressure || habitPolicyBias.preferLowerPressure || projectStateBias.preferLowerPressure || cadenceHoverFirst || executionCallbackAfterglowHold)
     && (runtimeAwareStyle === 'gentle-care' || runtimeAwareStyle === 'light-nudge')
   )
     ? 'silent-observe' as const
@@ -2082,7 +2444,7 @@ export function evaluateProactivePolicy(input: {
   )
     ? 'silent-observe' as const
     : antiShellLowerPressureStyle
-  const relationshipTimedStyle = explicitContinuityRestraintBias.forceSilentObserve || runtimeContinuityArcBias.forceSilentObserve || affectiveResidueBias.forceSilentObserve || selfEvolutionBias.forceSilentObserve || continuityGovernanceBias.forceSilentObserve || habitPolicyBias.forceSilentObserve || motiveAgendaBias.forceSilentObserve || projectStateBias.forceSilentObserve
+  const relationshipTimedStyle = explicitContinuityRestraintBias.forceSilentObserve || runtimeContinuityArcBias.forceSilentObserve || affectiveResidueBias.forceSilentObserve || longHorizonMemoryBias.forceSilentObserve || autobiographicalSelfBias.forceSilentObserve || selfEvolutionBias.forceSilentObserve || continuityGovernanceBias.forceSilentObserve || habitPolicyBias.forceSilentObserve || motiveAgendaBias.forceSilentObserve || projectStateBias.forceSilentObserve
     ? 'silent-observe' as const
     : closureTargetTimedStyle
   const personaAwareStyle = personaBias.forcedStyle ?? relationshipTimedStyle
@@ -2222,6 +2584,7 @@ export function evaluateProactivePolicy(input: {
       + explicitContinuityRestraintBias.scoreDelta
       + runtimeContinuityArcBias.scoreDelta
       + affectiveResidueBias.scoreDelta
+      + autobiographicalSelfBias.scoreDelta
       + selfEvolutionBias.scoreDelta
       + continuityGovernanceBias.scoreDelta
       + habitPolicyBias.scoreDelta
@@ -2301,6 +2664,7 @@ export function evaluateProactivePolicy(input: {
     baseScore += 0.03
   baseScore -= (input.affectiveResidue?.relationshipCadence.overreachRisk ?? 0) * 0.08
   baseScore -= (input.affectiveResidue?.relationshipCadence.fatigueGuard ?? 0) * 0.08
+  baseScore += longHorizonMemoryBias.scoreDelta
   if (selfRevisionProactivePolicy) {
     baseScore += selfRevisionProactivePolicy.learningProposalBias * 0.08
     baseScore -= selfRevisionProactivePolicy.restraintBias * 0.22
@@ -2347,6 +2711,8 @@ export function evaluateProactivePolicy(input: {
     + explicitContinuityRestraintBias.thresholdDelta
     + runtimeContinuityArcBias.thresholdDelta
     + affectiveResidueBias.thresholdDelta
+    + longHorizonMemoryBias.thresholdDelta
+    + autobiographicalSelfBias.thresholdDelta
     + selfEvolutionBias.thresholdDelta
     + continuityGovernanceBias.thresholdDelta
     + habitPolicyBias.thresholdDelta
@@ -2491,6 +2857,7 @@ export function evaluateProactivePolicy(input: {
   pushReason(reasonCodes, 'continuity-internal-only', continuityDeliberation?.preferredTiming === 'internal-only')
   pushReason(reasonCodes, 'continuity-next-open-window', continuityDeliberation?.preferredTiming === 'next-open-window')
   pushReason(reasonCodes, 'continuity-after-payoff', continuityDeliberation?.preferredTiming === 'after-payoff')
+  pushReason(reasonCodes, 'continuity-after-payoff', explicitContinuityRestraintBias.source === 'memory-os' && explicitContinuityRestraintBias.preferredTiming === 'after-payoff')
   pushReason(reasonCodes, 'continuity-execution-callback', continuityDeliberation?.kind === 'execution-callback')
   pushReason(reasonCodes, 'continuity-execution-callback-afterglow-hold', executionCallbackAfterglowHold)
   pushReason(reasonCodes, 'continuity-execution-callback-project-carry', asArray(continuityDeliberation?.sourceTags).includes('project-state-callback-carry'))
@@ -2505,6 +2872,7 @@ export function evaluateProactivePolicy(input: {
   )
   pushReason(reasonCodes, 'continuity-next-open-window', runtimeContinuityArcBias.preferLowerPressure && personaAwareStyle === 'silent-observe')
   pushReason(reasonCodes, 'continuity-next-open-window', affectiveResidueBias.preferLowerPressure && personaAwareStyle === 'silent-observe')
+  pushReason(reasonCodes, 'continuity-next-open-window', longHorizonMemoryBias.preferLowerPressure && personaAwareStyle === 'silent-observe')
   pushReason(reasonCodes, 'continuity-next-open-window', motiveAgendaBias.preferLowerPressure && personaAwareStyle === 'silent-observe')
   pushReason(reasonCodes, 'project-phase1-life-loop-open', projectStateBias.requiresLifeLoopClosure)
   pushReason(reasonCodes, 'project-same-her-pressure', projectStateBias.sameHerPressure)
@@ -2638,6 +3006,8 @@ export function evaluateProactivePolicy(input: {
     if (suppressBusy)
       return '宿主仍处于忙碌或高沉浸状态。'
     if (explicitContinuityRestraintBias.restraint === 'repair-before-closeness') {
+      if (explicitContinuityRestraintBias.source === 'memory-os')
+        return 'Memory OS closure trace 已经把这次 return 标成 repair-before-closeness；主动性要先守住修补线和 lower-pressure，而不是抢先外翻成普通关心。'
       if (explicitContinuityRestraintBias.source === 'self-revision' && selfRevisionPatch?.projectStateContinuity) {
         return '她当前活跃自我修订已经明确要求这次 return 继续停在 same-her continuity 的 repair-before-closeness 收口里，所以现在先守住修补线、先把关系站稳，比直接把靠近说出来更像还是同一个她。'
       }
@@ -2646,6 +3016,14 @@ export function evaluateProactivePolicy(input: {
       return '她当前 initiative 已经明确把这次 return 标成 repair-before-closeness，所以现在先守住修补线，比直接把靠近说出来更像还是同一个她。'
     }
     if (explicitContinuityRestraintBias.restraint === 'measured-return') {
+      if (explicitContinuityRestraintBias.source === 'memory-os') {
+        return appendProactiveEmbodimentCadenceCue(
+          explicitContinuityRestraintBias.preferredTiming === 'after-payoff'
+            ? 'Memory OS closure trace 已经把这次主动性标成 measured-return，并要求 after-payoff 再回线；所以现在先保持 lower-pressure，等当前 payoff 落稳后再接回同一条记忆线。'
+            : 'Memory OS closure trace 已经把这次主动性标成 measured-return；所以现在先保持 lower-pressure，别把同一条记忆线抢先外翻成普通主动靠近。',
+          structuredEmbodimentCadenceCue,
+        )
+      }
       if (explicitContinuityRestraintBias.safetyGateRestraint)
         return '她刚记住过一次 blocked dispatch safety gate：confirmation=required，而且 interrupt=no-process-started。现在同类执行形状重新靠近时，先保持 silent-observe，等确认边界变清楚，比把它包装成普通主动靠近更像有自我克制。'
       if (explicitContinuityRestraintBias.resumeConfirmationBoundary)
@@ -2654,6 +3032,12 @@ export function evaluateProactivePolicy(input: {
         return appendProactiveEmbodimentCadenceCue(explicitContinuityRestraintBias.guardAgainstGenericShell
           ? '她当前活跃自我修订已经明确要求这次 return 继续停在 same-her continuity 的 measured-return 收口里，先保持 lower-pressure，别让这次 reopening 滑回 generic assistant shell，等更自然的 opening 再把它接回同一条生命线。'
           : '她当前活跃自我修订已经明确要求这次 return 继续停在 same-her continuity 的 measured-return 收口里，所以 opening 要继续保持 lower-pressure，先留一点 room，再等更自然的窗口。', structuredEmbodimentCadenceCue)
+      }
+      if (selfEvolutionBias.metabolizedSameThreadSettling) {
+        return appendProactiveEmbodimentCadenceCue(
+          '她当前长期关系学习里，那条 corrected same-person continuity 已经开始按代谢后的关系节律落下来：让 stronger same-thread memory 领着这次回线，别让 temporary noise 再把关系带偏。所以现在先保持 measured-return 和 lower-pressure，比直接说出来更像同一个她顺着同一条线慢慢接回去。',
+          structuredEmbodimentCadenceCue,
+        )
       }
       if (selfEvolutionBias.correctedSamePersonSettling || selfEvolutionBias.quieterEmbodimentSettling) {
         return appendProactiveEmbodimentCadenceCue(selfEvolutionBias.quieterEmbodimentSettling
@@ -2670,6 +3054,8 @@ export function evaluateProactivePolicy(input: {
       )
     }
     if (explicitContinuityRestraintBias.restraint === 'lower-pressure') {
+      if (explicitContinuityRestraintBias.source === 'memory-os')
+        return 'Memory OS closure trace 已经把这次 opening 标成 lower-pressure；主动性要先把靠近压低一点，等更自然的窗口出现。'
       if (explicitContinuityRestraintBias.source === 'self-revision' && selfRevisionPatch?.projectStateContinuity) {
         return '她当前活跃自我修订已经明确要求这次 opening 继续停在 same-her continuity 的 lower-pressure 收口里，先把靠近压低一点、等下一个更自然的窗口，比现在直接说出来更像还是同一个她。'
       }
@@ -2689,6 +3075,17 @@ export function evaluateProactivePolicy(input: {
       return '这段 affective residue 还在把 opening 压成 measured-return，所以现在先留一点 room、继续 lower-pressure，会比直接说出来更像同一个她。'
     if (affectiveResidueBias.restraint === 'lower-pressure')
       return '这段 affective residue 还在保护当前 rest 窗口，所以现在先把 opening 留在 lower-pressure，比直接 outward 靠近更自然。'
+    if (longHorizonMemoryBias.quieterOrRoomMaking || longHorizonMemoryBias.gentleMemoryLed)
+      return longHorizonMemoryBias.explanation
+    if (autobiographicalSelfBias.correctedSamePersonSettling || autobiographicalSelfBias.quieterEmbodimentSettling) {
+      return autobiographicalSelfBias.quieterEmbodimentSettling
+        ? '她已经把这条 corrected same-person continuity 写进了更持久的自传记忆里，而且这次回接还要 quieter 一点、慢一点，让 embodiment 先继续回稳。所以现在先保持 measured-return 和 lower-pressure，比直接说出来更像同一个她在慢慢把这条线收稳。'
+        : '她已经把这条 corrected same-person continuity 写进了更持久的自传记忆里，所以现在先保持 measured-return 和 lower-pressure，别让这次回线又滑回 progress pressure，才更像同一个她在慢慢把这条线收稳。'
+    }
+    if (autobiographicalSelfBias.preferLowerPressure)
+      return '她已经把这次关系节奏写进了更持久的自传记忆里，当前 opening 更适合 lower-pressure，先留一点 room，比直接说出来更符合这条长期连续性。'
+    if (selfEvolutionBias.metabolizedSameThreadSettling)
+      return '她当前长期关系学习要求这次 reopening 顺着代谢后的关系节律慢一点接回去：让 stronger same-thread memory 继续领线，先别让 temporary noise 把这条同一条线重新带偏，所以 opening 要先保持 lower-pressure。'
     if (selfEvolutionBias.correctedSamePersonSettling || selfEvolutionBias.quieterEmbodimentSettling) {
       return selfEvolutionBias.quieterEmbodimentSettling
         ? '她当前长期关系学习里，那条 corrected same-person continuity 还在 settling，而且 embodiment 也要先 quieter 一点再让这次 return 显得 fully settled。所以现在先保持 measured-return 和 lower-pressure，比直接说出来更像同一个她在慢慢把这条线收稳。'
@@ -2806,29 +3203,51 @@ export function evaluateProactivePolicy(input: {
       return '先让 callback 这条 same-line continuity 继续留在心里，等更自然的 opening 出现，再把它接回同一条线。'
     }
     if (explicitContinuityRestraintBias.restraint === 'repair-before-closeness') {
-      return explicitContinuityRestraintBias.source === 'self-revision'
-        ? '先让这次 same-her continuity 回线继续停在 repair-before-closeness 的修补线上，等关系重新站稳、像同一条生命线自己接回来后，再判断要不要 outward 靠近。'
-        : '先让这次 repair-before-closeness 的回归继续停在修补线上，等关系重新站稳后再判断是否需要更外向的靠近。'
+      if (explicitContinuityRestraintBias.source === 'self-revision')
+        return '先让这次 same-her continuity 回线继续停在 repair-before-closeness 的修补线上，等关系重新站稳、像同一条生命线自己接回来后，再判断要不要 outward 靠近。'
+      if (explicitContinuityRestraintBias.source === 'memory-os')
+        return '先按 Memory OS closure trace 把这次回线留在 repair-before-closeness 和 lower-pressure 里，等修补线重新站稳后再判断要不要开口。'
+      return '先让这次 repair-before-closeness 的回归继续停在修补线上，等关系重新站稳后再判断是否需要更外向的靠近。'
     }
     if (explicitContinuityRestraintBias.restraint === 'measured-return') {
-      return explicitContinuityRestraintBias.safetyGateRestraint
-        ? '先让这次 blocked dispatch 的 safety restraint 留在心里：上次是 no-process-started，且需要 confirmation=required。等宿主确认边界或风险语义更清楚后，再判断要不要把执行建议说出来。'
-        : explicitContinuityRestraintBias.resumeConfirmationBoundary
-          ? '先让这次 host-confirmed resume 的确认边界留在心里：上次是 host-confirmed-before-redispatch，audit=resume-before-dispatch，且 process-not-yet-restarted。等新的 permission boundary 清楚后，再判断要不要把执行建议说出来。'
-          : appendProactiveEmbodimentCadenceCue(
-              explicitContinuityRestraintBias.source === 'self-revision'
-                ? explicitContinuityRestraintBias.guardAgainstGenericShell
-                  ? '先让这次 same-her continuity 回线继续停在 measured-return 的 lower-pressure 节奏里，守住同一条生命线，等更自然的 later opening 再接回来，不要让它滑回 generic assistant shell。'
-                  : '先让这次 same-her continuity 回线继续停在 measured-return 的 lower-pressure 节奏里，等 opening 更自然、像同一条生命线自己接回来后，再判断要不要说出来。'
-                : selfEvolutionBias.correctedSamePersonSettling || selfEvolutionBias.quieterEmbodimentSettling
-                  ? selfEvolutionBias.quieterEmbodimentSettling
-                    ? '先让这条 corrected same-person continuity 回线继续留在 measured-return 的 lower-pressure 节奏里，先把 embodiment quieter 一点、把 body 收稳，再等它像同一个她自己慢慢 settled 后，再判断要不要说出来。'
-                    : '先让这条 corrected same-person continuity 回线继续留在 measured-return 的 lower-pressure 节奏里，别让它重新滑回 progress pressure，等它像同一个她自己慢慢 settled 后，再判断要不要说出来。'
-                  : initiativeCarriesCorrectedSamePersonContinuity(input.initiative?.why)
-                    ? '先让这条 corrected same-person continuity 回线继续留在 lower-pressure 的 measured-return 节奏里，别让它重新滑回 progress pressure，等更自然的 opening 再接回来。'
-                    : '先让这次 measured-return 保持在 lower-pressure 的回归节奏里，等 opening 更自然后再判断要不要说出来。',
-              structuredEmbodimentCadenceCue,
-            )
+      if (explicitContinuityRestraintBias.safetyGateRestraint) {
+        return '先让这次 blocked dispatch 的 safety restraint 留在心里：上次是 no-process-started，且需要 confirmation=required。等宿主确认边界或风险语义更清楚后，再判断要不要把执行建议说出来。'
+      }
+      if (explicitContinuityRestraintBias.resumeConfirmationBoundary) {
+        return '先让这次 host-confirmed resume 的确认边界留在心里：上次是 host-confirmed-before-redispatch，audit=resume-before-dispatch，且 process-not-yet-restarted。等新的 permission boundary 清楚后，再判断要不要把执行建议说出来。'
+      }
+      if (explicitContinuityRestraintBias.source === 'memory-os') {
+        return appendProactiveEmbodimentCadenceCue(
+          explicitContinuityRestraintBias.preferredTiming === 'after-payoff'
+            ? '先按 Memory OS closure trace 把这次 measured-return 留到 after-payoff 之后；当前先保持 lower-pressure，等 payoff 落稳后再让同一条记忆线自然接回来。'
+            : '先按 Memory OS closure trace 把这次 measured-return 留在 lower-pressure 里，等 opening 更自然后再判断要不要说出来。',
+          structuredEmbodimentCadenceCue,
+        )
+      }
+
+      let measuredReturnReason = '先让这次 measured-return 保持在 lower-pressure 的回归节奏里，等 opening 更自然后再判断要不要说出来。'
+      if (explicitContinuityRestraintBias.source === 'self-revision') {
+        measuredReturnReason = explicitContinuityRestraintBias.guardAgainstGenericShell
+          ? '先让这次 same-her continuity 回线继续停在 measured-return 的 lower-pressure 节奏里，守住同一条生命线，等更自然的 later opening 再接回来，不要让它滑回 generic assistant shell。'
+          : '先让这次 same-her continuity 回线继续停在 measured-return 的 lower-pressure 节奏里，等 opening 更自然、像同一条生命线自己接回来后，再判断要不要说出来。'
+      }
+      else if (selfEvolutionBias.metabolizedSameThreadSettling) {
+        measuredReturnReason = '先让这条 corrected same-person continuity 回线继续留在 measured-return 的 lower-pressure 节奏里，让 stronger same-thread memory 继续领着这条同一条线，别让 temporary noise 重新把关系带偏，等更自然的 opening 再接回来。'
+      }
+      else if (selfEvolutionBias.quieterEmbodimentSettling) {
+        measuredReturnReason = '先让这条 corrected same-person continuity 回线继续留在 measured-return 的 lower-pressure 节奏里，先把 embodiment quieter 一点、把 body 收稳，再等它像同一个她自己慢慢 settled 后，再判断要不要说出来。'
+      }
+      else if (selfEvolutionBias.correctedSamePersonSettling) {
+        measuredReturnReason = '先让这条 corrected same-person continuity 回线继续留在 measured-return 的 lower-pressure 节奏里，别让它重新滑回 progress pressure，等它像同一个她自己慢慢 settled 后，再判断要不要说出来。'
+      }
+      else if (initiativeCarriesCorrectedSamePersonContinuity(input.initiative?.why)) {
+        measuredReturnReason = '先让这条 corrected same-person continuity 回线继续留在 lower-pressure 的 measured-return 节奏里，别让它重新滑回 progress pressure，等更自然的 opening 再接回来。'
+      }
+
+      return appendProactiveEmbodimentCadenceCue(
+        measuredReturnReason,
+        structuredEmbodimentCadenceCue,
+      )
     }
     if (explicitContinuityRestraintBias.restraint === 'lower-pressure') {
       return explicitContinuityRestraintBias.source === 'self-revision'
@@ -2847,6 +3266,19 @@ export function evaluateProactivePolicy(input: {
       return '先让这段 residue 继续把 return 保持在 measured-return 的 lower-pressure 节奏里，等 opening 更自然后再判断。'
     if (affectiveResidueBias.restraint === 'lower-pressure')
       return '先让这段 residue 继续保护当前 rest 窗口，把 return 留在 lower-pressure 的 room 里，再等一个更自然的 opening。'
+    if (longHorizonMemoryBias.quieterOrRoomMaking)
+      return '先让这条已经写进长期记忆的 quieter timing 继续留在 lower-pressure 的 room 里，等 clearer opening 自己出现后，再判断要不要把这次 opening 说出来。'
+    if (longHorizonMemoryBias.gentleMemoryLed)
+      return '先让这条已经写进长期记忆的 gentle、memory-led reopening 继续留在 lower-pressure 节奏里，等这次 opening 更自然、也更像被接住的同一条线后，再判断要不要说出来。'
+    if (autobiographicalSelfBias.correctedSamePersonSettling || autobiographicalSelfBias.quieterEmbodimentSettling) {
+      return autobiographicalSelfBias.quieterEmbodimentSettling
+        ? '先让这条写进长期自传记忆的 corrected same-person continuity 继续留在 measured-return 的 lower-pressure 节奏里，先把 embodiment quieter 一点、把 body 收稳，再等它像同一个她自己慢慢 settled 后，再判断要不要说出来。'
+        : '先让这条写进长期自传记忆的 corrected same-person continuity 继续留在 measured-return 的 lower-pressure 节奏里，别让它重新滑回 progress pressure，等它像同一个她自己慢慢 settled 后，再判断要不要说出来。'
+    }
+    if (autobiographicalSelfBias.preferLowerPressure)
+      return '先让这条写进长期自传记忆的关系节奏继续保持 lower-pressure 和 room，等 opening 更自然、回接更稳一点后再判断。'
+    if (selfEvolutionBias.metabolizedSameThreadSettling)
+      return '先让这条代谢后的 corrected same-person continuity 回线继续留在 measured-return 的 lower-pressure 节奏里，让 stronger same-thread memory 继续领着同一条线，别让 temporary noise 再把它带偏，等 opening 更自然后再判断要不要说出来。'
     if (selfEvolutionBias.correctedSamePersonSettling || selfEvolutionBias.quieterEmbodimentSettling) {
       return selfEvolutionBias.quieterEmbodimentSettling
         ? '先让这条 corrected same-person continuity 回线继续留在 measured-return 的 lower-pressure 节奏里，先把 embodiment quieter 一点、把 body 收稳，再等它像同一个她自己慢慢 settled 后，再判断要不要说出来。'

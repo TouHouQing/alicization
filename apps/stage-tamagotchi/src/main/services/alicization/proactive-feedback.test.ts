@@ -1,3 +1,5 @@
+import type { AlicizationEmotionalTransitionLedgerSnapshot } from '../../../shared/eventa'
+
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -12,6 +14,61 @@ import {
 } from './proactive-feedback'
 
 describe('proactive feedback loop state', () => {
+  const emotionalTransitionLedger = {
+    version: 'emotional-transition-ledger-v1',
+    createdAt: 1_000,
+    turnId: 'turn-reply',
+    previousEmotion: 'measured-companionship',
+    nextEmotion: 'rest-protective-companionship',
+    transitionKind: 'rest-protective-shift',
+    axisDeltas: {
+      valence: -0.1,
+      arousal: -0.18,
+      guardedness: 0.14,
+      closenessDrive: -0.24,
+      repairNeed: 0.04,
+      initiativePressure: -0.42,
+    },
+    changedAxes: ['closenessDrive', 'initiativePressure'],
+    sourceTags: ['rest-protective'],
+    decayPolicy: {
+      mode: 'protect-rest-window',
+      carryTtlMs: 3_600_000,
+      reason: 'Rest protection should keep initiative quiet.',
+    },
+    memoryWriteback: {
+      shouldWrite: true,
+      lane: 'rest-protection',
+      reason: 'Rest-protective initiative pressure should be available to later recall.',
+    },
+    initiativeSuppression: {
+      shouldSuppress: true,
+      mode: 'rest-guard',
+      reason: 'Rest-protective emotion should suppress outward initiative during the rest window.',
+    },
+    embodimentDrive: {
+      shouldDrive: true,
+      tone: 'rest-protective',
+      reason: 'The body should stay quiet and rest-protective.',
+    },
+    selfRevisionCandidate: {
+      shouldPropose: true,
+      domain: 'proactive-policy',
+      reasonCodes: ['rest-protective', 'suppress-outward-initiative'],
+      summary: 'Rest-protective emotional carry should keep later initiative quiet.',
+      projectStateContinuity: {
+        sameHerSelfLine: 'Same Phase 1 digital life.',
+        sameHerDriftRisk: 'Noisy initiative would split the same-her rest line.',
+        proactiveSameHerGap: 'Do not reopen before rest protection cools.',
+        emotionalClosureCue: 'rest-protective',
+        sameHerHoldDetail: 'Keep the body quiet while rest protection is active.',
+        continuityGuard: 'Do not split emotion, initiative, and embodiment.',
+      },
+    },
+    traceSummary: 'rest-protective-shift cooled initiative pressure',
+    replayLine: 'emotion_initiative_suppression:rest-guard',
+  } satisfies AlicizationEmotionalTransitionLedgerSnapshot
+
   it('applies dismiss cooldown and scenario bias immediately', () => {
     const state = registerProactiveDelivery(createDefaultProactiveLoopState(1_000), {
       turnId: 'turn-dismiss',
@@ -40,6 +97,43 @@ describe('proactive feedback loop state', () => {
       feedbackWindowMs: 120_000,
       learningAction: 'verify',
       learningFocuses: ['world-model'],
+      emotionalTransitionLedger,
+      affectiveResidue: {
+        version: 'affective-residue-memory-v1',
+        updatedAt: 1_000,
+        residues: [{
+          kind: 'afterglow',
+          intensity: 0.72,
+          persistence: 0.66,
+          confidence: 0.82,
+          polarity: 'warm',
+          releaseMode: 'delay-until-open-window',
+          summary: 'This proactive reopen should stay gentle and same-line.',
+          sourceSignals: ['proactive-feedback-window'],
+          lastUpdatedAt: 1_000,
+        }],
+        dominantResidueKind: 'afterglow',
+        afterglowPressure: 0.72,
+        repairPressure: 0.16,
+        burdenPressure: 0.08,
+        trustPressure: 0.54,
+        restProtectivePressure: 0.06,
+        relationshipCadence: {
+          cadenceMode: 'measured-return',
+          distancePosture: 'measured-room',
+          companionshipDensity: 0.46,
+          repairRecovery: 0.22,
+          afterglowCarry: 0.71,
+          shouldDelayWarmth: true,
+          shouldProtectRest: false,
+          overreachRisk: 0.14,
+          fatigueGuard: 0.08,
+          reasonTags: ['proactive-feedback-window', 'same-living-line'],
+          summary: 'Keep the initiative gentle and on the same living line.',
+        },
+        sourceSignals: ['proactive-feedback-window'],
+        summary: 'Measured return remains the right proactive cadence.',
+      },
     })
     const settled = settleProactiveOutcomesOnUserTurnStart(state, 20_000)
 
@@ -47,6 +141,24 @@ describe('proactive feedback loop state', () => {
     expect(settled.appliedOutcomes[0]).toEqual(expect.objectContaining({
       learningAction: 'verify',
       learningFocuses: ['world-model'],
+      emotionalTransitionLedger: expect.objectContaining({
+        transitionKind: 'rest-protective-shift',
+        memoryWriteback: expect.objectContaining({
+          lane: 'rest-protection',
+        }),
+        initiativeSuppression: expect.objectContaining({
+          mode: 'rest-guard',
+        }),
+        embodimentDrive: expect.objectContaining({
+          tone: 'rest-protective',
+        }),
+      }),
+      affectiveResidue: expect.objectContaining({
+        dominantResidueKind: 'afterglow',
+        relationshipCadence: expect.objectContaining({
+          cadenceMode: 'measured-return',
+        }),
+      }),
     }))
     expect(settled.state.scenarioBias.media).toBe(0)
     expect(settled.state.consecutiveIgnored.media).toBe(0)

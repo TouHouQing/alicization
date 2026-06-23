@@ -5,6 +5,11 @@ import type {
   AlicizationProactiveScenario,
 } from '../../../shared/eventa'
 
+import {
+  normalizeAlicizationDerivedMindStateBundle,
+  readAffectiveResidueFromDerivedMindStateBundle,
+} from '@proj-alicization/stage-shared'
+
 const proactiveScenarioKeys = ['coding', 'media', 'late-night-care', 'general'] as const satisfies AlicizationProactiveScenario[]
 
 export const proactiveDismissCooldownMs = 30 * 60_000
@@ -18,6 +23,7 @@ export interface AlicizationRecentProactiveOutcome {
   scenario: AlicizationProactiveScenario
   outcome: AlicizationProactiveOutcome
   createdAt: number
+  userText?: string | null
   assistantText?: string | null
   learningAction?: 'record' | 'reflect' | 'verify' | 'revise' | 'internalize' | 'hold' | null
   learningFocuses?: string[]
@@ -41,6 +47,13 @@ export interface AlicizationPendingProactiveOutcome {
   projectStateEmotionalClosureCue?: string | null
   emotionalTransitionLedger?: AlicizationEmotionalTransitionLedgerSnapshot | null
   affectiveResidue?: AlicizationAffectiveResidueMemorySnapshot | null
+}
+
+export interface AlicizationExplicitProactiveFeedbackInput {
+  turnId: string
+  feedback: AlicizationProactiveFeedbackKind
+  at?: number
+  userText?: string | null
 }
 
 export interface AlicizationProactiveLoopState {
@@ -80,37 +93,26 @@ function createScenarioNumberMap(initial = 0) {
   ) as Record<AlicizationProactiveScenario, number>
 }
 
-function normalizeProactiveText(raw: unknown, maxChars = 220) {
-  return typeof raw === 'string'
-    ? raw.trim().replace(/\s+/g, ' ').slice(0, maxChars) || null
-    : null
+function normalizeProactiveAffectiveResidue(raw: unknown): AlicizationAffectiveResidueMemorySnapshot | null {
+  const derivedMindStateBundle = normalizeAlicizationDerivedMindStateBundle({
+    version: 'derived-mind-state-bundle-v1',
+    source: 'browser-fallback',
+    producedAt: 0,
+    summary: 'proactive-feedback-affective-residue',
+    affectiveResidue: raw,
+  })
+  return readAffectiveResidueFromDerivedMindStateBundle(derivedMindStateBundle)
 }
 
-function normalizeLearningAction(raw: unknown): AlicizationPendingProactiveOutcome['learningAction'] {
-  const rawAction = typeof raw === 'string' ? raw.trim() : ''
-  return rawAction === 'record'
-    || rawAction === 'reflect'
-    || rawAction === 'verify'
-    || rawAction === 'revise'
-    || rawAction === 'internalize'
-    || rawAction === 'hold'
-    ? rawAction
-    : null
-}
-
-function normalizeLearningFocuses(raw: unknown) {
-  return Array.isArray(raw)
-    ? raw
-        .map(value => typeof value === 'string' ? value.trim().replace(/\s+/g, ' ').slice(0, 140) : '')
-        .filter(Boolean)
-        .slice(0, 6)
-    : []
-}
-
-function normalizeSnapshotObject<T>(raw: unknown): T | null {
-  return raw && typeof raw === 'object' && !Array.isArray(raw)
-    ? raw as T
-    : null
+function normalizeProactiveEmotionalTransitionLedger(raw: unknown): AlicizationEmotionalTransitionLedgerSnapshot | null {
+  const derivedMindStateBundle = normalizeAlicizationDerivedMindStateBundle({
+    version: 'derived-mind-state-bundle-v1',
+    source: 'browser-fallback',
+    producedAt: 0,
+    summary: 'proactive-feedback-emotional-transition-ledger',
+    emotionalTransitionLedger: raw,
+  })
+  return derivedMindStateBundle?.emotionalTransitionLedger ?? null
 }
 
 function normalizePendingOutcome(raw: unknown): AlicizationPendingProactiveOutcome | null {
@@ -122,19 +124,51 @@ function normalizePendingOutcome(raw: unknown): AlicizationPendingProactiveOutco
   if (!turnId || !scenario || !Number.isFinite(deliveredAt) || !Number.isFinite(feedbackWindowMs))
     return null
 
+  const learningAction = (() => {
+    const rawAction = typeof candidate?.learningAction === 'string' ? candidate.learningAction.trim() : ''
+    return rawAction === 'record'
+      || rawAction === 'reflect'
+      || rawAction === 'verify'
+      || rawAction === 'revise'
+      || rawAction === 'internalize'
+      || rawAction === 'hold'
+      ? rawAction
+      : null
+  })()
+  const learningFocuses = Array.isArray(candidate?.learningFocuses)
+    ? candidate.learningFocuses
+        .map(value => typeof value === 'string' ? value.trim().replace(/\s+/g, ' ').slice(0, 140) : '')
+        .filter(Boolean)
+        .slice(0, 6)
+    : []
+  const assistantText = typeof candidate?.assistantText === 'string'
+    ? candidate.assistantText.trim().replace(/\s+/g, ' ').slice(0, 260)
+    : ''
+  const projectStateOpenFocusSummary = typeof candidate?.projectStateOpenFocusSummary === 'string'
+    ? candidate.projectStateOpenFocusSummary.trim().replace(/\s+/g, ' ').slice(0, 220)
+    : ''
+  const projectStateNextFocusSummary = typeof candidate?.projectStateNextFocusSummary === 'string'
+    ? candidate.projectStateNextFocusSummary.trim().replace(/\s+/g, ' ').slice(0, 220)
+    : ''
+  const projectStateEmotionalClosureCue = typeof candidate?.projectStateEmotionalClosureCue === 'string'
+    ? candidate.projectStateEmotionalClosureCue.trim().replace(/\s+/g, ' ').slice(0, 220)
+    : ''
+  const emotionalTransitionLedger = normalizeProactiveEmotionalTransitionLedger(candidate?.emotionalTransitionLedger)
+  const affectiveResidue = normalizeProactiveAffectiveResidue(candidate?.affectiveResidue)
+
   return {
     turnId,
     scenario,
     deliveredAt: Math.max(0, Math.floor(deliveredAt)),
     feedbackWindowMs: Math.max(1_000, Math.floor(feedbackWindowMs)),
-    assistantText: normalizeProactiveText(candidate?.assistantText, 500),
-    learningAction: normalizeLearningAction(candidate?.learningAction),
-    learningFocuses: normalizeLearningFocuses(candidate?.learningFocuses),
-    projectStateOpenFocusSummary: normalizeProactiveText(candidate?.projectStateOpenFocusSummary),
-    projectStateNextFocusSummary: normalizeProactiveText(candidate?.projectStateNextFocusSummary),
-    projectStateEmotionalClosureCue: normalizeProactiveText(candidate?.projectStateEmotionalClosureCue),
-    emotionalTransitionLedger: normalizeSnapshotObject<AlicizationEmotionalTransitionLedgerSnapshot>(candidate?.emotionalTransitionLedger),
-    affectiveResidue: normalizeSnapshotObject<AlicizationAffectiveResidueMemorySnapshot>(candidate?.affectiveResidue),
+    assistantText: assistantText || null,
+    learningAction,
+    learningFocuses,
+    projectStateOpenFocusSummary: projectStateOpenFocusSummary || null,
+    projectStateNextFocusSummary: projectStateNextFocusSummary || null,
+    projectStateEmotionalClosureCue: projectStateEmotionalClosureCue || null,
+    emotionalTransitionLedger,
+    affectiveResidue,
   }
 }
 
@@ -153,19 +187,55 @@ function normalizeRecentOutcome(raw: unknown): AlicizationRecentProactiveOutcome
     return null
   }
 
+  const learningAction = (() => {
+    const rawAction = typeof candidate?.learningAction === 'string' ? candidate.learningAction.trim() : ''
+    return rawAction === 'record'
+      || rawAction === 'reflect'
+      || rawAction === 'verify'
+      || rawAction === 'revise'
+      || rawAction === 'internalize'
+      || rawAction === 'hold'
+      ? rawAction
+      : null
+  })()
+  const learningFocuses = Array.isArray(candidate?.learningFocuses)
+    ? candidate.learningFocuses
+        .map(value => typeof value === 'string' ? value.trim().replace(/\s+/g, ' ').slice(0, 140) : '')
+        .filter(Boolean)
+        .slice(0, 6)
+    : []
+  const userText = typeof candidate?.userText === 'string'
+    ? candidate.userText.trim().replace(/\s+/g, ' ').slice(0, 260)
+    : ''
+  const assistantText = typeof candidate?.assistantText === 'string'
+    ? candidate.assistantText.trim().replace(/\s+/g, ' ').slice(0, 260)
+    : ''
+  const projectStateOpenFocusSummary = typeof candidate?.projectStateOpenFocusSummary === 'string'
+    ? candidate.projectStateOpenFocusSummary.trim().replace(/\s+/g, ' ').slice(0, 220)
+    : ''
+  const projectStateNextFocusSummary = typeof candidate?.projectStateNextFocusSummary === 'string'
+    ? candidate.projectStateNextFocusSummary.trim().replace(/\s+/g, ' ').slice(0, 220)
+    : ''
+  const projectStateEmotionalClosureCue = typeof candidate?.projectStateEmotionalClosureCue === 'string'
+    ? candidate.projectStateEmotionalClosureCue.trim().replace(/\s+/g, ' ').slice(0, 220)
+    : ''
+  const emotionalTransitionLedger = normalizeProactiveEmotionalTransitionLedger(candidate?.emotionalTransitionLedger)
+  const affectiveResidue = normalizeProactiveAffectiveResidue(candidate?.affectiveResidue)
+
   return {
     turnId,
     scenario,
     outcome,
     createdAt: Math.max(0, Math.floor(createdAt)),
-    assistantText: normalizeProactiveText(candidate?.assistantText, 500),
-    learningAction: normalizeLearningAction(candidate?.learningAction),
-    learningFocuses: normalizeLearningFocuses(candidate?.learningFocuses),
-    projectStateOpenFocusSummary: normalizeProactiveText(candidate?.projectStateOpenFocusSummary),
-    projectStateNextFocusSummary: normalizeProactiveText(candidate?.projectStateNextFocusSummary),
-    projectStateEmotionalClosureCue: normalizeProactiveText(candidate?.projectStateEmotionalClosureCue),
-    emotionalTransitionLedger: normalizeSnapshotObject<AlicizationEmotionalTransitionLedgerSnapshot>(candidate?.emotionalTransitionLedger),
-    affectiveResidue: normalizeSnapshotObject<AlicizationAffectiveResidueMemorySnapshot>(candidate?.affectiveResidue),
+    userText: userText || null,
+    assistantText: assistantText || null,
+    learningAction,
+    learningFocuses,
+    projectStateOpenFocusSummary: projectStateOpenFocusSummary || null,
+    projectStateNextFocusSummary: projectStateNextFocusSummary || null,
+    projectStateEmotionalClosureCue: projectStateEmotionalClosureCue || null,
+    emotionalTransitionLedger,
+    affectiveResidue,
   }
 }
 
@@ -188,6 +258,7 @@ function applyOutcome(
   entry: AlicizationPendingProactiveOutcome,
   outcome: AlicizationProactiveOutcome,
   at: number,
+  userText?: string | null,
 ) {
   const nextScenarioBias = { ...current.scenarioBias }
   const nextConsecutiveIgnored = { ...current.consecutiveIgnored }
@@ -214,7 +285,12 @@ function applyOutcome(
     scenario: entry.scenario,
     outcome,
     createdAt: at,
-    assistantText: entry.assistantText ?? null,
+    userText: typeof userText === 'string'
+      ? userText.trim().replace(/\s+/g, ' ').slice(0, 260) || null
+      : null,
+    assistantText: typeof entry.assistantText === 'string'
+      ? entry.assistantText.trim().replace(/\s+/g, ' ').slice(0, 260) || null
+      : null,
     learningAction: entry.learningAction ?? null,
     learningFocuses: Array.isArray(entry.learningFocuses)
       ? entry.learningFocuses
@@ -335,7 +411,9 @@ export function registerProactiveDelivery(
     scenario: input.scenario,
     deliveredAt,
     feedbackWindowMs: Math.max(1_000, Math.floor(input.feedbackWindowMs)),
-    assistantText: normalizeProactiveText(input.assistantText, 500),
+    assistantText: typeof input.assistantText === 'string'
+      ? input.assistantText.trim().replace(/\s+/g, ' ').slice(0, 260) || null
+      : null,
     learningAction: input.learningAction ?? null,
     learningFocuses: Array.isArray(input.learningFocuses)
       ? input.learningFocuses
@@ -343,11 +421,17 @@ export function registerProactiveDelivery(
           .filter(Boolean)
           .slice(0, 6)
       : [],
-    projectStateOpenFocusSummary: normalizeProactiveText(input.projectStateOpenFocusSummary),
-    projectStateNextFocusSummary: normalizeProactiveText(input.projectStateNextFocusSummary),
-    projectStateEmotionalClosureCue: normalizeProactiveText(input.projectStateEmotionalClosureCue),
-    emotionalTransitionLedger: input.emotionalTransitionLedger ?? null,
-    affectiveResidue: input.affectiveResidue ?? null,
+    projectStateOpenFocusSummary: typeof input.projectStateOpenFocusSummary === 'string'
+      ? input.projectStateOpenFocusSummary.trim().replace(/\s+/g, ' ').slice(0, 220) || null
+      : null,
+    projectStateNextFocusSummary: typeof input.projectStateNextFocusSummary === 'string'
+      ? input.projectStateNextFocusSummary.trim().replace(/\s+/g, ' ').slice(0, 220) || null
+      : null,
+    projectStateEmotionalClosureCue: typeof input.projectStateEmotionalClosureCue === 'string'
+      ? input.projectStateEmotionalClosureCue.trim().replace(/\s+/g, ' ').slice(0, 220) || null
+      : null,
+    emotionalTransitionLedger: normalizeProactiveEmotionalTransitionLedger(input.emotionalTransitionLedger),
+    affectiveResidue: normalizeProactiveAffectiveResidue(input.affectiveResidue),
   })
 
   return {
@@ -361,11 +445,7 @@ export function registerProactiveDelivery(
 
 export function reportExplicitProactiveFeedback(
   state: AlicizationProactiveLoopState,
-  input: {
-    turnId: string
-    feedback: AlicizationProactiveFeedbackKind
-    at?: number
-  },
+  input: AlicizationExplicitProactiveFeedbackInput,
 ): AlicizationProactiveLoopMutationResult {
   const turnId = input.turnId.trim()
   const at = input.at ?? Date.now()
@@ -381,7 +461,7 @@ export function reportExplicitProactiveFeedback(
   const applied = applyOutcome({
     ...state,
     pendingOutcomes: nextPending,
-  }, entry, input.feedback, at)
+  }, entry, input.feedback, at, input.userText)
 
   return {
     state: applied.state,
@@ -392,6 +472,7 @@ export function reportExplicitProactiveFeedback(
 export function settleProactiveOutcomesOnUserTurnStart(
   state: AlicizationProactiveLoopState,
   at = Date.now(),
+  userText?: string | null,
 ): AlicizationProactiveLoopMutationResult {
   let nextState = {
     ...state,
@@ -400,10 +481,12 @@ export function settleProactiveOutcomesOnUserTurnStart(
   const appliedOutcomes: AlicizationRecentProactiveOutcome[] = []
 
   for (const entry of state.pendingOutcomes) {
+    if (entry.deliveredAt > at)
+      continue
     if (at - entry.deliveredAt > proactiveReplyWindowMs)
       continue
     nextState.pendingOutcomes = nextState.pendingOutcomes.filter(candidate => candidate.turnId !== entry.turnId)
-    const applied = applyOutcome(nextState, entry, 'reply-within-120s', at)
+    const applied = applyOutcome(nextState, entry, 'reply-within-120s', at, userText)
     nextState = applied.state
     appliedOutcomes.push(applied.outcome)
   }

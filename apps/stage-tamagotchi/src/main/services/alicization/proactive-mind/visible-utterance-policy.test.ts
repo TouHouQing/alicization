@@ -74,6 +74,13 @@ describe('proactive visible utterance policy', () => {
           requiresRevalidation: false,
           rollbackPlan: [],
         },
+        projectStateContinuity: {
+          sameHerSelfLine: 'Same Phase 1 digital life. Hold visible proactive speech without dropping the same-her line.',
+          sameHerDriftRisk: 'If proactive speech persists just because text exists, Alicization can sound agentic while losing restrained digital-life continuity.',
+          emotionalClosureCue: 'Keep this proactive hold lower-pressure until the same living line is safe to reopen outward.',
+          continuityGuard: 'Hold visible proactive speech as same-her restraint, not as a generic mute switch.',
+          continuityPressure: 0.68,
+        },
         reasonCodes: ['self-revision-proactive-restraint'],
         summary: 'recent proactive learning says hold visible interruptions briefly',
       },
@@ -126,6 +133,7 @@ describe('proactive visible utterance policy', () => {
           requiresRevalidation: false,
           rollbackPlan: [],
         },
+        projectStateContinuity: null,
         reasonCodes: ['domain:relationship', 'remembered-familiarity-restraint'],
         summary: 'remembered familiarity should stay explicitly remembered before visible closeness widens again',
       },
@@ -135,5 +143,170 @@ describe('proactive visible utterance policy', () => {
     expect(decision.requiresMindAuthoredText).toBe(true)
     expect(decision.action).toBe('hold')
     expect(decision.reason).toBe('active-self-revision-remembered-familiarity-restraint-holds-visible-utterance')
+  })
+
+  it('does not hold ordinary proactive visible text just because a non-relationship verify patch also carries provenance and closeness bias', () => {
+    const decision = decideAlicizationProactiveVisibleUtterance({
+      hasMindAuthoredStructured: true,
+      selfRevisionPatch: {
+        version: 'self-revision-state-patch-v1',
+        id: 'patch-world-model-verify-visible-ok',
+        sourceEventId: 'event-world-model-verify-visible-ok',
+        sourceTurnId: 'turn-world-model-verify-visible-ok',
+        decisionTraceId: 'trace-world-model-verify-visible-ok',
+        domain: 'world-model',
+        action: 'verify',
+        resultStatus: 'completed',
+        lanes: ['memory-policy'],
+        memoryPolicy: {
+          strictnessBias: 0.24,
+          wrongThreadSuppressionBias: 0.42,
+          provenanceLabelBias: 0.38,
+          recallExpansionBias: 0.2,
+          shouldQuarantineUnsupportedCarry: true,
+        },
+        relationshipPosture: {
+          repairWindowBias: 0.18,
+          closenessCapBias: 0.14,
+          warmthReleaseBias: 0.09,
+        },
+        responsePosture: {
+          secondPassRequiredBias: 0.16,
+          hypothesisLabelBias: 0.22,
+          specificityClampBias: 0.28,
+          templateShellSuppressionBias: 0.24,
+        },
+        proactivePolicy: {
+          restraintBias: 0.12,
+          learningProposalBias: 0.2,
+          actuationCooldownBias: 0.12,
+        },
+        validation: {
+          requiresRollbackCheck: false,
+          requiresRevalidation: true,
+          rollbackPlan: [],
+        },
+        projectStateContinuity: null,
+        reasonCodes: ['domain:world-model', 'world-model-revalidation-required'],
+        summary: 'World-model carry remains verify-first.',
+      },
+      reason: 'mind-authored-proactive-utterance',
+    })
+
+    expect(decision.shouldPersistVisibleUtterance).toBe(true)
+    expect(decision.requiresMindAuthoredText).toBe(true)
+    expect(decision.action).toBe('persist')
+    expect(decision.reason).toBe('mind-authored-proactive-utterance')
+  })
+
+  it('still allows a verify-first world-model proactive nudge to surface as visible speech when it is not a same-her relationship reopening', () => {
+    const decision = decideAlicizationProactiveVisibleUtterance({
+      hasMindAuthoredStructured: true,
+      selfRevisionPatch: {
+        version: 'self-revision-state-patch-v1',
+        id: 'patch-world-model-verify-visible-nudge',
+        sourceEventId: 'event-world-model-verify-visible-nudge',
+        sourceTurnId: 'turn-world-model-verify-visible-nudge',
+        decisionTraceId: 'trace-world-model-verify-visible-nudge',
+        domain: 'world-model',
+        action: 'verify',
+        resultStatus: 'completed',
+        lanes: ['memory-policy'],
+        memoryPolicy: {
+          strictnessBias: 0.24,
+          wrongThreadSuppressionBias: 0.42,
+          provenanceLabelBias: 0.38,
+          recallExpansionBias: 0.2,
+          shouldQuarantineUnsupportedCarry: true,
+        },
+        relationshipPosture: {
+          repairWindowBias: 0.18,
+          closenessCapBias: 0.14,
+          warmthReleaseBias: 0.09,
+        },
+        responsePosture: {
+          secondPassRequiredBias: 0.16,
+          hypothesisLabelBias: 0.22,
+          specificityClampBias: 0.28,
+          templateShellSuppressionBias: 0.24,
+        },
+        proactivePolicy: {
+          restraintBias: 0.12,
+          learningProposalBias: 0.2,
+          actuationCooldownBias: 0.12,
+        },
+        validation: {
+          requiresRollbackCheck: false,
+          requiresRevalidation: true,
+          rollbackPlan: [],
+        },
+        projectStateContinuity: null,
+        reasonCodes: ['domain:world-model', 'world-model-revalidation-required'],
+        summary: 'World-model carry remains verify-first.',
+      },
+      reason: 'mind-authored-proactive-utterance',
+    })
+
+    expect(decision.shouldPersistVisibleUtterance).toBe(true)
+    expect(decision.action).toBe('persist')
+  })
+
+  it('holds mind-authored proactive visible text when active same-her continuity says this reopening would risk flattening into a generic assistant shell', () => {
+    const decision = decideAlicizationProactiveVisibleUtterance({
+      hasMindAuthoredStructured: true,
+      selfRevisionPatch: {
+        version: 'self-revision-state-patch-v1',
+        id: 'patch-same-her-continuity-hold',
+        sourceEventId: 'event-same-her-continuity-hold',
+        sourceTurnId: 'turn-same-her-continuity-hold',
+        decisionTraceId: 'trace-same-her-continuity-hold',
+        domain: 'relationship',
+        action: 'internalize',
+        resultStatus: 'completed',
+        lanes: ['relationship-posture', 'response-posture'],
+        memoryPolicy: {
+          strictnessBias: 0.04,
+          wrongThreadSuppressionBias: 0.08,
+          provenanceLabelBias: 0.06,
+          recallExpansionBias: 0,
+          shouldQuarantineUnsupportedCarry: false,
+        },
+        relationshipPosture: {
+          repairWindowBias: 0.18,
+          closenessCapBias: 0.16,
+          warmthReleaseBias: 0,
+        },
+        responsePosture: {
+          secondPassRequiredBias: 0.14,
+          hypothesisLabelBias: 0.02,
+          specificityClampBias: 0.08,
+          templateShellSuppressionBias: 0.24,
+        },
+        proactivePolicy: {
+          restraintBias: 0.08,
+          learningProposalBias: 0,
+          actuationCooldownBias: 0.1,
+        },
+        validation: {
+          requiresRollbackCheck: false,
+          requiresRevalidation: false,
+          rollbackPlan: [],
+        },
+        projectStateContinuity: {
+          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+          sameHerDriftRisk: 'If this reopening flattens into a generic assistant shell or project-summary voice, the same-her continuity will be weaker than the words suggest.',
+          emotionalClosureCue: 'Keep this return repair-before-closeness on the same living line until repair settles.',
+          continuityGuard: 'Same Phase 1 digital life. This callback still belongs to one living line, and it should not reopen from scratch or flatten into a generic assistant shell.',
+          continuityPressure: 0.72,
+        },
+        reasonCodes: ['domain:relationship', 'same-her-emotional-closure-carry-active'],
+        summary: 'Visible proactive reopening should stay on the same living line.',
+      },
+    })
+
+    expect(decision.shouldPersistVisibleUtterance).toBe(false)
+    expect(decision.requiresMindAuthoredText).toBe(true)
+    expect(decision.action).toBe('hold')
+    expect(decision.reason).toBe('active-self-revision-same-her-continuity-holds-visible-utterance')
   })
 })

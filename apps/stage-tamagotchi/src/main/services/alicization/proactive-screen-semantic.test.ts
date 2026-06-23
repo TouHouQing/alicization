@@ -234,6 +234,27 @@ describe('proactive screen semantic helpers', () => {
     expect(candidate?.source.id).toBe('window:code:0')
   })
 
+  it('keeps the sole available window candidate when a desktop app retitles within the same flow', () => {
+    const candidate = pickScreenSemanticCaptureCandidate({
+      foregroundWindow: {
+        appName: 'System Settings',
+        processName: 'System Settings',
+        title: 'Settings',
+      },
+      sources: [
+        { id: 'window:system-settings:1', name: 'Privacy' } as any,
+      ],
+    })
+
+    expect(candidate?.source.id).toBe('window:system-settings:1')
+    expect(candidate?.strategy).toBe('window-title')
+    expect(candidate?.focusTarget).toEqual(expect.objectContaining({
+      appName: 'System Settings',
+      title: 'Settings',
+      source: 'foreground-window',
+    }))
+  })
+
   it('parses valid structured screen semantic output', () => {
     const summary = parseScreenSemanticSummary({
       raw: JSON.stringify({

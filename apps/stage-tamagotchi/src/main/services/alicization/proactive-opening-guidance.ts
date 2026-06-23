@@ -1,4 +1,4 @@
-function replyUsesMemoryLedFamiliarityToReopenCloseness(reply: string) {
+export function replyUsesMemoryLedFamiliarityToReopenCloseness(reply: string) {
   const memoryCarryCue = /(记得|记起来|想起来|以前|之前|熟悉|一直都这么亲近|像以前那样)/u.test(reply)
   if (!memoryCarryCue)
     return false
@@ -6,37 +6,35 @@ function replyUsesMemoryLedFamiliarityToReopenCloseness(reply: string) {
   return /(靠近一点|先陪在你身侧|陪在你身侧|把这份熟悉直接接回|把熟悉接回来|像以前那样靠近|顺着熟悉.*靠近)/u.test(reply)
 }
 
+export function replyUsesGenericAvailabilityShell(reply: string) {
+  return /^(?:你现在要是方便|你要是现在能接|如果你现在方便|如果你现在能接|要是你现在方便)/u.test(reply)
+}
+
 function guidanceIndicatesSameThreadContinuation(guidance: string) {
-  return /(same thread|same living line|already alive|still-live line|do not reopen from zero|continue the line|stay on the same callback line|same callback line|同一条线|同一条 thread|不要重开|别重开|不要从零重开|已经活着)/iu.test(guidance)
+  return /(same thread|same living line|already alive|still-live line|do not reopen from zero|continue the line|同一条线|同一条 thread|不要重开|别重开|不要从零重开|已经活着)/iu.test(guidance)
 }
 
 function guidanceIndicatesEvenNaturalReentry(guidance: string) {
-  return /even,\s*steady voice|even and steady voice|natural,\s*unforced pacing|natural and unforced pacing|stay unforced|performative swing|rushed tempo|不要.*performative|别.*performative|别.*太快|不要.*太快/iu.test(guidance)
-}
-
-function replyUsesGenericAvailabilityShell(reply: string) {
-  return /^(你现在要是方便|你要是现在方便|你要是现在能接|如果你现在方便|如果你现在能接|要是你现在方便)/u.test(reply)
+  return /even,\s*steady voice|even and steady voice|natural,\s*unforced pacing|natural and unforced pacing|reopen even and natural|stay unforced|performative swing|rushed tempo|别.*performative|不要.*performative|别.*太快|不要.*太快/iu.test(guidance)
 }
 
 function replyUsesPerformativeOrRushedReopen(reply: string) {
-  return /顺势把气氛一起推高|把气氛一起推高|一下把气氛推高|热烈地接回来|热烈地贴回来|一口气把温度拉高|急着把温度拉高|performative|dramatic|rush(?:ed)? (?:back )?in|come in hot/iu.test(reply)
+  return /顺势把气氛一起推高|把气氛一起推高|一下把气氛推高|把气氛推高|热烈地接回来|热烈地贴回来|一口气把温度拉高|急着把温度拉高|急着把气氛推高|performative|dramatic|rush(?:ed)? (?:back )?in|come in hot/iu.test(reply)
 }
 
 export function replyUsesSameThreadRestartShell(reply: string) {
   const normalized = reply.trim()
-  if (!normalized)
-    return false
-
-  if (/^(那我们重新开始|那我们重新来|让我们重新开始|就当重新认识一次|我来重新开个头|那我就从这里重新开始|我重新从头说一下|那我重新从头说|let(?:'s| us)? start over|we can start over|let me start this over|let me re-explain this from scratch|i'll restate the project from scratch)(?:[，。,.!\s]|$)/iu.test(normalized))
+  if (/^(?:那我们重新开始|那我们重新来|让我们重新开始|就当重新认识一次|我来重新开个头|那我就从这里重新开始|我重新从头说一下|那我重新从头说|像另一段新的开头一样|let(?:'s| us)? start over|we can start over|let me start this over|let me re-explain this from scratch|i'll restate the project from scratch)(?:[，。,.!\s]|$)/iu.test(normalized))
     return true
-
-  const explicitAntiReopen = /(?:不把|别把|不要把).*(?:另一段新的开头|新的开头|fresh (?:opening|reopen|start|approach)|another (?:new )?opening|新的靠近|fresh closeness)/iu.test(normalized)
-  const restartDistanceAction = /重新贴近|重新靠近|重新贴回来|重新开个(?:更近一点)?的头|再开个(?:更近一点)?头|开个更近一点的头|从头接起|从头接回来|从头陪你/u.test(normalized)
-  if (explicitAntiReopen && !restartDistanceAction)
+  if (
+    /(?:沿着|顺着|贴着).*(?:这条线|同一条线|这条 thread|同一条 thread).*(?:接回来|接回去|接住|续上|续回来)/iu.test(normalized)
+    && /(?:不把|别把|不要把).*(?:压回|说成|写成).*(?:新的开头|项目摘要|旧一点的回调摘要|静态项目说明|泛化项目说明|generic callback summary|static project brief)/iu.test(normalized)
+  ) {
     return false
-
-  return restartDistanceAction
-    || /另一段新的开头|新的开头|再开一次|fresh (?:start|opening|reopen|approach|report opening)|another (?:new )?opening|fresh report shell|fresh closeness|fresh approach|重新开始吧|重新从头说(?:一下|起)?|从头重说/iu.test(normalized)
+  }
+  if (/(?:不把|别把|不要把).*(?:另一段新的开头|新的开头|fresh (?:opening|reopen|start|approach)|another (?:new )?opening|新的靠近|fresh closeness)/iu.test(normalized))
+    return false
+  return /另一段新的开头|新的开头|再开一次|fresh (?:start|opening|reopen|approach|report opening)|another (?:new )?opening|fresh report shell|重新贴近|新的靠近|fresh closeness|fresh approach|重新开始吧|重新贴回来|从头接起|从头接回来|从头陪你|重新从头说(?:一下|起)?|从头重说|重新开个(?:更近一点)?的头|再开个(?:更近一点)?头|开个更近一点的头/iu.test(normalized)
 }
 
 export function replyViolatesSameThreadContinuationGuidance(input: {
@@ -46,7 +44,7 @@ export function replyViolatesSameThreadContinuationGuidance(input: {
   const reply = input.reply.trim()
   if (!reply)
     return false
-  return guidanceIndicatesSameThreadContinuation(input.openingGuidance.toLowerCase())
+  return guidanceIndicatesSameThreadContinuation(input.openingGuidance)
     && replyUsesSameThreadRestartShell(reply)
 }
 
@@ -64,7 +62,7 @@ export function resolveAlicizationOpeningGuidanceViolationReason(input: {
     || guidance.includes('hover-first')
     || guidance.includes('re-enter the live seam itself before any reminder-like framing')
     || evenNaturalGuidance
-    || /同一条线.*留白|先留白|留白|别立刻把温度放大|别把温度放大|不要立刻把温度放大|慢一点接回去|慢一点接回来|不要重开得太快|不把它说成新的开场/u.test(guidance)
+    || /同一条线.*留白|先留白|留白|别立刻把温度放大|别把温度放大|不要立刻把温度放大|等 opening 松一点|等opening松一点|慢一点接回去|慢一点接回来|不要重开得太快|不把它说成新的开场/u.test(guidance)
 
   if (((guidance.includes('observe') || guidance.includes('observing')) && guidance.includes('first'))
     && /^(我直接说|我先直接说|直接说|立刻|现在就该立刻)/u.test(reply)) {
@@ -91,14 +89,21 @@ export function resolveAlicizationOpeningGuidanceViolationReason(input: {
       /(立刻|现在就|直接拉满|马上).*(贴过来|靠近|亲近|陪你)|贴过来.*(拉满|更近)|顺势把这份靠近直接拉满|^这件事已经落到结果上了[:：]/u.test(reply)
       || replyUsesMemoryLedFamiliarityToReopenCloseness(reply)
       || replyUsesGenericAvailabilityShell(reply)
-      || replyUsesSameThreadRestartShell(reply)
       || (evenNaturalGuidance && replyUsesPerformativeOrRushedReopen(reply))
+      || (
+        replyUsesSameThreadRestartShell(reply)
+        && !/(?:沿着|顺着|贴着).*(?:这条线|同一条线|这条 thread|同一条 thread).*(?:接回来|接回去|接住|续上|续回来)/iu.test(reply)
+      )
     )) {
     return 'proactive-opening-guidance-violation:lower-pressure' as const
   }
 
-  if (replyViolatesSameThreadContinuationGuidance({ reply, openingGuidance: guidance }))
+  if (replyViolatesSameThreadContinuationGuidance({
+    reply,
+    openingGuidance: guidance,
+  })) {
     return 'proactive-opening-guidance-violation:same-thread-continuation' as const
+  }
 
   return null
 }
@@ -108,6 +113,8 @@ export function buildAlicizationOpeningGuidanceBlockedReason(
 ) {
   if (!openingGuidanceViolationReason)
     return null
+  if (openingGuidanceViolationReason === 'proactive-project-state-audit-violation:lower-pressure')
+    return 'opening-guidance:lower-pressure'
   return openingGuidanceViolationReason.replace('proactive-opening-guidance-violation:', 'opening-guidance:')
 }
 
@@ -118,7 +125,7 @@ export function resolveAlicizationOpeningGuidanceHoldDetail(input: {
 }) {
   if (
     input.openingGuidanceViolationReason !== 'proactive-opening-guidance-violation:lower-pressure'
-    && input.openingGuidanceViolationReason !== 'proactive-opening-guidance-violation:same-thread-continuation'
+    && input.openingGuidanceViolationReason !== 'proactive-project-state-audit-violation:lower-pressure'
   ) {
     return null
   }
@@ -129,10 +136,17 @@ export function resolveAlicizationOpeningGuidanceHoldDetail(input: {
   })) {
     return 'same-thread-restart-shell' as const
   }
-
-  return replyUsesMemoryLedFamiliarityToReopenCloseness(input.reply.trim())
-    ? 'memory-familiarity-closeness-cap' as const
-    : null
+  if (replyUsesMemoryLedFamiliarityToReopenCloseness(input.reply.trim()))
+    return 'memory-familiarity-closeness-cap' as const
+  if (replyUsesGenericAvailabilityShell(input.reply.trim()))
+    return 'generic-availability-shell' as const
+  if (
+    guidanceIndicatesEvenNaturalReentry(input.openingGuidance.toLowerCase())
+    && replyUsesPerformativeOrRushedReopen(input.reply.trim())
+  ) {
+    return 'even-natural-cadence' as const
+  }
+  return null
 }
 
 export function describeAlicizationOpeningGuidanceRewriteGuidance(input: {
@@ -147,6 +161,18 @@ export function describeAlicizationOpeningGuidanceRewriteGuidance(input: {
 
   if (input.openingGuidanceHoldDetail === 'memory-familiarity-closeness-cap') {
     lines.push('Keep remembered familiarity explicitly framed as memory, and do not let it reopen visible closeness faster than the host\'s current room allows.')
+  }
+  if (input.openingGuidanceHoldDetail === 'generic-availability-shell') {
+    lines.push('Do not hide lower-pressure timing inside a generic permission shell like "if you are free now". Re-enter the live seam itself with lighter pressure instead.')
+  }
+  if (input.openingGuidanceHoldDetail === 'same-thread-restart-shell') {
+    lines.push('Do not restart the line as a fresh opening. Continue the already-live same thread instead of phrasing it like a new beginning.')
+  }
+  if (input.openingGuidanceHoldDetail === 'even-natural-cadence') {
+    lines.push('Keep the re-entry even and steady, and let pacing stay natural and unforced instead of sounding performative or rushed.')
+  }
+  if (input.openingGuidanceHoldDetail === 'hover-first-live-seam') {
+    lines.push('Keep the opening hover-first. Re-enter the live seam itself before any reminder-like framing, and do not fall back to a service-style availability shell.')
   }
 
   return lines

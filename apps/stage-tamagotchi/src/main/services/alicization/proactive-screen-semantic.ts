@@ -392,6 +392,7 @@ export function rankScreenSemanticCaptureCandidates(input: {
     const isWindowSource = sourceId.startsWith('window:')
     const isScreenSource = sourceId.startsWith('screen:')
     const isAvoidedSelfWindow = isWindowSource && Boolean(input.avoidSourcePattern?.test(source.name))
+    const singleAvailableWindowSource = isWindowSource && input.sources.length === 1 && windowSourceCount === 1
 
     if (externalFocusLocked && isAvoidedSelfWindow)
       continue
@@ -446,8 +447,11 @@ export function rankScreenSemanticCaptureCandidates(input: {
         score += 180
       else if (liveFocusScore >= 48)
         score += 120
-      if (externalFocusLocked && liveFocusScore < 24 && anchorScore < 24)
-        score -= focusTarget?.source === 'attention-anchor' || focusTarget?.source === 'foreground-window' ? 220 : 140
+      if (externalFocusLocked && liveFocusScore < 24 && anchorScore < 24) {
+        score -= singleAvailableWindowSource
+          ? 72
+          : focusTarget?.source === 'attention-anchor' || focusTarget?.source === 'foreground-window' ? 220 : 140
+      }
       const hasAlignmentEvidence = maxFieldScore >= 24
         || liveFocusScore >= 24
         || anchorScore >= 24
