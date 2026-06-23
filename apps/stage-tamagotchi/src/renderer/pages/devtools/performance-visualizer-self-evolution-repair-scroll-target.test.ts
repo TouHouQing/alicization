@@ -31,6 +31,18 @@ describe('performance visualizer self evolution repair scroll target', () => {
     })
   })
 
+  it('maps selected trace event route to the concrete event section target id', () => {
+    expect(buildSelfEvolutionRepairScrollTarget({
+      surfaceKey: 'trace:takeover-audit',
+      targetType: 'trace',
+      targetId: 'selected-trace-event',
+    })).toEqual({
+      scrollTargetId: 'self-evolution-event:takeover-audit',
+      targetType: 'trace',
+      targetId: 'selected-trace-event',
+    })
+  })
+
   it('maps event route to event kind target id', () => {
     expect(buildSelfEvolutionRepairScrollTarget({
       surfaceKey: 'event:governance-normalized',
@@ -52,6 +64,54 @@ describe('performance visualizer self evolution repair scroll target', () => {
       scrollTargetId: 'self-evolution-snapshot:history',
       targetType: 'snapshot',
       targetId: 'validation',
+    })
+  })
+
+  it('keeps a body continuity evidence action scroll target anchored on the evidence panel even when the active surface is overridden to trace timeline', () => {
+    expect(buildSelfEvolutionRepairScrollTarget({
+      surfaceKey: 'authority:renderer-rejoin:speech',
+      targetType: 'evidence',
+      targetId: 'renderer-authority-projection',
+    })).toEqual({
+      scrollTargetId: 'self-evolution-authority:speech-hotspots',
+      targetType: 'evidence',
+      targetId: 'renderer-authority-projection',
+    })
+  })
+
+  it('keeps speech renderer rejoin trace follow-up anchored on speech authority hotspots so voice repair does not jump back to a generic trace panel', () => {
+    expect(buildSelfEvolutionRepairScrollTarget({
+      surfaceKey: 'authority:renderer-rejoin:speech',
+      targetType: 'trace',
+      targetId: 'selected-trace-event',
+    })).toEqual({
+      scrollTargetId: 'self-evolution-authority:speech-hotspots',
+      targetType: 'trace',
+      targetId: 'selected-trace-event',
+    })
+  })
+
+  it('maps a live2d renderer rejoin surface to the concrete live2d authority comparison panel', () => {
+    expect(buildSelfEvolutionRepairScrollTarget({
+      surfaceKey: 'authority:renderer-rejoin:live2d',
+      targetType: 'evidence',
+      targetId: 'renderer-authority-projection',
+    })).toEqual({
+      scrollTargetId: 'self-evolution-authority:live2d-comparison',
+      targetType: 'evidence',
+      targetId: 'renderer-authority-projection',
+    })
+  })
+
+  it('maps a vrm renderer rejoin surface to the concrete vrm authority comparison panel', () => {
+    expect(buildSelfEvolutionRepairScrollTarget({
+      surfaceKey: 'authority:renderer-rejoin:vrm',
+      targetType: 'evidence',
+      targetId: 'renderer-authority-projection',
+    })).toEqual({
+      scrollTargetId: 'self-evolution-authority:vrm-comparison',
+      targetType: 'evidence',
+      targetId: 'renderer-authority-projection',
     })
   })
 })
