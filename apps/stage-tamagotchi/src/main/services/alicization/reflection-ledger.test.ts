@@ -246,4 +246,37 @@ describe('buildReflectionLedger', () => {
     expect(ledger.entries[0]?.revision).toContain('boundary lesson')
     expect(ledger.revisionPressure).toBeGreaterThan(0.2)
   })
+
+  it('does not let a newer released reflection outrank an older still-active persisted reflection', () => {
+    const ledger = buildReflectionLedger({
+      now: 90_000,
+      persistedEntries: [
+        {
+          id: 'reflection::temporary-noise',
+          summary: 'A temporary anxious wobble was already released instead of staying as the governing line.',
+          expectation: 'Released noise should not keep steering the next answer.',
+          observedOutcome: 'The wobble has already been narratively let go.',
+          outcome: 'released',
+          revision: 'Do not keep the temporary-noise reading as the active memory line now.',
+          confidenceShift: 0.04,
+          createdAt: 88_000,
+        },
+        {
+          id: 'reflection::same-her-repair',
+          summary: 'The steadier same-her repair line is still the meaningful carry for this thread.',
+          expectation: 'Relationship repair should stay active until a newer meaningful reflection replaces it.',
+          observedOutcome: 'The digital-life continuity line is still the living repair thread.',
+          outcome: 'missed',
+          revision: 'Keep the same-her repair lesson active instead of letting released noise become the latest carry.',
+          confidenceShift: -0.08,
+          createdAt: 84_000,
+        },
+      ],
+      previous: null,
+    })
+
+    expect(ledger.latestEntryId).toBe('reflection::same-her-repair')
+    expect(ledger.entries.find(entry => entry.id === 'reflection::temporary-noise')?.outcome).toBe('released')
+    expect(ledger.entries.find(entry => entry.id === ledger.latestEntryId)?.revision).toContain('same-her repair lesson')
+  })
 })

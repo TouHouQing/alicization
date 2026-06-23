@@ -64,6 +64,48 @@ describe('buildAsyncFactMemoryFragments', () => {
     expect(fragments[1]).toContain('fact_predicate:likes')
   })
 
+  it('preserves canonicalizable proactive trace origins in async fact fragments', () => {
+    const fragments = buildAsyncFactMemoryFragments({
+      facts: [
+        {
+          subject: 'assistant',
+          predicate: 'followup',
+          object: '继续沿着同一条主动生命线收口',
+          confidence: 0.88,
+        },
+      ],
+      trace: {
+        origin: ' SubConscious-Proactive ' as any,
+        trigger: 'idle',
+      },
+    })
+
+    expect(fragments).toHaveLength(1)
+    expect(fragments[0]).toContain('fact_origin:subconscious-proactive')
+    expect(fragments[0]).toContain('fact_trigger:idle')
+  })
+
+  it('preserves origin-lost autonomous trace family in async fact fragments when the turn id still carries subconscious ownership', () => {
+    const fragments = buildAsyncFactMemoryFragments({
+      facts: [
+        {
+          subject: 'assistant',
+          predicate: 'followup',
+          object: '继续沿着同一条主动生命线收口，不要把这条记忆退成普通对话事实',
+          confidence: 0.91,
+        },
+      ],
+      trace: {
+        turnId: 'subconscious:fact-upsert-proactive',
+        trigger: 'idle',
+      } as any,
+    })
+
+    expect(fragments).toHaveLength(1)
+    expect(fragments[0]).toContain('fact_origin:subconscious-proactive')
+    expect(fragments[0]).toContain('fact_trigger:idle')
+  })
+
   it('returns empty when facts are invalid after normalization', () => {
     const fragments = buildAsyncFactMemoryFragments({
       facts: [

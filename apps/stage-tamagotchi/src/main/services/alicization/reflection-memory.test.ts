@@ -95,6 +95,57 @@ describe('buildReflectionLedgerFragment', () => {
     expect(fragment).toBe('')
   })
 
+  it('returns empty when a newer released temporary-noise reflection does not actually replace the current meaningful reflection', () => {
+    const fragment = buildReflectionLedgerFragment({
+      previousLedger: {
+        latestEntryId: 'reflection::same-her-repair',
+        entries: [{
+          id: 'reflection::same-her-repair',
+          summary: 'The same-her repair line is still the meaningful reflection carry.',
+          expectation: 'The steadier repair line should stay active until a newer meaningful reflection replaces it.',
+          observedOutcome: 'The same living line still needs a measured return.',
+          outcome: 'missed',
+          revision: 'Keep the same-her repair line active instead of reopening from temporary noise.',
+          confidenceShift: -0.08,
+          createdAt: 10_000,
+        }],
+        revisionPressure: 0.22,
+        narrative: [],
+        updatedAt: 10_000,
+      },
+      nextLedger: {
+        latestEntryId: 'reflection::temporary-noise',
+        entries: [
+          {
+            id: 'reflection::temporary-noise',
+            summary: 'A temporary anxious wobble was already released.',
+            expectation: 'Released noise should not keep steering subconscious reflection carry.',
+            observedOutcome: 'The wobble has already been let go.',
+            outcome: 'released',
+            revision: 'Do not reopen from the temporary wobble.',
+            confidenceShift: 0.04,
+            createdAt: 10_100,
+          },
+          {
+            id: 'reflection::same-her-repair',
+            summary: 'The same-her repair line is still the meaningful reflection carry.',
+            expectation: 'The steadier repair line should stay active until a newer meaningful reflection replaces it.',
+            observedOutcome: 'The same living line still needs a measured return.',
+            outcome: 'missed',
+            revision: 'Keep the same-her repair line active instead of reopening from temporary noise.',
+            confidenceShift: -0.08,
+            createdAt: 10_000,
+          },
+        ],
+        revisionPressure: 0.22,
+        narrative: [],
+        updatedAt: 10_100,
+      },
+    })
+
+    expect(fragment).toBe('')
+  })
+
   it('returns empty when latest reflection has no meaningful summary or revision', () => {
     const fragment = buildReflectionLedgerFragment({
       previousLedger: null,

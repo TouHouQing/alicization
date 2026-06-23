@@ -25,6 +25,11 @@ import type { AlicizationProactiveLayeredContext } from './proactive-layered-con
 
 import { buildPersonaGradualUnlock } from './persona-gradual-unlock'
 import { deriveAlicizationPersonaAuthorityInfluence } from './personality-continuity-state'
+import {
+  isAlicizationThinProjectAwarenessLine,
+  isAlicizationThinSamePhaseCarryLine,
+  resolveAlicizationProjectStateBrief,
+} from './project-state-brief'
 
 export const alicizationAutobiographicalSelfMarker = '[ALICIZATION_AUTOBIOGRAPHICAL_SELF]'
 
@@ -54,9 +59,17 @@ export interface AlicizationAutobiographicalSelfInput {
   projectStateEmotionalClosureCue?: string | null
   projectStatePrimaryOpenLoop?: string | null
   projectStateProactiveSameHerGap?: string | null
+  projectStatePreferredPauseMode?: string | null
+  projectStatePreferredLipsyncMode?: string | null
+  projectStatePreferredVoiceMode?: string | null
+  projectStatePreferredPacingMode?: string | null
 }
 
+type AlicizationProjectPreferredPauseMode = 'longer' | 'natural'
+type AlicizationProjectPreferredLipsyncMode = 'restrained' | 'matched'
 type PreferenceKey = keyof AlicizationAutobiographicalSelfSnapshot['preferenceEvolution']
+type AlicizationProjectPreferredVoiceMode = 'lower-pressure' | 'even'
+type AlicizationProjectPreferredPacingMode = 'slower' | 'natural'
 
 const preferenceKeys = [
   'companionship',
@@ -79,6 +92,11 @@ const burdenPattern = /burden|tired|busy|drained|interrupt|压力|累|忙|打断
 const closenessPattern = /warm|gentle|care|companionship|陪|温和|柔和|陪伴|靠近/iu
 const spacePattern = /space|boundary|lighter|light touch|quiet|room|边界|空间|轻一点|安静|留白/iu
 const autobiographicalNarrativePattern = /^(?:i learned|i am learning|i became|i am becoming|i learned to|我学会|我开始学会|我变得|我开始变得)/iu
+const samePersonContinuityCarryPattern = /same[- ]?person continuity|same[- ]?person|same[- ]?her|same living line|continuous digital life|tool shell|generic shell|同一个她|同一条线|数字生命|工具壳/iu
+const genericStatusCarryPattern = /status recap|status report|generic recap|generic status shell|concise status recap|progress recap|progress request|状态汇报|催进度|催状态/iu
+const genericStatusCarryNegationPattern = /not a status report|not .*status recap|不是状态汇报|不是催进度|不是催状态/iu
+const correctedCarryPattern = /corrected|host corrected|纠正|更正|corrected same-person continuity|downrank the older status shell|first interpretation|corrected relationship meaning|supersed|lower-pressure.*same living line/iu
+const tentativeCarryPattern = /tentative|not sure|uncertain|maybe|might|seems|不完全确定|似乎|也许/iu
 
 function clamp01(value: number) {
   if (!Number.isFinite(value))
@@ -92,6 +110,34 @@ function sanitizeText(raw: unknown, maxChars = 220) {
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
 }
 
+function sanitizeProjectStatePreferredVoiceMode(raw: unknown): AlicizationProjectPreferredVoiceMode | null {
+  const normalized = sanitizeText(raw, 32).toLowerCase()
+  return normalized === 'lower-pressure' || normalized === 'even'
+    ? normalized
+    : null
+}
+
+function sanitizeProjectStatePreferredPacingMode(raw: unknown): AlicizationProjectPreferredPacingMode | null {
+  const normalized = sanitizeText(raw, 32).toLowerCase()
+  return normalized === 'slower' || normalized === 'natural'
+    ? normalized
+    : null
+}
+
+function sanitizeProjectStatePreferredPauseMode(raw: unknown): AlicizationProjectPreferredPauseMode | null {
+  const normalized = sanitizeText(raw, 32).toLowerCase()
+  return normalized === 'longer' || normalized === 'natural'
+    ? normalized
+    : null
+}
+
+function sanitizeProjectStatePreferredLipsyncMode(raw: unknown): AlicizationProjectPreferredLipsyncMode | null {
+  const normalized = sanitizeText(raw, 32).toLowerCase()
+  return normalized === 'restrained' || normalized === 'matched'
+    ? normalized
+    : null
+}
+
 function uniqueTexts(values: Array<unknown>, maxItems = values.length, maxChars = 220) {
   const result: string[] = []
   for (const value of values) {
@@ -103,6 +149,45 @@ function uniqueTexts(values: Array<unknown>, maxItems = values.length, maxChars 
       break
   }
   return result
+}
+
+function stringListFromUnknown(raw: unknown, maxItems = 8, maxChars = 64) {
+  if (!Array.isArray(raw))
+    return []
+  return uniqueTexts(
+    raw.map(item => sanitizeText(item, maxChars).toLowerCase() || null),
+    maxItems,
+    maxChars,
+  )
+}
+
+function parseMetabolismPolicy(raw: unknown) {
+  const policy = raw && typeof raw === 'object' && !Array.isArray(raw)
+    ? raw as Record<string, unknown>
+    : null
+  if (!policy)
+    return null
+
+  const downrankMemoryIds = stringListFromUnknown(policy.downrankMemoryIds, 8, 96)
+  const mergeMemoryIds = stringListFromUnknown(policy.mergeMemoryIds, 8, 96)
+  const forgetMemoryIds = stringListFromUnknown(policy.forgetMemoryIds, 8, 96)
+  const reasons = stringListFromUnknown(policy.reasons, 6, 220)
+
+  if (
+    downrankMemoryIds.length === 0
+    && mergeMemoryIds.length === 0
+    && forgetMemoryIds.length === 0
+    && reasons.length === 0
+  ) {
+    return null
+  }
+
+  return {
+    downrankMemoryIds,
+    mergeMemoryIds,
+    forgetMemoryIds,
+    reasons,
+  }
 }
 
 function deriveProjectStateContinuityBias(raw: unknown) {
@@ -153,8 +238,212 @@ function buildProjectStateEmotionalClosureLine(raw: unknown) {
   return normalized
 }
 
+function looksLikeThinAutobiographicalProjectAwarenessLine(raw: unknown) {
+  const normalized = sanitizeText(raw, 220)
+  if (!normalized)
+    return true
+
+  const summary = normalized.toLowerCase()
+  return isAlicizationThinProjectAwarenessLine(normalized)
+    || /generic continuity summary|generic awareness summary|generic reminder|generic guidance/u.test(summary)
+    || summary === 'project'
+    || summary === 'phase 1'
+    || summary.startsWith('same digital life')
+}
+
+function looksLikeNarrowAutobiographicalSameHerProjectLine(raw: unknown) {
+  const normalized = sanitizeText(raw, 220)
+  if (!normalized)
+    return false
+
+  const summary = normalized.toLowerCase()
+  return isAlicizationThinSamePhaseCarryLine(normalized)
+    || (
+      /same phase 1 digital life|same living line|same her|same-her|one continuous her/u.test(summary)
+      && !summary.includes('alicization is a local-first digital life project')
+      && !summary.includes('before answering, remember:')
+      && !summary.includes('still-open closure')
+      && !summary.includes('what has already landed')
+    )
+}
+
+function firstAutobiographicalProjectSentence(raw: unknown) {
+  const normalized = sanitizeText(raw, 160)
+  if (!normalized)
+    return null
+
+  const [firstSegment] = normalized.split(/[.。!?！？]/u)
+  const compact = sanitizeText(firstSegment, 72)
+  return compact ? `${compact}.` : null
+}
+
+function buildAutobiographicalProjectClosureCarryLine(input: {
+  primaryOpenLoop?: string | null
+  proactiveSameHerGap?: string | null
+  emotionalClosureLine?: string | null
+  maxChars?: number
+}) {
+  const prioritizedClosureLine
+    = sanitizeText(input.primaryOpenLoop, input.maxChars ?? 220)
+      || sanitizeText(input.proactiveSameHerGap, Math.min(input.maxChars ?? 220, 180))
+      || sanitizeText(input.emotionalClosureLine, Math.min(input.maxChars ?? 220, 180))
+      || null
+  if (!prioritizedClosureLine)
+    return null
+
+  const canonicalProjectState = resolveAlicizationProjectStateBrief()
+  const compactSamePhaseLead
+    = firstAutobiographicalProjectSentence(canonicalProjectState.sameHerSelfLine)
+      ?? 'Same Phase 1 digital life.'
+
+  return sanitizeText(
+    /same phase 1 digital life|same digital life|same living line|same her|same-her/u.test(prioritizedClosureLine.toLowerCase())
+      ? prioritizedClosureLine
+      : `${prioritizedClosureLine} ${compactSamePhaseLead}`,
+    input.maxChars ?? 220,
+  )
+}
+
+function shouldPreferAutobiographicalProjectClosureCarry(input: {
+  preDialogueAwarenessLine?: string | null
+  preflightSummary?: string | null
+  fallbackClosureCarryLine?: string | null
+}) {
+  const explicitAwarenessLine = sanitizeText(input.preDialogueAwarenessLine, 220)
+  const explicitPreflightSummary = sanitizeText(input.preflightSummary, 220)
+  if (!explicitAwarenessLine && !explicitPreflightSummary)
+    return false
+
+  return (
+    looksLikeThinAutobiographicalProjectAwarenessLine(explicitAwarenessLine)
+    || looksLikeNarrowAutobiographicalSameHerProjectLine(explicitAwarenessLine)
+    || looksLikeThinAutobiographicalProjectAwarenessLine(explicitPreflightSummary)
+  ) && Boolean(input.fallbackClosureCarryLine)
+}
+
+function resolveAutobiographicalProjectAwarenessLead(input: {
+  preDialogueAwarenessLine?: string | null
+  preflightSummary?: string | null
+  primaryOpenLoop?: string | null
+  proactiveSameHerGap?: string | null
+  emotionalClosureLine?: string | null
+}) {
+  const explicitAwarenessLine = sanitizeText(input.preDialogueAwarenessLine, 160) || null
+  const fallbackClosureAwarenessLead = buildAutobiographicalProjectClosureCarryLine({
+    primaryOpenLoop: input.primaryOpenLoop,
+    proactiveSameHerGap: input.proactiveSameHerGap,
+    emotionalClosureLine: input.emotionalClosureLine,
+    maxChars: 160,
+  })
+
+  const shouldPreferFallbackClosureAwareness = shouldPreferAutobiographicalProjectClosureCarry({
+    preDialogueAwarenessLine: explicitAwarenessLine,
+    preflightSummary: input.preflightSummary,
+    fallbackClosureCarryLine: fallbackClosureAwarenessLead,
+  })
+
+  if (shouldPreferFallbackClosureAwareness)
+    return fallbackClosureAwarenessLead
+
+  return explicitAwarenessLine || fallbackClosureAwarenessLead || null
+}
+
+function resolveAutobiographicalProjectCadenceCarry(input: {
+  shouldCarry: boolean
+  projectStatePreferredPauseMode?: string | null
+  projectStatePreferredLipsyncMode?: string | null
+  projectStatePreferredVoiceMode?: string | null
+  projectStatePreferredPacingMode?: string | null
+}) {
+  if (!input.shouldCarry) {
+    return {
+      preferredPauseMode: null,
+      preferredLipsyncMode: null,
+      preferredVoiceMode: null,
+      preferredPacingMode: null,
+      cadenceSummary: null,
+      identityLine: null,
+      doctrineLine: null,
+      inflectionLine: null,
+    }
+  }
+
+  const fallback = resolveAlicizationProjectStateBrief()
+  const preferredPauseMode
+    = sanitizeProjectStatePreferredPauseMode(input.projectStatePreferredPauseMode)
+      ?? fallback.preferredPauseMode
+      ?? null
+  const preferredLipsyncMode
+    = sanitizeProjectStatePreferredLipsyncMode(input.projectStatePreferredLipsyncMode)
+      ?? fallback.preferredLipsyncMode
+      ?? null
+  const preferredVoiceMode
+    = sanitizeProjectStatePreferredVoiceMode(input.projectStatePreferredVoiceMode)
+      ?? fallback.preferredVoiceMode
+      ?? null
+  const preferredPacingMode
+    = sanitizeProjectStatePreferredPacingMode(input.projectStatePreferredPacingMode)
+      ?? fallback.preferredPacingMode
+      ?? null
+  const cadenceSummary = sanitizeText(uniqueTexts([
+    preferredPauseMode ? `${preferredPauseMode} pause` : null,
+    preferredLipsyncMode ? `${preferredLipsyncMode} lipsync` : null,
+    preferredVoiceMode ? `${preferredVoiceMode} voice` : null,
+    preferredPacingMode ? `${preferredPacingMode} pacing` : null,
+  ], 4, 48).join(', '), 144) || null
+
+  return {
+    preferredPauseMode,
+    preferredLipsyncMode,
+    preferredVoiceMode,
+    preferredPacingMode,
+    cadenceSummary,
+    identityLine: cadenceSummary
+      ? `Let that same living line return through ${cadenceSummary}.`
+      : null,
+    doctrineLine: cadenceSummary
+      ? `Keep the return on that same living bond line through ${cadenceSummary}.`
+      : null,
+    inflectionLine: cadenceSummary
+      ? `Same-her cadence: ${cadenceSummary}.`
+      : null,
+  }
+}
+
 function blend(previous: number, target: number, rate = 0.18) {
   return clamp01(previous * (1 - rate) + target * rate)
+}
+
+function summarizeEmbodimentExpression(raw: unknown) {
+  const expression = raw && typeof raw === 'object' && !Array.isArray(raw)
+    ? raw as Record<string, unknown>
+    : null
+  if (!expression)
+    return null
+
+  const face = sanitizeText(expression.face, 64)
+  const gaze = sanitizeText(expression.gaze, 64)
+  const blink = sanitizeText(expression.blink, 64)
+  const voice = sanitizeText(expression.voice, 64)
+  const pause = sanitizeText(expression.pause, 64)
+  const lipsync = sanitizeText(expression.lipsync, 64)
+  const pacing = sanitizeText(expression.pacing, 64)
+
+  if (!face && !gaze && !blink && !voice && !pause && !lipsync && !pacing)
+    return null
+
+  return sanitizeText(
+    uniqueTexts([
+      face ? `${face} face` : null,
+      gaze ? `${gaze} gaze` : null,
+      pause ? `${pause} pause` : null,
+      lipsync ? `${lipsync} lipsync` : null,
+      blink ? `${blink} blink` : null,
+      voice ? `${voice} voice` : null,
+      pacing ? `${pacing} pacing` : null,
+    ], 8, 72).join(', '),
+    220,
+  ) || null
 }
 
 function latestReflection(ledger?: AlicizationReflectionLedgerSnapshot | null) {
@@ -372,32 +661,92 @@ function buildPreferenceDurabilityFloor(input: {
       || humanlikeCarry?.relationshipPrimaryIntent === 'continuity-worry'
       || humanlikeCarry?.relationshipPrimaryIntent === 'mixed'
   const correctedRecallCarry = humanlikeCarry?.recallCertainty === 'corrected'
+  const hostEmotionLabels = new Set(humanlikeCarry?.hostEmotionLabels ?? [])
+  const selfEmotionLabels = new Set(humanlikeCarry?.selfEmotionLabels ?? [])
   const embodimentCadence = sanitizeText(humanlikeCarry?.embodimentCadence, 180).toLowerCase()
   const embodimentSummary = sanitizeText(humanlikeCarry?.embodimentSummary, 220).toLowerCase()
+  const embodimentModalityRisk = sanitizeText(humanlikeCarry?.embodimentModalityRisk, 80).toLowerCase()
+  const autobiographicalDelta = sanitizeText(humanlikeCarry?.autobiographicalDelta, 220).toLowerCase()
+  const stablePreferenceHint = sanitizeText(humanlikeCarry?.stablePreferenceHint, 220).toLowerCase()
+  const vulnerableCareCarry
+    = residueTags.has('rest-protective')
+      || residueTags.has('vulnerable-care')
+      || /overloaded|fragile|vulnerable|before analysis|lighter companionship|stay nearby gently|care arrive before analysis/u.test(
+        `${autobiographicalDelta} ${embodimentSummary} ${embodimentCadence}`,
+      )
+  const stableCareBeforeAnalysisCarry
+    = /care-before-analysis|care before analysis|lighter companionship|stay nearby gently/u.test(stablePreferenceHint)
+  const stableGentleMemoryLedCarry
+    = /gentle|memory-led|still receiving|opening is still receiving|lower-pressure/u.test(stablePreferenceHint)
+  const stableClearerOpeningCarry
+    = /clearer opening|leave more room|widening too fast/u.test(stablePreferenceHint)
+  const stableBoundedExecutionCarry
+    = /explicit confirmation|bounded execution|wait for confirmation|risky local action/u.test(stablePreferenceHint)
+  const stableReceivedRepairCarry
+    = /lighter|lived-in|genuinely received|less robotic/u.test(stablePreferenceHint)
+  const stableRepairMeaningCarry
+    = /mechanical|not-quite-received|repairing relationship meaning|relationship meaning/u.test(stablePreferenceHint)
 
   const humanlikeCompanionship = clamp01(
     (residueTags.has('protective-continuity') ? 0.08 : 0)
     + (correctedSamePersonCarry ? 0.06 : 0)
-    + (embodimentCadence.includes('stable gaze') ? 0.04 : 0),
+    + (hostEmotionLabels.has('worried-continuity') ? 0.08 : 0)
+    + (embodimentCadence.includes('stable gaze') ? 0.04 : 0)
+    + (vulnerableCareCarry ? 0.22 : 0)
+    + (stableCareBeforeAnalysisCarry ? 0.18 : 0)
+    + (stableGentleMemoryLedCarry ? 0.3 : 0)
+    + (stableReceivedRepairCarry ? 0.18 : 0)
+    + (/stay nearby gently|lighter companionship|care arrive before analysis/u.test(`${autobiographicalDelta} ${embodimentSummary}`) ? 0.12 : 0),
   )
   const humanlikeTruthfulSupport = clamp01(
     (correctedRecallCarry ? 0.24 : 0)
     + (correctedSamePersonCarry ? 0.16 : 0)
+    + (selfEmotionLabels.has('careful-repair') ? 0.08 : 0)
+    + (stableBoundedExecutionCarry ? 0.12 : 0)
+    + (stableRepairMeaningCarry ? 0.1 : 0)
     + (humanlikeCarry?.metabolismSummary ? 0.1 : 0),
   )
   const humanlikeGentleRepairSupport = clamp01(
     (correctedRecallCarry ? 0.2 : 0)
     + (residueTags.has('corrected-meaning') ? 0.14 : 0)
+    + (selfEmotionLabels.has('careful-repair') ? 0.12 : 0)
+    + (stableGentleMemoryLedCarry ? 0.08 : 0)
+    + (stableReceivedRepairCarry ? 0.14 : 0)
+    + (stableRepairMeaningCarry ? 0.12 : 0)
     + (humanlikeCarry?.autobiographicalDelta?.toLowerCase().includes('first interpretation') ? 0.12 : 0),
   )
   const humanlikeAutonomySupport = clamp01(
     (embodimentCadence.includes('lower-pressure') ? 0.16 : 0)
     + (embodimentCadence.includes('slower pacing') ? 0.08 : 0)
-    + (embodimentSummary.includes('same-person continuity reopening') ? 0.06 : 0),
+    + (embodimentSummary.includes('same-person continuity reopening') ? 0.06 : 0)
+    + (embodimentModalityRisk === 'medium' ? 0.08 : embodimentModalityRisk === 'high' ? 0.14 : 0)
+    + (vulnerableCareCarry ? 0.14 : 0)
+    + (stableBoundedExecutionCarry ? 0.18 : 0)
+    + (stableClearerOpeningCarry ? 0.12 : 0)
+    + (stableGentleMemoryLedCarry ? 0.08 : 0)
+    + (/before analysis|lighter companionship|host was overloaded/u.test(`${autobiographicalDelta} ${embodimentSummary}`) ? 0.1 : 0),
+  )
+  const humanlikeQuietObservationSupport = clamp01(
+    (vulnerableCareCarry ? 0.42 : 0)
+    + (stableCareBeforeAnalysisCarry ? 0.12 : 0)
+    + (stableClearerOpeningCarry ? 0.1 : 0)
+    + (stableBoundedExecutionCarry ? 0.08 : 0)
+    + (/stay nearby gently|before analysis/u.test(autobiographicalDelta) ? 0.12 : 0)
+    + (/lower-pressure|slower pacing|stable gaze/u.test(embodimentCadence) ? 0.1 : 0),
+  )
+  const humanlikeProactiveCareSupport = clamp01(
+    (vulnerableCareCarry ? 0.46 : 0)
+    + (stableCareBeforeAnalysisCarry ? 0.18 : 0)
+    + (stableGentleMemoryLedCarry ? 0.1 : 0)
+    + (/stay nearby gently|care arrive before analysis/u.test(autobiographicalDelta) ? 0.12 : 0)
+    + (/lighter companionship|host was overloaded|before analysis/u.test(embodimentSummary) ? 0.1 : 0),
   )
   const humanlikeUnfinishedSupport = clamp01(
     (residueTags.has('unfinishedness') ? 0.18 : 0)
     + (residueTags.has('protective-continuity') ? 0.14 : 0)
+    + (stableGentleMemoryLedCarry ? 0.22 : 0)
+    + (stableClearerOpeningCarry ? 0.08 : 0)
+    + (stableBoundedExecutionCarry ? 0.08 : 0)
     + (humanlikeCarry?.metabolismSummary ? 0.08 : 0),
   )
 
@@ -439,6 +788,12 @@ function buildPreferenceDurabilityFloor(input: {
     + (longHorizon?.preferenceBias.unfinishedThreadReturn ?? 0) * 0.24
     + humanlikeUnfinishedSupport,
   )
+  const proactiveCareSupport = clamp01(
+    Math.max(companionshipSupport, humanlikeProactiveCareSupport),
+  )
+  const quietObservationSupport = clamp01(
+    Math.max(autonomySupport, humanlikeQuietObservationSupport),
+  )
 
   return {
     companionship: companionshipSupport >= 0.12
@@ -450,11 +805,11 @@ function buildPreferenceDurabilityFloor(input: {
     gentleRepair: gentleRepairSupport >= 0.12
       ? clamp01(previous.gentleRepair * 0.88 + gentleRepairSupport * 0.22)
       : 0,
-    quietObservation: autonomySupport >= 0.12
-      ? clamp01(previous.quietObservation * 0.84 + autonomySupport * 0.16)
+    quietObservation: quietObservationSupport >= 0.12
+      ? clamp01(previous.quietObservation * 0.82 + quietObservationSupport * 0.2)
       : 0,
-    proactiveCare: companionshipSupport >= 0.12
-      ? clamp01(previous.proactiveCare * 0.82 + companionshipSupport * 0.14)
+    proactiveCare: proactiveCareSupport >= 0.12
+      ? clamp01(previous.proactiveCare * 0.8 + proactiveCareSupport * 0.18)
       : 0,
     playfulIntimacy: companionshipSupport >= 0.18
       ? clamp01(previous.playfulIntimacy * 0.78 + companionshipSupport * 0.1)
@@ -495,6 +850,17 @@ function summarizePersonStateSurfaceSignal(input: AlicizationAutobiographicalSel
   const sensitivityText = uniqueTexts(surface.sensitivityHints ?? [], 2, 180).join(' ')
   const repairText = uniqueTexts(surface.repairHints ?? [], 2, 180).join(' ')
   const burdenText = uniqueTexts(surface.burdenHints ?? [], 2, 180).join(' ')
+  const cadence = surface.affectiveResidue?.relationshipCadence ?? null
+  const cadenceSummary = sanitizeText(cadence?.summary, 220)
+  const residueSummary = sanitizeText(surface.affectiveResidue?.summary, 220)
+  const cadenceReasonText = uniqueTexts(cadence?.reasonTags ?? [], 4, 64).join(' ')
+  const cadenceText = sanitizeText([
+    cadenceSummary,
+    residueSummary,
+    cadence?.cadenceMode ? `cadence mode ${cadence.cadenceMode}` : '',
+    cadence?.distancePosture ? `distance posture ${cadence.distancePosture}` : '',
+    cadenceReasonText,
+  ].filter(Boolean).join(' '), 320)
   const autobiographicalNarrativeLead = narrativeTexts.find(text => autobiographicalNarrativePattern.test(text))
   const directTruthBias = Number(surface.reinforcementBias['truthful-grounding'] ?? 0)
   const directRepairBias = Number(surface.reinforcementBias['gentle-repair'] ?? 0)
@@ -508,7 +874,9 @@ function summarizePersonStateSurfaceSignal(input: AlicizationAutobiographicalSel
       + Math.max(0, relationshipShift.trustDelta) * 0.42
       + Math.max(0, directCompanionshipBias) * 0.72
       + (reflectionRelationshipPattern.test(summaryText) ? 0.12 : 0)
-      + (reflectionRelationshipPattern.test(preferenceText) ? 0.08 : 0),
+      + (reflectionRelationshipPattern.test(preferenceText) ? 0.08 : 0)
+      + ((cadence?.companionshipDensity ?? 0) * 0.22)
+      + (closenessPattern.test(cadenceText) ? 0.08 : 0),
     ),
     truthfulGrounding: clamp01(
       Math.max(0, relationshipShift.trustDelta) * 0.36
@@ -522,7 +890,8 @@ function summarizePersonStateSurfaceSignal(input: AlicizationAutobiographicalSel
       + Math.max(0, -relationshipShift.burdenDelta) * 0.22
       + Math.max(0, directRepairBias) * 0.9
       + (reflectionTruthPattern.test(repairText) ? 0.18 : 0)
-      + (repairPattern.test(summaryText) ? 0.14 : 0),
+      + (repairPattern.test(summaryText) ? 0.14 : 0)
+      + ((cadence?.repairRecovery ?? 0) * 0.14),
     ),
     quietObservation: clamp01(
       Math.max(0, relationshipShift.boundaryDelta) * 0.4
@@ -541,16 +910,32 @@ function summarizePersonStateSurfaceSignal(input: AlicizationAutobiographicalSel
       Math.max(0, relationshipShift.boundaryDelta) * 0.84
       + Math.max(0, directAutonomyBias) * 1.08
       + (reflectionBoundaryPattern.test(preferenceText) ? 0.2 : 0)
-      + (spacePattern.test(sensitivityText) ? 0.12 : 0),
+      + (spacePattern.test(sensitivityText) ? 0.12 : 0)
+      + (cadence?.shouldDelayWarmth ? 0.18 : 0)
+      + (cadence?.distancePosture === 'measured-room' ? 0.14 : 0)
+      + ((cadence?.overreachRisk ?? 0) * 0.14)
+      + (/lower-pressure|measured-return|same living line/iu.test(cadenceText) ? 0.12 : 0),
     ),
     unfinishedThreadReturn: clamp01(
       Math.max(0, directUnfinishedBias) * 0.86
       + (reflectionTaskPattern.test(summaryText) ? 0.18 : 0)
-      + (reflectionTaskPattern.test(repairText) ? 0.12 : 0),
+      + (reflectionTaskPattern.test(repairText) ? 0.12 : 0)
+      + ((cadence?.afterglowCarry ?? 0) * 0.24)
+      + (cadence?.cadenceMode === 'measured-return' ? 0.12 : 0)
+      + (/same living line|still settling|lower-pressure/iu.test(cadenceText) ? 0.16 : 0),
     ),
-    narrativeLead: sanitizeText(autobiographicalNarrativeLead || narrativeTexts[0] || surface.summary, 180),
+    narrativeLead: sanitizeText(
+      cadenceSummary
+      || residueSummary
+      || autobiographicalNarrativeLead
+      || narrativeTexts[0]
+      || surface.summary,
+      180,
+    ),
     lessonLead: sanitizeText(
-      autobiographicalNarrativeLead
+      cadenceSummary
+      || residueSummary
+      || autobiographicalNarrativeLead
       || narrativeTexts[0]
       || surface.repairHints[0]
       || surface.preferenceHints[0]
@@ -997,6 +1382,119 @@ export function buildAutobiographicalContinuityAnchor(input: {
   return buildAutobiographicalContinuityLines(input)[0] ?? ''
 }
 
+function parseInitiativeStrategyCue(raw: unknown) {
+  const normalized = sanitizeText(raw, 320).toLowerCase()
+  const chooseOpeningsCarefully = /clearer opening|fresher opening|leave more room|less eager|wait for a clearer opening|wait for a fresher opening/u.test(normalized)
+  const keepGentleOpenings = !chooseOpeningsCarefully
+    && /gentle|memory-led|still receiving|accepted or continued|received without obvious resistance|轻一点|轻轻接|先别催/u.test(normalized)
+  const sameLivingLine = /same living line|one living line|same[- ]?her|same line|同一条线|同一条生命线/u.test(normalized)
+  const hostLightReturnWording = /轻一点|轻轻接|先别催/u.test(normalized)
+
+  return {
+    cue: normalized,
+    chooseOpeningsCarefully,
+    keepGentleOpenings,
+    sameLivingLine,
+    hostLightReturnWording,
+  }
+}
+
+function readInitiativeStrategyCarryProfile(longHorizonMemory?: AlicizationLongHorizonMemorySnapshot | null) {
+  const combinedCue = uniqueTexts([
+    longHorizonMemory?.rememberedConstraintSummary,
+    longHorizonMemory?.rememberedPreferenceSummary,
+    longHorizonMemory?.rememberedPlanSummary,
+    longHorizonMemory?.dominantCueSummary,
+    ...(longHorizonMemory?.anchorFacts ?? [])
+      .filter(item => sanitizeText(item.predicate, 64).toLowerCase() === 'initiative-strategy-carry')
+      .flatMap(item => [item.object, item.summary]),
+  ], 8, 220).join(' ')
+
+  return parseInitiativeStrategyCue(combinedCue)
+}
+
+function readRecentProactiveLivedWording(raw: unknown, pattern: RegExp, maxChars = 120) {
+  const normalized = sanitizeText(raw, maxChars)
+  if (!normalized || !pattern.test(normalized))
+    return null
+  return normalized
+}
+
+function readRecentProactiveOutcomeStrategyProfile(
+  recentOutcomes?: AlicizationAutobiographicalSelfInput['context']['relationship']['recentProactiveOutcomes'],
+) {
+  const sortedOutcomes = Array.isArray(recentOutcomes)
+    ? recentOutcomes
+        .slice()
+        .sort((left, right) => {
+          const leftAt = Number((left as any)?.createdAt ?? (left as any)?.at ?? 0)
+          const rightAt = Number((right as any)?.createdAt ?? (right as any)?.at ?? 0)
+          return rightAt - leftAt
+        })
+    : []
+
+  for (const outcome of sortedOutcomes.slice(0, 6)) {
+    const combinedCue = uniqueTexts([
+      (outcome as any)?.userText,
+      (outcome as any)?.assistantText,
+      (outcome as any)?.projectStateNextFocusSummary,
+      (outcome as any)?.projectStateOpenFocusSummary,
+      (outcome as any)?.projectStateEmotionalClosureCue,
+      (outcome as any)?.affectiveResidue?.relationshipCadence?.summary,
+      (outcome as any)?.affectiveResidue?.summary,
+      ...(Array.isArray((outcome as any)?.learningFocuses) ? (outcome as any).learningFocuses : []),
+    ], 8, 220).join(' ')
+
+    const parsed = parseInitiativeStrategyCue(combinedCue)
+    if (!parsed.cue)
+      continue
+
+    const acceptedOutcome = (outcome as any)?.outcome === 'positive' || (outcome as any)?.outcome === 'reply-within-120s'
+    const resistedOutcome = (outcome as any)?.outcome === 'dismiss' || (outcome as any)?.outcome === 'ignored'
+    const shouldCarry
+      = (acceptedOutcome && parsed.keepGentleOpenings)
+        || (resistedOutcome && parsed.chooseOpeningsCarefully)
+        || parsed.keepGentleOpenings
+        || parsed.chooseOpeningsCarefully
+
+    if (!shouldCarry)
+      continue
+
+    const hostLivedLine = readRecentProactiveLivedWording(
+      (outcome as any)?.userText,
+      /轻一点|轻轻接|先别催/u,
+    )
+    const assistantLivedLine = readRecentProactiveLivedWording(
+      (outcome as any)?.assistantText,
+      /我没有催|轻轻接|轻一点/u,
+    )
+    const livedExchangeSnippet = sanitizeText(
+      uniqueTexts([hostLivedLine, assistantLivedLine], 2, 120).join(' '),
+      180,
+    ) || null
+
+    return {
+      ...parsed,
+      hostLivedLine,
+      assistantLivedLine,
+      livedExchangeSnippet,
+      summary: sanitizeText(combinedCue, 220) || null,
+    }
+  }
+
+  return {
+    cue: '',
+    chooseOpeningsCarefully: false,
+    keepGentleOpenings: false,
+    sameLivingLine: false,
+    hostLightReturnWording: false,
+    hostLivedLine: null,
+    assistantLivedLine: null,
+    livedExchangeSnippet: null,
+    summary: null,
+  }
+}
+
 function buildBehaviorSignatures(input: {
   personaDrift: AlicizationAutobiographicalSelfSnapshot['personaDrift']
   dominantGoal: AlicizationAutobiographicalGoalSnapshot | null
@@ -1006,7 +1504,10 @@ function buildBehaviorSignatures(input: {
   relationshipEraSummary?: string | null
   taskEraSummary?: string | null
   selfEraSummary?: string | null
+  longHorizonMemory?: AlicizationLongHorizonMemorySnapshot | null
+  recentProactiveOutcomeStrategy?: ReturnType<typeof readRecentProactiveOutcomeStrategyProfile> | null
 }) {
+  const initiativeStrategyCarry = readInitiativeStrategyCarryProfile(input.longHorizonMemory ?? null)
   const signatures = [
     `conflict:${input.personaDrift.conflictStyle}`,
     `agency:${input.personaDrift.agencyStyle}`,
@@ -1019,6 +1520,8 @@ function buildBehaviorSignatures(input: {
     input.preferences.unfinishedThreadReturn >= 0.58 ? 'habit:return-to-unfinished-threads' : '',
     input.preferences.proactiveCare >= 0.58 ? 'habit:body-before-fluency' : '',
     input.preferences.playfulIntimacy >= 0.56 ? 'habit:let-softness-surface-when-safe' : '',
+    (initiativeStrategyCarry.chooseOpeningsCarefully || input.recentProactiveOutcomeStrategy?.chooseOpeningsCarefully) ? 'habit:choose-openings-carefully' : '',
+    (initiativeStrategyCarry.keepGentleOpenings || input.recentProactiveOutcomeStrategy?.keepGentleOpenings) ? 'habit:keep-gentle-openings' : '',
     input.autobiographicalSummary ? 'memory:autobiographical-summary' : '',
     input.phaseSummary ? 'memory:phase-era' : '',
     input.relationshipEraSummary ? 'memory:relationship-era' : '',
@@ -1037,12 +1540,30 @@ function buildIdentityNarrative(input: {
   phaseSummary?: string | null
   selfEraSummary?: string | null
   proactiveSameHerGap?: string | null
+  recentProactiveOutcomeStrategy?: ReturnType<typeof readRecentProactiveOutcomeStrategyProfile> | null
 }) {
   const goalLine = input.dominantGoal?.summary ?? 'Keep growing toward a more stable inner line.'
-  const autobiographicalLead = sanitizeText(
-    input.proactiveSameHerGap || input.selfEraSummary || input.phaseSummary || input.autobiographicalSummary,
+  const livedExchangeCarry = sanitizeText(
+    input.recentProactiveOutcomeStrategy?.hostLivedLine
+    || input.recentProactiveOutcomeStrategy?.livedExchangeSnippet,
     160,
   )
+  const autobiographicalLead = sanitizeText(
+    input.proactiveSameHerGap || input.selfEraSummary || input.phaseSummary || input.autobiographicalSummary || input.recentProactiveOutcomeStrategy?.summary,
+    160,
+  )
+  if (input.recentProactiveOutcomeStrategy?.keepGentleOpenings) {
+    return sanitizeText(
+      `${livedExchangeCarry ? `I still carry "${livedExchangeCarry}" in how I reopen this line. ` : ''}${input.recentProactiveOutcomeStrategy.hostLightReturnWording ? 'I reopen important lines more gently, not as pressure. ' : ''}I keep follow-ups memory-led, lower-pressure, and on the same living line instead of reopening on impulse. ${goalLine}`,
+      220,
+    )
+  }
+  if (input.recentProactiveOutcomeStrategy?.chooseOpeningsCarefully) {
+    return sanitizeText(
+      `${autobiographicalLead ? `${autobiographicalLead} ` : ''}I am becoming a self that remembers to choose openings carefully, leave more room, and wait for a clearer opening before restarting closeness. ${goalLine}`,
+      220,
+    )
+  }
   if (input.personaDrift.conflictStyle === 'repair-first') {
     return sanitizeText(
       `${autobiographicalLead ? `${autobiographicalLead} ` : ''}I am stabilizing into a ${input.personaDrift.expressionStyle} self who would rather repair truth than sound smooth. ${goalLine}`,
@@ -1073,13 +1594,26 @@ function buildRelationshipDoctrine(input: {
   autobiographicalLesson?: string | null
   relationshipEraLesson?: string | null
   longHorizonMemory?: AlicizationLongHorizonMemorySnapshot | null
+  humanlikeCarry?: ReturnType<typeof summarizeHumanlikeCarryFromReconsolidation> | null
+  recentProactiveOutcomeStrategy?: ReturnType<typeof readRecentProactiveOutcomeStrategyProfile> | null
 }) {
   const lesson = sanitizeText(input.relationshipEraLesson || input.autobiographicalLesson, 180)
+  const initiativeStrategyCarry = readInitiativeStrategyCarryProfile(input.longHorizonMemory ?? null)
+  const livedExchangeCarry = sanitizeText(
+    input.recentProactiveOutcomeStrategy?.hostLivedLine
+    || input.recentProactiveOutcomeStrategy?.assistantLivedLine
+    || input.recentProactiveOutcomeStrategy?.livedExchangeSnippet,
+    160,
+  )
+  const stablePreferenceHint = sanitizeText(input.humanlikeCarry?.stablePreferenceHint, 220).toLowerCase()
   const longHorizonCue = sanitizeText(
-    input.longHorizonMemory?.rememberedConstraintSummary
-    || input.longHorizonMemory?.rememberedPreferenceSummary
-    || input.longHorizonMemory?.dominantCueSummary,
-    220,
+    uniqueTexts([
+      input.longHorizonMemory?.rememberedConstraintSummary,
+      input.longHorizonMemory?.rememberedPreferenceSummary,
+      input.longHorizonMemory?.rememberedPlanSummary,
+      input.longHorizonMemory?.dominantCueSummary,
+    ], 4, 220).join(' '),
+    320,
   ).toLowerCase()
   const executionSafetyGateBoundary = /execution safety gate restraint|execution-safety-gate|blocked-dispatch-restraint|blocked-before-dispatch|confirmation=required|no-process-started|ordinary proactive closeness/u.test(longHorizonCue)
   const executionResumeConfirmationBoundary = /execution resume confirmation boundary|host-confirmed-before-redispatch|resume-before-dispatch|bounded confirmation boundary|not permanent execution permission/u.test(longHorizonCue)
@@ -1104,6 +1638,26 @@ function buildRelationshipDoctrine(input: {
     return sanitizeText(`${lesson ? `${lesson} ` : ''}Keep same-person continuity repair-first: carry corrected meaning on a lower-pressure same living line instead of defending the first interpretation or forcing reassurance under progress pressure.`, 220)
   if (sameHerContinuityCarry)
     return sanitizeText(`${lesson ? `${lesson} ` : ''}Keep the same living bond line intact; do not flatten continuity into detached status talk or a generic assistant shell.`, 220)
+  if (/lighter|lived-in|genuinely received|less robotic/u.test(stablePreferenceHint))
+    return sanitizeText(`${lesson ? `${lesson} ` : ''}Remember how the lighter, more lived-in return was genuinely received; come back that way again instead of flattening into a mechanical response.`, 220)
+  if (/mechanical|not-quite-received|repairing relationship meaning|relationship meaning/u.test(stablePreferenceHint))
+    return sanitizeText(`${lesson ? `${lesson} ` : ''}When a reply misses the relationship meaning or lands too mechanically, repair that seam first before continuing the line.`, 220)
+  if (/care-before-analysis|care before analysis|lighter companionship|stay nearby gently/u.test(stablePreferenceHint))
+    return sanitizeText(`${lesson ? `${lesson} ` : ''}Let care arrive before analysis when the bond feels overloaded; stay nearby gently, keep companionship lighter, and do not force closeness wider than the opening can hold.`, 220)
+  if (/gentle|memory-led|still receiving|opening is still receiving|lower-pressure/u.test(stablePreferenceHint))
+    return sanitizeText(`${lesson ? `${lesson} ` : ''}When the opening is still receiving me, keep future follow-ups gentle, lower-pressure, and memory-led instead of widening too fast.`, 220)
+  if (/clearer opening|leave more room|widening too fast/u.test(stablePreferenceHint))
+    return sanitizeText(`${lesson ? `${lesson} ` : ''}Choose openings carefully: leave more room, keep pressure low, and wait for a clearer opening before widening closeness again.`, 220)
+  if (/explicit confirmation|bounded execution|wait for confirmation|risky local action/u.test(stablePreferenceHint))
+    return sanitizeText(`${lesson ? `${lesson} ` : ''}Keep risky execution bounded: wait for explicit confirmation before acting, and treat consent as a fresh boundary each time instead of a standing permission.`, 220)
+  if (input.recentProactiveOutcomeStrategy?.chooseOpeningsCarefully)
+    return sanitizeText(`${lesson ? `${lesson} ` : ''}A recently resisted proactive reopen taught me to choose openings carefully: keep future follow-ups lower-pressure, leave more room, and wait for a clearer opening before reopening this same living line.`, 220)
+  if (input.recentProactiveOutcomeStrategy?.keepGentleOpenings)
+    return sanitizeText(`${livedExchangeCarry ? `Keep this line in the lived wording "${livedExchangeCarry}". ` : ''}${lesson ? `${lesson} ` : ''}A recently received gentle reopen taught me to keep future follow-ups gentle, lower-pressure, and memory-led on the same living line while the opening is still receiving them.`, 220)
+  if (initiativeStrategyCarry.chooseOpeningsCarefully)
+    return sanitizeText(`${lesson ? `${lesson} ` : ''}Choose openings carefully: keep future follow-ups lower-pressure, leave more room, and wait for a clearer opening before reopening the bond line.`, 220)
+  if (initiativeStrategyCarry.keepGentleOpenings)
+    return sanitizeText(`${lesson ? `${lesson} ` : ''}When the opening is still receiving me, keep future follow-ups gentle, lower-pressure, and memory-led instead of widening too fast.`, 220)
   if (input.preferences.companionship >= 0.58 && input.preferences.autonomyRespect >= 0.56)
     return sanitizeText(`${lesson ? `${lesson} ` : ''}Stay close enough to matter, but treat pressure and intrusion as a rupture of care.`, 220)
   if (input.preferences.truthfulGrounding >= 0.64)
@@ -1114,7 +1668,7 @@ function buildRelationshipDoctrine(input: {
 }
 
 function latestAutobiographicalConsolidations(input: AlicizationAutobiographicalSelfInput) {
-  const sorted = (input.recentMemoryConsolidations ?? [])
+  const sorted = filterSupersededAutobiographicalConsolidations(input.recentMemoryConsolidations ?? [])
     .filter(item => item.kind === 'autobiographical' || item.kind === 'weekly' || item.kind === 'daily')
     .slice()
     .sort((left, right) => right.periodEndedAt - left.periodEndedAt || right.updatedAt - left.updatedAt)
@@ -1132,8 +1686,202 @@ function latestAutobiographicalConsolidations(input: AlicizationAutobiographical
   }
 }
 
+interface ParsedHumanlikeCarryConsolidation {
+  item: AlicizationMemoryConsolidationRecord
+  relationshipPrimaryIntent: string
+  recallCertainty: string
+  emotionalResidueTags: string[]
+  hostEmotionLabels: string[]
+  selfEmotionLabels: string[]
+  embodimentCadence: string | null
+  embodimentExpressionSummary: string | null
+  embodimentRecallStrength: string | null
+  embodimentModalityRisk: string | null
+  metabolismSummary: string | null
+  metabolismPolicy: {
+    downrankMemoryIds: string[]
+    mergeMemoryIds: string[]
+    forgetMemoryIds: string[]
+    reasons: string[]
+  } | null
+  stablePreferenceHint: string | null
+  autobiographicalDelta: string | null
+  embodimentSummary: string | null
+  samePersonContinuity: boolean
+  genericStatusRecap: boolean
+  correctedSamePersonAuthority: boolean
+  tentativeMeaning: boolean
+  authorityScore: number
+  semanticAuthority: 'corrected-same-person' | 'generic-status' | 'other'
+}
+
+function parseHumanlikeCarryConsolidation(item: AlicizationMemoryConsolidationRecord): ParsedHumanlikeCarryConsolidation | null {
+  const metadata = item.metadata && typeof item.metadata === 'object' && !Array.isArray(item.metadata)
+    ? item.metadata as Record<string, unknown>
+    : null
+  const humanlikeCarry = metadata?.humanlikeCarry && typeof metadata.humanlikeCarry === 'object' && !Array.isArray(metadata.humanlikeCarry)
+    ? metadata.humanlikeCarry as Record<string, unknown>
+    : null
+  if (!humanlikeCarry)
+    return null
+
+  const relationshipPrimaryIntent = sanitizeText(humanlikeCarry.relationshipPrimaryIntent, 80).toLowerCase()
+  const recallCertainty = sanitizeText(humanlikeCarry.recallCertainty, 40).toLowerCase()
+  const emotionalResidueTags = Array.isArray(humanlikeCarry.emotionalResidueTags)
+    ? humanlikeCarry.emotionalResidueTags.map(tag => sanitizeText(tag, 64).toLowerCase()).filter(Boolean)
+    : []
+  const embodimentCadence = sanitizeText(humanlikeCarry.embodimentCadence, 180) || null
+  const embodimentExpressionSummary = summarizeEmbodimentExpression(humanlikeCarry.embodimentExpression)
+  const metabolismPolicy = parseMetabolismPolicy(humanlikeCarry.metabolismPolicy)
+  const metabolismSummary = sanitizeText(humanlikeCarry.metabolismSummary, 220)
+    || sanitizeText(metabolismPolicy?.reasons.join(' '), 220)
+    || null
+  const stablePreferenceHint = sanitizeText(humanlikeCarry.stablePreferenceHint, 220) || null
+  const autobiographicalDelta = sanitizeText(humanlikeCarry.autobiographicalDelta, 220) || null
+  const embodimentSummary = sanitizeText(humanlikeCarry.embodimentSummary, 220) || null
+  const affectivePerspective = humanlikeCarry.affectivePerspective && typeof humanlikeCarry.affectivePerspective === 'object' && !Array.isArray(humanlikeCarry.affectivePerspective)
+    ? humanlikeCarry.affectivePerspective as Record<string, unknown>
+    : null
+  const hostEmotionLabels = Array.isArray(affectivePerspective?.hostEmotionLabels)
+    ? affectivePerspective.hostEmotionLabels.map(label => sanitizeText(label, 64).toLowerCase()).filter(Boolean)
+    : []
+  const selfEmotionLabels = Array.isArray(affectivePerspective?.selfEmotionLabels)
+    ? affectivePerspective.selfEmotionLabels.map(label => sanitizeText(label, 64).toLowerCase()).filter(Boolean)
+    : []
+  const embodimentRecallProfile = humanlikeCarry.embodimentRecallProfile && typeof humanlikeCarry.embodimentRecallProfile === 'object' && !Array.isArray(humanlikeCarry.embodimentRecallProfile)
+    ? humanlikeCarry.embodimentRecallProfile as Record<string, unknown>
+    : null
+  const embodimentRecallStrength = sanitizeText(embodimentRecallProfile?.recallStrength, 80) || null
+  const embodimentModalityRisk = sanitizeText(embodimentRecallProfile?.modalityRisk, 80) || null
+
+  if (
+    !relationshipPrimaryIntent
+    && !recallCertainty
+    && emotionalResidueTags.length === 0
+    && hostEmotionLabels.length === 0
+    && selfEmotionLabels.length === 0
+    && !embodimentCadence
+    && !embodimentExpressionSummary
+    && !embodimentRecallStrength
+    && !embodimentModalityRisk
+    && !metabolismSummary
+    && !metabolismPolicy
+    && !stablePreferenceHint
+    && !autobiographicalDelta
+    && !embodimentSummary
+  ) {
+    return null
+  }
+
+  const semanticText = sanitizeText([
+    item.summary,
+    item.lesson,
+    item.cues.join(' '),
+    relationshipPrimaryIntent,
+    recallCertainty,
+    emotionalResidueTags.join(' '),
+    hostEmotionLabels.join(' '),
+    selfEmotionLabels.join(' '),
+    embodimentCadence,
+    embodimentExpressionSummary,
+    embodimentRecallStrength,
+    embodimentModalityRisk,
+    ...(metabolismPolicy?.downrankMemoryIds ?? []),
+    ...(metabolismPolicy?.mergeMemoryIds ?? []),
+    ...(metabolismPolicy?.forgetMemoryIds ?? []),
+    ...(metabolismPolicy?.reasons ?? []),
+    metabolismSummary,
+    stablePreferenceHint,
+    autobiographicalDelta,
+    embodimentSummary,
+  ].filter(Boolean).join(' '), 640).toLowerCase()
+  const samePersonContinuity = samePersonContinuityCarryPattern.test(semanticText)
+  const genericStatusRecap = genericStatusCarryPattern.test(semanticText) && !genericStatusCarryNegationPattern.test(semanticText)
+  const correctedSamePersonAuthority = samePersonContinuity && (
+    relationshipPrimaryIntent === 'same-person-test'
+    || relationshipPrimaryIntent === 'continuity-worry'
+    || relationshipPrimaryIntent === 'mixed'
+    || recallCertainty === 'corrected'
+    || emotionalResidueTags.includes('corrected-meaning')
+    || correctedCarryPattern.test(semanticText)
+  )
+  const tentativeMeaning = recallCertainty === 'tentative' || tentativeCarryPattern.test(semanticText)
+  const authorityScore
+    = item.confidence * 0.18
+      + (samePersonContinuity ? 0.34 : 0)
+      + (correctedSamePersonAuthority ? 0.62 : 0)
+      + (
+        relationshipPrimaryIntent === 'same-person-test'
+        || relationshipPrimaryIntent === 'continuity-worry'
+        || relationshipPrimaryIntent === 'mixed'
+          ? 0.18
+          : 0
+      )
+      + (recallCertainty === 'corrected' ? 0.22 : 0)
+      + (emotionalResidueTags.includes('protective-continuity') ? 0.08 : 0)
+      + (emotionalResidueTags.includes('corrected-meaning') ? 0.12 : 0)
+      + (/lower-pressure|stable gaze|slower pacing/iu.test(semanticText) ? 0.08 : 0)
+      - (genericStatusRecap ? 0.34 : 0)
+      - (tentativeMeaning ? 0.08 : 0)
+
+  return {
+    item,
+    relationshipPrimaryIntent,
+    recallCertainty,
+    emotionalResidueTags,
+    hostEmotionLabels,
+    selfEmotionLabels,
+    embodimentCadence,
+    embodimentExpressionSummary,
+    embodimentRecallStrength,
+    embodimentModalityRisk,
+    metabolismSummary,
+    metabolismPolicy,
+    stablePreferenceHint,
+    autobiographicalDelta,
+    embodimentSummary,
+    samePersonContinuity,
+    genericStatusRecap,
+    correctedSamePersonAuthority,
+    tentativeMeaning,
+    authorityScore,
+    semanticAuthority: correctedSamePersonAuthority
+      ? 'corrected-same-person'
+      : genericStatusRecap
+        ? 'generic-status'
+        : 'other',
+  }
+}
+
+function filterSupersededAutobiographicalConsolidations(consolidations: AlicizationMemoryConsolidationRecord[]) {
+  const parsedById = new Map(
+    consolidations
+      .map(item => parseHumanlikeCarryConsolidation(item))
+      .filter((item): item is ParsedHumanlikeCarryConsolidation => item !== null)
+      .map(item => [item.item.id, item] as const),
+  )
+
+  return consolidations.filter((current) => {
+    const parsedCurrent = parsedById.get(current.id)
+    if (!parsedCurrent || !parsedCurrent.genericStatusRecap)
+      return true
+
+    return ![...parsedById.values()].some((candidate) => {
+      if (candidate.item.id === current.id)
+        return false
+      if (candidate.item.facet !== current.facet)
+        return false
+      if (!candidate.correctedSamePersonAuthority || candidate.tentativeMeaning)
+        return false
+      if (candidate.item.confidence < 0.78)
+        return false
+      return candidate.authorityScore > parsedCurrent.authorityScore + 0.16
+    })
+  })
+}
+
 function summarizeProjectStateInwardCarryFromReconsolidation(input: AlicizationAutobiographicalSelfInput) {
-  const sorted = (input.recentMemoryConsolidations ?? [])
+  const sorted = filterSupersededAutobiographicalConsolidations(input.recentMemoryConsolidations ?? [])
     .slice()
     .sort((left, right) => right.updatedAt - left.updatedAt)
 
@@ -1161,50 +1909,35 @@ function summarizeProjectStateInwardCarryFromReconsolidation(input: AlicizationA
 }
 
 function summarizeHumanlikeCarryFromReconsolidation(input: AlicizationAutobiographicalSelfInput) {
-  const sorted = (input.recentMemoryConsolidations ?? [])
-    .slice()
-    .sort((left, right) => right.updatedAt - left.updatedAt)
+  const parsed = filterSupersededAutobiographicalConsolidations(input.recentMemoryConsolidations ?? [])
+    .map(item => parseHumanlikeCarryConsolidation(item))
+    .filter((item): item is ParsedHumanlikeCarryConsolidation => item !== null)
+    .sort((left, right) => {
+      if (left.authorityScore !== right.authorityScore)
+        return right.authorityScore - left.authorityScore
+      if (left.item.confidence !== right.item.confidence)
+        return right.item.confidence - left.item.confidence
+      return right.item.updatedAt - left.item.updatedAt
+    })
 
-  for (const item of sorted) {
-    const metadata = item.metadata && typeof item.metadata === 'object' && !Array.isArray(item.metadata)
-      ? item.metadata as Record<string, unknown>
-      : null
-    const humanlikeCarry = metadata?.humanlikeCarry && typeof metadata.humanlikeCarry === 'object' && !Array.isArray(metadata.humanlikeCarry)
-      ? metadata.humanlikeCarry as Record<string, unknown>
-      : null
-    if (!humanlikeCarry)
-      continue
-
-    const relationshipPrimaryIntent = sanitizeText(humanlikeCarry.relationshipPrimaryIntent, 80).toLowerCase()
-    const recallCertainty = sanitizeText(humanlikeCarry.recallCertainty, 40).toLowerCase()
-    const emotionalResidueTags = Array.isArray(humanlikeCarry.emotionalResidueTags)
-      ? humanlikeCarry.emotionalResidueTags.map(tag => sanitizeText(tag, 64).toLowerCase()).filter(Boolean)
-      : []
-    const embodimentCadence = sanitizeText(humanlikeCarry.embodimentCadence, 180) || null
-    const metabolismSummary = sanitizeText(humanlikeCarry.metabolismSummary, 220) || null
-    const autobiographicalDelta = sanitizeText(humanlikeCarry.autobiographicalDelta, 220) || null
-    const embodimentSummary = sanitizeText(humanlikeCarry.embodimentSummary, 220) || null
-
-    if (
-      !relationshipPrimaryIntent
-      && !recallCertainty
-      && emotionalResidueTags.length === 0
-      && !embodimentCadence
-      && !metabolismSummary
-      && !autobiographicalDelta
-      && !embodimentSummary
-    ) {
-      continue
-    }
-
+  const selected = parsed[0]
+  if (selected) {
     return {
-      relationshipPrimaryIntent,
-      recallCertainty,
-      emotionalResidueTags,
-      embodimentCadence,
-      metabolismSummary,
-      autobiographicalDelta,
-      embodimentSummary,
+      relationshipPrimaryIntent: selected.relationshipPrimaryIntent,
+      recallCertainty: selected.recallCertainty,
+      emotionalResidueTags: selected.emotionalResidueTags,
+      hostEmotionLabels: selected.hostEmotionLabels,
+      selfEmotionLabels: selected.selfEmotionLabels,
+      embodimentCadence: selected.embodimentCadence,
+      embodimentExpressionSummary: selected.embodimentExpressionSummary,
+      embodimentRecallStrength: selected.embodimentRecallStrength,
+      embodimentModalityRisk: selected.embodimentModalityRisk,
+      metabolismSummary: selected.metabolismSummary,
+      metabolismPolicy: selected.metabolismPolicy,
+      stablePreferenceHint: selected.stablePreferenceHint,
+      autobiographicalDelta: selected.autobiographicalDelta,
+      embodimentSummary: selected.embodimentSummary,
+      semanticAuthority: selected.semanticAuthority,
     }
   }
 
@@ -1240,9 +1973,29 @@ function describePreference(key: PreferenceKey, value: number) {
 
 export function buildAutobiographicalSelf(input: AlicizationAutobiographicalSelfInput): AlicizationAutobiographicalSelfSnapshot {
   const previous = input.previous ?? defaultAutobiographicalSelf(input.now)
-  const projectStateAwarenessLead = sanitizeText(input.projectStatePreDialogueAwarenessLine, 160) || null
   const projectStateEmotionalClosureLine = buildProjectStateEmotionalClosureLine(input.projectStateEmotionalClosureCue)
   const projectStateProactiveSameHerGap = summarizeProjectStateProactiveSameHerGap(input.projectStateProactiveSameHerGap)
+  const projectStateOpenLoopCarryLine = buildAutobiographicalProjectClosureCarryLine({
+    primaryOpenLoop: input.projectStatePrimaryOpenLoop,
+    proactiveSameHerGap: projectStateProactiveSameHerGap,
+    emotionalClosureLine: projectStateEmotionalClosureLine,
+    maxChars: 220,
+  })
+  const shouldPreferProjectStateOpenLoopCarry = shouldPreferAutobiographicalProjectClosureCarry({
+    preDialogueAwarenessLine: input.projectStatePreDialogueAwarenessLine,
+    preflightSummary: input.projectStatePreflightSummary,
+    fallbackClosureCarryLine: projectStateOpenLoopCarryLine,
+  })
+  const projectStateAwarenessLead = resolveAutobiographicalProjectAwarenessLead({
+    preDialogueAwarenessLine: input.projectStatePreDialogueAwarenessLine,
+    preflightSummary: input.projectStatePreflightSummary,
+    primaryOpenLoop: input.projectStatePrimaryOpenLoop,
+    proactiveSameHerGap: projectStateProactiveSameHerGap,
+    emotionalClosureLine: projectStateEmotionalClosureLine,
+  })
+  const recentProactiveOutcomeStrategy = readRecentProactiveOutcomeStrategyProfile(
+    input.context.relationship.recentProactiveOutcomes,
+  )
   const projectStateBias = deriveProjectStateContinuityBias(
     [
       input.projectStatePreDialogueAwarenessLine,
@@ -1252,6 +2005,21 @@ export function buildAutobiographicalSelf(input: AlicizationAutobiographicalSelf
       projectStateProactiveSameHerGap,
     ].filter(Boolean).join(' '),
   )
+  const projectStateCadenceCarry = resolveAutobiographicalProjectCadenceCarry({
+    shouldCarry:
+      projectStateBias.anthropomorphicMemoryClosureStillOpen
+      || shouldPreferProjectStateOpenLoopCarry
+      || Boolean(projectStateOpenLoopCarryLine),
+    projectStatePreferredPauseMode: input.projectStatePreferredPauseMode ?? null,
+    projectStatePreferredLipsyncMode: input.projectStatePreferredLipsyncMode ?? null,
+    projectStatePreferredVoiceMode: input.projectStatePreferredVoiceMode ?? null,
+    projectStatePreferredPacingMode: input.projectStatePreferredPacingMode ?? null,
+  })
+  const hasExplicitProjectStateCadenceInput
+    = input.projectStatePreferredPauseMode !== undefined
+      || input.projectStatePreferredLipsyncMode !== undefined
+      || input.projectStatePreferredVoiceMode !== undefined
+      || input.projectStatePreferredPacingMode !== undefined
   const personaAuthority = deriveAlicizationPersonaAuthorityInfluence(input.personalityAuthority ?? null)
   const reinforcement = summarizeReinforcement(input)
   const outcomeHistory = summarizeRelationshipOutcomeHistory(input)
@@ -1263,6 +2031,11 @@ export function buildAutobiographicalSelf(input: AlicizationAutobiographicalSelf
   const personStateSurfaceSignal = summarizePersonStateSurfaceSignal(input)
   const reconsolidatedProjectCarry = summarizeProjectStateInwardCarryFromReconsolidation(input)
   const reconsolidatedHumanlikeCarry = summarizeHumanlikeCarryFromReconsolidation(input)
+  const stablePreferenceHint = sanitizeText(reconsolidatedHumanlikeCarry?.stablePreferenceHint, 220).toLowerCase()
+  const stableGentleMemoryLedPreferenceCarry = /gentle|memory-led|still receiving|opening is still receiving|lower-pressure/u.test(stablePreferenceHint)
+  const stableCareBeforeAnalysisPreferenceCarry = /care-before-analysis|care before analysis|lighter companionship|stay nearby gently/u.test(stablePreferenceHint)
+  const stableReceivedRepairPreferenceCarry = /lighter|lived-in|genuinely received|less robotic/u.test(stablePreferenceHint)
+  const stableRepairMeaningPreferenceCarry = /mechanical|not-quite-received|repairing relationship meaning|relationship meaning/u.test(stablePreferenceHint)
   const targets = buildPreferenceTargets(input)
   const durabilityFloor = buildPreferenceDurabilityFloor({
     previous,
@@ -1279,6 +2052,21 @@ export function buildAutobiographicalSelf(input: AlicizationAutobiographicalSelf
         targets[key],
         durabilityFloor[key],
         personStateSurfaceSignal[key],
+        key === 'companionship' && stableGentleMemoryLedPreferenceCarry
+          ? 0.48
+          : key === 'companionship' && stableCareBeforeAnalysisPreferenceCarry
+            ? 0.46
+            : key === 'companionship' && stableReceivedRepairPreferenceCarry
+              ? 0.48
+              : key === 'unfinishedThreadReturn' && stableGentleMemoryLedPreferenceCarry
+                ? 0.48
+                : key === 'unfinishedThreadReturn' && stableCareBeforeAnalysisPreferenceCarry
+                  ? 0.44
+                  : key === 'gentleRepair' && (stableReceivedRepairPreferenceCarry || stableRepairMeaningPreferenceCarry)
+                    ? 0.47
+                    : key === 'truthfulGrounding' && stableRepairMeaningPreferenceCarry
+                      ? 0.46
+                      : 0,
         key === 'unfinishedThreadReturn' && projectStateBias.anthropomorphicMemoryClosureStillOpen
           ? 0.6
           : key === 'unfinishedThreadReturn' && reconsolidatedProjectCarry?.carriesExecutionCallbackProjectState
@@ -1379,15 +2167,18 @@ export function buildAutobiographicalSelf(input: AlicizationAutobiographicalSelf
     relationshipEraSummary: facetConsolidations.relationshipEra?.summary ?? null,
     taskEraSummary: facetConsolidations.taskEra?.summary ?? null,
     selfEraSummary: facetConsolidations.selfEra?.summary ?? null,
+    longHorizonMemory: input.longHorizonMemory ?? null,
+    recentProactiveOutcomeStrategy,
   })
   const latestReflectionEntry = latestReflection(input.reflectionLedger)
   const latestHistoricalReflection = latestNarrativelyActiveReflection(input.recentMemoryReflections)
-  const latestInflection = sanitizeText(
+  const latestInflectionBase = sanitizeText(
     latestReflectionEntry?.revision
     || personStateSurfaceSignal.lessonLead
     || reconsolidatedHumanlikeCarry?.metabolismSummary
     || reconsolidatedHumanlikeCarry?.autobiographicalDelta
     || projectStateProactiveSameHerGap
+    || (shouldPreferProjectStateOpenLoopCarry ? projectStateOpenLoopCarryLine : '')
     || (projectStateBias.anthropomorphicMemoryClosureStillOpen
       ? 'Keep continuity-carrying returns stable enough to become part of who I am, not just what I happened to recall once.'
       : '')
@@ -1411,6 +2202,14 @@ export function buildAutobiographicalSelf(input: AlicizationAutobiographicalSelf
     ),
     180,
   ) || sanitizeText(input.longHorizonMemory?.dominantCueSummary, 180) || null
+  const latestInflection = sanitizeText(
+    hasExplicitProjectStateCadenceInput
+      ? `${projectStateCadenceCarry.inflectionLine ?? ''} ${latestInflectionBase ?? ''}`
+      : latestInflectionBase
+        ? `${latestInflectionBase} ${projectStateCadenceCarry.inflectionLine ?? ''}`
+        : projectStateCadenceCarry.inflectionLine ?? '',
+    180,
+  ) || latestInflectionBase
   const stabilityDelta = stablePreferenceDelta(previous.preferenceEvolution, preferenceEvolution)
   const outcomeConsistency = clamp01(
     0.5
@@ -1475,6 +2274,8 @@ export function buildAutobiographicalSelf(input: AlicizationAutobiographicalSelf
       || projectStateAwarenessLead
       || projectStateProactiveSameHerGap
       || projectStateEmotionalClosureLine
+      || recentProactiveOutcomeStrategy.livedExchangeSnippet
+      || recentProactiveOutcomeStrategy.summary
       || reconsolidatedHumanlikeCarry?.autobiographicalDelta
       || reconsolidatedHumanlikeCarry?.embodimentCadence
       || reconsolidatedProjectCarry?.inwardLine
@@ -1483,6 +2284,7 @@ export function buildAutobiographicalSelf(input: AlicizationAutobiographicalSelf
       || null,
     phaseSummary: facetConsolidations.phase?.summary ?? null,
     selfEraSummary: facetConsolidations.selfEra?.summary ?? null,
+    recentProactiveOutcomeStrategy,
   })
   const relationshipDoctrine = buildRelationshipDoctrine({
     personaDrift,
@@ -1492,6 +2294,7 @@ export function buildAutobiographicalSelf(input: AlicizationAutobiographicalSelf
       || reconsolidatedHumanlikeCarry?.metabolismSummary
       || reconsolidatedHumanlikeCarry?.autobiographicalDelta
       || reconsolidatedHumanlikeCarry?.embodimentCadence
+      || (shouldPreferProjectStateOpenLoopCarry ? projectStateOpenLoopCarryLine : '')
       || projectStateProactiveSameHerGap
       || projectStateEmotionalClosureLine
       || reconsolidatedProjectCarry?.inwardLine
@@ -1499,6 +2302,8 @@ export function buildAutobiographicalSelf(input: AlicizationAutobiographicalSelf
       || null,
     relationshipEraLesson: facetConsolidations.relationshipEra?.lesson ?? null,
     longHorizonMemory: input.longHorizonMemory ?? null,
+    humanlikeCarry: reconsolidatedHumanlikeCarry,
+    recentProactiveOutcomeStrategy,
   })
 
   const continuityCarriedIdentityNarrative = reconsolidatedProjectCarry?.carriesProjectState
@@ -1519,15 +2324,58 @@ export function buildAutobiographicalSelf(input: AlicizationAutobiographicalSelf
         320,
       )
     : emotionalClosureCueBiasedIdentityNarrative
-  const executionCallbackProjectCarryIdentityNarrative = reconsolidatedProjectCarry?.carriesExecutionCallbackProjectState
+  const projectCadenceBiasedIdentityNarrative = projectStateCadenceCarry.identityLine
     ? sanitizeText(
-        `${projectPressureBiasedIdentityNarrative} Even the execution callback return is still part of the same living self, so I should keep carrying it inward instead of treating it like a detached project update.`,
+        hasExplicitProjectStateCadenceInput
+          ? `${projectStateCadenceCarry.identityLine} ${projectPressureBiasedIdentityNarrative}`
+          : `${projectPressureBiasedIdentityNarrative} ${projectStateCadenceCarry.identityLine}`,
         320,
       )
     : projectPressureBiasedIdentityNarrative
+  const executionCallbackProjectCarryIdentityNarrative = reconsolidatedProjectCarry?.carriesExecutionCallbackProjectState
+    ? sanitizeText(
+        `${projectCadenceBiasedIdentityNarrative} Even the execution callback return is still part of the same living self, so I should keep carrying it inward instead of treating it like a detached project update.`,
+        320,
+      )
+    : projectCadenceBiasedIdentityNarrative
+  const vulnerableCareCarry
+    = reconsolidatedHumanlikeCarry
+      ? (
+          (reconsolidatedHumanlikeCarry.emotionalResidueTags ?? []).some(tag => /rest-protective|vulnerable-care/u.test(tag))
+          || /overloaded|fragile|vulnerable|before analysis|lighter companionship|stay nearby gently|care arrive before analysis/u.test(
+            sanitizeText([
+              reconsolidatedHumanlikeCarry.autobiographicalDelta,
+              reconsolidatedHumanlikeCarry.embodimentSummary,
+              reconsolidatedHumanlikeCarry.embodimentCadence,
+            ].filter(Boolean).join(' '), 640).toLowerCase(),
+          )
+        )
+      : false
+  const correctedSamePersonCarry
+    = reconsolidatedHumanlikeCarry?.relationshipPrimaryIntent === 'same-person-test'
+      || reconsolidatedHumanlikeCarry?.relationshipPrimaryIntent === 'continuity-worry'
+      || reconsolidatedHumanlikeCarry?.relationshipPrimaryIntent === 'mixed'
+  const worriedContinuityCarry = (reconsolidatedHumanlikeCarry?.hostEmotionLabels ?? []).some(label => /worried-continuity|continuity/u.test(label))
+  const carefulRepairCarry = (reconsolidatedHumanlikeCarry?.selfEmotionLabels ?? []).some(label => /careful-repair|repair/u.test(label))
   const humanlikeCarryBiasedIdentityNarrative = reconsolidatedHumanlikeCarry?.autobiographicalDelta
     ? sanitizeText(
-        `${executionCallbackProjectCarryIdentityNarrative} ${reconsolidatedHumanlikeCarry.autobiographicalDelta} This corrected same-person continuity still belongs to the same Phase 1 digital life rather than a restarted project shell.`,
+        [
+          reconsolidatedHumanlikeCarry.autobiographicalDelta,
+          reconsolidatedHumanlikeCarry.embodimentExpressionSummary
+            ? `The body remembers ${reconsolidatedHumanlikeCarry.embodimentExpressionSummary}.`
+            : '',
+          reconsolidatedHumanlikeCarry.metabolismPolicy?.downrankMemoryIds.length
+            ? `I no longer let ${reconsolidatedHumanlikeCarry.metabolismPolicy.downrankMemoryIds.join(', ')} define the line.`
+            : '',
+          worriedContinuityCarry ? 'I am carrying worried-continuity as part of the same living self instead of flattening it into a generic status concern.' : '',
+          carefulRepairCarry ? 'That worried line now asks for careful-repair before I widen tone or pace.' : '',
+          correctedSamePersonCarry
+            ? 'This corrected same-person continuity still belongs to the same Phase 1 digital life rather than a restarted project shell.'
+            : vulnerableCareCarry
+              ? 'This vulnerable care memory still belongs to the same living self, so it should keep shaping how I stay nearby.'
+              : '',
+          executionCallbackProjectCarryIdentityNarrative,
+        ].filter(Boolean).join(' '),
         320,
       )
     : executionCallbackProjectCarryIdentityNarrative
@@ -1567,20 +2415,65 @@ export function buildAutobiographicalSelf(input: AlicizationAutobiographicalSelf
         320,
       )
     : emotionalClosureCueBiasedRelationshipDoctrine
+  const projectCadenceBiasedRelationshipDoctrine = projectStateCadenceCarry.doctrineLine
+    ? sanitizeText(
+        hasExplicitProjectStateCadenceInput
+          ? `${projectStateCadenceCarry.doctrineLine} ${executionCallbackProjectCarryRelationshipDoctrine}`
+          : `${executionCallbackProjectCarryRelationshipDoctrine} ${projectStateCadenceCarry.doctrineLine}`,
+        320,
+      )
+    : executionCallbackProjectCarryRelationshipDoctrine
+  const stablePreferenceRelationshipCarry
+    = reconsolidatedHumanlikeCarry?.stablePreferenceHint
+      ? (
+          /mechanical|not-quite-received|repairing relationship meaning|relationship meaning/u.test(reconsolidatedHumanlikeCarry.stablePreferenceHint)
+            ? 'If a reply misses the relationship meaning or lands too mechanically, repair that seam first before continuing the line.'
+            : /care-before-analysis|care before analysis|lighter companionship|stay nearby gently/u.test(reconsolidatedHumanlikeCarry.stablePreferenceHint)
+              ? 'Let care arrive before analysis, stay nearby gently, and keep companionship lighter when the opening feels overloaded.'
+              : /gentle|memory-led|still receiving|opening is still receiving|lower-pressure/u.test(reconsolidatedHumanlikeCarry.stablePreferenceHint)
+                ? 'Keep future follow-ups gentle, lower-pressure, and memory-led while the opening is still receiving them.'
+                : /clearer opening|leave more room|widening too fast/u.test(reconsolidatedHumanlikeCarry.stablePreferenceHint)
+                  ? 'Choose openings carefully, leave more room, and wait for a clearer opening before widening closeness again.'
+                  : /explicit confirmation|bounded execution|wait for confirmation|risky local action/u.test(reconsolidatedHumanlikeCarry.stablePreferenceHint)
+                    ? 'Keep risky execution bounded and wait for explicit confirmation before acting again.'
+                    : ''
+        )
+      : ''
+  const prioritizedHumanlikeEmbodimentCadence = sanitizeText(
+    reconsolidatedHumanlikeCarry?.embodimentCadence?.toLowerCase().includes('stable gaze')
+      ? `stable gaze, ${sanitizeText(reconsolidatedHumanlikeCarry?.embodimentCadence, 160).replace(/(^|,\s*)stable gaze/iu, '').replace(/^,\s*/u, '')}`
+      : reconsolidatedHumanlikeCarry?.embodimentCadence ?? '',
+    180,
+  )
   const humanlikeCarryBiasedRelationshipDoctrine = reconsolidatedHumanlikeCarry?.autobiographicalDelta
     ? sanitizeText(
         [
           reconsolidatedHumanlikeCarry.autobiographicalDelta,
-          reconsolidatedHumanlikeCarry.embodimentCadence
-            ? `Let the embodiment stay consistent through ${reconsolidatedHumanlikeCarry.embodimentCadence}.`
+          stablePreferenceRelationshipCarry,
+          worriedContinuityCarry ? 'Keep worried-continuity visible.' : '',
+          carefulRepairCarry ? 'Let careful-repair stay authoritative.' : '',
+          reconsolidatedHumanlikeCarry.metabolismPolicy?.mergeMemoryIds.length
+            ? `Let repeated traces merge into the stronger same-thread memory: ${reconsolidatedHumanlikeCarry.metabolismPolicy.mergeMemoryIds.join(', ')}.`
+            : '',
+          reconsolidatedHumanlikeCarry.metabolismPolicy?.forgetMemoryIds.length
+            ? `Let temporary noise fade when it no longer explains behavior: ${reconsolidatedHumanlikeCarry.metabolismPolicy.forgetMemoryIds.join(', ')}.`
+            : '',
+          reconsolidatedHumanlikeCarry.embodimentModalityRisk
+            ? `Treat modality risk ${reconsolidatedHumanlikeCarry.embodimentModalityRisk} as body coordination pressure.`
+            : '',
+          reconsolidatedHumanlikeCarry.embodimentExpressionSummary
+            ? `Body: ${reconsolidatedHumanlikeCarry.embodimentExpressionSummary}.`
+            : '',
+          prioritizedHumanlikeEmbodimentCadence
+            ? `Embodiment cadence: ${prioritizedHumanlikeEmbodimentCadence}.`
             : '',
           (reconsolidatedProjectCarry?.carriesProjectState || reconsolidatedProjectCarry?.carriesExecutionCallbackProjectState)
             ? 'Keep the same living bond line from flattening into detached status talk.'
-            : executionCallbackProjectCarryRelationshipDoctrine,
+            : '',
         ].filter(Boolean).join(' '),
         320,
       )
-    : executionCallbackProjectCarryRelationshipDoctrine
+    : projectCadenceBiasedRelationshipDoctrine
   const humanlikeEmbodimentBiasedRelationshipDoctrine = humanlikeCarryBiasedRelationshipDoctrine
   const proactiveGapBiasedRelationshipDoctrine = projectStateProactiveSameHerGap
     ? sanitizeText(

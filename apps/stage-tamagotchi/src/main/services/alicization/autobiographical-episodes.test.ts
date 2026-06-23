@@ -121,4 +121,91 @@ describe('autobiographical episodes', () => {
     expect(fragment).toContain('episode_action:repair-before-speaking')
     expect(fragment).toContain('episode_summary:')
   })
+
+  it('does not let a released temporary-noise reflection become the autobiographical episode lesson carry', () => {
+    const fragment = buildAutobiographicalEpisodeFragment({
+      previousRuntimeSurface: null,
+      nextRuntimeSurface: {
+        perception: { updatedAt: 2, watchMode: 'symbiotic-vision', currentScene: { summary: 'same-her line still needs a measured return' } },
+        world: {
+          worldModel: { activeThread: { id: 'thread-1', kind: 'relationship', summary: 'same-her line still needs a measured return' } },
+          relationshipModel: { climate: 'attuned', approachVector: 'guide' },
+        },
+        cognition: {
+          privateThought: {
+            thoughtText: 'Keep the same-her line steady.',
+            emotionalTension: 'measured-return',
+          },
+        },
+        memory: {
+          autobiographicalSelf: {
+            latestInflection: null,
+            activeGoals: [{
+              id: 'goal-2',
+              kind: 'preserve-trust',
+              status: 'active',
+              weight: 0.86,
+              summary: 'Keep truth and trust aligned.',
+              sourceTags: [],
+              createdAt: 0,
+              updatedAt: 2,
+            }],
+          },
+          motiveEngine: {
+            rulingDrive: 'truth-discipline',
+            backgroundAgendas: [{
+              id: 'agenda-2',
+              kind: 'preserve-trust',
+              status: 'foreground',
+              weight: 0.84,
+              summary: 'Keep trust by letting warmth answer to truth.',
+              sourceTags: [],
+              targetGoalKind: 'clarify-scene',
+              createdAt: 0,
+              updatedAt: 2,
+            }],
+          },
+          reflectionLedger: {
+            latestEntryId: 'reflection::temporary-noise',
+            entries: [
+              {
+                id: 'reflection::temporary-noise',
+                summary: 'A temporary anxious wobble was already released.',
+                expectation: 'Released noise should not keep steering autobiographical lesson carry.',
+                observedOutcome: 'The wobble has already been let go.',
+                outcome: 'released',
+                revision: 'Do not reopen from the temporary wobble.',
+                confidenceShift: 0.04,
+                createdAt: 100,
+              },
+              {
+                id: 'reflection::same-her-repair',
+                summary: 'The same-her repair line is still the meaningful autobiographical lesson carry.',
+                expectation: 'The steadier repair line should stay active until a newer meaningful reflection replaces it.',
+                observedOutcome: 'The same living line still needs a measured return.',
+                outcome: 'missed',
+                revision: 'Keep the same-her repair line active instead of reopening from temporary noise.',
+                confidenceShift: -0.08,
+                createdAt: 80,
+              },
+            ],
+          },
+          longHorizonMemory: null,
+          goalStack: null,
+          desireMemory: null,
+        },
+        agency: {
+          actionEcology: { mode: 'repair-before-speaking' },
+        },
+        dialogue: {
+          replyDeliberation: { selectedMotive: 'repair', whyThisReplyNow: 'The same event changed how I want to answer.' },
+          answerPlanner: { governingFocus: 'Answer from the repaired same-her line.' },
+          conversationState: null,
+        },
+      } as any,
+    })
+
+    expect(fragment).toContain('episode_lesson:Keep the same-her repair line active instead of reopening from temporary noise.')
+    expect(fragment).not.toContain('temporary wobble')
+  })
 })

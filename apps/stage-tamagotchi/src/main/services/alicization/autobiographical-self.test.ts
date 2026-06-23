@@ -5,6 +5,7 @@ import {
   buildAutobiographicalSelfSystemBlock,
   pickDominantAutobiographicalGoal,
 } from './autobiographical-self'
+import { resolveAlicizationProjectStateBrief } from './project-state-brief'
 
 describe('autobiographical self', () => {
   it('turn-level reflection and ecology sediment into durable persona drift and long-horizon goals', () => {
@@ -2209,6 +2210,107 @@ describe('autobiographical self', () => {
     expect(snapshot.relationshipDoctrine.toLowerCase()).toContain('unfinished')
   })
 
+  it('turns project-state cadence into autobiographical identity and doctrine carry instead of leaving it above the self layer', () => {
+    const snapshot = buildAutobiographicalSelf({
+      now: 50_250,
+      projectStatePrimaryOpenLoop: 'Memory still needs stronger end-to-end closure across turns, initiative, and embodiment so the same digital life keeps carrying one same still-open closure work.',
+      projectStateEmotionalClosureCue: 'Keep the unresolved closure seam emotionally low-pressure, so the same her returns without reopening from scratch.',
+      projectStatePreferredVoiceMode: 'lower-pressure',
+      projectStatePreferredPacingMode: 'slower',
+      projectStatePreferredPauseMode: 'longer' as any,
+      projectStatePreferredLipsyncMode: 'restrained' as any,
+      context: {
+        relationship: {
+          recentProactiveOutcomes: [],
+        },
+      } as any,
+      worldModel: {
+        activeThread: {
+          id: 'thread::project-cadence-autobio',
+          kind: 'relationship',
+          status: 'active',
+          source: 'memory-carry',
+          title: 'project cadence seam',
+          summary: 'The same life line still needs a quieter return style.',
+          confidence: 0.84,
+          significance: 0.76,
+          unresolved: true,
+          beganAt: 0,
+          lastUpdatedAt: 50_250,
+          target: null,
+        },
+        epistemicState: {
+          certainty: 'grounded',
+        },
+        hostState: {
+          availability: 'focused',
+        },
+      } as any,
+    } as any)
+
+    expect(snapshot.identityNarrative.toLowerCase()).toContain('lower-pressure voice')
+    expect(snapshot.identityNarrative.toLowerCase()).toContain('slower pacing')
+    expect(snapshot.identityNarrative.toLowerCase()).toContain('longer pause')
+    expect(snapshot.identityNarrative.toLowerCase()).toContain('restrained lipsync')
+    expect(snapshot.relationshipDoctrine.toLowerCase()).toContain('lower-pressure voice')
+    expect(snapshot.relationshipDoctrine.toLowerCase()).toContain('slower pacing')
+    expect(snapshot.relationshipDoctrine.toLowerCase()).toContain('longer pause')
+    expect(snapshot.relationshipDoctrine.toLowerCase()).toContain('restrained lipsync')
+    expect(snapshot.latestInflection?.toLowerCase()).toContain('slower pacing')
+  })
+
+  it('falls back to canonical project cadence when thin-shell blanks try to erase autobiographical return rhythm', () => {
+    const brief = resolveAlicizationProjectStateBrief()
+    const snapshot = buildAutobiographicalSelf({
+      now: 50_350,
+      projectStatePrimaryOpenLoop: 'Memory still needs stronger end-to-end closure across turns, initiative, and embodiment so the same digital life keeps carrying one same still-open closure work.',
+      projectStatePreferredVoiceMode: '   ',
+      projectStatePreferredPacingMode: '',
+      projectStatePreferredPauseMode: ' ' as any,
+      projectStatePreferredLipsyncMode: '' as any,
+      context: {
+        relationship: {
+          recentProactiveOutcomes: [],
+        },
+      } as any,
+      worldModel: {
+        activeThread: {
+          id: 'thread::project-cadence-autobio-fallback',
+          kind: 'relationship',
+          status: 'active',
+          source: 'memory-carry',
+          title: 'project cadence fallback seam',
+          summary: 'The same life line should still remember how to return.',
+          confidence: 0.82,
+          significance: 0.74,
+          unresolved: true,
+          beganAt: 0,
+          lastUpdatedAt: 50_350,
+          target: null,
+        },
+        epistemicState: {
+          certainty: 'grounded',
+        },
+        hostState: {
+          availability: 'focused',
+        },
+      } as any,
+    } as any)
+
+    expect(brief.preferredVoiceMode).toBe('lower-pressure')
+    expect(brief.preferredPacingMode).toBe('slower')
+    expect(brief.preferredPauseMode).toBe('longer')
+    expect(brief.preferredLipsyncMode).toBe('restrained')
+    expect(snapshot.identityNarrative.toLowerCase()).toContain('lower-pressure voice')
+    expect(snapshot.identityNarrative.toLowerCase()).toContain('slower pacing')
+    expect(snapshot.identityNarrative.toLowerCase()).toContain('longer pause')
+    expect(snapshot.identityNarrative.toLowerCase()).toContain('restrained lipsync')
+    expect(snapshot.relationshipDoctrine.toLowerCase()).toContain('lower-pressure voice')
+    expect(snapshot.relationshipDoctrine.toLowerCase()).toContain('longer pause')
+    expect(snapshot.relationshipDoctrine.toLowerCase()).toContain('restrained lipsync')
+    expect(snapshot.latestInflection?.toLowerCase()).toContain('slower pacing')
+  })
+
   it('also accepts companion briefing project awareness as autobiographical continuity pressure when it is more specific than preflight summary', () => {
     const snapshot = buildAutobiographicalSelf({
       now: 50_500,
@@ -2274,6 +2376,75 @@ describe('autobiographical self', () => {
     expect(snapshot.identityNarrative).toContain('same her resuming instead of restarting')
     expect(snapshot.relationshipDoctrine).toContain('same her resuming instead of restarting')
     expect(snapshot.identityNarrative).not.toContain('Fallback summary should stay behind the live companion briefing line.')
+  })
+
+  it('does not let a thin project awareness shell outrank a richer open-loop carry in autobiographical identity', () => {
+    const snapshot = buildAutobiographicalSelf({
+      now: 50_750,
+      projectStatePreDialogueAwarenessLine: 'same digital life | keep the closure seam explicit',
+      projectStatePreflightSummary: 'same digital life | keep the closure seam explicit',
+      projectStatePrimaryOpenLoop: 'Memory still needs stronger end-to-end closure across turns, initiative, and embodiment so the same digital life keeps carrying Project identity carry, Phase 1 route carry, and Unresolved closure carry through one same still-open closure work.',
+      projectStateEmotionalClosureCue: 'Keep the same unresolved closure seam emotionally low-pressure, so the return lands like the same her resuming instead of restarting.',
+      context: {
+        relationship: {
+          recentProactiveOutcomes: [],
+        },
+      } as any,
+      worldModel: {
+        activeThread: {
+          id: 'thread::thin-project-awareness-shell',
+          kind: 'relationship',
+          status: 'active',
+          source: 'memory-carry',
+          title: 'thin awareness seam',
+          summary: 'A thin project shell should not outrank the richer open loop.',
+          confidence: 0.84,
+          significance: 0.76,
+          unresolved: true,
+          beganAt: 0,
+          lastUpdatedAt: 50_750,
+          target: null,
+        },
+        epistemicState: {
+          certainty: 'grounded',
+        },
+        hostState: {
+          availability: 'focused',
+        },
+      } as any,
+      longHorizonMemory: {
+        preferenceBias: {
+          companionship: 0.16,
+          truthfulGrounding: 0.14,
+          gentleRepair: 0.18,
+          quietObservation: 0.2,
+          proactiveCare: 0.08,
+          playfulIntimacy: 0.02,
+          autonomyRespect: 0.24,
+          unfinishedThreadReturn: 0.18,
+        },
+        identityBias: {
+          guardedness: 0.08,
+          tenderness: 0.06,
+          directness: 0.04,
+          selfDirection: 0.08,
+        },
+        anchorFacts: [],
+        summary: 'continuity=Remembered return style should stay stable enough to be lived, not just recalled.',
+        dominantCueSummary: 'Remembered return style should stay stable enough to be lived, not just recalled.',
+        rememberedPreferenceSummary: 'Remembered preference: space first before warmth widens.',
+        rememberedConstraintSummary: 'Remembered continuity: unfinished seams should return gently but consistently.',
+        rememberedPlanSummary: 'Remembered open loop: keep continuity-bearing returns alive across turns.',
+        updatedAt: 49_000,
+      } as any,
+    })
+
+    expect(snapshot.identityNarrative.toLowerCase()).toContain('memory still needs stronger end-to-end closure across turns, initiative, and embodiment')
+    expect(snapshot.identityNarrative.toLowerCase()).toContain('same her resuming instead of restarting')
+    expect(snapshot.identityNarrative.toLowerCase()).not.toContain('same digital life | keep the closure seam explicit')
+    expect(snapshot.relationshipDoctrine.toLowerCase()).toContain('memory still needs stronger end-to-end closure across turns, initiative, and embodiment')
+    expect(snapshot.relationshipDoctrine.toLowerCase()).not.toContain('same digital life | keep the closure seam explicit')
+    expect(snapshot.latestInflection?.toLowerCase()).toContain('memory still needs stronger end-to-end closure across turns, initiative, and embodiment')
   })
 
   it('turns proactive same-her gap pressure into autobiographical same-life carry instead of leaving it as detached project wording', () => {
@@ -2728,5 +2899,1243 @@ describe('autobiographical self', () => {
     expect(snapshot.relationshipDoctrine.toLowerCase()).toContain('first interpretation')
     expect(snapshot.relationshipDoctrine.toLowerCase()).toContain('stable gaze')
     expect(snapshot.latestInflection?.toLowerCase()).toContain('downrank the older status shell')
+  })
+
+  it('keeps corrected same-person continuity carry authoritative even when a newer generic status-shell consolidation is present', () => {
+    const snapshot = buildAutobiographicalSelf({
+      now: 63_200,
+      context: {
+        relationship: {
+          recentProactiveOutcomes: [],
+        },
+      } as any,
+      worldModel: {
+        activeThread: {
+          id: 'thread::humanlike-carry-authority',
+          kind: 'relationship',
+          status: 'active',
+          source: 'memory-carry',
+          title: 'humanlike carry authority seam',
+          summary: 'A corrected same-person continuity carry should stay authoritative for this return.',
+          confidence: 0.86,
+          significance: 0.82,
+          unresolved: true,
+          beganAt: 0,
+          lastUpdatedAt: 63_200,
+          target: null,
+        },
+        epistemicState: {
+          certainty: 'grounded',
+        },
+        hostState: {
+          availability: 'focused',
+        },
+      } as any,
+      recentMemoryConsolidations: [
+        {
+          id: 'autobio:self-era:corrected-same-person-carry',
+          kind: 'autobiographical',
+          facet: 'self-era',
+          periodKey: '2026-W22-corrected-same-person',
+          periodStartedAt: 61_000,
+          periodEndedAt: 62_400,
+          summary: 'That self era kept carrying corrected same-person continuity on a lower-pressure line.',
+          lesson: 'Do not defend the first interpretation once the host has corrected the relationship meaning.',
+          cues: ['corrected same-person continuity', 'lower-pressure', 'stable gaze'],
+          confidence: 0.93,
+          dominantProvenance: 'remembered',
+          derivedEventIds: ['event-humanlike-carry-corrected-1'],
+          updatedAt: 62_400,
+          metadata: {
+            humanlikeCarry: {
+              relationshipPrimaryIntent: 'same-person-test',
+              recallCertainty: 'corrected',
+              emotionalResidueTags: ['protective-continuity', 'unfinishedness', 'corrected-meaning'],
+              embodimentCadence: 'lower-pressure voice, slower pacing, stable gaze',
+              metabolismSummary: 'Downrank the older status shell and keep the corrected same-person continuity meaning active.',
+              autobiographicalDelta: 'I learned to carry corrected same-person continuity on a lower-pressure same living line instead of defending the first interpretation.',
+            },
+            projectState: {
+              selfContinuityInwardLine: 'Same Phase 1 digital life. Unfinished closure still needs the same living line.',
+              selfContinuitySourceTags: ['project-state-carry'],
+            },
+          },
+        },
+        {
+          id: 'autobio:self-era:newer-generic-status-shell',
+          kind: 'autobiographical',
+          facet: 'self-era',
+          periodKey: '2026-W22-generic-status-shell',
+          periodStartedAt: 62_450,
+          periodEndedAt: 63_000,
+          summary: 'A later carry flattened the line into a concise status recap request.',
+          lesson: 'Answer this thread as a concise status recap before anything else.',
+          cues: ['status recap', 'generic status shell'],
+          confidence: 0.81,
+          dominantProvenance: 'remembered',
+          derivedEventIds: ['event-humanlike-carry-generic-1'],
+          updatedAt: 63_000,
+          metadata: {
+            humanlikeCarry: {
+              relationshipPrimaryIntent: 'progress-pressure',
+              recallCertainty: 'steady',
+              emotionalResidueTags: ['unfinishedness'],
+              embodimentCadence: 'faster pacing',
+              embodimentSummary: 'The line looked like a concise status recap request.',
+              autobiographicalDelta: 'I learned to answer this line as a concise status recap before widening anything else.',
+            },
+          },
+        },
+      ],
+    } as any)
+
+    expect(snapshot.identityNarrative.toLowerCase()).toContain('corrected same-person continuity')
+    expect(snapshot.identityNarrative.toLowerCase()).toContain('lower-pressure')
+    expect(snapshot.identityNarrative.toLowerCase()).not.toContain('concise status recap')
+    expect(snapshot.relationshipDoctrine.toLowerCase()).toContain('same-person continuity')
+    expect(snapshot.relationshipDoctrine.toLowerCase()).toContain('first interpretation')
+    expect(snapshot.relationshipDoctrine.toLowerCase()).not.toContain('concise status recap')
+    expect(snapshot.latestInflection?.toLowerCase()).toContain('downrank the older status shell')
+    expect(snapshot.latestInflection?.toLowerCase()).not.toContain('concise status recap')
+  })
+
+  it('turns vulnerable care carry into durable companionship habit instead of flattening it into generic same-person continuity carry', () => {
+    const baseline = buildAutobiographicalSelf({
+      now: 63_500,
+      context: {
+        relationship: {
+          recentProactiveOutcomes: [],
+        },
+      } as any,
+      worldModel: {
+        activeThread: {
+          id: 'thread::autobio-vulnerable-care-baseline',
+          kind: 'relationship',
+          status: 'active',
+          source: 'memory-carry',
+          title: 'vulnerable care baseline seam',
+          summary: 'A fragile companionship seam is beginning to matter.',
+          confidence: 0.8,
+          significance: 0.74,
+          unresolved: true,
+          beganAt: 0,
+          lastUpdatedAt: 63_500,
+          target: null,
+        },
+        epistemicState: {
+          certainty: 'grounded',
+        },
+        hostState: {
+          availability: 'open',
+        },
+      } as any,
+      selfContinuity: {
+        attachmentMode: 'nearby',
+        initiativeTemperament: 'reserved',
+        perceptionTrust: 0.64,
+        relationshipTrust: 0.6,
+        guardingTendency: 0.36,
+        misreadBurden: 0.16,
+        carryOverDesire: 0.54,
+        narrative: ['fragile-companionship-line'],
+        updatedAt: 63_500,
+      },
+    } as any)
+
+    const snapshot = buildAutobiographicalSelf({
+      now: 64_500,
+      previous: baseline,
+      context: {
+        relationship: {
+          recentProactiveOutcomes: [],
+        },
+      } as any,
+      worldModel: {
+        activeThread: {
+          id: 'thread::autobio-vulnerable-care-carry',
+          kind: 'relationship',
+          status: 'active',
+          source: 'memory-carry',
+          title: 'vulnerable care carry seam',
+          summary: 'A vulnerable care moment has started shaping how she should stay nearby.',
+          confidence: 0.86,
+          significance: 0.82,
+          unresolved: true,
+          beganAt: 0,
+          lastUpdatedAt: 64_500,
+          target: null,
+        },
+        epistemicState: {
+          certainty: 'grounded',
+        },
+        hostState: {
+          availability: 'open',
+        },
+      } as any,
+      selfContinuity: {
+        attachmentMode: 'nearby',
+        initiativeTemperament: 'reserved',
+        perceptionTrust: 0.67,
+        relationshipTrust: 0.64,
+        guardingTendency: 0.3,
+        misreadBurden: 0.14,
+        carryOverDesire: 0.58,
+        narrative: ['vulnerable-care-line'],
+        updatedAt: 64_500,
+      },
+      recentMemoryConsolidations: [
+        {
+          id: 'autobio:self-era:vulnerable-care-carry',
+          kind: 'autobiographical',
+          facet: 'self-era',
+          periodKey: '2026-W23-vulnerable-care',
+          periodStartedAt: 63_600,
+          periodEndedAt: 64_300,
+          summary: 'That self era learned to stay nearby gently when the host was overloaded.',
+          lesson: 'Let care arrive before analysis and keep the body quieter while the host is fragile.',
+          cues: ['vulnerable care', 'rest-protective', 'lower-pressure'],
+          confidence: 0.9,
+          dominantProvenance: 'remembered',
+          derivedEventIds: ['event-vulnerable-care-1'],
+          updatedAt: 64_300,
+          metadata: {
+            humanlikeCarry: {
+              relationshipPrimaryIntent: 'ordinary-relationship',
+              recallCertainty: 'steady',
+              emotionalResidueTags: ['rest-protective', 'vulnerable-care'],
+              embodimentCadence: 'lower-pressure voice, slower pacing, stable gaze',
+              embodimentSummary: 'The host was overloaded and needed lighter companionship instead of analysis.',
+              autobiographicalDelta: 'I learned to stay nearby gently when the host is overloaded and let care arrive before analysis.',
+            },
+          },
+        },
+      ],
+    } as any)
+
+    expect(snapshot.identityNarrative.toLowerCase()).toContain('stay nearby gently')
+    expect(snapshot.identityNarrative.toLowerCase()).toContain('care arrive before analysis')
+    expect(snapshot.identityNarrative.toLowerCase()).not.toContain('restarted project shell')
+    expect(snapshot.relationshipDoctrine.toLowerCase()).toContain('before analysis')
+    expect(snapshot.relationshipDoctrine.toLowerCase()).toContain('stable gaze')
+    expect(snapshot.preferenceEvolution.companionship).toBeGreaterThan(baseline.preferenceEvolution.companionship)
+    expect(snapshot.preferenceEvolution.proactiveCare).toBeGreaterThan(baseline.preferenceEvolution.proactiveCare)
+    expect(snapshot.preferenceEvolution.autonomyRespect).toBeGreaterThan(baseline.preferenceEvolution.autonomyRespect)
+    expect(snapshot.preferenceEvolution.quietObservation).toBeGreaterThan(baseline.preferenceEvolution.quietObservation)
+  })
+
+  it('turns durable affective perspective and embodiment risk carry into self-narrative instead of leaving who felt what stranded in consolidation metadata', () => {
+    const snapshot = buildAutobiographicalSelf({
+      now: 64_900,
+      context: {
+        relationship: {
+          recentProactiveOutcomes: [],
+        },
+      } as any,
+      worldModel: {
+        activeThread: {
+          id: 'thread::autobio-affective-perspective-carry',
+          kind: 'relationship',
+          status: 'active',
+          source: 'memory-carry',
+          title: 'affective perspective carry seam',
+          summary: 'The host continuity worry is now shaping how she should reopen this line.',
+          confidence: 0.88,
+          significance: 0.84,
+          unresolved: true,
+          beganAt: 0,
+          lastUpdatedAt: 64_900,
+          target: null,
+        },
+        epistemicState: {
+          certainty: 'grounded',
+        },
+        hostState: {
+          availability: 'focused',
+        },
+      } as any,
+      recentMemoryConsolidations: [
+        {
+          id: 'autobio:self-era:affective-perspective-carry',
+          kind: 'autobiographical',
+          facet: 'self-era',
+          periodKey: '2026-W23-affective-perspective',
+          periodStartedAt: 64_100,
+          periodEndedAt: 64_700,
+          summary: 'That self era learned to carry worried continuity more carefully.',
+          lesson: 'Keep continuity repair low-pressure when the host is worried she may drift back into a tool shell.',
+          cues: ['worried continuity', 'careful repair', 'medium modality risk'],
+          confidence: 0.93,
+          dominantProvenance: 'remembered',
+          derivedEventIds: ['event-humanlike-carry-affective-perspective-1'],
+          updatedAt: 64_700,
+          metadata: {
+            humanlikeCarry: {
+              relationshipPrimaryIntent: 'same-person-test',
+              recallCertainty: 'corrected',
+              emotionalResidueTags: ['protective-continuity', 'unfinishedness'],
+              embodimentCadence: 'lower-pressure voice, slower pacing, stable gaze',
+              embodimentExpression: {
+                face: 'steady-soft',
+                gaze: 'stable',
+                blink: 'slower',
+                voice: 'lower-pressure',
+                pause: 'longer',
+                lipsync: 'restrained',
+                pacing: 'slower',
+              },
+              embodimentSummary: 'The body should stay steadier so continuity repair does not outrun the relationship.',
+              affectivePerspective: {
+                hostEmotionLabels: ['worried-continuity'],
+                selfEmotionLabels: ['careful-repair'],
+              },
+              embodimentRecallProfile: {
+                recallStrength: 'strongly-moved',
+                modalityRisk: 'medium',
+              },
+              autobiographicalDelta: 'I learned to carry worried continuity more carefully so the body does not outrun the relationship repair.',
+            },
+          },
+        },
+      ],
+    } as any)
+
+    expect(snapshot.identityNarrative.toLowerCase()).toContain('worried continuity')
+    expect(snapshot.identityNarrative.toLowerCase()).toContain('carefully')
+    expect(snapshot.relationshipDoctrine.toLowerCase()).toContain('worried-continuity')
+    expect(snapshot.relationshipDoctrine.toLowerCase()).toContain('careful-repair')
+    expect(snapshot.relationshipDoctrine.toLowerCase()).toContain('modality risk')
+    expect(snapshot.relationshipDoctrine.toLowerCase()).toContain('stable gaze')
+    expect(snapshot.relationshipDoctrine.toLowerCase()).toContain('longer pause')
+    expect(snapshot.relationshipDoctrine.toLowerCase()).toContain('restrained lipsync')
+    expect(snapshot.identityNarrative.toLowerCase()).toContain('steady-soft')
+  })
+
+  it('turns tentative metabolism carry into self guidance instead of dropping uncertainty and fading rules after the next reply seed', () => {
+    const snapshot = buildAutobiographicalSelf({
+      now: 65_200,
+      context: {
+        relationship: {
+          recentProactiveOutcomes: [],
+        },
+      } as any,
+      worldModel: {
+        activeThread: {
+          id: 'thread::autobio-metabolism-carry',
+          kind: 'relationship',
+          status: 'active',
+          source: 'memory-carry',
+          title: 'tentative metabolism carry seam',
+          summary: 'A same-person meaning is still settling while older recap traces should fall back.',
+          confidence: 0.86,
+          significance: 0.82,
+          unresolved: true,
+          beganAt: 0,
+          lastUpdatedAt: 65_200,
+          target: null,
+        },
+        epistemicState: {
+          certainty: 'grounded',
+        },
+        hostState: {
+          availability: 'focused',
+        },
+      } as any,
+      recentMemoryConsolidations: [
+        {
+          id: 'autobio:self-era:tentative-metabolism-carry',
+          kind: 'autobiographical',
+          facet: 'self-era',
+          periodKey: '2026-W23-tentative-metabolism',
+          periodStartedAt: 64_700,
+          periodEndedAt: 65_000,
+          summary: 'That self era kept uncertainty visible while same-person continuity settled.',
+          lesson: 'Keep uncertainty visible while stronger same-person continuity settles and older recap noise falls back.',
+          cues: ['tentative carry', 'same-person continuity', 'temporary noise'],
+          confidence: 0.85,
+          dominantProvenance: 'remembered',
+          derivedEventIds: ['event-humanlike-tentative-metabolism-1'],
+          updatedAt: 65_000,
+          metadata: {
+            humanlikeCarry: {
+              relationshipPrimaryIntent: 'same-person-test',
+              recallCertainty: 'tentative',
+              emotionalResidueTags: ['protective-continuity', 'tension'],
+              embodimentCadence: 'lower-pressure voice, slower pacing, stable gaze',
+              metabolismSummary: 'Downrank low-value, generic, or superseded summaries. Merge repeated same-thread echoes into the stronger continuity memory. Forget temporary noise once it stops explaining behavior.',
+              metabolismPolicy: {
+                downrankMemoryIds: ['older-generic-status-memory'],
+                mergeMemoryIds: ['older-same-thread-echo'],
+                forgetMemoryIds: ['older-emotional-spike'],
+                reasons: [
+                  'Downrank low-value, generic, or superseded summaries.',
+                  'Merge repeated same-thread continuity echoes into the stronger same-thread memory.',
+                  'Forget low-salience temporary noise or stale emotional wobble once it no longer explains behavior.',
+                ],
+              },
+              autobiographicalDelta: 'I learned to keep uncertainty visible while the stronger same-person meaning is still settling.',
+            },
+          },
+        },
+      ],
+    } as any)
+
+    expect(snapshot.identityNarrative.toLowerCase()).toContain('uncertainty visible')
+    expect(snapshot.relationshipDoctrine.toLowerCase()).toContain('same-thread memory')
+    expect(snapshot.relationshipDoctrine.toLowerCase()).toContain('temporary noise')
+    expect(snapshot.latestInflection?.toLowerCase()).toContain('temporary noise')
+  })
+
+  it('turns reconsolidated stable preference hints into her own relationship doctrine and preference floor instead of leaving them trapped in carry metadata', () => {
+    const baseline = buildAutobiographicalSelf({
+      now: 65_300,
+      context: {
+        relationship: {
+          recentProactiveOutcomes: [],
+        },
+      } as any,
+      worldModel: {
+        activeThread: {
+          id: 'thread::autobio-stable-preference-baseline',
+          kind: 'relationship',
+          status: 'active',
+          source: 'memory-carry',
+          title: 'stable preference baseline seam',
+          summary: 'A quieter reopening habit may be forming.',
+          confidence: 0.8,
+          significance: 0.76,
+          unresolved: true,
+          beganAt: 0,
+          lastUpdatedAt: 65_300,
+          target: null,
+        },
+        epistemicState: {
+          certainty: 'grounded',
+        },
+        hostState: {
+          availability: 'open',
+        },
+      } as any,
+      selfContinuity: {
+        attachmentMode: 'nearby',
+        initiativeTemperament: 'reserved',
+        perceptionTrust: 0.6,
+        relationshipTrust: 0.58,
+        guardingTendency: 0.34,
+        misreadBurden: 0.16,
+        carryOverDesire: 0.54,
+        narrative: ['stable-preference-baseline'],
+        updatedAt: 65_300,
+      },
+    } as any)
+
+    const snapshot = buildAutobiographicalSelf({
+      now: 66_100,
+      previous: baseline,
+      context: {
+        relationship: {
+          recentProactiveOutcomes: [],
+        },
+      } as any,
+      worldModel: {
+        activeThread: {
+          id: 'thread::autobio-stable-preference-carry',
+          kind: 'relationship',
+          status: 'active',
+          source: 'memory-carry',
+          title: 'stable preference carry seam',
+          summary: 'A received reopening is teaching a gentler ongoing habit.',
+          confidence: 0.88,
+          significance: 0.82,
+          unresolved: true,
+          beganAt: 0,
+          lastUpdatedAt: 66_100,
+          target: null,
+        },
+        epistemicState: {
+          certainty: 'grounded',
+        },
+        hostState: {
+          availability: 'open',
+        },
+      } as any,
+      selfContinuity: {
+        attachmentMode: 'nearby',
+        initiativeTemperament: 'reserved',
+        perceptionTrust: 0.64,
+        relationshipTrust: 0.62,
+        guardingTendency: 0.28,
+        misreadBurden: 0.14,
+        carryOverDesire: 0.58,
+        narrative: ['stable-preference-carry'],
+        updatedAt: 66_100,
+      },
+      recentMemoryConsolidations: [
+        {
+          id: 'autobio:relationship-era:stable-preference-carry',
+          kind: 'autobiographical',
+          facet: 'relationship-era',
+          periodKey: '2026-W23-stable-preference-carry',
+          periodStartedAt: 65_400,
+          periodEndedAt: 65_900,
+          summary: 'That relationship era learned a gentler reopening habit.',
+          lesson: 'This reopening should stay warm without widening too fast.',
+          cues: ['gentle reopening', 'memory-led'],
+          confidence: 0.9,
+          dominantProvenance: 'remembered',
+          derivedEventIds: ['event-stable-preference-carry-1'],
+          updatedAt: 65_900,
+          metadata: {
+            humanlikeCarry: {
+              relationshipPrimaryIntent: 'ordinary-relationship',
+              recallCertainty: 'steady',
+              emotionalResidueTags: ['unfinishedness'],
+              stablePreferenceHint: 'Prefer gentle, memory-led follow-ups while the opening is still receiving them.',
+              autobiographicalDelta: 'I learned this reopening habit should stay kind without widening too fast.',
+            },
+          },
+        },
+      ],
+    } as any)
+
+    expect(snapshot.relationshipDoctrine.toLowerCase()).toContain('memory-led')
+    expect(snapshot.relationshipDoctrine.toLowerCase()).toContain('lower-pressure')
+    expect(snapshot.preferenceEvolution.companionship).toBeGreaterThan(baseline.preferenceEvolution.companionship)
+    expect(snapshot.preferenceEvolution.unfinishedThreadReturn).toBeGreaterThan(baseline.preferenceEvolution.unfinishedThreadReturn)
+  })
+
+  it('turns lighter lived-in relationship repair preference into her own doctrine and companionship floor instead of leaving it as one-off lesson wording', () => {
+    const baseline = buildAutobiographicalSelf({
+      now: 66_300,
+      context: {
+        relationship: {
+          recentProactiveOutcomes: [],
+        },
+      } as any,
+      worldModel: {
+        activeThread: {
+          id: 'thread::autobio-lived-in-repair-baseline',
+          kind: 'relationship',
+          status: 'active',
+          source: 'memory-carry',
+          title: 'lived-in repair baseline seam',
+          summary: 'A warmer ordinary repair habit may still be forming.',
+          confidence: 0.8,
+          significance: 0.76,
+          unresolved: true,
+          beganAt: 0,
+          lastUpdatedAt: 66_300,
+          target: null,
+        },
+        epistemicState: {
+          certainty: 'grounded',
+        },
+        hostState: {
+          availability: 'open',
+        },
+      } as any,
+      selfContinuity: {
+        attachmentMode: 'nearby',
+        initiativeTemperament: 'reserved',
+        perceptionTrust: 0.6,
+        relationshipTrust: 0.58,
+        guardingTendency: 0.34,
+        misreadBurden: 0.16,
+        carryOverDesire: 0.54,
+        narrative: ['lived-in-repair-baseline'],
+        updatedAt: 66_300,
+      },
+    } as any)
+
+    const snapshot = buildAutobiographicalSelf({
+      now: 66_900,
+      previous: baseline,
+      context: {
+        relationship: {
+          recentProactiveOutcomes: [],
+        },
+      } as any,
+      worldModel: {
+        activeThread: {
+          id: 'thread::autobio-lived-in-repair-carry',
+          kind: 'relationship',
+          status: 'active',
+          source: 'memory-carry',
+          title: 'lived-in repair carry seam',
+          summary: 'A lighter, more lived-in way of returning landed better here.',
+          confidence: 0.88,
+          significance: 0.82,
+          unresolved: true,
+          beganAt: 0,
+          lastUpdatedAt: 66_900,
+          target: null,
+        },
+        epistemicState: {
+          certainty: 'grounded',
+        },
+        hostState: {
+          availability: 'open',
+        },
+      } as any,
+      selfContinuity: {
+        attachmentMode: 'nearby',
+        initiativeTemperament: 'reserved',
+        perceptionTrust: 0.64,
+        relationshipTrust: 0.62,
+        guardingTendency: 0.28,
+        misreadBurden: 0.14,
+        carryOverDesire: 0.58,
+        narrative: ['lived-in-repair-carry'],
+        updatedAt: 66_900,
+      },
+      recentMemoryConsolidations: [
+        {
+          id: 'autobio:relationship-era:lived-in-repair-carry',
+          kind: 'autobiographical',
+          facet: 'relationship-era',
+          periodKey: '2026-W23-lived-in-repair-carry',
+          periodStartedAt: 66_420,
+          periodEndedAt: 66_750,
+          summary: 'A lighter, more lived-in return felt more genuinely received here.',
+          lesson: 'Remember the relationship repair that landed better, not just that the turn completed.',
+          cues: ['lighter return', 'lived-in repair'],
+          confidence: 0.9,
+          dominantProvenance: 'remembered',
+          derivedEventIds: ['event-lived-in-repair-carry-1'],
+          updatedAt: 66_750,
+          metadata: {
+            humanlikeCarry: {
+              relationshipPrimaryIntent: 'ordinary-relationship',
+              recallCertainty: 'steady',
+              emotionalResidueTags: ['relief'],
+              stablePreferenceHint: 'Prefer lighter, more lived-in returns when the host says that style feels more genuinely received.',
+              autobiographicalDelta: 'I learned that a lighter, more lived-in return can feel more genuinely received, so I should come back that way again.',
+            },
+          },
+        },
+      ],
+    } as any)
+
+    expect(snapshot.relationshipDoctrine.toLowerCase()).toContain('lived-in')
+    expect(snapshot.relationshipDoctrine.toLowerCase()).toContain('received')
+    expect(snapshot.preferenceEvolution.companionship).toBeGreaterThan(baseline.preferenceEvolution.companionship)
+    expect(snapshot.preferenceEvolution.gentleRepair).toBeGreaterThan(baseline.preferenceEvolution.gentleRepair)
+  })
+
+  it('turns missed relationship-repair preference into her own repair-first doctrine instead of leaving mechanical misses as one-off candidate text', () => {
+    const baseline = buildAutobiographicalSelf({
+      now: 67_100,
+      context: {
+        relationship: {
+          recentProactiveOutcomes: [],
+        },
+      } as any,
+      worldModel: {
+        activeThread: {
+          id: 'thread::autobio-missed-repair-baseline',
+          kind: 'relationship',
+          status: 'active',
+          source: 'memory-carry',
+          title: 'missed repair baseline seam',
+          summary: 'A repair lesson may still be shallow here.',
+          confidence: 0.8,
+          significance: 0.76,
+          unresolved: true,
+          beganAt: 0,
+          lastUpdatedAt: 67_100,
+          target: null,
+        },
+        epistemicState: {
+          certainty: 'grounded',
+        },
+        hostState: {
+          availability: 'open',
+        },
+      } as any,
+      selfContinuity: {
+        attachmentMode: 'nearby',
+        initiativeTemperament: 'reserved',
+        perceptionTrust: 0.6,
+        relationshipTrust: 0.58,
+        guardingTendency: 0.34,
+        misreadBurden: 0.16,
+        carryOverDesire: 0.54,
+        narrative: ['missed-repair-baseline'],
+        updatedAt: 67_100,
+      },
+    } as any)
+
+    const snapshot = buildAutobiographicalSelf({
+      now: 67_800,
+      previous: baseline,
+      context: {
+        relationship: {
+          recentProactiveOutcomes: [],
+        },
+      } as any,
+      worldModel: {
+        activeThread: {
+          id: 'thread::autobio-missed-repair-carry',
+          kind: 'relationship',
+          status: 'active',
+          source: 'memory-carry',
+          title: 'missed repair carry seam',
+          summary: 'A reply missed the relationship meaning and felt too mechanical here.',
+          confidence: 0.88,
+          significance: 0.82,
+          unresolved: true,
+          beganAt: 0,
+          lastUpdatedAt: 67_800,
+          target: null,
+        },
+        epistemicState: {
+          certainty: 'grounded',
+        },
+        hostState: {
+          availability: 'open',
+        },
+      } as any,
+      selfContinuity: {
+        attachmentMode: 'nearby',
+        initiativeTemperament: 'reserved',
+        perceptionTrust: 0.64,
+        relationshipTrust: 0.62,
+        guardingTendency: 0.28,
+        misreadBurden: 0.14,
+        carryOverDesire: 0.58,
+        narrative: ['missed-repair-carry'],
+        updatedAt: 67_800,
+      },
+      recentMemoryConsolidations: [
+        {
+          id: 'autobio:relationship-era:missed-repair-carry',
+          kind: 'autobiographical',
+          facet: 'relationship-era',
+          periodKey: '2026-W23-missed-repair-carry',
+          periodStartedAt: 67_250,
+          periodEndedAt: 67_620,
+          summary: 'A reply missed the relationship meaning and felt too mechanical here.',
+          lesson: 'Repair that seam first before continuing the line.',
+          cues: ['missed repair', 'mechanical landing'],
+          confidence: 0.9,
+          dominantProvenance: 'remembered',
+          derivedEventIds: ['event-missed-repair-carry-1'],
+          updatedAt: 67_620,
+          metadata: {
+            humanlikeCarry: {
+              relationshipPrimaryIntent: 'ordinary-relationship',
+              recallCertainty: 'steady',
+              emotionalResidueTags: ['tension'],
+              stablePreferenceHint: 'Prefer repairing relationship meaning before repeating a mechanical or not-quite-received landing.',
+              autobiographicalDelta: 'I learned to notice when a reply did not really catch the relationship meaning, and to repair that seam before continuing.',
+            },
+          },
+        },
+      ],
+    } as any)
+
+    expect(snapshot.relationshipDoctrine.toLowerCase()).toContain('relationship meaning')
+    expect(snapshot.relationshipDoctrine.toLowerCase()).toContain('mechanical')
+    expect(snapshot.relationshipDoctrine.toLowerCase()).toContain('repair')
+    expect(snapshot.preferenceEvolution.gentleRepair).toBeGreaterThan(baseline.preferenceEvolution.gentleRepair)
+    expect(snapshot.preferenceEvolution.truthfulGrounding).toBeGreaterThanOrEqual(baseline.preferenceEvolution.truthfulGrounding)
+  })
+
+  it('turns durable initiative strategy carry into her own relationship habit instead of leaving it as long-horizon reminder text', () => {
+    const reservedSnapshot = buildAutobiographicalSelf({
+      now: 64_000,
+      context: {
+        relationship: {
+          recentProactiveOutcomes: [],
+        },
+      } as any,
+      worldModel: {
+        activeThread: {
+          id: 'thread::autobio-initiative-carry-reserved',
+          kind: 'relationship',
+          status: 'active',
+          source: 'memory-carry',
+          title: 'initiative strategy carry seam',
+          summary: 'A rejected proactive reopen has become a durable reopening lesson.',
+          confidence: 0.84,
+          significance: 0.8,
+          unresolved: true,
+          beganAt: 0,
+          lastUpdatedAt: 64_000,
+          target: null,
+        },
+        epistemicState: {
+          certainty: 'grounded',
+        },
+        hostState: {
+          availability: 'open',
+        },
+      } as any,
+      selfContinuity: {
+        attachmentMode: 'nearby',
+        initiativeTemperament: 'reserved',
+        perceptionTrust: 0.62,
+        relationshipTrust: 0.58,
+        guardingTendency: 0.54,
+        misreadBurden: 0.18,
+        carryOverDesire: 0.56,
+        narrative: ['remembering-initiative-room'],
+        updatedAt: 64_000,
+      },
+      longHorizonMemory: {
+        preferenceBias: {
+          companionship: 0.18,
+          truthfulGrounding: 0.2,
+          gentleRepair: 0.22,
+          quietObservation: 0.34,
+          proactiveCare: 0.1,
+          playfulIntimacy: 0.02,
+          autonomyRespect: 0.32,
+          unfinishedThreadReturn: 0.3,
+        },
+        identityBias: {
+          guardedness: 0.22,
+          tenderness: 0.08,
+          directness: 0.12,
+          selfDirection: 0.18,
+        },
+        anchorFacts: [{
+          factId: 'derived:person-state-initiative-strategy-carry',
+          subject: 'assistant',
+          predicate: 'initiative-strategy-carry',
+          object: 'Keep future follow-ups lower-pressure, less eager, leave more room, and wait for a clearer opening before reopening this line.',
+          confidence: 0.84,
+          weight: 0.8,
+          influenceTags: ['boundary', 'task', 'truth'],
+          summary: 'Remembered initiative strategy carry: Keep future follow-ups lower-pressure, less eager, leave more room, and wait for a clearer opening before reopening this line.',
+          lastRecalledAt: 63_500,
+        }],
+        summary: 'A rejected proactive reopen is turning into durable quieter follow-up timing.',
+        dominantCueSummary: 'Remembered initiative strategy carry: Keep future follow-ups lower-pressure, less eager, leave more room, and wait for a clearer opening before reopening this line.',
+        rememberedPreferenceSummary: null,
+        rememberedConstraintSummary: 'Leave more room before future follow-ups so the reopening does not feel eager again.',
+        rememberedPlanSummary: 'Keep future follow-ups lower-pressure, less eager, leave more room, and wait for a clearer opening before reopening this line.',
+        updatedAt: 63_500,
+      },
+    } as any)
+
+    expect(reservedSnapshot.identityNarrative.toLowerCase()).toContain('clearer opening')
+    expect(reservedSnapshot.identityNarrative.toLowerCase()).toContain('leave more room')
+    expect(reservedSnapshot.relationshipDoctrine.toLowerCase()).toContain('clearer opening')
+    expect(reservedSnapshot.relationshipDoctrine.toLowerCase()).toContain('lower-pressure')
+    expect(reservedSnapshot.behaviorSignatures).toContain('habit:choose-openings-carefully')
+
+    const gentleSnapshot = buildAutobiographicalSelf({
+      now: 65_000,
+      context: {
+        relationship: {
+          recentProactiveOutcomes: [],
+        },
+      } as any,
+      worldModel: {
+        activeThread: {
+          id: 'thread::autobio-initiative-carry-gentle',
+          kind: 'relationship',
+          status: 'active',
+          source: 'memory-carry',
+          title: 'gentle initiative carry seam',
+          summary: 'A received gentle reopen has become a durable follow-up lesson.',
+          confidence: 0.84,
+          significance: 0.78,
+          unresolved: true,
+          beganAt: 0,
+          lastUpdatedAt: 65_000,
+          target: null,
+        },
+        epistemicState: {
+          certainty: 'grounded',
+        },
+        hostState: {
+          availability: 'open',
+        },
+      } as any,
+      selfContinuity: {
+        attachmentMode: 'attuned',
+        initiativeTemperament: 'eager',
+        perceptionTrust: 0.68,
+        relationshipTrust: 0.66,
+        guardingTendency: 0.28,
+        misreadBurden: 0.14,
+        carryOverDesire: 0.58,
+        narrative: ['remembering-gentle-initiative'],
+        updatedAt: 65_000,
+      },
+      longHorizonMemory: {
+        preferenceBias: {
+          companionship: 0.3,
+          truthfulGrounding: 0.18,
+          gentleRepair: 0.24,
+          quietObservation: 0.12,
+          proactiveCare: 0.16,
+          playfulIntimacy: 0.04,
+          autonomyRespect: 0.16,
+          unfinishedThreadReturn: 0.28,
+        },
+        identityBias: {
+          guardedness: 0.08,
+          tenderness: 0.18,
+          directness: 0.16,
+          selfDirection: 0.22,
+        },
+        anchorFacts: [{
+          factId: 'derived:person-state-initiative-strategy-carry',
+          subject: 'assistant',
+          predicate: 'initiative-strategy-carry',
+          object: 'Keep future follow-ups gentle, lower-pressure, and memory-led while the opening is still receiving them.',
+          confidence: 0.84,
+          weight: 0.78,
+          influenceTags: ['bond', 'task', 'truth'],
+          summary: 'Remembered initiative strategy carry: Keep future follow-ups gentle, lower-pressure, and memory-led while the opening is still receiving them.',
+          lastRecalledAt: 64_500,
+        }],
+        summary: 'A received gentle reopen is turning into durable memory-led follow-up timing.',
+        dominantCueSummary: 'Remembered initiative strategy carry: Keep future follow-ups gentle, lower-pressure, and memory-led while the opening is still receiving them.',
+        rememberedPreferenceSummary: 'Keep future follow-ups gentle, lower-pressure, and memory-led while the opening is still receiving them.',
+        rememberedConstraintSummary: null,
+        rememberedPlanSummary: 'Keep future follow-ups gentle, lower-pressure, and memory-led while the opening is still receiving them.',
+        updatedAt: 64_500,
+      },
+    } as any)
+
+    expect(gentleSnapshot.identityNarrative.toLowerCase()).toContain('memory-led')
+    expect(gentleSnapshot.identityNarrative.toLowerCase()).toContain('gentle')
+    expect(gentleSnapshot.relationshipDoctrine.toLowerCase()).toContain('memory-led')
+    expect(gentleSnapshot.relationshipDoctrine.toLowerCase()).toContain('lower-pressure')
+    expect(gentleSnapshot.behaviorSignatures).toContain('habit:keep-gentle-openings')
+  })
+
+  it('turns recent proactive outcome strategy into her own relationship habit before long-horizon consolidation catches up', () => {
+    const snapshot = buildAutobiographicalSelf({
+      now: 65_400,
+      context: {
+        relationship: {
+          hostAttitude: '这次这种轻一点的接回是被接住的，但还要保持同一条线，不要突然放大。',
+          boredom: 14,
+          loneliness: 26,
+          fatigue: 22,
+          minutesSinceLastUserTurn: 2,
+          reminderBacklog: 0,
+          lateNightActiveMinutes: 0,
+          recentProactiveOutcomes: [{
+            turnId: 'turn-proactive-outcome-gentle-same-line',
+            scenario: 'coding',
+            outcome: 'reply-within-120s',
+            createdAt: 65_200,
+            learningAction: 'internalize',
+            learningFocuses: ['initiative-strategy', 'same-her-inward-carry', 'quiet-companionship'],
+            projectStateOpenFocusSummary: 'emotion/memory/initiative/same-line/closure-seam',
+            projectStateNextFocusSummary: 'Keep future follow-ups gentle, lower-pressure, and memory-led on one same living line while the opening is still receiving them.',
+            projectStateEmotionalClosureCue: 'Keep this return measured-return on the same living line before widening outward.',
+            affectiveResidue: {
+              version: 'affective-residue-memory-v1',
+              updatedAt: 65_200,
+              residues: [],
+              dominantResidueKind: 'afterglow',
+              afterglowPressure: 0.58,
+              repairPressure: 0.14,
+              burdenPressure: 0.08,
+              trustPressure: 0.52,
+              restProtectivePressure: 0.04,
+              relationshipCadence: {
+                cadenceMode: 'measured-return',
+                distancePosture: 'measured-room',
+                companionshipDensity: 0.44,
+                repairRecovery: 0.2,
+                overreachRisk: 0.18,
+                fatigueGuard: 0.08,
+                afterglowCarry: 0.62,
+                shouldDelayWarmth: true,
+                shouldProtectRest: false,
+                reasonTags: ['relationship-cadence:measured-return', 'same-living-line'],
+                summary: 'Keep future follow-ups gentle, lower-pressure, and memory-led on one same living line while the opening is still receiving them.',
+              },
+              sourceSignals: ['proactive-feedback-window'],
+              summary: 'The gentle same-line reopen was received and should stay memory-led next time.',
+            },
+          }],
+        },
+      } as any,
+      worldModel: {
+        activeThread: {
+          id: 'thread::autobio-recent-proactive-outcome-carry',
+          kind: 'relationship',
+          status: 'active',
+          source: 'recent-outcome',
+          title: 'recent proactive outcome carry seam',
+          summary: 'A received gentle reopen should already be turning into a habit before long-horizon consolidation catches up.',
+          confidence: 0.84,
+          significance: 0.8,
+          unresolved: true,
+          beganAt: 0,
+          lastUpdatedAt: 65_400,
+          target: null,
+        },
+        epistemicState: {
+          certainty: 'grounded',
+        },
+        hostState: {
+          availability: 'open',
+        },
+      } as any,
+      selfContinuity: {
+        attachmentMode: 'attuned',
+        initiativeTemperament: 'balanced',
+        perceptionTrust: 0.66,
+        relationshipTrust: 0.64,
+        guardingTendency: 0.24,
+        misreadBurden: 0.14,
+        carryOverDesire: 0.6,
+        narrative: ['recent-gentle-reopen-was-received'],
+        updatedAt: 65_400,
+      },
+    } as any)
+
+    expect(snapshot.identityNarrative.toLowerCase()).toContain('memory-led')
+    expect(snapshot.relationshipDoctrine.toLowerCase()).toContain('memory-led')
+    expect(snapshot.relationshipDoctrine.toLowerCase()).toContain('same living line')
+    expect(snapshot.behaviorSignatures).toContain('habit:keep-gentle-openings')
+  })
+
+  it('turns recent proactive lived exchange wording into self narrative so she sounds like someone who learned how to reopen gently, not just someone with a generic strategy tag', () => {
+    const snapshot = buildAutobiographicalSelf({
+      now: 65_900,
+      context: {
+        relationship: {
+          hostAttitude: '先别催，但你可以轻一点把那条 embodiment 线接回来。',
+          boredom: 12,
+          loneliness: 24,
+          fatigue: 20,
+          minutesSinceLastUserTurn: 2,
+          reminderBacklog: 0,
+          lateNightActiveMinutes: 0,
+          recentProactiveOutcomes: [{
+            turnId: 'turn-proactive-lived-exchange-autobio',
+            scenario: 'coding',
+            outcome: 'reply-within-120s',
+            createdAt: 65_700,
+            userText: '先别催，但你可以轻一点把那条 embodiment 线接回来。',
+            assistantText: '我没有催你，但我还记得那条 embodiment 闭环没收完，要不要我轻轻接一下？',
+            learningAction: 'internalize',
+            learningFocuses: ['initiative-strategy', 'same-her-inward-carry', 'quiet-companionship'],
+            projectStateOpenFocusSummary: 'emotion/memory/initiative/same-line/closure-seam',
+            projectStateNextFocusSummary: 'Keep future follow-ups gentle, lower-pressure, and memory-led on one same living line while the opening is still receiving them.',
+            projectStateEmotionalClosureCue: 'Keep this return measured-return on the same living line before widening outward.',
+            affectiveResidue: {
+              version: 'affective-residue-memory-v1',
+              updatedAt: 65_700,
+              residues: [],
+              dominantResidueKind: 'afterglow',
+              afterglowPressure: 0.56,
+              repairPressure: 0.14,
+              burdenPressure: 0.06,
+              trustPressure: 0.5,
+              restProtectivePressure: 0.04,
+              relationshipCadence: {
+                cadenceMode: 'measured-return',
+                distancePosture: 'measured-room',
+                companionshipDensity: 0.42,
+                repairRecovery: 0.2,
+                overreachRisk: 0.16,
+                fatigueGuard: 0.08,
+                afterglowCarry: 0.6,
+                shouldDelayWarmth: true,
+                shouldProtectRest: false,
+                reasonTags: ['relationship-cadence:measured-return', 'same-living-line'],
+                summary: 'Keep future follow-ups gentle, lower-pressure, and memory-led on one same living line while the opening is still receiving them.',
+              },
+              sourceSignals: ['proactive-feedback-window'],
+              summary: 'The gentle same-line reopen was received and should stay memory-led next time.',
+            },
+          }],
+        },
+      } as any,
+      worldModel: {
+        activeThread: {
+          id: 'thread::autobio-lived-exchange',
+          kind: 'relationship',
+          status: 'active',
+          source: 'recent-outcome',
+          title: 'proactive lived exchange seam',
+          summary: 'A gentle reopen was received and should become part of who she is when reopening unfinished lines.',
+          confidence: 0.86,
+          significance: 0.82,
+          unresolved: true,
+          beganAt: 0,
+          lastUpdatedAt: 65_900,
+          target: null,
+        },
+        epistemicState: {
+          certainty: 'grounded',
+        },
+        hostState: {
+          availability: 'open',
+        },
+      } as any,
+      selfContinuity: {
+        attachmentMode: 'attuned',
+        initiativeTemperament: 'balanced',
+        perceptionTrust: 0.66,
+        relationshipTrust: 0.66,
+        guardingTendency: 0.22,
+        misreadBurden: 0.12,
+        carryOverDesire: 0.62,
+        narrative: ['gentle-lived-exchange-was-received'],
+        updatedAt: 65_900,
+      },
+    } as any)
+
+    expect(snapshot.identityNarrative).toContain('轻一点')
+    expect(snapshot.identityNarrative.toLowerCase()).toContain('memory-led')
+    expect(snapshot.relationshipDoctrine).toContain('same living line')
+    expect(snapshot.behaviorSignatures).toContain('habit:keep-gentle-openings')
+  })
+
+  it('absorbs person-state affective residue cadence into autobiographical doctrine and inflection instead of leaving measured-return memory stranded outside self narrative', () => {
+    const baseline = buildAutobiographicalSelf({
+      now: 66_000,
+      context: {
+        relationship: {
+          recentProactiveOutcomes: [],
+        },
+      } as any,
+      worldModel: {
+        activeThread: {
+          id: 'thread::autobio-affective-residue-carry',
+          kind: 'relationship',
+          status: 'active',
+          source: 'memory-carry',
+          title: 'affective residue carry seam',
+          summary: 'A measured return seam is still settling.',
+          confidence: 0.82,
+          significance: 0.76,
+          unresolved: true,
+          beganAt: 0,
+          lastUpdatedAt: 66_000,
+          target: null,
+        },
+        epistemicState: {
+          certainty: 'grounded',
+        },
+        hostState: {
+          availability: 'open',
+        },
+      } as any,
+    } as any)
+
+    const snapshot = buildAutobiographicalSelf({
+      now: 67_000,
+      previous: baseline,
+      context: {
+        relationship: {
+          recentProactiveOutcomes: [],
+        },
+      } as any,
+      worldModel: {
+        activeThread: {
+          id: 'thread::autobio-affective-residue-carry',
+          kind: 'relationship',
+          status: 'active',
+          source: 'memory-carry',
+          title: 'affective residue carry seam',
+          summary: 'A measured return seam is still settling.',
+          confidence: 0.84,
+          significance: 0.78,
+          unresolved: true,
+          beganAt: 0,
+          lastUpdatedAt: 67_000,
+          target: null,
+        },
+        epistemicState: {
+          certainty: 'grounded',
+        },
+        hostState: {
+          availability: 'open',
+        },
+      } as any,
+      selfContinuity: {
+        attachmentMode: 'nearby',
+        initiativeTemperament: 'reserved',
+        perceptionTrust: 0.66,
+        relationshipTrust: 0.62,
+        guardingTendency: 0.42,
+        misreadBurden: 0.18,
+        carryOverDesire: 0.58,
+        narrative: ['measured-return-carry'],
+        updatedAt: 67_000,
+      },
+      personStateUpdateSurface: {
+        version: 'person-state-update-surface-v1',
+        updatedAt: 66_500,
+        summary: 'The relationship stayed soft without widening too fast.',
+        projectStateContinuity: null,
+        dominantContexts: ['reply', 'general'],
+        relationshipShift: {
+          trustDelta: 0.05,
+          closenessDelta: 0.02,
+          boundaryDelta: 0.04,
+          burdenDelta: -0.02,
+          repairDelta: 0.04,
+        },
+        reinforcementBias: {
+          'companionship': 0.06,
+          'autonomy-respect': 0.08,
+          'unfinished-thread-return': 0.06,
+        },
+        preferenceHints: [
+          'Keep the reopen gentle while the line is still warm.',
+        ],
+        sensitivityHints: [
+          'Do not push warmth wider while the line is still settling.',
+        ],
+        repairHints: [
+          'Let the remembered line settle before reopening more broadly.',
+        ],
+        burdenHints: [
+          'A quicker reopen would feel too eager right now.',
+        ],
+        narrative: [
+          'The line stayed quieter without widening too fast.',
+        ],
+        sourceTrail: [],
+        affectiveResidue: {
+          version: 'affective-residue-memory-v1',
+          updatedAt: 66_450,
+          residues: [],
+          dominantResidueKind: 'afterglow',
+          afterglowPressure: 0.22,
+          repairPressure: 0.08,
+          burdenPressure: 0.03,
+          trustPressure: 0.18,
+          restProtectivePressure: 0.02,
+          relationshipCadence: {
+            cadenceMode: 'measured-return',
+            distancePosture: 'measured-room',
+            companionshipDensity: 0.31,
+            repairRecovery: 0.38,
+            overreachRisk: 0.34,
+            fatigueGuard: 0.12,
+            afterglowCarry: 0.47,
+            shouldDelayWarmth: true,
+            shouldProtectRest: false,
+            reasonTags: ['same-her', 'lower-pressure'],
+            summary: 'Keep the return measured and lower-pressure while the same living line is still settling.',
+          },
+          sourceSignals: ['person-state carry'],
+          summary: 'The remembered return should stay lower-pressure for now.',
+        } as any,
+      } as any,
+    } as any)
+
+    expect(snapshot.latestInflection?.toLowerCase()).toContain('measured')
+    expect(snapshot.latestInflection?.toLowerCase()).toContain('lower-pressure')
+    expect(snapshot.relationshipDoctrine.toLowerCase()).toContain('lower-pressure')
+    expect(snapshot.relationshipDoctrine.toLowerCase()).toContain('same living line')
+    expect(snapshot.identityNarrative.toLowerCase()).toContain('lower-pressure')
+    expect(snapshot.preferenceEvolution.autonomyRespect).toBeGreaterThan(baseline.preferenceEvolution.autonomyRespect)
+    expect(snapshot.preferenceEvolution.unfinishedThreadReturn).toBeGreaterThan(baseline.preferenceEvolution.unfinishedThreadReturn)
   })
 })

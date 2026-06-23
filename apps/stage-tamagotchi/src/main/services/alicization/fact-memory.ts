@@ -1,5 +1,10 @@
 import type { AlicizationMemoryFactInput, AlicizationMemoryUpsertTrace } from '../../../shared/eventa'
 
+import {
+  resolveAlicizationAutonomousDialogueFamilyClassification,
+  resolveAlicizationAutonomousDialogueOrigin,
+} from './runtime-structured-format'
+
 function sanitizeText(raw: unknown, maxChars: number) {
   if (typeof raw !== 'string')
     return ''
@@ -15,8 +20,17 @@ function normalizeConfidence(raw: unknown) {
 function normalizeTraceOrigin(trace?: AlicizationMemoryUpsertTrace | null) {
   if (!trace)
     return ''
-  if (trace.origin === 'user-turn' || trace.origin === 'subconscious-proactive' || trace.origin === 'system')
-    return trace.origin
+  const normalized = typeof trace.origin === 'string'
+    ? trace.origin.trim().toLowerCase()
+    : ''
+  const autonomousDialogueFamily = resolveAlicizationAutonomousDialogueFamilyClassification({
+    turnId: trace.turnId,
+    origin: normalized,
+  })
+  if (autonomousDialogueFamily.isAutonomous)
+    return autonomousDialogueFamily.canonicalOrigin ?? resolveAlicizationAutonomousDialogueOrigin('proactive')
+  if (normalized === 'user-turn' || normalized === 'system')
+    return normalized
   return ''
 }
 

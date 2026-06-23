@@ -41,7 +41,11 @@ function governingRepair(ledger?: AlicizationRepairLedgerSnapshot | null) {
 }
 
 function latestEntry(ledger?: AlicizationReflectionLedgerSnapshot | null) {
-  return ledger?.entries.find(entry => entry.id === ledger.latestEntryId)
+  const latest = ledger?.entries.find(entry => entry.id === ledger.latestEntryId)
+  if (latest && latest.outcome !== 'released')
+    return latest
+
+  return ledger?.entries.find(entry => entry.outcome !== 'released')
     ?? ledger?.entries[0]
     ?? null
 }
@@ -299,7 +303,9 @@ export function buildReflectionLedger(input: {
     dedupedEntries.unshift(nextEntry)
 
   const entries = dedupedEntries.slice(0, reflectionLimit)
-  const latest = entries[0] ?? null
+  const latest = entries.find(entry => entry.outcome !== 'released')
+    ?? entries[0]
+    ?? null
 
   return {
     latestEntryId: latest?.id ?? null,

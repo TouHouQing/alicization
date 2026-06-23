@@ -1,9 +1,11 @@
 import type {
+  AlicizationAffectiveResidueMemorySnapshot,
   AlicizationAnswerCompilerSnapshot,
   AlicizationAutobiographicalSelfSnapshot,
   AlicizationConversationStateSnapshot,
   AlicizationDesireMemorySnapshot,
   AlicizationDialogueWorldThreadSnapshot,
+  AlicizationEmotionalKernelSnapshot,
   AlicizationGoalStackSnapshot,
   AlicizationLongHorizonMemorySnapshot,
   AlicizationMotiveEngineSnapshot,
@@ -15,10 +17,16 @@ import type {
 import type { AlicizationDialogueTurnEncounter } from './dialogue-turn-encounter'
 import type { AlicizationMindEcologySnapshot } from './mind-ecology'
 import type { AlicizationPersonalityContinuityStateSnapshot } from './personality-continuity-state'
+import type { AlicizationSelfContinuityAuthority } from './self-continuity-authority'
 
 import { buildAutobiographicalContinuityLines } from './autobiographical-self'
 import { sanitizeDialogueAnchorText } from './dialogue-surface-text'
 import { buildMemoryRecollectionIntent } from './memory-recollection-intent'
+import {
+  isAlicizationThinProjectAwarenessLine,
+  resolveAlicizationProjectPreDialogueAwarenessLine,
+  resolveAlicizationProjectStateBrief,
+} from './project-state-brief'
 
 function sanitizeText(raw: unknown, maxChars = 220) {
   if (typeof raw !== 'string')
@@ -170,6 +178,129 @@ function buildEmbodiedCarry(input: {
   }
 }
 
+function buildSelfAuthorityAnchors(selfContinuityAuthority?: AlicizationSelfContinuityAuthority | null) {
+  if (!selfContinuityAuthority)
+    return []
+  return uniqueList([
+    selfContinuityAuthority.selfLine ? `self:${selfContinuityAuthority.selfLine}` : null,
+    selfContinuityAuthority.relationshipLine ? `relationship:${selfContinuityAuthority.relationshipLine}` : null,
+    selfContinuityAuthority.inwardLine ? `inward:${selfContinuityAuthority.inwardLine}` : null,
+    selfContinuityAuthority.habitLine ? `habit:${selfContinuityAuthority.habitLine}` : null,
+    selfContinuityAuthority.authoritySummary ? `authority:${selfContinuityAuthority.authoritySummary}` : null,
+  ], 5)
+}
+
+function buildProjectStateCarryLine(
+  longHorizonMemory?: AlicizationLongHorizonMemorySnapshot | null,
+) {
+  const rememberedPlanSummary = sanitizeText(longHorizonMemory?.rememberedPlanSummary, 220)
+  const rememberedConstraintSummary = sanitizeText(longHorizonMemory?.rememberedConstraintSummary, 220)
+  const rememberedPreferenceSummary = sanitizeText(longHorizonMemory?.rememberedPreferenceSummary, 220)
+  const dominantCueSummary = sanitizeText(longHorizonMemory?.dominantCueSummary, 220)
+  const combined = [
+    rememberedPlanSummary,
+    rememberedConstraintSummary,
+    rememberedPreferenceSummary,
+    dominantCueSummary,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase()
+
+  const carriesProjectIdentity
+    = combined.includes('local-first digital life')
+      || combined.includes('one continuous her')
+      || combined.includes('same-her')
+      || combined.includes('same her')
+      || combined.includes('phase 1')
+  const carriesLandedProgress
+    = combined.includes('already survives')
+      || combined.includes('already landed')
+      || combined.includes('has landed')
+      || combined.includes('already become real')
+  const carriesOpenClosure
+    = combined.includes('still-open closure')
+      || combined.includes('not closed')
+      || combined.includes('open loop')
+      || combined.includes('still needs')
+
+  if (!carriesProjectIdentity && !carriesLandedProgress && !carriesOpenClosure)
+    return null
+
+  return sanitizeText([
+    carriesProjectIdentity ? 'Same Phase 1 digital life.' : '',
+    carriesLandedProgress ? 'Some closure already landed.' : '',
+    carriesOpenClosure ? 'Unfinished closure still needs the same living line.' : '',
+  ].filter(Boolean).join(' '), 220) || null
+}
+
+function buildProjectPreflightRecallFallbackProjectState(
+  longHorizonMemory?: AlicizationLongHorizonMemorySnapshot | null,
+) {
+  const projectStateCarryLine = buildProjectStateCarryLine(longHorizonMemory)
+  if (!projectStateCarryLine)
+    return null
+
+  return {
+    identity: 'Alicization is a local-first digital life project',
+    currentPhase: 'Phase 1: Local Digital Life',
+    latestLandedProgress: projectStateCarryLine.includes('Some closure already landed.')
+      ? 'Some closure already landed.'
+      : '',
+    primaryOpenLoop: projectStateCarryLine.includes('Unfinished closure still needs the same living line.')
+      ? 'Unfinished closure still needs the same living line.'
+      : '',
+    preflightSummary: projectStateCarryLine,
+    preDialogueAwarenessLine: projectStateCarryLine,
+    awarenessLine: projectStateCarryLine,
+    companionBriefingLine: projectStateCarryLine,
+    sameHerSelfLine: projectStateCarryLine,
+  }
+}
+
+function buildProjectPreflightRecallAnchor(input: {
+  raw: unknown
+  longHorizonMemory?: AlicizationLongHorizonMemorySnapshot | null
+}) {
+  const summary = sanitizeText(input.raw, 220)
+  const longHorizonProjectFallback = buildProjectPreflightRecallFallbackProjectState(
+    input.longHorizonMemory ?? null,
+  )
+  if (!summary && !longHorizonProjectFallback)
+    return null
+
+  const canonicalSummary = sanitizeText(
+    resolveAlicizationProjectPreDialogueAwarenessLine({
+      runtimeProjectState: summary
+        ? {
+            preDialogueAwarenessLine: summary,
+            preflightSummary: summary,
+          }
+        : null,
+      fallbackProjectState: longHorizonProjectFallback ?? resolveAlicizationProjectStateBrief(),
+    }) ?? '',
+    220,
+  )
+
+  const resolvedSummary = !summary
+    ? canonicalSummary
+    : isAlicizationThinProjectAwarenessLine(summary)
+      ? canonicalSummary || summary
+      : canonicalSummary || summary
+
+  if (!resolvedSummary)
+    return null
+
+  return `project:${resolvedSummary}`
+}
+
+function buildProjectEmotionalClosureRecallAnchor(raw: unknown) {
+  const summary = sanitizeText(raw, 220)
+  if (!summary)
+    return null
+  return `project-emotion:${summary}`
+}
+
 function pickRecallAnchor(...values: unknown[]) {
   for (const value of values) {
     const normalized = sanitizeDialogueAnchorText(value, 180)
@@ -216,7 +347,32 @@ function buildRecalledFragmentSourceBudget(mode: AlicizationRecallGovernorSnapsh
   return []
 }
 
+function isRestProtectiveEmotionalKernel(
+  emotionalKernel?: AlicizationEmotionalKernelSnapshot | null,
+) {
+  return emotionalKernel?.memoryRecallMode === 'rest-protective-presence'
+    && (
+      emotionalKernel?.initiativeMode === 'rest-guard'
+      || emotionalKernel?.embodimentTone === 'rest-protective'
+      || emotionalKernel?.dominantEmotion === 'rest-protective-companionship'
+    )
+}
+
+function isGuardedCareConfirmationBoundaryEmotionalKernel(
+  emotionalKernel?: AlicizationEmotionalKernelSnapshot | null,
+) {
+  return emotionalKernel?.memoryRecallMode === 'self-continuity'
+    && (
+      emotionalKernel?.dominantEmotion === 'guarded-care'
+      || emotionalKernel?.embodimentTone === 'protective-watch'
+      || (emotionalKernel?.reasonTags ?? []).includes('execution-safety-gate')
+      || (emotionalKernel?.reasonTags ?? []).includes('confirmation-boundary')
+      || (emotionalKernel?.reasonTags ?? []).includes('wait-for-confirmation')
+    )
+}
+
 function resolveMode(input: {
+  emotionalKernel?: AlicizationEmotionalKernelSnapshot | null
   dialogueWorldThread?: AlicizationDialogueWorldThreadSnapshot | null
   conversationState?: AlicizationConversationStateSnapshot | null
   answerCompiler?: AlicizationAnswerCompilerSnapshot | null
@@ -226,6 +382,23 @@ function resolveMode(input: {
   primaryTurnAnchor?: string | null
   autobiographicalContinuityActive?: boolean
 }) {
+  const repairFirstEmotionalKernel = input.emotionalKernel?.memoryRecallMode === 'repair-grounding'
+    && (
+      input.emotionalKernel?.initiativeMode === 'repair'
+      || input.emotionalKernel?.embodimentTone === 'repair-before-closeness'
+      || input.emotionalKernel?.dominantEmotion === 'repair-tension'
+    )
+  const restProtectiveEmotionalKernel = isRestProtectiveEmotionalKernel(input.emotionalKernel ?? null)
+
+  if (repairFirstEmotionalKernel)
+    return 'scene' as const
+  if (restProtectiveEmotionalKernel)
+    return 'self-continuity' as const
+  if (input.emotionalKernel?.memoryRecallMode === 'emotional-resonance')
+    return 'emotional-resonance' as const
+  if (input.emotionalKernel?.memoryRecallMode === 'self-continuity')
+    return 'self-continuity' as const
+
   if (!input.dialogueWorldThread || !input.conversationState)
     return 'none' as const
 
@@ -301,6 +474,8 @@ function resolveMode(input: {
 export function buildRecallGovernor(input: {
   now: number
   userText?: string | null
+  affectiveResidue?: AlicizationAffectiveResidueMemorySnapshot | null
+  emotionalKernel?: AlicizationEmotionalKernelSnapshot | null
   dialogueWorldThread?: AlicizationDialogueWorldThreadSnapshot | null
   conversationState?: AlicizationConversationStateSnapshot | null
   answerCompiler?: AlicizationAnswerCompilerSnapshot | null
@@ -313,12 +488,11 @@ export function buildRecallGovernor(input: {
   desireMemory?: AlicizationDesireMemorySnapshot | null
   motiveEngine?: AlicizationMotiveEngineSnapshot | null
   mindEcology?: AlicizationMindEcologySnapshot | null
-  emotionalKernel?: unknown
   personalityContinuityState?: AlicizationPersonalityContinuityStateSnapshot | null
+  selfContinuityAuthority?: AlicizationSelfContinuityAuthority | null
   projectStatePreDialogueAwarenessLine?: string | null
   projectStatePreflightSummary?: string | null
   projectStateEmotionalClosureCue?: string | null
-  selfContinuityAuthority?: unknown
   sceneContext?: {
     cueSummary?: string | null
     appName?: string | null
@@ -329,17 +503,42 @@ export function buildRecallGovernor(input: {
     contentKind?: string | null
   } | null
 }): AlicizationRecallGovernorSnapshot | null {
+  const affectiveResidue = input.affectiveResidue
+    ?? ((input.mindEcology as { affectiveResidue?: AlicizationAffectiveResidueMemorySnapshot | null } | null | undefined)?.affectiveResidue ?? null)
   const dialogueWorldThread = input.dialogueWorldThread ?? null
   const conversationState = input.conversationState ?? null
-  if (!dialogueWorldThread || !conversationState)
+  const restProtectiveEmotionalKernel = isRestProtectiveEmotionalKernel(input.emotionalKernel ?? null)
+  const guardedCareConfirmationBoundaryEmotionalKernel = isGuardedCareConfirmationBoundaryEmotionalKernel(input.emotionalKernel ?? null)
+  const measuredReturnEmotionalKernel = input.emotionalKernel?.memoryRecallMode === 'low-pressure-presence'
+    && (
+      input.emotionalKernel?.initiativeMode === 'observe'
+      || input.emotionalKernel?.embodimentTone === 'measured-return'
+      || input.emotionalKernel?.dominantEmotion === 'measured-companionship'
+    )
+  const mode = resolveMode({
+    emotionalKernel: input.emotionalKernel ?? null,
+    dialogueWorldThread,
+    conversationState,
+    answerCompiler: input.answerCompiler ?? null,
+    replyDeliberation: input.replyDeliberation ?? null,
+    privateThought: input.privateThought ?? null,
+    dialogueEncounter: input.dialogueEncounter ?? null,
+    primaryTurnAnchor: null,
+    autobiographicalContinuityActive: false,
+  })
+  const allowGovernorWithoutDialogueSeam = mode === 'scene'
+    || restProtectiveEmotionalKernel
+    || guardedCareConfirmationBoundaryEmotionalKernel
+    || measuredReturnEmotionalKernel
+  if ((!dialogueWorldThread || !conversationState) && !allowGovernorWithoutDialogueSeam)
     return null
 
   const primaryTurnAnchor = pickRecallAnchor(
-    conversationState.primaryTurnAnchor,
+    conversationState?.primaryTurnAnchor,
     input.dialogueEncounter?.taskAnchor,
     input.dialogueEncounter?.summary,
-    dialogueWorldThread.currentQuestion,
-    dialogueWorldThread.activeThread,
+    dialogueWorldThread?.currentQuestion,
+    dialogueWorldThread?.activeThread,
   ) || null
   const autobiographicalContinuityLines = buildAutobiographicalContinuityLines({
     autobiographicalSelf: input.autobiographicalSelf ?? null,
@@ -349,49 +548,69 @@ export function buildRecallGovernor(input: {
     privateThought: input.privateThought ?? null,
     mindEcology: input.mindEcology ?? null,
   })
-  const mode = resolveMode({
-    dialogueWorldThread,
-    conversationState,
-    answerCompiler: input.answerCompiler ?? null,
-    replyDeliberation: input.replyDeliberation ?? null,
-    privateThought: input.privateThought ?? null,
-    dialogueEncounter: input.dialogueEncounter ?? null,
-    primaryTurnAnchor,
-    autobiographicalContinuityActive: autobiographicalContinuityLines.length > 0,
-  })
+  const resolvedMode = (!dialogueWorldThread || !conversationState) && measuredReturnEmotionalKernel
+    ? 'self-continuity' as const
+    : resolveMode({
+        emotionalKernel: input.emotionalKernel ?? null,
+        dialogueWorldThread,
+        conversationState,
+        answerCompiler: input.answerCompiler ?? null,
+        replyDeliberation: input.replyDeliberation ?? null,
+        privateThought: input.privateThought ?? null,
+        dialogueEncounter: input.dialogueEncounter ?? null,
+        primaryTurnAnchor,
+        autobiographicalContinuityActive: autobiographicalContinuityLines.length > 0 || Boolean(input.selfContinuityAuthority),
+      })
   const suppressAssociativeRecall = Boolean(
     input.answerCompiler?.suppressAssociativeRecall
-    || mode === 'scene'
-    || mode === 'thread',
+    || resolvedMode === 'scene'
+    || resolvedMode === 'thread',
   )
-  const allowActiveThoughts = mode !== 'none'
-    && mode !== 'scene'
-    && (mode !== 'thread' || !suppressAssociativeRecall)
-  const allowRecalledFragments = !suppressAssociativeRecall && (mode === 'emotional-resonance' || mode === 'self-continuity')
+  const allowActiveThoughts = resolvedMode !== 'none'
+    && resolvedMode !== 'scene'
+    && (resolvedMode !== 'thread' || !suppressAssociativeRecall)
+  const allowRecalledFragments = !suppressAssociativeRecall && (resolvedMode === 'emotional-resonance' || resolvedMode === 'self-continuity')
   const dialogueFirstTurn = input.dialogueEncounter?.dialogueFirst === true
     || input.dialogueEncounter?.screenReferenceMode === 'avoid'
   const sceneAttachmentCues = dialogueFirstTurn ? [] : buildSceneAttachmentCues(input.sceneContext ?? null)
   const recalledFragmentCap = allowRecalledFragments
-    ? mode === 'emotional-resonance' ? 3 : 2
+    ? resolvedMode === 'emotional-resonance'
+      ? restProtectiveEmotionalKernel ? 2 : 3
+      : 2
     : 0
-  const recalledFragmentSourceBudget = allowRecalledFragments
-    ? buildRecalledFragmentSourceBudget(mode)
+  const recalledFragmentSourceBudget: NonNullable<AlicizationRecallGovernorSnapshot['recalledFragmentSourceBudget']> = allowRecalledFragments
+    ? (
+        restProtectiveEmotionalKernel && resolvedMode === 'self-continuity'
+          ? [
+              { sourceKind: 'dialogue-turn', maxItems: 1 },
+              { sourceKind: 'autobiographical-episode', maxItems: 1 },
+              { sourceKind: 'fact-ledger', maxItems: 1 },
+              { sourceKind: 'reflection-ledger', maxItems: 1 },
+              { sourceKind: 'mind-continuity', maxItems: 2 },
+              { sourceKind: 'dream-fragment', maxItems: 0 },
+              { sourceKind: 'visual-sediment', maxItems: 0 },
+            ]
+          : buildRecalledFragmentSourceBudget(resolvedMode)
+      )
     : []
   const carryAsMemory = Boolean(
     input.answerCompiler?.labelCarryAsMemory
-    || mode === 'self-continuity'
-    || mode === 'emotional-resonance',
+    || resolvedMode === 'self-continuity'
+    || resolvedMode === 'emotional-resonance',
   )
   const threadAnchors = uniqueList([
     primaryTurnAnchor,
     input.dialogueEncounter?.taskAnchor,
     input.dialogueEncounter?.summary,
-    dialogueWorldThread.activeThread,
-    dialogueWorldThread.currentQuestion,
-    ...dialogueWorldThread.recallKeys,
-    ...conversationState.memoryQueryHints,
+    dialogueWorldThread?.activeThread,
+    dialogueWorldThread?.currentQuestion,
+    ...(dialogueWorldThread?.recallKeys ?? []),
+    ...(conversationState?.memoryQueryHints ?? []),
   ], 8)
   const affectAnchors = uniqueList([
+    input.emotionalKernel?.dominantEmotion ? `emotion:${input.emotionalKernel.dominantEmotion}` : null,
+    input.emotionalKernel?.memoryRecallMode ? `emotion_memory_mode:${input.emotionalKernel.memoryRecallMode}` : null,
+    input.emotionalKernel?.embodimentTone ? `emotion_tone:${input.emotionalKernel.embodimentTone}` : null,
     input.privateThought?.emotionalTension ? `emotional_tension:${input.privateThought.emotionalTension}` : null,
     input.replyDeliberation?.selectedMotive ? `reply_motive:${input.replyDeliberation.selectedMotive}` : null,
     input.privateThought?.stance ? `stance:${input.privateThought.stance}` : null,
@@ -402,13 +621,21 @@ export function buildRecallGovernor(input: {
     input.personalityContinuityState?.rhythmState.cadenceMode ? `rhythm_cadence:${input.personalityContinuityState.rhythmState.cadenceMode}` : null,
   ], 8)
   const relationshipAnchors = uniqueList([
-    conversationState.relationFrame ? `relation:${conversationState.relationFrame}` : null,
-    dialogueWorldThread.relationDrift ? `drift:${dialogueWorldThread.relationDrift}` : null,
+    conversationState?.relationFrame ? `relation:${conversationState.relationFrame}` : null,
+    dialogueWorldThread?.relationDrift ? `drift:${dialogueWorldThread.relationDrift}` : null,
     input.dialogueEncounter?.subject === 'relationship' ? 'relationship-turn' : null,
     input.answerCompiler?.answerSubject ? `subject:${input.answerCompiler.answerSubject}` : null,
     input.privateThought?.stance === 'care' ? 'care' : null,
     input.replyDeliberation?.selectedMotive === 'attune' ? 'attune' : null,
   ], 6)
+  const selfAuthorityAnchors = buildSelfAuthorityAnchors(input.selfContinuityAuthority ?? null)
+  const projectPreflightAnchor = buildProjectPreflightRecallAnchor({
+    raw: input.projectStatePreDialogueAwarenessLine ?? input.projectStatePreflightSummary,
+    longHorizonMemory: input.longHorizonMemory ?? null,
+  })
+  const projectEmotionalClosureAnchor = buildProjectEmotionalClosureRecallAnchor(
+    input.projectStateEmotionalClosureCue,
+  )
   const sceneFamiliarityHint = estimateSceneFamiliarity({
     sceneContext: input.sceneContext ?? null,
     dialogueWorldThread,
@@ -419,18 +646,39 @@ export function buildRecallGovernor(input: {
     privateThought: input.privateThought ?? null,
     personalityContinuityState: input.personalityContinuityState ?? null,
   })
+  const emotionalKernelSummary = input.emotionalKernel
+    ? uniqueList([
+        input.emotionalKernel.dominantEmotion,
+        input.emotionalKernel.memoryRecallMode,
+        input.emotionalKernel.embodimentTone,
+      ], 3).join(' | ')
+    : ''
+  const mergedAffectiveCarry = affectiveCarry
+    ? {
+        ...affectiveCarry,
+        summary: uniqueList([emotionalKernelSummary, affectiveCarry.summary], 4).join(' | ') || null,
+      }
+    : emotionalKernelSummary
+      ? {
+          moodLabel: null,
+          emotionalTension: null,
+          socialNeed: null,
+          reflectivePull: null,
+          summary: emotionalKernelSummary,
+        }
+      : null
   const embodiedCarry = buildEmbodiedCarry({
     privateThought: input.privateThought ?? null,
     personalityContinuityState: input.personalityContinuityState ?? null,
   })
   const salienceBias = clamp01(
-    mode === 'emotional-resonance'
+    resolvedMode === 'emotional-resonance'
       ? 0.82
-      : mode === 'self-continuity'
+      : resolvedMode === 'self-continuity'
         ? 0.74
-        : mode === 'thread'
+        : resolvedMode === 'thread'
           ? 0.58
-          : mode === 'scene'
+          : resolvedMode === 'scene'
             ? 0.24
             : 0.4,
   )
@@ -446,6 +694,8 @@ export function buildRecallGovernor(input: {
     goalStack: input.goalStack ?? null,
     motiveEngine: input.motiveEngine ?? null,
     sceneContext: input.sceneContext ?? null,
+    affectiveResidue,
+    emotionalKernel: input.emotionalKernel ?? null,
   })
   const sceneAnchor = uniqueList([
     ...sceneAttachmentCues,
@@ -453,8 +703,11 @@ export function buildRecallGovernor(input: {
   ], 6).join(' | ') || primaryTurnAnchor
   const recallSeed = uniqueList([
     ...threadAnchors,
+    projectPreflightAnchor,
+    projectEmotionalClosureAnchor,
     ...sceneAttachmentCues,
     ...autobiographicalContinuityLines,
+    ...selfAuthorityAnchors,
     ...(recollectionIntent?.queryHints ?? []),
     input.motiveEngine?.backgroundAgendas[0]?.summary ?? null,
     input.motiveEngine?.longTermGoals[0]?.summary ?? null,
@@ -462,22 +715,34 @@ export function buildRecallGovernor(input: {
     ...relationshipAnchors,
   ], 10).join(' | ')
 
-  const rationale = mode === 'scene'
+  const rationale = resolvedMode === 'scene'
     ? 'Keep recall tightly constrained because live grounding or repair has priority over association.'
-    : mode === 'thread' && (input.dialogueEncounter?.dialogueFirst === true || input.dialogueEncounter?.screenReferenceMode === 'avoid')
+    : resolvedMode === 'thread' && (input.dialogueEncounter?.dialogueFirst === true || input.dialogueEncounter?.screenReferenceMode === 'avoid')
       ? 'Stay bound to the current turn anchor; old self/scene carry should not outrank what the host just asked.'
-      : mode === 'thread'
+      : resolvedMode === 'thread'
         ? 'Carry only the current dialogue seam and unresolved loops; associative recall would dilute the knot.'
-        : mode === 'emotional-resonance'
+        : resolvedMode === 'emotional-resonance'
           ? 'Allow memory with matching emotional color because the host is still inside a felt continuity.'
-          : mode === 'self-continuity'
-            ? autobiographicalContinuityLines.length > 0
-              ? 'Carry autobiographical continuity and remembered self-line because this turn is genuinely about Alicization or the bond, not a fresh screen claim.'
-              : 'Carry dialogue/self continuity without pretending old scene residue is live.'
+          : resolvedMode === 'self-continuity'
+            ? restProtectiveEmotionalKernel
+              ? 'Carry only a narrow same-self line under rest protection so care, memory, and inward continuity stay believable without turning fatigue into wider associative spill.'
+              : autobiographicalContinuityLines.length > 0
+                ? projectPreflightAnchor
+                  ? projectEmotionalClosureAnchor
+                    ? 'Carry autobiographical continuity, the remembered self-line, the current Phase 1 digital-life closure seam, and its active emotional closure seam because this turn is genuinely about Alicization or the bond, not a fresh screen claim.'
+                    : 'Carry autobiographical continuity, the remembered self-line, and the current Phase 1 digital-life closure seam because this turn is genuinely about Alicization or the bond, not a fresh screen claim.'
+                  : 'Carry autobiographical continuity and remembered self-line because this turn is genuinely about Alicization or the bond, not a fresh screen claim.'
+                : selfAuthorityAnchors.length > 0
+                  ? projectPreflightAnchor
+                    ? projectEmotionalClosureAnchor
+                      ? 'Carry the projected self-authority lines together with the current Phase 1 digital-life closure seam and emotional closure seam because this turn is about the same living self or bond, not a fresh screen claim.'
+                      : 'Carry the projected self-authority lines together with the current Phase 1 digital-life closure seam because this turn is about the same living self or bond, not a fresh screen claim.'
+                    : 'Carry the projected self-authority lines because this turn is about the same living self or bond, not a fresh screen claim.'
+                  : 'Carry dialogue/self continuity without pretending old scene residue is live.'
             : 'Do not admit memory unless the living turn explicitly earns it.'
 
   return {
-    mode,
+    mode: resolvedMode,
     recallSeed,
     threadAnchors,
     affectAnchors,
@@ -485,7 +750,7 @@ export function buildRecallGovernor(input: {
     salienceBias,
     sceneAnchor,
     sceneFamiliarityHint,
-    affectiveCarry,
+    affectiveCarry: mergedAffectiveCarry,
     embodiedCarry,
     recollectionIntent,
     suppressAssociativeRecall,
@@ -504,14 +769,17 @@ export function buildRecallGovernor(input: {
       ...recalledFragmentSourceBudget.map(item => `recalled-fragment-source:${item.sourceKind}:${item.maxItems}`),
       carryAsMemory ? 'carry:memory' : 'carry:none',
       primaryTurnAnchor ? `anchor:${primaryTurnAnchor}` : null,
+      projectPreflightAnchor ? `project-preflight:${projectPreflightAnchor}` : null,
+      projectEmotionalClosureAnchor ? `project-emotion:${projectEmotionalClosureAnchor}` : null,
       sceneAttachmentCues.length > 0 ? `scene-anchor:${sceneAttachmentCues[0]}` : null,
-      dialogueWorldThread.lastOutcome ? `thread_outcome:${dialogueWorldThread.lastOutcome}` : null,
+      dialogueWorldThread?.lastOutcome ? `thread_outcome:${dialogueWorldThread.lastOutcome}` : null,
       input.replyDeliberation?.selectedMotive ? `reply:${input.replyDeliberation.selectedMotive}` : null,
-      affectiveCarry?.summary ? `affective-carry:${affectiveCarry.summary}` : null,
+      selfAuthorityAnchors[0] ? `self-authority:${selfAuthorityAnchors[0]}` : null,
+      mergedAffectiveCarry?.summary ? `affective-carry:${mergedAffectiveCarry.summary}` : null,
       embodiedCarry?.summary ? `embodied-carry:${embodiedCarry.summary}` : null,
       input.personalityContinuityState?.rhythmState.summary ? `rhythm-carry:${input.personalityContinuityState.rhythmState.summary}` : null,
       sceneFamiliarityHint > 0 ? `scene-familiarity:${sceneFamiliarityHint.toFixed(2)}` : null,
-    ], 16),
+    ], 18),
     updatedAt: input.now,
   } satisfies AlicizationRecallGovernorSnapshot
 }

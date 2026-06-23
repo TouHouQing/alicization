@@ -10,7 +10,11 @@ function sanitizeText(raw: unknown, maxChars = 220) {
 function latestReflectionEntry(ledger?: AlicizationReflectionLedgerSnapshot | null): AlicizationReflectionEntrySnapshot | null {
   if (!ledger)
     return null
-  return ledger.entries.find(entry => entry.id === ledger.latestEntryId)
+  const latest = ledger.entries.find(entry => entry.id === ledger.latestEntryId)
+  if (latest && latest.outcome !== 'released')
+    return latest
+
+  return ledger.entries.find(entry => entry.outcome !== 'released')
     ?? ledger.entries[0]
     ?? null
 }

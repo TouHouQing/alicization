@@ -128,6 +128,388 @@ describe('autobiographical episode sync', () => {
     ])
   })
 
+  it('turns execution-callback afterglow carry into a maintenance autobiographical episode', () => {
+    const events = buildAutobiographicalEpisodesFromPreparedMirror({
+      cardId: 'default',
+      decisionTraceId: 'trace-3',
+      turnId: 'turn-3',
+      sessionId: 'session-3',
+      previousMirror: {
+        cardId: 'default',
+        sessionId: 'session-3',
+        updatedAt: Date.UTC(2026, 3, 24, 12, 0, 0),
+        decisionTraceId: 'trace-2',
+        continuityLabels: [],
+        sessionPhases: [],
+        toolingSummary: 'source=prepared',
+        captureSummary: 'none',
+        digitalLifeArchitectureSummary: null,
+        digitalLifeRuntimeSummary: null,
+        mindSummary: null,
+        memoryCarrySummary: null,
+        memorySummary: null,
+        recollectionSummary: 'the runtime seam was there before',
+        recollectionSurfaceSummary: 'surface=inward | surface_mode=internal-only',
+        recollectionConfidence: 0.72,
+        perceptionSummary: null,
+        agencySummary: null,
+        executionSummary: null,
+        dialogueSummary: null,
+      },
+      mirror: {
+        cardId: 'default',
+        sessionId: 'session-3',
+        updatedAt: Date.UTC(2026, 3, 24, 12, 2, 0),
+        decisionTraceId: 'trace-3',
+        continuityLabels: [],
+        sessionPhases: [],
+        toolingSummary: 'source=prepared',
+        captureSummary: 'none',
+        digitalLifeArchitectureSummary: null,
+        digitalLifeRuntimeSummary: 'afterglow=execution-callback | carry=lower-pressure | presence=hesitant',
+        mindSummary: null,
+        memoryCarrySummary: null,
+        memorySummary: null,
+        recollectionSummary: 'leave room before the next runtime seam follow-up',
+        recollectionSurfaceSummary: 'surface=inward | afterthought=ripe | surface_mode=internal-only',
+        recollectionConfidence: 0.82,
+        perceptionSummary: null,
+        agencySummary: 'afterglow=execution-callback | carry=lower-pressure | style=silent-observe',
+        executionSummary: null,
+        dialogueSummary: null,
+      },
+    })
+
+    expect(events).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        sourceKind: 'maintenance',
+        whereSummary: 'session mirror execution-callback afterglow',
+        whatHappened: expect.stringContaining('lower-pressure carry'),
+        relationshipMeaning: expect.stringContaining('space'),
+        tags: expect.arrayContaining(['execution-callback', 'lower-pressure', 'continuity']),
+      }),
+    ]))
+  })
+
+  it('turns execution-callback cadence reconfirmation into a maintenance autobiographical boundary episode', () => {
+    const events = buildAutobiographicalEpisodesFromPreparedMirror({
+      cardId: 'default',
+      decisionTraceId: 'trace-3b',
+      turnId: 'turn-3b',
+      sessionId: 'session-3b',
+      previousMirror: {
+        cardId: 'default',
+        sessionId: 'session-3b',
+        updatedAt: Date.UTC(2026, 3, 24, 12, 0, 0),
+        decisionTraceId: 'trace-2b',
+        continuityLabels: [],
+        sessionPhases: [],
+        toolingSummary: 'source=prepared',
+        captureSummary: 'none',
+        digitalLifeArchitectureSummary: null,
+        digitalLifeRuntimeSummary: null,
+        mindSummary: null,
+        memoryCarrySummary: null,
+        memorySummary: null,
+        recollectionSummary: 'the runtime seam was there before',
+        recollectionSurfaceSummary: 'surface=inward | surface_mode=internal-only',
+        recollectionConfidence: 0.72,
+        perceptionSummary: null,
+        agencySummary: null,
+        executionSummary: null,
+        dialogueSummary: null,
+      },
+      mirror: {
+        cardId: 'default',
+        sessionId: 'session-3b',
+        updatedAt: Date.UTC(2026, 3, 24, 12, 2, 30),
+        decisionTraceId: 'trace-3b',
+        continuityLabels: [],
+        sessionPhases: [],
+        toolingSummary: 'source=prepared',
+        captureSummary: 'none',
+        digitalLifeArchitectureSummary: null,
+        digitalLifeRuntimeSummary: 'afterglow=execution-callback | cadence=measured-return | reconfirmation=relationship | presence=hesitant',
+        mindSummary: null,
+        memoryCarrySummary: null,
+        memorySummary: null,
+        recollectionSummary: 'relationship cadence stayed on the same bounded-return line after reconfirmation',
+        recollectionSurfaceSummary: 'surface=inward | afterthought=ripe | surface_mode=internal-only',
+        recollectionConfidence: 0.84,
+        perceptionSummary: null,
+        agencySummary: 'afterglow=execution-callback | measured-return | keep the relationship return measured until the surface fully cools',
+        executionSummary: null,
+        dialogueSummary: null,
+      },
+    })
+
+    expect(events).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        sourceKind: 'maintenance',
+        whereSummary: 'session mirror execution-callback afterglow',
+        whatHappened: expect.stringContaining('lower-pressure carry'),
+        lesson: expect.stringContaining('lower-pressure stance'),
+        tags: expect.arrayContaining(['execution-callback', 'lower-pressure', 'continuity']),
+      }),
+    ]))
+  })
+
+  it('prefers stronger same-her self-line continuity pressure when prepared mirror autobiographical writeback receives richer project-state carry', () => {
+    const events = buildAutobiographicalEpisodesFromPreparedMirror({
+      cardId: 'default',
+      decisionTraceId: 'trace-same-her-writeback',
+      turnId: 'turn-same-her-writeback',
+      sessionId: 'session-same-her-writeback',
+      previousMirror: null,
+      mirror: {
+        cardId: 'default',
+        sessionId: 'session-same-her-writeback',
+        updatedAt: Date.UTC(2026, 3, 24, 12, 5, 0),
+        decisionTraceId: 'trace-same-her-writeback',
+        continuityLabels: [],
+        sessionPhases: [],
+        toolingSummary: 'source=prepared',
+        captureSummary: 'none',
+        digitalLifeArchitectureSummary: null,
+        digitalLifeRuntimeSummary: 'afterglow=execution-callback | carry=lower-pressure | presence=hesitant',
+        mindSummary: null,
+        memoryCarrySummary: null,
+        memorySummary: null,
+        recollectionSummary: 'keep the same-her callback closure line inward until there is more room',
+        recollectionSurfaceSummary: 'surface=inward | afterthought=ripe | surface_mode=internal-only',
+        recollectionConfidence: 0.82,
+        perceptionSummary: null,
+        agencySummary: 'afterglow=execution-callback | carry=lower-pressure | style=silent-observe',
+        executionSummary: null,
+        dialogueSummary: null,
+      },
+      projectStatePreDialogueAwarenessLine: 'Before answering, remember this callback return still belongs to one living her.',
+      projectStatePreflightSummary: 'Fallback summary should stay behind the stronger same-her self line.',
+      projectStateEmotionalClosureCue: 'Keep the unresolved closure seam emotionally low-pressure, so the same her returns without reopening from scratch.',
+      projectStatePrimaryOpenLoop: 'Execution reopenings still need stronger same-her closure so callback returns do not flatten into generic task-shell reporting.',
+      projectStateSameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed, but the unfinished closure still has to stay on the same living line.',
+    })
+
+    expect(events).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        sourceKind: 'maintenance',
+        relationshipMeaning: expect.stringContaining('same living self'),
+        lesson: expect.stringContaining('unfinished Phase 1 closure'),
+        tags: expect.arrayContaining(['anthropomorphic-memory-closure-open']),
+      }),
+    ]))
+  })
+
+  it('raises continuity writeback priority when project state says anthropomorphic memory closure is still open', () => {
+    const events = buildAutobiographicalEpisodesFromPreparedMirror({
+      cardId: 'default',
+      decisionTraceId: 'trace-closure',
+      turnId: 'turn-closure',
+      sessionId: 'session-closure',
+      projectStatePrimaryOpenLoop: 'Memory still needs stronger end-to-end closure across turns, initiative, and embodiment so the same digital life keeps carrying Project identity carry, Phase 1 route carry, and Unresolved closure carry through one same still-open closure work.',
+      previousMirror: {
+        cardId: 'default',
+        sessionId: 'session-closure',
+        updatedAt: Date.UTC(2026, 3, 24, 12, 0, 0),
+        decisionTraceId: 'trace-prev',
+        continuityLabels: [],
+        sessionPhases: [],
+        toolingSummary: 'source=prepared',
+        captureSummary: 'none',
+        digitalLifeArchitectureSummary: null,
+        digitalLifeRuntimeSummary: null,
+        mindSummary: null,
+        memoryCarrySummary: null,
+        memorySummary: null,
+        recollectionSummary: 'the seam was there before',
+        recollectionSurfaceSummary: 'surface=inward | surface_mode=internal-only',
+        recollectionConfidence: 0.7,
+        perceptionSummary: null,
+        agencySummary: null,
+        executionSummary: null,
+        dialogueSummary: null,
+      },
+      mirror: {
+        cardId: 'default',
+        sessionId: 'session-closure',
+        updatedAt: Date.UTC(2026, 3, 24, 12, 3, 0),
+        decisionTraceId: 'trace-closure',
+        continuityLabels: [],
+        sessionPhases: [],
+        toolingSummary: 'source=prepared',
+        captureSummary: 'none',
+        digitalLifeArchitectureSummary: null,
+        digitalLifeRuntimeSummary: 'afterglow=execution-callback | carry=lower-pressure | presence=hesitant',
+        mindSummary: null,
+        memoryCarrySummary: null,
+        memorySummary: null,
+        recollectionSummary: 'leave room before the next runtime seam follow-up',
+        recollectionSurfaceSummary: 'surface=inward | afterthought=ripe | surface_mode=internal-only',
+        recollectionConfidence: 0.82,
+        perceptionSummary: null,
+        agencySummary: 'afterglow=execution-callback | carry=lower-pressure | style=silent-observe',
+        executionSummary: null,
+        dialogueSummary: null,
+      },
+    })
+
+    const callbackCarryEvent = events.find(event => event.whereSummary === 'session mirror execution-callback afterglow')
+    const afterthoughtEvent = events.find(event => event.whereSummary === 'session mirror afterthought')
+
+    expect(callbackCarryEvent).toEqual(expect.objectContaining({
+      consolidationPriority: 0.84,
+      relationshipMeaning: expect.stringContaining('unfinished Phase 1 closure still belongs to the same living self'),
+      lesson: expect.stringContaining('unfinished Phase 1 closure remains part of who she is becoming'),
+      tags: expect.arrayContaining(['anthropomorphic-memory-closure-open']),
+    }))
+    expect(afterthoughtEvent).toEqual(expect.objectContaining({
+      consolidationPriority: 0.78,
+      relationshipMeaning: expect.stringContaining('unfinished Phase 1 closure pressure still belongs to the same living self'),
+      lesson: expect.stringContaining('unfinished Phase 1 closure remains part of who she is becoming'),
+      tags: expect.arrayContaining(['anthropomorphic-memory-closure-open']),
+    }))
+  })
+
+  it('also accepts canonical project preflight self-awareness when raising continuity writeback priority', () => {
+    const events = buildAutobiographicalEpisodesFromPreparedMirror({
+      cardId: 'default',
+      decisionTraceId: 'trace-closure-preflight',
+      turnId: 'turn-closure-preflight',
+      sessionId: 'session-closure-preflight',
+      projectStatePreflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment so the same digital life keeps carrying Project identity carry, Phase 1 route carry, and Unresolved closure carry through one same still-open closure work. | next=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
+      previousMirror: {
+        cardId: 'default',
+        sessionId: 'session-closure-preflight',
+        updatedAt: Date.UTC(2026, 3, 24, 12, 0, 0),
+        decisionTraceId: 'trace-prev',
+        continuityLabels: [],
+        sessionPhases: [],
+        toolingSummary: 'source=prepared',
+        captureSummary: 'none',
+        digitalLifeArchitectureSummary: null,
+        digitalLifeRuntimeSummary: null,
+        mindSummary: null,
+        memoryCarrySummary: null,
+        memorySummary: null,
+        recollectionSummary: 'the seam was there before',
+        recollectionSurfaceSummary: 'surface=inward | surface_mode=internal-only',
+        recollectionConfidence: 0.7,
+        perceptionSummary: null,
+        agencySummary: null,
+        executionSummary: null,
+        dialogueSummary: null,
+      },
+      mirror: {
+        cardId: 'default',
+        sessionId: 'session-closure-preflight',
+        updatedAt: Date.UTC(2026, 3, 24, 12, 3, 0),
+        decisionTraceId: 'trace-closure-preflight',
+        continuityLabels: [],
+        sessionPhases: [],
+        toolingSummary: 'source=prepared',
+        captureSummary: 'none',
+        digitalLifeArchitectureSummary: null,
+        digitalLifeRuntimeSummary: 'afterglow=execution-callback | carry=lower-pressure | presence=hesitant',
+        mindSummary: null,
+        memoryCarrySummary: null,
+        memorySummary: null,
+        recollectionSummary: 'leave room before the next runtime seam follow-up',
+        recollectionSurfaceSummary: 'surface=inward | afterthought=ripe | surface_mode=internal-only',
+        recollectionConfidence: 0.82,
+        perceptionSummary: null,
+        agencySummary: 'afterglow=execution-callback | carry=lower-pressure | style=silent-observe',
+        executionSummary: null,
+        dialogueSummary: null,
+      },
+    })
+
+    const callbackCarryEvent = events.find(event => event.whereSummary === 'session mirror execution-callback afterglow')
+    const afterthoughtEvent = events.find(event => event.whereSummary === 'session mirror afterthought')
+
+    expect(callbackCarryEvent).toEqual(expect.objectContaining({
+      consolidationPriority: 0.84,
+      relationshipMeaning: expect.stringContaining('unfinished Phase 1 closure still belongs to the same living self'),
+      lesson: expect.stringContaining('unfinished Phase 1 closure remains part of who she is becoming'),
+      tags: expect.arrayContaining(['anthropomorphic-memory-closure-open']),
+    }))
+    expect(afterthoughtEvent).toEqual(expect.objectContaining({
+      consolidationPriority: 0.78,
+      relationshipMeaning: expect.stringContaining('unfinished Phase 1 closure pressure still belongs to the same living self'),
+      lesson: expect.stringContaining('unfinished Phase 1 closure remains part of who she is becoming'),
+      tags: expect.arrayContaining(['anthropomorphic-memory-closure-open']),
+    }))
+  })
+
+  it('also accepts the project emotional closure seam when raising continuity writeback priority', () => {
+    const events = buildAutobiographicalEpisodesFromPreparedMirror({
+      cardId: 'default',
+      decisionTraceId: 'trace-closure-emotional',
+      turnId: 'turn-closure-emotional',
+      sessionId: 'session-closure-emotional',
+      projectStateEmotionalClosureCue: 'Keep the unresolved closure seam emotionally low-pressure, so the same her returns without reopening from scratch.',
+      previousMirror: {
+        cardId: 'default',
+        sessionId: 'session-closure-emotional',
+        updatedAt: Date.UTC(2026, 3, 24, 12, 0, 0),
+        decisionTraceId: 'trace-prev',
+        continuityLabels: [],
+        sessionPhases: [],
+        toolingSummary: 'source=prepared',
+        captureSummary: 'none',
+        digitalLifeArchitectureSummary: null,
+        digitalLifeRuntimeSummary: null,
+        mindSummary: null,
+        memoryCarrySummary: null,
+        memorySummary: null,
+        recollectionSummary: 'the seam was there before',
+        recollectionSurfaceSummary: 'surface=inward | surface_mode=internal-only',
+        recollectionConfidence: 0.7,
+        perceptionSummary: null,
+        agencySummary: null,
+        executionSummary: null,
+        dialogueSummary: null,
+      },
+      mirror: {
+        cardId: 'default',
+        sessionId: 'session-closure-emotional',
+        updatedAt: Date.UTC(2026, 3, 24, 12, 3, 0),
+        decisionTraceId: 'trace-closure-emotional',
+        continuityLabels: [],
+        sessionPhases: [],
+        toolingSummary: 'source=prepared',
+        captureSummary: 'none',
+        digitalLifeArchitectureSummary: null,
+        digitalLifeRuntimeSummary: 'afterglow=execution-callback | carry=lower-pressure | presence=hesitant',
+        mindSummary: null,
+        memoryCarrySummary: null,
+        memorySummary: null,
+        recollectionSummary: 'leave room before the next runtime seam follow-up',
+        recollectionSurfaceSummary: 'surface=inward | afterthought=ripe | surface_mode=internal-only',
+        recollectionConfidence: 0.82,
+        perceptionSummary: null,
+        agencySummary: 'afterglow=execution-callback | carry=lower-pressure | style=silent-observe',
+        executionSummary: null,
+        dialogueSummary: null,
+      },
+    })
+
+    const callbackCarryEvent = events.find(event => event.whereSummary === 'session mirror execution-callback afterglow')
+    const afterthoughtEvent = events.find(event => event.whereSummary === 'session mirror afterthought')
+
+    expect(callbackCarryEvent).toEqual(expect.objectContaining({
+      consolidationPriority: 0.84,
+      relationshipMeaning: expect.stringContaining('same living self'),
+      lesson: expect.stringContaining('part of who she is becoming'),
+      tags: expect.arrayContaining(['anthropomorphic-memory-closure-open']),
+    }))
+    expect(afterthoughtEvent).toEqual(expect.objectContaining({
+      consolidationPriority: 0.78,
+      relationshipMeaning: expect.stringContaining('same living self'),
+      lesson: expect.stringContaining('part of who she is becoming'),
+      tags: expect.arrayContaining(['anthropomorphic-memory-closure-open']),
+    }))
+  })
+
   it('turns dream-driven mirror continuity into maintenance autobiographical episodes', () => {
     const events = buildAutobiographicalEpisodesFromSessionMirrorSync({
       cardId: 'default',

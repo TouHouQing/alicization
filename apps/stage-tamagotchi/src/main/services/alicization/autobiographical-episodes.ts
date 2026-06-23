@@ -9,6 +9,18 @@ function sanitizeText(raw: unknown, maxChars = 220) {
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
 }
 
+function latestReflectionRevision(surface: AlicizationDigitalLifeRuntimeSurface | null | undefined) {
+  const entries = surface?.memory.reflectionLedger?.entries ?? []
+  const latestEntryId = surface?.memory.reflectionLedger?.latestEntryId ?? null
+  const latest = entries.find(entry => entry.id === latestEntryId)
+  if (latest && latest.outcome !== 'released')
+    return latest.revision
+
+  return entries.find(entry => entry.outcome !== 'released')?.revision
+    ?? entries[0]?.revision
+    ?? null
+}
+
 function resolveEpisodeEcology(surface: AlicizationDigitalLifeRuntimeSurface | null | undefined) {
   if (!surface)
     return null
@@ -95,7 +107,7 @@ export function buildAutobiographicalEpisodeFragment(input: {
 
   const lesson = sanitizeText(
     nextSurface.memory.autobiographicalSelf?.latestInflection
-    || nextSurface.memory.reflectionLedger?.entries.find(entry => entry.id === nextSurface.memory.reflectionLedger?.latestEntryId)?.revision
+    || latestReflectionRevision(nextSurface)
     || nextSurface.memory.longHorizonMemory?.rememberedPreferenceSummary
     || nextSurface.memory.longHorizonMemory?.rememberedConstraintSummary
     || '',
