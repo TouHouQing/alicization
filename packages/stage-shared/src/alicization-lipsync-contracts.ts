@@ -22,6 +22,8 @@ export interface AlicizationEmbodimentLipSyncPlan {
   visemeHints?: AlicizationEmbodimentLipSyncVisemeHint[]
 }
 
+const EMBODIMENT_SEGMENT_ID_MAX_CHARS = 512
+
 function normalizeText(raw: unknown, maxChars: number) {
   if (typeof raw !== 'string')
     return ''
@@ -73,7 +75,7 @@ function normalizeVisemeHint(raw: unknown): AlicizationEmbodimentLipSyncVisemeHi
     return null
 
   const candidate = raw as Record<string, unknown>
-  const segmentId = normalizeText(candidate.segmentId, 120)
+  const segmentId = normalizeText(candidate.segmentId, EMBODIMENT_SEGMENT_ID_MAX_CHARS)
   const viseme = normalizeViseme(candidate.viseme)
   const source = normalizeVisemeSource(candidate.source)
   const confidence = normalizeRequiredUnit(candidate.confidence)

@@ -41,6 +41,21 @@ describe('alicization lip-sync contracts', () => {
     })
   })
 
+  it('preserves cue-bridge viseme hints when lipsync rejoins a carried renderer segment', () => {
+    const plan = normalizeAlicizationEmbodimentLipSyncPlan({
+      mode: 'energy-phoneme-hybrid',
+      visemeHints: [{
+        segmentId: 'segment-cue-bridge-1',
+        viseme: 'A',
+        weight: 0.75,
+        source: 'cue-bridge',
+        confidence: 0.88,
+      }],
+    })
+
+    expect(plan?.visemeHints?.[0]?.source).toBe('cue-bridge')
+  })
+
   it('rejects malformed viseme authority metadata instead of weakening the plan', () => {
     expect(normalizeAlicizationEmbodimentLipSyncPlan({
       mode: 'energy-phoneme-hybrid',
