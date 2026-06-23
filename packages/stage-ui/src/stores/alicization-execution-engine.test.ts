@@ -137,7 +137,8 @@ describe('alicization execution engine', () => {
     expect(output.trace.fallbackApplied).toBe(true)
     expect(output.evidences).toHaveLength(0)
     expect(output.failedCategories).toContain('news')
-    expect(output.reply).toMatch(/新闻.*(没拿稳|不够稳|没拿到可靠|没有稳到能直接复述|不.*复述)/u)
+    expect(output.reply).toContain('新闻')
+    expect(output.reply).toMatch(/没拿稳|不够稳|没拿到可靠|没有稳到能直接复述|不[^。！？\n]*复述/u)
     expect(audits).toContain('unverified-fallback')
   })
 

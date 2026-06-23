@@ -109,6 +109,354 @@ describe('alicization execution intent', () => {
     expect(routing?.reasonCodes).toEqual(expect.arrayContaining(['channel-mentioned', 'action-verb', 'request-frame']))
   })
 
+  it('routes direct browser URL opening into the local browser tool', () => {
+    const routing = detectAlicizationExecutionRoutingIntent({
+      message: '请打开浏览器访问 https://example.com',
+    })
+
+    expect(routing?.requestedChannels).toEqual(['browser'])
+    expect(routing?.requiredToolNames).toEqual(['browser_open_url'])
+    expect(routing?.reasonCodes).toEqual(expect.arrayContaining(['action-verb', 'request-frame']))
+  })
+
+  it('routes direct browser opening without a URL into the local browser tool', () => {
+    const routing = detectAlicizationExecutionRoutingIntent({
+      message: '打开浏览器',
+    })
+
+    expect(routing?.requestedChannels).toEqual(['browser'])
+    expect(routing?.requiredToolNames).toEqual(['browser_open_url'])
+    expect(routing?.reasonCodes).toEqual(expect.arrayContaining(['action-verb']))
+  })
+
+  it('routes known website opening requests into the local browser tool instead of desktop app opening', () => {
+    const routing = detectAlicizationExecutionRoutingIntent({
+      message: '打开微博',
+    })
+
+    expect(routing?.requestedChannels).toEqual(['browser'])
+    expect(routing?.requiredToolNames).toEqual(['browser_open_url'])
+    expect(routing?.reasonCodes).toEqual(expect.arrayContaining(['action-verb']))
+    expect(routing?.toolInputOverrides).toBeUndefined()
+  })
+
+  it('routes direct web search requests into the local browser search tool', () => {
+    const routing = detectAlicizationExecutionRoutingIntent({
+      message: '帮我百度 Alicization 数字生命',
+    })
+
+    expect(routing?.requestedChannels).toEqual(['browser'])
+    expect(routing?.requiredToolNames).toEqual(['browser_search_web'])
+    expect(routing?.reasonCodes).toEqual(expect.arrayContaining(['action-verb', 'request-frame']))
+    expect(routing?.toolInputOverrides).toBeUndefined()
+  })
+
+  it('keeps browser-open workflow continuation overrides on known-site continuation requests', () => {
+    const routing = detectAlicizationExecutionRoutingIntent({
+      message: '打开微博然后继续发微博',
+    })
+
+    expect(routing?.requestedChannels).toEqual(['browser'])
+    expect(routing?.requiredToolNames).toEqual(['browser_open_url'])
+    expect(routing?.toolInputOverrides).toEqual({
+      browser_open_url: {
+        browser: 'default',
+        site: 'weibo',
+        url: 'https://weibo.com',
+        expectedPhase: 'social-feed',
+        reinspectAfterAction: true,
+        autoContinueSuggestedActions: true,
+        maxAutoContinueSteps: 2,
+        inspectionQuestion: '打开微博然后继续发微博',
+      },
+    })
+  })
+
+  it('keeps browser-search workflow continuation overrides on follow-up search requests', () => {
+    const routing = detectAlicizationExecutionRoutingIntent({
+      message: '帮我百度 Alicization 然后继续找最相关结果',
+    })
+
+    expect(routing?.requestedChannels).toEqual(['browser'])
+    expect(routing?.requiredToolNames).toEqual(['browser_search_web'])
+    expect(routing?.toolInputOverrides).toEqual({
+      browser_search_web: {
+        browser: 'default',
+        searchEngine: 'baidu',
+        query: 'Alicization',
+        expectedPhase: 'search-results',
+        reinspectAfterAction: true,
+        autoContinueSuggestedActions: true,
+        maxAutoContinueSteps: 2,
+        inspectionQuestion: '帮我百度 Alicization 然后继续找最相关结果',
+      },
+    })
+  })
+
+  it('routes current-page reading requests into the local browser read tool', () => {
+    const routing = detectAlicizationExecutionRoutingIntent({
+      message: '读一下当前网页内容',
+    })
+
+    expect(routing?.requestedChannels).toEqual(['browser'])
+    expect(routing?.requiredToolNames).toEqual(['browser_read_page'])
+    expect(routing?.reasonCodes).toEqual(expect.arrayContaining(['action-verb']))
+  })
+
+  it('routes current-page interactable browsing requests into the local browser read tool', () => {
+    const routing = detectAlicizationExecutionRoutingIntent({
+      message: '看看当前网页有哪些按钮和链接',
+    })
+
+    expect(routing?.requestedChannels).toEqual(['browser'])
+    expect(routing?.requiredToolNames).toEqual(['browser_read_page'])
+    expect(routing?.reasonCodes).toEqual(expect.arrayContaining(['action-verb']))
+  })
+
+  it('routes current-page next-step click guidance into the local browser read tool', () => {
+    const routing = detectAlicizationExecutionRoutingIntent({
+      message: '看看当前网页下一步该点哪里',
+    })
+
+    expect(routing?.requestedChannels).toEqual(['browser'])
+    expect(routing?.requiredToolNames).toEqual(['browser_read_page'])
+    expect(routing?.reasonCodes).toEqual(expect.arrayContaining(['action-verb']))
+  })
+
+  it('routes judged current-page next-step guidance into the local browser read tool', () => {
+    const routing = detectAlicizationExecutionRoutingIntent({
+      message: '帮我判断当前网页下一步该点什么',
+    })
+
+    expect(routing?.requestedChannels).toEqual(['browser'])
+    expect(routing?.requiredToolNames).toEqual(['browser_read_page'])
+    expect(routing?.reasonCodes).toEqual(expect.arrayContaining(['action-verb', 'request-frame']))
+  })
+
+  it('routes known-website next-step guidance into the local browser read tool', () => {
+    const routing = detectAlicizationExecutionRoutingIntent({
+      message: '帮我判断微博下一步该点什么',
+    })
+
+    expect(routing?.requestedChannels).toEqual(['browser'])
+    expect(routing?.requiredToolNames).toEqual(['browser_read_page'])
+    expect(routing?.reasonCodes).toEqual(expect.arrayContaining(['action-verb', 'request-frame']))
+  })
+
+  it('routes known-website continuation requests into the local browser read tool', () => {
+    const routing = detectAlicizationExecutionRoutingIntent({
+      message: '帮我继续发微博',
+    })
+
+    expect(routing?.requestedChannels).toEqual(['browser'])
+    expect(routing?.requiredToolNames).toEqual(['browser_read_page'])
+    expect(routing?.reasonCodes).toEqual(expect.arrayContaining(['action-verb', 'request-frame']))
+  })
+
+  it('routes known-website observation guidance into the local browser read tool', () => {
+    const routing = detectAlicizationExecutionRoutingIntent({
+      message: '看看微博首页现在该点哪里',
+    })
+
+    expect(routing?.requestedChannels).toEqual(['browser'])
+    expect(routing?.requiredToolNames).toEqual(['browser_read_page'])
+    expect(routing?.reasonCodes).toEqual(expect.arrayContaining(['action-verb']))
+  })
+
+  it('routes natural button click requests into the local browser click tool', () => {
+    const routing = detectAlicizationExecutionRoutingIntent({
+      message: '点击当前网页的登录按钮',
+    })
+
+    expect(routing?.requestedChannels).toEqual(['browser'])
+    expect(routing?.requiredToolNames).toEqual(['browser_click_element'])
+    expect(routing?.reasonCodes).toEqual(expect.arrayContaining(['action-verb']))
+  })
+
+  it('routes current-page text input requests into the local browser typing tool', () => {
+    const routing = detectAlicizationExecutionRoutingIntent({
+      message: '在当前网页的搜索框里输入 "Alicization" 并回车',
+    })
+
+    expect(routing?.requestedChannels).toEqual(['browser'])
+    expect(routing?.requiredToolNames).toEqual(['browser_type_text'])
+    expect(routing?.reasonCodes).toEqual(expect.arrayContaining(['action-verb']))
+  })
+
+  it('routes direct browser navigation requests into the local browser navigation tool', () => {
+    const routing = detectAlicizationExecutionRoutingIntent({
+      message: '返回当前网页上一页',
+    })
+
+    expect(routing?.requestedChannels).toEqual(['browser'])
+    expect(routing?.requiredToolNames).toEqual(['browser_navigate'])
+    expect(routing?.reasonCodes).toEqual(expect.arrayContaining(['action-verb']))
+  })
+
+  it('routes direct browser scrolling requests into the local browser scroll tool', () => {
+    const routing = detectAlicizationExecutionRoutingIntent({
+      message: '向下滚动当前网页',
+    })
+
+    expect(routing?.requestedChannels).toEqual(['browser'])
+    expect(routing?.requiredToolNames).toEqual(['browser_scroll'])
+    expect(routing?.reasonCodes).toEqual(expect.arrayContaining(['action-verb']))
+  })
+
+  it('routes direct browser waiting requests into the local browser wait tool', () => {
+    const routing = detectAlicizationExecutionRoutingIntent({
+      message: '等待当前网页加载完成',
+    })
+
+    expect(routing?.requestedChannels).toEqual(['browser'])
+    expect(routing?.requiredToolNames).toEqual(['browser_wait'])
+    expect(routing?.reasonCodes).toEqual(expect.arrayContaining(['action-verb']))
+  })
+
+  it('routes current desktop scene inspection requests into the local inspection tool', () => {
+    const routing = detectAlicizationExecutionRoutingIntent({
+      message: '看看现在屏幕上是什么',
+    })
+
+    expect(routing?.requestedChannels).toEqual(['desktop'])
+    expect(routing?.requiredToolNames).toEqual(['desktop_inspect_scene'])
+    expect(routing?.reasonCodes).toEqual(expect.arrayContaining(['action-verb']))
+  })
+
+  it('routes next-step gui guidance requests into the local inspection tool', () => {
+    const routing = detectAlicizationExecutionRoutingIntent({
+      message: '帮我判断下一步该点什么',
+    })
+
+    expect(routing?.requestedChannels).toEqual(['desktop'])
+    expect(routing?.requiredToolNames).toEqual(['desktop_inspect_scene'])
+    expect(routing?.reasonCodes).toEqual(expect.arrayContaining(['action-verb', 'request-frame']))
+    expect(routing?.toolInputOverrides).toEqual({
+      desktop_inspect_scene: {
+        question: '帮我判断下一步该点什么',
+        forceRefresh: false,
+        maxSuggestedActions: 5,
+      },
+    })
+  })
+
+  it('routes desktop upload continuation requests into the local inspection tool with workflow overrides', () => {
+    const routing = detectAlicizationExecutionRoutingIntent({
+      message: '帮我继续上传',
+    })
+
+    expect(routing?.requestedChannels).toEqual(['desktop'])
+    expect(routing?.requiredToolNames).toEqual(['desktop_inspect_scene'])
+    expect(routing?.reasonCodes).toEqual(expect.arrayContaining(['action-verb', 'request-frame']))
+    expect(routing?.toolInputOverrides).toEqual({
+      desktop_inspect_scene: {
+        question: '帮我继续上传',
+        forceRefresh: false,
+        maxSuggestedActions: 5,
+        autoContinueSuggestedActions: true,
+        maxAutoContinueSteps: 2,
+      },
+    })
+  })
+
+  it('routes continued gui next-step guidance requests into the local inspection tool with workflow overrides', () => {
+    const routing = detectAlicizationExecutionRoutingIntent({
+      message: '继续看看当前窗口下一步该点什么',
+    })
+
+    expect(routing?.requestedChannels).toEqual(['desktop'])
+    expect(routing?.requiredToolNames).toEqual(['desktop_inspect_scene'])
+    expect(routing?.reasonCodes).toEqual(expect.arrayContaining(['action-verb']))
+    expect(routing?.toolInputOverrides).toEqual({
+      desktop_inspect_scene: {
+        question: '继续看看当前窗口下一步该点什么',
+        forceRefresh: false,
+        maxSuggestedActions: 5,
+        autoContinueSuggestedActions: true,
+        maxAutoContinueSteps: 2,
+      },
+    })
+  })
+
+  it('routes direct local application opening into the desktop tool', () => {
+    const routing = detectAlicizationExecutionRoutingIntent({
+      message: '打开 Cursor',
+    })
+
+    expect(routing?.requestedChannels).toEqual(['desktop'])
+    expect(routing?.requiredToolNames).toEqual(['desktop_open_application'])
+    expect(routing?.reasonCodes).toEqual(expect.arrayContaining(['action-verb']))
+  })
+
+  it('routes direct local desktop waiting requests into the desktop wait tool', () => {
+    const routing = detectAlicizationExecutionRoutingIntent({
+      message: '等待 Cursor 打开',
+    })
+
+    expect(routing?.requestedChannels).toEqual(['desktop'])
+    expect(routing?.requiredToolNames).toEqual(['desktop_wait'])
+    expect(routing?.reasonCodes).toEqual(expect.arrayContaining(['action-verb']))
+  })
+
+  it('routes desktop interactable listing requests into the local desktop listing tool', () => {
+    const routing = detectAlicizationExecutionRoutingIntent({
+      message: '看看当前窗口有哪些按钮',
+    })
+
+    expect(routing?.requestedChannels).toEqual(['desktop'])
+    expect(routing?.requiredToolNames).toEqual(['desktop_list_interactables'])
+    expect(routing?.reasonCodes).toEqual(expect.arrayContaining(['action-verb']))
+  })
+
+  it('routes desktop click requests into the local desktop click tool', () => {
+    const routing = detectAlicizationExecutionRoutingIntent({
+      message: '点击当前窗口的继续按钮',
+    })
+
+    expect(routing?.requestedChannels).toEqual(['desktop'])
+    expect(routing?.requiredToolNames).toEqual(['desktop_click_element'])
+    expect(routing?.reasonCodes).toEqual(expect.arrayContaining(['action-verb']))
+  })
+
+  it('routes desktop text input requests into the local desktop typing tool', () => {
+    const routing = detectAlicizationExecutionRoutingIntent({
+      message: '在当前窗口输入 "Alicization"',
+    })
+
+    expect(routing?.requestedChannels).toEqual(['desktop'])
+    expect(routing?.requiredToolNames).toEqual(['desktop_type_text'])
+    expect(routing?.reasonCodes).toEqual(expect.arrayContaining(['action-verb']))
+  })
+
+  it('routes desktop shortcut requests into the local desktop key-press tool', () => {
+    const routing = detectAlicizationExecutionRoutingIntent({
+      message: '按下 Command+L',
+    })
+
+    expect(routing?.requestedChannels).toEqual(['desktop'])
+    expect(routing?.requiredToolNames).toEqual(['desktop_press_keys'])
+    expect(routing?.reasonCodes).toEqual(expect.arrayContaining(['action-verb']))
+  })
+
+  it('keeps explicit openclaw routing when the host explicitly names OpenClaw for scene inspection', () => {
+    const routing = detectAlicizationExecutionRoutingIntent({
+      message: '请用 OpenClaw 看看现在屏幕上是什么',
+    })
+
+    expect(routing?.requestedChannels).toEqual(['openclaw'])
+    expect(routing?.requiredToolNames).toEqual(['executor_run_openclaw'])
+    expect(routing?.reasonCodes).toEqual(expect.arrayContaining(['channel-mentioned', 'action-verb']))
+  })
+
+  it('routes explicit local visual executor requests into the dedicated local visual executor tool', () => {
+    const routing = detectAlicizationExecutionRoutingIntent({
+      message: '不要用 OpenClaw，请直接用本地 GUI 多步执行把当前桌面的弹窗关掉',
+    })
+
+    expect(routing?.requiredToolNames).toEqual(['executor_run_local_visual'])
+    expect(routing?.reasonCodes).toEqual(expect.arrayContaining(['action-verb', 'local-visual-explicit']))
+  })
+
   it('collects extended channel mentions for capability focus', () => {
     const channels = collectAlicizationExecutionChannelMentions('你支持 OpenClaw、Browser 和桌面操作吗？')
     expect(channels).toEqual(expect.arrayContaining(['openclaw', 'browser', 'desktop']))
