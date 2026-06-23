@@ -10,8 +10,13 @@ export function buildSelfEvolutionAdoptedAnchor(input: Array<{
   repairOwnerHint: string | null
   adoptionMode?: string | null
   summaryLine?: string | null
+  bodyContinuityPhase?: 'body-only-hold' | 'body-carried-to-renderer-rejoin' | 'full-cross-modal-lock' | 'renderer-rejoin-without-body' | null
+  rendererRejoinSurfaceKey?: 'authority:renderer-rejoin:speech' | 'authority:renderer-rejoin:live2d' | 'authority:renderer-rejoin:vrm' | null
   prosodyAuthorityNote?: string | null
   continuityGovernanceNote?: string | null
+  relationshipCadenceGovernanceNote?: string | null
+  projectStateContinuityGovernanceNote?: string | null
+  bodyContinuityGovernanceNote?: string | null
 }>) {
   if (input.length === 0)
     return null
@@ -27,7 +32,12 @@ export function buildSelfEvolutionAdoptedAnchor(input: Array<{
     activePatternKey: latest.activePatternKey,
     repairOwnerHint: latest.repairOwnerHint,
     summaryLine: `当前默认连续性参照已经切换到 ${latest.snapshotCapturedAt} 的已采纳基线。`,
+    bodyContinuityPhase: latest.bodyContinuityPhase ?? null,
+    rendererRejoinSurfaceKey: latest.rendererRejoinSurfaceKey ?? null,
     prosodyAuthorityNote: latest.prosodyAuthorityNote ?? null,
     continuityGovernanceNote: latest.continuityGovernanceNote ?? null,
+    relationshipCadenceGovernanceNote: latest.relationshipCadenceGovernanceNote ?? null,
+    projectStateContinuityGovernanceNote: latest.projectStateContinuityGovernanceNote ?? null,
+    bodyContinuityGovernanceNote: latest.bodyContinuityGovernanceNote ?? null,
   }
 }
