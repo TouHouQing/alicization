@@ -39,6 +39,24 @@ const proofRows = [
       'bodyContinuityGovernanceNote: \'当前只有 motion 和 lipsync 这条 same-her 生命线还和同一段数字生命表达对齐，可见连续性还没有断开，但 body、face 和 voice 还没有重新接回这条动作口型线。\'',
     ],
   },
+  {
+    entry: 'self-evolution-focus-plan-quieter-face-lipsync-voice-note',
+    file: './performance-visualizer-self-evolution-focus-plan.test.ts',
+    snippets: [
+      'keeps quieter face+lipsync+voice same-her continuity explicit in the focus plan instead of flattening voice back out of the surviving line',
+      'survivingVisibleLane: \'face+lipsync+voice-only\'',
+      'bodyContinuityGovernanceNote: \'当前仅剩表情、口型、声音维持同一段连续性，可见 same-her continuity 还没有断开，但 body、motion 还没有重新接回这条表情口型声音线。\'',
+    ],
+  },
+  {
+    entry: 'self-evolution-focus-plan-quieter-motion-lipsync-voice-note',
+    file: './performance-visualizer-self-evolution-focus-plan.test.ts',
+    snippets: [
+      'keeps quieter motion+lipsync+voice same-her continuity explicit in the focus plan instead of flattening voice back out of the surviving line',
+      'survivingVisibleLane: \'motion+lipsync+voice-only\'',
+      'bodyContinuityGovernanceNote: \'当前仅剩动作、口型、声音维持同一段连续性，可见 same-her continuity 还没有断开，但 body、face 还没有重新接回这条动作口型声音线。\'',
+    ],
+  },
 ] as const
 
 describe('performance visualizer self evolution focus plan project awareness audit', () => {
@@ -48,6 +66,8 @@ describe('performance visualizer self evolution focus plan project awareness aud
       expect.objectContaining({ entry: 'self-evolution-focus-plan-body-only-hold-note' }),
       expect.objectContaining({ entry: 'self-evolution-focus-plan-quieter-face-lipsync-note' }),
       expect.objectContaining({ entry: 'self-evolution-focus-plan-quieter-motion-lipsync-note' }),
+      expect.objectContaining({ entry: 'self-evolution-focus-plan-quieter-face-lipsync-voice-note' }),
+      expect.objectContaining({ entry: 'self-evolution-focus-plan-quieter-motion-lipsync-voice-note' }),
     ])
 
     expect(proofRows.every(row => row.snippets.length > 0)).toBe(true)
@@ -71,12 +91,14 @@ describe('performance visualizer self evolution focus plan project awareness aud
     expect(matrixSource).toContain('performance-visualizer-self-evolution-focus-plan-project-awareness-audit.test.ts')
     expect(matrixSource).toContain('self-evolution focus plan')
     expect(matrixSource).toContain('quieter face+lipsync / motion+lipsync focus note')
+    expect(matrixSource).toContain('quieter face+lipsync+voice / motion+lipsync+voice focus note')
     expect(matrixSource).toContain('Project identity carry -> Phase 1 route carry -> Unresolved closure carry')
     expect(matrixSource).toContain('body-only-hold')
     expect(matrixSource).toContain('This is still not full long-run closure proof under noisy desktop use.')
     expect(auditSource).toContain('compact noisy-desktop convergence proof chain')
     expect(auditSource).toContain('self-evolution focus plan')
     expect(auditSource).toContain('quieter face+lipsync / motion+lipsync focus note')
+    expect(auditSource).toContain('quieter face+lipsync+voice / motion+lipsync+voice focus note')
     expect(auditSource).toContain('Project identity carry -> Phase 1 route carry -> Unresolved closure carry')
     expect(auditSource).toContain('body-only-hold')
     expect(focusPlanSource).toContain(
@@ -84,6 +106,12 @@ describe('performance visualizer self evolution focus plan project awareness aud
     )
     expect(focusPlanSource).toContain(
       'keeps quieter motion+lipsync same-her continuity explicit in the focus plan instead of flattening it back into generic body-loss wording',
+    )
+    expect(focusPlanSource).toContain(
+      'keeps quieter face+lipsync+voice same-her continuity explicit in the focus plan instead of flattening voice back out of the surviving line',
+    )
+    expect(focusPlanSource).toContain(
+      'keeps quieter motion+lipsync+voice same-her continuity explicit in the focus plan instead of flattening voice back out of the surviving line',
     )
   })
 })
