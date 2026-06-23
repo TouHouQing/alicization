@@ -9,7 +9,6 @@ import type {
   AlicizationChatToolCallEvent,
   AlicizationChatToolResultEvent,
   AlicizationDialoguePerformancePayload,
-  AlicizationDigitalLifeSpineDigest,
   AlicizationMindTurnGovernance,
   AlicizationResidentPerformanceSnapshot,
   AlicizationRuntimeDigest,
@@ -161,8 +160,6 @@ type AlicizationProjectStateGovernanceShape = {
   mustDo?: string[] | null
   mustNotDo?: string[] | null
 } & Record<string, unknown>
-
-type AlicizationStructuredProjectStateInput = Partial<NonNullable<AlicizationRuntimeDigest['projectState']>>
 
 interface AlicizationRuntimeProjectStateContinuityShape {
   continuityArcStage?: string | null
@@ -2146,8 +2143,8 @@ function preferExplicitProjectAwarenessOverCanonicalReanchor(input: {
 }
 
 function resolveProjectStateAwarenessField(input: {
-  runtimeDigestProjectState: AlicizationStructuredProjectStateInput | null | undefined
-  preparedRuntimeProjectState?: AlicizationStructuredProjectStateInput | null | undefined
+  runtimeDigestProjectState: Record<string, unknown> | null | undefined
+  preparedRuntimeProjectState?: Record<string, unknown> | null | undefined
   payloadFallback?: string | null
   canonicalFallback?: string | null
 }) {
@@ -2927,34 +2924,32 @@ export async function runAlicizationMainChatBackground(
         ?? authoritativeDigitalLifeSpine
     const authoritativeSourceTags = authoritativeDigitalLifeSpineWithRuntimeCarry?.memory?.personStateProjection?.selfContinuityAuthority?.sourceTags
     const alignedContinuityPreferredTiming = runtimeDigestWithResidentHints?.projectState?.continuityPreferredTiming ?? null
-    const finalDigitalLifeSpine: AlicizationDigitalLifeSpineDigest | null | undefined = authoritativeDigitalLifeSpineWithRuntimeCarry
-      ? authoritativeSourceTags
-        ? ({
-            ...authoritativeDigitalLifeSpineWithRuntimeCarry,
-            runtime: authoritativeDigitalLifeSpineWithRuntimeCarry.runtime
-              ? {
-                  ...authoritativeDigitalLifeSpineWithRuntimeCarry.runtime,
-                  continuityPreferredTiming: alignedContinuityPreferredTiming ?? authoritativeDigitalLifeSpineWithRuntimeCarry.runtime.continuityPreferredTiming ?? null,
-                }
-              : authoritativeDigitalLifeSpineWithRuntimeCarry.runtime,
-            memory: authoritativeDigitalLifeSpineWithRuntimeCarry.memory
-              ? {
-                  ...authoritativeDigitalLifeSpineWithRuntimeCarry.memory,
-                  personStateProjection: authoritativeDigitalLifeSpineWithRuntimeCarry.memory.personStateProjection
-                    ? {
-                        ...authoritativeDigitalLifeSpineWithRuntimeCarry.memory.personStateProjection,
-                        selfContinuityAuthority: authoritativeDigitalLifeSpineWithRuntimeCarry.memory.personStateProjection.selfContinuityAuthority
-                          ? {
-                              ...authoritativeDigitalLifeSpineWithRuntimeCarry.memory.personStateProjection.selfContinuityAuthority,
-                              sourceTags: authoritativeSourceTags,
-                            }
-                          : authoritativeDigitalLifeSpineWithRuntimeCarry.memory.personStateProjection.selfContinuityAuthority,
-                      }
-                    : authoritativeDigitalLifeSpineWithRuntimeCarry.memory.personStateProjection,
-                }
-              : authoritativeDigitalLifeSpineWithRuntimeCarry.memory,
-          } as AlicizationDigitalLifeSpineDigest)
-        : authoritativeDigitalLifeSpineWithRuntimeCarry
+    const finalDigitalLifeSpine = authoritativeDigitalLifeSpineWithRuntimeCarry && authoritativeSourceTags
+      ? {
+          ...authoritativeDigitalLifeSpineWithRuntimeCarry,
+          runtime: authoritativeDigitalLifeSpineWithRuntimeCarry.runtime
+            ? {
+                ...authoritativeDigitalLifeSpineWithRuntimeCarry.runtime,
+                continuityPreferredTiming: alignedContinuityPreferredTiming ?? authoritativeDigitalLifeSpineWithRuntimeCarry.runtime.continuityPreferredTiming ?? null,
+              }
+            : authoritativeDigitalLifeSpineWithRuntimeCarry.runtime,
+          memory: authoritativeDigitalLifeSpineWithRuntimeCarry.memory
+            ? {
+                ...authoritativeDigitalLifeSpineWithRuntimeCarry.memory,
+                personStateProjection: authoritativeDigitalLifeSpineWithRuntimeCarry.memory.personStateProjection
+                  ? {
+                      ...authoritativeDigitalLifeSpineWithRuntimeCarry.memory.personStateProjection,
+                      selfContinuityAuthority: authoritativeDigitalLifeSpineWithRuntimeCarry.memory.personStateProjection.selfContinuityAuthority
+                        ? {
+                            ...authoritativeDigitalLifeSpineWithRuntimeCarry.memory.personStateProjection.selfContinuityAuthority,
+                            sourceTags: authoritativeSourceTags,
+                          }
+                        : authoritativeDigitalLifeSpineWithRuntimeCarry.memory.personStateProjection.selfContinuityAuthority,
+                    }
+                  : authoritativeDigitalLifeSpineWithRuntimeCarry.memory.personStateProjection,
+              }
+            : authoritativeDigitalLifeSpineWithRuntimeCarry.memory,
+        }
       : authoritativeDigitalLifeSpineWithRuntimeCarry
 
     const repairedFinalDigitalLifeSpine = repairContinuitySourceTagsFromRuntimeDigest({
@@ -2976,7 +2971,7 @@ export async function runAlicizationMainChatBackground(
     }))
   }
 
-  const resolveStructuredProjectState = (runtimeDigestProjectState: AlicizationStructuredProjectStateInput | null | undefined) => {
+  const resolveStructuredProjectState = (runtimeDigestProjectState: Record<string, unknown> | null | undefined) => {
     const canonicalProjectState = resolveAlicizationProjectStateBrief()
     const preparedRuntimeProjectState = resolvePreparedRuntimeProjectState(prepared)
     const fresherPreparedRuntimeProjectState = resolveFresherPreparedRuntimeProjectState(prepared)
@@ -5889,6 +5884,7 @@ export async function runAlicizationMainChatBackground(
         forceRewrite: rewriteInput.forceRewrite,
         forceReasonCodes: rewriteInput.forceReasonCodes,
         forceMustPreserve: rewriteInput.forceMustPreserve,
+        appendRuntimeDebugLine: input.appendRuntimeDebugLine,
         rewriteSecondPass: async secondPassInput => await rewriteAlicizationVisibleReplySecondPass({
           cardId: input.payload.cardId,
           turnId: input.payload.turnId,
@@ -5932,6 +5928,13 @@ export async function runAlicizationMainChatBackground(
         reason: error instanceof Error ? error.message : String(error),
         closureStatus: closure?.status ?? null,
         closureReasonCodes: closure?.reasonCodes ?? [],
+        closureFinalCriticReasonCodes: closure?.finalCritic?.reasonCodes ?? [],
+        closureFinalCriticRepairReasonCodes: closure?.finalCritic?.repairReasonCodes ?? [],
+        closureFinalCriticMustPreserve: closure?.finalCritic?.mustPreserve ?? [],
+        closureFinalCriticMustDrop: closure?.finalCritic?.mustDrop ?? [],
+        rewrittenReplyExcerpt: error instanceof AlicizationVisibleReplyClosureBlockedError
+          ? error.debug?.rewrittenReplyExcerpt ?? null
+          : null,
       })
       const reachability = await input.ensureMainGatewayReachable(input.mainGateway, { bypassCache: true }).catch(() => null)
       if (reachability?.reachable !== false) {
@@ -6553,9 +6556,11 @@ export async function runAlicizationMainChatBackground(
           ? 'executor_run_codex'
           : channel === 'claude-code'
             ? 'executor_run_claude_code'
-            : channel === 'openclaw'
-              ? 'executor_run_openclaw'
-              : ''
+            : channel === 'browser' || channel === 'software' || channel === 'desktop'
+              ? 'executor_run_local_visual'
+              : channel === 'openclaw'
+                ? 'executor_run_openclaw'
+                : ''
       if (!requiredToolName)
         return undefined
       return {

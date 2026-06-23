@@ -160,6 +160,15 @@ describe('main chat run state', () => {
         providerMindExecuted: true,
         reason: 'test-finish-payload',
       },
+      visibleReplyCritic: {
+        mustPreserve: ['same digital life continuity'],
+        mustAvoid: [],
+        reasons: ['semantic-judge:project-state-same-her-missing'],
+      } as any,
+      visibleReplyClosure: {
+        status: 'rewritten',
+        reasonCodes: ['project-state-same-her-continuity-required'],
+      } as any,
     })
 
     expect(controller.getRecentlyFinishedPayload(key)).toEqual(expect.objectContaining({
@@ -168,6 +177,20 @@ describe('main chat run state', () => {
       visibleReplyExecution: expect.objectContaining({
         actualVisibleReplyAuthority: 'llm-mind',
         providerMindExecuted: true,
+      }),
+      visibleReplyCritic: expect.objectContaining({
+        mustPreserve: expect.arrayContaining([
+          'same digital life continuity',
+        ]),
+        reasons: expect.arrayContaining([
+          'semantic-judge:project-state-same-her-missing',
+        ]),
+      }),
+      visibleReplyClosure: expect.objectContaining({
+        status: 'rewritten',
+        reasonCodes: expect.arrayContaining([
+          'project-state-same-her-continuity-required',
+        ]),
       }),
     }))
 

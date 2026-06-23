@@ -8,7 +8,23 @@ export const alicizationExecutorToolNames = new Set([
   'executor_run_cli',
   'executor_run_codex',
   'executor_run_claude_code',
+  'executor_run_local_visual',
   'executor_run_openclaw',
+  'browser_open_url',
+  'browser_search_web',
+  'browser_read_page',
+  'browser_click_element',
+  'browser_type_text',
+  'browser_navigate',
+  'browser_scroll',
+  'browser_wait',
+  'desktop_inspect_scene',
+  'desktop_list_interactables',
+  'desktop_click_element',
+  'desktop_type_text',
+  'desktop_press_keys',
+  'desktop_open_application',
+  'desktop_wait',
 ])
 
 const terminalExecutionThreadStatuses = new Set([
@@ -17,6 +33,13 @@ const terminalExecutionThreadStatuses = new Set([
   'blocked',
   'cancelled',
 ])
+
+const alicizationMinimalRecoveryRequiredSystemMarkers = [
+  '[ALICIZATION_PROJECT_STATE]',
+  '[ALICIZATION_MIND_TURN_CONTRACT]',
+  '[ALICIZATION_LIVING_SELF]',
+  '[ALICIZATION_EXECUTIVE_ANSWER_BRIEF]',
+] as const
 
 export interface AlicizationInlineExecutionReceipt {
   completedAt: number
@@ -55,6 +78,15 @@ export function buildAlicizationMinimalContextRecoveryMessages(messages: Message
       keepIndexes.add(index)
       break
     }
+  }
+
+  for (let index = 0; index < messages.length; index += 1) {
+    const message = messages[index]
+    if (message?.role !== 'system')
+      continue
+    const text = typeof message.content === 'string' ? message.content : ''
+    if (alicizationMinimalRecoveryRequiredSystemMarkers.some(marker => text.includes(marker)))
+      keepIndexes.add(index)
   }
 
   let preservedTailCount = 0
@@ -118,9 +150,33 @@ export function asAlicizationInlineExecutionSurfaceInput(
         ? 'codex'
         : normalizedToolName === 'executor_run_claude_code'
           ? 'claude-code'
-          : normalizedToolName === 'executor_run_openclaw'
-            ? 'openclaw'
-            : 'executor')
+          : normalizedToolName === 'executor_run_local_visual'
+            ? /browser|page|tab|网页|浏览器|页面/u.test(`${sanitizeText(payload.kind, '')} ${sanitizeText(payload.goal, '')} ${sanitizeText(payload.summary, '')}`)
+              ? 'browser'
+              : /software|app|应用|软件/u.test(`${sanitizeText(payload.kind, '')} ${sanitizeText(payload.goal, '')} ${sanitizeText(payload.summary, '')}`)
+                ? 'software'
+                : 'desktop'
+            : normalizedToolName === 'executor_run_openclaw'
+              ? 'openclaw'
+              : normalizedToolName === 'browser_open_url'
+                || normalizedToolName === 'browser_search_web'
+                || normalizedToolName === 'browser_read_page'
+                || normalizedToolName === 'browser_click_element'
+                || normalizedToolName === 'browser_type_text'
+                || normalizedToolName === 'browser_navigate'
+                || normalizedToolName === 'browser_scroll'
+                || normalizedToolName === 'browser_wait'
+                ? 'browser'
+                : normalizedToolName === 'desktop_inspect_scene'
+                  || normalizedToolName === 'desktop_list_interactables'
+                  || normalizedToolName === 'desktop_click_element'
+                  || normalizedToolName === 'desktop_type_text'
+                  || normalizedToolName === 'desktop_press_keys'
+                  || normalizedToolName === 'desktop_wait'
+                  ? 'desktop'
+                  : normalizedToolName === 'desktop_open_application'
+                    ? 'desktop'
+                    : 'executor')
   const status = sanitizeText(payload.threadStatus, '').toLowerCase()
     || sanitizeText(payload.status, '').toLowerCase()
     || (payload.ok === true ? 'completed' : payload.ok === false ? 'failed' : '')

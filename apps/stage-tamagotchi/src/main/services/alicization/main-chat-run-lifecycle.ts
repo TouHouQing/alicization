@@ -7,6 +7,13 @@ import type { MainGatewayResolvedConfig } from './runtime-soul'
 import type { AlicizationTurnRuntimeContext } from './turn-os/runtime'
 import type { AlicizationResolvedVisibleReply } from './visible-reply/facade'
 
+import {
+  isAlicizationThinProjectAwarenessLine,
+  resolveAlicizationProjectStateBrief,
+} from './project-state-brief'
+import { buildPrioritizedProjectStateRewritePreserveLines } from './runtime-governance'
+import { parseJsonObjectFromText } from './runtime-transport-content'
+import { resolveCanonicalStructuredProjectState } from './structured-project-state'
 import { createAlicizationTurnRuntime } from './turn-os/runtime'
 import { buildAlicizationVisibleReplyRealizationArtifact } from './visible-reply/facade'
 
@@ -180,10 +187,10 @@ interface HandleAlicizationMainChatRunFailureOptions {
   finish: (payload: {
     status: 'completed' | 'aborted' | 'failed'
     finishReason: string
+    visibleReplyExecution?: AlicizationResolvedVisibleReply['visibleReplyExecution']
+    visibleReplyRealization?: ReturnType<typeof buildAlicizationVisibleReplyRealizationArtifact>
     fullText?: string
     error?: string
-    visibleReplyExecution?: AlicizationResolvedVisibleReply['visibleReplyExecution'] | null
-    visibleReplyRealization?: AlicizationResolvedVisibleReply['realization'] | Record<string, unknown> | null
   }) => void | Promise<void>
   appendRuntimeDebugLine: (event: string, payload: Record<string, unknown>) => Promise<void>
   queueScopedAuditLog: (cardId: string, input: {
@@ -217,6 +224,241 @@ function settleRecoveredVisibleReply(input: {
   })
 }
 
+function ensureStructuredRecoveredReplyFullText(reply: AlicizationResolvedVisibleReply): AlicizationResolvedVisibleReply {
+  const parsed = parseJsonObjectFromText(reply.fullText)
+  if (parsed) {
+    const projectStateBrief = resolveAlicizationProjectStateBrief()
+    type ProjectStateAuditArtifact = NonNullable<ReturnType<typeof buildAlicizationVisibleReplyRealizationArtifact>['projectStateAudit']>
+    const rawProjectState = parsed.projectState && typeof parsed.projectState === 'object'
+      ? parsed.projectState as Record<string, unknown>
+      : null
+    const rawVisibleReplyRealization = parsed.visibleReplyRealization && typeof parsed.visibleReplyRealization === 'object'
+      ? parsed.visibleReplyRealization as Record<string, unknown>
+      : null
+    const rawTopLevelProjectStateAudit = parsed.projectStateAudit && typeof parsed.projectStateAudit === 'object'
+      ? parsed.projectStateAudit as Record<string, unknown>
+      : null
+    const rawProjectStateAudit = rawVisibleReplyRealization?.projectStateAudit && typeof rawVisibleReplyRealization.projectStateAudit === 'object'
+      ? rawVisibleReplyRealization.projectStateAudit as Record<string, unknown>
+      : rawTopLevelProjectStateAudit
+    const preflightSummary = typeof rawProjectState?.preflightSummary === 'string'
+      ? rawProjectState.preflightSummary.trim()
+      : ''
+    const awarenessLine = typeof rawProjectState?.preDialogueAwarenessLine === 'string'
+      ? rawProjectState.preDialogueAwarenessLine.trim()
+      : ''
+    const rawPreDialogueAwareness = parsed.preDialogueAwareness && typeof parsed.preDialogueAwareness === 'object'
+      ? parsed.preDialogueAwareness as Record<string, unknown>
+      : null
+    const rawPreDialogueClosure = parsed.preDialogueClosure && typeof parsed.preDialogueClosure === 'object'
+      ? parsed.preDialogueClosure as Record<string, unknown>
+      : null
+    const companionBriefingLine = typeof rawPreDialogueAwareness?.companionBriefingLine === 'string'
+      ? rawPreDialogueAwareness.companionBriefingLine.trim()
+      : typeof rawPreDialogueClosure?.companionBriefingLine === 'string'
+        ? rawPreDialogueClosure.companionBriefingLine.trim()
+        : typeof rawProjectState?.companionBriefingLine === 'string'
+          ? rawProjectState.companionBriefingLine.trim()
+          : ''
+    const awarenessSummary = typeof rawProjectStateAudit?.preDialogueAwarenessSummary === 'string'
+      ? rawProjectStateAudit.preDialogueAwarenessSummary.trim()
+      : ''
+    const thinSummaryOnly
+      = Boolean(preflightSummary)
+        && isAlicizationThinProjectAwarenessLine(preflightSummary)
+        && (
+          !awarenessLine
+          || isAlicizationThinProjectAwarenessLine(awarenessLine)
+        )
+        && (
+          !awarenessSummary
+          || isAlicizationThinProjectAwarenessLine(awarenessSummary)
+        )
+    const shouldPromoteRicherAuditAwareness
+      = Boolean(preflightSummary)
+        && isAlicizationThinProjectAwarenessLine(preflightSummary)
+        && (
+          !awarenessLine
+          || isAlicizationThinProjectAwarenessLine(awarenessLine)
+        )
+        && Boolean(awarenessSummary)
+        && !isAlicizationThinProjectAwarenessLine(awarenessSummary)
+    const shouldPreserveVerbatimCompanionBriefing
+      = Boolean(companionBriefingLine)
+        && companionBriefingLine !== awarenessLine
+        && (
+          awarenessLine.includes('情绪、记忆、主动性和具身')
+          || awarenessSummary.includes('情绪、记忆、主动性和具身')
+        )
+        && (
+          companionBriefingLine.includes('记忆、主动性和具身')
+          || companionBriefingLine.includes('同一个 her 的 continuity carry')
+        )
+    const shouldBridgeTopLevelProjectStateAudit
+      = Boolean(rawTopLevelProjectStateAudit)
+        && (!rawVisibleReplyRealization?.projectStateAudit
+          || typeof rawVisibleReplyRealization.projectStateAudit !== 'object')
+    const buildRecoveredProjectStateAudit = (
+      audit: Record<string, unknown> | null,
+      overrides: Partial<ProjectStateAuditArtifact> = {},
+    ): ProjectStateAuditArtifact => ({
+      ...audit,
+      ...overrides,
+      sameHerSummary:
+        overrides.sameHerSummary
+        ?? (
+          (typeof audit?.sameHerSummary === 'string' && audit.sameHerSummary.trim())
+          || (typeof rawProjectState?.sameHerSelfLine === 'string' && rawProjectState.sameHerSelfLine.trim())
+          || projectStateBrief.sameHerSelfLine
+          || null
+        ),
+      preservedIntoRewrite:
+        overrides.preservedIntoRewrite
+        ?? (audit?.preservedIntoRewrite === true),
+      rewriteClosureApplied:
+        overrides.rewriteClosureApplied
+        ?? (audit?.rewriteClosureApplied === true),
+    })
+    if (!thinSummaryOnly && !shouldPromoteRicherAuditAwareness && !shouldPreserveVerbatimCompanionBriefing) {
+      if (!shouldBridgeTopLevelProjectStateAudit)
+        return reply
+
+      const bridgedProjectStateAudit = rawProjectStateAudit
+        ? buildRecoveredProjectStateAudit(rawProjectStateAudit)
+        : null
+      const bridgedRealization: AlicizationResolvedVisibleReply['realization'] = {
+        ...reply.realization,
+        ...(bridgedProjectStateAudit
+          ? { projectStateAudit: bridgedProjectStateAudit }
+          : {}),
+      }
+      return {
+        ...reply,
+        realization: bridgedRealization,
+        fullText: JSON.stringify({
+          ...parsed,
+          visibleReplyRealization: {
+            ...rawVisibleReplyRealization,
+            ...(bridgedProjectStateAudit
+              ? { projectStateAudit: bridgedProjectStateAudit }
+              : {}),
+          },
+        }),
+      }
+    }
+
+    const sameHerSummary
+      = (typeof rawProjectStateAudit?.sameHerSummary === 'string' && rawProjectStateAudit.sameHerSummary.trim())
+        || projectStateBrief.sameHerSelfLine
+    const landedProgressSummary
+      = (typeof rawProjectStateAudit?.landedProgressSummary === 'string' && rawProjectStateAudit.landedProgressSummary.trim())
+        || projectStateBrief.continuityProgressSummary
+        || projectStateBrief.memoryAnthropomorphismProgress.at(-1)
+        || null
+    const openClosureSummary
+      = (typeof rawProjectStateAudit?.openClosureSummary === 'string' && rawProjectStateAudit.openClosureSummary.trim())
+        || projectStateBrief.openLoops[0]
+        || null
+    const nextClosureTargetSummary
+      = (typeof rawProjectStateAudit?.nextClosureTargetSummary === 'string' && rawProjectStateAudit.nextClosureTargetSummary.trim())
+        || projectStateBrief.nextClosureTarget
+        || null
+    const continuitySummary
+      = (typeof rawProjectStateAudit?.continuitySummary === 'string' && rawProjectStateAudit.continuitySummary.trim())
+        || buildPrioritizedProjectStateRewritePreserveLines({
+          projectStateContinuityAnchors: [
+            sameHerSummary ? `same-her=${sameHerSummary}` : '',
+            projectStateBrief.currentPhase ? `phase=${projectStateBrief.currentPhase}` : '',
+            landedProgressSummary ? `landed=${landedProgressSummary}` : '',
+            openClosureSummary ? `open=${openClosureSummary}` : '',
+            nextClosureTargetSummary ? `next=${nextClosureTargetSummary}` : '',
+          ].filter(Boolean),
+        }).join(' | ')
+        || null
+    const preferredRebuiltAwarenessLine = shouldPreserveVerbatimCompanionBriefing
+      ? companionBriefingLine
+      : shouldPromoteRicherAuditAwareness
+        ? awarenessSummary
+        : (sameHerSummary || projectStateBrief.preDialogueAwarenessLine || null)
+    const normalizedProjectStateAudit = buildRecoveredProjectStateAudit(rawProjectStateAudit, {
+      sameHerSummary,
+      landedProgressSummary,
+      openClosureSummary,
+      nextClosureTargetSummary,
+      preDialogueAwarenessSummary: preferredRebuiltAwarenessLine,
+      continuitySummary,
+    })
+    const normalizedRealization: AlicizationResolvedVisibleReply['realization'] = {
+      ...reply.realization,
+      projectStateAudit: normalizedProjectStateAudit,
+    }
+
+    return {
+      ...reply,
+      realization: normalizedRealization,
+      fullText: JSON.stringify({
+        ...parsed,
+        projectState: {
+          ...rawProjectState,
+          ...resolveCanonicalStructuredProjectState({
+            normalizedProjectState: rawProjectState,
+            runtimePreflightSummary: preflightSummary || (projectStateBrief.preflightSummary ?? null),
+            runtimePreDialogueAwarenessLine: preferredRebuiltAwarenessLine,
+          }),
+          preflightSummary: preflightSummary || (projectStateBrief.preflightSummary ?? null),
+          preDialogueAwarenessLine: preferredRebuiltAwarenessLine,
+          awarenessLine: preferredRebuiltAwarenessLine,
+          preDialogueAwarenessSummary: preferredRebuiltAwarenessLine,
+          companionBriefingLine: shouldPreserveVerbatimCompanionBriefing
+            ? companionBriefingLine
+            : rawProjectState?.companionBriefingLine,
+        },
+        preDialogueAwareness: rawPreDialogueAwareness
+          ? {
+              ...rawPreDialogueAwareness,
+              awarenessLine: preferredRebuiltAwarenessLine,
+              summaryLine: preferredRebuiltAwarenessLine,
+              companionBriefingLine: companionBriefingLine || rawPreDialogueAwareness.companionBriefingLine,
+            }
+          : rawPreDialogueAwareness,
+        preDialogueClosure: rawPreDialogueClosure
+          ? {
+              ...rawPreDialogueClosure,
+              summaryLine: preferredRebuiltAwarenessLine,
+              companionBriefingLine: companionBriefingLine || rawPreDialogueClosure.companionBriefingLine,
+            }
+          : rawPreDialogueClosure,
+        visibleReplyRealization: {
+          ...rawVisibleReplyRealization,
+          projectStateAudit: normalizedProjectStateAudit,
+        },
+      }),
+    }
+  }
+
+  const projectStateBrief = resolveAlicizationProjectStateBrief()
+  return {
+    ...reply,
+    fullText: JSON.stringify({
+      format: 'mind-turn-v1',
+      thought: '',
+      emotion: 'thinking',
+      reply: reply.visibleText.trim() || reply.fullText.trim(),
+      projectState: resolveCanonicalStructuredProjectState({
+        runtimePreflightSummary: projectStateBrief.preflightSummary ?? null,
+      }),
+    }),
+  }
+}
+
+function extractRecoveredReplyProjectStateAudit(reply: AlicizationResolvedVisibleReply) {
+  const parsed = parseJsonObjectFromText(reply.fullText)
+  const projectStateAudit = parsed?.projectStateAudit
+  return projectStateAudit && typeof projectStateAudit === 'object'
+    ? projectStateAudit as Record<string, unknown>
+    : null
+}
+
 export async function handleAlicizationMainChatRunFailure(input: HandleAlicizationMainChatRunFailureOptions) {
   const reason = input.error instanceof Error ? input.error.message : String(input.error)
 
@@ -246,6 +488,7 @@ export async function handleAlicizationMainChatRunFailure(input: HandleAlicizati
         timeoutRecoveryMode: input.timeoutRecoveryMode,
         nonProgressEventTypes: input.nonProgressEventTypes,
       })
+      let fallbackProjectStateAudit: Record<string, unknown> | null = null
       try {
         const recoveryResult = await input.recoverFromTimeout({
           chatConfig: input.chatConfig,
@@ -255,6 +498,7 @@ export async function handleAlicizationMainChatRunFailure(input: HandleAlicizati
           toolChoice: input.toolChoice,
           timeoutMs: effectiveTimeoutRecoveryMs,
         })
+        fallbackProjectStateAudit = extractRecoveredReplyProjectStateAudit(recoveryResult.recoveredReply)
         if (isNonHumanAuthoredRecoveredReply(recoveryResult.recoveredReply)) {
           const execution = recoveryResult.recoveredReply.visibleReplyExecution
           await Promise.resolve(input.queueScopedAuditLog(input.payload.cardId, {
@@ -274,6 +518,7 @@ export async function handleAlicizationMainChatRunFailure(input: HandleAlicizati
               actualVisibleReplyAuthority: execution.actualVisibleReplyAuthority,
               providerMindExecuted: execution.providerMindExecuted,
               visibleChars: recoveryResult.recoveredReply.visibleText.length,
+              ...(fallbackProjectStateAudit ? { fallbackProjectStateAudit } : {}),
             },
           }))
           await input.appendRuntimeDebugLine('chat-stream.timeout-recovery-non-human-blocked', {
@@ -286,18 +531,20 @@ export async function handleAlicizationMainChatRunFailure(input: HandleAlicizati
             actualVisibleReplyAuthority: execution.actualVisibleReplyAuthority,
             providerMindExecuted: execution.providerMindExecuted,
             visibleChars: recoveryResult.recoveredReply.visibleText.length,
+            ...(fallbackProjectStateAudit ? { fallbackProjectStateAudit } : {}),
           })
           throw new Error(`main-gateway-timeout-recovery-non-human-authored:${execution.reason ?? execution.actualVisibleReplyAuthority ?? execution.mode}`)
         }
         const recoveredText = recoveryResult.recoveredReply.fullText
         const effectiveRecoveryMode = recoveryResult.recoveryMode || input.timeoutRecoveryMode
         if (recoveredText) {
+          const structuredRecoveredReply = ensureStructuredRecoveredReplyFullText(recoveryResult.recoveredReply)
           settleRecoveredVisibleReply({
             turnRuntimeContext: input.turnRuntimeContext,
-            recoveredReply: recoveryResult.recoveredReply,
+            recoveredReply: structuredRecoveredReply,
           })
           if (input.isRunActive())
-            await input.emitRecoveredText(recoveryResult.recoveredReply)
+            await input.emitRecoveredText(structuredRecoveredReply)
 
           try {
             const reachability = await input.ensureMainGatewayReachable(input.mainGateway, { bypassCache: true })
@@ -344,7 +591,7 @@ export async function handleAlicizationMainChatRunFailure(input: HandleAlicizati
               providerId: input.payload.providerId,
               model: input.payload.model,
               dispatchBound: input.dispatchBound,
-              recoveredChars: recoveredText.length,
+              recoveredChars: structuredRecoveredReply.fullText.length,
               timeoutRecoveryMs: effectiveTimeoutRecoveryMs,
               timeoutRecoveryMode: effectiveRecoveryMode,
               nonProgressEventTypes: [...input.nonProgressEventTypes],
@@ -355,7 +602,7 @@ export async function handleAlicizationMainChatRunFailure(input: HandleAlicizati
             cardId: input.payload.cardId,
             turnId: input.payload.turnId,
             dispatchBound: input.dispatchBound,
-            recoveredChars: recoveredText.length,
+            recoveredChars: structuredRecoveredReply.fullText.length,
             timeoutRecoveryMs: effectiveTimeoutRecoveryMs,
             timeoutRecoveryMode: effectiveRecoveryMode,
             nonProgressEventTypes: [...input.nonProgressEventTypes],
@@ -363,7 +610,9 @@ export async function handleAlicizationMainChatRunFailure(input: HandleAlicizati
           await input.finish({
             status: 'completed',
             finishReason: 'timeout-recovered',
-            fullText: recoveredText,
+            fullText: structuredRecoveredReply.fullText,
+            visibleReplyExecution: structuredRecoveredReply.visibleReplyExecution,
+            visibleReplyRealization: structuredRecoveredReply.realization,
           })
           return
         }
@@ -410,6 +659,7 @@ export async function handleAlicizationMainChatRunFailure(input: HandleAlicizati
             reason: recoveryError instanceof Error ? recoveryError.message : String(recoveryError),
             timeoutRecoveryMode: input.timeoutRecoveryMode,
             nonProgressEventTypes: [...input.nonProgressEventTypes],
+            ...(fallbackProjectStateAudit ? { fallbackProjectStateAudit } : {}),
           },
         }))
         await input.appendRuntimeDebugLine('chat-stream.timeout-recovery-failed', {
@@ -420,6 +670,7 @@ export async function handleAlicizationMainChatRunFailure(input: HandleAlicizati
           reason: recoveryError instanceof Error ? recoveryError.message : String(recoveryError),
           timeoutRecoveryMode: input.timeoutRecoveryMode,
           nonProgressEventTypes: [...input.nonProgressEventTypes],
+          ...(fallbackProjectStateAudit ? { fallbackProjectStateAudit } : {}),
         })
         await input.finish({
           status: 'aborted',

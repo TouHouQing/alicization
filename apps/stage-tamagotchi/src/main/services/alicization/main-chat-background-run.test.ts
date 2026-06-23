@@ -69,6 +69,7 @@ vi.mock('./runtime-soul', () => ({
   mainChatFirstEventTimeoutWithVisualGroundingMs: 90_000,
   mainChatTimeoutRecoveryMs: 12_000,
   mainChatTimeoutRecoveryWithVisualGroundingMs: 30_000,
+  mainChatVisibleReplySecondPassTimeoutMs: 65_000,
   clamp01: (value: number) => Math.min(1, Math.max(0, Number.isFinite(value) ? value : 0)),
   normalizeCardId: (raw: unknown) => typeof raw === 'string' ? raw.trim() || 'default' : 'default',
   sanitizeMultilineText: (raw: unknown, fallback = '') => typeof raw === 'string' ? raw.replace(/\r\n/g, '\n').trim() : fallback,

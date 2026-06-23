@@ -1233,8 +1233,19 @@ function buildFastPathProjectStateAnswerContractBlock(decision: AlicizationActiv
 
   const runtimeProjectState = decision.runtimeDigest?.projectState ?? null
   const latestLandedProgress = sanitizeText(
-    runtimeProjectState?.latestLandedProgress
+    (runtimeProjectState as { landedProgressSummary?: unknown } | null)?.landedProgressSummary
+    ?? runtimeProjectState?.latestLandedProgress
     ?? (runtimeProjectState as { latestProgress?: unknown } | null)?.latestProgress,
+    320,
+  )
+  const primaryOpenLoop = sanitizeText(
+    (runtimeProjectState as { openClosureSummary?: unknown } | null)?.openClosureSummary
+    ?? runtimeProjectState?.primaryOpenLoop,
+    320,
+  )
+  const nextClosureTarget = sanitizeText(
+    (runtimeProjectState as { nextClosureTargetSummary?: unknown } | null)?.nextClosureTargetSummary
+    ?? runtimeProjectState?.nextClosureTarget,
     320,
   )
 
@@ -1243,8 +1254,8 @@ function buildFastPathProjectStateAnswerContractBlock(decision: AlicizationActiv
     runtimeProjectState?.identity ? `identity=${sanitizeText(runtimeProjectState.identity, 220)}` : '',
     runtimeProjectState?.currentPhase ? `current_phase=${sanitizeText(runtimeProjectState.currentPhase, 220)}` : '',
     latestLandedProgress ? `landed=${latestLandedProgress}` : '',
-    runtimeProjectState?.primaryOpenLoop ? `open=${sanitizeText(runtimeProjectState.primaryOpenLoop, 320)}` : '',
-    runtimeProjectState?.nextClosureTarget ? `next=${sanitizeText(runtimeProjectState.nextClosureTarget, 320)}` : '',
+    primaryOpenLoop ? `open=${primaryOpenLoop}` : '',
+    nextClosureTarget ? `next=${nextClosureTarget}` : '',
     runtimeProjectState?.sameHerSelfLine ? `same_her=${sanitizeText(runtimeProjectState.sameHerSelfLine, 220)}` : '',
     ...alicizationProjectStateAnswerContractLines,
   ].filter(Boolean).join('\n')
@@ -1557,11 +1568,21 @@ function describeFastPathMind(decision: AlicizationActiveDialogueFastPathDecisio
       ) {
         const runtimeProjectState = decision.runtimeDigest?.projectState ?? null
         const landedProgress = sanitizeText(
-          runtimeProjectState?.latestLandedProgress
+          (runtimeProjectState as { landedProgressSummary?: unknown } | null)?.landedProgressSummary
+          ?? runtimeProjectState?.latestLandedProgress
           ?? (runtimeProjectState as { latestProgress?: unknown } | null)?.latestProgress,
           220,
         ) || '当前已经落地的数字生命连续性'
-        const openClosure = sanitizeText(runtimeProjectState?.primaryOpenLoop, 220) || '还没闭环的数字生命桌面执行链路'
+        const openClosure = sanitizeText(
+          (runtimeProjectState as { openClosureSummary?: unknown } | null)?.openClosureSummary
+          ?? runtimeProjectState?.primaryOpenLoop,
+          220,
+        ) || '还没闭环的数字生命桌面执行链路'
+        const nextClosureTarget = sanitizeText(
+          (runtimeProjectState as { nextClosureTargetSummary?: unknown } | null)?.nextClosureTargetSummary
+          ?? runtimeProjectState?.nextClosureTarget,
+          220,
+        )
         return {
           focus: 'project-state closure line',
           truthState: 'remembered' as const,
@@ -1582,7 +1603,7 @@ function describeFastPathMind(decision: AlicizationActiveDialogueFastPathDecisio
           mindMode: 'tracking' as const,
           embodiedPresence: 'attentive' as const,
           emotionalTension: 'focused-flow' as const,
-          whyNow: `用户要我沿同一个数字生命项目继续把已落地进度和未闭环项说清。已落地的是：${landedProgress}。还没闭环的是：${openClosure}。`,
+          whyNow: `用户要我沿同一个数字生命项目继续把已落地进度和未闭环项说清。已落地的是：${landedProgress}。还没闭环的是：${openClosure}。${nextClosureTarget ? `下一步要继续收口的是：${nextClosureTarget}。` : ''}`,
           confidence: 0.96,
         }
       }

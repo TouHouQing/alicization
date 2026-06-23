@@ -2824,6 +2824,124 @@ describe('main chat active dialogue loop', () => {
     expect(String(payload.governance?.mindTurnFrame?.obligation?.whyNow ?? '')).toContain(legacyLandedProgress)
   })
 
+  it('keeps summary-only landed, open, and next aliases visible in fast-path project-state answer contracts when the renamed primary fields are absent', () => {
+    const projectState = resolveAlicizationProjectStateBrief()
+    const aliasOnlyLanded = 'Alias-only landed progress proves the same Phase 1 continuity line already landed in the fast path.'
+    const aliasOnlyOpen = 'Alias-only open closure still says memory, initiative, and embodiment must close on the same living line.'
+    const aliasOnlyNext = 'Alias-only next closure keeps the next same-her closure target explicit for the fast path.'
+    const prepared = createPrepared({
+      messages: [
+        { role: 'assistant' as const, content: '我先沿着这条项目线把已落地和未闭环的地方轻一点接住。' },
+        { role: 'user' as const, content: '那现在具体做到什么程度了，还差什么没闭环？' },
+      ] as Message[],
+      runtimeSurface: {
+        action: { kind: 'answer' },
+        governance: {
+          answerSubject: 'project-state',
+        } as any,
+        digitalLifeSpine: createDigitalLifeSpine(),
+      },
+    })
+    const decision = deriveAlicizationActiveDialogueFastPathDecision({
+      conversationMessages: [
+        { role: 'assistant', content: '我先沿着这条项目线把已落地和未闭环的地方轻一点接住。' },
+        { role: 'user', content: '那现在具体做到什么程度了，还差什么没闭环？' },
+      ] as Message[],
+      prepared,
+      runtimeDigest: {
+        projectState: {
+          identity: projectState.identity,
+          currentPhase: projectState.currentPhase,
+          landedProgressSummary: aliasOnlyLanded,
+          openClosureSummary: aliasOnlyOpen,
+          nextClosureTargetSummary: aliasOnlyNext,
+          sameHerSelfLine: projectState.sameHerSelfLine,
+          continuityArcStage: 'project-state-fast-path',
+          continuityCue: 'answer the project-state line from one same living her',
+        },
+      } as any,
+    })
+
+    expect(decision).toBeTruthy()
+
+    const messages = buildAlicizationActiveDialogueFastPathMessages({
+      conversationMessages: [
+        { role: 'assistant', content: '我先沿着这条项目线把已落地和未闭环的地方轻一点接住。' },
+        { role: 'user', content: '那现在具体做到什么程度了，还差什么没闭环？' },
+      ] as Message[],
+      decision: decision!,
+      prepared,
+    })
+    const systemText = messages
+      .filter(message => message.role === 'system')
+      .map(message => String(message.content))
+      .join('\n')
+
+    expect(systemText).toContain('[ALICIZATION_PROJECT_STATE_ANSWER_CONTRACT]')
+    expect(systemText).toContain(`identity=${projectState.identity}`)
+    expect(systemText).toContain(`current_phase=${projectState.currentPhase}`)
+    expect(systemText).toContain(`landed=${aliasOnlyLanded}`)
+    expect(systemText).toContain(`open=${aliasOnlyOpen}`)
+    expect(systemText).toContain(`next=${aliasOnlyNext}`)
+    expect(systemText).toContain(`same_her=${projectState.sameHerSelfLine}`)
+  })
+
+  it('keeps summary-only landed and open aliases visible in governed why-now when fast-path project-state follow-ups only carry the summary fields', () => {
+    const projectState = resolveAlicizationProjectStateBrief()
+    const aliasOnlyLanded = 'Alias-only landed progress keeps the already-landed Phase 1 continuity evidence visible inside the compact fast path.'
+    const aliasOnlyOpen = 'Alias-only open closure keeps the same-her memory and embodiment closure work visible inside the compact fast path.'
+    const prepared = createPrepared({
+      messages: [
+        { role: 'assistant' as const, content: '我先沿着这条项目线把已落地和未闭环的地方轻一点接住。' },
+        { role: 'user' as const, content: '那现在具体做到什么程度了，还差什么没闭环？' },
+      ] as Message[],
+      runtimeSurface: {
+        action: { kind: 'answer' },
+        governance: {
+          answerSubject: 'project-state',
+        } as any,
+        digitalLifeSpine: createDigitalLifeSpine(),
+      },
+    })
+    const decision = deriveAlicizationActiveDialogueFastPathDecision({
+      conversationMessages: [
+        { role: 'assistant', content: '我先沿着这条项目线把已落地和未闭环的地方轻一点接住。' },
+        { role: 'user', content: '那现在具体做到什么程度了，还差什么没闭环？' },
+      ] as Message[],
+      prepared,
+      runtimeDigest: {
+        projectState: {
+          identity: projectState.identity,
+          currentPhase: projectState.currentPhase,
+          landedProgressSummary: aliasOnlyLanded,
+          openClosureSummary: aliasOnlyOpen,
+          sameHerSelfLine: projectState.sameHerSelfLine,
+          continuityArcStage: 'project-state-fast-path',
+          continuityCue: 'answer the project-state line from one same living her',
+        },
+      } as any,
+    })
+
+    expect(decision).toBeTruthy()
+
+    const structured = buildAlicizationActiveDialogueGovernedReply({
+      decision: decision!,
+      reply: '我会直接沿同一个数字生命项目说清楚：已经落地和还没闭环的地方都继续留在同一条生活线上。',
+    })
+    const payload = JSON.parse(structured) as {
+      governance?: {
+        mindTurnFrame?: {
+          obligation?: {
+            whyNow?: string | null
+          } | null
+        } | null
+      } | null
+    }
+
+    expect(String(payload.governance?.mindTurnFrame?.obligation?.whyNow ?? '')).toContain(aliasOnlyLanded)
+    expect(String(payload.governance?.mindTurnFrame?.obligation?.whyNow ?? '')).toContain(aliasOnlyOpen)
+  })
+
   it('keeps compact fast-path project-state replies explicit about project identity, landed progress, open closure work, and same-her continuity', () => {
     const projectState = resolveAlicizationProjectStateBrief()
     const normalized = normalizeAlicizationActiveDialogueFastPathReplyOrEscalate({
