@@ -208,8 +208,15 @@ export function buildRecollectionSpeechVisibleSurfaceRules(
 
   pushUnique(mustNotDo, 'Do not reuse drafted recollection wording, drafted memory contours, or internal recollection leads verbatim.')
   pushUnique(mustNotDo, 'Do not turn recollection into a standalone archive dump or date-recital.')
-  if (controls.certainty === 'approximate' || controls.certainty === 'fragmentary')
+  if (controls.certainty === 'approximate' || controls.certainty === 'fragmentary') {
+    pushUnique(mustDo, 'Keep the visible recollection approximate and uncertainty-aware instead of claiming exactness.')
     pushUnique(mustNotDo, 'Do not present fragmentary or approximate recollection as exact remembered wording.')
+  }
+  if (!controls.shouldSurface || controls.visibility === 'internal-only') {
+    pushUnique(mustDo, 'Let active recollection stay as inner carry unless surfacing it materially helps the current payoff.')
+    pushUnique(mustDo, 'If memory stays internal, let it bend stance, choice of detail, or tone rather than announcing the memory itself.')
+    pushUnique(mustNotDo, 'Do not dump recalled memory into the visible reply just because it became mentally active.')
+  }
   if (controls.continuityRole === 'procedure-carry') {
     pushUnique(mustDo, 'If same-seam procedure carry becomes visible, frame it as remembered prior procedure that keeps the current thread intact.')
     pushUnique(mustNotDo, 'Do not turn same-seam procedure carry into retrospective narration or execution impersonation.')

@@ -39,6 +39,7 @@ interface BuildAlicizationLongHorizonMemoryInput {
   projectStateSameHerSelfLine?: string | null
   projectStateSameHerDriftRisk?: string | null
   projectStateProactiveSameHerGap?: string | null
+  projectStateContinuityArcStage?: string | null
   projectStatePreferredPauseMode?: string | null
   projectStatePreferredLipsyncMode?: string | null
   projectStatePreferredVoiceMode?: string | null
@@ -517,12 +518,14 @@ function collectProjectStateContinuityLines(input: {
   projectStateSameHerSelfLine?: string | null
   projectStateSameHerDriftRisk?: string | null
   projectStateProactiveSameHerGap?: string | null
+  projectStateContinuityArcStage?: string | null
 }) {
   return uniqueList([
     input.projectStateSameHerDriftRisk,
     input.projectStateProactiveSameHerGap,
     input.projectStateSameHerSelfLine,
     input.projectStateEmotionalClosureCue,
+    input.projectStateContinuityArcStage ? `continuity arc ${input.projectStateContinuityArcStage}` : '',
     input.projectStatePrimaryOpenLoop,
   ], 5)
 }
@@ -585,13 +588,18 @@ function buildProjectStateContinuitySummary(input: {
   projectStateSameHerSelfLine?: string | null
   projectStateSameHerDriftRisk?: string | null
   projectStateProactiveSameHerGap?: string | null
+  projectStateContinuityArcStage?: string | null
   cadenceSummary?: string | null
 }) {
+  const continuityArcLine = input.projectStateContinuityArcStage
+    ? `Continuity arc: ${sanitizeText(input.projectStateContinuityArcStage, 48)}.`
+    : ''
   const cadenceLine = input.cadenceSummary
     ? `Same-her cadence: ${sanitizeText(input.cadenceSummary, 120)}.`
     : ''
-  const baseLineMaxChars = cadenceLine
-    ? Math.max(36, 180 - cadenceLine.length - 1)
+  const suffixLine = uniqueList([continuityArcLine, cadenceLine], 2).join(' ')
+  const baseLineMaxChars = suffixLine
+    ? Math.max(36, 180 - suffixLine.length - 1)
     : 180
   const baseSummary
     = input.projectStateSameHerDriftRisk
@@ -605,8 +613,8 @@ function buildProjectStateContinuitySummary(input: {
             : `Remembered unfinished same-her closure: ${sanitizeText(input.projectStatePrimaryOpenLoop, baseLineMaxChars)}`
 
   return sanitizeText(
-    cadenceLine
-      ? `${baseSummary} ${cadenceLine}`
+    suffixLine
+      ? `${continuityArcLine ? `${continuityArcLine} ` : ''}${baseSummary}${cadenceLine ? ` ${cadenceLine}` : ''}`
       : baseSummary,
     180,
   )
@@ -618,6 +626,7 @@ function deriveProjectStateContinuityBias(input: {
   projectStateSameHerSelfLine?: string | null | undefined
   projectStateSameHerDriftRisk?: string | null | undefined
   projectStateProactiveSameHerGap?: string | null | undefined
+  projectStateContinuityArcStage?: string | null | undefined
   projectStateCadenceSummary?: string | null | undefined
 }) {
   const normalized = [
@@ -626,11 +635,13 @@ function deriveProjectStateContinuityBias(input: {
     typeof input.projectStateSameHerSelfLine === 'string' ? input.projectStateSameHerSelfLine.trim().toLowerCase() : '',
     typeof input.projectStateSameHerDriftRisk === 'string' ? input.projectStateSameHerDriftRisk.trim().toLowerCase() : '',
     typeof input.projectStateProactiveSameHerGap === 'string' ? input.projectStateProactiveSameHerGap.trim().toLowerCase() : '',
+    typeof input.projectStateContinuityArcStage === 'string' ? input.projectStateContinuityArcStage.trim().toLowerCase() : '',
     typeof input.projectStateCadenceSummary === 'string' ? input.projectStateCadenceSummary.trim().toLowerCase() : '',
   ].filter(Boolean).join(' | ')
   return {
     anthropomorphicMemoryClosureStillOpen:
       Boolean(typeof input.projectStateProactiveSameHerGap === 'string' && input.projectStateProactiveSameHerGap.trim())
+      || Boolean(typeof input.projectStateContinuityArcStage === 'string' && input.projectStateContinuityArcStage.trim())
       || normalized.includes('memory still needs stronger end-to-end closure')
       || /same her|same-her|one continuous her|generic assistant shell|project-summary voice|without reopening from scratch|same living line|low-pressure|lower-pressure/u.test(normalized),
   }
@@ -1357,6 +1368,7 @@ function buildProjectStateContinuityCue(input: {
   projectStateSameHerSelfLine?: string | null
   projectStateSameHerDriftRisk?: string | null
   projectStateProactiveSameHerGap?: string | null
+  projectStateContinuityArcStage?: string | null
   projectStateCadenceSummary?: string | null
   projectStateCadenceLine?: string | null
 }) {
@@ -1374,6 +1386,7 @@ function buildProjectStateContinuityCue(input: {
     projectStateSameHerSelfLine: input.projectStateSameHerSelfLine,
     projectStateSameHerDriftRisk: input.projectStateSameHerDriftRisk,
     projectStateProactiveSameHerGap: input.projectStateProactiveSameHerGap,
+    projectStateContinuityArcStage: input.projectStateContinuityArcStage,
     cadenceSummary: input.projectStateCadenceSummary,
   })
   const influenceTags: AlicizationLongHorizonMemoryCueInfluence[] = [
@@ -1394,6 +1407,7 @@ function buildProjectStateContinuityCue(input: {
       + (input.projectStateSameHerDriftRisk ? 0.16 : 0)
       + (input.projectStateProactiveSameHerGap ? 0.12 : 0)
       + (input.projectStateSameHerSelfLine ? 0.12 : 0)
+      + (input.projectStateContinuityArcStage ? 0.1 : 0)
       + (input.projectStateEmotionalClosureCue ? 0.08 : 0)
       + (input.projectStatePrimaryOpenLoop ? 0.06 : 0),
     ),
@@ -1514,6 +1528,7 @@ export function buildAlicizationLongHorizonMemory(input: BuildAlicizationLongHor
     projectStateSameHerSelfLine: input.projectStateSameHerSelfLine,
     projectStateSameHerDriftRisk: input.projectStateSameHerDriftRisk,
     projectStateProactiveSameHerGap: input.projectStateProactiveSameHerGap,
+    projectStateContinuityArcStage: input.projectStateContinuityArcStage,
   })
   const projectStateCadenceCarry = resolveProjectStateCadenceCarry({
     continuityLines: projectStateContinuityLines,
@@ -1528,6 +1543,7 @@ export function buildAlicizationLongHorizonMemory(input: BuildAlicizationLongHor
     projectStateSameHerSelfLine: input.projectStateSameHerSelfLine,
     projectStateSameHerDriftRisk: input.projectStateSameHerDriftRisk,
     projectStateProactiveSameHerGap: input.projectStateProactiveSameHerGap,
+    projectStateContinuityArcStage: input.projectStateContinuityArcStage,
     projectStateCadenceSummary: projectStateCadenceCarry.cadenceSummary,
   })
   const factualAnchorFacts = mergeAnchorFacts({
@@ -1550,6 +1566,7 @@ export function buildAlicizationLongHorizonMemory(input: BuildAlicizationLongHor
     projectStateSameHerSelfLine: input.projectStateSameHerSelfLine ?? null,
     projectStateSameHerDriftRisk: input.projectStateSameHerDriftRisk ?? null,
     projectStateProactiveSameHerGap: input.projectStateProactiveSameHerGap ?? null,
+    projectStateContinuityArcStage: input.projectStateContinuityArcStage ?? null,
     projectStateCadenceSummary: projectStateCadenceCarry.cadenceSummary,
     projectStateCadenceLine: projectStateCadenceCarry.cadenceLine,
   })
@@ -1609,6 +1626,7 @@ export function buildAlicizationLongHorizonMemory(input: BuildAlicizationLongHor
       projectStateSameHerSelfLine: input.projectStateSameHerSelfLine ?? null,
       projectStateSameHerDriftRisk: input.projectStateSameHerDriftRisk ?? null,
       projectStateProactiveSameHerGap: input.projectStateProactiveSameHerGap ?? null,
+      projectStateContinuityArcStage: input.projectStateContinuityArcStage ?? null,
       cadenceSummary: projectStateCadenceCarry.cadenceSummary,
     })
     : null
