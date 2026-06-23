@@ -8,7 +8,9 @@ import {
 } from './performance-visualizer-trace-embodiment'
 
 export interface SelfEvolutionRuntimeContinuityProjection {
-  status: 'grounded' | 'partial' | 'missing'
+  status: 'grounded' | 'partial' | 'drift' | 'missing'
+  bodyContinuityPhase?: 'body-only-hold' | 'body-carried-to-renderer-rejoin' | 'full-cross-modal-lock' | 'renderer-rejoin-without-body' | null
+  rendererRejoinSurfaceKey?: 'authority:renderer-rejoin:speech' | 'authority:renderer-rejoin:live2d' | 'authority:renderer-rejoin:vrm' | null
   runtimeChannel: string | null
   runtimeSummary: string | null
   activeThreadId: string | null
@@ -48,6 +50,22 @@ function pushUnique(values: Array<string | null | undefined>) {
   return result
 }
 
+function formatRendererRejoinSurfaceLabel(
+  surfaceKey: SelfEvolutionRuntimeContinuityProjection['rendererRejoinSurfaceKey'],
+  rendererTarget: SelfEvolutionRendererAuthorityProjection['rendererTarget'] | null | undefined,
+) {
+  if (surfaceKey === 'authority:renderer-rejoin:live2d' || rendererTarget === 'live2d')
+    return 'Live2D'
+
+  if (surfaceKey === 'authority:renderer-rejoin:vrm' || rendererTarget === 'vrm')
+    return 'VRM'
+
+  if (surfaceKey === 'authority:renderer-rejoin:speech' || rendererTarget === 'speech')
+    return 'speech'
+
+  return null
+}
+
 function summarizeProsodyAuthorityContinuity(value: string | null | undefined) {
   const normalized = normalizeText(value)
   if (!normalized)
@@ -74,6 +92,68 @@ function summarizeProsodyAuthorityContinuity(value: string | null | undefined) {
   return `Prosody authority still anchors ${mode ?? 'n/a'} on ${segment ?? 'n/a'}, so runtime continuity can attribute the mouth-driving divergence to the same speech segment instead of a detached renderer branch.`
 }
 
+function summarizeRendererAuthorityLaneTruth(
+  rendererAuthorityProjection: SelfEvolutionRendererAuthorityProjection | null | undefined,
+) {
+  if (!rendererAuthorityProjection)
+    return null
+
+  const matchedSignals = rendererAuthorityProjection.matchedSignals ?? []
+  const driftingSignals = rendererAuthorityProjection.driftingSignals ?? []
+
+  const hasVoiceEvidence = matchedSignals.includes('authority-voice:yes')
+    || driftingSignals.includes('authority-voice:no')
+
+  const resolveLane = (driver: 'face' | 'motion' | 'lipsync' | 'voice') => {
+    if (matchedSignals.includes(`authority-${driver}:yes`)) {
+      return driver === 'face'
+        ? '表情命中'
+        : driver === 'motion'
+          ? '动作命中'
+          : driver === 'lipsync'
+            ? '口型命中'
+            : '声音命中'
+    }
+    if (driftingSignals.includes(`authority-${driver}:no`)) {
+      return driver === 'face'
+        ? '表情未命中'
+        : driver === 'motion'
+          ? '动作未命中'
+          : driver === 'lipsync'
+            ? '口型未命中'
+            : '声音未命中'
+    }
+    return driver === 'face'
+      ? '表情未知'
+      : driver === 'motion'
+        ? '动作未知'
+        : driver === 'lipsync'
+          ? '口型未知'
+          : '声音未知'
+  }
+
+  const summary = hasVoiceEvidence
+    ? [resolveLane('face'), resolveLane('motion'), resolveLane('lipsync'), resolveLane('voice')].join(' / ')
+    : [resolveLane('face'), resolveLane('motion'), resolveLane('lipsync')].join(' / ')
+  if (summary === '表情未知 / 动作未知 / 口型未知 / 声音未知' || summary === '表情未知 / 动作未知 / 口型未知')
+    return null
+
+  return summary
+}
+
+function collectRendererAuthorityContinuitySignals(
+  rendererAuthorityProjection: SelfEvolutionRendererAuthorityProjection | null | undefined,
+  signalPrefix: 'authority-' | 'lane=' | 'remaining-open=' | 'same-her-frame:' | 'same-her-execution:',
+) {
+  if (!rendererAuthorityProjection)
+    return []
+
+  return pushUnique([
+    ...(rendererAuthorityProjection.matchedSignals ?? []).filter(signal => signal.startsWith(signalPrefix)),
+    ...(rendererAuthorityProjection.driftingSignals ?? []).filter(signal => signal.startsWith(signalPrefix)),
+  ])
+}
+
 export function buildSelfEvolutionRuntimeContinuityProjection(input: {
   rendererAuthorityProjection?: SelfEvolutionRendererAuthorityProjection | null
   speechEmbodiment?: StageThreeRuntimeSpeechEmbodimentDiagnostics | null
@@ -96,6 +176,16 @@ export function buildSelfEvolutionRuntimeContinuityProjection(input: {
   const traceEmbodimentDisplaySummary = formatTraceEmbodimentDisplaySummary(traceEmbodimentSummary)
   const prosodyAuthorityReason = summarizeProsodyAuthorityContinuity(
     (renderer as { prosodyAuthoritySummary?: string | null } | null | undefined)?.prosodyAuthoritySummary,
+  )
+  const rendererAuthorityLaneTruth = summarizeRendererAuthorityLaneTruth(renderer)
+  const rendererAuthorityContinuitySignals = collectRendererAuthorityContinuitySignals(renderer, 'authority-')
+  const rendererAuthorityLaneSignals = collectRendererAuthorityContinuitySignals(renderer, 'lane=')
+  const rendererAuthorityRemainingOpenSignals = collectRendererAuthorityContinuitySignals(renderer, 'remaining-open=')
+  const rendererSameHerFrameSignals = collectRendererAuthorityContinuitySignals(renderer, 'same-her-frame:')
+  const rendererSameHerExecutionSignals = collectRendererAuthorityContinuitySignals(renderer, 'same-her-execution:')
+  const rendererRejoinSurface = formatRendererRejoinSurfaceLabel(
+    renderer?.rendererRejoinSurfaceKey ?? null,
+    renderer?.rendererTarget,
   )
 
   const hasSignal = Boolean(
@@ -138,6 +228,11 @@ export function buildSelfEvolutionRuntimeContinuityProjection(input: {
     governorDrive ? `governor-drive:${governorDrive}` : null,
     focusBeliefId ? `focus-belief:${focusBeliefId}` : null,
     traceEmbodimentSummary ? 'trace-embodiment' : null,
+    ...rendererAuthorityContinuitySignals.filter(signal => signal.endsWith(':yes')),
+    ...rendererAuthorityLaneSignals,
+    ...rendererAuthorityRemainingOpenSignals,
+    ...rendererSameHerFrameSignals.filter(signal => signal.endsWith(':aligned')),
+    ...rendererSameHerExecutionSignals.filter(signal => signal.endsWith(':aligned')),
   ])
 
   const missingSignals = pushUnique([
@@ -156,11 +251,22 @@ export function buildSelfEvolutionRuntimeContinuityProjection(input: {
     renderer?.runtimeProfile === 'protective-watch' && governorDrive && governorDrive !== 'protect'
       ? `governor-drive:${governorDrive}`
       : null,
+    ...rendererAuthorityContinuitySignals.filter(signal => signal.endsWith(':no')),
+    ...rendererSameHerFrameSignals.filter(signal => !signal.endsWith(':aligned')),
+    ...rendererSameHerExecutionSignals.filter(signal => !signal.endsWith(':aligned')),
     ...(renderer?.driftingSignals ?? []).filter(signal => signal.startsWith('renderer-drift:')),
   ])
 
   return {
-    status: missingSignals.length === 0 && driftingSignals.length === 0 ? 'grounded' : matchedSignals.length > 0 ? 'partial' : 'missing',
+    status: driftingSignals.length > 0
+      ? 'drift'
+      : missingSignals.length === 0
+        ? 'grounded'
+        : matchedSignals.length > 0
+          ? 'partial'
+          : 'missing',
+    bodyContinuityPhase: renderer?.bodyContinuityPhase ?? null,
+    rendererRejoinSurfaceKey: renderer?.rendererRejoinSurfaceKey ?? null,
     runtimeChannel,
     runtimeSummary,
     activeThreadId,
@@ -189,6 +295,33 @@ export function buildSelfEvolutionRuntimeContinuityProjection(input: {
         : null,
       renderer
         ? 'Upstream renderer authority is still carrying the same manifestation line, so runtime continuity can explain the current embodiment as one continuous person-state rather than a renderer-local improvisation.'
+        : null,
+      renderer?.bodyContinuityPhase === 'body-only-hold'
+        ? 'Body continuity is still the only lane carrying this same living segment, so runtime continuity should keep reading the current embodiment as one continuous her being held inward rather than a renderer-neutral idle settle.'
+        : null,
+      renderer?.bodyContinuityPhase === 'body-carried-to-renderer-rejoin'
+        ? rendererRejoinSurface
+          ? `Body continuity still carries the same living segment while ${rendererRejoinSurface} manifestation rejoins it, so runtime continuity can explain the renderer recovery as the same digital life re-entering full embodiment instead of a new identity branch.`
+          : 'Body continuity still carries the same living segment while manifestation rejoins it, so runtime continuity can explain the renderer recovery as the same digital life re-entering full embodiment instead of a new identity branch.'
+        : null,
+      renderer?.bodyContinuityPhase === 'full-cross-modal-lock'
+        ? rendererRejoinSurface
+          ? `Body continuity and ${rendererRejoinSurface} manifestation are now locked back onto the same living segment together, so runtime continuity can explain the renderer recovery as one explicit same-her embodiment line instead of a temporary visual alignment.`
+          : 'Body continuity and manifestation authority are now locked back onto the same living segment together, so runtime continuity can explain the renderer recovery as one explicit same-her embodiment line instead of a temporary visual alignment.'
+        : null,
+      renderer?.bodyContinuityPhase === 'renderer-rejoin-without-body'
+        ? rendererRejoinSurface
+          ? `Renderer lanes have rejoined on ${rendererRejoinSurface} manifestation, but the body line is no longer carrying that same living segment, so runtime continuity should keep treating the visible recovery as same-her drift risk rather than a completed embodiment repair.`
+          : 'Renderer lanes have rejoined on manifestation authority, but the body line is no longer carrying that same living segment, so runtime continuity should keep treating the visible recovery as same-her drift risk rather than a completed embodiment repair.'
+        : null,
+      rendererAuthorityLaneTruth
+        ? `Renderer authority continuity still keeps ${rendererAuthorityLaneTruth} on the same life thread, so runtime continuity can explain which embodiment lane stayed bound and which one drifted without collapsing the whole digital-life thread into a fake identity break.`
+        : null,
+      rendererSameHerFrameSignals.filter(signal => !signal.endsWith(':aligned')).length > 0
+        ? `Runtime continuity still carries same-her frame drift signals ${rendererSameHerFrameSignals.filter(signal => !signal.endsWith(':aligned')).join(', ')}, so the current repair loop can keep the voice/lipsync mismatch attached to one digital-life thread instead of treating it as a separate renderer branch.`
+        : null,
+      rendererSameHerExecutionSignals.filter(signal => !signal.endsWith(':aligned')).length > 0
+        ? `Runtime continuity still carries same-her execution drift signals ${rendererSameHerExecutionSignals.filter(signal => !signal.endsWith(':aligned')).join(', ')}, so the current repair loop can keep the Live2D execution mismatch attached to one digital-life thread instead of treating it as a separate renderer branch.`
         : null,
       prosodyAuthorityReason,
       traceEmbodimentSummary

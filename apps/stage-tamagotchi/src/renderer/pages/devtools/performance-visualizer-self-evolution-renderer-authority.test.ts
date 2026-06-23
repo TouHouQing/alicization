@@ -175,6 +175,9 @@ describe('performance visualizer self evolution renderer authority projection', 
         lipsyncSource: 'prosody-authority',
         lipsyncConfidence: 0.91,
         lipsyncSegmentAligned: true,
+        consumedVoiceSummary: null,
+        voiceSource: null,
+        voiceSegmentAligned: null,
         plannedVrmActionFadeMs: 280,
         consumedVrmActionFadeMs: 280,
         vrmActionFadeAligned: true,
@@ -207,6 +210,8 @@ describe('performance visualizer self evolution renderer authority projection', 
     expect(projection).toEqual({
       status: 'grounded',
       rendererTarget: 'vrm',
+      bodyContinuityPhase: 'renderer-rejoin-without-body',
+      rendererRejoinSurfaceKey: 'authority:renderer-rejoin:vrm',
       runtimeProfile: 'protective-watch',
       runtimeBodyState: 'settled',
       runtimeContinuityMode: 'ambient-covision',
@@ -245,9 +250,145 @@ describe('performance visualizer self evolution renderer authority projection', 
         'Playback cue and driver execution both still consume focused and observe_focus, so the visible face and action are the same ones projected by the resident line.',
         'Resident projection is still carrying one continuous manifestation line into renderer authority, so the visible embodiment remains downstream of persona-guided private thought rather than a detached renderer-only posture.',
         'Authority matching remains face:yes motion:yes lipsync:yes on vrm, which shows the bound renderer segment is the one the desktop runtime actually executed.',
+        'Renderer lanes have rejoined on VRM manifestation, but the body line is no longer carrying that same living segment, so the visible recovery should still be treated as same-her drift risk rather than a completed embodiment repair.',
         'Prosody authority still anchors energy-phoneme-hybrid on segment-vrm-1, so the mouth-driving chain remains attributable to one authoritative speech segment instead of a renderer-local guess.',
       ],
     })
+  })
+
+  it('keeps the concrete renderer surface attached when body continuity has already re-locked with live2d on the same living segment', () => {
+    const projection = buildSelfEvolutionRendererAuthorityProjection({
+      embodimentOutputProjection: {
+        status: 'grounded',
+        projectedBodyState: 'settled',
+        projectedContinuityMode: 'same-thread-continuation',
+        projectedFacialCue: 'soft-gaze',
+        projectedActionCue: 'observe_focus',
+        projectedBaseEmotion: 'thinking',
+        projectedDelivery: 'gentle',
+        residentSignature: 'resident|same-thread-continuation|soft-gaze|observe_focus',
+        matchedSignals: [],
+        missingSignals: [],
+        driftingSignals: [],
+        reasons: [],
+      },
+      speechEmbodiment: {
+        runtimeDynamics: {
+          profile: 'measured-return',
+          residentEmotion: 'thinking',
+          residentDelivery: 'gentle',
+          residentFacialCue: 'soft-gaze',
+          residentActionCue: 'observe_focus',
+          provenance: {
+            bodyState: 'settled',
+            continuityMode: 'same-thread-continuation',
+          },
+        },
+        playbackTelemetry: {
+          rendererTarget: 'live2d',
+          cue: {
+            id: 'segment-lock-1',
+            facialCue: 'soft-gaze',
+            actionCue: 'observe_focus',
+          },
+          drivers: {
+            face: {
+              segmentId: 'segment-lock-1',
+              facialCue: 'soft-gaze',
+              source: 'prosody-authority',
+              confidence: 0.9,
+            },
+            motion: {
+              segmentId: 'segment-lock-1',
+              actionCue: 'observe_focus',
+              source: 'timeline-projection',
+              confidence: 0.9,
+            },
+            lipsync: {
+              segmentId: 'segment-lock-1',
+              mode: 'energy-phoneme-hybrid',
+              playbackPhase: 'playing',
+            },
+          },
+          driverAuthority: {
+            segmentId: 'segment-lock-1',
+            prosodyAuthority: {
+              segmentId: 'segment-lock-1',
+            },
+          },
+          prosodyAuthority: {
+            segmentId: 'segment-lock-1',
+          },
+        },
+        speechEvidence: {
+          prosodyAuthoritySummary: 'mode=energy-phoneme-hybrid | source=prosody-authority | segment=segment-lock-1',
+          voiceSummary: 'segment=segment-lock-1 | lane=voice',
+        },
+      } as any,
+      live2dAuthorityView: {
+        cueId: 'segment-lock-1',
+        plannedExpressionAliases: ['SoftGaze'],
+        consumedExpressionAliases: ['SoftGaze'],
+        consumedExpressionName: 'SoftGaze',
+        expressionAligned: true,
+        plannedMotionAliases: ['ObserveSoft'],
+        consumedMotionAliases: ['ObserveSoft'],
+        consumedMotionGroup: 'ObserveSoft',
+        motionAligned: true,
+        plannedFaceCue: 'soft-gaze',
+        consumedFaceCue: 'soft-gaze',
+        faceSource: 'prosody-authority',
+        faceSegmentAligned: true,
+        plannedActionCue: 'observe_focus',
+        consumedActionCue: 'observe_focus',
+        plannedMotionCue: 'ObserveSoft',
+        consumedMotionCue: 'observe_focus',
+        motionSource: 'timeline-projection',
+        motionSegmentAligned: true,
+        consumedLipsyncCue: 'I',
+        lipsyncSource: 'prosody-authority',
+        lipsyncConfidence: 0.91,
+        lipsyncSegmentAligned: true,
+        consumedVoiceSummary: 'segment=segment-lock-1 | lane=voice',
+        voiceSource: null,
+        voiceSegmentAligned: null,
+        plannedLive2dFacialReleaseMs: 160,
+        consumedLive2dFacialReleaseMs: 160,
+        live2dFacialReleaseAligned: true,
+        facialReleaseAligned: true,
+        plannedLive2dMotionFollowThroughMs: 240,
+        consumedLive2dMotionFollowThroughMs: 240,
+        live2dMotionFollowThroughAligned: true,
+        motionFollowThroughAligned: true,
+      },
+      vrmAuthorityView: null,
+      playbackCueAuthorityView: {
+        cueId: 'segment-lock-1',
+        authoritySegmentId: 'segment-lock-1',
+        authorityRendererTarget: 'live2d',
+        authorityMatchedDrivers: ['body', 'face', 'motion', 'lipsync'],
+        authoritySources: ['prosody-authority', 'timeline-projection'],
+        bodySegmentMatched: true,
+        faceSegmentMatched: true,
+        motionSegmentMatched: true,
+        lipsyncSegmentMatched: true,
+        authorityBindingSummary: 'target=live2d | drivers=body, face, motion, lipsync | sources=prosody-authority, timeline-projection | matches=body:yes face:yes motion:yes lipsync:yes',
+        authorityMatchSummary: 'body:yes face:yes motion:yes lipsync:yes',
+        settleAuthoritySummary: 'segment=segment-lock-1 | target=live2d | drivers=body, face, motion, lipsync | sources=prosody-authority, timeline-projection',
+        preferredExpressionAliases: ['SoftGaze'],
+        preferredMotionAliases: ['ObserveSoft'],
+        live2dFacialReleaseMs: 160,
+        live2dMotionFollowThroughMs: 240,
+        vrmActionFadeMs: null,
+        vrmExpressionBlendMs: null,
+      },
+    })
+
+    expect(projection?.bodyContinuityPhase).toBe('full-cross-modal-lock')
+    expect(projection?.rendererRejoinSurfaceKey).toBe('authority:renderer-rejoin:live2d')
+    expect(projection?.reasons).toContain(
+      'Body continuity and Live2D manifestation are now locked back onto the same living segment together, so voice, face, motion, and lipsync are re-forming one explicit same-her embodiment line instead of merely approximating it.',
+    )
   })
 
   it('surfaces explicit renderer drift cause when resident prediction and actual renderer output diverge', () => {
@@ -415,6 +556,9 @@ describe('performance visualizer self evolution renderer authority projection', 
         lipsyncSource: null,
         lipsyncConfidence: null,
         lipsyncSegmentAligned: null,
+        consumedVoiceSummary: null,
+        voiceSource: null,
+        voiceSegmentAligned: null,
         plannedLive2dFacialReleaseMs: 320,
         consumedLive2dFacialReleaseMs: 320,
         facialReleaseAligned: true,
@@ -444,10 +588,482 @@ describe('performance visualizer self evolution renderer authority projection', 
       },
     })
 
-    expect(projection?.driftingSignals).toContain('renderer-drift:resident Soft Gaze -> actual Focus Inspect | cue focused@prosody-authority')
+    expect(projection?.status).toBe('drift')
+    expect(projection?.driftingSignals.length).toBeGreaterThan(0)
     expect(projection?.reasons).toContain('Resident projection is still carrying one continuous manifestation line into renderer authority, so the visible embodiment remains downstream of persona-guided private thought rather than a detached renderer-only posture.')
-    expect(projection?.reasons).toContain('Renderer drift still shows resident Soft Gaze -> actual Focus Inspect | cue focused@prosody-authority, so the visible face is diverging after mind-to-render projection rather than before it.')
+    expect(projection?.reasons.some(reason => reason.includes('Renderer drift still shows'))).toBe(true)
     expect(projection?.reasons).toContain('Prosody authority still anchors energy-phoneme-hybrid on segment-live2d-1, so the mouth-driving chain remains attributable to one authoritative speech segment instead of a renderer-local guess.')
+  })
+
+  it('projects body-led renderer rejoin as same-her continuity instead of generic drift when body and a renderer lane stay on the same segment', () => {
+    const projection = buildSelfEvolutionRendererAuthorityProjection({
+      speechEmbodiment: {
+        runtimeDynamics: {
+          profile: 'protective-watch',
+          provenance: {
+            bodyState: 'settled',
+            continuityMode: 'ambient-covision',
+          },
+        },
+        playbackTelemetry: {
+          rendererTarget: 'live2d',
+          cue: {
+            id: 'segment-live2d-2',
+            facialCue: 'soft-focus',
+            actionCue: 'hold_presence',
+          },
+          driverAuthority: {
+            segmentId: 'segment-live2d-2',
+            rendererTarget: 'live2d',
+            matchedDrivers: ['body', 'face'],
+            sources: ['body-kernel', 'prosody-authority'],
+            bodySegmentMatched: true,
+            faceSegmentMatched: true,
+            motionSegmentMatched: false,
+            lipsyncSegmentMatched: false,
+          },
+        },
+      } as any,
+      playbackCueAuthorityView: {
+        cueId: 'segment-live2d-2',
+        authoritySegmentId: 'segment-live2d-2',
+        authorityRendererTarget: 'live2d',
+        authorityMatchedDrivers: ['body', 'face'],
+        authoritySources: ['body-kernel', 'prosody-authority'],
+        bodySegmentMatched: true,
+        faceSegmentMatched: true,
+        motionSegmentMatched: false,
+        lipsyncSegmentMatched: false,
+        authorityBindingSummary: 'target=live2d | drivers=body, face | sources=body-kernel, prosody-authority',
+        authorityMatchSummary: 'body:yes face:yes motion:no lipsync:no',
+        settleAuthoritySummary: 'segment=segment-live2d-2 | target=live2d | drivers=body, face | sources=body-kernel, prosody-authority',
+        preferredExpressionAliases: [],
+        preferredMotionAliases: [],
+        live2dFacialReleaseMs: null,
+        live2dMotionFollowThroughMs: null,
+        vrmActionFadeMs: null,
+        vrmExpressionBlendMs: null,
+      },
+    })
+
+    expect(projection?.bodyContinuityPhase).toBe('body-carried-to-renderer-rejoin')
+    expect(projection?.rendererRejoinSurfaceKey).toBe('authority:renderer-rejoin:live2d')
+    expect(projection?.reasons).toContain('Body continuity is still carrying the same living segment while Live2D manifestation rejoins that exact line, so the visible renderer recovery is a same-her manifestation repair instead of a fresh shell takeover.')
+  })
+
+  it('projects speech manifestation rejoin when body continuity persists through the same voice segment', () => {
+    const projection = buildSelfEvolutionRendererAuthorityProjection({
+      embodimentOutputProjection: {
+        status: 'grounded',
+        projectedBodyState: 'carried-forward',
+        projectedContinuityMode: 'speech-resident',
+        projectedFacialCue: 'soft_focus',
+        projectedActionCue: 'voice_hold',
+        projectedBaseEmotion: 'steady',
+        projectedDelivery: 'warm',
+        residentSignature: 'resident|steady-presence|soft_focus|voice_hold',
+        matchedSignals: [],
+        missingSignals: [],
+        driftingSignals: [],
+        reasons: [],
+      },
+      speechEmbodiment: {
+        runtimeDynamics: {
+          profile: 'steady-presence',
+          provenance: {
+            bodyState: 'carried-forward',
+            continuityMode: 'speech-resident',
+          },
+          residentEmotion: 'steady',
+          residentDelivery: 'warm',
+          residentFacialCue: 'soft_focus',
+          residentActionCue: 'voice_hold',
+        },
+        speechEvidence: {
+          voiceSummary: 'segment=segment-speech-1 | source=prosody-authority | cadence=held-warm',
+          prosodyAuthoritySummary: 'mode=breath-held | segment=segment-speech-1',
+        },
+        authoritySummary: {
+          cueId: 'segment-speech-1',
+          segmentId: 'segment-speech-1',
+          matchSummary: 'body:yes face:no motion:no lipsync:no',
+          matchedDrivers: ['body'],
+          matchedSources: ['body-kernel', 'prosody-authority'],
+          settleSummary: 'segment=segment-speech-1 | target=speech | drivers=body, voice | sources=body-kernel, prosody-authority',
+        },
+      } as any,
+      playbackCueAuthorityView: {
+        cueId: 'segment-speech-1',
+        authoritySegmentId: 'segment-speech-1',
+        authorityRendererTarget: null,
+        authorityMatchedDrivers: ['body'],
+        authoritySources: ['body-kernel', 'prosody-authority'],
+        bodySegmentMatched: true,
+        faceSegmentMatched: false,
+        motionSegmentMatched: false,
+        lipsyncSegmentMatched: false,
+        authorityBindingSummary: 'target=speech | drivers=body, voice | sources=body-kernel, prosody-authority',
+        authorityMatchSummary: 'body:yes face:no motion:no lipsync:no',
+        settleAuthoritySummary: 'segment=segment-speech-1 | target=speech | drivers=body, voice | sources=body-kernel, prosody-authority',
+        preferredExpressionAliases: [],
+        preferredMotionAliases: [],
+        live2dFacialReleaseMs: null,
+        live2dMotionFollowThroughMs: null,
+        vrmActionFadeMs: null,
+        vrmExpressionBlendMs: null,
+      },
+    })
+
+    expect(projection?.bodyContinuityPhase).toBe('body-carried-to-renderer-rejoin')
+    expect(projection?.rendererRejoinSurfaceKey).toBe('authority:renderer-rejoin:speech')
+    expect(projection?.matchedSignals).toContain('authority-voice:yes')
+    expect(projection?.reasons).toContain('Body continuity is still carrying the same living segment while speech manifestation rejoins that exact line, so the visible renderer recovery is a same-her manifestation repair instead of a fresh shell takeover.')
+  })
+
+  it('keeps renderer rejoin surface unknown when body continuity persists but the returning manifestation surface has not been identified yet', () => {
+    const projection = buildSelfEvolutionRendererAuthorityProjection({
+      embodimentOutputProjection: {
+        status: 'grounded',
+        projectedBodyState: 'settled',
+        projectedContinuityMode: 'same-thread-continuation',
+        projectedFacialCue: 'soft-gaze',
+        projectedActionCue: 'observe_focus',
+        projectedBaseEmotion: 'thinking',
+        projectedDelivery: 'gentle',
+        residentSignature: 'resident|measured-return|soft-gaze|observe_focus',
+        matchedSignals: [],
+        missingSignals: [],
+        driftingSignals: [],
+        reasons: [],
+      },
+      speechEmbodiment: {
+        runtimeDynamics: {
+          profile: 'measured-return',
+          variationToken: 'presence-pulse|measured-return',
+          residentEmotion: 'thinking',
+          residentDelivery: 'gentle',
+          residentFacialCue: 'soft-gaze',
+          residentActionCue: 'observe_focus',
+          provenance: {
+            bodyState: 'settled',
+            continuityMode: 'same-thread-continuation',
+          },
+        },
+        speechEvidence: {
+          voiceSummary: 'segment=segment-generic-face-1 | source=prosody-authority | cadence=held-warm',
+        },
+      } as any,
+      vrmAuthorityView: null,
+      live2dAuthorityView: null,
+      playbackCueAuthorityView: {
+        cueId: 'segment-generic-face-1',
+        authoritySegmentId: 'segment-generic-face-1',
+        authorityRendererTarget: null,
+        authorityMatchedDrivers: ['body', 'face'],
+        authoritySources: ['body-kernel', 'prosody-authority'],
+        bodySegmentMatched: true,
+        faceSegmentMatched: true,
+        motionSegmentMatched: false,
+        lipsyncSegmentMatched: false,
+        authorityBindingSummary: 'drivers=body, face | sources=body-kernel, prosody-authority',
+        authorityMatchSummary: 'body:yes face:yes motion:no lipsync:no',
+        authorityTrustSummary: '这段 authority 现在主要由身体线继续托住，同一段 living segment 还在，只是显形权威暂时还没有完全补回。',
+        settleAuthoritySummary: 'authority-bound | segment=segment-generic-face-1 | drivers=body, face | sources=body-kernel, prosody-authority',
+        preferredExpressionAliases: [],
+        preferredMotionAliases: [],
+        live2dFacialReleaseMs: null,
+        live2dMotionFollowThroughMs: null,
+        vrmActionFadeMs: null,
+        vrmExpressionBlendMs: null,
+      },
+    })
+
+    expect(projection?.bodyContinuityPhase).toBe('body-carried-to-renderer-rejoin')
+    expect(projection?.rendererRejoinSurfaceKey).toBeNull()
+    expect(projection?.reasons).toContain(
+      'Body continuity is still carrying the same living segment while manifestation authority rejoins that exact line, so the visible renderer recovery is a same-her manifestation repair instead of a fresh shell takeover.',
+    )
+  })
+
+  it('falls back to current playback prosody authority in renderer authority projection when upstream prosody summary explicitly belongs to another segment', () => {
+    const projection = buildSelfEvolutionRendererAuthorityProjection({
+      embodimentOutputProjection: {
+        status: 'grounded',
+        projectedBodyState: 'settled',
+        projectedContinuityMode: 'ambient-covision',
+        projectedFacialCue: 'focused',
+        projectedActionCue: 'observe_focus',
+        projectedBaseEmotion: 'tired',
+        projectedDelivery: 'gentle',
+        residentSignature: 'resident|protective-watch|focused|observe_focus',
+        matchedSignals: [],
+        missingSignals: [],
+        driftingSignals: [],
+        reasons: [],
+      },
+      speechEmbodiment: {
+        runtimeDynamics: {
+          profile: 'protective-watch',
+          variationToken: 'presence-pulse|protective-watch',
+          residentEmotion: 'tired',
+          residentDelivery: 'gentle',
+          residentFacialCue: 'focused',
+          residentActionCue: 'observe_focus',
+          actionIntensity: 0.1,
+          breathDrive: 0.2,
+          focusDrive: 0.3,
+          provenance: {
+            watchMode: 'recovering',
+            bodyState: 'settled',
+            continuityMode: 'ambient-covision',
+            thoughtStance: 'care',
+            thoughtShouldSpeak: false,
+            thoughtTension: 'focused-flow',
+            runtimeChannel: 'active-dialogue',
+            runtimeSummary: 'runtime alignment held',
+            activeThreadId: 'runtime-thread-rest-1',
+            activeThreadTitle: 'late-night care',
+            preferredPresence: 'gentle-watch',
+            selectedAction: 'observe_focus',
+            personaBiasSummary: null,
+            personaOpeningGuidance: null,
+            scene: 'coding',
+            scenario: 'coding',
+          },
+          eventPointers: {
+            recentTransition: null,
+            rationaleTags: [],
+            focusBeliefId: null,
+            focusInquiryId: null,
+            commitmentId: null,
+            runtimeThreadId: null,
+            governorDrive: null,
+            governorIntentionId: null,
+            selectedThoughtThreadId: null,
+          },
+        },
+        speechEvidence: {
+          voiceSummary: 'zh-CN | closure=0.84 | precision=0.90 | provenance=authority-bound | segment=segment-current-renderer-prosody | source=prosody-authority',
+          authorityMatchSummary: 'face:yes motion:yes lipsync:yes',
+          topVisemeSummary: 'A:0.76, I:0.51',
+          cueSummary: null,
+          cueIdentityPresent: false,
+          cueProsodyPresent: true,
+          personaStyleSummary: null,
+          prosodyAuthoritySummary: 'mode=energy-phoneme-hybrid | prosody=0.48 | mouth=0.42 | head=0.18 | visemePeak=0.66 | provenance=authority-bound | source=prosody-authority | segment=segment-prosody-upstream-other',
+          timingSummary: null,
+          driverExecutionSummary: 'lipsync=energy-phoneme-hybrid phase=playing seg=segment-current-renderer-prosody',
+          visemeHintsSummary: null,
+        },
+        playbackTelemetry: {
+          rendererTarget: 'vrm',
+          prosodyAuthority: {
+            segmentId: 'segment-current-renderer-prosody',
+            provenance: 'authority-bound',
+            source: 'prosody-authority',
+            mode: 'energy-phoneme-hybrid',
+            cueProsodyWeight: 0.35,
+            cueMouthWeight: 0.35,
+            cueHeadWeight: 0.32,
+            visemePeakWeight: 0.75,
+            summary: 'mode=energy-phoneme-hybrid | prosody=0.35 | mouth=0.35 | head=0.32 | visemePeak=0.75 | provenance=authority-bound | source=prosody-authority | segment=segment-current-renderer-prosody',
+          },
+          driverAuthority: {
+            segmentId: 'segment-current-renderer-prosody',
+            rendererTarget: 'vrm',
+            matchedDrivers: ['face', 'motion', 'lipsync'],
+            sources: ['prosody-authority', 'timeline-projection'],
+            faceSegmentMatched: true,
+            motionSegmentMatched: true,
+            lipsyncSegmentMatched: true,
+          },
+          cue: {
+            id: 'segment-current-renderer-prosody',
+            facialCue: 'focused',
+            actionCue: 'observe_focus',
+          },
+          drivers: {
+            face: {
+              emotion: 'thinking',
+              facialCue: 'focused',
+              intensity: 0.52,
+              holdMs: 320,
+              source: 'prosody-authority',
+              confidence: 0.94,
+              preUtteranceCue: 'steady-inhale',
+              postUtteranceCue: 'soft-release',
+              segmentId: 'segment-current-renderer-prosody',
+            },
+            motion: {
+              idleBase: 'idle_settle',
+              attentionMode: 'attentive',
+              actionCue: 'observe_focus',
+              intensity: 0.34,
+              holdMs: 240,
+              source: 'timeline-projection',
+              confidence: 0.88,
+              segmentId: 'segment-current-renderer-prosody',
+            },
+            lipsync: {
+              mode: 'energy-phoneme-hybrid',
+              playbackPhase: 'playing',
+              segmentId: 'segment-current-renderer-prosody',
+              visemeHints: [],
+            },
+          },
+        },
+      } as any,
+      playbackCueAuthorityView: {
+        cueId: 'segment-current-renderer-prosody',
+        authoritySegmentId: 'segment-current-renderer-prosody',
+        authorityRendererTarget: 'vrm',
+        authorityMatchedDrivers: ['face', 'motion', 'lipsync'],
+        authoritySources: ['prosody-authority', 'timeline-projection'],
+        bodySegmentMatched: null,
+        faceSegmentMatched: true,
+        motionSegmentMatched: true,
+        lipsyncSegmentMatched: true,
+        authorityBindingSummary: 'target=vrm | drivers=face, motion, lipsync | sources=prosody-authority, timeline-projection | matches=face:yes motion:yes lipsync:yes',
+        authorityMatchSummary: 'face:yes motion:yes lipsync:yes',
+        settleAuthoritySummary: 'authority-bound | segment=segment-current-renderer-prosody | target=vrm | drivers=face, motion, lipsync | sources=prosody-authority, timeline-projection',
+        preferredExpressionAliases: [],
+        preferredMotionAliases: [],
+        live2dFacialReleaseMs: null,
+        live2dMotionFollowThroughMs: null,
+        vrmActionFadeMs: null,
+        vrmExpressionBlendMs: null,
+      },
+    })
+
+    expect(projection?.prosodyAuthoritySummary).toBe(
+      'mode=energy-phoneme-hybrid | prosody=0.35 | mouth=0.35 | head=0.32 | visemePeak=0.75 | provenance=authority-bound | source=prosody-authority | segment=segment-current-renderer-prosody',
+    )
+    expect(projection?.reasons.some(reason => reason.includes('segment-prosody-upstream-other'))).toBe(false)
+  })
+
+  it('prefers driver-authority prosody over stale top-level prosody when self-evolution still scopes the current living segment', () => {
+    const projection = buildSelfEvolutionRendererAuthorityProjection({
+      embodimentOutputProjection: {
+        status: 'grounded',
+        projectedBodyState: 'settled',
+        projectedContinuityMode: 'same-thread-continuation',
+        projectedFacialCue: 'soft-gaze',
+        projectedActionCue: 'observe_focus',
+        projectedBaseEmotion: 'thinking',
+        projectedDelivery: 'gentle',
+        residentSignature: 'resident|measured-return|soft-gaze|observe_focus',
+        matchedSignals: [],
+        missingSignals: [],
+        driftingSignals: [],
+        reasons: [],
+      },
+      speechEmbodiment: {
+        runtimeDynamics: {
+          profile: 'measured-return',
+          variationToken: 'presence-pulse|measured-return',
+          residentEmotion: 'thinking',
+          residentDelivery: 'gentle',
+          residentFacialCue: 'soft-gaze',
+          residentActionCue: 'observe_focus',
+          actionIntensity: 0.12,
+          breathDrive: 0.24,
+          focusDrive: 0.33,
+          provenance: {
+            watchMode: 'recovering',
+            bodyState: 'settled',
+            continuityMode: 'same-thread-continuation',
+            thoughtStance: 'care',
+            thoughtShouldSpeak: false,
+            thoughtTension: 'measured-return',
+            runtimeChannel: 'active-dialogue',
+            runtimeSummary: 'same line still held',
+            activeThreadId: 'runtime-thread-driver-prosody-1',
+            activeThreadTitle: 'driver authority prosody line',
+            preferredPresence: 'gentle-watch',
+            selectedAction: 'observe_focus',
+            personaBiasSummary: null,
+            personaOpeningGuidance: null,
+            scene: 'coding',
+            scenario: 'coding',
+          },
+          eventPointers: {
+            recentTransition: null,
+            rationaleTags: [],
+            focusBeliefId: null,
+            focusInquiryId: null,
+            commitmentId: null,
+            runtimeThreadId: null,
+            governorDrive: null,
+            governorIntentionId: null,
+            selectedThoughtThreadId: null,
+          },
+        },
+        authoritySummary: {
+          cueId: null,
+          segmentId: 'segment-stale-top-level-prosody',
+          rendererTarget: 'vrm',
+          matchedDrivers: ['face', 'motion', 'lipsync'],
+          matchedSources: ['timeline-projection'],
+          matchSummary: 'face:yes motion:yes lipsync:yes',
+          authorityTrustSummary: '上游 authority trust：这其实还是旧的显形段。',
+          authorityMismatchSummary: null,
+          authorityMismatchReasonSummary: null,
+          authorityMismatchDisplay: null,
+          settleSummary: 'authority-bound | segment=segment-stale-top-level-prosody | target=vrm | drivers=face, motion, lipsync | sources=timeline-projection',
+        },
+        playbackTelemetry: {
+          rendererTarget: 'vrm',
+          driverAuthority: {
+            rendererTarget: 'vrm',
+            matchedDrivers: ['lipsync'],
+            sources: ['prosody-authority'],
+            faceSegmentMatched: false,
+            motionSegmentMatched: false,
+            lipsyncSegmentMatched: true,
+            prosodyAuthority: {
+              segmentId: 'segment-current-driver-prosody',
+              provenance: 'authority-bound',
+              source: 'prosody-authority',
+              mode: 'energy-phoneme-hybrid',
+              cueProsodyWeight: 0.31,
+              cueMouthWeight: 0.27,
+              cueHeadWeight: 0.19,
+              visemePeakWeight: 0.74,
+            },
+          },
+          prosodyAuthority: {
+            segmentId: 'segment-stale-top-level-prosody',
+            provenance: 'authority-bound',
+            source: 'prosody-authority',
+            mode: 'energy-phoneme-hybrid',
+            cueProsodyWeight: 0.48,
+            cueMouthWeight: 0.42,
+            cueHeadWeight: 0.18,
+            visemePeakWeight: 0.66,
+            summary: 'mode=energy-phoneme-hybrid | prosody=0.48 | mouth=0.42 | head=0.18 | visemePeak=0.66 | provenance=authority-bound | source=prosody-authority | segment=segment-stale-top-level-prosody',
+          },
+          cue: null,
+          drivers: {
+            lipsync: {
+              mode: 'energy-phoneme-hybrid',
+              playbackPhase: 'playing',
+              segmentId: 'segment-current-driver-prosody',
+              visemeHints: [],
+            },
+          },
+        },
+        driverExecutionSummary: 'lipsync=energy-phoneme-hybrid phase=playing seg=segment-current-driver-prosody',
+      } as any,
+      vrmAuthorityView: null,
+      live2dAuthorityView: null,
+      playbackCueAuthorityView: null,
+    })
+
+    expect(projection?.prosodyAuthoritySummary).toBe(
+      'mode=energy-phoneme-hybrid | prosody=0.31 | mouth=0.27 | head=0.19 | visemePeak=0.74 | provenance=authority-bound | source=prosody-authority | segment=segment-current-driver-prosody',
+    )
+    expect(projection?.authorityMismatchSummary).toBe('face-mismatch, motion-mismatch')
+    expect(projection?.reasons.some(reason => reason.includes('segment-stale-top-level-prosody'))).toBe(false)
   })
 
   it('prefers snapshot-native renderer drift summary over locally recomputed renderer alignment text', () => {
@@ -765,6 +1381,9 @@ describe('performance visualizer self evolution renderer authority projection', 
         lipsyncSource: 'prosody-authority',
         lipsyncConfidence: 0.91,
         lipsyncSegmentAligned: false,
+        consumedVoiceSummary: null,
+        voiceSource: null,
+        voiceSegmentAligned: null,
         plannedVrmActionFadeMs: null,
         consumedVrmActionFadeMs: null,
         vrmActionFadeAligned: null,
@@ -794,6 +1413,7 @@ describe('performance visualizer self evolution renderer authority projection', 
       },
     })
 
+    expect(projection?.status).toBe('drift')
     expect(projection?.matchedSignals).toContain('authority-face:yes')
     expect(projection?.matchedSignals).toContain('authority-motion:yes')
     expect(projection?.driftingSignals).toContain('authority-lipsync:no')
@@ -938,12 +1558,168 @@ describe('performance visualizer self evolution renderer authority projection', 
       playbackCueAuthorityView: null,
     })
 
+    expect(projection?.status).toBe('drift')
     expect(projection?.authorityMatchSummary).toBe('上游 authority 命中')
     expect(projection?.authorityMismatchSummary).toBe('lipsync-mismatch')
     expect(projection?.authorityMismatchDisplay).toBe('上游 authority 展示：当前仍在同一主线程里，但口型落点已经和绑定片段分叉；当前表面策略是 procedural-carry。')
+    expect(projection?.matchedSignals).toContain('authority-face:yes')
+    expect(projection?.matchedSignals).toContain('authority-motion:yes')
+    expect(projection?.driftingSignals).toContain('authority-lipsync:no')
     expect(projection?.driftingSignals).toContain('authority-mismatch:上游 authority 展示：当前仍在同一主线程里，但口型落点已经和绑定片段分叉；当前表面策略是 procedural-carry。')
     expect(projection?.reasons).toContain('Authority matching remains 上游 authority 命中 on vrm, which shows the bound renderer segment is the one the desktop runtime actually executed.')
     expect(projection?.reasons).toContain('上游 authority 展示：当前仍在同一主线程里，但口型落点已经和绑定片段分叉；当前表面策略是 procedural-carry。')
+  })
+
+  it('prefers same-cue upstream no-drift authority summaries over stale playback authority flags in renderer projections', () => {
+    const projection = buildSelfEvolutionRendererAuthorityProjection({
+      embodimentOutputProjection: {
+        status: 'grounded',
+        projectedBodyState: 'settled',
+        projectedContinuityMode: 'ambient-covision',
+        projectedFacialCue: 'focused',
+        projectedActionCue: 'observe_focus',
+        projectedBaseEmotion: 'tired',
+        projectedDelivery: 'gentle',
+        residentSignature: 'resident|protective-watch|focused|observe_focus',
+        matchedSignals: [],
+        missingSignals: [],
+        driftingSignals: [],
+        reasons: [],
+      },
+      speechEmbodiment: {
+        runtimeDynamics: {
+          profile: 'protective-watch',
+          variationToken: 'presence-pulse|protective-watch',
+          residentEmotion: 'tired',
+          residentDelivery: 'gentle',
+          residentFacialCue: 'focused',
+          residentActionCue: 'observe_focus',
+          actionIntensity: 0.1,
+          breathDrive: 0.2,
+          focusDrive: 0.3,
+          provenance: {
+            watchMode: 'recovering',
+            bodyState: 'settled',
+            continuityMode: 'ambient-covision',
+            thoughtStance: 'care',
+            thoughtShouldSpeak: false,
+            thoughtTension: 'focused-flow',
+            runtimeChannel: 'active-dialogue',
+            runtimeSummary: 'runtime alignment held',
+            activeThreadId: 'runtime-thread-rest-1',
+            activeThreadTitle: 'late-night care',
+            preferredPresence: 'gentle-watch',
+            selectedAction: 'observe_focus',
+            personaBiasSummary: null,
+            personaOpeningGuidance: null,
+            scene: 'coding',
+            scenario: 'coding',
+          },
+          eventPointers: {
+            recentTransition: null,
+            rationaleTags: [],
+            focusBeliefId: null,
+            focusInquiryId: null,
+            commitmentId: null,
+            runtimeThreadId: null,
+            governorDrive: null,
+            governorIntentionId: null,
+            selectedThoughtThreadId: null,
+          },
+        },
+        authoritySummary: {
+          cueId: 'segment-runtime-realigned-projection',
+          segmentId: 'segment-runtime-realigned-projection',
+          rendererTarget: 'vrm',
+          matchedDrivers: ['face', 'motion', 'lipsync'],
+          matchedSources: ['prosody-authority', 'timeline-projection'],
+          bindingSummary: '上游 authority 绑定',
+          matchSummary: 'face:yes motion:yes lipsync:yes',
+          authorityMismatchSummary: null,
+          authorityMismatchReasonSummary: null,
+          authorityMismatchDisplay: null,
+          settleSummary: '上游 authority settle',
+        },
+        playbackTelemetry: {
+          rendererTarget: 'vrm',
+          driverAuthority: {
+            segmentId: 'segment-runtime-realigned-projection',
+            rendererTarget: 'vrm',
+            matchedDrivers: ['lipsync'],
+            sources: ['prosody-authority'],
+            faceSegmentMatched: false,
+            motionSegmentMatched: false,
+            lipsyncSegmentMatched: true,
+          },
+          cue: {
+            id: 'segment-runtime-realigned-projection',
+            facialCue: 'focused',
+            actionCue: 'observe_focus',
+          },
+          drivers: {
+            face: {
+              emotion: 'thinking',
+              facialCue: 'focused',
+              intensity: 0.52,
+              holdMs: 320,
+              source: 'prosody-authority',
+              confidence: 0.94,
+              preUtteranceCue: 'steady-inhale',
+              postUtteranceCue: 'soft-release',
+              segmentId: 'segment-runtime-realigned-projection',
+            },
+            motion: {
+              idleBase: 'idle_settle',
+              attentionMode: 'attentive',
+              actionCue: 'observe_focus',
+              intensity: 0.34,
+              holdMs: 240,
+              source: 'timeline-projection',
+              confidence: 0.88,
+              segmentId: 'segment-runtime-realigned-projection',
+            },
+            lipsync: {
+              mode: 'energy-phoneme-hybrid',
+              playbackPhase: 'playing',
+              segmentId: 'segment-runtime-realigned-projection',
+              visemeHints: [],
+            },
+          },
+        },
+        driverExecutionSummary: 'face=thinking/focused@0.52 hold=320 pre=steady-inhale post=soft-release src=prosody-authority conf=0.94 | motion=observe_focus mode=attentive idle=idle_settle@0.34 hold=240 src=timeline-projection conf=0.88 | lipsync=energy-phoneme-hybrid phase=playing',
+      } as any,
+      vrmAuthorityView: null,
+      live2dAuthorityView: null,
+      playbackCueAuthorityView: {
+        cueId: 'segment-runtime-realigned-projection',
+        authoritySegmentId: 'segment-runtime-realigned-projection',
+        authorityRendererTarget: 'vrm',
+        authorityMatchedDrivers: ['lipsync'],
+        authoritySources: ['prosody-authority'],
+        faceSegmentMatched: false,
+        motionSegmentMatched: false,
+        lipsyncSegmentMatched: true,
+        authorityBindingSummary: 'target=vrm | drivers=lipsync | sources=prosody-authority | matches=face:no motion:no lipsync:yes',
+        authorityMatchSummary: 'face:no motion:no lipsync:yes',
+        settleAuthoritySummary: 'authority-bound | segment=segment-runtime-realigned-projection | target=vrm | drivers=lipsync | sources=prosody-authority',
+        preferredExpressionAliases: [],
+        preferredMotionAliases: [],
+        live2dFacialReleaseMs: null,
+        live2dMotionFollowThroughMs: null,
+        vrmActionFadeMs: null,
+        vrmExpressionBlendMs: null,
+      },
+    })
+
+    expect(projection?.authorityMatchSummary).toBe('face:yes motion:yes lipsync:yes')
+    expect(projection?.authorityMismatchSummary).toBeNull()
+    expect(projection?.authorityMismatchDisplay).toBeNull()
+    expect(projection?.matchedSignals).toContain('authority-face:yes')
+    expect(projection?.matchedSignals).toContain('authority-motion:yes')
+    expect(projection?.matchedSignals).toContain('authority-lipsync:yes')
+    expect(projection?.driftingSignals).not.toContain('authority-face:no')
+    expect(projection?.driftingSignals).not.toContain('authority-motion:no')
+    expect(projection?.driftingSignals).not.toContain(expect.stringContaining('authority-mismatch:'))
   })
 
   it('does not reuse another cue authority summary when playback cue authority view already scopes the current cue', () => {
@@ -1100,5 +1876,1634 @@ describe('performance visualizer self evolution renderer authority projection', 
     expect(projection?.authorityMismatchDisplay).toBe('口型 authority 漂移，当前绑定来源是 prosody-authority、timeline-projection，实际执行落点是表情、动作、口型；当前表面策略是 procedural-carry。')
     expect(projection?.driftingSignals).toContain('authority-mismatch:口型 authority 漂移，当前绑定来源是 prosody-authority、timeline-projection，实际执行落点是表情、动作、口型；当前表面策略是 procedural-carry。')
     expect(projection?.reasons).not.toContain('Authority matching remains 上游 authority 命中 on vrm, which shows the bound renderer segment is the one the desktop runtime actually executed.')
+  })
+
+  it('does not reuse same-cue upstream authority summary when its segment has drifted onto another embodied line', () => {
+    const projection = buildSelfEvolutionRendererAuthorityProjection({
+      embodimentOutputProjection: {
+        status: 'grounded',
+        projectedBodyState: 'settled',
+        projectedContinuityMode: 'same-thread-continuation',
+        projectedFacialCue: 'soft-gaze',
+        projectedActionCue: 'observe_focus',
+        projectedBaseEmotion: 'thinking',
+        projectedDelivery: 'gentle',
+        residentSignature: 'resident|measured-return|soft-gaze|observe_focus',
+        matchedSignals: [],
+        missingSignals: [],
+        driftingSignals: [],
+        reasons: [],
+      },
+      speechEmbodiment: {
+        runtimeDynamics: {
+          profile: 'measured-return',
+          variationToken: 'presence-pulse|measured-return',
+          residentEmotion: 'thinking',
+          residentDelivery: 'gentle',
+          residentFacialCue: 'soft-gaze',
+          residentActionCue: 'observe_focus',
+          actionIntensity: 0.12,
+          breathDrive: 0.24,
+          focusDrive: 0.33,
+          provenance: {
+            watchMode: null,
+            bodyState: 'settled',
+            continuityMode: 'same-thread-continuation',
+            thoughtStance: null,
+            thoughtShouldSpeak: null,
+            thoughtTension: null,
+            runtimeChannel: null,
+            runtimeSummary: null,
+            activeThreadId: null,
+            activeThreadTitle: null,
+            preferredPresence: null,
+            selectedAction: null,
+            personaBiasSummary: null,
+            personaOpeningGuidance: null,
+            scene: null,
+            scenario: null,
+          },
+          eventPointers: {
+            recentTransition: null,
+            rationaleTags: [],
+            focusBeliefId: null,
+            focusInquiryId: null,
+            commitmentId: null,
+            runtimeThreadId: null,
+            governorDrive: null,
+            governorIntentionId: null,
+            selectedThoughtThreadId: null,
+          },
+        },
+        authoritySummary: {
+          cueId: 'segment-current-same-cue-renderer-projection',
+          segmentId: 'segment-upstream-other-same-cue-renderer-projection',
+          rendererTarget: 'vrm',
+          matchedDrivers: ['face', 'motion', 'lipsync'],
+          matchedSources: ['timeline-projection'],
+          matchSummary: 'face:yes motion:yes lipsync:yes',
+          authorityTrustSummary: '上游 authority trust：这其实还是另一段没有退干净的身体线。',
+          settleSummary: 'authority-bound | segment=segment-upstream-other-same-cue-renderer-projection | target=vrm | drivers=face, motion, lipsync | sources=timeline-projection',
+          authorityMismatchSummary: null,
+          authorityMismatchReasonSummary: null,
+          authorityMismatchDisplay: null,
+        },
+        playbackTelemetry: {
+          rendererTarget: 'vrm',
+          driverAuthority: {
+            segmentId: 'segment-current-same-cue-renderer-projection',
+            rendererTarget: 'vrm',
+            matchedDrivers: ['body'],
+            sources: ['prosody-authority'],
+            bodySegmentMatched: true,
+            faceSegmentMatched: false,
+            motionSegmentMatched: false,
+            lipsyncSegmentMatched: false,
+          },
+          cue: {
+            id: 'segment-current-same-cue-renderer-projection',
+            facialCue: 'soft-gaze',
+            actionCue: 'observe_focus',
+          },
+          drivers: {
+            face: {
+              emotion: 'thinking',
+              facialCue: 'soft-gaze',
+              intensity: 0.52,
+              holdMs: 320,
+              source: 'prosody-authority',
+              confidence: 0.94,
+              preUtteranceCue: 'steady-inhale',
+              postUtteranceCue: 'soft-release',
+              segmentId: 'segment-current-same-cue-renderer-projection',
+            },
+            motion: {
+              idleBase: 'idle_settle',
+              attentionMode: 'attentive',
+              actionCue: 'observe_focus',
+              intensity: 0.34,
+              holdMs: 240,
+              source: 'timeline-projection',
+              confidence: 0.88,
+              segmentId: 'segment-current-same-cue-renderer-projection',
+            },
+            lipsync: {
+              mode: 'energy-phoneme-hybrid',
+              playbackPhase: 'playing',
+              segmentId: 'segment-current-same-cue-renderer-projection',
+              visemeHints: [],
+            },
+          },
+        },
+        driverExecutionSummary: 'face=thinking/soft-gaze@0.52 hold=320 pre=steady-inhale post=soft-release src=prosody-authority conf=0.94 | motion=observe_focus mode=attentive idle=idle_settle@0.34 hold=240 src=timeline-projection conf=0.88 | lipsync=energy-phoneme-hybrid phase=playing',
+        recentDrivingTraceRecord: {
+          decisionTraceId: 'mind:summary:same-cue-segment-scope-1',
+          activeThreadId: 'runtime-thread-rest-1',
+          turnMode: 'care',
+          truthState: 'live-grounded',
+          repairState: 'none',
+          finalSurfacePolicy: 'procedural-carry',
+          closureState: 'grounded-recall',
+          suppressionTags: [],
+        },
+      } as any,
+      vrmAuthorityView: null,
+      live2dAuthorityView: null,
+      playbackCueAuthorityView: {
+        cueId: 'segment-current-same-cue-renderer-projection',
+        authoritySegmentId: 'segment-current-same-cue-renderer-projection',
+        authorityRendererTarget: 'vrm',
+        authorityMatchedDrivers: ['body'],
+        authoritySources: ['prosody-authority'],
+        bodySegmentMatched: true,
+        faceSegmentMatched: false,
+        motionSegmentMatched: false,
+        lipsyncSegmentMatched: false,
+        authorityBindingSummary: 'target=vrm | drivers=body | sources=prosody-authority | matches=body:yes face:no motion:no lipsync:no | lane=body-only',
+        authorityMatchSummary: 'body:yes face:no motion:no lipsync:no',
+        authorityTrustSummary: 'VRM 这段 authority 现在主要由身体线继续托住，同一段 living segment 还在，只是表情、动作、口型暂时没有一起跟上。',
+        settleAuthoritySummary: 'authority-bound | segment=segment-current-same-cue-renderer-projection | target=vrm | drivers=body | sources=prosody-authority',
+        preferredExpressionAliases: [],
+        preferredMotionAliases: [],
+        live2dFacialReleaseMs: null,
+        live2dMotionFollowThroughMs: null,
+        vrmActionFadeMs: null,
+        vrmExpressionBlendMs: null,
+      },
+    })
+
+    expect(projection?.authorityMatchSummary).toBe('body:yes face:no motion:no lipsync:no')
+    expect(projection?.authorityMismatchSummary).toBe('face-mismatch, motion-mismatch, lipsync-mismatch')
+    expect(projection?.authorityMismatchDisplay).toBe('表情、动作、口型 authority 漂移，当前绑定来源是 prosody-authority，实际执行落点是表情、动作、口型；当前表面策略是 procedural-carry。')
+    expect(projection?.matchedSignals).toContain('authority-body:yes')
+    expect(projection?.driftingSignals).toContain('authority-face:no')
+    expect(projection?.driftingSignals).toContain('authority-motion:no')
+    expect(projection?.driftingSignals).toContain('authority-lipsync:no')
+    expect(projection?.reasons).not.toContain('Authority matching remains face:yes motion:yes lipsync:yes on vrm, which shows the bound renderer segment is the one the desktop runtime actually executed.')
+  })
+
+  it('does not reuse wrong-segment upstream matched sources when deriving mismatch reasons without playback cue authority view', () => {
+    const projection = buildSelfEvolutionRendererAuthorityProjection({
+      embodimentOutputProjection: {
+        status: 'grounded',
+        projectedBodyState: 'settled',
+        projectedContinuityMode: 'same-thread-continuation',
+        projectedFacialCue: 'soft-gaze',
+        projectedActionCue: 'observe_focus',
+        projectedBaseEmotion: 'thinking',
+        projectedDelivery: 'gentle',
+        residentSignature: 'resident|measured-return|soft-gaze|observe_focus',
+        matchedSignals: [],
+        missingSignals: [],
+        driftingSignals: [],
+        reasons: [],
+      },
+      speechEmbodiment: {
+        runtimeDynamics: {
+          profile: 'measured-return',
+          variationToken: 'presence-pulse|measured-return',
+          residentEmotion: 'thinking',
+          residentDelivery: 'gentle',
+          residentFacialCue: 'soft-gaze',
+          residentActionCue: 'observe_focus',
+          actionIntensity: 0.12,
+          breathDrive: 0.24,
+          focusDrive: 0.33,
+          provenance: {
+            watchMode: null,
+            bodyState: 'settled',
+            continuityMode: 'same-thread-continuation',
+            thoughtStance: null,
+            thoughtShouldSpeak: null,
+            thoughtTension: null,
+            runtimeChannel: null,
+            runtimeSummary: null,
+            activeThreadId: null,
+            activeThreadTitle: null,
+            preferredPresence: null,
+            selectedAction: null,
+            personaBiasSummary: null,
+            personaOpeningGuidance: null,
+            scene: null,
+            scenario: null,
+          },
+          eventPointers: {
+            recentTransition: null,
+            rationaleTags: [],
+            focusBeliefId: null,
+            focusInquiryId: null,
+            commitmentId: null,
+            runtimeThreadId: null,
+            governorDrive: null,
+            governorIntentionId: null,
+            selectedThoughtThreadId: null,
+          },
+        },
+        authoritySummary: {
+          cueId: 'segment-current-no-playback-view-renderer-projection',
+          segmentId: 'segment-upstream-other-no-playback-view-renderer-projection',
+          rendererTarget: 'vrm',
+          matchedDrivers: ['face', 'motion', 'lipsync'],
+          matchedSources: ['timeline-projection'],
+          matchSummary: 'face:yes motion:yes lipsync:yes',
+          authorityTrustSummary: '上游 authority trust：这其实还是另一段没有退干净的身体线。',
+          settleSummary: 'authority-bound | segment=segment-upstream-other-no-playback-view-renderer-projection | target=vrm | drivers=face, motion, lipsync | sources=timeline-projection',
+          authorityMismatchSummary: null,
+          authorityMismatchReasonSummary: null,
+          authorityMismatchDisplay: null,
+        },
+        playbackTelemetry: {
+          rendererTarget: 'vrm',
+          driverAuthority: {
+            segmentId: 'segment-current-no-playback-view-renderer-projection',
+            rendererTarget: 'vrm',
+            matchedDrivers: ['body'],
+            sources: ['prosody-authority'],
+            bodySegmentMatched: true,
+            faceSegmentMatched: false,
+            motionSegmentMatched: false,
+            lipsyncSegmentMatched: false,
+          },
+          cue: {
+            id: 'segment-current-no-playback-view-renderer-projection',
+            facialCue: 'soft-gaze',
+            actionCue: 'observe_focus',
+          },
+          drivers: {
+            face: {
+              emotion: 'thinking',
+              facialCue: 'soft-gaze',
+              intensity: 0.52,
+              holdMs: 320,
+              source: 'prosody-authority',
+              confidence: 0.94,
+              preUtteranceCue: 'steady-inhale',
+              postUtteranceCue: 'soft-release',
+              segmentId: 'segment-current-no-playback-view-renderer-projection',
+            },
+            motion: {
+              idleBase: 'idle_settle',
+              attentionMode: 'attentive',
+              actionCue: 'observe_focus',
+              intensity: 0.34,
+              holdMs: 240,
+              source: 'timeline-projection',
+              confidence: 0.88,
+              segmentId: 'segment-current-no-playback-view-renderer-projection',
+            },
+            lipsync: {
+              mode: 'energy-phoneme-hybrid',
+              playbackPhase: 'playing',
+              segmentId: 'segment-current-no-playback-view-renderer-projection',
+              visemeHints: [],
+            },
+          },
+        },
+        driverExecutionSummary: 'face=thinking/soft-gaze@0.52 hold=320 pre=steady-inhale post=soft-release src=prosody-authority conf=0.94 | motion=observe_focus mode=attentive idle=idle_settle@0.34 hold=240 src=timeline-projection conf=0.88 | lipsync=energy-phoneme-hybrid phase=playing',
+        recentDrivingTraceRecord: {
+          decisionTraceId: 'mind:summary:no-playback-view-segment-scope-1',
+          activeThreadId: 'runtime-thread-rest-1',
+          turnMode: 'care',
+          truthState: 'live-grounded',
+          repairState: 'none',
+          finalSurfacePolicy: 'procedural-carry',
+          closureState: 'grounded-recall',
+          suppressionTags: [],
+        },
+      } as any,
+      vrmAuthorityView: null,
+      live2dAuthorityView: null,
+      playbackCueAuthorityView: null,
+    })
+
+    expect(projection?.authorityMismatchSummary).toBe('face-mismatch, motion-mismatch, lipsync-mismatch')
+    expect(projection?.authorityMismatchDisplay).toBe('表情、动作、口型 authority 漂移，当前绑定来源是 prosody-authority，实际执行落点是表情、动作、口型；当前表面策略是 procedural-carry。')
+    expect(projection?.authorityMismatchDisplay).not.toContain('timeline-projection')
+  })
+
+  it('surfaces voice as a same-segment surviving lane when face and motion drift away but the active voice summary still stays on the authority segment', () => {
+    const projection = buildSelfEvolutionRendererAuthorityProjection({
+      embodimentOutputProjection: {
+        status: 'grounded',
+        projectedBodyState: 'settled',
+        projectedContinuityMode: 'same-thread-continuation',
+        projectedFacialCue: 'soft-gaze',
+        projectedActionCue: 'observe_focus',
+        projectedBaseEmotion: 'thinking',
+        projectedDelivery: 'gentle',
+        residentSignature: 'resident|measured-return|soft-gaze|observe_focus',
+        matchedSignals: [],
+        missingSignals: [],
+        driftingSignals: [],
+        reasons: [],
+      },
+      speechEmbodiment: {
+        runtimeDynamics: {
+          profile: 'measured-return',
+          variationToken: 'presence-pulse|measured-return',
+          residentEmotion: 'thinking',
+          residentDelivery: 'gentle',
+          residentFacialCue: 'soft-gaze',
+          residentActionCue: 'observe_focus',
+          actionIntensity: 0.12,
+          breathDrive: 0.24,
+          focusDrive: 0.33,
+          provenance: {
+            watchMode: 'recovering',
+            bodyState: 'settled',
+            continuityMode: 'same-thread-continuation',
+            thoughtStance: 'care',
+            thoughtShouldSpeak: false,
+            thoughtTension: 'measured-return',
+            runtimeChannel: 'active-dialogue',
+            runtimeSummary: 'same line still held',
+            activeThreadId: 'runtime-thread-voice-lane-1',
+            activeThreadTitle: 'callback afterglow',
+            preferredPresence: 'gentle-watch',
+            selectedAction: 'observe_focus',
+            personaBiasSummary: null,
+            personaOpeningGuidance: null,
+            scene: 'coding',
+            scenario: 'coding',
+          },
+          eventPointers: {
+            recentTransition: null,
+            rationaleTags: [],
+            focusBeliefId: null,
+            focusInquiryId: null,
+            commitmentId: null,
+            runtimeThreadId: null,
+            governorDrive: null,
+            governorIntentionId: null,
+            selectedThoughtThreadId: null,
+          },
+        },
+        speechEvidence: {
+          voiceSummary: 'zh-CN | closure=0.84 | precision=0.90 | provenance=authority-bound | segment=segment-voice-lane-1 | source=prosody-authority',
+          authorityMatchSummary: 'face:no motion:no lipsync:yes',
+          topVisemeSummary: 'A:0.76, I:0.51',
+          cueSummary: null,
+          cueIdentityPresent: false,
+          cueProsodyPresent: true,
+          personaStyleSummary: null,
+          prosodyAuthoritySummary: 'mode=energy-phoneme-hybrid | prosody=0.35 | mouth=0.35 | head=0.32 | visemePeak=0.75 | provenance=authority-bound | source=prosody-authority | segment=segment-voice-lane-1',
+          timingSummary: null,
+          driverExecutionSummary: 'lipsync=energy-phoneme-hybrid phase=playing seg=segment-voice-lane-1',
+          visemeHintsSummary: null,
+        },
+        authoritySummary: {
+          cueId: 'segment-voice-lane-1',
+          segmentId: 'segment-voice-lane-1',
+          rendererTarget: 'vrm',
+          matchedDrivers: ['lipsync'],
+          matchedSources: ['prosody-authority'],
+          bindingSummary: 'renderer authority binding | segment=segment-voice-lane-1 | target=vrm | drivers=lipsync | sources=prosody-authority | lane=lipsync+voice-only',
+          matchSummary: 'face:no motion:no lipsync:yes',
+          authorityMismatchSummary: 'face-mismatch, motion-mismatch',
+          authorityMismatchReasonSummary: 'face 和 motion 已经偏离当前 authority segment，但 voice 仍与 lipsync 绑定在同一语音主线上。',
+          authorityMismatchDisplay: '表情、动作 authority 漂移，但 voice 仍与口型一起停留在当前片段主线。',
+          settleSummary: 'renderer authority settle | segment=segment-voice-lane-1 | target=vrm | drivers=lipsync | sources=prosody-authority | lane=lipsync+voice-only',
+        },
+        playbackTelemetry: {
+          rendererTarget: 'vrm',
+          driverAuthority: {
+            segmentId: 'segment-voice-lane-1',
+            rendererTarget: 'vrm',
+            matchedDrivers: ['lipsync'],
+            sources: ['prosody-authority'],
+            faceSegmentMatched: false,
+            motionSegmentMatched: false,
+            lipsyncSegmentMatched: true,
+          },
+          cue: {
+            id: 'segment-voice-lane-1',
+            facialCue: 'soft-gaze',
+            actionCue: 'observe_focus',
+          },
+          drivers: {
+            lipsync: {
+              mode: 'energy-phoneme-hybrid',
+              playbackPhase: 'playing',
+              segmentId: 'segment-voice-lane-1',
+              visemeHints: [],
+            },
+          },
+        },
+        driverExecutionSummary: 'lipsync=energy-phoneme-hybrid phase=playing seg=segment-voice-lane-1',
+      } as any,
+      vrmAuthorityView: null,
+      live2dAuthorityView: null,
+      playbackCueAuthorityView: {
+        cueId: 'segment-voice-lane-1',
+        authoritySegmentId: 'segment-voice-lane-1',
+        authorityRendererTarget: 'vrm',
+        authorityMatchedDrivers: ['lipsync'],
+        authoritySources: ['prosody-authority'],
+        faceSegmentMatched: false,
+        motionSegmentMatched: false,
+        lipsyncSegmentMatched: true,
+        authorityBindingSummary: 'target=vrm | drivers=lipsync | sources=prosody-authority | matches=face:no motion:no lipsync:yes | lane=lipsync-only',
+        authorityMatchSummary: 'face:no motion:no lipsync:yes',
+        settleAuthoritySummary: 'authority-bound | segment=segment-voice-lane-1 | target=vrm | drivers=lipsync | sources=prosody-authority | lane=lipsync-only',
+        preferredExpressionAliases: [],
+        preferredMotionAliases: [],
+        live2dFacialReleaseMs: null,
+        live2dMotionFollowThroughMs: null,
+        vrmActionFadeMs: null,
+        vrmExpressionBlendMs: null,
+      },
+    })
+
+    expect(projection?.matchedSignals).toContain('authority-lipsync:yes')
+    expect(projection?.matchedSignals).toContain('authority-voice:yes')
+    expect(projection?.matchedSignals).toContain('lane=lipsync+voice-only')
+    expect(projection?.driftingSignals).toContain('authority-face:no')
+    expect(projection?.driftingSignals).toContain('authority-motion:no')
+  })
+
+  it('preserves upstream voice lane truth when the authority summary already carries voice but no explicit voice summary survives locally', () => {
+    const projection = buildSelfEvolutionRendererAuthorityProjection({
+      embodimentOutputProjection: {
+        status: 'grounded',
+        projectedBodyState: 'settled',
+        projectedContinuityMode: 'same-thread-continuation',
+        projectedFacialCue: 'soft-gaze',
+        projectedActionCue: 'observe_focus',
+        projectedBaseEmotion: 'thinking',
+        projectedDelivery: 'gentle',
+        residentSignature: 'resident|measured-return|soft-gaze|observe_focus',
+        matchedSignals: [],
+        missingSignals: [],
+        driftingSignals: [],
+        reasons: [],
+      },
+      speechEmbodiment: {
+        runtimeDynamics: {
+          profile: 'measured-return',
+          variationToken: 'presence-pulse|measured-return',
+          residentEmotion: 'thinking',
+          residentDelivery: 'gentle',
+          residentFacialCue: 'soft-gaze',
+          residentActionCue: 'observe_focus',
+          actionIntensity: 0.12,
+          breathDrive: 0.24,
+          focusDrive: 0.33,
+          provenance: {
+            watchMode: 'recovering',
+            bodyState: 'settled',
+            continuityMode: 'same-thread-continuation',
+            thoughtStance: 'care',
+            thoughtShouldSpeak: false,
+            thoughtTension: 'measured-return',
+            runtimeChannel: 'active-dialogue',
+            runtimeSummary: 'same line still held',
+            activeThreadId: 'runtime-thread-upstream-voice-only-1',
+            activeThreadTitle: 'callback afterglow',
+            preferredPresence: 'gentle-watch',
+            selectedAction: 'observe_focus',
+            personaBiasSummary: null,
+            personaOpeningGuidance: null,
+            scene: 'coding',
+            scenario: 'coding',
+          },
+          eventPointers: {
+            recentTransition: null,
+            rationaleTags: [],
+            focusBeliefId: null,
+            focusInquiryId: null,
+            commitmentId: null,
+            runtimeThreadId: null,
+            governorDrive: null,
+            governorIntentionId: null,
+            selectedThoughtThreadId: null,
+          },
+        },
+        speechEvidence: {
+          voiceSummary: null,
+          authorityMatchSummary: 'face:no motion:no lipsync:yes',
+          topVisemeSummary: 'A:0.76, I:0.51',
+          cueSummary: null,
+          cueIdentityPresent: false,
+          cueProsodyPresent: true,
+          personaStyleSummary: null,
+          prosodyAuthoritySummary: 'mode=energy-phoneme-hybrid | prosody=0.35 | mouth=0.35 | head=0.32 | visemePeak=0.75 | provenance=authority-bound | source=prosody-authority | segment=segment-upstream-voice-only-1',
+          timingSummary: null,
+          driverExecutionSummary: 'lipsync=energy-phoneme-hybrid phase=playing seg=segment-upstream-voice-only-1',
+          visemeHintsSummary: null,
+        },
+        authoritySummary: {
+          cueId: 'segment-upstream-voice-only-1',
+          segmentId: 'segment-upstream-voice-only-1',
+          rendererTarget: 'vrm',
+          matchedDrivers: ['lipsync', 'voice'],
+          matchedSources: ['prosody-authority', 'voice-segment'],
+          bindingSummary: 'renderer authority binding | segment=segment-upstream-voice-only-1 | target=vrm | drivers=lipsync | sources=prosody-authority, voice-segment | lane=lipsync+voice-only',
+          matchSummary: 'face:no motion:no lipsync:yes',
+          authorityMismatchSummary: 'face-mismatch, motion-mismatch',
+          authorityMismatchReasonSummary: 'face 和 motion 已经偏离当前 authority segment，但 voice 仍与 lipsync 绑定在同一语音主线上。',
+          authorityMismatchDisplay: '表情、动作 authority 漂移，但 voice 仍与口型一起停留在当前片段主线。',
+          settleSummary: 'renderer authority settle | segment=segment-upstream-voice-only-1 | target=vrm | drivers=lipsync | sources=prosody-authority, voice-segment | lane=lipsync+voice-only',
+        },
+        playbackTelemetry: {
+          rendererTarget: 'vrm',
+          driverAuthority: {
+            segmentId: 'segment-upstream-voice-only-1',
+            rendererTarget: 'vrm',
+            matchedDrivers: ['lipsync'],
+            sources: ['prosody-authority'],
+            faceSegmentMatched: false,
+            motionSegmentMatched: false,
+            lipsyncSegmentMatched: true,
+          },
+          cue: {
+            id: 'segment-upstream-voice-only-1',
+            facialCue: 'soft-gaze',
+            actionCue: 'observe_focus',
+          },
+          drivers: {
+            lipsync: {
+              mode: 'energy-phoneme-hybrid',
+              playbackPhase: 'playing',
+              segmentId: 'segment-upstream-voice-only-1',
+              visemeHints: [],
+            },
+          },
+        },
+        driverExecutionSummary: 'lipsync=energy-phoneme-hybrid phase=playing seg=segment-upstream-voice-only-1',
+      } as any,
+      vrmAuthorityView: null,
+      live2dAuthorityView: null,
+      playbackCueAuthorityView: {
+        cueId: 'segment-upstream-voice-only-1',
+        authoritySegmentId: 'segment-upstream-voice-only-1',
+        authorityRendererTarget: 'vrm',
+        authorityMatchedDrivers: ['lipsync'],
+        authoritySources: ['prosody-authority'],
+        faceSegmentMatched: false,
+        motionSegmentMatched: false,
+        lipsyncSegmentMatched: true,
+        authorityBindingSummary: 'target=vrm | drivers=lipsync | sources=prosody-authority | matches=face:no motion:no lipsync:yes | lane=lipsync-only',
+        authorityMatchSummary: 'face:no motion:no lipsync:yes',
+        settleAuthoritySummary: 'authority-bound | segment=segment-upstream-voice-only-1 | target=vrm | drivers=lipsync | sources=prosody-authority | lane=lipsync-only',
+        preferredExpressionAliases: [],
+        preferredMotionAliases: [],
+        live2dFacialReleaseMs: null,
+        live2dMotionFollowThroughMs: null,
+        vrmActionFadeMs: null,
+        vrmExpressionBlendMs: null,
+      },
+    })
+
+    expect(projection?.matchedSignals).toContain('authority-voice:yes')
+    expect(projection?.matchedSignals).toContain('lane=lipsync+voice-only')
+  })
+
+  it('surfaces voice authority drift when the spoken segment no longer belongs to the bound living segment', () => {
+    const projection = buildSelfEvolutionRendererAuthorityProjection({
+      speechEmbodiment: {
+        speechEvidence: {
+          voiceSummary: 'voice | segment=segment-other-voice-1',
+          prosodyAuthoritySummary: 'mode=energy-phoneme-hybrid | provenance=authority-bound | source=prosody-authority | segment=segment-voice-drift-1',
+          cueProsodyPresent: true,
+        },
+        authoritySummary: {
+          cueId: 'segment-voice-drift-1',
+          segmentId: 'segment-voice-drift-1',
+          rendererTarget: 'vrm',
+          matchedDrivers: ['lipsync'],
+          matchedSources: ['prosody-authority'],
+          bindingSummary: 'target=vrm | drivers=lipsync | sources=prosody-authority | matches=face:no motion:no lipsync:yes | lane=lipsync-only',
+          matchSummary: 'face:no motion:no lipsync:yes',
+          authorityMismatchSummary: 'face-mismatch, motion-mismatch',
+        },
+      } as any,
+      vrmAuthorityView: null,
+      live2dAuthorityView: null,
+      playbackCueAuthorityView: {
+        cueId: 'segment-voice-drift-1',
+        authoritySegmentId: 'segment-voice-drift-1',
+        authorityRendererTarget: 'vrm',
+        authorityMatchedDrivers: ['lipsync'],
+        authoritySources: ['prosody-authority'],
+        faceSegmentMatched: false,
+        motionSegmentMatched: false,
+        lipsyncSegmentMatched: true,
+        authorityBindingSummary: 'target=vrm | drivers=lipsync | sources=prosody-authority | matches=face:no motion:no lipsync:yes | lane=lipsync-only',
+        authorityMatchSummary: 'face:no motion:no lipsync:yes',
+        settleAuthoritySummary: 'authority-bound | segment=segment-voice-drift-1 | target=vrm | drivers=lipsync | sources=prosody-authority | lane=lipsync-only',
+        preferredExpressionAliases: [],
+        preferredMotionAliases: [],
+        live2dFacialReleaseMs: null,
+        live2dMotionFollowThroughMs: null,
+        vrmActionFadeMs: null,
+        vrmExpressionBlendMs: null,
+      },
+    })
+
+    expect(projection?.matchedSignals).toContain('authority-lipsync:yes')
+    expect(projection?.driftingSignals).toContain('authority-voice:no')
+    expect(projection?.matchedSignals).toContain('lane=lipsync-only')
+  })
+
+  it('keeps remaining-open lipsync and voice carry visible in self-evolution renderer authority projection when body face and motion already rejoin on one segment', () => {
+    const projection = buildSelfEvolutionRendererAuthorityProjection({
+      speechEmbodiment: {
+        authoritySummary: {
+          cueId: 'segment-body-face-motion-self-evolution-1',
+          segmentId: 'segment-body-face-motion-self-evolution-1',
+          rendererTarget: 'live2d',
+          matchedDrivers: ['face', 'motion'],
+          matchedSources: ['prosody-authority', 'timeline-projection'],
+          bindingSummary: 'target=live2d | drivers=face, motion | sources=prosody-authority, timeline-projection | matches=body:yes face:yes motion:yes lipsync:no | lane=body+face+motion-only | remaining-open=lipsync+voice',
+          matchSummary: 'body:yes face:yes motion:yes lipsync:no',
+          settleSummary: 'authority-bound | segment=segment-body-face-motion-self-evolution-1 | target=live2d | drivers=face, motion | sources=prosody-authority, timeline-projection | lane=body+face+motion-only | remaining-open=lipsync+voice',
+        },
+      } as any,
+      vrmAuthorityView: null,
+      live2dAuthorityView: null,
+      playbackCueAuthorityView: {
+        cueId: 'segment-body-face-motion-self-evolution-1',
+        authoritySegmentId: 'segment-body-face-motion-self-evolution-1',
+        authorityRendererTarget: 'live2d',
+        authorityMatchedDrivers: ['face', 'motion'],
+        authoritySources: ['prosody-authority', 'timeline-projection'],
+        bodySegmentMatched: true,
+        faceSegmentMatched: true,
+        motionSegmentMatched: true,
+        lipsyncSegmentMatched: false,
+        authorityBindingSummary: 'target=live2d | drivers=face, motion | sources=prosody-authority, timeline-projection | matches=body:yes face:yes motion:yes lipsync:no | lane=body+face+motion-only | remaining-open=lipsync+voice',
+        authorityMatchSummary: 'body:yes face:yes motion:yes lipsync:no',
+        settleAuthoritySummary: 'authority-bound | segment=segment-body-face-motion-self-evolution-1 | target=live2d | drivers=face, motion | sources=prosody-authority, timeline-projection | lane=body+face+motion-only | remaining-open=lipsync+voice',
+        preferredExpressionAliases: [],
+        preferredMotionAliases: [],
+        live2dFacialReleaseMs: null,
+        live2dMotionFollowThroughMs: null,
+        vrmActionFadeMs: null,
+        vrmExpressionBlendMs: null,
+      },
+    })
+
+    expect(projection?.matchedSignals).toContain('authority-body:yes')
+    expect(projection?.matchedSignals).toContain('authority-face:yes')
+    expect(projection?.matchedSignals).toContain('authority-motion:yes')
+    expect(projection?.matchedSignals).toContain('remaining-open=lipsync+voice')
+    expect(projection?.driftingSignals).toContain('authority-lipsync:no')
+  })
+
+  it('keeps audible body-carried same-her continuity visible in self-evolution renderer authority projection when body lipsync and voice still hold one living segment', () => {
+    const projection = buildSelfEvolutionRendererAuthorityProjection({
+      embodimentOutputProjection: {
+        status: 'grounded',
+        projectedBodyState: 'settled',
+        projectedContinuityMode: 'same-thread-continuation',
+        projectedFacialCue: 'soft-gaze',
+        projectedActionCue: 'observe_focus',
+        projectedBaseEmotion: 'thinking',
+        projectedDelivery: 'gentle',
+        residentSignature: 'resident|measured-return|soft-gaze|observe_focus',
+        matchedSignals: [],
+        missingSignals: [],
+        driftingSignals: [],
+        reasons: [],
+      },
+      speechEmbodiment: {
+        runtimeDynamics: {
+          profile: 'measured-return',
+          variationToken: 'presence-pulse|measured-return',
+          residentEmotion: 'thinking',
+          residentDelivery: 'gentle',
+          residentFacialCue: 'soft-gaze',
+          residentActionCue: 'observe_focus',
+          actionIntensity: 0.12,
+          breathDrive: 0.24,
+          focusDrive: 0.33,
+          provenance: {
+            watchMode: null,
+            bodyState: 'settled',
+            continuityMode: 'same-thread-continuation',
+            thoughtStance: null,
+            thoughtShouldSpeak: null,
+            thoughtTension: null,
+            runtimeChannel: null,
+            runtimeSummary: null,
+            activeThreadId: null,
+            activeThreadTitle: null,
+            preferredPresence: null,
+            selectedAction: null,
+            personaBiasSummary: null,
+            personaOpeningGuidance: null,
+            scene: null,
+            scenario: null,
+          },
+          eventPointers: {
+            recentTransition: null,
+            rationaleTags: [],
+            focusBeliefId: null,
+            focusInquiryId: null,
+            commitmentId: null,
+            runtimeThreadId: 'runtime-thread-audible-body-self-evolution-1',
+            governorDrive: null,
+            governorIntentionId: null,
+            selectedThoughtThreadId: null,
+          },
+        },
+        authoritySummary: {
+          cueId: 'segment-audible-body-self-evolution-1',
+          segmentId: 'segment-audible-body-self-evolution-1',
+          rendererTarget: 'vrm',
+          matchedDrivers: ['body', 'lipsync'],
+          matchedSources: ['prosody-authority', 'voice-segment'],
+          bindingSummary: 'target=vrm | drivers=body, lipsync | sources=prosody-authority, voice-segment | matches=body:yes face:no motion:no lipsync:yes | lane=body+lipsync+voice-only | pending-rejoin=face+motion',
+          matchSummary: 'body:yes face:no motion:no lipsync:yes',
+          settleSummary: 'authority-bound | segment=segment-audible-body-self-evolution-1 | target=vrm | drivers=body, lipsync | sources=prosody-authority, voice-segment | lane=body+lipsync+voice-only | pending-rejoin=face+motion',
+          authorityTrustSummary: 'VRM 这段 authority 现在主要由身体线继续托住，同一段 living segment 还在，只是表情、动作、口型暂时没有一起跟上。',
+        },
+        speechEvidence: {
+          voiceSummary: 'zh-CN | closure=0.84 | precision=0.90 | provenance=authority-bound | segment=segment-audible-body-self-evolution-1 | source=prosody-authority',
+          prosodyAuthoritySummary: 'mode=energy-phoneme-hybrid | prosody=0.35 | mouth=0.35 | head=0.32 | visemePeak=0.75 | provenance=authority-bound | source=prosody-authority | segment=segment-audible-body-self-evolution-1',
+        },
+        driverExecutionSummary: 'body=measured-return seg=segment-audible-body-self-evolution-1 | lipsync=energy-phoneme-hybrid phase=playing seg=segment-audible-body-self-evolution-1 | closure=audible-body-carry',
+        recentDrivingTraceRecord: {
+          decisionTraceId: 'mind:summary:audible-body-self-evolution-1',
+          activeThreadId: 'runtime-thread-audible-body-self-evolution-1',
+          turnMode: 'care',
+          truthState: 'live-grounded',
+          repairState: 'none',
+          finalSurfacePolicy: 'procedural-carry',
+          closureState: 'grounded-recall',
+          suppressionTags: [],
+        },
+      } as any,
+      vrmAuthorityView: null,
+      live2dAuthorityView: null,
+      playbackCueAuthorityView: {
+        cueId: 'segment-audible-body-self-evolution-1',
+        authoritySegmentId: 'segment-audible-body-self-evolution-1',
+        authorityRendererTarget: 'vrm',
+        authorityMatchedDrivers: ['body', 'lipsync'],
+        authoritySources: ['prosody-authority', 'voice-segment'],
+        bodySegmentMatched: true,
+        faceSegmentMatched: false,
+        motionSegmentMatched: false,
+        lipsyncSegmentMatched: true,
+        authorityBindingSummary: 'target=vrm | drivers=body, lipsync | sources=prosody-authority, voice-segment | matches=body:yes face:no motion:no lipsync:yes | lane=body+lipsync+voice-only | pending-rejoin=face+motion',
+        authorityMatchSummary: 'body:yes face:no motion:no lipsync:yes',
+        authorityTrustSummary: 'VRM 这段 authority 现在主要由身体线继续托住，同一段 living segment 还在，只是表情、动作、口型暂时没有一起跟上。',
+        settleAuthoritySummary: 'authority-bound | segment=segment-audible-body-self-evolution-1 | target=vrm | drivers=body, lipsync | sources=prosody-authority, voice-segment | lane=body+lipsync+voice-only | pending-rejoin=face+motion',
+        preferredExpressionAliases: [],
+        preferredMotionAliases: [],
+        live2dFacialReleaseMs: null,
+        live2dMotionFollowThroughMs: null,
+        vrmActionFadeMs: null,
+        vrmExpressionBlendMs: null,
+      },
+    })
+
+    expect(projection?.bodyContinuityPhase).toBe('body-carried-to-renderer-rejoin')
+    expect(projection?.matchedSignals).toContain('authority-body:yes')
+    expect(projection?.matchedSignals).toContain('authority-lipsync:yes')
+    expect(projection?.matchedSignals).toContain('authority-voice:yes')
+    expect(projection?.matchedSignals).toContain('lane=lipsync+voice-only')
+    expect(projection?.driftingSignals).toContain('authority-face:no')
+    expect(projection?.driftingSignals).toContain('authority-motion:no')
+    expect(projection?.reasons).toContain(
+      'Body continuity is still carrying the same living segment while VRM manifestation rejoins that exact line, so the visible renderer recovery is a same-her manifestation repair instead of a fresh shell takeover.',
+    )
+  })
+
+  it('surfaces body-led same-her continuity in renderer authority projection when body and voice still carry the living segment before face and motion return', () => {
+    const projection = buildSelfEvolutionRendererAuthorityProjection({
+      embodimentOutputProjection: {
+        status: 'grounded',
+        projectedBodyState: 'settled',
+        projectedContinuityMode: 'same-thread-continuation',
+        projectedFacialCue: 'soft-gaze',
+        projectedActionCue: 'observe_focus',
+        projectedBaseEmotion: 'thinking',
+        projectedDelivery: 'gentle',
+        residentSignature: 'resident|measured-return|soft-gaze|observe_focus',
+        matchedSignals: [],
+        missingSignals: [],
+        driftingSignals: [],
+        reasons: [],
+      },
+      speechEmbodiment: {
+        runtimeDynamics: {
+          profile: 'measured-return',
+          variationToken: 'presence-pulse|measured-return',
+          residentEmotion: 'thinking',
+          residentDelivery: 'gentle',
+          residentFacialCue: 'soft-gaze',
+          residentActionCue: 'observe_focus',
+          actionIntensity: 0.12,
+          breathDrive: 0.24,
+          focusDrive: 0.33,
+          provenance: {
+            watchMode: null,
+            bodyState: 'settled',
+            continuityMode: 'same-thread-continuation',
+            thoughtStance: null,
+            thoughtShouldSpeak: null,
+            thoughtTension: null,
+            runtimeChannel: null,
+            runtimeSummary: null,
+            activeThreadId: null,
+            activeThreadTitle: null,
+            preferredPresence: null,
+            selectedAction: null,
+            personaBiasSummary: null,
+            personaOpeningGuidance: null,
+            scene: null,
+            scenario: null,
+          },
+          eventPointers: {
+            recentTransition: null,
+            rationaleTags: [],
+            focusBeliefId: null,
+            focusInquiryId: null,
+            commitmentId: null,
+            runtimeThreadId: 'runtime-thread-body-led-projection-1',
+            governorDrive: null,
+            governorIntentionId: null,
+            selectedThoughtThreadId: null,
+          },
+        },
+        voiceSummary: 'zh-CN | closure=0.79 | precision=0.86 | companion=measured-return',
+        driverExecutionSummary: 'body=measured-return still=0.88 gazeStable=0.80 breath=0.22 express=0.24 segment=segment-body-led-projection-1',
+      } as any,
+      vrmAuthorityView: null,
+      live2dAuthorityView: null,
+      playbackCueAuthorityView: {
+        cueId: 'segment-body-led-projection-1',
+        authoritySegmentId: 'segment-body-led-projection-1',
+        authorityRendererTarget: 'speech',
+        authorityMatchedDrivers: ['body'],
+        authoritySources: ['prosody-authority'],
+        bodySegmentMatched: true,
+        faceSegmentMatched: false,
+        motionSegmentMatched: false,
+        lipsyncSegmentMatched: false,
+        authorityBindingSummary: 'target=speech | drivers=body | sources=prosody-authority | matches=body:yes face:no motion:no lipsync:no | lane=body-only',
+        authorityMatchSummary: 'body:yes face:no motion:no lipsync:no',
+        authorityTrustSummary: 'speech 这段 authority 现在主要由身体线继续托住，同一段 living segment 还在，只是 speech 显形权威暂时还没有完全补回。',
+        settleAuthoritySummary: 'authority-bound | segment=segment-body-led-projection-1 | target=speech | drivers=body | sources=prosody-authority',
+        preferredExpressionAliases: [],
+        preferredMotionAliases: [],
+        live2dFacialReleaseMs: null,
+        live2dMotionFollowThroughMs: null,
+        vrmActionFadeMs: null,
+        vrmExpressionBlendMs: null,
+      },
+    })
+
+    expect(projection?.matchedSignals).toContain('authority-body:yes')
+    expect(projection?.driftingSignals).toContain('authority-face:no')
+    expect(projection?.driftingSignals).toContain('authority-motion:no')
+  })
+
+  it('preserves body-backed upstream authority summaries instead of truncating them back to the old three-lane model', () => {
+    const projection = buildSelfEvolutionRendererAuthorityProjection({
+      embodimentOutputProjection: {
+        status: 'grounded',
+        projectedBodyState: 'settled',
+        projectedContinuityMode: 'same-thread-continuation',
+        projectedFacialCue: 'soft-gaze',
+        projectedActionCue: 'observe_focus',
+        projectedBaseEmotion: 'thinking',
+        projectedDelivery: 'gentle',
+        residentSignature: 'resident|measured-return|soft-gaze|observe_focus',
+        matchedSignals: [],
+        missingSignals: [],
+        driftingSignals: [],
+        reasons: [],
+      },
+      speechEmbodiment: {
+        runtimeDynamics: {
+          profile: 'measured-return',
+          variationToken: 'presence-pulse|measured-return',
+          residentEmotion: 'thinking',
+          residentDelivery: 'gentle',
+          residentFacialCue: 'soft-gaze',
+          residentActionCue: 'observe_focus',
+          actionIntensity: 0.12,
+          breathDrive: 0.24,
+          focusDrive: 0.33,
+          provenance: {
+            watchMode: null,
+            bodyState: 'settled',
+            continuityMode: 'same-thread-continuation',
+            thoughtStance: null,
+            thoughtShouldSpeak: null,
+            thoughtTension: null,
+            runtimeChannel: null,
+            runtimeSummary: null,
+            activeThreadId: null,
+            activeThreadTitle: null,
+            preferredPresence: null,
+            selectedAction: null,
+            personaBiasSummary: null,
+            personaOpeningGuidance: null,
+            scene: null,
+            scenario: null,
+          },
+          eventPointers: {
+            recentTransition: null,
+            rationaleTags: [],
+            focusBeliefId: null,
+            focusInquiryId: null,
+            commitmentId: null,
+            runtimeThreadId: 'runtime-thread-body-led-summary-1',
+            governorDrive: null,
+            governorIntentionId: null,
+            selectedThoughtThreadId: null,
+          },
+        },
+        authoritySummary: {
+          cueId: 'segment-body-led-summary-1',
+          segmentId: 'segment-body-led-summary-1',
+          matchSummary: 'body:yes face:no motion:no lipsync:no',
+          matchedDrivers: ['body'],
+          matchedSources: ['prosody-authority'],
+          settleSummary: 'authority-bound | segment=segment-body-led-summary-1 | target=vrm | drivers=body | sources=prosody-authority',
+          authorityTrustSummary: 'VRM 这段 authority 现在主要由身体线继续托住，同一段 living segment 还在，只是 VRM 显形权威暂时还没有完全补回。',
+        },
+        speechEvidence: {
+          voiceSummary: 'zh-CN | closure=0.79 | precision=0.86 | companion=measured-return',
+        },
+        driverExecutionSummary: 'body=measured-return still=0.88 gazeStable=0.80 breath=0.22 express=0.24 segment=segment-body-led-summary-1',
+      } as any,
+      vrmAuthorityView: null,
+      live2dAuthorityView: null,
+      playbackCueAuthorityView: {
+        cueId: 'segment-body-led-summary-1',
+        authoritySegmentId: 'segment-body-led-summary-1',
+        authorityRendererTarget: 'vrm',
+        authorityMatchedDrivers: ['body'],
+        authoritySources: ['prosody-authority'],
+        bodySegmentMatched: true,
+        faceSegmentMatched: false,
+        motionSegmentMatched: false,
+        lipsyncSegmentMatched: false,
+        authorityBindingSummary: 'target=vrm | drivers=body | sources=prosody-authority | matches=body:yes face:no motion:no lipsync:no | lane=body-only',
+        authorityMatchSummary: 'body:yes face:no motion:no lipsync:no',
+        authorityTrustSummary: 'VRM 这段 authority 现在主要由身体线继续托住，同一段 living segment 还在，只是 VRM 显形权威暂时还没有完全补回。',
+        settleAuthoritySummary: 'authority-bound | segment=segment-body-led-summary-1 | target=vrm | drivers=body | sources=prosody-authority',
+        preferredExpressionAliases: [],
+        preferredMotionAliases: [],
+        live2dFacialReleaseMs: null,
+        live2dMotionFollowThroughMs: null,
+        vrmActionFadeMs: null,
+        vrmExpressionBlendMs: null,
+      },
+    })
+
+    expect(projection?.authorityMatchSummary).toBe('body:yes face:no motion:no lipsync:no')
+    expect(projection?.matchedSignals).toContain('authority-body:yes')
+    expect(projection?.driftingSignals).toContain('authority-face:no')
+    expect(projection?.driftingSignals).toContain('authority-motion:no')
+    expect(projection?.reasons).toContain(
+      'Authority matching remains body:yes face:no motion:no lipsync:no on vrm, which shows the bound renderer segment is the one the desktop runtime actually executed.',
+    )
+    expect(projection?.reasons).toContain(
+      'Body continuity is still the only lane carrying this same living segment, so the current embodiment should be read as one continuous her being held inward rather than as a renderer-neutral idle settle.',
+    )
+  })
+
+  it('treats body-segment authority loss as real drift because same-her continuity is broken before renderer lanes can meaningfully rejoin', () => {
+    const projection = buildSelfEvolutionRendererAuthorityProjection({
+      embodimentOutputProjection: {
+        status: 'grounded',
+        projectedBodyState: 'settled',
+        projectedContinuityMode: 'same-thread-continuation',
+        projectedFacialCue: 'soft-gaze',
+        projectedActionCue: 'observe_focus',
+        projectedBaseEmotion: 'thinking',
+        projectedDelivery: 'gentle',
+        residentSignature: 'resident|measured-return|soft-gaze|observe_focus',
+        matchedSignals: [],
+        missingSignals: [],
+        driftingSignals: [],
+        reasons: [],
+      },
+      speechEmbodiment: {
+        runtimeDynamics: {
+          profile: 'measured-return',
+          variationToken: 'presence-pulse|measured-return',
+          residentEmotion: 'thinking',
+          residentDelivery: 'gentle',
+          residentFacialCue: 'soft-gaze',
+          residentActionCue: 'observe_focus',
+          actionIntensity: 0.12,
+          breathDrive: 0.24,
+          focusDrive: 0.33,
+          provenance: {
+            watchMode: null,
+            bodyState: 'settled',
+            continuityMode: 'same-thread-continuation',
+            thoughtStance: null,
+            thoughtShouldSpeak: null,
+            thoughtTension: null,
+            runtimeChannel: null,
+            runtimeSummary: null,
+            activeThreadId: null,
+            activeThreadTitle: null,
+            preferredPresence: null,
+            selectedAction: null,
+            personaBiasSummary: null,
+            personaOpeningGuidance: null,
+            scene: null,
+            scenario: null,
+          },
+          eventPointers: {
+            recentTransition: null,
+            rationaleTags: [],
+            focusBeliefId: null,
+            focusInquiryId: null,
+            commitmentId: null,
+            runtimeThreadId: 'runtime-thread-body-loss-1',
+            governorDrive: null,
+            governorIntentionId: null,
+            selectedThoughtThreadId: null,
+          },
+        },
+      } as any,
+      vrmAuthorityView: null,
+      live2dAuthorityView: null,
+      playbackCueAuthorityView: {
+        cueId: 'segment-body-loss-1',
+        authoritySegmentId: 'segment-body-loss-1',
+        authorityRendererTarget: 'vrm',
+        authorityMatchedDrivers: ['face', 'motion', 'lipsync'],
+        authoritySources: ['prosody-authority', 'timeline-projection'],
+        bodySegmentMatched: false,
+        faceSegmentMatched: true,
+        motionSegmentMatched: true,
+        lipsyncSegmentMatched: true,
+        authorityBindingSummary: 'target=vrm | drivers=face, motion, lipsync | sources=prosody-authority, timeline-projection | matches=body:no face:yes motion:yes lipsync:yes',
+        authorityMatchSummary: 'body:no face:yes motion:yes lipsync:yes',
+        authorityTrustSummary: null,
+        settleAuthoritySummary: 'authority-bound | segment=segment-body-loss-1 | target=vrm | drivers=face, motion, lipsync | sources=prosody-authority, timeline-projection',
+        preferredExpressionAliases: [],
+        preferredMotionAliases: [],
+        live2dFacialReleaseMs: null,
+        live2dMotionFollowThroughMs: null,
+        vrmActionFadeMs: null,
+        vrmExpressionBlendMs: null,
+      },
+    })
+
+    expect(projection?.status).toBe('drift')
+    expect(projection?.bodyContinuityPhase).toBe('renderer-rejoin-without-body')
+    expect(projection?.driftingSignals).toContain('authority-body:no')
+    expect(projection?.matchedSignals).not.toContain('authority-body:yes')
+    expect(projection?.reasons).toContain(
+      'Renderer lanes have rejoined on VRM manifestation, but the body line is no longer carrying that same living segment, so the visible recovery should still be treated as same-her drift risk rather than a completed embodiment repair.',
+    )
+  })
+
+  it('keeps thin affective settle reasons visible in renderer authority projection when playback cue authority still carries them', () => {
+    const projection = buildSelfEvolutionRendererAuthorityProjection({
+      embodimentOutputProjection: {
+        status: 'grounded',
+        projectedBodyState: 'settled',
+        projectedContinuityMode: 'same-thread-continuation',
+        projectedFacialCue: 'soft-gaze',
+        projectedActionCue: 'observe_focus',
+        projectedBaseEmotion: 'thinking',
+        projectedDelivery: 'gentle',
+        residentSignature: 'resident|measured-return|soft-gaze|observe_focus',
+        matchedSignals: [],
+        missingSignals: [],
+        driftingSignals: [],
+        reasons: [],
+      },
+      speechEmbodiment: {
+        runtimeDynamics: {
+          profile: 'measured-return',
+          variationToken: 'presence-pulse|measured-return',
+          residentEmotion: 'thinking',
+          residentDelivery: 'gentle',
+          residentFacialCue: 'soft-gaze',
+          residentActionCue: 'observe_focus',
+          actionIntensity: 0.12,
+          breathDrive: 0.24,
+          focusDrive: 0.33,
+          provenance: {
+            watchMode: 'recovering',
+            bodyState: 'settled',
+            continuityMode: 'same-thread-continuation',
+            thoughtStance: 'care',
+            thoughtShouldSpeak: false,
+            thoughtTension: 'measured-return',
+            runtimeChannel: 'active-dialogue',
+            runtimeSummary: 'same line still held',
+            activeThreadId: 'runtime-thread-thin-affective-1',
+            activeThreadTitle: 'callback afterglow',
+            preferredPresence: 'gentle-watch',
+            selectedAction: 'observe_focus',
+            personaBiasSummary: null,
+            personaOpeningGuidance: null,
+            scene: 'coding',
+            scenario: 'coding',
+          },
+          eventPointers: {
+            recentTransition: null,
+            rationaleTags: [],
+            focusBeliefId: null,
+            focusInquiryId: null,
+            commitmentId: null,
+            runtimeThreadId: null,
+            governorDrive: null,
+            governorIntentionId: null,
+            selectedThoughtThreadId: null,
+          },
+        },
+        playbackTelemetry: {
+          rendererTarget: 'vrm',
+          driverAuthority: {
+            segmentId: 'segment-thin-affective-self-evolution',
+            rendererTarget: 'vrm',
+            matchedDrivers: ['face', 'motion', 'lipsync'],
+            sources: ['prosody-authority', 'timeline-projection'],
+            faceSegmentMatched: true,
+            motionSegmentMatched: true,
+            lipsyncSegmentMatched: true,
+          },
+          cue: {
+            id: 'segment-thin-affective-self-evolution',
+            facialCue: 'soft-gaze',
+            actionCue: 'observe_focus',
+          },
+          drivers: {
+            face: {
+              emotion: 'thinking',
+              facialCue: 'soft-gaze',
+              intensity: 0.44,
+              holdMs: 360,
+              source: 'prosody-authority',
+              confidence: 0.91,
+              preUtteranceCue: 'steady-inhale',
+              postUtteranceCue: 'eyes-soften',
+              segmentId: 'segment-thin-affective-self-evolution',
+            },
+            motion: {
+              idleBase: 'idle_settle',
+              attentionMode: 'attentive',
+              actionCue: 'observe_focus',
+              intensity: 0.3,
+              holdMs: 260,
+              source: 'timeline-projection',
+              confidence: 0.86,
+              segmentId: 'segment-thin-affective-self-evolution',
+            },
+            lipsync: {
+              mode: 'energy-phoneme-hybrid',
+              playbackPhase: 'playing',
+              segmentId: 'segment-thin-affective-self-evolution',
+              visemeHints: [],
+            },
+          },
+          actualDurationMs: 220,
+          plannedDurationMs: 220,
+          driftMs: 0,
+          settleMs: 320,
+          stopReason: null,
+        },
+      } as any,
+      vrmAuthorityView: null,
+      live2dAuthorityView: null,
+      playbackCueAuthorityView: {
+        cueId: 'segment-thin-affective-self-evolution',
+        authoritySegmentId: 'segment-thin-affective-self-evolution',
+        authorityRendererTarget: 'vrm',
+        authorityMatchedDrivers: ['face', 'motion', 'lipsync'],
+        authoritySources: ['prosody-authority', 'timeline-projection'],
+        faceSegmentMatched: true,
+        motionSegmentMatched: true,
+        lipsyncSegmentMatched: true,
+        authorityBindingSummary: 'target=vrm | drivers=face, motion, lipsync | sources=prosody-authority, timeline-projection | matches=face:yes motion:yes lipsync:yes',
+        authorityMatchSummary: 'face:yes motion:yes lipsync:yes',
+        settleAuthoritySummary: 'authority-bound | segment=segment-thin-affective-self-evolution | target=vrm | drivers=face, motion, lipsync | sources=prosody-authority, timeline-projection | reason=余韵还在，先留白，别立刻把温度放大',
+        authorityTrustSummary: 'VRM 显形权威已经整体回到当前片段主链，可按同一身体线继续观察。',
+        preferredExpressionAliases: [],
+        preferredMotionAliases: [],
+        live2dFacialReleaseMs: null,
+        live2dMotionFollowThroughMs: null,
+        vrmActionFadeMs: null,
+        vrmExpressionBlendMs: null,
+      },
+    })
+
+    expect(projection?.reasons.some(reason => reason.includes('余韵还在，先留白，别立刻把温度放大'))).toBe(true)
+  })
+
+  it('keeps thin affective companionship wording visible in renderer authority projection when only authority trust still carries it', () => {
+    const projection = buildSelfEvolutionRendererAuthorityProjection({
+      embodimentOutputProjection: {
+        status: 'grounded',
+        projectedBodyState: 'settled',
+        projectedContinuityMode: 'same-thread-continuation',
+        projectedFacialCue: 'soft-gaze',
+        projectedActionCue: 'observe_focus',
+        projectedBaseEmotion: 'thinking',
+        projectedDelivery: 'gentle',
+        residentSignature: 'resident|measured-return|soft-gaze|observe_focus',
+        matchedSignals: [],
+        missingSignals: [],
+        driftingSignals: [],
+        reasons: [],
+      },
+      speechEmbodiment: {
+        runtimeDynamics: {
+          profile: 'measured-return',
+          variationToken: 'presence-pulse|measured-return',
+          residentEmotion: 'thinking',
+          residentDelivery: 'gentle',
+          residentFacialCue: 'soft-gaze',
+          residentActionCue: 'observe_focus',
+          actionIntensity: 0.12,
+          breathDrive: 0.24,
+          focusDrive: 0.33,
+          provenance: {
+            watchMode: 'recovering',
+            bodyState: 'settled',
+            continuityMode: 'same-thread-continuation',
+            thoughtStance: 'care',
+            thoughtShouldSpeak: false,
+            thoughtTension: 'measured-return',
+            runtimeChannel: 'active-dialogue',
+            runtimeSummary: 'same line still held',
+            activeThreadId: 'runtime-thread-thin-affective-trust-only-1',
+            activeThreadTitle: 'callback afterglow',
+            preferredPresence: 'gentle-watch',
+            selectedAction: 'observe_focus',
+            personaBiasSummary: null,
+            personaOpeningGuidance: null,
+            scene: 'coding',
+            scenario: 'coding',
+          },
+          eventPointers: {
+            recentTransition: null,
+            rationaleTags: [],
+            focusBeliefId: null,
+            focusInquiryId: null,
+            commitmentId: null,
+            runtimeThreadId: null,
+            governorDrive: null,
+            governorIntentionId: null,
+            selectedThoughtThreadId: null,
+          },
+        },
+        playbackTelemetry: {
+          rendererTarget: 'vrm',
+          driverAuthority: {
+            segmentId: 'segment-thin-affective-self-evolution-trust-only',
+            rendererTarget: 'vrm',
+            matchedDrivers: ['face', 'motion', 'lipsync'],
+            sources: ['prosody-authority', 'timeline-projection'],
+            faceSegmentMatched: true,
+            motionSegmentMatched: true,
+            lipsyncSegmentMatched: true,
+          },
+          cue: {
+            id: 'segment-thin-affective-self-evolution-trust-only',
+            facialCue: 'soft-gaze',
+            actionCue: 'observe_focus',
+          },
+          drivers: {
+            face: {
+              emotion: 'thinking',
+              facialCue: 'soft-gaze',
+              intensity: 0.44,
+              holdMs: 360,
+              source: 'prosody-authority',
+              confidence: 0.91,
+              preUtteranceCue: 'steady-inhale',
+              postUtteranceCue: 'eyes-soften',
+              segmentId: 'segment-thin-affective-self-evolution-trust-only',
+            },
+            motion: {
+              idleBase: 'idle_settle',
+              attentionMode: 'attentive',
+              actionCue: 'observe_focus',
+              intensity: 0.3,
+              holdMs: 260,
+              source: 'timeline-projection',
+              confidence: 0.86,
+              segmentId: 'segment-thin-affective-self-evolution-trust-only',
+            },
+            lipsync: {
+              mode: 'energy-phoneme-hybrid',
+              playbackPhase: 'playing',
+              segmentId: 'segment-thin-affective-self-evolution-trust-only',
+              visemeHints: [],
+            },
+          },
+          actualDurationMs: 220,
+          plannedDurationMs: 220,
+          driftMs: 0,
+          settleMs: 320,
+          stopReason: null,
+        },
+      } as any,
+      vrmAuthorityView: null,
+      live2dAuthorityView: null,
+      playbackCueAuthorityView: {
+        cueId: 'segment-thin-affective-self-evolution-trust-only',
+        authoritySegmentId: 'segment-thin-affective-self-evolution-trust-only',
+        authorityRendererTarget: 'vrm',
+        authorityMatchedDrivers: ['face', 'motion', 'lipsync'],
+        authoritySources: ['prosody-authority', 'timeline-projection'],
+        faceSegmentMatched: true,
+        motionSegmentMatched: true,
+        lipsyncSegmentMatched: true,
+        authorityBindingSummary: 'target=vrm | drivers=face, motion, lipsync | sources=prosody-authority, timeline-projection | matches=face:yes motion:yes lipsync:yes',
+        authorityMatchSummary: 'face:yes motion:yes lipsync:yes',
+        settleAuthoritySummary: null,
+        authorityTrustSummary: 'VRM 这段 authority 仍带着“余韵还在，先留白，别立刻把温度放大”这一层关系余温，所以外层观察不该把她压回纯技术 settle。',
+        preferredExpressionAliases: [],
+        preferredMotionAliases: [],
+        live2dFacialReleaseMs: null,
+        live2dMotionFollowThroughMs: null,
+        vrmActionFadeMs: null,
+        vrmExpressionBlendMs: null,
+      },
+    })
+
+    expect(projection?.reasons.some(reason => reason.includes('余韵还在，先留白，别立刻把温度放大'))).toBe(true)
+  })
+
+  it('carries VRM same-her frame drift into self-evolution renderer authority projection', () => {
+    const projection = buildSelfEvolutionRendererAuthorityProjection({
+      speechEmbodiment: {
+        playbackTelemetry: {
+          rendererTarget: 'vrm',
+          driverAuthority: {
+            segmentId: 'segment-self-evolution-vrm-frame',
+            rendererTarget: 'vrm',
+            matchedDrivers: ['body', 'face', 'motion'],
+            sources: ['prosody-authority'],
+            bodySegmentMatched: true,
+            faceSegmentMatched: true,
+            motionSegmentMatched: true,
+            lipsyncSegmentMatched: false,
+            voiceSegmentMatched: false,
+          },
+        },
+      } as any,
+      vrmAuthorityView: {
+        cueId: 'segment-self-evolution-vrm-frame',
+        sameHerFrameAligned: false,
+        sameHerFrameMismatchDrivers: ['lipsync', 'voice'],
+        sameHerFramePerformanceSegmentId: 'segment-self-evolution-vrm-frame',
+        sameHerFrameSpeechSegmentId: 'segment-stale-voice-line',
+        sameHerFrameSummary: 'drift | performance=segment-self-evolution-vrm-frame | speech=segment-stale-voice-line | active=body, face, motion, lipsync, voice | mismatch=lipsync, voice',
+      } as any,
+      playbackCueAuthorityView: {
+        cueId: 'segment-self-evolution-vrm-frame',
+        authoritySegmentId: 'segment-self-evolution-vrm-frame',
+        authorityRendererTarget: 'vrm',
+        authorityMatchedDrivers: ['body', 'face', 'motion'],
+        authoritySources: ['prosody-authority'],
+        bodySegmentMatched: true,
+        faceSegmentMatched: true,
+        motionSegmentMatched: true,
+        lipsyncSegmentMatched: false,
+        voiceSegmentMatched: false,
+        authorityBindingSummary: 'target=vrm | drivers=body, face, motion | sources=prosody-authority | matches=body:yes face:yes motion:yes lipsync:no voice:no',
+        authorityMatchSummary: 'body:yes face:yes motion:yes lipsync:no voice:no',
+        settleAuthoritySummary: 'authority-bound | segment=segment-self-evolution-vrm-frame | target=vrm | drivers=body, face, motion | sources=prosody-authority',
+        preferredExpressionAliases: [],
+        preferredMotionAliases: [],
+        live2dFacialReleaseMs: null,
+        live2dMotionFollowThroughMs: null,
+        vrmActionFadeMs: null,
+        vrmExpressionBlendMs: null,
+      },
+    })
+
+    expect(projection?.status).toBe('drift')
+    expect(projection?.driftingSignals).toContain('same-her-frame:lipsync')
+    expect(projection?.driftingSignals).toContain('same-her-frame:voice')
+    expect(projection?.driftingSignals).toContain('renderer-drift:drift | performance=segment-self-evolution-vrm-frame | speech=segment-stale-voice-line | active=body, face, motion, lipsync, voice | mismatch=lipsync, voice')
+    expect(projection?.reasons).toContain('VRM same-her frame evidence reports drift | performance=segment-self-evolution-vrm-frame | speech=segment-stale-voice-line | active=body, face, motion, lipsync, voice | mismatch=lipsync, voice, so self-evolution should treat this as an embodiment lane drift inside the same digital-life thread rather than a separate renderer personality.')
+  })
+
+  it('carries Live2D same-her execution drift into self-evolution renderer authority projection', () => {
+    const projection = buildSelfEvolutionRendererAuthorityProjection({
+      speechEmbodiment: {
+        playbackTelemetry: {
+          rendererTarget: 'live2d',
+          driverAuthority: {
+            segmentId: 'segment-self-evolution-live2d-execution',
+            rendererTarget: 'live2d',
+            matchedDrivers: ['face', 'motion'],
+            sources: ['prosody-authority', 'timeline-projection'],
+            faceSegmentMatched: true,
+            motionSegmentMatched: true,
+            lipsyncSegmentMatched: false,
+          },
+        },
+      } as any,
+      live2dAuthorityView: {
+        cueId: 'segment-self-evolution-live2d-execution',
+        sameHerExecutionAligned: false,
+        sameHerExecutionAuthoritySegmentId: 'segment-self-evolution-live2d-execution',
+        sameHerExecutionMismatchDrivers: ['lipsync'],
+        sameHerExecutionSummary: 'drift | authority=segment-self-evolution-live2d-execution | active=face, motion, lipsync | mismatch=lipsync',
+      } as any,
+      playbackCueAuthorityView: {
+        cueId: 'segment-self-evolution-live2d-execution',
+        authoritySegmentId: 'segment-self-evolution-live2d-execution',
+        authorityRendererTarget: 'live2d',
+        authorityMatchedDrivers: ['face', 'motion'],
+        authoritySources: ['prosody-authority', 'timeline-projection'],
+        faceSegmentMatched: true,
+        motionSegmentMatched: true,
+        lipsyncSegmentMatched: false,
+        authorityBindingSummary: 'target=live2d | drivers=face, motion | sources=prosody-authority, timeline-projection | matches=face:yes motion:yes lipsync:no',
+        authorityMatchSummary: 'face:yes motion:yes lipsync:no',
+        settleAuthoritySummary: 'authority-bound | segment=segment-self-evolution-live2d-execution | target=live2d | drivers=face, motion | sources=prosody-authority, timeline-projection',
+        preferredExpressionAliases: [],
+        preferredMotionAliases: [],
+        live2dFacialReleaseMs: null,
+        live2dMotionFollowThroughMs: null,
+        vrmActionFadeMs: null,
+        vrmExpressionBlendMs: null,
+      },
+    })
+
+    expect(projection?.status).toBe('drift')
+    expect(projection?.driftingSignals).toContain('same-her-execution:lipsync')
+    expect(projection?.driftingSignals).toContain('renderer-drift:drift | authority=segment-self-evolution-live2d-execution | active=face, motion, lipsync | mismatch=lipsync')
+    expect(projection?.reasons).toContain('Live2D same-her execution evidence reports drift | authority=segment-self-evolution-live2d-execution | active=face, motion, lipsync | mismatch=lipsync, so self-evolution should treat this as an execution-lane drift inside the same digital-life thread rather than a separate Live2D shell personality.')
+  })
+
+  it('infers renderer rejoin continuity from structured Live2D same-her execution evidence even when explicit authority snapshots are missing', () => {
+    const projection = buildSelfEvolutionRendererAuthorityProjection({
+      speechEmbodiment: {
+        playbackTelemetry: {
+          rendererTarget: 'live2d',
+          cue: {
+            id: 'segment-live2d-summary-only-rejoin',
+          },
+          driverAuthority: null,
+        },
+      } as any,
+      live2dAuthorityView: {
+        cueId: 'segment-live2d-summary-only-rejoin',
+        sameHerExecutionAligned: true,
+        sameHerExecutionAuthoritySegmentId: 'segment-live2d-summary-only-rejoin',
+        sameHerExecutionMismatchDrivers: [],
+        sameHerExecutionSummary: 'aligned | authority=segment-live2d-summary-only-rejoin | active=face, motion, lipsync, voice | closure=renderer-rejoin-without-body | lane=face+motion+lipsync+voice-only | remaining-open=none',
+      } as any,
+      playbackCueAuthorityView: null,
+      vrmAuthorityView: null,
+    })
+
+    expect(projection?.bodyContinuityPhase).toBe('renderer-rejoin-without-body')
+    expect(projection?.rendererRejoinSurfaceKey).toBe('authority:renderer-rejoin:live2d')
+  })
+
+  it('does not infer renderer rejoin continuity from stale Live2D same-her execution evidence when the current playback cue belongs to another living segment', () => {
+    const projection = buildSelfEvolutionRendererAuthorityProjection({
+      speechEmbodiment: {
+        playbackTelemetry: {
+          rendererTarget: 'live2d',
+          cue: {
+            id: 'segment-live2d-current-cue',
+          },
+          driverAuthority: null,
+        },
+      } as any,
+      live2dAuthorityView: {
+        cueId: 'segment-live2d-current-cue',
+        sameHerExecutionAligned: true,
+        sameHerExecutionAuthoritySegmentId: 'segment-live2d-stale-cue',
+        sameHerExecutionMismatchDrivers: [],
+        sameHerExecutionSummary: 'aligned | authority=segment-live2d-stale-cue | active=face, motion, lipsync, voice | closure=renderer-rejoin-without-body | lane=face+motion+lipsync+voice-only | remaining-open=none',
+      } as any,
+      playbackCueAuthorityView: null,
+      vrmAuthorityView: null,
+    })
+
+    expect(projection?.bodyContinuityPhase).toBeNull()
+    expect(projection?.rendererRejoinSurfaceKey).toBeNull()
+    expect(projection?.matchedSignals).not.toContain('same-her-execution:aligned')
+  })
+
+  it('does not carry stale Live2D same-her execution drift into the current self-evolution renderer authority projection', () => {
+    const projection = buildSelfEvolutionRendererAuthorityProjection({
+      speechEmbodiment: {
+        playbackTelemetry: {
+          rendererTarget: 'live2d',
+          cue: {
+            id: 'segment-self-evolution-live2d-current-grounded',
+          },
+          driverAuthority: {
+            segmentId: 'segment-self-evolution-live2d-current-grounded',
+            rendererTarget: 'live2d',
+            matchedDrivers: ['face', 'motion', 'lipsync', 'voice'],
+            sources: ['prosody-authority', 'timeline-projection'],
+            faceSegmentMatched: true,
+            motionSegmentMatched: true,
+            lipsyncSegmentMatched: true,
+            voiceSegmentMatched: true,
+          },
+        },
+      } as any,
+      live2dAuthorityView: {
+        cueId: 'segment-self-evolution-live2d-current-grounded',
+        sameHerExecutionAligned: false,
+        sameHerExecutionAuthoritySegmentId: 'segment-self-evolution-live2d-stale-drift',
+        sameHerExecutionMismatchDrivers: ['lipsync'],
+        sameHerExecutionSummary: 'drift | authority=segment-self-evolution-live2d-stale-drift | active=face, motion, lipsync | mismatch=lipsync',
+      } as any,
+      playbackCueAuthorityView: {
+        cueId: 'segment-self-evolution-live2d-current-grounded',
+        authoritySegmentId: 'segment-self-evolution-live2d-current-grounded',
+        authorityRendererTarget: 'live2d',
+        authorityMatchedDrivers: ['face', 'motion', 'lipsync', 'voice'],
+        authoritySources: ['prosody-authority', 'timeline-projection'],
+        faceSegmentMatched: true,
+        motionSegmentMatched: true,
+        lipsyncSegmentMatched: true,
+        voiceSegmentMatched: true,
+        authorityBindingSummary: 'target=live2d | drivers=face, motion, lipsync, voice | sources=prosody-authority, timeline-projection | matches=face:yes motion:yes lipsync:yes voice:yes',
+        authorityMatchSummary: 'face:yes motion:yes lipsync:yes voice:yes',
+        settleAuthoritySummary: 'authority-bound | segment=segment-self-evolution-live2d-current-grounded | target=live2d | drivers=face, motion, lipsync, voice | sources=prosody-authority, timeline-projection',
+        preferredExpressionAliases: [],
+        preferredMotionAliases: [],
+        live2dFacialReleaseMs: null,
+        live2dMotionFollowThroughMs: null,
+        vrmActionFadeMs: null,
+        vrmExpressionBlendMs: null,
+      },
+      vrmAuthorityView: null,
+    })
+
+    expect(projection?.status).toBe('grounded')
+    expect(projection?.driftingSignals).not.toContain('same-her-execution:lipsync')
+    expect(projection?.driftingSignals).not.toContain('renderer-drift:drift | authority=segment-self-evolution-live2d-stale-drift | active=face, motion, lipsync | mismatch=lipsync')
+    expect(projection?.reasons).not.toContain('Live2D same-her execution evidence reports drift | authority=segment-self-evolution-live2d-stale-drift | active=face, motion, lipsync | mismatch=lipsync, so self-evolution should treat this as an execution-lane drift inside the same digital-life thread rather than a separate Live2D shell personality.')
+  })
+
+  it('does not carry stale VRM same-her frame drift into the current self-evolution renderer authority projection', () => {
+    const projection = buildSelfEvolutionRendererAuthorityProjection({
+      speechEmbodiment: {
+        playbackTelemetry: {
+          rendererTarget: 'vrm',
+          cue: {
+            id: 'segment-self-evolution-vrm-current-grounded',
+          },
+          driverAuthority: {
+            segmentId: 'segment-self-evolution-vrm-current-grounded',
+            rendererTarget: 'vrm',
+            matchedDrivers: ['body', 'face', 'motion', 'lipsync', 'voice'],
+            sources: ['prosody-authority'],
+            bodySegmentMatched: true,
+            faceSegmentMatched: true,
+            motionSegmentMatched: true,
+            lipsyncSegmentMatched: true,
+            voiceSegmentMatched: true,
+          },
+        },
+      } as any,
+      live2dAuthorityView: null,
+      playbackCueAuthorityView: {
+        cueId: 'segment-self-evolution-vrm-current-grounded',
+        authoritySegmentId: 'segment-self-evolution-vrm-current-grounded',
+        authorityRendererTarget: 'vrm',
+        authorityMatchedDrivers: ['body', 'face', 'motion', 'lipsync', 'voice'],
+        authoritySources: ['prosody-authority'],
+        bodySegmentMatched: true,
+        faceSegmentMatched: true,
+        motionSegmentMatched: true,
+        lipsyncSegmentMatched: true,
+        voiceSegmentMatched: true,
+        authorityBindingSummary: 'target=vrm | drivers=body, face, motion, lipsync, voice | sources=prosody-authority | matches=body:yes face:yes motion:yes lipsync:yes voice:yes',
+        authorityMatchSummary: 'body:yes face:yes motion:yes lipsync:yes voice:yes',
+        settleAuthoritySummary: 'authority-bound | segment=segment-self-evolution-vrm-current-grounded | target=vrm | drivers=body, face, motion, lipsync, voice | sources=prosody-authority',
+        preferredExpressionAliases: [],
+        preferredMotionAliases: [],
+        live2dFacialReleaseMs: null,
+        live2dMotionFollowThroughMs: null,
+        vrmActionFadeMs: null,
+        vrmExpressionBlendMs: null,
+      },
+      vrmAuthorityView: {
+        cueId: 'segment-self-evolution-vrm-current-grounded',
+        sameHerFrameAligned: false,
+        sameHerFrameMismatchDrivers: ['voice'],
+        sameHerFramePerformanceSegmentId: 'segment-self-evolution-vrm-stale-frame',
+        sameHerFrameSpeechSegmentId: 'segment-self-evolution-vrm-stale-frame',
+        sameHerFrameSummary: 'drift | performance=segment-self-evolution-vrm-stale-frame | speech=segment-self-evolution-vrm-stale-frame | active=body, face, motion, lipsync, voice | mismatch=voice',
+      } as any,
+    })
+
+    expect(projection?.status).toBe('grounded')
+    expect(projection?.driftingSignals).not.toContain('same-her-frame:voice')
+    expect(projection?.driftingSignals).not.toContain('renderer-drift:drift | performance=segment-self-evolution-vrm-stale-frame | speech=segment-self-evolution-vrm-stale-frame | active=body, face, motion, lipsync, voice | mismatch=voice')
+    expect(projection?.reasons).not.toContain('VRM same-her frame evidence reports drift | performance=segment-self-evolution-vrm-stale-frame | speech=segment-self-evolution-vrm-stale-frame | active=body, face, motion, lipsync, voice | mismatch=voice, so self-evolution should treat this as an embodiment lane drift inside the same digital-life thread rather than a separate renderer personality.')
   })
 })
