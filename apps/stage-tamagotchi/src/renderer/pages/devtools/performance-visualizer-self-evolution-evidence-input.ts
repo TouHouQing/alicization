@@ -4,6 +4,8 @@ export function buildSelfEvolutionEvidencePanelInput(
   input: SelfEvolutionEvidencePanelInput,
 ): SelfEvolutionEvidencePanelInput {
   return {
+    preDialogueBriefingSummary: input.preDialogueBriefingSummary ?? null,
+    internalizationReadinessSummary: input.internalizationReadinessSummary ?? null,
     proactiveDecisionConsumptionSummary: input.proactiveDecisionConsumptionSummary ?? null,
     candidateTrajectorySummary: input.candidateTrajectorySummary ?? null,
     identityDriftGovernanceSummary: input.identityDriftGovernanceSummary ?? null,

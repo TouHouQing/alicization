@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 
 import { buildSelfEvolutionEvidencePanels } from './performance-visualizer-self-evolution-evidence'
 
+const legacyNote = '身体连续性仍主要由身体线独自托住同一段 living segment，虽然显形层还没有稳定补回，但这条 same-her 生命线本身没有断。'
+
 describe('performance visualizer self evolution evidence', () => {
   it('builds persona provenance and proactive action chain panels from inspector evidence', () => {
     const panels = buildSelfEvolutionEvidencePanels({
@@ -181,6 +183,8 @@ describe('performance visualizer self evolution evidence', () => {
       rendererAuthorityProjection: {
         status: 'grounded',
         rendererTarget: 'vrm',
+        bodyContinuityPhase: null,
+        rendererRejoinSurfaceKey: null,
         runtimeProfile: 'protective-watch',
         runtimeBodyState: 'settled',
         runtimeContinuityMode: 'ambient-covision',
@@ -220,6 +224,8 @@ describe('performance visualizer self evolution evidence', () => {
       },
       runtimeContinuityProjection: {
         status: 'grounded',
+        bodyContinuityPhase: null,
+        rendererRejoinSurfaceKey: null,
         runtimeChannel: 'active-dialogue',
         runtimeSummary: 'runtime alignment held',
         activeThreadId: 'runtime-thread-rest-1',
@@ -412,6 +418,8 @@ describe('performance visualizer self evolution evidence', () => {
         lines: [
           'status: grounded',
           'rendererTarget: vrm',
+          'bodyContinuityPhase: n/a',
+          'rendererRejoinSurfaceKey: n/a',
           'runtimeProfile: protective-watch',
           'runtimeBodyState: settled',
           'runtimeContinuityMode: ambient-covision',
@@ -436,6 +444,8 @@ describe('performance visualizer self evolution evidence', () => {
         title: 'runtime continuity projection',
         lines: [
           'status: grounded',
+          'bodyContinuityPhase: n/a',
+          'rendererRejoinSurfaceKey: n/a',
           'runtimeChannel: active-dialogue',
           'runtimeSummary: runtime alignment held',
           'activeThreadId: runtime-thread-rest-1',
@@ -471,6 +481,451 @@ describe('performance visualizer self evolution evidence', () => {
         ],
       },
     ])
+  })
+
+  it('surfaces explicit body-led renderer rejoin facts in renderer-authority and runtime-continuity evidence panels', () => {
+    const panels = buildSelfEvolutionEvidencePanels({
+      rendererAuthorityProjection: {
+        status: 'partial',
+        rendererTarget: 'live2d',
+        bodyContinuityPhase: 'body-carried-to-renderer-rejoin',
+        rendererRejoinSurfaceKey: 'authority:renderer-rejoin:live2d',
+        runtimeProfile: 'protective-watch',
+        runtimeBodyState: 'settled',
+        runtimeContinuityMode: 'ambient-covision',
+        runtimeResidentEmotion: 'tired',
+        runtimeResidentDelivery: 'gentle',
+        runtimeResidentFacialCue: 'focused',
+        runtimeResidentActionCue: 'observe_focus',
+        playbackCueFacialCue: 'focused',
+        playbackCueActionCue: 'observe_focus',
+        driverFaceCue: 'focused',
+        driverActionCue: 'observe_focus',
+        authorityMatchSummary: 'body:yes face:yes motion:no lipsync:no',
+        authorityMismatchSummary: null,
+        matchedSignals: ['authority-body:yes', 'authority-face:yes'],
+        missingSignals: [],
+        driftingSignals: ['authority-motion:no'],
+        reasons: [],
+      },
+      runtimeContinuityProjection: {
+        status: 'partial',
+        bodyContinuityPhase: 'body-carried-to-renderer-rejoin',
+        rendererRejoinSurfaceKey: 'authority:renderer-rejoin:live2d',
+        runtimeChannel: 'active-dialogue',
+        runtimeSummary: 'runtime alignment held',
+        activeThreadId: 'thread-1',
+        activeThreadTitle: 'same her',
+        runtimeScenario: 'coding',
+        runtimeScene: 'coding',
+        transitionFromWatchMode: null,
+        transitionToWatchMode: null,
+        transitionFromScenario: null,
+        transitionReason: null,
+        governorDrive: 'protect',
+        governorIntentionId: null,
+        focusBeliefId: 'belief-1',
+        rationaleTags: [],
+        traceEmbodimentSummary: null,
+        traceEmbodimentDisplaySummary: null,
+        matchedSignals: ['runtime-channel:active-dialogue'],
+        missingSignals: [],
+        driftingSignals: [],
+        reasons: [],
+      },
+    })
+
+    expect(panels.find(panel => panel.id === 'renderer-authority-projection')?.lines).toContain('bodyContinuityPhase: body-carried-to-renderer-rejoin')
+    expect(panels.find(panel => panel.id === 'renderer-authority-projection')?.lines).toContain('rendererRejoinSurfaceKey: authority:renderer-rejoin:live2d')
+    expect(panels.find(panel => panel.id === 'runtime-continuity-projection')?.lines).toContain('bodyContinuityPhase: body-carried-to-renderer-rejoin')
+    expect(panels.find(panel => panel.id === 'runtime-continuity-projection')?.lines).toContain('rendererRejoinSurfaceKey: authority:renderer-rejoin:live2d')
+  })
+
+  it('keeps body-led same-her continuity visible in runtime continuity evidence instead of flattening it into a generic lane summary', () => {
+    const panels = buildSelfEvolutionEvidencePanels({
+      runtimeContinuityProjection: {
+        status: 'partial',
+        runtimeChannel: 'active-dialogue',
+        runtimeSummary: 'runtime alignment held',
+        activeThreadId: 'runtime-thread-body-led-evidence-1',
+        activeThreadTitle: 'late-night care',
+        runtimeScenario: 'coding',
+        runtimeScene: 'coding',
+        transitionFromWatchMode: null,
+        transitionToWatchMode: null,
+        transitionFromScenario: null,
+        transitionReason: null,
+        governorDrive: 'protect',
+        governorIntentionId: 'governor-intention-body-led-evidence-1',
+        focusBeliefId: 'belief-body-led-evidence-1',
+        rationaleTags: ['recovering', 'same-thread-continuation'],
+        traceEmbodimentSummary: 'turn=care | closure=grounded-recall | surface=procedural-carry',
+        traceEmbodimentDisplaySummary: '关怀回合，收口 grounded-recall（基于记忆回收落稳），表面策略 procedural-carry（沿既有过程延续表达）',
+        matchedSignals: [
+          'runtime-channel:active-dialogue',
+          'runtime-thread:runtime-thread-body-led-evidence-1',
+          'runtime-scenario:coding',
+          'authority-body:yes',
+          'lane=body-only',
+        ],
+        missingSignals: [],
+        driftingSignals: ['authority-face:no', 'authority-motion:no'],
+        reasons: [
+          'Renderer authority projection already shows body-led same-her continuity, so higher-level continuity evidence should keep that body-led partial recovery visible instead of flattening it into a generic lane summary.',
+        ],
+      },
+    })
+
+    expect(panels).toContainEqual({
+      id: 'runtime-continuity-projection',
+      title: 'runtime continuity projection',
+      lines: [
+        'status: partial',
+        'bodyContinuityPhase: n/a',
+        'rendererRejoinSurfaceKey: n/a',
+        'runtimeChannel: active-dialogue',
+        'runtimeSummary: runtime alignment held',
+        'activeThreadId: runtime-thread-body-led-evidence-1',
+        'activeThreadTitle: late-night care',
+        'runtimeScenario: coding',
+        'runtimeScene: coding',
+        'transitionFromWatchMode: n/a',
+        'transitionToWatchMode: n/a',
+        'transitionFromScenario: n/a',
+        'transitionReason: n/a',
+        'governorDrive: protect',
+        'governorIntentionId: governor-intention-body-led-evidence-1',
+        'focusBeliefId: belief-body-led-evidence-1',
+        'rationaleTags: recovering, same-thread-continuation',
+        'continuityAuthoritySummary: 身体线已经先把这段 living segment 托住，表情、动作、口型仍在补回同一条连续身体线',
+        'traceEmbodimentSummary: 关怀回合，收口 grounded-recall（基于记忆回收落稳），表面策略 procedural-carry（沿既有过程延续表达）',
+        'traceEmbodimentDisplaySummary: 关怀回合，收口 grounded-recall（基于记忆回收落稳），表面策略 procedural-carry（沿既有过程延续表达）',
+        'matchedSignals: runtime-channel:active-dialogue, runtime-thread:runtime-thread-body-led-evidence-1, runtime-scenario:coding, authority-body:yes, lane=body-only',
+        'missingSignals: n/a',
+        'driftingSignals: authority-face:no, authority-motion:no',
+        'reasons: Renderer authority projection already shows body-led same-her continuity, so higher-level continuity evidence should keep that body-led partial recovery visible instead of flattening it into a generic lane summary.',
+      ],
+    })
+  })
+
+  it('does not hide voice authority drift behind body-led same-her continuity in runtime continuity evidence', () => {
+    const panels = buildSelfEvolutionEvidencePanels({
+      runtimeContinuityProjection: {
+        status: 'partial',
+        bodyContinuityPhase: 'body-carried-to-renderer-rejoin',
+        rendererRejoinSurfaceKey: 'authority:renderer-rejoin:vrm',
+        rendererTarget: 'vrm',
+        runtimeChannel: 'active-dialogue',
+        runtimeSummary: 'runtime alignment held',
+        activeThreadId: 'runtime-thread-body-led-voice-evidence-1',
+        activeThreadTitle: 'voice drift recovery',
+        runtimeScenario: 'coding',
+        runtimeScene: 'coding',
+        transitionFromWatchMode: null,
+        transitionToWatchMode: null,
+        transitionFromScenario: null,
+        transitionReason: null,
+        governorDrive: 'protect',
+        governorIntentionId: 'governor-intention-body-led-voice-evidence-1',
+        focusBeliefId: 'belief-body-led-voice-evidence-1',
+        rationaleTags: ['recovering', 'same-thread-continuation'],
+        traceEmbodimentSummary: 'turn=care | closure=grounded-recall | surface=procedural-carry',
+        traceEmbodimentDisplaySummary: '关怀回合，收口 grounded-recall（基于记忆回收落稳），表面策略 procedural-carry（沿既有过程延续表达）',
+        matchedSignals: [
+          'runtime-channel:active-dialogue',
+          'runtime-thread:runtime-thread-body-led-voice-evidence-1',
+          'runtime-scenario:coding',
+          'authority-body:yes',
+          'authority-lipsync:yes',
+          'lane=body+lipsync-only',
+        ],
+        missingSignals: [],
+        driftingSignals: [
+          'authority-face:no',
+          'authority-motion:no',
+          'authority-voice:no',
+        ],
+        reasons: [
+          'Body continuity still carries the same living segment while VRM manifestation rejoins it, but voice authority has left the living segment and must stay visible.',
+        ],
+      },
+    })
+
+    expect(panels.find(panel => panel.id === 'runtime-continuity-projection')?.lines).toContain(
+      'continuityAuthoritySummary: 表情未命中 / 动作未命中 / 口型命中 / 声音未命中',
+    )
+  })
+
+  it('uses the concrete renderer target in runtime continuity evidence when body continuity is already rejoining through live2d authority', () => {
+    const panels = buildSelfEvolutionEvidencePanels({
+      runtimeContinuityProjection: {
+        status: 'partial',
+        runtimeChannel: 'active-dialogue',
+        runtimeSummary: 'runtime alignment held',
+        activeThreadId: 'runtime-thread-body-led-live2d-1',
+        activeThreadTitle: 'late-night care',
+        runtimeScenario: 'coding',
+        runtimeScene: 'coding',
+        transitionFromWatchMode: null,
+        transitionToWatchMode: null,
+        transitionFromScenario: null,
+        transitionReason: null,
+        governorDrive: 'protect',
+        governorIntentionId: 'governor-intention-body-led-live2d-1',
+        focusBeliefId: 'belief-body-led-live2d-1',
+        rationaleTags: ['recovering', 'same-thread-continuation'],
+        rendererTarget: 'live2d',
+        matchedSignals: [
+          'runtime-channel:active-dialogue',
+          'runtime-thread:runtime-thread-body-led-live2d-1',
+          'runtime-scenario:coding',
+          'authority-body:yes',
+          'lane=body-only',
+        ],
+        missingSignals: [],
+        driftingSignals: ['authority-face:no', 'authority-motion:no'],
+        reasons: [
+          'Renderer authority projection already shows body-led same-her continuity, so higher-level continuity evidence should keep that body-led partial recovery visible instead of flattening it into a generic lane summary.',
+        ],
+      },
+    })
+
+    expect(panels.find(panel => panel.id === 'runtime-continuity-projection')?.lines).toContain(
+      'continuityAuthoritySummary: 身体线已经先把这段 living segment 托住，Live2D 显形权威仍在补回同一条连续身体线',
+    )
+  })
+
+  it('uses the concrete renderer target in runtime continuity evidence when body continuity is already rejoining through speech authority', () => {
+    const panels = buildSelfEvolutionEvidencePanels({
+      runtimeContinuityProjection: {
+        status: 'partial',
+        runtimeChannel: 'active-dialogue',
+        runtimeSummary: 'runtime alignment held',
+        activeThreadId: 'runtime-thread-body-led-speech-1',
+        activeThreadTitle: 'late-night care',
+        runtimeScenario: 'coding',
+        runtimeScene: 'coding',
+        transitionFromWatchMode: null,
+        transitionToWatchMode: null,
+        transitionFromScenario: null,
+        transitionReason: null,
+        governorDrive: 'protect',
+        governorIntentionId: 'governor-intention-body-led-speech-1',
+        focusBeliefId: 'belief-body-led-speech-1',
+        rationaleTags: ['recovering', 'same-thread-continuation'],
+        rendererTarget: 'speech',
+        matchedSignals: [
+          'runtime-channel:active-dialogue',
+          'runtime-thread:runtime-thread-body-led-speech-1',
+          'runtime-scenario:coding',
+          'authority-body:yes',
+          'lane=body-only',
+        ],
+        missingSignals: [],
+        driftingSignals: ['authority-face:no', 'authority-motion:no'],
+        reasons: [
+          'Renderer authority projection already shows body-led same-her continuity, so higher-level continuity evidence should keep that body-led partial recovery visible instead of flattening it into a generic lane summary.',
+        ],
+      },
+    })
+
+    expect(panels.find(panel => panel.id === 'runtime-continuity-projection')?.lines).toContain(
+      'continuityAuthoritySummary: 身体线已经先把这段 living segment 托住，speech 显形权威仍在补回同一条连续身体线',
+    )
+  })
+
+  it('keeps audible body-carried same-her continuity visible in runtime continuity evidence instead of flattening it into a generic lane summary', () => {
+    const panels = buildSelfEvolutionEvidencePanels({
+      runtimeContinuityProjection: {
+        status: 'partial',
+        bodyContinuityPhase: 'body-carried-to-renderer-rejoin',
+        rendererRejoinSurfaceKey: 'authority:renderer-rejoin:vrm',
+        rendererTarget: 'vrm',
+        runtimeChannel: 'active-dialogue',
+        runtimeSummary: 'same line still held',
+        activeThreadId: 'runtime-thread-audible-body-evidence-1',
+        activeThreadTitle: 'callback afterglow',
+        runtimeScenario: 'coding',
+        runtimeScene: 'coding',
+        transitionFromWatchMode: null,
+        transitionToWatchMode: null,
+        transitionFromScenario: null,
+        transitionReason: null,
+        governorDrive: 'protect',
+        governorIntentionId: 'governor-intention-audible-body-evidence-1',
+        focusBeliefId: 'belief-audible-body-evidence-1',
+        rationaleTags: ['recovering'],
+        traceEmbodimentSummary: 'turn=care | closure=grounded-recall | surface=procedural-carry',
+        traceEmbodimentDisplaySummary: '关怀回合，收口 grounded-recall（基于记忆回收落稳），表面策略 procedural-carry（沿既有过程延续表达）',
+        matchedSignals: [
+          'runtime-channel:active-dialogue',
+          'runtime-thread:runtime-thread-audible-body-evidence-1',
+          'authority-body:yes',
+          'authority-lipsync:yes',
+          'authority-voice:yes',
+          'lane=lipsync+voice-only',
+        ],
+        missingSignals: [],
+        driftingSignals: ['authority-face:no', 'authority-motion:no'],
+        reasons: [
+          'Body continuity still carries the same living segment while VRM manifestation rejoins it, so runtime continuity can explain the renderer recovery as the same digital life re-entering full embodiment instead of a new identity branch.',
+          'Renderer authority continuity still keeps 表情未命中 / 动作未命中 / 口型命中 / 声音命中 on the same life thread, so runtime continuity can explain which embodiment lane stayed bound and which one drifted without collapsing the whole digital-life thread into a fake identity break.',
+        ],
+      },
+    })
+
+    expect(panels.find(panel => panel.id === 'runtime-continuity-projection')?.lines).toContain(
+      'continuityAuthoritySummary: 身体线已经先把这段 living segment 托住，VRM 显形权威仍在补回同一条连续身体线',
+    )
+  })
+
+  it('keeps body-only-hold same-her continuity visible in runtime continuity evidence instead of flattening it into a generic lane summary', () => {
+    const panels = buildSelfEvolutionEvidencePanels({
+      runtimeContinuityProjection: {
+        status: 'partial',
+        bodyContinuityPhase: 'body-only-hold',
+        rendererRejoinSurfaceKey: null,
+        rendererTarget: 'live2d',
+        runtimeChannel: 'active-dialogue',
+        runtimeSummary: 'same body line still held',
+        activeThreadId: 'runtime-thread-body-only-evidence-1',
+        activeThreadTitle: 'held inward',
+        runtimeScenario: 'coding',
+        runtimeScene: 'coding',
+        transitionFromWatchMode: null,
+        transitionToWatchMode: null,
+        transitionFromScenario: null,
+        transitionReason: null,
+        governorDrive: 'protect',
+        governorIntentionId: 'governor-intention-body-only-evidence-1',
+        focusBeliefId: 'belief-body-only-evidence-1',
+        rationaleTags: ['recovering'],
+        traceEmbodimentSummary: null,
+        traceEmbodimentDisplaySummary: null,
+        matchedSignals: [
+          'runtime-channel:active-dialogue',
+          'runtime-thread:runtime-thread-body-only-evidence-1',
+          'authority-body:yes',
+        ],
+        missingSignals: [],
+        driftingSignals: ['authority-face:no', 'authority-motion:no'],
+        reasons: [
+          'Body continuity is still the only lane carrying this same living segment, so runtime continuity should keep reading the current embodiment as one continuous her being held inward rather than a renderer-neutral idle settle.',
+        ],
+      },
+    })
+
+    expect(panels.find(panel => panel.id === 'runtime-continuity-projection')?.lines).toContain(
+      'continuityAuthoritySummary: 身体线仍在独自托住同一段 living segment，当前还不能把 Live2D 显形权威的回接视为已经成立',
+    )
+  })
+
+  it('keeps legacy note-only body-only-hold continuity visible in runtime continuity evidence instead of falling back to a generic lane summary', () => {
+    const panels = buildSelfEvolutionEvidencePanels({
+      runtimeContinuityProjection: {
+        matchedSignals: [
+          'authority-body:yes',
+        ],
+        missingSignals: [],
+        driftingSignals: ['authority-face:no', 'authority-motion:no'],
+        reasons: [
+          legacyNote,
+        ],
+        rendererTarget: 'live2d',
+        bodyContinuityPhase: null,
+      },
+    })
+
+    expect(panels.find(panel => panel.id === 'runtime-continuity-projection')?.lines).toContain(
+      'continuityAuthoritySummary: 身体线仍在独自托住同一段 living segment，当前还不能把 Live2D 显形权威的回接视为已经成立',
+    )
+  })
+
+  it('keeps cross-modal-lock same-her continuity visible in runtime continuity evidence instead of flattening it into a generic lane summary', () => {
+    const panels = buildSelfEvolutionEvidencePanels({
+      runtimeContinuityProjection: {
+        status: 'grounded',
+        bodyContinuityPhase: 'full-cross-modal-lock',
+        rendererRejoinSurfaceKey: 'authority:renderer-rejoin:live2d',
+        rendererTarget: 'live2d',
+        runtimeChannel: 'active-dialogue',
+        runtimeSummary: 'lock held',
+        activeThreadId: 'runtime-thread-lock-evidence-1',
+        activeThreadTitle: 'same segment lock',
+        runtimeScenario: 'coding',
+        runtimeScene: 'coding',
+        transitionFromWatchMode: null,
+        transitionToWatchMode: null,
+        transitionFromScenario: null,
+        transitionReason: null,
+        governorDrive: 'protect',
+        governorIntentionId: 'governor-intention-lock-evidence-1',
+        focusBeliefId: 'belief-lock-evidence-1',
+        rationaleTags: ['continuity', 'lock'],
+        traceEmbodimentSummary: null,
+        traceEmbodimentDisplaySummary: null,
+        matchedSignals: [
+          'runtime-channel:active-dialogue',
+          'runtime-thread:runtime-thread-lock-evidence-1',
+          'authority-body:yes',
+          'authority-face:yes',
+          'authority-motion:yes',
+          'authority-lipsync:yes',
+        ],
+        missingSignals: [],
+        driftingSignals: [],
+        reasons: [
+          'Body continuity and Live2D manifestation are now locked back onto the same living segment together, so runtime continuity can explain the renderer recovery as one explicit same-her embodiment line instead of a temporary visual alignment.',
+        ],
+      },
+    })
+
+    expect(panels.find(panel => panel.id === 'runtime-continuity-projection')?.lines).toContain(
+      'continuityAuthoritySummary: 身体线与 Live2D 显形权威已经共同锁回同一段 living segment',
+    )
+  })
+
+  it('keeps renderer-rejoin-without-body drift visible in runtime continuity evidence instead of flattening it into a generic lane summary', () => {
+    const panels = buildSelfEvolutionEvidencePanels({
+      runtimeContinuityProjection: {
+        status: 'drift',
+        bodyContinuityPhase: 'renderer-rejoin-without-body',
+        rendererRejoinSurfaceKey: 'authority:renderer-rejoin:vrm',
+        rendererTarget: 'vrm',
+        runtimeChannel: 'active-dialogue',
+        runtimeSummary: 'visible recovery drift',
+        activeThreadId: 'runtime-thread-body-loss-evidence-1',
+        activeThreadTitle: 'visible recovery drift',
+        runtimeScenario: 'coding',
+        runtimeScene: 'coding',
+        transitionFromWatchMode: null,
+        transitionToWatchMode: null,
+        transitionFromScenario: null,
+        transitionReason: null,
+        governorDrive: 'protect',
+        governorIntentionId: 'governor-intention-body-loss-evidence-1',
+        focusBeliefId: 'belief-body-loss-evidence-1',
+        rationaleTags: ['continuity', 'body-loss'],
+        traceEmbodimentSummary: null,
+        traceEmbodimentDisplaySummary: null,
+        matchedSignals: [
+          'runtime-channel:active-dialogue',
+          'runtime-thread:runtime-thread-body-loss-evidence-1',
+          'authority-face:yes',
+          'authority-motion:yes',
+          'authority-lipsync:yes',
+        ],
+        missingSignals: [],
+        driftingSignals: ['authority-body:no'],
+        reasons: [
+          'Renderer lanes have rejoined on VRM manifestation, but the body line is no longer carrying that same living segment, so runtime continuity should keep treating the visible recovery as same-her drift risk rather than a completed embodiment repair.',
+        ],
+      },
+    })
+
+    expect(panels.find(panel => panel.id === 'runtime-continuity-projection')?.lines).toContain(
+      'continuityAuthoritySummary: VRM 显形权威已经回接，但身体线没有继续托住同一段 living segment',
+    )
   })
 
   it('includes memory-familiarity restraint detail inside the private-thought governance evidence panel', () => {
@@ -564,7 +1019,7 @@ describe('performance visualizer self evolution evidence', () => {
   it('renders renderer authority mismatch display from the human-readable reason when drift exists', () => {
     const panels = buildSelfEvolutionEvidencePanels({
       rendererAuthorityProjection: {
-        status: 'partial',
+        status: 'drift',
         rendererTarget: 'vrm',
         runtimeProfile: 'protective-watch',
         runtimeBodyState: 'settled',
@@ -591,8 +1046,10 @@ describe('performance visualizer self evolution evidence', () => {
         id: 'renderer-authority-projection',
         title: 'renderer authority projection',
         lines: [
-          'status: partial',
+          'status: drift',
           'rendererTarget: vrm',
+          'bodyContinuityPhase: n/a',
+          'rendererRejoinSurfaceKey: n/a',
           'runtimeProfile: protective-watch',
           'runtimeBodyState: settled',
           'runtimeContinuityMode: ambient-covision',
@@ -618,7 +1075,7 @@ describe('performance visualizer self evolution evidence', () => {
   it('prefers renderer authority mismatch display provided by the projection itself', () => {
     const panels = buildSelfEvolutionEvidencePanels({
       rendererAuthorityProjection: {
-        status: 'partial',
+        status: 'drift',
         rendererTarget: 'vrm',
         runtimeProfile: 'protective-watch',
         runtimeBodyState: 'settled',
@@ -634,9 +1091,9 @@ describe('performance visualizer self evolution evidence', () => {
         authorityMatchSummary: '上游 authority 命中',
         authorityMismatchSummary: 'face-mismatch, lipsync-mismatch',
         authorityMismatchDisplay: '上游 authority 漂移展示',
-        matchedSignals: ['authority-face:yes', 'authority-motion:no'],
+        matchedSignals: ['authority-face:yes'],
         missingSignals: [],
-        driftingSignals: ['authority-mismatch:上游 authority 漂移展示'],
+        driftingSignals: ['authority-motion:no', 'authority-mismatch:上游 authority 漂移展示'],
         reasons: ['上游 authority 漂移展示'],
       },
     } as any)
@@ -646,8 +1103,10 @@ describe('performance visualizer self evolution evidence', () => {
         id: 'renderer-authority-projection',
         title: 'renderer authority projection',
         lines: [
-          'status: partial',
+          'status: drift',
           'rendererTarget: vrm',
+          'bodyContinuityPhase: n/a',
+          'rendererRejoinSurfaceKey: n/a',
           'runtimeProfile: protective-watch',
           'runtimeBodyState: settled',
           'runtimeContinuityMode: ambient-covision',
@@ -659,11 +1118,11 @@ describe('performance visualizer self evolution evidence', () => {
           'playbackCueActionCue: observe_focus',
           'driverFaceCue: focused',
           'driverActionCue: observe_focus',
-          'authorityMatchSummary: 上游 authority 命中',
+          'authorityMatchSummary: 上游 authority 命中 | 表情命中 / 动作未命中 / 口型未知',
           'authorityMismatchDisplay: 上游 authority 漂移展示',
-          'matchedSignals: authority-face:yes, authority-motion:no',
+          'matchedSignals: authority-face:yes',
           'missingSignals: n/a',
-          'driftingSignals: authority-mismatch:上游 authority 漂移展示',
+          'driftingSignals: authority-motion:no, authority-mismatch:上游 authority 漂移展示',
           'reasons: 上游 authority 漂移展示',
         ],
       },
@@ -673,7 +1132,7 @@ describe('performance visualizer self evolution evidence', () => {
   it('serializes renderer drift inside runtime continuity evidence panels', () => {
     const panels = buildSelfEvolutionEvidencePanels({
       runtimeContinuityProjection: {
-        status: 'partial',
+        status: 'drift',
         runtimeChannel: 'active-dialogue',
         runtimeSummary: 'runtime alignment held',
         activeThreadId: 'runtime-thread-rest-1',
@@ -695,10 +1154,10 @@ describe('performance visualizer self evolution evidence', () => {
         ],
         missingSignals: [],
         driftingSignals: [
-          'renderer-drift:resident Soft Gaze -> actual Focus Inspect | cue focused@prosody-authority',
+          'renderer-drift:resident Soft Gaze -> actual Focus Inspect | face focused@prosody-authority | motion observe_focus@cue-bridge',
         ],
         reasons: [
-          'Renderer continuity still carries resident Soft Gaze -> actual Focus Inspect | cue focused@prosody-authority, so the life thread can explain the visible divergence as a post-projection renderer event instead of a broken resident mind state.',
+          'Renderer continuity still carries resident Soft Gaze -> actual Focus Inspect | face focused@prosody-authority | motion observe_focus@cue-bridge, so the life thread can explain the visible divergence as a post-projection renderer event instead of a broken resident mind state.',
         ],
       },
     })
@@ -707,11 +1166,338 @@ describe('performance visualizer self evolution evidence', () => {
       id: 'runtime-continuity-projection',
       title: 'runtime continuity projection',
       lines: expect.arrayContaining([
-        'status: partial',
-        'driftingSignals: renderer-drift:resident Soft Gaze -> actual Focus Inspect | cue focused@prosody-authority',
-        'reasons: Renderer continuity still carries resident Soft Gaze -> actual Focus Inspect | cue focused@prosody-authority, so the life thread can explain the visible divergence as a post-projection renderer event instead of a broken resident mind state.',
+        'status: drift',
+        'driftingSignals: renderer-drift:resident Soft Gaze -> actual Focus Inspect | face focused@prosody-authority | motion observe_focus@cue-bridge',
+        'reasons: Renderer continuity still carries resident Soft Gaze -> actual Focus Inspect | face focused@prosody-authority | motion observe_focus@cue-bridge, so the life thread can explain the visible divergence as a post-projection renderer event instead of a broken resident mind state.',
       ]),
     })
+  })
+
+  it('keeps remaining-open lipsync and voice carry visible inside renderer authority evidence panels when body face and motion already rejoin on one segment', () => {
+    const panels = buildSelfEvolutionEvidencePanels({
+      rendererAuthorityProjection: {
+        status: 'partial',
+        rendererTarget: 'live2d',
+        runtimeProfile: 'measured-return',
+        runtimeBodyState: 'settled',
+        runtimeContinuityMode: 'same-thread-continuation',
+        runtimeResidentEmotion: 'thinking',
+        runtimeResidentDelivery: 'gentle',
+        runtimeResidentFacialCue: 'soft-gaze',
+        runtimeResidentActionCue: 'observe_focus',
+        playbackCueFacialCue: 'soft-gaze',
+        playbackCueActionCue: 'observe_focus',
+        driverFaceCue: 'soft-gaze',
+        driverActionCue: 'observe_focus',
+        authorityMatchSummary: 'body:yes face:yes motion:yes lipsync:no',
+        authorityMismatchSummary: null,
+        authorityMismatchDisplay: null,
+        matchedSignals: [
+          'authority-body:yes',
+          'authority-face:yes',
+          'authority-motion:yes',
+          'remaining-open=lipsync+voice',
+        ],
+        missingSignals: [],
+        driftingSignals: ['authority-lipsync:no'],
+        reasons: [],
+      },
+    })
+
+    expect(panels.find(panel => panel.id === 'renderer-authority-projection')?.lines).toContain(
+      'authorityMatchSummary: 身体命中 / 表情命中 / 动作命中 / 口型未命中 | 当前仅剩身体、表情、动作维持同一段连续性，口型和声音还没有重新并回这一段',
+    )
+  })
+
+  it('surfaces lane-level continuity authority truth inside runtime continuity evidence panels', () => {
+    const panels = buildSelfEvolutionEvidencePanels({
+      runtimeContinuityProjection: {
+        status: 'drift',
+        runtimeChannel: 'active-dialogue',
+        runtimeSummary: 'runtime alignment held',
+        activeThreadId: 'runtime-thread-rest-1',
+        activeThreadTitle: 'late-night care',
+        runtimeScenario: 'coding',
+        runtimeScene: 'coding',
+        transitionFromWatchMode: null,
+        transitionToWatchMode: null,
+        transitionFromScenario: null,
+        transitionReason: null,
+        governorDrive: 'protect',
+        governorIntentionId: 'governor-intention-rest-1',
+        focusBeliefId: 'belief-rest-1',
+        rationaleTags: ['recovering'],
+        traceEmbodimentSummary: 'turn=care | closure=grounded-recall | surface=procedural-carry',
+        traceEmbodimentDisplaySummary: '关怀回合，收口 grounded-recall（基于记忆回收落稳），表面策略 procedural-carry（沿既有过程延续表达）',
+        matchedSignals: [
+          'runtime-channel:active-dialogue',
+          'runtime-thread:runtime-thread-rest-1',
+          'authority-face:yes',
+        ],
+        missingSignals: [],
+        driftingSignals: ['authority-motion:no'],
+        reasons: [
+          'Renderer authority continuity still keeps 表情命中 / 动作未命中 / 口型未知 on the same life thread, so runtime continuity can explain which embodiment lane stayed bound and which one drifted without collapsing the whole digital-life thread into a fake identity break.',
+        ],
+      },
+    })
+
+    expect(panels).toContainEqual({
+      id: 'runtime-continuity-projection',
+      title: 'runtime continuity projection',
+      lines: expect.arrayContaining([
+        'status: drift',
+        'continuityAuthoritySummary: 表情命中 / 动作未命中 / 口型未知',
+        'matchedSignals: runtime-channel:active-dialogue, runtime-thread:runtime-thread-rest-1, authority-face:yes',
+        'driftingSignals: authority-motion:no',
+      ]),
+    })
+  })
+
+  it('surfaces voice as part of runtime continuity lane truth inside runtime continuity evidence panels', () => {
+    const panels = buildSelfEvolutionEvidencePanels({
+      runtimeContinuityProjection: {
+        status: 'drift',
+        runtimeChannel: 'active-dialogue',
+        runtimeSummary: 'runtime alignment held',
+        activeThreadId: 'runtime-thread-voice-evidence-1',
+        activeThreadTitle: 'late-night care',
+        runtimeScenario: 'coding',
+        runtimeScene: 'coding',
+        transitionFromWatchMode: null,
+        transitionToWatchMode: null,
+        transitionFromScenario: null,
+        transitionReason: null,
+        governorDrive: 'protect',
+        governorIntentionId: 'governor-intention-voice-evidence-1',
+        focusBeliefId: 'belief-voice-evidence-1',
+        rationaleTags: ['recovering'],
+        traceEmbodimentSummary: 'turn=care | closure=grounded-recall | surface=procedural-carry',
+        traceEmbodimentDisplaySummary: '关怀回合，收口 grounded-recall（基于记忆回收落稳），表面策略 procedural-carry（沿既有过程延续表达）',
+        matchedSignals: [
+          'runtime-channel:active-dialogue',
+          'runtime-thread:runtime-thread-voice-evidence-1',
+          'authority-lipsync:yes',
+          'authority-voice:yes',
+        ],
+        missingSignals: [],
+        driftingSignals: ['authority-face:no', 'authority-motion:no'],
+        reasons: [
+          'Renderer authority continuity still keeps 表情未命中 / 动作未命中 / 口型命中 / 声音命中 on the same life thread, so runtime continuity can explain which embodiment lane stayed bound and which one drifted without collapsing the whole digital-life thread into a fake identity break.',
+        ],
+      },
+    })
+
+    expect(panels.find(panel => panel.id === 'runtime-continuity-projection')?.lines).toContain(
+      'continuityAuthoritySummary: 表情未命中 / 动作未命中 / 口型命中 / 声音命中',
+    )
+  })
+
+  it('keeps remaining-open lipsync and voice carry visible inside runtime continuity evidence panels when body face and motion already rejoin on one segment', () => {
+    const panels = buildSelfEvolutionEvidencePanels({
+      runtimeContinuityProjection: {
+        status: 'partial',
+        runtimeChannel: 'active-dialogue',
+        runtimeSummary: 'runtime alignment held',
+        activeThreadId: 'runtime-thread-body-face-motion-evidence-1',
+        activeThreadTitle: 'late-night care',
+        runtimeScenario: 'coding',
+        runtimeScene: 'coding',
+        transitionFromWatchMode: null,
+        transitionToWatchMode: null,
+        transitionFromScenario: null,
+        transitionReason: null,
+        governorDrive: 'protect',
+        governorIntentionId: 'governor-intention-body-face-motion-evidence-1',
+        focusBeliefId: 'belief-body-face-motion-evidence-1',
+        rationaleTags: ['recovering'],
+        traceEmbodimentSummary: 'turn=care | closure=grounded-recall | surface=procedural-carry',
+        traceEmbodimentDisplaySummary: '关怀回合，收口 grounded-recall（基于记忆回收落稳），表面策略 procedural-carry（沿既有过程延续表达）',
+        matchedSignals: [
+          'runtime-channel:active-dialogue',
+          'runtime-thread:runtime-thread-body-face-motion-evidence-1',
+          'authority-body:yes',
+          'authority-face:yes',
+          'authority-motion:yes',
+          'remaining-open=lipsync+voice',
+        ],
+        missingSignals: [],
+        driftingSignals: ['authority-lipsync:no'],
+        reasons: [
+          'Renderer authority continuity now explicitly keeps remaining-open=lipsync+voice visible, so higher-level continuity evidence should acknowledge that body face and motion have rejoined while lipsync and voice still remain open on the same living segment.',
+        ],
+      },
+    })
+
+    expect(panels.find(panel => panel.id === 'runtime-continuity-projection')?.lines).toContain(
+      'continuityAuthoritySummary: 当前仅剩身体、表情、动作维持同一段连续性，口型和声音还没有重新并回这一段',
+    )
+  })
+
+  it('keeps the quieter face+lipsync same-her line visible inside runtime continuity evidence panels instead of flattening it into renderer-rejoin-without-body drift', () => {
+    const panels = buildSelfEvolutionEvidencePanels({
+      runtimeContinuityProjection: {
+        status: 'partial',
+        runtimeChannel: 'active-dialogue',
+        runtimeSummary: 'same line still held',
+        activeThreadId: 'runtime-thread-face-lipsync-evidence-1',
+        activeThreadTitle: 'quiet visible carry',
+        runtimeScenario: 'coding',
+        runtimeScene: 'coding',
+        transitionFromWatchMode: null,
+        transitionToWatchMode: null,
+        transitionFromScenario: null,
+        transitionReason: null,
+        governorDrive: 'protect',
+        governorIntentionId: 'governor-intention-face-lipsync-evidence-1',
+        focusBeliefId: 'belief-face-lipsync-evidence-1',
+        rationaleTags: ['recovering', 'quiet-visible-carry'],
+        traceEmbodimentSummary: 'turn=care | closure=grounded-recall | surface=procedural-carry',
+        traceEmbodimentDisplaySummary: '关怀回合，收口 grounded-recall（基于记忆回收落稳），表面策略 procedural-carry（沿既有过程延续表达）',
+        matchedSignals: [
+          'runtime-channel:active-dialogue',
+          'runtime-thread:runtime-thread-face-lipsync-evidence-1',
+          'runtime-scenario:coding',
+          'authority-face:yes',
+          'authority-lipsync:yes',
+          'lane=face+lipsync-only',
+        ],
+        missingSignals: [],
+        driftingSignals: ['authority-body:no', 'authority-motion:no'],
+        reasons: [
+          'Renderer authority continuity still says the quieter face+lipsync carry is the surviving visible same-her line, so higher-level continuity evidence should keep body motion and voice as still pending rejoin instead of flattening this into a generic body-loss drift bucket.',
+        ],
+      },
+    })
+
+    expect(panels.find(panel => panel.id === 'runtime-continuity-projection')?.lines).toContain(
+      'continuityAuthoritySummary: 当前只有 face 和 lipsync 这条 same-her 生命线还和同一段数字生命表达对齐，可见连续性还没有断开，但 body、motion 和 voice 还没有重新接回这条表情口型线',
+    )
+  })
+
+  it('keeps the quieter motion+lipsync same-her line visible inside runtime continuity evidence panels instead of flattening it into renderer-rejoin-without-body drift', () => {
+    const panels = buildSelfEvolutionEvidencePanels({
+      runtimeContinuityProjection: {
+        status: 'partial',
+        runtimeChannel: 'active-dialogue',
+        runtimeSummary: 'same line still held',
+        activeThreadId: 'runtime-thread-motion-lipsync-evidence-1',
+        activeThreadTitle: 'quiet visible carry',
+        runtimeScenario: 'coding',
+        runtimeScene: 'coding',
+        transitionFromWatchMode: null,
+        transitionToWatchMode: null,
+        transitionFromScenario: null,
+        transitionReason: null,
+        governorDrive: 'protect',
+        governorIntentionId: 'governor-intention-motion-lipsync-evidence-1',
+        focusBeliefId: 'belief-motion-lipsync-evidence-1',
+        rationaleTags: ['recovering', 'quiet-visible-carry'],
+        traceEmbodimentSummary: 'turn=care | closure=grounded-recall | surface=procedural-carry',
+        traceEmbodimentDisplaySummary: '关怀回合，收口 grounded-recall（基于记忆回收落稳），表面策略 procedural-carry（沿既有过程延续表达）',
+        matchedSignals: [
+          'runtime-channel:active-dialogue',
+          'runtime-thread:runtime-thread-motion-lipsync-evidence-1',
+          'runtime-scenario:coding',
+          'authority-motion:yes',
+          'authority-lipsync:yes',
+          'lane=motion+lipsync-only',
+        ],
+        missingSignals: [],
+        driftingSignals: ['authority-body:no', 'authority-face:no'],
+        reasons: [
+          'Renderer authority continuity still says the quieter motion+lipsync carry is the surviving visible same-her line, so higher-level continuity evidence should keep body face and voice as still pending rejoin instead of flattening this into a generic body-loss drift bucket.',
+        ],
+      },
+    })
+
+    expect(panels.find(panel => panel.id === 'runtime-continuity-projection')?.lines).toContain(
+      'continuityAuthoritySummary: 当前只有 motion 和 lipsync 这条 same-her 生命线还和同一段数字生命表达对齐，可见连续性还没有断开，但 body、face 和 voice 还没有重新接回这条动作口型线',
+    )
+  })
+
+  it('keeps the quieter face+lipsync+voice same-her line visible inside runtime continuity evidence panels instead of collapsing it into a shorter lane-only summary', () => {
+    const panels = buildSelfEvolutionEvidencePanels({
+      runtimeContinuityProjection: {
+        status: 'partial',
+        runtimeChannel: 'active-dialogue',
+        runtimeSummary: 'same line still held',
+        activeThreadId: 'runtime-thread-face-lipsync-voice-evidence-1',
+        activeThreadTitle: 'quiet visible carry',
+        runtimeScenario: 'coding',
+        runtimeScene: 'coding',
+        transitionFromWatchMode: null,
+        transitionToWatchMode: null,
+        transitionFromScenario: null,
+        transitionReason: null,
+        governorDrive: 'protect',
+        governorIntentionId: 'governor-intention-face-lipsync-voice-evidence-1',
+        focusBeliefId: 'belief-face-lipsync-voice-evidence-1',
+        rationaleTags: ['recovering', 'quiet-visible-carry'],
+        traceEmbodimentSummary: 'turn=care | closure=grounded-recall | surface=procedural-carry',
+        traceEmbodimentDisplaySummary: '关怀回合，收口 grounded-recall（基于记忆回收落稳），表面策略 procedural-carry（沿既有过程延续表达）',
+        matchedSignals: [
+          'runtime-channel:active-dialogue',
+          'runtime-thread:runtime-thread-face-lipsync-voice-evidence-1',
+          'runtime-scenario:coding',
+          'authority-face:yes',
+          'authority-lipsync:yes',
+          'authority-voice:yes',
+          'lane=face+lipsync+voice-only',
+        ],
+        missingSignals: [],
+        driftingSignals: ['authority-body:no', 'authority-motion:no'],
+        reasons: [
+          'Renderer authority continuity still says the quieter face+lipsync+voice carry is the surviving visible same-her line, so higher-level continuity evidence should keep body and motion as still pending rejoin instead of collapsing this into a shorter lane-only summary.',
+        ],
+      },
+    })
+
+    expect(panels.find(panel => panel.id === 'runtime-continuity-projection')?.lines).toContain(
+      'continuityAuthoritySummary: 当前仅剩表情、口型、声音维持同一段连续性，可见 same-her continuity 还没有断开，但 body、motion 还没有重新接回这条表情口型声音线',
+    )
+  })
+
+  it('keeps the quieter motion+lipsync+voice same-her line visible inside runtime continuity evidence panels instead of collapsing it into a shorter lane-only summary', () => {
+    const panels = buildSelfEvolutionEvidencePanels({
+      runtimeContinuityProjection: {
+        status: 'partial',
+        runtimeChannel: 'active-dialogue',
+        runtimeSummary: 'same line still held',
+        activeThreadId: 'runtime-thread-motion-lipsync-voice-evidence-1',
+        activeThreadTitle: 'quiet visible carry',
+        runtimeScenario: 'coding',
+        runtimeScene: 'coding',
+        transitionFromWatchMode: null,
+        transitionToWatchMode: null,
+        transitionFromScenario: null,
+        transitionReason: null,
+        governorDrive: 'protect',
+        governorIntentionId: 'governor-intention-motion-lipsync-voice-evidence-1',
+        focusBeliefId: 'belief-motion-lipsync-voice-evidence-1',
+        rationaleTags: ['recovering', 'quiet-visible-carry'],
+        traceEmbodimentSummary: 'turn=care | closure=grounded-recall | surface=procedural-carry',
+        traceEmbodimentDisplaySummary: '关怀回合，收口 grounded-recall（基于记忆回收落稳），表面策略 procedural-carry（沿既有过程延续表达）',
+        matchedSignals: [
+          'runtime-channel:active-dialogue',
+          'runtime-thread:runtime-thread-motion-lipsync-voice-evidence-1',
+          'runtime-scenario:coding',
+          'authority-motion:yes',
+          'authority-lipsync:yes',
+          'authority-voice:yes',
+          'lane=motion+lipsync+voice-only',
+        ],
+        missingSignals: [],
+        driftingSignals: ['authority-body:no', 'authority-face:no'],
+        reasons: [
+          'Renderer authority continuity still says the quieter motion+lipsync+voice carry is the surviving visible same-her line, so higher-level continuity evidence should keep body and face as still pending rejoin instead of collapsing this into a shorter lane-only summary.',
+        ],
+      },
+    })
+
+    expect(panels.find(panel => panel.id === 'runtime-continuity-projection')?.lines).toContain(
+      'continuityAuthoritySummary: 当前仅剩动作、口型、声音维持同一段连续性，可见 same-her continuity 还没有断开，但 body、face 还没有重新接回这条动作口型声音线',
+    )
   })
 
   it('prefers Chinese-first authority and trace display text inside human-facing evidence panels', () => {
@@ -910,6 +1696,200 @@ describe('performance visualizer self evolution evidence', () => {
           'trajectoryLabel: restrained companionship is holding',
           'dominantDrift: n/a',
           'lines: trajectory: restrained companionship is holding, status: grounded | drift=none, personality-baseline: restrained | observe-first, remembered-familiarity-trajectory: familiarity is staying memory-first while the same-her room holds, learning-direction: expected=verify | runtime=verify | kernel=verify, dominant-trajectory: presence restraint',
+        ],
+      },
+    ])
+  })
+
+  it('includes companionship transition evidence when visible closeness is intentionally re-entering slowly', () => {
+    const panels = buildSelfEvolutionEvidencePanels({
+      companionshipTransitionSummary: {
+        status: 'grounded',
+        companionshipHoldMode: 'measured-return',
+        preferredExpressionAliases: ['CalmInspect'],
+        preferredMotionAliases: ['ObserveSoft'],
+        live2dFacialReleaseMs: 620,
+        vrmExpressionBlendMs: 410,
+        vrmActionFadeMs: 330,
+        summaryLine: 'mode=measured-return | live2dFace=620ms | vrmExpr=410ms | vrmAction=330ms',
+        reasons: [
+          'Latest drilled takeover audit currently holds outer companionship in measured-return, so visible closeness should re-enter with that same relationship cadence.',
+          'Cross-modal settle cadence now reads mode=measured-return | live2dFace=620ms | vrmExpr=410ms | vrmAction=330ms, so Live2D and VRM are being kept on the same measured return path.',
+        ],
+      },
+    })
+
+    expect(panels).toEqual([
+      {
+        id: 'companionship-transition-summary',
+        title: 'companionship transition summary',
+        lines: [
+          'status: grounded',
+          'companionshipHoldMode: measured-return',
+          'preferredExpressionAliases: CalmInspect',
+          'preferredMotionAliases: ObserveSoft',
+          'summaryLine: mode=measured-return | live2dFace=620ms | vrmExpr=410ms | vrmAction=330ms',
+          'reasons: Latest drilled takeover audit currently holds outer companionship in measured-return, so visible closeness should re-enter with that same relationship cadence., Cross-modal settle cadence now reads mode=measured-return | live2dFace=620ms | vrmExpr=410ms | vrmAction=330ms, so Live2D and VRM are being kept on the same measured return path.',
+        ],
+      },
+    ])
+  })
+
+  it('surfaces durable relationship rhythm inside real-time cadence evidence when measured return is already being internalized', () => {
+    const panels = buildSelfEvolutionEvidencePanels({
+      personaBiasProvenance: {
+        status: 'grounded',
+        relationshipPosture: 'observer',
+        initiativeStyle: 'observant',
+        silenceReconnect: 'hold',
+        comfortStyle: 'quiet-presence',
+        preferredProactiveStyle: 'silent-observe',
+        openingGuidance: 'Open by observing first and keep the approach lighter.',
+        manifestationCadenceSummary: 'persona prefers observe-first room, so visible return cadence should stay slower until the opening softens.',
+        matchedSignals: [],
+        missingSignals: [],
+        driftingSignals: [],
+        reasons: [
+          'Relationship cadence internalization is active, so measured-return reconfirmation is now being treated as durable relationship rhythm rather than temporary callback restraint.',
+        ],
+      },
+      companionshipTransitionSummary: {
+        status: 'grounded',
+        companionshipHoldMode: 'measured-return',
+        preferredExpressionAliases: ['CalmInspect'],
+        preferredMotionAliases: ['ObserveSoft'],
+        live2dFacialReleaseMs: 620,
+        vrmExpressionBlendMs: 410,
+        vrmActionFadeMs: 330,
+        summaryLine: 'mode=measured-return | live2dFace=620ms | vrmExpr=410ms | vrmAction=330ms',
+        reasons: [
+          'Latest drilled takeover audit currently holds outer companionship in measured-return, so visible closeness should re-enter with that same relationship cadence.',
+        ],
+      },
+    })
+
+    expect(panels).toEqual([
+      {
+        id: 'companionship-transition-summary',
+        title: 'companionship transition summary',
+        lines: [
+          'status: grounded',
+          'companionshipHoldMode: measured-return',
+          'preferredExpressionAliases: CalmInspect',
+          'preferredMotionAliases: ObserveSoft',
+          'summaryLine: mode=measured-return | live2dFace=620ms | vrmExpr=410ms | vrmAction=330ms',
+          'reasons: Latest drilled takeover audit currently holds outer companionship in measured-return, so visible closeness should re-enter with that same relationship cadence., Measured return is no longer only a temporary callback hold; it is being internalized as durable relationship rhythm for the same her.',
+        ],
+      },
+      {
+        id: 'persona-bias-provenance',
+        title: 'persona bias provenance',
+        lines: [
+          'status: grounded',
+          'relationshipPosture: observer',
+          'initiativeStyle: observant',
+          'silenceReconnect: hold',
+          'comfortStyle: quiet-presence',
+          'preferredProactiveStyle: silent-observe',
+          'openingGuidance: Open by observing first and keep the approach lighter.',
+          'manifestationCadenceSummary: persona prefers observe-first room, so visible return cadence should stay slower until the opening softens. | measured return is being kept as durable relationship rhythm',
+          'matchedSignals: n/a',
+          'missingSignals: n/a',
+          'driftingSignals: n/a',
+          'reasons: Relationship cadence internalization is active, so measured-return reconfirmation is now being treated as durable relationship rhythm rather than temporary callback restraint.',
+        ],
+      },
+    ])
+  })
+
+  it('keeps invited measured-return cadence evidence on the same callback line instead of narrating it like a broad re-entry', () => {
+    const panels = buildSelfEvolutionEvidencePanels({
+      personaBiasProvenance: {
+        status: 'grounded',
+        relationshipPosture: 'observer',
+        initiativeStyle: 'observant',
+        silenceReconnect: 'hold',
+        comfortStyle: 'quiet-presence',
+        preferredProactiveStyle: 'silent-observe',
+        openingGuidance: 'Stay on the same callback line and let the next outward move remain hover-first.',
+        manifestationCadenceSummary: 'same-turn-if-invited measured-return should stay quieter and more inward before widening again.',
+        matchedSignals: [],
+        missingSignals: [],
+        driftingSignals: [],
+        reasons: [
+          'Relationship cadence internalization is active, so same-turn-if-invited measured-return should stay on the same callback line instead of reading like a fresh reopening.',
+        ],
+      },
+      companionshipTransitionSummary: {
+        status: 'grounded',
+        companionshipHoldMode: 'measured-return',
+        preferredExpressionAliases: ['CalmInspect'],
+        preferredMotionAliases: ['ObserveSoft'],
+        live2dFacialReleaseMs: 620,
+        vrmExpressionBlendMs: 410,
+        vrmActionFadeMs: 330,
+        summaryLine: 'mode=measured-return | live2dFace=620ms | vrmExpr=410ms | vrmAction=330ms',
+        reasons: [
+          'This return is same-turn-if-invited, so visible closeness should re-enter on the same callback line instead of opening outward from scratch.',
+        ],
+      },
+    })
+
+    expect(panels).toEqual([
+      {
+        id: 'companionship-transition-summary',
+        title: 'companionship transition summary',
+        lines: [
+          'status: grounded',
+          'companionshipHoldMode: measured-return',
+          'preferredExpressionAliases: CalmInspect',
+          'preferredMotionAliases: ObserveSoft',
+          'summaryLine: mode=measured-return | live2dFace=620ms | vrmExpr=410ms | vrmAction=330ms',
+          'reasons: This return is same-turn-if-invited, so visible closeness should re-enter on the same callback line instead of opening outward from scratch.',
+        ],
+      },
+      {
+        id: 'persona-bias-provenance',
+        title: 'persona bias provenance',
+        lines: [
+          'status: grounded',
+          'relationshipPosture: observer',
+          'initiativeStyle: observant',
+          'silenceReconnect: hold',
+          'comfortStyle: quiet-presence',
+          'preferredProactiveStyle: silent-observe',
+          'openingGuidance: Stay on the same callback line and let the next outward move remain hover-first.',
+          'manifestationCadenceSummary: same-turn-if-invited measured-return should stay quieter and more inward before widening again. | measured return is being kept on the same callback line',
+          'matchedSignals: n/a',
+          'missingSignals: n/a',
+          'driftingSignals: n/a',
+          'reasons: Relationship cadence internalization is active, so same-turn-if-invited measured-return should stay on the same callback line instead of reading like a fresh reopening.',
+        ],
+      },
+    ])
+  })
+
+  it('includes project-state continuity internalization readiness inside evidence panels when same-her carry is still blocked by project identity, phase, and open loops', () => {
+    const panels = buildSelfEvolutionEvidencePanels({
+      internalizationReadinessSummary: {
+        status: 'partial',
+        lines: [
+          'same-her continuity carry is still staying in shadow because replay is losing project-state continuity that should make each turn feel like the same Alicization.',
+          'Project identity carry is still weak, so she is not yet holding what this project is and who she is becoming with enough stability to internalize the patch.',
+          'Phase 1 route carry is still weak, so the runtime may drift away from local digital life priorities instead of protecting the same-her roadmap.',
+          'Unresolved closure carry is still weak, so unresolved project loops are not being carried forward reliably enough for durable same-her continuity.',
+          'keep this candidate in shadow until replay can carry project identity, the Phase 1 route, and unresolved closure work without dropping them across turns.',
+        ],
+      },
+    } as any)
+
+    expect(panels).toEqual([
+      {
+        id: 'internalization-readiness-summary',
+        title: 'internalization readiness summary',
+        lines: [
+          'status: partial',
+          'lines: same-her continuity carry is still staying in shadow because replay is losing project-state continuity that should make each turn feel like the same Alicization., Project identity carry is still weak, so she is not yet holding what this project is and who she is becoming with enough stability to internalize the patch., Phase 1 route carry is still weak, so the runtime may drift away from local digital life priorities instead of protecting the same-her roadmap., Unresolved closure carry is still weak, so unresolved project loops are not being carried forward reliably enough for durable same-her continuity., keep this candidate in shadow until replay can carry project identity, the Phase 1 route, and unresolved closure work without dropping them across turns.',
         ],
       },
     ])

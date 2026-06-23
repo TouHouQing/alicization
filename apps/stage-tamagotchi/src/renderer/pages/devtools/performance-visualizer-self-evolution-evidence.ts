@@ -3,6 +3,14 @@ import { toAuthorityDisplayEntry } from './performance-visualizer-runtime-diagno
 import { formatTraceEmbodimentDisplaySummary } from './performance-visualizer-trace-embodiment'
 
 export interface SelfEvolutionEvidencePanelInput {
+  preDialogueBriefingSummary?: {
+    status: string
+    lines: string[]
+  } | null
+  internalizationReadinessSummary?: {
+    status: string
+    lines: string[]
+  } | null
   proactiveDecisionConsumptionSummary?: {
     status: string
     decisionMode: string | null
@@ -105,9 +113,23 @@ export interface SelfEvolutionEvidencePanelInput {
     driftingSignals: string[]
     reasons: string[]
   } | null
+  companionshipTransitionSummary?: {
+    status: string
+    companionshipHoldMode: string | null
+    preferredExpressionAliases: string[]
+    preferredMotionAliases: string[]
+    live2dFacialReleaseMs: number | null
+    vrmExpressionBlendMs: number | null
+    vrmActionFadeMs: number | null
+    summaryLine: string | null
+    reasons: string[]
+  } | null
   rendererAuthorityProjection?: {
     status: string
     rendererTarget: string | null
+    bodyContinuityPhase?: string | null
+    rendererRejoinSurfaceKey?: string | null
+    prosodyAuthoritySummary?: string | null
     runtimeProfile: string | null
     runtimeBodyState: string | null
     runtimeContinuityMode: string | null
@@ -120,7 +142,6 @@ export interface SelfEvolutionEvidencePanelInput {
     driverFaceCue: string | null
     driverActionCue: string | null
     authorityMatchSummary: string | null
-    prosodyAuthoritySummary?: string | null
     authorityMismatchSummary?: string | null
     authorityMismatchDisplay?: string | null
     matchedSignals: string[]
@@ -129,31 +150,40 @@ export interface SelfEvolutionEvidencePanelInput {
     reasons: string[]
   } | null
   runtimeContinuityProjection?: {
-    status: string
-    runtimeChannel: string | null
-    runtimeSummary: string | null
-    activeThreadId: string | null
-    activeThreadTitle: string | null
-    runtimeScenario: string | null
-    runtimeScene: string | null
-    transitionFromWatchMode: string | null
-    transitionToWatchMode: string | null
-    transitionFromScenario: string | null
-    transitionReason: string | null
-    governorDrive: string | null
-    governorIntentionId: string | null
-    focusBeliefId: string | null
-    rationaleTags: string[]
-    traceEmbodimentSummary: string | null
+    status?: string | null
+    bodyContinuityPhase?: string | null
+    rendererRejoinSurfaceKey?: string | null
+    rendererTarget?: string | null
+    runtimeChannel?: string | null
+    runtimeSummary?: string | null
+    activeThreadId?: string | null
+    activeThreadTitle?: string | null
+    runtimeScenario?: string | null
+    runtimeScene?: string | null
+    transitionFromWatchMode?: string | null
+    transitionToWatchMode?: string | null
+    transitionFromScenario?: string | null
+    transitionReason?: string | null
+    governorDrive?: string | null
+    governorIntentionId?: string | null
+    focusBeliefId?: string | null
+    rationaleTags?: string[]
+    traceEmbodimentSummary?: string | null
     traceEmbodimentDisplaySummary?: string | null
     matchedSignals: string[]
     missingSignals: string[]
     driftingSignals: string[]
     reasons: string[]
   } | null
+  selectedCandidateRuntimeAlignment?: {
+    learning?: {
+      activeFocuses?: string[]
+      reasons?: string[]
+    } | null
+  } | null
   baselineAnchorAuditSummary?: {
-    status: string
-    lines: string[]
+    status?: string | null
+    lines?: string[] | null
   } | null
   rejectedActionAlternatives?: {
     status: string
@@ -174,7 +204,7 @@ export interface SelfEvolutionEvidencePanelInput {
 }
 
 export interface SelfEvolutionEvidencePanel {
-  id: 'proactive-decision-consumption-summary' | 'candidate-trajectory-summary' | 'identity-drift-governance-summary' | 'persona-bias-provenance' | 'proactive-action-chain' | 'proactive-manifestation-chain' | 'private-thought-governance-chain' | 'resident-performance-projection' | 'embodiment-output-projection' | 'renderer-authority-projection' | 'runtime-continuity-projection' | 'rejected-action-alternatives'
+  id: 'pre-dialogue-briefing-summary' | 'internalization-readiness-summary' | 'proactive-decision-consumption-summary' | 'candidate-trajectory-summary' | 'identity-drift-governance-summary' | 'persona-bias-provenance' | 'proactive-action-chain' | 'proactive-manifestation-chain' | 'private-thought-governance-chain' | 'resident-performance-projection' | 'embodiment-output-projection' | 'companionship-transition-summary' | 'renderer-authority-projection' | 'runtime-continuity-projection' | 'rejected-action-alternatives'
   title: string
   lines: string[]
 }
@@ -194,8 +224,240 @@ function formatList(values: Array<string | null | undefined> | null | undefined)
   return normalized.length > 0 ? normalized.join(', ') : 'n/a'
 }
 
+function summarizeRendererAuthorityLaneTruth(input: SelfEvolutionEvidencePanelInput['rendererAuthorityProjection']) {
+  if (!input)
+    return null
+
+  const matchedSignals = input.matchedSignals ?? []
+  const driftingSignals = input.driftingSignals ?? []
+
+  if (matchedSignals.includes('remaining-open=lipsync+voice')
+    && matchedSignals.includes('authority-body:yes')
+    && matchedSignals.includes('authority-face:yes')
+    && matchedSignals.includes('authority-motion:yes')
+    && driftingSignals.includes('authority-lipsync:no')) {
+    return '当前仅剩身体、表情、动作维持同一段连续性，口型和声音还没有重新并回这一段'
+  }
+
+  const hasVoiceEvidence = matchedSignals.includes('authority-voice:yes')
+    || driftingSignals.includes('authority-voice:no')
+
+  const resolveLane = (driver: 'face' | 'motion' | 'lipsync' | 'voice') => {
+    if (matchedSignals.includes(`authority-${driver}:yes`)) {
+      return driver === 'face'
+        ? '表情命中'
+        : driver === 'motion'
+          ? '动作命中'
+          : driver === 'lipsync'
+            ? '口型命中'
+            : '声音命中'
+    }
+    if (driftingSignals.includes(`authority-${driver}:no`)) {
+      return driver === 'face'
+        ? '表情未命中'
+        : driver === 'motion'
+          ? '动作未命中'
+          : driver === 'lipsync'
+            ? '口型未命中'
+            : '声音未命中'
+    }
+    return driver === 'face'
+      ? '表情未知'
+      : driver === 'motion'
+        ? '动作未知'
+        : driver === 'lipsync'
+          ? '口型未知'
+          : '声音未知'
+  }
+
+  const summary = hasVoiceEvidence
+    ? [resolveLane('face'), resolveLane('motion'), resolveLane('lipsync'), resolveLane('voice')].join(' / ')
+    : [resolveLane('face'), resolveLane('motion'), resolveLane('lipsync')].join(' / ')
+  if (summary === '表情未知 / 动作未知 / 口型未知 / 声音未知' || summary === '表情未知 / 动作未知 / 口型未知')
+    return null
+
+  return summary
+}
+
+function summarizeRuntimeContinuityAuthorityLaneTruth(input: SelfEvolutionEvidencePanelInput['runtimeContinuityProjection']) {
+  if (!input)
+    return null
+
+  const matchedSignals = input.matchedSignals ?? []
+  const driftingSignals = input.driftingSignals ?? []
+  const reasons = input.reasons ?? []
+  const hasVoiceDrift = driftingSignals.includes('authority-voice:no')
+  const rendererTarget = input.rendererTarget ?? null
+  const bodyContinuityPhase = input.bodyContinuityPhase ?? null
+  const rendererSurface = rendererTarget === 'live2d'
+    ? 'Live2D'
+    : rendererTarget === 'vrm'
+      ? 'VRM'
+      : rendererTarget === 'speech'
+        ? 'speech'
+        : null
+
+  const hasBodyOnlyHoldContinuity = bodyContinuityPhase === 'body-only-hold'
+    || reasons.some(reason =>
+      reason.includes('身体独撑态')
+      || reason.includes('独自托住同一段 living segment')
+      || reason.includes('only lane carrying this same living segment')
+      || reason.includes('one continuous her being held inward'),
+    )
+  const hasCrossModalLockContinuity = bodyContinuityPhase === 'full-cross-modal-lock'
+    || reasons.some(reason =>
+      reason.includes('跨模态重锁态')
+      || reason.includes('locked back onto the same living segment together')
+      || reason.includes('same-her embodiment line instead of a temporary visual alignment'),
+    )
+  const hasRendererRejoinWithoutBodyContinuity = bodyContinuityPhase === 'renderer-rejoin-without-body'
+    || reasons.some(reason =>
+      reason.includes('显形回接失身态')
+      || (reason.includes('显形权威已经回接') && reason.includes('身体线没有继续托住同一段 living segment'))
+      || reason.includes('same-her drift risk rather than a completed embodiment repair'),
+    )
+
+  const hasBodyLedContinuity = bodyContinuityPhase === 'body-carried-to-renderer-rejoin'
+    || reasons.some(reason =>
+      reason.includes('body-led same-her continuity')
+      || reason.includes('body-led partial recovery')
+      || reason.includes('身体线先托住')
+      || reason.includes('body still carries the living segment')
+      || reason.includes('Body continuity still carries the same living segment while'),
+    )
+
+  if (!hasVoiceDrift && hasBodyOnlyHoldContinuity && matchedSignals.includes('authority-body:yes')) {
+    return rendererSurface
+      ? `身体线仍在独自托住同一段 living segment，当前还不能把 ${rendererSurface} 显形权威的回接视为已经成立`
+      : '身体线仍在独自托住同一段 living segment，当前还不能把显形权威的回接视为已经成立'
+  }
+
+  if (!hasVoiceDrift && hasCrossModalLockContinuity) {
+    return rendererSurface
+      ? `身体线与 ${rendererSurface} 显形权威已经共同锁回同一段 living segment`
+      : '身体线与显形权威已经共同锁回同一段 living segment'
+  }
+
+  if (!hasVoiceDrift && hasRendererRejoinWithoutBodyContinuity) {
+    return rendererSurface
+      ? `${rendererSurface} 显形权威已经回接，但身体线没有继续托住同一段 living segment`
+      : '显形权威已经回接，但身体线没有继续托住同一段 living segment'
+  }
+
+  if (!hasVoiceDrift
+    && hasBodyLedContinuity
+    && matchedSignals.includes('authority-body:yes')
+    && !matchedSignals.includes('authority-face:yes')
+    && !matchedSignals.includes('authority-motion:yes')) {
+    return rendererSurface
+      ? `身体线已经先把这段 living segment 托住，${rendererSurface} 显形权威仍在补回同一条连续身体线`
+      : '身体线已经先把这段 living segment 托住，表情、动作、口型仍在补回同一条连续身体线'
+  }
+
+  if (!hasVoiceDrift && matchedSignals.includes('lane=face+lipsync-only')) {
+    return '当前只有 face 和 lipsync 这条 same-her 生命线还和同一段数字生命表达对齐，可见连续性还没有断开，但 body、motion 和 voice 还没有重新接回这条表情口型线'
+  }
+
+  if (!hasVoiceDrift && matchedSignals.includes('lane=motion+lipsync-only')) {
+    return '当前只有 motion 和 lipsync 这条 same-her 生命线还和同一段数字生命表达对齐，可见连续性还没有断开，但 body、face 和 voice 还没有重新接回这条动作口型线'
+  }
+
+  if (!hasVoiceDrift && matchedSignals.includes('lane=face+lipsync+voice-only')) {
+    return '当前仅剩表情、口型、声音维持同一段连续性，可见 same-her continuity 还没有断开，但 body、motion 还没有重新接回这条表情口型声音线'
+  }
+
+  if (!hasVoiceDrift && matchedSignals.includes('lane=motion+lipsync+voice-only')) {
+    return '当前仅剩动作、口型、声音维持同一段连续性，可见 same-her continuity 还没有断开，但 body、face 还没有重新接回这条动作口型声音线'
+  }
+
+  if (!hasVoiceDrift
+    && matchedSignals.includes('remaining-open=lipsync+voice')
+    && matchedSignals.includes('authority-body:yes')
+    && matchedSignals.includes('authority-face:yes')
+    && matchedSignals.includes('authority-motion:yes')
+    && driftingSignals.includes('authority-lipsync:no')) {
+    return '当前仅剩身体、表情、动作维持同一段连续性，口型和声音还没有重新并回这一段'
+  }
+
+  const hasVoiceEvidence = matchedSignals.includes('authority-voice:yes')
+    || driftingSignals.includes('authority-voice:no')
+
+  const resolveLane = (driver: 'face' | 'motion' | 'lipsync' | 'voice') => {
+    if (matchedSignals.includes(`authority-${driver}:yes`)) {
+      return driver === 'face'
+        ? '表情命中'
+        : driver === 'motion'
+          ? '动作命中'
+          : driver === 'lipsync'
+            ? '口型命中'
+            : '声音命中'
+    }
+    if (driftingSignals.includes(`authority-${driver}:no`)) {
+      return driver === 'face'
+        ? '表情未命中'
+        : driver === 'motion'
+          ? '动作未命中'
+          : driver === 'lipsync'
+            ? '口型未命中'
+            : '声音未命中'
+    }
+    return driver === 'face'
+      ? '表情未知'
+      : driver === 'motion'
+        ? '动作未知'
+        : driver === 'lipsync'
+          ? '口型未知'
+          : '声音未知'
+  }
+
+  const summary = hasVoiceEvidence
+    ? [resolveLane('face'), resolveLane('motion'), resolveLane('lipsync'), resolveLane('voice')].join(' / ')
+    : [resolveLane('face'), resolveLane('motion'), resolveLane('lipsync')].join(' / ')
+  if (summary === '表情未知 / 动作未知 / 口型未知 / 声音未知' || summary === '表情未知 / 动作未知 / 口型未知')
+    return null
+
+  return summary
+}
+
 export function buildSelfEvolutionEvidencePanels(input: SelfEvolutionEvidencePanelInput) {
   const panels: SelfEvolutionEvidencePanel[] = []
+  const relationshipCadenceInternalizationActive = [
+    ...(input.personaBiasProvenance?.reasons ?? []),
+    ...(input.companionshipTransitionSummary?.reasons ?? []),
+  ].some(reason =>
+    reason.includes('durable relationship rhythm')
+    || reason.includes('长期关系节律')
+    || reason.includes('internalize-relationship-cadence'),
+  )
+  const relationshipCadenceCallbackLineActive = [
+    ...(input.personaBiasProvenance?.reasons ?? []),
+    ...(input.companionshipTransitionSummary?.reasons ?? []),
+  ].some(reason =>
+    reason.includes('same-turn-if-invited')
+    && reason.includes('same callback line'),
+  )
+
+  if (input.preDialogueBriefingSummary) {
+    panels.push({
+      id: 'pre-dialogue-briefing-summary',
+      title: 'pre-dialogue briefing summary',
+      lines: [
+        `status: ${input.preDialogueBriefingSummary.status}`,
+        `lines: ${formatList(input.preDialogueBriefingSummary.lines)}`,
+      ],
+    })
+  }
+
+  if (input.internalizationReadinessSummary) {
+    panels.push({
+      id: 'internalization-readiness-summary',
+      title: 'internalization readiness summary',
+      lines: [
+        `status: ${input.internalizationReadinessSummary.status}`,
+        `lines: ${formatList(input.internalizationReadinessSummary.lines)}`,
+      ],
+    })
+  }
 
   if (input.proactiveDecisionConsumptionSummary) {
     panels.push({
@@ -236,7 +498,35 @@ export function buildSelfEvolutionEvidencePanels(input: SelfEvolutionEvidencePan
     })
   }
 
+  if (input.companionshipTransitionSummary) {
+    const companionshipTransitionReasons = [
+      ...input.companionshipTransitionSummary.reasons,
+      ...(relationshipCadenceCallbackLineActive
+        ? []
+        : relationshipCadenceInternalizationActive
+          ? ['Measured return is no longer only a temporary callback hold; it is being internalized as durable relationship rhythm for the same her.']
+          : []),
+    ]
+    panels.push({
+      id: 'companionship-transition-summary',
+      title: 'companionship transition summary',
+      lines: [
+        `status: ${input.companionshipTransitionSummary.status}`,
+        `companionshipHoldMode: ${formatMaybeText(input.companionshipTransitionSummary.companionshipHoldMode)}`,
+        `preferredExpressionAliases: ${formatList(input.companionshipTransitionSummary.preferredExpressionAliases)}`,
+        `preferredMotionAliases: ${formatList(input.companionshipTransitionSummary.preferredMotionAliases)}`,
+        `summaryLine: ${formatMaybeText(input.companionshipTransitionSummary.summaryLine)}`,
+        `reasons: ${formatList(companionshipTransitionReasons)}`,
+      ],
+    })
+  }
+
   if (input.personaBiasProvenance) {
+    const personaManifestationCadenceSummary = relationshipCadenceCallbackLineActive && input.personaBiasProvenance.manifestationCadenceSummary
+      ? `${input.personaBiasProvenance.manifestationCadenceSummary} | measured return is being kept on the same callback line`
+      : relationshipCadenceInternalizationActive && input.personaBiasProvenance.manifestationCadenceSummary
+        ? `${input.personaBiasProvenance.manifestationCadenceSummary} | measured return is being kept as durable relationship rhythm`
+        : input.personaBiasProvenance.manifestationCadenceSummary
     panels.push({
       id: 'persona-bias-provenance',
       title: 'persona bias provenance',
@@ -248,7 +538,7 @@ export function buildSelfEvolutionEvidencePanels(input: SelfEvolutionEvidencePan
         `comfortStyle: ${formatMaybeText(input.personaBiasProvenance.comfortStyle)}`,
         `preferredProactiveStyle: ${formatMaybeText(input.personaBiasProvenance.preferredProactiveStyle)}`,
         `openingGuidance: ${formatMaybeText(input.personaBiasProvenance.openingGuidance)}`,
-        `manifestationCadenceSummary: ${formatMaybeText(input.personaBiasProvenance.manifestationCadenceSummary)}`,
+        `manifestationCadenceSummary: ${formatMaybeText(personaManifestationCadenceSummary)}`,
         `matchedSignals: ${formatList(input.personaBiasProvenance.matchedSignals)}`,
         `missingSignals: ${formatList(input.personaBiasProvenance.missingSignals)}`,
         `driftingSignals: ${formatList(input.personaBiasProvenance.driftingSignals)}`,
@@ -366,12 +656,15 @@ export function buildSelfEvolutionEvidencePanels(input: SelfEvolutionEvidencePan
     const authorityMatchDisplay = input.rendererAuthorityProjection.authorityMatchSummary
       ? toAuthorityDisplayEntry('authority-match', input.rendererAuthorityProjection.authorityMatchSummary).value
       : null
+    const authorityLaneDisplay = summarizeRendererAuthorityLaneTruth(input.rendererAuthorityProjection)
     panels.push({
       id: 'renderer-authority-projection',
       title: 'renderer authority projection',
       lines: [
         `status: ${input.rendererAuthorityProjection.status}`,
         `rendererTarget: ${formatMaybeText(input.rendererAuthorityProjection.rendererTarget)}`,
+        `bodyContinuityPhase: ${formatMaybeText(input.rendererAuthorityProjection.bodyContinuityPhase ?? null)}`,
+        `rendererRejoinSurfaceKey: ${formatMaybeText(input.rendererAuthorityProjection.rendererRejoinSurfaceKey ?? null)}`,
         `runtimeProfile: ${formatMaybeText(input.rendererAuthorityProjection.runtimeProfile)}`,
         `runtimeBodyState: ${formatMaybeText(input.rendererAuthorityProjection.runtimeBodyState)}`,
         `runtimeContinuityMode: ${formatMaybeText(input.rendererAuthorityProjection.runtimeContinuityMode)}`,
@@ -383,7 +676,11 @@ export function buildSelfEvolutionEvidencePanels(input: SelfEvolutionEvidencePan
         `playbackCueActionCue: ${formatMaybeText(input.rendererAuthorityProjection.playbackCueActionCue)}`,
         `driverFaceCue: ${formatMaybeText(input.rendererAuthorityProjection.driverFaceCue)}`,
         `driverActionCue: ${formatMaybeText(input.rendererAuthorityProjection.driverActionCue)}`,
-        `authorityMatchSummary: ${formatMaybeText(authorityMatchDisplay)}`,
+        `authorityMatchSummary: ${formatMaybeText(
+          authorityMatchDisplay && authorityLaneDisplay && authorityMatchDisplay !== authorityLaneDisplay
+            ? `${authorityMatchDisplay} | ${authorityLaneDisplay}`
+            : authorityLaneDisplay ?? authorityMatchDisplay,
+        )}`,
         `authorityMismatchDisplay: ${formatMaybeText(
           input.rendererAuthorityProjection.authorityMismatchDisplay
           ?? resolveAuthorityMismatchDisplay({
@@ -403,11 +700,14 @@ export function buildSelfEvolutionEvidencePanels(input: SelfEvolutionEvidencePan
     const traceEmbodimentDisplaySummary = input.runtimeContinuityProjection.traceEmbodimentDisplaySummary
       ?? formatTraceEmbodimentDisplaySummary(input.runtimeContinuityProjection.traceEmbodimentSummary)
       ?? input.runtimeContinuityProjection.traceEmbodimentSummary
+    const continuityAuthoritySummary = summarizeRuntimeContinuityAuthorityLaneTruth(input.runtimeContinuityProjection)
     panels.push({
       id: 'runtime-continuity-projection',
       title: 'runtime continuity projection',
       lines: [
-        `status: ${input.runtimeContinuityProjection.status}`,
+        `status: ${formatMaybeText(input.runtimeContinuityProjection.status)}`,
+        `bodyContinuityPhase: ${formatMaybeText(input.runtimeContinuityProjection.bodyContinuityPhase ?? null)}`,
+        `rendererRejoinSurfaceKey: ${formatMaybeText(input.runtimeContinuityProjection.rendererRejoinSurfaceKey ?? null)}`,
         `runtimeChannel: ${formatMaybeText(input.runtimeContinuityProjection.runtimeChannel)}`,
         `runtimeSummary: ${formatMaybeText(input.runtimeContinuityProjection.runtimeSummary)}`,
         `activeThreadId: ${formatMaybeText(input.runtimeContinuityProjection.activeThreadId)}`,
@@ -422,6 +722,9 @@ export function buildSelfEvolutionEvidencePanels(input: SelfEvolutionEvidencePan
         `governorIntentionId: ${formatMaybeText(input.runtimeContinuityProjection.governorIntentionId)}`,
         `focusBeliefId: ${formatMaybeText(input.runtimeContinuityProjection.focusBeliefId)}`,
         `rationaleTags: ${formatList(input.runtimeContinuityProjection.rationaleTags)}`,
+        ...(continuityAuthoritySummary
+          ? [`continuityAuthoritySummary: ${continuityAuthoritySummary}`]
+          : []),
         `traceEmbodimentSummary: ${formatMaybeText(traceEmbodimentDisplaySummary)}`,
         `traceEmbodimentDisplaySummary: ${formatMaybeText(traceEmbodimentDisplaySummary)}`,
         `matchedSignals: ${formatList(input.runtimeContinuityProjection.matchedSignals)}`,

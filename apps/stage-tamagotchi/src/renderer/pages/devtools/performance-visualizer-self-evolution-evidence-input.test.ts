@@ -5,6 +5,10 @@ import { buildSelfEvolutionEvidencePanelInput } from './performance-visualizer-s
 describe('performance visualizer self evolution evidence input', () => {
   it('passes same-her summary layers through to the evidence panel builder input', () => {
     expect(buildSelfEvolutionEvidencePanelInput({
+      preDialogueBriefingSummary: {
+        status: 'drift',
+        lines: ['briefing=drift=preDialogueBriefingDrift | fullyBriefed=0.33 (1/3)'],
+      },
       proactiveDecisionConsumptionSummary: {
         status: 'grounded',
         decisionMode: 'birth-anchored-restraint',
@@ -32,6 +36,9 @@ describe('performance visualizer self evolution evidence input', () => {
         reasons: ['Counterfactual competition kept hover ahead because remembered familiarity was held as memory before visible closeness widened, so the more direct speak return was intentionally declined.'],
       },
     } as any)).toEqual(expect.objectContaining({
+      preDialogueBriefingSummary: expect.objectContaining({
+        status: 'drift',
+      }),
       proactiveDecisionConsumptionSummary: expect.objectContaining({
         decisionMode: 'birth-anchored-restraint',
       }),
