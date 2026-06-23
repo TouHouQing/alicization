@@ -2,6 +2,168 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { createAlicizationMainChatPreludeRuntime } from './runtime-main-chat-prelude'
 
+function createVisibleBrowserContinuationRuntimeSurface() {
+  return {
+    version: 'digital-life-runtime-surface-v1',
+    perception: {
+      watchMode: 'symbiotic-vision',
+      currentScene: null,
+      attention: null,
+      captureState: {
+        permission: 'granted',
+        lastGroundedAt: 12,
+      },
+      durabilityPulse: null,
+      recentTransition: null,
+      nextSuggestedProbeMs: 30_000,
+      updatedAt: 12,
+    },
+    world: {
+      worldModel: {
+        activeThread: {
+          id: 'thread-weibo-compose',
+          kind: 'research',
+          status: 'active',
+          source: 'grounded-scene',
+          title: 'Current browser weibo compose task',
+          summary: 'The current weibo browser flow still needs the next grounded step.',
+          confidence: 0.78,
+          significance: 0.72,
+          unresolved: true,
+          beganAt: 1,
+          lastUpdatedAt: 12,
+          target: null,
+        },
+      },
+      worldOntology: null,
+      entityWorld: null,
+      livingWorldState: null,
+      relationshipModel: null,
+    },
+    cognition: {
+      mindTurnFrame: null,
+      subjectiveInference: null,
+      appraisal: null,
+      beliefLedger: null,
+      beliefRevision: null,
+      hypothesisGraph: null,
+      mindDynamics: null,
+      mindKernel: null,
+      privateThought: null,
+    },
+    memory: {
+      workingMemoryEpisodes: [],
+      goalStack: null,
+      concerns: [],
+      concernContinuity: null,
+      selfContinuity: null,
+      threadRuntime: null,
+      commitmentLedger: null,
+      inquiryPlanner: null,
+      repairLedger: null,
+      intentionStream: null,
+      reflectionLedger: null,
+      executiveCycle: null,
+      thoughtThreads: null,
+      desireMemory: null,
+      recallGovernor: null,
+    },
+    dialogue: {
+      discourseState: {
+        currentTurnSubject: 'visible-scene',
+        screenReferenceMode: 'helpful',
+        currentTurnSummary: 'Continue the current visible weibo browser flow.',
+        currentQuestion: 'Keep moving the current visible weibo browser flow.',
+        primaryTurnAnchor: 'weibo compose browser flow',
+        primaryTurnAnchorSource: 'thread',
+        owedAction: 'answer-general',
+        relationMove: 'guide',
+        continuityMode: 'task-first',
+        unresolvedCarry: null,
+        ruptureRepair: null,
+        confidence: 0.82,
+        narrative: ['owed:answer-general'],
+        updatedAt: 12,
+      },
+      dialogueEncounter: {
+        act: 'continue-thread',
+        responseNeed: 'guide',
+        truthExpectation: 'strict',
+        subject: 'visible-scene',
+        screenReferenceMode: 'helpful',
+        continuityMode: 'task-first',
+        inspectionRequested: false,
+        inspectionState: 'dialogue-first',
+        releaseInspectionCarry: true,
+        taskAnchor: 'weibo compose browser flow',
+        summary: 'Continue the current visible weibo browser flow.',
+        dialogueFirst: false,
+        shouldBypassScreenRepair: false,
+        mustRepairFirst: false,
+        mustAnswerDirectly: true,
+        mustStayTaskBound: true,
+        shouldAskClarifyingQuestion: false,
+        personaKernelMode: 'backgrounded',
+        confidence: 0.84,
+        reasonTags: ['continue-thread', 'stay-task-bound'],
+      },
+      mindSynthesis: null,
+      conversationState: {
+        jointThread: 'Weibo browser flow',
+        hostMove: 'Keep moving the current visible weibo browser flow.',
+        primaryTurnAnchor: 'weibo compose browser flow',
+        primaryTurnAnchorSource: 'thread',
+        activeProject: 'Weibo browser flow',
+        unansweredQuestion: null,
+        owedRepair: null,
+        activeCommitments: ['Keep moving the current visible weibo browser flow'],
+        relationFrame: 'guide',
+        continuityPolicy: 'stay-on-thread',
+        memoryMode: 'task-thread',
+        memoryQueryHints: ['weibo compose browser flow'],
+        shouldHoldThread: true,
+        carryEligible: true,
+        carryReason: 'continuity-policy',
+        confidence: 0.8,
+        narrative: ['hold-thread'],
+        updatedAt: 12,
+      },
+      dialogueWorldThread: null,
+      dialogueActKernel: null,
+      answerCompiler: null,
+      currentConsciousFrame: {
+        subject: 'visible-scene',
+        centerOfGravity: 'observe',
+        truthDiscipline: 'observe-first',
+        consciousNeed: 'Continue the current visible weibo browser flow.',
+        consciousTension: 'The browser flow is still unresolved.',
+        speakingIntention: 'Continue the current visible weibo browser flow.',
+        focusAnchor: 'weibo compose browser flow',
+        withheldImpulse: null,
+        shouldWithholdSpecificity: false,
+        shouldSelfRevise: false,
+        confidence: 0.78,
+        reasonTags: ['guide', 'stay-task-bound'],
+        updatedAt: 12,
+      },
+      claimEvidenceLedger: null,
+      replyDeliberation: null,
+      answerPlanner: null,
+    },
+    agency: {
+      selfState: null,
+      selfGovernor: null,
+      inquiryLoop: null,
+      deliberationState: null,
+      counterfactualDeliberation: null,
+      actionEcology: null,
+      initiativeArbitration: null,
+      initiative: null,
+      autonomy: null,
+    },
+  } as any
+}
+
 describe('runtime main chat prelude', () => {
   it('keeps prelude project-awareness normalization specialized instead of collapsing into a thinner generic pre-processing shell', () => {
     const source = createAlicizationMainChatPreludeRuntime.toString()
@@ -498,7 +660,7 @@ describe('runtime main chat prelude', () => {
       return ''
     })
     const buildMainChatExecutionCallbackContext = vi.fn(async (payload) => {
-      expect(String(payload.preDialogueSendIdentity?.summaryLine ?? '')).toContain('Alicization is a local-first digital life project')
+      expect(String(payload.preDialogueSendIdentity?.summaryLine ?? '')).toContain('same digital life')
       expect(String(payload.preDialogueSendIdentity?.awarenessLine ?? '')).toContain('Phase 1 is still active')
       return {
         pending: [],
@@ -596,5 +758,148 @@ describe('runtime main chat prelude', () => {
     expect(String((execution as any).payload.preDialogueSendIdentity.awarenessLine ?? '')).toContain('Phase 1 is still active')
     expect(String((execution as any).payload.preDialogueSendIdentity.awarenessLine ?? '')).toContain('some closure has already landed')
     expect(String((execution as any).payload.preDialogueSendIdentity.awarenessLine ?? '')).toContain('still-open life loop')
+  })
+
+  it('feeds fresh browser execution callbacks into action-obligation routing so continuation can resume governed local visual execution', async () => {
+    const runtime = createAlicizationMainChatPreludeRuntime({
+      readLatestUserMessageText: messages => String(messages.at(-1)?.content ?? ''),
+      senderWebContentsIdFromInvokeOptions: () => null,
+      resolveChatMessages: payload => payload.messages as any,
+      buildMainChatContextualString: vi.fn(async () => ''),
+      buildMainChatExecutionCallbackContext: vi.fn(async () => ({
+        actions: [],
+        callbacks: [{
+          channel: 'browser',
+          createdAt: 20,
+          decisionTraceId: 'trace-visual-1',
+          goal: 'Post the current weibo draft',
+          outcome: 'waiting for the next governed step',
+          sessionId: 'session-visual-1',
+          status: 'completed',
+          summary: 'Completed Post the current weibo draft: waiting for the next governed step',
+          threadId: 'thread-weibo-compose',
+          turnId: 'turn-visual-1',
+        }],
+        continuitySignals: [],
+        recallText: '',
+        systemBlock: '[ALICIZATION_EXECUTION_CALLBACKS]',
+      })),
+      buildMainChatExecutionLedgerContext: vi.fn(async () => ({
+        systemBlock: '',
+        entries: [],
+        recallText: '',
+      })) as any,
+      buildMainChatPendingAffirmationThread: vi.fn(async () => null),
+      augmentMainChatMessagesWithPerception: vi.fn(async input => ({
+        messages: input.messages,
+        systemBlocks: [],
+        promptSystemBlocks: [],
+        digitalLifeRuntimeSurface: createVisibleBrowserContinuationRuntimeSurface(),
+        memoryRecallSeed: '',
+        recallGovernor: null,
+        capture: {
+          inspectionRequested: false,
+          groundedThisTurn: false,
+          snapshot: null,
+          fallbackReason: null,
+        },
+        chatGovernance: {
+          suppressAssociativeRecall: false,
+          turnMode: 'answer' as const,
+          personaKernelMode: 'full' as const,
+          mindTurnGovernance: null,
+        },
+      })),
+      prepareMainChatSessionExecution: vi.fn(async input => ({
+        payload: input.payload,
+        prelude: input.prelude,
+      })) as any,
+    })
+
+    const prelude = await runtime.prepareMainChatPrelude({
+      cardId: 'card-prelude-visual-resume',
+      turnId: 'turn-prelude-visual-resume',
+      providerId: 'openai',
+      model: 'gpt-5',
+      providerConfig: {},
+      messages: [
+        { role: 'user', content: '帮我继续发微博' },
+      ],
+    } as any, {
+      provider: {
+        chat: vi.fn(() => ({ provider: 'test-chat' })),
+      },
+      model: 'gpt-5',
+    } as any)
+
+    expect(prelude.actionObligation.kind).toBe('continue-task')
+    expect(prelude.actionObligation.routingIntent?.requestedChannels).toEqual(['browser'])
+    expect(prelude.actionObligation.routingIntent?.requiredToolNames).toEqual(['executor_run_local_visual'])
+  })
+
+  it('upgrades explicit browser continuation grounding into governed local visual execution even without fresh callbacks when the active browser thread is still unresolved', async () => {
+    const runtime = createAlicizationMainChatPreludeRuntime({
+      readLatestUserMessageText: messages => String(messages.at(-1)?.content ?? ''),
+      senderWebContentsIdFromInvokeOptions: () => null,
+      resolveChatMessages: payload => payload.messages as any,
+      buildMainChatContextualString: vi.fn(async () => ''),
+      buildMainChatExecutionCallbackContext: vi.fn(async () => ({
+        actions: [],
+        callbacks: [],
+        continuitySignals: [],
+        recallText: '',
+        systemBlock: '[ALICIZATION_EXECUTION_CALLBACKS]',
+      })),
+      buildMainChatExecutionLedgerContext: vi.fn(async () => ({
+        systemBlock: '',
+        entries: [],
+        recallText: '',
+      })) as any,
+      buildMainChatPendingAffirmationThread: vi.fn(async () => null),
+      augmentMainChatMessagesWithPerception: vi.fn(async input => ({
+        messages: input.messages,
+        systemBlocks: [],
+        promptSystemBlocks: [],
+        digitalLifeRuntimeSurface: createVisibleBrowserContinuationRuntimeSurface(),
+        memoryRecallSeed: '',
+        recallGovernor: null,
+        capture: {
+          inspectionRequested: false,
+          groundedThisTurn: false,
+          snapshot: null,
+          fallbackReason: null,
+        },
+        chatGovernance: {
+          suppressAssociativeRecall: false,
+          turnMode: 'answer' as const,
+          personaKernelMode: 'full' as const,
+          mindTurnGovernance: null,
+        },
+      })),
+      prepareMainChatSessionExecution: vi.fn(async input => ({
+        payload: input.payload,
+        prelude: input.prelude,
+      })) as any,
+    })
+
+    const prelude = await runtime.prepareMainChatPrelude({
+      cardId: 'card-prelude-visual-explicit-resume',
+      turnId: 'turn-prelude-visual-explicit-resume',
+      providerId: 'openai',
+      model: 'gpt-5',
+      providerConfig: {},
+      messages: [
+        { role: 'user', content: '帮我继续发微博' },
+      ],
+    } as any, {
+      provider: {
+        chat: vi.fn(() => ({ provider: 'test-chat' })),
+      },
+      model: 'gpt-5',
+    } as any)
+
+    expect(prelude.actionObligation.kind).toBe('continue-task')
+    expect(prelude.actionObligation.routingIntent?.requestedChannels).toEqual(['browser'])
+    expect(prelude.actionObligation.routingIntent?.requiredToolNames).toEqual(['executor_run_local_visual'])
   })
 })

@@ -2,7 +2,6 @@ import type { Message } from '@xsai/shared-chat'
 
 import type {
   AlicizationAuditLogInput,
-  AlicizationMindTurnEventKind,
   AlicizationMindTurnEventRecord,
   AlicizationRecallGovernorSnapshot,
   AlicizationSoulSnapshot,
@@ -36,6 +35,7 @@ import { buildDialogueTurnEncounterSystemBlock } from './dialogue-turn-encounter
 import { buildDialogueWorldThreadSystemBlock } from './dialogue-world-thread'
 import { commitAlicizationDigitalLifeSpine } from './digital-life-spine'
 import { buildDiscourseStateSystemBlock } from './discourse-state'
+import { resolveHumanlikeMemoryRecallSeedFromEventHistory } from './humanlike-memory-recall-seed'
 import { buildMemorySearchGovernorSystemBlock } from './memory-search-runtime'
 import { buildMindContinuityRecallSeed } from './mind-continuity'
 import { buildMindSynthesisSystemBlock } from './mind-synthesizer'
@@ -43,6 +43,10 @@ import {
   buildProactiveLayeredContext,
   inferScenarioFromContext,
 } from './proactive-layered-context'
+import {
+  buildAlicizationProjectStateClosureDashboard,
+  buildAlicizationProjectStateSystemBlock,
+} from './project-state-brief'
 import { buildReplyDeliberationSystemBlock } from './reply-deliberator'
 import {
   buildChatInspectionContractSystemBlock,
@@ -88,11 +92,8 @@ interface CreateAlicizationChatPerceptionAugmentRuntimeOptions {
   appendAuditLog: (input: AlicizationAuditLogInput, cardId?: string) => Promise<void>
   getActiveSelfRevisionStatePatch?: () => Promise<Parameters<typeof buildAlicizationVisibleReplySurfacePlan>[0]['selfRevisionPatch']>
   listHumanlikeMemoryRecallEvents?: (input: {
-    decisionTraceId?: string
-    turnId?: string
-    activeThreadId?: string
-    kind?: AlicizationMindTurnEventKind
-    limit?: number
+    kind?: AlicizationMindTurnEventRecord['kind']
+    limit: number
   }) => Promise<AlicizationMindTurnEventRecord[]>
 }
 
@@ -110,6 +111,7 @@ export function createAlicizationChatPerceptionAugmentRuntime(options: CreateAli
     buildVisualPresenceCapturePersistFingerprint,
     appendAuditLog,
     getActiveSelfRevisionStatePatch,
+    listHumanlikeMemoryRecallEvents,
   } = options
 
   async function augmentMainChatMessagesWithPerception(input: {
@@ -124,6 +126,7 @@ export function createAlicizationChatPerceptionAugmentRuntime(options: CreateAli
         messages: input.messages,
         systemBlocks: [] as string[],
         promptSystemBlocks: [] as string[],
+        digitalLifeSpine: null,
         digitalLifeRuntimeSurface: null,
         memoryRecallSeed: '',
         recallGovernor: null as AlicizationRecallGovernorSnapshot | null,
@@ -335,8 +338,14 @@ export function createAlicizationChatPerceptionAugmentRuntime(options: CreateAli
       spine: committedChatDigitalLifeSpine.current,
     })
     const chatRuntimeSystemBlock = buildAlicizationRuntimeSystemBlock(chatRuntimeSnapshot)
+    const projectStateClosureDashboard = buildAlicizationProjectStateClosureDashboard({
+      architecture: chatDigitalLifeArchitecture,
+      runtimeDigest: chatRuntimeSnapshot,
+    })
 
     const systemBlocks = [
+      buildAlicizationProjectStateSystemBlock(),
+      projectStateClosureDashboard,
       visualPresenceState.dialogueActKernel
         ? buildDialogueActKernelSystemBlock(visualPresenceState.dialogueActKernel)
         : '',
@@ -361,6 +370,10 @@ export function createAlicizationChatPerceptionAugmentRuntime(options: CreateAli
       visualPresenceState.claimEvidenceLedger
         ? buildClaimEvidenceLedgerSystemBlock(visualPresenceState.claimEvidenceLedger)
         : '',
+      visibleReplySurfacePlan.systemBlocks.executiveAnswerBrief,
+      visibleReplySurfacePlan.systemBlocks.responseSurfaceContract,
+      visibleReplySurfacePlan.systemBlocks.mindTurnContract,
+      visibleReplySurfacePlan.systemBlocks.responseCharter,
       visualPresenceState.replyDeliberation
         ? buildReplyDeliberationSystemBlock(visualPresenceState.replyDeliberation)
         : '',
@@ -382,10 +395,6 @@ export function createAlicizationChatPerceptionAugmentRuntime(options: CreateAli
       chatMindState.dialogueFocus
         ? buildDialogueFocusGovernanceSystemBlock(chatMindState.dialogueFocus)
         : '',
-      visibleReplySurfacePlan.systemBlocks.executiveAnswerBrief,
-      visibleReplySurfacePlan.systemBlocks.responseSurfaceContract,
-      visibleReplySurfacePlan.systemBlocks.mindTurnContract,
-      visibleReplySurfacePlan.systemBlocks.responseCharter,
       chatRuntimeSystemBlock,
       buildChatPerceptionSystemBlock({
         now,
@@ -541,14 +550,20 @@ export function createAlicizationChatPerceptionAugmentRuntime(options: CreateAli
         },
       }, input.cardId)
     }
+    const humanlikeMemoryRecallSeed = await resolveHumanlikeMemoryRecallSeedFromEventHistory({
+      listHumanlikeMemoryRecallEvents,
+      limit: 24,
+    })
 
     return {
       messages,
       systemBlocks,
       promptSystemBlocks,
+      digitalLifeSpine: committedChatDigitalLifeSpine.current,
       digitalLifeRuntimeSurface: chatRuntimeSurface,
       memoryRecallSeed: [
         visualPresenceState.recallGovernor?.recallSeed,
+        humanlikeMemoryRecallSeed,
         buildMindContinuityRecallSeed(chatRuntimeSurface),
       ].filter(Boolean).join(' | '),
       recallGovernor: visualPresenceState.recallGovernor,

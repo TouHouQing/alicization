@@ -145,6 +145,9 @@ export function createAlicizationMainChatPreludeRuntime(options: CreateAlicizati
       pendingAffirmationThread: latestUserText && !shouldBypassPerception
         ? await buildMainChatPendingAffirmationThread(normalizedPayload)
         : null,
+      recentExecutionCallbacks: shouldBypassPerception
+        ? []
+        : (await executionCallbackContextPromise).callbacks,
       runtimeSurface: perceptionAugmentation.digitalLifeRuntimeSurface,
     })
 

@@ -23,6 +23,10 @@ import {
 } from './runtime-perception-helpers'
 import { sanitizeBriefText } from './runtime-realtime'
 
+function asArray<T>(value: readonly T[] | T[] | null | undefined) {
+  return Array.isArray(value) ? value : []
+}
+
 export function buildChatPerceptionSystemBlock(input: {
   now: number
   state: AlicizationPerceptionState
@@ -186,14 +190,18 @@ export function buildChatVisualPresenceSystemBlock(state: AlicizationVisualPrese
     return ''
   }
 
-  const currentConcern = state.concerns?.find(concern => concern.id === state.initiative?.selectedConcernId)
-    ?? state.concerns?.slice().sort((left, right) => (right.tension * right.careWeight) - (left.tension * left.careWeight))[0]
+  const concerns = asArray(state.concerns)
+  const commitments = asArray(state.commitmentLedger?.commitments)
+  const inquiryPlans = asArray(state.inquiryPlanner?.plans)
+
+  const currentConcern = concerns.find(concern => concern.id === state.initiative?.selectedConcernId)
+    ?? concerns.slice().sort((left, right) => (right.tension * right.careWeight) - (left.tension * left.careWeight))[0]
     ?? null
-  const currentCommitment = state.commitmentLedger?.commitments.find(commitment => commitment.id === state.commitmentLedger?.governingCommitmentId)
-    ?? state.commitmentLedger?.commitments[0]
+  const currentCommitment = commitments.find(commitment => commitment.id === state.commitmentLedger?.governingCommitmentId)
+    ?? commitments[0]
     ?? null
-  const currentInquiry = state.inquiryPlanner?.plans.find(plan => plan.id === state.inquiryPlanner?.activePlanId)
-    ?? state.inquiryPlanner?.plans[0]
+  const currentInquiry = inquiryPlans.find(plan => plan.id === state.inquiryPlanner?.activePlanId)
+    ?? inquiryPlans[0]
     ?? null
 
   return [

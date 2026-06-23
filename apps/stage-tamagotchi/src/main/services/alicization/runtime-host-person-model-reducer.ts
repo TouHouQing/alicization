@@ -4,6 +4,11 @@ import type { OrganicMemoryPromptContext } from './runtime-soul'
 
 import { buildMindEcologyFromRuntimeSurface } from './mind-ecology'
 import { buildAlicizationPersonStateProjection } from './person-state-projection'
+import {
+  hasContinuityRestraintRelationshipSignal,
+  hasNeutralRelationshipSignal,
+  mergePreferredSelfContinuityAuthority,
+} from './person-state-projection-resolution'
 import { mergeGuidanceLine, mergeUniqueRules, sanitizeGuidanceText } from './runtime-turn-composition'
 
 function mapAnswerActToReplyMotive(answerAct: AlicizationMindTurnGovernance['answerAct']) {
@@ -28,7 +33,7 @@ function inferHostSocialContexts(input: {
 }) {
   const contexts = ['general']
   const scene = input.surface.perception.currentScene
-  const tension = input.surface.cognition.privateThought?.emotionalTension ?? null
+  const tension = input.surface.cognition?.privateThought?.emotionalTension ?? null
   const anchorText = `${input.governance.liveSurface ?? ''} ${input.governance.focusAnchor ?? ''} ${input.governance.answerIntent ?? ''}`
   if (
     scene?.workloadKind === 'coding'
@@ -63,19 +68,42 @@ function deriveSelfEvolutionOpeningBias(selfEvolution?: OrganicMemoryPromptConte
   const burdenLine = sanitizeGuidanceText(selfEvolution.burdenLine ?? '', 180).toLowerCase()
   const trustMeaning = sanitizeGuidanceText(selfEvolution.trustMeaning ?? '', 180).toLowerCase()
   const latestInflection = sanitizeGuidanceText(selfEvolution.latestInflection ?? '', 180).toLowerCase()
+  const relationshipCadenceSummary = sanitizeGuidanceText(selfEvolution.relationshipCadenceSummary ?? '', 220).toLowerCase()
+  const dominantTrajectory = sanitizeGuidanceText(selfEvolution.dominantTrajectory ?? '', 180).toLowerCase()
 
   const lowerPressure = includesAny(relationshipDoctrine, ['leave more room', 'more room', 'slower return', 'lower-pressure'])
     || includesAny(burdenLine, ['overloaded', 'pressure', 'crowd', 'conversational pressure'])
     || includesAny(trustMeaning, ['lower-pressure', 'less eager', 'room', 'space', 'timing'])
     || includesAny(latestInflection, ['pressure', 'slower return', 'lower-pressure', 'less eager'])
+    || includesAny(relationshipCadenceSummary, ['lower-pressure', 'less eager', 'room', 'space', 'timing'])
+    || includesAny(dominantTrajectory, ['lower-pressure', 'gentle', 'memory-led'])
 
   if (!lowerPressure)
     return null
 
+  const acceptedGentleContinue = includesAny(
+    `${relationshipDoctrine} ${trustMeaning} ${latestInflection} ${relationshipCadenceSummary} ${dominantTrajectory}`,
+    [
+      'memory-led',
+      'gentle follow-up',
+      'gentle return',
+      'opening is still receiving',
+      'without falling silent',
+      'received opening',
+      'gentle, lower-pressure',
+    ],
+  )
+
   return {
-    openingGuidance: 'Keep the opening lower-pressure and leave room before widening closeness.',
-    mustInclude: 'Keep long-horizon relationship timing visible: lower pressure before closeness widens.',
-    mustAvoid: 'Do not let eager warmth or older closeness tempo reopen faster than this learned relationship timing supports.',
+    openingGuidance: acceptedGentleContinue
+      ? 'Keep the opening gentle, lower-pressure, and memory-led while the opening is still receiving the return, without falling silent.'
+      : 'Keep the opening lower-pressure and leave room before widening closeness.',
+    mustInclude: acceptedGentleContinue
+      ? 'Keep long-horizon relationship timing visible: continue gently from memory instead of dropping back into silence or widening too fast.'
+      : 'Keep long-horizon relationship timing visible: lower pressure before closeness widens.',
+    mustAvoid: acceptedGentleContinue
+      ? 'Do not let eager warmth widen too fast, and do not collapse a received opening back into total silence.'
+      : 'Do not let eager warmth or older closeness tempo reopen faster than this learned relationship timing supports.',
     narrativeTag: 'self-evolution:lower-pressure-opening',
     sourceTrace: 'self-evolution:lower-pressure-opening',
   }
@@ -145,9 +173,12 @@ export function applyHostPersonModelToDigitalLifeRuntimeSurface(input: {
   const contextProjection = input.context.personStateProjection ?? null
   const selfEvolution = input.context.selfEvolution ?? null
   const selfEvolutionOpeningBias = deriveSelfEvolutionOpeningBias(selfEvolution)
+  const surfaceMemory = surface?.memory ?? null
+  const surfaceAgency = surface?.agency ?? null
+  const surfaceCognition = surface?.cognition ?? null
   const relationshipDoctrine = sanitizeGuidanceText(
     contextProjection?.relationshipDoctrine
-    ?? surface?.memory.autobiographicalSelf?.relationshipDoctrine
+    ?? surfaceMemory?.autobiographicalSelf?.relationshipDoctrine
     ?? '',
     180,
   )
@@ -158,65 +189,87 @@ export function applyHostPersonModelToDigitalLifeRuntimeSurface(input: {
     ? buildAlicizationPersonStateProjection({
         now: input.now,
         contexts: inferHostSocialContexts({ surface, governance }),
-        autobiographicalSelf: surface.memory.autobiographicalSelf ?? null,
-        hostPersonModel: hostPersonModel ?? surface.memory.hostPersonModel ?? null,
-        longHorizonMemory: surface.memory.longHorizonMemory ?? null,
-        motiveEngine: surface.memory.motiveEngine ?? null,
-        habitPolicy: surface.agency.habitPolicy ?? null,
-        selfContinuity: surface.memory.selfContinuity ?? null,
-        selfState: surface.agency.selfState ?? null,
-        privateThought: surface.cognition.privateThought ?? null,
+        autobiographicalSelf: surfaceMemory?.autobiographicalSelf ?? null,
+        hostPersonModel: hostPersonModel ?? surfaceMemory?.hostPersonModel ?? null,
+        longHorizonMemory: surfaceMemory?.longHorizonMemory ?? null,
+        motiveEngine: surfaceMemory?.motiveEngine ?? null,
+        habitPolicy: surfaceAgency?.habitPolicy ?? null,
+        selfContinuity: surfaceMemory?.selfContinuity ?? null,
+        selfState: surfaceAgency?.selfState ?? null,
+        privateThought: surfaceCognition?.privateThought ?? null,
         mindEcology: buildMindEcologyFromRuntimeSurface(surface),
-        previousContinuityState: surface.memory.personalityContinuityState ?? null,
+        previousContinuityState: surfaceMemory?.personalityContinuityState ?? null,
       })
     : contextProjection
-      ?? surface.memory.personStateProjection
+      ?? surfaceMemory?.personStateProjection
       ?? buildAlicizationPersonStateProjection({
         now: input.now,
         contexts: inferHostSocialContexts({ surface, governance }),
-        autobiographicalSelf: surface.memory.autobiographicalSelf ?? null,
-        hostPersonModel: hostPersonModel ?? surface.memory.hostPersonModel ?? null,
-        longHorizonMemory: surface.memory.longHorizonMemory ?? null,
-        motiveEngine: surface.memory.motiveEngine ?? null,
-        habitPolicy: surface.agency.habitPolicy ?? null,
-        selfContinuity: surface.memory.selfContinuity ?? null,
-        selfState: surface.agency.selfState ?? null,
-        privateThought: surface.cognition.privateThought ?? null,
+        autobiographicalSelf: surfaceMemory?.autobiographicalSelf ?? null,
+        hostPersonModel: hostPersonModel ?? surfaceMemory?.hostPersonModel ?? null,
+        longHorizonMemory: surfaceMemory?.longHorizonMemory ?? null,
+        motiveEngine: surfaceMemory?.motiveEngine ?? null,
+        habitPolicy: surfaceAgency?.habitPolicy ?? null,
+        selfContinuity: surfaceMemory?.selfContinuity ?? null,
+        selfState: surfaceAgency?.selfState ?? null,
+        privateThought: surfaceCognition?.privateThought ?? null,
         mindEcology: buildMindEcologyFromRuntimeSurface(surface),
-        previousContinuityState: surface.memory.personalityContinuityState ?? null,
+        previousContinuityState: surfaceMemory?.personalityContinuityState ?? null,
       })
-  const contexts = projection.contexts ?? []
+  const contexts = Array.isArray(projection.contexts)
+    ? projection.contexts.filter((item): item is string => typeof item === 'string' && item.length > 0)
+    : []
+  const surfaceAuthority = surfaceMemory?.personStateProjection?.selfContinuityAuthority ?? null
+  const projectionAuthority = projection.selfContinuityAuthority ?? null
+  const mergedProjectionAuthority = mergePreferredSelfContinuityAuthority({
+    bundleAuthority: projectionAuthority,
+    runtimeAuthority: surfaceAuthority,
+  })
+  const preserveSurfaceRelationshipCarry
+    = !!surfaceAuthority
+      && hasContinuityRestraintRelationshipSignal(surfaceAuthority.relationshipLine)
+      && (
+        !projectionAuthority
+        || hasNeutralRelationshipSignal(projectionAuthority.relationshipLine)
+        || !hasContinuityRestraintRelationshipSignal(projectionAuthority.relationshipLine)
+      )
+  const continuityAwareProjection = preserveSurfaceRelationshipCarry
+    ? {
+        ...projection,
+        selfContinuityAuthority: mergedProjectionAuthority,
+      }
+    : projection
   const selectedMotive = (() => {
-    if (projection.repairTriggerText && projection.relationshipPosture === 'restrained')
+    if (continuityAwareProjection.repairTriggerText && continuityAwareProjection.relationshipPosture === 'restrained')
       return 'attune' as const
-    if (governance.answerSubject === 'relationship' && (projection.repairTriggerText || projection.sensitivityText))
+    if (governance.answerSubject === 'relationship' && (continuityAwareProjection.repairTriggerText || continuityAwareProjection.sensitivityText))
       return 'attune' as const
-    if (contexts.includes('late-night') && (projection.burdenText || projection.personalityContinuityState.currentRegime === 'late-night-care'))
+    if (contexts.includes('late-night') && (continuityAwareProjection.burdenText || continuityAwareProjection.personalityContinuityState.currentRegime === 'late-night-care'))
       return 'care' as const
     return surface.dialogue.replyDeliberation?.selectedMotive ?? mapAnswerActToReplyMotive(governance.answerAct)
   })()
   const socialWhyNow = mergeGuidanceLine([
     surface.dialogue.replyDeliberation?.whyThisReplyNow ?? null,
-    projection.preferenceText ? `Host preference in this context: ${projection.preferenceText}` : null,
-    `Closeness ladder in play: ${projection.activeClosenessContext}/${projection.activeClosenessRung}.`,
-    projection.sensitivityText ? `Host sensitivity in play: ${projection.sensitivityText}` : null,
-    projection.repairTriggerText ? `Repair trigger in play: ${projection.repairTriggerText}` : null,
-    projection.relationshipDoctrine ? `Relationship doctrine in play: ${projection.relationshipDoctrine}` : null,
-    projection.trustRationale ? `Trust line: ${projection.trustRationale}` : null,
-    projection.summary ? `Person-state: ${projection.summary}` : null,
+    continuityAwareProjection.preferenceText ? `Host preference in this context: ${continuityAwareProjection.preferenceText}` : null,
+    `Closeness ladder in play: ${continuityAwareProjection.activeClosenessContext}/${continuityAwareProjection.activeClosenessRung}.`,
+    continuityAwareProjection.sensitivityText ? `Host sensitivity in play: ${continuityAwareProjection.sensitivityText}` : null,
+    continuityAwareProjection.repairTriggerText ? `Repair trigger in play: ${continuityAwareProjection.repairTriggerText}` : null,
+    continuityAwareProjection.relationshipDoctrine ? `Relationship doctrine in play: ${continuityAwareProjection.relationshipDoctrine}` : null,
+    continuityAwareProjection.trustRationale ? `Trust line: ${continuityAwareProjection.trustRationale}` : null,
+    continuityAwareProjection.summary ? `Person-state: ${continuityAwareProjection.summary}` : null,
   ], 240)
   const socialAnswerIntent = mergeGuidanceLine([
     surface.dialogue.answerPlanner?.answerIntent ?? governance.answerIntent ?? null,
-    projection.relationshipDoctrine ? `Relationship doctrine: ${projection.relationshipDoctrine}` : null,
+    continuityAwareProjection.relationshipDoctrine ? `Relationship doctrine: ${continuityAwareProjection.relationshipDoctrine}` : null,
     selfEvolution?.relationshipDoctrine ? `Long-horizon doctrine: ${selfEvolution.relationshipDoctrine}` : null,
-    projection.routineText ? `Routine cue: ${projection.routineText}` : null,
-    projection.preferenceText ? `Preferred closeness here: ${projection.preferenceText}` : null,
+    continuityAwareProjection.routineText ? `Routine cue: ${continuityAwareProjection.routineText}` : null,
+    continuityAwareProjection.preferenceText ? `Preferred closeness here: ${continuityAwareProjection.preferenceText}` : null,
   ], 220)
   const socialOpeningMove = mergeGuidanceLine([
     surface.dialogue.dialogueActKernel?.openingMove ?? null,
     surface.dialogue.answerPlanner?.openingMove ?? null,
     surface.dialogue.replyDeliberation?.openingBeat ?? null,
-    projection.openingGuidance,
+    continuityAwareProjection.openingGuidance,
     selfEvolutionOpeningBias?.openingGuidance ?? null,
   ], 220) || surface.dialogue.dialogueActKernel?.openingMove || surface.dialogue.answerPlanner?.openingMove || surface.dialogue.replyDeliberation?.openingBeat || governance.openingMove || socialWhyNow || ''
 
@@ -224,10 +277,10 @@ export function applyHostPersonModelToDigitalLifeRuntimeSurface(input: {
     ...surface,
     memory: {
       ...surface.memory,
-      hostPersonModel: hostPersonModel ?? surface.memory.hostPersonModel ?? null,
-      selfEvolution: selfEvolution ?? surface.memory.selfEvolution ?? null,
-      personalityContinuityState: projection.personalityContinuityState,
-      personStateProjection: projection,
+      hostPersonModel: hostPersonModel ?? surfaceMemory?.hostPersonModel ?? null,
+      selfEvolution: selfEvolution ?? surfaceMemory?.selfEvolution ?? null,
+      personalityContinuityState: continuityAwareProjection.personalityContinuityState,
+      personStateProjection: continuityAwareProjection,
     },
     dialogue: {
       ...surface.dialogue,
@@ -237,32 +290,33 @@ export function applyHostPersonModelToDigitalLifeRuntimeSurface(input: {
         memoryMode: surface.dialogue.replyDeliberation?.memoryMode ?? (governance.answerSubject === 'relationship' ? 'dialogue-carry' : 'task-thread'),
         openingBeat: mergeGuidanceLine([
           surface.dialogue.replyDeliberation?.openingBeat ?? null,
-          projection.openingGuidance,
+          continuityAwareProjection.openingGuidance,
+          selfEvolutionOpeningBias?.openingGuidance ?? null,
         ], 220) || surface.dialogue.replyDeliberation?.openingBeat || governance.openingMove || socialWhyNow || '',
         whyThisReplyNow: socialWhyNow || surface.dialogue.replyDeliberation?.whyThisReplyNow || '',
         whyNotOtherCandidates: surface.dialogue.replyDeliberation?.whyNotOtherCandidates ?? [],
         withheldImpulses: mergeUniqueRules([
           ...(surface.dialogue.replyDeliberation?.withheldImpulses ?? []),
-          projection.sensitivityText ? `Do not trigger host sensitivity: ${projection.sensitivityText}` : null,
+          continuityAwareProjection.sensitivityText ? `Do not trigger host sensitivity: ${continuityAwareProjection.sensitivityText}` : null,
         ], 8),
         candidateMotives: surface.dialogue.replyDeliberation?.candidateMotives ?? [],
         shouldSpeak: surface.dialogue.replyDeliberation?.shouldSpeak ?? true,
         mustInclude: mergeUniqueRules([
           ...(surface.dialogue.replyDeliberation?.mustInclude ?? []),
-          `Respect closeness ladder: ${projection.activeClosenessContext}/${projection.activeClosenessRung}.`,
-          projection.preferenceText ? `Respect host closeness preference: ${projection.preferenceText}` : null,
-          projection.repairTriggerText ? `Respect repair trigger: ${projection.repairTriggerText}` : null,
-          projection.openingGuidance ? `Keep opening guidance active: ${projection.openingGuidance}` : null,
+          `Respect closeness ladder: ${continuityAwareProjection.activeClosenessContext}/${continuityAwareProjection.activeClosenessRung}.`,
+          continuityAwareProjection.preferenceText ? `Respect host closeness preference: ${continuityAwareProjection.preferenceText}` : null,
+          continuityAwareProjection.repairTriggerText ? `Respect repair trigger: ${continuityAwareProjection.repairTriggerText}` : null,
+          continuityAwareProjection.openingGuidance ? `Keep opening guidance active: ${continuityAwareProjection.openingGuidance}` : null,
           selfEvolutionOpeningBias?.mustInclude ?? null,
-          projection.relationshipPosture === 'restrained' ? 'Let repair land before closeness.' : null,
-          projection.relationshipDoctrine ? `Keep this doctrine alive: ${projection.relationshipDoctrine}` : null,
+          continuityAwareProjection.relationshipPosture === 'restrained' ? 'Let repair land before closeness.' : null,
+          continuityAwareProjection.relationshipDoctrine ? `Keep this doctrine alive: ${continuityAwareProjection.relationshipDoctrine}` : null,
         ], 10),
         mustAvoid: mergeUniqueRules([
           ...(surface.dialogue.replyDeliberation?.mustAvoid ?? []),
-          projection.sensitivityText ? `Avoid this sensitivity: ${projection.sensitivityText}` : null,
-          projection.burdenText ? `Avoid adding burden here: ${projection.burdenText}` : null,
+          continuityAwareProjection.sensitivityText ? `Avoid this sensitivity: ${continuityAwareProjection.sensitivityText}` : null,
+          continuityAwareProjection.burdenText ? `Avoid adding burden here: ${continuityAwareProjection.burdenText}` : null,
           selfEvolutionOpeningBias?.mustAvoid ?? null,
-          projection.restrained ? 'Do not let presence become pressure.' : null,
+          continuityAwareProjection.restrained ? 'Do not let presence become pressure.' : null,
         ], 10),
         confidence: surface.dialogue.replyDeliberation?.confidence ?? 0.72,
         narrative: mergeUniqueRules([
@@ -279,15 +333,17 @@ export function applyHostPersonModelToDigitalLifeRuntimeSurface(input: {
         confidence: surface.dialogue.answerPlanner?.confidence ?? 0.72,
         governingFocus: mergeGuidanceLine([
           surface.dialogue.answerPlanner?.governingFocus ?? null,
-          projection.preferenceText ? `Host preference: ${projection.preferenceText}` : null,
-          projection.relationshipDoctrine ? `Doctrine: ${projection.relationshipDoctrine}` : null,
+          continuityAwareProjection.preferenceText ? `Host preference: ${continuityAwareProjection.preferenceText}` : null,
+          continuityAwareProjection.relationshipDoctrine ? `Doctrine: ${continuityAwareProjection.relationshipDoctrine}` : null,
         ], 220) || surface.dialogue.answerPlanner?.governingFocus || socialWhyNow || '',
+        governingProject: surface.dialogue.answerPlanner?.governingProject ?? null,
         openingMove: mergeGuidanceLine([
           surface.dialogue.answerPlanner?.openingMove ?? null,
-          projection.openingGuidance,
+          continuityAwareProjection.openingGuidance,
+          selfEvolutionOpeningBias?.openingGuidance ?? null,
         ], 220) || surface.dialogue.answerPlanner?.openingMove || governance.openingMove || '',
         answerIntent: socialAnswerIntent || surface.dialogue.answerPlanner?.answerIntent || governance.answerIntent || '',
-        relationshipPosture: projection.relationshipPosture ?? surface.dialogue.answerPlanner?.relationshipPosture ?? governance.relationshipPosture ?? 'warm',
+        relationshipPosture: continuityAwareProjection.relationshipPosture ?? surface.dialogue.answerPlanner?.relationshipPosture ?? governance.relationshipPosture ?? 'warm',
         shouldAskForGrounding: surface.dialogue.answerPlanner?.shouldAskForGrounding ?? governance.shouldAskForGrounding,
         shouldAcknowledgeRepair: surface.dialogue.answerPlanner?.shouldAcknowledgeRepair ?? governance.shouldAcknowledgeRepair,
         selectedConcernEntryId: surface.dialogue.answerPlanner?.selectedConcernEntryId ?? null,
@@ -301,19 +357,19 @@ export function applyHostPersonModelToDigitalLifeRuntimeSurface(input: {
         selectedTruthFrame: surface.dialogue.answerPlanner?.selectedTruthFrame ?? null,
         mustDo: mergeUniqueRules([
           ...(surface.dialogue.answerPlanner?.mustDo ?? []),
-          `Plan to the closeness ladder: ${projection.activeClosenessContext}/${projection.activeClosenessRung}.`,
-          projection.preferenceText ? `Respect host preference here: ${projection.preferenceText}` : null,
-          projection.routineText ? `Remember host routine: ${projection.routineText}` : null,
-          projection.openingGuidance ? `Open with this guidance: ${projection.openingGuidance}` : null,
+          `Plan to the closeness ladder: ${continuityAwareProjection.activeClosenessContext}/${continuityAwareProjection.activeClosenessRung}.`,
+          continuityAwareProjection.preferenceText ? `Respect host preference here: ${continuityAwareProjection.preferenceText}` : null,
+          continuityAwareProjection.routineText ? `Remember host routine: ${continuityAwareProjection.routineText}` : null,
+          continuityAwareProjection.openingGuidance ? `Open with this guidance: ${continuityAwareProjection.openingGuidance}` : null,
           selfEvolutionOpeningBias?.mustInclude ?? null,
-          projection.relationshipPosture === 'restrained' ? 'Plan the answer so repair lands before closeness.' : null,
-          projection.relationshipDoctrine ? `Keep doctrine visible in the answer plan: ${projection.relationshipDoctrine}` : null,
+          continuityAwareProjection.relationshipPosture === 'restrained' ? 'Plan the answer so repair lands before closeness.' : null,
+          continuityAwareProjection.relationshipDoctrine ? `Keep doctrine visible in the answer plan: ${continuityAwareProjection.relationshipDoctrine}` : null,
         ], 10),
         mustNotDo: mergeUniqueRules([
           ...(surface.dialogue.answerPlanner?.mustNotDo ?? []),
-          projection.sensitivityText ? `Do not ignore host sensitivity: ${projection.sensitivityText}` : null,
+          continuityAwareProjection.sensitivityText ? `Do not ignore host sensitivity: ${continuityAwareProjection.sensitivityText}` : null,
           selfEvolutionOpeningBias?.mustAvoid ?? null,
-          projection.restrained ? 'Do not let closeness outrun room or turn into pressure.' : null,
+          continuityAwareProjection.restrained ? 'Do not let closeness outrun room or turn into pressure.' : null,
         ], 10),
         narrative: mergeUniqueRules([
           ...(surface.dialogue.answerPlanner?.narrative ?? []),
@@ -364,19 +420,18 @@ export function applyHostPersonModelToDigitalLifeRuntimeSurface(input: {
         mustSay: mergeUniqueRules([
           ...(surface.dialogue.dialogueActKernel?.mustSay ?? []),
           socialAnswerIntent,
-          projection.openingGuidance ? `Keep opening guidance active: ${projection.openingGuidance}` : null,
+          continuityAwareProjection.openingGuidance ? `Keep opening guidance active: ${continuityAwareProjection.openingGuidance}` : null,
           selfEvolutionOpeningBias?.mustInclude ?? null,
-          projection.relationshipPosture === 'restrained' ? 'Let repair land before closeness.' : null,
+          continuityAwareProjection.relationshipPosture === 'restrained' ? 'Let repair land before closeness.' : null,
         ], 8),
         mustAvoid: mergeUniqueRules([
           ...(surface.dialogue.dialogueActKernel?.mustAvoid ?? []),
-          projection.sensitivityText ? `Avoid this sensitivity: ${projection.sensitivityText}` : null,
+          continuityAwareProjection.sensitivityText ? `Avoid this sensitivity: ${continuityAwareProjection.sensitivityText}` : null,
           selfEvolutionOpeningBias?.mustAvoid ?? null,
-          projection.restrained ? 'Do not let closeness outrun room or turn into pressure.' : null,
+          continuityAwareProjection.restrained ? 'Do not let closeness outrun room or turn into pressure.' : null,
         ], 8),
         sourceTrace: mergeUniqueRules([
           ...(surface.dialogue.dialogueActKernel?.sourceTrace ?? []),
-          surface.dialogue.answerPlanner ? 'runtime-answer-planner' : null,
           'person-state-projection',
           selfEvolutionOpeningBias?.sourceTrace ?? null,
           ...contexts.map(context => `host-context:${context}`),

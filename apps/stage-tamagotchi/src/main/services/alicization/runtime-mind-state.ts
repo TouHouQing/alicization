@@ -2,12 +2,14 @@ import type { Message } from '@xsai/shared-chat'
 
 import type {
   AlicizationDurabilityPulseSnapshot,
+  AlicizationEmbodimentContinuityLedgerSnapshot,
   AlicizationMemoryFact,
   AlicizationMemoryReflectionRecord,
   AlicizationMindHeadKey,
   AlicizationPersonalityState,
   AlicizationPersonaReinforcementEventRecord,
   AlicizationPersonStateEvolutionSummary,
+  AlicizationPersonStateUpdateSurface,
   AlicizationRecollectionPlan,
   AlicizationRecollectionSpeechPlan,
   AlicizationRelationshipOutcomeRecord,
@@ -20,17 +22,21 @@ import type { AlicizationPerceptionState } from './attention-anchor'
 import type { updateVisualAttentionModel } from './attention-model'
 import type { AlicizationDialogueTurnOwnershipHint } from './dialogue-turn-ownership'
 import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
+import type { AlicizationEmbodimentContinuityLane, AlicizationEmbodimentContinuityLaneEvidence, AlicizationEmbodimentContinuityLaneSnapshot } from './embodiment-continuity-ledger'
 import type { AlicizationInspectionTurnState } from './inspection-turn-state-machine'
 import type { AlicizationMemoryConsolidationRecord } from './memory-consolidation'
 import type { AlicizationProactiveLayeredContext } from './proactive-layered-context'
 import type {
   AlicizationMainGatewayGenerateTextProvider,
   AlicizationMainGatewaySource,
-} from './project-state-gateway-audit'
+} from './project-state-gateway-contract'
 import type { OrganicMemoryPromptContext } from './runtime-soul'
 import type { buildVisualHeartbeat } from './visual-heartbeat'
 
-import { buildDerivedMindStateBundle } from '@proj-alicization/stage-shared'
+import {
+  buildDerivedMindStateBundle,
+  readRecollectionIntentFromDerivedMindStateBundle,
+} from '@proj-alicization/stage-shared'
 
 import { buildActionEcology } from './action-ecology'
 import { buildAnswerCompiler } from './answer-compiler'
@@ -61,7 +67,12 @@ import {
 import { buildDialogueWorldThread } from './dialogue-world-thread'
 import { buildAlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 import { buildDiscourseState } from './discourse-state'
+import {
+
+  buildAlicizationEmbodimentContinuityLedger,
+} from './embodiment-continuity-ledger'
 import { buildAlicizationEmotionalKernel } from './emotional-kernel'
+import { buildAlicizationEmotionalTransitionLedger } from './emotional-ledger'
 import { buildEntityWorldModel } from './entity-world-model'
 import { buildExecutiveCycle } from './executive-cycle'
 import { buildGoalStack } from './goal-stack'
@@ -113,6 +124,8 @@ import {
 } from './runtime-soul'
 import { buildSelfContinuity } from './self-continuity'
 import { buildAlicizationSelfEvolutionKernel } from './self-evolution-kernel'
+import { buildAlicizationEmbodimentSelfRevisionStatePatch } from './self-evolution/embodiment-self-revision-bridge'
+import { buildAlicizationEmotionalSelfRevisionStatePatch } from './self-evolution/emotional-self-revision-bridge'
 import { buildSelfGovernor } from './self-governor'
 import { buildSelfState } from './self-state'
 import {
@@ -510,6 +523,9 @@ function resolvePreferredMindProjectStateSnapshot(input: {
   )
   || compactPromptText(projectStateBrief.sameHerDriftRisk, 220)
   || null
+  const proactiveSameHerGap = compactPromptText(projectStateSnapshot.proactiveSameHerGap, 220)
+    || compactPromptText(projectStateBrief.proactiveSameHerGap, 220)
+    || null
   const companionHeadlineLine = compactPromptText(projectStateSnapshot.companionHeadlineLine, 320) || null
   const companionBriefingLine = compactPromptText(projectStateSnapshot.companionBriefingLine, 320) || null
   const canonicalPreDialogueAwarenessLine = compactPromptText(
@@ -564,6 +580,7 @@ function resolvePreferredMindProjectStateSnapshot(input: {
     sameHerSelfLine,
     sameHerHoldDetail,
     sameHerDriftRisk,
+    proactiveSameHerGap,
   }
 }
 
@@ -585,6 +602,9 @@ function buildMindProjectStatePromptSnapshot(input: {
     sameHerSelfLine: input.preferredMindProjectState.sameHerSelfLine || undefined,
     sameHerHoldDetail: input.preferredMindProjectState.sameHerHoldDetail || undefined,
     sameHerDriftRisk: input.preferredMindProjectState.sameHerDriftRisk || undefined,
+    proactiveSameHerGap: input.preferredMindProjectState.proactiveSameHerGap || undefined,
+    preferredVoiceMode: input.preferredMindProjectState.snapshot.preferredVoiceMode || undefined,
+    preferredPacingMode: input.preferredMindProjectState.snapshot.preferredPacingMode || undefined,
   }
 }
 
@@ -607,12 +627,105 @@ function buildMindProjectStateRuntimeSnapshot(input: {
     sameHerSelfLine: input.preferredMindProjectState.sameHerSelfLine || undefined,
     sameHerHoldDetail: input.preferredMindProjectState.sameHerHoldDetail || undefined,
     sameHerDriftRisk: input.preferredMindProjectState.sameHerDriftRisk || undefined,
+    proactiveSameHerGap: input.preferredMindProjectState.proactiveSameHerGap || undefined,
     preferredBlinkCadence: input.preferredMindProjectState.snapshot.preferredBlinkCadence || undefined,
     preferredGazeMode: input.preferredMindProjectState.snapshot.preferredGazeMode || undefined,
+    preferredVoiceMode: input.preferredMindProjectState.snapshot.preferredVoiceMode || undefined,
+    preferredPacingMode: input.preferredMindProjectState.snapshot.preferredPacingMode || undefined,
     continuityCue: input.preferredMindProjectState.snapshot.continuityCue || undefined,
     continuityArcStage: input.preferredMindProjectState.snapshot.continuityArcStage || undefined,
     continuityPreferredTiming: input.preferredMindProjectState.snapshot.continuityPreferredTiming || undefined,
   }
+}
+
+function readMindStateEmbodimentLaneSet(raw: unknown) {
+  const normalized = compactPromptText(raw, 320).toLowerCase()
+  const match = normalized.match(/lane=([^|\s]+)/u)
+  if (!match?.[1])
+    return new Set<AlicizationEmbodimentContinuityLane>()
+
+  const tokens = match[1].split('+')
+  return new Set(tokens.filter((token): token is AlicizationEmbodimentContinuityLane =>
+    token === 'body'
+    || token === 'voice'
+    || token === 'face'
+    || token === 'motion'
+    || token === 'lipsync',
+  ))
+}
+
+function buildMindStateEmbodimentLaneEvidence(input: {
+  previousVisualPresenceState: AlicizationVisualPresenceStateSnapshot
+  emotionalKernel: NonNullable<AlicizationVisualPresenceStateSnapshot['emotionalKernel']>
+  projectState: ReturnType<typeof resolvePreferredMindProjectStateSnapshot>
+}): Record<AlicizationEmbodimentContinuityLane, AlicizationEmbodimentContinuityLaneEvidence> {
+  const currentBodyState = compactPromptText(input.previousVisualPresenceState.currentBodyState, 220)
+  const currentInwardPreoccupation = compactPromptText(input.previousVisualPresenceState.currentInwardPreoccupation, 220)
+  const continuityMode = compactPromptText(input.previousVisualPresenceState.continuityMode, 80)
+  const laneSet = readMindStateEmbodimentLaneSet([
+    currentBodyState,
+    currentInwardPreoccupation,
+    input.projectState.sameHerHoldDetail,
+    input.projectState.companionBriefingLine,
+  ].filter(Boolean).join(' | '))
+  const sameHerText = [
+    input.projectState.sameHerSelfLine,
+    input.projectState.sameHerHoldDetail,
+    input.projectState.companionBriefingLine,
+    input.emotionalKernel.why,
+    currentInwardPreoccupation,
+  ].map(item => compactPromptText(item, 220).toLowerCase()).join(' ')
+  const carriesSameHer = /same-her|same her|same living line|same digital life|continuous her|phase 1 digital life|one lifeform/u.test(sameHerText)
+  const bodyAvailable = input.previousVisualPresenceState.currentBodyState !== 'sleep'
+  const bodyCarry = carriesSameHer
+    || input.previousVisualPresenceState.currentBodyState === 'accompanying'
+    || input.previousVisualPresenceState.currentBodyState === 'recovering'
+    || input.emotionalKernel.embodimentTone === 'rest-protective'
+    || input.emotionalKernel.embodimentTone === 'repair-before-closeness'
+    || input.emotionalKernel.embodimentTone === 'measured-return'
+  const preferredVoiceMode = compactPromptText(input.projectState.snapshot.preferredVoiceMode, 80)
+  const preferredPacingMode = compactPromptText(input.projectState.snapshot.preferredPacingMode, 80)
+  const preferredLipsyncMode = compactPromptText(input.projectState.snapshot.preferredLipsyncMode, 80)
+  const preferredGazeMode = compactPromptText(input.projectState.snapshot.preferredGazeMode, 80)
+  const preferredBlinkCadence = compactPromptText(input.projectState.snapshot.preferredBlinkCadence, 80)
+  const hasExplicitLaneSet = laneSet.size > 0
+
+  return {
+    body: {
+      available: bodyAvailable,
+      sameHerCarry: bodyAvailable && (bodyCarry || laneSet.has('body')),
+      summary: `body=${currentBodyState || 'unknown'} continuity=${continuityMode || 'unknown'} tone=${input.emotionalKernel.embodimentTone}`,
+    },
+    voice: {
+      available: Boolean(preferredVoiceMode || preferredPacingMode || input.emotionalKernel.embodimentTone),
+      sameHerCarry: carriesSameHer || laneSet.has('voice') || Boolean(preferredVoiceMode),
+      summary: `voice=${preferredVoiceMode || 'emotion-tone'} pacing=${preferredPacingMode || 'unknown'}`,
+    },
+    face: {
+      available: hasExplicitLaneSet ? laneSet.has('face') : Boolean(preferredGazeMode || preferredBlinkCadence),
+      sameHerCarry: laneSet.has('face') && carriesSameHer,
+      summary: `face gaze=${preferredGazeMode || 'unknown'} blink=${preferredBlinkCadence || 'unknown'}`,
+    },
+    motion: {
+      available: hasExplicitLaneSet ? laneSet.has('motion') : Boolean(input.previousVisualPresenceState.currentBodyState === 'accompanying' && currentInwardPreoccupation),
+      sameHerCarry: laneSet.has('motion') && carriesSameHer,
+      summary: `motion body=${currentBodyState || 'unknown'} preoccupation=${currentInwardPreoccupation || 'none'}`,
+    },
+    lipsync: {
+      available: hasExplicitLaneSet ? laneSet.has('lipsync') : Boolean(preferredLipsyncMode),
+      sameHerCarry: (laneSet.has('lipsync') || preferredLipsyncMode === 'matched') && carriesSameHer,
+      summary: `lipsync=${preferredLipsyncMode || 'unknown'}`,
+    },
+  }
+}
+
+function readPreviousEmbodimentContinuityLanes(
+  ledger: AlicizationEmbodimentContinuityLedgerSnapshot | null | undefined,
+) {
+  const lanes = ledger && typeof ledger === 'object' && 'lanes' in ledger ? ledger.lanes : null
+  if (!lanes || typeof lanes !== 'object' || Array.isArray(lanes))
+    return null
+  return lanes as Partial<Record<AlicizationEmbodimentContinuityLane, AlicizationEmbodimentContinuityLaneSnapshot>>
 }
 
 function mapPersistedReflectionRecordToEntry(record: AlicizationMemoryReflectionRecord): NonNullable<AlicizationVisualPresenceStateSnapshot['reflectionLedger']>['entries'][number] {
@@ -621,7 +734,7 @@ function mapPersistedReflectionRecordToEntry(record: AlicizationMemoryReflection
     summary: record.summary,
     expectation: record.summary,
     observedOutcome: record.summary,
-    outcome: 'unknown',
+    outcome: record.status === 'superseded' ? 'released' : 'unknown',
     revision: record.lesson,
     confidenceShift: 0,
     createdAt: record.createdAt,
@@ -1025,6 +1138,7 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       `pre_dialogue_awareness=${preDialogueAwareness ?? projectState.preflightSummary ?? 'none'}`,
       `latest_landed_progress=${projectState.latestLandedProgress ?? 'none'}`,
       `same_her_line=${projectState.sameHerSelfLine ?? 'none'}`,
+      `same_her_hold=${projectState.sameHerHoldDetail ?? 'none'}`,
       `primary_open_loop=${projectState.primaryOpenLoop ?? 'none'}`,
       `next_closure_target=${projectState.nextClosureTarget ?? 'none'}`,
       `same_her_drift_risk=${projectState.sameHerDriftRisk ?? 'none'}`,
@@ -1044,6 +1158,7 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       `pre_dialogue_awareness=${preDialogueAwareness ?? projectState.preflightSummary ?? 'none'}`,
       `latest_landed_progress=${projectState.latestLandedProgress ?? 'none'}`,
       `same_her_line=${projectState.sameHerSelfLine ?? 'none'}`,
+      `same_her_hold=${projectState.sameHerHoldDetail ?? 'none'}`,
       `primary_open_loop=${projectState.primaryOpenLoop ?? 'none'}`,
       `next_closure_target=${projectState.nextClosureTarget ?? 'none'}`,
       `same_her_drift_risk=${projectState.sameHerDriftRisk ?? 'none'}`,
@@ -1626,6 +1741,7 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       persistedReflectionLedger,
       persistedMotiveEngine,
       persistedHabitPolicy,
+      persistedPersonStateUpdateSurface,
       recentRelationshipOutcomes,
       recentReinforcementEvents,
       recentMemoryReflections,
@@ -1636,6 +1752,7 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       readMindHead<AlicizationVisualPresenceStateSnapshot['reflectionLedger']>(input.cardId, 'reflection-ledger').catch(() => null),
       readMindHead<AlicizationVisualPresenceStateSnapshot['motiveEngine']>(input.cardId, 'motive-engine').catch(() => null),
       readMindHead<AlicizationVisualPresenceStateSnapshot['habitPolicy']>(input.cardId, 'habit-policy').catch(() => null),
+      readMindHead<AlicizationPersonStateUpdateSurface>(input.cardId, 'person-state-update-surface').catch(() => null),
       listRelationshipOutcomes(input.cardId, 12).catch(() => []),
       listPersonaReinforcementEvents(input.cardId, 16).catch(() => []),
       listMemoryReflections(input.cardId, 8).catch(() => []),
@@ -1646,6 +1763,8 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
     const previousReflectionLedger = input.previousVisualPresenceState.reflectionLedger ?? persistedReflectionLedger ?? null
     const previousMotiveEngine = input.previousVisualPresenceState.motiveEngine ?? persistedMotiveEngine ?? null
     const previousHabitPolicy = input.previousVisualPresenceState.habitPolicy ?? persistedHabitPolicy ?? null
+    const previousPersonStateUpdateSurface = input.previousVisualPresenceState.personStateUpdateSurface ?? persistedPersonStateUpdateSurface ?? null
+    const personStateUpdateSurface = previousPersonStateUpdateSurface
     const persistedReflectionEntries = recentMemoryReflections.map(mapPersistedReflectionRecordToEntry)
     const previousLongHorizonMemory = input.previousVisualPresenceState.longHorizonMemory ?? null
     const shouldRefreshLongHorizonMemory
@@ -1664,15 +1783,32 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
     const longHorizonMemoryFacts = longHorizonMemoryQuery
       ? await retrieveMemoryFacts(longHorizonMemoryQuery, 8).catch(() => [])
       : []
+    const currentLongHorizonHostPersonModel
+      = input.organicMemoryContext?.hostPersonModel
+        ?? input.organicMemoryContext?.derivedMindStateBundle?.hostPersonModel
+        ?? input.previousVisualPresenceState.hostPersonModel
+        ?? null
     const longHorizonMemory = shouldRefreshLongHorizonMemory
       ? buildAlicizationLongHorizonMemory({
           now: input.now,
           facts: longHorizonMemoryFacts,
           previous: previousLongHorizonMemory,
-          hostPersonModel: input.previousVisualPresenceState.hostPersonModel ?? null,
-          personStateUpdateSurface: input.previousVisualPresenceState.personStateUpdateSurface ?? null,
+          hostPersonModel: currentLongHorizonHostPersonModel,
+          personStateUpdateSurface: previousPersonStateUpdateSurface,
+          executionCallbackCarry: input.organicMemoryContext?.executionCallbackCarry ?? null,
+          affectiveResidue: input.organicMemoryContext?.affectiveResidue
+            ?? input.organicMemoryContext?.derivedMindStateBundle?.affectiveResidue
+            ?? null,
+          recentMemoryConsolidations,
           projectStateEmotionalClosureCue: preferredMindProjectState.emotionalClosureCue,
           projectStatePrimaryOpenLoop,
+          projectStateSameHerSelfLine: preferredMindProjectState.sameHerSelfLine,
+          projectStateSameHerDriftRisk: preferredMindProjectState.sameHerDriftRisk,
+          projectStateProactiveSameHerGap: preferredMindProjectState.proactiveSameHerGap,
+          projectStatePreferredPauseMode: preferredMindProjectState.snapshot.preferredPauseMode,
+          projectStatePreferredLipsyncMode: preferredMindProjectState.snapshot.preferredLipsyncMode,
+          projectStatePreferredVoiceMode: preferredMindProjectState.snapshot.preferredVoiceMode,
+          projectStatePreferredPacingMode: preferredMindProjectState.snapshot.preferredPacingMode,
         })
       : previousLongHorizonMemory
     const seedMotiveEngine = buildMotiveEngine({
@@ -2053,12 +2189,18 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       recentMemoryReflections,
       desireMemory: input.previousVisualPresenceState.desireMemory ?? null,
       recentReinforcementEvents,
+      personStateUpdateSurface: previousPersonStateUpdateSurface,
       personalityAuthority: input.personalityAuthority ?? null,
       previous: previousAutobiographicalSelf,
       projectStatePreDialogueAwarenessLine: preferredMindProjectState.preDialogueAwarenessLine,
       projectStatePreflightSummary: preferredMindProjectState.preflightSummary,
       projectStateEmotionalClosureCue: preferredMindProjectState.emotionalClosureCue,
       projectStatePrimaryOpenLoop,
+      projectStateProactiveSameHerGap: preferredMindProjectState.proactiveSameHerGap,
+      projectStatePreferredPauseMode: preferredMindProjectState.snapshot.preferredPauseMode,
+      projectStatePreferredLipsyncMode: preferredMindProjectState.snapshot.preferredLipsyncMode,
+      projectStatePreferredVoiceMode: preferredMindProjectState.snapshot.preferredVoiceMode,
+      projectStatePreferredPacingMode: preferredMindProjectState.snapshot.preferredPacingMode,
     })
     const refreshedSelfEvolution = buildAlicizationSelfEvolutionKernel({
       personStateEvolutionSummary,
@@ -2159,11 +2301,22 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       bundleProjection: input.previousVisualPresenceState.personStateProjection ?? null,
       runtimeProjection: input.organicMemoryContext?.personStateProjection ?? null,
     }) ?? input.previousVisualPresenceState.personStateProjection ?? null
+    const existingDerivedMindStateBundle = input.organicMemoryContext?.derivedMindStateBundle
+      ?? input.previousVisualPresenceState.derivedMindStateBundle
+      ?? null
+    const sameHerCausalityRepairPressure = existingDerivedMindStateBundle?.sameHerCausalityRepairPressure ?? null
+    const hasSameHerCausalityRepairPressure = Boolean(sameHerCausalityRepairPressure?.lanes?.length)
     const bootstrapEmotionalKernel = buildAlicizationEmotionalKernel({
       selfState,
       privateThought: input.previousVisualPresenceState.privateThought ?? null,
       affectiveResidue: input.organicMemoryContext?.affectiveResidue ?? null,
       personStateProjection: preferredResidentPersonStateProjection,
+      recollectionIntent: input.organicMemoryContext?.recollectionIntent
+        ?? readRecollectionIntentFromDerivedMindStateBundle<NonNullable<OrganicMemoryPromptContext['recollectionIntent']>>(
+          input.previousVisualPresenceState.derivedMindStateBundle ?? null,
+        )
+        ?? null,
+      longHorizonMemory,
       selfEvolution,
       projectState: mindProjectStateRuntimeSnapshot,
     })
@@ -2225,10 +2378,17 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       executiveCycle,
       autobiographicalSelf: provisionalAutobiographicalSelf,
       motiveEngine,
+      longHorizonMemory,
       habitPolicy,
       emotionalKernel,
+      recollectionIntent: input.organicMemoryContext?.recollectionIntent
+        ?? readRecollectionIntentFromDerivedMindStateBundle<NonNullable<OrganicMemoryPromptContext['recollectionIntent']>>(
+          existingDerivedMindStateBundle ?? null,
+        )
+        ?? null,
       selfEvolution,
       memoryTuningAdvice: input.organicMemoryContext?.memoryTuningAdvice ?? null,
+      sameHerCausalityRepairPressure,
       activeContinuityGovernance: input.organicMemoryContext?.activeContinuityGovernance ?? null,
       personStateProjection: preferredResidentPersonStateProjection,
       projectState: mindProjectStateRuntimeSnapshot,
@@ -2353,6 +2513,12 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       privateThought: bootstrapPrivateThought,
       affectiveResidue: input.organicMemoryContext?.affectiveResidue ?? null,
       personStateProjection: preferredResidentPersonStateProjection,
+      recollectionIntent: input.organicMemoryContext?.recollectionIntent
+        ?? readRecollectionIntentFromDerivedMindStateBundle<NonNullable<OrganicMemoryPromptContext['recollectionIntent']>>(
+          existingDerivedMindStateBundle ?? null,
+        )
+        ?? null,
+      longHorizonMemory,
       selfEvolution,
       projectState: mindProjectStateRuntimeSnapshot,
     })
@@ -2389,11 +2555,18 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       executiveCycle,
       autobiographicalSelf: provisionalAutobiographicalSelf,
       motiveEngine,
+      longHorizonMemory,
       habitPolicy,
       emotionalKernel,
       selfEvolution,
       privateThought: bootstrapPrivateThought,
+      recollectionIntent: input.organicMemoryContext?.recollectionIntent
+        ?? readRecollectionIntentFromDerivedMindStateBundle<NonNullable<OrganicMemoryPromptContext['recollectionIntent']>>(
+          existingDerivedMindStateBundle ?? null,
+        )
+        ?? null,
       memoryTuningAdvice: input.organicMemoryContext?.memoryTuningAdvice ?? null,
+      sameHerCausalityRepairPressure,
       activeContinuityGovernance: input.organicMemoryContext?.activeContinuityGovernance ?? null,
       personStateProjection: preferredResidentPersonStateProjection,
       projectState: mindProjectStateRuntimeSnapshot,
@@ -2416,6 +2589,10 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       thoughtThreads,
       projectState: mindProjectStateRuntimeSnapshot,
     })
+    const initiativeWhy = hasSameHerCausalityRepairPressure
+      && /pending same-her initiative\/execution repair|memory and execution callback|runtime evidence/iu.test(finalizedInitiativeBase.why)
+      ? finalizedInitiativeBase.why
+      : autonomy.whyNow
     const desireMemory = buildDesireMemory({
       now: input.now,
       context: input.context,
@@ -2429,7 +2606,7 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
         confidence: Math.max(finalizedInitiativeBase.confidence, autonomy.confidence),
         shouldSurface: autonomy.shouldSurface,
         shouldSpeak: autonomy.shouldSpeak,
-        why: autonomy.whyNow,
+        why: initiativeWhy,
       },
       commitmentLedger,
       deliberationState,
@@ -2445,7 +2622,7 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       confidence: Math.max(finalizedInitiativeBase.confidence, autonomy.confidence),
       shouldSurface: autonomy.shouldSurface,
       shouldSpeak: autonomy.shouldSpeak,
-      why: autonomy.whyNow,
+      why: initiativeWhy,
     }
     const privateThought = buildPrivateThoughtLoop({
       now: input.now,
@@ -2500,6 +2677,12 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       privateThought,
       affectiveResidue: input.organicMemoryContext?.affectiveResidue ?? null,
       personStateProjection: preferredResidentPersonStateProjection,
+      recollectionIntent: input.organicMemoryContext?.recollectionIntent
+        ?? readRecollectionIntentFromDerivedMindStateBundle<NonNullable<OrganicMemoryPromptContext['recollectionIntent']>>(
+          existingDerivedMindStateBundle ?? null,
+        )
+        ?? null,
+      longHorizonMemory,
       selfEvolution,
       projectState: mindProjectStateRuntimeSnapshot,
     })
@@ -2645,11 +2828,17 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       mindEcology: provisionalMindEcology,
       recentMemoryConsolidations,
       recentReinforcementEvents,
+      personStateUpdateSurface: previousPersonStateUpdateSurface,
       previous: previousAutobiographicalSelf,
       projectStatePreDialogueAwarenessLine: preferredMindProjectState.preDialogueAwarenessLine,
       projectStatePreflightSummary: preferredMindProjectState.preflightSummary,
       projectStateEmotionalClosureCue: preferredMindProjectState.emotionalClosureCue,
       projectStatePrimaryOpenLoop,
+      projectStateProactiveSameHerGap: preferredMindProjectState.proactiveSameHerGap,
+      projectStatePreferredPauseMode: preferredMindProjectState.snapshot.preferredPauseMode,
+      projectStatePreferredLipsyncMode: preferredMindProjectState.snapshot.preferredLipsyncMode,
+      projectStatePreferredVoiceMode: preferredMindProjectState.snapshot.preferredVoiceMode,
+      projectStatePreferredPacingMode: preferredMindProjectState.snapshot.preferredPacingMode,
     })
     const mindEcology = buildMindEcology({
       now: input.now,
@@ -2744,14 +2933,98 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
     const answerCompilerPersonStateProjection = preferredResidentPersonStateProjection
       ?? input.previousVisualPresenceState.personStateProjection
       ?? null
-    const existingDerivedMindStateBundle = input.organicMemoryContext?.derivedMindStateBundle
-      ?? input.previousVisualPresenceState.derivedMindStateBundle
-      ?? null
+    const emotionalTransitionLedger = buildAlicizationEmotionalTransitionLedger({
+      createdAt: input.now,
+      previous: existingDerivedMindStateBundle?.emotionalKernel ?? input.previousVisualPresenceState.derivedMindStateBundle?.emotionalKernel ?? null,
+      next: emotionalKernel,
+      source: {
+        turnId: null,
+        sourceTags: [
+          ...(input.organicMemoryContext?.affectiveResidue ? ['affective-residue'] : []),
+          ...(input.organicMemoryContext?.recollectionIntent ? ['recollection-intent'] : []),
+          ...(selfEvolution ? ['self-evolution'] : []),
+          ...(preferredResidentPersonStateProjection ? ['person-state-projection'] : []),
+          ...(mindProjectStateRuntimeSnapshot?.emotionalClosureCue ? ['project-state'] : []),
+          ...(hasSameHerCausalityRepairPressure ? ['same-her-causality-repair-pressure'] : []),
+        ],
+      },
+    })
+    const emotionalSelfRevisionPatch = buildAlicizationEmotionalSelfRevisionStatePatch({
+      ledger: emotionalTransitionLedger,
+      decisionTraceId: null,
+      fallbackSourceTurnId: null,
+      projectStateContinuity: {
+        sameHerSelfLine: preferredMindProjectState.sameHerSelfLine,
+        sameHerDriftRisk: preferredMindProjectState.sameHerDriftRisk,
+        proactiveSameHerGap: preferredMindProjectState.proactiveSameHerGap,
+        emotionalClosureCue: preferredMindProjectState.emotionalClosureCue,
+        sameHerHoldDetail: preferredMindProjectState.sameHerHoldDetail,
+        continuityGuard: preferredMindProjectState.sameHerDriftRisk,
+      },
+    })
+    const embodimentContinuityLedger = buildAlicizationEmbodimentContinuityLedger({
+      createdAt: input.now,
+      turnId: null,
+      previous: readPreviousEmbodimentContinuityLanes(existingDerivedMindStateBundle?.embodimentContinuityLedger),
+      current: buildMindStateEmbodimentLaneEvidence({
+        previousVisualPresenceState: input.previousVisualPresenceState,
+        emotionalKernel,
+        projectState: preferredMindProjectState,
+      }),
+      sourceTags: [
+        'runtime-mind-state',
+        'body-state',
+        emotionalKernel.embodimentTone ? `emotion-tone:${emotionalKernel.embodimentTone}` : null,
+        preferredMindProjectState.snapshot.preferredVoiceMode ? 'project-state-voice' : null,
+        preferredMindProjectState.snapshot.preferredLipsyncMode ? 'project-state-lipsync' : null,
+        hasSameHerCausalityRepairPressure ? 'same-her-causality-repair-pressure' : null,
+      ].filter(Boolean) as string[],
+      projectStateContinuity: {
+        sameHerSelfLine: preferredMindProjectState.sameHerSelfLine,
+        sameHerDriftRisk: preferredMindProjectState.sameHerDriftRisk,
+        sameHerHoldDetail: preferredMindProjectState.sameHerHoldDetail,
+      },
+    })
+    const embodimentSelfRevisionPatch = buildAlicizationEmbodimentSelfRevisionStatePatch({
+      ledger: embodimentContinuityLedger,
+      decisionTraceId: null,
+      projectStateContinuity: {
+        sameHerSelfLine: preferredMindProjectState.sameHerSelfLine,
+        sameHerDriftRisk: preferredMindProjectState.sameHerDriftRisk,
+        sameHerHoldDetail: preferredMindProjectState.sameHerHoldDetail,
+      },
+    })
+    const emotionalActiveContinuityGovernance = emotionalSelfRevisionPatch
+      ? {
+          source: 'active-self-evolution-version' as const,
+          mode: 'same-her-baseline' as const,
+          candidateId: null,
+          patchId: emotionalSelfRevisionPatch.id,
+          decisionTraceId: emotionalSelfRevisionPatch.decisionTraceId,
+          summary: emotionalSelfRevisionPatch.summary,
+          lanes: [...emotionalSelfRevisionPatch.lanes],
+          reasonCodes: [...emotionalSelfRevisionPatch.reasonCodes],
+        }
+      : null
+    const embodimentActiveContinuityGovernance = embodimentSelfRevisionPatch
+      ? {
+          source: 'active-self-evolution-version' as const,
+          mode: 'same-her-baseline' as const,
+          candidateId: null,
+          patchId: embodimentSelfRevisionPatch.id,
+          decisionTraceId: embodimentSelfRevisionPatch.decisionTraceId,
+          summary: embodimentSelfRevisionPatch.summary,
+          lanes: [...embodimentSelfRevisionPatch.lanes],
+          reasonCodes: [...embodimentSelfRevisionPatch.reasonCodes],
+        }
+      : null
     const answerCompilerDerivedMindStateBundle = (
       existingDerivedMindStateBundle
       || input.organicMemoryContext?.affectiveResidue
       || input.organicMemoryContext?.learningExecutionState
       || input.organicMemoryContext?.activeContinuityGovernance
+      || embodimentSelfRevisionPatch
+      || emotionalSelfRevisionPatch
       || selfEvolution
       || answerCompilerPersonStateProjection
     )
@@ -2762,10 +3035,33 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
           personStateProjection: answerCompilerPersonStateProjection as unknown as Record<string, unknown> | null,
           knowledgeEvidence: existingDerivedMindStateBundle?.knowledgeEvidence ?? input.organicMemoryContext?.knowledgeEvidence ?? null,
           claimEvidenceGraphs: existingDerivedMindStateBundle?.claimEvidenceGraphs ?? null,
-          activeSelfRevision: existingDerivedMindStateBundle?.activeSelfRevision ?? null,
-          activeContinuityGovernance: input.organicMemoryContext?.activeContinuityGovernance
+          activeSelfRevision: embodimentSelfRevisionPatch
+            ? {
+                candidateId: null,
+                patchId: embodimentSelfRevisionPatch.id,
+                patchDecisionTraceId: embodimentSelfRevisionPatch.decisionTraceId,
+                lanes: [...embodimentSelfRevisionPatch.lanes],
+                reasonCodes: [...embodimentSelfRevisionPatch.reasonCodes],
+                summary: embodimentSelfRevisionPatch.summary,
+              }
+            : emotionalSelfRevisionPatch
+              ? {
+                  candidateId: null,
+                  patchId: emotionalSelfRevisionPatch.id,
+                  patchDecisionTraceId: emotionalSelfRevisionPatch.decisionTraceId,
+                  lanes: [...emotionalSelfRevisionPatch.lanes],
+                  reasonCodes: [...emotionalSelfRevisionPatch.reasonCodes],
+                  summary: emotionalSelfRevisionPatch.summary,
+                }
+              : existingDerivedMindStateBundle?.activeSelfRevision ?? null,
+          activeContinuityGovernance: embodimentActiveContinuityGovernance
+            ?? emotionalActiveContinuityGovernance
+            ?? input.organicMemoryContext?.activeContinuityGovernance
             ?? existingDerivedMindStateBundle?.activeContinuityGovernance
             ?? null,
+          sameHerCausalityRepairPressure,
+          emotionalTransitionLedger,
+          embodimentContinuityLedger,
           selfEvolution,
           affectiveResidue: input.organicMemoryContext?.affectiveResidue
             ?? existingDerivedMindStateBundle?.affectiveResidue
@@ -2774,7 +3070,11 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
             ?? existingDerivedMindStateBundle?.learningExecutionState
             ?? null,
           recallLatencyPolicy: existingDerivedMindStateBundle?.recallLatencyPolicy ?? null,
-          recollectionIntent: existingDerivedMindStateBundle?.recollectionIntent ?? null,
+          recollectionIntent: (
+            input.organicMemoryContext?.recollectionIntent
+            ?? existingDerivedMindStateBundle?.recollectionIntent
+            ?? null
+          ) as unknown as Record<string, unknown> | null,
           recollectionPlan: input.organicMemoryContext?.recollectionPlan
             ?? asRecollectionPlan(existingDerivedMindStateBundle?.recollectionPlan)
             ?? null,
@@ -3009,6 +3309,9 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
     const recallGovernor = buildTurnRecallGovernor({
       now: input.now,
       userText: input.userText,
+      affectiveResidue: input.organicMemoryContext?.affectiveResidue
+        ?? existingDerivedMindStateBundle?.affectiveResidue
+        ?? null,
       dialogueWorldThread,
       conversationState: conversationState ?? input.previousVisualPresenceState.conversationState ?? null,
       answerCompiler,
@@ -3266,6 +3569,7 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       motiveEngine,
       habitPolicy,
       selfGovernor: stabilizedSelfGovernor,
+      personStateUpdateSurface,
       inquiryLoop,
       deliberationState,
       threadRuntime,
@@ -3289,9 +3593,12 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       initiative,
       autonomy,
       desireMemory,
+      autobiographicalSelf,
       selfEvolution,
       learningExecutionState: input.organicMemoryContext?.learningExecutionState ?? null,
-      derivedMindStateBundle: input.organicMemoryContext?.derivedMindStateBundle ?? null,
+      derivedMindStateBundle: answerCompilerDerivedMindStateBundle
+        ?? input.organicMemoryContext?.derivedMindStateBundle
+        ?? null,
       mindEcology,
       currentConsciousFrame,
       claimEvidenceLedger,

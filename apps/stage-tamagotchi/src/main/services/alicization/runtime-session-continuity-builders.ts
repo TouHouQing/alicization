@@ -88,6 +88,14 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
     return /same-her callback repair seam|callback repair|repair seam|repair line|repair-before-closeness still holds|repair-before-closeness still owns|keep this (?:callback )?return repair-before-closeness|keep repair-before-closeness on the same living line|embodiment repair-before-closeness on the same living line|repair still needs to land|before any warmer reopening|until repair settles|until the room settles|先修复再靠近|修复线|修补线/u.test(normalized)
   }
 
+  function looksLikeStrongEmbodimentCompanionHeadline(text: string | null | undefined) {
+    const normalized = typeof text === 'string' ? text.trim().toLowerCase() : ''
+    if (!normalized)
+      return false
+
+    return /holding together through face, lipsync, and voice together|holding together through motion, lipsync, and voice together|still-voiced face-and-mouth line|still-voiced motion-and-mouth line|holding together mainly through body, lipsync, and voice|holding together mainly through face and voice|holding together mainly through motion and voice|living audio thread is still intact|same-her carry alive/u.test(normalized)
+  }
+
   function normalizeExecutionDeliveryStatus(
     status: AlicizationTaskThreadRecord['status'],
   ): AlicizationAgentSessionActionInput['status'] {
@@ -100,7 +108,9 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
     const projectLatestLandedProgress = sanitizeBriefText(
       typeof metadata?.projectLatestLandedProgress === 'string'
         ? metadata.projectLatestLandedProgress
-        : projectState.continuityProgressSummary ?? projectState.latestProgress,
+        : typeof metadata?.projectLatestProgress === 'string'
+          ? metadata.projectLatestProgress
+          : projectState.continuityProgressSummary ?? projectState.latestProgress,
       220,
     ) || null
     const projectStateSameHerSelfLine = sanitizeBriefText(
@@ -112,7 +122,9 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
     const projectPrimaryOpenLoop = sanitizeBriefText(
       typeof metadata?.projectPrimaryOpenLoop === 'string'
         ? metadata.projectPrimaryOpenLoop
-        : projectState.openLoops[0] ?? '',
+        : typeof metadata?.projectMemoryClosureSummary === 'string'
+          ? metadata.projectMemoryClosureSummary
+          : projectState.openLoops[0] ?? '',
       220,
     ) || null
     const projectNextClosureTarget = sanitizeBriefText(
@@ -648,15 +660,22 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
       preflightSummary?: string | null
       preDialogueAwarenessLine?: string | null
       preDialogueAwarenessSummary?: string | null
+      companionHeadlineLine?: string | null
       companionBriefingLine?: string | null
       identity?: string | null
       currentPhase?: string | null
+      latestProgress?: string | null
       latestLandedProgress?: string | null
+      landedProgressSummary?: string | null
+      memoryClosureSummary?: string | null
       primaryOpenLoop?: string | null
+      openClosureSummary?: string | null
       nextClosureTarget?: string | null
+      nextClosureTargetSummary?: string | null
       sameHerSelfLine?: string | null
       sameHerHoldDetail?: string | null
       sameHerDriftRisk?: string | null
+      sameHerDriftRiskSummary?: string | null
       openFocusSummary?: string | null
       nextFocusSummary?: string | null
       emotionalClosureCue?: string | null
@@ -700,11 +719,28 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
           || executionIntentKind === 'repair'
         )
     const projectStateBrief = resolveAlicizationProjectStateBrief()
+    const rawProjectLatestLandedProgress
+      = input.projectState?.latestLandedProgress
+        ?? input.projectState?.latestProgress
+        ?? input.projectState?.landedProgressSummary
+        ?? projectStateBrief.continuityProgressSummary
+        ?? projectStateBrief.latestProgress
+        ?? ''
+    const rawProjectPrimaryOpenLoop
+      = input.projectState?.primaryOpenLoop
+        ?? input.projectState?.openClosureSummary
+        ?? input.projectState?.memoryClosureSummary
+        ?? ''
+    const rawProjectNextClosureTarget
+      = input.projectState?.nextClosureTarget
+        ?? input.projectState?.nextClosureTargetSummary
+        ?? ''
     const projectStatePreDialogueAwarenessLine = sanitizeBriefText(
       resolveAlicizationProjectPreDialogueAwarenessLine({
         runtimeProjectState: {
           preDialogueAwarenessLine: input.projectState?.preDialogueAwarenessLine ?? null,
           preDialogueAwarenessSummary: input.projectState?.preDialogueAwarenessSummary ?? null,
+          companionHeadlineLine: input.projectState?.companionHeadlineLine ?? null,
           companionBriefingLine: input.projectState?.companionBriefingLine ?? null,
           preflightSummary: input.projectState?.preflightSummary ?? null,
         },
@@ -719,14 +755,20 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
     const projectIdentity = sanitizeBriefText(input.projectState?.identity ?? '', 180) || null
     const projectPhase = sanitizeBriefText(input.projectState?.currentPhase ?? '', 140) || null
     const projectLatestLandedProgress = sanitizeBriefText(
-      input.projectState?.latestLandedProgress ?? projectStateBrief.continuityProgressSummary ?? projectStateBrief.latestProgress ?? '',
+      rawProjectLatestLandedProgress,
       220,
     ) || null
-    const projectPrimaryOpenLoop = sanitizeBriefText(input.projectState?.primaryOpenLoop ?? '', 220) || null
-    const projectNextClosureTarget = sanitizeBriefText(input.projectState?.nextClosureTarget ?? '', 220) || null
+    const projectPrimaryOpenLoop = sanitizeBriefText(
+      rawProjectPrimaryOpenLoop,
+      220,
+    ) || null
+    const projectNextClosureTarget = sanitizeBriefText(
+      rawProjectNextClosureTarget,
+      220,
+    ) || null
     const projectStateOpenFocusSummary = sanitizeBriefText(
       input.projectState?.openFocusSummary
-      ?? deriveCompactProjectStateOpenFocusSummary(input.projectState?.primaryOpenLoop ?? null, {
+      ?? deriveCompactProjectStateOpenFocusSummary(rawProjectPrimaryOpenLoop, {
         emotionalClosureCue: input.projectState?.emotionalClosureCue ?? null,
       })
       ?? '',
@@ -734,7 +776,7 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
     ) || null
     const projectStateNextFocusSummary = sanitizeBriefText(
       input.projectState?.nextFocusSummary
-      ?? deriveCompactProjectStateNextFocusSummary(input.projectState?.nextClosureTarget ?? null, {
+      ?? deriveCompactProjectStateNextFocusSummary(rawProjectNextClosureTarget, {
         emotionalClosureCue: input.projectState?.emotionalClosureCue ?? null,
       })
       ?? '',
@@ -755,7 +797,10 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
       ) || null
     )
     const projectStateSameHerDriftRisk = sanitizeBriefText(
-      input.projectState?.sameHerDriftRisk ?? projectStateBrief.sameHerDriftRisk ?? '',
+      input.projectState?.sameHerDriftRisk
+      ?? input.projectState?.sameHerDriftRiskSummary
+      ?? projectStateBrief.sameHerDriftRisk
+      ?? '',
       220,
     ) || null
     const projectStateSameHerHoldDetail = sanitizeBriefText(
@@ -774,9 +819,28 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
         : '',
       220,
     ) || null
+    const projectStateCompanionHeadlineLine = sanitizeBriefText(
+      typeof (input.projectState as { companionHeadlineLine?: unknown } | null)?.companionHeadlineLine === 'string'
+        ? (input.projectState as { companionHeadlineLine?: string | null } | null)?.companionHeadlineLine ?? ''
+        : '',
+      220,
+    ) || null
     const projectStatePreferredPreDialogueAwarenessLine = isAlicizationThinProjectAwarenessLine(projectStatePreDialogueAwarenessLine)
-      ? projectStateCompanionBriefingLine || projectStatePreDialogueAwarenessLine
+      ? (
+          (looksLikeStrongEmbodimentCompanionHeadline(projectStateCompanionHeadlineLine)
+            ? projectStateCompanionHeadlineLine
+            : null)
+          || projectStateCompanionBriefingLine
+          || projectStatePreDialogueAwarenessLine
+        )
       : projectStatePreDialogueAwarenessLine
+    const strongerEmbodimentProjectAuthority = [
+      projectStateCompanionHeadlineLine,
+      projectStatePreferredPreDialogueAwarenessLine,
+      projectNextClosureTarget,
+      projectPrimaryOpenLoop,
+    ].find(candidate => looksLikeStrongEmbodimentCompanionHeadline(candidate))
+    ?? null
     const repairBeforeClosenessProjectAuthority = [
       projectStateEmotionalClosureCue,
       projectNextClosureTarget,
@@ -798,7 +862,7 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
         summary: [
           'no mind-authored visible reply was available',
           reason ? `reason=${reason}` : '',
-          repairBeforeClosenessSummaryLead || whyNow || executionIntentSummary || '',
+          repairBeforeClosenessSummaryLead || strongerEmbodimentProjectAuthority || whyNow || executionIntentSummary || '',
           sourceThreadId ? `thread=${sourceThreadId}` : '',
           `scenario=${scenario}`,
         ].filter(Boolean).join(' | '),
@@ -823,6 +887,7 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
           executionIntentSummary: executionIntentSummary || null,
           targetThreadId: targetThreadId || null,
           projectStatePreDialogueAwarenessLine: projectStatePreferredPreDialogueAwarenessLine,
+          projectStateCompanionHeadlineLine,
           projectStatePreflightSummary,
           projectLatestLandedProgress,
           projectIdentity,
@@ -872,6 +937,7 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
         executionIntentSummary: executionIntentSummary || null,
         targetThreadId: targetThreadId || null,
         projectStatePreDialogueAwarenessLine,
+        projectStateCompanionHeadlineLine,
         projectStatePreflightSummary,
         projectLatestLandedProgress,
         projectIdentity,

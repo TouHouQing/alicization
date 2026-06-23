@@ -27,6 +27,7 @@ interface CreateAlicizationMainChatContextRuntimeOptions {
   emptyAlicizationExecutionLedgerContext: AlicizationExecutionLedgerContext
   ensureActiveOrLatestSessionId: (cardId: string) => Promise<string>
   buildPendingExecutionCallbackContext: (input: {
+    consume?: boolean
     sessionId: string
   }) => Promise<AlicizationExecutionCallbackContext>
   buildExecutionLedgerContext: (input: {

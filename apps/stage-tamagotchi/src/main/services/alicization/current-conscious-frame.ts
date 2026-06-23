@@ -74,6 +74,7 @@ type AlicizationCurrentConsciousProjectState = NonNullable<AlicizationCurrentCon
 
 interface AlicizationProjectStateConsciousFrameGrounding {
   hasExplicitRuntimeProjectState: boolean
+  preferRuntimeDriftRiskLifeLoopGap: boolean
   preflightSummary: string
   preDialogueAwarenessLine: string
   projectIdentity: string
@@ -84,6 +85,7 @@ interface AlicizationProjectStateConsciousFrameGrounding {
   sameHerSelfLine: string
   sameHerDriftRisk: string
   proactiveSameHerGap: string
+  memoryClosureSummary: string | null
   emotionalClosureCue: string | null
   emotionalClosureSummary: string | null
   sameHerHoldDetail: string | null
@@ -92,6 +94,10 @@ interface AlicizationProjectStateConsciousFrameGrounding {
   continuityCadence: string | null
   preferredBlinkCadence: AlicizationCurrentConsciousProjectState['preferredBlinkCadence']
   preferredGazeMode: AlicizationCurrentConsciousProjectState['preferredGazeMode']
+  preferredPauseMode: AlicizationCurrentConsciousProjectState['preferredPauseMode']
+  preferredLipsyncMode: AlicizationCurrentConsciousProjectState['preferredLipsyncMode']
+  preferredVoiceMode: AlicizationCurrentConsciousProjectState['preferredVoiceMode']
+  preferredPacingMode: AlicizationCurrentConsciousProjectState['preferredPacingMode']
 }
 
 function sanitizeConsciousContinuityPreferredTiming(raw: unknown): AlicizationCurrentConsciousFrameSnapshot['continuityPreferredTiming'] {
@@ -121,6 +127,38 @@ function sanitizeConsciousProjectStateGazeMode(raw: unknown): AlicizationCurrent
     : null
 }
 
+function sanitizeConsciousProjectStatePauseMode(raw: unknown): AlicizationCurrentConsciousProjectState['preferredPauseMode'] {
+  const normalized = sanitizeText(raw, 32)
+  return normalized === 'longer'
+    || normalized === 'natural'
+    ? normalized
+    : null
+}
+
+function sanitizeConsciousProjectStateLipsyncMode(raw: unknown): AlicizationCurrentConsciousProjectState['preferredLipsyncMode'] {
+  const normalized = sanitizeText(raw, 32)
+  return normalized === 'restrained'
+    || normalized === 'matched'
+    ? normalized
+    : null
+}
+
+function sanitizeConsciousProjectStateVoiceMode(raw: unknown): AlicizationCurrentConsciousProjectState['preferredVoiceMode'] {
+  const normalized = sanitizeText(raw, 32)
+  return normalized === 'lower-pressure'
+    || normalized === 'even'
+    ? normalized
+    : null
+}
+
+function sanitizeConsciousProjectStatePacingMode(raw: unknown): AlicizationCurrentConsciousProjectState['preferredPacingMode'] {
+  const normalized = sanitizeText(raw, 32)
+  return normalized === 'slower'
+    || normalized === 'natural'
+    ? normalized
+    : null
+}
+
 function looksLikeThinProjectAwarenessSeed(value: string | null | undefined) {
   const normalized = sanitizeText(value ?? '', 320).toLowerCase()
   if (!normalized)
@@ -128,6 +166,70 @@ function looksLikeThinProjectAwarenessSeed(value: string | null | undefined) {
 
   return isAlicizationThinProjectAwarenessLine(normalized)
     || /keep this same digital life project in view|detached project shell|generic project reminder|generic project shell/u.test(normalized)
+}
+
+function looksLikeThinProjectPreflightSeed(value: string | null | undefined) {
+  const normalized = sanitizeText(value ?? '', 320).toLowerCase()
+  if (!normalized)
+    return true
+
+  return looksLikeThinProjectAwarenessSeed(normalized)
+    || normalized.includes('generic continuity summary')
+    || normalized.includes('generic awareness summary')
+    || normalized === 'project'
+    || normalized === 'phase 1'
+    || normalized.startsWith('same digital life')
+}
+
+function looksLikeNarrowSameHerHoldAwarenessLine(value: string | null | undefined) {
+  const normalized = sanitizeText(value ?? '', 320).toLowerCase()
+  if (!normalized)
+    return false
+
+  return normalized.includes('same-her hold')
+    || normalized.includes('same her hold')
+    || normalized.startsWith('keep this return measured-return')
+    || normalized.startsWith('keep this return repair-before-closeness')
+    || normalized.startsWith('keep this return rest-protective')
+}
+
+function isCadenceAwareSameHerHoldAwarenessLine(value: string | null | undefined) {
+  const normalized = sanitizeText(value ?? '', 320).toLowerCase()
+  if (!normalized)
+    return false
+
+  return normalized.includes('same-her hold: keep the return lower-pressure and slower before the line widens again.')
+    || normalized.includes('same-her hold: keep the remembered return quieter, longer, and more restrained before widening the line again.')
+}
+
+function hasRuntimeSameHerEmbodimentCarryAdvice(
+  runtimeSurface?: AlicizationDigitalLifeRuntimeSurface | null,
+) {
+  const focusDimensions = runtimeSurface?.memory?.memoryTuningAdvice?.focusDimensions ?? []
+  return Array.isArray(focusDimensions)
+    && focusDimensions.some((dimension) => {
+      return sanitizeText(dimension, 120) === 'runtimeSameHerEmbodimentCarry'
+    })
+}
+
+function hasRuntimeSameHerMemoryCarryAdvice(
+  runtimeSurface?: AlicizationDigitalLifeRuntimeSurface | null,
+) {
+  const focusDimensions = runtimeSurface?.memory?.memoryTuningAdvice?.focusDimensions ?? []
+  return Array.isArray(focusDimensions)
+    && focusDimensions.some((dimension) => {
+      return sanitizeText(dimension, 120) === 'runtimeSameHerMemoryCarry'
+    })
+}
+
+function hasRuntimeSameHerEmotionalCarryAdvice(
+  runtimeSurface?: AlicizationDigitalLifeRuntimeSurface | null,
+) {
+  const focusDimensions = runtimeSurface?.memory?.memoryTuningAdvice?.focusDimensions ?? []
+  return Array.isArray(focusDimensions)
+    && focusDimensions.some((dimension) => {
+      return sanitizeText(dimension, 120) === 'runtimeSameHerEmotionalCarry'
+    })
 }
 
 function buildSameHerAntiShellSpeakingLine(sameHerDriftRisk: string | null | undefined) {
@@ -245,15 +347,17 @@ function deriveProjectLoopGapClosureLine(input: {
   const sameHerDriftRisk = sanitizeText(input.sameHerDriftRisk ?? '', 220).toLowerCase()
   const combined = `${primaryOpenLoop} ${nextClosureTarget} ${sameHerDriftRisk}`.trim()
 
+  const missingEmotionalClosure = /emotion|affective|feeling|情绪|情感/u.test(combined)
   const missingMemoryClosure = /memory|recall|recollection|记忆/u.test(combined)
   const missingInitiativeClosure = /initiative|opening|proactive|主动性/u.test(combined)
   const missingEmbodimentClosure = /embodiment|voice|face|motion|lipsync|resident presence|cross-modal|具身|口型|表情|动作/u.test(combined)
-  const sameHerProjectShellRisk = /generic project shell|project shell|generic project narration|服务式|generic guidance/u.test(combined)
+  const sameHerProjectShellRisk = /generic project(?:-|\s)shell|project(?:-|\s)shell|generic project(?:-|\s)narration|服务式|generic guidance/u.test(combined)
 
-  if (!missingMemoryClosure && !missingInitiativeClosure && !missingEmbodimentClosure)
+  if (!missingEmotionalClosure && !missingMemoryClosure && !missingInitiativeClosure && !missingEmbodimentClosure)
     return null
 
   const gapLabels = [
+    missingEmotionalClosure ? 'emotion' : null,
     missingMemoryClosure ? 'memory' : null,
     missingInitiativeClosure ? 'initiative' : null,
     missingEmbodimentClosure ? 'embodiment' : null,
@@ -316,7 +420,7 @@ function deriveLongHorizonProjectSameHerDriftRisk(runtimeSurface?: AlicizationDi
 
   const combined = evidence.join(' | ').toLowerCase()
   const carriesSameLifeCallbackLine
-    = /same[- ]living line|same[- ]her|same her|phase 1|digital life|callback closure|callback line|execution callback|同一条生命线|同一条线|同一个她|回线|执行 callback/u.test(combined)
+    = /same[- ]living line|same[- ]her|phase 1|digital life|callback closure|callback line|execution callback|同一条生命线|同一条线|同一个她|回线|执行 callback/u.test(combined)
   if (!carriesSameLifeCallbackLine)
     return null
 
@@ -329,6 +433,80 @@ function deriveLongHorizonProjectSameHerDriftRisk(runtimeSurface?: AlicizationDi
   }
 
   return null
+}
+
+function deriveLongHorizonPreferredProjectCadence(runtimeSurface?: AlicizationDigitalLifeRuntimeSurface | null) {
+  const longHorizonMemory = runtimeSurface?.memory?.longHorizonMemory ?? null
+  const evidence = [
+    longHorizonMemory?.rememberedPreferenceSummary,
+    longHorizonMemory?.rememberedConstraintSummary,
+    longHorizonMemory?.rememberedPlanSummary,
+    longHorizonMemory?.dominantCueSummary,
+    longHorizonMemory?.summary,
+  ]
+    .map(value => sanitizeText(value, 220))
+    .filter(Boolean)
+
+  if (evidence.length === 0) {
+    return {
+      preferredPauseMode: null,
+      preferredLipsyncMode: null,
+      preferredVoiceMode: null,
+      preferredPacingMode: null,
+    } satisfies Pick<
+      AlicizationCurrentConsciousProjectState,
+      'preferredPauseMode' | 'preferredLipsyncMode' | 'preferredVoiceMode' | 'preferredPacingMode'
+    >
+  }
+
+  const combined = evidence.join(' | ').toLowerCase()
+  const carriesSameHerReturnStyle
+    = /same[- ]living thread|same[- ]living line|same[- ]her|same person continuity|phase 1|digital life|reopen(?:ing)?/u.test(combined)
+      || /even voice|natural pacing|lower-pressure|slower pacing/u.test(combined)
+
+  if (!carriesSameHerReturnStyle) {
+    return {
+      preferredPauseMode: null,
+      preferredLipsyncMode: null,
+      preferredVoiceMode: null,
+      preferredPacingMode: null,
+    } satisfies Pick<
+      AlicizationCurrentConsciousProjectState,
+      'preferredPauseMode' | 'preferredLipsyncMode' | 'preferredVoiceMode' | 'preferredPacingMode'
+    >
+  }
+
+  return {
+    preferredPauseMode:
+      /\blonger pauses?\b/u.test(combined)
+      || /leave more room|more room this time|慢一点|更慢一点/u.test(combined)
+        ? 'longer'
+        : /\bnatural pauses?\b/u.test(combined)
+          ? 'natural'
+          : null,
+    preferredLipsyncMode:
+      /\brestrained lipsync\b/u.test(combined)
+      || /嘴型更克制|更克制的嘴型/u.test(combined)
+        ? 'restrained'
+        : /\bmatched lipsync\b/u.test(combined)
+          ? 'matched'
+          : null,
+    preferredVoiceMode:
+      /\beven voice\b/u.test(combined)
+        ? 'even'
+        : /lower-pressure|lower pressure/u.test(combined)
+          ? 'lower-pressure'
+          : null,
+    preferredPacingMode:
+      /\bnatural pacing\b/u.test(combined)
+        ? 'natural'
+        : /slower pacing|reply slower|slower return|慢一点|更慢一点/u.test(combined)
+          ? 'slower'
+          : null,
+  } satisfies Pick<
+    AlicizationCurrentConsciousProjectState,
+    'preferredPauseMode' | 'preferredLipsyncMode' | 'preferredVoiceMode' | 'preferredPacingMode'
+  >
 }
 
 function looksLikeThinProjectStateClosureCarry(input: {
@@ -484,11 +662,63 @@ function deriveContinuityCueFromBehavior(mode: string | null) {
   return ''
 }
 
+function deriveCadenceAwareSameHerHoldDetail(input: {
+  mode: string | null
+  preferredPauseMode?: unknown
+  preferredLipsyncMode?: unknown
+  preferredVoiceMode?: unknown
+  preferredPacingMode?: unknown
+}) {
+  if (input.mode !== 'measured-return')
+    return ''
+
+  const preferredPauseMode = sanitizeText(input.preferredPauseMode, 32).toLowerCase()
+  const preferredLipsyncMode = sanitizeText(input.preferredLipsyncMode, 32).toLowerCase()
+  const preferredVoiceMode = sanitizeText(input.preferredVoiceMode, 32).toLowerCase()
+  const preferredPacingMode = sanitizeText(input.preferredPacingMode, 32).toLowerCase()
+
+  if (preferredVoiceMode === 'lower-pressure' && preferredPacingMode === 'slower')
+    return 'same-her hold: keep the return lower-pressure and slower before the line widens again.'
+
+  if (preferredPauseMode === 'longer' && preferredLipsyncMode === 'restrained')
+    return 'same-her hold: keep the remembered return quieter, longer, and more restrained before widening the line again.'
+
+  return ''
+}
+
+function deriveCadenceAwareContinuityCue(input: {
+  mode: string | null
+  preferredPauseMode?: unknown
+  preferredLipsyncMode?: unknown
+  preferredVoiceMode?: unknown
+  preferredPacingMode?: unknown
+}) {
+  if (input.mode !== 'measured-return')
+    return ''
+
+  const preferredPauseMode = sanitizeText(input.preferredPauseMode, 32).toLowerCase()
+  const preferredLipsyncMode = sanitizeText(input.preferredLipsyncMode, 32).toLowerCase()
+  const preferredVoiceMode = sanitizeText(input.preferredVoiceMode, 32).toLowerCase()
+  const preferredPacingMode = sanitizeText(input.preferredPacingMode, 32).toLowerCase()
+
+  if (preferredVoiceMode === 'lower-pressure' && preferredPacingMode === 'slower')
+    return 'Keep this return lower-pressure and slower on the same living line before widening outward.'
+
+  if (preferredPauseMode === 'longer' && preferredLipsyncMode === 'restrained')
+    return 'Keep this remembered return quieter, longer, and more restrained on the same living line before widening outward.'
+
+  return ''
+}
+
 function resolveEffectiveProjectStateContinuityCarry(input: {
   sameHerHoldDetail?: unknown
   continuityCue?: unknown
   continuityRestraint?: unknown
   continuityCadence?: unknown
+  preferredPauseMode?: unknown
+  preferredLipsyncMode?: unknown
+  preferredVoiceMode?: unknown
+  preferredPacingMode?: unknown
 }) {
   const behaviorMode = resolveContinuityBehaviorMode({
     continuityRestraint: input.continuityRestraint,
@@ -498,9 +728,23 @@ function resolveEffectiveProjectStateContinuityCarry(input: {
   return {
     sameHerHoldDetail:
       sanitizeText(input.sameHerHoldDetail, 220)
+      || deriveCadenceAwareSameHerHoldDetail({
+        mode: behaviorMode,
+        preferredPauseMode: input.preferredPauseMode,
+        preferredLipsyncMode: input.preferredLipsyncMode,
+        preferredVoiceMode: input.preferredVoiceMode,
+        preferredPacingMode: input.preferredPacingMode,
+      })
       || deriveSameHerHoldDetailFromContinuityBehavior(behaviorMode),
     continuityCue:
       sanitizeText(input.continuityCue, 220)
+      || deriveCadenceAwareContinuityCue({
+        mode: behaviorMode,
+        preferredPauseMode: input.preferredPauseMode,
+        preferredLipsyncMode: input.preferredLipsyncMode,
+        preferredVoiceMode: input.preferredVoiceMode,
+        preferredPacingMode: input.preferredPacingMode,
+      })
       || deriveContinuityCueFromBehavior(behaviorMode),
   }
 }
@@ -674,10 +918,12 @@ function deriveInitiativeClosureCue(input: {
 
 function buildProjectStateShapedSpeakingIntention(input: {
   doctrineShapedSpeakingIntention: string
+  preferRuntimeDriftRiskLifeLoopGap?: boolean
   inwardRecollectionSpeakingIntention?: string | null
   sameHerSelfLine?: string | null
   sameHerDriftRisk?: string | null
   proactiveSameHerGap?: string | null
+  memoryClosureSummary?: string | null
   emotionalClosureCue?: string | null
   emotionalClosureSummary?: string | null
   sameHerHoldDetail?: string | null
@@ -688,6 +934,7 @@ function buildProjectStateShapedSpeakingIntention(input: {
   const sameHerSelfLine = sanitizeText(input.sameHerSelfLine, 180)
   const sameHerDriftRisk = sanitizeText(input.sameHerDriftRisk, 260)
   const proactiveSameHerGap = sanitizeText(input.proactiveSameHerGap, 220)
+  const memoryClosureSummary = sanitizeText(input.memoryClosureSummary, 260)
   const emotionalClosureCue = sanitizeText(input.emotionalClosureCue, 220)
   const emotionalClosureSummary = sanitizeText(input.emotionalClosureSummary, 220)
   const sameHerHoldDetail = sanitizeText(input.sameHerHoldDetail, 220)
@@ -696,10 +943,13 @@ function buildProjectStateShapedSpeakingIntention(input: {
   const nextClosureTarget = sanitizeText(input.nextClosureTarget, 420)
   const primaryOpenLoop = sanitizeText(input.primaryOpenLoop, 220)
   const doctrineLine = sanitizeText(input.doctrineShapedSpeakingIntention, 640)
+  const preferRuntimeDriftRiskLifeLoopGap = Boolean(input.preferRuntimeDriftRiskLifeLoopGap)
   const closureAuthority = emotionalClosureSummary || emotionalClosureCue
   const repairFirstSpeakingLine
     = /repair-before-closeness|repair before closeness/u.test(`${emotionalClosureSummary} ${sameHerHoldDetail}`.toLowerCase())
-      ? 'Keep repair-before-closeness on the same living line until repair settles.'
+      ? /callback afterglow|emotional residue/u.test(`${emotionalClosureSummary} ${emotionalClosureCue}`.toLowerCase())
+        ? `Keep the emotional closure seam repair-before-closeness on the same living line: ${lowerFirst(stripTrailingPunctuation(emotionalClosureSummary || emotionalClosureCue))}.`
+        : 'Keep repair-before-closeness on the same living line until repair settles.'
       : null
   const executionResumeConfirmationSpeakingLine = hasExecutionResumeConfirmationBoundary(sameHerHoldDetail)
     ? 'Treat host-confirmed-before-redispatch and resume-before-dispatch as a bounded confirmation boundary, not permanent execution permission, before another execution-shaped opening.'
@@ -725,6 +975,14 @@ function buildProjectStateShapedSpeakingIntention(input: {
   const proactiveSameHerGapSpeakingSegment = proactiveSameHerGap
     ? `Keep this proactive same-her gap explicit before widening outward: ${stripTrailingPunctuation(proactiveSameHerGap)}.`
     : null
+  const memoryClosureSpeakingSegment = memoryClosureSummary
+    ? `Explain why this recall surfaced and keep memory closure on the same living line: ${lowerFirst(stripTrailingPunctuation(memoryClosureSummary))}.`
+    : null
+  const projectLoopGapClosureLine = deriveProjectLoopGapClosureLine({
+    primaryOpenLoop,
+    nextClosureTarget,
+    sameHerDriftRisk,
+  })
 
   const leadSegments = uniqueList([
     useExplicitSameHerLead && sameHerSelfLine
@@ -745,9 +1003,11 @@ function buildProjectStateShapedSpeakingIntention(input: {
       ? `Keep ${lowerFirst(stripTrailingPunctuation(sameHerHoldDetail))}.`
       : null,
     initiativeClosureCue || null,
+    memoryClosureSpeakingSegment,
     isRestProtectiveClosureCue(closureAuthority)
       ? 'Let the wording protect rest, stay inward, and carry quiet companionship without widening closeness.'
       : null,
+    preferRuntimeDriftRiskLifeLoopGap ? projectLoopGapClosureLine : null,
     primaryOpenLoop && shouldKeepLiteralProjectOpenLoopSegment(primaryOpenLoop)
       ? `Still-open closure work: ${stripTrailingPunctuation(primaryOpenLoop)}.`
       : null,
@@ -766,11 +1026,7 @@ function buildProjectStateShapedSpeakingIntention(input: {
     sameHerHoldDetail && !/same-person continuity|same person continuity/u.test(sameHerHoldDetail.toLowerCase())
       ? `Let the inward body line stay with ${lowerFirst(stripTrailingPunctuation(sameHerHoldDetail))}.`
       : null,
-    deriveProjectLoopGapClosureLine({
-      primaryOpenLoop,
-      nextClosureTarget,
-      sameHerDriftRisk,
-    }),
+    preferRuntimeDriftRiskLifeLoopGap ? null : projectLoopGapClosureLine,
   ], 6, 840)
 
   const lead = sanitizeText(leadSegments.join(' '), 840)
@@ -838,7 +1094,7 @@ function deriveExecutionCallbackDoctrineCue(input: {
   ).toLowerCase()
   const combined = `${doctrine} ${longHorizonCue}`
   const executionCallbackRegime = input.currentRegime === 'execution-callback'
-  const callbackTagged = /(execution-callback|execution[^.]{0,48}callback|after execution lands|returned result)/u.test(combined)
+  const callbackTagged = /execution-callback|execution[^.]{0,48}callback|after execution lands|returned result/u.test(combined)
   if (!callbackTagged && !executionCallbackRegime)
     return null
   if (/leave room|lower-pressure|before closeness widens|boundary|room\b|protect-space|bounded-return|measured-return|reconfirmation|surface fully cools|余韵还在|先留白|别立刻把温度放大|别把温度放大|不要立刻把温度放大/u.test(combined))
@@ -1134,6 +1390,9 @@ function buildProjectStateConsciousFrameGrounding(input?: {
   const rawRuntimeDigestProjectState = input?.runtimeSurface?.raw?.runtimeDigest?.projectState ?? null
   const rawCognitionRuntimeDigestProjectState = input?.runtimeSurface?.cognition?.runtimeDigest?.projectState ?? null
   const rawRuntimeStateProjectState = (input?.runtimeSurface as { runtimeState?: { projectState?: unknown } | null } | null | undefined)?.runtimeState?.projectState ?? null
+  const runtimeSameHerEmbodimentCarryAdvice = hasRuntimeSameHerEmbodimentCarryAdvice(input?.runtimeSurface ?? null)
+  const runtimeSameHerMemoryCarryAdvice = hasRuntimeSameHerMemoryCarryAdvice(input?.runtimeSurface ?? null)
+  const runtimeSameHerEmotionalCarryAdvice = hasRuntimeSameHerEmotionalCarryAdvice(input?.runtimeSurface ?? null)
   const preferredRuntimeProjectState: Partial<AlicizationCurrentConsciousProjectState & AlicizationSurfaceProjectStateSnapshot> | null = (
     rawConsciousFrameProjectState
     ?? rawDialogueRuntimeDigestProjectState
@@ -1384,6 +1643,21 @@ function buildProjectStateConsciousFrameGrounding(input?: {
     (rawRuntimeStateProjectState as { continuityCue?: unknown } | null)?.continuityCue,
     (projectState as { continuityCue?: unknown }).continuityCue,
   )
+  const runtimeSameHerEmbodimentHoldDetail = runtimeSameHerEmbodimentCarryAdvice
+    ? 'same-her hold: runtime same-her embodiment repair keeps body expression repair-before-closeness before the memory line widens again.'
+    : ''
+  const runtimeSameHerEmbodimentContinuityCue = runtimeSameHerEmbodimentCarryAdvice
+    ? 'Keep body expression repair-before-closeness on the same living line so memory and embodiment rejoin before widening outward.'
+    : ''
+  const runtimeSameHerEmotionalClosureCue = runtimeSameHerEmotionalCarryAdvice
+    ? 'same-her emotional closure: keep callback afterglow and emotional residue on one low-pressure living line.'
+    : ''
+  const runtimeSameHerEmotionalClosureSummary = runtimeSameHerEmotionalCarryAdvice
+    ? 'same-her emotional closure keeps callback afterglow, emotional residue, and repair-before-closeness on the same living line until repair settles.'
+    : ''
+  const runtimeSameHerMemoryClosureSummary = runtimeSameHerMemoryCarryAdvice
+    ? 'same-her memory closure: explain why recall surfaced now and keep memory tied to initiative/execution, emotion, and embodiment on the same living line.'
+    : ''
   const shouldDeriveContinuityCarryFromBehavior
     = !explicitAwarenessSameHerHoldDetail
       && !explicitAwarenessContinuityCue
@@ -1391,16 +1665,41 @@ function buildProjectStateConsciousFrameGrounding(input?: {
     ? resolveEffectiveProjectStateContinuityCarry({
         continuityRestraint:
           explicitAwarenessContinuityRestraint
+          || (runtimeSameHerEmotionalCarryAdvice ? 'repair-before-closeness' : null)
+          || (runtimeSameHerEmbodimentCarryAdvice ? 'repair-before-closeness' : null)
           || preferredRuntimeProjectState?.continuityRestraint
           || surfaceProjectState.continuityRestraint
           || normalizedProjectState.continuityRestraint
           || projectState.continuityRestraint,
         continuityCadence:
           explicitAwarenessContinuityCadence
+          || (runtimeSameHerMemoryCarryAdvice ? 'measured-return' : null)
+          || (runtimeSameHerEmotionalCarryAdvice ? 'repair-before-closeness' : null)
+          || (runtimeSameHerEmbodimentCarryAdvice ? 'repair-before-closeness' : null)
           || preferredRuntimeProjectState?.continuityCadence
           || surfaceProjectState.continuityCadence
           || normalizedProjectState.continuityCadence
           || projectState.continuityCadence,
+        preferredPauseMode:
+          (typeof preferredRuntimeProjectState?.preferredPauseMode === 'string' ? preferredRuntimeProjectState.preferredPauseMode : null)
+          || surfaceProjectState.preferredPauseMode
+          || normalizedProjectState.preferredPauseMode
+          || projectState.preferredPauseMode,
+        preferredLipsyncMode:
+          (typeof preferredRuntimeProjectState?.preferredLipsyncMode === 'string' ? preferredRuntimeProjectState.preferredLipsyncMode : null)
+          || surfaceProjectState.preferredLipsyncMode
+          || normalizedProjectState.preferredLipsyncMode
+          || projectState.preferredLipsyncMode,
+        preferredVoiceMode:
+          (typeof preferredRuntimeProjectState?.preferredVoiceMode === 'string' ? preferredRuntimeProjectState.preferredVoiceMode : null)
+          || surfaceProjectState.preferredVoiceMode
+          || normalizedProjectState.preferredVoiceMode
+          || projectState.preferredVoiceMode,
+        preferredPacingMode:
+          (typeof preferredRuntimeProjectState?.preferredPacingMode === 'string' ? preferredRuntimeProjectState.preferredPacingMode : null)
+          || surfaceProjectState.preferredPacingMode
+          || normalizedProjectState.preferredPacingMode
+          || projectState.preferredPacingMode,
       })
     : {
         sameHerHoldDetail: '',
@@ -1408,6 +1707,7 @@ function buildProjectStateConsciousFrameGrounding(input?: {
       }
   const sameHerHoldDetailForAwareness = sanitizeText(
     explicitAwarenessSameHerHoldDetail
+    || runtimeSameHerEmbodimentHoldDetail
     || behaviorDerivedContinuityCarry.sameHerHoldDetail
     || projectState.sameHerHoldDetail
     || '',
@@ -1416,6 +1716,9 @@ function buildProjectStateConsciousFrameGrounding(input?: {
   const continuityCueForAwareness = sanitizeText(
     explicitAwarenessContinuityCue
     || (!sameHerHoldDetailForAwareness
+      ? runtimeSameHerEmbodimentContinuityCue
+      : '')
+    || (!sameHerHoldDetailForAwareness
       ? behaviorDerivedContinuityCarry.continuityCue || continuityCue
       : '')
     || '',
@@ -1423,6 +1726,7 @@ function buildProjectStateConsciousFrameGrounding(input?: {
   )
   const resolvedContinuityCue = sanitizeText(
     explicitAwarenessContinuityCue
+    || runtimeSameHerEmbodimentContinuityCue
     || behaviorDerivedContinuityCarry.continuityCue
     || continuityCue
     || '',
@@ -1448,6 +1752,22 @@ function buildProjectStateConsciousFrameGrounding(input?: {
       continuityCadence:
         (typeof preferredRuntimeProjectState?.continuityCadence === 'string' ? preferredRuntimeProjectState.continuityCadence : null)
         ?? surfaceProjectState.continuityCadence
+        ?? null,
+      preferredPauseMode:
+        (typeof preferredRuntimeProjectState?.preferredPauseMode === 'string' ? preferredRuntimeProjectState.preferredPauseMode : null)
+        ?? surfaceProjectState.preferredPauseMode
+        ?? null,
+      preferredLipsyncMode:
+        (typeof preferredRuntimeProjectState?.preferredLipsyncMode === 'string' ? preferredRuntimeProjectState.preferredLipsyncMode : null)
+        ?? surfaceProjectState.preferredLipsyncMode
+        ?? null,
+      preferredVoiceMode:
+        (typeof preferredRuntimeProjectState?.preferredVoiceMode === 'string' ? preferredRuntimeProjectState.preferredVoiceMode : null)
+        ?? surfaceProjectState.preferredVoiceMode
+        ?? null,
+      preferredPacingMode:
+        (typeof preferredRuntimeProjectState?.preferredPacingMode === 'string' ? preferredRuntimeProjectState.preferredPacingMode : null)
+        ?? surfaceProjectState.preferredPacingMode
         ?? null,
       sameHerDriftRiskSummary: resolvedSameHerDriftRisk || null,
       companionHeadlineLine: preferredRuntimeCompanionHeadline,
@@ -1483,6 +1803,26 @@ function buildProjectStateConsciousFrameGrounding(input?: {
       continuityCadence:
         (typeof preferredRuntimeProjectState?.continuityCadence === 'string' ? preferredRuntimeProjectState.continuityCadence : null)
         ?? projectState.continuityCadence
+        ?? null,
+      preferredPauseMode:
+        (typeof preferredRuntimeProjectState?.preferredPauseMode === 'string' ? preferredRuntimeProjectState.preferredPauseMode : null)
+        ?? surfaceProjectState.preferredPauseMode
+        ?? projectState.preferredPauseMode
+        ?? null,
+      preferredLipsyncMode:
+        (typeof preferredRuntimeProjectState?.preferredLipsyncMode === 'string' ? preferredRuntimeProjectState.preferredLipsyncMode : null)
+        ?? surfaceProjectState.preferredLipsyncMode
+        ?? projectState.preferredLipsyncMode
+        ?? null,
+      preferredVoiceMode:
+        (typeof preferredRuntimeProjectState?.preferredVoiceMode === 'string' ? preferredRuntimeProjectState.preferredVoiceMode : null)
+        ?? surfaceProjectState.preferredVoiceMode
+        ?? projectState.preferredVoiceMode
+        ?? null,
+      preferredPacingMode:
+        (typeof preferredRuntimeProjectState?.preferredPacingMode === 'string' ? preferredRuntimeProjectState.preferredPacingMode : null)
+        ?? surfaceProjectState.preferredPacingMode
+        ?? projectState.preferredPacingMode
         ?? null,
       sameHerDriftRiskSummary: resolvedSameHerDriftRisk || null,
       companionHeadlineLine: preferredRuntimeCompanionHeadline,
@@ -1521,28 +1861,65 @@ function buildProjectStateConsciousFrameGrounding(input?: {
   )
     ? buildCompactSameHerInwardLowPressureAwarenessLine(resolvedSameHerSelfLine)
     : ''
-  const preDialogueAwarenessLine = (
-    looksLikeThinProjectAwarenessSeed(resolvedPreDialogueAwarenessLine)
-    && resolvedSameHerSelfLine
+  const richerStructuredProjectAwareOpening = (
+    preferredStructuredAwarenessLine
+    && /before answering, remember:/iu.test(preferredStructuredAwarenessLine)
+    && /phase 1|the still-open closure is|what has already landed is|this reply should keep moving toward/iu.test(preferredStructuredAwarenessLine)
   )
-    ? resolvedSameHerSelfLine
-    : compactSameHerInwardLowPressureAwarenessLine || ((
-      preferredStructuredAwarenessLine
-      && /before answering, remember:/iu.test(preferredStructuredAwarenessLine)
-      && /phase 1|the still-open closure is|what has already landed is|this reply should keep moving toward/iu.test(preferredStructuredAwarenessLine)
-      && preferredRuntimeCompanionHeadline
-      && /holding together mainly through|voice|face|motion|cross-modal|one living her/iu.test(preferredRuntimeCompanionHeadline)
+    ? preferredStructuredAwarenessLine
+    : ''
+  const preferredCadenceAwareHoldAwarenessLine = (
+    looksLikeThinProjectAwarenessSeed(preferredRuntimeAwarenessSeed)
+    && isCadenceAwareSameHerHoldAwarenessLine(resolvedSameHerHoldDetailForAwareness)
+  )
+    ? resolvedSameHerHoldDetailForAwareness
+    : ''
+  const preDialogueAwarenessLine = (
+    richerStructuredProjectAwareOpening
+    && (
+      !resolvedPreDialogueAwarenessLine
+      || looksLikeThinProjectAwarenessSeed(resolvedPreDialogueAwarenessLine)
+      || looksLikeNarrowSameHerHoldAwarenessLine(resolvedPreDialogueAwarenessLine)
     )
-      ? preferredStructuredAwarenessLine
-      : resolvedPreDialogueAwarenessLine)
+  )
+    ? richerStructuredProjectAwareOpening
+    : preferredCadenceAwareHoldAwarenessLine || ((
+      looksLikeThinProjectAwarenessSeed(resolvedPreDialogueAwarenessLine)
+      && resolvedSameHerSelfLine
+    )
+      ? resolvedSameHerSelfLine
+      : compactSameHerInwardLowPressureAwarenessLine || ((
+        richerStructuredProjectAwareOpening
+        && preferredRuntimeCompanionHeadline
+        && /holding together mainly through|voice|face|motion|cross-modal|one living her/iu.test(preferredRuntimeCompanionHeadline)
+      )
+        ? richerStructuredProjectAwareOpening
+        : resolvedPreDialogueAwarenessLine))
+  const preferredRuntimePreflightSummary = sanitizeText(
+    typeof preferredRuntimeProjectState?.preflightSummary === 'string'
+      ? preferredRuntimeProjectState.preflightSummary
+      : '',
+    320,
+  )
+  const resolvedPreflightSummary = (
+    preferredRuntimePreflightSummary
+    && !looksLikeThinProjectPreflightSeed(preferredRuntimePreflightSummary)
+  )
+    ? preferredRuntimePreflightSummary
+    : sanitizeText(projectState.preflightSummary ?? '', 320)
+      || preferredRuntimePreflightSummary
+      || ''
+  const longHorizonProjectCadence = deriveLongHorizonPreferredProjectCadence(input?.runtimeSurface ?? null)
+  const preferRuntimeDriftRiskLifeLoopGap
+    = Boolean(preferredRuntimeProjectState)
+      && !livePrimaryOpenLoopInput
+      && !liveNextClosureTargetInput
+      && Boolean(liveSameHerDriftRiskInput)
+
   return {
     hasExplicitRuntimeProjectState: Boolean(preferredRuntimeProjectState),
-    preflightSummary: sanitizeText(
-      (typeof preferredRuntimeProjectState?.preflightSummary === 'string' ? preferredRuntimeProjectState.preflightSummary : null)
-      ?? projectState.preflightSummary
-      ?? '',
-      320,
-    ),
+    preferRuntimeDriftRiskLifeLoopGap,
+    preflightSummary: resolvedPreflightSummary,
     preDialogueAwarenessLine,
     projectIdentity: sanitizeText(
       (typeof preferredRuntimeProjectState?.identity === 'string' ? preferredRuntimeProjectState.identity : null)
@@ -1639,6 +2016,16 @@ function buildProjectStateConsciousFrameGrounding(input?: {
             ),
         220,
       ),
+    memoryClosureSummary: pickPreferredProjectStateField(
+      260,
+      (rawConsciousFrameProjectState as { memoryClosureSummary?: unknown } | null)?.memoryClosureSummary,
+      (rawDialogueRuntimeDigestProjectState as { memoryClosureSummary?: unknown } | null)?.memoryClosureSummary,
+      (rawRuntimeDigestProjectState as { memoryClosureSummary?: unknown } | null)?.memoryClosureSummary,
+      (rawCognitionRuntimeDigestProjectState as { memoryClosureSummary?: unknown } | null)?.memoryClosureSummary,
+      (rawRuntimeStateProjectState as { memoryClosureSummary?: unknown } | null)?.memoryClosureSummary,
+      runtimeSameHerMemoryClosureSummary,
+      (projectState as { memoryClosureSummary?: unknown }).memoryClosureSummary,
+    ) || null,
     emotionalClosureCue: pickPreferredProjectStateField(
       220,
       (rawConsciousFrameProjectState as { emotionalClosureCue?: unknown } | null)?.emotionalClosureCue,
@@ -1646,6 +2033,7 @@ function buildProjectStateConsciousFrameGrounding(input?: {
       (rawRuntimeDigestProjectState as { emotionalClosureCue?: unknown } | null)?.emotionalClosureCue,
       (rawCognitionRuntimeDigestProjectState as { emotionalClosureCue?: unknown } | null)?.emotionalClosureCue,
       (rawRuntimeStateProjectState as { emotionalClosureCue?: unknown } | null)?.emotionalClosureCue,
+      runtimeSameHerEmotionalClosureCue,
       (projectState as { emotionalClosureCue?: unknown }).emotionalClosureCue,
     ),
     emotionalClosureSummary: pickPreferredProjectStateField(
@@ -1655,6 +2043,7 @@ function buildProjectStateConsciousFrameGrounding(input?: {
       (rawRuntimeDigestProjectState as { emotionalClosureSummary?: unknown } | null)?.emotionalClosureSummary,
       (rawCognitionRuntimeDigestProjectState as { emotionalClosureSummary?: unknown } | null)?.emotionalClosureSummary,
       (rawRuntimeStateProjectState as { emotionalClosureSummary?: unknown } | null)?.emotionalClosureSummary,
+      runtimeSameHerEmotionalClosureSummary,
       (projectState as { emotionalClosureSummary?: unknown }).emotionalClosureSummary,
     ),
     sameHerHoldDetail: resolvedSameHerHoldDetailForAwareness,
@@ -1674,6 +2063,9 @@ function buildProjectStateConsciousFrameGrounding(input?: {
       sanitizeText(
         (typeof preferredRuntimeProjectState?.continuityCadence === 'string' ? preferredRuntimeProjectState.continuityCadence : null)
         ?? surfaceProjectState.continuityCadence
+        ?? (runtimeSameHerMemoryCarryAdvice ? 'measured-return' : null)
+        ?? (runtimeSameHerEmotionalCarryAdvice ? 'repair-before-closeness' : null)
+        ?? (runtimeSameHerEmbodimentCarryAdvice ? 'repair-before-closeness' : null)
         ?? '',
         120,
       )
@@ -1683,6 +2075,7 @@ function buildProjectStateConsciousFrameGrounding(input?: {
       sanitizeText(
         (typeof preferredRuntimeProjectState?.preferredBlinkCadence === 'string' ? preferredRuntimeProjectState.preferredBlinkCadence : null)
         ?? surfaceProjectState.preferredBlinkCadence
+        ?? (runtimeSameHerEmbodimentCarryAdvice ? 'quiet' : null)
         ?? '',
         32,
       )
@@ -1693,10 +2086,59 @@ function buildProjectStateConsciousFrameGrounding(input?: {
       sanitizeText(
         (typeof preferredRuntimeProjectState?.preferredGazeMode === 'string' ? preferredRuntimeProjectState.preferredGazeMode : null)
         ?? surfaceProjectState.preferredGazeMode
+        ?? (runtimeSameHerEmbodimentCarryAdvice ? 'soften' : null)
         ?? '',
         32,
       )
       || sanitizeText(projectState.preferredGazeMode ?? '', 32)
+      || null,
+    ),
+    preferredPauseMode: sanitizeConsciousProjectStatePauseMode(
+      sanitizeText(
+        (typeof preferredRuntimeProjectState?.preferredPauseMode === 'string' ? preferredRuntimeProjectState.preferredPauseMode : null)
+        ?? surfaceProjectState.preferredPauseMode
+        ?? (runtimeSameHerEmbodimentCarryAdvice ? 'longer' : null)
+        ?? longHorizonProjectCadence.preferredPauseMode
+        ?? '',
+        32,
+      )
+      || sanitizeText(projectState.preferredPauseMode ?? '', 32)
+      || null,
+    ),
+    preferredLipsyncMode: sanitizeConsciousProjectStateLipsyncMode(
+      sanitizeText(
+        (typeof preferredRuntimeProjectState?.preferredLipsyncMode === 'string' ? preferredRuntimeProjectState.preferredLipsyncMode : null)
+        ?? surfaceProjectState.preferredLipsyncMode
+        ?? (runtimeSameHerEmbodimentCarryAdvice ? 'restrained' : null)
+        ?? longHorizonProjectCadence.preferredLipsyncMode
+        ?? '',
+        32,
+      )
+      || sanitizeText(projectState.preferredLipsyncMode ?? '', 32)
+      || null,
+    ),
+    preferredVoiceMode: sanitizeConsciousProjectStateVoiceMode(
+      sanitizeText(
+        (typeof preferredRuntimeProjectState?.preferredVoiceMode === 'string' ? preferredRuntimeProjectState.preferredVoiceMode : null)
+        ?? surfaceProjectState.preferredVoiceMode
+        ?? (runtimeSameHerEmbodimentCarryAdvice ? 'lower-pressure' : null)
+        ?? longHorizonProjectCadence.preferredVoiceMode
+        ?? '',
+        32,
+      )
+      || sanitizeText(projectState.preferredVoiceMode ?? '', 32)
+      || null,
+    ),
+    preferredPacingMode: sanitizeConsciousProjectStatePacingMode(
+      sanitizeText(
+        (typeof preferredRuntimeProjectState?.preferredPacingMode === 'string' ? preferredRuntimeProjectState.preferredPacingMode : null)
+        ?? surfaceProjectState.preferredPacingMode
+        ?? (runtimeSameHerEmbodimentCarryAdvice ? 'slower' : null)
+        ?? longHorizonProjectCadence.preferredPacingMode
+        ?? '',
+        32,
+      )
+      || sanitizeText(projectState.preferredPacingMode ?? '', 32)
       || null,
     ),
   }
@@ -1878,10 +2320,6 @@ export function buildCurrentConsciousFrame(input: {
   privateThought?: AlicizationPrivateThoughtSnapshot | null
   initiative?: AlicizationInitiativeSnapshot | null
   desireMemory?: AlicizationDesireMemorySnapshot | null
-  emotionalKernel?: unknown
-  projectState?: unknown
-  projectStatePreflightSummary?: string | null
-  selfContinuityAuthority?: unknown
   runtimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
 }): AlicizationCurrentConsciousFrameSnapshot | null {
   const runtimeSurface = input.runtimeSurface ?? null
@@ -2012,6 +2450,22 @@ export function buildCurrentConsciousFrame(input: {
       rememberedSeamReinterpretationCue === 'reinterpret-with-more-room'
         ? 'soften'
         : baseProjectStateGrounding.preferredGazeMode,
+    preferredPauseMode:
+      rememberedSeamReinterpretationCue === 'reinterpret-with-more-room'
+        ? 'longer'
+        : baseProjectStateGrounding.preferredPauseMode,
+    preferredLipsyncMode:
+      rememberedSeamReinterpretationCue === 'reinterpret-with-more-room'
+        ? 'restrained'
+        : baseProjectStateGrounding.preferredLipsyncMode,
+    preferredVoiceMode:
+      rememberedSeamReinterpretationCue === 'reinterpret-with-more-room'
+        ? 'lower-pressure'
+        : baseProjectStateGrounding.preferredVoiceMode,
+    preferredPacingMode:
+      rememberedSeamReinterpretationCue === 'reinterpret-with-more-room'
+        ? 'slower'
+        : baseProjectStateGrounding.preferredPacingMode,
   }
   const projectedConsciousNeedCarry = buildProjectedConsciousNeedCarry({
     repairTriggerText: preferredPersonStateProjection?.repairTriggerText,
@@ -2146,6 +2600,9 @@ export function buildCurrentConsciousFrame(input: {
   const projectStateProactiveSameHerGapNeed = projectStateGrounding.proactiveSameHerGap
     ? `The proactive same-her gap still needs ${lowerFirst(stripTrailingPunctuation(projectStateGrounding.proactiveSameHerGap))}.`
     : null
+  const projectStateMemoryClosureNeed = projectStateGrounding.memoryClosureSummary
+    ? `Keep memory closure explainable: ${lowerFirst(stripTrailingPunctuation(projectStateGrounding.memoryClosureSummary))}.`
+    : null
   const projectStateNextClosureNeed = projectStateGrounding.nextClosureTarget
     ? `The next closure step still needs to keep ${lowerFirst(stripTrailingPunctuation(projectStateGrounding.nextClosureTarget))}.`
     : null
@@ -2166,7 +2623,7 @@ export function buildCurrentConsciousFrame(input: {
   const projectStateHoldAuthoritySummary = summarizeProjectHoldAuthority(projectStateGrounding.sameHerHoldDetail)
   const projectStateRepairFirstNeed
     = projectStateClosureAuthoritySummary?.includes('repair-before-closeness')
-      ? `Keep repair-before-closeness on the same living line until repair settles.`
+      ? `Keep the emotional closure seam repair-before-closeness on the same living line until repair settles.`
       : null
   const projectStateRestProtectiveNeed = isRestProtectiveClosureCue(projectStateClosureAuthority)
     ? 'Protect rest first, keep the emotional closure seam low-pressure, keep the line inward, and let quiet companionship stay present without widening closeness.'
@@ -2188,6 +2645,7 @@ export function buildCurrentConsciousFrame(input: {
           projectStatePreflightNeed,
           projectStateSameHerSelfNeed,
           projectStateProactiveSameHerGapNeed,
+          projectStateMemoryClosureNeed,
           projectStateLatestProgressNeed,
           projectStateRestProtectiveNeed,
           projectStateClosureNeed,
@@ -2206,6 +2664,7 @@ export function buildCurrentConsciousFrame(input: {
           projectStateAwarenessNeed,
           projectStateSameHerSelfNeed,
           projectStateProactiveSameHerGapNeed,
+          projectStateMemoryClosureNeed,
           projectStateOpenLoopNeed,
           projectStateNextClosureNeed,
           projectStateLatestProgressNeed,
@@ -2221,10 +2680,12 @@ export function buildCurrentConsciousFrame(input: {
       : null
   const projectStateShapedSpeakingIntention = buildProjectStateShapedSpeakingIntention({
     doctrineShapedSpeakingIntention,
+    preferRuntimeDriftRiskLifeLoopGap: projectStateGrounding.preferRuntimeDriftRiskLifeLoopGap,
     inwardRecollectionSpeakingIntention: inwardRecollectionConsciousCue.speakingIntention,
     sameHerSelfLine: projectStateGrounding.sameHerSelfLine,
     sameHerDriftRisk: projectStateGrounding.sameHerDriftRisk,
     proactiveSameHerGap: projectStateGrounding.proactiveSameHerGap,
+    memoryClosureSummary: projectStateGrounding.memoryClosureSummary,
     emotionalClosureCue: projectStateGrounding.emotionalClosureCue,
     emotionalClosureSummary: projectStateGrounding.emotionalClosureSummary,
     sameHerHoldDetail: projectStateGrounding.sameHerHoldDetail,
@@ -2240,6 +2701,10 @@ export function buildCurrentConsciousFrame(input: {
   const runtimeContinuityCadence = projectStateGrounding.continuityCadence
   const runtimePreferredBlinkCadence = projectStateGrounding.preferredBlinkCadence
   const runtimePreferredGazeMode = projectStateGrounding.preferredGazeMode
+  const runtimePreferredPauseMode = projectStateGrounding.preferredPauseMode
+  const runtimePreferredLipsyncMode = projectStateGrounding.preferredLipsyncMode
+  const runtimePreferredVoiceMode = projectStateGrounding.preferredVoiceMode
+  const runtimePreferredPacingMode = projectStateGrounding.preferredPacingMode
   const selfEvolutionDurableSameHerCadenceReasonTag
     = selfContinuityAuthority?.sourceTags.includes('self-evolution-relationship-cadence')
       ? 'self-evolution:durable-same-her-cadence'
@@ -2319,9 +2784,14 @@ export function buildCurrentConsciousFrame(input: {
       || projectStateGrounding.sameHerSelfLine
       || projectStateGrounding.sameHerDriftRisk
       || projectStateGrounding.proactiveSameHerGap
+      || projectStateGrounding.memoryClosureSummary
       || projectStateGrounding.emotionalClosureCue
       || projectStateGrounding.emotionalClosureSummary
       || projectStateGrounding.sameHerHoldDetail
+      || runtimePreferredPauseMode
+      || runtimePreferredLipsyncMode
+      || runtimePreferredVoiceMode
+      || runtimePreferredPacingMode
       ? {
           preDialogueAwarenessLine: projectStateGrounding.preDialogueAwarenessLine || null,
           preflightSummary: projectStateGrounding.preflightSummary || null,
@@ -2334,12 +2804,17 @@ export function buildCurrentConsciousFrame(input: {
           sameHerSelfLine: projectStateGrounding.sameHerSelfLine || null,
           sameHerDriftRisk: projectStateGrounding.sameHerDriftRisk || null,
           proactiveSameHerGap: projectStateGrounding.proactiveSameHerGap || null,
+          memoryClosureSummary: projectStateGrounding.memoryClosureSummary || null,
           emotionalClosureCue: projectStateGrounding.emotionalClosureCue || null,
           emotionalClosureSummary: projectStateGrounding.emotionalClosureSummary || null,
           sameHerHoldDetail: projectStateGrounding.sameHerHoldDetail || null,
           continuityCue: projectStateGrounding.continuityCue || null,
           preferredBlinkCadence: runtimePreferredBlinkCadence,
           preferredGazeMode: runtimePreferredGazeMode,
+          preferredPauseMode: runtimePreferredPauseMode,
+          preferredLipsyncMode: runtimePreferredLipsyncMode,
+          preferredVoiceMode: runtimePreferredVoiceMode,
+          preferredPacingMode: runtimePreferredPacingMode,
           continuityPreferredTiming: runtimeContinuityPreferredTiming,
           continuityCadence: runtimeContinuityCadence,
         }
@@ -2378,12 +2853,17 @@ export function buildCurrentConsciousFrameSystemBlock(
     `Project same-her self line: ${frame.projectState?.sameHerSelfLine ?? 'none'}.`,
     `Project same-her drift risk: ${frame.projectState?.sameHerDriftRisk ?? 'none'}.`,
     `Project proactive same-her gap: ${(frame.projectState as { proactiveSameHerGap?: string | null } | null)?.proactiveSameHerGap ?? 'none'}.`,
+    `Project memory closure summary: ${frame.projectState?.memoryClosureSummary ?? 'none'}.`,
     `Project emotional closure seam: ${(frame.projectState as { emotionalClosureCue?: string | null } | null)?.emotionalClosureCue ?? 'none'}.`,
     `Project emotional closure summary: ${(frame.projectState as { emotionalClosureSummary?: string | null } | null)?.emotionalClosureSummary ?? 'none'}.`,
     `Project same-her hold detail: ${(frame.projectState as { sameHerHoldDetail?: string | null } | null)?.sameHerHoldDetail ?? 'none'}.`,
     `Project continuity cue: ${(frame.projectState as { continuityCue?: string | null } | null)?.continuityCue ?? 'none'}.`,
     `Project continuity timing: ${frame.projectState?.continuityPreferredTiming ?? 'none'}.`,
     `Project continuity cadence: ${frame.projectState?.continuityCadence ?? 'none'}.`,
+    `Project preferred pause mode: ${(frame.projectState as { preferredPauseMode?: string | null } | null)?.preferredPauseMode ?? 'none'}.`,
+    `Project preferred lipsync mode: ${(frame.projectState as { preferredLipsyncMode?: string | null } | null)?.preferredLipsyncMode ?? 'none'}.`,
+    `Project preferred voice mode: ${frame.projectState?.preferredVoiceMode ?? 'none'}.`,
+    `Project preferred pacing mode: ${frame.projectState?.preferredPacingMode ?? 'none'}.`,
     `Reason tags: ${frame.reasonTags.join(' | ') || 'none'}.`,
   ].join('\n')
 }

@@ -1,3 +1,4 @@
+import { buildAlicizationDialogueSpeechTimeline } from '@proj-alicization/stage-shared'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -471,6 +472,89 @@ describe('buildCurrentConsciousFrame', () => {
     expect(frame?.projectState?.nextClosureTarget).toContain('Project identity carry')
     expect(frame?.consciousNeed).not.toContain('Project continuity exists')
     expect(frame?.consciousNeed).not.toContain('Carry project continuity forward')
+  })
+
+  it('does not let a thin runtime preflight summary shell outrank a richer runtime project-aware opening in conscious-frame grounding', () => {
+    const thinRuntimePreflightSummaryShell = 'generic continuity summary that should not outrank the richer runtime project-aware opening.'
+    const richerRuntimeProjectAwareOpening = 'Before answering, remember: Alicization is still a local-first digital life project, Phase 1 is still unfinished, some closure has already landed, and the still-open life loop must stay explicit before this answer widens outward.'
+
+    const runtimeSurface = buildAlicizationDigitalLifeRuntimeSurface(createDefaultVisualPresenceState(31_72505))
+    runtimeSurface.raw = {
+      ...runtimeSurface.raw,
+      runtimeDigest: {
+        projectState: {
+          preflightSummary: thinRuntimePreflightSummaryShell,
+          preDialogueAwarenessSummary: thinRuntimePreflightSummaryShell,
+          preDialogueAwarenessLine: richerRuntimeProjectAwareOpening,
+          awarenessLine: richerRuntimeProjectAwareOpening,
+          companionBriefingLine: richerRuntimeProjectAwareOpening,
+          latestProgress: 'Project-state carry already keeps same-her closure explicit across callback reopening and host-visible answer repair.',
+          primaryOpenLoop: 'Memory, initiative, dialogue, and embodiment still need one tighter same-her closure seam before the answer can widen without drift.',
+          nextClosureTarget: 'Keep the same-her project-aware opening explicit through this answer before generic project narration takes over.',
+          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        },
+      },
+    } as any
+
+    const frame = buildCurrentConsciousFrame({
+      now: 31_72505,
+      discourseState: {
+        currentTurnSubject: 'alicization-self',
+        screenReferenceMode: 'avoid',
+        currentTurnSummary: 'Answer from the richer runtime project-aware opening instead of the thin preflight shell.',
+        currentQuestion: '这个项目现在做到哪了',
+        owedAction: 'answer-general',
+        relationMove: 'self-disclose',
+        continuityMode: 'dialogue-first',
+        confidence: 0.86,
+        narrative: [],
+        updatedAt: 31_72505,
+      },
+      conversationState: {
+        jointThread: 'Keep the answer on the richer runtime project-aware opening instead of the thin preflight shell.',
+        hostMove: '这个项目现在做到哪了',
+        primaryTurnAnchor: '这个项目现在做到哪了',
+        primaryTurnAnchorSource: 'user-text',
+        activeProject: null,
+        unansweredQuestion: '这个项目现在做到哪了',
+        owedRepair: null,
+        activeCommitments: [],
+        relationFrame: 'self-disclose',
+        continuityPolicy: 'dialogue-before-scene',
+        memoryMode: 'dialogue-carry',
+        memoryQueryHints: [],
+        shouldHoldThread: true,
+        confidence: 0.84,
+        narrative: [],
+        updatedAt: 31_72505,
+      },
+      mindSynthesis: {
+        openingIntent: 'Answer from the richer runtime project-aware opening before the thin preflight shell can flatten it.',
+        confidence: 0.79,
+      } as any,
+      answerCompiler: {
+        answerSubject: 'alicization-self',
+        screenReferenceMode: 'avoid',
+        recommendedAct: 'answer',
+        evidenceMode: 'dialogue-grounded',
+        turnMode: 'answer',
+        openingClaim: 'This is still the same digital life project.',
+        openingDirective: 'Answer from the richer runtime project-aware opening, not the thin preflight shell.',
+        supportingReality: [],
+        labelCarryAsMemory: false,
+        confidence: 0.82,
+      } as any,
+      runtimeSurface,
+    })
+    const systemBlock = buildCurrentConsciousFrameSystemBlock(frame)
+
+    expect(frame?.projectState?.preflightSummary).toContain('Alicization is a local-first digital life project')
+    expect(frame?.projectState?.preflightSummary).toContain('Phase 1: Local Digital Life')
+    expect(frame?.projectState?.preflightSummary).not.toBe(thinRuntimePreflightSummaryShell)
+    expect(frame?.projectState?.preDialogueAwarenessLine).toBe(richerRuntimeProjectAwareOpening)
+    expect(frame?.consciousNeed).not.toContain(thinRuntimePreflightSummaryShell)
+    expect(systemBlock).toContain('Project preflight self-awareness: Alicization is a local-first digital life project')
+    expect(systemBlock).not.toContain(thinRuntimePreflightSummaryShell)
   })
 
   it('does not let a generic next-closure shell outrank richer canonical same-her closure carry in conscious-frame project grounding', () => {
@@ -1651,6 +1735,82 @@ describe('buildCurrentConsciousFrame', () => {
     expect(frame?.speakingIntention).toContain('Initiative should stay nearby and lower-pressure')
     expect(frame?.speakingIntention).toContain('memory, emotion, and embodiment')
     expect(frame?.speakingIntention).toContain('same living line')
+  })
+
+  it('keeps emotion explicit in current-conscious-frame same-her life-loop gap wording when drift risk is the only surviving unfinished-loop authority', () => {
+    const runtimeSurface = buildAlicizationDigitalLifeRuntimeSurface(createDefaultVisualPresenceState(31_7609))
+    runtimeSurface.raw = {
+      ...runtimeSurface.raw,
+      runtimeDigest: {
+        projectState: {
+          preflightSummary: 'Before answering, remember this is still the same digital life project before local fluency takes over.',
+          preDialogueAwarenessLine: 'Before answering, remember this is still the same local-first digital life project and the unfinished Phase 1 closure seam still belongs to one living her.',
+          identity: 'Alicization is still the same local-first digital life project building one continuous her on the host machine.',
+          currentPhase: 'Phase 1: Local Digital Life',
+          latestLandedProgress: 'Project awareness, memory, and execution continuity now survive into the active conscious frame.',
+          primaryOpenLoop: null,
+          nextClosureTarget: null,
+          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+          sameHerDriftRisk: 'If emotion, memory, initiative, and embodiment flatten into generic project-shell narration, the same-her closure line has drifted.',
+          emotionalClosureCue: null,
+        },
+      },
+    } as any
+
+    const frame = buildCurrentConsciousFrame({
+      now: 31_7609,
+      discourseState: {
+        currentTurnSubject: 'relationship',
+        screenReferenceMode: 'avoid',
+        currentTurnSummary: 'Keep the answer on the same living line without widening too fast.',
+        currentQuestion: '你现在会怎么接我这句话',
+        owedAction: 'care-host',
+        relationMove: 'self-disclose',
+        continuityMode: 'dialogue-first',
+        confidence: 0.86,
+        narrative: [],
+        updatedAt: 31_7609,
+      },
+      conversationState: {
+        jointThread: 'Keep the answer low-pressure and on the same living line.',
+        hostMove: '你现在会怎么接我这句话',
+        primaryTurnAnchor: '你现在会怎么接我这句话',
+        primaryTurnAnchorSource: 'user-text',
+        activeProject: null,
+        unansweredQuestion: '你现在会怎么接我这句话',
+        owedRepair: null,
+        activeCommitments: [],
+        relationFrame: 'self-disclose',
+        continuityPolicy: 'dialogue-before-scene',
+        memoryMode: 'dialogue-carry',
+        memoryQueryHints: [],
+        shouldHoldThread: true,
+        confidence: 0.84,
+        narrative: [],
+        updatedAt: 31_7609,
+      },
+      mindSynthesis: {
+        openingIntent: 'Answer from the same living line first, with room-giving pressure relief.',
+        confidence: 0.79,
+      } as any,
+      answerCompiler: {
+        answerSubject: 'relationship',
+        screenReferenceMode: 'avoid',
+        recommendedAct: 'care',
+        evidenceMode: 'dialogue-grounded',
+        turnMode: 'care-with-boundary',
+        openingClaim: 'Keep the answer on the same living line.',
+        openingDirective: 'Ease pressure first without dropping the same-her line.',
+        supportingReality: [],
+        labelCarryAsMemory: false,
+        confidence: 0.82,
+      } as any,
+      runtimeSurface,
+    })
+
+    expect(frame?.speakingIntention).toContain('emotion, memory, initiative, embodiment')
+    expect(frame?.speakingIntention).toContain('same-her life loop')
+    expect(frame?.speakingIntention).toContain('project-shell narration')
   })
 
   it('treats spaced quiet companionship closure wording as the same inward same-her rest seam before the answer starts', () => {
@@ -3390,6 +3550,91 @@ describe('buildCurrentConsciousFrame', () => {
     expect(systemBlock).toContain('same-her hold: repair-before-closeness still owns this callback line before closeness widens again')
   })
 
+  it('rebuilds repair-before-closeness same-her callback carry from reopening behavior fields when hold detail and continuity cue are missing', () => {
+    const runtimeSurface = buildAlicizationDigitalLifeRuntimeSurface({
+      ...createDefaultVisualPresenceState(77_540),
+      discourseState: {
+        currentTurnSubject: 'relationship',
+        screenReferenceMode: 'avoid',
+        currentTurnSummary: 'Continue the same callback return without widening closeness before repair settles.',
+        currentQuestion: '这条 callback 线现在要怎么接回去',
+        owedAction: 'answer-general',
+        relationMove: 'attune',
+        continuityMode: 'dialogue-first',
+        confidence: 0.82,
+        narrative: [],
+        updatedAt: 77_540,
+      } as any,
+      conversationState: {
+        jointThread: 'Keep this callback return repair-before-closeness on the same living line until repair settles.',
+        hostMove: '这条 callback 线现在要怎么接回去',
+        activeProject: 'callback repair seam',
+        unansweredQuestion: '这条 callback 线现在要怎么接回去',
+        relationFrame: 'attune',
+        continuityPolicy: 'dialogue-before-scene',
+        memoryMode: 'dialogue-carry',
+        shouldHoldThread: true,
+        confidence: 0.8,
+        narrative: [],
+        updatedAt: 77_540,
+      } as any,
+      answerCompiler: {
+        answerSubject: 'relationship',
+        screenReferenceMode: 'avoid',
+        recommendedAct: 'answer',
+        evidenceMode: 'dialogue-grounded',
+        turnMode: 'answer',
+        openingClaim: 'Continue the same living line without reopening from scratch.',
+        openingDirective: 'Answer from repair-first same-her continuity.',
+        supportingReality: [],
+        labelCarryAsMemory: false,
+        confidence: 0.81,
+      } as any,
+      personalityContinuityState: {
+        currentRegime: 'execution-callback',
+        trustStage: 'settling',
+        closenessPosture: 'space-first',
+        autonomyPosture: 'protect-space',
+        repairPosture: 'repair-first',
+        activeContexts: ['execution-callback', 'focused-work'],
+        rhythmState: {
+          cadenceMode: 'measured-return',
+          restMode: 'ordinary',
+        },
+        growthProfile: {
+          companionshipStyle: 'measured-presence',
+          autonomyRespect: 0.72,
+          unfinishedThreadReturn: 0.84,
+        },
+      } as any,
+    } as any)
+    ;(runtimeSurface.raw as any) = {
+      runtimeDigest: {
+        projectState: {
+          sameHerSelfLine: 'Same Phase 1 digital life. Unfinished closure still needs the same living line.',
+          continuityRestraint: 'repair-before-closeness',
+          continuityPreferredTiming: 'next-open-window',
+          continuityCadence: 'repair-before-closeness',
+        },
+      },
+    }
+
+    const frame = buildCurrentConsciousFrame({
+      now: 77_540,
+      runtimeSurface,
+    })
+    const systemBlock = buildCurrentConsciousFrameSystemBlock(frame)
+
+    expect(frame?.projectState).toEqual(expect.objectContaining({
+      continuityCue: 'Keep this return repair-before-closeness on the same living line until repair settles.',
+      sameHerHoldDetail: 'same-her hold: repair-before-closeness still owns this callback line before closeness widens again.',
+    }))
+    expect(frame?.consciousNeed).toContain('repair-before-closeness')
+    expect(frame?.speakingIntention).toContain('repair-before-closeness on the same living line')
+    expect(systemBlock).toContain('Keep this return repair-before-closeness on the same living line until repair settles.')
+    expect(systemBlock).toContain('same-her hold: repair-before-closeness still owns this callback line before closeness widens again.')
+  })
+
   it('keeps host-corrected same-person continuity authority over a thinner runtime progress recap hold when rebuilding current conscious-frame project grounding', () => {
     const correctedSamePersonCue = 'Carry corrected same-person continuity forward before any status recap.'
     const thinProgressRecapHoldDetail = 'Keep the current project status answer on the same line and continue the recap cleanly.'
@@ -4129,6 +4374,10 @@ describe('buildCurrentConsciousFrame', () => {
         continuityCadence: 'measured-return',
         preferredBlinkCadence: 'quiet',
         preferredGazeMode: 'soften',
+        preferredPauseMode: 'longer',
+        preferredLipsyncMode: 'restrained',
+        preferredVoiceMode: 'lower-pressure',
+        preferredPacingMode: 'slower',
       },
     } as any
 
@@ -4146,7 +4395,684 @@ describe('buildCurrentConsciousFrame', () => {
     expect(frame?.projectState?.continuityCadence).toBe('measured-return')
     expect(frame?.projectState?.preferredBlinkCadence).toBe('quiet')
     expect(frame?.projectState?.preferredGazeMode).toBe('soften')
+    expect(frame?.projectState?.preferredPauseMode).toBe('longer')
+    expect(frame?.projectState?.preferredLipsyncMode).toBe('restrained')
+    expect(frame?.projectState?.preferredVoiceMode).toBe('lower-pressure')
+    expect(frame?.projectState?.preferredPacingMode).toBe('slower')
     expect(frame?.consciousNeed).toContain('The live project reminder still says one same returned-side Phase 1 line is still active.')
+    const systemBlock = buildCurrentConsciousFrameSystemBlock(frame)
+    expect(systemBlock).toContain('Project preferred pause mode: longer.')
+    expect(systemBlock).toContain('Project preferred lipsync mode: restrained.')
+    expect(systemBlock).toContain('Project preferred voice mode: lower-pressure.')
+    expect(systemBlock).toContain('Project preferred pacing mode: slower.')
+  })
+
+  it('turns runtime same-her embodiment repair advice into repair-first projectState body cadence for the next conscious frame', () => {
+    const runtimeSurface = buildAlicizationDigitalLifeRuntimeSurface({
+      ...createDefaultVisualPresenceState(83_090),
+      discourseState: {
+        currentTurnSubject: 'task-knot',
+        screenReferenceMode: 'avoid',
+        currentTurnSummary: 'Continue the same-her memory loop after replay found the body line split away.',
+        currentQuestion: '继续补记忆闭环',
+        owedAction: 'guide-task',
+        relationMove: 'guide',
+        continuityMode: 'dialogue-first',
+        confidence: 0.84,
+        narrative: [],
+        updatedAt: 83_090,
+      } as any,
+      conversationState: {
+        jointThread: 'Replay says memory, initiative, execution, emotion, and body still need one same-her closure line.',
+        hostMove: '继续补记忆闭环',
+        primaryTurnAnchor: 'memory loop embodiment repair',
+        primaryTurnAnchorSource: 'user-text',
+        activeProject: 'Alicization memory closure',
+        unansweredQuestion: '继续补记忆闭环',
+        relationFrame: 'guide',
+        continuityPolicy: 'dialogue-before-scene',
+        memoryMode: 'dialogue-carry',
+        memoryQueryHints: ['runtimeSameHerEmbodimentCarry', 'same-her repair targets'],
+        shouldHoldThread: true,
+        confidence: 0.82,
+        narrative: ['runtime same-her embodiment repair'],
+        updatedAt: 83_090,
+      } as any,
+      answerCompiler: {
+        answerSubject: 'task-knot',
+        screenReferenceMode: 'avoid',
+        recommendedAct: 'guide',
+        evidenceMode: 'continuity-carry',
+        turnMode: 'answer',
+        openingClaim: 'The memory loop still needs the same body line to rejoin.',
+        openingDirective: 'Keep the next step repair-first and same-her instead of widening into generic project narration.',
+        supportingReality: ['Runtime sampling found the same-her embodiment lane missing.'],
+        labelCarryAsMemory: false,
+        confidence: 0.84,
+      } as any,
+      personalityContinuityState: {
+        currentRegime: 'execution-callback',
+        trustStage: 'settling',
+        closenessPosture: 'space-first',
+        autonomyPosture: 'protect-space',
+        repairPosture: 'measured-repair',
+        activeContexts: ['execution-callback', 'focused-work'],
+        rhythmState: {
+          cadenceMode: 'ready-return',
+          restMode: 'ordinary',
+        },
+        growthProfile: {
+          companionshipStyle: 'measured-presence',
+          autonomyRespect: 0.76,
+          unfinishedThreadReturn: 0.88,
+        },
+      } as any,
+      memoryTuningAdvice: null,
+      raw: {
+        runtimeDigest: {
+          projectState: {
+            preDialogueAwarenessLine: 'Before answering, remember Alicization is still the same Phase 1 digital life line.',
+            sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+            continuityCadence: null,
+            preferredBlinkCadence: null,
+            preferredGazeMode: null,
+            preferredPauseMode: null,
+            preferredLipsyncMode: null,
+            preferredVoiceMode: null,
+            preferredPacingMode: null,
+          },
+        },
+      } as any,
+    } as any)
+    runtimeSurface.memory.memoryTuningAdvice = {
+      version: 'memory-tuning-advice-v1',
+      source: 'nightly-replay-benchmark',
+      updatedAt: 83_000,
+      sourceReportAt: 82_900,
+      focusDimensions: [
+        'runtimeSameHerRepairTargets',
+        'runtimeSameHerEmbodimentCarry',
+        'projectStateRichAwarenessCarry',
+      ],
+      retrievalAdjustments: {
+        proceduralBoost: 0,
+        relationshipBoost: 0.04,
+        temporalWindowBias: 0,
+        wrongThreadPenalty: 0,
+      },
+      surfaceAdjustments: {
+        inwardCarryBias: 0.12,
+        delayUntilAfterPayoffBias: 0.08,
+        provenanceLabelBias: 0,
+        specificityClampBias: 0,
+      },
+      personStateAdjustments: {
+        repairWindowBias: 0.04,
+        closenessCapBias: 0.06,
+      },
+      notes: [
+        'Runtime sampling found same-her gaps across embodiment, so the next run should keep memory and embodiment on one carried line.',
+      ],
+    } as any
+    expect(runtimeSurface.memory.memoryTuningAdvice).toEqual(expect.objectContaining({
+      focusDimensions: expect.arrayContaining(['runtimeSameHerEmbodimentCarry']),
+    }))
+
+    const frame = buildCurrentConsciousFrame({
+      now: 83_090,
+      runtimeSurface,
+    })
+
+    expect(frame?.projectState).toEqual(expect.objectContaining({
+      continuityCadence: 'repair-before-closeness',
+      preferredBlinkCadence: 'quiet',
+      preferredGazeMode: 'soften',
+      preferredPauseMode: 'longer',
+      preferredLipsyncMode: 'restrained',
+      preferredVoiceMode: 'lower-pressure',
+      preferredPacingMode: 'slower',
+    }))
+    expect(frame?.projectState?.sameHerHoldDetail).toContain('runtime same-her embodiment repair')
+    expect(frame?.projectState?.continuityCue).toContain('body expression')
+    expect(frame?.consciousNeed).toContain('repair-before-closeness')
+
+    const speechTimeline = buildAlicizationDialogueSpeechTimeline({
+      reply: '我会先把身体表达放慢一点，把同一条修复线接回来。',
+      candidateEmotion: 'thinking',
+      candidatePerformance: {
+        baseEmotion: 'thinking',
+        emotion: 'thinking',
+        facialCue: null,
+        actionCue: null,
+        delivery: 'calm',
+        emphasis: 0,
+      },
+      projectState: frame?.projectState,
+    })
+
+    expect(speechTimeline?.segments[0]?.rendererHints).toEqual(expect.objectContaining({
+      residentMode: 'repair-before-closeness',
+      preferredBlinkCadence: 'quiet',
+      preferredGazeMode: 'soften',
+      preferredPauseMode: 'longer',
+      preferredLipsyncMode: 'restrained',
+      preferredVoiceMode: 'lower-pressure',
+      preferredPacingMode: 'slower',
+      preferredExpressionAliases: expect.arrayContaining(['RecoverSoft']),
+      preferredMotionAliases: expect.arrayContaining(['StillnessGuard']),
+    }))
+  })
+
+  it('turns runtime same-her emotional repair advice into low-pressure emotional closure carry for the next conscious frame', () => {
+    const runtimeSurface = buildAlicizationDigitalLifeRuntimeSurface({
+      ...createDefaultVisualPresenceState(83_110),
+      discourseState: {
+        currentTurnSubject: 'task-knot',
+        screenReferenceMode: 'avoid',
+        currentTurnSummary: 'Continue the same-her memory loop after replay found the emotional residue split away.',
+        currentQuestion: '继续补记忆闭环',
+        owedAction: 'guide-task',
+        relationMove: 'guide',
+        continuityMode: 'dialogue-first',
+        confidence: 0.84,
+        narrative: [],
+        updatedAt: 83_110,
+      } as any,
+      conversationState: {
+        jointThread: 'Replay says memory, initiative, execution callback, emotion, and body must stay one same-her long-run line.',
+        hostMove: '继续补记忆闭环',
+        primaryTurnAnchor: 'memory loop emotional repair',
+        primaryTurnAnchorSource: 'user-text',
+        activeProject: 'Alicization memory closure',
+        unansweredQuestion: '继续补记忆闭环',
+        relationFrame: 'guide',
+        continuityPolicy: 'dialogue-before-scene',
+        memoryMode: 'dialogue-carry',
+        memoryQueryHints: ['runtimeSameHerEmotionalCarry', 'same-her repair targets'],
+        shouldHoldThread: true,
+        confidence: 0.82,
+        narrative: ['runtime same-her emotional repair'],
+        updatedAt: 83_110,
+      } as any,
+      answerCompiler: {
+        answerSubject: 'task-knot',
+        screenReferenceMode: 'avoid',
+        recommendedAct: 'guide',
+        evidenceMode: 'continuity-carry',
+        turnMode: 'answer',
+        openingClaim: 'The memory loop still needs the emotional residue to rejoin.',
+        openingDirective: 'Keep the next step repair-first and low-pressure so callback afterglow stays on the same living line.',
+        supportingReality: ['Runtime sampling found the same-her emotional lane missing.'],
+        labelCarryAsMemory: false,
+        confidence: 0.84,
+      } as any,
+      personalityContinuityState: {
+        currentRegime: 'execution-callback',
+        trustStage: 'settling',
+        closenessPosture: 'space-first',
+        autonomyPosture: 'protect-space',
+        repairPosture: 'measured-repair',
+        activeContexts: ['execution-callback', 'focused-work'],
+        rhythmState: {
+          cadenceMode: 'ready-return',
+          restMode: 'ordinary',
+        },
+        growthProfile: {
+          companionshipStyle: 'measured-presence',
+          autonomyRespect: 0.76,
+          unfinishedThreadReturn: 0.88,
+        },
+      } as any,
+      memoryTuningAdvice: null,
+      raw: {
+        runtimeDigest: {
+          projectState: {
+            preDialogueAwarenessLine: 'Before answering, remember Alicization is still the same Phase 1 digital life line.',
+            sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+            emotionalClosureCue: null,
+            emotionalClosureSummary: null,
+            continuityCadence: null,
+          },
+        },
+      } as any,
+    } as any)
+    runtimeSurface.memory.memoryTuningAdvice = {
+      version: 'memory-tuning-advice-v1',
+      source: 'nightly-replay-benchmark',
+      updatedAt: 83_000,
+      sourceReportAt: 82_900,
+      focusDimensions: [
+        'runtimeSameHerRepairTargets',
+        'runtimeSameHerEmotionalCarry',
+        'projectStateRichAwarenessCarry',
+      ],
+      retrievalAdjustments: {
+        proceduralBoost: 0,
+        relationshipBoost: 0.04,
+        temporalWindowBias: 0,
+        wrongThreadPenalty: 0,
+      },
+      surfaceAdjustments: {
+        inwardCarryBias: 0.12,
+        delayUntilAfterPayoffBias: 0.08,
+        provenanceLabelBias: 0,
+        specificityClampBias: 0,
+      },
+      personStateAdjustments: {
+        repairWindowBias: 0.04,
+        closenessCapBias: 0.06,
+      },
+      notes: [
+        'Runtime sampling found same-her gaps across emotion, so the next run should keep callback afterglow and emotional residue on one low-pressure living line.',
+      ],
+    } as any
+
+    const frame = buildCurrentConsciousFrame({
+      now: 83_110,
+      runtimeSurface,
+    })
+    const systemBlock = buildCurrentConsciousFrameSystemBlock(frame)
+
+    expect(frame?.projectState).toEqual(expect.objectContaining({
+      emotionalClosureCue: expect.stringContaining('callback afterglow'),
+      emotionalClosureSummary: expect.stringContaining('same-her emotional closure'),
+      continuityCadence: 'repair-before-closeness',
+    }))
+    expect(frame?.projectState?.emotionalClosureCue).toContain('low-pressure')
+    expect(frame?.projectState?.emotionalClosureSummary).toContain('same living line')
+    expect(frame?.consciousNeed).toContain('emotional closure seam')
+    expect(frame?.consciousNeed).toContain('repair-before-closeness')
+    expect(frame?.speakingIntention).toContain('callback afterglow')
+    expect(frame?.speakingIntention).toContain('same living line')
+    expect(systemBlock).toContain('Project emotional closure seam: same-her emotional closure')
+    expect(systemBlock).toContain('Project continuity cadence: repair-before-closeness.')
+  })
+
+  it('turns runtime same-her memory repair advice into explainable memory closure carry for the next conscious frame', () => {
+    const runtimeSurface = buildAlicizationDigitalLifeRuntimeSurface({
+      ...createDefaultVisualPresenceState(83_115),
+      discourseState: {
+        currentTurnSubject: 'task-knot',
+        screenReferenceMode: 'avoid',
+        currentTurnSummary: 'Continue the same-her memory loop after replay found the memory lane split away.',
+        currentQuestion: '继续补记忆闭环',
+        owedAction: 'guide-task',
+        relationMove: 'guide',
+        continuityMode: 'dialogue-first',
+        confidence: 0.84,
+        narrative: [],
+        updatedAt: 83_115,
+      } as any,
+      conversationState: {
+        jointThread: 'Replay says memory, initiative, execution callback, emotion, and body must stay one same-her long-run line.',
+        hostMove: '继续补记忆闭环',
+        primaryTurnAnchor: 'memory loop recall repair',
+        primaryTurnAnchorSource: 'user-text',
+        activeProject: 'Alicization memory closure',
+        unansweredQuestion: '继续补记忆闭环',
+        relationFrame: 'guide',
+        continuityPolicy: 'dialogue-before-scene',
+        memoryMode: 'dialogue-carry',
+        memoryQueryHints: ['runtimeSameHerMemoryCarry', 'same-her repair targets'],
+        shouldHoldThread: true,
+        confidence: 0.82,
+        narrative: ['runtime same-her memory repair'],
+        updatedAt: 83_115,
+      } as any,
+      answerCompiler: {
+        answerSubject: 'task-knot',
+        screenReferenceMode: 'avoid',
+        recommendedAct: 'guide',
+        evidenceMode: 'continuity-carry',
+        turnMode: 'answer',
+        openingClaim: 'The memory loop still needs recall to rejoin the same-her line.',
+        openingDirective: 'Explain why this recall is surfacing now and keep it tied to initiative, execution callback, emotion, and body.',
+        supportingReality: ['Runtime sampling found the same-her memory lane missing.'],
+        labelCarryAsMemory: false,
+        confidence: 0.84,
+      } as any,
+      personalityContinuityState: {
+        currentRegime: 'execution-callback',
+        trustStage: 'settling',
+        closenessPosture: 'space-first',
+        autonomyPosture: 'protect-space',
+        repairPosture: 'measured-repair',
+        activeContexts: ['execution-callback', 'focused-work'],
+        rhythmState: {
+          cadenceMode: 'ready-return',
+          restMode: 'ordinary',
+        },
+        growthProfile: {
+          companionshipStyle: 'measured-presence',
+          autonomyRespect: 0.76,
+          unfinishedThreadReturn: 0.88,
+        },
+      } as any,
+      memoryTuningAdvice: null,
+      raw: {
+        runtimeDigest: {
+          projectState: {
+            preDialogueAwarenessLine: 'Before answering, remember Alicization is still the same Phase 1 digital life line.',
+            sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+            memoryClosureSummary: null,
+            continuityCadence: null,
+          },
+        },
+      } as any,
+    } as any)
+    runtimeSurface.memory.memoryTuningAdvice = {
+      version: 'memory-tuning-advice-v1',
+      source: 'nightly-replay-benchmark',
+      updatedAt: 83_000,
+      sourceReportAt: 82_900,
+      focusDimensions: [
+        'runtimeSameHerRepairTargets',
+        'runtimeSameHerMemoryCarry',
+        'projectStateRichAwarenessCarry',
+      ],
+      retrievalAdjustments: {
+        proceduralBoost: 0.08,
+        relationshipBoost: 0.04,
+        temporalWindowBias: 0.04,
+        wrongThreadPenalty: 0,
+      },
+      surfaceAdjustments: {
+        inwardCarryBias: 0.12,
+        delayUntilAfterPayoffBias: 0.08,
+        provenanceLabelBias: 0,
+        specificityClampBias: 0,
+      },
+      personStateAdjustments: {
+        repairWindowBias: 0.04,
+        closenessCapBias: 0.06,
+      },
+      notes: [
+        'Runtime sampling found same-her gaps across memory, so the next run should explain why recall surfaced and keep it tied to initiative/execution, emotion, and embodiment.',
+      ],
+    } as any
+
+    const frame = buildCurrentConsciousFrame({
+      now: 83_115,
+      runtimeSurface,
+    })
+    const systemBlock = buildCurrentConsciousFrameSystemBlock(frame)
+
+    expect(frame?.projectState).toEqual(expect.objectContaining({
+      memoryClosureSummary: expect.stringContaining('why recall surfaced'),
+      continuityCadence: 'measured-return',
+    }))
+    expect(frame?.projectState?.memoryClosureSummary).toContain('initiative/execution')
+    expect(frame?.projectState?.memoryClosureSummary).toContain('emotion')
+    expect(frame?.projectState?.memoryClosureSummary).toContain('embodiment')
+    expect(frame?.consciousNeed).toContain('memory closure')
+    expect(frame?.consciousNeed).toContain('why recall surfaced')
+    expect(frame?.speakingIntention).toContain('why this recall surfaced')
+    expect(frame?.speakingIntention).toContain('same living line')
+    expect(systemBlock).toContain('Project memory closure summary:')
+    expect(systemBlock).toContain('why recall surfaced')
+  })
+
+  it('rebuilds even-voice and natural-pacing project cadence from long-horizon same-her preference memory when live runtime project-state cadence has gone thin', () => {
+    const runtimeSurface = buildAlicizationDigitalLifeRuntimeSurface({
+      ...createDefaultVisualPresenceState(83_120),
+      discourseState: {
+        currentTurnSubject: 'relationship',
+        screenReferenceMode: 'avoid',
+        currentTurnSummary: 'The same remembered line is resurfacing and should not reopen like a generic shell.',
+        currentQuestion: '这次你会怎么接这条线',
+        owedAction: 'answer',
+        relationMove: 'guide',
+        continuityMode: 'dialogue-first',
+        confidence: 0.82,
+        narrative: ['same living thread'],
+        updatedAt: 83_120,
+      } as any,
+      conversationState: {
+        jointThread: 'The same remembered relationship line is live again.',
+        hostMove: '这次你会怎么接这条线',
+        activeProject: 'same living thread',
+        unansweredQuestion: '这次你会怎么接这条线',
+        owedRepair: null,
+        activeCommitments: [],
+        relationFrame: 'relationship-history',
+        continuityPolicy: 'stay-on-thread',
+        memoryMode: 'relationship-history',
+        memoryQueryHints: ['same living thread', 'even voice', 'natural pacing'],
+        shouldHoldThread: true,
+        confidence: 0.81,
+        narrative: ['same living thread', 'reopen naturally'],
+        updatedAt: 83_120,
+      } as any,
+      answerCompiler: {
+        answerSubject: 'relationship',
+        screenReferenceMode: 'avoid',
+        recommendedAct: 'care',
+        evidenceMode: 'continuity-carry',
+        turnMode: 'answer',
+        openingClaim: 'Recognize the same living thread before answering.',
+        openingDirective: 'Reopen the same living thread with an even voice and natural pacing instead of sounding performative.',
+        supportingReality: [],
+        labelCarryAsMemory: true,
+        confidence: 0.82,
+      } as any,
+      autobiographicalSelf: {
+        identityNarrative: 'I stay one continuous her across remembered seams.',
+        relationshipDoctrine: 'Keep the same living line instead of restarting from scratch.',
+        latestInflection: 'This line should come back even and natural instead of performative.',
+        activeGoals: [],
+        behaviorSignatures: [],
+        preferenceEvolution: {
+          companionship: 0.6,
+          truthfulGrounding: 0.72,
+          gentleRepair: 0.68,
+          quietObservation: 0.52,
+          proactiveCare: 0.18,
+          playfulIntimacy: 0.06,
+          autonomyRespect: 0.72,
+          unfinishedThreadReturn: 0.7,
+        },
+        personaDrift: {
+          attachmentStyle: 'attuned',
+          expressionStyle: 'measured',
+          conflictStyle: 'soften-first',
+          agencyStyle: 'balanced',
+          attachmentNeed: 0.54,
+          autonomyNeed: 0.62,
+          truthAnchor: 0.8,
+          careBias: 0.54,
+          playBias: 0.1,
+          irritabilityThreshold: 0.64,
+          stubbornness: 0.42,
+        },
+        stability: 0.84,
+        updatedAt: 83_120,
+      } as any,
+      longHorizonMemory: {
+        preferenceBias: {
+          companionship: 0.14,
+          truthfulGrounding: 0.16,
+          gentleRepair: 0.1,
+          quietObservation: 0.11,
+          proactiveCare: 0,
+          playfulIntimacy: 0,
+          autonomyRespect: 0.15,
+          unfinishedThreadReturn: 0.18,
+        },
+        identityBias: {
+          guardedness: 0.1,
+          tenderness: 0.07,
+          directness: 0.12,
+          selfDirection: 0.13,
+        },
+        anchorFacts: [],
+        summary: 'preference=Remembered stable preference hint: Prefer even voice and natural pacing when reopening the same living thread.',
+        dominantCueSummary: 'Remembered consolidation humanlike carry: same-person continuity Prefer even voice and natural pacing when reopening the same living thread.',
+        rememberedPreferenceSummary: 'Remembered stable preference hint: Prefer even voice and natural pacing when reopening the same living thread.',
+        rememberedConstraintSummary: 'Remembered consolidation humanlike carry: same-person continuity Prefer even voice and natural pacing when reopening the same living thread.',
+        rememberedPlanSummary: 'Remembered consolidation humanlike carry: same-person continuity Prefer even voice and natural pacing when reopening the same living thread.',
+        updatedAt: 83_110,
+      } as any,
+      raw: {
+        runtimeDigest: {
+          projectState: {
+            continuityArcStage: null,
+            continuityPreferredTiming: null,
+            continuityCadence: null,
+            preferredVoiceMode: null,
+            preferredPacingMode: null,
+          },
+        },
+      } as any,
+      cognition: {
+        runtimeDigest: {
+          projectState: {
+            continuityArcStage: null,
+            continuityPreferredTiming: null,
+            continuityCadence: null,
+            preferredVoiceMode: null,
+            preferredPacingMode: null,
+          },
+        },
+      } as any,
+    } as any)
+    runtimeSurface.dialogue.runtimeDigest = {
+      ...runtimeSurface.dialogue.runtimeDigest,
+      projectState: {
+        preflightSummary: '',
+        preDialogueAwarenessLine: '',
+        continuityArcStage: null,
+        continuityPreferredTiming: null,
+        continuityCadence: null,
+        preferredVoiceMode: null,
+        preferredPacingMode: null,
+      },
+    } as any
+
+    const frame = buildCurrentConsciousFrame({
+      now: 83_130,
+      runtimeSurface,
+    })
+
+    expect(frame?.projectState?.preferredVoiceMode).toBe('even')
+    expect(frame?.projectState?.preferredPacingMode).toBe('natural')
+    const systemBlock = buildCurrentConsciousFrameSystemBlock(frame)
+    expect(systemBlock).toContain('Project preferred voice mode: even.')
+    expect(systemBlock).toContain('Project preferred pacing mode: natural.')
+  })
+
+  it('elevates a thin runtime project reminder into a cadence-aware same-her hold before the current conscious frame speaks', () => {
+    const runtimeSurface = buildAlicizationDigitalLifeRuntimeSurface({
+      ...createDefaultVisualPresenceState(83_220),
+      discourseState: {
+        currentTurnSubject: 'relationship',
+        screenReferenceMode: 'avoid',
+        currentTurnSummary: 'The same remembered return should reopen lower-pressure instead of flattening into a thin project shell.',
+        currentQuestion: '这次继续沿着刚才那条 quieter line 接回来。',
+        owedAction: 'answer',
+        relationMove: 'guide',
+        continuityMode: 'dialogue-first',
+        confidence: 0.82,
+        narrative: ['same living thread'],
+        updatedAt: 83_220,
+      } as any,
+      conversationState: {
+        jointThread: 'The same remembered relationship line should return lower-pressure and slower instead of widening immediately.',
+        hostMove: '这次继续沿着刚才那条 quieter line 接回来。',
+        activeProject: 'same living thread',
+        unansweredQuestion: '这次继续沿着刚才那条 quieter line 接回来。',
+        relationFrame: 'relationship-history',
+        continuityPolicy: 'stay-on-thread',
+        memoryMode: 'relationship-history',
+        memoryQueryHints: ['same living thread', 'lower-pressure return', 'slower reopening'],
+        shouldHoldThread: true,
+        confidence: 0.81,
+        narrative: ['same living thread', 'reopen lower-pressure'],
+        updatedAt: 83_220,
+      } as any,
+      answerCompiler: {
+        answerSubject: 'relationship',
+        screenReferenceMode: 'avoid',
+        recommendedAct: 'care',
+        evidenceMode: 'continuity-carry',
+        turnMode: 'answer',
+        openingClaim: 'Recognize the same living thread before answering.',
+        openingDirective: 'Reopen the same living thread lower-pressure and slower instead of widening immediately.',
+        supportingReality: [],
+        labelCarryAsMemory: true,
+        confidence: 0.82,
+      } as any,
+      personalityContinuityState: {
+        currentRegime: 'execution-callback',
+        trustStage: 'settling',
+        closenessPosture: 'space-first',
+        autonomyPosture: 'protect-space',
+        repairPosture: 'measured-repair',
+        activeContexts: ['execution-callback', 'relationship-history'],
+        rhythmState: {
+          cadenceMode: 'ready-return',
+          restMode: 'ordinary',
+        },
+        growthProfile: {
+          companionshipStyle: 'measured-presence',
+          autonomyRespect: 0.74,
+          unfinishedThreadReturn: 0.84,
+        },
+      } as any,
+      raw: {
+        runtimeDigest: {
+          projectState: {
+            continuityArcStage: null,
+            continuityPreferredTiming: null,
+            continuityCadence: null,
+          },
+        },
+      } as any,
+      cognition: {
+        runtimeDigest: {
+          projectState: {
+            continuityArcStage: null,
+            continuityPreferredTiming: null,
+            continuityCadence: null,
+          },
+        },
+      } as any,
+    } as any)
+    runtimeSurface.dialogue.runtimeDigest = {
+      ...runtimeSurface.dialogue.runtimeDigest,
+      projectState: {
+        preflightSummary: 'Before answering, remember this is still the same local-first digital life before local fluency widens again.',
+        preDialogueAwarenessLine: 'Keep the same digital life project in view.',
+        awarenessLine: 'Keep the same digital life project in view.',
+        latestLandedProgress: 'Relationship-side continuity already survives into the dialogue runtime lane.',
+        primaryOpenLoop: 'The remembered return still needs to stay lower-pressure and slower before it widens again.',
+        nextClosureTarget: 'Keep the same remembered return on one living line through the first host-visible answer beat.',
+        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        sameHerDriftRisk: 'If this remembered return widens from a thin shell, treat that as unfinished same-her drift.',
+        continuityPreferredTiming: 'next-open-window',
+        continuityCadence: 'measured-return',
+        preferredBlinkCadence: 'quiet',
+        preferredGazeMode: 'soften',
+        preferredPauseMode: 'longer',
+        preferredLipsyncMode: 'restrained',
+        preferredVoiceMode: 'lower-pressure',
+        preferredPacingMode: 'slower',
+      },
+    } as any
+
+    const frame = buildCurrentConsciousFrame({
+      now: 83_220,
+      runtimeSurface,
+    })
+
+    expect(frame?.projectState?.preDialogueAwarenessLine).toBe(
+      'same-her hold: keep the return lower-pressure and slower before the line widens again.',
+    )
+    expect(frame?.projectState?.sameHerHoldDetail).toBe(
+      'same-her hold: keep the return lower-pressure and slower before the line widens again.',
+    )
+    expect(frame?.projectState?.continuityCue).toBe(
+      'Keep this return lower-pressure and slower on the same living line before widening outward.',
+    )
   })
 
   it('keeps same-her landed and still-open phase-1 closure carry explicit in callback conscious need and speaking intention under longer project-state detours', () => {
