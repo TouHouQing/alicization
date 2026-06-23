@@ -166,6 +166,35 @@ function createMeasuredReturnResidentPerformance(
   }
 }
 
+function createRepairBeforeClosenessResidentPerformance(input?: {
+  reasonTags?: string[]
+  signature?: string
+}): AlicizationResidentPerformanceSnapshot {
+  return {
+    version: 'resident-performance-v1' as const,
+    source: 'main-runtime',
+    stance: 'accompany',
+    embodiedPresence: 'attentive',
+    emotionalTension: 'soft-covision',
+    confidence: 0.84,
+    signature: input?.signature ?? 'resident|main-runtime|accompanying|quiet-accompaniment|repair-before-closeness',
+    updatedAt: 1_000,
+    performance: {
+      baseEmotion: 'thinking',
+      emotion: 'thinking',
+      facialCue: 'focused',
+      actionCue: 'idle_settle',
+      delivery: 'gentle',
+      emphasis: 1,
+    },
+    reasonTags: input?.reasonTags ?? [
+      'continuity:quiet-accompaniment',
+      'silent-observe',
+      'repair-before-closeness',
+    ],
+  }
+}
+
 describe('director viseme hints', () => {
   it('derives authoritative viseme hints from a Chinese guidance segment', () => {
     const script = buildAlicizationEmbodimentScript({
@@ -311,6 +340,72 @@ describe('director viseme hints', () => {
     for (const genericHint of genericHints) {
       const audibleSameHerHint = audibleSameHerHints.find(hint => hint.viseme === genericHint.viseme)
       expect(audibleSameHerHint?.weight).toBeLessThan(genericHint.weight)
+    }
+  })
+
+  it('lets restrained lipsync carry lower viseme pressure than matched lipsync on the same remembered line', () => {
+    const matchedScript = buildAlicizationEmbodimentScript({
+      seed: createMeasuredReturnVisemeSeed({
+        replyText: '我会轻一点把这句话接回来。',
+        segmentText: '我会轻一点把这句话接回来。',
+        rendererHints: {
+          residentMode: 'measured-return',
+          preferredBlinkCadence: 'linger',
+          preferredGazeMode: 'soften',
+          preferredLipsyncMode: 'matched',
+          preferredExpressionAliases: ['calm_inspect', 'soft-gaze'],
+          preferredMotionAliases: ['observe_focus', 'stillness_guard'],
+          signature: 'embodiment:remembered-lipsync-carry',
+          reasonTags: ['embodiment:body+lipsync-only'],
+        } as any,
+      }),
+      manifest: {
+        renderer: 'live2d',
+        supportedBaseEmotions: ['neutral', 'thinking'],
+        supportedFacialCues: [],
+        supportedActions: [],
+        supportsLookAt: true,
+        supportsVisemeLipSync: true,
+        supportsMicroDynamics: true,
+      },
+      residentPerformance: null,
+      rendererTarget: 'live2d',
+    })
+    const restrainedScript = buildAlicizationEmbodimentScript({
+      seed: createMeasuredReturnVisemeSeed({
+        replyText: '我会轻一点把这句话接回来。',
+        segmentText: '我会轻一点把这句话接回来。',
+        rendererHints: {
+          residentMode: 'measured-return',
+          preferredBlinkCadence: 'linger',
+          preferredGazeMode: 'soften',
+          preferredLipsyncMode: 'restrained',
+          preferredExpressionAliases: ['calm_inspect', 'soft-gaze'],
+          preferredMotionAliases: ['observe_focus', 'stillness_guard'],
+          signature: 'embodiment:remembered-lipsync-carry',
+          reasonTags: ['embodiment:body+lipsync-only'],
+        } as any,
+      }),
+      manifest: {
+        renderer: 'live2d',
+        supportedBaseEmotions: ['neutral', 'thinking'],
+        supportedFacialCues: [],
+        supportedActions: [],
+        supportsLookAt: true,
+        supportsVisemeLipSync: true,
+        supportsMicroDynamics: true,
+      },
+      residentPerformance: null,
+      rendererTarget: 'live2d',
+    })
+
+    const matchedHints = matchedScript.lipsyncPlan.visemeHints ?? []
+    const restrainedHints = restrainedScript.lipsyncPlan.visemeHints ?? []
+
+    expect(restrainedHints).toHaveLength(matchedHints.length)
+    for (const matchedHint of matchedHints) {
+      const restrainedHint = restrainedHints.find(hint => hint.viseme === matchedHint.viseme)
+      expect(restrainedHint?.weight).toBeLessThan(matchedHint.weight)
     }
   })
 
@@ -615,5 +710,126 @@ describe('director viseme hints', () => {
       live2dFacialReleaseMs: 360,
       live2dMotionFollowThroughMs: 380,
     }))
+  })
+
+  it('projects repair-before-closeness same-her body+voice continuity into softer viseme hints than an ordinary repair return', () => {
+    const ordinaryRepairScript = buildAlicizationEmbodimentScript({
+      seed: {
+        ...createVisemeSeed('先慢一点回来。', '先慢一点回来。'),
+        speechTimeline: {
+          version: 'speech-timeline-v1' as const,
+          variationToken: 'turn-viseme-repair-ordinary',
+          reply: '先慢一点回来。',
+          emotion: 'thinking' as const,
+          segments: [
+            {
+              id: 'segment-1',
+              index: 0,
+              startOffset: 0,
+              endOffset: 7,
+              text: '先慢一点回来。',
+              emotion: 'thinking' as const,
+              gestureWeight: 0.42,
+              facialWeight: 0.58,
+              prosodyWeight: 0.76,
+              beatWeight: 0.69,
+              mouthWeight: 0.55,
+              headWeight: 0.4,
+              facialHoldMs: 360,
+              actionHoldMs: 180,
+              actionCue: 'point_screen' as const,
+              facialCue: 'focused' as const,
+              actionWindow: 'segment-start' as const,
+              interruptMode: 'soft-interrupt' as const,
+            },
+          ],
+        },
+      },
+      manifest: {
+        renderer: 'live2d',
+        supportedBaseEmotions: ['neutral', 'thinking'],
+        supportedFacialCues: [],
+        supportedActions: [],
+        supportsLookAt: true,
+        supportsVisemeLipSync: true,
+        supportsMicroDynamics: true,
+      },
+      residentPerformance: createRepairBeforeClosenessResidentPerformance(),
+      rendererTarget: 'live2d',
+    })
+    const sameHerRepairScript = buildAlicizationEmbodimentScript({
+      seed: {
+        ...createVisemeSeed('先慢一点回来。', '先慢一点回来。'),
+        speechTimeline: {
+          version: 'speech-timeline-v1' as const,
+          variationToken: 'turn-viseme-repair-same-her',
+          reply: '先慢一点回来。',
+          emotion: 'thinking' as const,
+          segments: [
+            {
+              id: 'segment-1',
+              index: 0,
+              startOffset: 0,
+              endOffset: 7,
+              text: '先慢一点回来。',
+              emotion: 'thinking' as const,
+              gestureWeight: 0.42,
+              facialWeight: 0.58,
+              prosodyWeight: 0.76,
+              beatWeight: 0.69,
+              mouthWeight: 0.55,
+              headWeight: 0.4,
+              facialHoldMs: 360,
+              actionHoldMs: 180,
+              actionCue: 'point_screen' as const,
+              facialCue: 'focused' as const,
+              actionWindow: 'segment-start' as const,
+              interruptMode: 'soft-interrupt' as const,
+            },
+          ],
+        },
+      },
+      manifest: {
+        renderer: 'live2d',
+        supportedBaseEmotions: ['neutral', 'thinking'],
+        supportedFacialCues: [],
+        supportedActions: [],
+        supportsLookAt: true,
+        supportsVisemeLipSync: true,
+        supportsMicroDynamics: true,
+      },
+      residentPerformance: createRepairBeforeClosenessResidentPerformance({
+        reasonTags: [
+          'continuity:quiet-accompaniment',
+          'silent-observe',
+          'repair-before-closeness',
+          'embodiment:body+voice-only',
+        ],
+        signature: 'resident|main-runtime|embodiment:audible_same_her_line|body+voice-only|repair-before-closeness',
+      }),
+      rendererTarget: 'live2d',
+    })
+
+    expect(ordinaryRepairScript.state.residentMode).toBe('repair-before-closeness')
+    expect(ordinaryRepairScript.speechPlan.segments[0]?.rendererHints).toEqual(expect.objectContaining({
+      residentMode: 'repair-before-closeness',
+      preferredBlinkCadence: 'quiet',
+      preferredGazeMode: 'soften',
+    }))
+    expect(sameHerRepairScript.speechPlan.segments[0]?.rendererHints).toEqual(expect.objectContaining({
+      residentMode: 'repair-before-closeness',
+      preferredBlinkCadence: 'quiet',
+      preferredGazeMode: 'soften',
+      signature: 'resident|main-runtime|embodiment:audible_same_her_line|body+voice-only|repair-before-closeness',
+    }))
+
+    const ordinaryRepairHints = ordinaryRepairScript.lipsyncPlan.visemeHints ?? []
+    const sameHerRepairHints = sameHerRepairScript.lipsyncPlan.visemeHints ?? []
+
+    expect(sameHerRepairHints).toHaveLength(ordinaryRepairHints.length)
+    for (const ordinaryHint of ordinaryRepairHints) {
+      const sameHerHint = sameHerRepairHints.find(hint => hint.viseme === ordinaryHint.viseme)
+      expect(sameHerHint?.weight).toBeLessThan(ordinaryHint.weight)
+    }
   })
 })

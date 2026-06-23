@@ -1,8 +1,314 @@
+import type { VrmActionBinding } from '../../types/performance'
+import type { VrmMotionExecutionCueSnapshot } from './action-playback'
+
+import { createIdleStageEmbodimentPerformanceState } from '@proj-alicization/stage-shared'
 import { describe, expect, it } from 'vitest'
 
-import { resolveVrmActionFadeDurationSeconds } from './action-playback'
+import {
+  buildVrmTransientActionReplayKey,
+  createIdleVrmMotionExecutionState,
+  createSettledVrmMotionExecutionState,
+  resolveCurrentVrmMotionAuthorityCueSnapshot,
+  resolveVrmActionFadeDurationSeconds,
+  resolveVrmActionFadeInputFromPerformanceState,
+  resolveVrmMotionExecutionStateFromBinding,
+
+} from './action-playback'
 
 describe('vrm action playback helpers', () => {
+  it('keeps runtime motion execution on the real bound action key and falls back to the settled idle loop cue', () => {
+    const binding: VrmActionBinding = {
+      id: 'observe-soft-motion',
+      fileName: 'observe-soft-motion.vrma',
+      actionKey: 'ObserveSoft',
+      label: 'Observe Soft',
+      description: 'Observe with a softer same-her return motion.',
+      importedAt: 0,
+      source: 'external-vrma',
+    }
+
+    const sameHerFollowThroughCue: VrmMotionExecutionCueSnapshot = {
+      id: 'segment-observe-soft-1',
+      emotion: 'thinking',
+      facialCue: 'soft-gaze',
+      rendererHints: {
+        residentMode: 'repair-before-closeness',
+        preferredExpressionAliases: ['RecoverSoft'],
+        preferredMotionAliases: ['StillnessGuard'],
+        preferredBlinkCadence: 'linger',
+        preferredGazeMode: 'soften',
+        preferredPauseMode: 'longer',
+        preferredLipsyncMode: 'restrained',
+        preferredVoiceMode: 'lower-pressure',
+        preferredPacingMode: 'slower',
+        reasonTags: ['same-her-return'],
+        signature: 'same-her-hold:slower-lower-pressure',
+      },
+      rendererSettle: {
+        vrmActionFadeMs: 420,
+        vrmExpressionBlendMs: 560,
+      },
+    }
+
+    expect(createIdleVrmMotionExecutionState()).toEqual({
+      cue: null,
+      segmentId: null,
+      cueSnapshot: null,
+    })
+    expect(resolveVrmMotionExecutionStateFromBinding(binding, 'segment-observe-soft-1', sameHerFollowThroughCue)).toEqual({
+      cue: 'ObserveSoft',
+      segmentId: 'segment-observe-soft-1',
+      cueSnapshot: sameHerFollowThroughCue,
+    })
+    expect(createSettledVrmMotionExecutionState()).toEqual({
+      cue: 'settle_idle',
+      segmentId: null,
+      cueSnapshot: null,
+    })
+  })
+
+  it('builds different transient replay keys when the same binding re-enters with new same-her continuity semantics', () => {
+    const binding: VrmActionBinding = {
+      id: 'observe-soft-motion',
+      fileName: 'observe-soft-motion.vrma',
+      actionKey: 'observe_soft',
+      label: 'Observe Soft',
+      description: 'Observe with a softer same-her return motion.',
+      importedAt: 0,
+      source: 'external-vrma',
+    }
+
+    const neutralKey = buildVrmTransientActionReplayKey({
+      binding,
+      fadeInput: {
+        actionCueSource: 'segment',
+        actionIntensity: 0.52,
+        fadeDurationSeconds: 0.36,
+        preferredBlinkCadence: 'linger',
+        preferredGazeMode: 'soften',
+        residentMode: 'repair-before-closeness',
+        bodySegmentMatched: true,
+      },
+    })
+
+    const sameHerReplayKey = buildVrmTransientActionReplayKey({
+      binding,
+      fadeInput: {
+        actionCueSource: 'segment',
+        actionIntensity: 0.52,
+        fadeDurationSeconds: 0.36,
+        preferredBlinkCadence: 'linger',
+        preferredGazeMode: 'soften',
+        residentMode: 'repair-before-closeness',
+        signature: 'resident|main-runtime|embodiment:audible_same_her_line|body+voice-only',
+        reasonTags: ['embodiment:body+voice-only'],
+        bodySegmentMatched: false,
+      },
+    })
+
+    expect(sameHerReplayKey).not.toBe(neutralKey)
+  })
+
+  it('freezes the current same-her authority cue into vrm motion execution state when the motion actually starts', () => {
+    const binding: VrmActionBinding = {
+      id: 'observe-soft-motion',
+      fileName: 'observe-soft-motion.vrma',
+      actionKey: 'ObserveSoft',
+      label: 'Observe Soft',
+      description: 'Observe with a softer same-her return motion.',
+      importedAt: 0,
+      source: 'external-vrma',
+    }
+    const state = createIdleStageEmbodimentPerformanceState()
+    state.activeCue = {
+      id: 'segment-active-cue-older',
+      emotion: 'guarded',
+      facialCue: 'guarded-look',
+      rendererHints: {
+        residentMode: 'quiet-companionship',
+        preferredExpressionAliases: ['GuardedSoft'],
+        preferredMotionAliases: ['GuardedStillness'],
+        preferredBlinkCadence: 'quiet',
+        preferredGazeMode: 'steady',
+        reasonTags: ['older-cue'],
+        signature: 'older-same-her-line',
+      },
+      rendererSettle: {
+        vrmActionFadeMs: 280,
+        vrmExpressionBlendMs: 300,
+      },
+    } as unknown as NonNullable<typeof state.activeCue>
+    state.activeSegment = {
+      segmentId: 'segment-observe-soft-1',
+      cue: {
+        id: 'segment-observe-soft-1',
+        emotion: 'thinking',
+        facialCue: 'soft-gaze',
+        rendererHints: {
+          residentMode: 'repair-before-closeness',
+          preferredExpressionAliases: ['RecoverSoft'],
+          preferredMotionAliases: ['StillnessGuard', 'ObserveSoft'],
+          preferredBlinkCadence: 'linger',
+          preferredGazeMode: 'soften',
+          preferredPauseMode: 'longer',
+          preferredLipsyncMode: 'restrained',
+          preferredVoiceMode: 'lower-pressure',
+          preferredPacingMode: 'slower',
+          reasonTags: ['same-her-return'],
+          signature: 'same-her-hold:slower-lower-pressure',
+        },
+        rendererSettle: {
+          vrmActionFadeMs: 420,
+          vrmExpressionBlendMs: 560,
+        },
+      },
+    } as unknown as NonNullable<typeof state.activeSegment>
+
+    const executionState = resolveVrmMotionExecutionStateFromBinding(
+      binding,
+      'segment-observe-soft-1',
+      resolveCurrentVrmMotionAuthorityCueSnapshot(state),
+    )
+
+    expect(executionState).toEqual({
+      cue: 'ObserveSoft',
+      segmentId: 'segment-observe-soft-1',
+      cueSnapshot: {
+        id: 'segment-observe-soft-1',
+        emotion: 'thinking',
+        facialCue: 'soft-gaze',
+        rendererHints: {
+          residentMode: 'repair-before-closeness',
+          preferredExpressionAliases: ['RecoverSoft'],
+          preferredMotionAliases: ['StillnessGuard', 'ObserveSoft'],
+          preferredBlinkCadence: 'linger',
+          preferredGazeMode: 'soften',
+          preferredPauseMode: 'longer',
+          preferredLipsyncMode: 'restrained',
+          preferredVoiceMode: 'lower-pressure',
+          preferredPacingMode: 'slower',
+          reasonTags: ['same-her-return'],
+          signature: 'same-her-hold:slower-lower-pressure',
+        },
+        rendererSettle: {
+          vrmActionFadeMs: 420,
+          vrmExpressionBlendMs: 560,
+        },
+      },
+    })
+
+    state.activeSegment = null
+    state.activeCue = null
+
+    expect(executionState.cueSnapshot).toEqual({
+      id: 'segment-observe-soft-1',
+      emotion: 'thinking',
+      facialCue: 'soft-gaze',
+      rendererHints: {
+        residentMode: 'repair-before-closeness',
+        preferredExpressionAliases: ['RecoverSoft'],
+        preferredMotionAliases: ['StillnessGuard', 'ObserveSoft'],
+        preferredBlinkCadence: 'linger',
+        preferredGazeMode: 'soften',
+        preferredPauseMode: 'longer',
+        preferredLipsyncMode: 'restrained',
+        preferredVoiceMode: 'lower-pressure',
+        preferredPacingMode: 'slower',
+        reasonTags: ['same-her-return'],
+        signature: 'same-her-hold:slower-lower-pressure',
+      },
+      rendererSettle: {
+        vrmActionFadeMs: 420,
+        vrmExpressionBlendMs: 560,
+      },
+    })
+  })
+
+  it('resolves fade input from performance state with same-her renderer hints and body continuity authority intact', () => {
+    const neutralState = createIdleStageEmbodimentPerformanceState()
+    neutralState.activeActionCueSource = 'segment'
+    neutralState.actionIntensity = 0.52
+    neutralState.activeCue = {
+      rendererHints: {
+        residentMode: 'same-thread-continuation',
+        preferredBlinkCadence: 'linger',
+        preferredGazeMode: 'soften',
+      },
+    } as unknown as NonNullable<typeof neutralState.activeCue>
+
+    const matchedSameHerState = createIdleStageEmbodimentPerformanceState()
+    matchedSameHerState.activeActionCueSource = 'segment'
+    matchedSameHerState.actionIntensity = 0.52
+    matchedSameHerState.driverAuthority = {
+      segmentId: 'segment-same-her-motion',
+      rendererTarget: 'vrm',
+      matchedDrivers: ['body', 'motion'],
+      sources: ['segment'],
+      bodySegmentMatched: true,
+      faceSegmentMatched: true,
+      motionSegmentMatched: true,
+      lipsyncSegmentMatched: true,
+      voiceSegmentMatched: true,
+      prosodyAuthority: null,
+    }
+    matchedSameHerState.activeCue = {
+      rendererHints: {
+        residentMode: 'same-thread-continuation',
+        preferredBlinkCadence: 'linger',
+        preferredGazeMode: 'soften',
+        signature: 'resident|main-runtime|embodiment:audible_same_her_line|body+voice-only',
+        reasonTags: ['embodiment:body+voice-only'],
+      },
+    } as unknown as NonNullable<typeof matchedSameHerState.activeCue>
+
+    const rendererOnlySameHerState = createIdleStageEmbodimentPerformanceState()
+    rendererOnlySameHerState.activeActionCueSource = 'segment'
+    rendererOnlySameHerState.actionIntensity = 0.52
+    rendererOnlySameHerState.driverAuthority = {
+      segmentId: 'segment-same-her-motion',
+      rendererTarget: 'vrm',
+      matchedDrivers: ['motion'],
+      sources: ['segment'],
+      bodySegmentMatched: false,
+      faceSegmentMatched: true,
+      motionSegmentMatched: true,
+      lipsyncSegmentMatched: true,
+      voiceSegmentMatched: true,
+      prosodyAuthority: null,
+    }
+    rendererOnlySameHerState.activeCue = {
+      rendererHints: {
+        residentMode: 'same-thread-continuation',
+        preferredBlinkCadence: 'linger',
+        preferredGazeMode: 'soften',
+        signature: 'resident|main-runtime|embodiment:audible_same_her_line|body+voice-only',
+        reasonTags: ['embodiment:body+voice-only'],
+      },
+    } as unknown as NonNullable<typeof rendererOnlySameHerState.activeCue>
+
+    const neutralFade = resolveVrmActionFadeDurationSeconds(
+      resolveVrmActionFadeInputFromPerformanceState({
+        state: neutralState,
+        fadeDurationSeconds: 0.36,
+      }),
+    )
+    const matchedSameHerFade = resolveVrmActionFadeDurationSeconds(
+      resolveVrmActionFadeInputFromPerformanceState({
+        state: matchedSameHerState,
+        fadeDurationSeconds: 0.36,
+      }),
+    )
+    const rendererOnlySameHerFade = resolveVrmActionFadeDurationSeconds(
+      resolveVrmActionFadeInputFromPerformanceState({
+        state: rendererOnlySameHerState,
+        fadeDurationSeconds: 0.36,
+      }),
+    )
+
+    expect(matchedSameHerFade).toBeGreaterThan(neutralFade)
+    expect(rendererOnlySameHerFade).toBeGreaterThan(matchedSameHerFade)
+  })
+
   it('shortens action fade for stronger segment-grade action intensity', () => {
     const residentFade = resolveVrmActionFadeDurationSeconds({
       actionCueSource: 'resident',
@@ -182,6 +488,45 @@ describe('vrm action playback helpers', () => {
     })
 
     expect(rendererOnlyFade).toBeGreaterThan(fullyMatchedFade)
+  })
+
+  it('keeps repair-before-closeness body+voice-only fades more guarded than an otherwise equally softened repair-first line', () => {
+    const softenedRepairFade = resolveVrmActionFadeDurationSeconds({
+      actionCueSource: 'segment',
+      actionIntensity: 0.52,
+      fadeDurationSeconds: 0.36,
+      residentMode: 'repair-before-closeness',
+      preferredGazeMode: 'soften',
+      preferredBlinkCadence: 'linger',
+      bodySegmentMatched: true,
+    })
+
+    const sameHerBodyVoiceRepairFade = resolveVrmActionFadeDurationSeconds({
+      actionCueSource: 'segment',
+      actionIntensity: 0.52,
+      fadeDurationSeconds: 0.36,
+      residentMode: 'repair-before-closeness',
+      preferredGazeMode: 'soften',
+      preferredBlinkCadence: 'linger',
+      signature: 'resident|main-runtime|embodiment:audible_same_her_line|body+voice-only',
+      reasonTags: ['embodiment:body+voice-only'],
+      bodySegmentMatched: true,
+    })
+
+    const rendererOnlySameHerBodyVoiceRepairFade = resolveVrmActionFadeDurationSeconds({
+      actionCueSource: 'segment',
+      actionIntensity: 0.52,
+      fadeDurationSeconds: 0.36,
+      residentMode: 'repair-before-closeness',
+      preferredGazeMode: 'soften',
+      preferredBlinkCadence: 'linger',
+      signature: 'resident|main-runtime|embodiment:audible_same_her_line|body+voice-only',
+      reasonTags: ['embodiment:body+voice-only'],
+      bodySegmentMatched: false,
+    })
+
+    expect(sameHerBodyVoiceRepairFade).toBeGreaterThan(softenedRepairFade)
+    expect(rendererOnlySameHerBodyVoiceRepairFade).toBeGreaterThan(sameHerBodyVoiceRepairFade)
   })
 
   it('keeps same-her audible-return fades guarded even after residentMode relaxes into same-thread-continuation', () => {

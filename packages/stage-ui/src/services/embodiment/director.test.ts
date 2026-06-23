@@ -844,6 +844,81 @@ describe('embodiment director', () => {
     }))
   })
 
+  it('preserves an upstream steady measured-return gaze hint instead of flattening it back into a softer fallback', () => {
+    const script = buildAlicizationEmbodimentScript({
+      seed: {
+        ...createSeed({
+          turnId: 'turn-measured-return-steady-gaze-vrm-script',
+          replyText: '我先更稳一点地接住这条线，不把回身做成更软的泛化余韵。',
+        }),
+        performance: {
+          baseEmotion: 'thinking',
+          emotion: 'thinking',
+          facialCue: 'focus',
+          actionCue: 'steady_focus',
+          delivery: 'gentle',
+          emphasis: 1,
+        },
+        speechTimeline: {
+          version: 'speech-timeline-v1',
+          variationToken: 'turn-measured-return-steady-gaze-vrm-script',
+          reply: '我先更稳一点地接住这条线，不把回身做成更软的泛化余韵。',
+          emotion: 'thinking',
+          segments: [
+            {
+              id: 'segment-1',
+              index: 0,
+              startOffset: 0,
+              endOffset: 27,
+              text: '我先更稳一点地接住这条线，不把回身做成更软的泛化余韵。',
+              emotion: 'thinking',
+              gestureWeight: 0.18,
+              facialWeight: 0.32,
+              prosodyWeight: 0.34,
+              beatWeight: 0.28,
+              facialHoldMs: 180,
+              actionHoldMs: 180,
+              actionCue: 'observe_focus',
+              facialCue: 'focus',
+              actionWindow: 'none',
+              interruptMode: 'continue',
+              rendererHints: {
+                preferredGazeMode: 'steady',
+                preferredBlinkCadence: 'linger',
+              },
+            },
+          ],
+        },
+      },
+      manifest: {
+        renderer: 'vrm',
+        supportedBaseEmotions: ['neutral', 'thinking'],
+        supportedFacialCues: [],
+        supportedActions: [
+          { key: 'steady_focus', label: 'Steady Focus', description: 'steady focus', source: 'builtin' },
+          { key: 'observe_focus', label: 'Observe Focus', description: 'observe focus', source: 'builtin' },
+          { key: 'idle_settle', label: 'Idle Settle', description: 'idle settle', source: 'builtin' },
+        ],
+        supportsLookAt: true,
+        supportsVisemeLipSync: true,
+        supportsMicroDynamics: true,
+      } as any,
+      residentPerformance: createRestrainedCallbackResidentPerformance(
+        'measured-return',
+        ['durable-relationship-rhythm'],
+      ),
+      rendererTarget: 'vrm',
+    })
+
+    expect(script.state.residentMode).toBe('measured-return')
+    expect(script.motionPlan.idleBase).toBe('steady_focus')
+    expect(script.speechPlan.segments[0]?.rendererHints).toEqual(expect.objectContaining({
+      preferredGazeMode: 'steady',
+      preferredBlinkCadence: 'linger',
+      residentMode: 'measured-return',
+    }))
+  })
+
   it('seeds steadier inhale and softer release timing when the audible-body measured-return line is already carrying the same her before face and motion fully catch up', () => {
     const script = buildAlicizationEmbodimentScript({
       seed: {
@@ -1001,6 +1076,96 @@ describe('embodiment director', () => {
     expect(script.facePlan.speakingCues.map(cue => cue.postUtteranceCue)).toEqual(['eyes-soften', 'eyes-soften'])
     expect(script.motionPlan.idleBase).toBe('observe_focus')
     expect(script.motionPlan.actionBursts.map(burst => burst.actionCue)).toEqual(['observe_focus', 'observe_focus'])
+  })
+
+  it('keeps repair-before-closeness audible same-her body carry on steadier inhale and softer release while the resident body line stays authoritative', () => {
+    const script = buildAlicizationEmbodimentScript({
+      seed: {
+        ...createSeed({
+          turnId: 'turn-repair-before-closeness-audible-body-carry-vrm-script',
+          replyText: '我先沿着这条还活着的 body 和 voice 线把身体收稳，再慢一点让 face 和 motion 接回来。',
+        }),
+        performance: {
+          baseEmotion: 'thinking',
+          emotion: 'thinking',
+          facialCue: 'focus',
+          actionCue: 'steady_focus',
+          delivery: 'gentle',
+          emphasis: 1,
+        },
+        speechTimeline: {
+          version: 'speech-timeline-v1',
+          variationToken: 'turn-repair-before-closeness-audible-body-carry-vrm-script',
+          reply: '我先沿着这条还活着的 body 和 voice 线把身体收稳，再慢一点让 face 和 motion 接回来。',
+          emotion: 'thinking',
+          segments: [
+            {
+              id: 'segment-1',
+              index: 0,
+              startOffset: 0,
+              endOffset: 25,
+              text: '我先沿着这条还活着的 body 和 voice 线把身体收稳，再慢一点让 face 和 motion 接回来。',
+              emotion: 'thinking',
+              gestureWeight: 0.18,
+              facialWeight: 0.32,
+              prosodyWeight: 0.36,
+              beatWeight: 0.28,
+              facialHoldMs: 180,
+              actionHoldMs: 180,
+              actionCue: 'observe_focus',
+              facialCue: 'focus',
+              actionWindow: 'none',
+              interruptMode: 'continue',
+            },
+          ],
+        },
+      },
+      manifest: {
+        renderer: 'vrm',
+        supportedBaseEmotions: ['neutral', 'thinking'],
+        supportedFacialCues: [],
+        supportedActions: [
+          { key: 'steady_focus', label: 'Steady Focus', description: 'steady focus', source: 'builtin' },
+          { key: 'observe_focus', label: 'Observe Focus', description: 'observe focus', source: 'builtin' },
+          { key: 'idle_settle', label: 'Idle Settle', description: 'idle settle', source: 'builtin' },
+        ],
+        supportsLookAt: true,
+        supportsVisemeLipSync: true,
+        supportsMicroDynamics: true,
+      } as any,
+      residentPerformance: {
+        ...createRestrainedCallbackResidentPerformance(
+          'repair-before-closeness',
+          ['continuity-next-open-window'],
+        ),
+        reasonTags: [
+          'subconscious-proactive',
+          'silent-observe',
+          'continuity:quiet-accompaniment',
+          'repair-before-closeness',
+          'continuity-next-open-window',
+          'embodiment:body+voice-only',
+        ],
+        signature: 'resident|main-runtime|embodiment:audible_same_her_line|body+voice-only|repair-before-closeness|continuity-next-open-window',
+      },
+      rendererTarget: 'vrm',
+    })
+
+    expect(script.state.residentMode).toBe('repair-before-closeness')
+    expect(script.facePlan.preUtteranceCue).toBe('steady-inhale')
+    expect(script.facePlan.postUtteranceCue).toBe('eyes-soften')
+    expect(script.facePlan.speakingCues[0]).toEqual(expect.objectContaining({
+      preUtteranceCue: 'steady-inhale',
+      postUtteranceCue: 'eyes-soften',
+    }))
+    expect(script.speechPlan.segments[0]?.rendererHints).toEqual(expect.objectContaining({
+      residentMode: 'repair-before-closeness',
+      preferredBlinkCadence: 'quiet',
+      preferredGazeMode: 'soften',
+      signature: 'resident|main-runtime|embodiment:audible_same_her_line|body+voice-only|repair-before-closeness|continuity-next-open-window',
+    }))
+    expect(script.motionPlan.idleBase).toBe('idle_settle')
+    expect(script.motionPlan.actionBursts[0]?.actionCue).toBe('idle_settle')
   })
 
   it('keeps still-voiced face-line measured-return carry on an observe-focus vrm baseline without requiring the generic measured-return tag', () => {

@@ -1,10 +1,32 @@
-import type { StageEmbodimentPerformanceCueSource } from '@proj-alicization/stage-shared'
+import type {
+  AlicizationDialogueEmbodimentRendererHints,
+  AlicizationDialogueSpeechRendererSettleHints,
+  StageEmbodimentPerformanceCueSource,
+  StageEmbodimentPerformanceState,
+} from '@proj-alicization/stage-shared'
+
+import type { VrmActionBinding } from '../../types/performance'
 
 import {
   hasAlicizationAudibleSameHerCarry,
+  hasAlicizationBodyVoiceOnlySameHerCarry,
   hasAlicizationQuieterSameHerCarry,
   hasAlicizationStillVoicedSameHerCarry,
 } from '@proj-alicization/stage-shared'
+
+export interface VrmMotionExecutionState {
+  cue: string | null
+  segmentId: string | null
+  cueSnapshot: VrmMotionExecutionCueSnapshot | null
+}
+
+export interface VrmMotionExecutionCueSnapshot {
+  id?: string | null
+  emotion?: string | null
+  facialCue?: string | null
+  rendererHints?: AlicizationDialogueEmbodimentRendererHints | null
+  rendererSettle?: AlicizationDialogueSpeechRendererSettleHints | null
+}
 
 function clampRange(value: number, min: number, max: number, fallback: number) {
   if (!Number.isFinite(value))
@@ -20,7 +42,89 @@ function clampUnit(value: number | null | undefined, fallback: number | null = n
   return Math.min(1, Math.max(0, Number(value)))
 }
 
-export function resolveVrmActionFadeDurationSeconds(input: {
+function normalizeText(value: string | null | undefined) {
+  return typeof value === 'string' ? value.trim() : ''
+}
+
+function normalizeReasonTags(reasonTags: readonly string[] | null | undefined) {
+  return [...new Set((reasonTags ?? [])
+    .map(tag => normalizeText(tag).toLowerCase())
+    .filter(Boolean))]
+    .sort()
+}
+
+function roundKeyNumber(value: number | null | undefined, scale: number) {
+  return Number.isFinite(value as number) ? Math.round(Number(value) * scale) : null
+}
+
+export function createIdleVrmMotionExecutionState(): VrmMotionExecutionState {
+  return {
+    cue: null,
+    segmentId: null,
+    cueSnapshot: null,
+  }
+}
+
+export function createSettledVrmMotionExecutionState(): VrmMotionExecutionState {
+  return {
+    cue: 'settle_idle',
+    segmentId: null,
+    cueSnapshot: null,
+  }
+}
+
+function cloneVrmMotionExecutionCueSnapshot(
+  cueSnapshot: VrmMotionExecutionCueSnapshot | null | undefined,
+): VrmMotionExecutionCueSnapshot | null {
+  if (!cueSnapshot)
+    return null
+
+  return {
+    id: normalizeText(cueSnapshot.id) || null,
+    emotion: normalizeText(cueSnapshot.emotion) || null,
+    facialCue: normalizeText(cueSnapshot.facialCue) || null,
+    rendererHints: cueSnapshot.rendererHints
+      ? {
+          ...cueSnapshot.rendererHints,
+          preferredExpressionAliases: cueSnapshot.rendererHints.preferredExpressionAliases
+            ? [...cueSnapshot.rendererHints.preferredExpressionAliases]
+            : undefined,
+          preferredMotionAliases: cueSnapshot.rendererHints.preferredMotionAliases
+            ? [...cueSnapshot.rendererHints.preferredMotionAliases]
+            : undefined,
+          reasonTags: cueSnapshot.rendererHints.reasonTags
+            ? [...cueSnapshot.rendererHints.reasonTags]
+            : undefined,
+        }
+      : null,
+    rendererSettle: cueSnapshot.rendererSettle
+      ? { ...cueSnapshot.rendererSettle }
+      : null,
+  }
+}
+
+export function resolveVrmMotionExecutionStateFromBinding(
+  binding: VrmActionBinding,
+  segmentId?: string | null,
+  cueSnapshot?: VrmMotionExecutionCueSnapshot | null,
+): VrmMotionExecutionState {
+  const cue = normalizeText(binding.actionKey)
+  return {
+    cue: cue || null,
+    segmentId: normalizeText(segmentId) || null,
+    cueSnapshot: cloneVrmMotionExecutionCueSnapshot(cueSnapshot),
+  }
+}
+
+export function resolveCurrentVrmMotionAuthorityCueSnapshot(
+  state: StageEmbodimentPerformanceState | null | undefined,
+): VrmMotionExecutionCueSnapshot | null {
+  return cloneVrmMotionExecutionCueSnapshot(
+    state?.activeSegment?.cue ?? state?.activeCue ?? null,
+  )
+}
+
+export interface VrmActionFadeInput {
   actionCueSource: StageEmbodimentPerformanceCueSource | null | undefined
   actionIntensity: number | null | undefined
   bodySegmentMatched?: boolean | null | undefined
@@ -30,13 +134,60 @@ export function resolveVrmActionFadeDurationSeconds(input: {
   reasonTags?: readonly string[] | null | undefined
   residentMode?: string | null | undefined
   signature?: string | null | undefined
+}
+
+export function resolveVrmActionFadeInputFromPerformanceState(input: {
+  fadeDurationSeconds: number
+  state: StageEmbodimentPerformanceState | null | undefined
+}): VrmActionFadeInput {
+  const rendererHints = input.state?.activeCue?.rendererHints
+  return {
+    actionCueSource: input.state?.activeActionCueSource ?? 'none',
+    actionIntensity: input.state?.actionIntensity ?? null,
+    bodySegmentMatched: input.state?.driverAuthority?.bodySegmentMatched,
+    fadeDurationSeconds: input.fadeDurationSeconds,
+    preferredBlinkCadence: rendererHints?.preferredBlinkCadence ?? null,
+    preferredGazeMode: rendererHints?.preferredGazeMode ?? null,
+    reasonTags: rendererHints?.reasonTags ?? null,
+    residentMode: rendererHints?.residentMode ?? null,
+    signature: rendererHints?.signature ?? null,
+  }
+}
+
+export function buildVrmTransientActionReplayKey(input: {
+  binding: VrmActionBinding
+  fadeInput?: VrmActionFadeInput | null | undefined
 }) {
+  const source = input.binding.source || 'unknown'
+  const identity = input.binding.id || input.binding.actionKey || input.binding.fileName || 'anonymous-action'
+  if (!input.fadeInput)
+    return `${source}:${identity}`.trim()
+
+  return JSON.stringify([
+    `${source}:${identity}`.trim(),
+    input.fadeInput.actionCueSource ?? 'none',
+    roundKeyNumber(input.fadeInput.actionIntensity, 100),
+    roundKeyNumber(input.fadeInput.fadeDurationSeconds, 1000),
+    normalizeText(input.fadeInput.residentMode).toLowerCase(),
+    normalizeText(input.fadeInput.preferredGazeMode).toLowerCase(),
+    normalizeText(input.fadeInput.preferredBlinkCadence).toLowerCase(),
+    normalizeText(input.fadeInput.signature).toLowerCase(),
+    normalizeReasonTags(input.fadeInput.reasonTags),
+    input.fadeInput.bodySegmentMatched == null ? 'unknown' : input.fadeInput.bodySegmentMatched ? 'matched' : 'renderer-only',
+  ])
+}
+
+export function resolveVrmActionFadeDurationSeconds(input: VrmActionFadeInput) {
   const baseFade = clampRange(input.fadeDurationSeconds, 0.08, 1.2, 0.18)
   const actionIntensity = clampUnit(input.actionIntensity)
-  const residentMode = typeof input.residentMode === 'string' ? input.residentMode.trim() : ''
-  const preferredGazeMode = typeof input.preferredGazeMode === 'string' ? input.preferredGazeMode.trim() : ''
-  const preferredBlinkCadence = typeof input.preferredBlinkCadence === 'string' ? input.preferredBlinkCadence.trim() : ''
+  const residentMode = normalizeText(input.residentMode)
+  const preferredGazeMode = normalizeText(input.preferredGazeMode)
+  const preferredBlinkCadence = normalizeText(input.preferredBlinkCadence)
   const hasAudibleSameHerCarry = hasAlicizationAudibleSameHerCarry({
+    signature: input.signature,
+    reasonTags: input.reasonTags,
+  })
+  const hasBodyVoiceOnlySameHerCarry = hasAlicizationBodyVoiceOnlySameHerCarry({
     signature: input.signature,
     reasonTags: input.reasonTags,
   })
@@ -46,6 +197,12 @@ export function resolveVrmActionFadeDurationSeconds(input: {
     || preferredBlinkCadence === 'quiet'
     || preferredBlinkCadence === 'linger'
   ) && hasAudibleSameHerCarry
+  const sameHerBodyVoiceOnlyReturn = (
+    preferredGazeMode === 'steady'
+    || preferredGazeMode === 'soften'
+    || preferredBlinkCadence === 'quiet'
+    || preferredBlinkCadence === 'linger'
+  ) && hasBodyVoiceOnlySameHerCarry
   const sameHerQuieterReturn = (
     preferredGazeMode === 'steady'
     || preferredGazeMode === 'soften'
@@ -64,7 +221,7 @@ export function resolveVrmActionFadeDurationSeconds(input: {
     signature: input.signature,
     reasonTags: input.reasonTags,
   })
-  const sameHerSoftenedReturn = sameHerAudibleReturn || sameHerQuieterReturn || sameHerStillVoicedReturn
+  const sameHerSoftenedReturn = sameHerAudibleReturn || sameHerBodyVoiceOnlyReturn || sameHerQuieterReturn || sameHerStillVoicedReturn
   const restrainedSameHerCarry = residentMode === 'repair-before-closeness'
     || residentMode === 'measured-return'
     || sameHerSoftenedReturn

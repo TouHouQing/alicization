@@ -18,6 +18,8 @@ import {
   buildAlicizationEmbodimentFaceCue,
   buildAlicizationEmbodimentLipSyncHints,
   buildAlicizationEmbodimentMotionBurst,
+  hasAlicizationAudibleSameHerCarry,
+  hasAlicizationBodyVoiceOnlySameHerCarry,
   hasAlicizationQuieterSameHerCarry,
   hasAlicizationStillVoicedSameHerCarry,
 } from '@proj-alicization/stage-shared'
@@ -77,10 +79,29 @@ function hasQuieterResidentContinuity(
   })
 }
 
+function hasAudibleSameHerResidentContinuity(
+  residentPerformance: AlicizationResidentPerformanceSnapshot | null,
+) {
+  return hasAlicizationAudibleSameHerCarry({
+    signature: residentPerformance?.signature ?? null,
+    reasonTags: residentPerformance?.reasonTags ?? [],
+  })
+}
+
+function hasBodyVoiceOnlyResidentContinuity(
+  residentPerformance: AlicizationResidentPerformanceSnapshot | null,
+) {
+  return hasAlicizationBodyVoiceOnlySameHerCarry({
+    signature: residentPerformance?.signature ?? null,
+    reasonTags: residentPerformance?.reasonTags ?? [],
+  })
+}
+
 function hasSoftenedMeasuredReturnResidentContinuity(
   residentPerformance: AlicizationResidentPerformanceSnapshot | null,
 ) {
-  return hasStillVoicedResidentContinuity(residentPerformance)
+  return hasBodyVoiceOnlyResidentContinuity(residentPerformance)
+    || hasStillVoicedResidentContinuity(residentPerformance)
     || hasQuieterResidentContinuity(residentPerformance)
 }
 
@@ -197,6 +218,9 @@ function shouldPreserveQuietCompanionshipObserveBurst(
   residentPerformance: AlicizationResidentPerformanceSnapshot | null,
 ) {
   const residentReasonTags = residentPerformance?.reasonTags ?? []
+  if (hasResidentReasonTag(residentReasonTags, 'repair-before-closeness'))
+    return false
+
   return hasResidentReasonTag(residentReasonTags, 'subconscious-proactive')
     && hasResidentReasonTag(residentReasonTags, 'silent-observe')
     && hasResidentReasonTag(residentReasonTags, 'continuity:quiet-accompaniment')
@@ -210,15 +234,19 @@ function hasAudibleBodyMeasuredReturnCarry(
   residentPerformance: AlicizationResidentPerformanceSnapshot | null,
 ) {
   const residentReasonTags = residentPerformance?.reasonTags ?? []
+  const audibleSameHerContinuity = hasAudibleSameHerResidentContinuity(residentPerformance)
+  const softenedMeasuredReturnContinuity = hasSoftenedMeasuredReturnResidentContinuity(residentPerformance)
   return (
     hasResidentReasonTag(residentReasonTags, 'measured-return')
-    || hasSoftenedMeasuredReturnResidentContinuity(residentPerformance)
+    || softenedMeasuredReturnContinuity
+    || audibleSameHerContinuity
   )
   && hasResidentReasonTag(residentReasonTags, 'continuity:quiet-accompaniment')
   && hasResidentReasonTag(residentReasonTags, 'silent-observe')
   && (
     hasResidentReasonTag(residentReasonTags, 'continuity-next-open-window')
-    || hasSoftenedMeasuredReturnResidentContinuity(residentPerformance)
+    || softenedMeasuredReturnContinuity
+    || audibleSameHerContinuity
     || hasResidentReasonTag(residentReasonTags, 'lower-pressure')
   )
 }
@@ -246,17 +274,35 @@ function mergeSpeechSegmentRendererHints(input: {
   rendererHints: AlicizationEmbodimentSpeechPlan['segments'][number]['rendererHints']
 }) {
   const hasSoftenedContinuity = hasSoftenedMeasuredReturnResidentContinuity(input.residentPerformance)
+  if (!input.residentMode) {
+    return input.rendererHints ?? null
+  }
+
   if (
-    input.residentMode !== 'measured-return'
-    || (!hasDurableRelationshipRhythm(input.residentPerformance) && !hasSoftenedContinuity)
+    input.residentMode === 'measured-return'
+    && !hasDurableRelationshipRhythm(input.residentPerformance)
+    && !hasSoftenedContinuity
   ) {
     return input.rendererHints ?? null
   }
 
+  if (input.residentMode === 'repair-before-closeness') {
+    return {
+      ...input.rendererHints,
+      preferredBlinkCadence: input.rendererHints?.preferredBlinkCadence ?? 'quiet' as const,
+      preferredGazeMode: input.rendererHints?.preferredGazeMode ?? 'soften' as const,
+      preferredExpressionAliases: input.rendererHints?.preferredExpressionAliases ?? ['soft-gaze'],
+      preferredMotionAliases: input.rendererHints?.preferredMotionAliases ?? ['idle_settle'],
+      residentMode: 'repair-before-closeness',
+      signature: input.rendererHints?.signature ?? input.residentPerformance?.signature ?? undefined,
+      reasonTags: input.rendererHints?.reasonTags ?? input.residentPerformance?.reasonTags ?? undefined,
+    }
+  }
+
   return {
-    ...(input.rendererHints ?? {}),
-    preferredBlinkCadence: 'linger' as const,
-    preferredGazeMode: 'soften' as const,
+    ...input.rendererHints,
+    preferredBlinkCadence: input.rendererHints?.preferredBlinkCadence ?? 'linger' as const,
+    preferredGazeMode: input.rendererHints?.preferredGazeMode ?? 'soften' as const,
     residentMode: 'measured-return',
   }
 }
@@ -321,7 +367,7 @@ function projectSpeechSegmentRendererSettle(input: {
   }
 
   return {
-    ...(input.rendererSettle ?? {}),
+    ...input.rendererSettle,
     live2dFacialReleaseMs: baseFacialReleaseMs > 0 ? baseFacialReleaseMs : input.rendererSettle?.live2dFacialReleaseMs,
     live2dMotionFollowThroughMs: baseMotionFollowThroughMs > 0 ? baseMotionFollowThroughMs : input.rendererSettle?.live2dMotionFollowThroughMs,
     vrmActionFadeMs: baseVrmActionFadeMs > 0 ? baseVrmActionFadeMs : input.rendererSettle?.vrmActionFadeMs,
