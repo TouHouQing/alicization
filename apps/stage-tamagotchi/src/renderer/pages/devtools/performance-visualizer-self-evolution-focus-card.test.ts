@@ -20,6 +20,29 @@ describe('performance visualizer self evolution focus card', () => {
     ])).toBe('repair-path')
   })
 
+  it('prefers first-check for project-state continuity triage so carry is inspected before jumping deeper into repair path', () => {
+    expect(resolveDefaultSelfEvolutionFocusCardId([
+      {
+        id: 'repair-owner',
+        label: '修复归属',
+        layer: 'continuity',
+        detail: 'project-state continuity governance',
+      },
+      {
+        id: 'first-check',
+        label: '首查点',
+        layer: 'continuity',
+        detail: 'Project identity carry -> Phase 1 route carry -> Unresolved closure carry',
+      },
+      {
+        id: 'repair-path',
+        label: '修复路径',
+        layer: null,
+        detail: 'continuity governance project-state-continuity-drift -> Project identity carry -> Phase 1 route carry -> Unresolved closure carry',
+      },
+    ])).toBe('first-check')
+  })
+
   it('falls back to first-check before repair-owner', () => {
     expect(resolveDefaultSelfEvolutionFocusCardId([
       {

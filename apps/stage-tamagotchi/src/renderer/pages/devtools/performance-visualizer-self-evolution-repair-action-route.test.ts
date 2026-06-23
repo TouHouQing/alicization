@@ -62,4 +62,19 @@ describe('performance visualizer self evolution repair action route', () => {
       targetId: 'validation',
     })
   })
+
+  it('prefers a body continuity surface override when body rejoin needs to keep the operator on the same living-segment repair lane', () => {
+    expect(buildSelfEvolutionRepairActionRoute({
+      kind: 'inspect-evidence',
+      label: '检查 显形权威投影',
+      detail: '修复闭环仍然打开。当前已经进入身体承接态 -> 显形补回态。',
+      targetType: 'evidence',
+      targetId: 'renderer-authority-projection',
+      surfaceKeyOverride: 'authority:renderer-rejoin:live2d',
+    })).toEqual({
+      surfaceKey: 'authority:renderer-rejoin:live2d',
+      targetType: 'evidence',
+      targetId: 'renderer-authority-projection',
+    })
+  })
 })

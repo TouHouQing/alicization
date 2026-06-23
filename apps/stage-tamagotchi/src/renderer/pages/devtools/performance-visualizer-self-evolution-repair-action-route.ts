@@ -4,6 +4,7 @@ interface SelfEvolutionRepairNextActionLike {
   detail: string
   targetType: 'evidence' | 'trace' | 'event' | 'snapshot'
   targetId: string
+  surfaceKeyOverride?: string
 }
 
 export function buildSelfEvolutionRepairActionRoute(
@@ -13,7 +14,7 @@ export function buildSelfEvolutionRepairActionRoute(
     return null
 
   return {
-    surfaceKey: `${nextAction.targetType}:${nextAction.targetId}`,
+    surfaceKey: nextAction.surfaceKeyOverride ?? `${nextAction.targetType}:${nextAction.targetId}`,
     targetType: nextAction.targetType,
     targetId: nextAction.targetId,
   }
