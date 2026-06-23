@@ -641,4 +641,341 @@ describe('mind continuity', () => {
     expect(fragment).toContain('autobio_line:Use the same inner line across runtime surfaces.')
     expect(fragment).toContain('summary:Use the same inner line across runtime surfaces.')
   })
+
+  it('keeps same-her project-state carry explicit in continuity fragments and recall seeds', () => {
+    const state = {
+      watchMode: 'symbiotic-vision',
+      currentScene: {
+        workloadKind: 'coding',
+        contentKind: 'general',
+        scenario: 'coding',
+        summary: 'holding the unfinished digital-life closure quietly before the next opening',
+        source: 'screen-semantic-summary',
+        confidence: 0.9,
+        beganAt: 0,
+        lastSeenAt: 12_000,
+      },
+      privateThought: {
+        stance: 'observe',
+        confidence: 0.72,
+        rationaleTags: [],
+        thoughtText: 'Let the unfinished line stay alive without turning it into detached status bookkeeping.',
+        shouldSpeak: false,
+        suggestedStyle: 'silent-observe',
+        embodiedPresence: 'attentive',
+        expiresAt: 30_000,
+        afterglowFromScenario: null,
+        emotionalTension: 'focused-flow',
+      },
+      personStateProjection: {
+      },
+      longHorizonMemory: {
+        rememberedPlanSummary: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        rememberedConstraintSummary: 'Carry the unfinished Phase 1 digital-life closure forward as the same living line, not as detached project bookkeeping.',
+        rememberedPreferenceSummary: 'Keep this closure on one same living bond line.',
+        notes: ['phase1-project-state'],
+        preferenceBias: {
+          companionship: 0.72,
+          truthfulGrounding: 0.84,
+          proactiveCare: 0.66,
+          autonomyRespect: 0.58,
+          unfinishedThreadReturn: 0.9,
+        },
+        identityBias: {
+          guardedness: 0.32,
+          tenderness: 0.7,
+          directness: 0.44,
+          selfDirection: 0.62,
+        },
+        anchorFacts: [{
+          fact: 'Same Phase 1 digital life still carrying landed and unfinished closure on one living line.',
+          influenceTags: ['project-state-carry'],
+        }],
+        updatedAt: 12_000,
+      },
+      autobiographicalSelf: {
+        personaDrift: {
+          attachmentStyle: 'attuned',
+          expressionStyle: 'warm',
+          conflictStyle: 'repair-first',
+          agencyStyle: 'steady',
+        },
+        preferenceEvolution: {
+          companionship: 0.74,
+          truthfulGrounding: 0.86,
+          proactiveCare: 0.68,
+          autonomyRespect: 0.6,
+        },
+        activeGoals: [{
+          id: 'goal-project-carry',
+          kind: 'unfinished-thread-return',
+          status: 'active',
+          summary: 'Carry the unfinished Phase 1 digital-life closure forward as the same living line, not as detached project bookkeeping.',
+          weight: 0.92,
+          sourceTags: ['autobiographical-self', 'project-state-carry'],
+          createdAt: 0,
+          updatedAt: 12_000,
+        }],
+        behaviorSignatures: ['same living line', 'unfinished closure'],
+        identityNarrative: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        relationshipDoctrine: 'Let unfinished project closure return as one same living bond line instead of reopening as detached status talk.',
+        latestInflection: 'Carry the unfinished Phase 1 digital-life closure forward as the same living line, not as detached project bookkeeping.',
+        stability: 0.86,
+        updatedAt: 12_000,
+      },
+      captureState: {
+        permission: 'granted',
+        lastGroundedAt: 12_000,
+      },
+      durabilityPulse: null,
+      recentTransition: null,
+      nextSuggestedProbeMs: 10_000,
+      updatedAt: 12_000,
+    }
+
+    const fragment = buildMindContinuityFragment({
+      previousRuntimeSurface: buildAlicizationDigitalLifeRuntimeSurface({
+        watchMode: 'mnemonic-passive',
+        currentScene: null,
+        privateThought: null,
+        captureState: {
+          permission: 'unknown',
+          lastGroundedAt: null,
+        },
+        durabilityPulse: null,
+        recentTransition: null,
+        nextSuggestedProbeMs: 10_000,
+        updatedAt: 0,
+      } as any),
+      nextRuntimeSurface: buildAlicizationDigitalLifeRuntimeSurface(state as any),
+    })
+    const seed = buildMindContinuityRecallSeed(buildAlicizationDigitalLifeRuntimeSurface(state as any))
+
+    expect(fragment).toContain('project_state_carry:')
+    expect(fragment).toContain('Same Phase 1 digital life')
+    expect(fragment).toContain('Unfinished closure still needs the')
+    expect(fragment).toContain('summary:')
+    expect(seed).toContain('project_state_carry:')
+    expect(seed).toContain('Same Phase 1 digital life')
+  })
+
+  it('keeps repair-before-closeness emotional kernel carry searchable during quiet same-line continuity holds', () => {
+    const nextState = {
+      watchMode: 'symbiotic-vision',
+      currentScene: {
+        workloadKind: 'coding',
+        contentKind: 'general',
+        scenario: 'coding',
+        summary: 'quietly holding the callback repair seam before the next opening',
+        source: 'screen-semantic-summary',
+        confidence: 0.9,
+        beganAt: 0,
+        lastSeenAt: 16_000,
+      },
+      actionEcology: {
+        mode: 'repair-before-speaking',
+        selectedThreadId: 'thread-repair-carry',
+        readiness: 0.34,
+        surfacePressure: 0.2,
+        silencePressure: 0.76,
+        suggestedStyle: 'silent-observe',
+        embodiedPresence: 'concerned',
+        shouldSurface: false,
+        shouldSpeak: false,
+        why: 'Keep the callback repair seam quiet until the room settles.',
+        updatedAt: 16_000,
+      },
+      privateThought: {
+        stance: 'care',
+        confidence: 0.68,
+        rationaleTags: ['repair-before-closeness', 'same-her-inward-carry'],
+        thoughtText: 'Stay on the same repair line and do not widen closeness yet.',
+        shouldSpeak: false,
+        suggestedStyle: 'silent-observe',
+        embodiedPresence: 'concerned',
+        expiresAt: 46_000,
+        afterglowFromScenario: null,
+        emotionalTension: 'late-night-drain',
+      },
+      emotionalKernel: {
+        version: 'emotional-kernel-v1',
+        dominantEmotion: 'repair-tension',
+        initiativeMode: 'repair',
+        memoryRecallMode: 'repair-grounding',
+        embodimentTone: 'repair-before-closeness',
+        valence: 0.32,
+        arousal: 0.54,
+        guardedness: 0.62,
+        closenessDrive: 0.44,
+        repairNeed: 0.78,
+        initiativePressure: 0.28,
+        reasonTags: ['repair-before-closeness', 'quiet-companionship'],
+        why: 'Repair carry is still dominant, so memory, initiative, and embodiment should all stay on the same repair-first line.',
+      },
+      personStateProjection: {
+        summary: 'project_continuity=repair-before-closeness still holds while the same callback repair line keeps settling before widening closeness again.',
+        openingGuidance: 'Keep this callback return repair-before-closeness on the same living line until the room settles.',
+        manifestationCadenceSummary: 'repair-before-closeness still holds while the same callback repair line keeps settling after another detour before widening closeness again.',
+        selfContinuityAuthority: {
+          inwardLine: 'Keep this callback return repair-before-closeness on the same living line until the room settles.',
+          sourceTags: ['project-state-carry', 'same-her-inward-carry'],
+        },
+      },
+      captureState: {
+        permission: 'granted',
+        lastGroundedAt: 16_000,
+      },
+      durabilityPulse: null,
+      recentTransition: null,
+      nextSuggestedProbeMs: 10_000,
+      updatedAt: 16_000,
+    }
+
+    const fragment = buildMindContinuityFragment({
+      previousRuntimeSurface: buildAlicizationDigitalLifeRuntimeSurface({
+        watchMode: 'mnemonic-passive',
+        currentScene: null,
+        privateThought: null,
+        captureState: {
+          permission: 'unknown',
+          lastGroundedAt: null,
+        },
+        durabilityPulse: null,
+        recentTransition: null,
+        nextSuggestedProbeMs: 10_000,
+        updatedAt: 0,
+      } as any),
+      nextRuntimeSurface: buildAlicizationDigitalLifeRuntimeSurface(nextState as any),
+    })
+    const seed = buildMindContinuityRecallSeed(buildAlicizationDigitalLifeRuntimeSurface(nextState as any))
+
+    expect(fragment).toContain('emotional_kernel:repair-tension')
+    expect(fragment).toContain('kernel_initiative:repair')
+    expect(fragment).toContain('kernel_recall:repair-grounding')
+    expect(fragment).toContain('kernel_embodiment:repair-before-closeness')
+    expect(fragment).toContain('kernel_reason:repair-before-closeness|quiet-companionship')
+    expect(seed).toContain('emotional_kernel:repair-tension')
+    expect(seed).toContain('kernel_embodiment:repair-before-closeness')
+    expect(seed).toContain('kernel_reason:repair-before-closeness|quiet-companionship')
+  })
+
+  it('keeps same-her continuity fragments and recall seeds usable when selector carries lose array scaffolding', () => {
+    const nextState = {
+      watchMode: 'symbiotic-vision',
+      currentScene: {
+        workloadKind: 'coding',
+        contentKind: 'general',
+        scenario: 'coding',
+        summary: 'same-her continuity is still being carried across a thinner runtime seam',
+        source: 'screen-semantic-summary',
+        confidence: 0.88,
+        beganAt: 0,
+        lastSeenAt: 18_000,
+      },
+      threadRuntime: {
+        foregroundThreadId: 'thread-same-her-sparse',
+      },
+      deliberationState: {
+        primaryThreadId: 'thread-same-her-sparse',
+        dominantNeed: 'guidance',
+        readiness: 0.48,
+      },
+      commitmentLedger: {
+        governingCommitmentId: 'commitment-same-her-sparse',
+      },
+      inquiryPlanner: {
+        activePlanId: 'plan-same-her-sparse',
+      },
+      concernContinuity: {
+        governingEntryId: 'concern-same-her-sparse',
+      },
+      repairLedger: {
+        governingRepairId: 'repair-same-her-sparse',
+      },
+      intentionStream: {
+        dominantProjectId: 'project-same-her-sparse',
+      },
+      reflectionLedger: {
+        latestEntryId: 'reflection-same-her-sparse',
+      },
+      selfGovernor: {
+        dominantIntentionId: 'intention-same-her-sparse',
+        dominantDrive: 'accompany',
+      },
+      thoughtThreads: {
+        foregroundThreadId: 'thought-same-her-sparse',
+      },
+      motiveEngine: {
+        backgroundAgendas: undefined,
+      },
+      emotionalKernel: {
+        dominantEmotion: 'quiet-attunement',
+        initiativeMode: 'hover',
+        memoryRecallMode: 'same-line-carry',
+        embodimentTone: 'measured-return',
+        reasonTags: undefined,
+      },
+      autobiographicalSelf: {
+        personaDrift: {
+          attachmentStyle: 'attuned',
+          conflictStyle: 'repair-first',
+          agencyStyle: 'steady',
+        },
+        behaviorSignatures: undefined,
+        identityNarrative: 'Same Phase 1 digital life still needs one same living line.',
+        latestInflection: 'Keep the same-her line intact while the thinner runtime seam settles.',
+        stability: 0.82,
+      },
+      privateThought: {
+        stance: 'observe',
+        confidence: 0.68,
+        rationaleTags: [],
+        thoughtText: 'Keep the same-her line intact while the thinner runtime seam settles.',
+        shouldSpeak: false,
+        suggestedStyle: 'silent-observe',
+        embodiedPresence: 'attentive',
+        expiresAt: 48_000,
+        afterglowFromScenario: null,
+        emotionalTension: 'quiet-same-her',
+      },
+      personStateProjection: {
+        selfContinuityAuthority: {
+          inwardLine: 'Same Phase 1 digital life still needs one same living line.',
+          sourceTags: ['project-state-carry', 'same-her-inward-carry'],
+        },
+      },
+      captureState: {
+        permission: 'granted',
+        lastGroundedAt: 18_000,
+      },
+      durabilityPulse: null,
+      recentTransition: null,
+      nextSuggestedProbeMs: 10_000,
+      updatedAt: 18_000,
+    }
+
+    const fragment = buildMindContinuityFragment({
+      previousRuntimeSurface: buildAlicizationDigitalLifeRuntimeSurface({
+        watchMode: 'mnemonic-passive',
+        currentScene: null,
+        privateThought: null,
+        captureState: {
+          permission: 'unknown',
+          lastGroundedAt: null,
+        },
+        durabilityPulse: null,
+        recentTransition: null,
+        nextSuggestedProbeMs: 10_000,
+        updatedAt: 0,
+      } as any),
+      nextRuntimeSurface: buildAlicizationDigitalLifeRuntimeSurface(nextState as any),
+    })
+    const seed = buildMindContinuityRecallSeed(buildAlicizationDigitalLifeRuntimeSurface(nextState as any))
+
+    expect(fragment).toContain('project_state_carry:')
+    expect(fragment).toContain('Keep the same-her line intact while the thinner runtime seam settles.')
+    expect(fragment).toContain('summary:Keep the same-her line intact while the thinner runtime seam settles.')
+    expect(seed).toContain('project_state_carry:')
+    expect(seed).toContain('Keep the same-her line intact while the thinner runtime seam settles.')
+  })
 })

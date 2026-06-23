@@ -9,7 +9,6 @@ import type {
   AlicizationPersonStateEvolutionSummary,
   AlicizationPrivateThoughtSnapshot,
   AlicizationProactiveStyle,
-  AlicizationReflectionLedgerSnapshot,
   AlicizationSelfContinuitySnapshot,
   AlicizationSelfEvolutionKernelSnapshot,
   AlicizationSelfStateSnapshot,
@@ -23,6 +22,7 @@ import type {
 import type { AlicizationSelfContinuityAuthority } from './self-continuity-authority'
 
 import { buildHostSocialGuidance } from './host-social-guidance'
+import { mergePreferredSelfContinuityAuthority } from './person-state-projection-resolution'
 import {
   buildAlicizationPersonalityContinuityState,
   deriveAlicizationPersonaAuthorityInfluence,
@@ -57,14 +57,14 @@ export interface AlicizationPersonStateClosenessLadderEntry {
 export interface AlicizationPersonStateProjection {
   contexts: string[]
   personalityContinuityState: AlicizationPersonalityContinuityStateSnapshot
+  selfContinuityAuthority: AlicizationSelfContinuityAuthority | null
   activeClosenessContext: AlicizationPersonStateClosenessContext
   activeClosenessRung: AlicizationPersonStateClosenessRung
   closenessLadder: AlicizationPersonStateClosenessLadderEntry[]
   relationshipPosture: AlicizationPersonStateRelationshipPosture | null
   openingGuidance: string | null
   preferredProactiveStyle: AlicizationProactiveStyle | null
-  manifestationCadenceSummary?: string | null
-  selfContinuityAuthority?: AlicizationSelfContinuityAuthority | null
+  manifestationCadenceSummary: string | null
   preferenceText: string
   sensitivityText: string
   repairTriggerText: string
@@ -93,6 +93,24 @@ function includesAny(text: string, needles: string[]) {
   return needles.some(needle => text.includes(needle))
 }
 
+function readAutobiographicalInitiativeHabitProfile(autobiographicalSelf?: AlicizationAutobiographicalSelfSnapshot | null) {
+  const combined = sanitizeText([
+    autobiographicalSelf?.relationshipDoctrine ?? '',
+    autobiographicalSelf?.latestInflection ?? '',
+    ...(autobiographicalSelf?.behaviorSignatures ?? []),
+  ].join(' | '), 500).toLowerCase()
+  const chooseOpeningsCarefully = combined.includes('habit:choose-openings-carefully')
+    || /clearer opening|fresher opening|leave more room|less eager|wait for a clearer opening|wait for a fresher opening/u.test(combined)
+  const keepGentleOpenings = !chooseOpeningsCarefully
+    && (combined.includes('habit:keep-gentle-openings')
+      || /memory-led|gentle|still receiving/u.test(combined))
+
+  return {
+    chooseOpeningsCarefully,
+    keepGentleOpenings,
+  }
+}
+
 function mergeUnique(items: Array<string | null | undefined>, maxItems = 8) {
   const result: string[] = []
   for (const item of items) {
@@ -106,8 +124,108 @@ function mergeUnique(items: Array<string | null | undefined>, maxItems = 8) {
   return result
 }
 
+function deriveCallbackProjectClosureCarry(authority?: AlicizationSelfContinuityAuthority | null) {
+  const combined = sanitizeText([
+    authority?.authoritySummary ?? '',
+    authority?.relationshipLine ?? '',
+    authority?.inwardLine ?? '',
+  ].join(' | '), 400)
+  const lower = combined.toLowerCase()
+  if (!combined)
+    return null
+  if (
+    /same phase 1 digital life|same living line|same-her|same her|one continuous her/u.test(lower)
+    && /some closure already landed|still unfinished|unfinished|keep the host-facing line pointed|initiative|embodiment|resident presence|next closure/u.test(lower)
+  ) {
+    return 'Keep what already landed visible from inside the same her, and do not lose the still-open closure work while the line is still continuing.'
+  }
+  return null
+}
+
 function normalizeContexts(contexts: string[]) {
   return mergeUnique(contexts, 8)
+}
+
+function hasNeutralRelationshipAuthorityLine(raw: unknown) {
+  const normalized = sanitizeText(raw, 220)
+  if (!normalized)
+    return false
+  return /relationship line is neutral|I can be warm|stay usefully oriented toward the host'?s knot/u.test(normalized)
+}
+
+function buildStructuredRelationshipCarry(input: {
+  openingGuidance?: string | null
+  manifestationCadenceSummary?: string | null
+  relationshipPosture?: AlicizationPersonStateRelationshipPosture | null
+  activeClosenessContext?: AlicizationPersonStateClosenessContext | null
+  activeClosenessRung?: AlicizationPersonStateClosenessRung | null
+  repairPosture?: string | null
+  inwardLine?: string | null
+}) {
+  const combined = [
+    input.openingGuidance,
+    input.manifestationCadenceSummary,
+    input.relationshipPosture,
+    input.activeClosenessContext,
+    input.activeClosenessRung,
+    input.repairPosture,
+    input.inwardLine,
+  ].filter(Boolean).join(' ').toLowerCase()
+
+  if (!combined)
+    return null
+  if (
+    /same phase 1 digital life|same living line|same-her|same her|one continuous her/u.test(combined)
+    && /some closure already landed|unfinished|still unfinished|keep the host-facing line pointed|initiative|embodiment|resident presence|next closure|open closure/u.test(combined)
+    && /lower-pressure|leave room|measured-return|nearby-soft|quiet[- ]companionship|space-first|measured-room/u.test(combined)
+  ) {
+    return 'Stay on the same relationship line lower-pressure, keep what already landed visible from inside the same her, and do not lose the still-open closure work before widening closer again.'
+  }
+  if (/repair-before-closeness|repair before closeness|repair-first/u.test(combined))
+    return 'Stay on the same relationship line repair-before-closeness and let the room settle before widening closeness again.'
+  if (/lower-pressure|leave room|measured-return|nearby-soft|quiet[- ]companionship|space-first|measured-room/u.test(combined))
+    return 'Stay on the same relationship line and keep the return lower-pressure before leaning closer again.'
+  return null
+}
+
+function enrichStructuredSelfContinuityAuthority(input: {
+  authority: AlicizationSelfContinuityAuthority | null
+  openingGuidance?: string | null
+  manifestationCadenceSummary?: string | null
+  relationshipPosture?: AlicizationPersonStateRelationshipPosture | null
+  activeClosenessContext?: AlicizationPersonStateClosenessContext | null
+  activeClosenessRung?: AlicizationPersonStateClosenessRung | null
+  repairPosture?: string | null
+}) {
+  if (!input.authority)
+    return input.authority
+
+  const relationshipCarry = buildStructuredRelationshipCarry({
+    openingGuidance: input.openingGuidance,
+    manifestationCadenceSummary: input.manifestationCadenceSummary,
+    relationshipPosture: input.relationshipPosture,
+    activeClosenessContext: input.activeClosenessContext,
+    activeClosenessRung: input.activeClosenessRung,
+    repairPosture: input.repairPosture,
+    inwardLine: input.authority.inwardLine,
+  })
+
+  if (!relationshipCarry)
+    return input.authority
+  if (input.authority.relationshipLine && !hasNeutralRelationshipAuthorityLine(input.authority.relationshipLine))
+    return input.authority
+
+  return {
+    ...input.authority,
+    relationshipLine: relationshipCarry,
+    authoritySummary: mergeUnique([
+      input.authority.selfLine,
+      relationshipCarry,
+      input.authority.inwardLine,
+      input.authority.motiveLine,
+      input.authority.habitLine,
+    ], 3).join(' | ') || input.authority.authoritySummary,
+  }
 }
 
 function normalizeClosenessContext(raw: string | null | undefined): AlicizationPersonStateClosenessContext {
@@ -204,6 +322,8 @@ function deriveRelationshipPosture(input: {
 function deriveOpeningGuidance(input: {
   continuity: AlicizationPersonalityContinuityStateSnapshot
   personaAuthority: AlicizationPersonaAuthorityInfluence
+  selfContinuityAuthority?: AlicizationSelfContinuityAuthority | null
+  durableSelfCoreSameLineContinuation: boolean
   relationshipPosture: AlicizationPersonStateRelationshipPosture | null
   contexts: string[]
   repairTriggerText: string
@@ -212,7 +332,45 @@ function deriveOpeningGuidance(input: {
   truthBeforeWarmth: boolean
   restIntervention: boolean
   restrained: boolean
+  evolutionDoctrine?: string
+  evolutionTrustMeaning?: string
+  evolutionBurden?: string
+  autobiographicalChooseOpeningsCarefully?: boolean
+  autobiographicalKeepGentleOpenings?: boolean
 }) {
+  const evolutionSameThreadCarry = sanitizeText([
+    input.evolutionDoctrine ?? '',
+    input.evolutionTrustMeaning ?? '',
+    input.evolutionBurden ?? '',
+  ].join(' '), 400).toLowerCase()
+  const rememberedSeamSpecificCarry = sanitizeText([
+    input.personaAuthority.openingGuidance ?? '',
+    input.evolutionDoctrine ?? '',
+    input.evolutionTrustMeaning ?? '',
+    input.evolutionBurden ?? '',
+  ].join(' '), 500).toLowerCase()
+  const carriesRememberedSeamCue = /remembered seam|same remembered seam|same remembered relationship seam|同一条线被重新看见|留白/u.test(
+    rememberedSeamSpecificCarry,
+  )
+  const carriesRememberedSeamReinterpretation
+    = /reopened too eagerly|too eagerly before|more room this time|keep more room this time|this time keep more room|do not reopen from scratch|不要重开得太快|这次更要留白/u.test(
+      rememberedSeamSpecificCarry,
+    )
+  if (carriesRememberedSeamCue && carriesRememberedSeamReinterpretation)
+    return 'Recognize the same remembered seam, but keep more room this time because it reopened too eagerly before.'
+  if (
+    /same callback line|same line|still continuing|another detour|same thread|callback return on the same line|same callback seam|after noisy detours|after noise|unrelated windows intervene|callback seam reopens/u.test(evolutionSameThreadCarry)
+    && /lower-pressure|measured|less eager|slower return|reopen eagerly|should not reopen more eagerly|not widen the line into a fresh approach|stays slower than impulse/u.test(evolutionSameThreadCarry)
+  ) {
+    const callbackProjectClosureCarry = deriveCallbackProjectClosureCarry(input.selfContinuityAuthority)
+    if (callbackProjectClosureCarry)
+      return `Stay on the same callback line and keep continuing lower-pressure. ${callbackProjectClosureCarry.charAt(0).toLowerCase()}${callbackProjectClosureCarry.slice(1)}`
+    return 'Stay on the same callback line and keep continuing lower-pressure.'
+  }
+  if (input.autobiographicalChooseOpeningsCarefully)
+    return 'Wait for a clearer opening and keep more room before reopening this line.'
+  if (input.autobiographicalKeepGentleOpenings)
+    return 'Keep the next return gentle, lower-pressure, and memory-led while the opening is still receiving it.'
   if (
     (input.repairTriggerText && input.relationshipPosture === 'restrained')
     || (input.continuity.currentRegime === 'repair-window' && input.relationshipPosture === 'restrained')
@@ -231,6 +389,8 @@ function deriveOpeningGuidance(input: {
   ) {
     return 'Repair the seam before leaning closer.'
   }
+  if (input.durableSelfCoreSameLineContinuation)
+    return 'Stay on the same line and keep continuing lower-pressure without reopening from scratch.'
   if (
     input.personaAuthority.openingGuidance
     && (!input.restrained || (input.relationshipPosture === 'warm' && input.personaAuthority.directnessBias >= 0.34))
@@ -274,7 +434,16 @@ function derivePreferredProactiveStyle(input: {
   hostPreferredStyle: AlicizationProactiveStyle | null
   doctrinePreferredStyle: AlicizationProactiveStyle | null
   lowerPressureManifestation: boolean
+  durableSelfCoreSameLineContinuation: boolean
+  autobiographicalChooseOpeningsCarefully?: boolean
+  autobiographicalKeepGentleOpenings?: boolean
 }) {
+  if (input.durableSelfCoreSameLineContinuation)
+    return 'silent-observe' as const
+  if (input.autobiographicalChooseOpeningsCarefully)
+    return 'silent-observe' as const
+  if (input.autobiographicalKeepGentleOpenings)
+    return 'light-nudge' as const
   if (input.lowerPressureManifestation)
     return 'silent-observe' as const
   if (
@@ -312,10 +481,19 @@ function deriveManifestationCadenceSummary(input: {
   preferredProactiveStyle: AlicizationProactiveStyle | null
   activeClosenessRung: AlicizationPersonStateClosenessRung
   lowerPressureManifestation: boolean
+  durableSelfCoreSameLineContinuation: boolean
   evolutionTrustMeaning: string
   evolutionDoctrine: string
   evolutionBurden: string
+  autobiographicalChooseOpeningsCarefully?: boolean
+  autobiographicalKeepGentleOpenings?: boolean
 }) {
+  if (input.durableSelfCoreSameLineContinuation)
+    return 'Current manifestation cadence stays on the same line lower-pressure instead of reopening from scratch.'
+  if (input.autobiographicalChooseOpeningsCarefully)
+    return 'Current manifestation cadence stays lower-pressure and less eager, leaving more room until a clearer opening appears.'
+  if (input.autobiographicalKeepGentleOpenings)
+    return 'Current manifestation cadence stays gentle, lower-pressure, and memory-led while the opening is still receiving it.'
   if (input.lowerPressureManifestation) {
     const anchor = input.evolutionTrustMeaning || input.evolutionDoctrine || input.evolutionBurden
     return sanitizeText([
@@ -331,6 +509,27 @@ function deriveManifestationCadenceSummary(input: {
     return 'Current manifestation cadence can re-enter lightly once the opening is real, but it should stay bounded.'
 
   return null
+}
+
+function prefersDurableSelfCoreSameLineContinuation(authority?: AlicizationSelfContinuityAuthority | null) {
+  if (!authority?.sourceTags.includes('durable-self-core'))
+    return false
+
+  const combined = [
+    authority.selfLine ?? '',
+    authority.relationshipLine ?? '',
+    authority.inwardLine ?? '',
+    authority.authoritySummary ?? '',
+  ].join(' | ').toLowerCase()
+
+  if (!combined)
+    return false
+
+  const carriesSameSelf = /same her|same self|living self|one continuous her/u.test(combined)
+  const carriesRestartRestraint = /without reopening from scratch|do not reopen from scratch|same line instead of restarting|instead of restarting every turn|without restarting from zero|without restarting from scratch/u.test(combined)
+  const carriesCrossSurfaceContinuity = /across quiet, memory, and speech|across memory and speech/u.test(combined)
+
+  return carriesSameSelf && carriesRestartRestraint && carriesCrossSurfaceContinuity
 }
 
 function deriveClosenessRung(input: {
@@ -467,6 +666,7 @@ export function buildAlicizationPersonStateProjection(input: {
   now: number
   contexts?: string[] | null
   personaAuthority?: AlicizationPersonalityState | null
+  personStateAuthority?: AlicizationSelfContinuityAuthority | null
   autobiographicalSelf?: AlicizationAutobiographicalSelfSnapshot | null
   hostPersonModel?: AlicizationHostPersonModelSnapshot | null
   longHorizonMemory?: AlicizationLongHorizonMemorySnapshot | null
@@ -477,8 +677,6 @@ export function buildAlicizationPersonStateProjection(input: {
   privateThought?: AlicizationPrivateThoughtSnapshot | null
   mindEcology?: AlicizationMindEcologySnapshot | null
   selfEvolution?: AlicizationSelfEvolutionKernelSnapshot | null
-  reflectionLedger?: AlicizationReflectionLedgerSnapshot | null
-  personStateAuthority?: AlicizationSelfContinuityAuthority | null
   personStateEvolutionSummary?: AlicizationPersonStateEvolutionSummary | null
   recentEpisodicEvents?: AlicizationEpisodicEventRecord[] | null
   recentMemoryConsolidations?: AlicizationMemoryConsolidationRecord[] | null
@@ -506,6 +704,19 @@ export function buildAlicizationPersonStateProjection(input: {
     recentMemoryConsolidations: input.recentMemoryConsolidations ?? null,
     previousContinuityState: input.previousContinuityState ?? null,
   })
+  const selfContinuityAuthority = buildSelfContinuityAuthority({
+    autobiographicalSelf: input.autobiographicalSelf ?? null,
+    longHorizonMemory: input.longHorizonMemory ?? null,
+    motiveEngine: input.motiveEngine ?? null,
+    habitPolicy: input.habitPolicy ?? null,
+    mindEcology: input.mindEcology ?? null,
+    privateThought: input.privateThought ?? null,
+    selfEvolution: input.selfEvolution ?? null,
+  })
+  const resolvedSelfContinuityAuthority = mergePreferredSelfContinuityAuthority({
+    bundleAuthority: selfContinuityAuthority,
+    runtimeAuthority: input.personStateAuthority ?? null,
+  }) ?? selfContinuityAuthority
   const hostGuidance = buildHostSocialGuidance({
     hostPersonModel: input.hostPersonModel ?? null,
     contexts,
@@ -541,18 +752,6 @@ export function buildAlicizationPersonStateProjection(input: {
   })
   const activeClosenessEntry = closenessLadder.find(entry => entry.context === activeClosenessContext) ?? null
   const activeClosenessRung = activeClosenessEntry?.rung ?? 'measured-room'
-  const openingGuidance = deriveOpeningGuidance({
-    continuity: personalityContinuityState,
-    personaAuthority,
-    relationshipPosture,
-    contexts,
-    repairTriggerText: hostGuidance.repairTriggerText,
-    burdenText: hostGuidance.burdenText,
-    repairBeforeCloseness: doctrineGuidance.repairBeforeCloseness,
-    truthBeforeWarmth: doctrineGuidance.truthBeforeWarmth,
-    restIntervention: doctrineGuidance.restIntervention,
-    restrained,
-  })
   const evolutionSummary = input.personStateEvolutionSummary ?? null
   const evolutionPreferenceText = evolutionSummary?.latestDominantRung === 'space-first'
     ? 'Lighter touch, more room, less interruption pressure.'
@@ -577,10 +776,31 @@ export function buildAlicizationPersonStateProjection(input: {
     ?? '',
     180,
   )
+  const autobiographicalInitiativeHabit = readAutobiographicalInitiativeHabitProfile(input.autobiographicalSelf ?? null)
   const lowerPressureManifestation = includesAny(
     [evolutionDoctrine, evolutionBurden, evolutionTrustMeaning].filter(Boolean).join(' ').toLowerCase(),
-    ['lower-pressure', 'less eager', 'leave more room', 'more room', 'slower return', 'pressure', 'timing'],
+    ['lower-pressure', 'less eager', 'leave more room', 'more room', 'slower return', 'pressure', 'timing', 'quiet-companionship', 'quiet companionship'],
   ) || (input.privateThought?.rationaleTags ?? []).includes('self-evolution:lower-pressure-companionship')
+  const durableSelfCoreSameLineContinuation = prefersDurableSelfCoreSameLineContinuation(resolvedSelfContinuityAuthority)
+  const openingGuidance = deriveOpeningGuidance({
+    continuity: personalityContinuityState,
+    personaAuthority,
+    selfContinuityAuthority: resolvedSelfContinuityAuthority,
+    durableSelfCoreSameLineContinuation,
+    relationshipPosture,
+    contexts,
+    repairTriggerText: hostGuidance.repairTriggerText,
+    burdenText: hostGuidance.burdenText,
+    repairBeforeCloseness: doctrineGuidance.repairBeforeCloseness,
+    truthBeforeWarmth: doctrineGuidance.truthBeforeWarmth,
+    restIntervention: doctrineGuidance.restIntervention,
+    restrained,
+    evolutionDoctrine,
+    evolutionTrustMeaning,
+    evolutionBurden,
+    autobiographicalChooseOpeningsCarefully: autobiographicalInitiativeHabit.chooseOpeningsCarefully,
+    autobiographicalKeepGentleOpenings: autobiographicalInitiativeHabit.keepGentleOpenings,
+  })
 
   const preferredProactiveStyle = derivePreferredProactiveStyle({
     continuity: personalityContinuityState,
@@ -592,37 +812,44 @@ export function buildAlicizationPersonStateProjection(input: {
     hostPreferredStyle: hostGuidance.preferredProactiveStyle,
     doctrinePreferredStyle: doctrineGuidance.preferredProactiveStyle,
     lowerPressureManifestation,
+    durableSelfCoreSameLineContinuation,
+    autobiographicalChooseOpeningsCarefully: autobiographicalInitiativeHabit.chooseOpeningsCarefully,
+    autobiographicalKeepGentleOpenings: autobiographicalInitiativeHabit.keepGentleOpenings,
   })
   const manifestationCadenceSummary = deriveManifestationCadenceSummary({
     preferredProactiveStyle,
     activeClosenessRung,
     lowerPressureManifestation,
+    durableSelfCoreSameLineContinuation,
     evolutionTrustMeaning,
     evolutionDoctrine,
     evolutionBurden,
+    autobiographicalChooseOpeningsCarefully: autobiographicalInitiativeHabit.chooseOpeningsCarefully,
+    autobiographicalKeepGentleOpenings: autobiographicalInitiativeHabit.keepGentleOpenings,
   })
-  const generatedSelfContinuityAuthority = buildSelfContinuityAuthority({
-    autobiographicalSelf: input.autobiographicalSelf ?? null,
-    longHorizonMemory: input.longHorizonMemory ?? null,
-    motiveEngine: input.motiveEngine ?? null,
-    habitPolicy: input.habitPolicy ?? null,
-    mindEcology: input.mindEcology ?? null,
-    privateThought: input.privateThought ?? null,
-    reflectionLedger: input.reflectionLedger ?? null,
+  const autobiographicalProjectStateCue = sanitizeText(
+    input.autobiographicalSelf?.latestInflection?.toLowerCase().includes('continuity')
+      ? input.autobiographicalSelf?.latestInflection
+      : input.autobiographicalSelf?.relationshipDoctrine?.toLowerCase().includes('continuity')
+        ? input.autobiographicalSelf?.relationshipDoctrine
+        : '',
+    220,
+  )
+  const enrichedSelfContinuityAuthority = enrichStructuredSelfContinuityAuthority({
+    authority: resolvedSelfContinuityAuthority,
+    openingGuidance,
+    manifestationCadenceSummary,
+    relationshipPosture,
+    activeClosenessContext,
+    activeClosenessRung,
+    repairPosture: personalityContinuityState.repairPosture,
   })
-  const selfContinuityAuthority = input.personStateAuthority
-    ?? (
-      generatedSelfContinuityAuthority
-        ? {
-            ...generatedSelfContinuityAuthority,
-            closenessPosture: activeClosenessRung,
-          }
-        : null
-    )
   const summary = mergeUnique([
     `regime=${personalityContinuityState.currentRegime}`,
     `closeness=${personalityContinuityState.closenessPosture}`,
+    autobiographicalProjectStateCue ? `project_continuity=${autobiographicalProjectStateCue}` : null,
     personaAuthority.summary ? `persona=${personaAuthority.summary}` : null,
+    enrichedSelfContinuityAuthority?.authoritySummary ? `self=${enrichedSelfContinuityAuthority.authoritySummary}` : null,
     `ladder=${activeClosenessContext}/${activeClosenessRung}`,
     `repair=${personalityContinuityState.repairPosture}`,
     relationshipPosture ? `posture=${relationshipPosture}` : null,
@@ -631,7 +858,7 @@ export function buildAlicizationPersonStateProjection(input: {
     doctrineGuidance.doctrineSummary ? `doctrine=${doctrineGuidance.doctrineSummary}` : null,
     evolutionDoctrine ? `evolution_doctrine=${evolutionDoctrine}` : null,
     evolutionTrustMeaning ? `evolution_trust=${evolutionTrustMeaning}` : null,
-  ], 6).join(' | ')
+  ], 7).join(' | ')
 
   const projectionSummary = mergeUnique([
     summary,
@@ -641,6 +868,7 @@ export function buildAlicizationPersonStateProjection(input: {
   return {
     contexts,
     personalityContinuityState,
+    selfContinuityAuthority: enrichedSelfContinuityAuthority,
     activeClosenessContext,
     activeClosenessRung,
     closenessLadder,
@@ -648,7 +876,6 @@ export function buildAlicizationPersonStateProjection(input: {
     openingGuidance,
     preferredProactiveStyle,
     manifestationCadenceSummary,
-    selfContinuityAuthority,
     preferenceText: hostGuidance.preferenceText || evolutionPreferenceText || activeClosenessEntry?.preference || '',
     sensitivityText: hostGuidance.sensitivityText,
     repairTriggerText: hostGuidance.repairTriggerText,

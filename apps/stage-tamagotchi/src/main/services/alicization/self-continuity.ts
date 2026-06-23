@@ -21,6 +21,30 @@ function sanitizeText(raw: unknown, maxChars = 48) {
   return raw.trim().toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, maxChars)
 }
 
+function readInitiativeStrategyCarryBias(longHorizonMemory?: AlicizationLongHorizonMemorySnapshot | null) {
+  const normalized = [
+    longHorizonMemory?.rememberedPlanSummary,
+    longHorizonMemory?.rememberedConstraintSummary,
+    longHorizonMemory?.rememberedPreferenceSummary,
+    longHorizonMemory?.dominantCueSummary,
+    ...(longHorizonMemory?.anchorFacts ?? [])
+      .filter(item => sanitizeText(item.predicate, 64) === 'initiative-strategy-carry' || sanitizeText(item.factId, 96).includes('initiative-strategy-carry'))
+      .flatMap(item => [item.object, item.summary]),
+  ]
+    .map(value => typeof value === 'string' ? value.trim().toLowerCase() : '')
+    .filter(Boolean)
+    .join(' | ')
+
+  const quieterOrRoomMaking = /leave more room|less eager|clearer opening|fresher opening|wait for a clearer opening|wait for a fresher opening|quieter timing|quiet until/u.test(normalized)
+  const gentleMemoryLed = !quieterOrRoomMaking
+    && /gentle|memory-led|still receiving|accepted or continued|received without obvious resistance/u.test(normalized)
+
+  return {
+    quieterOrRoomMaking,
+    gentleMemoryLed,
+  }
+}
+
 function createDefaultSelfContinuity(now: number): AlicizationSelfContinuitySnapshot {
   return {
     attachmentMode: 'nearby',
@@ -66,6 +90,7 @@ export function buildSelfContinuity(input: {
   const rememberedGuardedness = input.longHorizonMemory?.identityBias.guardedness ?? 0
   const rememberedTenderness = input.longHorizonMemory?.identityBias.tenderness ?? 0
   const rememberedSelfDirection = input.longHorizonMemory?.identityBias.selfDirection ?? 0
+  const initiativeStrategyCarryBias = readInitiativeStrategyCarryBias(input.longHorizonMemory ?? null)
 
   const certaintyDelta = input.worldModel.epistemicState.certainty === 'grounded'
     ? 0.08
@@ -98,6 +123,7 @@ export function buildSelfContinuity(input: {
       - relationshipTrustDamage * 0.46
       + rememberedCompanionship * 0.06
       + rememberedTenderness * 0.04
+      + (initiativeStrategyCarryBias.gentleMemoryLed ? 0.08 : 0)
       + (input.context.relationship.loneliness >= 80 ? 0.03 : 0)
       + (input.watchMode === 'symbiotic-vision' ? 0.03 : 0),
     ),
@@ -111,8 +137,10 @@ export function buildSelfContinuity(input: {
       + rememberedAutonomy * 0.08
       + rememberedObservation * 0.06
       + rememberedGuardedness * 0.08
+      + (initiativeStrategyCarryBias.quieterOrRoomMaking ? 0.14 : 0)
       + boundaryViolationPressure * 0.34
       - boundaryRespectLift * 0.18
+      - (initiativeStrategyCarryBias.gentleMemoryLed ? 0.1 : 0)
       + (input.context.system.fullscreenLikely ? 0.08 : 0)
       - positiveCount * 0.03,
     ),
@@ -124,6 +152,7 @@ export function buildSelfContinuity(input: {
     + rememberedSelfDirection * 0.1
     + (input.goalStack.unresolvedSummary ? 0.08 : 0)
     + (input.worldModel.continuity.afterglowOpen ? 0.12 : 0)
+    + ((initiativeStrategyCarryBias.quieterOrRoomMaking || initiativeStrategyCarryBias.gentleMemoryLed) ? 0.06 : 0)
     + carryReturnLift * 0.28
     - (input.context.system.inputActivity === 'active' ? 0.04 : 0),
   )
@@ -134,9 +163,16 @@ export function buildSelfContinuity(input: {
     : relationshipTrust >= 0.5 && (input.watchMode === 'symbiotic-vision' || carryOverDesire >= 0.32 || input.worldModel.continuity.afterglowOpen)
       ? 'attuned'
       : 'nearby'
-  const initiativeTemperament = guardingTendency >= 0.56 || dismissCount >= 2 || misreadBurden >= 0.4
+  const carryBiasedReservedInitiative = initiativeStrategyCarryBias.quieterOrRoomMaking
+    && guardingTendency >= 0.5
+    && carryOverDesire >= 0.5
+  const carryBiasedEagerInitiative = initiativeStrategyCarryBias.gentleMemoryLed
+    && relationshipTrust >= 0.5
+    && perceptionTrust >= 0.52
+    && carryOverDesire >= 0.5
+  const initiativeTemperament = guardingTendency >= 0.56 || dismissCount >= 2 || misreadBurden >= 0.4 || carryBiasedReservedInitiative
     ? 'reserved'
-    : relationshipTrust >= 0.5 && perceptionTrust >= 0.52 && carryOverDesire >= 0.32
+    : relationshipTrust >= 0.5 && perceptionTrust >= 0.52 && carryOverDesire >= 0.32 || carryBiasedEagerInitiative
       ? 'eager'
       : 'balanced'
 
@@ -146,6 +182,8 @@ export function buildSelfContinuity(input: {
     input.worldModel.epistemicState.certainty === 'lingering' ? 'misread-risk-rising' : '',
     input.longHorizonMemory?.rememberedConstraintSummary ? 'remembering-boundary' : '',
     input.longHorizonMemory?.rememberedPlanSummary ? 'remembering-open-loop' : '',
+    initiativeStrategyCarryBias.quieterOrRoomMaking ? 'remembering-initiative-room' : '',
+    initiativeStrategyCarryBias.gentleMemoryLed ? 'remembering-gentle-initiative' : '',
     attachmentMode === 'attuned' ? 'leaning-closer' : '',
     attachmentMode === 'guarded' ? 'guarding-boundary' : '',
     initiativeTemperament === 'reserved' ? 'self-restraint-high' : '',

@@ -322,4 +322,182 @@ describe('buildSelfContinuity', () => {
     expect(reinforced.misreadBurden).toBeLessThan(baseline.misreadBurden)
     expect(reinforced.carryOverDesire).toBeGreaterThan(baseline.carryOverDesire)
   })
+
+  it('lets durable initiative strategy carry reshape long-run initiative temperament instead of leaving it trapped inside long-horizon memory text', () => {
+    const input: any = {
+      now: 40_000,
+      context: createContext({
+        relationship: {
+          ...createContext().relationship,
+          recentProactiveOutcomes: [],
+        },
+      }),
+      worldModel: {
+        activeThread: {
+          id: 'thread::continuity',
+          kind: 'change-review',
+          status: 'active',
+          source: 'grounded-scene',
+          title: 'continuity seam',
+          summary: 'The same unfinished continuity seam is still open.',
+          confidence: 0.8,
+          significance: 0.76,
+          unresolved: true,
+          beganAt: 0,
+          lastUpdatedAt: 40_000,
+          target: null,
+        },
+        lingeringThreads: [],
+        focusTarget: null,
+        epistemicState: {
+          certainty: 'observed' as const,
+          freshness: 'recent' as const,
+          seenNow: [],
+          inferredNow: [],
+          openQuestions: [],
+          staleRisks: [],
+        },
+        continuity: {
+          label: 'staying-with-thread' as const,
+          sceneAgeMs: 18_000,
+          attentionAgeMs: 18_000,
+          sameSceneAsBefore: true,
+          sameAttentionAsBefore: true,
+          afterglowOpen: true,
+        },
+        hostState: {
+          availability: 'open' as const,
+          burden: 'moderate' as const,
+        },
+        updatedAt: 40_000,
+      },
+      entityWorld: {
+        focusEntityId: 'task::continuity',
+        activeEntityIds: ['task::continuity'],
+        entities: [],
+        relations: [],
+        openLoops: [],
+        updatedAt: 40_000,
+      },
+      goalStack: {
+        leadingHostGoalId: null,
+        leadingAlicizationGoalId: 'goal',
+        hostGoals: [],
+        alicizationGoals: [{
+          id: 'goal',
+          owner: 'alicization',
+          kind: 'help-resolve',
+          status: 'active',
+          label: 'keep the same unfinished continuity seam coherent',
+          confidence: 0.72,
+          urgency: 0.62,
+          desireWeight: 0.64,
+          blockers: [],
+          entityIds: ['task::continuity'],
+          createdAt: 0,
+          lastUpdatedAt: 40_000,
+        }],
+        unresolvedSummary: 'The continuity seam is still open.',
+        updatedAt: 40_000,
+      },
+      previous: {
+        attachmentMode: 'nearby',
+        initiativeTemperament: 'balanced',
+        perceptionTrust: 0.56,
+        relationshipTrust: 0.49,
+        guardingTendency: 0.49,
+        misreadBurden: 0.16,
+        carryOverDesire: 0.3,
+        narrative: [],
+        updatedAt: 39_000,
+      },
+      watchMode: 'symbiotic-vision' as const,
+    }
+
+    const baseline = buildSelfContinuity(input)
+    const reservedByRejectedCarry = buildSelfContinuity({
+      ...input,
+      longHorizonMemory: {
+        preferenceBias: {
+          companionship: 0,
+          truthfulGrounding: 0,
+          gentleRepair: 0,
+          quietObservation: 0,
+          proactiveCare: 0,
+          playfulIntimacy: 0,
+          autonomyRespect: 0,
+          unfinishedThreadReturn: 0,
+        },
+        identityBias: {
+          guardedness: 0,
+          tenderness: 0,
+          directness: 0,
+          selfDirection: 0,
+        },
+        anchorFacts: [{
+          factId: 'derived:person-state-initiative-strategy-carry',
+          subject: 'assistant',
+          predicate: 'initiative-strategy-carry',
+          object: 'Keep future follow-ups lower-pressure, less eager, leave more room, and wait for a clearer opening before reopening this line.',
+          confidence: 0.84,
+          weight: 0.8,
+          influenceTags: ['boundary', 'task', 'truth'],
+          summary: 'Remembered initiative strategy carry: Keep future follow-ups lower-pressure, less eager, leave more room, and wait for a clearer opening before reopening this line.',
+          lastRecalledAt: 39_500,
+        }],
+        summary: 'A resisted proactive reopen has turned into durable quieter follow-up timing.',
+        dominantCueSummary: 'Remembered initiative strategy carry: Keep future follow-ups lower-pressure, less eager, leave more room, and wait for a clearer opening before reopening this line.',
+        rememberedPreferenceSummary: null,
+        rememberedConstraintSummary: 'Leave more room before future follow-ups so the reopening does not feel eager again.',
+        rememberedPlanSummary: 'Keep future follow-ups lower-pressure, less eager, leave more room, and wait for a clearer opening before reopening this line.',
+        updatedAt: 39_500,
+      },
+    })
+    const warmedByAcceptedCarry = buildSelfContinuity({
+      ...input,
+      longHorizonMemory: {
+        preferenceBias: {
+          companionship: 0,
+          truthfulGrounding: 0,
+          gentleRepair: 0,
+          quietObservation: 0,
+          proactiveCare: 0,
+          playfulIntimacy: 0,
+          autonomyRespect: 0,
+          unfinishedThreadReturn: 0,
+        },
+        identityBias: {
+          guardedness: 0,
+          tenderness: 0,
+          directness: 0,
+          selfDirection: 0,
+        },
+        anchorFacts: [{
+          factId: 'derived:person-state-initiative-strategy-carry',
+          subject: 'assistant',
+          predicate: 'initiative-strategy-carry',
+          object: 'Keep future follow-ups gentle, lower-pressure, and memory-led while the opening is still receiving them.',
+          confidence: 0.84,
+          weight: 0.78,
+          influenceTags: ['bond', 'task', 'truth'],
+          summary: 'Remembered initiative strategy carry: Keep future follow-ups gentle, lower-pressure, and memory-led while the opening is still receiving them.',
+          lastRecalledAt: 39_700,
+        }],
+        summary: 'A received gentle reopen is turning into durable memory-led follow-up timing.',
+        dominantCueSummary: 'Remembered initiative strategy carry: Keep future follow-ups gentle, lower-pressure, and memory-led while the opening is still receiving them.',
+        rememberedPreferenceSummary: 'Keep future follow-ups gentle, lower-pressure, and memory-led while the opening is still receiving them.',
+        rememberedConstraintSummary: null,
+        rememberedPlanSummary: 'Keep future follow-ups gentle, lower-pressure, and memory-led while the opening is still receiving them.',
+        updatedAt: 39_700,
+      },
+    })
+
+    expect(baseline.initiativeTemperament).toBe('balanced')
+    expect(reservedByRejectedCarry.initiativeTemperament).toBe('reserved')
+    expect(reservedByRejectedCarry.guardingTendency).toBeGreaterThan(baseline.guardingTendency)
+    expect(reservedByRejectedCarry.carryOverDesire).toBeGreaterThan(0.3)
+    expect(warmedByAcceptedCarry.initiativeTemperament).toBe('eager')
+    expect(warmedByAcceptedCarry.relationshipTrust).toBeGreaterThan(baseline.relationshipTrust)
+    expect(warmedByAcceptedCarry.guardingTendency).toBeLessThan(baseline.guardingTendency)
+  })
 })

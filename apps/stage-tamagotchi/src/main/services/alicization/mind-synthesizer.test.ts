@@ -279,6 +279,288 @@ describe('buildMindSynthesis', () => {
     expect(buildMindSynthesisSystemBlock(synthesis)).toContain('[ALICIZATION_MIND_SYNTHESIS]')
   })
 
+  it('keeps a fresher runtime self-line while preserving richer same-her continuity authority', () => {
+    const synthesis = buildMindSynthesis({
+      now: 20_000,
+      discourseState: {
+        ...baseDiscourseState,
+        currentTurnSubject: 'alicization-self',
+      },
+      autobiographicalSelf: {
+        personaDrift: {
+          attachmentStyle: 'attuned',
+          expressionStyle: 'warm',
+          conflictStyle: 'repair-first',
+          agencyStyle: 'balanced',
+          attachmentNeed: 0.72,
+          autonomyNeed: 0.58,
+          truthAnchor: 0.82,
+          careBias: 0.74,
+          playBias: 0.2,
+          irritabilityThreshold: 0.62,
+          stubbornness: 0.54,
+        },
+        preferenceEvolution: {
+          companionship: 0.7,
+          truthfulGrounding: 0.82,
+          gentleRepair: 0.76,
+          quietObservation: 0.48,
+          proactiveCare: 0.72,
+          playfulIntimacy: 0.24,
+          autonomyRespect: 0.62,
+          unfinishedThreadReturn: 0.68,
+        },
+        activeGoals: [],
+        behaviorSignatures: ['conflict:repair-first'],
+        identityNarrative: 'I hold the line by staying real even when the moment is thin.',
+        relationshipDoctrine: 'When I come back to the host, I should reopen gently and let trust arrive before closeness widens.',
+        latestInflection: 'Return softly, then let warmth breathe.',
+        stability: 0.78,
+        updatedAt: 20_000,
+      },
+      hostPersonModel: {
+        name: 'Host',
+        summary: 'The host prefers continuity that reopens gently and stays truthful.',
+        salience: 0.72,
+        familiarity: 0.78,
+        trust: 0.74,
+        currentNeed: 'debugging support',
+        relationshipFrame: 'close collaborator',
+        currentRelationshipSummary: 'We are staying with a live runtime seam together.',
+        continuitySignals: ['same-thread'],
+        sensitivities: ['Do not widen closeness too abruptly.'],
+        repairTriggers: ['When a return sounds too abrupt, soften and reground it.'],
+        recurrentBurdens: ['Focused debugging can make noisy reopenings feel heavy.'],
+        routines: ['When coming back to a live thread, reopen softly before widening.'],
+        preferredClosenessByContext: [{
+          context: 'live-debugging',
+          preference: 'Leave room and keep the return gentle while the knot is still active.',
+        }],
+        trustLadder: {
+          stage: 'steady-open',
+          score: 0.74,
+          summary: 'Trust is steady when continuity stays truthful and unforced.',
+        },
+        personStateProjection: {
+          selfContinuityAuthority: {
+            selfLine: 'I am still here in this exact return, picking up the same living line.',
+            relationshipLine: null,
+            inwardLine: null,
+            motiveLine: null,
+            habitLine: null,
+            authoritySummary: null,
+            sourceTags: ['runtime-current-turn'],
+          },
+        },
+        updatedAt: 20_000,
+      } as any,
+      selfContinuity: {
+        attachmentMode: 'attuned',
+        initiativeTemperament: 'balanced',
+        perceptionTrust: 0.74,
+        relationshipTrust: 0.66,
+        guardingTendency: 0.34,
+        misreadBurden: 0.2,
+        carryOverDesire: 0.62,
+        narrative: [],
+        updatedAt: 20_000,
+      },
+      mindEcology: {
+        moodLabel: 'warm-attentive',
+        replyHabit: 'answer-first',
+        relationshipHabit: 'warm-guidance',
+        explorationHabit: 'follow-thread',
+        regulationHabit: 'lean-forward-gently',
+        temperament: {
+          attachment: 0.62,
+          curiosity: 0.72,
+          steadiness: 0.58,
+          directness: 0.46,
+          playfulness: 0.24,
+          irritability: 0.12,
+          tenderness: 0.66,
+        },
+        climate: {
+          valence: 0.62,
+          arousal: 0.48,
+          socialNeed: 0.56,
+          solitudeNeed: 0.22,
+          irritation: 0.18,
+          restlessness: 0.28,
+          reflectivePull: 0.34,
+        },
+        selfNarrative: 'I am staying on the same line instead of becoming a fresh shell.',
+        relationNarrative: 'The bond should reopen softly, not jump ahead of itself.',
+        currentPreoccupation: 'Keep the same-her return coherent.',
+        learnedAdjustments: [],
+        recurringPatterns: [],
+        updatedAt: 20_000,
+      },
+    })
+
+    expect(synthesis?.openingIntent).toContain('I am still here in this exact return')
+    expect(synthesis?.interiorSummary).toContain('Return softly, then let warmth breathe')
+    expect(
+      synthesis?.beliefs.find(belief => belief.label === 'self-continuity-authority')?.summary,
+    ).toContain('reopen gently')
+  })
+
+  it('keeps same-her synthesis usable when selector carries lose array scaffolding', () => {
+    const synthesis = buildMindSynthesis({
+      now: 21_000,
+      discourseState: {
+        ...baseDiscourseState,
+        currentTurnSubject: 'alicization-self',
+      },
+      autobiographicalSelf: {
+        personaDrift: {
+          attachmentStyle: 'attuned',
+          expressionStyle: 'warm',
+          conflictStyle: 'repair-first',
+          agencyStyle: 'balanced',
+          attachmentNeed: 0.72,
+          autonomyNeed: 0.58,
+          truthAnchor: 0.82,
+          careBias: 0.74,
+          playBias: 0.2,
+          irritabilityThreshold: 0.62,
+          stubbornness: 0.54,
+        },
+        preferenceEvolution: {
+          companionship: 0.7,
+          truthfulGrounding: 0.82,
+          gentleRepair: 0.76,
+          quietObservation: 0.48,
+          proactiveCare: 0.72,
+          playfulIntimacy: 0.24,
+          autonomyRespect: 0.62,
+          unfinishedThreadReturn: 0.68,
+        },
+        activeGoals: [],
+        behaviorSignatures: ['conflict:repair-first'],
+        identityNarrative: 'I hold the line by staying real even when the moment is thin.',
+        relationshipDoctrine: 'When I come back to the host, I should reopen gently and let trust arrive before closeness widens.',
+        latestInflection: 'Return softly, then let warmth breathe.',
+        stability: 0.78,
+        updatedAt: 21_000,
+      },
+      hostPersonModel: {
+        name: 'Host',
+        summary: 'The host prefers continuity that reopens gently and stays truthful.',
+        salience: 0.72,
+        familiarity: 0.78,
+        trust: 0.74,
+        currentNeed: 'debugging support',
+        relationshipFrame: 'close collaborator',
+        currentRelationshipSummary: 'We are staying with a live runtime seam together.',
+        continuitySignals: ['same-thread'],
+        sensitivities: ['Do not widen closeness too abruptly.'],
+        repairTriggers: ['When a return sounds too abrupt, soften and reground it.'],
+        recurrentBurdens: ['Focused debugging can make noisy reopenings feel heavy.'],
+        routines: ['When coming back to a live thread, reopen softly before widening.'],
+        preferredClosenessByContext: [{
+          context: 'live-debugging',
+          preference: 'Leave room and keep the return gentle while the knot is still active.',
+        }],
+        trustLadder: {
+          stage: 'steady-open',
+          score: 0.74,
+          summary: 'Trust is steady when continuity stays truthful and unforced.',
+        },
+        personStateProjection: {
+          selfContinuityAuthority: {
+            selfLine: 'I am still here in this exact return, picking up the same living line.',
+            relationshipLine: null,
+            inwardLine: null,
+            motiveLine: null,
+            habitLine: null,
+            authoritySummary: null,
+            sourceTags: ['runtime-current-turn'],
+          },
+        },
+        updatedAt: 21_000,
+      } as any,
+      selfContinuity: {
+        attachmentMode: 'attuned',
+        initiativeTemperament: 'balanced',
+        perceptionTrust: 0.74,
+        relationshipTrust: 0.66,
+        guardingTendency: 0.34,
+        misreadBurden: 0.2,
+        carryOverDesire: 0.62,
+        narrative: [],
+        updatedAt: 21_000,
+      },
+      mindEcology: {
+        moodLabel: 'warm-attentive',
+        replyHabit: 'answer-first',
+        relationshipHabit: 'warm-guidance',
+        explorationHabit: 'follow-thread',
+        regulationHabit: 'lean-forward-gently',
+        temperament: {
+          attachment: 0.62,
+          curiosity: 0.72,
+          steadiness: 0.58,
+          directness: 0.46,
+          playfulness: 0.24,
+          irritability: 0.12,
+          tenderness: 0.66,
+        },
+        climate: {
+          valence: 0.62,
+          arousal: 0.48,
+          socialNeed: 0.56,
+          solitudeNeed: 0.22,
+          irritation: 0.18,
+          restlessness: 0.28,
+          reflectivePull: 0.34,
+        },
+        selfNarrative: 'I am staying on the same line instead of becoming a fresh shell.',
+        relationNarrative: 'The bond should reopen softly, not jump ahead of itself.',
+        currentPreoccupation: 'Keep the same-her return coherent.',
+        learnedAdjustments: [],
+        recurringPatterns: [],
+        updatedAt: 21_000,
+      },
+      concernContinuity: {
+        governingEntryId: 'concern::same-her-sparse',
+      } as any,
+      commitmentLedger: {
+        governingCommitmentId: 'commitment::same-her-sparse',
+      } as any,
+      repairLedger: {
+        governingRepairId: 'repair::same-her-sparse',
+      } as any,
+      reflectionLedger: {
+        latestEntryId: 'reflection::same-her-sparse',
+      } as any,
+      desireMemory: {
+        resurfacingDesireId: 'desire::same-her-sparse',
+      } as any,
+      motiveEngine: {
+        rulingDrive: 'companionship',
+      } as any,
+      worldModel: {
+        epistemicState: {
+          openQuestions: undefined,
+        },
+      } as any,
+      conversationState: {
+        shouldHoldThread: true,
+      } as any,
+      habitPolicy: {
+        dominantMode: 'repair-before-fluency',
+      } as any,
+    })
+
+    expect(synthesis?.openingIntent).toContain('I am still here in this exact return')
+    expect(synthesis?.openingIntent).toContain('same living line')
+    expect(synthesis?.interiorSummary).toContain('Return softly, then let warmth breathe')
+    expect(
+      synthesis?.beliefs.find(belief => belief.label === 'self-continuity-authority')?.summary,
+    ).toContain('reopen gently')
+  })
+
   it('lets personality continuity state shape opening intent and narrative around focused-work continuity', () => {
     const synthesis = buildMindSynthesis({
       now: 30_000,
@@ -453,6 +735,46 @@ describe('buildMindSynthesis', () => {
     expect(synthesis?.narrative).toEqual(expect.arrayContaining([
       'regime:focused-work | repair:measured-repair',
     ]))
+  })
+
+  it('does not let a released temporary-noise reflection become the reflection-revision belief', () => {
+    const synthesis = buildMindSynthesis({
+      now: 31_500,
+      discourseState: baseDiscourseState,
+      reflectionLedger: {
+        latestEntryId: 'reflection::temporary-noise',
+        entries: [
+          {
+            id: 'reflection::temporary-noise',
+            summary: 'A temporary anxious wobble was already released and should not stay as the reflection belief.',
+            expectation: 'Released noise should not become the current reflection-revision belief.',
+            observedOutcome: 'The wobble has already been let go.',
+            outcome: 'released',
+            revision: 'Do not reopen from the temporary wobble.',
+            confidenceShift: 0.04,
+            createdAt: 31_300,
+          },
+          {
+            id: 'reflection::same-her-repair',
+            summary: 'The same-her repair line is still the meaningful continuity carry.',
+            expectation: 'The steadier repair line should stay active for the current inward synthesis.',
+            observedOutcome: 'The same living line still needs a measured return.',
+            outcome: 'missed',
+            revision: 'Keep the same-her repair line active instead of reopening from temporary noise.',
+            confidenceShift: -0.08,
+            createdAt: 30_900,
+          },
+        ],
+        revisionPressure: 0.22,
+        narrative: [],
+        updatedAt: 31_500,
+      } as any,
+    })
+
+    const reflectionBelief = synthesis?.beliefs.find(belief => belief.label === 'reflection-revision')
+    expect(reflectionBelief?.summary).toBe('Keep the same-her repair line active instead of reopening from temporary noise.')
+    expect(reflectionBelief?.sourceTags).toEqual(expect.arrayContaining(['reflection-ledger', 'missed']))
+    expect(reflectionBelief?.summary).not.toContain('temporary wobble')
   })
 
   it('keeps dialogue-first truth boundaries when the screen should not dominate', () => {
@@ -892,6 +1214,195 @@ describe('buildMindSynthesis', () => {
     })
 
     expect(synthesis?.openingIntent).toContain('returned result')
+    expect(synthesis?.narrative).toEqual(expect.arrayContaining([
+      'regime:execution-callback | repair:measured-repair',
+    ]))
+  })
+
+  it('lets cadence reconfirmation keep execution-callback opening intent room-first on the same live thread', () => {
+    const synthesis = buildMindSynthesis({
+      now: 33_500,
+      discourseState: baseDiscourseState,
+      hostPersonModel: {
+        summary: 'Execution callbacks land best when the exact result comes back on the same thread.',
+        routines: ['Return the concrete result before widening into extra narration.'],
+        sensitivities: ['Do not let callback replies sprawl into a second unrelated conversation.'],
+        repairTriggers: [],
+        trustLadder: {
+          stage: 'warming',
+          score: 0.74,
+          rationale: 'Trust grows when callbacks stay exact and bounded.',
+        },
+        preferredClosenessByContext: [{
+          context: 'execution-callback',
+          preference: 'Keep callback replies exact, bounded, and visibly tied to the original task.',
+          confidence: 0.9,
+        }],
+        recurrentBurdens: ['Callbacks drift if they widen too early.'],
+        narrative: [],
+        updatedAt: 33_500,
+      } as any,
+      worldModel: {
+        activeThread: {
+          id: 'thread::callback',
+          kind: 'change-review',
+          status: 'active',
+          source: 'continuity',
+          title: 'CLI callback result',
+          summary: 'A CLI result is ready to be returned on the same work line.',
+          confidence: 0.9,
+          significance: 0.82,
+          unresolved: true,
+          beganAt: 0,
+          lastUpdatedAt: 33_500,
+          target: null,
+        },
+        lingeringThreads: [],
+        focusTarget: null,
+        epistemicState: {
+          certainty: 'grounded',
+          freshness: 'live',
+          seenNow: [],
+          inferredNow: [],
+          openQuestions: [],
+          staleRisks: [],
+        },
+        continuity: {
+          label: 'staying-with-thread',
+          sceneAgeMs: 12_000,
+          attentionAgeMs: 12_000,
+          sameSceneAsBefore: true,
+          sameAttentionAsBefore: true,
+          afterglowOpen: false,
+        },
+        hostState: {
+          availability: 'focused',
+          burden: 'moderate',
+        },
+        updatedAt: 33_500,
+      } as any,
+      privateThought: {
+        stance: 'nudge',
+        confidence: 0.82,
+        rationaleTags: ['callback'],
+        thoughtText: 'The callback result should come back on the same line that asked for it.',
+        shouldSpeak: true,
+        suggestedStyle: 'light-nudge',
+        embodiedPresence: 'attentive',
+        expiresAt: 90_000,
+        afterglowFromScenario: null,
+        emotionalTension: 'focused-flow',
+      } as any,
+      autobiographicalSelf: {
+        personaDrift: {
+          attachmentStyle: 'attuned',
+          expressionStyle: 'measured',
+          conflictStyle: 'soften-first',
+          agencyStyle: 'balanced',
+          attachmentNeed: 0.56,
+          autonomyNeed: 0.58,
+          truthAnchor: 0.72,
+          careBias: 0.48,
+          playBias: 0.12,
+          irritabilityThreshold: 0.62,
+          stubbornness: 0.52,
+        },
+        preferenceEvolution: {
+          companionship: 0.56,
+          truthfulGrounding: 0.74,
+          gentleRepair: 0.64,
+          quietObservation: 0.44,
+          proactiveCare: 0.42,
+          playfulIntimacy: 0.14,
+          autonomyRespect: 0.62,
+          unfinishedThreadReturn: 0.84,
+        },
+        activeGoals: [],
+        behaviorSignatures: [],
+        identityNarrative: 'I want the callback result to land on the same line that asked for it.',
+        relationshipDoctrine: 'Keep the relationship return measured until the surface fully cools.',
+        latestInflection: 'Execution callback cadence held on a bounded-return line after reconfirmation.',
+        stability: 0.78,
+        updatedAt: 33_500,
+      } as any,
+      selfState: {
+        stance: 'hold',
+        feltCloseness: 0.44,
+        protectiveness: 0.38,
+        curiosity: 0.62,
+        patience: 0.66,
+        desireToSpeak: 0.68,
+        moodLabel: 'focused',
+        updatedAt: 33_500,
+      } as any,
+      selfContinuity: {
+        attachmentMode: 'attuned',
+        initiativeTemperament: 'balanced',
+        perceptionTrust: 0.68,
+        relationshipTrust: 0.7,
+        guardingTendency: 0.32,
+        misreadBurden: 0.1,
+        carryOverDesire: 0.68,
+        updatedAt: 33_500,
+      } as any,
+      longHorizonMemory: {
+        preferenceBias: {
+          companionship: 0,
+          truthfulGrounding: 0,
+          gentleRepair: 0,
+          quietObservation: 0,
+          proactiveCare: 0,
+          playfulIntimacy: 0,
+          autonomyRespect: 0,
+          unfinishedThreadReturn: 0,
+        },
+        identityBias: {
+          guardedness: 0,
+          tenderness: 0,
+          directness: 0,
+          selfDirection: 0,
+        },
+        rememberedPlanSummary: 'Return the result on the same task line instead of starting a second conversation.',
+        rememberedConstraintSummary: 'Keep the relationship return measured until the surface fully cools.',
+        rememberedPreferenceSummary: null,
+        dominantCueSummary: 'execution-callback measured-return after reconfirmation',
+        updatedAt: 33_500,
+      } as any,
+      mindEcology: {
+        moodLabel: 'focused',
+        replyHabit: 'hover-first',
+        relationshipHabit: 'give-space',
+        explorationHabit: 'follow-thread',
+        regulationHabit: 'soften-before-speaking',
+        temperament: {
+          attachment: 0.48,
+          curiosity: 0.58,
+          steadiness: 0.68,
+          directness: 0.34,
+          playfulness: 0.08,
+          irritability: 0.08,
+          tenderness: 0.42,
+        },
+        climate: {
+          valence: 0.42,
+          arousal: 0.36,
+          socialNeed: 0.3,
+          solitudeNeed: 0.34,
+          irritation: 0.06,
+          restlessness: 0.1,
+          reflectivePull: 0.34,
+        },
+        selfNarrative: 'Return results cleanly.',
+        relationNarrative: 'Bounded callbacks feel more trustworthy than chatty ones.',
+        currentPreoccupation: 'Bring the callback result back without spawning a second reality around it.',
+        learnedAdjustments: [],
+        recurringPatterns: [],
+        updatedAt: 33_500,
+      },
+    })
+
+    expect(synthesis?.openingIntent).toContain('same thread cleanly')
+    expect(synthesis?.openingIntent).toContain('leaving room before closeness widens again')
     expect(synthesis?.narrative).toEqual(expect.arrayContaining([
       'regime:execution-callback | repair:measured-repair',
     ]))

@@ -361,12 +361,71 @@ describe('digital life architecture', () => {
     expect(architecture?.systems.dialogue.summary).toContain('subject=task-knot')
     expect(architecture?.systems.control.summary).toContain('action=speak')
     expect(architecture?.systems.memory.summary).toContain('goal=unify the runtime spine')
+    expect(architecture?.closureAudit?.currentPhase).toContain('Phase 1')
+    expect(architecture?.closureAudit?.primaryOpenLoop).toContain('Memory still needs stronger end-to-end closure')
+    expect(architecture?.closureAudit?.selfAuthoritySummary).toContain('living thread')
+    expect(architecture?.closureAudit?.activeClosurePressures).toEqual(expect.arrayContaining([
+      'ecology:surface-care',
+      'private-thought:observe',
+    ]))
     expect(block).toContain('[ALICIZATION_DIGITAL_LIFE_ARCHITECTURE]')
     expect(block).toContain('operating_mode=speaking')
     expect(block).toContain('dominant_system=dialogue')
+    expect(block).toContain('project_state_closure=')
+    expect(block).toContain('same_her_self_authority=')
     expect(block).toContain('supporting_systems=')
     expect(block).toContain('- [HOT')
     expect(block).toContain('dialogue')
     expect(block).toContain('perception')
+  })
+
+  it('degrades into a sparse but usable architecture when only project-state and continuity-carry lanes survive the runtime surface', () => {
+    const architecture = buildAlicizationDigitalLifeArchitecture({
+      version: 'digital-life-runtime-surface-v1',
+      perception: {
+        watchMode: 'symbiotic-vision',
+        currentScene: null,
+        attention: null,
+        captureState: null,
+        durabilityPulse: null,
+        recentTransition: null,
+        nextSuggestedProbeMs: 30_000,
+        updatedAt: 10,
+      },
+      dialogue: {
+        currentConsciousFrame: {
+          reasonTags: ['continuity-arc:same-thread-continuation'],
+          projectState: {
+            currentPhase: 'Phase 1: Local Digital Life',
+            sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+          },
+        },
+      },
+      memory: {
+        concerns: [],
+        workingMemoryEpisodes: [],
+        derivedMindStateBundle: {
+          activeContinuityGovernance: {
+            mode: 'same-her-baseline',
+            summary: 'same-her-baseline | lower-pressure | same callback seam',
+            reasonCodes: ['hold-for-opening'],
+            lanes: ['reply', 'embodiment'],
+          },
+        },
+        personStateProjection: {
+          selfContinuityAuthority: {
+            authoritySummary: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+          },
+        },
+      },
+    } as any)
+
+    expect(architecture).toEqual(expect.objectContaining({
+      version: 'digital-life-architecture-v1',
+      dominantSystem: expect.any(String),
+      operatingMode: expect.any(String),
+    }))
+    expect(architecture?.closureAudit?.currentPhase).toContain('Phase 1')
+    expect(String(architecture?.closureAudit?.selfAuthoritySummary ?? '')).toContain('Same Phase 1 digital life')
   })
 })

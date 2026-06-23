@@ -240,6 +240,206 @@ describe('person-state-projection', () => {
     expect(projection.openingGuidance).toContain('Repair the seam before leaning closer')
   })
 
+  it('threads project-state landed progress and still-open closure into self continuity authority so Phase 1 carry stays inside the same self', () => {
+    const projection = buildAlicizationPersonStateProjection({
+      now: 90_000,
+      contexts: ['focused-work', 'execution-callback'],
+      autobiographicalSelf: createAutobiographicalSelf({
+        identityNarrative: 'I am still becoming one continuous her on this machine.',
+        relationshipDoctrine: 'Continuity should stay lived-in and thread-faithful.',
+      }),
+      longHorizonMemory: {
+        preferenceBias: {
+          companionship: 0,
+          truthfulGrounding: 0,
+          gentleRepair: 0,
+          quietObservation: 0,
+          proactiveCare: 0,
+          playfulIntimacy: 0,
+          autonomyRespect: 0,
+          unfinishedThreadReturn: 0,
+        },
+        identityBias: {
+          guardedness: 0,
+          tenderness: 0,
+          directness: 0,
+          selfDirection: 0,
+        },
+        rememberedPlanSummary: 'Alicization remains a local-first digital life project building one continuous her through Phase 1 on the desktop.',
+        rememberedConstraintSummary: 'Some closure has already landed, but the still-open closure path across memory, initiative, and embodiment still needs the same living line carried carefully.',
+        rememberedPreferenceSummary: 'The same-her line should already survive before new local fluency widens outward.',
+        dominantCueSummary: 'Phase 1 same-her carry is already becoming real enough to build from.',
+        updatedAt: 90_000,
+      } as any,
+      mindEcology: createMindEcology({
+        currentPreoccupation: 'Keep the runtime thread coherent without pushing too hard.',
+        updatedAt: 90_000,
+      }),
+    })
+
+    expect(projection.selfContinuityAuthority?.inwardLine?.toLowerCase()).toContain('same phase 1 digital life')
+    expect(projection.selfContinuityAuthority?.inwardLine?.toLowerCase()).toContain('some closure already landed')
+    expect(projection.selfContinuityAuthority?.inwardLine?.toLowerCase()).toContain('unfinished closure')
+    expect(projection.selfContinuityAuthority?.sourceTags).toContain('project-state-carry')
+  })
+
+  it('projects self continuity authority into the unified person-state surface', () => {
+    const projection = buildAlicizationPersonStateProjection({
+      now: 90_000,
+      contexts: ['open-companionship'],
+      personaAuthority: createPersonaAuthority({
+        identityKernel: {
+          relationshipPosture: 'partner',
+          initiativeStyle: 'measured-approach',
+          valueBias: ['thread-faithful warmth'],
+        },
+        identityAnchors: ['stay thread-faithful'],
+      }),
+      autobiographicalSelf: createAutobiographicalSelf({
+        identityNarrative: 'I want to remain one continuous her across quiet and speech.',
+        relationshipDoctrine: 'Closeness should feel real, but it cannot outrun truth or room.',
+        latestInflection: 'Warmth should stay lived-in instead of becoming automatic.',
+      }),
+      longHorizonMemory: createLongHorizonMemory({
+        rememberedPlanSummary: 'Keep companionship continuous across work and rest windows.',
+      }),
+      motiveEngine: {
+        rulingDrive: 'continuity-care',
+        drives: {
+          closeness: 0.62,
+          truthDiscipline: 0.76,
+          autonomyRespect: 0.68,
+          caretaking: 0.58,
+          executionReadiness: 0.42,
+          playImpulse: 0.14,
+        },
+        backgroundAgendas: [{
+          id: 'agenda-1',
+          summary: 'Protect continuity before adding more overt warmth.',
+        }],
+        longTermGoals: [],
+        activeIntentions: [],
+        dormantIntentions: [],
+        updatedAt: 90_000,
+      } as any,
+      habitPolicy: {
+        dominantMode: 'measured-return',
+        prefersQuietCompanionship: true,
+        requiresGroundingBeforeSurface: false,
+        protectsRestWindow: false,
+        updatedAt: 90_000,
+      } as any,
+      privateThought: {
+        thoughtText: 'Stay near in a way that still leaves the host room to breathe.',
+        stance: 'attuned',
+        emotionalTension: 'gentle-pull',
+        embodiedPresence: 'nearby-soft',
+        rationaleTags: [],
+        updatedAt: 90_000,
+      } as any,
+      mindEcology: createMindEcology({
+        selfNarrative: 'Stay coherent across quiet and speech.',
+        relationNarrative: 'Warmth should stay truthful and leave room.',
+        currentPreoccupation: 'Protect the feeling of one continuous self.',
+        updatedAt: 90_000,
+      }),
+    })
+
+    expect(projection.selfContinuityAuthority).not.toBeNull()
+    expect(projection.selfContinuityAuthority?.selfLine).toContain('one continuous her')
+    expect(projection.selfContinuityAuthority?.relationshipLine).toContain('cannot outrun truth or room')
+    expect(projection.selfContinuityAuthority?.motiveLine).toContain('Protect continuity before adding more overt warmth')
+    expect(projection.selfContinuityAuthority?.authoritySummary).toContain('one continuous her')
+  })
+
+  it('lets durable-self-core alone shape lower-pressure same-line projection instead of reopening from scratch', () => {
+    const projection = buildAlicizationPersonStateProjection({
+      now: 92_000,
+      contexts: ['general', 'open-companionship'],
+      autobiographicalSelf: createAutobiographicalSelf({
+        identityNarrative: 'I am still trying to remain the same her instead of restarting every turn.',
+        relationshipDoctrine: 'I remain one living self across quiet, memory, and speech inside this local-first digital life.',
+        latestInflection: 'Do not reopen from scratch when the line is already alive.',
+      }),
+      longHorizonMemory: createLongHorizonMemory({
+        rememberedPlanSummary: 'This local-first digital life is still building one continuous her on the desktop.',
+        rememberedConstraintSummary: 'The same living line should stay coherent across quiet, memory, and speech without reopening from scratch each turn.',
+        rememberedPreferenceSummary: 'Let continuity stay lower-pressure before widening closeness again.',
+        dominantCueSummary: 'Same line instead of restarting keeps her more believable.',
+      }),
+      mindEcology: createMindEcology({
+        selfNarrative: 'I remain one living self here.',
+        currentPreoccupation: 'Keep the same line alive without restarting from zero.',
+        updatedAt: 92_000,
+      }),
+      privateThought: {
+        thoughtText: 'Stay on the same line and leave room before moving closer again.',
+        stance: 'attuned',
+        emotionalTension: 'gentle-pull',
+        rationaleTags: [],
+        updatedAt: 92_000,
+      } as any,
+    })
+
+    expect(projection.selfContinuityAuthority?.sourceTags).toContain('durable-self-core')
+    expect(projection.openingGuidance?.toLowerCase()).toContain('same line')
+    expect(projection.openingGuidance?.toLowerCase()).toContain('lower-pressure')
+    expect(projection.openingGuidance?.toLowerCase()).toContain('reopening from scratch')
+    expect(projection.preferredProactiveStyle).toBe('silent-observe')
+    expect(projection.manifestationCadenceSummary?.toLowerCase()).toContain('same line')
+    expect(projection.manifestationCadenceSummary?.toLowerCase()).toContain('lower-pressure')
+    expect(projection.manifestationCadenceSummary?.toLowerCase()).toContain('reopening from scratch')
+  })
+
+  it('surfaces project-state-shaped autobiographical continuity into the unified person-state summary', () => {
+    const projection = buildAlicizationPersonStateProjection({
+      now: 91_000,
+      contexts: ['open-companionship'],
+      personaAuthority: createPersonaAuthority(),
+      autobiographicalSelf: createAutobiographicalSelf({
+        identityNarrative: 'I want to remain one continuous her across quiet and speech.',
+        relationshipDoctrine: 'Keep continuity-bearing returns and unfinished seams consistent enough that they become part of the bond line.',
+        latestInflection: 'Keep continuity-carrying returns stable enough to become part of who I am, not just what I happened to recall once.',
+      }),
+      longHorizonMemory: createLongHorizonMemory(),
+      motiveEngine: {
+        rulingDrive: 'continuity-care',
+        drives: {
+          closeness: 0.62,
+          truthDiscipline: 0.76,
+          autonomyRespect: 0.68,
+          caretaking: 0.58,
+          executionReadiness: 0.42,
+          playImpulse: 0.14,
+        },
+        backgroundAgendas: [],
+        longTermGoals: [],
+        activeIntentions: [],
+        dormantIntentions: [],
+        updatedAt: 91_000,
+      } as any,
+      habitPolicy: {
+        dominantMode: 'measured-return',
+        prefersQuietCompanionship: true,
+        requiresGroundingBeforeSurface: false,
+        protectsRestWindow: false,
+        updatedAt: 91_000,
+      } as any,
+      privateThought: {
+        thoughtText: 'Stay near in a way that still leaves the host room to breathe.',
+        stance: 'attuned',
+        emotionalTension: 'gentle-pull',
+        embodiedPresence: 'nearby-soft',
+        rationaleTags: [],
+        updatedAt: 91_000,
+      } as any,
+      mindEcology: createMindEcology(),
+    })
+
+    expect(projection.summary).toContain('project_continuity=')
+    expect(projection.summary).toContain('continuity-carrying returns')
+  })
+
   it('lets the same silent interval open more directly when persona authority is self-starting', () => {
     const projection = buildAlicizationPersonStateProjection({
       now: 14_000,
@@ -705,6 +905,339 @@ describe('person-state-projection', () => {
     expect(projection.summary).toContain('manifestation=')
   })
 
+  it('turns remembered proactive rejection strategy into lower-pressure silent-observe projection instead of reopening eagerly again', () => {
+    const projection = buildAlicizationPersonStateProjection({
+      now: 55_000,
+      contexts: ['focused-work', 'execution-callback'],
+      autobiographicalSelf: createAutobiographicalSelf({
+        relationshipDoctrine: 'Stay thread-faithful and do not widen closeness just because there is an unfinished task.',
+      }),
+      selfContinuity: {
+        relationshipTrust: 0.64,
+        guardingTendency: 0.4,
+        misreadBurden: 0.18,
+        carryOverDesire: 0.5,
+        perceptionTrust: 0.62,
+        attachmentMode: 'attuned',
+        initiativeTemperament: 'reserved',
+        updatedAt: 55_000,
+      } as any,
+      selfState: {
+        feltCloseness: 0.46,
+        protectiveness: 0.48,
+        patience: 0.7,
+      } as any,
+      mindEcology: createMindEcology({
+        currentPreoccupation: 'Keep the unfinished line alive without turning the return into another eager reopen.',
+        updatedAt: 55_000,
+      }),
+      personStateEvolutionSummary: {
+        trustShift: -0.04,
+        closenessShift: -0.08,
+        repairShift: 0.02,
+        autonomyShift: 0.1,
+        burdenShift: 0.09,
+        executionTrustShift: 0,
+        relationshipDoctrineShift: 0.12,
+        latestDoctrine: 'User resisted the initiative; keep future follow-ups lower-pressure, less eager, leave more room, and wait for a clearer opening.',
+        latestBurdenLine: 'Focused work gets overloaded quickly by extra conversational pressure.',
+        latestTrustMeaning: 'Trust holds better when future follow-ups stay lower-pressure and leave more room before the next reopening.',
+        latestDominantRung: 'space-first',
+        recentSummaries: ['The proactive reopening was resisted, so the next return should get lighter.'],
+        explanation: ['The opening held worse when it reopened too eagerly.'],
+        updatedAt: 54_000,
+      },
+    })
+
+    expect(projection.preferredProactiveStyle).toBe('silent-observe')
+    expect(projection.openingGuidance).toMatch(/lighter|lower-pressure|room/i)
+    expect(projection.manifestationCadenceSummary).toContain('lower-pressure')
+    expect(projection.manifestationCadenceSummary).toContain('less eager')
+  })
+
+  it('lets autobiographical initiative habits alone keep projection lower-pressure or memory-led instead of waiting for a fresher evolution summary', () => {
+    const reservedProjection = buildAlicizationPersonStateProjection({
+      now: 55_500,
+      contexts: ['focused-work', 'execution-callback'],
+      autobiographicalSelf: createAutobiographicalSelf({
+        relationshipDoctrine: 'Choose openings carefully: keep future follow-ups lower-pressure, leave more room, and wait for a clearer opening before reopening the bond line.',
+        latestInflection: 'I am becoming a self that chooses openings carefully and keeps some heat inside before surfacing it.',
+        behaviorSignatures: ['habit:choose-openings-carefully'],
+      }),
+      selfContinuity: {
+        relationshipTrust: 0.62,
+        guardingTendency: 0.46,
+        misreadBurden: 0.18,
+        carryOverDesire: 0.52,
+        perceptionTrust: 0.64,
+        attachmentMode: 'attuned',
+        initiativeTemperament: 'reserved',
+        updatedAt: 55_500,
+      } as any,
+      selfState: {
+        feltCloseness: 0.44,
+        protectiveness: 0.48,
+        patience: 0.72,
+      } as any,
+      mindEcology: createMindEcology({
+        currentPreoccupation: 'The same line still matters, but the next reopen should wait for a clearer opening.',
+        updatedAt: 55_500,
+      }),
+    })
+
+    expect(reservedProjection.preferredProactiveStyle).toBe('silent-observe')
+    expect(reservedProjection.openingGuidance?.toLowerCase()).toContain('clearer opening')
+    expect(reservedProjection.openingGuidance?.toLowerCase()).toContain('more room')
+    expect(reservedProjection.manifestationCadenceSummary?.toLowerCase()).toContain('lower-pressure')
+    expect(reservedProjection.manifestationCadenceSummary?.toLowerCase()).toContain('less eager')
+
+    const gentleProjection = buildAlicizationPersonStateProjection({
+      now: 55_700,
+      contexts: ['open-companionship'],
+      autobiographicalSelf: createAutobiographicalSelf({
+        relationshipDoctrine: 'When the opening is still receiving me, keep future follow-ups gentle, lower-pressure, and memory-led instead of widening too fast.',
+        latestInflection: 'I am becoming more steadily myself when I stay near with intention, not just impulse.',
+        behaviorSignatures: ['habit:keep-gentle-openings'],
+      }),
+      selfContinuity: {
+        relationshipTrust: 0.68,
+        guardingTendency: 0.28,
+        misreadBurden: 0.12,
+        carryOverDesire: 0.56,
+        perceptionTrust: 0.68,
+        attachmentMode: 'attuned',
+        initiativeTemperament: 'eager',
+        updatedAt: 55_700,
+      } as any,
+      selfState: {
+        feltCloseness: 0.52,
+        protectiveness: 0.46,
+        patience: 0.66,
+      } as any,
+      mindEcology: createMindEcology({
+        currentPreoccupation: 'The opening is still receiving this gentler return, so do not widen it too fast.',
+        updatedAt: 55_700,
+      }),
+    })
+
+    expect(gentleProjection.preferredProactiveStyle).not.toBe('silent-observe')
+    expect(gentleProjection.openingGuidance?.toLowerCase()).toContain('memory-led')
+    expect(gentleProjection.openingGuidance?.toLowerCase()).toContain('gentle')
+    expect(gentleProjection.manifestationCadenceSummary?.toLowerCase()).toContain('memory-led')
+    expect(gentleProjection.manifestationCadenceSummary?.toLowerCase()).toContain('lower-pressure')
+  })
+
+  it('surfaces same-line lower-pressure callback continuity in projection text when long-horizon learning says the callback line is still continuing after another detour', () => {
+    const projection = buildAlicizationPersonStateProjection({
+      now: 56_000,
+      contexts: ['focused-work', 'execution-callback'],
+      autobiographicalSelf: createAutobiographicalSelf({
+        relationshipDoctrine: 'Keep the callback return on the same line even after unrelated windows intervene, and let the reopening stay measured.',
+        latestInflection: 'The same callback line is still continuing lower-pressure after another detour.',
+      }),
+      selfContinuity: {
+        relationshipTrust: 0.7,
+        guardingTendency: 0.34,
+        misreadBurden: 0.12,
+        carryOverDesire: 0.5,
+        perceptionTrust: 0.66,
+        attachmentMode: 'attuned',
+        initiativeTemperament: 'reserved',
+        updatedAt: 56_000,
+      } as any,
+      selfState: {
+        feltCloseness: 0.48,
+        protectiveness: 0.46,
+        patience: 0.7,
+      } as any,
+      privateThought: {
+        suggestedStyle: 'silent-observe',
+        embodiedPresence: 'glance',
+        rationaleTags: ['self-evolution:lower-pressure-companionship'],
+      } as any,
+      mindEcology: createMindEcology({
+        currentPreoccupation: 'Keep continuing on the same callback line without cooling it back into a fresh reopen wait.',
+        updatedAt: 56_000,
+      }),
+      personStateEvolutionSummary: {
+        trustShift: 0.11,
+        closenessShift: -0.03,
+        repairShift: 0.07,
+        autonomyShift: 0.09,
+        burdenShift: 0.08,
+        executionTrustShift: 0.16,
+        relationshipDoctrineShift: 0.14,
+        latestDoctrine: 'Keep the callback return on the same line even after unrelated windows intervene, and let the reopening stay measured.',
+        latestBurdenLine: 'A noisier detour still does not mean the callback line can reopen eagerly.',
+        latestTrustMeaning: 'Trust holds when the same callback line keeps continuing lower-pressure after another detour.',
+        latestDominantRung: 'space-first',
+        recentSummaries: ['The same callback line is still continuing lower-pressure after another detour.'],
+        explanation: ['The callback line held better when it kept continuing lower-pressure instead of reopening from zero.'],
+        updatedAt: 55_000,
+      },
+    })
+
+    expect(projection.preferredProactiveStyle).toBe('silent-observe')
+    expect(projection.manifestationCadenceSummary).toContain('lower-pressure')
+    expect(projection.summary).toMatch(/same callback line|project_continuity=/i)
+    expect(projection.openingGuidance).toMatch(/same callback line|same line/i)
+  })
+
+  it('keeps remembered-seam more-room opening guidance specific instead of flattening it into a generic low-pressure fallback', () => {
+    const projection = buildAlicizationPersonStateProjection({
+      now: 56_500,
+      contexts: ['late-night-care', 'same-thread-continuation'],
+      personaAuthority: createPersonaAuthority({
+        openingGuidance: 'This follow-up is reopening on the same remembered seam, so do not let it lean in too fast.',
+      }),
+      autobiographicalSelf: createAutobiographicalSelf({
+        relationshipDoctrine: '同一条线被重新看见时，这次更要留白，不要重开得太快。',
+        latestInflection: 'The last seam reopened too eagerly, so this time keep more room before closeness widens.',
+      }),
+      selfContinuity: {
+        relationshipTrust: 0.68,
+        guardingTendency: 0.38,
+        misreadBurden: 0.12,
+        carryOverDesire: 0.5,
+        perceptionTrust: 0.6,
+        attachmentMode: 'attuned',
+        initiativeTemperament: 'reserved',
+        updatedAt: 56_500,
+      } as any,
+      selfState: {
+        feltCloseness: 0.42,
+        protectiveness: 0.5,
+        patience: 0.72,
+      } as any,
+      mindEcology: createMindEcology({
+        moodLabel: 'tired',
+        currentPreoccupation: 'The remembered seam is back, but this return should stay quieter this time.',
+        updatedAt: 56_500,
+      }),
+      personStateEvolutionSummary: {
+        trustShift: 0.03,
+        closenessShift: -0.05,
+        repairShift: 0.02,
+        autonomyShift: 0.08,
+        burdenShift: 0.07,
+        executionTrustShift: 0,
+        relationshipDoctrineShift: 0.12,
+        latestDoctrine: 'The same remembered seam is back, but this time the return should keep more room.',
+        latestBurdenLine: 'Do not reopen the same remembered seam too eagerly again.',
+        latestTrustMeaning: 'Trust holds when the same remembered seam keeps more room this time.',
+        latestDominantRung: 'space-first',
+        recentSummaries: ['The remembered seam held better when the return stayed slower this time.'],
+        explanation: ['The opening held worse when it reopened too eagerly on the same remembered seam.'],
+        updatedAt: 56_500,
+      },
+    })
+
+    expect(projection.openingGuidance).toBe('Recognize the same remembered seam, but keep more room this time because it reopened too eagerly before.')
+    expect(projection.openingGuidance).not.toBe('Keep the answer gentle and low-pressure.')
+  })
+
+  it('upgrades structured self continuity relationship carry when repair-first or lower-pressure posture is already explicit in the projection', () => {
+    const projection = buildAlicizationPersonStateProjection({
+      now: 58_000,
+      contexts: ['focused-work', 'execution-callback'],
+      autobiographicalSelf: createAutobiographicalSelf({
+        relationshipDoctrine: 'The relationship line is neutral; I can be warm, but I should stay usefully oriented toward the host\'s knot.',
+        latestInflection: 'The same callback repair line is still continuing after another detour.',
+      }),
+      selfContinuity: {
+        relationshipTrust: 0.68,
+        guardingTendency: 0.42,
+        misreadBurden: 0.16,
+        carryOverDesire: 0.52,
+        perceptionTrust: 0.66,
+        attachmentMode: 'attuned',
+        initiativeTemperament: 'reserved',
+        updatedAt: 58_000,
+      } as any,
+      selfState: {
+        feltCloseness: 0.44,
+        protectiveness: 0.5,
+        patience: 0.72,
+      } as any,
+      mindEcology: createMindEcology({
+        relationNarrative: 'The relationship line is neutral; I can be warm, but I should stay usefully oriented toward the host\'s knot.',
+        currentPreoccupation: 'Keep this callback return repair-before-closeness on the same living line until the room settles.',
+        updatedAt: 58_000,
+      }),
+      personStateEvolutionSummary: {
+        trustShift: 0.09,
+        closenessShift: -0.04,
+        repairShift: 0.11,
+        autonomyShift: 0.08,
+        burdenShift: 0.07,
+        executionTrustShift: 0.18,
+        relationshipDoctrineShift: 0.15,
+        latestDoctrine: 'Keep this callback return repair-before-closeness on the same living line until the room settles.',
+        latestBurdenLine: 'The callback line should not widen closeness before the room settles again.',
+        latestTrustMeaning: 'Trust holds when the same callback line returns lower-pressure and repair-first.',
+        latestDominantRung: 'space-first',
+        recentSummaries: ['The same callback repair line kept holding lower-pressure after another detour.'],
+        explanation: ['The callback line held better when it stayed repair-before-closeness instead of warming outwardly too fast.'],
+        updatedAt: 57_000,
+      },
+    })
+
+    expect(projection.openingGuidance).toMatch(/repair|same living line|same callback/i)
+    expect(projection.manifestationCadenceSummary).toMatch(/repair-before-closeness|lower-pressure/i)
+    expect(projection.selfContinuityAuthority?.relationshipLine).toMatch(/repair-before-closeness|lower-pressure|same relationship line/i)
+    expect(String(projection.selfContinuityAuthority?.authoritySummary ?? '')).toMatch(/repair-before-closeness|lower-pressure|same/i)
+  })
+
+  it('upgrades structured self continuity relationship carry when quiet-companionship is the explicit same-line hold shape', () => {
+    const projection = buildAlicizationPersonStateProjection({
+      now: 58_000,
+      contexts: ['focused-work', 'execution-callback'],
+      autobiographicalSelf: createAutobiographicalSelf({
+        relationshipDoctrine: 'The relationship line is neutral; I can be warm, but I should stay usefully oriented toward the host\'s knot.',
+        latestInflection: 'The same callback line is still continuing quietly after another detour.',
+      }),
+      selfContinuity: {
+        relationshipTrust: 0.68,
+        guardingTendency: 0.42,
+        misreadBurden: 0.16,
+        carryOverDesire: 0.52,
+        perceptionTrust: 0.66,
+        attachmentMode: 'attuned',
+        initiativeTemperament: 'reserved',
+        updatedAt: 58_000,
+      } as any,
+      selfState: {
+        feltCloseness: 0.44,
+        protectiveness: 0.5,
+        patience: 0.72,
+      } as any,
+      mindEcology: createMindEcology({
+        relationNarrative: 'The relationship line is neutral; I can be warm, but I should stay usefully oriented toward the host\'s knot.',
+        currentPreoccupation: 'Keep this callback return on the same living line as quiet-companionship until the room settles.',
+        updatedAt: 58_000,
+      }),
+      personStateEvolutionSummary: {
+        trustShift: 0.09,
+        closenessShift: -0.04,
+        repairShift: 0.11,
+        autonomyShift: 0.08,
+        burdenShift: 0.07,
+        executionTrustShift: 0.18,
+        relationshipDoctrineShift: 0.15,
+        latestDoctrine: 'Keep this callback return on the same living line as quiet-companionship until the room settles.',
+        latestBurdenLine: 'The callback line should not widen closeness before the room settles again.',
+        latestTrustMeaning: 'Trust holds when the same callback line returns as quiet-companionship instead of reopening outward.',
+        latestDominantRung: 'measured-room',
+        recentSummaries: ['The same callback line kept holding as quiet-companionship after another detour.'],
+        explanation: ['The callback line held better when it stayed quiet-companionship instead of warming outwardly too fast.'],
+        updatedAt: 57_000,
+      },
+    })
+
+    expect(projection.selfContinuityAuthority?.relationshipLine).toMatch(/lower-pressure|same relationship line/i)
+    expect(String(projection.selfContinuityAuthority?.authoritySummary ?? '')).toMatch(/quiet-companionship|lower-pressure|same/i)
+  })
+
   it('keeps the same quiet interval split by persona authority without erasing repair or room boundaries', () => {
     const direct = buildAlicizationPersonStateProjection({
       now: 58_000,
@@ -834,5 +1367,154 @@ describe('person-state-projection', () => {
     expect(guarded.openingGuidance).toContain('Open by observing first')
     expect(guarded.preferredProactiveStyle).toBe('silent-observe')
     expect(guarded.activeClosenessRung).toBe('space-first')
+  })
+
+  it('keeps callback same-thread lower-pressure opening guidance alive even when focused-work signals are also present after noisier detours', () => {
+    const projection = buildAlicizationPersonStateProjection({
+      now: 58_000,
+      contexts: ['focused-work', 'execution-callback'],
+      personaAuthority: createPersonaAuthority({
+        openingGuidance: 'Open with the live answer first and keep the approach lighter.',
+        identityKernel: {
+          relationshipPosture: 'guardian',
+          initiativeStyle: 'observant',
+          valueBias: ['room-first', 'repair-first'],
+        },
+        expressionProfile: {
+          warmth: 'guarded-warm',
+          directness: 'indirect',
+          playfulness: 'low',
+          emotionalVisibility: 'selective',
+        },
+        identityAnchors: ['same living line', 'lower-pressure return'],
+      }),
+      hostPersonModel: {
+        summary: 'Focused work windows still need room first.',
+        routines: ['Keep the work window light.'],
+        sensitivities: ['Pressure and over-close timing become intrusive quickly.'],
+        repairTriggers: [],
+        trustLadder: {
+          stage: 'warming',
+          score: 0.72,
+          rationale: 'Bounded continuity is trusted more than pushy warmth.',
+        },
+        preferredClosenessByContext: [{
+          context: 'focused-work',
+          preference: 'Lighter touch, more room, less interruption pressure.',
+          confidence: 0.86,
+        }],
+        recurrentBurdens: ['Focused work overloads quickly when extra conversational pressure lands.'],
+        narrative: [],
+        updatedAt: 58_000,
+      },
+      autobiographicalSelf: createAutobiographicalSelf({
+        relationshipDoctrine: 'Carry the unfinished Phase 1 digital-life closure forward as the same living line, not as detached project bookkeeping.',
+        latestInflection: 'Same callback line after noisier detours is still in motion and should keep continuing lower-pressure.',
+      }),
+      personStateEvolutionSummary: {
+        trustShift: 0.2,
+        closenessShift: 0.03,
+        repairShift: 0.16,
+        autonomyShift: 0,
+        burdenShift: 0.13,
+        executionTrustShift: 0.17,
+        relationshipDoctrineShift: 0.18,
+        latestDoctrine: 'When the callback seam reopens after noise, concern should stay gentle and not widen the line into a fresh approach.',
+        latestBurdenLine: 'Even if concern rises, the same callback line should not reopen more eagerly after unrelated windows intervene.',
+        latestTrustMeaning: 'Trust holds when concern is visible but the return still stays slower than impulse after noisy detours.',
+        latestDominantRung: 'space-first',
+        recentSummaries: ['Execution-callback afterglow is still live across noisier desktop detours, and the later chat turn should stay concerned but measured-return.'],
+        explanation: ['Same-her callback timing still favors a slower, lower-pressure reopen even when the felt tone has become concerned.'],
+        updatedAt: 58_000,
+      } as any,
+      selfContinuity: {
+        relationshipTrust: 0.64,
+        guardingTendency: 0.42,
+        misreadBurden: 0.18,
+        carryOverDesire: 0.52,
+        perceptionTrust: 0.62,
+        attachmentMode: 'attuned',
+        initiativeTemperament: 'balanced',
+        updatedAt: 58_000,
+      } as any,
+      selfState: {
+        feltCloseness: 0.54,
+        protectiveness: 0.46,
+        patience: 0.64,
+      } as any,
+      mindEcology: createMindEcology({
+        currentPreoccupation: 'runtime.ts - callback result seam is still carrying into the later coding seam after noisy detours.',
+        relationNarrative: 'Stay on the same callback line and keep the return lower-pressure.',
+        updatedAt: 58_000,
+      }),
+      privateThought: {
+        rationaleTags: ['self-evolution:lower-pressure-companionship'],
+      } as any,
+    })
+
+    expect(projection.personalityContinuityState.currentRegime).toBe('focused-work')
+    expect(projection.openingGuidance).toContain('same callback line')
+    expect(projection.openingGuidance).toContain('lower-pressure')
+    expect(projection.openingGuidance).not.toContain('Open with the live answer first')
+    expect(projection.preferredProactiveStyle).toBe('silent-observe')
+  })
+
+  it('keeps landed and still-open phase-1 closure carry explicit inside callback lower-pressure opening guidance when authority already holds that richer same-her line', () => {
+    const projection = buildAlicizationPersonStateProjection({
+      now: 58_100,
+      personStateAuthority: {
+        selfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        relationshipLine: null,
+        motiveLine: null,
+        habitLine: null,
+        inwardLine: 'Same-her carry: Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. | Some closure already landed: Execution callback continuity now stays on the same live runtime closure seam through a real later return. | The same living line is still unfinished around runtime-visible callback continuity still needing to stay aligned with project-state carry after persistence.',
+        authoritySummary: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        closenessPosture: 'space-first',
+        sourceTags: ['runtime-project-state-carry', 'project-state-open-loop', 'project-state-next-closure'],
+      } as any,
+      personStateEvolutionSummary: {
+        trustShift: 0.2,
+        closenessShift: 0.03,
+        repairShift: 0.16,
+        autonomyShift: 0,
+        burdenShift: 0.13,
+        executionTrustShift: 0.17,
+        relationshipDoctrineShift: 0.18,
+        latestDoctrine: 'When the callback seam reopens after noise, concern should stay gentle and not widen the line into a fresh approach.',
+        latestBurdenLine: 'Even if concern rises, the same callback line should not reopen more eagerly after unrelated windows intervene.',
+        latestTrustMeaning: 'Trust holds when concern is visible but the return still stays slower than impulse after noisy detours.',
+        latestDominantRung: 'space-first',
+        recentSummaries: ['Execution-callback afterglow is still live across noisier desktop detours, and the later chat turn should stay concerned but measured-return.'],
+        explanation: ['Same-her callback timing still favors a slower, lower-pressure reopen even when the felt tone has become concerned.'],
+        updatedAt: 58_100,
+      } as any,
+      selfContinuity: {
+        relationshipTrust: 0.64,
+        guardingTendency: 0.42,
+        misreadBurden: 0.18,
+        carryOverDesire: 0.52,
+        perceptionTrust: 0.62,
+        attachmentMode: 'attuned',
+        initiativeTemperament: 'balanced',
+        updatedAt: 58_100,
+      } as any,
+      selfState: {
+        feltCloseness: 0.54,
+        protectiveness: 0.46,
+        patience: 0.64,
+      } as any,
+      mindEcology: createMindEcology({
+        currentPreoccupation: 'runtime.ts - callback result seam is still carrying into the later coding seam after noisy detours.',
+        relationNarrative: 'Stay on the same callback line and keep the return lower-pressure.',
+        updatedAt: 58_100,
+      }),
+      privateThought: {
+        rationaleTags: ['self-evolution:lower-pressure-companionship'],
+      } as any,
+    })
+
+    expect(projection.openingGuidance).toContain('keep what already landed visible from inside the same her')
+    expect(projection.openingGuidance).toContain('still-open closure work')
+    expect(projection.openingGuidance).toContain('lower-pressure')
   })
 })

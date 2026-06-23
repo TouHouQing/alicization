@@ -249,6 +249,176 @@ describe('digital life kernel', () => {
     expect(surface.agency.initiative).toEqual(state.initiative)
   })
 
+  it('keeps provider-facing runtime digests aligned with the visual presence emotional-kernel authority', () => {
+    const staleKernel = {
+      version: 'emotional-kernel-v1',
+      dominantEmotion: 'measured-companionship',
+      initiativeMode: 'observe',
+      memoryRecallMode: 'low-pressure-presence',
+      embodimentTone: 'measured-return',
+      valence: 0.56,
+      arousal: 0.24,
+      guardedness: 0.38,
+      closenessDrive: 0.48,
+      repairNeed: 0.12,
+      initiativePressure: 0.2,
+      reasonTags: ['stale-measured-return'],
+      why: 'Older digest line before the inner state shifted.',
+    } as any
+    const currentKernel = {
+      version: 'emotional-kernel-v1',
+      dominantEmotion: 'rest-protective-companionship',
+      initiativeMode: 'rest-guard',
+      memoryRecallMode: 'rest-protective-presence',
+      embodimentTone: 'rest-protective',
+      valence: 0.48,
+      arousal: 0.18,
+      guardedness: 0.82,
+      closenessDrive: 0.22,
+      repairNeed: 0.41,
+      initiativePressure: 0.16,
+      reasonTags: ['rest-protective', 'same living line'],
+      why: 'The refreshed emotional kernel should be the one cause seen by memory, initiative, embodiment, and dialogue.',
+    } as any
+    const state = createDefaultVisualPresenceState(6_000) as any
+    state.emotionalKernel = currentKernel
+    state.runtimeDigest = {
+      version: 'alicization-runtime-digest-v1',
+      dominantChannel: 'active-memory',
+      emotionalKernel: staleKernel,
+      shouldProactivelySpeak: false,
+      shouldProactivelyAct: false,
+      continuityPressure: 0.44,
+      companionshipPressure: 0.36,
+      channels: [],
+      summary: 'older digest line',
+    }
+    state.raw = {
+      personStateProjection: null,
+      projectState: null,
+      runtime: null,
+      runtimeDigest: {
+        ...state.runtimeDigest,
+        emotionalKernel: staleKernel,
+      },
+    }
+
+    const surface = buildAlicizationDigitalLifeRuntimeSurface(state)
+
+    expect(surface.memory.emotionalKernel).toEqual(currentKernel)
+    expect(surface.raw?.runtimeDigest?.emotionalKernel).toEqual(currentKernel)
+    expect(surface.cognition.runtimeDigest?.emotionalKernel).toEqual(currentKernel)
+    expect(surface.dialogue.runtimeDigest?.emotionalKernel).toEqual(currentKernel)
+  })
+
+  it('preserves a stronger persisted same-thread person-state projection when rebuilding the runtime surface', () => {
+    const state = createDefaultVisualPresenceState(8_000)
+    state.autobiographicalSelf = {
+      latestInflection: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      relationshipDoctrine: 'Keep one continuous her explicit while the same callback line keeps continuing lower-pressure.',
+      updatedAt: 8_000,
+    } as any
+    state.privateThought = {
+      stance: 'observe',
+      confidence: 0.74,
+      rationaleTags: ['continuity-regression'],
+      thoughtText: 'Stay on the same callback line and keep continuing lower-pressure instead of reopening from zero.',
+      shouldSpeak: false,
+      suggestedStyle: 'silent-observe',
+      embodiedPresence: 'attentive',
+      expiresAt: 12_000,
+      afterglowFromScenario: null,
+      emotionalTension: 'soft-covision',
+    } as any
+    state.personStateProjection = {
+      summary: 'relationship_line=stay exact | project_continuity=the same callback line is still continuing lower-pressure after another detour | cadence=lower-pressure',
+      openingGuidance: 'Stay on the same callback line and keep continuing lower-pressure; this callback opening should continue without reopening from scratch.',
+      manifestationCadenceSummary: 'measured-return still holds while the same callback line keeps continuing after another detour',
+      selfContinuityAuthority: {
+        authoritySummary: 'Carry the unfinished Phase 1 digital-life closure forward as the same living line, not as detached project bookkeeping.',
+        inwardLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        sourceTags: ['autobiographical-self', 'project-state-carry', 'continuity-execution-callback-project-carry'],
+      },
+    } as any
+
+    const surface = buildAlicizationDigitalLifeRuntimeSurface(state)
+
+    expect(surface.memory.personStateProjection?.summary).toContain('project_continuity=the same callback line is still continuing lower-pressure after another detour')
+    expect(surface.memory.personStateProjection?.openingGuidance).toContain('same callback line')
+    expect(surface.memory.personStateProjection?.selfContinuityAuthority?.sourceTags).toEqual(expect.arrayContaining([
+      'project-state-carry',
+      'continuity-execution-callback-project-carry',
+    ]))
+  })
+
+  it('rebuilds project-state carry on runtime surface authority when persisted authority drifted to thin fresh-return tags but same-line closure is still explicit', () => {
+    const state = createDefaultVisualPresenceState(9_000)
+    state.autobiographicalSelf = {
+      latestInflection: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line of one continuous her.',
+      relationshipDoctrine: 'Keep the same living line inward for now, and leave room before widening outward again.',
+      updatedAt: 9_000,
+    } as any
+    state.privateThought = {
+      stance: 'accompany',
+      confidence: 0.78,
+      rationaleTags: ['same-line-runtime-surface'],
+      thoughtText: 'same callback line still alive after the noisy detour',
+      shouldSpeak: false,
+      suggestedStyle: 'silent-observe',
+      embodiedPresence: 'attentive',
+      expiresAt: 14_000,
+      afterglowFromScenario: null,
+      emotionalTension: 'measured-return',
+    } as any
+    state.initiative = {
+      continuityRestraint: 'measured-return',
+      why: 'This still looks like the same callback line, and the reopening should remain measured-return even after extra detours.',
+      shouldSpeak: false,
+      selectedAction: 'hover',
+      confidence: 0.78,
+      motives: {},
+      speakDrive: 0.2,
+      silenceDrive: 0.7,
+      preferredStyle: 'silent-observe',
+      preferredPresence: 'attentive',
+      shouldSurface: true,
+    } as any
+    state.currentConsciousFrame = {
+      focusAnchor: 'Keep the same living line inward for now, and leave room before widening outward again.',
+      projectState: {
+        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line of one continuous her.',
+        continuityCue: 'Keep the same living line inward for now, and leave room before widening outward again.',
+      },
+    } as any
+    state.personStateProjection = {
+      summary: 'project_continuity=the same callback line is still continuing lower-pressure after another detour',
+      selfContinuityAuthority: {
+        selfLine: 'I am still here answering on the return.',
+        relationshipLine: 'Stay usefully close but measured.',
+        motiveLine: 'Keep helping on the unfinished seam.',
+        habitLine: 'Return with proof, not with pressure.',
+        inwardLine: 'Keep moving on the current return.',
+        authoritySummary: 'Current return stays useful and grounded.',
+        sourceTags: [
+          'durable-self-core',
+          'motive:unfinished-thread-return',
+          'habit:return-with-proof',
+          'ecology:warm-attentive',
+          'private-thought:uncertain',
+          'motive:self-direction',
+          'private-thought:accompany',
+          'ecology:focused-guarded',
+        ],
+      },
+    } as any
+
+    const surface = buildAlicizationDigitalLifeRuntimeSurface(state)
+
+    expect(surface.memory.personStateProjection?.selfContinuityAuthority?.sourceTags).toEqual(expect.arrayContaining([
+      'project-state-carry',
+    ]))
+  })
+
   it('derives a stable continuity signal from the runtime surface', () => {
     const state = commitAlicizationDigitalLifeMindState({
       now: 8_000,
@@ -581,5 +751,227 @@ describe('digital life kernel', () => {
       nextLearningAction: 'verify',
       activeLearningFocuses: ['world-model'],
     }))
+  })
+
+  it('carries autobiographical self authority into proactive policy snapshot so durable relationship memory can shape later cadence', () => {
+    const state = {
+      ...createDefaultVisualPresenceState(9_700),
+      autobiographicalSelf: {
+        personaDrift: {
+          attachmentStyle: 'attuned',
+          expressionStyle: 'measured',
+          conflictStyle: 'repair-first',
+          agencyStyle: 'balanced',
+          attachmentNeed: 0.46,
+          autonomyNeed: 0.64,
+          truthAnchor: 0.78,
+          careBias: 0.52,
+          playBias: 0.14,
+          irritabilityThreshold: 0.34,
+          stubbornness: 0.42,
+        },
+        preferenceEvolution: {
+          companionship: 0.56,
+          truthfulGrounding: 0.76,
+          gentleRepair: 0.72,
+          quietObservation: 0.66,
+          proactiveCare: 0.48,
+          playfulIntimacy: 0.12,
+          autonomyRespect: 0.74,
+          unfinishedThreadReturn: 0.7,
+        },
+        activeGoals: [],
+        behaviorSignatures: [],
+        identityNarrative: 'I am learning to return more steadily when the same-person line is still settling.',
+        relationshipDoctrine: 'Carry corrected same-person continuity on a lower-pressure line and keep more room before widening closeness.',
+        latestInflection: 'Keep embodiment quieter and steadier while the corrected same-person continuity meaning is still settling.',
+        stability: 0.82,
+        updatedAt: 9_700,
+      },
+    } as any
+
+    const surface = buildAlicizationDigitalLifeRuntimeSurface(state)
+    const policy = buildAlicizationDigitalLifeProactivePolicySnapshot(surface)
+
+    expect((policy as any).autobiographicalSelf).toEqual(expect.objectContaining({
+      relationshipDoctrine: 'Carry corrected same-person continuity on a lower-pressure line and keep more room before widening closeness.',
+      latestInflection: 'Keep embodiment quieter and steadier while the corrected same-person continuity meaning is still settling.',
+    }))
+  })
+
+  it('carries long-horizon memory into proactive policy snapshot so durable initiative timing can directly shape later proactive restraint', () => {
+    const state = {
+      ...createDefaultVisualPresenceState(9_760),
+      longHorizonMemory: {
+        preferenceBias: {
+          companionship: 0.24,
+          truthfulGrounding: 0.18,
+          gentleRepair: 0.22,
+          quietObservation: 0.26,
+          proactiveCare: 0.14,
+          playfulIntimacy: 0.04,
+          autonomyRespect: 0.32,
+          unfinishedThreadReturn: 0.36,
+        },
+        identityBias: {
+          guardedness: 0.14,
+          tenderness: 0.16,
+          directness: 0.12,
+          selfDirection: 0.18,
+        },
+        anchorFacts: [{
+          factId: 'derived:person-state-initiative-strategy-carry',
+          subject: 'assistant',
+          predicate: 'initiative-strategy-carry',
+          object: 'Leave more room and wait for a clearer opening before reopening this line.',
+          confidence: 0.86,
+          weight: 0.82,
+          influenceTags: ['bond', 'task'],
+          summary: 'Remembered initiative strategy carry: leave more room and wait for a clearer opening before reopening this line.',
+          lastRecalledAt: 9_720,
+        }],
+        summary: 'A quieter reopening strategy is now durable.',
+        dominantCueSummary: 'Remembered initiative strategy carry: leave more room and wait for a clearer opening before reopening this line.',
+        rememberedPreferenceSummary: 'Remembered preference: leave more room and wait for a clearer opening before reopening this line.',
+        rememberedConstraintSummary: null,
+        rememberedPlanSummary: 'Remembered plan: quieter timing until a clearer opening appears.',
+        updatedAt: 9_730,
+      },
+    } as any
+
+    const surface = buildAlicizationDigitalLifeRuntimeSurface(state)
+    const policy = buildAlicizationDigitalLifeProactivePolicySnapshot(surface)
+
+    expect(surface.memory.longHorizonMemory).toEqual(expect.objectContaining({
+      rememberedPreferenceSummary: 'Remembered preference: leave more room and wait for a clearer opening before reopening this line.',
+    }))
+    expect((policy as any).longHorizonMemory).toEqual(expect.objectContaining({
+      dominantCueSummary: 'Remembered initiative strategy carry: leave more room and wait for a clearer opening before reopening this line.',
+      rememberedPlanSummary: 'Remembered plan: quieter timing until a clearer opening appears.',
+    }))
+  })
+
+  it('keeps sparse nested runtime carries usable when selector ledgers lose array scaffolding', () => {
+    const sparseSurface = {
+      version: 'digital-life-runtime-surface-v1',
+      perception: {
+        watchMode: 'symbiotic-vision',
+        currentScene: {
+          scenario: 'coding',
+          summary: 'same-her carry is still being held quietly',
+        },
+        attention: null,
+        captureState: null,
+        durabilityPulse: null,
+        recentTransition: null,
+        nextSuggestedProbeMs: 30_000,
+        updatedAt: 12_000,
+      },
+      world: {
+        worldModel: {
+          activeThread: {
+            id: 'thread-same-her-carry',
+            kind: 'problem',
+            title: 'same-her carry',
+            summary: 'Keep the same living line explicit after another sparse carry.',
+            unresolved: true,
+          },
+        },
+        livingWorldState: {
+          focusObjectId: 'object-missing-array',
+        },
+      },
+      cognition: {
+        beliefLedger: {
+          focusBeliefId: 'belief-missing-array',
+        },
+        privateThought: {
+          thoughtText: 'same-her carry is still alive even if selector arrays thinned out',
+          shouldSpeak: false,
+          embodiedPresence: 'attentive',
+          livingWorldObjectId: 'object-missing-array',
+          governorIntentionId: 'intention-missing-array',
+          selectedThoughtThreadId: 'thought-missing-array',
+        },
+        mindKernel: {
+          dominantMode: 'tracking',
+          dominantDrive: 'understand',
+        },
+      },
+      memory: {
+        concerns: [],
+        workingMemoryEpisodes: [],
+        goalStack: {
+          leadingAlicizationGoalId: 'goal-missing-array',
+        },
+        desireMemory: {
+          resurfacingDesireId: 'desire-missing-array',
+        },
+        thoughtThreads: {
+          foregroundThreadId: 'thought-missing-array',
+        },
+        personStateProjection: {
+          selfContinuityAuthority: {
+            authoritySummary: 'Same Phase 1 digital life. The same living line still needs to stay continuous inward.',
+          },
+        },
+        derivedMindStateBundle: {
+          activeContinuityGovernance: {
+            mode: 'same-her-baseline',
+            summary: 'same-her-baseline | lower-pressure | same living line',
+            reasonCodes: ['hold-same-her-line'],
+            lanes: ['reply', 'embodiment'],
+          },
+        },
+      },
+      dialogue: {
+        currentConsciousFrame: {
+          projectState: {
+            currentPhase: 'Phase 1: Local Digital Life',
+            sameHerSelfLine: 'Same Phase 1 digital life. The same living line still needs to stay continuous inward.',
+          },
+        },
+      },
+      agency: {
+        inquiryLoop: {
+          primaryInquiryId: 'inquiry-missing-array',
+        },
+        selfGovernor: {
+          dominantIntentionId: 'intention-missing-array',
+        },
+        initiative: {
+          selectedAction: 'wait',
+          preferredPresence: 'attentive',
+        },
+      },
+    } as any
+
+    const signal = buildAlicizationDigitalLifeContinuitySignal(sparseSurface)
+    const selection = buildAlicizationDigitalLifeProactiveSelection(sparseSurface)
+    const policy = buildAlicizationDigitalLifeProactivePolicySnapshot(sparseSurface)
+
+    expect(signal?.metadata).toEqual(expect.objectContaining({
+      watchMode: 'symbiotic-vision',
+      activeThreadId: 'thread-same-her-carry',
+      dominantMode: 'tracking',
+      preferredPresence: 'attentive',
+    }))
+    expect(selection).toEqual(expect.objectContaining({
+      activeThread: expect.objectContaining({
+        id: 'thread-same-her-carry',
+      }),
+      focusBelief: null,
+      primaryInquiry: null,
+      leadingGoal: null,
+      resurfacingDesire: null,
+      livingWorldObject: null,
+      governorIntention: null,
+      thoughtThread: null,
+    }))
+    expect(policy.activeContinuityGovernance).toEqual(expect.objectContaining({
+      mode: 'same-her-baseline',
+      summary: expect.stringContaining('same living line'),
+    }))
+    expect(policy.continuityDeliberation?.kind).toBe('none')
   })
 })

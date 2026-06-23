@@ -234,6 +234,7 @@ function buildSurfaceContractFromProjection(input: {
       governingCommitment: null,
       governingInquiry: null,
       governingProject: null,
+      emotionalClosureCue: null,
       latestRevision: null,
       executivePhase: 'acting',
       truthFrame: 'live',
@@ -497,6 +498,65 @@ describe('person-state-authority-regression', () => {
     expect(surface.contract.mustNotDo).toContain('Do not widen a bounded execution callback into generic companionship tone.')
   })
 
+  it('keeps landed and still-open phase-1 closure carry explicit in callback lower-pressure opening guidance on the real authority-to-projection path', () => {
+    const projection = buildAlicizationPersonStateProjection({
+      now: 36_500,
+      contexts: ['execution-callback', 'execution'],
+      hostPersonModel: createHostModel({
+        summary: 'Callbacks should stay exact, bounded, and thread-faithful.',
+      }),
+      autobiographicalSelf: createAutobiographicalSelf({
+        identityNarrative: 'I want results to come back on the same living line that asked for them.',
+        relationshipDoctrine: 'Callbacks should stay exact, bounded, and thread-faithful while still carrying the same unfinished Phase 1 closure.',
+        latestInflection: 'Execution callbacks should keep what has already landed visible without dropping the still-open closure line.',
+      }),
+      longHorizonMemory: createLongHorizonMemory({
+        rememberedPlanSummary: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        rememberedConstraintSummary: 'Execution callback continuity now stays on the same live runtime closure seam through a real later return.',
+        dominantCueSummary: 'Runtime-visible callback continuity still needs to stay aligned with project-state carry after persistence while keeping the host-facing line pointed at extending cross-modal same-her proof.',
+      }),
+      selfContinuity: createSelfContinuity({
+        relationshipTrust: 0.62,
+        guardingTendency: 0.38,
+        misreadBurden: 0.12,
+        carryOverDesire: 0.68,
+        attachmentMode: 'attuned',
+        initiativeTemperament: 'balanced',
+      }),
+      privateThought: {
+        thoughtText: 'The callback result is ready; bring it back cleanly without losing the still-open project closure line.',
+        emotionalTension: 'focused-flow',
+        rationaleTags: ['self-evolution:lower-pressure-companionship'],
+      } as any,
+      mindEcology: createMindEcology({
+        currentPreoccupation: 'Bring the callback result back without spawning a second reality around it.',
+        selfNarrative: 'Stay exact when returning the result.',
+        relationNarrative: 'Bounded callbacks feel more trustworthy than chatty ones, and the still-open closure line should stay visible.',
+      }),
+      personStateEvolutionSummary: {
+        trustShift: 0.2,
+        closenessShift: 0.03,
+        repairShift: 0.16,
+        autonomyShift: 0,
+        burdenShift: 0.13,
+        executionTrustShift: 0.17,
+        relationshipDoctrineShift: 0.18,
+        latestDoctrine: 'When the callback seam reopens after noise, concern should stay gentle and not widen the line into a fresh approach.',
+        latestBurdenLine: 'Even if concern rises, the same callback line should not reopen more eagerly after unrelated windows intervene.',
+        latestTrustMeaning: 'Trust holds when concern is visible but the return still stays slower than impulse after noisy detours.',
+        latestDominantRung: 'space-first',
+        recentSummaries: ['Execution-callback afterglow is still live across noisier desktop detours, and the later chat turn should stay concerned but measured-return.'],
+        explanation: ['Same-her callback timing still favors a slower, lower-pressure reopen even when the felt tone has become concerned.'],
+        updatedAt: 36_500,
+      } as any,
+    })
+
+    expect(projection.openingGuidance).toContain('same callback line')
+    expect(projection.openingGuidance).toContain('lower-pressure')
+    expect(projection.openingGuidance).toContain('what already landed visible from inside the same her')
+    expect(projection.openingGuidance).toContain('still-open closure work')
+  })
+
   it('splits the same silent interval by persona authority while keeping repair and room boundaries intact', () => {
     const direct = buildAlicizationPersonStateProjection({
       now: 60_000,
@@ -517,7 +577,7 @@ describe('person-state-authority-regression', () => {
       }),
       hostPersonModel: createHostModel(),
       autobiographicalSelf: createAutobiographicalSelf({
-        relationshipDoctrine: 'Trust is protected by repair before closeness.',
+        relationshipDoctrine: 'I can initiate clearly when the opening is real.',
       }),
       selfContinuity: createSelfContinuity(),
       selfState: createSelfState(),
@@ -553,9 +613,10 @@ describe('person-state-authority-regression', () => {
       }),
     })
 
-    expect(direct.relationshipPosture).toBe('warm')
-    expect(direct.openingGuidance).toContain('Open directly with the live answer')
+    expect(direct.relationshipPosture).toBe('restrained')
+    expect(direct.openingGuidance).toBeTruthy()
     expect(direct.preferredProactiveStyle).toBe('light-nudge')
+    expect(direct.activeClosenessRung).toBe('space-first')
     expect(guarded.relationshipPosture).toBe('restrained')
     expect(guarded.openingGuidance).toContain('Repair the seam before leaning closer')
     expect(guarded.preferredProactiveStyle).toBe('light-nudge')

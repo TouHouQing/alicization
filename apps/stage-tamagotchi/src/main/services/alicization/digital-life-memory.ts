@@ -135,7 +135,7 @@ export function buildAlicizationDigitalLifeMemoryDigest(
     ? longHorizonMemory.anchorFacts.length
     : 0
   const selfEvolution = memory?.selfEvolution ?? null
-  const derivedMindStateBundleAffectiveResidue = memory?.derivedMindStateBundle?.affectiveResidue ?? null
+  const derivedMindStateBundle = memory?.derivedMindStateBundle ?? null
   const personStateProjection = memory?.personStateProjection ?? null
 
   return {
@@ -180,11 +180,7 @@ export function buildAlicizationDigitalLifeMemoryDigest(
         }
       : null,
     affectiveResidue: memory?.affectiveResidue ?? null,
-    derivedMindStateBundle: derivedMindStateBundleAffectiveResidue
-      ? {
-          affectiveResidue: derivedMindStateBundleAffectiveResidue,
-        }
-      : null,
+    derivedMindStateBundle,
     personStateProjection: personStateProjection
       ? {
           summary: sanitizeText(personStateProjection.summary, 220) || null,
@@ -206,5 +202,6 @@ export function buildAlicizationDigitalLifeMemoryDigest(
           manifestationCadenceSummary: sanitizeText(personStateProjection.manifestationCadenceSummary, 220) || null,
         }
       : null,
+    memoryClosureTrace: memory?.memoryClosureTrace ?? null,
   }
 }

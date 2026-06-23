@@ -1,4 +1,6 @@
 import type {
+  AlicizationAffectiveResidueMemorySnapshot,
+  AlicizationEpisodicEventRecord,
   AlicizationMindTurnEventRecord,
   AlicizationPersonaReinforcementDimension,
   AlicizationRelationshipOutcomeSourceKind,
@@ -6,6 +8,14 @@ import type {
   AlicizationPersonStateUpdateSurface as SharedAlicizationPersonStateUpdateSurface,
 } from '../../../shared/eventa'
 import type { AlicizationOutcomeClosureResult } from './outcome-reinforcement'
+
+import {
+  normalizeAlicizationDerivedMindStateBundle,
+  readAffectiveResidueFromDerivedMindStateBundle,
+} from '@proj-alicization/stage-shared'
+
+import { deriveMemorySupersessionSignal } from './humanlike-memory'
+import { resolveAlicizationProjectStateBrief } from './project-state-brief'
 
 export type AlicizationPersonStateUpdateSurface = SharedAlicizationPersonStateUpdateSurface
 export type AlicizationPersonStateUpdateRecord = SharedAlicizationPersonStateUpdateRecord
@@ -20,6 +30,8 @@ const repairPattern = /repair|clarify|recheck|not this|missed|澄清|修复|重�
 const burdenPattern = /burden|tired|busy|drained|interrupt|压力|累|忙|打断|疲惫|不想被催/iu
 const intrusivePattern = /intrusive|heavy|pressure|挤|黏|压迫|太近|太重|打扰/iu
 const roboticPattern = /robotic|template|system|模板|机械|机器人|系统口气/iu
+const initiativeStrategyPattern = /future follow-ups|follow-up timing|clearer opening|fresher opening|leave more room|less eager|quieter timing|memory-led|still receiving them|reopening this line/iu
+const acceptedInitiativeStrategyPattern = /memory-led|still receiving them|received without obvious resistance|accepted or continued/iu
 
 function clamp(value: number, maxAbs = 0.5) {
   if (!Number.isFinite(value))
@@ -33,10 +45,92 @@ function sanitizeText(raw: unknown, maxChars = 180) {
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
 }
 
+function normalizeContinuityRestraint(raw: unknown) {
+  const normalized = sanitizeText(raw, 64)
+  return normalized === 'lower-pressure'
+    || normalized === 'measured-return'
+    || normalized === 'repair-before-closeness'
+    || normalized === 'rest-protective'
+    || normalized === 'single-thread'
+    ? normalized
+    : null
+}
+
+function normalizePreferredBlinkCadence(raw: unknown) {
+  const normalized = sanitizeText(raw, 32)
+  return normalized === 'normal'
+    || normalized === 'linger'
+    || normalized === 'quiet'
+    ? normalized
+    : null
+}
+
+function normalizePreferredGazeMode(raw: unknown) {
+  const normalized = sanitizeText(raw, 32)
+  return normalized === 'steady'
+    || normalized === 'soften'
+    || normalized === 'drift'
+    ? normalized
+    : null
+}
+
+function normalizePreferredPauseMode(raw: unknown) {
+  const normalized = sanitizeText(raw, 32)
+  return normalized === 'longer'
+    || normalized === 'natural'
+    ? normalized
+    : null
+}
+
+function normalizePreferredLipsyncMode(raw: unknown) {
+  const normalized = sanitizeText(raw, 32)
+  return normalized === 'restrained'
+    || normalized === 'matched'
+    ? normalized
+    : null
+}
+
+function normalizePreferredVoiceMode(raw: unknown) {
+  const normalized = sanitizeText(raw, 32)
+  return normalized === 'lower-pressure'
+    || normalized === 'even'
+    ? normalized
+    : null
+}
+
+function normalizePreferredPacingMode(raw: unknown) {
+  const normalized = sanitizeText(raw, 32)
+  return normalized === 'slower'
+    || normalized === 'natural'
+    ? normalized
+    : null
+}
+
 function asObject(raw: unknown) {
   return raw && typeof raw === 'object' && !Array.isArray(raw)
     ? raw as Record<string, unknown>
     : null
+}
+
+function normalizeAffectiveResidue(raw: unknown): AlicizationAffectiveResidueMemorySnapshot | null {
+  const derivedMindStateBundle = normalizeAlicizationDerivedMindStateBundle({
+    version: 'derived-mind-state-bundle-v1',
+    source: 'browser-fallback',
+    producedAt: 0,
+    summary: 'person-state-update-affective-residue',
+    affectiveResidue: raw,
+  })
+  return readAffectiveResidueFromDerivedMindStateBundle(derivedMindStateBundle)
+}
+
+function readProjectStateLandedProgress(projectStateBrief: {
+  latestLandedProgress?: unknown[] | unknown
+  latestProgress?: unknown
+}) {
+  const raw = Array.isArray(projectStateBrief.latestLandedProgress)
+    ? projectStateBrief.latestLandedProgress[0]
+    : projectStateBrief.latestLandedProgress ?? projectStateBrief.latestProgress
+  return sanitizeText(raw, 220) || null
 }
 
 function uniqueList(values: Array<string | null | undefined>, maxItems = 8) {
@@ -52,6 +146,104 @@ function uniqueList(values: Array<string | null | undefined>, maxItems = 8) {
       break
   }
   return result
+}
+
+function stringListFrom(raw: unknown, maxItems = 8) {
+  if (!Array.isArray(raw))
+    return []
+  return uniqueList(
+    raw.map(item => typeof item === 'string' ? item : ''),
+    maxItems,
+  )
+}
+
+function numericOr(raw: unknown, fallback = 0) {
+  const value = Number(raw)
+  return Number.isFinite(value) ? value : fallback
+}
+
+function normalizeClosureEpisodicReconsolidation(
+  event: AlicizationOutcomeClosureResult['episodicEvents'][number],
+  fallbackAt: number,
+) {
+  const raw = asObject(event)?.latestReconsolidation
+  const normalized = asObject(raw)
+  if (!normalized)
+    return null
+
+  return {
+    at: numericOr(normalized.at, fallbackAt),
+    decisionTraceId: sanitizeText(normalized.decisionTraceId, 96) || null,
+    provenance: event.provenance,
+    confidence: numericOr(normalized.confidence, event.confidence),
+    reason: sanitizeText(normalized.reason, 220),
+    emotionTags: uniqueList(stringListFrom(normalized.emotionTags ?? [], 8), 8),
+    relationshipMeaning: sanitizeText(normalized.relationshipMeaning, 220) || null,
+    lesson: sanitizeText(normalized.lesson, 220) || null,
+  }
+}
+
+function closureEventToComparableRecord(
+  event: AlicizationOutcomeClosureResult['episodicEvents'][number],
+  index: number,
+): AlicizationEpisodicEventRecord {
+  const occurredAt = numericOr(event.occurredAt, event.createdAt ?? event.updatedAt ?? index + 1)
+  const latestReconsolidation = normalizeClosureEpisodicReconsolidation(event, occurredAt)
+  const reconsolidationCount = numericOr(asObject(event)?.reconsolidationCount, 0)
+
+  return {
+    id: sanitizeText(event.id, 120) || `closure-episodic-${index + 1}`,
+    cardId: event.cardId,
+    decisionTraceId: sanitizeText(event.decisionTraceId, 120) || null,
+    turnId: sanitizeText(event.turnId, 120) || null,
+    sessionId: sanitizeText(event.sessionId, 120) || null,
+    sourceKind: event.sourceKind,
+    provenance: event.provenance,
+    occurredAt,
+    whereSummary: sanitizeText(event.whereSummary, 180) || null,
+    withWhom: event.withWhom ?? [],
+    threadAnchor: sanitizeText(event.threadAnchor, 180) || null,
+    whatHappened: sanitizeText(event.whatHappened, 220),
+    felt: sanitizeText(event.felt, 220) || null,
+    emotionTags: uniqueList(event.emotionTags ?? [], 8),
+    whatChanged: sanitizeText(event.whatChanged, 220) || null,
+    relationshipMeaning: sanitizeText(event.relationshipMeaning, 220) || null,
+    lesson: sanitizeText(event.lesson, 220) || null,
+    sourceSummary: sanitizeText(event.sourceSummary, 220) || null,
+    confidence: numericOr(event.confidence, 0),
+    salience: numericOr(event.salience, 0.5),
+    sceneAttachment: numericOr(event.sceneAttachment, 0),
+    consolidationPriority: numericOr(event.consolidationPriority, 0),
+    relationshipShift: event.relationshipShift ?? null,
+    derivedFrom: event.derivedFrom ?? [],
+    tags: uniqueList(event.tags ?? [], 8),
+    createdAt: numericOr(event.createdAt, occurredAt),
+    updatedAt: numericOr(event.updatedAt, occurredAt),
+    lastRecalledAt: null,
+    recallCount: 0,
+    reconsolidationCount,
+    latestReconsolidation,
+  }
+}
+
+function filterSupersededClosureEpisodicEvents(
+  events: AlicizationOutcomeClosureResult['episodicEvents'],
+) {
+  const comparable = events.map((event, index) => ({
+    event,
+    record: closureEventToComparableRecord(event, index),
+  }))
+
+  return comparable
+    .filter((current, _index, all) => !all.some((candidate) => {
+      if (candidate.record.id === current.record.id)
+        return false
+      return deriveMemorySupersessionSignal({
+        current: current.record,
+        candidate: candidate.record,
+      }).suppressCurrent
+    }))
+    .map(item => item.event)
 }
 
 function inferContexts(text: string) {
@@ -86,6 +278,11 @@ function inferSensitivityHints(text: string) {
 }
 
 function inferRepairHints(text: string) {
+  if (initiativeStrategyPattern.test(text)) {
+    if (acceptedInitiativeStrategyPattern.test(text))
+      return 'Keep future follow-ups gentle, lower-pressure, and memory-led while the opening is still receiving them.'
+    return 'Keep future follow-ups lower-pressure, less eager, leave more room, and wait for a clearer opening before reopening this line.'
+  }
   if (repairPattern.test(text))
     return 'When the seam is off, repair before continuing.'
   if (roboticPattern.test(text))
@@ -99,6 +296,56 @@ function inferBurdenHints(text: string) {
   if (focusedContextPattern.test(text))
     return 'Focused work gets overloaded quickly by extra conversational pressure.'
   return ''
+}
+
+function scoreEmotionalClosureCue(text: string) {
+  const normalized = sanitizeText(text, 220).toLowerCase()
+  if (!normalized)
+    return 0
+
+  let score = 0
+  if (/repair-before-closeness|repair before closeness|repair first|repair settle/iu.test(normalized))
+    score += 10
+  if (/rest-protective|rest protective|fatigue-aware/iu.test(normalized))
+    score += 8
+  if (/measured-return|measured return|lower-pressure|leave more room|do not reopen from scratch/iu.test(normalized))
+    score += 6
+  if (/same living line|same callback line|same line|same-her/iu.test(normalized))
+    score += 4
+  if (/initiative/iu.test(normalized))
+    score += 2
+  if (/embodiment|voice|face|motion|lipsync/iu.test(normalized))
+    score += 2
+  return score
+}
+
+function resolveProjectStateEmotionalClosureCue(input: {
+  closureTexts: string[]
+  fallbackCue?: string | null
+}) {
+  const fallbackCue = sanitizeText(input.fallbackCue, 220) || null
+  let best = fallbackCue
+  let bestScore = scoreEmotionalClosureCue(fallbackCue ?? '')
+
+  for (const candidate of input.closureTexts) {
+    const normalized = sanitizeText(candidate, 220)
+    if (!normalized)
+      continue
+
+    const candidateScore = scoreEmotionalClosureCue(normalized)
+    if (candidateScore <= 0)
+      continue
+
+    if (
+      candidateScore > bestScore
+      || (candidateScore === bestScore && normalized.length > (best?.length ?? 0))
+    ) {
+      best = normalized
+      bestScore = candidateScore
+    }
+  }
+
+  return best
 }
 
 function mergeSurface(previous: AlicizationPersonStateUpdateSurface | null, next: AlicizationPersonStateUpdateSurface) {
@@ -147,6 +394,8 @@ export function buildAlicizationPersonStateUpdateSurface(input: {
   previous?: AlicizationPersonStateUpdateSurface | null
   now: number
 }) {
+  const filteredEpisodicEvents = filterSupersededClosureEpisodicEvents(input.closure.episodicEvents)
+  const projectStateBrief = resolveAlicizationProjectStateBrief()
   const relationshipShift = input.closure.relationshipOutcomes.reduce((acc, outcome) => ({
     trustDelta: clamp(acc.trustDelta + outcome.trustDelta),
     closenessDelta: clamp(acc.closenessDelta + outcome.closenessDelta),
@@ -167,20 +416,24 @@ export function buildAlicizationPersonStateUpdateSurface(input: {
     return acc
   }, {})
 
-  const allTexts = [
+  const allTexts = uniqueList([
     ...input.closure.relationshipOutcomes.flatMap(outcome => [outcome.summary, outcome.actionSummary]),
     ...input.closure.reinforcementEvents.map(event => event.summary),
-    ...input.closure.episodicEvents.flatMap(event => [event.relationshipMeaning, event.lesson, event.whatChanged, event.whatHappened]),
-  ]
+    ...filteredEpisodicEvents.flatMap(event => [event.relationshipMeaning, event.lesson, event.whatChanged, event.whatHappened]),
+  ], 64)
   const dominantContexts = uniqueList(allTexts.flatMap(text => inferContexts(sanitizeText(text, 220))), 6)
   const preferenceHints = uniqueList(allTexts.map(text => inferPreferenceHints(sanitizeText(text, 220))), 6)
   const sensitivityHints = uniqueList(allTexts.map(text => inferSensitivityHints(sanitizeText(text, 220))), 6)
   const repairHints = uniqueList(allTexts.map(text => inferRepairHints(sanitizeText(text, 220))), 6)
   const burdenHints = uniqueList(allTexts.map(text => inferBurdenHints(sanitizeText(text, 220))), 6)
+  const emotionalClosureCue = resolveProjectStateEmotionalClosureCue({
+    closureTexts: allTexts,
+    fallbackCue: projectStateBrief.emotionalClosureCue ?? null,
+  })
   const narrative = uniqueList([
     ...input.closure.relationshipOutcomes.map(outcome => outcome.summary),
     ...input.closure.reinforcementEvents.map(event => event.summary),
-    ...input.closure.episodicEvents.map(event => event.relationshipMeaning || event.lesson || event.whatChanged || event.whatHappened),
+    ...filteredEpisodicEvents.map(event => event.relationshipMeaning || event.lesson || event.whatChanged || event.whatHappened),
   ], 8)
   const sourceTrail = [
     ...input.closure.relationshipOutcomes.map(outcome => ({
@@ -199,6 +452,9 @@ export function buildAlicizationPersonStateUpdateSurface(input: {
     .filter(entry => entry.summary)
     .sort((left, right) => right.createdAt - left.createdAt)
     .slice(0, 12)
+  const affectiveResidue = normalizeAffectiveResidue(input.closure.affectiveResidue)
+    ?? input.previous?.affectiveResidue
+    ?? null
 
   const next: AlicizationPersonStateUpdateSurface = {
     version: 'person-state-update-surface-v1',
@@ -211,6 +467,27 @@ export function buildAlicizationPersonStateUpdateSurface(input: {
       burdenHints[0] ? `Burden line: ${burdenHints[0]}` : null,
       narrative[0],
     ], 4).join(' '),
+    projectStateContinuity: {
+      identity: projectStateBrief.identity,
+      currentPhase: projectStateBrief.currentPhase,
+      sameHerSummary: 'One local digital life should keep the same-her line across memory, initiative, dialogue, and embodiment.',
+      landedProgressSummary: readProjectStateLandedProgress(projectStateBrief),
+      openClosureSummary: projectStateBrief.openLoops[0] ?? null,
+      nextClosureTarget: projectStateBrief.nextClosureTarget ?? null,
+      preDialogueAwarenessLine: projectStateBrief.preDialogueAwarenessLine ?? null,
+      emotionalClosureCue,
+      sameHerSelfLine: projectStateBrief.sameHerSelfLine,
+      sameHerHoldDetail: projectStateBrief.sameHerHoldDetail ?? null,
+      sameHerDriftRisk: projectStateBrief.sameHerDriftRisk,
+      proactiveSameHerGap: projectStateBrief.proactiveSameHerGap ?? null,
+      continuityRestraint: projectStateBrief.continuityRestraint ?? null,
+      preferredBlinkCadence: projectStateBrief.preferredBlinkCadence ?? null,
+      preferredGazeMode: projectStateBrief.preferredGazeMode ?? null,
+      preferredPauseMode: projectStateBrief.preferredPauseMode ?? null,
+      preferredLipsyncMode: projectStateBrief.preferredLipsyncMode ?? null,
+      preferredVoiceMode: projectStateBrief.preferredVoiceMode ?? null,
+      preferredPacingMode: projectStateBrief.preferredPacingMode ?? null,
+    },
     dominantContexts,
     relationshipShift,
     reinforcementBias,
@@ -220,6 +497,7 @@ export function buildAlicizationPersonStateUpdateSurface(input: {
     burdenHints,
     narrative,
     sourceTrail,
+    affectiveResidue,
   }
 
   return mergeSurface(input.previous ?? null, next)
@@ -321,6 +599,29 @@ export function buildAlicizationPersonStateUpdateRecord(input: {
     version: input.surface.version,
     updatedAt: input.surface.updatedAt,
     summary: sanitizeText(input.surface.summary, 220),
+    projectStateContinuity: input.surface.projectStateContinuity
+      ? {
+          identity: sanitizeText(input.surface.projectStateContinuity.identity, 220) || null,
+          currentPhase: sanitizeText(input.surface.projectStateContinuity.currentPhase, 160) || null,
+          sameHerSummary: sanitizeText(input.surface.projectStateContinuity.sameHerSummary, 220) || null,
+          landedProgressSummary: sanitizeText(input.surface.projectStateContinuity.landedProgressSummary, 220) || null,
+          openClosureSummary: sanitizeText(input.surface.projectStateContinuity.openClosureSummary, 220) || null,
+          nextClosureTarget: sanitizeText(input.surface.projectStateContinuity.nextClosureTarget, 220) || null,
+          preDialogueAwarenessLine: sanitizeText(input.surface.projectStateContinuity.preDialogueAwarenessLine, 320) || null,
+          emotionalClosureCue: sanitizeText(input.surface.projectStateContinuity.emotionalClosureCue, 220) || null,
+          sameHerSelfLine: sanitizeText(input.surface.projectStateContinuity.sameHerSelfLine, 220) || null,
+          sameHerHoldDetail: sanitizeText(input.surface.projectStateContinuity.sameHerHoldDetail, 220) || null,
+          sameHerDriftRisk: sanitizeText(input.surface.projectStateContinuity.sameHerDriftRisk, 320) || null,
+          proactiveSameHerGap: sanitizeText(input.surface.projectStateContinuity.proactiveSameHerGap, 220) || null,
+          continuityRestraint: normalizeContinuityRestraint(input.surface.projectStateContinuity.continuityRestraint),
+          preferredBlinkCadence: normalizePreferredBlinkCadence(input.surface.projectStateContinuity.preferredBlinkCadence),
+          preferredGazeMode: normalizePreferredGazeMode(input.surface.projectStateContinuity.preferredGazeMode),
+          preferredPauseMode: normalizePreferredPauseMode(input.surface.projectStateContinuity.preferredPauseMode),
+          preferredLipsyncMode: normalizePreferredLipsyncMode(input.surface.projectStateContinuity.preferredLipsyncMode),
+          preferredVoiceMode: normalizePreferredVoiceMode(input.surface.projectStateContinuity.preferredVoiceMode),
+          preferredPacingMode: normalizePreferredPacingMode(input.surface.projectStateContinuity.preferredPacingMode),
+        }
+      : null,
     dominantContexts: uniqueList(input.surface.dominantContexts, 8),
     relationshipShift: {
       trustDelta: clamp(input.surface.relationshipShift.trustDelta),
@@ -349,6 +650,7 @@ export function buildAlicizationPersonStateUpdateRecord(input: {
       }))
       .filter(entry => entry.summary)
       .slice(0, 12),
+    affectiveResidue: normalizeAffectiveResidue(input.surface.affectiveResidue),
     sourceKinds: metadata.sourceKinds,
     sourceCounts: {
       relationshipOutcomes: input.closure.relationshipOutcomes.length,
@@ -385,6 +687,29 @@ export function personStateUpdateRecordFromMindTurnEvent(event: AlicizationMindT
     version: 'person-state-update-surface-v1',
     updatedAt: Math.max(0, Math.floor(Number(payload.updatedAt ?? event.createdAt ?? 0))),
     summary,
+    projectStateContinuity: asObject(payload.projectStateContinuity)
+      ? {
+          identity: sanitizeText(asObject(payload.projectStateContinuity)?.identity, 220) || null,
+          currentPhase: sanitizeText(asObject(payload.projectStateContinuity)?.currentPhase, 160) || null,
+          sameHerSummary: sanitizeText(asObject(payload.projectStateContinuity)?.sameHerSummary, 220) || null,
+          landedProgressSummary: sanitizeText(asObject(payload.projectStateContinuity)?.landedProgressSummary, 220) || null,
+          openClosureSummary: sanitizeText(asObject(payload.projectStateContinuity)?.openClosureSummary, 220) || null,
+          nextClosureTarget: sanitizeText(asObject(payload.projectStateContinuity)?.nextClosureTarget, 220) || null,
+          preDialogueAwarenessLine: sanitizeText(asObject(payload.projectStateContinuity)?.preDialogueAwarenessLine, 320) || null,
+          emotionalClosureCue: sanitizeText(asObject(payload.projectStateContinuity)?.emotionalClosureCue, 220) || null,
+          sameHerSelfLine: sanitizeText(asObject(payload.projectStateContinuity)?.sameHerSelfLine, 220) || null,
+          sameHerHoldDetail: sanitizeText(asObject(payload.projectStateContinuity)?.sameHerHoldDetail, 220) || null,
+          sameHerDriftRisk: sanitizeText(asObject(payload.projectStateContinuity)?.sameHerDriftRisk, 320) || null,
+          proactiveSameHerGap: sanitizeText(asObject(payload.projectStateContinuity)?.proactiveSameHerGap, 220) || null,
+          continuityRestraint: normalizeContinuityRestraint(asObject(payload.projectStateContinuity)?.continuityRestraint),
+          preferredBlinkCadence: normalizePreferredBlinkCadence(asObject(payload.projectStateContinuity)?.preferredBlinkCadence),
+          preferredGazeMode: normalizePreferredGazeMode(asObject(payload.projectStateContinuity)?.preferredGazeMode),
+          preferredPauseMode: normalizePreferredPauseMode(asObject(payload.projectStateContinuity)?.preferredPauseMode),
+          preferredLipsyncMode: normalizePreferredLipsyncMode(asObject(payload.projectStateContinuity)?.preferredLipsyncMode),
+          preferredVoiceMode: normalizePreferredVoiceMode(asObject(payload.projectStateContinuity)?.preferredVoiceMode),
+          preferredPacingMode: normalizePreferredPacingMode(asObject(payload.projectStateContinuity)?.preferredPacingMode),
+        }
+      : null,
     dominantContexts: Array.isArray(payload.dominantContexts)
       ? uniqueList(payload.dominantContexts.filter((item): item is string => typeof item === 'string'), 8)
       : [],
@@ -436,6 +761,7 @@ export function personStateUpdateRecordFromMindTurnEvent(event: AlicizationMindT
           .filter((entry): entry is AlicizationPersonStateUpdateRecord['sourceTrail'][number] => Boolean(entry))
           .slice(0, 12)
       : [],
+    affectiveResidue: normalizeAffectiveResidue(payload.affectiveResidue),
     sourceKinds: Array.isArray(payload.sourceKinds)
       ? payload.sourceKinds
           .map(item => normalizeOutcomeSourceKind(item))

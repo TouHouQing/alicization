@@ -27,9 +27,11 @@ import type { AlicizationDialogueGrowthProfile } from './dialogue-growth-profile
 import type { AlicizationDialogueTurnEncounter } from './dialogue-turn-encounter'
 import type { AlicizationMindEcologySnapshot } from './mind-ecology'
 import type { AlicizationPersonalityContinuityStateSnapshot } from './personality-continuity-state'
+import type { AlicizationSelfContinuityAuthority } from './self-continuity-authority'
 
 import { pickDominantAutobiographicalGoal } from './autobiographical-self'
 import { isDialogueFirstSubject } from './dialogue-surface-text'
+import { mergePreferredSelfContinuityAuthority } from './person-state-projection-resolution'
 import {
 
   buildAlicizationPersonalityContinuityState,
@@ -46,6 +48,24 @@ function sanitizeText(raw: unknown, maxChars = 220) {
   if (typeof raw !== 'string')
     return ''
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
+}
+
+function asArray<T>(value: T[] | null | undefined) {
+  return Array.isArray(value) ? value : []
+}
+
+function hostPersonModelSelfContinuityAuthority(
+  hostPersonModel?: AlicizationHostPersonModelSnapshot | null,
+) {
+  return (
+    hostPersonModel as (
+      AlicizationHostPersonModelSnapshot & {
+        personStateProjection?: {
+          selfContinuityAuthority?: AlicizationSelfContinuityAuthority | null
+        } | null
+      }
+    ) | null | undefined
+  )?.personStateProjection?.selfContinuityAuthority ?? null
 }
 
 function stripTrailingPunctuation(text: string) {
@@ -91,39 +111,49 @@ function makeStatement(input: {
 }
 
 function governingConcern(concernContinuity?: AlicizationConcernContinuityLedgerSnapshot | null) {
-  return concernContinuity?.entries.find(entry => entry.id === concernContinuity.governingEntryId)
-    ?? concernContinuity?.entries[0]
+  const entries = asArray(concernContinuity?.entries)
+  return entries.find(entry => entry.id === concernContinuity?.governingEntryId)
+    ?? entries[0]
     ?? null
 }
 
 function governingCommitment(commitmentLedger?: AlicizationCommitmentLedgerSnapshot | null) {
-  return commitmentLedger?.commitments.find(entry => entry.id === commitmentLedger.governingCommitmentId)
-    ?? commitmentLedger?.commitments[0]
+  const commitments = asArray(commitmentLedger?.commitments)
+  return commitments.find(entry => entry.id === commitmentLedger?.governingCommitmentId)
+    ?? commitments[0]
     ?? null
 }
 
 function governingRepair(repairLedger?: AlicizationRepairLedgerSnapshot | null) {
-  return repairLedger?.entries.find(entry => entry.id === repairLedger.governingRepairId)
-    ?? repairLedger?.entries[0]
+  const entries = asArray(repairLedger?.entries)
+  return entries.find(entry => entry.id === repairLedger?.governingRepairId)
+    ?? entries[0]
     ?? null
 }
 
 function latestReflection(reflectionLedger?: AlicizationReflectionLedgerSnapshot | null) {
-  return reflectionLedger?.entries.find(entry => entry.id === reflectionLedger.latestEntryId)
-    ?? reflectionLedger?.entries[0]
+  const entries = asArray(reflectionLedger?.entries)
+  const latest = entries.find(entry => entry.id === reflectionLedger?.latestEntryId)
+  if (latest && latest.outcome !== 'released')
+    return latest
+
+  return entries.find(entry => entry.outcome !== 'released')
+    ?? entries[0]
     ?? null
 }
 
 function strongestDesire(desireMemory?: AlicizationDesireMemorySnapshot | null) {
-  return desireMemory?.activeDesires
+  return asArray(desireMemory?.activeDesires)
     .slice()
     .sort((left, right) => right.strength - left.strength)[0]
     ?? null
 }
 
 function dominantMotiveAgenda(motiveEngine?: AlicizationMotiveEngineSnapshot | null) {
-  return motiveEngine?.backgroundAgendas[0]
-    ?? motiveEngine?.longTermGoals[0]
+  const backgroundAgendas = asArray(motiveEngine?.backgroundAgendas)
+  const longTermGoals = asArray(motiveEngine?.longTermGoals)
+  return backgroundAgendas[0]
+    ?? longTermGoals[0]
     ?? null
 }
 
@@ -160,14 +190,25 @@ function resolveOpeningIntent(input: {
   habitPolicy?: AlicizationHabitPolicySnapshot | null
   growthProfile: AlicizationDialogueGrowthProfile
   personalityContinuityState?: AlicizationPersonalityContinuityStateSnapshot | null
+  selfContinuityAuthority?: ReturnType<typeof buildSelfContinuityAuthority> | null
 }) {
   const anchorVoice = sanitizeText(input.anchorCue, 180)
   const leadingAgenda = sanitizeText(dominantMotiveAgenda(input.motiveEngine)?.summary, 180)
+  const callbackDoctrine = sanitizeText(input.autobiographicalSelf?.relationshipDoctrine, 180).toLowerCase()
+  const callbackInflection = sanitizeText(input.autobiographicalSelf?.latestInflection, 180).toLowerCase()
+  const measuredCallbackReturn = input.personalityContinuityState?.currentRegime === 'execution-callback'
+    && (
+      /bounded-return|measured-return|reconfirmation|surface fully cools|leave room|lower-pressure/u.test(callbackDoctrine)
+      || /bounded-return|measured-return|reconfirmation|lower-pressure/u.test(callbackInflection)
+    )
   if (
     input.subject === 'alicization-self'
     && input.autobiographicalSelf?.identityNarrative
   ) {
-    return `I want this answer to come from Alicization herself: ${sanitizeText(input.autobiographicalSelf.identityNarrative, 180)}`
+    const selfLine = sanitizeText(input.selfContinuityAuthority?.selfLine, 180)
+    return selfLine
+      ? `I want this answer to come from Alicization herself in this exact living line: ${selfLine}`
+      : `I want this answer to come from Alicization herself: ${sanitizeText(input.autobiographicalSelf.identityNarrative, 180)}`
   }
   if (
     input.speechObligation === 'care-host'
@@ -202,6 +243,9 @@ function resolveOpeningIntent(input: {
       : 'Something in the seam still feels off; I need to mend that before warmth, style, or old carry take over.'
   }
   if (input.speechObligation === 'guide-task' && input.personalityContinuityState?.currentRegime === 'execution-callback') {
+    if (measuredCallbackReturn) {
+      return 'The returned result is the live front of this turn, and I want to land it on the same thread cleanly while still leaving room before closeness widens again.'
+    }
     return 'The returned result is the live front of this turn, and I want to land it on the same thread cleanly instead of starting a second conversation around it.'
   }
   if (input.speechObligation === 'guide-task') {
@@ -341,11 +385,7 @@ export function buildMindSynthesis(input: {
   selfContinuity?: AlicizationSelfContinuitySnapshot | null
   mindEcology?: AlicizationMindEcologySnapshot | null
   hostPersonModel?: AlicizationHostPersonModelSnapshot | null
-  emotionalKernel?: unknown
-  activeContinuityGovernance?: unknown
-  projectState?: unknown
-  personStateProjection?: unknown
-  selfContinuityAuthority?: unknown
+  selfContinuityAuthority?: AlicizationSelfContinuityAuthority | null
 }): AlicizationMindSynthesisSnapshot | null {
   if (!input.discourseState)
     return null
@@ -377,7 +417,7 @@ export function buildMindSynthesis(input: {
     mindEcology: input.mindEcology ?? null,
   })
   const growthProfile = personalityContinuityState.growthProfile
-  const selfContinuityAuthority = buildSelfContinuityAuthority({
+  const bundleSelfContinuityAuthority = buildSelfContinuityAuthority({
     autobiographicalSelf: input.autobiographicalSelf ?? null,
     longHorizonMemory: input.longHorizonMemory ?? null,
     motiveEngine: input.motiveEngine ?? null,
@@ -386,6 +426,15 @@ export function buildMindSynthesis(input: {
     privateThought: input.privateThought ?? null,
     reflectionLedger: input.reflectionLedger ?? null,
   })
+  const runtimeSelfContinuityAuthority = input.selfContinuityAuthority
+    ?? hostPersonModelSelfContinuityAuthority(input.hostPersonModel)
+  const selfContinuityAuthority = mergePreferredSelfContinuityAuthority({
+    bundleAuthority: bundleSelfContinuityAuthority,
+    runtimeAuthority: runtimeSelfContinuityAuthority,
+  })
+  const openQuestions = asArray(input.worldModel?.epistemicState.openQuestions)
+  const activeConversationCommitments = asArray(input.conversationState?.activeCommitments)
+  const habitNarrative = asArray(input.habitPolicy?.narrative)
 
   const beliefs = uniqueByLabel([
     makeStatement({
@@ -495,7 +544,7 @@ export function buildMindSynthesis(input: {
     }),
     makeStatement({
       label: 'open-question',
-      summary: input.worldModel?.epistemicState.openQuestions[0] ?? null,
+      summary: openQuestions[0] ?? null,
       confidence: 0.4,
       sourceTags: ['world-model', 'epistemic-open-question'],
     }),
@@ -582,7 +631,7 @@ export function buildMindSynthesis(input: {
     }),
     makeStatement({
       label: 'conversation-commitment',
-      summary: input.conversationState?.activeCommitments[0] ?? null,
+      summary: activeConversationCommitments[0] ?? null,
       confidence: input.conversationState?.confidence ?? 0.42,
       sourceTags: ['conversation-state'],
     }),
@@ -649,8 +698,8 @@ export function buildMindSynthesis(input: {
       summary: input.motiveEngine?.rulingDrive
         ? `Current ruling drive: ${input.motiveEngine.rulingDrive}.`
         : null,
-      confidence: input.motiveEngine?.drives.truthDiscipline
-        ?? input.motiveEngine?.drives.companionship
+      confidence: input.motiveEngine?.drives?.truthDiscipline
+        ?? input.motiveEngine?.drives?.companionship
         ?? 0.34,
       sourceTags: ['motive-engine', input.motiveEngine?.rulingDrive ?? 'unknown'],
     }),
@@ -688,7 +737,7 @@ export function buildMindSynthesis(input: {
     : input.conversationState?.shouldHoldThread
       ? input.conversationState.unansweredQuestion
       ?? input.conversationState.primaryTurnAnchor
-      ?? input.conversationState.activeCommitments[0]
+      ?? activeConversationCommitments[0]
       ?? input.conversationState.jointThread
       : ''
   const conversationOpeningIntent = sanitizeText(
@@ -707,6 +756,7 @@ export function buildMindSynthesis(input: {
       habitPolicy: input.habitPolicy ?? null,
       growthProfile,
       personalityContinuityState,
+      selfContinuityAuthority,
     })
   const normalizedOpeningIntent = (input.discourseState.currentTurnSubject === 'relationship'
     || input.discourseState.currentTurnSubject === 'alicization-self')
@@ -720,7 +770,7 @@ export function buildMindSynthesis(input: {
     repairSummary: repair?.summary ?? null,
     desireSummary: turnAnchorCue ?? input.conversationState?.jointThread ?? desires[0]?.summary ?? null,
     motiveSummary: motiveAgenda?.summary ?? null,
-    habitSummary: input.habitPolicy?.narrative?.[0] ?? null,
+    habitSummary: habitNarrative[0] ?? null,
     autobiographicalInflection: input.autobiographicalSelf?.latestInflection ?? null,
     privateThought: input.privateThought ?? null,
     turnAnchorCue,

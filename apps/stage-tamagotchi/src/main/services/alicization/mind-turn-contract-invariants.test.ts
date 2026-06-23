@@ -60,6 +60,7 @@ describe('mind-turn-contract invariants', () => {
         truthFrame: null,
         mindMode: null,
         relationshipPosture: 'warm',
+        emotionalClosureCue: null,
         reasons: ['The live dialogue subject governs the turn.'],
         mustDo: ['Keep the answer current-turn governed.'],
         mustNotDo: ['Do not expose governance labels.'],

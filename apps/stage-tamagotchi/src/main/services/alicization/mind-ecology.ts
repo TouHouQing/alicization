@@ -83,7 +83,6 @@ export interface AlicizationMindEcologyInput {
   reflectionLedger?: AlicizationReflectionLedgerSnapshot | null
   desireMemory?: AlicizationDesireMemorySnapshot | null
   privateThought?: AlicizationPrivateThoughtSnapshot | null
-  emotionalKernel?: unknown
   actionEcology?: AlicizationActionEcologySnapshot | null
   answerPlanner?: AlicizationAnswerPlannerSnapshot | null
   conversationState?: AlicizationConversationStateSnapshot | null
@@ -101,9 +100,17 @@ function sanitizeText(raw: unknown, maxChars = 220) {
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
 }
 
+function asArray<T>(value: T[] | null | undefined) {
+  return Array.isArray(value) ? value : []
+}
+
 function latestReflection(reflectionLedger?: AlicizationReflectionLedgerSnapshot | null) {
   const entries = reflectionLedger?.entries ?? []
-  return entries.find(entry => entry.id === reflectionLedger?.latestEntryId)
+  const latest = entries.find(entry => entry.id === reflectionLedger?.latestEntryId)
+  if (latest && latest.outcome !== 'released')
+    return latest
+
+  return entries.find(entry => entry.outcome !== 'released')
     ?? entries[0]
     ?? null
 }
@@ -146,7 +153,9 @@ function resolveCurrentPreoccupation(input: AlicizationMindEcologyInput) {
   const commitment = governingCommitment(input.commitmentLedger)
   const inquiryPlan = activeInquiryPlan(input.inquiryPlanner)
   const intention = dominantIntention(input.selfGovernor)
-  const motiveAgenda = input.motiveEngine?.backgroundAgendas[0] ?? input.motiveEngine?.longTermGoals[0] ?? null
+  const motiveAgenda = asArray(input.motiveEngine?.backgroundAgendas)[0]
+    ?? asArray(input.motiveEngine?.longTermGoals)[0]
+    ?? null
 
   return sanitizeText(
     input.answerPlanner?.governingFocus
@@ -543,7 +552,9 @@ function buildRelationNarrative(input: AlicizationMindEcologyInput, relationship
 
 function buildLearnedAdjustments(input: AlicizationMindEcologyInput, replyHabit: AlicizationMindEcologySnapshot['replyHabit'], regulationHabit: AlicizationMindEcologySnapshot['regulationHabit']) {
   const reflection = latestReflection(input.reflectionLedger)
-  const dominantAgenda = input.motiveEngine?.backgroundAgendas[0] ?? input.motiveEngine?.longTermGoals[0] ?? null
+  const dominantAgenda = asArray(input.motiveEngine?.backgroundAgendas)[0]
+    ?? asArray(input.motiveEngine?.longTermGoals)[0]
+    ?? null
   const entries = [
     sanitizeText(input.autobiographicalSelf?.latestInflection, 160),
     sanitizeText(reflection?.revision, 160),
@@ -577,19 +588,24 @@ function buildLearnedAdjustments(input: AlicizationMindEcologyInput, replyHabit:
 }
 
 function buildRecurringPatterns(input: AlicizationMindEcologyInput, ecology: Pick<AlicizationMindEcologySnapshot, 'replyHabit' | 'relationshipHabit' | 'explorationHabit' | 'regulationHabit'>) {
-  const dominantCue = input.longHorizonMemory?.anchorFacts[0] ?? null
+  const anchorFacts = Array.isArray(input.longHorizonMemory?.anchorFacts)
+    ? input.longHorizonMemory.anchorFacts
+    : []
+  const dominantCue = anchorFacts[0] ?? null
+  const dominantAgenda = asArray(input.motiveEngine?.backgroundAgendas)[0] ?? null
+  const dominantCueInfluenceTag = asArray(dominantCue?.influenceTags)[0] ?? null
   const patterns = [
     `reply:${ecology.replyHabit}`,
     `relationship:${ecology.relationshipHabit}`,
     `exploration:${ecology.explorationHabit}`,
     `regulation:${ecology.regulationHabit}`,
     input.motiveEngine?.rulingDrive ? `motive:${input.motiveEngine.rulingDrive}` : '',
-    input.motiveEngine?.backgroundAgendas[0]?.kind ? `agenda:${input.motiveEngine.backgroundAgendas[0].kind}` : '',
+    dominantAgenda?.kind ? `agenda:${dominantAgenda.kind}` : '',
     input.habitPolicy?.dominantMode ? `habit:${input.habitPolicy.dominantMode}` : '',
     input.longHorizonMemory?.rememberedPlanSummary ? 'durable:open-loop' : '',
     input.longHorizonMemory?.rememberedConstraintSummary ? 'durable:boundary' : '',
     input.longHorizonMemory?.rememberedPreferenceSummary ? 'durable:preference' : '',
-    dominantCue?.influenceTags[0] ? `durable:${dominantCue.influenceTags[0]}` : '',
+    dominantCueInfluenceTag ? `durable:${dominantCueInfluenceTag}` : '',
     input.conversationState?.memoryMode ? `memory:${input.conversationState.memoryMode}` : '',
     input.mindKernel?.dominantMode ? `kernel:${input.mindKernel.dominantMode}` : '',
     input.privateThought?.emotionalTension ? `tension:${input.privateThought.emotionalTension}` : '',
@@ -642,30 +658,30 @@ export function buildMindEcology(input: AlicizationMindEcologyInput): Alicizatio
 
 export function buildMindEcologyFromRuntimeSurface(surface: AlicizationDigitalLifeRuntimeSurface) {
   return buildMindEcology({
-    now: surface.perception.updatedAt,
-    watchMode: surface.perception.watchMode,
-    worldModel: surface.world.worldModel ?? null,
-    appraisal: surface.cognition.appraisal ?? null,
-    subjectiveInference: surface.cognition.subjectiveInference ?? null,
-    beliefRevision: surface.cognition.beliefRevision ?? null,
-    relationshipModel: surface.world.relationshipModel ?? null,
-    longHorizonMemory: surface.memory.longHorizonMemory ?? null,
-    selfContinuity: surface.memory.selfContinuity ?? null,
-    motiveEngine: surface.memory.motiveEngine ?? null,
-    selfState: surface.agency.selfState ?? null,
-    selfGovernor: surface.agency.selfGovernor ?? null,
-    habitPolicy: surface.agency.habitPolicy ?? null,
-    mindDynamics: surface.cognition.mindDynamics ?? null,
-    mindKernel: surface.cognition.mindKernel ?? null,
-    commitmentLedger: surface.memory.commitmentLedger ?? null,
-    inquiryPlanner: surface.memory.inquiryPlanner ?? null,
-    reflectionLedger: surface.memory.reflectionLedger ?? null,
-    desireMemory: surface.memory.desireMemory ?? null,
-    autobiographicalSelf: surface.memory.autobiographicalSelf ?? null,
-    privateThought: surface.cognition.privateThought ?? null,
-    actionEcology: surface.agency.actionEcology ?? null,
-    answerPlanner: surface.dialogue.answerPlanner ?? null,
-    conversationState: surface.dialogue.conversationState ?? null,
+    now: surface.perception?.updatedAt ?? 0,
+    watchMode: surface.perception?.watchMode ?? null,
+    worldModel: surface.world?.worldModel ?? null,
+    appraisal: surface.cognition?.appraisal ?? null,
+    subjectiveInference: surface.cognition?.subjectiveInference ?? null,
+    beliefRevision: surface.cognition?.beliefRevision ?? null,
+    relationshipModel: surface.world?.relationshipModel ?? null,
+    longHorizonMemory: surface.memory?.longHorizonMemory ?? null,
+    selfContinuity: surface.memory?.selfContinuity ?? null,
+    motiveEngine: surface.memory?.motiveEngine ?? null,
+    selfState: surface.agency?.selfState ?? null,
+    selfGovernor: surface.agency?.selfGovernor ?? null,
+    habitPolicy: surface.agency?.habitPolicy ?? null,
+    mindDynamics: surface.cognition?.mindDynamics ?? null,
+    mindKernel: surface.cognition?.mindKernel ?? null,
+    commitmentLedger: surface.memory?.commitmentLedger ?? null,
+    inquiryPlanner: surface.memory?.inquiryPlanner ?? null,
+    reflectionLedger: surface.memory?.reflectionLedger ?? null,
+    desireMemory: surface.memory?.desireMemory ?? null,
+    autobiographicalSelf: surface.memory?.autobiographicalSelf ?? null,
+    privateThought: surface.cognition?.privateThought ?? null,
+    actionEcology: surface.agency?.actionEcology ?? null,
+    answerPlanner: surface.dialogue?.answerPlanner ?? null,
+    conversationState: surface.dialogue?.conversationState ?? null,
   })
 }
 

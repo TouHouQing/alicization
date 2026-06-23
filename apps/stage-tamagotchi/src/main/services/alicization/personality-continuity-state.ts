@@ -37,9 +37,7 @@ export interface AlicizationPersonalityRegimeModelSnapshot {
 
 export interface AlicizationPersonalityRhythmStateSnapshot {
   cadenceMode: 'cooldown' | 'measured-return' | 'ready-return' | 'warm-hold'
-  restMode: 'rest-protective' | 'low-pressure' | 'open' | 'ordinary' | 'rest-neutral'
-  silenceNeed?: 'low' | 'medium' | 'high' | null
-  interruptionTolerance?: 'low' | 'medium' | 'high' | null
+  restMode: 'rest-protective' | 'low-pressure' | 'open'
   embodiedPresence: NonNullable<AlicizationPrivateThoughtSnapshot['embodiedPresence']> | null
   suggestedStyle: AlicizationPrivateThoughtSnapshot['suggestedStyle'] | null
   moodLabel: string | null
@@ -54,7 +52,7 @@ export interface AlicizationPersonalityRhythmStateSnapshot {
 
 export interface AlicizationPersonalityContinuityStateSnapshot {
   growthProfile: AlicizationDialogueGrowthProfile
-  trustStage: 'guarded' | 'cautious-open' | 'settling' | 'warming' | 'trusted'
+  trustStage: 'guarded' | 'cautious-open' | 'warming' | 'trusted'
   currentRegime: AlicizationPersonalityContinuityRegime
   closenessPosture: 'space-first' | 'balanced' | 'warm-guidance' | 'close-hold'
   repairPosture: 'repair-first' | 'measured-repair' | 'warm-repair'
@@ -794,6 +792,7 @@ export function buildAlicizationPersonalityContinuityState(input: {
   recentMemoryConsolidations?: AlicizationMemoryConsolidationRecord[] | null
   previousContinuityState?: AlicizationPersonalityContinuityStateSnapshot | null
 }): AlicizationPersonalityContinuityStateSnapshot {
+  const preferenceEvolution = input.autobiographicalSelf?.preferenceEvolution ?? null
   const growthProfile = buildAlicizationDialogueGrowthProfile({
     autobiographicalSelf: input.autobiographicalSelf ?? null,
     hostPersonModel: input.hostPersonModel ?? null,
@@ -929,7 +928,7 @@ export function buildAlicizationPersonalityContinuityState(input: {
     || (
       reconsolidation.cadenceLift >= 0.56
       && (
-        (input.autobiographicalSelf?.preferenceEvolution.unfinishedThreadReturn ?? 0) >= 0.68
+        (preferenceEvolution?.unfinishedThreadReturn ?? 0) >= 0.68
         || (input.selfContinuity?.carryOverDesire ?? 0) >= 0.6
       )
     )

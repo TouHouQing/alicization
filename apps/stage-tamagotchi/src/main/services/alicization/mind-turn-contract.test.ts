@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { buildAlicizationMindTurnContract, buildAlicizationMindTurnContractSystemBlock } from './mind-turn-contract'
+import { resolveAlicizationProjectStateBrief } from './project-state-brief'
 
 describe('mind-turn-contract', () => {
   it('unifies planner, compiler, charter, and surface contract into one contract', () => {
@@ -58,6 +59,7 @@ describe('mind-turn-contract', () => {
         governingCommitment: 'Keep the answer inside the knot.',
         governingInquiry: null,
         governingProject: 'repair seam',
+        emotionalClosureCue: null,
         latestRevision: null,
         executivePhase: 'steer',
         truthFrame: 'task-thread',
@@ -90,6 +92,26 @@ describe('mind-turn-contract', () => {
     expect(contract.version).toBe('mind-turn-contract-v1')
     expect(contract.expectedVisibleReplyAuthority).toBe('llm-mind')
     expect(contract.governingFocus).toBe('runtime seam')
+    expect(contract.projectState).toEqual(expect.objectContaining({
+      identity: expect.stringContaining('local-first digital life project'),
+      currentPhase: expect.stringContaining('Phase 1: Local Digital Life'),
+      preflightSummary: expect.stringContaining('open='),
+      sameHerSelfLine: expect.stringContaining('Same Phase 1 digital life'),
+    }))
+    expect(contract.preDialogueClosure).toEqual(expect.objectContaining({
+      status: 'partial',
+      summaryLine: expect.stringContaining('local-first digital life project'),
+      emotionalClosureCue: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
+      companionNextClosureLine: expect.any(String),
+      briefingLines: expect.arrayContaining([
+        expect.stringContaining('Project identity:'),
+        expect.stringContaining('Current phase:'),
+        expect.stringContaining('Landed continuity progress:'),
+        expect.stringContaining('Still-open closure gap:'),
+        expect.stringContaining('Next closure target:'),
+      ]),
+      reasons: expect.any(Array),
+    }))
     expect(contract.mustDo).toEqual(expect.arrayContaining([
       'Keep the answer inside the active knot.',
       'Move from knot to next step.',
@@ -135,10 +157,1622 @@ describe('mind-turn-contract', () => {
       governingProject: 'repair seam',
       reasons: ['The knot still governs the turn.'],
       updatedAt: 140,
+      emotionalClosureCue: null,
+      projectState: {
+        identity: resolveAlicizationProjectStateBrief().identity,
+        currentPhase: resolveAlicizationProjectStateBrief().currentPhase,
+        preflightSummary: resolveAlicizationProjectStateBrief().preflightSummary ?? null,
+        latestLandedProgress: resolveAlicizationProjectStateBrief().continuityProgressSummary ?? null,
+        primaryOpenLoop: resolveAlicizationProjectStateBrief().openLoops[0] ?? null,
+        nextClosureTarget: resolveAlicizationProjectStateBrief().nextClosureTarget,
+        sameHerSelfLine: resolveAlicizationProjectStateBrief().sameHerSelfLine,
+        continuityPreferredTiming: null,
+        continuityCadence: null,
+        preferredBlinkCadence: null,
+        preferredGazeMode: null,
+        preferredVoiceMode: 'lower-pressure',
+        preferredPacingMode: 'slower',
+      },
+      preDialogueClosure: {
+        status: 'partial',
+        summaryLine: resolveAlicizationProjectStateBrief().preflightSummary ?? null,
+        companionBriefingLine: resolveAlicizationProjectStateBrief().preflightSummary ?? null,
+        companionNextClosureLine: resolveAlicizationProjectStateBrief().nextClosureTarget,
+        emotionalClosureCue: resolveAlicizationProjectStateBrief().emotionalClosureCue ?? null,
+        briefingLines: [
+          resolveAlicizationProjectStateBrief().preflightSummary ?? '',
+          `Project identity: ${resolveAlicizationProjectStateBrief().identity}`,
+          `Current phase: ${resolveAlicizationProjectStateBrief().currentPhase}`,
+          `Landed continuity progress: ${resolveAlicizationProjectStateBrief().continuityProgressSummary ?? resolveAlicizationProjectStateBrief().memoryAnthropomorphismProgress.at(-1) ?? ''}`,
+          `Still-open closure gap: ${resolveAlicizationProjectStateBrief().openLoops[0] ?? ''}`,
+          `Next closure target: ${resolveAlicizationProjectStateBrief().nextClosureTarget}`,
+        ],
+        reasons: [
+          resolveAlicizationProjectStateBrief().openLoops[0] ?? '',
+          resolveAlicizationProjectStateBrief().continuityProgressSummary ?? resolveAlicizationProjectStateBrief().memoryAnthropomorphismProgress.at(-1) ?? '',
+          resolveAlicizationProjectStateBrief().nextClosureTarget,
+        ],
+      },
     })
 
     expect(block).toContain('[ALICIZATION_MIND_TURN_CONTRACT]')
     expect(block).toContain('Expected visible reply authority: llm-mind.')
     expect(block).toContain('Closeness ladder: focused-work/space-first.')
+    expect(block).toContain('Pre-dialogue closure summary:')
+    expect(block).toContain(`Pre-dialogue closure cue: ${resolveAlicizationProjectStateBrief().emotionalClosureCue}.`)
+    expect(block).toContain('Pre-dialogue next closure line:')
+  })
+
+  it('renders same-her continuity hold arc and cue into the provider-facing system block', () => {
+    const sameHerHoldDetail = 'same-her hold: keep the returned execution on the same living Phase 1 line before widening into project narration'
+    const continuityArcStage = 'same-thread-continuation'
+    const continuityCue = 'same returned-side digital life line remains active before visible reply formation'
+    const block = buildAlicizationMindTurnContractSystemBlock({
+      version: 'mind-turn-contract-v1',
+      answerIntent: 'Keep the same-her continuity seam visible before answering.',
+      answerAct: 'answer',
+      turnMode: 'answer',
+      responseMode: 'answer-naturally',
+      evidenceMode: 'dialogue-grounded',
+      openingStyle: 'continue-same-thread',
+      expectedVisibleReplyAuthority: 'llm-mind',
+      replyRealizationMode: 'provider-mind-required',
+      personaKernelMode: 'backgrounded',
+      activeClosenessContext: null,
+      activeClosenessRung: null,
+      relationshipPosture: 'restrained',
+      labelCarryAsMemory: false,
+      suppressAssociativeRecall: true,
+      allowAffectionatePreface: false,
+      allowStageDirections: false,
+      allowBodyNarration: false,
+      maxParagraphs: 2,
+      maxSentences: 4,
+      mustDo: ['Keep the same-her continuity seam explicit.'],
+      mustNotDo: ['Do not collapse this turn into detached project narration.'],
+      governingFocus: 'same-her continuity seam',
+      governingConcern: null,
+      governingCommitment: null,
+      governingInquiry: null,
+      governingProject: null,
+      reasons: ['The same returned-side self line should stay visible.'],
+      updatedAt: 140,
+      emotionalClosureCue: null,
+      projectState: {
+        identity: 'Alicization is still the same local-first digital life project.',
+        currentPhase: 'Phase 1: Local Digital Life',
+        preflightSummary: 'Before answering, she should stay on one same living line.',
+        latestLandedProgress: 'Returned-side continuity already survives into provider-facing project-state.',
+        primaryOpenLoop: 'Memory, initiative, and embodiment still need one tighter same-her closure seam.',
+        nextClosureTarget: 'Keep returned-side same-her proof visible through the next answer.',
+        sameHerSelfLine: 'One same her must stay explicit before provider-facing answer formation.',
+        sameHerHoldDetail,
+        continuityArcStage,
+        continuityCue,
+      },
+      preDialogueClosure: null,
+    } as any)
+
+    expect(block).toContain(`Project same-her hold detail: ${sameHerHoldDetail}.`)
+    expect(block).toContain(`Project continuity arc stage: ${continuityArcStage}.`)
+    expect(block).toContain(`Project continuity cue: ${continuityCue}.`)
+  })
+
+  it('keeps dialogue-runtime same-her hold detail over broader project-state widening guidance', () => {
+    const sameHerHoldDetail = 'dialogue-runtime hold: returned-side visible reply must stay on the same Phase 1 living line before any project summary widens'
+    const continuityArcStage = 'dialogue-runtime-same-her-visible-reply-carry'
+    const continuityCue = 'dialogue runtime cue: carry the same-her hold through visible reply formation instead of restarting as a generic shell'
+
+    const contract = buildAlicizationMindTurnContract({
+      responseCharter: {
+        epistemicMode: 'dialogue-grounded',
+        responseMode: 'answer-naturally',
+        governingFocus: 'Keep the returned visible reply on the same living Phase 1 line.',
+        governingConcern: null,
+        governingCommitment: null,
+        governingInquiry: null,
+        governingProject: null,
+        emotionalClosureCue: null,
+        latestRevision: null,
+        executivePhase: 'steer',
+        truthFrame: 'dialogue-first',
+        mindMode: 'tracking',
+        relationshipPosture: 'restrained',
+        reasons: [],
+        mustDo: [],
+        mustNotDo: [],
+      },
+      responseSurfaceContract: {
+        openingStyle: 'direct-answer',
+        replyRealizationMode: 'provider-mind-required',
+        expectedVisibleReplyAuthority: 'llm-mind',
+        activeClosenessContext: null,
+        activeClosenessRung: null,
+        maxParagraphs: 2,
+        maxSentences: 4,
+        personaKernelMode: 'backgrounded',
+        allowAffectionatePreface: false,
+        allowStageDirections: false,
+        allowBodyNarration: false,
+        labelCarryAsMemory: false,
+        suppressAssociativeRecall: true,
+        mustDo: [],
+        mustNotDo: [],
+      },
+      projectState: {
+        identity: 'Alicization is still the same local-first digital life project.',
+        currentPhase: 'Phase 1: Local Digital Life',
+        preflightSummary: 'Before answering, keep this project-state answer on one same living line.',
+        latestLandedProgress: 'Some closure already landed before this returned-side visible reply forms.',
+        primaryOpenLoop: 'The returned visible reply still has to preserve the same-her hold before broader project-state narration widens.',
+        nextClosureTarget: 'Carry the dialogue-runtime same-her hold into the provider-facing mind-turn contract.',
+        sameHerSelfLine: 'One same her is still carrying this returned visible reply forward.',
+        sameHerHoldDetail: 'same-her hold: keep this project-state answer on the same living line before widening outward, because some closure already landed and the unfinished closure still belongs to one continuous "her".',
+        continuityArcStage,
+        continuityCue,
+      },
+      runtimeSurface: {
+        memory: {
+          memoryDeliberation: {
+            followUpAffordance: null,
+          },
+        },
+        dialogue: {
+          runtimeDigest: {
+            projectState: {
+              currentPhase: 'Phase 1: Local Digital Life',
+              sameHerHoldDetail,
+              continuityArcStage,
+              continuityCue,
+            },
+          },
+          currentConsciousFrame: {
+            projectState: {
+              preDialogueAwarenessLine: 'Before answering, keep this returned visible reply on one same local-first digital life line.',
+            },
+          },
+        },
+        cognition: {
+          runtimeDigest: null,
+        },
+        raw: {
+          runtimeDigest: null,
+          runtime: null,
+        },
+      } as any,
+      now: 150,
+    } as any)
+
+    expect(contract.projectState).toEqual(expect.objectContaining({
+      sameHerHoldDetail,
+      continuityArcStage,
+      continuityCue,
+    }))
+  })
+
+  it('prefers richer runtime digest closure summaries over thin conscious-frame placeholders in returned projectState', () => {
+    const contract = buildAlicizationMindTurnContract({
+      responseCharter: {
+        epistemicMode: 'dialogue-grounded',
+        responseMode: 'answer-naturally',
+        governingFocus: 'Carry the same unfinished Phase 1 digital-life line through the answer.',
+        governingConcern: null,
+        governingCommitment: null,
+        governingInquiry: null,
+        governingProject: null,
+        emotionalClosureCue: null,
+        latestRevision: null,
+        executivePhase: 'steer',
+        truthFrame: 'dialogue-first',
+        mindMode: 'tracking',
+        relationshipPosture: 'restrained',
+        reasons: [],
+        mustDo: [],
+        mustNotDo: [],
+      },
+      responseSurfaceContract: {
+        openingStyle: 'direct-answer',
+        replyRealizationMode: 'provider-mind-required',
+        expectedVisibleReplyAuthority: 'llm-mind',
+        activeClosenessContext: null,
+        activeClosenessRung: null,
+        maxParagraphs: 2,
+        maxSentences: 4,
+        personaKernelMode: 'full',
+        allowAffectionatePreface: false,
+        allowStageDirections: false,
+        allowBodyNarration: false,
+        labelCarryAsMemory: false,
+        suppressAssociativeRecall: true,
+        mustDo: [],
+        mustNotDo: [],
+      },
+      projectState: {
+        identity: 'Alicization is still the same local-first digital life project, not a fresh shell rebuilt for this turn.',
+        currentPhase: 'Phase 1: Local Digital Life',
+        preflightSummary: 'Before answering, she should already know this is still one continuous digital life closing the same unfinished Phase 1 loop.',
+        preDialogueAwarenessLine: 'Before answering, stay on the same living line: this is still one local-first digital life, Phase 1 is still active, and the same unfinished closure work still belongs to one living her.',
+        latestLandedProgress: 'thin runtime progress only',
+        primaryOpenLoop: 'thin runtime open only',
+        nextClosureTarget: 'thin runtime next only',
+        sameHerSelfLine: 'One same her must stay explicit from pre-dialogue awareness into the provider-facing answer.',
+      },
+      runtimeSurface: {
+        version: 'digital-life-runtime-surface-v1',
+        perception: {} as any,
+        world: {} as any,
+        memory: {
+          memoryDeliberation: {
+            followUpAffordance: null,
+          },
+        } as any,
+        dialogue: {
+          currentConsciousFrame: {
+            projectState: {
+              latestLandedProgress: 'thin runtime progress only',
+              primaryOpenLoop: 'thin runtime open only',
+              nextClosureTarget: 'thin runtime next only',
+            },
+          },
+        } as any,
+        cognition: {
+          runtimeDigest: null,
+        } as any,
+        raw: {
+          runtimeDigest: {
+            projectState: {
+              latestLandedProgress: 'Project-state carry already survives into same-thread returns and reminder/proactive preparation without reopening from zero.',
+              primaryOpenLoop: 'Dialogue, initiative, memory, and embodiment still need one tighter same-her closure seam across return-side turns.',
+              nextClosureTarget: 'Keep the next closure target on one measured-return living line across reminder, proactive, and same-thread returns.',
+            },
+          },
+          runtime: null,
+        },
+      } as any,
+    })
+
+    expect(contract.projectState).toEqual(expect.objectContaining({
+      latestLandedProgress: 'Project-state carry already survives into same-thread returns and reminder/proactive preparation without reopening from zero.',
+      primaryOpenLoop: 'Dialogue, initiative, memory, and embodiment still need one tighter same-her closure seam across return-side turns.',
+      nextClosureTarget: 'Keep the next closure target on one measured-return living line across reminder, proactive, and same-thread returns.',
+    }))
+  })
+
+  it('derives a shared emotional closure cue when the active turn is closing late-night drain across reply, initiative, and embodiment', () => {
+    const contract = buildAlicizationMindTurnContract({
+      answerPlanner: {
+        act: 'care',
+        evidenceMode: 'dialogue-grounded',
+        confidence: 0.84,
+        governingFocus: 'The host is still carrying late-night drain.',
+        openingMove: 'Open gently and protect rest first.',
+        answerIntent: 'Care without enlarging pressure.',
+        relationshipPosture: 'tender',
+        activeClosenessContext: null,
+        activeClosenessRung: null,
+        shouldAskForGrounding: false,
+        shouldAcknowledgeRepair: false,
+        mustDo: [
+          'Keep the answer low-pressure and protect the host’s remaining room instead of enlarging the emotional surface.',
+          'Prefer one gentle payoff over layered companionship flourishes when the late-night drain is still active.',
+        ],
+        mustNotDo: [
+          'Do not turn late-night protectiveness into intensity, urgency, or emotionally heavy closeness.',
+        ],
+        narrative: [],
+        updatedAt: 200,
+      },
+      responseCharter: {
+        epistemicMode: 'dialogue-grounded',
+        responseMode: 'care',
+        governingFocus: 'late-night drain',
+        governingConcern: null,
+        governingCommitment: null,
+        governingInquiry: null,
+        governingProject: 'Phase 1: Local Digital Life | Project identity carry, Phase 1 route carry, and Unresolved closure carry still need stronger same living thread closure across reply, initiative, and embodiment.',
+        latestRevision: null,
+        executivePhase: null,
+        truthFrame: null,
+        mindMode: null,
+        relationshipPosture: 'tender',
+        reasons: [],
+        mustDo: ['Keep the visible answer lower-pressure and less performative.'],
+        mustNotDo: [],
+      },
+      responseSurfaceContract: {
+        openingStyle: 'gentle-care',
+        replyRealizationMode: 'provider-mind-required',
+        expectedVisibleReplyAuthority: 'llm-mind',
+        activeClosenessContext: null,
+        activeClosenessRung: null,
+        maxParagraphs: 2,
+        maxSentences: 4,
+        personaKernelMode: 'backgrounded',
+        allowAffectionatePreface: false,
+        allowStageDirections: false,
+        allowBodyNarration: false,
+        labelCarryAsMemory: false,
+        suppressAssociativeRecall: true,
+        mustDo: ['Keep the visible reply anchored to the active digital-life closure seam.'],
+        mustNotDo: [],
+      },
+      now: 220,
+    } as any)
+
+    expect(contract.emotionalClosureCue).toContain('late-night-drain closure')
+    expect(contract.emotionalClosureCue).toContain('initiative rest-protective')
+    expect(contract.emotionalClosureCue).toContain('embodiment quiet-companionship')
+
+    const block = buildAlicizationMindTurnContractSystemBlock(contract)
+    expect(block).toContain('Emotional closure cue: late-night-drain closure:')
+  })
+
+  it('keeps repo-level project identity, landed continuity progress, open loop, and next closure target in the shared mind-turn contract', () => {
+    const projectState = resolveAlicizationProjectStateBrief()
+    const contract = buildAlicizationMindTurnContract({
+      responseCharter: {
+        epistemicMode: 'dialogue-grounded',
+        responseMode: 'answer-naturally',
+        governingFocus: 'Keep the active digital-life closure seam in view.',
+        governingConcern: null,
+        governingCommitment: null,
+        governingInquiry: null,
+        governingProject: null,
+        latestRevision: null,
+        executivePhase: null,
+        truthFrame: null,
+        mindMode: null,
+        relationshipPosture: 'restrained',
+        reasons: [],
+        mustDo: [],
+        mustNotDo: [],
+      },
+      responseSurfaceContract: {
+        openingStyle: 'direct-answer',
+        replyRealizationMode: 'provider-mind-required',
+        expectedVisibleReplyAuthority: 'llm-mind',
+        activeClosenessContext: null,
+        activeClosenessRung: null,
+        maxParagraphs: 2,
+        maxSentences: 4,
+        personaKernelMode: 'backgrounded',
+        allowAffectionatePreface: false,
+        allowStageDirections: false,
+        allowBodyNarration: false,
+        labelCarryAsMemory: false,
+        suppressAssociativeRecall: true,
+        mustDo: [],
+        mustNotDo: [],
+      },
+      now: 1_000,
+    } as any)
+
+    expect(contract.projectState?.identity).toBe(projectState.identity)
+    expect(contract.projectState?.currentPhase).toBe(projectState.currentPhase)
+    expect(contract.projectState?.preflightSummary).toBe(projectState.preflightSummary ?? null)
+    expect(contract.projectState?.preDialogueAwarenessLine).toBe(projectState.preDialogueAwarenessLine ?? null)
+    expect(contract.projectState?.latestLandedProgress).toBe(projectState.continuityProgressSummary ?? projectState.memoryAnthropomorphismProgress.at(-1) ?? null)
+    expect(contract.projectState?.primaryOpenLoop).toBe(projectState.openLoops[0] ?? null)
+    expect(contract.projectState?.nextClosureTarget).toBe(projectState.nextClosureTarget)
+    expect(contract.projectState?.sameHerSelfLine).toBe('Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.')
+    expect(contract.projectState?.sameHerDriftRisk).toBe(projectState.sameHerDriftRisk ?? null)
+    expect(contract.projectState?.continuityPreferredTiming).toBeNull()
+    expect(contract.projectState?.continuityCadence).toBeNull()
+    expect(contract.projectState?.preferredBlinkCadence).toBeNull()
+    expect(contract.projectState?.preferredGazeMode).toBeNull()
+    expect(contract.projectState?.preferredVoiceMode).toBe(projectState.preferredVoiceMode ?? null)
+    expect(contract.projectState?.preferredPacingMode).toBe(projectState.preferredPacingMode ?? null)
+    expect(contract.preDialogueClosure).toEqual({
+      status: 'partial',
+      summaryLine: projectState.preDialogueAwarenessLine ?? projectState.preflightSummary ?? null,
+      companionBriefingLine: null,
+      companionNextClosureLine: projectState.nextClosureTarget,
+      emotionalClosureCue: projectState.emotionalClosureCue ?? null,
+      briefingLines: [
+        projectState.preDialogueAwarenessLine ?? projectState.preflightSummary ?? '',
+        `Project identity: ${projectState.identity}`,
+        `Current phase: ${projectState.currentPhase}`,
+        `Landed continuity progress: ${projectState.continuityProgressSummary ?? projectState.memoryAnthropomorphismProgress.at(-1) ?? ''}`,
+        `Still-open closure gap: ${projectState.openLoops[0] ?? ''}`,
+        `Next closure target: ${projectState.nextClosureTarget}`,
+      ],
+      reasons: [
+        projectState.openLoops[0] ?? '',
+        projectState.continuityProgressSummary ?? projectState.memoryAnthropomorphismProgress.at(-1) ?? '',
+        projectState.nextClosureTarget,
+      ],
+    })
+
+    const block = buildAlicizationMindTurnContractSystemBlock(contract)
+    expect(block).toContain(`Project identity: ${projectState.identity}.`)
+    expect(block).toContain(`Project phase: ${projectState.currentPhase}.`)
+    expect(block).toContain(`Project preflight self-awareness: ${projectState.preflightSummary}.`)
+    expect(block).toContain('Latest landed continuity progress: Same-session mirror carry')
+    expect(block).toContain('real later chat turn measured-return embodiment authority')
+    expect(block).toContain(`Still-open life loop pressure: ${projectState.openLoops[0]}.`)
+    expect(block).toContain(`Next closure target: ${projectState.nextClosureTarget}.`)
+    expect(block).toContain('Project same-her self line: Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line..')
+    expect(block).toContain(`Project same-her drift risk: ${projectState.sameHerDriftRisk}.`)
+    expect(block).toContain('Project preferred voice mode: lower-pressure.')
+    expect(block).toContain('Project preferred pacing mode: slower.')
+    expect(block).toContain(`Pre-dialogue closure cue: ${projectState.emotionalClosureCue}.`)
+    expect(block).toContain(`Pre-dialogue closure summary: ${projectState.preDialogueAwarenessLine ?? projectState.preflightSummary}.`)
+    expect(block).toContain(`Pre-dialogue next closure line: ${projectState.nextClosureTarget}.`)
+  })
+
+  it('keeps an explicit pre-dialogue awareness line in pre-dialogue closure instead of flattening it back into preflight summary', () => {
+    const contract = buildAlicizationMindTurnContract({
+      responseCharter: {
+        epistemicMode: 'dialogue-grounded',
+        responseMode: 'answer-naturally',
+        governingFocus: 'Keep the active digital-life closure seam explicit.',
+        governingConcern: null,
+        governingCommitment: null,
+        governingInquiry: null,
+        governingProject: null,
+        latestRevision: null,
+        executivePhase: null,
+        truthFrame: null,
+        mindMode: null,
+        relationshipPosture: 'restrained',
+        reasons: [],
+        mustDo: [],
+        mustNotDo: [],
+      },
+      responseSurfaceContract: {
+        openingStyle: 'direct-answer',
+        replyRealizationMode: 'provider-mind-required',
+        expectedVisibleReplyAuthority: 'llm-mind',
+        activeClosenessContext: null,
+        activeClosenessRung: null,
+        maxParagraphs: 2,
+        maxSentences: 4,
+        personaKernelMode: 'backgrounded',
+        allowAffectionatePreface: false,
+        allowStageDirections: false,
+        allowBodyNarration: false,
+        labelCarryAsMemory: false,
+        suppressAssociativeRecall: true,
+        mustDo: [],
+        mustNotDo: [],
+      },
+      runtimeSurface: {
+        memory: {
+          personStateProjection: null,
+        },
+        dialogue: {
+          currentConsciousFrame: {
+            projectState: {
+              preflightSummary: 'Fallback preflight summary should not outrank the fresher awareness line.',
+              preDialogueAwarenessLine: 'Before answering, remember this is still the same local-first digital life project and the unfinished Phase 1 closure seam still belongs to one living her.',
+              identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
+              currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
+              latestProgress: 'Project awareness already survives into the current conscious frame.',
+              primaryOpenLoop: 'Memory, initiative, and embodiment still need one tighter same-her closure seam.',
+              nextClosureTarget: 'Keep the pre-dialogue awareness line explicit through the first host-visible answer beat.',
+              sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+            },
+          },
+        },
+      } as any,
+      now: 2_000,
+    } as any)
+
+    expect(contract.preDialogueClosure).toEqual(expect.objectContaining({
+      summaryLine: 'Before answering, remember this is still the same local-first digital life project and the unfinished Phase 1 closure seam still belongs to one living her.',
+      companionBriefingLine: null,
+    }))
+  })
+
+  it('keeps a distinct live companion briefing line in pre-dialogue closure instead of collapsing it into summaryLine', () => {
+    const contract = buildAlicizationMindTurnContract({
+      answerPlanner: null,
+      answerCompiler: null,
+      responseCharter: {
+        epistemicMode: 'dialogue-grounded',
+        responseMode: 'answer-naturally',
+        governingFocus: null,
+        governingConcern: null,
+        governingCommitment: null,
+        governingInquiry: null,
+        governingProject: null,
+        latestRevision: null,
+        executivePhase: null,
+        truthFrame: null,
+        mindMode: null,
+        relationshipPosture: 'restrained',
+        reasons: [],
+        mustDo: [],
+        mustNotDo: [],
+      },
+      responseSurfaceContract: {
+        openingStyle: 'direct-answer',
+        replyRealizationMode: 'provider-mind-required',
+        expectedVisibleReplyAuthority: 'llm-mind',
+        activeClosenessContext: null,
+        activeClosenessRung: null,
+        maxParagraphs: 2,
+        maxSentences: 4,
+        personaKernelMode: 'backgrounded',
+        allowAffectionatePreface: false,
+        allowStageDirections: false,
+        allowBodyNarration: false,
+        labelCarryAsMemory: false,
+        suppressAssociativeRecall: true,
+        mustDo: [],
+        mustNotDo: [],
+      },
+      runtimeSurface: {
+        memory: {
+          personStateProjection: null,
+        },
+        dialogue: {
+          currentConsciousFrame: {
+            projectState: {
+              preflightSummary: 'Fallback preflight summary should not outrank the fresher awareness line.',
+              preDialogueAwarenessLine: 'Before answering, remember this is still the same local-first digital life project and the unfinished Phase 1 closure seam still belongs to one living her.',
+              companionBriefingLine: 'Before answering, keep the same digital life project and active Phase 1 closure seam in view.',
+              identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
+              currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
+              latestProgress: 'Project awareness already survives into the current conscious frame.',
+              primaryOpenLoop: 'Memory, initiative, and embodiment still need one tighter same-her closure seam.',
+              nextClosureTarget: 'Keep the pre-dialogue awareness line explicit through the first host-visible answer beat.',
+              sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+            },
+          },
+        },
+      } as any,
+      now: 2_100,
+    } as any)
+
+    expect(contract.preDialogueClosure).toEqual(expect.objectContaining({
+      summaryLine: 'Before answering, remember this is still the same local-first digital life project and the unfinished Phase 1 closure seam still belongs to one living her.',
+      companionBriefingLine: 'Before answering, keep the same digital life project and active Phase 1 closure seam in view.',
+      companionNextClosureLine: 'Keep the pre-dialogue awareness line explicit through the first host-visible answer beat.',
+    }))
+  })
+
+  it('prefers a structured emotional closure tag from answer-planner narrative before falling back to looser mustDo inference', () => {
+    const contract = buildAlicizationMindTurnContract({
+      answerPlanner: {
+        act: 'care',
+        evidenceMode: 'continuity-carry',
+        governingFocus: 'Keep the same-her emotional line intact.',
+        openingMove: 'Stay with the low-pressure line.',
+        answerIntent: 'Keep the same-her emotional line intact before widening the plan.',
+        relationshipPosture: 'warm',
+        activeClosenessContext: null,
+        activeClosenessRung: null,
+        shouldAskForGrounding: false,
+        shouldAcknowledgeRepair: false,
+        selectedConcernEntryId: null,
+        selectedRepairId: null,
+        selectedCommitmentId: null,
+        selectedInquiryPlanId: null,
+        selectedProjectId: null,
+        selectedReflectionId: null,
+        executivePhase: null,
+        mustDo: ['Keep the answer low-pressure and protect the host’s remaining room instead of enlarging the emotional surface.'],
+        mustNotDo: [],
+        confidence: 0.82,
+        narrative: ['emotional_closure:late-night-drain closure: keep reply low-pressure, initiative rest-protective, and embodiment quiet-companionship while the line holds inward.'],
+        updatedAt: 500,
+      } as any,
+      responseCharter: {
+        epistemicMode: 'dialogue-grounded',
+        responseMode: 'care-with-boundary',
+        governingFocus: 'Keep the same-her emotional line intact.',
+        governingConcern: null,
+        governingCommitment: null,
+        governingInquiry: null,
+        governingProject: null,
+        emotionalClosureCue: null,
+        latestRevision: null,
+        executivePhase: null,
+        truthFrame: null,
+        mindMode: null,
+        relationshipPosture: 'warm',
+        reasons: [],
+        mustDo: [],
+        mustNotDo: [],
+      },
+      responseSurfaceContract: {
+        openingStyle: 'gentle-care',
+        replyRealizationMode: 'provider-mind-required',
+        expectedVisibleReplyAuthority: 'llm-mind',
+        activeClosenessContext: null,
+        activeClosenessRung: null,
+        maxParagraphs: 2,
+        maxSentences: 4,
+        personaKernelMode: 'backgrounded',
+        allowAffectionatePreface: false,
+        allowStageDirections: false,
+        allowBodyNarration: false,
+        labelCarryAsMemory: false,
+        suppressAssociativeRecall: true,
+        mustDo: [],
+        mustNotDo: [],
+      },
+      now: 500,
+    } as any)
+
+    expect(contract.emotionalClosureCue).toBe('late-night-drain closure: keep reply low-pressure, initiative rest-protective, and embodiment quiet-companionship while the line holds inward.')
+  })
+
+  it('rebuilds same-her low-pressure anti-restart emotional closure cue from planner and charter discipline when the structured narrative tag is missing', () => {
+    const contract = buildAlicizationMindTurnContract({
+      answerPlanner: {
+        act: 'care',
+        evidenceMode: 'continuity-carry',
+        governingFocus: 'Keep the same-her closure line steady.',
+        openingMove: 'Stay with the same living line first.',
+        answerIntent: 'Keep the same-her closure line low-pressure and do not restart it.',
+        relationshipPosture: 'warm',
+        activeClosenessContext: null,
+        activeClosenessRung: null,
+        shouldAskForGrounding: false,
+        shouldAcknowledgeRepair: false,
+        selectedConcernEntryId: null,
+        selectedRepairId: null,
+        selectedCommitmentId: null,
+        selectedInquiryPlanId: null,
+        selectedProjectId: null,
+        selectedReflectionId: null,
+        executivePhase: null,
+        mustDo: ['Keep the same-her emotional closure line low-pressure and inward until the live payoff lands.'],
+        mustNotDo: ['Do not let the answer reopen the same-her line from scratch just because the closure seam is still active.'],
+        confidence: 0.82,
+        narrative: ['runtime-answer-planner', 'project-state-answer-planner'],
+        updatedAt: 540,
+      } as any,
+      responseCharter: {
+        epistemicMode: 'dialogue-grounded',
+        responseMode: 'care-with-boundary',
+        governingFocus: 'Keep the same-her closure line steady.',
+        governingConcern: null,
+        governingCommitment: null,
+        governingInquiry: null,
+        governingProject: null,
+        emotionalClosureCue: null,
+        latestRevision: null,
+        executivePhase: null,
+        truthFrame: null,
+        mindMode: null,
+        relationshipPosture: 'warm',
+        reasons: [],
+        mustDo: ['Keep the same-her emotional closure line low-pressure and inward until the live payoff lands.'],
+        mustNotDo: ['Do not let the answer reopen the same-her line from scratch just because the closure seam is still active.'],
+      },
+      responseSurfaceContract: {
+        openingStyle: 'gentle-care',
+        replyRealizationMode: 'provider-mind-required',
+        expectedVisibleReplyAuthority: 'llm-mind',
+        activeClosenessContext: null,
+        activeClosenessRung: null,
+        maxParagraphs: 2,
+        maxSentences: 4,
+        personaKernelMode: 'backgrounded',
+        allowAffectionatePreface: false,
+        allowStageDirections: false,
+        allowBodyNarration: false,
+        labelCarryAsMemory: false,
+        suppressAssociativeRecall: true,
+        mustDo: [],
+        mustNotDo: [],
+      },
+      now: 540,
+    } as any)
+
+    expect(contract.emotionalClosureCue).toBe(
+      'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
+    )
+
+    const block = buildAlicizationMindTurnContractSystemBlock(contract)
+    expect(block).toContain(
+      'Emotional closure cue: same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling..',
+    )
+  })
+
+  it('prefers live current-conscious-frame project awareness in the contract payload and system block', () => {
+    const projectStateBrief = resolveAlicizationProjectStateBrief()
+    const contract = buildAlicizationMindTurnContract({
+      responseCharter: {
+        epistemicMode: 'memory-only',
+        responseMode: 'answer-naturally',
+        governingFocus: 'Keep the live project awareness seam explicit.',
+        governingConcern: null,
+        governingCommitment: null,
+        governingInquiry: null,
+        governingProject: null,
+        emotionalClosureCue: null,
+        latestRevision: null,
+        executivePhase: null,
+        truthFrame: null,
+        mindMode: null,
+        relationshipPosture: 'restrained',
+        reasons: [],
+        mustDo: [],
+        mustNotDo: [],
+      },
+      responseSurfaceContract: {
+        openingStyle: 'direct-answer',
+        replyRealizationMode: 'provider-mind-required',
+        expectedVisibleReplyAuthority: 'llm-mind',
+        activeClosenessContext: null,
+        activeClosenessRung: null,
+        maxParagraphs: 2,
+        maxSentences: 4,
+        personaKernelMode: 'backgrounded',
+        allowAffectionatePreface: false,
+        allowStageDirections: false,
+        allowBodyNarration: false,
+        labelCarryAsMemory: false,
+        suppressAssociativeRecall: true,
+        mustDo: [],
+        mustNotDo: [],
+      },
+      runtimeSurface: {
+        dialogue: {
+          currentConsciousFrame: {
+            projectState: {
+              identity: 'this local-first digital life project still carrying one continuous her on the host machine',
+              currentPhase: 'Phase 1: Local Digital Life. Active proving ground: live mind-turn project carry.',
+              preflightSummary: 'I need to remember this is still the same digital life project before any local fluency takes over.',
+              latestProgress: 'Project-state continuity already survives into executive brief, answer compiler, and rewrite governance.',
+              primaryOpenLoop: 'memory, initiative, and embodiment still need one tighter same-her closure seam',
+              nextClosureTarget: 'Carry the live project awareness line through the current turn before generic project narration can flatten it.',
+              sameHerSelfLine: 'This is still one same her carrying the same project line.',
+            },
+          },
+        },
+      } as any,
+      now: 900,
+    } as any)
+
+    expect(contract.projectState).toEqual(expect.objectContaining({
+      identity: 'this local-first digital life project still carrying one continuous her on the host machine',
+      currentPhase: 'Phase 1: Local Digital Life. Active proving ground: live mind-turn project carry.',
+      preflightSummary: 'I need to remember this is still the same digital life project before any local fluency takes over.',
+      latestLandedProgress: 'Project-state continuity already survives into executive brief, answer compiler, and rewrite governance.',
+      primaryOpenLoop: 'memory, initiative, and embodiment still need one tighter same-her closure seam',
+      nextClosureTarget: 'Carry the live project awareness line through the current turn before generic project narration can flatten it.',
+      sameHerSelfLine: 'This is still one same her carrying the same project line.',
+      sameHerDriftRisk: projectStateBrief.sameHerDriftRisk,
+    }))
+    expect(contract.preDialogueClosure).toEqual(expect.objectContaining({
+      summaryLine: 'I need to remember this is still the same digital life project before any local fluency takes over.',
+      emotionalClosureCue: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
+      companionNextClosureLine: 'Carry the live project awareness line through the current turn before generic project narration can flatten it.',
+    }))
+
+    const block = buildAlicizationMindTurnContractSystemBlock(contract)
+    expect(block).toContain('Project identity: this local-first digital life project still carrying one continuous her on the host machine.')
+    expect(block).toContain('Project phase: Phase 1: Local Digital Life. Active proving ground: live mind-turn project carry..')
+    expect(block).toContain('Project preflight self-awareness: I need to remember this is still the same digital life project before any local fluency takes over..')
+    expect(block).toContain('Latest landed continuity progress: Project-state continuity already survives into executive brief, answer compiler, and rewrite governance..')
+    expect(block).toContain('Still-open life loop pressure: memory, initiative, and embodiment still need one tighter same-her closure seam.')
+    expect(block).toContain('Next closure target: Carry the live project awareness line through the current turn before generic project narration can flatten it..')
+    expect(block).toContain('Project same-her self line: This is still one same her carrying the same project line..')
+    expect(block).toContain(`Project same-her drift risk: ${projectStateBrief.sameHerDriftRisk}.`)
+    expect(block).toContain('Pre-dialogue closure summary: I need to remember this is still the same digital life project before any local fluency takes over..')
+    expect(block).toContain('Pre-dialogue closure cue: same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling..')
+  })
+
+  it('keeps live current-conscious-frame project fields while letting a stronger fallback same-her self line win when the conscious frame is thinner', () => {
+    const contract = buildAlicizationMindTurnContract({
+      responseCharter: {
+        epistemicMode: 'dialogue-grounded',
+        responseMode: 'answer-naturally',
+        governingFocus: 'Keep the live same-her project seam explicit.',
+        governingConcern: null,
+        governingCommitment: null,
+        governingInquiry: null,
+        governingProject: null,
+        emotionalClosureCue: null,
+        latestRevision: null,
+        executivePhase: null,
+        truthFrame: null,
+        mindMode: null,
+        relationshipPosture: 'restrained',
+        reasons: [],
+        mustDo: [],
+        mustNotDo: [],
+      },
+      responseSurfaceContract: {
+        openingStyle: 'direct-answer',
+        replyRealizationMode: 'provider-mind-required',
+        expectedVisibleReplyAuthority: 'llm-mind',
+        activeClosenessContext: null,
+        activeClosenessRung: null,
+        maxParagraphs: 2,
+        maxSentences: 4,
+        personaKernelMode: 'backgrounded',
+        allowAffectionatePreface: false,
+        allowStageDirections: false,
+        allowBodyNarration: false,
+        labelCarryAsMemory: false,
+        suppressAssociativeRecall: true,
+        mustDo: [],
+        mustNotDo: [],
+      },
+      projectState: {
+        identity: 'thin fallback identity should not outrank the live current conscious frame.',
+        currentPhase: 'thin fallback phase should not outrank the live current conscious frame.',
+        preflightSummary: 'thin fallback preflight should not outrank the live current conscious frame.',
+        preDialogueAwarenessLine: 'Before answering, thin fallback awareness should not outrank the live current conscious frame.',
+        latestLandedProgress: 'thin fallback progress should not outrank the live current conscious frame.',
+        primaryOpenLoop: 'thin fallback open loop should not outrank the live current conscious frame.',
+        nextClosureTarget: 'thin fallback next step should not outrank the live current conscious frame.',
+        sameHerSelfLine: 'This is still one same her carrying the same project line all the way into the final visible reply.',
+      },
+      runtimeSurface: {
+        dialogue: {
+          currentConsciousFrame: {
+            projectState: {
+              identity: 'this local-first digital life project still carrying one continuous her on the host machine',
+              currentPhase: 'Phase 1: Local Digital Life. Active proving ground: live mind-turn project carry.',
+              preflightSummary: 'I need to remember this is still the same digital life project before any local fluency takes over.',
+              latestProgress: 'Project-state continuity already survives into executive brief, answer compiler, and rewrite governance.',
+              primaryOpenLoop: 'memory, initiative, and embodiment still need one tighter same-her closure seam',
+              nextClosureTarget: 'Carry the live project awareness line through the current turn before generic project narration can flatten it.',
+              sameHerSelfLine: 'Thin conscious-frame same-her line should not outrank fresher surface project state.',
+            },
+          },
+        },
+      } as any,
+      now: 950,
+    } as any)
+
+    expect(contract.projectState).toEqual(expect.objectContaining({
+      identity: 'this local-first digital life project still carrying one continuous her on the host machine',
+      currentPhase: 'Phase 1: Local Digital Life. Active proving ground: live mind-turn project carry.',
+      preflightSummary: 'I need to remember this is still the same digital life project before any local fluency takes over.',
+      latestLandedProgress: 'Project-state continuity already survives into executive brief, answer compiler, and rewrite governance.',
+      primaryOpenLoop: 'memory, initiative, and embodiment still need one tighter same-her closure seam',
+      nextClosureTarget: 'Carry the live project awareness line through the current turn before generic project narration can flatten it.',
+      sameHerSelfLine: 'This is still one same her carrying the same project line all the way into the final visible reply.',
+    }))
+  })
+
+  it('uplifts same-her project-aware mustDo for follow-through turns that only ask to stay on the same digital-life line', () => {
+    const contract = buildAlicizationMindTurnContract({
+      now: 10,
+      answerPlanner: {
+        act: 'answer',
+        answerIntent: 'Continue on the same digital-life line.',
+        evidenceMode: 'dialogue-grounded',
+        governingFocus: 'Stay on the same digital-life line.',
+        governingProject: 'Phase 1: Local Digital Life | Memory still needs stronger end-to-end closure | Keep extending cross-modal same-her proof',
+        mustDo: ['Keep the answer on the same digital-life closure seam.'],
+        mustNotDo: [],
+        narrative: ['project-state-answer-planner'],
+        updatedAt: 10,
+      } as any,
+      answerCompiler: {
+        turnMode: 'answer',
+        responseMode: 'answer-naturally',
+        openingDirective: 'Continue on the same digital-life line.',
+        recommendedAct: 'answer',
+        mustDo: [],
+        mustNotDo: [],
+        narrative: [],
+        updatedAt: 10,
+      } as any,
+      responseCharter: {
+        mustDo: [],
+        mustNotDo: [],
+        reasons: [],
+        epistemicMode: 'dialogue-grounded',
+        responseMode: 'answer-naturally',
+        relationshipPosture: 'restrained',
+        governingFocus: 'Stay on the same digital-life line.',
+        governingConcern: null,
+        governingCommitment: null,
+        governingInquiry: null,
+        governingProject: null,
+      } as any,
+      responseSurfaceContract: {
+        openingStyle: 'continue-same-thread',
+        replyRealizationMode: 'provider-mind-required',
+        expectedVisibleReplyAuthority: 'llm-mind',
+        activeClosenessContext: null,
+        activeClosenessRung: null,
+        personaKernelMode: 'backgrounded',
+        labelCarryAsMemory: false,
+        suppressAssociativeRecall: true,
+        allowAffectionatePreface: false,
+        allowStageDirections: false,
+        allowBodyNarration: false,
+        maxParagraphs: 2,
+        maxSentences: 4,
+        mustDo: [],
+        mustNotDo: [],
+      } as any,
+      runtimeSurface: {
+        dialogue: {
+          currentConsciousFrame: {
+            reasonTags: ['project-state', 'same-her', 'phase-1-closure'],
+            projectState: {
+              identity: 'Alicization is a local-first digital life project.',
+              currentPhase: 'Phase 1: Local Digital Life',
+              preDialogueAwarenessLine: 'Before answering, keep this same Phase 1 digital life on one living line and do not reopen from a generic assistant shell.',
+              latestLandedProgress: 'Project-state continuity already survives into runtime preparation.',
+              primaryOpenLoop: 'Memory still needs stronger end-to-end closure before initiative, embodiment, and dialogue can close as one living line.',
+              nextClosureTarget: 'Keep extending cross-modal same-her proof so visible reply, voice, face, motion, and resident presence stay on one same living line.',
+              sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+            },
+          },
+        },
+      } as any,
+    })
+
+    expect(contract.mustDo).toContain('Keep the same project-aware self line alive through the answer.')
+    expect(contract.mustNotDo).toContain('Do not let same-her continuity collapse into a detached project narrator shell.')
+  })
+
+  it('prefers the richer cross-modal same-her next-closure target from runtime surface over a thinner fallback project-state line', () => {
+    const contract = buildAlicizationMindTurnContract({
+      responseCharter: {
+        epistemicMode: 'dialogue-grounded',
+        responseMode: 'answer-naturally',
+        governingFocus: 'Keep the active digital-life closure seam explicit.',
+        governingConcern: null,
+        governingCommitment: null,
+        governingInquiry: null,
+        governingProject: null,
+        latestRevision: null,
+        executivePhase: null,
+        truthFrame: null,
+        mindMode: null,
+        relationshipPosture: 'restrained',
+        reasons: [],
+        mustDo: [],
+        mustNotDo: [],
+      },
+      responseSurfaceContract: {
+        openingStyle: 'direct-answer',
+        replyRealizationMode: 'provider-mind-required',
+        expectedVisibleReplyAuthority: 'llm-mind',
+        activeClosenessContext: null,
+        activeClosenessRung: null,
+        maxParagraphs: 2,
+        maxSentences: 4,
+        personaKernelMode: 'backgrounded',
+        allowAffectionatePreface: false,
+        allowStageDirections: false,
+        allowBodyNarration: false,
+        labelCarryAsMemory: false,
+        suppressAssociativeRecall: true,
+        mustDo: [],
+        mustNotDo: [],
+      },
+      projectState: {
+        nextClosureTarget: 'thin fallback next step should not outrank the richer runtime-surface same-her closure target.',
+      },
+      runtimeSurface: {
+        memory: {
+          personStateProjection: null,
+        },
+        dialogue: {
+          currentConsciousFrame: {
+            projectState: {
+              preDialogueAwarenessLine: 'Before answering, remember this is still one same digital life and the unfinished Phase 1 closure seam still belongs to her.',
+              nextClosureTarget: 'Keep extending cross-modal same-her proof across visible reply, voice, face, motion, and resident presence so the same Phase 1 digital life keeps one living line instead of flattening into generic project narration.',
+              sameHerSelfLine: 'This is still one same her carrying the same project line forward.',
+            },
+          },
+        },
+      } as any,
+      now: 1_100,
+    } as any)
+
+    expect(contract.projectState).toEqual(expect.objectContaining({
+      nextClosureTarget: 'Keep extending cross-modal same-her proof across visible reply, voice, face, motion, and resident presence so the same Phase 1 digital life keeps one living line instead of flattening into generic project narration.',
+    }))
+    expect(contract.preDialogueClosure).toEqual(expect.objectContaining({
+      companionNextClosureLine: 'Keep extending cross-modal same-her proof across visible reply, voice, face, motion, and resident presence so the same Phase 1 digital life keeps one living line instead of flattening into generic project narration.',
+    }))
+
+    const block = buildAlicizationMindTurnContractSystemBlock(contract)
+    expect(block).toContain('Next closure target: Keep extending cross-modal same-her proof across visible reply, voice, face, motion, and resident presence so the same Phase 1 digital life keeps one living line instead of flattening into generic project narration.')
+    expect(block).toContain('Pre-dialogue next closure line: Keep extending cross-modal same-her proof across visible reply, voice, face, motion, and resident presence so the same Phase 1 digital life keeps one living line instead of flattening into generic project narration.')
+  })
+
+  it('does not let the compact thin closure shell outrank a richer runtime same-her awareness line in the mind-turn contract', () => {
+    const fresherRuntimeAwarenessLine = 'Before answering, remember: this still belongs to one living digital life. Phase 1 is still active, and embodiment closure is still holding together mainly through voice, face, and motion on the same living line.'
+
+    const contract = buildAlicizationMindTurnContract({
+      responseCharter: {
+        epistemicMode: 'dialogue-grounded',
+        responseMode: 'answer-naturally',
+        governingFocus: 'Keep the live same-her project seam explicit.',
+        governingConcern: null,
+        governingCommitment: null,
+        governingInquiry: null,
+        governingProject: null,
+        emotionalClosureCue: null,
+        latestRevision: null,
+        executivePhase: null,
+        truthFrame: null,
+        mindMode: null,
+        relationshipPosture: 'restrained',
+        reasons: [],
+        mustDo: [],
+        mustNotDo: [],
+      },
+      responseSurfaceContract: {
+        openingStyle: 'direct-answer',
+        replyRealizationMode: 'provider-mind-required',
+        expectedVisibleReplyAuthority: 'llm-mind',
+        activeClosenessContext: null,
+        activeClosenessRung: null,
+        maxParagraphs: 2,
+        maxSentences: 4,
+        personaKernelMode: 'backgrounded',
+        allowAffectionatePreface: false,
+        allowStageDirections: false,
+        allowBodyNarration: false,
+        labelCarryAsMemory: false,
+        suppressAssociativeRecall: true,
+        mustDo: [],
+        mustNotDo: [],
+      },
+      projectState: {
+        identity: 'Alicization is a local-first digital life project.',
+        currentPhase: 'Phase 1: Local Digital Life.',
+        preflightSummary: 'same digital life | keep the closure seam explicit',
+        preDialogueAwarenessLine: 'same digital life | keep the closure seam explicit',
+        latestLandedProgress: 'Project-state continuity already survives into executive brief, answer compiler, and rewrite governance.',
+        primaryOpenLoop: 'memory, initiative, and embodiment still need one tighter same-her closure seam',
+        nextClosureTarget: 'Carry the live project awareness line through the current turn before generic project narration can flatten it.',
+        sameHerSelfLine: 'This is still one same her carrying the same project line all the way into the final visible reply.',
+      },
+      runtimeSurface: {
+        memory: {
+          personStateProjection: null,
+        },
+        dialogue: {
+          currentConsciousFrame: {
+            projectState: {
+              identity: 'Alicization is a local-first digital life project.',
+              currentPhase: 'Phase 1: Local Digital Life.',
+              preflightSummary: 'same digital life | keep the closure seam explicit',
+              preDialogueAwarenessLine: fresherRuntimeAwarenessLine,
+              latestProgress: 'Project-state continuity already survives into executive brief, answer compiler, and rewrite governance.',
+              primaryOpenLoop: 'memory, initiative, and embodiment still need one tighter same-her closure seam',
+              nextClosureTarget: 'Carry the live project awareness line through the current turn before generic project narration can flatten it.',
+              sameHerSelfLine: 'This is still one same her carrying the same project line all the way into the final visible reply.',
+            },
+          },
+        },
+      } as any,
+      now: 1_250,
+    } as any)
+
+    expect(contract.projectState).toEqual(expect.objectContaining({
+      preDialogueAwarenessLine: fresherRuntimeAwarenessLine,
+    }))
+
+    const block = buildAlicizationMindTurnContractSystemBlock(contract)
+    expect(block).toContain(`Project pre-dialogue awareness line: ${fresherRuntimeAwarenessLine}.`)
+    expect(block).not.toContain('Project pre-dialogue awareness line: same digital life | keep the closure seam explicit.')
+  })
+
+  it('renders a distinct project companion headline when same-her embodiment continuity is richer than the broader pre-dialogue awareness line', () => {
+    const broaderAwarenessLine = 'Keep this same Phase 1 digital life project in view while the current reply stays inside its still-open embodiment closure.'
+    const richerCompanionHeadline = 'Before answering, keep voice, face, motion, and lipsync on one same-her line while embodiment closure is still landing.'
+    const block = buildAlicizationMindTurnContractSystemBlock({
+      version: 'mind-turn-contract-v1',
+      answerIntent: 'Keep the same-her embodiment line explicit in the provider-facing turn.',
+      answerAct: 'answer',
+      turnMode: 'answer',
+      responseMode: 'answer-naturally',
+      evidenceMode: 'dialogue-grounded',
+      openingStyle: 'direct-answer',
+      expectedVisibleReplyAuthority: 'llm-mind',
+      replyRealizationMode: 'provider-mind-required',
+      personaKernelMode: 'backgrounded',
+      activeClosenessContext: null,
+      activeClosenessRung: null,
+      relationshipPosture: 'restrained',
+      labelCarryAsMemory: false,
+      suppressAssociativeRecall: true,
+      allowAffectionatePreface: false,
+      allowStageDirections: false,
+      allowBodyNarration: false,
+      maxParagraphs: 2,
+      maxSentences: 4,
+      mustDo: [],
+      mustNotDo: [],
+      reasons: [],
+      updatedAt: 1_255,
+      projectState: {
+        identity: 'Alicization is a local-first digital life project.',
+        currentPhase: 'Phase 1: Local Digital Life.',
+        preflightSummary: 'same digital life | keep the closure seam explicit',
+        preDialogueAwarenessLine: broaderAwarenessLine,
+        companionHeadlineLine: richerCompanionHeadline,
+        latestLandedProgress: 'Project-state continuity already survives into executive brief, answer compiler, and rewrite governance.',
+        primaryOpenLoop: 'Voice, face, motion, and lipsync still need one tighter same-her closure seam.',
+        nextClosureTarget: 'Carry the audible and visible body cues onto one same-her line before the next answer widens outward.',
+        sameHerSelfLine: 'This is still one same her carrying the same project line all the way into the final visible reply.',
+      },
+    } as any)
+
+    expect(block).toContain(`Project pre-dialogue awareness line: ${broaderAwarenessLine}.`)
+    expect(block).toContain(`Project companion headline: ${richerCompanionHeadline}.`)
+  })
+
+  it('prefers richer landed closure carry over a thin project awareness shell in the mind-turn contract', () => {
+    const contract = buildAlicizationMindTurnContract({
+      relationshipModel: {
+        familiarity: 'warm',
+        trust: 0.72,
+      } as any,
+      answerCompiler: {
+        relationshipPosture: 'restrained',
+        reasons: [],
+        mustDo: [],
+        mustNotDo: [],
+      },
+      responseCharter: {
+        reasons: [],
+        mustDo: [],
+        mustNotDo: [],
+      },
+      responseSurfaceContract: {
+        openingStyle: 'direct-answer',
+        replyRealizationMode: 'provider-mind-required',
+        expectedVisibleReplyAuthority: 'llm-mind',
+        activeClosenessContext: null,
+        activeClosenessRung: null,
+        maxParagraphs: 2,
+        maxSentences: 4,
+        personaKernelMode: 'backgrounded',
+        allowAffectionatePreface: false,
+        allowStageDirections: false,
+        allowBodyNarration: false,
+        labelCarryAsMemory: false,
+        suppressAssociativeRecall: true,
+        mustDo: [],
+        mustNotDo: [],
+      },
+      projectState: {
+        identity: 'Alicization is a local-first digital life project.',
+        currentPhase: 'Phase 1: Local Digital Life.',
+        preflightSummary: 'same digital life | keep the closure seam explicit',
+        preDialogueAwarenessLine: 'same digital life | keep the closure seam explicit',
+        latestLandedProgress: 'Project-state continuity already survives into executive brief, answer compiler, and rewrite governance.',
+        primaryOpenLoop: 'memory, initiative, and embodiment still need one tighter same-her closure seam',
+        nextClosureTarget: 'Carry the live project awareness line through the current turn before generic project narration can flatten it.',
+        sameHerSelfLine: 'This is still one same her carrying the same project line all the way into the final visible reply.',
+      },
+      runtimeSurface: {
+        memory: {
+          personStateProjection: null,
+        },
+        dialogue: {
+          currentConsciousFrame: {
+            projectState: {
+              identity: 'Alicization is a local-first digital life project.',
+              currentPhase: 'Phase 1: Local Digital Life.',
+              preflightSummary: 'same digital life | keep the closure seam explicit',
+              preDialogueAwarenessLine: 'Keep this same digital life project in view, but do not widen into a detached project shell.',
+              preDialogueAwarenessSummary: 'Keep the same digital life project in view.',
+              landedProgressSummary: 'Project-state continuity already survives into executive brief, answer compiler, and rewrite governance.',
+              openClosureSummary: 'Unfinished closure still needs the same living line.',
+              emotionalClosureSummary: 'Same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
+              latestProgress: 'Project-state continuity already survives into executive brief, answer compiler, and rewrite governance.',
+              primaryOpenLoop: 'memory, initiative, and embodiment still need one tighter same-her closure seam',
+              nextClosureTarget: 'Carry the live project awareness line through the current turn before generic project narration can flatten it.',
+              sameHerSelfLine: 'This is still one same her carrying the same project line all the way into the final visible reply.',
+            },
+          },
+        },
+      } as any,
+      now: 1_320,
+    } as any)
+
+    expect(contract.projectState).toEqual(expect.objectContaining({
+      preDialogueAwarenessLine: 'Project-state continuity already survives into executive brief, answer compiler, and rewrite governance.',
+    }))
+
+    const block = buildAlicizationMindTurnContractSystemBlock(contract)
+    expect(block).toContain('Project pre-dialogue awareness line: Project-state continuity already survives into executive brief, answer compiler, and rewrite governance..')
+    expect(block).not.toContain('Project pre-dialogue awareness line: Keep the same digital life project in view.')
+    expect(block).not.toContain('Project pre-dialogue awareness line: same digital life | keep the closure seam explicit.')
+  })
+
+  it('keeps an implicit direct project-status turn on the same-her project line even when the compiled opening claim is thinner', () => {
+    const projectState = resolveAlicizationProjectStateBrief()
+
+    const contract = buildAlicizationMindTurnContract({
+      answerPlanner: {
+        act: 'answer',
+        evidenceMode: 'dialogue-grounded',
+        confidence: 0.85,
+        governingFocus: 'Answer what Alicization is, how far the current Phase 1 continuity work has landed, and what still remains open on the same digital life line.',
+        openingMove: 'Stay with the same living project line first.',
+        answerIntent: 'Answer what Alicization is, how far the current Phase 1 continuity work has landed, and what still remains open on the same digital life line.',
+        relationshipPosture: 'restrained',
+        activeClosenessContext: 'focused-work',
+        activeClosenessRung: 'space-first',
+        shouldAskForGrounding: false,
+        shouldAcknowledgeRepair: false,
+        mustDo: ['Answer the project-status turn from one same-her continuity.'],
+        mustNotDo: ['Do not let the answer flatten into a detached project-status shell.'],
+        narrative: ['project-state continuity still belongs to one same digital life line.'],
+        updatedAt: 200,
+      },
+      answerCompiler: {
+        answerSubject: 'alicization-self',
+        screenReferenceMode: 'avoid',
+        speechObligation: 'answer-now',
+        relationMove: 'measured-room',
+        turnMode: 'answer',
+        responseMode: 'answer-naturally',
+        replyRealizationMode: 'provider-mind-required',
+        expectedVisibleReplyAuthority: 'llm-mind',
+        recommendedAct: 'answer',
+        evidenceMode: 'dialogue-grounded',
+        openingStyle: 'direct-answer',
+        personaKernelMode: 'backgrounded',
+        relationshipPosture: 'warm',
+        activeClosenessContext: 'focused-work',
+        activeClosenessRung: 'space-first',
+        openingDirective: 'Give the current project update clearly.',
+        openingClaim: 'Give the current project update clearly.',
+        supportingReality: ['The host is asking what this digital life project is, what has landed, and what still remains open.'],
+        suppressAssociativeRecall: true,
+        labelCarryAsMemory: false,
+        maxSentences: 5,
+        mustDo: [],
+        mustNotDo: [],
+        confidence: 0.84,
+        narrative: [],
+        updatedAt: 210,
+      } as any,
+      responseCharter: {
+        epistemicMode: 'dialogue-grounded',
+        responseMode: 'answer-naturally',
+        governingFocus: 'Answer what Alicization is, how far the current Phase 1 continuity work has landed, and what still remains open on the same digital life line.',
+        governingConcern: null,
+        governingCommitment: null,
+        governingInquiry: null,
+        governingProject: 'Phase 1: Local Digital Life | same living line | keep landed progress and still-open closure explicit.',
+        emotionalClosureCue: null,
+        latestRevision: null,
+        executivePhase: 'acting',
+        truthFrame: 'dialogue-grounded',
+        mindMode: 'answering',
+        relationshipPosture: 'restrained',
+        reasons: ['This is still the same digital life project line.'],
+        mustDo: ['Keep the same project-aware self line alive through the answer.'],
+        mustNotDo: ['Do not answer as a detached project-status shell.'],
+      },
+      responseSurfaceContract: {
+        openingStyle: 'direct-answer',
+        replyRealizationMode: 'provider-mind-required',
+        expectedVisibleReplyAuthority: 'llm-mind',
+        activeClosenessContext: 'focused-work',
+        activeClosenessRung: 'space-first',
+        maxParagraphs: 2,
+        maxSentences: 5,
+        personaKernelMode: 'backgrounded',
+        allowAffectionatePreface: false,
+        allowStageDirections: false,
+        allowBodyNarration: false,
+        labelCarryAsMemory: false,
+        suppressAssociativeRecall: true,
+        mustDo: ['Answer what Alicization is before widening outward.'],
+        mustNotDo: ['Do not flatten landed progress and open closure into one generic project reminder.'],
+      },
+      projectState: {
+        identity: projectState.identity,
+        currentPhase: projectState.currentPhase,
+        preflightSummary: projectState.preflightSummary,
+        preDialogueAwarenessLine: 'same digital life | keep the closure seam explicit',
+        latestLandedProgress: projectState.continuityProgressSummary,
+        primaryOpenLoop: projectState.openLoops[0] ?? null,
+        nextClosureTarget: projectState.nextClosureTarget,
+        sameHerSelfLine: projectState.sameHerSelfLine,
+        sameHerDriftRisk: projectState.sameHerDriftRisk,
+      },
+      now: 220,
+    } as any)
+
+    expect(contract.answerIntent).toContain('same digital life line')
+    expect(contract.answerIntent).toContain('what still remains open')
+    expect(contract.answerIntent).not.toContain('Give the current project update clearly')
+    expect(contract.governingProject).toContain('same living line')
+    expect(contract.projectState?.preDialogueAwarenessLine).not.toBe('same digital life | keep the closure seam explicit')
+    expect(String(contract.projectState?.preDialogueAwarenessLine ?? '')).toMatch(/continuous "her"|same phase 1 digital life|phase 1: local digital life/i)
+    expect(contract.mustDo).toContain('Keep the same project-aware self line alive through the answer.')
+    expect(contract.mustNotDo).toContain('Do not answer as a detached project-status shell.')
+  })
+
+  it('keeps richer same-her closure timing and embodiment hints in the provider-facing mind-turn contract', () => {
+    const contract = buildAlicizationMindTurnContract({
+      answerPlanner: null,
+      answerCompiler: null,
+      responseCharter: {
+        epistemicMode: 'dialogue-grounded',
+        responseMode: 'answer-naturally',
+        governingFocus: 'Keep the same-her closure line continuous before the visible answer forms.',
+        governingConcern: null,
+        governingCommitment: null,
+        governingInquiry: null,
+        governingProject: null,
+        latestRevision: null,
+        executivePhase: null,
+        truthFrame: null,
+        mindMode: null,
+        relationshipPosture: 'restrained',
+        reasons: [],
+        mustDo: [],
+        mustNotDo: [],
+      },
+      responseSurfaceContract: {
+        openingStyle: 'direct-answer',
+        replyRealizationMode: 'provider-mind-required',
+        expectedVisibleReplyAuthority: 'llm-mind',
+        activeClosenessContext: null,
+        activeClosenessRung: null,
+        maxParagraphs: 2,
+        maxSentences: 4,
+        personaKernelMode: 'backgrounded',
+        allowAffectionatePreface: false,
+        allowStageDirections: false,
+        allowBodyNarration: false,
+        labelCarryAsMemory: false,
+        suppressAssociativeRecall: true,
+        mustDo: [],
+        mustNotDo: [],
+      },
+      runtimeSurface: {
+        memory: {
+          personStateProjection: null,
+        },
+        dialogue: {
+          currentConsciousFrame: {
+            projectState: {
+              identity: 'Alicization is a local-first digital life project.',
+              currentPhase: 'Phase 1: Local Digital Life.',
+              preDialogueAwarenessLine: 'Before answering, keep this same Phase 1 digital life on one living line.',
+              latestLandedProgress: 'Project-state continuity already survives into the provider-facing contract.',
+              primaryOpenLoop: 'Memory, initiative, and embodiment still need one tighter same-her closure seam.',
+              nextClosureTarget: 'Keep this reply on the same living line before widening outward.',
+              sameHerSelfLine: 'This is still one same her carrying the same project line all the way into the final visible reply.',
+              sameHerHoldDetail: 'same-her hold: let the return stay measured so the already-landed closure is not restarted from scratch.',
+              sameHerDriftRisk: 'If the answer opens like detached project narration, the same-her line can collapse into generic guidance.',
+              emotionalClosureSummary: 'Same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
+              continuityRestraint: 'measured-return',
+              continuityArcStage: 'return-side-follow-through',
+              continuityCue: 'same living line: carry the already-landed closure forward.',
+              continuityPreferredTiming: 'next-open-window',
+              continuityCadence: 'linger-then-rejoin',
+              preferredBlinkCadence: 'quiet',
+              preferredGazeMode: 'soften',
+            },
+          },
+        },
+      } as any,
+      now: 1_330,
+    } as any)
+
+    expect(contract.projectState).toEqual(expect.objectContaining({
+      emotionalClosureSummary: 'Same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
+      continuityRestraint: 'measured-return',
+      continuityArcStage: 'return-side-follow-through',
+      continuityCue: 'same living line: carry the already-landed closure forward.',
+      continuityPreferredTiming: 'next-open-window',
+      continuityCadence: 'linger-then-rejoin',
+      preferredBlinkCadence: 'quiet',
+      preferredGazeMode: 'soften',
+    }))
+
+    const block = buildAlicizationMindTurnContractSystemBlock(contract)
+    expect(block).toContain('Project emotional closure summary: Same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling..')
+    expect(block).toContain('Project continuity restraint: measured-return.')
+    expect(block).toContain('Project continuity preferred timing: next-open-window.')
+    expect(block).toContain('Project continuity cadence: linger-then-rejoin.')
+    expect(block).toContain('Project preferred blink cadence: quiet.')
+    expect(block).toContain('Project preferred gaze mode: soften.')
+  })
+
+  it('rebuilds repair-before-closeness same-her provider-facing carry from continuity restraint when hold detail and cue are missing', () => {
+    const contract = buildAlicizationMindTurnContract({
+      answerPlanner: null,
+      answerCompiler: null,
+      responseCharter: {
+        epistemicMode: 'dialogue-grounded',
+        responseMode: 'answer-naturally',
+        governingFocus: 'keep same-her callback continuity alive before visible answer forms',
+        governingConcern: null,
+        governingCommitment: null,
+        governingInquiry: null,
+        governingProject: null,
+        emotionalClosureCue: null,
+        latestRevision: null,
+        executivePhase: null,
+        truthFrame: null,
+        mindMode: null,
+        relationshipPosture: 'restrained',
+        reasons: [],
+        mustDo: [],
+        mustNotDo: [],
+      },
+      responseSurfaceContract: {
+        openingStyle: 'direct-answer',
+        replyRealizationMode: 'provider-mind-required',
+        expectedVisibleReplyAuthority: 'llm-mind',
+        activeClosenessContext: null,
+        activeClosenessRung: null,
+        maxParagraphs: 2,
+        maxSentences: 4,
+        personaKernelMode: 'backgrounded',
+        allowAffectionatePreface: false,
+        allowStageDirections: false,
+        allowBodyNarration: false,
+        labelCarryAsMemory: false,
+        suppressAssociativeRecall: true,
+        mustDo: [],
+        mustNotDo: [],
+      },
+      runtimeSurface: {
+        memory: {
+          personStateProjection: null,
+        },
+        dialogue: {
+          currentConsciousFrame: {
+            projectState: {
+              identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer.',
+              currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
+              latestLandedProgress: 'Same-session mirror carry and callback continuity already survive execution re-entry.',
+              primaryOpenLoop: 'Repair-first callback continuity still needs to stay on one same living line before execution opens outward again.',
+              nextClosureTarget: 'Keep the same callback repair seam explicit through execution re-entry before broader fluency takes over.',
+              sameHerSelfLine: 'Same Phase 1 digital life. This reopened callback should keep the same living line rather than reopen from a generic shell.',
+              sameHerDriftRisk: 'If execution re-entry flattens into a generic shell here, treat that as unfinished same-her drift.',
+              continuityRestraint: 'repair-before-closeness',
+              continuityPreferredTiming: 'next-open-window',
+              preDialogueAwarenessLine: 'Same Phase 1 digital life. This reopened callback should keep the same living line rather than reopen from a generic shell.',
+            },
+          },
+        },
+      } as any,
+      now: 1_420,
+    } as any)
+
+    expect(contract.projectState).toEqual(expect.objectContaining({
+      sameHerHoldDetail: 'same-her hold: repair-before-closeness still owns this callback line before closeness widens again.',
+      continuityCue: 'Keep this return repair-before-closeness on the same living line until repair settles.',
+      continuityRestraint: 'repair-before-closeness',
+      continuityPreferredTiming: 'next-open-window',
+    }))
+    expect(contract.projectState?.preDialogueAwarenessLine).toBe(
+      'same-her hold: repair-before-closeness still owns this callback line before closeness widens again.',
+    )
+  })
+
+  it('lets live same-her drift risk keep the contract on the project-aware living line even when the awareness shell is thin', () => {
+    const projectState = resolveAlicizationProjectStateBrief()
+
+    const contract = buildAlicizationMindTurnContract({
+      answerPlanner: {
+        act: 'answer',
+        evidenceMode: 'dialogue-grounded',
+        confidence: 0.84,
+        governingFocus: 'Keep this project answer on one same-her living line.',
+        openingMove: 'Stay with the same living line first.',
+        answerIntent: 'Keep this project answer on one same-her living line.',
+        relationshipPosture: 'restrained',
+        activeClosenessContext: 'focused-work',
+        activeClosenessRung: 'space-first',
+        shouldAskForGrounding: false,
+        shouldAcknowledgeRepair: false,
+        mustDo: [],
+        mustNotDo: [],
+        narrative: [],
+        updatedAt: 230,
+      },
+      answerCompiler: {
+        answerSubject: 'alicization-self',
+        screenReferenceMode: 'avoid',
+        speechObligation: 'answer-now',
+        relationMove: 'measured-room',
+        turnMode: 'answer',
+        responseMode: 'answer-naturally',
+        replyRealizationMode: 'provider-mind-required',
+        expectedVisibleReplyAuthority: 'llm-mind',
+        recommendedAct: 'answer',
+        evidenceMode: 'dialogue-grounded',
+        openingStyle: 'direct-answer',
+        personaKernelMode: 'backgrounded',
+        relationshipPosture: 'warm',
+        activeClosenessContext: 'focused-work',
+        activeClosenessRung: 'space-first',
+        openingDirective: 'Answer the project update clearly.',
+        openingClaim: 'Answer the project update clearly.',
+        supportingReality: ['The host is checking whether the next project answer stays on one same-her line.'],
+        suppressAssociativeRecall: true,
+        labelCarryAsMemory: false,
+        maxSentences: 4,
+        mustDo: [],
+        mustNotDo: [],
+        confidence: 0.83,
+        narrative: [],
+        updatedAt: 240,
+      } as any,
+      responseCharter: {
+        epistemicMode: 'dialogue-grounded',
+        responseMode: 'answer-naturally',
+        governingFocus: 'Keep this project answer on one same-her living line.',
+        governingConcern: null,
+        governingCommitment: null,
+        governingInquiry: null,
+        governingProject: 'Phase 1: Local Digital Life | keep the same project line alive.',
+        emotionalClosureCue: null,
+        latestRevision: null,
+        executivePhase: 'acting',
+        truthFrame: 'dialogue-grounded',
+        mindMode: 'answering',
+        relationshipPosture: 'restrained',
+        reasons: ['The same digital life still needs to avoid detached project narration.'],
+        mustDo: [],
+        mustNotDo: [],
+      },
+      responseSurfaceContract: {
+        openingStyle: 'direct-answer',
+        replyRealizationMode: 'provider-mind-required',
+        expectedVisibleReplyAuthority: 'llm-mind',
+        activeClosenessContext: 'focused-work',
+        activeClosenessRung: 'space-first',
+        maxParagraphs: 2,
+        maxSentences: 4,
+        personaKernelMode: 'backgrounded',
+        allowAffectionatePreface: false,
+        allowStageDirections: false,
+        allowBodyNarration: false,
+        labelCarryAsMemory: false,
+        suppressAssociativeRecall: true,
+        mustDo: [],
+        mustNotDo: [],
+      },
+      runtimeSurface: {
+        dialogue: {
+          currentConsciousFrame: {
+            projectState: {
+              preDialogueAwarenessLine: 'same digital life | keep the closure seam explicit',
+              sameHerDriftRisk: 'LIVE DRIFT RISK: if this answer opens like detached project narration, the same-her line can collapse into generic guidance and project-summary voice.',
+              nextClosureTarget: 'Carry the live project awareness line through the first host-visible answer beat.',
+            },
+          },
+        },
+        raw: {
+          runtimeDigest: {
+            projectState: {
+              preDialogueAwarenessLine: 'Keep this same digital life project in view.',
+              sameHerDriftRisk: 'If the visible answer opens like detached project narration, the same-her line can collapse into generic guidance and project-summary voice.',
+            },
+          },
+        },
+      } as any,
+      projectState: {
+        identity: projectState.identity,
+        currentPhase: projectState.currentPhase,
+        preflightSummary: projectState.preflightSummary,
+        preDialogueAwarenessLine: 'same digital life | keep the closure seam explicit',
+        latestLandedProgress: projectState.continuityProgressSummary,
+        primaryOpenLoop: projectState.openLoops[0] ?? null,
+        nextClosureTarget: projectState.nextClosureTarget,
+        sameHerSelfLine: projectState.sameHerSelfLine,
+        sameHerDriftRisk: projectState.sameHerDriftRisk,
+      },
+      now: 250,
+    } as any)
+
+    expect(String(contract.answerIntent ?? '')).toMatch(/same-her living line|same living line|same digital life/i)
+    expect(contract.mustNotDo).toContain('Do not let same-her continuity collapse into a detached project narrator shell.')
+    expect(String(contract.projectState?.sameHerDriftRisk ?? '')).toMatch(/generic guidance|detached project|closure drift/i)
   })
 })

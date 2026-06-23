@@ -13,6 +13,10 @@ function sanitizeText(raw: unknown, maxChars = 220) {
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
 }
 
+function asArray<T>(value: T[] | null | undefined) {
+  return Array.isArray(value) ? value : []
+}
+
 interface AlicizationMindContinuitySource {
   currentScene?: AlicizationVisualPresenceStateSnapshot['currentScene']
   livingWorldState?: AlicizationVisualPresenceStateSnapshot['livingWorldState']
@@ -46,7 +50,9 @@ interface AlicizationMindContinuitySource {
   actionEcology?: AlicizationVisualPresenceStateSnapshot['actionEcology']
   desireMemory?: AlicizationVisualPresenceStateSnapshot['desireMemory']
   privateThought?: AlicizationVisualPresenceStateSnapshot['privateThought']
+  emotionalKernel?: AlicizationVisualPresenceStateSnapshot['emotionalKernel']
   worldModel?: AlicizationVisualPresenceStateSnapshot['worldModel']
+  personStateProjection?: AlicizationDigitalLifeRuntimeSurface['memory']['personStateProjection']
 }
 
 function resolveMindContinuitySource(
@@ -78,6 +84,7 @@ function resolveMindContinuitySource(
       longHorizonMemory: runtimeSurface.memory.longHorizonMemory ?? null,
       goalStack: runtimeSurface.memory.goalStack ?? null,
       motiveEngine: runtimeSurface.memory.motiveEngine ?? null,
+      personStateProjection: runtimeSurface.memory.personStateProjection ?? null,
       selfState: runtimeSurface.agency.selfState ?? null,
       conversationState: runtimeSurface.dialogue.conversationState ?? null,
       dialogueWorldThread: runtimeSurface.dialogue.dialogueWorldThread ?? null,
@@ -87,6 +94,7 @@ function resolveMindContinuitySource(
       actionEcology: runtimeSurface.agency.actionEcology ?? null,
       desireMemory: runtimeSurface.memory.desireMemory ?? null,
       privateThought: runtimeSurface.cognition.privateThought ?? null,
+      emotionalKernel: runtimeSurface.memory.emotionalKernel ?? null,
       worldModel: runtimeSurface.world.worldModel ?? null,
     }
   }
@@ -94,17 +102,30 @@ function resolveMindContinuitySource(
   return state ?? null
 }
 
+function readProjectStateCarryLine(state: AlicizationMindContinuitySource | null | undefined) {
+  const authority = state?.personStateProjection?.selfContinuityAuthority ?? null
+  const sourceTags = Array.isArray(authority?.sourceTags)
+    ? authority.sourceTags
+    : []
+  if (!sourceTags.includes('project-state-carry'))
+    return null
+
+  return sanitizeText(authority?.inwardLine, 180) || null
+}
+
 function primaryThread(state: AlicizationMindContinuitySource | null | undefined) {
   if (state?.threadRuntime) {
-    const runtimeThread = state.threadRuntime.threads.find(thread => thread.id === state.threadRuntime?.foregroundThreadId)
-      ?? state.threadRuntime.threads[0]
+    const runtimeThreads = asArray(state.threadRuntime.threads)
+    const runtimeThread = runtimeThreads.find(thread => thread.id === state.threadRuntime?.foregroundThreadId)
+      ?? runtimeThreads[0]
     if (runtimeThread)
       return runtimeThread
   }
   if (!state?.deliberationState)
     return null
-  return state.deliberationState.threads.find(thread => thread.id === state.deliberationState?.primaryThreadId)
-    ?? state.deliberationState.threads[0]
+  const deliberationThreads = asArray(state.deliberationState.threads)
+  return deliberationThreads.find(thread => thread.id === state.deliberationState?.primaryThreadId)
+    ?? deliberationThreads[0]
     ?? null
 }
 
@@ -164,6 +185,7 @@ function continuitySignature(state: AlicizationMindContinuitySource | null | und
   const thread = primaryThread(state)
   const ecology = buildMindContinuityEcology(state)
   const dominantAutobiographicalGoal = pickDominantAutobiographicalGoal(state?.autobiographicalSelf)
+  const behaviorSignatures = asArray(state?.autobiographicalSelf?.behaviorSignatures)
   const autobiographicalContinuityLines = buildAutobiographicalContinuityLines({
     autobiographicalSelf: state?.autobiographicalSelf ?? null,
     longHorizonMemory: state?.longHorizonMemory ?? null,
@@ -200,6 +222,11 @@ function continuitySignature(state: AlicizationMindContinuitySource | null | und
     state?.answerPlanner?.evidenceMode ?? 'none',
     thread?.id ?? 'none',
     state?.actionEcology?.mode ?? 'none',
+    state?.emotionalKernel?.dominantEmotion ?? 'none',
+    state?.emotionalKernel?.initiativeMode ?? 'none',
+    state?.emotionalKernel?.memoryRecallMode ?? 'none',
+    state?.emotionalKernel?.embodimentTone ?? 'none',
+    sanitizeText(state?.emotionalKernel?.reasonTags?.join('|') ?? '', 96) || 'none',
     state?.privateThought?.emotionalTension ?? 'none',
     state?.privateThought?.stance ?? 'none',
     ecology?.moodLabel ?? 'none',
@@ -212,7 +239,7 @@ function continuitySignature(state: AlicizationMindContinuitySource | null | und
     state?.autobiographicalSelf?.personaDrift.conflictStyle ?? 'none',
     state?.autobiographicalSelf?.personaDrift.agencyStyle ?? 'none',
     dominantAutobiographicalGoal?.kind ?? 'none',
-    sanitizeText(state?.autobiographicalSelf?.behaviorSignatures.join('|') ?? '', 96) || 'none',
+    sanitizeText(behaviorSignatures.join('|'), 96) || 'none',
     sanitizeText(state?.autobiographicalSelf?.identityNarrative ?? '', 96) || 'none',
     sanitizeText(autobiographicalContinuityLines.join('|'), 120) || 'none',
   ].join('::')
@@ -238,29 +265,42 @@ export function buildMindContinuityFragment(input: {
     return ''
 
   const thread = primaryThread(nextState)
-  const activeHypothesis = nextState.hypothesisGraph?.hypotheses.find(hypothesis => hypothesis.id === nextState.hypothesisGraph?.activeHypothesisId)
+  const hypotheses = asArray(nextState.hypothesisGraph?.hypotheses)
+  const commitments = asArray(nextState.commitmentLedger?.commitments)
+  const plans = asArray(nextState.inquiryPlanner?.plans)
+  const concernEntries = asArray(nextState.concernContinuity?.entries)
+  const repairEntries = asArray(nextState.repairLedger?.entries)
+  const projects = asArray(nextState.intentionStream?.projects)
+  const reflections = asArray(nextState.reflectionLedger?.entries)
+  const activeIntentions = asArray(nextState.selfGovernor?.activeIntentions)
+  const thoughtThreads = asArray(nextState.thoughtThreads?.threads)
+  const backgroundAgendas = asArray(nextState.motiveEngine?.backgroundAgendas)
+  const reasonTags = asArray(nextState.emotionalKernel?.reasonTags)
+  const behaviorSignatures = asArray(nextState.autobiographicalSelf?.behaviorSignatures)
+  const activeHypothesis = hypotheses.find(hypothesis => hypothesis.id === nextState.hypothesisGraph?.activeHypothesisId)
     ?? null
-  const governingCommitment = nextState.commitmentLedger?.commitments.find(commitment => commitment.id === nextState.commitmentLedger?.governingCommitmentId)
+  const governingCommitment = commitments.find(commitment => commitment.id === nextState.commitmentLedger?.governingCommitmentId)
     ?? null
-  const activePlan = nextState.inquiryPlanner?.plans.find(plan => plan.id === nextState.inquiryPlanner?.activePlanId)
+  const activePlan = plans.find(plan => plan.id === nextState.inquiryPlanner?.activePlanId)
     ?? null
-  const governingConcernContinuity = nextState.concernContinuity?.entries.find(entry => entry.id === nextState.concernContinuity?.governingEntryId)
+  const governingConcernContinuity = concernEntries.find(entry => entry.id === nextState.concernContinuity?.governingEntryId)
     ?? null
-  const governingRepair = nextState.repairLedger?.entries.find(entry => entry.id === nextState.repairLedger?.governingRepairId)
+  const governingRepair = repairEntries.find(entry => entry.id === nextState.repairLedger?.governingRepairId)
     ?? null
-  const dominantProject = nextState.intentionStream?.projects.find(project => project.id === nextState.intentionStream?.dominantProjectId)
-    ?? nextState.intentionStream?.projects[0]
+  const dominantProject = projects.find(project => project.id === nextState.intentionStream?.dominantProjectId)
+    ?? projects[0]
     ?? null
-  const latestReflection = nextState.reflectionLedger?.entries.find(entry => entry.id === nextState.reflectionLedger?.latestEntryId)
-    ?? nextState.reflectionLedger?.entries[0]
+  const latestReflection = reflections.find(entry => entry.id === nextState.reflectionLedger?.latestEntryId)
+    ?? reflections[0]
     ?? null
-  const dominantIntention = nextState.selfGovernor?.activeIntentions.find(intention => intention.id === nextState.selfGovernor?.dominantIntentionId)
+  const dominantIntention = activeIntentions.find(intention => intention.id === nextState.selfGovernor?.dominantIntentionId)
     ?? null
-  const thoughtThread = nextState.thoughtThreads?.threads.find(candidate => candidate.id === nextState.thoughtThreads?.foregroundThreadId)
-    ?? nextState.thoughtThreads?.threads[0]
+  const thoughtThread = thoughtThreads.find(candidate => candidate.id === nextState.thoughtThreads?.foregroundThreadId)
+    ?? thoughtThreads[0]
     ?? null
   const ecology = buildMindContinuityEcology(nextState)
   const dominantAutobiographicalGoal = pickDominantAutobiographicalGoal(nextState.autobiographicalSelf)
+  const projectStateCarryLine = readProjectStateCarryLine(nextState)
   const autobiographicalContinuityLines = buildAutobiographicalContinuityLines({
     autobiographicalSelf: nextState.autobiographicalSelf ?? null,
     longHorizonMemory: nextState.longHorizonMemory ?? null,
@@ -270,10 +310,11 @@ export function buildMindContinuityFragment(input: {
     mindEcology: ecology,
   })
   const summary = sanitizeText(
-    autobiographicalContinuityLines[0]
+    projectStateCarryLine
+    || autobiographicalContinuityLines[0]
     || nextState.longHorizonMemory?.rememberedPlanSummary
     || nextState.longHorizonMemory?.rememberedConstraintSummary
-    || nextState.motiveEngine?.backgroundAgendas[0]?.summary
+    || backgroundAgendas[0]?.summary
     || thoughtThread?.summary
     || dominantIntention?.summary
     || governingCommitment?.summary
@@ -334,18 +375,24 @@ export function buildMindContinuityFragment(input: {
     nextState.answerPlanner?.act ? `answer_act:${nextState.answerPlanner.act}` : '',
     nextState.answerPlanner?.evidenceMode ? `answer_evidence:${nextState.answerPlanner.evidenceMode}` : '',
     nextState.actionEcology?.mode ? `action_ecology:${nextState.actionEcology.mode}` : '',
+    nextState.emotionalKernel?.dominantEmotion ? `emotional_kernel:${nextState.emotionalKernel.dominantEmotion}` : '',
+    nextState.emotionalKernel?.initiativeMode ? `kernel_initiative:${nextState.emotionalKernel.initiativeMode}` : '',
+    nextState.emotionalKernel?.memoryRecallMode ? `kernel_recall:${nextState.emotionalKernel.memoryRecallMode}` : '',
+    nextState.emotionalKernel?.embodimentTone ? `kernel_embodiment:${nextState.emotionalKernel.embodimentTone}` : '',
+    reasonTags[0] ? `kernel_reason:${sanitizeText(reasonTags.join('|'), 120)}` : '',
     nextState.privateThought?.emotionalTension ? `emotional_tension:${nextState.privateThought.emotionalTension}` : '',
     nextState.autobiographicalSelf?.stability != null ? `autobio_stability:${nextState.autobiographicalSelf.stability.toFixed(2)}` : '',
     dominantAutobiographicalGoal?.kind ? `autobio_goal:${dominantAutobiographicalGoal.kind}/${dominantAutobiographicalGoal.status}` : '',
     nextState.autobiographicalSelf?.personaDrift.attachmentStyle ? `autobio_bond:${nextState.autobiographicalSelf.personaDrift.attachmentStyle}` : '',
     nextState.autobiographicalSelf?.personaDrift.conflictStyle ? `autobio_conflict:${nextState.autobiographicalSelf.personaDrift.conflictStyle}` : '',
     nextState.autobiographicalSelf?.personaDrift.agencyStyle ? `autobio_agency:${nextState.autobiographicalSelf.personaDrift.agencyStyle}` : '',
-    nextState.autobiographicalSelf?.behaviorSignatures[0] ? `autobio_signature:${sanitizeText(nextState.autobiographicalSelf.behaviorSignatures[0], 96)}` : '',
+    behaviorSignatures[0] ? `autobio_signature:${sanitizeText(behaviorSignatures[0], 96)}` : '',
     nextState.autobiographicalSelf?.latestInflection ? `autobio_inflection:${sanitizeText(nextState.autobiographicalSelf.latestInflection, 120)}` : '',
     nextState.longHorizonMemory?.rememberedPlanSummary ? `durable_plan:${sanitizeText(nextState.longHorizonMemory.rememberedPlanSummary, 120)}` : '',
     nextState.longHorizonMemory?.rememberedConstraintSummary ? `durable_constraint:${sanitizeText(nextState.longHorizonMemory.rememberedConstraintSummary, 120)}` : '',
     nextState.longHorizonMemory?.rememberedPreferenceSummary ? `durable_preference:${sanitizeText(nextState.longHorizonMemory.rememberedPreferenceSummary, 120)}` : '',
-    nextState.motiveEngine?.backgroundAgendas[0]?.summary ? `motive_agenda:${sanitizeText(nextState.motiveEngine.backgroundAgendas[0].summary, 120)}` : '',
+    backgroundAgendas[0]?.summary ? `motive_agenda:${sanitizeText(backgroundAgendas[0].summary, 120)}` : '',
+    projectStateCarryLine ? `project_state_carry:${projectStateCarryLine}` : '',
     autobiographicalContinuityLines[0] ? `autobio_line:${sanitizeText(autobiographicalContinuityLines[0], 120)}` : '',
     ecology?.moodLabel ? `ecology_mood:${ecology.moodLabel}` : '',
     ecology?.replyHabit ? `ecology_reply:${ecology.replyHabit}` : '',
@@ -372,29 +419,42 @@ export function buildMindContinuityRecallSeed(
       : null,
   )
   const thread = primaryThread(state)
-  const activeHypothesis = state?.hypothesisGraph?.hypotheses.find(hypothesis => hypothesis.id === state.hypothesisGraph?.activeHypothesisId)
+  const hypotheses = asArray(state?.hypothesisGraph?.hypotheses)
+  const commitments = asArray(state?.commitmentLedger?.commitments)
+  const plans = asArray(state?.inquiryPlanner?.plans)
+  const concernEntries = asArray(state?.concernContinuity?.entries)
+  const repairEntries = asArray(state?.repairLedger?.entries)
+  const projects = asArray(state?.intentionStream?.projects)
+  const reflections = asArray(state?.reflectionLedger?.entries)
+  const activeIntentions = asArray(state?.selfGovernor?.activeIntentions)
+  const thoughtThreads = asArray(state?.thoughtThreads?.threads)
+  const backgroundAgendas = asArray(state?.motiveEngine?.backgroundAgendas)
+  const reasonTags = asArray(state?.emotionalKernel?.reasonTags)
+  const behaviorSignatures = asArray(state?.autobiographicalSelf?.behaviorSignatures)
+  const activeHypothesis = hypotheses.find(hypothesis => hypothesis.id === state?.hypothesisGraph?.activeHypothesisId)
     ?? null
-  const governingCommitment = state?.commitmentLedger?.commitments.find(commitment => commitment.id === state.commitmentLedger?.governingCommitmentId)
+  const governingCommitment = commitments.find(commitment => commitment.id === state?.commitmentLedger?.governingCommitmentId)
     ?? null
-  const activePlan = state?.inquiryPlanner?.plans.find(plan => plan.id === state.inquiryPlanner?.activePlanId)
+  const activePlan = plans.find(plan => plan.id === state?.inquiryPlanner?.activePlanId)
     ?? null
-  const governingConcernContinuity = state?.concernContinuity?.entries.find(entry => entry.id === state.concernContinuity?.governingEntryId)
+  const governingConcernContinuity = concernEntries.find(entry => entry.id === state?.concernContinuity?.governingEntryId)
     ?? null
-  const governingRepair = state?.repairLedger?.entries.find(entry => entry.id === state.repairLedger?.governingRepairId)
+  const governingRepair = repairEntries.find(entry => entry.id === state?.repairLedger?.governingRepairId)
     ?? null
-  const dominantProject = state?.intentionStream?.projects.find(project => project.id === state.intentionStream?.dominantProjectId)
-    ?? state?.intentionStream?.projects[0]
+  const dominantProject = projects.find(project => project.id === state?.intentionStream?.dominantProjectId)
+    ?? projects[0]
     ?? null
-  const latestReflection = state?.reflectionLedger?.entries.find(entry => entry.id === state.reflectionLedger?.latestEntryId)
-    ?? state?.reflectionLedger?.entries[0]
+  const latestReflection = reflections.find(entry => entry.id === state?.reflectionLedger?.latestEntryId)
+    ?? reflections[0]
     ?? null
-  const dominantIntention = state?.selfGovernor?.activeIntentions.find(intention => intention.id === state.selfGovernor?.dominantIntentionId)
+  const dominantIntention = activeIntentions.find(intention => intention.id === state?.selfGovernor?.dominantIntentionId)
     ?? null
-  const thoughtThread = state?.thoughtThreads?.threads.find(candidate => candidate.id === state.thoughtThreads?.foregroundThreadId)
-    ?? state?.thoughtThreads?.threads[0]
+  const thoughtThread = thoughtThreads.find(candidate => candidate.id === state?.thoughtThreads?.foregroundThreadId)
+    ?? thoughtThreads[0]
     ?? null
   const ecology = buildMindContinuityEcology(state)
   const dominantAutobiographicalGoal = pickDominantAutobiographicalGoal(state?.autobiographicalSelf)
+  const projectStateCarryLine = readProjectStateCarryLine(state)
   const autobiographicalContinuityLines = buildAutobiographicalContinuityLines({
     autobiographicalSelf: state?.autobiographicalSelf ?? null,
     longHorizonMemory: state?.longHorizonMemory ?? null,
@@ -433,6 +493,11 @@ export function buildMindContinuityRecallSeed(
     state?.answerPlanner?.evidenceMode ? `answer_evidence:${state.answerPlanner.evidenceMode}` : '',
     state?.mindKernel?.dominantMode ? `mind_kernel:${state.mindKernel.dominantMode}` : '',
     state?.actionEcology?.mode ? `action_ecology:${state.actionEcology.mode}` : '',
+    state?.emotionalKernel?.dominantEmotion ? `emotional_kernel:${state.emotionalKernel.dominantEmotion}` : '',
+    state?.emotionalKernel?.initiativeMode ? `kernel_initiative:${state.emotionalKernel.initiativeMode}` : '',
+    state?.emotionalKernel?.memoryRecallMode ? `kernel_recall:${state.emotionalKernel.memoryRecallMode}` : '',
+    state?.emotionalKernel?.embodimentTone ? `kernel_embodiment:${state.emotionalKernel.embodimentTone}` : '',
+    reasonTags[0] ? `kernel_reason:${sanitizeText(reasonTags.join('|'), 120)}` : '',
     state?.beliefRevision?.stability ? `belief_stability:${state.beliefRevision.stability}` : '',
     state?.privateThought?.emotionalTension ? `emotional_tension:${state.privateThought.emotionalTension}` : '',
     state?.autobiographicalSelf?.stability != null ? `autobio_stability:${state.autobiographicalSelf.stability.toFixed(2)}` : '',
@@ -440,13 +505,14 @@ export function buildMindContinuityRecallSeed(
     state?.autobiographicalSelf?.personaDrift.attachmentStyle ? `autobio_bond:${state.autobiographicalSelf.personaDrift.attachmentStyle}` : '',
     state?.autobiographicalSelf?.personaDrift.conflictStyle ? `autobio_conflict:${state.autobiographicalSelf.personaDrift.conflictStyle}` : '',
     state?.autobiographicalSelf?.personaDrift.agencyStyle ? `autobio_agency:${state.autobiographicalSelf.personaDrift.agencyStyle}` : '',
-    state?.autobiographicalSelf?.behaviorSignatures[0] ? `autobio_signature:${sanitizeText(state.autobiographicalSelf.behaviorSignatures[0], 96)}` : '',
+    behaviorSignatures[0] ? `autobio_signature:${sanitizeText(behaviorSignatures[0], 96)}` : '',
     state?.autobiographicalSelf?.identityNarrative ? sanitizeText(state.autobiographicalSelf.identityNarrative, 180) : '',
     state?.autobiographicalSelf?.latestInflection ? sanitizeText(state.autobiographicalSelf.latestInflection, 180) : '',
     state?.longHorizonMemory?.rememberedPlanSummary ? sanitizeText(state.longHorizonMemory.rememberedPlanSummary, 180) : '',
     state?.longHorizonMemory?.rememberedConstraintSummary ? sanitizeText(state.longHorizonMemory.rememberedConstraintSummary, 180) : '',
     state?.longHorizonMemory?.rememberedPreferenceSummary ? sanitizeText(state.longHorizonMemory.rememberedPreferenceSummary, 180) : '',
-    state?.motiveEngine?.backgroundAgendas[0]?.summary ? sanitizeText(state.motiveEngine.backgroundAgendas[0].summary, 180) : '',
+    backgroundAgendas[0]?.summary ? sanitizeText(backgroundAgendas[0].summary, 180) : '',
+    projectStateCarryLine ? `project_state_carry:${projectStateCarryLine}` : '',
     ...autobiographicalContinuityLines.map(line => sanitizeText(line, 180)),
     ecology?.moodLabel ? `ecology_mood:${ecology.moodLabel}` : '',
     ecology?.replyHabit ? `ecology_reply:${ecology.replyHabit}` : '',

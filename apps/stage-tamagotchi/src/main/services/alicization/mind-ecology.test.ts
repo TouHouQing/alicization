@@ -461,6 +461,89 @@ describe('mind ecology', () => {
     expect(ecology.recurringPatterns).toContain('habit:light-touch-companionship')
   })
 
+  it('keeps same-her ecology readable when motive carries lose agenda and goal array scaffolding', () => {
+    const ecology = buildMindEcology({
+      now: 26_000,
+      watchMode: 'mnemonic-passive',
+      motiveEngine: {
+        rulingDrive: 'unfinished-thread-return',
+        drives: {
+          companionship: 0.42,
+          boundaryRespect: 0.54,
+          truthDiscipline: 0.72,
+          restProtection: 0.28,
+          unfinishedThreadReturn: 0.84,
+          selfDirection: 0.58,
+        },
+        returnPressure: 0.82,
+        narrative: [],
+        updatedAt: 26_000,
+      } as any,
+      longHorizonMemory: {
+        preferenceBias: {
+          companionship: 0.68,
+          truthfulGrounding: 0.78,
+          gentleRepair: 0.7,
+          quietObservation: 0.56,
+          proactiveCare: 0.48,
+          playfulIntimacy: 0.14,
+          autonomyRespect: 0.74,
+          unfinishedThreadReturn: 0.82,
+        },
+        identityBias: {
+          guardedness: 0.26,
+          tenderness: 0.68,
+          directness: 0.54,
+          selfDirection: 0.66,
+        },
+        anchorFacts: [{
+          factId: 'fact-1',
+          subject: 'assistant',
+          predicate: 'remember',
+          object: 'keep the same living line inward',
+          confidence: 0.8,
+          weight: 0.76,
+          influenceTags: undefined as any,
+          summary: 'Remembered open loop: keep the same living line inward',
+          lastRecalledAt: 26_000,
+        }],
+        summary: 'phase1=same living line inward',
+        dominantCueSummary: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        rememberedPreferenceSummary: 'Remembered preference: keep the same living line inward for now.',
+        rememberedConstraintSummary: 'Remembered boundary: do not reopen from scratch.',
+        rememberedPlanSummary: 'Remembered open loop: keep the same living line across quiet, memory, and speech.',
+        updatedAt: 26_000,
+      } as any,
+      privateThought: {
+        stance: 'observe',
+        confidence: 0.72,
+        rationaleTags: [],
+        thoughtText: 'Keep the same living line inward tonight.',
+        shouldSpeak: false,
+        suggestedStyle: 'silent-observe',
+        embodiedPresence: 'attentive',
+        expiresAt: 90_000,
+        afterglowFromScenario: null,
+        emotionalTension: 'measured-return',
+      } as any,
+      selfState: {
+        stance: 'hold',
+        feltCloseness: 0.42,
+        protectiveness: 0.44,
+        curiosity: 0.5,
+        patience: 0.7,
+        desireToSpeak: 0.24,
+        fearOfInterrupting: 0.4,
+        moodLabel: 'quietly-holding-line',
+      },
+    } as any)
+
+    expect(ecology.currentPreoccupation).toContain('same living line')
+    expect(ecology.recurringPatterns).toContain('motive:unfinished-thread-return')
+    expect(ecology.recurringPatterns).toContain('durable:open-loop')
+    expect(ecology.recurringPatterns.some(pattern => pattern.startsWith('agenda:'))).toBe(false)
+  })
+
   it('builds a system block that exposes stabilized mood, habits, and narratives', () => {
     const block = buildMindEcologySystemBlock({
       version: 'digital-life-runtime-surface-v1',
@@ -562,5 +645,56 @@ describe('mind ecology', () => {
     expect(block).toContain('Habits:')
     expect(block).toContain('Self line:')
     expect(block).toContain('Relation line:')
+  })
+
+  it('does not let a released temporary-noise reflection dominate current preoccupation or learned adjustment carry', () => {
+    const ecology = buildMindEcology({
+      now: 28_000,
+      watchMode: 'mnemonic-passive',
+      reflectionLedger: {
+        latestEntryId: 'reflection::temporary-noise',
+        entries: [
+          {
+            id: 'reflection::temporary-noise',
+            summary: 'A temporary anxious wobble was already released.',
+            expectation: 'Released noise should not keep owning the current inner line.',
+            observedOutcome: 'The wobble has already been let go.',
+            outcome: 'released',
+            revision: 'Do not reopen from the temporary wobble.',
+            confidenceShift: 0.06,
+            createdAt: 27_800,
+          },
+          {
+            id: 'reflection::same-her-repair',
+            summary: 'The same-her repair line is still the meaningful continuity carry.',
+            expectation: 'The steadier repair line should stay active until a newer meaningful reflection replaces it.',
+            observedOutcome: 'The same living line still needs a measured return.',
+            outcome: 'missed',
+            revision: 'Keep the same-her repair line active instead of reopening from temporary noise.',
+            confidenceShift: -0.08,
+            createdAt: 27_200,
+          },
+        ],
+        revisionPressure: 0.24,
+        narrative: [],
+        updatedAt: 28_000,
+      } as any,
+      privateThought: {
+        stance: 'observe',
+        confidence: 0.58,
+        rationaleTags: [],
+        thoughtText: '',
+        shouldSpeak: false,
+        suggestedStyle: 'silent-observe',
+        embodiedPresence: 'attentive',
+        expiresAt: 90_000,
+        afterglowFromScenario: null,
+        emotionalTension: 'measured-return',
+      } as any,
+    } as any)
+
+    expect(ecology.currentPreoccupation).toBe('Keep the same-her repair line active instead of reopening from temporary noise.')
+    expect(ecology.learnedAdjustments).toContain('Keep the same-her repair line active instead of reopening from temporary noise.')
+    expect(ecology.learnedAdjustments).not.toContain('Do not reopen from the temporary wobble.')
   })
 })

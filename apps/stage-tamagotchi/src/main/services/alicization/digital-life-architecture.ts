@@ -1,5 +1,7 @@
 import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 
+import { resolveAlicizationProjectStateBrief } from './project-state-brief'
+
 export type AlicizationDigitalLifeSubsystemId
   = | 'dialogue'
     | 'perception'
@@ -29,9 +31,11 @@ export interface AlicizationDigitalLifeArchitectureSnapshot {
   governingFocus: string | null
   summary: string
   closureAudit?: {
-    currentPhase?: string | null
-    activeClosurePressures?: string[] | null
-    summary?: string | null
+    currentPhase: string | null
+    primaryOpenLoop: string | null
+    activeClosurePressures: string[]
+    selfAuthoritySummary?: string | null
+    summary: string
   } | null
   systems: Record<AlicizationDigitalLifeSubsystemId, AlicizationDigitalLifeSubsystemSnapshot>
 }
@@ -65,6 +69,20 @@ function firstNonEmptyText(...values: unknown[]) {
 
 function asArray<T>(value: T[] | null | undefined) {
   return Array.isArray(value) ? value : []
+}
+
+function normalizeSparseDigitalLifeRuntimeSurface(
+  surface: AlicizationDigitalLifeRuntimeSurface,
+): AlicizationDigitalLifeRuntimeSurface {
+  return {
+    ...surface,
+    perception: (surface.perception ?? {}) as AlicizationDigitalLifeRuntimeSurface['perception'],
+    world: (surface.world ?? {}) as AlicizationDigitalLifeRuntimeSurface['world'],
+    cognition: (surface.cognition ?? {}) as AlicizationDigitalLifeRuntimeSurface['cognition'],
+    memory: (surface.memory ?? {}) as AlicizationDigitalLifeRuntimeSurface['memory'],
+    dialogue: (surface.dialogue ?? {}) as AlicizationDigitalLifeRuntimeSurface['dialogue'],
+    agency: (surface.agency ?? {}) as AlicizationDigitalLifeRuntimeSurface['agency'],
+  }
 }
 
 function pickFocusBelief(surface: AlicizationDigitalLifeRuntimeSurface) {
@@ -536,23 +554,55 @@ function supportPreferenceBoost(
   return 0
 }
 
+function deriveClosureAudit(surface: AlicizationDigitalLifeRuntimeSurface) {
+  const projectState = resolveAlicizationProjectStateBrief()
+  const currentPhase = sanitizeText(projectState.currentPhase, 120) || null
+  const primaryOpenLoop = sanitizeText(projectState.openLoops[0] ?? '', 180) || null
+  const selfAuthoritySummary = sanitizeText(
+    surface.memory.personStateProjection?.selfContinuityAuthority?.authoritySummary ?? '',
+    180,
+  ) || null
+  const activeClosurePressures = [
+    surface.agency.habitPolicy?.returnViaRecheck ? 'habit:return-via-recheck' : '',
+    surface.agency.actionEcology?.mode ? `ecology:${surface.agency.actionEcology.mode}` : '',
+    surface.cognition.privateThought?.stance ? `private-thought:${surface.cognition.privateThought.stance}` : '',
+    surface.agency.autonomy?.selectedMode ? `autonomy:${surface.agency.autonomy.selectedMode}` : '',
+    surface.dialogue.responseCharter?.relationshipPosture ? `charter:${surface.dialogue.responseCharter.relationshipPosture}` : '',
+  ].filter(Boolean)
+
+  return {
+    currentPhase,
+    primaryOpenLoop,
+    activeClosurePressures,
+    selfAuthoritySummary,
+    summary: [
+      currentPhase ? `phase=${currentPhase}` : '',
+      primaryOpenLoop ? `open-loop=${sanitizeText(primaryOpenLoop, 96)}` : '',
+      selfAuthoritySummary ? `same-her=${sanitizeText(selfAuthoritySummary, 96)}` : '',
+      activeClosurePressures.length > 0 ? `shaping=${activeClosurePressures.join(',')}` : '',
+    ].filter(Boolean).join(' | '),
+  }
+}
+
 export function buildAlicizationDigitalLifeArchitecture(
   surface: AlicizationDigitalLifeRuntimeSurface | null | undefined,
 ): AlicizationDigitalLifeArchitectureSnapshot | null {
   if (!surface)
     return null
 
+  const normalizedSurface = normalizeSparseDigitalLifeRuntimeSurface(surface)
+
   const systems: Record<AlicizationDigitalLifeSubsystemId, AlicizationDigitalLifeSubsystemSnapshot> = {
-    dialogue: buildDialogueSubsystem(surface),
-    perception: buildPerceptionSubsystem(surface),
-    proactive: buildProactiveSubsystem(surface),
-    control: buildControlSubsystem(surface),
-    mind: buildMindSubsystem(surface),
-    memory: buildMemorySubsystem(surface),
-    runtime: buildRuntimeSubsystem(surface),
+    dialogue: buildDialogueSubsystem(normalizedSurface),
+    perception: buildPerceptionSubsystem(normalizedSurface),
+    proactive: buildProactiveSubsystem(normalizedSurface),
+    control: buildControlSubsystem(normalizedSurface),
+    mind: buildMindSubsystem(normalizedSurface),
+    memory: buildMemorySubsystem(normalizedSurface),
+    runtime: buildRuntimeSubsystem(normalizedSurface),
   }
   const ranked = rankSubsystems(systems)
-  const dominant = resolveDominantSubsystem(systems, surface.agency.autonomy)
+  const dominant = resolveDominantSubsystem(systems, normalizedSurface.agency.autonomy)
   if (!dominant)
     return null
 
@@ -569,11 +619,12 @@ export function buildAlicizationDigitalLifeArchitecture(
   const operatingMode = deriveOperatingMode({
     dominantSystem: dominant.id,
     systems,
-    surface,
+    surface: normalizedSurface,
   })
   const governingFocus = dominant.focus
     ?? ranked.find(system => system.focus)?.focus
     ?? null
+  const closureAudit = deriveClosureAudit(normalizedSurface)
 
   return {
     version: 'digital-life-architecture-v1',
@@ -585,8 +636,10 @@ export function buildAlicizationDigitalLifeArchitecture(
       `mode=${operatingMode}`,
       `dominant=${dominant.id}`,
       supportingSystems.length > 0 ? `support=${supportingSystems.join(',')}` : '',
+      closureAudit.summary ? `closure=${sanitizeText(closureAudit.summary, 120)}` : '',
       governingFocus ? `focus=${sanitizeText(governingFocus, 96)}` : '',
     ].filter(Boolean).join(' | '),
+    closureAudit,
     systems,
   }
 }
@@ -604,6 +657,12 @@ export function buildAlicizationDigitalLifeArchitectureSystemBlock(
     `dominant_system=${architecture.dominantSystem}`,
     `supporting_systems=${architecture.supportingSystems.join(',') || 'none'}`,
     `governing_focus=${sanitizeText(architecture.governingFocus ?? '', 180) || 'none'}`,
+    architecture.closureAudit?.summary
+      ? `project_state_closure=${sanitizeText(architecture.closureAudit.summary, 220)}`
+      : '',
+    architecture.closureAudit?.selfAuthoritySummary
+      ? `same_her_self_authority=${sanitizeText(architecture.closureAudit.selfAuthoritySummary, 220)}`
+      : '',
     'subsystems:',
     ...ranked.map(system => [
       `- [${formatSubsystemState(system.state)} ${system.score.toFixed(2)}] ${system.id}`,

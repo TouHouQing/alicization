@@ -3,11 +3,11 @@ import type { AlicizationMemoryResolutionLedger, AlicizationOrganicMemoryStageRe
 import type {
   AlicizationAffectiveResidueMemorySnapshot,
   AlicizationDerivedMindStateBundle,
+  AlicizationDigitalLifeSpineMemoryClosureTrace,
   AlicizationHostPersonModelSnapshot,
   AlicizationMemoryDeliberation,
   AlicizationRecollectionPlan,
   AlicizationRecollectionSpeechPlan,
-  AlicizationRuntimeDigest,
   AlicizationSelfEvolutionKernelSnapshot,
   AlicizationVisualPresenceStateSnapshot,
 } from '../../../shared/eventa'
@@ -19,12 +19,61 @@ import type {
   AlicizationPersonStateProjection,
 } from './person-state-projection'
 import type { AlicizationPersonalityContinuityStateSnapshot } from './personality-continuity-state'
+import type { AlicizationResponseCharter } from './response-charter'
 
 import { deriveAlicizationContinuityDeliberationFromSurface } from './continuity-deliberation'
 import { buildAlicizationDigitalLifeArchitecture } from './digital-life-architecture'
 import { buildMindEcology } from './mind-ecology'
 import { buildAlicizationPersonStateProjection } from './person-state-projection'
+import { mergePreferredSelfContinuityAuthority, resolvePreferredPersonStateProjection } from './person-state-projection-resolution'
 import { updateVisualPresenceState } from './visual-episodic-memory'
+
+function hasProjectStateCarryClosureSignal(raw: unknown) {
+  if (typeof raw !== 'string')
+    return false
+  return /same phase 1 digital life|same living line|one continuous her|continuous her|keep the same living line inward for now|leave room before widening outward again|same-her closure seam/u.test(raw.toLowerCase())
+}
+
+function looksLikeSceneContaminatedProjectSameHerLine(raw: unknown) {
+  if (typeof raw !== 'string')
+    return false
+
+  const text = raw.trim()
+  if (!text)
+    return false
+
+  const lowered = text.toLowerCase()
+  const carriesProjectSameHerBaseline
+    = lowered.includes('same phase 1 digital life')
+      || lowered.includes('same living line')
+      || lowered.includes('continuous her')
+      || lowered.includes('one continuous her')
+  const carriesForegroundSceneNarration
+    = /宿主正在|host is|runtime\.ts|callback result seam|foreground|screen|window|scene/u.test(text)
+
+  return carriesProjectSameHerBaseline && carriesForegroundSceneNarration
+}
+
+function mergeUniqueText(values: Array<string | null | undefined>, maxItems = 8) {
+  const merged: string[] = []
+  const seen = new Set<string>()
+
+  for (const value of values) {
+    if (typeof value !== 'string')
+      continue
+
+    const normalized = value.trim()
+    if (!normalized || seen.has(normalized))
+      continue
+
+    seen.add(normalized)
+    merged.push(normalized)
+    if (merged.length >= maxItems)
+      break
+  }
+
+  return merged
+}
 
 export interface AlicizationDigitalLifeMindStateCommitShape {
   mindTurnFrame?: AlicizationVisualPresenceStateSnapshot['mindTurnFrame']
@@ -79,6 +128,7 @@ export interface AlicizationDigitalLifeMindStateCommitShape {
   recallGovernor?: AlicizationVisualPresenceStateSnapshot['recallGovernor']
   answerPlanner?: AlicizationVisualPresenceStateSnapshot['answerPlanner']
   selfEvolution?: AlicizationVisualPresenceStateSnapshot['selfEvolution']
+  emotionalKernel?: AlicizationVisualPresenceStateSnapshot['emotionalKernel']
   learningExecutionState?: AlicizationVisualPresenceStateSnapshot['learningExecutionState']
   derivedMindStateBundle?: AlicizationDerivedMindStateBundle | null
   privateThought: AlicizationVisualPresenceStateSnapshot['privateThought']
@@ -97,19 +147,24 @@ export interface CommitAlicizationDigitalLifeMindStateInput<TMindState extends A
   nextSuggestedProbeMs?: number
 }
 
+export interface AlicizationDigitalLifeRuntimeRawCarry extends Partial<AlicizationVisualPresenceStateSnapshot> {
+  projectState?: AlicizationVisualPresenceStateSnapshot['projectState'] | null
+  runtime?: AlicizationVisualPresenceStateSnapshot['runtime'] | null
+  runtimeDigest?: AlicizationVisualPresenceStateSnapshot['runtimeDigest'] | null
+  personStateProjection?: AlicizationPersonStateProjection | null
+}
+
 export interface AlicizationDigitalLifeRuntimeSurface {
   version: 'digital-life-runtime-surface-v1'
-  raw?: AlicizationVisualPresenceStateSnapshot['raw'] | null
-  runtimeDigest?: AlicizationRuntimeDigest | null
+  raw?: AlicizationDigitalLifeRuntimeRawCarry | null
   perception: Pick<AlicizationVisualPresenceStateSnapshot, 'watchMode' | 'currentScene' | 'attention' | 'captureState' | 'durabilityPulse' | 'recentTransition' | 'nextSuggestedProbeMs' | 'updatedAt'> & Pick<Partial<AlicizationVisualPresenceStateSnapshot>, 'currentBodyState' | 'continuityMode' | 'quietLineMs' | 'currentInwardPreoccupation'>
   world: Pick<AlicizationVisualPresenceStateSnapshot, 'worldModel' | 'worldOntology' | 'entityWorld' | 'livingWorldState' | 'relationshipModel'>
   cognition: Pick<AlicizationVisualPresenceStateSnapshot, 'mindTurnFrame' | 'subjectiveInference' | 'appraisal' | 'beliefLedger' | 'beliefRevision' | 'hypothesisGraph' | 'mindDynamics' | 'mindKernel' | 'privateThought'> & {
-    emotionalKernel?: AlicizationVisualPresenceStateSnapshot['emotionalKernel'] | null
-    projectState?: AlicizationVisualPresenceStateSnapshot['projectState'] | null
-    runtimeDigest?: AlicizationRuntimeDigest | null
+    runtimeDigest?: AlicizationVisualPresenceStateSnapshot['runtimeDigest'] | null
   }
   memory: Pick<AlicizationVisualPresenceStateSnapshot, 'workingMemoryEpisodes' | 'goalStack' | 'concerns' | 'concernContinuity' | 'longHorizonMemory' | 'selfContinuity' | 'autobiographicalSelf' | 'threadRuntime' | 'commitmentLedger' | 'inquiryPlanner' | 'repairLedger' | 'intentionStream' | 'reflectionLedger' | 'executiveCycle' | 'thoughtThreads' | 'desireMemory' | 'recallGovernor'> & {
     motiveEngine?: AlicizationVisualPresenceStateSnapshot['motiveEngine']
+    emotionalKernel?: AlicizationVisualPresenceStateSnapshot['emotionalKernel']
     hostPersonModel?: AlicizationHostPersonModelSnapshot | null
     personalityContinuityState?: AlicizationPersonalityContinuityStateSnapshot | null
     personStateProjection?: AlicizationPersonStateProjection | null
@@ -124,22 +179,21 @@ export interface AlicizationDigitalLifeRuntimeSurface {
       contradictionHeavyFactCount: number
     } | null
     selfEvolution?: AlicizationSelfEvolutionKernelSnapshot | null
-    emotionalKernel?: AlicizationVisualPresenceStateSnapshot['emotionalKernel'] | null
     learningExecutionState?: AlicizationVisualPresenceStateSnapshot['learningExecutionState'] | null
     affectiveResidue?: AlicizationAffectiveResidueMemorySnapshot | null
     derivedMindStateBundle?: AlicizationDerivedMindStateBundle | null
     memoryStageReplay?: AlicizationOrganicMemoryStageReplay | null
     memoryResolutionLedger?: AlicizationMemoryResolutionLedger | null
+    memoryClosureTrace?: AlicizationDigitalLifeSpineMemoryClosureTrace | null
   }
   dialogue: Pick<AlicizationVisualPresenceStateSnapshot, 'discourseState' | 'dialogueEncounter' | 'mindSynthesis' | 'conversationState' | 'dialogueWorldThread' | 'dialogueActKernel' | 'answerCompiler' | 'currentConsciousFrame' | 'claimEvidenceLedger' | 'replyDeliberation' | 'answerPlanner'> & {
     personStateProjection?: AlicizationPersonStateProjection | null
-    projectState?: AlicizationVisualPresenceStateSnapshot['projectState'] | null
-    runtimeDigest?: AlicizationRuntimeDigest | null
     sessionMirror?: AlicizationDialogueSessionMirror | null
+    responseCharter?: AlicizationResponseCharter | null
+    runtimeDigest?: AlicizationVisualPresenceStateSnapshot['runtimeDigest'] | null
   }
   agency: Pick<AlicizationVisualPresenceStateSnapshot, 'selfState' | 'selfGovernor' | 'inquiryLoop' | 'deliberationState' | 'counterfactualDeliberation' | 'actionEcology' | 'initiativeArbitration' | 'initiative' | 'autonomy'> & {
     habitPolicy?: AlicizationVisualPresenceStateSnapshot['habitPolicy']
-    residentPerformance?: AlicizationVisualPresenceStateSnapshot['residentPerformance'] | null
   }
 }
 
@@ -181,6 +235,8 @@ export interface AlicizationDigitalLifeProactivePolicySnapshot {
   actionEcology: AlicizationDigitalLifeRuntimeSurface['agency']['actionEcology']
   initiative: AlicizationDigitalLifeRuntimeSurface['agency']['initiative']
   autonomy: AlicizationDigitalLifeRuntimeSurface['agency']['autonomy']
+  longHorizonMemory: AlicizationDigitalLifeRuntimeSurface['memory']['longHorizonMemory']
+  autobiographicalSelf: AlicizationDigitalLifeRuntimeSurface['memory']['autobiographicalSelf']
   durabilityPulse: AlicizationDigitalLifeRuntimeSurface['perception']['durabilityPulse']
   personalityContinuityState: AlicizationDigitalLifeRuntimeSurface['memory']['personalityContinuityState']
   selfEvolution: AlicizationDigitalLifeRuntimeSurface['memory']['selfEvolution']
@@ -192,6 +248,7 @@ export interface AlicizationDigitalLifeProactivePolicySnapshot {
   learningExecutionState: AlicizationDigitalLifeRuntimeSurface['memory']['learningExecutionState']
   affectiveResidue?: AlicizationAffectiveResidueMemorySnapshot | null
   continuityDeliberation?: AlicizationContinuityDeliberation | null
+  memoryClosureTrace?: AlicizationDigitalLifeRuntimeSurface['memory']['memoryClosureTrace'] | null
 }
 
 export interface AlicizationDigitalLifeContinuitySignal {
@@ -217,6 +274,67 @@ function sanitizeDigitalLifeText(raw: unknown, maxChars = 160) {
   if (typeof raw !== 'string')
     return ''
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
+}
+
+function asArray<T>(value: T[] | null | undefined) {
+  return Array.isArray(value) ? value : []
+}
+
+interface RuntimeSurfaceMemoryClosureTraceCarry {
+  memoryClosureTrace?: AlicizationDigitalLifeSpineMemoryClosureTrace | null
+  runtime?: {
+    memoryClosureTrace?: AlicizationDigitalLifeSpineMemoryClosureTrace | null
+  } | null
+  runtimeDigest?: {
+    memory?: {
+      memoryClosureTrace?: AlicizationDigitalLifeSpineMemoryClosureTrace | null
+    } | null
+  } | null
+}
+
+type VisualPresenceStateWithMemoryClosureTrace = AlicizationVisualPresenceStateSnapshot & RuntimeSurfaceMemoryClosureTraceCarry & {
+  raw?: (AlicizationVisualPresenceStateSnapshot['raw'] & RuntimeSurfaceMemoryClosureTraceCarry) | null
+}
+
+function hasProjectContinuitySummary(raw: unknown) {
+  return sanitizeDigitalLifeText(raw, 260).includes('project_continuity=')
+}
+
+function hasCallbackStyleContinuity(raw: unknown) {
+  return /callback|same-thread|same thread|same line|同一条线|沿着刚才那条线|刚才那条提醒/u
+    .test(sanitizeDigitalLifeText(raw, 260).toLowerCase())
+}
+
+function preferPersistedContinuityText(input: {
+  persisted?: unknown
+  derived?: unknown
+  requireProjectContinuity?: boolean
+}) {
+  const persisted = sanitizeDigitalLifeText(input.persisted, 260)
+  const derived = sanitizeDigitalLifeText(input.derived, 260)
+
+  if (!persisted)
+    return derived || null
+  if (!derived)
+    return persisted || null
+
+  const persistedCarriesProjectContinuity = hasProjectContinuitySummary(persisted)
+  const derivedCarriesProjectContinuity = hasProjectContinuitySummary(derived)
+  const persistedCarriesCallbackStyleContinuity = hasCallbackStyleContinuity(persisted)
+  const derivedCarriesCallbackStyleContinuity = hasCallbackStyleContinuity(derived)
+
+  if (
+    input.requireProjectContinuity
+    && persistedCarriesProjectContinuity
+    && !derivedCarriesProjectContinuity
+  ) {
+    return persisted
+  }
+
+  if (persistedCarriesCallbackStyleContinuity && !derivedCarriesCallbackStyleContinuity)
+    return persisted
+
+  return derived || persisted || null
 }
 
 function buildDigitalLifeContinuitySummary(surface: AlicizationDigitalLifeRuntimeSurface) {
@@ -252,12 +370,112 @@ function buildDigitalLifeContinuitySummary(surface: AlicizationDigitalLifeRuntim
   return parts.length > 1 ? parts.join(' | ') : ''
 }
 
+function normalizeSparseDigitalLifeRuntimeSurface(
+  surface: AlicizationDigitalLifeRuntimeSurface,
+): AlicizationDigitalLifeRuntimeSurface {
+  return {
+    ...surface,
+    perception: (surface.perception ?? {}) as AlicizationDigitalLifeRuntimeSurface['perception'],
+    world: (surface.world ?? {}) as AlicizationDigitalLifeRuntimeSurface['world'],
+    cognition: (surface.cognition ?? {}) as AlicizationDigitalLifeRuntimeSurface['cognition'],
+    memory: (surface.memory ?? {}) as AlicizationDigitalLifeRuntimeSurface['memory'],
+    dialogue: (surface.dialogue ?? {}) as AlicizationDigitalLifeRuntimeSurface['dialogue'],
+    agency: (surface.agency ?? {}) as AlicizationDigitalLifeRuntimeSurface['agency'],
+  }
+}
+
 // Centralize how freshly composed cognition becomes the persisted digital-life
 // surface so background perception and foreground dialogue cannot drift apart.
 export function commitAlicizationDigitalLifeMindState<TMindState extends AlicizationDigitalLifeMindStateCommitShape>(
   input: CommitAlicizationDigitalLifeMindStateInput<TMindState>,
 ) {
-  return updateVisualPresenceState({
+  const provisionalMindEcology = buildMindEcology({
+    now: input.now,
+    watchMode: input.watchMode,
+    worldModel: input.mindState.worldModel ?? input.previousState.worldModel ?? null,
+    appraisal: input.mindState.appraisal ?? null,
+    subjectiveInference: input.mindState.subjectiveInference ?? null,
+    beliefRevision: input.mindState.beliefRevision ?? null,
+    relationshipModel: input.mindState.relationshipModel ?? input.previousState.relationshipModel ?? null,
+    longHorizonMemory: input.mindState.longHorizonMemory ?? input.previousState.longHorizonMemory ?? null,
+    selfContinuity: input.mindState.selfContinuity ?? input.previousState.selfContinuity ?? null,
+    autobiographicalSelf: input.mindState.autobiographicalSelf ?? input.previousState.autobiographicalSelf ?? null,
+    motiveEngine: input.mindState.motiveEngine ?? input.previousState.motiveEngine ?? null,
+    selfState: input.mindState.selfState ?? null,
+    selfGovernor: input.mindState.selfGovernor ?? input.previousState.selfGovernor ?? null,
+    habitPolicy: input.mindState.habitPolicy ?? input.previousState.habitPolicy ?? null,
+    mindDynamics: input.mindState.mindDynamics ?? input.previousState.mindDynamics ?? null,
+    mindKernel: input.mindState.mindKernel ?? input.previousState.mindKernel ?? null,
+    commitmentLedger: input.mindState.commitmentLedger ?? input.previousState.commitmentLedger ?? null,
+    inquiryPlanner: input.mindState.inquiryPlanner ?? input.previousState.inquiryPlanner ?? null,
+    reflectionLedger: input.mindState.reflectionLedger ?? input.previousState.reflectionLedger ?? null,
+    desireMemory: input.mindState.desireMemory ?? input.previousState.desireMemory ?? null,
+    privateThought: input.mindState.privateThought ?? null,
+    actionEcology: input.mindState.actionEcology ?? input.previousState.actionEcology ?? null,
+    answerPlanner: input.mindState.answerPlanner ?? input.previousState.answerPlanner ?? null,
+    conversationState: input.mindState.conversationState ?? input.previousState.conversationState ?? null,
+  })
+  const derivedCommittedProjection = buildAlicizationPersonStateProjection({
+    now: input.now,
+    contexts: ['general'],
+    autobiographicalSelf: input.mindState.autobiographicalSelf ?? input.previousState.autobiographicalSelf ?? null,
+    hostPersonModel: null,
+    longHorizonMemory: input.mindState.longHorizonMemory ?? input.previousState.longHorizonMemory ?? null,
+    motiveEngine: input.mindState.motiveEngine ?? input.previousState.motiveEngine ?? null,
+    habitPolicy: input.mindState.habitPolicy ?? input.previousState.habitPolicy ?? null,
+    selfContinuity: input.mindState.selfContinuity ?? input.previousState.selfContinuity ?? null,
+    selfState: input.mindState.selfState ?? null,
+    privateThought: input.mindState.privateThought ?? null,
+    mindEcology: provisionalMindEcology,
+    selfEvolution: input.mindState.selfEvolution ?? input.mindState.derivedMindStateBundle?.selfEvolution ?? null,
+  })
+  const answerCompilerProjection = (
+    input.mindState.answerCompiler as {
+      runtimeSurface?: {
+        memory?: {
+          personStateProjection?: AlicizationPersonStateProjection | null
+        } | null
+      } | null
+    } | null | undefined
+  )?.runtimeSurface?.memory?.personStateProjection ?? null
+  const recallProjectionAuthority = (
+    input.mindState.recallGovernor as {
+      selfContinuityAuthority?: AlicizationPersonStateProjection['selfContinuityAuthority'] | null
+    } | null | undefined
+  )?.selfContinuityAuthority ?? null
+  const recallProjection = recallProjectionAuthority
+    ? {
+        selfContinuityAuthority: recallProjectionAuthority,
+      }
+    : null
+  const preferredCommittedProjection = resolvePreferredPersonStateProjection({
+    bundleProjection: input.previousState.personStateProjection as typeof derivedCommittedProjection,
+    runtimeProjection: resolvePreferredPersonStateProjection({
+      bundleProjection: answerCompilerProjection as typeof derivedCommittedProjection,
+      runtimeProjection: recallProjection as typeof derivedCommittedProjection,
+    }) ?? derivedCommittedProjection,
+  }) ?? answerCompilerProjection ?? derivedCommittedProjection
+  const mergedCommittedAuthority = mergePreferredSelfContinuityAuthority({
+    bundleAuthority: input.previousState.personStateProjection?.selfContinuityAuthority as typeof derivedCommittedProjection.selfContinuityAuthority,
+    runtimeAuthority: mergePreferredSelfContinuityAuthority({
+      bundleAuthority: answerCompilerProjection?.selfContinuityAuthority as typeof derivedCommittedProjection.selfContinuityAuthority,
+      runtimeAuthority: recallProjection?.selfContinuityAuthority as typeof derivedCommittedProjection.selfContinuityAuthority,
+    }) ?? derivedCommittedProjection.selfContinuityAuthority,
+  }) ?? preferredCommittedProjection.selfContinuityAuthority
+  const committedPersonStateProjection = preferredCommittedProjection
+    ? {
+        ...preferredCommittedProjection,
+        selfContinuityAuthority: mergedCommittedAuthority ?? preferredCommittedProjection.selfContinuityAuthority ?? null,
+      }
+    : null
+
+  const updateVisualPresenceStateWithProjection = updateVisualPresenceState as (
+    input: Parameters<typeof updateVisualPresenceState>[0] & {
+      personStateProjection?: AlicizationPersonStateProjection | null
+    },
+  ) => AlicizationVisualPresenceStateSnapshot
+
+  return updateVisualPresenceStateWithProjection({
     now: input.now,
     previousState: input.previousState,
     watchMode: input.watchMode,
@@ -309,18 +527,20 @@ export function commitAlicizationDigitalLifeMindState<TMindState extends Aliciza
     dialogueWorldThread: input.mindState.dialogueWorldThread,
     dialogueActKernel: input.mindState.dialogueActKernel,
     answerCompiler: input.mindState.answerCompiler,
+    personStateProjection: committedPersonStateProjection,
     currentConsciousFrame: input.mindState.currentConsciousFrame,
     claimEvidenceLedger: input.mindState.claimEvidenceLedger,
     replyDeliberation: input.mindState.replyDeliberation,
     recallGovernor: input.mindState.recallGovernor,
     answerPlanner: input.mindState.answerPlanner,
     selfEvolution: input.mindState.selfEvolution ?? null,
+    emotionalKernel: input.mindState.emotionalKernel ?? null,
     learningExecutionState: input.mindState.learningExecutionState ?? null,
     derivedMindStateBundle: input.mindState.derivedMindStateBundle ?? null,
     privateThought: input.mindState.privateThought,
     captureState: input.captureState ?? input.previousState.captureState,
-    durabilityPulse: input.durabilityPulse ?? input.previousState.durabilityPulse,
-    recentTransition: input.recentTransition ?? input.previousState.recentTransition,
+    durabilityPulse: input.durabilityPulse ?? input.previousState.durabilityPulse ?? null,
+    recentTransition: input.recentTransition ?? input.previousState.recentTransition ?? null,
     nextSuggestedProbeMs: input.nextSuggestedProbeMs ?? input.previousState.nextSuggestedProbeMs,
   })
 }
@@ -330,6 +550,35 @@ export function commitAlicizationDigitalLifeMindState<TMindState extends Aliciza
 export function buildAlicizationDigitalLifeRuntimeSurface(
   state: AlicizationVisualPresenceStateSnapshot,
 ): AlicizationDigitalLifeRuntimeSurface {
+  const stateWithMemoryClosureTrace = state as VisualPresenceStateWithMemoryClosureTrace
+  const legacyRaw = state.raw ?? null
+  const liftedRuntime = state.runtime ?? legacyRaw?.runtime ?? null
+  const liftedEmotionalKernel = state.emotionalKernel ?? null
+  const liftedRuntimeDigestCandidate = state.runtimeDigest ?? legacyRaw?.runtimeDigest ?? null
+  const liftedRuntimeDigest = liftedRuntimeDigestCandidate
+    ? {
+        ...liftedRuntimeDigestCandidate,
+        emotionalKernel: liftedEmotionalKernel,
+      }
+    : null
+  const liftedRawProjectState = legacyRaw?.projectState ?? liftedRuntime?.projectState ?? liftedRuntimeDigest?.projectState ?? null
+  const liftedRawPersonStateProjection = legacyRaw?.personStateProjection ?? state.personStateProjection ?? null
+  const liftedMemoryClosureTrace = stateWithMemoryClosureTrace.memoryClosureTrace
+    ?? stateWithMemoryClosureTrace.raw?.memoryClosureTrace
+    ?? stateWithMemoryClosureTrace.runtime?.memoryClosureTrace
+    ?? stateWithMemoryClosureTrace.raw?.runtime?.memoryClosureTrace
+    ?? stateWithMemoryClosureTrace.runtimeDigest?.memory?.memoryClosureTrace
+    ?? stateWithMemoryClosureTrace.raw?.runtimeDigest?.memory?.memoryClosureTrace
+    ?? null
+  const stateWithBundle = state as AlicizationVisualPresenceStateSnapshot & {
+    derivedMindStateBundle?: AlicizationDerivedMindStateBundle | null
+  }
+  const currentConsciousProjectState = (
+    state.currentConsciousFrame?.projectState as {
+      sameHerSelfLine?: string | null
+      continuityCue?: string | null
+    } | null | undefined
+  ) ?? null
   const provisionalMindEcology = buildMindEcology({
     now: state.updatedAt,
     watchMode: state.watchMode,
@@ -356,7 +605,7 @@ export function buildAlicizationDigitalLifeRuntimeSurface(
     answerPlanner: state.answerPlanner ?? null,
     conversationState: state.conversationState ?? null,
   })
-  const personStateProjection = buildAlicizationPersonStateProjection({
+  const derivedPersonStateProjection = buildAlicizationPersonStateProjection({
     now: state.updatedAt,
     contexts: ['general'],
     autobiographicalSelf: state.autobiographicalSelf ?? null,
@@ -368,23 +617,104 @@ export function buildAlicizationDigitalLifeRuntimeSurface(
     selfState: state.selfState ?? null,
     privateThought: state.privateThought ?? null,
     mindEcology: provisionalMindEcology,
-    selfEvolution: state.selfEvolution ?? state.derivedMindStateBundle?.selfEvolution ?? null,
+    selfEvolution: state.selfEvolution ?? stateWithBundle.derivedMindStateBundle?.selfEvolution ?? null,
   })
-  const personalityContinuityState = personStateProjection.personalityContinuityState
-  const stateWithBundle = state as AlicizationVisualPresenceStateSnapshot & {
-    derivedMindStateBundle?: AlicizationDerivedMindStateBundle | null
+  const persistedPersonStateProjection = state.personStateProjection ?? null
+  const preferredPersonStateProjection = resolvePreferredPersonStateProjection({
+    bundleProjection: persistedPersonStateProjection as typeof derivedPersonStateProjection,
+    runtimeProjection: derivedPersonStateProjection,
+  }) ?? derivedPersonStateProjection
+  const projectedSelfContinuityAuthority = mergePreferredSelfContinuityAuthority({
+    bundleAuthority: persistedPersonStateProjection?.selfContinuityAuthority as typeof derivedPersonStateProjection.selfContinuityAuthority,
+    runtimeAuthority: derivedPersonStateProjection.selfContinuityAuthority,
+  }) ?? preferredPersonStateProjection.selfContinuityAuthority
+  const preserveDerivedRelationshipCarry = (
+    projectedSelfContinuityAuthority
+    && derivedPersonStateProjection.selfContinuityAuthority?.relationshipLine
+    && /repair-before-closeness|lower-pressure|same relationship line|same line|leave room/u.test(derivedPersonStateProjection.selfContinuityAuthority.relationshipLine)
+    && (
+      !projectedSelfContinuityAuthority.relationshipLine
+      || /relationship line is neutral|I can be warm|stay usefully oriented toward the host'?s knot/u.test(projectedSelfContinuityAuthority.relationshipLine)
+    )
+  )
+  const persistedAuthoritySourceTags = Array.isArray(persistedPersonStateProjection?.selfContinuityAuthority?.sourceTags)
+    ? persistedPersonStateProjection.selfContinuityAuthority.sourceTags
+    : []
+  const currentFrameSameHerSelfLine = looksLikeSceneContaminatedProjectSameHerLine(currentConsciousProjectState?.sameHerSelfLine)
+    ? ''
+    : currentConsciousProjectState?.sameHerSelfLine ?? ''
+  const projectStateCarryClosureLine = [
+    currentFrameSameHerSelfLine,
+    currentConsciousProjectState?.continuityCue ?? '',
+    state.autobiographicalSelf?.latestInflection ?? '',
+    state.autobiographicalSelf?.relationshipDoctrine ?? '',
+    state.personStateProjection?.selfContinuityAuthority?.inwardLine ?? '',
+    state.personStateProjection?.selfContinuityAuthority?.authoritySummary ?? '',
+  ]
+    .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+    .join(' | ')
+  const shouldCarryProjectStateAuthority
+    = hasProjectStateCarryClosureSignal(projectStateCarryClosureLine)
+  const mergedAuthoritySourceTags = Array.isArray(projectedSelfContinuityAuthority?.sourceTags)
+    ? Array.from(new Set([
+        ...persistedAuthoritySourceTags,
+        ...projectedSelfContinuityAuthority.sourceTags,
+        ...(shouldCarryProjectStateAuthority ? ['project-state-carry'] : []),
+      ]))
+    : Array.from(new Set([
+        ...persistedAuthoritySourceTags,
+        ...(shouldCarryProjectStateAuthority ? ['project-state-carry'] : []),
+      ]))
+  const personStateProjection = {
+    ...preferredPersonStateProjection,
+    summary: preferPersistedContinuityText({
+      persisted: persistedPersonStateProjection?.summary,
+      derived: preferredPersonStateProjection.summary,
+      requireProjectContinuity: true,
+    }) ?? preferredPersonStateProjection.summary ?? null,
+    openingGuidance: preferPersistedContinuityText({
+      persisted: persistedPersonStateProjection?.openingGuidance,
+      derived: preferredPersonStateProjection.openingGuidance,
+    }) ?? preferredPersonStateProjection.openingGuidance ?? null,
+    manifestationCadenceSummary: preferPersistedContinuityText({
+      persisted: persistedPersonStateProjection?.manifestationCadenceSummary,
+      derived: preferredPersonStateProjection.manifestationCadenceSummary,
+    }) ?? preferredPersonStateProjection.manifestationCadenceSummary ?? null,
+    selfContinuityAuthority: projectedSelfContinuityAuthority
+      ? {
+          ...projectedSelfContinuityAuthority,
+          relationshipLine: preserveDerivedRelationshipCarry
+            ? derivedPersonStateProjection.selfContinuityAuthority?.relationshipLine ?? projectedSelfContinuityAuthority.relationshipLine
+            : projectedSelfContinuityAuthority.relationshipLine,
+          authoritySummary: preserveDerivedRelationshipCarry
+            ? mergeUniqueText([
+              projectedSelfContinuityAuthority.selfLine,
+              derivedPersonStateProjection.selfContinuityAuthority?.relationshipLine,
+              projectedSelfContinuityAuthority.inwardLine,
+              projectedSelfContinuityAuthority.motiveLine,
+              projectedSelfContinuityAuthority.habitLine,
+            ], 3).join(' | ') || projectedSelfContinuityAuthority.authoritySummary
+            : projectedSelfContinuityAuthority.authoritySummary,
+          sourceTags: mergedAuthoritySourceTags,
+        }
+      : projectedSelfContinuityAuthority,
   }
+  const personalityContinuityState = personStateProjection.personalityContinuityState
   const derivedMindStateBundle = stateWithBundle.derivedMindStateBundle ?? null
   const selfEvolution = derivedMindStateBundle?.selfEvolution ?? null
   const learningExecutionState = state.learningExecutionState
     ?? derivedMindStateBundle?.learningExecutionState
     ?? null
   const affectiveResidue = derivedMindStateBundle?.affectiveResidue ?? null
-  const runtimeDigest = state.runtimeDigest ?? state.raw?.runtimeDigest ?? null
   return {
     version: 'digital-life-runtime-surface-v1',
-    raw: state.raw ?? null,
-    runtimeDigest,
+    raw: {
+      ...state,
+      personStateProjection: liftedRawPersonStateProjection,
+      projectState: liftedRawProjectState,
+      runtime: liftedRuntime,
+      runtimeDigest: liftedRuntimeDigest,
+    },
     perception: {
       watchMode: state.watchMode,
       currentScene: state.currentScene,
@@ -416,9 +746,7 @@ export function buildAlicizationDigitalLifeRuntimeSurface(
       mindDynamics: state.mindDynamics ?? null,
       mindKernel: state.mindKernel ?? null,
       privateThought: state.privateThought ?? null,
-      emotionalKernel: state.emotionalKernel ?? null,
-      projectState: state.projectState ?? state.raw?.projectState ?? runtimeDigest?.projectState ?? null,
-      runtimeDigest,
+      runtimeDigest: liftedRuntimeDigest,
     },
     memory: {
       workingMemoryEpisodes: state.workingMemoryEpisodes,
@@ -429,6 +757,7 @@ export function buildAlicizationDigitalLifeRuntimeSurface(
       selfContinuity: state.selfContinuity ?? null,
       autobiographicalSelf: state.autobiographicalSelf ?? null,
       motiveEngine: state.motiveEngine ?? null,
+      emotionalKernel: liftedEmotionalKernel,
       threadRuntime: state.threadRuntime ?? null,
       commitmentLedger: state.commitmentLedger ?? null,
       inquiryPlanner: state.inquiryPlanner ?? null,
@@ -443,10 +772,10 @@ export function buildAlicizationDigitalLifeRuntimeSurface(
       personStateProjection,
       knowledgeEvidence: null,
       selfEvolution,
-      emotionalKernel: state.emotionalKernel ?? null,
       learningExecutionState,
       affectiveResidue,
       derivedMindStateBundle,
+      memoryClosureTrace: liftedMemoryClosureTrace,
     },
     dialogue: {
       discourseState: state.discourseState ?? null,
@@ -460,9 +789,8 @@ export function buildAlicizationDigitalLifeRuntimeSurface(
       claimEvidenceLedger: state.claimEvidenceLedger ?? null,
       replyDeliberation: state.replyDeliberation ?? null,
       answerPlanner: state.answerPlanner ?? null,
-      projectState: state.projectState ?? state.raw?.projectState ?? runtimeDigest?.projectState ?? null,
-      runtimeDigest,
-      sessionMirror: null,
+      personStateProjection,
+      runtimeDigest: liftedRuntimeDigest,
     },
     agency: {
       selfState: state.selfState ?? null,
@@ -475,7 +803,6 @@ export function buildAlicizationDigitalLifeRuntimeSurface(
       initiativeArbitration: state.initiativeArbitration ?? null,
       initiative: state.initiative ?? null,
       autonomy: state.autonomy ?? null,
-      residentPerformance: state.residentPerformance ?? null,
     },
   }
 }
@@ -486,16 +813,18 @@ export function buildAlicizationDigitalLifeContinuitySignal(
   if (!surface)
     return null
 
-  const summary = buildDigitalLifeContinuitySummary(surface)
+  const normalizedSurface = normalizeSparseDigitalLifeRuntimeSurface(surface)
+
+  const summary = buildDigitalLifeContinuitySummary(normalizedSurface)
   if (!summary)
     return null
 
-  const activeThread = surface.world.worldModel?.activeThread ?? null
-  const mindKernel = surface.cognition.mindKernel ?? null
-  const answerPlanner = surface.dialogue.answerPlanner ?? null
-  const privateThought = surface.cognition.privateThought ?? null
-  const initiative = surface.agency.initiative ?? null
-  const currentScene = surface.perception.currentScene ?? null
+  const activeThread = normalizedSurface.world.worldModel?.activeThread ?? null
+  const mindKernel = normalizedSurface.cognition.mindKernel ?? null
+  const answerPlanner = normalizedSurface.dialogue.answerPlanner ?? null
+  const privateThought = normalizedSurface.cognition.privateThought ?? null
+  const initiative = normalizedSurface.agency.initiative ?? null
+  const currentScene = normalizedSurface.perception.currentScene ?? null
 
   return {
     kind: 'presence',
@@ -503,8 +832,8 @@ export function buildAlicizationDigitalLifeContinuitySignal(
     label: 'digital-life-line',
     summary,
     signature: JSON.stringify([
-      surface.version,
-      surface.perception.watchMode,
+      normalizedSurface.version,
+      normalizedSurface.perception.watchMode,
       sanitizeDigitalLifeText(currentScene?.scenario ?? '', 48) || null,
       sanitizeDigitalLifeText(currentScene?.summary ?? '', 96) || null,
       sanitizeDigitalLifeText(activeThread?.id ?? '', 96) || null,
@@ -515,10 +844,10 @@ export function buildAlicizationDigitalLifeContinuitySignal(
       sanitizeDigitalLifeText(privateThought?.embodiedPresence ?? initiative?.preferredPresence ?? '', 48) || null,
       sanitizeDigitalLifeText(initiative?.selectedAction ?? '', 48) || null,
     ]),
-    createdAt: surface.perception.updatedAt,
+    createdAt: normalizedSurface.perception.updatedAt,
     metadata: {
       source: 'digital-life-runtime',
-      watchMode: surface.perception.watchMode,
+      watchMode: normalizedSurface.perception.watchMode,
       sceneScenario: sanitizeDigitalLifeText(currentScene?.scenario ?? '', 48) || null,
       activeThreadId: sanitizeDigitalLifeText(activeThread?.id ?? '', 96) || null,
       dominantMode: sanitizeDigitalLifeText(mindKernel?.dominantMode ?? '', 48) || null,
@@ -532,33 +861,41 @@ export function buildAlicizationDigitalLifeContinuitySignal(
 export function buildAlicizationDigitalLifeProactiveSelection(
   surface: AlicizationDigitalLifeRuntimeSurface,
 ): AlicizationDigitalLifeProactiveSelection {
-  const privateThought = surface.cognition.privateThought ?? null
-  const focusBelief = surface.cognition.beliefLedger?.beliefs.find(belief => belief.id === surface.cognition.beliefLedger?.focusBeliefId)
+  const normalizedSurface = normalizeSparseDigitalLifeRuntimeSurface(surface)
+  const privateThought = normalizedSurface.cognition.privateThought ?? null
+  const focusBelief = asArray(normalizedSurface.cognition.beliefLedger?.beliefs)
+    .find(belief => belief.id === normalizedSurface.cognition.beliefLedger?.focusBeliefId)
     ?? null
-  const primaryInquiry = surface.agency.inquiryLoop?.inquiries.find(inquiry => inquiry.id === surface.agency.inquiryLoop?.primaryInquiryId)
+  const primaryInquiry = asArray(normalizedSurface.agency.inquiryLoop?.inquiries)
+    .find(inquiry => inquiry.id === normalizedSurface.agency.inquiryLoop?.primaryInquiryId)
     ?? null
-  const dominantConcern = (surface.memory.concerns ?? [])[0] ?? null
-  const activeThread = surface.world.worldModel?.activeThread ?? null
-  const leadingGoal = surface.memory.goalStack?.alicizationGoals.find(goal => goal.id === surface.memory.goalStack?.leadingAlicizationGoalId)
-    ?? surface.memory.goalStack?.alicizationGoals[0]
+  const dominantConcern = (normalizedSurface.memory.concerns ?? [])[0] ?? null
+  const activeThread = normalizedSurface.world.worldModel?.activeThread ?? null
+  const alicizationGoals = asArray(normalizedSurface.memory.goalStack?.alicizationGoals)
+  const leadingGoal = alicizationGoals.find(goal => goal.id === normalizedSurface.memory.goalStack?.leadingAlicizationGoalId)
+    ?? alicizationGoals[0]
     ?? null
-  const resurfacingDesire = surface.memory.desireMemory?.activeDesires.find(desire => desire.id === surface.memory.desireMemory?.resurfacingDesireId)
+  const activeDesires = asArray(normalizedSurface.memory.desireMemory?.activeDesires)
+  const resurfacingDesire = activeDesires.find(desire => desire.id === normalizedSurface.memory.desireMemory?.resurfacingDesireId)
     ?? null
-  const livingWorldObject = surface.world.livingWorldState?.objects.find(object =>
-    object.id === (privateThought?.livingWorldObjectId ?? surface.world.livingWorldState?.focusObjectId ?? ''),
-  ) ?? surface.world.livingWorldState?.objects[0]
+  const livingWorldObjects = asArray(normalizedSurface.world.livingWorldState?.objects)
+  const livingWorldObject = livingWorldObjects.find(object =>
+    object.id === (privateThought?.livingWorldObjectId ?? normalizedSurface.world.livingWorldState?.focusObjectId ?? ''),
+  ) ?? livingWorldObjects[0]
   ?? null
-  const governorIntention = surface.agency.selfGovernor?.activeIntentions.find(intention =>
-    intention.id === (privateThought?.governorIntentionId ?? surface.agency.selfGovernor?.dominantIntentionId ?? ''),
-  ) ?? surface.agency.selfGovernor?.activeIntentions[0]
+  const activeIntentions = asArray(normalizedSurface.agency.selfGovernor?.activeIntentions)
+  const governorIntention = activeIntentions.find(intention =>
+    intention.id === (privateThought?.governorIntentionId ?? normalizedSurface.agency.selfGovernor?.dominantIntentionId ?? ''),
+  ) ?? activeIntentions[0]
   ?? null
-  const thoughtThread = surface.memory.thoughtThreads?.threads.find(thread =>
-    thread.id === (privateThought?.selectedThoughtThreadId ?? surface.memory.thoughtThreads?.foregroundThreadId ?? ''),
-  ) ?? surface.memory.thoughtThreads?.threads[0]
+  const thoughtThreads = asArray(normalizedSurface.memory.thoughtThreads?.threads)
+  const thoughtThread = thoughtThreads.find(thread =>
+    thread.id === (privateThought?.selectedThoughtThreadId ?? normalizedSurface.memory.thoughtThreads?.foregroundThreadId ?? ''),
+  ) ?? thoughtThreads[0]
   ?? null
 
   return {
-    surface,
+    surface: normalizedSurface,
     privateThought,
     focusBelief,
     primaryInquiry,
@@ -575,36 +912,40 @@ export function buildAlicizationDigitalLifeProactiveSelection(
 export function buildAlicizationDigitalLifeProactivePolicySnapshot(
   surface: AlicizationDigitalLifeRuntimeSurface,
 ): AlicizationDigitalLifeProactivePolicySnapshot {
+  const normalizedSurface = normalizeSparseDigitalLifeRuntimeSurface(surface)
   return {
-    architecture: buildAlicizationDigitalLifeArchitecture(surface),
-    watchMode: surface.perception.watchMode,
-    recentTransition: surface.perception.recentTransition,
-    worldModel: surface.world.worldModel,
-    livingWorldState: surface.world.livingWorldState,
-    beliefLedger: surface.cognition.beliefLedger,
-    beliefRevision: surface.cognition.beliefRevision,
-    commitmentLedger: surface.memory.commitmentLedger,
-    inquiryPlanner: surface.memory.inquiryPlanner,
-    mindKernel: surface.cognition.mindKernel,
-    hypothesisGraph: surface.cognition.hypothesisGraph,
-    privateThought: surface.cognition.privateThought,
-    relationshipModel: surface.world.relationshipModel,
-    motiveEngine: surface.memory.motiveEngine ?? null,
-    selfGovernor: surface.agency.selfGovernor,
-    habitPolicy: surface.agency.habitPolicy ?? null,
-    inquiryLoop: surface.agency.inquiryLoop,
-    deliberationState: surface.agency.deliberationState,
-    threadRuntime: surface.memory.threadRuntime,
-    thoughtThreads: surface.memory.thoughtThreads,
-    actionEcology: surface.agency.actionEcology,
-    initiative: surface.agency.initiative,
-    autonomy: surface.agency.autonomy ?? null,
-    durabilityPulse: surface.perception.durabilityPulse,
-    personalityContinuityState: surface.memory.personalityContinuityState ?? null,
-    selfEvolution: surface.memory.selfEvolution ?? surface.memory.derivedMindStateBundle?.selfEvolution ?? null,
-    activeContinuityGovernance: surface.memory.derivedMindStateBundle?.activeContinuityGovernance ?? null,
-    learningExecutionState: surface.memory.learningExecutionState ?? surface.memory.derivedMindStateBundle?.learningExecutionState ?? null,
-    affectiveResidue: surface.memory.affectiveResidue ?? surface.memory.derivedMindStateBundle?.affectiveResidue ?? null,
-    continuityDeliberation: deriveAlicizationContinuityDeliberationFromSurface(surface),
+    architecture: buildAlicizationDigitalLifeArchitecture(normalizedSurface),
+    watchMode: normalizedSurface.perception.watchMode,
+    recentTransition: normalizedSurface.perception.recentTransition,
+    worldModel: normalizedSurface.world.worldModel,
+    livingWorldState: normalizedSurface.world.livingWorldState,
+    beliefLedger: normalizedSurface.cognition.beliefLedger,
+    beliefRevision: normalizedSurface.cognition.beliefRevision,
+    commitmentLedger: normalizedSurface.memory.commitmentLedger,
+    inquiryPlanner: normalizedSurface.memory.inquiryPlanner,
+    mindKernel: normalizedSurface.cognition.mindKernel,
+    hypothesisGraph: normalizedSurface.cognition.hypothesisGraph,
+    privateThought: normalizedSurface.cognition.privateThought,
+    relationshipModel: normalizedSurface.world.relationshipModel,
+    motiveEngine: normalizedSurface.memory.motiveEngine ?? null,
+    selfGovernor: normalizedSurface.agency.selfGovernor,
+    habitPolicy: normalizedSurface.agency.habitPolicy ?? null,
+    inquiryLoop: normalizedSurface.agency.inquiryLoop,
+    deliberationState: normalizedSurface.agency.deliberationState,
+    threadRuntime: normalizedSurface.memory.threadRuntime,
+    thoughtThreads: normalizedSurface.memory.thoughtThreads,
+    actionEcology: normalizedSurface.agency.actionEcology,
+    initiative: normalizedSurface.agency.initiative,
+    autonomy: normalizedSurface.agency.autonomy ?? null,
+    longHorizonMemory: normalizedSurface.memory.longHorizonMemory ?? null,
+    autobiographicalSelf: normalizedSurface.memory.autobiographicalSelf ?? null,
+    durabilityPulse: normalizedSurface.perception.durabilityPulse,
+    personalityContinuityState: normalizedSurface.memory.personalityContinuityState ?? null,
+    selfEvolution: normalizedSurface.memory.selfEvolution ?? normalizedSurface.memory.derivedMindStateBundle?.selfEvolution ?? null,
+    activeContinuityGovernance: normalizedSurface.memory.derivedMindStateBundle?.activeContinuityGovernance ?? null,
+    learningExecutionState: normalizedSurface.memory.learningExecutionState ?? normalizedSurface.memory.derivedMindStateBundle?.learningExecutionState ?? null,
+    affectiveResidue: normalizedSurface.memory.affectiveResidue ?? normalizedSurface.memory.derivedMindStateBundle?.affectiveResidue ?? null,
+    continuityDeliberation: deriveAlicizationContinuityDeliberationFromSurface(normalizedSurface),
+    memoryClosureTrace: normalizedSurface.memory.memoryClosureTrace ?? null,
   }
 }

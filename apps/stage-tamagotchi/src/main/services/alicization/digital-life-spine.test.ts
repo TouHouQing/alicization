@@ -1338,6 +1338,45 @@ describe('digital life spine', () => {
     expect(digest?.proactive?.personaBias?.whySummary).toContain('next=Keep the same-her closure explicit through initiative and embodiment before the turn widens outward')
   })
 
+  it('keeps Phase 1 landed open and next closure carry inside persona bias summaries when current-conscious project state only survives through alias-only summaries', () => {
+    const digest = projectAlicizationDigitalLifeSpineDigest({
+      version: 'digital-life-spine-v1',
+      runtimeSurface: {
+        memory: {
+          personStateProjection: {
+            openingGuidance: 'Keep the callback lower-pressure on the same living line before widening outward.',
+          },
+        },
+        agency: {
+          initiative: {
+            why: 'Memory, initiative, and embodiment still need to close as one same-her line.',
+          },
+        },
+        dialogue: {
+          currentConsciousFrame: {
+            projectState: {
+              currentPhase: 'Phase 1: Local Digital Life',
+              landedProgressSummary: 'Project-state continuity already survives into runtime preparation even when the canonical landed slot goes blank.',
+              openClosureSummary: 'Memory, initiative, and embodiment still need stronger end-to-end closure across one same living line.',
+              nextClosureTargetSummary: 'Keep the same-her closure explicit through initiative and embodiment before the turn widens outward.',
+              sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+            },
+          },
+        },
+      } as any,
+      architecture: null,
+      continuitySignal: null,
+      proactiveSelection: undefined,
+      proactivePolicy: undefined,
+    } as any)
+
+    expect(digest?.proactive?.personaBias?.openingGuidance).toContain('Keep project identity, current Phase 1 progress, and the still-open same-her life-loop closure explicit while this turn forms')
+    expect(digest?.proactive?.personaBias?.whySummary).toContain('phase=Phase 1: Local Digital Life')
+    expect(digest?.proactive?.personaBias?.whySummary).toContain('landed=Project-state continuity already survives into runtime preparation even when the canonical landed slot goes blank')
+    expect(digest?.proactive?.personaBias?.whySummary).toContain('open=Memory, initiative, and embodiment still need stronger end-to-end closure across one same living line')
+    expect(digest?.proactive?.personaBias?.whySummary).toContain('next=Keep the same-her closure explicit through initiative and embodiment before the turn widens outward')
+  })
+
   it('keeps same-her spine digest usable when reflection and motive carries lose array scaffolding', () => {
     const digest = projectAlicizationDigitalLifeSpineDigest({
       version: 'digital-life-spine-v1',
@@ -1623,6 +1662,86 @@ describe('digital life spine', () => {
       latestInflection: expect.stringContaining('same living line audible'),
       trustMeaning: expect.stringContaining('same her without rebuilding'),
       summary: expect.stringContaining('Durable same-her cadence'),
+    }))
+  })
+
+  it('projects Memory OS closure trace into the spine memory digest so embodiment can consume the same memory authority', () => {
+    const digest = projectAlicizationDigitalLifeSpineDigest({
+      version: 'digital-life-spine-v1',
+      runtimeSurface: {
+        memory: {
+          memoryClosureTrace: {
+            authority: 'memory-os',
+            surfacePolicy: {
+              gateStatus: 'gist-only',
+              mode: 'gist-only',
+              timing: 'after-payoff',
+              reasons: ['brief-gist-only'],
+            },
+            nextInfluence: {
+              initiative: {
+                restraint: 'measured-return',
+                preferredTiming: 'after-payoff',
+                pressure: 'lower-pressure',
+                reason: 'Return once after the current payoff.',
+              },
+              execution: {
+                carry: 'Carry the callback result into the next same-person reply.',
+                nextLearningAction: 'verify',
+                shouldVerify: true,
+                shouldReflect: true,
+                activeLearningFocuses: ['memory closure authority'],
+              },
+              embodiment: {
+                cadence: 'Keep voice, gaze, motion, and lipsync on one lower-pressure measured-return line.',
+                preferredVoiceMode: 'lower-pressure',
+                preferredLipsyncMode: 'restrained',
+                preferredGazeMode: 'soften',
+                reason: 'Do not let the remembered seam become a generic tool shell.',
+              },
+            },
+            closureState: {
+              state: 'approximate-recall',
+              open: true,
+              revisionRequired: true,
+              shouldLabelUncertainty: true,
+              visibleCarryMode: 'gist-only',
+              retrievalQuality: 'medium',
+              conflictPressure: 'low',
+            },
+            selectedCandidateIds: ['memory-situation:closure-authority'],
+            reasonTags: ['phase-1', 'same-her', 'memory-initiative-embodiment'],
+          },
+        },
+      } as any,
+      architecture: null,
+      continuitySignal: null,
+      proactiveSelection: undefined,
+      proactivePolicy: undefined,
+    } as any)
+
+    expect((digest?.memory as any)?.memoryClosureTrace).toEqual(expect.objectContaining({
+      authority: 'memory-os',
+      surfacePolicy: expect.objectContaining({
+        mode: 'gist-only',
+        timing: 'after-payoff',
+      }),
+      nextInfluence: expect.objectContaining({
+        initiative: expect.objectContaining({
+          restraint: 'measured-return',
+        }),
+        embodiment: expect.objectContaining({
+          cadence: expect.stringContaining('voice, gaze, motion, and lipsync'),
+          preferredVoiceMode: 'lower-pressure',
+          preferredLipsyncMode: 'restrained',
+          preferredGazeMode: 'soften',
+        }),
+      }),
+      closureState: expect.objectContaining({
+        open: true,
+        revisionRequired: true,
+      }),
+      reasonTags: expect.arrayContaining(['memory-initiative-embodiment']),
     }))
   })
 
