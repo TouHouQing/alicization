@@ -1,5 +1,4 @@
-import type { AlicizationEmbodimentScriptV1 } from '@proj-alicization/stage-shared'
-import type { AlicizationDialogueSpeechTimelineSegment } from '@proj-alicization/stage-shared'
+import type { AlicizationDialogueSpeechTimelineSegment, AlicizationEmbodimentScriptV1 } from '@proj-alicization/stage-shared'
 
 export interface EmbodimentPlaybackFaceDriverTelemetry {
   emotion: AlicizationEmbodimentScriptV1['state']['baseEmotion']
@@ -41,11 +40,25 @@ export interface EmbodimentPlaybackBodyDriverTelemetry {
   segmentId: string | null
 }
 
+export interface EmbodimentPlaybackVoiceDriverTelemetry {
+  playbackPhase: 'idle' | 'playing'
+  continuityHoldMs: number
+  segmentId: string | null
+  source: string | null
+  provenance: 'authority-bound' | 'fallback-derived'
+  mode: AlicizationEmbodimentScriptV1['lipsyncPlan']['mode'] | null
+  cueProsodyWeight: number | null
+  cueMouthWeight: number | null
+  cueHeadWeight: number | null
+  visemePeakWeight: number | null
+}
+
 export interface EmbodimentPlaybackDriverTelemetry {
   body: EmbodimentPlaybackBodyDriverTelemetry | null
   face: EmbodimentPlaybackFaceDriverTelemetry | null
   lipsync: EmbodimentPlaybackLipSyncDriverTelemetry | null
   motion: EmbodimentPlaybackMotionDriverTelemetry | null
+  voice?: EmbodimentPlaybackVoiceDriverTelemetry | null
 }
 
 export interface EmbodimentPlaybackDriverAuthorityTelemetry {
@@ -151,7 +164,7 @@ function hasMotionAuthoritySignal(driver: EmbodimentPlaybackDriverTelemetry['mot
     || (typeof driver.holdMs === 'number' && driver.holdMs > 0)
     || (typeof driver.confidence === 'number' && driver.confidence > 0)
     || driver.source
-    || driver.actionCue
+    || driver.actionCue,
   )
 }
 
@@ -178,6 +191,37 @@ function hasLipsyncPlaybackOrContinuityHold(driver: EmbodimentPlaybackDriverTele
     || driver.continuityHoldMs > 0
 }
 
+function hasVoiceAuthoritySignal(driver: EmbodimentPlaybackDriverTelemetry['voice']) {
+  if (!driver)
+    return false
+
+  return driver.playbackPhase === 'playing'
+    || driver.continuityHoldMs > 0
+    || driver.cueProsodyWeight != null
+    || driver.cueMouthWeight != null
+    || driver.cueHeadWeight != null
+    || driver.visemePeakWeight != null
+    || Boolean(driver.source)
+}
+
+function resolveExplicitVoiceDriverProsodyAuthority(
+  driver: EmbodimentPlaybackDriverTelemetry['voice'],
+): EmbodimentPlaybackProsodyAuthorityTelemetry | null {
+  if (!driver)
+    return null
+
+  return {
+    segmentId: normalizePlaybackDriverAuthoritySegmentId(driver.segmentId),
+    provenance: driver.provenance,
+    source: driver.source?.trim() || null,
+    mode: driver.mode ?? null,
+    cueProsodyWeight: driver.cueProsodyWeight ?? null,
+    cueMouthWeight: driver.cueMouthWeight ?? null,
+    cueHeadWeight: driver.cueHeadWeight ?? null,
+    visemePeakWeight: driver.visemePeakWeight ?? null,
+  }
+}
+
 export function resolveEmbodimentPlaybackDriverAuthority(input: {
   drivers: EmbodimentPlaybackDriverTelemetry
   rendererTarget?: AlicizationEmbodimentScriptV1['rendererTarget'] | null | undefined
@@ -185,7 +229,9 @@ export function resolveEmbodimentPlaybackDriverAuthority(input: {
   prosodyAuthority?: EmbodimentPlaybackProsodyAuthorityTelemetry | null | undefined
 }): EmbodimentPlaybackDriverAuthorityTelemetry | null {
   const explicitSegmentId = normalizePlaybackDriverAuthoritySegmentId(input.segmentId)
-  const prosodySegmentId = normalizePlaybackDriverAuthoritySegmentId(input.prosodyAuthority?.segmentId)
+  const resolvedProsodyAuthority = input.prosodyAuthority
+    ?? resolveExplicitVoiceDriverProsodyAuthority(input.drivers.voice)
+  const prosodySegmentId = normalizePlaybackDriverAuthoritySegmentId(resolvedProsodyAuthority?.segmentId)
   const lipsyncSegmentId = normalizePlaybackDriverAuthoritySegmentId(
     input.drivers.lipsync?.segmentId
     ?? resolveLipsyncHintSegmentId(input.drivers.lipsync),
@@ -199,8 +245,7 @@ export function resolveEmbodimentPlaybackDriverAuthority(input: {
     && prosodySegmentId !== explicitSegmentId
     && (
       bodySegmentId === prosodySegmentId
-      || 
-      lipsyncSegmentId === prosodySegmentId
+      || lipsyncSegmentId === prosodySegmentId
       || faceSegmentId === prosodySegmentId
       || motionSegmentId === prosodySegmentId
     ),
@@ -300,9 +345,13 @@ export function resolveEmbodimentPlaybackDriverAuthority(input: {
 
   const prosodySegmentMatched = Boolean(prosodySegmentId)
     && matchesPlaybackDriverAuthoritySegment(prosodySegmentId, segmentId)
+    && (
+      hasVoiceAuthoritySignal(input.drivers.voice)
+      || Boolean(resolvedProsodyAuthority)
+    )
   if (prosodySegmentMatched) {
     matchedDrivers.push('voice')
-    pushSource(input.prosodyAuthority?.source)
+    pushSource(resolvedProsodyAuthority?.source)
   }
 
   if (!segmentId && matchedDrivers.length === 0 && !input.rendererTarget)
@@ -318,7 +367,7 @@ export function resolveEmbodimentPlaybackDriverAuthority(input: {
     motionSegmentMatched,
     lipsyncSegmentMatched,
     voiceSegmentMatched: prosodySegmentMatched,
-    prosodyAuthority: input.prosodyAuthority ?? null,
+    prosodyAuthority: resolvedProsodyAuthority ?? null,
   }
 }
 
@@ -345,7 +394,9 @@ export function cloneEmbodimentPlaybackTelemetry(
           faceSegmentMatched: metadata.driverAuthority.faceSegmentMatched,
           motionSegmentMatched: metadata.driverAuthority.motionSegmentMatched,
           lipsyncSegmentMatched: metadata.driverAuthority.lipsyncSegmentMatched,
-          voiceSegmentMatched: metadata.driverAuthority.voiceSegmentMatched,
+          ...(metadata.driverAuthority.voiceSegmentMatched != null
+            ? { voiceSegmentMatched: metadata.driverAuthority.voiceSegmentMatched }
+            : {}),
           prosodyAuthority: metadata.driverAuthority.prosodyAuthority
             ? {
                 segmentId: metadata.driverAuthority.prosodyAuthority.segmentId ?? null,
@@ -389,6 +440,10 @@ export function cloneEmbodimentPlaybackTelemetry(
                   : undefined,
                 preferredBlinkCadence: metadata.cue.rendererHints.preferredBlinkCadence ?? undefined,
                 preferredGazeMode: metadata.cue.rendererHints.preferredGazeMode ?? undefined,
+                preferredPauseMode: metadata.cue.rendererHints.preferredPauseMode ?? undefined,
+                preferredLipsyncMode: metadata.cue.rendererHints.preferredLipsyncMode ?? undefined,
+                preferredVoiceMode: metadata.cue.rendererHints.preferredVoiceMode ?? undefined,
+                preferredPacingMode: metadata.cue.rendererHints.preferredPacingMode ?? undefined,
                 reasonTags: metadata.cue.rendererHints.reasonTags
                   ? [...metadata.cue.rendererHints.reasonTags]
                   : undefined,
@@ -404,10 +459,15 @@ export function cloneEmbodimentPlaybackTelemetry(
         ? {
             ...metadata.drivers.lipsync,
             continuityHoldMs: metadata.drivers.lipsync.continuityHoldMs,
-            visemeHints: [...metadata.drivers.lipsync.visemeHints],
+            visemeHints: metadata.drivers.lipsync.visemeHints.map(hint => ({ ...hint })),
           }
         : null,
       motion: metadata.drivers.motion ? { ...metadata.drivers.motion } : null,
+      ...(Object.prototype.hasOwnProperty.call(metadata.drivers, 'voice')
+        ? {
+            voice: metadata.drivers.voice ? { ...metadata.drivers.voice } : null,
+          }
+        : {}),
     },
   }
 }
@@ -430,6 +490,7 @@ function resolvePlaybackProsodyAuthoritySegmentId(input: {
     input.drivers.lipsync?.segmentId
     ?? resolveLipsyncHintSegmentId(input.drivers.lipsync),
   )
+  const voiceSegmentId = normalizePlaybackDriverAuthoritySegmentId(input.drivers.voice?.segmentId)
   const faceSegmentId = normalizePlaybackDriverAuthoritySegmentId(input.drivers.face?.segmentId)
   const motionSegmentId = normalizePlaybackDriverAuthoritySegmentId(input.drivers.motion?.segmentId)
 
@@ -437,6 +498,7 @@ function resolvePlaybackProsodyAuthoritySegmentId(input: {
     cueSegmentId
     && (
       cueSegmentId === lipsyncSegmentId
+      || cueSegmentId === voiceSegmentId
       || cueSegmentId === faceSegmentId
       || cueSegmentId === motionSegmentId
     )
@@ -448,6 +510,7 @@ function resolvePlaybackProsodyAuthoritySegmentId(input: {
   return normalizePlaybackDriverAuthoritySegmentId(
     authoritySegmentId
     ?? cueSegmentId
+    ?? voiceSegmentId
     ?? input.drivers.lipsync?.segmentId
     ?? input.drivers.face?.segmentId
     ?? input.drivers.motion?.segmentId
@@ -460,11 +523,15 @@ export function resolveEmbodimentPlaybackProsodyAuthority(input: {
   driverAuthority?: EmbodimentPlaybackDriverAuthorityTelemetry | null | undefined
   drivers: EmbodimentPlaybackDriverTelemetry
 }): EmbodimentPlaybackProsodyAuthorityTelemetry | null {
+  const explicitVoiceProsodyAuthority = resolveExplicitVoiceDriverProsodyAuthority(input.drivers.voice)
   const segmentId = resolvePlaybackProsodyAuthoritySegmentId({
     cue: input.cue ?? null,
     authority: input.driverAuthority ?? null,
     drivers: input.drivers,
   })
+  const explicitVoiceSegmentId = normalizePlaybackDriverAuthoritySegmentId(
+    explicitVoiceProsodyAuthority?.segmentId,
+  )
   const lipsync = input.drivers.lipsync
   const relevantHints = segmentId
     ? (lipsync?.visemeHints ?? []).filter(hint => normalizePlaybackDriverAuthoritySegmentId(hint.segmentId) === segmentId)
@@ -477,6 +544,7 @@ export function resolveEmbodimentPlaybackProsodyAuthority(input: {
   }, null)
   const source = (
     relevantHints.find(hint => hint.source?.trim())?.source
+    ?? input.drivers.voice?.source
     ?? input.drivers.face?.source
     ?? input.drivers.motion?.source
   )?.trim() || null
@@ -484,19 +552,40 @@ export function resolveEmbodimentPlaybackProsodyAuthority(input: {
   const hasCueWeights = Number.isFinite(cue?.prosodyWeight)
     || Number.isFinite(cue?.mouthWeight)
     || Number.isFinite(cue?.headWeight)
-  const hasDriverSignal = Boolean(lipsync || input.drivers.face || input.drivers.motion)
+  const hasDriverSignal = Boolean(lipsync || input.drivers.face || input.drivers.motion || input.drivers.voice)
   if (!segmentId && !hasCueWeights && !hasDriverSignal)
     return null
+  // Treat explicit voice telemetry as the primary prosody lane when it is
+  // authority-bound to the same living segment that playback has already selected.
+  const shouldPreferExplicitVoiceWeights = Boolean(
+    explicitVoiceSegmentId
+    && segmentId
+    && explicitVoiceProsodyAuthority?.provenance === 'authority-bound'
+    && explicitVoiceSegmentId === segmentId,
+  )
+  const resolvedMode = shouldPreferExplicitVoiceWeights
+    ? explicitVoiceProsodyAuthority?.mode ?? lipsync?.mode ?? input.drivers.voice?.mode ?? null
+    : lipsync?.mode ?? input.drivers.voice?.mode ?? explicitVoiceProsodyAuthority?.mode ?? null
 
   return {
     segmentId,
-    provenance: input.driverAuthority ? 'authority-bound' : 'fallback-derived',
+    provenance: input.driverAuthority
+      ? 'authority-bound'
+      : explicitVoiceProsodyAuthority?.provenance ?? 'fallback-derived',
     source,
-    mode: lipsync?.mode ?? null,
-    cueProsodyWeight: roundPlaybackAuthorityWeight(cue?.prosodyWeight),
-    cueMouthWeight: roundPlaybackAuthorityWeight(cue?.mouthWeight),
-    cueHeadWeight: roundPlaybackAuthorityWeight(cue?.headWeight),
-    visemePeakWeight,
+    mode: resolvedMode,
+    cueProsodyWeight: shouldPreferExplicitVoiceWeights
+      ? explicitVoiceProsodyAuthority?.cueProsodyWeight ?? roundPlaybackAuthorityWeight(cue?.prosodyWeight) ?? null
+      : roundPlaybackAuthorityWeight(cue?.prosodyWeight) ?? explicitVoiceProsodyAuthority?.cueProsodyWeight ?? null,
+    cueMouthWeight: shouldPreferExplicitVoiceWeights
+      ? explicitVoiceProsodyAuthority?.cueMouthWeight ?? roundPlaybackAuthorityWeight(cue?.mouthWeight) ?? null
+      : roundPlaybackAuthorityWeight(cue?.mouthWeight) ?? explicitVoiceProsodyAuthority?.cueMouthWeight ?? null,
+    cueHeadWeight: shouldPreferExplicitVoiceWeights
+      ? explicitVoiceProsodyAuthority?.cueHeadWeight ?? roundPlaybackAuthorityWeight(cue?.headWeight) ?? null
+      : roundPlaybackAuthorityWeight(cue?.headWeight) ?? explicitVoiceProsodyAuthority?.cueHeadWeight ?? null,
+    visemePeakWeight: shouldPreferExplicitVoiceWeights
+      ? explicitVoiceProsodyAuthority?.visemePeakWeight ?? visemePeakWeight ?? null
+      : visemePeakWeight ?? explicitVoiceProsodyAuthority?.visemePeakWeight ?? null,
   }
 }
 

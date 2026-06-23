@@ -1,12 +1,13 @@
-import { describe, expect, it } from 'vitest'
-
 import type {
   AlicizationDialogueSpeechTimelineSegment,
 } from '@proj-alicization/stage-shared'
+
 import type {
   EmbodimentPlaybackDriverTelemetry,
   EmbodimentPlaybackTelemetry,
 } from './playback-reconciler'
+
+import { describe, expect, it } from 'vitest'
 
 import {
   cloneEmbodimentPlaybackTelemetry,
@@ -150,6 +151,7 @@ describe('playback reconciler', () => {
             { segmentId: 'segment-vrm-clone', viseme: 'I', weight: 0.35, source: 'prosody-authority', confidence: 0.94 },
           ],
         },
+        voice: null,
       },
     }
     const telemetry = cloneEmbodimentPlaybackTelemetry(source)
@@ -158,6 +160,16 @@ describe('playback reconciler', () => {
     expect(telemetry).not.toBe(source)
     expect(telemetry?.drivers).not.toBe(source.drivers)
     expect(telemetry?.drivers.lipsync).not.toBe(source.drivers.lipsync)
+    expect(telemetry?.drivers.lipsync?.visemeHints).not.toBe(source.drivers.lipsync?.visemeHints)
+    expect(telemetry?.drivers.lipsync?.visemeHints[0]).not.toBe(source.drivers.lipsync?.visemeHints[0])
+
+    if (telemetry?.drivers.lipsync?.visemeHints[0] && source.drivers.lipsync?.visemeHints[0]) {
+      telemetry.drivers.lipsync.visemeHints[0].weight = 0.82
+      telemetry.drivers.lipsync.visemeHints[0].viseme = 'A'
+
+      expect(source.drivers.lipsync.visemeHints[0].weight).toBe(0.35)
+      expect(source.drivers.lipsync.visemeHints[0].viseme).toBe('I')
+    }
   })
 
   it('preserves cue companionship renderer hints when cloning playback telemetry', () => {
@@ -187,6 +199,7 @@ describe('playback reconciler', () => {
         face: null,
         motion: null,
         lipsync: null,
+        voice: null,
       },
     }
 
@@ -222,6 +235,10 @@ describe('playback reconciler', () => {
           residentMode: 'measured-return',
           preferredBlinkCadence: 'linger',
           preferredGazeMode: 'soften',
+          preferredPauseMode: 'longer',
+          preferredLipsyncMode: 'restrained',
+          preferredVoiceMode: 'lower-pressure',
+          preferredPacingMode: 'slower',
           preferredExpressionAliases: ['RecoverSoft', 'CalmInspect'],
           preferredMotionAliases: ['StillnessGuard', 'ObserveSoft'],
         },
@@ -296,6 +313,7 @@ describe('playback reconciler', () => {
           ],
           segmentId: 'segment-same-turn-invited-measured-return',
         },
+        voice: null,
       },
     }
 
@@ -305,6 +323,10 @@ describe('playback reconciler', () => {
       residentMode: 'measured-return',
       preferredBlinkCadence: 'linger',
       preferredGazeMode: 'soften',
+      preferredPauseMode: 'longer',
+      preferredLipsyncMode: 'restrained',
+      preferredVoiceMode: 'lower-pressure',
+      preferredPacingMode: 'slower',
       preferredExpressionAliases: ['RecoverSoft', 'CalmInspect'],
       preferredMotionAliases: ['StillnessGuard', 'ObserveSoft'],
     })
@@ -410,6 +432,7 @@ describe('playback reconciler', () => {
             { segmentId: 'segment-same-living-line', viseme: 'closed', weight: 0.75, source: 'prosody-authority', confidence: 0.89 },
           ],
         },
+        voice: null,
       },
     }
 
@@ -440,6 +463,7 @@ describe('playback reconciler', () => {
             { segmentId: 'segment-viseme-authority', viseme: 'closed', weight: 0.61, source: 'prosody-authority', confidence: 0.9 },
           ],
         },
+        voice: null,
       },
     })
 
@@ -504,6 +528,7 @@ describe('playback reconciler', () => {
             { segmentId: 'segment-current-living-line', viseme: 'I', weight: 0.57, source: 'prosody-authority', confidence: 0.94 },
           ],
         },
+        voice: null,
       },
     })
 
@@ -541,6 +566,7 @@ describe('playback reconciler', () => {
         face: null,
         motion: null,
         lipsync: null,
+        voice: null,
       },
     })
 
@@ -555,6 +581,109 @@ describe('playback reconciler', () => {
       lipsyncSegmentMatched: false,
       voiceSegmentMatched: true,
       prosodyAuthority,
+    })
+  })
+
+  it('treats explicit voice driver telemetry as a first-class same-segment lane even before caller rethreads top-level prosody authority', () => {
+    const authority = resolveEmbodimentPlaybackDriverAuthority({
+      rendererTarget: 'vrm',
+      drivers: {
+        body: null,
+        face: null,
+        motion: null,
+        lipsync: null,
+        voice: {
+          playbackPhase: 'playing',
+          continuityHoldMs: 240,
+          segmentId: 'segment-explicit-voice-driver-line',
+          source: 'prosody-authority',
+          provenance: 'authority-bound',
+          mode: 'energy-phoneme-hybrid',
+          cueProsodyWeight: 0.41,
+          cueMouthWeight: 0.33,
+          cueHeadWeight: 0.26,
+          visemePeakWeight: 0.58,
+        },
+      },
+    })
+
+    expect(authority).toEqual({
+      segmentId: 'segment-explicit-voice-driver-line',
+      rendererTarget: 'vrm',
+      matchedDrivers: ['voice'],
+      sources: ['prosody-authority'],
+      bodySegmentMatched: false,
+      faceSegmentMatched: false,
+      motionSegmentMatched: false,
+      lipsyncSegmentMatched: false,
+      voiceSegmentMatched: true,
+      prosodyAuthority: {
+        segmentId: 'segment-explicit-voice-driver-line',
+        provenance: 'authority-bound',
+        source: 'prosody-authority',
+        mode: 'energy-phoneme-hybrid',
+        cueProsodyWeight: 0.41,
+        cueMouthWeight: 0.33,
+        cueHeadWeight: 0.26,
+        visemePeakWeight: 0.58,
+      },
+    })
+  })
+
+  it('prefers explicit same-segment voice telemetry over cue weights when rehydrating top-level prosody authority', () => {
+    const drivers: EmbodimentPlaybackDriverTelemetry = {
+      body: null,
+      face: null,
+      motion: null,
+      lipsync: {
+        mode: 'energy-only',
+        playbackPhase: 'playing',
+        segmentId: 'segment-explicit-voice-prosody-rehydrate',
+        continuityHoldMs: 340,
+        visemeHints: [],
+      },
+      voice: {
+        playbackPhase: 'playing',
+        continuityHoldMs: 340,
+        segmentId: 'segment-explicit-voice-prosody-rehydrate',
+        source: 'prosody-authority',
+        provenance: 'authority-bound',
+        mode: 'energy-phoneme-hybrid',
+        cueProsodyWeight: 0.22,
+        cueMouthWeight: 0.32,
+        cueHeadWeight: 0.18,
+        visemePeakWeight: 0.54,
+      },
+    }
+    const initialAuthority = resolveEmbodimentPlaybackDriverAuthority({
+      rendererTarget: 'live2d',
+      segmentId: 'segment-explicit-voice-prosody-rehydrate',
+      drivers,
+    })
+    const prosodyAuthority = resolveEmbodimentPlaybackProsodyAuthority({
+      cue: buildCue({
+        id: 'segment-explicit-voice-prosody-rehydrate',
+        prosodyWeight: 0.29,
+        mouthWeight: 0.36,
+        headWeight: 0,
+      }),
+      driverAuthority: initialAuthority,
+      drivers,
+    })
+
+    expect(initialAuthority).toEqual(expect.objectContaining({
+      matchedDrivers: expect.arrayContaining(['lipsync', 'voice']),
+      voiceSegmentMatched: true,
+    }))
+    expect(prosodyAuthority).toEqual({
+      segmentId: 'segment-explicit-voice-prosody-rehydrate',
+      provenance: 'authority-bound',
+      source: 'prosody-authority',
+      mode: 'energy-phoneme-hybrid',
+      cueProsodyWeight: 0.22,
+      cueMouthWeight: 0.32,
+      cueHeadWeight: 0.18,
+      visemePeakWeight: 0.54,
     })
   })
 
@@ -607,6 +736,7 @@ describe('playback reconciler', () => {
             { segmentId: 'segment-later-living-line', viseme: 'closed', weight: 0.71, source: 'prosody-authority', confidence: 0.89 },
           ],
         },
+        voice: null,
       },
     })
 
@@ -668,6 +798,7 @@ describe('playback reconciler', () => {
             { segmentId: 'segment-body-lipsync-living-line', viseme: 'closed', weight: 0.67, source: 'prosody-authority', confidence: 0.9 },
           ],
         },
+        voice: null,
       },
     })
 
@@ -729,6 +860,7 @@ describe('playback reconciler', () => {
             { segmentId: 'segment-quieter-body-lipsync-line', viseme: 'closed', weight: 0.63, source: 'prosody-authority', confidence: 0.87 },
           ],
         },
+        voice: null,
       },
     })
 
@@ -800,6 +932,7 @@ describe('playback reconciler', () => {
             { segmentId: 'segment-audible-body-later-line', viseme: 'I', weight: 0.44, source: 'prosody-authority', confidence: 0.94 },
           ],
         },
+        voice: null,
       },
     })
 
@@ -871,6 +1004,7 @@ describe('playback reconciler', () => {
             { segmentId: 'segment-living-line-now', viseme: 'I', weight: 0.41, source: 'prosody-authority', confidence: 0.95 },
           ],
         },
+        voice: null,
       },
     })
 
@@ -912,16 +1046,17 @@ describe('playback reconciler', () => {
         confidence: 0.88,
         segmentId: 'segment-zh-mainline',
       },
-        lipsync: {
-          mode: 'energy-phoneme-hybrid' as const,
-          playbackPhase: 'playing' as const,
-          segmentId: 'segment-zh-mainline',
-          continuityHoldMs: 220,
-          visemeHints: [
-            { segmentId: 'segment-zh-mainline', viseme: 'I', weight: 0.35, source: 'prosody-authority', confidence: 0.94 },
-            { segmentId: 'segment-zh-mainline', viseme: 'closed', weight: 0.75, source: 'prosody-authority', confidence: 0.89 },
+      lipsync: {
+        mode: 'energy-phoneme-hybrid' as const,
+        playbackPhase: 'playing' as const,
+        segmentId: 'segment-zh-mainline',
+        continuityHoldMs: 220,
+        visemeHints: [
+          { segmentId: 'segment-zh-mainline', viseme: 'I', weight: 0.35, source: 'prosody-authority', confidence: 0.94 },
+          { segmentId: 'segment-zh-mainline', viseme: 'closed', weight: 0.75, source: 'prosody-authority', confidence: 0.89 },
         ],
       },
+      voice: null,
     }
     const initialAuthority = resolveEmbodimentPlaybackDriverAuthority({
       rendererTarget: 'vrm',
