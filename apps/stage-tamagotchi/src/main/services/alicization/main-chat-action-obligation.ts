@@ -12,6 +12,8 @@ import {
   hasExplicitAlicizationExecutionDemand,
 } from '@proj-alicization/stage-shared'
 
+import { resolveAlicizationProjectStateSnapshot } from './project-state-brief'
+
 function clamp01(value: number) {
   if (!Number.isFinite(value))
     return 0
@@ -31,17 +33,28 @@ function unique<T>(values: T[]) {
 type AlicizationDispatchChannel = AlicizationExecutionRoutingIntent['requestedChannels'][number]
 type AlicizationExecutorToolName = AlicizationExecutionRoutingIntent['requiredToolNames'][number]
 
-const executionRoutingToolMap: Record<AlicizationDispatchChannel, AlicizationExecutorToolName> = {
+interface AlicizationActiveWorldThread {
+  proposedChannel?: unknown
+  selectedChannel?: unknown
+  unresolved?: boolean
+}
+
+const executionRoutingToolMap: Partial<Record<AlicizationDispatchChannel, AlicizationExecutorToolName>> = {
   'cli': 'executor_run_cli',
   'codex': 'executor_run_codex',
   'claude-code': 'executor_run_claude_code',
   'openclaw': 'executor_run_openclaw',
-  'browser': 'browser_read_page',
-  'desktop': 'desktop_inspect_scene',
+  'browser': 'executor_run_local_visual',
+  'software': 'executor_run_local_visual',
+  'desktop': 'executor_run_local_visual',
 }
 const continuationCuePattern = /继续|接着|接下来|续上|接上|沿着刚才|按刚才|照刚才|continue|keep\s+going|go\s+on|resume|carry\s+on|pick\s+up\s+where\s+we\s+left\s+off/iu
+const memoryClosureDialogueCuePattern = /纯对话|记忆闭环|闭环线|同一个她|same-her|memory\s*closure|why\s+recall\s+surfaced|recall\s+surfaced|回忆.*浮现/iu
+const memoryClosureDownstreamLaneCuePattern = /上一轮|下一轮|余波|接住|情绪|轻主动|主动性|身体|声音|表情|动作|口型|emotion|initiative|body|voice|face|motion|lipsync|lip\s*sync|embodiment/iu
 const zhExecutionAffirmationPattern = /^(?:可以(?:做吧|开始|做)?|行(?:啊|吧)?|好[的啊呀]?(?:做吧)?|嗯嗯?|那就做吧|那你做吧|做吧|去做吧|开始吧|动手吧|改吧|那就改吧|去改吧|你做吧|来吧)$/u
 const enExecutionAffirmationPattern = /^(?:ok|okay|yes|yeah|yep|sure|goahead|doit|pleasedo|startit|dothat)$/iu
+const browserVisualCuePattern = /\b(?:browser|web\s?page|page|site|tab|url)\b|浏览器|网页|页面|标签页/u
+const desktopVisualCuePattern = /\b(?:screen|scene|window|dialog|desktop|app(?:lication)?)\b|屏幕|界面|画面|窗口|桌面|软件|应用/u
 
 export type AlicizationMainChatActionObligationKind
   = | 'answer'
@@ -57,6 +70,12 @@ export interface AlicizationPendingAffirmationThreadCandidate {
   selectedChannel: AlicizationDispatchChannel | null
   summary: string
   threadId: string
+}
+
+export interface AlicizationRecentExecutionCallbackCandidate {
+  channel: string | null | undefined
+  createdAt?: number | null
+  threadId?: string | null
 }
 
 export interface AlicizationMainChatActionObligation {
@@ -106,12 +125,14 @@ function inferTaskExecutionChannels(input: {
     || input.userSemanticSignals.hasToolReference
     || (input.userSemanticSignals.hasFilesystemPathReference && input.userSemanticSignals.hasExecutionSignal)
     || /\b(?:terminal|shell|cli)\b/iu.test(combinedAnchor)
-  const visualLike = (input.userSemanticSignals.hasBrowserArtifact || input.userSemanticSignals.hasSoftwareArtifact)
-    && (
-      dialogueEncounter?.subject === 'visible-scene'
-      || dialogueEncounter?.screenReferenceMode === 'required'
-      || dialogueEncounter?.screenReferenceMode === 'helpful'
-    )
+  const visibleSceneLike = dialogueEncounter?.subject === 'visible-scene'
+    || dialogueEncounter?.screenReferenceMode === 'required'
+    || dialogueEncounter?.screenReferenceMode === 'helpful'
+  const browserVisualLike = input.userSemanticSignals.hasBrowserArtifact
+    || browserVisualCuePattern.test(combinedAnchor)
+  const desktopVisualLike = input.userSemanticSignals.hasSoftwareArtifact
+    || desktopVisualCuePattern.test(combinedAnchor)
+  const visualLike = visibleSceneLike && (browserVisualLike || desktopVisualLike)
   const codingThreadLike = activeThread?.kind === 'debugging'
     || activeThread?.kind === 'change-review'
     || activeThread?.kind === 'deep-focus'
@@ -127,8 +148,15 @@ function inferTaskExecutionChannels(input: {
     return input.userSemanticSignals.mentionedDispatchChannels
   if (input.dialogueFirst && !explicitExecutionDemand)
     return [] as AlicizationDispatchChannel[]
-  if (visualLike)
-    return ['openclaw'] as AlicizationDispatchChannel[]
+  if (visualLike && browserVisualLike && !desktopVisualLike)
+    return ['browser'] as AlicizationDispatchChannel[]
+  if (visualLike && desktopVisualLike && !browserVisualLike)
+    return ['desktop'] as AlicizationDispatchChannel[]
+  if (visualLike) {
+    return browserVisualLike
+      ? ['browser'] as AlicizationDispatchChannel[]
+      : ['desktop'] as AlicizationDispatchChannel[]
+  }
   if (terminalLike)
     return ['cli'] as AlicizationDispatchChannel[]
   if (codingThreadLike || codingIntentLike)
@@ -140,6 +168,15 @@ function hasContinuationCue(userText: string) {
   if (!userText)
     return false
   return continuationCuePattern.test(userText)
+}
+
+function isPureDialogueMemoryClosureContinuationTurn(userText: string) {
+  const normalized = sanitizeText(userText, 520)
+  if (!normalized)
+    return false
+
+  return memoryClosureDialogueCuePattern.test(normalized)
+    && memoryClosureDownstreamLaneCuePattern.test(normalized)
 }
 
 function normalizeCompactUserText(raw: string) {
@@ -155,6 +192,69 @@ function isExecutionAffirmationTurn(userText: string) {
   return zhExecutionAffirmationPattern.test(compact) || enExecutionAffirmationPattern.test(compact)
 }
 
+function looksLikeThinProjectStatusSummary(text: string) {
+  const normalized = sanitizeText(text, 220).toLowerCase()
+  if (!normalized)
+    return false
+
+  return normalized === 'give a simple project update.'
+    || normalized === 'give the project update clearly.'
+    || normalized === 'answer the project-state question directly.'
+    || /simple project update|project update clearly|project-state question/u.test(normalized)
+}
+
+function uniqueTextList(values: Array<string | null | undefined>, maxItems = 4) {
+  const result: string[] = []
+  for (const value of values) {
+    const normalized = sanitizeText(value, 220)
+    if (!normalized || result.includes(normalized))
+      continue
+    result.push(normalized)
+    if (result.length >= maxItems)
+      break
+  }
+  return result
+}
+
+function buildProjectStateContinuationSummary(projectState?: Record<string, unknown> | null) {
+  if (!projectState)
+    return ''
+
+  const snapshot = resolveAlicizationProjectStateSnapshot({
+    runtimeProjectState: projectState as {
+      identity?: unknown
+      currentPhase?: unknown
+      preflightSummary?: unknown
+      preDialogueAwarenessLine?: unknown
+      awarenessLine?: unknown
+      companionHeadlineLine?: unknown
+      companionBriefingLine?: unknown
+      preDialogueAwarenessSummary?: unknown
+      latestLandedProgress?: unknown
+      latestProgress?: unknown
+      primaryOpenLoop?: unknown
+      nextClosureTarget?: unknown
+      sameHerSelfLine?: unknown
+      sameHerDriftRisk?: unknown
+      emotionalClosureCue?: unknown
+      emotionalClosureSummary?: unknown
+      sameHerHoldDetail?: unknown
+      continuityArcStage?: unknown
+      continuityCue?: unknown
+    } | null,
+  })
+
+  return sanitizeText(
+    uniqueTextList([
+      snapshot.sameHerSelfLine,
+      snapshot.primaryOpenLoop,
+      snapshot.nextClosureTarget,
+      snapshot.latestLandedProgress ?? snapshot.latestProgress ?? null,
+    ]).join(' '),
+    180,
+  )
+}
+
 function buildPendingAffirmationRoutingIntent(thread: AlicizationPendingAffirmationThreadCandidate) {
   const channel = thread.selectedChannel ?? thread.proposedChannel
   if (!channel)
@@ -168,10 +268,112 @@ function buildPendingAffirmationRoutingIntent(thread: AlicizationPendingAffirmat
   })
 }
 
+function normalizeRecentExecutionCallbackChannel(
+  callbacks: AlicizationRecentExecutionCallbackCandidate[],
+): AlicizationDispatchChannel | null {
+  for (const callback of callbacks) {
+    const channel = sanitizeText(callback.channel, 48)
+    if (channel === 'browser' || channel === 'software' || channel === 'desktop')
+      return channel
+  }
+  return null
+}
+
+function shouldPreferRecentLocalVisualExecutor(input: {
+  activeThreadId: string
+  callbacks: AlicizationRecentExecutionCallbackCandidate[]
+  continuationRequested: boolean
+  explicitRoutingIntent: AlicizationExecutionRoutingIntent | null
+}) {
+  if (!input.continuationRequested || !input.explicitRoutingIntent)
+    return false
+
+  const explicitToolNames = new Set(input.explicitRoutingIntent.requiredToolNames)
+  const explicitGroundingOnly = explicitToolNames.size > 0
+    && [...explicitToolNames].every(name => name === 'browser_read_page' || name === 'desktop_inspect_scene')
+  if (!explicitGroundingOnly)
+    return false
+
+  return input.callbacks.some((callback) => {
+    const callbackThreadId = sanitizeText(callback.threadId, 160)
+    const callbackChannel = sanitizeText(callback.channel, 48)
+    if (!callbackThreadId || callbackThreadId !== input.activeThreadId)
+      return false
+    return callbackChannel === 'browser' || callbackChannel === 'software' || callbackChannel === 'desktop'
+  })
+}
+
+function shouldUpgradeExplicitVisualGroundingToContinuationExecutor(input: {
+  activeThread: AlicizationActiveWorldThread | null | undefined
+  continuationRequested: boolean
+  explicitRoutingIntent: AlicizationExecutionRoutingIntent | null
+}) {
+  if (!input.continuationRequested || !input.explicitRoutingIntent)
+    return false
+
+  if (input.activeThread?.unresolved !== true)
+    return false
+
+  const explicitToolNames = new Set(input.explicitRoutingIntent.requiredToolNames)
+  return explicitToolNames.size > 0
+    && [...explicitToolNames].every(name => name === 'browser_read_page' || name === 'desktop_inspect_scene')
+}
+
+function buildExplicitVisualContinuationRoutingIntent(input: {
+  activeThread: AlicizationActiveWorldThread | null | undefined
+  explicitRoutingIntent: AlicizationExecutionRoutingIntent
+}) {
+  const requestedChannels = input.explicitRoutingIntent.requestedChannels.filter((channel): channel is AlicizationDispatchChannel =>
+    channel === 'browser' || channel === 'software' || channel === 'desktop',
+  )
+  if (requestedChannels.length === 0)
+    return null
+
+  const activeThreadChannel = sanitizeText(
+    input.activeThread?.selectedChannel
+    ?? input.activeThread?.proposedChannel,
+    48,
+  )
+  const preferredChannel = requestedChannels.find(channel => channel === activeThreadChannel)
+    ?? requestedChannels[0]
+
+  return buildRoutingIntent({
+    channels: [preferredChannel],
+    reasonCodes: [
+      'continue-thread',
+      'upgrade-explicit-visual-grounding',
+      'unresolved-active-visual-thread',
+      ...(input.explicitRoutingIntent.reasonCodes ?? []),
+    ],
+  })
+}
+
+function buildRecentLocalVisualRoutingIntent(input: {
+  activeThreadId: string
+  callbacks: AlicizationRecentExecutionCallbackCandidate[]
+  explicitRoutingIntent: AlicizationExecutionRoutingIntent | null
+}) {
+  const channel = normalizeRecentExecutionCallbackChannel(input.callbacks)
+  if (!channel)
+    return null
+
+  return buildRoutingIntent({
+    channels: [channel],
+    reasonCodes: [
+      'continue-thread',
+      'recent-local-visual-callback',
+      input.explicitRoutingIntent ? 'upgrade-explicit-visual-grounding' : '',
+      input.activeThreadId ? 'matched-active-thread-callback' : '',
+      ...((input.explicitRoutingIntent?.reasonCodes ?? [])),
+    ].filter(Boolean),
+  })
+}
+
 export function deriveMainChatActionObligation(input: {
   capabilityInquiry: AlicizationExecutionCapabilityInquiry
   explicitRoutingIntent?: AlicizationExecutionRoutingIntent | null
   pendingAffirmationThread?: AlicizationPendingAffirmationThreadCandidate | null
+  recentExecutionCallbacks?: AlicizationRecentExecutionCallbackCandidate[] | null
   runtimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
   userText: string
 }): AlicizationMainChatActionObligation {
@@ -183,6 +385,7 @@ export function deriveMainChatActionObligation(input: {
   const activeThread = runtimeSurface?.world.worldModel?.activeThread ?? null
   const explicitRoutingIntent = input.explicitRoutingIntent ?? null
   const pendingAffirmationThread = input.pendingAffirmationThread ?? null
+  const recentExecutionCallbacks = input.recentExecutionCallbacks ?? []
   const userText = sanitizeText(input.userText, 320)
   const executionTurnAuthority = analyzeAlicizationExecutionTurnAuthority(userText)
   const userSemanticSignals = executionTurnAuthority.semanticSignals
@@ -190,15 +393,35 @@ export function deriveMainChatActionObligation(input: {
   const wantsTaskExecution = executionTurnAuthority.executionBound || Boolean(explicitRoutingIntent)
   const explicitExecutionDemand = executionTurnAuthority.explicitExecutionDemand
   const continuationCueActive = hasContinuationCue(userText)
+  const pureDialogueMemoryClosureContinuation = !explicitRoutingIntent
+    && !explicitExecutionDemand
+    && isPureDialogueMemoryClosureContinuationTurn(userText)
   const continuityPolicyHoldsTaskThread = Boolean(
     conversationState?.shouldHoldThread === true
     && conversationState?.continuityPolicy === 'stay-on-thread'
     && activeThread?.unresolved === true,
   )
   const continuationRequested = (
-    dialogueEncounter?.act === 'continue-thread'
-    || continuityPolicyHoldsTaskThread
+    !pureDialogueMemoryClosureContinuation
+    && (
+      dialogueEncounter?.act === 'continue-thread'
+      || continuityPolicyHoldsTaskThread
+    )
   ) && (continuationCueActive || wantsTaskExecution)
+  const currentConsciousSpeakingIntention = sanitizeText(currentConsciousFrame?.speakingIntention, 180)
+  const projectStateContinuationSummary = buildProjectStateContinuationSummary(
+    (currentConsciousFrame?.projectState as Record<string, unknown> | null) ?? null,
+  )
+  const dialogueEncounterSummary = sanitizeText(dialogueEncounter?.summary, 180)
+  const preferredAnswerSummary = (
+    currentConsciousSpeakingIntention
+    && (
+      !dialogueEncounterSummary
+      || looksLikeThinProjectStatusSummary(dialogueEncounterSummary)
+    )
+  )
+    ? currentConsciousSpeakingIntention
+    : dialogueEncounterSummary
 
   if (input.capabilityInquiry.capabilityQuestion) {
     return {
@@ -257,6 +480,82 @@ export function deriveMainChatActionObligation(input: {
         dialogueEncounter?.mustRepairFirst ? 'repair-pressure' : '',
         discourseState?.owedAction ? `owed-action:${discourseState.owedAction}` : '',
       ].filter(Boolean)),
+    }
+  }
+
+  if (
+    shouldPreferRecentLocalVisualExecutor({
+      activeThreadId: sanitizeText(activeThread?.id, 160),
+      callbacks: recentExecutionCallbacks,
+      continuationRequested,
+      explicitRoutingIntent,
+    })
+  ) {
+    const localVisualRoutingIntent = buildRecentLocalVisualRoutingIntent({
+      activeThreadId: sanitizeText(activeThread?.id, 160),
+      callbacks: recentExecutionCallbacks,
+      explicitRoutingIntent,
+    })
+    if (localVisualRoutingIntent) {
+      return {
+        kind: 'continue-task',
+        summary: sanitizeText(
+          dialogueEncounter?.summary
+          || currentConsciousFrame?.speakingIntention
+          || activeThread?.summary
+          || 'The host is continuing the current governed local visual task thread.',
+          180,
+        ) || 'The host is continuing the current governed local visual task thread.',
+        confidence: clamp01(
+          (dialogueEncounter?.confidence ?? 0.52) * 0.34
+          + (currentConsciousFrame?.confidence ?? 0.42) * 0.16
+          + (activeThread?.confidence ?? 0.38) * 0.14
+          + 0.28,
+        ),
+        routingIntent: localVisualRoutingIntent,
+        source: 'explicit-routing',
+        reasonCodes: localVisualRoutingIntent.reasonCodes,
+      }
+    }
+  }
+
+  if (
+    explicitRoutingIntent
+    && shouldUpgradeExplicitVisualGroundingToContinuationExecutor({
+      activeThread,
+      continuationRequested,
+      explicitRoutingIntent,
+    })
+  ) {
+    const localVisualRoutingIntent = buildExplicitVisualContinuationRoutingIntent({
+      activeThread,
+      explicitRoutingIntent,
+    })
+    if (localVisualRoutingIntent) {
+      return {
+        kind: 'continue-task',
+        summary: sanitizeText(
+          dialogueEncounter?.summary
+          || currentConsciousFrame?.speakingIntention
+          || activeThread?.summary
+          || 'The host is continuing the current governed local visual task thread.',
+          180,
+        ) || 'The host is continuing the current governed local visual task thread.',
+        confidence: clamp01(
+          (dialogueEncounter?.confidence ?? 0.52) * 0.34
+          + (currentConsciousFrame?.confidence ?? 0.42) * 0.16
+          + (activeThread?.confidence ?? 0.38) * 0.14
+          + 0.24,
+        ),
+        routingIntent: localVisualRoutingIntent,
+        source: 'explicit-routing',
+        reasonCodes: unique([
+          'continue-thread',
+          'explicit-routing-intent',
+          continuationCueActive ? 'continuation-cue' : '',
+          ...localVisualRoutingIntent.reasonCodes,
+        ]),
+      }
     }
   }
 
@@ -343,7 +642,10 @@ export function deriveMainChatActionObligation(input: {
     return {
       kind: continuationRequested ? 'continue-task' : 'execute',
       summary: sanitizeText(
-        currentConsciousFrame?.speakingIntention
+        (continuationRequested
+          ? projectStateContinuationSummary
+          : '')
+        || currentConsciousFrame?.speakingIntention
         || dialogueEncounter?.summary
         || conversationState?.jointThread
         || activeThread?.summary
@@ -367,7 +669,7 @@ export function deriveMainChatActionObligation(input: {
   return {
     kind: 'answer',
     summary: sanitizeText(
-      dialogueEncounter?.summary
+      preferredAnswerSummary
       || currentConsciousFrame?.speakingIntention
       || conversationState?.jointThread
       || 'The turn should stay on direct truthful reply rather than action dispatch.',
@@ -385,6 +687,7 @@ export function deriveMainChatActionObligation(input: {
       discourseState?.owedAction ? `owed-action:${discourseState.owedAction}` : 'owed-action:answer-general',
       dialogueFirst ? 'dialogue-first' : '',
       taskBoundTurn ? 'stay-task-bound' : '',
+      pureDialogueMemoryClosureContinuation ? 'memory-closure-dialogue-continuation' : '',
     ].filter(Boolean)),
   }
 }
