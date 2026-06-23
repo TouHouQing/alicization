@@ -5,16 +5,15 @@ import type {
   AlicizationHostPersonModelSnapshot,
   AlicizationLongHorizonMemorySnapshot,
   AlicizationMotiveEngineSnapshot,
-  AlicizationPrivateThoughtSnapshot,
   AlicizationPersonalityState,
+  AlicizationPrivateThoughtSnapshot,
   AlicizationProactiveStyle,
   AlicizationSelfContinuitySnapshot,
   AlicizationSelfStateSnapshot,
 } from '../../../shared/eventa'
-
 import type { AlicizationDialogueGrowthProfile } from './dialogue-growth-profile'
-import type { AlicizationMindEcologySnapshot } from './mind-ecology'
 import type { AlicizationMemoryConsolidationRecord } from './memory-consolidation'
+import type { AlicizationMindEcologySnapshot } from './mind-ecology'
 
 import { buildAlicizationDialogueGrowthProfile } from './dialogue-growth-profile'
 
@@ -38,7 +37,9 @@ export interface AlicizationPersonalityRegimeModelSnapshot {
 
 export interface AlicizationPersonalityRhythmStateSnapshot {
   cadenceMode: 'cooldown' | 'measured-return' | 'ready-return' | 'warm-hold'
-  restMode: 'rest-protective' | 'low-pressure' | 'open'
+  restMode: 'rest-protective' | 'low-pressure' | 'open' | 'ordinary' | 'rest-neutral'
+  silenceNeed?: 'low' | 'medium' | 'high' | null
+  interruptionTolerance?: 'low' | 'medium' | 'high' | null
   embodiedPresence: NonNullable<AlicizationPrivateThoughtSnapshot['embodiedPresence']> | null
   suggestedStyle: AlicizationPrivateThoughtSnapshot['suggestedStyle'] | null
   moodLabel: string | null
@@ -53,7 +54,7 @@ export interface AlicizationPersonalityRhythmStateSnapshot {
 
 export interface AlicizationPersonalityContinuityStateSnapshot {
   growthProfile: AlicizationDialogueGrowthProfile
-  trustStage: 'guarded' | 'cautious-open' | 'warming' | 'trusted'
+  trustStage: 'guarded' | 'cautious-open' | 'settling' | 'warming' | 'trusted'
   currentRegime: AlicizationPersonalityContinuityRegime
   closenessPosture: 'space-first' | 'balanced' | 'warm-guidance' | 'close-hold'
   repairPosture: 'repair-first' | 'measured-repair' | 'warm-repair'
@@ -222,8 +223,8 @@ export function deriveAlicizationPersonaAuthorityInfluence(input: AlicizationPer
         : identityKernel?.initiativeStyle === 'measured-approach'
           ? 0.14
           : 0.04)
-    + (expressionProfile?.directness === 'frank' ? 0.16 : expressionProfile?.directness === 'measured' ? 0.08 : 0)
-    + (anchors.some(anchor => /initiat|forward|lead|move|bring|主动|推进/iu.test(anchor)) ? 0.08 : 0),
+        + (expressionProfile?.directness === 'frank' ? 0.16 : expressionProfile?.directness === 'measured' ? 0.08 : 0)
+        + (anchors.some(anchor => /initiat|forward|lead|move|bring|主动|推进/iu.test(anchor)) ? 0.08 : 0),
   )
   const roomBias = clamp01(
     (identityKernel?.initiativeStyle === 'observant'
@@ -231,8 +232,8 @@ export function deriveAlicizationPersonaAuthorityInfluence(input: AlicizationPer
       : identityKernel?.initiativeStyle === 'measured-approach'
         ? 0.12
         : 0.04)
-    + (expressionProfile?.directness === 'indirect' ? 0.12 : 0)
-    + (anchors.some(anchor => /space|room|observe|steady|quiet|留白|空间|观察|稳/iu.test(anchor)) ? 0.08 : 0),
+      + (expressionProfile?.directness === 'indirect' ? 0.12 : 0)
+      + (anchors.some(anchor => /space|room|observe|steady|quiet|留白|空间|观察|稳/iu.test(anchor)) ? 0.08 : 0),
   )
   const repairBias = clamp01(
     (identityKernel?.valueBias?.some(value => /repair|truth|clarify|ground|verify|recheck|seam|room|space|边界|修复|澄清|核实/iu.test(value)) ? 0.2 : 0)
@@ -247,7 +248,7 @@ export function deriveAlicizationPersonaAuthorityInfluence(input: AlicizationPer
         : expressionProfile?.warmth === 'guarded-warm'
           ? 0.1
           : 0.04)
-    + (anchors.some(anchor => /warm|close|care|gentle|靠近|温和|亲近/iu.test(anchor)) ? 0.08 : 0),
+        + (anchors.some(anchor => /warm|close|care|gentle|靠近|温和|亲近/iu.test(anchor)) ? 0.08 : 0),
   )
   const cadenceBias = clamp01(
     directnessBias * 0.7
@@ -259,21 +260,21 @@ export function deriveAlicizationPersonaAuthorityInfluence(input: AlicizationPer
     ? 'silent-observe'
     : repairBias >= 0.2 && roomBias >= 0.14
       ? 'silent-observe'
-    : directnessBias >= 0.24
-      ? 'light-nudge'
-      : warmthBias >= 0.18
-        ? 'gentle-care'
-        : null
+      : directnessBias >= 0.24
+        ? 'light-nudge'
+        : warmthBias >= 0.18
+          ? 'gentle-care'
+          : null
 
   const openingGuidance = repairBias >= 0.22
     ? 'Repair the seam before leaning closer.'
     : roomBias >= 0.22 && directnessBias < 0.2
-    ? 'Open by observing first and keep the approach lighter.'
-    : directnessBias >= 0.24
-      ? 'Open directly with the live answer, then keep the approach light and bounded.'
-      : warmthBias >= 0.18
-        ? 'Open gently, but keep the opening bounded and real.'
-        : null
+      ? 'Open by observing first and keep the approach lighter.'
+      : directnessBias >= 0.24
+        ? 'Open directly with the live answer, then keep the approach light and bounded.'
+        : warmthBias >= 0.18
+          ? 'Open gently, but keep the opening bounded and real.'
+          : null
 
   const summary = deriveAlicizationPersonalityStateSummary(input)
 
@@ -385,10 +386,10 @@ function buildAlicizationPersonalityRegimeModel(input: {
   const carryWeight = !Number.isFinite(previousAgeMs)
     ? 0
     : previousAgeMs <= 10 * 60_000
-        ? 0.14
-        : previousAgeMs <= 60 * 60_000
-            ? 0.08
-            : 0.04
+      ? 0.14
+      : previousAgeMs <= 60 * 60_000
+        ? 0.08
+        : 0.04
   const carryBonus = (regime: AlicizationPersonalityContinuityRegime) => previousRegime === regime ? carryWeight : 0
 
   const scores: Record<AlicizationPersonalityContinuityRegime, number> = {
@@ -440,7 +441,7 @@ function buildAlicizationPersonalityRegimeModel(input: {
       - repairSignal * 0.12
       - focusedSignal * 0.08,
     ),
-    general: clamp01(
+    'general': clamp01(
       0.34
       + input.growthProfile.stability * 0.16
       + (input.autobiographicalSelf?.stability ?? 0.48) * 0.12
@@ -475,7 +476,7 @@ function buildAlicizationPersonalityRegimeModel(input: {
     'repair-window': [repairWindowPattern, reconRepairPattern],
     'execution-callback': [executionCallbackPattern, reconCadencePattern],
     'open-companionship': [openCompanionshipPattern, reconWarmthPattern],
-    general: [reconTrustLiftPattern, reconSpacePattern, reconWarmthPattern],
+    'general': [reconTrustLiftPattern, reconSpacePattern, reconWarmthPattern],
   }
   const primaryReason = pickMatchingLine(signalLines, regimePatterns[dominantRegime])
   const carryFrom = previousRegime === dominantRegime ? previousRegime : null
@@ -572,9 +573,9 @@ function buildAlicizationPersonalityRhythmState(input: {
   const restMode = restPressure >= 0.66
     ? 'rest-protective' as const
     : input.regimeModel.dominantRegime === 'focused-work'
-        || input.regimeModel.dominantRegime === 'repair-window'
-        || input.reconsolidation.spaceLift >= 0.56
-        || input.habitPolicy?.protectsRestWindow
+      || input.regimeModel.dominantRegime === 'repair-window'
+      || input.reconsolidation.spaceLift >= 0.56
+      || input.habitPolicy?.protectsRestWindow
       ? 'low-pressure' as const
       : 'open' as const
   const embodiedPresence = input.regimeModel.dominantRegime === 'repair-window'
@@ -861,10 +862,10 @@ export function buildAlicizationPersonalityContinuityState(input: {
     reconsolidation.spaceLift >= 0.56
     && (currentRegime === 'focused-work' || currentRegime === 'repair-window')
   ) || (closenessSpaceScore >= 0.58 && closenessSpaceScore >= closenessWarmScore + 0.06)
-      ? 'space-first'
-      : growthProfile.companionshipStyle === 'close-hold' && closenessWarmScore >= 0.72 && reconsolidation.spaceLift < 0.68
-        ? 'close-hold'
-        : closenessWarmScore >= 0.56 || growthProfile.tenderness >= 0.58 || growthProfile.closeness >= 0.56
+    ? 'space-first'
+    : growthProfile.companionshipStyle === 'close-hold' && closenessWarmScore >= 0.72 && reconsolidation.spaceLift < 0.68
+      ? 'close-hold'
+      : closenessWarmScore >= 0.56 || growthProfile.tenderness >= 0.58 || growthProfile.closeness >= 0.56
         ? 'warm-guidance'
         : 'balanced'
   const repairFirstScore = clamp01(
@@ -881,16 +882,16 @@ export function buildAlicizationPersonalityContinuityState(input: {
     + reconsolidation.repairLift * 0.16,
   )
   const repairPosture = repairFirstScore >= warmRepairScore + 0.08
-      || repairFirstScore >= 0.64
-      || (
-        repairFirstScore >= 0.58
-        && reconsolidation.repairLift >= 0.62
-        && (reconsolidation.spaceLift >= 0.58 || currentRegime === 'repair-window')
-      )
-      ? 'repair-first'
-      : warmRepairScore >= 0.68
-        ? 'warm-repair'
-        : 'measured-repair'
+    || repairFirstScore >= 0.64
+    || (
+      repairFirstScore >= 0.58
+      && reconsolidation.repairLift >= 0.62
+      && (reconsolidation.spaceLift >= 0.58 || currentRegime === 'repair-window')
+    )
+    ? 'repair-first'
+    : warmRepairScore >= 0.68
+      ? 'warm-repair'
+      : 'measured-repair'
   const protectSpaceScore = clamp01(
     growthProfile.autonomyRespect * 0.42
     + growthProfile.guardedness * 0.14
@@ -925,14 +926,14 @@ export function buildAlicizationPersonalityContinuityState(input: {
     + reconsolidation.repairLift * 0.06,
   )
   const cadenceProfile = eagerReturnScore >= 0.64
-      || (
-        reconsolidation.cadenceLift >= 0.56
-        && (
-          (input.autobiographicalSelf?.preferenceEvolution.unfinishedThreadReturn ?? 0) >= 0.68
-          || (input.selfContinuity?.carryOverDesire ?? 0) >= 0.6
-        )
+    || (
+      reconsolidation.cadenceLift >= 0.56
+      && (
+        (input.autobiographicalSelf?.preferenceEvolution.unfinishedThreadReturn ?? 0) >= 0.68
+        || (input.selfContinuity?.carryOverDesire ?? 0) >= 0.6
       )
-      || rhythmState.cadenceMode === 'ready-return'
+    )
+    || rhythmState.cadenceMode === 'ready-return'
     ? 'eager-return'
     : steadyReturnScore >= 0.56 || rhythmState.cadenceMode === 'warm-hold' || rhythmState.cadenceMode === 'measured-return'
       ? 'steady-return'

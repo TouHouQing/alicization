@@ -17,8 +17,8 @@ import type {
   AlicizationThreadRuntimeStateSnapshot,
   AlicizationWorldModelSnapshot,
 } from '../../../shared/eventa'
-import type { AlicizationProactiveLayeredContext } from './proactive-layered-context'
 import type { AlicizationMemoryTuningAdvice } from './memory-tuning-advice'
+import type { AlicizationProactiveLayeredContext } from './proactive-layered-context'
 
 function clamp01(value: number) {
   if (!Number.isFinite(value))
@@ -236,6 +236,7 @@ export function buildCounterfactualDeliberation(input: {
   mindDynamics: AlicizationMindDynamicsSnapshot
   mindKernel?: AlicizationMindKernelSnapshot | null
   memoryTuningAdvice?: AlicizationMemoryTuningAdvice | null
+  projectState?: unknown
   previous?: AlicizationCounterfactualDeliberationSnapshot | null
 }): AlicizationCounterfactualDeliberationSnapshot {
   const relationshipNeed = topRelationshipNeed(input)

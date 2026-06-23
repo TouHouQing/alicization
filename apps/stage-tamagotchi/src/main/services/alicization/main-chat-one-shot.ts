@@ -1,12 +1,13 @@
 import type { Message, ToolChoice } from '@xsai/shared-chat'
 import type { tool } from '@xsai/tool'
 
+import type { AlicizationRuntimeDigest } from '../../../shared/eventa'
 import type { MainGatewayResolvedConfig } from './runtime-soul'
 
 import { generateText } from '@xsai/generate-text'
 
-import { extractAllowedToolNamesFromToolChoice } from './main-chat-runtime-surface'
 import { AlicizationRequiredToolMissingError } from './main-chat-required-tool'
+import { extractAllowedToolNamesFromToolChoice } from './main-chat-runtime-surface'
 import { createAbortError, sanitizeText } from './main-chat-stream-primitives'
 
 type GenerateTextInvoker = (input: Record<string, unknown>) => Promise<Record<string, unknown> & {
@@ -23,6 +24,7 @@ interface AlicizationMainChatOneShotInput {
   timeoutMs: number
   maxSteps: number
   timeoutReason: string
+  emotionalKernel?: AlicizationRuntimeDigest['emotionalKernel'] | null
   generateTextImpl?: GenerateTextInvoker
 }
 
@@ -92,6 +94,7 @@ async function executeAlicizationMainChatOneShot(input: AlicizationMainChatOneSh
       abortSignal: controller.signal,
       tools: input.tools,
       toolChoice: input.toolChoice,
+      emotionalKernel: input.emotionalKernel,
     })
     const requiredToolNames = new Set(
       extractAllowedToolNamesFromToolChoice(input.toolChoice, input.tools),
@@ -128,6 +131,7 @@ export async function recoverAlicizationMainChatFromTimeout(input: {
   toolChoice?: ToolChoice
   timeoutMs: number
   maxSteps?: number
+  emotionalKernel?: AlicizationRuntimeDigest['emotionalKernel'] | null
   generateTextImpl?: GenerateTextInvoker
 }) {
   const normalizedMaxSteps = Number.isFinite(input.maxSteps)
@@ -148,6 +152,7 @@ export async function generateAlicizationMainChatNonStreaming(input: {
   tools?: Array<Awaited<ReturnType<typeof tool>>>
   toolChoice?: ToolChoice
   timeoutMs: number
+  emotionalKernel?: AlicizationRuntimeDigest['emotionalKernel'] | null
   generateTextImpl?: GenerateTextInvoker
 }) {
   return await executeAlicizationMainChatOneShot({

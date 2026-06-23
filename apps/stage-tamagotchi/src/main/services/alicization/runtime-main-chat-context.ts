@@ -1,15 +1,15 @@
 import type {
   AlicizationChatStartPayload,
+  AlicizationTaskThreadRecord,
 } from '../../../shared/eventa'
 import type {
   AlicizationExecutionCallbackContext,
 } from './execution-callback-runtime'
+import type { AlicizationPendingAffirmationThreadCandidate } from './main-chat-action-obligation'
 import type {
   AlicizationExecutionLedgerContext,
 } from './memory-ledger-runtime'
-import type { AlicizationPendingAffirmationThreadCandidate } from './main-chat-action-obligation'
 import type { ContextualConversationTurn } from './runtime-soul'
-import type { AlicizationTaskThreadRecord } from '../../../shared/eventa'
 
 interface AlicizationInspectionIntentFromHistoryInput {
   messages: AlicizationChatStartPayload['messages']

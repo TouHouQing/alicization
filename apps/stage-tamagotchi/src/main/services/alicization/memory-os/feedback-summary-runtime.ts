@@ -1,5 +1,4 @@
 import type { AlicizationMemoryReflectionRecord } from '../../../../shared/eventa'
-
 import type { AlicizationMemoryRecallFeedbackSummary } from './recall-feedback-runtime'
 
 function uniqueIds(values: Array<string | null | undefined>, maxItems = 64) {

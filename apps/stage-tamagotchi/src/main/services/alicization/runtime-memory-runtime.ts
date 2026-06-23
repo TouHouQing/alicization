@@ -1,16 +1,16 @@
+import type { AlicizationKnowledgeAssimilationRuntime } from './knowledge-assimilation-runtime'
 import type { CreateAlicizationOrganicMemoryAccessRuntimeOptions } from './runtime-organic-memory-access'
 import type { CreateAlicizationOrganicMemoryPromptRuntimeOptions } from './runtime-organic-memory-prompt'
-import type { AlicizationKnowledgeAssimilationRuntime } from './knowledge-assimilation-runtime'
 
 import { createAlicizationKnowledgeAssimilationRuntime } from './knowledge-assimilation-runtime'
 import { createAlicizationMemorySearchRuntime } from './memory-search-runtime'
 import { createAlicizationRuntimeMemoryReconsolidation } from './runtime-memory-reconsolidation'
 import { createAlicizationOrganicMemoryAccessRuntime } from './runtime-organic-memory-access'
 
-type RuntimeMemorySearchSetup = Pick<CreateAlicizationOrganicMemoryPromptRuntimeOptions,
-  | 'normalizeOrganicRecallText'
+type RuntimeMemorySearchSetup = Pick<CreateAlicizationOrganicMemoryPromptRuntimeOptions, | 'normalizeOrganicRecallText'
   | 'selectPromptActiveThoughts'
   | 'getLatestRelationshipDynamics'
+  | 'listMindTurnEvents'
   | 'listRelationshipOutcomes'
   | 'listMemoryReflections'
   | 'retrieveMemoryFacts'
@@ -23,8 +23,7 @@ type RuntimeMemorySearchSetup = Pick<CreateAlicizationOrganicMemoryPromptRuntime
   | 'recordMemoryPlannerLatency'
   | 'recordMemorySpeechPlanLatency'
   | 'recordOrganicMemoryStageLatency'
-  | 'recordOrganicMemoryStageBudget'
->
+  | 'recordOrganicMemoryStageBudget'>
 
 export interface CreateAlicizationRuntimeMemoryRuntimeOptions {
   organicMemoryAccess: CreateAlicizationOrganicMemoryAccessRuntimeOptions

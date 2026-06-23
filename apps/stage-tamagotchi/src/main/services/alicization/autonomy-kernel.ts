@@ -1,9 +1,8 @@
 import type {
   AlicizationActionEcologySnapshot,
-  AlicizationMindActionTendency,
-  AlicizationAutonomySnapshot,
   AlicizationAutobiographicalGoalKind,
   AlicizationAutobiographicalSelfSnapshot,
+  AlicizationAutonomySnapshot,
   AlicizationConcernSnapshot,
   AlicizationDesireMemorySnapshot,
   AlicizationExecutiveCycleSnapshot,
@@ -11,9 +10,10 @@ import type {
   AlicizationHabitPolicySnapshot,
   AlicizationInitiativeArbitrationSnapshot,
   AlicizationInitiativeSnapshot,
+  AlicizationMindActionTendency,
   AlicizationMotiveEngineSnapshot,
-  AlicizationThreadRuntimeStateSnapshot,
   AlicizationThoughtThreadStateSnapshot,
+  AlicizationThreadRuntimeStateSnapshot,
   AlicizationWorldModelSnapshot,
 } from '../../../shared/eventa'
 import type { AlicizationProactiveLayeredContext } from './proactive-layered-context'
@@ -281,6 +281,7 @@ export function buildAutonomySnapshot(input: {
   habitPolicy?: AlicizationHabitPolicySnapshot | null
   threadRuntime?: AlicizationThreadRuntimeStateSnapshot | null
   thoughtThreads?: AlicizationThoughtThreadStateSnapshot | null
+  projectState?: unknown
 }): AlicizationAutonomySnapshot {
   const leadingGoal = pickLeadingGoal(input.goalStack)
   const leadingAgenda = pickLeadingAgenda(input.motiveEngine)
@@ -346,10 +347,12 @@ export function buildAutonomySnapshot(input: {
     && Boolean(leadingGoal || leadingAgenda || runtimeThread || resurfacingDesire || selectedProposal)
 
   let selectedMode: AlicizationAutonomySnapshot['selectedMode'] = input.initiative.selectedAction
-  if (controlHot)
+  if (controlHot) {
     selectedMode = 'act'
-  else if (controlWarming)
+  }
+  else if (controlWarming) {
     selectedMode = 'prepare-act'
+  }
   else if (
     input.initiative.selectedAction === 'wait'
     && speakReadiness >= 0.62
@@ -379,8 +382,8 @@ export function buildAutonomySnapshot(input: {
   const deferReason = selectedMode === 'prepare-act'
     ? guardReasons[0] ?? 'hold-formation'
     : !shouldAct && actReadiness >= 0.58
-      ? guardReasons[0] ?? 'not-yet-ripe'
-      : null
+        ? guardReasons[0] ?? 'not-yet-ripe'
+        : null
   const executionIntentKind = deriveExecutionIntentKind({
     selectedAction: visibleAction,
     selectedMode,

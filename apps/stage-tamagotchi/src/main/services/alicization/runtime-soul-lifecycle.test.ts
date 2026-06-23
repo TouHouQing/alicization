@@ -2,8 +2,8 @@ import type { AlicizationSoulFrontmatter, AlicizationSoulSnapshot } from '../../
 
 import { describe, expect, it, vi } from 'vitest'
 
-import { createAlicizationRuntimeSoulLifecycle } from './runtime-soul-lifecycle'
 import { compilePersonaWorkshopAuthority } from './persona-workshop-compiler'
+import { createAlicizationRuntimeSoulLifecycle } from './runtime-soul-lifecycle'
 
 function createFrontmatter(): AlicizationSoulFrontmatter {
   return {
@@ -75,7 +75,7 @@ describe('runtime soul lifecycle', () => {
       hashContent: content => `hash:${content.length}`,
       withNeedsGenesis: snapshot => ({
         ...snapshot,
-        needsGenesis: !(snapshot.frontmatter.initialized && snapshot.frontmatter.profile.ownerName),
+        needsGenesis: !snapshot.frontmatter.initialized || !snapshot.frontmatter.profile.ownerName,
       }),
       defaultFrontmatter: createFrontmatter(),
       defaultSoulBody: '# soul',
@@ -164,7 +164,7 @@ describe('runtime soul lifecycle', () => {
       hashContent: content => `hash:${content.length}`,
       withNeedsGenesis: snapshot => ({
         ...snapshot,
-        needsGenesis: !(snapshot.frontmatter.initialized && snapshot.frontmatter.profile.ownerName),
+        needsGenesis: !snapshot.frontmatter.initialized || !snapshot.frontmatter.profile.ownerName,
       }),
       defaultFrontmatter: createFrontmatter(),
       defaultSoulBody: '# soul',

@@ -14,9 +14,11 @@ import type {
   AlicizationWorldModelSnapshot,
   AlicizationWorldOntologySnapshot,
 } from '../../../shared/eventa'
+import type { AlicizationDialogueGrowthProfile } from './dialogue-growth-profile'
 import type { AlicizationPersonaKernelMode } from './dialogue-obligation'
 import type { AlicizationDialogueTurnEncounter } from './dialogue-turn-encounter'
 import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
+import type { AlicizationPersonalityContinuityStateSnapshot } from './personality-continuity-state'
 
 import {
   buildAlicizationScreenSurfaceCue,
@@ -30,14 +32,13 @@ import {
   readRecollectionSpeechPlanFromDerivedMindStateBundle,
 } from '@proj-alicization/stage-shared'
 
-import type { AlicizationDialogueGrowthProfile } from './dialogue-growth-profile'
 import { isDialogueFirstSubject, sanitizeDialogueAnchorText, sanitizeDialogueSurfaceText } from './dialogue-surface-text'
-import { buildMindEcologyFromRuntimeSurface } from './mind-ecology'
 import { buildAlicizationMemoryDeliberationKernel } from './memory-deliberation-kernel'
+import { buildMindEcologyFromRuntimeSurface } from './mind-ecology'
 import { deriveMindTruthContract } from './mind-truth-contract'
 import {
+
   buildAlicizationPersonalityContinuityState,
-  type AlicizationPersonalityContinuityStateSnapshot,
 } from './personality-continuity-state'
 
 function clamp01(value: number) {
@@ -536,16 +537,17 @@ function resolveOpeningDirective(input: {
   ) {
     return 'I should open from the returned result itself and keep the callback bounded, exact, and visibly tied to the thread that asked for it.'
   }
-  if (input.recommendedAct === 'guide')
+  if (input.recommendedAct === 'guide') {
     return input.personalityContinuityState?.currentRegime === 'focused-work'
       && input.personalityContinuityState.autonomyPosture === 'protect-space'
       ? 'I should open from the knot itself and keep the approach lighter, leaving room before I lean closer.'
       : input.growthProfile.unfinishedThreadReturn >= 0.58
         ? 'I should open from the knot itself and keep the thread visibly unbroken while I narrow to the next real step.'
         : input.growthProfile.cadenceAffinity >= 0.58
-            ? 'I should open from the knot itself and let the thread feel carried, not merely solved.'
-            : 'I should open from the knot itself and narrow immediately to one actionable next step.'
-  if (input.recommendedAct === 'care')
+          ? 'I should open from the knot itself and let the thread feel carried, not merely solved.'
+          : 'I should open from the knot itself and narrow immediately to one actionable next step.'
+  }
+  if (input.recommendedAct === 'care') {
     return input.personalityContinuityState?.currentRegime === 'late-night-care'
       || input.personalityContinuityState?.energyProfile === 'rest-sensitive'
       ? 'I should open with care that lands quietly, protects rest, and does not ask the host for more energy than this moment can hold.'
@@ -554,16 +556,19 @@ function resolveOpeningDirective(input: {
         : input.growthProfile.autonomyRespect >= 0.58
           ? 'I should open with care that belongs to this exact condition and lands without pressing too hard.'
           : 'I should open with care that belongs to this exact condition, not generic soothing.'
-  if (input.discourseState.currentTurnSubject === 'relationship')
+  }
+  if (input.discourseState.currentTurnSubject === 'relationship') {
     return input.personalityContinuityState?.repairPosture === 'repair-first'
       ? 'I should answer the bid between us honestly and repair-first, without leaning on closeness before the seam is steady.'
       : input.growthProfile.closeness >= 0.58
         ? 'I should answer the bid between us in a way that lands close and lived-in before I widen into narration.'
         : 'I should answer the bid between us before I widen into scene narration.'
-  if (input.discourseState.currentTurnSubject === 'alicization-self')
+  }
+  if (input.discourseState.currentTurnSubject === 'alicization-self') {
     return input.growthProfile.selfLine
       ? `I should answer plainly from the line in me that says ${lowerFirst(stripTrailingPunctuation(input.growthProfile.selfLine))}.`
       : 'I should answer plainly from my own continuity.'
+  }
   if (input.discourseState.screenReferenceMode === 'required')
     return 'I should open from the strongest live observation and keep memory explicitly secondary.'
   return 'I should pay off the host’s current turn directly.'
@@ -734,16 +739,18 @@ function resolveNextMove(input: {
       ? `The next honest move is ${lowerFirst(stripTrailingPunctuation(guideNeed))}.`
       : 'The next honest move is one concrete step, not a bundle of generic options.'
   }
-  if (input.recommendedAct === 'care')
+  if (input.recommendedAct === 'care') {
     return input.growthProfile.restAttunement >= 0.62
       ? 'After the first touch of care lands, I need to keep it light enough that the host can breathe inside it.'
       : input.growthProfile.protectsRestWindow
-      ? 'After the first touch of care lands, I need to keep it brief and not ask the host to carry more than this moment can hold.'
-      : 'After the first touch of care lands, I need to keep it brief, reality-bound, and tied to the actual issue.'
-  if (input.discourseState.currentTurnSubject === 'relationship')
+        ? 'After the first touch of care lands, I need to keep it brief and not ask the host to carry more than this moment can hold.'
+        : 'After the first touch of care lands, I need to keep it brief, reality-bound, and tied to the actual issue.'
+  }
+  if (input.discourseState.currentTurnSubject === 'relationship') {
     return input.growthProfile.autonomyRespect >= 0.58
       ? 'After I answer the bid between us, I should stay near lightly and leave enough room to breathe.'
       : 'After I answer the bid between us, I should stay near lightly unless the host clearly wants more.'
+  }
   return 'After this answer lands, I can decide whether anything else truly needs opening.'
 }
 

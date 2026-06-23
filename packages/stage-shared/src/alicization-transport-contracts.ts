@@ -1189,11 +1189,18 @@ export interface AlicizationOpenClawCommandInput {
   runtimeContext?: AlicizationExecutionRuntimeContext | null
 }
 
+export interface AlicizationLocalVisualCommandInput {
+  instruction: string
+  timeoutMs?: number | null
+  runtimeContext?: AlicizationExecutionRuntimeContext | null
+}
+
 export interface AlicizationDispatchTaskThreadInput {
   threadId: string
   cli?: AlicizationCliCommandInput | null
   codex?: AlicizationCodexCommandInput | null
   claudeCode?: AlicizationClaudeCodeCommandInput | null
+  localVisual?: AlicizationLocalVisualCommandInput | null
   openclaw?: AlicizationOpenClawCommandInput | null
 }
 
@@ -1303,6 +1310,7 @@ export interface AlicizationVisualPresenceStateSnapshot extends AlicizationPersi
   watchMode: AlicizationVisualWatchMode
   updatedAt: number
   emotionalKernel?: AlicizationEmotionalKernelSnapshot | null
+  emotionalTransitionDecay?: AlicizationEmotionalTransitionDecaySnapshot | null
   presenceExpression?: AlicizationPresenceExpressionSnapshot | null
 }
 
@@ -3009,6 +3017,78 @@ export interface AlicizationRecallLatencyPolicySnapshot {
   summary: string
 }
 
+export type AlicizationEmotionalTransitionKind
+  = 'stable'
+    | 'intensified'
+    | 'softened'
+    | 'repair-shift'
+    | 'rest-protective-shift'
+    | 'guarded-shift'
+
+export interface AlicizationEmotionalTransitionLedgerSnapshot {
+  version: 'emotional-transition-ledger-v1'
+  createdAt: number
+  turnId: string | null
+  previousEmotion: AlicizationEmotionalKernelSnapshot['dominantEmotion'] | null
+  nextEmotion: AlicizationEmotionalKernelSnapshot['dominantEmotion']
+  transitionKind: AlicizationEmotionalTransitionKind
+  axisDeltas: Record<'valence' | 'arousal' | 'guardedness' | 'closenessDrive' | 'repairNeed' | 'initiativePressure', number>
+  changedAxes: Array<'valence' | 'arousal' | 'guardedness' | 'closenessDrive' | 'repairNeed' | 'initiativePressure'>
+  sourceTags: string[]
+  decayPolicy: {
+    mode: 'decay-normally' | 'hold-until-repair-cools' | 'protect-rest-window' | 'cool-approach-pressure'
+    carryTtlMs: number
+    reason: string
+  }
+  memoryWriteback: {
+    shouldWrite: boolean
+    lane: 'none' | 'relationship-repair' | 'rest-protection' | 'emotional-continuity'
+    reason: string
+  }
+  initiativeSuppression: {
+    shouldSuppress: boolean
+    mode: 'none' | 'repair-first' | 'rest-guard' | 'measured-return' | 'single-thread'
+    reason: string
+  }
+  embodimentDrive: {
+    shouldDrive: boolean
+    tone: AlicizationEmotionalKernelSnapshot['embodimentTone'] | null
+    reason: string
+  }
+  selfRevisionCandidate: {
+    shouldPropose: boolean
+    domain: 'dialogue-style' | 'proactive-policy' | 'relationship'
+    reasonCodes: string[]
+    summary: string | null
+    projectStateContinuity: {
+      sameHerSelfLine: string | null
+      sameHerDriftRisk: string | null
+      proactiveSameHerGap: string | null
+      emotionalClosureCue: string | null
+      sameHerHoldDetail: string | null
+      continuityGuard: string | null
+    }
+  }
+  traceSummary: string
+  replayLine: string
+}
+
+export interface AlicizationEmotionalTransitionDecaySnapshot {
+  version: 'emotional-transition-decay-v1'
+  ledgerCreatedAt: number
+  evaluatedAt: number
+  elapsedMs: number
+  expiresAt: number
+  phase: 'hold' | 'soften' | 'release'
+  shouldSuppressInitiative: boolean
+  shouldDriveEmbodiment: boolean
+  initiativeMode: AlicizationEmotionalTransitionLedgerSnapshot['initiativeSuppression']['mode']
+  embodimentTone: AlicizationEmotionalTransitionLedgerSnapshot['embodimentDrive']['tone']
+  memoryWritebackLane: AlicizationEmotionalTransitionLedgerSnapshot['memoryWriteback']['lane']
+  reasonTags: string[]
+  summary: string
+}
+
 export interface AlicizationDerivedMindStateBundle {
   version: 'derived-mind-state-bundle-v1'
   source: 'main-runtime' | 'browser-fallback'
@@ -3043,6 +3123,7 @@ export interface AlicizationDerivedMindStateBundle {
     reasonCodes: string[]
   } | null
   emotionalKernel?: AlicizationEmotionalKernelSnapshot | null
+  emotionalTransitionLedger?: AlicizationEmotionalTransitionLedgerSnapshot | null
   selfEvolution?: AlicizationSelfEvolutionKernelSnapshot | null
   affectiveResidue?: AlicizationAffectiveResidueMemorySnapshot | null
   learningExecutionState?: AlicizationLearningExecutionStateSnapshot | null
@@ -3169,6 +3250,208 @@ function normalizeAlicizationEmotionalKernelSnapshot(raw: unknown): AlicizationE
           .slice(0, 12)
       : [],
     why: sanitizeAlicizationDigitalLifeDigestText(candidate.why, 220) || '',
+  }
+}
+
+function normalizeAlicizationEmotionalTransitionKind(raw: unknown): AlicizationEmotionalTransitionKind | null {
+  return raw === 'stable'
+    || raw === 'intensified'
+    || raw === 'softened'
+    || raw === 'repair-shift'
+    || raw === 'rest-protective-shift'
+    || raw === 'guarded-shift'
+    ? raw
+    : null
+}
+
+function normalizeAlicizationEmotionalTransitionAxisDeltas(raw: unknown): AlicizationEmotionalTransitionLedgerSnapshot['axisDeltas'] {
+  const source = raw && typeof raw === 'object' && !Array.isArray(raw)
+    ? raw as Partial<Record<keyof AlicizationEmotionalTransitionLedgerSnapshot['axisDeltas'], unknown>>
+    : {}
+  return {
+    valence: Number.isFinite(Number(source.valence)) ? Number(Number(source.valence).toFixed(2)) : 0,
+    arousal: Number.isFinite(Number(source.arousal)) ? Number(Number(source.arousal).toFixed(2)) : 0,
+    guardedness: Number.isFinite(Number(source.guardedness)) ? Number(Number(source.guardedness).toFixed(2)) : 0,
+    closenessDrive: Number.isFinite(Number(source.closenessDrive)) ? Number(Number(source.closenessDrive).toFixed(2)) : 0,
+    repairNeed: Number.isFinite(Number(source.repairNeed)) ? Number(Number(source.repairNeed).toFixed(2)) : 0,
+    initiativePressure: Number.isFinite(Number(source.initiativePressure)) ? Number(Number(source.initiativePressure).toFixed(2)) : 0,
+  }
+}
+
+function normalizeAlicizationEmotionalTransitionAxisName(raw: unknown): keyof AlicizationEmotionalTransitionLedgerSnapshot['axisDeltas'] | null {
+  return raw === 'valence'
+    || raw === 'arousal'
+    || raw === 'guardedness'
+    || raw === 'closenessDrive'
+    || raw === 'repairNeed'
+    || raw === 'initiativePressure'
+    ? raw
+    : null
+}
+
+function normalizeAlicizationEmotionalTransitionLedger(raw: unknown): AlicizationEmotionalTransitionLedgerSnapshot | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+    return null
+
+  const candidate = raw as Record<string, unknown>
+  if (candidate.version !== 'emotional-transition-ledger-v1')
+    return null
+
+  const transitionKind = normalizeAlicizationEmotionalTransitionKind(candidate.transitionKind)
+  const nextEmotion = normalizeAlicizationEmotionalKernelDominantEmotion(candidate.nextEmotion)
+  const createdAt = Number(candidate.createdAt)
+  if (!transitionKind || !nextEmotion || !Number.isFinite(createdAt))
+    return null
+
+  const previousEmotion = normalizeAlicizationEmotionalKernelDominantEmotion(candidate.previousEmotion)
+  const decayPolicy = candidate.decayPolicy && typeof candidate.decayPolicy === 'object' && !Array.isArray(candidate.decayPolicy)
+    ? candidate.decayPolicy as Record<string, unknown>
+    : {}
+  const memoryWriteback = candidate.memoryWriteback && typeof candidate.memoryWriteback === 'object' && !Array.isArray(candidate.memoryWriteback)
+    ? candidate.memoryWriteback as Record<string, unknown>
+    : {}
+  const initiativeSuppression = candidate.initiativeSuppression && typeof candidate.initiativeSuppression === 'object' && !Array.isArray(candidate.initiativeSuppression)
+    ? candidate.initiativeSuppression as Record<string, unknown>
+    : {}
+  const embodimentDrive = candidate.embodimentDrive && typeof candidate.embodimentDrive === 'object' && !Array.isArray(candidate.embodimentDrive)
+    ? candidate.embodimentDrive as Record<string, unknown>
+    : {}
+  const selfRevisionCandidate = candidate.selfRevisionCandidate && typeof candidate.selfRevisionCandidate === 'object' && !Array.isArray(candidate.selfRevisionCandidate)
+    ? candidate.selfRevisionCandidate as Record<string, unknown>
+    : {}
+  const projectStateContinuity = selfRevisionCandidate.projectStateContinuity && typeof selfRevisionCandidate.projectStateContinuity === 'object' && !Array.isArray(selfRevisionCandidate.projectStateContinuity)
+    ? selfRevisionCandidate.projectStateContinuity as Record<string, unknown>
+    : {}
+  const decayMode = decayPolicy.mode === 'hold-until-repair-cools'
+    || decayPolicy.mode === 'protect-rest-window'
+    || decayPolicy.mode === 'cool-approach-pressure'
+    ? decayPolicy.mode
+    : 'decay-normally'
+  const writebackLane = memoryWriteback.lane === 'relationship-repair'
+    || memoryWriteback.lane === 'rest-protection'
+    || memoryWriteback.lane === 'emotional-continuity'
+    ? memoryWriteback.lane
+    : 'none'
+  const initiativeMode = initiativeSuppression.mode === 'repair-first'
+    || initiativeSuppression.mode === 'rest-guard'
+    || initiativeSuppression.mode === 'measured-return'
+    || initiativeSuppression.mode === 'single-thread'
+    ? initiativeSuppression.mode
+    : 'none'
+  const domain = selfRevisionCandidate.domain === 'proactive-policy'
+    || selfRevisionCandidate.domain === 'relationship'
+    ? selfRevisionCandidate.domain
+    : 'dialogue-style'
+
+  return {
+    version: 'emotional-transition-ledger-v1',
+    createdAt: Math.max(0, Math.floor(createdAt)),
+    turnId: sanitizeAlicizationDigitalLifeDigestText(candidate.turnId, 160) || null,
+    previousEmotion,
+    nextEmotion,
+    transitionKind,
+    axisDeltas: normalizeAlicizationEmotionalTransitionAxisDeltas(candidate.axisDeltas),
+    changedAxes: Array.isArray(candidate.changedAxes)
+      ? candidate.changedAxes
+          .map(normalizeAlicizationEmotionalTransitionAxisName)
+          .filter((axis): axis is keyof AlicizationEmotionalTransitionLedgerSnapshot['axisDeltas'] => Boolean(axis))
+          .slice(0, 6)
+      : [],
+    sourceTags: Array.isArray(candidate.sourceTags)
+      ? candidate.sourceTags
+          .map(tag => sanitizeAlicizationDigitalLifeDigestText(tag, 120))
+          .filter(Boolean)
+          .slice(0, 16)
+      : [],
+    decayPolicy: {
+      mode: decayMode,
+      carryTtlMs: normalizeNonNegativeInteger(decayPolicy.carryTtlMs),
+      reason: sanitizeAlicizationDigitalLifeDigestText(decayPolicy.reason, 240) || '',
+    },
+    memoryWriteback: {
+      shouldWrite: memoryWriteback.shouldWrite === true,
+      lane: writebackLane,
+      reason: sanitizeAlicizationDigitalLifeDigestText(memoryWriteback.reason, 240) || '',
+    },
+    initiativeSuppression: {
+      shouldSuppress: initiativeSuppression.shouldSuppress === true,
+      mode: initiativeMode,
+      reason: sanitizeAlicizationDigitalLifeDigestText(initiativeSuppression.reason, 240) || '',
+    },
+    embodimentDrive: {
+      shouldDrive: embodimentDrive.shouldDrive === true,
+      tone: normalizeAlicizationEmotionalKernelEmbodimentTone(embodimentDrive.tone),
+      reason: sanitizeAlicizationDigitalLifeDigestText(embodimentDrive.reason, 240) || '',
+    },
+    selfRevisionCandidate: {
+      shouldPropose: selfRevisionCandidate.shouldPropose === true,
+      domain,
+      reasonCodes: Array.isArray(selfRevisionCandidate.reasonCodes)
+        ? selfRevisionCandidate.reasonCodes
+            .map(reason => sanitizeAlicizationDigitalLifeDigestText(reason, 120))
+            .filter(Boolean)
+            .slice(0, 12)
+        : [],
+      summary: sanitizeAlicizationDigitalLifeDigestText(selfRevisionCandidate.summary, 240) || null,
+      projectStateContinuity: {
+        sameHerSelfLine: sanitizeAlicizationDigitalLifeDigestText(projectStateContinuity.sameHerSelfLine, 240) || null,
+        sameHerDriftRisk: sanitizeAlicizationDigitalLifeDigestText(projectStateContinuity.sameHerDriftRisk, 240) || null,
+        proactiveSameHerGap: sanitizeAlicizationDigitalLifeDigestText(projectStateContinuity.proactiveSameHerGap, 240) || null,
+        emotionalClosureCue: sanitizeAlicizationDigitalLifeDigestText(projectStateContinuity.emotionalClosureCue, 240) || null,
+        sameHerHoldDetail: sanitizeAlicizationDigitalLifeDigestText(projectStateContinuity.sameHerHoldDetail, 240) || null,
+        continuityGuard: sanitizeAlicizationDigitalLifeDigestText(projectStateContinuity.continuityGuard, 240) || null,
+      },
+    },
+    traceSummary: sanitizeAlicizationDigitalLifeDigestText(candidate.traceSummary, 360) || '',
+    replayLine: sanitizeAlicizationDigitalLifeDigestText(candidate.replayLine, 360) || '',
+  }
+}
+
+function normalizeAlicizationEmotionalTransitionDecay(raw: unknown): AlicizationEmotionalTransitionDecaySnapshot | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+    return null
+
+  const candidate = raw as Record<string, unknown>
+  if (candidate.version !== 'emotional-transition-decay-v1')
+    return null
+
+  const phase = candidate.phase === 'hold' || candidate.phase === 'soften' || candidate.phase === 'release'
+    ? candidate.phase
+    : null
+  if (!phase)
+    return null
+
+  const initiativeMode = candidate.initiativeMode === 'repair-first'
+    || candidate.initiativeMode === 'rest-guard'
+    || candidate.initiativeMode === 'measured-return'
+    || candidate.initiativeMode === 'single-thread'
+    ? candidate.initiativeMode
+    : 'none'
+  const memoryWritebackLane = candidate.memoryWritebackLane === 'relationship-repair'
+    || candidate.memoryWritebackLane === 'rest-protection'
+    || candidate.memoryWritebackLane === 'emotional-continuity'
+    ? candidate.memoryWritebackLane
+    : 'none'
+
+  return {
+    version: 'emotional-transition-decay-v1',
+    ledgerCreatedAt: normalizeNonNegativeInteger(candidate.ledgerCreatedAt),
+    evaluatedAt: normalizeNonNegativeInteger(candidate.evaluatedAt),
+    elapsedMs: normalizeNonNegativeInteger(candidate.elapsedMs),
+    expiresAt: normalizeNonNegativeInteger(candidate.expiresAt),
+    phase,
+    shouldSuppressInitiative: candidate.shouldSuppressInitiative === true,
+    shouldDriveEmbodiment: candidate.shouldDriveEmbodiment === true,
+    initiativeMode,
+    embodimentTone: normalizeAlicizationEmotionalKernelEmbodimentTone(candidate.embodimentTone),
+    memoryWritebackLane,
+    reasonTags: Array.isArray(candidate.reasonTags)
+      ? candidate.reasonTags
+          .map(reason => sanitizeAlicizationDigitalLifeDigestText(reason, 120))
+          .filter(Boolean)
+          .slice(0, 12)
+      : [],
+    summary: sanitizeAlicizationDigitalLifeDigestText(candidate.summary, 260) || '',
   }
 }
 
@@ -3310,6 +3593,7 @@ function normalizeVisualPresenceStateSnapshot(raw: unknown): AlicizationVisualPr
     quietLineMs: authority.quietLineMs,
     currentInwardPreoccupation: authority.currentInwardPreoccupation,
     emotionalKernel: normalizeAlicizationEmotionalKernelSnapshot(candidate.emotionalKernel),
+    emotionalTransitionDecay: normalizeAlicizationEmotionalTransitionDecay(candidate.emotionalTransitionDecay),
     presenceExpression: normalizeAlicizationPresenceExpressionSnapshot(candidate.presenceExpression),
   }
 }
@@ -3891,6 +4175,7 @@ export function normalizeAlicizationDerivedMindStateBundle(raw: unknown): Aliciz
         }
       : null,
     emotionalKernel: normalizeAlicizationEmotionalKernelSnapshot(candidate.emotionalKernel),
+    emotionalTransitionLedger: normalizeAlicizationEmotionalTransitionLedger(candidate.emotionalTransitionLedger),
     selfEvolution: selfEvolution ? selfEvolution as unknown as AlicizationSelfEvolutionKernelSnapshot : null,
     affectiveResidue: affectiveResidue
       ? {
@@ -4475,6 +4760,10 @@ export interface AlicizationRuntimeProjectStateDigest {
   continuityCue?: string | null
   preferredBlinkCadence?: 'normal' | 'linger' | 'quiet' | null
   preferredGazeMode?: 'steady' | 'soften' | 'drift' | null
+  preferredPauseMode?: 'longer' | 'natural' | null
+  preferredLipsyncMode?: 'restrained' | 'matched' | null
+  preferredVoiceMode?: 'lower-pressure' | 'even' | null
+  preferredPacingMode?: 'slower' | 'natural' | null
 }
 
 export interface AlicizationRuntimeDigest {
@@ -5603,6 +5892,8 @@ export interface AlicizationDialogueRespondedPayload {
   turnId: string
   sessionId: string
   origin?: 'user-turn' | 'subconscious-proactive'
+  userText?: string | null
+  assistantText?: string | null
   structured: AlicizationDialogueStructuredPayload
   isFallback: boolean
   createdAt: number

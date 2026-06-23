@@ -200,7 +200,7 @@ function preferProjectStateSameHerSelfLine(input: {
       || /without reopening from scratch(?: each turn)?/u.test(resolvedLower)
       || /inside this local-first digital life/u.test(resolvedLower)
     )
-      && !/same phase 1 digital life|phase 1|callback|closure|same living line|same closure line|landed|unfinished|open loop|project|host-machine/u.test(resolvedLower)
+    && !/same phase 1 digital life|phase 1|callback|closure|same living line|same closure line|landed|unfinished|open loop|project|host-machine/u.test(resolvedLower)
   const resolvedLooksGenericSelfContinuity
     = /one living self inside this local-first digital life|one continuous her/u.test(resolvedLower)
       && !/same phase 1 digital life|same digital life|same[- ]her|same living line/u.test(resolvedLower)
@@ -1154,16 +1154,16 @@ function buildProjectStateConsciousFrameGrounding(input?: {
     ? resolveAlicizationSurfaceProjectStateSnapshot({
         runtimeSurface: input.runtimeSurface,
       })
-      : {
-          ...projectStateSnapshot,
-          continuityRestraint: projectStateSnapshot.continuityRestraint ?? null,
-          continuityPreferredTiming: null,
-          continuityCadence: null,
-          preferredBlinkCadence: null,
-          preferredGazeMode: null,
-          preferredVoiceMode: null,
-          preferredPacingMode: null,
-        }
+    : {
+        ...projectStateSnapshot,
+        continuityRestraint: projectStateSnapshot.continuityRestraint ?? null,
+        continuityPreferredTiming: null,
+        continuityCadence: null,
+        preferredBlinkCadence: null,
+        preferredGazeMode: null,
+        preferredVoiceMode: null,
+        preferredPacingMode: null,
+      }
   const explicitLatestProgressInput = sanitizeText(
     (typeof preferredRuntimeProjectState?.latestLandedProgress === 'string' ? preferredRuntimeProjectState.latestLandedProgress : null)
     ?? (typeof preferredRuntimeProjectState?.latestProgress === 'string' ? preferredRuntimeProjectState.latestProgress : null)
@@ -1526,17 +1526,15 @@ function buildProjectStateConsciousFrameGrounding(input?: {
     && resolvedSameHerSelfLine
   )
     ? resolvedSameHerSelfLine
-    : compactSameHerInwardLowPressureAwarenessLine
-      ? compactSameHerInwardLowPressureAwarenessLine
-    : (
-        preferredStructuredAwarenessLine
-        && /before answering, remember:/iu.test(preferredStructuredAwarenessLine)
-        && /phase 1|the still-open closure is|what has already landed is|this reply should keep moving toward/iu.test(preferredStructuredAwarenessLine)
-        && preferredRuntimeCompanionHeadline
-        && /holding together mainly through|voice|face|motion|cross-modal|one living her/iu.test(preferredRuntimeCompanionHeadline)
-      )
-        ? preferredStructuredAwarenessLine
-        : resolvedPreDialogueAwarenessLine
+    : compactSameHerInwardLowPressureAwarenessLine || ((
+      preferredStructuredAwarenessLine
+      && /before answering, remember:/iu.test(preferredStructuredAwarenessLine)
+      && /phase 1|the still-open closure is|what has already landed is|this reply should keep moving toward/iu.test(preferredStructuredAwarenessLine)
+      && preferredRuntimeCompanionHeadline
+      && /holding together mainly through|voice|face|motion|cross-modal|one living her/iu.test(preferredRuntimeCompanionHeadline)
+    )
+      ? preferredStructuredAwarenessLine
+      : resolvedPreDialogueAwarenessLine)
   return {
     hasExplicitRuntimeProjectState: Boolean(preferredRuntimeProjectState),
     preflightSummary: sanitizeText(
@@ -1880,6 +1878,10 @@ export function buildCurrentConsciousFrame(input: {
   privateThought?: AlicizationPrivateThoughtSnapshot | null
   initiative?: AlicizationInitiativeSnapshot | null
   desireMemory?: AlicizationDesireMemorySnapshot | null
+  emotionalKernel?: unknown
+  projectState?: unknown
+  projectStatePreflightSummary?: string | null
+  selfContinuityAuthority?: unknown
   runtimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
 }): AlicizationCurrentConsciousFrameSnapshot | null {
   const runtimeSurface = input.runtimeSurface ?? null

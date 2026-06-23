@@ -1,3 +1,5 @@
+import type { StageEmbodimentPerformanceMatchedDriver } from '@proj-alicization/stage-shared'
+
 export type PerformanceVisualizerAuthorityMismatchFilter
   = 'face-mismatch'
     | 'motion-mismatch'
@@ -6,7 +8,7 @@ export type PerformanceVisualizerAuthorityMismatchFilter
 export interface PerformanceVisualizerAuthorityMismatchFilterInput {
   authorityDriftLanes?: string[]
   authoritySegmentMatched?: boolean | null
-  authorityMatchedDrivers?: Array<'face' | 'motion' | 'lipsync'>
+  authorityMatchedDrivers?: StageEmbodimentPerformanceMatchedDriver[]
 }
 
 export interface PerformanceVisualizerAuthorityMatchFlags {

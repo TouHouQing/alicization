@@ -1,15 +1,16 @@
-export type RuntimeSubconsciousTickDecisionSurface = {
+export interface RuntimeSubconsciousTickDecisionSurface {
   shouldInterrupt: boolean
   style: string
   reasonCodes: readonly string[]
+  presenceOnlyHold?: boolean | null
 }
 
-export type RuntimeSubconsciousTickEntryInput = {
+export interface RuntimeSubconsciousTickEntryInput {
   decision: RuntimeSubconsciousTickDecisionSurface
   autonomyExecutionProposalSurface: unknown | null
 }
 
-export type RuntimeSubconsciousTickEntrySurface = {
+export interface RuntimeSubconsciousTickEntrySurface {
   hardSuppressed: boolean
   shouldEnterProactiveFlow: boolean
   shouldHoldVisibleUtterance: boolean
@@ -38,7 +39,8 @@ export function resolveRuntimeSubconsciousTickEntry(
     && !input.decision.shouldInterrupt
     && !shouldSurfaceAutonomyProposal
     && (
-      input.decision.reasonCodes.includes('continuity-next-open-window')
+      input.decision.presenceOnlyHold === true
+      || input.decision.reasonCodes.includes('continuity-next-open-window')
       || input.decision.reasonCodes.includes('private-thought-observe-only')
       || input.decision.reasonCodes.includes('relationship-residue-delay-warmth')
     )

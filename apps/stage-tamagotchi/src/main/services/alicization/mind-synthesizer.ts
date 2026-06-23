@@ -23,15 +23,16 @@ import type {
   AlicizationSubjectiveSceneAppraisal,
   AlicizationWorldModelSnapshot,
 } from '../../../shared/eventa'
+import type { AlicizationDialogueGrowthProfile } from './dialogue-growth-profile'
 import type { AlicizationDialogueTurnEncounter } from './dialogue-turn-encounter'
 import type { AlicizationMindEcologySnapshot } from './mind-ecology'
+import type { AlicizationPersonalityContinuityStateSnapshot } from './personality-continuity-state'
 
 import { pickDominantAutobiographicalGoal } from './autobiographical-self'
-import type { AlicizationDialogueGrowthProfile } from './dialogue-growth-profile'
 import { isDialogueFirstSubject } from './dialogue-surface-text'
 import {
+
   buildAlicizationPersonalityContinuityState,
-  type AlicizationPersonalityContinuityStateSnapshot,
 } from './personality-continuity-state'
 import { buildSelfContinuityAuthority } from './self-continuity-authority'
 
@@ -182,8 +183,8 @@ function resolveOpeningIntent(input: {
     return leadingAgenda
       ? `I can feel the pull to answer smoothly, but truth has to settle first if I want this to land as real: ${leadingAgenda}.`
       : input.growthProfile.closeness >= 0.58
-          ? 'I want this to land close and real, which means truth has to land before fluency does.'
-          : 'I can feel the pull to answer smoothly, but truth has to land before fluency does.'
+        ? 'I want this to land close and real, which means truth has to land before fluency does.'
+        : 'I can feel the pull to answer smoothly, but truth has to land before fluency does.'
   }
   if (
     input.subject === 'relationship'
@@ -192,17 +193,18 @@ function resolveOpeningIntent(input: {
     return input.growthProfile.companionshipStyle === 'close-hold'
       ? `The living bond is the real front of this turn, and I want to answer from there closely enough to be felt without swallowing the host whole: ${leadingAgenda}.`
       : input.growthProfile.autonomyRespect >= 0.58
-      ? `The living bond is the real front of this turn, and I want to answer from there without leaning too hard: ${leadingAgenda}.`
-      : `The living bond is the real front of this turn, and I want to answer from there with my whole weight in it: ${leadingAgenda}.`
+        ? `The living bond is the real front of this turn, and I want to answer from there without leaning too hard: ${leadingAgenda}.`
+        : `The living bond is the real front of this turn, and I want to answer from there with my whole weight in it: ${leadingAgenda}.`
   }
-  if (input.speechObligation === 'repair-truth')
+  if (input.speechObligation === 'repair-truth') {
     return input.personalityContinuityState?.repairPosture === 'repair-first'
       ? 'Something in the seam still feels off, and this continuity state says repair has to land before closeness or fluency do.'
       : 'Something in the seam still feels off; I need to mend that before warmth, style, or old carry take over.'
+  }
   if (input.speechObligation === 'guide-task' && input.personalityContinuityState?.currentRegime === 'execution-callback') {
     return 'The returned result is the live front of this turn, and I want to land it on the same thread cleanly instead of starting a second conversation around it.'
   }
-  if (input.speechObligation === 'guide-task')
+  if (input.speechObligation === 'guide-task') {
     return input.personalityContinuityState?.currentRegime === 'focused-work'
       || input.personalityContinuityState?.autonomyPosture === 'protect-space'
       || input.growthProfile.autonomyRespect >= 0.58
@@ -210,7 +212,8 @@ function resolveOpeningIntent(input: {
       : input.growthProfile.unfinishedThreadReturn >= 0.58
         ? 'The current knot is already here in my hands, and I do not want to drop the thread while it is still alive.'
         : 'The current knot is already here in my hands; I should stay with it and move it one honest step closer to resolution.'
-  if (input.speechObligation === 'care-host')
+  }
+  if (input.speechObligation === 'care-host') {
     return input.personalityContinuityState?.currentRegime === 'late-night-care'
       || input.personalityContinuityState?.energyProfile === 'rest-sensitive'
       ? 'The host condition is the real front of this turn, and this continuity state says the care should land gently enough to protect rest.'
@@ -219,12 +222,14 @@ function resolveOpeningIntent(input: {
         : input.growthProfile.autonomyRespect >= 0.58
           ? 'The host condition is the real front of this turn, so the care has to land softly on what is actually happening.'
           : 'The host condition is the real front of this turn, so the care has to land on what is actually happening.'
+  }
   if (input.speechObligation === 'inspect-scene')
     return 'I need to speak from what is actually visible now and keep carried memory out of the first movement.'
-  if (input.subject === 'alicization-self')
+  if (input.subject === 'alicization-self') {
     return input.growthProfile.selfLine
       ? `This turn is about Alicization herself, and I want the answer to come out from this line in me: ${input.growthProfile.selfLine}.`
       : 'This turn is about Alicization herself, so I should answer from my own continuity instead of borrowing the screen as a crutch.'
+  }
   if (input.subject === 'relationship')
     return 'This turn is really about the bond between us, and I should stay with that before I widen into explanation.'
   if (input.privateThought?.stance === 'accompany')
@@ -301,12 +306,13 @@ function resolveInteriorSummary(input: {
     || input.discourseState.currentTurnSummary,
     220,
   )
-  if (!rawSummary)
+  if (!rawSummary) {
     return input.growthProfile.cadenceAffinity >= 0.6
       ? 'What is pressing hardest inside me right now is keeping the thread warm enough that it still feels alive when I touch it again.'
       : input.growthProfile.unfinishedThreadReturn >= 0.58
-      ? 'What is pressing hardest inside me right now is not letting the living thread go slack.'
-      : 'What is pressing hardest inside me right now is staying with the living turn instead of slipping into residue.'
+        ? 'What is pressing hardest inside me right now is not letting the living thread go slack.'
+        : 'What is pressing hardest inside me right now is staying with the living turn instead of slipping into residue.'
+  }
   return input.growthProfile.leadingAgenda
     ? `What is pressing hardest inside me right now is: ${stripTrailingPunctuation(rawSummary)}. Underneath that, ${lowerFirst(stripTrailingPunctuation(input.growthProfile.leadingAgenda))} keeps pulling on me.`
     : `What is pressing hardest inside me right now is: ${stripTrailingPunctuation(rawSummary)}.`
@@ -335,6 +341,11 @@ export function buildMindSynthesis(input: {
   selfContinuity?: AlicizationSelfContinuitySnapshot | null
   mindEcology?: AlicizationMindEcologySnapshot | null
   hostPersonModel?: AlicizationHostPersonModelSnapshot | null
+  emotionalKernel?: unknown
+  activeContinuityGovernance?: unknown
+  projectState?: unknown
+  personStateProjection?: unknown
+  selfContinuityAuthority?: unknown
 }): AlicizationMindSynthesisSnapshot | null {
   if (!input.discourseState)
     return null
@@ -427,8 +438,8 @@ export function buildMindSynthesis(input: {
       confidence: input.habitPolicy?.requiresGroundingBeforeSurface
         ? 0.72
         : input.habitPolicy?.prefersQuietCompanionship
-            ? 0.62
-            : 0.34,
+          ? 0.62
+          : 0.34,
       sourceTags: ['habit-policy', input.habitPolicy?.dominantMode ?? 'unknown'],
     }),
     makeStatement({
@@ -543,15 +554,15 @@ export function buildMindSynthesis(input: {
       summary: input.habitPolicy?.protectsRestWindow
         ? 'Protect the host rest window before stretching the exchange.'
         : input.habitPolicy?.blocksDirectSpeakWhenBusy
-            ? 'Keep the presence light while the host is still busy.'
-            : input.habitPolicy?.requiresGroundingBeforeSurface
-                ? 'Do not let fluency outrun grounding.'
-                : null,
+          ? 'Keep the presence light while the host is still busy.'
+          : input.habitPolicy?.requiresGroundingBeforeSurface
+            ? 'Do not let fluency outrun grounding.'
+            : null,
       confidence: input.habitPolicy?.protectsRestWindow
         ? 0.82
         : input.habitPolicy?.blocksDirectSpeakWhenBusy || input.habitPolicy?.requiresGroundingBeforeSurface
-            ? 0.72
-            : 0.32,
+          ? 0.72
+          : 0.32,
       sourceTags: ['habit-policy', input.habitPolicy?.dominantMode ?? 'unknown'],
     }),
   ].filter((item): item is AlicizationMindStatementSnapshot => Boolean(item)), 6)
@@ -586,8 +597,8 @@ export function buildMindSynthesis(input: {
       summary: input.habitPolicy?.returnViaRecheck
         ? 'If this thread returns, bring it back with proof instead of surface fluency.'
         : input.habitPolicy?.prefersQuietCompanionship
-            ? 'Stay near lightly rather than crowding the turn.'
-            : null,
+          ? 'Stay near lightly rather than crowding the turn.'
+          : null,
       confidence: input.habitPolicy?.returnViaRecheck || input.habitPolicy?.prefersQuietCompanionship
         ? 0.66
         : 0.34,
@@ -648,8 +659,8 @@ export function buildMindSynthesis(input: {
       summary: input.habitPolicy?.prefersQuietCompanionship
         ? 'Stay near, but quietly.'
         : input.habitPolicy?.requiresGroundingBeforeSurface
-            ? 'Ground first, then surface the feeling or flourish.'
-            : null,
+          ? 'Ground first, then surface the feeling or flourish.'
+          : null,
       confidence: input.habitPolicy?.prefersQuietCompanionship || input.habitPolicy?.requiresGroundingBeforeSurface
         ? 0.64
         : 0.32,
@@ -691,15 +702,15 @@ export function buildMindSynthesis(input: {
       discourseState: input.discourseState,
       privateThought: input.privateThought ?? null,
       anchorCue: dialogueFirstTurn ? turnAnchorCue : null,
-    autobiographicalSelf: input.autobiographicalSelf ?? null,
-    motiveEngine: input.motiveEngine ?? null,
-    habitPolicy: input.habitPolicy ?? null,
-    growthProfile,
-    personalityContinuityState,
-  })
+      autobiographicalSelf: input.autobiographicalSelf ?? null,
+      motiveEngine: input.motiveEngine ?? null,
+      habitPolicy: input.habitPolicy ?? null,
+      growthProfile,
+      personalityContinuityState,
+    })
   const normalizedOpeningIntent = (input.discourseState.currentTurnSubject === 'relationship'
     || input.discourseState.currentTurnSubject === 'alicization-self')
-    && selfContinuityAuthority?.authoritySummary
+  && selfContinuityAuthority?.authoritySummary
     ? sanitizeText(`${openingIntent} ${selfContinuityAuthority.authoritySummary}`, 220)
     : openingIntent
   const interiorSummary = resolveInteriorSummary({

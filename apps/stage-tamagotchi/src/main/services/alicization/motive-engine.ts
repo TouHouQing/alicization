@@ -191,6 +191,7 @@ export function buildMotiveEngine(input: {
   recentMemoryConsolidations?: AlicizationMemoryConsolidationRecord[] | null
   reflectionLedger?: AlicizationReflectionLedgerSnapshot | null
   habitPolicy?: AlicizationHabitPolicySnapshot | null
+  projectState?: unknown
   previous?: AlicizationMotiveEngineSnapshot | null
 }): AlicizationMotiveEngineSnapshot {
   const relationshipEra = latestAutobiographicalEra(input.recentMemoryConsolidations ?? null, 'relationship-era')

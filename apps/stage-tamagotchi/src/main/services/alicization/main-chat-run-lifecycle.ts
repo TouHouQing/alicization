@@ -3,9 +3,9 @@ import type { Message } from '@xsai/shared-chat'
 import type { AlicizationChatStartPayload } from '../../../shared/eventa'
 import type { AlicizationPreparedMainChatExecutionResult } from './main-chat-session-runtime'
 import type { AlicizationMainGatewayReachabilitySnapshot } from './main-gateway-health'
+import type { MainGatewayResolvedConfig } from './runtime-soul'
 import type { AlicizationTurnRuntimeContext } from './turn-os/runtime'
 import type { AlicizationResolvedVisibleReply } from './visible-reply/facade'
-import type { MainGatewayResolvedConfig } from './runtime-soul'
 
 import { createAlicizationTurnRuntime } from './turn-os/runtime'
 import { buildAlicizationVisibleReplyRealizationArtifact } from './visible-reply/facade'
@@ -105,7 +105,7 @@ export function deriveAlicizationTimeoutRecoveryMs(input: {
       ? 25_000
       : input.timeoutRecoveryMode === 'active-dialogue-compact'
         ? 12_000
-      : 20_000
+        : 20_000
   return Math.max(safeBaseTimeoutMs, livenessFloorMs)
 }
 
@@ -182,6 +182,8 @@ interface HandleAlicizationMainChatRunFailureOptions {
     finishReason: string
     fullText?: string
     error?: string
+    visibleReplyExecution?: AlicizationResolvedVisibleReply['visibleReplyExecution'] | null
+    visibleReplyRealization?: AlicizationResolvedVisibleReply['realization'] | Record<string, unknown> | null
   }) => void | Promise<void>
   appendRuntimeDebugLine: (event: string, payload: Record<string, unknown>) => Promise<void>
   queueScopedAuditLog: (cardId: string, input: {

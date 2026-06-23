@@ -31,8 +31,8 @@ import {
 } from '../proactive-opening-guidance'
 import {
   buildAlicizationProjectPreDialogueAwarenessLine,
-  buildAlicizationProjectStateExtraSystemBlocks,
   buildAlicizationProjectStateClosureDashboard,
+  buildAlicizationProjectStateExtraSystemBlocks,
   isAlicizationThinProjectAwarenessLine,
   resolveAlicizationProjectStateBrief,
   scoreAlicizationProjectAwarenessLine,
@@ -1393,16 +1393,16 @@ function buildSecondPassRewriteMessages(input: {
       )
   const projectStateEmbodimentClosureSummary
     = sanitizeBoundedText(
-        projectStateAudit?.embodimentClosureSummary ?? null,
-        SECOND_PASS_EMBODIMENT_CLOSURE_MAX_CHARS,
-      )
-      || (looksLikeStrongEmbodimentClosureCarry(runtimeProjectCompanionHeadlineLine)
-        ? runtimeProjectCompanionHeadlineLine
-        : null)
-      || (looksLikeStrongEmbodimentClosureCarry(directPreparedCompanionHeadlineLine)
-        ? directPreparedCompanionHeadlineLine
-        : null)
-      || null
+      projectStateAudit?.embodimentClosureSummary ?? null,
+      SECOND_PASS_EMBODIMENT_CLOSURE_MAX_CHARS,
+    )
+    || (looksLikeStrongEmbodimentClosureCarry(runtimeProjectCompanionHeadlineLine)
+      ? runtimeProjectCompanionHeadlineLine
+      : null)
+    || (looksLikeStrongEmbodimentClosureCarry(directPreparedCompanionHeadlineLine)
+      ? directPreparedCompanionHeadlineLine
+      : null)
+    || null
   const mergedMustPreserve = uniqueTextList([
     ...readStringList(rewriteRequest?.mustPreserve),
     ...(input.mustPreserve ?? []),

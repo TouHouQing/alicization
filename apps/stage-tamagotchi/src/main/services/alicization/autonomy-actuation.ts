@@ -456,10 +456,10 @@ export function deriveAutonomyExecutionProposalSurface(input: {
   const emotion = interactionLearning.proposalTone === 'cautious'
     ? 'concerned'
     : autonomyKind === 'care'
-    ? 'concerned'
-    : autonomyKind === 'repair' || autonomyKind === 'follow-through' || autonomyKind === 'guide'
-      ? 'thinking'
-      : 'neutral'
+      ? 'concerned'
+      : autonomyKind === 'repair' || autonomyKind === 'follow-through' || autonomyKind === 'guide'
+        ? 'thinking'
+        : 'neutral'
   const thought = sanitizeText(
     [
       autonomy ? `autonomy=${autonomy.selectedMode}` : '',

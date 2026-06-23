@@ -65,7 +65,7 @@ function shouldRecallExecutionLedger(input: {
   const hasRecentSettledThread = input.recentThreads.some(thread =>
     thread.status === 'completed'
     || thread.status === 'failed'
-    || thread.status === 'cancelled'
+    || thread.status === 'cancelled',
   )
   const recentTurnsMentionExecution = input.recentTurns.some(turn =>
     executionMentionPattern.test(turn.userText)

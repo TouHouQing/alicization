@@ -1,5 +1,6 @@
-import type { AlicizationLearningTaskRecord, AlicizationMemoryDomain } from '../../../shared/eventa'
 import type { AlicizationVerifiedLearningArtifact } from '@proj-alicization/stage-shared'
+
+import type { AlicizationLearningTaskRecord, AlicizationMemoryDomain } from '../../../shared/eventa'
 import type { AlicizationLearningActionExecutorResult } from './learning-action-executor'
 
 export type AlicizationLearningLifecycleState
@@ -45,10 +46,11 @@ export function deriveAlicizationLearningLifecycleState(input: {
     return 'candidate-extraction'
   if (input.task.action === 'revise')
     return 'rollback-downgrade'
-  if (input.task.action === 'internalize')
+  if (input.task.action === 'internalize') {
     return input.verifiedArtifact?.claimGraph.revalidationPolicy.shouldRevalidate
       ? 'revalidation'
       : 'internalization'
+  }
   return input.verifiedArtifact?.claimGraph.revalidationPolicy.shouldRevalidate
     ? 'revalidation'
     : 'verification'
@@ -67,10 +69,11 @@ export function deriveNextAlicizationLearningLifecycleState(input: {
     return input.currentState
   if (input.currentState === 'candidate-extraction')
     return 'verification'
-  if (input.currentState === 'verification')
+  if (input.currentState === 'verification') {
     return input.verifiedArtifact?.claimGraph.revalidationPolicy.shouldRevalidate
       ? 'revalidation'
       : 'internalization'
+  }
   if (input.currentState === 'revalidation')
     return 'internalization'
   if (input.currentState === 'rollback-downgrade')

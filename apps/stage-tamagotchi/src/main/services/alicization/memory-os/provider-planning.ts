@@ -1,3 +1,4 @@
+import type { AlicizationDigitalLifeRuntimeSurface } from '../digital-life-kernel'
 import type { OrganicMemoryPromptContext } from '../runtime-soul'
 
 import { parseJsonObjectFromText } from '../runtime-transport-content'
@@ -21,6 +22,8 @@ export interface AlicizationMemoryGatewayTextProvider {
     timeoutMs?: number
     source?: 'counterfactual-deliberation'
     cardId?: string
+    digitalLifeRuntimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
+    extraSystemBlocks?: string[]
     injectPerformanceManifest?: boolean
     injectCustomDirectives?: boolean
   }): Promise<string | null>

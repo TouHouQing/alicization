@@ -185,7 +185,7 @@ export function applyHostPersonModelToDigitalLifeRuntimeSurface(input: {
         mindEcology: buildMindEcologyFromRuntimeSurface(surface),
         previousContinuityState: surface.memory.personalityContinuityState ?? null,
       })
-  const contexts = projection.contexts
+  const contexts = projection.contexts ?? []
   const selectedMotive = (() => {
     if (projection.repairTriggerText && projection.relationshipPosture === 'restrained')
       return 'attune' as const
@@ -376,6 +376,7 @@ export function applyHostPersonModelToDigitalLifeRuntimeSurface(input: {
         ], 8),
         sourceTrace: mergeUniqueRules([
           ...(surface.dialogue.dialogueActKernel?.sourceTrace ?? []),
+          surface.dialogue.answerPlanner ? 'runtime-answer-planner' : null,
           'person-state-projection',
           selfEvolutionOpeningBias?.sourceTrace ?? null,
           ...contexts.map(context => `host-context:${context}`),

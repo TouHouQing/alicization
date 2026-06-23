@@ -233,6 +233,7 @@ export function buildReplyOutcomeClosure(input: {
   sessionId?: string | null
   decisionTraceId?: string | null
   runtimeSurface: AlicizationDigitalLifeRuntimeSurface | null
+  userText?: string | null
   assistantText?: string | null
 }): AlicizationOutcomeClosureResult {
   const result = baseResult()
@@ -473,31 +474,31 @@ function proactiveScenarioLabel(outcome: AlicizationRecentProactiveOutcome) {
   }
 }
 
-const zhExecutionAffirmationPattern = /^(?:可以(?:做吧|开始|做)?|行(?:啊|吧)?|好(?:的|啊|呀)?(?:做吧)?|嗯嗯?|那就做吧|那你做吧|做吧|去做吧|开始吧|动手吧|改吧|那就改吧|去改吧|你做吧|来吧)$/u
+const zhExecutionAffirmationPattern = /^(?:可以(?:做吧|开始|做)?|行(?:啊|吧)?|好[的啊呀]?(?:做吧)?|嗯嗯?|那就做吧|那你做吧|做吧|去做吧|开始吧|动手吧|改吧|那就改吧|去改吧|你做吧|来吧)$/u
 const zhExecutionDenialTokens = ['不用', '先别', '别做', '别改', '不要做', '不要改', '算了', '算啦', '停一下', '先停下', '不需要', '不用你做', '别动它', '先不要动']
 const enExecutionAffirmationPattern = /^(?:ok|okay|yes|yeah|yep|sure|goahead|doit|pleasedo|startit|dothat)$/iu
-const enExecutionDenialTokens = ['no', 'dont', 'donot', "don't", 'stop', 'notnow', 'leaveit', 'skipit', 'cancelit']
+const enExecutionDenialTokens = ['no', 'dont', 'donot', 'don\'t', 'stop', 'notnow', 'leaveit', 'skipit', 'cancelit']
 const zhExecutionResultValuedTokens = ['靠谱', '有用', '挺有用', '这样可以', '这样挺好', '以后可以这样', '值得', '就是这个', '对的', '谢谢', '有帮助']
 const zhExecutionResultDoubtedTokens = ['不对', '不靠谱', '错了', '不是这个', '不行', '不准', '你搞错了', '这结果错了', '不可靠']
 const zhExecutionResultIntrusiveTokens = ['打扰', '别这样突然', '别老这样', '太吵', '太烦', '别这么报', '先别这样报', '别突然报结果']
-const enExecutionResultValuedTokens = ['useful', 'helpful', 'thatworks', 'thatsright', "that'sright", 'goodresult', 'thankyou', 'thanks']
-const enExecutionResultDoubtedTokens = ['wrong', 'incorrect', 'unreliable', 'doesntlookright', "doesn'tlookright", 'notright', 'badresult']
-const enExecutionResultIntrusiveTokens = ['intrusive', 'annoying', 'dontinterrupt', "don'tinterrupt", 'toonoisy', 'dontsuddenlyreport', "don'tsuddenlyreport"]
+const enExecutionResultValuedTokens = ['useful', 'helpful', 'thatworks', 'thatsright', 'that\'sright', 'goodresult', 'thankyou', 'thanks']
+const enExecutionResultDoubtedTokens = ['wrong', 'incorrect', 'unreliable', 'doesntlookright', 'doesn\'tlookright', 'notright', 'badresult']
+const enExecutionResultIntrusiveTokens = ['intrusive', 'annoying', 'dontinterrupt', 'don\'tinterrupt', 'toonoisy', 'dontsuddenlyreport', 'don\'tsuddenlyreport']
 const executionResultAssistantCueTokens = ['结果', '执行', '命令', '任务', 'callback', 'cli', 'codex', 'claudecode', 'openclaw', '有结果', '跑完', '做完']
 const zhDialogueReplyReceivedTokens = ['像人多了', '自然多了', '这次自然', '这样就对', '这样舒服', '有被接住', '这次好多了', '这样说就好', '这样就好', '这句可以', '谢谢你这样说', '对，就是这个', '这次对了']
 const zhDialogueReplyRoboticTokens = ['像机器', '像机器人', '太模板', '很模板', '不自然', '不像人', '说人话', '像系统', '像客服', '流程播报', '系统口气', '人机味', '太机械']
 const zhDialogueReplyMissedTokens = ['不对', '不是这个', '答非所问', '没回答到', '没答到', '没懂', '你没懂', '不是这个意思', '跑题', '跑偏', '你在说啥', '你在讲什么']
 const zhDialogueReplyIntrusiveTokens = ['太挤', '太黏', '太过了', '别这么贴', '别这样哄', '先别安慰', '太肉麻', '别这么叫我', '太烦了', '压力太大']
 const zhDialogueReplyInterruptedTokens = ['先说别的', '换个话题', '不聊这个', '先不说这个', '算了说别的', '我还有别的事', '先说另一件事']
-const enDialogueReplyReceivedTokens = ['morehuman', 'naturalthistime', 'thatlanded', 'thatfeelsright', 'thatsbetter', "that'sbetter", 'thatfeltgood', 'thathelped', 'yougotit', 'yougotme']
+const enDialogueReplyReceivedTokens = ['morehuman', 'naturalthistime', 'thatlanded', 'thatfeelsright', 'thatsbetter', 'that\'sbetter', 'thatfeltgood', 'thathelped', 'yougotit', 'yougotme']
 const enDialogueReplyRoboticTokens = ['robotic', 'tootemplated', 'toocorporate', 'toosystem', 'youstillsoundlikeabot', 'soundmorehuman', 'talklikeaperson']
-const enDialogueReplyMissedTokens = ['notthis', 'missedthepoint', 'didntanswer', "didn'tanswer", 'thatsnotwhatimeant', "that'snotwhatimeant", 'youstilldontgetit', "youstilldon'tgetit"]
-const enDialogueReplyIntrusiveTokens = ['tooclose', 'toomuch', 'dontcomfortmelikethat', "don'tcomfortmelikethat", 'stopcrowdingme', 'thatsintrusive', "that'sintrusive"]
-const enDialogueReplyInterruptedTokens = ['letsdropthat', "let'sdropthat", 'talkaboutsomethingelse', 'differenttopic', 'leaveit', 'letsmoveon', "let'smoveon"]
+const enDialogueReplyMissedTokens = ['notthis', 'missedthepoint', 'didntanswer', 'didn\'tanswer', 'thatsnotwhatimeant', 'that\'snotwhatimeant', 'youstilldontgetit', 'youstilldon\'tgetit']
+const enDialogueReplyIntrusiveTokens = ['tooclose', 'toomuch', 'dontcomfortmelikethat', 'don\'tcomfortmelikethat', 'stopcrowdingme', 'thatsintrusive', 'that\'sintrusive']
+const enDialogueReplyInterruptedTokens = ['letsdropthat', 'let\'sdropthat', 'talkaboutsomethingelse', 'differenttopic', 'leaveit', 'letsmoveon', 'let\'smoveon']
 
 function normalizeCompactText(raw: string) {
   return sanitizeText(raw, 240)
-    .replace(/[，,。.!！？?？\s]+/g, '')
+    .replace(/[，,。.!！？?\s]+/g, '')
     .toLowerCase()
 }
 

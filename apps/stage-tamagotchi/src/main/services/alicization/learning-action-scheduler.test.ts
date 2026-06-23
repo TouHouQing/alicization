@@ -1,6 +1,6 @@
-import { describe, expect, it, vi } from 'vitest'
-
 import type { AlicizationLearningTaskRecord } from '../../../shared/eventa'
+
+import { describe, expect, it, vi } from 'vitest'
 
 import {
   computeAlicizationLearningTaskBackoffMs,

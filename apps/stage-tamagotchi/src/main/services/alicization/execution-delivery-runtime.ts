@@ -379,7 +379,7 @@ export function createAlicizationExecutionDeliveryRuntime(
       return 0
 
     const queue = pendingByCard.get(cardId) ?? []
-    if (queue.length === 0)
+    if (queue.length === 0) {
       return markInlineSurfaced({
         cardId,
         sessionId: sessionId || '',
@@ -388,6 +388,7 @@ export function createAlicizationExecutionDeliveryRuntime(
       })
         ? 1
         : 0
+    }
 
     const matched = queue.filter((entry) => {
       if (entry.threadId !== threadId)

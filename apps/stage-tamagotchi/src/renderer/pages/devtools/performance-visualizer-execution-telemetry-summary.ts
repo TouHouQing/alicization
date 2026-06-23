@@ -115,7 +115,7 @@ function deriveAuthorityTrustSummary(prosodyAuthoritySummary: string | null | un
 
   if (
     summary.includes('provenance=authority-bound')
-    && /(?:^|\s|\|)segment=([^\s|]+)/.test(summary)
+    && /(?:^|\s|\|)segment=[^\s|]+/.test(summary)
   ) {
     return {
       value: '韵律权威链已重新绑定到当前片段，可直接进入长期基线。',
@@ -133,7 +133,7 @@ function formatDriverTelemetrySummary(value: string, options?: { includeMode?: b
 
   const [cue, ...detailParts] = parts
   const formattedDetails = detailParts.map((part) => {
-    const labels = options?.includeMode
+    const labels: Record<string, string> = options?.includeMode
       ? {
           src: '来源',
           conf: '置信',

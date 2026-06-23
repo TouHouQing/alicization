@@ -1831,8 +1831,8 @@ describe('evaluateProactivePolicy', () => {
         selectedConcernId: 'care-open',
         confidence: 0.84,
         motives: {
-          protect: 0.68,
-          clarify: 0.58,
+          'protect': 0.68,
+          'clarify': 0.58,
           'stay-silent': 0.18,
         },
         speakDrive: 0.82,

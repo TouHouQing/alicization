@@ -527,12 +527,14 @@ describe('dialogue growth replay', () => {
     expect(afterBoundaryPushback.selfContinuity.guardingTendency)
       .toBeGreaterThan(baseline.selfContinuity.guardingTendency)
     expect(afterBoundaryPushback.relationshipModel.approachVector)
-      .not.toBe(baseline.relationshipModel.approachVector)
+      .not
+      .toBe(baseline.relationshipModel.approachVector)
     expect(afterBoundaryPushback.relationshipModel.activeBoundaries).toContain('focus-protection')
     expect(afterBoundaryPushback.habitPolicy.blocksDirectSpeakWhenBusy).toBe(true)
     expect(afterBoundaryPushback.longHorizonMemory?.identityBias.guardedness ?? 0)
       .toBeGreaterThan(baseline.longHorizonMemory?.identityBias.guardedness ?? 0)
     expect(afterBoundaryPushback.autobiographicalSelf.preferenceEvolution.unfinishedThreadReturn)
-      .not.toBe(baseline.autobiographicalSelf.preferenceEvolution.unfinishedThreadReturn)
+      .not
+      .toBe(baseline.autobiographicalSelf.preferenceEvolution.unfinishedThreadReturn)
   })
 })

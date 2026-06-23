@@ -3,8 +3,8 @@ import type {
 } from './performance-visualizer-self-evolution-triage-view'
 
 import { buildSelfEvolutionTriageTargets } from './performance-visualizer-self-evolution-triage-targets'
-import { buildSelfEvolutionTriageTraceTargets } from './performance-visualizer-self-evolution-triage-trace-targets'
 import { recommendSelfEvolutionTraceEventId } from './performance-visualizer-self-evolution-triage-trace-event'
+import { buildSelfEvolutionTriageTraceTargets } from './performance-visualizer-self-evolution-triage-trace-targets'
 
 interface SelfEvolutionTraceEventCandidate {
   id: string
@@ -47,17 +47,18 @@ export function buildSelfEvolutionFocusPlan(
 
   const evidenceTargets = buildSelfEvolutionTriageTargets(triageCards)
   const traceTargets = buildSelfEvolutionTriageTraceTargets(triageCards)
-  const highlightedEvidencePanelIds = evidenceTargets[selectedCardId] ?? []
-  const highlightedTraceSectionIds = traceTargets[selectedCardId] ?? []
+  const resolvedSelectedCardId = selectedCard.id
+  const highlightedEvidencePanelIds = evidenceTargets[resolvedSelectedCardId] ?? []
+  const highlightedTraceSectionIds = traceTargets[resolvedSelectedCardId] ?? []
   const recommendedTraceEventId = recommendSelfEvolutionTraceEventId(selectedCard, traceEvents)
 
   return {
-    selectedCardId,
+    selectedCardId: resolvedSelectedCardId,
     highlightedEvidencePanelIds,
     highlightedTraceSectionIds,
     recommendedTraceEventId,
     explanation: buildFocusExplanation(
-      selectedCardId,
+      resolvedSelectedCardId,
       highlightedEvidencePanelIds,
       highlightedTraceSectionIds,
       recommendedTraceEventId,

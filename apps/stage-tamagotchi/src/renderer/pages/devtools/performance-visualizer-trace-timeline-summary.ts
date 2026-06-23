@@ -1,4 +1,5 @@
 import type { StageThreeRuntimeSpeechEmbodimentDiagnostics } from '../../stores/stage-three-runtime-diagnostics'
+
 import { formatRendererAlignmentSummary } from './performance-visualizer-speech-observability'
 
 export interface PerformanceVisualizerTraceTimelineSummaryEntry {
@@ -180,42 +181,48 @@ export function buildRecentDrivingTraceRecordSummaryEntries(
 
   if (hasValue(traceRecord.activeThreadId))
     pushSummaryEntry(entries, { key: 'trace-thread', label: '活跃线程', value: traceRecord.activeThreadId! })
-  if (hasValue(traceRecord.turnMode))
+  if (hasValue(traceRecord.turnMode)) {
     pushSummaryEntry(entries, {
       key: 'trace-turn-mode',
       label: '回合模式',
       ...formatTraceTurnModeDisplay(traceRecord.turnMode!),
     })
-  if (hasValue(traceRecord.truthState))
+  }
+  if (hasValue(traceRecord.truthState)) {
     pushSummaryEntry(entries, {
       key: 'trace-truth-state',
       label: '真值状态',
       ...formatTraceTruthStateDisplay(traceRecord.truthState!),
     })
-  if (hasValue(traceRecord.repairState))
+  }
+  if (hasValue(traceRecord.repairState)) {
     pushSummaryEntry(entries, {
       key: 'trace-repair-state',
       label: '修复状态',
       ...formatTraceRepairStateDisplay(traceRecord.repairState!),
     })
-  if (hasValue(traceRecord.finalSurfacePolicy))
+  }
+  if (hasValue(traceRecord.finalSurfacePolicy)) {
     pushSummaryEntry(entries, {
       key: 'trace-surface-policy',
       label: '表面策略',
       ...formatTraceSurfacePolicyDisplay(traceRecord.finalSurfacePolicy!),
     })
-  if (hasValue(traceRecord.closureState))
+  }
+  if (hasValue(traceRecord.closureState)) {
     pushSummaryEntry(entries, {
       key: 'trace-closure-state',
       label: '收口状态',
       ...formatTraceClosureStateDisplay(traceRecord.closureState!),
     })
-  if (hasValue((traceRecord as any).authorityTrustSummary))
+  }
+  if (hasValue((traceRecord as any).authorityTrustSummary)) {
     pushSummaryEntry(entries, {
       key: 'trace-authority-trust',
       label: '权威可信性',
       value: (traceRecord as any).authorityTrustSummary,
     })
+  }
   const suppressionTags = formatList(traceRecord.suppressionTags)
   if (suppressionTags)
     pushSummaryEntry(entries, { key: 'trace-suppression-tags', label: '抑制标签', value: suppressionTags })

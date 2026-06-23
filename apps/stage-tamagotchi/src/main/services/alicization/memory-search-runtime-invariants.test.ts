@@ -7,8 +7,8 @@ import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel
 
 import { describe, expect, it } from 'vitest'
 
-import { buildAlicizationResponseSurfaceContract } from './response-surface-contract'
 import { createAlicizationMemorySearchRuntime } from './memory-search-runtime'
+import { buildAlicizationResponseSurfaceContract } from './response-surface-contract'
 
 describe('memory-search-runtime invariants', () => {
   it('keeps shared recollection contracts assignable through runtime surface memory fields', () => {

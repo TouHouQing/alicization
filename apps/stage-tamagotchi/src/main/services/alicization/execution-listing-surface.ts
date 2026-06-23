@@ -2,8 +2,8 @@ import { sanitizeExecutionLedgerText } from './execution-ledger-shared'
 
 const listedEntriesPattern = /^Listed\s+(desktop\s+entries|entries)\s+\((\d+)\):\s*(.+)$/iu
 const listedExtraPattern = /(?:,\s*)?\+(\d+)\s+more\s*$/iu
-const listedEncodedNamePattern = /^((?:%[0-9A-Fa-f]{2}){2,})\s*\((.+)\)$/u
-const uriEncodedTokenPattern = /^(?:%[0-9A-Fa-f]{2}){2,}$/u
+const listedEncodedNamePattern = /^((?:%[0-9A-F]{2}){2,})\s*\((.+)\)$/iu
+const uriEncodedTokenPattern = /^(?:%[0-9A-F]{2}){2,}$/iu
 const shellListingLeakPattern = /(?:^|\s)(?:drwx|total\s+\d+)/iu
 const shellListingMonthToken = '(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)'
 const shellListingEntryPattern = new RegExp(
@@ -166,13 +166,13 @@ export function parseAlicizationRequestedListingItemCount(textRaw: string) {
   if (!text)
     return null
 
-  const arabicMatch = text.match(/(\d+)\s*(?:项|个|条|files?|entries?)/iu)
+  const arabicMatch = text.match(/(\d+)\s*(?:[项个条]|files?|entries?)/iu)
   if (arabicMatch?.[1]) {
     const parsed = Number.parseInt(arabicMatch[1], 10)
     return Number.isFinite(parsed) && parsed > 0 ? parsed : null
   }
 
-  const chineseMatch = text.match(/([一二两三四五六七八九十]+)\s*(?:项|个|条)/u)
+  const chineseMatch = text.match(/([一二两三四五六七八九十]+)\s*[项个条]/u)
   if (!chineseMatch?.[1])
     return null
 

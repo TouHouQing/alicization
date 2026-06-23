@@ -1,4 +1,5 @@
 import type {
+  AlicizationHostPersonModelSnapshot,
   AlicizationLongHorizonMemoryCueInfluence,
   AlicizationLongHorizonMemoryCueSnapshot,
   AlicizationLongHorizonMemorySnapshot,
@@ -7,6 +8,7 @@ import type {
   AlicizationWorldModelSnapshot,
 } from '../../../shared/eventa'
 import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
+import type { AlicizationPersonStateUpdateSurface } from './person-state-update-surface'
 
 export const alicizationLongHorizonMemoryMarker = '[ALICIZATION_LONG_HORIZON_MEMORY]'
 
@@ -14,6 +16,10 @@ interface BuildAlicizationLongHorizonMemoryInput {
   now: number
   facts: AlicizationMemoryFact[]
   previous?: AlicizationLongHorizonMemorySnapshot | null
+  hostPersonModel?: AlicizationHostPersonModelSnapshot | null
+  personStateUpdateSurface?: AlicizationPersonStateUpdateSurface | null
+  projectStateEmotionalClosureCue?: string | null
+  projectStatePrimaryOpenLoop?: string | null
 }
 
 interface BuildAlicizationLongHorizonMemoryQueryInput {
@@ -127,7 +133,7 @@ function computeFactWeight(fact: AlicizationMemoryFact, now: number) {
       ? 0.04
       : validationStatus === 'superseded'
         ? -0.24
-      : 0
+        : 0
   const validationCountBoost = Math.min(0.08, (fact.validationCount ?? 0) * 0.02)
   const contradictionPenalty = Math.min(0.1, (fact.contradictionCount ?? 0) * 0.04)
   const correctionBoost = (fact.supersedes?.length ?? 0) > 0 ? 0.05 : 0
@@ -366,14 +372,11 @@ export function buildAlicizationLongHorizonMemory(input: BuildAlicizationLongHor
 
   const dominantCueSummary = anchorFacts[0]?.summary ?? previous.dominantCueSummary ?? null
   const rememberedPreferenceSummary = pickCueSummary(anchorFacts, cue =>
-    cue.influenceTags.includes('bond') || preferencePredicatePattern.test(cue.predicate),
-  ) ?? previous.rememberedPreferenceSummary
+    cue.influenceTags.includes('bond') || preferencePredicatePattern.test(cue.predicate)) ?? previous.rememberedPreferenceSummary
   const rememberedConstraintSummary = pickCueSummary(anchorFacts, cue =>
-    cue.influenceTags.includes('boundary') || dislikePredicatePattern.test(cue.predicate),
-  ) ?? previous.rememberedConstraintSummary
+    cue.influenceTags.includes('boundary') || dislikePredicatePattern.test(cue.predicate)) ?? previous.rememberedConstraintSummary
   const rememberedPlanSummary = pickCueSummary(anchorFacts, cue =>
-    cue.influenceTags.includes('task') || planPredicatePattern.test(cue.predicate),
-  ) ?? previous.rememberedPlanSummary
+    cue.influenceTags.includes('task') || planPredicatePattern.test(cue.predicate)) ?? previous.rememberedPlanSummary
   const summary = [
     rememberedPreferenceSummary ? `preference=${sanitizeText(rememberedPreferenceSummary, 96)}` : '',
     rememberedConstraintSummary ? `boundary=${sanitizeText(rememberedConstraintSummary, 96)}` : '',

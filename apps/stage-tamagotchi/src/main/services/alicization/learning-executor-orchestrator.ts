@@ -5,13 +5,21 @@ import type {
   AlicizationRelationshipOutcomeRecord,
 } from '../../../shared/eventa'
 import type { AlicizationLearningActionExecutorResult, CreateAlicizationLearningActionExecutorOptions } from './learning-action-executor'
+import type { AlicizationLearningVerificationBasis } from './learning-domain-verifiers'
+import type { AlicizationLearningTaskEffectContext } from './learning-task-effects'
 
 import { buildVerifiedLearningArtifact } from './learning-claim-evidence-runtime'
 import {
+
   buildLearningEvidenceSnapshot,
-  type AlicizationLearningVerificationBasis,
 } from './learning-domain-verifiers'
 import {
+  deriveAlicizationLearningLifecycleState,
+  deriveAlicizationLearningPolicyFeedback,
+  deriveNextAlicizationLearningLifecycleState,
+} from './learning-state-machine'
+import {
+
   applyLearningRevisionCorrectionsEffect,
   applyLearningVerificationCorrectionsEffect,
   blockLearningVerificationEffect,
@@ -23,13 +31,7 @@ import {
   recordLearningReflectionEffect,
   rollbackVerifiedLearningArtifactEffect,
   supersedeLearningReflectionLinesEffect,
-  type AlicizationLearningTaskEffectContext,
 } from './learning-task-effects'
-import {
-  deriveAlicizationLearningLifecycleState,
-  deriveAlicizationLearningPolicyFeedback,
-  deriveNextAlicizationLearningLifecycleState,
-} from './learning-state-machine'
 import { buildAlicizationSelfRevisionEvent } from './self-evolution/self-revision-ledger'
 import { buildAlicizationSelfRevisionStatePatch } from './self-evolution/state-revision-bus'
 

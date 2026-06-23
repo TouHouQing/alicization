@@ -1,10 +1,10 @@
 interface SelfEvolutionRepairClosureLike {
   isClosed: boolean
-  sessionCovered: boolean
-  hasFreshValidationSnapshot: boolean
-  samePatternStillPresent: boolean
-  prosodyAuthorityRelevant: boolean
-  prosodyAuthorityValidated: boolean | null
+  sessionCovered?: boolean
+  hasFreshValidationSnapshot?: boolean
+  samePatternStillPresent?: boolean
+  prosodyAuthorityRelevant?: boolean
+  prosodyAuthorityValidated?: boolean | null
   summaryLines: string[]
 }
 

@@ -132,9 +132,9 @@ function buildHumanlikeCarryMetadata(events: AlicizationEpisodicEventRecord[]) {
     const reason = sanitizeText(event.latestReconsolidation?.reason, 220)
     return metabolismPattern.test(reason) ? reason : null
   }), 1)[0]
-    || (correctedMeaningPattern.test(combined) && samePersonContinuityPattern.test(combined)
-      ? 'Downrank the older status shell and keep the corrected same-person continuity meaning active.'
-      : null)
+  || (correctedMeaningPattern.test(combined) && samePersonContinuityPattern.test(combined)
+    ? 'Downrank the older status shell and keep the corrected same-person continuity meaning active.'
+    : null)
   const autobiographicalDelta = uniqueList([
     ...events.map(event => sanitizeText(event.latestReconsolidation?.lesson, 220) || null),
     ...events.map(event => sanitizeText(event.lesson, 220) || null),
@@ -286,21 +286,24 @@ function inferAutobiographicalFacets(event: AlicizationEpisodicEventRecord): Arr
     || event.sourceKind === 'reflection'
     || event.sourceKind === 'maintenance'
     || /identity|self|incarnation|doctrine|persona|temperament|same[- ]?person|same[- ]?her|same living line|continuous digital life|tool shell|generic shell|corrected meaning|defending the first interpretation|我更想|我开始|我学会|我不再|同一个她|同一条线|数字生命|工具壳/u.test(text)
-  )
+  ) {
     facets.add('self-era')
+  }
 
   if (
     event.sourceKind === 'dialogue-feedback'
     || /relationship|bond|closeness|distance|repair|boundary|intrusive|lighter touch|space before closeness|host needed space|room before closeness|same[- ]?person|same[- ]?her|tool shell|generic shell|host corrected|not a status report|not .*status recap|progress pressure|same living line|同一个她|工具壳|不是状态汇报|不是催进度/u.test(text)
-  )
+  ) {
     facets.add('relationship-era')
+  }
 
   if (
     event.sourceKind === 'execution-proposal'
     || event.sourceKind === 'execution-result'
     || /runtime|cli|codex|claude|patch|verify|test|workflow|procedure|task|执行|修复|continuity/u.test(text)
-  )
+  ) {
     facets.add('task-era')
+  }
 
   if (facets.size === 0)
     facets.add('phase')

@@ -6,10 +6,9 @@ import type {
   AlicizationLearningTaskRecord,
   AlicizationSelfEvolutionKernelSnapshot,
 } from '../../../shared/eventa'
+import type { OrganicMemoryPromptContext } from './runtime-soul'
 import type { AlicizationSelfRevisionEvent } from './self-evolution/self-revision-ledger'
 import type { AlicizationSelfRevisionStatePatch } from './self-evolution/state-revision-bus'
-
-import type { OrganicMemoryPromptContext } from './runtime-soul'
 
 export interface AlicizationLearningScheduledTask {
   cardId: string

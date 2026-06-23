@@ -2657,9 +2657,9 @@ function derivePresenceOnlyResidentHoldInwardPreoccupation(input: {
   fallback: string | null | undefined
 }) {
   const fallback = sanitizeText(input.fallback, 160)
-  const recollectionIntent = readRecollectionIntentFromDerivedMindStateBundle<AlicizationRecallGovernorSnapshot['recollectionIntent']>(
+  const recollectionIntent = readRecollectionIntentFromDerivedMindStateBundle<Record<string, unknown>>(
     input.derivedMindStateBundle,
-  )
+  ) as AlicizationRecallGovernorSnapshot['recollectionIntent']
   const recollectionAuthority = [
     recollectionIntent?.mode,
     recollectionIntent?.rationale,
@@ -2803,9 +2803,9 @@ function rebuildPresenceOnlyResidentHoldEmotionalKernel(input: {
     privateThought: input.privateThought,
     affectiveResidue: input.affectiveResidue ?? input.derivedMindStateBundle?.affectiveResidue ?? null,
     personStateProjection: input.personStateProjection ?? null,
-    recollectionIntent: readRecollectionIntentFromDerivedMindStateBundle<AlicizationRecallGovernorSnapshot['recollectionIntent']>(
+    recollectionIntent: readRecollectionIntentFromDerivedMindStateBundle<Record<string, unknown>>(
       input.derivedMindStateBundle,
-    ),
+    ) as AlicizationRecallGovernorSnapshot['recollectionIntent'],
     selfEvolution: input.selfEvolution,
     projectState: input.projectState,
   })

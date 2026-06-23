@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest'
-
 import type { AlicizationOutcomeClosureResult } from './outcome-reinforcement'
+
+import { describe, expect, it } from 'vitest'
 
 import {
   buildAlicizationPersonStateUpdateRecord,

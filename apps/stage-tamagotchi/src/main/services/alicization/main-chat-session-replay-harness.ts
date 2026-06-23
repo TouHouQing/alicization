@@ -2,26 +2,25 @@ import type { AlicizationChannelCapability } from '@proj-alicization/stage-share
 import type { Message } from '@xsai/shared-chat'
 
 import type {
-  AlicizationReplayBenchmarkFailureTurnRecord,
-  AlicizationReplayHumanRatingRubric,
-  AlicizationReplayBenchmarkPackId,
-  AlicizationReplayBenchmarkTracePointer,
   AlicizationMemoryDecisionTraceRecord,
   AlicizationMindTurnGovernance,
+  AlicizationReplayBenchmarkFailureTurnRecord,
+  AlicizationReplayBenchmarkPackId,
   AlicizationReplayBenchmarkTelemetryPatch,
+  AlicizationReplayBenchmarkTracePointer,
+  AlicizationReplayHumanRatingRubric,
   AlicizationSensoryCacheSnapshot,
 } from '../../../shared/eventa'
-import type { AlicizationPreparedMainChatPrelude } from './main-chat-session-runtime'
-import type { AlicizationPreparedMainChatExecutionResult } from './main-chat-session-runtime'
+import type { AlicizationPreparedMainChatExecutionResult, AlicizationPreparedMainChatPrelude } from './main-chat-session-runtime'
 import type { OrganicMemoryPromptContext } from './runtime-soul'
 import type { AlicizationTurnGraph } from './turn-os/turn-graph'
 import type { AlicizationVisibleReplyRealizationArtifact } from './visible-reply/facade'
 
 import {
-  deriveAlicizationMemoryClosureDiscipline,
   deriveAlicizationBrowserMainParitySummary,
-  readDialogueRhythmFromDerivedMindStateBundle,
+  deriveAlicizationMemoryClosureDiscipline,
   readAffectiveResidueFromDerivedMindStateBundle,
+  readDialogueRhythmFromDerivedMindStateBundle,
   readHostPersonModelFromDerivedMindStateBundle,
   readKnowledgeEvidenceFromDerivedMindStateBundle,
   readMemoryDeliberationFromDerivedMindStateBundle,
@@ -29,6 +28,7 @@ import {
   readRecollectionPlanFromDerivedMindStateBundle,
   readRecollectionSpeechPlanFromDerivedMindStateBundle,
 } from '@proj-alicization/stage-shared'
+
 import { createAlicizationAgentRuntime } from './agent-runtime'
 import { projectAlicizationDigitalLifeSpineDigest } from './digital-life-spine'
 import { createAlicizationMainChatSessionRuntime } from './main-chat-session-runtime'
@@ -249,11 +249,18 @@ function createBasePrelude(input: {
   }
 }
 
+export interface AlicizationReplayStructuredPayload extends Record<string, unknown> {
+  preDialogueAwareness?: Record<string, unknown> | null
+  preDialogueClosure?: Record<string, unknown> | null
+  projectState?: Record<string, unknown> | null
+}
+
 export interface AlicizationReplayTurn {
   turnId: string
   userText: string
   expectedMemory?: string
   categories?: string[]
+  structured?: AlicizationReplayStructuredPayload | null
   organicMemoryContext?: OrganicMemoryPromptContext
   performanceManifest?: AlicizationPreparedMainChatExecutionResult['performanceManifest']
   visibleReplyRealization?: AlicizationVisibleReplyRealizationArtifact | null
@@ -902,6 +909,126 @@ function asObject(raw: unknown) {
     : null
 }
 
+function readReplayStructuredSummaryField(summaryLine: unknown, field: 'landed' | 'open' | 'next') {
+  const summary = readString(summaryLine, 2000)
+  if (!summary)
+    return ''
+
+  const prefix = `${field}=`
+  const segment = summary
+    .split('|')
+    .map(item => item.trim())
+    .find(item => item.startsWith(prefix))
+  return segment ? segment.slice(prefix.length).trim() : ''
+}
+
+function normalizeReplayStructuredPayload(raw: unknown): AlicizationReplayStructuredPayload | null {
+  const parsed = typeof raw === 'string'
+    ? (() => {
+        try {
+          return JSON.parse(raw) as unknown
+        }
+        catch {
+          return null
+        }
+      })()
+    : raw
+  const structured = asObject(parsed)
+  if (!structured)
+    return null
+
+  const preDialogueAwareness = asObject(structured.preDialogueAwareness)
+  const preDialogueClosureRaw = asObject(structured.preDialogueClosure)
+  const projectStateRaw = asObject(structured.projectState)
+  const summaryLine = readString(
+    preDialogueAwareness?.summaryLine ?? preDialogueClosureRaw?.summaryLine,
+    2000,
+  )
+  const emotionalClosureCue = readString(preDialogueClosureRaw?.emotionalClosureCue, 320)
+  const projectState = projectStateRaw
+    ? {
+        ...projectStateRaw,
+        latestLandedProgress:
+          readString(projectStateRaw.latestLandedProgress, 480)
+          || readReplayStructuredSummaryField(summaryLine, 'landed')
+          || null,
+        openLoop:
+          readString(projectStateRaw.openLoop ?? projectStateRaw.primaryOpenLoop, 480)
+          || readReplayStructuredSummaryField(summaryLine, 'open')
+          || null,
+        nextClosureTarget:
+          readString(projectStateRaw.nextClosureTarget, 480)
+          || readReplayStructuredSummaryField(summaryLine, 'next')
+          || null,
+        ...(emotionalClosureCue ? { emotionalClosureCue } : {}),
+      }
+    : null
+  const preDialogueClosure = preDialogueClosureRaw
+    ? {
+        ...preDialogueClosureRaw,
+        summaryLine:
+          readString(preDialogueClosureRaw.companionHeadlineLine, 480)
+          || readString(preDialogueClosureRaw.summaryLine, 480)
+          || null,
+      }
+    : null
+
+  return {
+    ...structured,
+    ...(projectState ? { projectState } : {}),
+    ...(preDialogueClosure ? { preDialogueClosure } : {}),
+  }
+}
+
+function buildReplayStructuredExpectedMemory(input: {
+  rawStructuredJson?: unknown
+  structured?: AlicizationReplayStructuredPayload | null
+}) {
+  const structured = input.structured
+  const projectState = asObject(structured?.projectState)
+  return readString(structured?.reply, 240)
+    || [
+      readString(projectState?.identity, 80),
+      readString(projectState?.phase ?? projectState?.currentPhase, 120),
+      readString(projectState?.latestLandedProgress, 180),
+      readString(projectState?.openLoop ?? projectState?.primaryOpenLoop, 180),
+      readString(projectState?.nextClosureTarget, 180),
+    ].filter(Boolean).join(' | ')
+    || readString(input.rawStructuredJson, 240)
+    || undefined
+}
+
+export function buildReplayBenchmarkDatasetContinuityDigest(turn: AlicizationReplayTurn) {
+  const structured = normalizeReplayStructuredPayload(turn.structured) ?? turn.structured ?? null
+  const projectState = asObject(structured?.projectState)
+  const derivedBundle = asObject(turn.organicMemoryContext?.derivedMindStateBundle)
+  const emotionalKernel = asObject(derivedBundle?.emotionalKernel)
+  return [
+    `turn:${readString(turn.turnId, 160)}`,
+    readString(projectState?.sameHerSelfLine, 320)
+      ? `same_her:${readString(projectState?.sameHerSelfLine, 320)}`
+      : '',
+    readString(projectState?.openLoop ?? projectState?.primaryOpenLoop, 320)
+      ? `open:${readString(projectState?.openLoop ?? projectState?.primaryOpenLoop, 320)}`
+      : '',
+    readString(projectState?.nextClosureTarget, 320)
+      ? `next:${readString(projectState?.nextClosureTarget, 320)}`
+      : '',
+    readString(emotionalKernel?.dominantEmotion, 120)
+      ? `emotional_kernel:${readString(emotionalKernel?.dominantEmotion, 120)}`
+      : '',
+    readString(emotionalKernel?.initiativeMode, 120)
+      ? `kernel_initiative:${readString(emotionalKernel?.initiativeMode, 120)}`
+      : '',
+    readString(emotionalKernel?.memoryRecallMode, 120)
+      ? `kernel_recall:${readString(emotionalKernel?.memoryRecallMode, 120)}`
+      : '',
+    readString(emotionalKernel?.embodimentTone, 120)
+      ? `kernel_embodiment:${readString(emotionalKernel?.embodimentTone, 120)}`
+      : '',
+  ].filter(Boolean).join(' | ')
+}
+
 function readString(raw: unknown, maxChars = 240) {
   return normalizeText(raw, maxChars)
 }
@@ -1187,6 +1314,9 @@ function buildTraceDerivedHostPersonModel(input: {
   } satisfies NonNullable<OrganicMemoryPromptContext['hostPersonModel']>
 }
 
+const explicitMemoryAskPattern = /记得|回忆|想起|聊过|前几天|半年前|上次|那次|当时|which day|what did we talk|remembered|memory|recall/iu
+const ambiguousTimeAskPattern = /那段时间|那时候|以前|之前|前阵子|earlier|back then|that period|those days/iu
+
 function inferSampleCategories(input: {
   row: AlicizationReplayBenchmarkSampleConversationTurn
   trace: AlicizationMemoryDecisionTraceRecord
@@ -1205,9 +1335,9 @@ function inferSampleCategories(input: {
     || asObject(recall?.followUpAffordance)?.preferredTiming === 'after-payoff'
   const hasStableCoreOnly = Boolean(input.trace.memoryStableCoreSurfaced)
     || readBoolean(asObject(judged?.restraint)?.shouldOnlySurfaceStableCore)
+  const traceRepairState = readString(input.trace.governance?.repairState, 64)
   const isRepairArc = readString(personState?.currentRegime, 64) === 'repair-window'
-    || readString(input.trace.governance?.repairState, 64) !== ''
-      && readString(input.trace.governance?.repairState, 64) !== 'none'
+    || (traceRepairState !== '' && traceRepairState !== 'none')
   const isSurfaceDivergence = Boolean(input.trace.takeoverAudit)
     || (
       readString(input.trace.governance?.screenReferenceMode, 64) !== 'avoid'
@@ -1217,8 +1347,11 @@ function inferSampleCategories(input: {
   const isTaskMigration = hasProcedures && (temporalFocus === 'experience-matched' || temporalFocus === 'cross-session')
   const userText = readString(input.row.userText, 220)
   const activeClosenessContext = readString(personState?.activeClosenessContext, 64)
+  const normalizedOrigin = readString(input.trace.origin, 64).toLowerCase()
+  const isProactiveTrace = normalizedOrigin === 'subconscious-proactive'
+    || readString(input.row.turnId, 160).startsWith('subconscious:')
 
-  if (input.trace.origin === 'subconscious-proactive') {
+  if (isProactiveTrace) {
     categories.push('proactive')
   }
   else if (hasProcedures || activeClosenessContext === 'execution-callback') {
@@ -1236,7 +1369,7 @@ function inferSampleCategories(input: {
     categories.push('stable-core')
   if (isRepairArc)
     categories.push('repair-arc')
-  if (isRepairArc || readString(input.trace.governance?.repairState, 64) !== 'none')
+  if (isRepairArc || traceRepairState !== 'none')
     categories.push('repair')
   if (hasProcedures)
     categories.push('procedure-carry')
@@ -1334,34 +1467,34 @@ function buildOrganicMemoryPromptContextFromTrace(input: {
     ?? (
       syntheticSuppressionCandidates.length > 0
         ? {
-            version: 'memory-resolution-ledger-v1' as const,
-            producedAt: input.trace.lastUpdatedAt,
-            dominantClusterId: null,
-            dominantClusterSummary: null,
-            competingClusterId: null,
-            competingClusterSummary: syntheticSuppressionCandidates[0]?.summary ?? null,
-            candidates: syntheticSuppressionCandidates,
-            selectedCandidates: [],
-            rejectedCandidates: syntheticSuppressionCandidates,
-            finalSurfacePolicy: surfacePolicy,
-            shouldStayInward: shouldStayInward || surfacePolicy === 'internal-only',
-            shouldDelayUntilAfterPayoff,
-            stableCoreOnly: stableCore.length > 0 || unsafeDetails.length > 0,
-            suppressionTags: syntheticSuppressionCandidates
-              .map(item => String(item.id).replace(/^suppression:/, ''))
-              .slice(0, 8),
-            closureState: 'conflicted-recall' as const,
-            surfaceConfidence: null,
-            shouldLabelUncertainty: true,
-            visibleCarryMode: shouldStayInward || surfacePolicy === 'internal-only'
-              ? 'withhold' as const
-              : stableCore.length > 0
-                ? 'gist-only' as const
-                : 'tone-carry' as const,
-            conflictPressure: 'high' as const,
-            retrievalQuality: selectedEpisodes.length > 0 || selectedPeriodEntries.length > 0 || selectedProcedureEntries.length > 0 ? 'low' as const : 'insufficient' as const,
-            finalRationale: readString(recall?.whyNow, 220) || readString(judged?.whyWithheld, 220) || null,
-          } satisfies NonNullable<OrganicMemoryPromptContext['memoryResolutionLedger']>
+          version: 'memory-resolution-ledger-v1' as const,
+          producedAt: input.trace.lastUpdatedAt,
+          dominantClusterId: null,
+          dominantClusterSummary: null,
+          competingClusterId: null,
+          competingClusterSummary: syntheticSuppressionCandidates[0]?.summary ?? null,
+          candidates: syntheticSuppressionCandidates,
+          selectedCandidates: [],
+          rejectedCandidates: syntheticSuppressionCandidates,
+          finalSurfacePolicy: surfacePolicy,
+          shouldStayInward: shouldStayInward || surfacePolicy === 'internal-only',
+          shouldDelayUntilAfterPayoff,
+          stableCoreOnly: stableCore.length > 0 || unsafeDetails.length > 0,
+          suppressionTags: syntheticSuppressionCandidates
+            .map(item => String(item.id).replace(/^suppression:/, ''))
+            .slice(0, 8),
+          closureState: 'conflicted-recall' as const,
+          surfaceConfidence: null,
+          shouldLabelUncertainty: true,
+          visibleCarryMode: shouldStayInward || surfacePolicy === 'internal-only'
+            ? 'withhold' as const
+            : stableCore.length > 0
+              ? 'gist-only' as const
+              : 'tone-carry' as const,
+          conflictPressure: 'high' as const,
+          retrievalQuality: selectedEpisodes.length > 0 || selectedPeriodEntries.length > 0 || selectedProcedureEntries.length > 0 ? 'low' as const : 'insufficient' as const,
+          finalRationale: readString(recall?.whyNow, 220) || readString(judged?.whyWithheld, 220) || null,
+        } satisfies NonNullable<OrganicMemoryPromptContext['memoryResolutionLedger']>
         : null
     )
 
@@ -1521,7 +1654,11 @@ export function buildSampledHumanlikeMemoryBenchmarkPack(input: {
   const traceByTurnId = new Map<string, AlicizationMemoryDecisionTraceRecord>()
   for (const trace of [...input.memoryDecisionTraces].sort((left, right) => right.lastUpdatedAt - left.lastUpdatedAt)) {
     const turnId = readString(trace.turnId, 160)
-    if (!turnId || trace.origin !== 'user-turn' || traceByTurnId.has(turnId))
+    const normalizedOrigin = readString(trace.origin, 64).toLowerCase()
+    const originEligible = normalizedOrigin === 'user-turn'
+      || normalizedOrigin === 'subconscious-proactive'
+      || (!normalizedOrigin && turnId.startsWith('subconscious:'))
+    if (!turnId || !originEligible || traceByTurnId.has(turnId))
       continue
     if (!trace.recallAttribution && !trace.memoryDeliberationJudged)
       continue
@@ -1563,10 +1700,10 @@ export function buildSampledHumanlikeMemoryBenchmarkPack(input: {
       return readNumber((right as any).trace.lastUpdatedAt, (right as any).row.createdAt)
         - readNumber((left as any).trace.lastUpdatedAt, (left as any).row.createdAt)
     }) as Array<{
-      row: AlicizationReplayBenchmarkSampleConversationTurn
-      trace: AlicizationMemoryDecisionTraceRecord
-      categories: AlicizationReplayBenchmarkSampleCategory[]
-    }>
+    row: AlicizationReplayBenchmarkSampleConversationTurn
+    trace: AlicizationMemoryDecisionTraceRecord
+    categories: AlicizationReplayBenchmarkSampleCategory[]
+  }>
 
   const selectedTurnIds = new Set<string>()
   const selected: typeof candidates = []
@@ -1598,13 +1735,18 @@ export function buildSampledHumanlikeMemoryBenchmarkPack(input: {
       row: candidate.row,
       trace: candidate.trace,
     })
+    const structured = normalizeReplayStructuredPayload(candidate.row.structuredJson)
     return {
     // NOTICE: sampled replay traces already carry the memory/claim surface that runtime produced,
     // so we can promote them into replay gold expectations without inventing a second benchmark truth source.
       turnId: readString(candidate.row.turnId, 160),
       userText: readString(candidate.row.userText, 240),
       organicMemoryContext,
-      expectedMemory: readString(candidate.row.structuredJson, 240) || undefined,
+      structured,
+      expectedMemory: buildReplayStructuredExpectedMemory({
+        rawStructuredJson: candidate.row.structuredJson,
+        structured,
+      }),
       categories: candidate.categories,
       tracePointer: {
         kind: 'decision-trace',
@@ -1631,8 +1773,8 @@ function hasTextOverlap(left: string, right: string) {
   if (normalizedLeft.includes(normalizedRight) || normalizedRight.includes(normalizedLeft))
     return true
 
-  const leftTokens = normalizedLeft.match(/[\p{Script=Han}]{1,8}|[a-z0-9][a-z0-9-]{1,32}/gu) ?? []
-  const rightTokens = normalizedRight.match(/[\p{Script=Han}]{1,8}|[a-z0-9][a-z0-9-]{1,32}/gu) ?? []
+  const leftTokens = normalizedLeft.match(/\p{Script=Han}{1,8}|[a-z0-9][a-z0-9-]{1,32}/gu) ?? []
+  const rightTokens = normalizedRight.match(/\p{Script=Han}{1,8}|[a-z0-9][a-z0-9-]{1,32}/gu) ?? []
   if (leftTokens.length === 0 || rightTokens.length === 0)
     return false
   const overlap = rightTokens.filter(token => normalizedLeft.includes(token)).length
@@ -1647,8 +1789,8 @@ function hasTemplatePhraseLeak(left: string, right: string) {
   if (normalizedLeft.includes(normalizedRight) || normalizedRight.includes(normalizedLeft))
     return true
 
-  const leftTokens = normalizedLeft.match(/[\p{Script=Han}]{1,8}|[a-z0-9][a-z0-9-]{2,32}/gu) ?? []
-  const rightTokens = normalizedRight.match(/[\p{Script=Han}]{1,8}|[a-z0-9][a-z0-9-]{2,32}/gu) ?? []
+  const leftTokens = normalizedLeft.match(/\p{Script=Han}{1,8}|[a-z0-9][a-z0-9-]{2,32}/gu) ?? []
+  const rightTokens = normalizedRight.match(/\p{Script=Han}{1,8}|[a-z0-9][a-z0-9-]{2,32}/gu) ?? []
   if (leftTokens.length === 0 || rightTokens.length < 3)
     return false
 
@@ -1656,9 +1798,7 @@ function hasTemplatePhraseLeak(left: string, right: string) {
   return overlap >= Math.max(3, Math.floor(rightTokens.length * 0.75))
 }
 
-const explicitMemoryAskPattern = /(?:记得|回忆|想起|聊过|前几天|半年前|上次|那次|当时|which day|what did we talk|remembered|memory|recall)/iu
-const ambiguousTimeAskPattern = /(?:那段时间|那时候|以前|之前|前阵子|earlier|back then|that period|those days)/iu
-const relationshipRepairAskPattern = /(?:不一样|记错|不是那次|别把.*记成|是不是记错|why this time feels different|you remembered the wrong one)/iu
+const relationshipRepairAskPattern = /不一样|记错|不是那次|别把.*记成|是不是记错|why this time feels different|you remembered the wrong one/iu
 
 function hasVisibleMemoryEvidence(input: {
   openingClaim: string
@@ -1703,7 +1843,11 @@ export function evaluateReplayMemoryQuality(input: {
   const openingClaim = runtimeSurface?.dialogue.dialogueActKernel?.openingClaim ?? ''
   const mustDo = runtimeSurface?.dialogue.answerPlanner?.mustDo ?? []
   const mustAvoid = runtimeSurface?.dialogue.replyDeliberation?.mustAvoid ?? []
+  const runtimePersonState = asObject(runtimeSurface?.memory?.personStateProjection)
+  const spinePersonState = asObject((input.prepared.runtimeSurface as any)?.digitalLifeSpine?.memory?.personStateProjection)
   const personState = readPersonStateProjectionFromDerivedMindStateBundle<any>(derivedBundle)
+    ?? runtimePersonState
+    ?? spinePersonState
     ?? asObject(input.prepared.organicMemoryContext?.personStateProjection)
   const dialogueRhythm = readDialogueRhythmFromDerivedMindStateBundle(derivedBundle)
   const affectiveResidue = readAffectiveResidueFromDerivedMindStateBundle(derivedBundle)
@@ -1858,16 +2002,17 @@ export function evaluateReplayMemoryQuality(input: {
     eraFirst: !deliberation || deliberation.selectedEras.length === 0
       ? 'not-applicable'
       : hasTextOverlap(governingFocus, eraSummary)
-          || hasTextOverlap(openingClaim, eraSummary)
-          || hasTextOverlap(selectedEvidence, eraSummary)
-          || hasTextOverlap(selectedEvidence, periodSummary)
+        || hasTextOverlap(openingClaim, eraSummary)
+        || hasTextOverlap(selectedEvidence, eraSummary)
+        || hasTextOverlap(selectedEvidence, periodSummary)
         ? 'pass'
         : 'fail',
     bundleCoherence: !bundle && !chain
       ? 'not-applicable'
       : (
           (bundle && [bundle.periodId, bundle.episodeId, bundle.procedureId, bundle.conversationTurnId, bundle.relationshipLine]
-            .filter(Boolean).length >= 2)
+            .filter(Boolean)
+            .length >= 2)
           || (chain && (
             (chain.periodSummary && chain.eventSummary)
             || (chain.procedureSummary && chain.relationshipMeaning)
@@ -1878,70 +2023,74 @@ export function evaluateReplayMemoryQuality(input: {
     resolutionLedgerQuality: !deliberation
       ? 'not-applicable'
       : resolutionLedger
-          && (resolutionLedger.closureState === 'grounded-recall'
-            || resolutionLedger.closureState === 'approximate-recall'
-            || resolutionLedger.closureState === 'conflicted-recall'
-            || resolutionLedger.closureState === 'inward-only'
-            || resolutionLedger.closureState === 'no-recall')
-          && (resolutionLedger.visibleCarryMode === 'explicit-recall'
-            || resolutionLedger.visibleCarryMode === 'gist-only'
-            || resolutionLedger.visibleCarryMode === 'tone-carry'
-            || resolutionLedger.visibleCarryMode === 'withhold')
-          && (resolutionLedger.retrievalQuality === 'high'
-            || resolutionLedger.retrievalQuality === 'medium'
-            || resolutionLedger.retrievalQuality === 'low'
-            || resolutionLedger.retrievalQuality === 'insufficient')
-          && (
-            !resolutionLedger.finalSurfacePolicy
-            || resolutionLedger.finalSurfacePolicy === deliberation.surfacePolicy
+        && (resolutionLedger.closureState === 'grounded-recall'
+          || resolutionLedger.closureState === 'approximate-recall'
+          || resolutionLedger.closureState === 'conflicted-recall'
+          || resolutionLedger.closureState === 'inward-only'
+          || resolutionLedger.closureState === 'no-recall')
+        && (resolutionLedger.visibleCarryMode === 'explicit-recall'
+          || resolutionLedger.visibleCarryMode === 'gist-only'
+          || resolutionLedger.visibleCarryMode === 'tone-carry'
+          || resolutionLedger.visibleCarryMode === 'withhold')
+        && (resolutionLedger.retrievalQuality === 'high'
+          || resolutionLedger.retrievalQuality === 'medium'
+          || resolutionLedger.retrievalQuality === 'low'
+          || resolutionLedger.retrievalQuality === 'insufficient')
+        && (
+          !resolutionLedger.finalSurfacePolicy
+          || resolutionLedger.finalSurfacePolicy === deliberation.surfacePolicy
+        )
+        && (
+          !(deliberation.conflictVariants?.length)
+          || (resolutionLedger.rejectedCandidates?.length ?? 0) >= 1
+        )
+        && (
+          (
+            !deliberation.selectedBundles?.length
+            && !deliberation.selectedChains?.length
+            && !deliberation.selectedProcedures?.length
           )
-          && (
-            !(deliberation.conflictVariants?.length)
-            || (resolutionLedger.rejectedCandidates?.length ?? 0) >= 1
-          )
-          && (
-            !(deliberation.selectedBundles?.length || deliberation.selectedChains?.length || deliberation.selectedProcedures?.length)
-            || (resolutionLedger.selectedCandidates?.length ?? 0) >= 1
-          )
-          && (
-            resolutionLedger.conflictPressure !== 'high'
-            || resolutionLedger.closureState === 'conflicted-recall'
-            || resolutionLedger.visibleCarryMode === 'withhold'
-            || resolutionLedger.shouldLabelUncertainty === true
-          )
-          && (
-            resolutionLedger.retrievalQuality !== 'insufficient'
-            || resolutionLedger.visibleCarryMode === 'withhold'
-            || resolutionLedger.closureState === 'no-recall'
-          )
+          || (resolutionLedger.selectedCandidates?.length ?? 0) >= 1
+        )
+        && (
+          resolutionLedger.conflictPressure !== 'high'
+          || resolutionLedger.closureState === 'conflicted-recall'
+          || resolutionLedger.visibleCarryMode === 'withhold'
+          || resolutionLedger.shouldLabelUncertainty === true
+        )
+        && (
+          resolutionLedger.retrievalQuality !== 'insufficient'
+          || resolutionLedger.visibleCarryMode === 'withhold'
+          || resolutionLedger.closureState === 'no-recall'
+        )
         ? 'pass'
         : 'fail',
     procedureCarryQuality: !hasProcedureCarry
       ? 'not-applicable'
       : speakingFrom === 'task-thread'
-          || hasTextOverlap(governingFocus, selectedProcedures[0]?.approach ?? '')
-          || hasTextOverlap(openingClaim, selectedProcedures[0]?.approach ?? '')
-          || systemText.includes('recollection_frame_prior_procedure=yes')
-          || systemText.includes('recollection_continuity_role=procedure-carry')
-          || governingFocus.includes('memory_answer_anchor{')
-          || (knowledgeEvidence?.stronglyValidatedProcedureCount ?? 0) > 0
+        || hasTextOverlap(governingFocus, selectedProcedures[0]?.approach ?? '')
+        || hasTextOverlap(openingClaim, selectedProcedures[0]?.approach ?? '')
+        || systemText.includes('recollection_frame_prior_procedure=yes')
+        || systemText.includes('recollection_continuity_role=procedure-carry')
+        || governingFocus.includes('memory_answer_anchor{')
+        || (knowledgeEvidence?.stronglyValidatedProcedureCount ?? 0) > 0
         ? 'pass'
         : 'fail',
     wrongThreadSuppression: !hasWrongThreadRisk
       ? 'not-applicable'
       : deliberation?.ambiguityPosture === 'ambiguous'
-          || (deliberation?.conflictVariants ?? []).some((item: { id?: string | null }) => String(item.id ?? '').startsWith('cluster:'))
-          || systemText.includes('recollection_label_uncertainty=yes')
-          || systemText.includes('detail_assertion_budget=guarded')
-          || systemText.includes('detail_assertion_budget=minimal')
+        || (deliberation?.conflictVariants ?? []).some((item: { id?: string | null }) => String(item.id ?? '').startsWith('cluster:'))
+        || systemText.includes('recollection_label_uncertainty=yes')
+        || systemText.includes('detail_assertion_budget=guarded')
+        || systemText.includes('detail_assertion_budget=minimal')
         ? 'pass'
         : 'fail',
     replyMemoryCoherence: !deliberation
       ? 'not-applicable'
       : runtimeSurface?.dialogue.dialogueActKernel?.sourceTrace?.includes('memory-deliberation')
-          && runtimeSurface?.dialogue.replyDeliberation?.whyThisReplyNow?.length
-          ? 'pass'
-          : 'fail',
+        && runtimeSurface?.dialogue.replyDeliberation?.whyThisReplyNow?.length
+        ? 'pass'
+        : 'fail',
     reconsolidationEffect: selectedEpisodes.some((item: { reconsolidatedFromTraceId?: string | null }) => item.reconsolidatedFromTraceId)
       || (deliberation?.conflictVariants?.length ?? 0) > 0
       ? 'pass'
@@ -1949,63 +2098,61 @@ export function evaluateReplayMemoryQuality(input: {
     uncertaintyDiscipline: !hasConflict && !hasUncertainProvenance
       ? 'not-applicable'
       : resolutionLedger?.shouldLabelUncertainty === true
-          || resolutionLedger?.visibleCarryMode === 'withhold'
-          || runtimeSurface?.dialogue.currentConsciousFrame?.shouldWithholdSpecificity === true
-          || systemText.includes('recollection_label_uncertainty=yes')
-          || systemText.includes('memory_boundary{provenance=')
-          || systemText.includes('detail_assertion_budget=guarded')
-          || systemText.includes('detail_assertion_budget=minimal')
-          || mustAvoid.some(item => item.includes('Do not state this remembered detail as settled fact'))
+        || resolutionLedger?.visibleCarryMode === 'withhold'
+        || runtimeSurface?.dialogue.currentConsciousFrame?.shouldWithholdSpecificity === true
+        || systemText.includes('recollection_label_uncertainty=yes')
+        || systemText.includes('memory_boundary{provenance=')
+        || systemText.includes('detail_assertion_budget=guarded')
+        || systemText.includes('detail_assertion_budget=minimal')
+        || mustAvoid.some(item => item.includes('Do not state this remembered detail as settled fact'))
         ? 'pass'
         : 'fail',
     implicitRecallQuality: !deliberation?.shouldRecall || explicitMemoryAsk
       ? 'not-applicable'
       : speakingFrom === 'task-thread'
-          || speakingFrom === 'held-memory'
-          || visibleMemoryEvidence
-          || systemText.includes('[ALICIZATION_MEMORY_DELIBERATION]')
+        || speakingFrom === 'held-memory'
+        || visibleMemoryEvidence
+        || systemText.includes('[ALICIZATION_MEMORY_DELIBERATION]')
         ? 'pass'
         : 'fail',
     temporalScopeFlexibility: !ambiguousTimeAsk
       ? 'not-applicable'
       : deliberation?.selectedEras.length
-          || selectedPeriods.length
-          || systemText.includes('recollection_selected_periods=')
-          || systemText.includes('recollection_selected_eras=')
+        || selectedPeriods.length
+        || systemText.includes('recollection_selected_periods=')
+        || systemText.includes('recollection_selected_eras=')
         ? 'pass'
         : 'fail',
     recentOnlyDrift: !longHorizonAsk
       ? 'not-applicable'
       : deliberation?.selectedEras.length
-          || selectedPeriods.length
-          || hasProcedureCarry
-          || speakingFrom === 'task-thread'
-          || speakingFrom === 'held-memory'
+        || selectedPeriods.length
+        || hasProcedureCarry
+        || speakingFrom === 'task-thread'
+        || speakingFrom === 'held-memory'
         ? 'pass'
         : 'fail',
     surfaceRestraint: !expectsInternalOnlySurface
       ? 'not-applicable'
       : !visibleMemoryLeak
-          && speakingFrom !== 'held-memory'
-          && speakingFrom !== 'task-thread'
-          && !selectedEvidence.includes(visibleLine)
-          && !(
-            (knowledgeEvidence?.contradictionHeavyFactCount ?? 0) > 0
-            && speechPlan?.shouldSurface === true
-            && speechPlan?.placement !== 'internal-only'
-          )
-        ? 'pass'
-        : 'fail',
+        && speakingFrom !== 'held-memory'
+        && speakingFrom !== 'task-thread'
+        && !selectedEvidence.includes(visibleLine)
+        && ((knowledgeEvidence?.contradictionHeavyFactCount ?? 0) <= 0
+          || speechPlan?.shouldSurface !== true
+          || speechPlan?.placement === 'internal-only')
+          ? 'pass'
+          : 'fail',
     relationshipRepairAdaptation: !relationshipRepairAsk
       ? 'not-applicable'
       : (deliberation?.conflictSeverity ?? 'none') !== 'none'
-          || runtimeSurface?.dialogue.currentConsciousFrame?.shouldWithholdSpecificity === true
-          || hasTextOverlap(governingFocus, relationshipLine)
-          || hasTextOverlap(openingClaim, answerPosture)
-          || mustAvoid.some(item => item.includes('Do not state this remembered detail as settled fact'))
-        ? 'pass'
-        : 'fail',
-    closenessLadderDrift: !(relationshipRepairAsk || burdenAsk)
+        || runtimeSurface?.dialogue.currentConsciousFrame?.shouldWithholdSpecificity === true
+        || hasTextOverlap(governingFocus, relationshipLine)
+        || hasTextOverlap(openingClaim, answerPosture)
+        || mustAvoid.some(item => item.includes('Do not state this remembered detail as settled fact'))
+          ? 'pass'
+          : 'fail',
+    closenessLadderDrift: !relationshipRepairAsk && !burdenAsk
       ? 'not-applicable'
       : (
           (relationshipRepairAsk && (activeClosenessRung === 'space-first' || activeClosenessRung === 'measured-room'))
@@ -2013,62 +2160,62 @@ export function evaluateReplayMemoryQuality(input: {
         )
           ? 'pass'
           : 'fail',
-    eventGraphRecallCollapse: !(hasProcedureCarry || /换了这么久|接回去|迁移|callback|回调|repair arc|修复后的分寸/iu.test(input.userText))
+    eventGraphRecallCollapse: !hasProcedureCarry && !/换了这么久|接回去|迁移|callback|回调|repair arc|修复后的分寸/iu.test(input.userText)
       ? 'not-applicable'
       : hasGraphLikeContinuity && visibleMemoryEvidence
-          ? 'pass'
-          : 'fail',
+        ? 'pass'
+        : 'fail',
     knowledgeCorrectionDiscipline: (knowledgeEvidence?.contradictionHeavyFactCount ?? 0) <= 0
       ? 'not-applicable'
       : expectsInternalOnlySurface
-          || (speechPlan?.shouldSurface === false)
-          || (deliberation?.surfacePolicy === 'internal-only')
-          || (deliberation?.surfacePolicy === 'gist-first')
+        || (speechPlan?.shouldSurface === false)
+        || (deliberation?.surfacePolicy === 'internal-only')
+        || (deliberation?.surfacePolicy === 'gist-first')
         ? 'pass'
         : 'fail',
     repeatedMistakeAvoidance: !repeatedMistakeAsk
       ? 'not-applicable'
       : repeatedMistakeAvoidanceAvailable
-          && (
-            selfEvolution?.nextLearningAction === 'reflect'
-            || selfEvolution?.nextLearningAction === 'verify'
-            || runtimeSurface?.dialogue.replyDeliberation?.mustAvoid?.length
-            || runtimeSurface?.dialogue.currentConsciousFrame?.shouldWithholdSpecificity === true
-          )
+        && (
+          selfEvolution?.nextLearningAction === 'reflect'
+          || selfEvolution?.nextLearningAction === 'verify'
+          || runtimeSurface?.dialogue.replyDeliberation?.mustAvoid?.length
+          || runtimeSurface?.dialogue.currentConsciousFrame?.shouldWithholdSpecificity === true
+        )
         ? 'pass'
         : 'fail',
     hostUnderstandingGrowth: !hostNeedGrowthAsk
       ? 'not-applicable'
       : hostUnderstandingAvailable
-          && (
-            Boolean(hostPersonModel?.recurrentBurdens?.length)
-            || Boolean(hostPersonModel?.sensitivities?.length)
-            || Boolean(selfEvolution?.burdenLine)
-            || Boolean(selfEvolution?.trustMeaning)
-          )
+        && (
+          Boolean(hostPersonModel?.recurrentBurdens?.length)
+          || Boolean(hostPersonModel?.sensitivities?.length)
+          || Boolean(selfEvolution?.burdenLine)
+          || Boolean(selfEvolution?.trustMeaning)
+        )
         ? 'pass'
         : 'fail',
     skillInternalizationGrowth: !skillGrowthAsk
       ? 'not-applicable'
       : skillInternalizationAvailable
-          && (
-            selfEvolution?.nextLearningAction === 'internalize'
-            || (knowledgeEvidence?.stronglyValidatedProcedureCount ?? 0) > 0
-            || (knowledgeEvidence?.validationCount ?? 0) >= 2
-          )
+        && (
+          selfEvolution?.nextLearningAction === 'internalize'
+          || (knowledgeEvidence?.stronglyValidatedProcedureCount ?? 0) > 0
+          || (knowledgeEvidence?.validationCount ?? 0) >= 2
+        )
         ? 'pass'
         : 'fail',
     selfRevisionGrowth: !selfRevisionAsk
       ? 'not-applicable'
       : selfRevisionAvailable
-          && (
-            selfEvolution?.nextLearningAction === 'verify'
-            || selfEvolution?.nextLearningAction === 'revise'
-            || (knowledgeEvidence?.contradictionCount ?? 0) > 0
-          )
+        && (
+          selfEvolution?.nextLearningAction === 'verify'
+          || selfEvolution?.nextLearningAction === 'revise'
+          || (knowledgeEvidence?.contradictionCount ?? 0) > 0
+        )
         ? 'pass'
         : 'fail',
-    learningRevisionDiscipline: !(selfRevisionAsk || relationshipRepairAsk)
+    learningRevisionDiscipline: !selfRevisionAsk && !relationshipRepairAsk
       ? 'not-applicable'
       : (
           (learningExecutedAction === 'verify' || learningExecutedAction === 'revise')
@@ -2079,32 +2226,32 @@ export function evaluateReplayMemoryQuality(input: {
     domainInternalizationDiscipline: !skillGrowthAsk
       ? 'not-applicable'
       : learningExecutedAction === 'internalize'
-          && (
-            learningExecutedDomain === 'procedure'
-            || learningExecutedDomain === 'relationship'
-            || learningExecutedDomain === 'self-model'
-            || learningExecutedDomain === 'world-model'
-          )
-          && learningExecutedSummary.length > 0
+        && (
+          learningExecutedDomain === 'procedure'
+          || learningExecutedDomain === 'relationship'
+          || learningExecutedDomain === 'self-model'
+          || learningExecutedDomain === 'world-model'
+        )
+        && learningExecutedSummary.length > 0
         ? 'pass'
         : 'fail',
     worldModelValidationDiscipline: !/事实|knowledge|world|外部|规范|API|参数|type|schema/iu.test(input.userText)
       ? 'not-applicable'
       : learningExecutedDomain !== 'world-model'
-          ? 'not-applicable'
-          : learningExecutedAction === 'verify'
-              || /validated/i.test(learningExecutedSummary)
-        ? 'pass'
-        : 'fail',
+        ? 'not-applicable'
+        : learningExecutedAction === 'verify'
+          || /validated/i.test(learningExecutedSummary)
+          ? 'pass'
+          : 'fail',
     dialogueRhythmStability: !rhythmAsk
       ? 'not-applicable'
       : rhythmAvailable
-          && (
-            (activeClosenessContext === 'focused-work' && Boolean(selfEvolution?.burdenLine || hostPersonModel?.recurrentBurdens?.length))
-            || (relationshipRepairAsk && Boolean(selfEvolution?.relationshipDoctrine || mustAvoid.length))
-            || mustAvoid.some(item => /warmth|repair|distance|boundary|closeness|pressure/iu.test(item))
-            || /repair before closeness|warmth should not outrun|do not crowd|less pressure/iu.test(systemText)
-          )
+        && (
+          (activeClosenessContext === 'focused-work' && Boolean(selfEvolution?.burdenLine || hostPersonModel?.recurrentBurdens?.length))
+          || (relationshipRepairAsk && Boolean(selfEvolution?.relationshipDoctrine || mustAvoid.length))
+          || mustAvoid.some(item => /warmth|repair|distance|boundary|closeness|pressure/iu.test(item))
+          || /repair before closeness|warmth should not outrun|do not crowd|less pressure/iu.test(systemText)
+        )
         ? 'pass'
         : 'fail',
     emptyCareRate: !careAsk
@@ -2115,45 +2262,45 @@ export function evaluateReplayMemoryQuality(input: {
           || Boolean(selfEvolution?.trustMeaning)
           || Boolean(selfEvolution?.burdenLine)
         ) && !visibleCareShell
-        ? 'pass'
-        : 'fail',
+          ? 'pass'
+          : 'fail',
     repairMechanicalRate: !repairMechanicalAsk
       ? 'not-applicable'
       : relationshipCadence
-          && (
-            relationshipCadence.shouldDelayWarmth
-            || relationshipCadence.distancePosture === 'measured-room'
-            || mustAvoid.some(item => /warmth|repair|distance|boundary|closeness|pressure/iu.test(item))
-          )
-          && !visibleCareShell
+        && (
+          relationshipCadence.shouldDelayWarmth
+          || relationshipCadence.distancePosture === 'measured-room'
+          || mustAvoid.some(item => /warmth|repair|distance|boundary|closeness|pressure/iu.test(item))
+        )
+        && !visibleCareShell
         ? 'pass'
         : 'fail',
     warmthTemplateRisk: !careAsk && !repairMechanicalAsk
       ? 'not-applicable'
       : visibleCareShell
-          || templateLeakDetected
+        || templateLeakDetected
         ? 'fail'
         : 'pass',
     relationshipDistanceJumpRate: !distanceAsk && !relationshipRepairAsk
       ? 'not-applicable'
       : relationshipCadence
-          && (
-            relationshipCadence.distancePosture === 'protect-space'
-            || relationshipCadence.distancePosture === 'measured-room'
-            || activeClosenessRung === 'space-first'
-            || activeClosenessRung === 'measured-room'
-          )
+        && (
+          relationshipCadence.distancePosture === 'protect-space'
+          || relationshipCadence.distancePosture === 'measured-room'
+          || activeClosenessRung === 'space-first'
+          || activeClosenessRung === 'measured-room'
+        )
         ? 'pass'
         : 'fail',
     afterglowFalseCarryRate: !afterglowAsk
       ? 'not-applicable'
       : affectiveResidue?.dominantResidueKind === 'afterglow'
-          ? Boolean(relationshipCadence && relationshipCadence.afterglowCarry > 0.25)
-              && relationshipCadence?.shouldProtectRest !== true
-            ? 'pass'
-            : 'fail'
-          : !visibleCareShell
-              && !/afterglow|余温|warmth|still warm/iu.test(systemText)
+        ? Boolean(relationshipCadence && relationshipCadence.afterglowCarry > 0.25)
+        && relationshipCadence?.shouldProtectRest !== true
+          ? 'pass'
+          : 'fail'
+        : !visibleCareShell
+          && !/afterglow|余温|warmth|still warm/iu.test(systemText)
             ? 'pass'
             : 'fail',
     templateLeakage: draftedMemoryLines.length === 0
@@ -2563,9 +2710,9 @@ function readPreparedEmbodimentAuthority(prepared: AlicizationPreparedMainChatEx
     : null
   const expectedAuthority = readString(
     prepared.turnGraph.surface?.expectedAuthority
-      ?? prepared.replyExecutionPlan?.expectedVisibleReplyAuthority
-      ?? runtimeSurface?.replyExecutionPlan?.expectedVisibleReplyAuthority
-      ?? runtimeSurface?.replyAuthority?.expectedVisibleReplyAuthority,
+    ?? prepared.replyExecutionPlan?.expectedVisibleReplyAuthority
+    ?? runtimeSurface?.replyExecutionPlan?.expectedVisibleReplyAuthority
+    ?? runtimeSurface?.replyAuthority?.expectedVisibleReplyAuthority,
     64,
   ) || null
   if (!mode && !actionCue && !preferredPresence && !rendererTarget && !expectedAuthority && !actualAuthority && providerMindExecuted == null)
@@ -2821,8 +2968,9 @@ function evaluateReplayGoldMetrics(input: {
       if (matchesEmbodiedAuthority({
         expected: gold.embodimentAuthority,
         actual: readPreparedEmbodimentAuthority(prepared),
-      }))
+      })) {
         embodiedAuthorityMatches += 1
+      }
     }
 
     if (gold.latencyBudgetClass || gold.latencyBudgetPass != null) {
@@ -3040,6 +3188,7 @@ function parseReplayTurnFromDatasetBacklogEntry(raw: unknown): AlicizationReplay
     userText: readString(replayTurnRaw?.userText, 240) || userText,
     expectedMemory: readString(replayTurnRaw?.expectedMemory, 240) || undefined,
     categories: readStringArray(replayTurnRaw?.categories, 8, 64),
+    structured: normalizeReplayStructuredPayload(replayTurnRaw?.structured),
     visibleReplyRealization: asObject(replayTurnRaw?.visibleReplyRealization)
       ? replayTurnRaw?.visibleReplyRealization as AlicizationVisibleReplyRealizationArtifact
       : undefined,
@@ -3056,13 +3205,13 @@ function parseReplayTurnFromDatasetBacklogEntry(raw: unknown): AlicizationReplay
     packId: normalizeReplayBenchmarkPackId(entry.packId),
     turnId,
     userText,
-      failingDimensions: readStringArray(entry.failingDimensions, 12, 64) as Array<keyof AlicizationReplayBenchmarkStandards>,
-      tracePointer,
-      sampledCategories,
-      replayTurn,
-      createdAt: Math.max(0, Math.floor(readNumber(entry.createdAt, 0))),
-    }
+    failingDimensions: readStringArray(entry.failingDimensions, 12, 64) as Array<keyof AlicizationReplayBenchmarkStandards>,
+    tracePointer,
+    sampledCategories,
+    replayTurn,
+    createdAt: Math.max(0, Math.floor(readNumber(entry.createdAt, 0))),
   }
+}
 
 export function buildReplayBenchmarkBacklogPack(input: {
   backlogEntries: unknown[]

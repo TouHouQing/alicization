@@ -52,13 +52,13 @@ export function rankFactsByLearningTuning(input: {
     return input.facts
 
   return [...input.facts]
-    .map((fact) => ({
+    .map(fact => ({
       fact,
       score: fact.confidence
         + computeLearningDomainAdjustment({
-            fact,
-            tuningAdvice,
-          }),
+          fact,
+          tuningAdvice,
+        }),
     }))
     .sort((left, right) => right.score - left.score)
     .map(item => item.fact)

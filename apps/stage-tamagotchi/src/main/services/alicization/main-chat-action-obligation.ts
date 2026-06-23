@@ -1,12 +1,13 @@
 import type {
   AlicizationExecutionCapabilityInquiry,
   AlicizationExecutionRoutingIntent,
+
+  analyzeAlicizationExecutionSemanticSignals,
 } from '@proj-alicization/stage-shared'
 
 import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 
 import {
-  analyzeAlicizationExecutionSemanticSignals,
   analyzeAlicizationExecutionTurnAuthority,
   hasExplicitAlicizationExecutionDemand,
 } from '@proj-alicization/stage-shared'
@@ -35,9 +36,11 @@ const executionRoutingToolMap: Record<AlicizationDispatchChannel, AlicizationExe
   'codex': 'executor_run_codex',
   'claude-code': 'executor_run_claude_code',
   'openclaw': 'executor_run_openclaw',
+  'browser': 'browser_read_page',
+  'desktop': 'desktop_inspect_scene',
 }
 const continuationCuePattern = /继续|接着|接下来|续上|接上|沿着刚才|按刚才|照刚才|continue|keep\s+going|go\s+on|resume|carry\s+on|pick\s+up\s+where\s+we\s+left\s+off/iu
-const zhExecutionAffirmationPattern = /^(?:可以(?:做吧|开始|做)?|行(?:啊|吧)?|好(?:的|啊|呀)?(?:做吧)?|嗯嗯?|那就做吧|那你做吧|做吧|去做吧|开始吧|动手吧|改吧|那就改吧|去改吧|你做吧|来吧)$/u
+const zhExecutionAffirmationPattern = /^(?:可以(?:做吧|开始|做)?|行(?:啊|吧)?|好[的啊呀]?(?:做吧)?|嗯嗯?|那就做吧|那你做吧|做吧|去做吧|开始吧|动手吧|改吧|那就改吧|去改吧|你做吧|来吧)$/u
 const enExecutionAffirmationPattern = /^(?:ok|okay|yes|yeah|yep|sure|goahead|doit|pleasedo|startit|dothat)$/iu
 
 export type AlicizationMainChatActionObligationKind
@@ -141,7 +144,7 @@ function hasContinuationCue(userText: string) {
 
 function normalizeCompactUserText(raw: string) {
   return sanitizeText(raw, 240)
-    .replace(/[，,。.!！？?？\s]+/g, '')
+    .replace(/[，,。.!！？?\s]+/g, '')
     .toLowerCase()
 }
 
@@ -190,7 +193,7 @@ export function deriveMainChatActionObligation(input: {
   const continuityPolicyHoldsTaskThread = Boolean(
     conversationState?.shouldHoldThread === true
     && conversationState?.continuityPolicy === 'stay-on-thread'
-    && activeThread?.unresolved === true
+    && activeThread?.unresolved === true,
   )
   const continuationRequested = (
     dialogueEncounter?.act === 'continue-thread'

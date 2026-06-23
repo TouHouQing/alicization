@@ -324,11 +324,11 @@ function resolveDominantDrift(input: SelfEvolutionEvidencePanelInput): string | 
 
   const proactiveDrift = input.proactiveActionChain?.driftingSignals?.[0]
   if (hasValue(proactiveDrift))
-    return proactiveDrift
+    return proactiveDrift ?? null
 
   const personaDrift = input.personaBiasProvenance?.driftingSignals?.[0]
   if (hasValue(personaDrift))
-    return personaDrift
+    return personaDrift ?? null
 
   return null
 }
@@ -363,11 +363,12 @@ function resolveDriftStart(input: SelfEvolutionEvidencePanelInput) {
     input.proactiveActionChain?.driftingSignals?.[0],
     input.personaBiasProvenance?.driftingSignals?.[0],
   ])
-  if (personaDrift)
+  if (personaDrift) {
     return {
       layer: 'persona',
       signal: personaDrift,
     } as const
+  }
 
   const thoughtDrift = firstSignal([
     input.privateThoughtGovernanceChain?.driftingSignals?.[0],

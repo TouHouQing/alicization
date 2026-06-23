@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
 
+import { replayMainChatSession } from './main-chat-session-replay-harness'
+import { replayBenchmarkTuningAdviceMetaKey } from './memory-tuning-advice'
 import {
   createAlicizationReplayBenchmarkRuntime,
   replayBenchmarkLatestReportMetaKey,
   replayBenchmarkRuntimeSamplingBacklogKey,
 } from './replay-benchmark-runtime'
-import { replayMainChatSession } from './main-chat-session-replay-harness'
-import { replayBenchmarkTuningAdviceMetaKey } from './memory-tuning-advice'
 
 describe('replay benchmark runtime', () => {
   it('ingests anonymized runtime sampling candidates and lets sampled pack replay from the sampling backlog first', async () => {
@@ -35,7 +35,7 @@ describe('replay benchmark runtime', () => {
         templateLeakageFailCount: 0,
       },
     }))
-    const overrideMemoryStats = vi.fn(async (next) => next)
+    const overrideMemoryStats = vi.fn(async next => next)
     const getMetaValue = vi.fn(async (key: string) => meta.get(key))
     const setMetaValue = vi.fn(async (key: string, value: string) => {
       meta.set(key, value)
@@ -584,7 +584,7 @@ describe('replay benchmark runtime', () => {
         templateLeakageFailCount: 0,
       },
     }))
-    const overrideMemoryStats = vi.fn(async (next) => next)
+    const overrideMemoryStats = vi.fn(async next => next)
     const getMetaValue = vi.fn(async (key: string) => meta.get(key))
     const setMetaValue = vi.fn(async (key: string, value: string) => {
       meta.set(key, value)
@@ -779,7 +779,7 @@ describe('replay benchmark runtime', () => {
         templateLeakageFailCount: 0,
       },
     }))
-    const overrideMemoryStats = vi.fn(async (next) => next)
+    const overrideMemoryStats = vi.fn(async next => next)
     const getMetaValue = vi.fn(async (key: string) => meta.get(key))
     const setMetaValue = vi.fn(async (key: string, value: string) => {
       meta.set(key, value)

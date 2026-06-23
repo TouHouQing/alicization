@@ -1,5 +1,4 @@
 import type { StageThreeRuntimeSpeechEmbodimentDiagnostics } from '../../stores/stage-three-runtime-diagnostics'
-
 import type { SelfEvolutionRendererAuthorityProjection } from './performance-visualizer-self-evolution-renderer-authority'
 
 import {
@@ -87,9 +86,9 @@ export function buildSelfEvolutionRuntimeContinuityProjection(input: {
   const eventPointers = runtimeDynamics?.eventPointers ?? null
   const recentTransition = eventPointers?.recentTransition ?? null
   const localTraceEmbodimentSummary = buildTraceEmbodimentSummary({
-      recentDrivingTraceRecord: speech?.recentDrivingTraceRecord ?? null,
-      recentDrivingTraceDetails: speech?.recentDrivingTraceDetails ?? [],
-    })
+    recentDrivingTraceRecord: speech?.recentDrivingTraceRecord ?? null,
+    recentDrivingTraceDetails: speech?.recentDrivingTraceDetails ?? [],
+  })
   const traceEmbodimentSummary = enrichTraceEmbodimentSummary({
     upstreamSummary: input.traceEmbodimentSummary,
     localSummary: localTraceEmbodimentSummary,

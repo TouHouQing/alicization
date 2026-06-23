@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { adjustProactiveStyleFromHostPersonModel, adjustProactiveReplyFromLongHorizonLearning, buildHostSocialGuidance, inferHostSocialContextsFromText } from './host-social-guidance'
+import { adjustProactiveReplyFromLongHorizonLearning, adjustProactiveStyleFromHostPersonModel, buildHostSocialGuidance, inferHostSocialContextsFromText } from './host-social-guidance'
 
 const hostPersonModel = {
   summary: 'Focused work windows need more room before closeness.',

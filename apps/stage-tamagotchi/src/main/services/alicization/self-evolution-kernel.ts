@@ -131,6 +131,13 @@ export function buildAlicizationSelfEvolutionKernel(input: {
     selfModelViewStrength?: number
     worldModelViewStrength?: number
   } | null
+  activeSelfRevisionProjectStateContinuity?: {
+    sameHerSelfLine?: string | null
+    sameHerDriftRisk?: string | null
+    emotionalClosureCue?: string | null
+    continuityGuard?: string | null
+    continuityPressure?: number | null
+  } | null
   learningPolicyState?: {
     strictnessBias?: number | null
     wrongThreadSuppressionBias?: number | null
@@ -177,31 +184,31 @@ export function buildAlicizationSelfEvolutionKernel(input: {
 
   const relationshipDoctrine = sanitizeText(
     evolution?.latestDoctrine
-      ?? longHorizonMemory?.rememberedConstraintSummary
-      ?? hostPersonModel?.preferredClosenessByContext?.[0]?.preference
-      ?? '',
+    ?? longHorizonMemory?.rememberedConstraintSummary
+    ?? hostPersonModel?.preferredClosenessByContext?.[0]?.preference
+    ?? '',
     220,
   ) || null
   const latestInflection = sanitizeText(
     input.autobiographicalLatestInflection
-      ?? autobiographicalSelf?.latestInflection
-      ?? evolution?.recentSummaries?.[0]
-      ?? input.reflectionLesson
-      ?? input.reflectionSummary
-      ?? longHorizonMemory?.rememberedPlanSummary
-      ?? '',
+    ?? autobiographicalSelf?.latestInflection
+    ?? evolution?.recentSummaries?.[0]
+    ?? input.reflectionLesson
+    ?? input.reflectionSummary
+    ?? longHorizonMemory?.rememberedPlanSummary
+    ?? '',
     220,
   ) || null
   const burdenLine = sanitizeText(
     evolution?.latestBurdenLine
-      ?? hostPersonModel?.recurrentBurdens?.[0]
-      ?? '',
+    ?? hostPersonModel?.recurrentBurdens?.[0]
+    ?? '',
     180,
   ) || null
   const trustMeaning = sanitizeText(
     evolution?.latestTrustMeaning
-      ?? hostPersonModel?.trustLadder?.rationale
-      ?? '',
+    ?? hostPersonModel?.trustLadder?.rationale
+    ?? '',
     180,
   ) || null
 

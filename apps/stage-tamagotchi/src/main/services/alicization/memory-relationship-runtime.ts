@@ -1,3 +1,5 @@
+import type sqlite3 from 'sqlite3'
+
 import type {
   AlicizationMemoryReflectionInput,
   AlicizationMemoryReflectionRecord,
@@ -7,9 +9,6 @@ import type {
   AlicizationRelationshipOutcomeInput,
   AlicizationRelationshipOutcomeRecord,
 } from '../../../shared/eventa'
-
-import type sqlite3 from 'sqlite3'
-
 import type { AlicizationRelationshipDynamicsState } from './relationship-dynamics-state'
 
 interface DbMemoryReflectionRow {

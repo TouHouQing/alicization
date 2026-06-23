@@ -58,25 +58,25 @@ const repairOwnerHintLabels: Record<string, string> = {
 }
 
 const candidateStatusLabels: Record<string, string> = {
-  shadow: '影子',
-  active: '激活',
-  rejected: '拒绝',
+  'shadow': '影子',
+  'active': '激活',
+  'rejected': '拒绝',
   'rolled-back': '回滚',
 }
 
 const runtimeStatusLabels: Record<string, string> = {
-  grounded: '已落地',
-  partial: '部分落地',
-  missing: '缺失',
-  drifted: '已漂移',
+  'grounded': '已落地',
+  'partial': '部分落地',
+  'missing': '缺失',
+  'drifted': '已漂移',
   'predicted-only': '仅预测',
 }
 
 const runtimePostureLabels: Record<string, string> = {
   'observe-first': '先观察',
-  warm: '温暖',
-  restrained: '克制',
-  observer: '观察者',
+  'warm': '温暖',
+  'restrained': '克制',
+  'observer': '观察者',
 }
 
 const runtimeActionLabels: Record<string, string> = {
@@ -103,12 +103,12 @@ const governanceMemoryStageLabels: Record<string, string> = {
 
 const governanceAnswerSubjectLabels: Record<string, string> = {
   'task-knot': '任务结',
-  relationship: '关系',
+  'relationship': '关系',
   'alicization-self': 'Alicization 自我',
   'host-state': '宿主状态',
   'visible-scene': '可见场景',
   'self-model': '自我模型',
-  general: '通用',
+  'general': '通用',
 }
 
 const governanceScreenReferenceModeLabels: Record<string, string> = {
@@ -127,11 +127,11 @@ const learningActionLabels: Record<string, string> = {
 }
 
 const learningDomainLabels: Record<string, string> = {
-  procedure: '程序性知识',
-  relationship: '关系',
+  'procedure': '程序性知识',
+  'relationship': '关系',
   'self-model': '自我模型',
   'world-model': '世界模型',
-  general: '通用',
+  'general': '通用',
   'dialogue-style': '对话风格',
   'proactive-policy': '主动策略',
 }
@@ -159,8 +159,8 @@ const traceEventKindValueLabels: Record<string, string> = {
   'memory-deliberation-judged': '记忆审议已判定',
   'memory-followup-deferred': '记忆后续已延后',
   'memory-wrong-thread-suppressed': '错误线程记忆已抑制',
-  dispatch: '派发',
-  result: '结果',
+  'dispatch': '派发',
+  'result': '结果',
   'persistence-written': '持久化已写入',
 }
 
@@ -168,7 +168,7 @@ const traceSuppressionTagLabels: Record<string, string> = {
   'wrong-thread': '错误线程',
   'nearby-thread': '邻近线程',
   'late-night-fatigue': '深夜疲劳',
-  companionship: '陪伴优先',
+  'companionship': '陪伴优先',
   'other-thread': '其他线程',
   'stable-core': '稳定核心',
   'local-fallback': '本地回退',
@@ -213,24 +213,24 @@ const alignmentSignalLabels: Record<string, string> = {
 
 const selfEvolutionDisplayTextLabels: Record<string, string> = {
   'self-evolution-runtime': '自演化运行时',
-  snapshot: '快照',
+  'snapshot': '快照',
   'active-candidate-id': '当前候选项 ID',
   'shadow-count': '影子候选数',
   'active-count': '激活候选数',
   'rejected-count': '拒绝候选数',
   'rolled-back-count': '回滚候选数',
   'latest-snapshot': '最新快照',
-  candidate: '候选项',
-  trace: '轨迹',
-  thread: '线程',
-  focus: '聚焦',
+  'candidate': '候选项',
+  'trace': '轨迹',
+  'thread': '线程',
+  'focus': '聚焦',
   'snapshot-history': '快照历史',
   'focus-history-summary': '聚焦历史摘要',
-  owner: '归属',
+  'owner': '归属',
   'repair-session-checklist': '修复会话检查清单',
-  completion: '完成度',
+  'completion': '完成度',
   'repair-closure': '修复闭环',
-  status: '状态',
+  'status': '状态',
   'next-action': '下一步动作',
   'run-suggested-repair-action': '执行建议修复动作',
   'run-next-action-short': '执行下一步',
@@ -248,21 +248,21 @@ const selfEvolutionDisplayTextLabels: Record<string, string> = {
   'restore-current-detail': '恢复当前侧漂移状态',
   'restore-current-short': '恢复当前侧',
   'recurring-drift-patterns': '重复漂移模式',
-  occurrences: '出现记录',
+  'occurrences': '出现记录',
   'repair-guidance': '修复指引',
   'repair-workflow': '修复工作流',
   'apply-workflow-context': '应用工作流上下文',
   'validation-checklist': '校验清单',
-  layer: '层级',
-  evidence: '证据',
-  events: '事件',
+  'layer': '层级',
+  'evidence': '证据',
+  'events': '事件',
   'focus-diff-vs-last-snapshot': '相对上一快照的聚焦差异',
   'persona-action-evidence': '人格动作证据',
   'trace-consumption-evidence': '轨迹消费证据',
   'cross-turn-candidate-consumption': '跨轮候选消费',
   'candidate-stability': '候选稳定性',
   'runtime-reasons': '运行时原因',
-  candidates: '候选项列表',
+  'candidates': '候选项列表',
   'selected-details': '选中详情',
   'active-summary': '当前摘要',
   'selected-candidate': '选中候选项',
@@ -282,7 +282,7 @@ const selfEvolutionDisplayTextLabels: Record<string, string> = {
   'blocked-reasons': '阻塞原因',
   'rollback-plan': '回滚计划',
   'candidate-consumption-preview': '候选消费预览',
-  memory: '记忆',
+  'memory': '记忆',
   'verification-strictness': '校验严格度',
   'top-k-expansion-active': 'Top-K 扩展已启用',
   'wrong-thread-suppression-raised': '错误线程抑制已提升',
@@ -319,10 +319,10 @@ const selfEvolutionDisplayTextLabels: Record<string, string> = {
   'latest-trace-surface-policy': '最近轨迹表面策略',
   'suppression-tags': '抑制标签',
   'runtime-alignment': '运行时对齐',
-  relationship: '关系',
-  response: '响应',
-  proactive: '主动性',
-  learning: '学习',
+  'relationship': '关系',
+  'response': '响应',
+  'proactive': '主动性',
+  'learning': '学习',
   'birth-persona-authority': '初生人格权威',
   'persona-authority-mapping': '人格权威映射',
   'personality-trajectory': '人格轨迹',
@@ -332,7 +332,7 @@ const selfEvolutionDisplayTextLabels: Record<string, string> = {
   'self-evolution-summary': '自演化摘要',
   'focus-repair-path': '聚焦修复路径',
   'capture-focus-snapshot': '捕获聚焦快照',
-  id: 'ID',
+  'id': 'ID',
   'expected-posture': '预期姿态',
   'planner-posture': '规划器姿态',
   'compiler-posture': '编译器姿态',
@@ -371,7 +371,7 @@ const selfEvolutionDisplayTextLabels: Record<string, string> = {
   'decision-trace-id': '决策轨迹 ID',
   'turn-id': '轮次 ID',
   'consumed-at': '消费时间',
-  lanes: '通道',
+  'lanes': '通道',
   'trajectory-summary': '轨迹摘要',
   'consumed-turn-count': '已消费轮次数',
   'latest-consumed-at': '最近消费时间',
@@ -394,8 +394,8 @@ const selfEvolutionDisplayTextLabels: Record<string, string> = {
   'memory-stage-summary': '记忆阶段摘要',
   'memory-stage-latency-ms': '记忆阶段延迟毫秒',
   'resolution-rationale': '解析依据',
-  summary: '摘要',
-  kind: '类型',
+  'summary': '摘要',
+  'kind': '类型',
 }
 
 export function formatSelfEvolutionFocusCardLabel(value: string | null | undefined) {

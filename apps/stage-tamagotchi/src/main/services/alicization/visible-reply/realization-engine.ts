@@ -2119,9 +2119,8 @@ export function resolveAlicizationTimeoutRecoveredVisibleReply(input: {
     rawCurrentConsciousProjectState?.companionHeadlineLine,
     rawRuntimeProjectState?.companionHeadlineLine,
     rawContractProjectState?.companionHeadlineLine,
-  ].map(value => typeof value === 'string' ? value.trim() || null : null)
-    .find((value): value is string => Boolean(value))
-    ?? null
+  ].map(value => typeof value === 'string' ? value.trim() || null : null).find((value): value is string => Boolean(value))
+  ?? null
   const rawExplicitRuntimeAwarenessWithoutPreflight = pickStrongerPreparedAwarenessLine(
     rawCurrentConsciousProjectState?.preDialogueAwarenessLine ?? null,
     rawCurrentConsciousProjectState?.awarenessLine ?? null,
@@ -2224,7 +2223,7 @@ export function resolveAlicizationTimeoutRecoveredVisibleReply(input: {
   )
   const timeoutRecoveryShouldKeepAuthorityOnlyEmbodimentHeadline = Boolean(
     authorityOnlyEmbodimentHeadline
-    && resolvedRecoveredProjectAwarenessSummary === authorityOnlyEmbodimentHeadline
+    && resolvedRecoveredProjectAwarenessSummary === authorityOnlyEmbodimentHeadline,
   )
   const shouldPreferCompactTimeoutRecoveryAwareness = Boolean(
     !timeoutRecoveryShouldKeepAuthorityOnlyEmbodimentHeadline

@@ -7,6 +7,7 @@ export type AlicizationEmbodimentLipSyncVisemeSource
   = 'prosody-authority'
     | 'timeline-projection'
     | 'digital-life-projection'
+    | 'cue-bridge'
 
 export interface AlicizationEmbodimentLipSyncVisemeHint {
   segmentId: string
@@ -62,6 +63,7 @@ function normalizeVisemeSource(raw: unknown): AlicizationEmbodimentLipSyncViseme
   return raw === 'prosody-authority'
     || raw === 'timeline-projection'
     || raw === 'digital-life-projection'
+    || raw === 'cue-bridge'
     ? raw
     : null
 }

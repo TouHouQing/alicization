@@ -1,6 +1,6 @@
 import type {
-  AlicizationAutobiographicalSelfSnapshot,
   AlicizationAnswerCompilerSnapshot,
+  AlicizationAutobiographicalSelfSnapshot,
   AlicizationConversationStateSnapshot,
   AlicizationDesireMemorySnapshot,
   AlicizationDialogueWorldThreadSnapshot,
@@ -313,7 +313,12 @@ export function buildRecallGovernor(input: {
   desireMemory?: AlicizationDesireMemorySnapshot | null
   motiveEngine?: AlicizationMotiveEngineSnapshot | null
   mindEcology?: AlicizationMindEcologySnapshot | null
+  emotionalKernel?: unknown
   personalityContinuityState?: AlicizationPersonalityContinuityStateSnapshot | null
+  projectStatePreDialogueAwarenessLine?: string | null
+  projectStatePreflightSummary?: string | null
+  projectStateEmotionalClosureCue?: string | null
+  selfContinuityAuthority?: unknown
   sceneContext?: {
     cueSummary?: string | null
     appName?: string | null
@@ -467,8 +472,8 @@ export function buildRecallGovernor(input: {
           ? 'Allow memory with matching emotional color because the host is still inside a felt continuity.'
           : mode === 'self-continuity'
             ? autobiographicalContinuityLines.length > 0
-                ? 'Carry autobiographical continuity and remembered self-line because this turn is genuinely about Alicization or the bond, not a fresh screen claim.'
-                : 'Carry dialogue/self continuity without pretending old scene residue is live.'
+              ? 'Carry autobiographical continuity and remembered self-line because this turn is genuinely about Alicization or the bond, not a fresh screen claim.'
+              : 'Carry dialogue/self continuity without pretending old scene residue is live.'
             : 'Do not admit memory unless the living turn explicitly earns it.'
 
   return {

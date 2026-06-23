@@ -1,11 +1,11 @@
-import type { AlicizationMemoryFact } from '../../../shared/eventa'
-
 import type {
   AlicizationMemoryIngestHealth,
   AlicizationMemoryIntegrityHealth,
   AlicizationMemoryStats,
   AlicizationMemoryTierCounts,
 } from '@proj-alicization/stage-shared'
+
+import type { AlicizationMemoryFact } from '../../../shared/eventa'
 
 import { deriveFactMemoryTier } from './memory-tiering'
 

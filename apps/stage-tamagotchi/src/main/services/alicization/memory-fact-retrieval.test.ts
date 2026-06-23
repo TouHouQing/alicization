@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
-import { rankAlicizationMemoryFacts } from './memory-fact-retrieval'
 import {
   buildAlicizationDomainNativeMemoryViews,
   rankDomainNativeMemoryViews,
 } from './memory-domain-model'
+import { rankAlicizationMemoryFacts } from './memory-fact-retrieval'
 
 describe('memory fact retrieval', () => {
   it('keeps a cold but confident long-tail fact reachable under a vague query', () => {

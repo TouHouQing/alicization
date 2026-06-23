@@ -15,7 +15,7 @@ import { executeCodexTaskThread } from './codex'
 import { resolveExecutionTransportChannel } from './embodied-channel'
 import { executeOpenClawTaskThread } from './openclaw'
 
-type AlicizationDispatchCommandInput = Pick<AlicizationDispatchTaskThreadInput, 'cli' | 'codex' | 'claudeCode' | 'openclaw'>
+type AlicizationDispatchCommandInput = Pick<AlicizationDispatchTaskThreadInput, 'cli' | 'codex' | 'claudeCode' | 'localVisual' | 'openclaw'>
 
 export type AlicizationDispatchExecutableChannel = 'cli' | 'codex' | 'claude-code' | 'openclaw'
 

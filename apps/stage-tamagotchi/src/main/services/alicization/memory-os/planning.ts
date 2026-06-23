@@ -1,9 +1,8 @@
 import type { AlicizationEpisodicEventRecord } from '../../../../shared/eventa'
-
 import type { AlicizationRelationshipLineCandidate } from '../memory-search-retrieval-operators'
 import type {
-  MemoryDeliberationSnapshot,
   MemoryClusterState,
+  MemoryDeliberationSnapshot,
   RecollectionIntentSnapshot,
   RecollectionPlanSnapshot,
 } from '../runtime-organic-memory-prompt-types'
@@ -196,36 +195,36 @@ export function deriveMemoryFollowUpAffordance(input: {
     : selfModelDominant
       ? 'medium' as const
       : conflictSeverity === 'medium'
-          || deliberation.surfacePolicy === 'relationship-continuity'
-          || deliberation.surfacePolicy === 'gist-first'
+        || deliberation.surfacePolicy === 'relationship-continuity'
+        || deliberation.surfacePolicy === 'gist-first'
         ? 'medium' as const
         : 'low' as const
   const payoffDependency = shouldStayInward
     ? 'memory-only' as const
     : speechPlan?.placement === 'after-payoff'
-        || speechPlan?.placement === 'inside-payoff'
+      || speechPlan?.placement === 'inside-payoff'
       ? 'requires-current-payoff' as const
       : 'can-surface-softly' as const
   const preferredTiming: NonNullable<MemoryDeliberationSnapshot['followUpAffordance']>['preferredTiming'] = shouldStayInward
     ? (
         ambiguity === 'settled'
-          && conflictSeverity !== 'high'
-          && (relationLine || bundleSummary || chainSummary || selfModelDominant)
+        && conflictSeverity !== 'high'
+        && (relationLine || bundleSummary || chainSummary || selfModelDominant)
           ? 'next-open-window'
           : 'internal-only'
       )
     : speechPlan?.placement === 'after-payoff'
-        || speechPlan?.placement === 'inside-payoff'
+      || speechPlan?.placement === 'inside-payoff'
       ? 'after-payoff'
       : selfModelDominant
-          ? (
-              recollectionIntent?.mode === 'autobiographical-history'
-                && ambiguity === 'settled'
-                && conflictSeverity === 'none'
-                ? 'same-turn-if-invited'
-                : 'after-payoff'
-            )
-          : 'same-turn-if-invited'
+        ? (
+            recollectionIntent?.mode === 'autobiographical-history'
+            && ambiguity === 'settled'
+            && conflictSeverity === 'none'
+              ? 'same-turn-if-invited'
+              : 'after-payoff'
+          )
+        : 'same-turn-if-invited'
 
   const domainSummary = relationshipDominant
     ? (
@@ -234,24 +233,24 @@ export function deriveMemoryFollowUpAffordance(input: {
           : 'Let the relationship line return only after the current payoff has landed.'
       )
     : procedureDominant
+      ? (
+          shouldStayInward
+            ? 'Keep the remembered procedure inward until the current payoff lands.'
+            : 'Reopen the remembered procedure only after the live task payoff is stable.'
+        )
+      : selfModelDominant
         ? (
             shouldStayInward
-              ? 'Keep the remembered procedure inward until the current payoff lands.'
-              : 'Reopen the remembered procedure only after the live task payoff is stable.'
+              ? 'Keep the older self-story inward until the newer self line stabilizes.'
+              : 'Let the older self-story return only after the current payoff lands and the newer self line feels stable enough to hold.'
           )
-        : selfModelDominant
-            ? (
-                shouldStayInward
-                  ? 'Keep the older self-story inward until the newer self line stabilizes.'
-                  : 'Let the older self-story return only after the current payoff lands and the newer self line feels stable enough to hold.'
-              )
-            : worldLike
-                ? (
-                    shouldStayInward
-                      ? 'Keep the inferred or reconstructed world knowledge compressed until it is safer to say out loud.'
-                      : 'Delay the world-model detail until the current payoff lands and the validation pressure drops.'
-                  )
-                : summary
+        : worldLike
+          ? (
+              shouldStayInward
+                ? 'Keep the inferred or reconstructed world knowledge compressed until it is safer to say out loud.'
+                : 'Delay the world-model detail until the current payoff lands and the validation pressure drops.'
+            )
+          : summary
 
   const domainWhyNow = relationshipDominant
     ? (
@@ -260,30 +259,30 @@ export function deriveMemoryFollowUpAffordance(input: {
           : 'The relation line can come back once the present answer has made enough room for it.'
       )
     : procedureDominant
+      ? (
+          shouldStayInward
+            ? 'The procedure still helps, but the current payoff has to stay in front before the remembered way can become visible.'
+            : 'The remembered way still helps, but it should come back only after the host sees the present task is already being carried.'
+        )
+      : selfModelDominant
         ? (
             shouldStayInward
-              ? 'The procedure still helps, but the current payoff has to stay in front before the remembered way can become visible.'
-              : 'The remembered way still helps, but it should come back only after the host sees the present task is already being carried.'
+              ? 'The older self-story still tugs on the moment, but saying it too early would flatten a self line that is still being revised.'
+              : 'The self-story can come back once the present answer has landed and the newer self line no longer needs protective room.'
           )
-        : selfModelDominant
-            ? (
-                shouldStayInward
-                  ? 'The older self-story still tugs on the moment, but saying it too early would flatten a self line that is still being revised.'
-                  : 'The self-story can come back once the present answer has landed and the newer self line no longer needs protective room.'
-              )
-            : worldLike
-                ? (
-                    shouldStayInward
-                      ? 'The world-model detail is still under validation pressure, so reconstructed knowledge should stay compressed for now.'
-                      : 'The world-model detail may help later, but not before the present payoff proves more stable than the reconstruction pressure.'
-                  )
-                : sanitizeOrganicMemoryText(
-                    deliberation.whyNow
-                    || speechPlan?.rationale
-                    || recollectionPlan?.rationale
-                    || summary,
-                    220,
-                  )
+        : worldLike
+          ? (
+              shouldStayInward
+                ? 'The world-model detail is still under validation pressure, so reconstructed knowledge should stay compressed for now.'
+                : 'The world-model detail may help later, but not before the present payoff proves more stable than the reconstruction pressure.'
+            )
+          : sanitizeOrganicMemoryText(
+              deliberation.whyNow
+              || speechPlan?.rationale
+              || recollectionPlan?.rationale
+              || summary,
+              220,
+            )
 
   return {
     summary: sanitizeOrganicMemoryText(domainSummary, 220),
@@ -403,9 +402,9 @@ export function resolveRecollectionPlanSearch(input: {
   const relationshipBiasTexts = selectedRelationshipLines.length > 0
     ? selectedRelationshipLines
     : uniqueList([
-      ...input.relationshipLineCandidates.slice(0, 3).map(item => item.line),
-      ...input.recalledEpisodes.slice(0, 2).flatMap(item => [item.relationshipMeaning, item.lesson]),
-    ], 3)
+        ...input.relationshipLineCandidates.slice(0, 3).map(item => item.line),
+        ...input.recalledEpisodes.slice(0, 2).flatMap(item => [item.relationshipMeaning, item.lesson]),
+      ], 3)
 
   let secondHopAction: NonNullable<RecollectionPlanSnapshot['searchTrace']>['secondHop']['action'] = plan.searchTrace?.secondHop.action ?? 'hold'
   let evidenceGap: NonNullable<RecollectionPlanSnapshot['searchTrace']>['secondHop']['evidenceGap'] = plan.searchTrace?.secondHop.evidenceGap ?? 'none'
@@ -594,32 +593,32 @@ export function resolveRecollectionPlanSearch(input: {
   const firstHopTargetIds = preferredPrimaryFocus === 'era'
     ? [...selectedConsolidationIds, ...selectedWindowIds].slice(0, 3)
     : preferredPrimaryFocus === 'procedure'
-        ? [...selectedProceduralIds].slice(0, 2)
-        : preferredPrimaryFocus === 'relationship-line'
-            ? [...selectedEpisodeIds].slice(0, 2)
-            : preferredPrimaryFocus === 'conversation-turn'
-                ? [...selectedConversationTurnIds].slice(0, 2)
-                : [...selectedEpisodeIds].slice(0, 2)
+      ? [...selectedProceduralIds].slice(0, 2)
+      : preferredPrimaryFocus === 'relationship-line'
+        ? [...selectedEpisodeIds].slice(0, 2)
+        : preferredPrimaryFocus === 'conversation-turn'
+          ? [...selectedConversationTurnIds].slice(0, 2)
+          : [...selectedEpisodeIds].slice(0, 2)
 
   const firstHopSummary = plan.searchTrace?.firstHop.summary
     ?? (
       preferredPrimaryFocus === 'procedure'
         ? 'The recollection first grabs the remembered way of handling this kind of task.'
         : preferredPrimaryFocus === 'relationship-line'
-            ? 'The recollection first grabs a remembered relationship meaning before exact detail.'
-            : preferredPrimaryFocus === 'era'
-                ? 'The recollection first grabs a remembered period or era before unpacking fragments.'
-                : preferredPrimaryFocus === 'conversation-turn'
-                    ? 'The recollection first grabs one remembered exchange before broadening out.'
-                    : 'The recollection first grabs one remembered episode.'
+          ? 'The recollection first grabs a remembered relationship meaning before exact detail.'
+          : preferredPrimaryFocus === 'era'
+            ? 'The recollection first grabs a remembered period or era before unpacking fragments.'
+            : preferredPrimaryFocus === 'conversation-turn'
+              ? 'The recollection first grabs one remembered exchange before broadening out.'
+              : 'The recollection first grabs one remembered episode.'
     )
   const secondHopSummary = plan.searchTrace?.secondHop.summary
     ?? (
       secondHopAction === 'hold'
         ? 'The first remembered anchor already carries enough evidence, so the search does not need to widen.'
         : secondHopAction === 'narrow-to-stable-core'
-            ? 'The search narrows toward the stable core because remembered variants do not fully agree.'
-            : 'The search expands from the first anchor to gather enough remembered evidence for a coherent answer.'
+          ? 'The search narrows toward the stable core because remembered variants do not fully agree.'
+          : 'The search expands from the first anchor to gather enough remembered evidence for a coherent answer.'
     )
   const thirdHopSummary = plan.searchTrace?.thirdHop.summary
     ?? (
@@ -628,16 +627,16 @@ export function resolveRecollectionPlanSearch(input: {
           ? `The recollection leans toward "${clusterState.dominantSummary}" but "${clusterState.runnerUpSummary}" still shadows it, so the answer should stay ambiguity-aware.`
           : 'The remembered material still branches in more than one direction, so the answer should stay openly ambiguity-aware.'
         : ambiguityPosture === 'approximate'
-            ? 'The remembered material is usable but not exact, so the answer should stay approximate.'
-            : 'The remembered material feels coherent enough to be carried with normal confidence.'
+          ? 'The remembered material is usable but not exact, so the answer should stay approximate.'
+          : 'The remembered material feels coherent enough to be carried with normal confidence.'
     )
 
   const certainty: RecollectionPlanSnapshot['certainty']
     = ambiguityPosture === 'ambiguous'
       ? 'fragmentary'
       : ambiguityPosture === 'approximate' && plan.certainty === 'firm'
-          ? 'approximate'
-          : plan.certainty
+        ? 'approximate'
+        : plan.certainty
 
   return {
     ...plan,
@@ -803,17 +802,17 @@ export function selectMemoryDeliberationEras(input: {
   const inferredFacet = input.recollectionIntent?.mode === 'relationship-history'
     ? 'relationship-era'
     : input.recollectionIntent?.mode === 'execution-procedure' || input.recollectionIntent?.mode === 'experience-pattern'
-        ? 'task-era'
-        : input.recollectionIntent?.mode === 'autobiographical-history'
-            ? 'self-era'
-            : null
+      ? 'task-era'
+      : input.recollectionIntent?.mode === 'autobiographical-history'
+        ? 'self-era'
+        : null
   const prioritized = selectedEraIds.size > 0
     ? eraCandidates.filter(item => selectedEraIds.has(item.id))
     : preferredAgendaFacets.length > 0
-        ? eraCandidates.filter(item => preferredAgendaFacets.includes(item.facet as typeof preferredAgendaFacets[number]) || item.facet === 'window')
-        : inferredFacet
-            ? eraCandidates.filter(item => item.facet === inferredFacet || item.facet === 'window')
-            : eraCandidates
+      ? eraCandidates.filter(item => preferredAgendaFacets.includes(item.facet as typeof preferredAgendaFacets[number]) || item.facet === 'window')
+      : inferredFacet
+        ? eraCandidates.filter(item => item.facet === inferredFacet || item.facet === 'window')
+        : eraCandidates
   return [...prioritized]
     .sort((left, right) => right.confidence - left.confidence)
     .map(item => ({
@@ -875,10 +874,10 @@ export function deriveMemoryDeliberationConflictState(input: {
   const inferredSeverity: NonNullable<NonNullable<OrganicMemoryPromptContext['memoryDeliberation']>['conflictSeverity']> = conflictVariants.length >= 2
     ? 'high'
     : conflictVariants.length === 1
-        ? 'medium'
-        : input.episodes.some(item => (item.latestReconsolidation?.provenance ?? item.provenance) === 'dreamt' || (item.latestReconsolidation?.provenance ?? item.provenance) === 'inferred')
-            ? 'low'
-            : 'none'
+      ? 'medium'
+      : input.episodes.some(item => (item.latestReconsolidation?.provenance ?? item.provenance) === 'dreamt' || (item.latestReconsolidation?.provenance ?? item.provenance) === 'inferred')
+        ? 'low'
+        : 'none'
   const conflictSeverity: NonNullable<NonNullable<OrganicMemoryPromptContext['memoryDeliberation']>['conflictSeverity']> = explicitSeverity && explicitSeverity !== 'none'
     ? explicitSeverity
     : inferredSeverity
@@ -886,18 +885,18 @@ export function deriveMemoryDeliberationConflictState(input: {
   const stableCore = (input.deliberation?.stableCore?.length ?? 0) > 0
     ? input.deliberation?.stableCore ?? []
     : uniqueList([
-      ...(input.reconstructionPass?.stableCore ?? []),
-      ...input.periods.map(item => item.summary),
-      ...input.procedures.flatMap(item => [item.label, item.approach]),
-      ...input.relationshipLines,
-    ], 6)
+        ...(input.reconstructionPass?.stableCore ?? []),
+        ...input.periods.map(item => item.summary),
+        ...input.procedures.flatMap(item => [item.label, item.approach]),
+        ...input.relationshipLines,
+      ], 6)
 
   const unsafeDetails = (input.deliberation?.unsafeDetails?.length ?? 0) > 0
     ? input.deliberation?.unsafeDetails ?? []
     : uniqueList([
-      ...(input.reconstructionPass?.unsafeDetails ?? []),
-      ...conflictVariants.flatMap(item => [item.summary, item.reason]),
-    ], 6)
+        ...(input.reconstructionPass?.unsafeDetails ?? []),
+        ...conflictVariants.flatMap(item => [item.summary, item.reason]),
+      ], 6)
 
   return {
     conflictSeverity,

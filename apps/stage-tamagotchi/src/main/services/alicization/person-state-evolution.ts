@@ -4,7 +4,6 @@ import type {
   AlicizationPersonStateUpdateRecord,
   AlicizationPersonStateUpdateSurface,
 } from '../../../shared/eventa'
-
 import type { AlicizationOutcomeClosureResult } from './outcome-reinforcement'
 
 function sanitizeText(raw: unknown, maxChars = 220) {

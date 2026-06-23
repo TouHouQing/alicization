@@ -20,6 +20,8 @@ export interface AlicizationActiveLoopSnapshot {
   companionshipReady: boolean
   observationHeavy: boolean
   continuityPressure: number
+  continuityArcStage?: string | null
+  continuityPreferredTiming?: string | null
   companionshipPressure: number
   initiativeBudget: number
   coherence: number
@@ -238,6 +240,8 @@ export function deriveAlicizationActiveLoopSnapshot(input: {
     clamp01(runtime?.continuityPressure),
     clamp01(memoryHeat * 0.72 + mindHeat * 0.28),
   )
+  const continuityArcStage = runtime?.continuityArcStage ?? null
+  const continuityPreferredTiming = runtime?.continuityPreferredTiming ?? null
   const companionshipPressure = Math.max(
     clamp01(runtime?.companionshipPressure),
     clamp01(anthropomorphicHeat * 0.68 + Math.max(dialogueHeat, activeDialogueHeat) * 0.2 + architectureProactiveHeat * 0.12),
@@ -338,6 +342,8 @@ export function deriveAlicizationActiveLoopSnapshot(input: {
     companionshipReady,
     observationHeavy,
     continuityPressure,
+    continuityArcStage,
+    continuityPreferredTiming,
     companionshipPressure,
     initiativeBudget,
     coherence,
@@ -347,6 +353,8 @@ export function deriveAlicizationActiveLoopSnapshot(input: {
       handoffTarget ? `handoff=${handoffTarget}` : '',
       `initiative=${initiativeBudget.toFixed(2)}`,
       `coherence=${coherence.toFixed(2)}`,
+      continuityArcStage ? `continuity-arc=${continuityArcStage}` : '',
+      continuityPreferredTiming ? `continuity-timing=${continuityPreferredTiming}` : '',
       observationHeavy ? 'observation-heavy=true' : '',
     ].filter(Boolean).join(' | '),
   }

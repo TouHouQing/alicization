@@ -1,3 +1,4 @@
+import { createPinia, setActivePinia } from 'pinia'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -5,16 +6,15 @@ import {
   applySnapshotRecord,
   applyThreeRenderTracePayload,
   applyVrmUpdateTracePayload,
-  createDefaultStageSpeechEmbodimentDiagnostics,
   createDefaultStageHitTestDiagnostics,
   createDefaultStageResourceSnapshotDiagnostics,
+  createDefaultStageSpeechEmbodimentDiagnostics,
   createDefaultStageThreeRenderDiagnostics,
   createDefaultStageVrmUpdateDiagnostics,
   pushTraceHistory,
   TRACE_HISTORY_LIMIT,
   useStageThreeRuntimeDiagnosticsStore,
 } from './stage-three-runtime-diagnostics'
-import { createPinia, setActivePinia } from 'pinia'
 
 describe('stage three runtime diagnostics helpers', () => {
   setActivePinia(createPinia())
@@ -131,6 +131,7 @@ describe('stage three runtime diagnostics helpers', () => {
       rendererDriftSummary: null,
       articulationSummary: null,
       authoritySummary: null,
+      convergence: null,
       speechEvidence: null,
       cueMicroSummary: null,
       driverExecutionSummary: null,

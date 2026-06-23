@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
 
-import { buildCurrentConsciousFrame } from './current-conscious-frame'
 import { createAlicizationContinuityMind } from './continuity-mind'
-import { buildPrivateThoughtLoop } from './private-thought-loop'
+import { buildCurrentConsciousFrame } from './current-conscious-frame'
 import { stabilizeMindStateInvariants } from './mind-state-invariants'
+import { buildPrivateThoughtLoop } from './private-thought-loop'
 
 describe('stabilizeMindStateInvariants', () => {
   it('synthesizes living world, governor, and thought thread when live world exists but slices collapse', () => {

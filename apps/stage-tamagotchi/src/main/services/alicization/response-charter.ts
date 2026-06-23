@@ -68,7 +68,7 @@ export interface AlicizationResponseCharter {
   governingCommitment: string | null
   governingInquiry: string | null
   governingProject: string | null
-  emotionalClosureCue: string | null
+  emotionalClosureCue?: string | null
   latestRevision: string | null
   executivePhase: string | null
   truthFrame: string | null
@@ -827,7 +827,7 @@ function looksLikeProjectStateDirectAnswerTurn(input: {
   const asksLanguageOrProjectDrift
     = /为什么.*(?:英文|english).*(?:中文|chinese)|(?:一直|还在).*(?:英文|english).*(?:中文|chinese)|是不是.*偏移|已经偏移|偏移了吗|跑偏了吗|drifted|off-project wording|off project wording/u.test(evidence)
   const asksMergeReadinessOrClosure
-    = /(?:can we|is (?:it|this)|ready to|merge-ready|能不能|可以|已经可以|现在可以).{0,40}(?:merge(?: this)? to main|合并到\s*main|ready to merge)|(?:merge(?: this)? to main|合并到\s*main|ready to merge).{0,24}(?:now|already|ready|了吗|吗)|还差哪步|还差哪一步|goal.{0,16}(?:闭环|完成|close|closed|complete)|才能算闭环|(?:已经在|已在|already (?:landed|on)|already contains|already on).{0,32}(?:本地\s*main|local\s+main)|(?:本地\s*main|local\s+main).{0,32}(?:已经|已|already).{0,24}(?:包含|落地|landed|contains|on)|(?:origin\/main).{0,32}(?:安全|safe|update|push|推)|(?:安全|safe).{0,16}(?:推到|push to|update).{0,24}(?:origin\/main)|(?:会把|会不会把|without carrying|carry).{0,48}(?:别的提交|unrelated commits|other commits)|带上去/u.test(evidence)
+    = /(?:can we|is (?:it|this)|ready to|merge-ready|能不能|可以|已经可以|现在可以).{0,40}(?:merge(?: this)? to main|合并到\s*main|ready to merge)|(?:merge(?: this)? to main|合并到\s*main|ready to merge).{0,24}(?:now|already|ready|了吗|吗)|还差哪步|还差哪一步|goal.{0,16}(?:闭环|完成|close|closed|complete)|才能算闭环|(?:已经在|已在|already (?:landed|on)|already contains|already on).{0,32}(?:本地\s*main|local\s+main)|(?:本地\s*main|local\s+main).{0,32}(?:已经|已|already).{0,24}(?:包含|落地|landed|contains|on)|origin\/main.{0,32}(?:安全|safe|update|push|推)|(?:安全|safe).{0,16}(?:推到|push to|update).{0,24}origin\/main|(?:会把|会不会把|without carrying|carry).{0,48}(?:别的提交|unrelated commits|other commits)|带上去/u.test(evidence)
   const namesProjectStateTurn = /project-state question|project status|project-state|project continuity/u.test(evidence)
 
   return namesProjectStateTurn

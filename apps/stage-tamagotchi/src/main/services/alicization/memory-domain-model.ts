@@ -9,11 +9,11 @@ export interface AlicizationMemoryDomainPolicy {
   internalizationThreshold: number
 }
 
-export type AlicizationDomainNativeMemoryView =
-  | AlicizationProcedureMemoryView
-  | AlicizationRelationshipMemoryView
-  | AlicizationSelfModelMemoryView
-  | AlicizationWorldModelMemoryView
+export type AlicizationDomainNativeMemoryView
+  = | AlicizationProcedureMemoryView
+    | AlicizationRelationshipMemoryView
+    | AlicizationSelfModelMemoryView
+    | AlicizationWorldModelMemoryView
 
 interface AlicizationDomainMemoryViewBase {
   domain: AlicizationMemoryDomain
@@ -168,9 +168,9 @@ function selfGrowthVector(fact: AlicizationMemoryFact) {
 
 function factualSpecificity(fact: AlicizationMemoryFact) {
   const text = `${fact.subject} ${fact.predicate} ${fact.object}`
-  const namedLike = (text.match(/\b[A-Z][A-Za-z0-9_-]{2,}\b/g) ?? []).length
+  const namedLike = (text.match(/\b[A-Z][\w-]{2,}\b/g) ?? []).length
   const numericLike = (text.match(/\b\d+(?:\.\d+)?\b/g) ?? []).length
-  const pathLike = /[/\\]|\b[A-Za-z0-9_-]+\.(?:ts|tsx|vue|json|md|js|mjs|cjs)\b/u.test(text) ? 1 : 0
+  const pathLike = /[/\\]|\b[\w-]+\.(?:ts|tsx|vue|json|md|js|mjs|cjs)\b/u.test(text) ? 1 : 0
   return clamp01(0.25 + Math.min(0.45, namedLike * 0.08 + numericLike * 0.06 + pathLike * 0.16))
 }
 

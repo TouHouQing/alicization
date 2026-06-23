@@ -2,14 +2,14 @@ import type { AlicizationVisibleReplyExecution } from '../../../../shared/eventa
 import type { AlicizationSelfRevisionStatePatch } from '../self-evolution/state-revision-bus'
 
 import {
-  buildAlicizationVisibleReplyRealizationArtifact,
-  createAlicizationVisibleReplyExecution,
-} from '../visible-reply/facade'
-import {
   buildAlicizationOpeningGuidanceBlockedReason,
   resolveAlicizationOpeningGuidanceHoldDetail,
   resolveAlicizationOpeningGuidanceViolationReason,
 } from '../proactive-opening-guidance'
+import {
+  buildAlicizationVisibleReplyRealizationArtifact,
+  createAlicizationVisibleReplyExecution,
+} from '../visible-reply/facade'
 import { decideAlicizationProactiveVisibleUtterance } from './visible-utterance-policy'
 
 export type AlicizationProactiveVisibleUtteranceKind
@@ -52,8 +52,10 @@ export function resolveAlicizationProactiveVisibleUtterance(input: {
   actualVisibleReplyAuthority?: AlicizationVisibleReplyExecution['actualVisibleReplyAuthority']
   reason?: string | null
   allowDeterministicVisibleFallback?: boolean
+  preferPresenceOnlyHold?: boolean | null
   expectedVisibleReplyAuthority?: AlicizationVisibleReplyExecution['expectedVisibleReplyAuthority']
   selfRevisionPatch?: AlicizationSelfRevisionStatePatch | null
+  memorySurfaceRestraint?: unknown
 }) {
   const reply = readVisibleReply(input.structured)
   const openingGuidance = readProactiveOpeningGuidance(input.structured)

@@ -1,24 +1,23 @@
 import type {
   AlicizationEpisodicEventInput,
+  AlicizationEpisodicEventRecord,
   AlicizationMemorySource,
   AlicizationMindTurnEventKind,
   AlicizationMindTurnEventRecord,
   AlicizationTaskThreadRecord,
 } from '../../../shared/eventa'
-
-import type { CardScopeOptions } from './runtime-soul'
-
-import type { AlicizationPersonStateUpdateSurface } from './person-state-update-surface'
-import type { AlicizationOutcomeClosureResult } from './outcome-reinforcement'
 import type { AlicizationDialogueSessionMirror } from './dialogue-session-manager'
 import type { AlicizationHumanlikeMemoryHostCorrection } from './humanlike-memory'
 import type { AlicizationKnowledgeAssimilationRuntime } from './knowledge-assimilation-runtime'
+import type { AlicizationOutcomeClosureResult } from './outcome-reinforcement'
+import type { AlicizationPersonStateUpdateSurface } from './person-state-update-surface'
+import type { CardScopeOptions } from './runtime-soul'
 
 import { buildAutobiographicalEpisodesFromPreparedMirror, buildAutobiographicalEpisodesFromSessionMirrorSync } from './autobiographical-episode-sync'
 import { buildHumanlikeMemoryCandidate, sanitizeHumanlikeMemoryText } from './humanlike-memory'
+import { attachSynthesizedReflections } from './outcome-reinforcement'
 import { buildAlicizationPersonStateEvolutionEntry } from './person-state-evolution'
 import { buildAlicizationPersonStateUpdateRecord, buildAlicizationPersonStateUpdateSurface } from './person-state-update-surface'
-import { attachSynthesizedReflections } from './outcome-reinforcement'
 
 interface CreateAlicizationRuntimeMemoryClosureOptions {
   now: () => number
@@ -38,6 +37,7 @@ interface CreateAlicizationRuntimeMemoryClosureOptions {
   alicizationDb: {
     appendRelationshipOutcomes: (entries: AlicizationOutcomeClosureResult['relationshipOutcomes']) => Promise<unknown>
     appendEpisodicEvents: (events: AlicizationOutcomeClosureResult['episodicEvents'] | AlicizationEpisodicEventInput[]) => Promise<unknown>
+    persistEpisodicReconsolidations?: (events: AlicizationEpisodicEventRecord[]) => Promise<unknown>
     appendPersonaReinforcementEvents: (events: AlicizationOutcomeClosureResult['reinforcementEvents']) => Promise<unknown>
     appendPersonStateEvolutionEntries: (entries: Array<{
       cardId: string

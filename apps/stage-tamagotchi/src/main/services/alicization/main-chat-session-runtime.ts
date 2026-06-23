@@ -33,6 +33,7 @@ import type {
   AlicizationExecutionCallbackContext,
   AlicizationExecutionCallbackDigest,
 } from './execution-callback-runtime'
+import type { AlicizationExecutionPayoffStructured } from './execution-delivery-surface'
 import type { AlicizationMainChatActionObligation } from './main-chat-action-obligation'
 import type { AlicizationMainChatExecutionReplyObligation } from './main-chat-execution-reply-obligation'
 import type {
@@ -183,6 +184,9 @@ export interface AlicizationPreparedMainChatExecutionResult extends PreparedMain
   freshExecutionReplyCallback?: AlicizationExecutionCallbackDigest | null
   getSessionTrace: () => AlicizationRuntimeCallChainSnapshot
   mindTurnContract: AlicizationMindTurnContractSnapshot | null
+  runtimeDigest?: AlicizationRuntimeDigest | null
+  executionToolInputOverrides?: Record<string, Record<string, unknown>>
+  executionPayoffStructuredReply?: AlicizationExecutionPayoffStructured | Record<string, unknown> | null
   organicMemoryContext?: OrganicMemoryPromptContext
   memoryTurnArtifact?: ReturnType<typeof buildAlicizationMemoryTurnArtifact>
   memoryOsRuntime?: AlicizationMemoryOsTurnRuntimeArtifact
@@ -1241,10 +1245,10 @@ function carriesLivedInSameHerAuthorityLine(value: unknown) {
   return /same-her hold|same remembered seam|callback line|keep more room this time|repair-before-closeness/iu.test(
     normalized,
   )
-    || /继续|沿着|别飘回|不要退回|不要掉回|同一个她|同一个 her|数字生命主线|泛化助手|generic assistant|project shell/u.test(
-      normalized,
-    )
-    || carriesSpecificSameHerAuthorityLine(normalized)
+  || /继续|沿着|别飘回|不要退回|不要掉回|同一个她|同一个 her|数字生命主线|泛化助手|generic assistant|project shell/u.test(
+    normalized,
+  )
+  || carriesSpecificSameHerAuthorityLine(normalized)
 }
 
 function looksLikeBroadProjectAwareReminderLine(value: unknown) {
@@ -4423,18 +4427,12 @@ export function buildEffectiveDigitalLifeSpine(input: {
       : input.digitalLifeSpine
   }
 
+  const fresherDigest = deriveAlicizationDigitalLifeSpineFromSurface(normalizedFresherRuntimeSurface)
+
   return {
     ...input.digitalLifeSpine,
     runtimeSurface: normalizedFresherRuntimeSurface,
-    memory: input.digitalLifeSpine.memory
-      ? {
-          ...input.digitalLifeSpine.memory,
-          personStateProjection:
-            normalizedFresherRuntimeSurface.memory?.personStateProjection
-            ?? input.digitalLifeSpine.memory.personStateProjection
-            ?? null,
-        }
-      : input.digitalLifeSpine.memory ?? null,
+    memory: fresherDigest.memory ?? input.digitalLifeSpine.memory ?? null,
   }
 }
 
@@ -6266,16 +6264,16 @@ function readProviderFacingPayloadProjectState(
       (resolvedPayloadIdentity?.projectState as Record<string, unknown> | null | undefined)?.preDialogueAwarenessLine,
       1600,
     )
-      ?? normalizeProviderFacingProjectAwarenessPayloadText(
-        (resolvedPayloadIdentity?.projectState as Record<string, unknown> | null | undefined)?.awarenessLine,
-        1600,
-      )
-      ?? normalizeProviderFacingProjectAwarenessPayloadText(
-        (resolvedPayloadIdentity?.projectState as Record<string, unknown> | null | undefined)?.preDialogueAwarenessSummary,
-        1600,
-      )
-      ?? normalizeProviderFacingProjectAwarenessPayloadText(resolvedPayloadIdentity?.awarenessLine, 1600)
-      ?? normalizeProviderFacingProjectAwarenessPayloadText(resolvedPayloadIdentity?.companionBriefingLine, 1600)
+    ?? normalizeProviderFacingProjectAwarenessPayloadText(
+      (resolvedPayloadIdentity?.projectState as Record<string, unknown> | null | undefined)?.awarenessLine,
+      1600,
+    )
+    ?? normalizeProviderFacingProjectAwarenessPayloadText(
+      (resolvedPayloadIdentity?.projectState as Record<string, unknown> | null | undefined)?.preDialogueAwarenessSummary,
+      1600,
+    )
+    ?? normalizeProviderFacingProjectAwarenessPayloadText(resolvedPayloadIdentity?.awarenessLine, 1600)
+    ?? normalizeProviderFacingProjectAwarenessPayloadText(resolvedPayloadIdentity?.companionBriefingLine, 1600)
   const directPayloadProjectSameHerAwarenessLine = pickProjectAwarenessLineWithoutCompactSummaryShell([
     directPayloadProjectSameHerHoldDetail,
     directPayloadProjectSameHerSelfLine,
@@ -6297,23 +6295,23 @@ function readProviderFacingPayloadProjectState(
     && directPayloadProjectAwarenessLine
     && awarenessCarriesBroaderProjectFrame(directPayloadProjectAwarenessLine)
     && !carriesSpecificSameHerAuthorityLine(directPayloadProjectAwarenessLine)
-    && !directPayloadStructuredProjectAwarenessLine
+    && !directPayloadStructuredProjectAwarenessLine,
   )
   const repairedDirectPayloadProjectAwarenessLine = (
     directPayloadProjectSameHerAwarenessLine
     && (
       shouldPreferDirectPayloadSameHerHoldDetailOverBroaderReminder
       || (
-      !directPayloadProjectAwarenessLine
-      || isThinProjectAwarenessAuthorityLine(directPayloadProjectAwarenessLine)
-      || shouldPreserveProjectAwarenessLineVerbatim(
-        directPayloadProjectSameHerAwarenessLine,
-        directPayloadProjectAwarenessLine,
-      )
-      || isStrongerSameHerProjectHeadline(
-        directPayloadProjectSameHerAwarenessLine,
-        directPayloadProjectAwarenessLine,
-      )
+        !directPayloadProjectAwarenessLine
+        || isThinProjectAwarenessAuthorityLine(directPayloadProjectAwarenessLine)
+        || shouldPreserveProjectAwarenessLineVerbatim(
+          directPayloadProjectSameHerAwarenessLine,
+          directPayloadProjectAwarenessLine,
+        )
+        || isStrongerSameHerProjectHeadline(
+          directPayloadProjectSameHerAwarenessLine,
+          directPayloadProjectAwarenessLine,
+        )
       )
     )
   )
@@ -6328,7 +6326,7 @@ function readProviderFacingPayloadProjectState(
   const shouldPreferPayloadSameHerHoldDetailAsAwarenessTruth = Boolean(
     directPayloadSameHerHoldDetailLooksLivedIn
     && repairedDirectPayloadProjectAwarenessLine === directPayloadProjectSameHerHoldDetail
-    && !directPayloadStructuredProjectAwarenessLine
+    && !directPayloadStructuredProjectAwarenessLine,
   )
   const preferredDirectPayloadProjectAwarenessLine = directPayloadStructuredProjectAwarenessLine
     ?? (
@@ -6389,7 +6387,7 @@ function readProviderFacingPayloadProjectState(
         ?? (resolvedPayloadIdentity?.projectState as Record<string, unknown> | null | undefined)?.preDialogueAwarenessSummary
         ?? resolvedPayloadIdentity?.summaryLine,
     }) ?? normalizeProviderFacingProjectAwarenessPayloadText(payloadProjectState?.preflightSummary, 1600)
-      ?? normalizeProviderFacingProjectAwarenessPayloadText(normalizedPayloadIdentity?.summaryLine, 1600),
+    ?? normalizeProviderFacingProjectAwarenessPayloadText(normalizedPayloadIdentity?.summaryLine, 1600),
     explicitPayloadProjectSameHerDriftRisk: normalizeProviderFacingProjectAwarenessPayloadText(
       preferResolvedPayloadSameHerDriftRiskTruth({
         direct: directPayloadProjectSameHerDriftRisk,
@@ -6407,7 +6405,7 @@ function readProviderFacingPayloadProjectState(
         (resolvedPayloadIdentity?.projectState as Record<string, unknown> | null | undefined)?.nextClosureTarget
         ?? resolvedPayloadIdentity?.companionNextClosureLine,
     }) ?? normalizeProviderFacingProjectAwarenessPayloadText(payloadProjectState?.nextClosureTarget, 1600)
-      ?? normalizeProviderFacingProjectAwarenessPayloadText(normalizedPayloadIdentity?.companionNextClosureLine, 1600),
+    ?? normalizeProviderFacingProjectAwarenessPayloadText(normalizedPayloadIdentity?.companionNextClosureLine, 1600),
     hasDirectPayloadProjectHeadline: Boolean(directPayloadProjectHeadline),
     hasDirectPayloadProjectAwarenessLine: Boolean(
       directPayloadProjectAwarenessLine
@@ -7528,7 +7526,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
               ? `clicked browser selector ${nextPayload.selector}`
               : nextPayload.ordinal
                 ? `clicked browser ${nextPayload.targetType ?? 'element'} #${nextPayload.ordinal}`
-              : `clicked browser element ${nextPayload.text ?? 'target'}`,
+                : `clicked browser element ${nextPayload.text ?? 'target'}`,
           })
         }
         : undefined,
@@ -7724,7 +7722,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
               turnId: payload.turnId,
             },
             run: async () => await options.desktopInspectScene!(nextPayload),
-            summarizeSuccess: result => {
+            summarizeSuccess: (result) => {
               const payload = result && typeof result === 'object' && !Array.isArray(result)
                 ? result as Record<string, unknown>
                 : null

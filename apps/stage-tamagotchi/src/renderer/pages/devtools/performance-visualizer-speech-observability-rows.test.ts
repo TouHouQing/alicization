@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import { buildSpeechObservabilityRows } from './performance-visualizer-speech-observability-rows'
 import { buildSpeechObservabilityView } from './performance-visualizer-speech-observability'
+import { buildSpeechObservabilityRows } from './performance-visualizer-speech-observability-rows'
 
 describe('performance visualizer speech observability rows', () => {
   it('condenses articulation, cue micro, and viseme hints into scannable summary rows', () => {

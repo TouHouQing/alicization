@@ -134,9 +134,9 @@ export function deriveMemoryDeliberationLatentControls(input: {
     ? explicitConflictSeverity
     : input.deliberation.selectedEpisodes.some(item => item.provenance === 'reconstructed')
       ? 'medium'
-    : input.deliberation.selectedEpisodes.some(item => item.provenance === 'dreamt' || item.provenance === 'inferred' || item.provenance === 'shadow')
-      ? 'low'
-      : 'none'
+      : input.deliberation.selectedEpisodes.some(item => item.provenance === 'dreamt' || item.provenance === 'inferred' || item.provenance === 'shadow')
+        ? 'low'
+        : 'none'
   const surfacePermission = input.shouldStayInward
     ? 'inward-only'
     : input.speech?.placement === 'before-payoff' || input.deliberation.surfacePolicy === 'answer-anchoring'

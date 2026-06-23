@@ -1,3 +1,5 @@
+import type { StageEmbodimentPerformanceMatchedDriver } from '@proj-alicization/stage-shared'
+
 import type { PerformanceVisualizerPlaybackCueAuthorityView } from './performance-visualizer-playback-cue'
 import type { PerformanceVisualizerRuntimeAuthorityOverview } from './performance-visualizer-runtime-authority-overview'
 
@@ -55,7 +57,7 @@ export interface PerformanceVisualizerTraceTelemetrySummary {
   segmentBinding: {
     matched: boolean
     rendererTarget: 'live2d' | 'vrm' | null
-    matchedDrivers: Array<'face' | 'motion' | 'lipsync'>
+    matchedDrivers: StageEmbodimentPerformanceMatchedDriver[]
     matchedSources: string[]
   }
 }
@@ -316,30 +318,34 @@ export function buildRuntimeAuthoritySummaryEntries(
     pushSummaryEntry(entries, { key: 'renderer-target', label: '渲染目标', value: overview.rendererTarget! })
   if (hasValue(overview.authoritySegmentId))
     pushSummaryEntry(entries, { key: 'authority-segment', label: '权威片段', value: overview.authoritySegmentId! })
-  if (hasValue(overview.authorityBindingSummary))
+  if (hasValue(overview.authorityBindingSummary)) {
     pushSummaryEntry(entries, {
       key: 'authority-binding',
       label: '权威绑定',
       ...toAuthorityDisplayEntry('authority-binding', overview.authorityBindingSummary!),
     })
-  if (hasValue(overview.authorityMatchSummary))
+  }
+  if (hasValue(overview.authorityMatchSummary)) {
     pushSummaryEntry(entries, {
       key: 'authority-match',
       label: '绑定命中',
       ...toAuthorityDisplayEntry('authority-match', overview.authorityMatchSummary!),
     })
-  if (hasValue(overview.authorityTrustSummary))
+  }
+  if (hasValue(overview.authorityTrustSummary)) {
     pushSummaryEntry(entries, {
       key: 'authority-trust',
       label: '权威可信性',
       value: overview.authorityTrustSummary!,
     })
-  if (hasValue(overview.prosodyAuthoritySummary))
+  }
+  if (hasValue(overview.prosodyAuthoritySummary)) {
     pushSummaryEntry(entries, {
       key: 'prosody-authority',
       label: '韵律权威',
       ...toAuthorityDisplayEntry('prosody-authority', overview.prosodyAuthoritySummary!),
     })
+  }
   if (hasValue(overview.authorityMismatchDisplay) || hasValue(overview.authorityMismatchReasonSummary) || hasValue(overview.authorityMismatchSummary)) {
     pushSummaryEntry(entries, {
       key: 'authority-mismatch',
@@ -347,12 +353,13 @@ export function buildRuntimeAuthoritySummaryEntries(
       value: overview.authorityMismatchDisplay ?? overview.authorityMismatchReasonSummary ?? overview.authorityMismatchSummary ?? '',
     })
   }
-  if (hasValue(overview.settleAuthoritySummary))
+  if (hasValue(overview.settleAuthoritySummary)) {
     pushSummaryEntry(entries, {
       key: 'settle-authority',
       label: '稳定段归因',
       ...toAuthorityDisplayEntry('settle-authority', overview.settleAuthoritySummary!),
     })
+  }
   return entries
 }
 
@@ -375,36 +382,41 @@ export function buildPlaybackCueAuthoritySummaryEntries(
   const authoritySources = formatList(view.authoritySources)
   if (authoritySources)
     pushSummaryEntry(entries, { key: 'authority-sources', label: '权威来源', value: authoritySources })
-  if (hasValue(view.authorityBindingSummary))
+  if (hasValue(view.authorityBindingSummary)) {
     pushSummaryEntry(entries, {
       key: 'authority-binding',
       label: '权威绑定',
       ...toAuthorityDisplayEntry('authority-binding', view.authorityBindingSummary!),
     })
-  if (hasValue(view.authorityMatchSummary))
+  }
+  if (hasValue(view.authorityMatchSummary)) {
     pushSummaryEntry(entries, {
       key: 'authority-match',
       label: '绑定命中',
       ...toAuthorityDisplayEntry('authority-match', view.authorityMatchSummary!),
     })
-  if (hasValue(view.authorityTrustSummary))
+  }
+  if (hasValue(view.authorityTrustSummary)) {
     pushSummaryEntry(entries, {
       key: 'authority-trust',
       label: '权威可信性',
       value: view.authorityTrustSummary!,
     })
-  if (hasValue(view.prosodyAuthoritySummary))
+  }
+  if (hasValue(view.prosodyAuthoritySummary)) {
     pushSummaryEntry(entries, {
       key: 'prosody-authority',
       label: '韵律权威',
       ...toAuthorityDisplayEntry('prosody-authority', view.prosodyAuthoritySummary!),
     })
-  if (hasValue(view.settleAuthoritySummary))
+  }
+  if (hasValue(view.settleAuthoritySummary)) {
     pushSummaryEntry(entries, {
       key: 'settle-authority',
       label: '稳定段归因',
       ...toAuthorityDisplayEntry('settle-authority', view.settleAuthoritySummary!),
     })
+  }
   const expressionAliases = formatList(view.preferredExpressionAliases)
   if (expressionAliases)
     pushSummaryEntry(entries, { key: 'expression-aliases', label: '表情偏好', value: expressionAliases })

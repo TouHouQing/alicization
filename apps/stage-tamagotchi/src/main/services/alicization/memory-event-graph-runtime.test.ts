@@ -1,9 +1,11 @@
+import type { AlicizationEventGraphSourceEvent } from './memory-event-graph-runtime'
+
 import { describe, expect, it, vi } from 'vitest'
 
 import {
+
   buildAlicizationEventGraphMutation,
   createAlicizationMemoryEventGraphRuntime,
-  type AlicizationEventGraphSourceEvent,
 } from './memory-event-graph-runtime'
 
 function createEvent(overrides: Partial<AlicizationEventGraphSourceEvent> & { id: string }): AlicizationEventGraphSourceEvent {

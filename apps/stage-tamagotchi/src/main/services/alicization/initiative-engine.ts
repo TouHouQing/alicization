@@ -10,22 +10,23 @@ import type {
   AlicizationEmbodiedPresenceState,
   AlicizationExecutiveCycleSnapshot,
   AlicizationGoalStackSnapshot,
-  AlicizationHypothesisGraphSnapshot,
   AlicizationHabitPolicySnapshot,
+  AlicizationHypothesisGraphSnapshot,
   AlicizationInitiativeArbitrationSnapshot,
   AlicizationInitiativeSnapshot,
   AlicizationInquiryLoopSnapshot,
   AlicizationInquiryPlannerSnapshot,
   AlicizationIntentionStreamSnapshot,
   AlicizationMindDynamicsSnapshot,
-  AlicizationMotiveEngineSnapshot,
   AlicizationMindKernelSnapshot,
   AlicizationMindMotive,
+  AlicizationMotiveEngineSnapshot,
+  AlicizationPrivateThoughtSnapshot,
   AlicizationProactiveStyle,
   AlicizationReflectionLedgerSnapshot,
   AlicizationRelationshipModelSnapshot,
-  AlicizationSelfEvolutionKernelSnapshot,
   AlicizationSelfContinuitySnapshot,
+  AlicizationSelfEvolutionKernelSnapshot,
   AlicizationSelfGovernorSnapshot,
   AlicizationSelfStateSnapshot,
   AlicizationSubjectiveSceneAppraisal,
@@ -35,8 +36,8 @@ import type {
   AlicizationWorldModelSnapshot,
   AlicizationWorldOntologySnapshot,
 } from '../../../shared/eventa'
-import type { AlicizationProactiveLayeredContext } from './proactive-layered-context'
 import type { AlicizationMemoryTuningAdvice } from './memory-tuning-advice'
+import type { AlicizationProactiveLayeredContext } from './proactive-layered-context'
 
 import { pickDominantAutobiographicalGoal } from './autobiographical-self'
 import { buildInitiativeArbitration } from './initiative-arbiter'
@@ -191,6 +192,10 @@ export function buildInitiativeSnapshot(input: {
   autobiographicalSelf?: AlicizationAutobiographicalSelfSnapshot | null
   motiveEngine?: AlicizationMotiveEngineSnapshot | null
   habitPolicy?: AlicizationHabitPolicySnapshot | null
+  emotionalKernel?: unknown
+  privateThought?: AlicizationPrivateThoughtSnapshot | null
+  personStateProjection?: unknown
+  projectState?: unknown
   selfEvolution?: AlicizationSelfEvolutionKernelSnapshot | null
   memoryTuningAdvice?: AlicizationMemoryTuningAdvice | null
   activeContinuityGovernance?: {

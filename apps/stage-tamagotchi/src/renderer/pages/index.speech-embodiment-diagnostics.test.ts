@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
 import {
-  buildRecentDrivingTraceDetailsFromMindTurnEvents,
-  buildRecentDrivingTraceRecordSummaryFromMemoryDecisionTraces,
-  buildRecentDrivingTraceEventsFromMindTurnEvents,
-  mapSpeechEmbodimentDiagnosticsForRenderer,
   buildRecentDrivingEventQueryInput,
+  buildRecentDrivingTraceDetailsFromMindTurnEvents,
+  buildRecentDrivingTraceEventsFromMindTurnEvents,
+  buildRecentDrivingTraceRecordSummaryFromMemoryDecisionTraces,
+  mapSpeechEmbodimentDiagnosticsForRenderer,
   resolveRecentDrivingEventFromMindTurnEvents,
 } from './index.speech-embodiment-diagnostics'
 

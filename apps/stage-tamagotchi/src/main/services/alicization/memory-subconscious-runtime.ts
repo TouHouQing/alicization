@@ -1,9 +1,10 @@
+import type sqlite3 from 'sqlite3'
+
 import type {
   AlicizationActiveThought,
   AlicizationSubconsciousFragment,
   AlicizationSubconsciousFragmentSourceKind,
 } from '../../../shared/eventa'
-import type sqlite3 from 'sqlite3'
 
 interface DbActiveThoughtRow {
   id: string

@@ -20,6 +20,8 @@ export interface AlicizationSelfContinuityAuthority {
   inwardLine: string | null
   authoritySummary: string | null
   sourceTags: string[]
+  closenessPosture?: string | null
+  currentBodyState?: string | null
 }
 
 function sanitizeText(raw: unknown, maxChars = 220) {
@@ -90,12 +92,12 @@ export function buildSelfContinuityAuthority(input: {
     input.habitPolicy?.requiresGroundingBeforeSurface
       ? 'Ground first, then let warmth or fluency surface.'
       : input.habitPolicy?.prefersQuietCompanionship
-          ? 'Stay near lightly rather than crowding the opening.'
-          : input.habitPolicy?.protectsRestWindow
-            ? 'Protect the host rest window before stretching the exchange.'
-            : input.habitPolicy?.dominantMode
-              ? `Current durable behavior gate leans ${input.habitPolicy.dominantMode}.`
-              : '',
+        ? 'Stay near lightly rather than crowding the opening.'
+        : input.habitPolicy?.protectsRestWindow
+          ? 'Protect the host rest window before stretching the exchange.'
+          : input.habitPolicy?.dominantMode
+            ? `Current durable behavior gate leans ${input.habitPolicy.dominantMode}.`
+            : '',
     220,
   ) || null
   const inwardLine = sanitizeText(

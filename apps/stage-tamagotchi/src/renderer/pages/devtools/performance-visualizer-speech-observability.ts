@@ -1,17 +1,19 @@
-import type { StageEmbodimentSpeechVisemeWeights } from '@proj-alicization/stage-shared'
+import type {
+  StageEmbodimentPerformanceMatchedDriver,
+  StageEmbodimentSpeechVisemeWeights,
+} from '@proj-alicization/stage-shared'
 
 import type { StageThreeRuntimeSpeechEmbodimentDiagnostics } from '../../stores/stage-three-runtime-diagnostics'
 
-import {
-  formatDriverAuthorityBindingSummary,
-  formatDriverAuthorityMatchSummary,
-} from './performance-visualizer-driver-authority'
 import { resolveAuthorityMismatchDisplay } from './performance-visualizer-authority-display'
 import {
   buildAuthorityMismatchReasonSummary,
   buildAuthorityMismatchSummary,
 } from './performance-visualizer-authority-mismatch-filter'
-import { formatSpeechCueMetadataValue } from './performance-visualizer-speech-display'
+import {
+  formatDriverAuthorityBindingSummary,
+  formatDriverAuthorityMatchSummary,
+} from './performance-visualizer-driver-authority'
 
 interface SpeechObservabilityVisemeWeight {
   viseme: string
@@ -36,7 +38,7 @@ export interface SpeechObservabilityView {
     voice: string | null
     topVisemes: string | null
   } | null
-  speechEvidence: {
+  speechEvidence?: {
     voiceSummary: string | null
     prosodyAuthoritySummary: string | null
     authorityMatchSummary: string | null
@@ -52,22 +54,22 @@ export interface SpeechObservabilityView {
   authorityBinding: {
     segmentId: string | null
     rendererTarget: 'live2d' | 'vrm' | null
-    matchedDrivers: Array<'face' | 'motion' | 'lipsync'>
+    matchedDrivers: StageEmbodimentPerformanceMatchedDriver[]
     matchedSources: string[]
-    faceSegmentMatched: boolean
-    motionSegmentMatched: boolean
-    lipsyncSegmentMatched: boolean
+    faceSegmentMatched: boolean | null
+    motionSegmentMatched: boolean | null
+    lipsyncSegmentMatched: boolean | null
   } | null
   playbackTelemetry?: {
     driverAuthority?: {
       segmentId: string | null
       rendererTarget: 'live2d' | 'vrm' | null
-      matchedDrivers: Array<'face' | 'motion' | 'lipsync'>
+      matchedDrivers: StageEmbodimentPerformanceMatchedDriver[]
       matchedSources?: string[]
       sources?: string[]
-      faceSegmentMatched: boolean
-      motionSegmentMatched: boolean
-      lipsyncSegmentMatched: boolean
+      faceSegmentMatched: boolean | null
+      motionSegmentMatched: boolean | null
+      lipsyncSegmentMatched: boolean | null
       prosodyAuthority?: {
         segmentId: string | null
         provenance: 'authority-bound' | 'fallback-derived'
@@ -98,9 +100,9 @@ export interface SpeechObservabilityView {
     authorityTrustSummary?: string | null
     settleSummary: string | null
   } | null
-  authorityMismatchSummary: string | null
-  authorityMismatchReasonSummary: string | null
-  authorityMismatchDisplay: string | null
+  authorityMismatchSummary?: string | null
+  authorityMismatchReasonSummary?: string | null
+  authorityMismatchDisplay?: string | null
   cueMicro: {
     cueId: string | null
     cueText: string | null
@@ -262,6 +264,8 @@ function buildProsodyAuthoritySummary(
   ].join(' | ')
 }
 
+export const formatProsodyAuthoritySummary = buildProsodyAuthoritySummary
+
 export function formatRendererAlignmentSummary(
   alignment: StageThreeRuntimeSpeechEmbodimentDiagnostics['rendererAlignment'] | null | undefined,
 ) {
@@ -386,12 +390,14 @@ export function buildSpeechObservabilityView(
   const authoritySummaryCueId = normalizeText(speech?.authoritySummary?.cueId)
   const authoritySummaryMatchesPlaybackCue = !authoritySummaryCueId || !playbackCueId || authoritySummaryCueId === playbackCueId
   const authoritySummary = speech?.authoritySummary
-      ? {
+    ? {
         cueId: authoritySummaryCueId,
         segmentId: normalizeText(speech.authoritySummary.segmentId),
         bindingSummary: authoritySummaryMatchesPlaybackCue ? normalizeText(speech.authoritySummary.bindingSummary) : null,
         matchSummary: authoritySummaryMatchesPlaybackCue ? normalizeText(speech.authoritySummary.matchSummary) : null,
-        authorityTrustSummary: authoritySummaryMatchesPlaybackCue ? normalizeText(speech.authoritySummary.authorityTrustSummary) : null,
+        ...(authoritySummaryMatchesPlaybackCue && normalizeText(speech.authoritySummary.authorityTrustSummary)
+          ? { authorityTrustSummary: normalizeText(speech.authoritySummary.authorityTrustSummary) }
+          : {}),
         authorityMismatchSummary: authoritySummaryMatchesPlaybackCue ? normalizeText(speech.authoritySummary.authorityMismatchSummary) : null,
         authorityMismatchReasonSummary: authoritySummaryMatchesPlaybackCue ? normalizeText(speech.authoritySummary.authorityMismatchReasonSummary) : null,
         authorityMismatchDisplay: authoritySummaryMatchesPlaybackCue ? normalizeText(speech.authoritySummary.authorityMismatchDisplay) : null,
@@ -479,12 +485,12 @@ export function buildSpeechObservabilityView(
       return normalizeText(hint.segmentId) === scopedSegmentId
     })
     .map(hint => ({
-    segmentId: normalizeText(hint.segmentId),
-    viseme: normalizeText(hint.viseme),
-    weight: normalizeNumber(hint.weight),
-    source: normalizeText(hint.source),
-    confidence: normalizeNumber(hint.confidence),
-  }))
+      segmentId: normalizeText(hint.segmentId),
+      viseme: normalizeText(hint.viseme),
+      weight: normalizeNumber(hint.weight),
+      source: normalizeText(hint.source),
+      confidence: normalizeNumber(hint.confidence),
+    }))
   const visemeHintsSummary = visemeHints.length > 0
     ? visemeHints.map(hint =>
         `${hint.viseme ?? 'n/a'}:${formatNumber(hint.weight)}@${formatNumber(hint.confidence)} src=${hint.source ?? 'n/a'} segment=${hint.segmentId ?? scopedSegmentId ?? 'n/a'}`,
@@ -507,48 +513,48 @@ export function buildSpeechObservabilityView(
         visemeHintsSummary: normalizeText(speech.speechEvidence.visemeHintsSummary),
       }
     : speech?.articulationSummary
-        || speech?.cueMicroSummary
-        || speech?.visemeHintsSummary
-        || speech?.driverExecutionSummary
-        || prosodyAuthoritySummary
-        || articulationSummary
-        || cueMicroSummary
-        || driverExecutionSummary
-        || visemeHintsSummary
-          ? {
-            voiceSummary: normalizeText(speech?.articulationSummary?.voice) ?? articulationSummary?.voice ?? null,
-            prosodyAuthoritySummary: normalizeText((speech?.speechEvidence as { prosodyAuthoritySummary?: string | null } | undefined)?.prosodyAuthoritySummary)
-              ?? prosodyAuthoritySummary
-              ?? null,
-            authorityMatchSummary: authorityBinding ? formatAuthorityMatchSummary(authorityBinding) : null,
-            topVisemeSummary: normalizeText(speech?.articulationSummary?.topVisemes) ?? articulationSummary?.topVisemes ?? null,
-            cueSummary: normalizeText(speech?.cueMicroSummary?.cue) ?? cueMicroSummary?.cue ?? null,
-            cueIdentityPresent: Boolean(cueMicro?.facialCue || cueMicro?.actionCue),
-            cueProsodyPresent: cueMicro?.prosodyWeight != null,
-            personaStyleSummary: normalizeText(speech?.cueMicroSummary?.personaStyle) ?? cueMicroSummary?.personaStyle ?? null,
-            timingSummary: normalizeText(speech?.cueMicroSummary?.timing) ?? cueMicroSummary?.timing ?? null,
-            driverExecutionSummary: normalizeText(speech?.driverExecutionSummary) ?? driverExecutionSummary ?? fallbackDriverExecutionSummary ?? null,
-            visemeHintsSummary: normalizeText(speech?.visemeHintsSummary) ?? visemeHintsSummary ?? null,
-          }
-        : null
+      || speech?.cueMicroSummary
+      || speech?.visemeHintsSummary
+      || speech?.driverExecutionSummary
+      || prosodyAuthoritySummary
+      || articulationSummary
+      || cueMicroSummary
+      || driverExecutionSummary
+      || visemeHintsSummary
+      ? {
+          voiceSummary: normalizeText(speech?.articulationSummary?.voice) ?? articulationSummary?.voice ?? null,
+          prosodyAuthoritySummary: normalizeText((speech?.speechEvidence as { prosodyAuthoritySummary?: string | null } | undefined)?.prosodyAuthoritySummary)
+            ?? prosodyAuthoritySummary
+            ?? null,
+          authorityMatchSummary: authorityBinding ? formatAuthorityMatchSummary(authorityBinding) : null,
+          topVisemeSummary: normalizeText(speech?.articulationSummary?.topVisemes) ?? articulationSummary?.topVisemes ?? null,
+          cueSummary: normalizeText(speech?.cueMicroSummary?.cue) ?? cueMicroSummary?.cue ?? null,
+          cueIdentityPresent: Boolean(cueMicro?.facialCue || cueMicro?.actionCue),
+          cueProsodyPresent: cueMicro?.prosodyWeight != null,
+          personaStyleSummary: normalizeText(speech?.cueMicroSummary?.personaStyle) ?? cueMicroSummary?.personaStyle ?? null,
+          timingSummary: normalizeText(speech?.cueMicroSummary?.timing) ?? cueMicroSummary?.timing ?? null,
+          driverExecutionSummary: normalizeText(speech?.driverExecutionSummary) ?? driverExecutionSummary ?? fallbackDriverExecutionSummary ?? null,
+          visemeHintsSummary: normalizeText(speech?.visemeHintsSummary) ?? visemeHintsSummary ?? null,
+        }
+      : null
   const authorityMismatchSummary = authorityBinding
     ? authoritySummary?.authorityMismatchSummary
-      ?? buildAuthorityMismatchSummary(authorityBinding)
+    ?? buildAuthorityMismatchSummary(authorityBinding)
     : null
   const authorityMismatchReasonSummary = authorityBinding
     ? authoritySummary?.authorityMismatchReasonSummary
-      ?? buildAuthorityMismatchReasonSummary({
-          authority: authorityBinding,
-          matchedSources: authorityBinding.matchedSources,
-          driverExecutionSummary: driverExecutionSummary ?? fallbackDriverExecutionSummary,
-          finalSurfacePolicy: speech?.recentDrivingTraceRecord?.finalSurfacePolicy ?? null,
-        })
+    ?? buildAuthorityMismatchReasonSummary({
+      authority: authorityBinding,
+      matchedSources: authorityBinding.matchedSources,
+      driverExecutionSummary: driverExecutionSummary ?? fallbackDriverExecutionSummary,
+      finalSurfacePolicy: speech?.recentDrivingTraceRecord?.finalSurfacePolicy ?? null,
+    })
     : null
   const authorityMismatchDisplay = authoritySummary?.authorityMismatchDisplay
     ?? resolveAuthorityMismatchDisplay({
-        authorityMismatchSummary,
-        authorityMismatchReasonSummary,
-      })
+      authorityMismatchSummary,
+      authorityMismatchReasonSummary,
+    })
 
   return {
     articulation,
@@ -566,11 +572,11 @@ export function buildSpeechObservabilityView(
           topVisemes: speechEvidence.topVisemeSummary ?? normalizeText(speech?.articulationSummary?.topVisemes) ?? articulationSummary?.topVisemes ?? null,
         }
       : speech?.articulationSummary
-          ? {
-              voice: normalizeText(speech.articulationSummary.voice),
-              topVisemes: normalizeText(speech.articulationSummary.topVisemes),
-            }
-          : articulationSummary,
+        ? {
+            voice: normalizeText(speech.articulationSummary.voice),
+            topVisemes: normalizeText(speech.articulationSummary.topVisemes),
+          }
+        : articulationSummary,
     speechEvidence,
     authorityBinding: authorityBinding
       ? {
@@ -642,12 +648,12 @@ export function buildSpeechObservabilityView(
           timing: speechEvidence.timingSummary ?? normalizeText(speech?.cueMicroSummary?.timing) ?? cueMicroSummary?.timing ?? null,
         }
       : speech?.cueMicroSummary
-          ? {
-              cue: normalizeText(speech.cueMicroSummary.cue),
-              personaStyle: normalizeText(speech.cueMicroSummary.personaStyle),
-              timing: normalizeText(speech.cueMicroSummary.timing),
-            }
-          : cueMicroSummary,
+        ? {
+            cue: normalizeText(speech.cueMicroSummary.cue),
+            personaStyle: normalizeText(speech.cueMicroSummary.personaStyle),
+            timing: normalizeText(speech.cueMicroSummary.timing),
+          }
+        : cueMicroSummary,
     driverExecution,
     visemeHints,
     visemeHintsSummary: speechEvidence?.visemeHintsSummary ?? normalizeText(speech?.visemeHintsSummary) ?? visemeHintsSummary,

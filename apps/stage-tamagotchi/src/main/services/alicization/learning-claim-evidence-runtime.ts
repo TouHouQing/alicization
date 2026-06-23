@@ -7,6 +7,7 @@ import type {
   AlicizationRelationshipOutcomeRecord,
   AlicizationVerifiedLearningArtifact,
 } from '@proj-alicization/stage-shared'
+
 import type { AlicizationLearningTaskRecord } from '../../../shared/eventa'
 
 import { normalizeMemoryDomain } from './memory-domain-model'
@@ -330,7 +331,7 @@ export function buildVerifiedLearningArtifact(input: {
   const status: AlicizationVerifiedLearningArtifact['status'] = verifier.rollbackRequired
     ? 'rollback-required'
     : verifier.mayInternalize
-    ? 'verified'
+      ? 'verified'
       : verifier.mayValidateOnly
         ? 'downgraded'
         : 'blocked'

@@ -1,14 +1,14 @@
-import type { AlicizationMemoryIngestJournalRow } from './memory-ingest-journal'
-
 import type sqlite3 from 'sqlite3'
+
+import type { AlicizationMemoryIngestJournalRow } from './memory-ingest-journal'
 
 import { readFileSync } from 'node:fs'
 
 import { describe, expect, it } from 'vitest'
 
 import { createAlicizationMemoryIngestJournalRuntime } from './memory-ingest-journal'
-import { buildAlicizationMemoryStatsProjection } from './memory-stats-projection'
 import { createAlicizationMemoryRetrievalTelemetryRuntime } from './memory-retrieval-telemetry'
+import { buildAlicizationMemoryStatsProjection } from './memory-stats-projection'
 
 interface TestJournalPayload {
   id: string

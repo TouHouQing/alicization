@@ -1,6 +1,10 @@
-import type { PerformanceVisualizerAuthoritySegmentRow } from './performance-visualizer-authority-summary'
-import type { SpeechObservabilityView } from './performance-visualizer-speech-observability'
+import type { StageEmbodimentPerformanceMatchedDriver } from '@proj-alicization/stage-shared'
+
 import type { StageThreeRuntimeSpeechEmbodimentDiagnostics } from '../../stores/stage-three-runtime-diagnostics'
+import type { PerformanceVisualizerAuthoritySegmentRow } from './performance-visualizer-authority-summary'
+import type { PerformanceVisualizerSpeechDiagnosticSummaryEntry } from './performance-visualizer-speech-diagnostic-summary'
+import type { PerformanceVisualizerSpeechEvidenceSnapshot } from './performance-visualizer-speech-evidence'
+import type { SpeechObservabilityView } from './performance-visualizer-speech-observability'
 
 import { resolveAuthorityMismatchDisplay } from './performance-visualizer-authority-display'
 import {
@@ -8,18 +12,18 @@ import {
   buildAuthorityMismatchSummary,
 } from './performance-visualizer-authority-mismatch-filter'
 import {
+  buildSpeechDiagnosticSummaryEntries,
+
+} from './performance-visualizer-speech-diagnostic-summary'
+import {
+  buildSpeechEvidenceSnapshot,
+
+} from './performance-visualizer-speech-evidence'
+import {
   formatAuthorityBindingSummary,
   formatAuthorityMatchSummary,
   formatDriverExecutionSummary,
 } from './performance-visualizer-speech-observability'
-import {
-  buildSpeechDiagnosticSummaryEntries,
-  type PerformanceVisualizerSpeechDiagnosticSummaryEntry,
-} from './performance-visualizer-speech-diagnostic-summary'
-import {
-  buildSpeechEvidenceSnapshot,
-  type PerformanceVisualizerSpeechEvidenceSnapshot,
-} from './performance-visualizer-speech-evidence'
 import {
   buildTraceAuthorityExecutionSummary,
   buildTraceEmbodimentSummary,
@@ -31,7 +35,7 @@ export interface SpeechAuthoritySegmentRow {
   driftStatus: PerformanceVisualizerAuthoritySegmentRow['driftStatus']
   aligned: boolean | null
   authoritySegmentMatched?: boolean | null
-  authorityMatchedDrivers?: Array<'face' | 'motion' | 'lipsync'>
+  authorityMatchedDrivers?: StageEmbodimentPerformanceMatchedDriver[]
   authorityMatchedSources?: string[]
   authorityBindingSummary: string | null
   authorityMatchSummary: string | null
@@ -41,9 +45,12 @@ export interface SpeechAuthoritySegmentRow {
   authorityMismatchDisplay?: string | null
   speechEvidence?: PerformanceVisualizerSpeechEvidenceSnapshot
   speechSummaryEntries?: PerformanceVisualizerSpeechDiagnosticSummaryEntry[]
+  playbackTelemetry?: SpeechObservabilityView['playbackTelemetry'] | null
   settleAuthoritySummary: string | null
   rendererDriftSummary?: string | null
   voiceSummary: string | null
+  bodyContinuitySummary?: string | null
+  prosodyAuthoritySummary?: string | null
   topVisemeSummary: string | null
   cueSummary?: string | null
   cueIdentityPresent?: boolean
@@ -123,8 +130,8 @@ function annotateStructuredVoiceSummary(input: {
     ? 'authority-bound'
     : 'fallback-derived'
   const source = input.visemeHints.find(hint => hint.segmentId === input.cueId && hint.source)?.source
-    ?? (input.driverExecution.face?.segmentId === input.cueId ? input.driverExecution.face.source : null)
-    ?? (input.driverExecution.motion?.segmentId === input.cueId ? input.driverExecution.motion.source : null)
+    ?? (input.driverExecution?.face?.segmentId === input.cueId ? input.driverExecution.face.source : null)
+    ?? (input.driverExecution?.motion?.segmentId === input.cueId ? input.driverExecution.motion.source : null)
     ?? 'n/a'
 
   return `${summary} | provenance=${provenance} | segment=${input.cueId} | source=${source ?? 'n/a'}`
@@ -201,7 +208,10 @@ export function buildSpeechAuthoritySegmentRows(
     .filter(row => observedSegmentIds.has(row.cueId))
     .map((row) => {
       const hasSettleEvidence = row.entries.some(entry => entry.lane === 'settle' && entry.settle)
-      const isAuthorityMatchedCue = speechView.authorityBinding?.segmentId === row.cueId
+      const matchedAuthorityBinding = speechView.authorityBinding?.segmentId === row.cueId
+        ? speechView.authorityBinding
+        : null
+      const isAuthorityMatchedCue = Boolean(matchedAuthorityBinding)
       const cueMicro = speechView.cueMicro?.cueId === row.cueId
         ? speechView.cueMicro
         : null
@@ -226,11 +236,11 @@ export function buildSpeechAuthoritySegmentRows(
         : null
       const weightSummary = cueHasProsodyWeights && cueSummary
         ? cueSummary
-            .split(' | ')
-            .at(1)
-            ?.split(' ')
-            .filter(part => part.startsWith('prosody=') || part.startsWith('mouth=') || part.startsWith('head='))
-            .join(' ') ?? null
+          .split(' | ')
+          .at(1)
+          ?.split(' ')
+          .filter(part => part.startsWith('prosody=') || part.startsWith('mouth=') || part.startsWith('head='))
+          .join(' ') ?? null
         : null
       const cueIdentityPresent = Boolean(
         cueMicro?.facialCue
@@ -247,41 +257,41 @@ export function buildSpeechAuthoritySegmentRows(
         )
       const visemeHintsSummary = speechView.visemeHintsSummary
         ?? (segmentVisemeHints.length > 0
-            ? segmentVisemeHints.map(hint =>
-                `${hint.viseme ?? 'n/a'}:${formatNumber(hint.weight)}@${formatNumber(hint.confidence)}`,
-              ).join(' | ')
-            : null)
+          ? segmentVisemeHints.map(hint =>
+              `${hint.viseme ?? 'n/a'}:${formatNumber(hint.weight)}@${formatNumber(hint.confidence)}`,
+            ).join(' | ')
+          : null)
       const authoritySummaryCueMatchesRow = !speechView.authoritySummary?.cueId || speechView.authoritySummary.cueId === row.cueId
       const authorityBindingSummary = isAuthorityMatchedCue
         ? (authoritySummaryCueMatchesRow ? speechView.authoritySummary?.bindingSummary : null)
-          ?? formatAuthorityBindingSummary(speechView.authorityBinding)
+        ?? formatAuthorityBindingSummary(speechView.authorityBinding)
         : null
       const authorityMatchSummary = isAuthorityMatchedCue
         ? (authoritySummaryCueMatchesRow ? speechView.authoritySummary?.matchSummary : null)
-          ?? formatAuthorityMatchSummary(speechView.authorityBinding)
+        ?? formatAuthorityMatchSummary(speechView.authorityBinding)
         : null
-      const authorityMatchedSources = isAuthorityMatchedCue
-        ? [...speechView.authorityBinding.matchedSources]
+      const authorityMatchedSources = matchedAuthorityBinding
+        ? [...matchedAuthorityBinding.matchedSources]
         : []
-      const authorityMismatchSummary = isAuthorityMatchedCue
+      const authorityMismatchSummary = matchedAuthorityBinding
         ? speechView.authorityMismatchSummary
-          ?? buildAuthorityMismatchSummary(speechView.authorityBinding)
+        ?? buildAuthorityMismatchSummary(matchedAuthorityBinding)
         : null
-      const authorityMismatchReasonSummary = isAuthorityMatchedCue
+      const authorityMismatchReasonSummary = matchedAuthorityBinding
         ? speechView.authorityMismatchReasonSummary
-          ?? buildAuthorityMismatchReasonSummary({
-              authority: speechView.authorityBinding,
-              matchedSources: speechView.authorityBinding.matchedSources,
-              driverExecutionSummary,
-              finalSurfacePolicy: traceContext?.recentDrivingTraceRecord?.finalSurfacePolicy ?? null,
-            })
+        ?? buildAuthorityMismatchReasonSummary({
+          authority: matchedAuthorityBinding,
+          matchedSources: matchedAuthorityBinding.matchedSources,
+          driverExecutionSummary,
+          finalSurfacePolicy: traceContext?.recentDrivingTraceRecord?.finalSurfacePolicy ?? null,
+        })
         : null
       const authorityMismatchDisplay = isAuthorityMatchedCue
         ? speechView.authorityMismatchDisplay
-          ?? resolveAuthorityMismatchDisplay({
-              authorityMismatchSummary,
-              authorityMismatchReasonSummary,
-            })
+        ?? resolveAuthorityMismatchDisplay({
+          authorityMismatchSummary,
+          authorityMismatchReasonSummary,
+        })
         : null
       const settleAuthoritySummary = buildSettleAuthoritySummary(
         row,
@@ -298,8 +308,8 @@ export function buildSpeechAuthoritySegmentRows(
             turnMode: traceContext?.recentDrivingTraceRecord?.turnMode ?? null,
             closureState: traceContext?.recentDrivingTraceRecord?.closureState ?? null,
             finalSurfacePolicy: traceContext?.recentDrivingTraceRecord?.finalSurfacePolicy ?? null,
-            matchedDrivers: isAuthorityMatchedCue
-              ? [...speechView.authorityBinding.matchedDrivers]
+            matchedDrivers: matchedAuthorityBinding
+              ? [...matchedAuthorityBinding.matchedDrivers]
               : [],
             driverExecutionSummary,
             traceEmbodimentSummary: baseTraceEmbodimentSummary,
@@ -344,8 +354,8 @@ export function buildSpeechAuthoritySegmentRows(
         driftStatus: row.driftStatus,
         aligned: row.aligned,
         authoritySegmentMatched: isAuthorityMatchedCue,
-        authorityMatchedDrivers: isAuthorityMatchedCue
-          ? [...speechView.authorityBinding.matchedDrivers]
+        authorityMatchedDrivers: matchedAuthorityBinding
+          ? [...matchedAuthorityBinding.matchedDrivers]
           : [],
         authorityMatchedSources,
         authorityBindingSummary,
@@ -356,6 +366,7 @@ export function buildSpeechAuthoritySegmentRows(
         authorityMismatchDisplay,
         speechEvidence,
         speechSummaryEntries,
+        ...(speechView.playbackTelemetry ? { playbackTelemetry: speechView.playbackTelemetry } : {}),
         settleAuthoritySummary,
         rendererDriftSummary: isAuthorityMatchedCue
           ? (speechView.rendererAlignmentSummary.live2d ?? speechView.rendererAlignmentSummary.vrm ?? null)

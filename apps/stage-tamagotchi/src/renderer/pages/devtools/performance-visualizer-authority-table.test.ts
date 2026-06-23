@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import { buildSpeechAuthoritySegmentRows } from './performance-visualizer-speech-authority'
 import { buildAuthorityTableRows } from './performance-visualizer-authority-table'
+import { buildSpeechAuthoritySegmentRows } from './performance-visualizer-speech-authority'
 
 describe('performance visualizer authority table rows', () => {
   it('flattens compact authority display rows into table-ready cells', () => {
@@ -563,7 +563,7 @@ describe('performance visualizer authority table rows', () => {
         speechSummaryLines: [
           'authority: 目标 VRM，驱动 表情、口型，命中 表情命中 / 动作未命中 / 口型命中',
           'authority-match: 表情命中 / 动作未命中 / 口型命中',
-        'authority-mismatch: 动作 authority 漂移，当前绑定来源是 prosody-authority、timeline-projection，实际执行落点是无执行。',
+          'authority-mismatch: 动作 authority 漂移，当前绑定来源是 prosody-authority、timeline-projection，实际执行落点是无执行。',
         ],
       }),
     ])

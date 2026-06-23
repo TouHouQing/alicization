@@ -1,8 +1,7 @@
 import type { PerformanceVisualizerSpeechEvidenceSnapshot } from './performance-visualizer-speech-evidence'
 
 import { toAuthorityDisplayEntry } from './performance-visualizer-runtime-diagnostic-summary'
-import { formatSpeechAuthorityFilterValue, formatSpeechCueMetadataValue } from './performance-visualizer-speech-display'
-import { formatSpeechDriverExecutionSummary } from './performance-visualizer-speech-display'
+import { formatSpeechAuthorityFilterValue, formatSpeechCueMetadataValue, formatSpeechDriverExecutionSummary } from './performance-visualizer-speech-display'
 import { formatTraceEmbodimentDisplaySummary } from './performance-visualizer-trace-embodiment'
 
 export interface PerformanceVisualizerSpeechDiagnosticSummaryEntry {

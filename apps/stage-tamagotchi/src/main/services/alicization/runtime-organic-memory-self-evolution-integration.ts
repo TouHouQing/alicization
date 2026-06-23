@@ -6,8 +6,8 @@ import type {
 } from '../../../shared/eventa'
 import type { AlicizationPersonStateProjection } from './person-state-projection'
 import type { AlicizationRelationshipDynamicsState } from './relationship-dynamics-state'
-import type { AlicizationSelfRevisionStatePatch } from './self-evolution/state-revision-bus'
 import type { OrganicMemoryPromptContext } from './runtime-soul'
+import type { AlicizationSelfRevisionStatePatch } from './self-evolution/state-revision-bus'
 
 import {
   buildDerivedMindStateBundle,

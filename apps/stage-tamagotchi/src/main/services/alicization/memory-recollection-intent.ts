@@ -1,4 +1,5 @@
 import type {
+  AlicizationAffectiveResidueMemorySnapshot,
   AlicizationAnswerCompilerSnapshot,
   AlicizationConversationStateSnapshot,
   AlicizationDialogueTurnEncounterSnapshot,
@@ -187,10 +188,11 @@ function inferRecollectionWhyNow(input: {
     return 'The current task feels similar to something Alicization has already gone through, so procedure memory should decide what comes back first.'
   if (input.relationshipWeight >= Math.max(input.conversationHistoryWeight, input.autobiographicalWeight))
     return 'The host is reacting to bond tone or relationship drift, so remembered relationship continuity should open the recall lane.'
-  if (input.autobiographicalWeight >= input.conversationHistoryWeight)
+  if (input.autobiographicalWeight >= input.conversationHistoryWeight) {
     return input.moodCongruentBoost >= 0.18
       ? 'The current affect matches older autobiographical pressure, so lived continuity should be explored before exact detail.'
       : 'The current turn is about Alicization herself or her lived continuity, so autobiographical recall should answer it.'
+  }
   if (input.conversationHistoryWeight > 0.24)
     return 'The host is explicitly trying to recover earlier dialogue, so conversation history becomes a live recall candidate.'
   if (input.sceneFamiliarity > 0.28)
@@ -394,7 +396,9 @@ export function buildMemoryRecollectionIntent(input: {
   longHorizonMemory?: AlicizationLongHorizonMemorySnapshot | null
   goalStack?: AlicizationGoalStackSnapshot | null
   motiveEngine?: AlicizationMotiveEngineSnapshot | null
+  selfContinuityAuthority?: unknown
   sceneContext?: AlicizationSceneAttachmentContext | null
+  affectiveResidue?: AlicizationAffectiveResidueMemorySnapshot | null
 }): AlicizationMemoryRecollectionIntentSnapshot | null {
   const userText = sanitizeText(input.userText, 320)
   const sceneQueryHints = buildSceneQueryHints(input.sceneContext ?? null)

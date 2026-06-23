@@ -4,8 +4,9 @@ import type {
   AlicizationMindTurnGovernance,
   AlicizationTaskThreadRecord,
 } from '../../../shared/eventa'
-import type { AlicizationActiveDialogueFastPathDecision } from './main-chat-active-dialogue-loop'
 import type { AlicizationExecutionResultDeliveryPolicy } from './execution-interaction-learning'
+import type { AlicizationActiveDialogueFastPathDecision } from './main-chat-active-dialogue-loop'
+import type { AlicizationMindSurfaceMove } from './mind-surface-renderer'
 import type { AlicizationPersonStateProjection } from './person-state-projection'
 import type { AlicizationSelfContinuityAuthority } from './self-continuity-authority'
 
@@ -15,16 +16,16 @@ import {
   formatAlicizationExecutionListingPreviewName,
   resolveAlicizationExecutionListingSummary,
 } from './execution-listing-surface'
-import { buildAlicizationActiveDialogueGovernedReply } from './main-chat-active-dialogue-loop'
-import { type AlicizationMindSurfaceMove } from './mind-surface-renderer'
 import { buildHostSocialGuidance, inferHostSocialContextsFromText } from './host-social-guidance'
+import { buildAlicizationActiveDialogueGovernedReply } from './main-chat-active-dialogue-loop'
 import { resolveAlicizationOpeningGuidanceViolationReason } from './proactive-opening-guidance'
 import { buildRelationshipDoctrineGuidance } from './relationship-doctrine-guidance'
 import { parseJsonObjectFromText } from './runtime-transport-content'
+
 const listingProtocolLeakPattern = /\bListed\s+(?:desktop\s+entries|entries)\s*\(\d+\):/iu
 const shellListingLeakPattern = /(?:^|\s)(?:drwx|total\s+\d+)/iu
 const mechanisticChannelLeadPattern = /^(?:刚才那个|这条)?\s*(?:CLI|Codex|Claude Code|OpenClaw)\b/iu
-const uriEncodedLeakPattern = /%[0-9A-Fa-f]{2}/u
+const uriEncodedLeakPattern = /%[0-9A-F]{2}/iu
 
 const allowedExecutionPayoffEmotions = new Set([
   'neutral',
@@ -72,11 +73,11 @@ export interface AlicizationExecutionPayoffStructured {
   format: 'mind-turn-v1'
 }
 
-export type AlicizationExecutionOutcomeSurfaceStatus =
-  | AlicizationTaskThreadRecord['status']
-  | 'queued'
-  | 'running'
-  | 'not-routed'
+export type AlicizationExecutionOutcomeSurfaceStatus
+  = | AlicizationTaskThreadRecord['status']
+    | 'queued'
+    | 'running'
+    | 'not-routed'
 
 function sanitizeText(raw: unknown, maxLength: number) {
   if (typeof raw !== 'string')
@@ -456,7 +457,7 @@ export function buildAlicizationExecutionPayoffStructuredReply(input: {
       : ((parsed as { proactive?: Record<string, unknown> | null }).proactive ?? null),
     parsePath: 'json',
     format: 'mind-turn-v1',
-  } as AlicizationExecutionPayoffStructured
+  } as unknown as AlicizationExecutionPayoffStructured
 }
 
 export function buildAlicizationInlineExecutionOutcomeReply(input: {
@@ -706,79 +707,79 @@ export function buildAlicizationExecutionPayoffPrompt(input: {
     })}`,
     input.trace
       ? `Mind trace JSON: ${JSON.stringify({
-          decisionTraceId: sanitizeText(input.trace.decisionTraceId, 120) || null,
-          turnMode: sanitizeText(input.trace.turnMode, 64) || null,
-          personaKernelMode: sanitizeText(input.trace.personaKernelMode, 64) || null,
-        })}`
+        decisionTraceId: sanitizeText(input.trace.decisionTraceId, 120) || null,
+        turnMode: sanitizeText(input.trace.turnMode, 64) || null,
+        personaKernelMode: sanitizeText(input.trace.personaKernelMode, 64) || null,
+      })}`
       : '',
     input.governance
       ? `Governance hint JSON: ${JSON.stringify({
-          relationshipPosture: sanitizeText(input.governance.relationshipPosture, 64) || null,
-          answerAct: sanitizeText(input.governance.answerAct, 64) || null,
-          answerSubject: sanitizeText(input.governance.answerSubject, 64) || null,
-          focusAnchor: sanitizeText(input.governance.focusAnchor, 120) || null,
-          answerIntent: sanitizeText(input.governance.answerIntent, 160) || null,
-        })}`
+        relationshipPosture: sanitizeText(input.governance.relationshipPosture, 64) || null,
+        answerAct: sanitizeText(input.governance.answerAct, 64) || null,
+        answerSubject: sanitizeText(input.governance.answerSubject, 64) || null,
+        focusAnchor: sanitizeText(input.governance.focusAnchor, 120) || null,
+        answerIntent: sanitizeText(input.governance.answerIntent, 160) || null,
+      })}`
       : '',
     input.knowledgeEvidence
       ? `Knowledge evidence JSON: ${JSON.stringify({
-          validationCount: input.knowledgeEvidence.validationCount ?? 0,
-          contradictionCount: input.knowledgeEvidence.contradictionCount ?? 0,
-          stronglyValidatedProcedureCount: input.knowledgeEvidence.stronglyValidatedProcedureCount ?? 0,
-          contradictionHeavyFactCount: input.knowledgeEvidence.contradictionHeavyFactCount ?? 0,
-        })}`
+        validationCount: input.knowledgeEvidence.validationCount ?? 0,
+        contradictionCount: input.knowledgeEvidence.contradictionCount ?? 0,
+        stronglyValidatedProcedureCount: input.knowledgeEvidence.stronglyValidatedProcedureCount ?? 0,
+        contradictionHeavyFactCount: input.knowledgeEvidence.contradictionHeavyFactCount ?? 0,
+      })}`
       : '',
     input.personStateProjection
       ? `Person-state projection JSON: ${JSON.stringify({
-          contexts: input.personStateProjection.contexts,
-          summary: sanitizeText(input.personStateProjection.summary, 180) || null,
-          regime: input.personStateProjection.personalityContinuityState.currentRegime,
-          activeClosenessContext: input.personStateProjection.activeClosenessContext,
-          activeClosenessRung: input.personStateProjection.activeClosenessRung,
-          closenessPosture: input.personStateProjection.personalityContinuityState.closenessPosture,
-          repairPosture: input.personStateProjection.personalityContinuityState.repairPosture,
-          relationshipPosture: input.personStateProjection.relationshipPosture,
-          openingGuidance: sanitizeText(input.personStateProjection.openingGuidance, 180) || null,
-          preferredProactiveStyle: input.personStateProjection.preferredProactiveStyle,
-          preference: sanitizeText(input.personStateProjection.preferenceText, 160) || null,
-          sensitivity: sanitizeText(input.personStateProjection.sensitivityText, 160) || null,
-          repairTrigger: sanitizeText(input.personStateProjection.repairTriggerText, 160) || null,
-          burden: sanitizeText(input.personStateProjection.burdenText, 160) || null,
-          trustRationale: sanitizeText(input.personStateProjection.trustRationale, 160) || null,
-        })}`
+        contexts: input.personStateProjection.contexts,
+        summary: sanitizeText(input.personStateProjection.summary, 180) || null,
+        regime: input.personStateProjection.personalityContinuityState.currentRegime,
+        activeClosenessContext: input.personStateProjection.activeClosenessContext,
+        activeClosenessRung: input.personStateProjection.activeClosenessRung,
+        closenessPosture: input.personStateProjection.personalityContinuityState.closenessPosture,
+        repairPosture: input.personStateProjection.personalityContinuityState.repairPosture,
+        relationshipPosture: input.personStateProjection.relationshipPosture,
+        openingGuidance: sanitizeText(input.personStateProjection.openingGuidance, 180) || null,
+        preferredProactiveStyle: input.personStateProjection.preferredProactiveStyle,
+        preference: sanitizeText(input.personStateProjection.preferenceText, 160) || null,
+        sensitivity: sanitizeText(input.personStateProjection.sensitivityText, 160) || null,
+        repairTrigger: sanitizeText(input.personStateProjection.repairTriggerText, 160) || null,
+        burden: sanitizeText(input.personStateProjection.burdenText, 160) || null,
+        trustRationale: sanitizeText(input.personStateProjection.trustRationale, 160) || null,
+      })}`
       : '',
     input.selfContinuityAuthority
       ? `Self continuity authority JSON: ${JSON.stringify({
-          selfLine: sanitizeText(input.selfContinuityAuthority.selfLine, 160) || null,
-          relationshipLine: sanitizeText(input.selfContinuityAuthority.relationshipLine, 160) || null,
-          motiveLine: sanitizeText(input.selfContinuityAuthority.motiveLine, 160) || null,
-          inwardLine: sanitizeText(input.selfContinuityAuthority.inwardLine, 160) || null,
-          authoritySummary: sanitizeText(input.selfContinuityAuthority.authoritySummary, 180) || null,
-          sourceTags: input.selfContinuityAuthority.sourceTags,
-        })}`
+        selfLine: sanitizeText(input.selfContinuityAuthority.selfLine, 160) || null,
+        relationshipLine: sanitizeText(input.selfContinuityAuthority.relationshipLine, 160) || null,
+        motiveLine: sanitizeText(input.selfContinuityAuthority.motiveLine, 160) || null,
+        inwardLine: sanitizeText(input.selfContinuityAuthority.inwardLine, 160) || null,
+        authoritySummary: sanitizeText(input.selfContinuityAuthority.authoritySummary, 180) || null,
+        sourceTags: input.selfContinuityAuthority.sourceTags,
+      })}`
       : '',
     input.hostPersonModel
       ? `Host person model JSON: ${JSON.stringify({
-          summary: sanitizeText(input.hostPersonModel.summary, 180) || null,
-          trustStage: input.hostPersonModel.trustLadder.stage,
-          trustRationale: sanitizeText(input.hostPersonModel.trustLadder.rationale, 160) || null,
-          sensitivities: input.hostPersonModel.sensitivities.slice(0, 3),
-          repairTriggers: input.hostPersonModel.repairTriggers.slice(0, 3),
-          preferredClosenessByContext: input.hostPersonModel.preferredClosenessByContext.slice(0, 3),
-          recurrentBurdens: input.hostPersonModel.recurrentBurdens.slice(0, 3),
-        })}`
+        summary: sanitizeText(input.hostPersonModel.summary, 180) || null,
+        trustStage: input.hostPersonModel.trustLadder.stage,
+        trustRationale: sanitizeText(input.hostPersonModel.trustLadder.rationale, 160) || null,
+        sensitivities: input.hostPersonModel.sensitivities.slice(0, 3),
+        repairTriggers: input.hostPersonModel.repairTriggers.slice(0, 3),
+        preferredClosenessByContext: input.hostPersonModel.preferredClosenessByContext.slice(0, 3),
+        recurrentBurdens: input.hostPersonModel.recurrentBurdens.slice(0, 3),
+      })}`
       : '',
     input.selfContinuityAuthority?.relationshipLine
       ? `Relationship doctrine JSON: ${JSON.stringify({
-          doctrine: sanitizeText(input.selfContinuityAuthority.relationshipLine, 180) || null,
-        })}`
+        doctrine: sanitizeText(input.selfContinuityAuthority.relationshipLine, 180) || null,
+      })}`
       : '',
     input.policy
       ? `Delivery policy JSON: ${JSON.stringify({
-          mode: input.policy.mode,
-          tone: input.policy.tone,
-          reasonTags: input.policy.reasonTags,
-        })}`
+        mode: input.policy.mode,
+        tone: input.policy.tone,
+        reasonTags: input.policy.reasonTags,
+      })}`
       : '',
     'Lead with the concrete finished result, not with channel ceremony.',
     input.selfContinuityAuthority?.authoritySummary
@@ -792,7 +793,7 @@ export function buildAlicizationExecutionPayoffPrompt(input: {
       ? 'Use the person-state projection as the single social authority for tone, distance, and timing. Do not invent a second relationship posture beside it.'
       : input.hostPersonModel
         ? 'If the host person model implies lighter touch, lower pressure, or a need for room, let that social memory soften how you hand off the result without becoming vague.'
-      : '',
+        : '',
     input.selfContinuityAuthority?.relationshipLine
       ? 'If the relationship doctrine implies repair before closeness, truth before warmth, or that presence should not become pressure, let that doctrine soften and sequence the handoff.'
       : '',
@@ -875,11 +876,12 @@ export function normalizeAlicizationExecutionPayoffPerformance(
   emotion: string,
   fallback: AlicizationExecutionPayoffStructured['performance'],
 ) {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     return {
       ...fallback,
       baseEmotion: emotion,
     }
+  }
 
   const payload = raw as Record<string, unknown>
   const deliveryCandidate = sanitizeText(payload.delivery, 48).toLowerCase()

@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
-import { createDefaultProactiveLoopState } from './proactive-feedback'
 import {
   deriveProactiveCadenceSignal,
   progressProactiveCadenceState,
 } from './proactive-cadence'
+import { createDefaultProactiveLoopState } from './proactive-feedback'
 
 function createContext() {
   return {

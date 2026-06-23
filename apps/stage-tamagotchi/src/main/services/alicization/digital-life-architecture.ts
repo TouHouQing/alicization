@@ -28,6 +28,11 @@ export interface AlicizationDigitalLifeArchitectureSnapshot {
   supportingSystems: AlicizationDigitalLifeSubsystemId[]
   governingFocus: string | null
   summary: string
+  closureAudit?: {
+    currentPhase?: string | null
+    activeClosurePressures?: string[] | null
+    summary?: string | null
+  } | null
   systems: Record<AlicizationDigitalLifeSubsystemId, AlicizationDigitalLifeSubsystemSnapshot>
 }
 

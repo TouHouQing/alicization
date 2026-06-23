@@ -22,7 +22,7 @@ describe('memory mind state runtime', () => {
       run: async () => {},
       all: async () => [],
       runInTransaction: async (_database, task) => await task(),
-      enqueueWrite: async (task) => await task(),
+      enqueueWrite: async task => await task(),
       assertWriteNotAborted: () => {},
       parseMindTurnEventPayload: () => null,
       resolveMindTurnEventActiveThreadId: () => null,
@@ -115,9 +115,9 @@ describe('memory mind state runtime', () => {
           .slice(0, limit) as T[]
       },
       runInTransaction: async (_database, task) => await task(),
-      enqueueWrite: async (task) => await task(),
+      enqueueWrite: async task => await task(),
       assertWriteNotAborted: () => {},
-      parseMindTurnEventPayload: (raw) => raw ? JSON.parse(raw) as Record<string, unknown> : null,
+      parseMindTurnEventPayload: raw => raw ? JSON.parse(raw) as Record<string, unknown> : null,
       resolveMindTurnEventActiveThreadId: (payload) => {
         const digitalLifeSpine = payload?.digitalLifeSpine
         return digitalLifeSpine && typeof digitalLifeSpine === 'object'
@@ -228,7 +228,7 @@ describe('memory mind state runtime', () => {
         return [] as T[]
       },
       runInTransaction: async (_database, task) => await task(),
-      enqueueWrite: async (task) => await task(),
+      enqueueWrite: async task => await task(),
       assertWriteNotAborted: () => {},
       parseMindTurnEventPayload: raw => raw ? JSON.parse(raw) as Record<string, unknown> : null,
       resolveMindTurnEventActiveThreadId: () => null,

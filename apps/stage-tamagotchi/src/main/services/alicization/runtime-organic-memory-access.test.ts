@@ -31,7 +31,7 @@ describe('runtime-organic-memory-access', () => {
         turnId: 'turn-1',
         sessionId: 'session-1',
         sourceKind: 'reply',
-          provenance: 'remembered' as const,
+        provenance: 'remembered' as const,
         occurredAt: 1,
         whereSummary: 'focused-work',
         withWhom: ['host'],

@@ -503,7 +503,7 @@ export function buildIntentionStream(input: {
       = autobiographicalGoal?.kind === 'protect-rest-rhythm'
         ? 'care-host'
         : autobiographicalGoal?.kind === 'stay-near-without-crowding'
-            || motiveAgenda?.kind === 'stay-near-lightly'
+          || motiveAgenda?.kind === 'stay-near-lightly'
           ? 'stay-near'
           : autobiographicalGoal?.kind === 'grow-shared-language'
             ? 'witness-afterglow'

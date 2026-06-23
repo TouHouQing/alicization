@@ -10,8 +10,25 @@ export const alicizationExecutionCapabilityChannels = [
 ] as const
 
 export type AlicizationExecutionCapabilityChannel = typeof alicizationExecutionCapabilityChannels[number]
-export type AlicizationExecutionDispatchChannel = 'cli' | 'codex' | 'claude-code' | 'openclaw'
-export type AlicizationExecutorToolName = 'executor_run_cli' | 'executor_run_codex' | 'executor_run_claude_code' | 'executor_run_openclaw'
+export type AlicizationExecutionDispatchChannel = 'cli' | 'codex' | 'claude-code' | 'openclaw' | 'browser' | 'desktop'
+export type AlicizationExecutionRoutingChannel = AlicizationExecutionDispatchChannel
+export type AlicizationExecutorToolName
+  = | 'executor_run_cli'
+    | 'executor_run_codex'
+    | 'executor_run_claude_code'
+    | 'executor_run_openclaw'
+    | 'browser_open_url'
+    | 'browser_search_web'
+    | 'browser_read_page'
+    | 'browser_click_element'
+    | 'browser_type_text'
+    | 'browser_scroll'
+    | 'browser_wait'
+    | 'desktop_inspect_scene'
+    | 'desktop_list_interactables'
+    | 'desktop_click_element'
+    | 'desktop_type_text'
+    | 'desktop_wait'
 
 export interface AlicizationExecutionCapabilityInquiry {
   active: boolean
@@ -25,6 +42,7 @@ export interface AlicizationExecutionRoutingIntent {
   requestedChannels: AlicizationExecutionDispatchChannel[]
   requiredToolNames: AlicizationExecutorToolName[]
   reasonCodes: string[]
+  toolInputOverrides?: Record<string, Record<string, unknown>>
 }
 
 export interface AlicizationExecutionSemanticSignals {
@@ -96,11 +114,11 @@ const executionCommandTokenPattern = /\b(?:pnpm|npm|yarn|bun|git|ls|cat|rg|grep|
 const executionQuestionMarkerPattern = /[?？]|能不能|可不可以|会不会|是否|can\s+you|could\s+you|are\s+you|do\s+you/iu
 const executionRequestFramePattern = /请|麻烦|拜托|帮我|帮忙|请你|希望你|我想让你|please|help\s+me|can\s+you|could\s+you|would\s+you|i\s+need\s+you|(?:^|\n)\s*use\s+/iu
 const executionShellPromptPattern = /(^|\n)\s*[$>#]\s*[^\s`]+/u
-const executionShellOperatorPattern = /&&|\|\||[|><]{1,2}|(?:^|\s)-{1,2}[a-z0-9-]+(?:\s|$)/iu
+const executionShellOperatorPattern = /&&|\|\||[|><]{1,2}|(?:^|\s)-[a-z0-9-]+(?:\s|$)/iu
 const executionFilesystemPathPattern = /(?:^|[\s`'"])(?:~\/|\.{1,2}\/|\/[^\s"'`]+|[A-Za-z]:\\[^\s"'`]+|[^\s"'`]+\.(?:ts|tsx|js|jsx|vue|json|md|yaml|yml|toml|py|go|rs|java|kt|swift|sh|c|cpp|h))(?:$|[\s`'"])/u
 const executionToolReferencePattern = /\b(?:executor_run_[a-z_]+|filesystem_[a-z_]+|mcp_[a-z_]+)\b/iu
 const executionCodeArtifactPattern = /```|(?:^|[\s`'"])[\w./-]+\.(?:ts|tsx|js|jsx|vue|json|md|yaml|yml|toml|py|go|rs|java|kt|swift|sh|c|cpp|h)(?:$|[\s`'"])/iu
-const executionBrowserArtifactPattern = /https?:\/\/|www\.|(?:\bdom\b|\bhtml\b|\bcss\b|\burl\b|\btab\b)|浏览器|网页|页面|网址|标签页/u
+const executionBrowserArtifactPattern = /https?:\/\/|www\.|\bdom\b|\bhtml\b|\bcss\b|\burl\b|\btab\b|浏览器|网页|页面|网址|标签页/u
 const executionSoftwareArtifactPattern = /\bapp(?:lication)?\b|\bwindow\b|\bdesktop\b|软件|窗口|桌面/u
 const executionFallbackImperativePattern = /(?:用|使用).*(?:cli|codex|claude[\s-]?code|openclaw)|(?:帮我|请|麻烦).*(?:执行|运行|查|列出|修改|修复|重构|run|execute|list|show|fix|refactor)/iu
 
@@ -109,6 +127,8 @@ const executionRoutingToolMap: Record<AlicizationExecutionDispatchChannel, Alici
   'codex': 'executor_run_codex',
   'claude-code': 'executor_run_claude_code',
   'openclaw': 'executor_run_openclaw',
+  'browser': 'browser_read_page',
+  'desktop': 'desktop_inspect_scene',
 }
 
 function normalizeExecutionIntentText(raw: unknown) {
@@ -169,7 +189,12 @@ export function analyzeAlicizationExecutionSemanticSignals(message: string): Ali
   const mentionedChannels = collectChannelMentionsFromNormalizedText(normalized)
   const mentionedDispatchChannels = mentionedChannels
     .filter((channel): channel is AlicizationExecutionDispatchChannel =>
-      channel === 'cli' || channel === 'codex' || channel === 'claude-code' || channel === 'openclaw')
+      channel === 'cli'
+      || channel === 'codex'
+      || channel === 'claude-code'
+      || channel === 'openclaw'
+      || channel === 'browser'
+      || channel === 'desktop')
   const hasQuestionMarker = executionQuestionMarkerPattern.test(normalized)
   const hasRequestFrame = executionRequestFramePattern.test(normalized)
   const hasCommandLiteral = executionCommandLiteralPattern.test(normalized)
@@ -202,10 +227,10 @@ export function analyzeAlicizationExecutionSemanticSignals(message: string): Ali
   if (
     mentionedDispatchChannels.length > 0
     && !hasRequestFrame
-      && !hasCommandLiteral
-      && !hasCommandToken
-      && !hasShellLikeStructure
-      && !hasFilesystemPathReference
+    && !hasCommandLiteral
+    && !hasCommandToken
+    && !hasShellLikeStructure
+    && !hasFilesystemPathReference
     && !hasToolReference
   ) {
     executionSignalScore -= 0.2
@@ -348,8 +373,8 @@ export function detectAlicizationExecutionRoutingIntent(input: {
   const requestedChannels: AlicizationExecutionDispatchChannel[] = mentionedChannels.length > 0
     ? mentionedChannels
     : (semanticSignals.hasCommandLiteral || semanticSignals.hasCommandToken || semanticSignals.hasShellLikeStructure || semanticSignals.hasToolReference)
-      ? ['cli']
-      : []
+        ? ['cli']
+        : []
 
   if (requestedChannels.length === 0)
     return null

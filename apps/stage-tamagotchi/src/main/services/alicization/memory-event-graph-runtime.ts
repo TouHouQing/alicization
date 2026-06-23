@@ -1,12 +1,11 @@
-import type { AlicizationDerivedMemoryReference, AlicizationMemoryProvenance } from '../../../shared/eventa'
-
-import type sqlite3 from 'sqlite3'
-
 import type {
   AlicizationMemorySituationCandidate,
   AlicizationMemorySituationCandidateSet,
   AlicizationMemorySituationKind,
 } from '@proj-alicization/stage-shared'
+import type sqlite3 from 'sqlite3'
+
+import type { AlicizationDerivedMemoryReference, AlicizationMemoryProvenance } from '../../../shared/eventa'
 
 import { scoreSemanticRecall } from './memory-semantic-retrieval'
 
@@ -920,16 +919,16 @@ export function createAlicizationMemoryEventGraphRuntime(
       )
       const eventLabels = clusterNodes.map(node => node.label).filter(Boolean)
       const taskThreadNode = clusterEdges
-        .flatMap((edge) => [nodeById.get(edge.sourceNodeId), nodeById.get(edge.targetNodeId)])
+        .flatMap(edge => [nodeById.get(edge.sourceNodeId), nodeById.get(edge.targetNodeId)])
         .find(node => node?.nodeKind === 'task-thread')
       const repairArcNode = clusterEdges
-        .flatMap((edge) => [nodeById.get(edge.sourceNodeId), nodeById.get(edge.targetNodeId)])
+        .flatMap(edge => [nodeById.get(edge.sourceNodeId), nodeById.get(edge.targetNodeId)])
         .find(node => node?.nodeKind === 'repair-arc')
       const relationshipNode = clusterEdges
-        .flatMap((edge) => [nodeById.get(edge.sourceNodeId), nodeById.get(edge.targetNodeId)])
+        .flatMap(edge => [nodeById.get(edge.sourceNodeId), nodeById.get(edge.targetNodeId)])
         .find(node => node?.nodeKind === 'relationship-meaning')
       const sceneNode = clusterEdges
-        .flatMap((edge) => [nodeById.get(edge.sourceNodeId), nodeById.get(edge.targetNodeId)])
+        .flatMap(edge => [nodeById.get(edge.sourceNodeId), nodeById.get(edge.targetNodeId)])
         .find(node => node?.nodeKind === 'scene')
       const selected = input.selectedEventId
         ? cluster.includes(buildEventNodeId(input.selectedEventId))

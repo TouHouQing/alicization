@@ -1,7 +1,6 @@
 import type { AlicizationAuditLogInput } from '../../../shared/eventa'
-
-import type { AlicizationProactiveLoopState } from './proactive-feedback'
 import type { buildProactiveFeedbackOutcomeClosure } from './outcome-reinforcement'
+import type { AlicizationProactiveLoopState, AlicizationRecentProactiveOutcome } from './proactive-feedback'
 
 import { settleExpiredProactiveOutcomes, settleProactiveOutcomesOnUserTurnStart } from './proactive-feedback'
 
@@ -9,12 +8,22 @@ interface CreateAlicizationRuntimeProactiveFeedbackOptions {
   normalizeCardId: (raw: unknown) => string
   ensureProactiveLoopState: (cardIdRaw: unknown) => Promise<AlicizationProactiveLoopState>
   persistProactiveLoopState: (cardIdRaw: unknown, state: AlicizationProactiveLoopState) => Promise<void>
+  applyCurrentCardProactiveState?: (input: {
+    cardId: string
+    state: AlicizationProactiveLoopState
+  }) => Promise<void> | void
+  peekLatestPendingProactiveDelivery?: (cardId: string) => unknown
   syncSessionMirrorFromCurrentCardState: (input: {
     cardId: string
     source: string
     proactiveOutcomes: AlicizationProactiveLoopState['recentOutcomes']
     turnId: string
   }) => Promise<void>
+  syncSettledProactiveContinuityIntoActiveSession?: (input: {
+    cardId: string
+    source: string
+    proactiveOutcomes: AlicizationRecentProactiveOutcome[]
+  }) => Promise<void> | void
   buildMainGatewayAgentTurnId: (kind: string, source: string, cardId: string, at: number) => string
   appendAuditLog: (input: AlicizationAuditLogInput, cardId?: string) => Promise<void>
   persistOutcomeClosure: (cardIdRaw: unknown, input: ReturnType<typeof buildProactiveFeedbackOutcomeClosure>) => Promise<void>
@@ -25,7 +34,12 @@ interface CreateAlicizationRuntimeProactiveFeedbackOptions {
 export function createAlicizationRuntimeProactiveFeedback(
   options: CreateAlicizationRuntimeProactiveFeedbackOptions,
 ) {
-  const settlePendingProactiveOutcomesFromUserTurn = async (cardIdRaw: unknown, at: number, source: string) => {
+  const settlePendingProactiveOutcomesFromUserTurn = async (
+    cardIdRaw: unknown,
+    at: number,
+    source: string,
+    context?: { userText?: string | null },
+  ) => {
     const cardId = options.normalizeCardId(cardIdRaw)
     const current = await options.ensureProactiveLoopState(cardId)
     const settled = settleProactiveOutcomesOnUserTurnStart(current, at)
@@ -33,11 +47,17 @@ export function createAlicizationRuntimeProactiveFeedback(
       return settled.state
 
     await options.persistProactiveLoopState(cardId, settled.state)
+    await options.applyCurrentCardProactiveState?.({ cardId, state: settled.state })
     await options.syncSessionMirrorFromCurrentCardState({
       cardId,
       source: 'proactive-feedback',
       proactiveOutcomes: settled.appliedOutcomes,
       turnId: options.buildMainGatewayAgentTurnId('proactive-feedback', source, cardId, at),
+    })
+    await options.syncSettledProactiveContinuityIntoActiveSession?.({
+      cardId,
+      source,
+      proactiveOutcomes: settled.appliedOutcomes,
     })
     await options.appendAuditLog({
       level: 'notice',
@@ -47,6 +67,8 @@ export function createAlicizationRuntimeProactiveFeedback(
       payload: {
         source,
         outcomes: settled.appliedOutcomes,
+        userText: context?.userText ?? null,
+        pendingDelivery: options.peekLatestPendingProactiveDelivery?.(cardId) ?? null,
       },
     }, cardId)
     await options.persistOutcomeClosure(cardId, options.buildProactiveFeedbackOutcomeClosure({
@@ -66,11 +88,17 @@ export function createAlicizationRuntimeProactiveFeedback(
       return settled.state
 
     await options.persistProactiveLoopState(cardId, settled.state)
+    await options.applyCurrentCardProactiveState?.({ cardId, state: settled.state })
     await options.syncSessionMirrorFromCurrentCardState({
       cardId,
       source: 'proactive-feedback',
       proactiveOutcomes: settled.appliedOutcomes,
       turnId: options.buildMainGatewayAgentTurnId('proactive-feedback', source, cardId, at),
+    })
+    await options.syncSettledProactiveContinuityIntoActiveSession?.({
+      cardId,
+      source,
+      proactiveOutcomes: settled.appliedOutcomes,
     })
     await options.appendAuditLog({
       level: 'notice',
@@ -80,6 +108,7 @@ export function createAlicizationRuntimeProactiveFeedback(
       payload: {
         source,
         outcomes: settled.appliedOutcomes,
+        pendingDelivery: options.peekLatestPendingProactiveDelivery?.(cardId) ?? null,
       },
     }, cardId)
     await options.persistOutcomeClosure(cardId, options.buildProactiveFeedbackOutcomeClosure({

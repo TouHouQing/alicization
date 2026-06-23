@@ -1,6 +1,8 @@
+import type { StageEmbodimentPerformanceMatchedDriver } from '@proj-alicization/stage-shared'
+
 import type { StageThreeRuntimeSpeechEmbodimentDiagnostics } from '../../stores/stage-three-runtime-diagnostics'
 
-export type TraceEmbodimentDriver = 'face' | 'motion' | 'lipsync'
+export type TraceEmbodimentDriver = StageEmbodimentPerformanceMatchedDriver
 
 interface TraceEmbodimentSummaryInput {
   turnMode: string | null | undefined
@@ -94,10 +96,14 @@ function mapDriverList(value: string, joiner: '、' | '+') {
     .map((item) => {
       if (item === 'face')
         return '表情'
+      if (item === 'body')
+        return '身体'
       if (item === 'motion')
         return '动作'
       if (item === 'lipsync')
         return '口型'
+      if (item === 'voice')
+        return '声音'
       return item
     })
 
@@ -117,19 +123,22 @@ export function isGeneratedTraceEmbodimentSummary(summary: string | null | undef
 }
 
 export function formatTraceEmbodimentDisplaySummary(summary: string | null | undefined) {
+  const normalizedSummary = normalizeSummary(summary)
   if (!isGeneratedTraceEmbodimentSummary(summary))
-    return normalizeSummary(summary)
+    return normalizedSummary
+  if (!normalizedSummary)
+    return null
 
-  const parsed = parseTraceEmbodimentSummary(summary)
+  const parsed = parseTraceEmbodimentSummary(normalizedSummary)
   const parts: string[] = []
 
-  const turnMode = parsed.get('turn')
+  const turnMode = parsed.get('turn') ?? null
   if (turnMode)
     parts.push(mapTurnMode(turnMode))
-  const closureState = parsed.get('closure')
+  const closureState = parsed.get('closure') ?? null
   if (closureState)
     parts.push(`收口 ${mapClosureState(closureState)}`)
-  const surfacePolicy = parsed.get('surface')
+  const surfacePolicy = parsed.get('surface') ?? null
   if (surfacePolicy)
     parts.push(`表面策略 ${mapSurfacePolicy(surfacePolicy)}`)
   const authorityDrivers = parsed.get('authority')

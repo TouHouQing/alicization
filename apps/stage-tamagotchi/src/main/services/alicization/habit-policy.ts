@@ -5,8 +5,8 @@ import type {
   AlicizationPersonalityState,
   AlicizationReflectionLedgerSnapshot,
   AlicizationRelationshipModelSnapshot,
-  AlicizationSelfEvolutionKernelSnapshot,
   AlicizationSelfContinuitySnapshot,
+  AlicizationSelfEvolutionKernelSnapshot,
   AlicizationWorldModelSnapshot,
 } from '../../../shared/eventa'
 import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
@@ -96,6 +96,7 @@ export function buildHabitPolicy(input: {
   recentMemoryConsolidations?: AlicizationMemoryConsolidationRecord[] | null
   reflectionLedger?: AlicizationReflectionLedgerSnapshot | null
   motiveEngine?: AlicizationMotiveEngineSnapshot | null
+  projectState?: unknown
   previous?: AlicizationHabitPolicySnapshot | null
 }): AlicizationHabitPolicySnapshot {
   const relationshipEra = latestAutobiographicalEra(input.recentMemoryConsolidations ?? null, 'relationship-era')
@@ -188,18 +189,18 @@ export function buildHabitPolicy(input: {
       ? (input.context.relationship.fatigue >= 80 ? 'firm-warning' : 'gentle-care')
       : softenedLightTouchManifestation
         ? 'silent-observe'
-      : dominantMode === 'repair-before-fluency' || dominantMode === 'return-with-proof' || dominantMode === 'watchful-boundary'
-        ? 'silent-observe'
-        : 'light-nudge',
+        : dominantMode === 'repair-before-fluency' || dominantMode === 'return-with-proof' || dominantMode === 'watchful-boundary'
+          ? 'silent-observe'
+          : 'light-nudge',
     suggestedPresenceCap: dominantMode === 'protect-rest-window'
       ? 'concerned'
       : softenedLightTouchManifestation
         ? 'glance'
-      : dominantMode === 'repair-before-fluency' || dominantMode === 'return-with-proof'
-        ? 'hesitant'
-        : dominantMode === 'light-touch-companionship'
-          ? 'attentive'
-          : 'glance',
+        : dominantMode === 'repair-before-fluency' || dominantMode === 'return-with-proof'
+          ? 'hesitant'
+          : dominantMode === 'light-touch-companionship'
+            ? 'attentive'
+            : 'glance',
     narrative: [
       `policy:${dominantMode}`,
       requiresGroundingBeforeSurface ? 'ground-before-surface' : '',

@@ -190,6 +190,10 @@ interface AlicizationSensoryRuntimeOptions {
     active: boolean
   }
   ensurePerceptionState: (cardId: string) => Promise<AlicizationPerceptionState>
+  queuePerceptionStateMutation: (
+    cardId: string,
+    mutate: (current: AlicizationPerceptionState) => AlicizationPerceptionState | Promise<AlicizationPerceptionState>,
+  ) => Promise<AlicizationPerceptionState>
   ensureProactiveLoopState: (cardId: string) => Promise<AlicizationProactiveLoopState>
   ensureSubconsciousState: (cardId: string) => Promise<SubconsciousCardState>
   ensureVisualPresenceState: (cardId: string) => Promise<AlicizationVisualPresenceStateSnapshot>

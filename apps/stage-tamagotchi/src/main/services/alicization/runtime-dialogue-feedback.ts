@@ -1,5 +1,4 @@
 import type { AlicizationAuditLogInput, AlicizationChatStartPayload } from '../../../shared/eventa'
-
 import type { attachSynthesizedReflections, buildDialogueReplyFeedbackOutcomeClosure, deriveDialogueReplyFeedbackKind } from './outcome-reinforcement'
 
 type AlicizationDialogueReplyFeedbackKind = NonNullable<ReturnType<typeof deriveDialogueReplyFeedbackKind>>

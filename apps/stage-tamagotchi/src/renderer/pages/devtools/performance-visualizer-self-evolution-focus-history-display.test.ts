@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
-import * as selfEvolutionDisplay from './performance-visualizer-self-evolution-focus-history-display'
 import {
   buildSelfEvolutionFocusHistoryPatternGuidanceDisplay,
   buildSelfEvolutionFocusSnapshotDisplay,
   buildSelfEvolutionFocusSnapshotHistoryDisplay,
 } from './performance-visualizer-self-evolution-focus-history-display'
+
+import * as selfEvolutionDisplay from './performance-visualizer-self-evolution-focus-history-display'
 
 describe('performance visualizer self evolution focus history display', () => {
   it('maps a latest snapshot focus card id into a Chinese-first display label', () => {
@@ -140,8 +141,9 @@ describe('performance visualizer self evolution focus history display', () => {
       || typeof formatSelfEvolutionLearningValue !== 'function'
       || typeof formatSelfEvolutionMemoryResolutionValue !== 'function'
       || typeof formatSelfEvolutionTraceListValue !== 'function'
-    )
+    ) {
       return
+    }
 
     expect(formatSelfEvolutionDisplayText('latest-snapshot')).toBe('最新快照')
     expect(formatSelfEvolutionDisplayText('snapshot-history')).toBe('快照历史')

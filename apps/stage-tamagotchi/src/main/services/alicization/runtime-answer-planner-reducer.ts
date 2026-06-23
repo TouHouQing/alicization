@@ -1,5 +1,5 @@
-import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 import type { AlicizationMindTurnGovernance } from '../../../shared/eventa'
+import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 
 import { mergeGuidanceLine, mergeUniqueRules } from './runtime-turn-composition'
 

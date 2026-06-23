@@ -9,6 +9,7 @@ import type {
   AlicizationChatToolCallEvent,
   AlicizationChatToolResultEvent,
   AlicizationDialoguePerformancePayload,
+  AlicizationDigitalLifeSpineDigest,
   AlicizationMindTurnGovernance,
   AlicizationResidentPerformanceSnapshot,
   AlicizationRuntimeDigest,
@@ -37,8 +38,8 @@ import type {
 
 import {
   alicizationMainGatewayOneShotRecoveryBudget,
-  describeAlicizationEmbodimentClosureHeadline,
   deriveAlicizationResidentPerformanceSnapshot,
+  describeAlicizationEmbodimentClosureHeadline,
   normalizeAlicizationDigitalLifeSpineDigest,
   normalizeAlicizationPerformancePayload,
 } from '@proj-alicization/stage-shared'
@@ -160,6 +161,8 @@ type AlicizationProjectStateGovernanceShape = {
   mustDo?: string[] | null
   mustNotDo?: string[] | null
 } & Record<string, unknown>
+
+type AlicizationStructuredProjectStateInput = Partial<NonNullable<AlicizationRuntimeDigest['projectState']>>
 
 interface AlicizationRuntimeProjectStateContinuityShape {
   continuityArcStage?: string | null
@@ -2143,8 +2146,8 @@ function preferExplicitProjectAwarenessOverCanonicalReanchor(input: {
 }
 
 function resolveProjectStateAwarenessField(input: {
-  runtimeDigestProjectState: Record<string, unknown> | null | undefined
-  preparedRuntimeProjectState?: Record<string, unknown> | null | undefined
+  runtimeDigestProjectState: AlicizationStructuredProjectStateInput | null | undefined
+  preparedRuntimeProjectState?: AlicizationStructuredProjectStateInput | null | undefined
   payloadFallback?: string | null
   canonicalFallback?: string | null
 }) {
@@ -2924,32 +2927,34 @@ export async function runAlicizationMainChatBackground(
         ?? authoritativeDigitalLifeSpine
     const authoritativeSourceTags = authoritativeDigitalLifeSpineWithRuntimeCarry?.memory?.personStateProjection?.selfContinuityAuthority?.sourceTags
     const alignedContinuityPreferredTiming = runtimeDigestWithResidentHints?.projectState?.continuityPreferredTiming ?? null
-    const finalDigitalLifeSpine = authoritativeDigitalLifeSpineWithRuntimeCarry && authoritativeSourceTags
-      ? {
-          ...authoritativeDigitalLifeSpineWithRuntimeCarry,
-          runtime: authoritativeDigitalLifeSpineWithRuntimeCarry.runtime
-            ? {
-                ...authoritativeDigitalLifeSpineWithRuntimeCarry.runtime,
-                continuityPreferredTiming: alignedContinuityPreferredTiming ?? authoritativeDigitalLifeSpineWithRuntimeCarry.runtime.continuityPreferredTiming ?? null,
-              }
-            : authoritativeDigitalLifeSpineWithRuntimeCarry.runtime,
-          memory: authoritativeDigitalLifeSpineWithRuntimeCarry.memory
-            ? {
-                ...authoritativeDigitalLifeSpineWithRuntimeCarry.memory,
-                personStateProjection: authoritativeDigitalLifeSpineWithRuntimeCarry.memory.personStateProjection
-                  ? {
-                      ...authoritativeDigitalLifeSpineWithRuntimeCarry.memory.personStateProjection,
-                      selfContinuityAuthority: authoritativeDigitalLifeSpineWithRuntimeCarry.memory.personStateProjection.selfContinuityAuthority
-                        ? {
-                            ...authoritativeDigitalLifeSpineWithRuntimeCarry.memory.personStateProjection.selfContinuityAuthority,
-                            sourceTags: authoritativeSourceTags,
-                          }
-                        : authoritativeDigitalLifeSpineWithRuntimeCarry.memory.personStateProjection.selfContinuityAuthority,
-                    }
-                  : authoritativeDigitalLifeSpineWithRuntimeCarry.memory.personStateProjection,
-              }
-            : authoritativeDigitalLifeSpineWithRuntimeCarry.memory,
-        }
+    const finalDigitalLifeSpine: AlicizationDigitalLifeSpineDigest | null | undefined = authoritativeDigitalLifeSpineWithRuntimeCarry
+      ? authoritativeSourceTags
+        ? ({
+            ...authoritativeDigitalLifeSpineWithRuntimeCarry,
+            runtime: authoritativeDigitalLifeSpineWithRuntimeCarry.runtime
+              ? {
+                  ...authoritativeDigitalLifeSpineWithRuntimeCarry.runtime,
+                  continuityPreferredTiming: alignedContinuityPreferredTiming ?? authoritativeDigitalLifeSpineWithRuntimeCarry.runtime.continuityPreferredTiming ?? null,
+                }
+              : authoritativeDigitalLifeSpineWithRuntimeCarry.runtime,
+            memory: authoritativeDigitalLifeSpineWithRuntimeCarry.memory
+              ? {
+                  ...authoritativeDigitalLifeSpineWithRuntimeCarry.memory,
+                  personStateProjection: authoritativeDigitalLifeSpineWithRuntimeCarry.memory.personStateProjection
+                    ? {
+                        ...authoritativeDigitalLifeSpineWithRuntimeCarry.memory.personStateProjection,
+                        selfContinuityAuthority: authoritativeDigitalLifeSpineWithRuntimeCarry.memory.personStateProjection.selfContinuityAuthority
+                          ? {
+                              ...authoritativeDigitalLifeSpineWithRuntimeCarry.memory.personStateProjection.selfContinuityAuthority,
+                              sourceTags: authoritativeSourceTags,
+                            }
+                          : authoritativeDigitalLifeSpineWithRuntimeCarry.memory.personStateProjection.selfContinuityAuthority,
+                      }
+                    : authoritativeDigitalLifeSpineWithRuntimeCarry.memory.personStateProjection,
+                }
+              : authoritativeDigitalLifeSpineWithRuntimeCarry.memory,
+          } as AlicizationDigitalLifeSpineDigest)
+        : authoritativeDigitalLifeSpineWithRuntimeCarry
       : authoritativeDigitalLifeSpineWithRuntimeCarry
 
     const repairedFinalDigitalLifeSpine = repairContinuitySourceTagsFromRuntimeDigest({
@@ -2971,7 +2976,7 @@ export async function runAlicizationMainChatBackground(
     }))
   }
 
-  const resolveStructuredProjectState = (runtimeDigestProjectState: Record<string, unknown> | null | undefined) => {
+  const resolveStructuredProjectState = (runtimeDigestProjectState: AlicizationStructuredProjectStateInput | null | undefined) => {
     const canonicalProjectState = resolveAlicizationProjectStateBrief()
     const preparedRuntimeProjectState = resolvePreparedRuntimeProjectState(prepared)
     const fresherPreparedRuntimeProjectState = resolveFresherPreparedRuntimeProjectState(prepared)
@@ -4246,28 +4251,28 @@ export async function runAlicizationMainChatBackground(
       ? explicitPayloadProjectAwarenessSummary
       : shouldPreferAuthorityOnlyRuntimeCompanionHeadline
         ? preparedRuntimeAuthorityOnlyCompanionHeadlineLine
-      : explicitPayloadProjectAwarenessSummary
-        || promoteSameHerDriftRiskOverThinAwareness({
-          awarenessLine: preferExplicitProjectAwarenessOverCanonicalReanchor({
-            current: preferExplicitProjectAwarenessOverCanonicalReanchor({
-              current: preferStrongerSameHerHeadlineOverAwareness({
-                awarenessLine:
+        : explicitPayloadProjectAwarenessSummary
+          || promoteSameHerDriftRiskOverThinAwareness({
+            awarenessLine: preferExplicitProjectAwarenessOverCanonicalReanchor({
+              current: preferExplicitProjectAwarenessOverCanonicalReanchor({
+                current: preferStrongerSameHerHeadlineOverAwareness({
+                  awarenessLine:
                 replyPreferredProjectAwarenessSummary
                 ?? preparedProjectStateAuditSeed.preDialogueAwarenessSummary
                 ?? null,
-                companionHeadlineLine:
+                  companionHeadlineLine:
                 sanitizeText((resolvedReplyProjectState as { companionHeadlineLine?: unknown } | null)?.companionHeadlineLine, '')
                 || sanitizeText((resolvedReplyProjectState as { preDialogueAwarenessLine?: unknown } | null)?.preDialogueAwarenessLine, '')
                 || preparedRuntimeAuthorityOnlyCompanionHeadlineLine
                 || preparedRuntimeCompanionHeadlineLine
                 || null,
+                }),
+                candidate: preparedRuntimePreferredAwarenessLine,
               }),
-              candidate: preparedRuntimePreferredAwarenessLine,
+              candidate: payloadPreferredPreDialogueAwarenessSummary,
             }),
-            candidate: payloadPreferredPreDialogueAwarenessSummary,
-          }),
-          sameHerDriftRisk: mergedProjectStateSameHerDriftRiskSummary,
-        })
+            sameHerDriftRisk: mergedProjectStateSameHerDriftRiskSummary,
+          })
     const replyProjectStateAuditSameHerSummary = replyProjectStateAudit?.sameHerSummary
     const replyProjectStateAuditEmotionalClosureSummary = replyProjectStateAudit?.emotionalClosureSummary
     const mergedSameHerSummary = preferStrongerSameHerProjectStateText({
@@ -4526,8 +4531,8 @@ export async function runAlicizationMainChatBackground(
       ? explicitPayloadProjectAwarenessSummary
       : shouldPreferAuthorityOnlyRuntimeCompanionHeadline
         ? preparedRuntimeAuthorityOnlyCompanionHeadlineLine
-      : preferStrongerSameHerHeadlineOverAwareness({
-          awarenessLine:
+        : preferStrongerSameHerHeadlineOverAwareness({
+            awarenessLine:
             sanitizeText(mergedProjectStateAudit?.preDialogueAwarenessSummary ?? '', '')
             || sanitizeText((resolvedReplyProjectState as { preDialogueAwarenessLine?: unknown } | null)?.preDialogueAwarenessLine, '')
             || resolvedStructuredPreDialogueAwarenessSummary
@@ -4535,7 +4540,7 @@ export async function runAlicizationMainChatBackground(
             || preparedProjectStateAuditSeed.preDialogueAwarenessSummary
             || sanitizeText((parsed.projectState as { preDialogueAwarenessLine?: unknown } | null)?.preDialogueAwarenessLine, '')
             || null,
-          companionHeadlineLine:
+            companionHeadlineLine:
             sanitizeText((resolvedReplyProjectState as { companionHeadlineLine?: unknown } | null)?.companionHeadlineLine, '')
             || sanitizeText((resolvedReplyProjectState as { preDialogueAwarenessLine?: unknown } | null)?.preDialogueAwarenessLine, '')
             || preparedRuntimeAuthorityOnlyCompanionHeadlineLine
@@ -4546,7 +4551,7 @@ export async function runAlicizationMainChatBackground(
               : null) ?? '', '')
             || sanitizeText((parsed.projectState as { preDialogueAwarenessLine?: unknown } | null)?.preDialogueAwarenessLine, '')
             || null,
-        })
+          })
     const mergedProjectStatePreDialogueAwarenessLine = (() => {
       const preferredAwarenessLine = sanitizeText(mergedProjectStatePreDialogueAwarenessLineRaw ?? '', '') || null
       if (!preferredAwarenessLine)
@@ -4578,18 +4583,18 @@ export async function runAlicizationMainChatBackground(
       = shouldPreferAuthorityOnlyRuntimeCompanionHeadline
         ? preparedRuntimeAuthorityOnlyCompanionHeadlineLine
         : preferProjectAwareClosureSummary({
-            current: preferExplicitProjectAwarenessOverCanonicalReanchor({
-              current:
+          current: preferExplicitProjectAwarenessOverCanonicalReanchor({
+            current:
                   sanitizeText((resolvedReplyProjectState as { companionHeadlineLine?: unknown } | null)?.companionHeadlineLine, '')
                   || preparedRuntimeAuthorityOnlyCompanionHeadlineLine
                   || preparedRuntimeCompanionHeadlineLine
                   || sanitizeText((parsed.projectState as { companionHeadlineLine?: unknown } | null)?.companionHeadlineLine, '')
                   || null,
-              candidate: mergedProjectStatePreDialogueAwarenessLine,
-            }),
             candidate: mergedProjectStatePreDialogueAwarenessLine,
-          })
-          || mergedProjectStatePreDialogueAwarenessLine
+          }),
+          candidate: mergedProjectStatePreDialogueAwarenessLine,
+        })
+        || mergedProjectStatePreDialogueAwarenessLine
     const parsedPerformance = parsed.performance && typeof parsed.performance === 'object'
       ? parsed.performance as Record<string, unknown>
       : null
@@ -8266,19 +8271,19 @@ export async function runAlicizationMainChatBackground(
                           }),
                           candidate: groundedPayloadProjectAwarenessSummary,
                         })
-                        : recoveredProjectStateAuditSeed.projectStatePreDialogueAwarenessSummary
-                          ? preferStrongerSameHerHeadlineOverAwareness({
-                              awarenessLine:
+                      : recoveredProjectStateAuditSeed.projectStatePreDialogueAwarenessSummary
+                        ? preferStrongerSameHerHeadlineOverAwareness({
+                            awarenessLine:
                                   recoveredProjectStateAuditSeed.projectStatePreDialogueAwarenessSummary
                                   ?? rewrittenRecovered.projectStatePreDialogueAwarenessSummary
                                   ?? enrichedRecoveredReplyWithAudit.realization.projectStateAudit?.preDialogueAwarenessSummary
                                   ?? resolveStructuredPreDialogueAwarenessSummary(parseJsonObjectFromText(rewrittenRecovered.fullText))
                                   ?? null,
-                              companionHeadlineLine:
+                            companionHeadlineLine:
                                 sanitizeText(payload.preDialogueSendIdentity?.companionHeadlineLine, '')
                                 || recoveredAuthorityOnlyProjectAwarenessSummary
                                 || null,
-                            })
+                          })
                         : rewrittenRecovered.projectStatePreDialogueAwarenessSummary
                           ?? enrichedRecoveredReplyWithAudit.realization.projectStateAudit?.preDialogueAwarenessSummary
                           ?? resolveStructuredPreDialogueAwarenessSummary(parseJsonObjectFromText(rewrittenRecovered.fullText)),

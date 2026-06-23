@@ -22,8 +22,8 @@ import type {
   AlicizationWorldModelSnapshot,
   AlicizationWorldOntologySnapshot,
 } from '../../../shared/eventa'
-import type { AlicizationProactiveLayeredContext } from './proactive-layered-context'
 import type { AlicizationMemoryTuningAdvice } from './memory-tuning-advice'
+import type { AlicizationProactiveLayeredContext } from './proactive-layered-context'
 
 import { pickDominantAutobiographicalGoal } from './autobiographical-self'
 import { deriveAlicizationPersonaAuthorityInfluence } from './personality-continuity-state'
@@ -486,6 +486,7 @@ export function buildInitiativeArbitration(input: {
   counterfactualDeliberation?: AlicizationCounterfactualDeliberationSnapshot | null
   desireMemory?: AlicizationDesireMemorySnapshot | null
   memoryTuningAdvice?: AlicizationMemoryTuningAdvice | null
+  projectState?: unknown
 }): AlicizationInitiativeArbitrationSnapshot {
   const concern = dominantConcern(input.concerns)
   const runtimeThread = foregroundRuntimeThread(input.threadRuntime)

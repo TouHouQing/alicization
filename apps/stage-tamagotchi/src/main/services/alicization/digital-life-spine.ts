@@ -25,13 +25,25 @@ import {
 import { buildAlicizationDigitalLifeMemoryDigest } from './digital-life-memory'
 import { buildMindEcology } from './mind-ecology'
 
-export interface AlicizationDigitalLifeSpineSnapshot {
+interface AlicizationDigitalLifeSpineSnapshotCore {
   version: 'digital-life-spine-v1'
   runtimeSurface: AlicizationDigitalLifeRuntimeSurface
   architecture: AlicizationDigitalLifeArchitectureSnapshot | null
   continuitySignal: AlicizationDigitalLifeContinuitySignal | null
   proactiveSelection: AlicizationDigitalLifeProactiveSelection
   proactivePolicy: AlicizationDigitalLifeProactivePolicySnapshot
+}
+
+export interface AlicizationDigitalLifeSpineSnapshot extends AlicizationDigitalLifeSpineSnapshotCore {
+  autonomy?: AlicizationDigitalLifeSpineDigest['autonomy']
+  embodiment?: AlicizationDigitalLifeSpineDigest['embodiment']
+  habit?: AlicizationDigitalLifeSpineDigest['habit']
+  memory?: AlicizationDigitalLifeSpineDigest['memory']
+  motive?: AlicizationDigitalLifeSpineDigest['motive']
+  outcomeLearning?: AlicizationDigitalLifeSpineDigest['outcomeLearning']
+  proactive?: AlicizationDigitalLifeSpineDigest['proactive']
+  runtime?: AlicizationDigitalLifeSpineDigest['runtime']
+  selfAuthority?: AlicizationDigitalLifeSpineDigest['selfAuthority']
 }
 
 export interface AlicizationCommittedDigitalLifeSpine {
@@ -92,12 +104,12 @@ function joinNarrativeLine(items: string[] | null | undefined, maxItems = 4, max
 
 function extractPersonaBiasSummary(surface: AlicizationDigitalLifeRuntimeSurface) {
   const projection = surface.memory.personStateProjection ?? null
-  const rawPersonality = surface.memory.derivedMindStateBundle?.personalityState ?? null
+  const rawPersonality = (surface.memory.derivedMindStateBundle as { personalityState?: unknown } | null | undefined)?.personalityState ?? null
   const personality = rawPersonality && typeof rawPersonality === 'object'
     ? rawPersonality as {
-        identityKernel?: { relationshipPosture?: unknown, initiativeStyle?: unknown } | null
-        initiativeBaseline?: { silenceReconnect?: unknown, comfortStyle?: unknown } | null
-      }
+      identityKernel?: { relationshipPosture?: unknown, initiativeStyle?: unknown } | null
+      initiativeBaseline?: { silenceReconnect?: unknown, comfortStyle?: unknown } | null
+    }
     : null
 
   const relationshipPosture = sanitizeDigitalLifeSpineDigestText(personality?.identityKernel?.relationshipPosture, 48) || null
@@ -115,8 +127,8 @@ function extractPersonaBiasSummary(surface: AlicizationDigitalLifeRuntimeSurface
   const openingGuidance = sanitizeDigitalLifeSpineDigestText(projection?.openingGuidance ?? '', 220) || null
   const whySummary = sanitizeDigitalLifeSpineDigestText(
     surface.agency.autonomy?.whyNow
-      ?? surface.agency.initiative?.why
-      ?? '',
+    ?? surface.agency.initiative?.why
+    ?? '',
     220,
   ) || null
 
@@ -165,7 +177,7 @@ function buildPersonaManifestationCadenceSummary(input: {
 }
 
 export function projectAlicizationDigitalLifeSpineDigest(
-  spine: AlicizationDigitalLifeSpineSnapshot | null | undefined,
+  spine: AlicizationDigitalLifeSpineSnapshotCore | AlicizationDigitalLifeSpineSnapshot | null | undefined,
 ): AlicizationDigitalLifeSpineDigest | null {
   if (!spine)
     return null
@@ -276,10 +288,10 @@ export function projectAlicizationDigitalLifeSpineDigest(
       shouldSpeak: typeof autonomy?.shouldSpeak === 'boolean'
         ? autonomy.shouldSpeak
         : initiativeShouldSpeak != null
-        ? initiativeShouldSpeak
-        : typeof privateThought?.shouldSpeak === 'boolean'
-          ? privateThought.shouldSpeak
-          : null,
+          ? initiativeShouldSpeak
+          : typeof privateThought?.shouldSpeak === 'boolean'
+            ? privateThought.shouldSpeak
+            : null,
       activeThreadId: sanitizeDigitalLifeSpineDigestText(activeThread?.id ?? '', 96) || null,
       activeThreadTitle: sanitizeDigitalLifeSpineDigestText(activeThread?.title ?? activeThread?.kind ?? '', 96) || null,
       dominantConcernKind: sanitizeDigitalLifeSpineDigestText(dominantConcern?.kind ?? '', 48) || null,
@@ -426,6 +438,7 @@ export function projectAlicizationDigitalLifeSpineDigest(
             stability: normalizeDigitalLifeSpineDigestUnit(autobiographicalSelf.stability),
             identityNarrative: sanitizeDigitalLifeSpineDigestText(autobiographicalSelf.identityNarrative, 220) || null,
             relationshipDoctrine: sanitizeDigitalLifeSpineDigestText(autobiographicalSelf.relationshipDoctrine, 220) || null,
+            latestInflection: sanitizeDigitalLifeSpineDigestText(autobiographicalSelf.latestInflection, 220) || null,
           }
         : null,
       relationship: relationshipModel
@@ -506,7 +519,7 @@ export function deriveAlicizationDigitalLifeSpineFromSurface(
 ): AlicizationDigitalLifeSpineSnapshot {
   const architecture = buildAlicizationDigitalLifeArchitecture(runtimeSurface)
 
-  return {
+  const core: AlicizationDigitalLifeSpineSnapshotCore = {
     version: 'digital-life-spine-v1',
     runtimeSurface,
     architecture,
@@ -516,6 +529,20 @@ export function deriveAlicizationDigitalLifeSpineFromSurface(
       ...buildAlicizationDigitalLifeProactivePolicySnapshot(runtimeSurface),
       architecture,
     },
+  }
+  const digest = projectAlicizationDigitalLifeSpineDigest(core)
+
+  return {
+    ...core,
+    autonomy: digest?.autonomy ?? null,
+    embodiment: digest?.embodiment ?? null,
+    habit: digest?.habit ?? null,
+    memory: digest!.memory!,
+    motive: digest?.motive ?? null,
+    outcomeLearning: digest?.outcomeLearning ?? null,
+    proactive: digest!.proactive!,
+    runtime: digest!.runtime,
+    selfAuthority: digest?.selfAuthority ?? null,
   }
 }
 

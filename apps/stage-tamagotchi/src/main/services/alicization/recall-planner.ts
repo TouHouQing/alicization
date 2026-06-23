@@ -1,6 +1,7 @@
+import type { AlicizationMemoryRetrievalHealth } from '@proj-alicization/stage-shared'
+
 import type { AlicizationRelationshipLineCandidate } from './memory-search-retrieval-operators'
 import type { OrganicMemoryPromptContext } from './runtime-soul'
-import type { AlicizationMemoryRetrievalHealth } from '@proj-alicization/stage-shared'
 
 type RecollectionIntentSnapshot = NonNullable<OrganicMemoryPromptContext['recollectionIntent']>
 type RecollectionPlanSnapshot = NonNullable<OrganicMemoryPromptContext['recollectionPlan']>
@@ -595,10 +596,10 @@ export function planAlicizationRecall(input: AlicizationRecallPlannerInput): Ali
   })
   const baseConfidence = clamp01(
     candidateDeliberation?.confidence
-      ?? candidatePlan?.confidence
-      ?? candidateSpeech?.confidence
-      ?? input.recollectionIntent?.confidence
-      ?? 0.68,
+    ?? candidatePlan?.confidence
+    ?? candidateSpeech?.confidence
+    ?? input.recollectionIntent?.confidence
+    ?? 0.68,
   )
   const confidence = clamp01(
     reliabilityPressure >= 0.64
@@ -608,23 +609,23 @@ export function planAlicizationRecall(input: AlicizationRecallPlannerInput): Ali
         : baseConfidence + evidenceConfidenceAdjustment,
   )
   const surfaceMode: MemoryDeliberationSnapshot['surfacePolicy'] = shouldRecall
-      ? ((input.knowledgeEvidence?.contradictionHeavyFactCount ?? 0) >= 1
-        && (input.knowledgeEvidence?.validationCount ?? 0) <= 1)
-      ? 'internal-only'
-      : suppressionReasons.includes('stale-self-model') || suppressionReasons.includes('relationship-era-confusion')
+    ? ((input.knowledgeEvidence?.contradictionHeavyFactCount ?? 0) >= 1
+      && (input.knowledgeEvidence?.validationCount ?? 0) <= 1)
         ? 'internal-only'
-      : reliabilityPressure >= 0.64
-      ? 'internal-only'
-      : reliabilityPressure >= 0.4 || evidenceSurfacePressure >= 2
-        ? (candidateDeliberation?.surfacePolicy === 'internal-only'
+        : suppressionReasons.includes('stale-self-model') || suppressionReasons.includes('relationship-era-confusion')
+          ? 'internal-only'
+          : reliabilityPressure >= 0.64
             ? 'internal-only'
-            : 'gist-first')
-        : candidateDeliberation?.surfacePolicy
-      ?? (
-          candidateSpeech?.shouldSurface && candidateSpeech.surfaceMode !== 'internal-only'
-            ? candidateSpeech.surfaceMode
-            : 'internal-only'
-        )
+            : reliabilityPressure >= 0.4 || evidenceSurfacePressure >= 2
+              ? (candidateDeliberation?.surfacePolicy === 'internal-only'
+                  ? 'internal-only'
+                  : 'gist-first')
+              : candidateDeliberation?.surfacePolicy
+                ?? (
+                  candidateSpeech?.shouldSurface && candidateSpeech.surfaceMode !== 'internal-only'
+                    ? candidateSpeech.surfaceMode
+                    : 'internal-only'
+                )
     : 'internal-only'
   const whyThisMemory = sanitizeText(
     candidateDeliberation?.whyNow
@@ -660,15 +661,15 @@ export function planAlicizationRecall(input: AlicizationRecallPlannerInput): Ali
         ? 'internal-only'
         : suppressionReasons.includes('stale-self-model') || suppressionReasons.includes('relationship-era-confusion')
           ? 'next-open-window'
-        : reliabilityPressure >= 0.64
-          ? 'next-open-window'
-          : reliabilityPressure >= 0.4
-            ? 'after-payoff'
-        : candidateSpeech?.placement === 'after-payoff'
-          ? 'after-payoff'
-          : candidateSpeech?.placement === 'internal-only' || surfaceMode === 'internal-only'
-            ? 'internal-only'
-            : 'same-turn-if-invited'
+          : reliabilityPressure >= 0.64
+            ? 'next-open-window'
+            : reliabilityPressure >= 0.4
+              ? 'after-payoff'
+              : candidateSpeech?.placement === 'after-payoff'
+                ? 'after-payoff'
+                : candidateSpeech?.placement === 'internal-only' || surfaceMode === 'internal-only'
+                  ? 'internal-only'
+                  : 'same-turn-if-invited'
     )
   const relationshipMeaning = selectedRelationshipLines.length > 0
     ? selectedRelationshipLines

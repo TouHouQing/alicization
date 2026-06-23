@@ -1,8 +1,9 @@
+import type { AlicizationVerifiedLearningArtifact } from '@proj-alicization/stage-shared'
+
 import type {
   AlicizationLearningTaskRecord,
   AlicizationMemoryDomain,
 } from '../../../shared/eventa'
-import type { AlicizationVerifiedLearningArtifact } from '@proj-alicization/stage-shared'
 import type { AlicizationLearningVerificationBasis } from './learning-domain-verifiers'
 import type { AlicizationLearningLifecycleState, AlicizationLearningPolicyFeedback } from './learning-state-machine'
 import type { AlicizationSelfRevisionEvent } from './self-evolution/self-revision-ledger'

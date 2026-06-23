@@ -16,7 +16,7 @@ interface WidgetItem {
   size: SizePreset
   ttlMs: number
 }
-type EventEnvelope<T> = { body?: T }
+interface EventEnvelope<T> { body?: T }
 
 const route = useRoute()
 

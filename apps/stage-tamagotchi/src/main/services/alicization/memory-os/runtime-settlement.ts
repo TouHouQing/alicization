@@ -1,11 +1,9 @@
-import type { OrganicMemoryPromptContext } from '../runtime-soul'
-
-import type {
-  AlicizationOrganicMemoryStageReplay,
-} from '@proj-alicization/stage-shared'
 import type {
   AlicizationMemoryResolutionLedger,
+  AlicizationOrganicMemoryStageReplay,
 } from '@proj-alicization/stage-shared'
+
+import type { OrganicMemoryPromptContext } from '../runtime-soul'
 
 function sanitizeText(raw: unknown, maxChars = 220) {
   return typeof raw === 'string'

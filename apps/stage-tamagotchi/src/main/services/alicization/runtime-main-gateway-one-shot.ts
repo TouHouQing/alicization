@@ -8,6 +8,7 @@ import type { AlicizationAgentSessionContinuityInput, AlicizationAgentTurnRuntim
 import type { AlicizationPerceptionSceneResidue, AlicizationPerceptionState } from './attention-anchor'
 import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 import type { AlicizationExecutionCallbackContext } from './execution-callback-runtime'
+import type { AlicizationScreenSemanticFocusTarget } from './proactive-screen-semantic'
 import type {
   DesktopCaptureAccessResult,
   MainGatewayResolvedConfig,
@@ -41,7 +42,7 @@ import {
   sanitizeText,
 } from './runtime-soul'
 
-interface MainGatewayOneShotGenerateTextOptions {
+export interface MainGatewayOneShotGenerateTextOptions {
   system: string
   user: Message['content']
   timeoutMs?: number
@@ -58,6 +59,10 @@ interface MainGatewayOneShotGenerateTextOptions {
   captureAgentSensorySnapshot?: boolean
   digitalLifeRuntimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
 }
+
+export type AlicizationMainGatewayTextProvider = (
+  input: MainGatewayOneShotGenerateTextOptions,
+) => Promise<string | null>
 
 interface CreateAlicizationMainGatewayOneShotRuntimeOptions {
   getActiveCardId: () => string
@@ -123,6 +128,7 @@ interface CreateAlicizationMainGatewayOneShotRuntimeOptions {
     types: Array<'window' | 'screen'>
     thumbnailSize: { width: number, height: number }
   }) => ReturnType<typeof deriveSensoryCaptureSnapshotFromAccessRuntimeSnapshot> | null
+  clearDesktopCaptureAccessCache?: () => void
   rememberSceneResidue: (input: {
     cardId: string
     now: number
@@ -670,6 +676,8 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
   }): Promise<{
     summary: import('./proactive-screen-semantic').AlicizationScreenSemanticSummary | null
     capture: ReturnType<typeof deriveSensoryCaptureSnapshotFromAccessRuntimeSnapshot>
+    focusTarget: AlicizationScreenSemanticFocusTarget | null
+    unavailableReason?: string
   }> {
     const cardId = normalizeCardId(input.cardId)
     const cached = options.screenSemanticCacheByCard.get(cardId)
@@ -699,6 +707,8 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
         return {
           summary: reusedSummary,
           capture: null,
+          focusTarget: null,
+          unavailableReason: undefined,
         }
       }
 
@@ -711,6 +721,8 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
       return {
         summary: null,
         capture: null,
+        focusTarget: null,
+        unavailableReason: 'invited-inspection-active',
       }
     }
 
@@ -731,6 +743,8 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
       return {
         summary: null,
         capture,
+        focusTarget: null,
+        unavailableReason: captureAccess.unavailableReason ?? captureAccess.probeError,
       }
     }
 
@@ -753,6 +767,8 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
       return {
         summary: null,
         capture,
+        focusTarget: null,
+        unavailableReason: 'screen-semantic-source-unavailable',
       }
     }
 
@@ -775,6 +791,8 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
       return {
         summary: cached.summary,
         capture,
+        focusTarget: candidate.focusTarget,
+        unavailableReason: cached.unavailableReason,
       }
     }
 
@@ -794,6 +812,8 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
       return {
         summary: null,
         capture,
+        focusTarget: candidate.focusTarget,
+        unavailableReason: 'screen-semantic-thumbnail-empty',
       }
     }
 
@@ -821,6 +841,8 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
       return {
         summary: null,
         capture,
+        focusTarget: candidate.focusTarget,
+        unavailableReason: semanticResult.unavailableReason,
       }
     }
     await options.rememberSceneResidue({
@@ -841,6 +863,8 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
     return {
       summary,
       capture,
+      focusTarget: candidate.focusTarget,
+      unavailableReason: undefined,
     }
   }
 

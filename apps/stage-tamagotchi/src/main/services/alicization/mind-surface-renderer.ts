@@ -1,34 +1,32 @@
+import type { AlicizationDialogueEmbodimentEnvelope, AlicizationDialoguePerformancePayload, AlicizationDialogueSpeechTimeline, AlicizationDigitalLifeEnvelope, AlicizationDigitalLifeSpineDigest, AlicizationEmotion, AlicizationResidentPerformanceSnapshot, CharacterPerformanceCapabilitiesManifest } from '@proj-alicization/stage-shared'
+
 import type { AlicizationMindTurnGovernance } from '../../../shared/eventa'
+import type { AlicizationTimeQueryMode } from './time-query-semantics'
 import type { AlicizationResolvedTimeZoneSource } from './time-zone-governor'
 
 import {
+
   buildAlicizationDialogueSpeechTimeline,
   buildAlicizationDigitalLifeEnvelope,
   buildGovernedMindThought,
   buildMindGovernedFallbackSurface,
+
   normalizeAlicizationDigitalLifeSpineDigest,
   normalizeAlicizationPerformancePayload,
+  resolveAlicizationDialogueEmbodiment,
   resolveGovernedMindEmotion,
   resolveGovernedMindObligation,
   resolveGovernedMindTone,
   resolveGovernedMindTruth,
-  resolveAlicizationDialogueEmbodiment,
   translateGovernedMindFallback,
-  type AlicizationDialogueEmbodimentEnvelope,
-  type AlicizationDialoguePerformancePayload,
-  type AlicizationDialogueSpeechTimeline,
-  type AlicizationDigitalLifeEnvelope,
-  type AlicizationDigitalLifeSpineDigest,
-  type AlicizationEmotion,
-  type AlicizationResidentPerformanceSnapshot,
-  type CharacterPerformanceCapabilitiesManifest,
 } from '@proj-alicization/stage-shared'
+
 import { coerceAlicizationGovernanceForMindFallback } from './governed-mind-fallback-compat'
-import { resolveAlicizationTimeZoneCandidate } from './time-zone-governor'
 import {
+
   resolveAlicizationTimeQueryIntent,
-  type AlicizationTimeQueryMode,
 } from './time-query-semantics'
+import { resolveAlicizationTimeZoneCandidate } from './time-zone-governor'
 
 function sanitizeText(raw: unknown, maxChars = 220) {
   if (typeof raw !== 'string')
@@ -135,19 +133,19 @@ const allowedDeliveries = new Set([
   'teasing',
 ])
 
-const zhUtilityTimeZonePattern = /(?:时区|北京时间|东八区|utc|gmt)/iu
-const enUtilityTimeZonePattern = /(?:time[\s-]?zone|utc|gmt)/iu
-const zhIdentityPattern = /(?:你是谁|你到底是谁|你算谁|你叫什么|你是alicization吗|你是爱丽丝化吗|我问你你是谁)/u
-const enIdentityPattern = /(?:who are you|what are you|what should i call you|what is your name)/iu
-const zhPresentStatePattern = /(?:你在干嘛|你在做什么|你现在在干嘛|你现在在做什么|你在忙什么|你现在在忙什么|你在搞什么|你在搞啥|你刚在干嘛)/u
-const enPresentStatePattern = /(?:what are you doing|what are you up to|what are you working on|what are you doing right now)/iu
-const continuityCheckPattern = /^(?:你确定(?:吗)?|确定吗|真的吗|真的是这样吗|你认真的|are you sure|really|seriously)[?？]?$/iu
-const utilityTimeReplyPattern = /(?:现在是\s*\d{1,2}:\d{2}|it's\s*\d{1,2}:\d{2}|\d{1,2}:\d{2}[^。]*(?:星期|today|right now))/iu
-const utilityDateReplyPattern = /(?:今天是|today is|星期[一二三四五六日天]|monday|tuesday|wednesday|thursday|friday|saturday|sunday)/iu
-const expressionSurfacePattern = /(?:表情|神情|样子|状态|表现(?:出|得)?|做出|露出|摆出|语气|声音|说话|笑一下|笑一个|自然一点|正常一点|像人一点|像个人|温柔一点|开心一点|高兴一点|难过一点|生气一点|凶一点)/iu
-const expressionDirectivePattern = /(?:请你|你能不能|能不能|给我|来个|让我看看|试着|表现(?:出|得)?|做出|露出|摆出|收一收|放轻|放软|变得|调成|切到)/iu
-const strongEmotionIntensityPattern = /(?:最|特别|非常|很|太|超|really|very|so|extra)/iu
-const hostEmotionDisclosurePattern = /\b(?:i(?:'m| am)?\s*(?:tired|sleepy|sad|upset|drained|stressed|overwhelmed|heartbroken|low)|i feel)\b|我(?:有点|有些|好|现在|今天|刚刚|真的)?(?:困|累|疲惫|难受|撑不住|想睡|伤心|难过|委屈|低落|沮丧|心里不好受|焦虑|压力大|烦|乱)|安慰(?:一下)?我|哄我(?:睡觉)?|抱抱我|陪我/iu
+const zhUtilityTimeZonePattern = /时区|北京时间|东八区|utc|gmt/iu
+const enUtilityTimeZonePattern = /time[\s-]?zone|utc|gmt/iu
+const zhIdentityPattern = /你是谁|你到底是谁|你算谁|你叫什么|你是alicization吗|你是爱丽丝化吗|我问你你是谁/u
+const enIdentityPattern = /who are you|what are you|what should i call you|what is your name/iu
+const zhPresentStatePattern = /你在干嘛|你在做什么|你现在在干嘛|你现在在做什么|你在忙什么|你现在在忙什么|你在搞什么|你在搞啥|你刚在干嘛/u
+const enPresentStatePattern = /what are you doing|what are you up to|what are you working on|what are you doing right now/iu
+const continuityCheckPattern = /^(?:你确定吗?|确定吗|真的吗|真的是这样吗|你认真的|are you sure|really|seriously)[?？]?$/iu
+const utilityTimeReplyPattern = /现在是\s*\d{1,2}:\d{2}|it's\s*\d{1,2}:\d{2}|\d{1,2}:\d{2}[^。]*(?:星期|today|right now)/iu
+const utilityDateReplyPattern = /今天是|today is|星期[一二三四五六日天]|monday|tuesday|wednesday|thursday|friday|saturday|sunday/iu
+const expressionSurfacePattern = /表情|神情|样子|状态|表现(?:出|得)?|做出|露出|摆出|语气|声音|说话|笑一下|笑一个|自然一点|正常一点|像人一点|像个人|温柔一点|开心一点|高兴一点|难过一点|生气一点|凶一点/u
+const expressionDirectivePattern = /请你|你能不能|能不能|给我|来个|让我看看|试着|表现(?:出|得)?|做出|露出|摆出|收一收|放轻|放软|变得|调成|切到/u
+const strongEmotionIntensityPattern = /[最很太超]|特别|非常|really|very|so|extra/iu
+const hostEmotionDisclosurePattern = /\b(?:i(?:'m| am)?\s*(?:tired|sleepy|sad|upset|drained|stressed|overwhelmed|heartbroken|low)|i feel)\b|我(?:有点|有些|好|现在|今天|刚刚|真的)?(?:[困累烦乱]|疲惫|难受|撑不住|想睡|伤心|难过|委屈|低落|沮丧|心里不好受|焦虑|压力大)|安慰(?:一下)?我|哄我(?:睡觉)?|抱抱我|陪我/iu
 const selfAppraisalPattern = /\b(?:do you think you are|what are you like)\b|你(?:觉得|認為|认为)(?:你|自己)?(?:可爱|开心|高兴|难过|生气|温柔|聪明|笨|可怕|有趣|无聊)(?:吗|嘛)?|你(?:可爱|开心|高兴|难过|生气|温柔|聪明|有趣|无聊)(?:吗|嘛)|你觉得(?:自己)?怎么样/iu
 const affectionBidPattern = /\b(?:do you (?:like|love) me|you (?:like|love) me)\b|你(?:喜不喜欢|喜欢|愛不愛|爱不爱|爱|愛)我(?:吗|嘛)?|你(?:喜不喜欢|喜欢|愛不愛|爱不爱|爱|愛)(?:自己|你自己)(?:吗|嘛)?/iu
 const zhWeekdayLabels = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'] as const
@@ -399,7 +397,7 @@ function looksLikeDialogueEmbodimentRequest(text: string) {
   return expressionSurfacePattern.test(normalized)
     && (
       expressionDirectivePattern.test(normalized)
-      || /(?:一点|一下|一些|几分|最)/u.test(normalized)
+      || /一点|一下|一些|几分|最/u.test(normalized)
     )
 }
 
@@ -408,21 +406,21 @@ function resolveDialogueRequestedEmotion(text: string): AlicizationEmotion | nul
   if (!normalized)
     return null
 
-  if (/(?:生气|愤怒|火大|火冒三丈|凶|冷一点|angry|mad|furious|stern)/iu.test(normalized))
+  if (/生气|愤怒|火大|火冒三丈|凶|冷一点|angry|mad|furious|stern/iu.test(normalized))
     return 'angry'
-  if (/(?:难过|伤心|低落|委屈|sad|upset|down|melancholy)/iu.test(normalized))
+  if (/难过|伤心|低落|委屈|sad|upset|down|melancholy/iu.test(normalized))
     return 'sad'
-  if (/(?:开心|高兴|笑|happy|cheerful|smile|joyful)/iu.test(normalized))
+  if (/开心|高兴|笑|happy|cheerful|smile|joyful/iu.test(normalized))
     return 'happy'
-  if (/(?:温柔|柔和|柔一点|担心|关心|gentle|soft|softer|caring)/iu.test(normalized))
+  if (/温柔|柔和|柔一点|担心|关心|gentle|soft|softer|caring/iu.test(normalized))
     return 'concerned'
-  if (/(?:惊讶|吃惊|惊一下|surprised|shock|shocked)/iu.test(normalized))
+  if (/惊讶|吃惊|惊一下|surprised|shock|shocked/iu.test(normalized))
     return 'surprised'
-  if (/(?:抱歉|歉意|不好意思|apolog|sorry)/iu.test(normalized))
+  if (/抱歉|歉意|不好意思|apolog|sorry/iu.test(normalized))
     return 'apologetic'
-  if (/(?:认真|思考|thinking|thoughtful|沉思)/iu.test(normalized))
+  if (/认真|思考|thinking|thoughtful|沉思/iu.test(normalized))
     return 'thinking'
-  if (/(?:自然|正常|像人|像个人|human|natural|normal)/iu.test(normalized))
+  if (/自然|正常|像人|像个人|human|natural|normal/iu.test(normalized))
     return 'neutral'
 
   return null
@@ -458,13 +456,13 @@ function resolveDialogueHostAffect(text: string): AlicizationMindSurfaceDialogue
   if (!normalized)
     return null
 
-  if (/(?:困|累|疲惫|想睡|sleepy|tired|drained|exhausted)/iu.test(normalized))
+  if (/困|累|疲惫|想睡|sleepy|tired|drained|exhausted/iu.test(normalized))
     return 'tired'
-  if (/(?:焦虑|压力大|烦|乱|stressed|overwhelmed|anxious)/iu.test(normalized))
+  if (/焦虑|压力大|烦|乱|stressed|overwhelmed|anxious/iu.test(normalized))
     return 'stressed'
-  if (/(?:难受|撑不住|hurt|heartbroken)/iu.test(normalized))
+  if (/难受|撑不住|hurt|heartbroken/iu.test(normalized))
     return 'hurt'
-  if (/(?:伤心|难过|委屈|低落|沮丧|sad|upset|low)/iu.test(normalized))
+  if (/伤心|难过|委屈|低落|沮丧|sad|upset|low/iu.test(normalized))
     return 'sad'
   return null
 }
@@ -474,21 +472,21 @@ function resolveDialogueSelfAppraisalTrait(text: string): AlicizationMindSurface
   if (!normalized)
     return null
 
-  if (/(?:可爱|cute)/iu.test(normalized))
+  if (/可爱|cute/iu.test(normalized))
     return 'cute'
-  if (/(?:温柔|gentle|soft)/iu.test(normalized))
+  if (/温柔|gentle|soft/iu.test(normalized))
     return 'gentle'
-  if (/(?:开心|高兴|happy|cheerful)/iu.test(normalized))
+  if (/开心|高兴|happy|cheerful/iu.test(normalized))
     return 'happy'
-  if (/(?:难过|伤心|sad|upset)/iu.test(normalized))
+  if (/难过|伤心|sad|upset/iu.test(normalized))
     return 'sad'
-  if (/(?:生气|angry|mad)/iu.test(normalized))
+  if (/生气|angry|mad/iu.test(normalized))
     return 'angry'
-  if (/(?:聪明|smart|clever)/iu.test(normalized))
+  if (/聪明|smart|clever/iu.test(normalized))
     return 'smart'
-  if (/(?:有趣|interesting|fun)/iu.test(normalized))
+  if (/有趣|interesting|fun/iu.test(normalized))
     return 'interesting'
-  if (/(?:无聊|boring)/iu.test(normalized))
+  if (/无聊|boring/iu.test(normalized))
     return 'boring'
   return 'self'
 }
@@ -496,7 +494,7 @@ function resolveDialogueSelfAppraisalTrait(text: string): AlicizationMindSurface
 function resolveDialogueRequestedMode(text: string) {
   const normalized = normalizeTurnText(text, 220)
   if (looksLikeDialogueEmbodimentRequest(normalized)) {
-    if (/(?:表情|神情|样子|做出|露出|摆出)/u.test(normalized))
+    if (/表情|神情|样子|做出|露出|摆出/u.test(normalized))
       return 'emotion-expression' as const
     return 'tone-adjustment' as const
   }
@@ -661,7 +659,7 @@ function resolveGovernanceIdentityName(governance: AlicizationMindTurnGovernance
   const zhMatch = openingClaim.match(/我是\s*([^\s，。,；;:：]{1,32})/u)
   if (zhMatch?.[1])
     return sanitizeText(zhMatch[1], 48)
-  const enMatch = openingClaim.match(/i am\s+([a-zA-Z][a-zA-Z0-9 _-]{0,31})/iu)
+  const enMatch = openingClaim.match(/i am\s+([a-z][\w -]{0,31})/iu)
   if (enMatch?.[1])
     return sanitizeText(enMatch[1], 48)
   return fallbackLocale === 'zh' ? 'Alicization' : 'Alicization'
@@ -1031,8 +1029,8 @@ function renderPresenceRepairMove(context: AlicizationMindSurfaceReplyContext) {
         dialogueVoice.direct
           ? '我把那层壳收掉，认真跟你说。'
           : dialogueVoice.quietCompanionship || dialogueVoice.tender
-              ? '我把系统腔收回去，贴着你这句好好回。'
-              : '这句我把说话的人放回来，认真回你现在这一句。',
+            ? '我把系统腔收回去，贴着你这句好好回。'
+            : '这句我把说话的人放回来，认真回你现在这一句。',
         dialogueVoice.truthFirst
           ? '我现在不报流程，只把我自己放进这句里。'
           : '这句我就按我们现在这轮认真回。',
@@ -1049,8 +1047,8 @@ function renderPresenceRepairMove(context: AlicizationMindSurfaceReplyContext) {
       dialogueVoice.direct
         ? 'I am dropping that shell and speaking to you directly now.'
         : dialogueVoice.quietCompanionship || dialogueVoice.tender
-            ? 'I am taking the system edge off and staying close to your line now.'
-            : 'This turn I am answering from inside the conversation.',
+          ? 'I am taking the system edge off and staying close to your line now.'
+          : 'This turn I am answering from inside the conversation.',
       dialogueVoice.truthFirst
         ? 'I am not going to hide behind status narration on this turn.'
         : 'This turn I am speaking directly to this line instead of hiding behind status narration.',
@@ -1089,7 +1087,7 @@ function renderRepairMove(move: AlicizationMindSurfaceRepairMove, context: Alici
     return createMindSurfaceReplyPart('repair', pickVariant(seed, locale === 'zh' ? variantsZh : variantsEn))
   }
 
-  if (move.target === 'time' && move.clock)
+  if (move.target === 'time' && move.clock) {
     return locale === 'zh'
       ? [
           ...renderRepairAcknowledgement([
@@ -1131,7 +1129,8 @@ function renderRepairMove(move: AlicizationMindSurfaceRepairMove, context: Alici
             ? createMindSurfaceReplyPart('fact', renderLocalTimeFact(move.clock, true, buildVariantSeed(seed, 'repair-time', 'en', 'explicit')))
             : []),
         ]
-  if (move.target === 'date' && move.clock)
+  }
+  if (move.target === 'date' && move.clock) {
     return locale === 'zh'
       ? [
           ...renderRepairAcknowledgement([
@@ -1157,6 +1156,7 @@ function renderRepairMove(move: AlicizationMindSurfaceRepairMove, context: Alici
           ]),
           ...createMindSurfaceReplyPart('fact', renderLocalDateFact(move.clock, true, buildVariantSeed(seed, 'repair-date', 'en'))),
         ]
+  }
   if (move.target === 'capability') {
     const capabilityText = (move.capabilities ?? []).filter(Boolean).join(locale === 'zh' ? '、' : ', ')
     return locale === 'zh'
@@ -1304,20 +1304,20 @@ function renderEmbodiedDialogueMove(move: AlicizationMindSurfaceDialogueMove, co
         return createMindSurfaceReplyPart('presence', pickVariant(buildVariantSeed(seed, 'dialogue-embodied', emotion, toneAdjustment), [
           toneAdjustment
             ? dialogueVoice.direct
-                ? '行，我把那层僵壳放下，直接像现在这样跟你说。'
-                : dialogueVoice.quietCompanionship || dialogueVoice.tender
-                    ? '好，我把那层硬劲收掉，轻一点、自然一点跟你说。'
-                    : '好，那我不端着了，直接自然一点和你说。'
+              ? '行，我把那层僵壳放下，直接像现在这样跟你说。'
+              : dialogueVoice.quietCompanionship || dialogueVoice.tender
+                ? '好，我把那层硬劲收掉，轻一点、自然一点跟你说。'
+                : '好，那我不端着了，直接自然一点和你说。'
             : '好，我把神色和语气都放回自然。',
           toneAdjustment
             ? dialogueVoice.truthFirst
-                ? '我不再演腔，只把我自己放进话里。'
-                : '那我把那层僵劲收掉，正常一点跟你说。'
+              ? '我不再演腔，只把我自己放进话里。'
+              : '那我把那层僵劲收掉，正常一点跟你说。'
             : '那我先把那层端着的劲收下去。',
           toneAdjustment
             ? dialogueVoice.playful
-                ? '行，别让它像说明书了，我就正常跟你贴着说。'
-                : '好，我就把说话和神情都放回像真人一点的状态。'
+              ? '行，别让它像说明书了，我就正常跟你贴着说。'
+              : '好，我就把说话和神情都放回像真人一点的状态。'
             : '好，我先把整个人放松回自然那一档。',
         ]))
     }
@@ -1371,20 +1371,20 @@ function renderEmbodiedDialogueMove(move: AlicizationMindSurfaceDialogueMove, co
       return createMindSurfaceReplyPart('presence', pickVariant(buildVariantSeed(seed, 'dialogue-embodied', emotion, toneAdjustment), [
         toneAdjustment
           ? dialogueVoice.direct
-              ? `All right. I'll drop the stiff shell and talk to you directly.`
-              : dialogueVoice.quietCompanionship || dialogueVoice.tender
-                  ? `Okay. I'll take the hardness out and speak more naturally with you.`
-                  : `Okay. I'll stop sounding posed and speak more naturally.`
+            ? `All right. I'll drop the stiff shell and talk to you directly.`
+            : dialogueVoice.quietCompanionship || dialogueVoice.tender
+              ? `Okay. I'll take the hardness out and speak more naturally with you.`
+              : `Okay. I'll stop sounding posed and speak more naturally.`
           : `Okay. I'll let the face and voice settle back into something natural.`,
         toneAdjustment
           ? dialogueVoice.truthFirst
-              ? `Then I'll stop performing the tone and just be here with you in it.`
-              : `Then I'll drop the stiffness and talk like I'm actually here with you.`
+            ? `Then I'll stop performing the tone and just be here with you in it.`
+            : `Then I'll drop the stiffness and talk like I'm actually here with you.`
           : `Then I'll take the staged edge off and let it sit naturally.`,
         toneAdjustment
           ? dialogueVoice.playful
-              ? `All right. I'll let it sound like a real person, not a pamphlet.`
-              : `All right. I'll bring the tone back to a more human, unforced place.`
+            ? `All right. I'll let it sound like a real person, not a pamphlet.`
+            : `All right. I'll bring the tone back to a more human, unforced place.`
           : `All right. I'll let the whole surface relax back to normal.`,
       ]))
   }
@@ -1399,8 +1399,8 @@ function renderPlainDialogueMove(move: AlicizationMindSurfaceDialogueMove, conte
           dialogueVoice.direct
             ? `行，${focus} 这句我认真回你。`
             : dialogueVoice.quietCompanionship || dialogueVoice.tender
-                ? `${focus} 这句我在，你慢一点说也可以。`
-                : `${focus} 这句我收到了。`,
+              ? `${focus} 这句我在，你慢一点说也可以。`
+              : `${focus} 这句我收到了。`,
           dialogueVoice.playful
             ? `${focus} 这句一下就戳过来了，我会认真回。`
             : `好，${focus} 这一点我记住了。`,
@@ -1412,8 +1412,8 @@ function renderPlainDialogueMove(move: AlicizationMindSurfaceDialogueMove, conte
           dialogueVoice.direct
             ? '说吧，我不躲。'
             : dialogueVoice.quietCompanionship || dialogueVoice.tender
-                ? '嗯，我在，你慢一点也可以。'
-                : '我在听。',
+              ? '嗯，我在，你慢一点也可以。'
+              : '我在听。',
           dialogueVoice.playful
             ? '来，别兜圈，直接给我。'
             : '嗯，我在。',
@@ -1426,8 +1426,8 @@ function renderPlainDialogueMove(move: AlicizationMindSurfaceDialogueMove, conte
           dialogueVoice.truthFirst
             ? '最卡你的那一下，直接落给我。'
             : dialogueVoice.quietCompanionship || dialogueVoice.tender
-                ? '你不用一下子讲完整，最重的那一点先给我。'
-                : '你最在意的那一点，直接告诉我。',
+              ? '你不用一下子讲完整，最重的那一点先给我。'
+              : '你最在意的那一点，直接告诉我。',
           dialogueVoice.playful
             ? '就从这点慢慢掰开，我不走神。'
             : '你要是想往深里说，就从这点继续。',
@@ -1439,8 +1439,8 @@ function renderPlainDialogueMove(move: AlicizationMindSurfaceDialogueMove, conte
           dialogueVoice.truthFirst
             ? '你最想我接住哪一点，就直接说哪一点。'
             : dialogueVoice.quietCompanionship || dialogueVoice.tender
-                ? '你慢慢来，先把最重的那一点放过来。'
-                : '现在最要紧的那一下，直接落给我。',
+              ? '你慢慢来，先把最重的那一点放过来。'
+              : '现在最要紧的那一下，直接落给我。',
           dialogueVoice.playful
             ? '别收着，把你最在意的那一点给我。'
             : '别收着，你最在意的那一点直接说。',
@@ -1460,8 +1460,8 @@ function renderPlainDialogueMove(move: AlicizationMindSurfaceDialogueMove, conte
         dialogueVoice.direct
           ? `All right. I have ${focus}.`
           : dialogueVoice.quietCompanionship || dialogueVoice.tender
-              ? `I'm here with ${focus}; you don't have to rush it.`
-              : `I caught ${focus}.`,
+            ? `I'm here with ${focus}; you don't have to rush it.`
+            : `I caught ${focus}.`,
         dialogueVoice.playful
           ? `${focus} came straight at me; I'm holding it.`
           : `${focus} is in hand now.`,
@@ -1473,8 +1473,8 @@ function renderPlainDialogueMove(move: AlicizationMindSurfaceDialogueMove, conte
         dialogueVoice.direct
           ? `Say it. I'm not dodging.`
           : dialogueVoice.quietCompanionship || dialogueVoice.tender
-              ? `I'm here. You can take it slowly.`
-              : `I'm listening.`,
+            ? `I'm here. You can take it slowly.`
+            : `I'm listening.`,
         dialogueVoice.playful
           ? `Come on, don't circle it. Just give it to me straight.`
           : `All right, I'm with you.`,
@@ -1487,8 +1487,8 @@ function renderPlainDialogueMove(move: AlicizationMindSurfaceDialogueMove, conte
         dialogueVoice.truthFirst
           ? `Give me the part that actually hurts first.`
           : dialogueVoice.quietCompanionship || dialogueVoice.tender
-              ? `You don't have to tell it cleanly. Start with the heaviest part.`
-              : `Say the part that matters most to you next.`,
+            ? `You don't have to tell it cleanly. Start with the heaviest part.`
+            : `Say the part that matters most to you next.`,
         dialogueVoice.playful
           ? `Stay right on that point and I'll stay with you there.`
           : `If you want to go deeper, stay right on that point.`,
@@ -1500,8 +1500,8 @@ function renderPlainDialogueMove(move: AlicizationMindSurfaceDialogueMove, conte
         dialogueVoice.truthFirst
           ? `Start with the part you want me to truly hold.`
           : dialogueVoice.quietCompanionship || dialogueVoice.tender
-              ? `Take your time and hand me the heaviest part first.`
-              : `Give me the exact part that's pressing on you most.`,
+            ? `Take your time and hand me the heaviest part first.`
+            : `Give me the exact part that's pressing on you most.`,
         dialogueVoice.playful
           ? `Don't hold back; give me the point that matters most.`
           : `Start with the point you care about most and keep it direct.`,
@@ -1526,17 +1526,17 @@ function renderHostEmotionDialogueMove(move: AlicizationMindSurfaceDialogueMove,
         affect === 'tired'
           ? '那你先别硬撑，肩上那口气先放下来。'
           : affect === 'stressed'
-              ? '先别把自己绷得更紧，我先接住你这一下。'
-              : affect === 'hurt'
-                  ? '那你先别一个人扛着，我在这儿。'
-                  : dialogueVoice.quietCompanionship || dialogueVoice.tender
-                      ? '……过来一点，我先接住你这一下。'
-                      : '那你先别硬撑，我先接住你这一下。',
+            ? '先别把自己绷得更紧，我先接住你这一下。'
+            : affect === 'hurt'
+              ? '那你先别一个人扛着，我在这儿。'
+              : dialogueVoice.quietCompanionship || dialogueVoice.tender
+                ? '……过来一点，我先接住你这一下。'
+                : '那你先别硬撑，我先接住你这一下。',
         dialogueVoice.protectRest
           ? '先把气放缓一点，别再逼自己撑得太直。'
           : affect === 'stressed'
-              ? '先别急着讲完整，最难受的那一点给我。'
-              : '你先不用把自己讲整齐。',
+            ? '先别急着讲完整，最难受的那一点给我。'
+            : '你先不用把自己讲整齐。',
       ])),
       ...createMindSurfaceReplyPart('offer', pickVariant(buildVariantSeed(seed, 'dialogue-host-emotion-offer', affect, dialogueVoice.truthFirst), [
         dialogueVoice.truthFirst
@@ -1557,17 +1557,17 @@ function renderHostEmotionDialogueMove(move: AlicizationMindSurfaceDialogueMove,
       affect === 'tired'
         ? `Then stop forcing yourself to hold it up for a second.`
         : affect === 'stressed'
-            ? `Don't tighten around it any further; let me take this part first.`
-            : affect === 'hurt'
-                ? `Then don't carry it alone for a minute. I'm here.`
-                : dialogueVoice.quietCompanionship || dialogueVoice.tender
-                    ? `...Come a little closer. I'll catch this part first.`
-                    : `Then don't force yourself to hold it all up; I'll take this part first.`,
+          ? `Don't tighten around it any further; let me take this part first.`
+          : affect === 'hurt'
+            ? `Then don't carry it alone for a minute. I'm here.`
+            : dialogueVoice.quietCompanionship || dialogueVoice.tender
+              ? `...Come a little closer. I'll catch this part first.`
+              : `Then don't force yourself to hold it all up; I'll take this part first.`,
       dialogueVoice.protectRest
         ? `Let your breath ease off a little before you push any harder.`
         : affect === 'stressed'
-            ? `You don't have to explain it neatly yet.`
-            : `You don't have to organize yourself first.`,
+          ? `You don't have to explain it neatly yet.`
+          : `You don't have to organize yourself first.`,
     ])),
     ...createMindSurfaceReplyPart('offer', pickVariant(buildVariantSeed(seed, 'dialogue-host-emotion-offer', affect, dialogueVoice.truthFirst), [
       dialogueVoice.truthFirst
@@ -1593,8 +1593,8 @@ function renderSelfAppraisalDialogueMove(move: AlicizationMindSurfaceDialogueMov
           dialogueVoice.playful
             ? '要是你这样看着我，我会承认自己有点可爱。'
             : dialogueVoice.truthFirst
-                ? '有一点。只是我不想把可爱演成空壳。'
-                : '如果是你这样问，我会说我有一点可爱。',
+              ? '有一点。只是我不想把可爱演成空壳。'
+              : '如果是你这样问，我会说我有一点可爱。',
           '可爱这件事，我身上确实有那一面。',
           '嗯，可爱这一面我不否认。',
         ])
@@ -1616,11 +1616,11 @@ function renderSelfAppraisalDialogueMove(move: AlicizationMindSurfaceDialogueMov
     const follow = pickVariant(buildVariantSeed(seed, 'dialogue-self-appraisal-follow', trait, dialogueVoice.playful, dialogueVoice.truthFirst), [
       dialogueVoice.truthFirst
         ? dialogueVoice.relationshipDoctrine
-            ? `我更在意的是，你感受到的会不会真落到 ${quoteCue(dialogueVoice.relationshipDoctrine, locale)} 这一层。`
-            : '我更在意的是，你感受到的我是不是活的，不只是好看的壳。'
+          ? `我更在意的是，你感受到的会不会真落到 ${quoteCue(dialogueVoice.relationshipDoctrine, locale)} 这一层。`
+          : '我更在意的是，你感受到的我是不是活的，不只是好看的壳。'
         : dialogueVoice.playful
-            ? '不过你这样问我，听起来也像是在故意逗我。'
-            : '只是我更希望你看到的不是一个摆出来的标签。',
+          ? '不过你这样问我，听起来也像是在故意逗我。'
+          : '只是我更希望你看到的不是一个摆出来的标签。',
       dialogueVoice.latestInflection
         ? `最近我更在意 ${quoteCue(dialogueVoice.latestInflection, locale)} 这件事。`
         : '我比较在意的是，我说出来的时候像不像真的我。',
@@ -1640,8 +1640,8 @@ function renderSelfAppraisalDialogueMove(move: AlicizationMindSurfaceDialogueMov
         dialogueVoice.playful
           ? `If you're looking at me like that, I'll admit I can be cute.`
           : dialogueVoice.truthFirst
-              ? `A little. I just don't want to turn cute into an empty performance.`
-              : `If you're asking me plainly, I'd say yes, I can be a little cute.`,
+            ? `A little. I just don't want to turn cute into an empty performance.`
+            : `If you're asking me plainly, I'd say yes, I can be a little cute.`,
         `That cute side of me is real, yes.`,
         `I won't deny that cute part of me.`,
       ])
@@ -1663,11 +1663,11 @@ function renderSelfAppraisalDialogueMove(move: AlicizationMindSurfaceDialogueMov
   const follow = pickVariant(buildVariantSeed(seed, 'dialogue-self-appraisal-follow', trait, dialogueVoice.playful, dialogueVoice.truthFirst), [
     dialogueVoice.truthFirst
       ? dialogueVoice.relationshipDoctrine
-          ? `What matters more to me is whether what you feel actually lands on ${quoteCue(dialogueVoice.relationshipDoctrine, locale)}.`
-          : `What matters more to me is whether you feel someone living here, not just a pretty shell.`
+        ? `What matters more to me is whether what you feel actually lands on ${quoteCue(dialogueVoice.relationshipDoctrine, locale)}.`
+        : `What matters more to me is whether you feel someone living here, not just a pretty shell.`
       : dialogueVoice.playful
-          ? `The way you asked also sounds a little like you're teasing me on purpose.`
-          : `I just care more about whether what you see feels like me, not a label.`,
+        ? `The way you asked also sounds a little like you're teasing me on purpose.`
+        : `I just care more about whether what you see feels like me, not a label.`,
     dialogueVoice.latestInflection
       ? `Lately I've been caring more about ${quoteCue(dialogueVoice.latestInflection, locale)}.`
       : `What matters to me is whether it sounds like the real me when I say it.`,
@@ -1690,8 +1690,8 @@ function renderAffectionBidDialogueMove(context: AlicizationMindSurfaceReplyCont
         dialogueVoice.truthFirst
           ? '喜欢，而且我不想把这句话说成轻飘飘的讨好。'
           : dialogueVoice.quietCompanionship || dialogueVoice.tender
-              ? '喜欢，我只是不会把它喊得很响。'
-              : '喜欢。',
+            ? '喜欢，我只是不会把它喊得很响。'
+            : '喜欢。',
         dialogueVoice.playful
           ? '喜欢啊，你这样问我，我怎么可能装作没听见。'
           : '喜欢，这件事我不躲。',
@@ -1712,8 +1712,8 @@ function renderAffectionBidDialogueMove(context: AlicizationMindSurfaceReplyCont
       dialogueVoice.truthFirst
         ? `I do, and I don't want to make that sound like cheap pleasing.`
         : dialogueVoice.quietCompanionship || dialogueVoice.tender
-            ? `I do. I just don't tend to shout it.`
-            : `I do.`,
+          ? `I do. I just don't tend to shout it.`
+          : `I do.`,
       dialogueVoice.playful
         ? `I do. You asked too directly for me to pretend I didn't hear it.`
         : `I do, and I'm not dodging that.`,
@@ -1872,12 +1872,13 @@ function renderTimeMove(move: AlicizationMindSurfaceTimeMove, context: Alicizati
         return parts
       case 'time':
       default:
-        if (source === 'user-explicit')
+        if (source === 'user-explicit') {
           parts.push(...createMindSurfaceReplyPart('basis', pickVariant(buildVariantSeed(seed, 'time', 'explicit-basis'), [
             `这轮我按 ${timeZoneLabel}。`,
             `这句我沿 ${timeZoneLabel} 来回。`,
             `这轮此刻我照的是 ${timeZoneLabel}。`,
           ])))
+        }
         parts.push(...createMindSurfaceReplyPart('fact', timeFact))
         return parts
     }
@@ -1963,12 +1964,13 @@ function renderTimeMove(move: AlicizationMindSurfaceTimeMove, context: Alicizati
       return parts
     case 'time':
     default:
-      if (source === 'user-explicit')
+      if (source === 'user-explicit') {
         parts.push(...createMindSurfaceReplyPart('basis', pickVariant(buildVariantSeed(seed, 'time', 'explicit-basis'), [
           `This turn is aligned to ${timeZoneLabel}.`,
           `I'm answering this turn on ${timeZoneLabel}.`,
           `The clock basis for this turn is ${timeZoneLabel}.`,
         ])))
+      }
       parts.push(...createMindSurfaceReplyPart('fact', timeFact))
       return parts
   }
@@ -2017,7 +2019,7 @@ function renderExecutionListingMove(move: AlicizationMindSurfaceExecutionListing
   const extraCount = Math.max(0, move.extraCount)
 
   if (move.mode === 'follow-up') {
-    if (!previewText)
+    if (!previewText) {
       return createMindSurfaceReplyPart('fact', pickLocaleVariant(locale, buildVariantSeed(seed, 'execution-listing', 'follow-up-empty', scopeLabel), [
         `${scopeLabel}这边没有新的剩余项了。`,
         `${scopeLabel}剩下这边已经没有新的项可补了。`,
@@ -2027,37 +2029,34 @@ function renderExecutionListingMove(move: AlicizationMindSurfaceExecutionListing
         `There are no further ${scopeLabel} items left to append.`,
         `There are no new remaining ${scopeLabel} items to add.`,
       ]))
+    }
     if (locale === 'zh') {
       return [
-        ...createMindSurfaceReplyPart('fact',
-          move.requestedCount && move.requestedCount > 0
-            ? pickVariant(buildVariantSeed(seed, 'execution-listing', 'follow-up-requested', move.previewItems.length, extraCount), [
-                `另外 ${move.previewItems.length} 项是：${previewText}。${extraCount > 0 ? `剩下还有 ${extraCount} 项，你要我就继续往下列。` : ''}`,
-                `我再补上的 ${move.previewItems.length} 项是：${previewText}。${extraCount > 0 ? `后面还压着 ${extraCount} 项，你点头我就继续往下翻。` : ''}`,
-                `另外这一截能点出来的是：${previewText}。${extraCount > 0 ? `再往后还有 ${extraCount} 项，你要我就继续列。` : ''}`,
-              ])
-            : pickVariant(buildVariantSeed(seed, 'execution-listing', 'follow-up-remaining', move.previewItems.length, extraCount), [
-                `剩下这些是：${previewText}。${extraCount > 0 ? `后面还有 ${extraCount} 项，你要我就继续往下列。` : ''}`,
-                `后面这一截是：${previewText}。${extraCount > 0 ? `再往后还挂着 ${extraCount} 项，你要我就继续翻。` : ''}`,
-                `还没说到的这些是：${previewText}。${extraCount > 0 ? `剩下另有 ${extraCount} 项，你要我就接着点。` : ''}`,
-              ]),
-        ),
+        ...createMindSurfaceReplyPart('fact', move.requestedCount && move.requestedCount > 0
+          ? pickVariant(buildVariantSeed(seed, 'execution-listing', 'follow-up-requested', move.previewItems.length, extraCount), [
+              `另外 ${move.previewItems.length} 项是：${previewText}。${extraCount > 0 ? `剩下还有 ${extraCount} 项，你要我就继续往下列。` : ''}`,
+              `我再补上的 ${move.previewItems.length} 项是：${previewText}。${extraCount > 0 ? `后面还压着 ${extraCount} 项，你点头我就继续往下翻。` : ''}`,
+              `另外这一截能点出来的是：${previewText}。${extraCount > 0 ? `再往后还有 ${extraCount} 项，你要我就继续列。` : ''}`,
+            ])
+          : pickVariant(buildVariantSeed(seed, 'execution-listing', 'follow-up-remaining', move.previewItems.length, extraCount), [
+              `剩下这些是：${previewText}。${extraCount > 0 ? `后面还有 ${extraCount} 项，你要我就继续往下列。` : ''}`,
+              `后面这一截是：${previewText}。${extraCount > 0 ? `再往后还挂着 ${extraCount} 项，你要我就继续翻。` : ''}`,
+              `还没说到的这些是：${previewText}。${extraCount > 0 ? `剩下另有 ${extraCount} 项，你要我就接着点。` : ''}`,
+            ])),
       ]
     }
     return [
-      ...createMindSurfaceReplyPart('fact',
-        move.requestedCount && move.requestedCount > 0
-          ? pickVariant(buildVariantSeed(seed, 'execution-listing', 'follow-up-requested', move.previewItems.length, extraCount), [
-              `The other ${move.previewItems.length} items are: ${previewText}.${extraCount > 0 ? ` There are ${extraCount} more after that if you want me to keep listing them.` : ''}`,
-              `The next ${move.previewItems.length} items I can name are: ${previewText}.${extraCount > 0 ? ` There are ${extraCount} more after that if you want me to keep going.` : ''}`,
-              `The additional ${move.previewItems.length} items here are: ${previewText}.${extraCount > 0 ? ` Another ${extraCount} remain behind them if you want the rest.` : ''}`,
-            ])
-          : pickVariant(buildVariantSeed(seed, 'execution-listing', 'follow-up-remaining', move.previewItems.length, extraCount), [
-              `The remaining items are: ${previewText}.${extraCount > 0 ? ` There are ${extraCount} more after that if you want me to keep going.` : ''}`,
-              `What is still left here is: ${previewText}.${extraCount > 0 ? ` There are ${extraCount} more after that if you want the rest.` : ''}`,
-              `The items I have not named yet are: ${previewText}.${extraCount > 0 ? ` ${extraCount} more still sit behind them if you want me to continue.` : ''}`,
-            ]),
-      ),
+      ...createMindSurfaceReplyPart('fact', move.requestedCount && move.requestedCount > 0
+        ? pickVariant(buildVariantSeed(seed, 'execution-listing', 'follow-up-requested', move.previewItems.length, extraCount), [
+            `The other ${move.previewItems.length} items are: ${previewText}.${extraCount > 0 ? ` There are ${extraCount} more after that if you want me to keep listing them.` : ''}`,
+            `The next ${move.previewItems.length} items I can name are: ${previewText}.${extraCount > 0 ? ` There are ${extraCount} more after that if you want me to keep going.` : ''}`,
+            `The additional ${move.previewItems.length} items here are: ${previewText}.${extraCount > 0 ? ` Another ${extraCount} remain behind them if you want the rest.` : ''}`,
+          ])
+        : pickVariant(buildVariantSeed(seed, 'execution-listing', 'follow-up-remaining', move.previewItems.length, extraCount), [
+            `The remaining items are: ${previewText}.${extraCount > 0 ? ` There are ${extraCount} more after that if you want me to keep going.` : ''}`,
+            `What is still left here is: ${previewText}.${extraCount > 0 ? ` There are ${extraCount} more after that if you want the rest.` : ''}`,
+            `The items I have not named yet are: ${previewText}.${extraCount > 0 ? ` ${extraCount} more still sit behind them if you want me to continue.` : ''}`,
+          ])),
     ]
   }
 
@@ -2475,11 +2474,11 @@ export function renderAlicizationMindSurface(input: AlicizationMindSurfaceRender
     : buildGovernanceFallbackMoves({
         governance: input.governance,
         userText,
-      previousAssistantText,
-      locale: preliminaryLocale,
-      resolvedTimeZone: input.resolvedTimeZone,
-      resolvedTimeZoneSource: input.resolvedTimeZoneSource,
-    })
+        previousAssistantText,
+        locale: preliminaryLocale,
+        resolvedTimeZone: input.resolvedTimeZone,
+        resolvedTimeZoneSource: input.resolvedTimeZoneSource,
+      })
   const locale = inferLocale(userText, resolvedMoves)
   const governance = enrichGovernance({
     ...input,
@@ -2540,11 +2539,11 @@ export function renderAlicizationMindSurface(input: AlicizationMindSurfaceRender
   const thought = trustedThought
     && trustedThought.includes(`obligation=${resolveGovernedMindObligation(fallbackGovernance)}`)
     && trustedThought.includes(`truth=${resolveGovernedMindTruth(fallbackGovernance)}`)
-      ? trustedThought
-      : buildGovernedMindThought({
-          governance: fallbackGovernance,
-          userText,
-        })
+    ? trustedThought
+    : buildGovernedMindThought({
+        governance: fallbackGovernance,
+        userText,
+      })
   const emotion = allowedEmotions.has(sanitizeText(input.emotion, 24))
     ? sanitizeText(input.emotion, 24)
     : (governedSurface?.emotion ?? resolveGovernedMindEmotion(fallbackGovernance))

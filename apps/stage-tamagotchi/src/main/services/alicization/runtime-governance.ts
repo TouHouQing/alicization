@@ -24,6 +24,7 @@ import type {
   AlicizationRuntimeDigest,
   CharacterPerformanceCapabilitiesManifest,
 } from '../../../shared/eventa'
+import type { AlicizationRuntimeEmbodimentCurrentConsciousFrame } from './embodiment/runtime-embodiment-seed'
 import type { AlicizationVisibleReplyRealizationArtifact } from './visible-reply/facade'
 
 import {
@@ -118,6 +119,8 @@ type AlicizationGovernanceCurrentConsciousFrameInput = {
   reasonTags?: readonly string[] | null
   projectState?: AlicizationCurrentConsciousFrameSnapshot['projectState']
 } | null
+type AlicizationGovernanceCoercedCurrentConsciousFrame
+  = AlicizationCurrentConsciousFrameSnapshot & AlicizationRuntimeEmbodimentCurrentConsciousFrame
 
 function resolveGovernanceProjectStateText(input: {
   current?: unknown
@@ -198,7 +201,7 @@ function normalizeGovernanceProjectStateSnapshotInput(
 
 function coerceGovernanceCurrentConsciousFrame(
   input: AlicizationGovernanceCurrentConsciousFrameInput | AlicizationCurrentConsciousFrameSnapshot | null | undefined,
-) {
+): AlicizationGovernanceCoercedCurrentConsciousFrame | null {
   if (!input || typeof input !== 'object')
     return null
 
@@ -208,7 +211,7 @@ function coerceGovernanceCurrentConsciousFrame(
     && typeof (input as AlicizationCurrentConsciousFrameSnapshot).speakingIntention === 'string'
     && typeof (input as AlicizationCurrentConsciousFrameSnapshot).updatedAt === 'number'
   ) {
-    return input as AlicizationCurrentConsciousFrameSnapshot
+    return input as unknown as AlicizationGovernanceCoercedCurrentConsciousFrame
   }
 
   const candidate = input as NonNullable<AlicizationGovernanceCurrentConsciousFrameInput>
@@ -243,9 +246,9 @@ function coerceGovernanceCurrentConsciousFrame(
     reasonTags,
     continuityPreferredTiming: projectState?.continuityPreferredTiming ?? null,
     continuityCadence: projectState?.continuityCadence ?? null,
-    projectState,
+    projectState: projectState as (AlicizationCurrentConsciousFrameSnapshot['projectState'] & Record<string, unknown>) | null,
     updatedAt: 0,
-  } satisfies AlicizationCurrentConsciousFrameSnapshot
+  } satisfies AlicizationGovernanceCoercedCurrentConsciousFrame
 
   return null
 }
@@ -5263,6 +5266,8 @@ export function normalizeDialogueRespondedPayload(
     turnId,
     sessionId: normalizedSessionId,
     origin,
+    userText: input.userText?.trim() || null,
+    assistantText: reply || input.assistantText?.trim() || null,
     structured,
     ...(visibleReplyRealization ? { visibleReplyRealization } : {}),
     isFallback,

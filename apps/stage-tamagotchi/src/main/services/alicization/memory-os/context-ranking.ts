@@ -3,7 +3,6 @@ import type {
   AlicizationPersonStateEvolutionSummary,
   AlicizationRecallGovernorSnapshot,
 } from '../../../../shared/eventa'
-
 import type { AlicizationPersonStateProjection } from '../person-state-projection'
 import type { MemoryClusterProbe, MemoryClusterState } from '../runtime-organic-memory-prompt-types'
 import type { OrganicMemoryPromptContext } from '../runtime-soul'
@@ -11,6 +10,7 @@ import type { OrganicMemoryPromptContext } from '../runtime-soul'
 import { buildHostSocialGuidance, inferHostSocialContextsFromText } from '../host-social-guidance'
 import { buildAlicizationPersonStateProjection } from '../person-state-projection'
 import { buildRelationshipDoctrineGuidance } from '../relationship-doctrine-guidance'
+
 function uniqueList(values: Array<string | null | undefined>, maxItems = 6) {
   const result: string[] = []
   for (const value of values) {
@@ -39,7 +39,7 @@ function sanitizePromptText(raw: unknown, maxChars = 220) {
 }
 
 function clusterTokens(normalizeOrganicRecallText: (raw: string) => string, text: string) {
-  const tokens = normalizeOrganicRecallText(text).toLowerCase().match(/[\p{Script=Han}]{1,8}|[a-z0-9][a-z0-9-]{1,32}/gu) ?? []
+  const tokens = normalizeOrganicRecallText(text).toLowerCase().match(/\p{Script=Han}{1,8}|[a-z0-9][a-z0-9-]{1,32}/gu) ?? []
   return tokens.filter(token =>
     ![
       'the',
@@ -235,7 +235,7 @@ function scoreExactCuePresence(normalizeOrganicRecallText: (raw: string) => stri
       continue
     if (normalized.includes(normalizedCue))
       best = Math.max(best, 1)
-      continue
+    continue
     const cueParts = normalizedCue.split(/\s+/u).filter(part => part.length >= 2)
     if (cueParts.length >= 2 && cueParts.every(part => normalized.includes(part)))
       best = Math.max(best, 0.82)
@@ -285,10 +285,10 @@ function scoreSceneMoodEmbodiedCarryText(input: {
   const presenceBoost = input.carry.embodiedPresence === 'attentive' && /focus|verify|watch|observe|repair|screen|diff|editor|专注|观察|修复/u.test(normalized)
     ? 0.1
     : input.carry.embodiedPresence === 'concerned' && /care|soft|warn|rest|gentle|关心|提醒|温和|休息/u.test(normalized)
-        ? 0.1
-        : input.carry.embodiedPresence === 'glance' && /afterglow|linger|brief|light|warm|quiet|cursor|diff|余温|轻/u.test(normalized)
-            ? 0.12
-            : 0
+      ? 0.1
+      : input.carry.embodiedPresence === 'glance' && /afterglow|linger|brief|light|warm|quiet|cursor|diff|余温|轻/u.test(normalized)
+        ? 0.12
+        : 0
   return clamp01(
     sceneWeight * (0.16 + input.carry.sceneFamiliarityHint * 0.24)
     + sceneCuePresence * (0.08 + input.carry.sceneFamiliarityHint * 0.12)
@@ -581,7 +581,7 @@ export function rankByRecollectionAgendaAffinity<T>(input: {
   )
   const procedureLines = agenda.candidateProcedureLines ?? []
   const procedureLineVariants = expandProcedureLineVariants(procedureLines, 18)
-  const emotionalPattern = /drain|mess|overwhelm|care|warm|cold|tender|annoyed|压力|累|乱|烦|温和|冷淡|情绪/u
+  const emotionalPattern = /drain|mess|overwhelm|care|warm|cold|tender|annoyed|压力|[累乱烦]|温和|冷淡|情绪/u
   const relationshipPattern = /relationship|bond|trust|repair|boundary|tone|space|回应|关系|信任|修复|边界|语气|空间/u
 
   return [...input.items]

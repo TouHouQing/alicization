@@ -120,6 +120,7 @@ export interface SelfEvolutionEvidencePanelInput {
     driverFaceCue: string | null
     driverActionCue: string | null
     authorityMatchSummary: string | null
+    prosodyAuthoritySummary?: string | null
     authorityMismatchSummary?: string | null
     authorityMismatchDisplay?: string | null
     matchedSignals: string[]
@@ -144,10 +145,15 @@ export interface SelfEvolutionEvidencePanelInput {
     focusBeliefId: string | null
     rationaleTags: string[]
     traceEmbodimentSummary: string | null
+    traceEmbodimentDisplaySummary?: string | null
     matchedSignals: string[]
     missingSignals: string[]
     driftingSignals: string[]
     reasons: string[]
+  } | null
+  baselineAnchorAuditSummary?: {
+    status: string
+    lines: string[]
   } | null
   rejectedActionAlternatives?: {
     status: string
@@ -380,10 +386,10 @@ export function buildSelfEvolutionEvidencePanels(input: SelfEvolutionEvidencePan
         `authorityMatchSummary: ${formatMaybeText(authorityMatchDisplay)}`,
         `authorityMismatchDisplay: ${formatMaybeText(
           input.rendererAuthorityProjection.authorityMismatchDisplay
-            ?? resolveAuthorityMismatchDisplay({
-                authorityMismatchSummary: input.rendererAuthorityProjection.authorityMismatchSummary,
-                authorityMismatchReasonSummary: null,
-              }),
+          ?? resolveAuthorityMismatchDisplay({
+            authorityMismatchSummary: input.rendererAuthorityProjection.authorityMismatchSummary,
+            authorityMismatchReasonSummary: null,
+          }),
         )}`,
         `matchedSignals: ${formatList(input.rendererAuthorityProjection.matchedSignals)}`,
         `missingSignals: ${formatList(input.rendererAuthorityProjection.missingSignals)}`,

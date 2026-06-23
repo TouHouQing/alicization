@@ -1,5 +1,6 @@
-import type { PerformanceVisualizerPlaybackCueAuthorityView } from './performance-visualizer-playback-cue'
 import type { StageThreeRuntimeSpeechEmbodimentDiagnostics } from '../../stores/stage-three-runtime-diagnostics'
+import type { PerformanceVisualizerPlaybackCueAuthorityView } from './performance-visualizer-playback-cue'
+import type { PerformanceVisualizerRuntimeDiagnosticSummaryEntry, PerformanceVisualizerTraceTelemetrySummary } from './performance-visualizer-runtime-diagnostic-summary'
 
 import { resolveAuthorityMismatchDisplay } from './performance-visualizer-authority-display'
 import {
@@ -9,8 +10,7 @@ import {
 import {
   buildRuntimeAuthoritySummaryEntries,
   buildTraceTelemetrySummaryEntries,
-  type PerformanceVisualizerRuntimeDiagnosticSummaryEntry,
-  type PerformanceVisualizerTraceTelemetrySummary,
+
 } from './performance-visualizer-runtime-diagnostic-summary'
 import { buildTraceTelemetrySummary } from './performance-visualizer-trace-telemetry'
 
@@ -20,7 +20,7 @@ export interface PerformanceVisualizerRuntimeAuthorityOverview {
   authorityBindingSummary: string | null
   authorityMatchSummary: string | null
   authorityTrustSummary?: string | null
-  prosodyAuthoritySummary: string | null
+  prosodyAuthoritySummary?: string | null
   authorityMismatchSummary: string | null
   authorityMismatchReasonSummary?: string | null
   authorityMismatchDisplay?: string | null
@@ -165,25 +165,25 @@ export function buildRuntimeAuthorityOverview(input: {
   )
     ? upstreamTraceSummary
     ?? buildTraceTelemetrySummary({
-        cueId: expectedCueId,
-        playbackCueAuthorityView: playbackCueAuthorityView
-          ? {
-              authoritySegmentId: playbackCueAuthorityView.authoritySegmentId,
-              authorityRendererTarget: playbackCueAuthorityView.authorityRendererTarget,
-              authorityMatchedDrivers: playbackCueAuthorityView.authorityMatchedDrivers,
-              authoritySources: playbackCueAuthorityView.authoritySources,
-            }
-          : null,
-        traceContext: input.speechEmbodiment
-          ? {
-              recentDrivingEvent: input.speechEmbodiment.recentDrivingEvent,
-              recentDrivingTraceRecord: input.speechEmbodiment.recentDrivingTraceRecord,
-              recentDrivingTraceEvents: input.speechEmbodiment.recentDrivingTraceEvents ?? [],
-              driverSummary: input.speechEmbodiment.driverSummary,
-              playbackTelemetry: input.speechEmbodiment.playbackTelemetry,
-            }
-          : undefined,
-      })
+      cueId: expectedCueId,
+      playbackCueAuthorityView: playbackCueAuthorityView
+        ? {
+            authoritySegmentId: playbackCueAuthorityView.authoritySegmentId,
+            authorityRendererTarget: playbackCueAuthorityView.authorityRendererTarget,
+            authorityMatchedDrivers: playbackCueAuthorityView.authorityMatchedDrivers,
+            authoritySources: playbackCueAuthorityView.authoritySources,
+          }
+        : null,
+      traceContext: input.speechEmbodiment
+        ? {
+            recentDrivingEvent: input.speechEmbodiment.recentDrivingEvent,
+            recentDrivingTraceRecord: input.speechEmbodiment.recentDrivingTraceRecord,
+            recentDrivingTraceEvents: input.speechEmbodiment.recentDrivingTraceEvents ?? [],
+            driverSummary: input.speechEmbodiment.driverSummary,
+            playbackTelemetry: input.speechEmbodiment.playbackTelemetry,
+          }
+        : undefined,
+    })
     : buildTraceTelemetrySummary({
         cueId: expectedCueId,
         playbackCueAuthorityView: playbackCueAuthorityView
@@ -216,7 +216,6 @@ export function buildRuntimeAuthorityOverview(input: {
     authorityMismatchDisplay,
     settleAuthoritySummary,
   })
-  const traceSummaryEntries = buildTraceTelemetrySummaryEntries(traceSummary)
   const enrichedTraceSummaryEntries = buildTraceTelemetrySummaryEntries(traceSummary, {
     traceEmbodimentSummary,
   })

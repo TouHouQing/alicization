@@ -184,7 +184,7 @@ export function rankAlicizationEpisodicEvents(input: {
   const recollectionIntent = input.recollectionIntent ?? null
   const correctionShapingRationale = (
     (input.affectAnchors?.length ?? 0) > 0
-      || (input.relationshipAnchors?.length ?? 0) > 0
+    || (input.relationshipAnchors?.length ?? 0) > 0
   )
     ? normalizeOrganicMemoryText(input.correctionShapingRationale ?? recollectionIntent?.rationale ?? '', 200)
     : ''
@@ -295,15 +295,15 @@ export function rankAlicizationEpisodicEvents(input: {
         && ageDays <= 7
         && (threadScore > 0.08 || intentScore > 0.08 || agendaProcedureBoost > 0.04 || relationshipScore > 0.08)
         ? event.sourceKind === 'maintenance'
-            ? 0.26
-            : 0.12
+          ? 0.26
+          : 0.12
         : 0
       const crossSessionAfterglowBoost = continuityTagged
         && Boolean(input.sessionId && event.sessionId && input.sessionId !== event.sessionId)
         && input.carryAsMemory
         ? event.sourceKind === 'maintenance'
-            ? 0.16
-            : 0.06
+          ? 0.16
+          : 0.06
         : 0
       const sessionMirrorCarryBoost = continuityTagged
         && event.sourceKind === 'maintenance'
@@ -472,7 +472,7 @@ export function rankAlicizationEpisodicEvents(input: {
           .map(candidate => candidate.event),
       }),
     }))
-    .map((item) => ({
+    .map(item => ({
       ...item,
       adjustedScore: item.score - item.interferencePenalty - item.contradictionSignal.penalty,
     }))
@@ -517,28 +517,28 @@ export function buildAlicizationRecalledEpisodicEvents(input: {
       emotionTags: mergedEmotionTags,
       relationshipMeaning: item.contradictionSignal.unresolved
         ? normalizeOrganicMemoryText(
-            [
-              item.event.relationshipMeaning,
-              'Another remembered variant of this same thread is still pulling in a different direction.',
-            ].filter(Boolean).join(' '),
-            180,
-          ) || null
+          [
+            item.event.relationshipMeaning,
+            'Another remembered variant of this same thread is still pulling in a different direction.',
+          ].filter(Boolean).join(' '),
+          180,
+        ) || null
         : item.event.relationshipMeaning || normalizeOrganicMemoryText((input.relationshipAnchors ?? []).join(' / '), 180) || null,
       lesson: item.contradictionSignal.unresolved
         ? normalizeOrganicMemoryText(
-            [
-              item.event.lesson,
-              'Conflicting remembered variants remain unresolved, so answer this memory with uncertainty rather than certainty.',
-            ].filter(Boolean).join(' '),
-            200,
-          ) || null
+          [
+            item.event.lesson,
+            'Conflicting remembered variants remain unresolved, so answer this memory with uncertainty rather than certainty.',
+          ].filter(Boolean).join(' '),
+          200,
+        ) || null
         : normalizeOrganicMemoryText(
-            [
-              item.event.lesson,
-              input.correctionShapingRationale,
-            ].filter(Boolean).join(' '),
-            200,
-          ) || (input.carryAsMemory ? 'This memory still matters to the current bond and should shape tone with care.' : null),
+          [
+            item.event.lesson,
+            input.correctionShapingRationale,
+          ].filter(Boolean).join(' '),
+          200,
+        ) || (input.carryAsMemory ? 'This memory still matters to the current bond and should shape tone with care.' : null),
     }
 
     return {

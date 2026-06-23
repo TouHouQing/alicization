@@ -2,13 +2,15 @@ import type {
   AlicizationEpisodicEventRecord,
   AlicizationHostPersonModelSnapshot,
   AlicizationMemoryStats,
+  AlicizationMindTurnEventKind,
+  AlicizationMindTurnEventRecord,
   AlicizationPersonStateEvolutionSummary,
   AlicizationRecallGovernorSnapshot,
 } from '../../../shared/eventa'
-import type { AlicizationMemoryTuningAdvice } from './memory-tuning-advice'
-import type { AlicizationRelationshipLineCandidate } from './memory-search-retrieval-operators'
 import type { AlicizationTurnRetrievalPolicySnapshot } from './memory-accessibility-runtime'
 import type { AlicizationMemoryRetrievalBudgetClass, AlicizationOrganicMemoryRuntimeStage } from './memory-retrieval-telemetry'
+import type { AlicizationRelationshipLineCandidate } from './memory-search-retrieval-operators'
+import type { AlicizationMemoryTuningAdvice } from './memory-tuning-advice'
 import type { OrganicMemoryPromptContext } from './runtime-soul'
 
 export interface CreateAlicizationOrganicMemoryPromptRuntimeOptions {
@@ -45,6 +47,13 @@ export interface CreateAlicizationOrganicMemoryPromptRuntimeOptions {
   getMemoryStats?: () => Promise<AlicizationMemoryStats | null>
   getMemoryTuningAdvice?: () => Promise<AlicizationMemoryTuningAdvice | null>
   getPersonStateEvolutionSummary?: () => Promise<AlicizationPersonStateEvolutionSummary | null>
+  listMindTurnEvents?: (input: {
+    decisionTraceId?: string
+    turnId?: string
+    activeThreadId?: string
+    kind?: AlicizationMindTurnEventKind
+    limit?: number
+  }) => Promise<AlicizationMindTurnEventRecord[]>
   listRelationshipOutcomes?: (input: {
     cardId?: string
     limit?: number
@@ -137,7 +146,7 @@ export type RecollectionIntentSnapshot = NonNullable<OrganicMemoryPromptContext[
 export type RecollectionPlanSnapshot = NonNullable<OrganicMemoryPromptContext['recollectionPlan']>
 export type MemoryDeliberationSnapshot = NonNullable<OrganicMemoryPromptContext['memoryDeliberation']>
 
-export type MemoryClusterProbe = {
+export interface MemoryClusterProbe {
   id: string
   kind: 'consolidation' | 'window' | 'procedure' | 'episode' | 'conversation'
   clusterKey: string
@@ -145,7 +154,7 @@ export type MemoryClusterProbe = {
   text: string
 }
 
-export type MemoryClusterState = {
+export interface MemoryClusterState {
   dominantClusterKey: string | null
   dominantSummary: string | null
   dominantScore: number

@@ -66,7 +66,10 @@ export function hasAlicizationChatEntryPreDialogueSendIdentity(
     identity.awarenessLine,
     identity.emotionalClosureCue,
   ].some(hasNonEmptyAlicizationChatEntryText)
-  || identity.reasonPreview.some(hasNonEmptyAlicizationChatEntryText)
+  || (
+    Array.isArray(identity.reasonPreview)
+    && identity.reasonPreview.some(hasNonEmptyAlicizationChatEntryText)
+  )
   || hasAlicizationChatEntryProjectStateCarry(identity.projectState)
 }
 

@@ -2,6 +2,7 @@ import {
   formatSelfEvolutionRepairActionLabel,
   formatSelfEvolutionRepairSurfaceLabel,
 } from './performance-visualizer-self-evolution-focus-history-display'
+import { buildSelfEvolutionRepairOutcome } from './performance-visualizer-self-evolution-repair-outcome'
 
 interface SelfEvolutionRepairNextActionLike {
   kind: string
@@ -18,13 +19,13 @@ interface SelfEvolutionRepairFollowupNavigationLike {
 
 interface SelfEvolutionRepairClosureLike {
   isClosed: boolean
-  sessionCovered: boolean
-  hasFreshValidationSnapshot: boolean
-  samePatternStillPresent: boolean
+  sessionCovered?: boolean
+  hasFreshValidationSnapshot?: boolean
+  samePatternStillPresent?: boolean
+  prosodyAuthorityRelevant?: boolean
+  prosodyAuthorityValidated?: boolean | null
   summaryLines: string[]
 }
-
-import { buildSelfEvolutionRepairOutcome } from './performance-visualizer-self-evolution-repair-outcome'
 
 export function buildSelfEvolutionRepairActionFeedback(input: {
   executedAction: SelfEvolutionRepairNextActionLike | null
@@ -69,8 +70,8 @@ export function buildSelfEvolutionRepairActionFeedback(input: {
       detailLine: repairOutcome?.improvedSignals.includes('fresh validation snapshot now exists')
         ? `新的快照已经加入，且验证快照现已存在。${unresolvedSuffix || '现在可以继续判断剩余连续性条件是否也已经收敛。'}`
         : input.repairClosureAfter?.isClosed
-            ? '修复闭环现已关闭。请把这张快照当作修复后的新连续性参考。'
-            : '新的快照已经加入，但修复闭环仍然打开，还需要继续做连续性检查。',
+          ? '修复闭环现已关闭。请把这张快照当作修复后的新连续性参考。'
+          : '新的快照已经加入，但修复闭环仍然打开，还需要继续做连续性检查。',
     }
   }
 

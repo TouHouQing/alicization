@@ -2,13 +2,32 @@ type DiffHighlightState = 'shared' | 'current-only' | 'previous-only'
 
 interface SelfEvolutionFocusHistoryComparisonLike {
   previous: {
+    capturedAt?: number | null
+    candidateId?: string | null
+    decisionTraceId?: string | null
+    activeThreadId?: string | null
+    selectedCardId?: string | null
+    recommendedTraceEventId?: string | null
     evidenceTargets: string[]
     traceTargets: string[]
   }
   current: {
+    capturedAt?: number | null
+    candidateId?: string | null
+    decisionTraceId?: string | null
+    activeThreadId?: string | null
+    selectedCardId?: string | null
+    recommendedTraceEventId?: string | null
     evidenceTargets: string[]
     traceTargets: string[]
   }
+  focusCardChanged?: boolean
+  traceEventChanged?: boolean
+  evidenceGained?: string[]
+  evidenceLost?: string[]
+  traceTargetsGained?: string[]
+  traceTargetsLost?: string[]
+  summaryLines?: string[]
 }
 
 function buildTargetStateMap(current: string[], previous: string[]) {

@@ -1,7 +1,7 @@
+import type sqlite3 from 'sqlite3'
+
 import type { AlicizationEpisodicEventRecord } from '../../../shared/eventa'
 import type { AlicizationRankedEpisodicCandidate } from './memory-episodic-retrieval'
-
-import type sqlite3 from 'sqlite3'
 
 import { buildAlicizationRecalledEpisodicEvents } from './memory-episodic-retrieval'
 

@@ -1,4 +1,5 @@
 export function buildSelfEvolutionAdoptedAnchor(input: Array<{
+  version?: string
   adoptedAt: number
   snapshotCapturedAt: number
   candidateId: string | null
@@ -7,6 +8,8 @@ export function buildSelfEvolutionAdoptedAnchor(input: Array<{
   selectedCardId: string | null
   activePatternKey: string | null
   repairOwnerHint: string | null
+  adoptionMode?: string | null
+  summaryLine?: string | null
   prosodyAuthorityNote?: string | null
   continuityGovernanceNote?: string | null
 }>) {

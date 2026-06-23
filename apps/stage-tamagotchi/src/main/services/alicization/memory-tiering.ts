@@ -1,7 +1,7 @@
 import type {
   AlicizationMemoryFact,
-  AlicizationMemoryTier,
   AlicizationMemoryProvenance,
+  AlicizationMemoryTier,
 } from '../../../shared/eventa'
 
 const dayMs = 24 * 60 * 60 * 1000

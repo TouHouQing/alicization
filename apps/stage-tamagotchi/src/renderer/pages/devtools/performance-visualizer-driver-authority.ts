@@ -1,4 +1,6 @@
-export type PerformanceVisualizerAuthorityDriver = 'face' | 'motion' | 'lipsync'
+import type { StageEmbodimentPerformanceMatchedDriver } from '@proj-alicization/stage-shared'
+
+export type PerformanceVisualizerAuthorityDriver = StageEmbodimentPerformanceMatchedDriver
 
 export interface PerformanceVisualizerDriverAuthorityBinding {
   rendererTarget: 'live2d' | 'vrm' | null

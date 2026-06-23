@@ -1,8 +1,8 @@
 import type { Message } from '@xsai/shared-chat'
 
-import { randomUUID } from 'node:crypto'
-
 import type { AlicizationExecutionOutcomeSurfaceStatus } from './execution-delivery-surface'
+
+import { randomUUID } from 'node:crypto'
 
 import { buildAlicizationExecutionPayoffDeterministicStructured } from './execution-delivery-surface'
 import { extractAlicizationRequiredToolNames } from './main-chat-required-tool'

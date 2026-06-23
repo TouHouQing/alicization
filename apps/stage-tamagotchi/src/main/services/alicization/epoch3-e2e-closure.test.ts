@@ -7,8 +7,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   alicizationDialogueResponded,
   electronAlicizationLlmSyncConfig,
-  electronAlicizationSetPerformanceManifest,
   electronAlicizationReportProactiveFeedback,
+  electronAlicizationSetPerformanceManifest,
   electronAlicizationSubconsciousForceTick,
 } from '../../../shared/eventa'
 

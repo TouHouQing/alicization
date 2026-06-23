@@ -1,12 +1,12 @@
 import type { SpeechObservabilityView } from './performance-visualizer-speech-observability'
 
+import { buildRuntimeAuthoritySummaryEntries } from './performance-visualizer-runtime-diagnostic-summary'
+import { buildSpeechDiagnosticSummaryEntries } from './performance-visualizer-speech-diagnostic-summary'
 import {
   formatAuthorityBindingSummary,
   formatAuthorityMatchSummary,
   formatProsodyAuthoritySummary,
 } from './performance-visualizer-speech-observability'
-import { buildRuntimeAuthoritySummaryEntries } from './performance-visualizer-runtime-diagnostic-summary'
-import { buildSpeechDiagnosticSummaryEntries } from './performance-visualizer-speech-diagnostic-summary'
 
 export interface SpeechObservabilityRow {
   section: 'articulation' | 'authority' | 'cue' | 'viseme'
@@ -54,7 +54,7 @@ function isPlaceholderOnlyCueValue(value: string | null | undefined) {
     return true
 
   return typeof value === 'string'
-    && /^n\/a\s*\/\s*n\/a\s*\|\s*prosody=n\/a\s+mouth=n\/a\s+head=n\/a(?:\s+provenance=[^\s]+\s+segment=[^\s]+)?$/i.test(value.trim())
+    && /^n\/a\s*\/\s*n\/a\s*\|\s*prosody=n\/a\s+mouth=n\/a\s+head=n\/a(?:\s+provenance=\S+\s+segment=\S+)?$/i.test(value.trim())
 }
 
 function isPlaceholderOnlyVisemeValue(value: string | null | undefined) {
@@ -62,7 +62,7 @@ function isPlaceholderOnlyVisemeValue(value: string | null | undefined) {
     return true
 
   return typeof value === 'string'
-    && /^n\/a:n\/a@n\/a(?:\s+src=n\/a\s+segment=[^\s]+)?$/i.test(value.trim())
+    && /^n\/a:n\/a@n\/a(?:\s+src=n\/a\s+segment=\S+)?$/i.test(value.trim())
 }
 
 function isPlaceholderOnlyDriverExecutionValue(value: string | null | undefined) {

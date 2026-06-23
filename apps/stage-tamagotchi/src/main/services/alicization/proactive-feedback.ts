@@ -1,4 +1,9 @@
-import type { AlicizationProactiveFeedbackKind, AlicizationProactiveScenario } from '../../../shared/eventa'
+import type {
+  AlicizationAffectiveResidueMemorySnapshot,
+  AlicizationEmotionalTransitionLedgerSnapshot,
+  AlicizationProactiveFeedbackKind,
+  AlicizationProactiveScenario,
+} from '../../../shared/eventa'
 
 const proactiveScenarioKeys = ['coding', 'media', 'late-night-care', 'general'] as const satisfies AlicizationProactiveScenario[]
 
@@ -13,8 +18,14 @@ export interface AlicizationRecentProactiveOutcome {
   scenario: AlicizationProactiveScenario
   outcome: AlicizationProactiveOutcome
   createdAt: number
+  assistantText?: string | null
   learningAction?: 'record' | 'reflect' | 'verify' | 'revise' | 'internalize' | 'hold' | null
   learningFocuses?: string[]
+  projectStateOpenFocusSummary?: string | null
+  projectStateNextFocusSummary?: string | null
+  projectStateEmotionalClosureCue?: string | null
+  emotionalTransitionLedger?: AlicizationEmotionalTransitionLedgerSnapshot | null
+  affectiveResidue?: AlicizationAffectiveResidueMemorySnapshot | null
 }
 
 export interface AlicizationPendingProactiveOutcome {
@@ -22,8 +33,14 @@ export interface AlicizationPendingProactiveOutcome {
   scenario: AlicizationProactiveScenario
   deliveredAt: number
   feedbackWindowMs: number
+  assistantText?: string | null
   learningAction?: 'record' | 'reflect' | 'verify' | 'revise' | 'internalize' | 'hold' | null
   learningFocuses?: string[]
+  projectStateOpenFocusSummary?: string | null
+  projectStateNextFocusSummary?: string | null
+  projectStateEmotionalClosureCue?: string | null
+  emotionalTransitionLedger?: AlicizationEmotionalTransitionLedgerSnapshot | null
+  affectiveResidue?: AlicizationAffectiveResidueMemorySnapshot | null
 }
 
 export interface AlicizationProactiveLoopState {
@@ -63,6 +80,39 @@ function createScenarioNumberMap(initial = 0) {
   ) as Record<AlicizationProactiveScenario, number>
 }
 
+function normalizeProactiveText(raw: unknown, maxChars = 220) {
+  return typeof raw === 'string'
+    ? raw.trim().replace(/\s+/g, ' ').slice(0, maxChars) || null
+    : null
+}
+
+function normalizeLearningAction(raw: unknown): AlicizationPendingProactiveOutcome['learningAction'] {
+  const rawAction = typeof raw === 'string' ? raw.trim() : ''
+  return rawAction === 'record'
+    || rawAction === 'reflect'
+    || rawAction === 'verify'
+    || rawAction === 'revise'
+    || rawAction === 'internalize'
+    || rawAction === 'hold'
+    ? rawAction
+    : null
+}
+
+function normalizeLearningFocuses(raw: unknown) {
+  return Array.isArray(raw)
+    ? raw
+        .map(value => typeof value === 'string' ? value.trim().replace(/\s+/g, ' ').slice(0, 140) : '')
+        .filter(Boolean)
+        .slice(0, 6)
+    : []
+}
+
+function normalizeSnapshotObject<T>(raw: unknown): T | null {
+  return raw && typeof raw === 'object' && !Array.isArray(raw)
+    ? raw as T
+    : null
+}
+
 function normalizePendingOutcome(raw: unknown): AlicizationPendingProactiveOutcome | null {
   const candidate = raw && typeof raw === 'object' ? raw as Record<string, unknown> : null
   const turnId = typeof candidate?.turnId === 'string' ? candidate.turnId.trim() : ''
@@ -72,31 +122,19 @@ function normalizePendingOutcome(raw: unknown): AlicizationPendingProactiveOutco
   if (!turnId || !scenario || !Number.isFinite(deliveredAt) || !Number.isFinite(feedbackWindowMs))
     return null
 
-  const learningAction = (() => {
-    const rawAction = typeof candidate?.learningAction === 'string' ? candidate.learningAction.trim() : ''
-    return rawAction === 'record'
-      || rawAction === 'reflect'
-      || rawAction === 'verify'
-      || rawAction === 'revise'
-      || rawAction === 'internalize'
-      || rawAction === 'hold'
-      ? rawAction
-      : null
-  })()
-  const learningFocuses = Array.isArray(candidate?.learningFocuses)
-    ? candidate.learningFocuses
-        .map(value => typeof value === 'string' ? value.trim().replace(/\s+/g, ' ').slice(0, 140) : '')
-        .filter(Boolean)
-        .slice(0, 6)
-    : []
-
   return {
     turnId,
     scenario,
     deliveredAt: Math.max(0, Math.floor(deliveredAt)),
     feedbackWindowMs: Math.max(1_000, Math.floor(feedbackWindowMs)),
-    learningAction,
-    learningFocuses,
+    assistantText: normalizeProactiveText(candidate?.assistantText, 500),
+    learningAction: normalizeLearningAction(candidate?.learningAction),
+    learningFocuses: normalizeLearningFocuses(candidate?.learningFocuses),
+    projectStateOpenFocusSummary: normalizeProactiveText(candidate?.projectStateOpenFocusSummary),
+    projectStateNextFocusSummary: normalizeProactiveText(candidate?.projectStateNextFocusSummary),
+    projectStateEmotionalClosureCue: normalizeProactiveText(candidate?.projectStateEmotionalClosureCue),
+    emotionalTransitionLedger: normalizeSnapshotObject<AlicizationEmotionalTransitionLedgerSnapshot>(candidate?.emotionalTransitionLedger),
+    affectiveResidue: normalizeSnapshotObject<AlicizationAffectiveResidueMemorySnapshot>(candidate?.affectiveResidue),
   }
 }
 
@@ -115,31 +153,19 @@ function normalizeRecentOutcome(raw: unknown): AlicizationRecentProactiveOutcome
     return null
   }
 
-  const learningAction = (() => {
-    const rawAction = typeof candidate?.learningAction === 'string' ? candidate.learningAction.trim() : ''
-    return rawAction === 'record'
-      || rawAction === 'reflect'
-      || rawAction === 'verify'
-      || rawAction === 'revise'
-      || rawAction === 'internalize'
-      || rawAction === 'hold'
-      ? rawAction
-      : null
-  })()
-  const learningFocuses = Array.isArray(candidate?.learningFocuses)
-    ? candidate.learningFocuses
-        .map(value => typeof value === 'string' ? value.trim().replace(/\s+/g, ' ').slice(0, 140) : '')
-        .filter(Boolean)
-        .slice(0, 6)
-    : []
-
   return {
     turnId,
     scenario,
     outcome,
     createdAt: Math.max(0, Math.floor(createdAt)),
-    learningAction,
-    learningFocuses,
+    assistantText: normalizeProactiveText(candidate?.assistantText, 500),
+    learningAction: normalizeLearningAction(candidate?.learningAction),
+    learningFocuses: normalizeLearningFocuses(candidate?.learningFocuses),
+    projectStateOpenFocusSummary: normalizeProactiveText(candidate?.projectStateOpenFocusSummary),
+    projectStateNextFocusSummary: normalizeProactiveText(candidate?.projectStateNextFocusSummary),
+    projectStateEmotionalClosureCue: normalizeProactiveText(candidate?.projectStateEmotionalClosureCue),
+    emotionalTransitionLedger: normalizeSnapshotObject<AlicizationEmotionalTransitionLedgerSnapshot>(candidate?.emotionalTransitionLedger),
+    affectiveResidue: normalizeSnapshotObject<AlicizationAffectiveResidueMemorySnapshot>(candidate?.affectiveResidue),
   }
 }
 
@@ -188,6 +214,7 @@ function applyOutcome(
     scenario: entry.scenario,
     outcome,
     createdAt: at,
+    assistantText: entry.assistantText ?? null,
     learningAction: entry.learningAction ?? null,
     learningFocuses: Array.isArray(entry.learningFocuses)
       ? entry.learningFocuses
@@ -195,6 +222,11 @@ function applyOutcome(
           .filter(Boolean)
           .slice(0, 6)
       : [],
+    projectStateOpenFocusSummary: entry.projectStateOpenFocusSummary ?? null,
+    projectStateNextFocusSummary: entry.projectStateNextFocusSummary ?? null,
+    projectStateEmotionalClosureCue: entry.projectStateEmotionalClosureCue ?? null,
+    emotionalTransitionLedger: entry.emotionalTransitionLedger ?? null,
+    affectiveResidue: entry.affectiveResidue ?? null,
   }
 
   return {
@@ -282,8 +314,14 @@ export function registerProactiveDelivery(
     scenario: AlicizationProactiveScenario
     deliveredAt: number
     feedbackWindowMs: number
+    assistantText?: string | null
     learningAction?: AlicizationPendingProactiveOutcome['learningAction']
     learningFocuses?: string[]
+    projectStateOpenFocusSummary?: string | null
+    projectStateNextFocusSummary?: string | null
+    projectStateEmotionalClosureCue?: string | null
+    emotionalTransitionLedger?: AlicizationEmotionalTransitionLedgerSnapshot | null
+    affectiveResidue?: AlicizationAffectiveResidueMemorySnapshot | null
   },
 ): AlicizationProactiveLoopState {
   const turnId = input.turnId.trim()
@@ -297,6 +335,7 @@ export function registerProactiveDelivery(
     scenario: input.scenario,
     deliveredAt,
     feedbackWindowMs: Math.max(1_000, Math.floor(input.feedbackWindowMs)),
+    assistantText: normalizeProactiveText(input.assistantText, 500),
     learningAction: input.learningAction ?? null,
     learningFocuses: Array.isArray(input.learningFocuses)
       ? input.learningFocuses
@@ -304,6 +343,11 @@ export function registerProactiveDelivery(
           .filter(Boolean)
           .slice(0, 6)
       : [],
+    projectStateOpenFocusSummary: normalizeProactiveText(input.projectStateOpenFocusSummary),
+    projectStateNextFocusSummary: normalizeProactiveText(input.projectStateNextFocusSummary),
+    projectStateEmotionalClosureCue: normalizeProactiveText(input.projectStateEmotionalClosureCue),
+    emotionalTransitionLedger: input.emotionalTransitionLedger ?? null,
+    affectiveResidue: input.affectiveResidue ?? null,
   })
 
   return {

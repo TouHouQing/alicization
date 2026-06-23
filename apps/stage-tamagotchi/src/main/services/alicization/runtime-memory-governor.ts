@@ -19,4 +19,3 @@ export function reduceRuntimeMemoryGovernance(input: RuntimeMemoryGovernanceRedu
     }),
   )
 }
-

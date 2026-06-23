@@ -89,8 +89,11 @@ interface AlicizationAgentSessionRecord {
 }
 
 interface AlicizationAgentTurnIdentity {
+  affectiveResidue?: AlicizationExecutionRuntimeContext['affectiveResidue']
   cardId: string
   decisionTraceId?: string | null
+  derivedMindStateBundle?: AlicizationExecutionRuntimeContext['derivedMindStateBundle']
+  projectBriefing?: Parameters<typeof buildAlicizationExecutionRuntimeContext>[0]['projectBriefing']
   sessionId?: string | null
   turnId: string
 }
@@ -633,9 +636,12 @@ export function createAlicizationAgentRuntime(options: CreateAlicizationAgentRun
       const recentTasks = selectRecentTasksForSystemBlock(session.tasks, maxTasksInSystemBlock)
       return buildAlicizationExecutionRuntimeContext({
         agentSessionId: session.id,
+        affectiveResidue: identity?.affectiveResidue,
         cardId: sanitizeText(identity?.cardId, 120) || cardId,
         turnId: sanitizeText(identity?.turnId, 160) || sanitizeText(input.turnId, 160),
         decisionTraceId: sanitizeText(identity?.decisionTraceId, 200) || sanitizeText(input.decisionTraceId, 200) || null,
+        derivedMindStateBundle: identity?.derivedMindStateBundle,
+        projectBriefing: identity?.projectBriefing,
         sessionId: sanitizeText(identity?.sessionId, 160) || conversationSessionId,
         recentActions: recentTasks.map(toExecutionActionDigest),
         sensorySnapshot,

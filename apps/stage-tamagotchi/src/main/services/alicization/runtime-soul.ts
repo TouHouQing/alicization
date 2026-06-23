@@ -1,3 +1,4 @@
+import type { AlicizationClaimEvidenceGraph, AlicizationMemoryResolutionLedger, AlicizationMemorySituationCandidateSet, AlicizationOrganicMemoryStageReplay, AlicizationRecallLatencyPolicySnapshot } from '@proj-alicization/stage-shared'
 import type { createOpenAI } from '@xsai-ext/providers/create'
 import type { Message, ToolChoice } from '@xsai/shared-chat'
 import type { tool } from '@xsai/tool'
@@ -5,50 +6,49 @@ import type { DesktopCapturerSource, IpcMainEvent, WebContents } from 'electron'
 
 import type {
   AlicizationActiveThought,
+  AlicizationAffectiveResidueMemorySnapshot,
+  AlicizationAutobiographicalSelfSnapshot,
   AlicizationChatStartResult,
   AlicizationChatStreamDispatchPayload,
+  AlicizationDerivedMindStateBundle,
   AlicizationDialogueRespondedPayload,
   AlicizationEpisodicEventRecord,
   AlicizationGender,
   AlicizationHostPersonModelSnapshot,
-  AlicizationMemoryFact,
-  AlicizationMemoryDeliberation,
   AlicizationLearningExecutionStateSnapshot,
-  AlicizationMemoryReflectionRecord,
+  AlicizationLongHorizonMemorySnapshot,
+  AlicizationMemoryDeliberation,
+  AlicizationMemoryFact,
   AlicizationMemoryRecollectionIntentSnapshot,
+  AlicizationMemoryReflectionRecord,
   AlicizationPersonalityState,
-  AlicizationRelationshipOutcomeRecord,
   AlicizationRecollectionNarrativeSnapshot,
   AlicizationRecollectionPlan,
   AlicizationRecollectionSpeechPlan,
+  AlicizationRelationshipOutcomeRecord,
+  AlicizationSelfEvolutionKernelSnapshot,
   AlicizationSoulFrontmatter,
   AlicizationSoulSnapshot,
   AlicizationSubconsciousFragment,
   AlicizationSubconsciousNeedsState,
-  AlicizationAffectiveResidueMemorySnapshot,
 } from '../../../shared/eventa'
-import type { AlicizationOrganicMemoryStageReplay } from '@proj-alicization/stage-shared'
-import type { AlicizationClaimEvidenceGraph } from '@proj-alicization/stage-shared'
-import type { AlicizationMemoryResolutionLedger } from '@proj-alicization/stage-shared'
-import type { AlicizationMemorySituationCandidateSet } from '@proj-alicization/stage-shared'
-import type { AlicizationRecallLatencyPolicySnapshot } from '@proj-alicization/stage-shared'
 import type { AlicizationMemoryTuningAdvice } from './memory-tuning-advice'
 import type { AlicizationPersonStateProjection } from './person-state-projection'
-import type { AlicizationRelationshipDynamicsState } from './relationship-dynamics-state'
-import type { AlicizationSelfEvolutionKernelSnapshot } from '../../../shared/eventa'
-import type { AlicizationDerivedMindStateBundle } from '../../../shared/eventa'
 import type { AlicizationScreenSemanticSummary } from './proactive-screen-semantic'
+import type { AlicizationRelationshipDynamicsState } from './relationship-dynamics-state'
 
 import { createHash } from 'node:crypto'
 
 import {
-  hasAlicizationPersonaIdentity,
   defaultAlicizationCustomDirectives,
   defaultAlicizationPersonality,
   defaultAlicizationProfile,
+  hasAlicizationPersonaIdentity,
   resolveAlicizationPersonaKernel,
 } from '@proj-alicization/stage-shared'
+
 import { compilePersonaWorkshopAuthority } from './persona-workshop-compiler'
+
 export {
   legacyDialogueStructuredFormats,
   normalDialogueStructuredFormats,
@@ -258,7 +258,16 @@ export interface OrganicMemoryPromptContext {
   affectiveResidue?: AlicizationAffectiveResidueMemorySnapshot | null
   recallLatencyPolicy?: AlicizationRecallLatencyPolicySnapshot | null
   memoryTuningAdvice?: AlicizationMemoryTuningAdvice | null
+  activeContinuityGovernance?: AlicizationDerivedMindStateBundle['activeContinuityGovernance'] | null
+  executionCallbackCarry?: {
+    carryMode: 'repair-before-closeness' | 'lower-pressure' | 'trust-warming' | 'same-thread'
+    confidence: number
+    summary: string
+    threadAnchor?: string | null
+  } | null
   selfEvolution?: AlicizationSelfEvolutionKernelSnapshot | null
+  autobiographicalSelf?: AlicizationAutobiographicalSelfSnapshot | null
+  longHorizonMemory?: AlicizationLongHorizonMemorySnapshot | null
   learningExecutionState?: AlicizationLearningExecutionStateSnapshot | null
   derivedMindStateBundle?: AlicizationDerivedMindStateBundle | null
   memoryStageReplay?: AlicizationOrganicMemoryStageReplay | null

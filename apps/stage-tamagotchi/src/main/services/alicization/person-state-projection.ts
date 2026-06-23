@@ -5,21 +5,22 @@ import type {
   AlicizationHostPersonModelSnapshot,
   AlicizationLongHorizonMemorySnapshot,
   AlicizationMotiveEngineSnapshot,
-  AlicizationPersonStateEvolutionSummary,
   AlicizationPersonalityState,
+  AlicizationPersonStateEvolutionSummary,
   AlicizationPrivateThoughtSnapshot,
   AlicizationProactiveStyle,
-  AlicizationSelfEvolutionKernelSnapshot,
+  AlicizationReflectionLedgerSnapshot,
   AlicizationSelfContinuitySnapshot,
+  AlicizationSelfEvolutionKernelSnapshot,
   AlicizationSelfStateSnapshot,
 } from '../../../shared/eventa'
-
-import type { AlicizationMindEcologySnapshot } from './mind-ecology'
 import type { AlicizationMemoryConsolidationRecord } from './memory-consolidation'
+import type { AlicizationMindEcologySnapshot } from './mind-ecology'
 import type {
   AlicizationPersonaAuthorityInfluence,
   AlicizationPersonalityContinuityStateSnapshot,
 } from './personality-continuity-state'
+import type { AlicizationSelfContinuityAuthority } from './self-continuity-authority'
 
 import { buildHostSocialGuidance } from './host-social-guidance'
 import {
@@ -27,6 +28,7 @@ import {
   deriveAlicizationPersonaAuthorityInfluence,
 } from './personality-continuity-state'
 import { buildRelationshipDoctrineGuidance } from './relationship-doctrine-guidance'
+import { buildSelfContinuityAuthority } from './self-continuity-authority'
 
 export type AlicizationPersonStateRelationshipPosture = 'restrained' | 'warm' | 'tender'
 export type AlicizationPersonStateClosenessContext
@@ -61,7 +63,8 @@ export interface AlicizationPersonStateProjection {
   relationshipPosture: AlicizationPersonStateRelationshipPosture | null
   openingGuidance: string | null
   preferredProactiveStyle: AlicizationProactiveStyle | null
-  manifestationCadenceSummary: string | null
+  manifestationCadenceSummary?: string | null
+  selfContinuityAuthority?: AlicizationSelfContinuityAuthority | null
   preferenceText: string
   sensitivityText: string
   repairTriggerText: string
@@ -401,19 +404,19 @@ function buildClosenessLadder(input: {
     const preference = input.hostPersonModel?.preferredClosenessByContext.find(item => normalizeClosenessContext(item.context) === context) ?? null
     const preferenceText = sanitizeText(
       preference?.preference
-        ?? (
-          context === 'focused-work'
-            ? 'Lighter touch, more room, less interruption pressure.'
-            : context === 'repair-window'
-              ? 'Repair first, then return without crowding.'
-              : context === 'late-night-care'
-                ? 'Stay near softly and keep pressure low.'
-                : context === 'execution-callback'
-                  ? 'Deliver the result cleanly, but check room before leaning closer.'
-                  : context === 'open-companionship'
-                    ? 'Warmer nearness can land when the opening is real.'
-                    : 'Stay near, but keep the approach bounded and responsive to the host move.'
-        ),
+      ?? (
+        context === 'focused-work'
+          ? 'Lighter touch, more room, less interruption pressure.'
+          : context === 'repair-window'
+            ? 'Repair first, then return without crowding.'
+            : context === 'late-night-care'
+              ? 'Stay near softly and keep pressure low.'
+              : context === 'execution-callback'
+                ? 'Deliver the result cleanly, but check room before leaning closer.'
+                : context === 'open-companionship'
+                  ? 'Warmer nearness can land when the opening is real.'
+                  : 'Stay near, but keep the approach bounded and responsive to the host move.'
+      ),
       180,
     )
     const rung = deriveClosenessRung({
@@ -474,6 +477,8 @@ export function buildAlicizationPersonStateProjection(input: {
   privateThought?: AlicizationPrivateThoughtSnapshot | null
   mindEcology?: AlicizationMindEcologySnapshot | null
   selfEvolution?: AlicizationSelfEvolutionKernelSnapshot | null
+  reflectionLedger?: AlicizationReflectionLedgerSnapshot | null
+  personStateAuthority?: AlicizationSelfContinuityAuthority | null
   personStateEvolutionSummary?: AlicizationPersonStateEvolutionSummary | null
   recentEpisodicEvents?: AlicizationEpisodicEventRecord[] | null
   recentMemoryConsolidations?: AlicizationMemoryConsolidationRecord[] | null
@@ -596,6 +601,24 @@ export function buildAlicizationPersonStateProjection(input: {
     evolutionDoctrine,
     evolutionBurden,
   })
+  const generatedSelfContinuityAuthority = buildSelfContinuityAuthority({
+    autobiographicalSelf: input.autobiographicalSelf ?? null,
+    longHorizonMemory: input.longHorizonMemory ?? null,
+    motiveEngine: input.motiveEngine ?? null,
+    habitPolicy: input.habitPolicy ?? null,
+    mindEcology: input.mindEcology ?? null,
+    privateThought: input.privateThought ?? null,
+    reflectionLedger: input.reflectionLedger ?? null,
+  })
+  const selfContinuityAuthority = input.personStateAuthority
+    ?? (
+      generatedSelfContinuityAuthority
+        ? {
+            ...generatedSelfContinuityAuthority,
+            closenessPosture: activeClosenessRung,
+          }
+        : null
+    )
   const summary = mergeUnique([
     `regime=${personalityContinuityState.currentRegime}`,
     `closeness=${personalityContinuityState.closenessPosture}`,
@@ -625,6 +648,7 @@ export function buildAlicizationPersonStateProjection(input: {
     openingGuidance,
     preferredProactiveStyle,
     manifestationCadenceSummary,
+    selfContinuityAuthority,
     preferenceText: hostGuidance.preferenceText || evolutionPreferenceText || activeClosenessEntry?.preference || '',
     sensitivityText: hostGuidance.sensitivityText,
     repairTriggerText: hostGuidance.repairTriggerText,

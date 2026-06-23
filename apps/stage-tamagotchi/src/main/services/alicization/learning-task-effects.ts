@@ -1,3 +1,5 @@
+import type { AlicizationVerifiedLearningArtifact } from '@proj-alicization/stage-shared'
+
 import type {
   AlicizationKnowledgeAssimilationCorrection,
   AlicizationLearningTaskRecord,
@@ -8,7 +10,6 @@ import type {
   AlicizationMemoryReflectionRecord,
   AlicizationRelationshipOutcomeRecord,
 } from '../../../shared/eventa'
-import type { AlicizationVerifiedLearningArtifact } from '@proj-alicization/stage-shared'
 import type { AlicizationLearningActionExecutorResult } from './learning-action-executor'
 import type { AlicizationLearningVerificationBasis } from './learning-domain-verifiers'
 import type { AlicizationLearningPolicyFeedback } from './learning-state-machine'
@@ -165,7 +166,7 @@ export async function rollbackVerifiedLearningArtifactEffect(
 
 export function buildLearningVerifyCorrectionTargets(context: AlicizationLearningTaskEffectContext) {
   return context.supportingFacts
-    .filter(fact => {
+    .filter((fact) => {
       const factDomain = normalizeMemoryDomain(fact.memoryDomain)
       if (factDomain === 'relationship' || factDomain === 'self-model')
         return context.task.payload.conflictTargets.includes(fact.id) || (fact.contradictionCount ?? 0) > 0
@@ -248,13 +249,14 @@ export function buildLearningReviseTargets(context: AlicizationLearningTaskEffec
   const reviseBySupersession = context.task.payload.supersedeTargets.length > 0
   const supportingTargetIds = new Set(context.task.payload.supportingFactIds)
   const reviseByDirectCorrection = shouldReviseSupportingFactsFromDirectCorrection(context)
-  return context.supportingFacts.filter(fact => {
+  return context.supportingFacts.filter((fact) => {
     const factDomain = normalizeMemoryDomain(fact.memoryDomain)
-    if (factDomain === 'relationship' || factDomain === 'self-model')
+    if (factDomain === 'relationship' || factDomain === 'self-model') {
       return explicitTargets.has(fact.id)
         || (reviseBySupersession && supportingTargetIds.has(fact.id))
         || (reviseByDirectCorrection && supportingTargetIds.has(fact.id))
         || (fact.contradictionCount ?? 0) >= 1
+    }
     return explicitTargets.has(fact.id)
       || (reviseBySupersession && supportingTargetIds.has(fact.id))
       || (reviseByDirectCorrection && supportingTargetIds.has(fact.id))

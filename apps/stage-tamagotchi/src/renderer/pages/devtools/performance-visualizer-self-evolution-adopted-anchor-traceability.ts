@@ -1,6 +1,11 @@
 interface SelfEvolutionAdoptedAnchorLike {
+  adoptedAt?: number | null
   snapshotCapturedAt: number
+  candidateId?: string | null
   decisionTraceId: string | null
+  activeThreadId?: string | null
+  focusLabel?: string | null
+  summaryLine?: string | null
   activePatternKey: string | null
   repairOwnerHint: string | null
   prosodyAuthorityNote?: string | null
@@ -9,10 +14,15 @@ interface SelfEvolutionAdoptedAnchorLike {
 
 interface SelfEvolutionPatternWorkflowLike {
   headline: string
+  steps?: string[]
+  validationChecklist?: string[]
 }
 
 interface SelfEvolutionPatternContextLike {
   summaryLine: string
+  currentCapturedAt?: number | null
+  previousCapturedAt?: number | null
+  side?: 'current' | 'previous' | null
 }
 
 export function buildSelfEvolutionAdoptedAnchorTraceability(input: {

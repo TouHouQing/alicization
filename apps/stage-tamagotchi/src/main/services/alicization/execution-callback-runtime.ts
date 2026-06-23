@@ -18,8 +18,8 @@ import {
 } from './execution-ledger-shared'
 import {
   buildAlicizationProjectPreDialogueAwarenessLine,
-  isAlicizationThinSamePhaseCarryLine,
   isAlicizationThinProjectAwarenessLine,
+  isAlicizationThinSamePhaseCarryLine,
   looksLikeThinProjectClosureShell,
   preferStrongerPersistedSameHerSelfLine,
   preferStrongerSameHerDriftRisk,

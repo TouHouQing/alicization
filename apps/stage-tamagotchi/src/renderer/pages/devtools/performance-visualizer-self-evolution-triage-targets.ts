@@ -1,7 +1,7 @@
+import type { SelfEvolutionEvidencePanel } from './performance-visualizer-self-evolution-evidence'
 import type {
   PerformanceVisualizerSelfEvolutionTriageCard,
 } from './performance-visualizer-self-evolution-triage-view'
-import type { SelfEvolutionEvidencePanel } from './performance-visualizer-self-evolution-evidence'
 
 export type SelfEvolutionEvidencePanelId = SelfEvolutionEvidencePanel['id']
 

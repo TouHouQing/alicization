@@ -10,6 +10,7 @@ import {
 } from './digital-life-spine'
 
 interface ResolveAlicizationMainChatStartResultOptions {
+  cardId?: string
   turnId: string
   preludePromise: Promise<AlicizationPreparedMainChatPrelude>
   preparationPromise: Promise<AlicizationPreparedMainChatExecutionResult>

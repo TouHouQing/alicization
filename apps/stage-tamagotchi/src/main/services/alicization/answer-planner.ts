@@ -903,7 +903,7 @@ function buildAnswerPlannerGoverningProject(input: {
   const proactiveSameHerGap = preferProjectStateLine(
     projectState?.proactiveSameHerGap,
     answerCompilerProjectContinuity.proactiveSameHerGap
-      || canonicalProjectState.proactiveSameHerGap,
+    || canonicalProjectState.proactiveSameHerGap,
   )
   const runtimeLandedProgress
     = projectState?.latestLandedProgress

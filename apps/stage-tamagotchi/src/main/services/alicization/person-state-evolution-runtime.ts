@@ -1,3 +1,5 @@
+import type sqlite3 from 'sqlite3'
+
 import type {
   AlicizationPersonStateEvolutionEntryInput,
   AlicizationPersonStateEvolutionEntryRecord,
@@ -6,8 +8,6 @@ import type {
   AlicizationPersonStateEvolutionSummary,
   AlicizationPersonStateUpdateSourceTrailEntry,
 } from '../../../shared/eventa'
-
-import type sqlite3 from 'sqlite3'
 
 interface DbPersonStateEvolutionRow {
   id: string
@@ -285,7 +285,7 @@ export function createAlicizationPersonStateEvolutionRuntime(
       })
     })
 
-    return prepared.map((entry) => mapEvolutionRow({
+    return prepared.map(entry => mapEvolutionRow({
       id: entry.id,
       card_id: entry.cardId,
       decision_trace_id: entry.decisionTraceId,

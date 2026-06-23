@@ -1,6 +1,6 @@
 import type { AlicizationRelationshipLineCandidate } from './memory-search-retrieval-operators'
-import type { OrganicMemoryPromptContext } from './runtime-soul'
 import type { MemoryClusterState, RecollectionPlanSnapshot } from './runtime-organic-memory-prompt-types'
+import type { OrganicMemoryPromptContext } from './runtime-soul'
 
 import { buildMemoryRecollectionNarratives } from './memory-recollection-narratives'
 

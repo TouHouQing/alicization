@@ -1,8 +1,9 @@
+import type { AlicizationVerifiedLearningArtifact } from '@proj-alicization/stage-shared'
+
 import type {
   AlicizationLearningTaskRecord,
   AlicizationMemoryDomain,
 } from '../../../../shared/eventa'
-import type { AlicizationVerifiedLearningArtifact } from '@proj-alicization/stage-shared'
 import type { AlicizationLearningActionExecutorResult } from '../learning-action-executor'
 
 export interface AlicizationSelfRevisionEvent {

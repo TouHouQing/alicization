@@ -80,7 +80,7 @@ const screenCaptureDiagnosticsBySenderId = new Map<number, any>()
 const getScreenCaptureDiagnosticsForWebContentsIdMock = vi.fn((webContentsId: number) => screenCaptureDiagnosticsBySenderId.get(webContentsId) ?? null)
 const appBeforeQuitHandlers: Array<() => Promise<void> | void> = []
 let sensoryCpuUsage = 12
-let foregroundWindowSample: { appName?: string, processName?: string, title?: string } | undefined
+let foregroundWindowSample: { appName?: string, pid?: number | null, processName?: string, title?: string } | undefined
 const fetchMock = vi.fn()
 
 const dbStub = {

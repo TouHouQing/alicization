@@ -1,7 +1,7 @@
 import type { AlicizationMemoryProvenance, AlicizationRecallGovernorSnapshot } from '../../../shared/eventa'
 import type { AlicizationMemoryTuningAdvice } from './memory-tuning-advice'
-import type { OrganicMemoryPromptContext } from './runtime-soul'
 import type { MemoryClusterProbe, MemoryClusterState } from './runtime-organic-memory-prompt-types'
+import type { OrganicMemoryPromptContext } from './runtime-soul'
 
 import { isAlicizationWeakMemoryProvenance } from '@proj-alicization/stage-shared'
 
@@ -405,55 +405,55 @@ export function rankOrganicMemoryCandidatesStage(input: OrganicMemoryCandidateRa
   })
 
   const clusterProbes = [
-      ...agendaRankedConsolidatedMemories.slice(0, 4).map(item => ({
-        id: item.id,
-        kind: 'consolidation' as const,
-        clusterKey: input.helpers.deriveMemoryClusterKey([item.periodKey, item.summary, ...(item.cues ?? [])].filter(Boolean).join(' ')),
-        clusterSummary: item.summary,
-        text: [item.periodKey, item.summary, item.lesson ?? '', ...(item.cues ?? [])].filter(Boolean).join(' '),
-      })),
-      ...agendaRankedWindows.slice(0, 4).map(item => ({
-        id: item.id,
-        kind: 'window' as const,
-        clusterKey: input.helpers.deriveMemoryClusterKey([item.label, item.summary, ...(item.cues ?? [])].filter(Boolean).join(' ')),
-        clusterSummary: item.summary,
-        text: [item.label, item.summary, ...(item.cues ?? [])].filter(Boolean).join(' '),
-      })),
-      ...agendaRankedProceduralMemoriesBase.slice(0, 4).map(item => ({
-        id: item.id,
-        kind: 'procedure' as const,
-        clusterKey: input.helpers.deriveMemoryClusterKey([item.label, item.approach, ...(item.cues ?? [])].filter(Boolean).join(' ')),
-        clusterSummary: item.approach,
-        text: [
-          item.label,
-          item.approach,
-          ...(item.pitfalls ?? []),
-          ...(item.cues ?? []),
-        ].filter(Boolean).join(' '),
-      })),
-      ...agendaRankedEpisodesBase.slice(0, 4).map(item => ({
-        id: item.id,
-        kind: 'episode' as const,
-        clusterKey: input.helpers.deriveMemoryClusterKey([item.threadAnchor, item.sourceSummary, ...(item.tags ?? [])].filter(Boolean).join(' ')),
-        clusterSummary: item.whatHappened,
-        text: [
-          item.threadAnchor,
-          item.whereSummary,
-          item.whatHappened,
-          item.relationshipMeaning,
-          item.lesson,
-          item.sourceSummary,
-          ...(item.tags ?? []),
-        ].filter(Boolean).join(' '),
-      })),
-      ...agendaRankedConversationHistoryBase.slice(0, 4).map(item => ({
-        id: item.turnId ?? `${item.sessionId}:${item.createdAt}`,
-        kind: 'conversation' as const,
-        clusterKey: input.helpers.deriveMemoryClusterKey([item.userText, item.assistantText].filter(Boolean).join(' ')),
-        clusterSummary: [item.userText, item.assistantText].filter(Boolean).join(' | '),
-        text: [item.userText, item.assistantText].filter(Boolean).join(' '),
-      })),
-    ].filter((item): item is MemoryClusterProbe => Boolean(item.clusterKey))
+    ...agendaRankedConsolidatedMemories.slice(0, 4).map(item => ({
+      id: item.id,
+      kind: 'consolidation' as const,
+      clusterKey: input.helpers.deriveMemoryClusterKey([item.periodKey, item.summary, ...(item.cues ?? [])].filter(Boolean).join(' ')),
+      clusterSummary: item.summary,
+      text: [item.periodKey, item.summary, item.lesson ?? '', ...(item.cues ?? [])].filter(Boolean).join(' '),
+    })),
+    ...agendaRankedWindows.slice(0, 4).map(item => ({
+      id: item.id,
+      kind: 'window' as const,
+      clusterKey: input.helpers.deriveMemoryClusterKey([item.label, item.summary, ...(item.cues ?? [])].filter(Boolean).join(' ')),
+      clusterSummary: item.summary,
+      text: [item.label, item.summary, ...(item.cues ?? [])].filter(Boolean).join(' '),
+    })),
+    ...agendaRankedProceduralMemoriesBase.slice(0, 4).map(item => ({
+      id: item.id,
+      kind: 'procedure' as const,
+      clusterKey: input.helpers.deriveMemoryClusterKey([item.label, item.approach, ...(item.cues ?? [])].filter(Boolean).join(' ')),
+      clusterSummary: item.approach,
+      text: [
+        item.label,
+        item.approach,
+        ...(item.pitfalls ?? []),
+        ...(item.cues ?? []),
+      ].filter(Boolean).join(' '),
+    })),
+    ...agendaRankedEpisodesBase.slice(0, 4).map(item => ({
+      id: item.id,
+      kind: 'episode' as const,
+      clusterKey: input.helpers.deriveMemoryClusterKey([item.threadAnchor, item.sourceSummary, ...(item.tags ?? [])].filter(Boolean).join(' ')),
+      clusterSummary: item.whatHappened,
+      text: [
+        item.threadAnchor,
+        item.whereSummary,
+        item.whatHappened,
+        item.relationshipMeaning,
+        item.lesson,
+        item.sourceSummary,
+        ...(item.tags ?? []),
+      ].filter(Boolean).join(' '),
+    })),
+    ...agendaRankedConversationHistoryBase.slice(0, 4).map(item => ({
+      id: item.turnId ?? `${item.sessionId}:${item.createdAt}`,
+      kind: 'conversation' as const,
+      clusterKey: input.helpers.deriveMemoryClusterKey([item.userText, item.assistantText].filter(Boolean).join(' ')),
+      clusterSummary: [item.userText, item.assistantText].filter(Boolean).join(' | '),
+      text: [item.userText, item.assistantText].filter(Boolean).join(' '),
+    })),
+  ].filter((item): item is MemoryClusterProbe => Boolean(item.clusterKey))
   const analyzedClusterState = input.helpers.analyzeMemoryClusters({
     probes: clusterProbes,
     recallSeed: input.recallSeed,

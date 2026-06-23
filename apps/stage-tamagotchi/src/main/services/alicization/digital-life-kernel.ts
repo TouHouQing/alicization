@@ -1,3 +1,5 @@
+import type { AlicizationMemoryResolutionLedger, AlicizationOrganicMemoryStageReplay } from '@proj-alicization/stage-shared'
+
 import type {
   AlicizationAffectiveResidueMemorySnapshot,
   AlicizationDerivedMindStateBundle,
@@ -5,23 +7,23 @@ import type {
   AlicizationMemoryDeliberation,
   AlicizationRecollectionPlan,
   AlicizationRecollectionSpeechPlan,
+  AlicizationRuntimeDigest,
   AlicizationSelfEvolutionKernelSnapshot,
   AlicizationVisualPresenceStateSnapshot,
 } from '../../../shared/eventa'
-import type { AlicizationOrganicMemoryStageReplay } from '@proj-alicization/stage-shared'
-import type { AlicizationMemoryResolutionLedger } from '@proj-alicization/stage-shared'
+import type { AlicizationContinuityDeliberation } from './continuity-deliberation'
+import type { AlicizationDialogueSessionMirror } from './dialogue-session-manager'
 import type { AlicizationDigitalLifeArchitectureSnapshot } from './digital-life-architecture'
 import type { AlicizationMemoryTuningAdvice } from './memory-tuning-advice'
 import type {
   AlicizationPersonStateProjection,
 } from './person-state-projection'
 import type { AlicizationPersonalityContinuityStateSnapshot } from './personality-continuity-state'
-import type { AlicizationContinuityDeliberation } from './continuity-deliberation'
 
+import { deriveAlicizationContinuityDeliberationFromSurface } from './continuity-deliberation'
 import { buildAlicizationDigitalLifeArchitecture } from './digital-life-architecture'
 import { buildMindEcology } from './mind-ecology'
 import { buildAlicizationPersonStateProjection } from './person-state-projection'
-import { deriveAlicizationContinuityDeliberationFromSurface } from './continuity-deliberation'
 import { updateVisualPresenceState } from './visual-episodic-memory'
 
 export interface AlicizationDigitalLifeMindStateCommitShape {
@@ -89,17 +91,23 @@ export interface CommitAlicizationDigitalLifeMindStateInput<TMindState extends A
   scene: AlicizationVisualPresenceStateSnapshot['currentScene']
   attention: AlicizationVisualPresenceStateSnapshot['attention']
   mindState: TMindState
-  captureState: AlicizationVisualPresenceStateSnapshot['captureState']
-  durabilityPulse: AlicizationVisualPresenceStateSnapshot['durabilityPulse']
-  recentTransition: AlicizationVisualPresenceStateSnapshot['recentTransition']
-  nextSuggestedProbeMs: number
+  captureState?: AlicizationVisualPresenceStateSnapshot['captureState']
+  durabilityPulse?: AlicizationVisualPresenceStateSnapshot['durabilityPulse']
+  recentTransition?: AlicizationVisualPresenceStateSnapshot['recentTransition']
+  nextSuggestedProbeMs?: number
 }
 
 export interface AlicizationDigitalLifeRuntimeSurface {
   version: 'digital-life-runtime-surface-v1'
+  raw?: AlicizationVisualPresenceStateSnapshot['raw'] | null
+  runtimeDigest?: AlicizationRuntimeDigest | null
   perception: Pick<AlicizationVisualPresenceStateSnapshot, 'watchMode' | 'currentScene' | 'attention' | 'captureState' | 'durabilityPulse' | 'recentTransition' | 'nextSuggestedProbeMs' | 'updatedAt'> & Pick<Partial<AlicizationVisualPresenceStateSnapshot>, 'currentBodyState' | 'continuityMode' | 'quietLineMs' | 'currentInwardPreoccupation'>
   world: Pick<AlicizationVisualPresenceStateSnapshot, 'worldModel' | 'worldOntology' | 'entityWorld' | 'livingWorldState' | 'relationshipModel'>
-  cognition: Pick<AlicizationVisualPresenceStateSnapshot, 'mindTurnFrame' | 'subjectiveInference' | 'appraisal' | 'beliefLedger' | 'beliefRevision' | 'hypothesisGraph' | 'mindDynamics' | 'mindKernel' | 'privateThought'>
+  cognition: Pick<AlicizationVisualPresenceStateSnapshot, 'mindTurnFrame' | 'subjectiveInference' | 'appraisal' | 'beliefLedger' | 'beliefRevision' | 'hypothesisGraph' | 'mindDynamics' | 'mindKernel' | 'privateThought'> & {
+    emotionalKernel?: AlicizationVisualPresenceStateSnapshot['emotionalKernel'] | null
+    projectState?: AlicizationVisualPresenceStateSnapshot['projectState'] | null
+    runtimeDigest?: AlicizationRuntimeDigest | null
+  }
   memory: Pick<AlicizationVisualPresenceStateSnapshot, 'workingMemoryEpisodes' | 'goalStack' | 'concerns' | 'concernContinuity' | 'longHorizonMemory' | 'selfContinuity' | 'autobiographicalSelf' | 'threadRuntime' | 'commitmentLedger' | 'inquiryPlanner' | 'repairLedger' | 'intentionStream' | 'reflectionLedger' | 'executiveCycle' | 'thoughtThreads' | 'desireMemory' | 'recallGovernor'> & {
     motiveEngine?: AlicizationVisualPresenceStateSnapshot['motiveEngine']
     hostPersonModel?: AlicizationHostPersonModelSnapshot | null
@@ -116,15 +124,22 @@ export interface AlicizationDigitalLifeRuntimeSurface {
       contradictionHeavyFactCount: number
     } | null
     selfEvolution?: AlicizationSelfEvolutionKernelSnapshot | null
+    emotionalKernel?: AlicizationVisualPresenceStateSnapshot['emotionalKernel'] | null
     learningExecutionState?: AlicizationVisualPresenceStateSnapshot['learningExecutionState'] | null
     affectiveResidue?: AlicizationAffectiveResidueMemorySnapshot | null
     derivedMindStateBundle?: AlicizationDerivedMindStateBundle | null
     memoryStageReplay?: AlicizationOrganicMemoryStageReplay | null
     memoryResolutionLedger?: AlicizationMemoryResolutionLedger | null
   }
-  dialogue: Pick<AlicizationVisualPresenceStateSnapshot, 'discourseState' | 'dialogueEncounter' | 'mindSynthesis' | 'conversationState' | 'dialogueWorldThread' | 'dialogueActKernel' | 'answerCompiler' | 'currentConsciousFrame' | 'claimEvidenceLedger' | 'replyDeliberation' | 'answerPlanner'>
+  dialogue: Pick<AlicizationVisualPresenceStateSnapshot, 'discourseState' | 'dialogueEncounter' | 'mindSynthesis' | 'conversationState' | 'dialogueWorldThread' | 'dialogueActKernel' | 'answerCompiler' | 'currentConsciousFrame' | 'claimEvidenceLedger' | 'replyDeliberation' | 'answerPlanner'> & {
+    personStateProjection?: AlicizationPersonStateProjection | null
+    projectState?: AlicizationVisualPresenceStateSnapshot['projectState'] | null
+    runtimeDigest?: AlicizationRuntimeDigest | null
+    sessionMirror?: AlicizationDialogueSessionMirror | null
+  }
   agency: Pick<AlicizationVisualPresenceStateSnapshot, 'selfState' | 'selfGovernor' | 'inquiryLoop' | 'deliberationState' | 'counterfactualDeliberation' | 'actionEcology' | 'initiativeArbitration' | 'initiative' | 'autonomy'> & {
     habitPolicy?: AlicizationVisualPresenceStateSnapshot['habitPolicy']
+    residentPerformance?: AlicizationVisualPresenceStateSnapshot['residentPerformance'] | null
   }
 }
 
@@ -303,10 +318,10 @@ export function commitAlicizationDigitalLifeMindState<TMindState extends Aliciza
     learningExecutionState: input.mindState.learningExecutionState ?? null,
     derivedMindStateBundle: input.mindState.derivedMindStateBundle ?? null,
     privateThought: input.mindState.privateThought,
-    captureState: input.captureState,
-    durabilityPulse: input.durabilityPulse,
-    recentTransition: input.recentTransition,
-    nextSuggestedProbeMs: input.nextSuggestedProbeMs,
+    captureState: input.captureState ?? input.previousState.captureState,
+    durabilityPulse: input.durabilityPulse ?? input.previousState.durabilityPulse,
+    recentTransition: input.recentTransition ?? input.previousState.recentTransition,
+    nextSuggestedProbeMs: input.nextSuggestedProbeMs ?? input.previousState.nextSuggestedProbeMs,
   })
 }
 
@@ -365,8 +380,11 @@ export function buildAlicizationDigitalLifeRuntimeSurface(
     ?? derivedMindStateBundle?.learningExecutionState
     ?? null
   const affectiveResidue = derivedMindStateBundle?.affectiveResidue ?? null
+  const runtimeDigest = state.runtimeDigest ?? state.raw?.runtimeDigest ?? null
   return {
     version: 'digital-life-runtime-surface-v1',
+    raw: state.raw ?? null,
+    runtimeDigest,
     perception: {
       watchMode: state.watchMode,
       currentScene: state.currentScene,
@@ -398,6 +416,9 @@ export function buildAlicizationDigitalLifeRuntimeSurface(
       mindDynamics: state.mindDynamics ?? null,
       mindKernel: state.mindKernel ?? null,
       privateThought: state.privateThought ?? null,
+      emotionalKernel: state.emotionalKernel ?? null,
+      projectState: state.projectState ?? state.raw?.projectState ?? runtimeDigest?.projectState ?? null,
+      runtimeDigest,
     },
     memory: {
       workingMemoryEpisodes: state.workingMemoryEpisodes,
@@ -422,6 +443,7 @@ export function buildAlicizationDigitalLifeRuntimeSurface(
       personStateProjection,
       knowledgeEvidence: null,
       selfEvolution,
+      emotionalKernel: state.emotionalKernel ?? null,
       learningExecutionState,
       affectiveResidue,
       derivedMindStateBundle,
@@ -438,6 +460,9 @@ export function buildAlicizationDigitalLifeRuntimeSurface(
       claimEvidenceLedger: state.claimEvidenceLedger ?? null,
       replyDeliberation: state.replyDeliberation ?? null,
       answerPlanner: state.answerPlanner ?? null,
+      projectState: state.projectState ?? state.raw?.projectState ?? runtimeDigest?.projectState ?? null,
+      runtimeDigest,
+      sessionMirror: null,
     },
     agency: {
       selfState: state.selfState ?? null,
@@ -450,6 +475,7 @@ export function buildAlicizationDigitalLifeRuntimeSurface(
       initiativeArbitration: state.initiativeArbitration ?? null,
       initiative: state.initiative ?? null,
       autonomy: state.autonomy ?? null,
+      residentPerformance: state.residentPerformance ?? null,
     },
   }
 }

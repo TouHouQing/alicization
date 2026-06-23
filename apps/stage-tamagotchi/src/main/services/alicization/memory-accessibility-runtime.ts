@@ -1,18 +1,19 @@
 import type {
+  AlicizationRecallLatencyPolicyInput,
+} from '@proj-alicization/stage-shared'
+
+import type {
   AlicizationRecallGovernorSnapshot,
 } from '../../../shared/eventa'
-
-import type { AlicizationMemoryRetrievalBudgetClass } from './memory-retrieval-telemetry'
 import type { AlicizationOnlineMemoryPolicy } from './memory-policy-governor'
-import type { AlicizationMemoryRetrievalTelemetrySnapshot } from './memory-retrieval-telemetry'
+import type { AlicizationMemoryRetrievalBudgetClass, AlicizationMemoryRetrievalTelemetrySnapshot } from './memory-retrieval-telemetry'
 import type { AlicizationMemoryTuningAdvice } from './memory-tuning-advice'
 import type { AlicizationSelfRevisionStatePatch } from './self-evolution/state-revision-bus'
+
 import {
   deriveAlicizationRecallLatencyPolicy,
 } from '@proj-alicization/stage-shared'
-import type {
-  AlicizationRecallLatencyPolicyInput,
-} from '@proj-alicization/stage-shared'
+
 import { deriveAlicizationOnlineMemoryPolicy } from './memory-policy-governor'
 
 export type AlicizationMemoryAccessibilityLayer = 'raw-ledger' | 'summary-layer' | 'hot-index'
@@ -166,17 +167,17 @@ export function buildAlicizationMemoryAccessibilityPlan(input: {
     ? 'balanced'
     : recallLatencyPolicy.latencyClass === 'deep'
       || (deepThread && recallLatencyPolicy.recallAction === 'deep-recall')
-    ? 'deep'
-    : recallLatencyPolicy.latencyClass === 'fast' || fastDialogue
-      ? 'fast'
-      : 'balanced'
+      ? 'deep'
+      : recallLatencyPolicy.latencyClass === 'fast' || fastDialogue
+        ? 'fast'
+        : 'balanced'
   const expansionMode: AlicizationMemoryExpansionMode = recallLatencyPolicy.shouldAvoidDeepExpansion
     ? 'summary-first'
     : deepThread
-    ? 'deep-thread'
-    : fastDialogue
-      ? 'summary-first'
-      : 'balanced'
+      ? 'deep-thread'
+      : fastDialogue
+        ? 'summary-first'
+        : 'balanced'
   const prewarmKey = uniqueList([
     recallLatencyPolicy.hotPathKey,
     governor?.threadAnchors?.[0] ?? null,

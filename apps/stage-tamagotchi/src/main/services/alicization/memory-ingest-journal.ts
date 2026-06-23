@@ -1,5 +1,4 @@
 import type { AlicizationMemoryIngestHealth } from '@proj-alicization/stage-shared'
-
 import type sqlite3 from 'sqlite3'
 
 export type AlicizationMemoryIngestJournalStatus = 'pending' | 'applied' | 'failed'

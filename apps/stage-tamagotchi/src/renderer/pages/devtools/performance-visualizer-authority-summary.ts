@@ -55,8 +55,8 @@ function normalizeNumber(value: unknown) {
 function firstAlias(values: unknown) {
   return Array.isArray(values)
     ? values
-        .map(item => normalizeText(item))
-        .find(Boolean) ?? null
+      .map(item => normalizeText(item))
+      .find(Boolean) ?? null
     : null
 }
 
@@ -278,7 +278,7 @@ export function buildAuthoritySummaryEntries(input: {
 const driftStatusPriority: Record<PerformanceVisualizerAuthoritySegmentRow['driftStatus'], number> = {
   'hard-drift': 0,
   'partial-drift': 1,
-  unknown: 2,
+  'unknown': 2,
   'all-aligned': 3,
 }
 
@@ -321,8 +321,8 @@ export function buildAuthoritySegmentRows(
     return rowEntries.every(item => item.aligned === true)
       ? true
       : rowEntries.some(item => item.aligned === false)
-          ? false
-          : null
+        ? false
+        : null
   }
 
   function resolveDriftStatus(aligned: boolean | null, rowEntries: PerformanceVisualizerAuthoritySummaryEntry[]) {

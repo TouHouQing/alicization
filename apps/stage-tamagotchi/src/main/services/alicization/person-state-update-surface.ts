@@ -1,11 +1,10 @@
 import type {
   AlicizationMindTurnEventRecord,
   AlicizationPersonaReinforcementDimension,
+  AlicizationRelationshipOutcomeSourceKind,
   AlicizationPersonStateUpdateRecord as SharedAlicizationPersonStateUpdateRecord,
   AlicizationPersonStateUpdateSurface as SharedAlicizationPersonStateUpdateSurface,
-  AlicizationRelationshipOutcomeSourceKind,
 } from '../../../shared/eventa'
-
 import type { AlicizationOutcomeClosureResult } from './outcome-reinforcement'
 
 export type AlicizationPersonStateUpdateSurface = SharedAlicizationPersonStateUpdateSurface

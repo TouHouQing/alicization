@@ -1,4 +1,8 @@
 import type {
+  StageEmbodimentPerformanceMatchedDriver,
+  StageEmbodimentSpeechArticulationState,
+} from '@proj-alicization/stage-shared'
+import type {
   ThreeHitTestReadTracePayload,
   ThreeRendererMemorySnapshot,
   ThreeSceneRenderInfoTracePayload,
@@ -11,7 +15,6 @@ import type {
   VrmSceneSummarySnapshot,
   VrmUpdateFrameTracePayload,
 } from '@proj-alicization/stage-ui-three/trace'
-import type { StageEmbodimentSpeechArticulationState } from '@proj-alicization/stage-shared'
 
 import type { StageThreeRuntimeTraceEnvelope, StageThreeRuntimeTraceForwardedPayload } from '../../shared/eventa'
 
@@ -179,6 +182,7 @@ export interface StageThreeRuntimeSpeechEmbodimentDiagnostics {
     finalSurfacePolicy: string | null
     closureState: string | null
     suppressionTags: string[]
+    authorityTrustSummary?: string | null
   } | null
   recentDrivingTraceEvents: Array<{
     kind: string | null
@@ -194,7 +198,7 @@ export interface StageThreeRuntimeSpeechEmbodimentDiagnostics {
       value: string
     }>
   }>
-  traceSummary: {
+  traceSummary?: {
     cueId?: string | null
     decisionTraceId: string
     turnMode: string | null
@@ -208,9 +212,10 @@ export interface StageThreeRuntimeSpeechEmbodimentDiagnostics {
     segmentBinding: {
       matched: boolean
       rendererTarget: 'live2d' | 'vrm' | null
-      matchedDrivers: Array<'face' | 'motion' | 'lipsync'>
+      matchedDrivers: StageEmbodimentPerformanceMatchedDriver[]
       matchedSources: string[]
     }
+    authorityTrustSummary?: string | null
   } | null
   driverSummary: {
     rendererTarget: 'live2d' | 'vrm' | null
@@ -243,6 +248,10 @@ export interface StageThreeRuntimeSpeechEmbodimentDiagnostics {
       driftKind: 'aligned' | 'resident-not-yet-applied' | 'runtime-only-visible' | 'alias-resolution-drift'
       driverCue: string | null
       driverSource: string | null
+      faceDriverCue?: string | null
+      faceDriverSource?: string | null
+      motionDriverCue?: string | null
+      motionDriverSource?: string | null
     } | null
     vrm: {
       predicted: string | null
@@ -252,9 +261,13 @@ export interface StageThreeRuntimeSpeechEmbodimentDiagnostics {
       driftKind: 'aligned' | 'resident-not-yet-applied' | 'runtime-only-visible' | 'alias-resolution-drift'
       driverCue: string | null
       driverSource: string | null
+      faceDriverCue?: string | null
+      faceDriverSource?: string | null
+      motionDriverCue?: string | null
+      motionDriverSource?: string | null
     } | null
   }
-  rendererDriftSummary: {
+  rendererDriftSummary?: {
     live2d: string | null
     vrm: string | null
     primary: string | null
@@ -267,20 +280,21 @@ export interface StageThreeRuntimeSpeechEmbodimentDiagnostics {
     cueId: string | null
     segmentId: string | null
     rendererTarget: 'live2d' | 'vrm' | null
-    matchedDrivers: Array<'face' | 'motion' | 'lipsync'>
+    matchedDrivers: StageEmbodimentPerformanceMatchedDriver[]
     matchedSources: string[]
-    bindingSummary: string
-    matchSummary: string
+    bindingSummary: string | null
+    matchSummary: string | null
     authorityTrustSummary?: string | null
     prosodyAuthoritySummary?: string | null
-    authorityMismatchSummary: string | null
-    authorityMismatchReasonSummary: string | null
-    authorityMismatchDisplay: string | null
-    settleSummary: string
+    authorityMismatchSummary?: string | null
+    authorityMismatchReasonSummary?: string | null
+    authorityMismatchDisplay?: string | null
+    settleSummary: string | null
     traceEmbodimentSummary?: string | null
   } | null
-  speechEvidence: {
+  speechEvidence?: {
     voiceSummary: string | null
+    bodyContinuitySummary?: string | null
     authorityMatchSummary: string | null
     topVisemeSummary: string | null
     cueSummary: string | null
@@ -310,7 +324,7 @@ export interface StageThreeRuntimeSpeechEmbodimentDiagnostics {
     activeMotion: {
       group: string | null
       index: number | null
-      segmentId: string | null
+      segmentId?: string | null
     } | null
     cue: {
       emotion: string | null
@@ -331,11 +345,14 @@ export interface StageThreeRuntimeSpeechEmbodimentDiagnostics {
     driverAuthority: {
       segmentId: string | null
       rendererTarget: 'live2d' | 'vrm' | null
-      matchedDrivers: Array<'face' | 'motion' | 'lipsync'>
+      matchedDrivers: StageEmbodimentPerformanceMatchedDriver[]
       sources: string[]
-      faceSegmentMatched: boolean
-      motionSegmentMatched: boolean
-      lipsyncSegmentMatched: boolean
+      matchedSources?: string[]
+      bodySegmentMatched?: boolean | null
+      faceSegmentMatched: boolean | null
+      motionSegmentMatched: boolean | null
+      lipsyncSegmentMatched: boolean | null
+      voiceSegmentMatched?: boolean | null
       prosodyAuthority?: {
         segmentId: string | null
         provenance: 'authority-bound' | 'fallback-derived'
@@ -361,6 +378,7 @@ export interface StageThreeRuntimeSpeechEmbodimentDiagnostics {
     cue: {
       id: string | null
       text?: string | null
+      emotion?: string | null
       prosodyWeight?: number | null
       mouthWeight?: number | null
       headWeight?: number | null
@@ -374,8 +392,13 @@ export interface StageThreeRuntimeSpeechEmbodimentDiagnostics {
       interruptMode?: string | null
       settleMode?: string | null
       rendererHints: {
+        residentMode?: string | null
+        preferredBlinkCadence?: string | null
         preferredExpressionAliases?: string[]
+        preferredGazeMode?: string | null
         preferredMotionAliases?: string[]
+        reasonTags?: string[]
+        signature?: string | null
       } | null
       rendererSettle: {
         live2dFacialReleaseMs: number | null
@@ -385,6 +408,16 @@ export interface StageThreeRuntimeSpeechEmbodimentDiagnostics {
       } | null
     } | null
     drivers: {
+      body?: {
+        frameMode: string | null
+        stillness: number | null
+        gazeStability: number | null
+        breathAmplitude: number | null
+        expressivity: number | null
+        source: string | null
+        confidence: number | null
+        segmentId: string | null
+      } | null
       face: {
         emotion: string | null
         facialCue: string | null
@@ -400,6 +433,7 @@ export interface StageThreeRuntimeSpeechEmbodimentDiagnostics {
         mode: string | null
         playbackPhase: string | null
         segmentId: string | null
+        continuityHoldMs?: number | null
         visemeHints: Array<{
           segmentId: string | null
           viseme: string | null
@@ -419,6 +453,14 @@ export interface StageThreeRuntimeSpeechEmbodimentDiagnostics {
         segmentId: string | null
       } | null
     } | null
+  } | null
+  convergence?: {
+    segmentId: string | null
+    state: string
+    line: string
+    matchedDrivers: StageEmbodimentPerformanceMatchedDriver[]
+    missingDrivers: StageEmbodimentPerformanceMatchedDriver[]
+    summary: string
   } | null
 }
 
@@ -511,6 +553,7 @@ export function createDefaultStageSpeechEmbodimentDiagnostics(): StageThreeRunti
     rendererDriftSummary: null,
     articulationSummary: null,
     authoritySummary: null,
+    convergence: null,
     speechEvidence: null,
     cueMicroSummary: null,
     driverExecutionSummary: null,

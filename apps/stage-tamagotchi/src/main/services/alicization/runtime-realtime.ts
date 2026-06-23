@@ -76,10 +76,10 @@ export function sanitizeBriefText(raw: string, maxLength = 160) {
   return `${text.slice(0, Math.max(8, maxLength - 1))}…`
 }
 
-export function uniqueCarryAnchors(values: unknown[], maxItems = 6) {
+export function uniqueCarryAnchors(values: unknown[], maxItems = 6, maxChars = 180) {
   const anchors: string[] = []
   for (const value of values) {
-    const normalized = sanitizeBriefText(readStringValue(value), 180)
+    const normalized = sanitizeBriefText(readStringValue(value), maxChars)
     if (!normalized || anchors.includes(normalized))
       continue
     anchors.push(normalized)
@@ -192,7 +192,7 @@ interface OpenMeteoGeocodeResult {
 }
 
 const cjkPattern = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u
-const weatherLocationSuffixPattern = /(特别行政区|自治区|自治州|自治县|市|州|盟|县|区|旗)$/u
+const weatherLocationSuffixPattern = /(特别行政区|自治区|自治州|自治县|[市州盟县区旗])$/u
 const weatherLocationAliasMap: Record<string, string> = {
   纽约: 'New York',
   洛杉矶: 'Los Angeles',

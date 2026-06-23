@@ -507,8 +507,8 @@ export function normalizeAlicizationMemoryRetrievalTelemetry(raw: unknown): Alic
       memoryRetrievalBudgetClasses.map((budgetClass) => {
         const samples = Array.isArray(budgetLatencySamples[budgetClass])
           ? budgetLatencySamples[budgetClass]
-            .map(item => Number(item))
-            .filter(item => Number.isFinite(item) && item >= 0)
+              .map(item => Number(item))
+              .filter(item => Number.isFinite(item) && item >= 0)
           : []
         return [budgetClass, trimLatencySamples(samples)]
       }),
@@ -1384,9 +1384,9 @@ export function createAlicizationMemoryRetrievalTelemetryRuntime(
         : telemetry.learningPolicyProvenanceLabelBias,
       learningPolicyReasonCodes: Array.isArray(next.learningPolicyReasonCodes)
         ? next.learningPolicyReasonCodes
-          .map(item => typeof item === 'string' ? item.trim().slice(0, 120) : '')
-          .filter(Boolean)
-          .slice(0, 16)
+            .map(item => typeof item === 'string' ? item.trim().slice(0, 120) : '')
+            .filter(Boolean)
+            .slice(0, 16)
         : telemetry.learningPolicyReasonCodes,
       selfRevisionPatchCount: Number.isFinite(next.selfRevisionPatchCount)
         ? Math.max(0, Math.floor(Number(next.selfRevisionPatchCount)))
@@ -1408,9 +1408,9 @@ export function createAlicizationMemoryRetrievalTelemetryRuntime(
         : telemetry.selfRevisionValidationBias,
       selfRevisionReasonCodes: Array.isArray(next.selfRevisionReasonCodes)
         ? next.selfRevisionReasonCodes
-          .map(item => typeof item === 'string' ? item.trim().slice(0, 120) : '')
-          .filter(Boolean)
-          .slice(0, 24)
+            .map(item => typeof item === 'string' ? item.trim().slice(0, 120) : '')
+            .filter(Boolean)
+            .slice(0, 24)
         : telemetry.selfRevisionReasonCodes,
       selfEvolutionVersionCandidateCount: Number.isFinite(next.selfEvolutionVersionCandidateCount)
         ? Math.max(0, Math.floor(Number(next.selfEvolutionVersionCandidateCount)))
@@ -1435,9 +1435,9 @@ export function createAlicizationMemoryRetrievalTelemetryRuntime(
         : telemetry.selfEvolutionReplayPassedCount,
       selfEvolutionReasonCodes: Array.isArray(next.selfEvolutionReasonCodes)
         ? next.selfEvolutionReasonCodes
-          .map(item => typeof item === 'string' ? item.trim().slice(0, 120) : '')
-          .filter(Boolean)
-          .slice(0, 24)
+            .map(item => typeof item === 'string' ? item.trim().slice(0, 120) : '')
+            .filter(Boolean)
+            .slice(0, 24)
         : telemetry.selfEvolutionReasonCodes,
       relationshipCadenceRegressionRate: Number.isFinite(next.relationshipCadenceRegressionRate)
         ? Math.max(0, Math.min(1, Number(next.relationshipCadenceRegressionRate)))

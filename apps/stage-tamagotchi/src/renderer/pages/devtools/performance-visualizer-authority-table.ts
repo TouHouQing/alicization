@@ -1,19 +1,22 @@
+import type { StageEmbodimentPerformanceMatchedDriver } from '@proj-alicization/stage-shared'
+
+import type { PerformanceVisualizerAuthorityMismatchFilter } from './performance-visualizer-authority-mismatch-filter'
 import type { PerformanceVisualizerAuthorityDisplayRow } from './performance-visualizer-authority-rows'
 import type { SpeechAuthoritySegmentRow } from './performance-visualizer-speech-authority'
+import type { PerformanceVisualizerSpeechEvidenceFilter, PerformanceVisualizerSpeechEvidenceSnapshot } from './performance-visualizer-speech-evidence'
 
 import {
   buildAuthorityMismatchReasonSummary,
   buildAuthorityMismatchSummary,
   matchesAuthorityMismatchFilter,
-  type PerformanceVisualizerAuthorityMismatchFilter,
+
 } from './performance-visualizer-authority-mismatch-filter'
+import { buildSpeechDiagnosticSummaryEntries, buildSpeechDiagnosticSummaryLines } from './performance-visualizer-speech-diagnostic-summary'
 import {
   buildSpeechEvidenceSnapshot,
   matchesSpeechEvidenceSnapshot,
-  type PerformanceVisualizerSpeechEvidenceFilter,
-  type PerformanceVisualizerSpeechEvidenceSnapshot,
+
 } from './performance-visualizer-speech-evidence'
-import { buildSpeechDiagnosticSummaryEntries, buildSpeechDiagnosticSummaryLines } from './performance-visualizer-speech-diagnostic-summary'
 import { buildTraceAuthorityExecutionSummary, isGeneratedTraceEmbodimentSummary } from './performance-visualizer-trace-embodiment'
 
 export interface PerformanceVisualizerAuthorityTableRow {
@@ -51,12 +54,13 @@ export interface PerformanceVisualizerAuthorityTableRow {
   settleAuthoritySummary: string
   authorityTrustSummary?: string | null
   authoritySegmentMatched?: boolean | null
-  authorityMatchedDrivers?: Array<'face' | 'motion' | 'lipsync'>
+  authorityMatchedDrivers?: StageEmbodimentPerformanceMatchedDriver[]
   authorityMatchedSources?: string[]
   authorityMismatchSummary?: string | null
   authorityMismatchReasonSummary?: string | null
   authorityMismatchDisplay?: string | null
   rendererDriftSummary?: string | null
+  speechEvidence?: PerformanceVisualizerSpeechEvidenceSnapshot | null
   speechSummaryLines: string[]
 }
 
@@ -108,27 +112,27 @@ function resolveAuthorityTableProsodySummary(
   return speech?.speechEvidence?.prosodyAuthoritySummary
     ?? (speech?.playbackTelemetry?.driverAuthority?.prosodyAuthority
       ? `${[
-          `mode=${speech.playbackTelemetry.driverAuthority.prosodyAuthority.mode ?? 'n/a'}`,
-          `prosody=${Number.isFinite(speech.playbackTelemetry.driverAuthority.prosodyAuthority.cueProsodyWeight) ? Number(speech.playbackTelemetry.driverAuthority.prosodyAuthority.cueProsodyWeight).toFixed(2) : 'n/a'}`,
-          `mouth=${Number.isFinite(speech.playbackTelemetry.driverAuthority.prosodyAuthority.cueMouthWeight) ? Number(speech.playbackTelemetry.driverAuthority.prosodyAuthority.cueMouthWeight).toFixed(2) : 'n/a'}`,
-          `head=${Number.isFinite(speech.playbackTelemetry.driverAuthority.prosodyAuthority.cueHeadWeight) ? Number(speech.playbackTelemetry.driverAuthority.prosodyAuthority.cueHeadWeight).toFixed(2) : 'n/a'}`,
-          `visemePeak=${Number.isFinite(speech.playbackTelemetry.driverAuthority.prosodyAuthority.visemePeakWeight) ? Number(speech.playbackTelemetry.driverAuthority.prosodyAuthority.visemePeakWeight).toFixed(2) : 'n/a'}`,
-          `provenance=${speech.playbackTelemetry.driverAuthority.prosodyAuthority.provenance}`,
-          `source=${speech.playbackTelemetry.driverAuthority.prosodyAuthority.source ?? 'n/a'}`,
-          `segment=${speech.playbackTelemetry.driverAuthority.prosodyAuthority.segmentId ?? 'n/a'}`,
-        ].join(' | ')}`
+        `mode=${speech.playbackTelemetry.driverAuthority.prosodyAuthority.mode ?? 'n/a'}`,
+        `prosody=${Number.isFinite(speech.playbackTelemetry.driverAuthority.prosodyAuthority.cueProsodyWeight) ? Number(speech.playbackTelemetry.driverAuthority.prosodyAuthority.cueProsodyWeight).toFixed(2) : 'n/a'}`,
+        `mouth=${Number.isFinite(speech.playbackTelemetry.driverAuthority.prosodyAuthority.cueMouthWeight) ? Number(speech.playbackTelemetry.driverAuthority.prosodyAuthority.cueMouthWeight).toFixed(2) : 'n/a'}`,
+        `head=${Number.isFinite(speech.playbackTelemetry.driverAuthority.prosodyAuthority.cueHeadWeight) ? Number(speech.playbackTelemetry.driverAuthority.prosodyAuthority.cueHeadWeight).toFixed(2) : 'n/a'}`,
+        `visemePeak=${Number.isFinite(speech.playbackTelemetry.driverAuthority.prosodyAuthority.visemePeakWeight) ? Number(speech.playbackTelemetry.driverAuthority.prosodyAuthority.visemePeakWeight).toFixed(2) : 'n/a'}`,
+        `provenance=${speech.playbackTelemetry.driverAuthority.prosodyAuthority.provenance}`,
+        `source=${speech.playbackTelemetry.driverAuthority.prosodyAuthority.source ?? 'n/a'}`,
+        `segment=${speech.playbackTelemetry.driverAuthority.prosodyAuthority.segmentId ?? 'n/a'}`,
+      ].join(' | ')}`
       : null)
     ?? (speech?.playbackTelemetry?.prosodyAuthority
       ? `${[
-          `mode=${speech.playbackTelemetry.prosodyAuthority.mode ?? 'n/a'}`,
-          `prosody=${Number.isFinite(speech.playbackTelemetry.prosodyAuthority.cueProsodyWeight) ? Number(speech.playbackTelemetry.prosodyAuthority.cueProsodyWeight).toFixed(2) : 'n/a'}`,
-          `mouth=${Number.isFinite(speech.playbackTelemetry.prosodyAuthority.cueMouthWeight) ? Number(speech.playbackTelemetry.prosodyAuthority.cueMouthWeight).toFixed(2) : 'n/a'}`,
-          `head=${Number.isFinite(speech.playbackTelemetry.prosodyAuthority.cueHeadWeight) ? Number(speech.playbackTelemetry.prosodyAuthority.cueHeadWeight).toFixed(2) : 'n/a'}`,
-          `visemePeak=${Number.isFinite(speech.playbackTelemetry.prosodyAuthority.visemePeakWeight) ? Number(speech.playbackTelemetry.prosodyAuthority.visemePeakWeight).toFixed(2) : 'n/a'}`,
-          `provenance=${speech.playbackTelemetry.prosodyAuthority.provenance}`,
-          `source=${speech.playbackTelemetry.prosodyAuthority.source ?? 'n/a'}`,
-          `segment=${speech.playbackTelemetry.prosodyAuthority.segmentId ?? 'n/a'}`,
-        ].join(' | ')}`
+        `mode=${speech.playbackTelemetry.prosodyAuthority.mode ?? 'n/a'}`,
+        `prosody=${Number.isFinite(speech.playbackTelemetry.prosodyAuthority.cueProsodyWeight) ? Number(speech.playbackTelemetry.prosodyAuthority.cueProsodyWeight).toFixed(2) : 'n/a'}`,
+        `mouth=${Number.isFinite(speech.playbackTelemetry.prosodyAuthority.cueMouthWeight) ? Number(speech.playbackTelemetry.prosodyAuthority.cueMouthWeight).toFixed(2) : 'n/a'}`,
+        `head=${Number.isFinite(speech.playbackTelemetry.prosodyAuthority.cueHeadWeight) ? Number(speech.playbackTelemetry.prosodyAuthority.cueHeadWeight).toFixed(2) : 'n/a'}`,
+        `visemePeak=${Number.isFinite(speech.playbackTelemetry.prosodyAuthority.visemePeakWeight) ? Number(speech.playbackTelemetry.prosodyAuthority.visemePeakWeight).toFixed(2) : 'n/a'}`,
+        `provenance=${speech.playbackTelemetry.prosodyAuthority.provenance}`,
+        `source=${speech.playbackTelemetry.prosodyAuthority.source ?? 'n/a'}`,
+        `segment=${speech.playbackTelemetry.prosodyAuthority.segmentId ?? 'n/a'}`,
+      ].join(' | ')}`
       : null)
     ?? null
 }
@@ -224,7 +228,7 @@ export function buildAuthorityTableRows(
         ? speech.speechEvidence
         : speech
           ? buildSpeechEvidenceSnapshot(speech)
-        : null
+          : null
       const resolvedProsodyAuthoritySummary = resolveAuthorityTableProsodySummary(speech)
       const authorityTrustSummary = speech?.authorityTrustSummary
         ?? deriveAuthorityTrustSummary({
@@ -244,7 +248,7 @@ export function buildAuthorityTableRows(
               }))
         : null
       const speechSummaryLines = speech
-          ? buildSpeechDiagnosticSummaryLines(buildSpeechDiagnosticSummaryEntries({
+        ? buildSpeechDiagnosticSummaryLines(buildSpeechDiagnosticSummaryEntries({
             authorityBindingSummary: speech.authorityBindingSummary,
             authorityMatchSummary: speech.authorityMatchSummary,
             authorityTrustSummary,
@@ -300,6 +304,7 @@ export function buildAuthorityTableRows(
         authorityMismatchReasonSummary,
         authorityMismatchDisplay,
         rendererDriftSummary: speech?.rendererDriftSummary ?? null,
+        speechEvidence,
         speechSummaryLines,
       }
     })

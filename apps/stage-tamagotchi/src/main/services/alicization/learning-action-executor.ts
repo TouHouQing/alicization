@@ -1,3 +1,5 @@
+import type { AlicizationVerifiedLearningArtifact } from '@proj-alicization/stage-shared'
+
 import type {
   AlicizationKnowledgeAssimilationCorrection,
   AlicizationMemoryDomain,
@@ -7,13 +9,12 @@ import type {
   AlicizationMemoryReflectionRecord,
   AlicizationRelationshipOutcomeRecord,
 } from '../../../shared/eventa'
-import type { AlicizationVerifiedLearningArtifact } from '@proj-alicization/stage-shared'
-
-import { executeAlicizationLearningTaskOrchestrator } from './learning-executor-orchestrator'
 import type { AlicizationLearningLifecycleState, AlicizationLearningPolicyFeedback } from './learning-state-machine'
 import type { AlicizationSelfRevisionEvent } from './self-evolution/self-revision-ledger'
 import type { AlicizationSelfRevisionStatePatch } from './self-evolution/state-revision-bus'
 import type { AlicizationSelfEvolutionVersionCandidate } from './self-evolution/version-runtime'
+
+import { executeAlicizationLearningTaskOrchestrator } from './learning-executor-orchestrator'
 
 export interface AlicizationLearningActionExecutorResult {
   status: 'completed' | 'blocked' | 'failed' | 'reopened' | 'downgraded' | 'cancelled'

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { buildSoulBody, normalizeFrontmatter, toSoulContent, withNeedsGenesis } from './runtime-soul'
 import { createAlicizationCardPromptRuntime } from './runtime-card-prompt'
+import { buildSoulBody, normalizeFrontmatter, toSoulContent, withNeedsGenesis } from './runtime-soul'
 
 describe('runtime card prompt persona kernel', () => {
   it('resolves persona kernel from soul and injects persona profile block into main prompt blocks', async () => {

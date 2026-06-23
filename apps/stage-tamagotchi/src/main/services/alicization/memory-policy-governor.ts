@@ -82,9 +82,9 @@ export function deriveAlicizationOnlineMemoryPolicy(input: {
     || (telemetry?.learningPolicyStrictnessBias ?? 0) >= 0.28
     ? 'quarantine'
     : wrongThreadPressure >= 0.2
-        || precisionPressure >= 0.22
-        || (tuningAdvice?.surfaceAdjustments.specificityClampBias ?? 0) >= 0.14
-        || (telemetry?.learningPolicyStrictnessBias ?? 0) >= 0.12
+      || precisionPressure >= 0.22
+      || (tuningAdvice?.surfaceAdjustments.specificityClampBias ?? 0) >= 0.14
+      || (telemetry?.learningPolicyStrictnessBias ?? 0) >= 0.12
       ? 'strict'
       : 'normal'
 

@@ -1,5 +1,6 @@
 import type { AlicizationTurnRetrievalPolicySnapshot } from '../memory-accessibility-runtime'
 import type { OrganicMemoryPromptContext } from '../runtime-soul'
+
 import { deriveAlicizationMemoryCandidateCompetition } from './candidate-competition'
 import { deriveAlicizationMemoryCandidateRetrieval } from './candidate-retrieval'
 import { deriveAlicizationMemoryDeliberation } from './memory-deliberation'

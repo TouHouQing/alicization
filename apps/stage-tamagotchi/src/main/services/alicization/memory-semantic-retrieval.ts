@@ -59,7 +59,7 @@ const semanticConceptMatchers = [
 ]
 
 function tokenizeLoose(text: string) {
-  return uniqueList(text.match(/[\p{Script=Han}]{1,8}|[a-z0-9][a-z0-9-]{1,32}/gu) ?? [])
+  return uniqueList(text.match(/\p{Script=Han}{1,8}|[a-z0-9][a-z0-9-]{1,32}/gu) ?? [])
 }
 
 function buildCharacterTrigrams(text: string) {

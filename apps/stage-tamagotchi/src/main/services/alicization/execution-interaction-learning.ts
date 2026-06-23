@@ -129,25 +129,25 @@ export function deriveExecutionInteractionLearningProfile(input: {
   const mindDirectness = clampUnit(
     mindEcology?.temperament.directness
     ?? rememberedDirectness * 0.88
-      + (selfTemperament === 'eager' ? 0.12 : 0),
+    + (selfTemperament === 'eager' ? 0.12 : 0),
   )
   const mindGuardedness = clampUnit(
     mindEcology?.temperament.irritability
     ?? rememberedGuardedness * 0.72
-      + selfGuarding * 0.28,
+    + selfGuarding * 0.28,
   )
   const mindSolitude = clampUnit(
     mindEcology?.climate.solitudeNeed
     ?? rememberedObservation * 0.62
-      + selfGuarding * 0.18
-      + (selfTemperament === 'reserved' ? 0.08 : 0),
+    + selfGuarding * 0.18
+    + (selfTemperament === 'reserved' ? 0.08 : 0),
   )
   const mindReflectivePull = clampUnit(
     mindEcology?.climate.reflectivePull
     ?? rememberedTruth * 0.32
-      + rememberedObservation * 0.28
-      + rememberedRepair * 0.18
-      + (requiresGroundingBeforeSurface ? 0.12 : 0),
+    + rememberedObservation * 0.28
+    + rememberedRepair * 0.18
+    + (requiresGroundingBeforeSurface ? 0.12 : 0),
   )
   const truthDrive = motive?.truthDisciplineDrive
     ?? readUnit(rawMotiveDrives?.truthDiscipline)

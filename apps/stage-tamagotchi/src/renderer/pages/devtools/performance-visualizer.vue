@@ -3,75 +3,48 @@ import { ButtonBar } from '@proj-alicization/stage-ui/components'
 import { useAlicizationSelfEvolutionInspectorStore } from '@proj-alicization/stage-ui/stores/alicization-self-evolution-inspector'
 import { useLocalStorage } from '@vueuse/core'
 import { storeToRefs } from 'pinia'
-import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { nextTick } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import { useStageThreeRuntimeDiagnosticsStore } from '../../stores/stage-three-runtime-diagnostics'
+import { useStageWindowLifecycleStore } from '../../stores/stage-window-lifecycle'
 import { buildAuthorityDisplayRows } from './performance-visualizer-authority-rows'
-import { buildSpeechAuthoritySegmentRows } from './performance-visualizer-speech-authority'
-import { buildSpeechAuthorityHotspots, filterSpeechAuthorityHotspots } from './performance-visualizer-speech-hotspots'
-import { buildSpeechObservabilityView } from './performance-visualizer-speech-observability'
-import { buildSpeechObservabilityRows } from './performance-visualizer-speech-observability-rows'
-import {
-  formatSpeechAuthorityFilterValue,
-  formatSpeechAuthorityValue,
-  formatSpeechDisplayText,
-  formatSpeechObservabilityLabel,
-  formatSpeechObservabilitySectionLabel,
-} from './performance-visualizer-speech-display'
-import { buildRuntimeAuthorityOverview } from './performance-visualizer-runtime-authority-overview'
-import { buildAuthorityTableRows, filterAuthorityTableRows } from './performance-visualizer-authority-table'
 import { buildAuthoritySegmentRows, buildAuthoritySummaryEntries, filterAuthoritySegmentRows, sortAuthoritySegmentRows } from './performance-visualizer-authority-summary'
+import { buildAuthorityTableRows, filterAuthorityTableRows } from './performance-visualizer-authority-table'
 import {
   buildDriverExecutionTelemetrySummaryEntries,
   buildResidentRuntimeTelemetrySummaryEntries,
 } from './performance-visualizer-execution-telemetry-summary'
 import { buildLive2DAuthorityComparisonView } from './performance-visualizer-live2d-authority'
 import { buildPlaybackCueAuthorityView } from './performance-visualizer-playback-cue'
-import { buildSelfEvolutionEvidencePanels } from './performance-visualizer-self-evolution-evidence'
-import { buildSelfEvolutionEvidencePanelInput } from './performance-visualizer-self-evolution-evidence-input'
+import { buildRuntimeAuthorityOverview } from './performance-visualizer-runtime-authority-overview'
+import { buildSelfEvolutionActiveWorkflowFocus } from './performance-visualizer-self-evolution-active-workflow-focus'
+import { buildSelfEvolutionAdoptedAnchor } from './performance-visualizer-self-evolution-adopted-anchor'
+import { buildSelfEvolutionAdoptedAnchorHistoryTransition } from './performance-visualizer-self-evolution-adopted-anchor-history-transition'
+import { buildSelfEvolutionAdoptedAnchorReplayPlan } from './performance-visualizer-self-evolution-adopted-anchor-replay'
+import { buildSelfEvolutionAdoptedAnchorReplayFeedback } from './performance-visualizer-self-evolution-adopted-anchor-replay-feedback'
+import { buildSelfEvolutionAdoptedAnchorTraceEventSelection } from './performance-visualizer-self-evolution-adopted-anchor-trace-event'
+import { buildSelfEvolutionAdoptedAnchorTraceability } from './performance-visualizer-self-evolution-adopted-anchor-traceability'
+import { buildSelfEvolutionBaselineAdoption } from './performance-visualizer-self-evolution-baseline-adoption'
+import { buildSelfEvolutionBaselineAdoptionHistorySummary } from './performance-visualizer-self-evolution-baseline-adoption-history'
+import { appendSelfEvolutionBaselineAdoptionHistory } from './performance-visualizer-self-evolution-baseline-adoption-history-records'
+import { buildSelfEvolutionBaselineAdoptionRecord } from './performance-visualizer-self-evolution-baseline-adoption-record'
+import { buildSelfEvolutionBaselineQuality } from './performance-visualizer-self-evolution-baseline-quality'
 import {
   buildSelfEvolutionDiagnosticSummaryEntries,
 } from './performance-visualizer-self-evolution-diagnostic-summary'
-import { buildSelfEvolutionTriageView } from './performance-visualizer-self-evolution-triage-view'
-import { buildSelfEvolutionFocusPlan } from './performance-visualizer-self-evolution-focus-plan'
+import { buildSelfEvolutionEvidencePanels } from './performance-visualizer-self-evolution-evidence'
+import { buildSelfEvolutionEvidencePanelInput } from './performance-visualizer-self-evolution-evidence-input'
 import { resolveDefaultSelfEvolutionFocusCardId } from './performance-visualizer-self-evolution-focus-card'
-import { buildSelfEvolutionFocusSnapshot } from './performance-visualizer-self-evolution-focus-snapshot'
 import { buildSelfEvolutionFocusDiffSummary } from './performance-visualizer-self-evolution-focus-diff'
 import { appendSelfEvolutionFocusSnapshotHistory } from './performance-visualizer-self-evolution-focus-history'
-import { buildSelfEvolutionFocusHistorySummary } from './performance-visualizer-self-evolution-focus-history-summary'
-import { buildSelfEvolutionFocusHistoryDrilldown } from './performance-visualizer-self-evolution-focus-history-drilldown'
-import { buildSelfEvolutionFocusHistoryPatterns } from './performance-visualizer-self-evolution-focus-history-patterns'
-import { buildSelfEvolutionFocusHistoryPatternGuidance } from './performance-visualizer-self-evolution-focus-history-pattern-guidance'
-import { buildSelfEvolutionFocusHistoryPatternContext } from './performance-visualizer-self-evolution-focus-history-pattern-context'
-import { buildSelfEvolutionActiveWorkflowFocus } from './performance-visualizer-self-evolution-active-workflow-focus'
-import { buildSelfEvolutionRepairSession } from './performance-visualizer-self-evolution-repair-session'
-import { buildSelfEvolutionRepairClosure } from './performance-visualizer-self-evolution-repair-closure'
-import { buildSelfEvolutionRepairNextAction } from './performance-visualizer-self-evolution-repair-next-action'
-import { buildSelfEvolutionRepairActionRoute } from './performance-visualizer-self-evolution-repair-action-route'
-import { buildSelfEvolutionRepairScrollTarget } from './performance-visualizer-self-evolution-repair-scroll-target'
-import { buildSelfEvolutionRepairFollowupNavigation } from './performance-visualizer-self-evolution-repair-followup-navigation'
-import { buildSelfEvolutionRepairActionFeedback } from './performance-visualizer-self-evolution-repair-action-feedback'
-import { buildSelfEvolutionBaselineQuality } from './performance-visualizer-self-evolution-baseline-quality'
-import { buildSelfEvolutionBaselineAdoption } from './performance-visualizer-self-evolution-baseline-adoption'
-import { buildSelfEvolutionBaselineAdoptionRecord } from './performance-visualizer-self-evolution-baseline-adoption-record'
-import { buildSelfEvolutionAdoptedAnchor } from './performance-visualizer-self-evolution-adopted-anchor'
-import { buildSelfEvolutionAdoptedAnchorTraceability } from './performance-visualizer-self-evolution-adopted-anchor-traceability'
-import { buildSelfEvolutionAdoptedAnchorHistoryTransition } from './performance-visualizer-self-evolution-adopted-anchor-history-transition'
-import { buildSelfEvolutionAdoptedAnchorTraceEventSelection } from './performance-visualizer-self-evolution-adopted-anchor-trace-event'
-import { buildSelfEvolutionAdoptedAnchorReplayPlan } from './performance-visualizer-self-evolution-adopted-anchor-replay'
-import { buildSelfEvolutionAdoptedAnchorReplayFeedback } from './performance-visualizer-self-evolution-adopted-anchor-replay-feedback'
-import { buildSelfEvolutionBaselineAdoptionHistorySummary } from './performance-visualizer-self-evolution-baseline-adoption-history'
-import { appendSelfEvolutionBaselineAdoptionHistory } from './performance-visualizer-self-evolution-baseline-adoption-history-records'
-import { buildSelfEvolutionFocusHistoryPatternWorkflow } from './performance-visualizer-self-evolution-focus-history-pattern-workflow'
-import { buildSelfEvolutionFocusHistoryRestorePlan } from './performance-visualizer-self-evolution-focus-history-restore-plan'
 import { buildSelfEvolutionFocusHistoryComparison } from './performance-visualizer-self-evolution-focus-history-comparison'
 import { buildSelfEvolutionFocusHistoryDiffHighlighting } from './performance-visualizer-self-evolution-focus-history-diff-highlighting'
-import { buildSelfEvolutionFocusHistoryEventLocalization } from './performance-visualizer-self-evolution-focus-history-event-localization'
 import {
   buildSelfEvolutionFocusHistoryPatternGuidanceDisplay,
   buildSelfEvolutionFocusSnapshotDisplay,
   buildSelfEvolutionFocusSnapshotHistoryDisplay,
+  formatSelfEvolutionBooleanValue,
   formatSelfEvolutionCandidateStatus,
   formatSelfEvolutionClosureStatus,
   formatSelfEvolutionDisplayText,
@@ -79,27 +52,53 @@ import {
   formatSelfEvolutionLearningValue,
   formatSelfEvolutionMemoryResolutionValue,
   formatSelfEvolutionRepairOwnerHint,
-  formatSelfEvolutionTraceListValue,
-  formatSelfEvolutionBooleanValue,
   formatSelfEvolutionRuntimeStatus,
   formatSelfEvolutionRuntimeValue,
+  formatSelfEvolutionTraceListValue,
 } from './performance-visualizer-self-evolution-focus-history-display'
+import { buildSelfEvolutionFocusHistoryDrilldown } from './performance-visualizer-self-evolution-focus-history-drilldown'
+import { buildSelfEvolutionFocusHistoryEventLocalization } from './performance-visualizer-self-evolution-focus-history-event-localization'
+import { buildSelfEvolutionFocusHistoryPatternContext } from './performance-visualizer-self-evolution-focus-history-pattern-context'
+import { buildSelfEvolutionFocusHistoryPatternGuidance } from './performance-visualizer-self-evolution-focus-history-pattern-guidance'
+import { buildSelfEvolutionFocusHistoryPatternWorkflow } from './performance-visualizer-self-evolution-focus-history-pattern-workflow'
+import { buildSelfEvolutionFocusHistoryPatterns } from './performance-visualizer-self-evolution-focus-history-patterns'
+import { buildSelfEvolutionFocusHistoryRestorePlan } from './performance-visualizer-self-evolution-focus-history-restore-plan'
+import { buildSelfEvolutionFocusHistorySummary } from './performance-visualizer-self-evolution-focus-history-summary'
+import { buildSelfEvolutionFocusPlan } from './performance-visualizer-self-evolution-focus-plan'
+import { buildSelfEvolutionFocusSnapshot } from './performance-visualizer-self-evolution-focus-snapshot'
 import { buildSelfEvolutionRendererAuthorityProjection } from './performance-visualizer-self-evolution-renderer-authority'
+import { buildSelfEvolutionRepairActionFeedback } from './performance-visualizer-self-evolution-repair-action-feedback'
+import { buildSelfEvolutionRepairActionRoute } from './performance-visualizer-self-evolution-repair-action-route'
+import { buildSelfEvolutionRepairClosure } from './performance-visualizer-self-evolution-repair-closure'
+import { buildSelfEvolutionRepairFollowupNavigation } from './performance-visualizer-self-evolution-repair-followup-navigation'
+import { buildSelfEvolutionRepairNextAction } from './performance-visualizer-self-evolution-repair-next-action'
+import { buildSelfEvolutionRepairOutcome } from './performance-visualizer-self-evolution-repair-outcome'
+import { buildSelfEvolutionRepairScrollTarget } from './performance-visualizer-self-evolution-repair-scroll-target'
+import { buildSelfEvolutionRepairSession } from './performance-visualizer-self-evolution-repair-session'
 import { buildSelfEvolutionRuntimeContinuityProjection } from './performance-visualizer-self-evolution-runtime-continuity'
+import { buildSelfEvolutionTriageView } from './performance-visualizer-self-evolution-triage-view'
+import { buildSpeechAuthoritySegmentRows } from './performance-visualizer-speech-authority'
+import {
+  formatSpeechAuthorityFilterValue,
+  formatSpeechAuthorityValue,
+  formatSpeechDisplayText,
+  formatSpeechObservabilityLabel,
+  formatSpeechObservabilitySectionLabel,
+} from './performance-visualizer-speech-display'
+import { buildSpeechAuthorityHotspots, filterSpeechAuthorityHotspots } from './performance-visualizer-speech-hotspots'
+import { buildSpeechObservabilityView } from './performance-visualizer-speech-observability'
+import { buildSpeechObservabilityRows } from './performance-visualizer-speech-observability-rows'
+import {
+  formatRecentDrivingTraceDetailLine,
+  formatRecentDrivingTraceHeading,
+} from './performance-visualizer-trace-display'
 import {
   buildRecentDrivingEventSummaryEntries,
   buildRecentDrivingTraceDetailEntries,
   buildRecentDrivingTraceEventEntries,
   buildRecentDrivingTraceRecordSummaryEntries,
 } from './performance-visualizer-trace-timeline-summary'
-import {
-  formatRecentDrivingTraceDetailLine,
-  formatRecentDrivingTraceHeading,
-} from './performance-visualizer-trace-display'
 import { buildVrmAuthorityComparisonView } from './performance-visualizer-vrm-authority'
-
-import { useStageThreeRuntimeDiagnosticsStore } from '../../stores/stage-three-runtime-diagnostics'
-import { useStageWindowLifecycleStore } from '../../stores/stage-window-lifecycle'
 
 const { t } = useI18n()
 const diagnostics = useStageThreeRuntimeDiagnosticsStore()
@@ -133,7 +132,6 @@ const {
   selectedCandidateResidentPerformanceProjection,
   selectedCandidateEmbodimentOutputProjection,
   selectedCandidateImpactSummary,
-  selectedCandidateSelfEvolutionSummary,
   selectedCandidateProactiveDecisionConsumptionSummary,
   selectedCandidateRejectedActionAlternatives,
   selectedCandidateTraceDetails,
@@ -253,6 +251,19 @@ const authoritySegmentRows = computed(() => {
 const authorityDisplayRows = computed(() => buildAuthorityDisplayRows(authoritySegmentRows.value))
 const speechObservabilityView = computed(() => buildSpeechObservabilityView(speechEmbodiment.value))
 const speechObservabilityRows = computed(() => buildSpeechObservabilityRows(speechObservabilityView.value))
+const speechAuthoritySegmentRows = computed(() => buildSpeechAuthoritySegmentRows(
+  authoritySegmentRows.value,
+  speechObservabilityView.value,
+  {
+    recentDrivingTraceRecord: speechEmbodiment.value.recentDrivingTraceRecord,
+    recentDrivingTraceDetails: speechEmbodiment.value.recentDrivingTraceDetails,
+  },
+))
+const speechAuthoritySegmentRowsByCueId = computed<Record<string, (typeof speechAuthoritySegmentRows.value)[number]>>(() =>
+  Object.fromEntries(
+    speechAuthoritySegmentRows.value.map(row => [row.cueId, row]),
+  ),
+)
 const snapshotNativeTraceEmbodimentSummary = computed(() => (
   playbackCueAuthorityView.value?.traceEmbodimentSummary
   ?? speechEmbodiment.value.authoritySummary?.traceEmbodimentSummary
@@ -262,22 +273,14 @@ const fallbackTraceEmbodimentSummary = computed(() => (
   playbackCueAuthorityView.value?.authoritySegmentId
     ? speechAuthoritySegmentRowsByCueId.value[playbackCueAuthorityView.value.authoritySegmentId]?.traceEmbodimentSummary ?? null
     : speechEmbodiment.value.authoritySummary?.cueId
-        ? speechAuthoritySegmentRowsByCueId.value[speechEmbodiment.value.authoritySummary.cueId]?.traceEmbodimentSummary ?? null
-        : null
+      ? speechAuthoritySegmentRowsByCueId.value[speechEmbodiment.value.authoritySummary.cueId]?.traceEmbodimentSummary ?? null
+      : null
 ))
 const runtimeAuthorityOverview = computed(() => buildRuntimeAuthorityOverview({
   speechEmbodiment: speechEmbodiment.value,
   playbackCueAuthorityView: playbackCueAuthorityView.value,
   traceEmbodimentSummary: snapshotNativeTraceEmbodimentSummary.value ?? fallbackTraceEmbodimentSummary.value,
 }))
-const speechAuthoritySegmentRows = computed(() => buildSpeechAuthoritySegmentRows(
-  authoritySegmentRows.value,
-  speechObservabilityView.value,
-  {
-    recentDrivingTraceRecord: speechEmbodiment.value.recentDrivingTraceRecord,
-    recentDrivingTraceDetails: speechEmbodiment.value.recentDrivingTraceDetails,
-  },
-))
 const speechAuthorityHotspots = computed(() => filterSpeechAuthorityHotspots(
   buildSpeechAuthorityHotspots(
     authoritySegmentRows.value,
@@ -365,11 +368,12 @@ const selfEvolutionFocusHistoryPatterns = computed(() => buildSelfEvolutionFocus
   selfEvolutionFocusSnapshotHistory.value as any,
 ))
 const selfEvolutionFocusHistoryPatternGuidance = computed(() => selfEvolutionFocusHistoryPatterns.value
-  .map(pattern => ({
-    patternKey: pattern.patternKey,
-    guidance: buildSelfEvolutionFocusHistoryPatternGuidance(pattern as any),
+  .flatMap((pattern) => {
+    const guidance = buildSelfEvolutionFocusHistoryPatternGuidance(pattern as any)
+    return guidance
+      ? [{ patternKey: pattern.patternKey, guidance }]
+      : []
   }))
-  .filter(item => item.guidance))
 const selfEvolutionFocusHistoryPatternGuidanceByKey = computed<Record<string, NonNullable<(typeof selfEvolutionFocusHistoryPatternGuidance.value)[number]['guidance']>>>(() =>
   Object.fromEntries(
     selfEvolutionFocusHistoryPatternGuidance.value.map(item => [item.patternKey, item.guidance]),
@@ -377,7 +381,7 @@ const selfEvolutionFocusHistoryPatternGuidanceByKey = computed<Record<string, No
 )
 const selfEvolutionFocusHistoryPatternGuidanceDisplayByKey = computed<Record<string, ReturnType<typeof buildSelfEvolutionFocusHistoryPatternGuidanceDisplay>>>(() =>
   Object.fromEntries(
-    selfEvolutionFocusHistoryPatternGuidance.value.map((item) => [
+    selfEvolutionFocusHistoryPatternGuidance.value.map(item => [
       item.patternKey,
       buildSelfEvolutionFocusHistoryPatternGuidanceDisplay(item.guidance as any),
     ]),
@@ -483,13 +487,6 @@ const selfEvolutionBaselineAdoption = computed(() => buildSelfEvolutionBaselineA
   latestSnapshot: lastSelfEvolutionFocusSnapshot.value as any,
   history: selfEvolutionFocusSnapshotHistory.value as any,
 }))
-const selfEvolutionBaselineAdoptionRecord = computed(() => buildSelfEvolutionBaselineAdoptionRecord({
-  baselineAdoption: selfEvolutionBaselineAdoption.value as any,
-  latestSnapshot: lastSelfEvolutionFocusSnapshot.value as any,
-  activePatternKey: activeSelfEvolutionWorkflowPatternKey.value,
-  repairOwnerHint: activeSelfEvolutionWorkflowFocus.value?.repairOwnerHint ?? null,
-  capturedAt: lastSelfEvolutionFocusSnapshot.value?.capturedAt ?? 0,
-}))
 const selfEvolutionAdoptedAnchor = computed(() => buildSelfEvolutionAdoptedAnchor(
   selfEvolutionBaselineAdoptionHistory.value as any,
 ))
@@ -522,9 +519,9 @@ const selfEvolutionFocusHistoryComparisons = computed(() => selfEvolutionFocusHi
       : null
   })
   .filter(Boolean) as Array<{
-    transitionKey: string
-    comparison: NonNullable<ReturnType<typeof buildSelfEvolutionFocusHistoryComparison>>
-  }>)
+  transitionKey: string
+  comparison: NonNullable<ReturnType<typeof buildSelfEvolutionFocusHistoryComparison>>
+}>)
 const selectedSelfEvolutionHistoryTransitionKey = ref<string | null>(null)
 const selectedSelfEvolutionHistoryComparison = computed(() => {
   if (!selectedSelfEvolutionHistoryTransitionKey.value)
@@ -561,11 +558,6 @@ const highlightedSelfEvolutionEvidencePanelIds = computed(() => new Set(
 const highlightedSelfEvolutionTraceSectionIds = computed(() => new Set(
   selfEvolutionFocusPlan.value.highlightedTraceSectionIds,
 ))
-const speechAuthoritySegmentRowsByCueId = computed<Record<string, (typeof speechAuthoritySegmentRows.value)[number]>>(() =>
-  Object.fromEntries(
-    speechAuthoritySegmentRows.value.map(row => [row.cueId, row]),
-  ),
-)
 const residentRuntimeTelemetrySummaryEntries = computed(() => buildResidentRuntimeTelemetrySummaryEntries(
   speechEmbodiment.value.runtimeDynamics,
 ))
@@ -895,7 +887,7 @@ function cycleAuthoritySpeechEvidenceFilter() {
           ? 'micro-expression'
           : authoritySpeechEvidenceFilter.value === 'micro-expression'
             ? 'authority-match'
-          : 'all'
+            : 'all'
 }
 
 function cycleAuthoritySettleAuthorityFilter() {
@@ -1095,7 +1087,9 @@ function cycleAuthorityRendererDriftFilter() {
               </div>
               <div :class="['grid gap-3 text-xs text-neutral-400', 'md:grid-cols-2']">
                 <div :class="['rounded-lg border border-neutral-800/70 bg-neutral-900/30 p-2']">
-                  <div :class="['mb-1 text-neutral-300']">{{ formatSelfEvolutionDisplayText('memory') }}</div>
+                  <div :class="['mb-1 text-neutral-300']">
+                    {{ formatSelfEvolutionDisplayText('memory') }}
+                  </div>
                   <div>{{ formatSelfEvolutionDisplayText('verification-strictness') }}: {{ selectedCandidateConsumptionPreview.memory.verificationStrictness }}</div>
                   <div>{{ formatSelfEvolutionDisplayText('top-k-expansion-active') }}: {{ selectedCandidateConsumptionPreview.memory.topKExpansionActive }}</div>
                   <div>{{ formatSelfEvolutionDisplayText('wrong-thread-suppression-raised') }}: {{ selectedCandidateConsumptionPreview.memory.wrongThreadSuppressionRaised }}</div>
@@ -1106,7 +1100,9 @@ function cycleAuthorityRendererDriftFilter() {
                   </div>
                 </div>
                 <div :class="['rounded-lg border border-neutral-800/70 bg-neutral-900/30 p-2']">
-                  <div :class="['mb-1 text-neutral-300']">{{ formatSelfEvolutionDisplayText('relationship') }}</div>
+                  <div :class="['mb-1 text-neutral-300']">
+                    {{ formatSelfEvolutionDisplayText('relationship') }}
+                  </div>
                   <div>{{ formatSelfEvolutionDisplayText('resolved-posture') }}: {{ selectedCandidateConsumptionPreview.relationship.resolvedPosture }}</div>
                   <div>{{ formatSelfEvolutionDisplayText('repair-window-raised') }}: {{ selectedCandidateConsumptionPreview.relationship.repairWindowRaised }}</div>
                   <div>{{ formatSelfEvolutionDisplayText('closeness-capped') }}: {{ selectedCandidateConsumptionPreview.relationship.closenessCapped }}</div>
@@ -1116,7 +1112,9 @@ function cycleAuthorityRendererDriftFilter() {
                   </div>
                 </div>
                 <div :class="['rounded-lg border border-neutral-800/70 bg-neutral-900/30 p-2']">
-                  <div :class="['mb-1 text-neutral-300']">{{ formatSelfEvolutionDisplayText('response') }}</div>
+                  <div :class="['mb-1 text-neutral-300']">
+                    {{ formatSelfEvolutionDisplayText('response') }}
+                  </div>
                   <div>{{ formatSelfEvolutionDisplayText('hypothesis-labeling-raised') }}: {{ selectedCandidateConsumptionPreview.response.hypothesisLabelingRaised }}</div>
                   <div>{{ formatSelfEvolutionDisplayText('specificity-clamp-raised') }}: {{ selectedCandidateConsumptionPreview.response.specificityClampRaised }}</div>
                   <div>{{ formatSelfEvolutionDisplayText('second-pass-required') }}: {{ selectedCandidateConsumptionPreview.response.secondPassRequired }}</div>
@@ -1126,7 +1124,9 @@ function cycleAuthorityRendererDriftFilter() {
                   </div>
                 </div>
                 <div :class="['rounded-lg border border-neutral-800/70 bg-neutral-900/30 p-2']">
-                  <div :class="['mb-1 text-neutral-300']">{{ formatSelfEvolutionDisplayText('proactive') }}</div>
+                  <div :class="['mb-1 text-neutral-300']">
+                    {{ formatSelfEvolutionDisplayText('proactive') }}
+                  </div>
                   <div>{{ formatSelfEvolutionDisplayText('hold-likely') }}: {{ selectedCandidateConsumptionPreview.proactive.holdLikely }}</div>
                   <div>{{ formatSelfEvolutionDisplayText('learning-proposal-raised') }}: {{ selectedCandidateConsumptionPreview.proactive.learningProposalRaised }}</div>
                   <div>{{ formatSelfEvolutionDisplayText('restraint-raised') }}: {{ selectedCandidateConsumptionPreview.proactive.restraintRaised }}</div>
@@ -1146,7 +1146,9 @@ function cycleAuthorityRendererDriftFilter() {
               </div>
               <div :class="['grid gap-3 text-xs text-neutral-400', 'md:grid-cols-2']">
                 <div :class="['rounded-lg border border-neutral-800/70 bg-neutral-900/30 p-2']">
-                  <div :class="['mb-1 text-neutral-300']">{{ formatSelfEvolutionDisplayText('persistent-mind-state') }}</div>
+                  <div :class="['mb-1 text-neutral-300']">
+                    {{ formatSelfEvolutionDisplayText('persistent-mind-state') }}
+                  </div>
                   <div>{{ formatSelfEvolutionDisplayText('status') }}: {{ formatSelfEvolutionRuntimeStatus(selectedCandidateAuthoritySurfaces.persistentMindState.status) }}</div>
                   <div>{{ formatSelfEvolutionDisplayText('host-person-model-present') }}: {{ selectedCandidateAuthoritySurfaces.persistentMindState.hostPersonModelPresent }}</div>
                   <div>{{ formatSelfEvolutionDisplayText('affective-residue-present') }}: {{ selectedCandidateAuthoritySurfaces.persistentMindState.affectiveResiduePresent }}</div>
@@ -1162,7 +1164,9 @@ function cycleAuthorityRendererDriftFilter() {
                   </div>
                 </div>
                 <div :class="['rounded-lg border border-neutral-800/70 bg-neutral-900/30 p-2']">
-                  <div :class="['mb-1 text-neutral-300']">{{ formatSelfEvolutionDisplayText('turn-trace-state') }}</div>
+                  <div :class="['mb-1 text-neutral-300']">
+                    {{ formatSelfEvolutionDisplayText('turn-trace-state') }}
+                  </div>
                   <div>{{ formatSelfEvolutionDisplayText('status') }}: {{ formatSelfEvolutionRuntimeStatus(selectedCandidateAuthoritySurfaces.turnTraceState.status) }}</div>
                   <div>{{ formatSelfEvolutionDisplayText('memory-stage-replay-present') }}: {{ selectedCandidateAuthoritySurfaces.turnTraceState.memoryStageReplayPresent }}</div>
                   <div>{{ formatSelfEvolutionDisplayText('memory-resolution-ledger-present') }}: {{ selectedCandidateAuthoritySurfaces.turnTraceState.memoryResolutionLedgerPresent }}</div>
@@ -1185,7 +1189,9 @@ function cycleAuthorityRendererDriftFilter() {
               </div>
               <div :class="['grid gap-3 text-xs text-neutral-400', 'md:grid-cols-2']">
                 <div :class="['rounded-lg border border-neutral-800/70 bg-neutral-900/30 p-2']">
-                  <div :class="['mb-1 text-neutral-300']">{{ formatSelfEvolutionDisplayText('relationship') }}</div>
+                  <div :class="['mb-1 text-neutral-300']">
+                    {{ formatSelfEvolutionDisplayText('relationship') }}
+                  </div>
                   <div>{{ formatSelfEvolutionDisplayText('status') }}: {{ formatSelfEvolutionRuntimeStatus(selectedCandidateRuntimeAlignment.relationship.status) }}</div>
                   <div>{{ formatSelfEvolutionDisplayText('expected-posture') }}: {{ formatSelfEvolutionRuntimeValue('posture', selectedCandidateRuntimeAlignment.relationship.expectedPosture) }}</div>
                   <div>{{ formatSelfEvolutionDisplayText('planner-posture') }}: {{ formatSelfEvolutionRuntimeValue('posture', selectedCandidateRuntimeAlignment.relationship.plannerPosture) }}</div>
@@ -1198,7 +1204,9 @@ function cycleAuthorityRendererDriftFilter() {
                   </div>
                 </div>
                 <div :class="['rounded-lg border border-neutral-800/70 bg-neutral-900/30 p-2']">
-                  <div :class="['mb-1 text-neutral-300']">{{ formatSelfEvolutionDisplayText('response') }}</div>
+                  <div :class="['mb-1 text-neutral-300']">
+                    {{ formatSelfEvolutionDisplayText('response') }}
+                  </div>
                   <div>{{ formatSelfEvolutionDisplayText('status') }}: {{ formatSelfEvolutionRuntimeStatus(selectedCandidateRuntimeAlignment.response.status) }}</div>
                   <div>{{ formatSelfEvolutionDisplayText('expected-signals') }}: {{ formatList(selectedCandidateRuntimeAlignment.response.expectedSignals?.map(value => formatSelfEvolutionTraceListValue('alignment-signal', value))) }}</div>
                   <div>{{ formatSelfEvolutionDisplayText('observed-signals') }}: {{ formatList(selectedCandidateRuntimeAlignment.response.observedSignals?.map(value => formatSelfEvolutionTraceListValue('alignment-signal', value))) }}</div>
@@ -1210,7 +1218,9 @@ function cycleAuthorityRendererDriftFilter() {
                   </div>
                 </div>
                 <div :class="['rounded-lg border border-neutral-800/70 bg-neutral-900/30 p-2']">
-                  <div :class="['mb-1 text-neutral-300']">{{ formatSelfEvolutionDisplayText('proactive') }}</div>
+                  <div :class="['mb-1 text-neutral-300']">
+                    {{ formatSelfEvolutionDisplayText('proactive') }}
+                  </div>
                   <div>{{ formatSelfEvolutionDisplayText('status') }}: {{ formatSelfEvolutionRuntimeStatus(selectedCandidateRuntimeAlignment.proactive.status) }}</div>
                   <div>{{ formatSelfEvolutionDisplayText('expected-hold') }}: {{ formatSelfEvolutionBooleanValue(selectedCandidateRuntimeAlignment.proactive.expectedHold) }}</div>
                   <div>{{ formatSelfEvolutionDisplayText('should-speak') }}: {{ formatSelfEvolutionBooleanValue(selectedCandidateRuntimeAlignment.proactive.shouldSpeak) }}</div>
@@ -1223,7 +1233,9 @@ function cycleAuthorityRendererDriftFilter() {
                   </div>
                 </div>
                 <div :class="['rounded-lg border border-neutral-800/70 bg-neutral-900/30 p-2']">
-                  <div :class="['mb-1 text-neutral-300']">{{ formatSelfEvolutionDisplayText('learning') }}</div>
+                  <div :class="['mb-1 text-neutral-300']">
+                    {{ formatSelfEvolutionDisplayText('learning') }}
+                  </div>
                   <div>{{ formatSelfEvolutionDisplayText('status') }}: {{ formatSelfEvolutionRuntimeStatus(selectedCandidateRuntimeAlignment.learning.status) }}</div>
                   <div>{{ formatSelfEvolutionDisplayText('expected-action') }}: {{ formatMaybeText(selectedCandidateRuntimeAlignment.learning.expectedAction) }}</div>
                   <div>{{ formatSelfEvolutionDisplayText('runtime-action') }}: {{ formatSelfEvolutionRuntimeValue('action', selectedCandidateRuntimeAlignment.learning.runtimeAction) }}</div>
@@ -1552,8 +1564,8 @@ function cycleAuthorityRendererDriftFilter() {
                       selfEvolutionBaselineQuality.verdict === 'trusted'
                         ? 'border-emerald-500/40 bg-emerald-950/20 text-emerald-100/90'
                         : selfEvolutionBaselineQuality.verdict === 'provisional'
-                            ? 'border-amber-500/40 bg-amber-950/20 text-amber-100/90'
-                            : 'border-rose-500/40 bg-rose-950/20 text-rose-100/90',
+                          ? 'border-amber-500/40 bg-amber-950/20 text-amber-100/90'
+                          : 'border-rose-500/40 bg-rose-950/20 text-rose-100/90',
                     ]"
                   >
                     <div :class="['mb-1 uppercase tracking-wide text-[10px] opacity-75']">
@@ -1580,8 +1592,8 @@ function cycleAuthorityRendererDriftFilter() {
                       selfEvolutionBaselineAdoption.mode === 'adopt-now'
                         ? 'border-emerald-500/40 bg-emerald-950/20 text-emerald-100/90'
                         : selfEvolutionBaselineAdoption.mode === 'observe'
-                            ? 'border-amber-500/40 bg-amber-950/20 text-amber-100/90'
-                            : 'border-rose-500/40 bg-rose-950/20 text-rose-100/90',
+                          ? 'border-amber-500/40 bg-amber-950/20 text-amber-100/90'
+                          : 'border-rose-500/40 bg-rose-950/20 text-rose-100/90',
                     ]"
                   >
                     <div :class="['mb-1 uppercase tracking-wide text-[10px] opacity-75']">
@@ -1740,7 +1752,7 @@ function cycleAuthorityRendererDriftFilter() {
                       {{ line }}
                     </div>
                   </div>
-                <div :class="['mb-2 flex flex-wrap gap-2']">
+                  <div :class="['mb-2 flex flex-wrap gap-2']">
                     <ButtonBar
                       icon="i-solar:layers-minimalistic-bold-duotone"
                       :text="formatSelfEvolutionDisplayText('show-diff-detail')"
@@ -1917,7 +1929,6 @@ function cycleAuthorityRendererDriftFilter() {
                   :ref="(element) => {
                     selfEvolutionRepairScrollTargetElements[`self-evolution-evidence:${panel.id}`] = element as HTMLElement | null
                   }"
-                  @mouseenter="markSelfEvolutionWorkflowEvidencePanelViewed(panel.id)"
                   :class="[
                     'rounded-lg border p-2 transition-colors',
                     activeSelfEvolutionRepairSurfaceKey === `evidence:${panel.id}`
@@ -1936,6 +1947,7 @@ function cycleAuthorityRendererDriftFilter() {
                             ? 'border-sky-500/70 bg-sky-950/30 text-sky-100'
                             : 'border-neutral-800/70 bg-neutral-900/30',
                   ]"
+                  @mouseenter="markSelfEvolutionWorkflowEvidencePanelViewed(panel.id)"
                 >
                   <div :class="['mb-1 flex items-center justify-between gap-2 text-neutral-300']">
                     <span>{{ panel.title }}</span>
@@ -1961,7 +1973,6 @@ function cycleAuthorityRendererDriftFilter() {
               :ref="(element) => {
                 selfEvolutionRepairScrollTargetElements['self-evolution-trace:trace-consumption'] = element as HTMLElement | null
               }"
-              @mouseenter="markSelfEvolutionWorkflowTraceSectionViewed('trace-consumption')"
               :class="[
                 'mt-4 rounded-xl border p-3 transition-colors',
                 activeSelfEvolutionRepairSurfaceKey === 'trace:trace-consumption'
@@ -1980,6 +1991,7 @@ function cycleAuthorityRendererDriftFilter() {
                         ? 'border-sky-500/70 bg-sky-950/30'
                         : 'border-neutral-800/80 bg-neutral-950/30',
               ]"
+              @mouseenter="markSelfEvolutionWorkflowTraceSectionViewed('trace-consumption')"
             >
               <div :class="['mb-2 flex items-center justify-between gap-2 text-xs text-neutral-400 uppercase tracking-wide']">
                 <span>{{ formatSelfEvolutionDisplayText('trace-consumption-evidence') }}</span>
@@ -2050,7 +2062,6 @@ function cycleAuthorityRendererDriftFilter() {
               :ref="(element) => {
                 selfEvolutionRepairScrollTargetElements['self-evolution-trace:trace-details'] = element as HTMLElement | null
               }"
-              @mouseenter="markSelfEvolutionWorkflowTraceSectionViewed('trace-details')"
               :class="[
                 'mt-3 text-xs',
                 activeSelfEvolutionRepairSurfaceKey === 'trace:trace-details'
@@ -2066,6 +2077,7 @@ function cycleAuthorityRendererDriftFilter() {
                         ? 'text-sky-200'
                         : 'text-neutral-400',
               ]"
+              @mouseenter="markSelfEvolutionWorkflowTraceSectionViewed('trace-details')"
             >
               {{ formatSelfEvolutionDisplayText('trace-events-count') }}: {{ drilledTraceResult?.events.length ?? 0 }}
             </div>
@@ -2183,7 +2195,6 @@ function cycleAuthorityRendererDriftFilter() {
               :ref="(element) => {
                 selfEvolutionRepairScrollTargetElements['self-evolution-trace:trace-timeline'] = element as HTMLElement | null
               }"
-              @mouseenter="markSelfEvolutionWorkflowTraceSectionViewed('trace-timeline')"
               :class="[
                 'mt-4 rounded-xl border p-3 transition-colors',
                 activeSelfEvolutionRepairSurfaceKey === 'trace:trace-timeline'
@@ -2202,6 +2213,7 @@ function cycleAuthorityRendererDriftFilter() {
                         ? 'border-sky-500/70 bg-sky-950/30'
                         : 'border-neutral-800/80 bg-neutral-950/30',
               ]"
+              @mouseenter="markSelfEvolutionWorkflowTraceSectionViewed('trace-timeline')"
             >
               <div :class="['mb-2 flex items-center justify-between gap-2 text-xs text-neutral-400 uppercase tracking-wide']">
                 <span>{{ formatSelfEvolutionDisplayText('trace-timeline') }}</span>
@@ -2274,7 +2286,6 @@ function cycleAuthorityRendererDriftFilter() {
               :ref="(element) => {
                 selfEvolutionRepairScrollTargetElements['self-evolution-trace:selected-trace-event'] = element as HTMLElement | null
               }"
-              @mouseenter="markSelfEvolutionWorkflowTraceSectionViewed('selected-trace-event')"
               :class="[
                 'mt-4 rounded-xl border p-3 transition-colors',
                 activeSelfEvolutionRepairSurfaceKey === 'trace:selected-trace-event'
@@ -2296,6 +2307,7 @@ function cycleAuthorityRendererDriftFilter() {
                   ? ' ring-1 ring-emerald-500/40'
                   : '',
               ]"
+              @mouseenter="markSelfEvolutionWorkflowTraceSectionViewed('selected-trace-event')"
             >
               <div :class="['mb-2 flex items-center justify-between gap-2 text-xs text-neutral-400 uppercase tracking-wide']">
                 <span>{{ formatSelfEvolutionDisplayText('selected-trace-event') }}</span>
@@ -2490,17 +2502,17 @@ function cycleAuthorityRendererDriftFilter() {
               :class="['mb-2 last:mb-0 text-[11px] text-amber-100/90']"
             >
               <div>{{ formatMaybeText(hotspot.cueText) }} ({{ hotspot.cueId }})</div>
-            <div :class="['text-amber-200/70']">
-              {{ formatSpeechDisplayText('severity') }}={{ hotspot.severityScore }} / {{ formatSpeechDisplayText('drift') }}={{ formatSpeechAuthorityValue('drift', hotspot.driftStatus) }} / {{ formatSpeechDisplayText('lanes') }}={{ hotspot.authorityDriftLanes.map(lane => formatSpeechAuthorityValue('lane', lane)).join(', ') || 'n/a' }}
-            </div>
-            <div
-              v-if="hotspot.rendererDriftSummary"
-              :class="['mt-1 text-amber-100/85']"
-            >
-              {{ formatSpeechDisplayText('renderer') }}={{ hotspot.rendererDriftSummary }}
+              <div :class="['text-amber-200/70']">
+                {{ formatSpeechDisplayText('severity') }}={{ hotspot.severityScore }} / {{ formatSpeechDisplayText('drift') }}={{ formatSpeechAuthorityValue('drift', hotspot.driftStatus) }} / {{ formatSpeechDisplayText('lanes') }}={{ hotspot.authorityDriftLanes.map(lane => formatSpeechAuthorityValue('lane', lane)).join(', ') || 'n/a' }}
+              </div>
+              <div
+                v-if="hotspot.rendererDriftSummary"
+                :class="['mt-1 text-amber-100/85']"
+              >
+                {{ formatSpeechDisplayText('renderer') }}={{ hotspot.rendererDriftSummary }}
+              </div>
             </div>
           </div>
-        </div>
           <div
             v-for="hotspot in speechAuthorityHotspots"
             :key="`hotspot:${hotspot.cueId}`"
@@ -2719,7 +2731,9 @@ function cycleAuthorityRendererDriftFilter() {
             >
               <div>
                 <div>{{ row.cueText ?? row.cueId }}</div>
-                <div :class="['text-neutral-500']">{{ row.cueId }}</div>
+                <div :class="['text-neutral-500']">
+                  {{ row.cueId }}
+                </div>
               </div>
               <div>{{ formatSpeechAuthorityValue('surface', row.surface) }}</div>
               <div>{{ formatSpeechAuthorityValue('lane', row.lane) }}</div>

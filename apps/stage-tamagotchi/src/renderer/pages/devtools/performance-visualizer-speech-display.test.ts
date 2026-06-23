@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest'
 
 import {
   formatSpeechAuthorityFilterValue,
-  formatSpeechDisplayText,
   formatSpeechAuthorityValue,
   formatSpeechCueMetadataValue,
+  formatSpeechDisplayText,
   formatSpeechDriverExecutionSummary,
   formatSpeechObservabilityLabel,
   formatSpeechObservabilitySectionLabel,

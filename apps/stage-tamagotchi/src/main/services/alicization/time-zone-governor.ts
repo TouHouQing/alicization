@@ -16,11 +16,11 @@ const knownTimeZoneAliases = new Map<string, string>([
   ['gmt', 'UTC'],
 ])
 
-const explicitTimeZoneControlPattern = /(?:时区|timezone|time\s*zone|按.+?时间|用.+?时间|设为|设置为|改为|改成|切换到|切到)/iu
-const timezoneCandidatePattern = /\b(?:[A-Za-z_]+(?:\/[A-Za-z0-9_+-]+)+|(?:UTC|GMT)\s*[+-]\s*\d{1,2}|UTC|GMT)\b/giu
+const explicitTimeZoneControlPattern = /时区|timezone|time\s*zone|按.+?时间|用.+?时间|设为|设置为|改为|改成|切换到|切到/iu
+const timezoneCandidatePattern = /\b(?:[A-Z_]+(?:\/[\w+-]+)+|(?:UTC|GMT)\s*[+-]\s*\d{1,2}|UTC|GMT)\b/giu
 const timezoneJsonHintPatterns = [
   /"(?:timezone|timeZone)"\s*:\s*"([^"]{1,96})"/g,
-  /\b(?:timezone|timeZone)\s*[:=]\s*([A-Za-z_][A-Za-z0-9_./+-]{0,95})/g,
+  /\b(?:timezone|timeZone)\s*[:=]\s*([A-Za-z_][\w./+-]{0,95})/g,
 ] as const
 
 export type AlicizationResolvedTimeZoneSource
@@ -234,4 +234,3 @@ export function resolveAlicizationTimeZoneFromMessages(messages?: Message[]): Al
     source: 'utc-fallback',
   }
 }
-

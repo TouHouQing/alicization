@@ -43,7 +43,7 @@ describe('runtime card scope orchestrator', () => {
   })
 
   it('skips queueing when the requested card is already active and the option allows it', async () => {
-    let activeCardId = 'default'
+    const activeCardId = 'default'
     const switchCardScopeInner = vi.fn(async () => {
       throw new Error('should not switch')
     })

@@ -1,11 +1,11 @@
-import { describe, expect, it, vi } from 'vitest'
 import { normalizeAlicizationExecutionRuntimeContext } from '@proj-alicization/stage-shared'
+import { describe, expect, it, vi } from 'vitest'
 
-import { createAlicizationRuntimeExecutionFeedback } from './runtime-execution-feedback'
 import {
   resolveAlicizationChatStartPayloadPreDialogueSendIdentity,
   summarizeAlicizationPreDialogueSendIdentityForDebug,
 } from './main-chat-start-awareness'
+import { createAlicizationRuntimeExecutionFeedback } from './runtime-execution-feedback'
 
 describe('runtime execution feedback', () => {
   it('settles a pending execution proposal feedback and updates the task thread', async () => {

@@ -59,6 +59,7 @@ export type AlicizationPerceptionBrowserWorkflowPhase
 
 export type AlicizationPerceptionBrowserWorkflowProgressState
   = | 'started'
+    | 'steady'
     | 'holding'
     | 'advanced'
     | 'regressed'
@@ -73,18 +74,20 @@ export interface AlicizationPerceptionBrowserWorkflowHistoryEntry {
 export interface AlicizationPerceptionBrowserWorkflowState {
   currentPhase: AlicizationPerceptionBrowserWorkflowPhase
   history: AlicizationPerceptionBrowserWorkflowHistoryEntry[]
-  lastObservedAt: number
+  lastInspectionAt?: number | null
+  lastObservedAt?: number | null
   previousPhase?: AlicizationPerceptionBrowserWorkflowPhase | null
   progressState: AlicizationPerceptionBrowserWorkflowProgressState
   targetPhase: AlicizationPerceptionBrowserWorkflowPhase
   taskKey: string
   title?: string | null
+  updatedAt?: number | null
   url?: string | null
 }
 
 export interface AlicizationPerceptionState {
   attentionAnchor: AlicizationAttentionAnchor | null
-  browserWorkflowState: AlicizationPerceptionBrowserWorkflowState | null
+  browserWorkflowState?: AlicizationPerceptionBrowserWorkflowState | null
   lastNonSelfForegroundTarget: AlicizationPerceptionObservation | null
   recentObservations: AlicizationPerceptionObservation[]
   invitedInspection: AlicizationInvitedInspectionMode | null
@@ -191,7 +194,7 @@ function normalizeAnchor(raw: unknown): AlicizationAttentionAnchor | null {
   const source = raw && typeof raw === 'object' ? raw as Record<string, unknown> : null
   const target = normalizeTarget(source)
   const anchoredAt = Number(source?.anchoredAt)
-  const lastObservedAt = Number(source?.lastObservedAt)
+  const lastObservedAt = Number(source?.lastObservedAt ?? source?.updatedAt ?? source?.lastInspectionAt)
   const reason = source?.reason
   const workloadKind = source?.workloadKind
   const confidence = Number(source?.confidence)
@@ -320,6 +323,7 @@ function normalizeBrowserWorkflowPhase(raw: unknown): AlicizationPerceptionBrows
 
 function normalizeBrowserWorkflowProgressState(raw: unknown): AlicizationPerceptionBrowserWorkflowProgressState | null {
   return raw === 'started'
+    || raw === 'steady'
     || raw === 'holding'
     || raw === 'advanced'
     || raw === 'regressed'
@@ -369,6 +373,7 @@ function normalizeBrowserWorkflowState(raw: unknown): AlicizationPerceptionBrows
     targetPhase,
     taskKey,
     title: sanitizeTargetText(source?.title) || null,
+    updatedAt: Math.max(0, Math.floor(Number(source?.updatedAt ?? lastObservedAt))),
     url: sanitizeTargetText(source?.url) || null,
   }
 }
@@ -495,6 +500,7 @@ export function updatePerceptionStateWithObservation(input: {
       confidence: clampConfidence(workloadKind === 'unknown' ? 0.62 : 0.88),
     },
     lastNonSelfForegroundTarget: observation,
+    browserWorkflowState: input.state.browserWorkflowState ?? null,
     recentObservations,
     invitedInspection,
     recentSceneResidue: input.state.recentSceneResidue,

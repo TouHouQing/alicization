@@ -1,17 +1,21 @@
+import type { StageEmbodimentPerformanceMatchedDriver } from '@proj-alicization/stage-shared'
+
+import type { PerformanceVisualizerRuntimeDiagnosticSummaryEntry } from './performance-visualizer-runtime-diagnostic-summary'
+
 import {
   formatDriverAuthorityBindingSummary,
   formatDriverAuthorityMatchSummary,
 } from './performance-visualizer-driver-authority'
 import {
   buildPlaybackCueAuthoritySummaryEntries,
-  type PerformanceVisualizerRuntimeDiagnosticSummaryEntry,
+
 } from './performance-visualizer-runtime-diagnostic-summary'
 
 export interface PerformanceVisualizerPlaybackCueAuthorityView {
   cueId: string
   authoritySegmentId: string | null
   authorityRendererTarget: 'live2d' | 'vrm' | null
-  authorityMatchedDrivers: Array<'face' | 'motion' | 'lipsync'>
+  authorityMatchedDrivers: StageEmbodimentPerformanceMatchedDriver[]
   authoritySources: string[]
   authorityTrustSummary?: string | null
   prosodyAuthoritySummary?: string | null
@@ -46,10 +50,10 @@ function normalizeAliasList(values: unknown) {
     : []
 }
 
-function normalizeDriverList(values: unknown): Array<'face' | 'motion' | 'lipsync'> {
+function normalizeDriverList(values: unknown): StageEmbodimentPerformanceMatchedDriver[] {
   return Array.isArray(values)
-    ? values.filter((value): value is 'face' | 'motion' | 'lipsync' =>
-        value === 'face' || value === 'motion' || value === 'lipsync',
+    ? values.filter((value): value is StageEmbodimentPerformanceMatchedDriver =>
+        value === 'body' || value === 'face' || value === 'motion' || value === 'lipsync' || value === 'voice',
       )
     : []
 }
@@ -109,7 +113,8 @@ function resolvePlaybackCueProsodyAuthority(
       cueHeadWeight?: number | null
       visemePeakWeight?: number | null
     } | null
-  } | null | undefined) {
+  } | null | undefined,
+) {
   return telemetry?.driverAuthority?.prosodyAuthority
     ?? telemetry?.prosodyAuthority
     ?? null
@@ -118,7 +123,7 @@ function resolvePlaybackCueProsodyAuthority(
 function buildSettleAuthoritySummary(input: {
   authoritySegmentId: string | null
   authorityRendererTarget: 'live2d' | 'vrm' | null
-  authorityMatchedDrivers: Array<'face' | 'motion' | 'lipsync'>
+  authorityMatchedDrivers: StageEmbodimentPerformanceMatchedDriver[]
   authoritySources: string[]
 }) {
   const hasAuthorityBinding = Boolean(
@@ -156,7 +161,7 @@ export function buildPlaybackCueAuthorityView(snapshot: {
       cueId?: string | null
       segmentId?: string | null
       rendererTarget?: 'live2d' | 'vrm' | null
-      matchedDrivers?: Array<'face' | 'motion' | 'lipsync'>
+      matchedDrivers?: StageEmbodimentPerformanceMatchedDriver[]
       matchedSources?: string[]
       bindingSummary?: string | null
       matchSummary?: string | null
@@ -170,7 +175,7 @@ export function buildPlaybackCueAuthorityView(snapshot: {
       driverAuthority?: {
         segmentId?: string | null
         rendererTarget?: 'live2d' | 'vrm' | null
-        matchedDrivers?: Array<'face' | 'motion' | 'lipsync'>
+        matchedDrivers?: StageEmbodimentPerformanceMatchedDriver[]
         sources?: string[]
         faceSegmentMatched?: boolean | null
         motionSegmentMatched?: boolean | null

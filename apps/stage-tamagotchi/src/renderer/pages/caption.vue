@@ -19,7 +19,7 @@ const isAroundWindowBorderFor250Ms = refDebounced(isAroundWindowBorder, 250)
 type CaptionChannelEvent
   = | { type: 'caption-speaker', text: string }
     | { type: 'caption-assistant', text: string }
-type EventEnvelope<T> = { body?: T }
+interface EventEnvelope<T> { body?: T }
 const { data } = useBroadcastChannel<CaptionChannelEvent, CaptionChannelEvent>({ name: 'airi-caption-overlay' })
 
 const context = useElectronEventaContext()

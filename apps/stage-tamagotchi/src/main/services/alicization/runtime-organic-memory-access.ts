@@ -2,31 +2,50 @@ import type {
   AlicizationActiveThought,
   AlicizationEpisodicEventRecord,
   AlicizationHostPersonModelSnapshot,
-  AlicizationMemoryProvenance,
   AlicizationLearningExecutionStateSnapshot,
+  AlicizationMemoryProvenance,
+  AlicizationMemoryReflectionRecord,
   AlicizationOrganicMemorySnapshot,
   AlicizationPersonaReinforcementEventRecord,
   AlicizationPersonStateEvolutionSummary,
   AlicizationRecallGovernorSnapshot,
-  AlicizationMemoryReflectionRecord,
   AlicizationRelationshipOutcomeRecord,
   AlicizationSoulSnapshot,
   AlicizationSubconsciousFragment,
   CharacterPerformanceCapabilitiesManifest,
 } from '../../../shared/eventa'
+import type { AlicizationTurnRetrievalPolicySnapshot } from './memory-accessibility-runtime'
 import type { AlicizationMemoryConsolidationRecord } from './memory-consolidation'
+import type { AlicizationMemoryRetrievalBudgetClass, AlicizationMemoryRetrievalTelemetrySnapshot } from './memory-retrieval-telemetry'
 import type { AlicizationMemoryTuningAdvice } from './memory-tuning-advice'
 import type { AlicizationPersonStateUpdateSurface } from './person-state-update-surface'
 import type { AlicizationRelationshipDynamicsState } from './relationship-dynamics-state'
 import type { ContextualConversationTurn } from './runtime-soul'
+import type { AlicizationSelfRevisionStatePatch } from './self-evolution/state-revision-bus'
 
 import { deriveAlicizationLearningExecutionProjection, deriveAlicizationRecallLatencyPolicy } from '@proj-alicization/stage-shared'
+
 import { buildAlicizationAffectiveResidueMemory } from './affective-residue-memory'
+import { buildHostPersonModelSnapshot } from './humanlike-memory'
+import {
+
+  buildAlicizationMemoryAccessCacheKey,
+  buildAlicizationMemoryAccessibilityPlan,
+  buildAlicizationTurnRetrievalPolicySnapshot,
+  tuneMemoryConsolidationSearchInput,
+} from './memory-accessibility-runtime'
+import {
+  applyMemoryTuningAdviceToHostPersonModel,
+  parseMemoryTuningAdvice,
+  replayBenchmarkTuningAdviceMetaKey,
+} from './memory-tuning-advice'
 import { filterOrganicMemoryEntries, isPersonaResidueMemoryText } from './organic-memory-hygiene'
+import { buildAlicizationPersonStateProjection } from './person-state-projection'
 import {
   parsePerformanceManifestFromMeta,
   sanitizePerformanceManifest,
 } from './runtime-governance'
+import { buildOrganicMemoryEvolutionState } from './runtime-organic-memory-self-evolution-integration'
 import {
   buildDirectFts5Query,
   buildFts5QueryFromTerms,
@@ -37,25 +56,7 @@ import {
   alicizationDreamLastRunMetaKey,
   alicizationPerformanceManifestMetaKey,
 } from './runtime-soul'
-import { buildHostPersonModelSnapshot } from './humanlike-memory'
-import {
-  buildAlicizationMemoryAccessCacheKey,
-  buildAlicizationMemoryAccessibilityPlan,
-  buildAlicizationTurnRetrievalPolicySnapshot,
-  type AlicizationTurnRetrievalPolicySnapshot,
-  tuneMemoryConsolidationSearchInput,
-} from './memory-accessibility-runtime'
-import type { AlicizationMemoryRetrievalBudgetClass } from './memory-retrieval-telemetry'
-import {
-  applyMemoryTuningAdviceToHostPersonModel,
-  parseMemoryTuningAdvice,
-  replayBenchmarkTuningAdviceMetaKey,
-} from './memory-tuning-advice'
-import { buildAlicizationPersonStateProjection } from './person-state-projection'
 import { rankSubconsciousRecallFragments } from './subconscious-recall-ranking'
-import type { AlicizationMemoryRetrievalTelemetrySnapshot } from './memory-retrieval-telemetry'
-import { buildOrganicMemoryEvolutionState } from './runtime-organic-memory-self-evolution-integration'
-import type { AlicizationSelfRevisionStatePatch } from './self-evolution/state-revision-bus'
 
 export interface CreateAlicizationOrganicMemoryAccessRuntimeOptions {
   getActiveCardId: () => string

@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
 import {
-  buildAuthoritySummaryEntries,
   buildAuthoritySegmentRows,
+  buildAuthoritySummaryEntries,
   filterAuthoritySegmentRows,
   sortAuthoritySegmentRows,
 } from './performance-visualizer-authority-summary'

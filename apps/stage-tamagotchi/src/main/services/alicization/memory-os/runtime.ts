@@ -1,3 +1,4 @@
+import type { AlicizationDigitalLifeRuntimeSurface } from '../digital-life-kernel'
 import type { AlicizationTurnRetrievalPolicySnapshot } from '../memory-accessibility-runtime'
 import type { OrganicMemoryPromptContext } from '../runtime-soul'
 import type { AlicizationMemoryTurnArtifact } from './memory-turn-artifact'
@@ -190,6 +191,7 @@ export async function runAlicizationMemoryOsTurnRuntime(input: {
   sessionId?: string | null
   budgetClass?: string | null
   retrievalPolicySnapshot?: AlicizationTurnRetrievalPolicySnapshot | null
+  digitalLifeRuntimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
   suppressAssociativeRecall?: boolean | null
   personaKernelMode?: string | null
   resolveContext: (input: {
@@ -199,6 +201,7 @@ export async function runAlicizationMemoryOsTurnRuntime(input: {
     sessionId?: string | null
     budgetClass?: string | null
     retrievalPolicySnapshot?: AlicizationTurnRetrievalPolicySnapshot | null
+    digitalLifeRuntimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
   }) => Promise<OrganicMemoryPromptContext>
   tuneContext?: (input: {
     context: OrganicMemoryPromptContext
@@ -217,6 +220,7 @@ export async function runAlicizationMemoryOsTurnRuntime(input: {
     sessionId: input.sessionId,
     budgetClass: input.budgetClass,
     retrievalPolicySnapshot: input.retrievalPolicySnapshot,
+    digitalLifeRuntimeSurface: input.digitalLifeRuntimeSurface,
   })
   const context = input.tuneContext
     ? await input.tuneContext({

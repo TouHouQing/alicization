@@ -47,6 +47,15 @@ export interface AlicizationSelfRevisionStatePatch {
     requiresRevalidation: boolean
     rollbackPlan: string[]
   }
+  projectStateContinuity?: {
+    sameHerSelfLine?: string | null
+    sameHerDriftRisk?: string | null
+    proactiveSameHerGap?: string | null
+    emotionalClosureCue?: string | null
+    sameHerHoldDetail?: string | null
+    continuityGuard?: string | null
+    continuityPressure?: number | null
+  } | null
   reasonCodes: string[]
   summary: string | null
 }

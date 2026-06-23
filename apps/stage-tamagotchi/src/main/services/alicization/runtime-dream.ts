@@ -7,9 +7,9 @@ import type {
   AlicizationSoulSnapshot,
 } from '../../../shared/eventa'
 import type { AlicizationAgentTurnRuntime } from './agent-runtime'
-import type { SubconsciousCardState } from './runtime-soul'
-import type { AlicizationProactiveLoopState } from './proactive-feedback'
 import type { AlicizationMemoryConsolidationRecord } from './memory-consolidation'
+import type { AlicizationProactiveLoopState } from './proactive-feedback'
+import type { SubconsciousCardState } from './runtime-soul'
 
 import { errorMessageFrom } from '@moeru/std'
 
@@ -64,6 +64,17 @@ interface CreateAlicizationDreamRuntimeOptions {
   }) => Promise<Array<Pick<AlicizationMemoryConsolidationRecord, 'periodKey' | 'facet' | 'summary' | 'lesson' | 'cues' | 'confidence'>> | null>
   appendAuditLog: (input: AlicizationAuditLogInput, cardId?: string) => Promise<void>
   buildAgentRuntimeAuditSnapshot: (agentTurn?: AlicizationAgentTurnRuntime | null) => unknown
+  hydrateAgentTurnFromCurrentCardState?: (input: {
+    cardId: string
+    decisionTraceId?: string | null
+    sessionId?: string | null
+    source: string
+    turnId?: string | null
+  }) => Promise<AlicizationAgentTurnRuntime | null>
+  buildAgentTurnContinuitySystemMessages?: (input: {
+    agentTurn: AlicizationAgentTurnRuntime
+    cardId: string
+  }) => unknown[]
   truncateForDream: (value: string | null | undefined, maxChars: number) => string
   parseStructuredHint: (raw: string | null | undefined) => Record<string, unknown>
   clampSoulDelta: (value: number, maxAbs?: number) => number

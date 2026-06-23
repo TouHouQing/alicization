@@ -1,5 +1,6 @@
 import type {
   AlicizationChatMetaEvent,
+  AlicizationDialoguePerformancePayload,
   AlicizationMindTurnGovernance,
   AlicizationResidentPerformanceSnapshot,
   AlicizationRuntimeDigest,
@@ -116,11 +117,13 @@ export function repairContinuitySourceTagsFromRuntimeDigest(input: {
     projectState,
     runtimeDigest: input.runtimeDigest ?? null,
   })
-  const memory = digitalLifeSpine.memory as (NonNullable<AlicizationChatMetaEvent['digitalLifeSpine']>['memory'] & {
-    personStateProjection?: Record<string, unknown> | null
-  }) | null | undefined
+  type DigitalLifeSpineMemory = NonNullable<NonNullable<AlicizationChatMetaEvent['digitalLifeSpine']>['memory']>
+  type PersonStateProjection = NonNullable<DigitalLifeSpineMemory['personStateProjection']>
+  const memory = digitalLifeSpine.memory as DigitalLifeSpineMemory | null | undefined
+  if (!memory)
+    return digitalLifeSpine
   const projection = memory?.personStateProjection && typeof memory.personStateProjection === 'object'
-    ? memory.personStateProjection
+    ? memory.personStateProjection as PersonStateProjection
     : null
   const authority = projection?.selfContinuityAuthority && typeof projection.selfContinuityAuthority === 'object'
     ? projection.selfContinuityAuthority as Record<string, unknown>
@@ -135,22 +138,29 @@ export function repairContinuitySourceTagsFromRuntimeDigest(input: {
       ),
       ...sourceTags,
     ]),
-    selfLine: authority?.selfLine ?? null,
-    relationshipLine: authority?.relationshipLine ?? null,
-    motiveLine: authority?.motiveLine ?? null,
-    habitLine: authority?.habitLine ?? null,
+    selfLine: sanitizeMetaText(authority?.selfLine, 220) || null,
+    relationshipLine: sanitizeMetaText(authority?.relationshipLine, 220) || null,
+    motiveLine: sanitizeMetaText(authority?.motiveLine, 220) || null,
+    habitLine: sanitizeMetaText(authority?.habitLine, 220) || null,
     inwardLine: sanitizeMetaText(authority?.inwardLine, 220) || sameHerSelfLine,
-    authoritySummary: authority?.authoritySummary ?? null,
+    authoritySummary: sanitizeMetaText(authority?.authoritySummary, 220) || null,
+  } satisfies NonNullable<PersonStateProjection['selfContinuityAuthority']>
+  const nextProjection: PersonStateProjection = {
+    summary: projection?.summary ?? null,
+    activeClosenessContext: projection?.activeClosenessContext ?? null,
+    activeClosenessRung: projection?.activeClosenessRung ?? null,
+    relationshipPosture: projection?.relationshipPosture ?? null,
+    openingGuidance: projection?.openingGuidance ?? null,
+    preferredProactiveStyle: projection?.preferredProactiveStyle ?? null,
+    manifestationCadenceSummary: projection?.manifestationCadenceSummary ?? null,
+    selfContinuityAuthority: nextAuthority,
   }
 
   return {
     ...digitalLifeSpine,
     memory: {
       ...memory,
-      personStateProjection: {
-        ...projection,
-        selfContinuityAuthority: nextAuthority,
-      },
+      personStateProjection: nextProjection,
     },
   } satisfies AlicizationChatMetaEvent['digitalLifeSpine']
 }
@@ -260,6 +270,8 @@ export function createAlicizationChatStreamMetaEmitter(input: {
   getRuntimeDigest?: () => AlicizationRuntimeDigest | null | undefined
   getResidentPerformance?: () => AlicizationResidentPerformanceSnapshot | null | undefined
   getPerformanceManifest?: () => CharacterPerformanceCapabilitiesManifest | null | undefined
+  getExplicitPerformance?: () => AlicizationDialoguePerformancePayload | null | undefined
+  getThought?: () => string | null | undefined
   emit: (payload: AlicizationChatMetaEvent) => void
 }) {
   let lastSignature: string | null = null
@@ -270,9 +282,11 @@ export function createAlicizationChatStreamMetaEmitter(input: {
     const meta = buildAlicizationChatStreamEmbodimentMeta({
       governance: input.getGovernance() ?? null,
       digitalLifeSpine,
+      explicitPerformance: input.getExplicitPerformance?.() ?? null,
       performanceManifest: input.getPerformanceManifest?.() ?? null,
       residentPerformance: input.getResidentPerformance?.() ?? null,
       reply,
+      thought: input.getThought?.() ?? undefined,
       turnId: input.turnId,
     })
     const runtimeDigest = input.getRuntimeDigest?.() ?? null

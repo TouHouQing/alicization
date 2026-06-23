@@ -11,23 +11,23 @@ import type {
   AlicizationRunReplayBenchmarkInput,
   AlicizationRunReplayBenchmarkResult,
 } from '../../../shared/eventa'
+import type { AlicizationReplayTurn } from './main-chat-session-replay-harness'
 import type { AlicizationSelfEvolutionRuntime } from './self-evolution/runtime'
 
-import { buildAlicizationMemoryDecisionTraceRecords } from '@proj-alicization/stage-shared'
-import { readDialogueRhythmFromDerivedMindStateBundle, readPersonStateProjectionFromDerivedMindStateBundle } from '@proj-alicization/stage-shared'
+import { buildAlicizationMemoryDecisionTraceRecords, readDialogueRhythmFromDerivedMindStateBundle, readPersonStateProjectionFromDerivedMindStateBundle } from '@proj-alicization/stage-shared'
 
 import {
-  type AlicizationReplayTurn,
+
   benchmarkMainChatSessionReplay,
-  buildReplayBenchmarkBacklogPack,
-  buildReplayBenchmarkFailingTurnSet,
-  buildGrowthHumanlikeMemoryBenchmarkPack,
-  buildReplayHumanRatingRubric,
-  buildReplayBenchmarkMemoryStatsPatch,
+  buildAdversarialHumanlikeMemoryBenchmarkPack,
   buildDefaultHumanlikeMemoryBenchmarkPack,
   buildFinalHumanlikeMemoryBenchmarkPack,
+  buildGrowthHumanlikeMemoryBenchmarkPack,
+  buildReplayBenchmarkBacklogPack,
+  buildReplayBenchmarkFailingTurnSet,
+  buildReplayBenchmarkMemoryStatsPatch,
+  buildReplayHumanRatingRubric,
   buildSampledHumanlikeMemoryBenchmarkPack,
-  buildAdversarialHumanlikeMemoryBenchmarkPack,
   mergeReplayBenchmarkDatasetBacklog,
 } from './main-chat-session-replay-harness'
 import {
@@ -108,7 +108,7 @@ function sanitizeReplayBenchmarkSampleText(raw: string) {
     .replace(/https?:\/\/\S+/giu, '<url>')
     .replace(/\b[\w.%+-]+@[\w.-]+\.[A-Za-z]{2,}\b/gu, '<email>')
     .replace(/(?:\/Users\/|[A-Za-z]:\\)[^\s"'`]+/gu, '<path>')
-    .replace(/\b(?:mind|turn|session|thread):[A-Za-z0-9:_-]+\b/gu, '<id>')
+    .replace(/\b(?:mind|turn|session|thread):[\w:-]+\b/gu, '<id>')
     .replace(/\b[0-9a-f]{8}-[0-9a-f-]{27,}\b/giu, '<uuid>')
     .replace(/\s+/g, ' ')
     .trim()
@@ -235,12 +235,12 @@ function buildReplayBenchmarkNoopResult(input: {
       turnOsTraceCoverage: 1,
       learningOutcomeToSelfRevisionRoundtrip: 1,
     },
-      authorityLeakCount: 0,
-      localHumanlikeVisibleFallbackCount: 0,
-      sampleCount: 0,
-      productionGoldSampleCount: 0,
-      productionGoldCoverage: 0,
-    })
+    authorityLeakCount: 0,
+    localHumanlikeVisibleFallbackCount: 0,
+    sampleCount: 0,
+    productionGoldSampleCount: 0,
+    productionGoldCoverage: 0,
+  })
   return {
     packId: input.packId,
     ranAt: input.ranAt,
@@ -310,7 +310,7 @@ function buildReplayBenchmarkShipGate(input: {
       key: 'benchmark-gate' as const,
       status: input.report.gate.passed ? 'pass' : 'fail',
       detail: input.report.gate.passed
-          ? 'Replay benchmark gate passed.'
+        ? 'Replay benchmark gate passed.'
         : `Failing dimensions: ${input.report.gate.failingKeys.join(', ') || 'none'}.`,
     },
     {
@@ -632,7 +632,7 @@ function deriveReplayLearningSelfRevisionRoundtrip(input: {
   )
   const preparedTurnByTurnId = new Map(
     input.turns
-      .map(turn => {
+      .map((turn) => {
         const turnId = String(turn.turnGraph?.ids.turnId ?? '').trim().slice(0, 180)
         return turnId ? [turnId, turn] as const : null
       })
@@ -730,18 +730,18 @@ function buildReplayBenchmarkRegressionTriage(input: {
       owner = 'contract'
       firstCheck = 'Check response charter, restraint judge, and truth-discipline contract first.'
     }
-      else if (['relationshipRepairAdaptation', 'closenessLadderDrift', 'templateLeakage'].includes(dimension)) {
-        owner = 'visible realization'
-        firstCheck = 'Check answer compiler, visible realization posture, and template leakage traces first.'
-      }
-      else if (['dialogueRhythmStability', 'emptyCareRate', 'repairMechanicalRate', 'warmthTemplateRisk', 'relationshipDistanceJumpRate', 'afterglowFalseCarryRate'].includes(dimension)) {
-        owner = 'visible realization'
-        firstCheck = 'Check affective residue, relationship cadence, repair timing, and anti-template care leakage traces first.'
-      }
-      else if (dimension === 'replyMemoryCoherence') {
-        owner = 'proactive parity'
-        firstCheck = 'Check cross-surface parity between main chat, proactive, and callback realization first.'
-      }
+    else if (['relationshipRepairAdaptation', 'closenessLadderDrift', 'templateLeakage'].includes(dimension)) {
+      owner = 'visible realization'
+      firstCheck = 'Check answer compiler, visible realization posture, and template leakage traces first.'
+    }
+    else if (['dialogueRhythmStability', 'emptyCareRate', 'repairMechanicalRate', 'warmthTemplateRisk', 'relationshipDistanceJumpRate', 'afterglowFalseCarryRate'].includes(dimension)) {
+      owner = 'visible realization'
+      firstCheck = 'Check affective residue, relationship cadence, repair timing, and anti-template care leakage traces first.'
+    }
+    else if (dimension === 'replyMemoryCoherence') {
+      owner = 'proactive parity'
+      firstCheck = 'Check cross-surface parity between main chat, proactive, and callback realization first.'
+    }
     return {
       dimension,
       owner,
@@ -1221,16 +1221,16 @@ export function createAlicizationReplayBenchmarkRuntime(
       ranAt: now,
       dateKey,
       reason: input?.reason ?? 'nightly',
-        packs: results.map(result => ({
-          packId: result.packId,
-          turnCount: result.turnCount,
-          gate: result.gate,
-          finalReplayGate: result.finalReplayGate,
-          shipGate: result.shipGate,
-          regressionTriage: result.regressionTriage,
-          failingTurnSet: result.failingTurnSet,
-          datasetFeedback: result.datasetFeedback,
-        })),
+      packs: results.map(result => ({
+        packId: result.packId,
+        turnCount: result.turnCount,
+        gate: result.gate,
+        finalReplayGate: result.finalReplayGate,
+        shipGate: result.shipGate,
+        regressionTriage: result.regressionTriage,
+        failingTurnSet: result.failingTurnSet,
+        datasetFeedback: result.datasetFeedback,
+      })),
     }))
     const tuningAdvice = deriveMemoryTuningAdviceFromReplayBenchmark({
       results,

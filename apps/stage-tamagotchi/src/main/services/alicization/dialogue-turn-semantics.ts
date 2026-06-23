@@ -129,7 +129,7 @@ const projectStateCurrentWorkCuePattern
 const projectStateProgressCuePattern
   = /执行到哪|进行到哪|进行到哪一步|做到哪|做到哪一步|做到什么程度|进度|进展|到什么程度|how far|what has landed|what's landed|progress|landed/iu
 const projectStateMergeReadinessCuePattern
-  = /(?:可以|能不能|现在可以|已经可以|can we|is (?:it|this)|ready to|merge-ready).{0,40}(?:合并到\s*main|merge(?:\s+this)?\s+to\s+main|ready to merge|merge-ready)|(?:合并到\s*main|merge(?:\s+this)?\s+to\s+main|ready to merge|merge-ready).{0,24}(?:了吗|吗|now|already|ready|可以|能不能)|(?:已经在|已在|already (?:landed|on)|already contains|already on).{0,32}(?:本地\s*main|local\s+main)|(?:本地\s*main|local\s+main).{0,32}(?:已经|已|already).{0,24}(?:包含|落地|landed|contains|on)|(?:origin\/main).{0,32}(?:安全|safe|update|push|推)|(?:安全|safe).{0,16}(?:推到|push to|update).{0,24}(?:origin\/main)|(?:会把|会不会把|without carrying|carry).{0,48}(?:别的提交|unrelated commits|other commits)|带上去/iu
+  = /(?:可以|能不能|现在可以|已经可以|can we|is (?:it|this)|ready to|merge-ready).{0,40}(?:合并到\s*main|merge(?:\s+this)?\s+to\s+main|ready to merge|merge-ready)|(?:合并到\s*main|merge(?:\s+this)?\s+to\s+main|ready to merge|merge-ready).{0,24}(?:了吗|吗|now|already|ready|可以|能不能)|(?:已经在|已在|already (?:landed|on)|already contains|already on).{0,32}(?:本地\s*main|local\s+main)|(?:本地\s*main|local\s+main).{0,32}(?:已经|已|already).{0,24}(?:包含|落地|landed|contains|on)|origin\/main.{0,32}(?:安全|safe|update|push|推)|(?:安全|safe).{0,16}(?:推到|push to|update).{0,24}origin\/main|(?:会把|会不会把|without carrying|carry).{0,48}(?:别的提交|unrelated commits|other commits)|带上去/iu
 const projectStateClosureReadinessCuePattern
   = /还差哪步|还差哪一步|还差什么|才能算闭环|算闭环|goal.{0,16}(?:闭环|完成|close|closed|complete)|what still needs to close|what remains before .*closed|still open|not yet closed/iu
 const projectStateCompletionTimelineCuePattern
@@ -527,7 +527,7 @@ export function buildDialogueTurnSemantics(input: {
   }
   else if (
     !inspectionOwnedTurn
-    && !(sceneBoundQuestion && !projectStateContinuityQuestion)
+    && (!sceneBoundQuestion || projectStateContinuityQuestion)
     && !helpSeeking
     && !currentActivityQuestion
     && (greetingBid || selfInquiry || selfToneAdjustment || selfIdentityAffirmation || projectStateContinuityQuestion)

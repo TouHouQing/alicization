@@ -3,9 +3,11 @@ import type {
   AlicizationAnswerPlannerSnapshot,
   AlicizationMindTurnContractSnapshot,
 } from '../../../shared/eventa'
-import { normalizeAlicizationNormalVisibleReplyAuthority } from '@proj-alicization/stage-shared'
+import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 import type { AlicizationResponseCharter } from './response-charter'
 import type { AlicizationResponseSurfaceContract } from './response-surface-contract'
+
+import { normalizeAlicizationNormalVisibleReplyAuthority } from '@proj-alicization/stage-shared'
 
 function uniqueList(values: Array<string | null | undefined>, maxItems = 12) {
   const result: string[] = []
@@ -29,6 +31,8 @@ export function buildAlicizationMindTurnContract(input: {
   answerCompiler?: AlicizationAnswerCompilerSnapshot | null
   responseCharter: AlicizationResponseCharter
   responseSurfaceContract: AlicizationResponseSurfaceContract
+  projectState?: AlicizationMindTurnContractSnapshot['projectState'] | null
+  runtimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
   now?: number
 }): AlicizationMindTurnContractSnapshot {
   const planner = input.answerPlanner ?? null
@@ -81,6 +85,7 @@ export function buildAlicizationMindTurnContract(input: {
     governingCommitment: charter.governingCommitment,
     governingInquiry: charter.governingInquiry,
     governingProject: charter.governingProject,
+    projectState: input.projectState ?? undefined,
     reasons: uniqueList([
       ...(planner?.narrative ?? []),
       ...(compiler?.narrative ?? []),

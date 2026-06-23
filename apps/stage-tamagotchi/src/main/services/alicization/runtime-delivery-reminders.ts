@@ -8,9 +8,10 @@ import type { AlicizationExecutionResultDeliveryPolicy } from './execution-inter
 import type { AlicizationPersonStateProjection } from './person-state-projection'
 import type { AlicizationSelfContinuityAuthority } from './self-continuity-authority'
 import type { AlicizationSelfRevisionStatePatch } from './self-evolution/state-revision-bus'
+
 import { resolveAlicizationProactiveVisibleUtterance } from './proactive-mind/visible-utterance-realization'
-import { buildAlicizationTurnGraphFromSettlements } from './turn-os/turn-graph'
 import { createAlicizationTurnRuntime } from './turn-os/runtime'
+import { buildAlicizationTurnGraphFromSettlements } from './turn-os/turn-graph'
 
 interface CreateAlicizationDeliveryReminderRuntimeOptions {
   getActiveCardId: () => string
@@ -42,6 +43,13 @@ interface CreateAlicizationDeliveryReminderRuntimeOptions {
   buildReminderSessionMirrorAction: (input: any) => any
   syncAgentTurnSessionMirror: (input: any) => void
   syncSessionMirrorFromCurrentCardState: (input: any) => Promise<void>
+  hydrateAgentTurnFromCurrentCardState?: (input: {
+    cardId: string
+    decisionTraceId?: string | null
+    sessionId?: string | null
+    source: string
+    turnId?: string | null
+  }) => Promise<AlicizationAgentTurnRuntime | null>
   buildAgentRuntimeAuditSnapshot: (agentTurn?: AlicizationAgentTurnRuntime | null) => unknown
   normalizeSessionId: (raw: unknown) => string
   getActiveSessionIdByCard: (cardId: string) => unknown
@@ -107,6 +115,17 @@ interface CreateAlicizationDeliveryReminderRuntimeOptions {
     contradictionCount?: number | null
     stronglyValidatedProcedureCount?: number | null
     contradictionHeavyFactCount?: number | null
+  } | null>
+  resolveReminderMemorySurfaceRestraint?: (input: {
+    reminder: {
+      message: string
+      tier: 'mild' | 'severe'
+    }
+  }) => Promise<{
+    shouldStayInward?: boolean | null
+    shouldDelayUntilAfterPayoff?: boolean | null
+    stableCoreOnly?: boolean | null
+    visibleCarryMode?: string | null
   } | null>
   getActiveSelfRevisionStatePatch?: () => Promise<AlicizationSelfRevisionStatePatch | null>
   persistExecutionDeliveryState: (cardIdRaw: unknown) => Promise<unknown>

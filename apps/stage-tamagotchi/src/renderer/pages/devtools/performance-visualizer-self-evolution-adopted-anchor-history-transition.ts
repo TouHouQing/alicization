@@ -8,6 +8,12 @@ interface SelfEvolutionHistoryTransitionLike {
   currentCapturedAt: number
   previousCapturedAt: number
   currentDecisionTraceId: string | null
+  previousDecisionTraceId?: string | null
+  changedFocusCard?: boolean | string | null
+  changedEvidenceTargets?: boolean | string | null
+  changedTraceTargets?: boolean | string | null
+  changedTraceEvent?: boolean | string | null
+  lines?: string[]
 }
 
 export function buildSelfEvolutionAdoptedAnchorHistoryTransition(input: {

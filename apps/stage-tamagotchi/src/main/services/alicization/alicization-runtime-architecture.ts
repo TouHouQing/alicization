@@ -108,6 +108,8 @@ export interface AlicizationRuntimeSnapshot {
   currentConsciousFrame?: AlicizationRuntimeCurrentConsciousFrameSnapshot | null
   personStateProjection?: AlicizationDigitalLifeSpineSnapshot['runtimeSurface']['memory']['personStateProjection'] | null
   continuityRestraint?: string | null
+  continuityArcStage?: string | null
+  continuityPreferredTiming?: string | null
   emotionalClosureCue?: string | null
   emotionalKernel?: AlicizationEmotionalKernelSnapshot | null
   affectiveResidue?: AlicizationAffectiveResidueMemorySnapshot | null
@@ -2480,6 +2482,8 @@ export function deriveAlicizationRuntimeSnapshot(input: {
     shouldProactivelySpeak: governedShouldProactivelySpeak,
     shouldProactivelyAct: governedShouldProactivelyAct,
     continuityRestraint,
+    continuityArcStage: continuityArcStillInward || null,
+    continuityPreferredTiming: promotedContinuityPreferredTiming,
     continuityPressure,
     companionshipPressure,
     rulingMotive,

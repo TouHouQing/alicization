@@ -577,25 +577,27 @@ describe('personality-continuity-state', () => {
     const state = buildAlicizationPersonalityContinuityState({
       now: 44_000,
       previousContinuityState: previous,
-      hostPersonModel: previous.rationale.length ? {
-        summary: 'Night-time care should still stay quiet and low-pressure.',
-        routines: ['Protect rest before extending the conversation.'],
-        sensitivities: ['Night-time pressure lands as burden fast.'],
-        repairTriggers: [],
-        trustLadder: {
-          stage: 'warming',
-          score: 0.68,
-          rationale: 'Trust grows when care protects rest first.',
-        },
-        preferredClosenessByContext: [{
-          context: 'late-night-care',
-          preference: 'Quiet care is welcome if it protects rest and asks for very little back.',
-          confidence: 0.9,
-        }],
-        recurrentBurdens: ['Night-time strain rises fast if the reply pulls for more energy.'],
-        narrative: [],
-        updatedAt: 44_000,
-      } : null,
+      hostPersonModel: previous.rationale.length
+        ? {
+            summary: 'Night-time care should still stay quiet and low-pressure.',
+            routines: ['Protect rest before extending the conversation.'],
+            sensitivities: ['Night-time pressure lands as burden fast.'],
+            repairTriggers: [],
+            trustLadder: {
+              stage: 'warming',
+              score: 0.68,
+              rationale: 'Trust grows when care protects rest first.',
+            },
+            preferredClosenessByContext: [{
+              context: 'late-night-care',
+              preference: 'Quiet care is welcome if it protects rest and asks for very little back.',
+              confidence: 0.9,
+            }],
+            recurrentBurdens: ['Night-time strain rises fast if the reply pulls for more energy.'],
+            narrative: [],
+            updatedAt: 44_000,
+          }
+        : null,
       selfContinuity: {
         relationshipTrust: 0.58,
         guardingTendency: 0.4,

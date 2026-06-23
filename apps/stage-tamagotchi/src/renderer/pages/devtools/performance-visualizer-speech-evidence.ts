@@ -1,20 +1,22 @@
 import type { SpeechAuthoritySegmentRow } from './performance-visualizer-speech-authority'
 
-export type PerformanceVisualizerSpeechEvidenceKind =
-  | 'prosody'
-  | 'viseme'
-  | 'micro-expression'
-  | 'settle'
+export type PerformanceVisualizerSpeechEvidenceKind
+  = | 'prosody'
+    | 'viseme'
+    | 'micro-expression'
+    | 'settle'
 
-export type PerformanceVisualizerSpeechEvidenceFilter =
-  | 'speech'
-  | 'prosody'
-  | 'viseme'
-  | 'micro-expression'
-  | 'authority-match'
+export type PerformanceVisualizerSpeechEvidenceFilter
+  = | 'speech'
+    | 'prosody'
+    | 'viseme'
+    | 'micro-expression'
+    | 'authority-match'
+    | 'authority-trust'
 
 export interface PerformanceVisualizerSpeechEvidenceSnapshot {
   voiceSummary: string | null
+  bodyContinuitySummary?: string | null
   prosodyAuthoritySummary: string | null
   authorityMatchSummary: string | null
   topVisemeSummary: string | null
@@ -62,6 +64,7 @@ export function hasSpeechMicroExpressionEvidence(row: Pick<
 export function buildSpeechEvidenceSnapshot(speech: Pick<
   SpeechAuthoritySegmentRow,
   'voiceSummary'
+  | 'bodyContinuitySummary'
   | 'prosodyAuthoritySummary'
   | 'authorityMatchSummary'
   | 'topVisemeSummary'
@@ -75,7 +78,8 @@ export function buildSpeechEvidenceSnapshot(speech: Pick<
 >): PerformanceVisualizerSpeechEvidenceSnapshot {
   return {
     voiceSummary: speech.voiceSummary,
-    prosodyAuthoritySummary: speech.prosodyAuthoritySummary,
+    ...(speech.bodyContinuitySummary ? { bodyContinuitySummary: speech.bodyContinuitySummary } : {}),
+    prosodyAuthoritySummary: speech.prosodyAuthoritySummary ?? null,
     authorityMatchSummary: speech.authorityMatchSummary,
     topVisemeSummary: speech.topVisemeSummary,
     cueSummary: speech.cueSummary ?? null,

@@ -4,14 +4,8 @@ import type {
   AlicizationTaskThreadRecord,
   AlicizationTaskThreadStatus,
 } from '../../../shared/eventa'
-import type { AlicizationOutcomeClosureResult } from './outcome-reinforcement'
-
-import type {
-  buildExecutionProposalFeedbackOutcomeClosure,
-  buildExecutionResultFeedbackOutcomeClosure,
-  deriveExecutionProposalFeedbackKind,
-  deriveExecutionResultFeedbackKind,
-} from './outcome-reinforcement'
+import type { AlicizationOutcomeClosureResult, buildExecutionProposalFeedbackOutcomeClosure, buildExecutionResultFeedbackOutcomeClosure, deriveExecutionProposalFeedbackKind, deriveExecutionResultFeedbackKind } from './outcome-reinforcement'
+import type { AlicizationRelationshipDynamicsState } from './relationship-dynamics-state'
 
 type AlicizationExecutionProposalFeedbackKind = NonNullable<ReturnType<typeof deriveExecutionProposalFeedbackKind>>
 type AlicizationExecutionResultFeedbackKind = NonNullable<ReturnType<typeof deriveExecutionResultFeedbackKind>>
@@ -34,7 +28,10 @@ interface CreateAlicizationRuntimeExecutionFeedbackOptions {
   deriveExecutionResultFeedbackKind: typeof deriveExecutionResultFeedbackKind
   persistOutcomeClosure: (cardIdRaw: unknown, input: AlicizationOutcomeClosureResult) => Promise<void>
   appendAuditLog: (input: AlicizationAuditLogInput, cardId?: string) => Promise<void>
+  memoryReconsolidationRuntime?: unknown
   alicizationDb: {
+    appendRelationshipDynamics?: (input: AlicizationRelationshipDynamicsState) => Promise<unknown>
+    getLatestRelationshipDynamics?: () => Promise<Partial<AlicizationRelationshipDynamicsState> | null>
     listTaskThreads: (input: {
       sessionId: string
       status: AlicizationTaskThreadStatus[]

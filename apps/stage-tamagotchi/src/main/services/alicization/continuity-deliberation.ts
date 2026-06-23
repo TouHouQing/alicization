@@ -1,7 +1,7 @@
 import type { AlicizationRuntimeDigest } from '../../../shared/eventa'
+import type { AlicizationDialogueSessionMirror } from './dialogue-session-manager'
 import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 import type { AlicizationDigitalLifeSpineSnapshot } from './digital-life-spine'
-import type { AlicizationDialogueSessionMirror } from './dialogue-session-manager'
 
 export type AlicizationContinuityDeliberationKind
   = | 'none'
@@ -15,6 +15,7 @@ export type AlicizationContinuityPreferredTiming = 'internal-only' | 'after-payo
 
 export interface AlicizationContinuityDeliberation {
   kind: AlicizationContinuityDeliberationKind
+  arcStage?: string | null
   summary: string | null
   whyNow: string | null
   pressure: number
@@ -52,7 +53,7 @@ function uniqueTextList(values: Array<string | null | undefined>, maxItems = 6) 
 }
 
 function looksExecutionContinuityText(raw: unknown) {
-  return /(?:execution|callback|result|listing|remaining|cli|task|thread|执行|回调|结果|清单|剩下|任务)/iu.test(String(raw ?? ''))
+  return /execution|callback|result|listing|remaining|cli|task|thread|执行|回调|结果|清单|剩下|任务/iu.test(String(raw ?? ''))
 }
 
 function deriveKindFromAffordance(input: {

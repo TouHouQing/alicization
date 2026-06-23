@@ -1,6 +1,6 @@
-import type { AlicizationMindTurnGovernance } from '../../../shared/eventa'
-
 import type { AlicizationMindTurnGovernanceLike } from '@proj-alicization/stage-shared'
+
+import type { AlicizationMindTurnGovernance } from '../../../shared/eventa'
 
 function coerceGovernedMindFallbackTruthState(
   truthState: AlicizationMindTurnGovernance['truthState'] | null | undefined,

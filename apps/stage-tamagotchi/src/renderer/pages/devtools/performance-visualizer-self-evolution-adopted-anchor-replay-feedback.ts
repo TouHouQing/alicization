@@ -3,6 +3,7 @@ interface SelfEvolutionAdoptedAnchorReplayPlanLike {
   transitionKey: string
   selectedSide: 'current' | 'previous'
   eventId: string
+  summaryLine?: string | null
   supportingLines: string[]
 }
 

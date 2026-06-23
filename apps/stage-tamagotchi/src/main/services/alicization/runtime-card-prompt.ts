@@ -1,5 +1,5 @@
-import type { Message } from '@xsai/shared-chat'
 import type { AlicizationPersonaKernelSnapshot } from '@proj-alicization/stage-shared'
+import type { Message } from '@xsai/shared-chat'
 
 import type {
   AlicizationSoulSnapshot,

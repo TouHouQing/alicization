@@ -23,7 +23,7 @@ export function buildSelfEvolutionBaselineAdoptionRecord(input: {
   latestSnapshot: SelfEvolutionFocusSnapshotLike | null
   activePatternKey: string | null
   repairOwnerHint: string | null
-  prosodyAuthorityNote: string | null
+  prosodyAuthorityNote?: string | null
   capturedAt: number
 }) {
   if (!input.baselineAdoption || input.baselineAdoption.mode !== 'adopt-now' || !input.latestSnapshot)

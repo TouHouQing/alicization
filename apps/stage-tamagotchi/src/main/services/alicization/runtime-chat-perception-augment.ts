@@ -2,6 +2,8 @@ import type { Message } from '@xsai/shared-chat'
 
 import type {
   AlicizationAuditLogInput,
+  AlicizationMindTurnEventKind,
+  AlicizationMindTurnEventRecord,
   AlicizationRecallGovernorSnapshot,
   AlicizationSoulSnapshot,
   AlicizationVisualPresenceStateSnapshot,
@@ -85,6 +87,13 @@ interface CreateAlicizationChatPerceptionAugmentRuntimeOptions {
   buildVisualPresenceCapturePersistFingerprint: (state: AlicizationVisualPresenceStateSnapshot) => string
   appendAuditLog: (input: AlicizationAuditLogInput, cardId?: string) => Promise<void>
   getActiveSelfRevisionStatePatch?: () => Promise<Parameters<typeof buildAlicizationVisibleReplySurfacePlan>[0]['selfRevisionPatch']>
+  listHumanlikeMemoryRecallEvents?: (input: {
+    decisionTraceId?: string
+    turnId?: string
+    activeThreadId?: string
+    kind?: AlicizationMindTurnEventKind
+    limit?: number
+  }) => Promise<AlicizationMindTurnEventRecord[]>
 }
 
 export function createAlicizationChatPerceptionAugmentRuntime(options: CreateAlicizationChatPerceptionAugmentRuntimeOptions) {

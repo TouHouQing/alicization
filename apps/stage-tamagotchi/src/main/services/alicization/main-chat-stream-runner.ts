@@ -12,21 +12,21 @@ import type {
   AlicizationVisibleReplyCriticArtifact,
 } from './visible-reply/facade'
 
-import { shouldBufferAlicizationStructuredSpeechPrelude } from '@proj-alicization/stage-shared'
 import { errorMessageFrom } from '@moeru/std'
+import { shouldBufferAlicizationStructuredSpeechPrelude } from '@proj-alicization/stage-shared'
 import { streamText } from '@xsai/stream-text'
 
-import { extractAllowedToolNamesFromToolChoice } from './main-chat-runtime-surface'
 import { AlicizationRequiredToolMissingError } from './main-chat-required-tool'
+import { extractAllowedToolNamesFromToolChoice } from './main-chat-runtime-surface'
 import { shouldEmitAlicizationChatMetaUpdate } from './main-chat-stream-meta-policy'
+import { createAbortError, isMainGatewayProgressEventType, readRawTextDelta, sanitizeText } from './main-chat-stream-primitives'
+import { parseReminderToolResultForDebug, sanitizeBriefText } from './runtime-realtime'
+import { parseJsonObjectFromText } from './runtime-transport-content'
 import { createAlicizationTurnRuntime } from './turn-os/runtime'
 import {
   deriveAlicizationVisibleReplyText,
   resolveAlicizationPreparedVisibleReplyExecution,
 } from './visible-reply/facade'
-import { createAbortError, isMainGatewayProgressEventType, readRawTextDelta, sanitizeText } from './main-chat-stream-primitives'
-import { parseReminderToolResultForDebug, sanitizeBriefText } from './runtime-realtime'
-import { parseJsonObjectFromText } from './runtime-transport-content'
 
 type StreamTextInvoker = (input: Record<string, unknown>) => unknown
 
@@ -36,6 +36,8 @@ export interface AlicizationMainChatStreamRunnerResult {
   visibleReplyExecution: AlicizationVisibleReplyExecution
   visibleReplyCritic?: AlicizationVisibleReplyCriticArtifact | null
   visibleReplyClosure?: AlicizationVisibleReplyClosureArtifact | null
+  visibleReplyProjectStateAudit?: Record<string, unknown> | null
+  visibleReplyRealization?: Record<string, unknown> | null
 }
 
 export interface AlicizationMainChatStreamMetaController {

@@ -1,6 +1,6 @@
 import type {
-  AlicizationRelationshipOutcomeRecord,
   AlicizationRelationshipModelSnapshot,
+  AlicizationRelationshipOutcomeRecord,
   AlicizationSubjectiveSceneAppraisal,
   AlicizationVisualWatchMode,
   AlicizationWorldModelSnapshot,

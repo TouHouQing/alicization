@@ -8,7 +8,6 @@ import type {
   AlicizationSelfContinuitySnapshot,
   AlicizationSelfStateSnapshot,
 } from '../../../shared/eventa'
-
 import type { AlicizationMindEcologySnapshot } from './mind-ecology'
 
 function clamp01(value: number) {
@@ -60,7 +59,7 @@ function deriveHostGrowthContinuity(hostPersonModel: AlicizationHostPersonModelS
   const prefersSpace = hasPatternMatch(joinedPreferenceText, /space|room|lighter|quiet|leave room|boundary|边界|空间|轻一点|安静/u)
   const welcomesWarmth = hasPatternMatch(joinedPreferenceText, /warm|gentle|closer|soft care|陪|温和|靠近|柔和|亲近/u)
   const repairSensitive = hasPatternMatch(joinedPreferenceText, /repair|clarify|robotic|not this|recheck|修复|澄清|机械|不是这个/u)
-  const restSensitive = hasPatternMatch(joinedPreferenceText, /late-night|tired|busy|focused|rest|fatigue|夜|累|忙|专注|休息|疲惫/u)
+  const restSensitive = hasPatternMatch(joinedPreferenceText, /late-night|tired|busy|focused|rest|fatigue|[夜累忙]|专注|休息|疲惫/u)
   const cadenceSeeking = hasPatternMatch(joinedPreferenceText, /return|follow[- ]?up|reopen|come back|continue|回到|跟进|继续|再回来/u)
 
   return {

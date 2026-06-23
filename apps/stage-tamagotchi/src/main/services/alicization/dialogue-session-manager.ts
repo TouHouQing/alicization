@@ -225,17 +225,17 @@ function resolveMirrorProjectStateFromPreparedRuntimeSurface(
   const primaryOpenLoop = sanitizeText(snapshot.primaryOpenLoop ?? brief.openLoops[0] ?? '', 220)
   const preDialogueAwarenessLine = sanitizeText(
     snapshot.preDialogueAwarenessLine
-      ?? resolveAlicizationProjectPreDialogueAwarenessLine({
-        runtimeProjectState: runtimeProjectState as {
-          preDialogueAwarenessLine?: unknown
-          preflightSummary?: unknown
-        } | null,
-        fallbackProjectState: {
-          preDialogueAwarenessLine: brief.preDialogueAwarenessLine ?? null,
-          preflightSummary: brief.preflightSummary ?? null,
-        },
-      })
-      ?? '',
+    ?? resolveAlicizationProjectPreDialogueAwarenessLine({
+      runtimeProjectState: runtimeProjectState as {
+        preDialogueAwarenessLine?: unknown
+        preflightSummary?: unknown
+      } | null,
+      fallbackProjectState: {
+        preDialogueAwarenessLine: brief.preDialogueAwarenessLine ?? null,
+        preflightSummary: brief.preflightSummary ?? null,
+      },
+    })
+    ?? '',
     projectAwarenessLineMaxChars,
   ) || sanitizeText(
     snapshot.preflightSummary ?? runtimeProjectState?.preflightSummary ?? brief.preflightSummary ?? '',
@@ -243,9 +243,9 @@ function resolveMirrorProjectStateFromPreparedRuntimeSurface(
   )
   return {
     project: 'phase1-digital-life',
-    unresolved: primaryOpenLoop ? primaryOpenLoop : '',
+    unresolved: primaryOpenLoop || '',
     phase,
-    preDialogueAwarenessLine: preDialogueAwarenessLine ? preDialogueAwarenessLine : '',
+    preDialogueAwarenessLine: preDialogueAwarenessLine || '',
   }
 }
 
@@ -270,12 +270,12 @@ function looksLikeMirrorProjectReanchor(raw: unknown) {
     text.includes('alicization is a local-first digital life project')
     || text.includes('before answering, remember: alicization is a local-first digital life project')
   ) && text.includes('phase 1')
-    && (
-      text.includes('unfinished closure')
-      || text.includes('still-open closure')
-      || text.includes('same living line')
-      || text.includes('same-life closure')
-    )
+  && (
+    text.includes('unfinished closure')
+    || text.includes('still-open closure')
+    || text.includes('same living line')
+    || text.includes('same-life closure')
+  )
 }
 
 function summarizeContinuityProjectFromSignals(
@@ -335,20 +335,20 @@ function summarizeContinuityProjectFromSignals(
   const preDialogueAwarenessLine = sanitizeText(
     looksLikeMirrorProjectReanchor(explicitAwarenessLine)
       ? resolveAlicizationProjectPreDialogueAwarenessLine({
-          runtimeProjectState: {
-            preDialogueAwarenessLine: explicitAwarenessLine,
-            preflightSummary: explicitPreflightSummary || projectState.preflightSummary,
-          },
-        }) ?? ''
+        runtimeProjectState: {
+          preDialogueAwarenessLine: explicitAwarenessLine,
+          preflightSummary: explicitPreflightSummary || projectState.preflightSummary,
+        },
+      }) ?? ''
       : buildAlicizationProjectPreDialogueAwarenessLine({
-          identity: projectState.identity,
-          currentPhase: projectState.currentPhase,
-          latestLandedProgress: projectState.latestLandedProgress,
-          latestProgress: projectState.latestProgress,
-          primaryOpenLoop: projectState.primaryOpenLoop,
-          nextClosureTarget: projectState.nextClosureTarget,
-          sameHerSelfLine: projectState.sameHerSelfLine,
-        }) ?? '',
+        identity: projectState.identity,
+        currentPhase: projectState.currentPhase,
+        latestLandedProgress: projectState.latestLandedProgress,
+        latestProgress: projectState.latestProgress,
+        primaryOpenLoop: projectState.primaryOpenLoop,
+        nextClosureTarget: projectState.nextClosureTarget,
+        sameHerSelfLine: projectState.sameHerSelfLine,
+      }) ?? '',
     projectAwarenessLineMaxChars,
   ) || sanitizeText(projectState.preflightSummary ?? '', projectAwarenessLineMaxChars)
 
@@ -1361,18 +1361,18 @@ function summarizeRecollectionForeground(context: OrganicMemoryPromptContext | n
     ?? narrative?.recallCenter
     ?? narrative?.opening
     ?? '',
-  180,
+    180,
   ) || null
   const certainty = sanitizeText(speech?.certainty ?? plan?.certainty ?? narrative?.certainty ?? '', 32) || null
   const confidence = Number.isFinite(deliberation?.confidence)
     ? Number(deliberation!.confidence)
     : Number.isFinite(plan?.confidence)
       ? Number(plan!.confidence)
-    : Number.isFinite(speech?.confidence)
-      ? Number(speech!.confidence)
-      : Number.isFinite(narrative?.confidence)
-        ? Number(narrative!.confidence)
-        : null
+      : Number.isFinite(speech?.confidence)
+        ? Number(speech!.confidence)
+        : Number.isFinite(narrative?.confidence)
+          ? Number(narrative!.confidence)
+          : null
   const mode = sanitizeText(intent?.mode ?? narrative?.mode ?? '', 48) || null
 
   return {
@@ -1417,7 +1417,7 @@ function summarizeContinuityArcFromPreparedRuntimeSurface(surface: AlicizationMa
       ? 'same-thread-continuation'
       : currentConsciousFrame?.reasonTags?.includes('continuity-arc:gentle-reopen')
         ? 'gentle-reopen'
-      : ''
+        : ''
   const projectPreflight = sanitizeText(
     resolveAlicizationProjectPreDialogueAwarenessLine({
       runtimeProjectState: {
@@ -1433,8 +1433,8 @@ function summarizeContinuityArcFromPreparedRuntimeSurface(surface: AlicizationMa
   const projectStateSameHerSelfLine = sanitizeText(projectState?.sameHerSelfLine ?? '', 220)
   const projectStateLandedProgress = sanitizeText(
     projectState?.latestLandedProgress
-      ?? projectState?.latestProgress
-      ?? '',
+    ?? projectState?.latestProgress
+    ?? '',
     220,
   )
   const projectStatePrimaryOpenLoop = sanitizeText(projectState?.primaryOpenLoop ?? '', 180)
@@ -1626,10 +1626,10 @@ export function createAlicizationDialogueSessionManager(
       ? preparedDigitalLifeSpine
       : runtimeSurfaceDigitalLifeSpine?.runtimeSurface === preferredRuntimeSurface
         ? runtimeSurfaceDigitalLifeSpine
-      : preferMoreRecentDigitalLifeSpine({
-          preparedRuntimeSurface: preferredRuntimeSurface,
-          runtimeSurfaceSpine: preferredIncomingDigitalLifeSpine,
-        })
+        : preferMoreRecentDigitalLifeSpine({
+            preparedRuntimeSurface: preferredRuntimeSurface,
+            runtimeSurfaceSpine: preferredIncomingDigitalLifeSpine,
+          })
     const recollectionForeground = summarizeRecollectionForeground(input.organicMemoryContext ?? null)
     const mirror: AlicizationDialogueSessionMirror = {
       cardId: normalizedCardId,

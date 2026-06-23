@@ -1,6 +1,8 @@
+import type { StageEmbodimentPerformanceMatchedDriver } from '@proj-alicization/stage-shared'
+
+import type { StageThreeRuntimeSpeechEmbodimentDiagnostics } from '../../stores/stage-three-runtime-diagnostics'
 import type { PerformanceVisualizerPlaybackCueAuthorityView } from './performance-visualizer-playback-cue'
 import type { PerformanceVisualizerTraceTelemetrySummary } from './performance-visualizer-runtime-diagnostic-summary'
-import type { StageThreeRuntimeSpeechEmbodimentDiagnostics } from '../../stores/stage-three-runtime-diagnostics'
 
 function pushUniqueSource(target: string[], source: string | null | undefined) {
   const normalized = typeof source === 'string' ? source.trim() : ''
@@ -49,7 +51,7 @@ export function resolveTraceSegmentBinding(input: {
     }
   }
 
-  const matchedDrivers: Array<'face' | 'motion' | 'lipsync'> = []
+  const matchedDrivers: StageEmbodimentPerformanceMatchedDriver[] = []
   const matchedSources: string[] = []
   if (cueId && input.traceContext?.driverSummary?.face?.segmentId === cueId) {
     matchedDrivers.push('face')

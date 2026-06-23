@@ -166,11 +166,11 @@ export async function acceptAlicizationMainChatStart(
     turnId: runState.turnId,
     providerId: input.payload.providerId,
     model: input.payload.model,
-      senderId: runState.sender?.id ?? null,
-      preparationDeferred: true,
-      gatewayReachable: null,
-      gatewayReachabilityCode: null,
-    })
+    senderId: runState.sender?.id ?? null,
+    preparationDeferred: true,
+    gatewayReachable: null,
+    gatewayReachabilityCode: null,
+  })
 
   return {
     accepted: true,

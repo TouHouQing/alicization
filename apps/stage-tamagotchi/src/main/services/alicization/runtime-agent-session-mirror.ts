@@ -9,9 +9,9 @@ import type {
   AlicizationAgentTurnRuntime,
 } from './agent-runtime'
 import type { AlicizationPerceptionSceneResidue } from './attention-anchor'
+import type { AlicizationDialogueSessionMirror } from './dialogue-session-manager'
 import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 import type { AlicizationRecentProactiveOutcome } from './proactive-feedback'
-import type { AlicizationDialogueSessionMirror } from './dialogue-session-manager'
 
 import { deriveAlicizationDigitalLifeSpineFromSurface } from './digital-life-spine'
 
@@ -44,6 +44,7 @@ interface CreateAlicizationAgentSessionMirrorRuntimeOptions {
     outcome: AlicizationRecentProactiveOutcome
     source: string
   }) => AlicizationAgentSessionActionInput
+  buildProactiveOutcomeContinuitySignal?: (outcome: AlicizationRecentProactiveOutcome) => AlicizationAgentSessionContinuityInput
   buildReminderSessionMirrorAction: (input: {
     delayMinutes: number
     firedTurnId?: string | null
@@ -97,6 +98,7 @@ export function createAlicizationAgentSessionMirrorRuntime(options: CreateAliciz
     buildTaskThreadSessionMirrorAction,
     buildSceneResidueSessionMirrorAction,
     buildProactiveFeedbackSessionMirrorAction,
+    buildProactiveOutcomeContinuitySignal,
     buildReminderSessionMirrorAction,
     dialogueSessionManager,
     persistAutobiographicalEpisodesFromSessionMirror,
@@ -270,12 +272,18 @@ export function createAlicizationAgentSessionMirrorRuntime(options: CreateAliciz
       runtimeActions.push(buildReminderSessionMirrorAction(input.reminderAction))
     if (runtimeActions.length > 0)
       agentTurn.ingestRuntimeActions(runtimeActions)
+    const proactiveContinuitySignals = input.proactiveOutcomes?.length && buildProactiveOutcomeContinuitySignal
+      ? input.proactiveOutcomes.map(outcome => buildProactiveOutcomeContinuitySignal(outcome))
+      : []
 
     const previousMirror = dialogueSessionManager.getSessionMirror(cardId, existingSessionId)
     syncAgentTurnSessionMirror({
       agentTurn,
       cardId,
-      continuitySignals: sessionContinuityContext.sessionContinuitySignals,
+      continuitySignals: [
+        ...sessionContinuityContext.sessionContinuitySignals,
+        ...proactiveContinuitySignals,
+      ],
       decisionTraceId: input.decisionTraceId ?? null,
       sessionId: existingSessionId,
       skipAutobiographicalPersist: true,
@@ -296,9 +304,49 @@ export function createAlicizationAgentSessionMirrorRuntime(options: CreateAliciz
     }
   }
 
+  async function hydrateAgentTurnFromCurrentCardState(input: {
+    cardId: string
+    decisionTraceId?: string | null
+    sessionId?: string | null
+    source: string
+    turnId?: string | null
+  }): Promise<AlicizationAgentTurnRuntime | null> {
+    const cardId = normalizeCardId(input.cardId)
+    const existingSessionId = normalizeSessionId(input.sessionId)
+      || normalizeSessionId(getActiveSessionIdByCard(cardId))
+      || normalizeSessionId(await getLatestConversationSessionId().catch(() => undefined))
+    if (!existingSessionId)
+      return null
+
+    const agentTurn = await openAgentTurn({
+      cardId,
+      turnId: sanitizeText(input.turnId, '')
+        || buildMainGatewayAgentTurnId('session-mirror', input.source, cardId, Date.now()),
+      decisionTraceId: input.decisionTraceId ?? null,
+    }).catch(() => null)
+    if (!agentTurn)
+      return null
+
+    const sessionContinuityContext = await resolveAgentSessionContinuityContext(cardId).catch(() => ({
+      digitalLifeRuntimeSurface: null as AlicizationDigitalLifeRuntimeSurface | null,
+      sessionContinuitySignals: [] as AlicizationAgentSessionContinuityInput[],
+    }))
+    const digitalLifeSpine = sessionContinuityContext.digitalLifeRuntimeSurface
+      ? deriveAlicizationDigitalLifeSpineFromSurface(sessionContinuityContext.digitalLifeRuntimeSurface)
+      : null
+    if (digitalLifeSpine) {
+      agentTurn.ingestDigitalLifeSpine(digitalLifeSpine)
+      agentTurn.ingestDigitalLifeArchitecture(digitalLifeSpine.architecture)
+    }
+    if (sessionContinuityContext.sessionContinuitySignals.length > 0)
+      agentTurn.ingestContinuitySignals(sessionContinuityContext.sessionContinuitySignals)
+    return agentTurn
+  }
+
   return {
     buildAgentRuntimeAuditSnapshot,
     buildAgentTurnContinuitySystemMessages,
+    hydrateAgentTurnFromCurrentCardState,
     syncAgentTurnSessionMirror,
     syncSessionMirrorFromCurrentCardState,
   }

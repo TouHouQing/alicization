@@ -11,8 +11,8 @@ import {
 
 export {
   describeAlicizationEmbodimentClosureReminder,
-  isAlicizationThinSamePhaseCarryLine,
   isAlicizationThinProjectAwarenessLine,
+  isAlicizationThinSamePhaseCarryLine,
   resolveAlicizationProjectPreDialogueAwarenessLine,
   scoreAlicizationProjectAwarenessLine,
 } from '@proj-alicization/stage-shared'
@@ -29,10 +29,13 @@ export interface AlicizationProjectStateBrief {
   emotionalClosureSummary?: string | null
   sameHerHoldDetail?: string | null
   continuityRestraint?: 'lower-pressure' | 'measured-return' | 'repair-before-closeness' | 'rest-protective' | 'single-thread' | null
+  continuityArcStage?: string | null
   continuityPreferredTiming?: 'internal-only' | 'after-payoff' | 'same-turn-if-invited' | 'next-open-window' | null
   continuityCadence?: string | null
   preferredBlinkCadence?: 'normal' | 'linger' | 'quiet' | null
   preferredGazeMode?: 'steady' | 'soften' | 'drift' | null
+  preferredPauseMode?: 'longer' | 'natural' | null
+  preferredLipsyncMode?: 'restrained' | 'matched' | null
   preferredVoiceMode?: 'lower-pressure' | 'even' | null
   preferredPacingMode?: 'slower' | 'natural' | null
   continuityCue?: string | null
@@ -71,6 +74,8 @@ export interface AlicizationProjectStateSnapshot {
   continuityCadence: string | null
   preferredBlinkCadence: 'normal' | 'linger' | 'quiet' | null
   preferredGazeMode: 'steady' | 'soften' | 'drift' | null
+  preferredPauseMode: 'longer' | 'natural' | null
+  preferredLipsyncMode: 'restrained' | 'matched' | null
   preferredVoiceMode: 'lower-pressure' | 'even' | null
   preferredPacingMode: 'slower' | 'natural' | null
 }
@@ -194,6 +199,8 @@ export function resolveAlicizationProjectStatusBrief(input?: {
     continuityCadence?: unknown
     preferredBlinkCadence?: unknown
     preferredGazeMode?: unknown
+    preferredPauseMode?: unknown
+    preferredLipsyncMode?: unknown
     preferredVoiceMode?: unknown
     preferredPacingMode?: unknown
   } | null
@@ -223,6 +230,8 @@ export function resolveAlicizationProjectStatusBrief(input?: {
     continuityCadence?: unknown
     preferredBlinkCadence?: unknown
     preferredGazeMode?: unknown
+    preferredPauseMode?: unknown
+    preferredLipsyncMode?: unknown
     preferredVoiceMode?: unknown
     preferredPacingMode?: unknown
   } | null
@@ -1525,6 +1534,8 @@ export function resolveAlicizationProjectStateSnapshot(input?: {
     continuityCadence?: unknown
     preferredBlinkCadence?: unknown
     preferredGazeMode?: unknown
+    preferredPauseMode?: unknown
+    preferredLipsyncMode?: unknown
     preferredVoiceMode?: unknown
     preferredPacingMode?: unknown
   } | null
@@ -1559,6 +1570,8 @@ export function resolveAlicizationProjectStateSnapshot(input?: {
     continuityCadence?: unknown
     preferredBlinkCadence?: unknown
     preferredGazeMode?: unknown
+    preferredPauseMode?: unknown
+    preferredLipsyncMode?: unknown
     preferredVoiceMode?: unknown
     preferredPacingMode?: unknown
   } | null
@@ -1688,11 +1701,11 @@ export function resolveAlicizationProjectStateSnapshot(input?: {
   const awarenessContinuityCue = explicitContinuityCue || derivedContinuityCue || null
   const preferredExplicitSameHerHoldDetail = explicitSameHerHoldDetail
     ? preferStrongerContinuityClosureAuthority(explicitSameHerHoldDetail, continuityCue)
-      ?? explicitSameHerHoldDetail
+    ?? explicitSameHerHoldDetail
     : null
   const preferredBriefSameHerHoldDetail = brief.sameHerHoldDetail
     ? preferStrongerContinuityClosureAuthority(brief.sameHerHoldDetail, continuityCue)
-      ?? brief.sameHerHoldDetail
+    ?? brief.sameHerHoldDetail
     : null
   const sameHerHoldDetail = sanitizeProjectStateSnapshotText(
     preferredExplicitSameHerHoldDetail
@@ -1728,6 +1741,20 @@ export function resolveAlicizationProjectStateSnapshot(input?: {
       || preferredGazeModeRaw === 'soften'
       || preferredGazeModeRaw === 'drift'
       ? preferredGazeModeRaw
+      : null
+  const preferredPauseModeRaw = sanitizeProjectStateSnapshotText(input?.runtimeProjectState?.preferredPauseMode, 32)
+    || sanitizeProjectStateSnapshotText(input?.fallbackProjectState?.preferredPauseMode, 32)
+  const preferredPauseMode
+    = preferredPauseModeRaw === 'longer'
+      || preferredPauseModeRaw === 'natural'
+      ? preferredPauseModeRaw
+      : null
+  const preferredLipsyncModeRaw = sanitizeProjectStateSnapshotText(input?.runtimeProjectState?.preferredLipsyncMode, 32)
+    || sanitizeProjectStateSnapshotText(input?.fallbackProjectState?.preferredLipsyncMode, 32)
+  const preferredLipsyncMode
+    = preferredLipsyncModeRaw === 'restrained'
+      || preferredLipsyncModeRaw === 'matched'
+      ? preferredLipsyncModeRaw
       : null
   const preferredVoiceModeRaw = sanitizeProjectStateSnapshotText(input?.runtimeProjectState?.preferredVoiceMode, 32)
     || sanitizeProjectStateSnapshotText(input?.fallbackProjectState?.preferredVoiceMode, 32)
@@ -1850,6 +1877,8 @@ export function resolveAlicizationProjectStateSnapshot(input?: {
     continuityCadence,
     preferredBlinkCadence,
     preferredGazeMode,
+    preferredPauseMode,
+    preferredLipsyncMode,
     preferredVoiceMode,
     preferredPacingMode,
   }
@@ -2234,6 +2263,28 @@ export function resolveAlicizationSurfaceProjectStateSnapshot(input?: {
       || preferredGazeModeRaw === 'drift'
       ? preferredGazeModeRaw
       : null
+  const preferredPauseModeRaw
+    = sanitizeProjectStateSnapshotText(currentConsciousProjectState?.preferredPauseMode, 32)
+      || sanitizeProjectStateSnapshotText(cognitionRuntimeProjectState?.preferredPauseMode, 32)
+      || sanitizeProjectStateSnapshotText(rawRuntimeProjectState?.preferredPauseMode, 32)
+      || sanitizeProjectStateSnapshotText(dialogueRuntimeProjectState?.preferredPauseMode, 32)
+      || null
+  const preferredPauseMode
+    = preferredPauseModeRaw === 'longer'
+      || preferredPauseModeRaw === 'natural'
+      ? preferredPauseModeRaw
+      : null
+  const preferredLipsyncModeRaw
+    = sanitizeProjectStateSnapshotText(currentConsciousProjectState?.preferredLipsyncMode, 32)
+      || sanitizeProjectStateSnapshotText(cognitionRuntimeProjectState?.preferredLipsyncMode, 32)
+      || sanitizeProjectStateSnapshotText(rawRuntimeProjectState?.preferredLipsyncMode, 32)
+      || sanitizeProjectStateSnapshotText(dialogueRuntimeProjectState?.preferredLipsyncMode, 32)
+      || null
+  const preferredLipsyncMode
+    = preferredLipsyncModeRaw === 'restrained'
+      || preferredLipsyncModeRaw === 'matched'
+      ? preferredLipsyncModeRaw
+      : null
   const preferredVoiceModeRaw
     = sanitizeProjectStateSnapshotText(currentConsciousProjectState?.preferredVoiceMode, 32)
       || sanitizeProjectStateSnapshotText(cognitionRuntimeProjectState?.preferredVoiceMode, 32)
@@ -2303,6 +2354,8 @@ export function resolveAlicizationSurfaceProjectStateSnapshot(input?: {
       || null,
     preferredBlinkCadence,
     preferredGazeMode,
+    preferredPauseMode,
+    preferredLipsyncMode,
     preferredVoiceMode,
     preferredPacingMode,
   }

@@ -1,14 +1,14 @@
-import type { SelfEvolutionEvidencePanelInput } from './performance-visualizer-self-evolution-evidence'
+import type { StageThreeRuntimeSpeechEmbodimentDiagnostics } from '../../stores/stage-three-runtime-diagnostics'
 import type { PerformanceVisualizerLive2DAuthorityComparisonView } from './performance-visualizer-live2d-authority'
 import type { PerformanceVisualizerPlaybackCueAuthorityView } from './performance-visualizer-playback-cue'
+import type { SelfEvolutionEvidencePanelInput } from './performance-visualizer-self-evolution-evidence'
 import type { PerformanceVisualizerVrmAuthorityComparisonView } from './performance-visualizer-vrm-authority'
-import type { StageThreeRuntimeSpeechEmbodimentDiagnostics } from '../../stores/stage-three-runtime-diagnostics'
 
+import { resolveAuthorityMismatchDisplay } from './performance-visualizer-authority-display'
 import {
   buildAuthorityMismatchReasonSummary,
   buildAuthorityMismatchSummary,
 } from './performance-visualizer-authority-mismatch-filter'
-import { resolveAuthorityMismatchDisplay } from './performance-visualizer-authority-display'
 import {
   formatDriverExecutionSummary,
   resolvePrimaryRendererAlignmentSummary,

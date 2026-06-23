@@ -1,10 +1,11 @@
+import type { buildAlicizationMemoryTurnArtifact } from './memory-os/memory-turn-artifact'
 import type { OrganicMemoryPromptContext } from './runtime-soul'
 
 import { deriveAlicizationMemoryClosureDiscipline } from '@proj-alicization/stage-shared'
-import { buildAlicizationMemoryDeliberationKernel } from './memory-deliberation-kernel'
-import { buildAlicizationMemoryTurnArtifact } from './memory-os/memory-turn-artifact'
-import { deriveRecollectionSurfaceControls } from './recollection-surface-controls'
+
 import { formatMemoryProvenanceLabel } from './humanlike-memory'
+import { buildAlicizationMemoryDeliberationKernel } from './memory-deliberation-kernel'
+import { deriveRecollectionSurfaceControls } from './recollection-surface-controls'
 
 export function buildOrganicMemorySystemBlocks(
   context: OrganicMemoryPromptContext,

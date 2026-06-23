@@ -27,6 +27,8 @@ import type {
   AlicizationEmbodimentScriptV1 as SharedAlicizationEmbodimentScriptV1,
   AlicizationEmotion as SharedAlicizationEmotion,
   AlicizationEmotionalKernelSnapshot as SharedAlicizationEmotionalKernelSnapshot,
+  AlicizationEmotionalTransitionDecaySnapshot as SharedAlicizationEmotionalTransitionDecaySnapshot,
+  AlicizationEmotionalTransitionLedgerSnapshot as SharedAlicizationEmotionalTransitionLedgerSnapshot,
   AlicizationEpisodicEventRecord as SharedAlicizationEpisodicEventRecord,
   AlicizationExecutionChannel as SharedAlicizationExecutionChannel,
   AlicizationExecutionEventKind as SharedAlicizationExecutionEventKind,
@@ -211,6 +213,8 @@ export type AlicizationHostPersonModelSnapshot = SharedAlicizationHostPersonMode
 export type AlicizationAffectiveResidueMemorySnapshot = SharedAlicizationAffectiveResidueMemorySnapshot
 export type AlicizationSelfEvolutionKernelSnapshot = SharedAlicizationSelfEvolutionKernelSnapshot
 export type AlicizationSelfEvolutionVersionRuntimeSnapshot = SharedAlicizationSelfEvolutionVersionRuntimeSnapshot
+export type AlicizationEmotionalTransitionDecaySnapshot = SharedAlicizationEmotionalTransitionDecaySnapshot
+export type AlicizationEmotionalTransitionLedgerSnapshot = SharedAlicizationEmotionalTransitionLedgerSnapshot
 export type AlicizationPersonStateUpdateRecord = SharedAlicizationPersonStateUpdateRecord
 export type AlicizationPersonStateUpdateSurface = SharedAlicizationPersonStateUpdateSurface
 
@@ -646,6 +650,11 @@ export type AlicizationHostGoalHypothesis
     | 'rest'
     | 'chat'
     | 'browse'
+    | 'stay-connected'
+    | 'continue-thread'
+    | 'keep-going'
+    | 'finish-one-more-step'
+    | 'resume-work'
     | 'continue-phase-1-line'
     | 'unknown'
 export type AlicizationRelationshipNeed = 'space' | 'companionship' | 'guidance' | 'care' | 'unclear'
@@ -1880,6 +1889,7 @@ export interface AlicizationVisualPresenceStateSnapshot extends SharedAlicizatio
   answerPlanner?: AlicizationAnswerPlannerSnapshot | null
   learningExecutionState?: SharedAlicizationLearningExecutionStateSnapshot | null
   residentPerformance?: SharedAlicizationResidentPerformanceSnapshot | null
+  emotionalTransitionDecay?: SharedAlicizationEmotionalTransitionDecaySnapshot | null
   presenceExpression?: SharedAlicizationPresenceExpressionSnapshot | null
   privateThought: AlicizationPrivateThoughtSnapshot | null
   captureState: {

@@ -1,28 +1,34 @@
-import type { PerformanceVisualizerAuthoritySegmentRow } from './performance-visualizer-authority-summary'
-import type { SpeechAuthoritySegmentRow } from './performance-visualizer-speech-authority'
+import type { StageEmbodimentPerformanceMatchedDriver } from '@proj-alicization/stage-shared'
+
 import type { StageThreeRuntimeSpeechEmbodimentDiagnostics } from '../../stores/stage-three-runtime-diagnostics'
+import type { PerformanceVisualizerAuthorityMismatchFilter } from './performance-visualizer-authority-mismatch-filter'
+import type { PerformanceVisualizerAuthoritySegmentRow } from './performance-visualizer-authority-summary'
+import type { PerformanceVisualizerRuntimeDiagnosticSummaryEntry } from './performance-visualizer-runtime-diagnostic-summary'
+import type { SpeechAuthoritySegmentRow } from './performance-visualizer-speech-authority'
+import type { PerformanceVisualizerSpeechDiagnosticSummaryEntry } from './performance-visualizer-speech-diagnostic-summary'
+import type { PerformanceVisualizerSpeechEvidenceSnapshot } from './performance-visualizer-speech-evidence'
 
 import { resolveAuthorityMismatchDisplay } from './performance-visualizer-authority-display'
 import {
   buildAuthorityMismatchReasonSummary,
   buildAuthorityMismatchSummary,
   matchesAuthorityMismatchFilter,
-  type PerformanceVisualizerAuthorityMismatchFilter,
+
 } from './performance-visualizer-authority-mismatch-filter'
 import { buildAuthoritySettleLines } from './performance-visualizer-authority-settle'
 import {
-  buildSpeechEvidenceSnapshot,
-  collectSpeechEvidenceKinds,
-  type PerformanceVisualizerSpeechEvidenceSnapshot,
-} from './performance-visualizer-speech-evidence'
+  buildTraceTelemetrySummaryEntries,
+
+} from './performance-visualizer-runtime-diagnostic-summary'
 import {
   buildSpeechDiagnosticSummaryEntries,
-  type PerformanceVisualizerSpeechDiagnosticSummaryEntry,
+
 } from './performance-visualizer-speech-diagnostic-summary'
 import {
-  buildTraceTelemetrySummaryEntries,
-  type PerformanceVisualizerRuntimeDiagnosticSummaryEntry,
-} from './performance-visualizer-runtime-diagnostic-summary'
+  buildSpeechEvidenceSnapshot,
+  collectSpeechEvidenceKinds,
+
+} from './performance-visualizer-speech-evidence'
 import {
   buildTraceAuthorityExecutionSummary,
   buildTraceEmbodimentSummary,
@@ -55,6 +61,7 @@ export interface SpeechAuthorityHotspot {
   authorityMismatchDisplay?: string | null
   traceSummaryEntries?: PerformanceVisualizerRuntimeDiagnosticSummaryEntry[]
   traceSummary: {
+    cueId?: string | null
     decisionTraceId: string
     turnMode: string | null
     truthState: string | null
@@ -67,7 +74,7 @@ export interface SpeechAuthorityHotspot {
     segmentBinding: {
       matched: boolean
       rendererTarget: 'live2d' | 'vrm' | null
-      matchedDrivers: Array<'face' | 'motion' | 'lipsync'>
+      matchedDrivers: StageEmbodimentPerformanceMatchedDriver[]
       matchedSources: string[]
     }
   } | null
@@ -85,7 +92,7 @@ function buildSettleAuthoritySummary(input: {
   segmentBinding: {
     matched: boolean
     rendererTarget: 'live2d' | 'vrm' | null
-    matchedDrivers: Array<'face' | 'motion' | 'lipsync'>
+    matchedDrivers: StageEmbodimentPerformanceMatchedDriver[]
     matchedSources: string[]
   }
   traceContext?: Pick<StageThreeRuntimeSpeechEmbodimentDiagnostics, 'driverSummary'>
@@ -97,7 +104,7 @@ function buildSettleAuthoritySummary(input: {
     return `authority-bound | segment=${input.cueId} | target=${input.segmentBinding.rendererTarget ?? 'n/a'} | drivers=${input.segmentBinding.matchedDrivers.join(', ') || 'n/a'} | sources=${input.segmentBinding.matchedSources.join(', ') || 'n/a'}`
   }
 
-  const fallbackDrivers: Array<'face' | 'motion' | 'lipsync'> = []
+  const fallbackDrivers: StageEmbodimentPerformanceMatchedDriver[] = []
   const fallbackSources: string[] = []
   if (input.traceContext?.driverSummary?.face?.segmentId === input.cueId) {
     fallbackDrivers.push('face')
@@ -252,7 +259,7 @@ export function buildSpeechAuthorityHotspots(
   speechRows: SpeechAuthoritySegmentRow[],
   traceContext?: Pick<
     StageThreeRuntimeSpeechEmbodimentDiagnostics,
-    'recentDrivingEvent' | 'recentDrivingTraceRecord' | 'recentDrivingTraceEvents' | 'recentDrivingTraceDetails' | 'driverSummary' | 'playbackTelemetry'
+    'recentDrivingEvent' | 'recentDrivingTraceRecord' | 'recentDrivingTraceEvents' | 'recentDrivingTraceDetails' | 'traceSummary' | 'driverSummary' | 'playbackTelemetry'
   >,
 ): SpeechAuthorityHotspot[] {
   const speechByCueId = new Map(speechRows.map(row => [row.cueId, row]))
@@ -358,9 +365,9 @@ export function buildSpeechAuthorityHotspots(
     })
     const resolvedAuthorityTrustSummary = upstreamAuthorityTrustSummary
       ?? deriveAuthorityTrustSummary({
-          prosodyAuthoritySummary: resolvedProsodyAuthoritySummary,
-          authoritySegmentId: speechRow.cueId ?? null,
-        })
+        prosodyAuthoritySummary: resolvedProsodyAuthoritySummary,
+        authoritySegmentId: speechRow.cueId ?? null,
+      })
 
     const speechSummaryEntries = buildSpeechDiagnosticSummaryEntries({
       authorityMatchSummary: speechRow.authorityMatchSummary,
@@ -369,9 +376,9 @@ export function buildSpeechAuthorityHotspots(
       authorityMismatchReasonSummary,
       authorityMismatchDisplay: speechRow.authorityMismatchDisplay
         ?? resolveAuthorityMismatchDisplay({
-            authorityMismatchSummary,
-            authorityMismatchReasonSummary,
-          }),
+          authorityMismatchSummary,
+          authorityMismatchReasonSummary,
+        }),
       settleAuthoritySummary,
       traceEmbodimentSummary,
       includeSettleAuthority: true,
@@ -402,9 +409,9 @@ export function buildSpeechAuthorityHotspots(
       authorityMismatchReasonSummary,
       authorityMismatchDisplay: speechRow.authorityMismatchDisplay
         ?? resolveAuthorityMismatchDisplay({
-            authorityMismatchSummary,
-            authorityMismatchReasonSummary,
-          }),
+          authorityMismatchSummary,
+          authorityMismatchReasonSummary,
+        }),
       traceSummaryEntries,
       traceSummary,
     }]
@@ -432,8 +439,9 @@ export function filterSpeechAuthorityHotspots(
         authorityDriftLanes: hotspot.authorityDriftLanes,
         authoritySegmentMatched: hotspot.traceSummary?.segmentBinding.matched,
         authorityMatchedDrivers: hotspot.traceSummary?.segmentBinding.matchedDrivers,
-      }, options.authorityMatch))
+      }, options.authorityMatch)) {
         return false
+      }
     }
     if (options?.rendererDrift && !matchesRendererDriftFilter(hotspot, options.rendererDrift))
       return false

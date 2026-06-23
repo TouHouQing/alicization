@@ -1,10 +1,11 @@
+import type sqlite3 from 'sqlite3'
+
 import type {
   AlicizationMindHeadKey,
   AlicizationMindTurnEventInput,
   AlicizationMindTurnEventKind,
   AlicizationMindTurnEventRecord,
 } from '../../../shared/eventa'
-import type sqlite3 from 'sqlite3'
 
 export interface AlicizationMemoryMindStateRuntimeWriteOptions {
   signal?: AbortSignal
@@ -237,9 +238,9 @@ export function createAlicizationMemoryMindStateRuntime(
               `,
               [kind, limit],
             )
-        : await input.all<DbMindTurnEventRow>(
-            input.database,
-            `
+          : await input.all<DbMindTurnEventRow>(
+              input.database,
+              `
             SELECT
               id,
               decision_trace_id,
@@ -255,8 +256,8 @@ export function createAlicizationMemoryMindStateRuntime(
             ORDER BY created_at DESC
             LIMIT ?
             `,
-            kind ? [turnId, kind, limit] : [turnId, limit],
-          )
+              kind ? [turnId, kind, limit] : [turnId, limit],
+            )
 
     const mappedRows = [...rows]
       .reverse()

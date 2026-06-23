@@ -2,19 +2,20 @@ import type { AlicizationMindTurnGovernance } from '../../../shared/eventa'
 import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 import type { OrganicMemoryPromptContext } from './runtime-soul'
 
+import { buildDerivedMindStateBundle } from '@proj-alicization/stage-shared'
+
+import { buildAlicizationAffectiveResidueMemory } from './affective-residue-memory'
 import { buildAlicizationMemoryDeliberationKernel } from './memory-deliberation-kernel'
 import {
   buildMemoryAnswerAnchorTag,
   buildMemoryLatentBoundaryTag,
   buildMemoryOpeningStrategyTag,
 } from './memory-deliberation-latent-controls'
-import { buildAlicizationAffectiveResidueMemory } from './affective-residue-memory'
 import {
   mergeGuidanceLine,
   mergeUniqueRules,
   sanitizeGuidanceText,
 } from './runtime-turn-composition'
-import { buildDerivedMindStateBundle } from '@proj-alicization/stage-shared'
 
 export function applyMemoryDeliberationToGovernance(input: {
   governance: AlicizationMindTurnGovernance | null

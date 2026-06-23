@@ -1,4 +1,9 @@
-import type { AlicizationDialogueRespondedPayload } from '../../../shared/eventa'
+import type {
+  AlicizationAffectiveResidueMemorySnapshot,
+  AlicizationDialogueRespondedPayload,
+  AlicizationEmotionalTransitionLedgerSnapshot,
+  AlicizationProactiveScenario,
+} from '../../../shared/eventa'
 import type { PendingDialogueDeliveryState } from './runtime-soul'
 
 interface CreateAlicizationRuntimeDialogueDeliveryOptions {
@@ -22,6 +27,20 @@ interface CreateAlicizationRuntimeDialogueDeliveryOptions {
   dialogueDeliveryRetryBaseMs: number
   dialogueDeliveryRetryMaxMs: number
   dialogueDeliveryRetryMaxAttempts: number
+}
+
+type AlicizationPendingProactiveLearningAction = 'record' | 'reflect' | 'verify' | 'revise' | 'internalize' | 'hold'
+
+export interface AlicizationPendingProactiveDeliverySnapshot {
+  turnId: string
+  createdAt: number
+  scenario: AlicizationProactiveScenario
+  feedbackWindowMs: number
+  assistantText: string | null
+  learningAction: AlicizationPendingProactiveLearningAction | null
+  learningFocuses: string[]
+  emotionalTransitionLedger: AlicizationEmotionalTransitionLedgerSnapshot | null
+  affectiveResidue: AlicizationAffectiveResidueMemorySnapshot | null
 }
 
 export function normalizeDialogueAckObject(
@@ -325,6 +344,75 @@ export function createAlicizationRuntimeDialogueDelivery(
     dialogueReplyFeedbackAckByCard.clear()
   }
 
+  function normalizeLearningAction(raw: unknown): AlicizationPendingProactiveLearningAction | null {
+    const action = typeof raw === 'string' ? raw.trim() : ''
+    return action === 'record'
+      || action === 'reflect'
+      || action === 'verify'
+      || action === 'revise'
+      || action === 'internalize'
+      || action === 'hold'
+      ? action
+      : null
+  }
+
+  function readLearningAction(reasonCodes: readonly unknown[]) {
+    for (const code of reasonCodes) {
+      if (typeof code !== 'string')
+        continue
+      const match = /^learning:(record|reflect|verify|revise|internalize|hold)$/u.exec(code)
+      if (match)
+        return normalizeLearningAction(match[1])
+    }
+    return null
+  }
+
+  function readLearningFocuses(reasonCodes: readonly unknown[]) {
+    return reasonCodes
+      .filter((code): code is string => typeof code === 'string' && code.startsWith('learning-focus:'))
+      .map(code => code.slice('learning-focus:'.length).trim().replace(/\s+/g, ' ').slice(0, 140))
+      .filter(Boolean)
+      .slice(0, 6)
+  }
+
+  function peekLatestPendingProactiveDelivery(cardIdRaw: unknown): AlicizationPendingProactiveDeliverySnapshot | null {
+    const cardId = options.normalizeCardId(cardIdRaw)
+    let latest: AlicizationPendingProactiveDeliverySnapshot | null = null
+    for (const entry of pendingDialogueDeliveries.values()) {
+      const payload = entry.payload
+      if (options.normalizeCardId(payload.cardId) !== cardId)
+        continue
+      if (payload.origin !== 'subconscious-proactive')
+        continue
+
+      const proactive = payload.structured.proactive
+      if (!proactive)
+        continue
+
+      const reasonCodes = Array.isArray(proactive.reasonCodes) ? proactive.reasonCodes : []
+      const derivedMindStateBundle = payload.structured.derivedMindStateBundle ?? null
+      const runtimeDigest = payload.structured.runtimeDigest ?? null
+      const snapshot: AlicizationPendingProactiveDeliverySnapshot = {
+        turnId: payload.turnId,
+        createdAt: Math.max(0, Math.floor(Number(payload.createdAt) || 0)),
+        scenario: proactive.scenario,
+        feedbackWindowMs: Math.max(1_000, Math.floor(Number(proactive.feedbackWindowMs) || 0)),
+        assistantText: options.sanitizeText(payload.assistantText ?? payload.structured.reply ?? '', '') || null,
+        learningAction: readLearningAction(reasonCodes),
+        learningFocuses: readLearningFocuses(reasonCodes),
+        emotionalTransitionLedger: derivedMindStateBundle?.emotionalTransitionLedger ?? null,
+        affectiveResidue:
+          derivedMindStateBundle?.affectiveResidue
+          ?? runtimeDigest?.affectiveResidue
+          ?? runtimeDigest?.derivedMindStateBundle?.affectiveResidue
+          ?? null,
+      }
+      if (!latest || snapshot.createdAt >= latest.createdAt)
+        latest = snapshot
+    }
+    return latest
+  }
+
   return {
     getDialogueAckCursor,
     persistDialogueAckMap,
@@ -336,6 +424,7 @@ export function createAlicizationRuntimeDialogueDelivery(
     clearPendingDialogueDelivery,
     clearPendingDialogueDeliveriesByCard,
     clearAllPendingDialogueDeliveries,
+    peekLatestPendingProactiveDelivery,
     clearCardState,
     clearAllState,
   }

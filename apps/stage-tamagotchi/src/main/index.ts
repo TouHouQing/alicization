@@ -105,119 +105,119 @@ let skipFileLogging = false
 if (hasSingleInstanceLock) {
   app.whenReady().then(async () => {
   // Initialize file logger and register the hook
-  fileLogger = await setupFileLogger()
+    fileLogger = await setupFileLogger()
 
-  // Register the global hook for file logging
-  setGlobalHookPostLog((_, formatted) => {
-    if (skipFileLogging || fileLogger.logFileFd === null)
-      return
-    void fileLogger.appendLog(formatted)
-  })
+    // Register the global hook for file logging
+    setGlobalHookPostLog((_, formatted) => {
+      if (skipFileLogging || fileLogger.logFileFd === null)
+        return
+      void fileLogger.appendLog(formatted)
+    })
 
-  injeca.setLogger(createLoggLogger(useLogg('injeca').useGlobalConfig()))
+    injeca.setLogger(createLoggLogger(useLogg('injeca').useGlobalConfig()))
 
-  const appConfig = injeca.provide('configs:app', () => createGlobalAppConfig())
-  const electronApp = injeca.provide('host:electron:app', () => app)
-  const autoUpdater = injeca.provide('services:auto-updater', () => setupAutoUpdater())
+    const appConfig = injeca.provide('configs:app', () => createGlobalAppConfig())
+    const electronApp = injeca.provide('host:electron:app', () => app)
+    const autoUpdater = injeca.provide('services:auto-updater', () => setupAutoUpdater())
 
-  const i18n = injeca.provide('libs:i18n', {
-    dependsOn: { appConfig },
-    build: ({ dependsOn }) => createI18n({ messages, locale: dependsOn.appConfig.get()?.language }),
-  })
+    const i18n = injeca.provide('libs:i18n', {
+      dependsOn: { appConfig },
+      build: ({ dependsOn }) => createI18n({ messages, locale: dependsOn.appConfig.get()?.language }),
+    })
 
-  const serverChannel = injeca.provide('modules:channel-server', {
-    dependsOn: { app: electronApp, lifecycle },
-    build: async ({ dependsOn }) => setupServerChannel(dependsOn),
-  })
+    const serverChannel = injeca.provide('modules:channel-server', {
+      dependsOn: { app: electronApp, lifecycle },
+      build: async ({ dependsOn }) => setupServerChannel(dependsOn),
+    })
 
-  const mcpStdioManager = injeca.provide('modules:mcp-stdio-manager', {
-    build: async () => setupMcpStdioManager(),
-  })
+    const mcpStdioManager = injeca.provide('modules:mcp-stdio-manager', {
+      build: async () => setupMcpStdioManager(),
+    })
 
-  const pluginHost = injeca.provide('modules:plugin-host', {
-    dependsOn: { serverChannel },
-    build: () => setupPluginHost(),
-  })
+    const pluginHost = injeca.provide('modules:plugin-host', {
+      dependsOn: { serverChannel },
+      build: () => setupPluginHost(),
+    })
 
-  const alicizationRuntime = injeca.provide('modules:alicization-runtime', {
-    build: async () => setupAlicizationRuntime(),
-  })
+    const alicizationRuntime = injeca.provide('modules:alicization-runtime', {
+      build: async () => setupAlicizationRuntime(),
+    })
 
-  // BeatSync will create a background window to capture and process audio.
-  const beatSync = injeca.provide('windows:beat-sync', () => setupBeatSync())
+    // BeatSync will create a background window to capture and process audio.
+    const beatSync = injeca.provide('windows:beat-sync', () => setupBeatSync())
 
-  const devtoolsMarkdownStressWindow = injeca.provide('windows:devtools:markdown-stress', () => setupDevtoolsWindow())
+    const devtoolsMarkdownStressWindow = injeca.provide('windows:devtools:markdown-stress', () => setupDevtoolsWindow())
 
-  const onboardingWindowManager = injeca.provide('windows:onboarding', {
-    dependsOn: { serverChannel, i18n },
-    build: ({ dependsOn }) => setupOnboardingWindowManager(dependsOn),
-  })
+    const onboardingWindowManager = injeca.provide('windows:onboarding', {
+      dependsOn: { serverChannel, i18n },
+      build: ({ dependsOn }) => setupOnboardingWindowManager(dependsOn),
+    })
 
-  const noticeWindow = injeca.provide('windows:notice', {
-    dependsOn: { i18n, serverChannel },
-    build: ({ dependsOn }) => setupNoticeWindowManager(dependsOn),
-  })
+    const noticeWindow = injeca.provide('windows:notice', {
+      dependsOn: { i18n, serverChannel },
+      build: ({ dependsOn }) => setupNoticeWindowManager(dependsOn),
+    })
 
-  const widgetsManager = injeca.provide('windows:widgets', {
-    dependsOn: { serverChannel, i18n },
-    build: ({ dependsOn }) => setupWidgetsWindowManager(dependsOn),
-  })
+    const widgetsManager = injeca.provide('windows:widgets', {
+      dependsOn: { serverChannel, i18n },
+      build: ({ dependsOn }) => setupWidgetsWindowManager(dependsOn),
+    })
 
-  const aboutWindow = injeca.provide('windows:about', {
-    dependsOn: { autoUpdater, i18n, serverChannel },
-    build: ({ dependsOn }) => setupAboutWindowReusable(dependsOn),
-  })
+    const aboutWindow = injeca.provide('windows:about', {
+      dependsOn: { autoUpdater, i18n, serverChannel },
+      build: ({ dependsOn }) => setupAboutWindowReusable(dependsOn),
+    })
 
-  const chatWindow = injeca.provide('windows:chat', {
-    dependsOn: { widgetsManager, serverChannel, mcpStdioManager, i18n },
-    build: ({ dependsOn }) => setupChatWindowReusableFunc(dependsOn),
-  })
+    const chatWindow = injeca.provide('windows:chat', {
+      dependsOn: { widgetsManager, serverChannel, mcpStdioManager, i18n },
+      build: ({ dependsOn }) => setupChatWindowReusableFunc(dependsOn),
+    })
 
-  const settingsWindow = injeca.provide('windows:settings', {
-    dependsOn: { widgetsManager, beatSync, autoUpdater, devtoolsMarkdownStressWindow, serverChannel, mcpStdioManager, i18n },
-    build: async ({ dependsOn }) => setupSettingsWindowReusableFunc(dependsOn),
-  })
+    const settingsWindow = injeca.provide('windows:settings', {
+      dependsOn: { widgetsManager, beatSync, autoUpdater, devtoolsMarkdownStressWindow, serverChannel, mcpStdioManager, i18n },
+      build: async ({ dependsOn }) => setupSettingsWindowReusableFunc(dependsOn),
+    })
 
-  const mainWindow = injeca.provide('windows:main', {
-    dependsOn: { settingsWindow, chatWindow, widgetsManager, noticeWindow, beatSync, autoUpdater, serverChannel, mcpStdioManager, i18n, onboardingWindowManager },
-    build: async ({ dependsOn }) => setupMainWindow(dependsOn),
-  })
+    const mainWindow = injeca.provide('windows:main', {
+      dependsOn: { settingsWindow, chatWindow, widgetsManager, noticeWindow, beatSync, autoUpdater, serverChannel, mcpStdioManager, i18n, onboardingWindowManager },
+      build: async ({ dependsOn }) => setupMainWindow(dependsOn),
+    })
 
-  const captionWindow = injeca.provide('windows:caption', {
-    dependsOn: { mainWindow, serverChannel, i18n },
-    build: async ({ dependsOn }) => setupCaptionWindowManager(dependsOn),
-  })
+    const captionWindow = injeca.provide('windows:caption', {
+      dependsOn: { mainWindow, serverChannel, i18n },
+      build: async ({ dependsOn }) => setupCaptionWindowManager(dependsOn),
+    })
 
-  const tray = injeca.provide('app:tray', {
-    dependsOn: { mainWindow, settingsWindow, captionWindow, widgetsWindow: widgetsManager, serverChannel, beatSyncBgWindow: beatSync, aboutWindow, i18n },
-    build: async ({ dependsOn }) => setupTray(dependsOn),
-  })
+    const tray = injeca.provide('app:tray', {
+      dependsOn: { mainWindow, settingsWindow, captionWindow, widgetsWindow: widgetsManager, serverChannel, beatSyncBgWindow: beatSync, aboutWindow, i18n },
+      build: async ({ dependsOn }) => setupTray(dependsOn),
+    })
 
-  injeca.invoke({
-    dependsOn: {
-      mainWindow,
-      tray,
-      serverChannel,
-      pluginHost,
-      mcpStdioManager,
-      alicizationRuntime,
-      onboardingWindow: onboardingWindowManager,
-    },
-    callback: noop,
-  })
+    injeca.invoke({
+      dependsOn: {
+        mainWindow,
+        tray,
+        serverChannel,
+        pluginHost,
+        mcpStdioManager,
+        alicizationRuntime,
+        onboardingWindow: onboardingWindowManager,
+      },
+      callback: noop,
+    })
 
-  injeca.start().catch(err => console.error(err))
+    injeca.start().catch(err => console.error(err))
 
-  // Lifecycle
-  emitAppReady()
+    // Lifecycle
+    emitAppReady()
 
-  // Extra
-  openDebugger()
+    // Extra
+    openDebugger()
 
-  // Default open or close DevTools by F12 in development
-  // and ignore CommandOrControl + R in production.
-  // see https://github.com/alex8088/electron-toolkit/tree/master/packages/utils
-  app.on('browser-window-created', (_, window) => optimizer.watchWindowShortcuts(window))
+    // Default open or close DevTools by F12 in development
+    // and ignore CommandOrControl + R in production.
+    // see https://github.com/alex8088/electron-toolkit/tree/master/packages/utils
+    app.on('browser-window-created', (_, window) => optimizer.watchWindowShortcuts(window))
   }).catch((err) => {
     log.withError(err).error('Error during app initialization')
   })

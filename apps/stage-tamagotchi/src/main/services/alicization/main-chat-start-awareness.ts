@@ -273,10 +273,10 @@ function looksLikeProjectAwareBriefingReminder(line: string | null) {
     || normalized.includes('which life loop is still open')
     || normalized.includes('still-open life loop')
     || normalized.includes('open closure')
-      || normalized.includes('still remains open')
-      || normalized.includes('still remain open')
-      || normalized.includes('still remains the open closure')
-      || normalized.includes('still remain the open closure')
+    || normalized.includes('still remains open')
+    || normalized.includes('still remain open')
+    || normalized.includes('still remains the open closure')
+    || normalized.includes('still remain the open closure')
   )
 }
 
@@ -1070,14 +1070,14 @@ function mergePreDialogueSendIdentity(
   const companionBriefingLine = shouldPreferStructuredProjectBriefingLine
     ? structuredProjectBriefingCandidate
     : (
-    shouldKeepExistingCompanionBriefingLine
-    && looksLikeStrongSameHerAnchor(existingCompanionBriefingLine)
-    && !looksLikeStrongSameHerAnchor(companionHeadlineLine)
-  )
-    ? existingCompanionBriefingLine
-    : shouldKeepExistingCompanionBriefingLine
-      ? existingCompanionBriefingLine
-      : (canonical.companionBriefingLine || null)
+        shouldKeepExistingCompanionBriefingLine
+        && looksLikeStrongSameHerAnchor(existingCompanionBriefingLine)
+        && !looksLikeStrongSameHerAnchor(companionHeadlineLine)
+      )
+        ? existingCompanionBriefingLine
+        : shouldKeepExistingCompanionBriefingLine
+          ? existingCompanionBriefingLine
+          : (canonical.companionBriefingLine || null)
   const strongerAwarenessThanHeadline = scoreProjectAwareStartLine(existingAwarenessLine) >= scoreProjectAwareStartLine(companionHeadlineLine) + 2
   const awarenessCarriesBroaderProjectClosure = looksLikeBroaderProjectClosureAwareness(existingAwarenessLine)
   const shouldPreferEmbodimentClosureHeadline
@@ -1219,7 +1219,7 @@ function mergePreDialogueSendIdentity(
       && !looksLikeThinProjectAwarenessSummaryShell(existingProjectPreflightSummary)
       && !looksLikeSummaryOnlyBriefing(existingProjectPreflightSummary)
       ? existingProjectPreflightSummary
-        : canonicalSummaryLine
+      : canonicalSummaryLine
         || canonicalProjectState?.preflightSummary
         || null,
     preDialogueAwarenessLine: repairedProjectAwarenessTruth
@@ -1230,7 +1230,7 @@ function mergePreDialogueSendIdentity(
       && !looksLikeThinProjectAwarenessSummaryShell(existingProjectPreDialogueAwarenessSummary)
       && !looksLikeSummaryOnlyBriefing(existingProjectPreDialogueAwarenessSummary)
       ? existingProjectPreDialogueAwarenessSummary
-        : canonicalSummaryLine
+      : canonicalSummaryLine
         || canonicalProjectState?.preDialogueAwarenessSummary
         || null,
     awarenessLine: repairedProjectAwarenessTruth

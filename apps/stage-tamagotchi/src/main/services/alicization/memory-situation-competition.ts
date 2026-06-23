@@ -2,8 +2,8 @@ import type {
   AlicizationMemorySituationCandidate,
   AlicizationMemorySituationCandidateSet,
 } from '@proj-alicization/stage-shared'
-import type { AlicizationMemoryDomain, AlicizationMemoryFact } from '../../../shared/eventa'
 
+import type { AlicizationMemoryDomain, AlicizationMemoryFact } from '../../../shared/eventa'
 import type { OrganicMemoryPromptContext } from './runtime-soul'
 
 import { normalizeAlicizationMemorySituationCandidateSet } from '@proj-alicization/stage-shared'
@@ -352,32 +352,34 @@ export function buildMemorySituationCompetition(input: {
       ? 'selected'
       : suppressionReasons
         ? 'suppressed'
-      : candidate.latencyCost >= 0.55 && priority >= 0.48
-        ? 'delayed'
-        : priority < 0.24
-          ? 'unresolved'
-          : 'rejected'
+        : candidate.latencyCost >= 0.55 && priority >= 0.48
+          ? 'delayed'
+          : priority < 0.24
+            ? 'unresolved'
+            : 'rejected'
     return {
       ...candidate,
       competingCandidateIds: ranked
         .filter(other => other.candidateId !== candidate.candidateId)
         .map(other => other.candidateId)
         .slice(0, 8),
-      suppressionReasons: index === 0 ? candidate.suppressionReasons : uniqueList([
-        ...candidate.suppressionReasons,
-        ...(suppressionReasons ?? []),
-        winnerId ? `lost-to:${winnerId}` : 'no-winning-candidate',
-      ], 8),
+      suppressionReasons: index === 0
+        ? candidate.suppressionReasons
+        : uniqueList([
+            ...candidate.suppressionReasons,
+            ...(suppressionReasons ?? []),
+            winnerId ? `lost-to:${winnerId}` : 'no-winning-candidate',
+          ], 8),
       status: nextStatus,
       statusReason: index === 0
         ? 'highest cross-source situation priority for current query'
         : nextStatus === 'suppressed'
           ? 'plausible memory was suppressed because it conflicts with the current selected situation'
-        : nextStatus === 'delayed'
-          ? 'plausible but too latency-expensive for the current recall slot'
-          : nextStatus === 'unresolved'
-            ? 'insufficient query overlap or evidence strength for current situation'
-            : 'lower cross-source situation priority than selected candidate',
+          : nextStatus === 'delayed'
+            ? 'plausible but too latency-expensive for the current recall slot'
+            : nextStatus === 'unresolved'
+              ? 'insufficient query overlap or evidence strength for current situation'
+              : 'lower cross-source situation priority than selected candidate',
     }
   })
 

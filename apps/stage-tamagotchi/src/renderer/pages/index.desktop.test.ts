@@ -239,5 +239,4 @@ describe('stage desktop page helpers', () => {
       expect(startupMocks.openOnboarding).toHaveBeenCalledOnce()
     })
   })
-
 })

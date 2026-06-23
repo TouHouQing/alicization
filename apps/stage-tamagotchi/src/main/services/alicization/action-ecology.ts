@@ -59,6 +59,7 @@ export function buildActionEcology(input: {
   inquiryPlanner?: AlicizationInquiryPlannerSnapshot | null
   mindKernel?: AlicizationMindKernelSnapshot | null
   counterfactualDeliberation?: AlicizationCounterfactualDeliberationSnapshot | null
+  projectState?: unknown
 }): AlicizationActionEcologySnapshot {
   const foregroundRuntimeThread = input.threadRuntime?.threads.find(thread => thread.id === input.threadRuntime?.foregroundThreadId)
     ?? input.threadRuntime?.threads[0]

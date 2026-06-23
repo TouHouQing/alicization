@@ -1,6 +1,6 @@
 import {
-  formatSelfEvolutionEvidencePanelLabel,
   formatSelfEvolutionEventKindLabel,
+  formatSelfEvolutionEvidencePanelLabel,
   formatSelfEvolutionTraceSectionLabel,
 } from './performance-visualizer-self-evolution-focus-history-display'
 

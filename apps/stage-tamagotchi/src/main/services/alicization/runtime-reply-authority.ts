@@ -2,8 +2,8 @@ import type { AlicizationMindTurnGovernance } from '../../../shared/eventa'
 import type { AlicizationMemoryTurnArtifact } from './memory-os/memory-turn-artifact'
 import type { OrganicMemoryPromptContext } from './runtime-soul'
 
-import { applyMemoryTurnGateToGovernance } from './runtime-memory-turn-gate-governor'
 import { reduceRuntimeMemoryGovernance } from './runtime-memory-governor'
+import { applyMemoryTurnGateToGovernance } from './runtime-memory-turn-gate-governor'
 
 interface RuntimeReplyAuthorityGovernorInput {
   governance: AlicizationMindTurnGovernance | null
@@ -38,10 +38,10 @@ export function deriveRuntimeReplyAuthorityGovernance(
 ) {
   const effectiveMindTurnGovernanceWithRecollection = applyMemoryTurnGateToGovernance({
     governance: reduceRuntimeMemoryGovernance({
-    governance: input.governance,
-    context: input.context,
-    applyMemoryDeliberationToGovernance: input.applyMemoryDeliberationToGovernance,
-    applyRecollectionSurfaceRules: input.applyRecollectionSurfaceRules,
+      governance: input.governance,
+      context: input.context,
+      applyMemoryDeliberationToGovernance: input.applyMemoryDeliberationToGovernance,
+      applyRecollectionSurfaceRules: input.applyRecollectionSurfaceRules,
     }),
     memoryTurnArtifact: input.memoryTurnArtifact ?? null,
   })

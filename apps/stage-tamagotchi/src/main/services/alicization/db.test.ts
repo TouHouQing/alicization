@@ -436,7 +436,7 @@ class FakeSqliteDatabase {
         next_attempt_at: nextAttemptAt,
       })
     }
-    else if (sql.includes('UPDATE memory_ingest_journal') && sql.includes("status = 'applied'")) {
+    else if (sql.includes('UPDATE memory_ingest_journal') && sql.includes('status = \'applied\'')) {
       const [updatedAt, lastAttemptAt, appliedAt, id] = actualParams as [number, number, number, string]
       const row = memoryIngestJournal.get(id)
       if (!row) {
@@ -452,7 +452,7 @@ class FakeSqliteDatabase {
         row.next_attempt_at = null
       }
     }
-    else if (sql.includes('UPDATE memory_ingest_journal') && sql.includes("status = 'failed'")) {
+    else if (sql.includes('UPDATE memory_ingest_journal') && sql.includes('status = \'failed\'')) {
       const [lastError, updatedAt, lastAttemptAt, nextAttemptAt, id] = actualParams as [string, number, number, number, string]
       const row = memoryIngestJournal.get(id)
       if (!row) {
@@ -1116,7 +1116,7 @@ class FakeSqliteDatabase {
     if (_sql.includes('FROM memory_ingest_journal')) {
       const rows = [...memoryIngestJournal.values()]
         .filter(item => item.status === 'pending' || item.status === 'failed')
-        .filter(item => {
+        .filter((item) => {
           if (_sql.includes('COALESCE(next_attempt_at, created_at) <= ?')) {
             const dueAt = Number(actualParams[0] ?? 0)
             return (item.next_attempt_at ?? item.created_at) <= dueAt

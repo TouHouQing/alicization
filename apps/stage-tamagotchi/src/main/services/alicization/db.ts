@@ -17,6 +17,9 @@ import type {
   AlicizationExecutorSessionRecord,
   AlicizationExecutorSessionStatus,
   AlicizationExecutorSessionUpsertInput,
+  AlicizationKnowledgeAssimilationCorrection,
+  AlicizationKnowledgeAssimilationStage,
+  AlicizationKnowledgeValidationStatus,
   AlicizationLearningAction,
   AlicizationLearningExecutionStateSnapshot,
   AlicizationLearningTaskFailureKind,
@@ -27,8 +30,8 @@ import type {
   AlicizationListExecutionEventsInput,
   AlicizationListExecutorSessionsInput,
   AlicizationListTaskThreadsInput,
-  AlicizationMemoryFact,
   AlicizationMemoryDomain,
+  AlicizationMemoryFact,
   AlicizationMemoryFactInput,
   AlicizationMemoryLegacySnapshot,
   AlicizationMemoryMigrationResult,
@@ -36,9 +39,6 @@ import type {
   AlicizationMemoryReflectionInput,
   AlicizationMemoryReflectionRecord,
   AlicizationMemoryReflectionStatus,
-  AlicizationKnowledgeAssimilationStage,
-  AlicizationKnowledgeValidationStatus,
-  AlicizationKnowledgeAssimilationCorrection,
   AlicizationMemorySource,
   AlicizationMemoryStats,
   AlicizationMindHeadKey,
@@ -58,38 +58,42 @@ import type {
   AlicizationTaskThreadStatus,
   AlicizationTaskThreadUpsertInput,
 } from '../../../shared/eventa'
+import type { AlicizationMemoryConsolidationRecord } from './memory-consolidation'
+import type { AlicizationEventGraphNeighborhood } from './memory-event-graph-runtime'
+import type { AlicizationRelationshipDynamicsState } from './relationship-dynamics-state'
 
 import { randomUUID } from 'node:crypto'
 import { mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import sqlite3 from 'sqlite3'
+
 import { normalizeAlicizationMemoryProvenance } from '@proj-alicization/stage-shared'
 
-import { rankAlicizationMemoryFacts } from './memory-fact-retrieval'
-import { inferMemoryDomainFromFact, normalizeMemoryDomain } from './memory-domain-model'
-import { rankAlicizationConversationTurnsForRecall } from './memory-conversation-retrieval'
-import { rankAlicizationEpisodicEvents } from './memory-episodic-retrieval'
-import { createAlicizationMemoryEpisodicReconsolidationRuntime } from './memory-episodic-reconsolidation-runtime'
-import { createAlicizationMemoryEventGraphRuntime, type AlicizationEventGraphNeighborhood } from './memory-event-graph-runtime'
+import { mapFragmentSourceKindToProvenance, mapMemorySourceToProvenance } from './humanlike-memory'
+import { buildMemoryConsolidationRecords, searchMemoryConsolidationRecords } from './memory-consolidation'
 import { createAlicizationMemoryConsolidationRuntime } from './memory-consolidation-runtime'
+import { rankAlicizationConversationTurnsForRecall } from './memory-conversation-retrieval'
+import { inferMemoryDomainFromFact, normalizeMemoryDomain } from './memory-domain-model'
+import { createAlicizationMemoryEpisodicReconsolidationRuntime } from './memory-episodic-reconsolidation-runtime'
+import { rankAlicizationEpisodicEvents } from './memory-episodic-retrieval'
+import { createAlicizationMemoryEventGraphRuntime } from './memory-event-graph-runtime'
+import { rankAlicizationMemoryFacts } from './memory-fact-retrieval'
 import { createAlicizationMemoryIngestJournalRuntime } from './memory-ingest-journal'
 import { createAlicizationMemoryMindStateRuntime } from './memory-mind-state-runtime'
-import { createAlicizationPersonStateEvolutionRuntime } from './person-state-evolution-runtime'
 import { createAlicizationMemoryRelationshipRuntime } from './memory-relationship-runtime'
 import { createAlicizationMemoryRetrievalTelemetryRuntime } from './memory-retrieval-telemetry'
+import { buildAlicizationMemoryStatsProjection } from './memory-stats-projection'
 import { createAlicizationMemorySubconsciousRuntime } from './memory-subconscious-runtime'
-import { type AlicizationMemoryConsolidationRecord, buildMemoryConsolidationRecords, searchMemoryConsolidationRecords } from './memory-consolidation'
-import { mapFragmentSourceKindToProvenance, mapMemorySourceToProvenance } from './humanlike-memory'
 import {
   deriveConsolidationMemoryTier,
   deriveEpisodicMemoryTier,
   deriveFactMemoryTier,
   deriveTierCounts,
 } from './memory-tiering'
-import { buildAlicizationMemoryStatsProjection } from './memory-stats-projection'
-import type { AlicizationRelationshipDynamicsState } from './relationship-dynamics-state'
+import { createAlicizationPersonStateEvolutionRuntime } from './person-state-evolution-runtime'
 import { normalizeOrganicRecallText } from './runtime-organic-recall'
+
 export type { AlicizationRelationshipDynamicsState } from './relationship-dynamics-state'
 const legacyMigrationMarker = 'legacy_memory_migrated_v1'
 const memoryLastPrunedAtKey = 'memory_last_pruned_at'
@@ -207,17 +211,17 @@ interface PreparedEpisodicEventWrite {
 
 type AlicizationMemoryIngestPayload
   = {
-      kind: 'upsert-memory-facts'
-      facts: PreparedMemoryFactWrite[]
-    }
-    | {
-      kind: 'append-episodic-events'
-      events: PreparedEpisodicEventWrite[]
-    }
-    | {
-      kind: 'upsert-memory-consolidations'
-      records: PreparedMemoryConsolidationWrite[]
-    }
+    kind: 'upsert-memory-facts'
+    facts: PreparedMemoryFactWrite[]
+  }
+  | {
+    kind: 'append-episodic-events'
+    events: PreparedEpisodicEventWrite[]
+  }
+  | {
+    kind: 'upsert-memory-consolidations'
+    records: PreparedMemoryConsolidationWrite[]
+  }
 
 interface DbEpisodicEventRow {
   id: string
@@ -1298,6 +1302,7 @@ export interface AlicizationDbService {
     limit?: number
   }) => Promise<AlicizationPersonStateEvolutionSummary>
   appendEpisodicEvents: (events: AlicizationEpisodicEventInput[]) => Promise<AlicizationEpisodicEventRecord[]>
+  persistEpisodicReconsolidations: (events: AlicizationEpisodicEventRecord[]) => Promise<void>
   listRecentEpisodicEvents: (limit?: number) => Promise<AlicizationEpisodicEventRecord[]>
   listEventGraphNeighborhood: (input: {
     eventIds?: string[]
@@ -1440,7 +1445,6 @@ export async function setupAlicizationDb(
     }
     if (payload.kind === 'upsert-memory-consolidations') {
       await applyPreparedMemoryConsolidations(payload.records)
-      return
     }
   }
 
@@ -2669,7 +2673,7 @@ export async function setupAlicizationDb(
     if (records.length === 0)
       return []
 
-    const prepared = records.map((record) => ({
+    const prepared = records.map(record => ({
       id: record.id.trim(),
       kind: record.kind,
       facet: record.facet === 'phase' || record.facet === 'relationship-era' || record.facet === 'task-era' || record.facet === 'self-era'
@@ -2701,7 +2705,7 @@ export async function setupAlicizationDb(
       await drainMemoryIngestJournal()
     })
 
-    return prepared.map((record) => mapMemoryConsolidationRow({
+    return prepared.map(record => mapMemoryConsolidationRow({
       id: record.id,
       kind: record.kind,
       facet: record.facet,
@@ -4304,7 +4308,6 @@ export async function setupAlicizationDb(
     return rows.map(mapFactRow)
   }
 
-
   function normalizeDerivedMemoryReferences(raw: AlicizationEpisodicEventInput['derivedFrom']) {
     const result: AlicizationDerivedMemoryReference[] = []
     for (const item of raw ?? []) {
@@ -4498,6 +4501,9 @@ export async function setupAlicizationDb(
     run,
     runInTransaction,
   })
+  async function persistEpisodicReconsolidations(events: AlicizationEpisodicEventRecord[]) {
+    await memoryEpisodicReconsolidationRuntime.persistRecalledEvents(events)
+  }
   const memoryRelationshipRuntime = createAlicizationMemoryRelationshipRuntime({
     database,
     now,
@@ -4738,11 +4744,11 @@ export async function setupAlicizationDb(
               fact.createdAt,
               fact.updatedAt,
               fact.lastAccessAt,
-	              Math.max(0, Math.floor(fact.accessCount)),
-	              normalizeKnowledgeStage(fact.knowledgeStage),
-	              normalizeValidationStatus(fact.validationStatus),
-	              normalizeMemoryDomain((fact as any).memoryDomain),
-	              Math.max(0, Math.floor(Number(fact.validationCount ?? 0))),
+              Math.max(0, Math.floor(fact.accessCount)),
+              normalizeKnowledgeStage(fact.knowledgeStage),
+              normalizeValidationStatus(fact.validationStatus),
+              normalizeMemoryDomain((fact as any).memoryDomain),
+              Math.max(0, Math.floor(Number(fact.validationCount ?? 0))),
               Math.max(0, Math.floor(Number(fact.contradictionCount ?? 0))),
               fact.sourceLabel?.trim() || null,
               JSON.stringify(fact.conflictsWith ?? []),
@@ -4815,11 +4821,11 @@ export async function setupAlicizationDb(
               item.createdAt,
               item.updatedAt,
               item.lastAccessAt,
-	              Math.max(0, Math.floor(item.accessCount)),
-	              normalizeKnowledgeStage(item.knowledgeStage),
-	              normalizeValidationStatus(item.validationStatus),
-	              normalizeMemoryDomain((item as any).memoryDomain),
-	              Math.max(0, Math.floor(Number(item.validationCount ?? 0))),
+              Math.max(0, Math.floor(item.accessCount)),
+              normalizeKnowledgeStage(item.knowledgeStage),
+              normalizeValidationStatus(item.validationStatus),
+              normalizeMemoryDomain((item as any).memoryDomain),
+              Math.max(0, Math.floor(Number(item.validationCount ?? 0))),
               Math.max(0, Math.floor(Number(item.contradictionCount ?? 0))),
               item.sourceLabel?.trim() || null,
               JSON.stringify(item.conflictsWith ?? []),
@@ -4978,6 +4984,7 @@ export async function setupAlicizationDb(
     listPersonStateEvolutionEntries: personStateEvolutionRuntime.listEvolutionEntries,
     summarizePersonStateEvolution: personStateEvolutionRuntime.summarizeEvolution,
     appendEpisodicEvents,
+    persistEpisodicReconsolidations,
     listRecentEpisodicEvents,
     listEventGraphNeighborhood,
     searchEpisodicEvents,

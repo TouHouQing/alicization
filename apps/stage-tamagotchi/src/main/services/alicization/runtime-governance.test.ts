@@ -1373,5 +1373,4 @@ describe('runtime-governance', () => {
       }),
     }))
   })
-
 })

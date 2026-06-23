@@ -1,11 +1,11 @@
 import type {
-  AlicizationMindTurnEventInput,
-  AlicizationVisualPresenceStateSnapshot,
   AlicizationDurabilityPulseSnapshot,
   AlicizationEntityWorldModelSnapshot,
   AlicizationLivingWorldObjectKind,
   AlicizationLivingWorldObjectSnapshot,
   AlicizationLivingWorldStateSnapshot,
+  AlicizationMindTurnEventInput,
+  AlicizationVisualPresenceStateSnapshot,
   AlicizationVisualSceneSnapshot,
   AlicizationVisualTransitionSnapshot,
   AlicizationVisualWatchMode,

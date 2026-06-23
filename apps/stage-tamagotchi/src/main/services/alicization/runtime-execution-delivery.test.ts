@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import { createAlicizationExecutionDeliveryRuntime } from './execution-delivery-runtime'
-import { createDefaultVisualPresenceState } from './visual-episodic-memory'
 import { createAlicizationRuntimeExecutionDelivery } from './runtime-execution-delivery'
+import { createDefaultVisualPresenceState } from './visual-episodic-memory'
 
 describe('runtime execution delivery', () => {
   it('persists and restores execution delivery state through runtime meta wiring', async () => {

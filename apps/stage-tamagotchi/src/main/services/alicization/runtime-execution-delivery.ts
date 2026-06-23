@@ -1,33 +1,29 @@
 import type {
   AlicizationHostPersonModelSnapshot,
   AlicizationTaskThreadRecord,
+  CharacterPerformanceCapabilitiesManifest,
 } from '../../../shared/eventa'
 import type { AlicizationAgentTurnRuntime } from './agent-runtime'
+import type { createAlicizationExecutionDeliveryRuntime } from './execution-delivery-runtime'
 import type {
   AlicizationExecutionDeliveryReplySelection,
 } from './execution-delivery-surface'
 import type { AlicizationExecutionResultDeliveryPolicy } from './execution-interaction-learning'
 import type { AlicizationPersonStateProjection } from './person-state-projection'
 import type { OrganicMemoryPromptContext } from './runtime-soul'
+import type { AlicizationSelfContinuityAuthority } from './self-continuity-authority'
 import type { AlicizationSelfRevisionStatePatch } from './self-evolution/state-revision-bus'
-
-import type { CharacterPerformanceCapabilitiesManifest } from '../../../shared/eventa'
 
 import {
   readHostPersonModelFromDerivedMindStateBundle,
   readKnowledgeEvidenceFromDerivedMindStateBundle,
   readPersonStateProjectionFromDerivedMindStateBundle,
 } from '@proj-alicization/stage-shared'
+
+import { buildAlicizationDialogueGrowthProfile } from './dialogue-growth-profile'
 import { buildAlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 import { deriveAlicizationDigitalLifeSpineFromSurface } from './digital-life-spine'
-import { createAlicizationExecutionDeliveryRuntime, hasAlicizationExecutionDeliveryRetainedState } from './execution-delivery-runtime'
-import {
-  alicizationTerminalTaskThreadStatuses,
-  readExecutionOutcome,
-  readLatestExecutionEvent,
-  readTaskThreadActivityAt,
-  sanitizeExecutionLedgerText,
-} from './execution-ledger-shared'
+import { hasAlicizationExecutionDeliveryRetainedState } from './execution-delivery-runtime'
 import {
   buildAlicizationExecutionPayoffDeterministicStructured,
   buildAlicizationExecutionPayoffPrompt,
@@ -35,12 +31,19 @@ import {
   selectAlicizationExecutionDeliveryReply,
 } from './execution-delivery-surface'
 import { deriveExecutionResultDeliveryPolicy } from './execution-interaction-learning'
+import {
+  alicizationTerminalTaskThreadStatuses,
+  readExecutionOutcome,
+  readLatestExecutionEvent,
+  readTaskThreadActivityAt,
+  sanitizeExecutionLedgerText,
+} from './execution-ledger-shared'
 import { inferHostSocialContextsFromText } from './host-social-guidance'
 import { buildMindEcologyFromRuntimeSurface } from './mind-ecology'
 import { buildAlicizationPersonStateProjection } from './person-state-projection'
 import { parseJsonObjectFromText } from './runtime-transport-content'
+import { buildSelfContinuityAuthorityFromRuntimeSurface } from './self-continuity-authority'
 import { buildAlicizationSelfEvolutionKernel } from './self-evolution-kernel'
-import { buildSelfContinuityAuthorityFromRuntimeSurface, type AlicizationSelfContinuityAuthority } from './self-continuity-authority'
 
 interface CreateAlicizationRuntimeExecutionDeliveryOptions {
   getActiveCardId: () => string
@@ -76,6 +79,7 @@ interface CreateAlicizationRuntimeExecutionDeliveryOptions {
   buildHostPersonModel: (input?: { now?: number }) => Promise<AlicizationHostPersonModelSnapshot | null>
   getActiveSelfRevisionStatePatch?: () => Promise<AlicizationSelfRevisionStatePatch | null>
   getActiveSelfEvolutionCandidateId?: () => Promise<string | null>
+  getActiveSelfEvolutionSnapshot?: () => Promise<unknown>
 }
 
 function formatExecutionDeliveryStatus(status: AlicizationTaskThreadRecord['status']) {
@@ -215,23 +219,54 @@ function buildMinimalActiveSameHerProjection(input: {
     restrained: true,
     summary: `regime=execution-callback | posture=restrained | continuity=${continuitySummary}`.slice(0, 520),
     personalityContinuityState: {
+      growthProfile: buildAlicizationDialogueGrowthProfile({}),
       currentRegime: 'execution-callback',
       trustStage: 'settling',
       closenessPosture: 'space-first',
       repairPosture: 'repair-first',
       autonomyPosture: 'protect-space',
+      cadenceProfile: 'slow-return',
+      energyProfile: 'steady',
+      continuitySummary: continuitySummary.slice(0, 220),
+      regimeModel: {
+        dominantRegime: 'execution-callback',
+        confidence: 0.72,
+        primaryReason: 'execution callback should return with measured continuity',
+        carryReason: null,
+        carryFrom: null,
+        signals: ['execution-callback', 'same-her-baseline'],
+        scores: {
+          'focused-work': 0.18,
+          'late-night-care': 0.12,
+          'repair-window': 0.28,
+          'execution-callback': 0.72,
+          'open-companionship': 0.24,
+          'general': 0.34,
+        },
+      },
       rhythmState: {
         cadenceMode: 'cooldown',
         silenceNeed: 'medium',
         interruptionTolerance: 'low',
         restMode: 'ordinary',
+        embodiedPresence: 'attentive',
+        suggestedStyle: 'silent-observe',
+        moodLabel: 'measured execution return',
+        emotionalTension: 'focused-flow',
+        cadencePressure: 0.42,
+        restPressure: 0.34,
+        memoryResonance: 0.52,
+        companionshipTempo: 0.38,
+        summary: 'Measured execution callback rhythm with low-pressure continuity.',
+        rationale: ['execution-callback', 'same-her-baseline', 'lower-pressure'],
       },
-      confidence: 0.72,
-      sourceTags: [
-        'active-self-evolution-version',
-        'same-her-baseline',
-      ],
-      continuitySummary: continuitySummary.slice(0, 220),
+      trustMeaning: 'callback timing stays trustworthy when it returns lower-pressure.',
+      reconsolidationLine: continuitySummary.slice(0, 220),
+      selfLine: 'same local digital life, returning through execution without restarting herself',
+      relationLine: 'measured callback continuity before widening closeness',
+      currentPreoccupation: 'finish the execution return without crowding the host',
+      rationale: ['execution-callback', 'same-her-baseline', 'lower-pressure'],
+      updatedAt: Date.now(),
     },
   }
 }
@@ -651,11 +686,12 @@ export function createAlicizationRuntimeExecutionDelivery(
       : null
 
     if (!runtimeSurface && !hostPersonModel) {
-      if (activeSelfRevisionPatch)
+      if (activeSelfRevisionPatch) {
         return buildMinimalActiveSameHerProjection({
           activeSelfRevisionPatch,
           goal: input.goal,
         })
+      }
       return null
     }
 

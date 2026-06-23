@@ -1,16 +1,16 @@
-import type { OrganicMemoryPromptContext } from './runtime-soul'
-import type { AlicizationMemoryTuningAdvice } from './memory-tuning-advice'
-
 import type {
   AlicizationMemoryDeliberationLatentControls,
 } from './memory-deliberation-latent-controls'
+import type { AlicizationMemoryRestraintJudge } from './memory-restraint-judge'
+import type { AlicizationMemoryTuningAdvice } from './memory-tuning-advice'
+import type { OrganicMemoryPromptContext } from './runtime-soul'
 
 import {
   buildMemoryLatentBoundaryTag,
   deriveMemoryDeliberationLatentControls,
   summarizeMemoryDeliberationLatentControls,
 } from './memory-deliberation-latent-controls'
-import { buildAlicizationMemoryRestraintJudge, type AlicizationMemoryRestraintJudge } from './memory-restraint-judge'
+import { buildAlicizationMemoryRestraintJudge } from './memory-restraint-judge'
 import { deriveRecollectionSurfaceControls } from './recollection-surface-controls'
 
 type MemoryDeliberationSnapshot = NonNullable<OrganicMemoryPromptContext['memoryDeliberation']>
@@ -99,11 +99,12 @@ function deriveResolvedSurfacePolicy(input: {
     return baseSurfacePolicy
 
   const intentMode = input.recollectionIntent?.mode ?? 'none'
+  const selectedChainsForPolicy = (deliberation?.selectedChains ?? []) as Array<{ kind?: unknown }>
   const procedureLike = speech?.surfaceMode === 'procedural-carry'
     || intentMode === 'execution-procedure'
     || intentMode === 'experience-pattern'
     || (deliberation?.selectedProcedures.length ?? 0) > 0
-    || (deliberation?.selectedChains ?? []).some(item => item.kind === 'task-procedure')
+    || selectedChainsForPolicy.some(item => item.kind === 'task-procedure')
   const threadedContinuityPresent = (deliberation?.selectedBundles.length ?? 0) > 0
     || (deliberation?.selectedChains.length ?? 0) > 0
   const continuityProcedureHints = input.recollectionIntent?.recollectionAgenda?.candidateProcedureLines ?? []
@@ -119,7 +120,7 @@ function deriveResolvedSurfacePolicy(input: {
   const relationshipLike = speech?.surfaceMode === 'relationship-continuity'
     || intentMode === 'relationship-history'
     || (deliberation?.selectedRelationshipLines.length ?? 0) > 0
-    || (deliberation?.selectedChains ?? []).some(item => item.kind === 'relationship-line')
+    || selectedChainsForPolicy.some(item => item.kind === 'relationship-line')
 
   if (procedureLike && threadedContinuityPresent && seamContinuityExplicit && !relationshipLike)
     return 'procedural-carry' as const
@@ -133,6 +134,7 @@ export function buildAlicizationMemoryDeliberationKernel(input: {
   speech: OrganicMemoryPromptContext['recollectionSpeechPlan'] | null | undefined
   recollectionIntent: OrganicMemoryPromptContext['recollectionIntent'] | null | undefined
   knowledgeEvidence?: OrganicMemoryPromptContext['knowledgeEvidence']
+  hostPersonModel?: OrganicMemoryPromptContext['hostPersonModel']
   tuningAdvice?: AlicizationMemoryTuningAdvice | null
 }) {
   const deliberation = input.deliberation ?? null
@@ -231,13 +233,13 @@ export function buildAlicizationMemoryDeliberationKernel(input: {
     ? 'Learning revision discipline is still active, so relationship continuity should stay inward until the host has more room.'
     : tuningForSelfModelRevision
       ? 'Learning revision discipline is still active, so the older self-story should stay inward until the newer self line stabilizes.'
-    : tuningForRelationshipEraConfusion
-      ? 'Relationship-era confusion is still elevated, so competing repair phases should stay inward until the present bond line is clearer.'
-    : tuningForElevatedSelfModelVeto
-      ? 'Self-model veto pressure is still elevated, so older self-story continuity should stay inward until the newer line is more stable.'
-    : tuningForWorldValidation && !restraint.whyWithheld
-      ? 'World-model validation discipline is still active, so reconstructed or inferred knowledge should stay tightly labeled and compressed.'
-      : restraint.whyWithheld
+      : tuningForRelationshipEraConfusion
+        ? 'Relationship-era confusion is still elevated, so competing repair phases should stay inward until the present bond line is clearer.'
+        : tuningForElevatedSelfModelVeto
+          ? 'Self-model veto pressure is still elevated, so older self-story continuity should stay inward until the newer line is more stable.'
+          : tuningForWorldValidation && !restraint.whyWithheld
+            ? 'World-model validation discipline is still active, so reconstructed or inferred knowledge should stay tightly labeled and compressed.'
+            : restraint.whyWithheld
   const tunedFollowUpAffordance = deliberation?.followUpAffordance
     ? {
         ...deliberation.followUpAffordance,
@@ -247,9 +249,9 @@ export function buildAlicizationMemoryDeliberationKernel(input: {
             ? 'high' as const
             : tuningForElevatedSelfModelVeto
               ? 'high' as const
-          : tuningForWorldValidation && deliberation.followUpAffordance.intrusionRisk === 'low'
-            ? 'medium' as const
-            : deliberation.followUpAffordance.intrusionRisk,
+              : tuningForWorldValidation && deliberation.followUpAffordance.intrusionRisk === 'low'
+                ? 'medium' as const
+                : deliberation.followUpAffordance.intrusionRisk,
         preferredTiming: tuningForRevision
           ? (
               (memoryControl?.certaintyFloor === 'fragmentary' || memoryControl?.conflictBurden === 'high')
@@ -260,10 +262,10 @@ export function buildAlicizationMemoryDeliberationKernel(input: {
             ? 'next-open-window' as const
             : tuningForElevatedSelfModelVeto
               ? 'next-open-window' as const
-          : tuningForWorldValidation
-              && deliberation.followUpAffordance.preferredTiming === 'same-turn-if-invited'
-            ? 'after-payoff' as const
-            : deliberation.followUpAffordance.preferredTiming,
+              : tuningForWorldValidation
+                && deliberation.followUpAffordance.preferredTiming === 'same-turn-if-invited'
+                ? 'after-payoff' as const
+                : deliberation.followUpAffordance.preferredTiming,
       }
     : null
   const tunedRestraint = {
@@ -314,8 +316,8 @@ export function buildAlicizationMemoryDeliberationKernel(input: {
     shouldStayInward: shouldStayInward || tuningForRevision || tuningForRelationshipEraConfusion || tuningForElevatedSelfModelVeto,
     rationale: sanitizeText(
       deliberation?.whyNow
-        || speech?.rationale
-        || '',
+      || speech?.rationale
+      || '',
       220,
     ) || null,
     whyWithheld: tunedWhyWithheld,

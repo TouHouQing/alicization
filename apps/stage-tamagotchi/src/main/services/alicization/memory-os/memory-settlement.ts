@@ -1,5 +1,6 @@
-import type { OrganicMemoryPromptContext } from '../runtime-soul'
+import type { AlicizationMemoryResolutionLedger } from '@proj-alicization/stage-shared'
 
+import type { OrganicMemoryPromptContext } from '../runtime-soul'
 import type { AlicizationMemoryCandidateCompetitionArtifact } from './candidate-competition'
 import type { AlicizationMemoryCandidateRetrievalArtifact } from './candidate-retrieval'
 import type { AlicizationMemoryDeliberationArtifact } from './memory-deliberation'
@@ -7,8 +8,8 @@ import type { AlicizationMemoryRecallIntentArtifact } from './recall-intent'
 import type { AlicizationMemorySpeechPostureArtifact } from './speech-posture'
 
 import {
+
   deriveAlicizationMemoryClosureDiscipline,
-  type AlicizationMemoryResolutionLedger,
 } from '@proj-alicization/stage-shared'
 
 export interface AlicizationMemorySettlementArtifact {

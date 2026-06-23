@@ -9,6 +9,16 @@ export interface PerformanceVisualizerSelfEvolutionTriageCard {
   detail: string
 }
 
+function isSelfEvolutionTriageEntry(
+  entry: PerformanceVisualizerSelfEvolutionDiagnosticSummaryEntry,
+): entry is PerformanceVisualizerSelfEvolutionDiagnosticSummaryEntry & {
+  key: PerformanceVisualizerSelfEvolutionTriageCard['id']
+} {
+  return entry.key === 'repair-owner'
+    || entry.key === 'first-check'
+    || entry.key === 'repair-path'
+}
+
 export interface PerformanceVisualizerSelfEvolutionTriageView {
   overviewLines: string[]
   triageCards: PerformanceVisualizerSelfEvolutionTriageCard[]
@@ -33,11 +43,7 @@ export function buildSelfEvolutionTriageView(
   entries: PerformanceVisualizerSelfEvolutionDiagnosticSummaryEntry[],
 ): PerformanceVisualizerSelfEvolutionTriageView {
   const triageCards = entries
-    .filter(entry => (
-      entry.key === 'repair-owner'
-      || entry.key === 'first-check'
-      || entry.key === 'repair-path'
-    ))
+    .filter(isSelfEvolutionTriageEntry)
     .map((entry) => {
       const rawValue = entry.technicalValue ?? entry.value
       const parts = splitLayerDetail(rawValue)

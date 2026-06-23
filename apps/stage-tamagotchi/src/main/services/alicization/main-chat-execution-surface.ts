@@ -16,6 +16,7 @@ import type {
 
 import { Buffer } from 'node:buffer'
 import { createHash } from 'node:crypto'
+
 import * as nodePath from 'node:path'
 
 import { detectAlicizationExecutionRoutingIntent } from '@proj-alicization/stage-shared'
@@ -64,6 +65,121 @@ export interface BuildExecutionCapabilitySystemBlocksOptions {
     capabilityQuestion: boolean
     mentionedChannels: AlicizationExecutionCapabilityChannel[]
   }
+  runtimeContext?: AlicizationExecutionRuntimeContext | null
+}
+
+type MainGatewayLocalToolResult = Record<string, unknown>
+type MainGatewayLocalToolHandler<TInput extends Record<string, unknown>> = (input: TInput) => Promise<MainGatewayLocalToolResult> | MainGatewayLocalToolResult
+
+interface MainGatewayBrowserOpenUrlInput extends Record<string, unknown> {
+  browser?: string
+  site?: string
+  url?: string
+}
+
+interface MainGatewayBrowserSearchWebInput extends Record<string, unknown> {
+  browser?: string
+  query: string
+  searchEngine?: string
+}
+
+interface MainGatewayBrowserReadPageInput extends Record<string, unknown> {
+  browser?: string
+  format?: 'text' | 'markdown' | 'html' | 'interactables'
+  maxChars?: number
+}
+
+interface MainGatewayBrowserClickElementInput extends Record<string, unknown> {
+  browser?: string
+  exactText?: boolean
+  expectedPhase?: string
+  inspectionQuestion?: string
+  ordinal?: number
+  reinspectAfterAction?: boolean
+  selector?: string
+  targetType?: string
+  text?: string
+}
+
+interface MainGatewayBrowserTypeTextInput extends Record<string, unknown> {
+  browser?: string
+  clearExisting?: boolean
+  exactText?: boolean
+  ordinal?: number
+  selector?: string
+  submit?: boolean
+  targetText?: string
+  text: string
+}
+
+interface MainGatewayBrowserNavigateInput extends Record<string, unknown> {
+  action: 'back' | 'forward' | 'reload'
+  browser?: string
+}
+
+interface MainGatewayBrowserScrollInput extends Record<string, unknown> {
+  action: 'down' | 'up' | 'top' | 'bottom'
+  amount?: number
+  browser?: string
+}
+
+interface MainGatewayBrowserWaitInput extends Record<string, unknown> {
+  browser?: string
+  state?: 'complete' | 'visible' | 'text' | 'url'
+  text?: string
+  timeoutMs?: number
+  urlIncludes?: string
+}
+
+interface MainGatewayDesktopInspectSceneInput extends Record<string, unknown> {
+  forceRefresh?: boolean
+  maxSuggestedActions?: number
+  question?: string
+}
+
+interface MainGatewayDesktopListInteractablesInput extends Record<string, unknown> {
+  maxItems?: number
+  role?: string
+}
+
+interface MainGatewayDesktopClickElementInput extends Record<string, unknown> {
+  exactText?: boolean
+  expectedPhase?: string
+  inspectionQuestion?: string
+  ordinal?: number
+  reinspectAfterAction?: boolean
+  role?: string
+  text?: string
+}
+
+interface MainGatewayDesktopTypeTextInput extends Record<string, unknown> {
+  clearExisting?: boolean
+  exactText?: boolean
+  expectedPhase?: string
+  inspectionQuestion?: string
+  ordinal?: number
+  reinspectAfterAction?: boolean
+  role?: string
+  submit?: boolean
+  targetText?: string
+  text: string
+}
+
+interface MainGatewayDesktopPressKeysInput extends Record<string, unknown> {
+  repeat?: number
+  shortcut: string
+}
+
+interface MainGatewayDesktopWaitInput extends Record<string, unknown> {
+  appName?: string
+  timeoutMs?: number
+  titleIncludes?: string
+}
+
+interface MainGatewayDesktopOpenApplicationInput extends Record<string, unknown> {
+  appName?: string
+  args?: string[]
+  path?: string
 }
 
 export interface BuildMainGatewayToolsOptions {
@@ -71,13 +187,31 @@ export interface BuildMainGatewayToolsOptions {
   context: MainGatewayExecutionToolContext
   executeTaskThread: (input: {
     context: MainGatewayExecutionToolContext
-    dispatch: Pick<AlicizationDispatchTaskThreadPayload, 'claudeCode' | 'cli' | 'codex' | 'openclaw'>
+    dispatch: Pick<AlicizationDispatchTaskThreadPayload, 'claudeCode' | 'cli' | 'codex' | 'localVisual' | 'openclaw'> & {
+      browser?: MainGatewayLocalToolResult | null
+      desktop?: MainGatewayLocalToolResult | null
+    }
     task: AlicizationClawTaskIntent
   }) => Promise<MainGatewayExecutionTaskThreadResult>
   resumeTaskThread?: (input: {
     context: MainGatewayExecutionToolContext
     threadId: string
   }) => Promise<MainGatewayExecutionTaskThreadResult>
+  browserOpenUrl?: MainGatewayLocalToolHandler<MainGatewayBrowserOpenUrlInput>
+  browserSearchWeb?: MainGatewayLocalToolHandler<MainGatewayBrowserSearchWebInput>
+  browserReadPage?: MainGatewayLocalToolHandler<MainGatewayBrowserReadPageInput>
+  browserClickElement?: MainGatewayLocalToolHandler<MainGatewayBrowserClickElementInput>
+  browserTypeText?: MainGatewayLocalToolHandler<MainGatewayBrowserTypeTextInput>
+  browserNavigate?: MainGatewayLocalToolHandler<MainGatewayBrowserNavigateInput>
+  browserScroll?: MainGatewayLocalToolHandler<MainGatewayBrowserScrollInput>
+  browserWait?: MainGatewayLocalToolHandler<MainGatewayBrowserWaitInput>
+  desktopInspectScene?: MainGatewayLocalToolHandler<MainGatewayDesktopInspectSceneInput>
+  desktopListInteractables?: MainGatewayLocalToolHandler<MainGatewayDesktopListInteractablesInput>
+  desktopClickElement?: MainGatewayLocalToolHandler<MainGatewayDesktopClickElementInput>
+  desktopTypeText?: MainGatewayLocalToolHandler<MainGatewayDesktopTypeTextInput>
+  desktopPressKeys?: MainGatewayLocalToolHandler<MainGatewayDesktopPressKeysInput>
+  desktopWait?: MainGatewayLocalToolHandler<MainGatewayDesktopWaitInput>
+  desktopOpenApplication?: MainGatewayLocalToolHandler<MainGatewayDesktopOpenApplicationInput>
   executionCapabilityChannels: readonly AlicizationExecutionCapabilityChannel[]
   invokeMcpCallTool: (payload: {
     arguments?: Record<string, unknown>
@@ -576,6 +710,12 @@ function normalizeExecutorTimeoutMs(raw: number | undefined) {
   return raw
 }
 
+function asOptionalNumber(raw: unknown): number | undefined {
+  if (typeof raw !== 'number' || !Number.isFinite(raw))
+    return undefined
+  return raw
+}
+
 function asRecord(raw: unknown): Record<string, unknown> | null {
   return raw && typeof raw === 'object' && !Array.isArray(raw)
     ? raw as Record<string, unknown>
@@ -721,7 +861,9 @@ export function buildExecutionCapabilitySystemBlocks(
     'When the host asks you to execute real actions, route through executor tools instead of generic refusal.',
     '- Shell/terminal command tasks should call executor_run_cli when CLI is ready.',
     '- Codebase investigation/edit tasks should call executor_run_codex or executor_run_claude_code when the channel is ready.',
-    '- Browser/software/desktop or mixed visual action tasks should call executor_run_openclaw when OpenClaw is ready.',
+    '- Browser URL/search/read/click/type/scroll/wait tasks should prefer browser_open_url/browser_search_web/browser_read_page/browser_click_element/browser_type_text/browser_scroll/browser_wait when available.',
+    '- Desktop inspect/list/click/type/shortcut/open/wait tasks should prefer desktop_inspect_scene/desktop_list_interactables/desktop_click_element/desktop_type_text/desktop_press_keys/desktop_open_application/desktop_wait when available.',
+    '- Browser/software/desktop or mixed visual action tasks that need embodied delegation beyond local primitives should call executor_run_openclaw when OpenClaw is ready.',
     '- For direct file reads/writes/edits/patching/listing/searching, prefer filesystem_read_file/filesystem_write_file/filesystem_edit_file/filesystem_patch_file/filesystem_list_directory/filesystem_search_files before generic mcp_call_tool.',
     '- OpenClaw dispatch automatically carries the latest Alicization sensory snapshot; call sensory_capture_state first when you need to inspect the surface before deciding the next action.',
     '- If you need to know whether live desktop capture is available or which window is foreground, call sensory_capture_state.',
@@ -983,6 +1125,391 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
     parameters: spec.parameters,
     execute: async input => toMainGatewayExecutorToolResult(await spec.execute(input as never, context)),
   }))
+
+  const unavailableLocalToolResult = (operation: string) => ({
+    status: 'unavailable',
+    operation,
+    errorCode: 'LOCAL_TOOL_UNAVAILABLE',
+    errorMessage: `${operation} is not configured in this runtime.`,
+  })
+
+  const maybeRunLocalTool = async <TInput extends Record<string, unknown>>(
+    operation: string,
+    handler: MainGatewayLocalToolHandler<TInput> | undefined,
+    payload: TInput,
+  ) => {
+    if (!handler)
+      return unavailableLocalToolResult(operation)
+    return await handler(payload)
+  }
+
+  const maybeReinspectAfterAction = async (input: {
+    baseResult: MainGatewayLocalToolResult
+    browser?: string
+    expectedPhase?: string
+    inspectionQuestion?: string
+    operation: string
+    reinspectAfterAction?: boolean
+  }) => {
+    if (!input.reinspectAfterAction && !input.expectedPhase)
+      return input.baseResult
+
+    if (input.operation.startsWith('browser_') && options.browserWait) {
+      await options.browserWait({
+        browser: input.browser ?? 'default',
+        state: 'complete',
+        text: undefined,
+        urlIncludes: undefined,
+        timeoutMs: 5_000,
+      })
+    }
+
+    if (!options.desktopInspectScene)
+      return input.baseResult
+
+    const inspection = await options.desktopInspectScene({
+      question: input.inspectionQuestion,
+      forceRefresh: true,
+      maxSuggestedActions: 3,
+    })
+    return {
+      ...inspection,
+      ...input.baseResult,
+      operation: input.operation,
+      pagePhase: inspection.pagePhase ?? input.baseResult.pagePhase ?? null,
+      nextActionIntent: inspection.nextActionIntent ?? input.baseResult.nextActionIntent ?? null,
+      blockingSignals: inspection.blockingSignals ?? input.baseResult.blockingSignals ?? [],
+      browserPageContext: inspection.browserPageContext ?? input.baseResult.browserPageContext ?? null,
+      screenSemanticSummary: inspection.screenSemanticSummary ?? input.baseResult.screenSemanticSummary ?? null,
+      workflowPlan: inspection.workflowPlan ?? input.baseResult.workflowPlan ?? null,
+      workflowState: inspection.workflowState ?? input.baseResult.workflowState ?? null,
+      executionStrategy: inspection.executionStrategy ?? input.baseResult.executionStrategy ?? null,
+      suggestedActions: inspection.suggestedActions ?? input.baseResult.suggestedActions ?? [],
+      summary: inspection.summary ?? input.baseResult.summary ?? null,
+      output: inspection.output ?? input.baseResult.output ?? null,
+    }
+  }
+
+  const localAutomationTools = [
+    tool({
+      name: 'browser_open_url',
+      description: 'Open a URL or known site in the local browser runtime.',
+      parameters: z.object({
+        browser: z.string().optional(),
+        site: z.string().optional(),
+        url: z.string().optional(),
+        inspectionQuestion: z.string().optional(),
+      }).strict(),
+      execute: async ({ browser, site, url, inspectionQuestion }) => {
+        const payload: MainGatewayBrowserOpenUrlInput = {
+          ...(site ? { site } : {}),
+          url,
+          browser: sanitizeText(browser) || 'default',
+        }
+        const result = await maybeRunLocalTool('browser_open_url', options.browserOpenUrl, payload)
+        return await maybeReinspectAfterAction({
+          baseResult: result,
+          browser: payload.browser,
+          inspectionQuestion,
+          operation: 'browser_open_url',
+          reinspectAfterAction: Boolean(inspectionQuestion),
+        })
+      },
+    }),
+    tool({
+      name: 'browser_search_web',
+      description: 'Search the web in the local browser runtime.',
+      parameters: z.object({
+        browser: z.string().optional(),
+        query: z.string().min(1),
+        searchEngine: z.string().optional(),
+      }).strict(),
+      execute: async ({ browser, query, searchEngine }) => await maybeRunLocalTool('browser_search_web', options.browserSearchWeb, {
+        query,
+        browser: sanitizeText(browser) || 'default',
+        searchEngine: sanitizeText(searchEngine) || 'google',
+      }),
+    }),
+    tool({
+      name: 'browser_read_page',
+      description: 'Read the current local browser page as text, markdown, HTML, or interactables.',
+      parameters: z.object({
+        browser: z.string().optional(),
+        format: z.enum(['text', 'markdown', 'html', 'interactables']).optional(),
+        maxChars: z.coerce.number().optional(),
+      }).strict(),
+      execute: async ({ browser, format, maxChars }) => await maybeRunLocalTool('browser_read_page', options.browserReadPage, {
+        browser: sanitizeText(browser) || 'default',
+        format: format ?? 'text',
+        maxChars: asOptionalNumber(maxChars),
+      }),
+    }),
+    tool({
+      name: 'browser_click_element',
+      description: 'Click an element in the local browser by selector, text, ordinal, or target type.',
+      parameters: z.object({
+        browser: z.string().optional(),
+        selector: z.string().optional(),
+        text: z.string().optional(),
+        exactText: z.boolean().optional(),
+        ordinal: z.coerce.number().optional(),
+        targetType: z.string().optional(),
+        expectedPhase: z.string().optional(),
+        reinspectAfterAction: z.boolean().optional(),
+        inspectionQuestion: z.string().optional(),
+      }).strict(),
+      execute: async ({ browser, selector, text, exactText, ordinal, targetType, expectedPhase, reinspectAfterAction, inspectionQuestion }) => {
+        const resolvedBrowser = sanitizeText(browser) || 'default'
+        const payload: MainGatewayBrowserClickElementInput = selector
+          ? {
+              browser: resolvedBrowser,
+              selector,
+              ...(expectedPhase ? { expectedPhase } : {}),
+              ...(typeof reinspectAfterAction === 'boolean' ? { reinspectAfterAction } : {}),
+              ...(inspectionQuestion ? { inspectionQuestion } : {}),
+            }
+          : {
+              browser: resolvedBrowser,
+              selector: undefined,
+              text,
+              exactText,
+              ...(typeof ordinal === 'number' ? { ordinal } : {}),
+              ...(targetType ? { targetType } : {}),
+              ...(expectedPhase ? { expectedPhase } : {}),
+              ...(typeof reinspectAfterAction === 'boolean' ? { reinspectAfterAction } : {}),
+              ...(inspectionQuestion ? { inspectionQuestion } : {}),
+            }
+        const result = await maybeRunLocalTool('browser_click_element', options.browserClickElement, payload)
+        return await maybeReinspectAfterAction({
+          baseResult: result,
+          browser: resolvedBrowser,
+          expectedPhase,
+          inspectionQuestion,
+          operation: 'browser_click_element',
+          reinspectAfterAction,
+        })
+      },
+    }),
+    tool({
+      name: 'browser_type_text',
+      description: 'Type text into the local browser by selector, text, or ordinal target.',
+      parameters: z.object({
+        browser: z.string().optional(),
+        text: z.string().min(1),
+        targetText: z.string().optional(),
+        ordinal: z.coerce.number().optional(),
+        selector: z.string().optional(),
+        exactText: z.boolean().optional(),
+        clearExisting: z.boolean().optional(),
+        submit: z.boolean().optional(),
+        expectedPhase: z.string().optional(),
+        reinspectAfterAction: z.boolean().optional(),
+        inspectionQuestion: z.string().optional(),
+      }).strict(),
+      execute: async ({ browser, text, targetText, ordinal, selector, exactText, clearExisting, submit, expectedPhase, reinspectAfterAction, inspectionQuestion }) => {
+        const resolvedBrowser = sanitizeText(browser) || 'default'
+        const result = await maybeRunLocalTool('browser_type_text', options.browserTypeText, {
+          browser: resolvedBrowser,
+          text,
+          targetText,
+          ordinal: asOptionalNumber(ordinal),
+          selector,
+          exactText,
+          clearExisting,
+          submit,
+          ...(expectedPhase ? { expectedPhase } : {}),
+          ...(typeof reinspectAfterAction === 'boolean' ? { reinspectAfterAction } : {}),
+          ...(inspectionQuestion ? { inspectionQuestion } : {}),
+        })
+        return await maybeReinspectAfterAction({
+          baseResult: result,
+          browser: resolvedBrowser,
+          expectedPhase,
+          inspectionQuestion,
+          operation: 'browser_type_text',
+          reinspectAfterAction,
+        })
+      },
+    }),
+    tool({
+      name: 'browser_navigate',
+      description: 'Navigate the local browser backward, forward, or reload.',
+      parameters: z.object({
+        browser: z.string().optional(),
+        action: z.enum(['back', 'forward', 'reload']),
+      }).strict(),
+      execute: async ({ browser, action }) => await maybeRunLocalTool('browser_navigate', options.browserNavigate, {
+        browser: sanitizeText(browser) || 'default',
+        action,
+      }),
+    }),
+    tool({
+      name: 'browser_scroll',
+      description: 'Scroll the current local browser page.',
+      parameters: z.object({
+        browser: z.string().optional(),
+        action: z.enum(['down', 'up', 'top', 'bottom']),
+        amount: z.coerce.number().optional(),
+      }).strict(),
+      execute: async ({ browser, action, amount }) => await maybeRunLocalTool('browser_scroll', options.browserScroll, {
+        browser: sanitizeText(browser) || 'default',
+        action,
+        amount: asOptionalNumber(amount),
+      }),
+    }),
+    tool({
+      name: 'browser_wait',
+      description: 'Wait for the local browser to reach a readiness condition.',
+      parameters: z.object({
+        browser: z.string().optional(),
+        state: z.enum(['complete', 'visible', 'text', 'url']).optional(),
+        text: z.string().optional(),
+        urlIncludes: z.string().optional(),
+        timeoutMs: z.coerce.number().optional(),
+      }).strict(),
+      execute: async ({ browser, state, text, urlIncludes, timeoutMs }) => await maybeRunLocalTool('browser_wait', options.browserWait, {
+        browser: sanitizeText(browser) || 'default',
+        state: state ?? 'complete',
+        text,
+        urlIncludes,
+        timeoutMs: asOptionalNumber(timeoutMs),
+      }),
+    }),
+    tool({
+      name: 'desktop_inspect_scene',
+      description: 'Inspect the current desktop scene and return workflow-aware suggested actions.',
+      parameters: z.object({
+        question: z.string().optional(),
+        forceRefresh: z.boolean().optional(),
+        maxSuggestedActions: z.coerce.number().optional(),
+      }).strict(),
+      execute: async ({ question, forceRefresh, maxSuggestedActions }) => await maybeRunLocalTool('desktop_inspect_scene', options.desktopInspectScene, {
+        question,
+        forceRefresh,
+        maxSuggestedActions: asOptionalNumber(maxSuggestedActions),
+      }),
+    }),
+    tool({
+      name: 'desktop_list_interactables',
+      description: 'List interactable desktop elements from the current scene.',
+      parameters: z.object({
+        role: z.string().optional(),
+        maxItems: z.coerce.number().optional(),
+      }).strict(),
+      execute: async ({ role, maxItems }) => await maybeRunLocalTool('desktop_list_interactables', options.desktopListInteractables, {
+        role,
+        maxItems: asOptionalNumber(maxItems),
+      }),
+    }),
+    tool({
+      name: 'desktop_click_element',
+      description: 'Click a desktop element by text, role, or ordinal.',
+      parameters: z.object({
+        text: z.string().optional(),
+        role: z.string().optional(),
+        ordinal: z.coerce.number().optional(),
+        exactText: z.boolean().optional(),
+        expectedPhase: z.string().optional(),
+        reinspectAfterAction: z.boolean().optional(),
+        inspectionQuestion: z.string().optional(),
+      }).strict(),
+      execute: async ({ text, role, ordinal, exactText, expectedPhase, reinspectAfterAction, inspectionQuestion }) => {
+        const result = await maybeRunLocalTool('desktop_click_element', options.desktopClickElement, {
+          text,
+          role,
+          ordinal: asOptionalNumber(ordinal),
+          exactText,
+          ...(expectedPhase ? { expectedPhase } : {}),
+          ...(typeof reinspectAfterAction === 'boolean' ? { reinspectAfterAction } : {}),
+          ...(inspectionQuestion ? { inspectionQuestion } : {}),
+        })
+        return await maybeReinspectAfterAction({
+          baseResult: result,
+          expectedPhase,
+          inspectionQuestion,
+          operation: 'desktop_click_element',
+          reinspectAfterAction,
+        })
+      },
+    }),
+    tool({
+      name: 'desktop_type_text',
+      description: 'Type text into a desktop element by text, role, or ordinal target.',
+      parameters: z.object({
+        text: z.string().min(1),
+        targetText: z.string().optional(),
+        role: z.string().optional(),
+        ordinal: z.coerce.number().optional(),
+        exactText: z.boolean().optional(),
+        clearExisting: z.boolean().optional(),
+        submit: z.boolean().optional(),
+        expectedPhase: z.string().optional(),
+        reinspectAfterAction: z.boolean().optional(),
+        inspectionQuestion: z.string().optional(),
+      }).strict(),
+      execute: async ({ text, targetText, role, ordinal, exactText, clearExisting, submit, expectedPhase, reinspectAfterAction, inspectionQuestion }) => {
+        const result = await maybeRunLocalTool('desktop_type_text', options.desktopTypeText, {
+          text,
+          targetText,
+          ...(role ? { role } : {}),
+          ordinal: asOptionalNumber(ordinal),
+          exactText,
+          clearExisting,
+          submit,
+          ...(expectedPhase ? { expectedPhase } : {}),
+          ...(typeof reinspectAfterAction === 'boolean' ? { reinspectAfterAction } : {}),
+          ...(inspectionQuestion ? { inspectionQuestion } : {}),
+        })
+        return await maybeReinspectAfterAction({
+          baseResult: result,
+          expectedPhase,
+          inspectionQuestion,
+          operation: 'desktop_type_text',
+          reinspectAfterAction,
+        })
+      },
+    }),
+    tool({
+      name: 'desktop_press_keys',
+      description: 'Press a desktop keyboard shortcut.',
+      parameters: z.object({
+        shortcut: z.string().min(1),
+        repeat: z.coerce.number().optional(),
+      }).strict(),
+      execute: async ({ shortcut, repeat }) => await maybeRunLocalTool('desktop_press_keys', options.desktopPressKeys, {
+        shortcut,
+        repeat: asOptionalNumber(repeat),
+      }),
+    }),
+    tool({
+      name: 'desktop_open_application',
+      description: 'Open a local desktop application.',
+      parameters: z.object({
+        appName: z.string().optional(),
+        path: z.string().optional(),
+        args: z.array(z.string()).default([]),
+      }).strict(),
+      execute: async ({ appName, path, args }) => await maybeRunLocalTool('desktop_open_application', options.desktopOpenApplication, {
+        appName,
+        path,
+        args,
+      }),
+    }),
+    tool({
+      name: 'desktop_wait',
+      description: 'Wait for a desktop app or window title to become available.',
+      parameters: z.object({
+        appName: z.string().optional(),
+        titleIncludes: z.string().optional(),
+        timeoutMs: z.coerce.number().optional(),
+      }).strict(),
+      execute: async ({ appName, titleIncludes, timeoutMs }) => await maybeRunLocalTool('desktop_wait', options.desktopWait, {
+        appName,
+        titleIncludes,
+        timeoutMs: asOptionalNumber(timeoutMs),
+      }),
+    }),
+  ]
 
   const fileReadStateByPath = new Map<string, MainGatewayFileReadState>()
 
@@ -1936,6 +2463,7 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
       },
     }),
     ...executorRunTools,
+    ...localAutomationTools,
     tool({
       name: 'mcp_list_tools',
       description: 'List all tools available on the connected MCP servers.',

@@ -1,20 +1,20 @@
 import { describe, expect, it } from 'vitest'
 
 import {
-  buildReplayBenchmarkBacklogPack,
+  benchmarkMainChatSessionReplay,
   buildAdversarialHumanlikeMemoryBenchmarkPack,
   buildDefaultHumanlikeMemoryBenchmarkPack,
-  buildReplayBenchmarkDatasetContinuityDigest,
   buildFinalHumanlikeMemoryBenchmarkPack,
   buildGrowthHumanlikeMemoryBenchmarkPack,
+  buildReplayBenchmarkBacklogPack,
+  buildReplayBenchmarkDatasetContinuityDigest,
   buildReplayBenchmarkFailingTurnSet,
-  benchmarkMainChatSessionReplay,
   buildReplayBenchmarkMemoryStatsPatch,
-  mergeReplayBenchmarkDatasetBacklog,
   buildSampledHumanlikeMemoryBenchmarkPack,
   evaluateReplayBenchmarkGate,
-  evaluateReplayMemoryQuality,
   evaluateReplayBenchmarkStandards,
+  evaluateReplayMemoryQuality,
+  mergeReplayBenchmarkDatasetBacklog,
   replayMainChatSession,
 } from './main-chat-session-replay-harness'
 
@@ -1843,6 +1843,42 @@ describe('main chat session replay harness', () => {
             userText: '先别岔开，沿着刚才那个执行后的回线继续',
             digitalLifeRuntimeSurface: {
               version: 'digital-life-runtime-surface-v1',
+              perception: {
+                watchMode: 'symbiotic-vision',
+                currentScene: null,
+                attention: null,
+                captureState: {
+                  permission: 'unknown',
+                  lastGroundedAt: null,
+                },
+                durabilityPulse: null,
+                recentTransition: null,
+                nextSuggestedProbeMs: 30_000,
+                updatedAt: 10,
+              },
+              world: {
+                worldModel: null,
+                worldOntology: null,
+                entityWorld: null,
+                livingWorldState: null,
+                relationshipModel: null,
+              },
+              cognition: {
+                mindTurnFrame: null,
+                subjectiveInference: null,
+                appraisal: null,
+                beliefLedger: null,
+                beliefRevision: null,
+                hypothesisGraph: null,
+                mindDynamics: null,
+                mindKernel: {
+                  dominantMode: 'tracking',
+                  dominantDrive: 'understand',
+                  narrative: ['keep one digital-life line'],
+                  updatedAt: 10,
+                },
+                privateThought: null,
+              },
               memory: {
                 personStateProjection: {
                   activeClosenessContext: 'execution-callback',
@@ -1851,6 +1887,7 @@ describe('main chat session replay harness', () => {
                   openingGuidance: 'Stay on the measured execution return before widening outward.',
                   currentRegime: 'execution-callback',
                   repairPosture: 'warm-repair',
+                  contexts: [],
                 },
               },
               dialogue: {
@@ -1866,15 +1903,26 @@ describe('main chat session replay harness', () => {
                   confidence: 0.9,
                   answerIntent: 'Continue from the same execution-callback continuity line.',
                   governingFocus: 'Keep the callback continuity thread-faithful, measured, and project-first.',
+                  mustDo: [
+                    'Keep this on one continuous her line before broadening the answer.',
+                    'Stay on the same thread before widening closeness.',
+                  ],
+                  narrative: ['memory-deliberation', 'project-state-answer-planner'],
                 },
                 replyDeliberation: {
                   shouldSpeak: true,
                   confidence: 0.86,
                   speakingFrom: 'held-memory',
                   whyThisReplyNow: 'The remembered execution callback afterglow is the live seam that still fits this turn.',
+                  mustInclude: [
+                    'Keep this on one continuous her line before broadening the answer.',
+                    'Stay on the same thread before widening closeness.',
+                  ],
                   mustAvoid: [
                     'Do not flatten this into generic long-term relationship warmth.',
+                    'Do not rewrite the still-live line as a fresh opening or reintroduction.',
                   ],
+                  narrative: ['memory-deliberation', 'project-state-answer-planner'],
                 },
               },
               agency: {

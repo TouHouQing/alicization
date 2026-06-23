@@ -1,5 +1,5 @@
-import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 import type { AlicizationMindTurnGovernance } from '../../../shared/eventa'
+import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 
 export interface RuntimeConsciousFrameReducerInput {
   surface: AlicizationDigitalLifeRuntimeSurface | null

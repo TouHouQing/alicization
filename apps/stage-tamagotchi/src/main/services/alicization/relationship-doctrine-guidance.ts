@@ -14,8 +14,8 @@ export function buildRelationshipDoctrineGuidance(input: {
 }) {
   const doctrineText = sanitizeText(
     input.authority?.relationshipLine
-      || input.doctrineText
-      || '',
+    || input.doctrineText
+    || '',
     220,
   )
   const lower = doctrineText.toLowerCase()

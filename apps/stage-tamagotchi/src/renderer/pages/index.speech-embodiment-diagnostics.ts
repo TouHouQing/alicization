@@ -2,9 +2,10 @@ import type {
   AlicizationMemoryDecisionTraceRecord,
   AlicizationMindTurnEventRecord,
 } from '@proj-alicization/stage-ui/stores/alicization-bridge'
-import type { TraceEmbodimentDriver } from './devtools/performance-visualizer-trace-embodiment'
 
 import type { StageThreeRuntimeSpeechEmbodimentDiagnostics } from '../stores/stage-three-runtime-diagnostics'
+import type { TraceEmbodimentDriver } from './devtools/performance-visualizer-trace-embodiment'
+
 import {
   buildTraceAuthorityExecutionSummary,
   buildTraceEmbodimentSummary,
@@ -19,7 +20,7 @@ type RendererSpeechPlaybackCue = NonNullable<RendererSpeechPlaybackTelemetry['cu
 type RendererSpeechPlaybackDrivers = NonNullable<RendererSpeechPlaybackTelemetry['drivers']>
 type RendererSpeechPlaybackBodyDriver = NonNullable<RendererSpeechPlaybackDrivers['body']>
 
-type RendererSpeechDriverAuthorityInput = {
+interface RendererSpeechDriverAuthorityInput {
   segmentId?: RendererSpeechDriverAuthority['segmentId']
   rendererTarget?: RendererSpeechDriverAuthority['rendererTarget']
   matchedDrivers?: RendererSpeechDriverAuthority['matchedDrivers']
@@ -32,7 +33,7 @@ type RendererSpeechDriverAuthorityInput = {
   prosodyAuthority?: RendererSpeechDriverAuthority['prosodyAuthority']
 }
 
-type RendererSpeechPlaybackCueInput = {
+interface RendererSpeechPlaybackCueInput {
   id?: RendererSpeechPlaybackCue['id']
   text?: RendererSpeechPlaybackCue['text']
   emotion?: RendererSpeechPlaybackCue['emotion']
@@ -52,7 +53,7 @@ type RendererSpeechPlaybackCueInput = {
   rendererSettle?: RendererSpeechPlaybackCue['rendererSettle']
 }
 
-type RendererSpeechPlaybackBodyDriverInput = {
+interface RendererSpeechPlaybackBodyDriverInput {
   frameMode?: RendererSpeechPlaybackBodyDriver['frameMode']
   stillness?: RendererSpeechPlaybackBodyDriver['stillness']
   gazeStability?: RendererSpeechPlaybackBodyDriver['gazeStability']
@@ -63,14 +64,14 @@ type RendererSpeechPlaybackBodyDriverInput = {
   segmentId?: RendererSpeechPlaybackBodyDriver['segmentId']
 }
 
-type RendererSpeechPlaybackDriversInput = {
+interface RendererSpeechPlaybackDriversInput {
   body?: RendererSpeechPlaybackBodyDriverInput | null
   face?: RendererSpeechPlaybackDrivers['face']
   lipsync?: RendererSpeechPlaybackDrivers['lipsync']
   motion?: RendererSpeechPlaybackDrivers['motion']
 }
 
-type RendererSpeechPlaybackTelemetryInput = {
+interface RendererSpeechPlaybackTelemetryInput {
   actualDurationMs?: RendererSpeechPlaybackTelemetry['actualDurationMs']
   plannedDurationMs?: RendererSpeechPlaybackTelemetry['plannedDurationMs']
   driftMs?: RendererSpeechPlaybackTelemetry['driftMs']
@@ -299,7 +300,7 @@ function normalizeUniqueTextList(values: ReadonlyArray<string | null | undefined
 }
 
 function isTraceEmbodimentDriver(value: string): value is TraceEmbodimentDriver {
-  return value === 'body' || value === 'face' || value === 'motion' || value === 'lipsync'
+  return value === 'body' || value === 'face' || value === 'motion' || value === 'lipsync' || value === 'voice'
 }
 
 function filterTraceEmbodimentDrivers(
@@ -588,12 +589,10 @@ function enrichTraceSummaryWithPlaybackAuthoritySources(input: {
 
   return {
     ...cloneCue(traceSummary),
-    segmentBinding: traceSummary.segmentBinding
-      ? {
-          ...cloneCue(traceSummary.segmentBinding),
-          matchedSources: enrichedMatchedSources,
-        }
-      : null,
+    segmentBinding: {
+      ...cloneCue(traceSummary.segmentBinding),
+      matchedSources: enrichedMatchedSources,
+    },
   }
 }
 
@@ -715,8 +714,8 @@ function buildSpeechEvidenceSummary(input: {
     || Number.isFinite(cue?.headWeight)
   const resolvedDriverExecutionSummary = authorityMatchSummary === 'face:yes motion:yes lipsync:yes'
     ? formatDriverExecutionSummaryFromPlaybackTelemetry(input.playbackTelemetry ?? null, playbackCueId)
-      ?? input.driverExecutionSummary
-      ?? null
+    ?? input.driverExecutionSummary
+    ?? null
     : input.driverExecutionSummary ?? null
 
   const hasEvidence = Boolean(

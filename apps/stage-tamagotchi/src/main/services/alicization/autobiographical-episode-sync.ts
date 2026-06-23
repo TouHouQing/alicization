@@ -180,9 +180,7 @@ export function buildAutobiographicalEpisodesFromTaskThreadUpdate(input: {
       thread.status,
       sourceKind,
     ], 4),
-    whatChanged: summary
-      ? summary
-      : `thread ${thread.status}`,
+    whatChanged: summary || `thread ${thread.status}`,
     relationshipMeaning: thread.status === 'needs-affirmation'
       ? 'Execution stayed bounded and waited for the host rather than assuming authority.'
       : thread.status === 'completed'

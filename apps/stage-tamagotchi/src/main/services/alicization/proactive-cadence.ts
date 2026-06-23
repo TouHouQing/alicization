@@ -1,7 +1,7 @@
 import type {
   AlicizationActionEcologySnapshot,
-  AlicizationAutonomySnapshot,
   AlicizationAffectiveResidueMemorySnapshot,
+  AlicizationAutonomySnapshot,
   AlicizationDerivedMindStateBundle,
   AlicizationInitiativeSnapshot,
   AlicizationMotiveEngineSnapshot,
@@ -11,9 +11,9 @@ import type {
   AlicizationThreadRuntimeStateSnapshot,
   AlicizationWorldModelSnapshot,
 } from '../../../shared/eventa'
+import type { AlicizationPersonalityContinuityStateSnapshot } from './personality-continuity-state'
 import type { AlicizationProactiveLoopState } from './proactive-feedback'
 import type { AlicizationProactiveLayeredContext } from './proactive-layered-context'
-import type { AlicizationPersonalityContinuityStateSnapshot } from './personality-continuity-state'
 
 function clamp01(value: number) {
   if (!Number.isFinite(value))
@@ -275,10 +275,10 @@ export function deriveProactiveCadenceSignal(input: {
     - (input.context.system.inputActivity === 'active' ? 0.16 : 0)
     - (input.context.system.fullscreenLikely ? 0.14 : 0),
   ) - (rhythmState?.restMode === 'rest-protective' ? 0.12 : rhythmState?.restMode === 'low-pressure' ? 0.04 : 0)
-    - ((cadenceMemory?.fatigueGuard ?? 0) * 0.12)
-    - ((cadenceMemory?.overreachRisk ?? 0) * 0.1)
-    - (selfEvolutionCadenceBias?.cadencePressureDamp ?? 0)
-    - (continuityGovernanceCadenceBias?.cadencePressureDamp ?? 0)
+  - ((cadenceMemory?.fatigueGuard ?? 0) * 0.12)
+  - ((cadenceMemory?.overreachRisk ?? 0) * 0.1)
+  - (selfEvolutionCadenceBias?.cadencePressureDamp ?? 0)
+  - (continuityGovernanceCadenceBias?.cadencePressureDamp ?? 0)
 
   const normalizedCadencePressure = clamp01(
     cadencePressure,

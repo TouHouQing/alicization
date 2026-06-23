@@ -1,8 +1,7 @@
-import type { AlicizationEpisodicEventRecord } from '../../../shared/eventa'
-
-import type { AlicizationMemoryConsolidationRecord } from './memory-consolidation'
-
 import type sqlite3 from 'sqlite3'
+
+import type { AlicizationEpisodicEventRecord } from '../../../shared/eventa'
+import type { AlicizationMemoryConsolidationRecord } from './memory-consolidation'
 
 interface MemoryConsolidationRowLike {
   id: string

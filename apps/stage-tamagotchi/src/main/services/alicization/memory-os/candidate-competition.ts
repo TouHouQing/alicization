@@ -59,7 +59,7 @@ export function deriveAlicizationMemoryCandidateCompetition(input: {
           && other.ranking.relationshipThreadMatch != null
           && candidate.ranking.relationshipThreadMatch != null
           && other.ranking.relationshipThreadMatch > candidate.ranking.relationshipThreadMatch
-          && other.ranking.finalScore >= candidate.ranking.finalScore
+          && other.ranking.finalScore >= candidate.ranking.finalScore,
         )
       return relationshipThreadWeak
         || conflictHeavy

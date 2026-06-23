@@ -3,44 +3,33 @@ import type {
   AlicizationMemoryResolutionLedger,
   AlicizationRecallGovernorSnapshot,
 } from '../../../shared/eventa'
-import type { AlicizationMemoryTuningAdvice } from './memory-tuning-advice'
 import type { buildAlicizationMemoryTurnArtifact } from './memory-os/memory-turn-artifact'
 import type { AlicizationMemoryRetrievalBudgetClass } from './memory-retrieval-telemetry'
-import type { OrganicMemoryPromptContext } from './runtime-soul'
+import type { AlicizationMemoryTuningAdvice } from './memory-tuning-advice'
+import type { AlicizationProjectStateBrief } from './project-state-brief'
 import type {
-  CreateAlicizationOrganicMemoryPromptRuntimeOptions,
   AlicizationOrganicMemoryCandidateResolution,
   AlicizationOrganicMemoryPreludeResolution,
+  CreateAlicizationOrganicMemoryPromptRuntimeOptions,
   MemoryClusterState,
   MemoryDeliberationSnapshot,
 } from './runtime-organic-memory-prompt-types'
-import { buildAlicizationTurnRetrievalPolicySnapshot } from './memory-accessibility-runtime'
+import type { OrganicMemoryPromptContext } from './runtime-soul'
 
 import { deriveAlicizationRecallLatencyPolicy } from '@proj-alicization/stage-shared'
-import { applyMemoryTuningAdviceToSpeechPlan } from './memory-tuning-advice'
-import { rankOrganicMemoryCandidatesStage } from './memory-candidate-ranking'
-import { buildMemorySituationCompetition } from './memory-situation-competition'
+
 import { buildClaimEvidenceGraphFromMemoryFact } from './learning-claim-evidence-runtime'
-import { resolveOrganicMemoryRecollectionPlanningStage } from './memory-recollection-planning'
-import { planAlicizationRecall } from './recall-planner'
+import { buildAlicizationTurnRetrievalPolicySnapshot } from './memory-accessibility-runtime'
+import { rankOrganicMemoryCandidatesStage } from './memory-candidate-ranking'
 import {
-  resolveMemorySearchPrelude,
-  runReconstructionAmbiguityRetrievalPass,
-  retrieveMemorySearchCandidates,
-} from './memory-search-retrieval-operators'
-import { buildOrganicMemorySystemBlocks as buildOrganicMemoryPromptBlocks } from './runtime-organic-memory-prompt-blocks'
-import { deriveSceneTriggeredRecollectionIntent, sanitizeOrganicMemoryText } from './runtime-organic-memory-search-prelude'
-import {
-  buildPerformanceManifestSystemBlocks as buildPerformanceManifestBlocks,
-  buildProactiveRecallSeed as buildOrganicMemoryProactiveRecallSeed,
-  tuneOrganicMemoryPromptContextForExecutiveTurn as tuneExecutiveOrganicMemoryPromptContext,
-} from './runtime-organic-memory-surface-planning'
-import { buildOrganicMemoryEvolutionState } from './runtime-organic-memory-self-evolution-integration'
-import {
-  buildAlicizationMemoryResolutionLedger,
-  buildAlicizationMemoryStageReplay,
-  enrichOrganicMemoryPromptContextWithSettlement,
-} from './memory-os/runtime-settlement'
+  analyzeMemoryClusters as analyzeMemoryClustersHelper,
+  buildMemoryPromptPersonStateProjection as buildMemoryPromptPersonStateProjectionHelper,
+  deriveMemoryClusterKey as deriveMemoryClusterKeyHelper,
+  rankByClusterDominance as rankByClusterDominanceHelper,
+  rankByHostSocialAffinity as rankByHostSocialAffinityHelper,
+  rankByRecollectionAgendaAffinity as rankByRecollectionAgendaAffinityHelper,
+  rankBySceneMoodEmbodiedCarry as rankBySceneMoodEmbodiedCarryHelper,
+} from './memory-os/context-ranking'
 import {
   applyMemoryDeliberationToSpeechPlan,
   deriveMemoryDeliberationConflictState,
@@ -52,14 +41,27 @@ import {
   selectMemoryDeliberationEras,
 } from './memory-os/planning'
 import {
-  analyzeMemoryClusters as analyzeMemoryClustersHelper,
-  buildMemoryPromptPersonStateProjection as buildMemoryPromptPersonStateProjectionHelper,
-  deriveMemoryClusterKey as deriveMemoryClusterKeyHelper,
-  rankByClusterDominance as rankByClusterDominanceHelper,
-  rankByHostSocialAffinity as rankByHostSocialAffinityHelper,
-  rankByRecollectionAgendaAffinity as rankByRecollectionAgendaAffinityHelper,
-  rankBySceneMoodEmbodiedCarry as rankBySceneMoodEmbodiedCarryHelper,
-} from './memory-os/context-ranking'
+  buildAlicizationMemoryResolutionLedger,
+  buildAlicizationMemoryStageReplay,
+  enrichOrganicMemoryPromptContextWithSettlement,
+} from './memory-os/runtime-settlement'
+import { resolveOrganicMemoryRecollectionPlanningStage } from './memory-recollection-planning'
+import {
+  resolveMemorySearchPrelude,
+  retrieveMemorySearchCandidates,
+  runReconstructionAmbiguityRetrievalPass,
+} from './memory-search-retrieval-operators'
+import { buildMemorySituationCompetition } from './memory-situation-competition'
+import { applyMemoryTuningAdviceToSpeechPlan } from './memory-tuning-advice'
+import { planAlicizationRecall } from './recall-planner'
+import { buildOrganicMemorySystemBlocks as buildOrganicMemoryPromptBlocks } from './runtime-organic-memory-prompt-blocks'
+import { deriveSceneTriggeredRecollectionIntent, sanitizeOrganicMemoryText } from './runtime-organic-memory-search-prelude'
+import { buildOrganicMemoryEvolutionState } from './runtime-organic-memory-self-evolution-integration'
+import {
+  buildProactiveRecallSeed as buildOrganicMemoryProactiveRecallSeed,
+  buildPerformanceManifestSystemBlocks as buildPerformanceManifestBlocks,
+  tuneOrganicMemoryPromptContextForExecutiveTurn as tuneExecutiveOrganicMemoryPromptContext,
+} from './runtime-organic-memory-surface-planning'
 
 export type { CreateAlicizationOrganicMemoryPromptRuntimeOptions } from './runtime-organic-memory-prompt-types'
 
@@ -209,18 +211,18 @@ function buildMemoryResolutionLedger(input: {
   const visibleCarryMode = shouldStayInward
     ? 'withhold' as const
     : input.finalRecollectionSpeechPlan?.shouldSurface === true
-        ? (
-            input.finalRecollectionSpeechPlan.surfaceMode === 'answer-anchoring'
-              || input.finalRecollectionSpeechPlan.surfaceMode === 'relationship-continuity'
-              ? 'explicit-recall'
-              : input.finalRecollectionSpeechPlan.surfaceMode === 'gist-first'
-                ? 'gist-only'
-                : 'tone-carry'
-          )
-        : input.finalRecollectionSpeechPlan?.placement === 'inside-payoff'
-          || input.finalRecollectionSpeechPlan?.placement === 'after-payoff'
-          ? 'gist-only'
-          : 'tone-carry'
+      ? (
+          input.finalRecollectionSpeechPlan.surfaceMode === 'answer-anchoring'
+          || input.finalRecollectionSpeechPlan.surfaceMode === 'relationship-continuity'
+            ? 'explicit-recall'
+            : input.finalRecollectionSpeechPlan.surfaceMode === 'gist-first'
+              ? 'gist-only'
+              : 'tone-carry'
+        )
+      : input.finalRecollectionSpeechPlan?.placement === 'inside-payoff'
+        || input.finalRecollectionSpeechPlan?.placement === 'after-payoff'
+        ? 'gist-only'
+        : 'tone-carry'
   const closureState = shouldStayInward
     ? (
         confidenceCandidates.length > 0 || candidates.length > 0
@@ -517,6 +519,7 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
     sessionId?: string | null
     turnId?: string | null
     budgetClass?: AlicizationMemoryRetrievalBudgetClass
+    projectStateBrief?: AlicizationProjectStateBrief | null
   }): Promise<OrganicMemoryPromptContext> {
     const prelude = await resolveOrganicMemoryPrelude({
       recallSeed: options?.recallSeed,
@@ -854,8 +857,8 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
           recallPressure: (finalMemoryDeliberation?.confidence ?? finalRecollectionPlan?.confidence ?? 0) >= 0.78
             ? 'high' as const
             : (finalMemoryDeliberation?.confidence ?? finalRecollectionPlan?.confidence ?? 0) >= 0.58
-              ? 'medium' as const
-              : 'low' as const,
+                ? 'medium' as const
+                : 'low' as const,
           evidenceCues: [
             ...(deliberatedWindows[0]?.cues ?? []),
             ...(deliberatedConsolidatedMemories[0]?.cues ?? []),
@@ -1015,7 +1018,7 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
           synthesizedConflictState.conflictSeverity === 'high'
             ? 'ambiguous'
             : synthesizedConflictState.conflictSeverity === 'medium'
-              || constrainedDeliberatedEpisodes.some(item => {
+              || constrainedDeliberatedEpisodes.some((item) => {
                 const provenance = item.latestReconsolidation?.provenance ?? item.provenance
                 return provenance === 'reconstructed' || provenance === 'dreamt' || provenance === 'inferred'
               })
@@ -1069,34 +1072,34 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
             recollectionIntent: activeRecollectionIntent ?? null,
             bundles: finalMemoryDeliberation.selectedBundles.length > 0
               ? finalMemoryDeliberation.selectedBundles.map((bundle) => {
-                const periodSummary = bundle.periodId
-                  ? deliberatedWindows.find(item => item.id === bundle.periodId)?.summary
+                  const periodSummary = bundle.periodId
+                    ? deliberatedWindows.find(item => item.id === bundle.periodId)?.summary
                     ?? deliberatedConsolidatedMemories.find(item => item.id === bundle.periodId)?.summary
                     ?? null
-                  : null
-                const episodeSummary = bundle.episodeId
-                  ? constrainedDeliberatedEpisodes.find(item => item.id === bundle.episodeId)?.whatHappened
-                  : null
-                const procedureSummary = bundle.procedureId
-                  ? deliberatedProceduralMemories.find(item => item.id === bundle.procedureId)?.approach
-                  : null
-                const conversationSummary = bundle.conversationTurnId
-                  ? deliberatedConversationHistory.find(item => item.turnId === bundle.conversationTurnId)?.assistantText
-                  : null
-                return {
-                  ...bundle,
-                  summary: bundle.summary || [periodSummary, episodeSummary, procedureSummary, conversationSummary, bundle.relationshipLine].filter(Boolean).slice(0, 3).join(' | '),
-                }
-              }).slice(0, 4)
+                    : null
+                  const episodeSummary = bundle.episodeId
+                    ? constrainedDeliberatedEpisodes.find(item => item.id === bundle.episodeId)?.whatHappened
+                    : null
+                  const procedureSummary = bundle.procedureId
+                    ? deliberatedProceduralMemories.find(item => item.id === bundle.procedureId)?.approach
+                    : null
+                  const conversationSummary = bundle.conversationTurnId
+                    ? deliberatedConversationHistory.find(item => item.turnId === bundle.conversationTurnId)?.assistantText
+                    : null
+                  return {
+                    ...bundle,
+                    summary: bundle.summary || [periodSummary, episodeSummary, procedureSummary, conversationSummary, bundle.relationshipLine].filter(Boolean).slice(0, 3).join(' | '),
+                  }
+                }).slice(0, 4)
               : synthesizedBundles,
           }),
           selectedChains: rankMemoryDeliberationChains({
             recollectionIntent: activeRecollectionIntent ?? null,
             chains: (finalMemoryDeliberation.selectedChains ?? []).length > 0
               ? (finalMemoryDeliberation.selectedChains ?? []).map(chain => ({
-                ...chain,
-                summary: chain.summary || [chain.periodSummary, chain.eventSummary, chain.procedureSummary, chain.relationshipMeaning, chain.lesson].filter(Boolean).slice(0, 3).join(' | '),
-              })).slice(0, 4)
+                  ...chain,
+                  summary: chain.summary || [chain.periodSummary, chain.eventSummary, chain.procedureSummary, chain.relationshipMeaning, chain.lesson].filter(Boolean).slice(0, 3).join(' | '),
+                })).slice(0, 4)
               : synthesizedChains,
           }),
           followUpAffordance: deriveMemoryFollowUpAffordance({
@@ -1263,33 +1266,33 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
     })
     return enrichOrganicMemoryPromptContextWithSettlement({
       context: {
-      hostAttitude: relationshipDynamics?.hostAttitude || snapshot.hostAttitude,
-      coreIncarnation: snapshot.coreIncarnation,
-      activeThoughts,
-      retrievedFacts,
-      recalledFragments,
-      recalledEpisodes: constrainedDeliberatedEpisodes,
-      recalledConversationHistory: deliberatedConversationHistory,
-      consolidatedMemories: deliberatedConsolidatedMemories,
-      recollectedWindows: deliberatedWindows,
-      recollectionNarratives: plannedNarratives,
-      recollectionPlan: finalRecollectionPlan,
-      recollectionSpeechPlan: effectiveRecollectionSpeechPlan,
-      memoryDeliberation: resolvedMemoryDeliberation,
-      knowledgeEvidence,
-      claimEvidenceGraphs,
-      proceduralMemories: deliberatedProceduralMemories,
-      recollectionIntent,
-      hostPersonModel,
-      personStateProjection,
-      relationshipDynamics,
-      affectiveResidue,
-      recallLatencyPolicy,
-      memoryTuningAdvice,
-      selfEvolution,
-      learningExecutionState: snapshot.learningExecutionState ?? null,
-      derivedMindStateBundle,
-      memorySituationCandidates,
+        hostAttitude: relationshipDynamics?.hostAttitude || snapshot.hostAttitude,
+        coreIncarnation: snapshot.coreIncarnation,
+        activeThoughts,
+        retrievedFacts,
+        recalledFragments,
+        recalledEpisodes: constrainedDeliberatedEpisodes,
+        recalledConversationHistory: deliberatedConversationHistory,
+        consolidatedMemories: deliberatedConsolidatedMemories,
+        recollectedWindows: deliberatedWindows,
+        recollectionNarratives: plannedNarratives,
+        recollectionPlan: finalRecollectionPlan,
+        recollectionSpeechPlan: effectiveRecollectionSpeechPlan,
+        memoryDeliberation: resolvedMemoryDeliberation,
+        knowledgeEvidence,
+        claimEvidenceGraphs,
+        proceduralMemories: deliberatedProceduralMemories,
+        recollectionIntent,
+        hostPersonModel,
+        personStateProjection,
+        relationshipDynamics,
+        affectiveResidue,
+        recallLatencyPolicy,
+        memoryTuningAdvice,
+        selfEvolution,
+        learningExecutionState: snapshot.learningExecutionState ?? null,
+        derivedMindStateBundle,
+        memorySituationCandidates,
       },
       memoryStageReplay,
       memoryResolutionLedger: buildAlicizationMemoryResolutionLedger({

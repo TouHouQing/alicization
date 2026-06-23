@@ -14,7 +14,7 @@ describe('person-state-evolution-runtime', () => {
           inserted.push(params ?? [])
         return {}
       }),
-      all: (async <T>() => [{
+      all: async <T>() => [{
         id: 'evolution-1',
         card_id: 'default',
         decision_trace_id: 'mind:trace',
@@ -34,7 +34,7 @@ describe('person-state-evolution-runtime', () => {
           { kind: 'burden-shift', delta: 0.04, rationale: 'Burden rose, so extra pressure needs more restraint now.' },
         ]),
         created_at: 1_000,
-      }] as T[]),
+      }] as T[],
       enqueueWrite: async task => await task(),
       runInTransaction: async (_database, task) => await task(),
     })

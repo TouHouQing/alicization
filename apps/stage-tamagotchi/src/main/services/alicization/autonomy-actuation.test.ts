@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import {
-  buildAutonomousTaskDispatchInput,
   buildAutonomousObserveDispatchInput,
+  buildAutonomousTaskDispatchInput,
+  deriveAutonomousTaskPlan,
   deriveAutonomyExecutionProposalSurface,
   deriveAutonomyRevisitReminder,
-  deriveAutonomousTaskPlan,
   runAutonomyActuation,
 } from './autonomy-actuation'
 

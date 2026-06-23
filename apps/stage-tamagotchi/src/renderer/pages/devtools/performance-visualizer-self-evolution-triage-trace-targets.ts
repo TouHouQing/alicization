@@ -2,11 +2,11 @@ import type {
   PerformanceVisualizerSelfEvolutionTriageCard,
 } from './performance-visualizer-self-evolution-triage-view'
 
-export type SelfEvolutionTraceSectionId =
-  | 'trace-consumption'
-  | 'trace-details'
-  | 'trace-timeline'
-  | 'selected-trace-event'
+export type SelfEvolutionTraceSectionId
+  = | 'trace-consumption'
+    | 'trace-details'
+    | 'trace-timeline'
+    | 'selected-trace-event'
 
 export function buildSelfEvolutionTriageTraceTargets(
   triageCards: PerformanceVisualizerSelfEvolutionTriageCard[],

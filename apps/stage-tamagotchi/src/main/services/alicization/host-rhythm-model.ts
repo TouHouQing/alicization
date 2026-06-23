@@ -91,7 +91,7 @@ export function buildHostRhythmModel(input: {
     = busy && interruptionSensitivity >= 0.42
       ? 'deep-focus'
       : input.context.relationship.fatigue >= 60
-          || input.worldModel.hostState.availability === 'drifting'
+        || input.worldModel.hostState.availability === 'drifting'
         ? 'recovery'
         : openingEase >= 0.56
           ? 'steady-open'

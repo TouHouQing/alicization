@@ -83,6 +83,7 @@ export interface AlicizationMindEcologyInput {
   reflectionLedger?: AlicizationReflectionLedgerSnapshot | null
   desireMemory?: AlicizationDesireMemorySnapshot | null
   privateThought?: AlicizationPrivateThoughtSnapshot | null
+  emotionalKernel?: unknown
   actionEcology?: AlicizationActionEcologySnapshot | null
   answerPlanner?: AlicizationAnswerPlannerSnapshot | null
   conversationState?: AlicizationConversationStateSnapshot | null

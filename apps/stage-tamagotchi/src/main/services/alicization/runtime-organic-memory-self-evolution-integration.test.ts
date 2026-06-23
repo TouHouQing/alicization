@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest'
-
 import type { AlicizationSelfRevisionStatePatch } from './self-evolution/state-revision-bus'
+
+import { describe, expect, it } from 'vitest'
 
 import { buildOrganicMemoryEvolutionState } from './runtime-organic-memory-self-evolution-integration'
 

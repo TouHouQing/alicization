@@ -126,8 +126,9 @@ function scoreProjectAwarenessLine(value: string | null | undefined) {
   if (
     thinProjectAwarenessShell
     && /before answering, keep the same digital life project in view|回答前先记住这是同一个她/u.test(normalized)
-  )
+  ) {
     score -= 3
+  }
   return score
 }
 

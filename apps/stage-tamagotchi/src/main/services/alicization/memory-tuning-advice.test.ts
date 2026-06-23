@@ -1,6 +1,7 @@
+import type { AlicizationMemoryTuningAdvice } from './memory-tuning-advice'
+
 import { describe, expect, it } from 'vitest'
 
-import type { AlicizationMemoryTuningAdvice } from './memory-tuning-advice'
 import {
   applyMemoryTuningAdviceToHostPersonModel,
   applyMemoryTuningAdviceToSpeechPlan,

@@ -1,7 +1,7 @@
 import type {
   AlicizationActionEcologySnapshot,
-  AlicizationAutonomySnapshot,
   AlicizationAutobiographicalSelfSnapshot,
+  AlicizationAutonomySnapshot,
   AlicizationBeliefLedgerSnapshot,
   AlicizationCommitmentLedgerSnapshot,
   AlicizationConcernContinuityLedgerSnapshot,
@@ -28,8 +28,8 @@ import type {
   AlicizationReflectionLedgerSnapshot,
   AlicizationRelationshipModelSnapshot,
   AlicizationRepairLedgerSnapshot,
-  AlicizationSelfEvolutionKernelSnapshot,
   AlicizationSelfContinuitySnapshot,
+  AlicizationSelfEvolutionKernelSnapshot,
   AlicizationSelfGovernorSnapshot,
   AlicizationSelfStateSnapshot,
   AlicizationSubjectiveSceneAppraisal,
@@ -47,8 +47,8 @@ import type { AlicizationProactiveLayeredContext } from './proactive-layered-con
 
 import { pickDominantAutobiographicalGoal } from './autobiographical-self'
 import { createAlicizationContinuityMind } from './continuity-mind'
-import { inferScenarioFromContext } from './proactive-layered-context'
 import { deriveAlicizationAutobiographicalPersonaSummary } from './personality-continuity-state'
+import { inferScenarioFromContext } from './proactive-layered-context'
 
 function clamp01(value: number) {
   if (!Number.isFinite(value))
@@ -305,9 +305,9 @@ function applyContinuityMindOverlay(input: {
           ? 'accompanying'
           : input.mindKernel?.dominantMode === 'repairing'
             ? 'recovering'
-              : input.snapshot.stance === 'observe' || input.snapshot.stance === 'uncertain'
-                ? 'noticing'
-                : 'idle',
+            : input.snapshot.stance === 'observe' || input.snapshot.stance === 'uncertain'
+              ? 'noticing'
+              : 'idle',
     latestThreadSummary: input.worldModel?.activeThread?.summary ?? null,
     relationshipPressure: Math.max(0, Math.min(1, Number(
       (
@@ -904,46 +904,46 @@ function buildThoughtFromMind(input: {
     selfGovernor: input.selfGovernor,
     latestUserTurnAt: input.latestUserTurnAt ?? null,
     snapshot: {
-    stance,
-    confidence: clamp01(
-      input.initiative.confidence * 0.68
-      + (input.mindDynamics?.speakReadiness ?? 0) * 0.1
-      + (input.selfState?.desireToSpeak ?? 0) * 0.14
-      + (input.appraisal?.confidence ?? 0.4) * 0.18
-      + (resurfacingDesire?.strength ?? 0) * 0.1
-      + (project?.confidence ?? 0.38) * 0.1
-      + Math.max(0, reflection?.confidenceShift ?? 0) * 0.08
-      + (input.selfContinuity?.perceptionTrust ?? 0.5) * 0.06,
-    ),
-    rationaleTags,
-    thoughtText: sanitizeText(thoughtText, 220),
-    shouldSpeak,
-    suggestedStyle,
-    embodiedPresence,
-    expiresAt: input.now + (input.afterglowActive ? 120_000 : 90_000),
-    afterglowFromScenario: input.afterglowActive && (input.recentTransition?.fromScenario === 'coding' || input.recentTransition?.fromScenario === 'media')
-      ? input.recentTransition.fromScenario
-      : null,
-    emotionalTension: input.emotionalTension,
-    selectedConcernId: concern?.id ?? null,
-    focusBeliefId: focusBelief?.id ?? null,
-    focusInquiryId: primaryInquiry?.id ?? null,
-    commitmentId: governingCommitment?.id ?? null,
-    inquiryPlanId: activeInquiryPlan?.id ?? null,
-    hypothesisId: activeHypothesis?.id ?? null,
-    deliberationThreadId: deliberationThread?.id ?? null,
-    runtimeThreadId: runtimeThread?.id ?? null,
-    mindNeed: input.deliberationState?.dominantNeed ?? null,
-    relationshipVector: input.relationshipModel?.approachVector ?? null,
-    initiativeAction: input.initiative.selectedAction,
-    counterfactualOptionId: counterfactualOption?.id ?? null,
-    leadingGoalId: leadingGoal?.id ?? null,
-    desireId: resurfacingDesire?.id ?? null,
-    governorDrive: input.selfGovernor?.dominantDrive ?? null,
-    governorIntentionId: governorIntention?.id ?? null,
-    selectedThoughtThreadId: thoughtThread?.id ?? null,
-    livingWorldObjectId: livingObject?.id ?? null,
-  } satisfies AlicizationPrivateThoughtSnapshot,
+      stance,
+      confidence: clamp01(
+        input.initiative.confidence * 0.68
+        + (input.mindDynamics?.speakReadiness ?? 0) * 0.1
+        + (input.selfState?.desireToSpeak ?? 0) * 0.14
+        + (input.appraisal?.confidence ?? 0.4) * 0.18
+        + (resurfacingDesire?.strength ?? 0) * 0.1
+        + (project?.confidence ?? 0.38) * 0.1
+        + Math.max(0, reflection?.confidenceShift ?? 0) * 0.08
+        + (input.selfContinuity?.perceptionTrust ?? 0.5) * 0.06,
+      ),
+      rationaleTags,
+      thoughtText: sanitizeText(thoughtText, 220),
+      shouldSpeak,
+      suggestedStyle,
+      embodiedPresence,
+      expiresAt: input.now + (input.afterglowActive ? 120_000 : 90_000),
+      afterglowFromScenario: input.afterglowActive && (input.recentTransition?.fromScenario === 'coding' || input.recentTransition?.fromScenario === 'media')
+        ? input.recentTransition.fromScenario
+        : null,
+      emotionalTension: input.emotionalTension,
+      selectedConcernId: concern?.id ?? null,
+      focusBeliefId: focusBelief?.id ?? null,
+      focusInquiryId: primaryInquiry?.id ?? null,
+      commitmentId: governingCommitment?.id ?? null,
+      inquiryPlanId: activeInquiryPlan?.id ?? null,
+      hypothesisId: activeHypothesis?.id ?? null,
+      deliberationThreadId: deliberationThread?.id ?? null,
+      runtimeThreadId: runtimeThread?.id ?? null,
+      mindNeed: input.deliberationState?.dominantNeed ?? null,
+      relationshipVector: input.relationshipModel?.approachVector ?? null,
+      initiativeAction: input.initiative.selectedAction,
+      counterfactualOptionId: counterfactualOption?.id ?? null,
+      leadingGoalId: leadingGoal?.id ?? null,
+      desireId: resurfacingDesire?.id ?? null,
+      governorDrive: input.selfGovernor?.dominantDrive ?? null,
+      governorIntentionId: governorIntention?.id ?? null,
+      selectedThoughtThreadId: thoughtThread?.id ?? null,
+      livingWorldObjectId: livingObject?.id ?? null,
+    } satisfies AlicizationPrivateThoughtSnapshot,
   })
 }
 
@@ -1036,6 +1036,8 @@ export function buildPrivateThoughtLoop(input: {
   desireMemory?: AlicizationDesireMemorySnapshot | null
   mindEcology?: AlicizationMindEcologySnapshot | null
   durabilityPulse?: AlicizationDurabilityPulseSnapshot | null
+  emotionalKernel?: unknown
+  projectState?: unknown
   previousPrivateThought?: AlicizationPrivateThoughtSnapshot | null
 }): AlicizationPrivateThoughtSnapshot {
   const scenario = inferScenarioFromContext({

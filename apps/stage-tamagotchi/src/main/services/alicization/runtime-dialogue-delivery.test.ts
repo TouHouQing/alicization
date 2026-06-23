@@ -1,6 +1,6 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
-
 import type { AlicizationDialogueRespondedPayload } from '../../../shared/eventa'
+
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { createAlicizationRuntimeDialogueDelivery } from './runtime-dialogue-delivery'
 

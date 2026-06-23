@@ -1,13 +1,18 @@
 interface SelfEvolutionAdoptedAnchorTraceabilityLike {
   patternKey: string
+  patternSummary?: string | null
   workflowHeadline: string | null
+  workflowContextLine?: string | null
   supportingLines?: string[]
 }
 
 interface SelfEvolutionAdoptedAnchorHistoryTransitionLike {
   transitionKey: string
+  currentCapturedAt?: number | null
+  previousCapturedAt?: number | null
   selectedSide: 'current' | 'previous'
   summaryLine: string
+  supportingLines?: string[]
 }
 
 interface SelfEvolutionAdoptedAnchorTraceEventSelectionLike {

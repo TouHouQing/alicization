@@ -21,10 +21,10 @@ import { errorMessageFrom } from '@moeru/std'
 import { analyzeAlicizationExecutionSemanticSignals } from '@proj-alicization/stage-shared'
 
 import { locateAlicizationExecutionBinary } from './execution-command-env'
+import { readExecutionOutcome, readLatestExecutionEvent, readTaskThreadActivityAt, sanitizeExecutionLedgerText } from './execution-ledger-shared'
 import { expandOpenClawBackedCapabilities } from './executor-adapters/embodied-channel'
 import { probeOpenClawCapability, readOpenClawCapabilitySnapshot } from './executor-adapters/openclaw'
 import { buildHostPersonModelSnapshot } from './humanlike-memory'
-import { readExecutionOutcome, readLatestExecutionEvent, readTaskThreadActivityAt, sanitizeExecutionLedgerText } from './execution-ledger-shared'
 import { createTaskExecutionGovernor } from './task-execution-governor'
 
 type CapabilityManifestSnapshotSource = 'runtime-default-probe' | 'runtime-plan-payload'
@@ -58,6 +58,7 @@ interface AlicizationExecutorRuntimeOptions {
   getCardKillSwitchState: (cardId: string) => 'ACTIVE' | 'SUSPENDED'
   getGlobalKillSwitchState: () => 'ACTIVE' | 'SUSPENDED'
   normalizeSessionId: (raw: unknown) => string
+  resolveLocalCapabilityChannels?: () => Promise<AlicizationChannelCapability[]>
   assessTaskRouting?: (input: {
     task: AlicizationTaskThreadPlanningInput['task']
     capabilities: AlicizationTaskThreadPlanningInput['capabilities']
@@ -509,6 +510,7 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
   }
 
   async function resolveDefaultPlanningCapabilities() {
+    const localCapabilities = await options.resolveLocalCapabilityChannels?.().catch(() => []) ?? []
     const [codexReady, claudeReady, openClawCapability] = await Promise.all([
       probeBinaryReady('codex'),
       probeBinaryReady('claude'),
@@ -541,6 +543,7 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
         reason: claudeReady ? null : 'claude-cli-binary-missing',
       },
       ...expandOpenClawBackedCapabilities(openClawCapability),
+      ...localCapabilities.map(normalizePlanningCapability),
       {
         channel: 'openfang',
         available: false,
@@ -553,6 +556,7 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
   }
 
   async function resolveDefaultPromptCapabilities() {
+    const localCapabilities = await options.resolveLocalCapabilityChannels?.().catch(() => []) ?? []
     const [codexReady, claudeReady] = await Promise.all([
       probeBinaryReady('codex'),
       probeBinaryReady('claude'),
@@ -584,6 +588,7 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
         reason: claudeReady ? null : 'claude-cli-binary-missing',
       },
       ...expandOpenClawBackedCapabilities(readOpenClawCapabilitySnapshot()),
+      ...localCapabilities.map(normalizePlanningCapability),
       {
         channel: 'openfang',
         available: false,
