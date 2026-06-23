@@ -112,6 +112,7 @@ describe('performance visualizer speech observability rows', () => {
       },
     })
 
+    expect(view.authorityBinding?.voiceSegmentMatched).toBe(true)
     expect(buildSpeechObservabilityRows(view)).toEqual([
       {
         section: 'articulation',
@@ -128,14 +129,19 @@ describe('performance visualizer speech observability rows', () => {
       {
         section: 'authority',
         label: 'segment-zh-1',
-        value: '目标 VRM，驱动 口型，来源 prosody-authority，命中 表情未命中 / 动作未命中 / 口型命中',
-        technicalValue: 'target=vrm | drivers=lipsync | sources=prosody-authority | matches=face:no motion:no lipsync:yes',
+        value: '目标 VRM，驱动 口型、声音，来源 prosody-authority，命中 表情未命中 / 动作未命中 / 口型命中 / 声音命中，当前仅剩口型、声音维持同一段连续性',
+        technicalValue: 'target=vrm | drivers=lipsync, voice | sources=prosody-authority | matches=face:no motion:no lipsync:yes voice:yes | lane=lipsync+voice-only',
       },
       {
         section: 'authority',
         label: 'authority-match',
-        value: '表情未命中 / 动作未命中 / 口型命中',
-        technicalValue: 'face:no motion:no lipsync:yes',
+        value: '表情未命中 / 动作未命中 / 口型命中 / 声音命中',
+        technicalValue: 'face:no motion:no lipsync:yes voice:yes',
+      },
+      {
+        section: 'authority',
+        label: 'authority-trust',
+        value: 'VRM 这段 authority 现在主要由口型和声音继续托住，同一段 living segment 还在，只是表情和动作暂时没有一起跟上。',
       },
       {
         section: 'authority',
@@ -197,8 +203,12 @@ describe('performance visualizer speech observability rows', () => {
           reason: 'preferred',
           status: 'drifted',
           driftKind: 'alias-resolution-drift',
-          driverCue: 'focused',
-          driverSource: 'prosody-authority',
+          faceDriverCue: 'focused',
+          faceDriverSource: 'prosody-authority',
+          faceDriverSegmentId: 'segment-rows-live2d-1',
+          motionDriverCue: 'observe_focus',
+          motionDriverSource: 'cue-bridge',
+          motionDriverSegmentId: 'segment-rows-live2d-1',
         },
         vrm: null,
       },
@@ -226,6 +236,193 @@ describe('performance visualizer speech observability rows', () => {
     ])
   })
 
+  it('rehydrates explicit voice telemetry into prosody authority rows before playback telemetry rethreads top-level authority', () => {
+    const view = buildSpeechObservabilityView({
+      phase: 'playing',
+      playbackPhase: 'playing',
+      speechEnergy: 0.18,
+      prosodyIntensity: 0.14,
+      emphasisLevel: 0.12,
+      cadencePulse: 0.2,
+      visemeIntensity: 0.06,
+      articulation: null,
+      runtimeDynamics: null,
+      recentDrivingEvent: null,
+      recentDrivingTraceRecord: null,
+      recentDrivingTraceEvents: [],
+      recentDrivingTraceDetails: [],
+      rendererAlignment: {
+        live2d: null,
+        vrm: null,
+      },
+      articulationSummary: null,
+      authoritySummary: null,
+      cueMicroSummary: null,
+      driverSummary: null,
+      driverExecutionSummary: null,
+      live2dExecution: null,
+      visemeHintsSummary: null,
+      playbackTelemetry: {
+        actualDurationMs: 240,
+        plannedDurationMs: 240,
+        driftMs: 0,
+        settleMs: 280,
+        stopReason: null,
+        rendererTarget: 'vrm',
+        prosodyAuthority: null,
+        driverAuthority: {
+          segmentId: 'segment-observability-explicit-voice-only',
+          rendererTarget: 'vrm',
+          matchedDrivers: ['voice'],
+          sources: ['prosody-authority'],
+          bodySegmentMatched: false,
+          faceSegmentMatched: false,
+          motionSegmentMatched: false,
+          lipsyncSegmentMatched: false,
+          voiceSegmentMatched: true,
+        },
+        cue: {
+          id: 'segment-observability-explicit-voice-only',
+          text: '继续看这里。',
+          prosodyWeight: 0.41,
+          mouthWeight: 0.33,
+          headWeight: 0.26,
+          personaStyleSummary: null,
+          facialHoldMs: 240,
+          actionHoldMs: 240,
+          emotionHoldMs: 240,
+          facialCue: null,
+          actionCue: null,
+          actionWindow: 'none',
+          interruptMode: 'continue',
+          settleMode: 'hold',
+          rendererHints: null,
+          rendererSettle: null,
+        },
+        drivers: {
+          body: null,
+          face: null,
+          lipsync: null,
+          motion: null,
+          voice: {
+            playbackPhase: 'playing',
+            continuityHoldMs: 240,
+            segmentId: 'segment-observability-explicit-voice-only',
+            source: 'prosody-authority',
+            provenance: 'authority-bound',
+            mode: 'energy-phoneme-hybrid',
+            cueProsodyWeight: 0.41,
+            cueMouthWeight: 0.33,
+            cueHeadWeight: 0.26,
+            visemePeakWeight: 0.58,
+          },
+        },
+      },
+    } as any)
+
+    expect(buildSpeechObservabilityRows(view)).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        section: 'articulation',
+        label: 'prosody-authority',
+        technicalValue: 'mode=energy-phoneme-hybrid | prosody=0.41 | mouth=0.33 | head=0.26 | visemePeak=0.58 | provenance=authority-bound | source=prosody-authority | segment=segment-observability-explicit-voice-only',
+      }),
+      expect.objectContaining({
+        section: 'authority',
+        label: 'segment-observability-explicit-voice-only',
+        technicalValue: 'target=vrm | drivers=voice | sources=prosody-authority | matches=body:no face:no motion:no lipsync:no voice:yes | lane=voice-only',
+      }),
+    ]))
+  })
+
+  it('does not reuse stale upstream authority segment labels when explicit voice telemetry is the only active segment truth', () => {
+    const view = buildSpeechObservabilityView({
+      phase: 'playing',
+      playbackPhase: 'playing',
+      speechEnergy: 0.18,
+      prosodyIntensity: 0.14,
+      emphasisLevel: 0.12,
+      cadencePulse: 0.2,
+      visemeIntensity: 0.06,
+      articulation: null,
+      runtimeDynamics: null,
+      recentDrivingEvent: null,
+      recentDrivingTraceRecord: null,
+      recentDrivingTraceEvents: [],
+      recentDrivingTraceDetails: [],
+      rendererAlignment: {
+        live2d: null,
+        vrm: null,
+      },
+      articulationSummary: null,
+      authoritySummary: {
+        cueId: null,
+        segmentId: 'segment-observability-stale-upstream',
+        rendererTarget: 'vrm',
+        matchedDrivers: ['face', 'motion', 'lipsync'],
+        matchedSources: ['timeline-projection'],
+        bindingSummary: 'stale upstream authority binding',
+        matchSummary: 'face:yes motion:yes lipsync:yes',
+        authorityTrustSummary: '上游 authority trust：这其实还是旧的显形段。',
+        authorityMismatchSummary: null,
+        authorityMismatchReasonSummary: null,
+        authorityMismatchDisplay: null,
+        settleSummary: 'authority-bound | segment=segment-observability-stale-upstream | target=vrm | drivers=face, motion, lipsync | sources=timeline-projection',
+      },
+      cueMicroSummary: null,
+      driverSummary: null,
+      driverExecutionSummary: null,
+      live2dExecution: null,
+      visemeHintsSummary: null,
+      playbackTelemetry: {
+        actualDurationMs: 240,
+        plannedDurationMs: 240,
+        driftMs: 0,
+        settleMs: 280,
+        stopReason: null,
+        rendererTarget: 'vrm',
+        prosodyAuthority: null,
+        driverAuthority: {
+          segmentId: null,
+          rendererTarget: 'vrm',
+          matchedDrivers: ['voice'],
+          sources: ['prosody-authority'],
+          bodySegmentMatched: false,
+          faceSegmentMatched: false,
+          motionSegmentMatched: false,
+          lipsyncSegmentMatched: false,
+          voiceSegmentMatched: true,
+        },
+        cue: null,
+        drivers: {
+          body: null,
+          face: null,
+          lipsync: null,
+          motion: null,
+          voice: {
+            playbackPhase: 'playing',
+            continuityHoldMs: 240,
+            segmentId: 'segment-observability-current-voice-segment',
+            source: 'prosody-authority',
+            provenance: 'authority-bound',
+            mode: 'energy-phoneme-hybrid',
+            cueProsodyWeight: 0.41,
+            cueMouthWeight: 0.33,
+            cueHeadWeight: 0.26,
+            visemePeakWeight: 0.58,
+          },
+        },
+      },
+    } as any)
+
+    expect(buildSpeechObservabilityRows(view)).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        section: 'authority',
+        label: 'segment-observability-current-voice-segment',
+        technicalValue: 'target=vrm | drivers=voice | sources=prosody-authority | matches=body:no face:no motion:no lipsync:no voice:yes | lane=voice-only',
+      }),
+    ]))
+  })
+
   it('surfaces authority trust when runtime prosody authority rebinds to the current segment', () => {
     const view = buildSpeechObservabilityView({
       phase: 'playing',
@@ -250,7 +447,7 @@ describe('performance visualizer speech observability rows', () => {
         cueId: 'segment-zh-1',
         segmentId: 'segment-zh-1',
         rendererTarget: 'vrm',
-        bindingSummary: 'target=vrm | drivers=lipsync | sources=prosody-authority | matches=face:no motion:no lipsync:yes',
+        bindingSummary: 'target=vrm | drivers=lipsync | sources=prosody-authority | matches=face:no motion:no lipsync:yes | lane=lipsync-only',
         matchSummary: 'face:no motion:no lipsync:yes',
         settleSummary: null,
       },
@@ -304,24 +501,126 @@ describe('performance visualizer speech observability rows', () => {
       {
         section: 'authority',
         label: 'segment-zh-1',
-        value: '目标 VRM，驱动 口型，来源 prosody-authority，命中 表情未命中 / 动作未命中 / 口型命中',
-        technicalValue: 'target=vrm | drivers=lipsync | sources=prosody-authority | matches=face:no motion:no lipsync:yes',
+        value: '目标 VRM，驱动 口型，来源 prosody-authority，命中 表情未命中 / 动作未命中 / 口型命中，当前仅剩口型维持同一段连续性',
+        technicalValue: 'target=vrm | drivers=lipsync | sources=prosody-authority | matches=face:no motion:no lipsync:yes | lane=lipsync-only',
       },
       {
         section: 'authority',
         label: 'authority-match',
-        value: '表情未命中 / 动作未命中 / 口型命中',
-        technicalValue: 'face:no motion:no lipsync:yes',
+        value: '表情未命中 / 动作未命中 / 口型命中 / 声音命中',
+        technicalValue: 'face:no motion:no lipsync:yes voice:yes',
       },
       {
         section: 'authority',
         label: 'authority-trust',
-        value: '韵律权威链已重新绑定到当前片段，可直接进入长期基线。',
+        value: 'VRM 这段 authority 现在主要由口型和声音继续托住，同一段 living segment 还在，只是表情和动作暂时没有一起跟上。',
       },
       {
         section: 'authority',
         label: 'authority-mismatch',
         value: '表情、动作 authority 漂移，当前绑定来源是 prosody-authority，实际执行落点是无执行。',
+      },
+    ])
+  })
+
+  it('keeps a thin measured-return same-her line visible in speech observability rows instead of collapsing it into lane-only drift', () => {
+    const view = buildSpeechObservabilityView({
+      phase: 'playing',
+      playbackPhase: 'playing',
+      speechEnergy: 0.44,
+      prosodyIntensity: 0.52,
+      emphasisLevel: 0.38,
+      cadencePulse: 0.22,
+      visemeIntensity: 0.4,
+      articulation: null,
+      runtimeDynamics: null,
+      recentDrivingEvent: null,
+      recentDrivingTraceRecord: null,
+      recentDrivingTraceEvents: [],
+      recentDrivingTraceDetails: [],
+      rendererAlignment: {
+        live2d: null,
+        vrm: null,
+      },
+      articulationSummary: null,
+      authoritySummary: {
+        cueId: 'segment-thin-measured-return-1',
+        segmentId: 'segment-thin-measured-return-1',
+        rendererTarget: 'vrm',
+        bindingSummary: 'target=vrm | drivers=lipsync | sources=prosody-authority | matches=face:no motion:no lipsync:yes | lane=lipsync-only',
+        matchSummary: 'face:no motion:no lipsync:yes',
+        authorityMismatchSummary: 'face-mismatch, motion-mismatch',
+        authorityMismatchReasonSummary: 'Only runtime digest plus spine still expose the noisy-detour continuity line, so higher-level continuity should keep this thinner measured-return same-her line visible instead of collapsing it into lipsync-only drift.',
+        settleSummary: null,
+      },
+      cueMicroSummary: null,
+      driverSummary: null,
+      driverExecutionSummary: null,
+      live2dExecution: null,
+      visemeHintsSummary: null,
+      playbackTelemetry: {
+        actualDurationMs: 220,
+        plannedDurationMs: 220,
+        driftMs: 0,
+        settleMs: 220,
+        stopReason: null,
+        rendererTarget: 'vrm',
+        prosodyAuthority: {
+          mode: 'energy-phoneme-hybrid',
+          cueProsodyWeight: 0.35,
+          cueMouthWeight: 0.35,
+          cueHeadWeight: 0.32,
+          visemePeakWeight: 0.75,
+          provenance: 'authority-bound',
+          source: 'prosody-authority',
+          segmentId: 'segment-thin-measured-return-1',
+        },
+        driverAuthority: {
+          segmentId: 'segment-thin-measured-return-1',
+          rendererTarget: 'vrm',
+          matchedDrivers: ['lipsync'],
+          sources: ['prosody-authority'],
+          faceSegmentMatched: false,
+          motionSegmentMatched: false,
+          lipsyncSegmentMatched: true,
+        },
+        cue: null,
+        drivers: {
+          face: null,
+          motion: null,
+          lipsync: null,
+        },
+      },
+    } as any)
+
+    expect(buildSpeechObservabilityRows(view)).toEqual([
+      {
+        section: 'articulation',
+        label: 'prosody-authority',
+        value: '模式 energy-phoneme-hybrid，韵律 0.35，口部 0.35，头部 0.32，峰值口型 0.75，权威绑定，来源 韵律权威，片段 segment-thin-measured-return-1',
+        technicalValue: 'mode=energy-phoneme-hybrid | prosody=0.35 | mouth=0.35 | head=0.32 | visemePeak=0.75 | provenance=authority-bound | source=prosody-authority | segment=segment-thin-measured-return-1',
+      },
+      {
+        section: 'authority',
+        label: 'segment-thin-measured-return-1',
+        value: '目标 VRM，驱动 口型，来源 prosody-authority，命中 表情未命中 / 动作未命中 / 口型命中，噪声 detour 后，这条 measured-return 连续身体线仍由较薄证据维持',
+        technicalValue: 'target=vrm | drivers=lipsync | sources=prosody-authority | matches=face:no motion:no lipsync:yes | lane=lipsync-only',
+      },
+      {
+        section: 'authority',
+        label: 'authority-match',
+        value: '表情未命中 / 动作未命中 / 口型命中 / 声音命中',
+        technicalValue: 'face:no motion:no lipsync:yes voice:yes',
+      },
+      {
+        section: 'authority',
+        label: 'authority-trust',
+        value: 'VRM 这段 authority 现在主要由口型和声音继续托住，同一段 living segment 还在，只是表情和动作暂时没有一起跟上。',
+      },
+      {
+        section: 'authority',
+        label: 'authority-mismatch',
+        value: 'Only runtime digest plus spine still expose the noisy-detour continuity line, so higher-level continuity should keep this thinner measured-return same-her line visible instead of collapsing it into lipsync-only drift.',
       },
     ])
   })
@@ -363,7 +662,7 @@ describe('performance visualizer speech observability rows', () => {
         cueId: 'segment-upstream-trust',
         segmentId: 'segment-upstream-trust',
         rendererTarget: 'vrm',
-        bindingSummary: 'target=vrm | drivers=lipsync | sources=prosody-authority | matches=face:no motion:no lipsync:yes',
+        bindingSummary: 'target=vrm | drivers=lipsync | sources=prosody-authority | matches=face:no motion:no lipsync:yes | lane=lipsync-only',
         matchSummary: 'face:no motion:no lipsync:yes',
         settleSummary: null,
         authorityTrustSummary: '上游 authority trust：已经回到当前片段主链。',
@@ -408,8 +707,8 @@ describe('performance visualizer speech observability rows', () => {
       {
         section: 'authority',
         label: 'segment-upstream-trust',
-        value: '目标 VRM，驱动 口型，来源 prosody-authority，命中 表情未命中 / 动作未命中 / 口型命中',
-        technicalValue: 'target=vrm | drivers=lipsync | sources=prosody-authority | matches=face:no motion:no lipsync:yes',
+        value: '目标 VRM，驱动 口型，来源 prosody-authority，命中 表情未命中 / 动作未命中 / 口型命中，当前仅剩口型维持同一段连续性',
+        technicalValue: 'target=vrm | drivers=lipsync | sources=prosody-authority | matches=face:no motion:no lipsync:yes | lane=lipsync-only',
       },
       {
         section: 'authority',
@@ -544,8 +843,8 @@ describe('performance visualizer speech observability rows', () => {
       {
         section: 'authority',
         label: 'segment-driver-only',
-        value: '目标 VRM，驱动 动作，来源 timeline-projection，命中 表情未命中 / 动作命中 / 口型未命中',
-        technicalValue: 'target=vrm | drivers=motion | sources=timeline-projection | matches=face:no motion:yes lipsync:no',
+        value: '目标 VRM，驱动 动作，来源 timeline-projection，命中 表情未命中 / 动作命中 / 口型未命中，当前仅剩动作维持同一段连续性',
+        technicalValue: 'target=vrm | drivers=motion | sources=timeline-projection | matches=face:no motion:yes lipsync:no | lane=motion-only',
       },
       {
         section: 'authority',
@@ -639,12 +938,18 @@ describe('performance visualizer speech observability rows', () => {
       {
         section: 'authority',
         label: 'segment-evidence-only',
-        value: '上游 authority 绑定',
+        value: '上游 authority 绑定 | 表情未命中 / 动作未命中 / 口型命中',
+        technicalValue: undefined,
       },
       {
         section: 'authority',
         label: 'authority-match',
-        value: '上游 authority 命中',
+        value: '上游 authority 命中 | 表情未命中 / 动作未命中 / 口型命中',
+      },
+      {
+        section: 'authority',
+        label: 'authority-trust',
+        value: 'VRM 这段 authority 当前能确认的是口型还在继续托住这一段，同一段 living segment 还在，声音这一侧还没有拿到同段证据，表情和动作也暂时没有一起跟上。',
       },
       {
         section: 'authority',
@@ -672,6 +977,98 @@ describe('performance visualizer speech observability rows', () => {
         value: '上游 evidence execution',
       },
     ])
+  })
+
+  it('keeps voice continuity visible inside descriptive upstream authority rows when the same segment still survives through lipsync and voice together', () => {
+    const view = buildSpeechObservabilityView({
+      phase: 'playing',
+      playbackPhase: 'playing',
+      speechEnergy: 0.44,
+      prosodyIntensity: 0.52,
+      emphasisLevel: 0.38,
+      cadencePulse: 0.22,
+      visemeIntensity: 0.4,
+      articulation: null,
+      runtimeDynamics: null,
+      recentDrivingEvent: null,
+      recentDrivingTraceRecord: null,
+      recentDrivingTraceEvents: [],
+      recentDrivingTraceDetails: [],
+      rendererAlignment: {
+        live2d: null,
+        vrm: null,
+      },
+      articulationSummary: null,
+      speechEvidence: {
+        voiceSummary: 'zh-CN | closure=0.84 | precision=0.90 | provenance=authority-bound | segment=segment-descriptive-rows-voice-1 | source=prosody-authority',
+        authorityMatchSummary: null,
+        topVisemeSummary: null,
+        cueSummary: null,
+        cueIdentityPresent: false,
+        cueProsodyPresent: false,
+        personaStyleSummary: null,
+        timingSummary: null,
+        driverExecutionSummary: 'lipsync=energy-phoneme-hybrid phase=playing',
+        visemeHintsSummary: null,
+      },
+      authoritySummary: {
+        cueId: 'segment-descriptive-rows-voice-1',
+        segmentId: 'segment-descriptive-rows-voice-1',
+        rendererTarget: 'vrm',
+        matchedDrivers: ['lipsync'],
+        matchedSources: ['prosody-authority'],
+        bindingSummary: '上游 authority 绑定',
+        matchSummary: '上游 authority 命中',
+        settleSummary: '上游 authority settle',
+      },
+      cueMicroSummary: null,
+      driverSummary: null,
+      driverExecutionSummary: 'lipsync=energy-phoneme-hybrid phase=playing',
+      live2dExecution: null,
+      visemeHintsSummary: null,
+      playbackTelemetry: {
+        actualDurationMs: 220,
+        plannedDurationMs: 220,
+        driftMs: 0,
+        settleMs: 220,
+        stopReason: null,
+        rendererTarget: 'vrm',
+        driverAuthority: {
+          segmentId: 'segment-descriptive-rows-voice-1',
+          rendererTarget: 'vrm',
+          matchedDrivers: ['lipsync'],
+          sources: ['prosody-authority'],
+          faceSegmentMatched: false,
+          motionSegmentMatched: false,
+          lipsyncSegmentMatched: true,
+        },
+        cue: null,
+        drivers: {
+          face: null,
+          motion: null,
+          lipsync: {
+            mode: 'energy-phoneme-hybrid',
+            playbackPhase: 'playing',
+            segmentId: 'segment-descriptive-rows-voice-1',
+            visemeHints: [],
+          },
+        },
+      },
+    } as any)
+
+    expect(buildSpeechObservabilityRows(view)).toEqual(expect.arrayContaining([
+      {
+        section: 'authority',
+        label: 'segment-descriptive-rows-voice-1',
+        value: '上游 authority 绑定 | 表情未命中 / 动作未命中 / 口型命中 / 声音命中',
+        technicalValue: undefined,
+      },
+      {
+        section: 'authority',
+        label: 'authority-match',
+        value: '上游 authority 命中 | 表情未命中 / 动作未命中 / 口型命中 / 声音命中',
+      },
+    ]))
   })
 
   it('uses authority binding segment id for viseme summary rows when only summary text survives', () => {
@@ -746,8 +1143,8 @@ describe('performance visualizer speech observability rows', () => {
       {
         section: 'authority',
         label: 'segment-viseme-evidence-only',
-        value: '目标 VRM，驱动 口型，来源 prosody-authority，命中 表情未命中 / 动作未命中 / 口型命中',
-        technicalValue: 'target=vrm | drivers=lipsync | sources=prosody-authority | matches=face:no motion:no lipsync:yes',
+        value: '目标 VRM，驱动 口型，来源 prosody-authority，命中 表情未命中 / 动作未命中 / 口型命中，当前仅剩口型维持同一段连续性',
+        technicalValue: 'target=vrm | drivers=lipsync | sources=prosody-authority | matches=face:no motion:no lipsync:yes | lane=lipsync-only',
       },
       {
         section: 'authority',
@@ -757,8 +1154,19 @@ describe('performance visualizer speech observability rows', () => {
       },
       {
         section: 'authority',
+        label: 'authority-trust',
+        value: 'VRM 这段 authority 当前能确认的是口型还在继续托住这一段，同一段 living segment 还在，声音这一侧还没有拿到同段证据，表情和动作也暂时没有一起跟上。',
+      },
+      {
+        section: 'authority',
         label: 'authority-mismatch',
         value: '表情、动作 authority 漂移，当前绑定来源是 prosody-authority，实际执行落点是口型。',
+      },
+      {
+        section: 'cue',
+        label: 'driver-execution',
+        value: '口型 energy-phoneme-hybrid，阶段 播放中',
+        technicalValue: 'lipsync=energy-phoneme-hybrid phase=playing',
       },
       {
         section: 'viseme',
@@ -1033,12 +1441,18 @@ describe('performance visualizer speech observability rows', () => {
       {
         section: 'authority',
         label: 'segment-summary-rows',
-        value: '上游 authority 绑定',
+        value: '上游 authority 绑定 | 表情未命中 / 动作未命中 / 口型命中',
+        technicalValue: undefined,
       },
       {
         section: 'authority',
         label: 'authority-match',
-        value: '上游 authority 命中',
+        value: '上游 authority 命中 | 表情未命中 / 动作未命中 / 口型命中',
+      },
+      {
+        section: 'authority',
+        label: 'authority-trust',
+        value: 'VRM 这段 authority 当前能确认的是口型还在继续托住这一段，同一段 living segment 还在，声音这一侧还没有拿到同段证据，表情和动作也暂时没有一起跟上。',
       },
       {
         section: 'authority',
@@ -1179,14 +1593,19 @@ describe('performance visualizer speech observability rows', () => {
       {
         section: 'authority',
         label: 'segment-display-first',
-        value: '目标 VRM，驱动 口型，来源 prosody-authority，命中 表情未命中 / 动作未命中 / 口型命中',
-        technicalValue: 'target=vrm | drivers=lipsync | sources=prosody-authority | matches=face:no motion:no lipsync:yes',
+        value: '目标 VRM，驱动 口型，来源 prosody-authority，命中 表情未命中 / 动作未命中 / 口型命中，当前仅剩口型维持同一段连续性',
+        technicalValue: 'target=vrm | drivers=lipsync | sources=prosody-authority | matches=face:no motion:no lipsync:yes | lane=lipsync-only',
       },
       {
         section: 'authority',
         label: 'authority-match',
         value: '表情未命中 / 动作未命中 / 口型命中',
         technicalValue: 'face:no motion:no lipsync:yes',
+      },
+      {
+        section: 'authority',
+        label: 'authority-trust',
+        value: 'VRM 这段 authority 当前能确认的是口型还在继续托住这一段，同一段 living segment 还在，声音这一侧还没有拿到同段证据，表情和动作也暂时没有一起跟上。',
       },
       {
         section: 'authority',
@@ -1321,14 +1740,19 @@ describe('performance visualizer speech observability rows', () => {
       {
         section: 'authority',
         label: 'segment-authority-summary',
-        value: '目标 VRM，驱动 口型，来源 prosody-authority，命中 表情未命中 / 动作未命中 / 口型命中',
-        technicalValue: 'target=vrm | drivers=lipsync | sources=prosody-authority | matches=face:no motion:no lipsync:yes',
+        value: '目标 VRM，驱动 口型，来源 prosody-authority，命中 表情未命中 / 动作未命中 / 口型命中，当前仅剩口型维持同一段连续性',
+        technicalValue: 'target=vrm | drivers=lipsync | sources=prosody-authority | matches=face:no motion:no lipsync:yes | lane=lipsync-only',
       },
       {
         section: 'authority',
         label: 'authority-match',
         value: '表情未命中 / 动作未命中 / 口型命中',
         technicalValue: 'face:no motion:no lipsync:yes',
+      },
+      {
+        section: 'authority',
+        label: 'authority-trust',
+        value: 'VRM 这段 authority 当前能确认的是口型还在继续托住这一段，同一段 living segment 还在，声音这一侧还没有拿到同段证据，表情和动作也暂时没有一起跟上。',
       },
       {
         section: 'authority',
@@ -1441,14 +1865,19 @@ describe('performance visualizer speech observability rows', () => {
       {
         section: 'authority',
         label: 'segment-cue-fallback',
-        value: '目标 VRM，驱动 口型，来源 prosody-authority，命中 表情未命中 / 动作未命中 / 口型命中',
-        technicalValue: 'target=vrm | drivers=lipsync | sources=prosody-authority | matches=face:no motion:no lipsync:yes',
+        value: '目标 VRM，驱动 口型，来源 prosody-authority，命中 表情未命中 / 动作未命中 / 口型命中，当前仅剩口型维持同一段连续性',
+        technicalValue: 'target=vrm | drivers=lipsync | sources=prosody-authority | matches=face:no motion:no lipsync:yes | lane=lipsync-only',
       },
       {
         section: 'authority',
         label: 'authority-match',
         value: '表情未命中 / 动作未命中 / 口型命中',
         technicalValue: 'face:no motion:no lipsync:yes',
+      },
+      {
+        section: 'authority',
+        label: 'authority-trust',
+        value: 'VRM 这段 authority 当前能确认的是口型还在继续托住这一段，同一段 living segment 还在，声音这一侧还没有拿到同段证据，表情和动作也暂时没有一起跟上。',
       },
       {
         section: 'authority',
@@ -1551,12 +1980,18 @@ describe('performance visualizer speech observability rows', () => {
       {
         section: 'authority',
         label: 'segment-cue-only',
-        value: '上游 authority 绑定',
+        value: '上游 authority 绑定 | 表情未命中 / 动作未命中 / 口型命中',
+        technicalValue: undefined,
       },
       {
         section: 'authority',
         label: 'authority-match',
-        value: '上游 authority 命中',
+        value: '上游 authority 命中 | 表情未命中 / 动作未命中 / 口型命中',
+      },
+      {
+        section: 'authority',
+        label: 'authority-trust',
+        value: 'VRM 这段 authority 当前能确认的是口型还在继续托住这一段，同一段 living segment 还在，声音这一侧还没有拿到同段证据，表情和动作也暂时没有一起跟上。',
       },
       {
         section: 'authority',
@@ -1851,6 +2286,11 @@ describe('performance visualizer speech observability rows', () => {
       },
       {
         section: 'authority',
+        label: 'authority-trust',
+        value: 'VRM 这段 authority 当前能确认的是口型还在继续托住这一段，同一段 living segment 还在，声音这一侧还没有拿到同段证据，表情和动作也暂时没有一起跟上。',
+      },
+      {
+        section: 'authority',
         label: 'authority-mismatch',
         value: '表情、动作 authority 漂移，当前绑定来源是 prosody-authority，实际执行落点是口型。',
       },
@@ -1955,6 +2395,11 @@ describe('performance visualizer speech observability rows', () => {
       },
       {
         section: 'authority',
+        label: 'authority-trust',
+        value: 'VRM 这段 authority 当前能确认的是口型还在继续托住这一段，同一段 living segment 还在，声音这一侧还没有拿到同段证据，表情和动作也暂时没有一起跟上。',
+      },
+      {
+        section: 'authority',
         label: 'authority-mismatch',
         value: '表情、动作 authority 漂移，当前绑定来源是 prosody-authority，实际执行落点是口型。',
       },
@@ -2053,9 +2498,882 @@ describe('performance visualizer speech observability rows', () => {
       },
       {
         section: 'authority',
+        label: 'authority-trust',
+        value: 'VRM 这段 authority 当前能确认的是口型还在继续托住这一段，同一段 living segment 还在，声音这一侧还没有拿到同段证据，表情和动作也暂时没有一起跟上。',
+      },
+      {
+        section: 'authority',
         label: 'authority-mismatch',
         value: '表情、动作 authority 漂移，当前绑定来源是 prosody-authority，实际执行落点是口型。',
       },
+      {
+        section: 'cue',
+        label: 'driver-execution',
+        value: '口型 energy-phoneme-hybrid，阶段 settle',
+        technicalValue: 'lipsync=energy-phoneme-hybrid phase=settle',
+      },
     ])
+  })
+
+  it('keeps repair-before-closeness trust visible in speech observability rows when cue authority companionship hints survive on playback cue state', () => {
+    const view = buildSpeechObservabilityView({
+      phase: 'playing',
+      playbackPhase: 'playing',
+      speechEnergy: 0.24,
+      prosodyIntensity: 0.22,
+      emphasisLevel: 0.12,
+      cadencePulse: 0.1,
+      visemeIntensity: 0.18,
+      articulation: null,
+      runtimeDynamics: null,
+      recentDrivingEvent: null,
+      recentDrivingTraceRecord: null,
+      recentDrivingTraceEvents: [],
+      recentDrivingTraceDetails: [],
+      rendererAlignment: {
+        live2d: null,
+        vrm: null,
+      },
+      articulationSummary: null,
+      authoritySummary: null,
+      cueMicroSummary: null,
+      driverSummary: null,
+      driverExecutionSummary: null,
+      live2dExecution: null,
+      visemeHintsSummary: null,
+      playbackTelemetry: {
+        actualDurationMs: 260,
+        plannedDurationMs: 260,
+        driftMs: 0,
+        settleMs: 360,
+        stopReason: null,
+        rendererTarget: 'vrm',
+        prosodyAuthority: {
+          segmentId: 'segment-repair-observability-rows-1',
+          provenance: 'authority-bound',
+          source: 'prosody-authority',
+          mode: 'energy-phoneme-hybrid',
+          cueProsodyWeight: 0.31,
+          cueMouthWeight: 0.29,
+          cueHeadWeight: 0.18,
+          visemePeakWeight: 0.63,
+        },
+        driverAuthority: {
+          segmentId: 'segment-repair-observability-rows-1',
+          rendererTarget: 'vrm',
+          matchedDrivers: ['lipsync'],
+          sources: ['prosody-authority'],
+          faceSegmentMatched: false,
+          motionSegmentMatched: false,
+          lipsyncSegmentMatched: true,
+        },
+        cue: {
+          id: 'segment-repair-observability-rows-1',
+          text: '先别急着靠近。',
+          prosodyWeight: 0.28,
+          mouthWeight: 0.22,
+          headWeight: 0.16,
+          personaStyleSummary: null,
+          facialHoldMs: 320,
+          actionHoldMs: 280,
+          emotionHoldMs: 420,
+          facialCue: 'soften',
+          actionCue: 'observe_focus',
+          actionWindow: 'segment-start',
+          interruptMode: 'soft-interrupt',
+          settleMode: 'hold',
+          rendererHints: {
+            residentMode: 'repair-before-closeness',
+            preferredBlinkCadence: 'quiet',
+            preferredGazeMode: 'soften',
+            preferredExpressionAliases: ['SoftRepair'],
+            preferredMotionAliases: ['ObserveStill'],
+          },
+          rendererSettle: {
+            vrmActionFadeMs: 360,
+            vrmExpressionBlendMs: 420,
+          },
+        },
+        drivers: {
+          face: null,
+          motion: null,
+          lipsync: {
+            mode: 'energy-phoneme-hybrid',
+            playbackPhase: 'playing',
+            segmentId: 'segment-repair-observability-rows-1',
+            visemeHints: [],
+          },
+        },
+      },
+    } as any)
+
+    expect(buildSpeechObservabilityRows(view)).toEqual([
+      {
+        section: 'articulation',
+        label: 'prosody-authority',
+        value: '模式 energy-phoneme-hybrid，韵律 0.31，口部 0.29，头部 0.18，峰值口型 0.63，权威绑定，来源 韵律权威，片段 segment-repair-observability-rows-1',
+        technicalValue: 'mode=energy-phoneme-hybrid | prosody=0.31 | mouth=0.29 | head=0.18 | visemePeak=0.63 | provenance=authority-bound | source=prosody-authority | segment=segment-repair-observability-rows-1',
+      },
+      {
+        section: 'authority',
+        label: 'segment-repair-observability-rows-1',
+        value: '目标 VRM，驱动 口型、声音，来源 prosody-authority，命中 表情未命中 / 动作未命中 / 口型命中 / 声音命中，repair-before-closeness 仍停在修补线里，先守住 quieter blink / softened gaze',
+        technicalValue: 'target=vrm | drivers=lipsync, voice | sources=prosody-authority | matches=face:no motion:no lipsync:yes voice:yes | lane=lipsync+voice-only',
+      },
+      {
+        section: 'authority',
+        label: 'authority-match',
+        value: '表情未命中 / 动作未命中 / 口型命中 / 声音命中',
+        technicalValue: 'face:no motion:no lipsync:yes voice:yes',
+      },
+      {
+        section: 'authority',
+        label: 'authority-trust',
+        value: 'VRM 这段 authority 仍停在 repair-before-closeness 的修补线里，先守住 quieter blink / softened gaze，再判断是否继续向外靠近。',
+      },
+      {
+        section: 'authority',
+        label: 'authority-mismatch',
+        value: '表情、动作 authority 漂移，当前绑定来源是 prosody-authority，实际执行落点是口型。',
+      },
+      {
+        section: 'cue',
+        label: 'segment-repair-observability-rows-1',
+        value: 'soften / observe_focus，韵律 0.28，口部 0.22，头部 0.16，权威绑定，片段 segment-repair-observability-rows-1',
+        technicalValue: 'soften / observe_focus | prosody=0.28 mouth=0.22 head=0.16 provenance=authority-bound segment=segment-repair-observability-rows-1',
+      },
+      {
+        section: 'cue',
+        label: 'timing',
+        value: '表情 320ms，动作 280ms，情绪 420ms，片段起始，软打断，保持',
+        technicalValue: 'facial=320 action=280 emotion=420 | segment-start | soft-interrupt | hold',
+      },
+      {
+        section: 'cue',
+        label: 'driver-execution',
+        value: '口型 energy-phoneme-hybrid，阶段 播放中',
+        technicalValue: 'lipsync=energy-phoneme-hybrid phase=playing',
+      },
+    ])
+  })
+
+  it('keeps same-turn-if-invited measured-return trust visible in speech observability rows when playback cue guidance stays on the callback line', () => {
+    const view = buildSpeechObservabilityView({
+      phase: 'playing',
+      playbackPhase: 'playing',
+      speechEnergy: 0.22,
+      prosodyIntensity: 0.2,
+      emphasisLevel: 0.11,
+      cadencePulse: 0.09,
+      visemeIntensity: 0.16,
+      articulation: null,
+      runtimeDynamics: null,
+      recentDrivingEvent: null,
+      recentDrivingTraceRecord: null,
+      recentDrivingTraceEvents: [],
+      recentDrivingTraceDetails: [],
+      rendererAlignment: {
+        live2d: null,
+        vrm: null,
+      },
+      articulationSummary: null,
+      authoritySummary: null,
+      cueMicroSummary: null,
+      driverSummary: null,
+      driverExecutionSummary: null,
+      live2dExecution: null,
+      visemeHintsSummary: null,
+      playbackTelemetry: {
+        actualDurationMs: 240,
+        plannedDurationMs: 240,
+        driftMs: 0,
+        settleMs: 360,
+        stopReason: null,
+        rendererTarget: 'vrm',
+        prosodyAuthority: {
+          segmentId: 'segment-invited-observability-rows-1',
+          provenance: 'authority-bound',
+          source: 'prosody-authority',
+          mode: 'energy-phoneme-hybrid',
+          cueProsodyWeight: 0.22,
+          cueMouthWeight: 0.2,
+          cueHeadWeight: 0.18,
+          visemePeakWeight: 0.7,
+        },
+        driverAuthority: {
+          segmentId: 'segment-invited-observability-rows-1',
+          rendererTarget: 'vrm',
+          matchedDrivers: ['face', 'motion', 'lipsync'],
+          sources: ['prosody-authority', 'timeline-projection'],
+          faceSegmentMatched: true,
+          motionSegmentMatched: true,
+          lipsyncSegmentMatched: true,
+        },
+        cue: {
+          id: 'segment-invited-observability-rows-1',
+          text: '我还在，只是轻一点接回来。',
+          prosodyWeight: 0.22,
+          mouthWeight: 0.2,
+          headWeight: 0.18,
+          personaStyleSummary: null,
+          facialHoldMs: 320,
+          actionHoldMs: 280,
+          emotionHoldMs: 420,
+          facialCue: 'recover-soft',
+          actionCue: 'stillness_guard',
+          actionWindow: 'same-turn-if-invited',
+          interruptMode: 'soft-interrupt',
+          settleMode: 'hold',
+          rendererHints: {
+            residentMode: 'measured-return',
+            preferredBlinkCadence: 'linger',
+            preferredGazeMode: 'soften',
+            preferredExpressionAliases: ['RecoverSoft'],
+            preferredMotionAliases: ['StillnessGuard', 'ObserveSoft'],
+          },
+          rendererSettle: {
+            vrmActionFadeMs: 280,
+            vrmExpressionBlendMs: 360,
+          },
+        },
+        drivers: {
+          face: {
+            emotion: 'thinking',
+            facialCue: 'recover-soft',
+            intensity: 0.52,
+            holdMs: 320,
+            source: 'prosody-authority',
+            confidence: 0.87,
+            preUtteranceCue: 'soften',
+            postUtteranceCue: 'hold-soft',
+            segmentId: 'segment-invited-observability-rows-1',
+          },
+          motion: {
+            idleBase: 'idle_settle',
+            attentionMode: 'attentive',
+            actionCue: 'stillness_guard',
+            intensity: 0.34,
+            holdMs: 280,
+            source: 'timeline-projection',
+            confidence: 0.84,
+            segmentId: 'segment-invited-observability-rows-1',
+          },
+          lipsync: {
+            mode: 'energy-phoneme-hybrid',
+            playbackPhase: 'playing',
+            segmentId: 'segment-invited-observability-rows-1',
+            visemeHints: [],
+          },
+        },
+      },
+    } as any)
+
+    expect(buildSpeechObservabilityRows(view)).toEqual(expect.arrayContaining([
+      {
+        section: 'authority',
+        label: 'authority-trust',
+        value: 'VRM 这段 authority 仍停在 measured-return 的回身线里，这次只是 same-turn-if-invited 的轻声接回，不是重新打开一段新的靠近。',
+      },
+    ]))
+  })
+
+  it('rebuilds thin affective authority trust in speech observability rows from settle authority reason when outer trust is absent', () => {
+    const view = buildSpeechObservabilityView({
+      phase: 'playing',
+      playbackPhase: 'playing',
+      speechEnergy: 0.44,
+      prosodyIntensity: 0.52,
+      emphasisLevel: 0.38,
+      cadencePulse: 0.22,
+      visemeIntensity: 0.4,
+      articulation: null,
+      runtimeDynamics: null,
+      recentDrivingEvent: null,
+      recentDrivingTraceRecord: null,
+      recentDrivingTraceEvents: [],
+      recentDrivingTraceDetails: [],
+      rendererAlignment: {
+        live2d: null,
+        vrm: null,
+      },
+      articulationSummary: null,
+      authoritySummary: {
+        cueId: 'segment-thin-affective-observability-rows-1',
+        segmentId: 'segment-thin-affective-observability-rows-1',
+        rendererTarget: 'vrm',
+        bindingSummary: 'target=vrm | drivers=face, motion, lipsync | sources=prosody-authority, timeline-projection | matches=face:yes motion:yes lipsync:yes',
+        matchSummary: 'face:yes motion:yes lipsync:yes',
+        authorityMismatchSummary: null,
+        authorityMismatchReasonSummary: null,
+        settleSummary: 'authority-bound | segment=segment-thin-affective-observability-rows-1 | target=vrm | drivers=face, motion, lipsync | sources=prosody-authority, timeline-projection | reason=余韵还在，先留白，别立刻把温度放大',
+      },
+      cueMicroSummary: null,
+      driverSummary: null,
+      driverExecutionSummary: null,
+      live2dExecution: null,
+      visemeHintsSummary: null,
+      playbackTelemetry: {
+        actualDurationMs: 220,
+        plannedDurationMs: 220,
+        driftMs: 0,
+        settleMs: 220,
+        stopReason: null,
+        rendererTarget: 'vrm',
+        prosodyAuthority: {
+          mode: 'energy-phoneme-hybrid',
+          cueProsodyWeight: 0.35,
+          cueMouthWeight: 0.35,
+          cueHeadWeight: 0.32,
+          visemePeakWeight: 0.75,
+          provenance: 'authority-bound',
+          source: 'prosody-authority',
+          segmentId: 'segment-thin-affective-observability-rows-1',
+        },
+        driverAuthority: {
+          segmentId: 'segment-thin-affective-observability-rows-1',
+          rendererTarget: 'vrm',
+          matchedDrivers: ['face', 'motion', 'lipsync'],
+          sources: ['prosody-authority', 'timeline-projection'],
+          faceSegmentMatched: true,
+          motionSegmentMatched: true,
+          lipsyncSegmentMatched: true,
+        },
+        cue: null,
+        drivers: {
+          face: null,
+          motion: null,
+          lipsync: null,
+        },
+      },
+    } as any)
+
+    expect(buildSpeechObservabilityRows(view)).toContainEqual({
+      section: 'authority',
+      label: 'authority-trust',
+      value: 'VRM 这段 authority 仍带着“余韵还在，先留白，别立刻把温度放大”这一层关系余温，所以外层观察不该把她压回纯技术 settle。',
+    })
+  })
+
+  it('prefers richer settle-reason trust over thinner generic upstream trust in speech observability rows', () => {
+    const view = buildSpeechObservabilityView({
+      phase: 'playing',
+      playbackPhase: 'playing',
+      speechEnergy: 0.44,
+      prosodyIntensity: 0.52,
+      emphasisLevel: 0.38,
+      cadencePulse: 0.22,
+      visemeIntensity: 0.4,
+      articulation: null,
+      runtimeDynamics: null,
+      recentDrivingEvent: null,
+      recentDrivingTraceRecord: null,
+      recentDrivingTraceEvents: [],
+      recentDrivingTraceDetails: [],
+      rendererAlignment: {
+        live2d: null,
+        vrm: null,
+      },
+      articulationSummary: null,
+      authoritySummary: {
+        cueId: 'segment-thin-affective-observability-rows-runtime-override-1',
+        segmentId: 'segment-thin-affective-observability-rows-runtime-override-1',
+        rendererTarget: 'vrm',
+        bindingSummary: 'target=vrm | drivers=face, motion, lipsync | sources=prosody-authority, timeline-projection | matches=face:yes motion:yes lipsync:yes',
+        matchSummary: 'face:yes motion:yes lipsync:yes',
+        authorityTrustSummary: 'VRM 表情、动作、口型已经一起回到当前片段主链，可按同一身体线继续观察。',
+        authorityMismatchSummary: null,
+        authorityMismatchReasonSummary: null,
+        settleSummary: 'authority-bound | segment=segment-thin-affective-observability-rows-runtime-override-1 | target=vrm | drivers=face, motion, lipsync | sources=prosody-authority, timeline-projection | reason=余韵还在，先留白，别立刻把温度放大',
+      },
+      cueMicroSummary: null,
+      driverSummary: null,
+      driverExecutionSummary: null,
+      live2dExecution: null,
+      visemeHintsSummary: null,
+      playbackTelemetry: {
+        actualDurationMs: 220,
+        plannedDurationMs: 220,
+        driftMs: 0,
+        settleMs: 220,
+        stopReason: null,
+        rendererTarget: 'vrm',
+        prosodyAuthority: {
+          mode: 'energy-phoneme-hybrid',
+          cueProsodyWeight: 0.35,
+          cueMouthWeight: 0.35,
+          cueHeadWeight: 0.32,
+          visemePeakWeight: 0.75,
+          provenance: 'authority-bound',
+          source: 'prosody-authority',
+          segmentId: 'segment-thin-affective-observability-rows-runtime-override-1',
+        },
+        driverAuthority: {
+          segmentId: 'segment-thin-affective-observability-rows-runtime-override-1',
+          rendererTarget: 'vrm',
+          matchedDrivers: ['face', 'motion', 'lipsync'],
+          sources: ['prosody-authority', 'timeline-projection'],
+          faceSegmentMatched: true,
+          motionSegmentMatched: true,
+          lipsyncSegmentMatched: true,
+        },
+        cue: null,
+        drivers: {
+          face: null,
+          motion: null,
+          lipsync: null,
+        },
+      },
+    } as any)
+
+    expect(buildSpeechObservabilityRows(view)).toContainEqual({
+      section: 'authority',
+      label: 'authority-trust',
+      value: 'VRM 这段 authority 仍带着“余韵还在，先留白，别立刻把温度放大”这一层关系余温，所以外层观察不该把她压回纯技术 settle。',
+    })
+  })
+
+  it('keeps body-backed same-her authority visible in observability rows when the living segment is now carried by the body line', () => {
+    const view = buildSpeechObservabilityView({
+      phase: 'playing',
+      playbackPhase: 'playing',
+      speechEnergy: 0.44,
+      prosodyIntensity: 0.52,
+      emphasisLevel: 0.38,
+      cadencePulse: 0.22,
+      visemeIntensity: 0.4,
+      articulation: null,
+      runtimeDynamics: null,
+      recentDrivingEvent: null,
+      recentDrivingTraceRecord: null,
+      recentDrivingTraceEvents: [],
+      recentDrivingTraceDetails: [],
+      rendererAlignment: {
+        live2d: null,
+        vrm: null,
+      },
+      articulationSummary: null,
+      authoritySummary: {
+        cueId: 'segment-body-observability-rows-1',
+        segmentId: 'segment-body-observability-rows-1',
+        rendererTarget: 'vrm',
+        bindingSummary: 'target=vrm | drivers=body | sources=prosody-authority | matches=body:yes face:no motion:no lipsync:no | lane=body-only',
+        matchSummary: 'body:yes face:no motion:no lipsync:no',
+        authorityMismatchSummary: 'face-mismatch, motion-mismatch, lipsync-mismatch',
+        authorityMismatchReasonSummary: '表情、动作、口型 authority 已经漂离，但身体线还托着同一段 living segment。',
+        settleSummary: 'authority-bound | segment=segment-body-observability-rows-1 | target=vrm | drivers=body | sources=prosody-authority | reason=身体线还托着这一段 living segment。',
+      },
+      cueMicroSummary: null,
+      driverSummary: null,
+      driverExecutionSummary: null,
+      live2dExecution: null,
+      visemeHintsSummary: null,
+      playbackTelemetry: {
+        actualDurationMs: 220,
+        plannedDurationMs: 220,
+        driftMs: 0,
+        settleMs: 220,
+        stopReason: null,
+        rendererTarget: 'vrm',
+        driverAuthority: {
+          segmentId: 'segment-body-observability-rows-1',
+          rendererTarget: 'vrm',
+          matchedDrivers: ['body'],
+          sources: ['prosody-authority'],
+          bodySegmentMatched: true,
+          faceSegmentMatched: false,
+          motionSegmentMatched: false,
+          lipsyncSegmentMatched: false,
+        },
+        cue: null,
+        drivers: {
+          face: null,
+          motion: null,
+          lipsync: null,
+        },
+      },
+    } as any)
+
+    expect(buildSpeechObservabilityRows(view)).toContainEqual({
+      section: 'authority',
+      label: 'segment-body-observability-rows-1',
+      value: '目标 VRM，驱动 身体，来源 prosody-authority，命中 身体命中 / 表情未命中 / 动作未命中 / 口型未命中，当前仅剩身体维持同一段连续性',
+      technicalValue: 'target=vrm | drivers=body | sources=prosody-authority | matches=body:yes face:no motion:no lipsync:no | lane=body-only',
+    })
+    expect(buildSpeechObservabilityRows(view)).toContainEqual({
+      section: 'authority',
+      label: 'authority-trust',
+      value: 'VRM 这段 authority 仍带着“身体线还托着这一段 living segment。”这一层关系余温，所以外层观察不该把她压回纯技术 settle。',
+    })
+  })
+
+  it('does not reuse same-cue upstream authority rows when their segment drifts onto another embodied line', () => {
+    const view = {
+      articulation: null,
+      articulationSummary: null,
+      speechEvidence: null,
+      authorityBinding: {
+        segmentId: 'segment-current-observability-row',
+        rendererTarget: 'vrm',
+        matchedDrivers: ['body'],
+        matchedSources: ['prosody-authority'],
+        bodySegmentMatched: true,
+        faceSegmentMatched: false,
+        motionSegmentMatched: false,
+        lipsyncSegmentMatched: false,
+      },
+      playbackTelemetry: {
+        rendererTarget: 'vrm',
+        driverAuthority: {
+          segmentId: 'segment-current-observability-row',
+          rendererTarget: 'vrm',
+          matchedDrivers: ['body'],
+          sources: ['prosody-authority'],
+          bodySegmentMatched: true,
+          faceSegmentMatched: false,
+          motionSegmentMatched: false,
+          lipsyncSegmentMatched: false,
+        },
+        cue: null,
+        drivers: {
+          face: null,
+          motion: null,
+          lipsync: null,
+        },
+      },
+      playbackCue: {
+        authorityView: {
+          cueId: 'segment-current-observability-row',
+          authoritySegmentId: 'segment-current-observability-row',
+          authorityRendererTarget: 'vrm',
+          authorityMatchedDrivers: ['body'],
+          authoritySources: ['prosody-authority'],
+          authorityTrustSummary: 'VRM 这段 authority 现在主要由身体线继续托住，同一段 living segment 还在，只是表情、动作、口型暂时没有一起跟上。',
+          authorityBindingSummary: 'target=vrm | drivers=body | sources=prosody-authority | matches=body:yes face:no motion:no lipsync:no | lane=body-only',
+          authorityMatchSummary: 'body:yes face:no motion:no lipsync:no',
+          settleAuthoritySummary: 'authority-bound | segment=segment-current-observability-row | target=vrm | drivers=body | sources=prosody-authority',
+          preferredBlinkCadence: null,
+          preferredGazeMode: null,
+        },
+      },
+      authoritySummary: {
+        cueId: 'segment-current-observability-row',
+        segmentId: 'segment-upstream-other-observability-row',
+        bindingSummary: '上游 authority 绑定：别把另一段身体线拿来复用。',
+        matchSummary: 'body:no face:yes motion:yes lipsync:yes',
+        authorityTrustSummary: '上游 authority trust：这其实还是另一段没有退干净的身体线。',
+        settleSummary: 'authority-bound | segment=segment-upstream-other-observability-row | target=vrm | drivers=face, motion, lipsync | sources=timeline-projection',
+        authorityMismatchSummary: null,
+        authorityMismatchReasonSummary: null,
+        authorityMismatchDisplay: null,
+      },
+      authorityMismatchSummary: null,
+      authorityMismatchReasonSummary: null,
+      authorityMismatchDisplay: null,
+      rendererAlignmentSummary: {
+        live2d: null,
+        vrm: null,
+      },
+      cueMicro: null,
+      cueMicroSummary: null,
+      driverExecution: null,
+      visemeHints: [],
+      visemeHintsSummary: null,
+    } as any
+
+    const rows = buildSpeechObservabilityRows(view)
+
+    expect(rows).toContainEqual({
+      section: 'authority',
+      label: 'segment-current-observability-row',
+      value: '目标 VRM，驱动 身体，来源 prosody-authority，命中 身体命中 / 表情未命中 / 动作未命中 / 口型未命中，当前仅剩身体维持同一段连续性',
+      technicalValue: 'target=vrm | drivers=body | sources=prosody-authority | matches=body:yes face:no motion:no lipsync:no | lane=body-only',
+    })
+    expect(rows).toContainEqual({
+      section: 'authority',
+      label: 'authority-match',
+      value: '身体命中 / 表情未命中 / 动作未命中 / 口型未命中',
+      technicalValue: 'body:yes face:no motion:no lipsync:no',
+    })
+    expect(rows).toContainEqual({
+      section: 'authority',
+      label: 'authority-trust',
+      value: 'VRM 这段 authority 现在主要由身体线继续托住，同一段 living segment 还在，只是表情、动作、口型暂时没有一起跟上。',
+    })
+  })
+
+  it('surfaces embodiment closure stage rows when only the quieter body+lipsync same-her line is still carrying the segment', () => {
+    const view = {
+      articulation: null,
+      articulationSummary: null,
+      speechEvidence: {
+        voiceSummary: 'zh-CN | closure=0.62 | precision=0.58 | provenance=authority-bound | segment=segment-audible-body-row-1 | source=prosody-authority',
+        bodyContinuitySummary: null,
+        prosodyAuthoritySummary: null,
+        authorityMatchSummary: null,
+        topVisemeSummary: null,
+        cueSummary: null,
+        cueIdentityPresent: false,
+        cueProsodyPresent: false,
+        personaStyleSummary: null,
+        timingSummary: null,
+        driverExecutionSummary: 'body=measured-return seg=segment-audible-body-row-1 | lipsync=energy-phoneme-hybrid phase=playing seg=segment-audible-body-row-1',
+        visemeHintsSummary: null,
+      },
+      authorityBinding: {
+        segmentId: 'segment-audible-body-row-1',
+        rendererTarget: 'live2d',
+        matchedDrivers: ['body', 'lipsync'],
+        matchedSources: ['prosody-authority'],
+        bodySegmentMatched: true,
+        faceSegmentMatched: false,
+        motionSegmentMatched: false,
+        lipsyncSegmentMatched: true,
+      },
+      playbackTelemetry: null,
+      playbackCue: {
+        authorityView: null,
+      },
+      authoritySummary: {
+        cueId: 'segment-audible-body-row-1',
+        segmentId: 'segment-audible-body-row-1',
+        bindingSummary: 'target=live2d | drivers=body, lipsync | sources=prosody-authority | matches=body:yes face:no motion:no lipsync:yes | lane=body+lipsync-only',
+        matchSummary: 'body:yes face:no motion:no lipsync:yes',
+        authorityTrustSummary: null,
+        settleSummary: null,
+      },
+      authorityMismatchSummary: 'face-mismatch, motion-mismatch',
+      authorityMismatchReasonSummary: 'the resident body lane is still holding together with one other embodiment lane while face and motion have not rejoined yet | closure=body-carried-to-renderer-rejoin',
+      authorityMismatchDisplay: 'the resident body lane is still holding together with one other embodiment lane while face and motion have not rejoined yet | closure=body-carried-to-renderer-rejoin',
+      embodimentClosureStage: null,
+      cueMicro: null,
+      cueMicroSummary: null,
+      driverExecution: null,
+      visemeHints: [],
+      visemeHintsSummary: null,
+      driverExecutionSummary: 'body=measured-return seg=segment-audible-body-row-1 | lipsync=energy-phoneme-hybrid phase=playing seg=segment-audible-body-row-1',
+      rendererAlignmentSummary: {
+        live2d: null,
+        vrm: null,
+      },
+    } as any
+
+    expect(buildSpeechObservabilityRows(view)).toContainEqual({
+      section: 'authority',
+      label: 'closure-stage',
+      value: 'body-carried-to-renderer-rejoin',
+    })
+  })
+
+  it('surfaces same-her signature and reason tags rows when playback cue authority already carries shared-line proof', () => {
+    const view = buildSpeechObservabilityView({
+      phase: 'playing',
+      playbackPhase: 'playing',
+      speechEnergy: 0.44,
+      prosodyIntensity: 0.52,
+      emphasisLevel: 0.38,
+      cadencePulse: 0.22,
+      visemeIntensity: 0.4,
+      articulation: null,
+      runtimeDynamics: null,
+      recentDrivingEvent: null,
+      recentDrivingTraceRecord: null,
+      recentDrivingTraceEvents: [],
+      recentDrivingTraceDetails: [],
+      rendererAlignment: {
+        live2d: null,
+        vrm: null,
+      },
+      articulationSummary: null,
+      authoritySummary: null,
+      cueMicroSummary: null,
+      driverSummary: null,
+      driverExecutionSummary: null,
+      live2dExecution: null,
+      visemeHintsSummary: null,
+      playbackTelemetry: {
+        rendererTarget: 'vrm',
+        driverAuthority: {
+          segmentId: 'segment-same-her-observability-row',
+          rendererTarget: 'vrm',
+          matchedDrivers: ['body', 'lipsync'],
+          sources: ['prosody-authority', 'voice-segment'],
+          bodySegmentMatched: true,
+          faceSegmentMatched: false,
+          motionSegmentMatched: false,
+          lipsyncSegmentMatched: true,
+        },
+        cue: {
+          id: 'segment-same-her-observability-row',
+          rendererHints: {
+            preferredBlinkCadence: 'linger',
+            preferredGazeMode: 'soften',
+            reasonTags: [
+              'embodiment:audible-same-her-line',
+              'embodiment:still-voiced-motion-line',
+            ],
+            signature: 'embodiment:body-lipsync-voice-rejoin',
+          },
+        } as any,
+        drivers: {
+          face: null,
+          motion: null,
+          lipsync: null,
+        },
+      },
+      authorityMismatchSummary: 'face-mismatch, motion-mismatch',
+      authorityMismatchReasonSummary: '表情和动作还没回到这一段里，但身体、口型和声音已经继续托住同一个 living segment。',
+      authorityMismatchDisplay: '表情和动作还没回到这一段里，但身体、口型和声音已经继续托住同一个 living segment。',
+    } as any)
+
+    const rows = buildSpeechObservabilityRows(view)
+
+    expect(rows).toContainEqual({
+      section: 'authority',
+      label: 'same-her-signature',
+      value: 'embodiment:body-lipsync-voice-rejoin',
+    })
+    expect(rows).toContainEqual({
+      section: 'authority',
+      label: 'same-her-reasons',
+      value: 'embodiment:audible-same-her-line, embodiment:still-voiced-motion-line',
+    })
+  })
+
+  it('keeps structured same-her closure stage rows visible when the stage is carried only by scoped settle authority summaries', () => {
+    const cueId = 'segment-body-carried-to-renderer-rejoin-row-settle-only-1'
+    const view = {
+      articulation: null,
+      articulationSummary: null,
+      speechEvidence: {
+        voiceSummary: `zh-CN | closure=0.62 | precision=0.58 | provenance=authority-bound | segment=${cueId} | source=prosody-authority`,
+        bodyContinuitySummary: null,
+        prosodyAuthoritySummary: null,
+        authorityMatchSummary: null,
+        topVisemeSummary: null,
+        cueSummary: null,
+        cueIdentityPresent: false,
+        cueProsodyPresent: false,
+        personaStyleSummary: null,
+        timingSummary: null,
+        driverExecutionSummary: `body=measured-return seg=${cueId} | lipsync=energy-phoneme-hybrid phase=playing seg=${cueId}`,
+        visemeHintsSummary: null,
+      },
+      authorityBinding: {
+        segmentId: cueId,
+        rendererTarget: 'vrm',
+        matchedDrivers: ['body', 'lipsync'],
+        matchedSources: ['prosody-authority', 'voice-segment'],
+        bodySegmentMatched: true,
+        faceSegmentMatched: false,
+        motionSegmentMatched: false,
+        lipsyncSegmentMatched: true,
+        voiceSegmentMatched: true,
+      },
+      playbackTelemetry: null,
+      playbackCue: {
+        authorityView: null,
+      },
+      authoritySummary: {
+        cueId,
+        segmentId: cueId,
+        bindingSummary: null,
+        matchSummary: 'body:yes face:no motion:no lipsync:yes',
+        authorityTrustSummary: null,
+        settleSummary: `authority-bound | segment=${cueId} | target=vrm | drivers=body, lipsync | sources=prosody-authority, voice-segment | lane=body-carried-to-renderer-rejoin`,
+      },
+      authorityMismatchSummary: null,
+      authorityMismatchReasonSummary: null,
+      authorityMismatchDisplay: null,
+      embodimentClosureStage: null,
+      cueMicro: null,
+      cueMicroSummary: null,
+      driverExecution: null,
+      visemeHints: [],
+      visemeHintsSummary: null,
+      driverExecutionSummary: `body=measured-return seg=${cueId} | lipsync=energy-phoneme-hybrid phase=playing seg=${cueId}`,
+      rendererAlignmentSummary: {
+        live2d: null,
+        vrm: null,
+      },
+    } as any
+
+    expect(buildSpeechObservabilityRows(view)).toContainEqual({
+      section: 'authority',
+      label: 'closure-stage',
+      value: 'body-carried-to-renderer-rejoin',
+    })
+  })
+
+  it('surfaces explicit convergence rows when same-her convergence has been published for the active speech segment', () => {
+    const view = {
+      articulation: null,
+      articulationSummary: null,
+      speechEvidence: {
+        voiceSummary: 'zh-CN | closure=0.62 | precision=0.58 | provenance=authority-bound | segment=segment-audible-body-row-2 | source=prosody-authority',
+        bodyContinuitySummary: null,
+        prosodyAuthoritySummary: null,
+        authorityMatchSummary: null,
+        topVisemeSummary: null,
+        cueSummary: null,
+        cueIdentityPresent: false,
+        cueProsodyPresent: false,
+        personaStyleSummary: null,
+        timingSummary: null,
+        driverExecutionSummary: 'body=measured-return seg=segment-audible-body-row-2 | lipsync=energy-phoneme-hybrid phase=playing seg=segment-audible-body-row-2 | closure=audible-body-carry',
+        visemeHintsSummary: null,
+      },
+      authorityBinding: {
+        segmentId: 'segment-audible-body-row-2',
+        rendererTarget: 'live2d',
+        matchedDrivers: ['body', 'lipsync'],
+        matchedSources: ['prosody-authority'],
+        bodySegmentMatched: true,
+        faceSegmentMatched: false,
+        motionSegmentMatched: false,
+        lipsyncSegmentMatched: true,
+        voiceSegmentMatched: true,
+      },
+      playbackTelemetry: null,
+      playbackCue: {
+        authorityView: null,
+      },
+      authoritySummary: {
+        cueId: 'segment-audible-body-row-2',
+        segmentId: 'segment-audible-body-row-2',
+        bindingSummary: 'target=live2d | drivers=body, lipsync | sources=prosody-authority | matches=body:yes face:no motion:no lipsync:yes | lane=body+lipsync-only',
+        matchSummary: 'body:yes face:no motion:no lipsync:yes',
+        authorityTrustSummary: null,
+        settleSummary: null,
+      },
+      authorityMismatchSummary: 'face-mismatch, motion-mismatch',
+      authorityMismatchReasonSummary: 'body still carries the same living segment while face and motion have not rejoined yet | closure=audible-body-carry',
+      authorityMismatchDisplay: 'body still carries the same living segment while face and motion have not rejoined yet | closure=audible-body-carry',
+      convergence: {
+        segmentId: 'segment-audible-body-row-2',
+        state: 'audible-body-carry',
+        line: 'body+lipsync+voice',
+        matchedDrivers: ['body', 'lipsync', 'voice'],
+        missingDrivers: ['face', 'motion'],
+        summary: 'state=audible-body-carry | segment=segment-audible-body-row-2 | line=body+lipsync+voice | missing=face,motion',
+      },
+      embodimentClosureStage: 'audible-body-carry',
+      cueMicro: null,
+      cueMicroSummary: null,
+      driverExecution: null,
+      visemeHints: [],
+      visemeHintsSummary: null,
+      driverExecutionSummary: 'body=measured-return seg=segment-audible-body-row-2 | lipsync=energy-phoneme-hybrid phase=playing seg=segment-audible-body-row-2 | closure=audible-body-carry',
+      rendererAlignmentSummary: {
+        live2d: null,
+        vrm: null,
+      },
+    } as any
+
+    expect(buildSpeechObservabilityRows(view)).toContainEqual({
+      section: 'authority',
+      label: 'convergence',
+      value: 'audible-body-carry | line=body+lipsync+voice | missing=face,motion',
+      technicalValue: 'state=audible-body-carry | segment=segment-audible-body-row-2 | line=body+lipsync+voice | missing=face,motion',
+    })
   })
 })

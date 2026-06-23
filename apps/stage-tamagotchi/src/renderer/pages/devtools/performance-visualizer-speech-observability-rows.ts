@@ -1,11 +1,20 @@
 import type { SpeechObservabilityView } from './performance-visualizer-speech-observability'
 
-import { buildRuntimeAuthoritySummaryEntries } from './performance-visualizer-runtime-diagnostic-summary'
-import { buildSpeechDiagnosticSummaryEntries } from './performance-visualizer-speech-diagnostic-summary'
+import {
+  formatResolvedProsodyAuthoritySummary,
+  resolveProsodyAuthorityFromSources,
+} from './performance-visualizer-prosody-authority'
+import { resolveAuthorityTrustSummaryWithFallback } from './performance-visualizer-resolve-authority-trust'
+import {
+  buildRuntimeAuthoritySummaryEntries,
+  formatAuthorityBindingDisplay,
+} from './performance-visualizer-runtime-diagnostic-summary'
+import {
+  buildSpeechDiagnosticSummaryEntries,
+} from './performance-visualizer-speech-diagnostic-summary'
 import {
   formatAuthorityBindingSummary,
   formatAuthorityMatchSummary,
-  formatProsodyAuthoritySummary,
 } from './performance-visualizer-speech-observability'
 
 export interface SpeechObservabilityRow {
@@ -81,67 +90,278 @@ function isPlaceholderOnlyPersonaStyleValue(value: string | null | undefined) {
     && /^n\/a\s*\|\s*prosody=n\/a\s+beat=n\/a\s+mouth=n\/a\s+head=n\/a$/i.test(value.trim())
 }
 
-function deriveAuthorityTrustSummary(input: {
-  prosodyAuthoritySummary: string | null
-  authoritySegmentId: string | null
-}) {
-  if (!input.prosodyAuthoritySummary || !input.authoritySegmentId)
-    return null
+function normalizeText(value: unknown) {
+  return typeof value === 'string' && value.trim()
+    ? value.trim()
+    : null
+}
 
-  if (
-    input.prosodyAuthoritySummary.includes('provenance=authority-bound')
-    && input.prosodyAuthoritySummary.includes(`segment=${input.authoritySegmentId}`)
-  ) {
-    return '韵律权威链已重新绑定到当前片段，可直接进入长期基线。'
+function extractEmbodimentClosureStage(...summaries: Array<string | null | undefined>) {
+  for (const summary of summaries) {
+    const normalized = summary?.trim() ?? ''
+    if (!normalized)
+      continue
+    if (
+      /(?:^|\s|\|)timing=body-lipsync-carry(?:\s|\||$)/.test(normalized)
+      || /(?:^|\s|\|)lane=body\+lipsync-only(?:\s|\||$)/.test(normalized)
+      || /(?:^|\s|\|)lane=body\+voice-only(?:\s|\||$)/.test(normalized)
+      || /(?:^|\s|\|)lane=body\+face\+motion-only(?:\s|\||$)/.test(normalized)
+    ) {
+      return 'body-carried-to-renderer-rejoin'
+    }
+    if (
+      /(?:^|\s|\|)lane=body\+lipsync\+voice-only(?:\s|\||$)/.test(normalized)
+    ) {
+      return 'audible-body-carry'
+    }
+    if (
+      normalized === 'face+lipsync-only'
+      || normalized === 'motion+lipsync-only'
+      || normalized === 'face+lipsync+voice-only'
+      || normalized === 'motion+lipsync+voice-only'
+      || normalized === 'face+motion+lipsync+voice-only'
+    ) {
+      return 'renderer-rejoin-without-body'
+    }
+    if (
+      normalized === 'audible-body-carry'
+      || normalized === 'full-driver-rejoin'
+      || normalized === 'body-only-hold'
+      || normalized === 'body-carried-to-renderer-rejoin'
+      || normalized === 'full-cross-modal-lock'
+      || normalized === 'renderer-rejoin-without-body'
+      || normalized === 'voice-lipsync-carry'
+    ) {
+      return normalized
+    }
+
+    const match = normalized.match(/(?:^|\s|\|)(?:closure|lane)=(face\+lipsync-only|motion\+lipsync-only|face\+lipsync\+voice-only|motion\+lipsync\+voice-only|face\+motion\+lipsync\+voice-only|audible-body-carry|full-driver-rejoin|body-only-hold|body-carried-to-renderer-rejoin|full-cross-modal-lock|renderer-rejoin-without-body|voice-lipsync-carry)(?:\s|\||$)/)
+    if (match?.[1]) {
+      if (
+        match[1] === 'face+lipsync-only'
+        || match[1] === 'motion+lipsync-only'
+        || match[1] === 'face+lipsync+voice-only'
+        || match[1] === 'motion+lipsync+voice-only'
+        || match[1] === 'face+motion+lipsync+voice-only'
+      ) {
+        return 'renderer-rejoin-without-body'
+      }
+      return match[1]
+    }
   }
 
   return null
+}
+
+function extractStructuredSegmentId(summary: string | null | undefined) {
+  const normalized = normalizeText(summary)
+  if (!normalized)
+    return null
+
+  const match = normalized.match(/(?:^|\s|\|)(?:segment|seg)=([^|\s]+)/)
+  return normalizeText(match?.[1])
+}
+
+function matchesActiveSegment(segmentId: string | null | undefined, activeSegmentId: string | null) {
+  const normalizedSegmentId = normalizeText(segmentId)
+  return !activeSegmentId || !normalizedSegmentId || normalizedSegmentId === activeSegmentId
+}
+
+function structuredSummaryMatchesActiveSegment(summary: string | null | undefined, activeSegmentId: string | null) {
+  const structuredSegmentId = extractStructuredSegmentId(summary)
+  return !activeSegmentId || !structuredSegmentId || structuredSegmentId === activeSegmentId
+}
+
+function resolveScopedAuthoritySummary(view: SpeechObservabilityView) {
+  const resolvedProsodyAuthority = resolveProsodyAuthorityFromSources(view.playbackTelemetry)
+  const activeCueId = normalizeText(view.cueMicro?.cueId)
+    ?? normalizeText(view.playbackTelemetry?.cue?.id)
+    ?? normalizeText(view.playbackCue?.authorityView?.cueId)
+    ?? normalizeText(view.authorityBinding?.segmentId)
+    ?? null
+  const activeSegmentId = normalizeText(view.authorityBinding?.segmentId)
+    ?? normalizeText(view.playbackCue?.authorityView?.authoritySegmentId)
+    ?? normalizeText(view.playbackTelemetry?.driverAuthority?.segmentId)
+    ?? normalizeText(view.playbackTelemetry?.cue?.id)
+    ?? normalizeText(resolvedProsodyAuthority?.segmentId)
+    ?? null
+  const authoritySummaryCueId = normalizeText(view.authoritySummary?.cueId)
+  const authoritySummarySegmentId = normalizeText(view.authoritySummary?.segmentId)
+  const authoritySummaryMatchesActiveCue = !activeCueId || !authoritySummaryCueId || authoritySummaryCueId === activeCueId
+  const authoritySummaryMatchesActiveSegment = matchesActiveSegment(authoritySummarySegmentId, activeSegmentId)
+  const authoritySummaryMatchesActiveScope = authoritySummaryMatchesActiveCue && authoritySummaryMatchesActiveSegment
+
+  return {
+    activeCueId,
+    activeSegmentId,
+    authoritySummaryCueId,
+    authoritySummarySegmentId,
+    segmentId: authoritySummaryMatchesActiveScope
+      ? authoritySummarySegmentId ?? activeSegmentId
+      : activeSegmentId,
+    bindingSummary: authoritySummaryMatchesActiveScope
+      ? view.authoritySummary?.bindingSummary ?? null
+      : null,
+    matchSummary: authoritySummaryMatchesActiveScope
+      ? view.authoritySummary?.matchSummary ?? null
+      : null,
+    authorityTrustSummary: authoritySummaryMatchesActiveScope && structuredSummaryMatchesActiveSegment(
+      view.authoritySummary?.authorityTrustSummary,
+      activeSegmentId,
+    )
+      ? view.authoritySummary?.authorityTrustSummary ?? null
+      : null,
+    settleSummary: authoritySummaryMatchesActiveScope && structuredSummaryMatchesActiveSegment(
+      view.authoritySummary?.settleSummary,
+      activeSegmentId,
+    )
+      ? view.authoritySummary?.settleSummary ?? null
+      : null,
+    authorityMismatchSummary: authoritySummaryMatchesActiveScope
+      ? view.authoritySummary?.authorityMismatchSummary ?? null
+      : null,
+    authorityMismatchReasonSummary: authoritySummaryMatchesActiveScope
+      ? view.authoritySummary?.authorityMismatchReasonSummary ?? null
+      : null,
+    authorityMismatchDisplay: authoritySummaryMatchesActiveScope
+      ? view.authoritySummary?.authorityMismatchDisplay ?? null
+      : null,
+  }
 }
 
 function resolveObservabilityProsodyAuthoritySummary(
   view: SpeechObservabilityView,
 ) {
   return view.speechEvidence?.prosodyAuthoritySummary
-    ?? (view.playbackTelemetry?.driverAuthority?.prosodyAuthority
-      ? formatProsodyAuthoritySummary(view.playbackTelemetry.driverAuthority.prosodyAuthority)
-      : null)
-    ?? (view.playbackTelemetry?.prosodyAuthority
-      ? formatProsodyAuthoritySummary(view.playbackTelemetry.prosodyAuthority)
-      : null)
+    ?? formatResolvedProsodyAuthoritySummary(resolveProsodyAuthorityFromSources(view.playbackTelemetry))
     ?? null
 }
 
+function formatConvergenceDisplay(view: SpeechObservabilityView) {
+  const convergence = view.convergence
+  if (!convergence)
+    return null
+
+  const missing = convergence.missingDrivers.length > 0
+    ? convergence.missingDrivers.join(',')
+    : 'none'
+
+  return {
+    value: `${convergence.state} | line=${convergence.line} | missing=${missing}`,
+    technicalValue: convergence.summary,
+  }
+}
+
 function findAuthorityEntry(
-  key: 'authority-binding' | 'authority-match' | 'authority-trust',
+  key: 'authority-binding' | 'authority-match' | 'embodiment-closure-stage' | 'authority-trust' | 'same-her-signature' | 'same-her-reasons',
   view: SpeechObservabilityView,
 ) {
-  const bindingSummary = view.authoritySummary?.bindingSummary
+  const scopedAuthoritySummary = resolveScopedAuthoritySummary(view)
+  const rawBindingSummary = scopedAuthoritySummary.bindingSummary
     ?? (view.authorityBinding ? formatAuthorityBindingSummary(view.authorityBinding) : null)
-  const matchSummary = view.authoritySummary?.matchSummary
+  const bindingDisplay = rawBindingSummary
+    ? formatAuthorityBindingDisplay(rawBindingSummary)
+    : null
+  const closureStageBindingSummary = scopedAuthoritySummary.bindingSummary ?? null
+  const matchSummary = scopedAuthoritySummary.matchSummary
     ?? (view.authorityBinding ? formatAuthorityMatchSummary(view.authorityBinding) : null)
   const prosodyAuthoritySummary = resolveObservabilityProsodyAuthoritySummary(view)
-  const authorityTrustSummary = view.authoritySummary?.authorityTrustSummary
-    ?? deriveAuthorityTrustSummary({
-      prosodyAuthoritySummary,
-      authoritySegmentId: view.authoritySummary?.segmentId ?? view.authorityBinding?.segmentId ?? null,
-    })
+  const authorityTrustSummary = resolveAuthorityTrustSummaryWithFallback({
+    authorityTrustSummary: scopedAuthoritySummary.authorityTrustSummary,
+    authorityBindingSummary: rawBindingSummary ?? null,
+    settleAuthoritySummary: scopedAuthoritySummary.settleSummary,
+    rendererTarget: view.authorityBinding?.rendererTarget
+      ?? view.playbackCue?.authorityView?.authorityRendererTarget
+      ?? null,
+    preferredBlinkCadence: view.playbackCue?.authorityView?.preferredBlinkCadence ?? null,
+    preferredGazeMode: view.playbackCue?.authorityView?.preferredGazeMode ?? null,
+    residentMode: view.playbackCue?.authorityView?.residentMode ?? null,
+    prosodyAuthoritySummary,
+    authoritySegmentId: scopedAuthoritySummary.segmentId ?? view.authorityBinding?.segmentId ?? null,
+    authorityMatchedDrivers: view.authorityBinding?.matchedDrivers ?? [],
+    faceSegmentMatched: view.authorityBinding?.faceSegmentMatched ?? null,
+    motionSegmentMatched: view.authorityBinding?.motionSegmentMatched ?? null,
+    lipsyncSegmentMatched: view.authorityBinding?.lipsyncSegmentMatched ?? null,
+    voiceSegmentMatched: view.authorityBinding?.voiceSegmentMatched ?? null,
+  }, [
+    {
+      authorityTrustSummary: view.playbackCue?.authorityView?.authorityTrustSummary ?? null,
+      authorityBindingSummary: view.playbackCue?.authorityView?.authorityBindingSummary
+        ?? rawBindingSummary
+        ?? null,
+      settleAuthoritySummary: view.playbackCue?.authorityView?.settleAuthoritySummary ?? null,
+      rendererTarget: view.playbackCue?.authorityView?.authorityRendererTarget
+        ?? view.authorityBinding?.rendererTarget
+        ?? null,
+      preferredBlinkCadence: view.playbackCue?.authorityView?.preferredBlinkCadence ?? null,
+      preferredGazeMode: view.playbackCue?.authorityView?.preferredGazeMode ?? null,
+      voiceSegmentMatched: view.playbackCue?.authorityView?.voiceSegmentMatched ?? null,
+    },
+  ])
+  const speechSummaryEntry = buildSpeechDiagnosticSummaryEntries({
+    authorityBindingSummary: key === 'embodiment-closure-stage'
+      ? closureStageBindingSummary
+      : rawBindingSummary ?? null,
+    settleAuthoritySummary: scopedAuthoritySummary.settleSummary,
+    authorityMatchSummary: matchSummary,
+    authorityMatchedDrivers: view.authorityBinding?.matchedDrivers ?? [],
+    authorityVoiceSegmentMatched: view.authorityBinding?.voiceSegmentMatched ?? null,
+    authorityTrustSummary,
+    authorityMismatchSummary: view.authorityMismatchSummary ?? scopedAuthoritySummary.authorityMismatchSummary,
+    authorityMismatchReasonSummary: view.authorityMismatchReasonSummary ?? scopedAuthoritySummary.authorityMismatchReasonSummary,
+    authorityMismatchDisplay: view.authorityMismatchDisplay ?? scopedAuthoritySummary.authorityMismatchDisplay,
+    sameHerSignature: view.playbackCue?.authorityView?.signature ?? null,
+    sameHerReasonTags: view.playbackCue?.authorityView?.reasonTags ?? null,
+    speechEvidence: view.speechEvidence,
+  }).find((item) => {
+    if (key === 'authority-binding')
+      return item.key === 'authority'
+    if (key === 'embodiment-closure-stage')
+      return item.key === 'closure-stage'
+    return item.key === key
+  })
+  if (speechSummaryEntry) {
+    return {
+      value: speechSummaryEntry.value,
+      technicalValue: speechSummaryEntry.technicalValue,
+    }
+  }
   const entry = buildRuntimeAuthoritySummaryEntries({
     rendererTarget: null,
-    authoritySegmentId: view.authoritySummary?.segmentId ?? view.authorityBinding?.segmentId ?? null,
-    authorityBindingSummary: bindingSummary,
+    preferredBlinkCadence: null,
+    preferredGazeMode: null,
+    authoritySegmentId: scopedAuthoritySummary.segmentId ?? view.authorityBinding?.segmentId ?? null,
+    authorityBindingSummary: key === 'embodiment-closure-stage'
+      ? closureStageBindingSummary
+      : bindingDisplay?.technicalValue ?? rawBindingSummary,
     authorityMatchSummary: matchSummary,
+    embodimentClosureStage:
+      extractEmbodimentClosureStage(
+        view.embodimentClosureStage,
+        key === 'embodiment-closure-stage'
+          ? closureStageBindingSummary
+          : bindingDisplay?.technicalValue ?? rawBindingSummary,
+        scopedAuthoritySummary.settleSummary,
+        view.authorityMismatchDisplay,
+        view.authorityMismatchReasonSummary,
+        view.speechEvidence?.driverExecutionSummary,
+      ),
     authorityTrustSummary,
     prosodyAuthoritySummary,
-    authorityMismatchSummary: null,
-    authorityMismatchReasonSummary: null,
-    authorityMismatchDisplay: null,
-    settleAuthoritySummary: null,
+    authorityMismatchSummary: scopedAuthoritySummary.authorityMismatchSummary,
+    authorityMismatchReasonSummary: scopedAuthoritySummary.authorityMismatchReasonSummary,
+    authorityMismatchDisplay: scopedAuthoritySummary.authorityMismatchDisplay,
+    settleAuthoritySummary: scopedAuthoritySummary.settleSummary,
   }).find(item => item.key === key)
 
   return entry
     ? {
-        value: entry.value,
-        technicalValue: entry.technicalValue,
+        value: key === 'authority-binding'
+          ? entry.value
+          : entry.value,
+        technicalValue: key === 'authority-binding'
+          ? (bindingDisplay?.technicalValue ?? entry.technicalValue)
+          : entry.technicalValue,
       }
     : null
 }
@@ -150,6 +370,7 @@ export function buildSpeechObservabilityRows(
   view: SpeechObservabilityView,
 ): SpeechObservabilityRow[] {
   const rows: SpeechObservabilityRow[] = []
+  const scopedAuthoritySummary = resolveScopedAuthoritySummary(view)
 
   if (view.articulationSummary) {
     const voiceEntry = findEntryValue('voice', view)
@@ -189,31 +410,73 @@ export function buildSpeechObservabilityRows(
     const authorityMismatchSummary = view.authorityMismatchSummary
     const authorityBindingEntry = findAuthorityEntry('authority-binding', view)
     const authorityMatchEntry = findAuthorityEntry('authority-match', view)
+    const convergenceEntry = formatConvergenceDisplay(view)
+    const embodimentClosureStageEntry = findAuthorityEntry('embodiment-closure-stage', view)
     const authorityTrustEntry = findAuthorityEntry('authority-trust', view)
+    const sameHerSignatureEntry = findAuthorityEntry('same-her-signature', view)
+    const sameHerReasonsEntry = findAuthorityEntry('same-her-reasons', view)
     rows.push({
       section: 'authority',
-      label: view.authoritySummary?.segmentId ?? view.authorityBinding.segmentId ?? 'authority',
+      label: scopedAuthoritySummary.segmentId ?? view.authorityBinding.segmentId ?? 'authority',
       value: authorityBindingEntry?.value
-        ?? view.authoritySummary?.bindingSummary
+        ?? (scopedAuthoritySummary.bindingSummary
+          ? formatAuthorityBindingDisplay(scopedAuthoritySummary.bindingSummary).value
+          : null)
+        ?? scopedAuthoritySummary.bindingSummary
         ?? formatAuthorityBindingSummary(view.authorityBinding)
         ?? 'n/a',
-      technicalValue: authorityBindingEntry?.technicalValue,
+      technicalValue: authorityBindingEntry?.technicalValue
+        ?? (scopedAuthoritySummary.bindingSummary
+          ? formatAuthorityBindingDisplay(scopedAuthoritySummary.bindingSummary).technicalValue
+          : undefined),
     })
     rows.push(buildRow({
       section: 'authority',
       label: 'authority-match',
       value: authorityMatchEntry?.value
-        ?? view.authoritySummary?.matchSummary
+        ?? scopedAuthoritySummary.matchSummary
         ?? formatAuthorityMatchSummary(view.authorityBinding)
         ?? 'n/a',
       technicalValue: authorityMatchEntry?.technicalValue,
     }))
+    if (convergenceEntry) {
+      rows.push(buildRow({
+        section: 'authority',
+        label: 'convergence',
+        value: convergenceEntry.value,
+        technicalValue: convergenceEntry.technicalValue,
+      }))
+    }
+    if (embodimentClosureStageEntry) {
+      rows.push(buildRow({
+        section: 'authority',
+        label: 'closure-stage',
+        value: embodimentClosureStageEntry.value,
+        technicalValue: embodimentClosureStageEntry.technicalValue,
+      }))
+    }
     if (authorityTrustEntry) {
       rows.push(buildRow({
         section: 'authority',
         label: 'authority-trust',
         value: authorityTrustEntry.value,
         technicalValue: authorityTrustEntry.technicalValue,
+      }))
+    }
+    if (sameHerSignatureEntry) {
+      rows.push(buildRow({
+        section: 'authority',
+        label: 'same-her-signature',
+        value: sameHerSignatureEntry.value,
+        technicalValue: sameHerSignatureEntry.technicalValue,
+      }))
+    }
+    if (sameHerReasonsEntry) {
+      rows.push(buildRow({
+        section: 'authority',
+        label: 'same-her-reasons',
+        value: sameHerReasonsEntry.value,
+        technicalValue: sameHerReasonsEntry.technicalValue,
       }))
     }
     if (authorityMismatchSummary) {
