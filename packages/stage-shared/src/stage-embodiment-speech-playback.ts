@@ -9,6 +9,12 @@ import type { StageEmbodimentSpeechArticulationState } from './stage-embodiment-
 
 import { normalizeAlicizationEmbodimentScript } from './alicization-embodiment-script'
 import {
+  hasAlicizationAudibleSameHerCarry,
+  hasAlicizationBodyVoiceOnlySameHerCarry,
+  hasAlicizationQuieterSameHerCarry,
+  hasAlicizationStillVoicedSameHerCarry,
+} from './alicization-same-her-renderer-hints'
+import {
   cloneStageEmbodimentSpeechArticulationState,
   createIdleStageEmbodimentSpeechArticulationState,
   normalizeStageEmbodimentSpeechPlaybackDurationMs,
@@ -111,6 +117,10 @@ function normalizePlaybackText(value: string | null | undefined) {
   return value.trim().replace(/\s+/g, ' ')
 }
 
+function resolvePlaybackTextMatchKey(value: string | null | undefined) {
+  return normalizePlaybackText(value).replace(/[，。！？、,.!?~～…\s]/g, '')
+}
+
 function normalizeEmbodimentScriptFromPlaybackMetadata(
   metadata: Record<string, unknown> | null | undefined,
 ): AlicizationEmbodimentScriptV1 | null {
@@ -141,7 +151,7 @@ function resolvePlaybackSegmentProsodyIntent(item: StageEmbodimentSpeechPlayback
     return null
 
   const textMatches = script.speechPlan.segments.filter(
-    segment => normalizePlaybackText(segment.text) === normalizedText,
+    segment => resolvePlaybackTextMatchKey(segment.text) === resolvePlaybackTextMatchKey(normalizedText),
   )
   if (textMatches.length !== 1)
     return null
@@ -165,12 +175,182 @@ function resolvePlaybackScriptSegment(item: StageEmbodimentSpeechPlaybackItem | 
     return null
 
   const textMatches = script.speechPlan.segments.filter(
-    segment => normalizePlaybackText(segment.text) === normalizedText,
+    segment => resolvePlaybackTextMatchKey(segment.text) === resolvePlaybackTextMatchKey(normalizedText),
   )
   if (textMatches.length !== 1)
     return null
 
   return textMatches[0] ?? null
+}
+
+function resolvePlaybackScriptResidentMode(item: StageEmbodimentSpeechPlaybackItem | null) {
+  const script = normalizeEmbodimentScriptFromPlaybackMetadata(item?.metadata)
+  if (!script)
+    return null
+
+  const segmentResidentMode = resolvePlaybackScriptSegment(item)?.rendererHints?.residentMode ?? null
+  if (segmentResidentMode === 'measured-return' || segmentResidentMode === 'repair-before-closeness')
+    return segmentResidentMode
+
+  return script.state.residentMode ?? segmentResidentMode
+}
+
+function resolvePlaybackCompanionshipProfile(input: {
+  residentMode: string | null | undefined
+  rendererHints?: AlicizationDialogueEmbodimentRendererHints | null | undefined
+}) {
+  if (input.residentMode === 'repair-before-closeness')
+    return 'repair-before-closeness' as const
+  if (input.residentMode === 'measured-return')
+    return 'measured-return' as const
+  if (input.residentMode === 'quiet-companionship' || input.residentMode === 'quiet-accompaniment')
+    return 'quiet-companionship' as const
+
+  const hintResidentMode = input.rendererHints?.residentMode ?? null
+  if (hintResidentMode === 'repair-before-closeness')
+    return 'repair-before-closeness' as const
+  if (hintResidentMode === 'measured-return')
+    return 'measured-return' as const
+  if (hintResidentMode === 'quiet-companionship' || hintResidentMode === 'quiet-accompaniment')
+    return 'quiet-companionship' as const
+
+  return hasMeasuredReturnLikeSameHerCarryRendererHints(input.rendererHints)
+    ? 'same-her-measured-return' as const
+    : null
+}
+
+function isRendererOnlyVisibleRecoveryFrame(
+  frame: AlicizationDigitalLifeFrame | null | undefined,
+  residentMode: string | null,
+  rendererHints?: AlicizationDialogueEmbodimentRendererHints | null | undefined,
+) {
+  if (!frame)
+    return false
+
+  const normalizedResidentMode = resolvePlaybackCompanionshipProfile({
+    residentMode,
+    rendererHints: rendererHints ?? mergeRendererHints([
+      frame.face.rendererHints ?? null,
+      frame.action.rendererHints ?? null,
+    ]),
+  })
+
+  if (!normalizedResidentMode)
+    return false
+
+  const weakBodyCarry = frame.mode === 'recovering'
+    || frame.face.expressionMode === 'recover'
+    || frame.motor.expressivity <= 0.18
+    || frame.motor.gaze.stability <= 0.42
+
+  return weakBodyCarry
+    && frame.settleMode === 'hold'
+    && frame.lipSync.mode !== 'closed'
+    && frame.lipSync.continuityHoldMs >= 180
+    && (
+      normalizedResidentMode === 'repair-before-closeness'
+      || normalizedResidentMode === 'quiet-companionship'
+      || normalizedResidentMode === 'measured-return'
+      || normalizedResidentMode === 'same-her-measured-return'
+    )
+}
+
+function resolvePlaybackResidentModeProsodyFallback(
+  residentMode: string | null,
+) {
+  if (residentMode === 'repair-before-closeness') {
+    return {
+      emphasisOffset: -0.04,
+      prosodyOffset: -0.06,
+      tempoShift: -0.16,
+    }
+  }
+
+  if (residentMode === 'measured-return' || residentMode === 'idle-recovering') {
+    return {
+      emphasisOffset: -0.02,
+      prosodyOffset: -0.03,
+      tempoShift: -0.1,
+    }
+  }
+
+  if (residentMode === 'same-her-measured-return') {
+    return {
+      emphasisOffset: -0.03,
+      prosodyOffset: -0.04,
+      tempoShift: -0.12,
+    }
+  }
+
+  if (residentMode === 'quiet-companionship' || residentMode === 'quiet-accompaniment') {
+    return {
+      emphasisOffset: -0.02,
+      prosodyOffset: -0.035,
+      tempoShift: -0.12,
+    }
+  }
+
+  return {
+    emphasisOffset: 0,
+    prosodyOffset: 0,
+    tempoShift: 0,
+  }
+}
+
+function isDurableMeasuredReturnHint(
+  rendererHints: AlicizationDialogueEmbodimentRendererHints | null | undefined,
+) {
+  return rendererHints?.residentMode === 'measured-return'
+    && (
+      (
+        rendererHints.preferredGazeMode === 'steady'
+        && rendererHints.preferredBlinkCadence === 'quiet'
+      )
+      || (
+        rendererHints.preferredGazeMode === 'soften'
+        && rendererHints.preferredBlinkCadence === 'linger'
+      )
+      || (
+        // Quieter same-person recollection can stay on the same living line
+        // without needing the stronger linger cadence.
+        rendererHints.preferredGazeMode === 'soften'
+        && rendererHints.preferredBlinkCadence === 'quiet'
+      )
+    )
+}
+
+function resolvePlaybackCompanionshipActionCue(input: {
+  actionCue: string | null
+  residentMode: string | null
+  rendererHints?: AlicizationDialogueEmbodimentRendererHints | null
+}) {
+  const companionshipProfile = resolvePlaybackCompanionshipProfile({
+    residentMode: input.residentMode,
+    rendererHints: input.rendererHints,
+  })
+  if (!input.actionCue)
+    return null
+  if (companionshipProfile === 'repair-before-closeness')
+    return 'idle_settle'
+  if (companionshipProfile === 'measured-return') {
+    if (input.actionCue === 'observe_focus')
+      return isDurableMeasuredReturnHint(input.rendererHints) ? 'observe_focus' : 'idle_settle'
+    return input.actionCue === 'steady_focus'
+      ? isDurableMeasuredReturnHint(input.rendererHints)
+        ? 'steady_focus'
+        : 'observe_focus'
+      : 'idle_settle'
+  }
+  if (companionshipProfile === 'same-her-measured-return') {
+    if (input.actionCue === 'observe_focus')
+      return 'observe_focus'
+    return input.actionCue === 'steady_focus'
+      ? 'observe_focus'
+      : 'idle_settle'
+  }
+  if (companionshipProfile === 'quiet-companionship')
+    return input.actionCue === 'steady_focus' || input.actionCue === 'observe_focus' ? input.actionCue : 'idle_settle'
+  return input.actionCue
 }
 
 function resolvePlaybackScriptFaceCue(item: StageEmbodimentSpeechPlaybackItem | null) {
@@ -224,6 +404,57 @@ function mergeRendererHintAliases(values: Array<readonly string[] | undefined>) 
   return merged
 }
 
+function mergeRendererHintReasonTags(values: Array<readonly string[] | undefined>) {
+  return mergeRendererHintAliases(values)
+}
+
+function normalizeRendererHintAlias(value: string | null | undefined) {
+  return typeof value === 'string'
+    ? value.trim().toLowerCase().replace(/-/g, '_')
+    : null
+}
+
+function hasMeasuredReturnLikeSameHerCarryRendererHints(
+  rendererHints: AlicizationDialogueEmbodimentRendererHints | null | undefined,
+) {
+  const sameHerAudibleCarry = hasAlicizationAudibleSameHerCarry({
+    signature: rendererHints?.signature,
+    reasonTags: rendererHints?.reasonTags,
+  })
+  const sameHerBodyVoiceOnlyCarry = hasAlicizationBodyVoiceOnlySameHerCarry({
+    signature: rendererHints?.signature,
+    reasonTags: rendererHints?.reasonTags,
+  })
+  const sameHerQuieterCarry = hasAlicizationQuieterSameHerCarry({
+    signature: rendererHints?.signature,
+    reasonTags: rendererHints?.reasonTags,
+  })
+  const sameHerStillVoicedCarry = hasAlicizationStillVoicedSameHerCarry({
+    signature: rendererHints?.signature,
+    reasonTags: rendererHints?.reasonTags,
+  })
+
+  return sameHerAudibleCarry
+    || sameHerBodyVoiceOnlyCarry
+    || sameHerQuieterCarry
+    || sameHerStillVoicedCarry
+}
+
+function hasRememberedSeamMoreRoomRendererHints(
+  rendererHints: AlicizationDialogueEmbodimentRendererHints | null | undefined,
+) {
+  if (rendererHints?.residentMode !== 'measured-return')
+    return false
+
+  const primaryExpressionAlias = normalizeRendererHintAlias(rendererHints.preferredExpressionAliases?.[0] ?? null)
+  const primaryMotionAlias = normalizeRendererHintAlias(rendererHints.preferredMotionAliases?.[0] ?? null)
+
+  return primaryExpressionAlias === 'soft_gaze'
+    && primaryMotionAlias === 'idle_settle'
+    && rendererHints.preferredBlinkCadence === 'linger'
+    && rendererHints.preferredGazeMode === 'soften'
+}
+
 function mergeRendererHints(
   hints: Array<AlicizationDialogueEmbodimentRendererHints | null | undefined>,
 ): AlicizationDialogueEmbodimentRendererHints | null {
@@ -233,13 +464,77 @@ function mergeRendererHints(
   const preferredMotionAliases = mergeRendererHintAliases(
     hints.map(item => item?.preferredMotionAliases),
   )
+  const reasonTags = mergeRendererHintReasonTags(
+    hints.map(item => item?.reasonTags),
+  )
+  const signature = hints.find(item => typeof item?.signature === 'string' && item.signature.trim())?.signature
+  const preferredGazeMode = hints.find(item =>
+    item?.preferredGazeMode === 'steady'
+    || item?.preferredGazeMode === 'soften'
+    || item?.preferredGazeMode === 'drift',
+  )?.preferredGazeMode
+  const preferredBlinkCadence = hints.find(item =>
+    item?.preferredBlinkCadence === 'normal'
+    || item?.preferredBlinkCadence === 'linger'
+    || item?.preferredBlinkCadence === 'quiet',
+  )?.preferredBlinkCadence
+  const preferredPauseMode = hints.find(item =>
+    item?.preferredPauseMode === 'longer'
+    || item?.preferredPauseMode === 'natural',
+  )?.preferredPauseMode
+  const preferredLipsyncMode = hints.find(item =>
+    item?.preferredLipsyncMode === 'restrained'
+    || item?.preferredLipsyncMode === 'matched',
+  )?.preferredLipsyncMode
+  const preferredVoiceMode = hints.find(item =>
+    item?.preferredVoiceMode === 'lower-pressure'
+    || item?.preferredVoiceMode === 'even',
+  )?.preferredVoiceMode
+  const preferredPacingMode = hints.find(item =>
+    item?.preferredPacingMode === 'slower'
+    || item?.preferredPacingMode === 'natural',
+  )?.preferredPacingMode
+  const residentMode = hints.find(item => typeof item?.residentMode === 'string' && item.residentMode.trim())?.residentMode
 
-  if (preferredExpressionAliases.length === 0 && preferredMotionAliases.length === 0)
-    return null
+  if (preferredExpressionAliases.length === 0 && preferredMotionAliases.length === 0) {
+    if (
+      !preferredGazeMode
+      && !preferredBlinkCadence
+      && !preferredPauseMode
+      && !preferredLipsyncMode
+      && !preferredVoiceMode
+      && !preferredPacingMode
+      && !residentMode
+      && reasonTags.length === 0
+      && !signature
+    ) {
+      return null
+    }
 
+    return {
+      preferredBlinkCadence,
+      preferredGazeMode,
+      preferredPauseMode,
+      preferredLipsyncMode,
+      preferredVoiceMode,
+      preferredPacingMode,
+      reasonTags: reasonTags.length > 0 ? reasonTags : undefined,
+      residentMode,
+      signature,
+    }
+  }
   return {
+    preferredBlinkCadence,
     preferredExpressionAliases: preferredExpressionAliases.length > 0 ? preferredExpressionAliases : undefined,
+    preferredGazeMode,
+    preferredPauseMode,
+    preferredLipsyncMode,
+    preferredVoiceMode,
+    preferredPacingMode,
     preferredMotionAliases: preferredMotionAliases.length > 0 ? preferredMotionAliases : undefined,
+    reasonTags: reasonTags.length > 0 ? reasonTags : undefined,
+    residentMode,
+    signature,
   }
 }
 
@@ -266,6 +561,44 @@ function resolveProjectedCueMouthWeight(frame: AlicizationDigitalLifeFrame) {
   return clampUnit(mouthScaleWeight * 0.58 + frame.voice.energy * 0.42)
 }
 
+function shouldPreserveMeasuredReturnMouthPresence(input: {
+  frame: AlicizationDigitalLifeFrame
+  rendererHints: AlicizationDialogueSpeechTimelineSegment['rendererHints'] | null | undefined
+  residentMode: string | null | undefined
+}) {
+  const residentMode = input.residentMode === 'measured-return'
+    || input.residentMode === 'repair-before-closeness'
+    || input.residentMode === 'quiet-companionship'
+    || input.residentMode === 'quiet-accompaniment'
+    ? input.residentMode === 'quiet-accompaniment' ? 'quiet-companionship' : input.residentMode
+    : input.rendererHints?.residentMode === 'measured-return'
+      || input.rendererHints?.residentMode === 'repair-before-closeness'
+      || input.rendererHints?.residentMode === 'quiet-companionship'
+      || input.rendererHints?.residentMode === 'quiet-accompaniment'
+      ? input.rendererHints.residentMode === 'quiet-accompaniment'
+        ? 'quiet-companionship'
+        : input.rendererHints.residentMode
+      : null
+  const sameHerMeasuredReturnCarry = hasMeasuredReturnLikeSameHerCarryRendererHints(input.rendererHints)
+
+  if (
+    residentMode !== 'measured-return'
+    && residentMode !== 'repair-before-closeness'
+    && residentMode !== 'quiet-companionship'
+    && !sameHerMeasuredReturnCarry
+  ) {
+    return false
+  }
+
+  return input.frame.lipSync.continuityHoldMs >= 180
+    && input.frame.face.expressionMode === 'hold'
+    && input.frame.voice.energy >= 0.28
+    && (
+      input.rendererHints?.preferredBlinkCadence === 'linger'
+      || input.rendererHints?.preferredGazeMode === 'soften'
+    )
+}
+
 function resolveProjectedRendererSettleValue(
   current: number | undefined,
   derived: number,
@@ -289,6 +622,14 @@ function resolveProjectedRendererSettleHints(
   frame: AlicizationDigitalLifeFrame,
   fallback: AlicizationDialogueSpeechRendererSettleHints | null | undefined,
 ): AlicizationDialogueSpeechRendererSettleHints {
+  const measuredReturnContinuityCarry = shouldPreserveMeasuredReturnMouthPresence({
+    frame,
+    rendererHints: mergeRendererHints([
+      frame.face.rendererHints ?? null,
+      frame.action.rendererHints ?? null,
+    ]),
+    residentMode: frame.face.rendererHints?.residentMode ?? frame.action.rendererHints?.residentMode ?? null,
+  })
   const faceHoldMs = Math.round(clampRange(frame.face.holdMs, 80, 960))
   const actionHoldMs = Math.round(clampRange(frame.action.holdMs, 70, 720))
   const facialReleaseMs = Math.round(clampRange(
@@ -321,9 +662,11 @@ function resolveProjectedRendererSettleHints(
   const actionFadeMs = Math.round(clampRange(
     frame.action.actionMode === 'hold'
       ? actionHoldMs * 0.94
-      : frame.action.actionMode === 'none'
-        ? actionHoldMs * 0.58
-        : actionHoldMs * 0.76,
+      : measuredReturnContinuityCarry && frame.action.actionMode === 'none'
+        ? actionHoldMs * 0.84
+        : frame.action.actionMode === 'none'
+          ? actionHoldMs * 0.58
+          : actionHoldMs * 0.76,
     80,
     1200,
   ))
@@ -342,7 +685,7 @@ function resolveProjectedRendererSettleHints(
     live2dMotionFollowThroughMs: resolveProjectedRendererSettleValue(
       fallback?.live2dMotionFollowThroughMs,
       motionFollowThroughMs,
-      frame.action.actionMode === 'hold'
+      frame.action.actionMode === 'hold' || (measuredReturnContinuityCarry && frame.action.actionMode === 'none')
         ? 'prefer-longer'
         : frame.action.actionMode === 'none'
           ? 'prefer-shorter'
@@ -351,11 +694,138 @@ function resolveProjectedRendererSettleHints(
     vrmActionFadeMs: resolveProjectedRendererSettleValue(
       fallback?.vrmActionFadeMs,
       actionFadeMs,
-      frame.action.actionMode === 'hold'
+      frame.action.actionMode === 'hold' || (measuredReturnContinuityCarry && frame.action.actionMode === 'none')
         ? 'prefer-longer'
         : frame.action.actionMode === 'none'
           ? 'prefer-shorter'
           : 'prefer-derived',
+    ),
+  }
+}
+
+function resolveProsodyTailSettleBonusMs(input: {
+  cadencePulse: number
+  prosodyIntensity: number
+  speechEnergy: number
+}) {
+  const prosodyTail = clampUnit(input.prosodyIntensity) * 110
+  const speechTail = clampUnit(input.speechEnergy) * 70
+  const cadenceTail = (1 - clampUnit(input.cadencePulse)) * 90
+  return Math.round(clampRange(prosodyTail + speechTail + cadenceTail - 70, 0, 220))
+}
+
+function resolveArticulationTailSettleBonusMs(input: {
+  articulation: StageEmbodimentSpeechArticulationState
+  visemeIntensity: number
+}) {
+  const articulation = input.articulation
+  const closureTail = clampUnit(Math.max(
+    articulation.lipClosure,
+    articulation.visemes.closed,
+  )) * 80
+  const openTail = clampUnit(Math.max(
+    articulation.openness,
+    articulation.jawOpen,
+    input.visemeIntensity,
+  )) * 60
+  const blinkStillnessTail = clampUnit(
+    (1 - articulation.openness) * 0.42
+    + articulation.lipClosure * 0.28
+    + articulation.visemes.closed * 0.3,
+  ) * 56
+  return Math.round(clampRange(closureTail + openTail + blinkStillnessTail - 36, 0, 170))
+}
+
+function resolveRenderStateRendererSettleHints(input: {
+  articulation: StageEmbodimentSpeechArticulationState
+  dynamics: StageEmbodimentSpeechDynamicsState
+  facialCue?: string | null
+  phase: StageEmbodimentSpeechRenderPhase
+  rendererSettle: AlicizationDialogueSpeechRendererSettleHints | null | undefined
+  rendererHints?: AlicizationDialogueSpeechTimelineSegment['rendererHints'] | null | undefined
+  stopReason?: string | null | undefined
+  visemeIntensity: number
+}) {
+  const rendererSettle = input.rendererSettle
+  if (!rendererSettle)
+    return null
+
+  const rendererHints = input.rendererHints
+
+  if (input.phase !== 'playing' && input.phase !== 'stopping')
+    return cloneRendererSettleHints(rendererSettle)
+
+  const measuredReturnLikeSameHerCarry = hasMeasuredReturnLikeSameHerCarryRendererHints(rendererHints)
+  const tailBonusMs = resolveProsodyTailSettleBonusMs(input.dynamics)
+    + resolveArticulationTailSettleBonusMs({
+      articulation: input.articulation,
+      visemeIntensity: input.visemeIntensity,
+    })
+    + (
+      input.facialCue === 'eyes-soften'
+      || input.facialCue === 'soft-gaze'
+        ? 60
+        : input.facialCue === 'soft-release'
+          ? 30
+          : 0
+    )
+    + (
+      (
+        rendererHints?.residentMode === 'measured-return'
+        || rendererHints?.residentMode === 'repair-before-closeness'
+        || measuredReturnLikeSameHerCarry
+      )
+      && (
+        rendererHints?.preferredBlinkCadence === 'linger'
+        || rendererHints?.preferredGazeMode === 'soften'
+      )
+      && input.dynamics.speechEnergy >= 0.18
+      && input.dynamics.cadencePulse <= 0.52
+        ? 36
+        : 0
+    )
+    + (
+      input.phase === 'stopping'
+      && (
+        input.stopReason == null
+        || input.stopReason === 'ended'
+        || input.stopReason === 'synthetic-segment-complete'
+      )
+      && (
+        rendererHints?.residentMode === 'measured-return'
+        || rendererHints?.residentMode === 'repair-before-closeness'
+        || measuredReturnLikeSameHerCarry
+      )
+      && (
+        rendererHints?.preferredBlinkCadence === 'linger'
+        || rendererHints?.preferredGazeMode === 'soften'
+      )
+        ? 28
+        : 0
+    )
+  if (tailBonusMs <= 0)
+    return cloneRendererSettleHints(rendererSettle)
+
+  return {
+    live2dFacialReleaseMs: resolveProjectedRendererSettleValue(
+      rendererSettle.live2dFacialReleaseMs,
+      Math.round((rendererSettle.live2dFacialReleaseMs ?? 0) + tailBonusMs),
+      'prefer-longer',
+    ),
+    live2dMotionFollowThroughMs: resolveProjectedRendererSettleValue(
+      rendererSettle.live2dMotionFollowThroughMs,
+      Math.round((rendererSettle.live2dMotionFollowThroughMs ?? 0) + tailBonusMs),
+      'prefer-longer',
+    ),
+    vrmActionFadeMs: resolveProjectedRendererSettleValue(
+      rendererSettle.vrmActionFadeMs,
+      Math.round((rendererSettle.vrmActionFadeMs ?? 0) + tailBonusMs),
+      'prefer-longer',
+    ),
+    vrmExpressionBlendMs: resolveProjectedRendererSettleValue(
+      rendererSettle.vrmExpressionBlendMs,
+      Math.round((rendererSettle.vrmExpressionBlendMs ?? 0) + tailBonusMs),
+      'prefer-longer',
     ),
   }
 }
@@ -371,6 +841,7 @@ export function projectStageEmbodimentSpeechCue(input: {
   const scriptFaceCue = resolvePlaybackScriptFaceCue(input.playbackItem ?? null)
   const scriptMotionBurst = resolvePlaybackScriptMotionBurst(input.playbackItem ?? null)
   const scriptVisemeHint = resolvePlaybackScriptVisemeHint(input.playbackItem ?? null)
+  const scriptResidentMode = resolvePlaybackScriptResidentMode(input.playbackItem ?? null)
   if (!cue && !frame && !scriptSegment && !scriptFaceCue && !scriptMotionBurst && !scriptVisemeHint)
     return null
 
@@ -390,20 +861,72 @@ export function projectStageEmbodimentSpeechCue(input: {
         frame.face.rendererHints,
         frame.action.rendererHints,
         cue?.rendererHints,
+        scriptSegment?.rendererHints ?? null,
       ])
     : mergeRendererHints([
         cue?.rendererHints,
         scriptSegment?.rendererHints ?? null,
       ])
+  const restrainedRendererOnlyRecovery = isRendererOnlyVisibleRecoveryFrame(
+    frame,
+    scriptResidentMode,
+    rendererHints,
+  )
   const scriptMouthWeight = scriptVisemeHint?.weight
   const projectedActionCue = frame
     ? frame.action.actionMode === 'none'
       ? null
-      : normalizeCueToken(frame.action.actionCue)
-    : normalizeCueToken(cue?.actionCue) ?? normalizeCueToken(scriptMotionBurst?.actionCue)
+      : restrainedRendererOnlyRecovery
+        ? resolvePlaybackCompanionshipActionCue({
+            actionCue: normalizeCueToken(cue?.actionCue) ?? normalizeCueToken(scriptMotionBurst?.actionCue) ?? 'idle_settle',
+            residentMode: scriptResidentMode,
+            rendererHints,
+          })
+        : normalizeCueToken(frame.action.actionCue)
+    : normalizeCueToken(cue?.actionCue) ?? resolvePlaybackCompanionshipActionCue({
+      actionCue: normalizeCueToken(scriptMotionBurst?.actionCue),
+      residentMode: scriptResidentMode,
+      rendererHints: scriptSegment?.rendererHints ?? cue?.rendererHints ?? null,
+    })
+  const measuredBodyVoiceOnlyRendererRecovery = restrainedRendererOnlyRecovery
+    && (
+      scriptResidentMode === 'measured-return'
+      || rendererHints?.residentMode === 'measured-return'
+    )
+    && hasAlicizationBodyVoiceOnlySameHerCarry({
+      signature: rendererHints?.signature,
+      reasonTags: rendererHints?.reasonTags,
+    })
+  const finalProjectedActionCue = measuredBodyVoiceOnlyRendererRecovery
+    && (projectedActionCue === 'observe_focus' || projectedActionCue === 'steady_focus')
+    ? 'idle_settle'
+    : projectedActionCue
   const projectedFacialCue = frame
-    ? normalizeCueToken(frame.face.facialCue)
+    ? restrainedRendererOnlyRecovery && (
+      scriptResidentMode === 'repair-before-closeness'
+      || scriptResidentMode === 'measured-return'
+      || rendererHints?.residentMode === 'repair-before-closeness'
+      || rendererHints?.residentMode === 'measured-return'
+    )
+      ? normalizeCueToken(scriptFaceCue?.facialCue) ?? 'soft-gaze'
+      : normalizeCueToken(frame.face.facialCue)
     : normalizeCueToken(cue?.facialCue) ?? normalizeCueToken(scriptFaceCue?.facialCue)
+  const projectedMouthWeightFromFrame = frame
+    ? resolveProjectedCueMouthWeight(frame)
+    : null
+  const preserveMeasuredReturnMouthPresence = frame
+    ? shouldPreserveMeasuredReturnMouthPresence({
+        frame,
+        rendererHints,
+        residentMode: scriptResidentMode,
+      })
+    : false
+  const rememberedSeamMoreRoomCarry = hasRememberedSeamMoreRoomRendererHints(rendererHints)
+  const carriedMouthPresenceFloor = preserveMeasuredReturnMouthPresence && frame
+    ? rememberedSeamMoreRoomCarry
+      ? Math.min(0.42, frame.voice.energy * 0.82 + 0.02)
+      : Math.min(0.42, frame.voice.energy * 0.9 + 0.04)
+    : null
 
   return {
     id: frame?.id ?? cue?.id ?? scriptSegment?.id ?? 'stage-embodiment:segment',
@@ -413,20 +936,54 @@ export function projectStageEmbodimentSpeechCue(input: {
     text,
     emotion: frame?.face.emotion ?? cue?.emotion ?? scriptFaceCue?.emotion,
     gestureWeight: frame
-      ? clampUnit(frame.action.intensity, cue?.gestureWeight ?? 0)
+      ? clampUnit(
+          restrainedRendererOnlyRecovery
+            ? Math.min(frame.action.intensity, 0.18)
+            : frame.action.intensity,
+          cue?.gestureWeight ?? 0,
+        )
       : clampUnit(cue?.gestureWeight ?? scriptMotionBurst?.intensity ?? 0),
     facialWeight: frame
-      ? clampUnit(frame.face.intensity, cue?.facialWeight ?? 0)
+      ? clampUnit(
+          restrainedRendererOnlyRecovery
+            ? Math.min(frame.face.intensity, 0.36)
+            : frame.face.intensity,
+          cue?.facialWeight ?? 0,
+        )
       : clampUnit(cue?.facialWeight ?? scriptFaceCue?.intensity ?? 0),
     prosodyWeight: frame
-      ? clampUnit(frame.voice.cadence, cue?.prosodyWeight ?? 0)
+      ? clampUnit(
+          restrainedRendererOnlyRecovery
+            ? Math.min(frame.voice.cadence, cue?.prosodyWeight ?? frame.voice.cadence, 0.28)
+            : frame.voice.cadence,
+          cue?.prosodyWeight ?? 0,
+        )
       : clampUnit(cue?.prosodyWeight ?? scriptMouthWeight ?? 0),
     beatWeight: frame
-      ? resolveProjectedCueBeatWeight(frame)
+      ? restrainedRendererOnlyRecovery
+        ? clampUnit(Math.min(resolveProjectedCueBeatWeight(frame), cue?.beatWeight ?? resolveProjectedCueBeatWeight(frame), 0.32))
+        : resolveProjectedCueBeatWeight(frame)
       : clampUnit(cue?.beatWeight ?? scriptMotionBurst?.intensity ?? scriptMouthWeight ?? 0),
-    mouthWeight: frame ? resolveProjectedCueMouthWeight(frame) : cue?.mouthWeight ?? scriptMouthWeight,
+    mouthWeight: frame
+      ? restrainedRendererOnlyRecovery
+        ? clampUnit(Math.max(
+            Math.min(projectedMouthWeightFromFrame ?? 0, cue?.mouthWeight ?? projectedMouthWeightFromFrame ?? 0, 0.42),
+            carriedMouthPresenceFloor ?? 0,
+          ))
+        : preserveMeasuredReturnMouthPresence
+          ? clampUnit(Math.max(
+              projectedMouthWeightFromFrame ?? 0,
+              carriedMouthPresenceFloor ?? 0,
+            ))
+          : projectedMouthWeightFromFrame ?? undefined
+      : cue?.mouthWeight ?? scriptMouthWeight,
     headWeight: frame
-      ? clampUnit(frame.action.intensity, cue?.headWeight ?? cue?.gestureWeight ?? 0)
+      ? clampUnit(
+          restrainedRendererOnlyRecovery
+            ? Math.min(frame.action.intensity, 0.18)
+            : frame.action.intensity,
+          cue?.headWeight ?? cue?.gestureWeight ?? 0,
+        )
       : cue?.headWeight ?? clampUnit(scriptMotionBurst?.intensity ?? 0),
     facialHoldMs: frame
       ? Math.round(clampRange(frame.face.holdMs, 80, 960))
@@ -445,21 +1002,27 @@ export function projectStageEmbodimentSpeechCue(input: {
           960,
         ))
       : cue?.emotionHoldMs ?? (Math.max(scriptFaceCue?.holdMs ?? 0, scriptMotionBurst?.holdMs ?? 0) || undefined),
-    settleMode: frame?.settleMode ?? cue?.settleMode,
+    settleMode: frame?.settleMode ?? cue?.settleMode ?? (
+      scriptResidentMode === 'idle-recovering' || scriptResidentMode === 'measured-return'
+        ? 'linger'
+        : scriptResidentMode === 'repair-before-closeness'
+          ? 'hold'
+          : undefined
+    ),
     rendererSettle: frame
       ? resolveProjectedRendererSettleHints(frame, cue?.rendererSettle)
       : cloneRendererSettleHints(cue?.rendererSettle ?? scriptSegment?.rendererSettle ?? null),
     rendererHints,
-    actionCue: projectedActionCue,
+    actionCue: finalProjectedActionCue,
     facialCue: projectedFacialCue,
     actionWindow: frame
-      ? !projectedActionCue
-        ? 'none'
-        : cue?.actionWindow === 'cadence-peak' || resolveProjectedCueBeatWeight(frame) >= 0.66
-          ? 'cadence-peak'
-          : 'segment-start'
-      : cue?.actionWindow ?? (projectedActionCue ? 'segment-start' : 'none'),
-    interruptMode: frame?.interruptPolicy ?? cue?.interruptMode ?? (projectedActionCue || projectedFacialCue ? 'soft-interrupt' : 'continue'),
+      ? !finalProjectedActionCue
+          ? 'none'
+          : cue?.actionWindow === 'cadence-peak' || resolveProjectedCueBeatWeight(frame) >= 0.66
+            ? 'cadence-peak'
+            : 'segment-start'
+      : cue?.actionWindow ?? (finalProjectedActionCue ? 'segment-start' : 'none'),
+    interruptMode: frame?.interruptPolicy ?? cue?.interruptMode ?? (finalProjectedActionCue || projectedFacialCue ? 'soft-interrupt' : 'continue'),
   }
 }
 
@@ -475,6 +1038,29 @@ function normalizeStyleRate(value: number | null | undefined) {
     return 0
 
   return clampUnit(Math.abs(Number(value) - 1) / 0.45)
+}
+
+function resolvePlaybackVoiceStyle(input: {
+  item: StageEmbodimentSpeechPlaybackItem | null
+  stylePitch?: number | null
+  styleRate?: number | null
+}) {
+  const voice = input.item?.digitalLifeFrame?.voice
+
+  return {
+    stylePitch: Number.isFinite(voice?.pitchDelta)
+      ? Number(voice?.pitchDelta)
+      : input.stylePitch,
+    styleRate: Number.isFinite(voice?.rateMultiplier)
+      ? Number(voice?.rateMultiplier)
+      : input.styleRate,
+  }
+}
+
+function resolvePlaybackVoiceDynamicsFallback(item: StageEmbodimentSpeechPlaybackItem | null) {
+  return {
+    cadence: clampUnit(item?.digitalLifeFrame?.voice.cadence ?? 0),
+  }
 }
 
 function countMatches(text: string, pattern: RegExp) {
@@ -560,12 +1146,20 @@ export function deriveStageEmbodimentSpeechDynamicsState(input: {
   const speechEnergy = clampUnit(input.speechEnergy ?? 0)
   const planProsody = resolvePlaybackSegmentProsodyIntent(input.item)
   const hasPlanProsody = Boolean(planProsody)
+  const residentMode = resolvePlaybackScriptResidentMode(input.item)
+  const companionshipProfile = resolvePlaybackCompanionshipProfile({
+    residentMode,
+    rendererHints: input.item?.cue?.rendererHints,
+  })
+  const residentModeFallback = !hasPlanProsody
+    ? resolvePlaybackResidentModeProsodyFallback(companionshipProfile)
+    : resolvePlaybackResidentModeProsodyFallback(null)
   const prosodyStrength = clampUnit(planProsody?.emphasisStrength ?? 0)
-  const tempoShift = clampRange(planProsody?.tempoShift ?? 0, -1, 1)
+  const tempoShift = clampRange(planProsody?.tempoShift ?? residentModeFallback.tempoShift, -1, 1)
   const contourBoost = planProsody?.contour === 'rising'
-    ? 0.12
+    ? 0.16
     : planProsody?.contour === 'dip-rise'
-      ? 0.08
+      ? 0.1
       : planProsody?.contour === 'falling'
         ? 0.04
         : 0
@@ -583,36 +1177,47 @@ export function deriveStageEmbodimentSpeechDynamicsState(input: {
       : 0
   const emphasisLevel = clampUnit(
     resolveTextEmphasis(input.item)
-    + prosodyStrength * 0.28
-    + contourBoost * 0.4,
+    + prosodyStrength * 0.34
+    + contourBoost * 0.52,
+  )
+  const restrainedEmphasisLevel = clampUnit(
+    emphasisLevel + residentModeFallback.emphasisOffset,
   )
   const mouthPresence = clampUnit(input.mouthOpenSize / 100)
   const cueProsody = clampUnit(input.item?.cue?.prosodyWeight ?? 0)
   const cueMouth = clampUnit(input.item?.cue?.mouthWeight ?? 0)
   const cueHead = clampUnit(input.item?.cue?.headWeight ?? 0)
+  const playbackVoiceStyle = resolvePlaybackVoiceStyle({
+    item: input.item,
+    stylePitch: input.stylePitch,
+    styleRate: input.styleRate,
+  })
+  const playbackVoiceDynamics = resolvePlaybackVoiceDynamicsFallback(input.item)
   const styleIntensity = clampUnit(
-    normalizeStylePitch(input.stylePitch) * 0.45
-    + normalizeStyleRate(input.styleRate) * 0.55,
+    normalizeStylePitch(playbackVoiceStyle.stylePitch) * 0.45
+    + normalizeStyleRate(playbackVoiceStyle.styleRate) * 0.55,
   )
 
   return {
     speechEnergy,
-    emphasisLevel,
+    emphasisLevel: restrainedEmphasisLevel,
     prosodyIntensity: clampUnit(
-      emphasisLevel * (hasPlanProsody ? 0.38 : 0.42)
+      restrainedEmphasisLevel * (hasPlanProsody ? 0.42 : 0.42)
       + cueProsody * (hasPlanProsody ? 0.2 : 0.24)
       + cueMouth * 0.12
       + styleIntensity * (hasPlanProsody ? 0.24 : 0.28)
       + mouthPresence * 0.14
       + speechEnergy * (hasPlanProsody ? 0.22 : 0.24)
-      + prosodyStrength * 0.24
-      + contourBoost
-      + Math.max(0, tempoShift) * 0.08,
+      + prosodyStrength * 0.28
+      + contourBoost * 1.08
+      + Math.max(0, tempoShift) * 0.08
+      + residentModeFallback.prosodyOffset,
+      0,
     ),
     cadencePulse: clampUnit(
       resolveCadencePulse({
         emphasisLevel: clampUnit(
-          emphasisLevel
+          restrainedEmphasisLevel
           + cueHead * 0.08
           + prosodyStrength * 0.14
           + contourBoost * 0.1
@@ -624,14 +1229,15 @@ export function deriveStageEmbodimentSpeechDynamicsState(input: {
         phase: input.phase,
         speechEnergy,
         startedAt: input.startedAt,
-        styleRate: Number.isFinite(input.styleRate)
-          ? Number(input.styleRate) + tempoShift * 0.22
+        styleRate: Number.isFinite(playbackVoiceStyle.styleRate)
+          ? Number(playbackVoiceStyle.styleRate) + tempoShift * 0.22
           : 1 + tempoShift * 0.22,
       })
-      + prosodyStrength * 0.04
-      + contourBoost * 0.22
+      + prosodyStrength * 0.06
+      + contourBoost * 0.28
       + boundaryBias * 0.2
-      + tempoShift * 0.12
+      + tempoShift * 0.18
+      + playbackVoiceDynamics.cadence * 0.16
       + pauseBias,
     ),
   }
@@ -727,13 +1333,33 @@ export function deriveStageEmbodimentSpeechRenderState(input: {
     articulation.visemes.O,
     articulation.visemes.U,
   ))
+  const closureIntensity = clampUnit(Math.max(
+    articulation.lipClosure * 0.64,
+    articulation.visemes.closed * 0.68,
+  ))
   const visemeIntensity = clampUnit(Math.max(
     articulationIntensity * 0.92,
+    closureIntensity,
     mouthOpenRatio * 0.76,
     speechEnergy * 0.92,
     prosodyIntensity * 0.44,
   ))
   const phase = resolveSpeechRenderPhase(input.state, input.lastEventType ?? null)
+  const projectedCue = input.state.item?.cue
+    ? {
+        ...input.state.item.cue,
+        rendererSettle: resolveRenderStateRendererSettleHints({
+          articulation,
+          dynamics: input.state.dynamics,
+          facialCue: input.state.item.cue.facialCue,
+          phase,
+          rendererHints: input.state.item.cue.rendererHints,
+          rendererSettle: input.state.item.cue.rendererSettle,
+          stopReason: input.state.stopReason,
+          visemeIntensity,
+        }),
+      }
+    : null
 
   return {
     phase,
@@ -741,7 +1367,12 @@ export function deriveStageEmbodimentSpeechRenderState(input: {
     lastEventType: input.lastEventType ?? null,
     revision: Math.max(0, Math.floor(input.revision ?? 0)),
     active: phase !== 'idle' || visemeIntensity > 0.015,
-    item: input.state.item ? { ...input.state.item } : null,
+    item: input.state.item
+      ? {
+          ...input.state.item,
+          cue: projectedCue,
+        }
+      : null,
     currentAudioSource: input.state.currentAudioSource,
     audioBound: input.state.currentAudioSource != null,
     mouthOpenSize: Math.max(0, Math.min(100, input.state.mouthOpenSize)),
@@ -774,11 +1405,14 @@ export function createStageEmbodimentSpeechPlaybackItem(input: {
   digitalLifeFrame?: AlicizationDigitalLifeFrame | null
 }): StageEmbodimentSpeechPlaybackItem {
   const digitalLifeFrame = input.digitalLifeFrame ?? null
+  const authoritySegmentId = normalizeCueToken(digitalLifeFrame?.id)
+    ?? normalizeCueToken(input.segmentId)
+    ?? null
 
   return {
     intentId: input.intentId ?? null,
     streamId: input.streamId ?? null,
-    segmentId: input.segmentId ?? null,
+    segmentId: authoritySegmentId,
     ownerId: input.ownerId ?? null,
     text: input.text,
     special: input.special ?? null,
@@ -791,7 +1425,7 @@ export function createStageEmbodimentSpeechPlaybackItem(input: {
       playbackItem: {
         intentId: input.intentId ?? null,
         streamId: input.streamId ?? null,
-        segmentId: input.segmentId ?? null,
+        segmentId: authoritySegmentId,
         ownerId: input.ownerId ?? null,
         text: input.text,
         special: input.special ?? null,

@@ -19,6 +19,10 @@ export interface SpeechIntentTokenPayload {
   streamId: string
   sequence: number
   value?: string
+  ownerId?: string
+  priority?: number
+  behavior?: 'queue' | 'interrupt' | 'replace'
+  metadata?: SpeechIntentMetadata | null
 }
 
 export interface SpeechIntentEndPayload {

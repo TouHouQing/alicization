@@ -30,7 +30,7 @@
   ],
   "scripts": {
     "build": "tsdown",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "node ../../node_modules/typescript/bin/tsc --noEmit"
   },
   "dependencies": {
     "@moeru/eventa": "^1.0.0-beta.1",
