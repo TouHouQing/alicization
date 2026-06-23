@@ -52,6 +52,17 @@ describe('performance visualizer trace embodiment', () => {
     })).toBe('turn=care | closure=grounded-recall | surface=procedural-carry | authority=face, motion, lipsync | execution=face+motion+lipsync | scenario=late-night-fatigue | stance=observe-first | sourceTrail=fatigue, care, grounded-recall')
   })
 
+  it('keeps body and voice execution lanes when rebuilding same-her trace embodiment summaries from body-lipsync-voice carry', () => {
+    expect(buildTraceAuthorityExecutionSummary({
+      turnMode: 'care',
+      closureState: 'grounded-recall',
+      finalSurfacePolicy: 'procedural-carry',
+      matchedDrivers: ['body', 'lipsync', 'voice'],
+      driverExecutionSummary: 'body=measured-return seg=segment-audible-body-voice-1 | lipsync=energy-phoneme-hybrid phase=playing seg=segment-audible-body-voice-1 | voice=authority-bound phase=playing seg=segment-audible-body-voice-1',
+      traceEmbodimentSummary: 'turn=care | closure=grounded-recall | surface=procedural-carry | authority=none | execution=none | scenario=same-body-line | stance=observe-first | sourceTrail=care, grounded-recall',
+    })).toBe('turn=care | closure=grounded-recall | surface=procedural-carry | authority=body, lipsync, voice | execution=body+lipsync+voice | scenario=same-body-line | stance=observe-first | sourceTrail=care, grounded-recall')
+  })
+
   it('formats generated trace embodiment summaries into Chinese-first display text while preserving raw summaries elsewhere', () => {
     expect(formatTraceEmbodimentDisplaySummary(
       'turn=care | closure=grounded-recall | surface=procedural-carry | authority=face, motion, lipsync | execution=face+motion+lipsync | scenario=late-night-fatigue | stance=observe-first | sourceTrail=fatigue, care, grounded-recall',

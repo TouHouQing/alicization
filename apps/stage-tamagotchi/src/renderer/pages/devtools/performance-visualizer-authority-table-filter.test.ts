@@ -129,15 +129,47 @@ describe('performance visualizer authority table filter', () => {
         visemeHintsSummary: 'n/a',
         settleAuthoritySummary: 'n/a',
       },
+      {
+        cueId: 'segment-5',
+        cueText: '只有结构化闭环阶段还保留着。',
+        driftStatus: 'partial-drift',
+        aligned: false,
+        surface: 'live2d',
+        lane: 'lipsync',
+        planned: 'I',
+        consumed: 'I',
+        source: 'n/a',
+        confidence: 'n/a',
+        settle: 'n/a',
+        authorityBindingSummary: 'n/a',
+        authorityMatchSummary: 'n/a',
+        authorityTrustSummary: null,
+        prosodyAuthoritySummary: 'n/a',
+        voiceSummary: 'n/a',
+        topVisemeSummary: 'n/a',
+        cueSummary: 'n/a',
+        cueIdentityPresent: false,
+        cueProsodyPresent: false,
+        faceCue: 'n/a',
+        actionCue: 'n/a',
+        weightSummary: 'n/a',
+        personaStyleSummary: 'n/a',
+        timingSummary: 'n/a',
+        driverExecutionSummary: 'n/a',
+        embodimentClosureStage: 'audible-body-carry',
+        traceEmbodimentSummary: 'n/a',
+        visemeHintsSummary: 'n/a',
+        settleAuthoritySummary: 'n/a',
+      },
     ] as any
 
     expect(filterAuthorityTableRows(rows, {
       surface: 'live2d',
-    }).map(row => row.cueId)).toEqual(['segment-1', 'segment-3'])
+    }).map(row => row.cueId)).toEqual(['segment-1', 'segment-3', 'segment-5'])
 
     expect(filterAuthorityTableRows(rows, {
       lane: 'lipsync',
-    }).map(row => row.cueId)).toEqual(['segment-3'])
+    }).map(row => row.cueId)).toEqual(['segment-3', 'segment-5'])
 
     expect(filterAuthorityTableRows(rows, {
       driftStatus: 'hard-drift',
@@ -149,11 +181,11 @@ describe('performance visualizer authority table filter', () => {
 
     expect(filterAuthorityTableRows(rows, {
       speechEvidence: 'speech',
-    }).map(row => row.cueId)).toEqual(['segment-1', 'segment-2', 'segment-3'])
+    }).map(row => row.cueId)).toEqual(['segment-1', 'segment-2', 'segment-3', 'segment-5'])
 
     expect(filterAuthorityTableRows(rows, {
       speechEvidence: 'prosody',
-    }).map(row => row.cueId)).toEqual(['segment-1', 'segment-2', 'segment-3'])
+    }).map(row => row.cueId)).toEqual(['segment-1', 'segment-2', 'segment-3', 'segment-5'])
 
     expect(filterAuthorityTableRows(rows, {
       speechEvidence: 'viseme',
@@ -241,8 +273,8 @@ describe('performance visualizer authority table filter', () => {
         traceEmbodimentSummary: 'n/a',
         visemeHintsSummary: 'n/a',
         settleAuthoritySummary: 'n/a',
-        rendererDriftSummary: 'runtime surfaced Focus Inspect before resident prediction | cue focused@prosody-authority',
-        speechSummaryLines: ['renderer-drift: runtime surfaced Focus Inspect before resident prediction | cue focused@prosody-authority'],
+        rendererDriftSummary: 'runtime expression surfaced Focus Inspect before resident prediction | face focused@prosody-authority',
+        speechSummaryLines: ['renderer-drift: runtime expression surfaced Focus Inspect before resident prediction | face focused@prosody-authority'],
       },
       {
         cueId: 'segment-none',
@@ -386,6 +418,37 @@ describe('performance visualizer authority table filter', () => {
         authorityMatchedDrivers: ['face', 'motion'],
       },
       {
+        cueId: 'segment-voice-mismatch',
+        cueText: '语音 authority 漂移。',
+        driftStatus: 'partial-drift',
+        aligned: false,
+        surface: 'vrm',
+        lane: 'voice',
+        planned: 'steady-line',
+        consumed: 'steady-line',
+        source: 'voice-segment',
+        confidence: '0.86',
+        settle: 'n/a',
+        authorityBindingSummary: 'target=vrm | drivers=face, motion, lipsync | sources=prosody-authority, voice-segment | matches=face:yes motion:yes lipsync:yes voice:no',
+        authorityMatchSummary: 'face:yes motion:yes lipsync:yes voice:no',
+        voiceSummary: 'segment=segment-stale-voice-line | zh-CN | closure=0.77 | precision=0.84',
+        topVisemeSummary: 'n/a',
+        cueSummary: 'soft-gaze / observe_focus | prosody=0.26 mouth=0.19 head=0.22',
+        cueIdentityPresent: true,
+        cueProsodyPresent: true,
+        faceCue: 'soft-gaze',
+        actionCue: 'observe_focus',
+        weightSummary: 'prosody=0.26 mouth=0.19 head=0.22',
+        personaStyleSummary: 'observe-first',
+        timingSummary: 'n/a',
+        driverExecutionSummary: 'n/a',
+        traceEmbodimentSummary: 'n/a',
+        visemeHintsSummary: 'n/a',
+        settleAuthoritySummary: 'authority-bound | segment=segment-voice-mismatch | target=vrm | drivers=face, motion, lipsync | sources=prosody-authority, voice-segment | lane=face+motion+lipsync-only',
+        authoritySegmentMatched: true,
+        authorityMatchedDrivers: ['face', 'motion', 'lipsync'],
+      },
+      {
         cueId: 'segment-fallback',
         cueText: 'fallback 不能算 authority mismatch。',
         driftStatus: 'hard-drift',
@@ -429,6 +492,10 @@ describe('performance visualizer authority table filter', () => {
     expect(filterAuthorityTableRows(rows, {
       authorityMatch: 'lipsync-mismatch',
     } as any).map(row => row.cueId)).toEqual(['segment-lipsync-mismatch'])
+
+    expect(filterAuthorityTableRows(rows, {
+      authorityMatch: 'voice-mismatch',
+    } as any).map(row => row.cueId)).toEqual(['segment-voice-mismatch'])
   })
 
   it('keeps micro-expression filtering backward compatible when only legacy cue fields are present', () => {
@@ -567,5 +634,144 @@ describe('performance visualizer authority table filter', () => {
     expect(filterAuthorityTableRows(rows, {
       authorityTrust: 'none',
     }).map(row => row.cueId)).toEqual(['segment-untrusted'])
+  })
+  it('treats same-body-line trust as present authority trust in table filters', () => {
+    const rows = [
+      {
+        cueId: 'segment-same-body-filter-1',
+        cueText: '三驱动已经一起回体。',
+        driftStatus: 'partial-drift',
+        aligned: false,
+        surface: 'vrm',
+        lane: 'action',
+        planned: 'observe_focus',
+        consumed: 'observe_focus',
+        source: 'timeline-projection',
+        confidence: '0.88',
+        settle: 'n/a',
+        authorityBindingSummary: 'target=vrm | drivers=face, motion, lipsync | sources=prosody-authority, timeline-projection | matches=face:yes motion:yes lipsync:yes',
+        authorityMatchSummary: 'face:yes motion:yes lipsync:yes',
+        authorityTrustSummary: 'VRM 表情、动作、口型已经一起回到当前片段主链，可按同一身体线继续观察。',
+        voiceSummary: 'zh-CN | closure=0.84 | precision=0.90',
+        prosodyAuthoritySummary: 'mode=energy-phoneme-hybrid | prosody=0.35 | mouth=0.35 | head=0.32 | visemePeak=0.75 | provenance=authority-bound | source=prosody-authority | segment=segment-same-body-filter-1',
+        topVisemeSummary: 'I:0.71, closed:0.38',
+        cueSummary: 'focused / observe_focus | prosody=0.36 mouth=0.28 head=0.32',
+        cueIdentityPresent: true,
+        cueProsodyPresent: true,
+        faceCue: 'focused',
+        actionCue: 'observe_focus',
+        weightSummary: 'prosody=0.36 mouth=0.28 head=0.32',
+        personaStyleSummary: 'observe-first | prosody=-0.07 beat=-0.06 mouth=-0.04 head=+0.08',
+        timingSummary: 'facial=320 action=240 emotion=360 | segment-start | soft-interrupt | hold',
+        driverExecutionSummary: 'n/a',
+        traceEmbodimentSummary: 'n/a',
+        visemeHintsSummary: 'I:0.35@0.94',
+        settleAuthoritySummary: 'authority-bound | segment=segment-same-body-filter-1 | target=vrm | drivers=face, motion, lipsync | sources=prosody-authority, timeline-projection',
+        speechSummaryLines: ['authority-trust: VRM 表情、动作、口型已经一起回到当前片段主链，可按同一身体线继续观察。'],
+      },
+    ] as any
+
+    expect(filterAuthorityTableRows(rows, {
+      speechEvidence: 'authority-trust',
+    }).map(row => row.cueId)).toEqual(['segment-same-body-filter-1'])
+
+    expect(filterAuthorityTableRows(rows, {
+      authorityTrust: 'present',
+    }).map(row => row.cueId)).toEqual(['segment-same-body-filter-1'])
+  })
+
+  it('treats thin affective settle-reason trust as present authority trust in table filters even before a row explicitly stores authorityTrustSummary', () => {
+    const rows = [
+      {
+        cueId: 'segment-thin-affective-filter-1',
+        cueText: '先把余温留在外面。',
+        driftStatus: 'partial-drift',
+        aligned: false,
+        surface: 'vrm',
+        lane: 'settle',
+        planned: 'settle',
+        consumed: 'settle',
+        source: 'n/a',
+        confidence: 'n/a',
+        settle: 'n/a',
+        authorityBindingSummary: 'target=vrm | drivers=face, motion, lipsync | sources=prosody-authority, timeline-projection | matches=face:yes motion:yes lipsync:yes',
+        authorityMatchSummary: 'face:yes motion:yes lipsync:yes',
+        authorityTrustSummary: null,
+        voiceSummary: 'zh-CN | closure=0.84 | precision=0.90',
+        prosodyAuthoritySummary: 'mode=energy-phoneme-hybrid | prosody=0.35 | mouth=0.35 | head=0.32 | visemePeak=0.75 | provenance=authority-bound | source=prosody-authority | segment=segment-thin-affective-filter-1',
+        topVisemeSummary: 'I:0.71, closed:0.38',
+        cueSummary: 'focused / observe_focus | prosody=0.36 mouth=0.28 head=0.32',
+        cueIdentityPresent: true,
+        cueProsodyPresent: true,
+        faceCue: 'focused',
+        actionCue: 'observe_focus',
+        weightSummary: 'prosody=0.36 mouth=0.28 head=0.32',
+        personaStyleSummary: 'observe-first | prosody=-0.07 beat=-0.06 mouth=-0.04 head=+0.08',
+        timingSummary: 'facial=320 action=240 emotion=360 | segment-start | soft-interrupt | hold',
+        driverExecutionSummary: 'n/a',
+        traceEmbodimentSummary: 'n/a',
+        visemeHintsSummary: 'I:0.35@0.94',
+        settleAuthoritySummary: 'authority-bound | segment=segment-thin-affective-filter-1 | target=vrm | drivers=face, motion, lipsync | sources=prosody-authority, timeline-projection | reason=余韵还在，先留白，别立刻把温度放大',
+        speechSummaryLines: [],
+      },
+    ] as any
+
+    expect(filterAuthorityTableRows(rows, {
+      speechEvidence: 'authority-trust',
+    }).map(row => row.cueId)).toEqual(['segment-thin-affective-filter-1'])
+
+    expect(filterAuthorityTableRows(rows, {
+      authorityTrust: 'present',
+    }).map(row => row.cueId)).toEqual(['segment-thin-affective-filter-1'])
+  })
+
+  it('treats audible body-carried same-her continuity as present authority trust in table filters even when only settle authority still exposes it', () => {
+    const rows = [
+      {
+        cueId: 'segment-audible-body-filter-1',
+        cueText: '先别把这条身体和声音还在的线拆掉。',
+        driftStatus: 'partial-drift',
+        aligned: false,
+        surface: 'vrm',
+        lane: 'lipsync',
+        planned: 'I',
+        consumed: 'A',
+        source: 'prosody-authority',
+        confidence: '0.91',
+        settle: 'n/a',
+        authorityBindingSummary: 'target=vrm | drivers=body, lipsync | sources=prosody-authority, voice-segment | matches=body:yes face:no motion:no lipsync:yes | lane=body+lipsync+voice-only | pending-rejoin=face+motion',
+        authorityMatchSummary: 'body:yes face:no motion:no lipsync:yes',
+        authorityTrustSummary: null,
+        voiceSummary: 'zh-CN | closure=0.84 | precision=0.90 | provenance=authority-bound | segment=segment-audible-body-filter-1 | source=prosody-authority',
+        prosodyAuthoritySummary: 'mode=energy-phoneme-hybrid | prosody=0.35 | mouth=0.35 | head=0.32 | visemePeak=0.75 | provenance=authority-bound | source=prosody-authority | segment=segment-audible-body-filter-1',
+        topVisemeSummary: 'I:0.71, closed:0.38',
+        cueSummary: 'n/a / n/a | prosody=0.36 mouth=0.28 head=0.32',
+        cueIdentityPresent: false,
+        cueProsodyPresent: true,
+        faceCue: 'n/a',
+        actionCue: 'n/a',
+        weightSummary: 'prosody=0.36 mouth=0.28 head=0.32',
+        personaStyleSummary: 'n/a',
+        timingSummary: 'n/a',
+        driverExecutionSummary: 'body=measured-return seg=segment-audible-body-filter-1 | lipsync=energy-phoneme-hybrid phase=playing seg=segment-audible-body-filter-1 | closure=audible-body-carry',
+        embodimentClosureStage: 'audible-body-carry',
+        traceEmbodimentSummary: 'n/a',
+        visemeHintsSummary: 'I:0.35@0.94',
+        settleAuthoritySummary: 'authority-bound | segment=segment-audible-body-filter-1 | target=vrm | drivers=body, lipsync | sources=prosody-authority, voice-segment | lane=body+lipsync+voice-only | pending-rejoin=face+motion',
+        speechSummaryLines: [],
+      },
+    ] as any
+
+    expect(filterAuthorityTableRows(rows, {
+      speechEvidence: 'authority-trust',
+    }).map(row => row.cueId)).toEqual(['segment-audible-body-filter-1'])
+
+    expect(filterAuthorityTableRows(rows, {
+      authorityTrust: 'present',
+    }).map(row => row.cueId)).toEqual(['segment-audible-body-filter-1'])
+
+    expect(filterAuthorityTableRows(rows, {
+      authorityTrust: 'none',
+    }).map(row => row.cueId)).toEqual([])
   })
 })

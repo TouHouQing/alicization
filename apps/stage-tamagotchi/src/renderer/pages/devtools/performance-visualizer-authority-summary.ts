@@ -1,5 +1,5 @@
 type AuthoritySurface = 'live2d' | 'vrm'
-type AuthorityLane = 'expression' | 'motion' | 'face' | 'action' | 'lipsync' | 'settle'
+type AuthorityLane = 'expression' | 'motion' | 'face' | 'action' | 'lipsync' | 'voice' | 'settle'
 
 export interface PerformanceVisualizerAuthoritySummaryEntry {
   surface: AuthoritySurface
@@ -118,6 +118,9 @@ export function buildAuthoritySummaryEntries(input: {
     lipsyncSource?: string | null
     lipsyncConfidence?: number | null
     lipsyncSegmentAligned?: boolean | null
+    consumedVoiceSummary?: string | null
+    voiceSource?: string | null
+    voiceSegmentAligned?: boolean | null
     plannedSettleCue?: string | null
     consumedSettleCue?: string | null
     plannedLive2dFacialReleaseMs?: number | null
@@ -147,6 +150,9 @@ export function buildAuthoritySummaryEntries(input: {
     lipsyncSource?: string | null
     lipsyncConfidence?: number | null
     lipsyncSegmentAligned?: boolean | null
+    consumedVoiceSummary?: string | null
+    voiceSource?: string | null
+    voiceSegmentAligned?: boolean | null
     plannedSettleCue?: string | null
     consumedSettleCue?: string | null
     plannedVrmActionFadeMs?: number | null
@@ -194,6 +200,15 @@ export function buildAuthoritySummaryEntries(input: {
       source: input.live2d.lipsyncSource,
       confidence: input.live2d.lipsyncConfidence,
       aligned: input.live2d.lipsyncSegmentAligned,
+    })
+    pushEntry(entries, {
+      surface: 'live2d',
+      lane: 'voice',
+      cueId: input.live2d.cueId,
+      planned: input.live2d.consumedVoiceSummary,
+      consumed: input.live2d.consumedVoiceSummary,
+      source: input.live2d.voiceSource,
+      aligned: input.live2d.voiceSegmentAligned,
     })
     pushEntry(entries, {
       surface: 'live2d',
@@ -251,6 +266,15 @@ export function buildAuthoritySummaryEntries(input: {
       source: input.vrm.lipsyncSource,
       confidence: input.vrm.lipsyncConfidence,
       aligned: input.vrm.lipsyncSegmentAligned,
+    })
+    pushEntry(entries, {
+      surface: 'vrm',
+      lane: 'voice',
+      cueId: input.vrm.cueId,
+      planned: input.vrm.consumedVoiceSummary,
+      consumed: input.vrm.consumedVoiceSummary,
+      source: input.vrm.voiceSource,
+      aligned: input.vrm.voiceSegmentAligned,
     })
     pushEntry(entries, {
       surface: 'vrm',

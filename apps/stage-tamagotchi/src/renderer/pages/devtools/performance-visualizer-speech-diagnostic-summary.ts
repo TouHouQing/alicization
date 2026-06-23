@@ -1,6 +1,18 @@
+import type { PerformanceVisualizerAuthorityDriver } from './performance-visualizer-driver-authority'
 import type { PerformanceVisualizerSpeechEvidenceSnapshot } from './performance-visualizer-speech-evidence'
 
-import { toAuthorityDisplayEntry } from './performance-visualizer-runtime-diagnostic-summary'
+import { resolveAuthorityLaneTruth } from './performance-visualizer-authority-lane-truth'
+import {
+
+  resolveDriverMatchFlagFromSummary,
+} from './performance-visualizer-driver-authority'
+import { resolveAuthorityTrustSummaryWithFallback } from './performance-visualizer-resolve-authority-trust'
+import {
+  formatAuthorityBindingDisplay,
+  formatSettleAuthorityDisplay,
+  resolveExecutionSafetyGateDiagnostic,
+  toAuthorityDisplayEntry,
+} from './performance-visualizer-runtime-diagnostic-summary'
 import { formatSpeechAuthorityFilterValue, formatSpeechCueMetadataValue, formatSpeechDriverExecutionSummary } from './performance-visualizer-speech-display'
 import { formatTraceEmbodimentDisplaySummary } from './performance-visualizer-trace-embodiment'
 
@@ -8,7 +20,11 @@ export interface PerformanceVisualizerSpeechDiagnosticSummaryEntry {
   key:
     | 'authority'
     | 'authority-match'
+    | 'closure-stage'
     | 'authority-trust'
+    | 'same-her-signature'
+    | 'execution-safety-gate'
+    | 'same-her-reasons'
     | 'authority-mismatch'
     | 'renderer-drift'
     | 'voice'
@@ -29,6 +45,8 @@ export interface PerformanceVisualizerSpeechDiagnosticSummaryEntry {
 interface BuildSpeechDiagnosticSummaryEntriesInput {
   authorityBindingSummary?: string | null
   authorityMatchSummary?: string | null
+  authorityMatchedDrivers?: Array<'body' | 'face' | 'motion' | 'lipsync' | 'voice'> | null
+  authorityVoiceSegmentMatched?: boolean | null
   authorityTrustSummary?: string | null
   authorityMismatchSummary?: string | null
   authorityMismatchReasonSummary?: string | null
@@ -36,6 +54,8 @@ interface BuildSpeechDiagnosticSummaryEntriesInput {
   rendererDriftSummary?: string | null
   settleAuthoritySummary?: string | null
   traceEmbodimentSummary?: string | null
+  sameHerSignature?: string | null
+  sameHerReasonTags?: string[] | null
   includeSettleAuthority?: boolean
   speechEvidence?: PerformanceVisualizerSpeechEvidenceSnapshot | null
 }
@@ -44,8 +64,113 @@ function hasValue(value: string | null | undefined) {
   return typeof value === 'string' && value.trim().length > 0 && value !== 'n/a'
 }
 
+function formatList(values: string[] | null | undefined) {
+  const normalized = (values ?? [])
+    .map(value => value.trim())
+    .filter(Boolean)
+    .filter((value, index, items) => items.indexOf(value) === index)
+  return normalized.length > 0 ? normalized.join(', ') : null
+}
+
 function normalizeSummaryText(value: string) {
   return value.trim()
+}
+
+function extractStructuredSegmentId(summary: string | null | undefined) {
+  const normalized = typeof summary === 'string' ? summary.trim() : ''
+  if (!normalized)
+    return null
+
+  const match = normalized.match(/(?:^|\s|\|)(?:segment|seg)=([^|\s]+)/)
+  return match?.[1]?.trim() ?? null
+}
+
+function resolveVoiceSegmentMatched(input: {
+  authoritySegmentId: string | null | undefined
+  voiceSummary: string | null | undefined
+}) {
+  const authoritySegmentId = extractStructuredSegmentId(input.authoritySegmentId ?? null) ?? input.authoritySegmentId?.trim() ?? null
+  if (!authoritySegmentId)
+    return null
+
+  const voiceSegmentId = extractStructuredSegmentId(input.voiceSummary)
+  if (!voiceSegmentId)
+    return null
+
+  return authoritySegmentId === voiceSegmentId
+}
+
+function extractEmbodimentClosureStage(...summaries: Array<string | null | undefined>) {
+  for (const summary of summaries) {
+    const normalized = summary?.trim() ?? ''
+    if (!normalized)
+      continue
+    if (
+      /(?:^|\s|\|)timing=body-lipsync-carry(?:\s|\||$)/.test(normalized)
+      || /(?:^|\s|\|)lane=body\+lipsync-only(?:\s|\||$)/.test(normalized)
+      || /(?:^|\s|\|)lane=body\+voice-only(?:\s|\||$)/.test(normalized)
+      || /(?:^|\s|\|)lane=body\+face\+motion-only(?:\s|\||$)/.test(normalized)
+    ) {
+      return 'body-carried-to-renderer-rejoin'
+    }
+    if (
+      /(?:^|\s|\|)lane=body\+lipsync\+voice-only(?:\s|\||$)/.test(normalized)
+    ) {
+      return 'audible-body-carry'
+    }
+    if (
+      normalized === 'face+lipsync-only'
+      || normalized === 'motion+lipsync-only'
+      || normalized === 'face+lipsync+voice-only'
+      || normalized === 'motion+lipsync+voice-only'
+      || normalized === 'face+motion+lipsync+voice-only'
+    ) {
+      return 'renderer-rejoin-without-body'
+    }
+    if (
+      normalized === 'audible-body-carry'
+      || normalized === 'full-driver-rejoin'
+      || normalized === 'body-only-hold'
+      || normalized === 'body-carried-to-renderer-rejoin'
+      || normalized === 'full-cross-modal-lock'
+      || normalized === 'renderer-rejoin-without-body'
+      || normalized === 'voice-lipsync-carry'
+    ) {
+      return normalized
+    }
+    const match = normalized.match(/(?:^|\s|\|)(?:closure|lane)=(face\+lipsync-only|motion\+lipsync-only|face\+lipsync\+voice-only|motion\+lipsync\+voice-only|face\+motion\+lipsync\+voice-only|audible-body-carry|full-driver-rejoin|body-only-hold|body-carried-to-renderer-rejoin|full-cross-modal-lock|renderer-rejoin-without-body|voice-lipsync-carry)(?:\s|\||$)/)
+    if (match?.[1]) {
+      if (
+        match[1] === 'face+lipsync-only'
+        || match[1] === 'motion+lipsync-only'
+        || match[1] === 'face+lipsync+voice-only'
+        || match[1] === 'motion+lipsync+voice-only'
+        || match[1] === 'face+motion+lipsync+voice-only'
+      ) {
+        return 'renderer-rejoin-without-body'
+      }
+      return match[1]
+    }
+  }
+
+  return null
+}
+
+function appendPendingRejoinDisplay(value: string) {
+  if (value.includes('表情和动作还在重连这条身体线'))
+    return value
+
+  return `${value}，表情和动作还在重连这条身体线`
+}
+
+function appendPendingRejoinDisplayFromTechnicalValue(input: {
+  value: string
+  technicalValue?: string | null
+}) {
+  if (!input.technicalValue?.includes('pending-rejoin=face+motion'))
+    return input.value
+
+  return appendPendingRejoinDisplay(input.value)
 }
 
 function formatVoiceSummary(value: string) {
@@ -67,6 +192,8 @@ function formatVoiceSummary(value: string) {
       labels.push(`收口 ${rawValue}`)
     else if (rawKey === 'precision')
       labels.push(`咬字 ${rawValue}`)
+    else if (rawKey === 'reason')
+      labels.push(`连续性原因 ${rawValue}`)
     else if (rawKey === 'provenance')
       labels.push(formatSpeechAuthorityFilterValue('settle-authority', rawValue))
     else if (rawKey === 'segment')
@@ -81,7 +208,7 @@ function formatVoiceSummary(value: string) {
   return labels.length > 0 ? `${languageLabel}，${labels.join('，')}` : languageLabel
 }
 
-function formatProsodyAuthoritySummary(value: string) {
+export function formatProsodyAuthoritySummary(value: string) {
   if (!value.includes('|') || !value.includes('mode='))
     return value
 
@@ -278,6 +405,62 @@ function formatVisemeHintsSummary(value: string) {
   return formatted.length > 0 ? formatted.join('，') : value
 }
 
+function appendLaneTruthToDescriptiveAuthoritySummary(input: {
+  kind: 'authority-binding' | 'authority-match'
+  summary: string | null | undefined
+  matchSummary?: string | null
+  matchedDrivers?: Array<PerformanceVisualizerAuthorityDriver> | null
+  authorityMismatchSummary?: string | null
+  voiceSegmentMatched?: boolean | null
+}) {
+  const summary = input.summary?.trim() ?? null
+  if (!summary)
+    return null
+
+  const authorityLaneTruth = resolveAuthorityLaneTruth({
+    matchSummary: input.matchSummary,
+    matchedDrivers: input.matchedDrivers,
+    authorityMismatchSummary: input.authorityMismatchSummary,
+    voiceSegmentMatched: input.voiceSegmentMatched,
+  })
+  const voiceSegmentMatched = authorityLaneTruth.authority.voiceSegmentMatched
+  const voiceLaneDisplay = voiceSegmentMatched == null
+    ? null
+    : voiceSegmentMatched ? '声音命中' : '声音未命中'
+  const alreadyStructured = ['body', 'face', 'motion', 'lipsync'].some(driver =>
+    resolveDriverMatchFlagFromSummary(summary, driver as PerformanceVisualizerAuthorityDriver) != null,
+  )
+  const structuredVoiceFlag = resolveDriverMatchFlagFromSummary(summary, 'voice')
+  if (alreadyStructured) {
+    if (input.kind === 'authority-binding' || voiceLaneDisplay == null || structuredVoiceFlag != null)
+      return summary
+
+    return `${summary} voice:${voiceSegmentMatched ? 'yes' : 'no'}`
+  }
+
+  const laneDisplay = [
+    authorityLaneTruth.authority.bodySegmentMatched != null
+      ? authorityLaneTruth.authority.bodySegmentMatched ? '身体命中' : '身体未命中'
+      : null,
+    authorityLaneTruth.authority.faceSegmentMatched == null
+      ? '表情未知'
+      : authorityLaneTruth.authority.faceSegmentMatched ? '表情命中' : '表情未命中',
+    authorityLaneTruth.authority.motionSegmentMatched == null
+      ? '动作未知'
+      : authorityLaneTruth.authority.motionSegmentMatched ? '动作命中' : '动作未命中',
+    authorityLaneTruth.authority.lipsyncSegmentMatched == null
+      ? '口型未知'
+      : authorityLaneTruth.authority.lipsyncSegmentMatched ? '口型命中' : '口型未命中',
+    voiceLaneDisplay,
+  ].filter((part): part is string => Boolean(part)).join(' / ')
+  if (!laneDisplay || laneDisplay === '身体未知 / 表情未知 / 动作未知 / 口型未知')
+    return summary
+  if (summary.includes(laneDisplay))
+    return summary
+
+  return `${summary} | ${laneDisplay}`
+}
+
 function toDisplayValue(
   key: PerformanceVisualizerSpeechDiagnosticSummaryEntry['key'],
   value: string,
@@ -320,10 +503,157 @@ function toDisplayValue(
   }
 }
 
+function resolveThinMeasuredReturnAuthorityDisplay(input: {
+  summary: string
+  kind: 'authority' | 'settle-authority'
+  continuityHint?: string | null
+}) {
+  const normalizedHint = input.continuityHint?.trim().toLowerCase() ?? ''
+  if (
+    !normalizedHint.includes('measured-return')
+    || (
+      !normalizedHint.includes('较薄证据维持')
+      && !normalizedHint.includes('thin measured-return')
+      && !normalizedHint.includes('noisy-detour continuity line')
+      && !normalizedHint.includes('thinner measured-return same-her line')
+    )
+  ) {
+    return null
+  }
+
+  const baseDisplay = input.kind === 'authority'
+    ? formatAuthorityBindingDisplay(input.summary)
+    : formatSettleAuthorityDisplay(input.summary)
+  if (!baseDisplay.value.includes('当前仅剩'))
+    return null
+
+  return {
+    value: baseDisplay.value.replace(/当前仅剩[^，]+维持同一段连续性/u, '噪声 detour 后，这条 measured-return 连续身体线仍由较薄证据维持'),
+    technicalValue: baseDisplay.technicalValue,
+  }
+}
+
+function preferAuthorityTrustContinuityHint(input: {
+  authorityTrustSummary?: string | null
+  authorityMismatchDisplay?: string | null
+  authorityMismatchReasonSummary?: string | null
+}) {
+  const authorityTrustSummary = input.authorityTrustSummary?.trim() ?? null
+  const normalizedTrust = authorityTrustSummary?.toLowerCase() ?? ''
+
+  if (
+    normalizedTrust.includes('repair-before-closeness')
+    && normalizedTrust.includes('quieter blink')
+    && normalizedTrust.includes('softened gaze')
+  ) {
+    return authorityTrustSummary
+  }
+
+  if (
+    normalizedTrust.includes('measured-return')
+    && (
+      normalizedTrust.includes('较薄证据维持')
+      || normalizedTrust.includes('thin measured-return')
+      || normalizedTrust.includes('noisy-detour continuity line')
+      || normalizedTrust.includes('thinner measured-return same-her line')
+    )
+  ) {
+    return authorityTrustSummary
+  }
+
+  return input.authorityMismatchDisplay
+    ?? input.authorityMismatchReasonSummary
+    ?? authorityTrustSummary
+    ?? null
+}
+
+function isRicherContinuityAuthorityTrustSummary(summary: string | null | undefined) {
+  const normalized = summary?.trim().toLowerCase() ?? ''
+  if (!normalized)
+    return false
+
+  return normalized.includes('仍带着“')
+    || normalized.includes('关系余温')
+    || normalized.includes('repair-before-closeness')
+    || normalized.includes('same-turn-if-invited')
+    || (
+      normalized.includes('measured-return')
+      && (
+        normalized.includes('较薄证据维持')
+        || normalized.includes('thin measured-return')
+        || normalized.includes('thinner measured-return same-her line')
+        || normalized.includes('回身线')
+      )
+    )
+}
+
+function resolveSpeechAuthorityTrustSummary(input: {
+  authorityTrustSummary?: string | null
+  authorityBindingSummary?: string | null
+  settleAuthoritySummary?: string | null
+  voiceSegmentMatched?: boolean | null
+}) {
+  const upstreamAuthorityTrustSummary = hasValue(input.authorityTrustSummary)
+    ? normalizeSummaryText(input.authorityTrustSummary!)
+    : null
+  const fallbackAuthorityTrustSummary = resolveAuthorityTrustSummaryWithFallback({
+    authorityTrustSummary: input.authorityTrustSummary,
+    authorityBindingSummary: input.authorityBindingSummary,
+    settleAuthoritySummary: input.settleAuthoritySummary,
+    rendererTarget: null,
+    voiceSegmentMatched: input.voiceSegmentMatched,
+  })
+
+  if (!upstreamAuthorityTrustSummary)
+    return fallbackAuthorityTrustSummary
+  if (!fallbackAuthorityTrustSummary || fallbackAuthorityTrustSummary === upstreamAuthorityTrustSummary)
+    return upstreamAuthorityTrustSummary
+
+  return isRicherContinuityAuthorityTrustSummary(fallbackAuthorityTrustSummary)
+    && !isRicherContinuityAuthorityTrustSummary(upstreamAuthorityTrustSummary)
+    ? fallbackAuthorityTrustSummary
+    : upstreamAuthorityTrustSummary
+}
+
 export function buildSpeechDiagnosticSummaryEntries(
   input: BuildSpeechDiagnosticSummaryEntriesInput,
 ): PerformanceVisualizerSpeechDiagnosticSummaryEntry[] {
   const entries: PerformanceVisualizerSpeechDiagnosticSummaryEntry[] = []
+  const authoritySegmentId = extractStructuredSegmentId(input.authorityBindingSummary)
+    ?? extractStructuredSegmentId(input.settleAuthoritySummary)
+    ?? null
+  const voiceSegmentMatched = input.authorityVoiceSegmentMatched
+    ?? resolveVoiceSegmentMatched({
+      authoritySegmentId,
+      voiceSummary: input.speechEvidence?.voiceSummary,
+    })
+  const authorityTrustSummary = resolveSpeechAuthorityTrustSummary({
+    authorityTrustSummary: input.authorityTrustSummary,
+    authorityBindingSummary: input.authorityBindingSummary,
+    settleAuthoritySummary: input.settleAuthoritySummary,
+    voiceSegmentMatched,
+  })
+  const continuityHint = preferAuthorityTrustContinuityHint({
+    authorityTrustSummary,
+    authorityMismatchDisplay: input.authorityMismatchDisplay,
+    authorityMismatchReasonSummary: input.authorityMismatchReasonSummary,
+  })
+  const authorityBindingSummary = appendLaneTruthToDescriptiveAuthoritySummary({
+    kind: 'authority-binding',
+    summary: input.authorityBindingSummary,
+    matchSummary: input.authorityMatchSummary,
+    matchedDrivers: input.authorityMatchedDrivers,
+    authorityMismatchSummary: input.authorityMismatchSummary,
+    voiceSegmentMatched,
+  }) ?? input.authorityBindingSummary ?? null
+  const authorityMatchSummary = appendLaneTruthToDescriptiveAuthoritySummary({
+    kind: 'authority-match',
+    summary: input.authorityMatchSummary,
+    matchSummary: input.authorityMatchSummary,
+    matchedDrivers: input.authorityMatchedDrivers,
+    authorityMismatchSummary: input.authorityMismatchSummary,
+    voiceSegmentMatched,
+  }) ?? input.authorityMatchSummary ?? null
   const pushEntry = (entry: PerformanceVisualizerSpeechDiagnosticSummaryEntry) => {
     entries.push(entry.technicalValue
       ? entry
@@ -334,17 +664,24 @@ export function buildSpeechDiagnosticSummaryEntries(
         })
   }
 
-  if (hasValue(input.authorityBindingSummary)) {
-    const summary = toDisplayValue('authority', input.authorityBindingSummary!)
+  if (hasValue(authorityBindingSummary)) {
+    const summary = resolveThinMeasuredReturnAuthorityDisplay({
+      summary: authorityBindingSummary!,
+      kind: 'authority',
+      continuityHint,
+    }) ?? formatAuthorityBindingDisplay(authorityBindingSummary!, continuityHint)
     pushEntry({
       key: 'authority',
       label: '权威绑定',
-      value: summary.value,
+      value: appendPendingRejoinDisplayFromTechnicalValue({
+        value: summary.value,
+        technicalValue: summary.technicalValue,
+      }),
       technicalValue: summary.technicalValue,
     })
   }
-  if (hasValue(input.authorityMatchSummary)) {
-    const summary = toDisplayValue('authority-match', input.authorityMatchSummary!)
+  if (hasValue(authorityMatchSummary)) {
+    const summary = toDisplayValue('authority-match', authorityMatchSummary!)
     pushEntry({
       key: 'authority-match',
       label: '绑定命中',
@@ -352,11 +689,49 @@ export function buildSpeechDiagnosticSummaryEntries(
       technicalValue: summary.technicalValue,
     })
   }
-  if (hasValue(input.authorityTrustSummary)) {
+  const embodimentClosureStage = extractEmbodimentClosureStage(
+    input.speechEvidence?.embodimentClosureStage ?? null,
+    authorityBindingSummary,
+    input.settleAuthoritySummary,
+    input.authorityMismatchDisplay,
+    input.authorityMismatchReasonSummary,
+    input.speechEvidence?.driverExecutionSummary ?? null,
+  )
+  if (hasValue(embodimentClosureStage)) {
+    pushEntry({
+      key: 'closure-stage',
+      label: '闭环阶段',
+      value: embodimentClosureStage!,
+    })
+  }
+  if (hasValue(authorityTrustSummary)) {
     pushEntry({
       key: 'authority-trust',
       label: '权威可信性',
-      value: input.authorityTrustSummary!,
+      value: authorityTrustSummary!,
+    })
+  }
+  if (hasValue(input.sameHerSignature)) {
+    pushEntry({
+      key: 'same-her-signature',
+      label: '同一人签名',
+      value: input.sameHerSignature!,
+    })
+  }
+  const executionSafetyGate = resolveExecutionSafetyGateDiagnostic(input.sameHerReasonTags)
+  if (executionSafetyGate) {
+    pushEntry({
+      key: 'execution-safety-gate',
+      label: '执行安全门',
+      ...executionSafetyGate,
+    })
+  }
+  const sameHerReasons = formatList(input.sameHerReasonTags)
+  if (sameHerReasons) {
+    pushEntry({
+      key: 'same-her-reasons',
+      label: '同一人线索',
+      value: sameHerReasons,
     })
   }
   if (hasValue(input.authorityMismatchDisplay) || hasValue(input.authorityMismatchReasonSummary) || hasValue(input.authorityMismatchSummary)) {
@@ -455,11 +830,18 @@ export function buildSpeechDiagnosticSummaryEntries(
     })
   }
   if (input.includeSettleAuthority && hasValue(input.settleAuthoritySummary)) {
-    const summary = toDisplayValue('settle-authority', input.settleAuthoritySummary!)
+    const summary = resolveThinMeasuredReturnAuthorityDisplay({
+      summary: input.settleAuthoritySummary!,
+      kind: 'settle-authority',
+      continuityHint,
+    }) ?? toDisplayValue('settle-authority', input.settleAuthoritySummary!)
     pushEntry({
       key: 'settle-authority',
       label: '稳定段归因',
-      value: summary.value,
+      value: appendPendingRejoinDisplayFromTechnicalValue({
+        value: summary.value,
+        technicalValue: summary.technicalValue,
+      }),
       technicalValue: summary.technicalValue,
     })
   }
@@ -477,6 +859,8 @@ export function buildSpeechDiagnosticSummaryLines(
         return `authority: ${value}`
       case 'authority-match':
         return `authority-match: ${value}`
+      case 'execution-safety-gate':
+        return `execution-safety-gate: ${value}`
       case 'authority-mismatch':
         return `authority-mismatch: ${value}`
       case 'renderer-drift':

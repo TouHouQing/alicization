@@ -1,20 +1,24 @@
-import type { StageEmbodimentPerformanceMatchedDriver } from '@proj-alicization/stage-shared'
+import type { PerformanceVisualizerAuthorityDriver } from './performance-visualizer-driver-authority'
 
 export type PerformanceVisualizerAuthorityMismatchFilter
-  = 'face-mismatch'
+  = 'body-mismatch'
+    | 'face-mismatch'
     | 'motion-mismatch'
     | 'lipsync-mismatch'
+    | 'voice-mismatch'
 
 export interface PerformanceVisualizerAuthorityMismatchFilterInput {
   authorityDriftLanes?: string[]
   authoritySegmentMatched?: boolean | null
-  authorityMatchedDrivers?: StageEmbodimentPerformanceMatchedDriver[]
+  authorityMatchedDrivers?: PerformanceVisualizerAuthorityDriver[]
 }
 
 export interface PerformanceVisualizerAuthorityMatchFlags {
+  bodySegmentMatched?: boolean | null
   faceSegmentMatched?: boolean | null
   motionSegmentMatched?: boolean | null
   lipsyncSegmentMatched?: boolean | null
+  voiceSegmentMatched?: boolean | null
 }
 
 export interface PerformanceVisualizerAuthorityMismatchReasonInput {
@@ -25,9 +29,11 @@ export interface PerformanceVisualizerAuthorityMismatchReasonInput {
 }
 
 const mismatchLabelMap: Record<PerformanceVisualizerAuthorityMismatchFilter, string> = {
+  'body-mismatch': '身体',
   'face-mismatch': '表情',
   'motion-mismatch': '动作',
   'lipsync-mismatch': '口型',
+  'voice-mismatch': '声音',
 }
 
 function normalizeList(values: Array<string | null | undefined>) {
@@ -43,6 +49,8 @@ export function buildAuthorityMismatchSummary(
     return null
 
   const mismatches: PerformanceVisualizerAuthorityMismatchFilter[] = []
+  if (authority.bodySegmentMatched === false)
+    mismatches.push('body-mismatch')
   if (authority.faceSegmentMatched === false)
     mismatches.push('face-mismatch')
   if (authority.motionSegmentMatched === false)
@@ -70,12 +78,16 @@ export function buildAuthorityMismatchReasonSummary(
   const sources = normalizeList(input.matchedSources ?? [])
   const executionKinds: PerformanceVisualizerAuthorityMismatchFilter[] = []
   const driverExecutionSummary = input.driverExecutionSummary?.trim() ?? ''
+  if (driverExecutionSummary.includes('body='))
+    executionKinds.push('body-mismatch')
   if (driverExecutionSummary.includes('face='))
     executionKinds.push('face-mismatch')
   if (driverExecutionSummary.includes('motion='))
     executionKinds.push('motion-mismatch')
   if (driverExecutionSummary.includes('lipsync='))
     executionKinds.push('lipsync-mismatch')
+  if (driverExecutionSummary.includes('voice='))
+    executionKinds.push('voice-mismatch')
 
   const execution = executionKinds.length > 0
     ? executionKinds.map(kind => mismatchLabelMap[kind]).join('、')
@@ -97,7 +109,19 @@ export function matchesAuthorityMismatchFilter(
   if (!authoritySegmentMatched)
     return false
 
-  const isSingleMissingDriverFallback = authorityMatchedDrivers.length === 2
+  const isSingleMissingDriverFallback = authorityMatchedDrivers.length === 3
+
+  if (filter === 'body-mismatch') {
+    if (authorityDriftLanes.length > 0) {
+      if (!authorityDriftLanes.includes('body'))
+        return false
+    }
+    else {
+      return false
+    }
+
+    return true
+  }
 
   if (filter === 'face-mismatch') {
     if (authorityDriftLanes.length > 0) {
@@ -121,6 +145,18 @@ export function matchesAuthorityMismatchFilter(
     }
 
     return !authorityMatchedDrivers.includes('motion')
+  }
+
+  if (filter === 'voice-mismatch') {
+    if (authorityDriftLanes.length > 0) {
+      if (!authorityDriftLanes.includes('voice'))
+        return false
+    }
+    else {
+      return false
+    }
+
+    return !authorityMatchedDrivers.includes('voice')
   }
 
   if (authorityDriftLanes.length > 0) {

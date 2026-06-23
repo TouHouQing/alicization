@@ -1,8 +1,6 @@
-import type { StageEmbodimentPerformanceMatchedDriver } from '@proj-alicization/stage-shared'
-
 import type { StageThreeRuntimeSpeechEmbodimentDiagnostics } from '../../stores/stage-three-runtime-diagnostics'
 
-export type TraceEmbodimentDriver = StageEmbodimentPerformanceMatchedDriver
+export type TraceEmbodimentDriver = 'body' | 'face' | 'motion' | 'lipsync' | 'voice'
 
 interface TraceEmbodimentSummaryInput {
   turnMode: string | null | undefined
@@ -94,10 +92,10 @@ function mapDriverList(value: string, joiner: '、' | '+') {
     .map(part => part.trim())
     .filter(Boolean)
     .map((item) => {
-      if (item === 'face')
-        return '表情'
       if (item === 'body')
         return '身体'
+      if (item === 'face')
+        return '表情'
       if (item === 'motion')
         return '动作'
       if (item === 'lipsync')
@@ -118,27 +116,24 @@ function mapSourceTrail(value: string) {
     .join(' -> ')
 }
 
-export function isGeneratedTraceEmbodimentSummary(summary: string | null | undefined) {
+export function isGeneratedTraceEmbodimentSummary(summary: string | null | undefined): summary is string {
   return typeof summary === 'string' && summary.startsWith('turn=')
 }
 
 export function formatTraceEmbodimentDisplaySummary(summary: string | null | undefined) {
-  const normalizedSummary = normalizeSummary(summary)
   if (!isGeneratedTraceEmbodimentSummary(summary))
-    return normalizedSummary
-  if (!normalizedSummary)
-    return null
+    return normalizeSummary(summary)
 
-  const parsed = parseTraceEmbodimentSummary(normalizedSummary)
+  const parsed = parseTraceEmbodimentSummary(summary)
   const parts: string[] = []
 
-  const turnMode = parsed.get('turn') ?? null
+  const turnMode = parsed.get('turn')
   if (turnMode)
     parts.push(mapTurnMode(turnMode))
-  const closureState = parsed.get('closure') ?? null
+  const closureState = parsed.get('closure')
   if (closureState)
     parts.push(`收口 ${mapClosureState(closureState)}`)
-  const surfacePolicy = parsed.get('surface') ?? null
+  const surfacePolicy = parsed.get('surface')
   if (surfacePolicy)
     parts.push(`表面策略 ${mapSurfacePolicy(surfacePolicy)}`)
   const authorityDrivers = parsed.get('authority')
@@ -254,12 +249,16 @@ export function buildTraceAuthorityExecutionSummary(input: {
   const executionKinds: TraceEmbodimentDriver[] = []
   const driverExecutionSummary = input.driverExecutionSummary
   if (typeof driverExecutionSummary === 'string' && driverExecutionSummary.trim().length > 0) {
+    if (driverExecutionSummary.includes('body='))
+      executionKinds.push('body')
     if (driverExecutionSummary.includes('face='))
       executionKinds.push('face')
     if (driverExecutionSummary.includes('motion='))
       executionKinds.push('motion')
     if (driverExecutionSummary.includes('lipsync='))
       executionKinds.push('lipsync')
+    if (driverExecutionSummary.includes('voice='))
+      executionKinds.push('voice')
   }
 
   const enrichedTraceEmbodimentSummary = enrichTraceEmbodimentSummary({
