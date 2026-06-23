@@ -4,8 +4,32 @@ import { createAlicizationRuntimeMemoryRuntime } from './runtime-memory-runtime'
 
 describe('runtime memory runtime', () => {
   it('bundles organic memory access, search, and reconsolidation under one runtime facade', async () => {
-    const listMindTurnEvents = vi.fn(async () => [])
-    const searchEpisodicEvents = vi.fn(async () => [])
+    const listMindTurnEvents = vi.fn(async () => [
+      {
+        kind: 'recall-attribution',
+        payload: {
+          whyNow: 'The remembered runtime seam still matters here.',
+          inwardLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+          selectedEpisodes: [
+            {
+              summary: 'repair before closeness landed better on the same thread',
+              relationshipLine: 'leave room before widening closeness',
+            },
+          ],
+        },
+      },
+      {
+        kind: 'reply-memory-coherence',
+        payload: {
+          coherenceState: 'stable-seam',
+          surfacePolicy: 'repair-first',
+          explicitSurfaceExpected: true,
+          explicitSurfaceObserved: true,
+          matchedCueKinds: ['relationship-line'],
+        },
+      },
+    ])
+    const searchEpisodicEvents = vi.fn(async () => [{ id: 'episode-1' } as any])
     const appendMindTurnEvents = vi.fn(async () => {})
 
     const runtime = createAlicizationRuntimeMemoryRuntime({
@@ -126,6 +150,8 @@ describe('runtime memory runtime', () => {
       sessionId: 'session-1',
       turnId: 'turn-1',
       at: 10,
+      selfContinuityInwardLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      selfContinuitySourceTags: ['autobiographical-self', 'project-state-carry'],
     })
 
     expect(context.hostAttitude).toBe('warm')
@@ -149,6 +175,19 @@ describe('runtime memory runtime', () => {
       decisionTraceId: 'trace-1',
       limit: 24,
     })
+    expect(appendMindTurnEvents).toHaveBeenCalledWith(expect.arrayContaining([
+      expect.objectContaining({
+        kind: 'memory-reconsolidated',
+        payload: expect.objectContaining({
+          source: 'dialogue-feedback',
+          feedback: 'robotic',
+          projectState: expect.objectContaining({
+            selfContinuityInwardLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+            selfContinuitySourceTags: ['autobiographical-self', 'project-state-carry'],
+          }),
+        }),
+      }),
+    ]))
   })
 
   it('exposes self-evolution learning actions that can be scheduled downstream', async () => {

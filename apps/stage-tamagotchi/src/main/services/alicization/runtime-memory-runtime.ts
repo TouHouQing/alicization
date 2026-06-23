@@ -60,6 +60,7 @@ export function createAlicizationRuntimeMemoryRuntime(
       buildHostPersonModel,
       getMemoryTuningAdvice,
       resolveTurnRetrievalPolicySnapshot,
+      listMindTurnEvents: options.organicMemorySearch.listMindTurnEvents,
       listMemoryReflections: async input => listRecentMemoryReflections(input.cardId ?? options.organicMemoryAccess.getActiveCardId(), input.limit),
       listRelationshipOutcomes: async input => options.organicMemoryAccess.listRelationshipOutcomes({
         cardId: input.cardId ?? options.organicMemoryAccess.getActiveCardId(),

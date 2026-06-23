@@ -35,10 +35,15 @@ export function createAlicizationRuntimeMemoryFeedbackComposition(input: {
     const raw = await input.alicizationDb.getMetaValue(input.summaryMetaKey).catch(() => undefined)
     if (!raw)
       return null
-    const parsed = JSON.parse(raw)
-    return parsed && typeof parsed === 'object'
-      ? parsed as any
-      : null
+    try {
+      const parsed = JSON.parse(raw)
+      return parsed && typeof parsed === 'object'
+        ? parsed as any
+        : null
+    }
+    catch {
+      return null
+    }
   }
 
   return {
