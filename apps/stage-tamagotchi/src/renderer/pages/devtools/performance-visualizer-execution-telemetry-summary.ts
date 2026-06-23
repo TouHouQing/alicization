@@ -1,4 +1,17 @@
 import type { StageThreeRuntimeSpeechEmbodimentDiagnostics } from '../../stores/stage-three-runtime-diagnostics'
+import type {
+  PerformanceVisualizerAuthorityDriver,
+  PerformanceVisualizerRendererTarget,
+} from './performance-visualizer-driver-authority'
+import type { PerformanceVisualizerPlaybackCueAuthorityView } from './performance-visualizer-playback-cue'
+import type { PerformanceVisualizerRuntimeAuthorityOverview } from './performance-visualizer-runtime-authority-overview'
+
+import { deriveAuthorityTrustSummary as deriveSharedAuthorityTrustSummary } from './performance-visualizer-authority-trust'
+import {
+  formatResolvedProsodyAuthoritySummary,
+  resolveProsodyAuthorityFromSources,
+} from './performance-visualizer-prosody-authority'
+import { resolveAuthorityTrustSummaryWithFallback } from './performance-visualizer-resolve-authority-trust'
 
 export interface PerformanceVisualizerExecutionTelemetrySummaryEntry {
   key:
@@ -39,6 +52,8 @@ export interface PerformanceVisualizerExecutionTelemetrySummaryEntry {
     | 'live2d-expression'
     | 'live2d-motion'
     | 'live2d-cue'
+    | 'expression-aliases'
+    | 'motion-aliases'
     | 'live2d-settle'
     | 'telemetry-renderer-target'
   label: string
@@ -69,6 +84,73 @@ function formatMs(value: number | null | undefined) {
 
 function normalizeSummaryText(value: string) {
   return value.trim()
+}
+
+function normalizeText(value: unknown) {
+  return typeof value === 'string' && value.trim()
+    ? value.trim()
+    : null
+}
+
+function extractStructuredSegmentId(summary: string | null | undefined) {
+  const normalized = normalizeText(summary)
+  if (!normalized)
+    return null
+
+  const match = normalized.match(/(?:^|\s|\|)(?:segment|seg)=([^|\s]+)/)
+  return normalizeText(match?.[1])
+}
+
+function shouldSuppressProsodyOnlyVoicePromotion(input: {
+  prosodyAuthoritySummary: string | null
+  authoritySegmentId?: string | null
+  authorityMatchedDrivers?: Array<'body' | 'face' | 'motion' | 'lipsync' | 'voice'>
+  bodySegmentMatched?: boolean | null
+  lipsyncSegmentMatched?: boolean | null
+  voiceSegmentMatched?: boolean | null
+}) {
+  if (typeof input.voiceSegmentMatched === 'boolean')
+    return false
+
+  const summary = input.prosodyAuthoritySummary
+  const authoritySegmentId = normalizeText(input.authoritySegmentId)
+  if (!summary || !authoritySegmentId)
+    return false
+
+  const prosodySegmentId = extractStructuredSegmentId(summary)
+  if (
+    !summary.includes('provenance=authority-bound')
+    || !prosodySegmentId
+    || prosodySegmentId !== authoritySegmentId
+  ) {
+    return false
+  }
+
+  const bodyMatched = input.bodySegmentMatched === true
+    && input.authorityMatchedDrivers?.includes('body')
+  const lipsyncMatched = input.lipsyncSegmentMatched === true
+    && input.authorityMatchedDrivers?.includes('lipsync')
+
+  return Boolean(bodyMatched && !lipsyncMatched)
+}
+
+function resolveMatchedDriversFromLaneTruth(input: {
+  matchedDrivers: PerformanceVisualizerAuthorityDriver[]
+  bodySegmentMatched: boolean | null
+  faceSegmentMatched: boolean | null
+  motionSegmentMatched: boolean | null
+  lipsyncSegmentMatched: boolean | null
+  voiceSegmentMatched: boolean | null
+}) {
+  const resolved = [
+    input.bodySegmentMatched === true ? 'body' : null,
+    input.faceSegmentMatched === true ? 'face' : null,
+    input.motionSegmentMatched === true ? 'motion' : null,
+    input.lipsyncSegmentMatched === true ? 'lipsync' : null,
+    input.voiceSegmentMatched === true ? 'voice' : null,
+  ].filter((driver): driver is PerformanceVisualizerAuthorityDriver => Boolean(driver))
+
+  return resolved.length > 0 ? resolved : input.matchedDrivers
 }
 
 function pushSummaryEntry(
@@ -108,22 +190,80 @@ function withTechnicalValue(displayValue: string, technicalValue: string) {
     : { value: displayValue, technicalValue: normalizedTechnicalValue }
 }
 
-function deriveAuthorityTrustSummary(prosodyAuthoritySummary: string | null | undefined) {
-  const summary = typeof prosodyAuthoritySummary === 'string' ? normalizeSummaryText(prosodyAuthoritySummary) : null
-  if (!summary)
-    return null
+function deriveAuthorityTrustSummary(input: {
+  prosodyAuthoritySummary: string | null | undefined
+  settleAuthoritySummary?: string | null | undefined
+  authoritySegmentId?: string | null
+  authorityRendererTarget?: PerformanceVisualizerRendererTarget
+  authorityMatchedDrivers?: Array<'body' | 'face' | 'motion' | 'lipsync' | 'voice'>
+  bodySegmentMatched?: boolean | null
+  faceSegmentMatched?: boolean | null
+  motionSegmentMatched?: boolean | null
+  lipsyncSegmentMatched?: boolean | null
+  voiceSegmentMatched?: boolean | null
+  residentMode?: string | null
+  preferredBlinkCadence?: string | null
+  preferredGazeMode?: string | null
+  live2dExpressionName?: string | null
+  live2dMotionGroup?: string | null
+}) {
+  const summary = typeof input.prosodyAuthoritySummary === 'string'
+    ? normalizeSummaryText(input.prosodyAuthoritySummary)
+    : null
+  const trustSummary = shouldSuppressProsodyOnlyVoicePromotion({
+    prosodyAuthoritySummary: summary,
+    authoritySegmentId: input.authoritySegmentId ?? null,
+    authorityMatchedDrivers: input.authorityMatchedDrivers ?? [],
+    bodySegmentMatched: input.bodySegmentMatched ?? null,
+    lipsyncSegmentMatched: input.lipsyncSegmentMatched ?? null,
+    voiceSegmentMatched: input.voiceSegmentMatched ?? null,
+  })
+    ? null
+    : summary
 
   if (
-    summary.includes('provenance=authority-bound')
-    && /(?:^|\s|\|)segment=[^\s|]+/.test(summary)
+    input.authorityRendererTarget === 'live2d'
+    && input.authoritySegmentId
+    && input.residentMode === 'repair-before-closeness'
+    && input.faceSegmentMatched === true
+    && input.motionSegmentMatched === true
+    && input.lipsyncSegmentMatched === true
+    && input.authorityMatchedDrivers?.includes('face')
+    && input.authorityMatchedDrivers?.includes('motion')
+    && input.authorityMatchedDrivers?.includes('lipsync')
+    && input.live2dExpressionName === 'RecoverSoft'
+    && input.live2dMotionGroup === 'StillnessGuard'
   ) {
     return {
-      value: '韵律权威链已重新绑定到当前片段，可直接进入长期基线。',
-      technicalValue: summary,
+      value: 'Live2D 这段 authority 仍停在 repair-before-closeness 的回身线里，这次只是 later callback 的轻声接回，不是重新打开一段新的靠近。',
+      technicalValue: summary ?? 'Live2D 这段 authority 仍停在 repair-before-closeness 的回身线里，这次只是 later callback 的轻声接回，不是重新打开一段新的靠近。',
     }
   }
 
-  return null
+  const value = deriveSharedAuthorityTrustSummary({
+    prosodyAuthoritySummary: trustSummary,
+    settleAuthoritySummary: typeof input.settleAuthoritySummary === 'string'
+      ? normalizeSummaryText(input.settleAuthoritySummary)
+      : null,
+    authoritySegmentId: input.authoritySegmentId ?? null,
+    authorityRendererTarget: input.authorityRendererTarget ?? null,
+    residentMode: input.residentMode ?? null,
+    preferredBlinkCadence: input.preferredBlinkCadence ?? null,
+    preferredGazeMode: input.preferredGazeMode ?? null,
+    authorityMatchedDrivers: input.authorityMatchedDrivers ?? [],
+    bodySegmentMatched: input.bodySegmentMatched ?? null,
+    faceSegmentMatched: input.faceSegmentMatched ?? null,
+    motionSegmentMatched: input.motionSegmentMatched ?? null,
+    lipsyncSegmentMatched: input.lipsyncSegmentMatched ?? null,
+    voiceSegmentMatched: input.voiceSegmentMatched ?? null,
+  })
+
+  return value
+    ? {
+        value,
+        technicalValue: summary ?? value,
+      }
+    : null
 }
 
 function formatDriverTelemetrySummary(value: string, options?: { includeMode?: boolean }) {
@@ -347,23 +487,80 @@ export function buildDriverExecutionTelemetrySummaryEntries(input: {
   live2dExecution: StageThreeRuntimeSpeechEmbodimentDiagnostics['live2dExecution'] | null | undefined
   authorityTrustSummary?: string | null
   prosodyAuthoritySummary?: string | null
-  telemetryRendererTarget: 'live2d' | 'vrm' | null
+  settleAuthoritySummary?: string | null
+  authoritySegmentId?: string | null
+  authorityMatchedDrivers?: Array<'body' | 'face' | 'motion' | 'lipsync' | 'voice'>
+  bodySegmentMatched?: boolean | null
+  faceSegmentMatched?: boolean | null
+  motionSegmentMatched?: boolean | null
+  lipsyncSegmentMatched?: boolean | null
+  voiceSegmentMatched?: boolean | null
+  residentMode?: string | null
+  preferredBlinkCadence?: string | null
+  preferredGazeMode?: string | null
+  telemetryRendererTarget: PerformanceVisualizerRendererTarget
 }): PerformanceVisualizerExecutionTelemetrySummaryEntry[] {
   const entries: PerformanceVisualizerExecutionTelemetrySummaryEntry[] = []
   const driverSummary = input.driverSummary
   const live2dExecution = input.live2dExecution
+  const resolvedAuthorityMatchedDrivers = resolveMatchedDriversFromLaneTruth({
+    matchedDrivers: input.authorityMatchedDrivers ?? [],
+    bodySegmentMatched: input.bodySegmentMatched ?? null,
+    faceSegmentMatched: input.faceSegmentMatched ?? null,
+    motionSegmentMatched: input.motionSegmentMatched ?? null,
+    lipsyncSegmentMatched: input.lipsyncSegmentMatched ?? null,
+    voiceSegmentMatched: input.voiceSegmentMatched ?? null,
+  })
 
   if (hasValue(driverSummary?.rendererTarget))
     pushSummaryEntry(entries, { key: 'driver-renderer-target', label: '驱动渲染目标', value: driverSummary!.rendererTarget! })
 
-  const authorityTrustSummary = hasValue(input.authorityTrustSummary)
+  const specializedAuthorityTrustSummary = deriveAuthorityTrustSummary({
+    prosodyAuthoritySummary: input.prosodyAuthoritySummary,
+    settleAuthoritySummary: input.settleAuthoritySummary,
+    authoritySegmentId: input.authoritySegmentId ?? null,
+    authorityRendererTarget: input.telemetryRendererTarget,
+    residentMode: input.residentMode ?? null,
+    preferredBlinkCadence: input.preferredBlinkCadence ?? null,
+    preferredGazeMode: input.preferredGazeMode ?? null,
+    authorityMatchedDrivers: resolvedAuthorityMatchedDrivers,
+    bodySegmentMatched: input.bodySegmentMatched ?? null,
+    faceSegmentMatched: input.faceSegmentMatched ?? null,
+    motionSegmentMatched: input.motionSegmentMatched ?? null,
+    lipsyncSegmentMatched: input.lipsyncSegmentMatched ?? null,
+    voiceSegmentMatched: input.voiceSegmentMatched ?? null,
+    live2dExpressionName: live2dExecution?.activeExpression?.name ?? null,
+    live2dMotionGroup: live2dExecution?.activeMotion?.group ?? null,
+  })
+  const resolvedAuthorityTrustSummary = resolveAuthorityTrustSummaryWithFallback({
+    authorityTrustSummary: hasValue(input.authorityTrustSummary)
+      ? normalizeSummaryText(input.authorityTrustSummary!)
+      : null,
+    settleAuthoritySummary: input.settleAuthoritySummary,
+    rendererTarget: input.telemetryRendererTarget,
+    residentMode: input.residentMode ?? null,
+    preferredBlinkCadence: input.preferredBlinkCadence ?? null,
+    preferredGazeMode: input.preferredGazeMode ?? null,
+    prosodyAuthoritySummary: input.prosodyAuthoritySummary,
+    authoritySegmentId: input.authoritySegmentId ?? null,
+    authorityMatchedDrivers: resolvedAuthorityMatchedDrivers,
+    bodySegmentMatched: input.bodySegmentMatched ?? null,
+    faceSegmentMatched: input.faceSegmentMatched ?? null,
+    motionSegmentMatched: input.motionSegmentMatched ?? null,
+    lipsyncSegmentMatched: input.lipsyncSegmentMatched ?? null,
+    voiceSegmentMatched: input.voiceSegmentMatched ?? null,
+  })
+  const preferredAuthorityTrustSummary = hasValue(input.authorityTrustSummary)
+    ? resolvedAuthorityTrustSummary
+    : specializedAuthorityTrustSummary?.value ?? resolvedAuthorityTrustSummary
+  const authorityTrustSummary = preferredAuthorityTrustSummary
     ? {
-        value: input.authorityTrustSummary!,
+        value: preferredAuthorityTrustSummary,
         technicalValue: typeof input.prosodyAuthoritySummary === 'string'
           ? normalizeSummaryText(input.prosodyAuthoritySummary)
-          : input.authorityTrustSummary!,
+          : preferredAuthorityTrustSummary,
       }
-    : deriveAuthorityTrustSummary(input.prosodyAuthoritySummary)
+    : null
   if (authorityTrustSummary) {
     pushSummaryEntry(entries, {
       key: 'driver-authority-trust',
@@ -421,6 +618,22 @@ export function buildDriverExecutionTelemetrySummaryEntries(input: {
       value: `${live2dExecution.cue.emotion ?? 'n/a'} / ${live2dExecution.cue.facialCue ?? 'n/a'}`,
     })
   }
+  const preferredExpressionAliases = formatList(live2dExecution?.cue?.preferredExpressionAliases)
+  if (preferredExpressionAliases) {
+    pushSummaryEntry(entries, {
+      key: 'expression-aliases',
+      label: '表情别名偏好',
+      value: preferredExpressionAliases,
+    })
+  }
+  const preferredMotionAliases = formatList(live2dExecution?.cue?.preferredMotionAliases)
+  if (preferredMotionAliases) {
+    pushSummaryEntry(entries, {
+      key: 'motion-aliases',
+      label: '动作别名偏好',
+      value: preferredMotionAliases,
+    })
+  }
   const live2dFacialReleaseMs = formatMs(live2dExecution?.cue?.live2dFacialReleaseMs)
   const live2dMotionFollowThroughMs = formatMs(live2dExecution?.cue?.live2dMotionFollowThroughMs)
   if (live2dFacialReleaseMs || live2dMotionFollowThroughMs) {
@@ -435,4 +648,94 @@ export function buildDriverExecutionTelemetrySummaryEntries(input: {
     pushSummaryEntry(entries, { key: 'telemetry-renderer-target', label: 'Telemetry 渲染目标', value: input.telemetryRendererTarget! })
 
   return entries
+}
+
+export function buildDriverExecutionTelemetrySummaryEntriesFromDiagnostics(input: {
+  speechEmbodiment?: StageThreeRuntimeSpeechEmbodimentDiagnostics | null
+  runtimeAuthorityOverview?: PerformanceVisualizerRuntimeAuthorityOverview | null
+  playbackCueAuthorityView?: PerformanceVisualizerPlaybackCueAuthorityView | null
+}): PerformanceVisualizerExecutionTelemetrySummaryEntry[] {
+  const speechEmbodiment = input.speechEmbodiment ?? null
+  const runtimeAuthorityOverview = input.runtimeAuthorityOverview ?? null
+  const playbackCueAuthorityView = input.playbackCueAuthorityView ?? null
+  const playbackTelemetry = speechEmbodiment?.playbackTelemetry ?? null
+  const driverAuthority = playbackTelemetry?.driverAuthority ?? null
+  const telemetryProsodyAuthority = resolveProsodyAuthorityFromSources(playbackTelemetry)
+  const telemetryProsodyAuthoritySummary = normalizeText((playbackTelemetry?.prosodyAuthority as { summary?: string | null } | null | undefined)?.summary)
+    ?? formatResolvedProsodyAuthoritySummary(telemetryProsodyAuthority)
+  const activeAuthoritySegmentId = normalizeText(playbackCueAuthorityView?.authoritySegmentId)
+    ?? normalizeText(runtimeAuthorityOverview?.authoritySegmentId)
+    ?? normalizeText(driverAuthority?.segmentId)
+    ?? normalizeText(playbackTelemetry?.cue?.id)
+    ?? normalizeText(telemetryProsodyAuthority?.segmentId)
+    ?? null
+  const upstreamAuthoritySegmentId = normalizeText(speechEmbodiment?.authoritySummary?.segmentId)
+  const upstreamAuthorityScopedAway = Boolean(
+    activeAuthoritySegmentId
+    && upstreamAuthoritySegmentId
+    && upstreamAuthoritySegmentId !== activeAuthoritySegmentId,
+  )
+  const upstreamProsodyAuthoritySummary = normalizeText(speechEmbodiment?.authoritySummary?.prosodyAuthoritySummary)
+  const upstreamProsodyAuthoritySegmentId = extractStructuredSegmentId(upstreamProsodyAuthoritySummary)
+  const scopedUpstreamProsodyAuthoritySummary = upstreamAuthorityScopedAway
+    ? null
+    : upstreamProsodyAuthoritySummary && activeAuthoritySegmentId && upstreamProsodyAuthoritySegmentId && upstreamProsodyAuthoritySegmentId !== activeAuthoritySegmentId
+      ? null
+      : upstreamProsodyAuthoritySummary
+  const upstreamSettleAuthoritySummary = normalizeText(speechEmbodiment?.authoritySummary?.settleSummary)
+  const upstreamSettleAuthoritySegmentId = extractStructuredSegmentId(upstreamSettleAuthoritySummary)
+  const scopedUpstreamSettleAuthoritySummary = upstreamAuthorityScopedAway
+    ? null
+    : upstreamSettleAuthoritySummary && activeAuthoritySegmentId && upstreamSettleAuthoritySegmentId && upstreamSettleAuthoritySegmentId !== activeAuthoritySegmentId
+      ? null
+      : upstreamSettleAuthoritySummary
+
+  return buildDriverExecutionTelemetrySummaryEntries({
+    driverSummary: speechEmbodiment?.driverSummary,
+    live2dExecution: speechEmbodiment?.live2dExecution,
+    authorityTrustSummary: runtimeAuthorityOverview?.authorityTrustSummary
+      ?? playbackCueAuthorityView?.authorityTrustSummary
+      ?? null,
+    prosodyAuthoritySummary: playbackCueAuthorityView?.prosodyAuthoritySummary
+      ?? runtimeAuthorityOverview?.prosodyAuthoritySummary
+      ?? scopedUpstreamProsodyAuthoritySummary
+      ?? telemetryProsodyAuthoritySummary
+      ?? null,
+    settleAuthoritySummary: playbackCueAuthorityView?.settleAuthoritySummary
+      ?? runtimeAuthorityOverview?.settleAuthoritySummary
+      ?? scopedUpstreamSettleAuthoritySummary
+      ?? null,
+    authoritySegmentId: playbackCueAuthorityView?.authoritySegmentId
+      ?? runtimeAuthorityOverview?.authoritySegmentId
+      ?? (upstreamAuthorityScopedAway ? null : upstreamAuthoritySegmentId)
+      ?? driverAuthority?.segmentId
+      ?? playbackTelemetry?.cue?.id
+      ?? telemetryProsodyAuthority?.segmentId
+      ?? null,
+    authorityMatchedDrivers: playbackCueAuthorityView?.authorityMatchedDrivers
+      ?? driverAuthority?.matchedDrivers
+      ?? [],
+    bodySegmentMatched: playbackCueAuthorityView?.bodySegmentMatched
+      ?? driverAuthority?.bodySegmentMatched
+      ?? null,
+    faceSegmentMatched: playbackCueAuthorityView?.faceSegmentMatched
+      ?? driverAuthority?.faceSegmentMatched
+      ?? null,
+    motionSegmentMatched: playbackCueAuthorityView?.motionSegmentMatched
+      ?? driverAuthority?.motionSegmentMatched
+      ?? null,
+    lipsyncSegmentMatched: playbackCueAuthorityView?.lipsyncSegmentMatched
+      ?? driverAuthority?.lipsyncSegmentMatched
+      ?? null,
+    voiceSegmentMatched: playbackCueAuthorityView?.voiceSegmentMatched
+      ?? runtimeAuthorityOverview?.voiceSegmentMatched
+      ?? null,
+    residentMode: playbackCueAuthorityView?.residentMode ?? null,
+    preferredBlinkCadence: playbackCueAuthorityView?.preferredBlinkCadence ?? null,
+    preferredGazeMode: playbackCueAuthorityView?.preferredGazeMode ?? null,
+    telemetryRendererTarget: playbackTelemetry?.rendererTarget
+      ?? playbackCueAuthorityView?.authorityRendererTarget
+      ?? runtimeAuthorityOverview?.rendererTarget
+      ?? null,
+  })
 }
