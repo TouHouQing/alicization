@@ -50,6 +50,239 @@ function summarizeTrajectory(input: {
   return null
 }
 
+function summarizeRelationshipCadence(input: {
+  relationshipDoctrine: string | null
+  latestInflection: string | null
+  burdenLine: string | null
+  trustMeaning: string | null
+}) {
+  const cadenceParts = [
+    input.relationshipDoctrine && (
+      /measured-return|measured return|bounded-return|bounded return|repair-before-closeness|repair before closeness|rest-protective|rest protective|quiet same-her continuity/iu.test(input.relationshipDoctrine)
+      || hasMetabolizedContinuityCadenceCue(input.relationshipDoctrine)
+      || hasDurableSelfRhythmCue(input.relationshipDoctrine)
+    )
+      ? input.relationshipDoctrine
+      : null,
+    input.latestInflection,
+    input.trustMeaning,
+    input.burdenLine,
+  ]
+    .map(part => sanitizeText(part, 220))
+    .filter(Boolean)
+
+  return uniqueList(cadenceParts, 3, 180).join(' | ') || null
+}
+
+function indicatesRelationshipCadenceInternalization(input: {
+  relationshipDoctrine?: string | null
+  latestInflection?: string | null
+  dominantCueSummary?: string | null
+  rememberedConstraintSummary?: string | null
+  rememberedPlanSummary?: string | null
+}) {
+  const combined = [
+    input.relationshipDoctrine,
+    input.latestInflection,
+    input.dominantCueSummary,
+    input.rememberedConstraintSummary,
+    input.rememberedPlanSummary,
+  ]
+    .map(value => sanitizeText(value, 220).toLowerCase())
+    .filter(Boolean)
+    .join(' ')
+
+  return /measured-return|bounded-return|reconfirmation|surface fully cools|relationship cadence/u.test(combined)
+    || hasCorrectedSamePersonContinuityCue(combined)
+    || hasMetabolizedContinuityCadenceCue(combined)
+    || hasDurableSelfRhythmCue(combined)
+}
+
+function hasRelationshipCadenceCue(text: string) {
+  return /measured-return|measured return|bounded-return|bounded return|repair-before-closeness|repair before closeness|rest-protective|rest protective|lower-pressure|same living line|same-her|same her|without reopening from scratch|without restarting from scratch/u.test(text)
+    || hasCorrectedSamePersonContinuityCue(text)
+    || hasMetabolizedContinuityCadenceCue(text)
+    || hasInitiativeStrategyCadenceCue(text)
+}
+
+function hasCorrectedSamePersonContinuityCue(text: string) {
+  const normalized = sanitizeText(text, 260).toLowerCase()
+  if (!normalized)
+    return false
+
+  const carriesSamePersonContinuity = /same-person continuity|same person continuity/u.test(normalized)
+  const carriesCorrection = /host corrected|corrected the relationship meaning|corrected memory meaning|instead of defending the first interpretation|misread/u.test(normalized)
+  const carriesProgressPressureRepair = /progress pressure|not progress pressure|away from progress pressure|instead of defaulting to progress pressure|不是催进度/u.test(normalized)
+  const carriesLowerPressureResettling = /lower-pressure|lower pressure|settles back|resettles|one living thread|same living thread/u.test(normalized)
+
+  return carriesSamePersonContinuity
+    && ((carriesCorrection && carriesProgressPressureRepair) || (carriesProgressPressureRepair && carriesLowerPressureResettling))
+}
+
+function summarizeCorrectedSamePersonContinuityCue(text: string) {
+  if (!hasCorrectedSamePersonContinuityCue(text))
+    return null
+
+  return 'Carry corrected same-person continuity forward at lower pressure instead of sliding back into progress pressure.'
+}
+
+function hasMetabolizedContinuityCadenceCue(text: string) {
+  const normalized = sanitizeText(text, 260).toLowerCase()
+  if (!normalized)
+    return false
+
+  const carriesSamePersonContinuity = /same-person continuity|same person continuity/u.test(normalized)
+  const carriesSameThreadMemory = /same-thread memory|same thread memory|same-thread continuity echoes|same thread continuity echoes|stronger same-thread memory/u.test(normalized)
+  const carriesNoiseFading = /temporary noise|let temporary noise fade|noise fades|older emotional spike|stale emotional wobble|fade instead of reviving/u.test(normalized)
+  const carriesSteadierReturn = /lower-pressure|lower pressure|foreground|steadier|steady|same living thread|same living line/u.test(normalized)
+
+  return carriesSamePersonContinuity && carriesSameThreadMemory && carriesNoiseFading && carriesSteadierReturn
+}
+
+function summarizeMetabolizedContinuityCadenceCue(text: string) {
+  if (!hasMetabolizedContinuityCadenceCue(text))
+    return null
+
+  return 'Keep corrected same-person continuity foregrounded, let the stronger same-thread memory lead, and let temporary noise fade instead of retaking the line.'
+}
+
+function hasInitiativeStrategyCadenceCue(text: string) {
+  const normalized = sanitizeText(text, 260).toLowerCase()
+  if (!normalized)
+    return false
+
+  const carriesFutureFollowUps = /future follow-ups|follow-up timing|reopening this line|another follow-up|next approach/u.test(normalized)
+  const carriesQuieterTiming = /lower-pressure|clearer opening|fresher opening|leave more room|less eager|quiet until|quieter timing|memory-led|gentle/u.test(normalized)
+
+  return carriesFutureFollowUps && carriesQuieterTiming
+}
+
+function hasProactiveSameHerGapCadenceCue(text: string) {
+  const normalized = sanitizeText(text, 260).toLowerCase()
+  if (!normalized)
+    return false
+
+  const carriesProactiveLine = /proactive|hover-first|hover first|visible proactive hold/u.test(normalized)
+  const carriesLongRunCarry = /subconscious|next-session|next session|feedback carry|follow-through|quiet carry/u.test(normalized)
+
+  return carriesProactiveLine && carriesLongRunCarry
+}
+
+function summarizeInitiativeStrategyCadenceCue(text: string) {
+  if (!hasInitiativeStrategyCadenceCue(text))
+    return null
+
+  const normalized = sanitizeText(text, 260).toLowerCase()
+  const acceptedOrContinued = /accepted or continued|received without obvious resistance|memory-led/u.test(normalized)
+  const keepGentle = /gentle/u.test(normalized)
+  const keepLowerPressure = /lower-pressure|lower pressure/u.test(normalized)
+
+  if (acceptedOrContinued && keepGentle && keepLowerPressure)
+    return 'Keep future follow-ups gentle, lower-pressure, and memory-led while the opening is still receiving them.'
+
+  return 'Keep future follow-ups lower-pressure, less eager, and wait for a clearer opening before reopening this line.'
+}
+
+function hasDurableSelfRhythmCue(text: string) {
+  const normalized = sanitizeText(text, 240).toLowerCase()
+  if (!normalized)
+    return false
+
+  const carriesSameSelf = /same her|same-her|same self|living self|one continuous her|same living line/u.test(normalized)
+  const carriesRestartRestraint = /without reopening from scratch|do not reopen from scratch|same line instead of restarting|instead of restarting every turn|without restarting from zero|without restarting from scratch/u.test(normalized)
+  const carriesCrossSurfaceContinuity = /across quiet, memory, and speech|across memory and speech|across quiet and speech|across reply surface|across reply surfaces/u.test(normalized)
+  const carriesSameLineContinuation = /same living line|same line|before widening outward again|before widening outward|lower-pressure/u.test(normalized)
+
+  return carriesSameSelf && carriesRestartRestraint && (carriesCrossSurfaceContinuity || carriesSameLineContinuation)
+}
+
+function resolveDurableSelfRelationshipCadenceSignal(input: {
+  selfRevisionRelationshipCadenceCarry?: string | null
+  relationshipDoctrine?: string | null
+  latestInflection?: string | null
+  dominantCueSummary?: string | null
+  rememberedConstraintSummary?: string | null
+  rememberedPlanSummary?: string | null
+}) {
+  const candidates = [
+    input.selfRevisionRelationshipCadenceCarry,
+    input.relationshipDoctrine,
+    input.latestInflection,
+    input.dominantCueSummary,
+    input.rememberedConstraintSummary,
+    input.rememberedPlanSummary,
+  ]
+
+  const correctedSamePersonContinuityCue = candidates
+    .map(candidate => summarizeCorrectedSamePersonContinuityCue(candidate ?? ''))
+    .find(Boolean)
+  if (correctedSamePersonContinuityCue)
+    return correctedSamePersonContinuityCue
+
+  const metabolizedContinuityCadenceCue = candidates
+    .map(candidate => summarizeMetabolizedContinuityCadenceCue(candidate ?? ''))
+    .find(Boolean)
+  if (metabolizedContinuityCadenceCue)
+    return metabolizedContinuityCadenceCue
+
+  const initiativeStrategyCadenceCue = candidates
+    .map(candidate => summarizeInitiativeStrategyCadenceCue(candidate ?? ''))
+    .find(Boolean)
+  if (initiativeStrategyCadenceCue)
+    return initiativeStrategyCadenceCue
+
+  const proactiveSameHerGapCadenceCue = candidates
+    .map(candidate => sanitizeText(candidate, 260))
+    .find(candidate => hasProactiveSameHerGapCadenceCue(candidate))
+  if (proactiveSameHerGapCadenceCue)
+    return proactiveSameHerGapCadenceCue
+
+  return candidates.find(candidate => hasDurableSelfRhythmCue(candidate ?? '')) ?? null
+}
+
+function resolveSelfRevisionRelationshipCadenceCarry(input?: {
+  emotionalClosureCue?: string | null
+  continuityGuard?: string | null
+  sameHerSelfLine?: string | null
+  proactiveSameHerGap?: string | null
+} | null) {
+  const emotionalClosureCue = sanitizeText(input?.emotionalClosureCue, 220)
+  const correctedEmotionalClosureCue = summarizeCorrectedSamePersonContinuityCue(emotionalClosureCue)
+  if (correctedEmotionalClosureCue)
+    return correctedEmotionalClosureCue
+  const metabolizedEmotionalClosureCue = summarizeMetabolizedContinuityCadenceCue(emotionalClosureCue)
+  if (metabolizedEmotionalClosureCue)
+    return metabolizedEmotionalClosureCue
+  if (emotionalClosureCue && hasRelationshipCadenceCue(emotionalClosureCue.toLowerCase()))
+    return emotionalClosureCue
+
+  const continuityGuard = sanitizeText(input?.continuityGuard, 220)
+  const correctedContinuityGuard = summarizeCorrectedSamePersonContinuityCue(continuityGuard)
+  if (correctedContinuityGuard)
+    return correctedContinuityGuard
+  const metabolizedContinuityGuard = summarizeMetabolizedContinuityCadenceCue(continuityGuard)
+  if (metabolizedContinuityGuard)
+    return metabolizedContinuityGuard
+  if (continuityGuard && hasRelationshipCadenceCue(continuityGuard.toLowerCase()))
+    return continuityGuard
+
+  const sameHerSelfLine = sanitizeText(input?.sameHerSelfLine, 220)
+  const correctedSameHerSelfLine = summarizeCorrectedSamePersonContinuityCue(sameHerSelfLine)
+  if (correctedSameHerSelfLine)
+    return correctedSameHerSelfLine
+  const metabolizedSameHerSelfLine = summarizeMetabolizedContinuityCadenceCue(sameHerSelfLine)
+  if (metabolizedSameHerSelfLine)
+    return metabolizedSameHerSelfLine
+  if (sameHerSelfLine && hasRelationshipCadenceCue(sameHerSelfLine.toLowerCase()))
+    return sameHerSelfLine
+
+  const proactiveSameHerGap = sanitizeText(input?.proactiveSameHerGap, 260)
+  if (proactiveSameHerGap && hasProactiveSameHerGapCadenceCue(proactiveSameHerGap))
+    return proactiveSameHerGap
+
+  return null
+}
+
 function deriveNextLearningAction(input: {
   learningReadiness: number
   contradictionPressure: number
@@ -131,13 +364,6 @@ export function buildAlicizationSelfEvolutionKernel(input: {
     selfModelViewStrength?: number
     worldModelViewStrength?: number
   } | null
-  activeSelfRevisionProjectStateContinuity?: {
-    sameHerSelfLine?: string | null
-    sameHerDriftRisk?: string | null
-    emotionalClosureCue?: string | null
-    continuityGuard?: string | null
-    continuityPressure?: number | null
-  } | null
   learningPolicyState?: {
     strictnessBias?: number | null
     wrongThreadSuppressionBias?: number | null
@@ -150,6 +376,14 @@ export function buildAlicizationSelfEvolutionKernel(input: {
     selfRevisionProactivePolicyBias?: number | null
     selfRevisionValidationBias?: number | null
     selfRevisionReasonCodes?: string[] | null
+  } | null
+  activeSelfRevisionProjectStateContinuity?: {
+    sameHerSelfLine?: string | null
+    sameHerDriftRisk?: string | null
+    proactiveSameHerGap?: string | null
+    emotionalClosureCue?: string | null
+    continuityGuard?: string | null
+    continuityPressure?: number | null
   } | null
   reflectionSummary?: string | null
   reflectionLesson?: string | null
@@ -170,6 +404,26 @@ export function buildAlicizationSelfEvolutionKernel(input: {
   const selfModelViewStrength = clamp01(knowledgeEvidence?.selfModelViewStrength ?? 0)
   const worldModelViewStrength = clamp01(knowledgeEvidence?.worldModelViewStrength ?? 0)
   const learningPolicyState = input.learningPolicyState ?? null
+  const selfRevisionRelationshipCadenceCarry = resolveSelfRevisionRelationshipCadenceCarry(
+    input.activeSelfRevisionProjectStateContinuity ?? null,
+  )
+  const durableSelfRelationshipCadenceSignal = resolveDurableSelfRelationshipCadenceSignal({
+    selfRevisionRelationshipCadenceCarry,
+    relationshipDoctrine: evolution?.latestDoctrine
+      ?? longHorizonMemory?.rememberedConstraintSummary
+      ?? hostPersonModel?.preferredClosenessByContext?.[0]?.preference
+      ?? null,
+    latestInflection: input.autobiographicalLatestInflection
+      ?? autobiographicalSelf?.latestInflection
+      ?? evolution?.recentSummaries?.[0]
+      ?? input.reflectionLesson
+      ?? input.reflectionSummary
+      ?? longHorizonMemory?.rememberedPlanSummary
+      ?? null,
+    dominantCueSummary: longHorizonMemory?.dominantCueSummary ?? null,
+    rememberedConstraintSummary: longHorizonMemory?.rememberedConstraintSummary ?? null,
+    rememberedPlanSummary: longHorizonMemory?.rememberedPlanSummary ?? null,
+  })
   const selfRevisionLearningPressure = clamp01(
     (learningPolicyState?.selfRevisionMemoryPolicyBias ?? 0) * 0.18
     + (learningPolicyState?.selfRevisionRelationshipPostureBias ?? 0) * 0.12
@@ -248,6 +502,16 @@ export function buildAlicizationSelfEvolutionKernel(input: {
     (learningPolicyState?.selfRevisionPatchCount ?? 0) > 0 ? 'self-revision-policy-feedback' : null,
     (knowledgeEvidence?.stronglyValidatedProcedureCount ?? 0) > 0 ? 'internalize-procedure' : null,
     relationshipCount > 0 && relationshipViewStrength >= 0.58 ? 'internalize-relationship' : null,
+    durableSelfRelationshipCadenceSignal
+    || indicatesRelationshipCadenceInternalization({
+      relationshipDoctrine,
+      latestInflection,
+      dominantCueSummary: longHorizonMemory?.dominantCueSummary,
+      rememberedConstraintSummary: longHorizonMemory?.rememberedConstraintSummary,
+      rememberedPlanSummary: longHorizonMemory?.rememberedPlanSummary,
+    })
+      ? 'internalize-relationship-cadence'
+      : null,
     selfModelCount > 0 && selfModelViewStrength >= 0.54 ? 'internalize-self-model' : null,
     worldModelCount > 0 && worldModelViewStrength >= 0.56 ? 'internalize-world-model' : null,
     autobiographicalSelf?.gradualUnlock?.unlockableFacets[0]?.facet
@@ -258,17 +522,24 @@ export function buildAlicizationSelfEvolutionKernel(input: {
     trustMeaning ? `trust:${trustMeaning}` : null,
   ], 6, 120)
 
+  const selfRevisionSourceSignals = (learningPolicyState?.selfRevisionReasonCodes ?? [])
+    .map(reason => `self-revision:${reason}`)
+  const learningPolicySourceSignals = (learningPolicyState?.reasonCodes ?? [])
+    .map(reason => `learning-policy:${reason}`)
   const sourceSignals = uniqueList([
     input.reflectionSummary,
     input.reflectionLesson,
     autobiographicalSelf?.gradualUnlock?.pendingHypotheses[0]?.hypothesis ?? null,
-    learningPolicyState?.selfRevisionReasonCodes?.[0] ? `self-revision:${learningPolicyState.selfRevisionReasonCodes[0]}` : null,
-    learningPolicyState?.reasonCodes?.[0] ? `learning-policy:${learningPolicyState.reasonCodes[0]}` : null,
+    ...selfRevisionSourceSignals,
+    ...learningPolicySourceSignals,
+    durableSelfRelationshipCadenceSignal,
+    selfRevisionRelationshipCadenceCarry,
+    input.activeSelfRevisionProjectStateContinuity?.proactiveSameHerGap ?? null,
     evolution?.recentSummaries?.[0] ?? null,
     longHorizonMemory?.dominantCueSummary ?? null,
     longHorizonMemory?.rememberedPlanSummary ?? null,
     hostPersonModel?.summary ?? null,
-  ], 6, 180)
+  ], 10, 220)
 
   const dominantTrajectory = summarizeTrajectory({
     doctrine: relationshipDoctrine,
@@ -283,6 +554,16 @@ export function buildAlicizationSelfEvolutionKernel(input: {
     knowledgeEvidence,
     sourceSignals,
   })
+  const relationshipCadenceSummary = uniqueList([
+    selfRevisionRelationshipCadenceCarry,
+    durableSelfRelationshipCadenceSignal,
+    summarizeRelationshipCadence({
+      relationshipDoctrine,
+      latestInflection,
+      burdenLine,
+      trustMeaning,
+    }),
+  ], 3, 220).join(' | ') || null
 
   if (
     !dominantTrajectory
@@ -309,6 +590,7 @@ export function buildAlicizationSelfEvolutionKernel(input: {
     trustMeaning,
     nextLearningAction: learningDecision.action,
     nextLearningReason: learningDecision.reason,
+    relationshipCadenceSummary,
     shouldRecord: learningDecision.action === 'record',
     shouldReflect: learningDecision.action === 'reflect',
     shouldVerify: learningDecision.action === 'verify',
@@ -318,9 +600,11 @@ export function buildAlicizationSelfEvolutionKernel(input: {
     sourceSignals,
     summary: uniqueList([
       dominantTrajectory,
+      selfRevisionRelationshipCadenceCarry ? relationshipCadenceSummary : null,
       learningDecision.reason,
       activeLearningFocuses[0] ?? null,
       sourceSignals[0] ?? null,
+      relationshipCadenceSummary,
     ], 3, 220).join(' | '),
   }
 }

@@ -1,5 +1,9 @@
+import type { AlicizationSelfEvolutionBaselineAdoptionRecordSnapshot } from '@proj-alicization/stage-shared'
+
 import type { AlicizationSelfRevisionEvent } from './self-revision-ledger'
 import type { AlicizationSelfRevisionStatePatch } from './state-revision-bus'
+
+import { resolveAlicizationProjectStateBrief } from '../project-state-brief'
 
 export type AlicizationSelfEvolutionVersionStatus
   = 'shadow'
@@ -20,6 +24,7 @@ export interface AlicizationSelfEvolutionVersionCandidate {
     replayPassed: boolean | null
     rollbackSupported: boolean
     activationBlockedReasons: string[]
+    projectStateContinuityReasons?: string[]
     finalReplayGatePassed?: boolean | null
     productionGoldSampleCount?: number | null
     productionGoldCoverage?: number | null
@@ -34,6 +39,7 @@ export interface AlicizationSelfEvolutionVersionRuntimeSnapshot {
   activeCandidateId: string | null
   candidates: AlicizationSelfEvolutionVersionCandidate[]
   reasonCodes: string[]
+  baselineAdoptionHistory?: AlicizationSelfEvolutionBaselineAdoptionRecordSnapshot[]
 }
 
 function normalizeText(raw: unknown, maxChars = 160) {
@@ -71,6 +77,24 @@ export function buildAlicizationSelfEvolutionVersionCandidate(input: {
   patch: AlicizationSelfRevisionStatePatch
   now: number
 }): AlicizationSelfEvolutionVersionCandidate {
+  const projectStateBrief = resolveAlicizationProjectStateBrief()
+  const projectStatePreflightSummary = projectStateBrief.preflightSummary ?? ''
+  const projectStateSameHerHoldDetail
+    = input.patch.projectStateContinuity?.sameHerHoldDetail
+      ?? input.event.projectStateContinuity?.sameHerHoldDetail
+      ?? projectStateBrief.sameHerHoldDetail
+      ?? ''
+  const projectStatePrimaryOpenLoop = projectStateBrief.openLoops[0] ?? ''
+  const projectStateProactiveSameHerGap
+    = input.patch.projectStateContinuity?.proactiveSameHerGap
+      ?? input.event.projectStateContinuity?.proactiveSameHerGap
+      ?? projectStateBrief.proactiveSameHerGap
+      ?? ''
+  const projectStateSameHerSelfLine = projectStateBrief.sameHerSelfLine ?? ''
+  const projectStateSameHerDriftRisk = projectStateBrief.sameHerDriftRisk ?? ''
+  const anthropomorphicMemoryClosureStillOpen = `${projectStatePreflightSummary} ${projectStatePrimaryOpenLoop} ${projectStateProactiveSameHerGap} ${projectStateSameHerSelfLine} ${projectStateSameHerDriftRisk} ${projectStateSameHerHoldDetail}`
+    .toLowerCase()
+    .match(/memory still needs stronger end-to-end closure|same her|same-her|same living line|one continuous "her"|generic assistant shell|project-summary voice|generic project shell|visible proactive hold|subconscious carry|next-session feedback carry/u) != null
   const replayRequired = input.patch.validation.requiresRollbackCheck
     || input.patch.validation.requiresRevalidation
     || input.event.verifier.mayInternalize === false
@@ -99,6 +123,14 @@ export function buildAlicizationSelfEvolutionVersionCandidate(input: {
       replayPassed: null,
       rollbackSupported,
       activationBlockedReasons,
+      projectStateContinuityReasons: uniqueList([
+        projectStatePreflightSummary ? 'self-evolution:project-preflight-carry-present' : null,
+        projectStateSameHerHoldDetail ? 'self-evolution:project-same-her-hold-detail-present' : null,
+        projectStateProactiveSameHerGap ? 'self-evolution:project-proactive-same-her-gap-present' : null,
+        projectStateSameHerSelfLine ? 'self-evolution:project-same-her-self-line-present' : null,
+        projectStateSameHerDriftRisk ? 'self-evolution:project-same-her-drift-risk-present' : null,
+        anthropomorphicMemoryClosureStillOpen ? 'self-evolution:project-phase-memory-closure-still-open' : null,
+      ]),
       finalReplayGatePassed: null,
       productionGoldSampleCount: null,
       productionGoldCoverage: null,
@@ -116,6 +148,17 @@ export function applyAlicizationSelfEvolutionReplayValidation(input: {
   finalReplayGatePassed?: boolean | null
   productionGoldSampleCount?: number | null
   productionGoldCoverage?: number | null
+  projectStateContinuityDrift?: boolean | null
+  projectStateSummary?: {
+    comparedTurnCount: number
+    identityHitCount: number
+    phaseHitCount: number
+    openLoopHitCount: number
+    sameHerHitCount?: number
+    proactiveSameHerGapHitCount?: number
+    continuityHitCount: number
+  } | null
+  projectStateContinuitySummary?: string | null
   now: number
 }) {
   const candidates = input.snapshot.candidates.map((candidate) => {
@@ -128,6 +171,20 @@ export function applyAlicizationSelfEvolutionReplayValidation(input: {
     const productionGoldCoverage = Number.isFinite(input.productionGoldCoverage)
       ? Math.max(0, Math.min(1, Number(input.productionGoldCoverage)))
       : null
+    const projectStateContinuityDrift = input.projectStateContinuityDrift === true
+    const projectStateSummary = input.projectStateSummary ?? null
+    const projectStateContinuitySummary = normalizeText(input.projectStateContinuitySummary, 320)
+    const comparedTurnCount = Math.max(1, Number(projectStateSummary?.comparedTurnCount ?? 0))
+    const identityCarryWeak = projectStateContinuityDrift
+      && Number(projectStateSummary?.identityHitCount ?? 0) < comparedTurnCount
+    const sameHerCarryWeak = projectStateContinuityDrift
+      && Number(projectStateSummary?.sameHerHitCount ?? 0) < comparedTurnCount
+    const phaseCarryWeak = projectStateContinuityDrift
+      && Number(projectStateSummary?.phaseHitCount ?? 0) < comparedTurnCount
+    const openLoopCarryWeak = projectStateContinuityDrift
+      && Number(projectStateSummary?.openLoopHitCount ?? 0) < comparedTurnCount
+    const proactiveGapCarryWeak = projectStateContinuityDrift
+      && Number(projectStateSummary?.proactiveSameHerGapHitCount ?? 0) < comparedTurnCount
     const activationBlockedReasons = input.replayPassed
       ? uniqueList([
           ...candidate.validation.activationBlockedReasons
@@ -138,6 +195,7 @@ export function applyAlicizationSelfEvolutionReplayValidation(input: {
           (productionGoldSampleCount ?? 0) > 0 && (productionGoldCoverage ?? 0) > 0
             ? null
             : 'self-evolution:production-gold-required',
+          projectStateContinuityDrift ? 'self-evolution:project-state-continuity-drift' : null,
         ])
       : uniqueList([...candidate.validation.activationBlockedReasons, 'self-evolution:shadow-replay-failed'])
     const canActivate = input.replayPassed && finalReplayGatePassed && (productionGoldSampleCount ?? 0) > 0 && (productionGoldCoverage ?? 0) > 0 && activationBlockedReasons.length === 0
@@ -148,6 +206,16 @@ export function applyAlicizationSelfEvolutionReplayValidation(input: {
         ...candidate.validation,
         replayPassed: input.replayPassed,
         activationBlockedReasons,
+        projectStateContinuityReasons: uniqueList([
+          ...(candidate.validation.projectStateContinuityReasons ?? []),
+          projectStateContinuityDrift ? 'self-evolution:project-state-continuity-drift' : null,
+          identityCarryWeak ? 'self-evolution:project-state-identity-carry-weak' : null,
+          sameHerCarryWeak ? 'self-evolution:project-state-same-her-carry-weak' : null,
+          phaseCarryWeak ? 'self-evolution:project-state-phase-carry-weak' : null,
+          openLoopCarryWeak ? 'self-evolution:project-state-open-loop-carry-weak' : null,
+          proactiveGapCarryWeak ? 'self-evolution:project-state-proactive-gap-carry-weak' : null,
+          projectStateContinuitySummary ? `self-evolution:project-state-continuity-summary=${projectStateContinuitySummary}` : null,
+        ]),
         finalReplayGatePassed,
         productionGoldSampleCount,
         productionGoldCoverage,
@@ -161,6 +229,7 @@ export function applyAlicizationSelfEvolutionReplayValidation(input: {
   return buildAlicizationSelfEvolutionVersionRuntimeSnapshot({
     candidates,
     activeCandidateId,
+    baselineAdoptionHistory: input.snapshot.baselineAdoptionHistory,
   })
 }
 
@@ -183,6 +252,7 @@ export function rollbackAlicizationSelfEvolutionCandidate(input: {
           ...candidate.validation.activationBlockedReasons,
           `rollback:${input.reason}`,
         ]),
+        projectStateContinuityReasons: candidate.validation.projectStateContinuityReasons ?? [],
       },
     }
   })
@@ -192,12 +262,14 @@ export function rollbackAlicizationSelfEvolutionCandidate(input: {
   return buildAlicizationSelfEvolutionVersionRuntimeSnapshot({
     candidates,
     activeCandidateId,
+    baselineAdoptionHistory: input.snapshot.baselineAdoptionHistory,
   })
 }
 
 export function buildAlicizationSelfEvolutionVersionRuntimeSnapshot(input: {
   candidates: AlicizationSelfEvolutionVersionCandidate[]
   activeCandidateId?: string | null
+  baselineAdoptionHistory?: AlicizationSelfEvolutionBaselineAdoptionRecordSnapshot[] | null
 }): AlicizationSelfEvolutionVersionRuntimeSnapshot {
   const deduped = new Map(input.candidates.map(candidate => [candidate.id, candidate]))
   const candidates = [...deduped.values()]
@@ -215,6 +287,7 @@ export function buildAlicizationSelfEvolutionVersionRuntimeSnapshot(input: {
       candidates.some(candidate => candidate.status === 'rolled-back') ? 'self-evolution:rollback-history-present' : null,
       activeCandidateId ? 'self-evolution:active-version-present' : 'self-evolution:no-active-version',
     ]),
+    baselineAdoptionHistory: input.baselineAdoptionHistory?.slice(0, 32) ?? [],
   }
 }
 
@@ -251,6 +324,7 @@ export function createAlicizationSelfEvolutionVersionRuntime(options: {
     const next = buildAlicizationSelfEvolutionVersionRuntimeSnapshot({
       candidates: [...previous.candidates, candidate],
       activeCandidateId: candidate.status === 'active' ? candidate.id : previous.activeCandidateId,
+      baselineAdoptionHistory: previous.baselineAdoptionHistory,
     })
     await options.writeSnapshot(next)
     return candidate
@@ -262,6 +336,17 @@ export function createAlicizationSelfEvolutionVersionRuntime(options: {
     finalReplayGatePassed?: boolean | null
     productionGoldSampleCount?: number | null
     productionGoldCoverage?: number | null
+    projectStateContinuityDrift?: boolean | null
+    projectStateSummary?: {
+      comparedTurnCount: number
+      identityHitCount: number
+      phaseHitCount: number
+      openLoopHitCount: number
+      sameHerHitCount?: number
+      proactiveSameHerGapHitCount?: number
+      continuityHitCount: number
+    } | null
+    projectStateContinuitySummary?: string | null
   }) {
     const next = applyAlicizationSelfEvolutionReplayValidation({
       snapshot: await getSnapshot(),
@@ -270,6 +355,9 @@ export function createAlicizationSelfEvolutionVersionRuntime(options: {
       finalReplayGatePassed: input.finalReplayGatePassed,
       productionGoldSampleCount: input.productionGoldSampleCount,
       productionGoldCoverage: input.productionGoldCoverage,
+      projectStateContinuityDrift: input.projectStateContinuityDrift,
+      projectStateSummary: input.projectStateSummary,
+      projectStateContinuitySummary: input.projectStateContinuitySummary,
       now: options.now(),
     })
     await options.writeSnapshot(next)

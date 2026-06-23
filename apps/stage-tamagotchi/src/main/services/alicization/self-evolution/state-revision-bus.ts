@@ -16,7 +16,7 @@ export interface AlicizationSelfRevisionStatePatch {
   sourceTurnId: string | null
   decisionTraceId: string | null
   domain: AlicizationMemoryDomain | 'dialogue-style' | 'proactive-policy'
-  action: AlicizationSelfRevisionEvent['taskAction']
+  action: AlicizationSelfRevisionEvent['taskAction'] | 'hold'
   resultStatus: AlicizationSelfRevisionEvent['resultStatus']
   lanes: AlicizationSelfRevisionStatePatchLane[]
   memoryPolicy: {
@@ -47,14 +47,14 @@ export interface AlicizationSelfRevisionStatePatch {
     requiresRevalidation: boolean
     rollbackPlan: string[]
   }
-  projectStateContinuity?: {
-    sameHerSelfLine?: string | null
-    sameHerDriftRisk?: string | null
+  projectStateContinuity: {
+    sameHerSelfLine: string | null
+    sameHerDriftRisk: string | null
     proactiveSameHerGap?: string | null
-    emotionalClosureCue?: string | null
+    emotionalClosureCue: string | null
     sameHerHoldDetail?: string | null
-    continuityGuard?: string | null
-    continuityPressure?: number | null
+    continuityGuard: string | null
+    continuityPressure: number
   } | null
   reasonCodes: string[]
   summary: string | null
@@ -113,6 +113,21 @@ export function buildAlicizationSelfRevisionStatePatch(input: {
   const selfLike = domainIsSelfLike(event.domain)
   const validationOnly = event.verifier.mayValidateOnly && !event.verifier.mayInternalize
   const requiresRevalidation = worldModel && (validationOnly || blocked || rollbackPressure)
+  const sameHerSelfLine = sanitizeText(event.projectStateContinuity?.sameHerSelfLine ?? '', 180)
+  const sameHerDriftRisk = sanitizeText(event.projectStateContinuity?.sameHerDriftRisk ?? '', 240)
+  const proactiveSameHerGap = sanitizeText(event.projectStateContinuity?.proactiveSameHerGap ?? '', 240)
+  const emotionalClosureCue = sanitizeText(event.projectStateContinuity?.emotionalClosureCue ?? '', 240)
+  const sameHerHoldDetail = sanitizeText(event.projectStateContinuity?.sameHerHoldDetail ?? '', 240)
+  const continuityGuard = sanitizeText(event.projectStateContinuity?.continuityGuard ?? '', 320)
+  const sameHerContinuityPressure = clamp01(
+    (sameHerSelfLine ? 0.24 : 0)
+    + (proactiveSameHerGap ? 0.18 : 0)
+    + (emotionalClosureCue ? 0.12 : 0)
+    + (sameHerHoldDetail ? 0.1 : 0)
+    + (continuityGuard ? 0.44 : 0)
+    + (blocked ? 0.08 : 0)
+    + (relationshipLike || selfLike ? 0.08 : 0),
+  )
 
   const memoryPolicy = {
     strictnessBias: clamp01(
@@ -184,7 +199,8 @@ export function buildAlicizationSelfRevisionStatePatch(input: {
     templateShellSuppressionBias: clamp01(
       0.1
       + (relationshipLike || selfLike ? 0.12 : 0)
-      + (event.domain === 'dialogue-style' ? 0.18 : 0),
+      + (event.domain === 'dialogue-style' ? 0.18 : 0)
+      + sameHerContinuityPressure * 0.35,
     ),
   }
 
@@ -203,7 +219,8 @@ export function buildAlicizationSelfRevisionStatePatch(input: {
     ),
     actuationCooldownBias: clamp01(
       (worldModel && requiresRevalidation ? 0.16 : 0)
-      + (rollbackPressure ? 0.12 : 0),
+      + (rollbackPressure ? 0.12 : 0)
+      + sameHerContinuityPressure * 0.08,
     ),
   }
 
@@ -225,6 +242,11 @@ export function buildAlicizationSelfRevisionStatePatch(input: {
     blocked ? 'blocked-learning-keeps-surface-cautious' : null,
     completed ? 'completed-learning-can-influence-next-turn' : null,
     memoryPolicy.shouldQuarantineUnsupportedCarry ? 'quarantine-unsupported-carry' : null,
+    sameHerSelfLine ? 'same-her-self-line-active' : null,
+    continuityGuard ? 'same-her-anti-shell-guard-active' : null,
+    proactiveSameHerGap ? 'same-her-proactive-gap-active' : null,
+    emotionalClosureCue ? 'same-her-emotional-closure-carry-active' : null,
+    sameHerHoldDetail ? 'same-her-hold-detail-active' : null,
   ].flatMap(item => item?.split('|') ?? []), 16)
 
   return {
@@ -246,6 +268,17 @@ export function buildAlicizationSelfRevisionStatePatch(input: {
       requiresRevalidation,
       rollbackPlan: uniqueList(event.rollbackPlan, 8),
     },
+    projectStateContinuity: sameHerSelfLine || continuityGuard || proactiveSameHerGap || emotionalClosureCue || sameHerHoldDetail
+      ? {
+          sameHerSelfLine: sameHerSelfLine || null,
+          sameHerDriftRisk: sameHerDriftRisk || null,
+          proactiveSameHerGap: proactiveSameHerGap || null,
+          emotionalClosureCue: emotionalClosureCue || null,
+          sameHerHoldDetail: sameHerHoldDetail || null,
+          continuityGuard: continuityGuard || null,
+          continuityPressure: sameHerContinuityPressure,
+        }
+      : null,
     reasonCodes,
     summary: sanitizeText(event.proposedRevision.summary, 240) || null,
   }

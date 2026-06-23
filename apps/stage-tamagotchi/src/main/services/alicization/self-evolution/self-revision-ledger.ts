@@ -29,6 +29,14 @@ export interface AlicizationSelfRevisionEvent {
     mayInternalize: boolean
     mayValidateOnly: boolean
   }
+  projectStateContinuity: {
+    sameHerSelfLine: string | null
+    sameHerDriftRisk: string | null
+    proactiveSameHerGap?: string | null
+    emotionalClosureCue: string | null
+    sameHerHoldDetail?: string | null
+    continuityGuard: string | null
+  } | null
   appliedTargets: string[]
   rollbackPlan: string[]
 }
@@ -50,7 +58,7 @@ function unique(values: Array<string | null | undefined>, limit = 8) {
 
 export function buildAlicizationSelfRevisionEvent(input: {
   task: AlicizationLearningTaskRecord
-  domain: AlicizationMemoryDomain
+  domain: AlicizationMemoryDomain | 'dialogue-style' | 'proactive-policy'
   result: AlicizationLearningActionExecutorResult
   verifiedArtifact?: AlicizationVerifiedLearningArtifact | null
   supportCount: number
@@ -60,6 +68,25 @@ export function buildAlicizationSelfRevisionEvent(input: {
   const summary = input.result.resultSummary ?? input.task.resultSummary ?? input.task.message ?? null
   const lifecycleState = input.result.lifecycleState ?? null
   const nextLifecycleState = input.result.nextLifecycleState ?? null
+  const sameHerSelfLine = typeof input.task.payload.projectStateContinuity?.sameHerSelfLine === 'string'
+    ? input.task.payload.projectStateContinuity.sameHerSelfLine.trim()
+    : ''
+  const sameHerDriftRisk = typeof input.task.payload.projectStateContinuity?.sameHerDriftRisk === 'string'
+    ? input.task.payload.projectStateContinuity.sameHerDriftRisk.trim()
+    : ''
+  const proactiveSameHerGap = typeof input.task.payload.projectStateContinuity?.proactiveSameHerGap === 'string'
+    ? input.task.payload.projectStateContinuity.proactiveSameHerGap.trim()
+    : ''
+  const emotionalClosureCue = typeof input.task.payload.projectStateContinuity?.emotionalClosureCue === 'string'
+    ? input.task.payload.projectStateContinuity.emotionalClosureCue.trim()
+    : ''
+  const sameHerHoldDetail = typeof input.task.payload.projectStateContinuity?.sameHerHoldDetail === 'string'
+    ? input.task.payload.projectStateContinuity.sameHerHoldDetail.trim()
+    : ''
+  const continuityGuard = sameHerDriftRisk
+    && /generic assistant shell|project-summary voice|generic project shell|detached project|generic guidance|same-her continuity drift|same her continuity drift|project shell|project narrator/i.test(sameHerDriftRisk)
+    ? [sameHerSelfLine || 'one continuous her', sameHerDriftRisk].filter(Boolean).join(' ; ')
+    : null
 
   return {
     version: 'self-revision-event-v1',
@@ -84,6 +111,16 @@ export function buildAlicizationSelfRevisionEvent(input: {
       mayInternalize: artifact?.verifier?.mayInternalize ?? false,
       mayValidateOnly: artifact?.verifier?.mayValidateOnly ?? false,
     },
+    projectStateContinuity: sameHerSelfLine || continuityGuard || proactiveSameHerGap || emotionalClosureCue || sameHerHoldDetail
+      ? {
+          sameHerSelfLine: sameHerSelfLine || null,
+          sameHerDriftRisk: sameHerDriftRisk || null,
+          proactiveSameHerGap: proactiveSameHerGap || null,
+          emotionalClosureCue: emotionalClosureCue || null,
+          sameHerHoldDetail: sameHerHoldDetail || null,
+          continuityGuard,
+        }
+      : null,
     appliedTargets: unique([
       ...((input.task.payload.supportingFactIds ?? []).slice(0, 4)),
       ...((input.task.payload.supersedeTargets ?? []).slice(0, 4)),

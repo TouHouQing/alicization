@@ -25,6 +25,9 @@ const baseEvent = {
     mayInternalize: true,
     mayValidateOnly: false,
   },
+  projectStateContinuity: {
+    proactiveSameHerGap: 'Need stronger long-run proof that visible proactive hold, subconscious carry, and next-session feedback carry stay unified after hover-first restraint survives detours on longer noisy desktop runs.',
+  },
   appliedTargets: ['fact-1'],
   rollbackPlan: [],
 } as any
@@ -66,6 +69,14 @@ const basePatch = {
     requiresRollbackCheck: false,
     requiresRevalidation: false,
     rollbackPlan: [],
+  },
+  projectStateContinuity: {
+    sameHerSelfLine: null,
+    sameHerDriftRisk: null,
+    proactiveSameHerGap: 'Need stronger long-run proof that visible proactive hold, subconscious carry, and next-session feedback carry stay unified after hover-first restraint survives detours on longer noisy desktop runs.',
+    emotionalClosureCue: null,
+    continuityGuard: null,
+    continuityPressure: 0.18,
   },
   reasonCodes: ['domain:self-model'],
   summary: 'Prefer replay-backed self-model changes.',
@@ -124,5 +135,49 @@ describe('self evolution runtime facade', () => {
     })
 
     expect((await runtime.getActiveCandidate())?.id).toBe(candidate.id)
+  })
+
+  it('keeps shadow candidates blocked in batch when replay still shows project-state continuity drift', async () => {
+    let snapshot: any = null
+    const runtime = createAlicizationSelfEvolutionRuntime({
+      now: () => 120,
+      readSnapshot: async () => snapshot,
+      writeSnapshot: async (next) => {
+        snapshot = next
+      },
+    })
+
+    const candidate = await runtime.proposeVersion({
+      event: baseEvent,
+      patch: basePatch,
+    })
+    expect(candidate.status).toBe('shadow')
+
+    await runtime.validateAllShadowVersions({
+      replayPassed: true,
+      finalReplayGatePassed: true,
+      productionGoldSampleCount: 6,
+      productionGoldCoverage: 1,
+      projectStateContinuityDrift: true,
+      projectStateSummary: {
+        comparedTurnCount: 2,
+        identityHitCount: 1,
+        phaseHitCount: 2,
+        openLoopHitCount: 0,
+        proactiveSameHerGapHitCount: 0,
+        continuityHitCount: 0,
+      },
+    } as any)
+
+    const selected = (await runtime.getSnapshot()).candidates.find((item: any) => item.id === candidate.id)
+    expect(selected?.status).toBe('shadow')
+    expect(selected?.validation.activationBlockedReasons).toContain('self-evolution:project-state-continuity-drift')
+    expect(selected?.validation.projectStateContinuityReasons).toEqual(expect.arrayContaining([
+      'self-evolution:project-state-continuity-drift',
+      'self-evolution:project-state-identity-carry-weak',
+      'self-evolution:project-state-open-loop-carry-weak',
+      'self-evolution:project-state-proactive-gap-carry-weak',
+    ]))
+    expect(await runtime.getActiveCandidate()).toBeNull()
   })
 })
