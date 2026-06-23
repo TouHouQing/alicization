@@ -150,9 +150,15 @@ export function createHistoryRuntime(deps: HistoryQueryDeps) {
         const msg = history[i]
         if (msg.role !== 'user' || typeof msg.content !== 'string')
           continue
-        const match = msg.content.match(/\[EVENT\]\s*([^:\n]+:[^\n]+)/)
-        if (match?.[1] && !match[1].startsWith('Perception Signal:')) {
-          chats.unshift(match[1])
+        const markerIndex = msg.content.indexOf('[EVENT]')
+        if (markerIndex < 0)
+          continue
+
+        const eventText = msg.content.slice(markerIndex + '[EVENT]'.length).trimStart()
+        const lineBreakIndex = eventText.indexOf('\n')
+        const eventLine = (lineBreakIndex >= 0 ? eventText.slice(0, lineBreakIndex) : eventText).trim()
+        if (eventLine.includes(':') && !eventLine.startsWith('Perception Signal:')) {
+          chats.unshift(eventLine)
         }
       }
 

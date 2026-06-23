@@ -107,11 +107,27 @@ interface DescribeGlobalsOptions {
   includeBuiltins?: boolean
 }
 
+function extractFencedCodeBlock(input: string, allowedLanguages: string[]): string | null {
+  const trimmed = input.trim()
+  if (!trimmed.startsWith('```') || !trimmed.endsWith('```'))
+    return null
+
+  const firstLineEnd = trimmed.indexOf('\n')
+  if (firstLineEnd < 0)
+    return ''
+
+  const fenceInfo = trimmed.slice(3, firstLineEnd).trim().toLowerCase()
+  if (fenceInfo && !allowedLanguages.includes(fenceInfo))
+    return null
+
+  return trimmed.slice(firstLineEnd + 1, -3).trim()
+}
+
 export function extractJavaScriptCandidate(input: string): string {
   const trimmed = input.trim()
-  const fenced = trimmed.match(/^```(?:js|javascript|ts|typescript)?[^\S\r\n]*\r?\n?([\s\S]*?)\r?\n?```$/i)
-  if (fenced?.[1])
-    return fenced[1].trim()
+  const fenced = extractFencedCodeBlock(trimmed, ['js', 'javascript', 'ts', 'typescript'])
+  if (fenced !== null)
+    return fenced
 
   return trimmed
 }

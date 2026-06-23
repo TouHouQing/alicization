@@ -3,7 +3,7 @@ import type { Action } from '../../libs/mineflayer/action'
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 
-import { JavaScriptPlanner } from './js-planner'
+import { extractJavaScriptCandidate, JavaScriptPlanner } from './js-planner'
 
 function createAction(name: string, schema: Action['schema']): Action {
   return {
@@ -116,6 +116,12 @@ describe('javaScriptPlanner', () => {
     }),
     forgetConversation: () => ({ ok: true, cleared: ['conversationHistory', 'lastLlmInputSnapshot'] }),
   } as any
+
+  it('extracts fenced JavaScript candidates without regex backtracking', () => {
+    expect(extractJavaScriptCandidate('```js\nawait chat("hello")\n```')).toBe('await chat("hello")')
+    expect(extractJavaScriptCandidate('```typescript\nconst value = 1\n```')).toBe('const value = 1')
+    expect(extractJavaScriptCandidate('```python\nprint("hello")\n```')).toBe('```python\nprint("hello")\n```')
+  })
 
   it('maps positional/object args and executes tools in order', async () => {
     const planner = new JavaScriptPlanner()

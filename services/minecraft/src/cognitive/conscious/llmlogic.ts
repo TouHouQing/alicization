@@ -151,11 +151,27 @@ export function shouldRetryError(err: unknown, remainingAttempts: number): Retry
 /**
  * Pure function to extract JSON from LLM response
  */
+function extractJsonFence(input: string): string | null {
+  const trimmed = input.trim()
+  if (!trimmed.startsWith('```') || !trimmed.endsWith('```'))
+    return null
+
+  const firstLineEnd = trimmed.indexOf('\n')
+  if (firstLineEnd < 0)
+    return ''
+
+  const fenceInfo = trimmed.slice(3, firstLineEnd).trim().toLowerCase()
+  if (fenceInfo && fenceInfo !== 'json')
+    return null
+
+  return trimmed.slice(firstLineEnd + 1, -3).trim()
+}
+
 export function extractJsonCandidate(input: string): string {
   const trimmed = input.trim()
-  const fenced = trimmed.match(/^```(?:json)?[^\S\r\n]*\r?\n?([\s\S]*?)\r?\n?```$/i)
-  if (fenced?.[1])
-    return fenced[1].trim()
+  const fenced = extractJsonFence(trimmed)
+  if (fenced !== null)
+    return fenced
 
   const start = trimmed.indexOf('{')
   const end = trimmed.lastIndexOf('}')
