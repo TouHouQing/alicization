@@ -83,6 +83,64 @@ function createPrepared(overrides?: Partial<any>) {
 }
 
 describe('visible-reply second-pass rewrite provider project-state carry', () => {
+  it('uses a full repair-generation timeout budget instead of the compact timeout-recovery budget', async () => {
+    let observedTimeoutMs = 0
+
+    await rewriteAlicizationVisibleReplySecondPass({
+      cardId: 'card-1',
+      turnId: 'turn-second-pass-timeout-budget',
+      sessionId: 'session-1',
+      userText: '继续 Phase 1 记忆闭环验证。',
+      rawFullText: JSON.stringify({
+        format: 'mind-turn-v1',
+        thought: 'visible memory gate needs repair',
+        emotion: 'thinking',
+        reply: '我记得这条线已经闭环了。',
+        performance: {
+          baseEmotion: 'thinking',
+          facialCue: null,
+          actionCue: null,
+          delivery: 'calm',
+          emphasis: 0,
+        },
+      }),
+      prepared: createPrepared(),
+      visibleReplyExecution: {
+        mode: 'provider-stream',
+        expectedVisibleReplyAuthority: 'llm-mind',
+        actualVisibleReplyAuthority: 'llm-mind',
+        providerMindExecuted: true,
+        reason: 'provider-stream',
+      },
+      forceRewrite: true,
+      forceReasonCodes: [
+        'visible-memory-gate-violation:inward-only',
+        'mind-contract-not-closed',
+      ],
+      provider: async ({ timeoutMs }) => {
+        observedTimeoutMs = timeoutMs
+        return {
+          finishReason: 'stop',
+          fullText: JSON.stringify({
+            format: 'mind-turn-v1',
+            thought: 'obligation=answer; truth=remembered; focus=phase1-memory-loop; move=repair-overclaim; tone=direct',
+            emotion: 'thinking',
+            reply: '还不能说闭环完成；我会继续把回忆、主动性、执行反馈、情绪余波和身体表达放在同一条 Phase 1 生命线上验证。',
+            performance: {
+              baseEmotion: 'thinking',
+              facialCue: null,
+              actionCue: null,
+              delivery: 'calm',
+              emphasis: 0,
+            },
+          }),
+        }
+      },
+    })
+
+    expect(observedTimeoutMs).toBeGreaterThan(12_000)
+  })
+
   it('injects canonical project-state system context before second-pass one-shot generation', async () => {
     const observedProviderMessages: Message[][] = []
 

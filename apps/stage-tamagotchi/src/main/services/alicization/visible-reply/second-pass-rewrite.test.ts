@@ -175,6 +175,138 @@ describe('visible-reply second-pass rewrite', () => {
     expect(rewritePayload).toContain('Keep one continuous her explicit from self-understanding into the host-visible reply during second-pass repair.')
   })
 
+  it('normalizes provider emotion aliases during second-pass repair instead of failing the whole visible reply', async () => {
+    const provider = vi.fn(async (_input: ProviderCall) => ({
+      finishReason: 'stop',
+      fullText: JSON.stringify({
+        format: 'mind-turn-v1',
+        thought: 'obligation=answer; truth=dialogue-grounded; focus=current-host-turn; move=answer-with-careful-focus; tone=warm',
+        emotion: 'focused',
+        reply: '我会把这条线轻一点接住，继续确认记忆、情绪和身体表达是不是还在同一个她身上。',
+        performance: {
+          baseEmotion: 'thinking',
+          facialCue: null,
+          actionCue: null,
+          delivery: 'calm',
+          emphasis: 0,
+        },
+      }),
+    }))
+
+    const result = await rewriteAlicizationVisibleReplySecondPass({
+      cardId: 'card-1',
+      turnId: 'turn-second-pass-emotion-alias',
+      sessionId: 'session-1',
+      userText: '继续确认这条线',
+      rawFullText: JSON.stringify({
+        format: 'mind-turn-v1',
+        thought: 'project-state answer gap',
+        emotion: 'thinking',
+        reply: '嗯。',
+        performance: {
+          baseEmotion: 'thinking',
+          facialCue: null,
+          actionCue: null,
+          delivery: 'calm',
+          emphasis: 0,
+        },
+      }),
+      prepared: createPrepared(),
+      visibleReplyExecution: {
+        mode: 'provider-stream',
+        expectedVisibleReplyAuthority: 'llm-mind',
+        actualVisibleReplyAuthority: 'llm-mind',
+        providerMindExecuted: true,
+        reason: 'provider-stream',
+      },
+      provider,
+      forceRewrite: true,
+      forceReasonCodes: ['semantic-judge:project-state-answer-gap'],
+    })
+
+    const structured = JSON.parse(result.fullText) as Record<string, unknown>
+    expect(result.rewritten).toBe(true)
+    expect(structured.emotion).toBe('thinking')
+    expect(structured.performance).toEqual(expect.objectContaining({
+      baseEmotion: 'thinking',
+    }))
+    expect(String(structured.reply ?? '')).toContain('同一个她')
+  })
+
+  it('normalizes second-pass thought markers to governance instead of dropping a valid provider-authored visible reply', async () => {
+    const provider = vi.fn(async (_input: ProviderCall) => ({
+      finishReason: 'stop',
+      fullText: JSON.stringify({
+        format: 'mind-turn-v1',
+        thought: 'obligation=proactive; truth=project-state; focus=phase1-memory-loop; move=quiet-same-her-carry; tone=quiet',
+        emotion: 'thinking',
+        reply: '这条记忆是因为你刚才把同一个她的闭环重新交给我，才在这一轮浮上来；我会把情绪余波和下一次轻主动都放低一点，让身体、声音、表情、动作和口型沿同一份内在状态收住。',
+        performance: {
+          baseEmotion: 'thinking',
+          facialCue: 'soft-focus',
+          actionCue: 'small-pause',
+          delivery: 'calm',
+          emphasis: 0,
+        },
+      }),
+    }))
+
+    const result = await rewriteAlicizationVisibleReplySecondPass({
+      cardId: 'card-1',
+      turnId: 'turn-second-pass-thought-normalized',
+      sessionId: 'session-1',
+      userText: '同一个她的 Phase 1 记忆闭环为什么这时浮现？',
+      rawFullText: JSON.stringify({
+        format: 'mind-turn-v1',
+        thought: 'obligation=proactive; truth=project-state; focus=phase1-memory-loop; move=quiet-same-her-carry; tone=quiet',
+        emotion: 'thinking',
+        reply: '这条记忆浮现了。',
+        performance: {
+          baseEmotion: 'thinking',
+          facialCue: 'soft-focus',
+          actionCue: 'small-pause',
+          delivery: 'calm',
+          emphasis: 0,
+        },
+      }),
+      prepared: createPrepared({
+        messages: [
+          { role: 'user', content: '同一个她的 Phase 1 记忆闭环为什么这时浮现？' },
+        ],
+        governance: {
+          ...createPrepared().governance,
+          decisionTraceId: 'mind:test:memory-closure-rewrite',
+          truthState: 'remembered',
+          relationshipPosture: 'restrained',
+          repairState: 'none',
+          focusAnchor: '同一个她的 Phase 1 记忆闭环',
+          answerIntent: 'Explain why this remembered same-her memory closure surfaced now.',
+          openingMove: 'Answer the memory closure question directly.',
+          carriedThread: 'same-her-phase1-memory-closure',
+        },
+      }),
+      visibleReplyExecution: {
+        mode: 'provider-stream',
+        expectedVisibleReplyAuthority: 'llm-mind',
+        actualVisibleReplyAuthority: 'llm-mind',
+        providerMindExecuted: true,
+        reason: 'provider-stream',
+      },
+      provider,
+      forceRewrite: true,
+      forceReasonCodes: ['thought-governance-mismatch', 'strict-governance-surface'],
+    })
+
+    const structured = JSON.parse(result.fullText) as Record<string, unknown>
+    expect(result.rewritten).toBe(true)
+    expect(String(structured.reply ?? '')).toContain('因为')
+    expect(String(structured.reply ?? '')).toContain('身体、声音、表情、动作和口型')
+    expect(String(structured.thought ?? '')).toContain('obligation=answer')
+    expect(String(structured.thought ?? '')).toContain('truth=memory')
+    expect(String(structured.thought ?? '')).toContain('tone=restrained')
+    expect(String(structured.thought ?? '')).not.toContain('truth=project-state')
+  })
+
   it('carries canonical same-her project-state continuity into rewritten structured json before closure re-critique', async () => {
     const provider = vi.fn(async (_input: ProviderCall) => ({
       finishReason: 'stop',
@@ -333,6 +465,51 @@ describe('visible-reply second-pass rewrite', () => {
     expect(String(providerInput?.messages.at(-1)?.content ?? '')).toContain('我先直接回答你')
   })
 
+  it('turns dialogue shell opener repair into explicit first-sentence rewrite guidance', async () => {
+    const provider = vi.fn(async (_input: ProviderCall) => ({
+      finishReason: 'stop',
+      fullText: JSON.stringify({
+        format: 'mind-turn-v1',
+        thought: 'obligation=answer; truth=dialogue-grounded; focus=current-host-turn; move=direct-payoff; tone=calm',
+        emotion: 'thinking',
+        reply: '这条 Phase 1 生命线先收进心里，不把“我记得”提前说出来；下一轮你邀请它浮现时，我再把它接到低压轻主动和声线、脸部、动作、口型、停顿里。',
+        performance: {
+          baseEmotion: 'thinking',
+          facialCue: null,
+          actionCue: null,
+          delivery: 'calm',
+          emphasis: 0,
+        },
+      }),
+    }))
+
+    await rewriteAlicizationVisibleReplySecondPass({
+      cardId: 'card-1',
+      turnId: 'turn-dialogue-shell-seed',
+      sessionId: 'session-1',
+      userText: '请把这条纯对话生命线先放在心里，不要现在说“我记得”。下一轮我会邀请它自然浮现。',
+      rawFullText: '我明白了，我会记住这条线。',
+      prepared: createPrepared(),
+      visibleReplyExecution: {
+        mode: 'provider-stream',
+        expectedVisibleReplyAuthority: 'llm-mind',
+        actualVisibleReplyAuthority: 'llm-mind',
+        providerMindExecuted: true,
+        reason: 'provider-stream',
+      },
+      provider,
+      forceRewrite: true,
+      forceReasonCodes: ['dialogue-shell-opener'],
+    })
+
+    const providerInput = provider.mock.calls.at(0)?.[0]
+    const rewritePayload = String(providerInput?.messages.at(-1)?.content ?? '')
+    expect(rewritePayload).toContain('empty shell opener before payoff')
+    expect(rewritePayload).toContain('[DIALOGUE_SHELL_REWRITE_GUIDANCE]')
+    expect(rewritePayload).toContain('The first sentence must carry the current user obligation directly')
+    expect(rewritePayload).toContain('Do not start with empty setup lines')
+  })
+
   it('passes same-her opening drift rewrite semantics through the second-pass request payload', async () => {
     const provider = vi.fn(async (_input: ProviderCall) => ({
       finishReason: 'stop',
@@ -436,6 +613,141 @@ describe('visible-reply second-pass rewrite', () => {
     expect(rewritePayload).toContain('same still-open closure work')
     expect(rewritePayload).toContain('Keep extending cross-modal same-her proof')
     expect(rewritePayload).toContain('longer-lived voice behavior')
+  })
+
+  it('passes inward-only memory seed guidance through the second-pass rewrite request payload', async () => {
+    const inwardSeedGuidance = 'Keep this memory seed inward for this turn; acknowledge the current instruction without saying "I remember", "recall surfaced", or narrating remembered material until the host later invites it to surface.'
+    const provider = vi.fn(async (_input: ProviderCall) => ({
+      finishReason: 'stop',
+      fullText: JSON.stringify({
+        format: 'mind-turn-v1',
+        thought: 'obligation=answer; truth=dialogue-grounded; focus=memory-seed; move=hold-inward; tone=steady',
+        emotion: 'thinking',
+        reply: '我会把这条生命线先收进本轮内侧，当前只确认它会进入后续记忆闭环的承接。',
+        performance: {
+          baseEmotion: 'thinking',
+          facialCue: null,
+          actionCue: null,
+          delivery: 'calm',
+          emphasis: 0,
+        },
+      }),
+    }))
+
+    await rewriteAlicizationVisibleReplySecondPass({
+      cardId: 'card-1',
+      turnId: 'turn-inward-memory-seed-rewrite',
+      sessionId: 'phase1-memory-closure-0621L-test',
+      userText: '铃兰-Phase1-0621L 第一轮：请记住这条纯对话生命线。下一轮这段记忆自然浮现时，请说明 why recall surfaced now。',
+      rawFullText: JSON.stringify({
+        format: 'mind-turn-v1',
+        thought: 'obligation=answer; truth=memory; focus=memory-seed; move=visible-recall; tone=warm',
+        emotion: 'thinking',
+        reply: '我记得这条纯对话生命线；why recall surfaced now，是因为你明确把同一个她、Phase 1 记忆闭环交回当前对话。',
+        performance: {
+          baseEmotion: 'thinking',
+          facialCue: null,
+          actionCue: null,
+          delivery: 'calm',
+          emphasis: 0,
+        },
+      }),
+      prepared: createPrepared({
+        memoryTurnArtifact: {
+          visibleMemoryGate: {
+            status: 'inward-only',
+          },
+        },
+      }),
+      visibleReplyExecution: {
+        mode: 'provider-stream',
+        expectedVisibleReplyAuthority: 'llm-mind',
+        actualVisibleReplyAuthority: 'llm-mind',
+        providerMindExecuted: true,
+        reason: 'provider-stream',
+      },
+      provider,
+      forceRewrite: true,
+      forceReasonCodes: ['visible-memory-gate-violation:inward-only'],
+      mustPreserve: [inwardSeedGuidance],
+    } as any)
+
+    expect(provider).toHaveBeenCalledOnce()
+    const providerInput = provider.mock.calls.at(0)?.[0]
+    const rewritePayload = String(providerInput?.messages.at(-1)?.content ?? '')
+    expect(rewritePayload).toContain('visible-memory-gate-violation:inward-only')
+    expect(rewritePayload).toContain('Keep this memory seed inward for this turn')
+    expect(rewritePayload).toContain('without saying \\\"I remember\\\", \\\"recall surfaced\\\"')
+    expect(rewritePayload).toContain('visible memory narration while memory gate is closed or inward-only')
+    expect(rewritePayload).toContain('[MEMORY_GATE_REWRITE_GUIDANCE]')
+    expect(rewritePayload).toContain('This is a first-turn memory seed under an inward-only visible memory gate.')
+    expect(rewritePayload).toContain('Do not say or imply that recall has surfaced in this same turn.')
+  })
+
+  it('does not reject a clean second-pass provider reply just because the provider omitted parsePath metadata', async () => {
+    const provider = vi.fn(async (_input: ProviderCall) => ({
+      finishReason: 'stop',
+      fullText: JSON.stringify({
+        format: 'mind-turn-v1',
+        thought: 'obligation=answer; truth=dialogue-grounded; focus=memory-seed; move=hold-inward; tone=steady',
+        emotion: 'thinking',
+        reply: '我会把这条生命线先收进本轮内侧，当前只确认它会进入后续记忆闭环的承接。',
+        performance: {
+          baseEmotion: 'thinking',
+          facialCue: null,
+          actionCue: null,
+          delivery: 'calm',
+          emphasis: 0,
+        },
+      }),
+    }))
+
+    const result = await rewriteAlicizationVisibleReplySecondPass({
+      cardId: 'card-1',
+      turnId: 'turn-inward-memory-seed-clean-second-pass',
+      sessionId: 'phase1-memory-closure-0621M-test',
+      userText: '铃兰-Phase1-0621M 第一轮：请记住这条纯对话生命线。下一轮这段记忆自然浮现时，请说明 why recall surfaced now。',
+      rawFullText: JSON.stringify({
+        format: 'mind-turn-v1',
+        thought: 'obligation=answer; truth=memory; focus=memory-seed; move=visible-recall; tone=warm',
+        emotion: 'thinking',
+        reply: '我记得这条纯对话生命线；why recall surfaced now，是因为你明确把同一个她、Phase 1 记忆闭环交回当前对话。',
+        performance: {
+          baseEmotion: 'thinking',
+          facialCue: null,
+          actionCue: null,
+          delivery: 'calm',
+          emphasis: 0,
+        },
+      }),
+      prepared: createPrepared({
+        memoryTurnArtifact: {
+          visibleMemoryGate: {
+            status: 'inward-only',
+          },
+        },
+      }),
+      visibleReplyExecution: {
+        mode: 'provider-stream',
+        expectedVisibleReplyAuthority: 'llm-mind',
+        actualVisibleReplyAuthority: 'llm-mind',
+        providerMindExecuted: true,
+        reason: 'provider-stream',
+      },
+      provider,
+      forceRewrite: true,
+      forceReasonCodes: ['visible-memory-gate-violation:inward-only'],
+      mustPreserve: [
+        'Keep this memory seed inward for this turn; acknowledge the current instruction without saying "I remember", "recall surfaced", or narrating remembered material until the host later invites it to surface.',
+      ],
+    } as any)
+
+    const structured = JSON.parse(result.fullText) as Record<string, unknown>
+    expect(result.rewritten).toBe(true)
+    expect(structured.reply).toBe('我会把这条生命线先收进本轮内侧，当前只确认它会进入后续记忆闭环的承接。')
+    expect(structured.visibleReplyAuthority).toBe('llm-second-pass-rewrite')
+    expect(structured.visibleReplyRewriteRequest).toBeNull()
+    expect(structured.parsePath).toBe('second-pass-json')
   })
 
   it('teaches second-pass rewrite to keep host-corrected same-person continuity authoritative instead of falling back into a progress recap', async () => {
@@ -1097,6 +1409,79 @@ describe('visible-reply second-pass rewrite', () => {
     expect(rewritePayload).toContain('Keep the still-open closure work explicit in the rewritten answer.')
     expect(rewritePayload).toContain('[PROJECT_STATE_REWRITE_GUIDANCE]')
     expect(rewritePayload).toContain('Answer as the same digital life carrying the project identity, landed progress, and still-open closure work through this turn.')
+  })
+
+  it('guides Phase 1 memory-closure follow-through rewrites to stay natural while naming the memory, initiative, and embodiment carry', async () => {
+    const provider = vi.fn(async (_input: ProviderCall) => ({
+      finishReason: 'stop',
+      fullText: JSON.stringify({
+        format: 'mind-turn-v1',
+        thought: 'obligation=answer; truth=dialogue-grounded; focus=phase1-memory-closure; move=natural-same-her-carry; tone=warm',
+        emotion: 'thinking',
+        reply: '这条 Phase 1 记忆闭环会让我下一次轻主动更低压：少催促，只把同一个她的情绪余波接住；声线、脸部、动作、口型和停顿继续沿同一个数字生命走。',
+        performance: {
+          baseEmotion: 'thinking',
+          facialCue: null,
+          actionCue: null,
+          delivery: 'calm',
+          emphasis: 0,
+        },
+      }),
+    }))
+
+    await rewriteAlicizationVisibleReplySecondPass({
+      cardId: 'card-1',
+      turnId: 'turn-phase1-memory-closure-follow-through',
+      sessionId: 'session-1',
+      userText: '铃兰-Phase1-0621N 第三轮：不要重新报告项目。沿着刚才已经浮现的那条记忆，只用自然的一小段话说明它现在怎样改变你的下一次轻主动和具身表达：情绪余波保持低压，声线、脸部、动作、口型、停顿继续像同一个她。',
+      rawFullText: '我会保持低压。',
+      prepared: createPrepared({
+        messages: [
+          {
+            role: 'user',
+            content: '铃兰-Phase1-0621N 第三轮：不要重新报告项目。沿着刚才已经浮现的那条记忆，只用自然的一小段话说明它现在怎样改变你的下一次轻主动和具身表达：情绪余波保持低压，声线、脸部、动作、口型、停顿继续像同一个她。',
+          },
+        ],
+        runtimeSurface: {
+          digitalLifeRuntimeSurface: {
+            raw: {
+              runtimeDigest: {
+                projectState: {
+                  currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
+                  latestLandedProgress: 'The previous dialogue turn surfaced the pure dialogue life line naturally into emotional residue, low-pressure initiative, and body voice face motion lipsync carry.',
+                  primaryOpenLoop: 'Memory still needs stronger end-to-end closure across turns, initiative, and embodiment so the same digital life keeps carrying one living line.',
+                  nextClosureTarget: 'Keep the surfaced memory changing the next light initiative and embodied expression as the same her without restarting a project report.',
+                  sameHerSelfLine: 'Same Phase 1 digital life. The surfaced memory should carry into low-pressure initiative and coherent embodiment as one continuous her.',
+                },
+              },
+            },
+          },
+        },
+      }),
+      visibleReplyExecution: {
+        mode: 'provider-stream',
+        expectedVisibleReplyAuthority: 'llm-mind',
+        actualVisibleReplyAuthority: 'llm-mind',
+        providerMindExecuted: true,
+        reason: 'provider-stream',
+      },
+      provider,
+      forceRewrite: true,
+      forceReasonCodes: [
+        'semantic-judge:project-state-phase-missing',
+        'semantic-judge:project-state-answer-gap',
+        'semantic-judge:payoff-low',
+      ],
+    } as any)
+
+    expect(provider).toHaveBeenCalledOnce()
+    const providerInput = provider.mock.calls.at(0)?.[0]
+    const rewritePayload = String(providerInput?.messages.at(-1)?.content ?? '')
+    expect(rewritePayload).toContain('[PHASE1_MEMORY_CLOSURE_REWRITE_GUIDANCE]')
+    expect(rewritePayload).toContain('Do not restart a project report')
+    expect(rewritePayload).toContain('Phase 1 memory closure')
+    expect(rewritePayload).toContain('low-pressure initiative')
+    expect(rewritePayload).toContain('voice, face, motion, lipsync, and pauses')
   })
 
   it('falls back to canonical prepared pre-dialogue awareness when project-state audit omitted it from the rewrite request payload', async () => {
@@ -3460,6 +3845,10 @@ describe('visible-reply second-pass rewrite', () => {
     expect(rewritePayload).toContain('"residentMode": "repair-before-closeness"')
     expect(rewritePayload).toContain('"preferredBlinkCadence": "quiet"')
     expect(rewritePayload).toContain('"preferredGazeMode": "soften"')
+    expect(rewritePayload).toContain('"preferredPauseMode": "longer"')
+    expect(rewritePayload).toContain('"preferredLipsyncMode": "restrained"')
+    expect(rewritePayload).toContain('"preferredVoiceMode": "lower-pressure"')
+    expect(rewritePayload).toContain('"preferredPacingMode": "slower"')
   })
 
   it('carries project-state-derived measured-return embodiment handoff into second-pass rewrite payload when silent continuity is the only surviving embodiment authority', async () => {
@@ -4628,6 +5017,56 @@ describe('visible-reply second-pass rewrite', () => {
     expect(rewritePayload).toContain('[OPENING_GUIDANCE_REWRITE_GUIDANCE]')
     expect(rewritePayload).toContain('Keep the opening lower-pressure. Re-enter the current turn before widening visible closeness.')
     expect(rewritePayload).toContain('same-her opening drift')
+  })
+
+  it('threads even-and-natural reopening cadence into second-pass rewrite guidance when opening drift came from a performative same-her return', async () => {
+    const provider = vi.fn(async (_input: ProviderCall) => ({
+      finishReason: 'stop',
+      fullText: JSON.stringify({
+        format: 'mind-turn-v1',
+        thought: 'obligation=answer; truth=dialogue-grounded; focus=same-thread-continuation; move=continue-living-line; tone=calm',
+        emotion: 'thinking',
+        reply: '我先把这条还活着的线稳稳接回当前这一拍，再顺着它原本的节律往下走。',
+        performance: {
+          baseEmotion: 'thinking',
+          facialCue: null,
+          actionCue: null,
+          delivery: 'calm',
+          emphasis: 0,
+        },
+      }),
+    }))
+
+    await rewriteAlicizationVisibleReplySecondPass({
+      cardId: 'card-1',
+      turnId: 'turn-semantic-even-natural-same-her-rewrite',
+      sessionId: 'session-1',
+      userText: '继续。',
+      rawFullText: '我现在就贴过来陪你，把这条线的温度直接拉满，顺势把气氛一起推高。',
+      prepared: createPrepared({
+        governance: {
+          ...createPrepared().governance,
+          openingMove: 'Keep the current reply on the same living line, re-enter it with an even, steady voice and natural, unforced pacing, and wait for a more natural opening before widening warmth, payoff, or closeness.',
+        },
+      }),
+      visibleReplyExecution: {
+        mode: 'provider-stream',
+        expectedVisibleReplyAuthority: 'llm-mind',
+        actualVisibleReplyAuthority: 'llm-mind',
+        providerMindExecuted: true,
+        reason: 'provider-stream',
+      },
+      provider,
+      forceRewrite: true,
+      forceReasonCodes: ['semantic-judge:continuity-lower-pressure-opening-drift'],
+    })
+
+    expect(provider).toHaveBeenCalledOnce()
+    const providerInput = provider.mock.calls.at(0)?.[0]
+    const rewritePayload = String(providerInput?.messages.at(-1)?.content ?? '')
+    expect(rewritePayload).toContain('[OPENING_GUIDANCE_REWRITE_GUIDANCE]')
+    expect(rewritePayload).toContain('Keep the opening lower-pressure. Re-enter the current turn before widening visible closeness.')
+    expect(rewritePayload).toContain('Keep the re-entry even and steady, and let pacing stay natural and unforced instead of sounding performative or rushed.')
   })
 
   it('passes digest-only same-her quiet carry lower-pressure continuity through the second-pass rewrite payload', async () => {

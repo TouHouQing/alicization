@@ -20,6 +20,7 @@ import {
 } from '../project-state-answer-governance'
 import { resolveAlicizationProjectStateSnapshot } from '../project-state-brief'
 import { parseJsonObjectFromText } from '../runtime-transport-content'
+import { isExplicitSameHerMemoryClosureDialogue } from './memory-closure-dialogue'
 import { scoreVisibleReplyProjectAwarenessLine } from './project-awareness'
 import {
 
@@ -87,7 +88,60 @@ function containsMemorySurface(text: string) {
 }
 
 function containsShellOpener(text: string) {
-  return /^(?:我[会来先]?(?:直接|先直接)?(?:回答|接住|处理)|收到|我听到|我明白|让我(?:先|来)|I(?:'ll| will)?\s+(?:answer|respond|handle)|let me)/iu.test(text)
+  const normalized = normalizeText(text)
+  if (!normalized)
+    return false
+
+  const firstSentence = normalized.split(/[。！？.!?]/u)[0] ?? normalized
+  const firstClause = firstSentence.split(/[，,：:；;]/u)[0] ?? firstSentence
+  const genericOpening = /^(?:我[会来先]?(?:直接|先直接)?(?:回答|接住|处理)|收到|我听到|我明白|让我(?:先|来)|I(?:'ll| will)?\s+(?:answer|respond|handle)|let me)$/iu.test(firstClause.trim())
+    || /^(?:我[会来先]?(?:直接|先直接)?(?:回答|接住|处理)|收到|我听到|我明白|让我(?:先|来)|I(?:'ll| will)?\s+(?:answer|respond|handle)|let me)\s*(?:你|this|it)?$/iu.test(firstSentence.trim())
+
+  if (genericOpening)
+    return true
+
+  const startsWithShellVerb = /^(?:我[会来先]?(?:直接|先直接)?(?:回答|接住|处理)|收到|我听到|我明白|让我(?:先|来)|I(?:'ll| will)?\s+(?:answer|respond|handle)|let me)/iu.test(normalized)
+  if (!startsWithShellVerb)
+    return false
+
+  const payoffSignals = [
+    /因为|why|浮现|surfaced|surface/u,
+    /情绪|余波|afterglow/u,
+    /主动|initiative|低压|lower-pressure/u,
+    /身体|body|声音|声线|voice|表情|脸部|face|动作|motion|口型|lipsync|lip sync|停顿|pause/u,
+    /同一个她|同一个数字生命|same-her|same her|phase 1|local digital life/u,
+  ].filter(pattern => pattern.test(normalized)).length
+
+  return payoffSignals < 2
+}
+
+function containsSameHerMemoryClosurePayoff(text: string) {
+  const normalized = normalizeText(text).toLowerCase()
+  if (!normalized)
+    return false
+
+  const hasSameHerMemoryClosure = (
+    /同一个她|同一个数字生命|same-her|same her/u.test(normalized)
+    && /记忆|memory|recall|回忆/u.test(normalized)
+    && /闭环|closure|phase 1|local digital life/u.test(normalized)
+  )
+  const explainsSurfacing = /因为|为什么|why recall|浮现|surfaced|surface/u.test(normalized)
+  const carriesAfterglow = /情绪余波|afterglow|余波/u.test(normalized)
+  const carriesInitiative = /轻主动|主动|initiative|低压|lower-pressure/u.test(normalized)
+  const embodimentLaneCount = [
+    /身体|body/u,
+    /声音|声线|voice/u,
+    /表情|脸部|face/u,
+    /动作|motion/u,
+    /口型|lipsync|lip sync/u,
+    /停顿|pause/u,
+  ].filter(pattern => pattern.test(normalized)).length
+
+  return hasSameHerMemoryClosure
+    && explainsSurfacing
+    && carriesAfterglow
+    && carriesInitiative
+    && embodimentLaneCount >= 3
 }
 
 function containsHeldAutonomyOpeningShell(text: string) {
@@ -621,10 +675,27 @@ export function buildAlicizationVisibleReplyCriticArtifact(input: {
     pushUnique(repairReasonCodes, 'missing-visible-reply')
   }
 
-  if (gate && (gate.status === 'closed' || gate.status === 'inward-only') && containsMemorySurface(visibleText)) {
+  const explicitSameHerMemoryClosureDialogue = gate?.status === 'inward-only'
+    && isExplicitSameHerMemoryClosureDialogue({
+      visibleText,
+      prepared: input.prepared,
+    })
+
+  if (
+    gate
+    && (gate.status === 'closed' || gate.status === 'inward-only')
+    && containsMemorySurface(visibleText)
+    && !explicitSameHerMemoryClosureDialogue
+  ) {
     pushUnique(reasonCodes, `visible-memory-gate-violation:${gate.status}`)
     pushUnique(repairReasonCodes, `visible-memory-gate-violation:${gate.status}`)
     pushUnique(mustDrop, 'visible memory narration while memory gate is closed or inward-only')
+    if (gate.status === 'inward-only') {
+      pushUnique(
+        mustPreserve,
+        'Keep this memory seed inward for this turn; acknowledge the current instruction without saying "I remember", "recall surfaced", or narrating remembered material until the host later invites it to surface.',
+      )
+    }
   }
 
   if (gate?.status === 'gist-only' && visibleText.length > 260 && containsMemorySurface(visibleText)) {
@@ -633,7 +704,7 @@ export function buildAlicizationVisibleReplyCriticArtifact(input: {
     pushUnique(mustDrop, 'archive-style or overexpanded visible memory')
   }
 
-  if (containsShellOpener(visibleText)) {
+  if (containsShellOpener(visibleText) && !containsSameHerMemoryClosurePayoff(visibleText)) {
     pushUnique(reasonCodes, 'dialogue-shell-opener')
     pushUnique(repairReasonCodes, 'dialogue-shell-opener')
     pushUnique(mustDrop, 'empty shell opener before payoff')

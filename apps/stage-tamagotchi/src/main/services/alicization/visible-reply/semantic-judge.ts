@@ -15,6 +15,7 @@ import {
 import {
   resolveAlicizationProjectStateSnapshot,
 } from '../project-state-brief'
+import { isExplicitSameHerMemoryClosureDialogue } from './memory-closure-dialogue'
 import { scoreVisibleReplyProjectAwarenessLine } from './project-awareness'
 
 export interface AlicizationVisibleReplySemanticJudgeArtifact {
@@ -313,6 +314,14 @@ function answerCarriesQuieterDesktopClosureContinuity(text: string) {
     && !/重新贴近|重新靠近|重新开个头|fresh opening|restart the opening|先陪在你身侧|更靠近一点|warm(?:th)? right away|closer right away|widen closeness right away/iu.test(text)
 }
 
+function answerCarriesMemoryClosureIntoInitiativeAndEmbodiment(text: string) {
+  return /phase 1|记忆闭环|memory closure|pure dialogue life line|纯对话生命线/iu.test(text)
+    && /同一个她|同一个数字生命|same her|same-her|same digital life|one continuous her|同一条线/iu.test(text)
+    && /轻主动|低压|少催促|initiative|proactive|主动/u.test(text)
+    && /声线|脸部|表情|动作|口型|口形|唇|停顿|body|voice|face|motion|lipsync|lip sync|pause/iu.test(text)
+    && !soundsDepersonalizedProjectShell(text)
+}
+
 function answerCarriesNaturalIdentityWithRuntimeSameHer(text: string) {
   return mentionsProjectStateIdentity(text)
     && mentionsProjectStateProgress(text)
@@ -518,6 +527,7 @@ function mentionsProjectStatePhase(text: string) {
 function mentionsProjectStateOpenLoop(text: string) {
   const normalized = normalizeSemanticText(text)
   return /还差|缺|未闭环|没闭环|真正收住|没有真正收住|still-open closure work|still-open|还在.*闭环|还没有完全收住|没有完全收住|仍需|还需要|open loop|still needs|still remains|next closure|下一步|下一闭环|主动性|具身|initiative|embodiment|memory still needs/iu.test(text)
+    || answerCarriesMemoryClosureIntoInitiativeAndEmbodiment(text)
     || (
       /还要|仍要|还得|还需|还没有/u.test(text)
       && /重新接回|接回|rejoin|放回/iu.test(text)
@@ -529,6 +539,7 @@ function mentionsProjectStateOpenLoop(text: string) {
 function mentionsProjectStateNextClosure(text: string) {
   const normalized = normalizeSemanticText(text)
   return /下一步|下一闭环|先收|接下来|next closure|next step|prove cross-modal same-her continuity|keep extending cross-modal same-her proof|keep project identity/iu.test(text)
+    || answerCarriesMemoryClosureIntoInitiativeAndEmbodiment(text)
     || (
       /还要|接下来|下一步|继续把|继续让|先把/u.test(text)
       && /重新接回|接回|rejoin|放回/iu.test(text)
@@ -1031,10 +1042,16 @@ export function buildAlicizationVisibleReplySemanticJudgeArtifact(input: {
   ].filter(Boolean).length
   const emotionalClosureRequired = emotionalClosureCueRequiresCare(input.prepared)
   const emotionalClosureMissing = emotionalClosureRequired && !replyCarriesEmotionalClosureLine(text)
+  const explicitSameHerMemoryClosureDialogue = gate?.status === 'inward-only'
+    && isExplicitSameHerMemoryClosureDialogue({
+      visibleText: text,
+      prepared: input.prepared,
+    })
   const memoryVisibleWhileClosed = Boolean(
     gate
     && (gate.status === 'closed' || gate.status === 'inward-only')
-    && containsMemorySurface(text),
+    && containsMemorySurface(text)
+    && !explicitSameHerMemoryClosureDialogue,
   )
   const memoryInwardCarryBroken = runtimeRequiresMemoryToStayInward(input.prepared)
     && containsMemorySurface(text)

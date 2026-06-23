@@ -68,7 +68,7 @@ export interface AlicizationResponseCharter {
   governingCommitment: string | null
   governingInquiry: string | null
   governingProject: string | null
-  emotionalClosureCue?: string | null
+  emotionalClosureCue: string | null
   latestRevision: string | null
   executivePhase: string | null
   truthFrame: string | null
@@ -1092,6 +1092,8 @@ function deriveProjectStateResponseCharterBias(projectState?: {
   sameHerHoldDetail?: string | null
   continuityCue?: string | null
   continuityPreferredTiming?: string | null
+  preferredVoiceMode?: string | null
+  preferredPacingMode?: string | null
 } | null, currentConsciousFrame?: AlicizationCurrentConsciousFrameSnapshot | null, discourseState?: AlicizationDiscourseStateSnapshot | null, initiative?: AlicizationInitiativeSnapshot | null, dialogueSemantics?: AlicizationDialogueTurnSemantics | null, dialogueObligation?: AlicizationDialogueObligation | null) {
   const normalizedProjectState = projectState
     ? resolveAlicizationProjectStateSnapshot({
@@ -1135,6 +1137,11 @@ function deriveProjectStateResponseCharterBias(projectState?: {
       : continuityReasonTags.includes('continuity-timing:same-turn-if-invited')
         ? 'same-turn-if-invited'
         : sanitizeText(projectState?.continuityPreferredTiming, 80).toLowerCase()
+  const preferredVoiceMode = sanitizeText(currentConsciousFrame?.projectState?.preferredVoiceMode, 32).toLowerCase()
+    || sanitizeText(projectState?.preferredVoiceMode, 32).toLowerCase()
+  const preferredPacingMode = sanitizeText(currentConsciousFrame?.projectState?.preferredPacingMode, 32).toLowerCase()
+    || sanitizeText(projectState?.preferredPacingMode, 32).toLowerCase()
+  const prefersEvenVoiceAndNaturalPacing = preferredVoiceMode === 'even' && preferredPacingMode === 'natural'
 
   const isDigitalLifeIdentity = includesAny(identity, [
     'digital life',
@@ -1274,15 +1281,21 @@ function deriveProjectStateResponseCharterBias(projectState?: {
     })
     return {
       preferRestrainedPosture: true,
-      reason: quietSameHerContinuity
-        ? 'Project continuity is carrying a quiet same-her line inward, so visible widening should stay on that same living line until the thread naturally opens again.'
-        : 'Project continuity still prefers a later opening, so visible widening should stay lower-pressure until the thread naturally opens again.',
-      mustDo: quietSameHerContinuity
-        ? 'Keep the current reply on the same living line, let the first visible beat carry quiet same-her continuity from the inside, and wait for a more natural opening before widening warmth, payoff, or closeness.'
-        : 'Keep the current reply on the same living line, let the first visible beat re-enter the current line, and wait for a more natural opening before widening warmth, payoff, or closeness.',
-      mustNotDo: quietSameHerContinuity
-        ? 'Do not widen into a warmer payoff, fresh-opening tone, or generic measured-return shell before the current thread has reached a more natural opening.'
-        : 'Do not widen into a warmer payoff or fresh-opening tone before the current thread has reached a more natural opening.',
+      reason: prefersEvenVoiceAndNaturalPacing
+        ? 'Project continuity is carrying a measured-return same-her line that should reopen even and natural, so visible widening should stay unforced until the thread naturally opens again.'
+        : quietSameHerContinuity
+          ? 'Project continuity is carrying a quiet same-her line inward, so visible widening should stay on that same living line until the thread naturally opens again.'
+          : 'Project continuity still prefers a later opening, so visible widening should stay lower-pressure until the thread naturally opens again.',
+      mustDo: prefersEvenVoiceAndNaturalPacing
+        ? 'Keep the current reply on the same living line, re-enter it with an even, steady voice and natural, unforced pacing, and wait for a more natural opening before widening warmth, payoff, or closeness.'
+        : quietSameHerContinuity
+          ? 'Keep the current reply on the same living line, let the first visible beat carry quiet same-her continuity from the inside, and wait for a more natural opening before widening warmth, payoff, or closeness.'
+          : 'Keep the current reply on the same living line, let the first visible beat re-enter the current line, and wait for a more natural opening before widening warmth, payoff, or closeness.',
+      mustNotDo: prefersEvenVoiceAndNaturalPacing
+        ? 'Do not widen into a warmer payoff, fresh-opening tone, performative swing, or rushed tempo before the current thread has reached a more natural opening.'
+        : quietSameHerContinuity
+          ? 'Do not widen into a warmer payoff, fresh-opening tone, or generic measured-return shell before the current thread has reached a more natural opening.'
+          : 'Do not widen into a warmer payoff or fresh-opening tone before the current thread has reached a more natural opening.',
     }
   }
 

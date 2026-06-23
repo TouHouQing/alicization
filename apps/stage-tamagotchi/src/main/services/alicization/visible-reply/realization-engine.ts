@@ -127,6 +127,8 @@ export interface AlicizationVisibleReplyRealizationArtifact {
     openFocusSummary?: string | null
     nextFocusSummary?: string | null
     nextClosureTargetSummary?: string | null
+    memoryClosureSummary?: string | null
+    recallWhySummary?: string | null
     emotionalClosureSummary?: string | null
     emotionalClosureCue?: string | null
     continuitySummary?: string | null
@@ -312,6 +314,15 @@ function looksLikeCanonicalProjectStateSameHerHoldDetail(value: string | null | 
   return normalized.startsWith('same-her hold:')
     && normalized.includes('project-state answer')
     && normalized.includes('same living line before widening outward')
+}
+
+function looksLikeCadenceAwareSameHerHoldDetail(value: string | null | undefined) {
+  const normalized = normalizeHoldDetail(value)?.toLowerCase() ?? ''
+  if (!normalized)
+    return false
+
+  return normalized === 'same-her hold: keep the return lower-pressure and slower before the line widens again.'
+    || normalized === 'same-her hold: keep the remembered return quieter, longer, and more restrained before widening the line again.'
 }
 
 function resolveRememberedSeamMoreRoomHoldDetail() {
@@ -1760,6 +1771,12 @@ export function buildAlicizationVisibleReplyRealizationArtifact(input: {
       projectStatePreDialogueAwarenessSummaryRaw,
     ].filter((value): value is string => Boolean(value)).join(' | '),
   })
+  const preferredCadenceAwareProjectStateAwarenessSummary = (
+    shouldTreatAsThinAwarenessShell(projectStatePreDialogueAwarenessSummaryRaw)
+    && looksLikeCadenceAwareSameHerHoldDetail(resolvedProjectStateSameHerHoldDetail)
+  )
+    ? resolvedProjectStateSameHerHoldDetail
+    : null
   const explicitPreparedRuntimeSameHerSummary = (() => {
     const explicitPreparedSameHer = typeof preparedRuntimeProjectState?.sameHerSelfLine === 'string'
       ? preparedRuntimeProjectState.sameHerSelfLine.trim() || null
@@ -1944,7 +1961,9 @@ export function buildAlicizationVisibleReplyRealizationArtifact(input: {
           ...(projectStateEmbodimentClosureSummary
             ? { embodimentClosureSummary: projectStateEmbodimentClosureSummary }
             : {}),
-          preDialogueAwarenessSummary: resolvedProjectStatePreDialogueAwarenessSummary,
+          preDialogueAwarenessSummary:
+            preferredCadenceAwareProjectStateAwarenessSummary
+            ?? resolvedProjectStatePreDialogueAwarenessSummary,
           preservedIntoRewrite: projectStatePreservedIntoRewrite,
           rewriteClosureApplied: projectStateRewriteClosureApplied,
         }

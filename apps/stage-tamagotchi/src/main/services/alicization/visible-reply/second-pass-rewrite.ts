@@ -8,7 +8,9 @@ import type {
   AlicizationVisibleReplyExecution,
 } from '../../../../shared/eventa'
 import type { AlicizationPreparedMainChatExecutionResult } from '../main-chat-session-runtime'
-import type { MainGatewayResolvedConfig } from '../runtime-soul'
+import type {
+  MainGatewayResolvedConfig,
+} from '../runtime-soul'
 
 import {
   clampAlicizationPerformancePayloadToManifest,
@@ -37,8 +39,14 @@ import {
   resolveAlicizationProjectStateBrief,
   scoreAlicizationProjectAwarenessLine,
 } from '../project-state-brief'
-import { coerceConversationTurnToMindGovernedPayload } from '../runtime-governance'
-import { sanitizeText } from '../runtime-soul'
+import {
+  buildGovernedMindThought,
+  coerceConversationTurnToMindGovernedPayload,
+} from '../runtime-governance'
+import {
+  mainChatVisibleReplySecondPassTimeoutMs,
+  sanitizeText,
+} from '../runtime-soul'
 import { parseJsonObjectFromText } from '../runtime-transport-content'
 import { resolveCanonicalStructuredProjectState } from '../structured-project-state'
 import { buildAlicizationMindAuthoringFailureArtifact } from './authority-orchestrator'
@@ -547,6 +555,10 @@ function hasSameThreadRestartShellRewriteReason(reasonCodes: string[]) {
 function resolveSecondPassRewriteMustDrop(reasonCodes: string[]) {
   if (hasLowerPressureOpeningRewriteReason(reasonCodes))
     return ['same-her opening drift']
+  if (reasonCodes.includes('dialogue-shell-opener'))
+    return ['empty shell opener before payoff']
+  if (reasonCodes.some(code => code.startsWith('visible-memory-gate-violation:')))
+    return ['visible memory narration while memory gate is closed or inward-only']
   if (reasonCodes.includes('semantic-judge:corrected-same-person-progress-pressure-return'))
     return ['progress-recap fallback that overwrites a host-corrected same-person continuity line']
   if (reasonCodes.includes('execution-callback-room-first-violation'))
@@ -770,6 +782,10 @@ function resolveExecutionCallbackEmbodimentHandoffForRewrite(input: {
           residentMode?: unknown
           preferredBlinkCadence?: unknown
           preferredGazeMode?: unknown
+          preferredPauseMode?: unknown
+          preferredLipsyncMode?: unknown
+          preferredVoiceMode?: unknown
+          preferredPacingMode?: unknown
         } | null
       } | null
     } | null)?.proactive?.embodimentHandoff ?? null
@@ -778,6 +794,10 @@ function resolveExecutionCallbackEmbodimentHandoffForRewrite(input: {
   const residentMode = sanitizeBoundedText(executionPayoffEmbodimentHandoff?.residentMode, 64)
   const preferredBlinkCadence = sanitizeBoundedText(executionPayoffEmbodimentHandoff?.preferredBlinkCadence, 64)
   const preferredGazeMode = sanitizeBoundedText(executionPayoffEmbodimentHandoff?.preferredGazeMode, 64)
+  const preferredPauseMode = sanitizeBoundedText(executionPayoffEmbodimentHandoff?.preferredPauseMode, 64)
+  const preferredLipsyncMode = sanitizeBoundedText(executionPayoffEmbodimentHandoff?.preferredLipsyncMode, 64)
+  const preferredVoiceMode = sanitizeBoundedText(executionPayoffEmbodimentHandoff?.preferredVoiceMode, 64)
+  const preferredPacingMode = sanitizeBoundedText(executionPayoffEmbodimentHandoff?.preferredPacingMode, 64)
 
   if (
     reasonCodes.includes('execution-callback-room-first-violation')
@@ -791,6 +811,10 @@ function resolveExecutionCallbackEmbodimentHandoffForRewrite(input: {
       residentMode: 'repair-before-closeness',
       preferredBlinkCadence: 'quiet',
       preferredGazeMode: 'soften',
+      preferredPauseMode: 'longer',
+      preferredLipsyncMode: 'restrained',
+      preferredVoiceMode: 'lower-pressure',
+      preferredPacingMode: 'slower',
     }
   }
 
@@ -805,6 +829,10 @@ function resolveExecutionCallbackEmbodimentHandoffForRewrite(input: {
       residentMode: 'repair-before-closeness',
       preferredBlinkCadence: preferredBlinkCadence || 'quiet',
       preferredGazeMode: preferredGazeMode || 'soften',
+      preferredPauseMode: preferredPauseMode || 'longer',
+      preferredLipsyncMode: preferredLipsyncMode || 'restrained',
+      preferredVoiceMode: preferredVoiceMode || 'lower-pressure',
+      preferredPacingMode: preferredPacingMode || 'slower',
     }
   }
 
@@ -819,6 +847,10 @@ function resolveExecutionCallbackEmbodimentHandoffForRewrite(input: {
       residentMode: 'rest-protective',
       preferredBlinkCadence: preferredBlinkCadence || 'quiet',
       preferredGazeMode: preferredGazeMode || 'soften',
+      preferredPauseMode: preferredPauseMode || 'longer',
+      preferredLipsyncMode: preferredLipsyncMode || 'restrained',
+      preferredVoiceMode: preferredVoiceMode || 'lower-pressure',
+      preferredPacingMode: preferredPacingMode || 'slower',
     }
   }
 
@@ -840,6 +872,10 @@ function resolveExecutionCallbackEmbodimentHandoffForRewrite(input: {
       residentMode: 'measured-return',
       preferredBlinkCadence: preferredBlinkCadence || 'linger',
       preferredGazeMode: preferredGazeMode || 'soften',
+      preferredPauseMode: preferredPauseMode || 'longer',
+      preferredLipsyncMode: preferredLipsyncMode || 'restrained',
+      preferredVoiceMode: preferredVoiceMode || 'lower-pressure',
+      preferredPacingMode: preferredPacingMode || 'slower',
     }
   }
 
@@ -971,6 +1007,65 @@ function looksLikeSameHerProjectFollowThroughRewrite(prepared: AlicizationPrepar
   return continuationCue && sameHerProjectCue && closureCue
 }
 
+function looksLikePhase1MemoryClosureFollowThroughRewrite(input: {
+  prepared: AlicizationPreparedMainChatExecutionResult
+  userText: string
+}) {
+  const latestUserText = normalizeLowerText(input.userText || (input.prepared.messages
+    ?.slice()
+    .reverse()
+    .find(message => message?.role === 'user')
+    ?.content ?? ''), 600)
+  const runtimeProjectState = resolvePreparedRuntimeProjectState(input.prepared)
+  const runtimeEvidence = [
+    runtimeProjectState?.currentPhase,
+    runtimeProjectState?.latestLandedProgress,
+    runtimeProjectState?.primaryOpenLoop,
+    runtimeProjectState?.nextClosureTarget,
+    runtimeProjectState?.sameHerSelfLine,
+  ]
+    .map(value => normalizeLowerText(value, 360))
+    .filter(Boolean)
+    .join(' | ')
+  const combined = `${latestUserText} ${runtimeEvidence}`
+
+  return /phase\s*1|phase1|local digital life|第一阶段/u.test(combined)
+    && /记忆闭环|memory closure|memory still needs|记忆.*闭环|纯对话生命线|pure dialogue life line/u.test(combined)
+    && /轻主动|low-pressure initiative|initiative|主动/u.test(combined)
+    && /具身|body|voice|face|motion|lipsync|lip sync|声线|脸部|动作|口型|停顿/u.test(combined)
+    && /不要重新报告项目|不要.*项目报告|without restarting a project report|do not restart a project report|not a project report/u.test(combined)
+}
+
+function buildPhase1MemoryClosureRewriteGuidance(input: {
+  phase1MemoryClosureFollowThroughRewrite: boolean
+}) {
+  if (!input.phase1MemoryClosureFollowThroughRewrite)
+    return '(none)'
+
+  return [
+    'Do not restart a project report, roadmap recap, or status dashboard.',
+    'Answer in one natural visible paragraph while still saying the needed closure truth out loud.',
+    'The visible reply should explicitly carry Phase 1 memory closure into low-pressure initiative.',
+    'Also carry embodiment continuity in ordinary speech: voice, face, motion, lipsync, and pauses should continue as the same her.',
+    'A good shape is: "This Phase 1 memory closure changes my next light initiative by...; my voice/face/motion/lipsync/pauses will..."',
+    'Keep it short and human; do not explain rewrite policy or internal evaluation.',
+  ].join('\n')
+}
+
+function buildDialogueShellRewriteGuidance(input: {
+  reasonCodes: string[]
+}) {
+  if (!input.reasonCodes.includes('dialogue-shell-opener'))
+    return '(none)'
+
+  return [
+    'The first sentence must carry the current user obligation directly.',
+    'Do not start with empty setup lines such as "I understand", "I hear you", "I will remember", "I will answer directly", or similar shell openers.',
+    'If this is a memory seed turn, start with the actual boundary or payoff: hold it inward now, then surface it later only when invited.',
+    'Keep the answer short, concrete, and already useful from the first clause.',
+  ].join('\n')
+}
+
 function looksLikeResumeConfirmationBoundaryHoldDetail(value: string | null | undefined) {
   const normalized = sanitizeBoundedText(value, 360).toLowerCase()
   if (!normalized)
@@ -1031,6 +1126,9 @@ function buildProjectStateRewriteGuidance(input: {
         ? 'This turn is continuing the same digital-life project line, but the prior visible answer dropped part of the landed progress or still-open closure that should have stayed on that same living line.'
         : 'This turn is answering a project-state question, but the prior visible answer dropped part of the needed project-state closure truth.',
     'Do not rewrite the answer as a detached status summary, roadmap report, or project shell.',
+    'Final settlement will judge only the visible reply text after this rewrite.',
+    'The visible reply itself must naturally include same-her continuity, Phase 1/current phase, still-open closure, and concrete current-turn payoff.',
+    'Do not rely on thought, performance, projectState fields, or inward context to satisfy these items.',
     'Answer as the same digital life carrying the project identity, landed progress, and still-open closure work through this turn.',
     input.sameHerProjectFollowThroughRewrite
       ? 'Treat this rewrite as a follow-through on one same living line, not as permission to restart the project explanation from zero or collapse into generic companionship.'
@@ -1281,6 +1379,7 @@ function buildSecondPassRewriteMessages(input: {
     },
   })
   const rewriteReasonCodes = rewriteRequest?.reasonCodes ?? []
+  const inwardOnlyMemoryGateRewriteRequired = rewriteReasonCodes.includes('visible-memory-gate-violation:inward-only')
   const hasRoomFirstViolation = rewriteReasonCodes.includes('execution-callback-room-first-violation')
   const openingGuidanceBlockedReason = buildAlicizationOpeningGuidanceBlockedReason(
     hasLowerPressureOpeningRewriteReason(rewriteReasonCodes) || hasRoomFirstViolation
@@ -1414,6 +1513,10 @@ function buildSecondPassRewriteMessages(input: {
   })
   const projectStateAnswerStancePreserveLine = resolveProjectStateAnswerStancePreserveLine(mergedMustPreserve)
   const sameHerProjectFollowThroughRewrite = looksLikeSameHerProjectFollowThroughRewrite(input.prepared)
+  const phase1MemoryClosureFollowThroughRewrite = looksLikePhase1MemoryClosureFollowThroughRewrite({
+    prepared: input.prepared,
+    userText: input.userText,
+  })
   const relationshipTruthDoctrineLine = formatRelationshipTruthDoctrineForRewrite(
     input.prepared.mindTurnContract?.relationshipTruthDoctrine,
   )
@@ -1507,6 +1610,17 @@ function buildSecondPassRewriteMessages(input: {
     '[REWRITE_REQUEST]',
     safeJson(rewriteRequest),
     '',
+    '[MEMORY_GATE_REWRITE_GUIDANCE]',
+    inwardOnlyMemoryGateRewriteRequired
+      ? [
+          'This is a first-turn memory seed under an inward-only visible memory gate.',
+          'Acknowledge that the current instruction will be held inward for a later turn, but keep visible speech in the present turn.',
+          'Do not say or imply that recall has surfaced in this same turn.',
+          'Do not use "I remember", "recall surfaced", "why recall surfaced", "previously", "last time", or equivalent visible recollection wording.',
+          'Do not mention rewrite, second pass, repair, governance, gate, or internal policy.',
+        ].join('\n')
+      : '(none)',
+    '',
     '[OPENING_GUIDANCE_REWRITE_GUIDANCE]',
     openingGuidanceRewriteGuidance.length > 0
       ? openingGuidanceRewriteGuidance.join('\n')
@@ -1537,6 +1651,16 @@ function buildSecondPassRewriteMessages(input: {
     '',
     '[OUTWARD_CONTINUITY_REWRITE_GUIDANCE]',
     outwardContinuityRewriteGuidance,
+    '',
+    '[PHASE1_MEMORY_CLOSURE_REWRITE_GUIDANCE]',
+    buildPhase1MemoryClosureRewriteGuidance({
+      phase1MemoryClosureFollowThroughRewrite,
+    }),
+    '',
+    '[DIALOGUE_SHELL_REWRITE_GUIDANCE]',
+    buildDialogueShellRewriteGuidance({
+      reasonCodes: projectStateReasonCodes,
+    }),
     '',
     '[PROJECT_STATE_REWRITE_GUIDANCE]',
     buildProjectStateRewriteGuidance({
@@ -1649,6 +1773,8 @@ function buildSecondPassRewriteMessages(input: {
 function normalizeSecondPassStructuredReply(input: {
   parsed: Record<string, unknown>
   governedStructured: Record<string, unknown>
+  governance?: AlicizationMindTurnGovernance | null
+  userText?: string
   performanceManifest: AlicizationPreparedMainChatExecutionResult['performanceManifest']
 }) {
   const reply = sanitizeText(input.parsed.reply)
@@ -1656,19 +1782,28 @@ function normalizeSecondPassStructuredReply(input: {
   if (!reply || !thought)
     return null
 
+  const parsedPerformance = normalizeStructuredObject(input.parsed.performance)
   const normalizedEmotion = normalizeAlicizationEmotion(input.parsed.emotion)
-  if (normalizedEmotion.downgraded)
-    return null
+  const performanceEmotion = normalizeAlicizationEmotion(parsedPerformance?.baseEmotion ?? parsedPerformance?.emotion)
+  const fallbackEmotion = normalizedEmotion.downgraded
+    ? performanceEmotion.downgraded
+      ? 'thinking'
+      : performanceEmotion.emotion
+    : normalizedEmotion.emotion
 
   const performance = clampAlicizationPerformancePayloadToManifest(
-    normalizeAlicizationPerformancePayload(input.parsed.performance, normalizedEmotion.emotion),
+    normalizeAlicizationPerformancePayload(input.parsed.performance, fallbackEmotion),
     input.performanceManifest ?? null,
-    normalizedEmotion.emotion,
+    fallbackEmotion,
   ).performance satisfies AlicizationDialoguePerformancePayload
 
   return {
     ...input.governedStructured,
-    thought,
+    thought: input.governance
+      ? buildGovernedMindThought(input.governance, {
+          userText: input.userText ?? '',
+        } as AlicizationConversationTurnInput)
+      : thought,
     emotion: performance.baseEmotion,
     reply,
     performance,
@@ -1813,6 +1948,7 @@ export async function rewriteAlicizationVisibleReplySecondPass(
     cardId: input.cardId,
     turnId: input.turnId,
     decisionTraceId: governed.governance?.decisionTraceId ?? null,
+    timeoutMs: mainChatVisibleReplySecondPassTimeoutMs,
     reasons: shouldForceRewrite
       ? effectiveRewriteRequest.reasonCodes
       : governed.reasons,
@@ -1830,7 +1966,7 @@ export async function rewriteAlicizationVisibleReplySecondPass(
       governance: governed.governance ?? null,
       mustPreserve: mergedMustPreserve,
     }),
-    timeoutMs: 12_000,
+    timeoutMs: mainChatVisibleReplySecondPassTimeoutMs,
   })
   const parsedRewrite = parseJsonObjectFromText(providerResult.fullText)
   if (!parsedRewrite)
@@ -1839,6 +1975,8 @@ export async function rewriteAlicizationVisibleReplySecondPass(
   const rewrittenStructured = normalizeSecondPassStructuredReply({
     parsed: parsedRewrite,
     governedStructured: effectiveGovernedStructured,
+    governance: governed.governance ?? candidateTurn.governance ?? null,
+    userText: input.userText,
     performanceManifest: input.prepared.performanceManifest,
   })
   if (!rewrittenStructured)
@@ -1898,6 +2036,18 @@ export async function rewriteAlicizationVisibleReplySecondPass(
       ...(rewriteEmbodimentHandoff?.preferredGazeMode
         ? { preferredGazeMode: rewriteEmbodimentHandoff.preferredGazeMode }
         : {}),
+      ...(rewriteEmbodimentHandoff?.preferredPauseMode
+        ? { preferredPauseMode: rewriteEmbodimentHandoff.preferredPauseMode }
+        : {}),
+      ...(rewriteEmbodimentHandoff?.preferredLipsyncMode
+        ? { preferredLipsyncMode: rewriteEmbodimentHandoff.preferredLipsyncMode }
+        : {}),
+      ...(rewriteEmbodimentHandoff?.preferredVoiceMode
+        ? { preferredVoiceMode: rewriteEmbodimentHandoff.preferredVoiceMode }
+        : {}),
+      ...(rewriteEmbodimentHandoff?.preferredPacingMode
+        ? { preferredPacingMode: rewriteEmbodimentHandoff.preferredPacingMode }
+        : {}),
     },
     ...(bridgedVisibleReplyProjectStateAudit
       ? {
@@ -1913,6 +2063,18 @@ export async function rewriteAlicizationVisibleReplySecondPass(
     format: 'mind-turn-v1',
   }
   if (verified.replyOverridden) {
+    await input.appendRuntimeDebugLine?.('chat-stream.visible-reply-second-pass-still-violates', {
+      cardId: input.cardId,
+      turnId: input.turnId,
+      decisionTraceId: governed.governance?.decisionTraceId ?? null,
+      reasons: verified.reasons,
+      replyExcerpt: sanitizeBoundedText(rewrittenStructured.reply, 500),
+      localRepairCandidateBlocked: verified.audit?.local_repair_candidate_blocked ?? null,
+      localRepairCandidateReason: verified.audit?.local_repair_candidate_reason ?? null,
+      localRepairCandidateReplyExcerpt: verified.audit?.local_repair_candidate_reply_excerpt ?? null,
+      localRepairCandidateDroppedClauses: verified.audit?.local_repair_candidate_dropped_clauses ?? null,
+      visibleReplyRewriteRequest: effectiveRewriteRequest,
+    })
     throw new Error(`visible-reply-second-pass-still-violates:${verified.reasons.join(',') || 'unknown'}`)
   }
 

@@ -44,6 +44,17 @@ const proofRows = [
     ],
   },
   {
+    entry: 'reply-deliberator-thin-shell-same-her-precedence',
+    file: './reply-deliberator.test.ts',
+    snippets: [
+      'does not let thin live landed-open-next project shells outrank richer canonical same-her closure pressure in reply deliberation',
+      'sameHerSelfLine: \'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.\',',
+      'expect(state?.whyThisReplyNow).toContain(\'Memory still needs stronger end-to-end closure\')',
+      'expect(state?.whyThisReplyNow).toContain(\'Keep extending cross-modal same-her proof\')',
+      'expect(state?.whyThisReplyNow).not.toContain(\'Project continuity exists.\')',
+    ],
+  },
+  {
     entry: 'reply-deliberator-summary-only-same-her-project-carry',
     file: './reply-deliberator.test.ts',
     snippets: [
@@ -63,6 +74,7 @@ describe('reply deliberator project awareness audit', () => {
       expect.objectContaining({ entry: 'reply-deliberator-same-thread-project-followthrough-carry' }),
       expect.objectContaining({ entry: 'reply-deliberator-live-project-awareness-opening-beat' }),
       expect.objectContaining({ entry: 'reply-deliberator-live-drift-risk-priority' }),
+      expect.objectContaining({ entry: 'reply-deliberator-thin-shell-same-her-precedence' }),
       expect.objectContaining({ entry: 'reply-deliberator-summary-only-same-her-project-carry' }),
     ])
 

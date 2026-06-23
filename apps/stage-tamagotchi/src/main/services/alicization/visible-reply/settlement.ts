@@ -495,6 +495,7 @@ export async function settleAlicizationVisibleReply(input: {
   forceRewrite?: boolean
   forceReasonCodes?: string[]
   forceMustPreserve?: string[]
+  appendRuntimeDebugLine?: (event: string, payload: Record<string, unknown>) => Promise<void> | void
   rewriteSecondPass: (input: {
     fullText: string
     visibleReplyExecution: AlicizationVisibleReplyExecution
@@ -521,6 +522,7 @@ export async function settleAlicizationVisibleReply(input: {
     forceRewrite: input.forceRewrite,
     forceReasonCodes: input.forceReasonCodes,
     forceMustPreserve: settlementForceMustPreserve,
+    appendRuntimeDebugLine: input.appendRuntimeDebugLine,
     rewriteSecondPass: input.rewriteSecondPass,
   })
   if (!closed) {

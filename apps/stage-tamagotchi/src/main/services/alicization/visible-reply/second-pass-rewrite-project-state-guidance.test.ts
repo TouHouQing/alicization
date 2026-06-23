@@ -48,4 +48,22 @@ describe('second-pass rewrite project-state guidance', () => {
     expect(guidance).toContain(`Keep this structured project continuity carry alive through the rewrite instead of collapsing it into a generic project shell: ${projectStateContinuitySummary}`)
     expect(guidance).toContain('Do not rewrite the answer as a detached status summary, roadmap report, or project shell.')
   })
+
+  it('makes final semantic-judge project-state failures visible-output obligations instead of only inward context', () => {
+    const guidance = secondPassRewriteTestInternals.buildProjectStateRewriteGuidance({
+      projectStateRewriteRequired: true,
+      projectStateSameHerRewriteRequired: true,
+      sameThreadContinuationRewriteGuidanceRequired: false,
+      sameHerProjectFollowThroughRewrite: false,
+      projectStateSameHerSelfLine: 'Same Phase 1 digital life; this answer must land as one continuous her.',
+      projectStateCarryInwardLine: 'Do not let the provider return only a short comfort sentence.',
+      projectStateSameHerDriftRisk: 'If the visible reply omits same-her, Phase 1, and still-open closure, final settlement will block the turn.',
+      projectStatePreDialogueAwarenessLine: 'Before speaking, keep the same local-first digital life project in view.',
+      projectStateContinuitySummary: 'same-her=same digital life | phase=Phase 1: Local Digital Life | open=memory loop is still not closed | next=prove the real UI/Pinia/database memory loop',
+    })
+
+    expect(guidance).toContain('Final settlement will judge only the visible reply text after this rewrite.')
+    expect(guidance).toContain('The visible reply itself must naturally include same-her continuity, Phase 1/current phase, still-open closure, and concrete current-turn payoff.')
+    expect(guidance).toContain('Do not rely on thought, performance, projectState fields, or inward context to satisfy these items.')
+  })
 })

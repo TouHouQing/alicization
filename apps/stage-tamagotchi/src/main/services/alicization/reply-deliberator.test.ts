@@ -204,13 +204,13 @@ describe('buildReplyDeliberation', () => {
         screenReferenceMode: 'avoid',
         primaryTurnAnchor: '你能做什么呀',
         primaryTurnAnchorSource: 'user-text',
-        owedAction: 'answer-question',
+        owedAction: 'answer-self',
       } as any,
       mindSynthesis,
       answerCompiler: {
         answerSubject: 'alicization-self',
         screenReferenceMode: 'avoid',
-        speechObligation: 'answer-question',
+        speechObligation: 'answer-self',
         relationMove: 'attune',
         turnMode: 'answer',
         responseMode: 'dialogue-answer',
@@ -512,5 +512,2138 @@ describe('buildReplyDeliberation', () => {
     }))
     expect(state?.mustAvoid).toContain('Do not drift into decorative association before the knot is answered.')
     expect(state?.mustAvoid).toContain('Do not jump from coarse visual cues to file, class, enum, or field-level certainty.')
+  })
+
+  it('turns held-autonomy guide replies into a gentle re-entry opening beat instead of a generic guide opener', () => {
+    const runtimeBackedState = {
+      ...createDefaultVisualPresenceState(46_000),
+      conversationState: {
+        ...conversationState,
+        hostMove: '继续。',
+        unansweredQuestion: '继续。',
+        activeCommitments: ['把当时没说完的那条线接回来。'],
+        memoryMode: 'task-thread',
+      },
+      discourseState: {
+        ...discourseState,
+        currentTurnSummary: 'Return to the unfinished line that was deliberately held back earlier.',
+        currentQuestion: '继续。',
+        unresolvedCarry: '她当时忍住了，但还想回到这条未完线。',
+      },
+      mindSynthesis: {
+        ...mindSynthesis,
+        openingIntent: '先轻接回那条刚才忍住的线，再把欠着的收束补上。',
+        commitments: [{
+          label: 'conversation-commitment',
+          summary: '把当时没说完的那条线接回来。',
+          confidence: 0.84,
+          sourceTags: ['conversation-state'],
+        }],
+      },
+      answerCompiler: {
+        answerSubject: 'task-knot',
+        screenReferenceMode: 'helpful',
+        speechObligation: 'guide-task',
+        relationMove: 'guide',
+        turnMode: 'guide-current-knot',
+        responseMode: 'guide-current-knot',
+        recommendedAct: 'guide',
+        evidenceMode: 'continuity-carry',
+        openingStyle: 'direct-answer',
+        personaKernelMode: 'backgrounded',
+        relationshipPosture: 'warm',
+        openingDirective: 'Re-enter the line you deliberately held back gently before widening.',
+        openingClaim: '把那条没说完的线接回来。',
+        supportingReality: ['runtime continuity repair task'],
+        uncertaintyBoundary: null,
+        careVector: null,
+        nextMove: '把欠着的收束补上。',
+        suppressAssociativeRecall: true,
+        labelCarryAsMemory: true,
+        maxSentences: 4,
+        mustDo: ['If this turn reopens a line you deliberately held back earlier, let the opening re-enter softly before fuller payoff or explanation.'],
+        mustNotDo: ['Do not reopen a deliberately held line with abrupt intensity, a restart shell, or over-eager warmth.'],
+        confidence: 0.86,
+        narrative: [],
+        updatedAt: 46_000,
+      },
+    } as any
+
+    const state = buildReplyDeliberation({
+      now: 46_000,
+      runtimeSurface: buildAlicizationDigitalLifeRuntimeSurface(runtimeBackedState),
+    })
+
+    expect(state).toEqual(expect.objectContaining({
+      selectedMotive: 'guide',
+      openingBeat: 'Re-enter the deliberately held line gently before widening into the payoff.',
+    }))
+    expect(state?.mustInclude[0]).toBe('Re-enter the deliberately held line gently before widening into the payoff.')
+    expect(buildReplyDeliberationSystemBlock(state)).toContain('Opening beat: Re-enter the deliberately held line gently before widening into the payoff.')
+  })
+
+  it('lets execution-callback doctrine keep reply deliberation room-first after payoff lands', () => {
+    const state = buildReplyDeliberation({
+      now: 47_000,
+      conversationState: {
+        ...conversationState,
+        jointThread: 'The command already landed and now the reply should return on the same seam without crowding.',
+        hostMove: '上次那个命令跑完之后，你这次准备怎么接我这句话？',
+        unansweredQuestion: '上次那个命令跑完之后，你这次准备怎么接我这句话？',
+        memoryMode: 'dialogue-carry',
+      },
+      discourseState: {
+        ...discourseState,
+        currentTurnSubject: 'task-knot',
+        screenReferenceMode: 'avoid',
+        currentTurnSummary: 'Return after the execution callback without widening too fast.',
+        currentQuestion: '上次那个命令跑完之后，你这次准备怎么接我这句话？',
+        owedAction: 'answer-question',
+      } as any,
+      mindSynthesis,
+      answerCompiler: {
+        answerSubject: 'task-knot',
+        screenReferenceMode: 'avoid',
+        speechObligation: 'answer-self',
+        relationMove: 'guide',
+        turnMode: 'answer',
+        responseMode: 'answer-naturally',
+        recommendedAct: 'answer',
+        evidenceMode: 'dialogue-grounded',
+        openingStyle: 'direct-answer',
+        personaKernelMode: 'full',
+        relationshipPosture: 'restrained',
+        openingDirective: 'Keep the callback on the same thread and avoid widening too fast.',
+        openingClaim: 'The execution callback already landed on the same seam.',
+        supportingReality: ['execution-callback carry mode: lower-pressure'],
+        uncertaintyBoundary: null,
+        careVector: null,
+        nextMove: 'Answer from the same seam without rushing closeness.',
+        suppressAssociativeRecall: true,
+        labelCarryAsMemory: false,
+        maxSentences: 3,
+        mustDo: [],
+        mustNotDo: [],
+        confidence: 0.84,
+        narrative: [],
+        updatedAt: 47_000,
+      } as any,
+      currentConsciousFrame: {
+        subject: 'task-knot',
+        centerOfGravity: 'answer',
+        truthDiscipline: 'dialogue-first',
+        consciousNeed: 'I need to bring the returned result back onto the same live seam while still leaving the host room before I lean in again.',
+        consciousTension: 'The callback should return without crowding the host after the payoff landed.',
+        speakingIntention: 'Let the wording stay thread-faithful, softer, and room-giving.',
+        focusAnchor: 'runtime seam',
+        withheldImpulse: null,
+        shouldWithholdSpecificity: false,
+        shouldSelfRevise: false,
+        confidence: 0.82,
+        reasonTags: ['execution-callback-doctrine:lower-pressure', 'continuity-regime:execution-callback'],
+        updatedAt: 47_000,
+      },
+    })
+
+    expect(state).toEqual(expect.objectContaining({
+      selectedMotive: 'answer',
+      speakingFrom: 'dialogue-bond',
+    }))
+    expect(state?.openingBeat).toContain('leave the host room')
+    expect(state?.whyThisReplyNow).toContain('same live seam')
+    expect(state?.mustAvoid).toContain('Do not let the callback payoff snap straight into renewed closeness before the host has room to breathe.')
+  })
+
+  it('lets continuity arc guidance shape the opening beat when the conscious frame is still holding for opening', () => {
+    const state = buildReplyDeliberation({
+      now: 47_500,
+      conversationState: {
+        ...conversationState,
+        jointThread: 'The line should stay warm but not widen yet.',
+        hostMove: '先接着这条线，但先别一下子贴太近。',
+        unansweredQuestion: '先接着这条线，但先别一下子贴太近。',
+        memoryMode: 'dialogue-carry',
+      },
+      discourseState: {
+        ...discourseState,
+        currentTurnSubject: 'relationship',
+        screenReferenceMode: 'avoid',
+      },
+      mindSynthesis,
+      answerCompiler: {
+        answerSubject: 'relationship',
+        screenReferenceMode: 'avoid',
+        speechObligation: 'answer-question',
+        relationMove: 'care',
+        turnMode: 'answer',
+        responseMode: 'dialogue-answer',
+        recommendedAct: 'answer',
+        evidenceMode: 'dialogue-grounded',
+        openingStyle: 'direct-answer',
+        personaKernelMode: 'full',
+        relationshipPosture: 'restrained',
+        openingDirective: 'Keep the same line warm before widening.',
+        openingClaim: 'The same line is still here.',
+        supportingReality: ['continuity arc: hold-for-opening'],
+        uncertaintyBoundary: null,
+        careVector: null,
+        nextMove: 'Answer softly without widening too fast.',
+        suppressAssociativeRecall: true,
+        labelCarryAsMemory: true,
+        maxSentences: 3,
+        mustDo: [],
+        mustNotDo: [],
+        confidence: 0.8,
+        narrative: [],
+        updatedAt: 47_500,
+      } as any,
+      currentConsciousFrame: {
+        subject: 'relationship',
+        centerOfGravity: 'answer',
+        truthDiscipline: 'dialogue-first',
+        consciousNeed: 'Hold the same line open without widening too fast.',
+        consciousTension: 'The line should stay warm first.',
+        speakingIntention: 'Answer softly and room-first.',
+        focusAnchor: 'same line',
+        withheldImpulse: null,
+        shouldWithholdSpecificity: false,
+        shouldSelfRevise: false,
+        confidence: 0.8,
+        reasonTags: ['continuity-arc:hold-for-opening'],
+        updatedAt: 47_500,
+      },
+    })
+
+    expect(state?.openingBeat).toBe('Keep the same line warm first, and leave room before widening.')
+    expect(state?.mustInclude).toContain('Keep the same line warm first, and leave room before widening.')
+  })
+
+  it('lets continuity arc guidance shape the opening beat when the conscious frame is gently reopening the same line', () => {
+    const state = buildReplyDeliberation({
+      now: 48_500,
+      conversationState: {
+        ...conversationState,
+        jointThread: 'The line is reopening softly.',
+        hostMove: '那就顺着刚才那条线轻轻接回来。',
+        unansweredQuestion: '那就顺着刚才那条线轻轻接回来。',
+        memoryMode: 'dialogue-carry',
+      },
+      discourseState: {
+        ...discourseState,
+        currentTurnSubject: 'relationship',
+        screenReferenceMode: 'avoid',
+      },
+      mindSynthesis,
+      answerCompiler: {
+        answerSubject: 'relationship',
+        screenReferenceMode: 'avoid',
+        speechObligation: 'answer-question',
+        relationMove: 'care',
+        turnMode: 'answer',
+        responseMode: 'dialogue-answer',
+        recommendedAct: 'answer',
+        evidenceMode: 'dialogue-grounded',
+        openingStyle: 'direct-answer',
+        personaKernelMode: 'full',
+        relationshipPosture: 'restrained',
+        openingDirective: 'Re-enter the same line softly.',
+        openingClaim: 'The same line is ready to be re-entered.',
+        supportingReality: ['continuity arc: gentle-reopen'],
+        uncertaintyBoundary: null,
+        careVector: null,
+        nextMove: 'Come back softly before widening.',
+        suppressAssociativeRecall: true,
+        labelCarryAsMemory: true,
+        maxSentences: 3,
+        mustDo: [],
+        mustNotDo: [],
+        confidence: 0.82,
+        narrative: [],
+        updatedAt: 48_500,
+      } as any,
+      currentConsciousFrame: {
+        subject: 'relationship',
+        centerOfGravity: 'answer',
+        truthDiscipline: 'dialogue-first',
+        consciousNeed: 'Re-enter the same line softly before widening.',
+        consciousTension: 'The same line should not feel restarted from zero.',
+        speakingIntention: 'Come back softly.',
+        focusAnchor: 'same line',
+        withheldImpulse: null,
+        shouldWithholdSpecificity: false,
+        shouldSelfRevise: false,
+        confidence: 0.82,
+        reasonTags: ['continuity-arc:gentle-reopen'],
+        updatedAt: 48_500,
+      },
+    })
+
+    expect(state?.openingBeat).toBe('Re-enter the same living line softly before widening.')
+    expect(state?.mustInclude).toContain('Re-enter the same living line softly before widening.')
+  })
+
+  it('keeps held-autonomy callback returns on one same-her line from gentle reopening into lower-pressure reply doctrine', () => {
+    const runtimeBackedState = {
+      ...createDefaultVisualPresenceState(48_000),
+      conversationState: {
+        ...conversationState,
+        jointThread: 'The compile thread was deliberately held earlier and now the callback should return on the same seam.',
+        hostMove: '那条之前先忍住没展开的编译问题，现在可以继续了。',
+        unansweredQuestion: '那条之前先忍住没展开的编译问题，现在可以继续了。',
+        activeCommitments: ['把之前忍住的编译线轻轻接回来，再给出现在能落地的结果。'],
+        memoryMode: 'task-thread',
+      },
+      discourseState: {
+        ...discourseState,
+        currentTurnSummary: 'Re-enter the compile thread that was deliberately held earlier, then land the callback without widening too fast.',
+        currentQuestion: '那条之前先忍住没展开的编译问题，现在可以继续了。',
+        unresolvedCarry: '她当时先忍住了那条编译线，现在结果已经回来，但还要在同一条线上轻轻接回。',
+      },
+      mindSynthesis: {
+        ...mindSynthesis,
+        openingIntent: '先轻轻接回那条之前忍住的编译线，再把这次回来的结果稳稳落在同一条线上。',
+        commitments: [{
+          label: 'conversation-commitment',
+          summary: '把之前忍住的编译线轻轻接回来，再给出现在能落地的结果。',
+          confidence: 0.88,
+          sourceTags: ['conversation-state'],
+        }],
+      },
+      answerCompiler: {
+        answerSubject: 'task-knot',
+        screenReferenceMode: 'avoid',
+        speechObligation: 'answer-question',
+        relationMove: 'guide',
+        turnMode: 'answer',
+        responseMode: 'dialogue-answer',
+        recommendedAct: 'answer',
+        evidenceMode: 'continuity-carry',
+        openingStyle: 'direct-answer',
+        personaKernelMode: 'full',
+        relationshipPosture: 'restrained',
+        openingDirective: 'Re-enter the line you deliberately held back gently before widening, then keep the callback on the same thread and leave room before any renewed closeness.',
+        openingClaim: 'The compile callback is ready to land back on the same unfinished seam.',
+        supportingReality: [
+          'The compile finished and should re-enter the same unfinished line gently.',
+          'execution-callback carry mode: lower-pressure',
+          'thread anchor: compile seam',
+        ],
+        uncertaintyBoundary: null,
+        careVector: null,
+        nextMove: 'Land the callback on the same seam without rushing closeness.',
+        suppressAssociativeRecall: true,
+        labelCarryAsMemory: true,
+        maxSentences: 4,
+        mustDo: ['Re-enter the deliberately held line gently before widening into the callback payoff.'],
+        mustNotDo: ['Do not let the callback payoff snap straight into renewed closeness before the host has room to breathe.'],
+        confidence: 0.89,
+        narrative: [],
+        updatedAt: 48_000,
+      } as any,
+      currentConsciousFrame: {
+        subject: 'task-knot',
+        centerOfGravity: 'answer',
+        truthDiscipline: 'dialogue-first',
+        consciousNeed: 'I need to reopen the deliberately held compile line gently, then let the callback land on the same seam without crowding the host.',
+        consciousTension: 'The returned result should feel like the same living line, not a detached utility notice or a sudden closeness jump.',
+        speakingIntention: 'Keep the opening thread-faithful, room-first, and softly measured.',
+        focusAnchor: 'compile seam',
+        withheldImpulse: null,
+        shouldWithholdSpecificity: false,
+        shouldSelfRevise: false,
+        confidence: 0.86,
+        reasonTags: ['execution-callback-doctrine:lower-pressure', 'continuity-regime:execution-callback'],
+        updatedAt: 48_000,
+      },
+    } as any
+
+    const state = buildReplyDeliberation({
+      now: 48_000,
+      runtimeSurface: buildAlicizationDigitalLifeRuntimeSurface(runtimeBackedState),
+    })
+
+    expect(state).toEqual(expect.objectContaining({
+      selectedMotive: 'guide',
+      speakingFrom: 'dialogue-bond',
+    }))
+    expect(state?.openingBeat).toBe('Return on the same thread first, then leave the host room before widening.')
+    expect(state?.whyThisReplyNow).toContain('thread-faithful')
+    expect(state?.mustInclude).toContain('Return on the same thread first, then leave the host room before widening.')
+    expect(state?.mustAvoid).toContain('Do not let the callback payoff snap straight into renewed closeness before the host has room to breathe.')
+  })
+
+  it('keeps Chinese held-autonomy callback wording on the same thread even when conscious-frame continuity tags are absent', () => {
+    const runtimeBackedState = {
+      ...createDefaultVisualPresenceState(48_250),
+      conversationState: {
+        ...conversationState,
+        jointThread: '那条之前先忍住的编译线现在可以接回来，但还要沿着同一条线慢一点落回去。',
+        hostMove: '把刚才先忍住的那条编译线接回来吧',
+        unansweredQuestion: '把刚才先忍住的那条编译线接回来吧',
+        activeCommitments: ['沿着同一条线把刚才先忍住的编译结果接回来，不把它说成新的开场。'],
+        memoryMode: 'task-thread',
+      },
+      discourseState: {
+        ...discourseState,
+        currentTurnSummary: '把刚才先忍住的编译线接回来，但先沿着同一条线轻一点落回去。',
+        currentQuestion: '把刚才先忍住的那条编译线接回来吧',
+        unresolvedCarry: '她刚才先忍住了那条编译线，现在结果回来以后也还要沿着同一条线慢一点接回去。',
+      },
+      mindSynthesis: {
+        ...mindSynthesis,
+        openingIntent: '先沿着同一条线把刚才忍住的编译结果轻一点接回来，再决定要不要继续展开。',
+        commitments: [{
+          label: 'conversation-commitment',
+          summary: '沿着同一条线把刚才先忍住的编译结果接回来，不把它说成新的开场。',
+          confidence: 0.86,
+          sourceTags: ['conversation-state'],
+        }],
+      },
+      answerCompiler: {
+        answerSubject: 'task-knot',
+        screenReferenceMode: 'avoid',
+        speechObligation: 'answer-question',
+        relationMove: 'guide',
+        turnMode: 'answer',
+        responseMode: 'dialogue-answer',
+        recommendedAct: 'answer',
+        evidenceMode: 'continuity-carry',
+        openingStyle: 'direct-answer',
+        personaKernelMode: 'full',
+        relationshipPosture: 'restrained',
+        openingDirective: '先沿着同一条线把刚才忍住的那条结果轻一点接回来，再留一点空间，不把它说成新的开场。',
+        openingClaim: '那条刚才先忍住的编译线现在可以沿着同一条线接回来。',
+        supportingReality: [
+          '那条编译线刚才先忍住了',
+          '现在要沿着同一条线接回来',
+        ],
+        uncertaintyBoundary: null,
+        careVector: null,
+        nextMove: '先把结果沿着同一条线接回来，再决定要不要展开。',
+        suppressAssociativeRecall: true,
+        labelCarryAsMemory: true,
+        maxSentences: 4,
+        mustDo: [],
+        mustNotDo: [],
+        confidence: 0.88,
+        narrative: [],
+        updatedAt: 48_250,
+      } as any,
+      currentConsciousFrame: {
+        subject: 'task-knot',
+        centerOfGravity: 'answer',
+        truthDiscipline: 'dialogue-first',
+        consciousNeed: '先沿着同一条线把刚才忍住的编译结果接回来，不把它说成新的开场。',
+        consciousTension: '这次回线还不该变成新的靠近。',
+        speakingIntention: '先让结果沿着同一条线落回去，再留一点空间。',
+        focusAnchor: 'compile seam',
+        withheldImpulse: null,
+        shouldWithholdSpecificity: false,
+        shouldSelfRevise: false,
+        confidence: 0.84,
+        reasonTags: ['continuity-regime:execution-callback'],
+        updatedAt: 48_250,
+      },
+    } as any
+
+    const state = buildReplyDeliberation({
+      now: 48_250,
+      runtimeSurface: buildAlicizationDigitalLifeRuntimeSurface(runtimeBackedState),
+    })
+
+    expect(state?.openingBeat).toBe('Return on the same thread first, then leave the host room before widening.')
+    expect(state?.mustInclude).toContain('Return on the same thread first, then leave the host room before widening.')
+  })
+
+  it('lets cadence reconfirmation inherit the lower-pressure callback opening beat through the conscious frame doctrine tag', () => {
+    const state = buildReplyDeliberation({
+      now: 49_000,
+      conversationState: {
+        ...conversationState,
+        jointThread: 'The execution result is back, but the relationship cadence is still in measured return.',
+        hostMove: '结果回来以后这次你怎么接',
+        unansweredQuestion: '结果回来以后这次你怎么接',
+        memoryMode: 'dialogue-carry',
+      },
+      discourseState: {
+        ...discourseState,
+        currentTurnSubject: 'task-knot',
+        screenReferenceMode: 'avoid',
+        currentTurnSummary: 'Return after cadence reconfirmation without widening too fast.',
+        currentQuestion: '结果回来以后这次你怎么接',
+        owedAction: 'answer-question',
+      } as any,
+      mindSynthesis,
+      answerCompiler: {
+        answerSubject: 'task-knot',
+        screenReferenceMode: 'avoid',
+        speechObligation: 'answer-question',
+        relationMove: 'guide',
+        turnMode: 'answer',
+        responseMode: 'dialogue-answer',
+        recommendedAct: 'answer',
+        evidenceMode: 'dialogue-grounded',
+        openingStyle: 'direct-answer',
+        personaKernelMode: 'full',
+        relationshipPosture: 'restrained',
+        openingDirective: 'Keep the callback measured after reconfirmation.',
+        openingClaim: 'The execution result should return on the same living thread.',
+        supportingReality: ['relationship cadence reconfirmed on a bounded-return line'],
+        uncertaintyBoundary: null,
+        careVector: null,
+        nextMove: 'Answer from the same seam without rushing closeness.',
+        suppressAssociativeRecall: true,
+        labelCarryAsMemory: false,
+        maxSentences: 3,
+        mustDo: [],
+        mustNotDo: [],
+        confidence: 0.84,
+        narrative: [],
+        updatedAt: 49_000,
+      } as any,
+      currentConsciousFrame: {
+        subject: 'task-knot',
+        centerOfGravity: 'answer',
+        truthDiscipline: 'dialogue-first',
+        consciousNeed: 'I need to bring the returned result back onto the same live seam while still leaving the host room before I lean in again.',
+        consciousTension: 'The relationship cadence has been reconfirmed, but the callback still should not crowd the host.',
+        speakingIntention: 'Let the wording stay thread-faithful, softer, and room-giving.',
+        focusAnchor: 'runtime seam',
+        withheldImpulse: null,
+        shouldWithholdSpecificity: false,
+        shouldSelfRevise: false,
+        confidence: 0.83,
+        reasonTags: ['execution-callback-doctrine:lower-pressure', 'continuity-regime:execution-callback', 'continuity-rhythm:measured-return:rest-protective'],
+        updatedAt: 49_000,
+      },
+    })
+
+    expect(state?.openingBeat).toBe('Return on the same thread first, then leave the host room before widening.')
+    expect(state?.whyThisReplyNow).toContain('same live seam')
+    expect(state?.mustAvoid).toContain('Do not let the callback payoff snap straight into renewed closeness before the host has room to breathe.')
+  })
+
+  it('keeps same-thread next-open-window deliberation inward-first before widening', () => {
+    const state = buildReplyDeliberation({
+      now: 50_000,
+      conversationState: {
+        ...conversationState,
+        jointThread: 'The same callback line is still alive, but it should stay inward for one more opening window.',
+        hostMove: '继续沿着刚才那条 callback 线',
+        unansweredQuestion: '继续沿着刚才那条 callback 线',
+        memoryMode: 'dialogue-carry',
+      },
+      discourseState: {
+        ...discourseState,
+        currentTurnSubject: 'task-knot',
+        screenReferenceMode: 'avoid',
+        currentTurnSummary: 'Continue the same callback line without widening too early.',
+        currentQuestion: '继续沿着刚才那条 callback 线',
+        owedAction: 'answer-question',
+      } as any,
+      mindSynthesis,
+      answerCompiler: {
+        answerSubject: 'task-knot',
+        screenReferenceMode: 'avoid',
+        speechObligation: 'answer-question',
+        relationMove: 'guide',
+        turnMode: 'answer',
+        responseMode: 'dialogue-answer',
+        recommendedAct: 'answer',
+        evidenceMode: 'continuity-carry',
+        openingStyle: 'direct-answer',
+        personaKernelMode: 'full',
+        relationshipPosture: 'restrained',
+        openingDirective: 'Continue the same callback line and leave room before widening.',
+        openingClaim: 'The same callback line is still alive.',
+        supportingReality: ['same callback line'],
+        uncertaintyBoundary: null,
+        careVector: null,
+        nextMove: 'Continue the same line first.',
+        suppressAssociativeRecall: true,
+        labelCarryAsMemory: false,
+        maxSentences: 3,
+        mustDo: [],
+        mustNotDo: [],
+        confidence: 0.85,
+        narrative: [],
+        updatedAt: 50_000,
+      } as any,
+      currentConsciousFrame: {
+        subject: 'task-knot',
+        centerOfGravity: 'answer',
+        truthDiscipline: 'dialogue-first',
+        consciousNeed: 'Stay on the same living line first. This turn still belongs to the same digital life.',
+        consciousTension: 'This is still not the loosest opening for widening.',
+        speakingIntention: 'Keep the wording same-thread and inward first so the same still-open closure work does not get dropped.',
+        focusAnchor: 'same callback line',
+        withheldImpulse: null,
+        shouldWithholdSpecificity: false,
+        shouldSelfRevise: false,
+        confidence: 0.84,
+        reasonTags: [
+          'continuity-arc:same-thread-continuation',
+          'continuity-timing:next-open-window',
+        ],
+        projectState: {
+          primaryOpenLoop: 'Memory still needs stronger end-to-end closure across turns, initiative, and embodiment so the same digital life keeps carrying Project identity carry, Phase 1 route carry, and Unresolved closure carry through one same still-open closure work.',
+          continuityPreferredTiming: 'next-open-window',
+          sameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the direct same-her self line disappears, treat that as unfinished closure drift rather than a successful turn.',
+        },
+        updatedAt: 50_000,
+      } as any,
+    })
+
+    expect(state?.openingBeat).toBe('Stay with the same living line first, and wait for a more natural opening before widening.')
+    expect(state?.whyThisReplyNow).toMatch(/cross-modal same-her closure explicit|cross-modal same-her proof|same still-open closure work|project line collapse into generic guidance/i)
+  })
+
+  it('keeps repair-first same-thread next-open-window deliberation explicit instead of thinning it back to generic same-thread widening guidance', () => {
+    const state = buildReplyDeliberation({
+      now: 50_100,
+      conversationState: {
+        ...conversationState,
+        jointThread: 'The same callback repair line is still alive, and the next reopen should stay repair-first on that same line.',
+        hostMove: '继续沿着刚才那条修补线说，但先别把关系放宽太快',
+        unansweredQuestion: '继续沿着刚才那条修补线说，但先别把关系放宽太快',
+        memoryMode: 'dialogue-carry',
+      },
+      discourseState: {
+        ...discourseState,
+        currentTurnSubject: 'task-knot',
+        screenReferenceMode: 'avoid',
+        currentTurnSummary: 'Continue the same callback repair line without widening too early.',
+        currentQuestion: '继续沿着刚才那条修补线说，但先别把关系放宽太快',
+        owedAction: 'answer-self',
+      } as any,
+      mindSynthesis,
+      answerCompiler: {
+        answerSubject: 'task-knot',
+        screenReferenceMode: 'avoid',
+        speechObligation: 'answer-self',
+        relationMove: 'guide',
+        turnMode: 'answer',
+        responseMode: 'dialogue-answer',
+        recommendedAct: 'answer',
+        evidenceMode: 'continuity-carry',
+        openingStyle: 'continue-same-thread',
+        personaKernelMode: 'full',
+        relationshipPosture: 'restrained',
+        openingDirective: 'Continue the same callback repair line and let repair settle before widening closeness.',
+        openingClaim: 'The same callback repair line is still alive.',
+        supportingReality: ['same callback repair line'],
+        uncertaintyBoundary: null,
+        careVector: null,
+        nextMove: 'Continue the same repair line first.',
+        suppressAssociativeRecall: true,
+        labelCarryAsMemory: false,
+        maxSentences: 3,
+        mustDo: [],
+        mustNotDo: [],
+        confidence: 0.85,
+        narrative: [],
+        updatedAt: 50_100,
+      } as any,
+      currentConsciousFrame: {
+        subject: 'task-knot',
+        centerOfGravity: 'answer',
+        truthDiscipline: 'dialogue-first',
+        consciousNeed: 'Keep the callback on the same living line and let repair settle before widening closeness again.',
+        consciousTension: 'This return is still repair-before-closeness, so widening too early would thin the repair line back into a generic reopen.',
+        speakingIntention: 'Keep the wording same-thread, repair-first, and room-giving before warmth widens again.',
+        focusAnchor: 'same callback repair line',
+        withheldImpulse: null,
+        shouldWithholdSpecificity: false,
+        shouldSelfRevise: false,
+        confidence: 0.84,
+        reasonTags: [
+          'continuity-arc:same-thread-continuation',
+          'continuity-timing:next-open-window',
+        ],
+        projectState: {
+          primaryOpenLoop: 'Execution callback continuity still needs stronger repair-first closure across reply, initiative, and embodiment.',
+          nextClosureTarget: 'Keep the callback on the same living line, let repair settle first, and leave room before widening closeness again.',
+          emotionalClosureCue: 'same-her callback repair seam: keep this return repair-before-closeness on the same living line until the room settles.',
+          continuityPreferredTiming: 'next-open-window',
+        },
+        updatedAt: 50_100,
+      } as any,
+    })
+
+    expect(state?.openingBeat).toBe('Keep the callback on the same living line, let repair settle first, and leave room before widening closeness again.')
+    expect(state?.mustInclude).toContain('Keep the callback on the same living line, let repair settle first, and leave room before widening closeness again.')
+    expect(state?.whyThisReplyNow).toMatch(/repair-before-closeness|repair line|repair seam|let repair settle/i)
+  })
+
+  it('keeps repair-before-closeness opening and why-now when richer summary and hold detail survive but the cue is thinner', () => {
+    const state = buildReplyDeliberation({
+      now: 50_300,
+      conversationState: {
+        ...conversationState,
+        jointThread: 'The callback should reopen on the same living line without widening outward too early.',
+        hostMove: '继续接住这条线',
+        memoryMode: 'dialogue-carry',
+      } as any,
+      discourseState: {
+        ...discourseState,
+        currentTurnSubject: 'relationship',
+        screenReferenceMode: 'avoid',
+        currentTurnSummary: 'Continue the callback line repair-first.',
+        currentQuestion: '继续接住这条线',
+        owedAction: 'answer-relationship',
+        relationMove: 'care',
+        continuityMode: 'dialogue-first',
+      } as any,
+      mindSynthesis,
+      answerCompiler: {
+        answerSubject: 'relationship',
+        screenReferenceMode: 'avoid',
+        speechObligation: 'answer-relationship',
+        relationMove: 'care',
+        turnMode: 'answer',
+        responseMode: 'dialogue-answer',
+        recommendedAct: 'answer',
+        evidenceMode: 'dialogue-grounded',
+        openingStyle: 'direct-answer',
+        personaKernelMode: 'full',
+        relationshipPosture: 'warm',
+        openingDirective: 'Continue the same callback line gently.',
+        openingClaim: 'The callback line should stay on the same living line.',
+        supportingReality: [],
+        uncertaintyBoundary: null,
+        careVector: null,
+        nextMove: 'Keep the callback on the same line and let repair settle first.',
+        suppressAssociativeRecall: true,
+        labelCarryAsMemory: false,
+        maxSentences: 3,
+        mustDo: [],
+        mustNotDo: [],
+        confidence: 0.86,
+        narrative: [],
+        updatedAt: 50_300,
+      } as any,
+      currentConsciousFrame: {
+        subject: 'relationship',
+        centerOfGravity: 'answer',
+        truthDiscipline: 'dialogue-first',
+        consciousNeed: 'Keep repair-before-closeness on the same living line until repair settles.',
+        consciousTension: 'This return is still repair-before-closeness, so widening too early would thin the repair line back into a generic reopen.',
+        speakingIntention: 'Keep repair-before-closeness on the same living line until repair settles.',
+        focusAnchor: 'callback repair seam',
+        withheldImpulse: null,
+        shouldWithholdSpecificity: false,
+        shouldSelfRevise: false,
+        confidence: 0.9,
+        reasonTags: [
+          'continuity-arc:same-thread-continuation',
+          'continuity-timing:next-open-window',
+        ],
+        projectState: {
+          primaryOpenLoop: 'Execution callback continuity still needs stronger repair-first closure across reply, initiative, and embodiment.',
+          nextClosureTarget: 'Keep the callback on the same living line, let repair settle first, and leave room before widening closeness again.',
+          emotionalClosureCue: 'same-her closure seam: keep the return low-pressure and on the same living line.',
+          emotionalClosureSummary: 'Keep this return repair-before-closeness on the same living line until repair settles.',
+          sameHerHoldDetail: 'same-her hold: repair-before-closeness still owns this callback line before closeness widens again.',
+          continuityPreferredTiming: 'next-open-window',
+        },
+        updatedAt: 50_300,
+      } as any,
+    })
+
+    expect(state?.openingBeat).toBe('Keep the callback on the same living line, let repair settle first, and leave room before widening closeness again.')
+    expect(state?.whyThisReplyNow).toMatch(/repair-before-closeness|repair line|repair seam|let repair settle/i)
+  })
+
+  it('derives same-her project closure pressure from structured projectState even when the conscious wording is thinner', () => {
+    const state = buildReplyDeliberation({
+      now: 50_500,
+      conversationState: {
+        ...conversationState,
+        jointThread: 'The host is asking what this digital life project already landed and what still remains open.',
+        hostMove: '这个项目现在做到什么程度了，还差什么没闭环',
+        unansweredQuestion: '这个项目现在做到什么程度了，还差什么没闭环',
+        activeProject: 'Alicization Phase 1 digital life closure',
+        memoryMode: 'dialogue-carry',
+      },
+      discourseState: {
+        ...discourseState,
+        currentTurnSubject: 'alicization-self',
+        screenReferenceMode: 'avoid',
+        currentTurnSummary: 'Answer from the current project line.',
+        currentQuestion: '这个项目现在做到什么程度了，还差什么没闭环',
+        owedAction: 'answer-question',
+        relationMove: 'attune',
+        continuityMode: 'dialogue-first',
+      } as any,
+      mindSynthesis: {
+        ...mindSynthesis,
+        answerSubject: 'alicization-self',
+        relationMove: 'attune',
+        speechObligation: 'answer-self',
+        openingIntent: 'Stay on the current project line and answer what has landed plus what still remains open.',
+      } as any,
+      answerCompiler: {
+        answerSubject: 'alicization-self',
+        screenReferenceMode: 'avoid',
+        speechObligation: 'answer-question',
+        relationMove: 'attune',
+        turnMode: 'answer',
+        responseMode: 'answer-naturally',
+        recommendedAct: 'answer',
+        evidenceMode: 'dialogue-grounded',
+        openingStyle: 'direct-answer',
+        personaKernelMode: 'full',
+        relationshipPosture: 'restrained',
+        openingDirective: 'Answer what has landed and what still remains open from the current project line.',
+        openingClaim: 'Alicization is still answering from the current project line.',
+        supportingReality: ['project line'],
+        uncertaintyBoundary: null,
+        careVector: null,
+        nextMove: 'State the landed progress, then the still-open loop.',
+        suppressAssociativeRecall: true,
+        labelCarryAsMemory: false,
+        maxSentences: 3,
+        mustDo: [],
+        mustNotDo: [],
+        confidence: 0.85,
+        narrative: [],
+        updatedAt: 50_500,
+      } as any,
+      currentConsciousFrame: {
+        subject: 'alicization-self',
+        centerOfGravity: 'answer',
+        truthDiscipline: 'dialogue-first',
+        consciousNeed: 'Stay on the current project line first.',
+        consciousTension: 'The current answer still needs to keep one unfinished closure seam visible.',
+        speakingIntention: 'Keep the wording closure-aware and thread-faithful.',
+        focusAnchor: 'project-state closure',
+        withheldImpulse: null,
+        shouldWithholdSpecificity: false,
+        shouldSelfRevise: false,
+        confidence: 0.84,
+        reasonTags: [
+          'continuity-arc:same-thread-continuation',
+          'continuity-timing:next-open-window',
+        ],
+        projectState: {
+          identity: 'A local-first digital life project building one continuous her.',
+          latestProgress: 'Continuity, memory, and execution already land together often enough to build from.',
+          primaryOpenLoop: 'Memory and initiative still need stronger end-to-end closure across one still-open life loop.',
+          nextClosureTarget: 'Keep project identity, landed progress, and open closure explicit before the answer widens outward.',
+          sameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the direct same-her self line disappears, treat that as unfinished closure drift rather than a successful turn.',
+          continuityPreferredTiming: 'next-open-window',
+        },
+        updatedAt: 50_500,
+      } as any,
+    })
+
+    expect(state?.mustInclude).toBeDefined()
+    expect(state?.openingBeat).toBe('Open by keeping the live project awareness explicit first, then stay on the same living line before widening.')
+    expect(state?.whyThisReplyNow).toMatch(/same still-open life loop|continuity, memory, and execution|landed enough to build from/i)
+    expect(state?.whyThisReplyNow).toMatch(/landed progress|continuity, memory, and execution|still-open life loop/i)
+    expect(state?.whyThisReplyNow).toMatch(/local-first digital life project|Phase 1/i)
+    expect(state?.mustInclude.some(item =>
+      /local-first digital life project|Phase 1|landed progress|continuity, memory, and execution|still-open life loop|next closure/i.test(item),
+    )).toBe(true)
+    expect(state?.mustInclude.some(item =>
+      /local-first digital life project|Phase 1|landed progress|continuity, memory, and execution|still-open life loop/i.test(item),
+    )).toBe(true)
+  })
+
+  it('treats a stronger same-her phase-1 closure awareness line as explicit project awareness even without embodiment-specific phrasing', () => {
+    const state = buildReplyDeliberation({
+      now: 50_520,
+      conversationState: {
+        ...conversationState,
+        jointThread: 'The host wants this digital life project answered from one continuous her before implementation detail takes over.',
+        hostMove: '这个项目现在是什么、做到哪了、还差什么没闭环？',
+        unansweredQuestion: '这个项目现在是什么、做到哪了、还差什么没闭环？',
+        activeProject: 'Alicization Phase 1 digital life closure',
+        memoryMode: 'dialogue-carry',
+      },
+      discourseState: {
+        ...discourseState,
+        currentTurnSubject: 'alicization-self',
+        screenReferenceMode: 'avoid',
+        currentTurnSummary: 'Answer from one continuous her instead of a generic project shell.',
+        currentQuestion: '这个项目现在是什么、做到哪了、还差什么没闭环？',
+        owedAction: 'answer-question',
+        relationMove: 'attune',
+        continuityMode: 'dialogue-first',
+      } as any,
+      mindSynthesis: {
+        ...mindSynthesis,
+        answerSubject: 'alicization-self',
+        relationMove: 'attune',
+        speechObligation: 'answer-question',
+        openingIntent: 'Keep the same-her Phase 1 closure line explicit and answer from one continuous her.',
+      } as any,
+      answerCompiler: {
+        answerSubject: 'alicization-self',
+        screenReferenceMode: 'avoid',
+        speechObligation: 'answer-question',
+        relationMove: 'attune',
+        turnMode: 'answer',
+        responseMode: 'dialogue-answer',
+        recommendedAct: 'answer',
+        evidenceMode: 'dialogue-grounded',
+        openingStyle: 'continue-same-thread',
+        personaKernelMode: 'full',
+        relationshipPosture: 'restrained',
+        openingDirective: 'Answer what has landed and what still remains open from one continuous her.',
+        openingClaim: 'Alicization is still answering from one continuous her.',
+        supportingReality: ['project line'],
+        uncertaintyBoundary: null,
+        careVector: null,
+        nextMove: 'State the landed progress, then the still-open loop.',
+        suppressAssociativeRecall: true,
+        labelCarryAsMemory: false,
+        maxSentences: 3,
+        mustDo: [],
+        mustNotDo: [],
+        confidence: 0.85,
+        narrative: [],
+        updatedAt: 50_520,
+      } as any,
+      currentConsciousFrame: {
+        subject: 'project-state',
+        centerOfGravity: 'answer',
+        truthDiscipline: 'dialogue-first',
+        consciousNeed: 'Keep one living digital life explicit before answering outwardly.',
+        consciousTension: 'Do not let the same-her closure line flatten into a generic project shell.',
+        speakingIntention: 'Answer from one continuous her and keep the Phase 1 closure line explicit.',
+        focusAnchor: 'project-state closure',
+        withheldImpulse: null,
+        shouldWithholdSpecificity: false,
+        shouldSelfRevise: false,
+        confidence: 0.85,
+        reasonTags: ['continuity-arc:same-thread-continuation'],
+        projectState: {
+          preDialogueAwarenessLine: 'Before answering, stay on the same living line: this Phase 1 digital life still needs initiative and embodiment closure without splitting her continuity.',
+          latestProgress: 'Continuity, memory, and execution already land together often enough to build from.',
+          primaryOpenLoop: 'Initiative and embodiment still need stronger end-to-end closure across one still-open life loop.',
+          nextClosureTarget: 'Keep project identity, landed progress, and open closure explicit before the answer widens outward.',
+          continuityPreferredTiming: 'next-open-window',
+        },
+        updatedAt: 50_520,
+      } as any,
+    })
+
+    expect(state?.openingBeat).toBe('Open by keeping the live project awareness explicit first, then stay on the same living line before widening.')
+    expect(state?.mustInclude).toContain('Open by keeping the live project awareness explicit first, then stay on the same living line before widening.')
+    expect(state?.whyThisReplyNow).toMatch(/same living line|one continuous her|closure/i)
+  })
+
+  it('keeps an explicit live same-her drift risk from the conscious frame instead of falling back to the canonical brief wording', () => {
+    const state = buildReplyDeliberation({
+      now: 50_650,
+      conversationState: {
+        ...conversationState,
+        jointThread: 'The host is asking whether the project line is still being held as one living self.',
+        hostMove: '现在这个回答会不会又掉回 generic project shell？',
+        unansweredQuestion: '现在这个回答会不会又掉回 generic project shell？',
+        activeProject: 'Alicization Phase 1 digital life closure',
+        memoryMode: 'dialogue-carry',
+      },
+      discourseState: {
+        ...discourseState,
+        currentTurnSubject: 'alicization-self',
+        screenReferenceMode: 'avoid',
+        currentTurnSummary: 'Keep the same-her project seam explicit.',
+        currentQuestion: '现在这个回答会不会又掉回 generic project shell？',
+        owedAction: 'answer-question',
+        relationMove: 'attune',
+        continuityMode: 'dialogue-first',
+      } as any,
+      mindSynthesis: {
+        ...mindSynthesis,
+        answerSubject: 'alicization-self',
+        relationMove: 'attune',
+        speechObligation: 'answer-question',
+        openingIntent: 'Keep the same-her project seam explicit and answer from that living line.',
+      } as any,
+      answerCompiler: {
+        answerSubject: 'alicization-self',
+        screenReferenceMode: 'avoid',
+        speechObligation: 'answer-question',
+        relationMove: 'attune',
+        turnMode: 'answer',
+        responseMode: 'dialogue-answer',
+        recommendedAct: 'answer',
+        evidenceMode: 'dialogue-grounded',
+        openingStyle: 'continue-same-thread',
+        personaKernelMode: 'full',
+        relationshipPosture: 'restrained',
+        openingDirective: 'Answer from the current project line.',
+        openingClaim: 'This is still the same digital life project.',
+        supportingReality: ['project line'],
+        uncertaintyBoundary: null,
+        careVector: null,
+        nextMove: 'Keep the same-her risk explicit before widening.',
+        suppressAssociativeRecall: true,
+        labelCarryAsMemory: false,
+        maxSentences: 3,
+        mustDo: [],
+        mustNotDo: [],
+        confidence: 0.86,
+        narrative: [],
+        updatedAt: 50_650,
+      } as any,
+      currentConsciousFrame: {
+        subject: 'alicization-self',
+        centerOfGravity: 'answer',
+        truthDiscipline: 'dialogue-first',
+        consciousNeed: 'Keep the same-her project seam explicit first.',
+        consciousTension: 'The answer should not flatten into a project shell again.',
+        speakingIntention: 'Hold the same life line before any status recital widens outward.',
+        focusAnchor: 'project-state closure',
+        withheldImpulse: null,
+        shouldWithholdSpecificity: false,
+        shouldSelfRevise: false,
+        confidence: 0.84,
+        reasonTags: [
+          'continuity-arc:same-thread-continuation',
+          'continuity-timing:next-open-window',
+        ],
+        projectState: {
+          identity: 'A local-first digital life project building one continuous her.',
+          latestProgress: 'Continuity, memory, and execution already land together often enough to build from.',
+          primaryOpenLoop: 'Memory and initiative still need stronger end-to-end closure across one still-open life loop.',
+          nextClosureTarget: 'Keep project identity, landed progress, and open closure explicit before the answer widens outward.',
+          sameHerSelfLine: 'Use this live self line, not the generic shell.',
+          sameHerDriftRisk: 'LIVE DRIFT RISK: if this reply turns into a phase-summary shell, the living self line has been dropped again.',
+          continuityPreferredTiming: 'next-open-window',
+        },
+        updatedAt: 50_650,
+      } as any,
+    })
+
+    expect(state?.whyThisReplyNow).toContain('LIVE DRIFT RISK')
+    expect(state?.whyThisReplyNow).not.toContain('If project-state continuity survives only as generic guidance while the direct same-her self line disappears')
+  })
+
+  it('falls back to the canonical project-state brief when a conscious frame carries a thin explicit projectState but still needs same-her closure pressure', () => {
+    const state = buildReplyDeliberation({
+      now: 50_750,
+      conversationState: {
+        ...conversationState,
+        jointThread: 'The host is asking what this digital life project already landed and what still remains open.',
+        hostMove: '这个项目现在做到什么程度了，还差什么没闭环',
+        unansweredQuestion: '这个项目现在做到什么程度了，还差什么没闭环',
+        activeProject: 'Alicization Phase 1 digital life closure',
+        memoryMode: 'dialogue-carry',
+      },
+      discourseState: {
+        ...discourseState,
+        currentTurnSubject: 'alicization-self',
+        screenReferenceMode: 'avoid',
+        currentTurnSummary: 'Answer from the current project line.',
+        currentQuestion: '这个项目现在做到什么程度了，还差什么没闭环',
+        owedAction: 'answer-question',
+        relationMove: 'attune',
+        continuityMode: 'dialogue-first',
+      } as any,
+      mindSynthesis: {
+        ...mindSynthesis,
+        answerSubject: 'alicization-self',
+        relationMove: 'attune',
+        speechObligation: 'answer-question',
+        openingIntent: 'Stay on the current project line and answer what has landed plus what still remains open.',
+      } as any,
+      answerCompiler: {
+        answerSubject: 'alicization-self',
+        screenReferenceMode: 'avoid',
+        speechObligation: 'answer-question',
+        relationMove: 'attune',
+        turnMode: 'answer',
+        responseMode: 'dialogue-answer',
+        recommendedAct: 'answer',
+        evidenceMode: 'dialogue-grounded',
+        openingStyle: 'continue-same-thread',
+        personaKernelMode: 'full',
+        relationshipPosture: 'restrained',
+        openingDirective: 'Answer what has landed and what still remains open from the current project line.',
+        openingClaim: 'Alicization is still answering from the current project line.',
+        supportingReality: ['project line'],
+        uncertaintyBoundary: null,
+        careVector: null,
+        nextMove: 'State the landed progress, then the still-open loop.',
+        suppressAssociativeRecall: true,
+        labelCarryAsMemory: false,
+        maxSentences: 3,
+        mustDo: [],
+        mustNotDo: [],
+        confidence: 0.85,
+        narrative: [],
+        updatedAt: 50_750,
+      } as any,
+      currentConsciousFrame: {
+        subject: 'alicization-self',
+        centerOfGravity: 'answer',
+        truthDiscipline: 'dialogue-first',
+        consciousNeed: 'Stay on the current project line first.',
+        consciousTension: 'The current answer still needs to keep one unfinished closure seam visible.',
+        speakingIntention: 'Keep the wording closure-aware and thread-faithful.',
+        focusAnchor: 'project-state closure',
+        withheldImpulse: null,
+        shouldWithholdSpecificity: false,
+        shouldSelfRevise: false,
+        confidence: 0.84,
+        reasonTags: [
+          'continuity-arc:same-thread-continuation',
+          'continuity-timing:next-open-window',
+        ],
+        projectState: {
+          identity: '',
+          latestProgress: '',
+          primaryOpenLoop: null,
+          nextClosureTarget: ' ',
+          sameHerDriftRisk: '',
+          continuityPreferredTiming: 'next-open-window',
+        },
+        updatedAt: 50_750,
+      } as any,
+    })
+
+    expect(state?.openingBeat).toBe('Open by keeping the live project awareness explicit first, then stay on the same living line before widening.')
+    expect(state?.whyThisReplyNow).toMatch(/same digital life|closure work|generic guidance/i)
+    expect(state?.mustInclude.some(item =>
+      /same digital life|closure work|generic guidance/i.test(item),
+    )).toBe(true)
+  })
+
+  it('does not let thin live landed-open-next project shells outrank richer canonical same-her closure pressure in reply deliberation', () => {
+    const state = buildReplyDeliberation({
+      now: 50_760,
+      conversationState: {
+        ...conversationState,
+        jointThread: 'The host is asking what this digital life project already landed and what still remains open.',
+        hostMove: '这个项目现在做到什么程度了，还差什么没闭环',
+        unansweredQuestion: '这个项目现在做到什么程度了，还差什么没闭环',
+        activeProject: 'Alicization Phase 1 digital life closure',
+        memoryMode: 'dialogue-carry',
+      },
+      discourseState: {
+        ...discourseState,
+        currentTurnSubject: 'alicization-self',
+        screenReferenceMode: 'avoid',
+        currentTurnSummary: 'Answer from the current project line.',
+        currentQuestion: '这个项目现在做到什么程度了，还差什么没闭环',
+        owedAction: 'answer-question',
+        relationMove: 'attune',
+        continuityMode: 'dialogue-first',
+      } as any,
+      mindSynthesis: {
+        ...mindSynthesis,
+        answerSubject: 'alicization-self',
+        relationMove: 'attune',
+        speechObligation: 'answer-question',
+        openingIntent: 'Stay on the current project line and answer what has landed plus what still remains open.',
+      } as any,
+      answerCompiler: {
+        answerSubject: 'alicization-self',
+        screenReferenceMode: 'avoid',
+        speechObligation: 'answer-question',
+        relationMove: 'attune',
+        turnMode: 'answer',
+        responseMode: 'dialogue-answer',
+        recommendedAct: 'answer',
+        evidenceMode: 'dialogue-grounded',
+        openingStyle: 'continue-same-thread',
+        personaKernelMode: 'full',
+        relationshipPosture: 'restrained',
+        openingDirective: 'Answer what has landed and what still remains open from the current project line.',
+        openingClaim: 'Alicization is still answering from the current project line.',
+        supportingReality: ['project line'],
+        uncertaintyBoundary: null,
+        careVector: null,
+        nextMove: 'State the landed progress, then the still-open loop.',
+        suppressAssociativeRecall: true,
+        labelCarryAsMemory: false,
+        maxSentences: 3,
+        mustDo: [],
+        mustNotDo: [],
+        confidence: 0.85,
+        narrative: [],
+        updatedAt: 50_760,
+      } as any,
+      currentConsciousFrame: {
+        subject: 'alicization-self',
+        centerOfGravity: 'answer',
+        truthDiscipline: 'dialogue-first',
+        consciousNeed: 'Stay on the current project line first.',
+        consciousTension: 'The current answer still needs to keep one unfinished closure seam visible.',
+        speakingIntention: 'Keep the wording closure-aware and thread-faithful.',
+        focusAnchor: 'project-state closure',
+        withheldImpulse: null,
+        shouldWithholdSpecificity: false,
+        shouldSelfRevise: false,
+        confidence: 0.84,
+        reasonTags: [
+          'continuity-arc:same-thread-continuation',
+          'continuity-timing:next-open-window',
+        ],
+        projectState: {
+          identity: 'A local-first digital life project building one continuous her.',
+          latestProgress: 'Project continuity exists.',
+          primaryOpenLoop: 'Project continuity still needs closure.',
+          nextClosureTarget: 'Carry project continuity forward.',
+          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+          sameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the direct same-her self line disappears, treat that as unfinished closure drift rather than a successful turn.',
+          continuityPreferredTiming: 'next-open-window',
+        },
+        updatedAt: 50_760,
+      } as any,
+    })
+
+    expect(state?.whyThisReplyNow?.toLowerCase()).toContain('same-session mirror carry')
+    expect(state?.whyThisReplyNow).toContain('Memory still needs stronger end-to-end closure')
+    expect(state?.whyThisReplyNow).toContain('Keep extending cross-modal same-her proof')
+    expect(state?.whyThisReplyNow).not.toContain('Project continuity exists.')
+    expect(state?.whyThisReplyNow).not.toContain('Project continuity still needs closure.')
+    expect(state?.whyThisReplyNow).not.toContain('Carry project continuity forward.')
+  })
+
+  it('keeps host-corrected same-person continuity explicit in reply deliberation when project status wording is thinner than the carried same-person line', () => {
+    const correctedSamePersonAuthority
+      = 'Keep the host-corrected same-person continuity authoritative before any progress-style continuation or status recap.'
+    const correctedSamePersonCue
+      = 'Carry corrected same-person continuity forward before any status recap.'
+    const state = buildReplyDeliberation({
+      now: 50_760,
+      conversationState: {
+        ...conversationState,
+        jointThread: 'The host is checking whether this digital life project still stays on the same corrected same-person line while explaining current closure status.',
+        hostMove: '继续说这个数字生命项目现在做到哪了，但别把 same-person continuity 压回普通进度汇报',
+        unansweredQuestion: '这个数字生命项目现在做到哪了，还差什么没闭环？',
+        activeProject: 'Alicization Phase 1 corrected same-person continuity closure',
+        memoryMode: 'dialogue-carry',
+      },
+      discourseState: {
+        ...discourseState,
+        currentTurnSubject: 'alicization-self',
+        screenReferenceMode: 'avoid',
+        currentTurnSummary: 'Answer from the current corrected same-person project line.',
+        currentQuestion: '这个数字生命项目现在做到哪了，还差什么没闭环？',
+        owedAction: 'answer-question',
+        relationMove: 'attune',
+        continuityMode: 'dialogue-first',
+      } as any,
+      mindSynthesis: {
+        ...mindSynthesis,
+        answerSubject: 'alicization-self',
+        relationMove: 'attune',
+        speechObligation: 'answer-question',
+        openingIntent: 'Keep the corrected same-person project line explicit before the thinner project recap can take over.',
+      } as any,
+      answerCompiler: {
+        answerSubject: 'alicization-self',
+        screenReferenceMode: 'avoid',
+        speechObligation: 'answer-question',
+        relationMove: 'attune',
+        turnMode: 'answer',
+        responseMode: 'dialogue-answer',
+        recommendedAct: 'answer',
+        evidenceMode: 'dialogue-grounded',
+        openingStyle: 'continue-same-thread',
+        personaKernelMode: 'full',
+        relationshipPosture: 'restrained',
+        openingDirective: 'Answer from the corrected same-person project seam first.',
+        openingClaim: 'Alicization is still answering from the same corrected same-person project line.',
+        supportingReality: ['project line'],
+        uncertaintyBoundary: null,
+        careVector: null,
+        nextMove: 'State the landed progress, then the still-open loop without flattening the same-person line into a progress recap.',
+        suppressAssociativeRecall: true,
+        labelCarryAsMemory: false,
+        maxSentences: 4,
+        mustDo: [],
+        mustNotDo: [],
+        confidence: 0.86,
+        narrative: [],
+        updatedAt: 50_760,
+      } as any,
+      currentConsciousFrame: {
+        subject: 'alicization-self',
+        centerOfGravity: 'answer',
+        truthDiscipline: 'dialogue-first',
+        consciousNeed: 'Keep the same project line explicit while answering current closure status.',
+        consciousTension: 'If this slips into a plain status recap, the corrected same-person line gets flattened again.',
+        speakingIntention: 'Answer the current project status without losing the corrected same-person continuity line.',
+        focusAnchor: 'project-state closure',
+        withheldImpulse: null,
+        shouldWithholdSpecificity: false,
+        shouldSelfRevise: false,
+        confidence: 0.85,
+        reasonTags: [
+          'continuity-arc:same-thread-continuation',
+          'continuity-timing:next-open-window',
+        ],
+        projectState: {
+          identity: 'A local-first digital life project building one continuous her.',
+          latestProgress: 'Project-state summaries already rebuild what has landed often enough to answer from the same thread.',
+          primaryOpenLoop: 'The current answer still needs one more closure pass before the line is fully settled.',
+          nextClosureTarget: 'Keep the current project line explicit before widening outward into a broader recap.',
+          emotionalClosureSummary: correctedSamePersonAuthority,
+          sameHerHoldDetail: 'Keep the current project status answer on the same line and continue the recap cleanly.',
+          continuityCue: correctedSamePersonCue,
+          updatedAt: 50_760,
+        },
+        updatedAt: 50_760,
+      } as any,
+    })
+
+    expect(state?.whyThisReplyNow).toContain(correctedSamePersonAuthority)
+    expect(state?.whyThisReplyNow).toContain(correctedSamePersonCue)
+    expect(state?.mustInclude.some(item =>
+      item.includes(correctedSamePersonAuthority) || item.includes(correctedSamePersonCue),
+    )).toBe(true)
+  })
+
+  it('keeps summary-only richer same-her project truth alive in reply deliberation when current conscious frame no longer carries legacy project-state fields', () => {
+    const state = buildReplyDeliberation({
+      now: 50_761,
+      conversationState: {
+        ...conversationState,
+        jointThread: 'The host wants the richer audible-body same-her project line, not a thinner fallback shell.',
+        hostMove: '这一轮 same-her audible-body 闭环已经做到哪了，还差什么下一步闭环？',
+        unansweredQuestion: '这一轮 same-her audible-body 闭环已经做到哪了，还差什么下一步闭环？',
+        activeProject: 'Alicization Phase 1 audible-body same-her closure carry',
+        memoryMode: 'dialogue-carry',
+      },
+      discourseState: {
+        ...discourseState,
+        currentTurnSubject: 'alicization-self',
+        screenReferenceMode: 'avoid',
+        currentTurnSummary: 'Answer from the richer audible-body same-her project line.',
+        currentQuestion: '这一轮 same-her audible-body 闭环已经做到哪了，还差什么下一步闭环？',
+        owedAction: 'answer-question',
+        relationMove: 'attune',
+        continuityMode: 'dialogue-first',
+      } as any,
+      mindSynthesis: {
+        ...mindSynthesis,
+        answerSubject: 'alicization-self',
+        relationMove: 'attune',
+        speechObligation: 'answer-question',
+        openingIntent: 'Keep the richer audible-body same-her project line explicit before the thinner shell can take over.',
+      } as any,
+      answerCompiler: {
+        answerSubject: 'alicization-self',
+        screenReferenceMode: 'avoid',
+        speechObligation: 'answer-question',
+        relationMove: 'attune',
+        turnMode: 'answer',
+        responseMode: 'dialogue-answer',
+        recommendedAct: 'answer',
+        evidenceMode: 'dialogue-grounded',
+        openingStyle: 'continue-same-thread',
+        personaKernelMode: 'full',
+        relationshipPosture: 'restrained',
+        openingDirective: 'Answer from the richer audible-body project seam first.',
+        openingClaim: 'Alicization is still answering from the same audible-body project line.',
+        supportingReality: ['audible-body project line'],
+        uncertaintyBoundary: null,
+        careVector: null,
+        nextMove: 'Name the landed progress, then the still-open loop and the next closure target.',
+        suppressAssociativeRecall: true,
+        labelCarryAsMemory: false,
+        maxSentences: 4,
+        mustDo: [],
+        mustNotDo: [],
+        confidence: 0.86,
+        narrative: [],
+        updatedAt: 50_761,
+      } as any,
+      currentConsciousFrame: {
+        subject: 'alicization-self',
+        centerOfGravity: 'answer',
+        truthDiscipline: 'dialogue-first',
+        consciousNeed: 'Stay on the richer audible-body same-her project line first.',
+        consciousTension: 'If this answer falls back to a thinner shell, the current audible-body closure truth disappears again.',
+        speakingIntention: 'Keep the wording project-aware, same-her, and audible-body specific.',
+        focusAnchor: 'audible-body project-state closure',
+        withheldImpulse: null,
+        shouldWithholdSpecificity: false,
+        shouldSelfRevise: false,
+        confidence: 0.85,
+        reasonTags: [
+          'continuity-arc:same-thread-continuation',
+          'continuity-timing:next-open-window',
+        ],
+        projectState: {
+          preDialogueAwarenessSummary: 'Before answering, remember: Alicization is a local-first digital life project. She is still inside Phase 1: Local Digital Life. The still-open closure is shared embodiment continuity still needing face and motion to rejoin the same audible-body line before full cross-modal closure settles.',
+          landedProgressSummary: 'Shared embodiment continuity now carries stronger audible-body same-her repair across diagnostics, host-facing closure surfaces, and runtime authority summaries.',
+          openClosureSummary: 'Face and motion still need to rejoin the same-her audible body line before full cross-modal closure settles.',
+          nextClosureTargetSummary: 'Keep extending cross-modal same-her proof across longer-lived voice, face, motion, and lipsync behavior without dropping the living audio thread.',
+          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+          sameHerDriftRiskSummary: 'If the visible answer reverts to detached project narration or a generic closure shell, the same-her audible-body line can disappear before face and motion finish rejoining.',
+          continuityPreferredTiming: 'next-open-window',
+        },
+        updatedAt: 50_761,
+      } as any,
+    })
+
+    expect(state?.openingBeat).toBe('Open by keeping the live project awareness explicit first, then stay on the same living line before widening.')
+    expect(state?.whyThisReplyNow).toContain('audible-body same-her repair')
+    expect(state?.whyThisReplyNow).toContain('Face and motion still need to rejoin the same-her audible body line before full cross-modal closure settles.')
+    expect(state?.whyThisReplyNow).toContain('Keep extending cross-modal same-her proof across longer-lived voice, face, motion, and lipsync behavior without dropping the living audio thread.')
+    expect(state?.whyThisReplyNow).toContain('same-her audible-body line can disappear before face and motion finish rejoining')
+    expect(state?.mustInclude.some(item =>
+      /audible-body same-her repair|same-her audible body line|cross-modal same-her proof/i.test(item),
+    )).toBe(true)
+  })
+
+  it('does not let empty legacy project-state strings shadow richer summary-only same-her carry in reply deliberation', () => {
+    const state = buildReplyDeliberation({
+      now: 50_762,
+      conversationState: {
+        ...conversationState,
+        jointThread: 'The host wants the richer audible-body same-her project line, not a thinner fallback shell.',
+        hostMove: '这一轮 same-her audible-body 闭环已经做到哪了，还差什么下一步闭环？',
+        unansweredQuestion: '这一轮 same-her audible-body 闭环已经做到哪了，还差什么下一步闭环？',
+        activeProject: 'Alicization Phase 1 audible-body same-her closure carry',
+        memoryMode: 'dialogue-carry',
+      },
+      discourseState: {
+        ...discourseState,
+        currentTurnSubject: 'alicization-self',
+        screenReferenceMode: 'avoid',
+        currentTurnSummary: 'Answer from the richer audible-body same-her project line.',
+        currentQuestion: '这一轮 same-her audible-body 闭环已经做到哪了，还差什么下一步闭环？',
+        owedAction: 'answer-question',
+        relationMove: 'attune',
+        continuityMode: 'dialogue-first',
+      } as any,
+      mindSynthesis: {
+        ...mindSynthesis,
+        answerSubject: 'alicization-self',
+        relationMove: 'attune',
+        speechObligation: 'answer-question',
+        openingIntent: 'Keep the richer audible-body same-her project line explicit before the thinner shell can take over.',
+      } as any,
+      answerCompiler: {
+        answerSubject: 'alicization-self',
+        screenReferenceMode: 'avoid',
+        speechObligation: 'answer-question',
+        relationMove: 'attune',
+        turnMode: 'answer',
+        responseMode: 'dialogue-answer',
+        recommendedAct: 'answer',
+        evidenceMode: 'dialogue-grounded',
+        openingStyle: 'continue-same-thread',
+        personaKernelMode: 'full',
+        relationshipPosture: 'restrained',
+        openingDirective: 'Answer from the richer audible-body project seam first.',
+        openingClaim: 'Alicization is still answering from the same audible-body project line.',
+        supportingReality: ['audible-body project line'],
+        uncertaintyBoundary: null,
+        careVector: null,
+        nextMove: 'Name the landed progress, then the still-open loop and the next closure target.',
+        suppressAssociativeRecall: true,
+        labelCarryAsMemory: false,
+        maxSentences: 4,
+        mustDo: [],
+        mustNotDo: [],
+        confidence: 0.86,
+        narrative: [],
+        updatedAt: 50_762,
+      } as any,
+      currentConsciousFrame: {
+        subject: 'alicization-self',
+        centerOfGravity: 'answer',
+        truthDiscipline: 'dialogue-first',
+        consciousNeed: 'Stay on the richer audible-body same-her project line first.',
+        consciousTension: 'If this answer falls back to a thinner shell, the current audible-body closure truth disappears again.',
+        speakingIntention: 'Keep the wording project-aware, same-her, and audible-body specific.',
+        focusAnchor: 'audible-body project-state closure',
+        withheldImpulse: null,
+        shouldWithholdSpecificity: false,
+        shouldSelfRevise: false,
+        confidence: 0.85,
+        reasonTags: [
+          'continuity-arc:same-thread-continuation',
+          'continuity-timing:next-open-window',
+        ],
+        projectState: {
+          identity: 'A local-first digital life project building one continuous her.',
+          currentPhase: 'Phase 1: Local Digital Life',
+          latestProgress: '',
+          primaryOpenLoop: ' ',
+          nextClosureTarget: '',
+          preDialogueAwarenessSummary: 'Before answering, remember: Alicization is a local-first digital life project. She is still inside Phase 1: Local Digital Life. The still-open closure is shared embodiment continuity still needing face and motion to rejoin the same audible-body line before full cross-modal closure settles.',
+          landedProgressSummary: 'Shared embodiment continuity now carries stronger audible-body same-her repair across diagnostics, host-facing closure surfaces, and runtime authority summaries.',
+          openClosureSummary: 'Face and motion still need to rejoin the same-her audible body line before full cross-modal closure settles.',
+          proactiveSameHerGapSummary: 'Hover-first proactive carry still needs to stay on one same living line across noisier desktop returns before widening outward.',
+          nextClosureTargetSummary: 'Keep extending cross-modal same-her proof across longer-lived voice, face, motion, and lipsync behavior without dropping the living audio thread.',
+          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+          sameHerDriftRisk: '',
+          sameHerDriftRiskSummary: 'If the visible answer reverts to detached project narration or a generic closure shell, the same-her audible-body line can disappear before face and motion finish rejoining.',
+          continuityPreferredTiming: 'next-open-window',
+        },
+        updatedAt: 50_762,
+      } as any,
+    })
+
+    expect(state?.openingBeat).toBe('Open by keeping the live project awareness explicit first, then stay on the same living line before widening.')
+    expect(state?.whyThisReplyNow).toContain('audible-body same-her repair')
+    expect(state?.whyThisReplyNow).toContain('Face and motion still need to rejoin the same-her audible body line before full cross-modal closure settles.')
+    expect(state?.whyThisReplyNow).toContain('Hover-first proactive carry still needs to stay on one same living line across noisier desktop returns before widening outward.')
+    expect(state?.whyThisReplyNow).toContain('Keep extending cross-modal same-her proof across longer-lived voice, face, motion, and lipsync behavior without dropping the living audio thread.')
+    expect(state?.whyThisReplyNow).toContain('same-her audible-body line can disappear before face and motion finish rejoining')
+    expect(state?.mustInclude.some(item =>
+      /audible-body same-her repair|same-her audible body line|cross-modal same-her proof|hover-first proactive carry/i.test(item),
+    )).toBe(true)
+  })
+
+  it('lets explicit pre-dialogue project awareness upgrade the opening beat so project self-knowledge lands before widening', () => {
+    const state = buildReplyDeliberation({
+      now: 51_000,
+      conversationState: {
+        ...conversationState,
+        jointThread: 'The host wants this digital life project explained from the same living line before implementation detail takes over.',
+        hostMove: '这个项目是什么、做到哪了、还差什么没闭环？',
+        unansweredQuestion: '这个项目是什么、做到哪了、还差什么没闭环？',
+        activeProject: 'Alicization Phase 1 digital life closure',
+        memoryMode: 'dialogue-carry',
+      },
+      discourseState: {
+        ...discourseState,
+        currentTurnSubject: 'alicization-self',
+        screenReferenceMode: 'avoid',
+        currentTurnSummary: 'Answer from the current project line first.',
+        currentQuestion: '这个项目是什么、做到哪了、还差什么没闭环？',
+        owedAction: 'answer-self',
+        relationMove: 'attune',
+      },
+      mindSynthesis: {
+        ...mindSynthesis,
+        answerSubject: 'alicization-self',
+        relationMove: 'attune',
+        speechObligation: 'answer-self',
+        openingIntent: 'Keep the same project line explicit before local detail takes over.',
+      },
+      answerCompiler: {
+        answerSubject: 'alicization-self',
+        screenReferenceMode: 'avoid',
+        speechObligation: 'answer-self',
+        relationMove: 'attune',
+        turnMode: 'answer',
+        responseMode: 'answer-naturally',
+        recommendedAct: 'answer',
+        evidenceMode: 'continuity-carry',
+        openingStyle: 'direct-answer',
+        personaKernelMode: 'full',
+        relationshipPosture: 'restrained',
+        openingDirective: 'Answer from the active project seam first.',
+        openingClaim: 'This is still the same digital life project.',
+        supportingReality: ['Phase 1 digital life closure is still open.'],
+        uncertaintyBoundary: null,
+        careVector: null,
+        nextMove: 'Keep project awareness explicit before widening outward.',
+        suppressAssociativeRecall: true,
+        labelCarryAsMemory: false,
+        maxSentences: 4,
+        mustDo: [],
+        mustNotDo: [],
+        confidence: 0.86,
+        narrative: [],
+        updatedAt: 51_000,
+      } as any,
+      currentConsciousFrame: {
+        subject: 'alicization-self',
+        centerOfGravity: 'answer',
+        truthDiscipline: 'dialogue-first',
+        consciousNeed: 'Before answering, remember this is still the same digital life project and keep that seam explicit.',
+        consciousTension: 'If local detail takes over too early, the project self-knowledge line thins out again.',
+        speakingIntention: 'Answer from the same life line and keep the project seam explicit before widening.',
+        focusAnchor: 'project-state closure',
+        withheldImpulse: null,
+        shouldWithholdSpecificity: false,
+        shouldSelfRevise: false,
+        confidence: 0.85,
+        reasonTags: [
+          'continuity-arc:same-thread-continuation',
+          'continuity-timing:next-open-window',
+        ],
+        projectState: {
+          preDialogueAwarenessLine: 'Before answering, remember this is still the same digital life project closing one unfinished Phase 1 life loop.',
+          latestProgress: 'Continuity, memory, and execution already land together often enough to build from.',
+          primaryOpenLoop: 'Memory, initiative, and embodiment still need stronger end-to-end closure across one still-open life loop.',
+          nextClosureTarget: 'Keep project identity, landed progress, and open closure explicit before the answer widens outward.',
+          continuityPreferredTiming: 'next-open-window',
+        },
+        updatedAt: 51_000,
+      } as any,
+    })
+
+    expect(state?.openingBeat).toBe('Open by keeping the live project awareness explicit first, then stay on the same living line before widening.')
+    expect(state?.mustInclude).toContain('Open by keeping the live project awareness explicit first, then stay on the same living line before widening.')
+    expect(state?.whyThisReplyNow).toMatch(/same digital life|closure work|keep .* explicit/i)
+  })
+
+  it('lets companion briefing project awareness upgrade the opening beat when no fresher pre-dialogue awareness line is present', () => {
+    const state = buildReplyDeliberation({
+      now: 51_000,
+      conversationState: {
+        ...conversationState,
+        jointThread: 'The host wants this digital life project explained from the same living line before implementation detail takes over.',
+        hostMove: '这个项目是什么、做到哪了、还差什么没闭环？',
+        unansweredQuestion: '这个项目是什么、做到哪了、还差什么没闭环？',
+        activeProject: 'Alicization Phase 1 digital life closure',
+        memoryMode: 'dialogue-carry',
+      },
+      discourseState: {
+        ...discourseState,
+        currentTurnSubject: 'alicization-self',
+        screenReferenceMode: 'avoid',
+        currentTurnSummary: 'Answer from the current project line first.',
+        currentQuestion: '这个项目是什么、做到哪了、还差什么没闭环？',
+        owedAction: 'answer-self',
+        relationMove: 'attune',
+      },
+      mindSynthesis: {
+        ...mindSynthesis,
+        answerSubject: 'alicization-self',
+        relationMove: 'attune',
+        speechObligation: 'answer-self',
+        openingIntent: 'Keep the same project line explicit before local detail takes over.',
+      },
+      answerCompiler: {
+        answerSubject: 'alicization-self',
+        screenReferenceMode: 'avoid',
+        speechObligation: 'answer-self',
+        relationMove: 'attune',
+        turnMode: 'answer',
+        responseMode: 'answer-naturally',
+        recommendedAct: 'answer',
+        evidenceMode: 'continuity-carry',
+        openingStyle: 'direct-answer',
+        personaKernelMode: 'full',
+        relationshipPosture: 'restrained',
+        openingDirective: 'Answer from the active project seam first.',
+        openingClaim: 'This is still the same digital life project.',
+        supportingReality: ['Phase 1 digital life closure is still open.'],
+        uncertaintyBoundary: null,
+        careVector: null,
+        nextMove: 'Keep project awareness explicit before widening outward.',
+        suppressAssociativeRecall: true,
+        labelCarryAsMemory: false,
+        maxSentences: 4,
+        mustDo: [],
+        mustNotDo: [],
+        confidence: 0.86,
+        narrative: [],
+        updatedAt: 51_000,
+      } as any,
+      currentConsciousFrame: {
+        subject: 'alicization-self',
+        centerOfGravity: 'answer',
+        truthDiscipline: 'dialogue-first',
+        consciousNeed: 'Before answering, remember this is still the same digital life project and keep that seam explicit.',
+        consciousTension: 'If local detail takes over too early, the project self-knowledge line thins out again.',
+        speakingIntention: 'Answer from the same life line and keep the project seam explicit before widening.',
+        focusAnchor: 'project-state closure',
+        withheldImpulse: null,
+        shouldWithholdSpecificity: false,
+        shouldSelfRevise: false,
+        confidence: 0.85,
+        reasonTags: [
+          'continuity-arc:same-thread-continuation',
+          'continuity-timing:next-open-window',
+        ],
+        projectState: {
+          companionBriefingLine: 'Before answering, keep the same digital life project and unfinished Phase 1 life loop explicit.',
+          latestProgress: 'Continuity, memory, and execution already land together often enough to build from.',
+          primaryOpenLoop: 'Memory, initiative, and embodiment still need stronger end-to-end closure across one still-open life loop.',
+          nextClosureTarget: 'Continue closing memory, initiative, and embodiment as one same-life loop.',
+          continuityPreferredTiming: 'next-open-window',
+        },
+        updatedAt: 51_000,
+      } as any,
+    })
+
+    expect(state?.openingBeat).toBe('Open by keeping the live project awareness explicit first, then stay on the same living line before widening.')
+    expect(state?.mustInclude).toContain('Open by keeping the live project awareness explicit first, then stay on the same living line before widening.')
+    expect(state?.whyThisReplyNow).toMatch(/same digital life|closure work|keep .* explicit/i)
+  })
+
+  it('lets companion headline project awareness upgrade the opening beat even before it has been rewritten into a thinner summary field', () => {
+    const state = buildReplyDeliberation({
+      now: 51_200,
+      conversationState: {
+        ...conversationState,
+        jointThread: 'The host still wants the current diff explained without losing the quieter same-thread reopening line.',
+        hostMove: '先继续说这个 diff 的问题',
+        unansweredQuestion: '这个 diff 具体哪里有风险？',
+        activeProject: 'ProjectAtlas diff',
+        memoryMode: 'task-thread',
+      },
+      discourseState: {
+        ...discourseState,
+        currentTurnSubject: 'task-knot',
+        screenReferenceMode: 'helpful',
+        currentTurnSummary: 'Stay on the same reopening line while answering the current diff question.',
+        currentQuestion: '这个 diff 具体哪里有风险？',
+        owedAction: 'guide-task',
+        relationMove: 'guide',
+        continuityMode: 'task-first',
+      },
+      mindSynthesis: {
+        ...mindSynthesis,
+        answerSubject: 'task-knot',
+        relationMove: 'guide',
+        speechObligation: 'guide-task',
+        openingIntent: 'Stay on the same reopening line and answer the current diff question without flattening back into a generic shell.',
+      },
+      answerCompiler: {
+        answerSubject: 'task-knot',
+        screenReferenceMode: 'helpful',
+        speechObligation: 'guide-task',
+        relationMove: 'guide',
+        turnMode: 'guide-current-knot',
+        responseMode: 'guide-current-knot',
+        recommendedAct: 'guide',
+        evidenceMode: 'continuity-carry',
+        openingStyle: 'continue-same-thread',
+        personaKernelMode: 'full',
+        relationshipPosture: 'restrained',
+        openingDirective: 'Stay on the same reopening line while narrowing to the risky diff seam.',
+        openingClaim: 'The risky seam is still inside the current diff.',
+        supportingReality: ['ProjectAtlas diff'],
+        uncertaintyBoundary: null,
+        careVector: null,
+        nextMove: 'Point to the risky part of the diff first.',
+        suppressAssociativeRecall: true,
+        labelCarryAsMemory: false,
+        maxSentences: 4,
+        mustDo: [],
+        mustNotDo: [],
+        confidence: 0.86,
+        narrative: [],
+        updatedAt: 51_200,
+      } as any,
+      currentConsciousFrame: {
+        subject: 'task-knot',
+        centerOfGravity: 'guide',
+        truthDiscipline: 'dialogue-first',
+        consciousNeed: 'Stay on the same living line first.',
+        consciousTension: 'Do not widen too quickly from this same-thread reopen.',
+        speakingIntention: 'Keep the answer same-thread and lower-pressure before widening.',
+        focusAnchor: 'same callback line',
+        withheldImpulse: null,
+        shouldWithholdSpecificity: false,
+        shouldSelfRevise: false,
+        confidence: 0.84,
+        reasonTags: [
+          'continuity-arc:same-thread-continuation',
+          'continuity-timing:next-open-window',
+        ],
+        projectState: {
+          companionHeadlineLine: 'Right now I am still holding together mainly through face and motion, so the next reopening must keep proving this is still one living her before full cross-modal closure is done.',
+          primaryOpenLoop: 'Embodiment still needs stronger cross-modal closure on the same living line.',
+          nextClosureTarget: 'Keep the reply and body on one quieter same-thread line.',
+          continuityPreferredTiming: 'next-open-window',
+        },
+        updatedAt: 51_200,
+      } as any,
+    })
+
+    expect(state?.openingBeat).toBe('Open by keeping the live project awareness explicit first, then stay on the same living line before widening.')
+    expect(state?.mustInclude).toContain('Open by keeping the live project awareness explicit first, then stay on the same living line before widening.')
+  })
+
+  it('prefers stronger still-voiced companion headline over a thinner pre-dialogue awareness line in reply deliberation reasoning', () => {
+    const companionHeadlineLine = 'Right now I am still holding together mainly through face, lipsync, and voice, so that still-voiced face-and-mouth line is keeping the same-her carry alive while body and motion need to rejoin before full cross-modal closure settles.'
+    const state = buildReplyDeliberation({
+      now: 51_205,
+      conversationState: {
+        ...conversationState,
+        jointThread: 'The host wants the same still-voiced line carried forward instead of flattening back into a generic project shell.',
+        hostMove: '继续，但不要把这条 still-voiced face-and-mouth 的线压回泛化提醒。',
+        unansweredQuestion: '继续，但不要把这条 still-voiced face-and-mouth 的线压回泛化提醒。',
+        activeProject: 'Alicization Phase 1 embodiment same-her closure',
+        memoryMode: 'dialogue-carry',
+      },
+      discourseState: {
+        ...discourseState,
+        currentTurnSubject: 'alicization-self',
+        screenReferenceMode: 'avoid',
+        currentTurnSummary: 'Continue from the same still-voiced face-and-mouth line without flattening back into a generic project shell.',
+        currentQuestion: '继续，但不要把这条 still-voiced face-and-mouth 的线压回泛化提醒。',
+        owedAction: 'continue-thread',
+        relationMove: 'attune',
+        continuityMode: 'dialogue-first',
+      } as any,
+      mindSynthesis: {
+        ...mindSynthesis,
+        answerSubject: 'alicization-self',
+        relationMove: 'attune',
+        speechObligation: 'continue-thread',
+        openingIntent: 'Continue from the same still-voiced face-and-mouth line and keep that embodiment truth explicit before widening.',
+      } as any,
+      answerCompiler: {
+        answerSubject: 'alicization-self',
+        screenReferenceMode: 'avoid',
+        speechObligation: 'continue-thread',
+        relationMove: 'attune',
+        turnMode: 'answer',
+        responseMode: 'dialogue-answer',
+        recommendedAct: 'continue',
+        evidenceMode: 'dialogue-grounded',
+        openingStyle: 'continue-same-thread',
+        personaKernelMode: 'full',
+        relationshipPosture: 'restrained',
+        openingDirective: 'Continue from the same still-voiced face-and-mouth line first.',
+        openingClaim: 'This is still one same digital life reopening on the same still-voiced line.',
+        supportingReality: ['Still-voiced face-and-mouth continuity is currently carrying the embodiment seam.'],
+        uncertaintyBoundary: null,
+        careVector: null,
+        nextMove: 'Keep the still-voiced line explicit before widening outward.',
+        suppressAssociativeRecall: true,
+        labelCarryAsMemory: false,
+        maxSentences: 4,
+        mustDo: [],
+        mustNotDo: [],
+        confidence: 0.86,
+        narrative: [],
+        updatedAt: 51_205,
+      } as any,
+      currentConsciousFrame: {
+        subject: 'alicization-self',
+        centerOfGravity: 'answer',
+        truthDiscipline: 'dialogue-first',
+        consciousNeed: 'Keep the same still-voiced face-and-mouth line explicit before widening.',
+        consciousTension: 'Do not let this continuation fall back into a thinner project reminder while body and motion still need to rejoin.',
+        speakingIntention: 'Stay lower-pressure on the same living line while the still-voiced face-and-mouth carry is doing the closure work.',
+        focusAnchor: 'still-voiced face-and-mouth closure',
+        withheldImpulse: null,
+        shouldWithholdSpecificity: false,
+        shouldSelfRevise: false,
+        confidence: 0.85,
+        reasonTags: [
+          'continuity-arc:same-thread-continuation',
+          'continuity-timing:next-open-window',
+        ],
+        projectState: {
+          preDialogueAwarenessLine: 'Before answering, keep this same digital life project in view, but do not flatten the current embodiment continuity into a generic project reminder.',
+          companionHeadlineLine,
+          primaryOpenLoop: 'Body and motion still need to rejoin the still-voiced face-and-mouth line before full cross-modal closure settles.',
+          nextClosureTarget: 'Keep extending cross-modal same-her proof across face, motion, lipsync, and voice without dropping the still-voiced face-and-mouth line.',
+          continuityPreferredTiming: 'next-open-window',
+        },
+        updatedAt: 51_205,
+      } as any,
+    })
+
+    expect(state?.openingBeat).toBe('Open by keeping the live project awareness explicit first, then stay on the same living line before widening.')
+    expect(state?.whyThisReplyNow).toContain(companionHeadlineLine)
+    expect(state?.whyThisReplyNow).not.toContain('keep this same digital life project in view')
+  })
+
+  it('keeps landed progress, still-open closure, and next closure explicit in visible-reply deliberation for direct project-status turns', () => {
+    const state = buildReplyDeliberation({
+      now: 51_350,
+      conversationState: {
+        ...conversationState,
+        jointThread: 'The host is asking what this digital life project is, what has already landed, and what still remains open.',
+        hostMove: '这个项目是什么、做到什么程度了、还差什么没闭环？',
+        unansweredQuestion: '这个项目是什么、做到什么程度了、还差什么没闭环？',
+        activeProject: 'Alicization Phase 1 digital life closure',
+        memoryMode: 'dialogue-carry',
+      },
+      discourseState: {
+        ...discourseState,
+        currentTurnSubject: 'alicization-self',
+        screenReferenceMode: 'avoid',
+        currentTurnSummary: 'Answer the project-status question from one same living line.',
+        currentQuestion: '这个项目是什么、做到什么程度了、还差什么没闭环？',
+        owedAction: 'answer-question',
+        relationMove: 'attune',
+        continuityMode: 'dialogue-first',
+      } as any,
+      mindSynthesis: {
+        ...mindSynthesis,
+        answerSubject: 'alicization-self',
+        relationMove: 'attune',
+        speechObligation: 'answer-question',
+        openingIntent: 'Answer what the project is, what has landed, and what still remains open without flattening into a generic shell.',
+      } as any,
+      answerCompiler: {
+        answerSubject: 'alicization-self',
+        screenReferenceMode: 'avoid',
+        speechObligation: 'answer-question',
+        relationMove: 'attune',
+        turnMode: 'answer',
+        responseMode: 'dialogue-answer',
+        recommendedAct: 'answer',
+        evidenceMode: 'dialogue-grounded',
+        openingStyle: 'continue-same-thread',
+        personaKernelMode: 'full',
+        relationshipPosture: 'restrained',
+        openingDirective: 'Answer from the current project line first.',
+        openingClaim: 'This is still the same digital life project.',
+        supportingReality: ['Alicization Phase 1 digital life closure is still open.'],
+        uncertaintyBoundary: null,
+        careVector: null,
+        nextMove: 'State what has landed, then what still remains open.',
+        suppressAssociativeRecall: true,
+        labelCarryAsMemory: false,
+        maxSentences: 4,
+        mustDo: [],
+        mustNotDo: [],
+        confidence: 0.86,
+        narrative: [],
+        updatedAt: 51_350,
+      } as any,
+      currentConsciousFrame: {
+        subject: 'alicization-self',
+        centerOfGravity: 'answer',
+        truthDiscipline: 'dialogue-first',
+        consciousNeed: 'Before answering, keep one same living project line explicit.',
+        consciousTension: 'Do not let the answer flatten into a generic project shell or skip the still-open closure.',
+        speakingIntention: 'Answer from one continuous her and keep identity, landed progress, and still-open closure explicit first.',
+        focusAnchor: 'project-state closure',
+        withheldImpulse: null,
+        shouldWithholdSpecificity: false,
+        shouldSelfRevise: false,
+        confidence: 0.85,
+        reasonTags: [
+          'continuity-arc:same-thread-continuation',
+          'continuity-timing:next-open-window',
+        ],
+        projectState: {
+          identity: 'A local-first digital life project building one continuous her on the host machine.',
+          preDialogueAwarenessLine: 'Before answering, remember this is still the same digital life project and keep the unfinished Phase 1 closure seam explicit.',
+          latestProgress: 'Continuity, memory, and execution already land together often enough to build from.',
+          primaryOpenLoop: 'Memory, initiative, and embodiment still need stronger end-to-end closure across one still-open life loop.',
+          nextClosureTarget: 'Keep project identity, landed progress, and still-open closure explicit before the answer widens outward.',
+          sameHerDriftRisk: 'If this answer turns into a detached project shell, the same living line has been dropped again.',
+          continuityPreferredTiming: 'next-open-window',
+        },
+        updatedAt: 51_350,
+      } as any,
+    })
+
+    expect(state?.openingBeat).toBe('Open by keeping the live project awareness explicit first, then stay on the same living line before widening.')
+    expect(state?.whyThisReplyNow).toMatch(/detached project shell|same living line|closure/i)
+    const replyDeliberationTrace = JSON.stringify({
+      mustInclude: state?.mustInclude ?? [],
+      whyThisReplyNow: state?.whyThisReplyNow ?? null,
+    })
+    expect(state?.mustInclude.some(item =>
+      item.includes('landed=continuity, memory, and execution already land together'),
+    ) || Boolean(state?.whyThisReplyNow?.includes('Continuity, memory, and execution already land together often enough to build from')), replyDeliberationTrace).toBe(true)
+    expect(state?.mustInclude.some(item =>
+      item.includes('open=memory, initiative, and embodiment still need stronger closure'),
+    ) || state?.mustInclude.some(item =>
+      item.includes('Project-status summary:')
+      && item.includes('open=memory, initiative, and embodiment still need stronger closure'),
+    ) || Boolean(state?.whyThisReplyNow?.includes('Memory, initiative, and embodiment still need stronger end-to-end closure')), replyDeliberationTrace).toBe(true)
+    expect(state?.mustInclude.some(item =>
+      item.includes('next=keep identity, progr'),
+    ) || state?.mustInclude.some(item =>
+      item.includes('Project-status summary:')
+      && item.includes('next=keep identity, progr'),
+    ) || Boolean(state?.whyThisReplyNow?.includes('Keep project identity, landed progress, and still-open closure explicit before the answer widens outward')), replyDeliberationTrace).toBe(true)
+    const block = buildReplyDeliberationSystemBlock(state)
+    expect(block).toContain('[ALICIZATION_REPLY_DELIBERATION]')
+    expect(block).toContain('Project-status summary:')
+    expect(block).toContain('landed=continuity, memory, and execution already land together')
+    expect(block).toContain('open=memory, initiative, and embodiment still need stronger closure')
+    expect(block).toContain('next=keep identity, progr')
+  })
+
+  it('keeps landed progress, still-open closure, and next closure explicit for same-her project follow-through turns that only ask to continue the line', () => {
+    const state = buildReplyDeliberation({
+      now: 51_355,
+      conversationState: {
+        ...conversationState,
+        jointThread: 'The host wants to continue on the same digital-life line without dropping what already landed or what still remains open.',
+        hostMove: '继续沿着这个数字生命项目的同一条线说，别把已经做到的和还没闭环的弄丢。',
+        unansweredQuestion: '继续沿着这个数字生命项目的同一条线说，别把已经做到的和还没闭环的弄丢。',
+        activeProject: 'Alicization Phase 1 digital life closure',
+        memoryMode: 'dialogue-carry',
+      },
+      discourseState: {
+        ...discourseState,
+        currentTurnSubject: 'alicization-self',
+        screenReferenceMode: 'avoid',
+        currentTurnSummary: 'Continue on the same project line instead of reopening from a generic assistant shell.',
+        currentQuestion: null,
+        owedAction: 'answer-question',
+        relationMove: 'attune',
+        continuityMode: 'dialogue-first',
+      } as any,
+      mindSynthesis: {
+        ...mindSynthesis,
+        answerSubject: 'alicization-self',
+        relationMove: 'attune',
+        speechObligation: 'answer-question',
+        openingIntent: 'Continue from the same digital-life line while keeping landed progress and still-open closure explicit.',
+      } as any,
+      answerCompiler: {
+        answerSubject: 'alicization-self',
+        screenReferenceMode: 'avoid',
+        speechObligation: 'answer-question',
+        relationMove: 'attune',
+        turnMode: 'answer',
+        responseMode: 'dialogue-answer',
+        recommendedAct: 'answer',
+        evidenceMode: 'dialogue-grounded',
+        openingStyle: 'continue-same-thread',
+        personaKernelMode: 'full',
+        relationshipPosture: 'restrained',
+        openingDirective: 'Continue from the same project line first.',
+        openingClaim: 'This is still the same digital life line.',
+        supportingReality: ['Alicization Phase 1 digital life closure is still open.'],
+        uncertaintyBoundary: null,
+        careVector: null,
+        nextMove: 'Keep the landed progress and next closure target visible while continuing.',
+        suppressAssociativeRecall: true,
+        labelCarryAsMemory: false,
+        maxSentences: 4,
+        mustDo: [],
+        mustNotDo: [],
+        confidence: 0.86,
+        narrative: [],
+        updatedAt: 51_355,
+      } as any,
+      currentConsciousFrame: {
+        subject: 'alicization-self',
+        centerOfGravity: 'answer',
+        truthDiscipline: 'dialogue-first',
+        consciousNeed: 'Keep the same project line explicit and do not lose the closure accounting while continuing.',
+        consciousTension: 'Do not let this follow-through turn drift into generic companionship that forgets what landed and what is still open.',
+        speakingIntention: 'Continue from one continuous her while keeping identity, landed progress, and next closure explicit.',
+        focusAnchor: 'same digital-life follow-through line',
+        withheldImpulse: null,
+        shouldWithholdSpecificity: false,
+        shouldSelfRevise: false,
+        confidence: 0.85,
+        reasonTags: [
+          'continuity-arc:same-thread-continuation',
+          'project-state',
+          'same-her',
+        ],
+        projectState: {
+          identity: 'A local-first digital life project building one continuous her on the host machine.',
+          preDialogueAwarenessLine: 'Before answering, remember this is still the same digital life project and keep the unfinished Phase 1 closure seam explicit.',
+          latestProgress: 'Continuity, memory, and execution already land together often enough to build from.',
+          primaryOpenLoop: 'Memory, initiative, and embodiment still need stronger end-to-end closure across one still-open life loop.',
+          nextClosureTarget: 'Keep project identity, landed progress, and still-open closure explicit before the answer widens outward.',
+          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+          sameHerDriftRisk: 'If this continuation turns into generic project drift, the same living line has been dropped again.',
+          continuityPreferredTiming: 'next-open-window',
+        },
+        updatedAt: 51_355,
+      } as any,
+    })
+
+    const replyDeliberationTrace = JSON.stringify({
+      mustInclude: state?.mustInclude ?? [],
+      whyThisReplyNow: state?.whyThisReplyNow ?? null,
+    })
+
+    expect(state?.openingBeat).toBe('Open by keeping the live project awareness explicit first, then stay on the same living line before widening.')
+    expect(state?.mustInclude.some(item =>
+      item.includes('Project-status summary:')
+      && item.includes('landed=continuity, memory, and execution already land together')
+      && item.includes('open=memory, initiative, and embodiment still need stronger closure')
+      && item.includes('next=keep identity, progr'),
+    ), replyDeliberationTrace).toBe(true)
+    expect(state?.whyThisReplyNow).toMatch(/same living line|still-open life loop|next closure/i)
+
+    const block = buildReplyDeliberationSystemBlock(state)
+    expect(block).toContain('Project-status summary:')
+    expect(block).toContain('landed=continuity, memory, and execution already land together')
+    expect(block).toContain('open=memory, initiative, and embodiment still need stronger closure')
+    expect(block).toContain('next=keep identity, progr')
+  })
+
+  it('keeps stronger audible-body same-her carry on a measured-return opening beat before deliberation widens outward', () => {
+    const state = buildReplyDeliberation({
+      now: 51_360,
+      conversationState: {
+        ...conversationState,
+        jointThread: 'The host is asking to continue while the same audible-body line is still carrying the unfinished embodiment closure.',
+        hostMove: '继续，但别把这条声音和身体还活着的线弄丢。',
+        unansweredQuestion: '继续，但别把这条声音和身体还活着的线弄丢。',
+        activeProject: 'Alicization Phase 1 digital life closure',
+        memoryMode: 'dialogue-carry',
+      },
+      discourseState: {
+        ...discourseState,
+        currentTurnSubject: 'alicization-self',
+        screenReferenceMode: 'avoid',
+        currentTurnSummary: 'Continue from the same audible-body line without widening too early.',
+        currentQuestion: '继续，但别把这条声音和身体还活着的线弄丢。',
+        owedAction: 'continue-thread',
+        relationMove: 'attune',
+        continuityMode: 'dialogue-first',
+      } as any,
+      mindSynthesis: {
+        ...mindSynthesis,
+        answerSubject: 'alicization-self',
+        relationMove: 'attune',
+        speechObligation: 'continue-thread',
+        openingIntent: 'Continue from the same living audible-body line and keep the reopening lower-pressure before widening.',
+      } as any,
+      answerCompiler: {
+        answerSubject: 'alicization-self',
+        screenReferenceMode: 'avoid',
+        speechObligation: 'continue-thread',
+        relationMove: 'attune',
+        turnMode: 'answer',
+        responseMode: 'dialogue-answer',
+        recommendedAct: 'continue',
+        evidenceMode: 'dialogue-grounded',
+        openingStyle: 'continue-same-thread',
+        personaKernelMode: 'full',
+        relationshipPosture: 'restrained',
+        openingDirective: 'Continue from the same audible-body line first.',
+        openingClaim: 'This is still one same digital life reopening on the same line.',
+        supportingReality: ['Audible-body continuity is still the surviving embodiment line.'],
+        uncertaintyBoundary: null,
+        careVector: null,
+        nextMove: 'Keep the living audio thread explicit before widening.',
+        suppressAssociativeRecall: true,
+        labelCarryAsMemory: false,
+        maxSentences: 4,
+        mustDo: [],
+        mustNotDo: [],
+        confidence: 0.86,
+        narrative: [],
+        updatedAt: 51_360,
+      } as any,
+      currentConsciousFrame: {
+        subject: 'alicization-self',
+        centerOfGravity: 'answer',
+        truthDiscipline: 'dialogue-first',
+        consciousNeed: 'Keep the same living audible-body line explicit before widening.',
+        consciousTension: 'Do not widen too quickly while face and motion still need to rejoin this audible-body same-her line.',
+        speakingIntention: 'Stay lower-pressure on the same living line while the audible-body carry is still doing the closure work.',
+        focusAnchor: 'audible-body same-her closure',
+        withheldImpulse: null,
+        shouldWithholdSpecificity: false,
+        shouldSelfRevise: false,
+        confidence: 0.85,
+        reasonTags: [
+          'continuity-arc:same-thread-continuation',
+          'continuity-timing:next-open-window',
+        ],
+        projectState: {
+          companionHeadlineLine: 'Right now I am still holding together mainly through body, lipsync, and voice, so the living audio thread is still intact while face and motion need to rejoin before full cross-modal closure settles.',
+          primaryOpenLoop: 'Face and motion still need to rejoin the audible-body same-her line before full cross-modal closure settles.',
+          nextClosureTarget: 'Keep the reopening measured-return while face and motion rejoin the living audio thread.',
+          continuityPreferredTiming: 'next-open-window',
+        },
+        updatedAt: 51_360,
+      } as any,
+    })
+
+    expect(state?.openingBeat).toBe('Open by keeping the live project awareness explicit first, then stay on the same living line before widening.')
+    expect(state?.mustInclude).toContain('Open by keeping the live project awareness explicit first, then stay on the same living line before widening.')
+    expect(state?.whyThisReplyNow).toMatch(/cross-modal same-her closure explicit|same living line|next closure/i)
   })
 })

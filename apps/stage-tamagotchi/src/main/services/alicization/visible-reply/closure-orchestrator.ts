@@ -9,6 +9,16 @@ import {
   shouldForceAlicizationVisibleReplyRepair,
 } from './critic'
 
+function readVisibleReplyExcerpt(fullText: string) {
+  try {
+    const parsed = JSON.parse(fullText) as { reply?: unknown }
+    if (typeof parsed.reply === 'string' && parsed.reply.trim())
+      return parsed.reply.trim().slice(0, 500)
+  }
+  catch {}
+  return fullText.trim().slice(0, 500)
+}
+
 export interface AlicizationVisibleReplyClosureDraft {
   fullText: string
   visibleReplyExecution: AlicizationVisibleReplyExecution
@@ -20,7 +30,11 @@ export interface AlicizationVisibleReplyClosureResult extends AlicizationVisible
 }
 
 export class AlicizationVisibleReplyClosureBlockedError extends Error {
-  constructor(message: string, readonly closure: AlicizationVisibleReplyClosureArtifact) {
+  constructor(
+    message: string,
+    readonly closure: AlicizationVisibleReplyClosureArtifact,
+    readonly debug?: Record<string, unknown>,
+  ) {
     super(message)
     this.name = 'AlicizationVisibleReplyClosureBlockedError'
   }
@@ -59,6 +73,7 @@ export async function closeAlicizationVisibleReply(input: {
   forceRewrite?: boolean
   forceReasonCodes?: string[]
   forceMustPreserve?: string[]
+  appendRuntimeDebugLine?: (event: string, payload: Record<string, unknown>) => Promise<void> | void
   rewriteSecondPass: (input: {
     fullText: string
     visibleReplyExecution: AlicizationVisibleReplyExecution
@@ -132,9 +147,21 @@ export async function closeAlicizationVisibleReply(input: {
       rewriteAttempted: true,
       rewriteSucceeded: true,
     })
+    await input.appendRuntimeDebugLine?.('chat-stream.visible-reply-second-pass-still-fails-critic', {
+      initialReasonCodes: initialCritic.reasonCodes,
+      finalReasonCodes: finalCritic.reasonCodes,
+      finalRepairReasonCodes: finalCritic.repairReasonCodes,
+      rewrittenReplyExcerpt: readVisibleReplyExcerpt(rewritten.fullText),
+      mustPreserve: finalCritic.mustPreserve,
+      mustDrop: finalCritic.mustDrop,
+    })
+    const debug = {
+      rewrittenReplyExcerpt: readVisibleReplyExcerpt(rewritten.fullText),
+    }
     throw new AlicizationVisibleReplyClosureBlockedError(
       `visible-reply-second-pass-still-fails-critic:${finalCritic.reasonCodes.join(',') || 'unknown'}`,
       closure,
+      debug,
     )
   }
 

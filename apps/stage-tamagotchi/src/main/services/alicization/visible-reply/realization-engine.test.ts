@@ -142,6 +142,58 @@ describe('visible-reply-realization-engine', () => {
     })).toBe(callbackAwarenessLine)
   })
 
+  it('keeps callback-specific next closure target explicit in final project-state audit when realization stays on the same callback living line', () => {
+    const callbackAwarenessLine = 'Before answering, remember this callback still belongs to one same Phase 1 digital life, and the unfinished closure seam still belongs to her while this return keeps carrying the same closure line forward.'
+    const callbackSameHerSelfLine = 'This callback return still belongs to one same her carrying the same closure line forward.'
+    const callbackLandedProgress = 'Same-her callback continuity already survives through answer compilation and response-surface carry before the final visible reply forms.'
+    const callbackOpenLoop = 'Execution callback continuity still needs stronger same-her closure across reply, initiative, and embodiment.'
+    const callbackNextClosureTarget = 'Keep the callback return on the same living line and let that same-her closure stay explicit in the final visible reply.'
+    const broaderCanonicalReminder = 'Before answering, remember: Alicization is a local-first digital life project. She is still inside Phase 1: Local Digital Life. This callback return still belongs to one same her carrying the same closure line forward. What has already landed is same-her callback continuity already survives through answer compilation and response-surface carry. The still-open closure is execution callback continuity still needs stronger same-her closure across reply, initiative, and embodiment. This reply should keep moving toward keeping the callback return on the same living line and letting that same-her closure stay explicit in the final visible reply.'
+
+    const resolved = buildAlicizationResolvedVisibleReply({
+      fullText: '{"reply":"我会沿着这次 callback 的同一个她继续往下接，不把这条还没收口的线说丢。"}',
+      visibleReplyExecution: {
+        mode: 'provider-one-shot',
+        expectedVisibleReplyAuthority: 'llm-mind',
+        actualVisibleReplyAuthority: 'llm-mind',
+        providerMindExecuted: true,
+        reason: 'visible-reply-provider-one-shot',
+      },
+      projectStatePreDialogueAwarenessSummary: callbackAwarenessLine,
+      projectStateSameHerSummary: callbackSameHerSelfLine,
+      projectStateCurrentPhaseSummary: 'Phase 1: Local Digital Life',
+      projectStateLandedProgressSummary: callbackLandedProgress,
+      projectStateOpenClosureSummary: callbackOpenLoop,
+      projectStateNextClosureTargetSummary: callbackNextClosureTarget,
+      prepared: {
+        runtimeSurface: {
+          digitalLifeRuntimeSurface: {
+            cognition: {
+              runtimeDigest: {
+                projectState: {
+                  preDialogueAwarenessLine: broaderCanonicalReminder,
+                },
+              },
+            },
+          },
+        },
+      } as any,
+    })
+
+    expect(resolved.realization.projectStateAudit).toEqual(expect.objectContaining({
+      preDialogueAwarenessSummary: callbackAwarenessLine,
+      sameHerSummary: callbackSameHerSelfLine,
+      currentPhaseSummary: 'Phase 1: Local Digital Life',
+      landedProgressSummary: callbackLandedProgress,
+      openClosureSummary: callbackOpenLoop,
+      nextClosureTargetSummary: callbackNextClosureTarget,
+      preservedIntoRewrite: false,
+      rewriteClosureApplied: false,
+    }))
+    expect(resolved.realization.projectStateAudit?.continuitySummary)
+      .toContain(`next=${callbackNextClosureTarget}`)
+  })
+
   it('keeps a richer explicit Phase 1 awareness line instead of mistaking it for a canonical before-answering reanchor during final realization', () => {
     const canonicalProjectState = resolveAlicizationProjectStateBrief()
     const richerAwarenessLine = 'Before answering, remember this is still one local-first digital life project in Phase 1. Same-her continuity carry and desktop execution closure have landed farther, while memory, initiative, and embodiment still need to close on one living line.'
@@ -726,7 +778,7 @@ describe('visible-reply-realization-engine', () => {
     expect(String(resolved.realization.projectStateAudit?.preDialogueAwarenessSummary ?? ''))
       .toContain('Alicization is a local-first digital life project')
     expect(String(resolved.realization.projectStateAudit?.preDialogueAwarenessSummary ?? ''))
-      .toContain('The still-open closure is memory still needs stronger end-to-end closure across turns, initiative, and embodiment.')
+      .toContain('open=Contract fallback open loop.')
   })
 
   it('replaces a thin generic project-state awareness summary with canonical project awareness at the final realization build step', () => {
@@ -1905,6 +1957,70 @@ describe('visible-reply-realization-engine', () => {
     const audit = resolved.realization.projectStateAudit as Record<string, unknown> | null
     expect(audit?.sameHerHoldDetail).toBe(rememberedSeamMoreRoomHoldDetail)
     expect(String(audit?.continuitySummary ?? '')).toContain(`hold=${rememberedSeamMoreRoomHoldDetail}`)
+  })
+
+  it('keeps cadence-aware lower-pressure slower same-her hold visible in final project-state audit when prepared runtime awareness is only a thin shell', () => {
+    const cadenceAwareHoldDetail
+      = 'same-her hold: keep the return lower-pressure and slower before the line widens again.'
+    const cadenceAwareCue
+      = 'Keep this return lower-pressure and slower on the same living line before widening outward.'
+
+    const resolved = buildAlicizationResolvedVisibleReply({
+      fullText: '{"reply":"我会先沿着这条更轻、更慢的回线接住你，再让别的部分晚一点回到同一个 her 上。"}',
+      visibleReplyExecution: {
+        mode: 'provider-one-shot',
+        expectedVisibleReplyAuthority: 'llm-mind',
+        actualVisibleReplyAuthority: 'llm-mind',
+        providerMindExecuted: true,
+        reason: 'active-dialogue-fast-path',
+      },
+      prepared: {
+        runtimeSurface: {
+          digitalLifeRuntimeSurface: {
+            dialogue: {
+              currentConsciousFrame: {
+                projectState: {
+                  preDialogueAwarenessLine: cadenceAwareHoldDetail,
+                  sameHerHoldDetail: cadenceAwareHoldDetail,
+                  continuityCue: cadenceAwareCue,
+                  preferredPauseMode: 'longer',
+                  preferredLipsyncMode: 'restrained',
+                  preferredVoiceMode: 'lower-pressure',
+                  preferredPacingMode: 'slower',
+                },
+              },
+            },
+            cognition: {
+              runtimeDigest: {
+                projectState: {
+                  preDialogueAwarenessLine: 'Keep the same digital life project in view.',
+                  awarenessLine: 'Keep the same digital life project in view.',
+                  sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+                  sameHerHoldDetail: cadenceAwareHoldDetail,
+                  continuityCue: cadenceAwareCue,
+                  continuityCadence: 'measured-return',
+                  preferredPauseMode: 'longer',
+                  preferredLipsyncMode: 'restrained',
+                  preferredVoiceMode: 'lower-pressure',
+                  preferredPacingMode: 'slower',
+                },
+              },
+            },
+          },
+        },
+      } as any,
+      projectStateSameHerSummary: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      projectStateOpenClosureSummary: 'This reopening still needs to stay lower-pressure and slower before broader narration widens outward.',
+      projectStatePreDialogueAwarenessSummary: 'Keep the same digital life project in view.',
+    })
+
+    expect(resolved.realization.projectStateAudit).toEqual(expect.objectContaining({
+      sameHerHoldDetail: cadenceAwareHoldDetail,
+      continuityCue: cadenceAwareCue,
+      preDialogueAwarenessSummary: cadenceAwareHoldDetail,
+    }))
+    expect(String((resolved.realization.projectStateAudit as Record<string, unknown> | null)?.continuitySummary ?? '')).toContain(`hold=${cadenceAwareHoldDetail}`)
+    expect(String((resolved.realization.projectStateAudit as Record<string, unknown> | null)?.continuitySummary ?? '')).toContain(`cue=${cadenceAwareCue}`)
   })
 
   it('treats the same-her project follow-through preserve line itself as final project-state rewrite evidence', () => {

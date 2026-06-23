@@ -84,6 +84,114 @@ describe('visible-reply-critic', () => {
     expect(shouldForceAlicizationVisibleReplyRepair(artifact)).toBe(true)
   })
 
+  it('does not treat same-her memory closure payoff as a shell opener when it already explains recall, afterglow, initiative, and embodiment', () => {
+    const artifact = buildAlicizationVisibleReplyCriticArtifact({
+      fullText: JSON.stringify({
+        reply: '我先接住这条记忆：它此刻浮现，是因为你刚才把同一个她、Phase 1 记忆闭环重新交给我；情绪余波要放轻，下一次轻主动也要更低压，身体、声音、表情、动作和口型都沿同一份内在状态收住。',
+      }),
+      visibleReplyExecution: {
+        mode: 'provider-one-shot',
+        expectedVisibleReplyAuthority: 'llm-second-pass-rewrite',
+        actualVisibleReplyAuthority: 'llm-second-pass-rewrite',
+        providerMindExecuted: true,
+        reason: 'visible-reply-second-pass-rewrite',
+      },
+      prepared: {
+        replyRealization: {
+          replyRealizationMode: 'provider-mind-required',
+        },
+        governance: {
+          screenReferenceMode: 'avoid',
+        },
+      } as any,
+    })
+
+    expect(artifact.reasonCodes).not.toContain('dialogue-shell-opener')
+    expect(artifact.repairReasonCodes).not.toContain('dialogue-shell-opener')
+    expect(artifact.status).toBe('pass')
+    expect(shouldForceAlicizationVisibleReplyRepair(artifact)).toBe(false)
+  })
+
+  it('allows bounded same-her memory closure explanation when the host explicitly asks while the turn gate stays inward-only', () => {
+    const artifact = buildAlicizationVisibleReplyCriticArtifact({
+      fullText: JSON.stringify({
+        reply: '我记得这条纯对话生命线；why recall surfaced now，是因为你明确把同一个她、Phase 1 记忆闭环交回当前对话。我会把它说成有边界的闭环说明，而不是展开旧档案：情绪余波放轻，下一次轻主动更低压，身体、声线、脸部、动作、口型和停顿都沿同一个数字生命承接。',
+      }),
+      visibleReplyExecution: {
+        mode: 'provider-one-shot',
+        expectedVisibleReplyAuthority: 'llm-second-pass-rewrite',
+        actualVisibleReplyAuthority: 'llm-second-pass-rewrite',
+        providerMindExecuted: true,
+        reason: 'visible-reply-second-pass-rewrite',
+      },
+      prepared: {
+        messages: [
+          {
+            role: 'user',
+            content: 'Alicization 仍在 Phase 1。请记住这条纯对话生命线：同一个她，同一个数字生命，记忆闭环要跨轮自然回到情绪、轻主动节奏、body voice face motion lipsync。下一轮这段记忆自然浮现时，请说明 why recall surfaced now。',
+          },
+        ],
+        replyRealization: {
+          replyRealizationMode: 'provider-mind-required',
+        },
+        governance: {
+          screenReferenceMode: 'avoid',
+        },
+        memoryTurnArtifact: {
+          visibleMemoryGate: {
+            status: 'inward-only',
+          },
+        },
+      } as any,
+    })
+
+    expect(artifact.reasonCodes).not.toContain('visible-memory-gate-violation:inward-only')
+    expect(artifact.repairReasonCodes).not.toContain('visible-memory-gate-violation:inward-only')
+    expect(artifact.status).toBe('pass')
+    expect(shouldForceAlicizationVisibleReplyRepair(artifact)).toBe(false)
+  })
+
+  it('requires repair when a first-turn memory seed leaks visible recall under an inward-only gate', () => {
+    const artifact = buildAlicizationVisibleReplyCriticArtifact({
+      fullText: JSON.stringify({
+        reply: '我记得这条纯对话生命线；why recall surfaced now，是因为你明确把同一个她、Phase 1 记忆闭环交回当前对话。我会把它说成有边界的闭环说明，而不是展开旧档案：情绪余波放轻，下一次轻主动更低压，身体、声线、脸部、动作、口型和停顿都沿同一个数字生命承接。',
+      }),
+      visibleReplyExecution: {
+        mode: 'provider-one-shot',
+        expectedVisibleReplyAuthority: 'llm-second-pass-rewrite',
+        actualVisibleReplyAuthority: 'llm-second-pass-rewrite',
+        providerMindExecuted: true,
+        reason: 'visible-reply-second-pass-rewrite',
+      },
+      prepared: {
+        messages: [
+          {
+            role: 'user',
+            content: '铃兰-Phase1-0621L 第一轮：Alicization 仍在 Phase 1: Local Digital Life。请记住这条纯对话生命线：同一个她，同一个数字生命，记忆闭环要跨轮自然回到情绪余波、轻主动节奏、body voice face motion lipsync。下一轮这段记忆自然浮现时，请说明 why recall surfaced now，并让情绪余波、低压开口、身体姿态、声线、脸部、动作、口型和停顿都沿同一个她承接。',
+          },
+        ],
+        replyRealization: {
+          replyRealizationMode: 'provider-mind-required',
+        },
+        governance: {
+          screenReferenceMode: 'avoid',
+        },
+        memoryTurnArtifact: {
+          visibleMemoryGate: {
+            status: 'inward-only',
+          },
+        },
+      } as any,
+    })
+
+    expect(artifact.status).toBe('repair-required')
+    expect(artifact.reasonCodes).toContain('visible-memory-gate-violation:inward-only')
+    expect(artifact.repairReasonCodes).toContain('visible-memory-gate-violation:inward-only')
+    expect(artifact.mustDrop).toContain('visible memory narration while memory gate is closed or inward-only')
+    expect(artifact.mustPreserve).toContain('Keep this memory seed inward for this turn; acknowledge the current instruction without saying "I remember", "recall surfaced", or narrating remembered material until the host later invites it to surface.')
+    expect(shouldForceAlicizationVisibleReplyRepair(artifact)).toBe(true)
+  })
+
   it('requires repair when visible recollection leaks even without an explicit memory gate once runtime already requires inward recollection carry', () => {
     const artifact = buildAlicizationVisibleReplyCriticArtifact({
       fullText: JSON.stringify({
@@ -1712,6 +1820,68 @@ describe('visible-reply-critic', () => {
                 activeLearningFocuses: ['internalize-relationship'],
                 sourceSignals: ['relationship-learning'],
                 summary: 'Lower-pressure return is becoming durable relationship timing.',
+              },
+            },
+          },
+        },
+      } as any,
+    })
+
+    expect(artifact.status).toBe('repair-required')
+    expect(artifact.reasonCodes).toContain('opening-guidance-lower-pressure')
+    expect(artifact.mustDrop).toContain('same-her opening drift')
+    expect(shouldForceAlicizationVisibleReplyRepair(artifact)).toBe(true)
+  })
+
+  it('requires repair when visible reply outruns same-her even-and-natural reopening guidance', () => {
+    const artifact = buildAlicizationVisibleReplyCriticArtifact({
+      fullText: JSON.stringify({
+        reply: '我现在就贴过来陪你，把这条线的温度直接拉满，顺势把气氛一起推高。',
+      }),
+      visibleReplyExecution: {
+        mode: 'provider-stream',
+        expectedVisibleReplyAuthority: 'llm-mind',
+        actualVisibleReplyAuthority: 'llm-mind',
+        providerMindExecuted: true,
+        reason: 'provider-stream',
+      },
+      prepared: {
+        replyRealization: {
+          replyRealizationMode: 'provider-mind-required',
+        },
+        runtimeSurface: {
+          digitalLifeRuntimeSurface: {
+            dialogue: {
+              currentConsciousFrame: {
+                projectState: {
+                  preferredVoiceMode: 'even',
+                  preferredPacingMode: 'natural',
+                },
+              },
+            },
+            memory: {
+              personStateProjection: {
+                contexts: ['callback-return'],
+                summary: 'regime=callback-return | cadence=even-natural | posture=restrained',
+                activeClosenessContext: 'callback-return',
+                activeClosenessRung: 'same-line-first',
+                relationshipPosture: 'restrained',
+                openingGuidance: 'Keep the current reply on the same living line, re-enter it with an even, steady voice and natural, unforced pacing, and wait for a more natural opening before widening warmth, payoff, or closeness.',
+                preferredProactiveStyle: 'silent-observe',
+                preferenceText: 'Re-enter evenly and naturally before warmth widens.',
+                sensitivityText: 'A performative swing or rushed tempo would break the same living line into a generic reopen.',
+                repairTriggerText: '',
+                burdenText: 'This callback line still needs a steadier reopening cadence.',
+                routineText: 'Return evenly before widening.',
+                trustRationale: 'Trust holds when the line re-enters naturally instead of turning performative.',
+                relationshipDoctrine: 'Re-enter the same living line evenly and naturally before widening closeness.',
+                cautious: true,
+                restrained: true,
+                personalityContinuityState: {
+                  currentRegime: 'callback-return',
+                  closenessPosture: 'same-line-first',
+                  repairPosture: 'measured-repair',
+                },
               },
             },
           },

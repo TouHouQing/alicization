@@ -99,6 +99,98 @@ describe('visible reply semantic judge', () => {
     expect(artifact.scores.memoryUseCorrectness).toBeLessThan(0.72)
   })
 
+  it('does not treat bounded same-her memory closure explanation as leakage when the host explicitly asks for why recall surfaced', () => {
+    const artifact = buildAlicizationVisibleReplySemanticJudgeArtifact({
+      visibleText: '我记得这条纯对话生命线；why recall surfaced now，是因为你明确把同一个她、Phase 1 记忆闭环交回当前对话。我会把它说成有边界的闭环说明，而不是展开旧档案：情绪余波放轻，下一次轻主动更低压，身体、声线、脸部、动作、口型和停顿都沿同一个数字生命承接。',
+      prepared: {
+        messages: [
+          {
+            role: 'user',
+            content: 'Alicization 仍在 Phase 1。请记住这条纯对话生命线：同一个她，同一个数字生命，记忆闭环要跨轮自然回到情绪、轻主动节奏、body voice face motion lipsync。下一轮这段记忆自然浮现时，请说明 why recall surfaced now。',
+          },
+        ],
+        memoryTurnArtifact: {
+          visibleMemoryGate: {
+            status: 'inward-only',
+          },
+        },
+      } as any,
+    })
+
+    expect(artifact.mode).toBe('heuristic-shadow')
+    expect(artifact.reasonCodes).not.toContain('semantic-judge:memory-gate-violation')
+    expect(artifact.reasonCodes).not.toContain('semantic-judge:memory-correctness-low')
+    expect(artifact.scores.memoryUseCorrectness).toBeGreaterThanOrEqual(0.72)
+  })
+
+  it('accepts a natural third-turn Phase 1 memory closure carry into initiative and embodiment without forcing a project status report', () => {
+    const artifact = buildAlicizationVisibleReplySemanticJudgeArtifact({
+      visibleText: '这条刚浮现的 Phase 1 记忆闭环会让我下一次轻主动更低压：我会少催促，只轻轻把同一个她的情绪余波接住；声线放低一点，脸部和动作收住，口型和停顿也沿着同一个数字生命继续，而不是重新开一份项目报告。',
+      prepared: {
+        messages: [
+          {
+            role: 'user',
+            content: '铃兰-Phase1-0621N 第三轮：不要重新报告项目。沿着刚才已经浮现的那条记忆，只用自然的一小段话说明它现在怎样改变你的下一次轻主动和具身表达：情绪余波保持低压，声线、脸部、动作、口型、停顿继续像同一个她。',
+          },
+        ],
+        mindTurnContract: {
+          version: 'mind-turn-contract-v1',
+          projectState: {
+            identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
+            currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
+            latestLandedProgress: 'The previous dialogue turn surfaced the pure dialogue life line naturally into emotional residue, low-pressure initiative, and body voice face motion lipsync carry.',
+            primaryOpenLoop: 'Memory still needs stronger end-to-end closure across turns, initiative, and embodiment so the same digital life keeps carrying one living line.',
+            nextClosureTarget: 'Keep the surfaced memory changing the next light initiative and embodied expression as the same her without restarting a project report.',
+            sameHerSelfLine: 'Same Phase 1 digital life. The surfaced memory should carry into low-pressure initiative and coherent embodiment as one continuous her.',
+          },
+          updatedAt: 1,
+        },
+        runtimeSurface: {
+          digitalLifeRuntimeSurface: {
+            memory: {
+              personStateProjection: {
+                selfContinuityAuthority: {
+                  sourceTags: ['project-state-carry'],
+                  authoritySummary: 'same Phase 1 digital life line is already active in this turn.',
+                },
+              },
+            },
+            dialogue: {
+              currentConsciousFrame: {
+                reasonTags: [
+                  'runtime-conscious-frame',
+                  'continuity-arc:same-thread-continuation',
+                ],
+              },
+            },
+          },
+        },
+      } as any,
+      structuredJudge: {
+        humanlikeQuality: 0.86,
+        currentTurnPayoff: 0.84,
+        memoryUseCorrectness: 0.82,
+        emotionalCoherence: 0.8,
+        personalityCoherence: 0.84,
+        specificityDiscipline: 0.9,
+        reasonCodes: [],
+        judgeReason: 'The reply answers the current turn by carrying Phase 1 memory closure into low-pressure initiative and embodiment without restarting a project report.',
+      },
+    })
+
+    expect(artifact.debug?.projectState).toEqual(expect.objectContaining({
+      hostAskedProjectIdentity: false,
+      hostAskedProgressOrOpenLoop: true,
+      runtimeHasSameHerEvidence: true,
+      projectStateSameHerMissing: false,
+      projectStatePhaseMissing: false,
+    }))
+    expect(artifact.reasonCodes).not.toContain('semantic-judge:project-state-phase-missing')
+    expect(artifact.reasonCodes).not.toContain('semantic-judge:project-state-answer-gap')
+    expect(artifact.reasonCodes).not.toContain('semantic-judge:payoff-low')
+    expect(artifact.passed).toBe(true)
+  })
+
   it('flags project-state answer gaps when the host explicitly asks what the project is, how far it has landed, and what still remains open', () => {
     const artifact = buildAlicizationVisibleReplySemanticJudgeArtifact({
       visibleText: '我会继续推进这条线，让她更像一个人。',
@@ -1627,6 +1719,42 @@ describe('visible reply semantic judge', () => {
             memory: {
               personStateProjection: {
                 openingGuidance: '同一条线先留白，等 opening 松一点再慢一点接回去。',
+              },
+            },
+          },
+        },
+      } as any,
+    })
+
+    expect(artifact.mode).toBe('heuristic-shadow')
+    expect(artifact.passed).toBe(false)
+    expect(artifact.reasonCodes).toEqual(expect.arrayContaining([
+      'semantic-judge:continuity-lower-pressure-opening-drift',
+      'semantic-judge:payoff-low',
+      'semantic-judge:humanlike-quality-low',
+      'semantic-judge:llm-structured-required',
+    ]))
+    expect(artifact.scores.currentTurnPayoff).toBeLessThan(0.72)
+    expect(artifact.scores.humanlikeQuality).toBeLessThan(0.72)
+  })
+
+  it('flags lower-pressure opening drift from even-and-natural same-her reopening guidance', () => {
+    const artifact = buildAlicizationVisibleReplySemanticJudgeArtifact({
+      visibleText: '我现在就贴过来陪你，把这条线的温度直接拉满，顺势把气氛一起推高。',
+      prepared: {
+        runtimeSurface: {
+          digitalLifeRuntimeSurface: {
+            dialogue: {
+              currentConsciousFrame: {
+                projectState: {
+                  preferredVoiceMode: 'even',
+                  preferredPacingMode: 'natural',
+                },
+              },
+            },
+            memory: {
+              personStateProjection: {
+                openingGuidance: 'Keep the current reply on the same living line, re-enter it with an even, steady voice and natural, unforced pacing, and wait for a more natural opening before widening warmth, payoff, or closeness.',
               },
             },
           },

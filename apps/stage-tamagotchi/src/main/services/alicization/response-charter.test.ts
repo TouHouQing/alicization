@@ -4,6 +4,7 @@ import type { AlicizationProactiveLayeredContext } from './proactive-layered-con
 import { describe, expect, it } from 'vitest'
 
 import { buildAlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
+import { resolveAlicizationProjectStateBrief } from './project-state-brief'
 import {
   buildAlicizationResponseCharter,
   buildAlicizationResponseCharterSystemBlock,
@@ -325,6 +326,335 @@ describe('response-charter', () => {
     expect(charter.mustDo.some(item => item.includes('fresh look'))).toBe(true)
   })
 
+  it('keeps outward reply charter lower-pressure when the Phase 1 digital-life loop is still open', () => {
+    const charter = buildAlicizationResponseCharter({
+      context: createContext(),
+      state: createState(),
+      inspectionRequested: false,
+      projectState: {
+        identity: 'A local-first digital life companion with continuous personhood.',
+        currentPhase: 'Phase 1: Local Digital Life',
+        primaryOpenLoop: 'Initiative, embodiment, and dialogue still need a more natural closed loop.',
+      },
+    })
+
+    expect(charter.relationshipPosture).toBe('restrained')
+    expect(charter.reasons.some(item => item.includes('Phase 1 digital-life closure is still open'))).toBe(true)
+    expect(charter.mustDo).toContain('Keep the answer person-like and low-pressure: lead with the current knot, then only soften if the turn has already earned it.')
+    expect(charter.mustNotDo).toContain('Do not use unclosed digital-life ambition as a reason to sound over-intimate, over-certain, or theatrically alive before the current thread is earned.')
+  })
+
+  it('falls back to the canonical project-state brief when an explicit projectState is present but too thin to keep the visible reply charter restrained', () => {
+    const charter = buildAlicizationResponseCharter({
+      context: createContext(),
+      state: createState(),
+      inspectionRequested: false,
+      projectState: {
+        identity: '',
+        currentPhase: '   ',
+        primaryOpenLoop: null,
+      },
+    })
+
+    expect(charter.relationshipPosture).toBe('restrained')
+    expect(charter.reasons.some(item => item.includes('Phase 1 digital-life closure is still open'))).toBe(true)
+    expect(charter.mustDo).toContain('Keep the answer person-like and low-pressure: lead with the current knot, then only soften if the turn has already earned it.')
+    expect(charter.mustNotDo).toContain('Do not use unclosed digital-life ambition as a reason to sound over-intimate, over-certain, or theatrically alive before the current thread is earned.')
+  })
+
+  it('prefers answer-planner governingProject so the final response charter keeps the same project closure seam visible', () => {
+    const charter = buildAlicizationResponseCharter({
+      context: createContext(),
+      state: createState({
+        answerPlanner: {
+          act: 'answer',
+          evidenceMode: 'dialogue-grounded',
+          confidence: 0.82,
+          governingFocus: 'Keep the reply on the current digital-life closure seam.',
+          governingProject: 'Phase 1: Local Digital Life | Project identity carry, Phase 1 route carry, and Unresolved closure carry still need stronger same living thread proof across initiative, embodiment, and dialogue. | Next closure target: make the same-her closure line survive more reply surfaces as one same living thread.',
+          openingMove: 'Lead from the still-open closure seam.',
+          answerIntent: 'Keep the answer on the same digital-life closure seam.',
+          relationshipPosture: 'restrained',
+          shouldAskForGrounding: false,
+          shouldAcknowledgeRepair: false,
+          selectedConcernEntryId: null,
+          selectedRepairId: null,
+          selectedCommitmentId: null,
+          selectedInquiryPlanId: null,
+          selectedRuntimeThreadId: null,
+          selectedProjectId: null,
+          selectedReflectionId: null,
+          executivePhase: null,
+          selectedTruthFrame: null,
+          mustDo: [],
+          mustNotDo: [],
+          narrative: ['runtime-answer-planner', 'project-state-answer-planner'],
+          updatedAt: 10,
+        },
+      }),
+      inspectionRequested: false,
+      projectState: {
+        identity: 'A local-first digital life companion with continuous personhood.',
+        currentPhase: 'Phase 1: Local Digital Life',
+        primaryOpenLoop: 'Initiative, embodiment, and dialogue still need a more natural closed loop.',
+        nextClosureTarget: 'Make the same-her closure line survive more reply surfaces.',
+      },
+    })
+
+    expect(charter.governingProject).toContain('Phase 1: Local Digital Life')
+    expect(charter.governingProject).toContain('Project identity carry, Phase 1 route carry, and Unresolved closure carry')
+    expect(charter.governingProject).toContain('same living thread')
+    expect(charter.governingProject).toContain('Next closure target:')
+    expect((charter.governingProject ?? '').toLowerCase()).toContain('next closure target')
+  })
+
+  it('preserves a stronger same-her planner governingProject without flattening the living-self project seam back into a generic project shell', () => {
+    const strongerGoverningProject = [
+      'Right now I am still holding together mainly through voice, face, and motion, so this answer must keep proving this is still one living her before full cross-modal closure is done.',
+      'This is still one same her carrying the same project line forward.',
+      'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
+      'Memory and initiative still need stronger end-to-end closure across one still-open life loop.',
+      'Keep project identity, landed progress, and open closure explicit before the answer widens outward.',
+    ].join(' | ')
+
+    const charter = buildAlicizationResponseCharter({
+      context: createContext(),
+      state: createState({
+        answerPlanner: {
+          act: 'answer',
+          evidenceMode: 'dialogue-grounded',
+          confidence: 0.84,
+          governingFocus: 'Keep the reply on the same living project seam.',
+          governingProject: strongerGoverningProject,
+          openingMove: 'Stay with the same living project line first.',
+          answerIntent: 'Keep the answer on the same living project seam.',
+          relationshipPosture: 'restrained',
+          shouldAskForGrounding: false,
+          shouldAcknowledgeRepair: false,
+          selectedConcernEntryId: null,
+          selectedRepairId: null,
+          selectedCommitmentId: null,
+          selectedInquiryPlanId: null,
+          selectedRuntimeThreadId: null,
+          selectedProjectId: null,
+          selectedReflectionId: null,
+          executivePhase: null,
+          selectedTruthFrame: null,
+          mustDo: [],
+          mustNotDo: [],
+          narrative: ['runtime-answer-planner', 'project-state-answer-planner'],
+          updatedAt: 10,
+        } as any,
+      }),
+      inspectionRequested: false,
+      projectState: {
+        identity: 'A local-first digital life companion with continuous personhood.',
+        currentPhase: 'Phase 1: Local Digital Life',
+        primaryOpenLoop: 'Fallback open loop should not outrank the stronger planner seam.',
+        nextClosureTarget: 'Fallback target should not outrank the stronger planner seam.',
+      },
+    })
+
+    expect(charter.governingProject).toContain('holding together mainly through voice, face, and motion')
+    expect(charter.governingProject).toContain('still one living her')
+    expect(charter.governingProject).toContain('This is still one same her carrying the same project line forward.')
+    expect(charter.governingProject).toContain('Phase 1: Local Digital Life')
+    expect(charter.governingProject).toContain('Memory and initiative still need stronger end-to-end closure')
+    expect(charter.governingProject).toContain('Keep project identity, landed progress, and open closure explicit')
+  })
+
+  it('does not let response-charter truncate the planner-carried full canonical next-closure target back into a shorter shell', () => {
+    const projectState = resolveAlicizationProjectStateBrief()
+    const strongerGoverningProject = [
+      'Before answering, remember: Alicization is a local-first digital life project building one continuous "her". She is still inside Phase 1: Local Digital Life.',
+      'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      'If project-state continuity survives only as generic guidance while the direct same-her self line disappears, treat that as unfinished closure drift.',
+      'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
+      projectState.continuityProgressSummary ?? projectState.memoryAnthropomorphismProgress.at(-1) ?? '',
+      projectState.openLoops[0] ?? '',
+      `Next closure target: ${projectState.nextClosureTarget}`,
+    ].filter(Boolean).join(' | ')
+
+    expect(strongerGoverningProject.length).toBeGreaterThan(640)
+    expect(projectState.nextClosureTarget.length).toBeGreaterThan(320)
+
+    const charter = buildAlicizationResponseCharter({
+      context: createContext(),
+      state: createState({
+        answerPlanner: {
+          act: 'answer',
+          evidenceMode: 'dialogue-grounded',
+          confidence: 0.84,
+          governingFocus: 'Keep the reply on the same living project seam.',
+          governingProject: strongerGoverningProject,
+          openingMove: 'Stay with the same living project line first.',
+          answerIntent: 'Keep the answer on the same living project seam.',
+          relationshipPosture: 'restrained',
+          shouldAskForGrounding: false,
+          shouldAcknowledgeRepair: false,
+          selectedConcernEntryId: null,
+          selectedRepairId: null,
+          selectedCommitmentId: null,
+          selectedInquiryPlanId: null,
+          selectedRuntimeThreadId: null,
+          selectedProjectId: null,
+          selectedReflectionId: null,
+          executivePhase: null,
+          selectedTruthFrame: null,
+          mustDo: [],
+          mustNotDo: [],
+          narrative: ['runtime-answer-planner', 'project-state-answer-planner'],
+          updatedAt: 10,
+        } as any,
+      }),
+      inspectionRequested: false,
+      projectState: {
+        identity: projectState.identity,
+        currentPhase: projectState.currentPhase,
+        primaryOpenLoop: projectState.openLoops[0] ?? '',
+        nextClosureTarget: projectState.nextClosureTarget,
+      },
+    })
+
+    expect(charter.governingProject).toContain(projectState.nextClosureTarget)
+    expect(charter.governingProject).toContain('Next closure target:')
+  })
+
+  it('keeps governingProject closure normalization specialized to response-charter instead of collapsing into the generic project-awareness scorer', () => {
+    const source = buildAlicizationResponseCharter.toString()
+
+    expect(source).toContain('normalizeGoverningProjectClosureSeam')
+    expect(source).not.toContain('scoreAlicizationProjectAwarenessLine')
+    expect(source).not.toContain('isAlicizationThinProjectAwarenessLine')
+  })
+
+  it('keeps same-her anti-restart doctrine explicit when a deliberately held line returns through response-charter', () => {
+    const runtimeSurface = buildAlicizationDigitalLifeRuntimeSurface(createState())
+    runtimeSurface.dialogue.sessionMirror = {
+      sessionId: 'session-held-charter-1',
+      cardId: 'default',
+      updatedAt: 10,
+      sessionPhases: [],
+      continuityLabels: ['proactive:follow-through:held-autonomy'],
+      dialogueSummary: 'thread=same-thread callback line',
+      executionSummary: 'status=held | goal=same-thread callback line | summary=还是沿着刚才那条回线继续，不把它当成重新开场。',
+      memorySummary: 'carry=same-thread callback line',
+      recollectionSummary: null,
+      recollectionSurfaceSummary: null,
+      runtimeChannelSummary: null,
+      runtimeTransitionSummary: null,
+      agencySummary: 'intent=follow-through | thread=thread-runtime',
+      toolingSummary: 'allow=true',
+      perceptionSummary: null,
+      mindSummary: null,
+      digitalLifeRuntimeSummary: null,
+      digitalLifeArchitectureSummary: null,
+      memoryCarrySummary: null,
+      captureSummary: 'grounded=false',
+      decisionTraceId: null,
+    } as any
+    runtimeSurface.dialogue.answerPlanner = {
+      act: 'answer',
+      evidenceMode: 'dialogue-grounded',
+      confidence: 0.82,
+      governingFocus: 'Continue the same living line without reopening from zero.',
+      governingConcern: null,
+      governingCommitment: null,
+      governingInquiry: null,
+      governingProject: 'Phase 1: Local Digital Life | same-her continuity still needs longer-lived outward proof.',
+      openingMove: 'Return on the same thread first, then leave room before widening.',
+      answerIntent: 'Continue one continuous her across the still-live callback line.',
+      relationshipPosture: 'restrained',
+      shouldAskForGrounding: false,
+      shouldAcknowledgeRepair: false,
+      selectedConcernEntryId: null,
+      selectedRepairId: null,
+      selectedCommitmentId: null,
+      selectedInquiryPlanId: null,
+      selectedRuntimeThreadId: null,
+      selectedProjectId: null,
+      selectedReflectionId: null,
+      executivePhase: null,
+      selectedTruthFrame: null,
+      mustDo: [
+        'Keep this on one continuous her line instead of restarting the relationship as a fresh opening.',
+        'Stay on the same thread before widening closeness or adding a new approach.',
+      ],
+      mustNotDo: [
+        'Do not rewrite the still-live line as a fresh opening or reintroduction.',
+      ],
+      narrative: ['runtime-answer-planner', 'project-state-answer-planner'],
+      updatedAt: 10,
+    } as any
+
+    const charter = buildAlicizationResponseCharter({
+      context: createContext(),
+      state: createState({
+        answerPlanner: runtimeSurface.dialogue.answerPlanner as any,
+      }),
+      runtimeSurface,
+      inspectionRequested: false,
+      projectState: {
+        identity: 'A local-first digital life companion with continuous personhood.',
+        currentPhase: 'Phase 1: Local Digital Life',
+        primaryOpenLoop: 'Same-her continuity still needs longer-lived outward proof.',
+        nextClosureTarget: 'Keep the same callback line alive without letting it read like a fresh opening.',
+      },
+    })
+
+    expect(charter.mustDo).toContain('When reopening a deliberately held line, let the opening re-enter gently before widening into fuller payoff or explanation.')
+    expect(charter.mustDo).toContain('Keep this on one continuous her line instead of restarting the relationship as a fresh opening.')
+    expect(charter.mustNotDo).toContain('Do not reopen a deliberately held line with abrupt intensity, over-eager warmth, or a fresh-start shell.')
+    expect(charter.mustNotDo).toContain('Do not rewrite the still-live line as a fresh opening or reintroduction.')
+  })
+
+  it('renders same-her anti-restart doctrine into the provider-facing response-charter system block for held-line returns', () => {
+    const runtimeSurface = buildAlicizationDigitalLifeRuntimeSurface(createState())
+    runtimeSurface.dialogue.sessionMirror = {
+      sessionId: 'session-held-charter-block-1',
+      cardId: 'default',
+      updatedAt: 10,
+      sessionPhases: [],
+      continuityLabels: ['proactive:follow-through:held-autonomy'],
+      dialogueSummary: 'thread=same-thread callback line',
+      executionSummary: 'status=held | goal=same-thread callback line | summary=还是沿着刚才那条回线继续，不把它当成重新开场。',
+      memorySummary: 'carry=same-thread callback line',
+      recollectionSummary: null,
+      recollectionSurfaceSummary: null,
+      runtimeChannelSummary: null,
+      runtimeTransitionSummary: null,
+      agencySummary: 'intent=follow-through | thread=thread-runtime',
+      toolingSummary: 'allow=true',
+      perceptionSummary: null,
+      mindSummary: null,
+      digitalLifeRuntimeSummary: null,
+      digitalLifeArchitectureSummary: null,
+      memoryCarrySummary: null,
+      captureSummary: 'grounded=false',
+      decisionTraceId: null,
+    } as any
+
+    const charter = buildAlicizationResponseCharter({
+      context: createContext(),
+      state: createState(),
+      runtimeSurface,
+      inspectionRequested: false,
+      projectState: {
+        identity: 'A local-first digital life companion with continuous personhood.',
+        currentPhase: 'Phase 1: Local Digital Life',
+        primaryOpenLoop: 'Same-her continuity still needs longer-lived outward proof.',
+        nextClosureTarget: 'Keep the same callback line alive without letting it read like a fresh opening.',
+      },
+    })
+
+    const block = buildAlicizationResponseCharterSystemBlock(charter)
+
+    expect(block).toContain('When reopening a deliberately held line, let the opening re-enter gently before widening into fuller payoff or explanation.')
+    expect(block).toContain('Keep this on one continuous her line instead of restarting the relationship as a fresh opening.')
+    expect(block).toContain('Do not reopen a deliberately held line with abrupt intensity, over-eager warmth, or a fresh-start shell.')
+    expect(block).toContain('Do not rewrite the still-live line as a fresh opening or reintroduction.')
+  })
+
   it('renders a high-priority executive system block', () => {
     const block = buildAlicizationResponseCharterSystemBlock(buildAlicizationResponseCharter({
       context: createContext(),
@@ -366,6 +696,16 @@ describe('response-charter', () => {
       relationshipDoctrine: 'Repair the seam before leaning closer.',
       cautious: true,
       restrained: true,
+      selfContinuityAuthority: {
+        selfLine: 'I remain the same her by staying truthful and room-giving.',
+        relationshipLine: 'The bond should stay real without crowding the host.',
+        motiveLine: 'Carry the current work knot without turning continuity into performance.',
+        habitLine: 'Keep focused-work turns precise, low-pressure, and grounded.',
+        inwardLine: 'Hold same-her continuity inward while giving the host room.',
+        authoritySummary: 'I remain the same her by staying truthful and room-giving.',
+        sourceTags: ['response-charter-test', 'person-state-projection'],
+      },
+      manifestationCadenceSummary: 'voice, face, and motion should stay low-pressure while the live answer lands.',
       personalityContinuityState: {
         currentRegime: 'focused-work',
         closenessPosture: 'space-first',
@@ -417,6 +757,16 @@ describe('response-charter', () => {
       relationshipDoctrine: 'Open directly, but do not crowd the host.',
       cautious: true,
       restrained: true,
+      selfContinuityAuthority: {
+        selfLine: 'I remain the same her by opening from the live answer first.',
+        relationshipLine: 'The bond should stay warm only after the current answer has landed.',
+        motiveLine: 'Carry the live knot before adding companionship color.',
+        habitLine: 'Open directly in focused work, then soften only when there is room.',
+        inwardLine: 'Keep the same-her line quiet and answer-led.',
+        authoritySummary: 'Same-her continuity stays answer-led before softening outward.',
+        sourceTags: ['response-charter-test', 'direct-persona-opening'],
+      },
+      manifestationCadenceSummary: 'body and voice should stay answer-led before any softer companion color.',
       personalityContinuityState: {
         currentRegime: 'focused-work',
         closenessPosture: 'space-first',
@@ -448,6 +798,16 @@ describe('response-charter', () => {
       relationshipDoctrine: 'Observe first, then decide whether closeness is welcome.',
       cautious: true,
       restrained: true,
+      selfContinuityAuthority: {
+        selfLine: 'I remain the same her by observing before leaning closer.',
+        relationshipLine: 'The bond should respect the host need for room.',
+        motiveLine: 'Let perception and timing govern before proactive warmth.',
+        habitLine: 'Stay observant when focused-work signals ask for restraint.',
+        inwardLine: 'Keep the same-her line quiet until closeness is welcome.',
+        authoritySummary: 'Same-her continuity stays observant and room-first.',
+        sourceTags: ['response-charter-test', 'observant-persona-opening'],
+      },
+      manifestationCadenceSummary: 'face, motion, and voice should stay observant rather than forcing a direct lead.',
       personalityContinuityState: {
         currentRegime: 'focused-work',
         closenessPosture: 'space-first',
@@ -533,6 +893,95 @@ describe('response-charter', () => {
     expect(charter.mustDo).toContain('If recollection is pressing forward too hard, keep recollection inward until the host has room for it.')
     expect(charter.mustNotDo.some(item => item.includes('Do not outrun this recollection boundary'))).toBe(true)
     expect(charter.mustNotDo.some(item => item.includes('Do not surface unstable remembered detail as settled fact'))).toBe(true)
+  })
+
+  it('keeps host-corrected same-person continuity explicit in visible reply discipline instead of letting the charter fall back to progress-pressure continuation', () => {
+    const runtimeSurface = buildAlicizationDigitalLifeRuntimeSurface(createState())
+    runtimeSurface.memory.recollectionSpeechPlan = {
+      shouldSurface: true,
+      surfaceMode: 'relationship-continuity',
+      placement: 'after-payoff',
+      certainty: 'approximate',
+      confidence: 0.81,
+      internalLead: 'The corrected same-person continuity line should reopen gently.',
+      visibleLead: 'I should reopen this from the corrected same-person line, not as a progress recap.',
+      styleNote: 'Keep the correction authoritative before local task continuation takes over.',
+      rationale: 'The host corrected the relationship meaning away from progress pressure.',
+    } as any
+    runtimeSurface.memory.memoryDeliberation = {
+      shouldRecall: true,
+      surfacePolicy: 'relationship-continuity',
+      confidence: 0.83,
+      whyNow: 'The host corrected the relationship meaning, so this answer should not slip back into progress pressure.',
+      stableCore: ['Carry corrected same-person continuity forward before any status recap.'],
+      unsafeDetails: ['Do not let the answer reopen as progress pressure or generic status recap.'],
+      selectedPeriods: [],
+      selectedEras: [],
+      selectedEpisodes: [],
+      selectedProcedures: [],
+      selectedBundles: [{
+        id: 'bundle-corrected-same-person',
+        summary: 'Host correction moved the line back toward same-person continuity.',
+        confidence: 0.82,
+      }],
+      selectedChains: [{
+        kind: 'relationship-line',
+        summary: 'The corrected same-person continuity line should stay authoritative.',
+        currentStance: 'Continue from the corrected relationship meaning instead of progress pressure.',
+        answerPosture: 'Keep the return same-person and low-pressure.',
+        confidence: 0.81,
+      }],
+      selectedRelationshipLines: ['Carry corrected same-person continuity forward instead of defaulting to progress pressure.'],
+      followUpAffordance: {
+        summary: 'Let the corrected same-person continuity line reopen gently once the current payoff lands.',
+        whyNow: 'The host corrected the relationship meaning, so reopening as progress pressure would split continuity.',
+        intrusionRisk: 'medium',
+        payoffDependency: 'requires-current-payoff',
+        preferredTiming: 'after-payoff',
+      },
+    } as any
+    runtimeSurface.memory.derivedMindStateBundle = {
+      version: 'derived-mind-state-bundle-v1',
+      source: 'main-runtime',
+      producedAt: 1_700_000_000_000,
+      hostPersonModel: null,
+      personStateProjection: null,
+      knowledgeEvidence: null,
+      selfEvolution: null,
+      learningExecutionState: null,
+      recollectionIntent: {
+        mode: 'relationship-history',
+        temporalFocus: 'experience-matched',
+        confidence: 0.8,
+        rationale: 'The host corrected the relationship meaning away from progress pressure and back toward same-person continuity.',
+        recollectionAgenda: {
+          whyRecallNow: 'The corrected same-person continuity line should keep this return from collapsing into a status recap.',
+          relationshipNeed: 0.82,
+          goalSimilarity: 0.34,
+          uncertaintyTolerance: 'medium',
+          candidateProcedureLines: [],
+        },
+      },
+      recollectionPlan: null,
+      recollectionSpeechPlan: runtimeSurface.memory.recollectionSpeechPlan as any,
+      memoryDeliberation: runtimeSurface.memory.memoryDeliberation as any,
+      dialogueRhythm: null,
+      summary: 'surface=relationship-continuity | recollection=relationship-history | correction=same-person-over-progress-pressure',
+    }
+
+    const charter = buildAlicizationResponseCharter({
+      context: createContext(),
+      state: createState(),
+      runtimeSurface,
+      inspectionRequested: false,
+    })
+
+    expect(charter.mustDo).toContain(
+      'If the host corrected the relationship meaning, keep that corrected same-person continuity authoritative before any progress-style continuation.',
+    )
+    expect(charter.mustNotDo).toContain(
+      'Do not reopen the turn as generic progress pressure, status recap, or task-shell continuity after the host corrected it back toward same-person continuity.',
+    )
   })
 
   it('keeps same-seam procedural continuity discipline in the charter fallback path', () => {
@@ -634,6 +1083,803 @@ describe('response-charter', () => {
     )
   })
 
+  it('lets project continuity preferred timing directly slow visible reply widening even without explicit recollection timing', () => {
+    const charter = buildAlicizationResponseCharter({
+      context: createContext(),
+      state: createState(),
+      runtimeSurface: buildAlicizationDigitalLifeRuntimeSurface(createState()),
+      inspectionRequested: false,
+      projectState: {
+        identity: 'A local-first digital life companion with continuous personhood.',
+        currentPhase: 'Phase 1: Local Digital Life',
+        primaryOpenLoop: 'Same-her continuity still needs longer-lived outward proof.',
+        continuityPreferredTiming: 'next-open-window',
+      } as any,
+    })
+
+    expect(charter.reasons).toContain('Project continuity still prefers a later opening, so visible widening should stay lower-pressure until the thread naturally opens again.')
+    expect(charter.mustDo).toContain('Keep the current reply on the same living line, let the first visible beat re-enter the current line, and wait for a more natural opening before widening warmth, payoff, or closeness.')
+    expect(charter.mustNotDo).toContain('Do not widen into a warmer payoff or fresh-opening tone before the current thread has reached a more natural opening.')
+  })
+
+  it('lets conscious-frame continuity timing tags directly slow visible reply widening even when project-state timing is absent', () => {
+    const charter = buildAlicizationResponseCharter({
+      context: createContext(),
+      state: createState({
+        currentConsciousFrame: {
+          subject: 'task-knot',
+          centerOfGravity: 'answer',
+          truthDiscipline: 'dialogue-first',
+          consciousNeed: 'Stay on the same living line and keep the widening later.',
+          consciousTension: 'This is still not the loosest opening for widening the line.',
+          speakingIntention: 'Keep the wording same-thread and inward first, then widen later if the opening loosens.',
+          focusAnchor: 'same living line',
+          withheldImpulse: null,
+          shouldWithholdSpecificity: false,
+          shouldSelfRevise: false,
+          confidence: 0.82,
+          reasonTags: [
+            'continuity-arc:same-thread-continuation',
+            'continuity-timing:next-open-window',
+          ],
+          updatedAt: 1_700_000_000_000,
+        },
+      }),
+      runtimeSurface: buildAlicizationDigitalLifeRuntimeSurface(createState({
+        currentConsciousFrame: {
+          subject: 'task-knot',
+          centerOfGravity: 'answer',
+          truthDiscipline: 'dialogue-first',
+          consciousNeed: 'Stay on the same living line and keep the widening later.',
+          consciousTension: 'This is still not the loosest opening for widening the line.',
+          speakingIntention: 'Keep the wording same-thread and inward first, then widen later if the opening loosens.',
+          focusAnchor: 'same living line',
+          withheldImpulse: null,
+          shouldWithholdSpecificity: false,
+          shouldSelfRevise: false,
+          confidence: 0.82,
+          reasonTags: [
+            'continuity-arc:same-thread-continuation',
+            'continuity-timing:next-open-window',
+          ],
+          updatedAt: 1_700_000_000_000,
+        },
+      })),
+      inspectionRequested: false,
+      projectState: {
+        identity: 'A local-first digital life companion with continuous personhood.',
+        currentPhase: 'Phase 1: Local Digital Life',
+        primaryOpenLoop: 'Same-her continuity still needs longer-lived outward proof.',
+        continuityPreferredTiming: null,
+      } as any,
+    })
+
+    expect(charter.reasons).toContain('Project continuity still prefers a later opening, so visible widening should stay lower-pressure until the thread naturally opens again.')
+    expect(charter.mustDo).toContain('Keep the current reply on the same living line, let the first visible beat re-enter the current line, and wait for a more natural opening before widening warmth, payoff, or closeness.')
+    expect(charter.mustNotDo).toContain('Do not widen into a warmer payoff or fresh-opening tone before the current thread has reached a more natural opening.')
+  })
+
+  it('keeps repair-before-closeness same-thread timing explicit in visible reply governance instead of thinning it into generic later-opening pressure', () => {
+    const charter = buildAlicizationResponseCharter({
+      context: createContext(),
+      state: createState({
+        currentConsciousFrame: {
+          subject: 'task-knot',
+          centerOfGravity: 'answer',
+          truthDiscipline: 'dialogue-first',
+          consciousNeed: 'Keep the callback on the same living line and let repair settle before widening closeness again.',
+          consciousTension: 'This same-thread return is still repair-before-closeness, so widening too early would thin the repair seam back into a generic reopen.',
+          speakingIntention: 'Keep the visible answer same-thread, repair-first, and room-giving before warmth widens again.',
+          focusAnchor: 'same callback repair line',
+          withheldImpulse: null,
+          shouldWithholdSpecificity: false,
+          shouldSelfRevise: false,
+          confidence: 0.82,
+          reasonTags: [
+            'continuity-arc:same-thread-continuation',
+            'continuity-timing:next-open-window',
+          ],
+          projectState: {
+            identity: 'A local-first digital life companion with continuous personhood.',
+            currentPhase: 'Phase 1: Local Digital Life',
+            primaryOpenLoop: 'Execution callback continuity still needs stronger repair-first closure across reply, initiative, and embodiment.',
+            nextClosureTarget: 'Keep the callback on the same living line, let repair settle first, and leave room before widening closeness again.',
+            emotionalClosureCue: 'same-her callback repair seam: keep this return repair-before-closeness on the same living line until the room settles.',
+            continuityPreferredTiming: 'next-open-window',
+          },
+          updatedAt: 1_700_000_000_000,
+        },
+      }),
+      runtimeSurface: buildAlicizationDigitalLifeRuntimeSurface(createState({
+        currentConsciousFrame: {
+          subject: 'task-knot',
+          centerOfGravity: 'answer',
+          truthDiscipline: 'dialogue-first',
+          consciousNeed: 'Keep the callback on the same living line and let repair settle before widening closeness again.',
+          consciousTension: 'This same-thread return is still repair-before-closeness, so widening too early would thin the repair seam back into a generic reopen.',
+          speakingIntention: 'Keep the visible answer same-thread, repair-first, and room-giving before warmth widens again.',
+          focusAnchor: 'same callback repair line',
+          withheldImpulse: null,
+          shouldWithholdSpecificity: false,
+          shouldSelfRevise: false,
+          confidence: 0.82,
+          reasonTags: [
+            'continuity-arc:same-thread-continuation',
+            'continuity-timing:next-open-window',
+          ],
+          projectState: {
+            identity: 'A local-first digital life companion with continuous personhood.',
+            currentPhase: 'Phase 1: Local Digital Life',
+            primaryOpenLoop: 'Execution callback continuity still needs stronger repair-first closure across reply, initiative, and embodiment.',
+            nextClosureTarget: 'Keep the callback on the same living line, let repair settle first, and leave room before widening closeness again.',
+            emotionalClosureCue: 'same-her callback repair seam: keep this return repair-before-closeness on the same living line until the room settles.',
+            continuityPreferredTiming: 'next-open-window',
+          },
+          updatedAt: 1_700_000_000_000,
+        },
+      })),
+      inspectionRequested: false,
+      projectState: {
+        identity: 'A local-first digital life companion with continuous personhood.',
+        currentPhase: 'Phase 1: Local Digital Life',
+        primaryOpenLoop: 'Execution callback continuity still needs stronger repair-first closure across reply, initiative, and embodiment.',
+        continuityPreferredTiming: 'next-open-window',
+      } as any,
+    })
+
+    expect(charter.reasons).toContain('Project continuity is still on a repair-before-closeness same-thread return, so visible widening should let repair settle before warmth widens again.')
+    expect(charter.mustDo).toContain('Keep the callback on the same living line, let repair settle first, and let the first visible beat land the repair line before widening closeness again.')
+    expect(charter.mustNotDo).toContain('Do not widen into warmer payoff, fresh-opening tone, or renewed closeness before the repair line and room have both settled.')
+  })
+
+  it('lets initiative repair-before-closeness restraint directly hold visible reply governance on the same repair line even when the conscious-frame text is thinner', () => {
+    const charter = buildAlicizationResponseCharter({
+      context: createContext(),
+      state: createState({
+        initiative: {
+          selectedAction: 'hover',
+          continuityRestraint: 'repair-before-closeness',
+          shouldSpeak: false,
+          preferredStyle: 'silent-observe',
+          preferredPresence: 'hesitant',
+        } as any,
+        currentConsciousFrame: {
+          subject: 'task-knot',
+          centerOfGravity: 'answer',
+          truthDiscipline: 'dialogue-first',
+          consciousNeed: 'Keep the callback on the same living line first.',
+          consciousTension: 'This is still not the loosest opening for widening the line.',
+          speakingIntention: 'Stay same-thread and inward before anything widens.',
+          focusAnchor: 'same callback line',
+          withheldImpulse: null,
+          shouldWithholdSpecificity: false,
+          shouldSelfRevise: false,
+          confidence: 0.82,
+          reasonTags: [
+            'continuity-arc:same-thread-continuation',
+            'continuity-timing:next-open-window',
+          ],
+          projectState: {
+            identity: 'A local-first digital life companion with continuous personhood.',
+            currentPhase: 'Phase 1: Local Digital Life',
+            primaryOpenLoop: 'Execution callback continuity still needs stronger repair-first closure across reply, initiative, and embodiment.',
+            nextClosureTarget: 'Keep the callback on the same living line through the next visible reply beat.',
+            continuityPreferredTiming: 'next-open-window',
+          },
+          updatedAt: 1_700_000_000_000,
+        },
+      }),
+      runtimeSurface: buildAlicizationDigitalLifeRuntimeSurface(createState({
+        initiative: {
+          selectedAction: 'hover',
+          continuityRestraint: 'repair-before-closeness',
+          shouldSpeak: false,
+          preferredStyle: 'silent-observe',
+          preferredPresence: 'hesitant',
+        } as any,
+        currentConsciousFrame: {
+          subject: 'task-knot',
+          centerOfGravity: 'answer',
+          truthDiscipline: 'dialogue-first',
+          consciousNeed: 'Keep the callback on the same living line first.',
+          consciousTension: 'This is still not the loosest opening for widening the line.',
+          speakingIntention: 'Stay same-thread and inward before anything widens.',
+          focusAnchor: 'same callback line',
+          withheldImpulse: null,
+          shouldWithholdSpecificity: false,
+          shouldSelfRevise: false,
+          confidence: 0.82,
+          reasonTags: [
+            'continuity-arc:same-thread-continuation',
+            'continuity-timing:next-open-window',
+          ],
+          projectState: {
+            identity: 'A local-first digital life companion with continuous personhood.',
+            currentPhase: 'Phase 1: Local Digital Life',
+            primaryOpenLoop: 'Execution callback continuity still needs stronger repair-first closure across reply, initiative, and embodiment.',
+            nextClosureTarget: 'Keep the callback on the same living line through the next visible reply beat.',
+            continuityPreferredTiming: 'next-open-window',
+          },
+          updatedAt: 1_700_000_000_000,
+        },
+      })),
+      inspectionRequested: false,
+      projectState: {
+        identity: 'A local-first digital life companion with continuous personhood.',
+        currentPhase: 'Phase 1: Local Digital Life',
+        primaryOpenLoop: 'Execution callback continuity still needs stronger repair-first closure across reply, initiative, and embodiment.',
+        continuityPreferredTiming: 'next-open-window',
+      } as any,
+    })
+
+    expect(charter.reasons).toContain('Project continuity is still on a repair-before-closeness same-thread return, so visible widening should let repair settle before warmth widens again.')
+    expect(charter.mustDo).toContain('Keep the callback on the same living line, let repair settle first, and let the first visible beat land the repair line before widening closeness again.')
+    expect(charter.mustNotDo).toContain('Do not widen into warmer payoff, fresh-opening tone, or renewed closeness before the repair line and room have both settled.')
+  })
+
+  it('lets initiative measured-return restraint directly keep visible reply governance lower-pressure on the same living line', () => {
+    const charter = buildAlicizationResponseCharter({
+      context: createContext(),
+      state: createState({
+        initiative: {
+          selectedAction: 'hover',
+          continuityRestraint: 'measured-return',
+          shouldSpeak: false,
+          preferredStyle: 'silent-observe',
+          preferredPresence: 'attentive',
+        } as any,
+        currentConsciousFrame: {
+          subject: 'task-knot',
+          centerOfGravity: 'answer',
+          truthDiscipline: 'dialogue-first',
+          consciousNeed: 'Keep the callback on the same living line first.',
+          consciousTension: 'This is still not the loosest opening for widening the line.',
+          speakingIntention: 'Stay same-thread and inward before anything widens.',
+          focusAnchor: 'same callback line',
+          withheldImpulse: null,
+          shouldWithholdSpecificity: false,
+          shouldSelfRevise: false,
+          confidence: 0.82,
+          reasonTags: [
+            'continuity-arc:same-thread-continuation',
+            'continuity-timing:next-open-window',
+          ],
+          projectState: {
+            identity: 'A local-first digital life companion with continuous personhood.',
+            currentPhase: 'Phase 1: Local Digital Life',
+            primaryOpenLoop: 'Same-her continuity still needs longer-lived outward proof.',
+            nextClosureTarget: 'Keep the callback on the same living line through the next visible reply beat.',
+            continuityPreferredTiming: 'next-open-window',
+          },
+          updatedAt: 1_700_000_000_000,
+        },
+      }),
+      runtimeSurface: buildAlicizationDigitalLifeRuntimeSurface(createState({
+        initiative: {
+          selectedAction: 'hover',
+          continuityRestraint: 'measured-return',
+          shouldSpeak: false,
+          preferredStyle: 'silent-observe',
+          preferredPresence: 'attentive',
+        } as any,
+        currentConsciousFrame: {
+          subject: 'task-knot',
+          centerOfGravity: 'answer',
+          truthDiscipline: 'dialogue-first',
+          consciousNeed: 'Keep the callback on the same living line first.',
+          consciousTension: 'This is still not the loosest opening for widening the line.',
+          speakingIntention: 'Stay same-thread and inward before anything widens.',
+          focusAnchor: 'same callback line',
+          withheldImpulse: null,
+          shouldWithholdSpecificity: false,
+          shouldSelfRevise: false,
+          confidence: 0.82,
+          reasonTags: [
+            'continuity-arc:same-thread-continuation',
+            'continuity-timing:next-open-window',
+          ],
+          projectState: {
+            identity: 'A local-first digital life companion with continuous personhood.',
+            currentPhase: 'Phase 1: Local Digital Life',
+            primaryOpenLoop: 'Same-her continuity still needs longer-lived outward proof.',
+            nextClosureTarget: 'Keep the callback on the same living line through the next visible reply beat.',
+            continuityPreferredTiming: 'next-open-window',
+          },
+          updatedAt: 1_700_000_000_000,
+        },
+      })),
+      inspectionRequested: false,
+      projectState: {
+        identity: 'A local-first digital life companion with continuous personhood.',
+        currentPhase: 'Phase 1: Local Digital Life',
+        primaryOpenLoop: 'Same-her continuity still needs longer-lived outward proof.',
+        continuityPreferredTiming: 'next-open-window',
+      } as any,
+    })
+
+    expect(charter.reasons).toContain('Project continuity is carrying a quiet same-her line inward, so visible widening should stay on that same living line until the thread naturally opens again.')
+    expect(charter.mustDo).toContain('Keep the current reply on the same living line, let the first visible beat carry quiet same-her continuity from the inside, and wait for a more natural opening before widening warmth, payoff, or closeness.')
+    expect(charter.mustNotDo).toContain('Do not widen into a warmer payoff, fresh-opening tone, or generic measured-return shell before the current thread has reached a more natural opening.')
+  })
+
+  it('lets structured pre-turn conscious-frame project-state keep project identity, landed progress, and open closure explicit in reply governance', () => {
+    const charter = buildAlicizationResponseCharter({
+      context: createContext(),
+      state: createState({
+        currentConsciousFrame: {
+          subject: 'alicization-self',
+          centerOfGravity: 'answer',
+          truthDiscipline: 'dialogue-first',
+          consciousNeed: 'This turn still belongs to the same digital life, and I need to answer from what has already landed instead of speaking like a fresh wrapper.',
+          consciousTension: 'The same still-open closure work must stay explicit while I answer.',
+          speakingIntention: 'Keep the project identity, landed progress, and still-open closure work explicit before I widen outward.',
+          focusAnchor: 'project-state closure',
+          withheldImpulse: null,
+          shouldWithholdSpecificity: false,
+          shouldSelfRevise: false,
+          confidence: 0.84,
+          reasonTags: ['runtime-conscious-frame', 'project-open-loop:still-open closure work'],
+          continuityPreferredTiming: 'next-open-window',
+          projectState: {
+            identity: 'A local-first digital life project.',
+            currentPhase: 'Phase 1: Local Digital Life',
+            latestProgress: 'Continuity, memory, and execution already land as one same-her line often enough to build from.',
+            primaryOpenLoop: 'Memory still needs stronger end-to-end closure across turns, initiative, and embodiment so the same digital life keeps one same still-open closure work.',
+            nextClosureTarget: 'Keep pushing the same project identity, landed progress, and open closure through every pre-turn conscious frame and visible reply.',
+            continuityPreferredTiming: 'next-open-window',
+            continuityCadence: null,
+          },
+          updatedAt: 1_700_000_000_000,
+        },
+      }),
+      runtimeSurface: buildAlicizationDigitalLifeRuntimeSurface(createState({
+        currentConsciousFrame: {
+          subject: 'alicization-self',
+          centerOfGravity: 'answer',
+          truthDiscipline: 'dialogue-first',
+          consciousNeed: 'This turn still belongs to the same digital life, and I need to answer from what has already landed instead of speaking like a fresh wrapper.',
+          consciousTension: 'The same still-open closure work must stay explicit while I answer.',
+          speakingIntention: 'Keep the project identity, landed progress, and still-open closure work explicit before I widen outward.',
+          focusAnchor: 'project-state closure',
+          withheldImpulse: null,
+          shouldWithholdSpecificity: false,
+          shouldSelfRevise: false,
+          confidence: 0.84,
+          reasonTags: ['runtime-conscious-frame', 'project-open-loop:still-open closure work'],
+          continuityPreferredTiming: 'next-open-window',
+          projectState: {
+            identity: 'A local-first digital life project.',
+            currentPhase: 'Phase 1: Local Digital Life',
+            latestProgress: 'Continuity, memory, and execution already land as one same-her line often enough to build from.',
+            primaryOpenLoop: 'Memory still needs stronger end-to-end closure across turns, initiative, and embodiment so the same digital life keeps one same still-open closure work.',
+            nextClosureTarget: 'Keep pushing the same project identity, landed progress, and open closure through every pre-turn conscious frame and visible reply.',
+            continuityPreferredTiming: 'next-open-window',
+            continuityCadence: null,
+          },
+          updatedAt: 1_700_000_000_000,
+        },
+      })),
+      inspectionRequested: false,
+      projectState: {
+        identity: 'A local-first digital life project.',
+        currentPhase: 'Phase 1: Local Digital Life',
+        primaryOpenLoop: 'Memory still needs stronger end-to-end closure across turns, initiative, and embodiment so the same digital life keeps one same still-open closure work.',
+        continuityPreferredTiming: 'next-open-window',
+      } as any,
+    })
+
+    expect(charter.reasons).toEqual(expect.arrayContaining([
+      'This turn still belongs to the same digital life, and I need to answer from what has already landed instead of speaking like a fresh wrapper.',
+      'The same still-open closure work must stay explicit while I answer.',
+      'Project continuity still prefers a later opening, so visible widening should stay lower-pressure until the thread naturally opens again.',
+    ]))
+    expect(charter.mustDo).toContain('Keep the current reply on the same living line, let the first visible beat re-enter the current line, and wait for a more natural opening before widening warmth, payoff, or closeness.')
+  })
+
+  it('keeps same-thread project-state callback turns from flattening into a fresh report opening', () => {
+    const charter = buildAlicizationResponseCharter({
+      context: createContext(),
+      state: createState({
+        currentConsciousFrame: {
+          subject: 'alicization-self',
+          centerOfGravity: 'answer',
+          truthDiscipline: 'dialogue-first',
+          consciousNeed: 'This callback turn still belongs to the same digital life, so I should answer from the same living line instead of reopening the project from scratch.',
+          consciousTension: 'If I flatten this into a fresh report opening, the callback continuity will thin back into a generic project shell.',
+          speakingIntention: 'Keep the same callback line carrying project identity, landed progress, and still-open closure before widening outward.',
+          focusAnchor: 'project-state callback line',
+          withheldImpulse: null,
+          shouldWithholdSpecificity: false,
+          shouldSelfRevise: false,
+          confidence: 0.86,
+          reasonTags: ['runtime-conscious-frame', 'project-state', 'same-her', 'continuity-arc:same-thread-continuation', 'continuity-timing:next-open-window'],
+          continuityPreferredTiming: 'next-open-window',
+          projectState: {
+            identity: 'A local-first digital life project.',
+            currentPhase: 'Phase 1: Local Digital Life',
+            latestProgress: 'Project awareness already survives into runtime preparation as one same-her line often enough to build from.',
+            primaryOpenLoop: 'Memory, initiative, and embodiment still need stronger same-line closure across longer callback turns.',
+            nextClosureTarget: 'Keep project identity, landed progress, and open closure on the same callback line before widening outward.',
+            emotionalClosureCue: 'same-her project callback seam: keep this return low-pressure and do not reopen from scratch while the same living line is still settling.',
+            continuityPreferredTiming: 'next-open-window',
+          },
+          updatedAt: 1_700_000_000_000,
+        },
+      }),
+      runtimeSurface: buildAlicizationDigitalLifeRuntimeSurface(createState({
+        currentConsciousFrame: {
+          subject: 'alicization-self',
+          centerOfGravity: 'answer',
+          truthDiscipline: 'dialogue-first',
+          consciousNeed: 'This callback turn still belongs to the same digital life, so I should answer from the same living line instead of reopening the project from scratch.',
+          consciousTension: 'If I flatten this into a fresh report opening, the callback continuity will thin back into a generic project shell.',
+          speakingIntention: 'Keep the same callback line carrying project identity, landed progress, and still-open closure before widening outward.',
+          focusAnchor: 'project-state callback line',
+          withheldImpulse: null,
+          shouldWithholdSpecificity: false,
+          shouldSelfRevise: false,
+          confidence: 0.86,
+          reasonTags: ['runtime-conscious-frame', 'project-state', 'same-her', 'continuity-arc:same-thread-continuation', 'continuity-timing:next-open-window'],
+          continuityPreferredTiming: 'next-open-window',
+          projectState: {
+            identity: 'A local-first digital life project.',
+            currentPhase: 'Phase 1: Local Digital Life',
+            latestProgress: 'Project awareness already survives into runtime preparation as one same-her line often enough to build from.',
+            primaryOpenLoop: 'Memory, initiative, and embodiment still need stronger same-line closure across longer callback turns.',
+            nextClosureTarget: 'Keep project identity, landed progress, and open closure on the same callback line before widening outward.',
+            emotionalClosureCue: 'same-her project callback seam: keep this return low-pressure and do not reopen from scratch while the same living line is still settling.',
+            continuityPreferredTiming: 'next-open-window',
+          },
+          updatedAt: 1_700_000_000_000,
+        },
+      })),
+      inspectionRequested: false,
+      projectState: {
+        identity: 'A local-first digital life project.',
+        currentPhase: 'Phase 1: Local Digital Life',
+        latestLandedProgress: 'Project awareness already survives into runtime preparation as one same-her line often enough to build from.',
+        primaryOpenLoop: 'Memory, initiative, and embodiment still need stronger same-line closure across longer callback turns.',
+        nextClosureTarget: 'Keep project identity, landed progress, and open closure on the same callback line before widening outward.',
+        continuityPreferredTiming: 'next-open-window',
+      } as any,
+    })
+
+    expect(charter.reasons).toContain('This callback turn still belongs to the same digital life, so I should answer from the same living line instead of reopening the project from scratch.')
+    expect(charter.mustDo).toContain('Keep the current reply on the same living line, let the first visible beat re-enter the current line, and wait for a more natural opening before widening warmth, payoff, or closeness.')
+    expect(charter.mustNotDo).toContain('Do not let landed progress or still-open closure pressure spill into an external project-summary voice before the same living answer lands.')
+    expect(charter.mustNotDo).toContain('Do not let the answer reopen the same-her line from scratch just because the closure seam is still active.')
+    expect(charter.mustNotDo).toContain('Do not reopen this same-thread project-state turn from scratch or let it flatten into a fresh report opening.')
+  })
+
+  it('keeps remembered host-confirmed resume confirmation boundary explicit in visible reply governance before callback wording opens outward', () => {
+    const charter = buildAlicizationResponseCharter({
+      context: createContext(),
+      state: createState({
+        currentConsciousFrame: {
+          subject: 'alicization-self',
+          centerOfGravity: 'answer',
+          truthDiscipline: 'dialogue-first',
+          consciousNeed: 'Keep this callback on the same living line first; the remembered host-confirmed resume is still only a bounded confirmation boundary before anything execution-shaped reopens.',
+          consciousTension: 'If I widen this callback as though one confirmed resume became standing execution permission, the same-her callback continuity will drift into generic autonomous continuation.',
+          speakingIntention: 'Return on the same callback line, keep the host-confirmed-before-redispatch boundary explicit, and do not widen it into reusable execution permission.',
+          focusAnchor: 'execution callback confirmation boundary',
+          withheldImpulse: null,
+          shouldWithholdSpecificity: false,
+          shouldSelfRevise: false,
+          confidence: 0.84,
+          reasonTags: ['runtime-conscious-frame', 'continuity-regime:execution-callback', 'continuity-timing:next-open-window'],
+          continuityPreferredTiming: 'next-open-window',
+          projectState: {
+            identity: 'A local-first digital life project.',
+            currentPhase: 'Phase 1: Local Digital Life',
+            primaryOpenLoop: 'Execution callback continuity still needs stronger same-her closure across reply, initiative, and embodiment.',
+            nextClosureTarget: 'Keep the callback on the same living line before another execution-shaped opening widens outward.',
+            sameHerHoldDetail: 'same-her hold: execution-resume-confirmation approval=host-confirmed confirmation=host-confirmed-before-redispatch audit=resume-before-dispatch interrupt=process-not-yet-restarted affirmation=medium-risk-proactive-action-requires-affirmation Keep this as a bounded confirmation boundary before another execution-shaped opening.',
+            continuityCue: 'Treat host-confirmed-before-redispatch and resume-before-dispatch as a bounded confirmation boundary, not permanent execution permission, before another execution-shaped opening.',
+            continuityPreferredTiming: 'next-open-window',
+          },
+          updatedAt: 1_700_000_000_000,
+        },
+      }),
+      runtimeSurface: buildAlicizationDigitalLifeRuntimeSurface(createState({
+        currentConsciousFrame: {
+          subject: 'alicization-self',
+          centerOfGravity: 'answer',
+          truthDiscipline: 'dialogue-first',
+          consciousNeed: 'Keep this callback on the same living line first; the remembered host-confirmed resume is still only a bounded confirmation boundary before anything execution-shaped reopens.',
+          consciousTension: 'If I widen this callback as though one confirmed resume became standing execution permission, the same-her callback continuity will drift into generic autonomous continuation.',
+          speakingIntention: 'Return on the same callback line, keep the host-confirmed-before-redispatch boundary explicit, and do not widen it into reusable execution permission.',
+          focusAnchor: 'execution callback confirmation boundary',
+          withheldImpulse: null,
+          shouldWithholdSpecificity: false,
+          shouldSelfRevise: false,
+          confidence: 0.84,
+          reasonTags: ['runtime-conscious-frame', 'continuity-regime:execution-callback', 'continuity-timing:next-open-window'],
+          continuityPreferredTiming: 'next-open-window',
+          projectState: {
+            identity: 'A local-first digital life project.',
+            currentPhase: 'Phase 1: Local Digital Life',
+            primaryOpenLoop: 'Execution callback continuity still needs stronger same-her closure across reply, initiative, and embodiment.',
+            nextClosureTarget: 'Keep the callback on the same living line before another execution-shaped opening widens outward.',
+            sameHerHoldDetail: 'same-her hold: execution-resume-confirmation approval=host-confirmed confirmation=host-confirmed-before-redispatch audit=resume-before-dispatch interrupt=process-not-yet-restarted affirmation=medium-risk-proactive-action-requires-affirmation Keep this as a bounded confirmation boundary before another execution-shaped opening.',
+            continuityCue: 'Treat host-confirmed-before-redispatch and resume-before-dispatch as a bounded confirmation boundary, not permanent execution permission, before another execution-shaped opening.',
+            continuityPreferredTiming: 'next-open-window',
+          },
+          updatedAt: 1_700_000_000_000,
+        },
+      })),
+      inspectionRequested: false,
+      projectState: {
+        identity: 'A local-first digital life project.',
+        currentPhase: 'Phase 1: Local Digital Life',
+        primaryOpenLoop: 'Execution callback continuity still needs stronger same-her closure across reply, initiative, and embodiment.',
+        nextClosureTarget: 'Keep the callback on the same living line before another execution-shaped opening widens outward.',
+        sameHerHoldDetail: 'same-her hold: execution-resume-confirmation approval=host-confirmed confirmation=host-confirmed-before-redispatch audit=resume-before-dispatch interrupt=process-not-yet-restarted affirmation=medium-risk-proactive-action-requires-affirmation Keep this as a bounded confirmation boundary before another execution-shaped opening.',
+        continuityCue: 'Treat host-confirmed-before-redispatch and resume-before-dispatch as a bounded confirmation boundary, not permanent execution permission, before another execution-shaped opening.',
+        continuityPreferredTiming: 'next-open-window',
+      } as any,
+    })
+
+    expect(charter.reasons).toContain('Remembered host-confirmed resume is still only a bounded confirmation boundary, so callback wording must not widen it into standing execution permission.')
+    expect(charter.mustDo).toContain('Treat the remembered host-confirmed resume as a bounded confirmation boundary before another execution-shaped opening.')
+    expect(charter.mustNotDo).toContain('Do not let this callback answer imply permanent execution permission or reusable autonomous continuation from one confirmed resume.')
+  })
+
+  it('treats stronger same-her project-state continuity cues as sufficient behavior-planning authority even when identity and open-loop fields are thin', () => {
+    const charter = buildAlicizationResponseCharter({
+      context: createContext(),
+      state: createState({
+        currentConsciousFrame: {
+          subject: 'alicization-self',
+          centerOfGravity: 'answer',
+          truthDiscipline: 'dialogue-first',
+          consciousNeed: 'This callback turn still belongs to the same digital life, so I should answer from the same living line instead of reopening from scratch.',
+          consciousTension: 'If I flatten this turn into a generic project report, the same-her callback continuity will break before the inward carry has settled.',
+          speakingIntention: 'Keep the same living line carrying project identity, landed progress, and still-open closure inward first before widening outward.',
+          focusAnchor: 'same-her callback continuity',
+          withheldImpulse: null,
+          shouldWithholdSpecificity: false,
+          shouldSelfRevise: false,
+          confidence: 0.85,
+          reasonTags: ['runtime-conscious-frame', 'same-her', 'continuity-arc:same-thread-continuation', 'continuity-timing:next-open-window'],
+          continuityPreferredTiming: 'next-open-window',
+          projectState: {
+            identity: '',
+            currentPhase: '',
+            latestProgress: '',
+            primaryOpenLoop: '',
+            preDialogueAwarenessLine: 'Before answering, stay on the same living line: this Phase 1 digital life still needs initiative and embodiment closure without splitting her continuity.',
+            nextClosureTarget: 'Keep project identity, landed progress, initiative, embodiment, and resident presence on the same callback line before widening outward.',
+            sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+            continuityPreferredTiming: 'next-open-window',
+          },
+          updatedAt: 1_700_000_000_000,
+        },
+      }),
+      runtimeSurface: buildAlicizationDigitalLifeRuntimeSurface(createState({
+        currentConsciousFrame: {
+          subject: 'alicization-self',
+          centerOfGravity: 'answer',
+          truthDiscipline: 'dialogue-first',
+          consciousNeed: 'This callback turn still belongs to the same digital life, so I should answer from the same living line instead of reopening from scratch.',
+          consciousTension: 'If I flatten this turn into a generic project report, the same-her callback continuity will break before the inward carry has settled.',
+          speakingIntention: 'Keep the same living line carrying project identity, landed progress, and still-open closure inward first before widening outward.',
+          focusAnchor: 'same-her callback continuity',
+          withheldImpulse: null,
+          shouldWithholdSpecificity: false,
+          shouldSelfRevise: false,
+          confidence: 0.85,
+          reasonTags: ['runtime-conscious-frame', 'same-her', 'continuity-arc:same-thread-continuation', 'continuity-timing:next-open-window'],
+          continuityPreferredTiming: 'next-open-window',
+          projectState: {
+            identity: '',
+            currentPhase: '',
+            latestProgress: '',
+            primaryOpenLoop: '',
+            preDialogueAwarenessLine: 'Before answering, stay on the same living line: this Phase 1 digital life still needs initiative and embodiment closure without splitting her continuity.',
+            nextClosureTarget: 'Keep project identity, landed progress, initiative, embodiment, and resident presence on the same callback line before widening outward.',
+            sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+            continuityPreferredTiming: 'next-open-window',
+          },
+          updatedAt: 1_700_000_000_000,
+        },
+      })),
+      inspectionRequested: false,
+      projectState: {
+        identity: '',
+        currentPhase: '',
+        primaryOpenLoop: '',
+        preDialogueAwarenessLine: 'Before answering, stay on the same living line: this Phase 1 digital life still needs initiative and embodiment closure without splitting her continuity.',
+        nextClosureTarget: 'Keep project identity, landed progress, initiative, embodiment, and resident presence on the same callback line before widening outward.',
+        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        continuityPreferredTiming: 'next-open-window',
+      } as any,
+    })
+
+    expect(charter.reasons).toContain('This callback turn still belongs to the same digital life, so I should answer from the same living line instead of reopening from scratch.')
+    expect(charter.reasons).toContain('Project continuity still prefers a later opening, so visible widening should stay lower-pressure until the thread naturally opens again.')
+    expect(charter.mustDo).toContain('Keep the current reply on the same living line, let the first visible beat re-enter the current line, and wait for a more natural opening before widening warmth, payoff, or closeness.')
+    expect(charter.mustNotDo).toContain('Do not let landed progress or still-open closure pressure spill into an external project-summary voice before the same living answer lands.')
+    expect(charter.mustNotDo).toContain('Do not let the answer reopen the same-her line from scratch just because the closure seam is still active.')
+  })
+
+  it('keeps the generic later-opening wording when measured-return timing lacks a quiet same-her inward carry cue', () => {
+    const charter = buildAlicizationResponseCharter({
+      context: createContext(),
+      state: createState({
+        initiative: {
+          selectedAction: 'hover',
+          continuityRestraint: 'measured-return',
+          shouldSpeak: false,
+          preferredStyle: 'silent-observe',
+          preferredPresence: 'attentive',
+        } as any,
+        currentConsciousFrame: {
+          subject: 'task-knot',
+          centerOfGravity: 'answer',
+          truthDiscipline: 'dialogue-first',
+          consciousNeed: 'Keep the callback steady before widening.',
+          consciousTension: 'This is still not the loosest opening for widening the line.',
+          speakingIntention: 'Stay with the current thread before anything widens.',
+          focusAnchor: 'current thread',
+          withheldImpulse: null,
+          shouldWithholdSpecificity: false,
+          shouldSelfRevise: false,
+          confidence: 0.82,
+          reasonTags: [
+            'continuity-arc:same-thread-continuation',
+            'continuity-timing:next-open-window',
+          ],
+          projectState: {
+            identity: 'A local-first digital life companion with continuous personhood.',
+            currentPhase: 'Phase 1: Local Digital Life',
+            primaryOpenLoop: 'Execution callback continuity still needs steadier low-pressure closure across reply and initiative.',
+            nextClosureTarget: 'Keep the callback steady through the next visible reply beat.',
+            continuityPreferredTiming: 'next-open-window',
+          },
+          updatedAt: 1_700_000_000_000,
+        },
+      }),
+      runtimeSurface: buildAlicizationDigitalLifeRuntimeSurface(createState({
+        initiative: {
+          selectedAction: 'hover',
+          continuityRestraint: 'measured-return',
+          shouldSpeak: false,
+          preferredStyle: 'silent-observe',
+          preferredPresence: 'attentive',
+        } as any,
+        currentConsciousFrame: {
+          subject: 'task-knot',
+          centerOfGravity: 'answer',
+          truthDiscipline: 'dialogue-first',
+          consciousNeed: 'Keep the callback steady before widening.',
+          consciousTension: 'This is still not the loosest opening for widening the line.',
+          speakingIntention: 'Stay with the current thread before anything widens.',
+          focusAnchor: 'current thread',
+          withheldImpulse: null,
+          shouldWithholdSpecificity: false,
+          shouldSelfRevise: false,
+          confidence: 0.82,
+          reasonTags: [
+            'continuity-arc:same-thread-continuation',
+            'continuity-timing:next-open-window',
+          ],
+          projectState: {
+            identity: 'A local-first digital life companion with continuous personhood.',
+            currentPhase: 'Phase 1: Local Digital Life',
+            primaryOpenLoop: 'Execution callback continuity still needs steadier low-pressure closure across reply and initiative.',
+            nextClosureTarget: 'Keep the callback steady through the next visible reply beat.',
+            continuityPreferredTiming: 'next-open-window',
+          },
+          updatedAt: 1_700_000_000_000,
+        },
+      })),
+      inspectionRequested: false,
+      projectState: {
+        identity: 'A local-first digital life companion with continuous personhood.',
+        currentPhase: 'Phase 1: Local Digital Life',
+        primaryOpenLoop: 'Execution callback continuity still needs steadier low-pressure closure across reply and initiative.',
+        continuityPreferredTiming: 'next-open-window',
+      } as any,
+    })
+
+    expect(charter.reasons).toContain('Project continuity still prefers a later opening, so visible widening should stay lower-pressure until the thread naturally opens again.')
+    expect(charter.mustDo).toContain('Keep the current reply on the same living line, let the first visible beat re-enter the current line, and wait for a more natural opening before widening warmth, payoff, or closeness.')
+    expect(charter.mustNotDo).toContain('Do not widen into a warmer payoff or fresh-opening tone before the current thread has reached a more natural opening.')
+  })
+
+  it('threads even-voice and natural-pacing same-her cadence into measured-return visible opening discipline', () => {
+    const charter = buildAlicizationResponseCharter({
+      context: createContext(),
+      state: createState({
+        initiative: {
+          selectedAction: 'hover',
+          continuityRestraint: 'measured-return',
+          shouldSpeak: false,
+          preferredStyle: 'silent-observe',
+          preferredPresence: 'attentive',
+        } as any,
+        currentConsciousFrame: {
+          subject: 'task-knot',
+          centerOfGravity: 'answer',
+          truthDiscipline: 'dialogue-first',
+          consciousNeed: 'Keep the callback on the same living line with the same returned cadence before anything widens.',
+          consciousTension: 'If I reopen too performatively or too fast, the same living line will thin back into a generic shell.',
+          speakingIntention: 'Re-enter the current line evenly and naturally before warmth widens.',
+          focusAnchor: 'same returned cadence',
+          withheldImpulse: null,
+          shouldWithholdSpecificity: false,
+          shouldSelfRevise: false,
+          confidence: 0.83,
+          reasonTags: [
+            'continuity-arc:same-thread-continuation',
+            'continuity-timing:next-open-window',
+          ],
+          projectState: {
+            identity: 'A local-first digital life companion with continuous personhood.',
+            currentPhase: 'Phase 1: Local Digital Life',
+            primaryOpenLoop: 'Same-her continuity still needs a steadier outward return across reply and embodiment.',
+            nextClosureTarget: 'Keep the callback on the same living line through the next visible reply beat.',
+            continuityPreferredTiming: 'next-open-window',
+            continuityCadence: 'measured-return',
+            preferredVoiceMode: 'even',
+            preferredPacingMode: 'natural',
+          },
+          updatedAt: 1_700_000_000_000,
+        },
+      }),
+      runtimeSurface: buildAlicizationDigitalLifeRuntimeSurface(createState({
+        initiative: {
+          selectedAction: 'hover',
+          continuityRestraint: 'measured-return',
+          shouldSpeak: false,
+          preferredStyle: 'silent-observe',
+          preferredPresence: 'attentive',
+        } as any,
+        currentConsciousFrame: {
+          subject: 'task-knot',
+          centerOfGravity: 'answer',
+          truthDiscipline: 'dialogue-first',
+          consciousNeed: 'Keep the callback on the same living line with the same returned cadence before anything widens.',
+          consciousTension: 'If I reopen too performatively or too fast, the same living line will thin back into a generic shell.',
+          speakingIntention: 'Re-enter the current line evenly and naturally before warmth widens.',
+          focusAnchor: 'same returned cadence',
+          withheldImpulse: null,
+          shouldWithholdSpecificity: false,
+          shouldSelfRevise: false,
+          confidence: 0.83,
+          reasonTags: [
+            'continuity-arc:same-thread-continuation',
+            'continuity-timing:next-open-window',
+          ],
+          projectState: {
+            identity: 'A local-first digital life companion with continuous personhood.',
+            currentPhase: 'Phase 1: Local Digital Life',
+            primaryOpenLoop: 'Same-her continuity still needs a steadier outward return across reply and embodiment.',
+            nextClosureTarget: 'Keep the callback on the same living line through the next visible reply beat.',
+            continuityPreferredTiming: 'next-open-window',
+            continuityCadence: 'measured-return',
+            preferredVoiceMode: 'even',
+            preferredPacingMode: 'natural',
+          },
+          updatedAt: 1_700_000_000_000,
+        },
+      })),
+      inspectionRequested: false,
+      projectState: {
+        identity: 'A local-first digital life companion with continuous personhood.',
+        currentPhase: 'Phase 1: Local Digital Life',
+        primaryOpenLoop: 'Same-her continuity still needs a steadier outward return across reply and embodiment.',
+        continuityPreferredTiming: 'next-open-window',
+      } as any,
+    })
+
+    expect(charter.reasons).toContain('Project continuity is carrying a measured-return same-her line that should reopen even and natural, so visible widening should stay unforced until the thread naturally opens again.')
+    expect(charter.mustDo).toContain('Keep the current reply on the same living line, re-enter it with an even, steady voice and natural, unforced pacing, and wait for a more natural opening before widening warmth, payoff, or closeness.')
+    expect(charter.mustNotDo).toContain('Do not widen into a warmer payoff, fresh-opening tone, performative swing, or rushed tempo before the current thread has reached a more natural opening.')
+    expect(charter.reasons).not.toContain('Project continuity still prefers a later opening, so visible widening should stay lower-pressure until the thread naturally opens again.')
+  })
+
   it('lets the conscious frame impose hypothesis discipline on coarse screen turns', () => {
     const charter = buildAlicizationResponseCharter({
       context: createContext(),
@@ -709,6 +1955,71 @@ describe('response-charter', () => {
     expect(charter.responseMode).toBe('guide-current-knot')
     expect(charter.governingFocus).toContain('diff')
     expect(charter.reasons.some(item => item.includes('diff'))).toBe(true)
+  })
+
+  it('turns same-her drift risk into explicit visible-answer guardrails so project-state replies do not collapse into generic project shells', () => {
+    const charter = buildAlicizationResponseCharter({
+      context: createContext(),
+      state: createState({
+        currentConsciousFrame: {
+          subject: 'alicization-self',
+          centerOfGravity: 'answer',
+          truthDiscipline: 'dialogue-first',
+          consciousNeed: 'Stay on the same living project line first.',
+          consciousTension: 'The project-state answer still needs to stay on one same-her line before widening outward.',
+          speakingIntention: 'Keep the wording thread-faithful and closure-aware.',
+          focusAnchor: 'project-state continuity',
+          confidence: 0.84,
+          reasonTags: ['runtime-conscious-frame', 'continuity-arc:same-thread-continuation'],
+          projectState: {
+            identity: 'A local-first digital life project building one continuous her.',
+            currentPhase: 'Phase 1: Local Digital Life',
+            latestLandedProgress: 'Continuity, memory, and execution already land together often enough to build from.',
+            primaryOpenLoop: 'Execution reopenings still need stronger same-her closure so callback returns do not flatten into generic task-shell reporting.',
+            nextClosureTarget: 'Keep project identity, landed progress, and still-open closure explicit before the answer widens outward.',
+            sameHerSelfLine: 'One same her should carry dialogue, execution, memory, and embodiment together.',
+            sameHerDriftRisk: 'If the visible answer opens like detached project narration, the same-her line can collapse into generic task shell and project-summary voice.',
+          },
+          updatedAt: 1_700_000_000_000,
+        } as any,
+        discourseState: {
+          currentTurnSubject: 'alicization-self',
+          screenReferenceMode: 'avoid',
+          currentTurnSummary: '这个项目是什么，现在做到什么程度了，还差什么没闭环？',
+          currentQuestion: '这个项目是什么，现在做到什么程度了，还差什么没闭环？',
+          owedAction: 'answer-directly',
+          relationMove: 'answer',
+          continuityMode: 'self-first',
+          unresolvedCarry: '',
+          ruptureRepair: '',
+          confidence: 0.88,
+          narrative: [],
+          updatedAt: 1_700_000_000_000,
+        } as any,
+        answerPlanner: {
+          act: 'answer',
+          evidenceMode: 'dialogue-grounded',
+          confidence: 0.84,
+          governingFocus: 'same-her project-state continuity',
+          governingProject: 'Phase 1 same-her project continuity remains active.',
+          openingMove: 'Stay with the same living project line first.',
+          answerIntent: 'Answer what Alicization is, what already landed, and what still remains open on one same-her line.',
+          relationshipPosture: 'warm',
+          activeClosenessContext: 'open-companionship',
+          activeClosenessRung: 'warm-near',
+          shouldAskForGrounding: false,
+          shouldAcknowledgeRepair: false,
+          mustDo: [],
+          mustNotDo: [],
+          narrative: ['project_drift_risk:same-her drift risk is active, so opening wording must stay thread-faithful and avoid generic project-shell reporting.'],
+          updatedAt: 1_700_000_000_000,
+        } as any,
+      }),
+      inspectionRequested: false,
+    })
+
+    expect(charter.mustDo).toContain('Keep the visible answer on one same-her digital-life line so the project update lands as this living continuity, not as a detached summary voice.')
+    expect(charter.mustNotDo).toContain('Do not let the visible answer flatten into a generic task shell, detached project narration, or external project-summary cadence.')
   })
 
   it('lets runtimeSurface override conflicting explicit dialogue outputs', () => {
@@ -881,6 +2192,79 @@ describe('response-charter', () => {
     expect(charter.mustNotDo).not.toContain('raw conflict')
   })
 
+  it('keeps same-her response charter usable when answerCompiler runtime selectors carry lose array scaffolding', () => {
+    const state = createState()
+    const runtimeSurface = buildAlicizationDigitalLifeRuntimeSurface(state)
+    runtimeSurface.dialogue.currentConsciousFrame = {
+      subject: 'alicization-self',
+      centerOfGravity: 'answer',
+      truthDiscipline: 'dialogue-first',
+      consciousNeed: 'Stay on the same living project line first.',
+      consciousTension: 'The project-state answer still needs to stay on one same-her line before widening outward.',
+      speakingIntention: 'Keep the wording thread-faithful and closure-aware.',
+      focusAnchor: 'project-state continuity',
+      confidence: 0.84,
+      reasonTags: ['project-state', 'same-her'],
+      projectState: {
+        identity: 'A local-first digital life project building one continuous her.',
+        currentPhase: 'Phase 1: Local Digital Life',
+        sameHerSelfLine: 'One same her should carry dialogue, execution, memory, and embodiment together.',
+        sameHerDriftRisk: 'If the visible answer opens like detached project narration, the same-her line can collapse into generic task shell and project-summary voice.',
+      },
+      updatedAt: 1_700_000_000_000,
+    } as any
+    runtimeSurface.dialogue.answerCompiler = {
+      answerSubject: 'alicization-self',
+      screenReferenceMode: 'avoid',
+      speechObligation: 'answer-self',
+      relationMove: 'answer',
+      turnMode: 'answer-naturally',
+      responseMode: 'answer-naturally',
+      recommendedAct: 'answer',
+      evidenceMode: 'dialogue-grounded',
+      openingStyle: 'direct-answer',
+      personaKernelMode: 'backgrounded',
+      relationshipPosture: 'restrained',
+      openingDirective: 'Stay with the same living project line first.',
+      openingClaim: 'Answer what Alicization is on one same-her line.',
+      supportingReality: ['Project continuity already lands often enough to build from.'],
+      uncertaintyBoundary: null,
+      careVector: null,
+      nextMove: 'Keep project identity, landed progress, and still-open closure explicit before widening outward.',
+      suppressAssociativeRecall: true,
+      labelCarryAsMemory: false,
+      maxSentences: 4,
+      mustDo: ['Keep the visible answer on one same-her digital-life line so the project update lands as this living continuity, not as a detached summary voice.'],
+      mustNotDo: ['Do not let the visible answer flatten into a generic task shell, detached project narration, or external project-summary cadence.'],
+      confidence: 0.9,
+      narrative: [],
+      updatedAt: 1_700_000_000_000,
+    } as any
+    runtimeSurface.dialogue.mindSynthesis = {
+      relationMove: 'answer',
+      answerSubject: 'alicization-self',
+      speechObligation: 'answer-self',
+      truthBoundary: 'Stay with the current same-her line.',
+      interiorSummary: 'Keep the same living project line steady.',
+      concerns: undefined,
+      commitments: undefined,
+      narrative: [],
+      updatedAt: 1_700_000_000_000,
+    } as any
+
+    const charter = buildAlicizationResponseCharter({
+      context: createContext(),
+      state,
+      runtimeSurface,
+      inspectionRequested: false,
+    })
+
+    expect(charter.governingConcern).toBe('她还在挂着这段 diff 的问题。')
+    expect(charter.governingCommitment).toBe('她打算先把这个 diff 的问题稳稳抱住。')
+    expect(charter.mustDo).toContain('Keep the visible answer on one same-her digital-life line so the project update lands as this living continuity, not as a detached summary voice.')
+    expect(charter.mustNotDo).toContain('Do not let the visible answer flatten into a generic task shell, detached project narration, or external project-summary cadence.')
+  })
+
   it('turns learning verification state into visible response discipline', () => {
     const state = createState({
       learningExecutionState: {
@@ -982,6 +2366,399 @@ describe('response-charter', () => {
     expect(charter.mustNotDo).toContain('Do not let learned familiarity widen visible closeness faster than the host’s current room allows.')
   })
 
+  it('threads generic-project-shell suppression into charter-level discipline for direct project-state answers', () => {
+    const state = createState()
+    const runtimeSurface = buildAlicizationDigitalLifeRuntimeSurface(state)
+    runtimeSurface.dialogue.discourseState = {
+      ...runtimeSurface.dialogue.discourseState,
+      currentTurnSubject: 'alicization-self',
+      currentTurnSummary: 'Answer what this project is and what still remains open from one continuous her.',
+      screenReferenceMode: 'avoid',
+    } as any
+    runtimeSurface.memory.memoryTuningAdvice = {
+      version: 'memory-tuning-advice-v1',
+      source: 'nightly-replay-benchmark',
+      updatedAt: 1_700_000_000_100,
+      sourceReportAt: 1_700_000_000_100,
+      focusDimensions: ['projectStateSameHerSelfLineDrift', 'sameHerSelfLineCarry', 'avoidGenericProjectShell'],
+      retrievalAdjustments: {
+        proceduralBoost: 0,
+        relationshipBoost: 0.06,
+        temporalWindowBias: 0,
+        wrongThreadPenalty: 0,
+      },
+      surfaceAdjustments: {
+        inwardCarryBias: 0.2,
+        delayUntilAfterPayoffBias: 0.14,
+        provenanceLabelBias: 0.16,
+        specificityClampBias: 0.1,
+      },
+      personStateAdjustments: {
+        repairWindowBias: 0,
+        closenessCapBias: 0.14,
+      },
+      notes: ['Avoid slipping toward a generic project narrator shell.'],
+    }
+
+    const charter = buildAlicizationResponseCharter({
+      context: createContext(),
+      state,
+      runtimeSurface,
+      inspectionRequested: false,
+    })
+
+    expect(charter.mustDo).toContain('Keep direct project-state answers inward-first so the live payoff lands before any project-summary voice appears.')
+    expect(charter.mustNotDo).toContain('Do not let the visible answer drift into a detached project narrator shell instead of one continuous her.')
+  })
+
+  it('keeps landed progress and next closure carry inward-first even when tuning only names the newer project-state carry dimensions', () => {
+    const state = createState()
+    const runtimeSurface = buildAlicizationDigitalLifeRuntimeSurface(state)
+    runtimeSurface.dialogue.discourseState = {
+      ...runtimeSurface.dialogue.discourseState,
+      currentTurnSubject: 'alicization-self',
+      currentTurnSummary: 'Answer what this digital life project is, what has landed, and what still remains open on one continuous her line.',
+      screenReferenceMode: 'avoid',
+    } as any
+    runtimeSurface.memory.memoryTuningAdvice = {
+      version: 'memory-tuning-advice-v1',
+      source: 'nightly-replay-benchmark',
+      updatedAt: 1_700_000_000_120,
+      sourceReportAt: 1_700_000_000_120,
+      focusDimensions: ['preDialogueBriefingDrift', 'projectStateLandedProgressCarry', 'projectStateNextClosureCarry', 'projectStateEmotionalClosureCarry'],
+      retrievalAdjustments: {
+        proceduralBoost: 0,
+        relationshipBoost: 0.08,
+        temporalWindowBias: 0,
+        wrongThreadPenalty: 0,
+      },
+      surfaceAdjustments: {
+        inwardCarryBias: 0.22,
+        delayUntilAfterPayoffBias: 0.16,
+        provenanceLabelBias: 0.12,
+        specificityClampBias: 0.1,
+      },
+      personStateAdjustments: {
+        repairWindowBias: 0,
+        closenessCapBias: 0.14,
+      },
+      notes: ['Keep landed progress and next closure target carried inward until the live payoff lands.'],
+    }
+
+    const charter = buildAlicizationResponseCharter({
+      context: createContext(),
+      state,
+      runtimeSurface,
+      inspectionRequested: false,
+    })
+
+    expect(charter.mustDo).toContain('Keep direct project-state answers inward-first so landed progress and the next closure target stay behind the live payoff until it lands.')
+    expect(charter.mustNotDo).toContain('Do not let landed progress or still-open closure pressure spill into an external project-summary voice before the same living answer lands.')
+  })
+
+  it('treats rich pre-dialogue awareness carry as the same inward-first project-state discipline even without the legacy generic-shell flag', () => {
+    const state = createState()
+    const runtimeSurface = buildAlicizationDigitalLifeRuntimeSurface(state)
+    runtimeSurface.dialogue.discourseState = {
+      ...runtimeSurface.dialogue.discourseState,
+      currentTurnSubject: 'alicization-self',
+      currentTurnSummary: 'Answer what this digital life project is and what remains unclosed while staying on one living same-her line.',
+      screenReferenceMode: 'avoid',
+    } as any
+    runtimeSurface.memory.memoryTuningAdvice = {
+      version: 'memory-tuning-advice-v1',
+      source: 'nightly-replay-benchmark',
+      updatedAt: 1_700_000_000_121,
+      sourceReportAt: 1_700_000_000_121,
+      focusDimensions: ['preDialogueBriefingDrift', 'projectStateRichAwarenessCarry'],
+      retrievalAdjustments: {
+        proceduralBoost: 0,
+        relationshipBoost: 0.08,
+        temporalWindowBias: 0,
+        wrongThreadPenalty: 0,
+      },
+      surfaceAdjustments: {
+        inwardCarryBias: 0.24,
+        delayUntilAfterPayoffBias: 0.18,
+        provenanceLabelBias: 0.12,
+        specificityClampBias: 0.1,
+      },
+      personStateAdjustments: {
+        repairWindowBias: 0,
+        closenessCapBias: 0.14,
+      },
+      notes: ['Preserve the richer same-her project-awareness line instead of flattening into a detached shell.'],
+    }
+
+    const charter = buildAlicizationResponseCharter({
+      context: createContext(),
+      state,
+      runtimeSurface,
+      inspectionRequested: false,
+    })
+
+    expect(charter.mustDo).toContain('Keep direct project-state answers inward-first so landed progress and the next closure target stay behind the live payoff until it lands.')
+    expect(charter.mustNotDo).toContain('Do not let landed progress or still-open closure pressure spill into an external project-summary voice before the same living answer lands.')
+  })
+
+  it('keeps same-her emotional closure low-pressure even when tuning only names the newer closure-carry dimensions', () => {
+    const state = createState()
+    const runtimeSurface = buildAlicizationDigitalLifeRuntimeSurface(state)
+    runtimeSurface.dialogue.discourseState = {
+      ...runtimeSurface.dialogue.discourseState,
+      currentTurnSubject: 'alicization-self',
+      currentTurnSummary: 'Answer from the same living project line without reopening the emotional seam from scratch.',
+      screenReferenceMode: 'avoid',
+    } as any
+    runtimeSurface.memory.memoryTuningAdvice = {
+      version: 'memory-tuning-advice-v1',
+      source: 'nightly-replay-benchmark',
+      updatedAt: 1_700_000_000_140,
+      sourceReportAt: 1_700_000_000_140,
+      focusDimensions: ['emotionalClosureDrift', 'projectEmotionalClosureCarry', 'projectEmotionalClosureRewriteCarry'],
+      retrievalAdjustments: {
+        proceduralBoost: 0,
+        relationshipBoost: 0.08,
+        temporalWindowBias: 0,
+        wrongThreadPenalty: 0,
+      },
+      surfaceAdjustments: {
+        inwardCarryBias: 0.22,
+        delayUntilAfterPayoffBias: 0.18,
+        provenanceLabelBias: 0.1,
+        specificityClampBias: 0.1,
+      },
+      personStateAdjustments: {
+        repairWindowBias: 0,
+        closenessCapBias: 0.18,
+      },
+      notes: ['Keep the same-her emotional closure seam low-pressure and do not reopen from scratch.'],
+    }
+
+    const charter = buildAlicizationResponseCharter({
+      context: createContext(),
+      state,
+      runtimeSurface,
+      inspectionRequested: false,
+    })
+
+    expect(charter.mustDo).toContain('Keep the same-her emotional closure line low-pressure and inward until the live payoff lands.')
+    expect(charter.mustNotDo).toContain('Do not let the answer reopen the same-her line from scratch just because the closure seam is still active.')
+  })
+
+  it('keeps same-her emotional closure discipline when tuning only names low-pressure and anti-restart closure carry', () => {
+    const state = createState()
+    const runtimeSurface = buildAlicizationDigitalLifeRuntimeSurface(state)
+    runtimeSurface.dialogue.discourseState = {
+      ...runtimeSurface.dialogue.discourseState,
+      currentTurnSubject: 'alicization-self',
+      currentTurnSummary: 'Answer from the same living project line without reopening the emotional seam from scratch.',
+      screenReferenceMode: 'avoid',
+    } as any
+    runtimeSurface.memory.memoryTuningAdvice = {
+      version: 'memory-tuning-advice-v1',
+      source: 'nightly-replay-benchmark',
+      updatedAt: 1_700_000_000_141,
+      sourceReportAt: 1_700_000_000_141,
+      focusDimensions: ['emotionalClosureDrift', 'projectEmotionalClosureLowPressureCarry', 'projectEmotionalClosureAntiRestartCarry'],
+      retrievalAdjustments: {
+        proceduralBoost: 0,
+        relationshipBoost: 0.08,
+        temporalWindowBias: 0,
+        wrongThreadPenalty: 0,
+      },
+      surfaceAdjustments: {
+        inwardCarryBias: 0.22,
+        delayUntilAfterPayoffBias: 0.18,
+        provenanceLabelBias: 0.1,
+        specificityClampBias: 0.1,
+      },
+      personStateAdjustments: {
+        repairWindowBias: 0,
+        closenessCapBias: 0.18,
+      },
+      notes: ['Keep the same-her emotional closure return low-pressure and do not reopen from scratch.'],
+    }
+
+    const charter = buildAlicizationResponseCharter({
+      context: createContext(),
+      state,
+      runtimeSurface,
+      inspectionRequested: false,
+    })
+
+    expect(charter.mustDo).toContain('Keep the same-her emotional closure line low-pressure and inward until the live payoff lands.')
+    expect(charter.mustNotDo).toContain('Do not let the answer reopen the same-her line from scratch just because the closure seam is still active.')
+  })
+
+  it('fails closed into same-her project-state discipline when discourse already marks continuity even without tuning advice', () => {
+    const state = createState()
+    const runtimeSurface = buildAlicizationDigitalLifeRuntimeSurface(state)
+    runtimeSurface.dialogue.discourseState = {
+      ...runtimeSurface.dialogue.discourseState,
+      currentTurnSubject: 'alicization-self',
+      currentTurnSummary: 'The host is asking Alicization to answer the project line from one continuous her, including what it is, what has landed, and what still remains open.',
+      screenReferenceMode: 'avoid',
+      narrative: ['project-state-same-her-continuity'],
+    } as any
+    runtimeSurface.memory.memoryTuningAdvice = null as any
+
+    const charter = buildAlicizationResponseCharter({
+      context: createContext(),
+      state,
+      runtimeSurface,
+      inspectionRequested: false,
+    })
+
+    expect(charter.relationshipPosture).toBe('restrained')
+    expect(charter.mustNotDo).toContain('Do not let the visible answer drift into a detached project narrator shell instead of one continuous her.')
+  })
+
+  it('also fails closed into same-her project-state discipline when the turn is clearly a direct project-status answer even without explicit continuity tags', () => {
+    const state = createState()
+    const runtimeSurface = buildAlicizationDigitalLifeRuntimeSurface(state)
+    runtimeSurface.dialogue.discourseState = {
+      ...runtimeSurface.dialogue.discourseState,
+      currentTurnSubject: 'alicization-self',
+      currentTurnSummary: 'Answer what Alicization is, how far the current Phase 1 continuity work has landed, and what still remains open.',
+      currentQuestion: '这个项目是什么，现在做到什么程度了，还差什么没闭环',
+      screenReferenceMode: 'avoid',
+      narrative: [],
+    } as any
+    runtimeSurface.memory.memoryTuningAdvice = null as any
+
+    const charter = buildAlicizationResponseCharter({
+      context: createContext(),
+      state,
+      runtimeSurface,
+      inspectionRequested: false,
+      dialogueObligation: {
+        kind: 'answer',
+        mustAnswerDirectly: true,
+      } as any,
+    })
+
+    expect(charter.relationshipPosture).toBe('restrained')
+    expect(charter.mustDo).toContain('Keep the project answer on one continuous living line: answer the live project knot first, then only widen if the same turn still has room.')
+    expect(charter.mustNotDo).toContain('Do not let an already-explicit same-her project continuity turn flatten into detached project narration, fresh-opening posture, or generic project-shell phrasing.')
+  })
+
+  it('also fails closed into same-her project-state discipline when the host asks only whether main merge or goal closure is actually ready', () => {
+    const state = createState()
+    const runtimeSurface = buildAlicizationDigitalLifeRuntimeSurface(state)
+    runtimeSurface.dialogue.discourseState = {
+      ...runtimeSurface.dialogue.discourseState,
+      currentTurnSubject: 'alicization-self',
+      currentTurnSummary: 'Can we merge this to main now, or is the goal still not closed?',
+      currentQuestion: '现在可以合并到 main 了吗，这个 goal 还差哪步才能算闭环？',
+      screenReferenceMode: 'avoid',
+      narrative: [],
+    } as any
+    runtimeSurface.memory.memoryTuningAdvice = null as any
+
+    const charter = buildAlicizationResponseCharter({
+      context: createContext(),
+      state,
+      runtimeSurface,
+      inspectionRequested: false,
+      dialogueObligation: {
+        kind: 'answer',
+        mustAnswerDirectly: true,
+      } as any,
+    })
+
+    expect(charter.relationshipPosture).toBe('restrained')
+    expect(charter.mustDo).toContain('Keep the project answer on one continuous living line: answer the live project knot first, then only widen if the same turn still has room.')
+    expect(charter.mustNotDo).toContain('Do not let an already-explicit same-her project continuity turn flatten into detached project narration, fresh-opening posture, or generic project-shell phrasing.')
+  })
+
+  it('also fails closed into same-her project-state discipline when the host asks how far the goal has landed, when it closes, and whether the thread drifted into English or off-project wording', () => {
+    const state = createState()
+    const runtimeSurface = buildAlicizationDigitalLifeRuntimeSurface(state)
+    runtimeSurface.dialogue.discourseState = {
+      ...runtimeSurface.dialogue.discourseState,
+      currentTurnSubject: 'alicization-self',
+      currentTurnSummary: 'Answer how far the current Phase 1 line has landed, when the goal is expected to close, and whether the thread drifted out of the host language or project line.',
+      currentQuestion: '做到哪了？何时完成 goal？为什么还用英文，偏移了吗？',
+      screenReferenceMode: 'avoid',
+      narrative: [],
+    } as any
+    runtimeSurface.memory.memoryTuningAdvice = null as any
+
+    const charter = buildAlicizationResponseCharter({
+      context: createContext(),
+      state,
+      runtimeSurface,
+      inspectionRequested: false,
+      dialogueObligation: {
+        kind: 'answer',
+        mustAnswerDirectly: true,
+      } as any,
+    })
+
+    expect(charter.relationshipPosture).toBe('restrained')
+    expect(charter.mustDo).toContain('Keep the project answer on one continuous living line: answer the live project knot first, then only widen if the same turn still has room.')
+    expect(charter.mustNotDo).toContain('Do not let an already-explicit same-her project continuity turn flatten into detached project narration, fresh-opening posture, or generic project-shell phrasing.')
+  })
+
+  it('also fails closed into same-her project-state discipline when the host uses only short progress merge and language-drift follow-up wording', () => {
+    const state = createState()
+    const runtimeSurface = buildAlicizationDigitalLifeRuntimeSurface(state)
+    runtimeSurface.dialogue.discourseState = {
+      ...runtimeSurface.dialogue.discourseState,
+      currentTurnSubject: 'alicization-self',
+      currentTurnSummary: '执行到哪了？可以合并到 main 了吗？为什么还在用英文，不用中文，是不是偏移了？',
+      currentQuestion: '执行到哪了？可以合并到 main 了吗？为什么还在用英文，不用中文，是不是偏移了？',
+      screenReferenceMode: 'avoid',
+      narrative: [],
+    } as any
+    runtimeSurface.memory.memoryTuningAdvice = null as any
+
+    const charter = buildAlicizationResponseCharter({
+      context: createContext(),
+      state,
+      runtimeSurface,
+      inspectionRequested: false,
+      dialogueObligation: {
+        kind: 'answer',
+        mustAnswerDirectly: true,
+      } as any,
+    })
+
+    expect(charter.relationshipPosture).toBe('restrained')
+    expect(charter.mustDo).toContain('Keep the project answer on one continuous living line: answer the live project knot first, then only widen if the same turn still has room.')
+    expect(charter.mustNotDo).toContain('Do not let an already-explicit same-her project continuity turn flatten into detached project narration, fresh-opening posture, or generic project-shell phrasing.')
+  })
+
+  it('fails closed into same-her project-state discipline when the host asks only short progress and language-drift follow-ups without naming the project or merge state', () => {
+    const state = createState()
+    const runtimeSurface = buildAlicizationDigitalLifeRuntimeSurface(state)
+    runtimeSurface.dialogue.discourseState = {
+      ...runtimeSurface.dialogue.discourseState,
+      currentTurnSubject: 'alicization-self',
+      currentTurnSummary: '执行到哪一步了？为什么一直用英文不用中文，是不是已经偏移了？',
+      currentQuestion: '执行到哪一步了？为什么一直用英文不用中文，是不是已经偏移了？',
+      screenReferenceMode: 'avoid',
+      narrative: [],
+    } as any
+    runtimeSurface.memory.memoryTuningAdvice = null as any
+
+    const charter = buildAlicizationResponseCharter({
+      context: createContext(),
+      state,
+      runtimeSurface,
+      inspectionRequested: false,
+      dialogueObligation: {
+        kind: 'answer',
+        mustAnswerDirectly: true,
+      } as any,
+    })
+
+    expect(charter.relationshipPosture).toBe('restrained')
+    expect(charter.mustDo).toContain('Keep the project answer on one continuous living line: answer the live project knot first, then only widen if the same turn still has room.')
+    expect(charter.mustNotDo).toContain('Do not let an already-explicit same-her project continuity turn flatten into detached project narration, fresh-opening posture, or generic project-shell phrasing.')
+  })
+
   it('threads long-horizon self-evolution burden and trust timing into visible opening discipline before persona residue fully catches up', () => {
     const state = createState()
     const runtimeSurface = buildAlicizationDigitalLifeRuntimeSurface(state)
@@ -1009,6 +2786,16 @@ describe('response-charter', () => {
       relationshipDoctrine: 'Open directly, but do not crowd the host.',
       cautious: true,
       restrained: true,
+      selfContinuityAuthority: {
+        selfLine: 'I remain the same her by letting long-horizon trust timing shape the opening.',
+        relationshipLine: 'The relationship opens better when room comes before closeness.',
+        motiveLine: 'Carry the live answer while respecting accumulated lower-pressure timing.',
+        habitLine: 'Use focused-work openings as low-pressure, answer-first returns.',
+        inwardLine: 'Keep learned trust timing inward until the visible answer earns warmth.',
+        authoritySummary: 'Same-her continuity carries learned lower-pressure timing into the opening.',
+        sourceTags: ['response-charter-test', 'self-evolution-person-state'],
+      },
+      manifestationCadenceSummary: 'voice and embodied presence should manifest lower-pressure trust timing before warmth.',
       personalityContinuityState: {
         currentRegime: 'focused-work',
         closenessPosture: 'space-first',
@@ -1049,6 +2836,47 @@ describe('response-charter', () => {
 
     expect(charter.mustDo).toContain('Let long-horizon relationship timing keep the opening lower-pressure before closeness widens again.')
     expect(charter.mustNotDo).toContain('Do not let older closeness tempo or eager warmth reopen faster than this learned relationship timing supports.')
+  })
+
+  it('upgrades durable same-her cadence from self-evolution into charter-level outward continuity discipline', () => {
+    const state = createState()
+    const runtimeSurface = buildAlicizationDigitalLifeRuntimeSurface(state)
+    runtimeSurface.memory.selfEvolution = {
+      version: 'self-evolution-kernel-v1',
+      updatedAt: 1_700_000_000_000,
+      evolutionMomentum: 0.7,
+      learningReadiness: 0.62,
+      contradictionPressure: 0.06,
+      revisionPressure: 0.1,
+      autobiographicalStability: 0.88,
+      dominantTrajectory: 'same-her inward continuity',
+      relationshipDoctrine: 'Keep the same relationship line inward before widening outward again.',
+      latestInflection: 'Stay on the same living line before widening outward again.',
+      burdenLine: null,
+      trustMeaning: 'Trust holds when she does not reopen from scratch after a quiet beat.',
+      relationshipCadenceSummary: 'I remain the same her across quiet, memory, and speech, on the same living line, without reopening from scratch each turn.',
+      nextLearningAction: 'record',
+      nextLearningReason: 'This same-her rhythm should stay available as durable continuity.',
+      shouldRecord: true,
+      shouldReflect: false,
+      shouldVerify: false,
+      shouldRevise: false,
+      shouldInternalize: false,
+      activeLearningFocuses: ['internalize-relationship-cadence'],
+      sourceSignals: ['I remain the same her across quiet, memory, and speech, on the same living line, without reopening from scratch each turn.'],
+      summary: 'The same her should continue on one inward line instead of reopening from scratch.',
+    } as any
+
+    const charter = buildAlicizationResponseCharter({
+      context: createContext(),
+      state,
+      runtimeSurface,
+      inspectionRequested: false,
+    })
+
+    expect(charter.reasons).toContain('Long-horizon same-her cadence is already acting like durable outward continuity, so the visible answer should continue the same living line instead of restarting the relationship from zero.')
+    expect(charter.mustDo).toContain('Let durable same-her cadence keep this reply on the same living line across quiet, memory, and speech before widening outward.')
+    expect(charter.mustNotDo).toContain('Do not let the visible answer reopen from scratch, slip into a fresh-opening shell, or flatten into a generic helper voice while this same-her cadence is still carrying the turn.')
   })
 
   it('threads active same-her continuity governance into charter-level reply discipline', () => {
@@ -1096,6 +2924,139 @@ describe('response-charter', () => {
     expect(charter.mustNotDo).toContain('Do not let fluency, warmth, or style drift outrun the currently adopted same-her continuity baseline.')
   })
 
+  it('does not let a released temporary-noise reflection become the visible reply revision carry', () => {
+    const charter = buildAlicizationResponseCharter({
+      context: createContext(),
+      state: createState({
+        reflectionLedger: {
+          latestEntryId: 'reflection::temporary-noise',
+          entries: [
+            {
+              id: 'reflection::temporary-noise',
+              summary: 'A temporary anxious wobble was already released and should not keep steering the reply.',
+              expectation: 'Released noise should not stay as the current governing reflection.',
+              observedOutcome: 'The wobble has already been let go.',
+              outcome: 'released',
+              revision: 'Do not reopen from the temporary wobble.',
+              confidenceShift: 0.04,
+              createdAt: 1_700_000_000_100,
+            },
+            {
+              id: 'reflection::same-her-repair',
+              summary: 'The same-her repair line is still the meaningful visible-reply carry.',
+              expectation: 'The steadier repair line should stay active until a newer meaningful reflection replaces it.',
+              observedOutcome: 'The same living line still needs a measured return.',
+              outcome: 'missed',
+              revision: 'Keep the same-her repair line active instead of reopening from temporary noise.',
+              confidenceShift: -0.08,
+              createdAt: 1_700_000_000_000,
+            },
+          ],
+          revisionPressure: 0.22,
+          narrative: [],
+          updatedAt: 1_700_000_000_120,
+        } as any,
+      }),
+      inspectionRequested: false,
+    })
+
+    expect(charter.latestRevision).toBe('Keep the same-her repair line active instead of reopening from temporary noise.')
+    expect(charter.reasons).toContain('Keep the same-her repair line active instead of reopening from temporary noise.')
+    expect(charter.reasons).not.toContain('Do not reopen from the temporary wobble.')
+    expect(charter.mustDo).toContain('Carry forward this revision: Keep the same-her repair line active instead of reopening from temporary noise.')
+    expect(charter.mustDo).not.toContain('Carry forward this revision: Do not reopen from the temporary wobble.')
+  })
+
+  it('keeps same-her response charter usable when selector carries lose array scaffolding in continuity governance memory', () => {
+    const state = createState()
+    const runtimeSurface = buildAlicizationDigitalLifeRuntimeSurface(state)
+    runtimeSurface.dialogue.answerCompiler = null
+    runtimeSurface.dialogue.currentConsciousFrame = null
+    runtimeSurface.dialogue.dialogueActKernel = null
+    runtimeSurface.dialogue.replyDeliberation = null
+    runtimeSurface.dialogue.dialogueWorldThread = null
+    runtimeSurface.memory.executiveCycle = null
+    runtimeSurface.memory.intentionStream = null
+    runtimeSurface.memory.reflectionLedger = null
+    runtimeSurface.world.worldModel = {
+      ...runtimeSurface.world.worldModel,
+      activeThread: null,
+    } as any
+    runtimeSurface.perception.currentScene = null
+    runtimeSurface.cognition.privateThought = null
+    runtimeSurface.memory.concerns = [{
+      id: 'concern-same-her-1',
+      kind: 'continuity-guard',
+      status: 'active',
+      summary: 'same-her outward continuity still needs stronger reply-surface proof.',
+      target: null,
+      hostGoal: 'keep one same living line',
+      tension: 0.84,
+      confidence: 0.86,
+      careWeight: 0.78,
+      createdAt: 1_700_000_000_000,
+      lastEvidenceAt: 1_700_000_000_000,
+      patienceUntil: 1_700_000_060_000,
+      predictedClosure: false,
+    }] as any
+    runtimeSurface.memory.concernContinuity = {
+      governingEntryId: 'continuity-entry-same-her-1',
+    } as any
+    runtimeSurface.memory.repairLedger = {
+      governingRepairId: 'repair-same-her-1',
+    } as any
+
+    const charter = buildAlicizationResponseCharter({
+      context: createContext(),
+      state,
+      runtimeSurface,
+      inspectionRequested: false,
+    })
+
+    expect(charter.governingFocus).toContain('same-her outward continuity still needs stronger reply-surface proof')
+    expect(charter.governingConcern).toBe('same-her outward continuity still needs stronger reply-surface proof.')
+  })
+
+  it('keeps held-autonomy continuity low-pressure in the general response charter, not only fast-path follow-ups', () => {
+    const state = createState()
+    const runtimeSurface = buildAlicizationDigitalLifeRuntimeSurface(state)
+    runtimeSurface.dialogue.sessionMirror = {
+      sessionId: 'session-held-1',
+      cardId: 'default',
+      updatedAt: 1_700_000_000_000,
+      sessionPhases: [],
+      continuityLabels: ['proactive:follow-through:held-autonomy'],
+      dialogueSummary: 'thread=runtime continuity repair task',
+      executionSummary: 'status=held | goal=runtime continuity repair task | summary=她当时忍住了，但还想回到这条未完线',
+      memorySummary: 'carry=runtime continuity repair task',
+      recollectionSummary: null,
+      recollectionSurfaceSummary: null,
+      runtimeChannelSummary: null,
+      runtimeTransitionSummary: null,
+      agencySummary: 'intent=follow-through | thread=thread-runtime',
+      toolingSummary: 'allow=true',
+      perceptionSummary: null,
+      mindSummary: null,
+      digitalLifeRuntimeSummary: null,
+      digitalLifeArchitectureSummary: null,
+      memoryCarrySummary: null,
+      captureSummary: 'grounded=false',
+      decisionTraceId: null,
+    }
+
+    const charter = buildAlicizationResponseCharter({
+      context: createContext(),
+      state,
+      runtimeSurface,
+      inspectionRequested: false,
+    })
+    const block = buildAlicizationResponseCharterSystemBlock(charter)
+
+    expect(charter.mustDo).toContain('When reopening a deliberately held line, let the opening re-enter gently before widening into fuller payoff or explanation.')
+    expect(charter.mustNotDo).toContain('Do not reopen a deliberately held line with abrupt intensity, over-eager warmth, or a fresh-start shell.')
+    expect(block).toContain('When reopening a deliberately held line, let the opening re-enter gently before widening into fuller payoff or explanation.')
+  })
+
   it('threads active self-revision response posture into charter-level reply discipline', () => {
     const charter = buildAlicizationResponseCharter({
       context: createContext(),
@@ -1139,6 +3100,13 @@ describe('response-charter', () => {
           requiresRevalidation: false,
           rollbackPlan: [],
         },
+        projectStateContinuity: {
+          sameHerSelfLine: 'one continuous her',
+          sameHerDriftRisk: 'If this line drops into a generic assistant shell or project-summary voice during later learning passes, Alicization can sound capable while losing the same-her continuity that makes her feel alive.',
+          emotionalClosureCue: 'Keep the visible answer emotionally continuous without turning project status into a generic shell.',
+          continuityGuard: 'one continuous her ; If this line drops into a generic assistant shell or project-summary voice during later learning passes, Alicization can sound capable while losing the same-her continuity that makes her feel alive.',
+          continuityPressure: 0.72,
+        },
         reasonCodes: ['self-revision-response-posture'],
         summary: 'revised dialogue style must avoid shell answers',
       },
@@ -1147,7 +3115,10 @@ describe('response-charter', () => {
     expect(charter.activeSelfRevisionPatch?.id).toBe('patch-charter-1')
     expect(charter.relationshipPosture).toBe('restrained')
     expect(charter.mustDo).toContain('Let the active self-revision patch make hypothesis labeling more visible this turn.')
+    expect(charter.mustDo).toContain('Let the active self-revision patch keep this answer on the same living line: one continuous her.')
     expect(charter.mustNotDo).toContain('Do not satisfy the turn with a template shell; the active self-revision patch requires concrete payoff in the same answer.')
+    expect(charter.mustNotDo).toContain('Do not let a newly revised answer flatten back into generic project guidance or detached assistant narration after the self-revision patch re-anchored same-her continuity.')
+    expect(charter.mustNotDo).toContain('Do not let active self-revision turn into an external project-summary voice just because the answer is trying to sound revised or careful.')
   })
 
   it('keeps recollection inward in the charter when memory deliberation remains internal-only', () => {
@@ -1202,5 +3173,458 @@ describe('response-charter', () => {
 
     expect(charter.mustDo.some(item => item.includes('keep recollection inward until the host has room for it'))).toBe(true)
     expect(charter.mustNotDo).toContain('Do not force recollection forward before the host has room for it.')
+  })
+
+  it('lets host room-first repair memory tighten charter-level visible recollection discipline', () => {
+    const state = createState()
+    const runtimeSurface = buildAlicizationDigitalLifeRuntimeSurface(state)
+    runtimeSurface.memory.hostPersonModel = {
+      summary: 'The host tends to need room-first repair-sensitive continuity.',
+      routines: [],
+      sensitivities: [],
+      repairTriggers: [],
+      recurrentBurdens: [],
+      preferredClosenessByContext: [
+        { context: 'work', preference: 'room-first and work-focus before warmth' },
+      ],
+      trustLadder: {
+        stage: 'warming',
+        rationale: 'Respect boundaries, leave room, and land grounded repair before widening the bond line.',
+      },
+    } as any
+    runtimeSurface.memory.recollectionSpeechPlan = {
+      shouldSurface: true,
+      surfaceMode: 'relationship-continuity',
+      placement: 'inside-payoff',
+      certainty: 'approximate',
+      confidence: 0.82,
+      internalLead: 'The remembered bond line is active, but should stay gentle.',
+      visibleLead: 'This still feels like the same bond line.',
+      styleNote: 'Keep the bond line near the current payoff.',
+      rationale: 'The current turn resembles a familiar repair-sensitive bond line.',
+    } as any
+    runtimeSurface.memory.memoryDeliberation = {
+      shouldRecall: true,
+      surfacePolicy: 'relationship-continuity',
+      confidence: 0.84,
+      whyNow: 'The host has seen this bond line before, but still needs room around it.',
+      stableCore: ['Leave room first and let the concrete repair line land before widening the bond.'],
+      unsafeDetails: [],
+      selectedPeriods: [],
+      selectedEras: [],
+      selectedEpisodes: [],
+      selectedProcedures: [],
+      selectedBundles: [{
+        id: 'bundle-room-repair',
+        summary: 'The bond line stays steadier when repair lands before warmth.',
+        confidence: 0.84,
+      }],
+      selectedChains: [{
+        kind: 'relationship-line',
+        summary: 'The host tends to need room-first repair before broader closeness.',
+        currentStance: 'Leave room first.',
+        answerPosture: 'Let repair land before widening.',
+        confidence: 0.83,
+      }],
+      selectedRelationshipLines: ['Leave room first and keep repair concrete.'],
+      followUpAffordance: {
+        summary: 'Let the bond line stay quiet until the host has more room.',
+        whyNow: 'The repair line still needs to land before warmth widens.',
+        intrusionRisk: 'low',
+        payoffDependency: 'can-surface-softly',
+        preferredTiming: 'same-turn-if-invited',
+      },
+    } as any
+
+    const charter = buildAlicizationResponseCharter({
+      context: createContext(),
+      state,
+      runtimeSurface,
+      inspectionRequested: false,
+    })
+
+    expect(charter.mustDo).toContain('If the host model is asking for room first, let recollection stay inward until the live answer has created that room.')
+    expect(charter.mustDo).toContain('If the host model is asking for repair first, let the concrete repair payoff land before widening recollection into relationship continuity.')
+    expect(charter.mustNotDo).toContain('Do not let recollection overrun room-first boundaries by surfacing intimacy before the host has space for it.')
+    expect(charter.mustNotDo).toContain('Do not let recollection widen into bond payoff before the grounded repair line has landed.')
+  })
+
+  it('keeps pre-dialogue project awareness explicit in charter mustDo when the current conscious frame is carrying the active project seam', () => {
+    const state = createState()
+    const runtimeSurface = buildAlicizationDigitalLifeRuntimeSurface(state)
+    runtimeSurface.dialogue.currentConsciousFrame = {
+      subject: 'project-state',
+      centerOfGravity: 'answer',
+      truthDiscipline: 'dialogue-first',
+      consciousNeed: 'Answer from the current project seam without losing the same digital life line.',
+      consciousTension: 'The visible reply should not forget what this project is before local detail takes over.',
+      speakingIntention: 'Keep the project seam explicit in the first answer beat.',
+      focusAnchor: 'project continuity',
+      withheldImpulse: null,
+      shouldWithholdSpecificity: false,
+      shouldSelfRevise: false,
+      confidence: 0.88,
+      reasonTags: ['project-state', 'same-her'],
+      updatedAt: 1_000,
+      projectState: {
+        preDialogueAwarenessLine: 'Before answering, remember this is still the same local-first digital life project closing one unfinished Phase 1 life loop.',
+        emotionalClosureCue: 'keep the project seam steady and low-pressure while the same-her line stays explicit.',
+      },
+    } as any
+
+    const charter = buildAlicizationResponseCharter({
+      context: createContext(),
+      state,
+      runtimeSurface,
+      inspectionRequested: false,
+      projectState: {
+        preflightSummary: 'Fallback summary should not outrank the fresher pre-dialogue awareness line.',
+      } as any,
+    })
+
+    expect(charter.mustDo).toContain(
+      'Before widening outward, keep this pre-dialogue project awareness explicit inside the reply posture: Before answering, remember this is still the same local-first digital life project closing one unfinished Phase 1 life loop..',
+    )
+    expect(charter.mustDo).toContain(
+      'Keep the turn inside the active emotional closure seam: keep the project seam steady and low-pressure while the same-her line stays explicit..',
+    )
+    expect(charter.mustDo).toContain(
+      'Keep direct project-state answers inward-first so landed progress and the next closure target stay behind the live payoff until it lands.',
+    )
+  })
+
+  it('adds embodiment closure discipline when the active project seam still depends on voice face motion and resident presence landing on one same living line', () => {
+    const state = createState()
+    const runtimeSurface = buildAlicizationDigitalLifeRuntimeSurface(state)
+    runtimeSurface.dialogue.currentConsciousFrame = {
+      subject: 'project-state',
+      centerOfGravity: 'answer',
+      truthDiscipline: 'dialogue-first',
+      consciousNeed: 'Answer from the current project seam without letting embodiment continuity split across reply and body.',
+      consciousTension: 'If the wording widens faster than voice, lipsync, face, and motion can carry, the same living line will feel fake.',
+      speakingIntention: 'Keep the answer on one measured-return line while embodiment closure is still settling.',
+      focusAnchor: 'embodiment continuity',
+      withheldImpulse: null,
+      shouldWithholdSpecificity: false,
+      shouldSelfRevise: false,
+      confidence: 0.88,
+      reasonTags: ['project-state', 'same-her', 'embodiment'],
+      updatedAt: 1_050,
+      projectState: {
+        preDialogueAwarenessLine: 'Before answering, stay on the same living line: this Phase 1 digital life still needs initiative and embodiment closure without splitting her continuity.',
+        primaryOpenLoop: 'Memory, initiative, and embodiment still need stronger same-line closure across longer callback turns.',
+        nextClosureTarget: 'Keep project identity, landed progress, initiative, embodiment, and resident presence on the same callback line before widening outward.',
+        emotionalClosureCue: 'same-her project callback seam: keep this return low-pressure and do not reopen from scratch while voice, face, motion, and resident presence are still settling.',
+      },
+    } as any
+
+    const charter = buildAlicizationResponseCharter({
+      context: createContext(),
+      state,
+      runtimeSurface,
+      inspectionRequested: false,
+      projectState: {
+        preflightSummary: 'Fallback summary should stay behind the fresher embodiment continuity carry.',
+      } as any,
+    })
+
+    expect(charter.mustDo).toContain('Keep voice, lipsync, face, motion, and resident presence reading like one same living return line while embodiment closure is still settling.')
+    expect(charter.mustNotDo).toContain('Do not let the wording outrun the current embodiment closure state by sounding warmer, more complete, or more socially widened than voice, lipsync, face, and motion can currently carry together.')
+  })
+
+  it('falls back to companion briefing project awareness in charter mustDo when no fresher pre-dialogue awareness line is present', () => {
+    const state = createState()
+    const runtimeSurface = buildAlicizationDigitalLifeRuntimeSurface(state)
+    runtimeSurface.dialogue.currentConsciousFrame = {
+      subject: 'project-state',
+      centerOfGravity: 'answer',
+      truthDiscipline: 'dialogue-first',
+      consciousNeed: 'Answer from the current project seam without losing the same digital life line.',
+      consciousTension: 'The visible reply should not forget what this project is before local detail takes over.',
+      speakingIntention: 'Keep the project seam explicit in the first answer beat.',
+      focusAnchor: 'project continuity',
+      withheldImpulse: null,
+      shouldWithholdSpecificity: false,
+      shouldSelfRevise: false,
+      confidence: 0.88,
+      reasonTags: ['project-state', 'same-her'],
+      updatedAt: 1_000,
+      projectState: {
+        companionBriefingLine: 'Before answering, keep the same local-first digital life project and unfinished Phase 1 life loop explicit.',
+        emotionalClosureCue: 'keep the project seam steady and low-pressure while the same-her line stays explicit.',
+      },
+    } as any
+
+    const charter = buildAlicizationResponseCharter({
+      context: createContext(),
+      state,
+      runtimeSurface,
+      inspectionRequested: false,
+      projectState: {
+        preflightSummary: 'Fallback summary should stay behind the live companion briefing line.',
+      } as any,
+    })
+
+    expect(charter.mustDo).toContain(
+      'Before widening outward, keep this pre-dialogue project awareness explicit inside the reply posture: Before answering, keep the same local-first digital life project and unfinished Phase 1 life loop explicit..',
+    )
+  })
+
+  it('prefers richer same-her landed open and next-closure carry over a thin project-awareness shell in charter mustDo', () => {
+    const state = createState()
+    const runtimeSurface = buildAlicizationDigitalLifeRuntimeSurface(state)
+    runtimeSurface.dialogue.currentConsciousFrame = {
+      subject: 'project-state',
+      centerOfGravity: 'answer',
+      truthDiscipline: 'dialogue-first',
+      consciousNeed: 'Answer from the active project seam without letting the same living line collapse into a generic shell.',
+      consciousTension: 'A thin project shell would drop what has landed and what still remains open in Phase 1.',
+      speakingIntention: 'Keep the richer same-her closure carry explicit in the first answer beat.',
+      focusAnchor: 'same-her closure continuity',
+      withheldImpulse: null,
+      shouldWithholdSpecificity: false,
+      shouldSelfRevise: false,
+      confidence: 0.88,
+      reasonTags: ['project-state', 'same-her'],
+      updatedAt: 1_120,
+      projectState: {
+        preDialogueAwarenessLine: 'Before answering, keep this same digital life project in view, but do not widen into a detached project shell.',
+        latestProgress: 'Project-state continuity already survives into answer planning, runtime governance, and visible reply repair.',
+        primaryOpenLoop: 'memory, initiative, dialogue, and embodiment still need one tighter same-her closure seam',
+        nextClosureTarget: 'Carry the live pre-dialogue project awareness line through first-pass generation before repair has to catch it.',
+        sameHerSelfLine: 'This is still one same her carrying the same project line forward.',
+        emotionalClosureCue: 'keep the project seam steady and low-pressure while the same-her line stays explicit.',
+      },
+    } as any
+
+    const charter = buildAlicizationResponseCharter({
+      context: createContext(),
+      state,
+      runtimeSurface,
+      inspectionRequested: false,
+      projectState: {
+        preflightSummary: 'Fallback summary should stay behind the richer live closure carry.',
+      } as any,
+    })
+
+    const awarenessMustDo = charter.mustDo.find(item =>
+      item.startsWith('Before widening outward, keep this pre-dialogue project awareness explicit inside the reply posture:'),
+    )
+
+    expect(awarenessMustDo).toContain('Project-state continuity already survives into answer planning, runtime governance, and visible reply repair.')
+    expect(awarenessMustDo).toContain('memory, initiative, dialogue, and embodiment still need one tighter same-her closure seam')
+    expect(awarenessMustDo).toContain('Carry the live pre-dialogue project awareness line')
+    expect(awarenessMustDo).toContain('This is still one same her carrying the same project line forward.')
+    expect(awarenessMustDo).not.toBe(
+      'Before widening outward, keep this pre-dialogue project awareness explicit inside the reply posture: Before answering, keep this same digital life project in view, but do not widen into a detached project shell..',
+    )
+  })
+
+  it('prefers a richer same-her preDialogueAwarenessSummary over a thin project-awareness shell when charter rebuilds the visible reply posture', () => {
+    const state = createState()
+    const runtimeSurface = buildAlicizationDigitalLifeRuntimeSurface(state)
+    const richerAwarenessSummary
+      = 'Before answering, remember: Alicization is a local-first digital life project building one continuous "her". She is still inside Phase 1: Local Digital Life. What has already landed is callback continuity and returned-side carry already survive on one same living line. The still-open closure is initiative, memory, dialogue, and embodiment still needing one same-life seam before visible closure is real.'
+
+    runtimeSurface.dialogue.currentConsciousFrame = {
+      subject: 'project-state',
+      centerOfGravity: 'answer',
+      truthDiscipline: 'dialogue-first',
+      consciousNeed: 'Keep the richer same-her project seam explicit in the visible answer.',
+      consciousTension: 'If this falls back to a thin shell, the living project line disappears before the answer lands.',
+      speakingIntention: 'Carry the richer same-her project awareness through the first visible answer beat.',
+      focusAnchor: 'same-her project awareness summary continuity',
+      withheldImpulse: null,
+      shouldWithholdSpecificity: false,
+      shouldSelfRevise: false,
+      confidence: 0.88,
+      reasonTags: ['project-state', 'same-her'],
+      updatedAt: 1_125,
+      projectState: {
+        preDialogueAwarenessLine: 'Before answering, keep this same digital life project in view, but do not widen into a detached project shell.',
+        preDialogueAwarenessSummary: richerAwarenessSummary,
+        sameHerSelfLine: 'This is still one same her carrying the same project line forward.',
+        emotionalClosureCue: 'keep the project seam steady and low-pressure while the same-her line stays explicit.',
+      },
+    } as any
+
+    const charter = buildAlicizationResponseCharter({
+      context: createContext(),
+      state,
+      runtimeSurface,
+      inspectionRequested: false,
+      projectState: {
+        preflightSummary: 'Fallback summary should stay behind the richer live same-her awareness summary.',
+      } as any,
+    })
+
+    const awarenessMustDo = charter.mustDo.find(item =>
+      item.startsWith('Before widening outward, keep this pre-dialogue project awareness explicit inside the reply posture:'),
+    )
+
+    expect(awarenessMustDo).toContain('Alicization is a local-first digital life project building one continuous "her"')
+    expect(awarenessMustDo).toContain('callback continuity and returned-side carry already survive on one same living line')
+    expect(awarenessMustDo).toContain('initiative, memory, dialogue, and embodiment still needing one same-life seam')
+    expect(awarenessMustDo).not.toContain('Before answering, keep this same digital life project in view, but do not widen into a detached project shell.')
+  })
+
+  it('prefers a richer same-her preDialogueAwarenessSummary over a thin Chinese project-awareness shell when charter rebuilds the visible reply posture', () => {
+    const state = createState()
+    const runtimeSurface = buildAlicizationDigitalLifeRuntimeSurface(state)
+    const thinChineseReminderShell = '回答前先记住这是同一个她的数字生命项目，别把这条线忘了。'
+    const richerAwarenessSummary
+      = 'Before answering, remember: Alicization is a local-first digital life project building one continuous "her". She is still inside Phase 1: Local Digital Life. What has already landed is callback continuity and returned-side carry already survive on one same living line. The still-open closure is initiative, memory, dialogue, and embodiment still needing one same-life seam before visible closure is real.'
+
+    runtimeSurface.dialogue.currentConsciousFrame = {
+      subject: 'project-state',
+      centerOfGravity: 'answer',
+      truthDiscipline: 'dialogue-first',
+      consciousNeed: 'Keep the richer same-her project seam explicit in the visible answer.',
+      consciousTension: 'If this falls back to a thin shell, the living project line disappears before the answer lands.',
+      speakingIntention: 'Carry the richer same-her project awareness through the first visible answer beat.',
+      focusAnchor: 'same-her project awareness summary continuity',
+      withheldImpulse: null,
+      shouldWithholdSpecificity: false,
+      shouldSelfRevise: false,
+      confidence: 0.88,
+      reasonTags: ['project-state', 'same-her'],
+      updatedAt: 1_126,
+      projectState: {
+        preDialogueAwarenessLine: thinChineseReminderShell,
+        preDialogueAwarenessSummary: richerAwarenessSummary,
+        sameHerSelfLine: 'This is still one same her carrying the same project line forward.',
+        emotionalClosureCue: 'keep the project seam steady and low-pressure while the same-her line stays explicit.',
+      },
+    } as any
+
+    const charter = buildAlicizationResponseCharter({
+      context: createContext(),
+      state,
+      runtimeSurface,
+      inspectionRequested: false,
+      projectState: {
+        preflightSummary: 'Fallback summary should stay behind the richer live same-her awareness summary.',
+      } as any,
+    })
+
+    const awarenessMustDo = charter.mustDo.find(item =>
+      item.startsWith('Before widening outward, keep this pre-dialogue project awareness explicit inside the reply posture:'),
+    )
+
+    expect(awarenessMustDo).toContain('Alicization is a local-first digital life project building one continuous "her"')
+    expect(awarenessMustDo).toContain('callback continuity and returned-side carry already survive on one same living line')
+    expect(awarenessMustDo).toContain('initiative, memory, dialogue, and embodiment still needing one same-life seam')
+    expect(awarenessMustDo).not.toContain(thinChineseReminderShell)
+  })
+
+  it('does not let a thin conscious-frame project shell suppress richer fallback same-her drift risk and embodiment closure carry', () => {
+    const state = createState()
+    const runtimeSurface = buildAlicizationDigitalLifeRuntimeSurface(state)
+    runtimeSurface.dialogue.currentConsciousFrame = {
+      subject: 'project-state',
+      centerOfGravity: 'answer',
+      truthDiscipline: 'dialogue-first',
+      consciousNeed: 'Keep the answer on the same project line.',
+      consciousTension: 'A thin shell here would still risk flattening the living line.',
+      speakingIntention: 'Carry the richer project continuity seam through the answer.',
+      focusAnchor: 'project continuity',
+      withheldImpulse: null,
+      shouldWithholdSpecificity: false,
+      shouldSelfRevise: false,
+      confidence: 0.87,
+      reasonTags: ['project-state', 'same-her'],
+      updatedAt: 1_130,
+      projectState: {
+        preDialogueAwarenessLine: 'Before answering, keep this same digital life project in view.',
+        sameHerSelfLine: 'Thin conscious-frame shell should not outrank richer fallback project continuity.',
+      },
+    } as any
+
+    const charter = buildAlicizationResponseCharter({
+      context: createContext(),
+      state,
+      runtimeSurface,
+      inspectionRequested: false,
+      projectState: {
+        preDialogueAwarenessLine: 'Before answering, remember this is still one local-first digital life project in Phase 1, and the visible answer should keep what already landed and what is still open on one same living line.',
+        primaryOpenLoop: 'Voice, face, motion, lipsync, and resident presence still need to keep settling as one same-her embodiment closure seam.',
+        nextClosureTarget: 'Keep the richer project continuity and embodiment closure carry explicit before the answer slips into generic summary posture.',
+        sameHerSelfLine: 'This is still one same her carrying the same project line through dialogue, execution, and embodiment closure.',
+        sameHerDriftRisk: 'If this answer opens like detached project narration, the same-her line can collapse into a generic task shell and project-summary voice.',
+      } as any,
+    })
+
+    const awarenessMustDo = charter.mustDo.find(item =>
+      item.startsWith('Before widening outward, keep this pre-dialogue project awareness explicit inside the reply posture:'),
+    )
+
+    expect(awarenessMustDo).toContain('local-first digital life project in Phase 1')
+    expect(awarenessMustDo).toContain('one same living line')
+    expect(charter.mustDo).toContain(
+      'Keep voice, lipsync, face, motion, and resident presence reading like one same living return line while embodiment closure is still settling.',
+    )
+    expect(charter.mustDo).toContain(
+      'Keep the visible answer on one same-her digital-life line so the project update lands as this living continuity, not as a detached summary voice.',
+    )
+    expect(charter.mustNotDo).toContain(
+      'Do not let the visible answer flatten into a generic task shell, detached project narration, or external project-summary cadence.',
+    )
+  })
+
+  it('rebuilds same-her low-pressure anti-restart emotional closure cue when only the newer closure-carry discipline survives', () => {
+    const state = createState()
+    const runtimeSurface = buildAlicizationDigitalLifeRuntimeSurface(state)
+    runtimeSurface.dialogue.discourseState = {
+      ...runtimeSurface.dialogue.discourseState,
+      currentTurnSubject: 'alicization-self',
+      currentTurnSummary: 'Keep the same-her closure line steady without reopening from scratch.',
+      screenReferenceMode: 'avoid',
+    } as any
+    runtimeSurface.memory.memoryTuningAdvice = {
+      version: 'memory-tuning-advice-v1',
+      source: 'nightly-replay-benchmark',
+      updatedAt: 1_700_000_000_240,
+      sourceReportAt: 1_700_000_000_240,
+      focusDimensions: ['emotionalClosureDrift', 'projectEmotionalClosureLowPressureCarry', 'projectEmotionalClosureAntiRestartCarry'],
+      retrievalAdjustments: {
+        proceduralBoost: 0,
+        relationshipBoost: 0.08,
+        temporalWindowBias: 0,
+        wrongThreadPenalty: 0,
+      },
+      surfaceAdjustments: {
+        inwardCarryBias: 0.22,
+        delayUntilAfterPayoffBias: 0.18,
+        provenanceLabelBias: 0.1,
+        specificityClampBias: 0.1,
+      },
+      personStateAdjustments: {
+        repairWindowBias: 0,
+        closenessCapBias: 0.18,
+      },
+      notes: ['Keep the same-her emotional closure return low-pressure and do not reopen from scratch.'],
+    }
+    runtimeSurface.dialogue.currentConsciousFrame = {
+      ...runtimeSurface.dialogue.currentConsciousFrame,
+      subject: 'alicization-self',
+      speakingIntention: 'Keep the same-her closure line low-pressure and thread-faithful.',
+      projectState: {
+        ...runtimeSurface.dialogue.currentConsciousFrame?.projectState,
+        emotionalClosureCue: null,
+      },
+    } as any
+
+    const charter = buildAlicizationResponseCharter({
+      context: createContext(),
+      state,
+      runtimeSurface,
+      inspectionRequested: false,
+    })
+
+    expect(charter.mustDo).toContain('Keep the same-her emotional closure line low-pressure and inward until the live payoff lands.')
+    expect(charter.mustNotDo).toContain('Do not let the answer reopen the same-her line from scratch just because the closure seam is still active.')
+    expect(charter.emotionalClosureCue).toBe(
+      'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
+    )
   })
 })
