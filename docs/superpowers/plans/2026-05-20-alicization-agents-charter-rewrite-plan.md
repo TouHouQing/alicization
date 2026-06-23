@@ -10,7 +10,7 @@
 
 ---
 
-### Task 1: Create The Rewrite Plan Artifact
+## Task 1: Create The Rewrite Plan Artifact
 
 **Files:**
 - Create: `docs/superpowers/plans/2026-05-20-alicization-agents-charter-rewrite-plan.md`

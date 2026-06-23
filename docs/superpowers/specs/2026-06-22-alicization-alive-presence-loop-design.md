@@ -95,7 +95,7 @@ export interface AlicizationPresenceExpressionSnapshot {
 
 `AlicizationVisualPresenceStateSnapshot` should gain:
 
-```ts
+```text
 presenceExpression?: AlicizationPresenceExpressionSnapshot | null
 ```
 

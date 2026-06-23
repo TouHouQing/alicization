@@ -10,7 +10,7 @@
 
 ---
 
-### Task 1: Strengthen Shared LipSync Contracts For Authoritative Segment Visemes
+## Task 1: Strengthen Shared LipSync Contracts For Authoritative Segment Visemes
 
 **Files:**
 - Modify: `packages/stage-shared/src/alicization-lipsync-contracts.ts`
@@ -507,4 +507,3 @@ Expected: PASS
 git add packages/stage-ui/src/components/scenes/use-stage-embodiment-performance-runtime.test.ts packages/stage-ui/src/components/scenes/use-stage-embodiment-diagnostics.test.ts packages/stage-shared/src/stage-embodiment-speech-articulation.voice-bias.test.ts
 git commit -m "test: lock chinese authoritative viseme regressions"
 ```
-

@@ -10,7 +10,7 @@
 
 ---
 
-### Task 1: Make Speech Prosody Intent Affect Runtime Dynamics
+## Task 1: Make Speech Prosody Intent Affect Runtime Dynamics
 
 **Files:**
 - Create: `packages/stage-shared/src/stage-embodiment-speech-playback.test.ts`
@@ -443,7 +443,7 @@ Expected: FAIL because preview/stopping phases currently do not consume `embodim
 
 - [ ] **Step 3: Mark idle driver metadata with the correct cue phase when playback stops**
 
-```ts
+```text
 function resolvePlaybackDriverMetadata(input: {
   script: AlicizationEmbodimentScriptV1 | null
   segmentId: string | null | undefined
@@ -488,8 +488,8 @@ const previewFacialCue = previewCue?.facialCue
 
 const stoppingFacialCue = !speech.active && speech.phase === 'stopping'
   ? activeDriverFace?.postUtteranceCue
-    ?? activeDriverFace?.facialCue
-    ?? null
+  ?? activeDriverFace?.facialCue
+  ?? null
   : null
 
 // Use these resolved cues before falling back to resident cues.

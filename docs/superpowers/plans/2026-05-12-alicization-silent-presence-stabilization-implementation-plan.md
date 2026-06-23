@@ -10,7 +10,7 @@
 
 ---
 
-### Task 1: Strengthen Main Body Authority For Silent `accompanying` And `recovering`
+## Task 1: Strengthen Main Body Authority For Silent `accompanying` And `recovering`
 
 **Files:**
 - Modify: `apps/stage-tamagotchi/src/main/services/alicization/body-kernel.ts`

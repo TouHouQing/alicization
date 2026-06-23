@@ -34,7 +34,7 @@ This plan starts from those contracts and closes the remaining asymmetry: face a
 
 Add this assertion to `normalizes one live2d embodiment script with speech, face, motion, and lipsync plans` in `packages/stage-shared/src/alicization-embodiment-script.test.ts` by extending the existing fixture:
 
-```ts
+```text
 facePlan: {
   preUtteranceCue: 'soft-breath',
   postUtteranceCue: 'settle-smile',
@@ -256,7 +256,7 @@ function resolveTimelineProjectionConfidence(
 
 In `speakingCues`, add:
 
-```ts
+```text
 source: timelineSegment ? 'prosody-authority' as const : 'timeline-projection' as const,
 confidence: timelineSegment ? resolveTimelineBackedCueConfidence(timelineSegment) : 0.72,
 ```
@@ -265,7 +265,7 @@ confidence: timelineSegment ? resolveTimelineBackedCueConfidence(timelineSegment
 
 In `actionBursts`, add:
 
-```ts
+```text
 source: timelineSegment ? 'timeline-projection' as const : 'digital-life-projection' as const,
 confidence: timelineSegment ? resolveTimelineProjectionConfidence(timelineSegment) : 0.72,
 ```
@@ -300,7 +300,7 @@ git commit -m "feat: derive face motion execution metadata"
 
 In `packages/stage-ui/src/components/scenes/runtime.test.ts`, add metadata to the existing test script:
 
-```ts
+```text
 speakingCues: [{
   segmentId: 'segment-1',
   emotion: 'happy' as const,
@@ -363,13 +363,13 @@ Expected: FAIL because face and motion driver state do not expose `source` and `
 In `live2d-face-driver.ts`, add:
 
 ```ts
-source: AlicizationEmbodimentFaceCue['source'] | null
+source: AlicizationEmbodimentFaceCue.source | null
 confidence: number
 ```
 
 Return:
 
-```ts
+```text
 source: speakingCue?.source ?? null,
 confidence: speakingCue?.confidence ?? 0,
 ```
@@ -377,13 +377,13 @@ confidence: speakingCue?.confidence ?? 0,
 In `live2d-motion-driver.ts`, add:
 
 ```ts
-source: AlicizationEmbodimentMotionBurst['source'] | null
+source: AlicizationEmbodimentMotionBurst.source | null
 confidence: number
 ```
 
 Return:
 
-```ts
+```text
 source: actionBurst?.source ?? null,
 confidence: actionBurst?.confidence ?? 0,
 ```
@@ -397,7 +397,7 @@ Add `source` and `confidence` to face and motion telemetry fixtures in:
 
 Use:
 
-```ts
+```text
 face: {
   emotion: 'happy',
   facialCue: 'smile',
@@ -413,7 +413,7 @@ face: {
 
 and:
 
-```ts
+```text
 motion: {
   idleBase: 'idle_settle',
   attentionMode: 'attentive',

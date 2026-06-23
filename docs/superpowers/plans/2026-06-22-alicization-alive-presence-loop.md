@@ -202,7 +202,7 @@ export interface AlicizationPresenceExpressionSnapshot {
 
 Then add this field to `AlicizationVisualPresenceStateSnapshot`:
 
-```ts
+```text
 presenceExpression?: AlicizationPresenceExpressionSnapshot | null
 ```
 
@@ -306,13 +306,13 @@ base.presenceExpression = normalizePresenceExpression(candidate.presenceExpressi
 
 In `updateVisualPresenceState(...)`, add input support:
 
-```ts
+```text
 presenceExpression?: AlicizationVisualPresenceStateSnapshot['presenceExpression']
 ```
 
 and carry it into the returned state:
 
-```ts
+```text
 presenceExpression: input.presenceExpression === undefined
   ? previousState.presenceExpression ?? null
   : normalizePresenceExpression(input.presenceExpression, input.now),
@@ -762,7 +762,7 @@ Expected: FAIL because subconscious tick does not call the builder.
 
 In `runtime-subconscious-tick.ts`, destructure the optional builder:
 
-```ts
+```text
 buildPresenceExpression = async () => null,
 ```
 
@@ -796,7 +796,7 @@ Replace the original persist call with the final line above. Keep the first pers
 
 In `runtime-invoke-handlers-soul-state.ts`, extend options:
 
-```ts
+```text
 refreshVisualPresenceForStartupRestore?: (input: {
   cardId: string
   state: Record<string, unknown>
@@ -805,7 +805,7 @@ refreshVisualPresenceForStartupRestore?: (input: {
 
 Destructure with default:
 
-```ts
+```text
 refreshVisualPresenceForStartupRestore = async ({ state }) => state,
 ```
 
@@ -877,7 +877,7 @@ Pass `buildPresenceExpression: buildRuntimePresenceExpression` into `createAlici
 
 Pass `refreshVisualPresenceForStartupRestore` into `registerAlicizationSoulStateInvokeHandlers(...)`:
 
-```ts
+```text
 refreshVisualPresenceForStartupRestore: async ({ cardId, state }) => {
   const currentTs = Date.now()
   if ((state as any).presenceExpression?.display?.expiresAt > currentTs)

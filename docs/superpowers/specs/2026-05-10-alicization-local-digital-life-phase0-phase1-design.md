@@ -1,7 +1,7 @@
 # Alicization Local Digital Life Phase 0-1 Design
 
-> Status: user-validated design spec  
-> Scope: this spec defines the first executable sub-project only: `Phase 0` authority migration plus `Phase 1` desktop-life awakening.  
+> Status: user-validated design spec
+> Scope: this spec defines the first executable sub-project only: `Phase 0` authority migration plus `Phase 1` desktop-life awakening.
 > Out-of-scope for the next implementation plan: full hardware embodiment, fully offline main cognition, cross-device continuity, and social/networked expansion.
 
 ## 1. Problem Statement
@@ -235,7 +235,7 @@ This is the missing layer needed for lifelike continuity.
 
 ### 7.3 Why The Split Matters
 
-Without this split, the system risks remaining “human-like only while replying”.  
+Without this split, the system risks remaining “human-like only while replying”.
 With this split, the system can instead become “continuously alive, and therefore able to reply like the same person”.
 
 ## 8. Core New Kernels
@@ -439,7 +439,7 @@ Every new feature must declare which life loop it improves and which QA surface 
 
 ## 14. Roadmap Positioning
 
-This spec only supports the first implementation plan.  
+This spec only supports the first implementation plan.
 Longer-horizon direction remains:
 
 - Phase 2: real-environment integration

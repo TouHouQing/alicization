@@ -10,7 +10,7 @@
 
 ---
 
-### Task 1: Add The Unified Embodiment Script Contract
+## Task 1: Add The Unified Embodiment Script Contract
 
 **Files:**
 - Create: `packages/stage-shared/src/alicization-embodiment-script.ts`
@@ -218,7 +218,7 @@ export interface AlicizationEmbodimentScriptV1 {
 
 - [ ] **Step 4: Normalize and export the new contract through the shared surface**
 
-```ts
+```text
 // packages/stage-shared/src/alicization-embodiment-script.ts
 export function normalizeAlicizationEmbodimentScript(raw: unknown): AlicizationEmbodimentScriptV1 | null {
   const candidate = raw && typeof raw === 'object' && !Array.isArray(raw)
@@ -318,8 +318,8 @@ git commit -m "feat: add embodiment script contracts"
 ```ts
 import { describe, expect, it } from 'vitest'
 
-import { buildAlicizationRuntimeEmbodimentSeed } from './runtime-embodiment-seed'
 import { buildAlicizationEmbodimentScript } from '../../../../../../packages/stage-ui/src/services/embodiment/director'
+import { buildAlicizationRuntimeEmbodimentSeed } from './runtime-embodiment-seed'
 
 describe('runtime embodiment seed', () => {
   it('freezes one governed turn into one canonical local seed', () => {
@@ -833,7 +833,7 @@ const settleMs = playbackPlan?.segments.find(segment => segment.id === speechPla
 
 - [ ] **Step 5: Attach the script to preview/playback metadata**
 
-```ts
+```text
 // packages/stage-ui/src/components/scenes/use-stage-embodiment-runtime.ts
 export interface UseStageEmbodimentRuntimeOptions {
   // ...

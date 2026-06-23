@@ -10,7 +10,7 @@
 
 ---
 
-### Task 1: Add Chinese-First Prosody Intent Contracts
+## Task 1: Add Chinese-First Prosody Intent Contracts
 
 **Files:**
 - Create: `packages/stage-shared/src/alicization-speech-prosody-contracts.ts`
@@ -27,8 +27,8 @@
 import { describe, expect, it } from 'vitest'
 
 import {
-  normalizeAlicizationSpeechProsodyIntent,
   normalizeAlicizationEmbodimentSpeechPlan,
+  normalizeAlicizationSpeechProsodyIntent,
 } from './index'
 
 describe('speech prosody contracts', () => {
@@ -111,7 +111,7 @@ export interface AlicizationSpeechProsodyIntent {
 
 - [ ] **Step 4: Thread the new prosody contract through the speech plan and script**
 
-```ts
+```text
 // packages/stage-shared/src/alicization-speech-plan.ts
 export interface AlicizationEmbodimentSpeechSegment {
   id: string
@@ -231,7 +231,7 @@ function resolveChineseProsodyIntent(segment: AlicizationDialogueSpeechTimeline[
   const endsWithComma = /[，,]$/.test(text)
   const endsWithQuestion = /[？?]$/.test(text)
   const endsWithExclaim = /[！!]$/.test(text)
-  const endsWithEllipsis = /…$/.test(text)
+  const endsWithEllipsis = text.endsWith('…')
   const endsWithPeriod = /[。.]$/.test(text)
 
   return {
@@ -262,7 +262,7 @@ function resolveChineseProsodyIntent(segment: AlicizationDialogueSpeechTimeline[
 
 - [ ] **Step 4: Attach prosody to every planned segment**
 
-```ts
+```text
 return {
   id: input.segment.id,
   index: input.segment.index,
@@ -589,7 +589,7 @@ Expected: FAIL because diagnostics do not yet expose enough speech-style / visem
 
 - [ ] **Step 3: Surface viseme/prosody tuning telemetry in diagnostics**
 
-```ts
+```text
 speech: {
   phase: ...,
   playbackPhase: ...,

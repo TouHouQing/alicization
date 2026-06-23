@@ -1,7 +1,7 @@
 # Alicization Silent Presence Stabilization Design
 
-> Status: drafted from user-approved narrow scope  
-> Scope: this spec covers only the next `P1` main-chain slice after speech/prosody runtime consumption.  
+> Status: drafted from user-approved narrow scope
+> Scope: this spec covers only the next `P1` main-chain slice after speech/prosody runtime consumption.
 > Out of scope: new TTS providers, VRM parity work, wake/sleep rituals, proactive action expansion, and new cross-process authority layers.
 
 ## 1. Goal
