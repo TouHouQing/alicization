@@ -31,6 +31,7 @@ import { baseUrl, getElectronMainDirname, load } from '../../libs/electron/locat
 import { createConfig } from '../../libs/electron/persistence'
 import { transparentWindowConfig } from '../shared'
 import { setupMainWindowElectronInvokes } from './rpc/index.electron'
+import { resolveRendererStartupWatchdogDecision } from './startup-watchdog'
 
 const appConfigSchema = object({
   windows: optional(array(object({
@@ -93,10 +94,12 @@ export async function setupMainWindow(params: {
 
   const forceShowFallbackDelayMs = 3500
   const rendererStartupWatchdogDelayMs = 9000
+  const rendererStartupSlowLoadingTimeoutMs = 30000
   const stageStartupWatchdogDelayMs = 15000
   const stageStartupWatchdogEnabled = false
   let forceShowFallbackTimer: ReturnType<typeof setTimeout> | undefined
   let rendererStartupWatchdogTimer: ReturnType<typeof setTimeout> | undefined
+  let rendererStartupWatchdogStartedAt = Date.now()
   let stageStartupWatchdogTimer: ReturnType<typeof setTimeout> | undefined
   let rendererDidFinishLoad = false
   let rendererStageMounted = false
@@ -116,6 +119,44 @@ export async function setupMainWindow(params: {
 
     clearTimeout(rendererStartupWatchdogTimer)
     rendererStartupWatchdogTimer = undefined
+  }
+
+  function reportRendererStartupWatchdogTimeout() {
+    const details = [
+      `url: ${window.webContents.getURL() || '<empty>'}`,
+      `isLoading: ${String(window.webContents.isLoading())}`,
+      `isDestroyed: ${String(window.webContents.isDestroyed())}`,
+      `elapsedMs: ${String(Date.now() - rendererStartupWatchdogStartedAt)}`,
+    ].join('\n')
+    console.error('[main-window] renderer startup watchdog timeout (no renderer takeover)', details)
+  }
+
+  function scheduleRendererStartupWatchdogTimer(delayMs = rendererStartupWatchdogDelayMs) {
+    clearRendererStartupWatchdogTimer()
+    rendererStartupWatchdogTimer = setTimeout(() => {
+      if (window.isDestroyed())
+        return
+
+      const webContentsDestroyed = window.webContents.isDestroyed()
+      const decision = resolveRendererStartupWatchdogDecision({
+        elapsedMs: Date.now() - rendererStartupWatchdogStartedAt,
+        rendererDidFinishLoad,
+        rendererIsLoading: !webContentsDestroyed && window.webContents.isLoading(),
+        slowLoadingTimeoutMs: rendererStartupSlowLoadingTimeoutMs,
+        webContentsDestroyed,
+        windowDestroyed: false,
+      })
+
+      switch (decision) {
+        case 'ignore':
+          return
+        case 'wait-for-load':
+          scheduleRendererStartupWatchdogTimer(1000)
+          return
+        case 'report-timeout':
+          reportRendererStartupWatchdogTimeout()
+      }
+    }, delayMs)
   }
 
   function clearStageStartupWatchdogTimer() {
@@ -274,8 +315,9 @@ export async function setupMainWindow(params: {
       url: window.webContents.getURL(),
     })
   })
-  window.webContents.on('console-message', (_event, level, message, line, sourceId) => {
-    if (level < 2 && !/\b(?:error|failed|exception)\b/i.test(message) && !message.includes('[stage-startup-trace]'))
+  window.webContents.on('console-message', (details) => {
+    const { level, message, lineNumber: line, sourceId } = details
+    if (level !== 'warning' && level !== 'error' && !/\b(?:error|failed|exception)\b/i.test(message) && !message.includes('[stage-startup-trace]'))
       return
 
     console.error('[main-window] renderer-console', {
@@ -317,17 +359,8 @@ export async function setupMainWindow(params: {
     window.show()
   }, forceShowFallbackDelayMs)
 
-  rendererStartupWatchdogTimer = setTimeout(() => {
-    if (window.isDestroyed() || rendererDidFinishLoad)
-      return
-
-    const details = [
-      `url: ${window.webContents.getURL() || '<empty>'}`,
-      `isLoading: ${String(window.webContents.isLoading())}`,
-      `isDestroyed: ${String(window.webContents.isDestroyed())}`,
-    ].join('\n')
-    console.error('[main-window] renderer startup watchdog timeout (no renderer takeover)', details)
-  }, rendererStartupWatchdogDelayMs)
+  rendererStartupWatchdogStartedAt = Date.now()
+  scheduleRendererStartupWatchdogTimer()
 
   try {
     await load(window, baseUrl(resolve(getElectronMainDirname(), '..', 'renderer')))
