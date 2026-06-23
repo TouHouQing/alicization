@@ -1,5 +1,10 @@
 import type { SelfEvolutionEvidencePanelInput } from './performance-visualizer-self-evolution-evidence'
 
+import {
+  resolveExecutionSafetyGateDiagnostic,
+  toAuthorityDisplayEntry,
+} from './performance-visualizer-runtime-diagnostic-summary'
+
 export interface PerformanceVisualizerSelfEvolutionDiagnosticSummaryEntry {
   key:
     | 'status'
@@ -14,6 +19,7 @@ export interface PerformanceVisualizerSelfEvolutionDiagnosticSummaryEntry {
     | 'resident'
     | 'renderer'
     | 'continuity'
+    | 'execution-safety-gate'
     | 'adopted-anchor'
     | 'dominant-drift'
   label: string
@@ -21,7 +27,7 @@ export interface PerformanceVisualizerSelfEvolutionDiagnosticSummaryEntry {
   technicalValue?: string
 }
 
-function hasValue(value: string | null | undefined) {
+function hasValue(value: string | null | undefined): value is string {
   return typeof value === 'string' && value.trim().length > 0 && value !== 'n/a'
 }
 
@@ -120,6 +126,7 @@ function formatStatusDisplayValue(value: string) {
   const normalized = value.trim()
   const displayValue = normalized
     .replace(/^grounded\b/, '闭环稳定')
+    .replace(/^drift\b/, '闭环漂移')
     .replace(/^partial\b/, '部分闭环')
     .replace(/^missing\b/, '闭环缺失')
     .replace(/\bdrift=none\b/, '漂移=无')
@@ -142,10 +149,55 @@ function formatContinuityDisplayValue(value: string) {
     .replace(/\bbounded-growth\b/, '有界成长')
     .replace(/\bboundary-violation\b/, '边界越线')
     .replace(/\bremembered-familiarity-memory-first\b/, '熟悉感记忆先行')
+    .replace(/\bproject-state-same-her-continuity-required\b/, '项目状态必须继续守住同一个 her')
+    .replace(/\bsemantic-judge:project-state-same-her-missing\b/, '项目状态回答一度丢失同一个 her 的明线')
+    .replace(/\blane=face-only\b/, '当前仅剩表情维持同一段连续性')
+    .replace(/\blane=body-only\b/, '当前仅剩身体维持同一段连续性')
+    .replace(/\blane=motion-only\b/, '当前仅剩动作维持同一段连续性')
+    .replace(/\blane=lipsync-only\b/, '当前仅剩口型维持同一段连续性')
+    .replace(/\blane=voice-only\b/, '当前仅剩声音维持同一段连续性')
+    .replace(/\blane=face\+lipsync-only\b/, '当前仅剩表情、口型维持同一段连续性')
+    .replace(/\blane=body\+lipsync-only\b/, '当前仅剩身体、口型维持同一段连续性')
+    .replace(/\blane=face\+motion-only\b/, '当前仅剩表情、动作维持同一段连续性')
+    .replace(/\blane=motion\+lipsync-only\b/, '当前仅剩动作、口型维持同一段连续性')
+    .replace(/\blane=face\+voice-only\b/, '当前仅剩表情、声音维持同一段连续性')
+    .replace(/\blane=body\+voice-only\b/, '当前仅剩身体、声音维持同一段连续性')
+    .replace(/\blane=motion\+voice-only\b/, '当前仅剩动作、声音维持同一段连续性')
+    .replace(/\blane=lipsync\+voice-only\b/, '当前仅剩口型、声音维持同一段连续性')
+    .replace(/\blane=face\+motion\+voice-only\b/, '当前仅剩表情、动作、声音维持同一段连续性')
+    .replace(/\blane=face\+lipsync\+voice-only\b/, '当前仅剩表情、口型、声音维持同一段连续性')
+    .replace(/\blane=motion\+lipsync\+voice-only\b/, '当前仅剩动作、口型、声音维持同一段连续性')
 
   return displayValue === normalized
     ? { value: displayValue }
     : { value: displayValue, technicalValue: normalized }
+}
+
+function resolveContinuityRendererSurface(params: {
+  runtimeContinuityProjection: SelfEvolutionEvidencePanelInput['runtimeContinuityProjection']
+  rendererTarget: string | null | undefined
+}) {
+  const runtimeRendererTarget = params.runtimeContinuityProjection?.rendererTarget
+  const rendererRejoinSurfaceKey = params.runtimeContinuityProjection?.rendererRejoinSurfaceKey
+  const resolvedRendererTarget = hasValue(params.rendererTarget)
+    ? params.rendererTarget
+    : hasValue(runtimeRendererTarget)
+      ? runtimeRendererTarget
+      : null
+
+  if (resolvedRendererTarget === 'live2d')
+    return 'Live2D'
+  if (resolvedRendererTarget === 'vrm')
+    return 'VRM'
+  if (resolvedRendererTarget === 'speech')
+    return 'speech'
+  if (rendererRejoinSurfaceKey === 'authority:renderer-rejoin:live2d')
+    return 'Live2D'
+  if (rendererRejoinSurfaceKey === 'authority:renderer-rejoin:vrm')
+    return 'VRM'
+  if (rendererRejoinSurfaceKey === 'authority:renderer-rejoin:speech')
+    return 'speech'
+  return null
 }
 
 function hasRememberedFamiliarityMemoryFirst(input: SelfEvolutionEvidencePanelInput) {
@@ -160,6 +212,80 @@ function hasRememberedFamiliarityMemoryFirst(input: SelfEvolutionEvidencePanelIn
     || line.includes('remembered-familiarity-trajectory:')
     || line.includes('remembered-familiarity-governance:'),
   )
+}
+
+function resolveRelationshipCadenceInternalization(input: SelfEvolutionEvidencePanelInput) {
+  const learningReasons = input.selectedCandidateRuntimeAlignment?.learning?.reasons ?? []
+  const cadenceReason = learningReasons.find(reason =>
+    reason.includes('Relationship cadence internalization is active'),
+  )
+  if (cadenceReason) {
+    if (
+      cadenceReason.includes('same-turn-if-invited')
+      && cadenceReason.includes('same callback line')
+    ) {
+      return 'Relationship cadence internalization is active, so same-turn-if-invited measured-return should stay on the same callback line instead of reading like a fresh reopening.'
+    }
+    return cadenceReason
+  }
+
+  const activeFocuses = input.selectedCandidateRuntimeAlignment?.learning?.activeFocuses ?? []
+  if (activeFocuses.includes('internalize-relationship-cadence')) {
+    return 'Relationship cadence internalization is active, so measured-return reconfirmation is now being treated as durable relationship rhythm rather than temporary callback restraint.'
+  }
+
+  return null
+}
+
+function hasProjectStateContinuityDrift(input: SelfEvolutionEvidencePanelInput) {
+  return [
+    ...(input.internalizationReadinessSummary?.lines ?? []),
+    ...(input.preDialogueBriefingSummary?.lines ?? []),
+  ].some(line =>
+    line.includes('project-state continuity')
+    || line.includes('Project same-her self line currently reads')
+    || line.includes('sameHer=')
+    || line.includes('project-state-same-her-continuity-required')
+    || line.includes('semantic-judge:project-state-same-her-missing')
+    || line.includes('pre-dialogue briefing drift')
+    || line.includes('briefing drift')
+    || line.includes('preDialogueBriefingDrift'),
+  )
+}
+
+function resolveProjectStateSameHerRepairEvidence(input: SelfEvolutionEvidencePanelInput) {
+  const lines = input.preDialogueBriefingSummary?.lines ?? []
+  const repairs: string[] = []
+  if (lines.some(line => line.includes('project-state-same-her-continuity-required')))
+    repairs.push('project-state-same-her-continuity-required')
+  if (lines.some(line => line.includes('semantic-judge:project-state-same-her-missing')))
+    repairs.push('semantic-judge:project-state-same-her-missing')
+  return repairs
+}
+
+function resolveProjectStateOpenClosureSummary(input: SelfEvolutionEvidencePanelInput) {
+  const lines = input.preDialogueBriefingSummary?.lines ?? []
+  const openLoopLine = lines.find(line => line.includes('Primary open life loop still centers on '))
+  const nextClosureLine = lines.find(line => line.includes('Next closure target is still '))
+
+  const summaries: string[] = []
+  if (openLoopLine) {
+    const openLoop = openLoopLine
+      .replace(/^.*Primary open life loop still centers on /, '')
+      .replace(/, so the next turn should.*$/i, '')
+      .trim()
+    if (openLoop)
+      summaries.push(`当前未闭环项仍集中在 ${openLoop}`)
+  }
+  if (nextClosureLine) {
+    const nextClosure = nextClosureLine
+      .replace(/^.*Next closure target is still /, '')
+      .replace(/, so the next turn should.*$/i, '')
+      .trim()
+    if (nextClosure)
+      summaries.push(`下一步仍要继续收住 ${nextClosure}`)
+  }
+  return summaries
 }
 
 function formatPersonaDisplayValue(value: string) {
@@ -203,12 +329,315 @@ function formatRendererDisplayValue(value: string) {
   const displayValue = normalized
     .replace(/\bvrm\b/, 'VRM')
     .replace(/\blive2d\b/, 'Live2D')
+    .replace(/\bbody:yes face:yes motion:yes lipsync:no\b \| (?=当前仅剩身体、表情、动作维持同一段连续性，口型和声音还没有重新并回这一段)/, '')
     .replace(/\bface:yes motion:yes lipsync:yes\b/, '表情命中/动作命中/口型命中')
     .replace(/\bface:yes motion:yes lipsync:no\b/, '表情命中/动作命中/口型未命中')
 
   return displayValue === normalized
     ? { value: displayValue }
     : { value: displayValue, technicalValue: normalized }
+}
+
+function summarizeRendererAuthorityLaneTruth(
+  rendererAuthorityProjection: SelfEvolutionEvidencePanelInput['rendererAuthorityProjection'],
+) {
+  if (!rendererAuthorityProjection)
+    return null
+
+  const matchedSignals = rendererAuthorityProjection.matchedSignals ?? []
+  const driftingSignals = rendererAuthorityProjection.driftingSignals ?? []
+
+  if (matchedSignals.includes('remaining-open=lipsync+voice')
+    && matchedSignals.includes('authority-body:yes')
+    && matchedSignals.includes('authority-face:yes')
+    && matchedSignals.includes('authority-motion:yes')
+    && driftingSignals.includes('authority-lipsync:no')) {
+    return '当前仅剩身体、表情、动作维持同一段连续性，口型和声音还没有重新并回这一段'
+  }
+
+  if (matchedSignals.includes('remaining-open=body+lipsync')
+    && matchedSignals.includes('authority-face:yes')
+    && matchedSignals.includes('authority-motion:yes')
+    && matchedSignals.includes('authority-voice:yes')
+    && driftingSignals.includes('authority-body:no')
+    && driftingSignals.includes('authority-lipsync:no')) {
+    return '当前仅剩表情、动作、声音维持同一段连续性，身体和口型还没有重新并回这一段'
+  }
+
+  const resolveLane = (driver: 'face' | 'motion' | 'lipsync') => {
+    if (matchedSignals.includes(`authority-${driver}:yes`))
+      return driver === 'face' ? '表情命中' : driver === 'motion' ? '动作命中' : '口型命中'
+    if (driftingSignals.includes(`authority-${driver}:no`))
+      return driver === 'face' ? '表情未命中' : driver === 'motion' ? '动作未命中' : '口型未命中'
+    return driver === 'face' ? '表情未知' : driver === 'motion' ? '动作未知' : '口型未知'
+  }
+
+  const hasVoiceSignal = matchedSignals.includes('authority-voice:yes') || driftingSignals.includes('authority-voice:no')
+  const summary = [
+    resolveLane('face'),
+    resolveLane('motion'),
+    resolveLane('lipsync'),
+    ...(hasVoiceSignal
+      ? [matchedSignals.includes('authority-voice:yes') ? '声音命中' : '声音未命中']
+      : []),
+  ].join(' / ')
+  if (summary === '表情未知 / 动作未知 / 口型未知')
+    return null
+
+  return summary
+}
+
+function summarizeRuntimeContinuityLaneTruth(
+  runtimeContinuityProjection: SelfEvolutionEvidencePanelInput['runtimeContinuityProjection'],
+  rendererTarget: string | null | undefined,
+) {
+  if (!runtimeContinuityProjection)
+    return null
+
+  const matchedSignals = runtimeContinuityProjection.matchedSignals ?? []
+  const driftingSignals = runtimeContinuityProjection.driftingSignals ?? []
+  const reasons = runtimeContinuityProjection.reasons ?? []
+  const hasVoiceDrift = driftingSignals.includes('authority-voice:no')
+  const bodyContinuityPhase = runtimeContinuityProjection.bodyContinuityPhase ?? null
+  const rendererSurface = resolveContinuityRendererSurface({
+    runtimeContinuityProjection,
+    rendererTarget,
+  })
+
+  const hasSameSegmentCueBridgeRealignment = reasons.some(reason =>
+    reason.includes('cue-bridge same-segment realignment as unified authority')
+    || reason.includes('same-segment cue-bridge realignment as unified authority')
+    || reason.includes('same-segment cue-bridge rebind')
+    || reason.includes('same-segment recollection')
+    || reason.includes('same measured-return body line'),
+  )
+
+  const hasThinMeasuredReturnContinuity = reasons.some(reason =>
+    reason.includes('only runtime digest plus spine still expose the noisy-detour continuity line')
+    || reason.includes('thinner measured-return same-her line visible')
+    || reason.includes('thinner measured-return same-her line')
+    || reason.includes('thin measured-return same-her line')
+    || reason.includes('较薄证据维持')
+    || reason.includes('thinner continuity evidence'),
+  )
+
+  const hasBodyLedContinuity = bodyContinuityPhase === 'body-carried-to-renderer-rejoin'
+    || reasons.some(reason =>
+      reason.includes('body-led same-her continuity')
+      || reason.includes('body-led partial recovery')
+      || reason.includes('身体线先托住')
+      || reason.includes('body still carries the living segment')
+      || reason.includes('Body continuity still carries the same living segment while'),
+    )
+  const hasBodyOnlyHoldContinuity = bodyContinuityPhase === 'body-only-hold'
+    || reasons.some(reason =>
+      reason.includes('身体独撑态')
+      || reason.includes('独自托住同一段 living segment')
+      || reason.includes('only lane carrying this same living segment')
+      || reason.includes('one continuous her being held inward'),
+    )
+  const hasCrossModalLockContinuity = bodyContinuityPhase === 'full-cross-modal-lock'
+    || reasons.some(reason =>
+      reason.includes('跨模态重锁态')
+      || reason.includes('共同锁在同一段 living segment')
+      || reason.includes('共同锁回同一段 living segment'),
+    )
+  const hasRendererRejoinWithoutBodyContinuity = bodyContinuityPhase === 'renderer-rejoin-without-body'
+    || reasons.some(reason =>
+      reason.includes('显形回接失身态')
+      || (reason.includes('显形权威已经回接') && reason.includes('身体线没有继续托住同一段 living segment'))
+      || (reason.includes('renderer recovery') && reason.includes('without body carry')),
+    )
+
+  const hasRepairBeforeClosenessContinuity = reasons.some(reason =>
+    reason.includes('repair-before-closeness')
+    && reason.includes('quieter blink')
+    && reason.includes('softened gaze'),
+  )
+
+  if (!hasVoiceDrift
+    && hasSameSegmentCueBridgeRealignment
+    && matchedSignals.includes('authority-lipsync:yes')
+    && !matchedSignals.includes('authority-face:yes')
+    && !matchedSignals.includes('authority-motion:yes')) {
+    return rendererSurface
+      ? `同段 cue-bridge 回收后，${rendererSurface} 显形已重新并回同一条连续身体线`
+      : '同段 cue-bridge 回收后，表情、动作、口型已重新并回同一条连续身体线'
+  }
+
+  if (!hasVoiceDrift && hasBodyOnlyHoldContinuity && matchedSignals.includes('authority-body:yes')) {
+    return rendererSurface
+      ? `身体线仍在独自托住同一段 living segment，当前还不能把 ${rendererSurface} 显形权威的回接视为已经成立`
+      : '身体线仍在独自托住同一段 living segment，当前还不能把显形权威的回接视为已经成立'
+  }
+
+  if (!hasVoiceDrift && hasCrossModalLockContinuity) {
+    return rendererSurface
+      ? `身体线与 ${rendererSurface} 显形权威已经共同锁回同一段 living segment`
+      : '身体线与显形权威已经共同锁回同一段 living segment'
+  }
+
+  if (!hasVoiceDrift && hasRendererRejoinWithoutBodyContinuity) {
+    return rendererSurface
+      ? `${rendererSurface} 显形权威已经回接，但身体线没有继续托住同一段 living segment`
+      : '显形权威已经回接，但身体线没有继续托住同一段 living segment'
+  }
+
+  if (!hasVoiceDrift
+    && hasThinMeasuredReturnContinuity
+    && matchedSignals.includes('authority-lipsync:yes')
+    && !matchedSignals.includes('authority-face:yes')
+    && !matchedSignals.includes('authority-motion:yes')) {
+    return '噪声 detour 后，这条 measured-return 连续身体线仍由较薄证据维持'
+  }
+
+  if (!hasVoiceDrift
+    && hasBodyLedContinuity
+    && matchedSignals.includes('authority-body:yes')
+    && !matchedSignals.includes('authority-face:yes')
+    && !matchedSignals.includes('authority-motion:yes')) {
+    return rendererSurface
+      ? `身体线已经先把这段 living segment 托住，${rendererSurface} 显形仍在补回同一条连续身体线`
+      : '身体线已经先把这段 living segment 托住，表情、动作、口型仍在补回同一条连续身体线'
+  }
+
+  if (!hasVoiceDrift
+    && hasRepairBeforeClosenessContinuity
+    && matchedSignals.includes('authority-lipsync:yes')
+    && !matchedSignals.includes('authority-face:yes')
+    && !matchedSignals.includes('authority-motion:yes')) {
+    return 'repair-before-closeness 仍停在修补线里，先守住 quieter blink / softened gaze'
+  }
+
+  if (!hasVoiceDrift
+    && matchedSignals.includes('remaining-open=lipsync+voice')
+    && matchedSignals.includes('authority-body:yes')
+    && matchedSignals.includes('authority-face:yes')
+    && matchedSignals.includes('authority-motion:yes')
+    && driftingSignals.includes('authority-lipsync:no')) {
+    return '当前仅剩身体、表情、动作维持同一段连续性，口型和声音还没有重新并回这一段'
+  }
+
+  if (!hasVoiceDrift
+    && matchedSignals.includes('remaining-open=body+lipsync')
+    && matchedSignals.includes('authority-face:yes')
+    && matchedSignals.includes('authority-motion:yes')
+    && matchedSignals.includes('authority-voice:yes')
+    && driftingSignals.includes('authority-body:no')
+    && driftingSignals.includes('authority-lipsync:no')) {
+    return '当前仅剩表情、动作、声音维持同一段连续性，身体和口型还没有重新并回这一段'
+  }
+
+  if (!hasVoiceDrift && matchedSignals.includes('lane=face+lipsync-only')) {
+    return '当前只有 face 和 lipsync 这条 same-her 生命线还和同一段数字生命表达对齐，可见连续性还没有断开，但 body、motion 和 voice 还没有重新接回这条表情口型线'
+  }
+
+  if (!hasVoiceDrift && matchedSignals.includes('lane=motion+lipsync-only')) {
+    return '当前只有 motion 和 lipsync 这条 same-her 生命线还和同一段数字生命表达对齐，可见连续性还没有断开，但 body、face 和 voice 还没有重新接回这条动作口型线'
+  }
+
+  if (!hasVoiceDrift && matchedSignals.includes('lane=face+lipsync+voice-only')) {
+    return '当前仅剩表情、口型、声音维持同一段连续性，可见 same-her continuity 还没有断开，但 body、motion 还没有重新接回这条表情口型声音线'
+  }
+
+  if (!hasVoiceDrift && matchedSignals.includes('lane=motion+lipsync+voice-only')) {
+    return '当前仅剩动作、口型、声音维持同一段连续性，可见 same-her continuity 还没有断开，但 body、face 还没有重新接回这条动作口型声音线'
+  }
+
+  const laneOnlySignal = matchedSignals.find(signal =>
+    signal === 'lane=face-only'
+    || signal === 'lane=body-only'
+    || signal === 'lane=motion-only'
+    || signal === 'lane=lipsync-only'
+    || signal === 'lane=voice-only'
+    || signal === 'lane=face+lipsync-only'
+    || signal === 'lane=body+lipsync-only'
+    || signal === 'lane=face+motion-only'
+    || signal === 'lane=motion+lipsync-only'
+    || signal === 'lane=face+voice-only'
+    || signal === 'lane=body+voice-only'
+    || signal === 'lane=motion+voice-only'
+    || signal === 'lane=lipsync+voice-only'
+    || signal === 'lane=body+lipsync+voice-only'
+    || signal === 'lane=face+motion+voice-only'
+    || signal === 'lane=face+lipsync+voice-only'
+    || signal === 'lane=motion+lipsync+voice-only',
+  )
+  if (laneOnlySignal && !hasVoiceDrift) {
+    if (laneOnlySignal === 'lane=face-only')
+      return '当前仅剩表情维持同一段连续性'
+    if (laneOnlySignal === 'lane=body-only')
+      return '当前仅剩身体维持同一段连续性'
+    if (laneOnlySignal === 'lane=motion-only')
+      return '当前仅剩动作维持同一段连续性'
+    if (laneOnlySignal === 'lane=lipsync-only')
+      return '当前仅剩口型维持同一段连续性'
+    if (laneOnlySignal === 'lane=voice-only')
+      return '当前仅剩声音维持同一段连续性'
+    if (laneOnlySignal === 'lane=face+lipsync-only')
+      return '当前仅剩表情、口型维持同一段连续性'
+    if (laneOnlySignal === 'lane=body+lipsync-only')
+      return '当前仅剩身体、口型维持同一段连续性'
+    if (laneOnlySignal === 'lane=face+motion-only')
+      return '当前仅剩表情、动作维持同一段连续性'
+    if (laneOnlySignal === 'lane=motion+lipsync-only')
+      return '当前仅剩动作、口型维持同一段连续性'
+    if (laneOnlySignal === 'lane=face+voice-only')
+      return '当前仅剩表情、声音维持同一段连续性'
+    if (laneOnlySignal === 'lane=body+voice-only')
+      return '当前仅剩身体、声音维持同一段连续性'
+    if (laneOnlySignal === 'lane=motion+voice-only')
+      return '当前仅剩动作、声音维持同一段连续性'
+    if (laneOnlySignal === 'lane=lipsync+voice-only')
+      return '当前仅剩口型、声音维持同一段连续性'
+    if (laneOnlySignal === 'lane=body+lipsync+voice-only')
+      return '当前仅剩身体、口型、声音维持同一段连续性'
+    if (laneOnlySignal === 'lane=face+motion+voice-only')
+      return '当前仅剩表情、动作、声音维持同一段连续性'
+    if (laneOnlySignal === 'lane=face+lipsync+voice-only')
+      return '当前仅剩表情、口型、声音维持同一段连续性'
+    if (laneOnlySignal === 'lane=motion+lipsync+voice-only')
+      return '当前仅剩动作、口型、声音维持同一段连续性'
+  }
+
+  const hasVoiceEvidence = matchedSignals.includes('authority-voice:yes')
+    || driftingSignals.includes('authority-voice:no')
+
+  const resolveLane = (driver: 'face' | 'motion' | 'lipsync' | 'voice') => {
+    if (matchedSignals.includes(`authority-${driver}:yes`)) {
+      return driver === 'face'
+        ? '表情命中'
+        : driver === 'motion'
+          ? '动作命中'
+          : driver === 'lipsync'
+            ? '口型命中'
+            : '声音命中'
+    }
+    if (driftingSignals.includes(`authority-${driver}:no`)) {
+      return driver === 'face'
+        ? '表情未命中'
+        : driver === 'motion'
+          ? '动作未命中'
+          : driver === 'lipsync'
+            ? '口型未命中'
+            : '声音未命中'
+    }
+    return driver === 'face'
+      ? '表情未知'
+      : driver === 'motion'
+        ? '动作未知'
+        : driver === 'lipsync'
+          ? '口型未知'
+          : '声音未知'
+  }
+
+  const summary = hasVoiceEvidence
+    ? [resolveLane('face'), resolveLane('motion'), resolveLane('lipsync'), resolveLane('voice')].join(' / ')
+    : [resolveLane('face'), resolveLane('motion'), resolveLane('lipsync')].join(' / ')
+  if (summary === '表情未知 / 动作未知 / 口型未知 / 声音未知' || summary === '表情未知 / 动作未知 / 口型未知')
+    return null
+
+  return summary
 }
 
 function formatRendererProsodyAuthority(value: string | null | undefined) {
@@ -274,6 +703,7 @@ function summarizeBaselineAnchorAudit(lines: string[] | null | undefined) {
   const anchorLine = lines.find(line => line.startsWith('anchor:'))
   const traceLine = lines.find(line => line.startsWith('trace:'))
   const prosodyAuthorityLine = lines.find(line => line.startsWith('prosody-authority:'))
+  const bodyContinuityLine = lines.find(line => line.startsWith('body-continuity:'))
 
   if (!anchorLine || !traceLine)
     return null
@@ -283,10 +713,14 @@ function summarizeBaselineAnchorAudit(lines: string[] | null | undefined) {
   const ownerMatch = traceLine.match(/owner=([^|]+)/)
   const snapshotValue = snapshotMatch?.[1]?.trim() ?? 'n/a'
   const ownerValue = ownerMatch?.[1]?.trim() ?? 'n/a'
+  const bodyContinuityValue = bodyContinuityLine
+    ?.replace(/^body-continuity:\s*/, '')
+    .replace(/^最新采纳说明：/, '')
+    .trim()
 
   return {
-    value: `${candidateId || 'n/a'} | snapshot=${snapshotValue} | owner=${ownerValue}${prosodyAuthorityLine ? ' | 韵律权威已回绑' : ''}`,
-    technicalValue: `${candidateId || 'n/a'} | ${traceLine.replace(/^trace:\s*/, '').trim()}${prosodyAuthorityLine ? ` | ${prosodyAuthorityLine.trim()}` : ''}`,
+    value: `${candidateId || 'n/a'} | snapshot=${snapshotValue} | owner=${ownerValue}${bodyContinuityValue ? ` | ${bodyContinuityValue}` : ''}${prosodyAuthorityLine ? ' | 韵律权威已回绑' : ''}`,
+    technicalValue: `${candidateId || 'n/a'} | ${traceLine.replace(/^trace:\s*/, '').trim()}${bodyContinuityLine ? ` | ${bodyContinuityLine.trim()}` : ''}${prosodyAuthorityLine ? ` | ${prosodyAuthorityLine.trim()}` : ''}`,
   }
 }
 
@@ -307,6 +741,9 @@ function formatManifestationBridgeDisplayValue(value: string) {
 }
 
 function resolveDominantDrift(input: SelfEvolutionEvidencePanelInput): string | null {
+  if (hasProjectStateContinuityDrift(input))
+    return 'project-state-continuity-drift'
+
   const runtimeRendererDrift = input.runtimeContinuityProjection?.driftingSignals
     ?.find(signal => signal.startsWith('renderer-drift:'))
   if (runtimeRendererDrift)
@@ -324,11 +761,16 @@ function resolveDominantDrift(input: SelfEvolutionEvidencePanelInput): string | 
 
   const proactiveDrift = input.proactiveActionChain?.driftingSignals?.[0]
   if (hasValue(proactiveDrift))
-    return proactiveDrift ?? null
+    return proactiveDrift
 
   const personaDrift = input.personaBiasProvenance?.driftingSignals?.[0]
   if (hasValue(personaDrift))
-    return personaDrift ?? null
+    return personaDrift
+
+  if (input.companionshipTransitionSummary?.status && input.companionshipTransitionSummary.status !== 'grounded') {
+    const companionshipMode = input.companionshipTransitionSummary.companionshipHoldMode?.trim() || 'unknown'
+    return `transition-companionship:${companionshipMode}`
+  }
 
   return null
 }
@@ -350,6 +792,8 @@ function resolveDriftKind(dominantDrift: string | null) {
 function normalizeStatus(values: Array<string | null | undefined>) {
   if (values.includes('missing'))
     return 'missing'
+  if (values.includes('drift'))
+    return 'drift'
   if (values.includes('partial'))
     return 'partial'
   if (values.includes('grounded'))
@@ -549,6 +993,7 @@ export function buildSelfEvolutionDiagnosticSummaryEntries(
     input.personaBiasProvenance?.status,
     input.proactiveActionChain?.status,
     input.residentPerformanceProjection?.status,
+    input.companionshipTransitionSummary?.status,
     input.rendererAuthorityProjection?.status,
     input.runtimeContinuityProjection?.status,
   ])
@@ -586,11 +1031,16 @@ export function buildSelfEvolutionDiagnosticSummaryEntries(
     entries.push(personaEntry)
   }
 
-  if (hasValue(input.personaBiasProvenance?.manifestationCadenceSummary)) {
+  const relationshipCadenceInternalization = resolveRelationshipCadenceInternalization(input)
+  const manifestationCadenceValue = formatList([
+    input.personaBiasProvenance?.manifestationCadenceSummary,
+    relationshipCadenceInternalization,
+  ])
+  if (manifestationCadenceValue) {
     entries.push({
       key: 'manifestation-cadence',
       label: '显形节奏',
-      value: input.personaBiasProvenance!.manifestationCadenceSummary!,
+      value: manifestationCadenceValue,
     })
   }
 
@@ -721,31 +1171,57 @@ export function buildSelfEvolutionDiagnosticSummaryEntries(
     entries.push(residentEntry)
   }
 
-  const rendererValue = formatList([
-    input.rendererAuthorityProjection?.rendererTarget,
-    input.rendererAuthorityProjection?.authorityMatchSummary,
-  ])
-  if (rendererValue) {
-    const rendererSummary = formatRendererDisplayValue(rendererValue)
-    const rendererProsodyAuthority = formatRendererProsodyAuthority(
-      (input.rendererAuthorityProjection as { prosodyAuthoritySummary?: string | null } | null | undefined)?.prosodyAuthoritySummary,
-    )
-    const rendererEntry: PerformanceVisualizerSelfEvolutionDiagnosticSummaryEntry = {
-      key: 'renderer',
-      label: '显形权威',
-      value: rendererProsodyAuthority
-        ? `${rendererSummary.value} | ${rendererProsodyAuthority.value}`
-        : rendererSummary.value,
+  if (input.rendererAuthorityProjection?.rendererTarget || input.rendererAuthorityProjection?.authorityMatchSummary) {
+    const rendererLaneTruth = summarizeRendererAuthorityLaneTruth(input.rendererAuthorityProjection)
+    const authorityMatchDisplayEntry = input.rendererAuthorityProjection?.authorityMatchSummary
+      ? toAuthorityDisplayEntry('authority-match', input.rendererAuthorityProjection.authorityMatchSummary)
+      : null
+    const rendererDisplayValue = rendererLaneTruth
+      ? authorityMatchDisplayEntry && !authorityMatchDisplayEntry.technicalValue && authorityMatchDisplayEntry.value !== rendererLaneTruth
+        ? formatList([
+            input.rendererAuthorityProjection?.rendererTarget,
+            authorityMatchDisplayEntry.value,
+            rendererLaneTruth,
+          ])
+        : formatList([
+            input.rendererAuthorityProjection?.rendererTarget,
+            rendererLaneTruth,
+          ])
+      : formatList([
+          input.rendererAuthorityProjection?.rendererTarget,
+          input.rendererAuthorityProjection?.authorityMatchSummary,
+        ])
+    if (rendererDisplayValue) {
+      const rendererSummary = formatRendererDisplayValue(
+        rendererDisplayValue,
+      )
+      const rendererProsodyAuthority = formatRendererProsodyAuthority(
+        (input.rendererAuthorityProjection as { prosodyAuthoritySummary?: string | null } | null | undefined)?.prosodyAuthoritySummary,
+      )
+      const rendererTechnicalValue = rendererLaneTruth
+        ? formatList([
+            input.rendererAuthorityProjection?.rendererTarget,
+            input.rendererAuthorityProjection?.authorityMatchSummary,
+            rendererLaneTruth,
+          ])
+        : rendererSummary.technicalValue
+      const rendererEntry: PerformanceVisualizerSelfEvolutionDiagnosticSummaryEntry = {
+        key: 'renderer',
+        label: '显形权威',
+        value: rendererProsodyAuthority
+          ? `${rendererSummary.value} | ${rendererProsodyAuthority.value}`
+          : rendererSummary.value,
+      }
+      if (rendererProsodyAuthority) {
+        rendererEntry.technicalValue = rendererTechnicalValue
+          ? `${rendererTechnicalValue} | ${rendererProsodyAuthority.technicalValue}`
+          : `${rendererDisplayValue} | ${rendererProsodyAuthority.technicalValue}`
+      }
+      else if (rendererTechnicalValue) {
+        rendererEntry.technicalValue = rendererTechnicalValue
+      }
+      entries.push(rendererEntry)
     }
-    if (rendererProsodyAuthority) {
-      rendererEntry.technicalValue = rendererSummary.technicalValue
-        ? `${rendererSummary.technicalValue} | ${rendererProsodyAuthority.technicalValue}`
-        : `${rendererValue} | ${rendererProsodyAuthority.technicalValue}`
-    }
-    else if (rendererSummary.technicalValue) {
-      rendererEntry.technicalValue = rendererSummary.technicalValue
-    }
-    entries.push(rendererEntry)
   }
 
   const continuityValue = formatList([
@@ -753,10 +1229,28 @@ export function buildSelfEvolutionDiagnosticSummaryEntries(
     input.runtimeContinuityProjection?.runtimeChannel,
     input.runtimeContinuityProjection?.runtimeScenario,
     input.identityDriftGovernanceSummary?.governanceMode,
+    hasProjectStateContinuityDrift(input) ? 'project-state-continuity-drift' : null,
+    input.companionshipTransitionSummary?.companionshipHoldMode
+      ? `companionship-${input.companionshipTransitionSummary.companionshipHoldMode}`
+      : null,
     hasRememberedFamiliarityMemoryFirst(input) ? 'remembered-familiarity-memory-first' : null,
   ])
   if (continuityValue) {
-    const continuitySummary = formatContinuityDisplayValue(continuityValue)
+    const continuityLaneTruth = summarizeRuntimeContinuityLaneTruth(
+      input.runtimeContinuityProjection,
+      input.rendererAuthorityProjection?.rendererTarget,
+    )
+    const sameHerRepairEvidence = resolveProjectStateSameHerRepairEvidence(input)
+    const projectStateOpenClosureSummary = resolveProjectStateOpenClosureSummary(input)
+    const continuityWithRepairEvidence = formatList([
+      continuityValue,
+      ...sameHerRepairEvidence,
+      ...projectStateOpenClosureSummary,
+      continuityLaneTruth,
+    ]) ?? continuityValue
+    const continuitySummary = formatContinuityDisplayValue(
+      continuityWithRepairEvidence,
+    )
     const continuityEntry: PerformanceVisualizerSelfEvolutionDiagnosticSummaryEntry = {
       key: 'continuity',
       label: '连续线程',
@@ -765,6 +1259,19 @@ export function buildSelfEvolutionDiagnosticSummaryEntries(
     if (continuitySummary.technicalValue)
       continuityEntry.technicalValue = continuitySummary.technicalValue
     entries.push(continuityEntry)
+  }
+
+  const executionSafetyGateTags = Array.from(new Set([
+    ...(input.residentPerformanceProjection?.residentReasonTags ?? []),
+    ...(input.runtimeContinuityProjection?.rationaleTags ?? []),
+  ].map(tag => tag.trim()).filter(Boolean)))
+  const executionSafetyGate = resolveExecutionSafetyGateDiagnostic(executionSafetyGateTags)
+  if (executionSafetyGate) {
+    entries.push({
+      key: 'execution-safety-gate',
+      label: '执行安全门',
+      ...executionSafetyGate,
+    })
   }
 
   const adoptedAnchorSummary = summarizeBaselineAnchorAudit(
@@ -826,6 +1333,8 @@ export function buildSelfEvolutionDiagnosticSummaryLines(
         return `renderer: ${value}`
       case 'continuity':
         return `continuity: ${value}`
+      case 'execution-safety-gate':
+        return `execution-safety-gate: ${value}`
       case 'adopted-anchor':
         return `adopted-anchor: ${value}`
       case 'dominant-drift':
