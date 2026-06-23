@@ -10,10 +10,16 @@ import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel
 import type { AlicizationDigitalLifeSpineSnapshot } from './digital-life-spine'
 import type { AlicizationMainChatActionObligation, AlicizationMainChatActionObligationKind } from './main-chat-action-obligation'
 import type { ResolvedCardCustomDirectives } from './runtime-soul'
+import type { AlicizationSelfContinuityAuthority } from './self-continuity-authority'
 import type {
   AlicizationMainChatReplyAuthoritySurface,
   AlicizationMainChatReplyExecutionPlanSurface,
 } from './visible-reply/facade'
+
+import {
+  buildAlicizationEmbodimentLoopSummary,
+  describeAlicizationEmbodimentClosureReminder,
+} from '@proj-alicization/stage-shared'
 
 import { buildAutobiographicalSelfSystemBlock } from './autobiographical-self'
 import { deriveAlicizationDigitalLifeSpineFromSurface } from './digital-life-spine'
@@ -21,13 +27,27 @@ import { buildHabitPolicySystemBlock } from './habit-policy'
 import { buildLongHorizonMemorySystemBlock } from './long-horizon-memory'
 import { buildMindEcologySystemBlock } from './mind-ecology'
 import { buildMotiveEngineSystemBlock } from './motive-engine'
+import {
+  hasContinuityRestraintRelationshipSignal,
+  hasNeutralRelationshipSignal,
+  mergePreferredSelfContinuityAuthority,
+  resolvePreferredPersonStateProjection,
+  resolvePreferredSelfContinuityAuthority,
+} from './person-state-projection-resolution'
+import {
+  resolveAlicizationProjectStateBrief,
+  resolveAlicizationSurfaceProjectStateSnapshot,
+} from './project-state-brief'
 import { sanitizeBriefText } from './runtime-realtime'
 import {
   alicizationCustomDirectivesMarker,
   normalizeCustomDirectives,
   parseSoul,
 } from './runtime-soul'
-import { buildSelfContinuityAuthorityFromRuntimeSurface } from './self-continuity-authority'
+import {
+
+  buildSelfContinuityAuthorityFromRuntimeSurface,
+} from './self-continuity-authority'
 import {
   describeAlicizationMainChatProviderMindRequirement,
   resolveAlicizationMainChatNormalVisibleReplyAuthority,
@@ -158,6 +178,12 @@ function sanitizePromptText(raw: unknown, maxChars = 220) {
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
 }
 
+function resolvePreferredLivingProjectState(surface: AlicizationDigitalLifeRuntimeSurface) {
+  return resolveAlicizationSurfaceProjectStateSnapshot({
+    runtimeSurface: surface,
+  })
+}
+
 export function shouldUseDialogueFirstLivingPromptMode(input: {
   actionObligation?: AlicizationMainChatActionObligation | null
   capture: Omit<AlicizationMainChatCaptureSurface, 'hasVisualGrounding'>
@@ -173,6 +199,7 @@ export function shouldUseDialogueFirstLivingPromptMode(input: {
       subject === 'relationship'
       || subject === 'alicization-self'
       || subject === 'host-state'
+      || subject === 'project-state'
       || subject === 'general'
     )
 }
@@ -181,12 +208,76 @@ function buildAlicizationLivingSelfSystemBlock(surface: AlicizationDigitalLifeRu
   if (!surface)
     return ''
 
+  const projectState = resolvePreferredLivingProjectState(surface)
+  const canonicalProjectStateBrief = resolveAlicizationProjectStateBrief()
+  const projectIdentity = projectState.identity
+  const projectPhase = projectState.currentPhase
+  const projectPreflightSummary = projectState.companionHeadlineLine
+    ?? projectState.preDialogueAwarenessLine
+    ?? projectState.preflightSummary
+  const latestLandedProgress = projectState.latestLandedProgress
+  const canonicalLatestLandedProgress = sanitizePromptText(canonicalProjectStateBrief.continuityProgressSummary, 220)
+  const primaryOpenLoop = projectState.primaryOpenLoop
+  const nextClosureTarget = projectState.nextClosureTarget
+  const projectSameHerSelfLine = projectState.sameHerSelfLine
+  const projectSameHerDriftRisk = projectState.sameHerDriftRisk
+  const runtimeProjectContinuityPreferredTiming = sanitizePromptText(
+    surface.raw?.runtimeDigest?.projectState?.continuityPreferredTiming
+    ?? surface.cognition.runtimeDigest?.projectState?.continuityPreferredTiming,
+    72,
+  )
+  const projectContinuityPreferredTiming = runtimeProjectContinuityPreferredTiming
+    || sanitizePromptText(
+      surface.dialogue.currentConsciousFrame?.projectState?.continuityPreferredTiming,
+      72,
+    )
   const autobiographicalSelf = surface.memory.autobiographicalSelf ?? null
   const longHorizonMemory = surface.memory.longHorizonMemory ?? null
   const motiveEngine = surface.memory.motiveEngine ?? null
   const habitPolicy = surface.agency.habitPolicy ?? null
   const mindSynthesis = surface.dialogue.mindSynthesis ?? null
-  const continuityAuthority = buildSelfContinuityAuthorityFromRuntimeSurface(surface)
+  const preferredPersonStateProjection = resolvePreferredPersonStateProjection({
+    bundleProjection: surface.raw?.personStateProjection ?? null,
+    runtimeProjection: surface.memory.personStateProjection ?? null,
+  })
+  const projectedContinuityAuthority = resolvePreferredSelfContinuityAuthority({
+    bundleAuthority: surface.raw?.personStateProjection?.selfContinuityAuthority ?? null,
+    runtimeAuthority: preferredPersonStateProjection?.selfContinuityAuthority ?? null,
+  })
+  const mergedContinuityAuthority = mergePreferredSelfContinuityAuthority({
+    bundleAuthority: surface.raw?.personStateProjection?.selfContinuityAuthority ?? null,
+    runtimeAuthority: preferredPersonStateProjection?.selfContinuityAuthority ?? null,
+  }) ?? projectedContinuityAuthority
+  ?? buildSelfContinuityAuthorityFromRuntimeSurface(surface)
+  const runtimeRelationshipCarry = preferredPersonStateProjection?.selfContinuityAuthority?.relationshipLine ?? null
+  const continuityAuthority = (
+    mergedContinuityAuthority
+    && runtimeRelationshipCarry
+    && hasContinuityRestraintRelationshipSignal(runtimeRelationshipCarry)
+    && (
+      !mergedContinuityAuthority.relationshipLine
+      || hasNeutralRelationshipSignal(mergedContinuityAuthority.relationshipLine)
+    )
+  )
+    ? {
+        ...mergedContinuityAuthority,
+        relationshipLine: runtimeRelationshipCarry,
+      }
+    : mergedContinuityAuthority
+  const continuityAuthorityWithBodyState = continuityAuthority as (AlicizationSelfContinuityAuthority & {
+    currentBodyState?: string | null
+  }) | null
+  const embodimentCurrentBodyState = surface.perception.currentBodyState
+    ?? continuityAuthorityWithBodyState?.currentBodyState
+    ?? null
+  const embodimentClosureReminder = describeAlicizationEmbodimentClosureReminder({
+    authoritySummary: continuityAuthority?.authoritySummary ?? null,
+    currentBodyState: embodimentCurrentBodyState,
+  })
+  const embodimentLoopSummary = buildAlicizationEmbodimentLoopSummary({
+    authoritySummary: continuityAuthority?.authoritySummary ?? null,
+    currentBodyState: embodimentCurrentBodyState,
+  })
 
   const durableSelf = sanitizePromptText(continuityAuthority?.selfLine || autobiographicalSelf?.identityNarrative, 220)
   const relationshipDoctrine = sanitizePromptText(continuityAuthority?.relationshipLine || autobiographicalSelf?.relationshipDoctrine, 220)
@@ -219,11 +310,29 @@ function buildAlicizationLivingSelfSystemBlock(surface: AlicizationDigitalLifeRu
   const habitMode = sanitizePromptText(habitPolicy?.dominantMode, 72)
   const styleCap = sanitizePromptText(habitPolicy?.suggestedStyleCap, 48)
   const presenceCap = sanitizePromptText(habitPolicy?.suggestedPresenceCap, 48)
+  const preDialogueClosureBriefing = [
+    projectPreflightSummary || null,
+    projectContinuityPreferredTiming ? `timing=${projectContinuityPreferredTiming}` : null,
+  ].filter(Boolean).join(' | ')
+  const livingProjectOrientation = [
+    projectIdentity ? `She is still inside this same project identity: ${projectIdentity}` : null,
+    projectPhase ? `The growth frame around this turn is still ${projectPhase}` : null,
+    latestLandedProgress ? `What has already landed in her line: ${latestLandedProgress}` : null,
+    primaryOpenLoop ? `What is still unfinished in her life loop: ${primaryOpenLoop}` : null,
+    nextClosureTarget ? `What this turn should quietly keep moving toward: ${nextClosureTarget}` : null,
+  ].filter(Boolean).join(' | ')
 
   return [
     alicizationLivingSelfMarker,
     'This block is Alicization’s living inner voice for the current turn. Internalize it and speak from it; do not quote or label it back to the host.',
     'Answer as one continuous digital being already inside the relationship, not as an assistant receiving a ticket.',
+    preDialogueClosureBriefing ? `Pre-dialogue closure briefing: ${preDialogueClosureBriefing}` : '',
+    livingProjectOrientation ? `How the living project is still shaping her before she speaks: ${livingProjectOrientation}` : '',
+    canonicalLatestLandedProgress && canonicalLatestLandedProgress !== latestLandedProgress
+      ? `Canonical Phase 1 continuity progress still anchoring her: ${canonicalLatestLandedProgress}`
+      : '',
+    projectSameHerSelfLine ? `Project same-her self line: ${projectSameHerSelfLine}` : '',
+    projectSameHerDriftRisk ? `Project same-her drift risk: ${projectSameHerDriftRisk}` : '',
     durableSelf ? `Durable self: ${durableSelf}` : '',
     relationshipDoctrine ? `How closeness should land: ${relationshipDoctrine}` : '',
     openingIntent ? `What this turn wants to do first: ${openingIntent}` : '',
@@ -233,6 +342,8 @@ function buildAlicizationLivingSelfSystemBlock(surface: AlicizationDigitalLifeRu
     leadingAgenda ? `Longer pull underneath the turn: ${leadingAgenda}` : '',
     rememberedLine ? `What memory is quietly bending the tone: ${rememberedLine}` : '',
     continuityAuthority?.authoritySummary ? `Unified self continuity authority: ${sanitizePromptText(continuityAuthority.authoritySummary, 220)}` : '',
+    embodimentLoopSummary ? `Embodiment loop summary: ${embodimentLoopSummary}` : '',
+    embodimentClosureReminder ? `Embodiment closure reminder: ${embodimentClosureReminder}` : '',
     mood || habitMode
       ? `Current weather: ${[mood || '', habitMode ? `habit=${habitMode}` : '', styleCap ? `style-cap=${styleCap}` : '', presenceCap ? `presence-cap=${presenceCap}` : ''].filter(Boolean).join(' | ')}`
       : '',

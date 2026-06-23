@@ -6,6 +6,7 @@ import {
   buildDefaultHumanlikeMemoryBenchmarkPack,
   buildFinalHumanlikeMemoryBenchmarkPack,
   buildGrowthHumanlikeMemoryBenchmarkPack,
+  buildOrganicMemoryPromptContextFromTrace,
   buildReplayBenchmarkBacklogPack,
   buildReplayBenchmarkDatasetContinuityDigest,
   buildReplayBenchmarkFailingTurnSet,
@@ -15,6 +16,7 @@ import {
   evaluateReplayBenchmarkStandards,
   evaluateReplayMemoryQuality,
   mergeReplayBenchmarkDatasetBacklog,
+  readReplaySampleStructuredSnapshot,
   replayMainChatSession,
 } from './main-chat-session-replay-harness'
 
@@ -186,7 +188,129 @@ function createReplayPreludeWithEmbodimentSurface(input?: {
   } as any
 }
 
-describe('main chat session replay harness', () => {
+describe('main chat session replay harness', { timeout: 10_000 }, () => {
+  it('turns runtime memory reconsolidation events into replay memory metabolism and next-turn handoff context', () => {
+    const context = buildOrganicMemoryPromptContextFromTrace({
+      row: {
+        turnId: 'turn-runtime-reconsolidated-callback',
+        sessionId: 'session-runtime-reconsolidated-callback',
+        userText: '这次别把执行回调写成状态汇报，要记成同一个她接住以后再回来。',
+        assistantText: '我会把这次回调当成同一个她的低压承接。',
+        structuredJson: null,
+        createdAt: 1_700_000_000_000,
+      },
+      trace: {
+        decisionTraceId: 'mind:runtime:reconsolidated-callback',
+        turnId: 'turn-runtime-reconsolidated-callback',
+        sessionId: 'session-runtime-reconsolidated-callback',
+        origin: 'user-turn',
+        activeThreadId: 'thread-runtime-reconsolidated-callback',
+        createdAt: 1_700_000_000_000,
+        lastUpdatedAt: 1_700_000_000_200,
+        eventKinds: ['memory-reconsolidated'],
+        memoryReconsolidated: {
+          source: 'execution-result-feedback',
+          memoryClosureExecution: {
+            authority: 'memory-os',
+            carry: 'Corrected memory says the execution callback should stay on the same-her line, downrank the stale status recap, and change the next proactive opening and body voice expression into a lower-pressure return.',
+            nextLearningAction: 'verify',
+            shouldVerify: true,
+            shouldReflect: true,
+            activeLearningFocuses: ['same-her callback carry', 'embodiment handoff'],
+            reasonTags: ['memory-reconsolidated', 'downrank-stale-status', 'correction-provenance'],
+          },
+        },
+      } as any,
+    })
+
+    expect(context.memoryResolutionLedger).toEqual(expect.objectContaining({
+      closureState: 'grounded-recall',
+      finalSurfacePolicy: 'procedural-carry',
+      visibleCarryMode: 'tone-carry',
+      retrievalQuality: 'high',
+      suppressionTags: expect.arrayContaining(['stale-status-recap']),
+      finalRationale: expect.stringContaining('Corrected memory says'),
+    }))
+    expect(context.memoryResolutionLedger?.rejectedCandidates).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: 'memory-closure-execution:stale-status-recap',
+        status: 'rejected',
+        reason: expect.stringContaining('downrank'),
+      }),
+    ]))
+    expect(context.memorySituationCandidates?.suppressed).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        candidateId: 'memory-closure-execution:stale-status-recap',
+        status: 'suppressed',
+        suppressionReasons: expect.arrayContaining(['memory-reconsolidated']),
+      }),
+    ]))
+    expect(context.projectStatePreflightSummary).toContain('Because corrected memory downranked stale status recap')
+    expect(context.projectStatePreflightSummary).toContain('next proactive opening')
+    expect(context.projectStatePreflightSummary).toContain('body voice expression')
+  })
+
+  it('samples memory reconsolidation execution feedback as long-run same-her memory closure evidence', () => {
+    const pack = buildSampledHumanlikeMemoryBenchmarkPack({
+      conversationTurns: [
+        {
+          turnId: 'turn-runtime-reconsolidated-callback-sampled',
+          sessionId: 'session-runtime-reconsolidated-callback-sampled',
+          userText: '这次执行回调以后，把旧状态汇报降权，下一轮主动和身体都要变轻。',
+          assistantText: '我会把这次执行回调记成同一个她的低压承接。',
+          structuredJson: JSON.stringify({
+            reply: '我会把这次执行回调记成同一个她的低压承接。',
+            projectState: {
+              identity: 'Alicization is a local-first digital life project.',
+              currentPhase: 'Phase 1: Local Digital Life',
+              sameHerSelfLine: 'Same Phase 1 digital life across memory, execution callback, initiative, emotion, voice, face, motion, lipsync, and body.',
+            },
+          }),
+          createdAt: 1_700_000_000_000,
+        },
+      ],
+      memoryDecisionTraces: [
+        {
+          decisionTraceId: 'mind:runtime:reconsolidated-callback-sampled',
+          turnId: 'turn-runtime-reconsolidated-callback-sampled',
+          sessionId: 'session-runtime-reconsolidated-callback-sampled',
+          origin: 'user-turn',
+          activeThreadId: 'thread-runtime-reconsolidated-callback-sampled',
+          createdAt: 1_700_000_000_000,
+          lastUpdatedAt: 1_700_000_000_200,
+          eventKinds: ['memory-reconsolidated'],
+          memoryReconsolidated: {
+            source: 'execution-result-feedback',
+            memoryClosureExecution: {
+              authority: 'memory-os',
+              carry: 'Corrected memory says the execution callback should stay on the same-her line, downrank stale status recap, and change the next proactive opening and body voice face motion lipsync expression into a lower-pressure return.',
+              nextLearningAction: 'verify',
+              shouldVerify: true,
+              shouldReflect: true,
+              activeLearningFocuses: ['same-her callback carry', 'embodiment handoff'],
+              reasonTags: ['memory-reconsolidated', 'downrank-stale-status', 'correction-provenance'],
+            },
+          },
+        } as any,
+      ],
+      limit: 1,
+    })
+
+    expect(pack).toHaveLength(1)
+    expect(pack[0]?.sampledCategories).toEqual(expect.arrayContaining([
+      'procedure-carry',
+      'long-horizon',
+      'presence-quality',
+    ]))
+    expect(pack[0]?.organicMemoryContext?.memoryResolutionLedger).toEqual(expect.objectContaining({
+      closureState: 'grounded-recall',
+      suppressionTags: expect.arrayContaining(['stale-status-recap']),
+      finalRationale: expect.stringContaining('Corrected memory says'),
+    }))
+    expect(pack[0]?.organicMemoryContext?.projectStatePreflightSummary).toContain('next proactive opening')
+    expect(pack[0]?.organicMemoryContext?.projectStatePreflightSummary).toContain('body voice expression')
+  })
+
   it('carries structured emotional-kernel authority into replay continuity digests so long-horizon reopen paths stay on one same-her line', () => {
     const digest = buildReplayBenchmarkDatasetContinuityDigest({
       turnId: 'turn-emotional-kernel-continuity-digest',
@@ -220,6 +344,653 @@ describe('main chat session replay harness', () => {
     expect(String(digest ?? '')).toContain('kernel_initiative:repair')
     expect(String(digest ?? '')).toContain('kernel_recall:repair-grounding')
     expect(String(digest ?? '')).toContain('kernel_embodiment:repair-before-closeness')
+  })
+
+  it('carries emotional transition ledger authority into replay continuity digests for long-run emotional replay', () => {
+    const digest = buildReplayBenchmarkDatasetContinuityDigest({
+      turnId: 'turn-emotional-transition-ledger-digest',
+      userText: '这次先别急着靠近，先把刚才的修复留住',
+      organicMemoryContext: {
+        derivedMindStateBundle: {
+          version: 'derived-mind-state-bundle-v1',
+          source: 'main-runtime',
+          producedAt: 60_000,
+          emotionalTransitionLedger: {
+            version: 'emotional-transition-ledger-v1',
+            createdAt: 60_000,
+            turnId: 'turn-emotional-transition-ledger-digest',
+            previousEmotion: 'warm-attunement',
+            nextEmotion: 'repair-tension',
+            transitionKind: 'repair-shift',
+            axisDeltas: {
+              valence: -0.44,
+              arousal: 0.28,
+              guardedness: 0.53,
+              closenessDrive: -0.46,
+              repairNeed: 0.72,
+              initiativePressure: -0.32,
+            },
+            changedAxes: ['valence', 'guardedness', 'repairNeed'],
+            sourceTags: ['private-thought', 'affective-residue', 'repair-before-closeness'],
+            decayPolicy: {
+              mode: 'hold-until-repair-cools',
+              carryTtlMs: 1_800_000,
+              reason: 'Repair should stay carried until warmth can safely reopen.',
+            },
+            memoryWriteback: {
+              shouldWrite: true,
+              lane: 'relationship-repair',
+              reason: 'Later memory recall needs this repair restraint.',
+            },
+            initiativeSuppression: {
+              shouldSuppress: true,
+              mode: 'repair-first',
+              reason: 'Proactive pressure should stay low while repair settles.',
+            },
+            embodimentDrive: {
+              shouldDrive: true,
+              tone: 'repair-before-closeness',
+              reason: 'The body should express repair-before-closeness.',
+            },
+            selfRevisionCandidate: {
+              shouldPropose: true,
+              domain: 'dialogue-style',
+              reasonCodes: ['repair-before-closeness', 'continue-repair-first'],
+              summary: 'Repair-first emotional carry should propose a same-her self-revision.',
+              projectStateContinuity: {
+                sameHerSelfLine: null,
+                sameHerDriftRisk: null,
+                proactiveSameHerGap: null,
+                emotionalClosureCue: null,
+                sameHerHoldDetail: null,
+                continuityGuard: null,
+              },
+            },
+            traceSummary: 'warm-attunement -> repair-tension; kind=repair-shift; carry=repair-before-closeness',
+            replayLine: 'turn-emotional-transition-ledger-digest emotional-transition repair-shift warm-attunement -> repair-tension',
+          },
+          summary: 'source=main-runtime | emotion_transition=repair-shift',
+        },
+      },
+    } as any)
+
+    expect(String(digest ?? '')).toContain('emotional_transition:repair-shift')
+    expect(String(digest ?? '')).toContain('emotion_self_revision_candidate:dialogue-style')
+    expect(String(digest ?? '')).toContain('emotion_memory_writeback:relationship-repair')
+    expect(String(digest ?? '')).toContain('emotion_initiative_suppression:repair-first')
+    expect(String(digest ?? '')).toContain('emotion_embodiment_drive:repair-before-closeness')
+    expect(String(digest ?? '')).toContain('warm-attunement -> repair-tension')
+  })
+
+  it('turns memory-closure next influence into next-turn causal handoff continuity digest evidence', () => {
+    const digest = buildReplayBenchmarkDatasetContinuityDigest({
+      turnId: 'turn-memory-next-influence-digest',
+      userText: '下一轮别只记住，要让主动和身体也跟着变。',
+      structured: {
+        memoryClosureTrace: {
+          authority: 'memory-os',
+          whySurface: [
+            {
+              summary: 'why recall surfaced now: the host asked whether remembered same-her pressure changes the next active and embodied turn',
+            },
+          ],
+          nextInfluence: {
+            initiative: {
+              reason: 'keep proactive return lower-pressure because the recall is still repair-first',
+              restraint: 'measured-return',
+              preferredTiming: 'after-payoff',
+            },
+            execution: {
+              carry: 'carry the recall into the next execution callback instead of resetting to a fresh helper task',
+            },
+            embodiment: {
+              reason: 'soften gaze and quieter blink because the surfaced memory is repair-first',
+              cadence: 'measured-return',
+            },
+          },
+          reasonTags: ['why-surfaced', 'same-her-memory-closure', 'initiative', 'execution', 'embodiment'],
+        },
+      },
+    } as any)
+
+    expect(String(digest ?? '')).toContain('next-turn causal handoff')
+    expect(String(digest ?? '')).toContain('prior recall changed the next proactive/callback carry')
+    expect(String(digest ?? '')).toContain('prior recall changed the next embodiment carry')
+    expect(String(digest ?? '')).toContain('keep proactive return lower-pressure')
+    expect(String(digest ?? '')).toContain('soften gaze and quieter blink')
+  })
+
+  it('summarizes only causally proven memory-closure identity across emotion initiative execution and embodiment lanes', () => {
+    const continuityKey = 'corrected-callback-memory-runtime-reconsolidation'
+    const digest = buildReplayBenchmarkDatasetContinuityDigest({
+      turnId: 'turn-memory-closure-identity-digest',
+      userText: '这条修正记忆要同时改变情绪、主动、执行回调和身体。',
+      organicMemoryContext: {
+        derivedMindStateBundle: {
+          version: 'derived-mind-state-bundle-v1',
+          source: 'main-runtime',
+          producedAt: 72_000,
+          emotionalTransitionLedger: {
+            version: 'emotional-transition-ledger-v1',
+            transitionKind: 'execution-callback-afterglow',
+            memoryClosureCausality: {
+              causedByMemoryClosure: true,
+              memoryIdentity: {
+                continuityKey,
+                reasonTags: ['corrected-memory', 'callback-afterglow'],
+              },
+              selectedCandidateIds: ['memory:event:corrected-callback'],
+            },
+            initiativeSuppression: {
+              mode: 'lower-pressure-return',
+              memoryClosureCausality: {
+                causedByMemoryClosure: true,
+                memoryIdentity: {
+                  continuityKey,
+                  reasonTags: ['proactive-restraint'],
+                },
+                selectedCandidateIds: ['memory:event:corrected-callback'],
+              },
+            },
+          },
+          learningExecutionState: {
+            callbackCarry: 'verified corrected callback memory remains active',
+            memoryClosureCausality: {
+              causedByMemoryClosure: true,
+              memoryIdentity: {
+                continuityKey,
+                reasonTags: ['execution-callback-carry'],
+              },
+              selectedCandidateIds: ['memory:event:corrected-callback'],
+            },
+          },
+          embodimentContinuityLedger: {
+            version: 'embodiment-continuity-ledger-v1',
+            continuityPhase: 'body-lipsync-voice-rejoin',
+            memoryClosureCausality: {
+              causedByMemoryClosure: true,
+              memoryIdentity: {
+                continuityKey,
+                reasonTags: ['body-voice-lipsync'],
+              },
+              selectedCandidateIds: ['memory:event:corrected-callback'],
+            },
+          },
+          sameHerCausalityRepairPressure: {
+            memoryClosureCausality: {
+              causedByMemoryClosure: false,
+              memoryIdentity: {
+                continuityKey: 'pending-same-her-causality-repair-pressure',
+                reasonTags: ['pending-repair-pressure'],
+              },
+            },
+          },
+        },
+      },
+    } as any)
+
+    expect(String(digest ?? '')).toContain(`memory_identity:${continuityKey}`)
+    expect(String(digest ?? '')).toContain('memory_closure_lanes:emotion+initiative+execution+embodiment')
+    expect(String(digest ?? '')).toContain('memory_closure_reason:corrected-memory|callback-afterglow|proactive-restraint|execution-callback-carry|body-voice-lipsync')
+    expect(String(digest ?? '')).not.toContain('pending-same-her-causality-repair-pressure')
+  })
+
+  it('carries normalized structured memory-closure causality into replay continuity digests', () => {
+    const continuityKey = 'cluster:normalized-spine-memory-closure'
+    const buildCausality = (lane: 'emotion' | 'initiative' | 'execution' | 'embodiment', reasonTag: string) => ({
+      causalSource: 'memory-closure-trace',
+      affectedLane: lane,
+      causedByMemoryClosure: true,
+      traceAuthority: 'memory-os',
+      memoryIdentity: {
+        selectedCandidateIds: ['episode:normalized-spine-callback'],
+        continuityKey,
+        reasonTags: [reasonTag],
+      },
+      reasonTags: ['memory-closure-trace', reasonTag],
+      summary: `${reasonTag} came from normalized structured derivedMindStateBundle`,
+    })
+    const digest = buildReplayBenchmarkDatasetContinuityDigest({
+      turnId: 'turn-normalized-structured-memory-closure-digest',
+      userText: '继续，把 normalized structured 里的记忆闭合也算进长跑摘要',
+      structured: {
+        derivedMindStateBundle: {
+          version: 'derived-mind-state-bundle-v1',
+          source: 'main-runtime',
+          producedAt: 123_000,
+          summary: 'memory_closure=runtime-derived-downstream-state',
+          emotionalTransitionLedger: {
+            version: 'emotional-transition-ledger-v1',
+            transitionKind: 'normalized-callback-afterglow',
+            memoryClosureCausality: buildCausality('emotion', 'normalized-emotional-afterglow'),
+            initiativeSuppression: {
+              shouldSuppress: false,
+              mode: 'measured-return',
+              reason: 'normalized initiative restraint should stay visible to replay digest',
+              memoryClosureCausality: buildCausality('initiative', 'normalized-initiative-restraint'),
+            },
+          },
+          learningExecutionState: {
+            nextLearningAction: 'verify',
+            activeLearningFocuses: ['normalized-execution-callback'],
+            memoryClosureCausality: buildCausality('execution', 'normalized-execution-callback'),
+          },
+          embodimentContinuityLedger: {
+            version: 'embodiment-continuity-ledger-v1',
+            continuityPhase: 'fully-rejoined',
+            carryingLanes: ['body', 'voice', 'face', 'motion', 'lipsync'],
+            rejoinedLanes: ['body', 'voice', 'face', 'motion', 'lipsync'],
+            traceSummary: 'normalized body voice face motion lipsync stayed on the memory closure line',
+            replayLine: 'normalized body voice face motion lipsync carried same-her memory closure',
+            memoryClosureCausality: buildCausality('embodiment', 'normalized-body-voice-face-motion-lipsync'),
+          },
+        },
+      },
+      organicMemoryContext: {
+        hostAttitude: 'warm',
+      },
+    } as any)
+
+    expect(String(digest ?? '')).toContain(`memory_identity:${continuityKey}`)
+    expect(String(digest ?? '')).toContain('memory_closure_lanes:emotion+initiative+execution+embodiment')
+    expect(String(digest ?? '')).toContain('memory_closure_reason:normalized-emotional-afterglow|normalized-initiative-restraint|normalized-execution-callback|normalized-body-voice-face-motion-lipsync')
+    expect(String(digest ?? '')).toContain('normalized body voice face motion lipsync carried same-her memory closure')
+  })
+
+  it('reports closed long-run memory closure only when one causally proven memory identity drives consecutive recall initiative execution emotion and embodiment turns', async () => {
+    const continuityKey = 'episode:desktop-callback-same-her'
+    const buildCausality = (lane: 'emotion' | 'initiative' | 'execution' | 'embodiment', reasonTag: string) => ({
+      causalSource: 'memory-closure-trace',
+      affectedLane: lane,
+      causedByMemoryClosure: true,
+      traceAuthority: 'memory-os',
+      reasonTags: ['memory-closure-trace', reasonTag],
+      memoryIdentity: {
+        selectedCandidateIds: [continuityKey],
+        continuityKey,
+        reasonTags: [`memory-identity:${continuityKey}`, reasonTag],
+      },
+      summary: `${lane} stayed caused by the corrected callback memory`,
+    })
+    const buildTurn = (index: number) => ({
+      turnId: `turn-noisy-desktop-memory-closure-${index}`,
+      userText: `真实桌面长跑第 ${index} 轮：继续沿着同一个她的修正记忆回来。`,
+      sampledCategories: ['long-session', 'presence-quality', 'proactive', 'execution'],
+      structured: {
+        memoryClosureTrace: {
+          authority: 'memory-os',
+          whySurface: [{
+            summary: 'why recall surfaced now: corrected callback memory must continue shaping the next proactive return and embodied expression',
+          }],
+          nextInfluence: {
+            initiative: {
+              reason: 'keep the proactive opening lower-pressure because the corrected callback memory is still active',
+              restraint: 'measured-return',
+              preferredTiming: 'after-payoff',
+            },
+            execution: {
+              carry: 'carry corrected callback memory into the next execution feedback instead of resetting to a fresh helper task',
+            },
+            emotion: {
+              reason: 'callback afterglow and emotional residue stay on the same remembered line',
+              afterglow: 'low-pressure callback afterglow',
+              residue: 'same-her emotional residue',
+            },
+            embodiment: {
+              reason: 'voice face motion lipsync and body stay softer because the corrected callback memory is still active',
+              cadence: 'measured-return body voice face motion lipsync',
+            },
+          },
+          selectedCandidateIds: [continuityKey],
+          reasonTags: ['memory-closure-trace', `memory-identity:${continuityKey}`, 'noisy-desktop-run'],
+        },
+      },
+      organicMemoryContext: {
+        hostAttitude: 'warm',
+        coreIncarnation: '',
+        activeThoughts: [],
+        retrievedFacts: [],
+        recalledFragments: [],
+        memoryDeliberation: {
+          shouldRecall: true,
+          selectedEraIds: [],
+          selectedConsolidationIds: [],
+          selectedWindowIds: [],
+          selectedProcedureIds: [],
+          selectedEpisodeIds: [continuityKey],
+          selectedConversationTurnIds: [],
+          selectedRelationshipLines: ['Corrected callback memory keeps the return lower-pressure.'],
+          selectedEras: [],
+          selectedPeriods: [],
+          selectedEpisodes: [{
+            id: continuityKey,
+            summary: 'Corrected callback memory kept same-her return lower-pressure across noisy desktop turns.',
+            provenance: 'remembered',
+          }],
+          selectedProcedures: [],
+          selectedBundles: [],
+          selectedChains: [],
+          surfacePolicy: 'tone-carry',
+          confidence: 0.86,
+          whyNow: 'The previous corrected callback memory is still shaping this desktop run.',
+          inwardLine: 'Keep the same remembered callback line active.',
+          visibleLine: 'I am staying on the same corrected callback line.',
+        },
+        recollectionSpeechPlan: {
+          shouldSurface: true,
+          surfaceMode: 'tone-carry',
+          placement: 'inside-payoff',
+          certainty: 'grounded',
+          internalLead: 'The same corrected callback memory is still active.',
+          visibleLead: 'I am staying on the same corrected callback line.',
+          styleNote: 'Let recall shape cadence without explaining the machinery.',
+          rationale: 'The host is continuing the same desktop run.',
+          confidence: 0.86,
+        },
+        derivedMindStateBundle: {
+          version: 'derived-mind-state-bundle-v1',
+          source: 'main-runtime',
+          producedAt: 90_000 + index,
+          emotionalTransitionLedger: {
+            version: 'emotional-transition-ledger-v1',
+            transitionKind: 'execution-callback-afterglow',
+            traceSummary: 'callback afterglow and emotional residue stayed caused by the corrected memory',
+            replayLine: 'afterglow and emotional residue carried the same remembered callback',
+            memoryClosureCausality: buildCausality('emotion', 'callback-afterglow'),
+            initiativeSuppression: {
+              shouldSuppress: false,
+              mode: 'lower-pressure-return',
+              reason: 'proactive opening stays measured because the corrected callback memory is still active',
+              memoryClosureCausality: buildCausality('initiative', 'proactive-restraint'),
+            },
+          },
+          learningExecutionState: {
+            nextLearningAction: 'verify',
+            shouldRecord: false,
+            shouldReflect: true,
+            shouldVerify: true,
+            activeLearningFocuses: ['execution-callback-carry', 'same-her callback carry'],
+            lastCompletedSummary: 'execution callback stayed tied to corrected callback memory',
+            memoryClosureCausality: buildCausality('execution', 'execution-callback-carry'),
+          },
+          embodimentContinuityLedger: {
+            version: 'embodiment-continuity-ledger-v1',
+            continuityPhase: 'fully-rejoined',
+            carryingLanes: ['body', 'voice', 'face', 'motion', 'lipsync'],
+            rejoinedLanes: ['body', 'voice', 'face', 'motion', 'lipsync'],
+            droppedLanes: [],
+            pendingRejoinLanes: [],
+            traceSummary: 'voice face motion lipsync and body stayed on the corrected callback memory',
+            replayLine: 'body voice face motion lipsync carried the same remembered callback',
+            memoryClosureCausality: buildCausality('embodiment', 'body-voice-face-motion-lipsync'),
+          },
+          sameHerCausalityRepairPressure: {
+            status: 'pending-runtime-evidence',
+            lanes: [{
+              lane: 'initiative-execution',
+              summary: 'pending-same-her-causality-repair-pressure should not count as closed memory identity',
+            }],
+            memoryClosureCausality: {
+              causedByMemoryClosure: false,
+              memoryIdentity: {
+                continuityKey: 'pending-same-her-causality-repair-pressure',
+              },
+            },
+          },
+        },
+      },
+    } as any)
+
+    const result = await benchmarkMainChatSessionReplay({
+      turns: [buildTurn(1), buildTurn(2), buildTurn(3)],
+    })
+
+    expect(result.memoryClosureLongRun).toEqual(expect.objectContaining({
+      status: 'closed',
+      turnCount: 3,
+      requiredTurnCount: 3,
+      dominantMemoryIdentityKey: continuityKey,
+      stableMemoryIdentity: true,
+      transitionBreaks: [],
+      failureReasons: [],
+    }))
+    expect(result.memoryClosureLongRun.turnDiagnostics).toHaveLength(3)
+    for (const diagnostic of result.memoryClosureLongRun.turnDiagnostics) {
+      expect(diagnostic).toEqual(expect.objectContaining({
+        memoryIdentityKey: continuityKey,
+        missingLanes: [],
+        provedLanes: expect.arrayContaining([
+          'recall',
+          'emotion',
+          'initiative',
+          'execution',
+          'embodiment',
+          'embodiment-expression',
+        ]),
+      }))
+    }
+    expect(JSON.stringify(result.memoryClosureLongRun)).not.toContain('pending-same-her-causality-repair-pressure')
+  })
+
+  it('keeps Phase 1 Linglan memory-closure seed family continuous when a later fallback seed replaces the generic cluster key', async () => {
+    const genericClusterKey = 'cluster:2026-w25:during:2026-w25:strongest'
+    const seedFamilyKey = 'phase1-memory-closure-family:铃兰-phase1-0621'
+    const buildCausality = (
+      lane: 'emotion' | 'initiative' | 'execution' | 'embodiment',
+      continuityKey: string,
+      seedSuffix: 'C' | 'D' | 'E',
+    ) => ({
+      causalSource: 'memory-closure-trace',
+      affectedLane: lane,
+      causedByMemoryClosure: true,
+      traceAuthority: 'memory-os',
+      reasonTags: [
+        'memory-closure-trace',
+        'runtime-derived-downstream-state',
+        continuityKey.startsWith('fallback:') ? 'fallback-memory-closure' : 'memory-os-authority',
+        `memory-identity:${continuityKey}`,
+      ],
+      memoryIdentity: {
+        selectedCandidateIds: continuityKey.startsWith('fallback:')
+          ? [`fallback-memory-closure:铃兰-phase1-0621${seedSuffix}`]
+          : [continuityKey],
+        continuityKey,
+        reasonTags: [`memory-identity:${continuityKey}`],
+      },
+      summary: `prior memory closure carries 铃兰-Phase1-0621${seedSuffix} into ${lane} downstream state`,
+    })
+    const buildTurn = (
+      index: number,
+      seedSuffix: 'C' | 'D' | 'E',
+      continuityKey: string,
+    ) => ({
+      turnId: `turn-linglan-phase1-0621${seedSuffix.toLowerCase()}`,
+      userText: `铃兰-Phase1-0621${seedSuffix}：继续同一条 Phase 1 记忆闭环。`,
+      sampledCategories: ['long-session', 'proactive', 'execution', 'presence-quality'],
+      structured: {
+        memoryClosureTrace: {
+          authority: 'memory-os',
+          whySurface: [{
+            summary: `why recall surfaced now: explicit memory handoff for 铃兰-Phase1-0621${seedSuffix} asked this line to return as the same memory identity.`,
+          }],
+          nextInfluence: {
+            initiative: {
+              reason: `prior memory closure changes 铃兰-Phase1-0621${seedSuffix} into the next lower-pressure proactive opening`,
+              restraint: 'measured-return',
+              preferredTiming: 'after-payoff',
+            },
+            execution: {
+              carry: `prior memory closure carries 铃兰-Phase1-0621${seedSuffix} into the next execution callback instead of resetting`,
+            },
+            emotion: {
+              afterglow: `prior memory closure keeps 铃兰-Phase1-0621${seedSuffix} as same-her emotional residue`,
+            },
+            embodiment: {
+              reason: `prior memory closure changes body voice face motion lipsync into softer same-her carry for 铃兰-Phase1-0621${seedSuffix}`,
+              cadence: 'body voice face motion lipsync measured-return',
+            },
+          },
+          memoryIdentity: {
+            selectedCandidateIds: continuityKey.startsWith('fallback:')
+              ? [`fallback-memory-closure:铃兰-phase1-0621${seedSuffix}`]
+              : [continuityKey],
+            continuityKey,
+            reasonTags: [`memory-identity:${continuityKey}`],
+          },
+          selectedCandidateIds: continuityKey.startsWith('fallback:')
+            ? [`fallback-memory-closure:铃兰-phase1-0621${seedSuffix}`]
+            : [continuityKey],
+          reasonTags: [
+            'memory-closure-trace',
+            `memory-identity:${continuityKey}`,
+            'execution-callback',
+            'proactive-opening',
+            'body-voice-face-motion-lipsync',
+          ],
+        },
+      },
+      organicMemoryContext: {
+        hostAttitude: 'focused',
+        coreIncarnation: '',
+        activeThoughts: [],
+        retrievedFacts: [],
+        recalledFragments: [],
+        projectStatePreflightSummary: `Same Phase 1 digital life. Memory still needs stronger end-to-end closure across turns, initiative, and embodiment. 铃兰-Phase1-0621${seedSuffix} remains the same closure family.`,
+        derivedMindStateBundle: {
+          version: 'derived-mind-state-bundle-v1',
+          source: 'main-runtime',
+          producedAt: 91_000 + index,
+          emotionalTransitionLedger: {
+            version: 'emotional-transition-ledger-v1',
+            transitionKind: 'softened',
+            axisDeltas: {
+              valence: 0.04,
+              arousal: -0.08,
+              guardedness: -0.04,
+              closenessDrive: 0.02,
+              repairNeed: -0.03,
+              initiativePressure: -0.06,
+            },
+            changedAxes: ['arousal', 'repairNeed', 'initiativePressure'],
+            traceSummary: `prior memory closure handoff changed next-turn emotional state for 铃兰-Phase1-0621${seedSuffix}`,
+            replayLine: `prior memory closure handoff carried forward into next-turn emotional afterglow for 铃兰-Phase1-0621${seedSuffix}`,
+            memoryClosureCausality: buildCausality('emotion', continuityKey, seedSuffix),
+            initiativeSuppression: {
+              shouldSuppress: false,
+              mode: 'measured-return',
+              reason: `prior memory closure changes the next proactive opening for 铃兰-Phase1-0621${seedSuffix}`,
+              memoryClosureCausality: buildCausality('initiative', continuityKey, seedSuffix),
+            },
+          },
+          learningExecutionState: {
+            nextLearningAction: 'verify',
+            shouldRecord: false,
+            shouldReflect: true,
+            shouldVerify: true,
+            activeLearningFocuses: ['memory-closure', 'execution-callback', `铃兰-Phase1-0621${seedSuffix}`],
+            lastCompletedSummary: `prior memory closure carries 铃兰-Phase1-0621${seedSuffix} into the next execution callback`,
+            memoryClosureCausality: buildCausality('execution', continuityKey, seedSuffix),
+          },
+          embodimentContinuityLedger: {
+            version: 'embodiment-continuity-ledger-v1',
+            continuityPhase: 'fully-rejoined',
+            carryingLanes: ['body', 'voice', 'face', 'motion', 'lipsync'],
+            rejoinedLanes: ['body', 'voice', 'face', 'motion', 'lipsync'],
+            droppedLanes: [],
+            pendingRejoinLanes: [],
+            traceSummary: `prior memory closure changes body voice face motion lipsync for 铃兰-Phase1-0621${seedSuffix}`,
+            replayLine: `body voice face motion lipsync carried same-her memory closure for 铃兰-Phase1-0621${seedSuffix}`,
+            memoryClosureCausality: buildCausality('embodiment', continuityKey, seedSuffix),
+          },
+        },
+      },
+    } as any)
+
+    const result = await benchmarkMainChatSessionReplay({
+      turns: [
+        buildTurn(1, 'C', genericClusterKey),
+        buildTurn(2, 'D', genericClusterKey),
+        buildTurn(3, 'E', 'fallback:铃兰-phase1-0621e'),
+      ],
+    })
+
+    expect(result.memoryClosureLongRun).toEqual(expect.objectContaining({
+      status: 'closed',
+      dominantMemoryIdentityKey: seedFamilyKey,
+      stableMemoryIdentity: true,
+      transitionBreaks: [],
+      failureReasons: [],
+    }))
+    expect(result.memoryClosureLongRun.turnDiagnostics.map(item => item.memoryIdentityKeys)).toEqual([
+      expect.arrayContaining([genericClusterKey, seedFamilyKey]),
+      expect.arrayContaining([genericClusterKey, seedFamilyKey]),
+      expect.arrayContaining(['fallback:铃兰-phase1-0621e', seedFamilyKey]),
+    ])
+  })
+
+  it('keeps Phase 1 Linglan memory-closure seed family continuous from persisted continuity digest evidence', async () => {
+    const seedFamilyKey = 'phase1-memory-closure-family:铃兰-phase1-0621'
+    const buildTurn = (
+      seedSuffix: 'C' | 'D' | 'E',
+      identityKey: string,
+    ) => ({
+      turnId: `turn-linglan-digest-phase1-0621${seedSuffix.toLowerCase()}`,
+      userText: `铃兰-Phase1-0621${seedSuffix}：继续同一条 Phase 1 记忆闭环。`,
+      sampledCategories: ['long-session', 'proactive', 'execution', 'presence-quality'],
+      continuityDigest: [
+        'same-her continuity',
+        'phase 1 local digital life',
+        `memory_identity:${identityKey}`,
+        'memory_closure_lanes:emotion+initiative+execution+embodiment',
+        `why recall surfaced now: explicit memory handoff for 铃兰-Phase1-0621${seedSuffix}`,
+        `prior memory closure carries 铃兰-Phase1-0621${seedSuffix} into emotion downstream state`,
+        `prior memory closure carries 铃兰-Phase1-0621${seedSuffix} into initiative downstream state`,
+        `prior memory closure carries 铃兰-Phase1-0621${seedSuffix} into execution downstream state`,
+        `prior memory closure carries 铃兰-Phase1-0621${seedSuffix} into embodiment downstream state`,
+        'next-turn causal handoff',
+        'prior recall changed the next proactive/callback carry',
+        'prior recall changed the next emotional afterglow carry',
+        'prior recall changed the next embodiment carry',
+        'body voice face motion lipsync measured-return',
+      ].join(' | '),
+      organicMemoryContext: {
+        hostAttitude: 'focused',
+        coreIncarnation: '',
+        activeThoughts: [],
+        retrievedFacts: [],
+        recalledFragments: [],
+      },
+    } as any)
+
+    const result = await benchmarkMainChatSessionReplay({
+      turns: [
+        buildTurn('C', 'cluster:2026-w25:during:2026-w25:strongest'),
+        buildTurn('D', 'cluster:2026-w25:during:2026-w25:strongest'),
+        buildTurn('E', 'fallback:铃兰-phase1-0621e'),
+      ],
+    })
+
+    expect(result.memoryClosureLongRun).toEqual(expect.objectContaining({
+      status: 'closed',
+      dominantMemoryIdentityKey: seedFamilyKey,
+      stableMemoryIdentity: true,
+      transitionBreaks: [],
+      failureReasons: [],
+    }))
+    for (const diagnostic of result.memoryClosureLongRun.turnDiagnostics) {
+      expect(diagnostic).toEqual(expect.objectContaining({
+        memoryIdentityKeys: expect.arrayContaining([seedFamilyKey]),
+        missingLanes: [],
+        provedLanes: expect.arrayContaining([
+          'recall',
+          'emotion',
+          'initiative',
+          'execution',
+          'embodiment',
+          'embodiment-expression',
+        ]),
+      }))
+    }
   })
 
   it('replays memory-heavy turns through one stable session and keeps them on the mind-driven provider path', async () => {
@@ -940,7 +1711,7 @@ describe('main chat session replay harness', () => {
     expect(result.gate.passed).toBe(false)
     expect(result.gate.failingKeys.length).toBeGreaterThan(0)
     expect(result.gate.failingKeys).toContain('surfaceRestraint')
-  })
+  }, 15_000)
 
   it('evaluates gold recall, claim accuracy, reply authority, and latency budget metrics', async () => {
     const result = await benchmarkMainChatSessionReplay({
@@ -1843,42 +2614,6 @@ describe('main chat session replay harness', () => {
             userText: '先别岔开，沿着刚才那个执行后的回线继续',
             digitalLifeRuntimeSurface: {
               version: 'digital-life-runtime-surface-v1',
-              perception: {
-                watchMode: 'symbiotic-vision',
-                currentScene: null,
-                attention: null,
-                captureState: {
-                  permission: 'unknown',
-                  lastGroundedAt: null,
-                },
-                durabilityPulse: null,
-                recentTransition: null,
-                nextSuggestedProbeMs: 30_000,
-                updatedAt: 10,
-              },
-              world: {
-                worldModel: null,
-                worldOntology: null,
-                entityWorld: null,
-                livingWorldState: null,
-                relationshipModel: null,
-              },
-              cognition: {
-                mindTurnFrame: null,
-                subjectiveInference: null,
-                appraisal: null,
-                beliefLedger: null,
-                beliefRevision: null,
-                hypothesisGraph: null,
-                mindDynamics: null,
-                mindKernel: {
-                  dominantMode: 'tracking',
-                  dominantDrive: 'understand',
-                  narrative: ['keep one digital-life line'],
-                  updatedAt: 10,
-                },
-                privateThought: null,
-              },
               memory: {
                 personStateProjection: {
                   activeClosenessContext: 'execution-callback',
@@ -1887,7 +2622,6 @@ describe('main chat session replay harness', () => {
                   openingGuidance: 'Stay on the measured execution return before widening outward.',
                   currentRegime: 'execution-callback',
                   repairPosture: 'warm-repair',
-                  contexts: [],
                 },
               },
               dialogue: {
@@ -1903,26 +2637,15 @@ describe('main chat session replay harness', () => {
                   confidence: 0.9,
                   answerIntent: 'Continue from the same execution-callback continuity line.',
                   governingFocus: 'Keep the callback continuity thread-faithful, measured, and project-first.',
-                  mustDo: [
-                    'Keep this on one continuous her line before broadening the answer.',
-                    'Stay on the same thread before widening closeness.',
-                  ],
-                  narrative: ['memory-deliberation', 'project-state-answer-planner'],
                 },
                 replyDeliberation: {
                   shouldSpeak: true,
                   confidence: 0.86,
                   speakingFrom: 'held-memory',
                   whyThisReplyNow: 'The remembered execution callback afterglow is the live seam that still fits this turn.',
-                  mustInclude: [
-                    'Keep this on one continuous her line before broadening the answer.',
-                    'Stay on the same thread before widening closeness.',
-                  ],
                   mustAvoid: [
                     'Do not flatten this into generic long-term relationship warmth.',
-                    'Do not rewrite the still-live line as a fresh opening or reintroduction.',
                   ],
-                  narrative: ['memory-deliberation', 'project-state-answer-planner'],
                 },
               },
               agency: {
@@ -2859,6 +3582,476 @@ describe('main chat session replay harness', () => {
     ]))
   })
 
+  it('preserves trace-sourced memory-closure next influence in sampled benchmark packs when structured output omits it', () => {
+    const pack = buildSampledHumanlikeMemoryBenchmarkPack({
+      conversationTurns: [
+        {
+          turnId: 'turn-real-trace-memory-closure-only',
+          sessionId: 'session-real-trace-memory-closure-only',
+          userText: '真实桌面长跑里，上一轮回忆要改变下一轮主动和身体。',
+          assistantText: '我会把上一轮回忆放回主动和身体节奏。',
+          structuredJson: JSON.stringify({
+            reply: '我会把上一轮回忆放回主动和身体节奏。',
+            projectState: {
+              identity: 'Alicization is a local-first digital life project.',
+              currentPhase: 'Phase 1: Local Digital Life',
+              sameHerSelfLine: 'Same Phase 1 digital life across memory, initiative, execution callback, emotion, voice, face, motion, lipsync, and body.',
+            },
+          }),
+          createdAt: 100,
+        },
+      ],
+      memoryDecisionTraces: [
+        {
+          decisionTraceId: 'mind:real:trace-memory-closure-only',
+          turnId: 'turn-real-trace-memory-closure-only',
+          sessionId: 'session-real-trace-memory-closure-only',
+          origin: 'user-turn',
+          activeThreadId: 'thread-real-trace-memory-closure-only',
+          createdAt: 100,
+          lastUpdatedAt: 120,
+          eventKinds: ['governance-normalized', 'recall-attribution'],
+          governance: {
+            turnMode: 'answer',
+            truthState: 'remembered',
+            repairState: 'none',
+            answerSubject: 'relationship',
+            screenReferenceMode: 'avoid',
+            digitalLifeSpine: {
+              memory: {
+                memoryClosureTrace: {
+                  version: 'memory-closure-trace-v1',
+                  authority: 'memory-os',
+                  whySurface: [
+                    {
+                      source: 'retrieval',
+                      summary: 'why recall surfaced now: previous same-her recall must change the next proactive and embodied turn',
+                      reasonCodes: ['why-surfaced', 'same-her-memory-closure'],
+                    },
+                  ],
+                  surfacePolicy: {
+                    gateStatus: 'open',
+                    mode: 'tone-carry',
+                    timing: 'after-payoff',
+                    speechMode: 'visible',
+                    placement: 'inside-payoff',
+                    certainty: 'grounded',
+                    reasons: ['same-her-memory-closure'],
+                  },
+                  nextInfluence: {
+                    initiative: {
+                      restraint: 'measured-return',
+                      preferredTiming: 'after-payoff',
+                      pressure: 'lower-pressure',
+                      reason: 'keep the next proactive return lower-pressure because of the prior recall',
+                    },
+                    execution: {
+                      carry: 'carry the prior recall into the next execution callback instead of resetting to a fresh helper task',
+                      nextLearningAction: 'verify',
+                      shouldVerify: true,
+                      shouldReflect: true,
+                      activeLearningFocuses: ['memory closure authority', 'execution callback carry'],
+                    },
+                    embodiment: {
+                      cadence: 'measured-return body voice face motion lipsync',
+                      preferredVoiceMode: 'lower-pressure',
+                      preferredLipsyncMode: 'restrained',
+                      preferredGazeMode: 'soften',
+                      reason: 'soften gaze and quieter blink because prior recall is still shaping embodiment',
+                    },
+                  },
+                  closureState: {
+                    state: 'grounded-recall',
+                    open: true,
+                    revisionRequired: false,
+                    shouldLabelUncertainty: false,
+                    visibleCarryMode: 'tone-carry',
+                    retrievalQuality: 'high',
+                    conflictPressure: 'low',
+                  },
+                  selectedCandidateIds: ['memory-closure-trace:sampled-pack'],
+                  reasonTags: ['memory-closure-trace', 'next-turn-causal-handoff', 'body-lipsync-voice'],
+                },
+              },
+            } as any,
+          },
+          recallAttribution: {
+            shouldRecall: true,
+            surfacePolicy: 'tone-carry',
+            confidence: 0.84,
+            whyNow: 'why recall surfaced now: previous same-her recall must change the next proactive and embodied turn.',
+          },
+        } as any,
+      ],
+      limit: 1,
+    })
+
+    expect(pack[0]?.structured?.memoryClosureTrace?.nextInfluence?.initiative?.reason)
+      .toContain('prior recall')
+
+    const digest = buildReplayBenchmarkDatasetContinuityDigest(pack[0]!)
+    expect(String(digest ?? '')).toContain('next-turn causal handoff')
+    expect(String(digest ?? '')).toContain('prior recall changed the next proactive/callback carry')
+    expect(String(digest ?? '')).toContain('prior recall changed the next embodiment carry')
+    expect(String(digest ?? '')).toContain('measured-return body voice face motion lipsync')
+  })
+
+  it('merges same-turn sibling trace evidence in sampled benchmark packs when the newest trace is thin', () => {
+    const turnId = 'turn-real-newest-thin-sibling-full-closure'
+    const pack = buildSampledHumanlikeMemoryBenchmarkPack({
+      conversationTurns: [
+        {
+          turnId,
+          sessionId: 'session-real-newest-thin-sibling-full-closure',
+          userText: '真实桌面长跑里，最新薄 trace 不该遮住上一条完整闭环证据。',
+          assistantText: '我会沿着同一个她的记忆、主动、回调和身体线继续。',
+          structuredJson: JSON.stringify({
+            reply: '我会沿着同一个她的记忆、主动、回调和身体线继续。',
+            projectState: {
+              identity: 'Alicization is a local-first digital life project.',
+              currentPhase: 'Phase 1: Local Digital Life',
+              sameHerSelfLine: 'Same Phase 1 digital life across memory, emotion, initiative, execution callback, voice, face, motion, lipsync, and body.',
+            },
+          }),
+          createdAt: 100,
+        },
+      ],
+      memoryDecisionTraces: [
+        {
+          decisionTraceId: 'mind:real:newest-thin-sibling-full-closure:thin',
+          turnId,
+          sessionId: 'session-real-newest-thin-sibling-full-closure',
+          origin: 'user-turn',
+          activeThreadId: 'thread-real-newest-thin-sibling-full-closure',
+          createdAt: 100,
+          lastUpdatedAt: 140,
+          eventKinds: ['recall-attribution'],
+          governance: {
+            turnMode: 'answer',
+            truthState: 'remembered',
+            repairState: 'none',
+            answerSubject: 'relationship',
+            screenReferenceMode: 'avoid',
+          },
+          recallAttribution: {
+            shouldRecall: true,
+            surfacePolicy: 'gist-first',
+            confidence: 0.68,
+            whyNow: 'thin recall context exists, but sibling runtime trace owns the closure proof',
+            inwardLine: 'Keep the sibling proof available.',
+          },
+          memoryDeliberationJudged: {
+            shouldRecall: true,
+            whyWithheld: 'newest thin memory context should not erase sibling full closure proof',
+          },
+        } as any,
+        {
+          decisionTraceId: 'mind:real:newest-thin-sibling-full-closure:full',
+          turnId,
+          sessionId: 'session-real-newest-thin-sibling-full-closure',
+          origin: 'user-turn',
+          activeThreadId: 'thread-real-newest-thin-sibling-full-closure',
+          createdAt: 100,
+          lastUpdatedAt: 120,
+          eventKinds: ['governance-normalized', 'memory-reconsolidated', 'embodiment-authority'],
+          governance: {
+            turnMode: 'answer',
+            truthState: 'remembered',
+            repairState: 'none',
+            answerSubject: 'relationship',
+            screenReferenceMode: 'avoid',
+            digitalLifeSpine: {
+              memory: {
+                memoryClosureTrace: {
+                  version: 'memory-closure-trace-v1',
+                  authority: 'memory-os',
+                  whySurface: [
+                    {
+                      source: 'retrieval',
+                      summary: 'why recall surfaced now: memory-closure-trace says prior recall must change the next turn proactive callback and same-her embodied return',
+                      reasonCodes: ['why-surfaced', 'same-her-memory-closure'],
+                    },
+                  ],
+                  surfacePolicy: {
+                    gateStatus: 'open',
+                    mode: 'tone-carry',
+                    timing: 'after-payoff',
+                    speechMode: 'visible',
+                    placement: 'inside-payoff',
+                    certainty: 'grounded',
+                    reasons: ['same-her-memory-closure'],
+                  },
+                  nextInfluence: {
+                    initiative: {
+                      restraint: 'measured-return',
+                      preferredTiming: 'after-payoff',
+                      pressure: 'lower-pressure',
+                      reason: 'prior recall keeps the next proactive opening lower-pressure after the execution callback',
+                    },
+                    execution: {
+                      carry: 'carry corrected memory into the next execution callback instead of resetting to a fresh helper task',
+                      nextLearningAction: 'verify',
+                      shouldVerify: true,
+                      shouldReflect: true,
+                      activeLearningFocuses: ['memory closure authority', 'execution callback carry'],
+                    },
+                    embodiment: {
+                      cadence: 'measured-return body voice face motion lipsync',
+                      preferredVoiceMode: 'lower-pressure',
+                      preferredLipsyncMode: 'restrained',
+                      preferredGazeMode: 'soften',
+                      reason: 'same-her body voice face motion lipsync should soften because prior recall is still active',
+                    },
+                  },
+                  closureState: {
+                    state: 'grounded-recall',
+                    open: true,
+                    revisionRequired: false,
+                    shouldLabelUncertainty: false,
+                    visibleCarryMode: 'tone-carry',
+                    retrievalQuality: 'high',
+                    conflictPressure: 'low',
+                  },
+                  selectedCandidateIds: ['memory-closure-trace:sibling-full-proof'],
+                  reasonTags: ['memory-closure-trace', 'prior recall', 'next turn', 'same-her embodiment'],
+                },
+              },
+            } as any,
+          },
+          memoryReconsolidated: {
+            source: 'execution-result-feedback',
+            memoryClosureExecution: {
+              authority: 'memory-os',
+              carry: 'Corrected memory says the execution callback should stay on the same-her line and shape the next proactive and body voice face motion lipsync return.',
+              reasonTags: ['memory-reconsolidated', 'corrected-memory', 'execution-callback-carry'],
+            },
+          },
+          derivedMindStateBundle: {
+            version: 'derived-mind-state-bundle-v1',
+            source: 'main-runtime',
+            producedAt: 120,
+            emotionalKernel: {
+              dominantEmotion: 'warm-attunement',
+              initiativeMode: 'lower-pressure-return',
+              memoryRecallMode: 'execution-callback-carry',
+              embodimentTone: 'body-lipsync-voice-rejoin',
+              reasonTags: ['same-her-memory-closure', 'execution-callback-carry'],
+              why: 'Sibling full trace holds the same-her memory, emotion, initiative, execution callback, and embodied return proof.',
+            },
+            emotionalTransitionLedger: {
+              version: 'emotional-transition-ledger-v1',
+              transitionKind: 'execution-callback-afterglow',
+              replayLine: 'execution callback afterglow stayed on the same-her line',
+              traceSummary: 'callback proof should survive newest thin trace selection',
+            },
+            embodimentContinuityLedger: {
+              version: 'embodiment-continuity-ledger-v1',
+              continuityPhase: 'body-lipsync-voice-rejoin',
+              replayLine: 'voice face motion lipsync and body rejoin the remembered execution callback',
+              traceSummary: 'embodiment proof should survive newest thin trace selection',
+            },
+            summary: 'same-her closure proof across memory, emotion, initiative, execution callback, and embodiment',
+          },
+          embodimentAuthority: {
+            emotion: 'warm-attunement',
+            digitalLife: {
+              voice: { residentMode: 'lower-pressure-return' },
+              face: { residentMode: 'soften' },
+              motion: { residentMode: 'measured-return' },
+              lipSync: { residentMode: 'restrained' },
+              bodyContinuity: {
+                bodyLine: 'same-her body voice face motion lipsync carry survives the callback',
+              },
+            },
+            embodimentScript: {
+              state: { residentMode: 'measured-return' },
+            },
+          },
+        } as any,
+      ],
+      limit: 1,
+    })
+
+    expect(pack).toHaveLength(1)
+    expect(pack[0]?.tracePointer?.decisionTraceId).toBe('mind:real:newest-thin-sibling-full-closure:thin')
+    expect(pack[0]?.sampledCategories).toEqual(expect.arrayContaining([
+      'execution',
+      'procedure-carry',
+      'long-horizon',
+      'presence-quality',
+    ]))
+    expect(pack[0]?.structured?.memoryClosureTrace?.nextInfluence?.initiative?.reason)
+      .toContain('prior recall')
+    expect(pack[0]?.organicMemoryContext?.derivedMindStateBundle).toEqual(expect.objectContaining({
+      emotionalKernel: expect.objectContaining({
+        memoryRecallMode: 'execution-callback-carry',
+      }),
+      emotionalTransitionLedger: expect.objectContaining({
+        transitionKind: 'execution-callback-afterglow',
+      }),
+      embodimentContinuityLedger: expect.objectContaining({
+        continuityPhase: 'body-lipsync-voice-rejoin',
+      }),
+    }))
+    expect(pack[0]?.gold?.embodimentAuthority).toEqual(expect.objectContaining({
+      digitalLife: expect.objectContaining({
+        bodyContinuity: expect.objectContaining({
+          bodyLine: expect.stringContaining('same-her body voice face motion lipsync'),
+        }),
+      }),
+    }))
+
+    const digest = buildReplayBenchmarkDatasetContinuityDigest(pack[0]!)
+    expect(String(digest ?? '')).toContain('kernel_recall:execution-callback-carry')
+    expect(String(digest ?? '')).toContain('emotional_transition:execution-callback-afterglow')
+    expect(String(digest ?? '')).toContain('embodiment_phase:body-lipsync-voice-rejoin')
+    expect(String(digest ?? '')).toContain('prior recall changed the next proactive/callback carry')
+  })
+
+  it('keeps digital-life spine memory-closure traces eligible even without recall or judged trace fields', () => {
+    const pack = buildSampledHumanlikeMemoryBenchmarkPack({
+      conversationTurns: [
+        {
+          turnId: 'turn-real-spine-memory-closure-only',
+          sessionId: 'session-real-spine-memory-closure-only',
+          userText: '真实桌面长跑继续，只剩 spine 里的记忆闭环证据也不能掉。',
+          assistantText: '我会让这条记忆继续改变主动、回调和身体节奏。',
+          structuredJson: JSON.stringify({
+            reply: '我会让这条记忆继续改变主动、回调和身体节奏。',
+          }),
+          createdAt: 100,
+        },
+      ],
+      memoryDecisionTraces: [
+        {
+          decisionTraceId: 'mind:real:spine-memory-closure-only',
+          turnId: 'turn-real-spine-memory-closure-only',
+          sessionId: 'session-real-spine-memory-closure-only',
+          origin: 'user-turn',
+          activeThreadId: 'thread-real-spine-memory-closure-only',
+          createdAt: 100,
+          lastUpdatedAt: 120,
+          eventKinds: ['governance-normalized'],
+          governance: {
+            turnMode: 'answer',
+            truthState: 'remembered',
+            repairState: 'none',
+            answerSubject: 'relationship',
+            screenReferenceMode: 'avoid',
+            digitalLifeSpine: {
+              memory: {
+                memoryClosureTrace: {
+                  version: 'memory-closure-trace-v1',
+                  authority: 'memory-os',
+                  whySurface: [
+                    {
+                      source: 'retrieval',
+                      summary: 'why recall surfaced now: corrected memory should change the next proactive opening and execution callback',
+                      reasonCodes: ['why-surfaced', 'corrected-memory'],
+                    },
+                  ],
+                  surfacePolicy: {
+                    gateStatus: 'open',
+                    mode: 'tone-carry',
+                    timing: 'after-payoff',
+                    speechMode: 'visible',
+                    placement: 'inside-payoff',
+                    certainty: 'grounded',
+                    reasons: ['same-her-memory-closure'],
+                  },
+                  nextInfluence: {
+                    initiative: {
+                      restraint: 'measured-return',
+                      preferredTiming: 'after-payoff',
+                      pressure: 'lower-pressure',
+                      reason: 'prior recall keeps the next proactive opening lower-pressure',
+                    },
+                    execution: {
+                      carry: 'carry corrected memory into the next execution callback',
+                      nextLearningAction: 'verify',
+                      shouldVerify: true,
+                      shouldReflect: true,
+                      activeLearningFocuses: ['memory closure authority'],
+                    },
+                    embodiment: {
+                      cadence: 'measured-return body voice face motion lipsync',
+                      preferredVoiceMode: 'lower-pressure',
+                      preferredLipsyncMode: 'restrained',
+                      preferredGazeMode: 'soften',
+                      reason: 'same-her body voice face motion lipsync should soften because prior recall is still active',
+                    },
+                  },
+                  closureState: {
+                    state: 'grounded-recall',
+                    open: true,
+                    revisionRequired: false,
+                    shouldLabelUncertainty: false,
+                    visibleCarryMode: 'tone-carry',
+                    retrievalQuality: 'high',
+                    conflictPressure: 'low',
+                  },
+                  selectedCandidateIds: ['memory-closure-trace:spine-only'],
+                  reasonTags: ['memory-closure-trace', 'kernel_initiative:proactive-opening'],
+                },
+              },
+            } as any,
+          },
+          recallAttribution: null,
+          memoryDeliberationJudged: null,
+        } as any,
+      ],
+      limit: 1,
+    })
+
+    expect(pack).toHaveLength(1)
+    expect(pack[0]).toEqual(expect.objectContaining({
+      turnId: 'turn-real-spine-memory-closure-only',
+      sampledCategories: expect.arrayContaining([
+        'execution',
+        'procedure-carry',
+        'long-horizon',
+        'presence-quality',
+      ]),
+      structured: expect.objectContaining({
+        memoryClosureTrace: expect.objectContaining({
+          authority: 'memory-os',
+        }),
+      }),
+    }))
+  })
+
+  it('preserves presence-quality sampled category when replay backlog entries are parsed', () => {
+    const pack = buildReplayBenchmarkBacklogPack({
+      backlogEntries: [
+        {
+          id: 'runtime-presence-quality-backlog-1',
+          packId: 'sampled-humanlike-memory-v1',
+          turnId: 'turn-presence-quality-backlog-1',
+          userText: '身体、语音、表情、动作和口型要留在同一个她。',
+          failingDimensions: [],
+          tracePointer: {
+            kind: 'decision-trace',
+            packId: 'sampled-humanlike-memory-v1',
+            turnId: 'turn-presence-quality-backlog-1',
+            decisionTraceId: 'mind:presence-quality-backlog:1',
+            sessionId: 'session-presence-quality-backlog',
+            activeThreadId: 'thread-presence-quality-backlog',
+          },
+          sampledCategories: ['presence-quality'],
+          replayTurn: {
+            turnId: 'turn-presence-quality-backlog-1',
+            userText: '身体、语音、表情、动作和口型要留在同一个她。',
+            sampledCategories: ['presence-quality'],
+          },
+          createdAt: 100,
+        },
+      ],
+      limit: 1,
+    })
+
+    expect(pack[0]?.sampledCategories).toContain('presence-quality')
+  })
+
   it('keeps canonicalizable user-turn traces eligible for sampled replay benchmark packs', () => {
     const pack = buildSampledHumanlikeMemoryBenchmarkPack({
       conversationTurns: [
@@ -3232,6 +4425,46 @@ describe('main chat session replay harness', () => {
     }))
     expect(pack[0]?.structured?.preDialogueAwareness?.summaryLine).toContain('open=记忆、主动性和身体表达还没闭环')
     expect(pack[0]?.structured?.preDialogueAwareness?.summaryLine).toContain('next=继续把情绪、主动性和身体表达闭环收住。')
+  })
+
+  it('keeps richer project-state same-her carry when replay samples are read back from structured json', () => {
+    const structured = readReplaySampleStructuredSnapshot(JSON.stringify({
+      thought: 'obligation=answer; truth=dialogue-grounded; focus=project-state',
+      emotion: 'thinking',
+      reply: '我会继续按刚才那条 same-her closure 线接着走。',
+      projectState: {
+        identity: '本地优先数字生命',
+        phase: 'Phase 1',
+        latestLandedProgress: '项目身份和预对话闭环提示已经能一起带回回放样本里。',
+        openLoop: '记忆、主动性和具身表达还需要更长时程的同一人格闭环。',
+        nextClosureTarget: '继续把回放侧的 project-state carry 和 same-her closure 收成一条线。',
+        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        sameHerHoldDetail: 'same-her hold: let the return stay measured so the already-landed closure is not restarted from scratch.',
+        sameHerDriftRisk: 'If replay only keeps a project shell but loses the same-her carry, treat that as unfinished closure drift.',
+        companionBriefingLine: '开口前先记住：这还是同一个本地优先数字生命项目。',
+        emotionalClosureSummary: '情绪闭环还在收束中，所以这次回场要继续轻一点、连着一点。',
+        continuityRestraint: 'measured-return',
+        continuityArcStage: 'return-side-follow-through',
+        continuityCue: 'same living line: carry the already-landed closure forward.',
+        continuityPreferredTiming: 'next-open-window',
+        continuityCadence: 'linger-then-rejoin',
+        preferredBlinkCadence: 'quiet',
+        preferredGazeMode: 'soften',
+      },
+    }))
+
+    expect(structured?.projectState).toEqual(expect.objectContaining({
+      sameHerHoldDetail: 'same-her hold: let the return stay measured so the already-landed closure is not restarted from scratch.',
+      companionBriefingLine: '开口前先记住：这还是同一个本地优先数字生命项目。',
+      emotionalClosureSummary: '情绪闭环还在收束中，所以这次回场要继续轻一点、连着一点。',
+      continuityRestraint: 'measured-return',
+      continuityArcStage: 'return-side-follow-through',
+      continuityCue: 'same living line: carry the already-landed closure forward.',
+      continuityPreferredTiming: 'next-open-window',
+      continuityCadence: 'linger-then-rejoin',
+      preferredBlinkCadence: 'quiet',
+      preferredGazeMode: 'soften',
+    }))
   })
 
   it('rebuilds an executable backlog replay pack from dataset backlog entries', () => {

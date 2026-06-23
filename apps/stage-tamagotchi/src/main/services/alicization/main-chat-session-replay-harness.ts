@@ -36,6 +36,8 @@ import {
   buildAlicizationMemoryRecallFeedbackSample,
   summarizeAlicizationMemoryRecallFeedback,
 } from './memory-os/recall-feedback-runtime'
+import { buildReplayBenchmarkExpectedMemory } from './replay-benchmark-expected-memory'
+import { resolveAlicizationAutonomousDialogueFamilyClassification } from './runtime-structured-format'
 import {
   alicizationTurnGraphCanonicalStageOrder,
   buildAlicizationTurnGraphFromSettlements,
@@ -249,18 +251,91 @@ function createBasePrelude(input: {
   }
 }
 
-export interface AlicizationReplayStructuredPayload extends Record<string, unknown> {
-  preDialogueAwareness?: Record<string, unknown> | null
-  preDialogueClosure?: Record<string, unknown> | null
-  projectState?: Record<string, unknown> | null
-}
-
 export interface AlicizationReplayTurn {
   turnId: string
   userText: string
+  createdAt?: number | null
   expectedMemory?: string
+  structured?: {
+    reply?: string | null
+    projectState?: {
+      identity?: string | null
+      phase?: string | null
+      currentPhase?: string | null
+      latestLandedProgress?: string | null
+      openLoop?: string | null
+      primaryOpenLoop?: string | null
+      openLoops?: string[] | null
+      nextClosureTarget?: string | null
+      sameHerSelfLine?: string | null
+      sameHerHoldDetail?: string | null
+      sameHerDriftRisk?: string | null
+      companionBriefingLine?: string | null
+      preDialogueAwarenessLine?: string | null
+      emotionalClosureCue?: string | null
+      emotionalClosureSummary?: string | null
+      continuityRestraint?: string | null
+      continuityArcStage?: string | null
+      continuityCue?: string | null
+      proactiveSameHerGap?: string | null
+      memoryClosureSummary?: string | null
+      continuityPreferredTiming?: string | null
+      continuityCadence?: string | null
+      preferredBlinkCadence?: 'normal' | 'linger' | 'quiet' | null
+      preferredGazeMode?: 'steady' | 'soften' | 'drift' | null
+    } | null
+    preDialogueAwareness?: {
+      status?: string | null
+      summaryLine?: string | null
+      companionHeadlineLine?: string | null
+      companionBriefingLine?: string | null
+      companionNextClosureLine?: string | null
+      awarenessLine?: string | null
+      emotionalClosureCue?: string | null
+      briefingLines?: string[] | null
+      reasons?: string[] | null
+      reasonPreview?: string[] | null
+    } | null
+    preDialogueClosure?: {
+      status?: string | null
+      summaryLine?: string | null
+      companionBriefingLine?: string | null
+      companionNextClosureLine?: string | null
+      emotionalClosureCue?: string | null
+      briefingLines?: string[] | null
+      reasons?: string[] | null
+    } | null
+    memoryClosureTrace?: {
+      authority?: string | null
+      memoryIdentity?: {
+        selectedCandidateIds?: string[] | null
+        continuityKey?: string | null
+        reasonTags?: string[] | null
+      } | null
+      whySurface?: Array<{ summary?: string | null }> | null
+      nextInfluence?: {
+        initiative?: {
+          reason?: string | null
+          restraint?: string | null
+          preferredTiming?: string | null
+        } | null
+        execution?: {
+          carry?: string | null
+        } | null
+        emotion?: {
+          reason?: string | null
+          afterglow?: string | null
+          residue?: string | null
+        } | null
+        embodiment?: {
+          reason?: string | null
+          cadence?: string | null
+        } | null
+      } | null
+      reasonTags?: string[] | null
+    } | null
+  } | null
   categories?: string[]
-  structured?: AlicizationReplayStructuredPayload | null
   organicMemoryContext?: OrganicMemoryPromptContext
   performanceManifest?: AlicizationPreparedMainChatExecutionResult['performanceManifest']
   visibleReplyRealization?: AlicizationVisibleReplyRealizationArtifact | null
@@ -318,6 +393,483 @@ type AlicizationReplayBenchmarkSampleCategory
     | 'long-session'
     | 'general-memory'
 
+function extractReplayProjectStateSummarySegment(input: {
+  explicitValue?: unknown
+  summaryLine?: unknown
+  key: 'landed' | 'open' | 'next'
+  maxLength: number
+}) {
+  const explicitValue = typeof input.explicitValue === 'string'
+    ? normalizeText(input.explicitValue, input.maxLength)
+    : ''
+  if (explicitValue)
+    return explicitValue
+
+  const summaryLine = typeof input.summaryLine === 'string'
+    ? normalizeText(input.summaryLine, 720)
+    : ''
+  if (!summaryLine)
+    return null
+
+  const match = summaryLine.match(new RegExp(`(?:^|\\|)\\s*${input.key}=([^|]+)`, 'iu'))
+  const extracted = match?.[1]?.trim() ?? ''
+  return extracted ? normalizeText(extracted, input.maxLength) : null
+}
+
+export function readReplaySampleStructuredSnapshot(structuredJson: string | null | undefined): AlicizationReplayTurn['structured'] {
+  const raw = typeof structuredJson === 'string'
+    ? structuredJson.trim()
+    : ''
+  if (!raw)
+    return null
+
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>
+    const projectState = parsed?.projectState && typeof parsed.projectState === 'object'
+      ? parsed.projectState as Record<string, unknown>
+      : null
+    const preDialogueAwareness = parsed?.preDialogueAwareness && typeof parsed.preDialogueAwareness === 'object'
+      ? parsed.preDialogueAwareness as Record<string, unknown>
+      : null
+    const preDialogueClosure = parsed?.preDialogueClosure && typeof parsed.preDialogueClosure === 'object'
+      ? parsed.preDialogueClosure as Record<string, unknown>
+      : null
+    const memoryClosureTrace = parsed?.memoryClosureTrace && typeof parsed.memoryClosureTrace === 'object'
+      ? parsed.memoryClosureTrace as Record<string, unknown>
+      : null
+    const structured: NonNullable<AlicizationReplayTurn['structured']> = {}
+
+    if (typeof parsed.reply === 'string' && parsed.reply.trim())
+      structured.reply = normalizeText(parsed.reply, 240)
+
+    if (projectState) {
+      const openLoops = Array.isArray(projectState.openLoops)
+        ? projectState.openLoops
+            .map(item => typeof item === 'string' ? normalizeText(item, 240) : null)
+            .filter((item): item is string => Boolean(item))
+        : null
+      const replayPrimaryOpenLoop = extractReplayProjectStateSummarySegment({
+        explicitValue: projectState.openLoop ?? (openLoops?.[0] ?? null),
+        summaryLine: preDialogueAwareness?.summaryLine,
+        key: 'open',
+        maxLength: 240,
+      })
+      const replayLatestLandedProgress = extractReplayProjectStateSummarySegment({
+        explicitValue: projectState.latestLandedProgress,
+        summaryLine: preDialogueAwareness?.summaryLine,
+        key: 'landed',
+        maxLength: 240,
+      })
+      const replayNextClosureTarget = extractReplayProjectStateSummarySegment({
+        explicitValue: projectState.nextClosureTarget,
+        summaryLine: preDialogueAwareness?.summaryLine,
+        key: 'next',
+        maxLength: 240,
+      })
+      structured.projectState = {
+        identity: typeof projectState.identity === 'string' ? normalizeText(projectState.identity, 240) : null,
+        phase: typeof projectState.phase === 'string' ? normalizeText(projectState.phase, 180) : null,
+        currentPhase: typeof projectState.currentPhase === 'string' ? normalizeText(projectState.currentPhase, 180) : null,
+        latestLandedProgress: replayLatestLandedProgress,
+        openLoop: replayPrimaryOpenLoop,
+        openLoops: openLoops && openLoops.length > 0 ? openLoops : null,
+        nextClosureTarget: replayNextClosureTarget,
+        sameHerSelfLine: typeof projectState.sameHerSelfLine === 'string' ? normalizeText(projectState.sameHerSelfLine, 240) : null,
+        sameHerHoldDetail: typeof projectState.sameHerHoldDetail === 'string' ? normalizeText(projectState.sameHerHoldDetail, 240) : null,
+        sameHerDriftRisk: typeof projectState.sameHerDriftRisk === 'string' ? normalizeText(projectState.sameHerDriftRisk, 240) : null,
+        companionBriefingLine:
+          typeof projectState.companionBriefingLine === 'string'
+            ? normalizeText(projectState.companionBriefingLine, 240)
+            : (typeof preDialogueAwareness?.companionBriefingLine === 'string'
+                ? normalizeText(preDialogueAwareness.companionBriefingLine, 240)
+                : null),
+        emotionalClosureCue:
+          typeof projectState.emotionalClosureCue === 'string'
+            ? normalizeText(projectState.emotionalClosureCue, 240)
+            : (typeof preDialogueClosure?.emotionalClosureCue === 'string'
+                ? normalizeText(preDialogueClosure.emotionalClosureCue, 240)
+                : null),
+        emotionalClosureSummary: typeof projectState.emotionalClosureSummary === 'string' ? normalizeText(projectState.emotionalClosureSummary, 240) : null,
+        continuityRestraint: typeof projectState.continuityRestraint === 'string' ? normalizeText(projectState.continuityRestraint, 120) : null,
+        continuityArcStage: typeof projectState.continuityArcStage === 'string' ? normalizeText(projectState.continuityArcStage, 180) : null,
+        continuityCue: typeof projectState.continuityCue === 'string' ? normalizeText(projectState.continuityCue, 240) : null,
+        memoryClosureSummary: typeof projectState.memoryClosureSummary === 'string' ? normalizeText(projectState.memoryClosureSummary, 320) : null,
+        continuityPreferredTiming: typeof projectState.continuityPreferredTiming === 'string' ? normalizeText(projectState.continuityPreferredTiming, 120) : null,
+        continuityCadence: typeof projectState.continuityCadence === 'string' ? normalizeText(projectState.continuityCadence, 120) : null,
+        preferredBlinkCadence:
+          projectState.preferredBlinkCadence === 'normal'
+          || projectState.preferredBlinkCadence === 'linger'
+          || projectState.preferredBlinkCadence === 'quiet'
+            ? projectState.preferredBlinkCadence
+            : null,
+        preferredGazeMode:
+          projectState.preferredGazeMode === 'steady'
+          || projectState.preferredGazeMode === 'soften'
+          || projectState.preferredGazeMode === 'drift'
+            ? projectState.preferredGazeMode
+            : null,
+      }
+    }
+
+    if (memoryClosureTrace) {
+      const nextInfluence = memoryClosureTrace.nextInfluence && typeof memoryClosureTrace.nextInfluence === 'object'
+        ? memoryClosureTrace.nextInfluence as Record<string, unknown>
+        : null
+      const initiativeInfluence = nextInfluence?.initiative && typeof nextInfluence.initiative === 'object'
+        ? nextInfluence.initiative as Record<string, unknown>
+        : null
+      const executionInfluence = nextInfluence?.execution && typeof nextInfluence.execution === 'object'
+        ? nextInfluence.execution as Record<string, unknown>
+        : null
+      const emotionInfluence = nextInfluence?.emotion && typeof nextInfluence.emotion === 'object'
+        ? nextInfluence.emotion as Record<string, unknown>
+        : null
+      const embodimentInfluence = nextInfluence?.embodiment && typeof nextInfluence.embodiment === 'object'
+        ? nextInfluence.embodiment as Record<string, unknown>
+        : null
+      const whySurface = Array.isArray(memoryClosureTrace.whySurface)
+        ? memoryClosureTrace.whySurface
+            .map((item) => {
+              if (!item || typeof item !== 'object')
+                return null
+              const summary = (item as Record<string, unknown>).summary
+              return typeof summary === 'string'
+                ? { summary: normalizeText(summary, 240) }
+                : null
+            })
+            .filter((item): item is { summary: string } => Boolean(item?.summary))
+        : null
+      const reasonTags = Array.isArray(memoryClosureTrace.reasonTags)
+        ? memoryClosureTrace.reasonTags
+            .map(item => typeof item === 'string' ? normalizeText(item, 80) : null)
+            .filter((item): item is string => Boolean(item))
+        : null
+      const memoryIdentity = memoryClosureTrace.memoryIdentity && typeof memoryClosureTrace.memoryIdentity === 'object' && !Array.isArray(memoryClosureTrace.memoryIdentity)
+        ? memoryClosureTrace.memoryIdentity as Record<string, unknown>
+        : null
+      const memoryIdentitySelectedCandidateIds = Array.isArray(memoryIdentity?.selectedCandidateIds)
+        ? memoryIdentity.selectedCandidateIds
+            .map(item => typeof item === 'string' ? normalizeText(item, 160) : null)
+            .filter((item): item is string => Boolean(item))
+        : []
+      const memoryIdentityReasonTags = Array.isArray(memoryIdentity?.reasonTags)
+        ? memoryIdentity.reasonTags
+            .map(item => typeof item === 'string' ? normalizeText(item, 120) : null)
+            .filter((item): item is string => Boolean(item))
+        : []
+      const memoryIdentityContinuityKey = typeof memoryIdentity?.continuityKey === 'string'
+        ? normalizeText(memoryIdentity.continuityKey, 160)
+        : ''
+      structured.memoryClosureTrace = {
+        authority: typeof memoryClosureTrace.authority === 'string' ? normalizeText(memoryClosureTrace.authority, 80) : null,
+        memoryIdentity: memoryIdentitySelectedCandidateIds.length > 0 || memoryIdentityReasonTags.length > 0 || memoryIdentityContinuityKey
+          ? {
+              selectedCandidateIds: memoryIdentitySelectedCandidateIds.length > 0 ? memoryIdentitySelectedCandidateIds : null,
+              continuityKey: memoryIdentityContinuityKey || memoryIdentitySelectedCandidateIds[0] || null,
+              reasonTags: memoryIdentityReasonTags.length > 0 ? memoryIdentityReasonTags : null,
+            }
+          : null,
+        whySurface: whySurface && whySurface.length > 0 ? whySurface : null,
+        nextInfluence: nextInfluence
+          ? {
+              initiative: initiativeInfluence
+                ? {
+                    reason: typeof initiativeInfluence.reason === 'string' ? normalizeText(initiativeInfluence.reason, 240) : null,
+                    restraint: typeof initiativeInfluence.restraint === 'string' ? normalizeText(initiativeInfluence.restraint, 120) : null,
+                    preferredTiming: typeof initiativeInfluence.preferredTiming === 'string' ? normalizeText(initiativeInfluence.preferredTiming, 120) : null,
+                  }
+                : null,
+              execution: executionInfluence
+                ? {
+                    carry: typeof executionInfluence.carry === 'string' ? normalizeText(executionInfluence.carry, 240) : null,
+                  }
+                : null,
+              emotion: emotionInfluence
+                ? {
+                    reason: typeof emotionInfluence.reason === 'string' ? normalizeText(emotionInfluence.reason, 240) : null,
+                    afterglow: typeof emotionInfluence.afterglow === 'string' ? normalizeText(emotionInfluence.afterglow, 240) : null,
+                    residue: typeof emotionInfluence.residue === 'string' ? normalizeText(emotionInfluence.residue, 240) : null,
+                  }
+                : null,
+              embodiment: embodimentInfluence
+                ? {
+                    reason: typeof embodimentInfluence.reason === 'string' ? normalizeText(embodimentInfluence.reason, 240) : null,
+                    cadence: typeof embodimentInfluence.cadence === 'string' ? normalizeText(embodimentInfluence.cadence, 120) : null,
+                  }
+                : null,
+            }
+          : null,
+        reasonTags: reasonTags && reasonTags.length > 0 ? reasonTags : null,
+      }
+    }
+
+    if (preDialogueAwareness) {
+      const briefingLines = Array.isArray(preDialogueAwareness.briefingLines)
+        ? preDialogueAwareness.briefingLines
+            .map(item => typeof item === 'string' ? normalizeText(item, 240) : null)
+            .filter((item): item is string => Boolean(item))
+        : null
+      const reasons = Array.isArray(preDialogueAwareness.reasons)
+        ? preDialogueAwareness.reasons
+            .map(item => typeof item === 'string' ? normalizeText(item, 240) : null)
+            .filter((item): item is string => Boolean(item))
+        : null
+      const reasonPreview = Array.isArray(preDialogueAwareness.reasonPreview)
+        ? preDialogueAwareness.reasonPreview
+            .map(item => typeof item === 'string' ? normalizeText(item, 240) : null)
+            .filter((item): item is string => Boolean(item))
+        : null
+      structured.preDialogueAwareness = {
+        status: typeof preDialogueAwareness.status === 'string' ? normalizeText(preDialogueAwareness.status, 80) : null,
+        summaryLine: typeof preDialogueAwareness.summaryLine === 'string' ? normalizeText(preDialogueAwareness.summaryLine, 240) : null,
+        companionHeadlineLine: typeof preDialogueAwareness.companionHeadlineLine === 'string' ? normalizeText(preDialogueAwareness.companionHeadlineLine, 240) : null,
+        companionBriefingLine: typeof preDialogueAwareness.companionBriefingLine === 'string' ? normalizeText(preDialogueAwareness.companionBriefingLine, 240) : null,
+        companionNextClosureLine: typeof preDialogueAwareness.companionNextClosureLine === 'string' ? normalizeText(preDialogueAwareness.companionNextClosureLine, 240) : null,
+        awarenessLine: typeof preDialogueAwareness.awarenessLine === 'string' ? normalizeText(preDialogueAwareness.awarenessLine, 240) : null,
+        emotionalClosureCue: typeof preDialogueAwareness.emotionalClosureCue === 'string' ? normalizeText(preDialogueAwareness.emotionalClosureCue, 240) : null,
+        briefingLines: briefingLines && briefingLines.length > 0 ? briefingLines : null,
+        reasons: reasons && reasons.length > 0 ? reasons : null,
+        reasonPreview: reasonPreview && reasonPreview.length > 0 ? reasonPreview : null,
+      }
+    }
+
+    if (preDialogueClosure) {
+      const briefingLines = Array.isArray(preDialogueClosure.briefingLines)
+        ? preDialogueClosure.briefingLines
+            .map(item => typeof item === 'string' ? normalizeText(item, 240) : null)
+            .filter((item): item is string => Boolean(item))
+        : null
+      const reasons = Array.isArray(preDialogueClosure.reasons)
+        ? preDialogueClosure.reasons
+            .map(item => typeof item === 'string' ? normalizeText(item, 240) : null)
+            .filter((item): item is string => Boolean(item))
+        : null
+      structured.preDialogueClosure = {
+        status: typeof preDialogueClosure.status === 'string' ? normalizeText(preDialogueClosure.status, 80) : null,
+        summaryLine:
+          typeof preDialogueClosure.companionHeadlineLine === 'string'
+            ? normalizeText(preDialogueClosure.companionHeadlineLine, 240)
+            : typeof preDialogueClosure.summaryLine === 'string'
+              ? normalizeText(preDialogueClosure.summaryLine, 240)
+              : null,
+        companionBriefingLine: typeof preDialogueClosure.companionBriefingLine === 'string' ? normalizeText(preDialogueClosure.companionBriefingLine, 240) : null,
+        companionNextClosureLine: typeof preDialogueClosure.companionNextClosureLine === 'string' ? normalizeText(preDialogueClosure.companionNextClosureLine, 240) : null,
+        emotionalClosureCue: typeof preDialogueClosure.emotionalClosureCue === 'string' ? normalizeText(preDialogueClosure.emotionalClosureCue, 240) : null,
+        briefingLines: briefingLines && briefingLines.length > 0 ? briefingLines : null,
+        reasons: reasons && reasons.length > 0 ? reasons : null,
+      }
+    }
+
+    return Object.keys(structured).length > 0 ? structured : null
+  }
+  catch {
+    return null
+  }
+}
+
+export function readReplayTraceMemoryClosureStructuredSnapshot(
+  trace: AlicizationMemoryDecisionTraceRecord | null | undefined,
+): AlicizationReplayTurn['structured'] | null {
+  const memoryClosureTrace = trace?.governance?.digitalLifeSpine?.memory?.memoryClosureTrace ?? null
+  if (memoryClosureTrace) {
+    return readReplaySampleStructuredSnapshot(JSON.stringify({
+      memoryClosureTrace,
+    }))
+  }
+
+  const memoryReconsolidated = asObject(trace?.memoryReconsolidated)
+  const memoryClosureExecution = asObject(memoryReconsolidated?.memoryClosureExecution)
+  if (!memoryClosureExecution)
+    return null
+
+  const carry = readString(memoryClosureExecution.carry, 420)
+  const authority = readString(memoryClosureExecution.authority, 80) || 'memory-reconsolidated'
+  const reasonTags = readStringArray(memoryClosureExecution.reasonTags, 8, 80)
+  if (!carry && reasonTags.length === 0)
+    return null
+
+  return readReplaySampleStructuredSnapshot(JSON.stringify({
+    memoryClosureTrace: {
+      authority,
+      whySurface: [
+        {
+          summary: 'why recall surfaced now: memory-reconsolidated execution feedback corrected the callback-afterglow carry, downranked stale status recap, and must change the next proactive-opening and embodied turn.',
+        },
+      ],
+      nextInfluence: {
+        initiative: {
+          reason: 'corrected memory changed the next proactive-opening into a lower-pressure return because of the prior recall',
+          restraint: 'measured-return',
+          preferredTiming: 'after-payoff',
+        },
+        execution: {
+          carry: carry || 'carry corrected memory and correction provenance into the next execution callback instead of resetting to a fresh helper task',
+        },
+        emotion: {
+          afterglow: 'corrected memory changed the next emotional afterglow into a quieter lower-pressure residue',
+        },
+        embodiment: {
+          reason: 'corrected memory changed the next embodiment into lower-pressure body voice face motion lipsync carry',
+          cadence: 'measured-return body voice face motion lipsync',
+        },
+      },
+      reasonTags: [
+        'memory-closure-trace',
+        'memory-reconsolidated',
+        'kernel_initiative:proactive-opening',
+        'emotional_transition:callback-afterglow',
+        'corrected-memory',
+        'memory-audit',
+        'downranked-stale-status',
+        'body-lipsync-voice',
+        ...reasonTags,
+      ],
+    },
+  }))
+}
+
+export function mergeReplayStructuredSnapshot(input: {
+  primary?: AlicizationReplayTurn['structured'] | null
+  fallback?: AlicizationReplayTurn['structured'] | null
+}): AlicizationReplayTurn['structured'] | null {
+  const primary = input.primary ?? null
+  const fallback = input.fallback ?? null
+  if (!primary)
+    return fallback
+  if (!fallback)
+    return primary
+
+  return {
+    ...fallback,
+    ...primary,
+    memoryClosureTrace: primary.memoryClosureTrace ?? fallback.memoryClosureTrace ?? null,
+  }
+}
+
+function mergeReplayPlainObjectFields<T>(primaryRaw: T | null | undefined, fallbackRaw: T | null | undefined): T | null {
+  const primary = asObject(primaryRaw)
+  const fallback = asObject(fallbackRaw)
+  if (!primary)
+    return fallbackRaw ?? null
+  if (!fallback)
+    return primaryRaw ?? null
+
+  const merged: Record<string, unknown> = { ...fallback, ...primary }
+  for (const [key, value] of Object.entries(primary)) {
+    const fallbackValue = fallback[key]
+    if (value == null && key in fallback)
+      continue
+    merged[key] = asObject(value) && asObject(fallbackValue)
+      ? mergeReplayPlainObjectFields(value, fallbackValue)
+      : value
+  }
+  return merged as T
+}
+
+function mergeReplaySampleOrganicMemoryContext(input: {
+  primary?: AlicizationReplayTurn['organicMemoryContext'] | null
+  fallback?: AlicizationReplayTurn['organicMemoryContext'] | null
+}): AlicizationReplayTurn['organicMemoryContext'] | null {
+  const primary = input.primary ?? null
+  const fallback = input.fallback ?? null
+  if (!primary)
+    return fallback
+  if (!fallback)
+    return primary
+
+  return {
+    ...fallback,
+    ...primary,
+    projectStateContinuity: primary.projectStateContinuity ?? fallback.projectStateContinuity,
+    activeContinuityGovernance: primary.activeContinuityGovernance ?? fallback.activeContinuityGovernance,
+    projectStatePreDialogueAwarenessLine: primary.projectStatePreDialogueAwarenessLine ?? fallback.projectStatePreDialogueAwarenessLine,
+    projectStatePreflightSummary: primary.projectStatePreflightSummary ?? fallback.projectStatePreflightSummary,
+    recentMemoryReflections: primary.recentMemoryReflections ?? fallback.recentMemoryReflections,
+    recentRelationshipOutcomes: primary.recentRelationshipOutcomes ?? fallback.recentRelationshipOutcomes,
+    recalledEpisodes: primary.recalledEpisodes ?? fallback.recalledEpisodes,
+    recalledConversationHistory: primary.recalledConversationHistory ?? fallback.recalledConversationHistory,
+    recollectedWindows: primary.recollectedWindows ?? fallback.recollectedWindows,
+    consolidatedMemories: primary.consolidatedMemories ?? fallback.consolidatedMemories,
+    recollectionNarratives: primary.recollectionNarratives ?? fallback.recollectionNarratives,
+    recollectionPlan: primary.recollectionPlan ?? fallback.recollectionPlan,
+    recollectionSpeechPlan: primary.recollectionSpeechPlan ?? fallback.recollectionSpeechPlan,
+    memoryDeliberation: primary.memoryDeliberation ?? fallback.memoryDeliberation,
+    proceduralMemories: primary.proceduralMemories ?? fallback.proceduralMemories,
+    knowledgeEvidence: primary.knowledgeEvidence ?? fallback.knowledgeEvidence,
+    claimEvidenceGraphs: primary.claimEvidenceGraphs ?? fallback.claimEvidenceGraphs,
+    recollectionIntent: primary.recollectionIntent ?? fallback.recollectionIntent,
+    hostPersonModel: primary.hostPersonModel ?? fallback.hostPersonModel,
+    personStateProjection: primary.personStateProjection ?? fallback.personStateProjection,
+    autobiographicalSelf: primary.autobiographicalSelf ?? fallback.autobiographicalSelf,
+    longHorizonMemory: primary.longHorizonMemory ?? fallback.longHorizonMemory,
+    relationshipDynamics: primary.relationshipDynamics ?? fallback.relationshipDynamics,
+    affectiveResidue: primary.affectiveResidue ?? fallback.affectiveResidue,
+    recallLatencyPolicy: primary.recallLatencyPolicy ?? fallback.recallLatencyPolicy,
+    memoryTuningAdvice: primary.memoryTuningAdvice ?? fallback.memoryTuningAdvice,
+    selfEvolution: primary.selfEvolution ?? fallback.selfEvolution,
+    learningExecutionState: primary.learningExecutionState ?? fallback.learningExecutionState,
+    derivedMindStateBundle: mergeReplayPlainObjectFields(
+      primary.derivedMindStateBundle,
+      fallback.derivedMindStateBundle,
+    ) ?? primary.derivedMindStateBundle ?? fallback.derivedMindStateBundle,
+    memoryStageReplay: primary.memoryStageReplay ?? fallback.memoryStageReplay,
+    memoryResolutionLedger: primary.memoryResolutionLedger ?? fallback.memoryResolutionLedger,
+    memorySituationCandidates: primary.memorySituationCandidates ?? fallback.memorySituationCandidates,
+    executionCallbackCarry: primary.executionCallbackCarry ?? fallback.executionCallbackCarry,
+  }
+}
+
+function mergeReplayGoldExpectation(input: {
+  primary?: AlicizationReplayGoldExpectation | null
+  fallback?: AlicizationReplayGoldExpectation | null
+}): AlicizationReplayGoldExpectation | undefined {
+  const primary = input.primary ?? null
+  const fallback = input.fallback ?? null
+  if (!primary)
+    return fallback ?? undefined
+  if (!fallback)
+    return primary
+
+  const selectedCandidateIds = uniqueStrings([
+    ...(primary.selectedCandidateIds ?? []),
+    ...(fallback.selectedCandidateIds ?? []),
+  ])
+  const suppressedCandidateIds = uniqueStrings([
+    ...(primary.suppressedCandidateIds ?? []),
+    ...(fallback.suppressedCandidateIds ?? []),
+  ])
+  const claimValidationStates = primary.claimValidationStates || fallback.claimValidationStates
+    ? {
+        ...fallback.claimValidationStates,
+        ...primary.claimValidationStates,
+      }
+    : undefined
+
+  const merged: AlicizationReplayGoldExpectation = {
+    ...(selectedCandidateIds.length > 0 ? { selectedCandidateIds } : {}),
+    ...(suppressedCandidateIds.length > 0 ? { suppressedCandidateIds } : {}),
+    ...(claimValidationStates ? { claimValidationStates } : {}),
+    replyAuthority: primary.replyAuthority ?? fallback.replyAuthority ?? null,
+    latencyBudgetClass: primary.latencyBudgetClass ?? fallback.latencyBudgetClass,
+    latencyBudgetPass: primary.latencyBudgetPass ?? fallback.latencyBudgetPass,
+    embodimentAuthority: primary.embodimentAuthority ?? fallback.embodimentAuthority,
+  }
+
+  if (
+    (merged.selectedCandidateIds?.length ?? 0) === 0
+    && (merged.suppressedCandidateIds?.length ?? 0) === 0
+    && !merged.claimValidationStates
+    && !merged.replyAuthority
+    && !merged.latencyBudgetClass
+    && merged.latencyBudgetPass == null
+    && !merged.embodimentAuthority
+  ) {
+    return undefined
+  }
+
+  return merged
+}
+
 function buildReplayHumanRatingRubric(): AlicizationReplayHumanRatingRubric {
   return {
     version: 'human-rating-rubric-v1',
@@ -370,6 +922,8 @@ function normalizeReplayBenchmarkSampleCategory(raw: unknown): AlicizationReplay
     value === 'dialogue'
     || value === 'execution'
     || value === 'proactive'
+    || value === 'quiet-companionship'
+    || value === 'presence-quality'
     || value === 'repair'
     || value === 'wrong-thread'
     || value === 'deferred-followup'
@@ -405,6 +959,8 @@ const replayBenchmarkSampleCategoryPriority: AlicizationReplayBenchmarkSampleCat
   'knowledge-update-conflict',
   'surface-divergence',
   'long-session',
+  'presence-quality',
+  'quiet-companionship',
   'proactive',
   'dialogue',
   'general-memory',
@@ -417,6 +973,44 @@ const replayBenchmarkLatencyBudgetClasses = [
   'nightly-benchmark',
   'diagnosis-replay',
 ] as const
+
+const replayMemoryClosureLongRunRequiredTurnCount = 3
+const replayMemoryClosureLongRunRequiredLanes = [
+  'recall',
+  'emotion',
+  'initiative',
+  'execution',
+  'embodiment',
+  'embodiment-expression',
+] as const
+
+type AlicizationReplayMemoryClosureLongRunLane = typeof replayMemoryClosureLongRunRequiredLanes[number]
+type AlicizationReplayMemoryClosureLongRunFailureReason
+  = | 'too-short-noisy-desktop-run'
+    | 'missing-causal-memory-identity'
+    | 'missing-memory-closure-lanes'
+    | 'missing-memory-identity-continuity'
+
+interface AlicizationReplayMemoryClosureLongRunTurnDiagnostic {
+  turnId: string
+  memoryIdentityKey: string | null
+  memoryIdentityKeys: string[]
+  provedLanes: AlicizationReplayMemoryClosureLongRunLane[]
+  missingLanes: AlicizationReplayMemoryClosureLongRunLane[]
+  continuityDigest: string | null
+}
+
+interface AlicizationReplayMemoryClosureLongRunReport {
+  status: 'closed' | 'insufficient'
+  turnCount: number
+  requiredTurnCount: number
+  stableMemoryIdentity: boolean
+  dominantMemoryIdentityKey: string | null
+  dominantMemoryIdentityKeys: string[]
+  transitionBreaks: string[]
+  failureReasons: AlicizationReplayMemoryClosureLongRunFailureReason[]
+  turnDiagnostics: AlicizationReplayMemoryClosureLongRunTurnDiagnostic[]
+}
 
 export type AlicizationReplayQualityStatus = 'pass' | 'fail' | 'not-applicable'
 
@@ -909,128 +1503,32 @@ function asObject(raw: unknown) {
     : null
 }
 
-function readReplayStructuredSummaryField(summaryLine: unknown, field: 'landed' | 'open' | 'next') {
-  const summary = readString(summaryLine, 2000)
-  if (!summary)
-    return ''
-
-  const prefix = `${field}=`
-  const segment = summary
-    .split('|')
-    .map(item => item.trim())
-    .find(item => item.startsWith(prefix))
-  return segment ? segment.slice(prefix.length).trim() : ''
-}
-
-function normalizeReplayStructuredPayload(raw: unknown): AlicizationReplayStructuredPayload | null {
-  const parsed = typeof raw === 'string'
-    ? (() => {
-        try {
-          return JSON.parse(raw) as unknown
-        }
-        catch {
-          return null
-        }
-      })()
-    : raw
-  const structured = asObject(parsed)
-  if (!structured)
-    return null
-
-  const preDialogueAwareness = asObject(structured.preDialogueAwareness)
-  const preDialogueClosureRaw = asObject(structured.preDialogueClosure)
-  const projectStateRaw = asObject(structured.projectState)
-  const summaryLine = readString(
-    preDialogueAwareness?.summaryLine ?? preDialogueClosureRaw?.summaryLine,
-    2000,
-  )
-  const emotionalClosureCue = readString(preDialogueClosureRaw?.emotionalClosureCue, 320)
-  const projectState = projectStateRaw
-    ? {
-        ...projectStateRaw,
-        latestLandedProgress:
-          readString(projectStateRaw.latestLandedProgress, 480)
-          || readReplayStructuredSummaryField(summaryLine, 'landed')
-          || null,
-        openLoop:
-          readString(projectStateRaw.openLoop ?? projectStateRaw.primaryOpenLoop, 480)
-          || readReplayStructuredSummaryField(summaryLine, 'open')
-          || null,
-        nextClosureTarget:
-          readString(projectStateRaw.nextClosureTarget, 480)
-          || readReplayStructuredSummaryField(summaryLine, 'next')
-          || null,
-        ...(emotionalClosureCue ? { emotionalClosureCue } : {}),
-      }
-    : null
-  const preDialogueClosure = preDialogueClosureRaw
-    ? {
-        ...preDialogueClosureRaw,
-        summaryLine:
-          readString(preDialogueClosureRaw.companionHeadlineLine, 480)
-          || readString(preDialogueClosureRaw.summaryLine, 480)
-          || null,
-      }
-    : null
-
-  return {
-    ...structured,
-    ...(projectState ? { projectState } : {}),
-    ...(preDialogueClosure ? { preDialogueClosure } : {}),
-  }
-}
-
-function buildReplayStructuredExpectedMemory(input: {
-  rawStructuredJson?: unknown
-  structured?: AlicizationReplayStructuredPayload | null
-}) {
-  const structured = input.structured
-  const projectState = asObject(structured?.projectState)
-  return readString(structured?.reply, 240)
-    || [
-      readString(projectState?.identity, 80),
-      readString(projectState?.phase ?? projectState?.currentPhase, 120),
-      readString(projectState?.latestLandedProgress, 180),
-      readString(projectState?.openLoop ?? projectState?.primaryOpenLoop, 180),
-      readString(projectState?.nextClosureTarget, 180),
-    ].filter(Boolean).join(' | ')
-    || readString(input.rawStructuredJson, 240)
-    || undefined
-}
-
-export function buildReplayBenchmarkDatasetContinuityDigest(turn: AlicizationReplayTurn) {
-  const structured = normalizeReplayStructuredPayload(turn.structured) ?? turn.structured ?? null
-  const projectState = asObject(structured?.projectState)
-  const derivedBundle = asObject(turn.organicMemoryContext?.derivedMindStateBundle)
-  const emotionalKernel = asObject(derivedBundle?.emotionalKernel)
-  return [
-    `turn:${readString(turn.turnId, 160)}`,
-    readString(projectState?.sameHerSelfLine, 320)
-      ? `same_her:${readString(projectState?.sameHerSelfLine, 320)}`
-      : '',
-    readString(projectState?.openLoop ?? projectState?.primaryOpenLoop, 320)
-      ? `open:${readString(projectState?.openLoop ?? projectState?.primaryOpenLoop, 320)}`
-      : '',
-    readString(projectState?.nextClosureTarget, 320)
-      ? `next:${readString(projectState?.nextClosureTarget, 320)}`
-      : '',
-    readString(emotionalKernel?.dominantEmotion, 120)
-      ? `emotional_kernel:${readString(emotionalKernel?.dominantEmotion, 120)}`
-      : '',
-    readString(emotionalKernel?.initiativeMode, 120)
-      ? `kernel_initiative:${readString(emotionalKernel?.initiativeMode, 120)}`
-      : '',
-    readString(emotionalKernel?.memoryRecallMode, 120)
-      ? `kernel_recall:${readString(emotionalKernel?.memoryRecallMode, 120)}`
-      : '',
-    readString(emotionalKernel?.embodimentTone, 120)
-      ? `kernel_embodiment:${readString(emotionalKernel?.embodimentTone, 120)}`
-      : '',
-  ].filter(Boolean).join(' | ')
-}
-
 function readString(raw: unknown, maxChars = 240) {
   return normalizeText(raw, maxChars)
+}
+
+function readReplayPersonStateProjection(prepared: AlicizationPreparedMainChatExecutionResult) {
+  const derivedBundle = prepared.runtimeSurface?.digitalLifeRuntimeSurface?.memory?.derivedMindStateBundle
+    ?? prepared.organicMemoryContext?.derivedMindStateBundle
+    ?? null
+  const bundleProjection = readPersonStateProjectionFromDerivedMindStateBundle<any>(derivedBundle)
+  if (bundleProjection)
+    return bundleProjection
+
+  const organicProjection = asObject(prepared.organicMemoryContext?.personStateProjection)
+  if (organicProjection)
+    return organicProjection
+
+  const runtimeProjection = asObject(prepared.runtimeSurface?.digitalLifeRuntimeSurface?.memory?.personStateProjection)
+  if (runtimeProjection)
+    return runtimeProjection
+
+  const spineProjection = asObject(prepared.runtimeSurface?.digitalLifeSpine?.memory?.personStateProjection)
+  if (spineProjection)
+    return spineProjection
+
+  const spineDigest = projectAlicizationDigitalLifeSpineDigest(prepared.runtimeSurface?.digitalLifeSpine ?? null)
+  return asObject(spineDigest?.memory?.personStateProjection)
 }
 
 function readBoolean(raw: unknown, fallback = false) {
@@ -1050,10 +1548,328 @@ function readStringArray(raw: unknown, maxItems = 8, maxChars = 220) {
     : []
 }
 
+function readReplayMemoryClosureIdentityFromCausality(raw: unknown) {
+  const causality = asObject(raw)
+  if (!causality || causality.causedByMemoryClosure !== true)
+    return null
+
+  const memoryIdentity = asObject(causality.memoryIdentity)
+  const continuityKey = readString(memoryIdentity?.continuityKey, 96)
+    || readStringArray(memoryIdentity?.selectedCandidateIds, 1, 96)[0]
+    || readStringArray(causality.selectedCandidateIds, 1, 96)[0]
+    || null
+  if (!continuityKey)
+    return null
+
+  return {
+    continuityKey,
+    reasonTags: readStringArray(memoryIdentity?.reasonTags, 8, 96),
+  }
+}
+
+function readReplayPhase1MemoryClosureSeedFamilyKey(raw: unknown) {
+  const text = String(raw ?? '').toLowerCase()
+  const match = /铃兰-phase1-0621[a-z]?/iu.exec(text)
+  if (!match)
+    return null
+
+  return 'phase1-memory-closure-family:铃兰-phase1-0621'
+}
+
+function readReplayMemoryClosureFamilyKeysFromCausality(raw: unknown) {
+  const causality = asObject(raw)
+  if (!causality || causality.causedByMemoryClosure !== true)
+    return []
+
+  const memoryIdentity = asObject(causality.memoryIdentity)
+  return uniqueStrings([
+    readReplayPhase1MemoryClosureSeedFamilyKey(readString(memoryIdentity?.continuityKey, 160)),
+    ...readStringArray(memoryIdentity?.selectedCandidateIds, 8, 160)
+      .map(readReplayPhase1MemoryClosureSeedFamilyKey),
+    ...readStringArray(causality.selectedCandidateIds, 8, 160)
+      .map(readReplayPhase1MemoryClosureSeedFamilyKey),
+    ...readStringArray(memoryIdentity?.reasonTags, 12, 160)
+      .map(readReplayPhase1MemoryClosureSeedFamilyKey),
+    ...readStringArray(causality.reasonTags, 12, 160)
+      .map(readReplayPhase1MemoryClosureSeedFamilyKey),
+    readReplayPhase1MemoryClosureSeedFamilyKey(readString(causality.summary, 260)),
+  ], 4)
+}
+
+function readReplayTurnPersistedContinuityDigest(turn: AlicizationReplayTurn) {
+  return readString((turn as AlicizationReplayTurn & {
+    continuityDigest?: unknown
+  }).continuityDigest, 2_400)
+}
+
+function buildReplayMemoryClosureLongRunContinuityDigest(turn: AlicizationReplayTurn) {
+  const digests = [
+    readReplayTurnPersistedContinuityDigest(turn),
+    buildReplayBenchmarkDatasetContinuityDigest(turn),
+  ].filter((digest): digest is string => Boolean(digest))
+  const result: string[] = []
+  for (const digest of digests) {
+    if (!result.includes(digest))
+      result.push(digest)
+  }
+  return result.join(' | ') || null
+}
+
+function readReplayMemoryClosureIdentityKeysFromContinuityDigest(continuityDigest: string | null) {
+  if (!continuityDigest)
+    return []
+
+  const identityKeys: string[] = []
+  for (const match of continuityDigest.matchAll(/memory[_-]identity:([^|]+)/giu)) {
+    const key = readString(match[1], 180)
+    if (key)
+      identityKeys.push(key)
+  }
+  if (identityKeys.length === 0)
+    return []
+
+  return uniqueStrings([
+    ...identityKeys,
+    ...identityKeys.map(readReplayPhase1MemoryClosureSeedFamilyKey),
+    readReplayPhase1MemoryClosureSeedFamilyKey(continuityDigest),
+  ], 8)
+}
+
+function hasReplayMemoryClosureContinuityDigestCausality(continuityDigest: string | null) {
+  if (!continuityDigest)
+    return false
+
+  return /memory[_ -]closure|why recall surfaced|why-surfaced|explicit memory handoff|prior recall changed|prior memory closure|next-turn causal handoff/u
+    .test(continuityDigest)
+}
+
+function readReplayMemoryClosureLongRunLanesFromContinuityDigest(input: {
+  continuityDigest: string | null
+  memoryIdentityKeys: string[]
+}) {
+  if (
+    input.memoryIdentityKeys.length === 0
+    || !hasReplayMemoryClosureContinuityDigestCausality(input.continuityDigest)
+  ) {
+    return []
+  }
+
+  const text = input.continuityDigest ?? ''
+  const normalized = text.toLowerCase()
+  const explicitLaneText = [...text.matchAll(/memory_closure_lanes:([^|]+)/giu)]
+    .map(match => match[1] ?? '')
+    .join(' ')
+    .toLowerCase()
+  const laneText = `${explicitLaneText} ${normalized}`
+  const lanes: AlicizationReplayMemoryClosureLongRunLane[] = []
+  if (/why recall surfaced|why-surfaced|explicit memory handoff|next-turn causal handoff|memory_closure_lanes/u.test(laneText))
+    lanes.push('recall')
+  if (/emotion|emotional|afterglow/u.test(laneText))
+    lanes.push('emotion')
+  if (/initiative|proactive/u.test(laneText))
+    lanes.push('initiative')
+  if (/execution|callback/u.test(laneText))
+    lanes.push('execution')
+  if (/embodiment|body|voice|face|motion|lipsync|lip sync/u.test(laneText))
+    lanes.push('embodiment')
+  if (
+    /body/u.test(laneText)
+    && /voice/u.test(laneText)
+    && /face/u.test(laneText)
+    && /motion/u.test(laneText)
+    && /lipsync|lip sync/u.test(laneText)
+  ) {
+    lanes.push('embodiment-expression')
+  }
+  return uniqueStrings(lanes, replayMemoryClosureLongRunRequiredLanes.length) as AlicizationReplayMemoryClosureLongRunLane[]
+}
+
+function buildReplayMemoryClosureIdentityCues(derivedMindStateBundle: Record<string, unknown> | null) {
+  if (!derivedMindStateBundle)
+    return []
+
+  const emotionalTransitionLedger = asObject(derivedMindStateBundle.emotionalTransitionLedger)
+  const initiativeSuppression = asObject(emotionalTransitionLedger?.initiativeSuppression)
+  const learningExecutionState = asObject(derivedMindStateBundle.learningExecutionState)
+  const embodimentContinuityLedger = asObject(derivedMindStateBundle.embodimentContinuityLedger)
+  const lanes = [
+    ['emotion', emotionalTransitionLedger?.memoryClosureCausality],
+    ['initiative', initiativeSuppression?.memoryClosureCausality],
+    ['execution', learningExecutionState?.memoryClosureCausality],
+    ['embodiment', embodimentContinuityLedger?.memoryClosureCausality],
+  ] as const
+  const identityByKey = new Map<string, {
+    lanes: string[]
+    reasonTags: string[]
+  }>()
+
+  for (const [lane, causality] of lanes) {
+    const identity = readReplayMemoryClosureIdentityFromCausality(causality)
+    if (!identity)
+      continue
+
+    const existing = identityByKey.get(identity.continuityKey) ?? {
+      lanes: [],
+      reasonTags: [],
+    }
+    existing.lanes.push(lane)
+    existing.reasonTags = uniqueStrings([
+      ...existing.reasonTags,
+      ...identity.reasonTags,
+    ], 12)
+    identityByKey.set(identity.continuityKey, existing)
+  }
+
+  const strongestIdentity = [...identityByKey.entries()]
+    .sort((left, right) => right[1].lanes.length - left[1].lanes.length)[0]
+  if (!strongestIdentity)
+    return []
+
+  const [continuityKey, identity] = strongestIdentity
+  return [
+    `memory_identity:${continuityKey}`,
+    identity.lanes.length > 0
+      ? `memory_closure_lanes:${identity.lanes.join('+')}`
+      : null,
+    identity.reasonTags.length > 0
+      ? `memory_closure_reason:${identity.reasonTags.join('|')}`
+      : null,
+  ].filter((cue): cue is string => Boolean(cue))
+}
+
+function readReplayMemoryClosureIdentityKeys(derivedMindStateBundle: Record<string, unknown> | null) {
+  if (!derivedMindStateBundle)
+    return []
+
+  const emotionalTransitionLedger = asObject(derivedMindStateBundle.emotionalTransitionLedger)
+  const initiativeSuppression = asObject(emotionalTransitionLedger?.initiativeSuppression)
+  const learningExecutionState = asObject(derivedMindStateBundle.learningExecutionState)
+  const embodimentContinuityLedger = asObject(derivedMindStateBundle.embodimentContinuityLedger)
+  const causalityRecords = [
+    emotionalTransitionLedger?.memoryClosureCausality,
+    initiativeSuppression?.memoryClosureCausality,
+    learningExecutionState?.memoryClosureCausality,
+    embodimentContinuityLedger?.memoryClosureCausality,
+  ]
+  return uniqueStrings([
+    ...causalityRecords.flatMap(readReplayMemoryClosureFamilyKeysFromCausality),
+    ...causalityRecords.map(causality =>
+      readReplayMemoryClosureIdentityFromCausality(causality)?.continuityKey,
+    ),
+  ], 8)
+}
+
+function scoreReplayMemoryClosureIdentityBundle(derivedMindStateBundle: Record<string, unknown>) {
+  const identityKeys = readReplayMemoryClosureIdentityKeys(derivedMindStateBundle)
+  let score = identityKeys.length
+  if (identityKeys.some(key => key.startsWith('phase1-memory-closure-family:')))
+    score += 20
+  if (identityKeys.some(key => key.startsWith('fallback:')))
+    score += 12
+  if (identityKeys.some(key => key.startsWith('cluster:')))
+    score -= 2
+  return score
+}
+
 function readObjectArray(raw: unknown) {
   return Array.isArray(raw)
     ? raw.map(asObject).filter(Boolean) as Record<string, unknown>[]
     : []
+}
+
+function buildTraceMemoryClosureExecutionContext(input: {
+  trace: AlicizationMemoryDecisionTraceRecord
+}): Pick<OrganicMemoryPromptContext, 'projectStatePreflightSummary' | 'memoryResolutionLedger' | 'memorySituationCandidates'> | null {
+  const memoryReconsolidated = asObject(input.trace.memoryReconsolidated)
+  const memoryClosureExecution = asObject(memoryReconsolidated?.memoryClosureExecution)
+  if (!memoryClosureExecution)
+    return null
+
+  const carry = readString(memoryClosureExecution.carry, 420)
+  const authority = readString(memoryClosureExecution.authority, 80) || 'memory-reconsolidated'
+  const reasonTags = readStringArray(memoryClosureExecution.reasonTags, 8, 80)
+  if (!carry && reasonTags.length === 0)
+    return null
+
+  const producedAt = Math.max(0, Math.floor(Number(input.trace.lastUpdatedAt || input.trace.createdAt || Date.now())))
+  const staleSummary = 'Stale status recap should be downranked after memory reconsolidation.'
+  const selectedSummary = carry || 'Corrected memory should keep the execution callback on the same-her line.'
+  const selectedCandidate = {
+    id: 'memory-closure-execution:corrected-callback-carry',
+    summary: selectedSummary,
+    score: 0.86,
+    status: 'selected' as const,
+    reason: `authority=${authority}; ${reasonTags.join(', ') || 'memory reconsolidated callback carry'}`,
+  }
+  const rejectedCandidate = {
+    id: 'memory-closure-execution:stale-status-recap',
+    summary: staleSummary,
+    score: 0.18,
+    status: 'rejected' as const,
+    reason: 'downrank stale status recap because the corrected callback memory must shape the next proactive, emotional afterglow, and embodied return',
+  }
+  const preflightSummary = [
+    'why recall surfaced now: memory-reconsolidated execution feedback corrected the callback-afterglow carry, downranked stale status recap, and must shape the next proactive-opening, emotional afterglow, and embodied return.',
+    selectedSummary,
+    'Because corrected memory downranked stale status recap, the next proactive-opening, emotional afterglow, and body voice expression become lower-pressure on the same-her execution callback line.',
+  ].join(' ')
+  const suppressedSituation = {
+    candidateId: 'memory-closure-execution:stale-status-recap',
+    sourceKinds: ['conversation-turn' as const, 'relationship' as const],
+    situationKind: 'task-thread' as const,
+    eraKey: null,
+    relationshipArcKey: 'same-her-execution-callback',
+    procedureKey: null,
+    selfModelKey: null,
+    worldClaimKeys: [],
+    selectedEvidenceIds: [],
+    competingCandidateIds: ['memory-closure-execution:corrected-callback-carry'],
+    suppressionReasons: ['memory-reconsolidated', 'downrank-stale-status-recap', ...reasonTags],
+    confidence: 0.84,
+    latencyCost: 1,
+    status: 'suppressed' as const,
+    statusReason: 'Corrected callback memory supersedes generic status recap.',
+    summary: staleSummary,
+    evidenceSummary: selectedSummary,
+  }
+
+  return {
+    projectStatePreflightSummary: preflightSummary,
+    memoryResolutionLedger: {
+      version: 'memory-resolution-ledger-v1',
+      producedAt,
+      dominantClusterId: selectedCandidate.id,
+      dominantClusterSummary: selectedCandidate.summary,
+      competingClusterId: rejectedCandidate.id,
+      competingClusterSummary: rejectedCandidate.summary,
+      candidates: [selectedCandidate, rejectedCandidate],
+      selectedCandidates: [selectedCandidate],
+      rejectedCandidates: [rejectedCandidate],
+      finalSurfacePolicy: 'procedural-carry',
+      shouldStayInward: false,
+      shouldDelayUntilAfterPayoff: false,
+      stableCoreOnly: false,
+      suppressionTags: ['stale-status-recap', ...reasonTags].slice(0, 8),
+      closureState: 'grounded-recall',
+      surfaceConfidence: 0.86,
+      shouldLabelUncertainty: false,
+      visibleCarryMode: 'tone-carry',
+      conflictPressure: 'medium',
+      retrievalQuality: 'high',
+      finalRationale: selectedSummary,
+    },
+    memorySituationCandidates: {
+      version: 'memory-situation-candidates-v1',
+      producedAt,
+      queryTexts: [selectedSummary].filter(Boolean).slice(0, 4),
+      candidates: [suppressedSituation],
+      selected: [],
+      rejected: [],
+      suppressed: [suppressedSituation],
+      delayed: [],
+      unresolved: [],
+    },
+  }
 }
 
 function readStringRecord(raw: unknown, maxKeys = 24, maxChars = 120) {
@@ -1316,6 +2132,7 @@ function buildTraceDerivedHostPersonModel(input: {
 
 const explicitMemoryAskPattern = /记得|回忆|想起|聊过|前几天|半年前|上次|那次|当时|which day|what did we talk|remembered|memory|recall/iu
 const ambiguousTimeAskPattern = /那段时间|那时候|以前|之前|前阵子|earlier|back then|that period|those days/iu
+const relationshipRepairAskPattern = /不一样|记错|不是那次|别把.*记成|是不是记错|why this time feels different|you remembered the wrong one/iu
 
 function inferSampleCategories(input: {
   row: AlicizationReplayBenchmarkSampleConversationTurn
@@ -1323,6 +2140,10 @@ function inferSampleCategories(input: {
   sessionTurnCount: number
 }) {
   const categories: AlicizationReplayBenchmarkSampleCategory[] = []
+  const autonomousDialogueFamily = resolveAlicizationAutonomousDialogueFamilyClassification({
+    turnId: input.trace.turnId,
+    origin: input.trace.origin,
+  })
   const recall = asObject(input.trace.recallAttribution)
   const judged = asObject(input.trace.memoryDeliberationJudged)
   const personState = asObject(judged?.personState)
@@ -1335,9 +2156,9 @@ function inferSampleCategories(input: {
     || asObject(recall?.followUpAffordance)?.preferredTiming === 'after-payoff'
   const hasStableCoreOnly = Boolean(input.trace.memoryStableCoreSurfaced)
     || readBoolean(asObject(judged?.restraint)?.shouldOnlySurfaceStableCore)
-  const traceRepairState = readString(input.trace.governance?.repairState, 64)
+  const repairState = readString(input.trace.governance?.repairState, 64)
   const isRepairArc = readString(personState?.currentRegime, 64) === 'repair-window'
-    || (traceRepairState !== '' && traceRepairState !== 'none')
+    || (repairState !== '' && repairState !== 'none')
   const isSurfaceDivergence = Boolean(input.trace.takeoverAudit)
     || (
       readString(input.trace.governance?.screenReferenceMode, 64) !== 'avoid'
@@ -1347,14 +2168,40 @@ function inferSampleCategories(input: {
   const isTaskMigration = hasProcedures && (temporalFocus === 'experience-matched' || temporalFocus === 'cross-session')
   const userText = readString(input.row.userText, 220)
   const activeClosenessContext = readString(personState?.activeClosenessContext, 64)
-  const normalizedOrigin = readString(input.trace.origin, 64).toLowerCase()
-  const isProactiveTrace = normalizedOrigin === 'subconscious-proactive'
-    || readString(input.row.turnId, 160).startsWith('subconscious:')
+  const memoryClosureTrace = asObject(input.trace.governance?.digitalLifeSpine?.memory?.memoryClosureTrace)
+  const memoryClosureNextInfluence = asObject(memoryClosureTrace?.nextInfluence)
+  const memoryClosureInitiative = asObject(memoryClosureNextInfluence?.initiative)
+  const memoryClosureExecution = asObject(memoryClosureNextInfluence?.execution)
+  const memoryClosureEmbodiment = asObject(memoryClosureNextInfluence?.embodiment)
+  const memoryReconsolidated = asObject(input.trace.memoryReconsolidated)
+  const memoryClosureExecutionFeedback = asObject(memoryReconsolidated?.memoryClosureExecution)
+  const memoryClosureTraceText = [
+    ...readObjectArray(memoryClosureTrace?.whySurface).map(item => readString(item.summary, 240)),
+    ...readStringArray(memoryClosureTrace?.reasonTags, 10, 80),
+    readString(memoryClosureInitiative?.reason, 240),
+    readString(memoryClosureInitiative?.restraint, 96),
+    readString(memoryClosureInitiative?.preferredTiming, 96),
+    readString(memoryClosureExecution?.carry, 240),
+    readString(memoryClosureEmbodiment?.reason, 240),
+    readString(memoryClosureEmbodiment?.cadence, 120),
+    readString(memoryClosureExecutionFeedback?.authority, 80),
+    readString(memoryClosureExecutionFeedback?.carry, 240),
+    ...readStringArray(memoryClosureExecutionFeedback?.reasonTags, 8, 80),
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase()
+  const hasMemoryClosureTrace = Boolean(memoryClosureTrace)
+  const hasMemoryClosureExecutionFeedback = Boolean(memoryClosureExecutionFeedback)
+  const hasMemoryClosureExecutionCarry = Boolean(
+    readString(memoryClosureExecution?.carry, 240)
+    || readString(memoryClosureExecutionFeedback?.carry, 240),
+  )
 
-  if (isProactiveTrace) {
+  if (autonomousDialogueFamily.isAutonomous) {
     categories.push('proactive')
   }
-  else if (hasProcedures || activeClosenessContext === 'execution-callback') {
+  else if (hasProcedures || activeClosenessContext === 'execution-callback' || hasMemoryClosureExecutionCarry) {
     categories.push('execution')
   }
   else {
@@ -1369,14 +2216,30 @@ function inferSampleCategories(input: {
     categories.push('stable-core')
   if (isRepairArc)
     categories.push('repair-arc')
-  if (isRepairArc || traceRepairState !== 'none')
+  if (isRepairArc || repairState !== 'none')
     categories.push('repair')
-  if (hasProcedures)
+  if (hasProcedures || hasMemoryClosureExecutionCarry)
     categories.push('procedure-carry')
   if (isTaskMigration)
     categories.push('task-migration')
-  if (hasPeriods || ambiguousTimeAskPattern.test(userText) || explicitMemoryAskPattern.test(userText))
+  if (
+    hasPeriods
+    || ambiguousTimeAskPattern.test(userText)
+    || explicitMemoryAskPattern.test(userText)
+    || (
+      (hasMemoryClosureTrace || hasMemoryClosureExecutionFeedback)
+      && /memory-closure-trace|memory closure trace|why recall surfaced|corrected memory|correction provenance|memory audit|prior recall|next turn|next proactive|修正|审计|回忆.*浮现/u.test(memoryClosureTraceText)
+    )
+  ) {
     categories.push('long-horizon')
+  }
+  if (
+    (hasMemoryClosureTrace || hasMemoryClosureExecutionFeedback)
+    && /embodiment|body|voice|face|motion|lipsync|lip sync|resident body|身体|语音|表情|动作|口型/u.test(memoryClosureTraceText)
+    && /same-her|same her|same living line|same life thread|同一个她|同一条/u.test(memoryClosureTraceText)
+  ) {
+    categories.push('presence-quality')
+  }
   if (/跨周|几周|两个星期|几星期|cross-week|weeks later|隔了几周/u.test(userText))
     categories.push('cross-week-task-migration')
   if (/跨月|几个月|上个月|前几个月|cross-month|months later|修复后的分寸/u.test(userText))
@@ -1387,13 +2250,13 @@ function inferSampleCategories(input: {
     categories.push('surface-divergence')
   if (input.sessionTurnCount >= 4)
     categories.push('long-session')
-  if (categories.length === 0 && (input.trace.recallAttribution || input.trace.memoryDeliberationJudged))
+  if (categories.length === 0 && (input.trace.recallAttribution || input.trace.memoryDeliberationJudged || hasMemoryClosureTrace))
     categories.push('general-memory')
 
   return [...new Set(categories)]
 }
 
-function buildOrganicMemoryPromptContextFromTrace(input: {
+export function buildOrganicMemoryPromptContextFromTrace(input: {
   row: AlicizationReplayBenchmarkSampleConversationTurn
   trace: AlicizationMemoryDecisionTraceRecord
 }): OrganicMemoryPromptContext {
@@ -1451,6 +2314,9 @@ function buildOrganicMemoryPromptContextFromTrace(input: {
       currentRegime: readString(personState?.currentRegime, 64) || null,
       repairPosture: readString(personState?.repairPosture, 64) || null,
     })
+  const memoryClosureExecutionContext = buildTraceMemoryClosureExecutionContext({
+    trace: input.trace,
+  })
   const persistedMemoryResolutionLedger = asObject((input.trace as any).memoryResolutionLedger)
     ? (input.trace as any).memoryResolutionLedger as OrganicMemoryPromptContext['memoryResolutionLedger']
     : null
@@ -1464,6 +2330,7 @@ function buildOrganicMemoryPromptContextFromTrace(input: {
       reason: item.reason ?? 'Suppressed by replay trace.',
     }))
   const memoryResolutionLedger = persistedMemoryResolutionLedger
+    ?? memoryClosureExecutionContext?.memoryResolutionLedger
     ?? (
       syntheticSuppressionCandidates.length > 0
         ? {
@@ -1499,6 +2366,7 @@ function buildOrganicMemoryPromptContextFromTrace(input: {
     )
 
   return {
+    projectStatePreflightSummary: memoryClosureExecutionContext?.projectStatePreflightSummary ?? null,
     hostAttitude: readString(personState?.openingGuidance, 220)
       || readString(judged?.whyWithheld, 220)
       || '',
@@ -1642,6 +2510,7 @@ function buildOrganicMemoryPromptContextFromTrace(input: {
     hostPersonModel,
     derivedMindStateBundle: derivedBundle,
     memoryResolutionLedger,
+    memorySituationCandidates: memoryClosureExecutionContext?.memorySituationCandidates ?? null,
   }
 }
 
@@ -1651,18 +2520,23 @@ export function buildSampledHumanlikeMemoryBenchmarkPack(input: {
   limit?: number
 }): AlicizationReplayTurn[] {
   const limit = Math.max(1, Math.min(24, Math.floor(input.limit ?? 12)))
-  const traceByTurnId = new Map<string, AlicizationMemoryDecisionTraceRecord>()
+  const tracesByTurnId = new Map<string, AlicizationMemoryDecisionTraceRecord[]>()
   for (const trace of [...input.memoryDecisionTraces].sort((left, right) => right.lastUpdatedAt - left.lastUpdatedAt)) {
     const turnId = readString(trace.turnId, 160)
     const normalizedOrigin = readString(trace.origin, 64).toLowerCase()
-    const originEligible = normalizedOrigin === 'user-turn'
-      || normalizedOrigin === 'subconscious-proactive'
-      || (!normalizedOrigin && turnId.startsWith('subconscious:'))
-    if (!turnId || !originEligible || traceByTurnId.has(turnId))
+    if (!turnId || normalizedOrigin === 'system')
       continue
-    if (!trace.recallAttribution && !trace.memoryDeliberationJudged)
+    if (
+      !trace.recallAttribution
+      && !trace.memoryDeliberationJudged
+      && !trace.governance?.digitalLifeSpine?.memory?.memoryClosureTrace
+      && !asObject(trace.memoryReconsolidated)?.memoryClosureExecution
+    ) {
       continue
-    traceByTurnId.set(turnId, trace)
+    }
+    const traces = tracesByTurnId.get(turnId) ?? []
+    traces.push(trace)
+    tracesByTurnId.set(turnId, traces)
   }
 
   const sessionCounts = new Map<string, number>()
@@ -1673,35 +2547,42 @@ export function buildSampledHumanlikeMemoryBenchmarkPack(input: {
     sessionCounts.set(sessionId, (sessionCounts.get(sessionId) ?? 0) + 1)
   }
 
-  const candidates = input.conversationTurns
-    .map((row) => {
-      const turnId = readString(row.turnId, 160)
-      const userText = readString(row.userText, 240)
-      if (!turnId || !userText)
-        return null
-      const trace = traceByTurnId.get(turnId)
-      if (!trace)
-        return null
-      const categories = inferSampleCategories({
-        row,
-        trace,
-        sessionTurnCount: sessionCounts.get(readString(row.sessionId, 160)) ?? 1,
+  const candidates = (
+    input.conversationTurns
+      .map((row) => {
+        const turnId = readString(row.turnId, 160)
+        const userText = readString(row.userText, 240)
+        if (!turnId || !userText)
+          return null
+        const traceRecords = tracesByTurnId.get(turnId) ?? []
+        const trace = traceRecords[0]
+        if (!trace)
+          return null
+        const categories = uniqueStrings(traceRecords.flatMap(traceRecord =>
+          inferSampleCategories({
+            row,
+            trace: traceRecord,
+            sessionTurnCount: sessionCounts.get(readString(row.sessionId, 160)) ?? 1,
+          }),
+        ), 18) as AlicizationReplayBenchmarkSampleCategory[]
+        if (categories.length === 0)
+          return null
+        return {
+          row,
+          trace,
+          traceRecords,
+          categories,
+        }
       })
-      if (categories.length === 0)
-        return null
-      return {
-        row,
-        trace,
-        categories,
-      }
-    })
-    .filter(Boolean)
-    .sort((left, right) => {
-      return readNumber((right as any).trace.lastUpdatedAt, (right as any).row.createdAt)
-        - readNumber((left as any).trace.lastUpdatedAt, (left as any).row.createdAt)
-    }) as Array<{
+      .filter(Boolean)
+      .sort((left, right) => {
+        return readNumber((right as any).trace.lastUpdatedAt, (right as any).row.createdAt)
+          - readNumber((left as any).trace.lastUpdatedAt, (left as any).row.createdAt)
+      })
+  ) as Array<{
     row: AlicizationReplayBenchmarkSampleConversationTurn
     trace: AlicizationMemoryDecisionTraceRecord
+    traceRecords: AlicizationMemoryDecisionTraceRecord[]
     categories: AlicizationReplayBenchmarkSampleCategory[]
   }>
 
@@ -1731,21 +2612,40 @@ export function buildSampledHumanlikeMemoryBenchmarkPack(input: {
   }
 
   return selected.map((candidate) => {
-    const organicMemoryContext = buildOrganicMemoryPromptContextFromTrace({
-      row: candidate.row,
-      trace: candidate.trace,
-    })
-    const structured = normalizeReplayStructuredPayload(candidate.row.structuredJson)
+    let organicMemoryContext: AlicizationReplayTurn['organicMemoryContext'] | null = null
+    let structured = readReplaySampleStructuredSnapshot(candidate.row.structuredJson ?? null)
+    let gold: AlicizationReplayGoldExpectation | undefined
+    for (const traceRecord of candidate.traceRecords) {
+      organicMemoryContext = mergeReplaySampleOrganicMemoryContext({
+        primary: organicMemoryContext,
+        fallback: buildOrganicMemoryPromptContextFromTrace({
+          row: candidate.row,
+          trace: traceRecord,
+        }),
+      }) ?? organicMemoryContext
+      structured = mergeReplayStructuredSnapshot({
+        primary: structured,
+        fallback: readReplayTraceMemoryClosureStructuredSnapshot(traceRecord),
+      })
+      gold = mergeReplayGoldExpectation({
+        primary: gold,
+        fallback: buildIndependentReplayGoldExpectationFromTrace({
+          trace: traceRecord,
+          categories: candidate.categories,
+        }),
+      })
+    }
     return {
     // NOTICE: sampled replay traces already carry the memory/claim surface that runtime produced,
     // so we can promote them into replay gold expectations without inventing a second benchmark truth source.
       turnId: readString(candidate.row.turnId, 160),
       userText: readString(candidate.row.userText, 240),
-      organicMemoryContext,
+      createdAt: Math.max(0, Math.floor(readNumber(candidate.row.createdAt, 0))),
       structured,
-      expectedMemory: buildReplayStructuredExpectedMemory({
-        rawStructuredJson: candidate.row.structuredJson,
-        structured,
+      ...(organicMemoryContext ? { organicMemoryContext } : {}),
+      expectedMemory: buildReplayBenchmarkExpectedMemory({
+        assistantText: candidate.row.assistantText ?? null,
+        structuredJson: candidate.row.structuredJson ?? null,
       }),
       categories: candidate.categories,
       tracePointer: {
@@ -1757,10 +2657,7 @@ export function buildSampledHumanlikeMemoryBenchmarkPack(input: {
         activeThreadId: readString(candidate.trace.activeThreadId, 160) || null,
       },
       sampledCategories: candidate.categories,
-      gold: buildIndependentReplayGoldExpectationFromTrace({
-        trace: candidate.trace,
-        categories: candidate.categories,
-      }),
+      gold,
     } satisfies AlicizationReplayTurn
   })
 }
@@ -1797,8 +2694,6 @@ function hasTemplatePhraseLeak(left: string, right: string) {
   const overlap = rightTokens.filter(token => normalizedLeft.includes(token)).length
   return overlap >= Math.max(3, Math.floor(rightTokens.length * 0.75))
 }
-
-const relationshipRepairAskPattern = /不一样|记错|不是那次|别把.*记成|是不是记错|why this time feels different|you remembered the wrong one/iu
 
 function hasVisibleMemoryEvidence(input: {
   openingClaim: string
@@ -1843,12 +2738,7 @@ export function evaluateReplayMemoryQuality(input: {
   const openingClaim = runtimeSurface?.dialogue.dialogueActKernel?.openingClaim ?? ''
   const mustDo = runtimeSurface?.dialogue.answerPlanner?.mustDo ?? []
   const mustAvoid = runtimeSurface?.dialogue.replyDeliberation?.mustAvoid ?? []
-  const runtimePersonState = asObject(runtimeSurface?.memory?.personStateProjection)
-  const spinePersonState = asObject((input.prepared.runtimeSurface as any)?.digitalLifeSpine?.memory?.personStateProjection)
-  const personState = readPersonStateProjectionFromDerivedMindStateBundle<any>(derivedBundle)
-    ?? runtimePersonState
-    ?? spinePersonState
-    ?? asObject(input.prepared.organicMemoryContext?.personStateProjection)
+  const personState = readReplayPersonStateProjection(input.prepared)
   const dialogueRhythm = readDialogueRhythmFromDerivedMindStateBundle(derivedBundle)
   const affectiveResidue = readAffectiveResidueFromDerivedMindStateBundle(derivedBundle)
     ?? input.prepared.organicMemoryContext?.affectiveResidue
@@ -2580,8 +3470,449 @@ interface AlicizationReplayBenchmarkDatasetBacklogEntry {
   failingDimensions: Array<keyof AlicizationReplayBenchmarkStandards>
   tracePointer: AlicizationReplayBenchmarkTracePointer
   sampledCategories: string[]
+  continuityDigest?: string | null
   replayTurn: AlicizationReplayTurn
   createdAt: number
+}
+
+export function buildReplayBenchmarkDatasetContinuityDigest(turn: AlicizationReplayTurn) {
+  const projectState = turn.structured?.projectState ?? null
+  const preDialogueAwareness = turn.structured?.preDialogueAwareness ?? null
+  const preDialogueClosure = turn.structured?.preDialogueClosure ?? null
+  const structuredMemoryClosureTrace = asObject((turn.structured as {
+    memoryClosureTrace?: unknown
+  } | null | undefined)?.memoryClosureTrace)
+  const projectStateAudit = turn.visibleReplyRealization?.projectStateAudit ?? null
+  const organicMemoryContext = turn.organicMemoryContext ?? null
+  const derivedMindStateBundle = asObject(organicMemoryContext?.derivedMindStateBundle)
+    ?? asObject((turn.structured as { derivedMindStateBundle?: unknown } | null | undefined)?.derivedMindStateBundle)
+  const emotionalKernel = asObject(derivedMindStateBundle?.emotionalKernel)
+    ?? asObject(asObject(derivedMindStateBundle?.visualPresenceState)?.emotionalKernel)
+  const emotionalTransitionLedger = asObject(derivedMindStateBundle?.emotionalTransitionLedger)
+  const embodimentContinuityLedger = asObject(derivedMindStateBundle?.embodimentContinuityLedger)
+  const memoryClosureIdentityCues = buildReplayMemoryClosureIdentityCues(derivedMindStateBundle)
+  const embodimentContinuityReplayLine = readString(embodimentContinuityLedger?.replayLine, 220)
+  const embodimentAuthority = asObject(turn.gold?.embodimentAuthority)
+  const authorityDigitalLife = asObject(embodimentAuthority?.digitalLife)
+  const authorityEmbodimentScript = asObject(embodimentAuthority?.embodimentScript)
+  const authorityEmbodimentScriptState = asObject(authorityEmbodimentScript?.state)
+  const authorityVoice = asObject(authorityDigitalLife?.voice)
+  const authorityFace = asObject(authorityDigitalLife?.face)
+  const authorityMotion = asObject(authorityDigitalLife?.motion)
+  const authorityLipSync = asObject(authorityDigitalLife?.lipSync)
+  const authorityBodyContinuity = asObject(authorityDigitalLife?.bodyContinuity)
+  const emotionalKernelReasonTags = Array.isArray(emotionalKernel?.reasonTags)
+    ? emotionalKernel.reasonTags
+        .map(tag => readString(tag, 48))
+        .filter(Boolean)
+    : []
+  const emotionalKernelCues = [
+    readString(emotionalKernel?.dominantEmotion, 64)
+      ? `emotional_kernel:${readString(emotionalKernel?.dominantEmotion, 64)}`
+      : '',
+    readString(emotionalKernel?.initiativeMode, 64)
+      ? `kernel_initiative:${readString(emotionalKernel?.initiativeMode, 64)}`
+      : '',
+    readString(emotionalKernel?.memoryRecallMode, 64)
+      ? `kernel_recall:${readString(emotionalKernel?.memoryRecallMode, 64)}`
+      : '',
+    readString(emotionalKernel?.embodimentTone, 64)
+      ? `kernel_embodiment:${readString(emotionalKernel?.embodimentTone, 64)}`
+      : '',
+    emotionalKernelReasonTags[0]
+      ? `kernel_reason:${emotionalKernelReasonTags.join('|')}`
+      : '',
+    readString(emotionalKernel?.why, 180)
+      ? `kernel_why:${readString(emotionalKernel?.why, 180)}`
+      : '',
+  ]
+  const emotionalTransitionCues = [
+    asObject(emotionalTransitionLedger?.selfRevisionCandidate)?.shouldPropose === true
+      ? `emotion_self_revision_candidate:${readString(asObject(emotionalTransitionLedger?.selfRevisionCandidate)?.domain, 64) || 'unknown'}`
+      : '',
+    readString(asObject(emotionalTransitionLedger?.selfRevisionCandidate)?.summary, 220),
+    readString(emotionalTransitionLedger?.transitionKind, 64)
+      ? `emotional_transition:${readString(emotionalTransitionLedger?.transitionKind, 64)}`
+      : '',
+    readString(emotionalTransitionLedger?.traceSummary, 220),
+    readString(emotionalTransitionLedger?.replayLine, 220),
+    readString(asObject(emotionalTransitionLedger?.memoryWriteback)?.lane, 64)
+      ? `emotion_memory_writeback:${readString(asObject(emotionalTransitionLedger?.memoryWriteback)?.lane, 64)}`
+      : '',
+    readString(asObject(emotionalTransitionLedger?.initiativeSuppression)?.mode, 64)
+      ? `emotion_initiative_suppression:${readString(asObject(emotionalTransitionLedger?.initiativeSuppression)?.mode, 64)}`
+      : '',
+    readString(asObject(emotionalTransitionLedger?.embodimentDrive)?.tone, 64)
+      ? `emotion_embodiment_drive:${readString(asObject(emotionalTransitionLedger?.embodimentDrive)?.tone, 64)}`
+      : '',
+    readString(asObject(emotionalTransitionLedger?.decayPolicy)?.mode, 64)
+      ? `emotion_decay:${readString(asObject(emotionalTransitionLedger?.decayPolicy)?.mode, 64)}`
+      : '',
+  ]
+  const embodimentContinuityCues = [
+    /body\+voice\+lipsync carried same-her/iu.test(embodimentContinuityReplayLine)
+      ? 'body+voice+lipsync carried same-her'
+      : '',
+    readString(embodimentContinuityLedger?.continuityPhase, 64)
+      ? `embodiment_phase:${readString(embodimentContinuityLedger?.continuityPhase, 64)}`
+      : '',
+    embodimentContinuityReplayLine,
+    readString(embodimentContinuityLedger?.traceSummary, 220),
+    readString(asObject(embodimentContinuityLedger?.memoryWriteback)?.lane, 64)
+      ? `embodiment_memory_writeback:${readString(asObject(embodimentContinuityLedger?.memoryWriteback)?.lane, 64)}`
+      : '',
+    readString(asObject(embodimentContinuityLedger?.memoryWriteback)?.reason, 220),
+    readString(asObject(embodimentContinuityLedger?.selfRevisionCandidate)?.summary, 220),
+  ]
+  const embodimentAuthorityCues = [
+    readString(authorityVoice?.residentMode, 64)
+      ? `voice_resident:${readString(authorityVoice?.residentMode, 64)}`
+      : '',
+    readString(authorityFace?.residentMode, 64)
+      ? `face_resident:${readString(authorityFace?.residentMode, 64)}`
+      : '',
+    readString(authorityMotion?.residentMode, 64)
+      ? `motion_resident:${readString(authorityMotion?.residentMode, 64)}`
+      : '',
+    readString(authorityLipSync?.residentMode, 64)
+      ? `lipsync_resident:${readString(authorityLipSync?.residentMode, 64)}`
+      : '',
+    readString(authorityBodyContinuity?.bodyLine, 220)
+      ? `body_line:${readString(authorityBodyContinuity?.bodyLine, 220)}`
+      : '',
+    readString(authorityEmbodimentScriptState?.residentMode, 64)
+      ? `embodiment_resident:${readString(authorityEmbodimentScriptState?.residentMode, 64)}`
+      : '',
+  ]
+  const memoryClosureTraceWhySurface = Array.isArray(structuredMemoryClosureTrace?.whySurface)
+    ? structuredMemoryClosureTrace.whySurface
+        .map(item => readString(asObject(item)?.summary, 220))
+        .filter(Boolean)
+    : []
+  const memoryClosureTraceNextInfluence = asObject(structuredMemoryClosureTrace?.nextInfluence)
+  const memoryClosureTraceInitiative = asObject(memoryClosureTraceNextInfluence?.initiative)
+  const memoryClosureTraceExecution = asObject(memoryClosureTraceNextInfluence?.execution)
+  const memoryClosureTraceEmotion = asObject(memoryClosureTraceNextInfluence?.emotion)
+  const memoryClosureTraceEmbodiment = asObject(memoryClosureTraceNextInfluence?.embodiment)
+  const memoryClosureNextInfluenceCues = [
+    memoryClosureTraceInitiative || memoryClosureTraceExecution || memoryClosureTraceEmotion || memoryClosureTraceEmbodiment
+      ? 'next-turn causal handoff'
+      : '',
+    memoryClosureTraceInitiative || memoryClosureTraceExecution
+      ? 'prior recall changed the next proactive/callback carry'
+      : '',
+    memoryClosureTraceEmotion
+      ? 'prior recall changed the next emotional afterglow carry'
+      : '',
+    memoryClosureTraceEmbodiment
+      ? 'prior recall changed the next embodiment carry'
+      : '',
+    ...memoryClosureTraceWhySurface,
+    readString(memoryClosureTraceInitiative?.reason, 220),
+    readString(memoryClosureTraceInitiative?.restraint, 96)
+      ? `next_initiative_restraint:${readString(memoryClosureTraceInitiative?.restraint, 96)}`
+      : '',
+    readString(memoryClosureTraceInitiative?.preferredTiming, 96)
+      ? `next_initiative_timing:${readString(memoryClosureTraceInitiative?.preferredTiming, 96)}`
+      : '',
+    readString(memoryClosureTraceExecution?.carry, 220),
+    readString(memoryClosureTraceEmotion?.reason, 220),
+    readString(memoryClosureTraceEmotion?.afterglow, 220),
+    readString(memoryClosureTraceEmotion?.residue, 220),
+    readString(memoryClosureTraceEmbodiment?.reason, 220),
+    readString(memoryClosureTraceEmbodiment?.cadence, 96)
+      ? `next_embodiment_cadence:${readString(memoryClosureTraceEmbodiment?.cadence, 96)}`
+      : '',
+  ]
+
+  const cues = uniqueStrings([
+    readString(projectState?.sameHerSelfLine, 240),
+    readString(projectState?.sameHerDriftRisk, 240),
+    readString(projectState?.emotionalClosureCue, 240),
+    readString(projectState?.latestLandedProgress, 240),
+    readString(projectState?.openLoop, 240),
+    readString(projectState?.nextClosureTarget, 240),
+    ...memoryClosureNextInfluenceCues,
+    ...memoryClosureIdentityCues,
+    ...emotionalKernelCues,
+    ...emotionalTransitionCues,
+    ...embodimentContinuityCues,
+    ...embodimentAuthorityCues,
+    readString(preDialogueAwareness?.summaryLine, 240),
+    readString(preDialogueAwareness?.companionBriefingLine, 240),
+    readString(preDialogueAwareness?.companionNextClosureLine, 240),
+    readString(preDialogueAwareness?.emotionalClosureCue, 240),
+    readString(preDialogueClosure?.summaryLine, 240),
+    readString(preDialogueClosure?.companionBriefingLine, 240),
+    readString(preDialogueClosure?.companionNextClosureLine, 240),
+    readString(preDialogueClosure?.emotionalClosureCue, 240),
+    readString(projectStateAudit?.sameHerSummary, 240),
+    readString(projectStateAudit?.continuitySummary, 240),
+    readString(projectStateAudit?.preDialogueAwarenessSummary, 240),
+    readString(projectStateAudit?.embodimentClosureSummary, 240),
+    readString(organicMemoryContext?.projectStatePreDialogueAwarenessLine, 240),
+    readString(organicMemoryContext?.projectStatePreflightSummary, 240),
+    readString(organicMemoryContext?.hostAttitude, 240),
+    readString(organicMemoryContext?.recollectionIntent?.rationale, 240),
+    readString(organicMemoryContext?.recollectionSpeechPlan?.internalLead, 240),
+    readString(organicMemoryContext?.recollectionSpeechPlan?.visibleLead, 240),
+    readString(organicMemoryContext?.recollectionSpeechPlan?.styleNote, 240),
+    readString(organicMemoryContext?.memoryDeliberation?.whyNow, 240),
+    readString(organicMemoryContext?.memoryDeliberation?.inwardLine, 240),
+    readString(organicMemoryContext?.memoryDeliberation?.visibleLine, 240),
+    readString(organicMemoryContext?.memoryDeliberation?.followUpAffordance?.summary, 240),
+    readString(organicMemoryContext?.memoryDeliberation?.followUpAffordance?.whyNow, 240),
+  ], 26)
+
+  if (cues.length === 0)
+    return null
+
+  const hasRepairWindow = cues.some(cue => /repair|seam|closer|bounded/u.test(cue))
+  const hasDeferredInitiative = cues.some(cue => /follow.?up|after-payoff|wait until|preferredTiming|payoff/u.test(cue))
+  const hasEmbodimentCarry = cues.some(cue => /living line|same line|callback|thread-faithful|bounded/u.test(cue))
+  const priorityMarkers = [
+    /Because corrected memory downranked stale status recap/iu.test(organicMemoryContext?.projectStatePreflightSummary ?? '')
+      ? 'Because corrected memory downranked stale status recap'
+      : null,
+    ...memoryClosureIdentityCues,
+    readString(emotionalKernel?.memoryRecallMode, 64)
+      ? `kernel_recall:${readString(emotionalKernel?.memoryRecallMode, 64)}`
+      : null,
+    readString(emotionalKernel?.initiativeMode, 64)
+      ? `kernel_initiative:${readString(emotionalKernel?.initiativeMode, 64)}`
+      : null,
+    readString(emotionalKernel?.embodimentTone, 64)
+      ? `kernel_embodiment:${readString(emotionalKernel?.embodimentTone, 64)}`
+      : null,
+    readString(emotionalTransitionLedger?.transitionKind, 64)
+      ? `emotional_transition:${readString(emotionalTransitionLedger?.transitionKind, 64)}`
+      : null,
+    readString(embodimentContinuityLedger?.continuityPhase, 64)
+      ? `embodiment_phase:${readString(embodimentContinuityLedger?.continuityPhase, 64)}`
+      : null,
+    /body\+voice\+lipsync carried same-her/iu.test(embodimentContinuityReplayLine)
+      ? 'body+voice+lipsync carried same-her'
+      : null,
+    cues.some(cue => /body voice face motion lipsync expression/iu.test(cue))
+      ? 'body voice face motion lipsync expression'
+      : null,
+  ]
+
+  return uniqueStrings([
+    'same-her continuity',
+    'phase 1 local digital life',
+    ...priorityMarkers,
+    hasDeferredInitiative ? 'initiative remains part of the same living line' : null,
+    hasEmbodimentCarry ? 'embodiment closure remains part of the same living line' : null,
+    hasRepairWindow ? 'same living line stays repair-aware before closeness widens' : null,
+    ...cues,
+  ], 30).join(' | ')
+}
+
+function readReplayMemoryClosureLaneIdentity(raw: unknown, lane: Exclude<AlicizationReplayMemoryClosureLongRunLane, 'recall' | 'embodiment-expression'>) {
+  const causality = asObject(raw)
+  if (!causality || causality.causedByMemoryClosure !== true)
+    return null
+
+  const affectedLane = readString(causality.affectedLane, 32)
+  if (affectedLane && affectedLane !== lane)
+    return null
+
+  return readReplayMemoryClosureIdentityFromCausality(causality)
+}
+
+function hasReplayMemoryClosureRecallProof(input: {
+  turn: AlicizationReplayTurn
+  prepared: AlicizationPreparedMainChatExecutionResult | null
+}) {
+  const runtimeSpineMemory = asObject(input.prepared?.runtimeSurface?.digitalLifeSpine?.memory)
+  const memoryClosureTrace = asObject((input.turn.structured as {
+    memoryClosureTrace?: unknown
+  } | null | undefined)?.memoryClosureTrace)
+  ?? asObject(runtimeSpineMemory?.memoryClosureTrace)
+  const nextInfluence = asObject(memoryClosureTrace?.nextInfluence)
+  if (!nextInfluence)
+    return false
+
+  const hasDownstreamInfluence = [
+    nextInfluence.initiative,
+    nextInfluence.execution,
+    nextInfluence.emotion,
+    nextInfluence.embodiment,
+  ].some(value => Boolean(asObject(value)))
+  if (!hasDownstreamInfluence)
+    return false
+
+  const whySurface = readObjectArray(memoryClosureTrace?.whySurface)
+    .map(item => readString(item.summary, 220))
+  const reasonTags = readStringArray(memoryClosureTrace?.reasonTags, 12, 120)
+  const evidenceText = [
+    ...whySurface,
+    ...reasonTags,
+  ].join(' ').toLowerCase()
+  return /why recall surfaced|why-surfaced|memory-closure|same-her-memory-closure|回忆.*浮现/u.test(evidenceText)
+}
+
+function hasReplayMemoryClosureEmbodimentExpressionProof(embodimentContinuityLedger: Record<string, unknown> | null) {
+  if (!embodimentContinuityLedger)
+    return false
+
+  const carryingLanes = readStringArray(embodimentContinuityLedger.carryingLanes, 12, 48)
+    .map(item => item.toLowerCase())
+  const rejoinedLanes = readStringArray(embodimentContinuityLedger.rejoinedLanes, 12, 48)
+    .map(item => item.toLowerCase())
+  const laneSet = new Set([...carryingLanes, ...rejoinedLanes])
+  const hasStructuredModalities = ['body', 'voice', 'face', 'motion', 'lipsync'].every(lane => laneSet.has(lane))
+  if (hasStructuredModalities)
+    return true
+
+  const evidenceText = [
+    readString(embodimentContinuityLedger.continuityPhase, 120),
+    readString(embodimentContinuityLedger.traceSummary, 240),
+    readString(embodimentContinuityLedger.replayLine, 240),
+  ].join(' ').toLowerCase()
+  return /body/u.test(evidenceText)
+    && /voice/u.test(evidenceText)
+    && /face/u.test(evidenceText)
+    && /motion/u.test(evidenceText)
+    && /lipsync|lip sync/u.test(evidenceText)
+}
+
+function buildReplayMemoryClosureLongRunTurnDiagnostic(input: {
+  turn: AlicizationReplayTurn
+  prepared: AlicizationPreparedMainChatExecutionResult | null
+}): AlicizationReplayMemoryClosureLongRunTurnDiagnostic {
+  const derivedMindStateBundle = [
+    asObject(input.prepared?.runtimeSurface?.digitalLifeRuntimeSurface?.memory?.derivedMindStateBundle),
+    asObject(input.prepared?.organicMemoryContext?.derivedMindStateBundle),
+    asObject(input.turn.organicMemoryContext?.derivedMindStateBundle),
+    asObject((input.turn.structured as { derivedMindStateBundle?: unknown } | null | undefined)?.derivedMindStateBundle),
+  ]
+    .filter((bundle): bundle is Record<string, unknown> => Boolean(bundle))
+    .sort((left, right) =>
+      scoreReplayMemoryClosureIdentityBundle(right) - scoreReplayMemoryClosureIdentityBundle(left),
+    )[0] ?? null
+  const emotionalTransitionLedger = asObject(derivedMindStateBundle?.emotionalTransitionLedger)
+  const initiativeSuppression = asObject(emotionalTransitionLedger?.initiativeSuppression)
+  const learningExecutionState = asObject(derivedMindStateBundle?.learningExecutionState)
+  const embodimentContinuityLedger = asObject(derivedMindStateBundle?.embodimentContinuityLedger)
+  const emotionIdentity = readReplayMemoryClosureLaneIdentity(emotionalTransitionLedger?.memoryClosureCausality, 'emotion')
+  const initiativeIdentity = readReplayMemoryClosureLaneIdentity(initiativeSuppression?.memoryClosureCausality, 'initiative')
+  const executionIdentity = readReplayMemoryClosureLaneIdentity(learningExecutionState?.memoryClosureCausality, 'execution')
+  const embodimentIdentity = readReplayMemoryClosureLaneIdentity(embodimentContinuityLedger?.memoryClosureCausality, 'embodiment')
+  const continuityDigest = buildReplayMemoryClosureLongRunContinuityDigest(input.turn)
+  const memoryIdentityKeys = uniqueStrings([
+    emotionIdentity?.continuityKey,
+    initiativeIdentity?.continuityKey,
+    executionIdentity?.continuityKey,
+    embodimentIdentity?.continuityKey,
+    ...readReplayMemoryClosureIdentityKeys(derivedMindStateBundle),
+    ...readReplayMemoryClosureIdentityKeysFromContinuityDigest(continuityDigest),
+  ], 8)
+  const digestProvedLanes = readReplayMemoryClosureLongRunLanesFromContinuityDigest({
+    continuityDigest,
+    memoryIdentityKeys,
+  })
+  const provedLanes = replayMemoryClosureLongRunRequiredLanes.filter((lane) => {
+    switch (lane) {
+      case 'recall':
+        return hasReplayMemoryClosureRecallProof(input) || digestProvedLanes.includes(lane)
+      case 'emotion':
+        return Boolean(emotionIdentity) || digestProvedLanes.includes(lane)
+      case 'initiative':
+        return Boolean(initiativeIdentity) || digestProvedLanes.includes(lane)
+      case 'execution':
+        return Boolean(executionIdentity) || digestProvedLanes.includes(lane)
+      case 'embodiment':
+        return Boolean(embodimentIdentity) || digestProvedLanes.includes(lane)
+      case 'embodiment-expression':
+        return (
+          Boolean(embodimentIdentity)
+          && hasReplayMemoryClosureEmbodimentExpressionProof(embodimentContinuityLedger)
+        )
+        || digestProvedLanes.includes(lane)
+      default:
+        return false
+    }
+  })
+
+  return {
+    turnId: input.turn.turnId,
+    memoryIdentityKey: memoryIdentityKeys[0] ?? null,
+    memoryIdentityKeys,
+    provedLanes,
+    missingLanes: replayMemoryClosureLongRunRequiredLanes.filter(lane => !provedLanes.includes(lane)),
+    continuityDigest,
+  }
+}
+
+function buildReplayMemoryClosureLongRunReport(input: {
+  turns: AlicizationReplayTurn[]
+  preparedTurns: AlicizationPreparedMainChatExecutionResult[]
+}): AlicizationReplayMemoryClosureLongRunReport {
+  const chronologicalTurns = input.turns
+    .map((turn, index) => ({
+      turn,
+      prepared: input.preparedTurns[index] ?? null,
+      index,
+    }))
+    .sort((left, right) => {
+      const leftCreatedAt = Number(left.turn.createdAt ?? 0)
+      const rightCreatedAt = Number(right.turn.createdAt ?? 0)
+      return leftCreatedAt - rightCreatedAt || left.index - right.index
+    })
+  const turnDiagnostics = chronologicalTurns.map(({ turn, prepared }) => buildReplayMemoryClosureLongRunTurnDiagnostic({
+    turn,
+    prepared,
+  }))
+  const keyCounts = new Map<string, number>()
+  for (const diagnostic of turnDiagnostics) {
+    for (const key of new Set(diagnostic.memoryIdentityKeys))
+      keyCounts.set(key, (keyCounts.get(key) ?? 0) + 1)
+  }
+  const dominantMemoryIdentityKeys = [...keyCounts.entries()]
+    .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+    .map(([key]) => key)
+  const dominantMemoryIdentityKey = dominantMemoryIdentityKeys[0] ?? null
+  const transitionBreaks: string[] = []
+  for (let index = 0; index < turnDiagnostics.length - 1; index += 1) {
+    const current = turnDiagnostics[index]
+    const next = turnDiagnostics[index + 1]
+    if (!current || !next)
+      continue
+    const hasSharedIdentity = current.memoryIdentityKeys.some(key => next.memoryIdentityKeys.includes(key))
+    if (!hasSharedIdentity)
+      transitionBreaks.push(`${current.turnId}->${next.turnId}`)
+  }
+  const stableMemoryIdentity = Boolean(dominantMemoryIdentityKey)
+    && turnDiagnostics.every(diagnostic => diagnostic.memoryIdentityKeys.includes(dominantMemoryIdentityKey))
+    && transitionBreaks.length === 0
+  const failureReasons = [
+    turnDiagnostics.length < replayMemoryClosureLongRunRequiredTurnCount
+      ? 'too-short-noisy-desktop-run'
+      : null,
+    turnDiagnostics.some(diagnostic => diagnostic.memoryIdentityKeys.length === 0)
+      ? 'missing-causal-memory-identity'
+      : null,
+    turnDiagnostics.some(diagnostic => diagnostic.missingLanes.length > 0)
+      ? 'missing-memory-closure-lanes'
+      : null,
+    !stableMemoryIdentity
+      ? 'missing-memory-identity-continuity'
+      : null,
+  ].filter((reason): reason is AlicizationReplayMemoryClosureLongRunFailureReason => Boolean(reason))
+
+  return {
+    status: failureReasons.length === 0 ? 'closed' : 'insufficient',
+    turnCount: turnDiagnostics.length,
+    requiredTurnCount: replayMemoryClosureLongRunRequiredTurnCount,
+    stableMemoryIdentity,
+    dominantMemoryIdentityKey,
+    dominantMemoryIdentityKeys,
+    transitionBreaks,
+    failureReasons,
+    turnDiagnostics,
+  }
 }
 
 function buildReplayBenchmarkSyntheticTracePointer(input: {
@@ -3121,6 +4452,7 @@ export function mergeReplayBenchmarkDatasetBacklog(input: {
       failingDimensions: [...failingTurn.failingDimensions],
       tracePointer,
       sampledCategories: [...(failingTurn.sampledCategories ?? [])],
+      continuityDigest: buildReplayBenchmarkDatasetContinuityDigest(turn),
       replayTurn: turn,
       createdAt: input.now,
     })
@@ -3182,19 +4514,74 @@ function parseReplayTurnFromDatasetBacklogEntry(raw: unknown): AlicizationReplay
   const sampledCategories = readStringArray(replayTurnRaw?.sampledCategories ?? entry.sampledCategories, 8, 64)
     .map(item => normalizeReplayBenchmarkSampleCategory(item))
     .filter(Boolean) as AlicizationReplayBenchmarkSampleCategory[]
+  const preludeRaw = asObject(replayTurnRaw?.prelude)
+  const preludeMessages = Array.isArray(preludeRaw?.messages)
+    ? preludeRaw.messages as Message[]
+    : [{ role: 'user', content: userText } as Message]
+  const parsedPrelude = preludeRaw
+    ? (() => {
+        const perceptionAugmentation = asObject(preludeRaw?.perceptionAugmentation)
+        const chatGovernance = asObject(perceptionAugmentation?.chatGovernance)
+        const basePrelude = createBasePrelude({
+          messages: preludeMessages,
+          governance: chatGovernance?.mindTurnGovernance as AlicizationMindTurnGovernance | null | undefined,
+        })
+        if (asObject(preludeRaw?.actionObligation))
+          basePrelude.actionObligation = preludeRaw.actionObligation as AlicizationPreparedMainChatPrelude['actionObligation']
+        if (asObject(preludeRaw?.chatConfig))
+          basePrelude.chatConfig = preludeRaw.chatConfig as AlicizationPreparedMainChatPrelude['chatConfig']
+        if (Array.isArray(preludeRaw?.messages))
+          basePrelude.messages = preludeRaw.messages as Message[]
+        if (asObject(preludeRaw?.executionCapabilityInquiry))
+          basePrelude.executionCapabilityInquiry = preludeRaw.executionCapabilityInquiry as AlicizationPreparedMainChatPrelude['executionCapabilityInquiry']
+        if (preludeRaw?.executionRoutingIntent === null || asObject(preludeRaw?.executionRoutingIntent))
+          basePrelude.executionRoutingIntent = (preludeRaw.executionRoutingIntent ?? null) as AlicizationPreparedMainChatPrelude['executionRoutingIntent']
 
-  const replayTurn: AlicizationReplayTurn = {
+        const perceptionAugmentationRaw = asObject(preludeRaw?.perceptionAugmentation)
+        if (perceptionAugmentationRaw) {
+          if (Array.isArray(perceptionAugmentationRaw.messages))
+            basePrelude.perceptionAugmentation.messages = perceptionAugmentationRaw.messages as Message[]
+          if (Array.isArray(perceptionAugmentationRaw.systemBlocks))
+            basePrelude.perceptionAugmentation.systemBlocks = perceptionAugmentationRaw.systemBlocks as string[]
+          if (Array.isArray(perceptionAugmentationRaw.promptSystemBlocks))
+            basePrelude.perceptionAugmentation.promptSystemBlocks = perceptionAugmentationRaw.promptSystemBlocks as string[]
+          if (typeof perceptionAugmentationRaw.memoryRecallSeed === 'string')
+            basePrelude.perceptionAugmentation.memoryRecallSeed = perceptionAugmentationRaw.memoryRecallSeed
+          if (perceptionAugmentationRaw.recallGovernor === null || asObject(perceptionAugmentationRaw.recallGovernor))
+            basePrelude.perceptionAugmentation.recallGovernor = (perceptionAugmentationRaw.recallGovernor ?? null) as AlicizationPreparedMainChatPrelude['perceptionAugmentation']['recallGovernor']
+          if (asObject(perceptionAugmentationRaw.capture))
+            basePrelude.perceptionAugmentation.capture = perceptionAugmentationRaw.capture as AlicizationPreparedMainChatPrelude['perceptionAugmentation']['capture']
+          if (asObject(perceptionAugmentationRaw.chatGovernance))
+            basePrelude.perceptionAugmentation.chatGovernance = perceptionAugmentationRaw.chatGovernance as AlicizationPreparedMainChatPrelude['perceptionAugmentation']['chatGovernance']
+          if (asObject(perceptionAugmentationRaw.digitalLifeRuntimeSurface))
+            basePrelude.perceptionAugmentation.digitalLifeRuntimeSurface = perceptionAugmentationRaw.digitalLifeRuntimeSurface as AlicizationPreparedMainChatPrelude['perceptionAugmentation']['digitalLifeRuntimeSurface']
+        }
+
+        return basePrelude
+      })()
+    : undefined
+
+  const createdAt = Math.max(0, Math.floor(readNumber(replayTurnRaw?.createdAt ?? entry.createdAt, 0)))
+  const continuityDigest = readString(entry.continuityDigest, 1_200) || null
+  const replayTurn: AlicizationReplayTurn & {
+    continuityDigest?: string | null
+  } = {
     turnId: readString(replayTurnRaw?.turnId, 160) || turnId,
     userText: readString(replayTurnRaw?.userText, 240) || userText,
+    createdAt,
+    ...(continuityDigest ? { continuityDigest } : {}),
     expectedMemory: readString(replayTurnRaw?.expectedMemory, 240) || undefined,
+    structured: asObject(replayTurnRaw?.structured)
+      ? replayTurnRaw?.structured as AlicizationReplayTurn['structured']
+      : undefined,
     categories: readStringArray(replayTurnRaw?.categories, 8, 64),
-    structured: normalizeReplayStructuredPayload(replayTurnRaw?.structured),
     visibleReplyRealization: asObject(replayTurnRaw?.visibleReplyRealization)
       ? replayTurnRaw?.visibleReplyRealization as AlicizationVisibleReplyRealizationArtifact
       : undefined,
     organicMemoryContext: asObject(replayTurnRaw?.organicMemoryContext)
       ? replayTurnRaw?.organicMemoryContext as OrganicMemoryPromptContext
       : undefined,
+    prelude: parsedPrelude,
     tracePointer,
     sampledCategories,
     gold: parseReplayGoldExpectation(replayTurnRaw?.gold),
@@ -3209,7 +4596,7 @@ function parseReplayTurnFromDatasetBacklogEntry(raw: unknown): AlicizationReplay
     tracePointer,
     sampledCategories,
     replayTurn,
-    createdAt: Math.max(0, Math.floor(readNumber(entry.createdAt, 0))),
+    createdAt,
   }
 }
 
@@ -3646,12 +5033,17 @@ export async function benchmarkMainChatSessionReplay(input: {
     turns: input.turns,
     preparedTurns: turns,
   })
+  const memoryClosureLongRun = buildReplayMemoryClosureLongRunReport({
+    turns: input.turns,
+    preparedTurns: turns,
+  })
   return {
     turns,
     quality,
     standards,
     gate,
     goldMetrics,
+    memoryClosureLongRun,
   }
 }
 

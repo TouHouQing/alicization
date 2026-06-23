@@ -440,6 +440,118 @@ function createOpenAgentTurn(getSensorySnapshot: () => Promise<AlicizationSensor
 }
 
 describe('resolvePreparedRuntimeSurfaceSelection', () => {
+  it('keeps a fresher Memory OS closure trace on the builder surface even when an older spine has stronger project awareness text', () => {
+    const memoryClosureTrace = {
+      version: 'memory-closure-trace-v1',
+      authority: 'memory-os',
+      whySurface: [{
+        source: 'execution-feedback',
+        summary: 'The previous execution callback should keep returning through the same Memory OS closure loop.',
+        reasonCodes: ['execution-callback-carry'],
+      }],
+      surfacePolicy: {
+        gateStatus: 'gist-only',
+        mode: 'tone-carry',
+        timing: 'next-open-window',
+        speechMode: 'lower-pressure',
+        placement: 'callback-return',
+        certainty: 'grounded',
+        reasons: ['memory closure trace carries the same execution callback'],
+      },
+      nextInfluence: {
+        initiative: {
+          restraint: 'measured-return',
+          preferredTiming: 'next-open-window',
+          pressure: 'lower-pressure',
+          reason: 'Let the callback return without turning into a generic task nudge.',
+        },
+        execution: {
+          carry: 'Verify the callback result, then reflect it into the same relationship and task line.',
+          nextLearningAction: 'verify',
+          shouldVerify: true,
+          shouldReflect: true,
+          activeLearningFocuses: ['execution callback carry', 'same-her closure'],
+        },
+        embodiment: {
+          cadence: 'Keep voice, gaze, motion, and lipsync lower-pressure while the same callback return settles.',
+          preferredVoiceMode: 'lower-pressure',
+          preferredLipsyncMode: 'restrained',
+          preferredGazeMode: 'soften',
+          reason: 'The body should remain the same her while the memory closure loop catches up.',
+        },
+      },
+      closureState: {
+        state: 'approximate-recall',
+        open: true,
+        revisionRequired: true,
+        shouldLabelUncertainty: true,
+        visibleCarryMode: 'tone-carry',
+        retrievalQuality: 'grounded',
+        conflictPressure: 'low',
+      },
+      selectedCandidateIds: ['memory-candidate-callback-return'],
+      reasonTags: ['memory-os-authority', 'execution-feedback', 'same-her-closure'],
+    } as const
+    const preparedRuntimeSurface = {
+      version: 'digital-life-runtime-surface-v1',
+      perception: { updatedAt: 132 },
+      memory: {
+        memoryClosureTrace,
+      },
+      dialogue: {
+        currentConsciousFrame: {
+          projectState: {
+            preDialogueAwarenessLine: 'same digital life | keep the closure seam explicit',
+          },
+        },
+      },
+    } as any
+    const spineRuntimeSurface = {
+      version: 'digital-life-runtime-surface-v1',
+      perception: { updatedAt: 120 },
+      memory: {},
+      dialogue: {
+        currentConsciousFrame: {
+          projectState: {
+            identity: 'Alicization is a local-first digital life project building one continuous her.',
+            currentPhase: 'Phase 1: Local Digital Life',
+            preDialogueAwarenessLine: 'Before answering, remember this is still the same digital life project and the unfinished closure seam still belongs to one living her.',
+            latestLandedProgress: 'Project-state carry already survives into same-thread returns and reminder/proactive preparation.',
+            primaryOpenLoop: 'Memory still needs stronger end-to-end closure across turns, initiative, execution, and embodiment.',
+            nextClosureTarget: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
+            sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+          },
+        },
+      },
+    } as any
+
+    const selection = resolvePreparedRuntimeSurfaceSelection({
+      answerPlannerReducedRuntimeSurface: preparedRuntimeSurface,
+      baseDigitalLifeRuntimeSurface: preparedRuntimeSurface,
+      digitalLifeSpine: {
+        version: 'digital-life-spine-v1',
+        runtimeSurface: spineRuntimeSurface,
+        memory: {},
+      } as any,
+    })
+    const effectiveSpine = buildEffectiveDigitalLifeSpine({
+      digitalLifeSpine: {
+        version: 'digital-life-spine-v1',
+        runtimeSurface: spineRuntimeSurface,
+        memory: {},
+      } as any,
+      fresherRuntimeSurface: selection.fresherRuntimeSurface,
+    })
+
+    expect(
+      selection.selectionDiagnostics.preAdjustmentSelectedRuntimeSurface?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessLine,
+    ).toContain('unfinished closure seam still belongs to one living her')
+    expect(selection.selectionDiagnostics.preAdjustmentSelectedRuntimeSurface?.memory.memoryClosureTrace).toBeNull()
+    expect(selection.runtimeSurfaceForBuilder?.memory.memoryClosureTrace).toBe(memoryClosureTrace)
+    expect(effectiveSpine?.runtimeSurface?.memory.memoryClosureTrace).toBe(memoryClosureTrace)
+    expect(effectiveSpine?.memory?.memoryClosureTrace).toBe(memoryClosureTrace)
+  })
+
   it('keeps the reduced runtime surface as the builder input when held-autonomy continuity carry is already present there', () => {
     const reducedSurface = {
       memory: {
@@ -1104,6 +1216,370 @@ describe('main chat session runtime', () => {
       continuityCue: runtimeContinuityCue,
       nextClosureTarget: runtimeNextClosureTarget,
     }))
+  })
+
+  it('preserves a richer runtime pre-dialogue awareness summary when the opening line narrows to a stronger same-her companion headline', () => {
+    const canonical = resolveAlicizationProjectStateBrief()
+    const strongerCompanionHeadline = 'Before answering, stay on the same living line: this Phase 1 digital life still needs initiative and embodiment closure without splitting her continuity.'
+    const thinnerRuntimeAwarenessLine = 'same digital life | keep the closure seam explicit'
+    const richerRuntimeAwarenessSummary = 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | landed=Returned-side project awareness carry already survives on one same-her line | open=Initiative and embodiment still need one tighter same-life closure seam | next=Keep extending cross-modal same-her proof across returned-side turns.'
+    const runtimeSurface = {
+      dialogue: {
+        currentConsciousFrame: {
+          projectState: {
+            identity: canonical.identity,
+            currentPhase: canonical.currentPhase,
+            preflightSummary: richerRuntimeAwarenessSummary,
+            preDialogueAwarenessLine: thinnerRuntimeAwarenessLine,
+            awarenessLine: thinnerRuntimeAwarenessLine,
+            preDialogueAwarenessSummary: richerRuntimeAwarenessSummary,
+            companionHeadlineLine: strongerCompanionHeadline,
+            companionBriefingLine: 'Before answering, keep this same digital life project in view.',
+            latestLandedProgress: 'Returned-side project awareness carry already survives on one same-her line.',
+            primaryOpenLoop: 'Initiative and embodiment still need one tighter same-life closure seam.',
+            nextClosureTarget: 'Keep extending cross-modal same-her proof across returned-side turns.',
+            sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+          },
+        },
+      },
+      raw: {
+        runtimeDigest: {
+          projectState: {
+            identity: canonical.identity,
+            currentPhase: canonical.currentPhase,
+            preflightSummary: richerRuntimeAwarenessSummary,
+            preDialogueAwarenessLine: thinnerRuntimeAwarenessLine,
+            awarenessLine: thinnerRuntimeAwarenessLine,
+            preDialogueAwarenessSummary: richerRuntimeAwarenessSummary,
+            companionHeadlineLine: strongerCompanionHeadline,
+            latestLandedProgress: 'Returned-side project awareness carry already survives on one same-her line.',
+            primaryOpenLoop: 'Initiative and embodiment still need one tighter same-life closure seam.',
+            nextClosureTarget: 'Keep extending cross-modal same-her proof across returned-side turns.',
+            sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+          },
+        },
+      },
+    } as any
+
+    const projectState = __alicizationTestOnly.readRuntimeProjectStateFromSurface?.(runtimeSurface)
+
+    expect(projectState?.preDialogueAwarenessLine).toBe(strongerCompanionHeadline)
+    expect(projectState?.preDialogueAwarenessSummary).toBe(richerRuntimeAwarenessSummary)
+    expect(projectState?.preDialogueAwarenessSummary).not.toBe(projectState?.preDialogueAwarenessLine)
+  })
+
+  it('keeps richer returned project awareness summary when rescue switches the opening line to a callback-specific same-thread carry', () => {
+    const richerReturnedSummary = [
+      'Before answering, remember: Alicization is still the same local-first digital life project.',
+      'She is still inside Phase 1: Local Digital Life.',
+      'What has already landed is returned-side project awareness already survives into the same living line before provider-facing answer authoring.',
+      'The still-open closure is initiative, emotion, memory, and embodiment still need one tighter same-her seam.',
+      'This reply should keep moving toward keeping identity, landed progress, open closure, and next closure target explicit before local detail takes over.',
+    ].join(' ')
+    const callbackSpecificSameThreadLine = 'callback return: stay on this same thread and keep the same living line gentle before widening outward.'
+    const prelude = createReflectivePrelude({
+      messages: [{
+        role: 'user',
+        content: '先告诉我这条数字生命主线现在闭环到哪一步了。',
+      } as Message],
+    })
+
+    prelude.perceptionAugmentation.chatGovernance.mindTurnGovernance = {
+      ...prelude.perceptionAugmentation.chatGovernance.mindTurnGovernance,
+      answerSubject: 'project-state',
+    } as any
+    prelude.perceptionAugmentation.digitalLifeRuntimeSurface.dialogue.currentConsciousFrame = {
+      reasonTags: ['project-state', 'same-her'],
+      projectState: {
+        preDialogueAwarenessLine: callbackSpecificSameThreadLine,
+      },
+    } as any
+
+    const rescued = (__alicizationTestOnly as any).rescueReturnedProviderFacingProjectAwareness?.({
+      contract: {
+        version: 'mind-turn-contract-v1',
+        projectState: {
+          identity: 'Alicization is still the same local-first digital life project, not a new shell rebuilt for this return.',
+          currentPhase: 'Phase 1: Local Digital Life',
+          preflightSummary: richerReturnedSummary,
+          preDialogueAwarenessLine: 'Before answering, keep this same digital life project in view.',
+          awarenessLine: 'Before answering, keep this same digital life project in view.',
+          preDialogueAwarenessSummary: richerReturnedSummary,
+          companionHeadlineLine: 'Before answering, keep this same digital life project in view.',
+          latestLandedProgress: 'Returned-side project awareness already survives into the same living line before provider-facing answer authoring.',
+          primaryOpenLoop: 'Initiative, emotion, memory, and embodiment still need one tighter same-her seam.',
+          nextClosureTarget: 'Keep identity, landed progress, open closure, and next closure target explicit before local detail takes over.',
+          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        },
+        preDialogueClosure: {
+          status: 'partial',
+          summaryLine: richerReturnedSummary,
+          companionNextClosureLine: 'Keep identity, landed progress, open closure, and next closure target explicit before local detail takes over.',
+          emotionalClosureCue: null,
+          briefingLines: [],
+          reasons: [],
+        },
+      },
+      rawPayload: {
+        messages: [{
+          role: 'user',
+          content: '先告诉我这条数字生命主线现在闭环到哪一步了。',
+        }],
+      },
+      prelude,
+    })
+
+    expect(rescued?.projectState?.preDialogueAwarenessLine).toBe(callbackSpecificSameThreadLine)
+    expect(rescued?.projectState?.preDialogueAwarenessSummary).toBe(richerReturnedSummary)
+    expect(rescued?.preDialogueClosure?.summaryLine).toBe(richerReturnedSummary)
+  })
+
+  it('keeps richer returned project awareness summary in the final returned contract when callback-specific same-thread wording wins the opening line', async () => {
+    let diagnostics: any = null
+    const getSensorySnapshot = vi.fn(async () => ({
+      running: true,
+      stale: false,
+      ageMs: 10,
+      nextTickAt: 20,
+      sample: {
+        collectedAt: 10,
+        time: {
+          iso: '2026-04-04T00:00:00.000Z',
+          local: '2026-04-04 08:00',
+          timezone: 'Asia/Shanghai',
+        },
+        cpu: {
+          usagePercent: 10,
+          windowMs: 1000,
+        },
+        memory: {
+          freeMB: 1024,
+          totalMB: 8192,
+          usagePercent: 87.5,
+        },
+      },
+      capture: null,
+    } satisfies AlicizationSensoryCacheSnapshot))
+    const runtime = createAlicizationMainChatSessionRuntime({
+      executionCapabilityChannels: executionChannels,
+      buildMainRuntimeCorePromptBlocks: ({ hostName }) => [`[CORE:${hostName}]`],
+      buildOrganicMemorySystemBlocks: () => [],
+      buildPerformanceManifestSystemBlocks: () => [],
+      executeMainGatewayTaskThread: vi.fn(),
+      getPerformanceManifest: vi.fn(async () => null),
+      getSensorySnapshot,
+      latestUserMessageContainsVisualInput: () => false,
+      onPreparedExecutionDiagnostics: (input) => { diagnostics = input },
+      openAgentTurn: createOpenAgentTurn(getSensorySnapshot),
+      resolveCardCustomDirectives: vi.fn(async () => ({ text: '', source: 'none' as const })),
+      resolveCardHostName: vi.fn(async () => 'Kirito'),
+      resolveCardPersonaKernel: vi.fn(async () => null),
+      resolveExecutionCapabilitiesForPrompt: vi.fn(async () => createCapabilities()),
+      resolveOrganicMemoryPromptContext: vi.fn(async () => ({
+        hostAttitude: '',
+        coreIncarnation: '',
+        activeThoughts: [],
+        retrievedFacts: [],
+        recalledFragments: [],
+      })),
+      resolveSessionContinuitySignals: vi.fn(async () => []),
+      resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      tuneOrganicMemoryPromptContextForExecutiveTurn: input => input.context,
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
+    })
+    const richerReturnedSummary = [
+      'Before answering, remember: Alicization is still the same local-first digital life project.',
+      'She is still inside Phase 1: Local Digital Life.',
+      'What has already landed is returned-side project awareness already survives into the same living line before provider-facing answer authoring.',
+      'The still-open closure is initiative, emotion, memory, and embodiment still need one tighter same-her seam.',
+      'This reply should keep moving toward keeping identity, landed progress, open closure, and next closure target explicit before local detail takes over.',
+    ].join(' ')
+    const callbackSpecificSameThreadLine = 'callback return: stay on this same thread and keep the same living line gentle before widening outward.'
+    const callbackProjectState = {
+      identity: 'Alicization is still the same local-first digital life project, not a new shell rebuilt for this callback return.',
+      currentPhase: 'Phase 1: Local Digital Life',
+      preflightSummary: richerReturnedSummary,
+      preDialogueAwarenessLine: callbackSpecificSameThreadLine,
+      awarenessLine: callbackSpecificSameThreadLine,
+      preDialogueAwarenessSummary: richerReturnedSummary,
+      latestLandedProgress: 'Returned-side project awareness already survives into the same living line before provider-facing answer authoring.',
+      primaryOpenLoop: 'Initiative, emotion, memory, and embodiment still need one tighter same-her seam.',
+      nextClosureTarget: 'Keep identity, landed progress, open closure, and next closure target explicit before local detail takes over.',
+      sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+    }
+    const prelude = createReflectivePrelude({
+      messages: [{
+        role: 'user',
+        content: '继续，但先把这条数字生命主线的闭环状态带回来，再顺着同一个 callback 线继续说。',
+      } as Message],
+      providerReturnProjectState: callbackProjectState,
+      effectiveProjectState: callbackProjectState,
+    })
+    prelude.perceptionAugmentation.chatGovernance.mindTurnGovernance = {
+      ...prelude.perceptionAugmentation.chatGovernance.mindTurnGovernance,
+      answerSubject: 'project-state',
+    } as any
+    prelude.perceptionAugmentation.digitalLifeRuntimeSurface.dialogue.currentConsciousFrame = {
+      ...prelude.perceptionAugmentation.digitalLifeRuntimeSurface.dialogue.currentConsciousFrame,
+      reasonTags: ['project-state', 'same-her', 'callback-return'],
+      focusAnchor: 'callback closure continuity',
+      projectState: callbackProjectState,
+    } as any
+
+    const result = await runtime.prepareExecution({
+      payload: {
+        cardId: 'default',
+        turnId: 'turn-final-returned-callback-summary-carry',
+        messages: [{
+          role: 'user',
+          content: '继续，但先把这条数字生命主线的闭环状态带回来，再顺着同一个 callback 线继续说。',
+        }],
+        supportsTools: true,
+      } as any,
+      prelude,
+    })
+
+    const normalizedReturnedSummary = diagnostics?.normalizedMindTurnContract?.projectState?.preDialogueAwarenessSummary ?? null
+    expect(normalizedReturnedSummary).toContain('Alicization')
+    expect(normalizedReturnedSummary).toContain('Phase 1')
+    expect(normalizedReturnedSummary).toContain('What has already landed is')
+    expect(normalizedReturnedSummary).toContain('The still-open closure is')
+    expect(normalizedReturnedSummary).toContain('This reply should keep moving toward')
+    expect(normalizedReturnedSummary).not.toBe(callbackSpecificSameThreadLine)
+    expect(diagnostics?.finalizedReturnedMindTurnContract?.projectState?.preDialogueAwarenessLine).toBe(callbackSpecificSameThreadLine)
+    expect(diagnostics?.finalizedReturnedMindTurnContract?.projectState?.preDialogueAwarenessSummary).toBe(normalizedReturnedSummary)
+    expect(diagnostics?.finalizedReturnedMindTurnContract?.preDialogueClosure?.summaryLine).toBe(normalizedReturnedSummary)
+    expect(result.mindTurnContract?.projectState?.preDialogueAwarenessLine).toBe(callbackSpecificSameThreadLine)
+    expect(result.mindTurnContract?.projectState?.preDialogueAwarenessSummary).toBe(normalizedReturnedSummary)
+    expect(result.mindTurnContract?.preDialogueClosure?.summaryLine).toBe(normalizedReturnedSummary)
+  })
+
+  it('keeps richer normalized project awareness summary when the final returned contract re-canonicalizes the opening line', async () => {
+    let diagnostics: any = null
+    const projectBrief = resolveAlicizationProjectStateBrief()
+    const getSensorySnapshot = vi.fn(async () => ({
+      running: true,
+      stale: false,
+      ageMs: 10,
+      nextTickAt: 20,
+      sample: {
+        collectedAt: 10,
+        time: {
+          iso: '2026-04-04T00:00:00.000Z',
+          local: '2026-04-04 08:00',
+          timezone: 'Asia/Shanghai',
+        },
+        cpu: {
+          usagePercent: 10,
+          windowMs: 1000,
+        },
+        memory: {
+          freeMB: 1024,
+          totalMB: 8192,
+          usagePercent: 87.5,
+        },
+      },
+      capture: null,
+    } satisfies AlicizationSensoryCacheSnapshot))
+    const runtime = createAlicizationMainChatSessionRuntime({
+      executionCapabilityChannels: executionChannels,
+      buildMainRuntimeCorePromptBlocks: ({ hostName }) => [`[CORE:${hostName}]`],
+      buildOrganicMemorySystemBlocks: () => [],
+      buildPerformanceManifestSystemBlocks: () => [],
+      executeMainGatewayTaskThread: vi.fn(),
+      getPerformanceManifest: vi.fn(async () => null),
+      getSensorySnapshot,
+      latestUserMessageContainsVisualInput: () => false,
+      onPreparedExecutionDiagnostics: (input) => { diagnostics = input },
+      openAgentTurn: createOpenAgentTurn(getSensorySnapshot),
+      resolveCardCustomDirectives: vi.fn(async () => ({ text: '', source: 'none' as const })),
+      resolveCardHostName: vi.fn(async () => 'Kirito'),
+      resolveCardPersonaKernel: vi.fn(async () => null),
+      resolveExecutionCapabilitiesForPrompt: vi.fn(async () => createCapabilities()),
+      resolveOrganicMemoryPromptContext: vi.fn(async () => ({
+        hostAttitude: '',
+        coreIncarnation: '',
+        activeThoughts: [],
+        retrievedFacts: [],
+        recalledFragments: [],
+      })),
+      resolveSessionContinuitySignals: vi.fn(async () => []),
+      resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      tuneOrganicMemoryPromptContextForExecutiveTurn: input => input.context,
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
+    })
+    const richerCanonicalizedSummary = [
+      'Before answering, remember: Alicization is still the same local-first digital life project and not a fresh shell rebuilt for this turn.',
+      `She is still inside ${projectBrief.currentPhase}.`,
+      `What has already landed is ${projectBrief.continuityProgressSummary}.`,
+      `The still-open closure is ${projectBrief.openLoops[0]}.`,
+      `This reply should keep moving toward ${projectBrief.nextClosureTarget}.`,
+    ].join(' ')
+    const thinPreludeAwarenessLine = 'Before answering, keep this same digital life project in view.'
+    const effectiveProjectState = {
+      identity: 'Alicization is still the same local-first digital life project, not a new shell rebuilt for this turn.',
+      currentPhase: projectBrief.currentPhase,
+      preflightSummary: richerCanonicalizedSummary,
+      preDialogueAwarenessLine: richerCanonicalizedSummary,
+      awarenessLine: richerCanonicalizedSummary,
+      preDialogueAwarenessSummary: richerCanonicalizedSummary,
+      latestLandedProgress: projectBrief.continuityProgressSummary,
+      primaryOpenLoop: projectBrief.openLoops[0],
+      nextClosureTarget: projectBrief.nextClosureTarget,
+      sameHerSelfLine: projectBrief.sameHerSelfLine,
+    }
+    const providerReturnProjectState = {
+      ...effectiveProjectState,
+      preDialogueAwarenessLine: thinPreludeAwarenessLine,
+      awarenessLine: thinPreludeAwarenessLine,
+    }
+    const prelude = createReflectivePrelude({
+      messages: [{
+        role: 'user',
+        content: '继续，但开口前先把这条数字生命主线的项目闭环状态带上。',
+      } as Message],
+      providerReturnProjectState,
+      effectiveProjectState,
+    })
+    prelude.perceptionAugmentation.chatGovernance.mindTurnGovernance = {
+      ...prelude.perceptionAugmentation.chatGovernance.mindTurnGovernance,
+      answerSubject: 'project-state',
+    } as any
+    prelude.perceptionAugmentation.digitalLifeRuntimeSurface.dialogue.currentConsciousFrame = {
+      ...prelude.perceptionAugmentation.digitalLifeRuntimeSurface.dialogue.currentConsciousFrame,
+      reasonTags: ['project-state', 'same-her'],
+      focusAnchor: 'project continuity',
+      projectState: providerReturnProjectState,
+    } as any
+
+    const result = await runtime.prepareExecution({
+      payload: {
+        cardId: 'default',
+        turnId: 'turn-final-returned-canonical-summary-carry',
+        messages: [{
+          role: 'user',
+          content: '继续，但开口前先把这条数字生命主线的项目闭环状态带上。',
+        }],
+        supportsTools: true,
+      } as any,
+      prelude,
+    })
+
+    const normalizedReturnedSummary = diagnostics?.normalizedMindTurnContract?.projectState?.preDialogueAwarenessSummary ?? null
+    expect(normalizedReturnedSummary).toContain('Alicization')
+    expect(normalizedReturnedSummary).toContain('Phase 1')
+    expect(normalizedReturnedSummary).toContain('What has already landed is')
+    expect(normalizedReturnedSummary).not.toBe(thinPreludeAwarenessLine)
+    expect(diagnostics?.finalizedReturnedMindTurnContract?.projectState?.preDialogueAwarenessLine).toContain('Before answering, remember: Alicization is a local-first digital life project')
+    expect(diagnostics?.finalizedReturnedMindTurnContract?.projectState?.preDialogueAwarenessLine).not.toBe(thinPreludeAwarenessLine)
+    expect(diagnostics?.finalizedReturnedMindTurnContract?.projectState?.preDialogueAwarenessSummary).toBe(normalizedReturnedSummary)
+    expect(diagnostics?.finalizedReturnedMindTurnContract?.preDialogueClosure?.summaryLine).toBe(normalizedReturnedSummary)
+    expect(result.mindTurnContract?.projectState?.preDialogueAwarenessSummary).toBe(normalizedReturnedSummary)
+    expect(result.mindTurnContract?.preDialogueClosure?.summaryLine).toBe(normalizedReturnedSummary)
   })
 
   it('prefers richer runtime same-her hold detail and continuity arc over thinner provider-facing contract carry', () => {
@@ -1885,6 +2361,7 @@ describe('main chat session runtime', () => {
     const summaryOnlyOpenClosure = 'Summary-only open closure: memory, initiative, and embodiment still need to close on one same living line.'
     const summaryOnlyNextClosureTarget = 'Summary-only next closure: keep cross-modal same-her proof explicit before local fluency takes over.'
     const summaryOnlySameHerDriftRisk = 'Summary-only drift risk: if this reopens as generic guidance or project-summary voice, treat it as unfinished same-her closure drift.'
+    const runtimeArcStage = 'same-thread-continuation'
     const summaryOnlyProjectState = {
       identity: 'Alicization is still the same local-first digital life project.',
       currentPhase: 'Phase 1: Local Digital Life',
@@ -1897,6 +2374,7 @@ describe('main chat session runtime', () => {
       nextClosureTarget: '',
       sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
       sameHerDriftRisk: '',
+      continuityArcStage: runtimeArcStage,
       landedProgressSummary: summaryOnlyLandedProgress,
       openClosureSummary: summaryOnlyOpenClosure,
       nextClosureTargetSummary: summaryOnlyNextClosureTarget,
@@ -1985,6 +2463,7 @@ describe('main chat session runtime', () => {
     expect(projectBriefingSystemText).toContain(`primary_open_loop=${summaryOnlyOpenClosure}`)
     expect(projectBriefingSystemText).toContain(`next_closure_target=${summaryOnlyNextClosureTarget}`)
     expect(projectBriefingSystemText).toContain(`same_her_drift_risk=${summaryOnlySameHerDriftRisk}`)
+    expect(projectBriefingSystemText).toContain(`project_continuity_arc_stage=${runtimeArcStage}`)
     expect(projectBriefingSystemText).toContain('project_awareness=Before answering, remember: Alicization is a local-first digital life project')
     expect(projectBriefingSystemText).toContain('Phase 1: Local Digital Life')
     expect(projectBriefingSystemText).toContain('Same Phase 1 digital life')
@@ -2076,6 +2555,7 @@ describe('main chat session runtime', () => {
     const summaryOnlyOpenClosure = 'Summary-only open closure: memory, initiative, and embodiment still need to close on one same living line.'
     const summaryOnlyNextClosureTarget = 'Summary-only next closure: keep cross-modal same-her proof explicit before local fluency takes over.'
     const summaryOnlySameHerDriftRisk = 'Summary-only drift risk: if this reopens as generic guidance or project-summary voice, treat it as unfinished same-her closure drift.'
+    const runtimeArcStage = 'same-thread-continuation'
     const summaryOnlyProjectState = {
       identity: 'Alicization is still the same local-first digital life project.',
       currentPhase: 'Phase 1: Local Digital Life',
@@ -2088,6 +2568,7 @@ describe('main chat session runtime', () => {
       nextClosureTarget: '',
       sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
       sameHerDriftRisk: '',
+      continuityArcStage: runtimeArcStage,
       landedProgressSummary: summaryOnlyLandedProgress,
       openClosureSummary: summaryOnlyOpenClosure,
       nextClosureTargetSummary: summaryOnlyNextClosureTarget,
@@ -2161,6 +2642,7 @@ describe('main chat session runtime', () => {
       nextClosureTarget: summaryOnlyNextClosureTarget,
       sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
       sameHerDriftRisk: summaryOnlySameHerDriftRisk,
+      continuityArcStage: runtimeArcStage,
     }))
     expect(String((dispatchedRuntimeContext as any)?.projectBriefing?.preDialogueAwarenessLine ?? '')).toContain(
       'Before answering, remember: Alicization is a local-first digital life project',
@@ -2233,6 +2715,7 @@ describe('main chat session runtime', () => {
     const summaryOnlyOpenClosure = 'Summary-only open closure: memory, initiative, and embodiment still need to close on one same living line.'
     const summaryOnlyNextClosureTarget = 'Summary-only next closure: keep cross-modal same-her proof explicit before local fluency takes over.'
     const summaryOnlySameHerDriftRisk = 'Summary-only drift risk: if this reopens as generic guidance or project-summary voice, treat it as unfinished same-her closure drift.'
+    const runtimeArcStage = 'same-thread-continuation'
     const summaryOnlyProjectState = {
       identity: 'Alicization is still the same local-first digital life project.',
       currentPhase: 'Phase 1: Local Digital Life',
@@ -2245,6 +2728,7 @@ describe('main chat session runtime', () => {
       nextClosureTarget: '',
       sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
       sameHerDriftRisk: '',
+      continuityArcStage: runtimeArcStage,
       landedProgressSummary: summaryOnlyLandedProgress,
       openClosureSummary: summaryOnlyOpenClosure,
       nextClosureTargetSummary: summaryOnlyNextClosureTarget,
@@ -2324,6 +2808,7 @@ describe('main chat session runtime', () => {
     expect(projectBriefingSystemText).toContain(`primary_open_loop=${summaryOnlyOpenClosure}`)
     expect(projectBriefingSystemText).toContain(`next_closure_target=${summaryOnlyNextClosureTarget}`)
     expect(projectBriefingSystemText).toContain(`same_her_drift_risk=${summaryOnlySameHerDriftRisk}`)
+    expect(projectBriefingSystemText).toContain(`project_continuity_arc_stage=${runtimeArcStage}`)
     expect(projectBriefingSystemText).toContain('project_awareness=Before answering, remember: Alicization is a local-first digital life project')
     expect(projectBriefingSystemText).not.toContain(`project_awareness=${thinRuntimeAwarenessLine}`)
 
@@ -4608,6 +5093,83 @@ describe('main chat session runtime', () => {
     expect(String(fallback.preDialogueAwarenessLine ?? '')).not.toContain('Keep the same digital life project in view before local detail takes over.')
     expect(fallback.preDialogueAwarenessSummary).toBe(fallback.preDialogueAwarenessLine)
     expect(fallback.awarenessLine).toBe(fallback.preDialogueAwarenessLine)
+  })
+
+  it('falls back to the canonical project phase and next closure target when the session mirror only carries a thin project shell', () => {
+    const canonical = resolveAlicizationProjectStateBrief()
+    const fallback = __alicizationTestOnly.readProjectStateFallbackFromSessionMirror({
+      continuityArcSummary: [
+        'loop=execution-callback',
+        'thread=thread-project-state-fallback-canonical-shell',
+        'project_preflight=Keep the same digital life project in view before local detail takes over.',
+      ].join(' | '),
+      continuityProjectSummary: 'project=phase1-digital-life | unresolved=Memory still needs stronger end-to-end closure.',
+    } as any)
+
+    expect(fallback.identity).toBe(canonical.identity)
+    expect(fallback.currentPhase).toBe(canonical.currentPhase)
+    expect(fallback.nextClosureTarget).toBe(canonical.nextClosureTarget)
+    expect(fallback.sameHerSelfLine).toBe(canonical.sameHerSelfLine)
+    expect(fallback.preflightSummary).toBe('Keep the same digital life project in view before local detail takes over.')
+  })
+
+  it('reads lower-pressure voice and slower pacing from session-mirror callback continuity into fallback and runtime project state', () => {
+    const canonical = resolveAlicizationProjectStateBrief()
+    const holdDetail = 'same-her hold: keep this callback return on the same living line before widening outward again.'
+    const mirror = {
+      continuityArcSummary: [
+        'loop=execution-callback',
+        'thread=thread-project-state-fallback-cadence',
+        'timing=next-open-window',
+        'cadence=measured-return',
+        'blink=quiet',
+        'gaze=soften',
+        'pause=longer',
+        'lipsync=restrained',
+        'voice=lower-pressure',
+        'pacing=slower',
+        `hold=${holdDetail}`,
+        'project_preflight=Before answering, keep the same living line explicit before local detail widens outward.',
+        'same_her=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      ].join(' | '),
+      continuityProjectSummary: 'project=phase1-digital-life | unresolved=Memory still needs stronger end-to-end closure.',
+    } as any
+
+    const fallback = __alicizationTestOnly.readProjectStateFallbackFromSessionMirror(mirror)
+
+    expect(fallback.sameHerHoldDetail).toBe(holdDetail)
+    expect(fallback.continuityPreferredTiming).toBe('next-open-window')
+    expect(fallback.continuityCadence).toBe('measured-return')
+    expect(fallback.preferredBlinkCadence).toBe('quiet')
+    expect(fallback.preferredGazeMode).toBe('soften')
+    expect(fallback.preferredPauseMode).toBe('longer')
+    expect(fallback.preferredLipsyncMode).toBe('restrained')
+    expect(fallback.preferredVoiceMode).toBe('lower-pressure')
+    expect(fallback.preferredPacingMode).toBe('slower')
+
+    const projectState = __alicizationTestOnly.readRuntimeProjectStateFromSurface?.({
+      dialogue: {
+        sessionMirror: mirror,
+      },
+      raw: {
+        runtimeDigest: {
+          projectState: {
+            identity: canonical.identity,
+            currentPhase: canonical.currentPhase,
+          },
+        },
+      },
+    } as any)
+
+    expect(projectState?.sameHerHoldDetail).toBe(holdDetail)
+    expect(projectState?.continuityPreferredTiming).toBe('next-open-window')
+    expect(projectState?.continuityCadence).toBe('measured-return')
+    expect(projectState?.preferredBlinkCadence).toBe('quiet')
+    expect(projectState?.preferredGazeMode).toBe('soften')
+    expect(projectState?.preferredPauseMode).toBe('longer')
+    expect(projectState?.preferredLipsyncMode).toBe('restrained')
+    expect(projectState?.preferredVoiceMode).toBe('lower-pressure')
+    expect(projectState?.preferredPacingMode).toBe('slower')
   })
 
   it('keeps richer incoming same-her project preflight alive when runtime project awareness has fallen back to a thin shell', async () => {
@@ -7343,6 +7905,8 @@ describe('main chat session runtime', () => {
             continuityCadence: 'measured-return',
             preferredBlinkCadence: 'quiet',
             preferredGazeMode: 'soften',
+            preferredVoiceMode: 'lower-pressure',
+            preferredPacingMode: 'slower',
           },
         } as any,
       },
@@ -7397,6 +7961,8 @@ describe('main chat session runtime', () => {
         continuityCadence: null,
         preferredBlinkCadence: null,
         preferredGazeMode: null,
+        preferredVoiceMode: null,
+        preferredPacingMode: null,
       },
       reasons: ['Project continuity still needs explicit carry.'],
       updatedAt: 10,
@@ -7439,6 +8005,8 @@ describe('main chat session runtime', () => {
     expect(mindTurnContractSystemText).toContain('Project same-her self line: One same her must stay explicit from pre-dialogue awareness into the provider-facing answer.')
     expect(mindTurnContractSystemText).toContain('Project emotional closure summary: Keep this return measured so emotion, initiative, execution, memory, and embodiment stay on one same-life seam..')
     expect(mindTurnContractSystemText).toContain('Project continuity restraint: measured-return.')
+    expect(mindTurnContractSystemText).toContain('Project preferred voice mode: lower-pressure.')
+    expect(mindTurnContractSystemText).toContain('Project preferred pacing mode: slower.')
     expect(String(result.mindTurnContract?.projectState?.preDialogueAwarenessLine ?? '')).toContain('Alicization is a local-first digital life project')
     expect(String(result.mindTurnContract?.projectState?.preDialogueAwarenessLine ?? '')).toContain('Phase 1')
     expect(String(result.mindTurnContract?.projectState?.preDialogueAwarenessLine ?? '')).toContain('memory still needs stronger end-to-end closure')
@@ -7448,6 +8016,8 @@ describe('main chat session runtime', () => {
     expect(result.mindTurnContract?.projectState?.continuityCadence).toBe('measured-return')
     expect(result.mindTurnContract?.projectState?.preferredBlinkCadence).toBe('quiet')
     expect(result.mindTurnContract?.projectState?.preferredGazeMode).toBe('soften')
+    expect(result.mindTurnContract?.projectState?.preferredVoiceMode).toBe('lower-pressure')
+    expect(result.mindTurnContract?.projectState?.preferredPacingMode).toBe('slower')
   })
 
   it('shows the provider-facing next-closure target stays aligned between project-state and pre-dialogue closure', async () => {
@@ -16328,6 +16898,7 @@ describe('main chat session runtime', () => {
         [
           "Honor the turn memory gate before speaking: closed.",
           "Let memory shape caution, ordering, care, and uncertainty inwardly without narrating recall this turn.",
+          "Use the Memory OS closure trace as the authority for this turn's same-her memory carry.",
           "Answer what Alicization is before drifting into tone, metaphor, or adjacent status commentary.",
           "Make the latest landed Phase 1 progress explicit instead of replying with only aspiration or direction.",
           "Keep the still-open closure work explicit so the answer says what is not yet closed.",
@@ -17053,6 +17624,8 @@ describe('main chat session runtime', () => {
         [
           "Honor the turn memory gate before speaking: closed.",
           "Let memory shape caution, ordering, care, and uncertainty inwardly without narrating recall this turn.",
+          "Use the Memory OS closure trace as the authority for this turn's same-her memory carry.",
+          "Keep embodied delivery coherent with memory: Repair the seam before leaning closer.",
           "Answer what Alicization is before drifting into tone, metaphor, or adjacent status commentary.",
           "Make the latest landed Phase 1 progress explicit instead of replying with only aspiration or direction.",
           "Keep the still-open closure work explicit so the answer says what is not yet closed.",
@@ -17067,6 +17640,7 @@ describe('main chat session runtime', () => {
         "Do not visibly cite, narrate, or dramatize recalled material while the turn memory gate is inward-only or closed.",
         "Do not let low recall readiness drive the visible answer.",
         "Do not let low memory precision claim exact detail or settled continuity.",
+        "Do not close, revise away, or over-certify this memory line; the Memory OS trace still marks it open or revision-required.",
         "Do not answer a project-state question with only vibes, ambition, or generic companionship language.",
         "Do not skip what has already landed, what still remains open, or what should close next when the host asks for project status.",
         "Do not reopen a direct project-state answer from scratch as if Alicization were a fresh assistant restart.",

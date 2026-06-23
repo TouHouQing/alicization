@@ -33,7 +33,6 @@ import type {
   AlicizationExecutionCallbackContext,
   AlicizationExecutionCallbackDigest,
 } from './execution-callback-runtime'
-import type { AlicizationExecutionPayoffStructured } from './execution-delivery-surface'
 import type { AlicizationMainChatActionObligation } from './main-chat-action-obligation'
 import type { AlicizationMainChatExecutionReplyObligation } from './main-chat-execution-reply-obligation'
 import type {
@@ -184,9 +183,6 @@ export interface AlicizationPreparedMainChatExecutionResult extends PreparedMain
   freshExecutionReplyCallback?: AlicizationExecutionCallbackDigest | null
   getSessionTrace: () => AlicizationRuntimeCallChainSnapshot
   mindTurnContract: AlicizationMindTurnContractSnapshot | null
-  runtimeDigest?: AlicizationRuntimeDigest | null
-  executionToolInputOverrides?: Record<string, Record<string, unknown>>
-  executionPayoffStructuredReply?: AlicizationExecutionPayoffStructured | Record<string, unknown> | null
   organicMemoryContext?: OrganicMemoryPromptContext
   memoryTurnArtifact?: ReturnType<typeof buildAlicizationMemoryTurnArtifact>
   memoryOsRuntime?: AlicizationMemoryOsTurnRuntimeArtifact
@@ -211,6 +207,34 @@ interface PreparedRuntimeSurfaceChainDiagnostics {
 }
 
 type ProviderFacingProjectState = NonNullable<AlicizationMindTurnContractSnapshot['projectState']>
+interface SessionMirrorProjectStateFallback {
+  identity: string
+  currentPhase: string | null
+  preflightSummary: string | null
+  preDialogueAwarenessLine: string | null
+  preDialogueAwarenessSummary: string | null
+  awarenessLine: string | null
+  latestLandedProgress: string | null
+  primaryOpenLoop: string | null
+  openFocusSummary: string | null
+  nextClosureTarget: string | null
+  nextFocusSummary: string | null
+  sameHerSelfLine: string | null
+  sameHerDriftRisk: string | null
+  sameHerHoldDetail: string | null
+  emotionalClosureSummary: string | null
+  continuityRestraint: ProviderFacingProjectState['continuityRestraint']
+  continuityArcStage: string | null
+  continuityCue: string | null
+  continuityPreferredTiming: ProviderFacingProjectState['continuityPreferredTiming']
+  continuityCadence: string | null
+  preferredBlinkCadence: ProviderFacingProjectState['preferredBlinkCadence']
+  preferredGazeMode: ProviderFacingProjectState['preferredGazeMode']
+  preferredPauseMode: ProviderFacingProjectState['preferredPauseMode']
+  preferredLipsyncMode: ProviderFacingProjectState['preferredLipsyncMode']
+  preferredVoiceMode: ProviderFacingProjectState['preferredVoiceMode']
+  preferredPacingMode: ProviderFacingProjectState['preferredPacingMode']
+}
 type RuntimeSurfaceProjectState = NonNullable<NonNullable<AlicizationDigitalLifeRuntimeSurface['dialogue']['currentConsciousFrame']>['projectState']>
 type RuntimeDigestProjectState = NonNullable<AlicizationRuntimeDigest['projectState']>
 
@@ -557,7 +581,13 @@ function writeProjectStateAwarenessFields(
     ...projectState,
     preDialogueAwarenessLine: awarenessLine,
     awarenessLine,
-    preDialogueAwarenessSummary: awarenessLine,
+    preDialogueAwarenessSummary: preferProjectAwarenessSummary({
+      awarenessLine,
+      summaryCandidates: [
+        projectState.preDialogueAwarenessSummary,
+      ],
+      maxChars: projectAwarenessFieldMaxChars,
+    }) ?? awarenessLine,
     companionHeadlineLine:
       companionHeadlineLine
       ?? normalizePreparedExecutionText(projectState.companionHeadlineLine, projectAwarenessFieldMaxChars)
@@ -1141,6 +1171,42 @@ function normalizeProviderFacingGazeMode(
 ): NonNullable<AlicizationMindTurnContractSnapshot['projectState']>['preferredGazeMode'] {
   const normalized = normalizeProviderFacingProjectText(raw, 32)
   return normalized === 'steady' || normalized === 'soften' || normalized === 'drift'
+    ? normalized
+    : null
+}
+
+function normalizeProviderFacingPauseMode(
+  raw: unknown,
+): NonNullable<AlicizationMindTurnContractSnapshot['projectState']>['preferredPauseMode'] {
+  const normalized = normalizeProviderFacingProjectText(raw, 32)
+  return normalized === 'longer' || normalized === 'natural'
+    ? normalized
+    : null
+}
+
+function normalizeProviderFacingLipsyncMode(
+  raw: unknown,
+): NonNullable<AlicizationMindTurnContractSnapshot['projectState']>['preferredLipsyncMode'] {
+  const normalized = normalizeProviderFacingProjectText(raw, 32)
+  return normalized === 'restrained' || normalized === 'matched'
+    ? normalized
+    : null
+}
+
+function normalizeProviderFacingVoiceMode(
+  raw: unknown,
+): NonNullable<AlicizationMindTurnContractSnapshot['projectState']>['preferredVoiceMode'] {
+  const normalized = normalizeProviderFacingProjectText(raw, 32)
+  return normalized === 'lower-pressure' || normalized === 'even'
+    ? normalized
+    : null
+}
+
+function normalizeProviderFacingPacingMode(
+  raw: unknown,
+): NonNullable<AlicizationMindTurnContractSnapshot['projectState']>['preferredPacingMode'] {
+  const normalized = normalizeProviderFacingProjectText(raw, 32)
+  return normalized === 'slower' || normalized === 'natural'
     ? normalized
     : null
 }
@@ -1974,6 +2040,33 @@ function scoreProjectContinuitySummary(value: unknown) {
   return score
 }
 
+function preferProjectAwarenessSummary(input: {
+  awarenessLine?: unknown
+  summaryCandidates?: Array<unknown>
+  fallbackSummary?: unknown
+  maxChars?: number
+}) {
+  const maxChars = input.maxChars ?? 4000
+  const awarenessLine = normalizeProviderFacingProjectText(input.awarenessLine, maxChars)
+  const preferredSummary = pickPreferredRuntimeProjectStateDetail([
+    ...(input.summaryCandidates ?? []),
+    input.fallbackSummary,
+  ], 'awareness', maxChars)
+
+  if (!preferredSummary)
+    return awarenessLine
+
+  if (!awarenessLine)
+    return preferredSummary
+
+  if (isThinProjectAwarenessAuthorityLine(preferredSummary))
+    return awarenessLine
+
+  return scoreProjectContinuitySummary(preferredSummary) >= scoreProjectContinuitySummary(awarenessLine)
+    ? preferredSummary
+    : awarenessLine
+}
+
 function appendMissingContinuitySummaryMarkers(input: {
   preferredSummary: unknown
   sourceSummary: unknown
@@ -2068,7 +2161,7 @@ function readContinuitySummaryMarker(
 
 function readProjectStateFallbackFromSessionMirror(
   mirror: AlicizationDialogueSessionMirror | null | undefined,
-) {
+): SessionMirrorProjectStateFallback {
   const brief = resolveAlicizationProjectStateBrief()
   const continuityArcSummary = normalizeProviderFacingProjectText(mirror?.continuityArcSummary, 4000)
   const continuityProjectSummary = normalizeProviderFacingProjectText(mirror?.continuityProjectSummary, 4000)
@@ -2121,25 +2214,26 @@ function readProjectStateFallbackFromSessionMirror(
     : preflightSummary
 
   return {
-    currentPhase,
-    preflightSummary,
-    preDialogueAwarenessLine: rebuiltPreDialogueAwarenessLine,
-    preDialogueAwarenessSummary: rebuiltPreDialogueAwarenessLine,
-    awarenessLine: rebuiltPreDialogueAwarenessLine,
-    latestLandedProgress,
-    primaryOpenLoop,
+    identity: brief.identity,
+    currentPhase: currentPhase ?? brief.currentPhase,
+    preflightSummary: preflightSummary ?? brief.preflightSummary ?? null,
+    preDialogueAwarenessLine: rebuiltPreDialogueAwarenessLine ?? brief.preDialogueAwarenessLine ?? null,
+    preDialogueAwarenessSummary: rebuiltPreDialogueAwarenessLine ?? brief.preDialogueAwarenessLine ?? null,
+    awarenessLine: rebuiltPreDialogueAwarenessLine ?? brief.preDialogueAwarenessLine ?? null,
+    latestLandedProgress: latestLandedProgress ?? brief.continuityProgressSummary ?? brief.latestProgress ?? null,
+    primaryOpenLoop: primaryOpenLoop ?? brief.primaryOpenLoop ?? null,
     openFocusSummary:
       readContinuitySummaryMarker(continuityArcSummary, ['open-focus', 'open_focus'], 1600)
       ?? readContinuitySummaryMarker(continuityProjectSummary, ['open-focus', 'open_focus'], 1600),
-    nextClosureTarget,
+    nextClosureTarget: nextClosureTarget ?? brief.nextClosureTarget,
     nextFocusSummary:
       readContinuitySummaryMarker(continuityArcSummary, ['next-focus', 'next_focus'], 1600)
       ?? readContinuitySummaryMarker(continuityProjectSummary, ['next-focus', 'next_focus'], 1600),
-    sameHerSelfLine,
-    sameHerDriftRisk,
+    sameHerSelfLine: sameHerSelfLine ?? brief.sameHerSelfLine,
+    sameHerDriftRisk: sameHerDriftRisk ?? null,
     sameHerHoldDetail:
-      readContinuitySummaryMarker(continuityArcSummary, ['same_her_hold', 'same-her-hold'], 1600)
-      ?? readContinuitySummaryMarker(continuityProjectSummary, ['same_her_hold', 'same-her-hold'], 1600),
+      readContinuitySummaryMarker(continuityArcSummary, ['same_her_hold', 'same-her-hold', 'hold'], 1600)
+      ?? readContinuitySummaryMarker(continuityProjectSummary, ['same_her_hold', 'same-her-hold', 'hold'], 1600),
     emotionalClosureSummary:
       readContinuitySummaryMarker(continuityArcSummary, ['emotional_closure_summary', 'emotional-closure-summary'], 1600)
       ?? readContinuitySummaryMarker(continuityProjectSummary, ['emotional_closure_summary', 'emotional-closure-summary'], 1600),
@@ -2154,6 +2248,47 @@ function readProjectStateFallbackFromSessionMirror(
     continuityCue:
       readContinuitySummaryMarker(continuityArcSummary, ['continuity_cue', 'cue'], 1600)
       ?? readContinuitySummaryMarker(continuityProjectSummary, ['continuity_cue', 'cue'], 1600),
+    continuityPreferredTiming:
+      normalizeProviderFacingContinuityPreferredTiming(
+        readContinuitySummaryMarker(continuityArcSummary, ['timing'], 64)
+        ?? readContinuitySummaryMarker(continuityProjectSummary, ['timing'], 64),
+      ),
+    continuityCadence:
+      normalizeProviderFacingProjectText(
+        readContinuitySummaryMarker(continuityArcSummary, ['cadence'], 64)
+        ?? readContinuitySummaryMarker(continuityProjectSummary, ['cadence'], 64),
+        64,
+      ),
+    preferredBlinkCadence:
+      normalizeProviderFacingBlinkCadence(
+        readContinuitySummaryMarker(continuityArcSummary, ['blink'], 64)
+        ?? readContinuitySummaryMarker(continuityProjectSummary, ['blink'], 64),
+      ),
+    preferredGazeMode:
+      normalizeProviderFacingGazeMode(
+        readContinuitySummaryMarker(continuityArcSummary, ['gaze'], 64)
+        ?? readContinuitySummaryMarker(continuityProjectSummary, ['gaze'], 64),
+      ),
+    preferredPauseMode:
+      normalizeProviderFacingPauseMode(
+        readContinuitySummaryMarker(continuityArcSummary, ['pause'], 64)
+        ?? readContinuitySummaryMarker(continuityProjectSummary, ['pause'], 64),
+      ),
+    preferredLipsyncMode:
+      normalizeProviderFacingLipsyncMode(
+        readContinuitySummaryMarker(continuityArcSummary, ['lipsync'], 64)
+        ?? readContinuitySummaryMarker(continuityProjectSummary, ['lipsync'], 64),
+      ),
+    preferredVoiceMode:
+      normalizeProviderFacingVoiceMode(
+        readContinuitySummaryMarker(continuityArcSummary, ['voice'], 64)
+        ?? readContinuitySummaryMarker(continuityProjectSummary, ['voice'], 64),
+      ),
+    preferredPacingMode:
+      normalizeProviderFacingPacingMode(
+        readContinuitySummaryMarker(continuityArcSummary, ['pacing'], 64)
+        ?? readContinuitySummaryMarker(continuityProjectSummary, ['pacing'], 64),
+      ),
   }
 }
 
@@ -2608,6 +2743,25 @@ function readRuntimeProjectStateFromSurface(
       && !isCanonicalStructuredProjectAwareness(value),
     )
     ?? pickProjectAwarenessLineWithoutCompactSummaryShell(directCompanionHeadlineValues, 1600)
+  const thinDirectCompanionHeadlineFallback = [
+    consciousProjectState?.preDialogueAwarenessLine,
+    consciousProjectState?.awarenessLine,
+    dialogueRuntimeDigestProjectState?.preDialogueAwarenessLine,
+    dialogueRuntimeDigestProjectState?.awarenessLine,
+    runtimeStateProjectState?.preDialogueAwarenessLine,
+    runtimeStateProjectState?.awarenessLine,
+    cognitionProjectState?.preDialogueAwarenessLine,
+    cognitionProjectState?.awarenessLine,
+    runtimeDigestProjectState?.preDialogueAwarenessLine,
+    runtimeDigestProjectState?.awarenessLine,
+  ]
+    .map(value => normalizeProviderFacingProjectText(value, 1600))
+    .find(value =>
+      value
+      && value.startsWith('Before answering')
+      && isThinProjectAwarenessAuthorityLine(value),
+    )
+    ?? null
   const directConsciousAwarenessValues = [
     consciousProjectState?.preDialogueAwarenessLine,
     consciousProjectState?.awarenessLine,
@@ -2788,6 +2942,19 @@ function readRuntimeProjectStateFromSurface(
     mergedProjectState.companionBriefingLine,
     1600,
   ) ?? null
+  const preDialogueAwarenessSummary = preferProjectAwarenessSummary({
+    awarenessLine: preDialogueAwarenessLine,
+    summaryCandidates: [
+      consciousProjectState?.preDialogueAwarenessSummary,
+      dialogueRuntimeDigestProjectState?.preDialogueAwarenessSummary,
+      runtimeStateProjectState?.preDialogueAwarenessSummary,
+      cognitionProjectState?.preDialogueAwarenessSummary,
+      runtimeDigestProjectState?.preDialogueAwarenessSummary,
+      mergedProjectState.preDialogueAwarenessSummary,
+      sessionMirrorProjectState.preDialogueAwarenessSummary,
+    ],
+    maxChars: 1600,
+  })
   const emotionalClosureSummary = pickPreferredRuntimeProjectStateDetail([
     consciousProjectState?.emotionalClosureSummary,
     dialogueRuntimeDigestProjectState?.emotionalClosureSummary,
@@ -2818,8 +2985,12 @@ function readRuntimeProjectStateFromSurface(
     preflightSummary,
     preDialogueAwarenessLine,
     awarenessLine: preDialogueAwarenessLine,
-    preDialogueAwarenessSummary: preDialogueAwarenessLine,
-    companionHeadlineLine: companionHeadlineLine ?? preDialogueAwarenessLine,
+    preDialogueAwarenessSummary: preDialogueAwarenessSummary ?? preDialogueAwarenessLine,
+    companionHeadlineLine:
+      directCompanionHeadlineSource
+      ?? thinDirectCompanionHeadlineFallback
+      ?? companionHeadlineLine
+      ?? preDialogueAwarenessLine,
     companionBriefingLine,
     latestLandedProgress,
     latestProgress: latestLandedProgress,
@@ -2844,6 +3015,8 @@ function readRuntimeProjectStateFromSurface(
       ?? cognitionProjectState?.continuityPreferredTiming
       ?? runtimeDigestProjectState?.continuityPreferredTiming
       ?? mergedProjectState.continuityPreferredTiming,
+    ) ?? normalizeProviderFacingContinuityPreferredTiming(
+      sessionMirrorProjectState.continuityPreferredTiming,
     ),
     continuityCadence: normalizeProviderFacingProjectText(
       consciousProjectState?.continuityCadence
@@ -2853,6 +3026,9 @@ function readRuntimeProjectStateFromSurface(
       ?? runtimeDigestProjectState?.continuityCadence
       ?? mergedProjectState.continuityCadence,
       64,
+    ) ?? normalizeProviderFacingProjectText(
+      sessionMirrorProjectState.continuityCadence,
+      64,
     ),
     preferredBlinkCadence: normalizeProviderFacingBlinkCadence(
       consciousProjectState?.preferredBlinkCadence
@@ -2861,6 +3037,8 @@ function readRuntimeProjectStateFromSurface(
       ?? cognitionProjectState?.preferredBlinkCadence
       ?? runtimeDigestProjectState?.preferredBlinkCadence
       ?? mergedProjectState.preferredBlinkCadence,
+    ) ?? normalizeProviderFacingBlinkCadence(
+      sessionMirrorProjectState.preferredBlinkCadence,
     ),
     preferredGazeMode: normalizeProviderFacingGazeMode(
       consciousProjectState?.preferredGazeMode
@@ -2869,6 +3047,48 @@ function readRuntimeProjectStateFromSurface(
       ?? cognitionProjectState?.preferredGazeMode
       ?? runtimeDigestProjectState?.preferredGazeMode
       ?? mergedProjectState.preferredGazeMode,
+    ) ?? normalizeProviderFacingGazeMode(
+      sessionMirrorProjectState.preferredGazeMode,
+    ),
+    preferredPauseMode: normalizeProviderFacingPauseMode(
+      consciousProjectState?.preferredPauseMode
+      ?? dialogueRuntimeDigestProjectState?.preferredPauseMode
+      ?? runtimeStateProjectState?.preferredPauseMode
+      ?? cognitionProjectState?.preferredPauseMode
+      ?? runtimeDigestProjectState?.preferredPauseMode
+      ?? mergedProjectState.preferredPauseMode,
+    ) ?? normalizeProviderFacingPauseMode(
+      sessionMirrorProjectState.preferredPauseMode,
+    ),
+    preferredLipsyncMode: normalizeProviderFacingLipsyncMode(
+      consciousProjectState?.preferredLipsyncMode
+      ?? dialogueRuntimeDigestProjectState?.preferredLipsyncMode
+      ?? runtimeStateProjectState?.preferredLipsyncMode
+      ?? cognitionProjectState?.preferredLipsyncMode
+      ?? runtimeDigestProjectState?.preferredLipsyncMode
+      ?? mergedProjectState.preferredLipsyncMode,
+    ) ?? normalizeProviderFacingLipsyncMode(
+      sessionMirrorProjectState.preferredLipsyncMode,
+    ),
+    preferredVoiceMode: normalizeProviderFacingVoiceMode(
+      consciousProjectState?.preferredVoiceMode
+      ?? dialogueRuntimeDigestProjectState?.preferredVoiceMode
+      ?? runtimeStateProjectState?.preferredVoiceMode
+      ?? cognitionProjectState?.preferredVoiceMode
+      ?? runtimeDigestProjectState?.preferredVoiceMode
+      ?? mergedProjectState.preferredVoiceMode,
+    ) ?? normalizeProviderFacingVoiceMode(
+      sessionMirrorProjectState.preferredVoiceMode,
+    ),
+    preferredPacingMode: normalizeProviderFacingPacingMode(
+      consciousProjectState?.preferredPacingMode
+      ?? dialogueRuntimeDigestProjectState?.preferredPacingMode
+      ?? runtimeStateProjectState?.preferredPacingMode
+      ?? cognitionProjectState?.preferredPacingMode
+      ?? runtimeDigestProjectState?.preferredPacingMode
+      ?? mergedProjectState.preferredPacingMode,
+    ) ?? normalizeProviderFacingPacingMode(
+      sessionMirrorProjectState.preferredPacingMode,
     ),
   }
 }
@@ -2927,6 +3147,10 @@ function stripProjectStateContinuityTiming(
       continuityCadence: _continuityCadence,
       preferredBlinkCadence: _preferredBlinkCadence,
       preferredGazeMode: _preferredGazeMode,
+      preferredPauseMode: _preferredPauseMode,
+      preferredLipsyncMode: _preferredLipsyncMode,
+      preferredVoiceMode: _preferredVoiceMode,
+      preferredPacingMode: _preferredPacingMode,
       ...rest
     } = projectState
 
@@ -3190,6 +3414,7 @@ function ensurePreparedRuntimeSurfaceShape(
       derivedMindStateBundle: surface.memory?.derivedMindStateBundle ?? null,
       memoryStageReplay: surface.memory?.memoryStageReplay ?? null,
       memoryResolutionLedger: surface.memory?.memoryResolutionLedger ?? null,
+      memoryClosureTrace: surface.memory?.memoryClosureTrace ?? null,
     } as AlicizationDigitalLifeRuntimeSurface['memory'],
     dialogue: {
       ...surface.dialogue,
@@ -3217,6 +3442,24 @@ function ensurePreparedRuntimeSurfaceShape(
       initiative: surface.agency?.initiative ?? null,
       autonomy: surface.agency?.autonomy ?? null,
       habitPolicy: surface.agency?.habitPolicy ?? null,
+    },
+  } satisfies AlicizationDigitalLifeRuntimeSurface
+}
+
+function applyMemoryClosureTraceToDigitalLifeRuntimeSurface(input: {
+  surface: AlicizationDigitalLifeRuntimeSurface | null
+  memoryTurnArtifact: ReturnType<typeof buildAlicizationMemoryTurnArtifact> | null
+}): AlicizationDigitalLifeRuntimeSurface | null {
+  const surface = ensurePreparedRuntimeSurfaceShape(input.surface)
+  const memoryClosureTrace = input.memoryTurnArtifact?.memoryClosureTrace ?? null
+  if (!surface || !memoryClosureTrace)
+    return surface
+
+  return {
+    ...surface,
+    memory: {
+      ...surface.memory,
+      memoryClosureTrace,
     },
   } satisfies AlicizationDigitalLifeRuntimeSurface
 }
@@ -3825,6 +4068,26 @@ function seedPreparedRuntimeProjectAwareness(input: {
       ?? normalizeProviderFacingGazeMode(resolvedSurfaceProjectState.preferredGazeMode)
       ?? currentProjectState.preferredGazeMode
       ?? null,
+    preferredPauseMode:
+      normalizeProviderFacingPauseMode(currentProjectState.preferredPauseMode)
+      ?? normalizeProviderFacingPauseMode(resolvedSurfaceProjectState.preferredPauseMode)
+      ?? currentProjectState.preferredPauseMode
+      ?? null,
+    preferredLipsyncMode:
+      normalizeProviderFacingLipsyncMode(currentProjectState.preferredLipsyncMode)
+      ?? normalizeProviderFacingLipsyncMode(resolvedSurfaceProjectState.preferredLipsyncMode)
+      ?? currentProjectState.preferredLipsyncMode
+      ?? null,
+    preferredVoiceMode:
+      normalizeProviderFacingVoiceMode(currentProjectState.preferredVoiceMode)
+      ?? normalizeProviderFacingVoiceMode(resolvedSurfaceProjectState.preferredVoiceMode)
+      ?? currentProjectState.preferredVoiceMode
+      ?? null,
+    preferredPacingMode:
+      normalizeProviderFacingPacingMode(currentProjectState.preferredPacingMode)
+      ?? normalizeProviderFacingPacingMode(resolvedSurfaceProjectState.preferredPacingMode)
+      ?? currentProjectState.preferredPacingMode
+      ?? null,
   }
   const nextRuntimeDigestProjectState = mergeRuntimeDigestProjectState(
     surface.raw?.runtimeDigest?.projectState ?? null,
@@ -4152,6 +4415,33 @@ function inheritPreparedRuntimeSurfaceSessionMirrorIfMissing(input: {
   } satisfies AlicizationDigitalLifeRuntimeSurface
 }
 
+function inheritPreparedRuntimeSurfaceMemoryClosureTraceIfMissing(input: {
+  surface: AlicizationDigitalLifeRuntimeSurface | null
+  fallbackSurfaces: Array<AlicizationDigitalLifeRuntimeSurface | null | undefined>
+}): AlicizationDigitalLifeRuntimeSurface | null {
+  const surface = input.surface
+  if (!surface)
+    return null
+
+  if (surface.memory?.memoryClosureTrace?.authority === 'memory-os')
+    return surface
+
+  const inheritedMemoryClosureTrace = input.fallbackSurfaces
+    .map(candidate => candidate?.memory?.memoryClosureTrace ?? null)
+    .find(trace => trace?.authority === 'memory-os')
+
+  if (!inheritedMemoryClosureTrace)
+    return surface
+
+  return {
+    ...surface,
+    memory: {
+      ...surface.memory,
+      memoryClosureTrace: inheritedMemoryClosureTrace,
+    },
+  } satisfies AlicizationDigitalLifeRuntimeSurface
+}
+
 function alignPreparedRuntimeSurfaceProjectStateCarry(
   surface: AlicizationDigitalLifeRuntimeSurface | null,
 ): AlicizationDigitalLifeRuntimeSurface | null {
@@ -4322,6 +4612,22 @@ function alignPreparedRuntimeSurfaceProjectStateCarry(
       normalizeProviderFacingGazeMode(currentProjectState.preferredGazeMode)
       ?? normalizeProviderFacingGazeMode(resolvedProjectState.preferredGazeMode)
       ?? currentProjectState.preferredGazeMode,
+    preferredPauseMode:
+      normalizeProviderFacingPauseMode(currentProjectState.preferredPauseMode)
+      ?? normalizeProviderFacingPauseMode(resolvedProjectState.preferredPauseMode)
+      ?? currentProjectState.preferredPauseMode,
+    preferredLipsyncMode:
+      normalizeProviderFacingLipsyncMode(currentProjectState.preferredLipsyncMode)
+      ?? normalizeProviderFacingLipsyncMode(resolvedProjectState.preferredLipsyncMode)
+      ?? currentProjectState.preferredLipsyncMode,
+    preferredVoiceMode:
+      normalizeProviderFacingVoiceMode(currentProjectState.preferredVoiceMode)
+      ?? normalizeProviderFacingVoiceMode(resolvedProjectState.preferredVoiceMode)
+      ?? currentProjectState.preferredVoiceMode,
+    preferredPacingMode:
+      normalizeProviderFacingPacingMode(currentProjectState.preferredPacingMode)
+      ?? normalizeProviderFacingPacingMode(resolvedProjectState.preferredPacingMode)
+      ?? currentProjectState.preferredPacingMode,
   }
 
   const nextRuntimeDigestProjectState = mergeRuntimeDigestProjectState(
@@ -4383,24 +4689,39 @@ export function resolvePreparedRuntimeSurfaceSelection(input: {
       preparedRuntimeSurface: input.answerPlannerReducedRuntimeSurface ?? null,
       spineRuntimeSurface: input.digitalLifeSpine?.runtimeSurface ?? input.baseDigitalLifeRuntimeSurface ?? null,
     }))
-  const fresherRuntimeSurface = alignPreparedRuntimeSurfaceProjectStateCarry(inheritPreparedRuntimeSurfaceSessionMirrorIfMissing({
-    surface: preAdjustmentSelectedRuntimeSurface,
-    fallbackSurfaces: [
-      input.digitalLifeSpine?.runtimeSurface ?? null,
-      input.baseDigitalLifeRuntimeSurface ?? null,
-    ],
-  }))
-  const runtimeSurfaceForBuilder = alignPreparedRuntimeSurfaceProjectStateCarry(inheritPreparedRuntimeSurfaceSessionMirrorIfMissing({
-    surface:
-      fresherRuntimeSurface
-      ?? input.baseDigitalLifeRuntimeSurface
-      ?? input.digitalLifeSpine?.runtimeSurface
-      ?? null,
-    fallbackSurfaces: [
-      input.digitalLifeSpine?.runtimeSurface ?? null,
-      input.baseDigitalLifeRuntimeSurface ?? null,
-    ],
-  }))
+  const runtimeSurfaceFallbacks = [
+    input.baseDigitalLifeRuntimeSurface ?? null,
+    input.answerPlannerReducedRuntimeSurface ?? null,
+    input.digitalLifeSpine?.runtimeSurface ?? null,
+  ]
+  const fresherRuntimeSurface = alignPreparedRuntimeSurfaceProjectStateCarry(
+    inheritPreparedRuntimeSurfaceMemoryClosureTraceIfMissing({
+      surface: inheritPreparedRuntimeSurfaceSessionMirrorIfMissing({
+        surface: preAdjustmentSelectedRuntimeSurface,
+        fallbackSurfaces: [
+          input.digitalLifeSpine?.runtimeSurface ?? null,
+          input.baseDigitalLifeRuntimeSurface ?? null,
+        ],
+      }),
+      fallbackSurfaces: runtimeSurfaceFallbacks,
+    }),
+  )
+  const runtimeSurfaceForBuilder = alignPreparedRuntimeSurfaceProjectStateCarry(
+    inheritPreparedRuntimeSurfaceMemoryClosureTraceIfMissing({
+      surface: inheritPreparedRuntimeSurfaceSessionMirrorIfMissing({
+        surface:
+          fresherRuntimeSurface
+          ?? input.baseDigitalLifeRuntimeSurface
+          ?? input.digitalLifeSpine?.runtimeSurface
+          ?? null,
+        fallbackSurfaces: [
+          input.digitalLifeSpine?.runtimeSurface ?? null,
+          input.baseDigitalLifeRuntimeSurface ?? null,
+        ],
+      }),
+      fallbackSurfaces: runtimeSurfaceFallbacks,
+    }),
+  )
   return {
     fresherRuntimeSurface,
     runtimeSurfaceForBuilder,
@@ -4427,12 +4748,22 @@ export function buildEffectiveDigitalLifeSpine(input: {
       : input.digitalLifeSpine
   }
 
-  const fresherDigest = deriveAlicizationDigitalLifeSpineFromSurface(normalizedFresherRuntimeSurface)
-
   return {
     ...input.digitalLifeSpine,
     runtimeSurface: normalizedFresherRuntimeSurface,
-    memory: fresherDigest.memory ?? input.digitalLifeSpine.memory ?? null,
+    memory: input.digitalLifeSpine.memory
+      ? {
+          ...input.digitalLifeSpine.memory,
+          personStateProjection:
+            normalizedFresherRuntimeSurface.memory?.personStateProjection
+            ?? input.digitalLifeSpine.memory.personStateProjection
+            ?? null,
+          memoryClosureTrace:
+            normalizedFresherRuntimeSurface.memory?.memoryClosureTrace
+            ?? input.digitalLifeSpine.memory.memoryClosureTrace
+            ?? null,
+        }
+      : input.digitalLifeSpine.memory ?? null,
   }
 }
 
@@ -4761,6 +5092,10 @@ export function rebuildProviderFacingMindTurnContract(input: {
         continuityCadence: runtimeProjectState.continuityCadence ?? null,
         preferredBlinkCadence: normalizeProviderFacingBlinkCadence(runtimeProjectState.preferredBlinkCadence),
         preferredGazeMode: normalizeProviderFacingGazeMode(runtimeProjectState.preferredGazeMode),
+        preferredPauseMode: normalizeProviderFacingPauseMode(runtimeProjectState.preferredPauseMode),
+        preferredLipsyncMode: normalizeProviderFacingLipsyncMode(runtimeProjectState.preferredLipsyncMode),
+        preferredVoiceMode: normalizeProviderFacingVoiceMode(runtimeProjectState.preferredVoiceMode),
+        preferredPacingMode: normalizeProviderFacingPacingMode(runtimeProjectState.preferredPacingMode),
       } satisfies ProviderFacingProjectState)
     : baseContract.projectState ?? null
 
@@ -5832,6 +6167,22 @@ export function normalizeProviderFacingMindTurnContract(
           ?? spineRuntimeProjectState.preferredGazeMode
           ?? preparedRuntimeProjectState.preferredGazeMode
           ?? null,
+        preferredVoiceMode:
+          normalizeProviderFacingVoiceMode(
+            (contract.projectState as Record<string, unknown> | null)?.preferredVoiceMode,
+          )
+          ?? liveRuntimeProjectState.preferredVoiceMode
+          ?? spineRuntimeProjectState.preferredVoiceMode
+          ?? preparedRuntimeProjectState.preferredVoiceMode
+          ?? null,
+        preferredPacingMode:
+          normalizeProviderFacingPacingMode(
+            (contract.projectState as Record<string, unknown> | null)?.preferredPacingMode,
+          )
+          ?? liveRuntimeProjectState.preferredPacingMode
+          ?? spineRuntimeProjectState.preferredPacingMode
+          ?? preparedRuntimeProjectState.preferredPacingMode
+          ?? null,
       } as AlicizationMindTurnContractSnapshot['projectState'] & Record<string, unknown>,
     } satisfies AlicizationMindTurnContractSnapshot,
     nextClosureTarget: pickPreferredRuntimeProjectStateDetail([
@@ -6446,6 +6797,10 @@ function applyProviderFacingProjectStateToRuntimeSurface(input: {
     'continuityCadence',
     'preferredBlinkCadence',
     'preferredGazeMode',
+    'preferredPauseMode',
+    'preferredLipsyncMode',
+    'preferredVoiceMode',
+    'preferredPacingMode',
   ] as const
 
   const readPreferredProjectStateValue = (
@@ -6510,6 +6865,46 @@ function applyProviderFacingProjectStateToRuntimeSurface(input: {
         ?? incomingProjectState?.[key]
         ?? existingProjectState?.[key]
         ?? fallbackProjectState?.[key]
+    }
+    if (key === 'preferredVoiceMode') {
+      return pickPreferredRuntimeProjectStateDetail([
+        normalizeProviderFacingVoiceMode(existingProjectState?.[key]),
+        normalizeProviderFacingVoiceMode(fallbackProjectState?.[key]),
+        normalizeProviderFacingVoiceMode(incomingProjectState?.[key]),
+      ], 'awareness', 32)
+      ?? normalizeProviderFacingVoiceMode(incomingProjectState?.[key])
+      ?? normalizeProviderFacingVoiceMode(existingProjectState?.[key])
+      ?? normalizeProviderFacingVoiceMode(fallbackProjectState?.[key])
+    }
+    if (key === 'preferredPacingMode') {
+      return pickPreferredRuntimeProjectStateDetail([
+        normalizeProviderFacingPacingMode(existingProjectState?.[key]),
+        normalizeProviderFacingPacingMode(fallbackProjectState?.[key]),
+        normalizeProviderFacingPacingMode(incomingProjectState?.[key]),
+      ], 'awareness', 32)
+      ?? normalizeProviderFacingPacingMode(incomingProjectState?.[key])
+      ?? normalizeProviderFacingPacingMode(existingProjectState?.[key])
+      ?? normalizeProviderFacingPacingMode(fallbackProjectState?.[key])
+    }
+    if (key === 'preferredPauseMode') {
+      return pickPreferredRuntimeProjectStateDetail([
+        normalizeProviderFacingPauseMode(existingProjectState?.[key]),
+        normalizeProviderFacingPauseMode(fallbackProjectState?.[key]),
+        normalizeProviderFacingPauseMode(incomingProjectState?.[key]),
+      ], 'awareness', 32)
+      ?? normalizeProviderFacingPauseMode(incomingProjectState?.[key])
+      ?? normalizeProviderFacingPauseMode(existingProjectState?.[key])
+      ?? normalizeProviderFacingPauseMode(fallbackProjectState?.[key])
+    }
+    if (key === 'preferredLipsyncMode') {
+      return pickPreferredRuntimeProjectStateDetail([
+        normalizeProviderFacingLipsyncMode(existingProjectState?.[key]),
+        normalizeProviderFacingLipsyncMode(fallbackProjectState?.[key]),
+        normalizeProviderFacingLipsyncMode(incomingProjectState?.[key]),
+      ], 'awareness', 32)
+      ?? normalizeProviderFacingLipsyncMode(incomingProjectState?.[key])
+      ?? normalizeProviderFacingLipsyncMode(existingProjectState?.[key])
+      ?? normalizeProviderFacingLipsyncMode(fallbackProjectState?.[key])
     }
 
     const incomingValue = incomingProjectState?.[key]
@@ -6824,6 +7219,14 @@ function rescueReturnedProviderFacingProjectAwareness(input: {
       projectState.companionHeadlineLine,
       1600,
     )
+    const rescuedAwarenessSummary = preferProjectAwarenessSummary({
+      awarenessLine: directPreludeAwarenessLine,
+      summaryCandidates: [
+        currentAwarenessSummary,
+        projectState.preflightSummary,
+      ],
+      maxChars: 1600,
+    }) ?? directPreludeAwarenessLine
 
     return overrideMindTurnContractNextClosureTarget({
       contract: {
@@ -6832,7 +7235,7 @@ function rescueReturnedProviderFacingProjectAwareness(input: {
           ...projectState,
           preDialogueAwarenessLine: directPreludeAwarenessLine,
           awarenessLine: directPreludeAwarenessLine,
-          preDialogueAwarenessSummary: directPreludeAwarenessLine,
+          preDialogueAwarenessSummary: rescuedAwarenessSummary,
           companionHeadlineLine:
             !currentCompanionHeadlineLine
             || currentCompanionHeadlineLine === currentAwarenessLine
@@ -6843,7 +7246,7 @@ function rescueReturnedProviderFacingProjectAwareness(input: {
         preDialogueClosure: contract.preDialogueClosure
           ? {
               ...contract.preDialogueClosure,
-              summaryLine: directPreludeAwarenessLine,
+              summaryLine: rescuedAwarenessSummary,
             }
           : contract.preDialogueClosure,
       } satisfies AlicizationMindTurnContractSnapshot,
@@ -6920,6 +7323,14 @@ function rescueReturnedProviderFacingProjectAwareness(input: {
     projectState.companionHeadlineLine,
     1600,
   )
+  const rescuedAwarenessSummary = preferProjectAwarenessSummary({
+    awarenessLine: rebuiltAwarenessLine,
+    summaryCandidates: [
+      currentAwarenessSummary,
+      projectState.preflightSummary,
+    ],
+    maxChars: 1600,
+  }) ?? rebuiltAwarenessLine
 
   return overrideMindTurnContractNextClosureTarget({
     contract: {
@@ -6928,18 +7339,18 @@ function rescueReturnedProviderFacingProjectAwareness(input: {
         ...projectState,
         preDialogueAwarenessLine: rebuiltAwarenessLine,
         awarenessLine: rebuiltAwarenessLine,
-        preDialogueAwarenessSummary: rebuiltAwarenessLine,
+        preDialogueAwarenessSummary: rescuedAwarenessSummary,
         companionHeadlineLine:
-          !currentCompanionHeadlineLine
-          || currentCompanionHeadlineLine === currentAwarenessLine
-          || isCanonicalStructuredProjectAwareness(currentCompanionHeadlineLine)
-            ? rebuiltAwarenessLine
-            : projectState.companionHeadlineLine,
+            !currentCompanionHeadlineLine
+            || currentCompanionHeadlineLine === currentAwarenessLine
+            || isCanonicalStructuredProjectAwareness(currentCompanionHeadlineLine)
+              ? rebuiltAwarenessLine
+              : projectState.companionHeadlineLine,
       } as AlicizationMindTurnContractSnapshot['projectState'] & Record<string, unknown>,
       preDialogueClosure: contract.preDialogueClosure
         ? {
             ...contract.preDialogueClosure,
-            summaryLine: rebuiltAwarenessLine,
+            summaryLine: rescuedAwarenessSummary,
           }
         : contract.preDialogueClosure,
     } satisfies AlicizationMindTurnContractSnapshot,
@@ -6956,6 +7367,7 @@ export const __alicizationTestOnly = {
   readProjectStateFallbackFromSessionMirror,
   readRuntimeProjectStateFromSurface,
   readProviderFacingPayloadProjectState,
+  rescueReturnedProviderFacingProjectAwareness,
   resolvePreferredRuntimeSurface,
 }
 
@@ -7302,6 +7714,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
     let executionRuntimeProjectBriefing: Parameters<typeof buildAlicizationExecutionRuntimeContext>[0]['projectBriefing'] = null
     let executionRuntimeAffectiveResidue: Parameters<typeof buildAlicizationExecutionRuntimeContext>[0]['affectiveResidue'] = null
     let executionRuntimeDerivedMindStateBundle: Parameters<typeof buildAlicizationExecutionRuntimeContext>[0]['derivedMindStateBundle'] = null
+    let executionRuntimeMemoryClosureTrace: Parameters<typeof buildAlicizationExecutionRuntimeContext>[0]['memoryClosureTrace'] = null
     const sessionBoundToolOptions: Pick<BuildMainGatewayToolsOptions, 'executeTaskThread'
       | 'resumeTaskThread'
       | 'buildExecutionRuntimeContext'
@@ -7332,6 +7745,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
           turnId: toolContext.turnId,
           decisionTraceId: toolContext.decisionTraceId ?? null,
           derivedMindStateBundle: executionRuntimeDerivedMindStateBundle ?? null,
+          memoryClosureTrace: executionRuntimeMemoryClosureTrace ?? null,
           projectBriefing: executionRuntimeProjectBriefing ?? undefined,
           sessionId: toolContext.sessionId ?? agentTurn.conversationSessionId,
         })
@@ -7867,10 +8281,13 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       })
       ?? spinePreparedRuntimeSurface
       ?? preludePreparedRuntimeSurface
-    const preparedRuntimeSurfaceBase = seedPreparedRuntimeProjectAwareness({
-      surface: preparedRuntimeAwarenessSeedSurface,
-      rawPayload,
-      sessionMirror: previousSessionMirror,
+    const preparedRuntimeSurfaceBase = applyMemoryClosureTraceToDigitalLifeRuntimeSurface({
+      surface: seedPreparedRuntimeProjectAwareness({
+        surface: preparedRuntimeAwarenessSeedSurface,
+        rawPayload,
+        sessionMirror: previousSessionMirror,
+      }),
+      memoryTurnArtifact,
     })
     const preparedRuntimeSurfaceChain = buildPreparedRuntimeSurfaceChain({
       baseDigitalLifeRuntimeSurface: preparedRuntimeSurfaceBase,
@@ -7891,11 +8308,23 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       digitalLifeSpine,
     })
     const runtimeSurfaceForBuilder = preparedRuntimeSurfaceSelection.runtimeSurfaceForBuilder
-    executionRuntimeProjectBriefing = runtimeSurfaceForBuilder
-      ? readRuntimeProjectStateFromSurface(runtimeSurfaceForBuilder)
-      : null
     executionRuntimeAffectiveResidue = runtimeSurfaceForBuilder?.memory?.affectiveResidue ?? null
     executionRuntimeDerivedMindStateBundle = runtimeSurfaceForBuilder?.memory?.derivedMindStateBundle ?? null
+    executionRuntimeMemoryClosureTrace = runtimeSurfaceForBuilder?.memory?.memoryClosureTrace ?? null
+    executionRuntimeProjectBriefing = runtimeSurfaceForBuilder
+      ? buildAlicizationExecutionRuntimeContext({
+        agentSessionId: agentTurn.agentSessionId,
+        affectiveResidue: executionRuntimeAffectiveResidue ?? null,
+        cardId: payload.cardId,
+        turnId: payload.turnId,
+        decisionTraceId: prelude.perceptionAugmentation.chatGovernance.mindTurnGovernance?.decisionTraceId ?? null,
+        derivedMindStateBundle: executionRuntimeDerivedMindStateBundle ?? null,
+        memoryClosureTrace: executionRuntimeMemoryClosureTrace ?? null,
+        sessionId: agentTurn.conversationSessionId,
+        projectBriefing: readRuntimeProjectStateFromSurface(runtimeSurfaceForBuilder),
+        sensorySnapshot: agentSessionSensorySnapshot,
+      }).projectBriefing ?? null
+      : null
     const executionCapabilityRuntimeContext = buildAlicizationExecutionRuntimeContext({
       agentSessionId: agentTurn.agentSessionId,
       affectiveResidue: executionRuntimeAffectiveResidue ?? null,
@@ -7903,6 +8332,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       turnId: payload.turnId,
       decisionTraceId: prelude.perceptionAugmentation.chatGovernance.mindTurnGovernance?.decisionTraceId ?? null,
       derivedMindStateBundle: executionRuntimeDerivedMindStateBundle ?? null,
+      memoryClosureTrace: executionRuntimeMemoryClosureTrace ?? null,
       sessionId: agentTurn.conversationSessionId,
       projectBriefing: executionRuntimeProjectBriefing,
       sensorySnapshot: agentSessionSensorySnapshot,
@@ -8303,6 +8733,34 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       ?? preludeSpineRuntimeProjectState.preferredGazeMode
       ?? fresherRuntimeProjectState.preferredGazeMode,
     )
+    const preferredSeedPauseMode = normalizeProviderFacingPauseMode(
+      fresherDialogueProjectState?.preferredPauseMode
+      ?? preludeDialogueProjectState?.preferredPauseMode
+      ?? preludeSpineDialogueProjectState?.preferredPauseMode
+      ?? preludeSpineRuntimeProjectState.preferredPauseMode
+      ?? fresherRuntimeProjectState.preferredPauseMode,
+    )
+    const preferredSeedLipsyncMode = normalizeProviderFacingLipsyncMode(
+      fresherDialogueProjectState?.preferredLipsyncMode
+      ?? preludeDialogueProjectState?.preferredLipsyncMode
+      ?? preludeSpineDialogueProjectState?.preferredLipsyncMode
+      ?? preludeSpineRuntimeProjectState.preferredLipsyncMode
+      ?? fresherRuntimeProjectState.preferredLipsyncMode,
+    )
+    const preferredSeedVoiceMode = normalizeProviderFacingVoiceMode(
+      fresherDialogueProjectState?.preferredVoiceMode
+      ?? preludeDialogueProjectState?.preferredVoiceMode
+      ?? preludeSpineDialogueProjectState?.preferredVoiceMode
+      ?? preludeSpineRuntimeProjectState.preferredVoiceMode
+      ?? fresherRuntimeProjectState.preferredVoiceMode,
+    )
+    const preferredSeedPacingMode = normalizeProviderFacingPacingMode(
+      fresherDialogueProjectState?.preferredPacingMode
+      ?? preludeDialogueProjectState?.preferredPacingMode
+      ?? preludeSpineDialogueProjectState?.preferredPacingMode
+      ?? preludeSpineRuntimeProjectState.preferredPacingMode
+      ?? fresherRuntimeProjectState.preferredPacingMode,
+    )
     const fresherDirectNextClosureTarget = normalizeProviderFacingProjectText(fresherDialogueProjectState?.nextClosureTarget, 12000)
     const preludeDirectNextClosureTarget = normalizeProviderFacingProjectText(preludeDialogueProjectState?.nextClosureTarget, 12000)
     const preludeSpineDirectNextClosureTarget = normalizeProviderFacingProjectText(preludeSpineDialogueProjectState?.nextClosureTarget, 12000)
@@ -8415,6 +8873,12 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       mirrorProjectStateFallback.preDialogueAwarenessLine,
       mirrorProjectStateFallback.preflightSummary,
     ], 1600)
+    const preferredSeedAwarenessIsHoldOnlyDetail = Boolean(
+      preferredSeedAwarenessLine
+      && !preferredSeedAwarenessLine.startsWith('Before answering')
+      && carriesLivedInSameHerAuthorityLine(preferredSeedAwarenessLine)
+      && !awarenessCarriesBroaderProjectFrame(preferredSeedAwarenessLine),
+    )
     const shouldPreferMirrorContinuityPreflightOverStructuredSeedAwareness = Boolean(
       !preferredSeedPayloadProjectState.hasDirectPayloadProjectAwarenessLine
       && preferredSeedMirrorPreflightAwarenessLine
@@ -8423,7 +8887,10 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       && !isCompactProjectStatePreflightSummary(preferredSeedMirrorPreflightAwarenessLine)
       && preferredSeedAwarenessLine
       && !preferredSeedAwarenessLine.startsWith('Before answering')
-      && awarenessCarriesBroaderProjectFrame(preferredSeedAwarenessLine)
+      && (
+        awarenessCarriesBroaderProjectFrame(preferredSeedAwarenessLine)
+        || preferredSeedAwarenessIsHoldOnlyDetail
+      )
       && (
         !preferredSeedAwarenessCandidate
         || !preferredSeedAwarenessCandidate.startsWith('Before answering')
@@ -8771,6 +9238,10 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
         continuityCadence: preferredSeedContinuityCadence,
         preferredBlinkCadence: preferredSeedBlinkCadence,
         preferredGazeMode: preferredSeedGazeMode,
+        preferredPauseMode: preferredSeedPauseMode,
+        preferredLipsyncMode: preferredSeedLipsyncMode,
+        preferredVoiceMode: preferredSeedVoiceMode,
+        preferredPacingMode: preferredSeedPacingMode,
       },
     })
     const runtimeSurfaceBeforeProviderFacingReturn = options.onPreparedExecutionDiagnostics
@@ -8821,6 +9292,10 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
         )
         const normalizedAwarenessLine = normalizePreparedExecutionText(
           normalizedMindTurnContract.projectState?.preDialogueAwarenessLine,
+          1600,
+        )
+        const normalizedAwarenessSummary = normalizePreparedExecutionText(
+          normalizedMindTurnContract.projectState?.preDialogueAwarenessSummary,
           1600,
         )
         if (!directPreludeAwarenessLine || directPreludeAwarenessLineLooksThin || !normalizedAwarenessLine) {
@@ -8926,6 +9401,15 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
             normalizedMindTurnContract.projectState?.companionHeadlineLine,
             1600,
           )
+          const canonicalReturnedAwarenessSummary = preferProjectAwarenessSummary({
+            awarenessLine: canonicalAwarenessLine,
+            summaryCandidates: [
+              normalizedAwarenessSummary,
+              normalizedMindTurnContract.projectState?.preflightSummary,
+              canonicalPreflightSummary,
+            ],
+            maxChars: 1600,
+          }) ?? canonicalAwarenessLine
 
           return {
             ...normalizedMindTurnContract,
@@ -8935,18 +9419,18 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
                   preflightSummary: canonicalPreflightSummary,
                   preDialogueAwarenessLine: canonicalAwarenessLine,
                   awarenessLine: canonicalAwarenessLine,
-                  preDialogueAwarenessSummary: canonicalAwarenessLine,
+                  preDialogueAwarenessSummary: canonicalReturnedAwarenessSummary,
                   companionHeadlineLine:
-                  !normalizedCompanionHeadlineLine
-                  || isCanonicalStructuredProjectAwareness(normalizedCompanionHeadlineLine)
-                    ? canonicalAwarenessLine
-                    : normalizedMindTurnContract.projectState.companionHeadlineLine,
+                !normalizedCompanionHeadlineLine
+                || isCanonicalStructuredProjectAwareness(normalizedCompanionHeadlineLine)
+                  ? canonicalAwarenessLine
+                  : normalizedMindTurnContract.projectState.companionHeadlineLine,
                 } as AlicizationMindTurnContractSnapshot['projectState'] & Record<string, unknown>
               : normalizedMindTurnContract.projectState,
             preDialogueClosure: normalizedMindTurnContract.preDialogueClosure
               ? {
                   ...normalizedMindTurnContract.preDialogueClosure,
-                  summaryLine: canonicalAwarenessLine,
+                  summaryLine: canonicalReturnedAwarenessSummary,
                 }
               : normalizedMindTurnContract.preDialogueClosure,
           } satisfies AlicizationMindTurnContractSnapshot
@@ -8960,6 +9444,14 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
           normalizedMindTurnContract.projectState?.companionHeadlineLine,
           1600,
         )
+        const returnedDirectAwarenessSummary = preferProjectAwarenessSummary({
+          awarenessLine: directPreludeAwarenessLine,
+          summaryCandidates: [
+            normalizedAwarenessSummary,
+            normalizedMindTurnContract.projectState?.preflightSummary,
+          ],
+          maxChars: 1600,
+        }) ?? directPreludeAwarenessLine
 
         return {
           ...normalizedMindTurnContract,
@@ -8968,19 +9460,19 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
                 ...(normalizedMindTurnContract.projectState as Record<string, unknown>),
                 preDialogueAwarenessLine: directPreludeAwarenessLine,
                 awarenessLine: directPreludeAwarenessLine,
-                preDialogueAwarenessSummary: directPreludeAwarenessLine,
+                preDialogueAwarenessSummary: returnedDirectAwarenessSummary,
                 companionHeadlineLine:
-                !normalizedCompanionHeadlineLine
-                || normalizedCompanionHeadlineLine === normalizedAwarenessLine
-                || isCanonicalStructuredProjectAwareness(normalizedCompanionHeadlineLine)
-                  ? directPreludeAwarenessLine
-                  : normalizedMindTurnContract.projectState.companionHeadlineLine,
+              !normalizedCompanionHeadlineLine
+              || normalizedCompanionHeadlineLine === normalizedAwarenessLine
+              || isCanonicalStructuredProjectAwareness(normalizedCompanionHeadlineLine)
+                ? directPreludeAwarenessLine
+                : normalizedMindTurnContract.projectState.companionHeadlineLine,
               } as AlicizationMindTurnContractSnapshot['projectState'] & Record<string, unknown>
             : normalizedMindTurnContract.projectState,
           preDialogueClosure: normalizedMindTurnContract.preDialogueClosure
             ? {
                 ...normalizedMindTurnContract.preDialogueClosure,
-                summaryLine: directPreludeAwarenessLine,
+                summaryLine: returnedDirectAwarenessSummary,
               }
             : normalizedMindTurnContract.preDialogueClosure,
         } satisfies AlicizationMindTurnContractSnapshot
@@ -9692,6 +10184,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       waitForTools,
       tools,
       toolChoice,
+      executionToolInputOverrides: effectiveExecutionRoutingIntent?.toolInputOverrides,
       customDirectivesResolution,
       hasVisualGrounding: runtimeSurface.hasVisualGrounding,
       governance: runtimeSurface.governance,
