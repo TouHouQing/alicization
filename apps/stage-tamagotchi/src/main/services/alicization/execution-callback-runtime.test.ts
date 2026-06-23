@@ -356,6 +356,8 @@ describe('execution callback runtime', () => {
                 continuityCadence: 'measured-return',
                 preferredBlinkCadence: 'linger',
                 preferredGazeMode: 'soften',
+                preferredPauseMode: 'longer',
+                preferredLipsyncMode: 'restrained',
                 preferredVoiceMode: 'lower-pressure',
                 preferredPacingMode: 'slower',
               },
@@ -384,6 +386,8 @@ describe('execution callback runtime', () => {
     expect(context.recallText).toContain('execution_callback_project_continuity_cadence:measured-return')
     expect(context.recallText).toContain('execution_callback_project_preferred_blink:linger')
     expect(context.recallText).toContain('execution_callback_project_preferred_gaze:soften')
+    expect(context.recallText).toContain('execution_callback_project_pause_mode:longer')
+    expect(context.recallText).toContain('execution_callback_project_lipsync_mode:restrained')
     expect(context.recallText).toContain('execution_callback_project_voice_mode:lower-pressure')
     expect(context.recallText).toContain('execution_callback_project_pacing_mode:slower')
     expect(context.systemBlock).toContain('project_awareness=')
@@ -396,8 +400,90 @@ describe('execution callback runtime', () => {
     expect(context.systemBlock).toContain('project_continuity_cadence=measured-return')
     expect(context.systemBlock).toContain('project_preferred_blink_cadence=linger')
     expect(context.systemBlock).toContain('project_preferred_gaze_mode=soften')
+    expect(context.systemBlock).toContain('project_pause_mode=longer')
+    expect(context.systemBlock).toContain('project_lipsync_mode=restrained')
     expect(context.systemBlock).toContain('project_voice_mode=lower-pressure')
     expect(context.systemBlock).toContain('project_pacing_mode=slower')
+  })
+
+  it('threads same-her callback reopen posture into fresh execution-callback continuity metadata for later session-mirror carry', async () => {
+    const sameHerHoldDetail = 'same-her hold: keep this callback reopening lower-pressure on the same living line before widening outward again.'
+    const runtime = createAlicizationExecutionCallbackRuntime({
+      getNow: () => 10_000,
+      listTaskThreads: vi.fn(async () => [createThread({
+        goal: 'Return the callback on the same living line without reopening from a fresh shell.',
+        summary: 'The callback should keep the same-her reopen posture explicit in fresh continuity metadata.',
+        metadata: {
+          execution: {
+            runtimeContext: {
+              projectBriefing: {
+                identity: 'Alicization is a local-first digital life project building one continuous her on the host computer rather than a better chat wrapper.',
+                currentPhase: 'Phase 1: Local Digital Life. The primary proving ground remains apps/stage-tamagotchi.',
+                latestLandedProgress: 'Callback continuity already survives direct runtime return without flattening into a detached result notice.',
+                primaryOpenLoop: 'Emotion, memory, initiative, and embodiment still need one tighter same-her closure seam when callbacks reopen later.',
+                nextClosureTarget: 'Keep the callback reopen posture explicit through the next same-her return before local detail widens outward.',
+                sameHerSelfLine: 'Same Phase 1 digital life. This callback return still belongs to one living line rather than a detached execution shell.',
+                sameHerHoldDetail,
+                sameHerDriftRisk: 'If fresh callback continuity metadata drops back to generic project guidance, treat that as unfinished same-her drift.',
+                preflightSummary: 'identity=Alicization | phase=Phase 1 | open=callback reopen posture still needs one living line',
+                preDialogueAwarenessLine: 'Before answering, remember this callback reopening still belongs to the same local-first digital life project and same living line.',
+                continuityArcStage: 'hold-for-opening',
+                continuityRestraint: 'measured-return',
+                continuityCue: 'keep this callback reopening on the same living line before widening outward again.',
+                continuityPreferredTiming: 'next-open-window',
+                continuityCadence: 'measured-return',
+                preferredBlinkCadence: 'linger',
+                preferredGazeMode: 'soften',
+                preferredPauseMode: 'longer',
+                preferredLipsyncMode: 'restrained',
+                preferredVoiceMode: 'lower-pressure',
+                preferredPacingMode: 'slower',
+              },
+            },
+          },
+        },
+      })]),
+      listExecutionEvents: vi.fn(async () => [createEvent({
+        payload: {
+          summary: 'Keep the callback reopening on the same living line and do not let it collapse into a detached result notice.',
+        },
+      })]),
+    })
+
+    const context = await runtime.buildPendingExecutionCallbackContext({
+      sessionId: 'session-1',
+    })
+
+    expect(context.continuitySignals[0]?.metadata).toEqual(expect.objectContaining({
+      continuityKind: 'execution-callback',
+      projectIdentity: 'Alicization is a local-first digital life project building one continuous her on the host computer rather than a better chat wrapper.',
+      projectPhase: 'Phase 1: Local Digital Life. The primary proving ground remains apps/stage-tamagotchi.',
+      projectStatePreflightSummary: 'identity=Alicization | phase=Phase 1 | open=callback reopen posture still needs one living line',
+      projectStatePreDialogueAwarenessLine: 'Before answering, remember this callback reopening still belongs to the same local-first digital life project and same living line.',
+      projectLatestLandedProgress: 'Callback continuity already survives direct runtime return without flattening into a detached result notice.',
+      projectPrimaryOpenLoop: 'Emotion, memory, initiative, and embodiment still need one tighter same-her closure seam when callbacks reopen later.',
+      projectNextClosureTarget: 'Keep the callback reopen posture explicit through the next same-her return before local detail widens outward.',
+      projectStateSameHerSelfLine: 'Same Phase 1 digital life. This callback return still belongs to one living line rather than a detached execution shell.',
+      projectStateSameHerHoldDetail: sameHerHoldDetail,
+      projectStateSameHerDriftRisk: 'If fresh callback continuity metadata drops back to generic project guidance, treat that as unfinished same-her drift.',
+      continuityArcStage: 'hold-for-opening',
+      continuityRestraint: 'measured-return',
+      continuityCue: 'keep this callback reopening on the same living line before widening outward again.',
+      continuityPreferredTiming: 'next-open-window',
+      continuityCadence: 'measured-return',
+      preferredBlinkCadence: 'linger',
+      preferredGazeMode: 'soften',
+      projectStatePreferredPauseMode: 'longer',
+      projectStatePreferredLipsyncMode: 'restrained',
+      projectStatePreferredVoiceMode: 'lower-pressure',
+      projectStatePreferredPacingMode: 'slower',
+    }))
+    expect(context.recallText).toContain('execution_callback_project_continuity_arc_stage:hold-for-opening')
+    expect(context.recallText).toContain('execution_callback_project_pause_mode:longer')
+    expect(context.recallText).toContain('execution_callback_project_lipsync_mode:restrained')
+    expect(context.systemBlock).toContain('project_continuity_arc_stage=hold-for-opening')
+    expect(context.systemBlock).toContain('project_pause_mode=longer')
+    expect(context.systemBlock).toContain('project_lipsync_mode=restrained')
   })
 
   it('keeps richer same-her hold detail in callback project awareness instead of leaving the compact same-phase carry as the opening line', async () => {
@@ -749,6 +835,16 @@ describe('execution callback runtime', () => {
             sameHerDriftRisk: 'If the thin stored thread shell outranks the richer resume event carry, treat that as unfinished same-her drift.',
             projectPreflight: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=bounded redispatch line still needs closure',
             projectAwareness: 'Before answering, remember host-confirmed resume is still part of the same local-first digital life project and bounded redispatch line.',
+            projectCompanionBriefing: 'Before answering, remember this host-confirmed redispatch is still closing the same Phase 1 digital life seam across memory, initiative, and embodiment.',
+            projectSameHerHoldDetail: 'same-her hold: keep this host-confirmed redispatch lower-pressure before another outward opening.',
+            projectContinuityArcStage: 'same-thread-continuation',
+            projectContinuityRestraint: 'measured-return',
+            projectContinuityCue: 'Keep this host-confirmed redispatch on the same living line before widening outward again.',
+            projectContinuityPreferredTiming: 'next-open-window',
+            projectContinuityCadence: 'measured-return',
+            projectEmotionalClosure: 'same-her callback seam: keep the return low-pressure while the same living line is still settling.',
+            projectBlinkCadence: 'linger',
+            projectGazeMode: 'soften',
             projectVoiceMode: 'lower-pressure',
             projectPacingMode: 'slower',
           },
@@ -772,12 +868,30 @@ describe('execution callback runtime', () => {
     expect(context.recallText).toContain('execution_callback_project_awareness:')
     expect(context.recallText).toContain('Host-confirmed resume writes an execution event before redispatch so richer event-side project carry survives callback recall.')
     expect(context.recallText).toContain('Keep host-confirmed redispatch and later callback recall on one same-her Phase 1 line.')
+    expect(context.recallText).toContain('execution_callback_project_companion_briefing:Before answering, remember this host-confirmed redispatch is still closing the same Phase 1 digital life seam across memory, initiative, and embodiment.')
+    expect(context.recallText).toContain('execution_callback_project_same_her_hold:same-her hold: keep this host-confirmed redispatch lower-pressure before another outward opening.')
+    expect(context.recallText).toContain('execution_callback_project_continuity_arc_stage:same-thread-continuation')
+    expect(context.recallText).toContain('execution_callback_project_continuity_restraint:measured-return')
+    expect(context.recallText).toContain('execution_callback_project_continuity_cue:Keep this host-confirmed redispatch on the same living line before widening outward again.')
+    expect(context.recallText).toContain('execution_callback_project_continuity_timing:next-open-window')
+    expect(context.recallText).toContain('execution_callback_project_continuity_cadence:measured-return')
+    expect(context.recallText).toContain('execution_callback_project_preferred_blink:linger')
+    expect(context.recallText).toContain('execution_callback_project_preferred_gaze:soften')
     expect(context.recallText).toContain('execution_callback_project_voice_mode:lower-pressure')
     expect(context.recallText).toContain('execution_callback_project_pacing_mode:slower')
     expect(context.recallText).not.toContain('project continuity exists')
     expect(context.recallText).not.toContain('generic next closure')
     expect(context.systemBlock).toContain('project_awareness=')
     expect(context.systemBlock).toContain('Host-confirmed resume writes an execution event before redispatch so richer event-side project carry survives callback recall.')
+    expect(context.systemBlock).toContain('project_companion_briefing=Before answering, remember this host-confirmed redispatch is still closing the same Phase 1 digital life seam across memory, initiative, and embodiment.')
+    expect(context.systemBlock).toContain('project_same_her_hold=same-her hold: keep this host-confirmed redispatch lower-pressure before another outward opening.')
+    expect(context.systemBlock).toContain('project_continuity_arc_stage=same-thread-continuation')
+    expect(context.systemBlock).toContain('project_continuity_restraint=measured-return')
+    expect(context.systemBlock).toContain('project_continuity_cue=Keep this host-confirmed redispatch on the same living line before widening outward again.')
+    expect(context.systemBlock).toContain('project_continuity_preferred_timing=next-open-window')
+    expect(context.systemBlock).toContain('project_continuity_cadence=measured-return')
+    expect(context.systemBlock).toContain('project_preferred_blink_cadence=linger')
+    expect(context.systemBlock).toContain('project_preferred_gaze_mode=soften')
     expect(context.systemBlock).toContain('project_voice_mode=lower-pressure')
     expect(context.systemBlock).toContain('project_pacing_mode=slower')
     expect(context.systemBlock).not.toContain('project continuity exists')

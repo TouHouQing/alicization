@@ -194,6 +194,72 @@ describe('execution delivery runtime', () => {
     })
   })
 
+  it('preserves richer callback project-state carry across snapshot and restore so restart delivery does not fall back to a generic phase shell', () => {
+    const now = 30_000
+    const source = createAlicizationExecutionDeliveryRuntime({
+      getNow: () => now,
+    })
+
+    source.enqueue({
+      cardId: 'default',
+      sessionId: 'session-1',
+      threadId: 'thread-project-state',
+      channel: 'cli',
+      status: 'completed',
+      goal: 'Carry the callback result back on the same living line after restart.',
+      summary: 'Restart callback continuity still needs its own same-her closure seam.',
+      outcome: 'patched callback continuity seam',
+      signature: 'thread-project-state:event',
+      completedAt: 22_000,
+      projectState: {
+        identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer.',
+        currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
+        latestLandedProgress: 'Restart callback continuity already survives pending delivery persistence instead of dropping back to a generic project shell.',
+        primaryOpenLoop: 'Execution callback continuity still needs stronger same-her closure across restart, visible reply, initiative, and embodiment.',
+        nextClosureTarget: 'Keep restart callback delivery on the same living line before widening outward again.',
+        sameHerSelfLine: 'This callback turn still belongs to the same living her, so keep the return on the same callback line after restart.',
+        sameHerDriftRisk: 'If restart delivery falls back to a generic Phase 1 shell, treat it as unfinished callback drift.',
+        preflightSummary: 'identity=Alicization | phase=Phase 1 | open=restart callback continuity | next=same callback line',
+        preDialogueAwarenessLine: 'Before answering, remember this restart callback still belongs to the same local-first digital life project and same callback line.',
+        companionHeadlineLine: 'Right now she is still holding together mainly through voice, face, motion, and lipsync, so this restart callback must reopen on that same living line.',
+        companionBriefingLine: 'Before answering, keep this restart callback on one same-her Phase 1 line so the return does not collapse into a detached execution notice.',
+        emotionalClosureSummary: 'same-her callback seam: let the restart return stay lower-pressure while the same living line is still settling back in.',
+        continuityCue: 'same-digital-life-project-thread | restart-callback | same-her return stays lower-pressure before widening again.',
+        continuityPreferredTiming: 'next-open-window',
+        continuityCadence: 'measured-return',
+        preferredBlinkCadence: 'linger',
+        preferredGazeMode: 'soften',
+      } as any,
+    })
+
+    const snapshot = source.snapshot('default')
+    const restored = createAlicizationExecutionDeliveryRuntime({
+      getNow: () => now,
+    })
+    restored.restore('default', snapshot)
+
+    expect(restored.snapshot('default')).toEqual(expect.objectContaining({
+      pending: [expect.objectContaining({
+        threadId: 'thread-project-state',
+        projectState: expect.objectContaining({
+          latestLandedProgress: 'Restart callback continuity already survives pending delivery persistence instead of dropping back to a generic project shell.',
+          primaryOpenLoop: 'Execution callback continuity still needs stronger same-her closure across restart, visible reply, initiative, and embodiment.',
+          nextClosureTarget: 'Keep restart callback delivery on the same living line before widening outward again.',
+          sameHerSelfLine: 'This callback turn still belongs to the same living her, so keep the return on the same callback line after restart.',
+          preDialogueAwarenessLine: 'Before answering, remember this restart callback still belongs to the same local-first digital life project and same callback line.',
+          companionHeadlineLine: 'Right now she is still holding together mainly through voice, face, motion, and lipsync, so this restart callback must reopen on that same living line.',
+          companionBriefingLine: 'Before answering, keep this restart callback on one same-her Phase 1 line so the return does not collapse into a detached execution notice.',
+          emotionalClosureSummary: 'same-her callback seam: let the restart return stay lower-pressure while the same living line is still settling back in.',
+          continuityCue: 'same-digital-life-project-thread | restart-callback | same-her return stays lower-pressure before widening again.',
+          continuityPreferredTiming: 'next-open-window',
+          continuityCadence: 'measured-return',
+          preferredBlinkCadence: 'linger',
+          preferredGazeMode: 'soften',
+        }),
+      })],
+    }))
+  })
+
   it('blocks in-flight delivery requeue once the same execution result was already surfaced inline', () => {
     const now = 50_000
     const runtime = createAlicizationExecutionDeliveryRuntime({

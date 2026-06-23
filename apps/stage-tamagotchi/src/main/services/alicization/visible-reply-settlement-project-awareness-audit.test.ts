@@ -23,6 +23,16 @@ const proofRows = [
     ],
   },
   {
+    entry: 'visible-reply-settlement-callback-next-closure-target-carry',
+    file: './visible-reply/settlement.test.ts',
+    snippets: [
+      'keeps callback-specific same-her project awareness explicit through final settlement instead of widening it back into a broader canonical phase-1 reminder',
+      'const callbackNextClosure = \'Keep the callback return on the same living line and let that same-her closure stay explicit in the final visible reply.\'',
+      'nextClosureTargetSummary: callbackNextClosure,',
+      '.toContain(`next=${callbackNextClosure}`)',
+    ],
+  },
+  {
     entry: 'visible-reply-settlement-thin-chinese-same-her-reminder-rejected',
     file: './visible-reply/settlement.test.ts',
     snippets: [
@@ -76,6 +86,7 @@ describe('visible reply settlement project awareness audit', () => {
     expect(proofRows).toEqual([
       expect.objectContaining({ entry: 'visible-reply-settlement-phase1-same-her-authority' }),
       expect.objectContaining({ entry: 'visible-reply-settlement-callback-specific-project-awareness' }),
+      expect.objectContaining({ entry: 'visible-reply-settlement-callback-next-closure-target-carry' }),
       expect.objectContaining({ entry: 'visible-reply-settlement-thin-chinese-same-her-reminder-rejected' }),
       expect.objectContaining({ entry: 'visible-reply-settlement-generic-same-her-reanchor' }),
       expect.objectContaining({ entry: 'visible-reply-settlement-repair-first-closure-summary' }),

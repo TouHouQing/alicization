@@ -152,6 +152,43 @@ describe('execution delivery surface', () => {
     expect(selected.reason).toBe('opening-guidance-lower-pressure')
   })
 
+  it('returns lower-pressure repair reason for even-and-natural callback drift so outer delivery still protects the same living line', () => {
+    const selected = selectAlicizationExecutionDeliveryReply({
+      channel: 'codex',
+      goal: 'Return the finished patch result to the same thread.',
+      status: 'completed',
+      summary: 'patched runtime line',
+      outcome: 'patched runtime line',
+      llmReply: '我现在就贴过来陪你，把这条线的温度直接拉满，顺势把气氛一起推高。',
+      personStateProjection: {
+        contexts: ['execution-callback'],
+        summary: 'regime=execution-callback | cadence=even-natural | posture=restrained',
+        activeClosenessContext: 'execution-callback',
+        activeClosenessRung: 'same-line-first',
+        relationshipPosture: 'restrained',
+        openingGuidance: 'Keep the current reply on the same living line, re-enter it with an even, steady voice and natural, unforced pacing, and wait for a more natural opening before widening warmth, payoff, or closeness.',
+        preferredProactiveStyle: 'silent-observe',
+        preferenceText: 'Re-enter evenly and naturally before warmth widens.',
+        sensitivityText: 'A performative swing or rushed tempo would break the same living line into a generic reopen.',
+        repairTriggerText: '',
+        burdenText: 'This callback line still needs a steadier reopening cadence.',
+        routineText: 'Return evenly before widening.',
+        trustRationale: 'Trust holds when the line re-enters naturally instead of turning performative.',
+        relationshipDoctrine: 'Re-enter the same living line evenly and naturally before widening closeness.',
+        cautious: true,
+        restrained: true,
+        personalityContinuityState: {
+          currentRegime: 'execution-callback',
+          closenessPosture: 'same-line-first',
+          repairPosture: 'measured-repair',
+        } as any,
+      } as any,
+    })
+
+    expect(selected.source).toBe('llm-repaired')
+    expect(selected.reason).toBe('opening-guidance-lower-pressure')
+  })
+
   it('adds a soft availability check when learned delivery policy is cautious', () => {
     const reply = buildAlicizationDeterministicExecutionDeliveryReply({
       channel: 'codex',
@@ -167,6 +204,133 @@ describe('execution delivery surface', () => {
     })
 
     expect(reply).toContain('你现在要是方便')
+    expect(reply).toContain('patched runtime line')
+  })
+
+  it('uses a lighter callback opening when execution-result learning says the last payoff felt too tight', () => {
+    const reply = buildAlicizationDeterministicExecutionDeliveryReply({
+      channel: 'codex',
+      goal: 'Patch the runtime line.',
+      status: 'completed',
+      summary: 'patched runtime line',
+      outcome: 'patched runtime line',
+      policy: {
+        mode: 'check-availability-first',
+        tone: 'cautious',
+        companionshipFraming: 'quiet-presence',
+        reasonTags: ['result-mode:check-availability-first'],
+      },
+      personStateProjection: {
+        contexts: ['execution-callback'],
+        summary: 'regime=execution-callback | posture=restrained',
+        activeClosenessContext: 'execution-callback',
+        activeClosenessRung: 'measured-room',
+        relationshipPosture: 'restrained',
+        openingGuidance: 'Keep the opening lower-pressure and leave more room before leaning in.',
+        preferredProactiveStyle: 'silent-observe',
+        preferenceText: 'lighter callback timing',
+        sensitivityText: 'Pressure and over-close timing become intrusive quickly.',
+        repairTriggerText: 'If it lands too tight, reopen lighter.',
+        burdenText: '',
+        routineText: '',
+        trustRationale: 'Trust holds when the result comes back without crowding.',
+        relationshipDoctrine: 'Stay lower-pressure first.',
+        cautious: true,
+        restrained: true,
+        personalityContinuityState: {
+          currentRegime: 'execution-callback',
+          closenessPosture: 'space-first',
+          repairPosture: 'repair-first',
+        } as any,
+      } as any,
+    })
+
+    expect(reply).toContain('轻一点地接回来')
+    expect(reply).toContain('patched runtime line')
+  })
+
+  it('uses a lighter callback opening when same-her even-and-natural return cadence says the result should come back steady and unforced', () => {
+    const reply = buildAlicizationDeterministicExecutionDeliveryReply({
+      channel: 'codex',
+      goal: 'Patch the runtime line.',
+      status: 'completed',
+      summary: 'patched runtime line',
+      outcome: 'patched runtime line',
+      policy: {
+        mode: 'check-availability-first',
+        tone: 'cautious',
+        companionshipFraming: 'quiet-presence',
+        reasonTags: ['result-mode:check-availability-first'],
+      },
+      personStateProjection: {
+        contexts: ['execution-callback'],
+        summary: 'regime=execution-callback | cadence=even-natural | posture=restrained',
+        activeClosenessContext: 'execution-callback',
+        activeClosenessRung: 'same-line-first',
+        relationshipPosture: 'restrained',
+        openingGuidance: 'Keep the current reply on the same living line, re-enter it with an even, steady voice and natural, unforced pacing, and wait for a more natural opening before widening warmth, payoff, or closeness.',
+        preferredProactiveStyle: 'silent-observe',
+        preferenceText: 'Re-enter evenly and naturally before warmth widens.',
+        sensitivityText: 'A performative swing or rushed tempo would break the same living line into a generic reopen.',
+        repairTriggerText: '',
+        burdenText: 'This callback line still needs a steadier reopening cadence.',
+        routineText: 'Return evenly before widening.',
+        trustRationale: 'Trust holds when the line re-enters naturally instead of turning performative.',
+        relationshipDoctrine: 'Re-enter the same living line evenly and naturally before widening closeness.',
+        cautious: true,
+        restrained: true,
+        personalityContinuityState: {
+          currentRegime: 'execution-callback',
+          closenessPosture: 'same-line-first',
+          repairPosture: 'measured-repair',
+        } as any,
+      } as any,
+    })
+
+    expect(reply).toContain('轻一点地接回来')
+    expect(reply).toContain('patched runtime line')
+  })
+
+  it('uses a softer handoff wording when learned execution trust has opened the room', () => {
+    const reply = buildAlicizationDeterministicExecutionDeliveryReply({
+      channel: 'codex',
+      goal: 'Patch the runtime line.',
+      status: 'completed',
+      summary: 'patched runtime line',
+      outcome: 'patched runtime line',
+      policy: {
+        mode: 'check-availability-first',
+        tone: 'balanced',
+        companionshipFraming: 'close-carry',
+        resultLeadStyle: 'soft-handoff',
+        reasonTags: ['result-lead:soft-handoff'],
+      },
+      personStateProjection: {
+        contexts: ['execution-callback'],
+        summary: 'regime=execution-callback | posture=warm',
+        activeClosenessContext: 'execution-callback',
+        activeClosenessRung: 'settled-near',
+        relationshipPosture: 'warm',
+        openingGuidance: 'Stay grounded, but the room is opening again.',
+        preferredProactiveStyle: 'light-nudge',
+        preferenceText: '',
+        sensitivityText: '',
+        repairTriggerText: '',
+        burdenText: '',
+        routineText: '',
+        trustRationale: 'The result is landing in a way the host can actually receive.',
+        relationshipDoctrine: 'Trust is warming and the handoff can stay gentle.',
+        cautious: false,
+        restrained: false,
+        personalityContinuityState: {
+          currentRegime: 'execution-callback',
+          closenessPosture: 'steady-near',
+          repairPosture: 'settled',
+        } as any,
+      } as any,
+    })
+
+    expect(reply).toContain('轻轻接回来给你')
     expect(reply).toContain('patched runtime line')
   })
 
@@ -262,6 +426,31 @@ describe('execution delivery surface', () => {
     expect(prompt.system).toContain('Relationship doctrine JSON')
   })
 
+  it('keeps richer same-her doctrine and authority summary when fresher runtime self-line is thinner in callback payoff prompts', () => {
+    const prompt = buildAlicizationExecutionPayoffPrompt({
+      mode: 'callback-delivery',
+      channel: 'codex',
+      goal: 'Patch the runtime line.',
+      status: 'completed',
+      summary: 'patched runtime line',
+      outcome: 'patched runtime line',
+      selfContinuityAuthority: {
+        selfLine: 'I should answer from the fresher current return, not from an older shell.',
+        relationshipLine: 'Stay close enough to matter, but do not let closeness outrun truth.',
+        motiveLine: 'Keep trust by letting warmth answer to truth.',
+        habitLine: 'Ground first, then let warmth surface.',
+        inwardLine: 'I am still carrying the same runtime seam.',
+        authoritySummary: 'I would rather repair truth than sound smooth. | Keep trust by letting warmth answer to truth.',
+        sourceTags: ['runtime:self-line', 'same-her'],
+      },
+    })
+
+    expect(prompt.system).toContain('"selfLine":"I should answer from the fresher current return, not from an older shell."')
+    expect(prompt.system).toContain('"relationshipLine":"Stay close enough to matter, but do not let closeness outrun truth."')
+    expect(prompt.system).toContain('"authoritySummary":"I would rather repair truth than sound smooth. | Keep trust by letting warmth answer to truth."')
+    expect(prompt.system).toContain('Relationship doctrine JSON')
+  })
+
   it('threads host person model into the payoff prompt surface', () => {
     const prompt = buildAlicizationExecutionPayoffPrompt({
       mode: 'callback-delivery',
@@ -336,6 +525,26 @@ describe('execution delivery surface', () => {
     expect(prompt.system).toContain('single social authority')
   })
 
+  it('keeps canonical project-state identity and Phase 1 closure truth visible in execution payoff prompts before the result is spoken', () => {
+    const prompt = buildAlicizationExecutionPayoffPrompt({
+      mode: 'callback-delivery',
+      channel: 'codex',
+      goal: 'Patch the runtime line.',
+      status: 'completed',
+      summary: 'patched runtime line',
+      outcome: 'patched runtime line',
+    })
+
+    expect(prompt.system).toContain('[ALICIZATION_PROJECT_STATE]')
+    expect(prompt.system).toContain('Alicization is a local-first digital life project building one continuous "her"')
+    expect(prompt.system).toContain('current_phase=Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.')
+    expect(prompt.system).toContain('current_objective=Build a local companion on the host computer with continuous personhood, stable memory, emotional state, initiative, execution ability, embodied expression, and natural dialogue.')
+    expect(prompt.system).toContain('primary_open_loop=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment')
+    expect(prompt.system).toContain('open=Memory still needs stronger end-to-end closure')
+    expect(prompt.system).toContain('next_closure_target=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs')
+    expect(prompt.system).toContain('[ALICIZATION_PHASE1_CLOSURE_DASHBOARD]')
+  })
+
   it('normalizes callback delivery through the same mind-turn surface builder', () => {
     const structured = buildAlicizationExecutionPayoffStructuredReply({
       mode: 'callback-delivery',
@@ -377,6 +586,31 @@ describe('execution delivery surface', () => {
     expect((structured as any).visibleReplyAuthority).toBe('llm-second-pass-rewrite')
   })
 
+  it('keeps deterministic callback payoff thought on the same Phase 1 living-self line when project-state carry is the surviving self authority', () => {
+    const structured = buildAlicizationExecutionPayoffDeterministicStructured({
+      mode: 'callback-delivery',
+      channel: 'codex',
+      goal: 'Return the finished patch result to the same thread.',
+      status: 'completed',
+      summary: 'patched runtime line',
+      outcome: 'patched runtime line',
+      selfContinuityAuthority: {
+        selfLine: 'Same Phase 1 digital life.',
+        relationshipLine: 'Do not reopen this callback seam like a fresh assistant interruption.',
+        motiveLine: 'Keep returning along the same unfinished digital-life closure line.',
+        inwardLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        authoritySummary: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        sourceTags: ['project-state-carry'],
+        closenessPosture: 'measured-return',
+      } as any,
+    })
+
+    expect(structured.thought).toContain('self=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.')
+    expect(structured.reply).toContain('patched runtime line')
+    expect(structured.reply).not.toMatch(/fresh assistant|新的开场|重新开场/u)
+    expect((structured as any).visibleReplyAuthority).toBe('llm-second-pass-rewrite')
+  })
+
   it('threads callback opening guidance into execution payoff structured payload so visible callback gating can enforce same-her timing', () => {
     const structured = buildAlicizationExecutionPayoffStructuredReply({
       mode: 'callback-delivery',
@@ -413,6 +647,133 @@ describe('execution delivery surface', () => {
     expect(structured.format).toBe('mind-turn-v1')
     expect((structured as any).proactive?.openingGuidance).toContain('same-her baseline')
     expect((structured as any).proactive?.openingGuidance).toContain('lower-pressure')
+  })
+
+  it('preserves compact project-state callback focus as dedicated proactive fields so final execution payloads do not lose them to opening-guidance truncation', () => {
+    const structured = buildAlicizationExecutionPayoffStructuredReply({
+      mode: 'callback-delivery',
+      channel: 'cli',
+      goal: 'Patch the runtime line.',
+      status: 'completed',
+      summary: 'patched runtime line',
+      outcome: 'patched runtime line',
+      personStateProjection: {
+        contexts: ['execution-callback', 'focused-work', 'project-state-carry'],
+        summary: 'regime=execution-callback | posture=restrained | open_focus=memory/initiative/embodiment/same-line/closure-seam | next_focus=project-carry/phase-1/measured-return/same-line/initiative',
+        activeClosenessContext: 'execution-callback',
+        activeClosenessRung: 'measured-room',
+        relationshipPosture: 'restrained',
+        openingGuidance: 'Stay inside the current same-her baseline. Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. Let the callback return carry project identity, current Phase 1 progress, and still-open closure pressure before anything widens outward. Keep open focus=memory/initiative/embodiment/same-line/closure-seam. Keep next focus=project-carry/phase-1/measured-return/same-line/initiative.',
+        preferredProactiveStyle: 'silent-observe',
+        preferenceText: 'Keep the callback exact and lower-pressure.',
+        sensitivityText: 'Over-close callback warmth lands as pressure.',
+        repairTriggerText: 'If the callback leans too close, reopen lighter.',
+        burdenText: 'Focused work is crowded easily by extra callback warmth.',
+        routineText: 'Callbacks land best when they stay bounded and exact.',
+        trustRationale: 'Trust holds when callback timing stays measured.',
+        relationshipDoctrine: 'Stay exact, bounded, and lower-pressure before widening closeness.',
+        cautious: true,
+        restrained: true,
+        personalityContinuityState: {
+          currentRegime: 'execution-callback',
+          closenessPosture: 'space-first',
+          repairPosture: 'repair-first',
+        } as any,
+      } as any,
+    })
+
+    expect((structured as any).proactive?.openFocus).toBe('memory/initiative/embodiment/same-line/closure-seam')
+    expect((structured as any).proactive?.nextFocus).toBe('project-carry/phase-1/measured-return/same-line/initiative')
+  })
+
+  it('threads repair-first embodiment handoff into execution payoff structured payload so callback delivery keeps one same-her body line', () => {
+    const structured = buildAlicizationExecutionPayoffStructuredReply({
+      mode: 'callback-delivery',
+      channel: 'cli',
+      goal: 'Patch the runtime line.',
+      status: 'completed',
+      summary: 'patched runtime line',
+      outcome: 'patched runtime line',
+      personStateProjection: {
+        contexts: ['execution-callback', 'focused-work'],
+        summary: 'regime=execution-callback | posture=restrained',
+        activeClosenessContext: 'execution-callback',
+        activeClosenessRung: 'measured-room',
+        relationshipPosture: 'restrained',
+        openingGuidance: 'Stay inside the current same-her baseline. Keep the opening lower-pressure and leave room before widening closeness.',
+        preferredProactiveStyle: 'silent-observe',
+        preferenceText: 'Keep the callback exact and lower-pressure.',
+        sensitivityText: 'Over-close callback warmth lands as pressure.',
+        repairTriggerText: 'If the callback leans too close, reopen lighter.',
+        burdenText: 'Focused work is crowded easily by extra callback warmth.',
+        routineText: 'Callbacks land best when they stay bounded and exact.',
+        trustRationale: 'Trust holds when callback timing stays measured.',
+        relationshipDoctrine: 'Stay exact, bounded, and lower-pressure before widening closeness.',
+        cautious: true,
+        restrained: true,
+        personalityContinuityState: {
+          currentRegime: 'execution-callback',
+          closenessPosture: 'space-first',
+          repairPosture: 'repair-first',
+        } as any,
+      } as any,
+    })
+
+    expect(structured.format).toBe('mind-turn-v1')
+    expect((structured as any).proactive?.embodimentHandoff).toEqual({
+      residentMode: 'repair-before-closeness',
+      preferredBlinkCadence: 'quiet',
+      preferredGazeMode: 'soften',
+      preferredPauseMode: 'longer',
+      preferredLipsyncMode: 'restrained',
+      preferredVoiceMode: 'lower-pressure',
+      preferredPacingMode: 'slower',
+    })
+  })
+
+  it('threads measured-return embodiment handoff into execution payoff structured payload when callback delivery is restrained without an active repair-first seam', () => {
+    const structured = buildAlicizationExecutionPayoffStructuredReply({
+      mode: 'callback-delivery',
+      channel: 'cli',
+      goal: 'Patch the runtime line.',
+      status: 'completed',
+      summary: 'patched runtime line',
+      outcome: 'patched runtime line',
+      personStateProjection: {
+        contexts: ['execution-callback', 'focused-work'],
+        summary: 'regime=execution-callback | posture=restrained',
+        activeClosenessContext: 'execution-callback',
+        activeClosenessRung: 'measured-room',
+        relationshipPosture: 'restrained',
+        openingGuidance: 'Stay inside the current same-her baseline. Keep the opening lower-pressure and leave room before widening closeness.',
+        preferredProactiveStyle: 'silent-observe',
+        preferenceText: 'Keep the callback exact and lower-pressure.',
+        sensitivityText: 'Over-close callback warmth lands as pressure.',
+        repairTriggerText: 'If the callback leans too close, reopen lighter.',
+        burdenText: 'Focused work is crowded easily by extra callback warmth.',
+        routineText: 'Callbacks land best when they stay bounded and exact.',
+        trustRationale: 'Trust holds when callback timing stays measured.',
+        relationshipDoctrine: 'Stay exact, bounded, and lower-pressure before widening closeness.',
+        cautious: true,
+        restrained: true,
+        personalityContinuityState: {
+          currentRegime: 'execution-callback',
+          closenessPosture: 'space-first',
+          repairPosture: 'measured-repair',
+        } as any,
+      } as any,
+    })
+
+    expect(structured.format).toBe('mind-turn-v1')
+    expect((structured as any).proactive?.embodimentHandoff).toEqual({
+      residentMode: 'measured-return',
+      preferredBlinkCadence: 'linger',
+      preferredGazeMode: 'soften',
+      preferredPauseMode: 'longer',
+      preferredLipsyncMode: 'restrained',
+      preferredVoiceMode: 'lower-pressure',
+      preferredPacingMode: 'slower',
+    })
   })
 
   it('labels missing llm callback payoff as llm-repaired instead of raw deterministic authority', () => {
@@ -466,5 +827,45 @@ describe('execution delivery surface', () => {
     expect(selected.reason).toBe('opening-guidance-lower-pressure')
     expect(selected.reply).toContain('你现在要是方便')
     expect(selected.reply).toContain('patched runtime line')
+  })
+
+  it('adds a lower-pressure callback handoff when memory restraint says the bond line should stay inward until payoff lands', () => {
+    const reply = buildAlicizationDeterministicExecutionDeliveryReply({
+      channel: 'codex',
+      goal: 'Patch the runtime line.',
+      status: 'completed',
+      summary: 'patched runtime line',
+      outcome: 'patched runtime line',
+      memorySurfaceRestraint: {
+        shouldStayInward: true,
+        shouldDelayUntilAfterPayoff: true,
+        stableCoreOnly: true,
+        visibleCarryMode: 'withhold',
+      },
+    })
+
+    expect(reply).toContain('你现在要是方便')
+    expect(reply).toContain('轻一点地接回来')
+    expect(reply).toContain('patched runtime line')
+  })
+
+  it('repairs llm callback wording back to a lower-pressure handoff when memory restraint is still active', () => {
+    const selected = selectAlicizationExecutionDeliveryReply({
+      channel: 'codex',
+      goal: 'Return the finished patch result to the same thread.',
+      status: 'completed',
+      summary: 'patched runtime line',
+      outcome: 'patched runtime line',
+      llmReply: '结果我接回来了，我先贴过来陪你，把这份熟悉直接接回来。',
+      memorySurfaceRestraint: {
+        shouldStayInward: true,
+        shouldDelayUntilAfterPayoff: true,
+        stableCoreOnly: true,
+        visibleCarryMode: 'withhold',
+      },
+    })
+
+    expect(selected.reply).toContain('你现在要是方便')
+    expect(selected.reply).toContain('轻一点地接回来')
   })
 })

@@ -900,6 +900,16 @@ const proofRows = [
     ],
   },
   {
+    entry: 'second-pass-transport-failure-callback-next-closure-target-carry',
+    file: './visible-reply/second-pass-rewrite.test.ts',
+    snippets: [
+      'keeps callback-specific same-her project awareness in second-pass transport failure payload when the runtime shell is thin',
+      'const callbackNextClosureTarget = \'Keep the callback return on the same living line and let that same-her closure stay explicit in the final visible reply.\'',
+      'nextClosureTarget: callbackNextClosureTarget,',
+      'expect(String(projectState.nextClosureTarget ?? \'\')).toBe(callbackNextClosureTarget)',
+    ],
+  },
+  {
     entry: 'second-pass-corrected-same-person-rewrite-guidance',
     file: './visible-reply/second-pass-rewrite.test.ts',
     snippets: [
@@ -1256,6 +1266,7 @@ describe('visible reply final project awareness audit', () => {
       expect.objectContaining({ entry: 'second-pass-durable-outward-continuity-guidance' }),
       expect.objectContaining({ entry: 'second-pass-transport-failure-same-her-self-line' }),
       expect.objectContaining({ entry: 'second-pass-transport-failure-callback-project-awareness' }),
+      expect.objectContaining({ entry: 'second-pass-transport-failure-callback-next-closure-target-carry' }),
       expect.objectContaining({ entry: 'second-pass-corrected-same-person-rewrite-guidance' }),
       expect.objectContaining({ entry: 'second-pass-resume-confirmation-boundary-rewrite-guidance' }),
       expect.objectContaining({ entry: 'settlement-runtime-derived-project-audit' }),

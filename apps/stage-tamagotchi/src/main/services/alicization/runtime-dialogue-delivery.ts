@@ -2,9 +2,18 @@ import type {
   AlicizationAffectiveResidueMemorySnapshot,
   AlicizationDialogueRespondedPayload,
   AlicizationEmotionalTransitionLedgerSnapshot,
-  AlicizationProactiveScenario,
 } from '../../../shared/eventa'
 import type { PendingDialogueDeliveryState } from './runtime-soul'
+
+import {
+  normalizeAlicizationDerivedMindStateBundle,
+  normalizeAlicizationRuntimeDigest,
+  readAffectiveResidueFromDerivedMindStateBundle,
+} from '@proj-alicization/stage-shared'
+
+import {
+  resolveAlicizationAutonomousDialogueFamilyClassification,
+} from './runtime-structured-format'
 
 interface CreateAlicizationRuntimeDialogueDeliveryOptions {
   normalizeCardId: (raw: unknown) => string
@@ -29,18 +38,100 @@ interface CreateAlicizationRuntimeDialogueDeliveryOptions {
   dialogueDeliveryRetryMaxAttempts: number
 }
 
-type AlicizationPendingProactiveLearningAction = 'record' | 'reflect' | 'verify' | 'revise' | 'internalize' | 'hold'
-
-export interface AlicizationPendingProactiveDeliverySnapshot {
+export interface AlicizationPendingProactiveDialogueDeliverySnapshot {
+  cardId: string
+  sessionId: string
   turnId: string
   createdAt: number
-  scenario: AlicizationProactiveScenario
-  feedbackWindowMs: number
   assistantText: string | null
-  learningAction: AlicizationPendingProactiveLearningAction | null
+  scenario: string | null
+  feedbackWindowMs: number | null
+  learningAction: string | null
   learningFocuses: string[]
-  emotionalTransitionLedger: AlicizationEmotionalTransitionLedgerSnapshot | null
-  affectiveResidue: AlicizationAffectiveResidueMemorySnapshot | null
+  emotionalTransitionLedger?: AlicizationEmotionalTransitionLedgerSnapshot | null
+  affectiveResidue?: AlicizationAffectiveResidueMemorySnapshot | null
+}
+
+function extractStructuredAffectiveResidue(
+  structured: Record<string, unknown> | null,
+): AlicizationAffectiveResidueMemorySnapshot | null {
+  const runtimeDigest = normalizeAlicizationRuntimeDigest(structured?.runtimeDigest ?? null)
+  const runtimeDigestResidue = runtimeDigest?.affectiveResidue
+    ?? runtimeDigest?.derivedMindStateBundle?.affectiveResidue
+  if (runtimeDigestResidue)
+    return runtimeDigestResidue
+
+  const derivedMindStateBundle = normalizeAlicizationDerivedMindStateBundle(structured?.derivedMindStateBundle ?? null)
+  return readAffectiveResidueFromDerivedMindStateBundle(derivedMindStateBundle)
+}
+
+function extractStructuredEmotionalTransitionLedger(
+  structured: Record<string, unknown> | null,
+): AlicizationEmotionalTransitionLedgerSnapshot | null {
+  const runtimeDigest = normalizeAlicizationRuntimeDigest(structured?.runtimeDigest ?? null)
+  const runtimeDigestLedger = runtimeDigest?.derivedMindStateBundle?.emotionalTransitionLedger
+  if (runtimeDigestLedger)
+    return runtimeDigestLedger
+
+  const derivedMindStateBundle = normalizeAlicizationDerivedMindStateBundle(structured?.derivedMindStateBundle ?? null)
+  return derivedMindStateBundle?.emotionalTransitionLedger ?? null
+}
+
+function readPendingProactiveSnapshotFromPayload(
+  payload: AlicizationDialogueRespondedPayload,
+  options: Pick<CreateAlicizationRuntimeDialogueDeliveryOptions, 'normalizeCardId' | 'normalizeSessionId' | 'sanitizeText'>,
+): AlicizationPendingProactiveDialogueDeliverySnapshot | null {
+  const structured = payload.structured && typeof payload.structured === 'object'
+    ? payload.structured as unknown as Record<string, unknown>
+    : null
+  const autonomousDialogueFamily = resolveAlicizationAutonomousDialogueFamilyClassification({
+    turnId: payload.turnId,
+    rawFormat: structured?.format,
+    origin: payload.origin,
+  })
+  if (!autonomousDialogueFamily.isAutonomous)
+    return null
+  const proactive = structured?.proactive && typeof structured.proactive === 'object'
+    ? structured.proactive as Record<string, unknown>
+    : null
+  const assistantText = typeof (structured?.utterance && typeof structured.utterance === 'object'
+    ? (structured.utterance as Record<string, unknown>).assistantText
+    : null) === 'string'
+    ? options.sanitizeText((structured!.utterance as Record<string, unknown>).assistantText, '').slice(0, 260)
+    : null
+  const scenario = options.sanitizeText(proactive?.scenario, '')
+  const feedbackWindowMs = Number(proactive?.feedbackWindowMs)
+  if (!scenario || !Number.isFinite(feedbackWindowMs))
+    return null
+
+  const reasonCodes = Array.isArray(proactive?.reasonCodes)
+    ? proactive.reasonCodes
+        .map(code => options.sanitizeText(code, ''))
+        .filter(Boolean)
+    : []
+  const learningAction = reasonCodes.find(code => /^learning:(record|reflect|verify|revise|internalize|hold)$/u.test(code))
+    ?.slice('learning:'.length) ?? null
+  const learningFocuses = reasonCodes
+    .filter(code => code.startsWith('learning-focus:'))
+    .map(code => code.slice('learning-focus:'.length).trim())
+    .filter(Boolean)
+    .slice(0, 6)
+  const affectiveResidue = extractStructuredAffectiveResidue(structured)
+  const emotionalTransitionLedger = extractStructuredEmotionalTransitionLedger(structured)
+
+  return {
+    cardId: options.normalizeCardId(payload.cardId),
+    sessionId: options.normalizeSessionId(payload.sessionId),
+    turnId: options.sanitizeText(payload.turnId),
+    createdAt: Math.max(0, Math.floor(Number(payload.createdAt) || 0)),
+    assistantText: assistantText || null,
+    scenario,
+    feedbackWindowMs: Math.max(1_000, Math.floor(feedbackWindowMs)),
+    learningAction,
+    learningFocuses,
+    emotionalTransitionLedger,
+    affectiveResidue,
+  }
 }
 
 export function normalizeDialogueAckObject(
@@ -74,6 +165,7 @@ export function createAlicizationRuntimeDialogueDelivery(
   const dialogueAckByCard = new Map<string, Map<string, number>>()
   const dialogueReplyFeedbackAckByCard = new Map<string, string>()
   const pendingDialogueDeliveries = new Map<string, PendingDialogueDeliveryState>()
+  const latestPendingProactiveDeliveryByCard = new Map<string, AlicizationPendingProactiveDialogueDeliverySnapshot>()
 
   function getDialogueAckMap(cardIdRaw: unknown) {
     const cardId = options.normalizeCardId(cardIdRaw)
@@ -194,6 +286,7 @@ export function createAlicizationRuntimeDialogueDelivery(
 
   function clearPendingDialogueDeliveriesByCard(cardIdRaw: unknown) {
     const normalizedCardId = options.normalizeCardId(cardIdRaw)
+    latestPendingProactiveDeliveryByCard.delete(normalizedCardId)
     for (const pending of pendingDialogueDeliveries.values()) {
       if (options.normalizeCardId(pending.payload.cardId) !== normalizedCardId)
         continue
@@ -206,6 +299,7 @@ export function createAlicizationRuntimeDialogueDelivery(
       clearPendingDialogueDelivery(pending)
     }
     pendingDialogueDeliveries.clear()
+    latestPendingProactiveDeliveryByCard.clear()
   }
 
   function shouldSkipPendingDialogueRetry(payload: AlicizationDialogueRespondedPayload) {
@@ -253,7 +347,23 @@ export function createAlicizationRuntimeDialogueDelivery(
   function emitDialogueRespondedWithDelivery(payload: AlicizationDialogueRespondedPayload) {
     options.deliverDialogueResponded(payload)
 
-    if (payload.origin !== 'subconscious-proactive')
+    const structured = payload.structured && typeof payload.structured === 'object'
+      ? payload.structured as unknown as Record<string, unknown>
+      : null
+    const autonomousDialogueFamily = resolveAlicizationAutonomousDialogueFamilyClassification({
+      turnId: payload.turnId,
+      rawFormat: structured?.format,
+      origin: payload.origin,
+    })
+    const proactiveSnapshot = readPendingProactiveSnapshotFromPayload(payload, options)
+    if (proactiveSnapshot) {
+      latestPendingProactiveDeliveryByCard.set(
+        options.normalizeCardId(payload.cardId),
+        proactiveSnapshot,
+      )
+    }
+
+    if (!autonomousDialogueFamily.isAutonomous)
       return
 
     const key = createPendingDialogueDeliveryKey(payload, options)
@@ -344,73 +454,19 @@ export function createAlicizationRuntimeDialogueDelivery(
     dialogueReplyFeedbackAckByCard.clear()
   }
 
-  function normalizeLearningAction(raw: unknown): AlicizationPendingProactiveLearningAction | null {
-    const action = typeof raw === 'string' ? raw.trim() : ''
-    return action === 'record'
-      || action === 'reflect'
-      || action === 'verify'
-      || action === 'revise'
-      || action === 'internalize'
-      || action === 'hold'
-      ? action
-      : null
-  }
-
-  function readLearningAction(reasonCodes: readonly unknown[]) {
-    for (const code of reasonCodes) {
-      if (typeof code !== 'string')
-        continue
-      const match = /^learning:(record|reflect|verify|revise|internalize|hold)$/u.exec(code)
-      if (match)
-        return normalizeLearningAction(match[1])
-    }
-    return null
-  }
-
-  function readLearningFocuses(reasonCodes: readonly unknown[]) {
-    return reasonCodes
-      .filter((code): code is string => typeof code === 'string' && code.startsWith('learning-focus:'))
-      .map(code => code.slice('learning-focus:'.length).trim().replace(/\s+/g, ' ').slice(0, 140))
-      .filter(Boolean)
-      .slice(0, 6)
-  }
-
-  function peekLatestPendingProactiveDelivery(cardIdRaw: unknown): AlicizationPendingProactiveDeliverySnapshot | null {
+  function peekLatestPendingProactiveDelivery(cardIdRaw: unknown): AlicizationPendingProactiveDialogueDeliverySnapshot | null {
     const cardId = options.normalizeCardId(cardIdRaw)
-    let latest: AlicizationPendingProactiveDeliverySnapshot | null = null
-    for (const entry of pendingDialogueDeliveries.values()) {
-      const payload = entry.payload
-      if (options.normalizeCardId(payload.cardId) !== cardId)
-        continue
-      if (payload.origin !== 'subconscious-proactive')
-        continue
-
-      const proactive = payload.structured.proactive
-      if (!proactive)
-        continue
-
-      const reasonCodes = Array.isArray(proactive.reasonCodes) ? proactive.reasonCodes : []
-      const derivedMindStateBundle = payload.structured.derivedMindStateBundle ?? null
-      const runtimeDigest = payload.structured.runtimeDigest ?? null
-      const snapshot: AlicizationPendingProactiveDeliverySnapshot = {
-        turnId: payload.turnId,
-        createdAt: Math.max(0, Math.floor(Number(payload.createdAt) || 0)),
-        scenario: proactive.scenario,
-        feedbackWindowMs: Math.max(1_000, Math.floor(Number(proactive.feedbackWindowMs) || 0)),
-        assistantText: options.sanitizeText(payload.assistantText ?? payload.structured.reply ?? '', '') || null,
-        learningAction: readLearningAction(reasonCodes),
-        learningFocuses: readLearningFocuses(reasonCodes),
-        emotionalTransitionLedger: derivedMindStateBundle?.emotionalTransitionLedger ?? null,
-        affectiveResidue:
-          derivedMindStateBundle?.affectiveResidue
-          ?? runtimeDigest?.affectiveResidue
-          ?? runtimeDigest?.derivedMindStateBundle?.affectiveResidue
-          ?? null,
-      }
-      if (!latest || snapshot.createdAt >= latest.createdAt)
-        latest = snapshot
-    }
-    return latest
+    const latestPersisted = latestPendingProactiveDeliveryByCard.get(cardId) ?? null
+    const candidates = [...pendingDialogueDeliveries.values()]
+      .map(entry => readPendingProactiveSnapshotFromPayload(entry.payload, options))
+      .filter((entry): entry is AlicizationPendingProactiveDialogueDeliverySnapshot => {
+        return Boolean(entry && entry.cardId === cardId)
+      })
+      .sort((left, right) => left.createdAt - right.createdAt)
+    const latestPending = candidates.at(-1) ?? null
+    if (latestPending && latestPersisted)
+      return latestPending.createdAt >= latestPersisted.createdAt ? latestPending : latestPersisted
+    return latestPending ?? latestPersisted
   }
 
   return {
@@ -424,9 +480,9 @@ export function createAlicizationRuntimeDialogueDelivery(
     clearPendingDialogueDelivery,
     clearPendingDialogueDeliveriesByCard,
     clearAllPendingDialogueDeliveries,
-    peekLatestPendingProactiveDelivery,
     clearCardState,
     clearAllState,
+    peekLatestPendingProactiveDelivery,
   }
 }
 

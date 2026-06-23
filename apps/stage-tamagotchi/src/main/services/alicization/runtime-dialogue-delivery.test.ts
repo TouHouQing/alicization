@@ -102,6 +102,72 @@ describe('runtime dialogue delivery', () => {
     expect(harness.metaByCard.get('card-b')?.get('dialogue-reply-feedback-ack')).toBe('session-b::turn-10')
   })
 
+  it('keeps pending proactive delivery snapshot when origin is missing but autonomous family markers still survive on the payload', () => {
+    const harness = createHarness()
+    const payload = buildPayload({
+      origin: 'user-turn',
+      turnId: 'execution-callback:default:thread-originless:123',
+      structured: {
+        format: 'subconscious-proactive-v1',
+        reply: 'callback runtime ok',
+        derivedMindStateBundle: {
+          version: 'derived-mind-state-bundle-v1',
+          source: 'main-runtime',
+          producedAt: 100,
+          summary: 'pending proactive affective residue',
+          affectiveResidue: {
+            version: 'affective-residue-memory-v1',
+            updatedAt: 100,
+            residues: [{
+              kind: 'afterglow',
+              weight: 0.74,
+              summary: 'The proactive coding callback should reopen on the same living line.',
+            }],
+            dominantResidueKind: 'afterglow',
+            afterglowPressure: 0.74,
+            repairPressure: 0.18,
+            burdenPressure: 0.1,
+            trustPressure: 0.58,
+            restProtectivePressure: 0.08,
+            relationshipCadence: {
+              cadenceMode: 'measured-return',
+              shouldDelayWarmth: true,
+              shouldProtectRest: false,
+              overreachRisk: 0.12,
+              fatigueGuard: 0.1,
+              summary: 'Let the proactive reopen stay measured and same-line.',
+            },
+            sourceSignals: ['proactive-coding-window'],
+            summary: 'A measured return still belongs to the same living line.',
+          },
+        },
+        proactive: {
+          scenario: 'coding',
+          feedbackWindowMs: 120_000,
+          reasonCodes: ['learning:verify', 'learning-focus:callback-carry'],
+        },
+      } as any,
+    })
+
+    harness.runtime.emitDialogueRespondedWithDelivery(payload)
+
+    expect(harness.runtime.peekLatestPendingProactiveDelivery('card-a')).toEqual(expect.objectContaining({
+      cardId: 'card-a',
+      sessionId: 'session-1',
+      turnId: 'execution-callback:default:thread-originless:123',
+      scenario: 'coding',
+      feedbackWindowMs: 120_000,
+      learningAction: 'verify',
+      learningFocuses: ['callback-carry'],
+      affectiveResidue: expect.objectContaining({
+        dominantResidueKind: 'afterglow',
+        relationshipCadence: expect.objectContaining({
+          cadenceMode: 'measured-return',
+        }),
+      }),
+    }))
+  })
+
   it('retries proactive dialogue delivery until it is acknowledged', async () => {
     vi.useFakeTimers()
     const harness = createHarness()

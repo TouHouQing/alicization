@@ -44,6 +44,15 @@ const proofRows = [
     ],
   },
   {
+    entry: 'visible-reply-facade-next-closure-target-carry',
+    file: './visible-reply/facade.test.ts',
+    snippets: [
+      'keeps compiler-carried same-her callback project continuity explicit in final visible-reply system blocks when the conscious frame stays thin',
+      'next closure target: Keep the callback return on the same living line and let that same-her closure stay explicit in the final visible reply.',
+      'Keep this on one continuous her line instead of restarting the relationship as a fresh opening.',
+    ],
+  },
+  {
     entry: 'visible-reply-facade-dialogue-runtime-same-her-hold-carry',
     file: './visible-reply/facade.test.ts',
     snippets: [
@@ -93,6 +102,7 @@ describe('visible reply facade project awareness audit', () => {
       expect.objectContaining({ entry: 'visible-reply-facade-richer-summary-precedence' }),
       expect.objectContaining({ entry: 'visible-reply-facade-anti-restart-closure-pressure-unification' }),
       expect.objectContaining({ entry: 'visible-reply-facade-richer-project-state-continuity-precedence' }),
+      expect.objectContaining({ entry: 'visible-reply-facade-next-closure-target-carry' }),
       expect.objectContaining({ entry: 'visible-reply-facade-dialogue-runtime-same-her-hold-carry' }),
       expect.objectContaining({ entry: 'visible-reply-facade-callback-project-continuity-carry' }),
       expect.objectContaining({ entry: 'visible-reply-facade-fresher-same-her-self-line-precedence' }),

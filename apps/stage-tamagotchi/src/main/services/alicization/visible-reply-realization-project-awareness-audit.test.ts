@@ -130,6 +130,17 @@ const proofRows = [
     ],
   },
   {
+    entry: 'visible-reply-callback-next-closure-target-carry',
+    file: './visible-reply/realization-engine.test.ts',
+    snippets: [
+      'keeps callback-specific next closure target explicit in final project-state audit when realization stays on the same callback living line',
+      'const callbackNextClosureTarget = \'Keep the callback return on the same living line and let that same-her closure stay explicit in the final visible reply.\'',
+      'nextClosureTargetSummary: callbackNextClosureTarget,',
+      'expect(resolved.realization.projectStateAudit?.continuitySummary)',
+      '.toContain(`next=${callbackNextClosureTarget}`)',
+    ],
+  },
+  {
     entry: 'visible-reply-stronger-prepared-awareness-over-thin-shell',
     file: './visible-reply/realization-engine.test.ts',
     snippets: [
@@ -678,6 +689,7 @@ describe('visible reply realization project awareness audit', () => {
       expect.objectContaining({ entry: 'visible-reply-richer-runtime-project-reanchor-display-mode' }),
       expect.objectContaining({ entry: 'visible-reply-audible-body-headline-awareness-precedence' }),
       expect.objectContaining({ entry: 'visible-reply-callback-specific-awareness-precedence' }),
+      expect.objectContaining({ entry: 'visible-reply-callback-next-closure-target-carry' }),
       expect.objectContaining({ entry: 'visible-reply-stronger-prepared-awareness-over-thin-shell' }),
       expect.objectContaining({ entry: 'visible-reply-canonical-fallback-when-runtime-thin' }),
       expect.objectContaining({ entry: 'visible-reply-richer-prepared-phase1-reanchor-over-canonical-carry' }),

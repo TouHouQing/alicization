@@ -1,5 +1,21 @@
-import type { AlicizationAuditLogInput, AlicizationChatStartPayload } from '../../../shared/eventa'
+import type {
+  AlicizationAffectiveResidueMemorySnapshot,
+  AlicizationAuditLogInput,
+  AlicizationChatStartPayload,
+} from '../../../shared/eventa'
 import type { attachSynthesizedReflections, buildDialogueReplyFeedbackOutcomeClosure, deriveDialogueReplyFeedbackKind } from './outcome-reinforcement'
+
+import {
+  normalizeAlicizationDerivedMindStateBundle,
+  normalizeAlicizationRuntimeDigest,
+  readAffectiveResidueFromDerivedMindStateBundle,
+} from '@proj-alicization/stage-shared'
+
+import {
+  resolveAlicizationChatStartPayloadPreDialogueSendIdentity,
+  summarizeAlicizationPreDialogueSendIdentityForDebug,
+} from './main-chat-start-awareness'
+import { isAlicizationAutonomousDialogueFamily } from './runtime-structured-format'
 
 type AlicizationDialogueReplyFeedbackKind = NonNullable<ReturnType<typeof deriveDialogueReplyFeedbackKind>>
 
@@ -9,6 +25,65 @@ interface DialogueFeedbackConversationRow {
   assistantText?: string | null
   structuredJson?: string | null
   createdAt: number
+}
+
+interface AlicizationFeedbackMemoryExperience {
+  felt?: string | null
+  relationshipMeaning?: string | null
+  lesson?: string | null
+  tags?: string[] | null
+}
+
+function sanitizeProjectCarryText(raw: unknown, sanitizeText: CreateAlicizationRuntimeDialogueFeedbackOptions['sanitizeText']) {
+  return sanitizeText(raw, '').replace(/\s+/g, ' ').slice(0, 320)
+}
+
+function extractStructuredAffectiveResidue(
+  structured: Record<string, unknown> | null,
+): AlicizationAffectiveResidueMemorySnapshot | null {
+  const runtimeDigest = normalizeAlicizationRuntimeDigest(structured?.runtimeDigest ?? null)
+  const runtimeDigestResidue = runtimeDigest?.affectiveResidue
+    ?? runtimeDigest?.derivedMindStateBundle?.affectiveResidue
+  if (runtimeDigestResidue)
+    return runtimeDigestResidue
+
+  const derivedMindStateBundle = normalizeAlicizationDerivedMindStateBundle(structured?.derivedMindStateBundle ?? null)
+  return readAffectiveResidueFromDerivedMindStateBundle(derivedMindStateBundle)
+}
+
+function extractDialogueFeedbackExperienceFromClosure(
+  closure: {
+    episodicEvents?: Array<{
+      sourceKind?: unknown
+      felt?: unknown
+      relationshipMeaning?: unknown
+      lesson?: unknown
+      tags?: unknown
+    }>
+  } | null | undefined,
+  sanitizeText: CreateAlicizationRuntimeDialogueFeedbackOptions['sanitizeText'],
+): AlicizationFeedbackMemoryExperience | null {
+  const event = closure?.episodicEvents?.find(item => sanitizeText(item?.sourceKind, '') === 'dialogue-feedback')
+    ?? closure?.episodicEvents?.[0]
+  if (!event)
+    return null
+
+  const tags = Array.isArray(event.tags)
+    ? event.tags.map(tag => sanitizeText(tag, '').slice(0, 64)).filter(Boolean).slice(0, 12)
+    : []
+  const felt = sanitizeText(event.felt, '').slice(0, 220) || null
+  const relationshipMeaning = sanitizeText(event.relationshipMeaning, '').slice(0, 240) || null
+  const lesson = sanitizeText(event.lesson, '').slice(0, 240) || null
+
+  if (!felt && !relationshipMeaning && !lesson && tags.length === 0)
+    return null
+
+  return {
+    felt,
+    relationshipMeaning,
+    lesson,
+    tags,
+  }
 }
 
 interface CreateAlicizationRuntimeDialogueFeedbackOptions {
@@ -38,6 +113,9 @@ interface CreateAlicizationRuntimeDialogueFeedbackOptions {
       sessionId: string | null
       turnId: string | null
       at: number
+      feedbackExperience?: AlicizationFeedbackMemoryExperience | null
+      selfContinuityInwardLine?: string | null
+      selfContinuitySourceTags?: string[] | null
     }) => Promise<void>
   }
   alicizationDb: {
@@ -60,15 +138,11 @@ export function isOrdinaryDialogueConversationRow(input: {
   sanitizeText: CreateAlicizationRuntimeDialogueFeedbackOptions['sanitizeText']
   parseStoredConversationStructured: CreateAlicizationRuntimeDialogueFeedbackOptions['parseStoredConversationStructured']
 }) {
-  const turnId = input.sanitizeText(input.row.turnId, '')
-  if (turnId.startsWith('reminder:') || turnId.startsWith('subconscious:') || turnId.startsWith('execution-callback:'))
-    return false
-
   const structured = input.parseStoredConversationStructured(input.row.structuredJson)
-  const format = input.sanitizeText(structured?.format, '').toLowerCase()
-  return format !== 'subconscious-proactive-v1'
-    && format !== 'subconscious-proactive-llm-v1'
-    && format !== 'subconscious-reminder-v1'
+  return !isAlicizationAutonomousDialogueFamily({
+    turnId: input.sanitizeText(input.row.turnId, ''),
+    rawFormat: input.sanitizeText(structured?.format, ''),
+  })
 }
 
 export function buildDialogueReplyFeedbackAckKey(input: {
@@ -91,8 +165,10 @@ export function createAlicizationRuntimeDialogueFeedback(
     at: number,
     source: string,
   ) => {
-    const cardId = options.normalizeCardId(payload.cardId)
-    const userText = options.readLatestUserMessageText(payload.messages)
+    const normalizedPayload = resolveAlicizationChatStartPayloadPreDialogueSendIdentity(payload)
+    const preDialogueAwarenessDebug = summarizeAlicizationPreDialogueSendIdentityForDebug(normalizedPayload)
+    const cardId = options.normalizeCardId(normalizedPayload.cardId)
+    const userText = options.readLatestUserMessageText(normalizedPayload.messages)
     if (!userText)
       return null
 
@@ -141,7 +217,23 @@ export function createAlicizationRuntimeDialogueFeedback(
     const governance = structured?.governance && typeof structured.governance === 'object' && !Array.isArray(structured.governance)
       ? structured.governance as Record<string, unknown>
       : null
+    const selfContinuityAuthority = structured?.personStateProjection
+      && typeof structured.personStateProjection === 'object'
+      && !Array.isArray(structured.personStateProjection)
+      && (structured.personStateProjection as Record<string, unknown>).selfContinuityAuthority
+      && typeof (structured.personStateProjection as Record<string, unknown>).selfContinuityAuthority === 'object'
+      && !Array.isArray((structured.personStateProjection as Record<string, unknown>).selfContinuityAuthority)
+      ? ((structured.personStateProjection as Record<string, unknown>).selfContinuityAuthority as Record<string, unknown>)
+      : null
     const decisionTraceId = options.sanitizeText(governance?.decisionTraceId, '') || null
+    const selfContinuityInwardLine = sanitizeProjectCarryText(selfContinuityAuthority?.inwardLine, options.sanitizeText) || null
+    const selfContinuitySourceTags = Array.isArray(selfContinuityAuthority?.sourceTags)
+      ? selfContinuityAuthority.sourceTags
+          .map(tag => sanitizeProjectCarryText(tag, options.sanitizeText))
+          .filter(Boolean)
+          .slice(0, 12)
+      : []
+    const affectiveResidue = extractStructuredAffectiveResidue(structured)
     const closure = options.attachSynthesizedReflections(options.buildDialogueReplyFeedbackOutcomeClosure({
       now: at,
       cardId,
@@ -150,7 +242,9 @@ export function createAlicizationRuntimeDialogueFeedback(
       turnId: options.sanitizeText(latest.turnId, '') || null,
       feedback,
       previousAssistantText: latest.assistantText ?? '',
+      affectiveResidue,
     }))
+    const feedbackExperience = extractDialogueFeedbackExperienceFromClosure(closure, options.sanitizeText)
     await options.persistOutcomeClosure(cardId, closure)
     await options.memoryReconsolidationRuntime.reconsolidateDialogueFeedbackMemoryTrace({
       cardId,
@@ -161,6 +255,9 @@ export function createAlicizationRuntimeDialogueFeedback(
       sessionId,
       turnId: options.sanitizeText(latest.turnId, '') || null,
       at,
+      feedbackExperience,
+      selfContinuityInwardLine,
+      selfContinuitySourceTags,
     })
     const previousDynamics = await options.alicizationDb.getLatestRelationshipDynamics().catch(() => null)
     const hostAttitude = feedback === 'received'
@@ -199,6 +296,7 @@ export function createAlicizationRuntimeDialogueFeedback(
         previousTurnId: latest.turnId ?? null,
         feedback,
         userText,
+        ...preDialogueAwarenessDebug,
       },
     }, cardId)
     return feedback
