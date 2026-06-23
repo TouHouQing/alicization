@@ -163,6 +163,32 @@ function normalizeLanguageCode(value: unknown): string | null {
   return normalizeString(record?.code ?? record?.id ?? record?.language ?? null, 32)
 }
 
+function isDurableMeasuredReturnLipSyncHint(frame: AlicizationDigitalLifeFrame | null | undefined) {
+  const faceHints = frame?.face.rendererHints
+  const actionHints = frame?.action.rendererHints
+  return (
+    (
+      faceHints?.residentMode === 'measured-return'
+      && (faceHints.preferredGazeMode === 'steady' || faceHints.preferredGazeMode === 'soften')
+      && (faceHints.preferredBlinkCadence === 'quiet' || faceHints.preferredBlinkCadence === 'linger')
+    )
+    || (
+      actionHints?.residentMode === 'measured-return'
+      && (actionHints.preferredGazeMode === 'steady' || actionHints.preferredGazeMode === 'soften')
+      && (actionHints.preferredBlinkCadence === 'quiet' || actionHints.preferredBlinkCadence === 'linger')
+    )
+  )
+}
+
+function isRepairBeforeClosenessLipSyncHint(frame: AlicizationDigitalLifeFrame | null | undefined) {
+  const faceHints = frame?.face.rendererHints
+  const actionHints = frame?.action.rendererHints
+  return (
+    faceHints?.residentMode === 'repair-before-closeness'
+    || actionHints?.residentMode === 'repair-before-closeness'
+  )
+}
+
 function isChineseLanguageCode(value: string | null | undefined) {
   if (!value)
     return false
@@ -284,7 +310,7 @@ function blendPresets(units: StageEmbodimentSpeechArticulationUnit[], progress: 
 }
 
 function isLatinLetter(char: string) {
-  return /^[A-Za-z]$/.test(char)
+  return /^[A-Z]$/i.test(char)
 }
 
 function isWhitespace(char: string) {
@@ -402,7 +428,7 @@ function createLiquidPreset(token: string) {
 }
 
 function createVowelPreset(token: string) {
-  if (/^(o|oh|ow)$/.test(token)) {
+  if (/^(?:o|oh|ow)$/.test(token)) {
     return createPreset({
       openness: 0.5,
       jaw: 0.44,
@@ -412,7 +438,7 @@ function createVowelPreset(token: string) {
     })
   }
 
-  if (/^(u|oo|ou|wu)$/.test(token)) {
+  if (/^(?:u|oo|ou|wu)$/.test(token)) {
     return createPreset({
       openness: 0.38,
       jaw: 0.34,
@@ -422,7 +448,7 @@ function createVowelPreset(token: string) {
     })
   }
 
-  if (/^(i|ee|ih|iy|y)$/.test(token)) {
+  if (/^(?:i|ee|ih|iy|y)$/.test(token)) {
     return createPreset({
       openness: 0.32,
       jaw: 0.28,
@@ -432,7 +458,7 @@ function createVowelPreset(token: string) {
     })
   }
 
-  if (/^(e|eh|ei|ay)$/.test(token)) {
+  if (/^(?:e|eh|ei|ay)$/.test(token)) {
     return createPreset({
       openness: 0.34,
       jaw: 0.3,
@@ -522,17 +548,17 @@ function resolveCharPreset(char: string) {
 }
 
 function resolveLatinClusterPreset(token: string) {
-  if (/^(m|b|p)$/.test(token))
+  if (/^[mbp]$/.test(token))
     return createBilabialPreset()
-  if (/^(f|v|ph)$/.test(token))
+  if (/^(?:f|v|ph)$/.test(token))
     return createLabiodentalPreset()
-  if (/^(s|z|c|x|sh|zh|ch|j|q|ts|tch)$/.test(token))
+  if (/^(?:[szcxjq]|sh|zh|ch|ts|tch)$/.test(token))
     return createSibilantPreset()
-  if (/^(t|d|n|l|r|th|ck|g|k)$/.test(token))
+  if (/^(?:[tdnlrgk]|th|ck)$/.test(token))
     return createDentalPreset()
-  if (/^(w|wh|y|qu)$/.test(token))
+  if (/^(?:w|wh|y|qu)$/.test(token))
     return createLiquidPreset(token)
-  if (/^(a|e|i|o|u|y|oo|ou|ow|ee|eh|ih|iy|oh|wu|ei|ay)$/.test(token))
+  if (/^(?:[aeiouy]|oo|ou|ow|ee|eh|ih|iy|oh|wu|ei|ay)$/.test(token))
     return createVowelPreset(token)
   return createFallbackPreset(token)
 }
@@ -673,7 +699,7 @@ export function normalizeStageEmbodimentSpeechArticulationVoiceProfile(
   const language = normalizeLanguageCode(
     synthesis?.language
     ?? voice?.language
-    ?? voice?.languages
+    ?? voice?.languages,
   )
 
   if (!provider && !model && !voiceId && !voiceName && !digitalLifeVoice && !digitalLifeFacial)
@@ -881,7 +907,7 @@ export function estimateStageEmbodimentSpeechPlaybackDurationMs(input: {
   const rateMultiplier = voiceProfile?.rateMultiplier ?? input.digitalLifeFrame?.voice.rateMultiplier ?? 1
   const punctuationCount = normalizedText.match(/[，,。.!！？?;；:：、]/g)?.length ?? 0
   const ellipsisCount = normalizedText.match(/…|\.{3,}/g)?.length ?? 0
-  const latinClusters = normalizedText.match(/[A-Za-z]+/g)?.length ?? 0
+  const latinClusters = normalizedText.match(/[A-Z]+/gi)?.length ?? 0
   const symbolCount = normalizedText.match(/[()[\]'"`]/g)?.length ?? 0
   const characterCount = Array.from(normalizedText).length
   const baseline = characterCount * 72 + punctuationCount * 52 + ellipsisCount * 90 + latinClusters * 18 + symbolCount * 12 + 160
@@ -924,7 +950,26 @@ export function deriveStageEmbodimentSpeechArticulationState(
   const cadencePulse = clampUnit(input.dynamics?.cadencePulse ?? 0)
   const digitalLifeLipSync = input.digitalLifeFrame?.lipSync ?? null
   const digitalLifeFacial = input.digitalLifeFrame?.motor.facial ?? null
-  const mouthScale = clampRange(digitalLifeLipSync?.mouthScale ?? 1, 0.4, 1.35, 1)
+  const durableMeasuredReturnTail = input.digitalLifeFrame?.mode === 'recovering'
+    && input.digitalLifeFrame?.settleMode === 'linger'
+    && progress >= 0.72
+    && isDurableMeasuredReturnLipSyncHint(input.digitalLifeFrame)
+  const repairBeforeClosenessTail = input.digitalLifeFrame?.mode === 'recovering'
+    && input.digitalLifeFrame?.settleMode === 'hold'
+    && progress >= 0.7
+    && isRepairBeforeClosenessLipSyncHint(input.digitalLifeFrame)
+  const mouthScale = clampRange(
+    (digitalLifeLipSync?.mouthScale ?? 1) * (
+      repairBeforeClosenessTail
+        ? 0.84
+        : durableMeasuredReturnTail
+          ? 0.92
+          : 1
+    ),
+    0.4,
+    1.35,
+    1,
+  )
   const jawBias = clampUnit(
     (voice?.jawBias ?? 0.38) * 0.58
     + clampUnit(digitalLifeFacial?.jawOpenBias ?? 0.26, 0.26) * 0.42,
@@ -965,7 +1010,12 @@ export function deriveStageEmbodimentSpeechArticulationState(
       preset.closure,
       chineseVoiceBias?.closureLift ?? 0,
     )
-    * (0.72 + closureBias * 0.3 + consonantPrecision * 0.22)
+    * (
+      0.72
+      + closureBias * 0.3
+      + consonantPrecision * 0.22
+      + (repairBeforeClosenessTail ? 0.08 : durableMeasuredReturnTail ? 0.04 : 0)
+    )
     * (0.48 + amplitude * 0.52),
   )
   const lipRound = clampUnit(
@@ -981,13 +1031,18 @@ export function deriveStageEmbodimentSpeechArticulationState(
   const jawOpen = clampUnit(
     (preset.jaw * (0.42 + amplitude * 0.44) + cadencePulse * 0.08)
     * mouthScale
-    * (0.72 + clampUnit(jawBias + (chineseVoiceBias?.jawLift ?? 0)) * 0.34)
+    * (
+      0.72
+      + clampUnit(jawBias + (chineseVoiceBias?.jawLift ?? 0))
+      * (repairBeforeClosenessTail ? 0.24 : durableMeasuredReturnTail ? 0.3 : 0.34)
+    )
     * (1 - lipClosure * 0.48),
   )
   const closedViseme = clampUnit(Math.max(
     preset.visemes.closed * (0.62 + closureBias * 0.28),
     lipClosure * 0.96,
     chineseVoiceBias?.closedVisemeLift ?? 0,
+    repairBeforeClosenessTail ? lipClosure : 0,
   ))
   const openness = clampUnit(
     opennessEnvelope

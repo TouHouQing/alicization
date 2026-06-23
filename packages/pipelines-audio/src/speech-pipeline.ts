@@ -71,6 +71,102 @@ function normalizeSpeechIntentMetadata(raw: IntentOptions['metadata']) {
   return { ...raw }
 }
 
+function isSpeechMetadataRecord(
+  value: unknown,
+): value is SpeechIntentMetadata {
+  return Boolean(value)
+    && typeof value === 'object'
+    && !Array.isArray(value)
+}
+
+function looksLikeRuntimeDigestMetadata(
+  value: SpeechIntentMetadata,
+) {
+  return value.version === 'alicization-runtime-digest-v1'
+    || 'dominantChannel' in value
+    || 'projectState' in value
+    || 'channels' in value
+}
+
+function mergeSpeechMetadataPreservingRicherBase(
+  base: SpeechIntentMetadata | null | undefined,
+  override: SpeechIntentMetadata | null | undefined,
+): SpeechIntentMetadata | null {
+  const normalizedBase = normalizeSpeechIntentMetadata(base)
+  const normalizedOverride = normalizeSpeechIntentMetadata(override)
+
+  if (!normalizedBase)
+    return normalizedOverride
+  if (!normalizedOverride)
+    return normalizedBase
+
+  const merged: SpeechIntentMetadata = { ...normalizedBase }
+
+  for (const [key, value] of Object.entries(normalizedOverride)) {
+    const baseValue = normalizedBase[key]
+
+    if (value == null && baseValue != null) {
+      merged[key] = baseValue
+      continue
+    }
+
+    if (Array.isArray(value) && value.length === 0 && Array.isArray(baseValue) && baseValue.length > 0) {
+      merged[key] = baseValue
+      continue
+    }
+
+    if (isSpeechMetadataRecord(baseValue) && isSpeechMetadataRecord(value)) {
+      merged[key] = mergeSpeechMetadataPreservingRicherBase(baseValue, value)
+      continue
+    }
+
+    merged[key] = value
+  }
+
+  return merged
+}
+
+function mergeSpeechRuntimeDigestMetadata(
+  base: SpeechIntentMetadata,
+  override: SpeechIntentMetadata,
+) {
+  return mergeSpeechMetadataPreservingRicherBase(base, override)
+}
+
+function mergeSpeechMetadataValue(
+  baseValue: unknown,
+  overrideValue: unknown,
+): unknown {
+  if (isSpeechMetadataRecord(baseValue) && isSpeechMetadataRecord(overrideValue)) {
+    if (looksLikeRuntimeDigestMetadata(baseValue) || looksLikeRuntimeDigestMetadata(overrideValue))
+      return mergeSpeechRuntimeDigestMetadata(baseValue, overrideValue)
+
+    return mergeSpeechIntentMetadata(baseValue, overrideValue)
+  }
+
+  return overrideValue
+}
+
+function mergeSpeechIntentMetadata(
+  base: SpeechIntentMetadata | null | undefined,
+  override: SpeechIntentMetadata | null | undefined,
+): SpeechIntentMetadata | null {
+  const normalizedBase = normalizeSpeechIntentMetadata(base)
+  const normalizedOverride = normalizeSpeechIntentMetadata(override)
+
+  if (!normalizedBase)
+    return normalizedOverride
+  if (!normalizedOverride)
+    return normalizedBase
+
+  const merged: SpeechIntentMetadata = { ...normalizedBase }
+
+  for (const [key, value] of Object.entries(normalizedOverride))
+    merged[key] = key in normalizedBase ? mergeSpeechMetadataValue(normalizedBase[key], value) : value
+
+  return merged
+}
+
 export function createSpeechPipeline<TAudio>(options: SpeechPipelineOptions<TAudio>) {
   const logger = options.logger ?? console
   const priorityResolver = options.priority ?? createPriorityResolver()
@@ -285,21 +381,28 @@ export function createSpeechPipeline<TAudio>(options: SpeechPipelineOptions<TAud
           break
         }
 
-        context.emit(speechPipelineEventMap.onSegment, value)
+        const metadata = mergeSpeechIntentMetadata(intent.metadata, value.metadata)
+        const segment = metadata === value.metadata
+          ? value
+          : {
+              ...value,
+              ...(metadata != null ? { metadata } : {}),
+            }
 
-        if (value.text === '' && value.special) {
-          context.emit(speechPipelineEventMap.onSpecial, value)
+        context.emit(speechPipelineEventMap.onSegment, segment)
+
+        if (segment.text === '' && segment.special) {
+          context.emit(speechPipelineEventMap.onSpecial, segment)
           continue
         }
 
-        const metadata = value.metadata ?? intent.metadata ?? null
         const request: TtsRequest = {
-          streamId: value.streamId,
-          intentId: value.intentId,
-          segmentId: value.segmentId,
-          text: value.text,
-          special: value.special,
-          continuityHoldMs: value.continuityHoldMs,
+          streamId: segment.streamId,
+          intentId: segment.intentId,
+          segmentId: segment.segmentId,
+          text: segment.text,
+          special: segment.special,
+          continuityHoldMs: segment.continuityHoldMs,
           priority: intent.priority,
           createdAt: Date.now(),
           ...(metadata != null ? { metadata } : {}),

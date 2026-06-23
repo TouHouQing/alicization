@@ -157,4 +157,488 @@ describe('stage embodiment speech articulation', () => {
 
     expect(slow).toBeGreaterThan(fast)
   })
+
+  it('keeps durable measured-return mouth release quieter and more closed near the tail than ordinary measured-return', () => {
+    const baseMotor = createIdleStageEmbodimentMotorState()
+    const ordinaryMeasuredReturn = deriveStageEmbodimentSpeechArticulationState({
+      active: true,
+      text: '陪着你慢慢说完。',
+      metadata: createMetadata('onyx', {
+        gender: 'male',
+        language: 'zh-CN',
+        pitchDelta: -4,
+        rateMultiplier: 0.94,
+        voiceName: 'Onyx Warm',
+      }),
+      playbackDurationMs: 1200,
+      startedAt: 0,
+      now: 1080,
+      mouthOpenRatio: 0.12,
+      dynamics: {
+        speechEnergy: 0.18,
+        prosodyIntensity: 0.16,
+        emphasisLevel: 0.08,
+        cadencePulse: 0.2,
+      },
+      digitalLifeFrame: {
+        id: 'frame-ordinary-measured-return-tail',
+        index: 0,
+        startOffset: 0,
+        endOffset: 8,
+        text: '陪着你慢慢说完。',
+        mode: 'recovering',
+        interruptPolicy: 'soft-interrupt',
+        settleMode: 'linger',
+        voice: {
+          pitchDelta: -4,
+          rateMultiplier: 0.94,
+          energy: 0.28,
+          cadence: 0.24,
+        },
+        lipSync: {
+          mode: 'hybrid',
+          visemeBias: 0.56,
+          energyBias: 0.34,
+          mouthScale: 0.82,
+          continuityHoldMs: 380,
+        },
+        face: {
+          emotion: 'thinking',
+          facialCue: 'soft-gaze',
+          expressionMode: 'hold',
+          intensity: 0.44,
+          holdMs: 360,
+          rendererHints: {
+            residentMode: 'measured-return',
+            preferredGazeMode: 'steady',
+            preferredBlinkCadence: 'quiet',
+          },
+        },
+        action: {
+          actionCue: 'observe_focus',
+          actionMode: 'hold',
+          intensity: 0.18,
+          holdMs: 260,
+          rendererHints: {
+            residentMode: 'measured-return',
+            preferredGazeMode: 'steady',
+            preferredBlinkCadence: 'quiet',
+          },
+        },
+        motor: {
+          ...baseMotor,
+          facial: {
+            ...baseMotor.facial,
+            mouthRound: 0.28,
+            mouthSpread: 0.12,
+            jawOpenBias: 0.2,
+          },
+        },
+      },
+    })
+
+    const durableMeasuredReturn = deriveStageEmbodimentSpeechArticulationState({
+      active: true,
+      text: '陪着你慢慢说完。',
+      metadata: createMetadata('onyx', {
+        gender: 'male',
+        language: 'zh-CN',
+        pitchDelta: -4,
+        rateMultiplier: 0.94,
+        voiceName: 'Onyx Warm',
+      }),
+      playbackDurationMs: 1200,
+      startedAt: 0,
+      now: 1080,
+      mouthOpenRatio: 0.12,
+      dynamics: {
+        speechEnergy: 0.18,
+        prosodyIntensity: 0.16,
+        emphasisLevel: 0.08,
+        cadencePulse: 0.2,
+      },
+      digitalLifeFrame: {
+        id: 'frame-durable-measured-return-tail',
+        index: 0,
+        startOffset: 0,
+        endOffset: 8,
+        text: '陪着你慢慢说完。',
+        mode: 'recovering',
+        interruptPolicy: 'soft-interrupt',
+        settleMode: 'linger',
+        voice: {
+          pitchDelta: -4,
+          rateMultiplier: 0.94,
+          energy: 0.28,
+          cadence: 0.24,
+        },
+        lipSync: {
+          mode: 'hybrid',
+          visemeBias: 0.56,
+          energyBias: 0.34,
+          mouthScale: 0.82,
+          continuityHoldMs: 380,
+        },
+        face: {
+          emotion: 'thinking',
+          facialCue: 'soft-gaze',
+          expressionMode: 'hold',
+          intensity: 0.44,
+          holdMs: 360,
+          rendererHints: {
+            residentMode: 'measured-return',
+            preferredGazeMode: 'steady',
+            preferredBlinkCadence: 'quiet',
+          },
+        },
+        action: {
+          actionCue: 'steady_focus',
+          actionMode: 'hold',
+          intensity: 0.18,
+          holdMs: 260,
+          rendererHints: {
+            residentMode: 'measured-return',
+            preferredGazeMode: 'steady',
+            preferredBlinkCadence: 'quiet',
+          },
+        },
+        motor: {
+          ...baseMotor,
+          facial: {
+            ...baseMotor.facial,
+            mouthRound: 0.28,
+            mouthSpread: 0.12,
+            jawOpenBias: 0.2,
+          },
+        },
+      },
+    })
+
+    expect(durableMeasuredReturn.openness).toBeLessThanOrEqual(ordinaryMeasuredReturn.openness)
+    expect(durableMeasuredReturn.jawOpen).toBeLessThanOrEqual(ordinaryMeasuredReturn.jawOpen)
+    expect(durableMeasuredReturn.lipClosure).toBeGreaterThanOrEqual(ordinaryMeasuredReturn.lipClosure)
+  })
+
+  it('also treats soften-linger measured-return hints as durable companionship tail authority instead of only the older steady-quiet variant', () => {
+    const baseMotor = createIdleStageEmbodimentMotorState()
+    const ordinaryMeasuredReturn = deriveStageEmbodimentSpeechArticulationState({
+      active: true,
+      text: '陪着你慢慢说完。',
+      metadata: createMetadata('onyx', {
+        gender: 'male',
+        language: 'zh-CN',
+        pitchDelta: -4,
+        rateMultiplier: 0.94,
+        voiceName: 'Onyx Warm',
+      }),
+      playbackDurationMs: 1200,
+      startedAt: 0,
+      now: 1080,
+      mouthOpenRatio: 0.12,
+      dynamics: {
+        speechEnergy: 0.18,
+        prosodyIntensity: 0.16,
+        emphasisLevel: 0.08,
+        cadencePulse: 0.2,
+      },
+      digitalLifeFrame: {
+        id: 'frame-ordinary-measured-return-tail-soften-linger-comparison',
+        index: 0,
+        startOffset: 0,
+        endOffset: 8,
+        text: '陪着你慢慢说完。',
+        mode: 'recovering',
+        interruptPolicy: 'soft-interrupt',
+        settleMode: 'linger',
+        voice: {
+          pitchDelta: -4,
+          rateMultiplier: 0.94,
+          energy: 0.28,
+          cadence: 0.24,
+        },
+        lipSync: {
+          mode: 'hybrid',
+          visemeBias: 0.56,
+          energyBias: 0.34,
+          mouthScale: 0.82,
+          continuityHoldMs: 380,
+        },
+        face: {
+          emotion: 'thinking',
+          facialCue: 'soft-gaze',
+          expressionMode: 'hold',
+          intensity: 0.44,
+          holdMs: 360,
+          rendererHints: {
+            residentMode: 'measured-return',
+            preferredGazeMode: 'soften',
+            preferredBlinkCadence: 'linger',
+          },
+        },
+        action: {
+          actionCue: 'observe_focus',
+          actionMode: 'hold',
+          intensity: 0.18,
+          holdMs: 260,
+          rendererHints: {
+            residentMode: 'measured-return',
+            preferredGazeMode: 'soften',
+            preferredBlinkCadence: 'linger',
+          },
+        },
+        motor: {
+          ...baseMotor,
+          facial: {
+            ...baseMotor.facial,
+            mouthRound: 0.28,
+            mouthSpread: 0.12,
+            jawOpenBias: 0.2,
+          },
+        },
+      },
+    })
+
+    const durableMeasuredReturn = deriveStageEmbodimentSpeechArticulationState({
+      active: true,
+      text: '陪着你慢慢说完。',
+      metadata: createMetadata('onyx', {
+        gender: 'male',
+        language: 'zh-CN',
+        pitchDelta: -4,
+        rateMultiplier: 0.94,
+        voiceName: 'Onyx Warm',
+      }),
+      playbackDurationMs: 1200,
+      startedAt: 0,
+      now: 1080,
+      mouthOpenRatio: 0.12,
+      dynamics: {
+        speechEnergy: 0.18,
+        prosodyIntensity: 0.16,
+        emphasisLevel: 0.08,
+        cadencePulse: 0.2,
+      },
+      digitalLifeFrame: {
+        id: 'frame-durable-measured-return-tail-soften-linger',
+        index: 0,
+        startOffset: 0,
+        endOffset: 8,
+        text: '陪着你慢慢说完。',
+        mode: 'recovering',
+        interruptPolicy: 'soft-interrupt',
+        settleMode: 'linger',
+        voice: {
+          pitchDelta: -4,
+          rateMultiplier: 0.94,
+          energy: 0.28,
+          cadence: 0.24,
+        },
+        lipSync: {
+          mode: 'hybrid',
+          visemeBias: 0.56,
+          energyBias: 0.34,
+          mouthScale: 0.82,
+          continuityHoldMs: 380,
+        },
+        face: {
+          emotion: 'thinking',
+          facialCue: 'soft-gaze',
+          expressionMode: 'hold',
+          intensity: 0.44,
+          holdMs: 360,
+          rendererHints: {
+            residentMode: 'measured-return',
+            preferredGazeMode: 'soften',
+            preferredBlinkCadence: 'linger',
+          },
+        },
+        action: {
+          actionCue: 'observe_focus',
+          actionMode: 'hold',
+          intensity: 0.18,
+          holdMs: 260,
+          rendererHints: {
+            residentMode: 'measured-return',
+            preferredGazeMode: 'soften',
+            preferredBlinkCadence: 'linger',
+          },
+        },
+        motor: {
+          ...baseMotor,
+          facial: {
+            ...baseMotor.facial,
+            mouthRound: 0.28,
+            mouthSpread: 0.12,
+            jawOpenBias: 0.2,
+          },
+        },
+      },
+    })
+
+    expect(durableMeasuredReturn.openness).toBeLessThanOrEqual(ordinaryMeasuredReturn.openness)
+    expect(durableMeasuredReturn.jawOpen).toBeLessThanOrEqual(ordinaryMeasuredReturn.jawOpen)
+    expect(durableMeasuredReturn.lipClosure).toBeGreaterThanOrEqual(ordinaryMeasuredReturn.lipClosure)
+  })
+
+  it('keeps repair-before-closeness mouth release even more restrained than durable measured-return near the tail', () => {
+    const baseMotor = createIdleStageEmbodimentMotorState()
+    const durableMeasuredReturn = deriveStageEmbodimentSpeechArticulationState({
+      active: true,
+      text: '结果先落在这里，别急着靠近。',
+      metadata: createMetadata('onyx', {
+        gender: 'male',
+        language: 'zh-CN',
+        pitchDelta: -4,
+        rateMultiplier: 0.94,
+        voiceName: 'Onyx Warm',
+      }),
+      playbackDurationMs: 1380,
+      startedAt: 0,
+      now: 1260,
+      mouthOpenRatio: 0.12,
+      dynamics: {
+        speechEnergy: 0.16,
+        prosodyIntensity: 0.14,
+        emphasisLevel: 0.06,
+        cadencePulse: 0.18,
+      },
+      digitalLifeFrame: {
+        id: 'frame-durable-measured-return-repair-comparison',
+        index: 0,
+        startOffset: 0,
+        endOffset: 14,
+        text: '结果先落在这里，别急着靠近。',
+        mode: 'recovering',
+        interruptPolicy: 'soft-interrupt',
+        settleMode: 'linger',
+        voice: {
+          pitchDelta: -4,
+          rateMultiplier: 0.94,
+          energy: 0.24,
+          cadence: 0.2,
+        },
+        lipSync: {
+          mode: 'hybrid',
+          visemeBias: 0.54,
+          energyBias: 0.32,
+          mouthScale: 0.8,
+          continuityHoldMs: 420,
+        },
+        face: {
+          emotion: 'thinking',
+          facialCue: 'soft-gaze',
+          expressionMode: 'hold',
+          intensity: 0.4,
+          holdMs: 400,
+          rendererHints: {
+            residentMode: 'measured-return',
+            preferredGazeMode: 'steady',
+            preferredBlinkCadence: 'quiet',
+          },
+        },
+        action: {
+          actionCue: 'steady_focus',
+          actionMode: 'hold',
+          intensity: 0.16,
+          holdMs: 280,
+          rendererHints: {
+            residentMode: 'measured-return',
+            preferredGazeMode: 'steady',
+            preferredBlinkCadence: 'quiet',
+          },
+        },
+        motor: {
+          ...baseMotor,
+          facial: {
+            ...baseMotor.facial,
+            mouthRound: 0.26,
+            mouthSpread: 0.1,
+            jawOpenBias: 0.18,
+          },
+        },
+      },
+    })
+
+    const repairBeforeCloseness = deriveStageEmbodimentSpeechArticulationState({
+      active: true,
+      text: '结果先落在这里，别急着靠近。',
+      metadata: createMetadata('onyx', {
+        gender: 'male',
+        language: 'zh-CN',
+        pitchDelta: -4,
+        rateMultiplier: 0.94,
+        voiceName: 'Onyx Warm',
+      }),
+      playbackDurationMs: 1380,
+      startedAt: 0,
+      now: 1260,
+      mouthOpenRatio: 0.12,
+      dynamics: {
+        speechEnergy: 0.16,
+        prosodyIntensity: 0.14,
+        emphasisLevel: 0.06,
+        cadencePulse: 0.18,
+      },
+      digitalLifeFrame: {
+        id: 'frame-repair-before-closeness-tail',
+        index: 0,
+        startOffset: 0,
+        endOffset: 14,
+        text: '结果先落在这里，别急着靠近。',
+        mode: 'recovering',
+        interruptPolicy: 'soft-interrupt',
+        settleMode: 'hold',
+        voice: {
+          pitchDelta: -4,
+          rateMultiplier: 0.94,
+          energy: 0.24,
+          cadence: 0.2,
+        },
+        lipSync: {
+          mode: 'hybrid',
+          visemeBias: 0.54,
+          energyBias: 0.32,
+          mouthScale: 0.8,
+          continuityHoldMs: 420,
+        },
+        face: {
+          emotion: 'thinking',
+          facialCue: 'soft-gaze',
+          expressionMode: 'hold',
+          intensity: 0.38,
+          holdMs: 420,
+          rendererHints: {
+            residentMode: 'repair-before-closeness',
+            preferredGazeMode: 'steady',
+            preferredBlinkCadence: 'quiet',
+          },
+        },
+        action: {
+          actionCue: 'idle_settle',
+          actionMode: 'hold',
+          intensity: 0.12,
+          holdMs: 320,
+          rendererHints: {
+            residentMode: 'repair-before-closeness',
+            preferredGazeMode: 'steady',
+            preferredBlinkCadence: 'quiet',
+          },
+        },
+        motor: {
+          ...baseMotor,
+          facial: {
+            ...baseMotor.facial,
+            mouthRound: 0.24,
+            mouthSpread: 0.08,
+            jawOpenBias: 0.16,
+          },
+        },
+      },
+    })
+
+    expect(repairBeforeCloseness.openness).toBeLessThan(durableMeasuredReturn.openness)
+    expect(repairBeforeCloseness.jawOpen).toBeLessThan(durableMeasuredReturn.jawOpen)
+    expect(repairBeforeCloseness.lipClosure).toBeGreaterThanOrEqual(durableMeasuredReturn.lipClosure)
+    expect(repairBeforeCloseness.visemes.closed).toBeGreaterThanOrEqual(durableMeasuredReturn.visemes.closed)
+  })
 })

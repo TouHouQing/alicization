@@ -3,9 +3,14 @@ import type { createSpeechPipeline, IntentHandle, IntentOptions, TextToken } fro
 import type { SpeechIntentStartPayload, SpeechIntentTokenPayload } from './bus'
 
 import { createPushStream } from '@proj-alicization/pipelines-audio'
+import {
+  normalizeAlicizationRuntimeDigest,
+  resolveAlicizationProjectPreDialogueAwarenessLine,
+} from '@proj-alicization/stage-shared'
 import { Mutex } from 'es-toolkit'
 import { nanoid } from 'nanoid'
 
+import { buildPreDialogueSendIdentityFromSnapshots } from '../../stores/chat/pre-dialogue-send-identity'
 import {
   getSpeechBusContext,
   speechIntentCancelEvent,
@@ -21,11 +26,177 @@ function createId(prefix: string) {
   return `${prefix}-${nanoid()}`
 }
 
+function normalizeSpeechMetadataText(raw: unknown, maxLength: number) {
+  if (typeof raw !== 'string')
+    return null
+  const normalized = raw.trim().replace(/\s+/g, ' ').slice(0, maxLength)
+  return normalized || null
+}
+
+function isThinSamePhaseCarryLine(line: string | null) {
+  const normalized = line?.toLowerCase() ?? ''
+  if (!normalized)
+    return false
+
+  return normalized.startsWith('same phase 1 digital life.')
+    && normalized.includes('some closure already landed')
+    && normalized.includes('same living line')
+    && !normalized.includes('before speaking')
+    && !normalized.includes('what has landed')
+    && !normalized.includes('life loop is still open')
+}
+
+function isSameHerInwardLowPressureHeadline(line: string | null) {
+  const normalized = line?.toLowerCase() ?? ''
+  if (!normalized)
+    return false
+
+  return normalized.includes('holding together mainly through')
+    && normalized.includes('low-pressure')
+    && (
+      normalized.includes('same line inward')
+      || normalized.includes('same living line')
+      || normalized.includes('same-her-inward-carry')
+      || normalized.includes('quiet-companionship')
+    )
+}
+
+function buildCompactSameHerInwardLowPressureAwarenessLine(companionBriefingLine: string) {
+  return normalizeSpeechMetadataText(
+    `${companionBriefingLine} Right now this one living her is still keeping the same line inward and low-pressure while lipsync and voice rejoin.`,
+    320,
+  )
+}
+
+function isAnthropomorphicHostFacingSameHerHeadline(line: string | null) {
+  const normalized = line?.toLowerCase() ?? ''
+  if (!normalized)
+    return false
+
+  return normalized.includes('anthropomorphic emotional closure')
+    && normalized.includes('same-her inward-carry observability')
+    && normalized.includes('measured-return')
+}
+
+function buildCompactAnthropomorphicHostFacingAwarenessLine(companionBriefingLine: string) {
+  return normalizeSpeechMetadataText(
+    `${companionBriefingLine} Right now this one living her still needs anthropomorphic emotional closure and same-her inward-carry observability to stay on one measured-return line before anything reopens outward.`,
+    320,
+  )
+}
+
 function normalizeIntentMetadata(raw: IntentOptions['metadata']) {
   if (!raw || typeof raw !== 'object')
     return null
 
-  return { ...raw }
+  const metadata = { ...raw }
+  const projectState = 'projectState' in metadata
+    && metadata.projectState
+    && typeof metadata.projectState === 'object'
+    && !Array.isArray(metadata.projectState)
+    ? metadata.projectState as Record<string, unknown>
+    : null
+  const preDialogueClosure = 'preDialogueClosure' in metadata
+    && metadata.preDialogueClosure
+    && typeof metadata.preDialogueClosure === 'object'
+    && !Array.isArray(metadata.preDialogueClosure)
+    ? metadata.preDialogueClosure as Record<string, unknown>
+    : null
+  const preDialogueAwareness = 'preDialogueAwareness' in metadata
+    && metadata.preDialogueAwareness
+    && typeof metadata.preDialogueAwareness === 'object'
+    && !Array.isArray(metadata.preDialogueAwareness)
+    ? metadata.preDialogueAwareness as Record<string, unknown>
+    : null
+  const runtimeDigest = 'runtimeDigest' in metadata
+    && metadata.runtimeDigest
+    && typeof metadata.runtimeDigest === 'object'
+    && !Array.isArray(metadata.runtimeDigest)
+    ? normalizeAlicizationRuntimeDigest(metadata.runtimeDigest)
+    : null
+  const runtimeProjectState = runtimeDigest?.projectState
+    && typeof runtimeDigest.projectState === 'object'
+    && !Array.isArray(runtimeDigest.projectState)
+    ? runtimeDigest.projectState as Record<string, unknown>
+    : null
+  const effectiveProjectState = projectState ?? runtimeProjectState
+  const rebuiltAwareness = (effectiveProjectState || preDialogueClosure)
+    ? buildPreDialogueSendIdentityFromSnapshots({
+        projectStateContinuitySnapshot: effectiveProjectState as any,
+        preDialogueClosureSnapshot: preDialogueClosure as any,
+        preDialogueAwarenessSnapshot: preDialogueAwareness as any,
+      })
+    : null
+  const effectivePreDialogueAwareness = rebuiltAwareness
+    ? {
+        status: rebuiltAwareness.status,
+        summaryLine: rebuiltAwareness.summaryLine,
+        companionHeadlineLine: rebuiltAwareness.companionHeadlineLine,
+        companionBriefingLine: rebuiltAwareness.companionBriefingLine,
+        companionNextClosureLine: rebuiltAwareness.companionNextClosureLine,
+        awarenessLine: rebuiltAwareness.awarenessLine,
+        emotionalClosureCue: rebuiltAwareness.emotionalClosureCue,
+        reasonPreview: rebuiltAwareness.reasonPreview,
+      }
+    : preDialogueAwareness
+  if (!effectivePreDialogueAwareness)
+    return metadata
+
+  const companionHeadlineLine = normalizeSpeechMetadataText(effectivePreDialogueAwareness.companionHeadlineLine, 320)
+  const normalizedAwarenessLine = normalizeSpeechMetadataText(effectivePreDialogueAwareness.awarenessLine, 320)
+  const companionBriefingLine = normalizeSpeechMetadataText(effectivePreDialogueAwareness.companionBriefingLine, 320)
+  const awarenessOnlyRepeatsHeadline = Boolean(
+    normalizedAwarenessLine
+    && companionHeadlineLine
+    && normalizedAwarenessLine === companionHeadlineLine,
+  )
+  const preferredAwarenessSeed = normalizedAwarenessLine && normalizedAwarenessLine !== companionHeadlineLine
+    ? normalizedAwarenessLine
+    : companionBriefingLine ?? normalizedAwarenessLine
+  const mergedInwardLowPressureAwarenessLine
+    = awarenessOnlyRepeatsHeadline
+      && companionBriefingLine
+      && isThinSamePhaseCarryLine(companionBriefingLine)
+      && isSameHerInwardLowPressureHeadline(companionHeadlineLine)
+      ? buildCompactSameHerInwardLowPressureAwarenessLine(companionBriefingLine)
+      : null
+  const mergedAnthropomorphicHostFacingAwarenessLine
+    = awarenessOnlyRepeatsHeadline
+      && companionBriefingLine
+      && isThinSamePhaseCarryLine(companionBriefingLine)
+      && isAnthropomorphicHostFacingSameHerHeadline(companionHeadlineLine)
+      ? buildCompactAnthropomorphicHostFacingAwarenessLine(companionBriefingLine)
+      : null
+  const awarenessLine = awarenessOnlyRepeatsHeadline && companionBriefingLine
+    ? (mergedAnthropomorphicHostFacingAwarenessLine ?? mergedInwardLowPressureAwarenessLine ?? companionBriefingLine)
+    : resolveAlicizationProjectPreDialogueAwarenessLine({
+        runtimeProjectState: {
+          preDialogueAwarenessLine: preferredAwarenessSeed,
+          awarenessLine: preferredAwarenessSeed,
+          companionHeadlineLine,
+          companionBriefingLine,
+          preDialogueAwarenessSummary: normalizeSpeechMetadataText(effectivePreDialogueAwareness.summaryLine, 320),
+          emotionalClosureSummary: normalizeSpeechMetadataText(effectivePreDialogueAwareness.emotionalClosureCue, 320),
+        },
+      })
+
+  return {
+    ...metadata,
+    preDialogueAwareness: {
+      ...effectivePreDialogueAwareness,
+      companionHeadlineLine,
+      summaryLine: normalizeSpeechMetadataText(effectivePreDialogueAwareness.summaryLine, 320),
+      companionBriefingLine,
+      companionNextClosureLine: normalizeSpeechMetadataText(effectivePreDialogueAwareness.companionNextClosureLine, 320),
+      awarenessLine,
+      emotionalClosureCue: normalizeSpeechMetadataText(effectivePreDialogueAwareness.emotionalClosureCue, 320),
+      reasonPreview: Array.isArray(effectivePreDialogueAwareness.reasonPreview)
+        ? effectivePreDialogueAwareness.reasonPreview
+            .map(reason => normalizeSpeechMetadataText(reason, 320))
+            .filter((reason): reason is string => Boolean(reason))
+        : [],
+    },
+  }
 }
 
 type HostSpeechPipeline = Pick<ReturnType<typeof createSpeechPipeline<unknown>>, 'openIntent'> & {
@@ -90,7 +261,7 @@ export function createSpeechPipelineRuntime(): SpeechPipelineRuntime {
         ownerId: payload.ownerId,
         priority: payload.priority,
         behavior: payload.behavior,
-        metadata: payload.metadata ?? null,
+        metadata: normalizeIntentMetadata(payload.metadata ?? null),
       })
 
       remoteIntentMap.set(payload.intentId, intent)
@@ -103,7 +274,14 @@ export function createSpeechPipelineRuntime(): SpeechPipelineRuntime {
       if (!intent) {
         if (!hostPipeline)
           return
-        const fallback = hostPipeline.openIntent({ intentId: payload.intentId, streamId: payload.streamId })
+        const fallback = hostPipeline.openIntent({
+          intentId: payload.intentId,
+          streamId: payload.streamId,
+          ownerId: payload.ownerId,
+          priority: payload.priority,
+          behavior: payload.behavior,
+          metadata: normalizeIntentMetadata(payload.metadata ?? null),
+        })
         remoteIntentMap.set(payload.intentId, fallback)
         writer(fallback, payload.value)
         return
@@ -264,6 +442,10 @@ export function createSpeechPipelineRuntime(): SpeechPipelineRuntime {
           streamId,
           sequence: sequence++,
           value,
+          ownerId,
+          priority,
+          behavior,
+          ...(metadata != null ? { metadata } : {}),
         })
       },
       writeSpecial(value: string) {
@@ -284,6 +466,10 @@ export function createSpeechPipelineRuntime(): SpeechPipelineRuntime {
           streamId,
           sequence: sequence++,
           value,
+          ownerId,
+          priority,
+          behavior,
+          ...(metadata != null ? { metadata } : {}),
         })
       },
       writeFlush() {
@@ -302,6 +488,10 @@ export function createSpeechPipelineRuntime(): SpeechPipelineRuntime {
           intentId,
           streamId,
           sequence: sequence++,
+          ownerId,
+          priority,
+          behavior,
+          ...(metadata != null ? { metadata } : {}),
         })
       },
       end() {
@@ -331,8 +521,16 @@ export function createSpeechPipelineRuntime(): SpeechPipelineRuntime {
   }
 
   function openIntent(options?: IntentOptions) {
-    if (hostPipeline)
-      return hostPipeline.openIntent(options)
+    if (hostPipeline) {
+      if (!options)
+        return hostPipeline.openIntent(options)
+
+      const metadata = normalizeIntentMetadata(options.metadata)
+      return hostPipeline.openIntent({
+        ...options,
+        ...(metadata != null ? { metadata } : {}),
+      })
+    }
 
     return createRemoteIntent(options)
   }
