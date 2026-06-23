@@ -14,6 +14,7 @@ const focusCardLabels: Record<string, string> = {
 }
 
 const evidencePanelLabels: Record<string, string> = {
+  'internalization-readiness-summary': '内化就绪度摘要',
   'candidate-trajectory-summary': '候选轨迹摘要',
   'proactive-decision-consumption-summary': '主动决策消费摘要',
   'identity-drift-governance-summary': '身份漂移治理摘要',
@@ -45,6 +46,7 @@ const governanceLayerLabels: Record<string, string> = {
   'persona-thought': '人格/思绪层',
   'renderer-authority': '显形权威层',
   'same-her-continuity': '同一个她连续性层',
+  'body-continuity': '身体连续性层',
 }
 
 const workflowSideLabels: Record<string, string> = {
@@ -55,6 +57,7 @@ const workflowSideLabels: Record<string, string> = {
 const repairOwnerHintLabels: Record<string, string> = {
   'private thought governance': '私有思绪治理',
   'renderer authority': '显形权威',
+  '身体连续性治理': '身体连续性治理',
 }
 
 const candidateStatusLabels: Record<string, string> = {
@@ -247,6 +250,10 @@ const selfEvolutionDisplayTextLabels: Record<string, string> = {
   'restore-previous-short': '恢复前一侧',
   'restore-current-detail': '恢复当前侧漂移状态',
   'restore-current-short': '恢复当前侧',
+  'body-only-hold': '身体独撑态',
+  'body-carried-to-renderer-rejoin': '身体承接态 -> 显形补回态',
+  'full-cross-modal-lock': '跨模态重锁态',
+  'renderer-rejoin-without-body': '显形回接失身态',
   'recurring-drift-patterns': '重复漂移模式',
   'occurrences': '出现记录',
   'repair-guidance': '修复指引',
@@ -280,6 +287,7 @@ const selfEvolutionDisplayTextLabels: Record<string, string> = {
   'patch-action': '补丁动作',
   'reason-codes': '原因码',
   'blocked-reasons': '阻塞原因',
+  'internalization-readiness': '内化就绪度',
   'rollback-plan': '回滚计划',
   'candidate-consumption-preview': '候选消费预览',
   'memory': '记忆',
@@ -428,6 +436,18 @@ export function formatSelfEvolutionWorkflowSideLabel(value: 'current' | 'previou
 
 export function formatSelfEvolutionRepairOwnerHint(value: string | null | undefined) {
   return mapValue(value, repairOwnerHintLabels)
+}
+
+export function formatRendererRejoinSurfaceLabel(
+  surfaceKey?: 'authority:renderer-rejoin:speech' | 'authority:renderer-rejoin:live2d' | 'authority:renderer-rejoin:vrm' | null,
+) {
+  if (surfaceKey === 'authority:renderer-rejoin:live2d')
+    return 'Live2D'
+  if (surfaceKey === 'authority:renderer-rejoin:vrm')
+    return 'VRM'
+  if (surfaceKey === 'authority:renderer-rejoin:speech')
+    return 'speech'
+  return 'renderer'
 }
 
 export function formatSelfEvolutionDisplayText(value: string) {
@@ -640,16 +660,20 @@ export function buildSelfEvolutionFocusHistoryPatternGuidanceDisplay(input: {
 export function formatSelfEvolutionRepairSurfaceLabel(input: {
   targetType: 'evidence' | 'trace' | 'event' | 'snapshot'
   targetId: string
+  projectStateContinuity?: boolean
 }) {
+  const prefix = input.projectStateContinuity
+    ? '项目状态连续性检查 / '
+    : ''
   switch (input.targetType) {
     case 'evidence':
-      return `证据 / ${formatSelfEvolutionEvidencePanelLabel(input.targetId)}`
+      return `${prefix}证据 / ${formatSelfEvolutionEvidencePanelLabel(input.targetId)}`
     case 'trace':
-      return `轨迹 / ${formatSelfEvolutionTraceSectionLabel(input.targetId)}`
+      return `${prefix}轨迹 / ${formatSelfEvolutionTraceSectionLabel(input.targetId)}`
     case 'event':
-      return `事件 / ${formatSelfEvolutionEventKindLabel(input.targetId)}`
+      return `${prefix}事件 / ${formatSelfEvolutionEventKindLabel(input.targetId)}`
     case 'snapshot':
-      return `快照 / ${input.targetId}`
+      return `${prefix}快照 / ${input.targetId}`
   }
 }
 

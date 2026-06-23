@@ -4,6 +4,7 @@ import {
   buildSelfEvolutionFocusHistoryPatternGuidanceDisplay,
   buildSelfEvolutionFocusSnapshotDisplay,
   buildSelfEvolutionFocusSnapshotHistoryDisplay,
+  formatSelfEvolutionRepairSurfaceLabel,
 } from './performance-visualizer-self-evolution-focus-history-display'
 
 import * as selfEvolutionDisplay from './performance-visualizer-self-evolution-focus-history-display'
@@ -108,6 +109,74 @@ describe('performance visualizer self evolution focus history display', () => {
       traceLabels: '轨迹消费，轨迹细节',
       eventLabels: '接管审计，治理归位',
     })
+  })
+
+  it('maps body-continuity guidance labels into Chinese-first human-facing labels without collapsing them back into renderer authority', () => {
+    expect(buildSelfEvolutionFocusHistoryPatternGuidanceDisplay({
+      governanceLayer: 'body-continuity',
+      governanceLayerDisplay: '身体连续性层',
+      repairOwnerHint: '身体连续性治理',
+      recommendedEvidencePanels: [
+        'renderer-authority-projection',
+        'runtime-continuity-projection',
+      ],
+      recommendedTraceSections: [
+        'trace-timeline',
+        'selected-trace-event',
+        'trace-consumption',
+      ],
+      recommendedEventKinds: [
+        'takeover-audit',
+        'person-state-updated',
+      ],
+      summaryLine: '这更像身体连续性治理反复失稳。',
+    })).toEqual({
+      governanceLayerLabel: '身体连续性层',
+      repairOwnerHintLabel: '身体连续性治理',
+      evidenceLabels: '显形权威投影，运行时连续性投影',
+      traceLabels: '轨迹时间线，选中轨迹事件，轨迹消费',
+      eventLabels: '接管审计，人格状态更新',
+    })
+  })
+
+  it('adds a project-state continuity prefix to repair surface labels when the route is explicitly checking Project identity carry, Phase 1 route carry, and Unresolved closure carry', () => {
+    expect(formatSelfEvolutionRepairSurfaceLabel({
+      targetType: 'event',
+      targetId: 'takeover-audit',
+      projectStateContinuity: true,
+    })).toBe('项目状态连续性检查 / 事件 / 接管审计')
+  })
+
+  it('formats body-continuity governance and repair owner labels through the generic display helpers', () => {
+    const formatSelfEvolutionGovernanceLayerLabel = (selfEvolutionDisplay as Record<string, unknown>).formatSelfEvolutionGovernanceLayerLabel
+    const formatSelfEvolutionRepairOwnerHint = (selfEvolutionDisplay as Record<string, unknown>).formatSelfEvolutionRepairOwnerHint
+    const formatRendererRejoinSurfaceLabel = (selfEvolutionDisplay as Record<string, unknown>).formatRendererRejoinSurfaceLabel
+    const formatSelfEvolutionDisplayText = (selfEvolutionDisplay as Record<string, unknown>).formatSelfEvolutionDisplayText
+
+    expect(typeof formatSelfEvolutionGovernanceLayerLabel).toBe('function')
+    expect(typeof formatSelfEvolutionRepairOwnerHint).toBe('function')
+    expect(typeof formatRendererRejoinSurfaceLabel).toBe('function')
+    expect(typeof formatSelfEvolutionDisplayText).toBe('function')
+
+    if (
+      typeof formatSelfEvolutionGovernanceLayerLabel !== 'function'
+      || typeof formatSelfEvolutionRepairOwnerHint !== 'function'
+      || typeof formatRendererRejoinSurfaceLabel !== 'function'
+      || typeof formatSelfEvolutionDisplayText !== 'function'
+    ) {
+      return
+    }
+
+    expect(formatSelfEvolutionGovernanceLayerLabel('body-continuity')).toBe('身体连续性层')
+    expect(formatSelfEvolutionRepairOwnerHint('身体连续性治理')).toBe('身体连续性治理')
+    expect(formatRendererRejoinSurfaceLabel('authority:renderer-rejoin:speech')).toBe('speech')
+    expect(formatRendererRejoinSurfaceLabel('authority:renderer-rejoin:live2d')).toBe('Live2D')
+    expect(formatRendererRejoinSurfaceLabel('authority:renderer-rejoin:vrm')).toBe('VRM')
+    expect(formatRendererRejoinSurfaceLabel(null)).toBe('renderer')
+    expect(formatSelfEvolutionDisplayText('body-only-hold')).toBe('身体独撑态')
+    expect(formatSelfEvolutionDisplayText('body-carried-to-renderer-rejoin')).toBe('身体承接态 -> 显形补回态')
+    expect(formatSelfEvolutionDisplayText('full-cross-modal-lock')).toBe('跨模态重锁态')
+    expect(formatSelfEvolutionDisplayText('renderer-rejoin-without-body')).toBe('显形回接失身态')
   })
 
   it('maps fixed self-evolution panel labels, field labels, and closure states into Chinese-first display text', () => {
