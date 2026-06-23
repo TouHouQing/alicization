@@ -144,7 +144,39 @@ describe('main chat start awareness', () => {
         sameHerDriftRisk: expect.stringContaining('unfinished closure drift'),
         emotionalClosureCue: expect.stringContaining('same-her closure seam'),
         continuityCue: expect.stringContaining('same living line'),
+        preferredPauseMode: 'longer',
+        preferredLipsyncMode: 'restrained',
+        preferredVoiceMode: 'lower-pressure',
+        preferredPacingMode: 'slower',
       }),
+    }))
+  })
+
+  it('surfaces project continuity arc stage in the pre-dialogue debug summary so longer-lived same-her return phases stay inspectable', () => {
+    const payload = {
+      preDialogueSendIdentity: {
+        status: 'grounded',
+        summaryLine: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=execution callback continuity still needs closure',
+        awarenessLine: 'Before answering, remember this is still the same local-first digital life project and the unfinished Phase 1 closure seam still belongs to one living her.',
+        companionBriefingLine: 'Before speaking, keep one continuous her explicit and do not split her continuity back into a generic assistant shell.',
+        companionNextClosureLine: 'Keep execution callback continuity on one same-her Phase 1 line.',
+        reasonPreview: [],
+        projectState: {
+          continuityArcStage: 'hold-for-opening',
+          continuityRestraint: 'measured-return',
+          continuityCue: 'Keep this callback reopening on the same living line before widening outward again.',
+          continuityPreferredTiming: 'next-open-window',
+          continuityCadence: 'measured-return',
+        },
+      },
+    } satisfies Pick<AlicizationChatStartPayload, 'preDialogueSendIdentity'>
+
+    expect(summarizeAlicizationPreDialogueSendIdentityForDebug(payload)).toEqual(expect.objectContaining({
+      preDialogueProjectStateContinuityArcStage: 'hold-for-opening',
+      preDialogueProjectStateContinuityRestraint: 'measured-return',
+      preDialogueProjectStateContinuityCue: 'Keep this callback reopening on the same living line before widening outward again.',
+      preDialogueProjectStateContinuityPreferredTiming: 'next-open-window',
+      preDialogueProjectStateContinuityCadence: 'measured-return',
     }))
   })
 

@@ -3,6 +3,10 @@ import type { AlicizationChatStartPayload } from '../../../shared/eventa'
 import { describe, expect, it, vi } from 'vitest'
 
 import { acceptAlicizationMainChatStart } from './main-chat-start-acceptance'
+import {
+  resolveAlicizationChatStartPayloadPreDialogueSendIdentity,
+  summarizeAlicizationPreDialogueSendIdentityForDebug,
+} from './main-chat-start-awareness'
 
 function createPayload(): AlicizationChatStartPayload {
   return {
@@ -14,6 +18,20 @@ function createPayload(): AlicizationChatStartPayload {
     messages: [
       { role: 'user', content: '你好' },
     ],
+    preDialogueSendIdentity: {
+      status: 'partial',
+      summaryLine: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=桌面执行闭环还没完全收住',
+      awarenessLine: '我得先记住这是同一个数字生命项目：它现在仍在 Phase 1，本轮开口前要知道桌面执行闭环还没完全收住。',
+      companionBriefingLine: '我得先记住这是同一个数字生命项目：它现在仍在 Phase 1，本轮开口前要知道桌面执行闭环还没完全收住。',
+      companionNextClosureLine: '把桌面执行闭环继续收口到记忆、主动性和具身之间。',
+      emotionalClosureCue: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
+      reasonPreview: [
+        'Alicization is a local-first digital life project building one continuous her on the host computer.',
+        'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
+        '桌面执行闭环还没完全收住，下一步要把它继续收口到记忆、主动性和具身之间。',
+        '把桌面执行闭环继续收口到记忆、主动性和具身之间。',
+      ],
+    },
   }
 }
 
@@ -82,10 +100,11 @@ describe('main chat start acceptance', () => {
         reason: 'Turn is already running.',
       },
     })
-    expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-start.duplicate-running', {
+    expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-start.duplicate-running', expect.objectContaining({
       cardId: 'card-1',
       turnId: 'turn-1',
-    })
+      preDialogueAwarenessStatus: 'grounded',
+    }))
   })
 
   it('rejects missing gateway config', async () => {
@@ -104,14 +123,15 @@ describe('main chat start acceptance', () => {
         reason: 'Missing providerId/model for main-process chat stream. providerId="openai" model="gpt-test"',
       },
     })
-    expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-start.missing-config', {
+    expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-start.missing-config', expect.objectContaining({
       cardId: 'card-1',
       turnId: 'turn-1',
       reason: 'Missing providerId/model for main-process chat stream. providerId="openai" model="gpt-test"',
-    })
+      preDialogueAwarenessStatus: 'grounded',
+    }))
   })
 
-  it('keeps start accepted when gateway probe is unreachable and logs advisory diagnostics', async () => {
+  it('keeps start accepted even when the injected reachability probe would fail later in the lifecycle', async () => {
     const input = createInput({
       ensureMainGatewayReachable: vi.fn(async () => ({
         reachable: false,
@@ -129,18 +149,12 @@ describe('main chat start acceptance', () => {
       turnId: 'turn-1',
       state: 'running',
     }))
-    expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-start.gateway-unreachable-advisory', {
-      cardId: 'card-1',
-      turnId: 'turn-1',
-      cached: true,
-      code: 'ECONNREFUSED',
-      reason: 'Main gateway connectivity check failed for example.test (econnrefused).',
-    })
     expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-start.accepted', expect.objectContaining({
       cardId: 'card-1',
       turnId: 'turn-1',
-      gatewayReachable: false,
-      gatewayReachabilityCode: 'ECONNREFUSED',
+      gatewayReachable: null,
+      gatewayReachabilityCode: null,
+      preDialogueAwarenessStatus: 'grounded',
     }))
   })
 
@@ -181,22 +195,43 @@ describe('main chat start acceptance', () => {
       }),
       providerConfig: {},
     })
-    expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('llm-config.updated-from-chat-start', {
+    const expectedPayload = resolveAlicizationChatStartPayloadPreDialogueSendIdentity(input.payload)
+    const expectedDebug = summarizeAlicizationPreDialogueSendIdentityForDebug(expectedPayload)
+    expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('llm-config.updated-from-chat-start', expect.objectContaining({
       cardId: 'card-1',
       turnId: 'turn-1',
       providerId: 'openai',
       model: 'gpt-test',
       persistedConfigKeys: ['apiKey'],
-    })
-    expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-start.accepted', {
+      ...expectedDebug,
+    }))
+    expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-start.accepted', expect.objectContaining({
       cardId: 'card-1',
       turnId: 'turn-1',
       providerId: 'openai',
       model: 'gpt-test',
       senderId: 7,
       preparationDeferred: true,
-      gatewayReachable: true,
+      gatewayReachable: null,
       gatewayReachabilityCode: null,
-    })
+      ...expectedDebug,
+    }))
+  })
+
+  it('injects canonical project awareness into accepted-start debug when payload omits pre-dialogue identity', async () => {
+    const payload = createPayload()
+    payload.preDialogueSendIdentity = null
+    const input = createInput({ payload })
+
+    const result = await acceptAlicizationMainChatStart(input)
+
+    expect(result.accepted).toBe(true)
+    const expectedPayload = resolveAlicizationChatStartPayloadPreDialogueSendIdentity(payload)
+    const expectedDebug = summarizeAlicizationPreDialogueSendIdentityForDebug(expectedPayload)
+    expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-start.accepted', expect.objectContaining({
+      cardId: 'card-1',
+      turnId: 'turn-1',
+      ...expectedDebug,
+    }))
   })
 })

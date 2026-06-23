@@ -5,6 +5,11 @@ import type {
   AlicizationChatStartResult,
 } from '../../../shared/eventa'
 
+import {
+  resolveAlicizationChatStartPayloadPreDialogueSendIdentity,
+  summarizeAlicizationPreDialogueSendIdentityForDebug,
+} from './main-chat-start-awareness'
+
 interface HandleAlicizationDirectChatStartOptions {
   ipcMainEvent: IpcMainInvokeEvent
   payload: AlicizationChatStartPayload
@@ -24,7 +29,9 @@ interface HandleAlicizationDirectChatStartOptions {
 export async function handleAlicizationDirectChatStart(
   input: HandleAlicizationDirectChatStartOptions,
 ): Promise<AlicizationChatStartResult> {
-  const cardId = input.normalizeCardId(input.payload.cardId)
+  const payload = resolveAlicizationChatStartPayloadPreDialogueSendIdentity(input.payload)
+  const cardId = input.normalizeCardId(payload.cardId)
+  const preDialogueAwarenessDebug = summarizeAlicizationPreDialogueSendIdentityForDebug(payload)
 
   return await input.withCardScope(cardId, async () => {
     const startedAt = Date.now()
@@ -34,11 +41,12 @@ export async function handleAlicizationDirectChatStart(
       providerId: input.sanitizeText(input.payload.providerId),
       model: input.sanitizeText(input.payload.model),
       messageCount: Array.isArray(input.payload.messages) ? input.payload.messages.length : 0,
+      ...preDialogueAwarenessDebug,
     })
 
     try {
       const result = await input.startMainChatStream({
-        ...input.payload,
+        ...payload,
         cardId,
       }, {
         raw: {
@@ -51,6 +59,7 @@ export async function handleAlicizationDirectChatStart(
         accepted: result.accepted,
         state: result.state,
         elapsedMs: Date.now() - startedAt,
+        ...preDialogueAwarenessDebug,
       })
       return result
     }
@@ -60,6 +69,7 @@ export async function handleAlicizationDirectChatStart(
         turnId: input.payload.turnId,
         elapsedMs: Date.now() - startedAt,
         reason: error instanceof Error ? error.message : String(error),
+        ...preDialogueAwarenessDebug,
       })
       throw error
     }

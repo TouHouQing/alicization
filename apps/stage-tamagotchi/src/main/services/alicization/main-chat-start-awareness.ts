@@ -86,6 +86,22 @@ function sanitizeStructuredProjectStateGazeMode(raw: unknown) {
     : null
 }
 
+function sanitizeStructuredProjectStatePauseMode(raw: unknown) {
+  const normalized = sanitizeStartAwarenessText(raw, 32)
+  return normalized === 'longer'
+    || normalized === 'natural'
+    ? normalized as AlicizationPreDialogueProjectState['preferredPauseMode']
+    : null
+}
+
+function sanitizeStructuredProjectStateLipsyncMode(raw: unknown) {
+  const normalized = sanitizeStartAwarenessText(raw, 32)
+  return normalized === 'restrained'
+    || normalized === 'matched'
+    ? normalized as AlicizationPreDialogueProjectState['preferredLipsyncMode']
+    : null
+}
+
 function sanitizeStructuredProjectStateVoiceMode(raw: unknown) {
   const normalized = sanitizeStartAwarenessText(raw, 32)
   return normalized === 'lower-pressure'
@@ -475,6 +491,10 @@ function deriveProjectStateCarryFromEmotionalKernel(
       continuityCadence: 'repair-before-closeness',
       preferredBlinkCadence: 'quiet' as const,
       preferredGazeMode: 'soften' as const,
+      preferredPauseMode: 'longer' as const,
+      preferredLipsyncMode: 'restrained' as const,
+      preferredVoiceMode: 'lower-pressure' as const,
+      preferredPacingMode: 'slower' as const,
     }
   }
 
@@ -487,6 +507,10 @@ function deriveProjectStateCarryFromEmotionalKernel(
       continuityCadence: 'rest-protective',
       preferredBlinkCadence: 'quiet' as const,
       preferredGazeMode: 'drift' as const,
+      preferredPauseMode: 'longer' as const,
+      preferredLipsyncMode: 'restrained' as const,
+      preferredVoiceMode: 'lower-pressure' as const,
+      preferredPacingMode: 'slower' as const,
     }
   }
 
@@ -499,6 +523,10 @@ function deriveProjectStateCarryFromEmotionalKernel(
       continuityCadence: 'measured-return',
       preferredBlinkCadence: 'linger' as const,
       preferredGazeMode: 'soften' as const,
+      preferredPauseMode: 'longer' as const,
+      preferredLipsyncMode: 'restrained' as const,
+      preferredVoiceMode: 'lower-pressure' as const,
+      preferredPacingMode: 'slower' as const,
     }
   }
 
@@ -651,6 +679,10 @@ function buildCanonicalPreDialogueSendIdentity(): NonNullable<AlicizationChatSta
     continuityCadence: sanitizeStructuredProjectStateField(projectStateBrief.continuityCadence, 120),
     preferredBlinkCadence: sanitizeStructuredProjectStateBlinkCadence(projectStateBrief.preferredBlinkCadence),
     preferredGazeMode: sanitizeStructuredProjectStateGazeMode(projectStateBrief.preferredGazeMode),
+    preferredPauseMode: sanitizeStructuredProjectStatePauseMode(projectStateBrief.preferredPauseMode),
+    preferredLipsyncMode: sanitizeStructuredProjectStateLipsyncMode(projectStateBrief.preferredLipsyncMode),
+    preferredVoiceMode: sanitizeStructuredProjectStateVoiceMode(projectStateBrief.preferredVoiceMode),
+    preferredPacingMode: sanitizeStructuredProjectStatePacingMode(projectStateBrief.preferredPacingMode),
   }
 
   return {
@@ -1316,6 +1348,22 @@ function mergePreDialogueSendIdentity(
       || derivedProjectStateCarry?.preferredGazeMode
       || sanitizeStructuredProjectStateGazeMode(canonicalProjectState?.preferredGazeMode)
       || null,
+    preferredPauseMode: sanitizeStructuredProjectStatePauseMode(existingProjectState?.preferredPauseMode)
+      || derivedProjectStateCarry?.preferredPauseMode
+      || sanitizeStructuredProjectStatePauseMode(canonicalProjectState?.preferredPauseMode)
+      || null,
+    preferredLipsyncMode: sanitizeStructuredProjectStateLipsyncMode(existingProjectState?.preferredLipsyncMode)
+      || derivedProjectStateCarry?.preferredLipsyncMode
+      || sanitizeStructuredProjectStateLipsyncMode(canonicalProjectState?.preferredLipsyncMode)
+      || null,
+    preferredVoiceMode: sanitizeStructuredProjectStateVoiceMode(existingProjectState?.preferredVoiceMode)
+      || derivedProjectStateCarry?.preferredVoiceMode
+      || sanitizeStructuredProjectStateVoiceMode(canonicalProjectState?.preferredVoiceMode)
+      || null,
+    preferredPacingMode: sanitizeStructuredProjectStatePacingMode(existingProjectState?.preferredPacingMode)
+      || derivedProjectStateCarry?.preferredPacingMode
+      || sanitizeStructuredProjectStatePacingMode(canonicalProjectState?.preferredPacingMode)
+      || null,
   }
   const reasonPreview = mergePreDialogueReasonPreview(
     existing,
@@ -1389,6 +1437,7 @@ export function summarizeAlicizationPreDialogueSendIdentityForDebug(
   preDialogueProjectStateAwarenessSummary?: string | null
   preDialogueProjectStateCompanionBriefingLine?: string | null
   preDialogueProjectStateEmotionalClosureSummary?: string | null
+  preDialogueProjectStateContinuityArcStage?: string | null
   preDialogueProjectStateContinuityRestraint?: string | null
   preDialogueProjectStateSameHerHoldDetail?: string | null
   preDialogueProjectStateContinuityCue?: string | null
@@ -1396,6 +1445,8 @@ export function summarizeAlicizationPreDialogueSendIdentityForDebug(
   preDialogueProjectStateContinuityCadence?: string | null
   preDialogueProjectStatePreferredBlinkCadence?: AlicizationPreDialogueProjectState['preferredBlinkCadence']
   preDialogueProjectStatePreferredGazeMode?: AlicizationPreDialogueProjectState['preferredGazeMode']
+  preDialogueProjectStatePreferredPauseMode?: AlicizationPreDialogueProjectState['preferredPauseMode']
+  preDialogueProjectStatePreferredLipsyncMode?: AlicizationPreDialogueProjectState['preferredLipsyncMode']
   preDialogueProjectStatePreferredVoiceMode?: AlicizationPreDialogueProjectState['preferredVoiceMode']
   preDialogueProjectStatePreferredPacingMode?: AlicizationPreDialogueProjectState['preferredPacingMode']
   preDialogueReasonPreview: string[]
@@ -1445,6 +1496,8 @@ export function summarizeAlicizationPreDialogueSendIdentityForDebug(
   const preDialogueProjectStateEmotionalClosureSummary
     = sanitizeStructuredProjectStateField(identity.projectState?.emotionalClosureSummary, 220)
       || sanitizeStructuredProjectStateField(identity.projectState?.emotionalClosureCue, 220)
+  const preDialogueProjectStateContinuityArcStage
+    = sanitizeStructuredProjectStateField(identity.projectState?.continuityArcStage, 120)
   const preDialogueProjectStateContinuityRestraint
     = sanitizeStructuredProjectStateField(identity.projectState?.continuityRestraint, 64)
   const preDialogueProjectStateSameHerHoldDetail = sanitizeStructuredProjectStateField(identity.projectState?.sameHerHoldDetail, 220)
@@ -1456,6 +1509,10 @@ export function summarizeAlicizationPreDialogueSendIdentityForDebug(
     = sanitizeStructuredProjectStateBlinkCadence(identity.projectState?.preferredBlinkCadence)
   const preDialogueProjectStatePreferredGazeMode
     = sanitizeStructuredProjectStateGazeMode(identity.projectState?.preferredGazeMode)
+  const preDialogueProjectStatePreferredPauseMode
+    = sanitizeStructuredProjectStatePauseMode(identity.projectState?.preferredPauseMode)
+  const preDialogueProjectStatePreferredLipsyncMode
+    = sanitizeStructuredProjectStateLipsyncMode(identity.projectState?.preferredLipsyncMode)
   const preDialogueProjectStatePreferredVoiceMode
     = sanitizeStructuredProjectStateVoiceMode(identity.projectState?.preferredVoiceMode)
   const preDialogueProjectStatePreferredPacingMode
@@ -1480,6 +1537,7 @@ export function summarizeAlicizationPreDialogueSendIdentityForDebug(
     ...(preDialogueProjectStateAwarenessSummary ? { preDialogueProjectStateAwarenessSummary } : {}),
     ...(preDialogueProjectStateCompanionBriefingLine ? { preDialogueProjectStateCompanionBriefingLine } : {}),
     ...(preDialogueProjectStateEmotionalClosureSummary ? { preDialogueProjectStateEmotionalClosureSummary } : {}),
+    ...(preDialogueProjectStateContinuityArcStage ? { preDialogueProjectStateContinuityArcStage } : {}),
     ...(preDialogueProjectStateContinuityRestraint ? { preDialogueProjectStateContinuityRestraint } : {}),
     ...(preDialogueProjectStateSameHerHoldDetail ? { preDialogueProjectStateSameHerHoldDetail } : {}),
     ...(preDialogueProjectStateContinuityCue ? { preDialogueProjectStateContinuityCue } : {}),
@@ -1487,6 +1545,8 @@ export function summarizeAlicizationPreDialogueSendIdentityForDebug(
     ...(preDialogueProjectStateContinuityCadence ? { preDialogueProjectStateContinuityCadence } : {}),
     ...(preDialogueProjectStatePreferredBlinkCadence ? { preDialogueProjectStatePreferredBlinkCadence } : {}),
     ...(preDialogueProjectStatePreferredGazeMode ? { preDialogueProjectStatePreferredGazeMode } : {}),
+    ...(preDialogueProjectStatePreferredPauseMode ? { preDialogueProjectStatePreferredPauseMode } : {}),
+    ...(preDialogueProjectStatePreferredLipsyncMode ? { preDialogueProjectStatePreferredLipsyncMode } : {}),
     ...(preDialogueProjectStatePreferredVoiceMode ? { preDialogueProjectStatePreferredVoiceMode } : {}),
     ...(preDialogueProjectStatePreferredPacingMode ? { preDialogueProjectStatePreferredPacingMode } : {}),
     ...(preDialogueSameHerSelfLine ? { preDialogueSameHerSelfLine } : {}),

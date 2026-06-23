@@ -4,6 +4,7 @@ import {
   generateAlicizationMainChatNonStreaming,
   recoverAlicizationMainChatFromTimeout,
 } from './main-chat-one-shot'
+import { buildAlicizationProjectStateSystemBlock } from './project-state-brief'
 
 function createInput(overrides?: Partial<any>) {
   return {
@@ -12,6 +13,10 @@ function createInput(overrides?: Partial<any>) {
       baseURL: 'https://example.test/v1',
     },
     messages: [
+      {
+        role: 'system',
+        content: buildAlicizationProjectStateSystemBlock(),
+      },
       { role: 'user', content: '你好' },
     ],
     headers: {
@@ -148,5 +153,106 @@ describe('main chat one-shot', () => {
     await expect(settled).resolves.toMatchObject({
       name: 'AbortError',
     })
+  })
+
+  it('rejects one-shot generation when messages omit canonical project-state context', async () => {
+    const generateTextImpl = vi.fn(async () => ({
+      text: 'should not run',
+      finishReason: 'stop',
+    }))
+
+    await expect(generateAlicizationMainChatNonStreaming(createInput({
+      messages: [
+        { role: 'system', content: '[ALICIZATION_CURRENT_CONSCIOUS_FRAME]\nOnly local reply shaping appears here.' },
+        { role: 'user', content: '你好' },
+      ],
+      generateTextImpl,
+    }))).rejects.toThrow('Alicization one-shot messages must include canonical project-state context before generation.')
+    expect(generateTextImpl).not.toHaveBeenCalled()
+  })
+
+  it('rejects one-shot generation when messages only carry a thin project-state shell with the marker but not the canonical same-her closure fields', async () => {
+    const generateTextImpl = vi.fn(async () => ({
+      text: 'should not run',
+      finishReason: 'stop',
+    }))
+
+    await expect(generateAlicizationMainChatNonStreaming(createInput({
+      messages: [
+        { role: 'system', content: '[ALICIZATION_PROJECT_STATE]\nproject_preflight=Alicization is a local-first digital life project.' },
+        { role: 'user', content: '你好' },
+      ],
+      generateTextImpl,
+    }))).rejects.toThrow('Alicization one-shot messages must include canonical project-state context before generation.')
+    expect(generateTextImpl).not.toHaveBeenCalled()
+  })
+
+  it('allows one-shot generation when canonical project-state context is present in the message payload', async () => {
+    const generateTextImpl = vi.fn(async () => ({
+      text: '  我还记得这是同一个数字生命项目。  ',
+      finishReason: 'stop',
+    }))
+
+    const result = await generateAlicizationMainChatNonStreaming(createInput({
+      messages: [
+        { role: 'system', content: buildAlicizationProjectStateSystemBlock() },
+        { role: 'user', content: '你好' },
+      ],
+      generateTextImpl,
+    }))
+
+    expect(result).toEqual({
+      finishReason: 'stop',
+      fullText: '我还记得这是同一个数字生命项目。',
+    })
+    expect(generateTextImpl).toHaveBeenCalledOnce()
+  })
+
+  it('projects emotional-kernel authority into non-streaming one-shot provider prompts when supplied by the runtime surface', async () => {
+    const emotionalKernel = {
+      version: 'emotional-kernel-v1',
+      dominantEmotion: 'guarded-care',
+      initiativeMode: 'observe',
+      memoryRecallMode: 'self-continuity',
+      embodimentTone: 'protective-watch',
+      valence: 0.34,
+      arousal: 0.28,
+      guardedness: 0.72,
+      closenessDrive: 0.61,
+      repairNeed: 0.18,
+      initiativePressure: 0.44,
+      reasonTags: ['phase1-life-loop', 'same-her-authority'],
+      why: 'Keep one-shot recovery on the same emotion-memory-initiative-embodiment authority line.',
+    }
+    const generateTextImpl = vi.fn(async (input: Record<string, unknown>) => {
+      const systemText = ((input.messages as Array<{ role?: string, content?: unknown }> | undefined) ?? [])
+        .filter(message => message.role === 'system')
+        .map(message => typeof message.content === 'string' ? message.content : '')
+        .join('\n')
+
+      expect(systemText).toContain('[ALICIZATION_EMOTIONAL_KERNEL]')
+      expect(systemText).toContain('emotional_kernel_dominant=guarded-care')
+      expect(systemText).toContain('emotional_kernel_memory_recall=self-continuity')
+      expect(systemText).toContain('emotional_kernel_initiative=observe')
+      expect(systemText).toContain('emotional_kernel_embodiment=protective-watch')
+      expect(systemText).toContain('emotional_kernel_reason=Keep one-shot recovery on the same emotion-memory-initiative-embodiment authority line.')
+      expect(systemText).toContain('emotional_kernel_tags=phase1-life-loop|same-her-authority')
+
+      return {
+        text: '  我会沿着同一份内在状态继续。  ',
+        finishReason: 'stop',
+      }
+    })
+
+    const result = await generateAlicizationMainChatNonStreaming(createInput({
+      emotionalKernel,
+      generateTextImpl,
+    }))
+
+    expect(result).toEqual({
+      finishReason: 'stop',
+      fullText: '我会沿着同一份内在状态继续。',
+    })
+    expect(generateTextImpl).toHaveBeenCalledOnce()
   })
 })

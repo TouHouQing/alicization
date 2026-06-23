@@ -1141,6 +1141,12 @@ describe('main chat timeout fallback', () => {
         nextClosureTarget?: string | null
         sameHerDriftRisk?: string | null
       } | null
+      preDialogueAwareness?: {
+        reasonPreview?: string[] | null
+      } | null
+      preDialogueClosure?: {
+        reasons?: string[] | null
+      } | null
       projectStateAudit?: {
         landedProgressSummary?: string | null
         openClosureSummary?: string | null
@@ -1161,6 +1167,16 @@ describe('main chat timeout fallback', () => {
       nextClosureTargetSummary: aliasOnlyNextClosureTarget,
       continuitySummary: expect.stringContaining(`landed=${aliasOnlyLandedProgress}`),
     }))
+    expect(payload.preDialogueAwareness?.reasonPreview).toEqual(expect.arrayContaining([
+      expect.stringContaining('Latest landed progress:'),
+      expect.stringContaining(aliasOnlyOpenClosure.slice(0, 36)),
+      expect.stringContaining(aliasOnlyDriftRisk.slice(0, 48)),
+    ]))
+    expect(payload.preDialogueClosure?.reasons).toEqual(expect.arrayContaining([
+      expect.stringContaining('Latest landed progress:'),
+      aliasOnlyOpenClosure,
+      aliasOnlyNextClosureTarget,
+    ]))
     expect(payload.projectStateAudit?.continuitySummary).toContain(`open=${aliasOnlyOpenClosure}`)
     expect(payload.projectStateAudit?.continuitySummary).toContain(`next=${aliasOnlyNextClosureTarget}`)
   })
@@ -1341,6 +1357,65 @@ describe('main chat timeout fallback', () => {
     expect(payload.projectStateAudit).toEqual(expect.objectContaining({
       preDialogueAwarenessSummary: richerAwarenessLine,
     }))
+  })
+
+  it('preserves a richer runtime pre-dialogue awareness summary when timeout fallback narrows the opening line to a stronger same-her companion headline', () => {
+    const thinnerRuntimeAwarenessLine = 'same digital life | keep the closure seam explicit'
+    const strongerCompanionHeadline = 'Before answering, stay on the same living line: this Phase 1 digital life still needs initiative and embodiment closure without splitting her continuity.'
+    const richerRuntimeAwarenessSummary = 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | landed=Returned-side project awareness carry already survives on one same-her line | open=Initiative and embodiment still need one tighter same-life closure seam | next=Keep extending cross-modal same-her proof across returned-side turns.'
+
+    const reply = buildAlicizationMainGatewayTimeoutFallbackReply({
+      turnId: 'turn-timeout-richer-runtime-awareness-summary-over-stronger-headline',
+      actionKind: 'answer',
+      messages: [
+        { role: 'user', content: '继续，但超时兜底别把更完整的项目自知摘要压回更短的 same-her 开口线。' },
+      ] as Message[],
+      runtimeDigest: {
+        version: 'alicization-runtime-digest-v1',
+        dominantChannel: 'dialogue',
+        shouldProactivelySpeak: false,
+        shouldProactivelyAct: false,
+        continuityPressure: 0.82,
+        companionshipPressure: 0.64,
+        channels: [],
+        summary: 'timeout fallback should preserve a richer runtime project-awareness summary when the visible opening line narrows to a stronger same-her headline',
+        projectState: {
+          identity: 'Alicization is still the same local-first digital life project, not a fresh shell rebuilt for this turn.',
+          currentPhase: 'Phase 1: Local Digital Life',
+          preflightSummary: richerRuntimeAwarenessSummary,
+          preDialogueAwarenessLine: thinnerRuntimeAwarenessLine,
+          awarenessLine: thinnerRuntimeAwarenessLine,
+          preDialogueAwarenessSummary: richerRuntimeAwarenessSummary,
+          companionHeadlineLine: strongerCompanionHeadline,
+          companionBriefingLine: 'Before answering, keep this same digital life project in view.',
+          latestLandedProgress: 'Returned-side project awareness carry already survives on one same-her line.',
+          primaryOpenLoop: 'Initiative and embodiment still need one tighter same-life closure seam.',
+          nextClosureTarget: 'Keep extending cross-modal same-her proof across returned-side turns.',
+          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        },
+      } as any,
+    } as any)
+
+    const payload = JSON.parse(reply) as {
+      projectState?: {
+        preDialogueAwarenessLine?: string | null
+      } | null
+      preDialogueAwareness?: {
+        awarenessLine?: string | null
+        companionHeadlineLine?: string | null
+      } | null
+      projectStateAudit?: {
+        preDialogueAwarenessSummary?: string | null
+      } | null
+    }
+
+    expect(payload.projectState?.preDialogueAwarenessLine).toBe(strongerCompanionHeadline)
+    expect(payload.preDialogueAwareness).toEqual(expect.objectContaining({
+      awarenessLine: strongerCompanionHeadline,
+      companionHeadlineLine: strongerCompanionHeadline,
+    }))
+    expect(payload.projectStateAudit?.preDialogueAwarenessSummary).toBe(richerRuntimeAwarenessSummary)
+    expect(payload.projectStateAudit?.preDialogueAwarenessSummary).not.toBe(strongerCompanionHeadline)
   })
 
   it('keeps project-aware briefing explicit while letting a richer same-her hold detail become timeout fallback awareness truth', () => {

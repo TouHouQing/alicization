@@ -298,6 +298,66 @@ function preferRicherTimeoutFallbackProjectStateAuditText(input: {
   return candidate.length > current.length ? candidate : current
 }
 
+function scoreTimeoutFallbackProjectAwarenessSummary(value: string | null | undefined) {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
+  if (!normalized)
+    return 0
+
+  let score = normalized.length >= 180 ? 2 : normalized.length >= 96 ? 1 : 0
+  if (/local-first digital life project|digital life project|数字生命项目/u.test(normalized))
+    score += 3
+  if (/phase 1|第一阶段|阶段一/u.test(normalized))
+    score += 2
+  if (/\blanded=|what has already landed is|latest landed progress:|已落地/u.test(normalized))
+    score += 3
+  if (/\bopen=|still-open closure|unfinished closure|未闭环|还没/u.test(normalized))
+    score += 3
+  if (/\bnext=|next closure target|下一步/u.test(normalized))
+    score += 2
+  if (/same living line|same-her|one continuous her|without splitting her continuity|同一个她/u.test(normalized))
+    score += 1
+  if (isAlicizationThinProjectAwarenessLine(normalized))
+    score -= 4
+  return score
+}
+
+function carriesStructuredTimeoutFallbackProjectAwarenessSummary(value: string | null | undefined) {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
+  if (!normalized)
+    return false
+
+  const carriesProjectIdentity = /local-first digital life project|digital life project|数字生命项目/u.test(normalized)
+  const carriesPhase = /phase 1|第一阶段|阶段一/u.test(normalized)
+  const carriesProgressOrClosureMarkers
+    = /\blanded=|\bopen=|\bnext=|what has already landed is|the still-open closure is|已落地|未闭环|还没/u.test(normalized)
+
+  return carriesProjectIdentity && carriesPhase && carriesProgressOrClosureMarkers
+}
+
+function preferTimeoutFallbackProjectAwarenessSummary(input: {
+  awarenessLine?: unknown
+  summaryCandidate?: unknown
+  maxChars?: number
+}) {
+  const maxChars = input.maxChars ?? 1600
+  const awarenessLine = sanitizeTimeoutFallbackProjectAwarenessText(input.awarenessLine, maxChars) || null
+  const preferredStructuredSummary
+    = sanitizeTimeoutFallbackProjectAwarenessText(input.summaryCandidate, maxChars) || null
+
+  if (!preferredStructuredSummary)
+    return awarenessLine
+  if (!carriesStructuredTimeoutFallbackProjectAwarenessSummary(preferredStructuredSummary))
+    return awarenessLine
+  if (!awarenessLine)
+    return preferredStructuredSummary
+  if (preferredStructuredSummary === awarenessLine)
+    return awarenessLine
+
+  return scoreTimeoutFallbackProjectAwarenessSummary(preferredStructuredSummary) >= scoreTimeoutFallbackProjectAwarenessSummary(awarenessLine) + 2
+    ? preferredStructuredSummary
+    : awarenessLine
+}
+
 function looksLikeThinTimeoutFallbackProjectNextClosureShell(value: string | null | undefined) {
   return looksLikeThinProjectClosureShell(value, 'next')
 }
@@ -332,6 +392,8 @@ function buildTimeoutFallbackProjectStateAuditContinuitySummary(input: {
   openClosureSummary: string | null | undefined
   nextClosureTargetSummary: string | null | undefined
   emotionalClosureSummary?: string | null | undefined
+  continuityArcStage?: string | null | undefined
+  continuityCue?: string | null | undefined
   embodimentClosureSummary: string | null | undefined
 }) {
   const projectStateContinuityCarry = buildPrioritizedProjectStateRewritePreserveLines({
@@ -344,6 +406,8 @@ function buildTimeoutFallbackProjectStateAuditContinuitySummary(input: {
       input.openClosureSummary ? `open=${input.openClosureSummary}` : '',
       input.nextClosureTargetSummary ? `next=${input.nextClosureTargetSummary}` : '',
       input.emotionalClosureSummary ? `closure=${input.emotionalClosureSummary}` : '',
+      input.continuityArcStage ? `arc=${input.continuityArcStage}` : '',
+      input.continuityCue ? `cue=${input.continuityCue}` : '',
     ].filter(Boolean),
   })
   return [
@@ -526,20 +590,9 @@ export function buildAlicizationMainGatewayTimeoutFallbackReply(input: {
       preflightSummary: payloadPreflightSummary ?? projectStateBrief.preflightSummary ?? null,
     },
   })
-  const companionBriefingLine
+  const explicitOrPayloadCompanionBriefingLine
     = preferredCompanionBriefingLine
-      ?? resolveAlicizationProjectPreDialogueAwarenessLine({
-        runtimeProjectState: {
-          awarenessLine: resolvedPreDialogueAwarenessLine,
-          companionBriefingLine: preferredCompanionBriefingLine,
-          preflightSummary,
-        },
-        fallbackProjectState: {
-          companionBriefingLine: payloadCompanionBriefingLine ?? payloadPreDialogueAwarenessLine ?? canonicalPreDialogueAwarenessLine,
-          awarenessLine: null,
-          preflightSummary: payloadPreflightSummary ?? projectStateBrief.preflightSummary ?? null,
-        },
-      })
+      ?? null
   const primaryOpenLoop
     = normalizeTimeoutFallbackProjectText(input.runtimeDigest?.projectState?.primaryOpenLoop)
       || normalizeTimeoutFallbackProjectText(runtimeProjectStateSummaryAliases?.openClosureSummary)
@@ -671,25 +724,34 @@ export function buildAlicizationMainGatewayTimeoutFallbackReply(input: {
     && candidate === resolvedPreDialogueAwarenessLine
     && looksLikeTimeoutFallbackProjectAwareBriefingReminder(candidate)
   )) ?? null
+  const runtimeHasSpecificSameHerHoldDetail = Boolean(
+    runtimeProjectSameHerHoldDetail
+    && runtimeProjectSameHerHoldDetail === preferredProjectSameHerHoldDetail
+    && looksLikeTimeoutFallbackLivedInSameHerHoldDetail(runtimeProjectSameHerHoldDetail),
+  )
   const preferredLivedInSameHerAwarenessLine = (
     explicitProjectAwareBriefingLine
+    && runtimeHasSpecificSameHerHoldDetail
     && looksLikeTimeoutFallbackLivedInSameHerHoldDetail(preferredProjectSameHerHoldDetail)
   )
     ? preferredProjectSameHerHoldDetail
     : null
+  const continuityArcStage
+    = sanitizeTimeoutFallbackProjectText(input.runtimeDigest?.projectState?.continuityArcStage, 120) || null
   const canonicalStructuredProjectState = resolveCanonicalStructuredProjectState({
     normalizedProjectState: {
       identity: projectStateBrief.identity,
       currentPhase: input.runtimeDigest?.projectState?.currentPhase ?? projectStateBrief.currentPhase,
       preDialogueAwarenessLine: preferredLivedInSameHerAwarenessLine ?? resolvedPreDialogueAwarenessLine,
       awarenessLine: preferredLivedInSameHerAwarenessLine ?? resolvedPreDialogueAwarenessLine,
-      companionBriefingLine,
+      companionBriefingLine: explicitOrPayloadCompanionBriefingLine,
       latestLandedProgress,
       primaryOpenLoop,
       nextClosureTarget,
       sameHerSelfLine: projectStateSameHerSummary,
-      sameHerHoldDetail: preferredProjectSameHerHoldDetail,
+      sameHerHoldDetail: preferredLivedInSameHerAwarenessLine ? preferredProjectSameHerHoldDetail : null,
       sameHerDriftRisk,
+      ...(continuityArcStage ? { continuityArcStage } : {}),
     },
     runtimePreflightSummary: preflightSummary,
     runtimePreferredAwarenessLine: preferredLivedInSameHerAwarenessLine,
@@ -701,6 +763,11 @@ export function buildAlicizationMainGatewayTimeoutFallbackReply(input: {
     = preferredLivedInSameHerAwarenessLine
       ?? canonicalStructuredProjectState.preDialogueAwarenessLine
       ?? resolvedPreDialogueAwarenessLine
+  const richerRuntimeProjectAwarenessSummary = preferTimeoutFallbackProjectAwarenessSummary({
+    awarenessLine: preDialogueAwarenessLine,
+    summaryCandidate: input.runtimeDigest?.projectState?.preDialogueAwarenessSummary,
+    maxChars: 1600,
+  })
   const preferredProjectIdentity = resolveTimeoutFallbackPreferredProjectIdentity({
     runtimeIdentity: input.runtimeDigest?.projectState?.identity,
     canonicalIdentity: canonicalStructuredProjectState.identity,
@@ -748,8 +815,8 @@ export function buildAlicizationMainGatewayTimeoutFallbackReply(input: {
                 identity: canonicalStructuredProjectState.identity,
                 currentPhase: canonicalStructuredProjectState.currentPhase,
                 preDialogueAwarenessLine,
-                preDialogueAwarenessSummary: preDialogueAwarenessLine,
-                companionBriefingLine,
+                preDialogueAwarenessSummary: richerRuntimeProjectAwarenessSummary ?? preDialogueAwarenessLine,
+                companionBriefingLine: explicitOrPayloadCompanionBriefingLine,
                 landedProgressSummary: canonicalStructuredProjectState.latestLandedProgress,
                 openClosureSummary: canonicalStructuredProjectState.primaryOpenLoop,
                 openFocusSummary,
@@ -763,7 +830,7 @@ export function buildAlicizationMainGatewayTimeoutFallbackReply(input: {
                 currentPhase: canonicalStructuredProjectState.currentPhase,
                 preDialogueAwarenessLine: payloadPreDialogueAwarenessLine ?? canonicalPreDialogueAwarenessLine,
                 preDialogueAwarenessSummary: payloadPreDialogueAwarenessLine ?? canonicalPreDialogueAwarenessSummaryLine,
-                companionBriefingLine: payloadCompanionBriefingLine ?? companionBriefingLine ?? payloadPreDialogueAwarenessLine ?? canonicalPreDialogueAwarenessLine,
+                companionBriefingLine: payloadCompanionBriefingLine ?? explicitOrPayloadCompanionBriefingLine ?? payloadPreDialogueAwarenessLine ?? canonicalPreDialogueAwarenessLine,
                 landedProgressSummary: canonicalStructuredProjectState.latestLandedProgress,
                 openClosureSummary: canonicalStructuredProjectState.primaryOpenLoop,
                 openFocusSummary,
@@ -808,8 +875,18 @@ export function buildAlicizationMainGatewayTimeoutFallbackReply(input: {
               return preDialogueAwarenessLine
             }
 
+            if (
+              richerRuntimeProjectAwarenessSummary
+              && richerRuntimeProjectAwarenessSummary !== resolvedProjectStateAuditPreDialogueAwarenessSummary
+              && richerRuntimeProjectAwarenessSummary !== preDialogueAwarenessLine
+              && scoreTimeoutFallbackProjectAwarenessSummary(richerRuntimeProjectAwarenessSummary)
+              >= scoreTimeoutFallbackProjectAwarenessSummary(resolvedProjectStateAuditPreDialogueAwarenessSummary) + 2
+            ) {
+              return richerRuntimeProjectAwarenessSummary
+            }
+
             const projectIdentityAwareFallback = [
-              companionBriefingLine,
+              explicitOrPayloadCompanionBriefingLine,
               preDialogueAwarenessLine,
               payloadCompanionBriefingLine,
               payloadPreDialogueAwarenessLine,
@@ -850,11 +927,14 @@ export function buildAlicizationMainGatewayTimeoutFallbackReply(input: {
               openClosureSummary: canonicalStructuredProjectState.primaryOpenLoop,
               nextClosureTargetSummary: canonicalStructuredProjectState.nextClosureTarget,
               emotionalClosureSummary: projectStateEmotionalClosureSummary,
+              continuityArcStage,
+              continuityCue: preferredProjectContinuityCue,
               embodimentClosureSummary: resolvedProjectStateEmbodimentClosureSummary,
             }),
             ...(resolvedProjectStateEmbodimentClosureSummary
               ? { embodimentClosureSummary: resolvedProjectStateEmbodimentClosureSummary }
               : {}),
+            ...(continuityArcStage ? { continuityArcStage } : {}),
             preservedIntoRewrite: false,
             rewriteClosureApplied: false,
           }
@@ -894,14 +974,24 @@ export function buildAlicizationMainGatewayTimeoutFallbackReply(input: {
       ?? preDialogueAwarenessLine
   const timeoutFallbackProjectAwarenessState = {
     ...input.runtimeDigest?.projectState,
+    identity: preferredProjectIdentity,
+    currentPhase: canonicalStructuredProjectState.currentPhase,
     preDialogueAwarenessLine,
     awarenessLine: preDialogueAwarenessLine,
     companionHeadlineLine: timeoutFallbackCompanionHeadlineLine,
     companionBriefingLine: timeoutFallbackExplicitCompanionBriefingLine,
     preflightSummary: resolvedTimeoutFallbackSummaryLine,
+    latestLandedProgress: canonicalStructuredProjectState.latestLandedProgress,
+    latestProgress: canonicalStructuredProjectState.latestLandedProgress,
+    landedProgressSummary: canonicalStructuredProjectState.latestLandedProgress,
+    primaryOpenLoop: canonicalStructuredProjectState.primaryOpenLoop,
+    openClosureSummary: canonicalStructuredProjectState.primaryOpenLoop,
+    nextClosureTarget: canonicalStructuredProjectState.nextClosureTarget,
+    nextClosureTargetSummary: canonicalStructuredProjectState.nextClosureTarget,
     sameHerSelfLine: canonicalStructuredProjectState.sameHerSelfLine,
     sameHerHoldDetail: timeoutFallbackAwarenessSameHerHoldDetail,
     sameHerDriftRisk,
+    ...(continuityArcStage ? { continuityArcStage } : {}),
     continuityCue: preferredProjectContinuityCue,
   }
   const preDialogueAwareness = buildAlicizationProjectPreDialogueAwareness({
@@ -912,12 +1002,23 @@ export function buildAlicizationMainGatewayTimeoutFallbackReply(input: {
   })
   const timeoutFallbackProjectClosureState = {
     ...input.runtimeDigest?.projectState,
+    identity: preferredProjectIdentity,
+    currentPhase: canonicalStructuredProjectState.currentPhase,
     preDialogueAwarenessLine,
     companionHeadlineLine: timeoutFallbackCompanionHeadlineLine,
     companionBriefingLine: timeoutFallbackExplicitCompanionBriefingLine,
     preflightSummary: resolvedTimeoutFallbackSummaryLine,
+    latestLandedProgress: canonicalStructuredProjectState.latestLandedProgress,
+    latestProgress: canonicalStructuredProjectState.latestLandedProgress,
+    landedProgressSummary: canonicalStructuredProjectState.latestLandedProgress,
+    primaryOpenLoop: canonicalStructuredProjectState.primaryOpenLoop,
+    openClosureSummary: canonicalStructuredProjectState.primaryOpenLoop,
+    nextClosureTarget: canonicalStructuredProjectState.nextClosureTarget,
+    nextClosureTargetSummary: canonicalStructuredProjectState.nextClosureTarget,
+    sameHerSelfLine: canonicalStructuredProjectState.sameHerSelfLine,
     sameHerHoldDetail: timeoutFallbackAwarenessSameHerHoldDetail,
     sameHerDriftRisk,
+    ...(continuityArcStage ? { continuityArcStage } : {}),
     continuityCue: preferredProjectContinuityCue,
   }
   const preDialogueClosure = buildAlicizationProjectPreDialogueClosure({
@@ -946,6 +1047,7 @@ export function buildAlicizationMainGatewayTimeoutFallbackReply(input: {
       awarenessLine: preDialogueAwarenessLine,
       emotionalClosureCue: input.runtimeDigest?.projectState?.emotionalClosureCue ?? null,
       sameHerHoldDetail: preferredProjectSameHerHoldDetail,
+      ...(continuityArcStage ? { continuityArcStage } : {}),
       continuityCue: preferredProjectContinuityCue,
     },
     preDialogueAwareness: {
