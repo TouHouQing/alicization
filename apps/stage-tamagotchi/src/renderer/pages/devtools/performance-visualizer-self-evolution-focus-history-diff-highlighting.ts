@@ -1,8 +1,9 @@
 type DiffHighlightState = 'shared' | 'current-only' | 'previous-only'
 
 interface SelfEvolutionFocusHistoryComparisonLike {
+  bodyContinuityPhase?: 'body-only-hold' | 'body-carried-to-renderer-rejoin' | 'full-cross-modal-lock' | 'renderer-rejoin-without-body' | null
   previous: {
-    capturedAt?: number | null
+    capturedAt?: number
     candidateId?: string | null
     decisionTraceId?: string | null
     activeThreadId?: string | null
@@ -12,12 +13,13 @@ interface SelfEvolutionFocusHistoryComparisonLike {
     traceTargets: string[]
   }
   current: {
-    capturedAt?: number | null
+    capturedAt?: number
     candidateId?: string | null
     decisionTraceId?: string | null
     activeThreadId?: string | null
     selectedCardId?: string | null
     recommendedTraceEventId?: string | null
+    rendererRejoinSurfaceKey?: 'authority:renderer-rejoin:speech' | 'authority:renderer-rejoin:live2d' | 'authority:renderer-rejoin:vrm' | null
     evidenceTargets: string[]
     traceTargets: string[]
   }
@@ -50,6 +52,14 @@ function buildTargetStateMap(current: string[], previous: string[]) {
   return states
 }
 
+function supportsRendererRejoinSurface(
+  bodyContinuityPhase: SelfEvolutionFocusHistoryComparisonLike['bodyContinuityPhase'],
+) {
+  return bodyContinuityPhase === 'body-carried-to-renderer-rejoin'
+    || bodyContinuityPhase === 'full-cross-modal-lock'
+    || bodyContinuityPhase === 'renderer-rejoin-without-body'
+}
+
 export function buildSelfEvolutionFocusHistoryDiffHighlighting(
   comparison: SelfEvolutionFocusHistoryComparisonLike | null,
 ) {
@@ -57,6 +67,7 @@ export function buildSelfEvolutionFocusHistoryDiffHighlighting(
     return {
       evidencePanels: {} as Record<string, DiffHighlightState>,
       traceSections: {} as Record<string, DiffHighlightState>,
+      rendererRejoinSurfaceKey: null,
     }
   }
 
@@ -69,5 +80,8 @@ export function buildSelfEvolutionFocusHistoryDiffHighlighting(
       comparison.current.traceTargets,
       comparison.previous.traceTargets,
     ),
+    rendererRejoinSurfaceKey: supportsRendererRejoinSurface(comparison.bodyContinuityPhase)
+      ? comparison.current.rendererRejoinSurfaceKey ?? null
+      : null,
   }
 }
