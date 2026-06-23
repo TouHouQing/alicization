@@ -49,6 +49,7 @@ import { pickDominantAutobiographicalGoal } from './autobiographical-self'
 import { createAlicizationContinuityMind } from './continuity-mind'
 import { deriveAlicizationAutobiographicalPersonaSummary } from './personality-continuity-state'
 import { inferScenarioFromContext } from './proactive-layered-context'
+import { resolveAlicizationProjectStateSnapshot } from './project-state-brief'
 
 function clamp01(value: number) {
   if (!Number.isFinite(value))
@@ -62,8 +63,73 @@ function sanitizeText(raw: unknown, maxChars = 240) {
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
 }
 
+function asArray<T>(value: T[] | null | undefined) {
+  return Array.isArray(value) ? value : []
+}
+
 function includesAny(text: string, needles: string[]) {
   return needles.some(needle => text.includes(needle))
+}
+
+function deriveProjectStatePrivateThoughtBias(projectState?: {
+  identity?: string | null
+  currentPhase?: string | null
+  latestLandedProgress?: string | null
+  primaryOpenLoop?: string | null
+} | null): {
+  preferInternalCompanionship: true
+  reasonTag: string
+} | null {
+  const normalizedProjectState = projectState
+    ? resolveAlicizationProjectStateSnapshot({
+        runtimeProjectState: {
+          identity: projectState.identity,
+          currentPhase: projectState.currentPhase,
+          latestLandedProgress: projectState.latestLandedProgress,
+          primaryOpenLoop: projectState.primaryOpenLoop,
+        },
+      })
+    : {
+        identity: '',
+        currentPhase: '',
+        preflightSummary: null,
+        latestLandedProgress: null,
+        primaryOpenLoop: null,
+        nextClosureTarget: '',
+        sameHerSelfLine: '',
+      }
+  const identity = sanitizeText(normalizedProjectState.identity, 200).toLowerCase()
+  const currentPhase = sanitizeText(normalizedProjectState.currentPhase, 160).toLowerCase()
+  const latestLandedProgress = sanitizeText(normalizedProjectState.latestLandedProgress, 220).toLowerCase()
+  const primaryOpenLoop = sanitizeText(normalizedProjectState.primaryOpenLoop, 220).toLowerCase()
+
+  const isDigitalLifeIdentity = includesAny(identity, [
+    'digital life',
+    'lifeform',
+    'companion',
+    'continuous personhood',
+  ])
+  const isPhaseOne = currentPhase.includes('phase 1')
+  const closureLine = `${latestLandedProgress} ${primaryOpenLoop}`.trim()
+  const hasOpenLifeLoop = closureLine.length > 0
+    && includesAny(closureLine, [
+      'continuity',
+      'memory',
+      'initiative',
+      'embodiment',
+      'dialogue',
+      'personhood',
+      'closure',
+      'closed loop',
+    ])
+
+  if (!isDigitalLifeIdentity || !isPhaseOne || !hasOpenLifeLoop)
+    return null
+
+  return {
+    preferInternalCompanionship: true,
+    reasonTag: 'project-phase1-life-loop:private-thought',
+  }
 }
 
 function selfEvolutionSupportsLowerPressureCompanionship(selfEvolution?: AlicizationSelfEvolutionKernelSnapshot | null) {
@@ -74,10 +140,12 @@ function selfEvolutionSupportsLowerPressureCompanionship(selfEvolution?: Aliciza
   const burdenLine = sanitizeText(selfEvolution.burdenLine, 160).toLowerCase()
   const trustMeaning = sanitizeText(selfEvolution.trustMeaning, 160).toLowerCase()
   const latestInflection = sanitizeText(selfEvolution.latestInflection, 160).toLowerCase()
+  const relationshipCadenceSummary = sanitizeText(selfEvolution.relationshipCadenceSummary, 160).toLowerCase()
 
   return includesAny(relationshipDoctrine, ['leave more room', 'more room', 'slower return', 'lower-pressure', 'less eager'])
     || includesAny(trustMeaning, ['lower-pressure', 'less eager', 'room', 'space', 'timing'])
     || includesAny(latestInflection, ['lower-pressure', 'less eager', 'slower return', 'room'])
+    || includesAny(relationshipCadenceSummary, ['lower-pressure', 'less eager', 'slower return', 'room', 'measured-return', 'bounded-return', 'surface fully cools'])
     || includesAny(burdenLine, ['pressure', 'crowd', 'overloaded', 'eager'])
 }
 
@@ -138,38 +206,48 @@ function inferEmotionalTension(input: {
 }
 
 function foregroundThoughtThread(thoughtThreads?: AlicizationThoughtThreadStateSnapshot | null) {
-  return thoughtThreads?.threads.find(thread => thread.id === thoughtThreads.foregroundThreadId)
-    ?? thoughtThreads?.threads[0]
+  const threads = asArray(thoughtThreads?.threads)
+  return threads.find(thread => thread.id === thoughtThreads?.foregroundThreadId)
+    ?? threads[0]
     ?? null
 }
 
 function dominantGovernorIntention(selfGovernor?: AlicizationSelfGovernorSnapshot | null) {
-  return selfGovernor?.activeIntentions.find(intention => intention.id === selfGovernor.dominantIntentionId)
-    ?? selfGovernor?.activeIntentions[0]
+  const activeIntentions = asArray(selfGovernor?.activeIntentions)
+  return activeIntentions.find(intention => intention.id === selfGovernor?.dominantIntentionId)
+    ?? activeIntentions[0]
     ?? null
 }
 
 function governingConcernContinuity(continuity?: AlicizationConcernContinuityLedgerSnapshot | null) {
-  return continuity?.entries.find(entry => entry.id === continuity.governingEntryId)
-    ?? continuity?.entries[0]
+  const entries = asArray(continuity?.entries)
+  return entries.find(entry => entry.id === continuity?.governingEntryId)
+    ?? entries[0]
     ?? null
 }
 
 function governingRepair(repairLedger?: AlicizationRepairLedgerSnapshot | null) {
-  return repairLedger?.entries.find(entry => entry.id === repairLedger.governingRepairId)
-    ?? repairLedger?.entries[0]
+  const entries = asArray(repairLedger?.entries)
+  return entries.find(entry => entry.id === repairLedger?.governingRepairId)
+    ?? entries[0]
     ?? null
 }
 
 function dominantProject(intentionStream?: AlicizationIntentionStreamSnapshot | null) {
-  return intentionStream?.projects.find(project => project.id === intentionStream.dominantProjectId)
-    ?? intentionStream?.projects[0]
+  const projects = asArray(intentionStream?.projects)
+  return projects.find(project => project.id === intentionStream?.dominantProjectId)
+    ?? projects[0]
     ?? null
 }
 
 function latestReflection(reflectionLedger?: AlicizationReflectionLedgerSnapshot | null) {
-  return reflectionLedger?.entries.find(entry => entry.id === reflectionLedger.latestEntryId)
-    ?? reflectionLedger?.entries[0]
+  const entries = asArray(reflectionLedger?.entries)
+  const latest = entries.find(entry => entry.id === reflectionLedger?.latestEntryId)
+  if (latest && latest.outcome !== 'released')
+    return latest
+
+  return entries.find(entry => entry.outcome !== 'released')
+    ?? entries[0]
     ?? null
 }
 
@@ -181,10 +259,11 @@ function focusLivingObject(input: {
   const state = input.livingWorldState
   if (!state)
     return null
-  return state.objects.find(object => object.id === input.thoughtThreadObjectId)
-    ?? state.objects.find(object => object.id === input.governorFocusObjectId)
-    ?? state.objects.find(object => object.id === state.focusObjectId)
-    ?? state.objects[0]
+  const objects = asArray(state.objects)
+  return objects.find(object => object.id === input.thoughtThreadObjectId)
+    ?? objects.find(object => object.id === input.governorFocusObjectId)
+    ?? objects.find(object => object.id === state.focusObjectId)
+    ?? objects[0]
     ?? null
 }
 
@@ -280,6 +359,18 @@ function resolveAutobiographicalFallbackThought(
   ) || null
 }
 
+function buildInitiativeContinuityRestraintTags(
+  initiative?: AlicizationInitiativeSnapshot | null,
+) {
+  const restraint = initiative?.continuityRestraint ?? null
+  if (!restraint)
+    return []
+
+  return restraint === 'lower-pressure'
+    ? ['lower-pressure']
+    : [restraint, 'lower-pressure']
+}
+
 function applyContinuityMindOverlay(input: {
   now: number
   snapshot: AlicizationPrivateThoughtSnapshot
@@ -343,10 +434,13 @@ function applyContinuityMindOverlay(input: {
 function resolveMotiveFallbackThought(
   motiveEngine?: AlicizationMotiveEngineSnapshot | null,
 ) {
+  const backgroundAgendas = asArray(motiveEngine?.backgroundAgendas)
+  const longTermGoals = asArray(motiveEngine?.longTermGoals)
+  const narrative = asArray(motiveEngine?.narrative)
   return sanitizeText(
-    motiveEngine?.backgroundAgendas[0]?.summary
-    || motiveEngine?.longTermGoals[0]?.summary
-    || motiveEngine?.narrative[0]
+    backgroundAgendas[0]?.summary
+    || longTermGoals[0]?.summary
+    || narrative[0]
     || '',
     220,
   ) || null
@@ -382,6 +476,10 @@ function buildThoughtFromMind(input: {
   autobiographicalSelf?: AlicizationAutobiographicalSelfSnapshot | null
   motiveEngine?: AlicizationMotiveEngineSnapshot | null
   habitPolicy?: AlicizationHabitPolicySnapshot | null
+  projectStatePrivateThoughtBias?: {
+    preferInternalCompanionship: true
+    reasonTag: string
+  } | null
   selfGovernor?: AlicizationSelfGovernorSnapshot | null
   desireMemory?: AlicizationDesireMemorySnapshot | null
   thoughtThreads?: AlicizationThoughtThreadStateSnapshot | null
@@ -396,60 +494,79 @@ function buildThoughtFromMind(input: {
   initiative: AlicizationInitiativeSnapshot
   autonomy?: AlicizationAutonomySnapshot | null
 }) {
-  const concern = (input.concerns ?? [])
+  const projectStatePrivateThoughtBias = input.projectStatePrivateThoughtBias ?? null
+  const concerns = asArray(input.concerns)
+  const beliefs = asArray(input.beliefLedger?.beliefs)
+  const hypotheses = asArray(input.hypothesisGraph?.hypotheses)
+  const inquiries = asArray(input.inquiryLoop?.inquiries)
+  const commitments = asArray(input.commitmentLedger?.commitments)
+  const plans = asArray(input.inquiryPlanner?.plans)
+  const runtimeThreads = asArray(input.threadRuntime?.threads)
+  const deliberationThreads = asArray(input.deliberationState?.threads)
+  const activeGoals = asArray(input.goalStack?.alicizationGoals)
+  const activeDesires = asArray(input.desireMemory?.activeDesires)
+  const counterfactualOptions = asArray(input.counterfactualDeliberation?.options)
+  const proposals = asArray(input.initiativeArbitration?.proposals)
+  const entities = asArray(input.entityWorld?.entities)
+  const thoughtThreads = asArray(input.thoughtThreads?.threads)
+  const governorIntentions = asArray(input.selfGovernor?.activeIntentions)
+  const backgroundAgendas = asArray(input.motiveEngine?.backgroundAgendas)
+  const longTermGoals = asArray(input.motiveEngine?.longTermGoals)
+  const kernelNarrative = asArray(input.mindKernel?.narrative)
+  const goalStack = input.goalStack ?? null
+  const concern = concerns
     .find(item => item.id === input.initiative.selectedConcernId)
-    ?? (input.concerns ?? [])[0]
+    ?? concerns[0]
   const carriedConcern = governingConcernContinuity(input.concernContinuity)
   const currentRepair = governingRepair(input.repairLedger)
-  const focusBelief = input.beliefLedger?.beliefs.find(belief => belief.id === input.initiative.selectedBeliefId)
-    ?? input.beliefLedger?.beliefs.find(belief => belief.id === input.beliefLedger?.focusBeliefId)
+  const focusBelief = beliefs.find(belief => belief.id === input.initiative.selectedBeliefId)
+    ?? beliefs.find(belief => belief.id === input.beliefLedger?.focusBeliefId)
     ?? null
-  const activeHypothesis = input.hypothesisGraph?.hypotheses.find(hypothesis => hypothesis.id === input.initiative.selectedHypothesisId)
-    ?? input.hypothesisGraph?.hypotheses.find(hypothesis => hypothesis.id === input.hypothesisGraph?.activeHypothesisId)
-    ?? input.hypothesisGraph?.hypotheses[0]
+  const activeHypothesis = hypotheses.find(hypothesis => hypothesis.id === input.initiative.selectedHypothesisId)
+    ?? hypotheses.find(hypothesis => hypothesis.id === input.hypothesisGraph?.activeHypothesisId)
+    ?? hypotheses[0]
     ?? null
-  const primaryInquiry = input.inquiryLoop?.inquiries.find(inquiry => inquiry.id === input.initiative.selectedInquiryId)
-    ?? input.inquiryLoop?.inquiries.find(inquiry => inquiry.id === input.inquiryLoop?.primaryInquiryId)
+  const primaryInquiry = inquiries.find(inquiry => inquiry.id === input.initiative.selectedInquiryId)
+    ?? inquiries.find(inquiry => inquiry.id === input.inquiryLoop?.primaryInquiryId)
     ?? null
-  const governingCommitment = input.commitmentLedger?.commitments.find(commitment => commitment.id === input.initiative.selectedCommitmentId)
-    ?? input.commitmentLedger?.commitments.find(commitment => commitment.id === input.commitmentLedger?.governingCommitmentId)
-    ?? input.commitmentLedger?.commitments[0]
+  const governingCommitment = commitments.find(commitment => commitment.id === input.initiative.selectedCommitmentId)
+    ?? commitments.find(commitment => commitment.id === input.commitmentLedger?.governingCommitmentId)
+    ?? commitments[0]
     ?? null
-  const activeInquiryPlan = input.inquiryPlanner?.plans.find(plan => plan.id === input.initiative.selectedInquiryPlanId)
-    ?? input.inquiryPlanner?.plans.find(plan => plan.id === input.inquiryPlanner?.activePlanId)
-    ?? input.inquiryPlanner?.plans[0]
+  const activeInquiryPlan = plans.find(plan => plan.id === input.initiative.selectedInquiryPlanId)
+    ?? plans.find(plan => plan.id === input.inquiryPlanner?.activePlanId)
+    ?? plans[0]
     ?? null
-  const runtimeThread = input.threadRuntime?.threads.find(thread => thread.id === input.initiative.selectedRuntimeThreadId)
-    ?? input.threadRuntime?.threads.find(thread => thread.id === input.threadRuntime?.foregroundThreadId)
-    ?? input.threadRuntime?.threads[0]
+  const runtimeThread = runtimeThreads.find(thread => thread.id === input.initiative.selectedRuntimeThreadId)
+    ?? runtimeThreads.find(thread => thread.id === input.threadRuntime?.foregroundThreadId)
+    ?? runtimeThreads[0]
     ?? null
-  const deliberationThread = input.deliberationState?.threads.find(thread => thread.id === input.actionEcology?.selectedThreadId)
-    ?? input.deliberationState?.threads.find(thread => thread.id === input.deliberationState?.primaryThreadId)
+  const deliberationThread = deliberationThreads.find(thread => thread.id === input.actionEcology?.selectedThreadId)
+    ?? deliberationThreads.find(thread => thread.id === input.deliberationState?.primaryThreadId)
     ?? null
-  const goalStack = input.goalStack ?? null
-  const leadingGoal = goalStack?.alicizationGoals.find(goal => goal.id === goalStack.leadingAlicizationGoalId)
-    ?? goalStack?.alicizationGoals[0]
+  const leadingGoal = activeGoals.find(goal => goal.id === goalStack?.leadingAlicizationGoalId)
+    ?? activeGoals[0]
     ?? null
-  const resurfacingDesire = input.desireMemory?.activeDesires.find(desire => desire.id === input.desireMemory?.resurfacingDesireId)
+  const resurfacingDesire = activeDesires.find(desire => desire.id === input.desireMemory?.resurfacingDesireId)
     ?? null
-  const counterfactualOption = input.counterfactualDeliberation?.options.find(option => option.id === input.counterfactualDeliberation?.selectedOptionId)
-    ?? input.counterfactualDeliberation?.options[0]
+  const counterfactualOption = counterfactualOptions.find(option => option.id === input.counterfactualDeliberation?.selectedOptionId)
+    ?? counterfactualOptions[0]
     ?? null
-  const selectedProposal = input.initiativeArbitration?.proposals.find(proposal => proposal.id === input.initiative.selectedProposalId)
-    ?? input.initiativeArbitration?.proposals[0]
+  const selectedProposal = proposals.find(proposal => proposal.id === input.initiative.selectedProposalId)
+    ?? proposals[0]
     ?? null
-  const focusEntity = input.entityWorld?.entities.find(entity => entity.id === input.entityWorld?.focusEntityId)
+  const focusEntity = entities.find(entity => entity.id === input.entityWorld?.focusEntityId)
     ?? null
-  const thoughtThread = input.thoughtThreads?.threads.find(thread => thread.id === input.initiative.selectedThoughtThreadId)
+  const thoughtThread = thoughtThreads.find(thread => thread.id === input.initiative.selectedThoughtThreadId)
     ?? foregroundThoughtThread(input.thoughtThreads)
     ?? null
-  const governorIntention = input.selfGovernor?.activeIntentions.find(intention => intention.id === input.initiative.selectedGovernorIntentionId)
+  const governorIntention = governorIntentions.find(intention => intention.id === input.initiative.selectedGovernorIntentionId)
     ?? dominantGovernorIntention(input.selfGovernor)
     ?? null
   const project = dominantProject(input.intentionStream)
   const reflection = latestReflection(input.reflectionLedger)
   const autobiographicalGoal = pickDominantAutobiographicalGoal(input.autobiographicalSelf)
-  const motiveAgenda = input.motiveEngine?.backgroundAgendas[0] ?? input.motiveEngine?.longTermGoals[0] ?? null
+  const motiveAgenda = backgroundAgendas[0] ?? longTermGoals[0] ?? null
   const autonomy = input.autonomy ?? null
   const livingObject = focusLivingObject({
     livingWorldState: input.livingWorldState,
@@ -457,6 +574,7 @@ function buildThoughtFromMind(input: {
     governorFocusObjectId: input.selfGovernor?.focusObjectId ?? null,
   })
   const rationaleTags = [
+    ...buildInitiativeContinuityRestraintTags(input.initiative),
     concern ? `concern:${concern.kind}` : '',
     carriedConcern ? `concern-continuity:${carriedConcern.kind}/${carriedConcern.status}` : '',
     input.worldModel?.activeThread ? `thread:${input.worldModel.activeThread.kind}` : '',
@@ -500,6 +618,7 @@ function buildThoughtFromMind(input: {
     input.autobiographicalSelf?.personaDrift.attachmentStyle ? `autobio-bond:${input.autobiographicalSelf.personaDrift.attachmentStyle}` : '',
     input.autobiographicalSelf?.personaDrift.conflictStyle ? `autobio-conflict:${input.autobiographicalSelf.personaDrift.conflictStyle}` : '',
     input.autobiographicalSelf?.personaDrift.agencyStyle ? `autobio-agency:${input.autobiographicalSelf.personaDrift.agencyStyle}` : '',
+    projectStatePrivateThoughtBias?.reasonTag ?? '',
     `initiative:${input.initiative.selectedAction}`,
     autonomy?.selectedMode ? `autonomy:${autonomy.selectedMode}` : '',
     autonomy?.executionIntent?.kind ? `autonomy-intent:${autonomy.executionIntent.kind}` : '',
@@ -539,7 +658,7 @@ function buildThoughtFromMind(input: {
     ?? governingCommitment?.summary
     ?? currentRepair?.summary
     ?? carriedConcern?.summary
-    ?? input.mindKernel?.narrative[0]
+    ?? kernelNarrative[0]
     ?? deliberationThread?.question
     ?? deliberationThread?.summary
     ?? primaryInquiry?.question
@@ -665,6 +784,42 @@ function buildThoughtFromMind(input: {
   }
 
   if (
+    projectStatePrivateThoughtBias?.preferInternalCompanionship
+    && !urgentCare
+    && (
+      stance === 'nudge'
+      || stance === 'accompany'
+      || shouldSpeak
+      || (
+        stance === 'observe'
+        && input.initiative.continuityRestraint === 'repair-before-closeness'
+      )
+    )
+    && suggestedStyle !== 'firm-warning'
+    && suggestedStyle !== 'gentle-care'
+  ) {
+    stance = 'accompany'
+    shouldSpeak = false
+    suggestedStyle = 'silent-observe'
+    embodiedPresence = embodiedPresence === 'concerned'
+      ? 'attentive'
+      : embodiedPresence === 'none'
+        ? 'glance'
+        : embodiedPresence
+    thoughtText = input.initiative.continuityRestraint === 'repair-before-closeness'
+      ? sanitizeText(
+        [
+          /repair-before-closeness|repair before closeness|repair-first|repair first|先修复/u.test(thoughtText)
+            ? thoughtText
+            : input.initiative.why,
+          'This return should stay repair-before-closeness on the same living line, so I should keep the repair line steady internally before turning it into speech.',
+        ].filter(Boolean).join(' '),
+        220,
+      ) || thoughtText
+      : `${thoughtText} Phase 1 still has open digital-life closure work, so I should stay near internally before turning this into speech.`
+  }
+
+  if (
     (input.executiveCycle?.phase === 'reflecting' || input.executiveCycle?.phase === 'inferring')
     && !urgentCare
     && !isSeriousDurabilityPulse(input.durabilityPulse)
@@ -747,6 +902,7 @@ function buildThoughtFromMind(input: {
       ?? carriedConcern?.summary
       ?? runtimeThread?.summary
       ?? activeHypothesis?.summary
+      ?? input.actionEcology?.why
       ?? leadingGoal?.label
       ?? 'The concern has matured enough that speaking now feels earned.'
   }
@@ -766,6 +922,7 @@ function buildThoughtFromMind(input: {
       ?? carriedConcern?.summary
       ?? runtimeThread?.summary
       ?? activeHypothesis?.summary
+      ?? input.actionEcology?.why
       ?? leadingGoal?.label
       ?? 'I only need to brush the edge of the moment, not break it.'
     if (!governingCommitment && !activeInquiryPlan && !input.worldModel?.activeThread)
@@ -789,6 +946,7 @@ function buildThoughtFromMind(input: {
       ?? carriedConcern?.summary
       ?? runtimeThread?.summary
       ?? activeHypothesis?.summary
+      ?? input.actionEcology?.why
       ?? input.appraisal?.waitingToVerify
       ?? 'I still want one more pass before I commit to an interpretation.'
   }
@@ -812,6 +970,7 @@ function buildThoughtFromMind(input: {
       ?? carriedConcern?.summary
       ?? runtimeThread?.summary
       ?? activeHypothesis?.summary
+      ?? input.actionEcology?.why
       ?? leadingGoal?.label
       ?? 'I can stay near this moment without pressing into it.'
   }
@@ -830,6 +989,7 @@ function buildThoughtFromMind(input: {
       ?? carriedConcern?.summary
       ?? runtimeThread?.summary
       ?? activeHypothesis?.summary
+      ?? input.actionEcology?.why
       ?? 'I am letting the moment breathe before I move.'
   }
 
@@ -884,6 +1044,83 @@ function buildThoughtFromMind(input: {
       ?? 'This thread has matured enough that a soft nudge would now feel earned.'
   }
 
+  // The finalized initiative may still decide to hold an inward hover/recheck/wait line
+  // even when care or thread salience remains strong. Let that later agency decision win
+  // over earlier ecology/thread impulses so thought, desire, and embodiment stay in phase.
+  if (
+    input.initiative.shouldSpeak === false
+    && (
+      input.initiative.selectedAction === 'hover'
+      || input.initiative.selectedAction === 'recheck'
+      || input.initiative.selectedAction === 'wait'
+    )
+  ) {
+    if (input.initiative.selectedAction === 'recheck') {
+      stance = 'uncertain'
+      suggestedStyle = 'silent-observe'
+      embodiedPresence = input.initiative.preferredPresence ?? selectedProposal?.embodiedPresence ?? 'hesitant'
+      shouldSpeak = false
+      thoughtText = selectedProposal?.why
+        ?? counterfactualOption?.why
+        ?? thoughtThread?.question
+        ?? thoughtThread?.summary
+        ?? governorIntention?.summary
+        ?? livingObject?.openLoop
+        ?? primaryInquiry?.question
+        ?? resurfacingDesire?.reason
+        ?? focusBelief?.statement
+        ?? currentRepair?.summary
+        ?? carriedConcern?.summary
+        ?? runtimeThread?.summary
+        ?? activeHypothesis?.summary
+        ?? input.actionEcology?.why
+        ?? input.appraisal?.waitingToVerify
+        ?? 'I still want one more pass before I commit to an interpretation.'
+    }
+    else if (input.initiative.selectedAction === 'hover') {
+      stance = input.mindKernel?.dominantMode === 'accompanying' || (input.selfState?.protectiveness && input.selfState.protectiveness >= 0.72)
+        ? 'accompany'
+        : 'observe'
+      suggestedStyle = 'silent-observe'
+      embodiedPresence = input.initiative.preferredPresence ?? selectedProposal?.embodiedPresence ?? (input.selfState?.stance === 'hesitate' ? 'hesitant' : 'attentive')
+      shouldSpeak = false
+      thoughtText = selectedProposal?.why
+        ?? counterfactualOption?.why
+        ?? thoughtThread?.summary
+        ?? governorIntention?.summary
+        ?? livingObject?.summary
+        ?? resurfacingDesire?.reason
+        ?? activeInquiryPlan?.question
+        ?? governingCommitment?.summary
+        ?? concern?.summary
+        ?? currentRepair?.summary
+        ?? carriedConcern?.summary
+        ?? runtimeThread?.summary
+        ?? activeHypothesis?.summary
+        ?? input.actionEcology?.why
+        ?? leadingGoal?.label
+        ?? 'I can stay near this moment without pressing into it.'
+    }
+    else {
+      stance = input.selfState?.stance === 'protect' ? 'accompany' : 'observe'
+      suggestedStyle = 'silent-observe'
+      embodiedPresence = input.initiative.preferredPresence ?? selectedProposal?.embodiedPresence ?? (concern ? 'glance' : 'none')
+      shouldSpeak = false
+      thoughtText = selectedProposal?.why
+        ?? counterfactualOption?.why
+        ?? thoughtThread?.summary
+        ?? governorIntention?.summary
+        ?? livingObject?.summary
+        ?? currentRepair?.summary
+        ?? concern?.summary
+        ?? carriedConcern?.summary
+        ?? runtimeThread?.summary
+        ?? activeHypothesis?.summary
+        ?? input.actionEcology?.why
+        ?? 'I am letting the moment breathe before I move.'
+    }
+  }
+
   if (input.afterglowActive && shouldSpeak && suggestedStyle === 'light-nudge')
     thoughtText = 'The shared tension just loosened. This is the natural seam to speak softly.'
 
@@ -895,6 +1132,40 @@ function buildThoughtFromMind(input: {
   }
   if (shouldSpeak && suggestedStyle === 'light-nudge' && input.mindEcology?.regulationHabit === 'soften-before-speaking')
     suggestedStyle = 'gentle-care'
+  if (
+    projectStatePrivateThoughtBias?.preferInternalCompanionship
+    && !urgentCare
+    && (
+      stance === 'nudge'
+      || shouldSpeak
+      || (
+        stance === 'observe'
+        && input.initiative.continuityRestraint === 'repair-before-closeness'
+      )
+    )
+    && suggestedStyle !== 'firm-warning'
+    && suggestedStyle !== 'gentle-care'
+  ) {
+    stance = 'accompany'
+    shouldSpeak = false
+    suggestedStyle = 'silent-observe'
+    embodiedPresence = embodiedPresence === 'concerned'
+      ? 'attentive'
+      : embodiedPresence === 'none'
+        ? 'glance'
+        : embodiedPresence
+    thoughtText = input.initiative.continuityRestraint === 'repair-before-closeness'
+      ? sanitizeText(
+        [
+          /repair-before-closeness|repair before closeness|repair-first|repair first|先修复/u.test(thoughtText)
+            ? thoughtText
+            : input.initiative.why,
+          'This return should stay repair-before-closeness on the same living line, so I should keep the repair line steady internally before turning it into speech.',
+        ].filter(Boolean).join(' '),
+        220,
+      ) || thoughtText
+      : `${thoughtText} Phase 1 still has open digital-life closure work, so I should stay near internally before turning this into speech.`
+  }
 
   return applyContinuityMindOverlay({
     now: input.now,
@@ -1036,9 +1307,13 @@ export function buildPrivateThoughtLoop(input: {
   desireMemory?: AlicizationDesireMemorySnapshot | null
   mindEcology?: AlicizationMindEcologySnapshot | null
   durabilityPulse?: AlicizationDurabilityPulseSnapshot | null
-  emotionalKernel?: unknown
-  projectState?: unknown
   previousPrivateThought?: AlicizationPrivateThoughtSnapshot | null
+  projectState?: {
+    identity?: string | null
+    currentPhase?: string | null
+    latestLandedProgress?: string | null
+    primaryOpenLoop?: string | null
+  } | null
 }): AlicizationPrivateThoughtSnapshot {
   const scenario = inferScenarioFromContext({
     workload: input.context.workload.kind,
@@ -1060,6 +1335,8 @@ export function buildPrivateThoughtLoop(input: {
     now: input.now,
     recentTransition: input.recentTransition,
   })
+  const projectStatePrivateThoughtBias = deriveProjectStatePrivateThoughtBias(input.projectState ?? null)
+  const preservedInitiative = input.initiative ?? null
   const latestUserTurnAt = Number.isFinite(input.context.relationship.minutesSinceLastUserTurn)
     ? input.now - Math.max(0, input.context.relationship.minutesSinceLastUserTurn) * 60_000
     : null
@@ -1101,6 +1378,7 @@ export function buildPrivateThoughtLoop(input: {
         autobiographicalSelf: input.autobiographicalSelf,
         motiveEngine: input.motiveEngine,
         habitPolicy: input.habitPolicy,
+        projectStatePrivateThoughtBias,
         selfGovernor: input.selfGovernor,
         desireMemory: input.desireMemory,
         thoughtThreads: input.thoughtThreads,
@@ -1116,39 +1394,53 @@ export function buildPrivateThoughtLoop(input: {
   }
   const rationaleTags: string[] = []
   const goalStack = input.goalStack ?? null
-  const focusBelief = input.beliefLedger?.beliefs.find(belief => belief.id === input.beliefLedger?.focusBeliefId) ?? null
-  const activeHypothesis = input.hypothesisGraph?.hypotheses.find(hypothesis => hypothesis.id === input.hypothesisGraph?.activeHypothesisId)
-    ?? input.hypothesisGraph?.hypotheses[0]
+  const beliefs = asArray(input.beliefLedger?.beliefs)
+  const hypotheses = asArray(input.hypothesisGraph?.hypotheses)
+  const inquiries = asArray(input.inquiryLoop?.inquiries)
+  const commitments = asArray(input.commitmentLedger?.commitments)
+  const plans = asArray(input.inquiryPlanner?.plans)
+  const runtimeThreads = asArray(input.threadRuntime?.threads)
+  const deliberationThreads = asArray(input.deliberationState?.threads)
+  const activeGoals = asArray(goalStack?.alicizationGoals)
+  const activeDesires = asArray(input.desireMemory?.activeDesires)
+  const counterfactualOptions = asArray(input.counterfactualDeliberation?.options)
+  const backgroundAgendas = asArray(input.motiveEngine?.backgroundAgendas)
+  const longTermGoals = asArray(input.motiveEngine?.longTermGoals)
+  const kernelNarrative = asArray(input.mindKernel?.narrative)
+  const openQuestions = asArray(input.worldModel?.epistemicState.openQuestions)
+  const focusBelief = beliefs.find(belief => belief.id === input.beliefLedger?.focusBeliefId) ?? null
+  const activeHypothesis = hypotheses.find(hypothesis => hypothesis.id === input.hypothesisGraph?.activeHypothesisId)
+    ?? hypotheses[0]
     ?? null
-  const primaryInquiry = input.inquiryLoop?.inquiries.find(inquiry => inquiry.id === input.inquiryLoop?.primaryInquiryId) ?? null
-  const governingCommitment = input.commitmentLedger?.commitments.find(commitment => commitment.id === input.commitmentLedger?.governingCommitmentId)
-    ?? input.commitmentLedger?.commitments[0]
+  const primaryInquiry = inquiries.find(inquiry => inquiry.id === input.inquiryLoop?.primaryInquiryId) ?? null
+  const governingCommitment = commitments.find(commitment => commitment.id === input.commitmentLedger?.governingCommitmentId)
+    ?? commitments[0]
     ?? null
-  const activeInquiryPlan = input.inquiryPlanner?.plans.find(plan => plan.id === input.inquiryPlanner?.activePlanId)
-    ?? input.inquiryPlanner?.plans[0]
+  const activeInquiryPlan = plans.find(plan => plan.id === input.inquiryPlanner?.activePlanId)
+    ?? plans[0]
     ?? null
   const carriedConcern = governingConcernContinuity(input.concernContinuity)
   const currentRepair = governingRepair(input.repairLedger)
-  const runtimeThread = input.threadRuntime?.threads.find(thread => thread.id === input.threadRuntime?.foregroundThreadId)
-    ?? input.threadRuntime?.threads[0]
+  const runtimeThread = runtimeThreads.find(thread => thread.id === input.threadRuntime?.foregroundThreadId)
+    ?? runtimeThreads[0]
     ?? null
-  const deliberationThread = input.deliberationState?.threads.find(thread => thread.id === input.actionEcology?.selectedThreadId)
-    ?? input.deliberationState?.threads.find(thread => thread.id === input.deliberationState?.primaryThreadId)
+  const deliberationThread = deliberationThreads.find(thread => thread.id === input.actionEcology?.selectedThreadId)
+    ?? deliberationThreads.find(thread => thread.id === input.deliberationState?.primaryThreadId)
     ?? null
-  const leadingGoal = goalStack?.alicizationGoals.find(goal => goal.id === goalStack.leadingAlicizationGoalId)
-    ?? goalStack?.alicizationGoals[0]
+  const leadingGoal = activeGoals.find(goal => goal.id === goalStack?.leadingAlicizationGoalId)
+    ?? activeGoals[0]
     ?? null
-  const resurfacingDesire = input.desireMemory?.activeDesires.find(desire => desire.id === input.desireMemory?.resurfacingDesireId)
+  const resurfacingDesire = activeDesires.find(desire => desire.id === input.desireMemory?.resurfacingDesireId)
     ?? null
-  const counterfactualOption = input.counterfactualDeliberation?.options.find(option => option.id === input.counterfactualDeliberation?.selectedOptionId)
-    ?? input.counterfactualDeliberation?.options[0]
+  const counterfactualOption = counterfactualOptions.find(option => option.id === input.counterfactualDeliberation?.selectedOptionId)
+    ?? counterfactualOptions[0]
     ?? null
   const thoughtThread = foregroundThoughtThread(input.thoughtThreads)
   const governorIntention = dominantGovernorIntention(input.selfGovernor)
   const project = dominantProject(input.intentionStream)
   const reflection = latestReflection(input.reflectionLedger)
   const autobiographicalGoal = pickDominantAutobiographicalGoal(input.autobiographicalSelf)
-  const motiveAgenda = input.motiveEngine?.backgroundAgendas[0] ?? input.motiveEngine?.longTermGoals[0] ?? null
+  const motiveAgenda = backgroundAgendas[0] ?? longTermGoals[0] ?? null
   const livingObject = focusLivingObject({
     livingWorldState: input.livingWorldState,
     thoughtThreadObjectId: thoughtThread?.anchoredObjectId ?? null,
@@ -1241,6 +1533,10 @@ export function buildPrivateThoughtLoop(input: {
     rationaleTags.push(`autobio-conflict:${input.autobiographicalSelf.personaDrift.conflictStyle}`)
   if (input.autobiographicalSelf?.personaDrift.agencyStyle)
     rationaleTags.push(`autobio-agency:${input.autobiographicalSelf.personaDrift.agencyStyle}`)
+  if (projectStatePrivateThoughtBias)
+    rationaleTags.push(projectStatePrivateThoughtBias.reasonTag)
+  const urgentCare = carriedConcern?.kind === 'care-body'
+    || input.worldModel?.activeThread?.kind === 'late-night-endurance'
 
   let stance: AlicizationPrivateThoughtSnapshot['stance'] = 'observe'
   let confidence = clamp01(0.44 + (input.mindDynamics?.speakReadiness ?? 0) * 0.22 + (input.appraisal?.confidence ?? 0.32) * 0.18)
@@ -1273,7 +1569,7 @@ export function buildPrivateThoughtLoop(input: {
     ?? governingCommitment?.summary
     ?? currentRepair?.summary
     ?? carriedConcern?.summary
-    ?? input.mindKernel?.narrative[0]
+    ?? kernelNarrative[0]
     ?? deliberationThread?.question
     ?? deliberationThread?.summary
     ?? primaryInquiry?.question
@@ -1496,7 +1792,7 @@ export function buildPrivateThoughtLoop(input: {
     shouldSpeak = false
     suggestedStyle = 'silent-observe'
     embodiedPresence = 'hesitant'
-    thoughtText = input.worldModel?.epistemicState.openQuestions[0] ?? 'I know the host is coding, but I do not have enough stable grounding to comment yet.'
+    thoughtText = openQuestions[0] ?? 'I know the host is coding, but I do not have enough stable grounding to comment yet.'
   }
   else if (scenario === 'coding' && (input.currentScene?.contentKind === 'error' || input.currentScene?.contentKind === 'diff')) {
     decided = true
@@ -1585,6 +1881,43 @@ export function buildPrivateThoughtLoop(input: {
   }
   if (!decided && shouldSpeak && suggestedStyle === 'light-nudge' && input.mindEcology?.regulationHabit === 'soften-before-speaking')
     suggestedStyle = 'gentle-care'
+
+  if (
+    projectStatePrivateThoughtBias?.preferInternalCompanionship
+    && !urgentCare
+    && stance !== 'care'
+    && stance !== 'warn'
+    && (
+      stance === 'nudge'
+      || shouldSpeak
+      || (
+        stance === 'observe'
+        && preservedInitiative?.continuityRestraint === 'repair-before-closeness'
+      )
+    )
+    && suggestedStyle !== 'firm-warning'
+    && suggestedStyle !== 'gentle-care'
+  ) {
+    stance = 'accompany'
+    shouldSpeak = false
+    suggestedStyle = 'silent-observe'
+    embodiedPresence = embodiedPresence === 'concerned'
+      ? 'attentive'
+      : embodiedPresence === 'none'
+        ? 'glance'
+        : embodiedPresence
+    thoughtText = preservedInitiative?.continuityRestraint === 'repair-before-closeness'
+      ? sanitizeText(
+        [
+          /repair-before-closeness|repair before closeness|repair-first|repair first|先修复/u.test(thoughtText)
+            ? thoughtText
+            : preservedInitiative?.why,
+          'This return should stay repair-before-closeness on the same living line, so I should keep the repair line steady internally before turning it into speech.',
+        ].filter(Boolean).join(' '),
+        220,
+      ) || thoughtText
+      : `${thoughtText} Phase 1 still has open digital-life closure work, so I should stay near internally before turning this into speech.`
+  }
 
   if (embodiedPresence === 'glance' && input.watchMode === 'symbiotic-vision' && !shouldSpeak)
     embodiedPresence = 'attentive'

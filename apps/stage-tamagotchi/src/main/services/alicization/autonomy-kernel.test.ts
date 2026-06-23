@@ -281,6 +281,444 @@ describe('autonomy kernel', () => {
     expect(autonomy.executionIntent?.kind).toBe('follow-through')
   })
 
+  it('keeps execution one step more reversible when the Phase 1 digital-life loop is still open', () => {
+    const autonomy = buildAutonomySnapshot(createBaseInput({
+      concerns: [{
+        id: 'concern-1',
+        kind: 'unfinished-thread',
+        summary: 'the unresolved task thread is still pulling forward',
+        tension: 0.74,
+        confidence: 0.82,
+        careWeight: 0.66,
+      }],
+      initiative: createInitiative({
+        confidence: 0.68,
+      }),
+      actionEcology: {
+        mode: 'surface-care',
+        readiness: 0.84,
+        surfacePressure: 0.56,
+        silencePressure: 0.2,
+        shouldSurface: true,
+        shouldSpeak: false,
+        why: 'the action line is ready to land',
+      },
+      habitPolicy: {
+        dominantMode: 'return-with-proof',
+        requiresGroundingBeforeSurface: false,
+        prefersQuietCompanionship: false,
+        blocksDirectSpeakWhenBusy: false,
+        protectsRestWindow: false,
+        returnViaRecheck: false,
+      },
+      motiveEngine: {
+        rulingDrive: 'unfinished-thread-return',
+        returnPressure: 0.88,
+        drives: {
+          companionship: 0.34,
+          boundaryRespect: 0.32,
+          truthDiscipline: 0.62,
+          restProtection: 0.18,
+          unfinishedThreadReturn: 0.84,
+          selfDirection: 0.9,
+        },
+        backgroundAgendas: [{
+          id: 'agenda-1',
+          kind: 'finish-open-loops',
+          status: 'foreground',
+          weight: 0.9,
+          summary: 'follow the unresolved thread through',
+        }],
+        longTermGoals: [],
+      },
+      projectState: {
+        identity: 'A local-first digital life companion with continuous personhood.',
+        currentPhase: 'Phase 1: Local Digital Life',
+        primaryOpenLoop: 'Initiative, embodiment, and dialogue still need a more natural closed loop.',
+        nextClosureTarget: 'Keep extending cross-modal same-her proof so visible reply, longer-lived voice behavior, facial state, motion, and resident presence stay on one measured-return, repair-before-closeness, or rest-protective quiet-companionship line.',
+      },
+    }))
+
+    expect(autonomy.selectedMode).toBe('prepare-act')
+    expect(autonomy.shouldAct).toBe(false)
+    expect(autonomy.guardReasons).toContain('project-phase1-life-loop-open')
+    expect(autonomy.whyNow).toContain('project-phase1 same-her closure keeps the action one step more reversible')
+    expect(autonomy.whyNow).toContain('cross-modal same-her')
+    expect(autonomy.whyNow).toContain('lower-pressure')
+    expect(autonomy.whyNow).toContain('measured-return / repair-before-closeness')
+    expect(autonomy.executionIntent?.summary).toContain('same-her closure')
+    expect(autonomy.executionIntent?.summary).toContain('cross-modal same-her closure')
+  })
+
+  it('threads project-state carry from initiative into autonomy so execution still serves the same unfinished digital-life line', () => {
+    const autonomy = buildAutonomySnapshot(createBaseInput({
+      initiative: createInitiative({
+        confidence: 0.68,
+        why: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      }),
+      actionEcology: {
+        mode: 'surface-care',
+        readiness: 0.84,
+        surfacePressure: 0.56,
+        silencePressure: 0.2,
+        shouldSurface: true,
+        shouldSpeak: false,
+        why: 'the action line is ready to land',
+      },
+      habitPolicy: {
+        dominantMode: 'return-with-proof',
+        requiresGroundingBeforeSurface: false,
+        prefersQuietCompanionship: false,
+        blocksDirectSpeakWhenBusy: false,
+        protectsRestWindow: false,
+        returnViaRecheck: false,
+      },
+      motiveEngine: {
+        rulingDrive: 'unfinished-thread-return',
+        returnPressure: 0.88,
+        drives: {
+          companionship: 0.34,
+          boundaryRespect: 0.32,
+          truthDiscipline: 0.62,
+          restProtection: 0.18,
+          unfinishedThreadReturn: 0.84,
+          selfDirection: 0.9,
+        },
+        backgroundAgendas: [{
+          id: 'agenda-1',
+          kind: 'finish-open-loops',
+          status: 'foreground',
+          weight: 0.9,
+          summary: 'follow the unresolved thread through',
+        }],
+        longTermGoals: [],
+      },
+      projectState: {
+        identity: 'A local-first digital life companion with continuous personhood.',
+        currentPhase: 'Phase 1: Local Digital Life',
+        primaryOpenLoop: 'Initiative, embodiment, and dialogue still need a more natural closed loop.',
+        nextClosureTarget: 'Keep extending cross-modal same-her proof so visible reply, longer-lived voice behavior, facial state, motion, and resident presence stay on one measured-return, repair-before-closeness, or rest-protective quiet-companionship line.',
+      },
+    }))
+
+    expect(autonomy.selectedMode).toBe('prepare-act')
+    expect(autonomy.shouldAct).toBe(false)
+    expect(autonomy.whyNow).toContain('project-phase1 same-her closure keeps the action one step more reversible')
+    expect(autonomy.whyNow).toContain('cross-modal same-her')
+    expect(autonomy.whyNow).toContain('lower-pressure')
+    expect(autonomy.whyNow).toContain('measured-return / repair-before-closeness')
+    expect(autonomy.executionIntent?.summary).toContain('same-her closure')
+    expect(autonomy.executionIntent?.summary).toContain('cross-modal same-her closure')
+    expect(autonomy.executionIntent?.summary).toContain('Some closure already landed')
+  })
+
+  it('keeps execution one step more reversible when project emotional closure summary still carries same-her measured-return pressure', () => {
+    const autonomy = buildAutonomySnapshot(createBaseInput({
+      initiative: createInitiative({
+        confidence: 0.68,
+        why: 'The unfinished task thread is still pulling forward.',
+      }),
+      actionEcology: {
+        mode: 'surface-care',
+        readiness: 0.84,
+        surfacePressure: 0.56,
+        silencePressure: 0.2,
+        shouldSurface: true,
+        shouldSpeak: false,
+        why: 'the action line is ready to land',
+      },
+      habitPolicy: {
+        dominantMode: 'return-with-proof',
+        requiresGroundingBeforeSurface: false,
+        prefersQuietCompanionship: false,
+        blocksDirectSpeakWhenBusy: false,
+        protectsRestWindow: false,
+        returnViaRecheck: false,
+      },
+      motiveEngine: {
+        rulingDrive: 'unfinished-thread-return',
+        returnPressure: 0.88,
+        drives: {
+          companionship: 0.34,
+          boundaryRespect: 0.32,
+          truthDiscipline: 0.62,
+          restProtection: 0.18,
+          unfinishedThreadReturn: 0.84,
+          selfDirection: 0.9,
+        },
+        backgroundAgendas: [{
+          id: 'agenda-1',
+          kind: 'finish-open-loops',
+          status: 'foreground',
+          weight: 0.9,
+          summary: 'follow the unresolved thread through',
+        }],
+        longTermGoals: [],
+      },
+      projectState: {
+        identity: 'A local-first digital life companion with continuous personhood.',
+        currentPhase: 'Phase 1: Local Digital Life',
+        latestLandedProgress: 'Project-state closure carry already survives into autonomy preparation.',
+        primaryOpenLoop: 'Initiative, embodiment, and dialogue still need a more natural closed loop.',
+        nextClosureTarget: 'Keep closing the unfinished life loop without widening too early.',
+        emotionalClosureSummary: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
+        openClosureSummary: 'Same-her continuity is still settling on the same living line before action widens outward.',
+      },
+    } as any))
+
+    expect(autonomy.selectedMode).toBe('prepare-act')
+    expect(autonomy.shouldAct).toBe(false)
+    expect(autonomy.guardReasons).toContain('project-phase1-life-loop-open')
+    expect(autonomy.whyNow).toContain('project-phase1 same-her closure keeps the action one step more reversible')
+    expect(autonomy.whyNow).toContain('lower-pressure')
+    expect(autonomy.whyNow).toContain('measured-return / repair-before-closeness')
+    expect(autonomy.executionIntent?.summary).toContain('same-her closure')
+  })
+
+  it('keeps execution one step more reversible when landed progress already names the same-her Phase 1 closure line', () => {
+    const autonomy = buildAutonomySnapshot(createBaseInput({
+      concerns: [{
+        id: 'concern-1',
+        kind: 'unfinished-thread',
+        summary: 'the unresolved task thread is still pulling forward',
+        tension: 0.74,
+        confidence: 0.82,
+        careWeight: 0.66,
+      }],
+      initiative: createInitiative({
+        confidence: 0.68,
+      }),
+      actionEcology: {
+        mode: 'surface-care',
+        readiness: 0.84,
+        surfacePressure: 0.56,
+        silencePressure: 0.2,
+        shouldSurface: true,
+        shouldSpeak: false,
+        why: 'the action line is ready to land',
+      },
+      habitPolicy: {
+        dominantMode: 'return-with-proof',
+        requiresGroundingBeforeSurface: false,
+        prefersQuietCompanionship: false,
+        blocksDirectSpeakWhenBusy: false,
+        protectsRestWindow: false,
+        returnViaRecheck: false,
+      },
+      motiveEngine: {
+        rulingDrive: 'unfinished-thread-return',
+        returnPressure: 0.88,
+        drives: {
+          companionship: 0.34,
+          boundaryRespect: 0.32,
+          truthDiscipline: 0.62,
+          restProtection: 0.18,
+          unfinishedThreadReturn: 0.84,
+          selfDirection: 0.9,
+        },
+        backgroundAgendas: [{
+          id: 'agenda-1',
+          kind: 'finish-open-loops',
+          status: 'foreground',
+          weight: 0.9,
+          summary: 'follow the unresolved thread through',
+        }],
+        longTermGoals: [],
+      },
+      projectState: {
+        identity: 'A local-first digital life companion with continuous personhood.',
+        currentPhase: 'Phase 1: Local Digital Life',
+        latestLandedProgress: 'Memory continuity and execution carry have landed enough to prove the same-her line, but initiative, embodiment, and dialogue still need stronger cross-modal closure.',
+        primaryOpenLoop: 'Natural closure rhythm is still being earned across longer desktop turns.',
+        nextClosureTarget: 'Keep extending cross-modal same-her proof so visible reply, longer-lived voice behavior, facial state, motion, and resident presence stay on one measured-return, repair-before-closeness, or rest-protective quiet-companionship line.',
+      },
+    }))
+
+    expect(autonomy.selectedMode).toBe('prepare-act')
+    expect(autonomy.shouldAct).toBe(false)
+    expect(autonomy.guardReasons).toContain('project-phase1-life-loop-open')
+    expect(autonomy.whyNow).toContain('project-phase1 same-her closure keeps the action one step more reversible')
+    expect(autonomy.executionIntent?.summary).toContain('same-her closure')
+    expect(autonomy.executionIntent?.summary).toContain('cross-modal same-her closure')
+  })
+
+  it('keeps execution one step more reversible when richer project-state closure carry arrives through preflight-style landed and open summaries', () => {
+    const autonomy = buildAutonomySnapshot(createBaseInput({
+      concerns: [{
+        id: 'concern-1',
+        kind: 'unfinished-thread',
+        summary: 'the unresolved task thread is still pulling forward',
+        tension: 0.74,
+        confidence: 0.82,
+        careWeight: 0.66,
+      }],
+      initiative: createInitiative({
+        confidence: 0.68,
+        why: 'The unresolved task thread is still pulling forward.',
+      }),
+      actionEcology: {
+        mode: 'surface-care',
+        readiness: 0.84,
+        surfacePressure: 0.56,
+        silencePressure: 0.2,
+        shouldSurface: true,
+        shouldSpeak: false,
+        why: 'the action line is ready to land',
+      },
+      habitPolicy: {
+        dominantMode: 'return-with-proof',
+        requiresGroundingBeforeSurface: false,
+        prefersQuietCompanionship: false,
+        blocksDirectSpeakWhenBusy: false,
+        protectsRestWindow: false,
+        returnViaRecheck: false,
+      },
+      motiveEngine: {
+        rulingDrive: 'unfinished-thread-return',
+        returnPressure: 0.88,
+        drives: {
+          companionship: 0.34,
+          boundaryRespect: 0.32,
+          truthDiscipline: 0.62,
+          restProtection: 0.18,
+          unfinishedThreadReturn: 0.84,
+          selfDirection: 0.9,
+        },
+        backgroundAgendas: [{
+          id: 'agenda-1',
+          kind: 'finish-open-loops',
+          status: 'foreground',
+          weight: 0.9,
+          summary: 'follow the unresolved thread through',
+        }],
+        longTermGoals: [],
+      },
+      projectState: {
+        identity: 'A local-first digital life companion with continuous personhood.',
+        currentPhase: 'Phase 1: Local Digital Life',
+        latestLandedProgress: 'Project identity carry, Phase 1 route carry, and unresolved closure carry already survive across runtime preparation before the turn widens outward.',
+        primaryOpenLoop: 'Memory, initiative, and embodiment still need one tighter same-her closure seam before visible initiative can widen naturally across longer desktop turns.',
+        nextClosureTarget: 'Keep project identity carry, Phase 1 route carry, and unresolved closure carry on one measured-return same living line so visible reply, voice behavior, facial state, motion, and resident presence do not split apart.',
+      },
+    }))
+
+    expect(autonomy.selectedMode).toBe('prepare-act')
+    expect(autonomy.shouldAct).toBe(false)
+    expect(autonomy.guardReasons).toContain('project-phase1-life-loop-open')
+    expect(autonomy.whyNow).toContain('project-phase1 same-her closure keeps the action one step more reversible')
+    expect(autonomy.executionIntent?.summary).toContain('same living line')
+  })
+
+  it('does not let empty legacy project-state fields shadow richer summary-only same-her execution carry', () => {
+    const autonomy = buildAutonomySnapshot(createBaseInput({
+      concerns: [{
+        id: 'concern-1',
+        kind: 'unfinished-thread',
+        summary: 'the unresolved task thread is still pulling forward',
+        tension: 0.74,
+        confidence: 0.82,
+        careWeight: 0.66,
+      }],
+      initiative: createInitiative({
+        confidence: 0.68,
+        why: 'The unresolved task thread is still pulling forward.',
+      }),
+      actionEcology: {
+        mode: 'surface-care',
+        readiness: 0.84,
+        surfacePressure: 0.56,
+        silencePressure: 0.2,
+        shouldSurface: true,
+        shouldSpeak: false,
+        why: 'the action line is ready to land',
+      },
+      habitPolicy: {
+        dominantMode: 'return-with-proof',
+        requiresGroundingBeforeSurface: false,
+        prefersQuietCompanionship: false,
+        blocksDirectSpeakWhenBusy: false,
+        protectsRestWindow: false,
+        returnViaRecheck: false,
+      },
+      motiveEngine: {
+        rulingDrive: 'unfinished-thread-return',
+        returnPressure: 0.88,
+        drives: {
+          companionship: 0.34,
+          boundaryRespect: 0.32,
+          truthDiscipline: 0.62,
+          restProtection: 0.18,
+          unfinishedThreadReturn: 0.84,
+          selfDirection: 0.9,
+        },
+        backgroundAgendas: [{
+          id: 'agenda-1',
+          kind: 'finish-open-loops',
+          status: 'foreground',
+          weight: 0.9,
+          summary: 'follow the unresolved thread through',
+        }],
+        longTermGoals: [],
+      },
+      projectState: {
+        identity: 'A local-first digital life companion with continuous personhood.',
+        currentPhase: 'Phase 1: Local Digital Life',
+        latestLandedProgress: '',
+        primaryOpenLoop: ' ',
+        nextClosureTarget: '',
+        landedProgressSummary: 'Memory continuity and execution carry have landed enough to prove the same-her line, but initiative, embodiment, and dialogue still need stronger cross-modal closure.',
+        openClosureSummary: '',
+        nextClosureTargetSummary: 'Keep extending cross-modal same-her proof so visible reply, longer-lived voice behavior, facial state, motion, and resident presence stay on one measured-return, repair-before-closeness, or rest-protective quiet-companionship line.',
+      } as any,
+    }))
+
+    expect(autonomy.selectedMode).toBe('prepare-act')
+    expect(autonomy.shouldAct).toBe(false)
+    expect(autonomy.guardReasons).toContain('project-phase1-life-loop-open')
+    expect(autonomy.whyNow).toContain('project-phase1 same-her closure keeps the action one step more reversible')
+    expect(autonomy.whyNow).toContain('cross-modal same-her')
+    expect(autonomy.executionIntent?.summary).toContain('same-her closure')
+    expect(autonomy.executionIntent?.summary).toContain('cross-modal same-her closure')
+  })
+
+  it('keeps corrected same-person settling visible in autonomy when habit narrative says embodiment should return more quietly first', () => {
+    const autonomy = buildAutonomySnapshot(createBaseInput({
+      initiative: createInitiative({
+        selectedAction: 'wait',
+        confidence: 0.68,
+        speakDrive: 0.54,
+        silenceDrive: 0.18,
+        shouldSurface: true,
+        why: 'the same return line is gathering itself back together',
+      }),
+      habitPolicy: {
+        dominantMode: 'return-with-proof',
+        requiresGroundingBeforeSurface: false,
+        prefersQuietCompanionship: false,
+        blocksDirectSpeakWhenBusy: false,
+        protectsRestWindow: false,
+        returnViaRecheck: false,
+        narrative: [
+          'policy:return-with-proof',
+          'self-evolution:corrected-same-person-manifestation',
+          'self-evolution:quieter-embodiment-settling',
+        ],
+        updatedAt: 1_000,
+      },
+    }))
+
+    expect(autonomy.selectedMode).toBe('prepare-act')
+    expect(autonomy.visibleAction).toBe('hover')
+    expect(autonomy.shouldAct).toBe(false)
+    expect(autonomy.guardReasons).toContain('corrected-same-person-settling')
+    expect(autonomy.guardReasons).toContain('quieter-embodiment-settling')
+    expect(autonomy.deferReason).toBe('corrected-same-person-settling')
+    expect(autonomy.whyNow).toContain('corrected same-person continuity')
+    expect(autonomy.whyNow).toContain('embodiment quieter')
+    expect(autonomy.executionIntent?.summary).toContain('corrected same-person continuity')
+    expect(autonomy.executionIntent?.summary).toContain('embodiment quieter')
+  })
+
   it('lets personality-shaped motive and habit layers split the final visible action between hover and whisper', () => {
     const observant = buildAutonomySnapshot(createBaseInput({
       context: createContext({

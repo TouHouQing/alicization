@@ -88,6 +88,47 @@ function createRuntimeDigest(overrides: Record<string, unknown> = {}) {
   } as any
 }
 
+function createExecutionRuntimeContext(overrides: Record<string, unknown> = {}) {
+  return {
+    generatedAt: 1_710_000_000_000,
+    cardId: 'default',
+    turnId: 'turn-autonomy-runtime',
+    sessionId: 'session-runtime',
+    decisionTraceId: 'mind:trace:autonomy-runtime',
+    projectBriefing: {
+      identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer.',
+      currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
+      latestLandedProgress: 'Same-session mirror carry and measured-return continuity now survive longer noisy detours.',
+      primaryOpenLoop: 'Memory still needs stronger end-to-end closure across turns so project identity carry remains explicit.',
+      nextClosureTarget: 'Keep extending same-her proof so execution, initiative, and embodiment stay on one living line.',
+      sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      sameHerDriftRisk: 'If execution reopens as a generic shell before the project brief lands, treat it as unfinished same-her drift.',
+      preflightSummary: 'Alicization is a local-first digital life project. phase=Phase 1: Local Digital Life | open=Memory still needs stronger end-to-end closure across turns so project identity carry remains explicit. | next=Keep extending same-her proof so execution, initiative, and embodiment stay on one living line.',
+      preDialogueAwarenessLine: 'Before answering, remember this is still the same local-first digital life project and the unfinished Phase 1 closure seam still belongs to one living her.',
+    },
+    sensory: {
+      collectedAt: 1_710_000_000_123,
+      running: true,
+      stale: false,
+      ageMs: 11,
+      foregroundWindow: {
+        appName: 'Cursor',
+        processName: 'cursor',
+        title: 'airi-alice',
+      },
+      capture: {
+        health: 'healthy',
+        permission: 'granted',
+        sourceCount: 2,
+        lastUpdatedAt: 1_710_000_000_100,
+        lastError: null,
+        degradedReasons: [],
+      },
+    },
+    ...overrides,
+  } as any
+}
+
 describe('autonomy actuation', () => {
   it('derives a revisit reminder from deferred act readiness', () => {
     const reminder = deriveAutonomyRevisitReminder({
@@ -101,6 +142,166 @@ describe('autonomy actuation', () => {
       sourceTurnId: expect.stringContaining('autonomy-revisit:'),
     }))
     expect(reminder?.message).toContain('Return when the host has more room')
+  })
+
+  it('threads same-her closure carry into revisit reminders when the deferred autonomy line still belongs to the same Phase 1 living line', () => {
+    const reminder = deriveAutonomyRevisitReminder({
+      cardId: 'default',
+      digitalLifeSpine: createSpine({
+        runtimeSurface: {
+          perception: {
+            watchMode: 'recovering',
+            currentScene: {
+              scenario: 'general',
+              workloadKind: 'general',
+              contentKind: 'general',
+            },
+          },
+          world: {
+            worldModel: {
+              activeThread: {
+                id: 'thread-runtime',
+                kind: 'problem',
+                summary: 'keep tracing the unresolved runtime break',
+                title: 'runtime break',
+                unresolved: true,
+              },
+            },
+          },
+          agency: {
+            autonomy: {
+              selectedMode: 'prepare-act',
+              visibleAction: 'hover',
+              shouldSurface: true,
+              shouldSpeak: false,
+              shouldAct: false,
+              speakReadiness: 0.18,
+              actReadiness: 0.62,
+              inhibition: 0.34,
+              confidence: 0.72,
+              deferReason: 'respect-boundary',
+              whyNow: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+              sourceThreadId: 'thread-runtime',
+              sourceThreadSummary: 'keep tracing the unresolved runtime break',
+              executionIntent: {
+                kind: 'companionship',
+                summary: 'return later without crowding',
+                targetThreadId: 'thread-runtime',
+              },
+            },
+          },
+        },
+      }),
+      runtimeDigest: createRuntimeDigest({
+        shouldProactivelyAct: false,
+      }),
+    })
+
+    expect(reminder?.message).toContain('Same Phase 1 digital life')
+    expect(reminder?.message).toMatch(/Unfinished closure still needs|same living line/i)
+  })
+
+  it('keeps a deferred autonomy reminder alive when a sparse spine only preserves autonomy carry', () => {
+    const reminder = deriveAutonomyRevisitReminder({
+      cardId: 'default',
+      digitalLifeSpine: createSpine({
+        runtimeSurface: {
+          agency: {
+            autonomy: {
+              selectedMode: 'prepare-act',
+              visibleAction: 'hover',
+              shouldSurface: true,
+              shouldSpeak: false,
+              shouldAct: false,
+              speakReadiness: 0.18,
+              actReadiness: 0.62,
+              inhibition: 0.34,
+              confidence: 0.72,
+              deferReason: 'busy-host',
+              whyNow: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+              sourceThreadId: 'thread-runtime',
+              sourceThreadSummary: 'keep tracing the unresolved runtime break',
+              executionIntent: {
+                kind: 'follow-through',
+                summary: 'return later to the unresolved runtime break',
+                targetThreadId: 'thread-runtime',
+              },
+            },
+          },
+        },
+      }),
+      runtimeDigest: createRuntimeDigest({
+        shouldProactivelyAct: false,
+      }),
+    })
+
+    expect(reminder).toEqual(expect.objectContaining({
+      minutes: 16,
+      sourceTurnId: expect.stringContaining('autonomy-revisit:'),
+    }))
+    expect(reminder?.message).toContain('Same Phase 1 digital life')
+  })
+
+  it('keeps corrected same-person settling and quieter embodiment carry visible in revisit reminders instead of collapsing into a generic later-opening nudge', () => {
+    const reminder = deriveAutonomyRevisitReminder({
+      cardId: 'default',
+      digitalLifeSpine: createSpine({
+        runtimeSurface: {
+          perception: {
+            watchMode: 'recovering',
+            currentScene: {
+              scenario: 'coding',
+              workloadKind: 'coding',
+              contentKind: 'diff',
+            },
+          },
+          world: {
+            worldModel: {
+              activeThread: {
+                id: 'thread-runtime',
+                kind: 'problem',
+                summary: 'keep tracing the unresolved runtime break',
+                title: 'runtime break',
+                unresolved: true,
+              },
+            },
+          },
+          agency: {
+            autonomy: {
+              selectedMode: 'prepare-act',
+              visibleAction: 'hover',
+              shouldSurface: true,
+              shouldSpeak: false,
+              shouldAct: false,
+              speakReadiness: 0.18,
+              actReadiness: 0.64,
+              inhibition: 0.4,
+              confidence: 0.74,
+              deferReason: 'corrected-same-person-settling',
+              whyNow: 'finish the unresolved implementation thread persona=persona keeps corrected same-person continuity settling visible and keeps embodiment quieter while the return re-settles.',
+              sourceThreadId: 'thread-runtime',
+              sourceThreadSummary: 'keep tracing the unresolved runtime break',
+              executionIntent: {
+                kind: 'follow-through',
+                summary: 'keep corrected same-person continuity settling and embodiment quieter before widening outward; re-open the unresolved runtime break and see what still blocks it',
+                targetThreadId: 'thread-runtime',
+              },
+            },
+          },
+        },
+      }),
+      runtimeDigest: createRuntimeDigest({
+        shouldProactivelyAct: false,
+      }),
+    })
+
+    expect(reminder).toEqual(expect.objectContaining({
+      minutes: 14,
+      sourceTurnId: expect.stringContaining('autonomy-revisit:'),
+    }))
+    expect(reminder?.message).toContain('corrected same-person continuity')
+    expect(reminder?.message).toContain('embodiment quieter')
+    expect(reminder?.message).not.toContain('Return when the opening is riper')
   })
 
   it('derives a proactive observe task when coding-like actuation is ripe', () => {
@@ -121,6 +322,42 @@ describe('autonomy actuation', () => {
         requestedChannel: 'codex',
       }),
     }))
+  })
+
+  it('safely declines proactive task planning when sparse autonomy carry loses scene and thread context', () => {
+    const taskPlan = deriveAutonomousTaskPlan({
+      cardId: 'default',
+      digitalLifeSpine: createSpine({
+        runtimeSurface: {
+          agency: {
+            autonomy: {
+              selectedMode: 'prepare-act',
+              visibleAction: 'hover',
+              shouldSurface: true,
+              shouldSpeak: false,
+              shouldAct: false,
+              speakReadiness: 0.18,
+              actReadiness: 0.82,
+              inhibition: 0.34,
+              confidence: 0.8,
+              deferReason: 'busy-host',
+              whyNow: 'keep the unresolved line alive quietly',
+              sourceThreadId: 'thread-runtime',
+              sourceThreadSummary: 'keep tracing the unresolved runtime break',
+              executionIntent: {
+                kind: 'follow-through',
+                summary: 're-open the unresolved runtime break and see what still blocks it',
+                targetThreadId: 'thread-runtime',
+              },
+            },
+          },
+        },
+      }),
+      runtimeDigest: createRuntimeDigest(),
+      capabilities: createCapabilities(['codex']),
+    })
+
+    expect(taskPlan).toBeNull()
   })
 
   it('derives a proactive mutate proposal when act mode is mature enough', () => {
@@ -284,6 +521,7 @@ describe('autonomy actuation', () => {
   })
 
   it('builds a read-only dispatch payload for proactive observe tasks', () => {
+    const runtimeContext = createExecutionRuntimeContext()
     const payload = buildAutonomousObserveDispatchInput({
       threadId: 'thread-runtime',
       requestedDispatchChannel: 'codex',
@@ -293,18 +531,23 @@ describe('autonomy actuation', () => {
       } as any,
       summary: 'runtime break',
       workspaceRoot: '/repo',
+      runtimeContext,
     })
 
     expect(payload.threadId).toBe('thread-runtime')
     expect(payload.codex).toEqual(expect.objectContaining({
       cwd: '/repo',
       sandbox: 'read-only',
+      runtimeContext,
     }))
     expect(payload.codex?.prompt).toContain('Read-only investigation only')
   })
 
   it('plans and dispatches a proactive observe task through the selected channel', async () => {
     const scheduleReminder = vi.fn()
+    const buildExecutionRuntimeContext = vi.fn(async ({ turnId }: { turnId: string }) => createExecutionRuntimeContext({
+      turnId,
+    }))
     const planTaskThread = vi.fn(async () => ({
       thread: {
         id: 'thread-runtime',
@@ -330,6 +573,7 @@ describe('autonomy actuation', () => {
       workspaceRoot: '/repo',
       listPendingReminders: async () => [],
       scheduleReminder,
+      buildExecutionRuntimeContext,
       planTaskThread,
       dispatchTaskThread,
     })
@@ -342,13 +586,29 @@ describe('autonomy actuation', () => {
       threadId: 'thread-runtime',
       codex: expect.objectContaining({
         sandbox: 'read-only',
+        runtimeContext: expect.objectContaining({
+          turnId: expect.stringContaining('autonomy-task:default:1000:'),
+          projectBriefing: expect.objectContaining({
+            currentPhase: expect.stringContaining('Phase 1: Local Digital Life'),
+            primaryOpenLoop: expect.stringContaining('Memory still needs stronger end-to-end closure'),
+            sameHerSelfLine: expect.stringContaining('Same Phase 1 digital life'),
+          }),
+        }),
       }),
+    }))
+    expect(buildExecutionRuntimeContext).toHaveBeenCalledWith(expect.objectContaining({
+      cardId: 'default',
+      sessionId: 'session-runtime',
+      turnId: expect.stringContaining('autonomy-task:default:1000:'),
     }))
     expect(scheduleReminder).not.toHaveBeenCalled()
   })
 
   it('auto-dispatches low-risk proactive code edits through workspace-write code agents', async () => {
     const dispatchTaskThread = vi.fn(async () => ({}))
+    const buildExecutionRuntimeContext = vi.fn(async ({ turnId }: { turnId: string }) => createExecutionRuntimeContext({
+      turnId,
+    }))
     const result = await runAutonomyActuation({
       now: 1_000,
       cardId: 'default',
@@ -439,6 +699,7 @@ describe('autonomy actuation', () => {
       workspaceRoot: '/repo',
       listPendingReminders: async () => [],
       scheduleReminder: vi.fn(),
+      buildExecutionRuntimeContext,
       planTaskThread: vi.fn(async () => ({
         thread: {
           id: 'thread-low-risk-edit',
@@ -463,14 +724,53 @@ describe('autonomy actuation', () => {
     expect(dispatchTaskThread).toHaveBeenCalledWith(expect.objectContaining({
       threadId: 'thread-low-risk-edit',
       codex: expect.objectContaining({
+        prompt: expect.stringContaining('Continuity focus:'),
         sandbox: 'workspace-write',
+        runtimeContext: expect.objectContaining({
+          turnId: expect.stringContaining('autonomy-task:default:1000:'),
+          projectBriefing: expect.objectContaining({
+            currentPhase: expect.stringContaining('Phase 1: Local Digital Life'),
+            nextClosureTarget: expect.stringContaining('Keep extending same-her proof'),
+            preDialogueAwarenessLine: expect.stringContaining('Before answering, remember this is still the same local-first digital life project'),
+          }),
+        }),
       }),
+    }))
+    expect(buildExecutionRuntimeContext).toHaveBeenCalledWith(expect.objectContaining({
+      cardId: 'default',
+      sessionId: 'session-runtime',
+      turnId: expect.stringContaining('autonomy-task:default:1000:'),
     }))
   })
 
   it('derives an explicit execution proposal surface when a proactive task needs affirmation', () => {
     const proposal = deriveAutonomyExecutionProposalSurface({
-      digitalLifeSpine: createSpine(),
+      digitalLifeSpine: createSpine({
+        runtimeSurface: {
+          agency: {
+            autonomy: {
+              selectedMode: 'prepare-act',
+              visibleAction: 'hover',
+              shouldSurface: true,
+              shouldSpeak: false,
+              shouldAct: false,
+              speakReadiness: 0.18,
+              actReadiness: 0.82,
+              inhibition: 0.34,
+              confidence: 0.8,
+              deferReason: 'busy-host',
+              whyNow: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+              sourceThreadId: 'thread-runtime',
+              sourceThreadSummary: 'keep tracing the unresolved runtime break',
+              executionIntent: {
+                kind: 'follow-through',
+                summary: 're-open the unresolved runtime break and see what still blocks it',
+                targetThreadId: 'thread-runtime',
+              },
+            },
+          },
+        },
+      }),
       actuationResult: {
         reminderScheduled: false,
         reminderSourceTurnId: null,
@@ -494,7 +794,33 @@ describe('autonomy actuation', () => {
     }))
     expect(proposal?.reply).toContain('你要是愿意')
     expect(proposal?.reply).toContain('做完把改动摊给你看')
+    expect(proposal?.reply).toContain('我先不越过你')
+    expect(proposal?.thought).toContain('sameHer=Same Phase 1 digital life')
+    expect(proposal?.thought).toContain('closure=')
+    expect(proposal?.thought).toMatch(/closure=Unfinished cl|closure=Unfinished closure/i)
     expect(proposal?.reasonTags).toContain('execution-proposal')
+  })
+
+  it('threads same-her closure carry into downstream workspace-write dispatch prompts when the autonomy summary already carries the Phase 1 living line', () => {
+    const payload = buildAutonomousTaskDispatchInput({
+      threadId: 'thread-same-her-dispatch',
+      requestedDispatchChannel: 'codex',
+      task: {
+        kind: 'codebase-edit',
+        goal: 'Proactively patch the current unresolved Alicization line: patch the unresolved runtime break directly',
+        origin: 'proactive',
+        effect: 'mutate',
+        permissionMode: 'none',
+        justification: 'grounded',
+        requestedChannel: 'codex',
+        prefersPersistentSession: true,
+      } as any,
+      summary: 'patch the unresolved runtime break directly; Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      workspaceRoot: '/repo',
+    })
+
+    expect(payload.codex?.prompt).toContain('Continuity focus:')
+    expect(payload.codex?.prompt).toMatch(/Same Phase 1 digital life|Unfinished closure still needs|same living line/i)
   })
 
   it('makes proposal copy more direct after learning drifts toward directness and successful execution', () => {
@@ -674,6 +1000,7 @@ describe('autonomy actuation', () => {
   })
 
   it('builds a workspace-write dispatch payload for proactive code edits', () => {
+    const runtimeContext = createExecutionRuntimeContext()
     const payload = buildAutonomousTaskDispatchInput({
       threadId: 'thread-runtime',
       requestedDispatchChannel: 'codex',
@@ -683,14 +1010,52 @@ describe('autonomy actuation', () => {
       } as any,
       summary: 'runtime break',
       workspaceRoot: '/repo',
+      runtimeContext,
     })
 
     expect(payload.threadId).toBe('thread-runtime')
     expect(payload.codex).toEqual(expect.objectContaining({
       cwd: '/repo',
       sandbox: 'workspace-write',
+      runtimeContext,
     }))
     expect(payload.codex?.prompt).toContain('smallest safe code change')
+  })
+
+  it('keeps proactive auto-dispatch parked when execution runtime context cannot be built, so same-her project briefing does not drop before execution begins', async () => {
+    const dispatchTaskThread = vi.fn(async () => ({}))
+    const result = await runAutonomyActuation({
+      now: 1_000,
+      cardId: 'default',
+      sessionId: 'session-runtime',
+      digitalLifeSpine: createSpine(),
+      runtimeDigest: createRuntimeDigest(),
+      capabilities: createCapabilities(['codex']),
+      workspaceRoot: '/repo',
+      listPendingReminders: async () => [],
+      scheduleReminder: vi.fn(),
+      buildExecutionRuntimeContext: vi.fn(async () => null),
+      planTaskThread: vi.fn(async () => ({
+        thread: {
+          id: 'thread-runtime',
+          selectedChannel: 'codex',
+        },
+        plan: {
+          state: 'routed',
+        },
+        createdEventKinds: [],
+        governor: {
+          disposition: 'planned',
+        },
+      })) as any,
+      dispatchTaskThread,
+    })
+
+    expect(result.taskPlanState).toBe('routed')
+    expect(result.taskDispatched).toBe(false)
+    expect(result.taskDispatchChannel).toBe(null)
+    expect(result.reasonTags).toContain('dispatch:missing-runtime-context')
+    expect(dispatchTaskThread).not.toHaveBeenCalled()
   })
 
   it('skips duplicate revisit reminders that are already pending', async () => {

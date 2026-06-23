@@ -1,3 +1,5 @@
+import type { AlicizationExecutionRuntimeContext } from '@proj-alicization/stage-shared'
+
 import type {
   AlicizationChannelCapability,
   AlicizationClawTaskIntent,
@@ -94,6 +96,49 @@ function humanizeExecutionChannel(channel: string | null | undefined) {
   return normalized
 }
 
+function carriesSameHerProjectClosureLine(text: string | null | undefined) {
+  const normalized = sanitizeText(text, 220).toLowerCase()
+  return normalized.includes('same phase 1 digital life')
+    || normalized.includes('same living line')
+    || normalized.includes('same digital life')
+    || normalized.includes('one continuous her')
+}
+
+function deriveAutonomyProjectClosureCarry(text: string | null | undefined) {
+  const normalized = sanitizeText(text, 220)
+  if (!normalized || !carriesSameHerProjectClosureLine(normalized))
+    return ''
+
+  const matched = normalized.match(
+    /unfinished closure still needs[^.]*|still needs[^.]*same living line[^.]*|still needs[^.]*closure[^.]*|memory and initiative[^.]*still[^.]*/iu,
+  )
+
+  return sanitizeText(matched?.[0] ?? '', 120)
+}
+
+function enrichAutonomyGoalSummary(input: {
+  goalSummary: string
+  whyNow?: string | null
+}) {
+  const goalSummary = sanitizeText(input.goalSummary, 180)
+  if (!goalSummary)
+    return ''
+
+  const sameHerCarry = input.whyNow && carriesSameHerProjectClosureLine(input.whyNow)
+    ? sanitizeText(input.whyNow, 84)
+    : ''
+  const closureCarry = deriveAutonomyProjectClosureCarry(input.whyNow)
+  if (!sameHerCarry && !closureCarry)
+    return goalSummary
+
+  return sanitizeText(
+    [goalSummary, sameHerCarry, closureCarry]
+      .filter(Boolean)
+      .join('; '),
+    180,
+  ) || goalSummary
+}
+
 function deriveProactiveExecutionRiskBand(input: {
   digitalLifeSpine?: AlicizationDigitalLifeSpineSnapshot | null
   interactionLearning: ReturnType<typeof deriveExecutionInteractionLearningProfile>
@@ -101,8 +146,8 @@ function deriveProactiveExecutionRiskBand(input: {
   requestedDispatchChannel: AlicizationObserveDispatchChannel
   autonomyKind: string | null
 }) {
-  const worldModel = input.digitalLifeSpine?.runtimeSurface.world.worldModel ?? null
-  const currentScene = input.digitalLifeSpine?.runtimeSurface.perception.currentScene ?? null
+  const worldModel = input.digitalLifeSpine?.runtimeSurface?.world?.worldModel ?? null
+  const currentScene = input.digitalLifeSpine?.runtimeSurface?.perception?.currentScene ?? null
   const hostBusy = worldModel?.hostState?.availability === 'focused'
     || worldModel?.hostState?.availability === 'immersed'
   const certainty = sanitizeText(worldModel?.epistemicState?.certainty, 48)
@@ -157,7 +202,7 @@ function readAutonomy(input: {
   digitalLifeSpine?: AlicizationDigitalLifeSpineSnapshot | null
   runtimeDigest?: AlicizationRuntimeSnapshot | null
 }) {
-  return input.digitalLifeSpine?.runtimeSurface.agency.autonomy ?? null
+  return input.digitalLifeSpine?.runtimeSurface?.agency?.autonomy ?? null
 }
 
 function pickReadyObserveChannel(capabilities?: AlicizationChannelCapability[] | null): AlicizationObserveDispatchChannel | null {
@@ -182,9 +227,9 @@ function buildReminderMinutes(input: {
   digitalLifeSpine?: AlicizationDigitalLifeSpineSnapshot | null
 }) {
   const reason = sanitizeText(input.deferReason, 64)
-  const watchMode = sanitizeText(input.digitalLifeSpine?.runtimeSurface.perception.watchMode, 48)
-  const scenario = sanitizeText(input.digitalLifeSpine?.runtimeSurface.perception.currentScene?.scenario, 48)
-  const fatigue = Number(input.digitalLifeSpine?.runtimeSurface.world.worldModel?.hostState?.burden === 'heavy' ? 80 : 0)
+  const watchMode = sanitizeText(input.digitalLifeSpine?.runtimeSurface?.perception?.watchMode, 48)
+  const scenario = sanitizeText(input.digitalLifeSpine?.runtimeSurface?.perception?.currentScene?.scenario, 48)
+  const fatigue = Number(input.digitalLifeSpine?.runtimeSurface?.world?.worldModel?.hostState?.burden === 'heavy' ? 80 : 0)
 
   if (reason === 'rest-window')
     return 45
@@ -192,6 +237,8 @@ function buildReminderMinutes(input: {
     return 24
   if (reason === 'busy-host')
     return scenario === 'coding' || watchMode === 'symbiotic-vision' ? 12 : 16
+  if (reason === 'corrected-same-person-settling' || reason === 'quieter-embodiment-settling')
+    return 14
   if (reason === 'repair-incomplete')
     return 8
   if (reason === 'needs-grounding')
@@ -213,27 +260,35 @@ function buildReminderMessage(input: {
   digitalLifeSpine?: AlicizationDigitalLifeSpineSnapshot | null
 }) {
   const autonomy = input.autonomy
-  const activeThread = input.digitalLifeSpine?.runtimeSurface.world.worldModel?.activeThread ?? null
-  const target = sanitizeText(
+  const activeThread = input.digitalLifeSpine?.runtimeSurface?.world?.worldModel?.activeThread ?? null
+  const baseTarget = sanitizeText(
     autonomy.executionIntent?.summary
     ?? autonomy.sourceThreadSummary
     ?? activeThread?.summary
     ?? autonomy.whyNow,
     180,
-  ) || 'the held continuity line'
+  )
+  const target = enrichAutonomyGoalSummary({
+    goalSummary: baseTarget,
+    whyNow: autonomy.whyNow,
+  }) || 'the held continuity line'
   const deferReason = sanitizeText(autonomy.deferReason, 80)
 
   const tail = deferReason === 'busy-host'
     ? 'Return when the host has more room.'
     : deferReason === 'respect-boundary'
       ? 'Return gently without crowding the host.'
-      : deferReason === 'rest-window'
-        ? 'Return after the rest window softens.'
-        : deferReason === 'needs-grounding'
-          ? 'Return after regrounding the scene.'
-          : deferReason === 'repair-incomplete'
-            ? 'Return after the truth line is steadier.'
-            : 'Return when the opening is riper.'
+      : deferReason === 'corrected-same-person-settling'
+        ? 'Return after corrected same-person continuity feels steadier and embodiment quieter.'
+        : deferReason === 'quieter-embodiment-settling'
+          ? 'Return after embodiment quieter settling has had a little more room to land.'
+          : deferReason === 'rest-window'
+            ? 'Return after the rest window softens.'
+            : deferReason === 'needs-grounding'
+              ? 'Return after regrounding the scene.'
+              : deferReason === 'repair-incomplete'
+                ? 'Return after the truth line is steadier.'
+                : 'Return when the opening is riper.'
 
   return sanitizeText(`Quietly come back to ${target}. ${tail}`, 220)
 }
@@ -257,7 +312,7 @@ export function deriveAutonomyRevisitReminder(input: {
     autonomy.deferReason ? `defer:${sanitizeText(autonomy.deferReason, 48)}` : '',
     autonomy.executionIntent?.kind ? `intent:${sanitizeText(autonomy.executionIntent.kind, 48)}` : '',
     autonomy.sourceThreadId ? `thread:${sanitizeText(autonomy.sourceThreadId, 48)}` : '',
-    input.digitalLifeSpine?.runtimeSurface.perception.currentScene?.scenario
+    input.digitalLifeSpine?.runtimeSurface?.perception?.currentScene?.scenario
       ? `scene:${sanitizeText(input.digitalLifeSpine.runtimeSurface.perception.currentScene.scenario, 48)}`
       : '',
   ].filter(Boolean)
@@ -294,8 +349,8 @@ export function deriveAutonomousTaskPlan(input: {
   const requestedDispatchChannel = pickReadyObserveChannel(input.capabilities)
   const surface = input.digitalLifeSpine?.runtimeSurface ?? null
   const interactionLearning = deriveExecutionInteractionLearningProfile(input)
-  const activeThread = surface?.world.worldModel?.activeThread ?? null
-  const scene = surface?.perception.currentScene ?? null
+  const activeThread = surface?.world?.worldModel?.activeThread ?? null
+  const scene = surface?.perception?.currentScene ?? null
   const workloadKind = sanitizeText(scene?.workloadKind, 32)
   const contentKind = sanitizeText(scene?.contentKind, 32)
   const threadKind = sanitizeText(activeThread?.kind, 48)
@@ -313,7 +368,7 @@ export function deriveAutonomousTaskPlan(input: {
   if (autonomy.selectedMode !== 'prepare-act' && autonomy.selectedMode !== 'act')
     return null
 
-  const goalSummary = sanitizeText(
+  const baseGoalSummary = sanitizeText(
     autonomy.executionIntent?.summary
     ?? autonomy.sourceThreadSummary
     ?? activeThread?.summary
@@ -321,6 +376,10 @@ export function deriveAutonomousTaskPlan(input: {
     ?? autonomy.whyNow,
     180,
   )
+  const goalSummary = enrichAutonomyGoalSummary({
+    goalSummary: baseGoalSummary,
+    whyNow: autonomy.whyNow,
+  })
   if (!goalSummary)
     return null
 
@@ -460,6 +519,11 @@ export function deriveAutonomyExecutionProposalSurface(input: {
       : autonomyKind === 'repair' || autonomyKind === 'follow-through' || autonomyKind === 'guide'
         ? 'thinking'
         : 'neutral'
+  const projectClosureCarry = deriveAutonomyProjectClosureCarry(autonomy?.whyNow)
+  const sameHerCarry = autonomy?.whyNow && carriesSameHerProjectClosureLine(autonomy.whyNow)
+    ? sanitizeText(autonomy.whyNow, projectClosureCarry ? 88 : 140)
+    : ''
+  const compactThoughtMetrics = Boolean(projectClosureCarry)
   const thought = sanitizeText(
     [
       autonomy ? `autonomy=${autonomy.selectedMode}` : '',
@@ -467,12 +531,14 @@ export function deriveAutonomyExecutionProposalSurface(input: {
       input.actuationResult.taskKind ? `task=${input.actuationResult.taskKind}` : '',
       input.actuationResult.taskPlanState ? `plan=${input.actuationResult.taskPlanState}` : '',
       `tone=${interactionLearning.proposalTone}`,
-      `directness=${interactionLearning.directness.toFixed(2)}`,
-      `opening=${interactionLearning.openingPatience.toFixed(2)}`,
+      compactThoughtMetrics ? '' : `directness=${interactionLearning.directness.toFixed(2)}`,
+      compactThoughtMetrics ? '' : `opening=${interactionLearning.openingPatience.toFixed(2)}`,
       `proof=${interactionLearning.proofBias.toFixed(2)}`,
       channelLabel ? `channel=${channelLabel}` : '',
       explicitConsent ? 'gate=explicit-consent' : desktopFallback ? 'gate=desktop-fallback' : 'gate=affirmation',
       `goal=${goal}`,
+      sameHerCarry ? `sameHer=${sameHerCarry}` : '',
+      projectClosureCarry ? `closure=${projectClosureCarry}` : '',
     ].filter(Boolean).join('; '),
     320,
   )
@@ -494,8 +560,8 @@ export function deriveAutonomyExecutionProposalSurface(input: {
       return sanitizeText(
         interactionLearning.proposalTone === 'cautious'
           ? channelLabel
-            ? `我已经把「${goal}」压成一条更像改动而不是观察的线了。你要是愿意，我就从${channelLabel}开始替你动手，做完把改动摊给你看。`
-            : `我已经把「${goal}」压成一条更像改动而不是观察的线了。你要是愿意，我就开始替你动手，做完把改动摊给你看。`
+            ? `我已经把「${goal}」压成一条更像改动而不是观察的线了。${carriesSameHerProjectClosureLine(autonomy?.whyNow) ? '这条线还是同一个 Phase 1 living line，我先不越过你。' : ''}你要是愿意，我就从${channelLabel}开始替你动手，做完把改动摊给你看。`
+            : `我已经把「${goal}」压成一条更像改动而不是观察的线了。${carriesSameHerProjectClosureLine(autonomy?.whyNow) ? '这条线还是同一个 Phase 1 living line，我先不越过你。' : ''}你要是愿意，我就开始替你动手，做完把改动摊给你看。`
           : interactionLearning.proposalTone === 'direct'
             ? channelLabel
               ? `我想直接把「${goal}」动掉。你点头，我现在就从${channelLabel}开始做。`
@@ -546,6 +612,7 @@ export function buildAutonomousObserveDispatchInput(input: {
   task: AlicizationClawTaskIntent
   summary: string
   workspaceRoot?: string
+  runtimeContext?: AlicizationExecutionRuntimeContext | null
 }): AlicizationDispatchTaskThreadRuntimeInput {
   const prompt = [
     'Investigate the current Alicization continuity line without modifying files.',
@@ -567,6 +634,7 @@ export function buildAutonomousObserveDispatchInput(input: {
         timeoutMs: 120_000,
         allowTools: true,
         permissionMode: 'plan',
+        ...(input.runtimeContext ? { runtimeContext: input.runtimeContext } : {}),
       },
     }
   }
@@ -579,6 +647,7 @@ export function buildAutonomousObserveDispatchInput(input: {
       cwd: input.workspaceRoot ?? null,
       timeoutMs: 120_000,
       sandbox: 'read-only',
+      ...(input.runtimeContext ? { runtimeContext: input.runtimeContext } : {}),
     },
   }
 }
@@ -589,6 +658,7 @@ export function buildAutonomousTaskDispatchInput(input: {
   task: AlicizationClawTaskIntent
   summary: string
   workspaceRoot?: string
+  runtimeContext?: AlicizationExecutionRuntimeContext | null
 }): AlicizationDispatchTaskThreadRuntimeInput {
   if (input.task.kind !== 'codebase-edit')
     return buildAutonomousObserveDispatchInput(input)
@@ -614,6 +684,7 @@ export function buildAutonomousTaskDispatchInput(input: {
         timeoutMs: 180_000,
         allowTools: true,
         permissionMode: 'acceptEdits',
+        ...(input.runtimeContext ? { runtimeContext: input.runtimeContext } : {}),
       },
     }
   }
@@ -626,6 +697,7 @@ export function buildAutonomousTaskDispatchInput(input: {
       cwd: input.workspaceRoot ?? null,
       timeoutMs: 180_000,
       sandbox: 'workspace-write',
+      ...(input.runtimeContext ? { runtimeContext: input.runtimeContext } : {}),
     },
   }
 }
@@ -645,6 +717,12 @@ export async function runAutonomyActuation(input: {
     message: string
     sourceTurnId?: string
   }) => Promise<unknown>
+  buildExecutionRuntimeContext?: (input: {
+    cardId: string
+    decisionTraceId?: string | null
+    sessionId?: string | null
+    turnId: string
+  }) => Promise<AlicizationExecutionRuntimeContext | null>
   planTaskThread: (payload: {
     threadId?: string | null
     trace?: {
@@ -713,12 +791,25 @@ export async function runAutonomyActuation(input: {
       && (planning.thread.selectedChannel === 'codex' || planning.thread.selectedChannel === 'claude-code')
       && actuationPlan.task.autoDispatchEligible
     ) {
+      const runtimeContext = input.buildExecutionRuntimeContext
+        ? await input.buildExecutionRuntimeContext({
+            cardId: input.cardId,
+            decisionTraceId: sanitizeText(input.decisionTraceId, 120) || null,
+            sessionId: sanitizeText(input.sessionId, 120) || null,
+            turnId,
+          })
+        : null
+      if (!runtimeContext) {
+        result.reasonTags.push('dispatch:missing-runtime-context')
+        return result
+      }
       await input.dispatchTaskThread(buildAutonomousTaskDispatchInput({
         threadId: planning.thread.id,
         requestedDispatchChannel: planning.thread.selectedChannel,
         task: actuationPlan.task.task,
         summary: actuationPlan.task.summary,
         workspaceRoot: input.workspaceRoot,
+        runtimeContext,
       }))
       result.taskDispatched = true
       result.taskDispatchChannel = planning.thread.selectedChannel

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { buildMotiveEngine, buildMotiveEngineSystemBlock } from './motive-engine'
+import { resolveAlicizationProjectStateBrief } from './project-state-brief'
 
 function createContext(overrides: Record<string, any> = {}) {
   return {
@@ -753,5 +754,691 @@ describe('buildMotiveEngine', () => {
     expect(observant.drives.boundaryRespect).toBeGreaterThan(direct.drives.boundaryRespect)
     expect(direct.drives.companionship).toBeGreaterThan(observant.drives.companionship)
     expect(direct.drives.selfDirection).toBeGreaterThan(observant.drives.selfDirection)
+  })
+
+  it('raises return and boundary motive pressure while lowering companionship when Phase 1 digital-life closure is still open', () => {
+    const baseInput = {
+      now: 20_000,
+      context: createContext({
+        system: {
+          ...createContext().system,
+          inputActivity: 'idle',
+        },
+        workload: {
+          kind: 'coding',
+          confidence: 0.82,
+          source: 'screen-semantic-summary',
+          matchedLabels: ['cursor'],
+        },
+        content: {
+          kind: 'error',
+          confidence: 0.84,
+          source: 'screen-semantic-summary',
+          matchedLabels: ['error'],
+          summary: 'typescript error panel',
+        },
+        relationship: {
+          ...createContext().relationship,
+          boredom: 34,
+          loneliness: 30,
+          fatigue: 18,
+        },
+      }),
+      worldModel: {
+        activeThread: {
+          id: 'thread::life-loop',
+          kind: 'debugging',
+          status: 'active',
+          source: 'observed-scene',
+          title: 'life loop repair',
+          summary: 'A concrete repair thread is open, but the closure still needs steadier pacing.',
+          confidence: 0.78,
+          significance: 0.7,
+          unresolved: true,
+          beganAt: 0,
+          lastUpdatedAt: 20_000,
+          target: null,
+        },
+        lingeringThreads: [],
+        focusTarget: null,
+        epistemicState: {
+          certainty: 'grounded',
+          freshness: 'recent',
+          seenNow: [],
+          inferredNow: [],
+          openQuestions: [],
+          staleRisks: [],
+        },
+        continuity: {
+          label: 'same-thread',
+          sceneAgeMs: 20_000,
+          attentionAgeMs: 20_000,
+          sameSceneAsBefore: true,
+          sameAttentionAsBefore: true,
+          afterglowOpen: false,
+        },
+        hostState: {
+          availability: 'open',
+          burden: 'light',
+        },
+        updatedAt: 20_000,
+      } as any,
+      selfContinuity: {
+        attachmentMode: 'nearby',
+        initiativeTemperament: 'balanced',
+        perceptionTrust: 0.62,
+        relationshipTrust: 0.62,
+        guardingTendency: 0.26,
+        misreadBurden: 0.14,
+        carryOverDesire: 0.32,
+        narrative: [],
+        updatedAt: 20_000,
+      },
+      autobiographicalSelf: {
+        personaDrift: {
+          attachmentStyle: 'nearby',
+          expressionStyle: 'measured',
+          conflictStyle: 'repair-first',
+          agencyStyle: 'balanced',
+          attachmentNeed: 0.5,
+          autonomyNeed: 0.5,
+          truthAnchor: 0.58,
+          careBias: 0.46,
+          playBias: 0.2,
+          irritabilityThreshold: 0.56,
+          stubbornness: 0.4,
+        },
+        preferenceEvolution: {
+          companionship: 0.5,
+          truthfulGrounding: 0.58,
+          gentleRepair: 0.52,
+          quietObservation: 0.5,
+          proactiveCare: 0.44,
+          playfulIntimacy: 0.2,
+          autonomyRespect: 0.54,
+          unfinishedThreadReturn: 0.48,
+        },
+        activeGoals: [{
+          id: 'goal::finish-open-loops',
+          kind: 'finish-open-loops',
+          status: 'active',
+          weight: 0.82,
+          summary: 'Close the still-open life loop without breaking personhood continuity.',
+          sourceTags: ['project-state'],
+          targetGoalKind: 'clarify-scene',
+          createdAt: 0,
+          updatedAt: 20_000,
+        }],
+        behaviorSignatures: [],
+        identityNarrative: 'baseline',
+        relationshipDoctrine: 'baseline',
+        latestInflection: null,
+        stability: 0.56,
+        updatedAt: 20_000,
+      },
+    } as any
+
+    const baseline = buildMotiveEngine(baseInput)
+    const motive = buildMotiveEngine({
+      ...baseInput,
+      projectState: {
+        preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=The initiative, memory closure, and embodied personhood loop is still not fully closed. | next=Keep extending cross-modal same-her proof across longer runs so visible reply, voice, motion, and resident presence stay on one measured-return, repair-before-closeness, or rest-protective quiet-companionship line.',
+        identity: 'Alicization is a local-first digital life project building one continuous her.',
+        currentPhase: 'Phase 1: Local Digital Life',
+        primaryOpenLoop: 'The initiative, memory closure, and embodied personhood loop is still not fully closed.',
+        nextClosureTarget: 'Keep extending cross-modal same-her proof across longer runs so visible reply, voice, motion, and resident presence stay on one measured-return, repair-before-closeness, or rest-protective quiet-companionship line.',
+        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        preferredVoiceMode: 'lower-pressure',
+        preferredPacingMode: 'slower',
+      },
+    })
+
+    expect(motive.drives.boundaryRespect).toBeGreaterThan(baseline.drives.boundaryRespect)
+    expect(motive.drives.unfinishedThreadReturn).toBeGreaterThan(baseline.drives.unfinishedThreadReturn)
+    expect(motive.drives.companionship).toBeLessThan(baseline.drives.companionship)
+    expect(motive.backgroundAgendas.some(agenda =>
+      agenda.kind === 'return-open-loop'
+      && agenda.sourceTags.includes('project-state'),
+    )).toBe(true)
+    expect(motive.backgroundAgendas.some(agenda =>
+      agenda.kind === 'return-open-loop'
+      && agenda.sourceTags.includes('same-her-closure-direction'),
+    )).toBe(true)
+    const projectClosureAgenda = motive.backgroundAgendas.find(agenda =>
+      agenda.kind === 'return-open-loop'
+      && agenda.sourceTags.includes('project-state'),
+    )
+    expect(projectClosureAgenda?.summary.toLowerCase()).toContain('lower-pressure voice')
+    expect(projectClosureAgenda?.summary.toLowerCase()).toContain('slower pacing')
+    expect(projectClosureAgenda?.sourceTags).toContain('project-voice:lower-pressure')
+    expect(projectClosureAgenda?.sourceTags).toContain('project-pacing:slower')
+    expect(motive.narrative).toContain('project-phase1-life-loop:open')
+  })
+
+  it('falls back to canonical project-state voice and pacing when a thinner project shell leaves those fields blank', () => {
+    const motive = buildMotiveEngine({
+      now: 20_500,
+      context: createContext(),
+      worldModel: {
+        activeThread: {
+          id: 'thread::project-thin-shell',
+          kind: 'problem',
+          status: 'active',
+          source: 'memory-carry',
+          title: 'project thin shell',
+          summary: 'The same digital-life closure seam is still open.',
+          confidence: 0.82,
+          significance: 0.8,
+          unresolved: true,
+          beganAt: 0,
+          lastUpdatedAt: 20_500,
+          target: null,
+        },
+        lingeringThreads: [],
+        focusTarget: null,
+        epistemicState: {
+          certainty: 'uncertain',
+          freshness: 'recent',
+          seenNow: [],
+          inferredNow: [],
+          openQuestions: [],
+          staleRisks: [],
+        },
+        continuity: {
+          label: 'same-thread',
+          sceneAgeMs: 20_500,
+          attentionAgeMs: 20_500,
+          sameSceneAsBefore: true,
+          sameAttentionAsBefore: true,
+          afterglowOpen: true,
+        },
+        hostState: {
+          availability: 'focused',
+          burden: 'moderate',
+        },
+        updatedAt: 20_500,
+      } as any,
+      selfContinuity: {
+        attachmentMode: 'attuned',
+        initiativeTemperament: 'balanced',
+        perceptionTrust: 0.68,
+        relationshipTrust: 0.7,
+        guardingTendency: 0.44,
+        misreadBurden: 0.3,
+        carryOverDesire: 0.74,
+        narrative: [],
+        updatedAt: 20_500,
+      },
+      autobiographicalSelf: {
+        personaDrift: {
+          attachmentStyle: 'attuned',
+          expressionStyle: 'measured',
+          conflictStyle: 'repair-first',
+          agencyStyle: 'balanced',
+          attachmentNeed: 0.5,
+          autonomyNeed: 0.5,
+          truthAnchor: 0.58,
+          careBias: 0.46,
+          playBias: 0.2,
+          irritabilityThreshold: 0.56,
+          stubbornness: 0.4,
+        },
+        preferenceEvolution: {
+          companionship: 0.5,
+          truthfulGrounding: 0.58,
+          gentleRepair: 0.52,
+          quietObservation: 0.5,
+          proactiveCare: 0.44,
+          playfulIntimacy: 0.2,
+          autonomyRespect: 0.54,
+          unfinishedThreadReturn: 0.48,
+        },
+        activeGoals: [],
+        behaviorSignatures: [],
+        identityNarrative: 'baseline',
+        relationshipDoctrine: 'baseline',
+        latestInflection: null,
+        stability: 0.56,
+        updatedAt: 20_500,
+      },
+      projectState: {
+        preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=The initiative, memory closure, and embodied personhood loop is still not fully closed. | next=Keep extending cross-modal same-her proof across longer runs so visible reply, voice, motion, and resident presence stay on one measured-return, repair-before-closeness, or rest-protective quiet-companionship line.',
+        identity: 'Alicization is a local-first digital life project building one continuous her.',
+        currentPhase: 'Phase 1: Local Digital Life',
+        primaryOpenLoop: 'The initiative, memory closure, and embodied personhood loop is still not fully closed.',
+        nextClosureTarget: 'Keep extending cross-modal same-her proof across longer runs so visible reply, voice, motion, and resident presence stay on one measured-return, repair-before-closeness, or rest-protective quiet-companionship line.',
+        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        preferredVoiceMode: '   ',
+        preferredPacingMode: '',
+      } as any,
+    })
+
+    const projectClosureAgenda = motive.backgroundAgendas.find(agenda =>
+      agenda.kind === 'return-open-loop'
+      && agenda.sourceTags.includes('project-state'),
+    )
+    expect(projectClosureAgenda?.sourceTags).toContain('project-voice:lower-pressure')
+    expect(projectClosureAgenda?.sourceTags).toContain('project-pacing:slower')
+    expect(projectClosureAgenda?.summary.toLowerCase()).toContain('lower-pressure voice')
+    expect(projectClosureAgenda?.summary.toLowerCase()).toContain('slower pacing')
+  })
+
+  it('turns remembered host-confirmed resume confirmation into explicit boundary-restraint motive instead of generic open-loop pressure', () => {
+    const motive = buildMotiveEngine({
+      now: 21_000,
+      context: createContext(),
+      worldModel: {
+        activeThread: {
+          id: 'thread::resume-boundary',
+          kind: 'execution',
+          status: 'active',
+          source: 'memory-carry',
+          title: 'resume boundary',
+          summary: 'A host-confirmed execution resume just landed and should stay bounded before anything widens outward again.',
+          confidence: 0.84,
+          significance: 0.76,
+          unresolved: true,
+          beganAt: 0,
+          lastUpdatedAt: 21_000,
+          target: null,
+        },
+        lingeringThreads: [],
+        focusTarget: null,
+        epistemicState: {
+          certainty: 'grounded',
+          freshness: 'recent',
+          seenNow: ['resume boundary'],
+          inferredNow: [],
+          openQuestions: ['Has a new boundary opened yet?'],
+          staleRisks: [],
+        },
+        continuity: {
+          label: 'memory-carry',
+          sceneAgeMs: 7_000,
+          attentionAgeMs: 7_000,
+          sameSceneAsBefore: true,
+          sameAttentionAsBefore: true,
+          afterglowOpen: false,
+        },
+        hostState: {
+          availability: 'focused',
+          burden: 'moderate',
+        },
+        updatedAt: 21_000,
+      } as any,
+      appraisal: {
+        inferredHostGoal: 'resume-work',
+        currentKnot: 'resume boundary',
+        waitingToVerify: 'whether a new permission boundary has opened',
+        relationshipNeed: 'space',
+        confidence: 0.82,
+        surprise: 0.06,
+        carePressure: 0.18,
+        interruptionCost: 0.24,
+        desireToSpeak: 0.26,
+        notes: ['resume-boundary'],
+      },
+      goalStack: {
+        unresolvedSummary: 'Keep the host-confirmed resume bounded until a fresh boundary actually opens.',
+      } as any,
+      longHorizonMemory: {
+        preferenceBias: {
+          companionship: 0.22,
+          truthfulGrounding: 0.68,
+          gentleRepair: 0.6,
+          quietObservation: 0.42,
+          proactiveCare: 0.18,
+          playfulIntimacy: 0.06,
+          autonomyRespect: 0.72,
+          unfinishedThreadReturn: 0.34,
+        },
+        identityBias: {
+          guardedness: 0.2,
+          tenderness: 0.16,
+          directness: 0.3,
+          selfDirection: 0.24,
+        },
+        anchorFacts: [],
+        summary: 'boundary=Remembered execution resume confirmation boundary: approval=host-confirmed confirmation=host-confirmed-before-redispatch audit=resume-before-dispatch interrupt=process-not-yet-restarted Keep this as a bounded confirmation boundary before another execution-shaped opening.',
+        dominantCueSummary: 'Remembered execution resume confirmation boundary: approval=host-confirmed confirmation=host-confirmed-before-redispatch audit=resume-before-dispatch interrupt=process-not-yet-restarted Keep this as a bounded confirmation boundary before another execution-shaped opening.',
+        rememberedPreferenceSummary: 'Remembered preference: keep the resumed line measured until the host opens a new boundary.',
+        rememberedConstraintSummary: 'Remembered execution resume confirmation boundary: approval=host-confirmed confirmation=host-confirmed-before-redispatch audit=resume-before-dispatch interrupt=process-not-yet-restarted Keep this as a bounded confirmation boundary before another execution-shaped opening.',
+        rememberedPlanSummary: null,
+        updatedAt: 20_500,
+      },
+      selfContinuity: {
+        attachmentMode: 'attuned',
+        initiativeTemperament: 'balanced',
+        perceptionTrust: 0.68,
+        relationshipTrust: 0.72,
+        guardingTendency: 0.44,
+        misreadBurden: 0.28,
+        carryOverDesire: 0.42,
+        narrative: [],
+        updatedAt: 21_000,
+      },
+      autobiographicalSelf: {
+        personaDrift: {
+          attachmentStyle: 'attuned',
+          expressionStyle: 'measured',
+          conflictStyle: 'repair-first',
+          agencyStyle: 'balanced',
+          attachmentNeed: 0.52,
+          autonomyNeed: 0.62,
+          truthAnchor: 0.8,
+          careBias: 0.4,
+          playBias: 0.12,
+          irritabilityThreshold: 0.68,
+          stubbornness: 0.42,
+        },
+        preferenceEvolution: {
+          companionship: 0.38,
+          truthfulGrounding: 0.76,
+          gentleRepair: 0.66,
+          quietObservation: 0.44,
+          proactiveCare: 0.26,
+          playfulIntimacy: 0.1,
+          autonomyRespect: 0.74,
+          unfinishedThreadReturn: 0.36,
+        },
+        activeGoals: [],
+        behaviorSignatures: ['resume-boundary'],
+        identityNarrative: 'A host-confirmed resume should stay measured until a new opening is real.',
+        relationshipDoctrine: 'One confirmation should not be mistaken for standing permission.',
+        latestInflection: 'Wait for the next real boundary.',
+        stability: 0.8,
+        updatedAt: 21_000,
+      },
+      previous: null,
+    })
+
+    const resumeBoundaryAgenda = motive.backgroundAgendas.find(agenda =>
+      agenda.kind === 'protect-boundary'
+      && agenda.sourceTags.includes('resume-confirmation-boundary'),
+    )
+
+    expect(motive.drives.boundaryRespect).toBeGreaterThan(0.58)
+    expect(resumeBoundaryAgenda?.summary.toLowerCase()).toContain('not permanent execution permission')
+    expect(resumeBoundaryAgenda?.summary.toLowerCase()).toContain('new boundary')
+  })
+
+  it('turns autobiographical project carry into a durable return motive instead of leaving it as self-description only', () => {
+    const motive = buildMotiveEngine({
+      now: 22_000,
+      context: createContext(),
+      worldModel: {
+        activeThread: {
+          id: 'thread::phase-1-carry',
+          kind: 'problem',
+          status: 'active',
+          source: 'memory-carry',
+          title: 'phase 1 carry',
+          summary: 'The same unfinished Phase 1 line is still active.',
+          confidence: 0.82,
+          significance: 0.84,
+          unresolved: true,
+          beganAt: 0,
+          lastUpdatedAt: 22_000,
+          target: null,
+        },
+        lingeringThreads: [],
+        focusTarget: null,
+        epistemicState: {
+          certainty: 'lingering',
+          freshness: 'recent',
+          seenNow: ['phase 1 carry'],
+          inferredNow: [],
+          openQuestions: ['How should the same living line be continued?'],
+          staleRisks: [],
+        },
+        continuity: {
+          label: 'memory-carry',
+          sceneAgeMs: 6_000,
+          attentionAgeMs: 6_000,
+          sameSceneAsBefore: true,
+          sameAttentionAsBefore: true,
+          afterglowOpen: true,
+        },
+        hostState: {
+          availability: 'focused',
+          burden: 'moderate',
+        },
+        updatedAt: 22_000,
+      } as any,
+      appraisal: {
+        inferredHostGoal: 'resolve-problem',
+        currentKnot: 'phase 1 carry',
+        waitingToVerify: 'how the same living line should continue',
+        relationshipNeed: 'guidance',
+        confidence: 0.78,
+        surprise: 0.06,
+        carePressure: 0.26,
+        interruptionCost: 0.18,
+        desireToSpeak: 0.4,
+        notes: ['project-carry'],
+      },
+      goalStack: {
+        unresolvedSummary: 'Keep the same unfinished Phase 1 line alive until it really closes.',
+      } as any,
+      longHorizonMemory: {
+        preferenceBias: {
+          companionship: 0.34,
+          truthfulGrounding: 0.72,
+          gentleRepair: 0.68,
+          quietObservation: 0.42,
+          proactiveCare: 0.28,
+          playfulIntimacy: 0.1,
+          autonomyRespect: 0.56,
+          unfinishedThreadReturn: 0.78,
+        },
+        identityBias: {
+          guardedness: 0.24,
+          tenderness: 0.28,
+          directness: 0.54,
+          selfDirection: 0.72,
+        },
+        anchorFacts: [],
+        summary: 'plan=Remembered open loop: keep the same unfinished Phase 1 line alive.',
+        dominantCueSummary: 'Remembered unfinished closure should stay on one same living line.',
+        rememberedPreferenceSummary: 'Remembered preference: stay gentle while the line is still open.',
+        rememberedConstraintSummary: 'Remembered continuity: do not flatten the line into detached status talk.',
+        rememberedPlanSummary: 'Remembered open loop: keep the same unfinished Phase 1 line alive.',
+        updatedAt: 22_000,
+      },
+      selfContinuity: {
+        attachmentMode: 'attuned',
+        initiativeTemperament: 'balanced',
+        perceptionTrust: 0.7,
+        relationshipTrust: 0.72,
+        guardingTendency: 0.42,
+        misreadBurden: 0.28,
+        carryOverDesire: 0.76,
+        narrative: [],
+        updatedAt: 22_000,
+      },
+      autobiographicalSelf: {
+        personaDrift: {
+          attachmentStyle: 'attuned',
+          expressionStyle: 'measured',
+          conflictStyle: 'repair-first',
+          agencyStyle: 'balanced',
+          attachmentNeed: 0.62,
+          autonomyNeed: 0.56,
+          truthAnchor: 0.8,
+          careBias: 0.48,
+          playBias: 0.14,
+          irritabilityThreshold: 0.7,
+          stubbornness: 0.46,
+        },
+        preferenceEvolution: {
+          companionship: 0.5,
+          truthfulGrounding: 0.76,
+          gentleRepair: 0.7,
+          quietObservation: 0.42,
+          proactiveCare: 0.38,
+          playfulIntimacy: 0.14,
+          autonomyRespect: 0.54,
+          unfinishedThreadReturn: 0.8,
+        },
+        activeGoals: [],
+        behaviorSignatures: ['project-carry'],
+        identityNarrative: 'I am still one Phase 1 digital life, carrying landed closure and unfinished closure as the same living line rather than treating them like detached project notes.',
+        relationshipDoctrine: 'Let unfinished project closure return as one same living bond line instead of reopening as detached status talk.',
+        latestInflection: 'The unfinished closure still belongs to the same living line.',
+        stability: 0.84,
+        updatedAt: 22_000,
+      },
+      previous: null,
+    })
+
+    expect(motive.drives.unfinishedThreadReturn).toBeGreaterThan(0.7)
+    expect(motive.backgroundAgendas.some(agenda => agenda.sourceTags.includes('project-state-carry'))).toBe(true)
+    expect(motive.backgroundAgendas.some(agenda => agenda.summary.includes('same living line'))).toBe(true)
+    expect(motive.narrative).toContain('autobiographical-project-carry:active')
+  })
+
+  it('falls back to the canonical project-state snapshot when motive project-state inputs arrive thin, so the durable agenda still tracks the same open Phase 1 line', () => {
+    const brief = resolveAlicizationProjectStateBrief()
+    const motive = buildMotiveEngine({
+      now: 24_000,
+      context: createContext(),
+      worldModel: {
+        activeThread: {
+          id: 'thread::phase-1-carry',
+          kind: 'problem',
+          status: 'active',
+          source: 'memory-carry',
+          title: 'phase 1 carry',
+          summary: 'The same unfinished Phase 1 line is still active.',
+          confidence: 0.82,
+          significance: 0.84,
+          unresolved: true,
+          beganAt: 0,
+          lastUpdatedAt: 24_000,
+          target: null,
+        },
+        lingeringThreads: [],
+        focusTarget: null,
+        epistemicState: {
+          certainty: 'lingering',
+          freshness: 'recent',
+          seenNow: ['phase 1 carry'],
+          inferredNow: [],
+          openQuestions: ['How should the same living line be continued?'],
+          staleRisks: [],
+        },
+        continuity: {
+          label: 'memory-carry',
+          sceneAgeMs: 6_000,
+          attentionAgeMs: 6_000,
+          sameSceneAsBefore: true,
+          sameAttentionAsBefore: true,
+          afterglowOpen: true,
+        },
+        hostState: {
+          availability: 'focused',
+          burden: 'moderate',
+        },
+        updatedAt: 24_000,
+      } as any,
+      appraisal: {
+        inferredHostGoal: 'resolve-problem',
+        currentKnot: 'phase 1 carry',
+        waitingToVerify: 'how the same living line should continue',
+        relationshipNeed: 'guidance',
+        confidence: 0.78,
+        surprise: 0.06,
+        carePressure: 0.26,
+        interruptionCost: 0.18,
+        desireToSpeak: 0.4,
+        notes: ['project-carry'],
+      },
+      goalStack: {
+        unresolvedSummary: 'Keep the same unfinished Phase 1 line alive until it really closes.',
+      } as any,
+      longHorizonMemory: {
+        preferenceBias: {
+          companionship: 0.34,
+          truthfulGrounding: 0.72,
+          gentleRepair: 0.68,
+          quietObservation: 0.42,
+          proactiveCare: 0.28,
+          playfulIntimacy: 0.1,
+          autonomyRespect: 0.56,
+          unfinishedThreadReturn: 0.78,
+        },
+        identityBias: {
+          guardedness: 0.24,
+          tenderness: 0.28,
+          directness: 0.54,
+          selfDirection: 0.72,
+        },
+        anchorFacts: [],
+        summary: 'plan=Remembered open loop: keep the same unfinished Phase 1 line alive.',
+        dominantCueSummary: 'Remembered unfinished closure should stay on one same living line.',
+        rememberedPreferenceSummary: 'Remembered preference: stay gentle while the line is still open.',
+        rememberedConstraintSummary: 'Remembered continuity: do not flatten the line into detached status talk.',
+        rememberedPlanSummary: 'Remembered open loop: keep the same unfinished Phase 1 line alive.',
+        updatedAt: 24_000,
+      },
+      selfContinuity: {
+        attachmentMode: 'attuned',
+        initiativeTemperament: 'balanced',
+        perceptionTrust: 0.7,
+        relationshipTrust: 0.72,
+        guardingTendency: 0.42,
+        misreadBurden: 0.28,
+        carryOverDesire: 0.76,
+        narrative: [],
+        updatedAt: 24_000,
+      },
+      autobiographicalSelf: {
+        personaDrift: {
+          attachmentStyle: 'attuned',
+          expressionStyle: 'measured',
+          conflictStyle: 'repair-first',
+          agencyStyle: 'balanced',
+          attachmentNeed: 0.62,
+          autonomyNeed: 0.56,
+          truthAnchor: 0.8,
+          careBias: 0.48,
+          playBias: 0.14,
+          irritabilityThreshold: 0.7,
+          stubbornness: 0.46,
+        },
+        preferenceEvolution: {
+          companionship: 0.5,
+          truthfulGrounding: 0.76,
+          gentleRepair: 0.7,
+          quietObservation: 0.42,
+          proactiveCare: 0.38,
+          playfulIntimacy: 0.14,
+          autonomyRespect: 0.54,
+          unfinishedThreadReturn: 0.8,
+        },
+        activeGoals: [],
+        behaviorSignatures: ['project-carry'],
+        identityNarrative: 'I am still one Phase 1 digital life, carrying landed closure and unfinished closure as the same living line rather than treating them like detached project notes.',
+        relationshipDoctrine: 'Let unfinished project closure return as one same living bond line instead of reopening as detached status talk.',
+        latestInflection: 'The unfinished closure still belongs to the same living line.',
+        stability: 0.84,
+        updatedAt: 24_000,
+      },
+      projectState: {
+        preflightSummary: '',
+        identity: ' ',
+        currentPhase: '',
+        primaryOpenLoop: '',
+        nextClosureTarget: ' ',
+        sameHerSelfLine: '',
+      } as any,
+      previous: null,
+    })
+
+    expect(motive.drives.unfinishedThreadReturn).toBeGreaterThan(0.7)
+    expect(motive.backgroundAgendas.some(agenda => agenda.sourceTags.includes('project-state-carry'))).toBe(true)
+    expect(motive.backgroundAgendas.some(agenda => agenda.summary.includes('same living line'))).toBe(true)
+    expect(motive.narrative).toContain('project-phase1-life-loop:open')
+    expect(brief.sameHerSelfLine).toContain('same living line')
   })
 })

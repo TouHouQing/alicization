@@ -15,8 +15,21 @@ import type { AlicizationProactiveLayeredContext } from './proactive-layered-con
 
 import { buildHostRhythmModel } from './host-rhythm-model'
 import { deriveAlicizationPersonaAuthorityInfluence } from './personality-continuity-state'
+import { resolveAlicizationProjectStateSnapshot } from './project-state-brief'
 
 export const alicizationHabitPolicyMarker = '[ALICIZATION_HABIT_POLICY]'
+
+type AlicizationHabitPolicyProjectStateInput = {
+  preflightSummary?: string | null
+  identity?: string | null
+  currentPhase?: string | null
+  latestLandedProgress?: string | null
+  primaryOpenLoop?: string | null
+  nextClosureTarget?: string | null
+  sameHerSelfLine?: string | null
+  sameHerDriftRisk?: string | null
+  preDialogueAwarenessLine?: string | null
+} | null
 
 function sanitizeText(raw: unknown, maxChars = 80) {
   if (typeof raw !== 'string')
@@ -36,6 +49,8 @@ function deriveSelfEvolutionManifestationBias(selfEvolution?: AlicizationSelfEvo
   const burdenLine = sanitizeText(selfEvolution.burdenLine, 160).toLowerCase()
   const trustMeaning = sanitizeText(selfEvolution.trustMeaning, 160).toLowerCase()
   const latestInflection = sanitizeText(selfEvolution.latestInflection, 160).toLowerCase()
+  const dominantTrajectory = sanitizeText(selfEvolution.dominantTrajectory, 160).toLowerCase()
+  const combined = `${relationshipDoctrine} ${burdenLine} ${trustMeaning} ${latestInflection} ${dominantTrajectory}`
 
   const lowerPressureTiming = includesAny(relationshipDoctrine, [
     'leave more room',
@@ -63,14 +78,39 @@ function deriveSelfEvolutionManifestationBias(selfEvolution?: AlicizationSelfEvo
     'crowd',
     'eager',
   ])
+  const correctedSamePersonSettling = includesAny(combined, [
+    'corrected same-person continuity',
+    'corrected same person continuity',
+    'corrected same-person line',
+    'keep the corrected same-person continuity authoritative',
+    'before any status recap',
+    '同一个人连续性',
+    '纠正后的同一人格连续性',
+  ])
+  const quieterEmbodimentSettling = includesAny(combined, [
+    'keep embodiment quieter',
+    'embodiment quieter',
+    'body quieter',
+    'quieter embodiment',
+    'before making the return feel fully settled',
+    'before the return feel fully settled',
+    'quieter settling beat',
+    '先把身体收稳',
+    '身体更安静',
+  ])
 
-  if (!lowerPressureTiming)
+  if (!lowerPressureTiming && !correctedSamePersonSettling && !quieterEmbodimentSettling)
     return null
 
   return {
     prefersQuietCompanionship: true,
-    softenManifestationCaps: true,
-    reasonTag: 'self-evolution:lower-pressure-manifestation',
+    softenManifestationCaps: lowerPressureTiming || quieterEmbodimentSettling,
+    preferReturnWithProof: correctedSamePersonSettling || quieterEmbodimentSettling,
+    reasonTags: [
+      lowerPressureTiming ? 'self-evolution:lower-pressure-manifestation' : '',
+      correctedSamePersonSettling ? 'self-evolution:corrected-same-person-manifestation' : '',
+      quieterEmbodimentSettling ? 'self-evolution:quieter-embodiment-settling' : '',
+    ].filter(Boolean),
   }
 }
 
@@ -82,6 +122,68 @@ function latestAutobiographicalEra(
     .filter(record => record.kind === 'autobiographical' && record.facet === facet)
     .slice()
     .sort((left, right) => right.periodEndedAt - left.periodEndedAt || right.updatedAt - left.updatedAt)[0] ?? null
+}
+
+function deriveProjectStateHabitBias(projectState?: AlicizationHabitPolicyProjectStateInput) {
+  const normalizedProjectState = projectState
+    ? resolveAlicizationProjectStateSnapshot({
+        runtimeProjectState: {
+          preflightSummary: projectState.preflightSummary,
+          identity: projectState.identity,
+          currentPhase: projectState.currentPhase,
+          latestLandedProgress: projectState.latestLandedProgress,
+          primaryOpenLoop: projectState.primaryOpenLoop,
+          nextClosureTarget: projectState.nextClosureTarget,
+          sameHerSelfLine: projectState.sameHerSelfLine,
+          sameHerDriftRisk: projectState.sameHerDriftRisk,
+          preDialogueAwarenessLine: projectState.preDialogueAwarenessLine,
+        },
+      })
+    : {
+        identity: '',
+        currentPhase: '',
+        preflightSummary: null,
+        latestLandedProgress: null,
+        primaryOpenLoop: null,
+        nextClosureTarget: '',
+        sameHerSelfLine: '',
+      }
+  const preflightSummary = sanitizeText(normalizedProjectState.preflightSummary, 320).toLowerCase()
+  const identity = sanitizeText(normalizedProjectState.identity, 200).toLowerCase()
+  const currentPhase = sanitizeText(normalizedProjectState.currentPhase, 160).toLowerCase()
+  const latestLandedProgress = sanitizeText(normalizedProjectState.latestLandedProgress, 220).toLowerCase()
+  const primaryOpenLoop = sanitizeText(normalizedProjectState.primaryOpenLoop, 200).toLowerCase()
+  const combinedProjectState = `${preflightSummary} ${identity} ${currentPhase} ${latestLandedProgress} ${primaryOpenLoop}`.trim()
+
+  const isDigitalLifeIdentity = includesAny(combinedProjectState, [
+    'digital life',
+    'lifeform',
+    'companion',
+    'continuous personhood',
+  ])
+  const isPhaseOne = combinedProjectState.includes('phase 1')
+  const hasOpenLifeLoop = combinedProjectState.length > 0
+    && includesAny(combinedProjectState, [
+      'continuity',
+      'memory',
+      'initiative',
+      'embodiment',
+      'dialogue',
+      'personhood',
+      'life loop',
+      'closed',
+      'closure',
+    ])
+
+  if (!isDigitalLifeIdentity || !isPhaseOne || !hasOpenLifeLoop)
+    return null
+
+  return {
+    strengthenQuietCompanionship: true,
+    strengthenReturnViaRecheck: true,
+    preferReturnWithProof: true,
+    reasonTag: 'project-phase1-life-loop:habit',
+  }
 }
 
 export function buildHabitPolicy(input: {
@@ -96,8 +198,8 @@ export function buildHabitPolicy(input: {
   recentMemoryConsolidations?: AlicizationMemoryConsolidationRecord[] | null
   reflectionLedger?: AlicizationReflectionLedgerSnapshot | null
   motiveEngine?: AlicizationMotiveEngineSnapshot | null
-  projectState?: unknown
   previous?: AlicizationHabitPolicySnapshot | null
+  projectState?: AlicizationHabitPolicyProjectStateInput
 }): AlicizationHabitPolicySnapshot {
   const relationshipEra = latestAutobiographicalEra(input.recentMemoryConsolidations ?? null, 'relationship-era')
   const taskEra = latestAutobiographicalEra(input.recentMemoryConsolidations ?? null, 'task-era')
@@ -120,6 +222,7 @@ export function buildHabitPolicy(input: {
   const revisionPressure = input.reflectionLedger?.revisionPressure ?? 0
   const personalityAuthority = deriveAlicizationPersonaAuthorityInfluence(input.personalityAuthority ?? null)
   const selfEvolutionManifestationBias = deriveSelfEvolutionManifestationBias(input.selfEvolution ?? null)
+  const projectStateHabitBias = deriveProjectStateHabitBias(input.projectState ?? null)
 
   const requiresGroundingBeforeSurface
     = truthDrive >= 0.58
@@ -141,6 +244,7 @@ export function buildHabitPolicy(input: {
         || input.autobiographicalSelf?.personaDrift.attachmentStyle !== 'attuned'
         || Boolean(relationshipEra?.lesson)
         || selfEvolutionManifestationBias?.prefersQuietCompanionship === true
+        || projectStateHabitBias?.strengthenQuietCompanionship === true
       )
   const blocksDirectSpeakWhenBusy
     = busyHost
@@ -164,13 +268,21 @@ export function buildHabitPolicy(input: {
       && input.worldModel.activeThread?.unresolved === true
       && input.worldModel.epistemicState.certainty !== 'grounded'
       || Boolean(taskEra && input.worldModel.activeThread?.unresolved === true)
+      || (
+        projectStateHabitBias?.strengthenReturnViaRecheck === true
+        && input.worldModel.activeThread?.unresolved === true
+      )
+      || (
+        selfEvolutionManifestationBias?.preferReturnWithProof === true
+        && input.worldModel.activeThread?.unresolved === true
+      )
 
   let dominantMode: AlicizationHabitPolicySnapshot['dominantMode'] = 'watchful-boundary'
   if (protectsRestWindow)
     dominantMode = 'protect-rest-window'
   else if (requiresGroundingBeforeSurface)
     dominantMode = 'repair-before-fluency'
-  else if (returnViaRecheck)
+  else if (returnViaRecheck || projectStateHabitBias?.preferReturnWithProof === true)
     dominantMode = 'return-with-proof'
   else if (prefersQuietCompanionship)
     dominantMode = 'light-touch-companionship'
@@ -209,7 +321,8 @@ export function buildHabitPolicy(input: {
       ...hostRhythm.narrative,
       protectsRestWindow ? 'protect-rest-window' : '',
       returnViaRecheck ? 'return-open-loop-via-recheck' : '',
-      selfEvolutionManifestationBias?.reasonTag ?? '',
+      ...(selfEvolutionManifestationBias?.reasonTags ?? []),
+      projectStateHabitBias?.reasonTag ?? '',
       sanitizeText(input.motiveEngine?.backgroundAgendas[0]?.summary ?? '', 80),
     ].filter(Boolean),
     updatedAt: input.now,
@@ -217,7 +330,7 @@ export function buildHabitPolicy(input: {
 }
 
 export function buildHabitPolicySystemBlock(surface: AlicizationDigitalLifeRuntimeSurface | null | undefined) {
-  const snapshot = surface?.agency.habitPolicy ?? null
+  const snapshot = surface?.agency?.habitPolicy ?? null
   if (!snapshot)
     return ''
 

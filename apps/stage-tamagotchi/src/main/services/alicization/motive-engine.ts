@@ -20,6 +20,7 @@ import type { AlicizationMemoryConsolidationRecord } from './memory-consolidatio
 import type { AlicizationProactiveLayeredContext } from './proactive-layered-context'
 
 import { deriveAlicizationPersonaAuthorityInfluence } from './personality-continuity-state'
+import { resolveAlicizationProjectStateBrief, resolveAlicizationProjectStateSnapshot } from './project-state-brief'
 
 export const alicizationMotiveEngineMarker = '[ALICIZATION_MOTIVE_ENGINE]'
 
@@ -92,6 +93,146 @@ function blendWeight(previous: AlicizationMotiveAgendaSnapshot | null | undefine
   if (!previous)
     return clamp01(nextWeight)
   return clamp01(previous.weight * 0.72 + nextWeight * 0.28)
+}
+
+function deriveProjectStateMotiveBias(input?: {
+  preflightSummary?: string | null
+  identity?: string | null
+  currentPhase?: string | null
+  primaryOpenLoop?: string | null
+  nextClosureTarget?: string | null
+  sameHerSelfLine?: string | null
+  preferredVoiceMode?: string | null
+  preferredPacingMode?: string | null
+} | null) {
+  const canonicalProjectState = resolveAlicizationProjectStateBrief()
+  const projectState = input
+    ? resolveAlicizationProjectStateSnapshot({
+        runtimeProjectState: {
+          preflightSummary: input.preflightSummary,
+          identity: input.identity,
+          currentPhase: input.currentPhase,
+          primaryOpenLoop: input.primaryOpenLoop,
+          nextClosureTarget: input.nextClosureTarget,
+          sameHerSelfLine: input.sameHerSelfLine,
+          preferredVoiceMode: input.preferredVoiceMode,
+          preferredPacingMode: input.preferredPacingMode,
+        },
+        fallbackProjectState: {
+          preferredVoiceMode: canonicalProjectState.preferredVoiceMode,
+          preferredPacingMode: canonicalProjectState.preferredPacingMode,
+        },
+      })
+    : {
+        preflightSummary: null,
+        identity: '',
+        currentPhase: '',
+        latestLandedProgress: null,
+        primaryOpenLoop: null,
+        nextClosureTarget: '',
+        sameHerSelfLine: '',
+        preferredVoiceMode: canonicalProjectState.preferredVoiceMode ?? null,
+        preferredPacingMode: canonicalProjectState.preferredPacingMode ?? null,
+      }
+  const preflightSummary = sanitizeText(projectState.preflightSummary, 320).toLowerCase()
+  const identity = sanitizeText(projectState.identity, 160).toLowerCase()
+  const currentPhase = sanitizeText(projectState.currentPhase, 120).toLowerCase()
+  const primaryOpenLoop = sanitizeText(projectState.primaryOpenLoop, 200).toLowerCase()
+  const nextClosureTarget = sanitizeText(projectState.nextClosureTarget, 220).toLowerCase()
+  const sameHerSelfLine = sanitizeText(projectState.sameHerSelfLine, 220).toLowerCase()
+  const preferredVoiceMode = sanitizeText(projectState.preferredVoiceMode, 32).toLowerCase()
+  const preferredPacingMode = sanitizeText(projectState.preferredPacingMode, 32).toLowerCase()
+  const combinedProjectState = `${preflightSummary} ${identity} ${currentPhase} ${primaryOpenLoop} ${nextClosureTarget} ${sameHerSelfLine}`.trim()
+  const canonicalSameHerBaseline = sanitizeText(canonicalProjectState.sameHerSelfLine, 220).toLowerCase()
+  const canonicalNextClosureTarget = sanitizeText(canonicalProjectState.nextClosureTarget, 220).toLowerCase()
+  const explicitContinuitySignals = [
+    preflightSummary,
+    primaryOpenLoop,
+    nextClosureTarget === canonicalNextClosureTarget ? '' : nextClosureTarget,
+    sameHerSelfLine === canonicalSameHerBaseline ? '' : sameHerSelfLine,
+  ].filter(Boolean).join(' ')
+
+  const phaseOneDigitalLife = combinedProjectState.includes('phase 1')
+    || combinedProjectState.includes('local digital life')
+  const digitalLifeIdentity = [
+    'digital life',
+    'lifeform',
+    'digital companion',
+    '数字生命',
+    '陪伴',
+    '生命体',
+  ].some(needle => combinedProjectState.includes(needle))
+  const openLifeLoop = [
+    'memory closure',
+    'personhood continuity',
+    'initiative',
+    'embodiment',
+    'execution',
+    'relationship continuity',
+    '主动性',
+    '记忆',
+    '人格连续',
+    '闭环',
+    '拟人',
+    '生命',
+  ].some(needle => combinedProjectState.includes(needle))
+  const sameHerClosureDirection = [
+    'same-her',
+    'same her',
+    'one continuous her',
+    'measured-return',
+    'repair-before-closeness',
+    'cross-modal',
+    'visible reply',
+    'resident presence',
+    'facial state',
+    'motion',
+    '同一个 her',
+    '同一个她',
+    '拟人',
+    '具身',
+    '跨模态',
+    '修复优先',
+  ].some(needle => explicitContinuitySignals.includes(needle))
+
+  return {
+    requiresLifeLoopClosure: phaseOneDigitalLife && digitalLifeIdentity && openLifeLoop,
+    sameHerClosureDirection,
+    prefersLowerPressureVoice: preferredVoiceMode === 'lower-pressure',
+    prefersEvenVoice: preferredVoiceMode === 'even',
+    prefersSlowerPacing: preferredPacingMode === 'slower',
+    prefersNaturalPacing: preferredPacingMode === 'natural',
+  }
+}
+
+function deriveAutobiographicalProjectCarryBias(autobiographicalSelf?: AlicizationAutobiographicalSelfSnapshot | null) {
+  const identityNarrative = sanitizeText(autobiographicalSelf?.identityNarrative, 320).toLowerCase()
+  const relationshipDoctrine = sanitizeText(autobiographicalSelf?.relationshipDoctrine, 320).toLowerCase()
+  const latestInflection = sanitizeText(autobiographicalSelf?.latestInflection, 220).toLowerCase()
+  const combined = `${identityNarrative} ${relationshipDoctrine} ${latestInflection}`.trim()
+
+  const carriesPhaseOneProjectLine = [
+    'phase 1 digital life',
+    'unfinished closure',
+    'same living line',
+    'same living bond line',
+    'detached status talk',
+  ].some(needle => combined.includes(needle))
+
+  return {
+    carriesPhaseOneProjectLine,
+  }
+}
+
+function hasExecutionResumeConfirmationBoundary(memory?: AlicizationLongHorizonMemorySnapshot | null) {
+  const combined = sanitizeText([
+    memory?.rememberedConstraintSummary,
+    memory?.rememberedPreferenceSummary,
+    memory?.dominantCueSummary,
+    memory?.summary,
+  ].filter(Boolean).join(' '), 480).toLowerCase()
+
+  return /execution resume confirmation boundary|host-confirmed-before-redispatch|resume-before-dispatch|bounded confirmation boundary|before another execution-shaped opening|not permanent execution permission/u.test(combined)
 }
 
 function buildAgenda(input: {
@@ -191,8 +332,17 @@ export function buildMotiveEngine(input: {
   recentMemoryConsolidations?: AlicizationMemoryConsolidationRecord[] | null
   reflectionLedger?: AlicizationReflectionLedgerSnapshot | null
   habitPolicy?: AlicizationHabitPolicySnapshot | null
-  projectState?: unknown
   previous?: AlicizationMotiveEngineSnapshot | null
+  projectState?: {
+    preflightSummary?: string | null
+    identity?: string | null
+    currentPhase?: string | null
+    primaryOpenLoop?: string | null
+    nextClosureTarget?: string | null
+    sameHerSelfLine?: string | null
+    preferredVoiceMode?: string | null
+    preferredPacingMode?: string | null
+  } | null
 }): AlicizationMotiveEngineSnapshot {
   const relationshipEra = latestAutobiographicalEra(input.recentMemoryConsolidations ?? null, 'relationship-era')
   const taskEra = latestAutobiographicalEra(input.recentMemoryConsolidations ?? null, 'task-era')
@@ -219,6 +369,9 @@ export function buildMotiveEngine(input: {
   const reflectionPressure = input.reflectionLedger?.revisionPressure ?? 0
   const afterglowOpen = input.worldModel.continuity.afterglowOpen || Boolean(input.recentTransition)
   const personalityAuthority = deriveAlicizationPersonaAuthorityInfluence(input.personalityAuthority ?? null)
+  const projectStateBias = deriveProjectStateMotiveBias(input.projectState ?? null)
+  const autobiographicalProjectCarryBias = deriveAutobiographicalProjectCarryBias(input.autobiographicalSelf ?? null)
+  const resumeConfirmationBoundaryCarry = hasExecutionResumeConfirmationBoundary(input.longHorizonMemory ?? null)
 
   const drives = {
     companionship: clamp01(
@@ -230,6 +383,7 @@ export function buildMotiveEngine(input: {
       + (afterglowOpen ? 0.12 : 0)
       + personalityAuthority.warmthBias * 0.14
       + personalityAuthority.directnessBias * 0.08
+      - (projectStateBias.requiresLifeLoopClosure ? 0.08 : 0)
       - (busyHost ? 0.06 : 0),
     ),
     boundaryRespect: clamp01(
@@ -240,6 +394,10 @@ export function buildMotiveEngine(input: {
       + (busyHost ? 0.18 : 0.06)
       + reflectionPressure * 0.12
       + personalityAuthority.roomBias * 0.24
+      + (projectStateBias.requiresLifeLoopClosure ? 0.12 : 0)
+      + (projectStateBias.prefersLowerPressureVoice ? 0.05 : projectStateBias.prefersEvenVoice ? 0.02 : 0)
+      + (projectStateBias.prefersSlowerPacing ? 0.04 : projectStateBias.prefersNaturalPacing ? 0.02 : 0)
+      + (resumeConfirmationBoundaryCarry ? 0.12 : 0)
       + (input.worldModel.hostState.burden === 'heavy' ? 0.12 : 0),
     ),
     truthDiscipline: clamp01(
@@ -268,6 +426,11 @@ export function buildMotiveEngine(input: {
       + (taskEra ? 0.12 : 0)
       + (input.longHorizonMemory?.rememberedPlanSummary ? 0.14 : 0)
       + personalityAuthority.cadenceBias * 0.18
+      + (projectStateBias.requiresLifeLoopClosure ? 0.14 : 0)
+      + (projectStateBias.prefersLowerPressureVoice ? 0.04 : projectStateBias.prefersEvenVoice ? 0.02 : 0)
+      + (projectStateBias.prefersSlowerPacing ? 0.03 : projectStateBias.prefersNaturalPacing ? 0.01 : 0)
+      + (projectStateBias.sameHerClosureDirection ? 0.08 : 0)
+      + (autobiographicalProjectCarryBias.carriesPhaseOneProjectLine ? 0.12 : 0)
       + (unresolvedThread ? 0.22 : 0),
     ),
     selfDirection: clamp01(
@@ -318,8 +481,10 @@ export function buildMotiveEngine(input: {
       kind: 'protect-boundary',
       anchor,
       weight: drives.boundaryRespect,
-      summary: 'Hold the host boundary and keep presence light until the window opens.',
-      sourceTags: ['boundary-respect', 'host-busy'],
+      summary: resumeConfirmationBoundaryCarry
+        ? 'Treat the remembered host-confirmed resume as a bounded confirmation boundary, not permanent execution permission; keep presence light until a new boundary opens.'
+        : 'Hold the host boundary and keep presence light until the window opens.',
+      sourceTags: ['boundary-respect', 'host-busy', ...(resumeConfirmationBoundaryCarry ? ['resume-confirmation-boundary'] : [])],
       worldModel: input.worldModel,
       context: input.context,
       habitPolicy: input.habitPolicy ?? null,
@@ -336,6 +501,65 @@ export function buildMotiveEngine(input: {
       weight: drives.unfinishedThreadReturn,
       summary: 'Do not let the unfinished thread dissolve; return to it deliberately.',
       sourceTags: ['unfinished-thread-return', 'open-loop'],
+      worldModel: input.worldModel,
+      context: input.context,
+      habitPolicy: input.habitPolicy ?? null,
+      previous: previousAgendas.get(agendaId) ?? null,
+      now: input.now,
+    }))
+  }
+
+  if (projectStateBias.requiresLifeLoopClosure) {
+    const agendaId = stableAgendaId('return-open-loop', `${anchor}:phase-1-life-loop`)
+    const projectStateRhythmClause
+      = projectStateBias.prefersLowerPressureVoice && projectStateBias.prefersSlowerPacing
+        ? ' with a lower-pressure voice and slower pacing'
+        : projectStateBias.prefersLowerPressureVoice && projectStateBias.prefersNaturalPacing
+          ? ' with a lower-pressure voice and natural pacing'
+          : projectStateBias.prefersEvenVoice && projectStateBias.prefersSlowerPacing
+            ? ' with an even voice and slower pacing'
+            : projectStateBias.prefersEvenVoice && projectStateBias.prefersNaturalPacing
+              ? ' with an even voice and natural pacing'
+              : projectStateBias.prefersLowerPressureVoice
+                ? ' with a lower-pressure voice'
+                : projectStateBias.prefersEvenVoice
+                  ? ' with an even voice'
+                  : projectStateBias.prefersSlowerPacing
+                    ? ' with slower pacing'
+                    : projectStateBias.prefersNaturalPacing
+                      ? ' with natural pacing'
+                      : ''
+    backgroundAgendas.push(buildAgenda({
+      kind: 'return-open-loop',
+      anchor: `${anchor}:phase-1-life-loop`,
+      weight: clamp01(drives.unfinishedThreadReturn * 0.82 + drives.boundaryRespect * 0.12 + (projectStateBias.sameHerClosureDirection ? 0.08 : 0)),
+      summary: projectStateBias.sameHerClosureDirection
+        ? `Phase 1 digital-life closure is still open, so initiative, memory, and personhood should return on one same-her measured-return line${projectStateRhythmClause}.`
+        : `Phase 1 digital-life closure is still open, so initiative, memory, and personhood should return on one lower-pressure line${projectStateRhythmClause}.`,
+      sourceTags: [
+        'project-state',
+        'phase-1',
+        'open-life-loop',
+        ...(projectStateBias.sameHerClosureDirection ? ['same-her-closure-direction'] : []),
+        ...(projectStateBias.prefersLowerPressureVoice ? ['project-voice:lower-pressure'] : projectStateBias.prefersEvenVoice ? ['project-voice:even'] : []),
+        ...(projectStateBias.prefersSlowerPacing ? ['project-pacing:slower'] : projectStateBias.prefersNaturalPacing ? ['project-pacing:natural'] : []),
+      ],
+      worldModel: input.worldModel,
+      context: input.context,
+      habitPolicy: input.habitPolicy ?? null,
+      previous: previousAgendas.get(agendaId) ?? null,
+      now: input.now,
+    }))
+  }
+
+  if (autobiographicalProjectCarryBias.carriesPhaseOneProjectLine) {
+    const agendaId = stableAgendaId('return-open-loop', `${anchor}:autobiographical-project-carry`)
+    backgroundAgendas.push(buildAgenda({
+      kind: 'return-open-loop',
+      anchor: `${anchor}:autobiographical-project-carry`,
+      weight: clamp01(drives.unfinishedThreadReturn * 0.78 + drives.selfDirection * 0.14),
+      summary: 'Carry the unfinished Phase 1 digital-life closure forward as the same living line, not as detached project bookkeeping.',
+      sourceTags: ['autobiographical-self', 'project-state-carry', 'unfinished-thread-return'],
       worldModel: input.worldModel,
       context: input.context,
       habitPolicy: input.habitPolicy ?? null,
@@ -415,6 +639,10 @@ export function buildMotiveEngine(input: {
       topAgenda ? `agenda:${topAgenda.kind}` : '',
       `drive:${rulingDrive(drives) ?? 'none'}`,
       drives.unfinishedThreadReturn >= 0.56 ? 'return-pressure:high' : '',
+      projectStateBias.requiresLifeLoopClosure ? 'project-phase1-life-loop:open' : '',
+      projectStateBias.prefersLowerPressureVoice ? 'project-voice:lower-pressure' : projectStateBias.prefersEvenVoice ? 'project-voice:even' : '',
+      projectStateBias.prefersSlowerPacing ? 'project-pacing:slower' : projectStateBias.prefersNaturalPacing ? 'project-pacing:natural' : '',
+      autobiographicalProjectCarryBias.carriesPhaseOneProjectLine ? 'autobiographical-project-carry:active' : '',
       drives.boundaryRespect >= 0.58 ? 'boundary-respect:high' : '',
       drives.truthDiscipline >= 0.58 ? 'truth-discipline:high' : '',
       drives.restProtection >= 0.58 ? 'rest-protection:high' : '',
@@ -441,7 +669,7 @@ function readAgendaSummary(agenda: AlicizationMotiveAgendaSnapshot | null | unde
 }
 
 export function buildMotiveEngineSystemBlock(surface: AlicizationDigitalLifeRuntimeSurface | null | undefined) {
-  const snapshot = surface?.memory.motiveEngine ?? null
+  const snapshot = surface?.memory?.motiveEngine ?? null
   if (!snapshot)
     return ''
 

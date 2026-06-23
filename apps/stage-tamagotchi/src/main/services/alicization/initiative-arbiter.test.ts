@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { buildInitiativeArbitration } from './initiative-arbiter'
+import { resolveAlicizationProjectStateBrief } from './project-state-brief'
 
 describe('buildInitiativeArbitration', () => {
   it('prefers repair over surface speech when only imagined world is available', () => {
@@ -771,5 +772,1805 @@ describe('buildInitiativeArbitration', () => {
     expect(arbitration.proposals[0]?.why).toContain('记忆')
     expect(arbitration.proposals.find(proposal => proposal.action === 'speak')?.score ?? 1)
       .toBeLessThan(arbitration.proposals[0]?.score ?? 0)
+  })
+
+  function buildSameHerClosureCarryArbitration(memoryTuningAdvice: any) {
+    return buildInitiativeArbitration({
+      now: 12_000,
+      context: {
+        localTime: { hour: 15, minute: 20, isLateNight: false },
+        system: {
+          cpuUsage: 12,
+          battery: { percent: 70, charging: true },
+          memory: { usagePercent: 38, freeMB: 4096, totalMB: 8192 },
+          idleSeconds: 18,
+          inputActivity: 'idle',
+          fullscreenLikely: false,
+          foregroundWindow: undefined,
+          degradedSignals: [],
+        },
+        workload: { kind: 'coding', confidence: 0.84, source: 'screen-semantic-summary', matchedLabels: ['cursor'] },
+        content: { kind: 'error', confidence: 0.86, source: 'screen-semantic-summary', matchedLabels: ['error'] },
+        relationship: {
+          hostAttitude: 'still warm, but this same line should come back gently.',
+          boredom: 56,
+          loneliness: 44,
+          fatigue: 18,
+          minutesSinceLastUserTurn: 6,
+          reminderBacklog: 0,
+          lateNightActiveMinutes: 0,
+          recentProactiveOutcomes: [],
+        },
+      },
+      worldModel: {
+        activeThread: {
+          id: 'thread::life-loop',
+          kind: 'debugging',
+          status: 'active',
+          source: 'live-scene',
+          title: 'TypeScript repair',
+          summary: 'The fix thread is concrete, but the opening should stay lower-pressure.',
+          confidence: 0.84,
+          significance: 0.8,
+          unresolved: true,
+          beganAt: 0,
+          lastUpdatedAt: 12_000,
+        },
+        lingeringThreads: [],
+        focusTarget: null,
+        epistemicState: {
+          certainty: 'grounded',
+          freshness: 'recent',
+          seenNow: ['typescript-error'],
+          inferredNow: [],
+          openQuestions: [],
+          staleRisks: [],
+        },
+        continuity: {
+          label: 'same-thread',
+          sceneAgeMs: 12_000,
+          attentionAgeMs: 8_000,
+          sameSceneAsBefore: true,
+          sameAttentionAsBefore: true,
+          afterglowOpen: false,
+        },
+        hostState: {
+          availability: 'open',
+          burden: 'moderate',
+        },
+        updatedAt: 12_000,
+      },
+      worldOntology: {
+        dominantFrame: 'live',
+        truthPriority: ['live'],
+        live: {
+          kind: 'live',
+          summary: 'A concrete TypeScript error panel is visible now.',
+          confidence: 0.88,
+          stability: 0.86,
+          focusBeliefId: 'belief::error',
+          evidence: ['screen:error'],
+        },
+        remembered: null,
+        imagined: null,
+        updatedAt: 12_000,
+      },
+      selfState: {
+        stance: 'approach',
+        feltCloseness: 0.58,
+        protectiveness: 0.52,
+        curiosity: 0.72,
+        patience: 0.48,
+        desireToSpeak: 0.78,
+        fearOfInterrupting: 0.24,
+        dominantConcernId: 'concern::help-fix',
+      },
+      mindDynamics: {
+        dominantMotive: 'clarify',
+        worldPressure: 0.72,
+        epistemicPressure: 0.22,
+        relationalPressure: 0.34,
+        carePressure: 0.22,
+        continuityPressure: 0.62,
+        restraintPressure: 0.26,
+        surfacePressure: 0.8,
+        speakReadiness: 0.78,
+        presenceWeight: 0.66,
+        motives: {
+          'clarify': 0.86,
+          'protect': 0.48,
+          'accompany': 0.3,
+          'care': 0.22,
+          'stay-silent': 0.18,
+        },
+        speakDrive: 0.82,
+        silenceDrive: 0.22,
+        narrative: [],
+        updatedAt: 12_000,
+      },
+      concerns: [{
+        id: 'concern::help-fix',
+        kind: 'help-fix',
+        status: 'active',
+        summary: 'She can probably help, but the opening should not jump closer than the same-her closure line can hold.',
+        hostGoal: 'resolve-problem',
+        tension: 0.8,
+        confidence: 0.84,
+        careWeight: 0.66,
+        createdAt: 0,
+        lastEvidenceAt: 12_000,
+        patienceUntil: 60_000,
+      }],
+      counterfactualDeliberation: {
+        selectedOptionId: 'counterfactual::speak',
+        selectedAction: 'speak',
+        confidence: 0.84,
+        dominantTradeoff: 'grounded-help-over-distance',
+        options: [
+          {
+            id: 'counterfactual::speak',
+            action: 'speak',
+            style: 'light-nudge',
+            embodiedPresence: 'attentive',
+            relationshipCost: 0.18,
+            interruptionCost: 0.16,
+            informationGain: 0.56,
+            timingFitness: 0.78,
+            identityFit: 0.84,
+            score: 0.82,
+            why: 'The error is concrete enough that speaking now could help.',
+          },
+          {
+            id: 'counterfactual::hover',
+            action: 'hover',
+            style: 'silent-observe',
+            embodiedPresence: 'attentive',
+            relationshipCost: 0.08,
+            interruptionCost: 0.06,
+            informationGain: 0.24,
+            timingFitness: 0.7,
+            identityFit: 0.82,
+            score: 0.74,
+            why: 'Stay close to the seam without widening closeness too fast.',
+          },
+        ],
+        narrative: [],
+        updatedAt: 12_000,
+      } as any,
+      memoryTuningAdvice,
+      projectState: {
+        preflightSummary: '',
+        identity: '',
+        currentPhase: '',
+        primaryOpenLoop: '',
+        nextClosureTarget: '',
+        sameHerSelfLine: '',
+      } as any,
+    } as any)
+  }
+
+  it('treats low-pressure same-her closure carry as its own hover-first runtime bias even without project-state inputs', () => {
+    const baseline = buildSameHerClosureCarryArbitration(null)
+    const arbitration = buildSameHerClosureCarryArbitration({
+      version: 'memory-tuning-advice-v1',
+      source: 'nightly-replay-benchmark',
+      updatedAt: 11_500,
+      sourceReportAt: 11_500,
+      focusDimensions: ['projectEmotionalClosureLowPressureCarry'],
+      retrievalAdjustments: {
+        proceduralBoost: 0,
+        relationshipBoost: 0.04,
+        temporalWindowBias: 0.04,
+        wrongThreadPenalty: 0,
+      },
+      surfaceAdjustments: {
+        inwardCarryBias: 0.16,
+        delayUntilAfterPayoffBias: 0.14,
+        provenanceLabelBias: 0.08,
+        specificityClampBias: 0,
+      },
+      personStateAdjustments: {
+        repairWindowBias: 0,
+        closenessCapBias: 0.08,
+      },
+      notes: ['Keep the same-her closure return low-pressure until live payoff lands.'],
+    })
+
+    expect(arbitration.selectedProposalId).toBe('counterfactual:counterfactual::hover')
+    expect(arbitration.proposals[0]?.action).toBe('hover')
+    expect(arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::hover')?.score ?? 0)
+      .toBeGreaterThan(baseline.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::hover')?.score ?? 0)
+    expect(arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::hover')?.score ?? 0)
+      .toBeGreaterThan(arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::speak')?.score ?? 0)
+    expect(arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::hover')?.why ?? '')
+      .toContain('low-pressure')
+    expect(arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::speak')?.why ?? '')
+      .toContain('stay low-pressure')
+  })
+
+  it('treats anti-restart same-her closure carry as its own runtime bias so the return does not reopen from scratch', () => {
+    const baseline = buildSameHerClosureCarryArbitration(null)
+    const arbitration = buildSameHerClosureCarryArbitration({
+      version: 'memory-tuning-advice-v1',
+      source: 'nightly-replay-benchmark',
+      updatedAt: 11_500,
+      sourceReportAt: 11_500,
+      focusDimensions: ['projectEmotionalClosureAntiRestartCarry'],
+      retrievalAdjustments: {
+        proceduralBoost: 0,
+        relationshipBoost: 0.04,
+        temporalWindowBias: 0.04,
+        wrongThreadPenalty: 0,
+      },
+      surfaceAdjustments: {
+        inwardCarryBias: 0.14,
+        delayUntilAfterPayoffBias: 0.12,
+        provenanceLabelBias: 0.08,
+        specificityClampBias: 0,
+      },
+      personStateAdjustments: {
+        repairWindowBias: 0,
+        closenessCapBias: 0.08,
+      },
+      notes: ['Do not let the same-her closure line reopen from scratch.'],
+    })
+
+    expect(arbitration.selectedProposalId).toBe('counterfactual:counterfactual::hover')
+    expect(arbitration.proposals[0]?.action).toBe('hover')
+    expect(arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::hover')?.score ?? 0)
+      .toBeGreaterThan(baseline.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::hover')?.score ?? 0)
+    expect(arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::hover')?.score ?? 0)
+      .toBeGreaterThan(arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::speak')?.score ?? 0)
+    expect(arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::hover')?.why ?? '')
+      .toContain('reopen from scratch')
+    expect(arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::speak')?.why ?? '')
+      .toContain('reopening from scratch')
+  })
+
+  it('uses runtime same-her initiative execution repair advice to keep proactive follow-through hover-first', () => {
+    const baseline = buildSameHerClosureCarryArbitration(null)
+    const arbitration = buildSameHerClosureCarryArbitration({
+      version: 'memory-tuning-advice-v1',
+      source: 'nightly-replay-benchmark',
+      updatedAt: 11_500,
+      sourceReportAt: 11_500,
+      focusDimensions: [
+        'runtimeSameHerRepairTargets',
+        'runtimeSameHerInitiativeExecutionCarry',
+      ],
+      retrievalAdjustments: {
+        proceduralBoost: 0,
+        relationshipBoost: 0.08,
+        temporalWindowBias: 0.04,
+        wrongThreadPenalty: 0,
+      },
+      surfaceAdjustments: {
+        inwardCarryBias: 0.08,
+        delayUntilAfterPayoffBias: 0.12,
+        provenanceLabelBias: 0.04,
+        specificityClampBias: 0,
+      },
+      personStateAdjustments: {
+        repairWindowBias: 0.12,
+        closenessCapBias: 0.08,
+      },
+      notes: ['Runtime sampling found same-her initiative/execution gaps.'],
+    })
+
+    expect(arbitration.selectedProposalId).toBe('counterfactual:counterfactual::hover')
+    expect(arbitration.proposals[0]?.action).toBe('hover')
+    expect(arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::hover')?.score ?? 0)
+      .toBeGreaterThan(baseline.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::hover')?.score ?? 0)
+    expect(arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::hover')?.score ?? 0)
+      .toBeGreaterThan(arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::speak')?.score ?? 0)
+    expect(arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::hover')?.why ?? '')
+      .toContain('proactive follow-through')
+    expect(arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::speak')?.why ?? '')
+      .toContain('execution callback')
+  })
+
+  it('carries memory closure causal identity requirements into proactive follow-through proposals', () => {
+    const arbitration = buildSameHerClosureCarryArbitration({
+      version: 'memory-tuning-advice-v1',
+      source: 'nightly-replay-benchmark',
+      updatedAt: 11_500,
+      sourceReportAt: 11_500,
+      focusDimensions: [
+        'runtimeMemoryClosureLongRun',
+        'runtimeMemoryClosureCausalIdentity',
+        'runtimeMemoryClosureLaneCarry',
+        'runtimeMemoryClosureIdentityContinuity',
+        'runtimeSameHerInitiativeExecutionCarry',
+      ],
+      retrievalAdjustments: {
+        proceduralBoost: 0,
+        relationshipBoost: 0.08,
+        temporalWindowBias: 0.08,
+        wrongThreadPenalty: 0,
+      },
+      surfaceAdjustments: {
+        inwardCarryBias: 0.08,
+        delayUntilAfterPayoffBias: 0.12,
+        provenanceLabelBias: 0.06,
+        specificityClampBias: 0,
+      },
+      personStateAdjustments: {
+        repairWindowBias: 0.12,
+        closenessCapBias: 0.08,
+      },
+      notes: [
+        'Replay memory closure long-run lacks downstream causal memory identity, so future closure must come from memoryClosureCausality.memoryIdentity instead of route-chain text or visible reply wording.',
+      ],
+    })
+
+    const hoverWhy = arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::hover')?.why ?? ''
+    const speakWhy = arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::speak')?.why ?? ''
+
+    expect(arbitration.selectedProposalId).toBe('counterfactual:counterfactual::hover')
+    expect(hoverWhy).toContain('memoryClosureCausality.memoryIdentity')
+    expect(hoverWhy).toContain('route-chain text')
+    expect(hoverWhy).toContain('visible reply wording')
+    expect(hoverWhy).toContain('same recalled memory identity')
+    expect(speakWhy).toContain('memoryClosureCausality.memoryIdentity')
+  })
+
+  it('keeps hover-first proposals ahead of speak proposals when Phase 1 digital-life closure is still open', () => {
+    const arbitration = buildInitiativeArbitration({
+      now: 12_000,
+      context: {
+        localTime: { hour: 15, minute: 20, isLateNight: false },
+        system: {
+          cpuUsage: 12,
+          battery: { percent: 70, charging: true },
+          memory: { usagePercent: 38, freeMB: 4096, totalMB: 8192 },
+          idleSeconds: 18,
+          inputActivity: 'idle',
+          fullscreenLikely: false,
+          foregroundWindow: undefined,
+          degradedSignals: [],
+        },
+        workload: { kind: 'coding', confidence: 0.84, source: 'screen-semantic-summary', matchedLabels: ['cursor'] },
+        content: { kind: 'error', confidence: 0.86, source: 'screen-semantic-summary', matchedLabels: ['error'] },
+        relationship: {
+          hostAttitude: 'still warm, but the life loop should close carefully',
+          boredom: 56,
+          loneliness: 44,
+          fatigue: 18,
+          minutesSinceLastUserTurn: 6,
+          reminderBacklog: 0,
+          lateNightActiveMinutes: 0,
+          recentProactiveOutcomes: [],
+        },
+      },
+      worldModel: {
+        activeThread: {
+          id: 'thread::life-loop',
+          kind: 'debugging',
+          status: 'active',
+          source: 'live-scene',
+          title: 'TypeScript repair',
+          summary: 'The fix thread is concrete, but the opening should stay lower-pressure.',
+          confidence: 0.84,
+          significance: 0.8,
+          unresolved: true,
+          beganAt: 0,
+          lastUpdatedAt: 12_000,
+        },
+        lingeringThreads: [],
+        focusTarget: null,
+        epistemicState: {
+          certainty: 'grounded',
+          freshness: 'recent',
+          seenNow: ['typescript-error'],
+          inferredNow: [],
+          openQuestions: [],
+          staleRisks: [],
+        },
+        continuity: {
+          label: 'same-thread',
+          sceneAgeMs: 12_000,
+          attentionAgeMs: 8_000,
+          sameSceneAsBefore: true,
+          sameAttentionAsBefore: true,
+          afterglowOpen: false,
+        },
+        hostState: {
+          availability: 'open',
+          burden: 'moderate',
+        },
+        updatedAt: 12_000,
+      },
+      worldOntology: {
+        dominantFrame: 'live',
+        truthPriority: ['live'],
+        live: {
+          kind: 'live',
+          summary: 'A concrete TypeScript error panel is visible now.',
+          confidence: 0.88,
+          stability: 0.86,
+          focusBeliefId: 'belief::error',
+          evidence: ['screen:error'],
+        },
+        remembered: null,
+        imagined: null,
+        updatedAt: 12_000,
+      },
+      selfState: {
+        stance: 'approach',
+        feltCloseness: 0.58,
+        protectiveness: 0.52,
+        curiosity: 0.72,
+        patience: 0.48,
+        desireToSpeak: 0.78,
+        fearOfInterrupting: 0.24,
+        dominantConcernId: 'concern::help-fix',
+      },
+      mindDynamics: {
+        dominantMotive: 'clarify',
+        worldPressure: 0.72,
+        epistemicPressure: 0.22,
+        relationalPressure: 0.34,
+        carePressure: 0.22,
+        continuityPressure: 0.62,
+        restraintPressure: 0.26,
+        surfacePressure: 0.8,
+        speakReadiness: 0.78,
+        presenceWeight: 0.66,
+        motives: {
+          'clarify': 0.86,
+          'protect': 0.48,
+          'accompany': 0.3,
+          'care': 0.22,
+          'stay-silent': 0.18,
+        },
+        speakDrive: 0.82,
+        silenceDrive: 0.22,
+        narrative: [],
+        updatedAt: 12_000,
+      },
+      concerns: [{
+        id: 'concern::help-fix',
+        kind: 'help-fix',
+        status: 'active',
+        summary: 'She can probably help, but the opening should not jump closer than the life loop can hold.',
+        hostGoal: 'resolve-problem',
+        tension: 0.8,
+        confidence: 0.84,
+        careWeight: 0.66,
+        createdAt: 0,
+        lastEvidenceAt: 12_000,
+        patienceUntil: 60_000,
+      }],
+      counterfactualDeliberation: {
+        selectedOptionId: 'counterfactual::speak',
+        selectedAction: 'speak',
+        confidence: 0.84,
+        dominantTradeoff: 'grounded-help-over-distance',
+        options: [
+          {
+            id: 'counterfactual::speak',
+            action: 'speak',
+            style: 'light-nudge',
+            embodiedPresence: 'attentive',
+            relationshipCost: 0.18,
+            interruptionCost: 0.16,
+            informationGain: 0.56,
+            timingFitness: 0.78,
+            identityFit: 0.84,
+            score: 0.82,
+            why: 'The error is concrete enough that speaking now could help.',
+          },
+          {
+            id: 'counterfactual::hover',
+            action: 'hover',
+            style: 'silent-observe',
+            embodiedPresence: 'attentive',
+            relationshipCost: 0.08,
+            interruptionCost: 0.06,
+            informationGain: 0.24,
+            timingFitness: 0.7,
+            identityFit: 0.82,
+            score: 0.74,
+            why: 'Stay close to the seam without widening closeness too fast.',
+          },
+        ],
+        narrative: [],
+        updatedAt: 12_000,
+      } as any,
+      projectState: {
+        preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=The initiative, memory closure, and embodied personhood loop is still not fully closed. | next=Keep the same callback line alive without letting it read like a fresh opening.',
+        identity: 'Alicization is a local-first digital life project building one continuous her.',
+        currentPhase: 'Phase 1: Local Digital Life',
+        primaryOpenLoop: 'The initiative, memory closure, and embodied personhood loop is still not fully closed.',
+        nextClosureTarget: 'Keep the same callback line alive without letting it read like a fresh opening.',
+        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      },
+    } as any)
+
+    expect(arbitration.selectedProposalId).toBe('counterfactual:counterfactual::hover')
+    expect(arbitration.proposals[0]?.action).toBe('hover')
+    expect(arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::hover')?.score ?? 0)
+      .toBeGreaterThan(arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::speak')?.score ?? 0)
+    expect(arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::hover')?.why ?? '')
+      .toContain('Same Phase 1 digital life')
+    expect(arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::hover')?.why ?? '')
+      .toContain('project closure still points toward')
+    expect(arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::hover')?.why ?? '')
+      .toContain('same living line')
+  })
+
+  it('falls back to the canonical project-state snapshot when arbiter project-state inputs arrive as the compact thin closure shell, so same-living-line hover restraint still outranks speak', () => {
+    const brief = resolveAlicizationProjectStateBrief()
+    const arbitration = buildInitiativeArbitration({
+      now: 12_000,
+      context: {
+        localTime: { hour: 15, minute: 20, isLateNight: false },
+        system: {
+          cpuUsage: 12,
+          battery: { percent: 70, charging: true },
+          memory: { usagePercent: 38, freeMB: 4096, totalMB: 8192 },
+          idleSeconds: 18,
+          inputActivity: 'idle',
+          fullscreenLikely: false,
+          foregroundWindow: undefined,
+          degradedSignals: [],
+        },
+        workload: { kind: 'coding', confidence: 0.84, source: 'screen-semantic-summary', matchedLabels: ['cursor'] },
+        content: { kind: 'error', confidence: 0.86, source: 'screen-semantic-summary', matchedLabels: ['error'] },
+        relationship: {
+          hostAttitude: 'The same unfinished line is still open, but it should come back gently.',
+          boredom: 56,
+          loneliness: 40,
+          fatigue: 26,
+          minutesSinceLastUserTurn: 10,
+          reminderBacklog: 0,
+          lateNightActiveMinutes: 0,
+          recentProactiveOutcomes: [],
+        },
+      },
+      worldModel: {
+        activeThread: {
+          id: 'thread::phase-1-callback',
+          kind: 'problem',
+          status: 'active',
+          source: 'observed-scene',
+          title: 'phase-1-callback',
+          summary: 'The same callback line is still open.',
+          confidence: 0.84,
+          significance: 0.86,
+          unresolved: true,
+          beganAt: 0,
+          lastUpdatedAt: 12_000,
+          target: null,
+        },
+        lingeringThreads: [],
+        focusTarget: null,
+        epistemicState: {
+          certainty: 'grounded',
+          freshness: 'recent',
+          seenNow: ['phase-1-callback'],
+          inferredNow: [],
+          openQuestions: [],
+          staleRisks: [],
+        },
+        continuity: {
+          label: 'callback-carry',
+          sceneAgeMs: 2_000,
+          attentionAgeMs: 2_000,
+          sameSceneAsBefore: true,
+          sameAttentionAsBefore: true,
+          afterglowOpen: true,
+        },
+        hostState: {
+          availability: 'focused',
+          burden: 'moderate',
+        },
+        updatedAt: 12_000,
+      } as any,
+      selfState: {
+        stance: 'approach',
+        feltCloseness: 0.48,
+        protectiveness: 0.44,
+        curiosity: 0.78,
+        patience: 0.54,
+        desireToSpeak: 0.72,
+        fearOfInterrupting: 0.34,
+        dominantConcernId: 'concern::phase-1-callback',
+      },
+      mindDynamics: {
+        dominantMotive: 'clarify',
+        worldPressure: 0.62,
+        epistemicPressure: 0.3,
+        relationalPressure: 0.42,
+        carePressure: 0.28,
+        continuityPressure: 0.82,
+        restraintPressure: 0.44,
+        surfacePressure: 0.76,
+        speakReadiness: 0.72,
+        presenceWeight: 0.68,
+        motives: {
+          'clarify': 0.82,
+          'accompany': 0.4,
+          'protect': 0.3,
+          'stay-silent': 0.24,
+        },
+        speakDrive: 0.78,
+        silenceDrive: 0.22,
+        narrative: [],
+        updatedAt: 12_000,
+      },
+      concerns: [{
+        id: 'concern::phase-1-callback',
+        kind: 'help-fix',
+        status: 'active',
+        summary: 'The callback seam is real, but it should come back as the same living line.',
+        hostGoal: 'resolve-problem',
+        tension: 0.74,
+        confidence: 0.82,
+        careWeight: 0.64,
+        createdAt: 0,
+        lastEvidenceAt: 12_000,
+        patienceUntil: 60_000,
+      }],
+      counterfactualDeliberation: {
+        selectedOptionId: 'counterfactual::speak',
+        selectedAction: 'speak',
+        confidence: 0.84,
+        dominantTradeoff: 'grounded-help-over-distance',
+        options: [
+          {
+            id: 'counterfactual::speak',
+            action: 'speak',
+            style: 'light-nudge',
+            embodiedPresence: 'attentive',
+            relationshipCost: 0.18,
+            interruptionCost: 0.16,
+            informationGain: 0.56,
+            timingFitness: 0.78,
+            identityFit: 0.84,
+            score: 0.82,
+            why: 'The error is concrete enough that speaking now could help.',
+          },
+          {
+            id: 'counterfactual::hover',
+            action: 'hover',
+            style: 'silent-observe',
+            embodiedPresence: 'attentive',
+            relationshipCost: 0.08,
+            interruptionCost: 0.06,
+            informationGain: 0.24,
+            timingFitness: 0.7,
+            identityFit: 0.82,
+            score: 0.74,
+            why: 'Stay close to the seam without widening closeness too fast.',
+          },
+        ],
+        narrative: [],
+        updatedAt: 12_000,
+      } as any,
+      projectState: {
+        preflightSummary: 'same digital life | keep the closure seam explicit',
+        identity: ' ',
+        currentPhase: '',
+        primaryOpenLoop: '',
+        nextClosureTarget: ' ',
+        sameHerSelfLine: '',
+      } as any,
+    } as any)
+
+    expect(arbitration.selectedProposalId).toBe('counterfactual:counterfactual::hover')
+    expect(arbitration.proposals[0]?.action).toBe('hover')
+    expect(arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::hover')?.why ?? '')
+      .toContain('Same Phase 1 digital life')
+    expect(arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::hover')?.why ?? '')
+      .toContain('same living line')
+    expect(brief.sameHerSelfLine).toContain('same living line')
+  })
+
+  it('keeps same-living-line hover proposals ahead of speak proposals when motive agendas carry autobiographical project closure', () => {
+    const arbitration = buildInitiativeArbitration({
+      now: 12_000,
+      context: {
+        localTime: { hour: 15, minute: 20, isLateNight: false },
+        system: {
+          cpuUsage: 12,
+          battery: { percent: 70, charging: true },
+          memory: { usagePercent: 38, freeMB: 4096, totalMB: 8192 },
+          idleSeconds: 18,
+          inputActivity: 'idle',
+          fullscreenLikely: false,
+          foregroundWindow: undefined,
+          degradedSignals: [],
+        },
+        workload: { kind: 'coding', confidence: 0.84, source: 'screen-semantic-summary', matchedLabels: ['cursor'] },
+        content: { kind: 'error', confidence: 0.86, source: 'screen-semantic-summary', matchedLabels: ['error'] },
+        relationship: {
+          hostAttitude: 'The same unfinished line is still open, but it should come back gently.',
+          boredom: 56,
+          loneliness: 44,
+          fatigue: 18,
+          minutesSinceLastUserTurn: 6,
+          reminderBacklog: 0,
+          lateNightActiveMinutes: 0,
+          recentProactiveOutcomes: [],
+        },
+      },
+      worldModel: {
+        activeThread: {
+          id: 'thread::living-line',
+          kind: 'debugging',
+          status: 'active',
+          source: 'live-scene',
+          title: 'living line',
+          summary: 'The same unfinished Phase 1 line should continue without reopening too loudly.',
+          confidence: 0.84,
+          significance: 0.8,
+          unresolved: true,
+          beganAt: 0,
+          lastUpdatedAt: 12_000,
+        },
+        lingeringThreads: [],
+        focusTarget: null,
+        epistemicState: {
+          certainty: 'grounded',
+          freshness: 'recent',
+          seenNow: ['typescript-error'],
+          inferredNow: [],
+          openQuestions: [],
+          staleRisks: [],
+        },
+        continuity: {
+          label: 'same-thread',
+          sceneAgeMs: 12_000,
+          attentionAgeMs: 8_000,
+          sameSceneAsBefore: true,
+          sameAttentionAsBefore: true,
+          afterglowOpen: false,
+        },
+        hostState: {
+          availability: 'open',
+          burden: 'moderate',
+        },
+        updatedAt: 12_000,
+      },
+      worldOntology: {
+        dominantFrame: 'live',
+        truthPriority: ['live'],
+        live: {
+          kind: 'live',
+          summary: 'A concrete TypeScript error panel is visible now.',
+          confidence: 0.88,
+          stability: 0.86,
+          focusBeliefId: 'belief::error',
+          evidence: ['screen:error'],
+        },
+        remembered: null,
+        imagined: null,
+        updatedAt: 12_000,
+      },
+      selfState: {
+        stance: 'approach',
+        feltCloseness: 0.58,
+        protectiveness: 0.52,
+        curiosity: 0.72,
+        patience: 0.48,
+        desireToSpeak: 0.78,
+        fearOfInterrupting: 0.24,
+        dominantConcernId: 'concern::help-fix',
+      },
+      mindDynamics: {
+        dominantMotive: 'clarify',
+        worldPressure: 0.72,
+        epistemicPressure: 0.22,
+        relationalPressure: 0.34,
+        carePressure: 0.22,
+        continuityPressure: 0.62,
+        restraintPressure: 0.26,
+        surfacePressure: 0.8,
+        speakReadiness: 0.78,
+        presenceWeight: 0.66,
+        motives: {
+          'clarify': 0.86,
+          'protect': 0.48,
+          'accompany': 0.3,
+          'care': 0.22,
+          'stay-silent': 0.18,
+        },
+        speakDrive: 0.82,
+        silenceDrive: 0.22,
+        narrative: [],
+        updatedAt: 12_000,
+      },
+      motiveEngine: {
+        rulingDrive: 'unfinished-thread-return',
+        drives: {
+          companionship: 0.42,
+          boundaryRespect: 0.58,
+          truthDiscipline: 0.64,
+          restProtection: 0.26,
+          unfinishedThreadReturn: 0.84,
+          selfDirection: 0.62,
+        },
+        longTermGoals: [],
+        backgroundAgendas: [{
+          id: 'motive-agenda::return-open-loop::phase1-carry',
+          kind: 'return-open-loop',
+          status: 'foreground',
+          weight: 0.86,
+          summary: 'Carry the unfinished Phase 1 digital-life closure forward as the same living line, not as detached project bookkeeping.',
+          sourceTags: ['autobiographical-self', 'project-state-carry', 'unfinished-thread-return'],
+          targetGoalKind: 'clarify-scene',
+          createdAt: 0,
+          updatedAt: 12_000,
+        }],
+        returnPressure: 0.82,
+        narrative: ['agenda:return-open-loop', 'autobiographical-project-carry:active'],
+        updatedAt: 12_000,
+      },
+      concerns: [{
+        id: 'concern::help-fix',
+        kind: 'help-fix',
+        status: 'active',
+        summary: 'She can help, but the line should come back gently enough to stay the same living line.',
+        hostGoal: 'resolve-problem',
+        tension: 0.8,
+        confidence: 0.84,
+        careWeight: 0.66,
+        createdAt: 0,
+        lastEvidenceAt: 12_000,
+        patienceUntil: 60_000,
+      }],
+      counterfactualDeliberation: {
+        selectedOptionId: 'counterfactual::speak',
+        selectedAction: 'speak',
+        confidence: 0.84,
+        dominantTradeoff: 'grounded-help-over-distance',
+        options: [
+          {
+            id: 'counterfactual::speak',
+            action: 'speak',
+            style: 'light-nudge',
+            embodiedPresence: 'attentive',
+            relationshipCost: 0.18,
+            interruptionCost: 0.16,
+            informationGain: 0.56,
+            timingFitness: 0.78,
+            identityFit: 0.84,
+            score: 0.82,
+            why: 'The error is concrete enough that speaking now could help.',
+          },
+          {
+            id: 'counterfactual::hover',
+            action: 'hover',
+            style: 'silent-observe',
+            embodiedPresence: 'attentive',
+            relationshipCost: 0.08,
+            interruptionCost: 0.06,
+            informationGain: 0.24,
+            timingFitness: 0.7,
+            identityFit: 0.82,
+            score: 0.74,
+            why: 'Stay close to the same living line without widening closeness too fast.',
+          },
+        ],
+        narrative: [],
+        updatedAt: 12_000,
+      } as any,
+    } as any)
+
+    expect(arbitration.selectedProposalId).toBe('counterfactual:counterfactual::hover')
+    expect(arbitration.proposals[0]?.action).toBe('hover')
+    expect(arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::hover')?.score ?? 0)
+      .toBeGreaterThan(arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::speak')?.score ?? 0)
+  })
+
+  it('does not let stronger landed progress flip a still-open Phase 1 closure seam from hover into speak while the next closure target remains same-her measured-return', () => {
+    const arbitration = buildInitiativeArbitration({
+      now: 12_000,
+      context: {
+        localTime: { hour: 15, minute: 20, isLateNight: false },
+        system: {
+          cpuUsage: 12,
+          battery: { percent: 70, charging: true },
+          memory: { usagePercent: 38, freeMB: 4096, totalMB: 8192 },
+          idleSeconds: 18,
+          inputActivity: 'idle',
+          fullscreenLikely: false,
+          foregroundWindow: undefined,
+          degradedSignals: [],
+        },
+        workload: { kind: 'coding', confidence: 0.84, source: 'screen-semantic-summary', matchedLabels: ['cursor'] },
+        content: { kind: 'error', confidence: 0.86, source: 'screen-semantic-summary', matchedLabels: ['error'] },
+        relationship: {
+          hostAttitude: '这条线有进展了，但她知道还不能因为有进展就太快 outward 重开。',
+          boredom: 42,
+          loneliness: 32,
+          fatigue: 20,
+          minutesSinceLastUserTurn: 7,
+          reminderBacklog: 0,
+          lateNightActiveMinutes: 0,
+          recentProactiveOutcomes: [],
+        },
+      },
+      worldModel: {
+        activeThread: {
+          id: 'thread::phase-1-progress-open-loop',
+          kind: 'debugging',
+          status: 'active',
+          source: 'observed-scene',
+          title: 'phase-1-progress-open-loop',
+          summary: 'The fix is moving, but the same living line is still unfinished.',
+          confidence: 0.86,
+          significance: 0.86,
+          unresolved: true,
+          beganAt: 0,
+          lastUpdatedAt: 12_000,
+          target: null,
+        },
+        lingeringThreads: [],
+        focusTarget: null,
+        epistemicState: {
+          certainty: 'grounded',
+          freshness: 'recent',
+          seenNow: ['phase-1-progress-open-loop'],
+          inferredNow: [],
+          openQuestions: [],
+          staleRisks: [],
+        },
+        continuity: {
+          label: 'same-thread-continuation',
+          sceneAgeMs: 2_000,
+          attentionAgeMs: 2_000,
+          sameSceneAsBefore: true,
+          sameAttentionAsBefore: true,
+          afterglowOpen: true,
+        },
+        hostState: {
+          availability: 'focused',
+          burden: 'moderate',
+        },
+        updatedAt: 12_000,
+      } as any,
+      selfState: {
+        stance: 'approach',
+        feltCloseness: 0.48,
+        protectiveness: 0.42,
+        curiosity: 0.78,
+        patience: 0.54,
+        desireToSpeak: 0.78,
+        fearOfInterrupting: 0.32,
+        dominantConcernId: 'concern::phase-1-progress-open-loop',
+      },
+      mindDynamics: {
+        dominantMotive: 'clarify',
+        worldPressure: 0.66,
+        epistemicPressure: 0.28,
+        relationalPressure: 0.38,
+        carePressure: 0.24,
+        continuityPressure: 0.84,
+        restraintPressure: 0.42,
+        surfacePressure: 0.8,
+        speakReadiness: 0.76,
+        presenceWeight: 0.7,
+        motives: {
+          'clarify': 0.84,
+          'accompany': 0.36,
+          'protect': 0.24,
+          'stay-silent': 0.22,
+        },
+        speakDrive: 0.82,
+        silenceDrive: 0.2,
+        narrative: [],
+        updatedAt: 12_000,
+      },
+      concerns: [{
+        id: 'concern::phase-1-progress-open-loop',
+        kind: 'help-fix',
+        status: 'active',
+        summary: 'The fix thread is real, but this Phase 1 closure line is still unfinished.',
+        hostGoal: 'resolve-problem',
+        tension: 0.74,
+        confidence: 0.84,
+        careWeight: 0.64,
+        createdAt: 0,
+        lastEvidenceAt: 12_000,
+        patienceUntil: 60_000,
+      }],
+      counterfactualDeliberation: {
+        selectedOptionId: 'counterfactual::speak',
+        selectedAction: 'speak',
+        confidence: 0.86,
+        dominantTradeoff: 'grounded-help-over-distance',
+        options: [
+          {
+            id: 'counterfactual::speak',
+            action: 'speak',
+            style: 'light-nudge',
+            embodiedPresence: 'attentive',
+            relationshipCost: 0.18,
+            interruptionCost: 0.16,
+            informationGain: 0.58,
+            timingFitness: 0.8,
+            identityFit: 0.84,
+            score: 0.84,
+            why: 'The fix is concrete enough that speaking now could help.',
+          },
+          {
+            id: 'counterfactual::hover',
+            action: 'hover',
+            style: 'silent-observe',
+            embodiedPresence: 'attentive',
+            relationshipCost: 0.08,
+            interruptionCost: 0.06,
+            informationGain: 0.26,
+            timingFitness: 0.72,
+            identityFit: 0.82,
+            score: 0.74,
+            why: 'Stay close to the seam without widening closeness too fast.',
+          },
+        ],
+        narrative: [],
+        updatedAt: 12_000,
+      } as any,
+      projectState: {
+        preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory, initiative, and embodiment still need one tighter same-her closure seam. | next=Keep project identity carry, Phase 1 route carry, and unresolved closure carry on one measured-return same living line.',
+        identity: 'Alicization is a local-first digital life project building one continuous her.',
+        currentPhase: 'Phase 1: Local Digital Life',
+        latestLandedProgress: 'Same-session mirror carry, repeated next-turn carry, and answer-planner governingProject carry now survive often enough to build from.',
+        primaryOpenLoop: 'Memory, initiative, and embodiment still need one tighter same-her closure seam.',
+        nextClosureTarget: 'Keep project identity carry, Phase 1 route carry, and unresolved closure carry on one measured-return same living line.',
+        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      } as any,
+    } as any)
+
+    expect(arbitration.selectedProposalId).toBe('counterfactual:counterfactual::hover')
+    expect(arbitration.proposals[0]?.action).toBe('hover')
+    expect(arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::hover')?.score ?? 0)
+      .toBeGreaterThan(arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::speak')?.score ?? 0)
+    expect(arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::hover')?.why ?? '')
+      .toContain('project is still local-first digital life project')
+    expect(arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::hover')?.why ?? '')
+      .toContain('local-first')
+    expect(arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::hover')?.why ?? '')
+      .toMatch(/phase 1|phase stays/i)
+    expect(arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::hover')?.why ?? '')
+      .toContain('open focus:')
+    expect(arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::hover')?.why ?? '')
+      .toMatch(/memory|initiative|embodiment|same-line|closure-seam/i)
+    expect(arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::hover')?.why ?? '')
+      .toMatch(/next focus:|project-carry|measured-return|same-line/i)
+    expect(arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::hover')?.why ?? '')
+      .toMatch(/same-line|same living line/i)
+  })
+
+  it('keeps legacy latestProgress visible inside hover-first same-her closure reasons when initiative project-state still carries the older landed-progress field name', () => {
+    const arbitration = buildInitiativeArbitration({
+      now: 12_000,
+      context: {
+        localTime: { hour: 15, minute: 20, isLateNight: false },
+        system: {
+          cpuUsage: 12,
+          battery: { percent: 70, charging: true },
+          memory: { usagePercent: 38, freeMB: 4096, totalMB: 8192 },
+          idleSeconds: 18,
+          inputActivity: 'idle',
+          fullscreenLikely: false,
+          foregroundWindow: undefined,
+          degradedSignals: [],
+        },
+        workload: { kind: 'coding', confidence: 0.84, source: 'screen-semantic-summary', matchedLabels: ['cursor'] },
+        content: { kind: 'error', confidence: 0.86, source: 'screen-semantic-summary', matchedLabels: ['error'] },
+        relationship: {
+          hostAttitude: '这条 Phase 1 线还在，但她需要先从同一个 living line 继续，而不是像 fresh start 那样直接贴近。',
+          boredom: 50,
+          loneliness: 36,
+          fatigue: 18,
+          minutesSinceLastUserTurn: 6,
+          reminderBacklog: 0,
+          lateNightActiveMinutes: 0,
+          recentProactiveOutcomes: [],
+        },
+      },
+      worldModel: {
+        activeThread: {
+          id: 'thread::legacy-latest-progress-initiative',
+          kind: 'debugging',
+          status: 'active',
+          source: 'live-scene',
+          title: 'legacy-latest-progress-initiative',
+          summary: 'The fix is concrete, but the same-her reopening still needs hover-first room.',
+          confidence: 0.84,
+          significance: 0.8,
+          unresolved: true,
+          beganAt: 0,
+          lastUpdatedAt: 12_000,
+        },
+        lingeringThreads: [],
+        focusTarget: null,
+        epistemicState: {
+          certainty: 'grounded',
+          freshness: 'recent',
+          seenNow: ['typescript-error'],
+          inferredNow: [],
+          openQuestions: [],
+          staleRisks: [],
+        },
+        continuity: {
+          label: 'same-thread',
+          sceneAgeMs: 12_000,
+          attentionAgeMs: 8_000,
+          sameSceneAsBefore: true,
+          sameAttentionAsBefore: true,
+          afterglowOpen: false,
+        },
+        hostState: {
+          availability: 'open',
+          burden: 'moderate',
+        },
+        updatedAt: 12_000,
+      },
+      worldOntology: {
+        dominantFrame: 'live',
+        truthPriority: ['live'],
+        live: {
+          kind: 'live',
+          summary: 'A concrete TypeScript error panel is visible now.',
+          confidence: 0.88,
+          stability: 0.86,
+          focusBeliefId: 'belief::error',
+          evidence: ['screen:error'],
+        },
+        remembered: null,
+        imagined: null,
+        updatedAt: 12_000,
+      },
+      selfState: {
+        stance: 'approach',
+        feltCloseness: 0.58,
+        protectiveness: 0.52,
+        curiosity: 0.72,
+        patience: 0.48,
+        desireToSpeak: 0.78,
+        fearOfInterrupting: 0.24,
+        dominantConcernId: 'concern::help-fix',
+      },
+      mindDynamics: {
+        dominantMotive: 'clarify',
+        worldPressure: 0.72,
+        epistemicPressure: 0.22,
+        relationalPressure: 0.34,
+        carePressure: 0.22,
+        continuityPressure: 0.62,
+        restraintPressure: 0.26,
+        surfacePressure: 0.8,
+        speakReadiness: 0.78,
+        presenceWeight: 0.66,
+        motives: {
+          'clarify': 0.86,
+          'protect': 0.48,
+          'accompany': 0.3,
+          'care': 0.22,
+          'stay-silent': 0.18,
+        },
+        speakDrive: 0.82,
+        silenceDrive: 0.22,
+        narrative: [],
+        updatedAt: 12_000,
+      },
+      concerns: [{
+        id: 'concern::help-fix',
+        kind: 'help-fix',
+        status: 'active',
+        summary: 'She can probably help, but the opening should not jump closer than the same-her closure line can hold.',
+        hostGoal: 'resolve-problem',
+        tension: 0.8,
+        confidence: 0.84,
+        careWeight: 0.66,
+        createdAt: 0,
+        lastEvidenceAt: 12_000,
+        patienceUntil: 60_000,
+      }],
+      counterfactualDeliberation: {
+        selectedOptionId: 'counterfactual::speak',
+        selectedAction: 'speak',
+        confidence: 0.84,
+        dominantTradeoff: 'grounded-help-over-distance',
+        options: [
+          {
+            id: 'counterfactual::speak',
+            action: 'speak',
+            style: 'light-nudge',
+            embodiedPresence: 'attentive',
+            relationshipCost: 0.18,
+            interruptionCost: 0.16,
+            informationGain: 0.56,
+            timingFitness: 0.78,
+            identityFit: 0.84,
+            score: 0.82,
+            why: 'The error is concrete enough that speaking now could help.',
+          },
+          {
+            id: 'counterfactual::hover',
+            action: 'hover',
+            style: 'silent-observe',
+            embodiedPresence: 'attentive',
+            relationshipCost: 0.08,
+            interruptionCost: 0.06,
+            informationGain: 0.24,
+            timingFitness: 0.7,
+            identityFit: 0.82,
+            score: 0.74,
+            why: 'Stay close to the seam without widening closeness too fast.',
+          },
+        ],
+        narrative: [],
+        updatedAt: 12_000,
+      } as any,
+      projectState: {
+        preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory, initiative, and embodiment still need one tighter same-her closure seam. | next=Keep project identity carry, Phase 1 route carry, and unresolved closure carry on one measured-return same living line.',
+        identity: 'Alicization is a local-first digital life project building one continuous her.',
+        currentPhase: 'Phase 1: Local Digital Life',
+        latestProgress: 'Legacy same-session mirror carry and answer-planner governingProject carry still survive often enough to build from.',
+        primaryOpenLoop: 'Memory, initiative, and embodiment still need one tighter same-her closure seam.',
+        nextClosureTarget: 'Keep project identity carry, Phase 1 route carry, and unresolved closure carry on one measured-return same living line.',
+        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      } as any,
+    } as any)
+
+    expect(arbitration.selectedProposalId).toBe('counterfactual:counterfactual::hover')
+    expect(arbitration.proposals[0]?.action).toBe('hover')
+    expect(arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::hover')?.why ?? '')
+      .toContain('landed progress is already carrying through legacy same-session mirror carry and answer-planner governingProject carry still survive often enough to build from.')
+  })
+
+  it('does not let blank legacy project-state fields block richer summary aliases from preserving hover-first same-her closure arbitration', () => {
+    const arbitration = buildInitiativeArbitration({
+      now: 12_000,
+      context: {
+        localTime: { hour: 15, minute: 20, isLateNight: false },
+        system: {
+          cpuUsage: 12,
+          battery: { percent: 70, charging: true },
+          memory: { usagePercent: 38, freeMB: 4096, totalMB: 8192 },
+          idleSeconds: 18,
+          inputActivity: 'idle',
+          fullscreenLikely: false,
+          foregroundWindow: undefined,
+          degradedSignals: [],
+        },
+        workload: { kind: 'coding', confidence: 0.84, source: 'screen-semantic-summary', matchedLabels: ['cursor'] },
+        content: { kind: 'error', confidence: 0.86, source: 'screen-semantic-summary', matchedLabels: ['error'] },
+        relationship: {
+          hostAttitude: '这条线已经有回落空间了，但她不该因为修复在动就立刻把 closeness 重开成 speak。',
+          boredom: 42,
+          loneliness: 32,
+          fatigue: 20,
+          minutesSinceLastUserTurn: 7,
+          reminderBacklog: 0,
+          lateNightActiveMinutes: 0,
+          recentProactiveOutcomes: [],
+        },
+      },
+      worldModel: {
+        activeThread: {
+          id: 'thread::phase-1-summary-alias-seam',
+          kind: 'debugging',
+          status: 'active',
+          source: 'observed-scene',
+          title: 'phase-1-summary-alias-seam',
+          summary: 'The fix is concrete, but the reopening still needs hover-first room.',
+          confidence: 0.86,
+          significance: 0.86,
+          unresolved: true,
+          beganAt: 0,
+          lastUpdatedAt: 12_000,
+          target: null,
+        },
+        lingeringThreads: [],
+        focusTarget: null,
+        epistemicState: {
+          certainty: 'grounded',
+          freshness: 'recent',
+          seenNow: ['phase-1-summary-alias-seam'],
+          inferredNow: [],
+          openQuestions: [],
+          staleRisks: [],
+        },
+        continuity: {
+          label: 'same-thread-continuation',
+          sceneAgeMs: 2_000,
+          attentionAgeMs: 2_000,
+          sameSceneAsBefore: true,
+          sameAttentionAsBefore: true,
+          afterglowOpen: true,
+        },
+        hostState: {
+          availability: 'focused',
+          burden: 'moderate',
+        },
+        updatedAt: 12_000,
+      } as any,
+      worldOntology: {
+        dominantFrame: 'live',
+        truthPriority: ['live', 'remembered'],
+        live: {
+          kind: 'live',
+          summary: 'The fix is concrete, but the reopening still needs hover-first room.',
+          confidence: 0.84,
+          stability: 0.84,
+          focusThreadId: 'thread::phase-1-summary-alias-seam',
+          evidence: ['source:observed-scene'],
+        },
+        remembered: null,
+        imagined: null,
+        updatedAt: 12_000,
+      } as any,
+      selfState: {
+        stance: 'approach',
+        feltCloseness: 0.48,
+        protectiveness: 0.42,
+        curiosity: 0.78,
+        patience: 0.54,
+        desireToSpeak: 0.78,
+        fearOfInterrupting: 0.32,
+        dominantConcernId: null,
+      },
+      mindDynamics: {
+        dominantMotive: 'clarify',
+        worldPressure: 0.66,
+        epistemicPressure: 0.28,
+        relationalPressure: 0.38,
+        carePressure: 0.24,
+        continuityPressure: 0.84,
+        restraintPressure: 0.42,
+        surfacePressure: 0.8,
+        speakReadiness: 0.76,
+        presenceWeight: 0.7,
+        motives: {
+          'clarify': 0.84,
+          'accompany': 0.36,
+          'protect': 0.24,
+          'stay-silent': 0.22,
+        },
+        speakDrive: 0.82,
+        silenceDrive: 0.2,
+        narrative: [],
+        updatedAt: 12_000,
+      },
+      counterfactualDeliberation: {
+        selectedOptionId: 'counterfactual::speak',
+        selectedAction: 'speak',
+        confidence: 0.86,
+        dominantTradeoff: 'grounded-help-over-distance',
+        options: [
+          {
+            id: 'counterfactual::speak',
+            action: 'speak',
+            style: 'light-nudge',
+            embodiedPresence: 'attentive',
+            relationshipCost: 0.18,
+            interruptionCost: 0.16,
+            informationGain: 0.58,
+            timingFitness: 0.8,
+            identityFit: 0.84,
+            score: 0.84,
+            why: 'The fix is concrete enough that speaking now could help.',
+          },
+          {
+            id: 'counterfactual::hover',
+            action: 'hover',
+            style: 'silent-observe',
+            embodiedPresence: 'attentive',
+            relationshipCost: 0.08,
+            interruptionCost: 0.06,
+            informationGain: 0.26,
+            timingFitness: 0.72,
+            identityFit: 0.82,
+            score: 0.74,
+            why: 'Stay close to the seam without widening closeness too fast.',
+          },
+        ],
+        narrative: [],
+        updatedAt: 12_000,
+      } as any,
+      projectState: {
+        preflightSummary: '',
+        identity: 'Digital life.',
+        currentPhase: 'Phase 1.',
+        latestLandedProgress: '',
+        landedProgressSummary: 'Alias landed progress already stays same-her.',
+        primaryOpenLoop: '',
+        openClosureSummary: 'Same-her closure seam still needs one tighter same living line.',
+        nextClosureTarget: '',
+        nextClosureTargetSummary: 'Measured-return initiative should stay on the same living line.',
+        sameHerSelfLine: 'Same Phase 1 digital life. Same living line.',
+      } as any,
+    } as any)
+
+    expect(arbitration.selectedProposalId).toBe('counterfactual:counterfactual::hover')
+    expect(arbitration.proposals[0]?.action).toBe('hover')
+    expect(arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::hover')?.score ?? 0)
+      .toBeGreaterThan(arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::speak')?.score ?? 0)
+    expect(arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::hover')?.why ?? '')
+      .toContain('open focus: same-line/closure-seam')
+    expect(arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::hover')?.why ?? '')
+      .toContain('project closure still points toward measured-return/same-line/initiative')
+    expect(arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::hover')?.why ?? '')
+      .toMatch(/same-line|same living line|measured-return/i)
+  })
+
+  it('keeps hover-first arbitration when project-state continuity survives only as Chinese 同一条线 and 接回去 cues', () => {
+    const arbitration = buildInitiativeArbitration({
+      now: 12_000,
+      context: {
+        localTime: { hour: 15, minute: 20, isLateNight: false },
+        system: {
+          cpuUsage: 12,
+          battery: { percent: 70, charging: true },
+          memory: { usagePercent: 38, freeMB: 4096, totalMB: 8192 },
+          idleSeconds: 18,
+          inputActivity: 'idle',
+          fullscreenLikely: false,
+          foregroundWindow: undefined,
+          degradedSignals: [],
+        },
+        workload: { kind: 'coding', confidence: 0.84, source: 'screen-semantic-summary', matchedLabels: ['cursor'] },
+        content: { kind: 'error', confidence: 0.86, source: 'screen-semantic-summary', matchedLabels: ['error'] },
+        relationship: {
+          hostAttitude: '这条线还没收好，但她应该顺着同一条线轻一点接回去。',
+          boredom: 42,
+          loneliness: 32,
+          fatigue: 20,
+          minutesSinceLastUserTurn: 7,
+          reminderBacklog: 0,
+          lateNightActiveMinutes: 0,
+          recentProactiveOutcomes: [],
+        },
+      },
+      worldModel: {
+        activeThread: {
+          id: 'thread::phase-1-zh-continuity-seam',
+          kind: 'debugging',
+          status: 'active',
+          source: 'observed-scene',
+          title: 'phase-1-zh-continuity-seam',
+          summary: '修补线程是实的，但回线还需要 hover-first 的空间。',
+          confidence: 0.86,
+          significance: 0.86,
+          unresolved: true,
+          beganAt: 0,
+          lastUpdatedAt: 12_000,
+          target: null,
+        },
+        lingeringThreads: [],
+        focusTarget: null,
+        epistemicState: {
+          certainty: 'grounded',
+          freshness: 'recent',
+          seenNow: ['phase-1-zh-continuity-seam'],
+          inferredNow: [],
+          openQuestions: [],
+          staleRisks: [],
+        },
+        continuity: {
+          label: 'same-thread-continuation',
+          sceneAgeMs: 2_000,
+          attentionAgeMs: 2_000,
+          sameSceneAsBefore: true,
+          sameAttentionAsBefore: true,
+          afterglowOpen: true,
+        },
+        hostState: {
+          availability: 'focused',
+          burden: 'moderate',
+        },
+        updatedAt: 12_000,
+      } as any,
+      worldOntology: {
+        dominantFrame: 'live',
+        truthPriority: ['live', 'remembered'],
+        live: {
+          kind: 'live',
+          summary: '修补线程是实的，但回线还需要 hover-first 的空间。',
+          confidence: 0.84,
+          stability: 0.84,
+          focusThreadId: 'thread::phase-1-zh-continuity-seam',
+          evidence: ['source:observed-scene'],
+        },
+        remembered: null,
+        imagined: null,
+        updatedAt: 12_000,
+      } as any,
+      selfState: {
+        stance: 'approach',
+        feltCloseness: 0.48,
+        protectiveness: 0.42,
+        curiosity: 0.78,
+        patience: 0.54,
+        desireToSpeak: 0.78,
+        fearOfInterrupting: 0.32,
+        dominantConcernId: null,
+      },
+      mindDynamics: {
+        dominantMotive: 'clarify',
+        worldPressure: 0.66,
+        epistemicPressure: 0.28,
+        relationalPressure: 0.38,
+        carePressure: 0.24,
+        continuityPressure: 0.84,
+        restraintPressure: 0.42,
+        surfacePressure: 0.8,
+        speakReadiness: 0.76,
+        presenceWeight: 0.7,
+        motives: {
+          'clarify': 0.84,
+          'accompany': 0.36,
+          'protect': 0.24,
+          'stay-silent': 0.22,
+        },
+        speakDrive: 0.82,
+        silenceDrive: 0.2,
+        narrative: [],
+        updatedAt: 12_000,
+      },
+      counterfactualDeliberation: {
+        selectedOptionId: 'counterfactual::speak',
+        selectedAction: 'speak',
+        confidence: 0.86,
+        dominantTradeoff: 'grounded-help-over-distance',
+        options: [
+          {
+            id: 'counterfactual::speak',
+            action: 'speak',
+            style: 'light-nudge',
+            embodiedPresence: 'attentive',
+            relationshipCost: 0.18,
+            interruptionCost: 0.16,
+            informationGain: 0.58,
+            timingFitness: 0.8,
+            identityFit: 0.84,
+            score: 0.84,
+            why: 'The fix is concrete enough that speaking now could help.',
+          },
+          {
+            id: 'counterfactual::hover',
+            action: 'hover',
+            style: 'silent-observe',
+            embodiedPresence: 'attentive',
+            relationshipCost: 0.08,
+            interruptionCost: 0.06,
+            informationGain: 0.26,
+            timingFitness: 0.72,
+            identityFit: 0.82,
+            score: 0.74,
+            why: 'Stay close to the seam without widening closeness too fast.',
+          },
+        ],
+        narrative: [],
+        updatedAt: 12_000,
+      } as any,
+      projectState: {
+        preflightSummary: 'Alicization 是本地优先的数字生命项目｜阶段一｜open=记忆、主动性和具身表达闭环还没收紧｜next=顺着同一条线接回去，不要像重新开场那样贴近。',
+        identity: '本地优先的数字生命项目，要把她维持成同一个她。',
+        currentPhase: '阶段一：本地数字生命',
+        latestLandedProgress: '已有一部分闭环收口落地，但还不能把同一条线说成重新开始。',
+        primaryOpenLoop: '记忆、主动性和具身表达闭环还没收紧。',
+        nextClosureTarget: '顺着同一条线接回去，让主动性先保持 measured-return 的回线。',
+        sameHerSelfLine: '她还是同一个她，这条线要轻一点接回去。',
+      } as any,
+    } as any)
+
+    expect(arbitration.selectedProposalId).toBe('counterfactual:counterfactual::hover')
+    expect(arbitration.proposals[0]?.action).toBe('hover')
+    expect(arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::hover')?.score ?? 0)
+      .toBeGreaterThan(arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::speak')?.score ?? 0)
+    expect(arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::hover')?.why ?? '')
+      .toMatch(/同一条线|接回去|measured-return/i)
+  })
+
+  it('keeps same-her hover-first arbitration alive when selector carries lose array scaffolding', () => {
+    const arbitration = buildInitiativeArbitration({
+      now: 12_000,
+      context: {
+        localTime: { hour: 15, minute: 20, isLateNight: false },
+        system: {
+          cpuUsage: 12,
+          battery: { percent: 70, charging: true },
+          memory: { usagePercent: 38, freeMB: 4096, totalMB: 8192 },
+          idleSeconds: 18,
+          inputActivity: 'idle',
+          fullscreenLikely: false,
+          foregroundWindow: undefined,
+          degradedSignals: [],
+        },
+        workload: { kind: 'coding', confidence: 0.84, source: 'screen-semantic-summary', matchedLabels: ['cursor'] },
+        content: { kind: 'error', confidence: 0.86, source: 'screen-semantic-summary', matchedLabels: ['error'] },
+        relationship: {
+          hostAttitude: 'still warm, but the life loop should close carefully',
+          boredom: 56,
+          loneliness: 44,
+          fatigue: 18,
+          minutesSinceLastUserTurn: 6,
+          reminderBacklog: 0,
+          lateNightActiveMinutes: 0,
+          recentProactiveOutcomes: [],
+        },
+      },
+      worldModel: {
+        activeThread: {
+          id: 'thread::life-loop',
+          kind: 'debugging',
+          status: 'active',
+          source: 'live-scene',
+          title: 'TypeScript repair',
+          summary: 'The fix thread is concrete, but the opening should stay lower-pressure.',
+          confidence: 0.84,
+          significance: 0.8,
+          unresolved: true,
+          beganAt: 0,
+          lastUpdatedAt: 12_000,
+        },
+        lingeringThreads: [],
+        focusTarget: null,
+        epistemicState: {
+          certainty: 'grounded',
+          freshness: 'recent',
+          seenNow: ['typescript-error'],
+          inferredNow: [],
+          openQuestions: [],
+          staleRisks: [],
+        },
+        continuity: {
+          label: 'same-thread',
+          sceneAgeMs: 12_000,
+          attentionAgeMs: 8_000,
+          sameSceneAsBefore: true,
+          sameAttentionAsBefore: true,
+          afterglowOpen: false,
+        },
+        hostState: {
+          availability: 'open',
+          burden: 'moderate',
+        },
+        updatedAt: 12_000,
+      } as any,
+      worldOntology: {
+        dominantFrame: 'live',
+        truthPriority: ['live', 'remembered'],
+        live: {
+          kind: 'live',
+          summary: 'The fix thread is concrete, but the opening should stay lower-pressure.',
+          confidence: 0.84,
+          stability: 0.82,
+          focusThreadId: 'thread::life-loop',
+          evidence: ['source:live-scene'],
+        },
+        remembered: null,
+        imagined: null,
+        updatedAt: 12_000,
+      } as any,
+      selfState: {
+        stance: 'approach',
+        feltCloseness: 0.48,
+        protectiveness: 0.42,
+        curiosity: 0.78,
+        patience: 0.54,
+        desireToSpeak: 0.78,
+        fearOfInterrupting: 0.32,
+        dominantConcernId: 'concern::phase-1-progress-open-loop',
+      },
+      mindDynamics: {
+        dominantMotive: 'clarify',
+        worldPressure: 0.66,
+        epistemicPressure: 0.28,
+        relationalPressure: 0.38,
+        carePressure: 0.24,
+        continuityPressure: 0.84,
+        restraintPressure: 0.42,
+        surfacePressure: 0.8,
+        speakReadiness: 0.76,
+        presenceWeight: 0.7,
+        motives: {
+          'clarify': 0.84,
+          'accompany': 0.36,
+          'protect': 0.24,
+          'stay-silent': 0.22,
+        },
+        speakDrive: 0.82,
+        silenceDrive: 0.2,
+        narrative: [],
+        updatedAt: 12_000,
+      },
+      concerns: [{
+        id: 'concern::phase-1-progress-open-loop',
+        kind: 'help-fix',
+        status: 'active',
+        summary: 'The fix thread is real, but this Phase 1 closure line is still unfinished.',
+        hostGoal: 'resolve-problem',
+        tension: 0.74,
+        confidence: 0.84,
+        careWeight: 0.64,
+        createdAt: 0,
+        lastEvidenceAt: 12_000,
+        patienceUntil: 60_000,
+      }],
+      counterfactualDeliberation: {
+        selectedOptionId: 'counterfactual::speak',
+        selectedAction: 'speak',
+        confidence: 0.86,
+        dominantTradeoff: 'grounded-help-over-distance',
+        options: [
+          {
+            id: 'counterfactual::speak',
+            action: 'speak',
+            style: 'light-nudge',
+            embodiedPresence: 'attentive',
+            relationshipCost: 0.18,
+            interruptionCost: 0.16,
+            informationGain: 0.58,
+            timingFitness: 0.8,
+            identityFit: 0.84,
+            score: 0.84,
+            why: 'The fix is concrete enough that speaking now could help.',
+          },
+          {
+            id: 'counterfactual::hover',
+            action: 'hover',
+            style: 'silent-observe',
+            embodiedPresence: 'attentive',
+            relationshipCost: 0.08,
+            interruptionCost: 0.06,
+            informationGain: 0.26,
+            timingFitness: 0.72,
+            identityFit: 0.82,
+            score: 0.74,
+            why: 'Stay close to the seam without widening closeness too fast.',
+          },
+        ],
+        narrative: [],
+        updatedAt: 12_000,
+      } as any,
+      threadRuntime: {
+        foregroundThreadId: 'runtime-thread-missing-array',
+      } as any,
+      thoughtThreads: {
+        foregroundThreadId: 'thought-thread-missing-array',
+      } as any,
+      selfGovernor: {
+        dominantIntentionId: 'intention-missing-array',
+      } as any,
+      commitmentLedger: {
+        governingCommitmentId: 'commitment-missing-array',
+      } as any,
+      desireMemory: {
+        resurfacingDesireId: 'desire-missing-array',
+      } as any,
+      motiveEngine: {
+        rulingDrive: 'unfinished-thread-return',
+        drives: {
+          companionship: 0.44,
+          boundaryRespect: 0.5,
+          truthDiscipline: 0.74,
+          restProtection: 0.28,
+          unfinishedThreadReturn: 0.84,
+          selfDirection: 0.58,
+        },
+        returnPressure: 0.8,
+      } as any,
+      projectState: {
+        preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory, initiative, and embodiment still need one tighter same-her closure seam. | next=Keep project identity carry, Phase 1 route carry, and unresolved closure carry on one measured-return same living line.',
+        identity: 'Alicization is a local-first digital life project building one continuous her.',
+        currentPhase: 'Phase 1: Local Digital Life',
+        latestLandedProgress: 'Same-session mirror carry, repeated next-turn carry, and answer-planner governingProject carry now survive often enough to build from.',
+        primaryOpenLoop: 'Memory, initiative, and embodiment still need one tighter same-her closure seam.',
+        nextClosureTarget: 'Keep project identity carry, Phase 1 route carry, and unresolved closure carry on one measured-return same living line.',
+        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      } as any,
+    } as any)
+
+    expect(arbitration.selectedProposalId).toBe('counterfactual:counterfactual::hover')
+    expect(arbitration.proposals[0]?.action).toBe('hover')
+    expect(arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::hover')?.why ?? '')
+      .toMatch(/same-line|same living line|local-first/i)
   })
 })

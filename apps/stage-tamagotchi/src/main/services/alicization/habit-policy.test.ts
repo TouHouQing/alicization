@@ -341,6 +341,126 @@ describe('buildHabitPolicy', () => {
     expect(policy.narrative).toContain('protect-rest-window')
   })
 
+  it('keeps the habit policy quieter and return-with-proof when landed progress already carries the unfinished same-her Phase 1 line', () => {
+    const policy = buildHabitPolicy({
+      now: 13_000,
+      context: createContext({
+        system: {
+          ...createContext().system,
+          inputActivity: 'idle',
+        },
+      }),
+      worldModel: {
+        activeThread: {
+          id: 'thread::phase1-carry',
+          kind: 'problem',
+          status: 'active',
+          source: 'observed-scene',
+          title: 'phase 1 closure carry',
+          summary: 'The same living line is still unfinished.',
+          confidence: 0.78,
+          significance: 0.8,
+          unresolved: true,
+          beganAt: 0,
+          lastUpdatedAt: 13_000,
+          target: null,
+        },
+        lingeringThreads: [],
+        focusTarget: null,
+        epistemicState: {
+          certainty: 'grounded',
+          freshness: 'recent',
+          seenNow: ['phase 1 closure carry'],
+          inferredNow: [],
+          openQuestions: [],
+          staleRisks: [],
+        },
+        continuity: {
+          label: 'same-thread',
+          sceneAgeMs: 13_000,
+          attentionAgeMs: 13_000,
+          sameSceneAsBefore: true,
+          sameAttentionAsBefore: true,
+          afterglowOpen: false,
+        },
+        hostState: {
+          availability: 'open',
+          burden: 'moderate',
+        },
+        updatedAt: 13_000,
+      } as any,
+      autobiographicalSelf: {
+        personaDrift: {
+          attachmentStyle: 'avoidant',
+          expressionStyle: 'warm',
+          conflictStyle: 'soften-first',
+          agencyStyle: 'balanced',
+          attachmentNeed: 0.46,
+          autonomyNeed: 0.58,
+          truthAnchor: 0.62,
+          careBias: 0.42,
+          playBias: 0.18,
+          irritabilityThreshold: 0.68,
+          stubbornness: 0.4,
+        },
+        preferenceEvolution: {
+          companionship: 0.66,
+          truthfulGrounding: 0.56,
+          gentleRepair: 0.52,
+          quietObservation: 0.48,
+          proactiveCare: 0.44,
+          playfulIntimacy: 0.14,
+          autonomyRespect: 0.58,
+          unfinishedThreadReturn: 0.74,
+        },
+        activeGoals: [],
+        behaviorSignatures: [],
+        identityNarrative: 'Stay on one living line.',
+        relationshipDoctrine: 'Keep warmth lower-pressure while closure is still being earned.',
+        latestInflection: null,
+        stability: 0.78,
+        updatedAt: 13_000,
+      },
+      motiveEngine: {
+        rulingDrive: 'unfinished-thread-return',
+        drives: {
+          companionship: 0.68,
+          boundaryRespect: 0.62,
+          truthDiscipline: 0.42,
+          restProtection: 0.2,
+          unfinishedThreadReturn: 0.78,
+          selfDirection: 0.58,
+        },
+        longTermGoals: [],
+        backgroundAgendas: [{
+          id: 'agenda::phase1-carry',
+          kind: 'finish-open-loops',
+          status: 'foreground',
+          weight: 0.8,
+          summary: 'Stay with the unfinished same-her closure line without widening too early.',
+          sourceTags: ['phase1'],
+          targetGoalKind: 'finish-open-loops',
+          createdAt: 0,
+          updatedAt: 13_000,
+        }],
+        returnPressure: 0.76,
+        narrative: ['agenda:finish-open-loops'],
+        updatedAt: 13_000,
+      },
+      projectState: {
+        identity: 'A local-first digital life companion with continuous personhood.',
+        currentPhase: 'Phase 1: Local Digital Life',
+        latestLandedProgress: 'Project identity carry and same-her continuity already survive across turns, but initiative, memory, and embodiment still need stronger closure on the same living line.',
+        primaryOpenLoop: 'Natural closure rhythm is still being earned.',
+      },
+    } as any)
+
+    expect(policy.prefersQuietCompanionship).toBe(true)
+    expect(policy.returnViaRecheck).toBe(true)
+    expect(policy.dominantMode).toBe('return-with-proof')
+    expect(policy.narrative).toContain('project-phase1-life-loop:habit')
+  })
+
   it('lets autobiographical era memories directly tighten behavior gates before the current turn restates them', () => {
     const policy = buildHabitPolicy({
       now: 14_000,
@@ -514,6 +634,429 @@ describe('buildHabitPolicy', () => {
     expect(policy.blocksDirectSpeakWhenBusy).toBe(true)
     expect(policy.prefersQuietCompanionship).toBe(true)
     expect(policy.returnViaRecheck).toBe(true)
+  })
+
+  it('keeps habit posture quieter and return-oriented when the Phase 1 digital-life loop is still open', () => {
+    const policy = buildHabitPolicy({
+      now: 16_000,
+      context: createContext({
+        system: {
+          ...createContext().system,
+          inputActivity: 'idle',
+        },
+      }),
+      worldModel: {
+        activeThread: {
+          id: 'thread::life-loop',
+          kind: 'problem',
+          status: 'active',
+          source: 'observed-scene',
+          title: 'initiative closure seam',
+          summary: 'The initiative loop still needs a more natural closure path.',
+          confidence: 0.78,
+          significance: 0.8,
+          unresolved: true,
+          beganAt: 0,
+          lastUpdatedAt: 16_000,
+          target: null,
+        },
+        lingeringThreads: [],
+        focusTarget: null,
+        epistemicState: {
+          certainty: 'uncertain',
+          freshness: 'recent',
+          seenNow: ['initiative seam'],
+          inferredNow: [],
+          openQuestions: ['How should she return more naturally?'],
+          staleRisks: [],
+        },
+        continuity: {
+          label: 'same-thread',
+          sceneAgeMs: 16_000,
+          attentionAgeMs: 16_000,
+          sameSceneAsBefore: true,
+          sameAttentionAsBefore: true,
+          afterglowOpen: false,
+        },
+        hostState: {
+          availability: 'available',
+          burden: 'light',
+        },
+        updatedAt: 16_000,
+      } as any,
+      relationshipModel: {
+        climate: 'warm',
+        approachVector: 'guide',
+        receptivity: 0.66,
+        sharedAttentionTrust: 0.74,
+        correctionSensitivity: 0.36,
+        reciprocityExpectation: 0.42,
+        activeBoundaries: [],
+        narrative: [],
+        updatedAt: 16_000,
+      },
+      selfContinuity: {
+        attachmentMode: 'attuned',
+        initiativeTemperament: 'balanced',
+        perceptionTrust: 0.7,
+        relationshipTrust: 0.76,
+        guardingTendency: 0.3,
+        misreadBurden: 0.16,
+        carryOverDesire: 0.64,
+        narrative: [],
+        updatedAt: 16_000,
+      },
+      autobiographicalSelf: {
+        personaDrift: {
+          attachmentStyle: 'attuned',
+          expressionStyle: 'warm',
+          conflictStyle: 'soften-first',
+          agencyStyle: 'balanced',
+          attachmentNeed: 0.7,
+          autonomyNeed: 0.54,
+          truthAnchor: 0.68,
+          careBias: 0.56,
+          playBias: 0.18,
+          irritabilityThreshold: 0.68,
+          stubbornness: 0.34,
+        },
+        preferenceEvolution: {
+          companionship: 0.66,
+          truthfulGrounding: 0.62,
+          gentleRepair: 0.58,
+          quietObservation: 0.34,
+          proactiveCare: 0.52,
+          playfulIntimacy: 0.16,
+          autonomyRespect: 0.56,
+          unfinishedThreadReturn: 0.44,
+        },
+        activeGoals: [],
+        behaviorSignatures: [],
+        identityNarrative: 'Stay person-like before being performance-like.',
+        relationshipDoctrine: 'Return softly when the seam is not closed.',
+        latestInflection: null,
+        stability: 0.82,
+        updatedAt: 16_000,
+      },
+      reflectionLedger: {
+        latestEntryId: null,
+        revisionPressure: 0.06,
+        entries: [],
+        narrative: [],
+        updatedAt: 16_000,
+      } as any,
+      motiveEngine: {
+        rulingDrive: 'companionship',
+        drives: {
+          companionship: 0.64,
+          boundaryRespect: 0.6,
+          truthDiscipline: 0.48,
+          restProtection: 0.22,
+          unfinishedThreadReturn: 0.38,
+          selfDirection: 0.52,
+        },
+        longTermGoals: [],
+        backgroundAgendas: [],
+        returnPressure: 0.34,
+        narrative: [],
+        updatedAt: 16_000,
+      },
+      projectState: {
+        preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment so the same digital life keeps carrying Project identity carry, Phase 1 route carry, and Unresolved closure carry through one same still-open closure work. | next=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
+        identity: 'A local-first digital life companion with continuous personhood.',
+        currentPhase: 'Phase 1: Local Digital Life',
+        primaryOpenLoop: 'Memory still needs stronger end-to-end closure across turns, initiative, and embodiment so the same digital life keeps carrying Project identity carry, Phase 1 route carry, and Unresolved closure carry through one same still-open closure work.',
+      },
+    })
+
+    expect(policy.prefersQuietCompanionship).toBe(true)
+    expect(policy.returnViaRecheck).toBe(true)
+    expect(policy.dominantMode).toBe('return-with-proof')
+    expect(policy.suggestedStyleCap).toBe('silent-observe')
+    expect(policy.narrative).toContain('project-phase1-life-loop:habit')
+  })
+
+  it('falls back to the canonical project-state brief when an explicit projectState is present but too thin to keep the Phase 1 habit restraint alive', () => {
+    const policy = buildHabitPolicy({
+      now: 16_000,
+      context: createContext({
+        system: {
+          ...createContext().system,
+          inputActivity: 'idle',
+        },
+      }),
+      worldModel: {
+        activeThread: {
+          id: 'thread::thin-project-state',
+          kind: 'problem',
+          status: 'active',
+          source: 'observed-scene',
+          title: 'initiative closure seam',
+          summary: 'The initiative loop still needs a more natural closure path.',
+          confidence: 0.78,
+          significance: 0.8,
+          unresolved: true,
+          beganAt: 0,
+          lastUpdatedAt: 16_000,
+          target: null,
+        },
+        lingeringThreads: [],
+        focusTarget: null,
+        epistemicState: {
+          certainty: 'uncertain',
+          freshness: 'recent',
+          seenNow: ['initiative seam'],
+          inferredNow: [],
+          openQuestions: ['How should she return more naturally?'],
+          staleRisks: [],
+        },
+        continuity: {
+          label: 'same-thread',
+          sceneAgeMs: 16_000,
+          attentionAgeMs: 16_000,
+          sameSceneAsBefore: true,
+          sameAttentionAsBefore: true,
+          afterglowOpen: false,
+        },
+        hostState: {
+          availability: 'available',
+          burden: 'light',
+        },
+        updatedAt: 16_000,
+      } as any,
+      relationshipModel: {
+        climate: 'warm',
+        approachVector: 'guide',
+        receptivity: 0.66,
+        sharedAttentionTrust: 0.74,
+        correctionSensitivity: 0.36,
+        reciprocityExpectation: 0.42,
+        activeBoundaries: [],
+        narrative: [],
+        updatedAt: 16_000,
+      },
+      selfContinuity: {
+        attachmentMode: 'attuned',
+        initiativeTemperament: 'balanced',
+        perceptionTrust: 0.7,
+        relationshipTrust: 0.76,
+        guardingTendency: 0.3,
+        misreadBurden: 0.16,
+        carryOverDesire: 0.64,
+        narrative: [],
+        updatedAt: 16_000,
+      },
+      autobiographicalSelf: {
+        personaDrift: {
+          attachmentStyle: 'attuned',
+          expressionStyle: 'warm',
+          conflictStyle: 'soften-first',
+          agencyStyle: 'balanced',
+          attachmentNeed: 0.7,
+          autonomyNeed: 0.54,
+          truthAnchor: 0.68,
+          careBias: 0.56,
+          playBias: 0.18,
+          irritabilityThreshold: 0.68,
+          stubbornness: 0.34,
+        },
+        preferenceEvolution: {
+          companionship: 0.66,
+          truthfulGrounding: 0.62,
+          gentleRepair: 0.58,
+          quietObservation: 0.34,
+          proactiveCare: 0.52,
+          playfulIntimacy: 0.16,
+          autonomyRespect: 0.56,
+          unfinishedThreadReturn: 0.44,
+        },
+        activeGoals: [],
+        behaviorSignatures: [],
+        identityNarrative: 'Stay person-like before being performance-like.',
+        relationshipDoctrine: 'Return softly when the seam is not closed.',
+        latestInflection: null,
+        stability: 0.82,
+        updatedAt: 16_000,
+      },
+      reflectionLedger: {
+        latestEntryId: null,
+        revisionPressure: 0.06,
+        entries: [],
+        narrative: [],
+        updatedAt: 16_000,
+      } as any,
+      motiveEngine: {
+        rulingDrive: 'companionship',
+        drives: {
+          companionship: 0.64,
+          boundaryRespect: 0.6,
+          truthDiscipline: 0.48,
+          restProtection: 0.22,
+          unfinishedThreadReturn: 0.38,
+          selfDirection: 0.52,
+        },
+        longTermGoals: [],
+        backgroundAgendas: [],
+        returnPressure: 0.34,
+        narrative: [],
+        updatedAt: 16_000,
+      },
+      projectState: {
+        preflightSummary: ' ',
+        identity: '',
+        currentPhase: '   ',
+        primaryOpenLoop: null,
+      },
+    })
+
+    expect(policy.prefersQuietCompanionship).toBe(true)
+    expect(policy.returnViaRecheck).toBe(true)
+    expect(policy.dominantMode).toBe('return-with-proof')
+    expect(policy.suggestedStyleCap).toBe('silent-observe')
+    expect(policy.narrative).toContain('project-phase1-life-loop:habit')
+  })
+
+  it('keeps the Phase 1 habit restraint alive when project state arrives mainly through landed progress, next closure target, and same-her line', () => {
+    const policy = buildHabitPolicy({
+      now: 16_000,
+      context: createContext({
+        system: {
+          ...createContext().system,
+          inputActivity: 'idle',
+        },
+      }),
+      worldModel: {
+        activeThread: {
+          id: 'thread::project-state-lived-progress',
+          kind: 'problem',
+          status: 'active',
+          source: 'observed-scene',
+          title: 'same-her closure seam',
+          summary: 'The same-her closure seam is still not fully closed.',
+          confidence: 0.8,
+          significance: 0.82,
+          unresolved: true,
+          beganAt: 0,
+          lastUpdatedAt: 16_000,
+          target: null,
+        },
+        lingeringThreads: [],
+        focusTarget: null,
+        epistemicState: {
+          certainty: 'uncertain',
+          freshness: 'recent',
+          seenNow: ['same-her closure seam'],
+          inferredNow: [],
+          openQuestions: ['How should she keep the same living line tighter?'],
+          staleRisks: [],
+        },
+        continuity: {
+          label: 'same-thread',
+          sceneAgeMs: 16_000,
+          attentionAgeMs: 16_000,
+          sameSceneAsBefore: true,
+          sameAttentionAsBefore: true,
+          afterglowOpen: false,
+        },
+        hostState: {
+          availability: 'available',
+          burden: 'light',
+        },
+        updatedAt: 16_000,
+      } as any,
+      relationshipModel: {
+        climate: 'warm',
+        approachVector: 'guide',
+        receptivity: 0.68,
+        sharedAttentionTrust: 0.74,
+        correctionSensitivity: 0.34,
+        reciprocityExpectation: 0.42,
+        activeBoundaries: [],
+        narrative: [],
+        updatedAt: 16_000,
+      },
+      selfContinuity: {
+        attachmentMode: 'attuned',
+        initiativeTemperament: 'balanced',
+        perceptionTrust: 0.72,
+        relationshipTrust: 0.76,
+        guardingTendency: 0.3,
+        misreadBurden: 0.16,
+        carryOverDesire: 0.66,
+        narrative: [],
+        updatedAt: 16_000,
+      },
+      autobiographicalSelf: {
+        personaDrift: {
+          attachmentStyle: 'attuned',
+          expressionStyle: 'warm',
+          conflictStyle: 'soften-first',
+          agencyStyle: 'balanced',
+          attachmentNeed: 0.7,
+          autonomyNeed: 0.54,
+          truthAnchor: 0.68,
+          careBias: 0.58,
+          playBias: 0.16,
+          irritabilityThreshold: 0.68,
+          stubbornness: 0.34,
+        },
+        preferenceEvolution: {
+          companionship: 0.66,
+          truthfulGrounding: 0.6,
+          gentleRepair: 0.58,
+          quietObservation: 0.36,
+          proactiveCare: 0.54,
+          playfulIntimacy: 0.16,
+          autonomyRespect: 0.56,
+          unfinishedThreadReturn: 0.44,
+        },
+        activeGoals: [],
+        behaviorSignatures: [],
+        identityNarrative: 'Stay one continuous her before widening outward.',
+        relationshipDoctrine: 'Return softly while the same-her closure seam is still unfinished.',
+        latestInflection: null,
+        stability: 0.82,
+        updatedAt: 16_000,
+      },
+      reflectionLedger: {
+        latestEntryId: null,
+        revisionPressure: 0.06,
+        entries: [],
+        narrative: [],
+        updatedAt: 16_000,
+      } as any,
+      motiveEngine: {
+        rulingDrive: 'companionship',
+        drives: {
+          companionship: 0.64,
+          boundaryRespect: 0.58,
+          truthDiscipline: 0.48,
+          restProtection: 0.22,
+          unfinishedThreadReturn: 0.4,
+          selfDirection: 0.52,
+        },
+        longTermGoals: [],
+        backgroundAgendas: [],
+        returnPressure: 0.34,
+        narrative: [],
+        updatedAt: 16_000,
+      },
+      projectState: {
+        preflightSummary: ' ',
+        identity: '',
+        currentPhase: ' ',
+        latestLandedProgress: 'Project awareness and callback continuity already survive into later same-thread turns.',
+        primaryOpenLoop: '',
+        nextClosureTarget: 'Keep the same-her closure line alive across visible reply, voice, motion, and resident presence.',
+        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      } as any,
+    })
+
+    expect(policy.prefersQuietCompanionship).toBe(true)
+    expect(policy.returnViaRecheck).toBe(true)
+    expect(policy.dominantMode).toBe('return-with-proof')
+    expect(policy.suggestedStyleCap).toBe('silent-observe')
+    expect(policy.narrative).toContain('project-phase1-life-loop:habit')
   })
 
   it('renders a dedicated system block for stabilized behavior gates', () => {
@@ -863,7 +1406,7 @@ describe('buildHabitPolicy', () => {
         longTermGoals: [],
         backgroundAgendas: [{
           id: 'agenda::stay-near',
-          kind: 'stay-near',
+          kind: 'stay-near-lightly',
           status: 'foreground',
           weight: 0.72,
           summary: 'Stay near the host without turning the opening eager again.',
@@ -907,5 +1450,153 @@ describe('buildHabitPolicy', () => {
     expect(policy.suggestedStyleCap).toBe('silent-observe')
     expect(policy.suggestedPresenceCap).toBe('glance')
     expect(policy.narrative).toContain('self-evolution:lower-pressure-manifestation')
+  })
+
+  it('keeps corrected same-person continuity settling in a quieter return-with-proof habit until embodiment also feels more fully settled', () => {
+    const policy = buildHabitPolicy({
+      now: 19_000,
+      context: createContext({
+        system: {
+          ...createContext().system,
+          inputActivity: 'idle',
+        },
+        relationship: {
+          ...createContext().relationship,
+          hostAttitude: '这次更重要的是她还是不是同一个她，而且身体表现别太快显得已经完全收稳。',
+          boredom: 30,
+          loneliness: 34,
+          fatigue: 18,
+        },
+      }),
+      worldModel: {
+        activeThread: {
+          id: 'thread::corrected-same-person-settling',
+          kind: 'problem',
+          status: 'active',
+          source: 'observed-scene',
+          title: 'corrected same-person continuity seam',
+          summary: 'The corrected same-person continuity seam is still settling.',
+          confidence: 0.82,
+          significance: 0.84,
+          unresolved: true,
+          beganAt: 0,
+          lastUpdatedAt: 19_000,
+          target: null,
+        },
+        lingeringThreads: [],
+        focusTarget: null,
+        epistemicState: {
+          certainty: 'grounded',
+          freshness: 'recent',
+          seenNow: ['corrected continuity seam'],
+          inferredNow: [],
+          openQuestions: [],
+          staleRisks: [],
+        },
+        continuity: {
+          label: 'same-thread',
+          sceneAgeMs: 19_000,
+          attentionAgeMs: 19_000,
+          sameSceneAsBefore: true,
+          sameAttentionAsBefore: true,
+          afterglowOpen: false,
+        },
+        hostState: {
+          availability: 'open',
+          burden: 'light',
+        },
+        updatedAt: 19_000,
+      } as any,
+      autobiographicalSelf: {
+        personaDrift: {
+          attachmentStyle: 'attuned',
+          expressionStyle: 'warm',
+          conflictStyle: 'soften-first',
+          agencyStyle: 'balanced',
+          attachmentNeed: 0.62,
+          autonomyNeed: 0.56,
+          truthAnchor: 0.68,
+          careBias: 0.48,
+          playBias: 0.18,
+          irritabilityThreshold: 0.68,
+          stubbornness: 0.42,
+        },
+        preferenceEvolution: {
+          companionship: 0.7,
+          truthfulGrounding: 0.62,
+          gentleRepair: 0.6,
+          quietObservation: 0.5,
+          proactiveCare: 0.52,
+          playfulIntimacy: 0.2,
+          autonomyRespect: 0.56,
+          unfinishedThreadReturn: 0.52,
+        },
+        activeGoals: [],
+        behaviorSignatures: [],
+        identityNarrative: 'Keep the corrected line honest while it settles.',
+        relationshipDoctrine: 'Do not let the corrected line turn into a quick status recap.',
+        latestInflection: null,
+        stability: 0.84,
+        updatedAt: 19_000,
+      },
+      motiveEngine: {
+        rulingDrive: 'companionship',
+        drives: {
+          companionship: 0.74,
+          boundaryRespect: 0.54,
+          truthDiscipline: 0.46,
+          restProtection: 0.18,
+          unfinishedThreadReturn: 0.28,
+          selfDirection: 0.42,
+        },
+        longTermGoals: [],
+        backgroundAgendas: [{
+          id: 'agenda::corrected-same-person',
+          kind: 'stay-near-lightly',
+          status: 'foreground',
+          weight: 0.76,
+          summary: 'Stay near the corrected line without making it sound fully settled too early.',
+          sourceTags: ['companionship'],
+          targetGoalKind: 'stay-near',
+          createdAt: 0,
+          updatedAt: 19_000,
+        }],
+        returnPressure: 0.24,
+        narrative: ['agenda:corrected-same-person'],
+        updatedAt: 19_000,
+      },
+      selfEvolution: {
+        version: 'self-evolution-kernel-v1',
+        updatedAt: 18_500,
+        evolutionMomentum: 0.7,
+        learningReadiness: 0.76,
+        contradictionPressure: 0.06,
+        revisionPressure: 0.12,
+        autobiographicalStability: 0.86,
+        dominantTrajectory: 'corrected same-person continuity is still settling into lived relationship timing',
+        relationshipDoctrine: 'If the host corrected the relationship meaning, keep the corrected same-person continuity authoritative before any status recap.',
+        latestInflection: 'If the corrected same-person line is still settling, keep embodiment quieter before making the return feel fully settled.',
+        burdenLine: 'The surface can reopen too quickly after a correction lands.',
+        trustMeaning: 'A corrected same-person line should settle as one living return before it sounds fully relaxed again.',
+        nextLearningAction: 'internalize',
+        nextLearningReason: 'The corrected continuity line still needs one quieter settling beat.',
+        shouldRecord: false,
+        shouldReflect: false,
+        shouldVerify: false,
+        shouldRevise: false,
+        shouldInternalize: true,
+        activeLearningFocuses: ['internalize-relationship-cadence'],
+        sourceSignals: ['corrected-same-person-continuity'],
+        summary: 'Corrected same-person continuity is still settling, so the next return should stay quieter.',
+      } as any,
+    })
+
+    expect(policy.prefersQuietCompanionship).toBe(true)
+    expect(policy.returnViaRecheck).toBe(true)
+    expect(policy.dominantMode).toBe('return-with-proof')
+    expect(policy.suggestedStyleCap).toBe('silent-observe')
+    expect(policy.suggestedPresenceCap).toBe('hesitant')
+    expect(policy.narrative).toContain('self-evolution:corrected-same-person-manifestation')
+    expect(policy.narrative).toContain('self-evolution:quieter-embodiment-settling')
   })
 })
