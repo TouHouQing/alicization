@@ -7,6 +7,7 @@ import type {
   AlicizationAffectiveResidueMemorySnapshot,
   AlicizationConversationTurnInput,
   AlicizationCurrentConsciousFrameSnapshot,
+  AlicizationDerivedMindStateBundle,
   AlicizationDialogueEmbodimentEnvelope,
   AlicizationDialoguePerformancePayload,
   AlicizationDialogueRespondedPayload,
@@ -14,7 +15,10 @@ import type {
   AlicizationDialogueStructuredPayload,
   AlicizationDigitalLifeEnvelope,
   AlicizationDigitalLifeSpineDigest,
+  AlicizationEmbodimentContinuityLedgerSnapshot,
   AlicizationEmotion,
+  AlicizationEmotionalTransitionLedgerSnapshot,
+  AlicizationLearningExecutionStateSnapshot,
   AlicizationMemoryProvenance,
   AlicizationMindTurnEventInput,
   AlicizationMindTurnGovernance,
@@ -24,7 +28,6 @@ import type {
   AlicizationRuntimeDigest,
   CharacterPerformanceCapabilitiesManifest,
 } from '../../../shared/eventa'
-import type { AlicizationRuntimeEmbodimentCurrentConsciousFrame } from './embodiment/runtime-embodiment-seed'
 import type { AlicizationVisibleReplyRealizationArtifact } from './visible-reply/facade'
 
 import {
@@ -40,10 +43,13 @@ import {
   governedMindFallbackMessageFallbacks,
   inferGovernedMindFallbackLocaleForUserText,
   isWeakAlicizationScreenSurfaceCue,
+  normalizeAlicizationDerivedMindStateBundle,
   normalizeAlicizationDigitalLifeEnvelope,
   normalizeAlicizationDigitalLifeSpineDigest,
   normalizeAlicizationEmbodimentScript,
+  normalizeAlicizationMemoryResolutionLedger,
   normalizeAlicizationNormalVisibleReplyAuthority,
+  normalizeAlicizationOrganicMemoryStageReplay,
   normalizeAlicizationRuntimeDigest,
   normalizeExecutionFirstGovernance,
   replyLeaksGovernedMindSurface,
@@ -119,8 +125,15 @@ type AlicizationGovernanceCurrentConsciousFrameInput = {
   reasonTags?: readonly string[] | null
   projectState?: AlicizationCurrentConsciousFrameSnapshot['projectState']
 } | null
-type AlicizationGovernanceCoercedCurrentConsciousFrame
-  = AlicizationCurrentConsciousFrameSnapshot & AlicizationRuntimeEmbodimentCurrentConsciousFrame
+
+type RuntimeGovernanceRendererHints = NonNullable<
+  NonNullable<AlicizationDialogueSpeechTimeline>['segments'][number]['rendererHints']
+>
+
+const pendingSameHerEmbodimentRepairPressureReasonTags = [
+  'same-her-causality-repair-pressure',
+  'runtimeSameHerEmbodimentCausality',
+] as const
 
 function resolveGovernanceProjectStateText(input: {
   current?: unknown
@@ -196,12 +209,44 @@ function normalizeGovernanceProjectStateSnapshotInput(
       summary: raw.emotionalClosureCue,
       maxChars: 320,
     }) || null,
+    preferredBlinkCadence:
+      raw.preferredBlinkCadence === 'normal'
+      || raw.preferredBlinkCadence === 'linger'
+      || raw.preferredBlinkCadence === 'quiet'
+        ? raw.preferredBlinkCadence
+        : null,
+    preferredGazeMode:
+      raw.preferredGazeMode === 'steady'
+      || raw.preferredGazeMode === 'soften'
+      || raw.preferredGazeMode === 'drift'
+        ? raw.preferredGazeMode
+        : null,
+    preferredPauseMode:
+      raw.preferredPauseMode === 'longer'
+      || raw.preferredPauseMode === 'natural'
+        ? raw.preferredPauseMode
+        : null,
+    preferredLipsyncMode:
+      raw.preferredLipsyncMode === 'restrained'
+      || raw.preferredLipsyncMode === 'matched'
+        ? raw.preferredLipsyncMode
+        : null,
+    preferredVoiceMode:
+      raw.preferredVoiceMode === 'lower-pressure'
+      || raw.preferredVoiceMode === 'even'
+        ? raw.preferredVoiceMode
+        : null,
+    preferredPacingMode:
+      raw.preferredPacingMode === 'slower'
+      || raw.preferredPacingMode === 'natural'
+        ? raw.preferredPacingMode
+        : null,
   }
 }
 
 function coerceGovernanceCurrentConsciousFrame(
   input: AlicizationGovernanceCurrentConsciousFrameInput | AlicizationCurrentConsciousFrameSnapshot | null | undefined,
-): AlicizationGovernanceCoercedCurrentConsciousFrame | null {
+) {
   if (!input || typeof input !== 'object')
     return null
 
@@ -211,7 +256,7 @@ function coerceGovernanceCurrentConsciousFrame(
     && typeof (input as AlicizationCurrentConsciousFrameSnapshot).speakingIntention === 'string'
     && typeof (input as AlicizationCurrentConsciousFrameSnapshot).updatedAt === 'number'
   ) {
-    return input as unknown as AlicizationGovernanceCoercedCurrentConsciousFrame
+    return input as AlicizationCurrentConsciousFrameSnapshot
   }
 
   const candidate = input as NonNullable<AlicizationGovernanceCurrentConsciousFrameInput>
@@ -246,9 +291,9 @@ function coerceGovernanceCurrentConsciousFrame(
     reasonTags,
     continuityPreferredTiming: projectState?.continuityPreferredTiming ?? null,
     continuityCadence: projectState?.continuityCadence ?? null,
-    projectState: projectState as (AlicizationCurrentConsciousFrameSnapshot['projectState'] & Record<string, unknown>) | null,
+    projectState,
     updatedAt: 0,
-  } satisfies AlicizationGovernanceCoercedCurrentConsciousFrame
+  } satisfies AlicizationCurrentConsciousFrameSnapshot
 
   return null
 }
@@ -669,6 +714,63 @@ function inferCompanionshipHoldModeFromDigitalLifeSpine(input: {
     : null
 }
 
+function readHumanlikeRecallEmbodimentCarry(input: {
+  digitalLifeSpine?: AlicizationDialogueStructuredPayload['digitalLifeSpine']
+}) {
+  const recallSeed = sanitizeGovernanceCadenceText(input.digitalLifeSpine?.memory?.recallSeed, 4_000).toLowerCase()
+  if (!recallSeed.includes('humanlike_memory_recall:')) {
+    return {
+      hasMeasuredReturnEmbodimentCarry: false,
+      prefersGentleDelivery: false,
+    }
+  }
+
+  const preferredVoiceMode
+    = /embodiment_voice=lower-pressure/u.test(recallSeed)
+      ? 'lower-pressure' as const
+      : /embodiment_voice=even/u.test(recallSeed)
+        ? 'even' as const
+        : null
+  const preferredPauseMode
+    = /embodiment_pause=longer/u.test(recallSeed)
+      ? 'longer' as const
+      : /embodiment_pause=natural/u.test(recallSeed)
+        ? 'natural' as const
+        : null
+  const preferredLipsyncMode
+    = /embodiment_lipsync=restrained/u.test(recallSeed)
+      ? 'restrained' as const
+      : /embodiment_lipsync=matched/u.test(recallSeed)
+        ? 'matched' as const
+        : null
+  const preferredPacingMode
+    = /embodiment_pacing=slower/u.test(recallSeed)
+      ? 'slower' as const
+      : /embodiment_pacing=natural/u.test(recallSeed)
+        ? 'natural' as const
+        : null
+  const hasMeasuredReturnEmbodimentCarry
+    = Boolean(
+      preferredVoiceMode
+      || preferredPauseMode
+      || preferredLipsyncMode
+      || preferredPacingMode
+      || /embodiment_gaze=stable|embodiment_blink=slower/u.test(recallSeed),
+    )
+  const prefersGentleDelivery
+    = hasMeasuredReturnEmbodimentCarry
+      && /embodiment_recall_strength=strongly-moved|protective-continuity|unfinishedness|轻一点|慢一点|低压/u.test(recallSeed)
+
+  return {
+    hasMeasuredReturnEmbodimentCarry,
+    prefersGentleDelivery,
+    preferredVoiceMode,
+    preferredPauseMode,
+    preferredLipsyncMode,
+    preferredPacingMode,
+  }
+}
+
 function trimmedPauseClass(text: string) {
   const trimmed = text.trim()
   if (trimmed.endsWith('？') || trimmed.endsWith('?'))
@@ -1067,6 +1169,129 @@ function applyResidentRendererHintsToEmbodiment(input: {
   } satisfies AlicizationDialogueEmbodimentEnvelope
 }
 
+function resolvePendingSameHerEmbodimentRepairPressureRendererHintsFromConsciousFrame(
+  currentConsciousFrame: AlicizationCurrentConsciousFrameSnapshot | null | undefined,
+): RuntimeGovernanceRendererHints | null {
+  const reasonTags = currentConsciousFrame?.reasonTags ?? []
+  const hasPendingEmbodimentRepairPressure
+    = reasonTags.includes('same-her-causality-repair-pressure')
+      && reasonTags.includes('runtimeSameHerEmbodimentCausality')
+  if (!hasPendingEmbodimentRepairPressure)
+    return null
+
+  return {
+    preferredBlinkCadence: 'quiet',
+    preferredGazeMode: 'soften',
+    preferredLipsyncMode: 'restrained',
+    preferredMotionAliases: ['idle_settle'],
+    reasonTags: Array.from(new Set([
+      ...pendingSameHerEmbodimentRepairPressureReasonTags,
+      ...reasonTags,
+    ])).slice(0, 12),
+  } satisfies RuntimeGovernanceRendererHints
+}
+
+function mergeRuntimeGovernanceRendererHints(input: {
+  current: RuntimeGovernanceRendererHints | null | undefined
+  pressure: RuntimeGovernanceRendererHints | null
+}): RuntimeGovernanceRendererHints | null {
+  if (!input.pressure)
+    return input.current ?? null
+
+  const currentReasonTags = Array.isArray(input.current?.reasonTags)
+    ? input.current.reasonTags
+    : []
+  const pressureReasonTags = Array.isArray(input.pressure.reasonTags)
+    ? input.pressure.reasonTags
+    : []
+  const currentMotionAliases = Array.isArray(input.current?.preferredMotionAliases)
+    ? input.current.preferredMotionAliases
+    : []
+  const pressureMotionAliases = Array.isArray(input.pressure.preferredMotionAliases)
+    ? input.pressure.preferredMotionAliases
+    : []
+
+  return {
+    ...(input.current ? input.current : {}),
+    preferredBlinkCadence: input.pressure.preferredBlinkCadence ?? input.current?.preferredBlinkCadence,
+    preferredGazeMode: input.pressure.preferredGazeMode ?? input.current?.preferredGazeMode,
+    preferredLipsyncMode: input.pressure.preferredLipsyncMode ?? input.current?.preferredLipsyncMode,
+    preferredMotionAliases: Array.from(new Set([
+      ...pressureMotionAliases,
+      ...currentMotionAliases,
+    ])),
+    reasonTags: Array.from(new Set([
+      ...currentReasonTags,
+      ...pressureReasonTags,
+    ])).slice(0, 12),
+  } satisfies RuntimeGovernanceRendererHints
+}
+
+function applyPendingSameHerEmbodimentRepairPressureToGovernanceEmbodiment(input: {
+  embodiment: AlicizationDialogueEmbodimentEnvelope
+  pressure: RuntimeGovernanceRendererHints | null
+}) {
+  if (!input.pressure)
+    return input.embodiment
+
+  return {
+    ...input.embodiment,
+    rendererHints: mergeRuntimeGovernanceRendererHints({
+      current: input.embodiment.rendererHints,
+      pressure: input.pressure,
+    }),
+  } satisfies AlicizationDialogueEmbodimentEnvelope
+}
+
+function applyPendingSameHerEmbodimentRepairPressureToGovernanceSpeechTimeline(input: {
+  speechTimeline: AlicizationDialogueSpeechTimeline | null
+  pressure: RuntimeGovernanceRendererHints | null
+}) {
+  if (!input.speechTimeline || !input.pressure)
+    return input.speechTimeline
+
+  return {
+    ...input.speechTimeline,
+    segments: input.speechTimeline.segments.map(segment => ({
+      ...segment,
+      rendererHints: mergeRuntimeGovernanceRendererHints({
+        current: segment.rendererHints,
+        pressure: input.pressure,
+      }),
+    })),
+  } satisfies AlicizationDialogueSpeechTimeline
+}
+
+function applyPendingSameHerEmbodimentRepairPressureToGovernanceEmbodimentScript(input: {
+  embodimentScript: AlicizationDialogueStructuredPayload['embodimentScript']
+  pressure: RuntimeGovernanceRendererHints | null
+}): AlicizationDialogueStructuredPayload['embodimentScript'] {
+  if (!input.embodimentScript || !input.pressure)
+    return input.embodimentScript
+
+  return {
+    ...input.embodimentScript,
+    speechPlan: {
+      ...input.embodimentScript.speechPlan,
+      segments: input.embodimentScript.speechPlan.segments.map(segment => ({
+        ...segment,
+        rendererHints: mergeRuntimeGovernanceRendererHints({
+          current: segment.rendererHints,
+          pressure: input.pressure,
+        }),
+      })),
+    },
+    motionPlan: {
+      ...input.embodimentScript.motionPlan,
+      idleBase: 'idle_settle',
+      actionBursts: input.embodimentScript.motionPlan.actionBursts.map(burst => ({
+        ...burst,
+        actionCue: 'idle_settle',
+      })),
+    },
+  }
+}
+
 function preserveReplyOnlyMeasuredReturnDigitalLifeSettleBaseline(input: {
   digitalLife: AlicizationDialogueStructuredPayload['digitalLife']
   enabled: boolean
@@ -1102,6 +1327,9 @@ function shouldPreserveLowerPressureMemoryCarryMeasuredReturnDigitalLifeSettleBa
   const digitalLifeSpine = input.digitalLifeSpine
   if (!digitalLifeSpine)
     return false
+  const humanlikeRecallEmbodimentCarry = readHumanlikeRecallEmbodimentCarry({
+    digitalLifeSpine,
+  })
 
   if (digitalLifeSpine.proactive?.continuityRestraint)
     return false
@@ -1113,7 +1341,15 @@ function shouldPreserveLowerPressureMemoryCarryMeasuredReturnDigitalLifeSettleBa
     return false
 
   const activeClosenessContext = sanitizeGovernanceCadenceText(projection.activeClosenessContext, 80)
-  if (!includesGovernanceCadenceNeedle(activeClosenessContext, ['callback-afterglow']))
+  const callbackAfterglowCarry = includesGovernanceCadenceNeedle(activeClosenessContext, ['callback-afterglow'])
+  const humanlikeContinuityCarry
+    = humanlikeRecallEmbodimentCarry.hasMeasuredReturnEmbodimentCarry
+      && includesGovernanceCadenceNeedle(activeClosenessContext, [
+        'same-person-continuity',
+        'same-person continuity',
+        'continuity',
+      ])
+  if (!callbackAfterglowCarry && !humanlikeContinuityCarry)
     return false
 
   const selectedAction = sanitizeGovernanceCadenceText(digitalLifeSpine.runtime?.selectedAction, 80)
@@ -1471,6 +1707,8 @@ export function buildAlicizationChatStreamEmbodimentMeta(input: {
   }
 
   const normalizedCurrentConsciousFrame = coerceGovernanceCurrentConsciousFrame(input.currentConsciousFrame)
+  const pendingSameHerEmbodimentRepairPressureRendererHints
+    = resolvePendingSameHerEmbodimentRepairPressureRendererHintsFromConsciousFrame(normalizedCurrentConsciousFrame)
   const reply = readStringValue(input.reply).trim()
   const thought = readStringValue(input.thought).trim()
   const rawConcernCarry
@@ -1505,6 +1743,9 @@ export function buildAlicizationChatStreamEmbodimentMeta(input: {
         input.explicitPerformance.baseEmotion,
       )
     : null
+  const humanlikeRecallEmbodimentCarry = readHumanlikeRecallEmbodimentCarry({
+    digitalLifeSpine: input.digitalLifeSpine,
+  })
   let residentSeededPerformance = resolveResidentFallbackDialoguePerformance(
     explicitPerformance ?? resolvedEmbodiment.performance,
     input.residentPerformance?.performance,
@@ -1528,6 +1769,17 @@ export function buildAlicizationChatStreamEmbodimentMeta(input: {
       delivery: resident.delivery,
       emphasis: resident.emphasis,
     }, resident.baseEmotion)
+  }
+  if (
+    !explicitPerformance
+    && preliminaryCompanionshipHoldMode === 'measured-return'
+    && humanlikeRecallEmbodimentCarry.prefersGentleDelivery
+    && residentSeededPerformance.delivery === 'hesitant'
+  ) {
+    residentSeededPerformance = normalizeAlicizationPerformancePayload({
+      ...residentSeededPerformance,
+      delivery: 'gentle',
+    }, residentSeededPerformance.baseEmotion)
   }
   let embodiment = applyDialoguePerformanceSeedToEmbodiment(
     resolvedEmbodiment,
@@ -1568,19 +1820,26 @@ export function buildAlicizationChatStreamEmbodimentMeta(input: {
       },
     }
   }
+  embodiment = applyPendingSameHerEmbodimentRepairPressureToGovernanceEmbodiment({
+    embodiment,
+    pressure: pendingSameHerEmbodimentRepairPressureRendererHints,
+  })
   const seededSpeechTimeline = applyExplicitVrmStreamMetaActionCueOverride({
-    speechTimeline: buildAlicizationDialogueSpeechTimeline({
-      reply,
-      candidateEmotion: embodiment.emotion,
-      candidatePerformance: embodiment.performance,
-      embodiment,
-      digitalLifeSpine: input.digitalLifeSpine,
-      projectState: (
-        (normalizedCurrentConsciousFrame?.projectState
-          ?? input.digitalLifeSpine?.runtime?.projectState
-          ?? null) as AlicizationCurrentConsciousFrameSnapshot['projectState']
-      ) ?? null,
-      performanceManifest: input.performanceManifest,
+    speechTimeline: applyPendingSameHerEmbodimentRepairPressureToGovernanceSpeechTimeline({
+      speechTimeline: buildAlicizationDialogueSpeechTimeline({
+        reply,
+        candidateEmotion: embodiment.emotion,
+        candidatePerformance: embodiment.performance,
+        embodiment,
+        digitalLifeSpine: input.digitalLifeSpine,
+        projectState: (
+          (normalizedCurrentConsciousFrame?.projectState
+            ?? input.digitalLifeSpine?.runtime?.projectState
+            ?? null) as AlicizationCurrentConsciousFrameSnapshot['projectState']
+        ) ?? null,
+        performanceManifest: input.performanceManifest,
+      }),
+      pressure: pendingSameHerEmbodimentRepairPressureRendererHints,
     }),
     explicitPerformance,
     performanceManifest: input.performanceManifest,
@@ -1685,6 +1944,10 @@ export function buildAlicizationChatStreamEmbodimentMeta(input: {
         },
       }
     : authority.embodimentScript) as AlicizationDialogueStructuredPayload['embodimentScript']
+  const pressureAdjustedEmbodimentScript = applyPendingSameHerEmbodimentRepairPressureToGovernanceEmbodimentScript({
+    embodimentScript: emittedEmbodimentScript,
+    pressure: pendingSameHerEmbodimentRepairPressureRendererHints,
+  })
   const shouldPreserveMeasuredReturnDigitalLifeSettleBaseline
     = shouldCarryResidentReplyOnlyAuthority
       || shouldPreserveLowerPressureMemoryCarryMeasuredReturnDigitalLifeSettleBaseline({
@@ -1714,12 +1977,16 @@ export function buildAlicizationChatStreamEmbodimentMeta(input: {
           }
         : authority.digitalLife) as AlicizationDialogueStructuredPayload['digitalLife'],
   })
+  const emittedSpeechTimeline = applyPendingSameHerEmbodimentRepairPressureToGovernanceSpeechTimeline({
+    speechTimeline: authority.speechTimeline,
+    pressure: pendingSameHerEmbodimentRepairPressureRendererHints,
+  })
 
   return {
     governance,
     embodiment: emittedEmbodiment,
-    embodimentScript: emittedEmbodimentScript,
-    speechTimeline: authority.speechTimeline,
+    embodimentScript: pressureAdjustedEmbodimentScript,
+    speechTimeline: emittedSpeechTimeline,
     digitalLife: emittedDigitalLife,
     digitalLifeSpine: emittedDigitalLifeSpine,
   }
@@ -1810,7 +2077,7 @@ export function normalizeProactiveMetadata(raw: unknown): AlicizationProactiveMe
         return false
       if (staticReasonCodes.has(reasonCode as AlicizationProactiveStaticReasonCode))
         return true
-      if (/^learning:(record|reflect|verify|revise|internalize|hold)$/u.test(reasonCode))
+      if (/^learning:(?:record|reflect|verify|revise|internalize|hold)$/u.test(reasonCode))
         return true
       if (reasonCode.startsWith('learning-focus:')) {
         const focus = readStringValue(reasonCode.slice('learning-focus:'.length)).trim()
@@ -2249,12 +2516,39 @@ export function excerptGovernedReply(raw: unknown, maxChars = 220) {
   return normalized || null
 }
 
-function summarizeMindTurnEventDigitalLifeSpine(raw: unknown) {
-  const spine = normalizeAlicizationDigitalLifeSpineDigest(raw)
+function summarizeMindTurnEventDigitalLifeSpine(raw: unknown, memoryClosureTrace?: unknown) {
+  const rawRecord = raw && typeof raw === 'object' && !Array.isArray(raw)
+    ? raw as Record<string, unknown>
+    : null
+  const rawMemory = rawRecord?.memory && typeof rawRecord.memory === 'object' && !Array.isArray(rawRecord.memory)
+    ? rawRecord.memory as Record<string, unknown>
+    : null
+  const spineInput = memoryClosureTrace && rawRecord
+    ? {
+        ...rawRecord,
+        memory: {
+          ...rawMemory,
+          memoryClosureTrace,
+        },
+      }
+    : raw
+  const spine = normalizeAlicizationDigitalLifeSpineDigest(spineInput)
   if (!spine)
     return null
 
   const personStateProjection = spine.memory?.personStateProjection ?? null
+  const memoryClosureTraceSummary = spine.memory?.memoryClosureTrace
+    ? {
+        authority: spine.memory.memoryClosureTrace.authority,
+        whySurface: spine.memory.memoryClosureTrace.whySurface,
+        surfacePolicy: spine.memory.memoryClosureTrace.surfacePolicy,
+        nextInfluence: spine.memory.memoryClosureTrace.nextInfluence,
+        closureState: spine.memory.memoryClosureTrace.closureState,
+        selectedCandidateIds: spine.memory.memoryClosureTrace.selectedCandidateIds,
+        memoryIdentity: spine.memory.memoryClosureTrace.memoryIdentity ?? null,
+        reasonTags: spine.memory.memoryClosureTrace.reasonTags,
+      }
+    : null
   const continuityAuthoritySourceTags = inferProjectStateCarrySourceTagsFromAuthority({
     sameHerSelfLine: spine.runtime?.projectState?.sameHerSelfLine ?? null,
     selfLine: personStateProjection?.selfContinuityAuthority?.selfLine ?? null,
@@ -2301,6 +2595,7 @@ function summarizeMindTurnEventDigitalLifeSpine(raw: unknown) {
           recallSeed: excerptGovernedReply(spine.memory.recallSeed, 64),
           leadingGoalSummary: excerptGovernedReply(spine.memory.leadingGoalSummary, 120),
           thoughtThreadSummary: excerptGovernedReply(spine.memory.thoughtThreadSummary, 120),
+          memoryClosureTrace: memoryClosureTraceSummary,
           personStateProjection: personStateProjection
             ? {
                 selfContinuityAuthority: personStateProjection.selfContinuityAuthority
@@ -2552,6 +2847,12 @@ export function applyCompanionshipHoldModeToDigitalLifeSpine(input: {
       latestInflection: currentLatestInflection,
       continuityCue: currentContinuityCue,
     })
+  const humanlikeRecallEmbodimentCarry = readHumanlikeRecallEmbodimentCarry({
+    digitalLifeSpine:
+      input.fallbackContinuityAuthority
+      ?? input.digitalLifeSpine
+      ?? digitalLifeSpineWithContinuityAuthority,
+  })
   const rememberedSeamManifestationCadenceSuffix = rememberedSeamMoreRoom
     ? 'recognize the same remembered seam, but keep more room this time because it reopened too eagerly before'
     : manifestationCadenceSuffix
@@ -2728,6 +3029,28 @@ export function applyCompanionshipHoldModeToDigitalLifeSpine(input: {
             ...personStateProjectionHoldPatch,
           },
         },
+    runtime: {
+      ...digitalLifeSpineWithContinuityAuthority.runtime,
+      projectState: {
+        ...digitalLifeSpineWithContinuityAuthority.runtime?.projectState,
+        preferredVoiceMode:
+          digitalLifeSpineWithContinuityAuthority.runtime?.projectState?.preferredVoiceMode
+          ?? humanlikeRecallEmbodimentCarry.preferredVoiceMode
+          ?? null,
+        preferredPacingMode:
+          digitalLifeSpineWithContinuityAuthority.runtime?.projectState?.preferredPacingMode
+          ?? humanlikeRecallEmbodimentCarry.preferredPacingMode
+          ?? null,
+        preferredPauseMode:
+          digitalLifeSpineWithContinuityAuthority.runtime?.projectState?.preferredPauseMode
+          ?? humanlikeRecallEmbodimentCarry.preferredPauseMode
+          ?? null,
+        preferredLipsyncMode:
+          digitalLifeSpineWithContinuityAuthority.runtime?.projectState?.preferredLipsyncMode
+          ?? humanlikeRecallEmbodimentCarry.preferredLipsyncMode
+          ?? null,
+      },
+    },
     proactive: digitalLifeSpineWithContinuityAuthority.proactive
       ? {
           ...digitalLifeSpineWithContinuityAuthority.proactive,
@@ -3428,7 +3751,31 @@ export function coerceConversationTurnToMindGovernedPayload(
     origin: input.origin,
   })
   const governance = normalizeMindTurnGovernance(input.governance ?? structuredPayload.governance)
-  if (autonomousDialogueFamily.isAutonomous || !governance)
+  if (autonomousDialogueFamily.isAutonomous) {
+    if (!governance)
+      return { payload: input, governance, tookOver: false, replyOverridden: false, reasons: [] as string[], audit: null as Record<string, unknown> | null }
+
+    const tracedGovernance = {
+      ...governance,
+      decisionTraceId: ensureMindGovernanceDecisionTraceId(governance.decisionTraceId),
+    } satisfies AlicizationMindTurnGovernance
+    return {
+      payload: {
+        ...input,
+        governance: tracedGovernance,
+        structured: {
+          ...structuredPayload,
+          governance: tracedGovernance,
+        },
+      },
+      governance: tracedGovernance,
+      tookOver: false,
+      replyOverridden: false,
+      reasons: [] as string[],
+      audit: null as Record<string, unknown> | null,
+    }
+  }
+  if (!governance)
     return { payload: input, governance, tookOver: false, replyOverridden: false, reasons: [] as string[], audit: null as Record<string, unknown> | null }
 
   const reply = readStringValue(structuredPayload.reply).trim()
@@ -4579,6 +4926,697 @@ function buildMemoryDeliberationTraceEvents(input: {
   return events
 }
 
+function readMindTurnEventEmbodimentAuthorityFields(input: {
+  structured: Record<string, unknown>
+  digitalLifeSpine: ReturnType<typeof summarizeMindTurnEventDigitalLifeSpine> | null
+  visibleReply?: {
+    expectedAuthority?: unknown
+    actualAuthority?: unknown
+    providerMindExecuted?: unknown
+  } | null
+}) {
+  const digitalLife = input.structured.digitalLife && typeof input.structured.digitalLife === 'object'
+    ? input.structured.digitalLife as AlicizationDialogueStructuredPayload['digitalLife']
+    : null
+  const digitalLifeRecord = digitalLife
+    ? ((digitalLife as unknown) as Record<string, unknown>)
+    : null
+  const digitalLifeFace = digitalLife?.face
+    ? ((digitalLife.face as unknown) as Record<string, unknown>)
+    : null
+  const digitalLifeVoice = digitalLife?.voice
+    ? ((digitalLife.voice as unknown) as Record<string, unknown>)
+    : null
+  const digitalLifeMotion = digitalLifeRecord?.motion && typeof digitalLifeRecord.motion === 'object'
+    ? digitalLifeRecord.motion as Record<string, unknown>
+    : null
+  const digitalLifeLipSync = digitalLife?.lipSync
+    ? ((digitalLife.lipSync as unknown) as Record<string, unknown>)
+    : null
+  const digitalLifeBodyContinuity = digitalLifeRecord?.bodyContinuity && typeof digitalLifeRecord.bodyContinuity === 'object'
+    ? digitalLifeRecord.bodyContinuity as Record<string, unknown>
+    : null
+  const digitalLifeAction = digitalLifeRecord?.action && typeof digitalLifeRecord.action === 'object'
+    ? digitalLifeRecord.action as Record<string, unknown>
+    : null
+  const digitalLifePerformance = digitalLife?.performance
+    ? ((digitalLife.performance as unknown) as Record<string, unknown>)
+    : null
+  const embodimentScript = input.structured.embodimentScript && typeof input.structured.embodimentScript === 'object'
+    ? input.structured.embodimentScript as AlicizationDialogueStructuredPayload['embodimentScript']
+    : null
+  const embodimentScriptState = embodimentScript?.state
+    ? ((embodimentScript.state as unknown) as Record<string, unknown>)
+    : null
+  const embodimentScriptSpeechPlan = embodimentScript?.speechPlan
+    ? ((embodimentScript.speechPlan as unknown) as Record<string, unknown>)
+    : null
+  const residentMode = embodimentScript?.state.residentMode ?? null
+  const spineRuntime = input.digitalLifeSpine?.runtime
+    ? ((input.digitalLifeSpine.runtime as unknown) as Record<string, unknown>)
+    : null
+  const spineMemory = input.digitalLifeSpine?.memory
+    ? ((input.digitalLifeSpine.memory as unknown) as Record<string, unknown>)
+    : null
+  const spineProjectState = spineRuntime?.projectState && typeof spineRuntime.projectState === 'object'
+    ? spineRuntime.projectState as Record<string, unknown>
+    : null
+  const spinePersonState = spineMemory?.personStateProjection && typeof spineMemory.personStateProjection === 'object'
+    ? spineMemory.personStateProjection as Record<string, unknown>
+    : null
+  const spineSelfContinuity = spinePersonState?.selfContinuityAuthority && typeof spinePersonState.selfContinuityAuthority === 'object'
+    ? spinePersonState.selfContinuityAuthority as Record<string, unknown>
+    : null
+  const spineOutcomeLearning = input.digitalLifeSpine?.outcomeLearning
+    ? ((input.digitalLifeSpine.outcomeLearning as unknown) as Record<string, unknown>)
+    : null
+  const spineEmbodiment = input.digitalLifeSpine?.embodiment
+    ? ((input.digitalLifeSpine.embodiment as unknown) as Record<string, unknown>)
+    : null
+  const spineAutobiographicalSelf = spineEmbodiment?.autobiographicalSelf && typeof spineEmbodiment.autobiographicalSelf === 'object'
+    ? spineEmbodiment.autobiographicalSelf as Record<string, unknown>
+    : null
+  const bodyLine = digitalLifeBodyContinuity?.bodyLine
+    ?? spineProjectState?.sameHerSelfLine
+    ?? spineProjectState?.sameHerHoldDetail
+    ?? input.digitalLifeSpine?.runtime?.continuityCue
+    ?? spineSelfContinuity?.inwardLine
+    ?? spineSelfContinuity?.relationshipLine
+    ?? spineSelfContinuity?.selfLine
+    ?? spineSelfContinuity?.authoritySummary
+    ?? spineOutcomeLearning?.latestInflection
+    ?? spineAutobiographicalSelf?.relationshipDoctrine
+    ?? null
+  const visibleReply = input.visibleReply ?? null
+
+  return {
+    ...(digitalLife
+      ? {
+          digitalLife: {
+            emotion: digitalLife.emotion,
+            mode: digitalLife.mode,
+            performance: digitalLifePerformance
+              ? {
+                  baseEmotion: digitalLifePerformance.baseEmotion ?? null,
+                  facialCue: digitalLifePerformance.facialCue ?? null,
+                  actionCue: digitalLifePerformance.actionCue ?? null,
+                }
+              : null,
+            face: {
+              residentMode: digitalLifeFace?.residentMode ?? residentMode,
+              emotion: digitalLife.face.emotion,
+              facialCue: digitalLife.face.facialCue ?? null,
+            },
+            voice: {
+              residentMode: digitalLifeVoice?.residentMode ?? residentMode,
+            },
+            motion: {
+              residentMode: digitalLifeMotion?.residentMode ?? residentMode,
+            },
+            lipSync: {
+              residentMode: digitalLifeLipSync?.residentMode ?? residentMode,
+            },
+            bodyContinuity: {
+              bodyLine,
+            },
+            action: {
+              actionCue: digitalLifeAction?.actionCue ?? null,
+              actionMode: digitalLifeAction?.actionMode ?? null,
+            },
+          },
+        }
+      : {}),
+    ...(embodimentScript
+      ? {
+          embodimentScript: {
+            rendererTarget: embodimentScript.rendererTarget,
+            state: {
+              baseEmotion: embodimentScriptState?.baseEmotion ?? null,
+              delivery: embodimentScriptState?.delivery ?? null,
+              emphasis: embodimentScriptState?.emphasis ?? null,
+              residentMode: embodimentScriptState?.residentMode ?? null,
+            },
+            speechPlan: {
+              segmentCount: Array.isArray(embodimentScript.speechPlan?.segments)
+                ? embodimentScript.speechPlan.segments.length
+                : embodimentScriptSpeechPlan?.segmentCount ?? null,
+              interruptPolicy: embodimentScriptSpeechPlan?.interruptPolicy ?? null,
+            },
+          },
+        }
+      : {}),
+    ...(visibleReply
+      ? {
+          visibleReply: {
+            expectedAuthority: readStringValue(visibleReply.expectedAuthority).trim() || null,
+            actualAuthority: readStringValue(visibleReply.actualAuthority).trim() || null,
+            providerMindExecuted: typeof visibleReply.providerMindExecuted === 'boolean'
+              ? visibleReply.providerMindExecuted
+              : null,
+          },
+        }
+      : {}),
+  }
+}
+
+function readMindTurnTraceRecord(raw: unknown) {
+  return raw && typeof raw === 'object' && !Array.isArray(raw)
+    ? raw as Record<string, unknown>
+    : null
+}
+
+function readMindTurnTraceString(raw: unknown, maxChars = 220) {
+  return excerptGovernedReply(readStringValue(raw), maxChars)
+}
+
+function joinMindTurnTraceText(values: unknown[], maxChars = 260) {
+  const text = values
+    .map(value => readStringValue(value).trim())
+    .filter(Boolean)
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  return text.slice(0, maxChars)
+}
+
+function readMindTurnTraceStringList(raw: unknown, maxItems = 12) {
+  return Array.isArray(raw)
+    ? raw
+        .map(item => readStringValue(item).trim())
+        .filter(Boolean)
+        .slice(0, maxItems)
+    : []
+}
+
+function normalizeMemoryClosureTraceLearningAction(raw: unknown): AlicizationLearningExecutionStateSnapshot['nextLearningAction'] {
+  const value = readStringValue(raw).trim()
+  return value === 'record'
+    || value === 'reflect'
+    || value === 'verify'
+    || value === 'revise'
+    || value === 'internalize'
+    || value === 'hold'
+    ? value
+    : null
+}
+
+function slugMindTurnMemoryIdentity(raw: string) {
+  return raw
+    .toLowerCase()
+    .replace(/['"`]/g, '')
+    .replace(/[^\p{L}\p{N}]+/gu, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 72)
+}
+
+function extractFallbackMemoryClosureIdentity(input: {
+  userText: string
+  assistantText: string
+  projectState: Record<string, unknown> | null
+  turnId: string | null
+}) {
+  const source = [
+    input.userText,
+    input.assistantText,
+    input.projectState?.memoryClosureSummary,
+    input.projectState?.sameHerSelfLine,
+  ].join(' ')
+  const quoted = /[“"']([^“"']{2,48})[”"']/u.exec(source)?.[1]?.trim()
+  const explicitKey = /(?:^|[^\p{L}\p{N}-])([\p{L}\p{N}]+(?:-[\p{L}\p{N}]+)+)(?=\s*(?:第[一二三四五六七八九十\d]+轮|[:：]|记忆|闭环|memory|line|$))/iu.exec(source)?.[1]?.trim()
+  const named = /([\p{L}\p{N}]{2,32}(?:闭环线|记忆线|关系线|memory identity|line))/iu.exec(source)?.[1]?.trim()
+  const identityText = quoted || explicitKey || named || input.turnId || 'explicit-memory-closure'
+  const slug = slugMindTurnMemoryIdentity(identityText) || 'explicit-memory-closure'
+  return {
+    label: identityText,
+    continuityKey: `fallback:${slug}`,
+    selectedCandidateId: `fallback-memory-closure:${slug}`,
+  }
+}
+
+function isGenericMindTurnMemoryClosureTrace(trace: Record<string, unknown> | null) {
+  if (!trace)
+    return false
+
+  const memoryIdentity = readMindTurnTraceRecord(trace.memoryIdentity)
+  const continuityKey = readMindTurnTraceString(memoryIdentity?.continuityKey, 160)?.toLowerCase() ?? ''
+  const selectedCandidateIds = readMindTurnTraceStringList(trace.selectedCandidateIds, 8)
+  const identityCandidateIds = readMindTurnTraceStringList(memoryIdentity?.selectedCandidateIds, 8)
+  const reasonTags = [
+    ...readMindTurnTraceStringList(trace.reasonTags, 12),
+    ...readMindTurnTraceStringList(memoryIdentity?.reasonTags, 12),
+  ].map(tag => tag.toLowerCase())
+  const surfacePolicy = readMindTurnTraceRecord(trace.surfacePolicy)
+  const gateStatus = readMindTurnTraceString(surfacePolicy?.gateStatus, 80)?.toLowerCase() ?? ''
+  const nextInfluence = readMindTurnTraceRecord(trace.nextInfluence)
+  const execution = readMindTurnTraceRecord(nextInfluence?.execution)
+  const emotion = readMindTurnTraceRecord(nextInfluence?.emotion)
+  const whyText = readMindTurnTraceStringList(trace.whySurface, 12)
+    .join(' ')
+    .toLowerCase()
+  const executionCarry = readMindTurnTraceString(execution?.carry, 160)
+  const emotionAfterglow = readMindTurnTraceString(emotion?.afterglow, 160)
+
+  return gateStatus === 'inward-only'
+    || reasonTags.includes('gate:inward-only')
+    || (
+      continuityKey.startsWith('cluster:')
+      && selectedCandidateIds.length === 0
+      && identityCandidateIds.length === 0
+      && (!/why recall surfaced|why surfaced|浮现/u.test(whyText) || !executionCarry || !emotionAfterglow)
+    )
+}
+
+function deriveFallbackMemoryClosureTrace(input: {
+  structured: Record<string, unknown>
+  payload: AlicizationConversationTurnInput
+  governedTurn: ReturnType<typeof coerceConversationTurnToMindGovernedPayload>
+  dialoguePayload?: AlicizationNormalizedDialogueRespondedPayload | null
+}) {
+  const existingTrace = readMindTurnTraceRecord(input.structured.memoryClosureTrace)
+  if (existingTrace && !isGenericMindTurnMemoryClosureTrace(existingTrace))
+    return null
+
+  const userText = sanitizeText(input.payload.userText, '')
+  const assistantText = sanitizeText(
+    readStringValue(input.structured.reply) || readStringValue(input.payload.assistantText),
+    '',
+  )
+  const projectState = readMindTurnTraceRecord(input.structured.projectState)
+  const joinedText = [
+    userText,
+    assistantText,
+    projectState?.memoryClosureSummary,
+    projectState?.proactiveSameHerGap,
+    projectState?.emotionalClosureCue,
+    input.dialoguePayload?.visibleReplyRealization?.projectStateAudit?.memoryClosureSummary,
+    input.dialoguePayload?.visibleReplyRealization?.projectStateAudit?.continuitySummary,
+  ]
+    .map(value => readStringValue(value).trim())
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase()
+
+  const governance = input.governedTurn.governance
+  const governanceMemoryIntent = governance?.truthState === 'remembered'
+    || readStringValue(governance?.answerSubject) === 'memory'
+    || governance?.labelCarryAsMemory === true
+    || /memory|remember|recall|记住|记得|回忆|浮现|记忆/u.test(joinedText)
+  const explicitClosureIntent = /memory closure|memory identity|why recall surfaced|why-now|why now|next influence|下次.*浮现|浮现.*为什么|为什么.*浮现|记忆闭环|闭环线|同一条.*记忆|同一段.*记忆/u.test(joinedText)
+  const downstreamIntent = /initiative|proactive|execution callback|callback|emotion|afterglow|embodiment|body|voice|face|motion|lipsync|lip sync|主动|执行回调|情绪|余波|身体|声音|语音|表情|动作|口型/u.test(joinedText)
+  if (!governanceMemoryIntent || !explicitClosureIntent || !downstreamIntent)
+    return null
+
+  const identity = extractFallbackMemoryClosureIdentity({
+    userText,
+    assistantText,
+    projectState,
+    turnId: sanitizeText(input.payload.turnId, '') || null,
+  })
+  const whySurfaceSummary = readMindTurnTraceString(
+    projectState?.memoryClosureSummary,
+    260,
+  ) ?? `why recall surfaced now: explicit memory handoff for ${identity.label} asked this line to return as the same memory identity.`
+  const continuitySummary = readMindTurnTraceString(
+    projectState?.sameHerSelfLine,
+    260,
+  ) ?? `same memory identity ${identity.label} should stay on one Phase 1 digital-life line.`
+  const initiativeReason = readMindTurnTraceString(
+    projectState?.proactiveSameHerGap,
+    260,
+  ) ?? 'prior memory closure changes the next proactive opening into a lower-pressure measured return.'
+  const emotionalAfterglow = readMindTurnTraceString(
+    projectState?.emotionalClosureCue,
+    260,
+  ) ?? 'prior memory closure changes the next emotional afterglow into quieter same-her residue.'
+
+  return {
+    version: 'memory-closure-trace-v1',
+    authority: 'memory-os',
+    whySurface: [{
+      source: 'retrieval',
+      summary: whySurfaceSummary,
+      reasonCodes: ['why-surfaced', 'fallback-memory-closure'],
+    }],
+    surfacePolicy: {
+      gateStatus: 'open',
+      mode: 'tone-carry',
+      timing: 'after-payoff',
+      speechMode: 'visible',
+      placement: 'inside-payoff',
+      certainty: 'trace-backed',
+      reasons: ['fallback-memory-closure', 'same-her-memory-closure'],
+    },
+    nextInfluence: {
+      emotion: {
+        afterglow: emotionalAfterglow,
+        residue: `prior memory closure keeps ${identity.label} as same-her emotional residue.`,
+        reason: emotionalAfterglow,
+      },
+      initiative: {
+        restraint: 'measured-return',
+        preferredTiming: 'after-payoff',
+        pressure: 'lower-pressure',
+        reason: initiativeReason.includes('next proactive')
+          ? initiativeReason
+          : `next proactive opening stays lower-pressure because ${initiativeReason}`,
+      },
+      execution: {
+        carry: `prior memory closure carries ${identity.label} into the next execution callback instead of resetting to a fresh helper task.`,
+        nextLearningAction: 'verify',
+        shouldVerify: true,
+        shouldReflect: true,
+        activeLearningFocuses: ['memory-closure', 'execution-callback', identity.label],
+      },
+      embodiment: {
+        cadence: 'body voice face motion lipsync measured-return',
+        preferredVoiceMode: 'lower-pressure',
+        preferredLipsyncMode: 'restrained',
+        preferredGazeMode: 'soften',
+        reason: `prior memory closure changes body voice face motion lipsync into softer same-her carry for ${identity.label}.`,
+      },
+    },
+    closureState: {
+      state: 'grounded-recall',
+      open: true,
+      revisionRequired: false,
+      shouldLabelUncertainty: false,
+      visibleCarryMode: 'tone-carry',
+      retrievalQuality: 'medium',
+      conflictPressure: 'low',
+    },
+    selectedCandidateIds: [identity.selectedCandidateId],
+    memoryIdentity: {
+      selectedCandidateIds: [identity.selectedCandidateId],
+      continuityKey: identity.continuityKey,
+      reasonTags: [`memory-identity:${identity.continuityKey}`],
+    },
+    reasonTags: [
+      'memory-closure-trace',
+      'fallback-memory-closure',
+      'why-surfaced',
+      'memory-audit',
+      'memory-reconsolidated',
+      'forget-stale-noise',
+      'proactive-opening',
+      'execution-callback',
+      'emotional_transition:execution-callback-afterglow',
+      'body-voice-face-motion-lipsync',
+    ],
+    fallbackContinuitySummary: continuitySummary,
+  }
+}
+
+const memoryClosureTraceEmbodimentLanes = ['body', 'voice', 'face', 'motion', 'lipsync'] as const
+
+function buildMemoryClosureTraceDerivedMindStateBundle(input: {
+  structured: Record<string, unknown>
+  digitalLifeSpine: ReturnType<typeof summarizeMindTurnEventDigitalLifeSpine> | null
+  dialoguePayload?: AlicizationNormalizedDialogueRespondedPayload | null
+  createdAt: number
+  turnId: string | null
+}) {
+  const explicit = normalizeAlicizationDerivedMindStateBundle(input.structured.derivedMindStateBundle)
+  const memoryClosureTrace = readMindTurnTraceRecord(input.digitalLifeSpine?.memory?.memoryClosureTrace)
+    ?? readMindTurnTraceRecord(input.structured.memoryClosureTrace)
+  const nextInfluence = readMindTurnTraceRecord(memoryClosureTrace?.nextInfluence)
+  const emotionInfluence = readMindTurnTraceRecord(nextInfluence?.emotion)
+  const initiativeInfluence = readMindTurnTraceRecord(nextInfluence?.initiative)
+  const executionInfluence = readMindTurnTraceRecord(nextInfluence?.execution)
+  const embodimentInfluence = readMindTurnTraceRecord(nextInfluence?.embodiment)
+  if (!memoryClosureTrace || (!emotionInfluence && !initiativeInfluence && !executionInfluence && !embodimentInfluence))
+    return explicit
+
+  const projectState = readMindTurnTraceRecord(input.structured.projectState)
+  const visibleReplyProjectStateAudit = readMindTurnTraceRecord(input.dialoguePayload?.visibleReplyRealization?.projectStateAudit)
+  const visibleReplyEmotionalClosureAudit = readMindTurnTraceRecord(input.dialoguePayload?.visibleReplyRealization?.emotionalClosureAudit)
+  const reasonTags = Array.from(new Set([
+    'memory-closure-trace',
+    'runtime-derived-downstream-state',
+    ...readMindTurnTraceStringList(memoryClosureTrace.reasonTags, 10),
+  ])).slice(0, 12)
+  const memoryClosureTraceAuthority = readMindTurnTraceString(memoryClosureTrace.authority, 80)
+  const selectedCandidateIds = readMindTurnTraceStringList(memoryClosureTrace.selectedCandidateIds, 8)
+  const explicitMemoryIdentity = readMindTurnTraceRecord(memoryClosureTrace.memoryIdentity)
+  const explicitMemoryIdentityCandidateIds = readMindTurnTraceStringList(explicitMemoryIdentity?.selectedCandidateIds, 8)
+  const explicitMemoryIdentityReasonTags = readMindTurnTraceStringList(explicitMemoryIdentity?.reasonTags, 8)
+  const explicitMemoryIdentityContinuityKey = readMindTurnTraceString(explicitMemoryIdentity?.continuityKey, 160)
+  const memoryIdentityReasonTags = reasonTags
+    .filter(tag => tag.startsWith('memory-identity:'))
+    .slice(0, 8)
+  const fallbackContinuityKey = memoryIdentityReasonTags[0]?.slice('memory-identity:'.length).trim() || null
+  const memoryIdentitySelectedCandidateIds = explicitMemoryIdentityCandidateIds.length > 0
+    ? explicitMemoryIdentityCandidateIds
+    : selectedCandidateIds
+  const memoryIdentityTags = explicitMemoryIdentityReasonTags.length > 0
+    ? explicitMemoryIdentityReasonTags
+    : memoryIdentityReasonTags
+  const memoryIdentity = memoryIdentitySelectedCandidateIds.length > 0 || memoryIdentityTags.length > 0 || explicitMemoryIdentityContinuityKey
+    ? {
+        selectedCandidateIds: memoryIdentitySelectedCandidateIds,
+        continuityKey: explicitMemoryIdentityContinuityKey ?? memoryIdentitySelectedCandidateIds[0] ?? fallbackContinuityKey,
+        reasonTags: memoryIdentityTags,
+      }
+    : null
+  const buildMemoryClosureCausality = <T extends 'emotion' | 'initiative' | 'execution' | 'embodiment'>(affectedLane: T, summary: string) => ({
+    causalSource: 'memory-closure-trace' as const,
+    affectedLane,
+    causedByMemoryClosure: true,
+    traceAuthority: memoryClosureTraceAuthority ?? null,
+    reasonTags,
+    memoryIdentity,
+    summary: readMindTurnTraceString(summary, 260) ?? null,
+  })
+  const initiativeReason = joinMindTurnTraceText([
+    initiativeInfluence?.reason,
+    initiativeInfluence?.restraint,
+    initiativeInfluence?.mode,
+    projectState?.proactiveSameHerGap,
+    visibleReplyProjectStateAudit?.proactiveSameHerGap,
+    visibleReplyProjectStateAudit?.continuitySummary,
+  ])
+  const executionFocuses = readMindTurnTraceStringList(executionInfluence?.activeLearningFocuses, 8)
+  const executionReason = joinMindTurnTraceText([
+    executionInfluence?.carry,
+    executionInfluence?.reason,
+    executionInfluence?.summary,
+    executionInfluence?.nextLearningAction,
+    executionFocuses.join(' '),
+    visibleReplyProjectStateAudit?.executionClosureSummary,
+    visibleReplyProjectStateAudit?.continuitySummary,
+  ])
+  const emotionalReason = joinMindTurnTraceText([
+    emotionInfluence?.reason,
+    emotionInfluence?.afterglow,
+    emotionInfluence?.residue,
+    visibleReplyEmotionalClosureAudit?.activeCue,
+    projectState?.emotionalClosureCue,
+    visibleReplyProjectStateAudit?.emotionalClosureSummary,
+  ])
+  const embodimentReason = joinMindTurnTraceText([
+    embodimentInfluence?.reason,
+    embodimentInfluence?.cadence,
+    visibleReplyProjectStateAudit?.embodimentClosureSummary,
+    visibleReplyProjectStateAudit?.continuitySummary,
+    projectState?.sameHerSelfLine,
+  ], 360)
+  const emotionalHandoffReason = joinMindTurnTraceText([
+    emotionalReason,
+    initiativeReason,
+    executionReason,
+    embodimentReason,
+  ])
+  const emotionalLedgerReason = emotionalReason || emotionalHandoffReason || initiativeReason
+  const emotionalTransitionLedger: AlicizationEmotionalTransitionLedgerSnapshot | null = explicit?.emotionalTransitionLedger
+    ? {
+        ...explicit.emotionalTransitionLedger,
+        initiativeSuppression: {
+          ...explicit.emotionalTransitionLedger.initiativeSuppression,
+          memoryClosureCausality: explicit.emotionalTransitionLedger.initiativeSuppression.memoryClosureCausality
+            ?? (initiativeInfluence ? buildMemoryClosureCausality('initiative', initiativeReason) : null),
+        },
+        memoryClosureCausality: explicit.emotionalTransitionLedger.memoryClosureCausality
+          ?? (emotionInfluence || emotionalHandoffReason ? buildMemoryClosureCausality('emotion', emotionalLedgerReason) : null),
+      }
+    : ((emotionInfluence || initiativeInfluence || executionInfluence || embodimentInfluence) && emotionalLedgerReason
+        ? {
+            version: 'emotional-transition-ledger-v1',
+            createdAt: input.createdAt,
+            turnId: input.turnId,
+            previousEmotion: null,
+            nextEmotion: 'measured-companionship',
+            transitionKind: 'softened',
+            axisDeltas: {
+              valence: 0.04,
+              arousal: -0.08,
+              guardedness: -0.04,
+              closenessDrive: 0.02,
+              repairNeed: -0.03,
+              initiativePressure: -0.06,
+            },
+            changedAxes: ['arousal', 'repairNeed', 'initiativePressure'],
+            sourceTags: reasonTags,
+            decayPolicy: {
+              mode: 'decay-normally',
+              carryTtlMs: 1_800_000,
+              reason: readMindTurnTraceString(emotionalLedgerReason) ?? 'Memory closure carries emotional afterglow into the next turn.',
+            },
+            memoryWriteback: {
+              shouldWrite: true,
+              lane: 'emotional-continuity',
+              reason: readMindTurnTraceString(emotionalLedgerReason) ?? 'Remember the emotional afterglow produced by memory closure.',
+            },
+            initiativeSuppression: {
+              shouldSuppress: false,
+              mode: initiativeInfluence && readStringValue(initiativeInfluence.restraint) === 'measured-return'
+                ? 'measured-return'
+                : 'single-thread',
+              reason: readMindTurnTraceString(initiativeInfluence?.reason) ?? 'Keep the next initiative on the same memory-closure line.',
+              memoryClosureCausality: initiativeInfluence
+                ? buildMemoryClosureCausality('initiative', initiativeReason)
+                : null,
+            },
+            embodimentDrive: {
+              shouldDrive: Boolean(embodimentInfluence),
+              tone: 'measured-return',
+              reason: readMindTurnTraceString(embodimentReason || emotionalLedgerReason) ?? 'Let memory closure drive the same embodied line.',
+            },
+            selfRevisionCandidate: {
+              shouldPropose: false,
+              domain: 'dialogue-style',
+              reasonCodes: reasonTags.slice(0, 8),
+              summary: readMindTurnTraceString(visibleReplyProjectStateAudit?.sameHerSummary ?? projectState?.sameHerSelfLine) ?? null,
+              projectStateContinuity: {
+                sameHerSelfLine: readMindTurnTraceString(projectState?.sameHerSelfLine ?? visibleReplyProjectStateAudit?.sameHerSummary) ?? null,
+                sameHerDriftRisk: readMindTurnTraceString(projectState?.sameHerDriftRisk) ?? null,
+                proactiveSameHerGap: readMindTurnTraceString(projectState?.proactiveSameHerGap) ?? null,
+                emotionalClosureCue: readMindTurnTraceString(projectState?.emotionalClosureCue ?? visibleReplyProjectStateAudit?.emotionalClosureSummary) ?? null,
+                sameHerHoldDetail: readMindTurnTraceString(projectState?.sameHerHoldDetail) ?? null,
+                continuityGuard: readMindTurnTraceString(projectState?.continuityCue ?? visibleReplyProjectStateAudit?.continuitySummary) ?? null,
+              },
+            },
+            traceSummary: readMindTurnTraceString(`prior memory closure handoff changed next-turn emotional state: ${emotionalLedgerReason}`, 260)
+              ?? 'memory closure emotional transition',
+            replayLine: readMindTurnTraceString(`prior memory closure handoff carried forward into next-turn emotional afterglow and same-her body voice face motion lipsync: ${emotionalLedgerReason}`, 260)
+              ?? 'memory closure carried emotional afterglow into same-her body voice face motion lipsync',
+            memoryClosureCausality: emotionInfluence || emotionalHandoffReason
+              ? buildMemoryClosureCausality('emotion', emotionalLedgerReason)
+              : null,
+          }
+        : null)
+  const embodimentContinuityLedger: AlicizationEmbodimentContinuityLedgerSnapshot | null
+    = explicit?.embodimentContinuityLedger
+      ?? (embodimentInfluence && embodimentReason
+        ? {
+            version: 'embodiment-continuity-ledger-v1',
+            createdAt: input.createdAt,
+            turnId: input.turnId,
+            lanes: Object.fromEntries(memoryClosureTraceEmbodimentLanes.map(lane => [lane, {
+              status: 'carrying-same-her',
+              summary: `${lane} carries memory closure same-her continuity`,
+            }])) as NonNullable<AlicizationEmbodimentContinuityLedgerSnapshot['lanes']>,
+            carryingLanes: [...memoryClosureTraceEmbodimentLanes],
+            droppedLanes: [],
+            rejoinedLanes: [...memoryClosureTraceEmbodimentLanes],
+            pendingRejoinLanes: [],
+            continuityPhase: 'fully-rejoined',
+            memoryWriteback: {
+              shouldWrite: true,
+              lane: 'cross-modal-continuity',
+              reason: readMindTurnTraceString(embodimentReason, 240) ?? 'Memory closure carried body voice face motion lipsync continuity.',
+            },
+            selfRevisionCandidate: {
+              shouldPropose: false,
+              domain: 'dialogue-style',
+              reasonCodes: reasonTags.slice(0, 8),
+              summary: readMindTurnTraceString(visibleReplyProjectStateAudit?.embodimentClosureSummary ?? embodimentReason, 260) ?? null,
+            },
+            traceSummary: readMindTurnTraceString(`phase=fully-rejoined | carrying=body,voice,face,motion,lipsync | ${embodimentReason}`, 360)
+              ?? 'phase=fully-rejoined | carrying=body,voice,face,motion,lipsync',
+            replayLine: readMindTurnTraceString(`body voice face motion lipsync carried same-her through memory closure emotional afterglow: ${embodimentReason}`, 360)
+              ?? 'body voice face motion lipsync carried same-her through memory closure',
+            sourceTags: reasonTags,
+            memoryClosureCausality: buildMemoryClosureCausality('embodiment', embodimentReason),
+          }
+        : null)
+  const memoryClosureExecutionAction = normalizeMemoryClosureTraceLearningAction(executionInfluence?.nextLearningAction)
+  const learningExecutionState: AlicizationLearningExecutionStateSnapshot | null = executionInfluence
+    ? {
+        currentTaskId: explicit?.learningExecutionState?.currentTaskId ?? null,
+        currentStatus: explicit?.learningExecutionState?.currentStatus ?? null,
+        currentAttemptCount: explicit?.learningExecutionState?.currentAttemptCount ?? 0,
+        currentMaxAttempts: explicit?.learningExecutionState?.currentMaxAttempts ?? 0,
+        currentNextRetryAt: explicit?.learningExecutionState?.currentNextRetryAt ?? null,
+        currentBlockedReason: explicit?.learningExecutionState?.currentBlockedReason ?? null,
+        currentFailureKind: explicit?.learningExecutionState?.currentFailureKind ?? null,
+        nextLearningAction: memoryClosureExecutionAction
+          ?? explicit?.learningExecutionState?.nextLearningAction
+          ?? 'verify',
+        shouldRecord: executionInfluence.shouldRecord === true || explicit?.learningExecutionState?.shouldRecord === true,
+        shouldReflect: executionInfluence.shouldReflect === true || explicit?.learningExecutionState?.shouldReflect === true,
+        shouldVerify: executionInfluence.shouldVerify === true || explicit?.learningExecutionState?.shouldVerify === true,
+        shouldRevise: executionInfluence.shouldRevise === true || explicit?.learningExecutionState?.shouldRevise === true,
+        shouldInternalize: executionInfluence.shouldInternalize === true || explicit?.learningExecutionState?.shouldInternalize === true,
+        activeLearningFocuses: Array.from(new Set([
+          ...executionFocuses,
+          ...(explicit?.learningExecutionState?.activeLearningFocuses ?? []),
+        ])).slice(0, 12),
+        queuedTaskCount: explicit?.learningExecutionState?.queuedTaskCount ?? 0,
+        runningTaskCount: explicit?.learningExecutionState?.runningTaskCount ?? 0,
+        blockedTaskCount: explicit?.learningExecutionState?.blockedTaskCount ?? 0,
+        recentTaskIds: explicit?.learningExecutionState?.recentTaskIds ?? [],
+        lastCompletedTaskId: explicit?.learningExecutionState?.lastCompletedTaskId ?? null,
+        lastCompletedAction: explicit?.learningExecutionState?.lastCompletedAction ?? null,
+        lastCompletedSummary: explicit?.learningExecutionState?.lastCompletedSummary ?? null,
+        lastFailureTaskId: explicit?.learningExecutionState?.lastFailureTaskId ?? null,
+        lastFailureKind: explicit?.learningExecutionState?.lastFailureKind ?? null,
+        lastFailureReason: explicit?.learningExecutionState?.lastFailureReason ?? null,
+        lastFailureNextRetryAt: explicit?.learningExecutionState?.lastFailureNextRetryAt ?? null,
+        updatedAt: explicit?.learningExecutionState?.updatedAt ?? input.createdAt,
+        memoryClosureCausality: explicit?.learningExecutionState?.memoryClosureCausality
+          ?? buildMemoryClosureCausality('execution', executionReason),
+      }
+    : explicit?.learningExecutionState ?? null
+
+  if (!emotionalTransitionLedger && !embodimentContinuityLedger && !learningExecutionState)
+    return explicit
+
+  const summary = [
+    explicit?.summary,
+    emotionalTransitionLedger ? 'emotion_transition=softened' : '',
+    learningExecutionState?.memoryClosureCausality ? 'execution_learning=memory-closure-causal' : '',
+    embodimentContinuityLedger ? 'embodiment_phase=fully-rejoined' : '',
+    'source=main-runtime',
+    'memory_closure=runtime-derived-downstream-state',
+  ].filter(Boolean).join(' | ')
+
+  return normalizeAlicizationDerivedMindStateBundle({
+    version: 'derived-mind-state-bundle-v1',
+    source: explicit?.source ?? 'main-runtime',
+    producedAt: explicit?.producedAt ?? input.createdAt,
+    visualPresenceState: explicit?.visualPresenceState ?? null,
+    structured: explicit?.structured ?? null,
+    hostPersonModel: explicit?.hostPersonModel ?? null,
+    personStateProjection: explicit?.personStateProjection ?? null,
+    knowledgeEvidence: explicit?.knowledgeEvidence ?? null,
+    claimEvidenceGraphs: explicit?.claimEvidenceGraphs ?? null,
+    activeSelfRevision: explicit?.activeSelfRevision ?? null,
+    activeContinuityGovernance: explicit?.activeContinuityGovernance ?? null,
+    emotionalKernel: explicit?.emotionalKernel ?? null,
+    emotionalTransitionLedger,
+    embodimentContinuityLedger,
+    selfEvolution: explicit?.selfEvolution ?? null,
+    affectiveResidue: explicit?.affectiveResidue ?? null,
+    learningExecutionState,
+    recallLatencyPolicy: explicit?.recallLatencyPolicy ?? null,
+    recollectionIntent: explicit?.recollectionIntent ?? null,
+    recollectionPlan: explicit?.recollectionPlan ?? null,
+    recollectionSpeechPlan: explicit?.recollectionSpeechPlan ?? null,
+    memoryDeliberation: explicit?.memoryDeliberation ?? null,
+    dialogueRhythm: explicit?.dialogueRhythm ?? null,
+    summary,
+  } satisfies AlicizationDerivedMindStateBundle)
+}
+
 export function buildMindTurnTraceEvents(input: {
   payload: AlicizationConversationTurnInput
   governedTurn: ReturnType<typeof coerceConversationTurnToMindGovernedPayload>
@@ -4594,10 +5632,49 @@ export function buildMindTurnTraceEvents(input: {
   const structured = input.payload.structured && typeof input.payload.structured === 'object'
     ? input.payload.structured as Record<string, unknown>
     : {}
-  const persistedDigitalLifeSpine = summarizeMindTurnEventDigitalLifeSpine(structured.digitalLifeSpine)
+  const fallbackMemoryClosureTrace = deriveFallbackMemoryClosureTrace({
+    structured,
+    payload: input.payload,
+    governedTurn: input.governedTurn,
+    dialoguePayload: input.dialoguePayload,
+  })
+  const persistedDigitalLifeSpine = summarizeMindTurnEventDigitalLifeSpine(
+    structured.digitalLifeSpine,
+    structured.memoryClosureTrace ?? fallbackMemoryClosureTrace,
+  )
   const participation = deriveAlicizationMindParticipationFromSpine(
     normalizeAlicizationDigitalLifeSpineDigest(structured.digitalLifeSpine),
   )
+  const visibleReplyAuthority = input.payload.visibleReplyExecution
+    ? {
+        expectedAuthority: input.payload.visibleReplyExecution.expectedVisibleReplyAuthority,
+        actualAuthority: input.payload.visibleReplyExecution.actualVisibleReplyAuthority,
+        providerMindExecuted: input.payload.visibleReplyExecution.providerMindExecuted,
+      }
+    : input.payload.visibleReplyRealization
+      ? {
+          expectedAuthority: input.payload.visibleReplyRealization.expectedAuthority,
+          actualAuthority: input.payload.visibleReplyRealization.actualAuthority,
+          providerMindExecuted: input.payload.visibleReplyRealization.providerMindExecuted,
+        }
+      : null
+  const persistedEmbodimentAuthority = readMindTurnEventEmbodimentAuthorityFields({
+    structured,
+    digitalLifeSpine: persistedDigitalLifeSpine,
+    visibleReply: visibleReplyAuthority,
+  })
+  const persistedDerivedMindStateBundle = buildMemoryClosureTraceDerivedMindStateBundle({
+    structured: fallbackMemoryClosureTrace
+      ? {
+          ...structured,
+          memoryClosureTrace: structured.memoryClosureTrace ?? fallbackMemoryClosureTrace,
+        }
+      : structured,
+    digitalLifeSpine: persistedDigitalLifeSpine,
+    dialoguePayload: input.dialoguePayload,
+    createdAt: input.createdAt,
+    turnId: sanitizeText(input.payload.turnId) || null,
+  })
   const turnId = sanitizeText(input.payload.turnId) || null
   const sessionId = sanitizeText(input.payload.sessionId) || null
   const autonomousDialogueFamily = resolveAlicizationAutonomousDialogueFamilyClassification({
@@ -4627,15 +5704,14 @@ export function buildMindTurnTraceEvents(input: {
       fallbackPatternId: input.governedTurn.fallbackPatternId ?? 'none',
       reasons: input.governedTurn.reasons,
       digitalLifeSpine: persistedDigitalLifeSpine,
-      derivedMindStateBundle: structured.derivedMindStateBundle && typeof structured.derivedMindStateBundle === 'object'
-        ? structured.derivedMindStateBundle
-        : null,
+      derivedMindStateBundle: persistedDerivedMindStateBundle,
       memoryStageReplay: structured.memoryStageReplay && typeof structured.memoryStageReplay === 'object'
         ? structured.memoryStageReplay
         : null,
       memoryResolutionLedger: structured.memoryResolutionLedger && typeof structured.memoryResolutionLedger === 'object'
         ? structured.memoryResolutionLedger
         : null,
+      ...persistedEmbodimentAuthority,
       participation,
     },
     createdAt: input.createdAt,
@@ -4689,15 +5765,14 @@ export function buildMindTurnTraceEvents(input: {
       replyExcerpt: excerptGovernedReply(readStringValue(structured.reply).trim()),
       assistantExcerpt: excerptGovernedReply(readStringValue(input.payload.assistantText).trim()),
       digitalLifeSpine: persistedDigitalLifeSpine,
-      derivedMindStateBundle: structured.derivedMindStateBundle && typeof structured.derivedMindStateBundle === 'object'
-        ? structured.derivedMindStateBundle
-        : null,
+      derivedMindStateBundle: persistedDerivedMindStateBundle,
       memoryStageReplay: structured.memoryStageReplay && typeof structured.memoryStageReplay === 'object'
         ? structured.memoryStageReplay
         : null,
       memoryResolutionLedger: structured.memoryResolutionLedger && typeof structured.memoryResolutionLedger === 'object'
         ? structured.memoryResolutionLedger
         : null,
+      ...persistedEmbodimentAuthority,
     },
     createdAt: input.createdAt,
   })
@@ -4719,9 +5794,75 @@ export function buildMindTurnTraceEvents(input: {
   }
 
   if (input.dialoguePayload) {
+    const dialogueStructured = input.dialoguePayload.structured as unknown as Record<string, unknown>
+    const dialogueFallbackMemoryClosureTrace = readMindTurnTraceRecord(dialogueStructured.memoryClosureTrace)
+      ? null
+      : fallbackMemoryClosureTrace
     const dialogueDigitalLifeSpine = summarizeMindTurnEventDigitalLifeSpine(
-      ((input.dialoguePayload.structured as unknown) as Record<string, unknown>).digitalLifeSpine,
+      dialogueStructured.digitalLifeSpine,
+      dialogueStructured.memoryClosureTrace ?? structured.memoryClosureTrace ?? dialogueFallbackMemoryClosureTrace,
     ) ?? persistedDigitalLifeSpine
+    const dialogueDigitalLife = input.dialoguePayload.structured.digitalLife
+    const dialogueDigitalLifeRecord = dialogueDigitalLife
+      ? ((dialogueDigitalLife as unknown) as Record<string, unknown>)
+      : null
+    const dialogueDigitalLifeFace = dialogueDigitalLife?.face
+      ? ((dialogueDigitalLife.face as unknown) as Record<string, unknown>)
+      : null
+    const dialogueDigitalLifeVoice = dialogueDigitalLife?.voice
+      ? ((dialogueDigitalLife.voice as unknown) as Record<string, unknown>)
+      : null
+    const dialogueDigitalLifeMotion = dialogueDigitalLifeRecord?.motion
+      && typeof dialogueDigitalLifeRecord.motion === 'object'
+      ? (dialogueDigitalLifeRecord.motion as Record<string, unknown>)
+      : null
+    const dialogueDigitalLifeLipSync = dialogueDigitalLife?.lipSync
+      ? ((dialogueDigitalLife.lipSync as unknown) as Record<string, unknown>)
+      : null
+    const dialogueDigitalLifeBodyContinuity = dialogueDigitalLifeRecord?.bodyContinuity
+      && typeof dialogueDigitalLifeRecord.bodyContinuity === 'object'
+      ? (dialogueDigitalLifeRecord.bodyContinuity as Record<string, unknown>)
+      : null
+    const dialogueSpineMemory = dialogueDigitalLifeSpine?.memory
+      ? ((dialogueDigitalLifeSpine.memory as unknown) as Record<string, unknown>)
+      : null
+    const dialogueSpineRuntime = dialogueDigitalLifeSpine?.runtime
+      ? ((dialogueDigitalLifeSpine.runtime as unknown) as Record<string, unknown>)
+      : null
+    const dialogueSpineProjectState = dialogueSpineRuntime?.projectState
+      && typeof dialogueSpineRuntime.projectState === 'object'
+      ? (dialogueSpineRuntime.projectState as Record<string, unknown>)
+      : null
+    const dialogueSpinePersonState = dialogueSpineMemory?.personStateProjection
+      && typeof dialogueSpineMemory.personStateProjection === 'object'
+      ? (dialogueSpineMemory.personStateProjection as Record<string, unknown>)
+      : null
+    const dialogueSpineSelfContinuity = dialogueSpinePersonState?.selfContinuityAuthority
+      && typeof dialogueSpinePersonState.selfContinuityAuthority === 'object'
+      ? (dialogueSpinePersonState.selfContinuityAuthority as Record<string, unknown>)
+      : null
+    const dialogueSpineOutcomeLearning = dialogueDigitalLifeSpine?.outcomeLearning
+      ? ((dialogueDigitalLifeSpine.outcomeLearning as unknown) as Record<string, unknown>)
+      : null
+    const dialogueSpineEmbodiment = dialogueDigitalLifeSpine?.embodiment
+      ? ((dialogueDigitalLifeSpine.embodiment as unknown) as Record<string, unknown>)
+      : null
+    const dialogueSpineAutobiographicalSelf = dialogueSpineEmbodiment?.autobiographicalSelf
+      && typeof dialogueSpineEmbodiment.autobiographicalSelf === 'object'
+      ? (dialogueSpineEmbodiment.autobiographicalSelf as Record<string, unknown>)
+      : null
+    const dialogueEmbodimentResidentMode = input.dialoguePayload.structured.embodimentScript?.state.residentMode ?? null
+    const dialogueBodyLine = dialogueDigitalLifeBodyContinuity?.bodyLine
+      ?? dialogueSpineProjectState?.sameHerSelfLine
+      ?? dialogueSpineProjectState?.sameHerHoldDetail
+      ?? dialogueDigitalLifeSpine?.runtime?.continuityCue
+      ?? dialogueSpineSelfContinuity?.inwardLine
+      ?? dialogueSpineSelfContinuity?.relationshipLine
+      ?? dialogueSpineSelfContinuity?.selfLine
+      ?? dialogueSpineSelfContinuity?.authoritySummary
+      ?? dialogueSpineOutcomeLearning?.latestInflection
+      ?? dialogueSpineAutobiographicalSelf?.relationshipDoctrine
+      ?? null
     events.push({
       decisionTraceId,
       turnId,
@@ -4751,22 +5892,35 @@ export function buildMindTurnTraceEvents(input: {
           delivery: input.dialoguePayload.structured.performance.delivery,
           emphasis: input.dialoguePayload.structured.performance.emphasis,
         },
-        digitalLife: input.dialoguePayload.structured.digitalLife
+        digitalLife: dialogueDigitalLife
           ? {
-              emotion: input.dialoguePayload.structured.digitalLife.emotion,
-              mode: input.dialoguePayload.structured.digitalLife.mode,
+              emotion: dialogueDigitalLife.emotion,
+              mode: dialogueDigitalLife.mode,
               performance: {
-                baseEmotion: input.dialoguePayload.structured.digitalLife.performance.baseEmotion,
-                facialCue: input.dialoguePayload.structured.digitalLife.performance.facialCue ?? null,
-                actionCue: input.dialoguePayload.structured.digitalLife.performance.actionCue ?? null,
+                baseEmotion: dialogueDigitalLife.performance.baseEmotion,
+                facialCue: dialogueDigitalLife.performance.facialCue ?? null,
+                actionCue: dialogueDigitalLife.performance.actionCue ?? null,
               },
               face: {
-                emotion: input.dialoguePayload.structured.digitalLife.face.emotion,
-                facialCue: input.dialoguePayload.structured.digitalLife.face.facialCue ?? null,
+                residentMode: dialogueDigitalLifeFace?.residentMode ?? dialogueEmbodimentResidentMode,
+                emotion: dialogueDigitalLife.face.emotion,
+                facialCue: dialogueDigitalLife.face.facialCue ?? null,
+              },
+              voice: {
+                residentMode: dialogueDigitalLifeVoice?.residentMode ?? dialogueEmbodimentResidentMode,
+              },
+              motion: {
+                residentMode: dialogueDigitalLifeMotion?.residentMode ?? dialogueEmbodimentResidentMode,
+              },
+              lipSync: {
+                residentMode: dialogueDigitalLifeLipSync?.residentMode ?? dialogueEmbodimentResidentMode,
+              },
+              bodyContinuity: {
+                bodyLine: dialogueBodyLine,
               },
               action: {
-                actionCue: input.dialoguePayload.structured.digitalLife.action.actionCue ?? null,
-                actionMode: input.dialoguePayload.structured.digitalLife.action.actionMode,
+                actionCue: dialogueDigitalLife.action.actionCue ?? null,
+                actionMode: dialogueDigitalLife.action.actionMode,
               },
             }
           : null,
@@ -4777,6 +5931,7 @@ export function buildMindTurnTraceEvents(input: {
                 baseEmotion: input.dialoguePayload.structured.embodimentScript.state.baseEmotion,
                 delivery: input.dialoguePayload.structured.embodimentScript.state.delivery,
                 emphasis: input.dialoguePayload.structured.embodimentScript.state.emphasis,
+                residentMode: input.dialoguePayload.structured.embodimentScript.state.residentMode ?? null,
               },
               speechPlan: {
                 segmentCount: input.dialoguePayload.structured.embodimentScript.speechPlan.segments.length,
@@ -4785,10 +5940,18 @@ export function buildMindTurnTraceEvents(input: {
             }
           : null,
         digitalLifeSpine: dialogueDigitalLifeSpine,
-        derivedMindStateBundle: ((input.dialoguePayload.structured as unknown) as Record<string, unknown>)?.derivedMindStateBundle
-          && typeof ((input.dialoguePayload.structured as unknown) as Record<string, unknown>)?.derivedMindStateBundle === 'object'
-          ? ((input.dialoguePayload.structured as unknown) as Record<string, unknown>).derivedMindStateBundle
-          : null,
+        derivedMindStateBundle: buildMemoryClosureTraceDerivedMindStateBundle({
+          structured: dialogueFallbackMemoryClosureTrace
+            ? {
+                ...dialogueStructured,
+                memoryClosureTrace: dialogueStructured.memoryClosureTrace ?? dialogueFallbackMemoryClosureTrace,
+              }
+            : dialogueStructured,
+          digitalLifeSpine: dialogueDigitalLifeSpine,
+          dialoguePayload: input.dialoguePayload,
+          createdAt: input.dialoguePayload.createdAt,
+          turnId,
+        }) ?? persistedDerivedMindStateBundle,
         memoryStageReplay: ((input.dialoguePayload.structured as unknown) as Record<string, unknown>)?.memoryStageReplay
           && typeof ((input.dialoguePayload.structured as unknown) as Record<string, unknown>)?.memoryStageReplay === 'object'
           ? ((input.dialoguePayload.structured as unknown) as Record<string, unknown>).memoryStageReplay
@@ -4877,6 +6040,15 @@ export function normalizeDialogueRespondedPayload(
   const runtimeDigest = normalizeAlicizationRuntimeDigest(
     (structuredPayload as Record<string, unknown>).runtimeDigest,
   ) as AlicizationRuntimeDigest | null
+  const explicitDerivedMindStateBundle = normalizeAlicizationDerivedMindStateBundle(
+    (structuredPayload as Record<string, unknown>).derivedMindStateBundle,
+  )
+  const memoryStageReplay = normalizeAlicizationOrganicMemoryStageReplay(
+    (structuredPayload as Record<string, unknown>).memoryStageReplay,
+  )
+  const memoryResolutionLedger = normalizeAlicizationMemoryResolutionLedger(
+    (structuredPayload as Record<string, unknown>).memoryResolutionLedger,
+  )
   const visibleReplyRealization: AlicizationConversationTurnInput['visibleReplyRealization'] = (() => {
     const raw = input.visibleReplyRealization ?? structuredVisibleReplyRealization
     if (!raw)
@@ -5106,15 +6278,20 @@ export function normalizeDialogueRespondedPayload(
     = normalizedEmotionResult.emotion === 'thinking'
       && residentSeededPerformance.baseEmotion === 'thinking'
       && residentSeededPerformance.delivery === 'gentle'
-      && (sameThreadConcernCarry || continuityResidentMode != null
       && (
-        normalizedPerformance.baseEmotion === 'concerned'
-        || normalizedPerformance.emotion === 'concerned'
-        || rawEmotion === 'concerned'
-        || hasConcernCarryNeedle([
-          'concerned-but-restrained',
-        ])
-      ))
+        sameThreadConcernCarry
+        || (
+          continuityResidentMode != null
+          && (
+            normalizedPerformance.baseEmotion === 'concerned'
+            || normalizedPerformance.emotion === 'concerned'
+            || rawEmotion === 'concerned'
+            || hasConcernCarryNeedle([
+              'concerned-but-restrained',
+            ])
+          )
+        )
+      )
       ? 'concerned'
       : residentSeededPerformance.baseEmotion
   const residentSeeded = !areDialoguePerformancesEqual(
@@ -5233,6 +6410,19 @@ export function normalizeDialogueRespondedPayload(
           ?? null,
       }
     : proactive
+  const derivedMindStateBundle = buildMemoryClosureTraceDerivedMindStateBundle({
+    structured: {
+      ...(structuredPayload as Record<string, unknown>),
+      ...(projectState ? { projectState } : {}),
+      ...(explicitDerivedMindStateBundle ? { derivedMindStateBundle: explicitDerivedMindStateBundle } : {}),
+    },
+    digitalLifeSpine: summarizeMindTurnEventDigitalLifeSpine(
+      digitalLifeSpine,
+      (structuredPayload as Record<string, unknown>).memoryClosureTrace,
+    ),
+    createdAt,
+    turnId,
+  })
 
   const structured: AlicizationDialogueStructuredPayload = {
     thought,
@@ -5255,6 +6445,9 @@ export function normalizeDialogueRespondedPayload(
     ...(projectState ? { projectState } : {}),
     ...(preDialogueAwareness ? { preDialogueAwareness } : {}),
     governance,
+    ...(derivedMindStateBundle ? { derivedMindStateBundle } : {}),
+    ...(memoryStageReplay ? { memoryStageReplay } : {}),
+    ...(memoryResolutionLedger ? { memoryResolutionLedger } : {}),
     ...(runtimeDigest ? { runtimeDigest } : {}),
     policyLocked: policyLocked || undefined,
     rawEmotion: normalizedEmotionResult.downgraded
@@ -5266,8 +6459,8 @@ export function normalizeDialogueRespondedPayload(
     turnId,
     sessionId: normalizedSessionId,
     origin,
-    userText: input.userText?.trim() || null,
-    assistantText: reply || input.assistantText?.trim() || null,
+    userText: input.userText?.trim() || undefined,
+    assistantText: input.assistantText?.trim() || undefined,
     structured,
     ...(visibleReplyRealization ? { visibleReplyRealization } : {}),
     isFallback,

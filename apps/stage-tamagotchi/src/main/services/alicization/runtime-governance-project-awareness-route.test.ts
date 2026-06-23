@@ -153,6 +153,90 @@ describe('runtime governance project awareness route', () => {
     }))
   })
 
+  it('keeps richer project awareness and runtime digest inside the normalized dialogue-responded structured payload before the first outward speech path opens', () => {
+    const runtimeDigest = {
+      projectState: {
+        identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
+        currentPhase: 'Phase 1: Local Digital Life',
+        latestLandedProgress: 'Accepted-start authority already lands on the renderer before the first outward reply.',
+        primaryOpenLoop: 'The real speech path still needs to keep the same project awareness and runtime digest explicit before fallback voice opens.',
+        nextClosureTarget: 'Keep the same project-aware line through normalized dialogue payloads and fallback speech metadata.',
+        sameHerSelfLine: 'Same Phase 1 digital life. The renderer already knows who she is before fallback voice opens.',
+        sameHerHoldDetail: 'Before speaking outward, keep one same-her line through project awareness, embodiment, and runtime digest.',
+        preDialogueAwarenessLine: 'Before fallback voice opens, remember what has already landed, what is still open, and keep the same project-aware line.',
+        awarenessLine: 'Same renderer-ready project awareness must survive all the way into the speech path.',
+        preflightSummary: 'Renderer authority already landed; speech-path authority still needs to stay equally explicit.',
+      },
+      currentConsciousFrame: {
+        subject: 'general',
+        centerOfGravity: 'answer',
+        truthDiscipline: 'dialogue-first',
+        consciousNeed: 'keep same-her speech continuity explicit',
+        consciousTension: 'renderer already knows; fallback speech must not drift thinner',
+        speakingIntention: 'carry project-aware same-her authority into the outward reply',
+        focusAnchor: '继续往真实发声链收口',
+        withheldImpulse: null,
+        shouldWithholdSpecificity: false,
+        shouldSelfRevise: false,
+        confidence: 0.91,
+        reasonTags: ['project-awareness', 'speech-authority'],
+        continuityPreferredTiming: 'immediate',
+        continuityCadence: 'measured-return',
+        updatedAt: Date.now(),
+      },
+    }
+
+    const dialoguePayload = normalizeDialogueRespondedPayload({
+      turnId: 'turn-normalize-project-awareness-speech-authority-1',
+      sessionId: 'session-normalize-project-awareness-speech-authority',
+      assistantText: '我先把这条真实发声链上的 project awareness 接稳，再往外说。',
+      structured: {
+        thought: 'the normalized dialogue payload should keep the same project-aware line and runtime digest before the real speech path opens',
+        emotion: 'thinking',
+        reply: '我先把这条真实发声链上的 project awareness 接稳，再往外说。',
+        parsePath: 'json',
+        format: 'mind-turn-v1',
+        projectState: runtimeDigest.projectState,
+        preDialogueAwareness: {
+          status: 'grounded',
+          summaryLine: 'Renderer-side same-her project awareness has already landed and must stay explicit before fallback speech opens.',
+          companionBriefingLine: 'Renderer authority is already grounded; keep that same project-aware line through speech.',
+          companionNextClosureLine: 'Carry the same project awareness and runtime digest into the real speech path.',
+          awarenessLine: 'Before fallback voice opens, remember what has already landed, what is still open, and keep the same project-aware line.',
+          emotionalClosureCue: 'Let the voice rejoin softly without splitting the same-her line.',
+          reasonPreview: [
+            'Accepted-start authority already landed on the renderer.',
+            'Speech-side fallback still needs the same project-aware authority.',
+          ],
+        },
+        runtimeDigest,
+      },
+      origin: 'user-turn',
+      createdAt: Date.now(),
+    } as any)
+
+    expect((dialoguePayload as any)?.structured).toEqual(expect.objectContaining({
+      preDialogueAwareness: expect.objectContaining({
+        status: 'grounded',
+        summaryLine: 'Renderer-side same-her project awareness has already landed and must stay explicit before fallback speech opens.',
+        companionNextClosureLine: 'Carry the same project awareness and runtime digest into the real speech path.',
+        awarenessLine: 'Before fallback voice opens, remember what has already landed, what is still open, and keep the same project-aware line.',
+      }),
+      runtimeDigest: expect.objectContaining({
+        projectState: expect.objectContaining({
+          currentPhase: 'Phase 1: Local Digital Life',
+          latestLandedProgress: 'Accepted-start authority already lands on the renderer before the first outward reply.',
+          primaryOpenLoop: 'The real speech path still needs to keep the same project awareness and runtime digest explicit before fallback voice opens.',
+          preDialogueAwarenessLine: 'Before fallback voice opens, remember what has already landed, what is still open, and keep the same project-aware line.',
+        }),
+        currentConsciousFrame: expect.objectContaining({
+          focusAnchor: '继续往真实发声链收口',
+          continuityCadence: 'measured-return',
+        }),
+      }),
+    }))
+  })
+
   it('preserves stronger same-her project continuity carry inside governed rewrite requests instead of flattening back to a thinner pre-dialogue reminder', () => {
     const input: AlicizationConversationTurnInput = {
       turnId: 'turn-project-continuity-rewrite-carry-1',
@@ -528,6 +612,7 @@ describe('runtime governance project awareness route', () => {
     expect(mustPreserve.some(item => item.includes(`phase=${phaseLine}`))).toBe(true)
     expect(mustPreserve.some(item => item.includes(`landed=${landedProgressLine}`))).toBe(true)
     expect(mustPreserve.some(item => item.includes(`open=${openClosureLine}`))).toBe(true)
+    expect(mustPreserve.some(item => item.includes(`next=${nextClosureLine}`))).toBe(true)
     expect(mustPreserve.some(item => item.includes(thinChineseReminder))).toBe(false)
   })
 })

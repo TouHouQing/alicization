@@ -48,6 +48,15 @@ const proofRows = [
       'resume-before-dispatch',
     ],
   },
+  {
+    entry: 'runtime-governance-next-closure-target-preserve',
+    file: './runtime-governance-project-awareness-route.test.ts',
+    snippets: [
+      'treats thin chinese reminder awareness shells as thin when governed rewrite continuity carry already has richer same-her phase closure lines',
+      'const nextClosureLine = \'keep one measured-return, repair-before-closeness, or rest-protective quiet-companionship same living thread across renderer output\'',
+      'expect(mustPreserve.some(item => item.includes(`next=${nextClosureLine}`))).toBe(true)',
+    ],
+  },
 ] as const
 
 describe('runtime governance project awareness audit', () => {
@@ -58,6 +67,7 @@ describe('runtime governance project awareness audit', () => {
       expect.objectContaining({ entry: 'runtime-governance-thin-chinese-same-her-reminder-rejected' }),
       expect.objectContaining({ entry: 'runtime-governance-living-self-line-precedence' }),
       expect.objectContaining({ entry: 'runtime-governance-resume-confirmation-boundary-preserve' }),
+      expect.objectContaining({ entry: 'runtime-governance-next-closure-target-preserve' }),
     ])
 
     expect(proofRows.every(row => row.snippets.length > 0)).toBe(true)
