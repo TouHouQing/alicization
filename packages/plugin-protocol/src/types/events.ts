@@ -1,4 +1,4 @@
-import type { AssistantMessage, CommonContentPart, Message, ToolMessage, UserMessage } from '@xsai/shared-chat'
+import type { AssistantMessage, CommonContentPart, CompletionToolCall, Message, ToolMessage, UserMessage } from '@xsai/shared-chat'
 
 import { defineEventa } from '@moeru/eventa'
 
@@ -387,6 +387,15 @@ interface OutputSource {
     contexts: Record<string, ContextUpdate<Record<string, any>, string | CommonContentPart[]>[]>
     composedMessage: Array<Message>
     input?: InputEventEnvelope
+    preDialogueSendIdentity?: {
+      status: 'grounded' | 'partial' | 'drift'
+      summaryLine: string | null
+      companionHeadlineLine?: string | null
+      companionBriefingLine?: string | null
+      companionNextClosureLine?: string | null
+      awarenessLine?: string | null
+      reasonPreview: string[]
+    } | null
   }
 }
 
@@ -745,7 +754,7 @@ interface UiConfigureEvent<C = undefined> {
 }
 
 type OutputGenAiChatToolCallEvent = {
-  toolCalls: ToolMessage[]
+  toolCalls: CompletionToolCall[]
 } & Partial<WithInputSource<'stage-web' | 'stage-tamagotchi' | 'discord'>> & Partial<WithOutputSource<'gen-ai:chat'>>
 
 type OutputGenAiChatMessageEvent = {
