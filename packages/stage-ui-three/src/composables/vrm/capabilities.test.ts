@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest'
 import {
   buildVrmRuntimeCapabilitySnapshot,
   listVrmPresetFacialCapabilities,
-  resolveVrmBaseExpressionName,
   resolveSupportedVrmExpressionName,
+  resolveVrmBaseExpressionName,
   supportsVrmBaseEmotion,
   supportsVrmVisemeLipSync,
 } from './capabilities'
@@ -63,6 +63,9 @@ describe('vrm capability helpers', () => {
     )
     expect(snapshot.supportedFacialCues.map(item => item.key)).toEqual(
       expect.arrayContaining(['smile', 'frown', 'relaxed', 'shock']),
+    )
+    expect(snapshot.supportedActions.map(item => item.key)).toEqual(
+      expect.arrayContaining(['steady_focus', 'observe_focus', 'idle_settle']),
     )
     expect(snapshot.supportsLookAt).toBe(true)
     expect(snapshot.supportsVisemeLipSync).toBe(true)

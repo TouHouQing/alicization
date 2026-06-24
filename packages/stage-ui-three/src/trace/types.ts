@@ -33,6 +33,8 @@ export interface ThreeHitTestReadTracePayload extends StageThreeRuntimeTraceBase
   readWidth: number
 }
 
+export type VrmEmbodimentSegmentDriver = 'body' | 'face' | 'motion' | 'lipsync' | 'voice'
+
 export interface VrmUpdateFrameTracePayload extends StageThreeRuntimeTraceBasePayload {
   activeActionCue?: string | null
   activeActionCueSource?: string | null
@@ -45,21 +47,30 @@ export interface VrmUpdateFrameTracePayload extends StageThreeRuntimeTraceBasePa
   animationMixerMs: number
   actionIntensity?: number | null
   blinkAndSaccadeMs: number
+  bodyActive?: boolean
   deltaMs: number
   durationMs: number
   emoteMs: number
+  embodimentSegmentAligned?: boolean | null
+  embodimentSegmentMismatchDrivers?: VrmEmbodimentSegmentDriver[]
   expressionIntensity?: number | null
   expressionMs: number
+  faceActive?: boolean
   facialCueIntensity?: number | null
   humanoidMs: number
   lipSyncMs: number
   lookAtMs: number
+  lipsyncActive?: boolean
+  motionActive?: boolean
   postureMs?: number
   performancePhase?: string | null
+  performanceSegmentId?: string | null
   segmentId?: string | null
   springBoneMs: number
+  speechSegmentId?: string | null
   speechPhase?: string | null
   visemeIntensity?: number | null
+  voiceActive?: boolean
   vrmFrameHookMs: number
 }
 

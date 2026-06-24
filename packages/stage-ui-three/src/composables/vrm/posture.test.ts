@@ -2,8 +2,8 @@ import {
   createIdleStageEmbodimentMotorState,
   createIdleStageEmbodimentPresencePostureState,
 } from '@proj-alicization/stage-shared'
-import { describe, expect, it } from 'vitest'
 import { Euler, Object3D } from 'three'
+import { describe, expect, it } from 'vitest'
 
 import { applyStageEmbodimentVrmPosture } from './posture'
 
@@ -117,5 +117,75 @@ describe('vrm posture motor bridge', () => {
 
     expect(Math.abs(readBoneEulerY(animated.bones.chest))).toBeGreaterThan(Math.abs(readBoneEulerY(restrained.bones.chest)))
     expect(Math.abs(readBoneEulerY(animated.bones.head))).toBeGreaterThan(Math.abs(readBoneEulerY(restrained.bones.head)))
+  })
+
+  it('returns runtime body execution state and keeps openness-settle on the same body lane driving posture', () => {
+    const opened = createMockVrm()
+    const guarded = createMockVrm()
+    const idleMotor = createIdleStageEmbodimentMotorState()
+    const sharedPosture = {
+      ...createIdleStageEmbodimentPresencePostureState(),
+      engaged: true,
+      confidence: 0.38,
+      bodyYaw: 0.18,
+      bodyPitch: 0.08,
+    }
+
+    let openedBodyState: unknown
+    let guardedBodyState: unknown
+    for (let frame = 0; frame < 12; frame += 1) {
+      openedBodyState = applyStageEmbodimentVrmPosture({
+        delta: 0.08,
+        motor: {
+          ...idleMotor,
+          stillness: 0.16,
+          expressivity: 0.88,
+          head: {
+            ...idleMotor.head,
+            yaw: 0.34,
+          },
+          body: {
+            ...idleMotor.body,
+            sway: 0.44,
+            lean: 0.18,
+            openness: 0.86,
+            settle: 0.24,
+          },
+        },
+        posture: sharedPosture,
+        vrm: opened.vrm as never,
+      })
+      guardedBodyState = applyStageEmbodimentVrmPosture({
+        delta: 0.08,
+        motor: {
+          ...idleMotor,
+          stillness: 0.16,
+          expressivity: 0.88,
+          head: {
+            ...idleMotor.head,
+            yaw: 0.34,
+          },
+          body: {
+            ...idleMotor.body,
+            sway: 0.44,
+            lean: 0.18,
+            openness: 0.22,
+            settle: 0.92,
+          },
+        },
+        posture: sharedPosture,
+        vrm: guarded.vrm as never,
+      })
+    }
+
+    expect(openedBodyState).toEqual({
+      openness: 0.86,
+      settle: 0.24,
+    })
+    expect(guardedBodyState).toEqual({
+      openness: 0.22,
+      settle: 0.92,
+    })
+    expect(Math.abs(readBoneEulerY(opened.bones.chest))).toBeGreaterThan(Math.abs(readBoneEulerY(guarded.bones.chest)))
   })
 })

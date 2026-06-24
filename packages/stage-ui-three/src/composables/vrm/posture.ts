@@ -23,6 +23,18 @@ function clampSignedUnit(value: number | null | undefined, fallback: number = 0)
 const reusableEuler = new Euler()
 const reusableQuaternion = new Quaternion()
 
+export interface VrmBodyExecutionState {
+  openness: number | null
+  settle: number | null
+}
+
+export function createIdleVrmBodyExecutionState(): VrmBodyExecutionState {
+  return {
+    openness: null,
+    settle: null,
+  }
+}
+
 function applyBonePosture(
   bone: ReturnType<NonNullable<VRMCore['humanoid']>['getNormalizedBoneNode']>,
   input: {
@@ -50,7 +62,7 @@ export function applyStageEmbodimentVrmPosture(input: {
   vrm: VRMCore | undefined
 }) {
   if (!input.vrm?.humanoid)
-    return
+    return createIdleVrmBodyExecutionState()
 
   const postureConfidence = input.posture?.engaged ? clampUnit(input.posture.confidence) : 0
   const bodyYaw = clampSignedUnit(input.posture?.bodyYaw) * postureConfidence
@@ -58,6 +70,8 @@ export function applyStageEmbodimentVrmPosture(input: {
   const motor = input.motor
   const motorBodySway = clampSignedUnit(motor?.body.sway)
   const motorBodyLean = clampSignedUnit(motor?.body.lean)
+  const motorBodyOpenness = clampUnit(motor?.body.openness, 0.5)
+  const motorBodySettle = clampUnit(motor?.body.settle, 0.62)
   const motorHeadYaw = clampSignedUnit(motor?.head.yaw)
   const motorHeadPitch = clampSignedUnit(motor?.head.pitch)
   const motorHeadRoll = clampSignedUnit(motor?.head.roll)
@@ -67,8 +81,18 @@ export function applyStageEmbodimentVrmPosture(input: {
     postureConfidence,
     Math.max(0.08, (1 - motorStillness) * 0.38 + motorExpressivity * 0.34),
   )
-  if (motorBlend <= 0)
-    return
+  if (motorBlend <= 0) {
+    return {
+      openness: Number(motorBodyOpenness),
+      settle: Number(motorBodySettle),
+    }
+  }
+
+  const opennessYawScale = 0.84 + motorBodyOpenness * 0.44
+  const opennessPitchScale = 0.88 + motorBodyOpenness * 0.24
+  const opennessHeadScale = 0.9 + motorBodyOpenness * 0.18
+  const settleMotionScale = 1 - motorBodySettle * 0.22
+  const settleHeadScale = 1 - motorBodySettle * 0.14
 
   const spine = input.vrm.humanoid.getNormalizedBoneNode('spine')
   const chest = input.vrm.humanoid.getNormalizedBoneNode('chest')
@@ -77,26 +101,31 @@ export function applyStageEmbodimentVrmPosture(input: {
 
   applyBonePosture(spine, {
     delta: input.delta,
-    pitch: (-bodyPitch * 0.08) + (-motorBodyLean * 0.06 * motorBlend),
-    yaw: (bodyYaw * 0.1) + (motorBodySway * 0.08 * motorBlend),
-    roll: (-bodyYaw * 0.02) + (-motorBodySway * 0.03 * motorBlend),
+    pitch: (-bodyPitch * 0.08 * opennessPitchScale) + (-motorBodyLean * 0.06 * motorBlend * settleMotionScale),
+    yaw: (bodyYaw * 0.1 * opennessYawScale) + (motorBodySway * 0.08 * motorBlend * opennessYawScale * settleMotionScale),
+    roll: (-bodyYaw * 0.02 * settleMotionScale) + (-motorBodySway * 0.03 * motorBlend * settleMotionScale),
   })
   applyBonePosture(chest, {
     delta: input.delta,
-    pitch: (-bodyPitch * 0.12) + (-motorBodyLean * 0.1 * motorBlend),
-    yaw: (bodyYaw * 0.14) + (motorBodySway * 0.12 * motorBlend),
-    roll: (-bodyYaw * 0.04) + ((motorHeadRoll * 0.04 - motorBodySway * 0.05) * motorBlend),
+    pitch: (-bodyPitch * 0.12 * opennessPitchScale) + (-motorBodyLean * 0.1 * motorBlend * settleMotionScale),
+    yaw: (bodyYaw * 0.14 * opennessYawScale) + (motorBodySway * 0.12 * motorBlend * opennessYawScale * settleMotionScale),
+    roll: (-bodyYaw * 0.04 * settleMotionScale) + ((motorHeadRoll * 0.04 - motorBodySway * 0.05) * motorBlend * settleMotionScale),
   })
   applyBonePosture(neck, {
     delta: input.delta,
-    pitch: (-bodyPitch * 0.06) + (-motorHeadPitch * 0.08 * motorBlend),
-    yaw: (bodyYaw * 0.08) + (motorHeadYaw * 0.1 * motorBlend),
-    roll: motorHeadRoll * 0.04 * motorBlend,
+    pitch: (-bodyPitch * 0.06 * opennessHeadScale) + (-motorHeadPitch * 0.08 * motorBlend * settleHeadScale),
+    yaw: (bodyYaw * 0.08 * opennessHeadScale) + (motorHeadYaw * 0.1 * motorBlend * opennessHeadScale * settleHeadScale),
+    roll: motorHeadRoll * 0.04 * motorBlend * settleHeadScale,
   })
   applyBonePosture(head, {
     delta: input.delta,
-    pitch: (-bodyPitch * 0.04) + (-motorHeadPitch * 0.12 * motorBlend),
-    yaw: (bodyYaw * 0.05) + (motorHeadYaw * 0.14 * motorBlend),
-    roll: motorHeadRoll * 0.08 * motorBlend,
+    pitch: (-bodyPitch * 0.04 * opennessHeadScale) + (-motorHeadPitch * 0.12 * motorBlend * settleHeadScale),
+    yaw: (bodyYaw * 0.05 * opennessHeadScale) + (motorHeadYaw * 0.14 * motorBlend * opennessHeadScale * settleHeadScale),
+    roll: motorHeadRoll * 0.08 * motorBlend * settleHeadScale,
   })
+
+  return {
+    openness: Number(motorBodyOpenness),
+    settle: Number(motorBodySettle),
+  }
 }

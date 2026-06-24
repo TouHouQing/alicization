@@ -7,6 +7,7 @@ import type {
 
 import {
   hasAlicizationAudibleSameHerCarry,
+  hasAlicizationBodyVoiceOnlySameHerCarry,
   hasAlicizationQuieterSameHerCarry,
   hasAlicizationStillVoicedSameHerCarry,
 } from '@proj-alicization/stage-shared'
@@ -26,10 +27,33 @@ function normalizeCapabilityIdentity(value: unknown) {
   return normalizeCapabilityText(value).toLowerCase()
 }
 
+function normalizeVrmActionBindingIdentity(value: unknown) {
+  const identity = normalizeCapabilityIdentity(value)
+  if (
+    identity === 'idle_settle'
+    || identity === 'idlesettle'
+    || identity === 'settle_idle'
+    || identity === 'settleidle'
+  ) {
+    return 'idle_settle'
+  }
+
+  return identity
+}
+
 function normalizeCapabilityList(values: readonly string[] | string[] | null | undefined) {
   return (values ?? [])
     .map(value => normalizeCapabilityText(value))
     .filter(Boolean)
+}
+
+function isTimelineShellSegmentId(value: unknown) {
+  const normalized = normalizeCapabilityText(value)
+  if (!normalized)
+    return false
+
+  return normalized.startsWith('driver:')
+    || /^turn-[^|]*:\d+$/u.test(normalized)
 }
 
 function uniqueCandidateOrder(values: Array<string | null | undefined>) {
@@ -57,6 +81,7 @@ function resolveSameHerExpressionPriority(
   const rendererHints = state?.activeCue?.rendererHints
   const residentMode = normalizeCapabilityIdentity(rendererHints?.residentMode)
   const hasStructuredSameHerSignal = hasAlicizationAudibleSameHerCarry(rendererHints)
+    || hasAlicizationBodyVoiceOnlySameHerCarry(rendererHints)
     || hasAlicizationQuieterSameHerCarry(rendererHints)
     || hasAlicizationStillVoicedSameHerCarry(rendererHints)
   const hasRestrainedResidentMode = residentMode === 'measured-return'
@@ -112,6 +137,7 @@ function resolveSameHerMotionPriority(
   )
   const hasAudibleSameHerSignal = hasAlicizationAudibleSameHerCarry(rendererHints)
   const hasStructuredSameHerSignal = hasAudibleSameHerSignal
+    || hasAlicizationBodyVoiceOnlySameHerCarry(rendererHints)
     || hasAlicizationQuieterSameHerCarry(rendererHints)
     || hasAlicizationStillVoicedSameHerCarry(rendererHints)
   const hasSameHerSignal = hasSoftReturnMotionAlias
@@ -146,12 +172,28 @@ function resolveSameHerMotionPriority(
 function resolvePerformanceAuthoritySegmentId(
   state: StageEmbodimentPerformanceState | null | undefined,
 ) {
-  return normalizeCapabilityText(
-    state?.activeSegment?.segmentId
-    ?? state?.driverAuthority?.segmentId
-    ?? state?.activeCue?.id
-    ?? null,
-  ) || null
+  const activeSegmentFrameId = normalizeCapabilityText(state?.activeSegment?.digitalLifeFrame?.id)
+  if (activeSegmentFrameId)
+    return activeSegmentFrameId
+
+  const activeSegmentCueId = normalizeCapabilityText(state?.activeSegment?.cue?.id)
+  if (activeSegmentCueId && !isTimelineShellSegmentId(activeSegmentCueId))
+    return activeSegmentCueId
+
+  const candidates = [
+    state?.activeSegment?.segmentId,
+    state?.driverAuthority?.segmentId,
+    state?.activeCue?.id,
+    activeSegmentCueId,
+  ]
+
+  for (const candidate of candidates) {
+    const normalized = normalizeCapabilityText(candidate)
+    if (normalized)
+      return normalized
+  }
+
+  return null
 }
 
 export function resolveVrmDialoguePerformanceFromState(
@@ -226,9 +268,9 @@ export function resolveVrmPreferredActionBinding(
     return undefined
 
   for (const candidate of candidates) {
-    const normalizedCandidate = normalizeCapabilityIdentity(candidate)
+    const normalizedCandidate = normalizeVrmActionBindingIdentity(candidate)
     const matched = availableBindings.find(binding =>
-      normalizeCapabilityIdentity(binding.actionKey) === normalizedCandidate,
+      normalizeVrmActionBindingIdentity(binding.actionKey) === normalizedCandidate,
     )
     if (matched)
       return matched

@@ -1,4 +1,8 @@
-import type { AlicizationEmotion, CharacterActionCapability, CharacterFacialCapability } from '@proj-alicization/stage-shared'
+import type {
+  AlicizationEmotion,
+  CharacterActionCapability,
+  CharacterFacialCapability,
+} from '@proj-alicization/stage-shared'
 
 import { alicizationEmotionWhitelist, resolveStageEmbodimentVrmBaseExpressionName } from '@proj-alicization/stage-shared'
 
@@ -14,7 +18,7 @@ export interface VrmResolvedRuntimeCapabilitySnapshot {
   supportedExpressionNames: string[]
   supportedBaseEmotions: AlicizationEmotion[]
   supportedFacialCues: CharacterFacialCapability[]
-  supportedActions?: CharacterActionCapability[]
+  supportedActions: CharacterActionCapability[]
   supportsLookAt: boolean
   supportsVisemeLipSync: boolean
   supportsMicroDynamics: boolean
@@ -109,6 +113,27 @@ export const vrmPresetFacialCapabilities: VrmPresetFacialCapabilityDefinition[] 
     description: 'A wide-eyed surprised expression.',
     expressionName: 'surprised',
     affectsMouth: true,
+  },
+]
+
+const vrmRuntimeActionCapabilities: CharacterActionCapability[] = [
+  {
+    key: 'steady_focus',
+    label: 'Steady Focus',
+    description: 'steady focused idle hold',
+    source: 'builtin',
+  },
+  {
+    key: 'observe_focus',
+    label: 'Observe Focus',
+    description: 'gentle observe focus',
+    source: 'builtin',
+  },
+  {
+    key: 'idle_settle',
+    label: 'Idle Settle',
+    description: 'quiet idle settle',
+    source: 'builtin',
   },
 ]
 
@@ -223,7 +248,7 @@ export function buildVrmRuntimeCapabilitySnapshot(input: {
       source: 'preset' as const,
       affectsMouth: item.affectsMouth,
     })),
-    supportedActions: [],
+    supportedActions: vrmRuntimeActionCapabilities.map(item => ({ ...item })),
     supportsLookAt: input.supportsLookAt,
     supportsVisemeLipSync: supportsVrmVisemeLipSync(supportedExpressionNames),
     supportsMicroDynamics: true,

@@ -36,9 +36,9 @@ import type {
 import type { ManagedVrmInstance } from './vrm-instance-cache'
 
 import { VRMUtils } from '@pixiv/three-vrm'
+import { createIdleStageEmbodimentPerformanceState } from '@proj-alicization/stage-shared'
 import { useLoop, useTresContext } from '@tresjs/core'
 import { until, useMouse } from '@vueuse/core'
-import { createIdleStageEmbodimentPerformanceState } from '@proj-alicization/stage-shared'
 import {
   AnimationMixer,
   Box3,
@@ -73,6 +73,15 @@ import {
   normalizeEnvMode,
   updateNprShaderSetting,
 } from '../../composables/shader/ibl'
+import {
+  buildVrmTransientActionReplayKey,
+  createIdleVrmMotionExecutionState,
+  createSettledVrmMotionExecutionState,
+  resolveCurrentVrmMotionAuthorityCueSnapshot,
+  resolveVrmActionFadeDurationSeconds,
+  resolveVrmActionFadeInputFromPerformanceState,
+  resolveVrmMotionExecutionStateFromBinding,
+} from '../../composables/vrm/action-playback'
 // From stage-ui-three package
 import {
   clipFromVRMAnimation,
@@ -88,20 +97,22 @@ import {
   resolveVrmPresetFacialCapability,
   vrmStandardExpressionNames,
 } from '../../composables/vrm/capabilities'
+import { loadVrm } from '../../composables/vrm/core'
 import {
   buildVrmExecutionDiagnosticsSnapshot,
 } from '../../composables/vrm/execution-diagnostics'
-import { resolveVrmActionFadeDurationSeconds } from '../../composables/vrm/action-playback'
-import { loadVrm } from '../../composables/vrm/core'
 import { useVRMEmote } from '../../composables/vrm/expression'
 import { useVRMLipSync } from '../../composables/vrm/lip-sync'
 import {
-  resolveVrmPreferredActionBinding,
-  resolveVrmPreferredCustomExpressionBinding,
   resolveVrmDialogueExpressionWatchKey,
   resolveVrmDialoguePerformanceFromState,
+  resolveVrmPreferredActionBinding,
+  resolveVrmPreferredCustomExpressionBinding,
 } from '../../composables/vrm/performance-selection'
-import { applyStageEmbodimentVrmPosture } from '../../composables/vrm/posture'
+import {
+  applyStageEmbodimentVrmPosture,
+  createIdleVrmBodyExecutionState,
+} from '../../composables/vrm/posture'
 import {
   createThreeRendererMemorySnapshot,
   createVrmEmbodimentFrameSnapshot,
@@ -252,6 +263,41 @@ interface DialoguePerformanceInput {
   emphasis?: number
 }
 
+function clampUnit(value: number | null | undefined, fallback = 0) {
+  if (!Number.isFinite(value))
+    return fallback
+
+  return Math.min(1, Math.max(0, Number(value)))
+}
+
+function resolveVrmSpeechFacialNuance(input: {
+  performanceState?: StageEmbodimentPerformanceState | null
+  speechDynamics?: StageEmbodimentSpeechRenderState['dynamics'] | null
+}) {
+  const speechEnergy = clampUnit(input.speechDynamics?.speechEnergy ?? 0)
+  const prosodyIntensity = clampUnit(input.speechDynamics?.prosodyIntensity ?? 0)
+  const cadencePulse = clampUnit(input.speechDynamics?.cadencePulse ?? 0)
+  const residentMode = input.performanceState?.activeCue?.rendererHints?.residentMode ?? null
+  const activeFactor = Math.max(
+    speechEnergy * 0.72,
+    prosodyIntensity * 0.64,
+    cadencePulse * 0.52,
+  )
+  const residentBlendScale = residentMode === 'repair-before-closeness'
+    ? 1.12
+    : residentMode === 'measured-return'
+      ? 1.08
+      : residentMode === 'quiet-companionship'
+        ? 1.04
+        : 1
+
+  return {
+    blendDurationScale: 1 + activeFactor * 0.18 * residentBlendScale,
+    emotionIntensityBias: speechEnergy * 0.08 + prosodyIntensity * 0.05,
+    facialCueIntensityBias: speechEnergy * 0.12 + prosodyIntensity * 0.1 + cadencePulse * 0.04,
+  }
+}
+
 function createSyntheticPerformanceStateForDialogueInput(
   input: DialoguePerformanceInput,
 ): StageEmbodimentPerformanceState {
@@ -269,10 +315,27 @@ function createSyntheticPerformanceStateForDialogueInput(
   return state
 }
 
+function resolveCurrentMotionAuthoritySegmentId(state?: StageEmbodimentPerformanceState | null) {
+  const segmentId = state?.activeSegment?.segmentId
+    ?? state?.driverAuthority?.segmentId
+    ?? state?.activeCue?.id
+    ?? null
+
+  return typeof segmentId === 'string' && segmentId.trim()
+    ? segmentId.trim()
+    : null
+}
+
+function resolveCurrentMotionAuthorityCue() {
+  return resolveCurrentVrmMotionAuthorityCueSnapshot(performanceState.value)
+}
+
 // Expressions
 const blink = useBlink()
 const idleEyeSaccades = useIdleEyeSaccades()
 const vrmEmote = ref<ReturnType<typeof useVRMEmote>>()
+const vrmBodyExecutionState = shallowRef(createIdleVrmBodyExecutionState())
+const vrmMotionExecutionState = shallowRef(createIdleVrmMotionExecutionState())
 const vrmLipSync = useVRMLipSync(speechRenderState)
 const speechDynamics = computed(() => speechRenderState.value?.active === true ? speechRenderState.value.dynamics : null)
 
@@ -382,6 +445,7 @@ function clearActiveManagedVrmRefs() {
   transientCleanup.value = undefined
   vrmAnimationMixer.value = undefined
   vrmEmote.value = undefined
+  vrmMotionExecutionState.value = createIdleVrmMotionExecutionState()
   vrm.value = undefined
   vrmGroup.value = undefined
 }
@@ -392,6 +456,7 @@ function applyManagedVrmInstance(instance: ManagedVrmInstance) {
   idleClipAction.value = instance.idleAction
   vrmAnimationMixer.value = instance.mixer
   vrmEmote.value = instance.emote
+  vrmMotionExecutionState.value = createSettledVrmMotionExecutionState()
 }
 
 function destroyManagedVrmInstance(instance?: ManagedVrmInstance) {
@@ -453,12 +518,20 @@ function bindManagedVrmInstanceRenderLoop() {
       activeVrm?.lookAt?.update?.(delta)
     })
     const blinkAndSaccadeMs = measureFrameStep(tracingEnabled, () => {
-      const blinkResult = blink.update(delta, speechDynamics.value)
+      const blinkResult = blink.update(delta, speechDynamics.value, performanceState.value?.activeCue?.rendererHints ?? null)
       vrmEmote.value?.setBlinkWeights(blinkResult.weights)
-      idleEyeSaccades.update(activeVrm, lookAtTarget, delta, speechDynamics.value, performanceState.value?.motor, presencePosture.value)
+      idleEyeSaccades.update(
+        activeVrm,
+        lookAtTarget,
+        delta,
+        speechDynamics.value,
+        performanceState.value?.motor,
+        presencePosture.value,
+        performanceState.value?.activeCue?.rendererHints ?? null,
+      )
     })
     const postureMs = measureFrameStep(tracingEnabled, () => {
-      applyStageEmbodimentVrmPosture({
+      vrmBodyExecutionState.value = applyStageEmbodimentVrmPosture({
         delta,
         motor: performanceState.value?.motor,
         posture: presencePosture.value,
@@ -563,6 +636,7 @@ function componentCleanUp(
   airiIblProbe = null
   clearActiveManagedVrmRefs()
   customExpressionNames.value = []
+  vrmBodyExecutionState.value = createIdleVrmBodyExecutionState()
   emit('customExpressionsResolved', [])
   emitRuntimeCapabilitiesResolved()
   modelLoaded.value = false
@@ -720,12 +794,7 @@ function clearTransientAnimation() {
   transientCleanup.value = undefined
   transientClipAction.value?.stop()
   transientClipAction.value = undefined
-}
-
-function buildTransientActionKey(binding: VrmActionBinding) {
-  const source = binding.source || 'unknown'
-  const identity = binding.id || binding.actionKey || binding.fileName || 'anonymous-action'
-  return `${source}:${identity}`.trim()
+  vrmMotionExecutionState.value = createIdleVrmMotionExecutionState()
 }
 
 function replayIdleAnimation(fadeDuration: number = 0.18) {
@@ -733,6 +802,7 @@ function replayIdleAnimation(fadeDuration: number = 0.18) {
   idleClipAction.value?.reset()
   idleClipAction.value?.fadeIn(fadeDuration)
   idleClipAction.value?.play()
+  vrmMotionExecutionState.value = createSettledVrmMotionExecutionState()
 }
 
 function buildIdleActionPreferenceKey(preference: typeof idleActionPreference.value) {
@@ -756,16 +826,22 @@ function resolveIdleActionCooldownMs(preference: typeof idleActionPreference.val
 async function playActionBinding(
   binding: VrmActionBinding,
   options?: {
+    fadeInput?: ReturnType<typeof resolveVrmActionFadeInputFromPerformanceState>
     fadeDuration?: number
+    motionSegmentId?: string | null
   },
 ) {
-  const actionKey = buildTransientActionKey(binding)
+  const actionKey = buildVrmTransientActionReplayKey({
+    binding,
+    fadeInput: options?.fadeInput,
+  })
   const now = performance.now()
   if (actionKey && actionKey === lastTransientActionKey && now - lastTransientActionIssuedAt < transientActionDedupWindowMs)
     return
   lastTransientActionKey = actionKey
   lastTransientActionIssuedAt = now
   const fadeDuration = clampActionFadeSeconds(options?.fadeDuration)
+  const motionSegmentId = options?.motionSegmentId ?? resolveCurrentMotionAuthoritySegmentId(performanceState.value)
 
   const requestId = transientActionRequestId + 1
   transientActionRequestId = requestId
@@ -813,6 +889,11 @@ async function playActionBinding(
   }
 
   transientClipAction.value = action
+  vrmMotionExecutionState.value = resolveVrmMotionExecutionStateFromBinding(
+    binding,
+    motionSegmentId,
+    resolveCurrentMotionAuthorityCue(),
+  )
   action.reset()
   action.setLoop(LoopOnce, 1)
   action.clampWhenFinished = false
@@ -831,6 +912,7 @@ async function playActionBinding(
     idleClipAction.value?.reset()
     idleClipAction.value?.fadeIn(fadeDuration)
     idleClipAction.value?.play()
+    vrmMotionExecutionState.value = createSettledVrmMotionExecutionState()
     action.stop()
     mixer.uncacheClip(clip)
     if (transientClipAction.value === action)
@@ -898,29 +980,42 @@ function applyDialogueExpression(
   if (!emote)
     return
 
-  const emotionIntensity = clamp01(options?.emotionIntensity ?? resolvePerformanceIntensity(input), 0.7)
-  const facialCueIntensity = clamp01(options?.facialCueIntensity ?? emotionIntensity, emotionIntensity)
+  const nuance = resolveVrmSpeechFacialNuance({
+    performanceState: options?.performanceState ?? null,
+    speechDynamics: speechDynamics.value,
+  })
+  const emotionIntensity = clamp01(
+    (options?.emotionIntensity ?? resolvePerformanceIntensity(input)) + nuance.emotionIntensityBias,
+    0.7,
+  )
+  const facialCueIntensity = clamp01(
+    (options?.facialCueIntensity ?? emotionIntensity) + nuance.facialCueIntensityBias,
+    emotionIntensity,
+  )
+  const blendDuration = typeof options?.blendDuration === 'number' && Number.isFinite(options.blendDuration)
+    ? Math.max(0.05, options.blendDuration * nuance.blendDurationScale)
+    : options?.blendDuration
   emote.setEmotion(
     resolveVrmBaseExpressionName(
       input.baseEmotion,
       baseExpressionOverrides.value?.[input.baseEmotion],
     ),
     emotionIntensity,
-    { blendDuration: options?.blendDuration },
+    { blendDuration },
   )
 
   const customBinding = resolveConfiguredCustomExpressionBinding(options?.performanceState, input.facialCue)
   if (customBinding) {
     emote.setFacialCue(customBinding.expressionName, facialCueIntensity, {
       affectsMouth: customBinding.affectsMouth,
-      blendDuration: options?.blendDuration,
+      blendDuration,
     })
   }
   else {
     const presetBinding = resolveVrmPresetFacialCapability(input.facialCue)
     emote.setFacialCue(presetBinding?.expressionName ?? null, facialCueIntensity, {
       affectsMouth: presetBinding?.affectsMouth === true,
-      blendDuration: options?.blendDuration,
+      blendDuration,
     })
   }
 }
@@ -952,15 +1047,24 @@ async function applyDialoguePerformance(input: DialoguePerformanceInput) {
   lastDialoguePerformance.value = { ...input }
   applyDialogueExpression(input)
 
-  const syntheticState = performanceState.value
+  const actionState = performanceState.value
+    ? performanceState.value
+    : createSyntheticPerformanceStateForDialogueInput(input)
   const actionBinding = resolveVrmPreferredActionBinding(
-    syntheticState
-      ? syntheticState
-      : createSyntheticPerformanceStateForDialogueInput(input),
+    actionState,
     actionBindings.value ?? [],
   )
-  if (actionBinding)
-    await playActionBinding(actionBinding)
+  if (actionBinding) {
+    const fadeInput = resolveVrmActionFadeInputFromPerformanceState({
+      state: actionState,
+      fadeDurationSeconds: resolveRendererSettleActionFadeFromPerformanceState(actionState) ?? 0.18,
+    })
+    await playActionBinding(actionBinding, {
+      fadeDuration: resolveVrmActionFadeDurationSeconds(fadeInput),
+      fadeInput,
+      motionSegmentId: resolveCurrentMotionAuthoritySegmentId(actionState),
+    })
+  }
 }
 
 // look at mouse
@@ -1435,12 +1539,14 @@ onMounted(async () => {
         actionBindings.value ?? [],
       )
       if (actionBinding) {
+        const fadeInput = resolveVrmActionFadeInputFromPerformanceState({
+          state: performanceState.value,
+          fadeDurationSeconds: resolveRendererSettleActionFadeFromPerformanceState(performanceState.value) ?? 0.18,
+        })
         await playActionBinding(actionBinding, {
-          fadeDuration: resolveVrmActionFadeDurationSeconds({
-            actionCueSource: performanceState.value?.activeActionCueSource ?? 'none',
-            actionIntensity: performanceState.value?.actionIntensity ?? null,
-            fadeDurationSeconds: resolveRendererSettleActionFadeFromPerformanceState(performanceState.value) ?? 0.18,
-          }),
+          fadeDuration: resolveVrmActionFadeDurationSeconds(fadeInput),
+          fadeInput,
+          motionSegmentId: resolveCurrentMotionAuthoritySegmentId(performanceState.value),
         })
       }
     },
@@ -1507,6 +1613,7 @@ defineExpose({
   },
   executionDiagnostics() {
     return buildVrmExecutionDiagnosticsSnapshot({
+      currentBody: vrmBodyExecutionState.value,
       currentEmotion: vrmEmote.value?.currentEmotion.value ?? null,
       currentEmotionResolvedExpressionNames: vrmEmote.value?.currentEmotion.value
         ? [resolveVrmBaseExpressionName(
@@ -1516,7 +1623,10 @@ defineExpose({
         : [],
       currentFacialCue: vrmEmote.value?.currentFacialCue.value ?? null,
       currentFacialCueAffectsMouth: vrmEmote.value?.currentFacialCueAffectsMouth?.() ?? null,
+      currentMotion: vrmMotionExecutionState.value,
+      currentLipSync: vrmLipSync.executionState.value,
       performanceState: performanceState.value,
+      speechRenderState: speechRenderState.value,
     })
   },
   setVrmFrameHook(hook?: VrmFrameHook) {

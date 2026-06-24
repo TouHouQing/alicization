@@ -18,7 +18,7 @@ export interface Live2DRuntimeCapabilitySnapshot {
   supportedExpressionNames: string[]
   supportedBaseEmotions: AlicizationEmotion[]
   supportedFacialCues: CharacterFacialCapability[]
-  supportedActions?: CharacterActionCapability[]
+  supportedActions: CharacterActionCapability[]
 }
 
 export interface ResolveLive2DExpressionSelectionInput {
@@ -71,9 +71,31 @@ const live2dEmotionExpressionAliases: Record<StageEmbodimentCanonicalEmotion, st
   thinking: ['think', 'thinking', 'focus', 'focused', 'inspect', 'observe'],
 }
 
+const live2dBuiltinActionCapabilities: CharacterActionCapability[] = [
+  {
+    key: 'steady_focus',
+    label: 'Steady Focus',
+    description: 'steady focused idle hold',
+    source: 'builtin',
+  },
+  {
+    key: 'observe_focus',
+    label: 'Observe Focus',
+    description: 'gentle observe focus',
+    source: 'builtin',
+  },
+  {
+    key: 'idle_settle',
+    label: 'Idle Settle',
+    description: 'quiet idle settle',
+    source: 'builtin',
+  },
+]
+
 function normalizeExpressionIdentity(raw: unknown) {
   return typeof raw === 'string'
     ? raw
+        .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
         .trim()
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, ' ')
@@ -226,6 +248,23 @@ function resolveBestExpressionMatch(input: {
   return bestMatch
 }
 
+function resolveBestExpressionMatchByAliasPriority(input: {
+  aliases: string[]
+  catalog: ReturnType<typeof createExpressionCatalog>
+}): { name: string, score: number } | null {
+  for (const alias of input.aliases) {
+    const bestMatch = resolveBestExpressionMatch({
+      aliases: [alias],
+      catalog: input.catalog,
+    })
+
+    if (bestMatch && bestMatch.score >= 0.9)
+      return bestMatch
+  }
+
+  return null
+}
+
 export function resolveLive2DExpressionSelection(
   input: ResolveLive2DExpressionSelectionInput,
 ): Live2DResolvedExpressionSelection | null {
@@ -235,12 +274,12 @@ export function resolveLive2DExpressionSelection(
 
   const preferredAliases = uniqueTextList(input.preferredExpressionAliases ?? [])
   if (preferredAliases.length > 0) {
-    const preferredMatch = resolveBestExpressionMatch({
+    const preferredMatch = resolveBestExpressionMatchByAliasPriority({
       aliases: preferredAliases,
       catalog,
     })
 
-    if (preferredMatch && preferredMatch.score >= 0.9) {
+    if (preferredMatch) {
       return {
         name: preferredMatch.name,
         reason: 'preferred',
@@ -299,26 +338,16 @@ export function buildLive2DRuntimeCapabilitySnapshot(
     .map(item => item.name)
     .sort((left, right) => left.localeCompare(right))
 
-  const supportedBaseEmotions = alicizationEmotionWhitelist.filter((emotion) => {
-    const bestMatch = resolveBestExpressionMatch({
-      aliases: resolveEmotionExpressionSearchAliases(emotion),
-      catalog,
-    })
-    return (bestMatch?.score ?? 0) >= 2.2
-  })
-
-  const supportedFacialCues = listStageEmbodimentLive2DFacialCapabilities().filter((capability) => {
-    const bestMatch = resolveBestExpressionMatch({
-      aliases: resolveFacialCueExpressionSearchAliases(capability.key),
-      catalog,
-    })
-    return (bestMatch?.score ?? 0) >= 2.2
-  })
-
   return {
     supportedExpressionNames,
-    supportedBaseEmotions,
-    supportedFacialCues,
-    supportedActions: [],
+    // Live2D can synthesize the core emotional/facial dialect through the runtime
+    // motion/expression layer even when the scanned model exposes only sparse named expressions.
+    supportedBaseEmotions: [...alicizationEmotionWhitelist],
+    supportedFacialCues: listStageEmbodimentLive2DFacialCapabilities(),
+    supportedActions: listLive2DBuiltinActionCapabilities(),
   }
+}
+
+export function listLive2DBuiltinActionCapabilities(): CharacterActionCapability[] {
+  return live2dBuiltinActionCapabilities.map(item => ({ ...item }))
 }

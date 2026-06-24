@@ -34,7 +34,7 @@ export interface VrmRuntimeCapabilitySnapshot {
   supportedExpressionNames: string[]
   supportedBaseEmotions: AlicizationEmotion[]
   supportedFacialCues: CharacterFacialCapability[]
-  supportedActions?: CharacterActionCapability[]
+  supportedActions: CharacterActionCapability[]
   supportsLookAt: boolean
   supportsVisemeLipSync: boolean
   supportsMicroDynamics: boolean

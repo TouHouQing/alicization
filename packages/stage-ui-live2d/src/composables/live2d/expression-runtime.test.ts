@@ -102,6 +102,26 @@ describe('live2d expression runtime', () => {
     expect(selection?.reason).toBe('preferred')
   })
 
+  it('respects preferred alias ordering when multiple aliases can match different expressions', () => {
+    const selection = resolveLive2DExpressionSelection({
+      delivery: 'gentle',
+      emotion: 'thinking',
+      expressionIntensity: 0.72,
+      expressionNames: [
+        'configured_focus_exp',
+        'recover_soft_exp',
+        'neutral_exp_05',
+      ],
+      facialCue: 'soft-gaze',
+      facialCueIntensity: 0.8,
+      preferredExpressionAliases: ['recover soft', 'configured focus'],
+    })
+
+    expect(selection).not.toBeNull()
+    expect(selection?.name).toBe('recover_soft_exp')
+    expect(selection?.reason).toBe('preferred')
+  })
+
   it('builds runtime capabilities from discovered expression names', () => {
     const snapshot = buildLive2DRuntimeCapabilitySnapshot([
       'happy_exp_01',
@@ -117,6 +137,29 @@ describe('live2d expression runtime', () => {
     )
     expect(snapshot.supportedFacialCues.map(item => item.key)).toEqual(
       expect.arrayContaining(['focus', 'soft-gaze']),
+    )
+  })
+
+  it('keeps synthesized live2d facial and emotion capabilities available even when discovered expression names are sparse', () => {
+    const snapshot = buildLive2DRuntimeCapabilitySnapshot([
+      'neutral_exp_05',
+    ])
+
+    expect(snapshot.supportedBaseEmotions).toEqual(
+      expect.arrayContaining(['neutral', 'thinking', 'concerned', 'happy']),
+    )
+    expect(snapshot.supportedFacialCues.map(item => item.key)).toEqual(
+      expect.arrayContaining(['focus', 'soft-gaze', 'frown', 'bright-smile']),
+    )
+  })
+
+  it('keeps restrained same-her live2d action capabilities available even when discovered expressions are sparse', () => {
+    const snapshot = buildLive2DRuntimeCapabilitySnapshot([
+      'neutral_exp_05',
+    ])
+
+    expect(snapshot.supportedActions.map(item => item.key)).toEqual(
+      expect.arrayContaining(['steady_focus', 'observe_focus', 'idle_settle']),
     )
   })
 })

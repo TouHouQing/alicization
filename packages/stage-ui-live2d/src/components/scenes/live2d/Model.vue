@@ -8,9 +8,12 @@ import type {
 } from '@proj-alicization/stage-shared'
 import type { Cubism4InternalModel } from 'pixi-live2d-display/cubism4'
 
-import type { Live2DActionPulseBinding, PixiLive2DInternalModel } from '../../../composables/live2d'
-import type { Live2DRuntimeCapabilitySnapshot } from '../../../composables/live2d'
-import type { Live2DExecutionDiagnosticsSnapshot } from '../../../composables/live2d'
+import type {
+  Live2DActionPulseBinding,
+  Live2DExecutionDiagnosticsSnapshot,
+  Live2DRuntimeCapabilitySnapshot,
+  PixiLive2DInternalModel,
+} from '../../../composables/live2d'
 
 import { listenBeatSyncBeatSignal } from '@proj-alicization/stage-shared/beat-sync'
 import { useTheme } from '@proj-alicization/ui'
@@ -23,10 +26,12 @@ import { Live2DFactory, Live2DModel, MotionPriority } from 'pixi-live2d-display/
 import { computed, onBeforeMount, onErrorCaptured, onMounted, onUnmounted, ref, shallowRef, toRef, watch } from 'vue'
 
 import {
-  buildLive2DRuntimeCapabilitySnapshot,
+  buildLive2DActionPulseReplayKey,
   buildLive2DExecutionDiagnosticsSnapshot,
-  createIdleLive2DExecutionDiagnosticsSnapshot,
+  buildLive2DRuntimeCapabilitySnapshot,
   createBeatSyncController,
+  createIdleLive2DExecutionDiagnosticsSnapshot,
+  createLive2DMotionExecutionStateController,
   resolveLive2DActionPulseBinding,
   resolveLive2DExpressionSelection,
   useLive2DMotionManagerUpdate,
@@ -243,7 +248,7 @@ const live2dPerformanceState = toRef(() => props.performanceState)
 const live2dPresencePosture = toRef(() => props.presencePosture)
 const live2dSpeechRenderState = toRef(() => props.speechRenderState)
 
-const localCurrentMotion = ref<MotionSelection>({ group: 'Idle', index: 0 })
+const live2dMotionExecution = createLive2DMotionExecutionStateController()
 const availableExpressionNames = ref<string[]>([])
 const characterHovered = ref(false)
 let motionRequestId = 0
@@ -352,16 +357,40 @@ function resolveDesiredExpressionSelection() {
   })
 }
 
+function resolveCurrentMotionAuthoritySegmentId() {
+  const performanceState = live2dPerformanceState.value
+  const segmentId = performanceState?.activeSegment?.segmentId
+    ?? performanceState?.driverAuthority?.segmentId
+    ?? performanceState?.activeCue?.id
+    ?? null
+
+  return typeof segmentId === 'string' && segmentId.trim()
+    ? segmentId.trim()
+    : null
+}
+
+function resolveCurrentMotionAuthorityCue() {
+  const performanceState = live2dPerformanceState.value
+  return performanceState?.activeSegment?.cue
+    ?? performanceState?.activeCue
+    ?? null
+}
+
+const motionManagerUpdateRef = shallowRef<ReturnType<typeof useLive2DMotionManagerUpdate> | null>(null)
+
 function syncLive2DExecutionDiagnostics(selection?: ReturnType<typeof resolveDesiredExpressionSelection> | null) {
   live2dExecutionDiagnostics.value = buildLive2DExecutionDiagnosticsSnapshot({
-    currentMotion: localCurrentMotion.value,
+    currentBody: motionManagerUpdateRef.value?.bodyExecutionState.value ?? null,
+    currentLipSync: motionManagerUpdateRef.value?.lipSyncExecutionState.value ?? null,
+    currentMotion: live2dMotionExecution.state.value,
     performanceState: live2dPerformanceState.value,
     preferredExpressionAliases: props.preferredExpressionAliases,
     selection: selection ?? null,
+    speechRenderState: live2dSpeechRenderState.value,
   })
 }
 
-const applyResolvedExpression = async (options?: { force?: boolean }) => {
+async function applyResolvedExpression(options?: { force?: boolean }) {
   const activeModel = model.value
   const expressionManager = getInternalModel()?.motionManager?.expressionManager
   if (!activeModel || !expressionManager)
@@ -466,7 +495,7 @@ function requestIdleMotionRestart(options: {
   if (!target)
     return false
 
-  const currentKey = buildMotionKey(localCurrentMotion.value)
+  const currentKey = buildMotionKey(live2dMotionExecution.state.value)
   const targetKey = buildMotionKey(target)
   if (!options.force && currentKey === targetKey)
     return false
@@ -589,9 +618,8 @@ async function loadModel() {
       }, 300)
     }
 
-    // Remove eye ball movements from idle motion group to prevent conflicts
-    // This is too hacky
-    // FIXME: it cannot blink if loading a model only have idle motion
+    // Remove eye ball movements from idle motion group to prevent conflicts.
+    // Auto-blink fallback continues to run through the motion-manager hook for idle-only models.
     if (motionManager.groups.idle) {
       motionManager.motionGroups[motionManager.groups.idle]?.forEach((motion) => {
         motion._motionData.curves.forEach((curve: any) => {
@@ -616,6 +644,7 @@ async function loadModel() {
       speechRenderState: live2dSpeechRenderState,
       lastUpdateTime,
     })
+    motionManagerUpdateRef.value = motionManagerUpdate
 
     motionManagerUpdate.register(useMotionUpdatePluginBeatSync(beatSync), 'pre')
     motionManagerUpdate.register(useMotionUpdatePluginIdleDisable(), 'pre')
@@ -629,12 +658,18 @@ async function loadModel() {
     }
 
     motionManager.on('motionStart', (group, index) => {
-      localCurrentMotion.value = { group, index }
+      live2dMotionExecution.handleMotionStart(
+        group,
+        index,
+        resolveCurrentMotionAuthoritySegmentId(),
+        resolveCurrentMotionAuthorityCue(),
+      )
       lastMotionRequestKey = buildMotionRequestKey(group, index)
     })
 
     // Restart the resolved idle preference after transient motions finish.
     motionManager.on('motionFinish', () => {
+      live2dMotionExecution.handleMotionFinish()
       requestIdleMotionRestart({ force: true, reason: 'motion-finish' })
     })
 
@@ -847,6 +882,55 @@ async function setMotion(motionName: string, index?: number) {
   }
 }
 
+async function setMotionWithReplayKey(
+  motionName: string,
+  index: number | undefined,
+  requestKey: string,
+) {
+  const activeModel = model.value
+  if (!activeModel)
+    return 'deferred' as const
+
+  if (!requestKey)
+    return setMotion(motionName, index)
+  if (requestKey === lastMotionRequestKey || requestKey === inFlightMotionRequestKey)
+    return 'skipped' as const
+
+  inFlightMotionRequestKey = requestKey
+  const requestId = ++motionRequestId
+  const normalizedIndex = Number.isFinite(index)
+    ? Math.max(0, Math.floor(Number(index)))
+    : undefined
+  const preferredIdle = preferredIdleMotionSelection.value
+  const isPreferredIdleMotion = preferredIdle
+    && preferredIdle.group === motionName
+    && preferredIdle.index === normalizedIndex
+  const priority = isPreferredIdleMotion
+    ? MotionPriority.IDLE
+    : MotionPriority.FORCE
+
+  try {
+    await activeModel.motion(motionName, normalizedIndex, priority)
+    if (requestId !== motionRequestId)
+      return 'skipped' as const
+
+    lastMotionRequestKey = requestKey
+    return 'started' as const
+  }
+  catch (error) {
+    if (requestId !== motionRequestId)
+      return 'skipped' as const
+    console.warn(`[Live2D] Failed to start motion ${motionName}`, error)
+    if (lastMotionRequestKey === requestKey)
+      lastMotionRequestKey = ''
+    return 'skipped' as const
+  }
+  finally {
+    if (requestId === motionRequestId && inFlightMotionRequestKey === requestKey)
+      inFlightMotionRequestKey = ''
+  }
+}
+
 async function applyActionPulseRevision(revision: number) {
   if (!revision || revision === lastAppliedActionPulseRevision.value)
     return
@@ -857,13 +941,21 @@ async function applyActionPulseRevision(revision: number) {
     return
   }
 
-  const binding = resolveLive2DActionPulseBinding(props.actionBindings ?? [], actionCue)
+  const binding = resolveLive2DActionPulseBinding(props.actionBindings ?? [], actionCue, {
+    state: live2dPerformanceState.value,
+    availableMotions: availableMotions.value,
+    motionMap: motionMap.value,
+  })
   if (!binding) {
     lastAppliedActionPulseRevision.value = revision
     return
   }
 
-  const result = await setMotion(binding.motionName, binding.motionIndex)
+  const replayKey = buildLive2DActionPulseReplayKey({
+    binding,
+    state: live2dPerformanceState.value,
+  })
+  const result = await setMotionWithReplayKey(binding.motionName, binding.motionIndex, replayKey)
   if (result !== 'deferred')
     lastAppliedActionPulseRevision.value = revision
 }
@@ -924,9 +1016,35 @@ watch([themeColorsHueDynamic, live2dShadowEnabled], ([dynamic, shadowEnabled]) =
 }, { immediate: true })
 
 watch(currentMotion, value => setMotion(value.group, value.index))
-watch(currentMotion, () => {
+watch(() => live2dMotionExecution.state.value, () => {
   syncLive2DExecutionDiagnostics(resolveDesiredExpressionSelection())
 }, { deep: true })
+watch(
+  () => motionManagerUpdateRef.value?.lipSyncExecutionState.value,
+  () => {
+    syncLive2DExecutionDiagnostics(resolveDesiredExpressionSelection())
+  },
+  { deep: true },
+)
+watch(
+  () => motionManagerUpdateRef.value?.bodyExecutionState.value,
+  () => {
+    syncLive2DExecutionDiagnostics(resolveDesiredExpressionSelection())
+  },
+  { deep: true },
+)
+watch(
+  [
+    () => props.speechRenderState?.revision ?? 0,
+    () => props.speechRenderState?.phase ?? 'idle',
+    () => props.speechRenderState?.playbackPhase ?? 'idle',
+    () => props.speechRenderState?.item?.segmentId ?? '',
+    () => props.speechRenderState?.active === true,
+  ],
+  () => {
+    syncLive2DExecutionDiagnostics(resolveDesiredExpressionSelection())
+  },
+)
 watch(
   () => live2dPerformanceState.value?.actionPulse.revision ?? 0,
   async (revision) => {
@@ -976,7 +1094,7 @@ watch(preferredIdleMotionKey, (nextKey, previousKey) => {
   if (!nextKey || !live2dIdleAnimationEnabled.value)
     return
 
-  const currentKey = buildMotionKey(localCurrentMotion.value)
+  const currentKey = buildMotionKey(live2dMotionExecution.state.value)
   if (!currentKey || currentKey === previousKey || currentKey === nextKey) {
     requestIdleMotionRestart({ force: true, reason: 'idle-preference-change' })
   }
@@ -1065,7 +1183,10 @@ onBeforeMount(() => {
 onUnmounted(() => {
   isUnmounted = true
   availableExpressionNames.value = []
+  live2dMotionExecution.reset()
+  motionManagerUpdateRef.value = null
   lastExpressionSelectionKey = '__default__'
+  syncLive2DExecutionDiagnostics(null)
   emitRuntimeCapabilitiesResolved([])
   disposeShouldUpdateView?.()
 })

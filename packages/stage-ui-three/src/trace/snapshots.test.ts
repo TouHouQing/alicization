@@ -1,10 +1,10 @@
+import type { VRM } from '@pixiv/three-vrm'
+import type { WebGLRenderer } from 'three'
+
 import {
   createIdleStageEmbodimentPerformanceState,
   createIdleStageEmbodimentSpeechRenderState,
 } from '@proj-alicization/stage-shared'
-import type { VRM } from '@pixiv/three-vrm'
-import type { WebGLRenderer } from 'three'
-
 import {
   Bone,
   BoxGeometry,
@@ -147,6 +147,18 @@ describe('stage three runtime snapshots', () => {
       cue: null,
       digitalLifeFrame: null,
     }
+    performanceState.driverAuthority = {
+      segmentId: 'segment-1',
+      rendererTarget: 'vrm',
+      matchedDrivers: ['body', 'face', 'motion', 'lipsync', 'voice'],
+      sources: ['playback-reconciler'],
+      bodySegmentMatched: true,
+      faceSegmentMatched: true,
+      motionSegmentMatched: true,
+      lipsyncSegmentMatched: true,
+      voiceSegmentMatched: true,
+      prosodyAuthority: null,
+    }
 
     const speechRenderState = {
       ...createIdleStageEmbodimentSpeechRenderState(),
@@ -182,12 +194,95 @@ describe('stage three runtime snapshots', () => {
       activeFacialCue: 'segment_focus',
       activeFacialCueSource: 'segment',
       actionIntensity: 0.6,
+      bodyActive: true,
+      embodimentSegmentAligned: true,
+      embodimentSegmentMismatchDrivers: [],
       expressionIntensity: 0.9,
+      faceActive: true,
       facialCueIntensity: 0.8,
+      lipsyncActive: true,
+      motionActive: true,
       performancePhase: 'speaking',
+      performanceSegmentId: 'segment-1',
       segmentId: 'segment-1',
+      speechSegmentId: 'segment-1',
       speechPhase: 'playing',
       visemeIntensity: 0.72,
+      voiceActive: true,
+    })
+  })
+
+  it('exposes stale speech drivers when vrm frame segment authority drifts', () => {
+    const performanceState = createIdleStageEmbodimentPerformanceState()
+    performanceState.phase = 'speaking'
+    performanceState.activeFacialCue = 'segment_focus'
+    performanceState.activeFacialCueSource = 'segment'
+    performanceState.activeActionCue = 'segment_bow'
+    performanceState.activeActionCueSource = 'segment'
+    performanceState.expressionIntensity = 0.64
+    performanceState.facialCueIntensity = 0.72
+    performanceState.actionIntensity = 0.58
+    performanceState.activeSegment = {
+      intentId: 'intent-1',
+      streamId: 'stream-1',
+      segmentId: 'segment-current-line',
+      ownerId: null,
+      text: '我们先把这段闭环。',
+      special: null,
+      continuityHoldMs: 0,
+      playbackDurationMs: 520,
+      metadata: null,
+      cue: null,
+      digitalLifeFrame: null,
+    }
+    performanceState.driverAuthority = {
+      segmentId: 'segment-current-line',
+      rendererTarget: 'vrm',
+      matchedDrivers: ['body', 'face', 'motion'],
+      sources: ['playback-reconciler'],
+      bodySegmentMatched: true,
+      faceSegmentMatched: true,
+      motionSegmentMatched: true,
+      lipsyncSegmentMatched: false,
+      voiceSegmentMatched: false,
+      prosodyAuthority: null,
+    }
+
+    const speechRenderState = {
+      ...createIdleStageEmbodimentSpeechRenderState(),
+      active: true,
+      phase: 'playing' as const,
+      playbackPhase: 'playing' as const,
+      visemeIntensity: 0.57,
+      item: {
+        intentId: 'intent-1',
+        streamId: 'stream-1',
+        segmentId: 'segment-stale-voice-line',
+        ownerId: null,
+        text: '旧的一段声音还在。',
+        special: null,
+        continuityHoldMs: 0,
+        playbackDurationMs: 480,
+        metadata: null,
+        cue: null,
+        digitalLifeFrame: null,
+      },
+    }
+
+    expect(createVrmEmbodimentFrameSnapshot({
+      performanceState,
+      speechRenderState,
+    })).toMatchObject({
+      bodyActive: true,
+      embodimentSegmentAligned: false,
+      embodimentSegmentMismatchDrivers: ['lipsync', 'voice'],
+      faceActive: true,
+      lipsyncActive: true,
+      motionActive: true,
+      performanceSegmentId: 'segment-current-line',
+      segmentId: 'segment-current-line',
+      speechSegmentId: 'segment-stale-voice-line',
+      voiceActive: true,
     })
   })
 })

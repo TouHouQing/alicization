@@ -4,9 +4,12 @@ import type {
   StageEmbodimentSpeechRenderState,
 } from '@proj-alicization/stage-shared'
 import type { Cubism4InternalModel, InternalModel } from 'pixi-live2d-display/cubism4'
-import type { Ref } from 'vue'
+import type { ComputedRef, Ref } from 'vue'
 
 import type { BeatSyncController } from './beat-sync'
+
+import { hasAlicizationSoftenedSameHerCarry } from '@proj-alicization/stage-shared'
+import { computed, shallowRef } from 'vue'
 
 import { useLive2DIdleEyeFocus } from './animation'
 import { resolveLive2DFacialCueDrive } from './facial-cue'
@@ -31,7 +34,9 @@ export interface MotionManagerUpdateContext {
 }
 
 export type MotionManagerPluginContext = MotionManagerUpdateContext & {
+  live2dBodyExecutionState: Ref<Live2DBodyExecutionState>
   internalModel: PixiLive2DInternalModel
+  live2dLipSyncExecutionState: Ref<Live2DLipSyncExecutionState>
   motionManager: PixiLive2DInternalModel['motionManager']
   modelParameters: Ref<Live2DModelParameters>
   live2dIdleAnimationEnabled: Ref<boolean>
@@ -46,6 +51,18 @@ export type MotionManagerPluginContext = MotionManagerUpdateContext & {
 }
 
 export type MotionManagerPlugin = (ctx: MotionManagerPluginContext) => void
+
+export interface Live2DLipSyncExecutionState {
+  active: boolean
+  dominantViseme: string | null
+  dominantWeight: number | null
+  segmentId: string | null
+}
+
+export interface Live2DBodyExecutionState {
+  openness: number | null
+  settle: number | null
+}
 
 export interface UseLive2DMotionManagerUpdateOptions {
   internalModel: PixiLive2DInternalModel
@@ -72,6 +89,235 @@ function clampRange(value: number, min: number, max: number) {
     return min
 
   return Math.min(max, Math.max(min, value))
+}
+
+function normalizeSpeechAuthoritySegmentId(value: string | null | undefined) {
+  if (typeof value !== 'string')
+    return null
+
+  const normalized = value.trim()
+  return normalized || null
+}
+
+function resolveSpeechAuthoritySegmentId(
+  speech: StageEmbodimentSpeechRenderState | null | undefined,
+) {
+  const candidates = [
+    speech?.item?.digitalLifeFrame?.id,
+    speech?.item?.segmentId,
+    speech?.item?.cue?.id,
+  ]
+
+  for (const candidate of candidates) {
+    const normalized = normalizeSpeechAuthoritySegmentId(candidate)
+    if (normalized)
+      return normalized
+  }
+
+  return null
+}
+
+function resolveRendererSettleActiveCueKey(
+  performanceState: StageEmbodimentPerformanceState | null | undefined,
+  speech: StageEmbodimentSpeechRenderState | null | undefined,
+) {
+  return JSON.stringify([
+    performanceState?.activeCue?.id ?? null,
+    performanceState?.activeCueSource ?? 'none',
+    resolveSpeechAuthoritySegmentId(speech),
+    performanceState?.activeCue?.rendererHints?.preferredGazeMode ?? null,
+    performanceState?.activeCue?.rendererHints?.preferredBlinkCadence ?? null,
+    performanceState?.activeCue?.rendererHints?.residentMode ?? null,
+    performanceState?.activeCue?.rendererHints?.signature ?? null,
+    performanceState?.activeCue?.rendererHints?.reasonTags?.join('|') ?? '',
+    Math.max(0, Math.round(Number(performanceState?.activeCue?.rendererSettle?.live2dFacialReleaseMs ?? 0))),
+  ])
+}
+
+function resolveCurrentIdleGazeBias(
+  performanceState: StageEmbodimentPerformanceState | null | undefined,
+) {
+  return resolveLive2DGazeModeBias({
+    preferredBlinkCadence: performanceState?.activeCue?.rendererHints?.preferredBlinkCadence,
+    preferredGazeMode: performanceState?.activeCue?.rendererHints?.preferredGazeMode,
+    residentMode: performanceState?.activeCue?.rendererHints?.residentMode,
+    reasonTags: performanceState?.activeCue?.rendererHints?.reasonTags,
+    signature: performanceState?.activeCue?.rendererHints?.signature,
+  })
+}
+
+export function resolveLive2DAutoBlinkDelayRange(input: {
+  preferredBlinkCadence?: string | null | undefined
+  preferredGazeMode?: string | null | undefined
+  reasonTags?: readonly string[] | null | undefined
+  residentMode?: string | null | undefined
+  signature?: string | null | undefined
+}) {
+  const sameHerSoftenedReturn = hasSoftenedSameHerResidentCarry(input)
+  const residentMode = typeof input.residentMode === 'string'
+    ? input.residentMode.trim()
+    : ''
+  const residentCadenceScale = residentMode === 'repair-before-closeness'
+    ? sameHerSoftenedReturn ? 1.04 : 1
+    : residentMode === 'measured-return' && sameHerSoftenedReturn
+      ? 1.03
+      : residentMode === 'same-thread-continuation' && sameHerSoftenedReturn
+        ? 1.03
+        : 1
+
+  if (input.preferredBlinkCadence === 'linger') {
+    return {
+      minDelayMs: Math.round(4200 * residentCadenceScale),
+      maxDelayMs: Math.round(9200 * residentCadenceScale),
+    }
+  }
+  if (input.preferredBlinkCadence === 'quiet') {
+    return {
+      minDelayMs: Math.round(5200 * residentCadenceScale),
+      maxDelayMs: Math.round(11000 * residentCadenceScale),
+    }
+  }
+  return { minDelayMs: 3000, maxDelayMs: 8000 }
+}
+
+export function resolveLive2DGazeModeBias(input: {
+  preferredBlinkCadence?: string | null | undefined
+  preferredGazeMode?: string | null | undefined
+  reasonTags?: readonly string[] | null | undefined
+  residentMode?: string | null | undefined
+  signature?: string | null | undefined
+}) {
+  const sameHerSoftenedReturn = hasSoftenedSameHerResidentCarry(input)
+  const residentMode = typeof input.residentMode === 'string'
+    ? input.residentMode.trim()
+    : ''
+  const residentAmplitudeScale = residentMode === 'repair-before-closeness'
+    ? sameHerSoftenedReturn ? 0.96 : 1
+    : residentMode === 'measured-return' && sameHerSoftenedReturn
+      ? 0.98
+      : residentMode === 'same-thread-continuation' && sameHerSoftenedReturn
+        ? 0.98
+        : 1
+  const residentStabilityBias = residentMode === 'repair-before-closeness'
+    ? sameHerSoftenedReturn ? 0.02 : 0
+    : residentMode === 'measured-return' && sameHerSoftenedReturn
+      ? 0.01
+      : residentMode === 'same-thread-continuation' && sameHerSoftenedReturn
+        ? 0.01
+        : 0
+  const residentEyeOpenBias = residentMode === 'repair-before-closeness'
+    ? sameHerSoftenedReturn ? -0.02 : 0
+    : residentMode === 'measured-return' && sameHerSoftenedReturn
+      ? -0.01
+      : residentMode === 'same-thread-continuation' && sameHerSoftenedReturn
+        ? -0.01
+        : 0
+
+  switch (input.preferredGazeMode) {
+    case 'soften':
+      return {
+        azimuthScale: 0.88 * residentAmplitudeScale,
+        elevationScale: 0.9 * residentAmplitudeScale,
+        stabilityBias: 0.08 + residentStabilityBias,
+        eyeOpenScale: -0.08 + residentEyeOpenBias,
+      }
+    case 'drift':
+      return {
+        azimuthScale: 1.08 * residentAmplitudeScale,
+        elevationScale: 1.04 * residentAmplitudeScale,
+        stabilityBias: -0.1 + residentStabilityBias,
+        eyeOpenScale: -0.04 + residentEyeOpenBias,
+      }
+    case 'steady':
+      return {
+        azimuthScale: 0.94 * residentAmplitudeScale,
+        elevationScale: 0.96 * residentAmplitudeScale,
+        stabilityBias: 0.12 + residentStabilityBias,
+        eyeOpenScale: residentEyeOpenBias,
+      }
+    default:
+      return {
+        azimuthScale: residentAmplitudeScale,
+        elevationScale: residentAmplitudeScale,
+        stabilityBias: residentStabilityBias,
+        eyeOpenScale: residentEyeOpenBias,
+      }
+  }
+}
+
+function hasSoftenedSameHerResidentCarry(input: {
+  preferredBlinkCadence?: string | null | undefined
+  preferredGazeMode?: string | null | undefined
+  reasonTags?: readonly string[] | null | undefined
+  signature?: string | null | undefined
+}) {
+  const preferredGazeMode = typeof input.preferredGazeMode === 'string'
+    ? input.preferredGazeMode.trim()
+    : ''
+  const preferredBlinkCadence = typeof input.preferredBlinkCadence === 'string'
+    ? input.preferredBlinkCadence.trim()
+    : ''
+  const softenedCadence = preferredGazeMode === 'steady'
+    || preferredGazeMode === 'soften'
+    || preferredBlinkCadence === 'quiet'
+    || preferredBlinkCadence === 'linger'
+  if (!softenedCadence)
+    return false
+
+  return hasAlicizationSoftenedSameHerCarry({
+    signature: input.signature,
+    reasonTags: input.reasonTags,
+  })
+}
+
+export function resolveLive2DSpeechFacialNuance(input: {
+  cadencePulse: number
+  prosodyIntensity: number
+  speechEnergy: number
+}) {
+  const speechEnergy = clamp01(input.speechEnergy)
+  const prosodyIntensity = clamp01(input.prosodyIntensity)
+  const cadencePulse = clamp01(input.cadencePulse)
+  const activeFactor = Math.max(
+    speechEnergy * 0.72,
+    prosodyIntensity * 0.64,
+    cadencePulse * 0.52,
+  )
+
+  return {
+    cheekBias: speechEnergy * 0.03 + prosodyIntensity * 0.02,
+    eyeSmileBias: speechEnergy * 0.05 + prosodyIntensity * 0.04,
+    mouthSmileBias: speechEnergy * 0.04 + prosodyIntensity * 0.05 + cadencePulse * 0.02,
+    eyeOpenScaleBias: -activeFactor * 0.04,
+  }
+}
+
+function resolveCompanionshipFacialSettleCurve(input: {
+  activeCueSource: StageEmbodimentPerformanceState['activeCueSource'] | null | undefined
+  expressionDrive: number
+  facialCueDrive: number
+  rendererSettle?: {
+    live2dFacialReleaseMs?: number
+  } | null
+}) {
+  const activeCueSource = input.activeCueSource ?? 'none'
+  if (activeCueSource !== 'resident' && activeCueSource !== 'preview')
+    return 1
+
+  const facialReleaseMs = Math.round(Number(input.rendererSettle?.live2dFacialReleaseMs ?? 0))
+  if (facialReleaseMs < 520)
+    return 1
+
+  const companionshipPresence = clamp01(
+    Math.max(input.expressionDrive * 0.58 + input.facialCueDrive * 0.42, input.facialCueDrive * 0.82),
+  )
+  const releaseWeight = clamp01((facialReleaseMs - 520) / 520)
+  const softenFloor = activeCueSource === 'preview' ? 0.72 : 0.8
+
+  return clamp01(
+    1 - companionshipPresence * 0.16 - releaseWeight * 0.12,
+    softenFloor,
+  )
 }
 
 const live2dEmbodimentDebugStorageKey = 'devtools/embodiment-debug'
@@ -336,6 +582,16 @@ export function useLive2DMotionManagerUpdate(options: UseLive2DMotionManagerUpda
 
   const prePlugins: MotionManagerPlugin[] = []
   const postPlugins: MotionManagerPlugin[] = []
+  const bodyExecutionState = shallowRef<Live2DBodyExecutionState>({
+    openness: null,
+    settle: null,
+  })
+  const lipSyncExecutionState = shallowRef<Live2DLipSyncExecutionState>({
+    active: false,
+    dominantViseme: null,
+    dominantWeight: null,
+    segmentId: null,
+  })
 
   function register(plugin: MotionManagerPlugin, stage: 'pre' | 'post' = 'pre') {
     if (stage === 'pre')
@@ -355,7 +611,9 @@ export function useLive2DMotionManagerUpdate(options: UseLive2DMotionManagerUpda
       timeDelta: rawTimeDelta,
       timeDeltaSeconds,
       hookedUpdate,
+      live2dBodyExecutionState: bodyExecutionState,
       internalModel,
+      live2dLipSyncExecutionState: lipSyncExecutionState,
       motionManager,
       modelParameters,
       live2dIdleAnimationEnabled,
@@ -388,6 +646,8 @@ export function useLive2DMotionManagerUpdate(options: UseLive2DMotionManagerUpda
   }
 
   return {
+    bodyExecutionState: computed(() => bodyExecutionState.value) as ComputedRef<Live2DBodyExecutionState>,
+    lipSyncExecutionState: computed(() => lipSyncExecutionState.value) as ComputedRef<Live2DLipSyncExecutionState>,
     register,
     hookUpdate,
   }
@@ -477,7 +737,11 @@ export function useMotionUpdatePluginIdleDisable(idleEyeFocus = useLive2DIdleEye
       ctx.motionManager.stopAllMotions()
 
       // Still update eye focus and blink even if idle motion is stopped.
-      idleEyeFocus.update(ctx.internalModel, ctx.now)
+      idleEyeFocus.update(
+        ctx.internalModel,
+        ctx.now,
+        resolveCurrentIdleGazeBias(ctx.performanceState.value),
+      )
       if (ctx.internalModel.eyeBlink != null) {
         ctx.internalModel.eyeBlink.updateParameters(
           ctx.model,
@@ -508,7 +772,11 @@ export function useMotionUpdatePluginIdleFocus(idleEyeFocus = useLive2DIdleEyeFo
     if (!ctx.isIdleMotion || ctx.handled)
       return
 
-    idleEyeFocus.update(ctx.internalModel, ctx.now)
+    idleEyeFocus.update(
+      ctx.internalModel,
+      ctx.now,
+      resolveCurrentIdleGazeBias(ctx.performanceState.value),
+    )
   }
 }
 
@@ -518,7 +786,10 @@ export function useMotionUpdatePluginAutoEyeBlink(): MotionManagerPlugin {
     progress: 0,
     startLeft: 1,
     startRight: 1,
+    delayRangeKey: '',
     delayMs: 0,
+    delaySeed: 0,
+    scheduledDelayMs: 0,
   }
   const lastAppliedBlinkOverlay = {
     left: 0,
@@ -526,15 +797,31 @@ export function useMotionUpdatePluginAutoEyeBlink(): MotionManagerPlugin {
   }
   const blinkCloseDuration = 200 // ms
   const blinkOpenDuration = 200 // ms
-  const minDelay = 3000
-  const maxDelay = 8000
-
-  function resetBlinkState() {
+  function resolveBlinkDelayRangeKey(delayRange: { minDelayMs: number, maxDelayMs: number }) {
+    return `${delayRange.minDelayMs}|${delayRange.maxDelayMs}`
+  }
+  function resolveBlinkDelayMs(
+    delayRange: { minDelayMs: number, maxDelayMs: number },
+    delaySeed: number,
+  ) {
+    return delayRange.minDelayMs + clamp01(delaySeed) * (delayRange.maxDelayMs - delayRange.minDelayMs)
+  }
+  function resetBlinkState(
+    delayRange?: { minDelayMs: number, maxDelayMs: number },
+    options?: { delaySeed?: number, elapsedRatio?: number },
+  ) {
+    const minDelay = delayRange?.minDelayMs ?? 3000
+    const maxDelay = delayRange?.maxDelayMs ?? 8000
+    const delaySeed = clamp01(options?.delaySeed ?? Math.random())
+    const scheduledDelayMs = resolveBlinkDelayMs({ minDelayMs: minDelay, maxDelayMs: maxDelay }, delaySeed)
+    const elapsedRatio = clamp01(options?.elapsedRatio ?? 0)
     blinkState.phase = 'idle'
     blinkState.progress = 0
-    blinkState.delayMs = minDelay + Math.random() * (maxDelay - minDelay)
+    blinkState.delayRangeKey = `${minDelay}|${maxDelay}`
+    blinkState.delaySeed = delaySeed
+    blinkState.scheduledDelayMs = scheduledDelayMs
+    blinkState.delayMs = Math.max(0, scheduledDelayMs * (1 - elapsedRatio))
   }
-  resetBlinkState()
 
   function easeOutQuad(t: number) {
     return 1 - (1 - t) * (1 - t)
@@ -583,8 +870,17 @@ export function useMotionUpdatePluginAutoEyeBlink(): MotionManagerPlugin {
   }
 
   return (ctx) => {
-    if (!ctx.isIdleMotion || ctx.handled)
+    if (!ctx.isIdleMotion)
       return
+
+    const blinkDelayRange = resolveLive2DAutoBlinkDelayRange({
+      preferredBlinkCadence: ctx.performanceState.value?.activeCue?.rendererHints?.preferredBlinkCadence,
+      preferredGazeMode: ctx.performanceState.value?.activeCue?.rendererHints?.preferredGazeMode,
+      residentMode: ctx.performanceState.value?.activeCue?.rendererHints?.residentMode,
+      reasonTags: ctx.performanceState.value?.activeCue?.rendererHints?.reasonTags,
+      signature: ctx.performanceState.value?.activeCue?.rendererHints?.signature,
+    })
+    const blinkDelayRangeKey = resolveBlinkDelayRangeKey(blinkDelayRange)
 
     const runtimeLeft = clamp01(ctx.model.getParameterValueById('ParamEyeLOpen') as number, 1)
     const runtimeRight = clamp01(ctx.model.getParameterValueById('ParamEyeROpen') as number, 1)
@@ -594,7 +890,7 @@ export function useMotionUpdatePluginAutoEyeBlink(): MotionManagerPlugin {
     const baseRight = clamp01(rawBaselineRight * clamp01(ctx.modelParameters.value.rightEyeOpen, 1))
 
     if (!ctx.live2dAutoBlinkEnabled.value) {
-      resetBlinkState()
+      resetBlinkState(blinkDelayRange)
       ctx.model.setParameterValueById('ParamEyeLOpen', baseLeft)
       ctx.model.setParameterValueById('ParamEyeROpen', baseRight)
       lastAppliedBlinkOverlay.left = baseLeft - rawBaselineLeft
@@ -604,6 +900,17 @@ export function useMotionUpdatePluginAutoEyeBlink(): MotionManagerPlugin {
     }
 
     if (ctx.live2dForceAutoBlinkEnabled.value || !ctx.internalModel.eyeBlink) {
+      if (blinkState.phase === 'idle') {
+        if (blinkState.delayRangeKey !== blinkDelayRangeKey || blinkState.scheduledDelayMs <= 0) {
+          const elapsedRatio = blinkState.scheduledDelayMs > 0
+            ? clamp01(1 - blinkState.delayMs / blinkState.scheduledDelayMs)
+            : 0
+          resetBlinkState(blinkDelayRange, {
+            delaySeed: blinkState.scheduledDelayMs > 0 ? blinkState.delaySeed : undefined,
+            elapsedRatio,
+          })
+        }
+      }
       const dtMs = Math.max(1, clampRange(ctx.timeDeltaSeconds, 0, 0.12) * 1000)
       const { eyeLOpen, eyeROpen } = updateForcedBlink(dtMs, baseLeft, baseRight)
 
@@ -781,11 +1088,7 @@ export function useMotionUpdatePluginPerformanceLayers(): MotionManagerPlugin {
     const embodiedPerformance = performanceState?.performance
     const posture = ctx.presencePosture.value
     const params = ctx.modelParameters.value
-    const activeCueKey = [
-      performanceState?.activeCue?.id ?? '',
-      performanceState?.activeCueSource ?? 'none',
-      speech?.item?.segmentId ?? '',
-    ].join('|')
+    const activeCueKey = resolveRendererSettleActiveCueKey(performanceState, speech)
     const runtimeFacialReleaseMs = Number(performanceState?.activeCue?.rendererSettle?.live2dFacialReleaseMs ?? 0)
     if (runtimeFacialReleaseMs > 0 && performanceState?.activeCueSource !== 'none' && activeCueKey !== rendererSettleState.activeCueKey) {
       rendererSettleState.activeCueKey = activeCueKey
@@ -807,7 +1110,14 @@ export function useMotionUpdatePluginPerformanceLayers(): MotionManagerPlugin {
     )
 
     const speechContinuity = resolveLive2DSpeechContinuity(speechContinuityState, {
+      continuityHoldMs: speech?.item?.continuityHoldMs ?? 0,
       deltaSeconds: dt,
+      preferredBlinkCadence: performanceState?.activeCue?.rendererHints?.preferredBlinkCadence,
+      preferredGazeMode: performanceState?.activeCue?.rendererHints?.preferredGazeMode,
+      reasonTags: performanceState?.activeCue?.rendererHints?.reasonTags,
+      residentMode: performanceState?.activeCue?.rendererHints?.residentMode,
+      segmentId: resolveSpeechAuthoritySegmentId(speech),
+      signature: performanceState?.activeCue?.rendererHints?.signature,
       speechActive: speech?.active === true,
       speechEnergy: clamp01(speech?.dynamics.speechEnergy ?? 0),
       speechPhase: speech?.phase,
@@ -846,6 +1156,11 @@ export function useMotionUpdatePluginPerformanceLayers(): MotionManagerPlugin {
     const cadenceCentered = cadencePulse * 2 - 1
     const cueMouthWeight = clamp01(speechCue?.mouthWeight ?? prosodyIntensity)
     const cueHeadWeight = clamp01(speechCue?.headWeight ?? 0)
+    const speechFacialNuance = resolveLive2DSpeechFacialNuance({
+      speechEnergy,
+      prosodyIntensity,
+      cadencePulse,
+    })
 
     const postureConfidence = posture?.engaged ? clamp01(posture.confidence) : 0
     const postureYaw = clampRange((posture?.bodyYaw ?? 0) * postureConfidence, -1, 1)
@@ -858,6 +1173,12 @@ export function useMotionUpdatePluginPerformanceLayers(): MotionManagerPlugin {
     const inspectionPresence = posture?.mode === 'inspection' ? postureConfidence : 0
     const expressionDrive = clamp01(performanceState?.expressionIntensity ?? 0)
     const facialCueDrive = clamp01(performanceState?.facialCueIntensity ?? expressionDrive)
+    const companionshipFacialSettleCurve = resolveCompanionshipFacialSettleCurve({
+      activeCueSource: performanceState?.activeCueSource,
+      expressionDrive,
+      facialCueDrive,
+      rendererSettle: performanceState?.activeCue?.rendererSettle ?? null,
+    })
     const actionDrive = clamp01(performanceState?.actionIntensity ?? 0)
     const focusDrive = clamp01(performanceState?.focusDrive ?? 0)
     const breathDrive = clamp01(performanceState?.breathDrive ?? 0)
@@ -873,6 +1194,16 @@ export function useMotionUpdatePluginPerformanceLayers(): MotionManagerPlugin {
     const motorGazeStability = clamp01(motor?.gaze.stability ?? 0.62)
     const motorGazeAzimuth = clampRange(motor?.gaze.azimuth ?? 0, -1, 1)
     const motorGazeElevation = clampRange(motor?.gaze.elevation ?? 0.02, -1, 1)
+    const gazeModeBias = resolveLive2DGazeModeBias({
+      preferredBlinkCadence: performanceState?.activeCue?.rendererHints?.preferredBlinkCadence,
+      preferredGazeMode: performanceState?.activeCue?.rendererHints?.preferredGazeMode,
+      residentMode: performanceState?.activeCue?.rendererHints?.residentMode,
+      reasonTags: performanceState?.activeCue?.rendererHints?.reasonTags,
+      signature: performanceState?.activeCue?.rendererHints?.signature,
+    })
+    const gazeStability = clamp01(motorGazeStability + gazeModeBias.stabilityBias)
+    const gazeAzimuth = clampRange(motorGazeAzimuth * gazeModeBias.azimuthScale, -1, 1)
+    const gazeElevation = clampRange(motorGazeElevation * gazeModeBias.elevationScale, -1, 1)
     const motorHeadYaw = clampRange(motor?.head.yaw ?? 0, -1, 1)
     const motorHeadPitch = clampRange(motor?.head.pitch ?? 0, -1, 1)
     const motorHeadRoll = clampRange(motor?.head.roll ?? 0, -1, 1)
@@ -897,8 +1228,8 @@ export function useMotionUpdatePluginPerformanceLayers(): MotionManagerPlugin {
     const emotionProfile = resolveLive2DEmotionDriveProfile({
       actionDrive,
       emotion: embodiedPerformance?.baseEmotion,
-      expressionDrive,
-      facialCueDrive,
+      expressionDrive: clamp01(expressionDrive * companionshipFacialSettleCurve),
+      facialCueDrive: clamp01(facialCueDrive * companionshipFacialSettleCurve),
     })
 
     let deliveryMotionBias = 0
@@ -972,6 +1303,7 @@ export function useMotionUpdatePluginPerformanceLayers(): MotionManagerPlugin {
     const cheekTarget = clamp01(
       params.cheek
       + speechEnergy * (0.05 + prosodyIntensity * 0.12)
+      + speechFacialNuance.cheekBias
       + motorCheekLift * 0.18
       + emotionProfile.cheek
       + facialCueDriveProfile.cheek
@@ -981,6 +1313,7 @@ export function useMotionUpdatePluginPerformanceLayers(): MotionManagerPlugin {
     const eyeSmileTarget = clamp01(
       (params.leftEyeSmile + params.rightEyeSmile) / 2
       + speechEnergy * (0.2 + prosodyIntensity * 0.16)
+      + speechFacialNuance.eyeSmileBias
       + motorCheekLift * 0.14
       + motorExpressivity * 0.06
       + emotionProfile.smile
@@ -1055,7 +1388,7 @@ export function useMotionUpdatePluginPerformanceLayers(): MotionManagerPlugin {
     const angleXTarget = clampRange(
       params.angleX
       + motorHeadYaw * (8 + motorGazeFocus * 3)
-      + motorGazeAzimuth * (6 + motorExpressivity * 2)
+      + gazeAzimuth * (6 + motorExpressivity * 2)
       + cadenceCentered * (1.2 + motorHeadNod * 0.8),
       -30,
       30,
@@ -1063,7 +1396,7 @@ export function useMotionUpdatePluginPerformanceLayers(): MotionManagerPlugin {
     const angleYTarget = clampRange(
       params.angleY
       - motorHeadPitch * 8
-      - motorGazeElevation * (6 + motorGazeFocus * 2)
+      - gazeElevation * (6 + motorGazeFocus * 2)
       - emotionProfile.headPitch * 7.2
       + cadenceCentered * (0.6 + motorHeadNod * 0.5),
       -30,
@@ -1079,12 +1412,12 @@ export function useMotionUpdatePluginPerformanceLayers(): MotionManagerPlugin {
       30,
     )
     const eyeBallXTarget = clampRange(
-      motorGazeAzimuth * (0.46 + motorGazeFocus * 0.22) - motorGazeStability * 0.06,
+      gazeAzimuth * (0.46 + motorGazeFocus * 0.22) - gazeStability * 0.06,
       -1,
       1,
     )
     const eyeBallYTarget = clampRange(
-      -motorGazeElevation * (0.42 + motorGazeFocus * 0.18),
+      -gazeElevation * (0.42 + motorGazeFocus * 0.18),
       -1,
       1,
     )
@@ -1152,6 +1485,7 @@ export function useMotionUpdatePluginPerformanceLayers(): MotionManagerPlugin {
 
     const mouthSmileTarget = clamp01(
       Math.max(0, mouthFormTarget) * 0.58
+      + speechFacialNuance.mouthSmileBias
       + clamp01(emotionProfile.smile) * 0.92
       + clamp01(emotionProfile.eyeSmile) * 0.24
       + clamp01(facialCueDriveProfile.eyeSmile) * 0.12,
@@ -1184,7 +1518,8 @@ export function useMotionUpdatePluginPerformanceLayers(): MotionManagerPlugin {
     const smoothedBrowRForm = smoothValue('ParamBrowRFormOverlay', browRFormTarget, dt, { release: facialReleaseRate })
     const smoothedBrowForm = smoothValue('ParamBrowFormOverlay', browFormTarget, dt, { release: facialReleaseRate })
     const eyeOpenScale = clampRange(
-      (1 + facialCueDriveProfile.eyeOpenScale + emotionProfile.eyeOpen) * (0.86 + motorEyeOpenness * 0.28),
+      (1 + facialCueDriveProfile.eyeOpenScale + emotionProfile.eyeOpen + gazeModeBias.eyeOpenScale + speechFacialNuance.eyeOpenScaleBias)
+      * (0.86 + motorEyeOpenness * 0.28),
       0.12,
       1.8,
     )
@@ -1498,7 +1833,7 @@ export function useMotionUpdatePluginPerformanceLayers(): MotionManagerPlugin {
       embodiedPerformance?.baseEmotion ?? 'neutral',
       embodiedPerformance?.delivery ?? 'calm',
       speech?.phase ?? 'idle',
-      speech?.item?.segmentId ?? '',
+      resolveSpeechAuthoritySegmentId(speech) ?? '',
     ])
     if (
       debugSnapshotSignature !== debugState.lastSnapshotSignature
@@ -1510,7 +1845,7 @@ export function useMotionUpdatePluginPerformanceLayers(): MotionManagerPlugin {
         emotion: embodiedPerformance?.baseEmotion ?? 'neutral',
         delivery: embodiedPerformance?.delivery ?? 'calm',
         activeCueSource: performanceState?.activeCueSource ?? 'none',
-        segmentId: speech?.item?.segmentId ?? null,
+        segmentId: resolveSpeechAuthoritySegmentId(speech),
         mouthOpenTarget: Number(mouthOpenTarget.toFixed(3)),
         mouthFormTarget: Number(mouthFormTarget.toFixed(3)),
         mouthSmileTarget: Number(mouthSmileTarget.toFixed(3)),
@@ -1524,6 +1859,42 @@ export function useMotionUpdatePluginPerformanceLayers(): MotionManagerPlugin {
         visemeWinnerValue: Number(winnerValue.toFixed(3)),
         speechActive,
       })
+    }
+
+    const smoothedVisemeEntries = [
+      ['A', visemeA],
+      ['I', visemeI],
+      ['U', visemeU],
+      ['E', visemeE],
+      ['O', visemeO],
+    ] as const
+    const dominantSmoothedViseme = smoothedVisemeEntries
+      .slice()
+      .sort((left, right) => right[1] - left[1])[0] ?? null
+    const dominantVisibleWeight = dominantSmoothedViseme != null
+      ? clamp01(dominantSmoothedViseme[1])
+      : 0
+    const mouthCarryActive = speechActive
+      || dominantVisibleWeight > 0.015
+      || smoothedMouthOpen > 0.04
+
+    ctx.live2dLipSyncExecutionState.value = {
+      active: mouthCarryActive,
+      dominantViseme: dominantVisibleWeight > 0.015
+        ? dominantSmoothedViseme?.[0] ?? null
+        : null,
+      dominantWeight: dominantVisibleWeight > 0.015
+        ? dominantVisibleWeight
+        : null,
+      segmentId: resolveSpeechAuthoritySegmentId(speech),
+    }
+    ctx.live2dBodyExecutionState.value = {
+      openness: Number.isFinite(motorBodyOpenness)
+        ? Number(motorBodyOpenness)
+        : null,
+      settle: Number.isFinite(motorBodySettle)
+        ? Number(motorBodySettle)
+        : null,
     }
   }
 }

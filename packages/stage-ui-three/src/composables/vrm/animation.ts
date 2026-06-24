@@ -9,6 +9,12 @@ import type { AnimationClip } from 'three'
 import type { Ref } from 'vue'
 
 import { createVRMAnimationClip } from '@pixiv/three-vrm-animation'
+import {
+  hasAlicizationAudibleSameHerCarry,
+  hasAlicizationBodyVoiceOnlySameHerCarry,
+  hasAlicizationQuieterSameHerCarry,
+  hasAlicizationStillVoicedSameHerCarry,
+} from '@proj-alicization/stage-shared'
 import { Object3D, Vector3, VectorKeyframeTrack } from 'three'
 import { randFloat } from 'three/src/math/MathUtils.js'
 import { ref } from 'vue'
@@ -25,6 +31,105 @@ function clampUnit(value: number, fallback: number = 0) {
 
 export interface GLTFUserdata extends Record<string, any> {
   vrmAnimations: VRMAnimation[]
+}
+
+export function resolveVrmGazeModeBias(input: {
+  preferredBlinkCadence?: string | null | undefined
+  preferredGazeMode?: string | null | undefined
+  reasonTags?: readonly string[] | null | undefined
+  residentMode?: string | null | undefined
+  signature?: string | null | undefined
+}) {
+  const residentMode = typeof input.residentMode === 'string' ? input.residentMode.trim() : ''
+  const sameHerSoftenedReturn = hasSoftenedSameHerResidentCarry(input)
+  const durableMeasuredReturn = residentMode === 'measured-return'
+    && (
+      input.preferredGazeMode === 'steady'
+      || input.preferredGazeMode === 'soften'
+    )
+  const residentCadenceScale = residentMode === 'repair-before-closeness'
+    ? sameHerSoftenedReturn ? 1.24 : 1.2
+    : durableMeasuredReturn
+      ? 1.18
+      : residentMode === 'measured-return'
+        ? 1.12
+        : residentMode === 'quiet-companionship'
+          ? 1.08
+          : 1
+  const residentAmplitudeScale = residentMode === 'repair-before-closeness'
+    ? sameHerSoftenedReturn ? 0.72 : 0.76
+    : durableMeasuredReturn
+      ? 0.8
+      : residentMode === 'measured-return'
+        ? 0.9
+        : residentMode === 'quiet-companionship'
+          ? 0.94
+          : 1
+
+  switch (input.preferredGazeMode) {
+    case 'soften':
+      return {
+        amplitudeScale: 0.82 * residentAmplitudeScale,
+        intervalScale: 1.14 * residentCadenceScale,
+        azimuthScale: 0.88,
+        elevationScale: 0.9,
+      }
+    case 'drift':
+      return {
+        amplitudeScale: 1.12 * residentAmplitudeScale,
+        intervalScale: 0.9 * residentCadenceScale,
+        azimuthScale: 1.08,
+        elevationScale: 1.04,
+      }
+    case 'steady':
+      return {
+        amplitudeScale: 0.9 * residentAmplitudeScale,
+        intervalScale: 1.08 * residentCadenceScale,
+        azimuthScale: 0.94,
+        elevationScale: 0.96,
+      }
+    default:
+      return {
+        amplitudeScale: residentAmplitudeScale,
+        intervalScale: residentCadenceScale,
+        azimuthScale: 1,
+        elevationScale: 1,
+      }
+  }
+}
+
+function hasSoftenedSameHerResidentCarry(input: {
+  preferredBlinkCadence?: string | null | undefined
+  preferredGazeMode?: string | null | undefined
+  reasonTags?: readonly string[] | null | undefined
+  signature?: string | null | undefined
+}) {
+  const preferredGazeMode = typeof input.preferredGazeMode === 'string'
+    ? input.preferredGazeMode.trim()
+    : ''
+  const preferredBlinkCadence = typeof input.preferredBlinkCadence === 'string'
+    ? input.preferredBlinkCadence.trim()
+    : ''
+  const softenedCadence = preferredGazeMode === 'steady'
+    || preferredGazeMode === 'soften'
+    || preferredBlinkCadence === 'quiet'
+    || preferredBlinkCadence === 'linger'
+  if (!softenedCadence)
+    return false
+
+  return hasAlicizationAudibleSameHerCarry({
+    signature: input.signature,
+    reasonTags: input.reasonTags,
+  }) || hasAlicizationBodyVoiceOnlySameHerCarry({
+    signature: input.signature,
+    reasonTags: input.reasonTags,
+  }) || hasAlicizationQuieterSameHerCarry({
+    signature: input.signature,
+    reasonTags: input.reasonTags,
+  }) || hasAlicizationStillVoicedSameHerCarry({
+    signature: input.signature,
+    reasonTags: input.reasonTags,
+  })
 }
 
 const vrmAnimationPromiseCache = new Map<string, Promise<VRMAnimation | undefined>>()
@@ -174,13 +279,72 @@ export function useBlink() {
   const MAX_BLINK_INTERVAL = 6 // Maximum time between blinks
   const nextBlinkTime = ref(Math.random() * (MAX_BLINK_INTERVAL - MIN_BLINK_INTERVAL) + MIN_BLINK_INTERVAL)
 
+  function resolveBlinkIntervalRange(input?: {
+    preferredBlinkCadence?: string | null | undefined
+    preferredGazeMode?: string | null | undefined
+    reasonTags?: readonly string[] | null | undefined
+    residentMode?: string | null | undefined
+    signature?: string | null | undefined
+  }) {
+    const preferredBlinkCadence = typeof input?.preferredBlinkCadence === 'string'
+      ? input.preferredBlinkCadence.trim()
+      : ''
+    const residentMode = typeof input?.residentMode === 'string'
+      ? input.residentMode.trim()
+      : ''
+    const sameHerSoftenedReturn = hasSoftenedSameHerResidentCarry(input ?? {})
+    const durableMeasuredReturn = residentMode === 'measured-return'
+      && (preferredBlinkCadence === 'linger' || preferredBlinkCadence === 'quiet')
+    const residentCadenceScale = residentMode === 'repair-before-closeness'
+      ? sameHerSoftenedReturn ? 1.22 : 1.18
+      : durableMeasuredReturn
+        ? 1.14
+        : residentMode === 'measured-return'
+          ? 1.08
+          : residentMode === 'quiet-companionship'
+            ? 1.04
+            : 1
+
+    const baseRange = preferredBlinkCadence === 'linger'
+      ? { min: 2.4, max: 7.4 }
+      : preferredBlinkCadence === 'quiet'
+        ? { min: 3.2, max: 8.8 }
+        : { min: MIN_BLINK_INTERVAL, max: MAX_BLINK_INTERVAL }
+
+    return {
+      min: baseRange.min * residentCadenceScale,
+      max: baseRange.max * residentCadenceScale,
+    }
+  }
+
   // Function to handle blinking animation
-  function update(delta: number, speechDynamics?: StageEmbodimentSpeechDynamicsState | null) {
+  function update(
+    delta: number,
+    speechDynamics?: StageEmbodimentSpeechDynamicsState | null,
+    rendererHints?: {
+      preferredBlinkCadence?: string | null | undefined
+      preferredGazeMode?: string | null | undefined
+      reasonTags?: readonly string[] | null | undefined
+      residentMode?: string | null | undefined
+      signature?: string | null | undefined
+    } | null,
+  ) {
     const speechEnergy = clampUnit(speechDynamics?.speechEnergy ?? 0)
     const prosodyIntensity = clampUnit(speechDynamics?.prosodyIntensity ?? 0)
     const speechActive = speechEnergy > 0.04 || clampUnit(speechDynamics?.cadencePulse ?? 0) > 0.08
+    const blinkIntervalRange = resolveBlinkIntervalRange({
+      preferredBlinkCadence: rendererHints?.preferredBlinkCadence,
+      preferredGazeMode: rendererHints?.preferredGazeMode,
+      reasonTags: rendererHints?.reasonTags,
+      residentMode: rendererHints?.residentMode,
+      signature: rendererHints?.signature,
+    })
 
     timeSinceLastBlink.value += delta * (speechActive ? 0.68 : 1)
+    nextBlinkTime.value = Math.min(
+      Math.max(nextBlinkTime.value, blinkIntervalRange.min),
+      blinkIntervalRange.max,
+    )
 
     // Check if it's time for next blink
     if (!isBlinking.value && timeSinceLastBlink.value >= nextBlinkTime.value) {
@@ -199,7 +363,7 @@ export function useBlink() {
       if (blinkProgress.value >= 1) {
         isBlinking.value = false
         timeSinceLastBlink.value = 0
-        nextBlinkTime.value = Math.random() * (MAX_BLINK_INTERVAL - MIN_BLINK_INTERVAL) + MIN_BLINK_INTERVAL
+        nextBlinkTime.value = Math.random() * (blinkIntervalRange.max - blinkIntervalRange.min) + blinkIntervalRange.min
       }
 
       return {
@@ -224,15 +388,16 @@ export function useBlink() {
  */
 export function useIdleEyeSaccades() {
   let nextSaccadeAfter = -1
+  const fixationOffset = new Vector3()
   const fixationTarget = new Vector3()
   let timeSinceLastSaccade = 0
 
-  // Just a naive vector generator - Simulating random content on a 27in monitor at 65cm distance
-  function updateFixationTarget(lookAtTarget: Ref<{ x: number, y: number, z: number }>, amplitude: number) {
-    fixationTarget.set(
-      lookAtTarget.value.x + randFloat(-amplitude, amplitude),
-      lookAtTarget.value.y + randFloat(-amplitude, amplitude),
-      lookAtTarget.value.z,
+  // Keep the saccade as a relative offset so continuity hints can hold the same gaze line across frames.
+  function updateFixationOffset(amplitude: number) {
+    fixationOffset.set(
+      randFloat(-amplitude, amplitude),
+      randFloat(-amplitude, amplitude),
+      0,
     )
   }
 
@@ -244,6 +409,13 @@ export function useIdleEyeSaccades() {
     speechDynamics?: StageEmbodimentSpeechDynamicsState | null,
     motor?: StageEmbodimentMotorState | null,
     posture?: StageEmbodimentPresencePostureState | null,
+    rendererHints?: {
+      preferredBlinkCadence?: string | null | undefined
+      preferredGazeMode?: string | null | undefined
+      reasonTags?: readonly string[] | null | undefined
+      residentMode?: string | null | undefined
+      signature?: string | null | undefined
+    } | null,
   ) {
     if (!vrm?.expressionManager || !vrm.lookAt)
       return
@@ -257,31 +429,57 @@ export function useIdleEyeSaccades() {
     const motorExpressivity = clampUnit(motor?.expressivity ?? 0.44)
     const motorAzimuth = Math.max(-1, Math.min(1, motor?.gaze.azimuth ?? 0))
     const motorElevation = Math.max(-1, Math.min(1, motor?.gaze.elevation ?? 0))
+    const gazeModeBias = resolveVrmGazeModeBias({
+      preferredBlinkCadence: rendererHints?.preferredBlinkCadence,
+      preferredGazeMode: rendererHints?.preferredGazeMode,
+      reasonTags: rendererHints?.reasonTags,
+      residentMode: rendererHints?.residentMode,
+      signature: rendererHints?.signature,
+    })
     const amplitude = Math.max(
       0.06,
-      0.23
-      + prosodyIntensity * 0.08
-      + speechEnergy * 0.04
-      + motorExpressivity * 0.06
-      - gazeStability * 0.1
-      - motorStability * 0.08
-      - motorStillness * 0.06,
+      (
+        0.23
+        + prosodyIntensity * 0.08
+        + speechEnergy * 0.04
+        + motorExpressivity * 0.06
+        - gazeStability * 0.1
+        - motorStability * 0.08
+        - motorStillness * 0.06
+      ) * gazeModeBias.amplitudeScale,
     )
-    const intervalScale = Math.max(0.65, 1 - prosodyIntensity * 0.22 + gazeStability * 0.08 + motorStability * 0.08 + motorStillness * 0.08)
+    const intervalScale = Math.max(
+      0.65,
+      (
+        1
+        - prosodyIntensity * 0.22
+        + gazeStability * 0.08
+        + motorStability * 0.08
+        + motorStillness * 0.08
+      ) * gazeModeBias.intervalScale,
+    )
+    const baseTarget = {
+      x: lookAtTarget.value.x + motorAzimuth * gazeModeBias.azimuthScale * (0.16 + motorFocus * 0.08),
+      y: lookAtTarget.value.y + motorElevation * gazeModeBias.elevationScale * (0.12 + motorFocus * 0.06),
+      z: lookAtTarget.value.z,
+    }
     fixationTarget.set(
-      lookAtTarget.value.x + motorAzimuth * (0.16 + motorFocus * 0.08),
-      lookAtTarget.value.y + motorElevation * (0.12 + motorFocus * 0.06),
-      lookAtTarget.value.z,
+      baseTarget.x,
+      baseTarget.y,
+      baseTarget.z,
     )
 
     if (timeSinceLastSaccade >= nextSaccadeAfter * intervalScale) {
-      updateFixationTarget(lookAtTarget, amplitude)
+      updateFixationOffset(amplitude)
       timeSinceLastSaccade = 0
       nextSaccadeAfter = randomSaccadeInterval() / 1000
     }
-    else if (!fixationTarget) {
-      updateFixationTarget(lookAtTarget, amplitude)
-    }
+
+    fixationTarget.set(
+      baseTarget.x + fixationOffset.x,
+      baseTarget.y + fixationOffset.y,
+      baseTarget.z,
+    )
 
     if (!vrm.lookAt.target) {
       // TODO: after bumping up to three 0.180.0 with @types/three 0.180.0,
@@ -319,11 +517,14 @@ export function useIdleEyeSaccades() {
   }
 
   function instantUpdate(vrm: VRMCore | undefined, lookAtTarget: { x: number, y: number, z: number }) {
+    fixationOffset.set(0, 0, 0)
     fixationTarget.set(
       lookAtTarget.x,
       lookAtTarget.y,
       lookAtTarget.z,
     )
+    timeSinceLastSaccade = 0
+    nextSaccadeAfter = randomSaccadeInterval() / 1000
     if (!vrm?.expressionManager || !vrm.lookAt)
       return
     if (!vrm.lookAt.target) {

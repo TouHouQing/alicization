@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { OPFSCache } from './opfs-loader'
 
-describe('OPFS cache loader', () => {
+describe('oPFS cache loader', () => {
   it('does not intercept packaged file:// live2d zip assets', async () => {
     const next = vi.fn(async () => {})
     const fetchSpy = vi.fn()

@@ -1,9 +1,20 @@
-import type { StageEmbodimentSpeechRenderState } from '@proj-alicization/stage-shared'
+import type {
+  AlicizationDialogueEmbodimentRendererHints,
+  AlicizationDialogueSpeechRendererSettleHints,
+  StageEmbodimentSpeechRenderState,
+} from '@proj-alicization/stage-shared'
 import type { Ref } from 'vue'
 import type { Profile } from 'wlipsync'
 
+import {
+  hasAlicizationAudibleSameHerCarry,
+  hasAlicizationBodyVoiceOnlySameHerCarry,
+  hasAlicizationQuieterSameHerCarry,
+  hasAlicizationStillVoicedMouthSameHerCarry,
+  hasAlicizationStillVoicedSameHerCarry,
+} from '@proj-alicization/stage-shared'
 import { useAsyncState } from '@vueuse/core'
-import { onUnmounted, watch } from 'vue'
+import { computed, onUnmounted, shallowRef, watch } from 'vue'
 import { createWLipSyncNode } from 'wlipsync'
 
 import profile from '../../assets/lip-sync-profile.json' with { type: 'json' }
@@ -14,6 +25,101 @@ import { createVrmLipSyncContinuityState, resolveVrmLipSyncContinuity } from './
 export interface VrmLipSyncUpdateResult {
   active: boolean
   weights: Record<string, number>
+}
+
+export interface VrmLipSyncExecutionState {
+  active: boolean
+  dominantViseme: string | null
+  dominantWeight: number | null
+  segmentId: string | null
+  cueSnapshot: VrmLipSyncCueSnapshot | null
+}
+
+export interface VrmLipSyncCueSnapshot {
+  id?: string | null
+  emotion?: string | null
+  facialCue?: string | null
+  rendererHints?: AlicizationDialogueEmbodimentRendererHints | null
+  rendererSettle?: AlicizationDialogueSpeechRendererSettleHints | null
+}
+
+function resolveSpeechAuthoritySegmentId(
+  speech: StageEmbodimentSpeechRenderState | null | undefined,
+) {
+  const frameSegmentId = typeof speech?.item?.digitalLifeFrame?.id === 'string'
+    ? speech.item.digitalLifeFrame.id.trim() || null
+    : null
+  const itemSegmentId = typeof speech?.item?.segmentId === 'string'
+    ? speech.item.segmentId.trim() || null
+    : null
+  const cueSegmentId = typeof speech?.item?.cue?.id === 'string'
+    ? speech.item.cue.id.trim() || null
+    : null
+
+  return frameSegmentId ?? itemSegmentId ?? cueSegmentId
+}
+
+function normalizeText(value: string | null | undefined) {
+  return typeof value === 'string' ? value.trim() : ''
+}
+
+function cloneVrmLipSyncCueSnapshot(
+  cueSnapshot: VrmLipSyncCueSnapshot | null | undefined,
+): VrmLipSyncCueSnapshot | null {
+  if (!cueSnapshot)
+    return null
+
+  return {
+    id: normalizeText(cueSnapshot.id) || null,
+    emotion: normalizeText(cueSnapshot.emotion) || null,
+    facialCue: normalizeText(cueSnapshot.facialCue) || null,
+    rendererHints: cueSnapshot.rendererHints
+      ? {
+          ...cueSnapshot.rendererHints,
+          preferredExpressionAliases: cueSnapshot.rendererHints.preferredExpressionAliases
+            ? [...cueSnapshot.rendererHints.preferredExpressionAliases]
+            : undefined,
+          preferredMotionAliases: cueSnapshot.rendererHints.preferredMotionAliases
+            ? [...cueSnapshot.rendererHints.preferredMotionAliases]
+            : undefined,
+          reasonTags: cueSnapshot.rendererHints.reasonTags
+            ? [...cueSnapshot.rendererHints.reasonTags]
+            : undefined,
+        }
+      : null,
+    rendererSettle: cueSnapshot.rendererSettle
+      ? { ...cueSnapshot.rendererSettle }
+      : null,
+  }
+}
+
+function resolveSpeechAuthorityCueSnapshot(
+  speech: StageEmbodimentSpeechRenderState | null | undefined,
+): VrmLipSyncCueSnapshot | null {
+  const cue = speech?.item?.cue ?? null
+  if (cue) {
+    return cloneVrmLipSyncCueSnapshot({
+      id: cue.id,
+      emotion: cue.emotion ?? null,
+      facialCue: cue.facialCue ?? null,
+      rendererHints: cue.rendererHints ?? null,
+      rendererSettle: cue.rendererSettle ?? null,
+    })
+  }
+
+  const frame = speech?.item?.digitalLifeFrame ?? null
+  if (!frame)
+    return null
+
+  return cloneVrmLipSyncCueSnapshot({
+    id: frame.id,
+    emotion: frame.face.emotion ?? null,
+    facialCue: frame.face.facialCue ?? null,
+    rendererHints: frame.face.rendererHints
+      ?? frame.action.rendererHints
+      ?? null,
+    rendererSettle: null,
+  })
 }
 
 function clampUnit(value: number, fallback: number = 0) {
@@ -28,6 +134,113 @@ function clampRange(value: number, min: number, max: number, fallback: number = 
     return fallback
 
   return Math.min(max, Math.max(min, value))
+}
+
+function resolveSofterSameHerVisemeRestraint(input: {
+  cueRendererHints?: {
+    residentMode?: string | null
+    preferredBlinkCadence?: string | null
+    preferredGazeMode?: string | null
+    signature?: string | null
+    reasonTags?: readonly string[] | null
+  } | null
+  faceRendererHints?: {
+    residentMode?: string | null
+    preferredBlinkCadence?: string | null
+    preferredGazeMode?: string | null
+    signature?: string | null
+    reasonTags?: readonly string[] | null
+  } | null
+  actionRendererHints?: {
+    residentMode?: string | null
+    preferredBlinkCadence?: string | null
+    preferredGazeMode?: string | null
+    signature?: string | null
+    reasonTags?: readonly string[] | null
+  } | null
+}) {
+  const cueRendererHints = input.cueRendererHints ?? null
+  const faceRendererHints = input.faceRendererHints ?? null
+  const actionRendererHints = input.actionRendererHints ?? null
+  const residentMode = cueRendererHints?.residentMode
+    ?? faceRendererHints?.residentMode
+    ?? actionRendererHints?.residentMode
+    ?? null
+  if (
+    residentMode !== 'measured-return'
+    && residentMode !== 'repair-before-closeness'
+    && residentMode !== 'same-thread-continuation'
+  ) {
+    return 1
+  }
+
+  const preferredBlinkCadence = cueRendererHints?.preferredBlinkCadence
+    ?? faceRendererHints?.preferredBlinkCadence
+    ?? actionRendererHints?.preferredBlinkCadence
+    ?? null
+  const preferredGazeMode = cueRendererHints?.preferredGazeMode
+    ?? faceRendererHints?.preferredGazeMode
+    ?? actionRendererHints?.preferredGazeMode
+    ?? null
+  const signature = cueRendererHints?.signature
+    ?? faceRendererHints?.signature
+    ?? actionRendererHints?.signature
+    ?? null
+  const rawReasonTags = [
+    ...(cueRendererHints?.reasonTags ?? []),
+    ...(faceRendererHints?.reasonTags ?? []),
+    ...(actionRendererHints?.reasonTags ?? []),
+  ]
+  const hasAudibleSameHerCarry = hasAlicizationAudibleSameHerCarry({
+    signature,
+    reasonTags: rawReasonTags,
+  })
+  const hasBodyVoiceOnlySameHerCarry = hasAlicizationBodyVoiceOnlySameHerCarry({
+    signature,
+    reasonTags: rawReasonTags,
+  })
+  const hasQuieterSameHerCarry = hasAlicizationQuieterSameHerCarry({
+    signature,
+    reasonTags: rawReasonTags,
+  })
+  const hasStillVoicedSameHerCarry = hasAlicizationStillVoicedSameHerCarry({
+    signature,
+    reasonTags: rawReasonTags,
+  })
+  const hasStillVoicedMouthSameHerCarry = hasAlicizationStillVoicedMouthSameHerCarry({
+    signature,
+    reasonTags: rawReasonTags,
+  })
+  const hasSofterReturnCadence = preferredBlinkCadence === 'linger'
+    || preferredBlinkCadence === 'quiet'
+    || preferredGazeMode === 'soften'
+    || preferredGazeMode === 'steady'
+
+  if (
+    !hasSofterReturnCadence
+    && !hasAudibleSameHerCarry
+    && !hasBodyVoiceOnlySameHerCarry
+    && !hasQuieterSameHerCarry
+    && !hasStillVoicedSameHerCarry
+  ) {
+    return 1
+  }
+
+  if (residentMode === 'repair-before-closeness') {
+    return hasAudibleSameHerCarry || hasBodyVoiceOnlySameHerCarry || hasQuieterSameHerCarry || hasStillVoicedSameHerCarry
+      ? hasStillVoicedMouthSameHerCarry ? 0.84 : 0.82
+      : 0.88
+  }
+
+  if (residentMode === 'same-thread-continuation') {
+    return hasAudibleSameHerCarry || hasBodyVoiceOnlySameHerCarry || hasQuieterSameHerCarry || hasStillVoicedSameHerCarry
+      ? hasStillVoicedMouthSameHerCarry ? 0.95 : 0.93
+      : hasSofterReturnCadence ? 0.97 : 1
+  }
+
+  return hasAudibleSameHerCarry || hasBodyVoiceOnlySameHerCarry || hasQuieterSameHerCarry || hasStillVoicedSameHerCarry
+    ? hasStillVoicedMouthSameHerCarry ? 0.9 : 0.88
+    : 0.93
 }
 
 export function useVRMLipSync(speechRenderState: Ref<StageEmbodimentSpeechRenderState | null | undefined>) {
@@ -55,6 +268,13 @@ export function useVRMLipSync(speechRenderState: Ref<StageEmbodimentSpeechRender
 
   const smoothState: Record<LipKey, number> = { A: 0, E: 0, I: 0, O: 0, U: 0 }
   const continuityState = createVrmLipSyncContinuityState()
+  const executionState = shallowRef<VrmLipSyncExecutionState>({
+    active: false,
+    dominantViseme: null,
+    dominantWeight: null,
+    segmentId: null,
+    cueSnapshot: null,
+  })
   const ATTACK = 50
   const RELEASE = 30
   const CAP = 0.7
@@ -76,6 +296,23 @@ export function useVRMLipSync(speechRenderState: Ref<StageEmbodimentSpeechRender
       ih: 0,
       oh: 0,
       ou: 0,
+    }
+  }
+
+  function syncExecutionState(weights: Record<string, number>, active: boolean) {
+    const speech = speechRenderState.value
+    const entries = Object.entries(weights)
+      .filter(([, weight]) => Number.isFinite(weight))
+      .sort((left, right) => Number(right[1]) - Number(left[1]))
+    const dominant = entries[0] ?? null
+    const nextCueSnapshot = resolveSpeechAuthorityCueSnapshot(speech)
+
+    executionState.value = {
+      active,
+      dominantViseme: dominant?.[0] ?? null,
+      dominantWeight: dominant ? Number(dominant[1]) : null,
+      segmentId: resolveSpeechAuthoritySegmentId(speech) ?? executionState.value.segmentId,
+      cueSnapshot: nextCueSnapshot ?? executionState.value.cueSnapshot,
     }
   }
 
@@ -160,9 +397,14 @@ export function useVRMLipSync(speechRenderState: Ref<StageEmbodimentSpeechRender
     const fallbackTarget = createFallbackTarget()
     const digitalLifeLipSync = speech?.item?.digitalLifeFrame?.lipSync ?? null
     const motorFacial = speech?.item?.digitalLifeFrame?.motor.facial ?? null
+    const cueRendererHints = speech?.item?.cue?.rendererHints ?? null
+    const faceRendererHints = speech?.item?.digitalLifeFrame?.face.rendererHints ?? null
+    const actionRendererHints = speech?.item?.digitalLifeFrame?.action.rendererHints ?? null
     const lipSyncMode = digitalLifeLipSync?.mode ?? 'hybrid'
-    if (lipSyncMode === 'closed')
+    if (lipSyncMode === 'closed') {
+      syncExecutionState(createEmptyWeights(), false)
       return { active: false, weights: createEmptyWeights() }
+    }
     const fallbackPeak = Math.max(...Object.values(fallbackTarget))
     const mouthOpen = clampUnit(speech?.mouthOpenRatio ?? 0)
     const speechEnergy = clampUnit(speech?.dynamics.speechEnergy ?? 0)
@@ -183,6 +425,11 @@ export function useVRMLipSync(speechRenderState: Ref<StageEmbodimentSpeechRender
       : lipSyncMode === 'viseme'
         ? 0.18
         : clampUnit(digitalLifeLipSync?.energyBias ?? 0.34, 0.34)
+    const sameHerVisemeRestraint = resolveSofterSameHerVisemeRestraint({
+      cueRendererHints,
+      faceRendererHints,
+      actionRendererHints,
+    })
     const weights: Record<string, number> = createEmptyWeights()
 
     if (!node) {
@@ -194,6 +441,7 @@ export function useVRMLipSync(speechRenderState: Ref<StageEmbodimentSpeechRender
         weights[BLENDSHAPE_MAP[key]] = smoothState[key] <= 0.01 ? 0 : smoothState[key] * 0.7
       }
 
+      syncExecutionState(weights, fallbackPeak > 0.02)
       return {
         active: fallbackPeak > 0.02,
         weights,
@@ -234,8 +482,31 @@ export function useVRMLipSync(speechRenderState: Ref<StageEmbodimentSpeechRender
     }
 
     const continuity = resolveVrmLipSyncContinuity(continuityState, {
+      continuityHoldMs: digitalLifeLipSync?.continuityHoldMs ?? null,
       deltaSeconds: delta,
       fallbackSignal: Math.max(fallbackPeak, cueMouthWeight * 0.44),
+      preferredBlinkCadence: cueRendererHints?.preferredBlinkCadence
+        ?? faceRendererHints?.preferredBlinkCadence
+        ?? actionRendererHints?.preferredBlinkCadence
+        ?? null,
+      preferredGazeMode: cueRendererHints?.preferredGazeMode
+        ?? faceRendererHints?.preferredGazeMode
+        ?? actionRendererHints?.preferredGazeMode
+        ?? null,
+      reasonTags: [
+        ...(cueRendererHints?.reasonTags ?? []),
+        ...(faceRendererHints?.reasonTags ?? []),
+        ...(actionRendererHints?.reasonTags ?? []),
+      ],
+      residentMode: cueRendererHints?.residentMode
+        ?? faceRendererHints?.residentMode
+        ?? actionRendererHints?.residentMode
+        ?? null,
+      segmentId: resolveSpeechAuthoritySegmentId(speech),
+      signature: cueRendererHints?.signature
+        ?? faceRendererHints?.signature
+        ?? actionRendererHints?.signature
+        ?? null,
       speechActive: speech?.active === true,
       speechPhase: speech?.phase,
       wlipsyncSignal: Math.max(amp, winnerVal),
@@ -256,8 +527,8 @@ export function useVRMLipSync(speechRenderState: Ref<StageEmbodimentSpeechRender
       const articulationRunnerGate = speech?.articulation?.active
         ? clampRange(0.16 + fallbackTarget[runner] / CAP, 0.1, 0.8, 0.32)
         : 1
-      target[winner] = Math.max(target[winner], Math.min(CAP, winnerVal * (0.92 + emphasisLevel * 0.16 + cueMouthWeight * 0.08) * visemeBias * articulationWinnerGate))
-      target[runner] = Math.max(target[runner], Math.min(CAP * 0.5, runnerVal * (0.54 + prosodyIntensity * 0.18 + cueMouthWeight * 0.04 + mouthSpread * 0.04 + mouthRound * 0.04) * visemeBias * articulationRunnerGate))
+      target[winner] = Math.max(target[winner], Math.min(CAP, winnerVal * (0.92 + emphasisLevel * 0.16 + cueMouthWeight * 0.08) * visemeBias * sameHerVisemeRestraint * articulationWinnerGate))
+      target[runner] = Math.max(target[runner], Math.min(CAP * 0.5, runnerVal * (0.54 + prosodyIntensity * 0.18 + cueMouthWeight * 0.04 + mouthSpread * 0.04 + mouthRound * 0.04) * visemeBias * sameHerVisemeRestraint * articulationRunnerGate))
     }
 
     for (const key of LIP_KEYS) {
@@ -268,11 +539,17 @@ export function useVRMLipSync(speechRenderState: Ref<StageEmbodimentSpeechRender
       weights[BLENDSHAPE_MAP[key]] = (smoothState[key] <= 0.01 ? 0 : smoothState[key]) * 0.7
     }
 
+    const active = speechActive || Object.values(weights).some(weight => weight > 0.015)
+    syncExecutionState(weights, active)
+
     return {
-      active: speechActive || Object.values(weights).some(weight => weight > 0.015),
+      active,
       weights,
     }
   }
 
-  return { update }
+  return {
+    executionState: computed(() => executionState.value),
+    update,
+  }
 }
