@@ -268,7 +268,6 @@ export function summarizeAlicizationChatStartPayloadForTransport(payload: Aliciz
   const hasPreDialogueProactiveSameHerGap = hasPreDialogueProjectState
     && typeof preDialogueSendIdentity?.projectState?.proactiveSameHerGap === 'string'
     && preDialogueSendIdentity.projectState.proactiveSameHerGap.trim().length > 0
-
   return {
     providerConfigKeys: Object.keys(payload.providerConfig ?? {}),
     hasPreDialogueSendIdentity,

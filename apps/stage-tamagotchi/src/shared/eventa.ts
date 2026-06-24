@@ -28,9 +28,13 @@ import type {
   AlicizationDigitalLifeFrame as SharedAlicizationDigitalLifeFrame,
   AlicizationDigitalLifeLipSyncPlan as SharedAlicizationDigitalLifeLipSyncPlan,
   AlicizationDigitalLifeSpineDigest as SharedAlicizationDigitalLifeSpineDigest,
+  AlicizationDigitalLifeSpineMemoryClosureTrace as SharedAlicizationDigitalLifeSpineMemoryClosureTrace,
   AlicizationDigitalLifeSpineMemoryDigest as SharedAlicizationDigitalLifeSpineMemoryDigest,
   AlicizationDispatchTaskThreadInput as SharedAlicizationDispatchTaskThreadInput,
   AlicizationDispatchTaskThreadResult as SharedAlicizationDispatchTaskThreadResult,
+  AlicizationEmbodimentContinuityLane as SharedAlicizationEmbodimentContinuityLane,
+  AlicizationEmbodimentContinuityLaneStatus as SharedAlicizationEmbodimentContinuityLaneStatus,
+  AlicizationEmbodimentContinuityLedgerSnapshot as SharedAlicizationEmbodimentContinuityLedgerSnapshot,
   AlicizationEmbodimentFaceCue as SharedAlicizationEmbodimentFaceCue,
   AlicizationEmbodimentLipSyncPlan as SharedAlicizationEmbodimentLipSyncPlan,
   AlicizationEmbodimentLipSyncVisemeHint as SharedAlicizationEmbodimentLipSyncVisemeHint,
@@ -39,7 +43,6 @@ import type {
   AlicizationEmbodimentScriptV1 as SharedAlicizationEmbodimentScriptV1,
   AlicizationEmotion as SharedAlicizationEmotion,
   AlicizationEmotionalKernelSnapshot as SharedAlicizationEmotionalKernelSnapshot,
-  AlicizationEmotionalTransitionDecaySnapshot as SharedAlicizationEmotionalTransitionDecaySnapshot,
   AlicizationEmotionalTransitionLedgerSnapshot as SharedAlicizationEmotionalTransitionLedgerSnapshot,
   AlicizationEpisodicEventInput as SharedAlicizationEpisodicEventInput,
   AlicizationEpisodicEventRecord as SharedAlicizationEpisodicEventRecord,
@@ -79,6 +82,7 @@ import type {
   AlicizationListMindTurnEventsInput as SharedAlicizationListMindTurnEventsInput,
   AlicizationListPersonStateUpdatesInput as SharedAlicizationListPersonStateUpdatesInput,
   AlicizationListTaskThreadsInput as SharedAlicizationListTaskThreadsInput,
+  AlicizationLocalVisualCommandInput as SharedAlicizationLocalVisualCommandInput,
   AlicizationLongHorizonMemoryCueInfluence as SharedAlicizationLongHorizonMemoryCueInfluence,
   AlicizationLongHorizonMemoryCueSnapshot as SharedAlicizationLongHorizonMemoryCueSnapshot,
   AlicizationLongHorizonMemorySnapshot as SharedAlicizationLongHorizonMemorySnapshot,
@@ -189,6 +193,9 @@ import type {
   AlicizationRunReplayBenchmarkResult as SharedAlicizationRunReplayBenchmarkResult,
   AlicizationRuntimeDigest as SharedAlicizationRuntimeDigest,
   AlicizationRuntimeProjectStateDigest as SharedAlicizationRuntimeProjectStateDigest,
+  AlicizationSameHerCausalityRepairLane as SharedAlicizationSameHerCausalityRepairLane,
+  AlicizationSameHerCausalityRepairLaneSnapshot as SharedAlicizationSameHerCausalityRepairLaneSnapshot,
+  AlicizationSameHerCausalityRepairPressureSnapshot as SharedAlicizationSameHerCausalityRepairPressureSnapshot,
   AlicizationSelfEvolutionKernelSnapshot as SharedAlicizationSelfEvolutionKernelSnapshot,
   AlicizationSelfEvolutionVersionRuntimeSnapshot as SharedAlicizationSelfEvolutionVersionRuntimeSnapshot,
   AlicizationSensoryCacheSnapshot as SharedAlicizationSensoryCacheSnapshot,
@@ -805,13 +812,18 @@ export type AlicizationPersonStateEvolutionEntryRecord = SharedAlicizationPerson
 export type AlicizationPersonStateEvolutionSummary = SharedAlicizationPersonStateEvolutionSummary
 export type AlicizationDerivedMindStateBundle = SharedAlicizationDerivedMindStateBundle
 export type AlicizationRecallLatencyPolicySnapshot = SharedAlicizationRecallLatencyPolicySnapshot
-export type AlicizationEmotionalTransitionDecaySnapshot = SharedAlicizationEmotionalTransitionDecaySnapshot
-export type AlicizationEmotionalTransitionLedgerSnapshot = SharedAlicizationEmotionalTransitionLedgerSnapshot
 export type AlicizationAffectiveResidueKind = SharedAlicizationAffectiveResidueKind
 export type AlicizationAffectiveResidueEntrySnapshot = SharedAlicizationAffectiveResidueEntrySnapshot
 export type AlicizationRelationshipCadenceMemorySnapshot = SharedAlicizationRelationshipCadenceMemorySnapshot
 export type AlicizationAffectiveResidueMemorySnapshot = SharedAlicizationAffectiveResidueMemorySnapshot
 export type AlicizationEmotionalKernelSnapshot = SharedAlicizationEmotionalKernelSnapshot
+export type AlicizationEmotionalTransitionLedgerSnapshot = SharedAlicizationEmotionalTransitionLedgerSnapshot
+export type AlicizationEmbodimentContinuityLane = SharedAlicizationEmbodimentContinuityLane
+export type AlicizationEmbodimentContinuityLedgerSnapshot = SharedAlicizationEmbodimentContinuityLedgerSnapshot
+export type AlicizationEmbodimentContinuityLaneStatus = SharedAlicizationEmbodimentContinuityLaneStatus
+export type AlicizationSameHerCausalityRepairLane = SharedAlicizationSameHerCausalityRepairLane
+export type AlicizationSameHerCausalityRepairLaneSnapshot = SharedAlicizationSameHerCausalityRepairLaneSnapshot
+export type AlicizationSameHerCausalityRepairPressureSnapshot = SharedAlicizationSameHerCausalityRepairPressureSnapshot
 export type AlicizationSelfEvolutionKernelSnapshot = SharedAlicizationSelfEvolutionKernelSnapshot
 export type AlicizationSelfEvolutionVersionRuntimeSnapshot = SharedAlicizationSelfEvolutionVersionRuntimeSnapshot
 export type AlicizationPersonStateUpdateSourceTrailEntry = SharedAlicizationPersonStateUpdateSourceTrailEntry
@@ -857,6 +869,7 @@ export type AlicizationClawFabricPlan = SharedAlicizationClawFabricPlan
 export type AlicizationCliCommandInput = SharedAlicizationCliCommandInput
 export type AlicizationCodexCommandInput = SharedAlicizationCodexCommandInput
 export type AlicizationClaudeCodeCommandInput = SharedAlicizationClaudeCodeCommandInput
+export type AlicizationLocalVisualCommandInput = SharedAlicizationLocalVisualCommandInput
 export type AlicizationOpenClawCommandInput = SharedAlicizationOpenClawCommandInput
 
 export type AlicizationTaskThreadStatus = SharedAlicizationTaskThreadStatus
@@ -1505,7 +1518,6 @@ export type AlicizationMotiveAgendaKind
     | 'protect-boundary'
     | 'return-open-loop'
     | 'protect-rest'
-    | 'stay-near'
     | 'stay-near-lightly'
     | 'grow-shared-language'
 
@@ -2389,7 +2401,7 @@ export interface AlicizationMindTurnContractSnapshot {
   governingCommitment: string | null
   governingInquiry: string | null
   governingProject: string | null
-  emotionalClosureCue?: string | null
+  emotionalClosureCue: string | null
   emotionalClosureSummary?: string | null
   relationshipTruthDoctrine?: string | null
   projectState?: {
@@ -2876,7 +2888,6 @@ export interface AlicizationPrivateThoughtSnapshot {
   confidence: number
   rationaleTags: string[]
   thoughtText: string
-  dominantTradeoff?: string | null
   shouldSpeak: boolean
   suggestedStyle: AlicizationProactiveStyle
   embodiedPresence: AlicizationEmbodiedPresenceState
@@ -2901,35 +2912,6 @@ export interface AlicizationPrivateThoughtSnapshot {
   governorIntentionId?: string | null
   selectedThoughtThreadId?: string | null
   livingWorldObjectId?: string | null
-}
-
-export interface AlicizationPresenceExpressionSnapshot {
-  version: 'presence-expression-v1'
-  id: string
-  text: string
-  trigger:
-    | 'startup-restore'
-    | 'state-shift'
-    | 'presence-only-hold'
-    | 'memory-carry-return'
-  display: {
-    mode: 'near-body-whisper'
-    allowAutoShow: boolean
-    createdAt: number
-    expiresAt: number
-    intensity: 'barely-there' | 'soft'
-  }
-  grounding: {
-    sourceRefs: string[]
-    reasonTags: string[]
-    stateFingerprint: string
-    confidence: number
-  }
-  audit: {
-    generated: boolean
-    withheldReason?: string | null
-    qualityFlags: string[]
-  }
 }
 
 export interface AlicizationVisualPresenceStateSnapshot extends SharedAlicizationPersistentPresenceAuthoritySnapshot {
@@ -2998,10 +2980,8 @@ export interface AlicizationVisualPresenceStateSnapshot extends SharedAlicizatio
   memoryResolutionLedger?: AlicizationMemoryResolutionLedger | null
   affectiveResidue?: AlicizationAffectiveResidueMemorySnapshot | null
   emotionalKernel?: AlicizationEmotionalKernelSnapshot | null
-  emotionalTransitionDecay?: AlicizationEmotionalTransitionDecaySnapshot | null
   learningExecutionState?: AlicizationLearningExecutionStateSnapshot | null
   residentPerformance?: SharedAlicizationResidentPerformanceSnapshot | null
-  presenceExpression?: AlicizationPresenceExpressionSnapshot | null
   runtime?: {
     projectState?: AlicizationRuntimeProjectStateDigest | null
     memoryDeliberationProjectStateDiagnostics?: Record<string, unknown> | null
@@ -3046,10 +3026,6 @@ export interface AlicizationVisualPresenceStateSnapshot extends SharedAlicizatio
   raw?: {
     personStateProjection?: AlicizationPersonStateProjection | null
     projectState?: AlicizationRuntimeProjectStateDigest | null
-    residentPerformance?: {
-      reasonTags?: string[] | null
-      emotionalTension?: string | null
-    } | null
     runtimeDigest?: AlicizationRuntimeDigest | null
     runtime?: {
       projectState?: AlicizationRuntimeProjectStateDigest | null
@@ -3180,10 +3156,6 @@ export type AlicizationRuntimeProjectStateDigest
   = SharedAlicizationRuntimeProjectStateDigest & {
     continuitySummary?: string | null
     emotionalClosureSummary?: string | null
-    preferredPauseMode?: 'longer' | 'natural' | null
-    preferredLipsyncMode?: 'restrained' | 'matched' | null
-    preferredVoiceMode?: 'lower-pressure' | 'even' | null
-    preferredPacingMode?: 'slower' | 'natural' | null
   }
 
 export type AlicizationDigitalLifeSpineDigest
@@ -3201,6 +3173,7 @@ export type AlicizationDigitalLifeEnvelope = Omit<SharedAlicizationDigitalLifeEn
   spine?: AlicizationDigitalLifeSpineDigest | null
 }
 export type AlicizationDigitalLifeSpineMemoryDigest = SharedAlicizationDigitalLifeSpineMemoryDigest
+export type AlicizationDigitalLifeSpineMemoryClosureTrace = SharedAlicizationDigitalLifeSpineMemoryClosureTrace
 export type AlicizationRuntimeDigest = Omit<SharedAlicizationRuntimeDigest, 'projectState' | 'currentConsciousFrame'> & {
   projectState?: AlicizationRuntimeProjectStateDigest | null
   currentConsciousFrame?: AlicizationRuntimeCurrentConsciousFrameDigest | null
@@ -3416,7 +3389,6 @@ export interface AlicizationChatStartResult {
   governance?: AlicizationMindTurnGovernance | null
   projectState?: AlicizationRuntimeProjectStateDigest | null
   preDialogueAwareness?: AlicizationChatMetaEvent['preDialogueAwareness']
-  preDialogueClosure?: AlicizationChatMetaEvent['preDialogueClosure']
   embodiment?: AlicizationDialogueEmbodimentEnvelope | null
   embodimentScript?: AlicizationEmbodimentScriptV1 | null
   speechTimeline?: AlicizationDialogueSpeechTimeline | null
