@@ -53,6 +53,7 @@ function desiredHostGoalKind(appraisal: AlicizationSubjectiveSceneAppraisal): Al
     case 'rest': return 'rest'
     case 'chat': return 'chat'
     case 'browse': return 'browse'
+    case 'continue-phase-1-line': return 'chat'
     default: return 'browse'
   }
 }

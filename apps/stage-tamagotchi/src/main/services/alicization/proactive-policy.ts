@@ -1609,7 +1609,10 @@ function deriveProjectStateProactiveBias(input?: {
     richerEmbodimentClosureAwareness,
     specificEmbodimentContinuityCue,
     preferLowerPressure: requiresLifeLoopClosure,
-    forceSilentObserve: sameHerPressure || measuredReturnPressure || strongerSameHerSelfAnchorPressure || repairBeforeClosenessPressure || requiresLifeLoopClosure,
+    forceSilentObserve: measuredReturnPressure
+      || strongerSameHerSelfAnchorMeasuredReturnPressure
+      || repairBeforeClosenessPressure
+      || nextClosureTargetDemandsHoverFirst,
     scoreDelta: requiresLifeLoopClosure
       ? (sameHerPressure || measuredReturnPressure || strongerSameHerSelfAnchorMeasuredReturnPressure ? -0.14 : -0.1)
       : 0,
@@ -2150,6 +2153,7 @@ export function evaluateProactivePolicy(input: {
     consideredSignals.push('projectState.sameHerHoldDetail')
   const selfRevisionPatch = input.selfRevisionPatch ?? null
   const selfRevisionPatchLanes = asArray(selfRevisionPatch?.lanes)
+  const selfRevisionPatchReasonCodes = asArray(selfRevisionPatch?.reasonCodes)
   const selfRevisionProactivePolicy = selfRevisionPatchLanes.includes('proactive-policy')
     ? selfRevisionPatch?.proactivePolicy ?? null
     : null
@@ -2159,6 +2163,7 @@ export function evaluateProactivePolicy(input: {
   const selfRevisionProjectStateContinuity = selfRevisionPatchLanes.includes('proactive-policy')
     ? selfRevisionPatch?.projectStateContinuity ?? null
     : null
+  const selfRevisionPatchCompleted = selfRevisionPatch?.resultStatus === 'completed'
   const beliefs = asArray(input.beliefLedger?.beliefs)
   const unresolvedContradictions = asArray(input.beliefLedger?.unresolvedContradictions)
   const commitments = asArray(input.commitmentLedger?.commitments)
@@ -2752,7 +2757,8 @@ export function evaluateProactivePolicy(input: {
     ?? input.selfEvolution?.nextLearningAction
     ?? null
   const selfEvolutionVerifyHold = Boolean(
-    selfEvolutionLearningAction === 'verify'
+    !selfRevisionPatchCompleted
+    && selfEvolutionLearningAction === 'verify'
     && (
       (input.selfEvolution?.contradictionPressure ?? 0) >= 0.34
       || sanitizeText(input.selfEvolution?.dominantTrajectory, 120).toLowerCase().includes('revalidation')
@@ -2792,8 +2798,8 @@ export function evaluateProactivePolicy(input: {
     && (
       selfRevisionProactivePolicy.restraintBias >= 0.5
       || selfRevisionProactivePolicy.actuationCooldownBias >= 0.5
-      || selfRevisionValidation?.requiresRevalidation === true
-      || selfRevisionValidation?.requiresRollbackCheck === true
+      || (!selfRevisionPatchCompleted && selfRevisionValidation?.requiresRevalidation === true)
+      || (!selfRevisionPatchCompleted && selfRevisionValidation?.requiresRollbackCheck === true)
     ),
   )
   const shouldInterrupt
@@ -2891,6 +2897,7 @@ export function evaluateProactivePolicy(input: {
   pushReason(reasonCodes, 'thought-thread-waiting', thoughtThread?.status === 'waiting')
   pushReason(reasonCodes, 'belief-tentative', focusBelief?.status === 'tentative')
   pushReason(reasonCodes, 'belief-contradicted', focusBelief?.status === 'contradicted' || unresolvedContradictions.length > 0)
+  pushReason(reasonCodes, 'world-model-revalidation-required', selfRevisionPatchReasonCodes.includes('world-model-revalidation-required'))
   pushReason(reasonCodes, 'inquiry-open', Boolean(primaryInquiry) || (input.inquiryLoop?.openCount ?? 0) > 0)
   pushReason(reasonCodes, 'private-thought-uncertain', activeInquiryPlan?.askForGrounding && input.mindKernel?.dominantMode === 'repairing')
   pushReason(reasonCodes, 'relationship-guarded', input.relationshipModel?.climate === 'guarded')

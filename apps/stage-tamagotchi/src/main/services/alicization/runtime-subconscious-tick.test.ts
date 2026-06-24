@@ -2531,81 +2531,6 @@ describe('buildPresenceOnlyHoldCurrentConsciousFrame', () => {
 })
 
 describe('createAlicizationSubconsciousTickRuntime presence-only persist', () => {
-  it('persists a runtime-authored near-body expression on the presence-only hold write', async () => {
-    const { now, options, persistVisualPresenceState } = createPresenceOnlyPersistRuntimeHarness({
-      profile: 'measured-return',
-    })
-    const dateNowSpy = vi.spyOn(Date, 'now').mockReturnValue(now)
-    const generatePresenceExpression = vi.fn(async () => ({ text: '嗯，先让这里慢下来一点。' }))
-    options.generatePresenceExpression = generatePresenceExpression
-
-    try {
-      const runtime = runtimeSubconsciousTickModule.createAlicizationSubconsciousTickRuntime(options)
-
-      await runtime.runSubconsciousTickForCurrentCard('timer')
-
-      expect(generatePresenceExpression).toHaveBeenCalled()
-      expect(persistVisualPresenceState).toHaveBeenCalledTimes(2)
-
-      const secondPersistedState = persistVisualPresenceState.mock.calls[1]?.[1]
-
-      expect(secondPersistedState?.presenceExpression).toEqual(expect.objectContaining({
-        version: 'presence-expression-v1',
-        text: '嗯，先让这里慢下来一点。',
-        trigger: 'presence-only-hold',
-      }))
-      expect(secondPersistedState?.presenceExpression?.display).toEqual(expect.objectContaining({
-        mode: 'near-body-whisper',
-        allowAutoShow: true,
-      }))
-      expect(secondPersistedState?.presenceExpression?.grounding.sourceRefs).toEqual(expect.arrayContaining([
-        'privateThought',
-        'emotionalKernel',
-        'initiative',
-      ]))
-    }
-    finally {
-      dateNowSpy.mockRestore()
-    }
-  })
-
-  it('does not persist a presence expression when generated text is guarded or when no generator is provided', async () => {
-    const guardedHarness = createPresenceOnlyPersistRuntimeHarness({
-      profile: 'measured-return',
-    })
-    const guardedDateNowSpy = vi.spyOn(Date, 'now').mockReturnValue(guardedHarness.now)
-    const generatePresenceExpression = vi.fn(async () => ({ text: '我在旁边，先不打扰你。' }))
-    guardedHarness.options.generatePresenceExpression = generatePresenceExpression
-
-    try {
-      const runtime = runtimeSubconsciousTickModule.createAlicizationSubconsciousTickRuntime(guardedHarness.options)
-
-      await runtime.runSubconsciousTickForCurrentCard('timer')
-
-      expect(generatePresenceExpression).toHaveBeenCalled()
-      expect(guardedHarness.persistVisualPresenceState.mock.calls[1]?.[1]?.presenceExpression).toBeNull()
-    }
-    finally {
-      guardedDateNowSpy.mockRestore()
-    }
-
-    const missingGeneratorHarness = createPresenceOnlyPersistRuntimeHarness({
-      profile: 'measured-return',
-    })
-    const missingGeneratorDateNowSpy = vi.spyOn(Date, 'now').mockReturnValue(missingGeneratorHarness.now)
-
-    try {
-      const runtime = runtimeSubconsciousTickModule.createAlicizationSubconsciousTickRuntime(missingGeneratorHarness.options)
-
-      await runtime.runSubconsciousTickForCurrentCard('timer')
-
-      expect(missingGeneratorHarness.persistVisualPresenceState.mock.calls[1]?.[1]?.presenceExpression).toBeNull()
-    }
-    finally {
-      missingGeneratorDateNowSpy.mockRestore()
-    }
-  })
-
   it('feeds humanlike memory recall into proactive recall seed so subconscious initiative remembers earned reopening cadence instead of only scene and continuity shells', async () => {
     const { now, options } = createPresenceOnlyPersistRuntimeHarness({
       profile: 'measured-return',
@@ -3015,6 +2940,79 @@ describe('createAlicizationSubconsciousTickRuntime presence-only persist', () =>
           continuityCadence: 'rest-protective',
         }),
       }))
+    }
+    finally {
+      dateNowSpy.mockRestore()
+    }
+  })
+
+  it('persists a generated presence-only expression on the second visual presence write when the hold stays inward', async () => {
+    const { now, options, persistVisualPresenceState } = createPresenceOnlyPersistRuntimeHarness()
+    const generatePresenceExpression = vi.fn(async () => ({
+      text: '嗯，先让这里慢下来一点。',
+    }))
+    options.generatePresenceExpression = generatePresenceExpression
+    const dateNowSpy = vi.spyOn(Date, 'now').mockReturnValue(now)
+
+    try {
+      const runtime = runtimeSubconsciousTickModule.createAlicizationSubconsciousTickRuntime(options)
+
+      const result = await runtime.runSubconsciousTickForCurrentCard('timer')
+
+      expect(result).toEqual({
+        proactive: false,
+        outwardProactiveTriggered: false,
+        suppressed: false,
+      })
+      expect(generatePresenceExpression).toHaveBeenCalled()
+      expect(persistVisualPresenceState).toHaveBeenCalledTimes(2)
+
+      const secondPersistedState = persistVisualPresenceState.mock.calls[1]?.[1]
+
+      expect(secondPersistedState?.presenceExpression).toEqual(expect.objectContaining({
+        version: 'presence-expression-v1',
+        text: '嗯，先让这里慢下来一点。',
+        trigger: 'presence-only-hold',
+        display: expect.objectContaining({
+          mode: 'near-body-whisper',
+          allowAutoShow: true,
+        }),
+        grounding: expect.objectContaining({
+          sourceRefs: expect.arrayContaining([
+            'privateThought',
+            'emotionalKernel',
+            'initiative',
+          ]),
+        }),
+      }))
+    }
+    finally {
+      dateNowSpy.mockRestore()
+    }
+  })
+
+  it('does not persist a banned generated presence-only expression', async () => {
+    const { now, options, persistVisualPresenceState } = createPresenceOnlyPersistRuntimeHarness()
+    options.generatePresenceExpression = vi.fn(async () => ({
+      text: '我在旁边，先不打扰你。',
+    }))
+    const dateNowSpy = vi.spyOn(Date, 'now').mockReturnValue(now)
+
+    try {
+      const runtime = runtimeSubconsciousTickModule.createAlicizationSubconsciousTickRuntime(options)
+
+      const result = await runtime.runSubconsciousTickForCurrentCard('timer')
+
+      expect(result).toEqual({
+        proactive: false,
+        outwardProactiveTriggered: false,
+        suppressed: false,
+      })
+      expect(persistVisualPresenceState).toHaveBeenCalledTimes(2)
+
+      const secondPersistedState = persistVisualPresenceState.mock.calls[1]?.[1]
+
+      expect(secondPersistedState?.presenceExpression).toBeFalsy()
     }
     finally {
       dateNowSpy.mockRestore()

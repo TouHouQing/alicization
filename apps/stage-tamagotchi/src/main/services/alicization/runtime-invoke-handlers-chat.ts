@@ -13,6 +13,10 @@ import {
   electronAlicizationChatAbort,
   electronAlicizationChatStart,
 } from '../../../shared/eventa'
+import {
+  resolveAlicizationChatStartPayloadPreDialogueSendIdentity,
+  summarizeAlicizationPreDialogueSendIdentityForDebug,
+} from './main-chat-start-awareness'
 
 interface RegisterAlicizationChatInvokeHandlersOptions {
   registerInvokeHandler: (channel: unknown, handler: (...args: any[]) => Promise<unknown>) => void
@@ -45,39 +49,44 @@ export function registerAlicizationChatInvokeHandlers(options: RegisterAlicizati
   } = options
 
   registerInvokeHandler(electronAlicizationChatStart, async (payload: AlicizationChatStartPayload, eventaOptions: unknown) => {
-    const cardId = normalizeCardId(payload.cardId)
+    const normalizedPayload = resolveAlicizationChatStartPayloadPreDialogueSendIdentity(payload)
+    const cardId = normalizeCardId(normalizedPayload.cardId)
+    const preDialogueAwarenessDebug = summarizeAlicizationPreDialogueSendIdentityForDebug(normalizedPayload)
     return await withCardScope(cardId, async () => {
       const startedAt = Date.now()
       await appendRuntimeDebugLine('chat-start.invoke-requested', {
         cardId,
-        turnId: payload.turnId,
-        providerId: sanitizeText(payload.providerId),
-        model: sanitizeText(payload.model),
+        turnId: normalizedPayload.turnId,
+        providerId: sanitizeText(normalizedPayload.providerId),
+        model: sanitizeText(normalizedPayload.model),
         activeCardId: getActiveCardId(),
+        ...preDialogueAwarenessDebug,
       })
 
       try {
         const result = await startMainChatStream({
-          ...payload,
+          ...normalizedPayload,
           cardId,
         }, eventaOptions)
         await appendRuntimeDebugLine('chat-start.invoke-resolved', {
           cardId,
-          turnId: payload.turnId,
+          turnId: normalizedPayload.turnId,
           state: result.state,
           accepted: result.accepted,
           elapsedMs: Date.now() - startedAt,
           activeCardId: getActiveCardId(),
+          ...preDialogueAwarenessDebug,
         })
         return result
       }
       catch (error) {
         await appendRuntimeDebugLine('chat-start.invoke-failed', {
           cardId,
-          turnId: payload.turnId,
+          turnId: normalizedPayload.turnId,
           elapsedMs: Date.now() - startedAt,
           reason: error instanceof Error ? error.message : String(error),
           activeCardId: getActiveCardId(),
+          ...preDialogueAwarenessDebug,
         })
         throw error
       }
@@ -94,7 +103,10 @@ export function registerAlicizationChatInvokeHandlers(options: RegisterAlicizati
     ipcMain.removeHandler(alicizationChatAbortInvokeChannel)
   }
   if (typeof ipcMain.handle === 'function') {
-    ipcMain.handle(alicizationChatStartInvokeChannel, async (ipcMainEvent, payload: AlicizationChatStartPayload) => await handleDirectChatStart(ipcMainEvent, payload))
+    ipcMain.handle(alicizationChatStartInvokeChannel, async (ipcMainEvent, payload: AlicizationChatStartPayload) => {
+      const normalizedPayload = resolveAlicizationChatStartPayloadPreDialogueSendIdentity(payload)
+      return await handleDirectChatStart(ipcMainEvent, normalizedPayload)
+    })
     ipcMain.handle(alicizationChatAbortInvokeChannel, async (_ipcMainEvent, payload: AlicizationChatAbortPayload) => await handleDirectChatAbort(payload))
   }
 }

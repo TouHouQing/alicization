@@ -19,6 +19,17 @@ interface AlicizationSoulLifecycleState {
   muteWatchUntil: number
 }
 
+interface AlicizationSoulPersonaKernelOptions {
+  placeholderHostAttitudes?: string[]
+}
+
+interface AlicizationSoulPersonaKernelResult {
+  hostAttitude: string
+  coreIncarnation: string
+  hostAttitudeSeed?: string
+  coreIncarnationSeed?: string
+}
+
 interface CreateAlicizationRuntimeSoulLifecycleOptions {
   state: AlicizationSoulLifecycleState
   getPaths: () => {
@@ -44,14 +55,10 @@ interface CreateAlicizationRuntimeSoulLifecycleOptions {
   toSoulContent: (frontmatter: AlicizationSoulFrontmatter, body: string) => string
   extractPersonaNotesFromBody: (body: string) => string
   buildSoulBody: (frontmatter: AlicizationSoulFrontmatter, personaNotes: string) => string
-  resolveAlicizationSoulPersonaKernel: (frontmatter: AlicizationSoulFrontmatter, options?: {
-    placeholderHostAttitudes?: string[]
-  }) => {
-    hostAttitude: string
-    coreIncarnation: string
-    hostAttitudeSeed?: string
-    coreIncarnationSeed?: string
-  }
+  resolveAlicizationSoulPersonaKernel: (
+    frontmatter: AlicizationSoulFrontmatter,
+    options?: AlicizationSoulPersonaKernelOptions,
+  ) => AlicizationSoulPersonaKernelResult
   normalizeCustomDirectives: (raw: unknown) => string
   normalizeHostAttitude: (raw: unknown) => string
   normalizeCoreIncarnation: (raw: unknown) => string

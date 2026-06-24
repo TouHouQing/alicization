@@ -133,6 +133,7 @@ const memoryConsolidations = new Map<string, {
   confidence: number
   dominant_provenance: string
   derived_event_ids_json: string | null
+  metadata_json: string | null
   updated_at: number
 }>()
 const executorSessions = new Map<string, {
@@ -687,8 +688,8 @@ class FakeSqliteDatabase {
     }
 
     if (sql.includes('INSERT INTO memory_consolidations')) {
-      const [id, kind, facet, periodKey, periodStartedAt, periodEndedAt, summary, lesson, cuesJson, confidence, dominantProvenance, derivedEventIdsJson, updatedAt]
-        = actualParams as [string, 'daily' | 'weekly' | 'procedural' | 'autobiographical', 'phase' | 'relationship-era' | 'task-era' | 'self-era' | null, string, number, number, string, string | null, string | null, number, string, string | null, number]
+      const [id, kind, facet, periodKey, periodStartedAt, periodEndedAt, summary, lesson, cuesJson, confidence, dominantProvenance, derivedEventIdsJson, metadataJson, updatedAt]
+        = actualParams as [string, 'daily' | 'weekly' | 'procedural' | 'autobiographical', 'phase' | 'relationship-era' | 'task-era' | 'self-era' | null, string, number, number, string, string | null, string | null, number, string, string | null, string | null, number]
       memoryConsolidations.set(id, {
         id,
         kind,
@@ -702,6 +703,7 @@ class FakeSqliteDatabase {
         confidence,
         dominant_provenance: dominantProvenance,
         derived_event_ids_json: derivedEventIdsJson ?? null,
+        metadata_json: metadataJson ?? null,
         updated_at: updatedAt,
       })
     }
@@ -1815,6 +1817,67 @@ describe('alicization sqlite dao', () => {
     await db.close()
   })
 
+  it('refreshes memory consolidations after episodic reconsolidation so long-horizon summaries inherit the newer same-her callback lesson', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    await db.appendEpisodicEvents([
+      {
+        id: 'episode-execution-callback-memory-refresh',
+        cardId: 'card-1',
+        turnId: 'turn-execution-callback-memory-refresh',
+        sessionId: 'session-execution-callback-memory-refresh',
+        sourceKind: 'execution-result',
+        provenance: 'observed',
+        occurredAt: new Date('2026-05-20T09:00:00Z').getTime(),
+        whereSummary: 'execution callback seam',
+        withWhom: ['host'],
+        threadAnchor: 'execution callback seam',
+        whatHappened: 'The execution callback returned cleanly, but the older lesson still framed it too much like a generic shell.',
+        felt: 'steady',
+        emotionTags: ['execution-callback', 'generic-shell'],
+        whatChanged: 'The callback result arrived, but the memory lesson still lagged behind the newer same-her carry.',
+        relationshipMeaning: 'The callback should come back on one same living line instead of a detached shell.',
+        lesson: 'Do not let the execution callback flatten into a generic shell.',
+        sourceSummary: 'execution callback return',
+        confidence: 0.84,
+        salience: 0.82,
+        sceneAttachment: 0.36,
+        consolidationPriority: 0.78,
+        tags: ['execution-callback', 'same-living-line'],
+      },
+    ])
+
+    const before = await db.listMemoryConsolidations(8)
+    expect(before[0]?.lesson).toContain('generic shell')
+    expect(before[0]?.lesson).not.toContain('same thread should now be answered')
+
+    await db.searchEpisodicEvents({
+      recallSeed: 'bring the execution callback back on the same living line',
+      limit: 1,
+      sessionId: 'session-execution-callback-memory-refresh',
+      turnId: 'turn-execution-callback-memory-refresh',
+      threadAnchors: ['execution callback seam'],
+      affectAnchors: ['feedback:valued', 'same-her-callback'],
+      relationshipAnchors: ['host correction', 'same living line'],
+      carryAsMemory: true,
+      recollectionIntent: {
+        mode: 'relationship-history',
+        temporalFocus: 'experience-matched',
+        searchEpisodes: true,
+        searchConversations: true,
+        searchProceduralExperience: true,
+        queryHints: ['execution callback', 'same living line', 'same her'],
+        rationale: 'The same thread should now be answered with the richer same-her callback carry instead of the older generic shell lesson.',
+        confidence: 0.82,
+      },
+      reconsolidationDecisionTraceId: 'mind:execution-callback:memory-refresh',
+    })
+
+    const after = await db.listMemoryConsolidations(8)
+    expect(after[0]?.lesson).toContain('same thread should now be answered with the richer same-her callback carry')
+    expect(after[0]?.summary).toContain('same living line')
+    await db.close()
+  })
+
   it('lets cross-session afterglow maintenance episodes influence later recall ordering', async () => {
     const db = await setupAlicizationDb(await createSandboxUserDataPath())
     await db.appendEpisodicEvents([
@@ -2213,6 +2276,54 @@ describe('alicization sqlite dao', () => {
     expect(rows[0]?.facet).toBe('relationship-era')
     expect(rows[0]?.lesson).toContain('Repair before closeness')
     expect(rows.some(row => row.facet === 'task-era')).toBe(true)
+  })
+
+  it('round-trips consolidation humanlike carry metadata through sqlite persistence', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    await db.upsertMemoryConsolidations([
+      {
+        id: 'autobio:self-era:humanlike-carry',
+        kind: 'autobiographical',
+        facet: 'self-era',
+        periodKey: '2026-05-humanlike-carry',
+        periodStartedAt: new Date('2026-05-29T09:00:00Z').getTime(),
+        periodEndedAt: new Date('2026-05-30T10:00:00Z').getTime(),
+        summary: 'That self era kept carrying corrected same-person continuity on a lower-pressure line.',
+        lesson: 'Do not defend the first interpretation once the host has corrected the relationship meaning.',
+        cues: ['corrected same-person continuity', 'lower-pressure'],
+        confidence: 0.9,
+        dominantProvenance: 'remembered',
+        derivedEventIds: ['event-humanlike-carry-1'],
+        updatedAt: Date.now(),
+        metadata: {
+          humanlikeCarry: {
+            relationshipPrimaryIntent: 'same-person-test',
+            recallCertainty: 'corrected',
+            emotionalResidueTags: ['protective-continuity', 'unfinishedness', 'corrected-meaning'],
+            embodimentCadence: 'lower-pressure voice, slower pacing, stable gaze',
+            metabolismSummary: 'Downrank the older status shell and keep the corrected same-person continuity meaning active.',
+            autobiographicalDelta: 'I learned to carry corrected same-person continuity on a lower-pressure same living line.',
+          },
+          projectState: {
+            selfContinuityInwardLine: 'Same Phase 1 digital life. Unfinished closure still needs the same living line.',
+            selfContinuitySourceTags: ['project-state-carry', 'continuity-execution-callback-project-carry'],
+          },
+        },
+      },
+    ])
+
+    const rows = await db.listMemoryConsolidations(8)
+    expect(rows[0]?.metadata).toEqual(expect.objectContaining({
+      humanlikeCarry: expect.objectContaining({
+        relationshipPrimaryIntent: 'same-person-test',
+        recallCertainty: 'corrected',
+        emotionalResidueTags: expect.arrayContaining(['protective-continuity', 'corrected-meaning']),
+        embodimentCadence: expect.stringContaining('stable gaze'),
+      }),
+      projectState: expect.objectContaining({
+        selfContinuityInwardLine: expect.stringContaining('Phase 1 digital life'),
+      }),
+    }))
   })
 
   it('restores legacy archive rows into active memory facts so old recall stays searchable', async () => {
@@ -3029,6 +3140,128 @@ describe('alicization sqlite dao', () => {
     await db.close()
   })
 
+  it('canonicalizes proactive execution origins when persisting task threads and execution events', async () => {
+    runCalls.length = 0
+    metaState.clear()
+    scheduledTasks.clear()
+    mindTurnEvents.length = 0
+    taskThreads.clear()
+    executionEvents.length = 0
+
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    await db.upsertTaskThread({
+      id: 'thread-claw-proactive-1',
+      decisionTraceId: 'mind:proactive:feedfacecafe',
+      turnId: 'turn-proactive-1',
+      sessionId: 'session-proactive-1',
+      origin: ' SubConscious-Proactive ' as any,
+      goal: 'Keep the same proactive execution line alive.',
+      kind: 'codebase-investigation',
+      status: 'planned',
+      proposedChannel: 'codex',
+      summary: 'initial proactive plan',
+      createdAt: 100,
+      updatedAt: 100,
+    })
+
+    await db.appendExecutionEvents([
+      {
+        threadId: 'thread-claw-proactive-1',
+        decisionTraceId: 'mind:proactive:feedfacecafe',
+        turnId: 'turn-proactive-1',
+        sessionId: 'session-proactive-1',
+        origin: ' SubConscious-Proactive ' as any,
+        channel: 'codex',
+        kind: 'dispatch',
+        threadStatus: 'running',
+        payload: {
+          adapter: 'codex',
+        },
+        createdAt: 150,
+      },
+    ])
+
+    const thread = await db.getTaskThread('thread-claw-proactive-1')
+    const events = await db.listExecutionEvents({
+      threadId: 'thread-claw-proactive-1',
+      limit: 10,
+    })
+
+    expect(thread).toEqual(expect.objectContaining({
+      id: 'thread-claw-proactive-1',
+      origin: 'subconscious-proactive',
+    }))
+    expect(events).toEqual([
+      expect.objectContaining({
+        threadId: 'thread-claw-proactive-1',
+        origin: 'subconscious-proactive',
+        kind: 'dispatch',
+      }),
+    ])
+    await db.close()
+  })
+
+  it('canonicalizes origin-lost autonomous execution ownership when persisting task threads and execution events', async () => {
+    runCalls.length = 0
+    metaState.clear()
+    scheduledTasks.clear()
+    mindTurnEvents.length = 0
+    taskThreads.clear()
+    executionEvents.length = 0
+
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    await db.upsertTaskThread({
+      id: 'thread-claw-proactive-originless-1',
+      decisionTraceId: 'mind:proactive:originless:feedfacecafe',
+      turnId: 'subconscious:turn-proactive-originless-1',
+      sessionId: 'session-proactive-originless-1',
+      goal: 'Keep the same proactive execution line alive even when origin thins out.',
+      kind: 'codebase-investigation',
+      status: 'planned',
+      proposedChannel: 'codex',
+      summary: 'initial proactive originless plan',
+      createdAt: 100,
+      updatedAt: 100,
+    } as any)
+
+    await db.appendExecutionEvents([
+      {
+        threadId: 'thread-claw-proactive-originless-1',
+        decisionTraceId: 'mind:proactive:originless:feedfacecafe',
+        turnId: 'subconscious:turn-proactive-originless-1',
+        sessionId: 'session-proactive-originless-1',
+        channel: 'codex',
+        kind: 'dispatch',
+        threadStatus: 'running',
+        payload: {
+          adapter: 'codex',
+        },
+        createdAt: 150,
+      },
+    ] as any)
+
+    const thread = await db.getTaskThread('thread-claw-proactive-originless-1')
+    const events = await db.listExecutionEvents({
+      threadId: 'thread-claw-proactive-originless-1',
+      limit: 10,
+    })
+
+    expect(thread).toEqual(expect.objectContaining({
+      id: 'thread-claw-proactive-originless-1',
+      turnId: 'subconscious:turn-proactive-originless-1',
+      origin: 'subconscious-proactive',
+    }))
+    expect(events).toEqual([
+      expect.objectContaining({
+        threadId: 'thread-claw-proactive-originless-1',
+        turnId: 'subconscious:turn-proactive-originless-1',
+        origin: 'subconscious-proactive',
+        kind: 'dispatch',
+      }),
+    ])
+    await db.close()
+  })
+
   it('upserts and lists executor sessions with affinity continuity', async () => {
     runCalls.length = 0
     metaState.clear()
@@ -3215,6 +3448,20 @@ describe('alicization sqlite dao', () => {
         sourceSessionId: 'session-1',
         action: 'verify',
         reason: 'verify contradiction',
+        projectStateContinuity: {
+          identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
+          currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
+          sameHerSummary: 'Keep one same local digital life coherent across emotion, memory, initiative, and embodiment while learning from this turn.',
+          landedProgressSummary: 'Project-state continuity already survives into runtime preparation and visible reply carry.',
+          openClosureSummary: 'Memory still needs stronger end-to-end closure across turns, initiative, and embodiment.',
+          proactiveSameHerGap: 'Need stronger long-run proof that visible proactive hold, subconscious carry, and next-session feedback carry stay unified after hover-first restraint survives detours on longer noisy desktop runs.',
+          nextClosureTarget: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
+          preDialogueAwarenessLine: 'Before answering, remember: this is still one local digital life project and the unfinished Phase 1 closure still belongs to one living her.',
+          emotionalClosureCue: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
+          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+          sameHerHoldDetail: 'same-her hold: keep this delayed learning carry on the same living line before later retries widen into generic verification bookkeeping.',
+          sameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the same-her self line disappears, treat that as unfinished closure drift.',
+        },
         focuses: ['resolve-contradictions'],
         dominantTrajectory: 'Need to verify',
         sourceSignals: ['Need to verify'],
@@ -3233,6 +3480,17 @@ describe('alicization sqlite dao', () => {
     const claimed = await db.claimDueLearningTasks('default', nowMs, 10)
     expect(claimed).toHaveLength(1)
     expect(claimed[0]?.status).toBe('claimed')
+    expect(claimed[0]?.payload.projectStateContinuity).toEqual(expect.objectContaining({
+      identity: expect.stringContaining('local-first digital life project'),
+      currentPhase: expect.stringContaining('Phase 1'),
+      landedProgressSummary: expect.stringContaining('runtime preparation'),
+      proactiveSameHerGap: expect.stringContaining('visible proactive hold'),
+      preDialogueAwarenessLine: expect.stringContaining('Before answering, remember'),
+      emotionalClosureCue: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
+      sameHerSelfLine: expect.stringContaining('Same Phase 1 digital life'),
+      sameHerHoldDetail: 'same-her hold: keep this delayed learning carry on the same living line before later retries widen into generic verification bookkeeping.',
+      sameHerDriftRisk: expect.stringContaining('unfinished closure drift'),
+    }))
 
     await db.startLearningTask('learning-task-1', nowMs)
     await db.completeLearningTask('learning-task-1', {

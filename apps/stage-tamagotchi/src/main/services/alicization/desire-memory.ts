@@ -204,12 +204,14 @@ export function buildDesireMemory(input: {
       ?? 'global'
     const desireId = `desire::${kind}::${sanitizeText(desireAnchor, 120)}::${sanitizeText(entityId ?? '', 120) || 'global'}`
     const previousDesire = carried.get(desireId)
-    const speakingNow = input.actionEcology?.shouldSpeak
-      ?? (
-        input.initiative.selectedAction === 'speak'
-        || input.initiative.selectedAction === 'whisper'
-        || input.initiative.selectedAction === 'warn'
-      )
+    const speakingNow = typeof input.initiative.shouldSpeak === 'boolean'
+      ? input.initiative.shouldSpeak
+      : input.actionEcology?.shouldSpeak
+        ?? (
+          input.initiative.selectedAction === 'speak'
+          || input.initiative.selectedAction === 'whisper'
+          || input.initiative.selectedAction === 'warn'
+        )
     const ecologyWithholding = input.actionEcology
       && !input.actionEcology.shouldSpeak
       && (

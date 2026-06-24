@@ -93,6 +93,10 @@ import {
 } from './memory-tiering'
 import { createAlicizationPersonStateEvolutionRuntime } from './person-state-evolution-runtime'
 import { normalizeOrganicRecallText } from './runtime-organic-recall'
+import {
+  resolveAlicizationAutonomousDialogueFamilyClassification,
+  resolveAlicizationAutonomousDialogueOrigin,
+} from './runtime-structured-format'
 
 export type { AlicizationRelationshipDynamicsState } from './relationship-dynamics-state'
 const legacyMigrationMarker = 'legacy_memory_migrated_v1'
@@ -176,6 +180,7 @@ interface PreparedMemoryConsolidationWrite {
   confidence: number
   dominantProvenance: AlicizationMemoryConsolidationRecord['dominantProvenance']
   derivedEventIdsJson: string
+  metadataJson: string | null
   updatedAt: number
 }
 
@@ -284,6 +289,7 @@ interface DbMemoryConsolidationRow {
   confidence: number
   dominant_provenance: AlicizationMemoryConsolidationRecord['dominantProvenance']
   derived_event_ids_json: string | null
+  metadata_json: string | null
   updated_at: number
 }
 
@@ -840,16 +846,29 @@ function mapMemoryConsolidationRow(row: DbMemoryConsolidationRow): AlicizationMe
     confidence: clamp01(row.confidence),
     dominantProvenance: row.dominant_provenance,
     derivedEventIds: parseJsonStringArray(row.derived_event_ids_json),
+    metadata: parseJsonObject(row.metadata_json),
     updatedAt: row.updated_at,
   }
   mapped.memoryTier = deriveConsolidationMemoryTier(mapped, now())
   return mapped
 }
 
-function normalizeExecutionOrigin(value: unknown): AlicizationExecutionTurnOrigin {
-  return value === 'subconscious-proactive' || value === 'system'
-    ? value
-    : 'user-turn'
+function normalizeExecutionOrigin(input: {
+  origin?: unknown
+  turnId?: unknown
+}): AlicizationExecutionTurnOrigin {
+  const normalized = typeof input.origin === 'string'
+    ? input.origin.trim().toLowerCase()
+    : ''
+  const autonomousDialogueFamily = resolveAlicizationAutonomousDialogueFamilyClassification({
+    turnId: input.turnId,
+    origin: normalized,
+  })
+  if (autonomousDialogueFamily.isAutonomous)
+    return autonomousDialogueFamily.canonicalOrigin ?? resolveAlicizationAutonomousDialogueOrigin('proactive')
+  if (normalized === 'system')
+    return 'system'
+  return 'user-turn'
 }
 
 function normalizeExecutionChannel(value: unknown): AlicizationExecutionChannel | null {
@@ -986,6 +1005,12 @@ function mapScheduledTaskRow(row: DbScheduledTaskRow): AlicizationScheduledTaskR
 function parseLearningTaskPayload(raw: string): AlicizationLearningTaskPayload {
   try {
     const candidate = JSON.parse(raw) as Partial<AlicizationLearningTaskPayload> | null
+    const projectStateContinuity
+      = candidate?.projectStateContinuity
+        && typeof candidate.projectStateContinuity === 'object'
+        && !Array.isArray(candidate.projectStateContinuity)
+        ? candidate.projectStateContinuity
+        : null
     return {
       sourceTurnId: typeof candidate?.sourceTurnId === 'string' && candidate.sourceTurnId.trim() ? candidate.sourceTurnId.trim() : null,
       decisionTraceId: typeof candidate?.decisionTraceId === 'string' && candidate.decisionTraceId.trim() ? candidate.decisionTraceId.trim() : null,
@@ -994,6 +1019,22 @@ function parseLearningTaskPayload(raw: string): AlicizationLearningTaskPayload {
         ? candidate.action
         : 'record',
       reason: typeof candidate?.reason === 'string' && candidate.reason.trim() ? candidate.reason.trim().slice(0, 280) : null,
+      projectStateContinuity: projectStateContinuity
+        ? {
+            identity: typeof projectStateContinuity.identity === 'string' && projectStateContinuity.identity.trim() ? projectStateContinuity.identity.trim().slice(0, 220) : null,
+            currentPhase: typeof projectStateContinuity.currentPhase === 'string' && projectStateContinuity.currentPhase.trim() ? projectStateContinuity.currentPhase.trim().slice(0, 160) : null,
+            sameHerSummary: typeof projectStateContinuity.sameHerSummary === 'string' && projectStateContinuity.sameHerSummary.trim() ? projectStateContinuity.sameHerSummary.trim().slice(0, 220) : null,
+            landedProgressSummary: typeof projectStateContinuity.landedProgressSummary === 'string' && projectStateContinuity.landedProgressSummary.trim() ? projectStateContinuity.landedProgressSummary.trim().slice(0, 220) : null,
+            openClosureSummary: typeof projectStateContinuity.openClosureSummary === 'string' && projectStateContinuity.openClosureSummary.trim() ? projectStateContinuity.openClosureSummary.trim().slice(0, 220) : null,
+            proactiveSameHerGap: typeof projectStateContinuity.proactiveSameHerGap === 'string' && projectStateContinuity.proactiveSameHerGap.trim() ? projectStateContinuity.proactiveSameHerGap.trim().slice(0, 220) : null,
+            nextClosureTarget: typeof projectStateContinuity.nextClosureTarget === 'string' && projectStateContinuity.nextClosureTarget.trim() ? projectStateContinuity.nextClosureTarget.trim().slice(0, 220) : null,
+            preDialogueAwarenessLine: typeof projectStateContinuity.preDialogueAwarenessLine === 'string' && projectStateContinuity.preDialogueAwarenessLine.trim() ? projectStateContinuity.preDialogueAwarenessLine.trim().slice(0, 320) : null,
+            emotionalClosureCue: typeof projectStateContinuity.emotionalClosureCue === 'string' && projectStateContinuity.emotionalClosureCue.trim() ? projectStateContinuity.emotionalClosureCue.trim().slice(0, 220) : null,
+            sameHerSelfLine: typeof projectStateContinuity.sameHerSelfLine === 'string' && projectStateContinuity.sameHerSelfLine.trim() ? projectStateContinuity.sameHerSelfLine.trim().slice(0, 220) : null,
+            sameHerHoldDetail: typeof projectStateContinuity.sameHerHoldDetail === 'string' && projectStateContinuity.sameHerHoldDetail.trim() ? projectStateContinuity.sameHerHoldDetail.trim().slice(0, 220) : null,
+            sameHerDriftRisk: typeof projectStateContinuity.sameHerDriftRisk === 'string' && projectStateContinuity.sameHerDriftRisk.trim() ? projectStateContinuity.sameHerDriftRisk.trim().slice(0, 320) : null,
+          }
+        : null,
       focuses: Array.isArray(candidate?.focuses) ? candidate.focuses.filter(item => typeof item === 'string').map(item => item.trim()).filter(Boolean).slice(0, 12) : [],
       dominantTrajectory: typeof candidate?.dominantTrajectory === 'string' && candidate.dominantTrajectory.trim() ? candidate.dominantTrajectory.trim().slice(0, 220) : null,
       sourceSignals: Array.isArray(candidate?.sourceSignals) ? candidate.sourceSignals.filter(item => typeof item === 'string').map(item => item.trim()).filter(Boolean).slice(0, 12) : [],
@@ -1015,6 +1056,7 @@ function parseLearningTaskPayload(raw: string): AlicizationLearningTaskPayload {
       sourceSessionId: null,
       action: 'record',
       reason: null,
+      projectStateContinuity: null,
       focuses: [],
       dominantTrajectory: null,
       sourceSignals: [],
@@ -1701,10 +1743,12 @@ export async function setupAlicizationDb(
         confidence REAL NOT NULL,
         dominant_provenance TEXT NOT NULL,
         derived_event_ids_json TEXT,
+        metadata_json TEXT,
         updated_at INTEGER NOT NULL
       )
     `)
     await run(database, 'ALTER TABLE memory_consolidations ADD COLUMN facet TEXT').catch(() => {})
+    await run(database, 'ALTER TABLE memory_consolidations ADD COLUMN metadata_json TEXT').catch(() => {})
     await run(database, 'CREATE INDEX IF NOT EXISTS idx_memory_consolidations_kind_period ON memory_consolidations(kind, period_ended_at DESC)')
     await run(database, 'CREATE INDEX IF NOT EXISTS idx_memory_consolidations_updated_at ON memory_consolidations(updated_at DESC)')
 
@@ -2093,16 +2137,16 @@ export async function setupAlicizationDb(
               created_at,
               updated_at,
               last_access_at,
-              access_count,
-              knowledge_stage,
-              validation_status,
-              memory_domain,
-              validation_count,
-              contradiction_count,
+          access_count,
+          knowledge_stage,
+          validation_status,
+          memory_domain,
+          validation_count,
+          contradiction_count,
               source_label,
               conflicts_with_json,
               supersedes_json
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(dedupe_key)
             DO UPDATE SET
               confidence = MAX(memory_facts.confidence, excluded.confidence),
@@ -2474,12 +2518,12 @@ export async function setupAlicizationDb(
         ON CONFLICT(dedupe_key)
         DO UPDATE SET
           confidence = MAX(memory_facts.confidence, excluded.confidence),
-	          source = excluded.source,
-	          updated_at = excluded.updated_at,
-	          knowledge_stage = excluded.knowledge_stage,
-	          validation_status = excluded.validation_status,
-	          memory_domain = excluded.memory_domain,
-	          validation_count = MAX(memory_facts.validation_count, excluded.validation_count),
+          source = excluded.source,
+          updated_at = excluded.updated_at,
+          knowledge_stage = excluded.knowledge_stage,
+          validation_status = excluded.validation_status,
+          memory_domain = excluded.memory_domain,
+          validation_count = MAX(memory_facts.validation_count, excluded.validation_count),
           contradiction_count = MAX(memory_facts.contradiction_count, excluded.contradiction_count),
           source_label = excluded.source_label,
           conflicts_with_json = excluded.conflicts_with_json,
@@ -2528,8 +2572,9 @@ export async function setupAlicizationDb(
           confidence,
           dominant_provenance,
           derived_event_ids_json,
+          metadata_json,
           updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id)
         DO UPDATE SET
           kind = excluded.kind,
@@ -2543,6 +2588,7 @@ export async function setupAlicizationDb(
           confidence = excluded.confidence,
           dominant_provenance = excluded.dominant_provenance,
           derived_event_ids_json = excluded.derived_event_ids_json,
+          metadata_json = excluded.metadata_json,
           updated_at = excluded.updated_at
         `,
         [
@@ -2558,6 +2604,7 @@ export async function setupAlicizationDb(
           record.confidence,
           record.dominantProvenance,
           record.derivedEventIdsJson,
+          record.metadataJson,
           record.updatedAt,
         ],
       )
@@ -2688,6 +2735,9 @@ export async function setupAlicizationDb(
       confidence: clamp01(record.confidence),
       dominantProvenance: record.dominantProvenance,
       derivedEventIdsJson: JSON.stringify(record.derivedEventIds.map(item => normalizeOrganicMemoryText(item, 120)).filter(Boolean)),
+      metadataJson: record.metadata && typeof record.metadata === 'object' && !Array.isArray(record.metadata)
+        ? JSON.stringify(record.metadata)
+        : null,
       updatedAt: Math.max(0, Math.floor(record.updatedAt)),
     })).filter(item => item.id && item.periodKey && item.summary)
 
@@ -2718,6 +2768,7 @@ export async function setupAlicizationDb(
       confidence: record.confidence,
       dominant_provenance: record.dominantProvenance,
       derived_event_ids_json: record.derivedEventIdsJson,
+      metadata_json: record.metadataJson,
       updated_at: record.updatedAt,
     }))
   }
@@ -2744,7 +2795,10 @@ export async function setupAlicizationDb(
     const sessionId = typeof input.sessionId === 'string' && input.sessionId.trim()
       ? input.sessionId.trim()
       : null
-    const origin = normalizeExecutionOrigin(input.origin)
+    const origin = normalizeExecutionOrigin({
+      origin: input.origin,
+      turnId,
+    })
     const kind = normalizeExecutionTaskKind(input.kind)
     const status = normalizeTaskThreadStatus(input.status)
     const selectedChannel = normalizeExecutionChannel(input.selectedChannel)
@@ -3344,7 +3398,12 @@ export async function setupAlicizationDb(
           sessionId: typeof event.sessionId === 'string' && event.sessionId.trim()
             ? event.sessionId.trim()
             : null,
-          origin: normalizeExecutionOrigin(event.origin),
+          origin: normalizeExecutionOrigin({
+            origin: event.origin,
+            turnId: typeof event.turnId === 'string' && event.turnId.trim()
+              ? event.turnId.trim()
+              : null,
+          }),
           channel: normalizeExecutionChannel(event.channel),
           kind,
           threadStatus: event.threadStatus
@@ -4488,6 +4547,13 @@ export async function setupAlicizationDb(
     })
   }
 
+  async function persistEpisodicReconsolidations(events: AlicizationEpisodicEventRecord[]) {
+    if (events.length === 0)
+      return
+
+    await memoryEpisodicReconsolidationRuntime.persistRecalledEvents(events)
+  }
+
   async function listEventGraphNeighborhood(input: {
     eventIds?: string[]
     nodeIds?: string[]
@@ -4501,9 +4567,6 @@ export async function setupAlicizationDb(
     run,
     runInTransaction,
   })
-  async function persistEpisodicReconsolidations(events: AlicizationEpisodicEventRecord[]) {
-    await memoryEpisodicReconsolidationRuntime.persistRecalledEvents(events)
-  }
   const memoryRelationshipRuntime = createAlicizationMemoryRelationshipRuntime({
     database,
     now,
@@ -4624,6 +4687,10 @@ export async function setupAlicizationDb(
       correctionShapingRationale,
       reconsolidationDecisionTraceId: input.reconsolidationDecisionTraceId,
     })
+    if ((input.carryAsMemory || input.reconsolidationDecisionTraceId) && returned.length > 0) {
+      for (const cardId of new Set(returned.map(event => event.cardId).filter(Boolean)))
+        await rebuildMemoryConsolidationsFromEvents(cardId)
+    }
     await recordMemoryGraphRetrievalLatency(now() - retrievalStartedAt)
 
     return returned
@@ -4709,16 +4776,16 @@ export async function setupAlicizationDb(
               created_at,
               updated_at,
               last_access_at,
-          access_count,
-          knowledge_stage,
-          validation_status,
-          memory_domain,
-          validation_count,
-          contradiction_count,
+              access_count,
+              knowledge_stage,
+              validation_status,
+              memory_domain,
+              validation_count,
+              contradiction_count,
           source_label,
           conflicts_with_json,
           supersedes_json
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(dedupe_key)
             DO UPDATE SET
               confidence = MAX(memory_facts.confidence, excluded.confidence),
@@ -4800,11 +4867,11 @@ export async function setupAlicizationDb(
                 WHEN memory_facts.last_access_at IS NULL THEN excluded.last_access_at
                 ELSE MAX(memory_facts.last_access_at, excluded.last_access_at)
               END,
-	              access_count = MAX(memory_facts.access_count, excluded.access_count),
-	              knowledge_stage = excluded.knowledge_stage,
-	              validation_status = excluded.validation_status,
-	              memory_domain = excluded.memory_domain,
-	              validation_count = MAX(memory_facts.validation_count, excluded.validation_count),
+              access_count = MAX(memory_facts.access_count, excluded.access_count),
+              knowledge_stage = excluded.knowledge_stage,
+              validation_status = excluded.validation_status,
+              memory_domain = excluded.memory_domain,
+              validation_count = MAX(memory_facts.validation_count, excluded.validation_count),
               contradiction_count = MAX(memory_facts.contradiction_count, excluded.contradiction_count),
               source_label = excluded.source_label,
               conflicts_with_json = excluded.conflicts_with_json,
@@ -4925,6 +4992,7 @@ export async function setupAlicizationDb(
             personalityParticipation: next.retrievalHealth.personalityParticipation,
             relationshipParticipation: next.retrievalHealth.relationshipParticipation,
             continuityParticipation: next.retrievalHealth.continuityParticipation,
+            runtimeMemoryClosureLongRunClosureRate: next.retrievalHealth.runtimeMemoryClosureLongRunClosureRate,
           })
         }
       })

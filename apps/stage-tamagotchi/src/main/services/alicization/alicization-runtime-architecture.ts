@@ -81,6 +81,10 @@ interface AlicizationRuntimeProjectStateSnapshot {
   emotionalClosureSummary?: string | null
   preferredBlinkCadence?: 'normal' | 'linger' | 'quiet' | null
   preferredGazeMode?: 'steady' | 'soften' | 'drift' | null
+  preferredPauseMode?: 'longer' | 'natural' | null
+  preferredLipsyncMode?: 'restrained' | 'matched' | null
+  preferredVoiceMode?: 'lower-pressure' | 'even' | null
+  preferredPacingMode?: 'slower' | 'natural' | null
   continuityRestraint?: string | null
   continuityArcStage?: string | null
   continuityPreferredTiming?: string | null
@@ -108,12 +112,10 @@ export interface AlicizationRuntimeSnapshot {
   currentConsciousFrame?: AlicizationRuntimeCurrentConsciousFrameSnapshot | null
   personStateProjection?: AlicizationDigitalLifeSpineSnapshot['runtimeSurface']['memory']['personStateProjection'] | null
   continuityRestraint?: string | null
-  continuityArcStage?: string | null
-  continuityPreferredTiming?: string | null
   emotionalClosureCue?: string | null
   emotionalKernel?: AlicizationEmotionalKernelSnapshot | null
   affectiveResidue?: AlicizationAffectiveResidueMemorySnapshot | null
-  derivedMindStateBundle?: Pick<AlicizationDerivedMindStateBundle, 'affectiveResidue'> | null
+  derivedMindStateBundle?: AlicizationDerivedMindStateBundle | null
   projectState?: AlicizationRuntimeProjectStateSnapshot | null
   shouldProactivelySpeak: boolean
   shouldProactivelyAct: boolean
@@ -246,6 +248,34 @@ function sanitizeRuntimeProjectStateBlinkCadence(raw: unknown): AlicizationRunti
 function sanitizeRuntimeProjectStateGazeMode(raw: unknown): AlicizationRuntimeProjectStateSnapshot['preferredGazeMode'] {
   const normalized = sanitizeText(raw, 32)
   return normalized === 'steady' || normalized === 'soften' || normalized === 'drift'
+    ? normalized
+    : null
+}
+
+function sanitizeRuntimeProjectStatePauseMode(raw: unknown): AlicizationRuntimeProjectStateSnapshot['preferredPauseMode'] {
+  const normalized = sanitizeText(raw, 32)
+  return normalized === 'longer' || normalized === 'natural'
+    ? normalized
+    : null
+}
+
+function sanitizeRuntimeProjectStateLipsyncMode(raw: unknown): AlicizationRuntimeProjectStateSnapshot['preferredLipsyncMode'] {
+  const normalized = sanitizeText(raw, 32)
+  return normalized === 'restrained' || normalized === 'matched'
+    ? normalized
+    : null
+}
+
+function sanitizeRuntimeProjectStateVoiceMode(raw: unknown): AlicizationRuntimeProjectStateSnapshot['preferredVoiceMode'] {
+  const normalized = sanitizeText(raw, 32)
+  return normalized === 'lower-pressure' || normalized === 'even'
+    ? normalized
+    : null
+}
+
+function sanitizeRuntimeProjectStatePacingMode(raw: unknown): AlicizationRuntimeProjectStateSnapshot['preferredPacingMode'] {
+  const normalized = sanitizeText(raw, 32)
+  return normalized === 'slower' || normalized === 'natural'
     ? normalized
     : null
 }
@@ -677,23 +707,39 @@ function deriveRuntimeProjectStateBodyLineHints(continuityRestraint: string | nu
     return {
       preferredBlinkCadence: 'quiet' as const,
       preferredGazeMode: 'soften' as const,
+      preferredPauseMode: 'longer' as const,
+      preferredLipsyncMode: 'restrained' as const,
+      preferredVoiceMode: 'lower-pressure' as const,
+      preferredPacingMode: 'slower' as const,
     }
   }
   if (continuityRestraint === 'repair-before-closeness') {
     return {
       preferredBlinkCadence: 'quiet' as const,
       preferredGazeMode: 'soften' as const,
+      preferredPauseMode: 'longer' as const,
+      preferredLipsyncMode: 'restrained' as const,
+      preferredVoiceMode: 'lower-pressure' as const,
+      preferredPacingMode: 'slower' as const,
     }
   }
   if (continuityRestraint === 'measured-return') {
     return {
       preferredBlinkCadence: 'linger' as const,
       preferredGazeMode: 'soften' as const,
+      preferredPauseMode: 'longer' as const,
+      preferredLipsyncMode: 'restrained' as const,
+      preferredVoiceMode: 'lower-pressure' as const,
+      preferredPacingMode: 'slower' as const,
     }
   }
   return {
     preferredBlinkCadence: null,
     preferredGazeMode: null,
+    preferredPauseMode: null,
+    preferredLipsyncMode: null,
+    preferredVoiceMode: null,
+    preferredPacingMode: null,
   }
 }
 
@@ -701,6 +747,10 @@ function resolveRuntimeProjectStateBodyLineHints(input: {
   continuityRestraint: string | null | undefined
   preferredBlinkCadence?: unknown
   preferredGazeMode?: unknown
+  preferredPauseMode?: unknown
+  preferredLipsyncMode?: unknown
+  preferredVoiceMode?: unknown
+  preferredPacingMode?: unknown
 }) {
   const defaultHints = deriveRuntimeProjectStateBodyLineHints(input.continuityRestraint)
   return {
@@ -710,6 +760,18 @@ function resolveRuntimeProjectStateBodyLineHints(input: {
     preferredGazeMode:
       sanitizeRuntimeProjectStateGazeMode(input.preferredGazeMode)
       ?? defaultHints.preferredGazeMode,
+    preferredPauseMode:
+      sanitizeRuntimeProjectStatePauseMode(input.preferredPauseMode)
+      ?? defaultHints.preferredPauseMode,
+    preferredLipsyncMode:
+      sanitizeRuntimeProjectStateLipsyncMode(input.preferredLipsyncMode)
+      ?? defaultHints.preferredLipsyncMode,
+    preferredVoiceMode:
+      sanitizeRuntimeProjectStateVoiceMode(input.preferredVoiceMode)
+      ?? defaultHints.preferredVoiceMode,
+    preferredPacingMode:
+      sanitizeRuntimeProjectStatePacingMode(input.preferredPacingMode)
+      ?? defaultHints.preferredPacingMode,
   }
 }
 
@@ -1470,6 +1532,22 @@ function deriveDigestOnlyRuntimeSnapshot(input: {
       (runtime as { projectState?: { preferredGazeMode?: unknown } | null, currentConsciousFrame?: { projectState?: { preferredGazeMode?: unknown } | null } | null } | null)?.currentConsciousFrame?.projectState?.preferredGazeMode
       ?? (runtime as { projectState?: { preferredGazeMode?: unknown } | null } | null)?.projectState?.preferredGazeMode
       ?? null,
+    preferredPauseMode:
+      (runtime as { projectState?: { preferredPauseMode?: unknown } | null, currentConsciousFrame?: { projectState?: { preferredPauseMode?: unknown } | null } | null } | null)?.currentConsciousFrame?.projectState?.preferredPauseMode
+      ?? (runtime as { projectState?: { preferredPauseMode?: unknown } | null } | null)?.projectState?.preferredPauseMode
+      ?? null,
+    preferredLipsyncMode:
+      (runtime as { projectState?: { preferredLipsyncMode?: unknown } | null, currentConsciousFrame?: { projectState?: { preferredLipsyncMode?: unknown } | null } | null } | null)?.currentConsciousFrame?.projectState?.preferredLipsyncMode
+      ?? (runtime as { projectState?: { preferredLipsyncMode?: unknown } | null } | null)?.projectState?.preferredLipsyncMode
+      ?? null,
+    preferredVoiceMode:
+      (runtime as { projectState?: { preferredVoiceMode?: unknown } | null, currentConsciousFrame?: { projectState?: { preferredVoiceMode?: unknown } | null } | null } | null)?.currentConsciousFrame?.projectState?.preferredVoiceMode
+      ?? (runtime as { projectState?: { preferredVoiceMode?: unknown } | null } | null)?.projectState?.preferredVoiceMode
+      ?? null,
+    preferredPacingMode:
+      (runtime as { projectState?: { preferredPacingMode?: unknown } | null, currentConsciousFrame?: { projectState?: { preferredPacingMode?: unknown } | null } | null } | null)?.currentConsciousFrame?.projectState?.preferredPacingMode
+      ?? (runtime as { projectState?: { preferredPacingMode?: unknown } | null } | null)?.projectState?.preferredPacingMode
+      ?? null,
   })
   const canonicalSameHerSelfLine = buildRuntimeProjectStateSameHerSummary({
     canonicalSameHerSelfLine: projectStateBrief.sameHerSelfLine,
@@ -1493,13 +1571,8 @@ function deriveDigestOnlyRuntimeSnapshot(input: {
   })
   const shouldProactivelySpeak = proactive?.shouldSpeak === true
   const shouldProactivelyAct = false
-  const derivedMindStateBundleAffectiveResidue = digest?.memory?.derivedMindStateBundle?.affectiveResidue ?? null
-  const affectiveResidue = digest?.memory?.affectiveResidue ?? derivedMindStateBundleAffectiveResidue ?? null
-  const derivedMindStateBundle = derivedMindStateBundleAffectiveResidue
-    ? {
-        affectiveResidue: derivedMindStateBundleAffectiveResidue,
-      }
-    : null
+  const derivedMindStateBundle = digest?.memory?.derivedMindStateBundle ?? null
+  const affectiveResidue = digest?.memory?.affectiveResidue ?? derivedMindStateBundle?.affectiveResidue ?? null
 
   const channels: Record<AlicizationRuntimeChannelId, AlicizationRuntimeChannelSnapshot> = {
     'dialogue': {
@@ -1668,6 +1741,10 @@ function deriveDigestOnlyRuntimeSnapshot(input: {
       sameHerSelfLine: canonicalRuntimeProjectState.sameHerSelfLine ?? canonicalSameHerSelfLine ?? null,
       preferredBlinkCadence: projectStateBodyLineHints.preferredBlinkCadence,
       preferredGazeMode: projectStateBodyLineHints.preferredGazeMode,
+      preferredPauseMode: projectStateBodyLineHints.preferredPauseMode,
+      preferredLipsyncMode: projectStateBodyLineHints.preferredLipsyncMode,
+      preferredVoiceMode: projectStateBodyLineHints.preferredVoiceMode,
+      preferredPacingMode: projectStateBodyLineHints.preferredPacingMode,
       continuityRestraint,
       continuityArcStage,
       continuityPreferredTiming: continuityArcStage ? 'next-open-window' : null,
@@ -1783,15 +1860,10 @@ export function deriveAlicizationRuntimeSnapshot(input: {
   const continuityRestraint = sanitizeText(initiative?.continuityRestraint, 48) || null
   const emotionalClosureCue = deriveRuntimeEmotionalClosureCue(spine)
   const emotionalKernel = spine.runtimeSurface.memory?.emotionalKernel ?? null
-  const derivedMindStateBundleAffectiveResidue = spine.runtimeSurface.memory?.derivedMindStateBundle?.affectiveResidue ?? null
+  const derivedMindStateBundle = spine.runtimeSurface.memory?.derivedMindStateBundle ?? null
   const affectiveResidue = spine.runtimeSurface.memory?.affectiveResidue
-    ?? derivedMindStateBundleAffectiveResidue
+    ?? derivedMindStateBundle?.affectiveResidue
     ?? null
-  const derivedMindStateBundle = derivedMindStateBundleAffectiveResidue
-    ? {
-        affectiveResidue: derivedMindStateBundleAffectiveResidue,
-      }
-    : null
   const motiveEngine = spine.runtimeSurface.memory?.motiveEngine ?? null
   const habitPolicy = spine.runtimeSurface.agency?.habitPolicy ?? null
   const autonomyActioning = autonomyState?.selectedMode === 'prepare-act'
@@ -1886,6 +1958,10 @@ export function deriveAlicizationRuntimeSnapshot(input: {
         continuityCadence?: unknown
         preferredBlinkCadence?: unknown
         preferredGazeMode?: unknown
+        preferredPauseMode?: unknown
+        preferredLipsyncMode?: unknown
+        preferredVoiceMode?: unknown
+        preferredPacingMode?: unknown
       } | null
     } | null
   } | null)?.runtimeDigest?.projectState ?? null
@@ -1916,6 +1992,10 @@ export function deriveAlicizationRuntimeSnapshot(input: {
       continuityCadence?: unknown
       preferredBlinkCadence?: unknown
       preferredGazeMode?: unknown
+      preferredPauseMode?: unknown
+      preferredLipsyncMode?: unknown
+      preferredVoiceMode?: unknown
+      preferredPacingMode?: unknown
       emotionalClosureCue?: unknown
     } | null
   } | null)?.projectState ?? null
@@ -2082,6 +2162,34 @@ export function deriveAlicizationRuntimeSnapshot(input: {
         kind: 'same-her',
         maxChars: 32,
       }) ?? currentConsciousFrameProjectState?.preferredGazeMode ?? dialogueRuntimeDigestProjectState?.preferredGazeMode ?? null,
+    preferredPauseMode:
+      preferRicherOuterRuntimeProjectStateDetail({
+        current: currentConsciousFrameProjectState?.preferredPauseMode ?? null,
+        candidate: dialogueRuntimeDigestProjectState?.preferredPauseMode ?? null,
+        kind: 'same-her',
+        maxChars: 32,
+      }) ?? currentConsciousFrameProjectState?.preferredPauseMode ?? dialogueRuntimeDigestProjectState?.preferredPauseMode ?? null,
+    preferredLipsyncMode:
+      preferRicherOuterRuntimeProjectStateDetail({
+        current: currentConsciousFrameProjectState?.preferredLipsyncMode ?? null,
+        candidate: dialogueRuntimeDigestProjectState?.preferredLipsyncMode ?? null,
+        kind: 'same-her',
+        maxChars: 32,
+      }) ?? currentConsciousFrameProjectState?.preferredLipsyncMode ?? dialogueRuntimeDigestProjectState?.preferredLipsyncMode ?? null,
+    preferredVoiceMode:
+      preferRicherOuterRuntimeProjectStateDetail({
+        current: currentConsciousFrameProjectState?.preferredVoiceMode ?? null,
+        candidate: dialogueRuntimeDigestProjectState?.preferredVoiceMode ?? null,
+        kind: 'same-her',
+        maxChars: 32,
+      }) ?? currentConsciousFrameProjectState?.preferredVoiceMode ?? dialogueRuntimeDigestProjectState?.preferredVoiceMode ?? null,
+    preferredPacingMode:
+      preferRicherOuterRuntimeProjectStateDetail({
+        current: currentConsciousFrameProjectState?.preferredPacingMode ?? null,
+        candidate: dialogueRuntimeDigestProjectState?.preferredPacingMode ?? null,
+        kind: 'same-her',
+        maxChars: 32,
+      }) ?? currentConsciousFrameProjectState?.preferredPacingMode ?? dialogueRuntimeDigestProjectState?.preferredPacingMode ?? null,
   })
   const canonicalSameHerSelfLine = buildRuntimeProjectStateSameHerSummary({
     canonicalSameHerSelfLine: projectStateBrief.sameHerSelfLine,
@@ -2376,6 +2484,10 @@ export function deriveAlicizationRuntimeSnapshot(input: {
       || emotionalClosureCue,
     preferredBlinkCadence: projectStateBodyLineHints.preferredBlinkCadence,
     preferredGazeMode: projectStateBodyLineHints.preferredGazeMode,
+    preferredPauseMode: projectStateBodyLineHints.preferredPauseMode,
+    preferredLipsyncMode: projectStateBodyLineHints.preferredLipsyncMode,
+    preferredVoiceMode: projectStateBodyLineHints.preferredVoiceMode,
+    preferredPacingMode: projectStateBodyLineHints.preferredPacingMode,
     continuityRestraint,
     continuityArcStage: continuityArcStillInward || null,
     continuityPreferredTiming: promotedContinuityPreferredTiming,
@@ -2482,8 +2594,6 @@ export function deriveAlicizationRuntimeSnapshot(input: {
     shouldProactivelySpeak: governedShouldProactivelySpeak,
     shouldProactivelyAct: governedShouldProactivelyAct,
     continuityRestraint,
-    continuityArcStage: continuityArcStillInward || null,
-    continuityPreferredTiming: promotedContinuityPreferredTiming,
     continuityPressure,
     companionshipPressure,
     rulingMotive,
@@ -2616,11 +2726,7 @@ export function projectAlicizationRuntimeDigest(
         }
       : null,
     affectiveResidue: snapshot.affectiveResidue ?? null,
-    derivedMindStateBundle: snapshot.derivedMindStateBundle?.affectiveResidue
-      ? {
-          affectiveResidue: snapshot.derivedMindStateBundle.affectiveResidue,
-        }
-      : null,
+    derivedMindStateBundle: snapshot.derivedMindStateBundle ?? null,
     projectState: snapshot.projectState
       ? {
           preflightSummary: sanitizeText((snapshot.projectState as any).preflightSummary, 480) || null,
@@ -2647,6 +2753,10 @@ export function projectAlicizationRuntimeDigest(
           continuityCue: sanitizeText((snapshot.projectState as any).continuityCue, 220) || null,
           preferredBlinkCadence: snapshot.projectState.preferredBlinkCadence ?? null,
           preferredGazeMode: snapshot.projectState.preferredGazeMode ?? null,
+          preferredPauseMode: snapshot.projectState.preferredPauseMode ?? null,
+          preferredLipsyncMode: snapshot.projectState.preferredLipsyncMode ?? null,
+          preferredVoiceMode: snapshot.projectState.preferredVoiceMode ?? null,
+          preferredPacingMode: snapshot.projectState.preferredPacingMode ?? null,
         }
       : null,
     shouldProactivelySpeak: snapshot.shouldProactivelySpeak,

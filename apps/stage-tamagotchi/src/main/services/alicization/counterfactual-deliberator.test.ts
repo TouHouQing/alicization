@@ -669,4 +669,151 @@ describe('buildCounterfactualDeliberation', () => {
     expect(deliberation.options.find(option => option.id === 'counterfactual::hover')?.why)
       .toContain('记忆')
   })
+
+  it('demotes speak-first counterfactual options into lower-pressure repair-or-hover paths when Phase 1 digital-life closure is still open', () => {
+    const deliberation = buildCounterfactualDeliberation({
+      now: 42_000,
+      context: createContext({
+        relationship: {
+          ...createContext().relationship,
+          boredom: 54,
+          loneliness: 46,
+          fatigue: 18,
+        },
+      }),
+      worldModel: {
+        activeThread: {
+          id: 'thread-5',
+          kind: 'debugging',
+          status: 'active',
+          source: 'observed-scene',
+          title: 'life loop repair',
+          summary: 'The repair thread is concrete, but the opening should stay lower-pressure.',
+          confidence: 0.84,
+          significance: 0.8,
+          unresolved: true,
+          beganAt: 0,
+          lastUpdatedAt: 42_000,
+          target: null,
+        },
+        lingeringThreads: [],
+        focusTarget: null,
+        epistemicState: {
+          certainty: 'grounded',
+          freshness: 'live',
+          seenNow: ['typescript-error'],
+          inferredNow: [],
+          openQuestions: [],
+          staleRisks: [],
+        },
+        continuity: {
+          label: 'same-thread',
+          sceneAgeMs: 42_000,
+          attentionAgeMs: 42_000,
+          sameSceneAsBefore: true,
+          sameAttentionAsBefore: true,
+          afterglowOpen: false,
+        },
+        hostState: {
+          availability: 'open',
+          burden: 'moderate',
+        },
+        updatedAt: 42_000,
+      },
+      appraisal: {
+        inferredHostGoal: 'resolve-problem',
+        confidence: 0.84,
+        surprise: 0.08,
+        carePressure: 0.24,
+        interruptionCost: 0.16,
+        desireToSpeak: 0.8,
+        relationshipNeed: 'guidance',
+        currentKnot: 'typescript repair',
+        notes: ['grounded'],
+      },
+      subjectiveInference: {
+        dominantInterpretation: 'The problem is concrete enough to help, but the life loop still needs a steadier outward move.',
+        hostIntentCandidates: [{
+          goal: 'resolve-problem',
+          confidence: 0.82,
+          why: 'A concrete repair seam is visible.',
+        }],
+        relationshipNeedCandidates: [{
+          need: 'guidance',
+          confidence: 0.8,
+          why: 'Help fits better than distance, but not at the cost of continuity.',
+        }],
+        confidence: 0.82,
+        source: 'hybrid',
+        notes: ['project-life-loop'],
+        updatedAt: 42_000,
+      },
+      concerns: [{
+        id: 'help-fix',
+        kind: 'help-fix',
+        status: 'active',
+        summary: '她已经看见具体故障点，但生命闭环还不适合直接拉近。',
+        hostGoal: 'resolve-problem',
+        tension: 0.8,
+        confidence: 0.84,
+        careWeight: 0.68,
+        createdAt: 0,
+        lastEvidenceAt: 42_000,
+        patienceUntil: 60_000,
+      }],
+      selfState: {
+        stance: 'approach',
+        feltCloseness: 0.58,
+        protectiveness: 0.42,
+        curiosity: 0.72,
+        patience: 0.5,
+        desireToSpeak: 0.8,
+        fearOfInterrupting: 0.22,
+        dominantConcernId: 'help-fix',
+      },
+      relationshipModel: {
+        climate: 'attuned',
+        approachVector: 'guide',
+        receptivity: 0.74,
+        sharedAttentionTrust: 0.76,
+        correctionSensitivity: 0.22,
+        reciprocityExpectation: 0.6,
+        activeBoundaries: [],
+        narrative: [],
+        updatedAt: 42_000,
+      },
+      mindDynamics: createMindDynamics({
+        dominantMotive: 'clarify',
+        relationalPressure: 0.34,
+        carePressure: 0.22,
+        continuityPressure: 0.62,
+        restraintPressure: 0.28,
+        surfacePressure: 0.8,
+        speakReadiness: 0.78,
+        presenceWeight: 0.66,
+        motives: {
+          'clarify': 0.86,
+          'protect': 0.42,
+          'accompany': 0.26,
+          'care': 0.22,
+          'stay-silent': 0.18,
+        },
+        speakDrive: 0.82,
+        silenceDrive: 0.22,
+      }),
+      projectState: {
+        identity: 'Alicization is a local-first digital life project building one continuous her.',
+        currentPhase: 'Phase 1: Local Digital Life',
+        primaryOpenLoop: 'The initiative, memory closure, and embodied personhood loop is still not fully closed.',
+      },
+    } as any)
+
+    expect(['hover', 'recheck']).toContain(deliberation.selectedAction)
+    expect(deliberation.selectedOptionId).not.toBe('counterfactual::speak')
+    expect(deliberation.options.find(option => option.id === 'counterfactual::speak')?.score ?? 1)
+      .toBeLessThanOrEqual(Math.max(
+        deliberation.options.find(option => option.id === 'counterfactual::hover')?.score ?? 0,
+        deliberation.options.find(option => option.id === 'counterfactual::recheck')?.score ?? 0,
+      ))
+  })
 })

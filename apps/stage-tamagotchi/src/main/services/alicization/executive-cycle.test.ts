@@ -111,6 +111,86 @@ describe('buildExecutiveCycle', () => {
     expect(cycle.shouldAct).toBe(false)
   })
 
+  it('does not let a released temporary-noise reflection suppress a still-active reflecting phase', () => {
+    const cycle = buildExecutiveCycle({
+      now: 20_000,
+      worldModel: {
+        activeThread: {
+          id: 'thread::carry',
+          kind: 'change-review',
+          status: 'lingering',
+          source: 'continuity',
+          title: 'same-her repair carry',
+          summary: 'The same-her repair line is still carrying forward.',
+          confidence: 0.62,
+          significance: 0.7,
+          unresolved: true,
+          beganAt: 0,
+          lastUpdatedAt: 20_000,
+          target: null,
+        },
+        lingeringThreads: [],
+        focusTarget: null,
+        epistemicState: {
+          certainty: 'lingering',
+          freshness: 'stale',
+          seenNow: [],
+          inferredNow: [],
+          openQuestions: [],
+          staleRisks: [],
+        },
+        continuity: {
+          label: 'afterglow',
+          sceneAgeMs: 4_000,
+          attentionAgeMs: 4_000,
+          sameSceneAsBefore: true,
+          sameAttentionAsBefore: true,
+          afterglowOpen: true,
+        },
+        hostState: {
+          availability: 'open',
+          burden: 'moderate',
+        },
+        updatedAt: 20_000,
+      },
+      reflectionLedger: {
+        latestEntryId: 'reflection::temporary-noise',
+        entries: [
+          {
+            id: 'reflection::temporary-noise',
+            summary: 'A temporary anxious wobble was already released.',
+            expectation: 'Released noise should not keep steering the executive cycle.',
+            observedOutcome: 'The wobble has already been let go.',
+            outcome: 'released',
+            revision: 'Do not reopen from the temporary wobble.',
+            confidenceShift: 0.04,
+            createdAt: 19_500,
+          },
+          {
+            id: 'reflection::missed',
+            targetProjectId: 'project::repair',
+            summary: 'Same-her repair still needs another pass.',
+            expectation: 'Repair should reduce truth risk.',
+            observedOutcome: 'Truth risk is still high.',
+            outcome: 'missed',
+            revision: 'Keep the same-her repair line active before fluency.',
+            confidenceShift: -0.1,
+            createdAt: 19_000,
+          },
+        ],
+        revisionPressure: 0.22,
+        narrative: [],
+        updatedAt: 20_000,
+      },
+    })
+
+    expect(cycle.phase).toBe('reflecting')
+    expect(cycle.shouldReflect).toBe(true)
+    expect(cycle.activeReflectionId).toBe('reflection::missed')
+    expect(cycle.currentLine).toContain('same-her repair line active')
+    expect(cycle.currentLine).not.toContain('temporary wobble')
+  })
+
   it('enters acting when a grounded project is ready to surface', () => {
     const cycle = buildExecutiveCycle({
       now: 30_000,

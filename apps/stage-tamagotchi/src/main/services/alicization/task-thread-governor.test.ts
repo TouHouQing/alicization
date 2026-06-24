@@ -101,6 +101,102 @@ describe('task-thread governor', () => {
     ])
   })
 
+  it('persists proactive task origin into task-thread metadata so downstream execution ownership can survive non-subconscious turn ids', () => {
+    const draft = buildTaskThreadPlanningDraft({
+      threadId: 'thread-proactive-metadata-1',
+      now: 1_710_000_000_001,
+      trace: {
+        decisionTraceId: 'mind:trace:proactive-metadata',
+        turnId: 'autonomy-task:callback-1',
+        sessionId: 'session-proactive-metadata-1',
+        origin: 'subconscious-proactive',
+      },
+      task: {
+        kind: 'codebase-edit',
+        goal: 'Keep execution-result feedback on the same proactive line.',
+        origin: 'proactive',
+        effect: 'mutate',
+      },
+      capabilities: createCapabilities(['codex', 'cli']),
+    })
+
+    expect(draft.thread).toEqual(expect.objectContaining({
+      id: 'thread-proactive-metadata-1',
+      turnId: 'autonomy-task:callback-1',
+      origin: 'subconscious-proactive',
+      metadata: expect.objectContaining({
+        task: expect.objectContaining({
+          origin: 'proactive',
+        }),
+      }),
+    }))
+  })
+
+  it('rejects origin-only proactive trace shells when planning task threads without subconscious turn-id ownership', () => {
+    const draft = buildTaskThreadPlanningDraft({
+      threadId: 'thread-proactive-trace-1',
+      now: 1_710_000_000_005,
+      trace: {
+        decisionTraceId: 'mind:trace:proactive',
+        turnId: 'turn-proactive-trace-1',
+        sessionId: 'session-proactive-trace-1',
+        origin: ' SubConscious-Proactive ' as any,
+      },
+      task: {
+        kind: 'codebase-edit',
+        goal: 'Keep the same proactive execution line alive.',
+        origin: 'user',
+        effect: 'mutate',
+      },
+      capabilities: createCapabilities(['codex', 'cli']),
+    })
+
+    expect(draft.thread).toEqual(expect.objectContaining({
+      id: 'thread-proactive-trace-1',
+      origin: 'user-turn',
+    }))
+    expect(draft.events).toEqual([
+      expect.objectContaining({
+        threadId: 'thread-proactive-trace-1',
+        origin: 'user-turn',
+        kind: 'plan',
+      }),
+    ])
+  })
+
+  it('preserves origin-lost autonomous trace ownership when the planning turn id still carries subconscious family markers', () => {
+    const draft = buildTaskThreadPlanningDraft({
+      threadId: 'thread-proactive-trace-originless-1',
+      now: 1_710_000_000_006,
+      trace: {
+        decisionTraceId: 'mind:trace:proactive-originless',
+        turnId: 'subconscious:turn-proactive-trace-originless-1',
+        sessionId: 'session-proactive-trace-originless-1',
+      } as any,
+      task: {
+        kind: 'codebase-edit',
+        goal: 'Keep the same proactive execution line alive even when origin thins out.',
+        origin: 'user',
+        effect: 'mutate',
+      },
+      capabilities: createCapabilities(['codex', 'cli']),
+    })
+
+    expect(draft.thread).toEqual(expect.objectContaining({
+      id: 'thread-proactive-trace-originless-1',
+      turnId: 'subconscious:turn-proactive-trace-originless-1',
+      origin: 'subconscious-proactive',
+    }))
+    expect(draft.events).toEqual([
+      expect.objectContaining({
+        threadId: 'thread-proactive-trace-originless-1',
+        turnId: 'subconscious:turn-proactive-trace-originless-1',
+        origin: 'subconscious-proactive',
+        kind: 'plan',
+      }),
+    ])
+  })
+
   it('keeps channel experience hints in metadata and uses them for route choice', () => {
     const draft = buildTaskThreadPlanningDraft({
       threadId: 'thread-experience-1',
@@ -186,6 +282,144 @@ describe('task-thread governor', () => {
             id: 'procedural:runtime-seam',
           }),
         ]),
+      }),
+    }))
+  })
+
+  it('persists project briefing into execution runtime context when planning first-dispatch task threads', () => {
+    const draft = buildTaskThreadPlanningDraft({
+      threadId: 'thread-project-briefing-1',
+      now: 1_710_000_000_020,
+      trace: {
+        decisionTraceId: 'mind:trace:project-briefing',
+        turnId: 'turn-project-briefing-1',
+        sessionId: 'session-project-briefing-1',
+        origin: 'user-turn',
+      },
+      task: {
+        kind: 'codebase-edit',
+        goal: 'Patch the execution preflight project carry.',
+        origin: 'user',
+        effect: 'mutate',
+        prefersPersistentSession: true,
+      },
+      capabilities: createCapabilities(['codex', 'cli']),
+      experience: {
+        projectBriefing: {
+          identity: 'Alicization is a local-first digital life project growing one continuous her on the host computer.',
+          currentPhase: 'Phase 1: Local Digital Life.',
+          latestLandedProgress: 'First-dispatch execution planning already keeps live project progress in the runtime context.',
+          primaryOpenLoop: 'Execution still needs first-dispatch project briefing persistence before resume and feedback can stay continuous.',
+          nextClosureTarget: 'Keep first-dispatch execution, resume, and feedback on one same-her Phase 1 line.',
+          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+          sameHerDriftRisk: 'If first-dispatch project briefing only appears in routing prose, treat that as execution continuity drift.',
+          proactiveSameHerGap: 'First-dispatch planning still needs stronger proof that proactive carry survives into execution runtime context instead of collapsing into generic routing guidance.',
+          preflightSummary: 'Alicization execution planning still belongs to the same Phase 1 life loop.',
+          preDialogueAwarenessLine: 'Before dispatch, remember this is still the same local-first digital life project.',
+        },
+      },
+    })
+
+    expect(draft.thread.metadata).toEqual(expect.objectContaining({
+      fabric: expect.objectContaining({
+        experience: expect.objectContaining({
+          projectBriefing: expect.objectContaining({
+            latestLandedProgress: 'First-dispatch execution planning already keeps live project progress in the runtime context.',
+            primaryOpenLoop: 'Execution still needs first-dispatch project briefing persistence before resume and feedback can stay continuous.',
+          }),
+        }),
+      }),
+      execution: expect.objectContaining({
+        runtimeContext: expect.objectContaining({
+          projectBriefing: expect.objectContaining({
+            latestLandedProgress: 'First-dispatch execution planning already keeps live project progress in the runtime context.',
+            primaryOpenLoop: 'Execution still needs first-dispatch project briefing persistence before resume and feedback can stay continuous.',
+            sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+            proactiveSameHerGap: 'First-dispatch planning still needs stronger proof that proactive carry survives into execution runtime context instead of collapsing into generic routing guidance.',
+          }),
+        }),
+      }),
+    }))
+    expect(draft.events[0]?.payload).toEqual(expect.objectContaining({
+      experience: expect.objectContaining({
+        projectBriefing: expect.objectContaining({
+          latestLandedProgress: 'First-dispatch execution planning already keeps live project progress in the runtime context.',
+        }),
+      }),
+    }))
+  })
+
+  it('hydrates alias-only project briefing closure summaries into first-dispatch execution runtime context metadata', () => {
+    const aliasLandedProgress = 'Alias landed progress keeps first-dispatch planning aware of what already landed before execution starts.'
+    const aliasOpenClosure = 'Alias open closure keeps the still-open Phase 1 seam explicit before the first execution turn leaves planning.'
+    const aliasNextClosure = 'Alias next closure keeps execution, feedback, and return on one same-her Phase 1 line.'
+    const aliasDriftRisk = 'Alias drift risk: if planning loses these closure summaries before dispatch, execution can flatten into generic routing prose.'
+
+    const draft = buildTaskThreadPlanningDraft({
+      threadId: 'thread-project-briefing-alias-1',
+      now: 1_710_000_000_021,
+      trace: {
+        decisionTraceId: 'mind:trace:project-briefing-alias',
+        turnId: 'turn-project-briefing-alias-1',
+        sessionId: 'session-project-briefing-alias-1',
+        origin: 'user-turn',
+      },
+      task: {
+        kind: 'codebase-edit',
+        goal: 'Keep alias-only project closure state alive before first dispatch.',
+        origin: 'user',
+        effect: 'mutate',
+        prefersPersistentSession: true,
+      },
+      capabilities: createCapabilities(['codex', 'cli']),
+      experience: {
+        projectBriefing: {
+          identity: 'Alicization is a local-first digital life project growing one continuous her on the host computer.',
+          currentPhase: 'Phase 1: Local Digital Life.',
+          latestLandedProgress: ' ',
+          primaryOpenLoop: '',
+          nextClosureTarget: ' ',
+          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+          sameHerDriftRisk: '',
+          landedProgressSummary: aliasLandedProgress,
+          openClosureSummary: aliasOpenClosure,
+          nextClosureTargetSummary: aliasNextClosure,
+          sameHerDriftRiskSummary: aliasDriftRisk,
+          preDialogueAwarenessLine: 'Before dispatch, remember this is still the same local-first digital life project.',
+        } as any,
+      },
+    })
+
+    expect(draft.thread.metadata).toEqual(expect.objectContaining({
+      fabric: expect.objectContaining({
+        experience: expect.objectContaining({
+          projectBriefing: expect.objectContaining({
+            latestLandedProgress: aliasLandedProgress,
+            primaryOpenLoop: aliasOpenClosure,
+            nextClosureTarget: aliasNextClosure,
+            sameHerDriftRisk: aliasDriftRisk,
+          }),
+        }),
+      }),
+      execution: expect.objectContaining({
+        runtimeContext: expect.objectContaining({
+          projectBriefing: expect.objectContaining({
+            latestLandedProgress: aliasLandedProgress,
+            primaryOpenLoop: aliasOpenClosure,
+            nextClosureTarget: aliasNextClosure,
+            sameHerDriftRisk: aliasDriftRisk,
+          }),
+        }),
+      }),
+    }))
+    expect(draft.events[0]?.payload).toEqual(expect.objectContaining({
+      experience: expect.objectContaining({
+        projectBriefing: expect.objectContaining({
+          latestLandedProgress: aliasLandedProgress,
+          primaryOpenLoop: aliasOpenClosure,
+          nextClosureTarget: aliasNextClosure,
+          sameHerDriftRisk: aliasDriftRisk,
+        }),
       }),
     }))
   })

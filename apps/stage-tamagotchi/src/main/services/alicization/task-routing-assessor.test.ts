@@ -105,6 +105,42 @@ describe('assessAlicizationTaskRouting', () => {
     })
   })
 
+  it('prefers browser routing for visually grounded unknown webpage tasks before cli or openclaw', () => {
+    const result = assessAlicizationTaskRouting({
+      task: createTask({
+        kind: 'unknown',
+        goal: 'Figure out the next step on the current webpage and keep the flow moving.',
+        requiresVisualGrounding: true,
+      }),
+      capabilities: createCapabilities(['cli', 'browser', 'openclaw']),
+      activeThreads: [],
+      settledThreads: [],
+    })
+
+    expect(result).toMatchObject({
+      channel: 'browser',
+    })
+    expect(result?.reason).toContain('visual-grounding')
+  })
+
+  it('prefers desktop routing for visually grounded unknown screen tasks before cli or openclaw', () => {
+    const result = assessAlicizationTaskRouting({
+      task: createTask({
+        kind: 'unknown',
+        goal: 'Figure out what is on the current screen and decide the next GUI step.',
+        requiresVisualGrounding: true,
+      }),
+      capabilities: createCapabilities(['cli', 'desktop', 'openclaw']),
+      activeThreads: [],
+      settledThreads: [],
+    })
+
+    expect(result).toMatchObject({
+      channel: 'desktop',
+    })
+    expect(result?.reason).toContain('visual-grounding')
+  })
+
   it('returns null when no channel is ready', () => {
     const result = assessAlicizationTaskRouting({
       task: createTask({

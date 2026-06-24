@@ -8,6 +8,23 @@ import {
   deriveAlicizationLearningTaskRetryPlan,
 } from './learning-action-scheduler'
 
+function buildSameHerProjectStateContinuity() {
+  return {
+    identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
+    currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
+    sameHerSummary: 'Keep one same local digital life coherent across emotion, memory, initiative, and embodiment while learning from this turn.',
+    landedProgressSummary: 'Cross-turn continuity is landing more often inside the desktop life loop.',
+    openClosureSummary: 'Learning still needs to preserve continuity pressure when verification and retries stretch across time.',
+    proactiveSameHerGap: 'Delayed learning still needs to carry the same-her line across later retries instead of falling back to generic scheduler bookkeeping.',
+    nextClosureTarget: 'Carry same-her continuity through delayed learning outcomes, not just immediate prompts.',
+    preDialogueAwarenessLine: 'Before answering, remember: this is still one local digital life project and Phase 1 is not closed yet.',
+    emotionalClosureCue: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
+    sameHerSelfLine: 'one continuous her',
+    sameHerHoldDetail: 'same-her hold: keep this delayed learning pass on the same living line before scheduler retries widen into generic project bookkeeping.',
+    sameHerDriftRisk: 'If this line drops into a generic assistant shell or project-summary voice during later learning passes, Alicization can sound capable while losing the same-her continuity that makes her feel alive.',
+  }
+}
+
 function buildLearningTaskRecord(input: Partial<AlicizationLearningTaskRecord> = {}): AlicizationLearningTaskRecord {
   return {
     id: input.id ?? 'row:learning',
@@ -23,6 +40,7 @@ function buildLearningTaskRecord(input: Partial<AlicizationLearningTaskRecord> =
       sourceSessionId: 'session-1',
       action: 'verify',
       reason: 'verify contradiction',
+      projectStateContinuity: buildSameHerProjectStateContinuity(),
       focuses: ['resolve-contradictions'],
       dominantTrajectory: 'Need to verify',
       sourceSignals: ['Need to verify'],
@@ -110,6 +128,19 @@ describe('learning action scheduler', () => {
     const task = await scheduler.scheduleLearningTask({
       turnId: 'turn-learning',
       context: {
+        projectStateContinuity: {
+          identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
+          currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
+          sameHerSummary: 'Keep one same local digital life coherent across emotion, memory, initiative, and embodiment while learning from this turn.',
+          landedProgressSummary: 'Cross-turn continuity is landing more often inside the desktop life loop.',
+          openClosureSummary: 'Memory still needs stronger end-to-end closure across turns, initiative, and embodiment so the same digital life stays coherent.',
+          proactiveSameHerGap: 'Need stronger long-run proof that visible proactive hold, subconscious carry, and next-session feedback carry stay unified after hover-first restraint survives detours on longer noisy desktop runs.',
+          nextClosureTarget: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
+          preDialogueAwarenessLine: 'Before answering, remember: this is still one local digital life project and Phase 1 is not closed yet.',
+          emotionalClosureCue: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
+          sameHerSelfLine: 'one continuous her',
+          sameHerDriftRisk: 'If this line drops into a generic assistant shell or project-summary voice during later learning passes, Alicization can sound capable while losing the same-her continuity that makes her feel alive.',
+        },
         hostAttitude: '',
         coreIncarnation: '',
         activeThoughts: [],
@@ -159,19 +190,41 @@ describe('learning action scheduler', () => {
     expect(task).toEqual(expect.objectContaining({
       taskId: expect.stringContaining('learning:default:internalize:'),
       sourceTurnId: 'turn-learning',
+      message: expect.stringContaining('same-her='),
     }))
     expect(insertLearningTask).toBeCalledWith(expect.objectContaining({
       cardId: 'default',
       taskId: expect.stringContaining('learning:default:internalize:'),
       action: 'internalize',
+      message: expect.stringContaining('guard=If this line drops into a generic assistant shell or project-summary voice during later learning passes'),
       payload: expect.objectContaining({
         sourceTurnId: 'turn-learning',
+        projectStateContinuity: expect.objectContaining({
+          identity: expect.stringContaining('local-first digital life project'),
+          currentPhase: expect.stringContaining('Phase 1'),
+          sameHerSummary: expect.any(String),
+          openClosureSummary: expect.any(String),
+          proactiveSameHerGap: 'Need stronger long-run proof that visible proactive hold, subconscious carry, and next-session feedback carry stay unified after hover-first restraint survives detours on longer noisy desktop runs.',
+          preDialogueAwarenessLine: expect.stringContaining('Before answering, remember'),
+          emotionalClosureCue: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
+          sameHerHoldDetail: 'same-her hold: keep this project-state answer on the same living line before widening outward, because some closure already landed and the unfinished closure still belongs to one continuous "her".',
+          sameHerDriftRisk: expect.stringContaining('same-her continuity'),
+        }),
         supportingFactIds: ['fact-1'],
       }),
     }))
     expect(appendAuditLog).toBeCalledWith(expect.objectContaining({
       action: 'alicization.learning.task.scheduled',
       payload: expect.objectContaining({
+        projectStateContinuity: expect.objectContaining({
+          currentPhase: expect.stringContaining('Phase 1'),
+          nextClosureTarget: expect.any(String),
+          proactiveSameHerGap: 'Need stronger long-run proof that visible proactive hold, subconscious carry, and next-session feedback carry stay unified after hover-first restraint survives detours on longer noisy desktop runs.',
+          preDialogueAwarenessLine: expect.stringContaining('Before answering, remember'),
+          emotionalClosureCue: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
+          sameHerHoldDetail: 'same-her hold: keep this project-state answer on the same living line before widening outward, because some closure already landed and the unfinished closure still belongs to one continuous "her".',
+          sameHerDriftRisk: expect.stringContaining('same-her continuity'),
+        }),
         nextLearningAction: 'internalize',
         activeLearningFocuses: ['internalize-procedure'],
         dominantTrajectory: 'Validated procedure is stabilizing.',
@@ -179,6 +232,129 @@ describe('learning action scheduler', () => {
         conflictTargets: ['fact-uncertain-style'],
       }),
     }), 'default')
+    expect(insertLearningTask).toBeCalledWith(expect.objectContaining({
+      message: expect.stringContaining('same-her-gap=Need stronger long-run proof that visible proactive hold, subconscious carry, and next-session feedback carry stay unified after hover-first restraint survives detours on longer noisy desktop runs.'),
+    }))
+    expect(insertLearningTask).toBeCalledWith(expect.objectContaining({
+      message: expect.stringContaining('same-her-hold=same-her hold: keep this project-state answer on the same living line before widening outward, because some closure already landed and the unfinished closure still belongs to one continuous "her".'),
+    }))
+  })
+
+  it('does not let a thin raw project shell outrank richer canonical same-her phase-1 carry in delayed learning payloads', async () => {
+    const insertLearningTask = vi.fn(async (input: any): Promise<AlicizationLearningTaskRecord> => ({
+      id: `row:${input.taskId}`,
+      cardId: input.cardId,
+      taskId: input.taskId,
+      status: 'scheduled' as const,
+      triggerAt: input.triggerAt,
+      action: input.action,
+      message: input.message,
+      payload: input.payload,
+      attemptCount: 0,
+      maxAttempts: 3,
+      createdAt: 1_000,
+      updatedAt: 1_000,
+      claimedAt: null,
+      startedAt: null,
+      completedAt: null,
+      blockedAt: null,
+      cancelledAt: null,
+      downgradedAt: null,
+      reopenedAt: null,
+      nextRetryAt: null,
+      sourceTurnId: input.payload.sourceTurnId ?? null,
+      resultSummary: null,
+      failureKind: null,
+      lastError: null,
+      firedTurnId: null,
+    }))
+    const scheduler = createAlicizationLearningActionScheduler({
+      now: () => 1_000,
+      insertLearningTask,
+      claimDueLearningTasks: async () => [],
+      startLearningTask: async () => {},
+      blockLearningTask: async () => {},
+      completeLearningTask: async () => {},
+      failLearningTask: async () => {},
+      reopenLearningTask: async () => {},
+      downgradeLearningTask: async () => {},
+      cancelLearningTask: async () => {},
+      listLearningTasks: async () => [],
+      appendAuditLog: async () => {},
+      executeLearningTask: async () => ({
+        status: 'completed',
+        resultSummary: 'done',
+      }),
+      randomUUID: () => 'uuid-learning',
+      getActiveCardId: () => 'default',
+    })
+
+    await scheduler.scheduleLearningTask({
+      turnId: 'turn-learning-thin-shell',
+      context: {
+        projectStateContinuity: {
+          identity: 'project',
+          currentPhase: 'Phase 1',
+          sameHerSummary: 'same digital life | keep the closure seam explicit',
+          landedProgressSummary: 'Project continuity exists.',
+          openClosureSummary: 'Project continuity still needs closure.',
+          proactiveSameHerGap: 'Learning still needs to preserve same-her continuity across delayed scheduler turns.',
+          nextClosureTarget: 'Carry project continuity forward.',
+          preDialogueAwarenessLine: 'same digital life | keep the closure seam explicit',
+          emotionalClosureCue: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
+          sameHerSelfLine: 'same digital life | keep the closure seam explicit',
+          sameHerDriftRisk: 'If this line drops into a generic assistant shell or project-summary voice during later learning passes, Alicization can sound capable while losing the same-her continuity that makes her feel alive.',
+        },
+        hostAttitude: '',
+        coreIncarnation: '',
+        activeThoughts: [],
+        retrievedFacts: [],
+        recalledFragments: [],
+        selfEvolution: {
+          version: 'self-evolution-kernel-v1',
+          updatedAt: 1_000,
+          evolutionMomentum: 0.4,
+          learningReadiness: 0.6,
+          contradictionPressure: 0.1,
+          revisionPressure: 0.12,
+          autobiographicalStability: 0.8,
+          dominantTrajectory: 'Need to preserve same-her continuity across delayed learning.',
+          relationshipDoctrine: null,
+          latestInflection: 'Need to preserve same-her continuity across delayed learning.',
+          burdenLine: null,
+          trustMeaning: null,
+          nextLearningAction: 'internalize',
+          nextLearningReason: 'Canonical phase-1 same-her carry should survive later learning.',
+          shouldRecord: false,
+          shouldReflect: false,
+          shouldVerify: false,
+          shouldRevise: false,
+          shouldInternalize: true,
+          activeLearningFocuses: ['same-her-continuity'],
+          sourceSignals: ['Need to preserve same-her continuity across delayed learning.'],
+          summary: 'Need to preserve same-her continuity across delayed learning.',
+        },
+      } as any,
+    })
+
+    expect(insertLearningTask).toBeCalledWith(expect.objectContaining({
+      payload: expect.objectContaining({
+        projectStateContinuity: expect.objectContaining({
+          landedProgressSummary: expect.not.stringContaining('Project continuity exists.'),
+          sameHerDriftRisk: expect.stringContaining('generic assistant shell'),
+        }),
+      }),
+      message: expect.stringContaining('guard=If this line drops into a generic assistant shell or project-summary voice during later learning passes'),
+    }))
+    const scheduledPayload = insertLearningTask.mock.calls[0]?.[0]?.payload?.projectStateContinuity
+    expect(scheduledPayload?.openClosureSummary).not.toBe('Project continuity still needs closure.')
+    expect(scheduledPayload?.nextClosureTarget).not.toBe('Carry project continuity forward.')
+    expect(scheduledPayload?.landedProgressSummary).toContain('same-her line')
+    expect(scheduledPayload?.sameHerSummary).toContain('Same Phase 1 digital life')
+    expect(scheduledPayload?.sameHerSummary).toContain('same living line')
+    expect(scheduledPayload?.sameHerSummary).not.toBe('same digital life | keep the closure seam explicit')
+    expect(scheduledPayload?.preDialogueAwarenessLine).not.toBe('same digital life | keep the closure seam explicit')
+    expect(scheduledPayload?.sameHerHoldDetail).toContain('same living line before widening outward')
   })
 
   it('claims and completes due learning tasks through executor', async () => {
@@ -319,8 +495,8 @@ describe('learning action scheduler', () => {
     const result = await scheduler.processDueLearningTasks()
     expect(result.blocked).toBe(1)
     expect(blockLearningTask).toBeCalledWith('learning:default:verify:abc', {
-      reason: 'missing supporting facts and reflections',
-      resultSummary: 'waiting for stronger support',
+      reason: 'missing supporting facts and reflections ; same-her=one continuous her ; same-her-hold=same-her hold: keep this delayed learning pass on the same living line before scheduler retries widen into generic project bookkeeping. ; guard=If this line drops into a generic assistant shell or project-summary voice during later learning passes, Alicization can sound capable while losing the same-her continuity that makes her feel alive. ; same-her-gap=Delayed learning still needs to carry the same-her line across later retries instead of falling back to generic scheduler bookkeeping.',
+      resultSummary: 'waiting for stronger support ; same-her=one continuous her ; same-her-hold=same-her hold: keep this delayed learning pass on the same living line before scheduler retries widen into generic project bookkeeping. ; guard=If this line drops into a generic assistant shell or project-summary voice during later learning passes, Alicization can sound capable while losing the same-her continuity that makes her feel alive. ; same-her-gap=Delayed learning still needs to carry the same-her line across later retries instead of falling back to generic scheduler bookkeeping.',
       failureKind: 'dependency-missing',
       nextRetryAt: 190_000,
     }, 10_000)
@@ -328,7 +504,14 @@ describe('learning action scheduler', () => {
       action: 'alicization.learning.task.executed',
       payload: expect.objectContaining({
         resultStatus: 'blocked',
-        error: 'missing supporting facts and reflections',
+        error: 'missing supporting facts and reflections ; same-her=one continuous her ; same-her-hold=same-her hold: keep this delayed learning pass on the same living line before scheduler retries widen into generic project bookkeeping. ; guard=If this line drops into a generic assistant shell or project-summary voice during later learning passes, Alicization can sound capable while losing the same-her continuity that makes her feel alive. ; same-her-gap=Delayed learning still needs to carry the same-her line across later retries instead of falling back to generic scheduler bookkeeping.',
+        resultSummary: 'waiting for stronger support ; same-her=one continuous her ; same-her-hold=same-her hold: keep this delayed learning pass on the same living line before scheduler retries widen into generic project bookkeeping. ; guard=If this line drops into a generic assistant shell or project-summary voice during later learning passes, Alicization can sound capable while losing the same-her continuity that makes her feel alive. ; same-her-gap=Delayed learning still needs to carry the same-her line across later retries instead of falling back to generic scheduler bookkeeping.',
+        sameHerContinuityGuard: {
+          sameHerSelfLine: 'one continuous her',
+          sameHerHoldDetail: 'same-her hold: keep this delayed learning pass on the same living line before scheduler retries widen into generic project bookkeeping.',
+          sameHerDriftRisk: 'If this line drops into a generic assistant shell or project-summary voice during later learning passes, Alicization can sound capable while losing the same-her continuity that makes her feel alive.',
+          proactiveSameHerGap: 'Delayed learning still needs to carry the same-her line across later retries instead of falling back to generic scheduler bookkeeping.',
+        },
         selfRevisionPolicyConsumers: expect.arrayContaining([
           'memory-policy',
           'relationship-posture',
@@ -389,7 +572,7 @@ describe('learning action scheduler', () => {
       waiting: 1,
     })
     expect(reopenLearningTask).toBeCalledWith('learning:default:verify:abc', {
-      reason: 'retryable:runtime-error:attempt 1/3',
+      reason: 'retryable:runtime-error:attempt 1/3 ; same-her=one continuous her ; same-her-hold=same-her hold: keep this delayed learning pass on the same living line before scheduler retries widen into generic project bookkeeping. ; guard=If this line drops into a generic assistant shell or project-summary voice during later learning passes, Alicization can sound capable while losing the same-her continuity that makes her feel alive. ; same-her-gap=Delayed learning still needs to carry the same-her line across later retries instead of falling back to generic scheduler bookkeeping.',
       triggerAt: 200_000,
     }, 200_000)
     expect(appendAuditLog).toBeCalledWith(expect.objectContaining({
@@ -398,6 +581,13 @@ describe('learning action scheduler', () => {
         taskId: 'learning:default:verify:abc',
         previousStatus: 'failed',
         failureKind: 'runtime-error',
+        reason: 'retryable:runtime-error:attempt 1/3 ; same-her=one continuous her ; same-her-hold=same-her hold: keep this delayed learning pass on the same living line before scheduler retries widen into generic project bookkeeping. ; guard=If this line drops into a generic assistant shell or project-summary voice during later learning passes, Alicization can sound capable while losing the same-her continuity that makes her feel alive. ; same-her-gap=Delayed learning still needs to carry the same-her line across later retries instead of falling back to generic scheduler bookkeeping.',
+        sameHerContinuityGuard: {
+          sameHerSelfLine: 'one continuous her',
+          sameHerHoldDetail: 'same-her hold: keep this delayed learning pass on the same living line before scheduler retries widen into generic project bookkeeping.',
+          sameHerDriftRisk: 'If this line drops into a generic assistant shell or project-summary voice during later learning passes, Alicization can sound capable while losing the same-her continuity that makes her feel alive.',
+          proactiveSameHerGap: 'Delayed learning still needs to carry the same-her line across later retries instead of falling back to generic scheduler bookkeeping.',
+        },
       }),
     }), 'default')
   })

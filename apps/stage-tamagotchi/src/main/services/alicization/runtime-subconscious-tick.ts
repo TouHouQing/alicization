@@ -1,5 +1,3 @@
-import type { AlicizationMemoryRecollectionIntentSnapshot } from '../../../shared/eventa'
-
 import { readRecollectionIntentFromDerivedMindStateBundle } from '@proj-alicization/stage-shared'
 
 import { derivePostPolicyQuietHoldRuntimeSnapshot } from './alicization-runtime-architecture'
@@ -1414,7 +1412,7 @@ export function rebuildPresenceOnlyPersistedEmotionalKernel(input: {
     personStateProjection: (input.personStateProjection ?? null) as PresenceOnlyPersistedEmotionalKernelInput['personStateProjection'],
     recollectionIntent: readRecollectionIntentFromDerivedMindStateBundle(
       asDerivedMindStateBundleLike(input.derivedMindStateBundle ?? null),
-    ) as AlicizationMemoryRecollectionIntentSnapshot | null,
+    ),
     selfEvolution: input.selfEvolution ?? null,
     projectState: input.projectState ?? null,
   })
@@ -1511,7 +1509,6 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
     listHumanlikeMemoryRecallEvents,
     getOrganicMemorySnapshot,
     resolveOrganicMemoryPromptContext,
-    generatePresenceExpression,
     generateProactiveStructuredWithGateway,
     buildProactiveStructured,
     getPerformanceManifest,
@@ -1532,6 +1529,7 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
     persistProactiveLoopState,
     persistSubconsciousState,
     getActiveSelfRevisionStatePatch,
+    generatePresenceExpression,
   } = options as any
   const projectStateBrief = resolveAlicizationProjectStateBrief()
   const projectStateSnapshot = resolveAlicizationProjectStateSnapshot({
@@ -2074,6 +2072,18 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
               message: string
               sourceTurnId?: string
             }) => await scheduleAutonomyReminder(activeCardId, payload),
+            buildExecutionRuntimeContext: async ({
+              cardId,
+              decisionTraceId,
+              sessionId,
+              turnId,
+            }) => await backgroundAgentTurn.buildExecutionRuntimeContext({
+              cardId,
+              decisionTraceId,
+              sessionId,
+              turnId,
+              sensorySnapshot,
+            }),
             planTaskThread: async (payload: any) => await planAutonomyTaskThread(activeCardId, payload),
             dispatchTaskThread: async (payload: any) => await dispatchAutonomyTaskThread(payload),
           })
@@ -2942,24 +2952,27 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
               },
               activeConversation: false,
             })
-            const presenceExpression = await buildAlicizationPresenceExpression({
-              now,
-              trigger: 'presence-only-hold',
-              previousState: persistedPresenceState,
-              state: nextPresenceStateWithBodyAuthority,
-              generate: generatePresenceExpression,
-            })
-            const nextPresenceStateWithExpression = presenceExpression
-              ? {
+            let nextPresenceStateToPersist = nextPresenceStateWithBodyAuthority
+            try {
+              const presenceExpression = await buildAlicizationPresenceExpression({
+                trigger: 'presence-only-hold',
+                previousState: persistedPresenceState,
+                state: nextPresenceStateWithBodyAuthority,
+                now,
+                generate: generatePresenceExpression,
+              })
+              if (presenceExpression) {
+                nextPresenceStateToPersist = {
                   ...nextPresenceStateWithBodyAuthority,
                   presenceExpression,
                 }
-              : {
-                  ...nextPresenceStateWithBodyAuthority,
-                  presenceExpression: null,
-                }
-            await persistVisualPresenceState(activeCardId, nextPresenceStateWithExpression)
-            visualPresenceState = nextPresenceStateWithExpression
+              }
+            }
+            catch {
+              nextPresenceStateToPersist = nextPresenceStateWithBodyAuthority
+            }
+            await persistVisualPresenceState(activeCardId, nextPresenceStateToPersist)
+            visualPresenceState = nextPresenceStateToPersist
           }
           catch (error) {
             await appendAuditLog({

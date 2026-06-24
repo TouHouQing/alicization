@@ -38,6 +38,12 @@ const validHostGoals = new Set<AlicizationHostGoalHypothesis>([
   'rest',
   'chat',
   'browse',
+  'stay-connected',
+  'continue-thread',
+  'keep-going',
+  'finish-one-more-step',
+  'resume-work',
+  'continue-phase-1-line',
   'unknown',
 ])
 

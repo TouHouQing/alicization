@@ -20,6 +20,74 @@ import { appendLearningExecutionEvidence } from './learning-artifact-store'
 import { buildDomainReflectionTargetScope, buildInternalizeFactInput } from './learning-domain-verifiers'
 import { normalizeMemoryDomain } from './memory-domain-model'
 
+function sanitizeText(raw: unknown, maxChars = 220) {
+  if (typeof raw !== 'string')
+    return ''
+  return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
+}
+
+function normalizeLearningText(raw: unknown) {
+  return sanitizeText(raw, 260).toLowerCase()
+}
+
+function hasCorrectedSamePersonContinuityCadenceCue(text: string) {
+  if (!text)
+    return false
+
+  const carriesSamePersonContinuity = /same-person continuity|same person continuity/u.test(text)
+  const carriesCorrection = /host corrected|corrected the relationship meaning|corrected memory meaning|defending the first interpretation|misread/u.test(text)
+  const carriesProgressPressure = /progress pressure|not progress pressure|defaulting back to progress pressure|sliding back into progress pressure/u.test(text)
+  const carriesLowerPressure = /lower-pressure|lower pressure|same living thread|resettles|settles back/u.test(text)
+
+  return carriesSamePersonContinuity
+    && ((carriesCorrection && carriesProgressPressure) || (carriesProgressPressure && carriesLowerPressure))
+}
+
+function buildCorrectedSamePersonContinuityCadenceFact(context: AlicizationLearningTaskEffectContext): AlicizationMemoryFactInput | null {
+  if (context.domain !== 'relationship')
+    return null
+  if (!context.task.payload.focuses.includes('internalize-relationship-cadence'))
+    return null
+
+  const cueText = [
+    context.task.payload.reason,
+    context.task.payload.dominantTrajectory,
+    ...context.task.payload.sourceSignals,
+    ...context.relatedReflections.map(item => `${item.summary} ${item.lesson}`),
+    ...context.relatedOutcomes.map(item => item.summary || item.actionSummary),
+  ]
+    .map(normalizeLearningText)
+    .filter(Boolean)
+    .join(' ')
+  if (!hasCorrectedSamePersonContinuityCadenceCue(cueText))
+    return null
+
+  const alreadyPresent = context.supportingFacts.some(fact =>
+    normalizeMemoryDomain(fact.memoryDomain) === 'relationship'
+    && normalizeLearningText(fact.predicate) === 'relationship-cadence'
+    && hasCorrectedSamePersonContinuityCadenceCue(normalizeLearningText(fact.object)),
+  )
+  if (alreadyPresent)
+    return null
+
+  return {
+    subject: 'relationship',
+    predicate: 'relationship-cadence',
+    object: 'Carry corrected same-person continuity forward at lower pressure instead of sliding back into progress pressure.',
+    confidence: Math.max(
+      0.84,
+      ...context.supportingFacts.map(fact => Number(fact.confidence ?? 0)),
+      Number(context.task.payload.learningReadiness ?? 0),
+    ),
+    memoryDomain: 'relationship',
+    knowledgeStage: 'internalized-long-horizon-knowledge',
+    validationStatus: 'validated',
+    sourceLabel: 'learning-internalized-relationship-cadence',
+    conflictsWith: context.task.payload.conflictTargets,
+    supersedes: context.task.payload.supersedeTargets,
+  }
+}
+
 export interface AlicizationLearningTaskEffectOptions {
   now: () => number
   cardId: string
@@ -318,7 +386,13 @@ export async function internalizeLearningFactsEffect(
   context: AlicizationLearningTaskEffectContext,
 ): Promise<AlicizationLearningActionExecutorResult> {
   const { domain, domains, supportingFacts } = context
-  const factsToAssimilate = supportingFacts.map(fact => buildInternalizeFactInput(fact, normalizeMemoryDomain(fact.memoryDomain)))
+  const supplementalFacts = [
+    buildCorrectedSamePersonContinuityCadenceFact(context),
+  ].filter((fact): fact is AlicizationMemoryFactInput => Boolean(fact))
+  const factsToAssimilate = [
+    ...supportingFacts.map(fact => buildInternalizeFactInput(fact, normalizeMemoryDomain(fact.memoryDomain))),
+    ...supplementalFacts,
+  ]
   const assimilation = options.assimilateMemoryFactsDetailed({
     facts: factsToAssimilate,
     source: 'rule',

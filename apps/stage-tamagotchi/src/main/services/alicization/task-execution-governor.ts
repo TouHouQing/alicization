@@ -21,7 +21,6 @@ import type { AlicizationTaskThreadPlanningDraft, AlicizationTaskThreadPlanningI
 
 import { alicizationExecutionChannels } from './claw-fabric'
 import { readTaskThreadActivityAt } from './execution-ledger-shared'
-import { resolveExecutionTransportChannel } from './executor-adapters/embodied-channel'
 import { buildTaskThreadPlanningDraft } from './task-thread-governor'
 
 export interface AlicizationTaskExecutionGovernorPort {
@@ -680,13 +679,12 @@ async function resolveSessionResumeHint(
     return null
 
   const routedChannel = draft.plan.selectedChannel ?? draft.plan.proposedChannel
-  const transportChannel = resolveExecutionTransportChannel(routedChannel)
-  if (transportChannel !== 'openclaw')
+  if (routedChannel !== 'openclaw')
     return null
 
   const sessions = await port.listExecutorSessions({
     affinityKey,
-    channel: transportChannel,
+    channel: 'openclaw',
     status: ['active', 'running'],
     limit: 8,
   })
@@ -696,7 +694,7 @@ async function resolveSessionResumeHint(
 
   return {
     affinityKey,
-    channel: transportChannel,
+    channel: 'openclaw',
     executorSessionId: session.id,
     externalSessionId: session.externalSessionId,
     status: session.status,

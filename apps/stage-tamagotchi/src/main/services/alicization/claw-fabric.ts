@@ -56,6 +56,30 @@ export interface AlicizationClawFabricChannelOutcomeSummary {
 }
 
 export interface AlicizationClawFabricExperience {
+  projectBriefing?: {
+    identity?: string | null
+    currentPhase?: string | null
+    latestLandedProgress?: string | null
+    landedProgressSummary?: string | null
+    primaryOpenLoop?: string | null
+    openClosureSummary?: string | null
+    nextClosureTarget?: string | null
+    nextClosureTargetSummary?: string | null
+    sameHerSelfLine?: string | null
+    sameHerHoldDetail?: string | null
+    sameHerDriftRisk?: string | null
+    sameHerDriftRiskSummary?: string | null
+    proactiveSameHerGap?: string | null
+    companionBriefingLine?: string | null
+    emotionalClosureSummary?: string | null
+    continuityCue?: string | null
+    continuityPreferredTiming?: 'internal-only' | 'after-payoff' | 'same-turn-if-invited' | 'next-open-window' | null
+    continuityCadence?: string | null
+    preferredBlinkCadence?: 'normal' | 'linger' | 'quiet' | null
+    preferredGazeMode?: 'steady' | 'soften' | 'drift' | null
+    preflightSummary?: string | null
+    preDialogueAwarenessLine?: string | null
+  } | null
   sessionResumeChannel?: AlicizationExecutionChannel | null
   activeChannels?: AlicizationExecutionChannel[] | null
   channelOutcomes?: Partial<Record<AlicizationExecutionChannel, AlicizationClawFabricChannelOutcomeSummary>> | null
@@ -107,6 +131,9 @@ interface AlicizationGoalSemanticSignals {
   hasBrowserIntent: boolean
   hasSoftwareIntent: boolean
 }
+
+const browserLikeGoalPattern = /\bweb\s?page\b|\bpage\b|\bsite\b|\bbrowser\b|\btab\b|\burl\b|网页|页面|浏览器|标签页/u
+const screenLikeGoalPattern = /\bscreen\b|\bscene\b|\bgui\b|\bdialog\b|\bpopup\b|\bmodal\b|屏幕|界面|画面|窗口|弹窗|对话框/u
 
 const channelTraits = {
   'cli': {
@@ -201,8 +228,57 @@ function normalizeText(raw: unknown, maxChars = 200) {
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
 }
 
-function unique(values: Array<string | undefined | null>) {
-  return Array.from(new Set(values.map(value => normalizeText(value, 120)).filter(Boolean)))
+function unique(values: Array<string | undefined | null>, maxChars = 120) {
+  return Array.from(new Set(values.map(value => normalizeText(value, maxChars)).filter(Boolean)))
+}
+
+function buildProjectBriefingNarrative(
+  projectBriefing: AlicizationClawFabricExperience['projectBriefing'],
+) {
+  if (!projectBriefing)
+    return []
+
+  const identity = normalizeText(projectBriefing.identity, 180)
+  const currentPhase = normalizeText(projectBriefing.currentPhase, 180)
+  const latestLandedProgress
+    = normalizeText(projectBriefing.latestLandedProgress, 220)
+      || normalizeText(projectBriefing.landedProgressSummary, 220)
+  const primaryOpenLoop
+    = normalizeText(projectBriefing.primaryOpenLoop, 220)
+      || normalizeText(projectBriefing.openClosureSummary, 220)
+  const nextClosureTarget
+    = normalizeText(projectBriefing.nextClosureTarget, 220)
+      || normalizeText(projectBriefing.nextClosureTargetSummary, 220)
+  const sameHerSelfLine = normalizeText(projectBriefing.sameHerSelfLine, 180)
+  const sameHerDriftRisk
+    = normalizeText(projectBriefing.sameHerDriftRisk, 220)
+      || normalizeText(projectBriefing.sameHerDriftRiskSummary, 220)
+
+  return [
+    identity && currentPhase
+      ? `Stay inside Alicization's project identity while planning execution: ${identity} ${currentPhase}`
+      : identity
+        ? `Stay inside Alicization's project identity while planning execution: ${identity}`
+        : currentPhase
+          ? `Stay inside Alicization's current project phase while planning execution: ${currentPhase}`
+          : '',
+    latestLandedProgress
+      ? `Recent landed progress to preserve during execution planning: ${latestLandedProgress}`
+      : '',
+    primaryOpenLoop && nextClosureTarget
+      ? `Execution planning should help the same Phase 1 closure arc by respecting the open loop "${primaryOpenLoop}" and the next closure target "${nextClosureTarget}".`
+      : primaryOpenLoop
+        ? `Execution planning should respect the current open loop: ${primaryOpenLoop}`
+        : nextClosureTarget
+          ? `Execution planning should respect the next closure target: ${nextClosureTarget}`
+          : '',
+    sameHerSelfLine
+      ? `Keep the same-her line explicit while planning execution: ${sameHerSelfLine}`
+      : '',
+    sameHerDriftRisk
+      ? `Avoid execution-planning drift: ${sameHerDriftRisk}`
+      : '',
+  ].filter(Boolean)
 }
 
 function clamp01(raw: unknown) {
@@ -220,8 +296,8 @@ function deriveGoalSemanticSignals(task: AlicizationClawTaskIntent): Alicization
     mentionedChannels,
     hasCommandLiteral: semanticSignals.hasCommandLiteral || semanticSignals.hasShellLikeStructure,
     hasCodeIntent: semanticSignals.hasCodeArtifact,
-    hasBrowserIntent: semanticSignals.hasBrowserArtifact,
-    hasSoftwareIntent: semanticSignals.hasSoftwareArtifact,
+    hasBrowserIntent: semanticSignals.hasBrowserArtifact || browserLikeGoalPattern.test(goalText),
+    hasSoftwareIntent: semanticSignals.hasSoftwareArtifact || screenLikeGoalPattern.test(goalText),
   }
 }
 
@@ -349,6 +425,50 @@ function buildCandidateAssessment(input: {
     }
     else {
       score -= 18
+    }
+  }
+
+  const visualExplorationTask
+    = task.requiresVisualGrounding
+      && (task.kind === 'unknown' || task.kind === 'mixed')
+  if (visualExplorationTask) {
+    if (channel === 'cli' || channel === 'codex' || channel === 'claude-code') {
+      score -= 104
+      reasons.push('visual-grounding-deprioritizes-nonvisual-channel')
+    }
+
+    if (input.goalSignals.hasBrowserIntent) {
+      if (channel === 'browser') {
+        score += 108
+        reasons.push('visual-browser-grounding-preferred')
+      }
+      else if (channel === 'software') {
+        score += 72
+        reasons.push('visual-browser-grounding-fallback')
+      }
+      else if (channel === 'desktop') {
+        score += 36
+        reasons.push('visual-browser-grounding-desktop-fallback')
+      }
+      else if (channel === 'openclaw' || channel === 'openfang') {
+        score += 12
+        reasons.push('visual-browser-grounding-last-resort')
+      }
+    }
+
+    if (input.goalSignals.hasSoftwareIntent && !input.goalSignals.hasBrowserIntent) {
+      if (channel === 'desktop') {
+        score += 190
+        reasons.push('visual-desktop-grounding-preferred')
+      }
+      else if (channel === 'software') {
+        score += 84
+        reasons.push('visual-desktop-grounding-app-fallback')
+      }
+      else if (channel === 'openclaw' || channel === 'openfang') {
+        score += 18
+        reasons.push('visual-desktop-grounding-last-resort')
+      }
     }
   }
 
@@ -550,6 +670,17 @@ export function buildClawFabricPlan(input: {
   experience?: AlicizationClawFabricExperience | null
   killSwitchSuspended?: boolean
 }): AlicizationClawFabricPlan {
+  const projectBriefing = input.experience?.projectBriefing ?? null
+  const projectBriefingNarrative = buildProjectBriefingNarrative(input.experience?.projectBriefing)
+  const hasProjectOpenLoopBriefing = Boolean(
+    normalizeText(projectBriefing?.primaryOpenLoop, 220)
+    || normalizeText(projectBriefing?.openClosureSummary, 220),
+  )
+  const projectBriefingReasonTags = unique([
+    projectBriefing?.currentPhase ? 'project-phase-briefing' : '',
+    hasProjectOpenLoopBriefing ? 'project-open-loop-briefing' : '',
+    projectBriefing?.sameHerSelfLine ? 'project-same-her-briefing' : '',
+  ])
   if (input.killSwitchSuspended) {
     return {
       state: 'blocked',
@@ -558,8 +689,11 @@ export function buildClawFabricPlan(input: {
       preferredChannels: [],
       fallbackChannels: [],
       candidates: [],
-      reasonTags: ['kill-switch-suspended'],
-      narrative: ['Execution routing stopped because the Alicization kill switch is suspended.'],
+      reasonTags: ['kill-switch-suspended', ...projectBriefingReasonTags],
+      narrative: [
+        'Execution routing stopped because the Alicization kill switch is suspended.',
+        ...projectBriefingNarrative,
+      ],
       affirmationReasonCodes: [],
       blockedReasonCodes: ['kill-switch-suspended'],
     }
@@ -606,10 +740,12 @@ export function buildClawFabricPlan(input: {
         input.experience?.goalAffinityChannel ? `goal-affinity:${input.experience.goalAffinityChannel}` : '',
         input.experience?.advisorChannel ? `advisor:${input.experience.advisorChannel}` : '',
         'no-eligible-channel',
+        ...projectBriefingReasonTags,
       ]),
       narrative: [
         `No eligible execution channel can currently satisfy "${normalizeText(input.task.goal, 120) || 'the requested task'}".`,
         'Structured bodies were exhausted before considering unsafe fallback behavior.',
+        ...projectBriefingNarrative,
       ],
       affirmationReasonCodes: [],
       blockedReasonCodes: unique(candidates.flatMap(candidate => candidate.blockedReasons)),
@@ -639,6 +775,7 @@ export function buildClawFabricPlan(input: {
       input.experience?.sessionResumeChannel ? `session-resume:${input.experience.sessionResumeChannel}` : '',
       input.experience?.goalAffinityChannel ? `goal-affinity:${input.experience.goalAffinityChannel}` : '',
       input.experience?.advisorChannel ? `advisor:${input.experience.advisorChannel}` : '',
+      ...projectBriefingReasonTags,
       ...affirmationReasonCodes,
       ...eligibleCandidates[0].reasons,
     ]),
@@ -699,7 +836,8 @@ export function buildClawFabricPlan(input: {
       affirmationReasonCodes.includes('desktop-fallback-requires-explicit-or-grounded-justification')
         ? 'Desktop fallback requires stronger justification than a weak inference.'
         : '',
-    ]),
+      ...projectBriefingNarrative,
+    ], 320),
     affirmationReasonCodes,
     blockedReasonCodes: [],
   }

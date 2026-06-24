@@ -636,12 +636,11 @@ export function createAlicizationSensoryRuntime(options: AlicizationSensoryRunti
     const inspectionRoutingSuppressed = input.skipInspectionGrounding === true
     const inspectionRequested = inspectionIntent.active && !inspectionRoutingSuppressed
     if (!inspectionRequested && (inspectionIntent.releaseCarry || inspectionRoutingSuppressed)) {
-      perceptionState = releaseInvitedInspection({
-        state: perceptionState,
+      perceptionState = await options.queuePerceptionStateMutation(input.cardId, current => releaseInvitedInspection({
+        state: current,
         now,
         clearSceneResidue: true,
-      })
-      await options.persistPerceptionState(input.cardId, perceptionState)
+      }))
     }
 
     const genericScreenInspection = inspectionRequested && options.isGenericScreenInspectionRequest(input.userText)
@@ -663,12 +662,11 @@ export function createAlicizationSensoryRuntime(options: AlicizationSensoryRunti
           source: 'chat-start',
         })
       }
-      perceptionState = activateInvitedInspection({
-        state: perceptionState,
+      perceptionState = await options.queuePerceptionStateMutation(input.cardId, current => activateInvitedInspection({
+        state: current,
         now,
         hintText: input.userText,
-      })
-      await options.persistPerceptionState(input.cardId, perceptionState)
+      }))
     }
 
     let messages = input.messages
@@ -770,11 +768,10 @@ export function createAlicizationSensoryRuntime(options: AlicizationSensoryRunti
         currentForeground: currentForeground ?? undefined,
         groundingUnavailableReason: typeof grounding.auditPayload.reason === 'string' ? grounding.auditPayload.reason : undefined,
       })) {
-        perceptionState = options.purgeWeakGenericBrowserInspectionState({
+        perceptionState = await options.queuePerceptionStateMutation(input.cardId, current => options.purgeWeakGenericBrowserInspectionState({
           now,
-          state: perceptionState,
-        })
-        await options.persistPerceptionState(input.cardId, perceptionState)
+          state: current,
+        }))
       }
     }
     else if (inspectionRequested && latestUserHasImage) {

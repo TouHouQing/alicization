@@ -61,6 +61,24 @@ function uniqueList(values: Array<string | null | undefined>, maxItems = 12) {
   return result
 }
 
+function buildSurfaceProjectStateAuditSummary(surface: AlicizationVisibleReplyRealizationArtifact | null) {
+  const projectStateAudit = surface?.projectStateAudit
+  if (!projectStateAudit)
+    return null
+
+  const anchors = uniqueList([
+    projectStateAudit.sameHerHoldDetail ? `hold=${projectStateAudit.sameHerHoldDetail}` : null,
+    projectStateAudit.continuityArcStage ? `arc=${projectStateAudit.continuityArcStage}` : null,
+    projectStateAudit.continuityCue ? `cue=${projectStateAudit.continuityCue}` : null,
+    projectStateAudit.currentPhaseSummary ? `phase=${projectStateAudit.currentPhaseSummary}` : null,
+    projectStateAudit.sameHerSummary ? `same-her=${projectStateAudit.sameHerSummary}` : null,
+  ], 5)
+
+  return anchors.length > 0
+    ? `project-state=${anchors.join(' | ')}`
+    : null
+}
+
 function errorToMessage(error: unknown) {
   return error instanceof Error
     ? error.message
@@ -183,6 +201,7 @@ export function createAlicizationTurnRuntime(options: {
             `actual=${input.surface.actualAuthority ?? 'none'}`,
             `mode=${input.surface.mode}`,
             `closure=${input.surface.closure?.status ?? 'none'}`,
+            buildSurfaceProjectStateAuditSummary(input.surface),
           ]
         : ['visible-reply-surface-missing'],
       reasonCodes: input.surface

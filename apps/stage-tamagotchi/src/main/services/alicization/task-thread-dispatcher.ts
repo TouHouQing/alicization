@@ -1,5 +1,4 @@
 import type {
-  AlicizationClawTaskIntent,
   AlicizationDispatchTaskThreadInput,
   AlicizationDispatchTaskThreadResult,
   AlicizationExecutionChannel,
@@ -13,32 +12,17 @@ import type {
 } from '@proj-alicization/stage-shared'
 
 import type { AlicizationAuditLogInput } from '../../../shared/eventa'
+import type { AlicizationLocalVisualDispatchSurface } from './executor-adapters/local-visual'
 
-import { normalizeAlicizationExecutionRuntimeContext } from '@proj-alicization/stage-shared'
+import {
+  isAlicizationThinProjectAwarenessLine,
+  normalizeAlicizationExecutionRuntimeContext,
+  resolveAlicizationProjectPreDialogueAwarenessLine,
+} from '@proj-alicization/stage-shared'
 
+import { preferStrongerContinuityClosureAuthority } from './continuity-closure-authority'
 import { resolveExecutionTransportChannel } from './executor-adapters/embodied-channel'
 import { prepareTaskThreadDispatch } from './executor-adapters/registry'
-
-type TaskThreadLocalVisualDispatchInput = Pick<AlicizationDispatchTaskThreadInput, 'cli' | 'codex' | 'claudeCode' | 'localVisual' | 'openclaw'>
-type TaskThreadLocalVisualSurfaceResult = Promise<unknown> | unknown
-
-type TaskThreadLocalVisualSurface = Record<string, unknown> & {
-  desktopInspectScene?: (input: {
-    cardId?: string
-    forceRefresh?: boolean
-    maxSuggestedActions?: number
-    question?: string
-  }) => TaskThreadLocalVisualSurfaceResult
-  executeTaskThread?: (input: {
-    thread: AlicizationTaskThreadRecord
-    task: AlicizationClawTaskIntent
-    dispatch: TaskThreadLocalVisualDispatchInput
-  }) => TaskThreadLocalVisualSurfaceResult
-  resumeTaskThread?: (input: {
-    thread: AlicizationTaskThreadRecord
-    threadId: string
-  }) => TaskThreadLocalVisualSurfaceResult
-}
 
 type TaskThreadDispatchPort = Pick<{
   getTaskThread: (id: string) => Promise<AlicizationTaskThreadRecord | undefined>
@@ -46,8 +30,9 @@ type TaskThreadDispatchPort = Pick<{
   upsertExecutorSession?: (input: AlicizationExecutorSessionUpsertInput) => Promise<unknown>
   appendExecutionEvents: (events: AlicizationExecutionEventInput[]) => Promise<void>
   appendAuditLog?: (input: AlicizationAuditLogInput) => Promise<void>
-  localVisualSurface?: TaskThreadLocalVisualSurface
-}, 'getTaskThread' | 'upsertTaskThread' | 'upsertExecutorSession' | 'appendExecutionEvents' | 'appendAuditLog' | 'localVisualSurface'>
+}, 'getTaskThread' | 'upsertTaskThread' | 'upsertExecutorSession' | 'appendExecutionEvents' | 'appendAuditLog'> & {
+  localVisualSurface?: AlicizationLocalVisualDispatchSurface
+}
 export type AlicizationTaskThreadDispatchPort = TaskThreadDispatchPort
 
 export interface AlicizationDispatchTaskThreadRuntimeInput extends AlicizationDispatchTaskThreadInput {
@@ -55,6 +40,33 @@ export interface AlicizationDispatchTaskThreadRuntimeInput extends AlicizationDi
   abortSignal?: AbortSignal
   workspaceRoot?: string
   now?: () => number
+}
+
+function withRuntimeContext<Command extends { runtimeContext?: AlicizationExecutionRuntimeContext | null }>(
+  command: Command | null | undefined,
+  runtimeContext: AlicizationExecutionRuntimeContext | null,
+): Command | null | undefined {
+  if (!command || !runtimeContext)
+    return command
+
+  return {
+    ...command,
+    runtimeContext,
+  }
+}
+
+function applyExecutionRuntimeContextToDispatchInput(
+  input: AlicizationDispatchTaskThreadRuntimeInput,
+  runtimeContext: AlicizationExecutionRuntimeContext | null,
+): AlicizationDispatchTaskThreadInput {
+  return {
+    threadId: input.threadId,
+    cli: withRuntimeContext(input.cli, runtimeContext),
+    codex: withRuntimeContext(input.codex, runtimeContext),
+    claudeCode: withRuntimeContext(input.claudeCode, runtimeContext),
+    localVisual: withRuntimeContext(input.localVisual, runtimeContext),
+    openclaw: withRuntimeContext(input.openclaw, runtimeContext),
+  }
 }
 
 function resolveExecutionRuntimeContext(
@@ -67,6 +79,180 @@ function resolveExecutionRuntimeContext(
     ?? input.localVisual?.runtimeContext
     ?? input.openclaw?.runtimeContext,
   )
+}
+
+function resolvePersistedExecutionRuntimeContext(
+  thread: AlicizationTaskThreadRecord,
+): AlicizationExecutionRuntimeContext | null {
+  const metadata = thread.metadata
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata))
+    return null
+
+  const execution = (metadata as Record<string, unknown>).execution
+  if (!execution || typeof execution !== 'object' || Array.isArray(execution))
+    return null
+
+  return normalizeAlicizationExecutionRuntimeContext(
+    (execution as Record<string, unknown>).runtimeContext,
+  )
+}
+
+function looksLikeGenericDispatchSameHerHoldDetail(text: string | null | undefined) {
+  const normalized = typeof text === 'string'
+    ? text.trim().toLowerCase()
+    : ''
+  if (!normalized)
+    return false
+
+  return /keep this project-state answer on the same living line before widening outward|keep the line gentle for now|same-her hold: keep this project-state answer on the same living line/u.test(normalized)
+}
+
+function preferDispatchProjectSameHerHoldDetail(input: {
+  payloadProjectBriefing: AlicizationExecutionRuntimeContext['projectBriefing']
+  storedProjectBriefing: AlicizationExecutionRuntimeContext['projectBriefing']
+}) {
+  const payloadSameHerHoldDetail = input.payloadProjectBriefing?.sameHerHoldDetail ?? null
+  const continuityCue = input.payloadProjectBriefing?.continuityCue
+    ?? input.storedProjectBriefing?.continuityCue
+    ?? null
+  const storedSameHerHoldDetail = input.storedProjectBriefing?.sameHerHoldDetail ?? null
+
+  if (
+    payloadSameHerHoldDetail
+    && storedSameHerHoldDetail
+    && looksLikeGenericDispatchSameHerHoldDetail(payloadSameHerHoldDetail)
+    && !looksLikeGenericDispatchSameHerHoldDetail(storedSameHerHoldDetail)
+  ) {
+    return storedSameHerHoldDetail
+  }
+
+  const preferredPayload = preferStrongerContinuityClosureAuthority(payloadSameHerHoldDetail, continuityCue)
+    ?? payloadSameHerHoldDetail
+    ?? continuityCue
+    ?? null
+  const preferredFinal = preferStrongerContinuityClosureAuthority(preferredPayload, storedSameHerHoldDetail)
+    ?? preferredPayload
+    ?? storedSameHerHoldDetail
+    ?? null
+
+  return preferredFinal
+}
+
+function buildDispatchProjectAwarenessState(
+  projectBriefing: AlicizationExecutionRuntimeContext['projectBriefing'],
+) {
+  if (!projectBriefing)
+    return null
+
+  return {
+    ...projectBriefing,
+    awarenessLine: projectBriefing.preDialogueAwarenessLine ?? null,
+  }
+}
+
+function preferDispatchPreDialogueAwarenessLine(input: {
+  payloadProjectBriefing: AlicizationExecutionRuntimeContext['projectBriefing']
+  storedProjectBriefing: AlicizationExecutionRuntimeContext['projectBriefing']
+}) {
+  const resolved = resolveAlicizationProjectPreDialogueAwarenessLine({
+    runtimeProjectState: buildDispatchProjectAwarenessState(input.payloadProjectBriefing),
+    fallbackProjectState: buildDispatchProjectAwarenessState(input.storedProjectBriefing),
+  })
+
+  return resolved
+    ?? input.payloadProjectBriefing?.preDialogueAwarenessLine
+    ?? input.storedProjectBriefing?.preDialogueAwarenessLine
+    ?? null
+}
+
+function preferDispatchPreDialogueAwarenessSummary(input: {
+  payloadProjectBriefing: AlicizationExecutionRuntimeContext['projectBriefing']
+  storedProjectBriefing: AlicizationExecutionRuntimeContext['projectBriefing']
+}) {
+  const payloadSummary = input.payloadProjectBriefing?.preDialogueAwarenessSummary ?? null
+  const storedSummary = input.storedProjectBriefing?.preDialogueAwarenessSummary ?? null
+
+  if (payloadSummary && !isAlicizationThinProjectAwarenessLine(payloadSummary))
+    return payloadSummary
+
+  if (storedSummary && !isAlicizationThinProjectAwarenessLine(storedSummary))
+    return storedSummary
+
+  return payloadSummary
+    ?? storedSummary
+    ?? preferDispatchPreDialogueAwarenessLine(input)
+}
+
+function mergeProjectBriefing(input: {
+  payloadProjectBriefing: AlicizationExecutionRuntimeContext['projectBriefing']
+  storedProjectBriefing: AlicizationExecutionRuntimeContext['projectBriefing']
+}): AlicizationExecutionRuntimeContext['projectBriefing'] {
+  const { payloadProjectBriefing, storedProjectBriefing } = input
+  if (!payloadProjectBriefing)
+    return storedProjectBriefing ?? null
+  if (!storedProjectBriefing)
+    return payloadProjectBriefing
+
+  const merged = {
+    identity: payloadProjectBriefing.identity ?? storedProjectBriefing.identity ?? null,
+    currentPhase: payloadProjectBriefing.currentPhase ?? storedProjectBriefing.currentPhase ?? null,
+    latestLandedProgress: payloadProjectBriefing.latestLandedProgress ?? storedProjectBriefing.latestLandedProgress ?? null,
+    primaryOpenLoop: payloadProjectBriefing.primaryOpenLoop ?? storedProjectBriefing.primaryOpenLoop ?? null,
+    nextClosureTarget: payloadProjectBriefing.nextClosureTarget ?? storedProjectBriefing.nextClosureTarget ?? null,
+    sameHerSelfLine: payloadProjectBriefing.sameHerSelfLine ?? storedProjectBriefing.sameHerSelfLine ?? null,
+    sameHerHoldDetail: preferDispatchProjectSameHerHoldDetail({
+      payloadProjectBriefing,
+      storedProjectBriefing,
+    }),
+    sameHerDriftRisk: payloadProjectBriefing.sameHerDriftRisk ?? storedProjectBriefing.sameHerDriftRisk ?? null,
+    companionBriefingLine: payloadProjectBriefing.companionBriefingLine ?? storedProjectBriefing.companionBriefingLine ?? null,
+    emotionalClosureSummary: payloadProjectBriefing.emotionalClosureSummary ?? storedProjectBriefing.emotionalClosureSummary ?? null,
+    continuityCue: payloadProjectBriefing.continuityCue ?? storedProjectBriefing.continuityCue ?? null,
+    continuityPreferredTiming: payloadProjectBriefing.continuityPreferredTiming ?? storedProjectBriefing.continuityPreferredTiming ?? null,
+    continuityCadence: payloadProjectBriefing.continuityCadence ?? storedProjectBriefing.continuityCadence ?? null,
+    preferredBlinkCadence: payloadProjectBriefing.preferredBlinkCadence ?? storedProjectBriefing.preferredBlinkCadence ?? null,
+    preferredGazeMode: payloadProjectBriefing.preferredGazeMode ?? storedProjectBriefing.preferredGazeMode ?? null,
+    preflightSummary: payloadProjectBriefing.preflightSummary ?? storedProjectBriefing.preflightSummary ?? null,
+    preDialogueAwarenessLine: preferDispatchPreDialogueAwarenessLine({
+      payloadProjectBriefing,
+      storedProjectBriefing,
+    }),
+    preDialogueAwarenessSummary: preferDispatchPreDialogueAwarenessSummary({
+      payloadProjectBriefing,
+      storedProjectBriefing,
+    }),
+  } satisfies NonNullable<AlicizationExecutionRuntimeContext['projectBriefing']>
+
+  return Object.values(merged).some(Boolean) ? merged : null
+}
+
+function mergeExecutionRuntimeContexts(input: {
+  payloadRuntimeContext: AlicizationExecutionRuntimeContext | null
+  storedRuntimeContext: AlicizationExecutionRuntimeContext | null
+}): AlicizationExecutionRuntimeContext | null {
+  const { payloadRuntimeContext, storedRuntimeContext } = input
+  if (!payloadRuntimeContext)
+    return storedRuntimeContext
+  if (!storedRuntimeContext)
+    return payloadRuntimeContext
+
+  return {
+    ...storedRuntimeContext,
+    ...payloadRuntimeContext,
+    cardId: payloadRuntimeContext.cardId ?? storedRuntimeContext.cardId ?? null,
+    decisionTraceId: payloadRuntimeContext.decisionTraceId ?? storedRuntimeContext.decisionTraceId ?? null,
+    turnId: payloadRuntimeContext.turnId ?? storedRuntimeContext.turnId ?? null,
+    sessionId: payloadRuntimeContext.sessionId ?? storedRuntimeContext.sessionId ?? null,
+    agentSessionId: payloadRuntimeContext.agentSessionId ?? storedRuntimeContext.agentSessionId ?? null,
+    projectBriefing: mergeProjectBriefing({
+      payloadProjectBriefing: payloadRuntimeContext.projectBriefing,
+      storedProjectBriefing: storedRuntimeContext.projectBriefing,
+    }),
+    recentActions: payloadRuntimeContext.recentActions && payloadRuntimeContext.recentActions.length > 0
+      ? payloadRuntimeContext.recentActions
+      : storedRuntimeContext.recentActions ?? [],
+    sensory: payloadRuntimeContext.sensory,
+  }
 }
 
 async function persistExecutionRuntimeContext(
@@ -158,159 +344,38 @@ function buildRunningDispatchSummary(
   return 'Executor dispatch is running for the current task thread.'
 }
 
-function isLocalVisualExecutionChannel(channel: AlicizationExecutionChannel | null | undefined) {
-  return channel === 'browser' || channel === 'software' || channel === 'desktop'
-}
+function buildProjectExecutionSummarySuffix(runtimeContext: AlicizationExecutionRuntimeContext | null) {
+  const projectBriefing = runtimeContext?.projectBriefing ?? null
+  if (!projectBriefing)
+    return ''
 
-function readLocalVisualInstruction(input: AlicizationDispatchTaskThreadInput) {
-  const localInstruction = typeof input.localVisual?.instruction === 'string'
-    ? input.localVisual.instruction.trim()
+  const currentPhase = typeof projectBriefing.currentPhase === 'string'
+    ? projectBriefing.currentPhase.trim()
     : ''
-  if (localInstruction)
-    return localInstruction
-  return typeof input.openclaw?.instruction === 'string'
-    ? input.openclaw.instruction.trim()
+  const primaryOpenLoop = typeof projectBriefing.primaryOpenLoop === 'string'
+    ? projectBriefing.primaryOpenLoop.trim()
     : ''
-}
-
-function normalizeLocalVisualResult(result: unknown): Record<string, unknown> {
-  if (result && typeof result === 'object' && !Array.isArray(result))
-    return result as Record<string, unknown>
-  return {
-    status: 'completed',
-    summary: typeof result === 'string' ? result : 'Local visual dispatch completed.',
-    output: typeof result === 'string' ? result : JSON.stringify(result ?? null),
-  }
-}
-
-function summarizeLocalVisualResult(result: Record<string, unknown>) {
-  const summary = typeof result.summary === 'string' && result.summary.trim()
-    ? result.summary.trim()
+  const nextClosureTarget = typeof projectBriefing.nextClosureTarget === 'string'
+    ? projectBriefing.nextClosureTarget.trim()
     : ''
-  if (summary)
-    return summary
-  const output = typeof result.output === 'string' && result.output.trim()
-    ? result.output.trim()
-    : ''
-  if (output)
-    return output.slice(0, 500)
-  return 'Local visual dispatch completed through the runtime GUI bridge.'
-}
 
-function readLocalVisualOutput(result: Record<string, unknown>) {
-  if (typeof result.output === 'string')
-    return result.output
-  if (typeof result.summary === 'string')
-    return result.summary
-  return JSON.stringify(result)
-}
+  const parts = [
+    currentPhase ? `phase=${currentPhase}` : '',
+    primaryOpenLoop ? `open=${primaryOpenLoop}` : '',
+    nextClosureTarget ? `next=${nextClosureTarget}` : '',
+  ].filter(Boolean)
 
-function isFailedLocalVisualResult(result: Record<string, unknown>) {
-  const status = typeof result.status === 'string' ? result.status.toLowerCase() : ''
-  return status === 'failed' || status === 'cancelled' || typeof result.errorCode === 'string'
-}
+  if (parts.length === 0)
+    return ''
 
-async function runLocalVisualDispatch(input: {
-  input: AlicizationDispatchTaskThreadRuntimeInput
-  now: () => number
-  port: TaskThreadDispatchPort
-  runtimeContext: AlicizationExecutionRuntimeContext | null
-  thread: AlicizationTaskThreadRecord
-}): Promise<AlicizationDispatchTaskThreadResult | null> {
-  const localVisualSurface = input.port.localVisualSurface
-  if (!localVisualSurface || !isLocalVisualExecutionChannel(input.thread.selectedChannel))
-    return null
-
-  const instruction = readLocalVisualInstruction(input.input)
-  if (!instruction) {
-    return {
-      thread: input.thread,
-      createdEventKinds: [],
-      ok: false,
-      summary: 'Local visual dispatch requires an instruction payload.',
-      errorCode: 'TASK_THREAD_LOCAL_VISUAL_INPUT_REQUIRED',
-      errorMessage: 'Missing local visual instruction payload for dispatch.',
-    }
-  }
-
-  if (!localVisualSurface.desktopInspectScene)
-    return null
-
-  const dispatchAt = input.now()
-  const dispatchEvent: AlicizationExecutionEventInput = {
-    threadId: input.thread.id,
-    decisionTraceId: input.thread.decisionTraceId,
-    turnId: input.thread.turnId,
-    sessionId: input.thread.sessionId,
-    origin: input.thread.origin,
-    channel: input.thread.selectedChannel,
-    kind: 'dispatch',
-    threadStatus: 'running',
-    payload: {
-      adapter: 'local-visual',
-      instruction,
-      hasRuntimeContext: input.runtimeContext !== null,
-      runtimeContext: input.runtimeContext,
-    },
-    createdAt: dispatchAt,
-  }
-
-  const result = normalizeLocalVisualResult(await localVisualSurface.desktopInspectScene({
-    forceRefresh: true,
-    maxSuggestedActions: 3,
-    question: instruction,
-  }))
-  const failed = isFailedLocalVisualResult(result)
-  const summary = summarizeLocalVisualResult(result)
-  const resultAt = Math.max(dispatchAt + 1, input.now())
-  const resultEvent: AlicizationExecutionEventInput = {
-    threadId: input.thread.id,
-    decisionTraceId: input.thread.decisionTraceId,
-    turnId: input.thread.turnId,
-    sessionId: input.thread.sessionId,
-    origin: input.thread.origin,
-    channel: input.thread.selectedChannel,
-    kind: 'result',
-    threadStatus: failed ? 'failed' : 'completed',
-    payload: {
-      adapter: 'local-visual',
-      instruction,
-      result,
-      hasRuntimeContext: input.runtimeContext !== null,
-      runtimeContext: input.runtimeContext,
-    },
-    createdAt: resultAt,
-  }
-
-  await input.port.appendExecutionEvents([dispatchEvent, resultEvent])
-  const summarizedThread = await refreshThreadSummary(input.port, input.thread.id, summary, input.now)
-  await appendAuditLog(input.port, {
-    level: failed ? 'warning' : 'notice',
-    category: 'alicization.executor.dispatch',
-    action: failed ? 'local-visual-failed' : 'local-visual-completed',
-    message: summary,
-    payload: {
-      threadId: input.thread.id,
-      selectedChannel: input.thread.selectedChannel,
-      errorCode: typeof result.errorCode === 'string' ? result.errorCode : null,
-    },
-  })
-
-  return {
-    thread: summarizedThread,
-    createdEventKinds: ['dispatch', 'result'],
-    ok: !failed,
-    summary,
-    output: readLocalVisualOutput(result),
-    errorCode: typeof result.errorCode === 'string' ? result.errorCode : undefined,
-    errorMessage: typeof result.errorMessage === 'string' ? result.errorMessage : undefined,
-  }
+  return ` | project_continuity=${parts.join(' | ')}`
 }
 
 async function upsertExecutorSession(
   port: TaskThreadDispatchPort,
   input: {
     thread: AlicizationTaskThreadRecord
+    transportChannel?: AlicizationExecutionChannel | null
     status: AlicizationExecutorSessionStatus
     summary: string
     now: () => number
@@ -321,7 +386,7 @@ async function upsertExecutorSession(
 ) {
   if (!port.upsertExecutorSession)
     return
-  const transportChannel = resolveExecutionTransportChannel(input.thread.selectedChannel)
+  const transportChannel = input.transportChannel ?? resolveExecutionTransportChannel(input.thread.selectedChannel)
   if (!supportsExecutorSessionTracking(transportChannel))
     return
   if (!transportChannel)
@@ -363,8 +428,14 @@ export async function dispatchTaskThread(
   if (!thread)
     throw new Error(`Task thread "${input.threadId}" was not found.`)
 
-  const runtimeContext = resolveExecutionRuntimeContext(input)
-  if (runtimeContext) {
+  const payloadRuntimeContext = resolveExecutionRuntimeContext(input)
+  const storedRuntimeContext = resolvePersistedExecutionRuntimeContext(thread)
+  const runtimeContext = mergeExecutionRuntimeContexts({
+    payloadRuntimeContext,
+    storedRuntimeContext,
+  })
+
+  if (runtimeContext && (payloadRuntimeContext || storedRuntimeContext !== runtimeContext)) {
     thread = await persistExecutionRuntimeContext(port, {
       thread,
       runtimeContext,
@@ -427,25 +498,11 @@ export async function dispatchTaskThread(
     }
   }
 
-  const localVisualResult = await runLocalVisualDispatch({
-    port,
-    input,
-    thread,
-    runtimeContext,
-    now,
-  })
-  if (localVisualResult)
-    return localVisualResult
-
+  const dispatchInput = applyExecutionRuntimeContextToDispatchInput(input, runtimeContext)
   const preparedDispatch = prepareTaskThreadDispatch({
     thread,
-    dispatchInput: {
-      cli: input.cli,
-      codex: input.codex,
-      claudeCode: input.claudeCode,
-      localVisual: input.localVisual,
-      openclaw: input.openclaw,
-    },
+    dispatchInput,
+    localVisualSurface: port.localVisualSurface,
   })
   if (!preparedDispatch.ok) {
     return {
@@ -458,9 +515,32 @@ export async function dispatchTaskThread(
     }
   }
 
-  if (supportsExecutorSessionTracking(preparedDispatch.channel)) {
+  if (!runtimeContext) {
+    const summary = 'Execution runtime context is required before task-thread dispatch can begin.'
+    await appendAuditLog(port, {
+      level: 'warning',
+      category: 'alicization.executor.dispatch',
+      action: 'blocked-missing-runtime-context',
+      message: summary,
+      payload: {
+        threadId: thread.id,
+        selectedChannel: thread.selectedChannel,
+      },
+    })
+    return {
+      thread,
+      createdEventKinds: [],
+      ok: false,
+      summary,
+      errorCode: 'TASK_THREAD_RUNTIME_CONTEXT_REQUIRED',
+      errorMessage: 'Execution runtime context is required before dispatch begins.',
+    }
+  }
+
+  if (supportsExecutorSessionTracking(preparedDispatch.sessionTrackingChannel)) {
     await upsertExecutorSession(port, {
       thread,
+      transportChannel: preparedDispatch.sessionTrackingChannel,
       status: 'running',
       summary: buildRunningDispatchSummary(preparedDispatch.channel, thread.selectedChannel),
       now,
@@ -473,21 +553,25 @@ export async function dispatchTaskThread(
     workspaceRoot: input.workspaceRoot,
     now,
   })
+  const summarizedResult = `${result.summary}${buildProjectExecutionSummarySuffix(runtimeContext)}`.trim()
 
   if (result.events.length > 0)
     await port.appendExecutionEvents(result.events)
-  const summarizedThread = await refreshThreadSummary(port, thread.id, result.summary, now)
-  await upsertExecutorSession(port, {
-    thread,
-    status: result.ok || result.finalStatus === 'cancelled' ? 'active' : 'failed',
-    summary: result.summary,
-    now,
-    errorCode: result.errorCode,
-    externalSessionId: 'externalSessionId' in result && typeof result.externalSessionId === 'string'
-      ? result.externalSessionId
-      : null,
-    runtimeContext,
-  })
+  const summarizedThread = await refreshThreadSummary(port, thread.id, summarizedResult, now)
+  if (supportsExecutorSessionTracking(preparedDispatch.sessionTrackingChannel)) {
+    await upsertExecutorSession(port, {
+      thread,
+      transportChannel: preparedDispatch.sessionTrackingChannel,
+      status: result.ok || result.finalStatus === 'cancelled' ? 'active' : 'failed',
+      summary: summarizedResult,
+      now,
+      errorCode: result.errorCode,
+      externalSessionId: 'externalSessionId' in result && typeof result.externalSessionId === 'string'
+        ? result.externalSessionId
+        : null,
+      runtimeContext,
+    })
+  }
   const auditChannelPrefix = thread.selectedChannel ?? 'unknown-channel'
 
   await appendAuditLog(port, {
@@ -498,7 +582,7 @@ export async function dispatchTaskThread(
       : result.finalStatus === 'cancelled'
         ? `${auditChannelPrefix}-cancelled`
         : `${auditChannelPrefix}-failed`,
-    message: result.summary,
+    message: summarizedResult,
     payload: {
       threadId: thread.id,
       selectedChannel: thread.selectedChannel,
@@ -511,7 +595,7 @@ export async function dispatchTaskThread(
     thread: summarizedThread,
     createdEventKinds: collectCreatedEventKinds(result.events),
     ok: result.ok,
-    summary: result.summary,
+    summary: summarizedResult,
     output: result.output,
     errorCode: result.errorCode,
     errorMessage: result.errorMessage,

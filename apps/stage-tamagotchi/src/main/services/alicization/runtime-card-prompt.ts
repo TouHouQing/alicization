@@ -23,6 +23,10 @@ import {
   extractHostNameFromMessages,
 } from './main-chat-runtime-surface'
 import {
+  buildAlicizationProjectStateClosureDashboard,
+  buildAlicizationProjectStateSystemBlock,
+} from './project-state-brief'
+import {
   normalizeCustomDirectives,
   parseSoul,
 } from './runtime-soul'
@@ -171,6 +175,9 @@ export function createAlicizationCardPromptRuntime(options: CreateAlicizationCar
     personaKernel?: AlicizationPersonaKernelSnapshot | null
   }) {
     const blocks: string[] = []
+    blocks.push(buildAlicizationProjectStateSystemBlock())
+    blocks.push(buildAlicizationProjectStateClosureDashboard())
+
     if (alicizationFixedCoreSystemInstruction.trim())
       blocks.push(alicizationFixedCoreSystemInstruction.trim())
 

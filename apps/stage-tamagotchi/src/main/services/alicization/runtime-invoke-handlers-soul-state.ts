@@ -74,10 +74,6 @@ interface RegisterAlicizationSoulStateInvokeHandlersOptions {
   }) => Promise<unknown>
   getActiveCardId: () => string
   ensureVisualPresenceState: (cardId: string) => Promise<unknown>
-  refreshVisualPresenceForStartupRestore?: (input: {
-    cardId: string
-    state: Record<string, unknown>
-  }) => Promise<Record<string, unknown> | null | undefined>
   getScreenCaptureDiagnosticsForWebContentsId: (webContentsId: number) => ScreenCaptureDiagnosticsSnapshot | null
 }
 
@@ -120,7 +116,6 @@ export function registerAlicizationSoulStateInvokeHandlers(options: RegisterAlic
     rememberPerceptionObservation,
     getActiveCardId,
     ensureVisualPresenceState,
-    refreshVisualPresenceForStartupRestore = async ({ state }) => state,
     getScreenCaptureDiagnosticsForWebContentsId,
   } = options
 
@@ -275,20 +270,13 @@ export function registerAlicizationSoulStateInvokeHandlers(options: RegisterAlic
       if (!state || typeof state !== 'object')
         return state
 
-      const refreshedState = await refreshVisualPresenceForStartupRestore({
-        cardId: targetCardId,
-        state,
-      }).catch(() => state)
-      const stateForDigest = refreshedState && typeof refreshedState === 'object'
-        ? refreshedState
-        : state
       const runtimeDigest = projectAlicizationRuntimeDigest(
         deriveAlicizationRuntimeSnapshot({
-          spine: deriveAlicizationDigitalLifeSpine(stateForDigest as any),
+          spine: deriveAlicizationDigitalLifeSpine(state as any),
         }),
       )
       return {
-        ...stateForDigest,
+        ...state,
         runtimeDigest,
       }
     })

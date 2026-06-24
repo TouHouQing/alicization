@@ -60,29 +60,27 @@ export type AlicizationPerceptionBrowserWorkflowPhase
 export type AlicizationPerceptionBrowserWorkflowProgressState
   = | 'started'
     | 'steady'
-    | 'holding'
     | 'advanced'
     | 'regressed'
 
 export interface AlicizationPerceptionBrowserWorkflowHistoryEntry {
   observedAt: number
   pagePhase: AlicizationPerceptionBrowserWorkflowPhase
-  title?: string | null
-  url?: string | null
+  title?: string
+  url?: string
 }
 
 export interface AlicizationPerceptionBrowserWorkflowState {
   currentPhase: AlicizationPerceptionBrowserWorkflowPhase
   history: AlicizationPerceptionBrowserWorkflowHistoryEntry[]
-  lastInspectionAt?: number | null
-  lastObservedAt?: number | null
-  previousPhase?: AlicizationPerceptionBrowserWorkflowPhase | null
+  lastInspectionAt: number
+  previousPhase: AlicizationPerceptionBrowserWorkflowPhase | null
   progressState: AlicizationPerceptionBrowserWorkflowProgressState
   targetPhase: AlicizationPerceptionBrowserWorkflowPhase
   taskKey: string
-  title?: string | null
-  updatedAt?: number | null
-  url?: string | null
+  title?: string
+  updatedAt: number
+  url?: string
 }
 
 export interface AlicizationPerceptionState {
@@ -131,6 +129,12 @@ function clampConfidence(value: number) {
 function sanitizeSummary(value: unknown) {
   return typeof value === 'string'
     ? value.trim().replace(/\s+/g, ' ').slice(0, 160)
+    : ''
+}
+
+function sanitizeWorkflowTaskKey(value: unknown) {
+  return typeof value === 'string'
+    ? value.trim().replace(/\s+/g, ' ').slice(0, 240)
     : ''
 }
 
@@ -194,7 +198,7 @@ function normalizeAnchor(raw: unknown): AlicizationAttentionAnchor | null {
   const source = raw && typeof raw === 'object' ? raw as Record<string, unknown> : null
   const target = normalizeTarget(source)
   const anchoredAt = Number(source?.anchoredAt)
-  const lastObservedAt = Number(source?.lastObservedAt ?? source?.updatedAt ?? source?.lastInspectionAt)
+  const lastObservedAt = Number(source?.lastObservedAt)
   const reason = source?.reason
   const workloadKind = source?.workloadKind
   const confidence = Number(source?.confidence)
@@ -308,26 +312,25 @@ function normalizeSceneResidue(raw: unknown): AlicizationPerceptionSceneResidue 
   }
 }
 
-function normalizeBrowserWorkflowPhase(raw: unknown): AlicizationPerceptionBrowserWorkflowPhase | null {
-  return raw === 'unknown'
-    || raw === 'login'
-    || raw === 'search-results'
-    || raw === 'social-feed'
-    || raw === 'browser-desktop-handoff'
-    || raw === 'content-detail'
-    || raw === 'form-entry'
-    || raw === 'upload-flow'
-    ? raw
+function normalizeBrowserWorkflowPhase(value: unknown): AlicizationPerceptionBrowserWorkflowPhase | null {
+  return value === 'login'
+    || value === 'search-results'
+    || value === 'social-feed'
+    || value === 'browser-desktop-handoff'
+    || value === 'content-detail'
+    || value === 'form-entry'
+    || value === 'upload-flow'
+    || value === 'unknown'
+    ? value
     : null
 }
 
-function normalizeBrowserWorkflowProgressState(raw: unknown): AlicizationPerceptionBrowserWorkflowProgressState | null {
-  return raw === 'started'
-    || raw === 'steady'
-    || raw === 'holding'
-    || raw === 'advanced'
-    || raw === 'regressed'
-    ? raw
+function normalizeBrowserWorkflowProgressState(value: unknown): AlicizationPerceptionBrowserWorkflowProgressState | null {
+  return value === 'started'
+    || value === 'steady'
+    || value === 'advanced'
+    || value === 'regressed'
+    ? value
     : null
 }
 
@@ -341,8 +344,8 @@ function normalizeBrowserWorkflowHistoryEntry(raw: unknown): AlicizationPercepti
   return {
     observedAt: Math.max(0, Math.floor(observedAt)),
     pagePhase,
-    title: sanitizeTargetText(source?.title) || null,
-    url: sanitizeTargetText(source?.url) || null,
+    title: sanitizeTargetText(source?.title) || undefined,
+    url: sanitizeTargetText(source?.url) || undefined,
   }
 }
 
@@ -350,31 +353,43 @@ function normalizeBrowserWorkflowState(raw: unknown): AlicizationPerceptionBrows
   const source = raw && typeof raw === 'object' ? raw as Record<string, unknown> : null
   const currentPhase = normalizeBrowserWorkflowPhase(source?.currentPhase)
   const targetPhase = normalizeBrowserWorkflowPhase(source?.targetPhase)
-  const previousPhase = normalizeBrowserWorkflowPhase(source?.previousPhase)
+  const previousPhase = source?.previousPhase == null
+    ? null
+    : normalizeBrowserWorkflowPhase(source?.previousPhase)
   const progressState = normalizeBrowserWorkflowProgressState(source?.progressState)
-  const lastObservedAt = Number(source?.lastObservedAt)
-  const taskKey = sanitizeTargetText(source?.taskKey)
-  if (!currentPhase || !targetPhase || !progressState || !Number.isFinite(lastObservedAt) || !taskKey)
+  const taskKey = sanitizeWorkflowTaskKey(source?.taskKey)
+  const updatedAt = Number(source?.updatedAt)
+  const lastInspectionAt = Number(source?.lastInspectionAt)
+  if (
+    !currentPhase
+    || !targetPhase
+    || !progressState
+    || !taskKey
+    || !Number.isFinite(updatedAt)
+    || !Number.isFinite(lastInspectionAt)
+    || (source?.previousPhase != null && !previousPhase)
+  ) {
     return null
+  }
 
   const history = Array.isArray(source?.history)
     ? source.history
         .map(normalizeBrowserWorkflowHistoryEntry)
         .filter((entry): entry is AlicizationPerceptionBrowserWorkflowHistoryEntry => Boolean(entry))
-        .slice(-8)
+        .slice(-6)
     : []
 
   return {
     currentPhase,
-    history,
-    lastObservedAt: Math.max(0, Math.floor(lastObservedAt)),
     previousPhase,
     progressState,
     targetPhase,
     taskKey,
-    title: sanitizeTargetText(source?.title) || null,
-    updatedAt: Math.max(0, Math.floor(Number(source?.updatedAt ?? lastObservedAt))),
-    url: sanitizeTargetText(source?.url) || null,
+    updatedAt: Math.max(0, Math.floor(updatedAt)),
+    lastInspectionAt: Math.max(0, Math.floor(lastInspectionAt)),
+    title: sanitizeTargetText(source?.title) || undefined,
+    url: sanitizeTargetText(source?.url) || undefined,
+    history,
   }
 }
 
@@ -499,8 +514,8 @@ export function updatePerceptionStateWithObservation(input: {
       workloadKind,
       confidence: clampConfidence(workloadKind === 'unknown' ? 0.62 : 0.88),
     },
-    lastNonSelfForegroundTarget: observation,
     browserWorkflowState: input.state.browserWorkflowState ?? null,
+    lastNonSelfForegroundTarget: observation,
     recentObservations,
     invitedInspection,
     recentSceneResidue: input.state.recentSceneResidue,
@@ -544,6 +559,7 @@ export function activateInvitedInspection(input: {
   return {
     ...input.state,
     attentionAnchor: nextAnchor,
+    browserWorkflowState: input.state.browserWorkflowState ?? null,
     invitedInspection: {
       requestedAt: input.now,
       activeUntil,
@@ -570,6 +586,7 @@ export function releaseInvitedInspection(input: {
   return {
     ...input.state,
     attentionAnchor,
+    browserWorkflowState: input.state.browserWorkflowState ?? null,
     invitedInspection: null,
     recentSceneResidue: input.clearSceneResidue && input.state.recentSceneResidue?.source === 'invited-inspection'
       ? null
@@ -631,6 +648,22 @@ export function rememberPerceptionSceneResidue(input: {
   } satisfies AlicizationPerceptionState
 }
 
+function classifyWorkflowProgress(input: {
+  currentPhase: AlicizationPerceptionBrowserWorkflowPhase
+  previousPhase: AlicizationPerceptionBrowserWorkflowPhase | null
+  targetPhase: AlicizationPerceptionBrowserWorkflowPhase
+}) {
+  if (!input.previousPhase)
+    return 'started' as const
+  if (input.previousPhase === input.currentPhase)
+    return 'steady' as const
+  if (input.currentPhase === input.targetPhase && input.previousPhase !== input.targetPhase)
+    return 'advanced' as const
+  if (input.previousPhase === input.targetPhase && input.currentPhase !== input.targetPhase)
+    return 'regressed' as const
+  return 'advanced' as const
+}
+
 export function rememberPerceptionBrowserWorkflowState(input: {
   state: AlicizationPerceptionState
   now: number
@@ -640,46 +673,51 @@ export function rememberPerceptionBrowserWorkflowState(input: {
   title?: string | null
   url?: string | null
 }) {
-  const taskKey = sanitizeTargetText(input.taskKey)
-  if (!taskKey) {
-    return {
-      ...input.state,
-      updatedAt: input.now,
-    } satisfies AlicizationPerceptionState
-  }
+  const taskKey = sanitizeWorkflowTaskKey(input.taskKey)
+  const title = sanitizeTargetText(input.title) || undefined
+  const url = sanitizeTargetText(input.url) || undefined
+  if (!taskKey)
+    return input.state
 
   const previous = input.state.browserWorkflowState?.taskKey === taskKey
     ? input.state.browserWorkflowState
     : null
   const previousPhase = previous?.currentPhase ?? null
-  const progressState: AlicizationPerceptionBrowserWorkflowProgressState = previous
-    ? previous.currentPhase === input.currentPhase
-      ? 'holding'
-      : input.currentPhase === input.targetPhase
-        ? 'advanced'
-        : previous.currentPhase === input.targetPhase && input.currentPhase !== input.targetPhase
-          ? 'regressed'
-          : 'advanced'
-    : 'started'
-  const entry: AlicizationPerceptionBrowserWorkflowHistoryEntry = {
-    observedAt: Math.max(0, Math.floor(input.now)),
+  const progressState = classifyWorkflowProgress({
+    currentPhase: input.currentPhase,
+    previousPhase,
+    targetPhase: input.targetPhase,
+  })
+  const nextEntry: AlicizationPerceptionBrowserWorkflowHistoryEntry = {
+    observedAt: input.now,
     pagePhase: input.currentPhase,
-    title: sanitizeTargetText(input.title) || null,
-    url: sanitizeTargetText(input.url) || null,
+    title,
+    url,
   }
+  const historySource = previous?.history ?? []
+  const lastEntry = historySource.at(-1) ?? null
+  const history = (
+    lastEntry
+    && lastEntry.pagePhase === nextEntry.pagePhase
+    && lastEntry.url === nextEntry.url
+    && lastEntry.title === nextEntry.title
+  )
+    ? [...historySource.slice(0, -1), nextEntry]
+    : [...historySource, nextEntry]
 
   return {
     ...input.state,
     browserWorkflowState: {
       currentPhase: input.currentPhase,
-      history: [...(previous?.history ?? []), entry].slice(-8),
-      lastObservedAt: Math.max(0, Math.floor(input.now)),
       previousPhase,
       progressState,
       targetPhase: input.targetPhase,
       taskKey,
-      title: entry.title,
-      url: entry.url,
+      updatedAt: input.now,
+      lastInspectionAt: input.now,
+      title,
+      url,
+      history: history.slice(-6),
     },
     updatedAt: input.now,
   } satisfies AlicizationPerceptionState

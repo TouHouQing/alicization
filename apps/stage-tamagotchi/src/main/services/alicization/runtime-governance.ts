@@ -3946,7 +3946,7 @@ export function coerceConversationTurnToMindGovernedPayload(
   const hasMindThought = hasMindTurnSpine(thought)
   const missingMindThought = !hasMindThought
   const invalidFormat = format !== 'mind-turn-v1'
-  const invalidParsePath = !['json', 'repair-json'].includes(parsePath)
+  const invalidParsePath = !['json', 'repair-json', 'second-pass-json'].includes(parsePath)
   const contractFailed = structuredPayload.contractFailed === true
   const reasons = [
     contractFailed ? 'structured-contract-failed' : '',

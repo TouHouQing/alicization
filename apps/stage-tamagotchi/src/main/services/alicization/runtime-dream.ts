@@ -1,3 +1,5 @@
+import type { Message } from '@xsai/shared-chat'
+
 import type {
   AlicizationAuditLogInput,
   AlicizationDreamMetabolismPayload,
@@ -64,17 +66,14 @@ interface CreateAlicizationDreamRuntimeOptions {
   }) => Promise<Array<Pick<AlicizationMemoryConsolidationRecord, 'periodKey' | 'facet' | 'summary' | 'lesson' | 'cues' | 'confidence'>> | null>
   appendAuditLog: (input: AlicizationAuditLogInput, cardId?: string) => Promise<void>
   buildAgentRuntimeAuditSnapshot: (agentTurn?: AlicizationAgentTurnRuntime | null) => unknown
-  hydrateAgentTurnFromCurrentCardState?: (input: {
+  hydrateAgentTurnFromCurrentCardState: (input: {
+    agentTurn?: AlicizationAgentTurnRuntime | null
     cardId: string
-    decisionTraceId?: string | null
-    sessionId?: string | null
-    source: string
-    turnId?: string | null
-  }) => Promise<AlicizationAgentTurnRuntime | null>
-  buildAgentTurnContinuitySystemMessages?: (input: {
+  }) => Promise<void>
+  buildAgentTurnContinuitySystemMessages: (input: {
     agentTurn: AlicizationAgentTurnRuntime
     cardId: string
-  }) => unknown[]
+  }) => Message[]
   truncateForDream: (value: string | null | undefined, maxChars: number) => string
   parseStructuredHint: (raw: string | null | undefined) => Record<string, unknown>
   clampSoulDelta: (value: number, maxAbs?: number) => number
@@ -124,6 +123,8 @@ export function createAlicizationDreamRuntime(options: CreateAlicizationDreamRun
     generateDreamAutobiographicalSummariesWithGateway,
     appendAuditLog,
     buildAgentRuntimeAuditSnapshot,
+    hydrateAgentTurnFromCurrentCardState,
+    buildAgentTurnContinuitySystemMessages,
     truncateForDream,
     parseStructuredHint,
     clampSoulDelta,
@@ -229,12 +230,24 @@ export function createAlicizationDreamRuntime(options: CreateAlicizationDreamRun
       cardId: dreamCardId,
       turnId: dreamTurnId,
     })
+    await hydrateAgentTurnFromCurrentCardState({
+      agentTurn: dreamAgentTurn,
+      cardId: dreamCardId,
+    })
+    const dreamContinuitySystemBlocks = buildAgentTurnContinuitySystemMessages({
+      agentTurn: dreamAgentTurn,
+      cardId: dreamCardId,
+    })
+      .filter(message => message.role === 'system' && typeof message.content === 'string')
+      .map(message => message.content)
+      .filter(Boolean)
     const llmMetabolism = await generateDreamMetabolismWithGateway({
       serializedTurns,
       personality: dreamSoul.frontmatter.personality,
       hostAttitude: dreamSoul.frontmatter.host_attitude,
       coreIncarnation: dreamSoul.frontmatter.core_incarnation,
       activeThoughts: currentActiveThoughts,
+      continuitySystemBlocks: dreamContinuitySystemBlocks,
       agentTurn: dreamAgentTurn,
       agentTurnInput: {
         turnId: dreamTurnId,
@@ -324,6 +337,21 @@ export function createAlicizationDreamRuntime(options: CreateAlicizationDreamRun
           shatteringEvent: shatteringEventText || null,
           sampledTurns: sampledCount,
           agentRuntime: buildAgentRuntimeAuditSnapshot(dreamAgentTurn),
+          dreamHydrationSnapshot: (() => {
+            const snapshot = dreamAgentTurn.getSessionSnapshot()
+            return {
+              agentSessionId: snapshot.id,
+              conversationSessionId: snapshot.conversationSessionId,
+              continuityLabels: snapshot.continuitySignals.map(signal => signal.label),
+              continuitySources: snapshot.continuitySignals.map(signal => ({
+                label: signal.label,
+                source: typeof signal.metadata?.source === 'string' ? signal.metadata.source : null,
+                turnId: typeof signal.metadata?.turnId === 'string' ? signal.metadata.turnId : null,
+                outcome: typeof signal.metadata?.outcome === 'string' ? signal.metadata.outcome : null,
+                state: signal.state,
+              })),
+            }
+          })(),
         },
       })
     }
@@ -460,6 +488,7 @@ export function createAlicizationDreamRuntime(options: CreateAlicizationDreamRun
     })
     const latestConsolidations = await getAlicizationDb().listMemoryConsolidations?.(8).catch(() => [])
     if (Array.isArray(latestConsolidations) && latestConsolidations.length > 0) {
+      let autobiographicalSourceConsolidations = latestConsolidations
       const refinedConsolidations = await generateMemoryConsolidationRefinementWithGateway({
         serializedTurns,
         consolidations: latestConsolidations,
@@ -471,28 +500,29 @@ export function createAlicizationDreamRuntime(options: CreateAlicizationDreamRun
         },
       }).catch(() => null)
       if (refinedConsolidations && refinedConsolidations.length > 0) {
+        autobiographicalSourceConsolidations = latestConsolidations.map((record: AlicizationMemoryConsolidationRecord) => {
+          const refined = refinedConsolidations.find(item => item.id === record.id)
+          if (!refined)
+            return record
+          return {
+            ...record,
+            summary: sanitizeHumanlikeMemoryText(refined.summary, 320) || record.summary,
+            lesson: sanitizeHumanlikeMemoryText(refined.lesson, 220) || record.lesson,
+            cues: Array.isArray(refined.cues) && refined.cues.length > 0
+              ? refined.cues.map(item => sanitizeHumanlikeMemoryText(item, 120)).filter(Boolean)
+              : record.cues,
+            confidence: Number.isFinite(refined.confidence) ? Math.max(record.confidence, Math.min(1, refined.confidence)) : record.confidence,
+            updatedAt: Date.now(),
+          } satisfies AlicizationMemoryConsolidationRecord
+        })
         await getAlicizationDb().upsertMemoryConsolidations?.(
-          latestConsolidations.map((record: AlicizationMemoryConsolidationRecord) => {
-            const refined = refinedConsolidations.find(item => item.id === record.id)
-            if (!refined)
-              return record
-            return {
-              ...record,
-              summary: sanitizeHumanlikeMemoryText(refined.summary, 320) || record.summary,
-              lesson: sanitizeHumanlikeMemoryText(refined.lesson, 220) || record.lesson,
-              cues: Array.isArray(refined.cues) && refined.cues.length > 0
-                ? refined.cues.map(item => sanitizeHumanlikeMemoryText(item, 120)).filter(Boolean)
-                : record.cues,
-              confidence: Number.isFinite(refined.confidence) ? Math.max(record.confidence, Math.min(1, refined.confidence)) : record.confidence,
-              updatedAt: Date.now(),
-            } satisfies AlicizationMemoryConsolidationRecord
-          }),
+          autobiographicalSourceConsolidations,
         ).catch(() => {})
       }
       if (firstSampledAt != null && lastSampledAt != null) {
         const autobiographicalSummaries = await generateDreamAutobiographicalSummariesWithGateway({
           serializedTurns,
-          consolidations: latestConsolidations,
+          consolidations: autobiographicalSourceConsolidations,
           hostAttitude,
           coreIncarnation: nextCoreIncarnation,
           periodStartedAt: firstSampledAt,

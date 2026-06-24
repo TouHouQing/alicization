@@ -53,6 +53,165 @@ describe('runtime turn composition helpers', () => {
     ] as any)).toContain('continuity_afterglow:')
   })
 
+  it('builds held-autonomy recall seeds so later turns can re-enter the same inner line', () => {
+    const seed = buildSessionContinuityRecallSeed([
+      {
+        kind: 'proactive',
+        state: 'observed',
+        label: 'proactive:follow-through:held-autonomy',
+        summary: 're-open the unresolved runtime break and see what still blocks it | intent=follow-through | defer=busy-host | thread=thread-runtime | scenario=coding',
+        metadata: {
+          source: 'proactive-held-autonomy',
+          sourceThreadId: 'thread-runtime',
+          executionIntentKind: 'follow-through',
+          executionIntentSummary: 're-open the unresolved runtime break and see what still blocks it',
+          deferReason: 'busy-host',
+          whyNow: 'She wants to quietly return to the unresolved runtime thread.',
+        },
+      },
+    ] as any)
+
+    expect(seed).toContain('continuity_held_autonomy:')
+    expect(seed).toContain('thread=thread-runtime')
+    expect(seed).toContain('intent=follow-through')
+    expect(seed).toContain('goal=re-open the unresolved runtime break and see what still blocks it')
+    expect(seed).toContain('defer=busy-host')
+  })
+
+  it('treats deferred same-thread proactive continuity as held-autonomy recall pressure when the line was intentionally kept inward', () => {
+    const emotionalClosureCue = 'Return to the unresolved compile seam in a low-pressure same-her way, so it lands like one living continuation instead of a generic follow-up.'
+    const seed = buildSessionContinuityRecallSeed([
+      {
+        kind: 'proactive',
+        state: 'pending',
+        label: 'proactive:coding:deferred',
+        summary: 'no mind-authored visible reply was available | stay near the unresolved compile seam without reopening visible speech | thread=thread-runtime-deferred | scenario=coding',
+        metadata: {
+          source: 'proactive-deferred',
+          sourceThreadId: 'thread-runtime-deferred',
+          sourceThoughtThreadId: 'thought-runtime-deferred',
+          sourceConcernId: 'concern-runtime-deferred',
+          deferReason: 'busy-host',
+          whyNow: 'Stay near the unresolved compile seam without reopening visible speech.',
+          executionIntentSummary: 'stay near the unresolved compile seam without reopening visible speech',
+          projectStatePreDialogueAwarenessLine: 'Before answering, remember this is still the same digital life project and the unfinished Phase 1 closure seam still belongs to one living her.',
+          projectStatePreflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment so the same digital life keeps carrying Project identity carry, Phase 1 route carry, and Unresolved closure carry through one same still-open closure work. | next=Keep extending cross-modal same-her proof across visible reply, voice, face, motion, and resident presence through longer, noisier real-desktop runs.',
+          projectLatestLandedProgress: 'Project-state carry already survives into same-thread returns and reminder/proactive preparation without reopening from zero.',
+          projectNextClosureTarget: 'Keep extending cross-modal same-her proof across visible reply, voice, face, motion, and resident presence through longer, noisier real-desktop runs.',
+          projectStateSameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+          projectStateSameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the direct same-her self line disappears, treat that as unfinished closure drift rather than a successful turn.',
+          projectStateEmotionalClosureCue: emotionalClosureCue,
+        },
+      },
+    ] as any)
+
+    expect(seed).toContain('continuity_held_autonomy:')
+    expect(seed).toContain('thread=thread-runtime-deferred')
+    expect(seed).toContain('goal=Keep extending cross-modal same-her proof across visible reply, voice, face, motion, and resident presence through longer, noisier real-desktop runs.')
+    expect(seed).toContain('defer=busy-host')
+    expect(seed).toContain('why_now=Stay near the unresolved compile seam without reopening visible speech.')
+    expect(seed).toContain('project_pre_dialogue=Before answering, remember this is still the same digital life project and the unfinished Phase 1 closure seam still belongs to one living her.')
+    expect(seed).toContain('project_preflight=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.')
+    expect(seed).toContain('landed=Project-state carry already survives into same-thread returns and reminder/proactive preparation without reopening from zero.')
+    expect(seed).toContain('same_her=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.')
+    expect(seed).toContain('drift_risk=If project-state continuity survives only as generic guidance while the direct same-her self line disappears, treat that as unfinished closure drift rather than a successful turn.')
+    expect(seed).toContain('open_focus=memory/initiative/embodiment')
+    expect(seed).toContain('next_focus=phase-1')
+    expect(seed).toContain(`project_emotional_closure=${emotionalClosureCue}`)
+  })
+
+  it('treats legacy projectLatestProgress and projectMemoryClosureSummary as held-autonomy recall carry when older continuity metadata has not been renamed yet', () => {
+    const seed = buildSessionContinuityRecallSeed([
+      {
+        kind: 'proactive',
+        state: 'observed',
+        label: 'proactive:follow-through:held-autonomy',
+        summary: 'older continuity metadata still keeps the same inner line alive',
+        metadata: {
+          source: 'proactive-held-autonomy',
+          sourceThreadId: 'thread-runtime-legacy',
+          executionIntentKind: 'follow-through',
+          executionIntentSummary: 're-open the unresolved runtime break and see what still blocks it',
+          projectStatePreDialogueAwarenessLine: 'Before answering, remember this is still the same digital life project and the unfinished closure seam still belongs to one living her.',
+          projectStateSameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+          projectLatestProgress: 'Legacy held-autonomy project carry still preserves what has already landed across older continuity metadata.',
+          projectMemoryClosureSummary: 'Legacy held-autonomy continuity still needs to keep the still-open closure explicit before the remembered line widens outward.',
+        },
+      },
+    ] as any)
+
+    expect(seed).toContain('continuity_held_autonomy:')
+    expect(seed).toContain('thread=thread-runtime-legacy')
+    expect(seed).toContain('landed=Legacy held-autonomy project carry still preserves what has already landed across older continuity metadata.')
+    expect(seed).toContain('unresolved=Legacy held-autonomy continuity still needs to keep the still-open closure explicit before the remembered line widens outward.')
+  })
+
+  it('preserves one same-her continuity line from held-autonomy recall seed through callback carry reopening', () => {
+    const recallSeed = buildSessionContinuityRecallSeed([
+      {
+        kind: 'proactive',
+        state: 'observed',
+        label: 'proactive:follow-through:held-autonomy',
+        summary: 're-open the unresolved runtime break and see what still blocks it | intent=follow-through | defer=busy-host | thread=thread-runtime | scenario=coding',
+        metadata: {
+          source: 'proactive-held-autonomy',
+          sourceThreadId: 'thread-runtime',
+          executionIntentKind: 'follow-through',
+          executionIntentSummary: 're-open the unresolved runtime break and see what still blocks it',
+          deferReason: 'busy-host',
+          whyNow: 'She wants to quietly return to the unresolved runtime thread.',
+        },
+      },
+      {
+        kind: 'execution-callback',
+        state: 'observed',
+        label: 'execution:callback-carry',
+        summary: 'The compile result is ready to land back on the same thread without crowding the host.',
+        metadata: {
+          sourceThreadId: 'thread-runtime',
+          executionIntentKind: 'follow-through',
+          executionIntentSummary: 'land the compile result back on the same runtime thread',
+          carryMode: 'lower-pressure',
+        },
+      },
+    ] as any)
+
+    expect(recallSeed).toContain('continuity_held_autonomy:')
+    expect(recallSeed).toContain('thread=thread-runtime')
+    expect(recallSeed).toContain('intent=follow-through')
+    expect(recallSeed).not.toContain('generic utility')
+  })
+
+  it('builds cadence reconfirmation recall seeds so runtime steering can keep measured-return continuity in view', () => {
+    const seed = buildSessionContinuityRecallSeed([
+      {
+        kind: 'proactive',
+        state: 'observed',
+        label: 'relationship:cadence-reconfirmation',
+        summary: 'relationship cadence stayed on the same bounded-return line after reconfirmation',
+        metadata: {
+          source: 'relationship-cadence-reconfirmation',
+          sourceThreadId: 'thread-cadence-runtime',
+          cadenceMode: 'measured-return',
+          relationshipLine: 'keep the relationship return measured until the surface fully cools',
+          bodyMode: 'measured-return',
+          preferredBlinkCadence: 'linger',
+          preferredGazeMode: 'soften',
+          whyNow: 'The callback return still needs room-first continuity before closeness widens again.',
+        },
+      },
+    ] as any)
+
+    expect(seed).toContain('continuity_cadence_reconfirmation:')
+    expect(seed).toContain('thread=thread-cadence-runtime')
+    expect(seed).toContain('cadence=measured-return')
+    expect(seed).toContain('line=keep the relationship return measured until the surface fully cools')
+    expect(seed).toContain('body=measured-return')
+    expect(seed).toContain('blink=linger')
+    expect(seed).toContain('gaze=soften')
+    expect(seed).toContain('why_now=The callback return still needs room-first continuity before closeness widens again.')
+  })
+
   it('filters tools to required routing names without dropping fallback tools when no match exists', () => {
     const tools = [
       { function: { name: 'search_memory' } },

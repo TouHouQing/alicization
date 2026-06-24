@@ -18,6 +18,10 @@ const contextEmitMock = vi.fn()
 const metaStore = new Map<string, string>()
 const streamTextMock = vi.fn()
 const generateTextMock = vi.fn()
+const listWebContentsMock = vi.fn<() => any[]>(() => [])
+const desktopCapturerGetSourcesMock = vi.fn<() => Promise<any[]>>(async () => [])
+const systemPreferencesGetMediaAccessStatusMock = vi.fn(() => 'granted')
+const getScreenCaptureDiagnosticsForWebContentsIdMock = vi.fn(() => null)
 let sensoryCpuUsage = 12
 let foregroundWindowSample: { appName?: string, processName?: string, title?: string } | undefined
 
@@ -114,6 +118,7 @@ vi.mock('@moeru/eventa/adapters/electron/main', () => ({
 vi.mock('electron', () => ({
   app: {
     getPath: vi.fn(() => '/tmp/airi-runtime-should-not-be-used'),
+    getLocale: vi.fn(() => 'zh-Hans'),
   },
   globalShortcut: {
     register: vi.fn(() => true),
@@ -124,12 +129,22 @@ vi.mock('electron', () => ({
     on: vi.fn(),
     removeListener: vi.fn(),
   },
+  desktopCapturer: {
+    getSources: desktopCapturerGetSourcesMock,
+  },
+  systemPreferences: {
+    getMediaAccessStatus: systemPreferencesGetMediaAccessStatusMock,
+  },
   ipcMain: {
     handle: vi.fn(),
     removeHandler: vi.fn(),
   },
+  shell: {
+    openExternal: vi.fn(),
+    openPath: vi.fn(),
+  },
   webContents: {
-    getAllWebContents: vi.fn(() => []),
+    getAllWebContents: listWebContentsMock,
   },
 }))
 
@@ -139,6 +154,10 @@ vi.mock('../../libs/bootkit/lifecycle', () => ({
 
 vi.mock('./db', () => ({
   setupAlicizationDb: vi.fn(async () => dbStub),
+}))
+
+vi.mock('@proj-alicization/electron-screen-capture/main', () => ({
+  getScreenCaptureDiagnosticsForWebContentsId: getScreenCaptureDiagnosticsForWebContentsIdMock,
 }))
 
 vi.mock('./sensory-bus', () => ({
@@ -304,6 +323,76 @@ describe('epoch3 proactive closure e2e', () => {
       lastSavedAt: Date.now() - 60_000,
       updatedAt: Date.now() - 60_000,
     }))
+    dbStub.getLatestLearningExecutionState.mockResolvedValue({
+      nextLearningAction: 'verify',
+      activeLearningFocuses: ['world-model'],
+    })
+    metaStore.set('self_evolution_version_runtime_v1', JSON.stringify({
+      version: 'self-evolution-version-runtime-v1',
+      activeCandidateId: 'candidate-active',
+      candidates: [{
+        version: 'self-evolution-version-candidate-v1',
+        id: 'candidate-active',
+        status: 'active',
+        sourceEventId: 'event-active',
+        decisionTraceId: 'trace-active',
+        sourceTurnId: 'turn-active',
+        patch: {
+          version: 'self-revision-state-patch-v1',
+          id: 'patch-active',
+          sourceEventId: 'event-active',
+          sourceTurnId: 'turn-active',
+          decisionTraceId: 'trace-active',
+          domain: 'world-model',
+          action: 'verify',
+          resultStatus: 'completed',
+          lanes: ['memory-policy'],
+          memoryPolicy: {
+            strictnessBias: 0.24,
+            wrongThreadSuppressionBias: 0.42,
+            provenanceLabelBias: 0.38,
+            recallExpansionBias: 0.2,
+            shouldQuarantineUnsupportedCarry: true,
+          },
+          relationshipPosture: {
+            repairWindowBias: 0.18,
+            closenessCapBias: 0.14,
+            warmthReleaseBias: 0.09,
+          },
+          responsePosture: {
+            secondPassRequiredBias: 0.16,
+            hypothesisLabelBias: 0.22,
+            specificityClampBias: 0.28,
+            templateShellSuppressionBias: 0.24,
+          },
+          proactivePolicy: {
+            restraintBias: 0.12,
+            learningProposalBias: 0.2,
+            actuationCooldownBias: 0.12,
+          },
+          validation: {
+            requiresRollbackCheck: false,
+            requiresRevalidation: true,
+            rollbackPlan: [],
+          },
+          reasonCodes: ['domain:world-model', 'world-model-revalidation-required'],
+          summary: 'World-model carry remains verify-first.',
+        },
+        validation: {
+          replayRequired: true,
+          replayPassed: true,
+          rollbackSupported: true,
+          activationBlockedReasons: [],
+          finalReplayGatePassed: true,
+          productionGoldSampleCount: 5,
+          productionGoldCoverage: 1,
+        },
+        activatedAt: 120,
+        rolledBackAt: null,
+        createdAt: 100,
+      }],
+      reasonCodes: ['self-evolution:active-version-present'],
+    }))
 
     await setupAlicizationRuntime({
       userDataPathOverride: sandboxPath,
@@ -357,7 +446,7 @@ describe('epoch3 proactive closure e2e', () => {
       emotion: 'thinking',
       performance: expect.objectContaining({
         baseEmotion: 'thinking',
-        delivery: 'calm',
+        delivery: 'gentle',
       }),
       variationToken: expect.any(String),
     }))
@@ -376,6 +465,12 @@ describe('epoch3 proactive closure e2e', () => {
     expect(proactiveEvent?.structured.digitalLife).toEqual(expect.objectContaining({
       version: 'digital-life-v1',
       emotion: 'thinking',
+      performance: expect.objectContaining({
+        baseEmotion: 'thinking',
+        delivery: 'gentle',
+        actionCue: 'observe_focus',
+        residentMode: 'measured-return',
+      }),
       mode: expect.any(String),
       frames: expect.arrayContaining([
         expect.objectContaining({
@@ -392,7 +487,11 @@ describe('epoch3 proactive closure e2e', () => {
     }))
     expect(proactiveEvent?.structured.embodimentScript).toEqual(expect.objectContaining({
       version: 'embodiment-script-v1',
-      rendererTarget: expect.any(String),
+      state: expect.objectContaining({
+        baseEmotion: 'thinking',
+        delivery: 'gentle',
+        residentMode: 'measured-return',
+      }),
       speechPlan: expect.objectContaining({
         segments: expect.arrayContaining([
           expect.objectContaining({
@@ -426,6 +525,21 @@ describe('epoch3 proactive closure e2e', () => {
         ]),
       }),
     }))
+    expect(
+      ['live2d', 'vrm'].includes(String(proactiveEvent?.structured.embodimentScript?.rendererTarget ?? '')),
+    ).toBe(true)
+    expect(proactiveEvent?.structured.digitalLifeSpine).toEqual(expect.objectContaining({
+      version: 'digital-life-spine-digest-v1',
+      proactive: expect.objectContaining({
+        preferredStyle: 'silent-observe',
+        continuityRestraint: expect.stringMatching(/lower-pressure|measured-return|repair-before-closeness/),
+      }),
+    }))
+    expect(proactiveEvent?.structured.projectState).toEqual(expect.objectContaining({
+      identity: expect.stringContaining('local-first digital life project'),
+      currentPhase: expect.stringContaining('Phase 1: Local Digital Life'),
+      sameHerSelfLine: expect.stringContaining('Same Phase 1 digital life'),
+    }))
 
     dbStub.appendEpisodicEvents.mockClear()
     await reportFeedback!({
@@ -452,19 +566,18 @@ describe('epoch3 proactive closure e2e', () => {
         coding: 0.15,
       }),
     }))
-    expect(policyAudit?.payload).toEqual(expect.objectContaining({
-      consideredSignals: expect.any(Array),
-      ignoredSignals: expect.any(Array),
-      decision: expect.objectContaining({
-        scenario: 'coding',
-        style: 'light-nudge',
-      }),
-      reasonCodes: expect.any(Array),
-      whyNow: expect.any(String),
-      whyNotLater: expect.any(String),
-      cooldownMs: expect.any(Number),
-      feedbackBias: expect.any(Number),
+    expect(policyAudit?.payload?.consideredSignals).toEqual(expect.any(Array))
+    expect(policyAudit?.payload?.ignoredSignals).toEqual(expect.any(Array))
+    expect(policyAudit?.payload?.decision).toEqual(expect.objectContaining({
+      scenario: 'coding',
+      style: 'silent-observe',
+      reasonCodes: expect.arrayContaining([
+        'continuity-next-open-window',
+      ]),
     }))
+    expect(String(policyAudit?.payload?.decision?.whyNow ?? '').toLowerCase()).toContain('lower-pressure')
+    expect(policyAudit?.payload?.cooldownMs).toEqual(expect.any(Number))
+    expect(policyAudit?.payload?.feedbackBias).toEqual(expect.any(Number))
     expect(suppressedAudit?.payload?.reasonCodes).toContain('global-cooldown-active')
   })
 })

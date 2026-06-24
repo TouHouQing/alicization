@@ -164,6 +164,7 @@ export function registerAlicizationTaskInvokeHandlers(options: RegisterAlicizati
         cli: payload.cli,
         codex: payload.codex,
         claudeCode: payload.claudeCode,
+        localVisual: payload.localVisual,
         openclaw: payload.openclaw,
         killSwitchSuspended,
         abortSignal: abortController.signal,

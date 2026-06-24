@@ -3,6 +3,7 @@ import type {
   AlicizationClawTaskIntent,
   AlicizationExecutionEventInput,
   AlicizationExecutionEventKind,
+  AlicizationExecutionRuntimeContext,
   AlicizationExecutionTurnOrigin,
   AlicizationPlanTaskThreadInput,
   AlicizationPlanTaskThreadResult,
@@ -15,6 +16,10 @@ import type { AlicizationClawFabricExperience } from './claw-fabric'
 import { randomUUID } from 'node:crypto'
 
 import { buildClawFabricPlan } from './claw-fabric'
+import {
+  resolveAlicizationAutonomousDialogueFamilyClassification,
+  resolveAlicizationAutonomousDialogueOrigin,
+} from './runtime-structured-format'
 
 type TaskThreadPersistencePort = Pick<{
   upsertTaskThread: (input: AlicizationTaskThreadUpsertInput) => Promise<AlicizationTaskThreadRecord>
@@ -39,13 +44,28 @@ function normalizeText(raw: unknown, maxChars = 220) {
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
 }
 
-function mapTaskOriginToExecutionOrigin(origin: AlicizationClawTaskIntent['origin'], fallback?: AlicizationExecutionTurnOrigin | null): AlicizationExecutionTurnOrigin {
+function mapTaskOriginToExecutionOrigin(input: {
+  taskOrigin: AlicizationClawTaskIntent['origin']
+  fallback?: AlicizationExecutionTurnOrigin | null
+  turnId?: string | null
+}): AlicizationExecutionTurnOrigin {
+  const origin = input.taskOrigin
   if (origin === 'proactive')
-    return 'subconscious-proactive'
+    return resolveAlicizationAutonomousDialogueOrigin('proactive')
   if (origin === 'system')
     return 'system'
-  if (fallback === 'subconscious-proactive' || fallback === 'system')
-    return fallback
+  const normalizedFallback = typeof input.fallback === 'string'
+    ? input.fallback.trim().toLowerCase()
+    : ''
+  const autonomousDialogueFamily = resolveAlicizationAutonomousDialogueFamilyClassification({
+    turnId: input.turnId,
+    origin: normalizedFallback,
+  })
+  const hasStructuralAutonomousOwnership = autonomousDialogueFamily.matchedBy.includes('turn-id-prefix')
+  if (autonomousDialogueFamily.isAutonomous && hasStructuralAutonomousOwnership)
+    return autonomousDialogueFamily.canonicalOrigin ?? resolveAlicizationAutonomousDialogueOrigin('proactive')
+  if (normalizedFallback === 'system')
+    return 'system'
   return 'user-turn'
 }
 
@@ -70,6 +90,100 @@ function buildThreadSummary(input: {
   if (input.plan.state === 'needs-affirmation')
     return `Execution is waiting for affirmation before ${input.plan.proposedChannel ?? 'a channel'} can act on ${goal}.`
   return `Execution planned ${input.plan.proposedChannel ?? 'a structured channel'} for ${goal}.`
+}
+
+type AlicizationTaskThreadProjectBriefingMetadata = NonNullable<AlicizationExecutionRuntimeContext['projectBriefing']>
+
+function normalizeProjectBriefingMetadata(
+  projectBriefing: AlicizationClawFabricExperience['projectBriefing'],
+): AlicizationTaskThreadProjectBriefingMetadata | null {
+  if (!projectBriefing)
+    return null
+
+  const projectBriefingRecord = projectBriefing as (NonNullable<AlicizationClawFabricExperience['projectBriefing']> & {
+    landedProgressSummary?: unknown
+    openClosureSummary?: unknown
+    nextClosureTargetSummary?: unknown
+    sameHerDriftRiskSummary?: unknown
+  })
+  const next = {
+    identity: normalizeText(projectBriefing.identity, 220) || null,
+    currentPhase: normalizeText(projectBriefing.currentPhase, 220) || null,
+    latestLandedProgress:
+      normalizeText(projectBriefing.latestLandedProgress, 320)
+      || normalizeText(projectBriefingRecord.landedProgressSummary, 320)
+      || null,
+    primaryOpenLoop:
+      normalizeText(projectBriefing.primaryOpenLoop, 320)
+      || normalizeText(projectBriefingRecord.openClosureSummary, 320)
+      || null,
+    nextClosureTarget:
+      normalizeText(projectBriefing.nextClosureTarget, 320)
+      || normalizeText(projectBriefingRecord.nextClosureTargetSummary, 320)
+      || null,
+    sameHerSelfLine: normalizeText(projectBriefing.sameHerSelfLine, 220) || null,
+    sameHerHoldDetail: normalizeText(projectBriefing.sameHerHoldDetail, 220) || null,
+    sameHerDriftRisk:
+      normalizeText(projectBriefing.sameHerDriftRisk, 320)
+      || normalizeText(projectBriefingRecord.sameHerDriftRiskSummary, 320)
+      || null,
+    proactiveSameHerGap: normalizeText(projectBriefing.proactiveSameHerGap, 320) || null,
+    companionBriefingLine: normalizeText(projectBriefing.companionBriefingLine, 320) || null,
+    emotionalClosureSummary: normalizeText(projectBriefing.emotionalClosureSummary, 240) || null,
+    continuityCue: normalizeText(projectBriefing.continuityCue, 220) || null,
+    continuityPreferredTiming:
+      projectBriefing.continuityPreferredTiming === 'internal-only'
+      || projectBriefing.continuityPreferredTiming === 'after-payoff'
+      || projectBriefing.continuityPreferredTiming === 'same-turn-if-invited'
+      || projectBriefing.continuityPreferredTiming === 'next-open-window'
+        ? projectBriefing.continuityPreferredTiming
+        : null,
+    continuityCadence: normalizeText(projectBriefing.continuityCadence, 120) || null,
+    preferredBlinkCadence:
+      projectBriefing.preferredBlinkCadence === 'normal'
+      || projectBriefing.preferredBlinkCadence === 'linger'
+      || projectBriefing.preferredBlinkCadence === 'quiet'
+        ? projectBriefing.preferredBlinkCadence
+        : null,
+    preferredGazeMode:
+      projectBriefing.preferredGazeMode === 'steady'
+      || projectBriefing.preferredGazeMode === 'soften'
+      || projectBriefing.preferredGazeMode === 'drift'
+        ? projectBriefing.preferredGazeMode
+        : null,
+    preflightSummary: normalizeText(projectBriefing.preflightSummary, 320) || null,
+    preDialogueAwarenessLine: normalizeText(projectBriefing.preDialogueAwarenessLine, 320) || null,
+  } satisfies AlicizationTaskThreadProjectBriefingMetadata
+
+  return Object.values(next).some(Boolean) ? next : null
+}
+
+function buildTaskThreadRuntimeContextMetadata(input: {
+  now: number
+  decisionTraceId: string | null
+  turnId: string | null
+  sessionId: string | null
+  projectBriefing: AlicizationTaskThreadProjectBriefingMetadata | null
+}): AlicizationExecutionRuntimeContext | null {
+  if (!input.projectBriefing)
+    return null
+
+  return {
+    generatedAt: input.now,
+    decisionTraceId: input.decisionTraceId,
+    turnId: input.turnId,
+    sessionId: input.sessionId,
+    projectBriefing: input.projectBriefing,
+    recentActions: [],
+    sensory: {
+      collectedAt: input.now,
+      running: false,
+      stale: true,
+      ageMs: 0,
+      foregroundWindow: null,
+      capture: null,
+    },
+  }
 }
 
 function normalizeChannelExperienceMetadata(
@@ -99,6 +213,7 @@ function normalizeChannelExperienceMetadata(
     }] => Boolean(entry))
 
   return {
+    projectBriefing: normalizeProjectBriefingMetadata(experience.projectBriefing),
     sessionResumeChannel: normalizeText(experience.sessionResumeChannel, 80) || null,
     activeChannels: Array.isArray(experience.activeChannels)
       ? [...new Set(experience.activeChannels.map(channel => normalizeText(channel, 80)).filter(Boolean))]
@@ -178,8 +293,21 @@ export function buildTaskThreadPlanningDraft(input: AlicizationTaskThreadPlannin
   const decisionTraceId = normalizeText(input.trace?.decisionTraceId, 120) || null
   const turnId = normalizeText(input.trace?.turnId, 120) || null
   const sessionId = normalizeText(input.trace?.sessionId, 120) || null
-  const origin = mapTaskOriginToExecutionOrigin(input.task.origin, input.trace?.origin)
+  const origin = mapTaskOriginToExecutionOrigin({
+    taskOrigin: input.task.origin,
+    fallback: input.trace?.origin,
+    turnId,
+  })
   const status = deriveTaskThreadStatus(plan)
+  const experienceMetadata = normalizeChannelExperienceMetadata(input.experience)
+  const projectBriefingMetadata = experienceMetadata?.projectBriefing ?? null
+  const runtimeContextMetadata = buildTaskThreadRuntimeContextMetadata({
+    now,
+    decisionTraceId,
+    turnId,
+    sessionId,
+    projectBriefing: projectBriefingMetadata,
+  })
 
   const thread: AlicizationTaskThreadUpsertInput = {
     id: threadId,
@@ -198,6 +326,7 @@ export function buildTaskThreadPlanningDraft(input: AlicizationTaskThreadPlannin
     }),
     metadata: {
       task: {
+        origin: input.task.origin ?? null,
         effect: input.task.effect ?? null,
         permissionMode: input.task.permissionMode ?? null,
         justification: input.task.justification ?? null,
@@ -213,8 +342,15 @@ export function buildTaskThreadPlanningDraft(input: AlicizationTaskThreadPlannin
         reasonTags: plan.reasonTags,
         affirmationReasonCodes: plan.affirmationReasonCodes,
         blockedReasonCodes: plan.blockedReasonCodes,
-        experience: normalizeChannelExperienceMetadata(input.experience),
+        experience: experienceMetadata,
       },
+      ...(runtimeContextMetadata
+        ? {
+            execution: {
+              runtimeContext: runtimeContextMetadata,
+            },
+          }
+        : {}),
     },
     createdAt: now,
     updatedAt: now,
@@ -242,7 +378,7 @@ export function buildTaskThreadPlanningDraft(input: AlicizationTaskThreadPlannin
       narrative: plan.narrative,
       affirmationReasonCodes: plan.affirmationReasonCodes,
       blockedReasonCodes: plan.blockedReasonCodes,
-      experience: normalizeChannelExperienceMetadata(input.experience),
+      experience: experienceMetadata,
       candidateCount: plan.candidates.length,
     },
     createdAt: now,

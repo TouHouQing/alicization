@@ -94,11 +94,17 @@ function readPendingProactiveSnapshotFromPayload(
   const proactive = structured?.proactive && typeof structured.proactive === 'object'
     ? structured.proactive as Record<string, unknown>
     : null
-  const assistantText = typeof (structured?.utterance && typeof structured.utterance === 'object'
+  const utteranceAssistantText = structured?.utterance && typeof structured.utterance === 'object'
     ? (structured.utterance as Record<string, unknown>).assistantText
-    : null) === 'string'
-    ? options.sanitizeText((structured!.utterance as Record<string, unknown>).assistantText, '').slice(0, 260)
     : null
+  const assistantText = options.sanitizeText(
+    typeof utteranceAssistantText === 'string'
+      ? utteranceAssistantText
+      : typeof structured?.reply === 'string'
+        ? structured.reply
+        : '',
+    '',
+  ).slice(0, 260)
   const scenario = options.sanitizeText(proactive?.scenario, '')
   const feedbackWindowMs = Number(proactive?.feedbackWindowMs)
   if (!scenario || !Number.isFinite(feedbackWindowMs))

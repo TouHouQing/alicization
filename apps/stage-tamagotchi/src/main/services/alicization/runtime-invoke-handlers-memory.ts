@@ -20,6 +20,10 @@ import {
   electronAlicizationSetPerformanceManifest,
   electronAlicizationUpdateMemoryStats,
 } from '../../../shared/eventa'
+import {
+  resolveAlicizationAutonomousDialogueFamilyClassification,
+  resolveAlicizationAutonomousDialogueOrigin,
+} from './runtime-structured-format'
 
 interface RegisterAlicizationMemoryInvokeHandlersOptions {
   registerInvokeHandler: (channel: unknown, handler: (...args: any[]) => Promise<unknown>) => void
@@ -126,9 +130,18 @@ export function registerAlicizationMemoryInvokeHandlers(options: RegisterAliciza
 
     const turnId = sanitizeText(payload.trace?.turnId) || null
     const sessionId = normalizeSessionId(payload.trace?.sessionId) || null
-    const origin = payload.trace?.origin === 'subconscious-proactive' || payload.trace?.origin === 'system'
-      ? payload.trace.origin
-      : 'user-turn'
+    const normalizedTraceOrigin = typeof payload.trace?.origin === 'string'
+      ? payload.trace.origin.trim().toLowerCase()
+      : ''
+    const autonomousDialogueFamily = resolveAlicizationAutonomousDialogueFamilyClassification({
+      turnId,
+      origin: normalizedTraceOrigin,
+    })
+    const origin = autonomousDialogueFamily.isAutonomous
+      ? autonomousDialogueFamily.canonicalOrigin ?? resolveAlicizationAutonomousDialogueOrigin('proactive')
+      : normalizedTraceOrigin === 'system'
+        ? 'system'
+        : 'user-turn'
     const trigger = payload.trace?.trigger === 'batch' || payload.trace?.trigger === 'idle' || payload.trace?.trigger === 'force' || payload.trace?.trigger === 'manual'
       ? payload.trace.trigger
       : null

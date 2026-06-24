@@ -70,6 +70,10 @@ describe('route authority boundary registry audit', () => {
         domains: ['project-state-answer-governance', 'runtime-dialogue-normalization'],
       }),
       expect.objectContaining({
+        relativePath: 'runtime-governance.ts',
+        domains: ['project-state-answer-governance', 'runtime-dialogue-normalization'],
+      }),
+      expect.objectContaining({
         relativePath: 'runtime-delivery-reminders.ts',
         domains: ['project-state-answer-governance', 'runtime-turn-persistence'],
       }),
@@ -293,7 +297,9 @@ describe('route authority boundary registry audit', () => {
       mode: 'answer-contract-surface',
     }))
     expect(executiveBriefSource).toContain('looksLikeProjectStateDirectAnswerTurn({')
-    expect(executiveBriefSource).toContain('for (const rule of alicizationProjectStateAnswerMustDo)')
+    expect(executiveBriefSource).toContain('enrichProjectStateAnswerGovernanceIfNeeded({')
+    expect(executiveBriefSource).toContain('mustDo: [...alicizationProjectStateAnswerMustDo],')
+    expect(executiveBriefSource).toContain('for (const rule of enrichedProjectStateGovernance?.mustDo ?? [])')
   })
 
   it('keeps main-chat-active-dialogue-loop.ts concrete by anchoring compact active-dialogue project-state answer-contract emission in one shared route-authority audit instead of leaving fast-path status replies implied only by narrower contract-surface registration prose', () => {
@@ -309,6 +315,55 @@ describe('route authority boundary registry audit', () => {
     }))
     expect(activeDialogueSource).toContain('[ALICIZATION_PROJECT_STATE_ANSWER_CONTRACT]')
     expect(activeDialogueSource).toContain('...alicizationProjectStateAnswerContractLines,')
+  })
+
+  it('keeps dialogue-turn-semantics.ts concrete by anchoring project-status follow-up classification in one shared route-authority audit instead of leaving merge-readiness and language-drift questions implied only by downstream answer-governance prose', () => {
+    const resolveRegistry = projectStateBrief.resolveAlicizationProjectRouteAuthorityRegistry
+    const semanticsSource = readFileSync(new URL('./dialogue-turn-semantics.ts', import.meta.url), 'utf8')
+
+    const registry = resolveRegistry?.() ?? []
+
+    expect(registry).toContainEqual(expect.objectContaining({
+      domain: 'project-state-answer-governance',
+      relativePath: 'dialogue-turn-semantics.ts',
+      mode: 'semantics-classification',
+    }))
+    expect(semanticsSource).toContain('const projectStateMergeReadinessCuePattern')
+    expect(semanticsSource).toContain('const projectStateCompletionTimelineCuePattern')
+    expect(semanticsSource).toContain('const projectStateLanguageDriftCuePattern')
+    expect(semanticsSource).toContain(`reasonTags.push('project-state-continuity-question')`)
+  })
+
+  it('keeps answer-planner.ts concrete by anchoring same-her project-status reply planning in one shared route-authority audit instead of leaving completion-timing and language-drift answers implied only by later visible-reply governance', () => {
+    const resolveRegistry = projectStateBrief.resolveAlicizationProjectRouteAuthorityRegistry
+    const plannerSource = readFileSync(new URL('./answer-planner.ts', import.meta.url), 'utf8')
+
+    const registry = resolveRegistry?.() ?? []
+
+    expect(registry).toContainEqual(expect.objectContaining({
+      domain: 'project-state-answer-governance',
+      relativePath: 'answer-planner.ts',
+      mode: 'answer-planning-surface',
+    }))
+    expect(plannerSource).toContain('function looksLikeProjectStateDirectAnswerTurn(')
+    expect(plannerSource).toContain('same digital life line: Phase 1 landed progress, when the goal is expected to close, and whether the thread drifted out of the host language or project line still need one direct answer.')
+    expect(plannerSource).toContain('Keep direct project-state answers inward-first so landed progress and the next closure target stay behind the live payoff until it lands.')
+  })
+
+  it('keeps response-charter.ts concrete by anchoring same-her project-status charter shaping in one shared route-authority audit instead of leaving direct project-state turn discipline implied only by answer-planner or executive-brief coverage', () => {
+    const resolveRegistry = projectStateBrief.resolveAlicizationProjectRouteAuthorityRegistry
+    const responseCharterSource = readFileSync(new URL('./response-charter.ts', import.meta.url), 'utf8')
+
+    const registry = resolveRegistry?.() ?? []
+
+    expect(registry).toContainEqual(expect.objectContaining({
+      domain: 'project-state-answer-governance',
+      relativePath: 'response-charter.ts',
+      mode: 'response-charter-surface',
+    }))
+    expect(responseCharterSource).toContain('const namesProjectStateTurn = /project-state question|project status|project-state|project continuity/u.test(evidence)')
+    expect(responseCharterSource).toContain('Keep direct project-state answers inward-first so the live payoff lands before any project-summary voice appears.')
+    expect(responseCharterSource).toContain('Do not reopen this same-thread project-state turn from scratch or let it flatten into a fresh report opening.')
   })
 
   it('keeps renderer/alicization-chat-stream-bridge.ts concrete by anchoring renderer meta project-awareness normalization in one shared route-authority audit instead of leaving return-side continuity rebuilding implied only by narrower return-side registration prose', () => {
@@ -364,7 +419,8 @@ describe('route authority boundary registry audit', () => {
     expect(observationSource).toContain('projectStateAudit?.continuitySummary')
     expect(observationSource).toContain('const strongerPreDialogueAwarenessSummary')
     expect(observationSource).toContain('const strongerContinuitySummary')
-    expect(observationSource).toContain('const summaryLine = shouldPreferRicherProjectAwareSummary')
+    expect(observationSource).toContain('const summaryLine = shouldPreferRicherSameHerLine')
+    expect(observationSource).toContain('resolveObservationAwarenessSummaryLine({')
     expect(observationSource).toContain('export function projectStateObservationToContinuitySnapshot(')
   })
 
@@ -403,6 +459,25 @@ describe('route authority boundary registry audit', () => {
     expect(browserBridgeSource).toContain('preDialogueAwareness: normalizeStructuredPreDialogueAwarenessPayload(')
   })
 
+  it('keeps packages/stage-ui/src/stores/alicization-self-evolution-inspector.ts concrete by anchoring inspector fallback rebuild in one shared route-authority audit instead of leaving reopen-time same-her continuity rematerialization implied only by colder neighboring proofs', () => {
+    const resolveRegistry = projectStateBrief.resolveAlicizationProjectRouteAuthorityRegistry
+    const inspectorSource = readFileSync(new URL('../../../../../../packages/stage-ui/src/stores/alicization-self-evolution-inspector.ts', import.meta.url), 'utf8')
+
+    const registry = resolveRegistry?.() ?? []
+
+    expect(registry).toContainEqual(expect.objectContaining({
+      domain: 'return-side-project-awareness',
+      relativePath: '../../../../../../packages/stage-ui/src/stores/alicization-self-evolution-inspector.ts',
+      mode: 'inspector-fallback-rebuild',
+    }))
+    expect(inspectorSource).toContain('getLatestProjectStateObservation')
+    expect(inspectorSource).toContain('projectStateObservationToContinuitySnapshot(')
+    expect(inspectorSource).toContain('projectStateContinuitySnapshot.value = {')
+    expect(inspectorSource).toContain('projectStateContinuitySnapshot.value = observedContinuitySnapshot')
+    expect(inspectorSource).toContain('const preDialogueAwarenessSnapshot = computed')
+    expect(inspectorSource).toContain('const preDialogueClosureSnapshot = computed')
+  })
+
   it('keeps visible-reply/facade.ts concrete by anchoring reply-surface preflight project-state resolution in one shared route-authority audit instead of leaving executive answer briefing implied only by broader coverage prose', () => {
     const resolveRegistry = projectStateBrief.resolveAlicizationProjectRouteAuthorityRegistry
     const facadeSource = readFileSync(new URL('./visible-reply/facade.ts', import.meta.url), 'utf8')
@@ -432,6 +507,28 @@ describe('route authority boundary registry audit', () => {
     }))
     expect(responseSurfaceSource).toContain('alicizationProjectStateSameHerContinuityReminder')
     expect(responseSurfaceSource).toContain('alicizationProjectStateVisibleReplySameHerReminder.replace(\'questions\', \'status\')')
+  })
+
+  it('keeps runtime-governance.ts overlap concrete by anchoring host-visible normalization-time project-state audit carry in one shared route-authority audit instead of leaving the last answer-boundary preserve step implied only by normalization prose', () => {
+    const resolveRegistry = projectStateBrief.resolveAlicizationProjectRouteAuthorityRegistry
+    const runtimeGovernanceSource = readFileSync(new URL('./runtime-governance.ts', import.meta.url), 'utf8')
+
+    const registry = resolveRegistry?.() ?? []
+
+    expect(registry).toContainEqual(expect.objectContaining({
+      domain: 'runtime-dialogue-normalization',
+      relativePath: 'runtime-governance.ts',
+      mode: 'normalization-authority',
+    }))
+    expect(registry).toContainEqual(expect.objectContaining({
+      domain: 'project-state-answer-governance',
+      relativePath: 'runtime-governance.ts',
+      mode: 'visible-reply-continuity-surface',
+    }))
+    expect(runtimeGovernanceSource).toContain('function resolveProjectStateContinuityCarry(')
+    expect(runtimeGovernanceSource).toContain('preDialogueAwarenessSummary')
+    expect(runtimeGovernanceSource).toContain('landedProgressSummary')
+    expect(runtimeGovernanceSource).toContain('openClosureSummary')
   })
 
   it('keeps visible-reply/semantic-judge.ts concrete by anchoring final same-her / open-closure / next-closure project-state judging in one shared route-authority audit instead of leaving the last visible gate implied only by narrower continuity-surface registration prose', () => {
@@ -573,5 +670,26 @@ describe('route authority boundary registry audit', () => {
     expect(normalizationSource).not.toContain('const alicizationRuntimeDialogueNormalizationAuditRegistry = [')
     expect(persistenceSource).not.toContain('const alicizationRuntimeTurnPersistenceAuditRegistry = [')
     expect(answerGovernanceSource).not.toContain('const alicizationProjectStateAnswerGovernanceAuditRegistry = [')
+  })
+
+  it('makes this boundary explicit: the shared route-authority map now also keeps project-state answer governance, host-visible normalization, and guarded persistence on one same-her line for merge-readiness and completion-status follow-ups instead of letting those surfaces fork apart before replay or reopen', () => {
+    const matrixSource = readFileSync(new URL('../../../../../../docs/pre-dialogue-project-awareness-matrix.md', import.meta.url), 'utf8')
+    const auditSource = readFileSync(new URL('../../../../../../docs/project-state-audit.md', import.meta.url), 'utf8')
+    const coverageSource = readFileSync(new URL('./project-awareness-coverage-matrix.test.ts', import.meta.url), 'utf8')
+    const alignedAnswerLineFragments = [
+      'merge-readiness / closure-readiness',
+      'completion-timing / language-drift',
+      'project-state answer governance, host-visible normalization, and guarded persistence',
+      'one same-her line before later replay or reopen',
+    ]
+
+    expect(matrixSource).toContain('route-authority-boundary-registry-audit.test.ts')
+    expect(auditSource).toContain('route-authority-boundary-registry-hardening')
+    expect(coverageSource).toContain('route-authority-boundary-registry')
+
+    for (const source of [matrixSource, auditSource, coverageSource]) {
+      for (const fragment of alignedAnswerLineFragments)
+        expect(source).toContain(fragment)
+    }
   })
 })

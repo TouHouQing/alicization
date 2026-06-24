@@ -35,6 +35,40 @@ describe('buildClawFabricPlan', () => {
     expect(plan.preferredChannels.slice(0, 3)).toEqual(['browser', 'software', 'desktop'])
   })
 
+  it('prefers local browser control for visually grounded unknown webpage tasks before cli or openclaw', () => {
+    const plan = buildClawFabricPlan({
+      task: {
+        kind: 'unknown',
+        goal: 'Figure out the next step on the current webpage and keep the flow moving.',
+        origin: 'user',
+        effect: 'observe',
+        requiresVisualGrounding: true,
+      },
+      capabilities: createCapabilities(['cli', 'codex', 'browser', 'openclaw']),
+    })
+
+    expect(plan.state).toBe('routed')
+    expect(plan.selectedChannel).toBe('browser')
+    expect(plan.preferredChannels[0]).toBe('browser')
+  })
+
+  it('prefers local desktop grounding for visually grounded unknown screen tasks before cli or openclaw', () => {
+    const plan = buildClawFabricPlan({
+      task: {
+        kind: 'unknown',
+        goal: 'Figure out what is on the current screen and decide the next GUI step.',
+        origin: 'user',
+        effect: 'observe',
+        requiresVisualGrounding: true,
+      },
+      capabilities: createCapabilities(['cli', 'desktop', 'openclaw']),
+    })
+
+    expect(plan.state).toBe('routed')
+    expect(plan.selectedChannel).toBe('desktop')
+    expect(plan.preferredChannels[0]).toBe('desktop')
+  })
+
   it('routes codebase work into code agents before shell or desktop fallback', () => {
     const plan = buildClawFabricPlan({
       task: {
@@ -209,6 +243,82 @@ describe('buildClawFabricPlan', () => {
       'advisor:claude-code',
       'advisor-channel',
     ]))
+  })
+
+  it('carries canonical Phase 1 project briefing into planning reason tags and narrative', () => {
+    const plan = buildClawFabricPlan({
+      task: {
+        kind: 'codebase-edit',
+        goal: 'Patch the desktop continuity seam before the next reopen.',
+        origin: 'user',
+        effect: 'mutate',
+      },
+      capabilities: createCapabilities(['codex', 'claude-code', 'cli']),
+      experience: {
+        projectBriefing: {
+          identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer.',
+          currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
+          latestLandedProgress: 'Measured-return continuity now survives longer noisy detours.',
+          primaryOpenLoop: 'Memory still needs stronger end-to-end closure across turns so Project identity carry remains explicit.',
+          nextClosureTarget: 'Keep extending same-her proof so Phase 1 route carry remains visible before execution and dialogue turns.',
+          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+          sameHerDriftRisk: 'If project-state continuity survives only as generic guidance, treat it as unfinished closure drift.',
+        },
+      },
+    })
+
+    expect(plan.reasonTags).toEqual(expect.arrayContaining([
+      'project-phase-briefing',
+      'project-open-loop-briefing',
+      'project-same-her-briefing',
+    ]))
+    expect(plan.narrative.join(' ')).toContain('Stay inside Alicization\'s project identity while planning execution')
+    expect(plan.narrative.join(' ')).toContain('Recent landed progress to preserve during execution planning')
+    expect(plan.narrative.join(' ')).toContain('Execution planning should help the same Phase 1 closure arc')
+    expect(plan.narrative.join(' ')).toContain('Keep the same-her line explicit while planning execution')
+    expect(plan.narrative.join(' ')).toContain('Avoid execution-planning drift')
+  })
+
+  it('keeps alias-only project briefing closure summaries alive while planning execution before the first dispatch starts', () => {
+    const aliasLandedProgress = 'Alias landed progress keeps planning aware of what already landed before execution leaves the same living line.'
+    const aliasOpenClosure = 'Alias open closure keeps the still-open Phase 1 seam explicit while execution is only being planned.'
+    const aliasNextClosure = 'Alias next closure keeps the next execution return on one same-her Phase 1 line.'
+    const aliasDriftRisk = 'Alias drift risk: if planning forgets these closure summaries, routing can flatten into generic executor selection prose.'
+
+    const plan = buildClawFabricPlan({
+      task: {
+        kind: 'codebase-edit',
+        goal: 'Patch the execution planning seam before the next reopen.',
+        origin: 'user',
+        effect: 'mutate',
+      },
+      capabilities: createCapabilities(['codex', 'claude-code', 'cli']),
+      experience: {
+        projectBriefing: {
+          identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer.',
+          currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
+          latestLandedProgress: ' ',
+          primaryOpenLoop: '',
+          nextClosureTarget: ' ',
+          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+          sameHerDriftRisk: '',
+          landedProgressSummary: aliasLandedProgress,
+          openClosureSummary: aliasOpenClosure,
+          nextClosureTargetSummary: aliasNextClosure,
+          sameHerDriftRiskSummary: aliasDriftRisk,
+        } as any,
+      },
+    })
+
+    expect(plan.reasonTags).toEqual(expect.arrayContaining([
+      'project-phase-briefing',
+      'project-open-loop-briefing',
+      'project-same-her-briefing',
+    ]))
+    expect(plan.narrative.join(' ')).toContain(aliasLandedProgress.slice(0, 48))
+    expect(plan.narrative.join(' ')).toContain(aliasOpenClosure.slice(0, 40))
+    expect(plan.narrative.join(' ')).toContain(aliasNextClosure.slice(0, 38))
+    expect(plan.narrative.join(' ')).toContain(aliasDriftRisk.slice(0, 44))
   })
 
   it('does not silently fall back when the caller explicitly pinned a requested channel', () => {

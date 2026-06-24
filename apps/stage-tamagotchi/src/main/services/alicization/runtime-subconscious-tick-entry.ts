@@ -2,7 +2,7 @@ export interface RuntimeSubconsciousTickDecisionSurface {
   shouldInterrupt: boolean
   style: string
   reasonCodes: readonly string[]
-  presenceOnlyHold?: boolean | null
+  presenceOnlyHold?: boolean
 }
 
 export interface RuntimeSubconsciousTickEntryInput {
@@ -19,6 +19,15 @@ export interface RuntimeSubconsciousTickEntrySurface {
 export function resolveRuntimeSubconsciousTickEntry(
   input: RuntimeSubconsciousTickEntryInput,
 ): RuntimeSubconsciousTickEntrySurface {
+  const screenGroundedVerifyFirstVisibleNudge = !input.decision.shouldInterrupt
+    && (input.decision.style === 'light-nudge' || input.decision.style === 'silent-observe')
+    && input.decision.reasonCodes.includes('coding-focus')
+    && input.decision.reasonCodes.includes('foreground-error')
+    && (
+      input.decision.reasonCodes.includes('belief-contradicted')
+      || input.decision.reasonCodes.includes('world-model-revalidation-required')
+    )
+
   const hardSuppressed = !input.decision.shouldInterrupt
     && (
       input.decision.reasonCodes.includes('kill-switch-suspended')
@@ -27,9 +36,6 @@ export function resolveRuntimeSubconsciousTickEntry(
       || input.decision.reasonCodes.includes('fullscreen-host')
     )
 
-  const shouldSurfaceSilentObservePresence = !hardSuppressed
-    && input.decision.style === 'silent-observe'
-
   const shouldSurfaceAutonomyProposal = Boolean(
     input.autonomyExecutionProposalSurface
     && !hardSuppressed,
@@ -37,6 +43,7 @@ export function resolveRuntimeSubconsciousTickEntry(
 
   const shouldHoldVisibleUtterance = !hardSuppressed
     && !input.decision.shouldInterrupt
+    && !screenGroundedVerifyFirstVisibleNudge
     && !shouldSurfaceAutonomyProposal
     && (
       input.decision.presenceOnlyHold === true
@@ -45,9 +52,12 @@ export function resolveRuntimeSubconsciousTickEntry(
       || input.decision.reasonCodes.includes('relationship-residue-delay-warmth')
     )
 
+  const shouldSurfaceSilentObservePresence = !hardSuppressed
+    && input.decision.style === 'silent-observe'
+
   return {
     hardSuppressed,
-    shouldEnterProactiveFlow: input.decision.shouldInterrupt || shouldSurfaceAutonomyProposal || shouldSurfaceSilentObservePresence,
+    shouldEnterProactiveFlow: input.decision.shouldInterrupt || shouldSurfaceAutonomyProposal || shouldSurfaceSilentObservePresence || screenGroundedVerifyFirstVisibleNudge,
     shouldHoldVisibleUtterance,
   }
 }

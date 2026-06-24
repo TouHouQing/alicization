@@ -339,7 +339,7 @@ describe('task execution governor', () => {
     }))
   })
 
-  it('attaches session-resume hints for openclaw-backed bodies', async () => {
+  it('does not attach openclaw session-resume hints for browser bodies that now redispatch locally', async () => {
     const governor = createTaskExecutionGovernor({
       getNow: () => 500,
     })
@@ -368,6 +368,46 @@ describe('task execution governor', () => {
 
     expect(result.plan.state).toBe('routed')
     expect(result.thread.selectedChannel).toBe('browser')
+    expect(result.governor.disposition).toBe('planned')
+    expect(result.governor.resumedExecutorSessionId).toBeNull()
+    expect(result.governor.resumedExternalSessionId).toBeNull()
+    expect(port.listExecutorSessions).not.toBeCalled()
+    expect(port.readPersistedThread()?.metadata).toEqual(expect.objectContaining({
+      governor: expect.objectContaining({
+        sessionResume: null,
+      }),
+    }))
+  })
+
+  it('still attaches session-resume hints for explicit openclaw bodies', async () => {
+    const governor = createTaskExecutionGovernor({
+      getNow: () => 520,
+    })
+    const port = createPort({
+      executorSessions: [createExecutorSession()],
+    })
+
+    const result = await governor.plan(port, {
+      threadId: 'thread-governor-new-4',
+      now: 520,
+      trace: {
+        decisionTraceId: 'mind:trace:governor-4',
+        turnId: 'turn-governor-5',
+        sessionId: 'session-governor-1',
+        origin: 'user-turn',
+      },
+      task: {
+        kind: 'browser-automation',
+        goal: 'Use OpenClaw to dismiss the foreground browser modal.',
+        origin: 'user',
+        effect: 'mutate',
+        requiresVisualGrounding: true,
+      },
+      capabilities: createCapabilities(['openclaw']),
+    })
+
+    expect(result.plan.state).toBe('routed')
+    expect(result.thread.selectedChannel).toBe('openclaw')
     expect(result.governor.disposition).toBe('planned')
     expect(result.governor.resumedExternalSessionId).toBe('openclaw-reused-session-1')
     expect(port.listExecutorSessions).toBeCalledWith(expect.objectContaining({

@@ -81,4 +81,69 @@ describe('resolveRuntimeSubconsciousTickEntry', () => {
       shouldHoldVisibleUtterance: true,
     })
   })
+
+  it('treats explicit same-her presence-only holds as held visible-utterance continuity even without the older continuity reason trio', () => {
+    expect(resolveRuntimeSubconsciousTickEntry({
+      decision: {
+        shouldInterrupt: false,
+        style: 'silent-observe',
+        reasonCodes: [
+          'project-phase1-life-loop-open',
+          'project-same-her-pressure',
+          'project-measured-return-pressure',
+          'project-next-closure-pressure',
+        ],
+        presenceOnlyHold: true,
+      },
+      autonomyExecutionProposalSurface: null,
+    })).toEqual({
+      hardSuppressed: false,
+      shouldEnterProactiveFlow: true,
+      shouldHoldVisibleUtterance: true,
+    })
+  })
+
+  it('still enters proactive flow for verify-first world-model coding nudges when screen-grounded error context should stay visible but low-pressure', () => {
+    expect(resolveRuntimeSubconsciousTickEntry({
+      decision: {
+        shouldInterrupt: false,
+        style: 'light-nudge',
+        reasonCodes: [
+          'coding-focus',
+          'foreground-error',
+          'belief-contradicted',
+          'screen-grounded-verify-first-visible-nudge',
+        ],
+      },
+      autonomyExecutionProposalSurface: null,
+    })).toEqual({
+      hardSuppressed: false,
+      shouldEnterProactiveFlow: true,
+      shouldHoldVisibleUtterance: false,
+    })
+  })
+
+  it('does not hold visible utterance for completed world-model revalidation on screen-grounded coding errors', () => {
+    expect(resolveRuntimeSubconsciousTickEntry({
+      decision: {
+        shouldInterrupt: false,
+        style: 'silent-observe',
+        reasonCodes: [
+          'coding-focus',
+          'foreground-error',
+          'world-model-revalidation-required',
+          'continuity-next-open-window',
+          'project-phase1-life-loop-open',
+          'project-same-her-pressure',
+          'project-measured-return-pressure',
+        ],
+        presenceOnlyHold: true,
+      },
+      autonomyExecutionProposalSurface: null,
+    })).toEqual({
+      hardSuppressed: false,
+      shouldEnterProactiveFlow: true,
+      shouldHoldVisibleUtterance: false,
+    })
+  })
 })

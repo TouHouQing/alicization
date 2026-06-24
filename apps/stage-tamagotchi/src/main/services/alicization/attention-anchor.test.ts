@@ -10,7 +10,6 @@ import {
   isInternalAlicizationRepairPrompt,
   isSelfPerceptionTarget,
   normalizePerceptionState,
-  rememberPerceptionBrowserWorkflowState,
   rememberPerceptionSceneResidue,
   updatePerceptionStateWithObservation,
 } from './attention-anchor'
@@ -354,49 +353,5 @@ describe('attention anchor helpers', () => {
         appName: 'Code',
       }),
     }))
-  })
-
-  it('remembers browser workflow progress across desktop inspections', () => {
-    const started = rememberPerceptionBrowserWorkflowState({
-      state: createDefaultPerceptionState(1_000),
-      now: 2_000,
-      taskKey: 'browser::weibo-home::social-feed',
-      currentPhase: 'unknown',
-      targetPhase: 'social-feed',
-      title: 'New Tab',
-      url: 'about:blank',
-    })
-
-    const advanced = rememberPerceptionBrowserWorkflowState({
-      state: started,
-      now: 3_000,
-      taskKey: 'browser::weibo-home::social-feed',
-      currentPhase: 'social-feed',
-      targetPhase: 'social-feed',
-      title: '微博',
-      url: 'https://weibo.com',
-    })
-
-    expect(started.browserWorkflowState).toEqual(expect.objectContaining({
-      progressState: 'started',
-      currentPhase: 'unknown',
-      targetPhase: 'social-feed',
-    }))
-    expect(advanced.browserWorkflowState).toEqual(expect.objectContaining({
-      previousPhase: 'unknown',
-      currentPhase: 'social-feed',
-      progressState: 'advanced',
-      taskKey: 'browser::weibo-home::social-feed',
-    }))
-    expect(advanced.browserWorkflowState?.history).toEqual([
-      expect.objectContaining({
-        pagePhase: 'unknown',
-        title: 'New Tab',
-      }),
-      expect.objectContaining({
-        pagePhase: 'social-feed',
-        title: '微博',
-      }),
-    ])
   })
 })

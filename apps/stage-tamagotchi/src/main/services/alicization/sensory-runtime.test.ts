@@ -98,10 +98,6 @@ function createSensoryRuntimeHarness() {
   const detectInvitedInspectionIntent = vi.fn(() => ({ active: false }))
   const appendContentPartsToLatestUserMessage = vi.fn(messages => messages)
   const ensurePerceptionState = vi.fn(async () => createPerceptionState())
-  const queuePerceptionStateMutation = vi.fn(async (
-    _cardId: string,
-    mutate: (current: AlicizationPerceptionState) => AlicizationPerceptionState | Promise<AlicizationPerceptionState>,
-  ) => await mutate(createPerceptionState()))
   const ensureProactiveLoopState = vi.fn(async () => ({
     globalCooldownUntil: 0,
     scenarioBias: {},
@@ -168,6 +164,9 @@ function createSensoryRuntimeHarness() {
   const isWeakGenericBrowserFocusTarget = vi.fn(() => false)
   const listPendingScheduledTaskCount = vi.fn(async () => 0)
   const persistPerceptionState = vi.fn(async () => {})
+  const queuePerceptionStateMutation = vi.fn(async (_cardId: string, mutate: (current: AlicizationPerceptionState) => AlicizationPerceptionState | Promise<AlicizationPerceptionState>) => {
+    return await mutate(createPerceptionState())
+  })
   const purgeWeakGenericBrowserInspectionState = vi.fn(({ state }: { state: AlicizationPerceptionState }) => state)
   const readLatestAssistantMessageText = vi.fn(() => '')
   const rememberPerceptionObservation = vi.fn(async () => createPerceptionState())
@@ -233,7 +232,6 @@ function createSensoryRuntimeHarness() {
     describePerceptionTarget,
     detectInvitedInspectionIntent,
     ensurePerceptionState,
-    queuePerceptionStateMutation,
     ensureProactiveLoopState,
     ensureSubconsciousState,
     ensureVisualPresenceState,
@@ -252,6 +250,7 @@ function createSensoryRuntimeHarness() {
     isWeakGenericBrowserFocusTarget,
     listPendingScheduledTaskCount,
     persistPerceptionState,
+    queuePerceptionStateMutation,
     purgeWeakGenericBrowserInspectionState,
     rankScreenSemanticCaptureCandidates,
     readLatestAssistantMessageText,

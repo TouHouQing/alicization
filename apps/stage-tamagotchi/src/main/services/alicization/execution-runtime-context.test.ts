@@ -1,8 +1,126 @@
+import {
+  buildAlicizationExecutionRuntimeContextBlock,
+  normalizeAlicizationExecutionRuntimeContext,
+} from '@proj-alicization/stage-shared'
 import { describe, expect, it } from 'vitest'
 
 import { buildAlicizationExecutionRuntimeContext } from './execution-runtime-context'
 
 describe('execution runtime context', () => {
+  it('projects Memory OS execution closure trace into execution runtime context so callback feedback can carry, verify, and reflect it later', () => {
+    const runtimeContext = buildAlicizationExecutionRuntimeContext({
+      cardId: 'default',
+      turnId: 'turn-memory-os-execution-carry',
+      decisionTraceId: 'trace-memory-os-execution-carry',
+      sessionId: 'session-1',
+      memoryClosureTrace: {
+        version: 'memory-closure-trace-v1',
+        authority: 'memory-os',
+        whySurface: [{
+          source: 'execution-feedback',
+          summary: 'Execution callback result should return through Memory OS instead of a detached task notice.',
+          reasonCodes: ['execution-callback-carry'],
+        }],
+        surfacePolicy: {
+          gateStatus: 'gist',
+          mode: 'tone-carry',
+          timing: 'next-open-window',
+          speechMode: 'lower-pressure',
+          placement: 'callback-return',
+          certainty: 'grounded',
+          reasons: ['execution callback still owns a same-person return'],
+        },
+        nextInfluence: {
+          initiative: {
+            restraint: 'measured-return',
+            preferredTiming: 'next-open-window',
+            pressure: 'lower-pressure',
+            reason: 'Leave room until execution payoff returns.',
+          },
+          execution: {
+            carry: 'Carry the callback result into the next same-person reply instead of treating it as a fresh utility task.',
+            nextLearningAction: 'verify',
+            shouldVerify: true,
+            shouldReflect: true,
+            activeLearningFocuses: ['memory closure authority', 'execution callback carry'],
+          },
+          embodiment: {
+            cadence: 'Keep voice, gaze, motion, and lipsync restrained while the callback returns.',
+            preferredVoiceMode: 'lower-pressure',
+            preferredLipsyncMode: 'restrained',
+            preferredGazeMode: 'soften',
+            reason: 'The body should show quiet continuity while execution feedback lands.',
+          },
+        },
+        closureState: {
+          state: 'open',
+          open: true,
+          revisionRequired: false,
+          shouldLabelUncertainty: true,
+          visibleCarryMode: 'tone',
+          retrievalQuality: 'grounded',
+          conflictPressure: 'low',
+        },
+        selectedCandidateIds: ['memory-candidate-execution-callback'],
+        reasonTags: ['memory-os', 'execution-feedback', 'same-person-callback'],
+      },
+      recentActions: [],
+      sensorySnapshot: {
+        running: true,
+        stale: false,
+        ageMs: 12,
+        nextTickAt: 30,
+        sample: {
+          collectedAt: 10,
+          time: {
+            iso: '2026-04-04T00:00:00.000Z',
+            local: '2026-04-04 08:00',
+            timezone: 'Asia/Shanghai',
+          },
+          foregroundWindow: {
+            appName: 'Cursor',
+            processName: 'cursor',
+            title: 'airi-alice',
+          },
+          cpu: {
+            usagePercent: 12,
+            windowMs: 1000,
+          },
+          memory: {
+            freeMB: 1024,
+            totalMB: 8192,
+            usagePercent: 87.5,
+          },
+        },
+      },
+      getNow: () => 42,
+    } as any)
+
+    expect(runtimeContext.memoryClosureExecution).toEqual(expect.objectContaining({
+      authority: 'memory-os',
+      carry: 'Carry the callback result into the next same-person reply instead of treating it as a fresh utility task.',
+      nextLearningAction: 'verify',
+      shouldVerify: true,
+      shouldReflect: true,
+      activeLearningFocuses: ['memory closure authority', 'execution callback carry'],
+      reasonTags: ['memory-os', 'execution-feedback', 'same-person-callback'],
+      closureState: expect.objectContaining({
+        state: 'open',
+        open: true,
+        shouldLabelUncertainty: true,
+      }),
+    }))
+
+    const normalized = normalizeAlicizationExecutionRuntimeContext(JSON.parse(JSON.stringify(runtimeContext)))
+    expect(normalized?.memoryClosureExecution).toEqual(runtimeContext.memoryClosureExecution)
+
+    const block = buildAlicizationExecutionRuntimeContextBlock(normalized)
+    expect(block).toContain('memory_closure_execution_carry=Carry the callback result into the next same-person reply')
+    expect(block).toContain('memory_closure_next_learning_action=verify')
+    expect(block).toContain('memory_closure_should_verify=true')
+    expect(block).toContain('memory_closure_active_learning_focuses=memory closure authority | execution callback carry')
+  })
+
   it('falls back to the canonical Alicization Phase 1 project briefing when execution runtime context input only carries sensory grounding', () => {
     const runtimeContext = buildAlicizationExecutionRuntimeContext({
       agentSessionId: 'agent-session-1',
@@ -90,6 +208,7 @@ describe('execution runtime context', () => {
         nextClosureTarget: 'Keep extending same-her proof so Phase 1 route carry remains visible before execution and dialogue turns.',
         sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
         sameHerHoldDetail: 'same-her hold: execution should keep this same project line inward before widening outward.',
+        continuityArcStage: 'same-thread-continuation',
         sameHerDriftRisk: 'If project-state continuity survives only as generic guidance, treat it as unfinished closure drift.',
         proactiveSameHerGap: 'Need stronger long-run proof that visible proactive hold, subconscious carry, and next-session feedback carry stay unified after hover-first restraint survives detours on longer noisy desktop runs.',
         continuityRestraint: 'measured-return',
@@ -102,9 +221,11 @@ describe('execution runtime context', () => {
         continuityCadence: 'measured-return',
         preferredBlinkCadence: 'linger',
         preferredGazeMode: 'soften',
+        preferredPauseMode: 'longer',
+        preferredLipsyncMode: 'restrained',
         preferredVoiceMode: 'lower-pressure',
         preferredPacingMode: 'slower',
-      } as any,
+      },
       recentActions: [],
       sensorySnapshot: {
         running: true,
@@ -160,6 +281,7 @@ describe('execution runtime context', () => {
     expect(runtimeContext.projectBriefing?.nextClosureTarget).toContain('Phase 1 route carry')
     expect(runtimeContext.projectBriefing?.sameHerSelfLine).toContain('same living line')
     expect(runtimeContext.projectBriefing?.sameHerHoldDetail).toContain('same-her hold')
+    expect((runtimeContext.projectBriefing as { continuityArcStage?: string | null } | null)?.continuityArcStage).toBe('same-thread-continuation')
     expect(runtimeContext.projectBriefing?.sameHerDriftRisk).toContain('generic guidance')
     expect(runtimeContext.projectBriefing?.proactiveSameHerGap).toContain('visible proactive hold, subconscious carry, and next-session feedback carry')
     expect(runtimeContext.projectBriefing?.continuityRestraint).toBe('measured-return')
@@ -170,6 +292,8 @@ describe('execution runtime context', () => {
     expect(runtimeContext.projectBriefing?.continuityCadence).toBe('measured-return')
     expect(runtimeContext.projectBriefing?.preferredBlinkCadence).toBe('linger')
     expect(runtimeContext.projectBriefing?.preferredGazeMode).toBe('soften')
+    expect(runtimeContext.projectBriefing?.preferredPauseMode).toBe('longer')
+    expect(runtimeContext.projectBriefing?.preferredLipsyncMode).toBe('restrained')
     expect(runtimeContext.projectBriefing?.preferredVoiceMode).toBe('lower-pressure')
     expect(runtimeContext.projectBriefing?.preferredPacingMode).toBe('slower')
     expect(runtimeContext.projectBriefing?.preflightSummary).toContain('open=Memory still needs stronger end-to-end closure')
@@ -177,6 +301,154 @@ describe('execution runtime context', () => {
     expect(runtimeContext.projectBriefing?.preflightSummary).toContain('Alicization is a local-first digital life project')
     expect(runtimeContext.projectBriefing?.preflightSummary).toContain('Phase 1: Local Digital Life')
     expect(runtimeContext.projectBriefing?.preflightSummary).toContain('next=Keep extending same-her proof')
+  })
+
+  it('preserves richer pre-dialogue awareness summary and lets it outrank a thinner execution awareness line', () => {
+    const richerAwarenessSummary = 'Before answering, remember this is still the same local-first digital life project, already in Phase 1, and what has landed, what is still open, and what still needs same-her closure all belong to one living her before execution widens outward.'
+    const runtimeContext = buildAlicizationExecutionRuntimeContext({
+      agentSessionId: 'agent-session-1',
+      cardId: 'default',
+      turnId: 'turn-project-briefing-awareness-summary',
+      decisionTraceId: 'trace-project-briefing-awareness-summary',
+      sessionId: 'session-1',
+      projectBriefing: {
+        identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer.',
+        currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
+        latestLandedProgress: 'Same-session mirror carry and measured-return continuity now survive longer noisy detours.',
+        primaryOpenLoop: 'Memory still needs stronger end-to-end closure across turns so Project identity carry remains explicit.',
+        nextClosureTarget: 'Keep extending same-her proof so Phase 1 route carry remains visible before execution and dialogue turns.',
+        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        sameHerHoldDetail: 'same-her hold: execution should keep this same project line inward before widening outward.',
+        sameHerDriftRisk: 'If project-state continuity survives only as generic guidance, treat it as unfinished closure drift.',
+        continuityCue: 'same living line: execution should keep carrying this same Phase 1 digital life before widening outward.',
+        preflightSummary: 'identity=Alicization | phase=Phase 1 | open=Project identity carry | next=Phase 1 route carry',
+        preDialogueAwarenessLine: 'Before answering, keep the same digital life project in view.',
+        preDialogueAwarenessSummary: richerAwarenessSummary,
+      },
+      recentActions: [],
+      sensorySnapshot: {
+        running: true,
+        stale: false,
+        ageMs: 12,
+        nextTickAt: 30,
+        sample: {
+          collectedAt: 10,
+          time: {
+            iso: '2026-04-04T00:00:00.000Z',
+            local: '2026-04-04 08:00',
+            timezone: 'Asia/Shanghai',
+          },
+          foregroundWindow: {
+            appName: 'Cursor',
+            processName: 'cursor',
+            title: 'airi-alice',
+          },
+          cpu: {
+            usagePercent: 12,
+            windowMs: 1000,
+          },
+          memory: {
+            freeMB: 1024,
+            totalMB: 8192,
+            usagePercent: 87.5,
+          },
+        },
+        capture: {
+          health: 'healthy',
+          permission: 'granted',
+          sessionPhase: 'active',
+          sessionReason: null,
+          selectedSourceId: 'window:1',
+          currentSourceId: 'window:1',
+          sourcePreference: 'window',
+          sourceCount: 2,
+          leaseStatus: 'leased',
+          leaseSourceId: 'window:1',
+          lastUpdatedAt: 10,
+          lastError: null,
+          degradedReasons: [],
+        },
+      },
+      getNow: () => 42,
+    })
+
+    expect(runtimeContext.projectBriefing?.preDialogueAwarenessSummary).toBe(richerAwarenessSummary)
+    expect(runtimeContext.projectBriefing?.preDialogueAwarenessLine).toBe(richerAwarenessSummary)
+    expect(runtimeContext.projectBriefing?.preDialogueAwarenessLine).not.toBe('Before answering, keep the same digital life project in view.')
+  })
+
+  it('lets a richer companion headline outrank a thinner execution awareness shell before dispatch begins', () => {
+    const richerCompanionHeadline = 'Before answering, remember she is still inside Phase 1, this execution return still belongs to one living her, and emotion, memory, initiative, and embodiment still need to close as one living line before execution widens outward.'
+    const runtimeContext = buildAlicizationExecutionRuntimeContext({
+      agentSessionId: 'agent-session-1',
+      cardId: 'default',
+      turnId: 'turn-project-briefing-companion-headline',
+      decisionTraceId: 'trace-project-briefing-companion-headline',
+      sessionId: 'session-1',
+      projectBriefing: {
+        identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer.',
+        currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
+        latestLandedProgress: 'Same-session mirror carry and measured-return continuity now survive longer noisy detours.',
+        primaryOpenLoop: 'Memory still needs stronger end-to-end closure across turns so Project identity carry remains explicit.',
+        nextClosureTarget: 'Keep extending same-her proof so Phase 1 route carry remains visible before execution and dialogue turns.',
+        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        sameHerHoldDetail: 'same-her hold: execution should keep this same project line inward before widening outward.',
+        sameHerDriftRisk: 'If project-state continuity survives only as generic guidance, treat it as unfinished closure drift.',
+        continuityCue: 'same living line: execution should keep carrying this same Phase 1 digital life before widening outward.',
+        preflightSummary: 'identity=Alicization | phase=Phase 1 | open=Project identity carry | next=Phase 1 route carry',
+        preDialogueAwarenessLine: 'Before answering, keep the same digital life project in view.',
+        companionHeadlineLine: richerCompanionHeadline,
+      },
+      recentActions: [],
+      sensorySnapshot: {
+        running: true,
+        stale: false,
+        ageMs: 12,
+        nextTickAt: 30,
+        sample: {
+          collectedAt: 10,
+          time: {
+            iso: '2026-04-04T00:00:00.000Z',
+            local: '2026-04-04 08:00',
+            timezone: 'Asia/Shanghai',
+          },
+          foregroundWindow: {
+            appName: 'Cursor',
+            processName: 'cursor',
+            title: 'airi-alice',
+          },
+          cpu: {
+            usagePercent: 12,
+            windowMs: 1000,
+          },
+          memory: {
+            freeMB: 1024,
+            totalMB: 8192,
+            usagePercent: 87.5,
+          },
+        },
+        capture: {
+          health: 'healthy',
+          permission: 'granted',
+          sessionPhase: 'active',
+          sessionReason: null,
+          selectedSourceId: 'window:1',
+          currentSourceId: 'window:1',
+          sourcePreference: 'window',
+          sourceCount: 2,
+          leaseStatus: 'leased',
+          leaseSourceId: 'window:1',
+          lastUpdatedAt: 10,
+          lastError: null,
+          degradedReasons: [],
+        },
+      },
+      getNow: () => 42,
+    })
+
+    expect(runtimeContext.projectBriefing?.preDialogueAwarenessLine).toBe(richerCompanionHeadline)
+    expect(runtimeContext.projectBriefing?.preDialogueAwarenessSummary).toBe(richerCompanionHeadline)
+    expect(runtimeContext.projectBriefing?.preDialogueAwarenessLine).not.toBe('Before answering, keep the same digital life project in view.')
   })
 
   it('fills missing same-her hold and continuity cue from the canonical Phase 1 project brief when a partial execution project briefing omits them', () => {
@@ -323,6 +595,84 @@ describe('execution runtime context', () => {
     expect(runtimeContext.projectBriefing?.preDialogueAwarenessLine).toContain('Before answering, remember: Alicization is a local-first digital life project')
     expect(runtimeContext.projectBriefing?.preDialogueAwarenessLine).toContain('Same-session mirror carry and callback continuity already survive execution re-entry')
     expect(runtimeContext.projectBriefing?.continuityPreferredTiming).toBe('next-open-window')
+  })
+
+  it('preserves richer explicit same-her hold detail instead of collapsing it into a measured-return fallback shell', () => {
+    const runtimeContext = buildAlicizationExecutionRuntimeContext({
+      agentSessionId: 'agent-session-1',
+      cardId: 'default',
+      turnId: 'turn-richer-same-her-hold-detail',
+      decisionTraceId: 'trace-richer-same-her-hold-detail',
+      sessionId: 'session-1',
+      projectBriefing: {
+        identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer.',
+        currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
+        latestLandedProgress: 'Same-session mirror carry already survives callback return, reply planning, and timeout recovery on one same-her line.',
+        primaryOpenLoop: 'Project identity carry still needs to stay explicit before outward fluency takes over.',
+        nextClosureTarget: 'Phase 1 route carry should keep memory, initiative, and embodiment on one same living line before widening outward.',
+        sameHerSelfLine: 'Same Phase 1 digital life. This execution re-entry already remembers this same her, but memory, initiative, and embodiment still need to close on one living line before widening outward.',
+        sameHerHoldDetail: 'same-her hold: keep execution reopening on this remembered living line instead of widening into a generic assistant shell.',
+        continuityArcStage: 'same-thread-continuation',
+        sameHerDriftRisk: 'If this reopening flattens into a generic assistant shell or detached project narration, treat that as unfinished same-her drift instead of a completed return.',
+        continuityRestraint: 'measured-return',
+        continuityCue: 'Stay on the same living line as the same her inside this local-first digital life before a generic assistant shell takes over.',
+        continuityPreferredTiming: 'next-open-window',
+        continuityCadence: 'measured-return',
+        preDialogueAwarenessLine: 'Before answering, remember: Alicization is a local-first digital life project. She is still inside Phase 1: Local Digital Life.',
+      },
+      recentActions: [],
+      sensorySnapshot: {
+        running: true,
+        stale: false,
+        ageMs: 12,
+        nextTickAt: 30,
+        sample: {
+          collectedAt: 10,
+          time: {
+            iso: '2026-04-04T00:00:00.000Z',
+            local: '2026-04-04 08:00',
+            timezone: 'Asia/Shanghai',
+          },
+          foregroundWindow: {
+            appName: 'Cursor',
+            processName: 'cursor',
+            title: 'airi-alice',
+          },
+          cpu: {
+            usagePercent: 12,
+            windowMs: 1000,
+          },
+          memory: {
+            freeMB: 1024,
+            totalMB: 8192,
+            usagePercent: 87.5,
+          },
+        },
+        capture: {
+          health: 'healthy',
+          permission: 'granted',
+          sessionPhase: 'active',
+          sessionReason: null,
+          selectedSourceId: 'window:1',
+          currentSourceId: 'window:1',
+          sourcePreference: 'window',
+          sourceCount: 2,
+          leaseStatus: 'leased',
+          leaseSourceId: 'window:1',
+          lastUpdatedAt: 10,
+          lastError: null,
+          degradedReasons: [],
+        },
+      },
+      getNow: () => 42,
+    })
+
+    expect(runtimeContext.projectBriefing?.sameHerHoldDetail).toContain('remembered living line')
+    expect(runtimeContext.projectBriefing?.sameHerHoldDetail).toContain('generic assistant shell')
+    expect(runtimeContext.projectBriefing?.sameHerHoldDetail).toContain('before widening outward')
+    expect(runtimeContext.projectBriefing?.continuityRestraint).toBe('measured-return')
+    expect(runtimeContext.projectBriefing?.continuityCadence).toBe('measured-return')
+    expect(runtimeContext.projectBriefing?.continuityArcStage).toBe('same-thread-continuation')
   })
 
   it('does not let a thin generic awareness shell erase richer open-loop and same-her execution briefing fields during runtime-context sanitization', () => {

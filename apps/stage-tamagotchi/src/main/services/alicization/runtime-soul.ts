@@ -1,4 +1,4 @@
-import type { AlicizationClaimEvidenceGraph, AlicizationMemoryResolutionLedger, AlicizationMemorySituationCandidateSet, AlicizationOrganicMemoryStageReplay, AlicizationRecallLatencyPolicySnapshot } from '@proj-alicization/stage-shared'
+import type { AlicizationClaimEvidenceGraph, AlicizationExecutionToolInputOverrides, AlicizationMemoryResolutionLedger, AlicizationMemorySituationCandidateSet, AlicizationOrganicMemoryStageReplay, AlicizationRecallLatencyPolicySnapshot } from '@proj-alicization/stage-shared'
 import type { createOpenAI } from '@xsai-ext/providers/create'
 import type { Message, ToolChoice } from '@xsai/shared-chat'
 import type { tool } from '@xsai/tool'
@@ -26,15 +26,20 @@ import type {
   AlicizationRecollectionPlan,
   AlicizationRecollectionSpeechPlan,
   AlicizationRelationshipOutcomeRecord,
+  AlicizationRuntimeDigest,
   AlicizationSelfEvolutionKernelSnapshot,
   AlicizationSoulFrontmatter,
   AlicizationSoulSnapshot,
   AlicizationSubconsciousFragment,
   AlicizationSubconsciousNeedsState,
 } from '../../../shared/eventa'
+import type { AlicizationExecutionPayoffStructured } from './execution-delivery-surface'
 import type { AlicizationMemoryTuningAdvice } from './memory-tuning-advice'
 import type { AlicizationPersonStateProjection } from './person-state-projection'
-import type { AlicizationScreenSemanticSummary } from './proactive-screen-semantic'
+import type {
+  AlicizationScreenSemanticFocusTarget,
+  AlicizationScreenSemanticSummary,
+} from './proactive-screen-semantic'
 import type { AlicizationRelationshipDynamicsState } from './relationship-dynamics-state'
 
 import { createHash } from 'node:crypto'
@@ -132,6 +137,7 @@ export const mainChatFirstEventTimeoutMs = 65_000
 export const mainChatFirstEventTimeoutWithVisualGroundingMs = 90_000
 export const mainChatTimeoutRecoveryMs = 12_000
 export const mainChatTimeoutRecoveryWithVisualGroundingMs = 30_000
+export const mainChatVisibleReplySecondPassTimeoutMs = 65_000
 export const inspectionGroundingImageMaxWidth = 960
 export const inspectionGroundingImageMaxHeight = 540
 export const inspectionGroundingImageJpegQuality = 76
@@ -182,14 +188,34 @@ export interface PreparedMainChatExecution {
   waitForTools: boolean
   tools: Array<Awaited<ReturnType<typeof tool>>> | undefined
   toolChoice?: ToolChoice
+  executionToolInputOverrides?: AlicizationExecutionToolInputOverrides
   customDirectivesResolution: ResolvedCardCustomDirectives
   hasVisualGrounding: boolean
   governance: AlicizationChatStartResult['governance']
+  runtimeDigest?: AlicizationRuntimeDigest | null
+  executionPayoffStructuredReply?: AlicizationExecutionPayoffStructured | null
 }
 
 export interface OrganicMemoryPromptContext {
   decisionTraceId?: string | null
   sessionId?: string | null
+  projectStatePreDialogueAwarenessLine?: string | null
+  projectStatePreflightSummary?: string | null
+  projectStateContinuity?: {
+    identity: string | null
+    currentPhase: string | null
+    sameHerSummary: string | null
+    landedProgressSummary: string | null
+    openClosureSummary: string | null
+    proactiveSameHerGap: string | null
+    nextClosureTarget: string | null
+    preDialogueAwarenessLine: string | null
+    emotionalClosureCue: string | null
+    sameHerSelfLine: string | null
+    sameHerHoldDetail?: string | null
+    sameHerDriftRisk: string | null
+  } | null
+  activeContinuityGovernance?: AlicizationDerivedMindStateBundle['activeContinuityGovernance'] | null
   hostAttitude: string
   coreIncarnation: string
   activeThoughts: AlicizationActiveThought[]
@@ -254,26 +280,29 @@ export interface OrganicMemoryPromptContext {
   recollectionIntent?: AlicizationMemoryRecollectionIntentSnapshot | null
   hostPersonModel?: AlicizationHostPersonModelSnapshot | null
   personStateProjection?: AlicizationPersonStateProjection | null
+  autobiographicalSelf?: AlicizationAutobiographicalSelfSnapshot | null
+  longHorizonMemory?: AlicizationLongHorizonMemorySnapshot | null
   relationshipDynamics?: AlicizationRelationshipDynamicsState | null
   affectiveResidue?: AlicizationAffectiveResidueMemorySnapshot | null
   recallLatencyPolicy?: AlicizationRecallLatencyPolicySnapshot | null
   memoryTuningAdvice?: AlicizationMemoryTuningAdvice | null
-  activeContinuityGovernance?: AlicizationDerivedMindStateBundle['activeContinuityGovernance'] | null
-  executionCallbackCarry?: {
-    carryMode: 'repair-before-closeness' | 'lower-pressure' | 'trust-warming' | 'same-thread'
-    confidence: number
-    summary: string
-    threadAnchor?: string | null
-  } | null
   selfEvolution?: AlicizationSelfEvolutionKernelSnapshot | null
-  autobiographicalSelf?: AlicizationAutobiographicalSelfSnapshot | null
-  longHorizonMemory?: AlicizationLongHorizonMemorySnapshot | null
   learningExecutionState?: AlicizationLearningExecutionStateSnapshot | null
   derivedMindStateBundle?: AlicizationDerivedMindStateBundle | null
   memoryStageReplay?: AlicizationOrganicMemoryStageReplay | null
   memoryResolutionLedger?: AlicizationMemoryResolutionLedger | null
   memorySituationCandidates?: AlicizationMemorySituationCandidateSet | null
+  executionCallbackCarry?: {
+    carryMode: 'lower-pressure' | 'trust-warming' | 'execution-callback' | 'repair-before-closeness'
+    confidence: number
+    source: 'session-continuity'
+    summary: string
+    threadAnchor?: string | null
+    episodeId?: string | null
+  } | null
 }
+
+export type OrganicMemoryProjectStateContinuitySnapshot = NonNullable<OrganicMemoryPromptContext['projectStateContinuity']>
 
 export interface ContextualConversationTurn {
   userText: string
@@ -288,6 +317,7 @@ export interface PendingDialogueDeliveryState {
 }
 
 export interface ScreenSemanticCacheState {
+  focusTarget?: AlicizationScreenSemanticFocusTarget | null
   key: string
   summary: AlicizationScreenSemanticSummary | null
   updatedAt: number

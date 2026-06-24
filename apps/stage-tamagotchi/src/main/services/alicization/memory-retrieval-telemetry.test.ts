@@ -169,6 +169,7 @@ describe('memory retrieval telemetry', () => {
       selfEvolutionReasonCodes: [],
       relationshipCadenceRegressionRate: 0,
       selfModelStaleBeliefRate: 0,
+      runtimeMemoryClosureLongRunClosureRate: 0,
       lastUpdatedAt: 123,
     })
     expect(defaultAlicizationMemoryRetrievalTelemetry()).toEqual({
@@ -252,6 +253,7 @@ describe('memory retrieval telemetry', () => {
       selfEvolutionReasonCodes: [],
       relationshipCadenceRegressionRate: 0,
       selfModelStaleBeliefRate: 0,
+      runtimeMemoryClosureLongRunClosureRate: 0,
       lastUpdatedAt: null,
     })
   })
@@ -463,6 +465,7 @@ describe('memory retrieval telemetry', () => {
       ],
       relationshipCadenceRegressionRate: 0,
       selfModelStaleBeliefRate: 0,
+      runtimeMemoryClosureLongRunClosureRate: 0,
       lastUpdatedAt: 100,
     })
   })

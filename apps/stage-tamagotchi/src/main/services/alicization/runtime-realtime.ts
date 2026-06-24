@@ -76,10 +76,10 @@ export function sanitizeBriefText(raw: string, maxLength = 160) {
   return `${text.slice(0, Math.max(8, maxLength - 1))}…`
 }
 
-export function uniqueCarryAnchors(values: unknown[], maxItems = 6, maxChars = 180) {
+export function uniqueCarryAnchors(values: unknown[], maxItems = 6, maxLength = 180) {
   const anchors: string[] = []
   for (const value of values) {
-    const normalized = sanitizeBriefText(readStringValue(value), maxChars)
+    const normalized = sanitizeBriefText(readStringValue(value), maxLength)
     if (!normalized || anchors.includes(normalized))
       continue
     anchors.push(normalized)

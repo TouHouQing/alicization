@@ -218,6 +218,45 @@ function actionBaseAdjustment(action: AlicizationMindActionTendency) {
   }
 }
 
+function deriveProjectStateCounterfactualBias(input?: {
+  identity?: string | null
+  currentPhase?: string | null
+  primaryOpenLoop?: string | null
+} | null) {
+  const identity = sanitizeText(input?.identity, 160).toLowerCase()
+  const currentPhase = sanitizeText(input?.currentPhase, 120).toLowerCase()
+  const primaryOpenLoop = sanitizeText(input?.primaryOpenLoop, 200).toLowerCase()
+
+  const phaseOneDigitalLife = currentPhase.includes('phase 1')
+    || currentPhase.includes('local digital life')
+  const digitalLifeIdentity = [
+    'digital life',
+    'lifeform',
+    'digital companion',
+    '数字生命',
+    '陪伴',
+    '生命体',
+  ].some(needle => identity.includes(needle))
+  const openLifeLoop = [
+    'memory closure',
+    'personhood continuity',
+    'initiative',
+    'embodiment',
+    'execution',
+    'relationship continuity',
+    '主动性',
+    '记忆',
+    '人格连续',
+    '闭环',
+    '拟人',
+    '生命',
+  ].some(needle => primaryOpenLoop.includes(needle))
+
+  return {
+    requiresLifeLoopClosure: phaseOneDigitalLife && digitalLifeIdentity && openLifeLoop,
+  }
+}
+
 export function buildCounterfactualDeliberation(input: {
   now: number
   context: AlicizationProactiveLayeredContext
@@ -236,8 +275,12 @@ export function buildCounterfactualDeliberation(input: {
   mindDynamics: AlicizationMindDynamicsSnapshot
   mindKernel?: AlicizationMindKernelSnapshot | null
   memoryTuningAdvice?: AlicizationMemoryTuningAdvice | null
-  projectState?: unknown
   previous?: AlicizationCounterfactualDeliberationSnapshot | null
+  projectState?: {
+    identity?: string | null
+    currentPhase?: string | null
+    primaryOpenLoop?: string | null
+  } | null
 }): AlicizationCounterfactualDeliberationSnapshot {
   const relationshipNeed = topRelationshipNeed(input)
   const hostGoal = topHostGoal(input)
@@ -268,6 +311,7 @@ export function buildCounterfactualDeliberation(input: {
     || input.worldModel.activeThread?.kind === 'late-night-endurance'
     || concern?.kind === 'care-body'
   const rememberedFamiliarityRestraint = hasRememberedFamiliarityRestraint(input.memoryTuningAdvice ?? null)
+  const projectStateBias = deriveProjectStateCounterfactualBias(input.projectState ?? null)
   const guidanceWindow = (hostGoal === 'resolve-problem' || hostGoal === 'inspect-change')
     && (
       worldCertainty === 'grounded'
@@ -423,6 +467,24 @@ export function buildCounterfactualDeliberation(input: {
       relationshipCost = clamp01(relationshipCost + 0.08)
     if (governorWithholding && action === 'hover')
       timingFitness = clamp01(timingFitness + 0.08)
+
+    if (projectStateBias.requiresLifeLoopClosure && concern?.kind !== 'care-body') {
+      if (action === 'hover' || action === 'recheck' || action === 'wait') {
+        identityFit = clamp01(identityFit + 0.18)
+        timingFitness = clamp01(timingFitness + 0.12)
+      }
+      if (action === 'whisper') {
+        relationshipCost = clamp01(relationshipCost + 0.04)
+        identityFit = clamp01(identityFit - 0.1)
+        timingFitness = clamp01(timingFitness - 0.06)
+      }
+      if (action === 'speak') {
+        relationshipCost = clamp01(relationshipCost + 0.06)
+        interruptionCost = clamp01(interruptionCost + 0.04)
+        identityFit = clamp01(identityFit - 0.18)
+        timingFitness = clamp01(timingFitness - 0.1)
+      }
+    }
 
     const score = clamp01(
       actionBaseAdjustment(action)

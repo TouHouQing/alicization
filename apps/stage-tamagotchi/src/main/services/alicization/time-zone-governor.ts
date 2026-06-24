@@ -1,5 +1,7 @@
 import type { Message } from '@xsai/shared-chat'
 
+import { env as processEnv } from 'node:process'
+
 import { parseJsonObjectFromText, readTransportContentAsText } from './runtime-transport-content'
 
 const knownTimeZoneAliases = new Map<string, string>([
@@ -103,8 +105,8 @@ function collectTimeZoneHintsFromText(text: string) {
   const candidates: string[] = []
   const seen = new Set<string>()
   for (const pattern of timezoneJsonHintPatterns) {
-    let match: RegExpExecArray | null
-    while ((match = pattern.exec(text)) !== null) {
+    pattern.lastIndex = 0
+    for (let match = pattern.exec(text); match; match = pattern.exec(text)) {
       const candidate = normalizeCandidate(match[1] ?? '')
       if (!candidate || seen.has(candidate))
         continue
@@ -137,7 +139,7 @@ export function extractExplicitUserTimeZoneFromText(userTextRaw: unknown) {
 
   const aliasHits: string[] = []
   for (const alias of knownTimeZoneAliases.keys()) {
-    if (!/[^\x00-\x7F]/.test(alias))
+    if (![...alias].some(character => character.charCodeAt(0) > 0x7F))
       continue
     if (userText.includes(alias))
       aliasHits.push(alias)
@@ -211,9 +213,7 @@ export function resolveAlicizationTimeZoneFromMessages(messages?: Message[]): Al
     }
   }
 
-  const envTimezone = typeof process !== 'undefined'
-    ? resolveAlicizationTimeZoneCandidate(process.env?.TZ)
-    : ''
+  const envTimezone = resolveAlicizationTimeZoneCandidate(processEnv.TZ)
   if (envTimezone) {
     return {
       timezone: envTimezone,

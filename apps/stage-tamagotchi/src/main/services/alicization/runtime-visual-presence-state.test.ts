@@ -4,7 +4,6 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { createAlicizationBodyKernel } from './body-kernel'
 import { createAlicizationRuntimeVisualPresenceState } from './runtime-visual-presence-state'
-import { normalizeVisualPresenceState } from './visual-episodic-memory'
 
 function createVisualPresenceState(updatedAt: number): AlicizationVisualPresenceStateSnapshot {
   return {
@@ -47,35 +46,6 @@ function createPerceptionState(input: {
     invitedInspection: null,
     recentSceneResidue: input.recentSceneResidue ?? null,
     updatedAt: input.updatedAt,
-  }
-}
-
-function createPresenceExpression(input: {
-  now: number
-  expiresAt: number
-}): NonNullable<AlicizationVisualPresenceStateSnapshot['presenceExpression']> {
-  return {
-    version: 'presence-expression-v1',
-    id: `presence-expression:test:${input.now}`,
-    text: '嗯，先让这里慢下来一点。',
-    trigger: 'presence-only-hold',
-    display: {
-      mode: 'near-body-whisper',
-      allowAutoShow: true,
-      createdAt: input.now,
-      expiresAt: input.expiresAt,
-      intensity: 'soft',
-    },
-    grounding: {
-      sourceRefs: ['privateThought', 'emotionalKernel'],
-      reasonTags: ['quiet-companionship'],
-      stateFingerprint: 'accompanying:quiet-accompaniment',
-      confidence: 0.82,
-    },
-    audit: {
-      generated: true,
-      qualityFlags: [],
-    },
   }
 }
 
@@ -636,105 +606,6 @@ describe('runtime visual presence state', () => {
 
     expect(perception).toEqual({ observed: 'other-card' })
     expect(visualPresence.updatedAt).toBe(8_000)
-  })
-
-  it('keeps an unexpired persisted presence expression when visual presence is restored and ensured', async () => {
-    const expression = createPresenceExpression({
-      now: 8_000,
-      expiresAt: 14_000,
-    })
-    const persistedState = {
-      ...createVisualPresenceState(8_000),
-      presenceExpression: expression,
-    }
-    const meta = new Map<string, string>([
-      ['visual_presence_state_v1', JSON.stringify(persistedState)],
-    ])
-    const runtime = createAlicizationRuntimeVisualPresenceState({
-      now: () => 10_000,
-      normalizeCardId: raw => String(raw ?? '').trim() || 'default',
-      getActiveCardId: () => 'default',
-      withCardScope: async (_cardId, task) => await task(),
-      alicizationDb: {
-        getMetaValue: async key => meta.get(key),
-        setMetaValue: async (key, value) => {
-          meta.set(key, value)
-        },
-        upsertMindHead: async () => {},
-      },
-      perceptionStateByCard: new Map(),
-      visualPresenceStateByCard: new Map(),
-      visualPresenceCapturePersistMetaByCard: new Map(),
-      createDefaultPerceptionState: now => ({ lastObservedAt: now } as any),
-      normalizePerceptionState: raw => raw as any,
-      createDefaultVisualPresenceState: createVisualPresenceState,
-      normalizeVisualPresenceState,
-      buildVisualPresenceCapturePersistFingerprint: state => `fp:${state.updatedAt}`,
-      emitVisualPresenceState: () => {},
-      perceptionMetaKey: 'perception_state_v1',
-      visualPresenceMetaKey: 'visual_presence_state_v1',
-    })
-
-    const restored = await runtime.restoreVisualPresenceState('default')
-    const ensured = await runtime.ensureVisualPresenceState('default')
-
-    expect(restored.presenceExpression).toEqual(expect.objectContaining({
-      id: expression.id,
-      text: expression.text,
-      trigger: 'presence-only-hold',
-    }))
-    expect(ensured.presenceExpression).toEqual(expect.objectContaining({
-      id: expression.id,
-      text: expression.text,
-      trigger: 'presence-only-hold',
-    }))
-  })
-
-  it('drops an expired persisted presence expression during visual presence restore', async () => {
-    const expiredState = {
-      ...createVisualPresenceState(8_000),
-      presenceExpression: createPresenceExpression({
-        now: 2_000,
-        expiresAt: 7_000,
-      }),
-    }
-    const visualPresenceStateByCard = new Map<string, AlicizationVisualPresenceStateSnapshot>()
-    const meta = new Map<string, string>([
-      ['visual_presence_state_v1', JSON.stringify(expiredState)],
-    ])
-    const setMetaValue = vi.fn(async (key: string, value: string) => {
-      meta.set(key, value)
-    })
-    const runtime = createAlicizationRuntimeVisualPresenceState({
-      now: () => 10_000,
-      normalizeCardId: raw => String(raw ?? '').trim() || 'default',
-      getActiveCardId: () => 'default',
-      withCardScope: async (_cardId, task) => await task(),
-      alicizationDb: {
-        getMetaValue: async key => meta.get(key),
-        setMetaValue,
-        upsertMindHead: async () => {},
-      },
-      perceptionStateByCard: new Map(),
-      visualPresenceStateByCard,
-      visualPresenceCapturePersistMetaByCard: new Map(),
-      createDefaultPerceptionState: now => ({ lastObservedAt: now } as any),
-      normalizePerceptionState: raw => raw as any,
-      createDefaultVisualPresenceState: createVisualPresenceState,
-      normalizeVisualPresenceState,
-      buildVisualPresenceCapturePersistFingerprint: state => `fp:${state.updatedAt}`,
-      emitVisualPresenceState: () => {},
-      perceptionMetaKey: 'perception_state_v1',
-      visualPresenceMetaKey: 'visual_presence_state_v1',
-    })
-
-    const restored = await runtime.restoreVisualPresenceState('default')
-    const ensured = await runtime.ensureVisualPresenceState('default')
-
-    expect(restored.presenceExpression).toBeNull()
-    expect(ensured.presenceExpression).toBeNull()
-    expect(visualPresenceStateByCard.get('default')?.presenceExpression).toBeNull()
-    expect(setMetaValue).not.toHaveBeenCalled()
   })
 
   it('serializes perception mutations so an older write cannot wipe a newer scene residue', async () => {

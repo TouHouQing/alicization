@@ -14,14 +14,14 @@ export interface AlicizationActiveLoopSnapshot {
   phase: AlicizationActiveLoopPhase
   dominantChannel: AlicizationRuntimeChannelId | null
   handoffTarget: AlicizationRuntimeChannelId | null
+  continuityArcStage?: string | null
+  continuityPreferredTiming?: string | null
   dialogueReady: boolean
   controlReady: boolean
   memoryCarry: boolean
   companionshipReady: boolean
   observationHeavy: boolean
   continuityPressure: number
-  continuityArcStage?: string | null
-  continuityPreferredTiming?: string | null
   companionshipPressure: number
   initiativeBudget: number
   coherence: number
@@ -130,8 +130,354 @@ function rankRuntimeChannelsByReadiness(readiness: Record<AlicizationRuntimeChan
     })
 }
 
+function isInwardContinuityArcStage(stage: string | null | undefined) {
+  return stage === 'hold-for-opening'
+}
+
+function isMeasuredReturnSameThreadInwardCarry(input: {
+  continuityArcStage: string | null
+  continuityPreferredTiming?: string | null
+  continuityRestraint: string | null
+  memoryCarry: boolean
+  continuityPressure: number
+}) {
+  return input.continuityArcStage === 'same-thread-continuation'
+    && (
+      input.continuityRestraint === 'measured-return'
+      || input.continuityRestraint === 'repair-before-closeness'
+    )
+    && input.memoryCarry
+    && (
+      input.continuityPreferredTiming == null
+      || input.continuityPreferredTiming === 'next-open-window'
+    )
+    && input.continuityPressure >= 0.64
+}
+
+function hasSameHerProjectClosureCue(text: string) {
+  return (
+    text.includes('same-her')
+    || text.includes('same her')
+    || text.includes('same digital life')
+    || text.includes('same living line')
+    || text.includes('same living bond line')
+    || text.includes('unfinished closure')
+    || text.includes('measured-return')
+    || text.includes('digital life')
+    || text.includes('execution-callback project-carry')
+    || text.includes('callback project-carry')
+    || text.includes('continuity-execution-callback-project-carry')
+    || text.includes('拟人')
+    || text.includes('具身')
+  )
+}
+
+function hasDurableSelfCoreInitiativeRestraint(runtime?: AlicizationRuntimeSnapshot | null) {
+  const authority = runtime?.personStateProjection?.selfContinuityAuthority ?? null
+  const sourceTags = Array.isArray(authority?.sourceTags)
+    ? authority.sourceTags.map(tag => String(tag).trim().toLowerCase()).filter(Boolean)
+    : []
+  const continuityText = [
+    authority?.selfLine,
+    authority?.authoritySummary,
+    authority?.inwardLine,
+  ]
+    .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+    .join(' ')
+    .toLowerCase()
+
+  return sourceTags.includes('durable-self-core')
+    && /same her|same self|one living self|across quiet, memory, and speech|without reopening from scratch/u.test(continuityText)
+}
+
+function deriveProjectStateRhythmBias(projectState?: {
+  currentPhase?: string | null
+  memoryClosureSummary?: string | null
+  primaryOpenLoop?: string | null
+  nextClosureTarget?: string | null
+  continuityCue?: string | null
+} | null) {
+  const currentPhase = typeof projectState?.currentPhase === 'string'
+    ? projectState.currentPhase.toLowerCase()
+    : ''
+  const memoryClosureSummary = typeof projectState?.memoryClosureSummary === 'string'
+    ? projectState.memoryClosureSummary.toLowerCase()
+    : ''
+  const primaryOpenLoop = typeof projectState?.primaryOpenLoop === 'string'
+    ? projectState.primaryOpenLoop.toLowerCase()
+    : ''
+  const nextClosureTarget = typeof projectState?.nextClosureTarget === 'string'
+    ? projectState.nextClosureTarget.toLowerCase()
+    : ''
+  const continuityCue = typeof projectState?.continuityCue === 'string'
+    ? projectState.continuityCue.toLowerCase()
+    : ''
+  const executionCallbackProjectCarry = [
+    memoryClosureSummary,
+    primaryOpenLoop,
+    nextClosureTarget,
+    continuityCue,
+  ].some(text => text.includes('continuity-execution-callback-project-carry')
+    || text.includes('execution-callback project-carry')
+    || text.includes('callback project-carry'))
+
+  const phaseOne = currentPhase.includes('phase 1')
+  const openLifeLoop = primaryOpenLoop.length > 0
+    && (
+      hasSameHerProjectClosureCue(primaryOpenLoop)
+      || primaryOpenLoop.includes('initiative')
+      || primaryOpenLoop.includes('embodiment')
+      || primaryOpenLoop.includes('personhood')
+      || primaryOpenLoop.includes('closure')
+    )
+  const sameHerClosureTarget = (
+    nextClosureTarget.length > 0
+    && (
+      hasSameHerProjectClosureCue(nextClosureTarget)
+      || nextClosureTarget.includes('repair-before-closeness')
+      || nextClosureTarget.includes('cross-modal')
+      || nextClosureTarget.includes('resident presence')
+      || nextClosureTarget.includes('voice')
+      || nextClosureTarget.includes('motion')
+      || nextClosureTarget.includes('facial')
+      || nextClosureTarget.includes('跨模态')
+    )
+  ) || (
+    hasSameHerProjectClosureCue(memoryClosureSummary)
+    && hasSameHerProjectClosureCue(continuityCue)
+  )
+
+  if (!phaseOne || !openLifeLoop || !sameHerClosureTarget)
+    return null
+
+  return {
+    initiativeBudgetPenalty: executionCallbackProjectCarry ? 0.08 : 0.05,
+    continuityRestraint:
+      continuityCue.includes('repair-before-closeness')
+      || nextClosureTarget.includes('repair-before-closeness')
+      || memoryClosureSummary.includes('repair-before-closeness')
+        ? 'repair-before-closeness' as const
+        : continuityCue.includes('measured-return')
+          || nextClosureTarget.includes('measured-return')
+          || memoryClosureSummary.includes('measured-return')
+          || continuityCue.includes('same living line')
+          || continuityCue.includes('same thread')
+          ? 'measured-return' as const
+          : null,
+  }
+}
+
+function deriveBroaderSameHerClosureLoopBias(projectState?: {
+  preDialogueAwarenessLine?: string | null
+  emotionalClosureCue?: string | null
+  primaryOpenLoop?: string | null
+  nextClosureTarget?: string | null
+  continuityCue?: string | null
+  continuityArcStage?: string | null
+  continuityPreferredTiming?: string | null
+} | null) {
+  const preDialogueAwarenessLine = typeof projectState?.preDialogueAwarenessLine === 'string'
+    ? projectState.preDialogueAwarenessLine.toLowerCase()
+    : ''
+  const emotionalClosureCue = typeof projectState?.emotionalClosureCue === 'string'
+    ? projectState.emotionalClosureCue.toLowerCase()
+    : ''
+  const primaryOpenLoop = typeof projectState?.primaryOpenLoop === 'string'
+    ? projectState.primaryOpenLoop.toLowerCase()
+    : ''
+  const nextClosureTarget = typeof projectState?.nextClosureTarget === 'string'
+    ? projectState.nextClosureTarget.toLowerCase()
+    : ''
+  const continuityCue = typeof projectState?.continuityCue === 'string'
+    ? projectState.continuityCue.toLowerCase()
+    : ''
+
+  const broaderSameHerClosure
+    = (
+      preDialogueAwarenessLine.includes('same living line')
+      && preDialogueAwarenessLine.includes('initiative and embodiment closure')
+      && preDialogueAwarenessLine.includes('without splitting her continuity')
+    )
+    || (
+      emotionalClosureCue.includes('memory, initiative, and embodiment')
+      && emotionalClosureCue.includes('same living line')
+    )
+
+  const stillOpenFourPartLoop
+    = primaryOpenLoop.includes('memory')
+      && primaryOpenLoop.includes('initiative')
+      && primaryOpenLoop.includes('embodiment')
+      && primaryOpenLoop.includes('same living line')
+
+  const nextClosureStillInward
+    = nextClosureTarget.includes('initiative and embodiment closure')
+      || nextClosureTarget.includes('same living line')
+      || continuityCue.includes('same living line')
+
+  if (!broaderSameHerClosure || !stillOpenFourPartLoop || !nextClosureStillInward)
+    return null
+
+  return {
+    initiativeBudgetPenalty: 0.04,
+    prefersActiveMemoryHandoff: true,
+  }
+}
+
+function derivesBroaderSameHerClosureMemoryCarry(projectState?: {
+  preDialogueAwarenessLine?: string | null
+  sameHerSelfLine?: string | null
+  emotionalClosureCue?: string | null
+  primaryOpenLoop?: string | null
+  nextClosureTarget?: string | null
+  continuityCue?: string | null
+  continuityArcStage?: string | null
+  continuityPreferredTiming?: string | null
+} | null, continuityRestraint?: string | null) {
+  const preDialogueAwarenessLine = typeof projectState?.preDialogueAwarenessLine === 'string'
+    ? projectState.preDialogueAwarenessLine.toLowerCase()
+    : ''
+  const sameHerSelfLine = typeof projectState?.sameHerSelfLine === 'string'
+    ? projectState.sameHerSelfLine.toLowerCase()
+    : ''
+  const emotionalClosureCue = typeof projectState?.emotionalClosureCue === 'string'
+    ? projectState.emotionalClosureCue.toLowerCase()
+    : ''
+  const primaryOpenLoop = typeof projectState?.primaryOpenLoop === 'string'
+    ? projectState.primaryOpenLoop.toLowerCase()
+    : ''
+  const nextClosureTarget = typeof projectState?.nextClosureTarget === 'string'
+    ? projectState.nextClosureTarget.toLowerCase()
+    : ''
+  const continuityCue = typeof projectState?.continuityCue === 'string'
+    ? projectState.continuityCue.toLowerCase()
+    : ''
+  const continuityArcStage = typeof projectState?.continuityArcStage === 'string'
+    ? projectState.continuityArcStage.toLowerCase()
+    : ''
+  const continuityPreferredTiming = typeof projectState?.continuityPreferredTiming === 'string'
+    ? projectState.continuityPreferredTiming.toLowerCase()
+    : ''
+  const restraint = typeof continuityRestraint === 'string'
+    ? continuityRestraint.toLowerCase()
+    : ''
+
+  const broaderAwarenessLine
+    = preDialogueAwarenessLine.includes('same living line')
+      && preDialogueAwarenessLine.includes('initiative and embodiment closure')
+      && preDialogueAwarenessLine.includes('without splitting her continuity')
+  const sameHerPhaseOneClosureLine
+    = sameHerSelfLine.includes('same phase 1 digital life')
+      && sameHerSelfLine.includes('closure already landed')
+      && sameHerSelfLine.includes('same living line')
+  const canonicalContinuousHerCarry
+    = sameHerSelfLine.includes('keep one continuous her explicit')
+      && sameHerSelfLine.includes('identity=')
+      && sameHerSelfLine.includes('still-open=')
+  const closureCueNamesFourPartLoop
+    = emotionalClosureCue.includes('memory, initiative, and embodiment')
+      && emotionalClosureCue.includes('same living line')
+  const openLoopStillNamesFourPartClosure
+    = primaryOpenLoop.includes('same living line')
+      && primaryOpenLoop.includes('memory')
+      && primaryOpenLoop.includes('initiative')
+      && primaryOpenLoop.includes('embodiment')
+      && (
+        primaryOpenLoop.includes('dialogue')
+        || primaryOpenLoop.includes('closure')
+        || primaryOpenLoop.includes('end-to-end')
+      )
+  const inwardContinuationTarget
+    = nextClosureTarget.includes('same living line')
+      || nextClosureTarget.includes('initiative and embodiment closure')
+      || continuityCue.includes('same living line')
+      || continuityCue.includes('memory, initiative, and embodiment')
+  const sameThreadClosureArc = continuityArcStage === 'same-thread-continuation'
+  const inwardTiming = continuityPreferredTiming.length === 0
+    || continuityPreferredTiming === 'next-open-window'
+  const restrainedReturn
+    = restraint === 'measured-return'
+      || restraint === 'repair-before-closeness'
+      || continuityCue.includes('measured-return')
+      || continuityCue.includes('repair-before-closeness')
+      || nextClosureTarget.includes('measured-return')
+      || nextClosureTarget.includes('repair-before-closeness')
+
+  return (broaderAwarenessLine || sameHerPhaseOneClosureLine || canonicalContinuousHerCarry)
+    && closureCueNamesFourPartLoop
+    && openLoopStillNamesFourPartClosure
+    && inwardContinuationTarget
+    && sameThreadClosureArc
+    && inwardTiming
+    && restrainedReturn
+}
+
+function prefersMeasuredReturnMemoryHandoff(input: {
+  continuityArcStage: string | null
+  continuityPreferredTiming?: string | null
+  memoryCarry: boolean
+  continuityPressure: number
+  companionshipReady: boolean
+  controlReady: boolean
+  activeDialogueHeat: number
+  observationHeavy: boolean
+  restraint: string | null
+  dialogueReady: boolean
+}) {
+  if (
+    input.continuityArcStage !== 'same-thread-continuation'
+    || (input.restraint !== 'measured-return' && input.restraint !== 'repair-before-closeness')
+    || !input.memoryCarry
+    || input.continuityPressure < 0.52
+    || input.observationHeavy
+  ) {
+    return false
+  }
+
+  if (
+    isMeasuredReturnSameThreadInwardCarry({
+      continuityArcStage: input.continuityArcStage,
+      continuityPreferredTiming: input.continuityPreferredTiming,
+      continuityRestraint: input.restraint,
+      memoryCarry: input.memoryCarry,
+      continuityPressure: input.continuityPressure,
+    })
+    && input.controlReady
+    && input.activeDialogueHeat < 0.9
+  ) {
+    return true
+  }
+
+  const quietSameThreadCarry = input.activeDialogueHeat >= 0.5
+    && input.continuityPressure >= 0.52
+  if (!input.companionshipReady && !quietSameThreadCarry) {
+    if (
+      input.dialogueReady
+      && input.controlReady
+      && input.continuityPreferredTiming === 'next-open-window'
+      && input.activeDialogueHeat < 0.9
+    ) {
+      return true
+    }
+    return false
+  }
+
+  if (input.controlReady && input.activeDialogueHeat < 0.68)
+    return true
+
+  // Once the first reopen has already spoken, the same measured-return line
+  // can warm back up without becoming a fresh outward start. Strong continuity
+  // pressure should keep that later continuation inward on memory carry.
+  if (input.controlReady && input.activeDialogueHeat < 0.82 && input.continuityPressure >= 0.84)
+    return true
+
+  return input.activeDialogueHeat >= 0.82 && input.continuityPressure >= 0.84
+}
+
 function resolveLoopHandoffTarget(input: {
   dominantChannel: AlicizationRuntimeChannelId | null
+  continuityArcStage: string | null
+  continuityPreferredTiming?: string | null
+  continuityRestraint: string | null
   dialogueReady: boolean
   controlReady: boolean
   memoryCarry: boolean
@@ -143,6 +489,7 @@ function resolveLoopHandoffTarget(input: {
   anthropomorphicHeat: number
   continuityPressure: number
   agentRuntimeHeat: number
+  broaderSameHerClosurePrefersMemory?: boolean
 }): AlicizationRuntimeChannelId | null {
   if (input.observationHeavy) {
     if (input.dialogueReady && input.activeDialogueHeat >= 0.56)
@@ -150,6 +497,52 @@ function resolveLoopHandoffTarget(input: {
     if (input.controlReady && input.controlHeat >= 0.58)
       return 'active-control'
     return 'active-perception'
+  }
+
+  // A living line that is still explicitly holding for its next opening should
+  // stay on the memory-carry seam instead of being widened by dialogue heat.
+  if (
+    isInwardContinuityArcStage(input.continuityArcStage)
+    && input.memoryCarry
+    && input.continuityPressure >= 0.68
+  ) {
+    return 'active-memory'
+  }
+
+  // A same-thread callback return can stay control-led while still handing off
+  // inward to memory when measured-return restraint says "continue this life
+  // line gently" rather than widening the reopening into outward action.
+  if (prefersMeasuredReturnMemoryHandoff({
+    continuityArcStage: input.continuityArcStage,
+    continuityPreferredTiming: input.continuityPreferredTiming,
+    memoryCarry: input.memoryCarry,
+    continuityPressure: input.continuityPressure,
+    companionshipReady: input.companionshipReady,
+    controlReady: input.controlReady,
+    activeDialogueHeat: input.activeDialogueHeat,
+    observationHeavy: input.observationHeavy,
+    restraint: input.continuityRestraint,
+    dialogueReady: input.dialogueReady,
+  })) {
+    return 'active-memory'
+  }
+
+  if (
+    input.broaderSameHerClosurePrefersMemory
+    && input.continuityArcStage === 'same-thread-continuation'
+    && input.memoryCarry
+    && input.continuityPressure >= 0.62
+  ) {
+    return 'active-memory'
+  }
+
+  if (
+    input.continuityArcStage === 'same-thread-continuation'
+    && input.memoryCarry
+    && input.continuityPressure >= 0.63
+    && input.activeDialogueHeat < 0.68
+  ) {
+    return 'active-memory'
   }
 
   if (input.controlReady && input.controlHeat >= input.dialogueHeat + 0.06)
@@ -171,14 +564,32 @@ function resolveLoopHandoffTarget(input: {
 }
 
 function resolveLoopPhase(input: {
+  continuityArcStage: string | null
+  continuityPreferredTiming?: string | null
+  continuityRestraint: string | null
   observationHeavy: boolean
   dialogueReady: boolean
   controlReady: boolean
   controlHeat: number
   dialogueHeat: number
+  continuityPressure: number
+  memoryCarry: boolean
 }): AlicizationActiveLoopPhase {
   if (input.observationHeavy && !input.dialogueReady && !input.controlReady)
     return 'observe'
+
+  if (isInwardContinuityArcStage(input.continuityArcStage) && input.memoryCarry)
+    return 'integrate'
+
+  if (isMeasuredReturnSameThreadInwardCarry({
+    continuityArcStage: input.continuityArcStage,
+    continuityPreferredTiming: input.continuityPreferredTiming,
+    continuityRestraint: input.continuityRestraint,
+    memoryCarry: input.memoryCarry,
+    continuityPressure: input.continuityPressure,
+  })) {
+    return 'integrate'
+  }
 
   if (input.controlReady && input.controlHeat >= input.dialogueHeat - 0.04)
     return 'control'
@@ -235,13 +646,24 @@ export function deriveAlicizationActiveLoopSnapshot(input: {
     architectureProactiveHeat * 0.66,
   )
   const agentRuntimeHeat = readRuntimeChannelReadiness(runtime, 'agent-runtime')
+  const continuityArcStage = typeof runtime?.projectState?.continuityArcStage === 'string'
+    ? runtime.projectState.continuityArcStage
+    : null
+  const continuityPreferredTiming = typeof runtime?.projectState?.continuityPreferredTiming === 'string'
+    ? runtime.projectState.continuityPreferredTiming
+    : null
+  const projectStateRhythmBias = deriveProjectStateRhythmBias(runtime?.projectState ?? null)
+  const broaderSameHerClosureLoopBias = deriveBroaderSameHerClosureLoopBias(runtime?.projectState ?? null)
+  const durableSelfCoreInitiativeRestraint = hasDurableSelfCoreInitiativeRestraint(runtime)
+  const continuityRestraint = typeof runtime?.continuityRestraint === 'string'
+    ? runtime.continuityRestraint
+    : projectStateRhythmBias?.continuityRestraint ?? null
 
   const continuityPressure = Math.max(
     clamp01(runtime?.continuityPressure),
     clamp01(memoryHeat * 0.72 + mindHeat * 0.28),
+    broaderSameHerClosureLoopBias?.prefersActiveMemoryHandoff ? 0.64 : 0,
   )
-  const continuityArcStage = runtime?.continuityArcStage ?? null
-  const continuityPreferredTiming = runtime?.continuityPreferredTiming ?? null
   const companionshipPressure = Math.max(
     clamp01(runtime?.companionshipPressure),
     clamp01(anthropomorphicHeat * 0.68 + Math.max(dialogueHeat, activeDialogueHeat) * 0.2 + architectureProactiveHeat * 0.12),
@@ -272,9 +694,14 @@ export function deriveAlicizationActiveLoopSnapshot(input: {
   const controlReady = runtime?.shouldProactivelyAct === true
     || controlHeat >= 0.72
     || (dominantChannel === 'agent-runtime' && agentRuntimeHeat >= 0.68)
+  const broaderSameHerClosureMemoryCarry = derivesBroaderSameHerClosureMemoryCarry(
+    runtime?.projectState ?? null,
+    continuityRestraint,
+  )
   const memoryCarry = isRuntimeMemoryDominantChannel(dominantChannel)
     || memoryHeat >= 0.62
     || continuityPressure >= 0.62
+    || broaderSameHerClosureMemoryCarry
   const companionshipReady = companionshipPressure >= 0.68
     || anthropomorphicHeat >= 0.72
     || (isRuntimeCompanionshipDominantChannel(dominantChannel) && dialogueReady)
@@ -286,6 +713,9 @@ export function deriveAlicizationActiveLoopSnapshot(input: {
 
   const handoffTarget = resolveLoopHandoffTarget({
     dominantChannel,
+    continuityArcStage,
+    continuityPreferredTiming,
+    continuityRestraint,
     dialogueReady,
     controlReady,
     memoryCarry,
@@ -297,13 +727,19 @@ export function deriveAlicizationActiveLoopSnapshot(input: {
     anthropomorphicHeat,
     continuityPressure,
     agentRuntimeHeat,
+    broaderSameHerClosurePrefersMemory: broaderSameHerClosureLoopBias?.prefersActiveMemoryHandoff ?? false,
   })
   const phase = resolveLoopPhase({
+    continuityArcStage,
+    continuityPreferredTiming,
+    continuityRestraint,
     observationHeavy,
     dialogueReady,
     controlReady,
     controlHeat,
     dialogueHeat: Math.max(dialogueHeat, activeDialogueHeat),
+    continuityPressure,
+    memoryCarry,
   })
 
   const initiativeBudget = clamp01(
@@ -314,7 +750,11 @@ export function deriveAlicizationActiveLoopSnapshot(input: {
     + (runtime?.shouldProactivelySpeak ? 0.08 : 0)
     + (runtime?.shouldProactivelyAct ? 0.05 : 0)
     - (observationHeavy ? 0.24 : 0)
-    - (!dialogueReady && !controlReady ? 0.12 : 0),
+    - (isInwardContinuityArcStage(continuityArcStage) ? 0.18 : 0)
+    - (!dialogueReady && !controlReady ? 0.12 : 0)
+    - (projectStateRhythmBias?.initiativeBudgetPenalty ?? 0)
+    - (broaderSameHerClosureLoopBias?.initiativeBudgetPenalty ?? 0)
+    - (durableSelfCoreInitiativeRestraint ? 0.08 : 0),
   )
 
   const architectureDominantChannel = mapArchitectureDominantSystemToRuntimeChannel(architecture?.dominantSystem)
@@ -336,14 +776,14 @@ export function deriveAlicizationActiveLoopSnapshot(input: {
     phase,
     dominantChannel,
     handoffTarget,
+    continuityArcStage,
+    continuityPreferredTiming,
     dialogueReady,
     controlReady,
     memoryCarry,
     companionshipReady,
     observationHeavy,
     continuityPressure,
-    continuityArcStage,
-    continuityPreferredTiming,
     companionshipPressure,
     initiativeBudget,
     coherence,
@@ -351,10 +791,9 @@ export function deriveAlicizationActiveLoopSnapshot(input: {
       `phase=${phase}`,
       dominantChannel ? `dominant=${dominantChannel}` : '',
       handoffTarget ? `handoff=${handoffTarget}` : '',
+      continuityArcStage ? `continuity-arc=${continuityArcStage}` : '',
       `initiative=${initiativeBudget.toFixed(2)}`,
       `coherence=${coherence.toFixed(2)}`,
-      continuityArcStage ? `continuity-arc=${continuityArcStage}` : '',
-      continuityPreferredTiming ? `continuity-timing=${continuityPreferredTiming}` : '',
       observationHeavy ? 'observation-heavy=true' : '',
     ].filter(Boolean).join(' | '),
   }

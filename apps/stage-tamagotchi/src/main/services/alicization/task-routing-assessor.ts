@@ -8,6 +8,7 @@ import type {
 import type { AlicizationTaskRoutingAssessment } from './task-execution-governor'
 
 import {
+  analyzeAlicizationExecutionSemanticSignals,
   detectAlicizationExecutionCapabilityInquiry,
   detectAlicizationExecutionRoutingIntent,
 } from '@proj-alicization/stage-shared'
@@ -48,6 +49,9 @@ const kindConfidenceByTaskKind: Record<AlicizationClawTaskIntent['kind'], number
   'mixed': 0.66,
   'unknown': 0.62,
 }
+
+const visualGroundingBrowserLikePattern = /\bweb\s?page\b|\bpage\b|\bsite\b|\bbrowser\b|\btab\b|\burl\b|网页|页面|浏览器|标签页/u
+const visualGroundingScreenLikePattern = /\bscreen\b|\bscene\b|\bgui\b|\bdialog\b|\bpopup\b|\bmodal\b|屏幕|界面|画面|窗口|弹窗|对话框/u
 
 function clamp01(value: number) {
   if (!Number.isFinite(value))
@@ -151,6 +155,77 @@ function deriveTaskKindRoutingCandidate(
   } satisfies AlicizationTaskRoutingCandidate
 }
 
+function deriveVisualGroundingRoutingCandidate(
+  task: AlicizationClawTaskIntent,
+  readyChannels: Set<AlicizationExecutionChannel>,
+) {
+  if (task.requiresVisualGrounding !== true)
+    return null
+
+  if (
+    task.kind === 'run-command'
+    || task.kind === 'codebase-edit'
+    || task.kind === 'codebase-investigation'
+    || task.kind === 'agent-delegation'
+  ) {
+    return null
+  }
+
+  const goal = sanitizeText(task.goal, 900)
+  if (!goal)
+    return null
+
+  const semanticSignals = analyzeAlicizationExecutionSemanticSignals(goal)
+  const hasBrowserIntent = semanticSignals.hasBrowserArtifact || visualGroundingBrowserLikePattern.test(goal)
+  const hasScreenIntent = semanticSignals.hasSoftwareArtifact || visualGroundingScreenLikePattern.test(goal)
+
+  if (hasBrowserIntent) {
+    const selectedChannel = pickFirstReadyChannel(['browser', 'software', 'desktop', 'openclaw'], readyChannels)
+    if (!selectedChannel)
+      return null
+    return {
+      channel: selectedChannel,
+      confidence: clamp01(
+        selectedChannel === 'browser'
+          ? 0.86
+          : selectedChannel === 'software'
+            ? 0.78
+            : selectedChannel === 'desktop'
+              ? 0.72
+              : 0.68,
+      ),
+      reasonCodes: [
+        'visual-grounding',
+        'visual-browser-grounding',
+        `visual-channel:${selectedChannel}`,
+      ],
+    } satisfies AlicizationTaskRoutingCandidate
+  }
+
+  if (hasScreenIntent) {
+    const selectedChannel = pickFirstReadyChannel(['desktop', 'software', 'openclaw'], readyChannels)
+    if (!selectedChannel)
+      return null
+    return {
+      channel: selectedChannel,
+      confidence: clamp01(
+        selectedChannel === 'desktop'
+          ? 0.84
+          : selectedChannel === 'software'
+            ? 0.76
+            : 0.68,
+      ),
+      reasonCodes: [
+        'visual-grounding',
+        'visual-desktop-grounding',
+        `visual-channel:${selectedChannel}`,
+      ],
+    } satisfies AlicizationTaskRoutingCandidate
+  }
+
+  return null
+}
+
 function mergeRoutingCandidates(
   goalCandidate: AlicizationTaskRoutingCandidate | null,
   kindCandidate: AlicizationTaskRoutingCandidate | null,
@@ -220,8 +295,12 @@ export function assessAlicizationTaskRouting(
     return null
 
   const goalCandidate = deriveGoalRoutingCandidate(input.task, readyChannels)
+  const visualGroundingCandidate = deriveVisualGroundingRoutingCandidate(input.task, readyChannels)
   const kindCandidate = deriveTaskKindRoutingCandidate(input.task, readyChannels)
-  const merged = mergeRoutingCandidates(goalCandidate, kindCandidate)
+  const merged = mergeRoutingCandidates(
+    mergeRoutingCandidates(goalCandidate, visualGroundingCandidate),
+    kindCandidate,
+  )
   if (!merged)
     return null
 

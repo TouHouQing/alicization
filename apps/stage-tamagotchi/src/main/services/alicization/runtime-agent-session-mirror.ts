@@ -44,7 +44,9 @@ interface CreateAlicizationAgentSessionMirrorRuntimeOptions {
     outcome: AlicizationRecentProactiveOutcome
     source: string
   }) => AlicizationAgentSessionActionInput
-  buildProactiveOutcomeContinuitySignal?: (outcome: AlicizationRecentProactiveOutcome) => AlicizationAgentSessionContinuityInput
+  buildProactiveOutcomeContinuitySignal: (
+    outcome: AlicizationRecentProactiveOutcome,
+  ) => AlicizationAgentSessionContinuityInput
   buildReminderSessionMirrorAction: (input: {
     delayMinutes: number
     firedTurnId?: string | null
@@ -128,6 +130,28 @@ export function createAlicizationAgentSessionMirrorRuntime(options: CreateAliciz
         session.digitalLifeSpine?.continuitySignal?.summary ?? '',
         220,
       ) || null,
+      residentPresenceLine: sanitizeBriefText(
+        (
+          session.digitalLifeSpine?.architecture?.operatingMode === 'observing'
+          || session.digitalLifeSpine?.proactive?.preferredStyle === 'silent-observe'
+        )
+          ? [
+              session.digitalLifeSpine?.architecture?.operatingMode
+                ? `presence=${session.digitalLifeSpine.architecture.operatingMode}`
+                : null,
+              session.digitalLifeSpine?.continuitySignal?.summary
+                ? `line=${session.digitalLifeSpine.continuitySignal.summary}`
+                : null,
+              session.digitalLifeSpine?.proactive?.preferredStyle
+                ? `style=${session.digitalLifeSpine.proactive.preferredStyle}`
+                : null,
+              typeof session.digitalLifeSpine?.proactive?.shouldSpeak === 'boolean'
+                ? `speak=${session.digitalLifeSpine.proactive.shouldSpeak ? 'true' : 'false'}`
+                : null,
+            ].filter((value): value is string => Boolean(value)).join(' | ')
+          : '',
+        220,
+      ) || null,
       digitalLifeArchitecture: (session.digitalLifeSpine?.architecture ?? session.digitalLifeArchitecture)
         ? {
             operatingMode: (session.digitalLifeSpine?.architecture ?? session.digitalLifeArchitecture)!.operatingMode,
@@ -208,6 +232,29 @@ export function createAlicizationAgentSessionMirrorRuntime(options: CreateAliciz
     }
   }
 
+  async function hydrateAgentTurnFromCurrentCardState(input: {
+    agentTurn?: AlicizationAgentTurnRuntime | null
+    cardId: string
+  }) {
+    const agentTurn = input.agentTurn
+    if (!agentTurn)
+      return
+
+    const sessionContinuityContext = await resolveAgentSessionContinuityContext(normalizeCardId(input.cardId)).catch(() => ({
+      digitalLifeRuntimeSurface: null as AlicizationDigitalLifeRuntimeSurface | null,
+      sessionContinuitySignals: [] as AlicizationAgentSessionContinuityInput[],
+    }))
+    const digitalLifeSpine = sessionContinuityContext.digitalLifeRuntimeSurface
+      ? deriveAlicizationDigitalLifeSpineFromSurface(sessionContinuityContext.digitalLifeRuntimeSurface)
+      : null
+    if (digitalLifeSpine) {
+      agentTurn.ingestDigitalLifeSpine(digitalLifeSpine)
+      agentTurn.ingestDigitalLifeArchitecture(digitalLifeSpine.architecture)
+    }
+    if (sessionContinuityContext.sessionContinuitySignals.length > 0)
+      agentTurn.ingestContinuitySignals(sessionContinuityContext.sessionContinuitySignals)
+  }
+
   async function syncSessionMirrorFromCurrentCardState(input: {
     cardId: string
     decisionTraceId?: string | null
@@ -246,17 +293,10 @@ export function createAlicizationAgentSessionMirrorRuntime(options: CreateAliciz
     if (!agentTurn)
       return
 
-    const sessionContinuityContext = await resolveAgentSessionContinuityContext(cardId).catch(() => ({
-      digitalLifeRuntimeSurface: null as AlicizationDigitalLifeRuntimeSurface | null,
-      sessionContinuitySignals: [] as AlicizationAgentSessionContinuityInput[],
-    }))
-    const digitalLifeSpine = sessionContinuityContext.digitalLifeRuntimeSurface
-      ? deriveAlicizationDigitalLifeSpineFromSurface(sessionContinuityContext.digitalLifeRuntimeSurface)
-      : null
-    if (digitalLifeSpine) {
-      agentTurn.ingestDigitalLifeSpine(digitalLifeSpine)
-      agentTurn.ingestDigitalLifeArchitecture(digitalLifeSpine.architecture)
-    }
+    await hydrateAgentTurnFromCurrentCardState({
+      agentTurn,
+      cardId,
+    })
     const runtimeActions: AlicizationAgentSessionActionInput[] = []
     if (input.taskThread)
       runtimeActions.push(buildTaskThreadSessionMirrorAction({ thread: input.taskThread, source: input.source }))
@@ -268,22 +308,21 @@ export function createAlicizationAgentSessionMirrorRuntime(options: CreateAliciz
         source: input.source,
       })))
     }
+    const continuitySignals = typeof buildProactiveOutcomeContinuitySignal === 'function'
+      ? input.proactiveOutcomes?.map(
+        outcome => buildProactiveOutcomeContinuitySignal(outcome),
+      ) ?? []
+      : []
     if (input.reminderAction)
       runtimeActions.push(buildReminderSessionMirrorAction(input.reminderAction))
     if (runtimeActions.length > 0)
       agentTurn.ingestRuntimeActions(runtimeActions)
-    const proactiveContinuitySignals = input.proactiveOutcomes?.length && buildProactiveOutcomeContinuitySignal
-      ? input.proactiveOutcomes.map(outcome => buildProactiveOutcomeContinuitySignal(outcome))
-      : []
 
     const previousMirror = dialogueSessionManager.getSessionMirror(cardId, existingSessionId)
     syncAgentTurnSessionMirror({
       agentTurn,
       cardId,
-      continuitySignals: [
-        ...sessionContinuityContext.sessionContinuitySignals,
-        ...proactiveContinuitySignals,
-      ],
+      continuitySignals,
       decisionTraceId: input.decisionTraceId ?? null,
       sessionId: existingSessionId,
       skipAutobiographicalPersist: true,
@@ -302,45 +341,6 @@ export function createAlicizationAgentSessionMirrorRuntime(options: CreateAliciz
         taskThread: input.taskThread ?? null,
       })
     }
-  }
-
-  async function hydrateAgentTurnFromCurrentCardState(input: {
-    cardId: string
-    decisionTraceId?: string | null
-    sessionId?: string | null
-    source: string
-    turnId?: string | null
-  }): Promise<AlicizationAgentTurnRuntime | null> {
-    const cardId = normalizeCardId(input.cardId)
-    const existingSessionId = normalizeSessionId(input.sessionId)
-      || normalizeSessionId(getActiveSessionIdByCard(cardId))
-      || normalizeSessionId(await getLatestConversationSessionId().catch(() => undefined))
-    if (!existingSessionId)
-      return null
-
-    const agentTurn = await openAgentTurn({
-      cardId,
-      turnId: sanitizeText(input.turnId, '')
-        || buildMainGatewayAgentTurnId('session-mirror', input.source, cardId, Date.now()),
-      decisionTraceId: input.decisionTraceId ?? null,
-    }).catch(() => null)
-    if (!agentTurn)
-      return null
-
-    const sessionContinuityContext = await resolveAgentSessionContinuityContext(cardId).catch(() => ({
-      digitalLifeRuntimeSurface: null as AlicizationDigitalLifeRuntimeSurface | null,
-      sessionContinuitySignals: [] as AlicizationAgentSessionContinuityInput[],
-    }))
-    const digitalLifeSpine = sessionContinuityContext.digitalLifeRuntimeSurface
-      ? deriveAlicizationDigitalLifeSpineFromSurface(sessionContinuityContext.digitalLifeRuntimeSurface)
-      : null
-    if (digitalLifeSpine) {
-      agentTurn.ingestDigitalLifeSpine(digitalLifeSpine)
-      agentTurn.ingestDigitalLifeArchitecture(digitalLifeSpine.architecture)
-    }
-    if (sessionContinuityContext.sessionContinuitySignals.length > 0)
-      agentTurn.ingestContinuitySignals(sessionContinuityContext.sessionContinuitySignals)
-    return agentTurn
   }
 
   return {

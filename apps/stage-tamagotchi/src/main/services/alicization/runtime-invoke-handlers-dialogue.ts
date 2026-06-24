@@ -15,7 +15,6 @@ import type {
   AlicizationMemoryDecisionTraceRecord,
   AlicizationMindTurnEventRecord,
   AlicizationPersonStateUpdateRecord,
-  AlicizationProactiveFeedbackKind,
   AlicizationProactiveFeedbackPayload,
   AlicizationRunReplayBenchmarkPayload,
   AlicizationRunReplayBenchmarkResult,
@@ -23,6 +22,7 @@ import type {
   CharacterPerformanceCapabilitiesManifest,
 } from '../../../shared/eventa'
 import type {
+  AlicizationExplicitProactiveFeedbackInput,
   AlicizationProactiveLoopMutationResult,
   AlicizationProactiveLoopState,
   AlicizationRecentProactiveOutcome,
@@ -86,11 +86,10 @@ interface RegisterAlicizationDialogueInvokeHandlersOptions {
     createdAt: unknown
   }) => Promise<void>
   ensureProactiveLoopState: (cardId: string) => Promise<AlicizationProactiveLoopState>
-  reportExplicitProactiveFeedback: (state: AlicizationProactiveLoopState, input: {
-    turnId: string
-    feedback: AlicizationProactiveFeedbackKind
-    at?: number
-  }) => AlicizationProactiveLoopMutationResult
+  reportExplicitProactiveFeedback: (
+    state: AlicizationProactiveLoopState,
+    input: AlicizationExplicitProactiveFeedbackInput,
+  ) => AlicizationProactiveLoopMutationResult
   persistProactiveLoopState: (cardId: string, state: AlicizationProactiveLoopState) => Promise<void>
   persistProactiveFeedbackOutcomeClosure: (input: {
     now: number
@@ -220,6 +219,7 @@ export function registerAlicizationDialogueInvokeHandlers(options: RegisterAlici
       turnId,
       feedback: payload.feedback,
       at: Date.now(),
+      userText: sanitizeText(payload.userText, '') || null,
     })
     if (settled.appliedOutcomes.length === 0)
       return
