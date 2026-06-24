@@ -18,6 +18,7 @@ import type { AlicizationMemoryTuningAdvice } from './memory-tuning-advice'
 import type {
   AlicizationPersonStateProjection,
 } from './person-state-projection'
+import type { AlicizationPersonMemoryCapsule } from './person-memory-capsule'
 import type { AlicizationPersonalityContinuityStateSnapshot } from './personality-continuity-state'
 import type { AlicizationResponseCharter } from './response-charter'
 
@@ -185,6 +186,7 @@ export interface AlicizationDigitalLifeRuntimeSurface {
     memoryStageReplay?: AlicizationOrganicMemoryStageReplay | null
     memoryResolutionLedger?: AlicizationMemoryResolutionLedger | null
     memoryClosureTrace?: AlicizationDigitalLifeSpineMemoryClosureTrace | null
+    personMemoryCapsule?: AlicizationPersonMemoryCapsule | null
   }
   dialogue: Pick<AlicizationVisualPresenceStateSnapshot, 'discourseState' | 'dialogueEncounter' | 'mindSynthesis' | 'conversationState' | 'dialogueWorldThread' | 'dialogueActKernel' | 'answerCompiler' | 'currentConsciousFrame' | 'claimEvidenceLedger' | 'replyDeliberation' | 'answerPlanner'> & {
     personStateProjection?: AlicizationPersonStateProjection | null
@@ -776,6 +778,7 @@ export function buildAlicizationDigitalLifeRuntimeSurface(
       affectiveResidue,
       derivedMindStateBundle,
       memoryClosureTrace: liftedMemoryClosureTrace,
+      personMemoryCapsule: null,
     },
     dialogue: {
       discourseState: state.discourseState ?? null,

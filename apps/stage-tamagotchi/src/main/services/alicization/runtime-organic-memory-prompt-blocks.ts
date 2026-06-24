@@ -5,6 +5,10 @@ import { deriveAlicizationMemoryClosureDiscipline } from '@proj-alicization/stag
 
 import { formatMemoryProvenanceLabel } from './humanlike-memory'
 import { buildAlicizationMemoryDeliberationKernel } from './memory-deliberation-kernel'
+import {
+  buildAlicizationPersonMemoryCapsuleBlock,
+  shouldUseCompactPersonMemoryCapsuleOnly,
+} from './person-memory-capsule'
 import { deriveRecollectionSurfaceControls } from './recollection-surface-controls'
 
 function buildMemoryTuningCausalityLines(context: OrganicMemoryPromptContext) {
@@ -49,7 +53,11 @@ export function buildOrganicMemorySystemBlocks(
   context: OrganicMemoryPromptContext,
   memoryTurnArtifact?: ReturnType<typeof buildAlicizationMemoryTurnArtifact> | null,
 ) {
-  const blocks: string[] = []
+  const personMemoryCapsuleBlock = buildAlicizationPersonMemoryCapsuleBlock(context, memoryTurnArtifact)
+  if (shouldUseCompactPersonMemoryCapsuleOnly(context, memoryTurnArtifact))
+    return [personMemoryCapsuleBlock]
+
+  const blocks: string[] = [personMemoryCapsuleBlock]
   const deliberationKernel = buildAlicizationMemoryDeliberationKernel({
     deliberation: context.memoryDeliberation ?? null,
     speech: context.recollectionSpeechPlan ?? null,

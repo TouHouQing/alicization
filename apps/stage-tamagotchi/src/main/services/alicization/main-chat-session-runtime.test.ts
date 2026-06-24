@@ -28,6 +28,7 @@ import {
   resolvePreparedRuntimeSurfaceSelection,
 } from './main-chat-session-runtime'
 import { resolveAlicizationChatStartPayloadPreDialogueSendIdentity } from './main-chat-start-awareness'
+import { buildAlicizationPersonMemoryCapsule } from './person-memory-capsule'
 import {
   alicizationProjectStateClosureReadinessMustDo,
   alicizationProjectStateClosureReadinessMustNotDo,
@@ -637,6 +638,107 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
         preparedRuntimeSurfaceChain.effectiveDigitalLifeRuntimeSurface?.memory.personStateProjection?.selfContinuityAuthority?.relationshipLine ?? '',
       ),
     ).toMatch(/same line|same thread|leave room|measured/i)
+  })
+
+  it('keeps the person-memory capsule attached across the prepared runtime surface chain', () => {
+    const reflectivePrelude = createReflectivePrelude({
+      messages: [{ role: 'user', content: '继续按记忆与人格优先的方向开改造' } as Message],
+    })
+    const capsule = buildAlicizationPersonMemoryCapsule({
+      hostAttitude: '',
+      coreIncarnation: '',
+      activeThoughts: [],
+      retrievedFacts: [],
+      recalledFragments: [],
+      personStateProjection: {
+        openingGuidance: 'Answer from the live memory/personality change first.',
+        preferredProactiveStyle: 'light-nudge',
+        manifestationCadenceSummary: 'Body and voice stay lower-pressure while the task continues.',
+        relationshipPosture: 'warm',
+        contexts: ['focused-work'],
+        closenessLadder: [],
+        cautious: false,
+        restrained: false,
+      } as any,
+      memoryDeliberation: {
+        shouldRecall: true,
+        stableCore: ['Prioritize memory and personality self-learning, not heavy architecture.'],
+        unsafeDetails: [],
+        surfacePolicy: 'gist-only',
+        confidence: 0.81,
+        whyNow: 'This turn asks for implementation in the same direction.',
+        inwardLine: 'Use compact authority instead of replaying every memory block.',
+      } as any,
+      executionCallbackCarry: {
+        carryMode: 'execution-callback',
+        confidence: 0.82,
+        source: 'session-continuity',
+        summary: 'Continue the same execution callback with lower pressure.',
+        threadAnchor: 'capsule implementation',
+        episodeId: 'episode-exec-callback',
+      },
+      selfEvolution: {
+        version: 'self-evolution-kernel-v1',
+        updatedAt: 42,
+        nextLearningAction: 'record',
+        nextLearningReason: 'Fresh implementation direction should be recorded.',
+        activeLearningFocuses: ['internalize-relationship-cadence'],
+        learningReadiness: 0.58,
+      } as any,
+      recallLatencyPolicy: {
+        budgetClass: 'realtime-reply',
+        latencyClass: 'fast',
+        recallAction: 'stable-core-only',
+        shouldAvoidDeepExpansion: true,
+      } as any,
+    })
+    reflectivePrelude.perceptionAugmentation.digitalLifeRuntimeSurface = {
+      ...reflectivePrelude.perceptionAugmentation.digitalLifeRuntimeSurface,
+      memory: {
+        ...reflectivePrelude.perceptionAugmentation.digitalLifeRuntimeSurface.memory,
+        personMemoryCapsule: capsule,
+      },
+    } as any
+
+    const preparedRuntimeSurfaceChain = buildPreparedRuntimeSurfaceChain({
+      baseDigitalLifeRuntimeSurface: reflectivePrelude.perceptionAugmentation.digitalLifeRuntimeSurface,
+      governance: {
+        answerIntent: 'continue the same memory/personality implementation',
+        openingMove: 'continue-memory-personality-first',
+        mustDo: ['keep memory, personality, initiative, execution, emotion, and embodiment on one capsule line'],
+      } as any,
+      context: {
+        personStateProjection: {
+          openingGuidance: 'Answer from the live memory/personality change first.',
+        },
+      } as any,
+      now: 42,
+    })
+
+    expect(preparedRuntimeSurfaceChain.effectiveDigitalLifeRuntimeSurface?.memory.personMemoryCapsule).toBe(capsule)
+    expect(preparedRuntimeSurfaceChain.sociallyShapedDigitalLifeRuntimeSurface?.memory.personMemoryCapsule).toBe(capsule)
+    expect(preparedRuntimeSurfaceChain.executionCallbackCarryRuntimeSurface?.memory.personMemoryCapsule).toBe(capsule)
+    expect(preparedRuntimeSurfaceChain.consciousFrameReducedRuntimeSurface?.memory.personMemoryCapsule).toBe(capsule)
+    expect(preparedRuntimeSurfaceChain.answerPlannerReducedRuntimeSurface?.memory.personMemoryCapsule).toBe(capsule)
+
+    const executionBriefing = __alicizationTestOnly.enrichExecutionProjectBriefingWithPersonMemoryCapsule(
+      {
+        identity: 'Alicization is one continuous local digital life.',
+        currentPhase: 'Phase 1: Local Digital Life',
+        latestLandedProgress: null,
+        primaryOpenLoop: null,
+        nextClosureTarget: null,
+        sameHerSelfLine: null,
+        sameHerHoldDetail: null,
+        sameHerDriftRisk: null,
+        continuityCue: null,
+        preflightSummary: null,
+        preDialogueAwarenessLine: null,
+      },
+      preparedRuntimeSurfaceChain.answerPlannerReducedRuntimeSurface,
+    )
+    expect(executionBriefing?.companionBriefingLine).toContain('execution_capsule=')
+    expect(executionBriefing?.continuityCue).toContain('memory_capsule=Prioritize memory and personality self-learning')
   })
 
   it('keeps fuller same-her self and inward lines in rebuilt self-continuity authority summaries instead of truncating them back into a thinner callback shell', () => {

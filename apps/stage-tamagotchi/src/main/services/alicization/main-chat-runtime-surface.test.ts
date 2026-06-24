@@ -6,12 +6,16 @@ import { readFileSync } from 'node:fs'
 
 import { describe, expect, it } from 'vitest'
 
+import { normalizeAlicizationDigitalLifeSpineDigest } from '@proj-alicization/stage-shared'
+
 import {
   buildAlicizationMainChatRuntimeSurface,
   buildCardCustomDirectivesSystemBlock,
   extractCustomDirectivesFromMessages,
   extractHostNameFromMessages,
 } from './main-chat-runtime-surface'
+import { projectAlicizationDigitalLifeSpineDigest } from './digital-life-spine'
+import { buildAlicizationPersonMemoryCapsule } from './person-memory-capsule'
 import { resolveAlicizationProjectStateBrief } from './project-state-brief'
 
 function createSoulSystemMessage(overrides?: {
@@ -3340,5 +3344,270 @@ describe('main chat runtime surface', () => {
     expect(livingSelfBlock).toContain('How closeness should land: Let the return stay on the same thread and leave room before leaning closer again.')
     expect(livingSelfBlock).toContain('Unified self continuity authority: I am still the same Alicization across the pause, returning on the same line with room-first measured continuity.')
     expect(livingSelfBlock).not.toContain('Unified self continuity authority: I should answer from the fresher current return, not from an older shell.')
+  })
+
+  it('carries a structured person-memory capsule through runtime surface, living prompt, spine digest, and downstream module slots', () => {
+    const capsule = buildAlicizationPersonMemoryCapsule({
+      hostAttitude: '',
+      coreIncarnation: '',
+      activeThoughts: [],
+      retrievedFacts: [],
+      recalledFragments: [],
+      projectStateContinuity: {
+        identity: 'Alicization is one continuous local digital life.',
+        currentPhase: 'Phase 1: Local Digital Life',
+        sameHerSummary: 'Keep one same her coherent across memory, dialogue, and embodiment.',
+        landedProgressSummary: 'Memory and person-state are linked.',
+        openClosureSummary: 'Unify the capsule as the realtime authority.',
+        proactiveSameHerGap: 'initiative must keep the same-her line without timer spam.',
+        nextClosureTarget: 'Let every module consume one compact authority.',
+        preDialogueAwarenessLine: 'Stay inside the same personhood core before speaking.',
+        emotionalClosureCue: 'Keep the return lower-pressure and warm.',
+        sameHerSelfLine: 'One continuous her, not a generic assistant shell.',
+        sameHerHoldDetail: 'Carry memory, relationship posture, and embodiment from the same state.',
+        sameHerDriftRisk: 'Splitting prompt, body, and initiative would break Phase 1.',
+      },
+      personStateProjection: {
+        summary: 'regime=focused-work | posture=warm',
+        selfContinuityAuthority: {
+          selfLine: 'One continuous her, not a generic assistant shell.',
+          relationshipLine: 'Memory and personality evolve through compact consumption.',
+          authoritySummary: 'one same her across memory, action, and body',
+          sourceTags: ['person-memory-capsule'],
+        },
+        activeClosenessContext: 'focused-work',
+        activeClosenessRung: 'measured-room',
+        relationshipPosture: 'warm',
+        openingGuidance: 'Answer from the live change first, keep warmth bounded.',
+        preferredProactiveStyle: 'light-nudge',
+        manifestationCadenceSummary: 'Body and voice stay lower-pressure while the task continues.',
+        relationshipDoctrine: 'Memory and personality evolve through compact consumption.',
+        contexts: ['general', 'focused-work'],
+        closenessLadder: [],
+        cautious: false,
+        restrained: false,
+      } as any,
+      memoryDeliberation: {
+        shouldRecall: true,
+        stableCore: ['Prioritize memory and personality self-learning, not heavy architecture.'],
+        unsafeDetails: ['Do not claim unverified old detail.'],
+        surfacePolicy: 'gist-only',
+        confidence: 0.81,
+        ambiguityPosture: 'stable-core',
+        whyNow: 'This turn asks for implementation in the same direction.',
+        inwardLine: 'Use compact authority instead of replaying every memory block.',
+      } as any,
+      affectiveResidue: {
+        dominantResidueKind: 'trust',
+        summary: 'The line should feel focused, warm, and not overbuilt.',
+        repairPressure: 0.1,
+        burdenPressure: 0.42,
+        trustPressure: 0.72,
+        relationshipCadence: {
+          cadenceMode: 'steady',
+          distancePosture: 'measured-room',
+        },
+      } as any,
+      executionCallbackCarry: {
+        carryMode: 'execution-callback',
+        confidence: 0.82,
+        source: 'session-continuity',
+        summary: 'Continue the same execution callback with lower pressure.',
+        threadAnchor: 'capsule implementation',
+        episodeId: 'episode-exec-callback',
+      },
+      selfEvolution: {
+        version: 'self-evolution-kernel-v1',
+        updatedAt: 42,
+        summary: 'Learning should record compact memory/personality consumption.',
+        dominantTrajectory: 'Self-learning must be consumed through a short live capsule.',
+        relationshipDoctrine: 'Keep continuity lower-pressure and grounded.',
+        latestInflection: 'The direction shifted away from architecture and toward memory/personality.',
+        burdenLine: 'Do not spend realtime tokens on full internal ledgers.',
+        trustMeaning: 'Trust means remembering the correction and applying it.',
+        relationshipCadenceSummary: 'Lower-pressure same-her continuity.',
+        evolutionMomentum: 0.62,
+        learningReadiness: 0.58,
+        contradictionPressure: 0.04,
+        revisionPressure: 0.2,
+        autobiographicalStability: 0.74,
+        nextLearningAction: 'record',
+        nextLearningReason: 'Fresh implementation direction should be recorded.',
+        shouldRecord: true,
+        shouldReflect: false,
+        shouldVerify: false,
+        shouldRevise: false,
+        shouldInternalize: false,
+        activeLearningFocuses: ['internalize-relationship-cadence'],
+        sourceSignals: ['host-correction:memory-personality-first'],
+      } as any,
+      recallLatencyPolicy: {
+        budgetClass: 'realtime-reply',
+        latencyClass: 'fast',
+        recallAction: 'stable-core-only',
+        shouldAvoidDeepExpansion: true,
+      } as any,
+    })
+
+    const result = buildAlicizationMainChatRuntimeSurface({
+      actionObligation: null,
+      allowTools: false,
+      waitForTools: false,
+      baseMessages: [{ role: 'user', content: '继续' } as Message],
+      runtimeCorePromptBlocks: ['[CORE]'],
+      perceptionPromptSystemBlocks: [],
+      perceptionSystemBlocks: [],
+      executionCapabilitySystemBlocks: [],
+      organicMemorySystemBlocks: [capsule.rendering.blockLines.join('\n')],
+      performanceManifestSystemBlocks: [],
+      digitalLifeRuntimeSurface: {
+        version: 'digital-life-runtime-surface-v1',
+        raw: null,
+        perception: {
+          watchMode: 'idle',
+          currentScene: null,
+          attention: null,
+          captureState: null,
+          durabilityPulse: null,
+          recentTransition: null,
+          nextSuggestedProbeMs: 30_000,
+          updatedAt: 42,
+        },
+        world: {
+          worldModel: null,
+          worldOntology: null,
+          entityWorld: null,
+          livingWorldState: null,
+          relationshipModel: null,
+        },
+        cognition: {
+          mindTurnFrame: null,
+          subjectiveInference: null,
+          appraisal: null,
+          beliefLedger: null,
+          beliefRevision: null,
+          hypothesisGraph: null,
+          mindDynamics: null,
+          mindKernel: null,
+          privateThought: null,
+        },
+        memory: {
+          workingMemoryEpisodes: [],
+          goalStack: null,
+          concerns: [],
+          concernContinuity: null,
+          longHorizonMemory: null,
+          selfContinuity: null,
+          autobiographicalSelf: null,
+          motiveEngine: null,
+          emotionalKernel: null,
+          threadRuntime: null,
+          commitmentLedger: null,
+          inquiryPlanner: null,
+          repairLedger: null,
+          intentionStream: null,
+          reflectionLedger: null,
+          executiveCycle: null,
+          thoughtThreads: null,
+          desireMemory: null,
+          recallGovernor: null,
+          personStateProjection: null,
+          personMemoryCapsule: capsule,
+        } as any,
+        dialogue: {
+          discourseState: null,
+          dialogueEncounter: null,
+          mindSynthesis: null,
+          conversationState: null,
+          dialogueWorldThread: null,
+          dialogueActKernel: null,
+          answerCompiler: null,
+          currentConsciousFrame: null,
+          claimEvidenceLedger: null,
+          replyDeliberation: null,
+          answerPlanner: null,
+        },
+        agency: {
+          selfState: null,
+          selfGovernor: null,
+          inquiryLoop: null,
+          deliberationState: null,
+          counterfactualDeliberation: null,
+          actionEcology: null,
+          initiativeArbitration: null,
+          initiative: null,
+          autonomy: null,
+          habitPolicy: null,
+        },
+      } as any,
+      customDirectivesResolution: {
+        text: '',
+        source: 'none',
+      },
+      hasVisualGrounding: false,
+      governance: {
+        decisionTraceId: 'trace-person-memory-capsule',
+        turnMode: 'answer',
+        truthState: 'remembered',
+        personaKernelMode: 'full',
+        openingStyle: 'direct-answer',
+        relationshipPosture: 'neutral',
+        answerSubject: 'relationship',
+        screenReferenceMode: 'avoid',
+        answerAct: 'answer',
+        evidenceMode: 'dialogue-grounded',
+        repairState: 'none',
+        liveSurface: null,
+        focusAnchor: '继续',
+        answerIntent: 'continue the current implementation',
+        openingMove: 'continue',
+        carriedThread: null,
+        suppressAssociativeRecall: true,
+        labelCarryAsMemory: false,
+        shouldAskForGrounding: false,
+        shouldAcknowledgeRepair: false,
+        maxSentences: 2,
+        mindMode: 'accompanying',
+        embodiedPresence: 'attentive',
+        emotionalTension: 'soft-covision',
+        mustDo: [],
+        mustNotDo: [],
+      } as any,
+      turnMode: 'answer',
+      personaKernelMode: 'full',
+      capture: {
+        inspectionRequested: false,
+        groundedThisTurn: false,
+        health: null,
+        permission: null,
+        fallbackReason: null,
+        degradedReasons: [],
+      },
+    })
+
+    expect(result.digitalLifeRuntimeSurface?.memory.personMemoryCapsule).toBe(capsule)
+    expect(result.digitalLifeSpine?.runtimeSurface.memory.personMemoryCapsule).toBe(capsule)
+    expect(result.replyAuthority?.whyProviderMindRequired).toContain('Answer from the live change first')
+
+    const livingSelfBlock = result.messages.find(message =>
+      typeof message.content === 'string'
+      && message.content.includes('[ALICIZATION_LIVING_SELF]'),
+    )?.content as string
+    expect(livingSelfBlock).toContain('Person-memory capsule authority')
+    expect(livingSelfBlock).toContain('selected memory=Prioritize memory and personality self-learning')
+    expect(livingSelfBlock).toContain('embodiment=Body and voice stay lower-pressure')
+
+    const digest = projectAlicizationDigitalLifeSpineDigest(result.digitalLifeSpine)
+    expect(digest?.memory?.summary).toContain('capsule=Prioritize memory and personality self-learning')
+    expect((digest?.proactive?.personaBias as any)?.preferredProactiveStyle).toBe('light-nudge')
+    expect((digest?.embodiment as any)?.personMemoryCapsule?.hint).toContain('lower-pressure')
+    expect(digest?.outcomeLearning?.nextLearningAction).toBe('record')
+
+    const normalizedDigest = normalizeAlicizationDigitalLifeSpineDigest(digest)
+    expect(normalizedDigest?.memory?.summary).toContain('capsule=Prioritize memory and personality self-learning')
+    expect(normalizedDigest?.proactive?.personaBias?.preferredProactiveStyle).toBe('light-nudge')
+    expect(normalizedDigest?.proactive?.personaBias?.openingGuidance).toContain('Answer from the live change first')
+    expect(normalizedDigest?.embodiment?.initiative?.personaBias?.manifestationCadenceSummary).toContain('Body and voice stay lower-pressure')
+    expect(normalizedDigest?.outcomeLearning?.nextLearningAction).toBe('record')
   })
 })

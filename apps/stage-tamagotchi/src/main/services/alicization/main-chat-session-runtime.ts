@@ -90,6 +90,7 @@ import {
 } from './memory-ledger-runtime'
 import { runAlicizationMemoryOsTurnRuntime } from './memory-os/runtime'
 import { buildAlicizationMindTurnContractSystemBlock } from './mind-turn-contract'
+import { buildAlicizationPersonMemoryCapsule } from './person-memory-capsule'
 import { buildAlicizationPersonStateProjection } from './person-state-projection'
 import {
   deriveRuntimeProjectionRelationshipCarry,
@@ -3415,6 +3416,7 @@ function ensurePreparedRuntimeSurfaceShape(
       memoryStageReplay: surface.memory?.memoryStageReplay ?? null,
       memoryResolutionLedger: surface.memory?.memoryResolutionLedger ?? null,
       memoryClosureTrace: surface.memory?.memoryClosureTrace ?? null,
+      personMemoryCapsule: surface.memory?.personMemoryCapsule ?? null,
     } as AlicizationDigitalLifeRuntimeSurface['memory'],
     dialogue: {
       ...surface.dialogue,
@@ -3462,6 +3464,55 @@ function applyMemoryClosureTraceToDigitalLifeRuntimeSurface(input: {
       memoryClosureTrace,
     },
   } satisfies AlicizationDigitalLifeRuntimeSurface
+}
+
+function applyPersonMemoryCapsuleToDigitalLifeRuntimeSurface(input: {
+  surface: AlicizationDigitalLifeRuntimeSurface | null
+  context: OrganicMemoryPromptContext
+  memoryTurnArtifact: ReturnType<typeof buildAlicizationMemoryTurnArtifact> | null
+}): AlicizationDigitalLifeRuntimeSurface | null {
+  const surface = ensurePreparedRuntimeSurfaceShape(input.surface)
+  if (!surface)
+    return surface
+
+  return {
+    ...surface,
+    memory: {
+      ...surface.memory,
+      personMemoryCapsule: buildAlicizationPersonMemoryCapsule(input.context, input.memoryTurnArtifact),
+    },
+  } satisfies AlicizationDigitalLifeRuntimeSurface
+}
+
+function enrichExecutionProjectBriefingWithPersonMemoryCapsule(
+  projectBriefing: Parameters<typeof buildAlicizationExecutionRuntimeContext>[0]['projectBriefing'],
+  surface: AlicizationDigitalLifeRuntimeSurface | null | undefined,
+): Parameters<typeof buildAlicizationExecutionRuntimeContext>[0]['projectBriefing'] {
+  const capsule = surface?.memory?.personMemoryCapsule ?? null
+  if (!projectBriefing || !capsule)
+    return projectBriefing
+
+  const executionLine = normalizeProviderFacingProjectText([
+    capsule.modules.execution.carrySummary ? `execution_capsule=${capsule.modules.execution.carrySummary}` : null,
+    capsule.modules.execution.threadAnchor ? `thread=${capsule.modules.execution.threadAnchor}` : null,
+    capsule.modules.learning.nextAction ? `learning=${capsule.modules.learning.nextAction}` : null,
+    capsule.modules.learning.reason ? `reason=${capsule.modules.learning.reason}` : null,
+  ].filter(Boolean).join(' | '), 320)
+  const memoryLine = normalizeProviderFacingProjectText(capsule.modules.memory.selectedMemory, 220)
+  if (!executionLine && !memoryLine)
+    return projectBriefing
+
+  return {
+    ...projectBriefing,
+    companionBriefingLine: normalizeProviderFacingProjectText([
+      projectBriefing.companionBriefingLine,
+      executionLine,
+    ].filter(Boolean).join(' | '), 320) ?? projectBriefing.companionBriefingLine ?? null,
+    continuityCue: normalizeProviderFacingProjectText([
+      projectBriefing.continuityCue,
+      memoryLine ? `memory_capsule=${memoryLine}` : null,
+    ].filter(Boolean).join(' | '), 220) ?? projectBriefing.continuityCue ?? null,
+  }
 }
 
 function seedPreparedRuntimeProjectAwareness(input: {
@@ -4442,6 +4493,33 @@ function inheritPreparedRuntimeSurfaceMemoryClosureTraceIfMissing(input: {
   } satisfies AlicizationDigitalLifeRuntimeSurface
 }
 
+function inheritPreparedRuntimeSurfacePersonMemoryCapsuleIfMissing(input: {
+  surface: AlicizationDigitalLifeRuntimeSurface | null
+  fallbackSurfaces: Array<AlicizationDigitalLifeRuntimeSurface | null | undefined>
+}): AlicizationDigitalLifeRuntimeSurface | null {
+  const surface = input.surface
+  if (!surface)
+    return null
+
+  if (surface.memory?.personMemoryCapsule)
+    return surface
+
+  const inheritedCapsule = input.fallbackSurfaces
+    .map(candidate => candidate?.memory?.personMemoryCapsule ?? null)
+    .find(Boolean)
+
+  if (!inheritedCapsule)
+    return surface
+
+  return {
+    ...surface,
+    memory: {
+      ...surface.memory,
+      personMemoryCapsule: inheritedCapsule,
+    },
+  } satisfies AlicizationDigitalLifeRuntimeSurface
+}
+
 function alignPreparedRuntimeSurfaceProjectStateCarry(
   surface: AlicizationDigitalLifeRuntimeSurface | null,
 ): AlicizationDigitalLifeRuntimeSurface | null {
@@ -4695,29 +4773,35 @@ export function resolvePreparedRuntimeSurfaceSelection(input: {
     input.digitalLifeSpine?.runtimeSurface ?? null,
   ]
   const fresherRuntimeSurface = alignPreparedRuntimeSurfaceProjectStateCarry(
-    inheritPreparedRuntimeSurfaceMemoryClosureTraceIfMissing({
-      surface: inheritPreparedRuntimeSurfaceSessionMirrorIfMissing({
-        surface: preAdjustmentSelectedRuntimeSurface,
-        fallbackSurfaces: [
-          input.digitalLifeSpine?.runtimeSurface ?? null,
-          input.baseDigitalLifeRuntimeSurface ?? null,
-        ],
+    inheritPreparedRuntimeSurfacePersonMemoryCapsuleIfMissing({
+      surface: inheritPreparedRuntimeSurfaceMemoryClosureTraceIfMissing({
+        surface: inheritPreparedRuntimeSurfaceSessionMirrorIfMissing({
+          surface: preAdjustmentSelectedRuntimeSurface,
+          fallbackSurfaces: [
+            input.digitalLifeSpine?.runtimeSurface ?? null,
+            input.baseDigitalLifeRuntimeSurface ?? null,
+          ],
+        }),
+        fallbackSurfaces: runtimeSurfaceFallbacks,
       }),
       fallbackSurfaces: runtimeSurfaceFallbacks,
     }),
   )
   const runtimeSurfaceForBuilder = alignPreparedRuntimeSurfaceProjectStateCarry(
-    inheritPreparedRuntimeSurfaceMemoryClosureTraceIfMissing({
-      surface: inheritPreparedRuntimeSurfaceSessionMirrorIfMissing({
-        surface:
-          fresherRuntimeSurface
-          ?? input.baseDigitalLifeRuntimeSurface
-          ?? input.digitalLifeSpine?.runtimeSurface
-          ?? null,
-        fallbackSurfaces: [
-          input.digitalLifeSpine?.runtimeSurface ?? null,
-          input.baseDigitalLifeRuntimeSurface ?? null,
-        ],
+    inheritPreparedRuntimeSurfacePersonMemoryCapsuleIfMissing({
+      surface: inheritPreparedRuntimeSurfaceMemoryClosureTraceIfMissing({
+        surface: inheritPreparedRuntimeSurfaceSessionMirrorIfMissing({
+          surface:
+            fresherRuntimeSurface
+            ?? input.baseDigitalLifeRuntimeSurface
+            ?? input.digitalLifeSpine?.runtimeSurface
+            ?? null,
+          fallbackSurfaces: [
+            input.digitalLifeSpine?.runtimeSurface ?? null,
+            input.baseDigitalLifeRuntimeSurface ?? null,
+          ],
+        }),
+        fallbackSurfaces: runtimeSurfaceFallbacks,
       }),
       fallbackSurfaces: runtimeSurfaceFallbacks,
     }),
@@ -7360,6 +7444,7 @@ function rescueReturnedProviderFacingProjectAwareness(input: {
 
 export const __alicizationTestOnly = {
   applyProviderFacingProjectStateToRuntimeSurface,
+  enrichExecutionProjectBriefingWithPersonMemoryCapsule,
   isStrongerSameHerProjectHeadline,
   isThinProjectAwarenessAuthorityLine,
   overrideMindTurnContractNextClosureTarget,
@@ -8282,10 +8367,14 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       ?? spinePreparedRuntimeSurface
       ?? preludePreparedRuntimeSurface
     const preparedRuntimeSurfaceBase = applyMemoryClosureTraceToDigitalLifeRuntimeSurface({
-      surface: seedPreparedRuntimeProjectAwareness({
-        surface: preparedRuntimeAwarenessSeedSurface,
-        rawPayload,
-        sessionMirror: previousSessionMirror,
+      surface: applyPersonMemoryCapsuleToDigitalLifeRuntimeSurface({
+        surface: seedPreparedRuntimeProjectAwareness({
+          surface: preparedRuntimeAwarenessSeedSurface,
+          rawPayload,
+          sessionMirror: previousSessionMirror,
+        }),
+        context: organicPromptContext,
+        memoryTurnArtifact,
       }),
       memoryTurnArtifact,
     })
@@ -8321,7 +8410,10 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
         derivedMindStateBundle: executionRuntimeDerivedMindStateBundle ?? null,
         memoryClosureTrace: executionRuntimeMemoryClosureTrace ?? null,
         sessionId: agentTurn.conversationSessionId,
-        projectBriefing: readRuntimeProjectStateFromSurface(runtimeSurfaceForBuilder),
+        projectBriefing: enrichExecutionProjectBriefingWithPersonMemoryCapsule(
+          readRuntimeProjectStateFromSurface(runtimeSurfaceForBuilder),
+          runtimeSurfaceForBuilder,
+        ),
         sensorySnapshot: agentSessionSensorySnapshot,
       }).projectBriefing ?? null
       : null

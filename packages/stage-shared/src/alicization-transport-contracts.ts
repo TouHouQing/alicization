@@ -5398,6 +5398,27 @@ function normalizeAlicizationDigitalLifeDigestStringList(raw: unknown, limit = 8
   return normalized
 }
 
+function normalizeAlicizationDigitalLifePersonaBias(raw: unknown): NonNullable<AlicizationDigitalLifeSpineProactiveDigest['personaBias']> | null {
+  const candidate = raw && typeof raw === 'object' && !Array.isArray(raw)
+    ? raw as Record<string, unknown>
+    : null
+  if (!candidate)
+    return null
+
+  const personaBias = {
+    relationshipPosture: sanitizeAlicizationDigitalLifeDigestText(candidate.relationshipPosture, 64) || null,
+    initiativeStyle: sanitizeAlicizationDigitalLifeDigestText(candidate.initiativeStyle, 64) || null,
+    silenceReconnect: sanitizeAlicizationDigitalLifeDigestText(candidate.silenceReconnect, 64) || null,
+    comfortStyle: sanitizeAlicizationDigitalLifeDigestText(candidate.comfortStyle, 64) || null,
+    preferredProactiveStyle: sanitizeAlicizationDigitalLifeDigestText(candidate.preferredProactiveStyle, 64) || null,
+    manifestationCadenceSummary: sanitizeAlicizationDigitalLifeDigestText(candidate.manifestationCadenceSummary, 220) || null,
+    openingGuidance: sanitizeAlicizationDigitalLifeDigestText(candidate.openingGuidance, 220) || null,
+    whySummary: sanitizeAlicizationDigitalLifeDigestText(candidate.whySummary, 320) || null,
+  }
+
+  return Object.values(personaBias).some(Boolean) ? personaBias : null
+}
+
 function normalizeAlicizationDigitalLifeSpineMemoryClosureTrace(
   raw: unknown,
 ): AlicizationDigitalLifeSpineMemoryClosureTrace | null {
@@ -6117,6 +6138,7 @@ export function normalizeAlicizationDigitalLifeSpineDigest(raw: unknown): Aliciz
           leadingGoalId: sanitizeAlicizationDigitalLifeDigestText(proactiveCandidate.leadingGoalId, 96) || null,
           leadingGoalSummary: sanitizeAlicizationDigitalLifeDigestText(proactiveCandidate.leadingGoalSummary, 160) || null,
           preferredPresence: sanitizeAlicizationDigitalLifeDigestText(proactiveCandidate.preferredPresence, 48) || null,
+          personaBias: normalizeAlicizationDigitalLifePersonaBias(proactiveCandidate.personaBias),
         }
       : null,
     autonomy: autonomyCandidate
@@ -6310,6 +6332,7 @@ export function normalizeAlicizationDigitalLifeSpineDigest(raw: unknown): Aliciz
                 speakDrive: normalizeAlicizationDigitalLifeDigestUnit(initiativeCandidate.speakDrive),
                 silenceDrive: normalizeAlicizationDigitalLifeDigestUnit(initiativeCandidate.silenceDrive),
                 why: sanitizeAlicizationDigitalLifeDigestText(initiativeCandidate.why, 220) || null,
+                personaBias: normalizeAlicizationDigitalLifePersonaBias(initiativeCandidate.personaBias),
               }
             : null,
         }

@@ -147,6 +147,7 @@ function joinNarrativeLine(items: string[] | null | undefined, maxItems = 4, max
 }
 
 function extractPersonaBiasSummary(surface: Partial<AlicizationDigitalLifeRuntimeSurface>) {
+  const capsule = surface.memory?.personMemoryCapsule ?? null
   const projection = surface.memory?.personStateProjection ?? null
   const rawPersonality = (
     surface.memory?.derivedMindStateBundle as { personalityState?: unknown } | null | undefined
@@ -163,17 +164,26 @@ function extractPersonaBiasSummary(surface: Partial<AlicizationDigitalLifeRuntim
   const silenceReconnect = sanitizeDigitalLifeSpineDigestText(personality?.initiativeBaseline?.silenceReconnect, 48) || null
   const comfortStyle = sanitizeDigitalLifeSpineDigestText(personality?.initiativeBaseline?.comfortStyle, 48) || null
   const preferredProactiveStyle = sanitizeDigitalLifeSpineDigestText(projection?.preferredProactiveStyle ?? '', 48) || null
-  const manifestationCadenceSummary = buildPersonaManifestationCadenceSummary({
+  const capsulePreferredProactiveStyle = sanitizeDigitalLifeSpineDigestText(capsule?.modules.initiative.proactiveStyle ?? '', 48) || null
+  const capsuleCadenceSummary = sanitizeDigitalLifeSpineDigestText(
+    capsule?.modules.initiative.cadenceSummary
+    ?? capsule?.modules.embodiment.hint
+    ?? '',
+    220,
+  ) || null
+  const manifestationCadenceSummary = capsuleCadenceSummary ?? buildPersonaManifestationCadenceSummary({
     initiativeStyle,
     silenceReconnect,
     relationshipPosture,
     comfortStyle,
-    preferredProactiveStyle,
+    preferredProactiveStyle: capsulePreferredProactiveStyle ?? preferredProactiveStyle,
   })
   const rawOpeningGuidance = sanitizeDigitalLifeSpineDigestText(projection?.openingGuidance ?? '', 220) || null
+  const capsuleOpeningGuidance = sanitizeDigitalLifeSpineDigestText(capsule?.modules.dialogue.openingGuidance ?? '', 220) || null
   const rawWhySummary = sanitizeDigitalLifeSpineDigestText(
     surface.agency?.autonomy?.whyNow
     ?? surface.agency?.initiative?.why
+    ?? capsule?.modules.memory.selectedMemory
     ?? '',
     320,
   ) || null
@@ -242,17 +252,17 @@ function extractPersonaBiasSummary(surface: Partial<AlicizationDigitalLifeRuntim
     ) || rawWhySummary
     : rawWhySummary
 
-  if (!relationshipPosture && !initiativeStyle && !silenceReconnect && !comfortStyle && !preferredProactiveStyle && !manifestationCadenceSummary && !openingGuidance && !whySummary)
+  if (!relationshipPosture && !initiativeStyle && !silenceReconnect && !comfortStyle && !preferredProactiveStyle && !capsulePreferredProactiveStyle && !capsuleCadenceSummary && !manifestationCadenceSummary && !openingGuidance && !capsuleOpeningGuidance && !whySummary)
     return null
 
   return {
-    relationshipPosture,
+    relationshipPosture: relationshipPosture ?? (sanitizeDigitalLifeSpineDigestText(capsule?.modules.dialogue.answerPosture ?? '', 48) || null),
     initiativeStyle,
     silenceReconnect,
     comfortStyle,
-    preferredProactiveStyle,
+    preferredProactiveStyle: capsulePreferredProactiveStyle ?? preferredProactiveStyle,
     manifestationCadenceSummary,
-    openingGuidance,
+    openingGuidance: capsuleOpeningGuidance ?? openingGuidance,
     whySummary,
   }
 }
@@ -650,6 +660,7 @@ export function projectAlicizationDigitalLifeSpineDigest(
   const initiative = agency?.initiative ?? null
   const autonomy = agency?.autonomy ?? null
   const privateThought = cognition?.privateThought ?? null
+  const personMemoryCapsule = memory?.personMemoryCapsule ?? null
   const selfContinuity = memory?.selfContinuity ?? null
   const autobiographicalSelf = memory?.autobiographicalSelf ?? null
   const personStateProjection = memory?.personStateProjection ?? null
@@ -840,9 +851,11 @@ export function projectAlicizationDigitalLifeSpineDigest(
         }
       : null,
     outcomeLearning: latestReflection || autobiographicalSelf?.latestInflection
-      || memory?.selfEvolution
+      || memory?.selfEvolution || personMemoryCapsule?.modules.learning.nextAction
       ? {
-          reflectionTargetScope: asArray(memory?.selfEvolution?.activeLearningFocuses)[0] ?? null,
+          reflectionTargetScope: asArray(memory?.selfEvolution?.activeLearningFocuses)[0]
+            ?? personMemoryCapsule?.modules.learning.focuses[0]
+            ?? null,
           reflectionSummary: sanitizeDigitalLifeSpineDigestText(latestReflection?.summary ?? '', 180) || null,
           reflectionLesson: sanitizeDigitalLifeSpineDigestText(latestReflection?.revision ?? '', 220) || null,
           latestInflection: sanitizeDigitalLifeSpineDigestText(
@@ -858,15 +871,19 @@ export function projectAlicizationDigitalLifeSpineDigest(
           ),
           learningReadiness: normalizeDigitalLifeSpineDigestUnit(memory?.selfEvolution?.learningReadiness),
           contradictionPressure: normalizeDigitalLifeSpineDigestUnit(memory?.selfEvolution?.contradictionPressure),
-          dominantTrajectory: sanitizeDigitalLifeSpineDigestText(memory?.selfEvolution?.dominantTrajectory ?? '', 180) || null,
-          activeLearningFocuses: asArray(memory?.selfEvolution?.activeLearningFocuses).slice(0, 4),
+          dominantTrajectory: sanitizeDigitalLifeSpineDigestText(memory?.selfEvolution?.dominantTrajectory ?? personMemoryCapsule?.modules.learning.reason ?? '', 180) || null,
+          activeLearningFocuses: asArray(memory?.selfEvolution?.activeLearningFocuses).length > 0
+            ? asArray(memory?.selfEvolution?.activeLearningFocuses).slice(0, 4)
+            : personMemoryCapsule?.modules.learning.focuses.slice(0, 4) ?? [],
           evolutionMomentum: normalizeDigitalLifeSpineDigestUnit(memory?.selfEvolution?.evolutionMomentum),
-          nextLearningAction: sanitizeDigitalLifeSpineDigestText(memory?.selfEvolution?.nextLearningAction ?? '', 48) || null,
-          nextLearningReason: sanitizeDigitalLifeSpineDigestText(memory?.selfEvolution?.nextLearningReason ?? '', 180) || null,
+          nextLearningAction: sanitizeDigitalLifeSpineDigestText(memory?.selfEvolution?.nextLearningAction ?? personMemoryCapsule?.modules.learning.nextAction ?? '', 48) || null,
+          nextLearningReason: sanitizeDigitalLifeSpineDigestText(memory?.selfEvolution?.nextLearningReason ?? personMemoryCapsule?.modules.learning.reason ?? '', 180) || null,
           summary: sanitizeDigitalLifeSpineDigestText(
             memory?.selfEvolution?.summary
             || latestReflection?.revision
             || latestReflection?.summary
+            || personMemoryCapsule?.modules.learning.executionSummary
+            || personMemoryCapsule?.modules.learning.reason
             || personStateProjection?.relationshipDoctrine
             || memory?.selfEvolution?.latestInflection
             || autobiographicalSelf?.latestInflection
@@ -984,21 +1001,50 @@ export function projectAlicizationDigitalLifeSpineDigest(
           reflectivePull: normalizeDigitalLifeSpineDigestUnit(mindEcology.climate.reflectivePull),
         },
       },
-      initiative: initiative
+      initiative: initiative || personaBias
         ? {
-            selectedAction: sanitizeDigitalLifeSpineDigestText(initiative.selectedAction, 48) || null,
-            preferredStyle: sanitizeDigitalLifeSpineDigestText(initiative.preferredStyle ?? '', 48) || null,
-            preferredPresence: sanitizeDigitalLifeSpineDigestText(initiative.preferredPresence ?? '', 48) || null,
-            confidence: normalizeDigitalLifeSpineDigestUnit(initiative.confidence),
-            shouldSpeak: typeof initiative.shouldSpeak === 'boolean'
+            selectedAction: sanitizeDigitalLifeSpineDigestText(initiative?.selectedAction ?? '', 48) || null,
+            preferredStyle: sanitizeDigitalLifeSpineDigestText(
+              initiative?.preferredStyle
+              ?? personaBias?.preferredProactiveStyle
+              ?? '',
+              48,
+            ) || null,
+            preferredPresence: sanitizeDigitalLifeSpineDigestText(initiative?.preferredPresence ?? '', 48) || null,
+            confidence: normalizeDigitalLifeSpineDigestUnit(initiative?.confidence),
+            shouldSpeak: typeof initiative?.shouldSpeak === 'boolean'
               ? initiative.shouldSpeak
               : null,
-            speakDrive: normalizeDigitalLifeSpineDigestUnit(initiative.speakDrive),
-            silenceDrive: normalizeDigitalLifeSpineDigestUnit(initiative.silenceDrive),
-            why: sanitizeDigitalLifeSpineDigestText(initiative.why, 220) || null,
+            speakDrive: normalizeDigitalLifeSpineDigestUnit(initiative?.speakDrive),
+            silenceDrive: normalizeDigitalLifeSpineDigestUnit(initiative?.silenceDrive),
+            why: sanitizeDigitalLifeSpineDigestText(
+              initiative?.why
+              ?? personaBias?.whySummary
+              ?? '',
+              220,
+            ) || null,
             personaBias,
           }
         : null,
+      personMemoryCapsule: personMemoryCapsule
+        ? {
+            hint: sanitizeDigitalLifeSpineDigestText(personMemoryCapsule.modules.embodiment.hint, 220) || null,
+            expressionPosture: sanitizeDigitalLifeSpineDigestText(personMemoryCapsule.modules.embodiment.expressionPosture ?? '', 64) || null,
+            voicePacing: sanitizeDigitalLifeSpineDigestText(personMemoryCapsule.modules.embodiment.voicePacing ?? '', 64) || null,
+            motionPosture: sanitizeDigitalLifeSpineDigestText(personMemoryCapsule.modules.embodiment.motionPosture ?? '', 64) || null,
+            emotion: sanitizeDigitalLifeSpineDigestText(personMemoryCapsule.modules.emotion.affectiveSummary ?? '', 180) || null,
+            selectedMemory: sanitizeDigitalLifeSpineDigestText(personMemoryCapsule.modules.memory.selectedMemory ?? '', 180) || null,
+          }
+        : null,
+    } as NonNullable<AlicizationDigitalLifeSpineDigest['embodiment']> & {
+      personMemoryCapsule?: {
+        hint: string | null
+        expressionPosture: string | null
+        voicePacing: string | null
+        motionPosture: string | null
+        emotion: string | null
+        selectedMemory: string | null
+      } | null
     },
     memory: (() => {
       const memoryDigest = buildAlicizationDigitalLifeMemoryDigest(surface as AlicizationDigitalLifeRuntimeSurface | null | undefined)
@@ -1007,6 +1053,15 @@ export function projectAlicizationDigitalLifeSpineDigest(
 
       return {
         ...memoryDigest,
+        summary: [
+          memoryDigest.summary,
+          personMemoryCapsule?.modules.memory.selectedMemory
+            ? `capsule=${sanitizeDigitalLifeSpineDigestText(personMemoryCapsule.modules.memory.selectedMemory, 160)}`
+            : null,
+          personMemoryCapsule?.modules.personality.identityLine
+            ? `person=${sanitizeDigitalLifeSpineDigestText(personMemoryCapsule.modules.personality.identityLine, 120)}`
+            : null,
+        ].filter(Boolean).join(' | ') || memoryDigest.summary,
         personStateProjection: personStateProjection
           ? {
               ...memoryDigest.personStateProjection,

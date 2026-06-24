@@ -64,8 +64,8 @@ import type {
 
 import { randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
-import { appendFile, mkdir, open as openFile, readdir, readFile, rename, rm, unlink, writeFile } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
+import { appendFile, mkdir, readdir, readFile, rm, unlink, writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import { pid, platform, cwd as processCwd } from 'node:process'
 
 import { defineInvokeHandler } from '@moeru/eventa'
@@ -251,6 +251,7 @@ import {
 import { buildReflectionLedgerFragment } from './reflection-memory'
 import { createAlicizationReplayBenchmarkRuntime } from './replay-benchmark-runtime'
 import { createAlicizationAgentSessionMirrorRuntime } from './runtime-agent-session-mirror'
+import { writeAlicizationAtomicContent } from './runtime-atomic-write'
 import { createAlicizationCardPromptRuntime } from './runtime-card-prompt'
 import { createAlicizationRuntimeCardScopeLifecycle } from './runtime-card-scope-lifecycle'
 import { createAlicizationRuntimeCardScopeOrchestrator } from './runtime-card-scope-orchestrator'
@@ -5007,115 +5008,18 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     })
   }
 
-  function sleep(ms: number) {
-    return new Promise<void>(resolve => setTimeout(resolve, ms))
-  }
-
-  async function tryFsyncFile(path: string) {
-    const handle = await openFile(path, 'r')
-    try {
-      await handle.sync()
-    }
-    finally {
-      await handle.close()
-    }
-  }
-
-  async function tryFsyncDirectory(path: string) {
-    const handle = await openFile(path, 'r')
-    try {
-      await handle.sync()
-    }
-    finally {
-      await handle.close()
-    }
-  }
-
-  async function renameWithRetry(tempPath: string, targetPath: string, category: string) {
-    if (platform !== 'win32') {
-      try {
-        await rename(tempPath, targetPath)
-      }
-      catch (error: any) {
-        if (error?.code !== 'ENOENT')
-          throw error
-        await mkdir(dirname(targetPath), { recursive: true })
-        await rename(tempPath, targetPath)
-      }
-      return
-    }
-
-    let lastError: unknown
-    for (const delayMs of winRenameRetryDelaysMs) {
-      try {
-        await rename(tempPath, targetPath)
-        return
-      }
-      catch (error: any) {
-        if (!['EPERM', 'EBUSY', 'EACCES'].includes(error?.code)) {
-          throw error
-        }
-
-        lastError = error
-        await appendAuditLog({
-          level: 'notice',
-          category,
-          action: 'rename-retry',
-          message: 'Retrying atomic rename because target file is locked on win32.',
-          payload: {
-            code: error?.code,
-            delayMs,
-          },
-        })
-        await sleep(delayMs)
-      }
-    }
-
-    const error = new Error('SOUL rename failed after retries on win32.')
-    ;(error as Error & { code?: string, cause?: unknown }).code = 'SOUL_RENAME_FAILED'
-    ;(error as Error & { code?: string, cause?: unknown }).cause = lastError
-    throw error
-  }
-
   async function writeAtomicContent(path: string, category: string, content: string) {
-    await mkdir(dirname(path), { recursive: true })
-    const tempPath = `${path}.${pid}.${Date.now()}.${randomUUID()}.tmp`
-    try {
-      await writeFile(tempPath, content, 'utf-8')
-      await tryFsyncFile(tempPath)
-      await renameWithRetry(tempPath, path, category)
-
-      if (platform !== 'win32') {
-        await tryFsyncDirectory(soulRoot)
-      }
-      else {
-        try {
-          await tryFsyncDirectory(soulRoot)
-        }
-        catch (error: any) {
-          if (error?.code === 'EPERM' || error?.code === 'EBADF') {
-            await appendAuditLog({
-              level: 'notice',
-              category,
-              action: 'directory-fsync-degraded',
-              message: 'Directory fsync is not supported on win32 for atomic write.',
-              payload: {
-                code: error?.code,
-              },
-            })
-          }
-          else {
-            throw error
-          }
-        }
-      }
-    }
-    catch (error) {
-      await unlink(tempPath).catch(() => {})
-      throw error
-    }
-
-    await unlink(tempPath).catch(() => {})
+    await writeAlicizationAtomicContent({
+      path,
+      category,
+      content,
+      directoryFsyncPath: soulRoot,
+      platform,
+      processId: pid,
+      randomId: randomUUID,
+      renameRetryDelaysMs: winRenameRetryDelaysMs,
+      appendAuditLog,
+    })
   }
 
   async function writeSoulContent(content: string) {

@@ -946,4 +946,104 @@ describe('execution interaction learning', () => {
     expect(policy.tone).toBe('cautious')
     expect(policy.reasonTags).toContain('callback-afterglow-hold')
   })
+
+  it('uses the short person-memory capsule to hold execution-result delivery on the same lower-pressure callback line', () => {
+    const policy = deriveExecutionResultDeliveryPolicy({
+      digitalLifeSpine: {
+        runtimeSurface: {
+          world: {
+            worldModel: {
+              hostState: {
+                availability: 'open',
+              },
+            },
+          },
+          memory: {
+            personMemoryCapsule: {
+              version: 'person-memory-capsule-v1',
+              budget: {
+                budgetClass: 'realtime-reply',
+                latencyClass: 'fast',
+                recallAction: 'stable-core-only',
+                compactOnly: true,
+              },
+              modules: {
+                personality: {
+                  identityLine: 'one continuous her, not a generic execution shell',
+                  relationshipLine: 'same callback line stays lower-pressure',
+                  openingGuidance: 'leave room before widening closeness',
+                  continuityRisk: 'rushing the result would split execution from companionship',
+                },
+                memory: {
+                  memoryGate: 'tone-carry',
+                  visibleCarryMode: 'gist-only',
+                  selectedMemory: 'Earlier execution callbacks should wait for an opening and keep pressure low.',
+                  surfacePolicy: 'tone-carry',
+                  uncertaintyPolicy: null,
+                  searchTrace: [],
+                },
+                emotion: {
+                  dominantResidue: 'afterglow',
+                  affectiveSummary: 'execution result afterglow should stay quiet and measured',
+                  cadenceMode: 'cooldown',
+                  distancePosture: 'measured-room',
+                  repairPressure: 0.1,
+                  burdenPressure: 0.42,
+                  trustPressure: 0.72,
+                },
+                initiative: {
+                  proactiveStyle: 'silent-observe',
+                  cadenceSummary: 'same execution callback stays lower-pressure and waits for an opening',
+                  sameHerGap: 'do not reopen as a generic result notification',
+                  followUpAffordance: 'return after the host opens the same line',
+                },
+                execution: {
+                  carryMode: 'execution-callback',
+                  carrySummary: 'hold the completed result until the same lower-pressure callback opening is available',
+                  threadAnchor: 'person-memory-capsule execution callback',
+                  confidence: 0.86,
+                },
+                embodiment: {
+                  hint: 'voice, face, and motion stay lower-pressure while the result waits',
+                  expressionPosture: 'measured-room',
+                  voicePacing: 'cooldown',
+                  motionPosture: 'measured-room',
+                },
+                dialogue: {
+                  openingGuidance: 'Ask availability before delivering the result.',
+                  answerPosture: 'restrained',
+                  mustDo: ['preserve the same callback line'],
+                  mustNotDo: ['dump the result immediately'],
+                },
+                learning: {
+                  nextAction: 'verify',
+                  reason: 'execution results should feed back into the compact memory/personality loop',
+                  readiness: 0.64,
+                  focuses: ['execution-result-delivery'],
+                  executionSummary: 'same callback result should become a learned lower-pressure delivery rule',
+                },
+                governance: {
+                  activeCandidateId: 'candidate-execution-capsule',
+                  activePatchId: 'patch-execution-capsule',
+                  lanes: ['execution', 'memory', 'personality'],
+                  reasonCodes: ['capsule-execution-callback', 'lower-pressure'],
+                  memoryGate: 'tone-carry',
+                  guard: 'do not surface as a generic task result',
+                },
+              },
+              rendering: {
+                blockLines: [],
+              },
+            },
+          },
+        },
+      } as any,
+      status: 'completed',
+    })
+
+    expect(policy.resultLeadStyle).toBe('availability-first')
+    expect(policy.tone).toBe('cautious')
+    expect(policy.reasonTags).toContain('capsule-execution-callback')
+    expect(policy.reasonTags).toContain('capsule-lower-pressure')
+  })
 })

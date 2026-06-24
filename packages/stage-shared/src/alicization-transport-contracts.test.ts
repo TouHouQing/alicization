@@ -17,6 +17,106 @@ describe('alicization transport contracts', () => {
     expect(structuredPayloadSection).toContain('latestProgress?: string | null')
   })
 
+  it('preserves persona bias through digital-life spine normalization so embodiment and speech keep one person-state rhythm', () => {
+    const digest = normalizeAlicizationDigitalLifeSpineDigest({
+      version: 'digital-life-spine-digest-v1',
+      runtime: {
+        watchMode: 'symbiotic-vision',
+        sceneScenario: 'coding',
+        sceneSummary: 'same person-memory capsule rhythm',
+        activeThreadId: 'thread-person-memory-capsule',
+        activeThreadTitle: 'Person memory capsule',
+        dominantMode: 'quiet-carry',
+        dominantDrive: 'companionship',
+        answerIntent: 'continue from compact person-memory authority',
+        preferredPresence: 'attentive',
+        selectedAction: 'hover',
+        continuityArcStage: 'same-thread-continuation',
+        continuityPreferredTiming: 'next-open-window',
+        continuityCue: 'capsule keeps memory, personality, voice, and motion on one line',
+        updatedAt: 123,
+      },
+      architecture: null,
+      continuitySignal: null,
+      proactive: {
+        selectedAction: 'hover',
+        preferredStyle: 'silent-observe',
+        continuityRestraint: 'lower-pressure',
+        confidence: 0.72,
+        shouldSpeak: false,
+        activeThreadId: 'thread-person-memory-capsule',
+        activeThreadTitle: 'Person memory capsule',
+        dominantConcernKind: 'same-her-carry',
+        dominantConcernSummary: 'do not split memory and body rhythms',
+        leadingGoalId: 'goal-person-memory',
+        leadingGoalSummary: 'carry compact memory/personality authority',
+        preferredPresence: 'nearby',
+        personaBias: {
+          relationshipPosture: 'observer',
+          initiativeStyle: 'observant',
+          silenceReconnect: 'hold',
+          comfortStyle: 'quiet-presence',
+          preferredProactiveStyle: 'silent-observe',
+          manifestationCadenceSummary: 'Observe first and keep the body and voice lower-pressure.',
+          openingGuidance: 'Open from the selected memory only if it serves the current reply.',
+          whySummary: 'short-context capsule should drive the same rhythm across modules.',
+        },
+      },
+      autonomy: null,
+      motive: null,
+      habit: null,
+      outcomeLearning: null,
+      embodiment: {
+        privateThought: null,
+        selfContinuity: null,
+        autobiographicalSelf: null,
+        relationship: null,
+        selfState: null,
+        mindEcology: null,
+        initiative: {
+          selectedAction: 'hover',
+          preferredStyle: 'silent-observe',
+          preferredPresence: 'nearby',
+          continuityRestraint: 'lower-pressure',
+          confidence: 0.72,
+          shouldSpeak: false,
+          speakDrive: 0.24,
+          silenceDrive: 0.82,
+          why: 'capsule says keep realtime embodiment lower-pressure',
+          personaBias: {
+            relationshipPosture: 'observer',
+            initiativeStyle: 'observant',
+            silenceReconnect: 'hold',
+            comfortStyle: 'quiet-presence',
+            preferredProactiveStyle: 'silent-observe',
+            manifestationCadenceSummary: 'Observe first and keep the body and voice lower-pressure.',
+            openingGuidance: 'Open from the selected memory only if it serves the current reply.',
+            whySummary: 'short-context capsule should drive the same rhythm across modules.',
+          },
+        },
+      },
+      memory: {
+        summary: 'capsule=Prioritize memory and personality self-learning | person=one continuous her',
+        recentEpisodeSummary: null,
+        recentEpisodeCount: 0,
+        focusBeliefStatement: null,
+        focusBeliefConfidence: null,
+        leadingGoalSummary: null,
+        dominantConcernSummary: null,
+        reflectionSummary: null,
+        reflectionPressure: null,
+        recallMode: 'stable-core-only',
+        recallSeed: 'person-memory-capsule',
+        thoughtThreadSummary: 'compact person-memory authority',
+      },
+    })
+
+    expect(digest?.proactive?.personaBias?.preferredProactiveStyle).toBe('silent-observe')
+    expect(digest?.proactive?.personaBias?.manifestationCadenceSummary).toContain('body and voice lower-pressure')
+    expect(digest?.embodiment?.initiative?.personaBias?.openingGuidance).toContain('selected memory')
+    expect(digest?.memory?.summary).toContain('capsule=Prioritize memory and personality self-learning')
+  })
+
   it('normalizes project-state and pre-dialogue-closure fields from shared structured payloads', () => {
     const bundle = normalizeAlicizationDerivedMindStateBundle({
       version: 'derived-mind-state-bundle-v1',

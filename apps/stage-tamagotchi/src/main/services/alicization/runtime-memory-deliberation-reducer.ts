@@ -1612,6 +1612,7 @@ export function applyMemoryDeliberationToDigitalLifeRuntimeSurface(input: {
       memoryStageReplay: input.context.memoryStageReplay ?? surface.memory.memoryStageReplay ?? null,
       memoryResolutionLedger: input.context.memoryResolutionLedger ?? surface.memory.memoryResolutionLedger ?? null,
       affectiveResidue: input.context.affectiveResidue ?? surface.memory.affectiveResidue ?? surface.memory.derivedMindStateBundle?.affectiveResidue ?? null,
+      personMemoryCapsule: surface.memory.personMemoryCapsule ?? null,
       derivedMindStateBundle: buildDerivedMindStateBundle({
         source: 'main-runtime',
         producedAt: input.now,

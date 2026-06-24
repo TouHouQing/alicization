@@ -178,6 +178,29 @@ function sanitizePromptText(raw: unknown, maxChars = 220) {
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
 }
 
+function buildPersonMemoryCapsulePromptLine(surface: AlicizationDigitalLifeRuntimeSurface | null | undefined) {
+  const capsule = surface?.memory?.personMemoryCapsule ?? null
+  if (!capsule)
+    return ''
+
+  const modules = capsule.modules
+  const parts = [
+    modules.personality.identityLine ? `identity=${sanitizePromptText(modules.personality.identityLine, 120)}` : '',
+    modules.memory.selectedMemory ? `selected memory=${sanitizePromptText(modules.memory.selectedMemory, 160)}` : '',
+    modules.emotion.affectiveSummary ? `emotion=${sanitizePromptText(modules.emotion.affectiveSummary, 120)}` : '',
+    modules.initiative.proactiveStyle ? `initiative=${sanitizePromptText(modules.initiative.proactiveStyle, 80)}` : '',
+    modules.execution.carrySummary ? `execution=${sanitizePromptText(modules.execution.carrySummary, 120)}` : '',
+    modules.embodiment.hint ? `embodiment=${sanitizePromptText(modules.embodiment.hint, 160)}` : '',
+    modules.dialogue.openingGuidance ? `dialogue=${sanitizePromptText(modules.dialogue.openingGuidance, 140)}` : '',
+    modules.learning.nextAction ? `learning=${sanitizePromptText(modules.learning.nextAction, 80)}` : '',
+    modules.governance.guard ? `guard=${sanitizePromptText(modules.governance.guard, 120)}` : '',
+  ].filter(Boolean)
+
+  return parts.length > 0
+    ? `Person-memory capsule authority: ${parts.join(' | ')}`
+    : ''
+}
+
 function resolvePreferredLivingProjectState(surface: AlicizationDigitalLifeRuntimeSurface) {
   return resolveAlicizationSurfaceProjectStateSnapshot({
     runtimeSurface: surface,
@@ -310,6 +333,7 @@ function buildAlicizationLivingSelfSystemBlock(surface: AlicizationDigitalLifeRu
   const habitMode = sanitizePromptText(habitPolicy?.dominantMode, 72)
   const styleCap = sanitizePromptText(habitPolicy?.suggestedStyleCap, 48)
   const presenceCap = sanitizePromptText(habitPolicy?.suggestedPresenceCap, 48)
+  const personMemoryCapsuleLine = buildPersonMemoryCapsulePromptLine(surface)
   const preDialogueClosureBriefing = [
     projectPreflightSummary || null,
     projectContinuityPreferredTiming ? `timing=${projectContinuityPreferredTiming}` : null,
@@ -344,6 +368,7 @@ function buildAlicizationLivingSelfSystemBlock(surface: AlicizationDigitalLifeRu
     continuityAuthority?.authoritySummary ? `Unified self continuity authority: ${sanitizePromptText(continuityAuthority.authoritySummary, 220)}` : '',
     embodimentLoopSummary ? `Embodiment loop summary: ${embodimentLoopSummary}` : '',
     embodimentClosureReminder ? `Embodiment closure reminder: ${embodimentClosureReminder}` : '',
+    personMemoryCapsuleLine,
     mood || habitMode
       ? `Current weather: ${[mood || '', habitMode ? `habit=${habitMode}` : '', styleCap ? `style-cap=${styleCap}` : '', presenceCap ? `presence-cap=${presenceCap}` : ''].filter(Boolean).join(' | ')}`
       : '',
@@ -594,6 +619,7 @@ export function buildAlicizationMainChatRuntimeSurface(
   const replyRealizationMode = 'provider-mind-required' as const
   const whyProviderMindRequired = sanitizePromptText(
     digitalLifeRuntimeSurface?.dialogue.answerCompiler?.openingDirective
+    ?? digitalLifeRuntimeSurface?.memory.personMemoryCapsule?.modules.dialogue.openingGuidance
     ?? input.governance?.answerIntent
     ?? '',
     220,

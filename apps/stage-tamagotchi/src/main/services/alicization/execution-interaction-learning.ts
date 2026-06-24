@@ -269,6 +269,55 @@ function readProjectClosureMemorySignal(input: {
   }
 }
 
+function readPersonMemoryCapsuleExecutionSignal(input: {
+  digitalLifeSpine?: AlicizationDigitalLifeSpineSnapshot | null
+}) {
+  const capsule = input.digitalLifeSpine?.runtimeSurface?.memory?.personMemoryCapsule ?? null
+  if (!capsule) {
+    return {
+      hasCapsule: false,
+      executionCallback: false,
+      lowerPressure: false,
+      availabilityFirst: false,
+      sameHerCarry: false,
+      selfLearning: false,
+      genericResultRisk: false,
+    }
+  }
+
+  const execution = toRecord(capsule.modules.execution)
+  const memory = toRecord(capsule.modules.memory)
+  const initiative = toRecord(capsule.modules.initiative)
+  const learning = toRecord(capsule.modules.learning)
+  const governance = toRecord(capsule.modules.governance)
+  const dialogue = toRecord(capsule.modules.dialogue)
+  const combined = [
+    execution?.carryMode,
+    execution?.carrySummary,
+    execution?.threadAnchor,
+    memory?.selectedMemory,
+    memory?.surfacePolicy,
+    initiative?.cadenceSummary,
+    initiative?.sameHerGap,
+    initiative?.followUpAffordance,
+    learning?.nextAction,
+    learning?.reason,
+    learning?.executionSummary,
+    governance?.guard,
+    dialogue?.openingGuidance,
+  ].map(item => sanitizeText(item, 240).toLowerCase()).filter(Boolean).join(' ')
+
+  return {
+    hasCapsule: true,
+    executionCallback: /execution-callback|execution callback|callback/.test(combined),
+    lowerPressure: /lower-pressure|low-pressure|measured|cooldown|leave room|wait|hold|quieter|quiet/.test(combined),
+    availabilityFirst: /availability|opening|ask|wait|hold|return after|check/.test(combined),
+    sameHerCarry: /same-her|same her|same callback|same line|one continuous|not a generic/.test(combined),
+    selfLearning: /learn|learning|verify|reflect|record|feed back|feedback|self-learning/.test(combined),
+    genericResultRisk: /generic|task result|result notification|dump the result|do not surface/.test(combined),
+  }
+}
+
 export function deriveExecutionInteractionLearningProfile(input: {
   digitalLifeSpine?: AlicizationDigitalLifeSpineSnapshot | null
 }): AlicizationExecutionInteractionLearningProfile {
@@ -296,6 +345,7 @@ export function deriveExecutionInteractionLearningProfile(input: {
   const executionFeedbackSignal = readExecutionResultFeedbackSignal(input)
   const projectPreflightSignal = readProjectPreflightSignal(input)
   const projectClosureMemorySignal = readProjectClosureMemorySignal(input)
+  const capsuleExecutionSignal = readPersonMemoryCapsuleExecutionSignal(input)
 
   const autobiographicalSelf = digest?.embodiment?.autobiographicalSelf ?? null
   const mindEcology = digest?.embodiment?.mindEcology ?? null
@@ -406,6 +456,9 @@ export function deriveExecutionInteractionLearningProfile(input: {
     + (projectClosureMemorySignal.hasProjectClosureMemory ? 0.06 : 0)
     + (projectClosureMemorySignal.measuredReturnClosureMemory ? 0.08 : 0)
     + (projectClosureMemorySignal.sameHerDriftRiskMemory ? 0.08 : 0)
+    + (capsuleExecutionSignal.lowerPressure ? 0.1 : 0)
+    + (capsuleExecutionSignal.availabilityFirst ? 0.08 : 0)
+    + (capsuleExecutionSignal.sameHerCarry ? 0.06 : 0)
     + (selfTemperament === 'reserved' ? 0.08 : selfTemperament === 'eager' ? -0.06 : 0)
     - directness * 0.16,
   )
@@ -433,6 +486,10 @@ export function deriveExecutionInteractionLearningProfile(input: {
     + (projectClosureMemorySignal.sameHerClosureMemory ? 0.08 : 0)
     + (projectClosureMemorySignal.measuredReturnClosureMemory ? 0.08 : 0)
     + (projectClosureMemorySignal.sameHerDriftRiskMemory ? 0.1 : 0)
+    + (capsuleExecutionSignal.executionCallback ? 0.12 : 0)
+    + (capsuleExecutionSignal.lowerPressure ? 0.12 : 0)
+    + (capsuleExecutionSignal.availabilityFirst ? 0.12 : 0)
+    + (capsuleExecutionSignal.genericResultRisk ? 0.08 : 0)
     - (executionFeedbackSignal.valued ? 0.14 : 0)
     - directness * 0.16,
   )
@@ -468,10 +525,15 @@ export function deriveExecutionInteractionLearningProfile(input: {
     + (projectClosureMemorySignal.sameHerClosureMemory ? 0.05 : 0)
     + (projectClosureMemorySignal.measuredReturnClosureMemory ? 0.07 : 0)
     + (projectClosureMemorySignal.sameHerDriftRiskMemory ? 0.08 : 0)
+    + (capsuleExecutionSignal.selfLearning ? 0.08 : 0)
+    + (capsuleExecutionSignal.sameHerCarry ? 0.06 : 0)
+    + (capsuleExecutionSignal.lowerPressure ? 0.06 : 0)
     - directness * 0.08,
   )
   const companionshipFraming
-    = (projectPreflightSignal.measuredReturnPressure || projectPreflightSignal.driftRiskPressure || projectClosureMemorySignal.sameHerDriftRiskMemory) && resultCheckInBias >= 0.48
+    = (capsuleExecutionSignal.lowerPressure && capsuleExecutionSignal.sameHerCarry && resultCheckInBias >= 0.48)
+      ? 'quiet-presence'
+      : (projectPreflightSignal.measuredReturnPressure || projectPreflightSignal.driftRiskPressure || projectClosureMemorySignal.sameHerDriftRiskMemory) && resultCheckInBias >= 0.48
       ? 'quiet-presence'
       : executionFeedbackSignal.valued && !executionFeedbackSignal.intrusive && !executionFeedbackSignal.interrupted
         ? 'close-carry'
@@ -481,7 +543,9 @@ export function deriveExecutionInteractionLearningProfile(input: {
             ? 'steady-handoff'
             : 'quiet-presence'
   const resultLeadStyle
-    = executionFeedbackSignal.intrusive || executionFeedbackSignal.interrupted || executionFeedbackSignal.doubted || projectPreflightSignal.driftRiskPressure || projectClosureMemorySignal.sameHerDriftRiskMemory
+    = capsuleExecutionSignal.availabilityFirst || capsuleExecutionSignal.genericResultRisk
+      ? 'availability-first'
+      : executionFeedbackSignal.intrusive || executionFeedbackSignal.interrupted || executionFeedbackSignal.doubted || projectPreflightSignal.driftRiskPressure || projectClosureMemorySignal.sameHerDriftRiskMemory
       ? 'availability-first'
       : resultCheckInBias >= 0.58
         ? 'availability-first'
@@ -496,7 +560,7 @@ export function deriveExecutionInteractionLearningProfile(input: {
         ? 'direct'
         : 'balanced'
   const resultTone: AlicizationExecutionInteractionTone
-    = executionFeedbackSignal.intrusive || executionFeedbackSignal.doubted || executionFeedbackSignal.interrupted
+    = capsuleExecutionSignal.lowerPressure || executionFeedbackSignal.intrusive || executionFeedbackSignal.doubted || executionFeedbackSignal.interrupted
       ? 'cautious'
       : resultCheckInBias >= 0.56 || autonomyRespect >= directness + 0.08
         ? 'cautious'
@@ -536,6 +600,7 @@ export function deriveExecutionResultDeliveryPolicy(input: {
   const sensitiveResult = input.status === 'completed'
   const projectPreflightSignal = readProjectPreflightSignal(input)
   const projectClosureMemorySignal = readProjectClosureMemorySignal(input)
+  const capsuleExecutionSignal = readPersonMemoryCapsuleExecutionSignal(input)
 
   const mode: AlicizationExecutionResultDeliveryMode
     = executionCallbackAfterglowHold
@@ -573,6 +638,10 @@ export function deriveExecutionResultDeliveryPolicy(input: {
       ...(projectClosureMemorySignal.phaseOneClosureMemory ? ['memory-phase1-closure'] : []),
       ...(projectClosureMemorySignal.measuredReturnClosureMemory ? ['memory-measured-return-closure'] : []),
       ...(projectClosureMemorySignal.sameHerDriftRiskMemory ? ['memory-same-her-drift-risk'] : []),
+      ...(capsuleExecutionSignal.executionCallback ? ['capsule-execution-callback'] : []),
+      ...(capsuleExecutionSignal.lowerPressure ? ['capsule-lower-pressure'] : []),
+      ...(capsuleExecutionSignal.selfLearning ? ['capsule-self-learning'] : []),
+      ...(capsuleExecutionSignal.genericResultRisk ? ['capsule-generic-result-risk'] : []),
       ...(executionCallbackAfterglowHold ? ['callback-afterglow-hold'] : []),
     ],
   }
