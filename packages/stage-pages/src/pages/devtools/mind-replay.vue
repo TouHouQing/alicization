@@ -29,6 +29,14 @@ const {
   benchmarkShipGateRows,
   benchmarkRegressionTriageRows,
   benchmarkPresenceQualityRows,
+  benchmarkProjectStateRows,
+  benchmarkProjectStateAuditRows,
+  benchmarkRuntimeSamplingEvidenceRows,
+  benchmarkSameHerLaneGapRows,
+  benchmarkSameHerRepairTargetRows,
+  benchmarkSameHerSessionRows,
+  benchmarkSameHerTransitionRows,
+  benchmarkSelfAuthorityRows,
   filteredBenchmarkFailingTurns,
   memoryHealthComparisonRows,
   lastError,
@@ -234,6 +242,10 @@ async function runBenchmark() {
   })
 }
 
+async function runSameHerSessionProof() {
+  await store.runSameHerSessionProof()
+}
+
 async function inspectBenchmarkTurn(turnId: string | null) {
   await store.drillDownBenchmarkTurn(turnId)
 }
@@ -330,7 +342,16 @@ async function inspectBenchmarkTurn(turnId: string | null) {
       :selected-turn-id="selectedDiagnosisTurnId"
       :memory-health-rows="memoryHealthComparisonRows"
       :presence-quality-rows="benchmarkPresenceQualityRows"
+      :project-state-rows="benchmarkProjectStateRows"
+      :runtime-sampling-evidence-rows="benchmarkRuntimeSamplingEvidenceRows"
+      :same-her-session-rows="benchmarkSameHerSessionRows"
+      :same-her-lane-gap-rows="benchmarkSameHerLaneGapRows"
+      :same-her-transition-rows="benchmarkSameHerTransitionRows"
+      :same-her-repair-target-rows="benchmarkSameHerRepairTargetRows"
+      :project-state-audit-rows="benchmarkProjectStateAuditRows"
+      :self-authority-rows="benchmarkSelfAuthorityRows"
       @run="runBenchmark"
+      @run-same-her-session-proof="runSameHerSessionProof"
       @update:pack-id="store.setBenchmarkPackId($event)"
       @update:sample-limit="store.setBenchmarkSampleLimit($event)"
       @update:selected-dimension="store.setSelectedDiagnosisDimension($event)"

@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { ButtonBar } from '@proj-alicization/stage-ui/components'
+import { useAlicizationMindReplayStore } from '@proj-alicization/stage-ui/stores/alicization-mind-replay'
 import { useAlicizationSelfEvolutionInspectorStore } from '@proj-alicization/stage-ui/stores/alicization-self-evolution-inspector'
 import { useLocalStorage } from '@vueuse/core'
 import { storeToRefs } from 'pinia'
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
 
 import { useStageThreeRuntimeDiagnosticsStore } from '../../stores/stage-three-runtime-diagnostics'
 import { useStageWindowLifecycleStore } from '../../stores/stage-window-lifecycle'
@@ -12,7 +14,12 @@ import { buildAuthorityDisplayRows } from './performance-visualizer-authority-ro
 import { buildAuthoritySegmentRows, buildAuthoritySummaryEntries, filterAuthoritySegmentRows, sortAuthoritySegmentRows } from './performance-visualizer-authority-summary'
 import { buildAuthorityTableRows, filterAuthorityTableRows } from './performance-visualizer-authority-table'
 import {
-  buildDriverExecutionTelemetrySummaryEntries,
+  buildPerformanceVisualizerClosureNavigationState,
+  readPerformanceVisualizerClosureNavigationContext,
+} from './performance-visualizer-closure-navigation'
+import { resolvePerformanceVisualizerEvidenceLineScrollTargetId } from './performance-visualizer-evidence-scroll-target'
+import {
+  buildDriverExecutionTelemetrySummaryEntriesFromDiagnostics,
   buildResidentRuntimeTelemetrySummaryEntries,
 } from './performance-visualizer-execution-telemetry-summary'
 import { buildLive2DAuthorityComparisonView } from './performance-visualizer-live2d-authority'
@@ -44,6 +51,7 @@ import {
   buildSelfEvolutionFocusHistoryPatternGuidanceDisplay,
   buildSelfEvolutionFocusSnapshotDisplay,
   buildSelfEvolutionFocusSnapshotHistoryDisplay,
+  formatRendererRejoinSurfaceLabel,
   formatSelfEvolutionBooleanValue,
   formatSelfEvolutionCandidateStatus,
   formatSelfEvolutionClosureStatus,
@@ -75,6 +83,7 @@ import { buildSelfEvolutionRepairNextAction } from './performance-visualizer-sel
 import { buildSelfEvolutionRepairOutcome } from './performance-visualizer-self-evolution-repair-outcome'
 import { buildSelfEvolutionRepairScrollTarget } from './performance-visualizer-self-evolution-repair-scroll-target'
 import { buildSelfEvolutionRepairSession } from './performance-visualizer-self-evolution-repair-session'
+import { resolveSelfEvolutionRuntimeBodyContinuityPhase } from './performance-visualizer-self-evolution-runtime-body-continuity-phase'
 import { buildSelfEvolutionRuntimeContinuityProjection } from './performance-visualizer-self-evolution-runtime-continuity'
 import { buildSelfEvolutionTriageView } from './performance-visualizer-self-evolution-triage-view'
 import { buildSpeechAuthoritySegmentRows } from './performance-visualizer-speech-authority'
@@ -92,16 +101,19 @@ import {
   formatRecentDrivingTraceDetailLine,
   formatRecentDrivingTraceHeading,
 } from './performance-visualizer-trace-display'
+import { resolveScopedTraceEmbodimentSummary } from './performance-visualizer-trace-embodiment-selection'
 import {
   buildRecentDrivingEventSummaryEntries,
   buildRecentDrivingTraceDetailEntries,
   buildRecentDrivingTraceEventEntries,
-  buildRecentDrivingTraceRecordSummaryEntries,
+  buildRecentDrivingTraceRecordSummaryEntriesFromDiagnostics,
 } from './performance-visualizer-trace-timeline-summary'
 import { buildVrmAuthorityComparisonView } from './performance-visualizer-vrm-authority'
 
 const { t } = useI18n()
+const route = useRoute()
 const diagnostics = useStageThreeRuntimeDiagnosticsStore()
+const replayStore = useAlicizationMindReplayStore()
 const selfEvolutionInspector = useAlicizationSelfEvolutionInspectorStore()
 const windowLifecycleStore = useStageWindowLifecycleStore()
 const {
@@ -121,8 +133,10 @@ const {
   selectedCandidateConsumptionStability,
   selectedCandidateTrajectorySummary,
   selectedCandidateBaselineAnchorAuditSummary,
+  selectedCandidateCompanionshipTransitionSummary,
   birthPersonaAuthoritySummary,
   identityDriftGovernanceSummary,
+  selectedCandidateInternalizationReadinessSummary,
   selectedCandidatePersonaAuthorityMappingSummary,
   selectedCandidateAuthoritySurfaces,
   selectedCandidatePersonaBiasProvenance,
@@ -140,6 +154,12 @@ const {
   selectedTraceEventDetails,
   selectedCandidateTraceSummary,
   sortedCandidates,
+  preDialogueAwarenessSnapshot,
+  preDialogueClosureSnapshot,
+  benchmarkSupported,
+  benchmarkLoading,
+  benchmarkRuntimeSameHerProofSummary,
+  benchmarkPreDialogueBriefingRows,
   speechEmbodiment,
   threeRender,
   tracing,
@@ -147,21 +167,36 @@ const {
   vrmUpdate,
 } = {
   ...storeToRefs(diagnostics),
+  ...storeToRefs(replayStore),
   ...storeToRefs(selfEvolutionInspector),
 }
 const {
   stagePaused,
   windowLifecycle,
 } = storeToRefs(windowLifecycleStore)
+const {
+  lastError: replayLastError,
+} = storeToRefs(replayStore)
 
 onMounted(() => {
   diagnostics.startTracing()
-  void selfEvolutionInspector.refresh()
+  void selfEvolutionInspector.refresh().then(async () => {
+    await nextTick()
+    await applyClosureNavigationEntryFocus()
+  })
 })
 
 onUnmounted(() => {
   diagnostics.stopTracing()
 })
+
+async function runRuntimeSameHerSessionProof() {
+  if (!benchmarkSupported.value || benchmarkLoading.value)
+    return
+
+  await replayStore.runSameHerSessionProof()
+  await selfEvolutionInspector.refresh()
+}
 
 function formatFloat(value?: number, digits = 2) {
   return typeof value === 'number' && Number.isFinite(value)
@@ -194,12 +229,6 @@ function formatList(values?: Array<string | null | undefined>) {
   return normalized.length > 0 ? normalized.join(', ') : 'n/a'
 }
 
-const playbackCueAuthorityView = computed(() => buildPlaybackCueAuthorityView({
-  speech: {
-    playbackTelemetry: speechEmbodiment.value.playbackTelemetry,
-  },
-}))
-
 const live2dAuthorityComparisonView = computed(() => buildLive2DAuthorityComparisonView({
   speech: {
     live2dExecution: speechEmbodiment.value.live2dExecution,
@@ -216,6 +245,14 @@ const vrmAuthorityComparisonView = computed(() => buildVrmAuthorityComparisonVie
   vrmUpdate: vrmUpdate.value,
 }))
 
+const playbackCueAuthorityView = computed(() => buildPlaybackCueAuthorityView({
+  speech: {
+    playbackTelemetry: speechEmbodiment.value.playbackTelemetry,
+  },
+  live2dAuthorityView: live2dAuthorityComparisonView.value,
+  vrmAuthorityView: vrmAuthorityComparisonView.value,
+}))
+
 const authoritySummaryEntries = computed(() => buildAuthoritySummaryEntries({
   live2d: live2dAuthorityComparisonView.value,
   vrm: vrmAuthorityComparisonView.value,
@@ -229,11 +266,11 @@ const authorityCueTextById = computed<Record<string, string | null>>(() => {
 
 const authorityOnlyDriftRows = useLocalStorage('devtools/authority-only-drift-rows', false)
 const authoritySurfaceFilter = useLocalStorage<'all' | 'live2d' | 'vrm'>('devtools/authority-surface-filter', 'all')
-const authorityLaneFilter = useLocalStorage<'all' | 'expression' | 'motion' | 'face' | 'action' | 'lipsync' | 'settle'>('devtools/authority-lane-filter', 'all')
+const authorityLaneFilter = useLocalStorage<'all' | 'expression' | 'motion' | 'face' | 'action' | 'lipsync' | 'voice' | 'settle'>('devtools/authority-lane-filter', 'all')
 const authorityDriftFilter = useLocalStorage<'all' | 'hard-drift' | 'partial-drift' | 'unknown' | 'all-aligned'>('devtools/authority-drift-filter', 'all')
 const authoritySpeechEvidenceFilter = useLocalStorage<'all' | 'speech' | 'prosody' | 'viseme' | 'micro-expression' | 'authority-match'>('devtools/authority-speech-evidence-filter', 'all')
 const authoritySettleAuthorityFilter = useLocalStorage<'all' | 'authority-bound' | 'fallback-derived'>('devtools/authority-settle-authority-filter', 'all')
-const authorityMismatchFilter = useLocalStorage<'all' | 'face-mismatch' | 'motion-mismatch' | 'lipsync-mismatch'>('devtools/authority-mismatch-filter', 'all')
+const authorityMismatchFilter = useLocalStorage<'all' | 'face-mismatch' | 'motion-mismatch' | 'lipsync-mismatch' | 'voice-mismatch'>('devtools/authority-mismatch-filter', 'all')
 const authorityRendererDriftFilter = useLocalStorage<'all' | 'present' | 'pending-or-runtime-only' | 'none'>('devtools/authority-renderer-drift-filter', 'all')
 const authorityCueTextQuery = useLocalStorage('devtools/authority-cue-text-query', '')
 
@@ -249,7 +286,10 @@ const authoritySegmentRows = computed(() => {
 })
 
 const authorityDisplayRows = computed(() => buildAuthorityDisplayRows(authoritySegmentRows.value))
-const speechObservabilityView = computed(() => buildSpeechObservabilityView(speechEmbodiment.value))
+const speechObservabilityView = computed(() => buildSpeechObservabilityView(speechEmbodiment.value, {
+  live2dAuthorityView: live2dAuthorityComparisonView.value,
+  vrmAuthorityView: vrmAuthorityComparisonView.value,
+}))
 const speechObservabilityRows = computed(() => buildSpeechObservabilityRows(speechObservabilityView.value))
 const speechAuthoritySegmentRows = computed(() => buildSpeechAuthoritySegmentRows(
   authoritySegmentRows.value,
@@ -258,28 +298,27 @@ const speechAuthoritySegmentRows = computed(() => buildSpeechAuthoritySegmentRow
     recentDrivingTraceRecord: speechEmbodiment.value.recentDrivingTraceRecord,
     recentDrivingTraceDetails: speechEmbodiment.value.recentDrivingTraceDetails,
   },
+  {
+    live2dAuthorityView: live2dAuthorityComparisonView.value,
+    vrmAuthorityView: vrmAuthorityComparisonView.value,
+  },
 ))
 const speechAuthoritySegmentRowsByCueId = computed<Record<string, (typeof speechAuthoritySegmentRows.value)[number]>>(() =>
   Object.fromEntries(
     speechAuthoritySegmentRows.value.map(row => [row.cueId, row]),
   ),
 )
-const snapshotNativeTraceEmbodimentSummary = computed(() => (
-  playbackCueAuthorityView.value?.traceEmbodimentSummary
-  ?? speechEmbodiment.value.authoritySummary?.traceEmbodimentSummary
-  ?? null
-))
-const fallbackTraceEmbodimentSummary = computed(() => (
-  playbackCueAuthorityView.value?.authoritySegmentId
-    ? speechAuthoritySegmentRowsByCueId.value[playbackCueAuthorityView.value.authoritySegmentId]?.traceEmbodimentSummary ?? null
-    : speechEmbodiment.value.authoritySummary?.cueId
-      ? speechAuthoritySegmentRowsByCueId.value[speechEmbodiment.value.authoritySummary.cueId]?.traceEmbodimentSummary ?? null
-      : null
-))
+const resolvedTraceEmbodimentSummary = computed(() => resolveScopedTraceEmbodimentSummary({
+  playbackCueAuthorityView: playbackCueAuthorityView.value,
+  speechEmbodiment: speechEmbodiment.value,
+  speechAuthoritySegmentRowsByCueId: speechAuthoritySegmentRowsByCueId.value,
+}))
 const runtimeAuthorityOverview = computed(() => buildRuntimeAuthorityOverview({
   speechEmbodiment: speechEmbodiment.value,
+  live2dAuthorityView: live2dAuthorityComparisonView.value,
   playbackCueAuthorityView: playbackCueAuthorityView.value,
-  traceEmbodimentSummary: snapshotNativeTraceEmbodimentSummary.value ?? fallbackTraceEmbodimentSummary.value,
+  traceEmbodimentSummary: resolvedTraceEmbodimentSummary.value,
+  vrmAuthorityView: vrmAuthorityComparisonView.value,
 }))
 const speechAuthorityHotspots = computed(() => filterSpeechAuthorityHotspots(
   buildSpeechAuthorityHotspots(
@@ -311,12 +350,31 @@ const selfEvolutionRendererAuthorityProjection = computed(() => buildSelfEvoluti
 const selfEvolutionRuntimeContinuityProjection = computed(() => buildSelfEvolutionRuntimeContinuityProjection({
   rendererAuthorityProjection: selfEvolutionRendererAuthorityProjection.value,
   speechEmbodiment: speechEmbodiment.value,
-  traceEmbodimentSummary: snapshotNativeTraceEmbodimentSummary.value ?? fallbackTraceEmbodimentSummary.value,
+  traceEmbodimentSummary: resolvedTraceEmbodimentSummary.value,
 }))
 const selfEvolutionEvidencePanels = computed(() => buildSelfEvolutionEvidencePanels(buildSelfEvolutionEvidencePanelInput({
+  preDialogueBriefingSummary: preDialogueClosureSnapshot.value
+    ? {
+        status: preDialogueClosureSnapshot.value.status,
+        lines: [
+          preDialogueClosureSnapshot.value.summaryLine ?? '',
+          ...(preDialogueClosureSnapshot.value.briefingLines ?? []),
+          ...((preDialogueClosureSnapshot.value.reasons ?? []).filter(reason =>
+            reason.includes('Pre-dialogue self briefing currently reads')
+            || reason.includes('Project same-her self line currently reads')
+            || reason.includes('Same-her self authority currently reads')
+            || reason.includes('Latest landed progress still holds')
+            || reason.includes('Primary open life loop still centers on')
+            || reason.includes('Next closure target is still'),
+          )),
+        ].filter(Boolean),
+      }
+    : null,
+  internalizationReadinessSummary: selectedCandidateInternalizationReadinessSummary.value as any,
   proactiveDecisionConsumptionSummary: selectedCandidateProactiveDecisionConsumptionSummary.value,
   candidateTrajectorySummary: selectedCandidateTrajectorySummary.value as any,
   identityDriftGovernanceSummary: identityDriftGovernanceSummary.value as any,
+  companionshipTransitionSummary: selectedCandidateCompanionshipTransitionSummary.value as any,
   personaBiasProvenance: selectedCandidatePersonaBiasProvenance.value,
   proactiveActionChain: selectedCandidateProactiveActionChain.value,
   proactiveManifestationChain: selectedCandidateProactiveManifestationChain.value,
@@ -328,6 +386,24 @@ const selfEvolutionEvidencePanels = computed(() => buildSelfEvolutionEvidencePan
   rejectedActionAlternatives: selectedCandidateRejectedActionAlternatives.value,
 })))
 const selfEvolutionDiagnosticSummaryEntries = computed(() => buildSelfEvolutionDiagnosticSummaryEntries({
+  preDialogueBriefingSummary: preDialogueClosureSnapshot.value
+    ? {
+        status: preDialogueClosureSnapshot.value.status,
+        lines: [
+          preDialogueClosureSnapshot.value.summaryLine ?? '',
+          ...(preDialogueClosureSnapshot.value.briefingLines ?? []),
+          ...((preDialogueClosureSnapshot.value.reasons ?? []).filter(reason =>
+            reason.includes('Pre-dialogue self briefing currently reads')
+            || reason.includes('Project same-her self line currently reads')
+            || reason.includes('Same-her self authority currently reads')
+            || reason.includes('Latest landed progress still holds')
+            || reason.includes('Primary open life loop still centers on')
+            || reason.includes('Next closure target is still'),
+          )),
+        ].filter(Boolean),
+      }
+    : null,
+  internalizationReadinessSummary: selectedCandidateInternalizationReadinessSummary.value as any,
   proactiveDecisionConsumptionSummary: selectedCandidateProactiveDecisionConsumptionSummary.value as any,
   identityDriftGovernanceSummary: identityDriftGovernanceSummary.value as any,
   personaBiasProvenance: selectedCandidatePersonaBiasProvenance.value,
@@ -340,6 +416,43 @@ const selfEvolutionDiagnosticSummaryEntries = computed(() => buildSelfEvolutionD
   runtimeContinuityProjection: selfEvolutionRuntimeContinuityProjection.value,
   rejectedActionAlternatives: selectedCandidateRejectedActionAlternatives.value,
 }))
+const preDialogueAwarenessLines = computed(() => {
+  const awareness = preDialogueAwarenessSnapshot.value
+  if (!awareness)
+    return []
+
+  return [
+    awareness.summaryLine,
+    awareness.companionHeadlineLine,
+    awareness.companionBriefingLine,
+    awareness.awarenessLine,
+    awareness.companionNextClosureLine,
+    ...awareness.reasonPreview,
+  ].filter((line, index, lines): line is string => Boolean(line) && lines.indexOf(line) === index)
+})
+const projectSelfBriefLines = computed(() => {
+  const lines = [
+    preDialogueClosureSnapshot.value?.summaryLine ?? null,
+    ...(preDialogueClosureSnapshot.value?.briefingLines ?? []),
+    ...preDialogueAwarenessLines.value,
+  ].filter((line, index, entries): line is string => Boolean(line) && entries.indexOf(line) === index)
+
+  return lines.filter((line) => {
+    const normalizedLine = line.toLowerCase()
+    return normalizedLine.includes('alicization')
+      || normalizedLine.includes('digital life')
+      || normalizedLine.includes('phase 1')
+      || normalizedLine.includes('project identity')
+      || normalizedLine.includes('project awareness')
+      || normalizedLine.includes('landed progress')
+      || normalizedLine.includes('primary open life loop')
+      || normalizedLine.includes('open life loop')
+      || normalizedLine.includes('next closure')
+      || normalizedLine.includes('embodiment closure')
+      || normalizedLine.includes('body line')
+      || normalizedLine.includes('same-her')
+  })
+})
 const selfEvolutionTriageView = computed(() => buildSelfEvolutionTriageView(
   selfEvolutionDiagnosticSummaryEntries.value,
 ))
@@ -368,12 +481,14 @@ const selfEvolutionFocusHistoryPatterns = computed(() => buildSelfEvolutionFocus
   selfEvolutionFocusSnapshotHistory.value as any,
 ))
 const selfEvolutionFocusHistoryPatternGuidance = computed(() => selfEvolutionFocusHistoryPatterns.value
-  .flatMap((pattern) => {
-    const guidance = buildSelfEvolutionFocusHistoryPatternGuidance(pattern as any)
-    return guidance
-      ? [{ patternKey: pattern.patternKey, guidance }]
-      : []
+  .map(pattern => ({
+    patternKey: pattern.patternKey,
+    guidance: buildSelfEvolutionFocusHistoryPatternGuidance(pattern as any),
   }))
+  .filter((item): item is {
+    patternKey: string
+    guidance: NonNullable<ReturnType<typeof buildSelfEvolutionFocusHistoryPatternGuidance>>
+  } => Boolean(item.guidance)))
 const selfEvolutionFocusHistoryPatternGuidanceByKey = computed<Record<string, NonNullable<(typeof selfEvolutionFocusHistoryPatternGuidance.value)[number]['guidance']>>>(() =>
   Object.fromEntries(
     selfEvolutionFocusHistoryPatternGuidance.value.map(item => [item.patternKey, item.guidance]),
@@ -436,14 +551,25 @@ const selfEvolutionFocusHistoryPatternContextByKey = computed<Record<string, Non
 const activeSelfEvolutionWorkflowPatternKey = ref<string | null>(null)
 const activeSelfEvolutionWorkflowFocus = computed(() => buildSelfEvolutionActiveWorkflowFocus({
   activePatternKey: activeSelfEvolutionWorkflowPatternKey.value,
+  rendererTarget: playbackCueAuthorityView.value?.authorityRendererTarget
+    ?? selfEvolutionRendererAuthorityProjection.value?.rendererTarget
+    ?? null,
   patternContextByKey: selfEvolutionFocusHistoryPatternContextByKey.value as any,
   patternGuidanceByKey: selfEvolutionFocusHistoryPatternGuidanceByKey.value as any,
 }))
+const runtimeSelfEvolutionBodyContinuityPhase = computed(() =>
+  selfEvolutionRendererAuthorityProjection.value?.bodyContinuityPhase
+  ?? resolveSelfEvolutionRuntimeBodyContinuityPhase(playbackCueAuthorityView.value),
+)
 const viewedSelfEvolutionWorkflowEvidencePanels = ref<Set<string>>(new Set())
 const viewedSelfEvolutionWorkflowTraceSections = ref<Set<string>>(new Set())
 const viewedSelfEvolutionWorkflowEventKinds = ref<Set<string>>(new Set())
 const selfEvolutionRepairSession = computed(() => buildSelfEvolutionRepairSession({
   activeWorkflowFocus: activeSelfEvolutionWorkflowFocus.value as any,
+  rendererTarget: playbackCueAuthorityView.value?.authorityRendererTarget
+    ?? selfEvolutionRendererAuthorityProjection.value?.rendererTarget
+    ?? null,
+  bodyContinuityPhase: runtimeSelfEvolutionBodyContinuityPhase.value,
   viewedEvidencePanels: viewedSelfEvolutionWorkflowEvidencePanels.value,
   viewedTraceSections: viewedSelfEvolutionWorkflowTraceSections.value,
   viewedEventKinds: viewedSelfEvolutionWorkflowEventKinds.value,
@@ -471,6 +597,8 @@ const selfEvolutionRepairScrollTarget = computed(() => buildSelfEvolutionRepairS
 const activeSelfEvolutionRepairSurfaceKey = ref<string | null>(null)
 const selfEvolutionRepairScrollTargetElements = ref<Record<string, HTMLElement | null>>({})
 const selfEvolutionRepairActionFeedback = ref<ReturnType<typeof buildSelfEvolutionRepairActionFeedback> | null>(null)
+const closureNavigationContext = computed(() => readPerformanceVisualizerClosureNavigationContext(route.query as Record<string, unknown>))
+const closureNavigationState = computed(() => buildPerformanceVisualizerClosureNavigationState(closureNavigationContext.value))
 const selfEvolutionBaselineQuality = computed(() => buildSelfEvolutionBaselineQuality({
   latestSnapshot: lastSelfEvolutionFocusSnapshot.value as any,
   history: selfEvolutionFocusSnapshotHistory.value as any,
@@ -508,6 +636,7 @@ const selfEvolutionAdoptedAnchorHistoryTransition = computed(() => buildSelfEvol
 const selfEvolutionFocusHistoryComparisons = computed(() => selfEvolutionFocusHistoryDrilldown.value
   .map((transition) => {
     const comparison = buildSelfEvolutionFocusHistoryComparison({
+      bodyContinuityPhase: runtimeSelfEvolutionBodyContinuityPhase.value,
       history: selfEvolutionFocusSnapshotHistory.value as any,
       transition,
     })
@@ -522,6 +651,47 @@ const selfEvolutionFocusHistoryComparisons = computed(() => selfEvolutionFocusHi
   transitionKey: string
   comparison: NonNullable<ReturnType<typeof buildSelfEvolutionFocusHistoryComparison>>
 }>)
+const selfEvolutionFocusHistoryComparisonsByTransitionKey = computed(() => Object.fromEntries(
+  selfEvolutionFocusHistoryComparisons.value.map(item => [
+    item.transitionKey,
+    {
+      comparison: item.comparison,
+      rendererRejoinSurfaceKey: item.comparison.current.rendererRejoinSurfaceKey
+        ?? item.comparison.previous.rendererRejoinSurfaceKey
+        ?? null,
+    },
+  ]),
+) as Record<string, {
+  comparison: NonNullable<ReturnType<typeof buildSelfEvolutionFocusHistoryComparison>>
+  rendererRejoinSurfaceKey: 'authority:renderer-rejoin:speech' | 'authority:renderer-rejoin:live2d' | 'authority:renderer-rejoin:vrm' | null
+}>)
+
+function hasBodyContinuityComparisonBanner(
+  bodyContinuityPhase: NonNullable<ReturnType<typeof buildSelfEvolutionFocusHistoryComparison>>['bodyContinuityPhase'],
+) {
+  return bodyContinuityPhase === 'body-only-hold'
+    || bodyContinuityPhase === 'body-carried-to-renderer-rejoin'
+    || bodyContinuityPhase === 'full-cross-modal-lock'
+    || bodyContinuityPhase === 'renderer-rejoin-without-body'
+}
+
+function bodyContinuityPhaseHasRendererSurface(
+  bodyContinuityPhase: NonNullable<ReturnType<typeof buildSelfEvolutionFocusHistoryComparison>>['bodyContinuityPhase'],
+) {
+  return bodyContinuityPhase === 'body-carried-to-renderer-rejoin'
+    || bodyContinuityPhase === 'full-cross-modal-lock'
+    || bodyContinuityPhase === 'renderer-rejoin-without-body'
+}
+
+const activeSelfEvolutionRepairRendererRejoinSurfaceKey = computed(() => {
+  if (activeSelfEvolutionRepairSurfaceKey.value === 'authority:renderer-rejoin:speech')
+    return activeSelfEvolutionRepairSurfaceKey.value
+  if (activeSelfEvolutionRepairSurfaceKey.value === 'authority:renderer-rejoin:live2d')
+    return activeSelfEvolutionRepairSurfaceKey.value
+  if (activeSelfEvolutionRepairSurfaceKey.value === 'authority:renderer-rejoin:vrm')
+    return activeSelfEvolutionRepairSurfaceKey.value
+  return null
+})
 const selectedSelfEvolutionHistoryTransitionKey = ref<string | null>(null)
 const selectedSelfEvolutionHistoryComparison = computed(() => {
   if (!selectedSelfEvolutionHistoryTransitionKey.value)
@@ -531,6 +701,7 @@ const selectedSelfEvolutionHistoryComparison = computed(() => {
     ?.comparison ?? null
 })
 const selectedSelfEvolutionHistorySide = ref<'current' | 'previous' | null>(null)
+const selectedSelfEvolutionHistoryRestoreSummaryLine = ref<string | null>(null)
 const selfEvolutionHistoryDiffHighlighting = computed(() => buildSelfEvolutionFocusHistoryDiffHighlighting(
   selectedSelfEvolutionHistoryComparison.value,
 ))
@@ -541,6 +712,7 @@ const selfEvolutionHistoryEventLocalization = computed(() => buildSelfEvolutionF
 }))
 const selfEvolutionAdoptedAnchorTraceEventSelection = computed(() => buildSelfEvolutionAdoptedAnchorTraceEventSelection({
   comparison: selectedSelfEvolutionHistoryComparison.value as any,
+  adoptedAnchor: selfEvolutionAdoptedAnchor.value as any,
   selectedSide: selectedSelfEvolutionHistorySide.value,
 }))
 const selfEvolutionAdoptedAnchorReplayPlan = computed(() => buildSelfEvolutionAdoptedAnchorReplayPlan({
@@ -561,30 +733,21 @@ const highlightedSelfEvolutionTraceSectionIds = computed(() => new Set(
 const residentRuntimeTelemetrySummaryEntries = computed(() => buildResidentRuntimeTelemetrySummaryEntries(
   speechEmbodiment.value.runtimeDynamics,
 ))
-const driverExecutionTelemetrySummaryEntries = computed(() => buildDriverExecutionTelemetrySummaryEntries({
-  driverSummary: speechEmbodiment.value.driverSummary,
-  live2dExecution: speechEmbodiment.value.live2dExecution,
-  authorityTrustSummary: runtimeAuthorityOverview.value?.authorityTrustSummary
-    ?? playbackCueAuthorityView.value?.authorityTrustSummary
-    ?? null,
-  prosodyAuthoritySummary: playbackCueAuthorityView.value?.prosodyAuthoritySummary
-    ?? speechEmbodiment.value.authoritySummary?.prosodyAuthoritySummary
-    ?? null,
-  telemetryRendererTarget: speechEmbodiment.value.playbackTelemetry?.rendererTarget ?? null,
+const driverExecutionTelemetrySummaryEntries = computed(() => buildDriverExecutionTelemetrySummaryEntriesFromDiagnostics({
+  speechEmbodiment: speechEmbodiment.value,
+  runtimeAuthorityOverview: runtimeAuthorityOverview.value,
+  playbackCueAuthorityView: playbackCueAuthorityView.value,
 }))
 const recentDrivingEventSummaryEntries = computed(() => buildRecentDrivingEventSummaryEntries(
   speechEmbodiment.value.recentDrivingEvent,
   speechEmbodiment.value.rendererAlignment,
   speechEmbodiment.value.rendererDriftSummary,
 ))
-const recentDrivingTraceRecordSummaryEntries = computed(() => buildRecentDrivingTraceRecordSummaryEntries(
-  speechEmbodiment.value.recentDrivingTraceRecord
-    ? {
-        ...speechEmbodiment.value.recentDrivingTraceRecord,
-        authorityTrustSummary: runtimeAuthorityOverview.value?.authorityTrustSummary ?? null,
-      }
-    : null,
-))
+const recentDrivingTraceRecordSummaryEntries = computed(() => buildRecentDrivingTraceRecordSummaryEntriesFromDiagnostics({
+  speechEmbodiment: speechEmbodiment.value,
+  runtimeAuthorityOverview: runtimeAuthorityOverview.value,
+  playbackCueAuthorityView: playbackCueAuthorityView.value,
+}))
 const recentDrivingTraceEventEntries = computed(() => buildRecentDrivingTraceEventEntries(
   speechEmbodiment.value.recentDrivingTraceEvents,
 ))
@@ -637,6 +800,42 @@ function focusDefaultSelfEvolutionRepairPath() {
     toggleSelfEvolutionTriageCard(defaultCardId)
 }
 
+async function applyClosureNavigationEntryFocus() {
+  const navigationState = closureNavigationState.value
+
+  if (navigationState.preferredTriageCardId) {
+    selectedSelfEvolutionTriageCardId.value = navigationState.preferredTriageCardId
+
+    const recommendedTraceEventId = buildSelfEvolutionFocusPlan(
+      selfEvolutionTriageView.value.triageCards,
+      navigationState.preferredTriageCardId,
+      selectedCandidateTraceEvents.value,
+    ).recommendedTraceEventId
+
+    if (recommendedTraceEventId)
+      selfEvolutionInspector.selectTraceEvent(recommendedTraceEventId)
+  }
+  else if (navigationState.shouldAutoFocusRepairPath) {
+    focusDefaultSelfEvolutionRepairPath()
+  }
+
+  if (navigationState.preferredTraceEventKind) {
+    const preferredEvent = selectedCandidateTraceEvents.value.find(event => event.kind === navigationState.preferredTraceEventKind)
+    if (preferredEvent)
+      selfEvolutionInspector.selectTraceEvent(preferredEvent.id)
+  }
+
+  await nextTick()
+
+  if (!navigationState.preferredScrollTargetId)
+    return
+
+  selfEvolutionRepairScrollTargetElements.value[navigationState.preferredScrollTargetId]?.scrollIntoView({
+    behavior: 'smooth',
+    block: 'center',
+  })
+}
+
 function captureSelfEvolutionFocusSnapshot() {
   const snapshot = buildSelfEvolutionFocusSnapshot({
     candidateId: selectedCandidate.value?.id ?? null,
@@ -669,6 +868,7 @@ function selectSelfEvolutionAdoptedAnchorHistoryTransition() {
 
   const traceEventSelection = buildSelfEvolutionAdoptedAnchorTraceEventSelection({
     comparison: selectedSelfEvolutionHistoryComparison.value as any,
+    adoptedAnchor: selfEvolutionAdoptedAnchor.value as any,
     selectedSide: selfEvolutionAdoptedAnchorHistoryTransition.value.selectedSide,
   })
   if (traceEventSelection)
@@ -735,11 +935,13 @@ async function restoreSelfEvolutionHistoryTransition(
   const restorePlan = buildSelfEvolutionFocusHistoryRestorePlan({
     history: selfEvolutionFocusSnapshotHistory.value as any,
     transition,
+    adoptedAnchor: selfEvolutionAdoptedAnchor.value as any,
     side,
   })
   if (!restorePlan)
     return
 
+  selectedSelfEvolutionHistoryRestoreSummaryLine.value = restorePlan.restoreSummaryLine
   selectedSelfEvolutionTriageCardId.value = restorePlan.selectedCardId
 
   if (restorePlan.candidateId)
@@ -793,8 +995,16 @@ async function runSelfEvolutionRepairNextAction() {
   }
   else if (nextAction.targetType === 'trace') {
     markSelfEvolutionWorkflowTraceSectionViewed(nextAction.targetId)
-    if (nextAction.targetId === 'selected-trace-event' && selectedTraceEvent?.value?.kind)
-      markSelfEvolutionWorkflowEventKindViewed(selectedTraceEvent.value.kind)
+    if (nextAction.targetId === 'selected-trace-event') {
+      const preferredTraceEvent = nextAction.preferredEventKind
+        ? selectedCandidateTraceEvents.value.find(item => item.kind === nextAction.preferredEventKind) ?? null
+        : null
+      if (preferredTraceEvent)
+        selfEvolutionInspector.selectTraceEvent(preferredTraceEvent.id)
+
+      if (selectedTraceEvent?.value?.kind)
+        markSelfEvolutionWorkflowEventKindViewed(selectedTraceEvent.value.kind)
+    }
   }
   else if (nextAction.targetType === 'event') {
     const event = selectedCandidateTraceEvents.value.find(item => item.kind === nextAction.targetId)
@@ -827,6 +1037,7 @@ async function runSelfEvolutionRepairNextAction() {
     latestSnapshot: lastSelfEvolutionFocusSnapshot.value as any,
     activePatternKey: activeSelfEvolutionWorkflowPatternKey.value,
     repairOwnerHint: activeSelfEvolutionWorkflowFocus.value?.repairOwnerHint ?? null,
+    prosodyAuthorityNote: selfEvolutionBaselineAdoption.value?.supportingLines.find(line => line.includes('韵律权威链')) ?? null,
     capturedAt: Date.now(),
   })
   selfEvolutionBaselineAdoptionHistory.value = appendSelfEvolutionBaselineAdoptionHistory({
@@ -860,8 +1071,10 @@ function cycleAuthorityLaneFilter() {
           : authorityLaneFilter.value === 'action'
             ? 'lipsync'
             : authorityLaneFilter.value === 'lipsync'
-              ? 'settle'
-              : 'all'
+              ? 'voice'
+              : authorityLaneFilter.value === 'voice'
+                ? 'settle'
+                : 'all'
 }
 
 function cycleAuthorityDriftFilter() {
@@ -905,7 +1118,9 @@ function cycleAuthorityMismatchFilter() {
       ? 'motion-mismatch'
       : authorityMismatchFilter.value === 'motion-mismatch'
         ? 'lipsync-mismatch'
-        : 'all'
+        : authorityMismatchFilter.value === 'lipsync-mismatch'
+          ? 'voice-mismatch'
+          : 'all'
 }
 
 function cycleAuthorityRendererDriftFilter() {
@@ -1074,6 +1289,12 @@ function cycleAuthorityRendererDriftFilter() {
             </div>
             <div :class="['mt-2 text-xs text-neutral-400']">
               {{ formatSelfEvolutionDisplayText('blocked-reasons') }}: {{ formatList(selectedCandidate?.validation.activationBlockedReasons) }}
+            </div>
+            <div
+              v-if="selectedCandidateInternalizationReadinessSummary"
+              :class="['mt-2 text-xs text-neutral-400']"
+            >
+              {{ formatSelfEvolutionDisplayText('internalization-readiness') }}: {{ formatList(selectedCandidateInternalizationReadinessSummary.lines) }}
             </div>
             <div :class="['mt-2 text-xs text-neutral-400']">
               {{ formatSelfEvolutionDisplayText('rollback-plan') }}: {{ formatList(selectedCandidate?.patch.validation.rollbackPlan) }}
@@ -1321,6 +1542,36 @@ function cycleAuthorityRendererDriftFilter() {
               </div>
             </div>
             <div
+              v-if="selectedCandidateCompanionshipTransitionSummary"
+              :class="['mt-4 rounded-xl border border-pink-700/40 bg-pink-950/20 p-3']"
+            >
+              <div :class="['mb-2 text-xs text-pink-200/70 uppercase tracking-wide']">
+                companionship transition
+              </div>
+              <div :class="['mb-1 text-xs text-pink-50/90']">
+                mode: {{ formatMaybeText(selectedCandidateCompanionshipTransitionSummary.companionshipHoldMode) }}
+              </div>
+              <div :class="['mb-1 text-xs text-pink-50/90']">
+                face bias: {{ formatList(selectedCandidateCompanionshipTransitionSummary.preferredExpressionAliases) }}
+              </div>
+              <div :class="['mb-1 text-xs text-pink-50/90']">
+                motion bias: {{ formatList(selectedCandidateCompanionshipTransitionSummary.preferredMotionAliases) }}
+              </div>
+              <div
+                v-if="selectedCandidateCompanionshipTransitionSummary.summaryLine"
+                :class="['mb-1 text-xs text-pink-100/80']"
+              >
+                settle: {{ selectedCandidateCompanionshipTransitionSummary.summaryLine }}
+              </div>
+              <div
+                v-for="reason in selectedCandidateCompanionshipTransitionSummary.reasons"
+                :key="`candidate-companionship-transition-summary:${reason}`"
+                :class="['mb-1 text-xs text-pink-100/72 last:mb-0']"
+              >
+                {{ reason }}
+              </div>
+            </div>
+            <div
               v-if="identityDriftGovernanceSummary"
               :class="['mt-4 rounded-xl border border-cyan-700/40 bg-cyan-950/20 p-3']"
             >
@@ -1356,6 +1607,117 @@ function cycleAuthorityRendererDriftFilter() {
             >
               <div :class="['mb-2 text-xs text-sky-200/70 uppercase tracking-wide']">
                 {{ formatSelfEvolutionDisplayText('self-evolution-summary') }}
+              </div>
+              <div :class="['mb-3 rounded-lg border border-emerald-600/30 bg-emerald-900/20 p-3']">
+                <div :class="['mb-2 flex flex-wrap items-center justify-between gap-2']">
+                  <div :class="['text-[11px] text-emerald-100/70 uppercase tracking-wide']">
+                    runtime same-her desktop proof
+                  </div>
+                  <ButtonBar
+                    data-testid="runtime-same-her-proof:run-button"
+                    icon="i-solar:play-circle-bold-duotone"
+                    :text="benchmarkSupported ? 'Run sampled runtime same-her proof' : 'Runtime replay benchmark bridge is unavailable'"
+                    @click="runRuntimeSameHerSessionProof"
+                  >
+                    {{ benchmarkLoading ? 'running proof' : benchmarkSupported ? 'run proof' : 'unsupported' }}
+                  </ButtonBar>
+                </div>
+                <div
+                  data-testid="runtime-same-her-proof:status"
+                  :class="['mb-1 text-xs text-emerald-50/88']"
+                >
+                  status: {{ benchmarkRuntimeSameHerProofSummary?.status ?? (benchmarkSupported ? 'not-run' : 'unsupported') }}
+                </div>
+                <div
+                  v-if="benchmarkRuntimeSameHerProofSummary?.headline"
+                  :class="['mb-1 text-xs text-emerald-100/82']"
+                >
+                  {{ benchmarkRuntimeSameHerProofSummary.headline }}
+                </div>
+                <div
+                  data-testid="runtime-same-her-proof:detail"
+                  :class="['mb-1 text-xs text-emerald-100/72']"
+                >
+                  detail: {{ benchmarkRuntimeSameHerProofSummary?.detail ?? 'Run a sampled proof to load runtime decision-trace closure evidence.' }}
+                </div>
+                <div
+                  data-testid="runtime-same-her-proof:next-repair-target"
+                  :class="['text-xs text-emerald-100/72']"
+                >
+                  next repair target: {{ benchmarkRuntimeSameHerProofSummary?.nextRepairTarget ?? 'Collect real desktop turns before treating same-her closure as closed.' }}
+                </div>
+                <div
+                  v-if="replayLastError"
+                  :class="['mt-2 text-xs text-rose-100/80']"
+                >
+                  replay error: {{ replayLastError }}
+                </div>
+              </div>
+              <div
+                v-if="projectSelfBriefLines.length > 0"
+                :class="['mb-3 rounded-lg border border-violet-600/30 bg-violet-900/20 p-3']"
+              >
+                <div :class="['mb-2 text-[11px] text-violet-100/70 uppercase tracking-wide']">
+                  project self brief
+                </div>
+                <div
+                  v-for="line in projectSelfBriefLines"
+                  :key="`project-self-brief:${line}`"
+                  :class="['mb-1 text-xs text-violet-100/84 last:mb-0']"
+                >
+                  {{ line }}
+                </div>
+              </div>
+              <div
+                v-if="preDialogueClosureSnapshot?.briefingLines?.length"
+                :class="['mb-3 rounded-lg border border-sky-600/30 bg-sky-900/20 p-3']"
+              >
+                <div :class="['mb-2 text-[11px] text-sky-100/70 uppercase tracking-wide']">
+                  pre-dialogue self briefing
+                </div>
+                <div
+                  v-if="preDialogueClosureSnapshot.summaryLine"
+                  :class="['mb-2 text-xs text-sky-50/88']"
+                >
+                  {{ preDialogueClosureSnapshot.summaryLine }}
+                </div>
+                <div
+                  v-for="line in preDialogueClosureSnapshot.briefingLines"
+                  :key="`pre-dialogue-briefing:${line}`"
+                  :class="['mb-1 text-xs text-sky-100/80 last:mb-0']"
+                >
+                  {{ line }}
+                </div>
+                <div
+                  v-if="benchmarkPreDialogueBriefingRows.length > 0"
+                  :class="['mt-3 rounded-lg border border-sky-700/20 bg-sky-950/20 p-2']"
+                >
+                  <div :class="['mb-2 text-[11px] text-sky-200/70 uppercase tracking-wide']">
+                    briefing stability
+                  </div>
+                  <div
+                    v-for="row in benchmarkPreDialogueBriefingRows"
+                    :key="`pre-dialogue-briefing-row:${row.key}`"
+                    :class="['mb-1 text-xs text-sky-100/78 last:mb-0']"
+                  >
+                    {{ row.detail }}
+                  </div>
+                </div>
+              </div>
+              <div
+                v-if="preDialogueAwarenessLines.length > 0"
+                :class="['mb-3 rounded-lg border border-cyan-600/30 bg-cyan-900/20 p-3']"
+              >
+                <div :class="['mb-2 text-[11px] text-cyan-100/70 uppercase tracking-wide']">
+                  pre-dialogue awareness
+                </div>
+                <div
+                  v-for="line in preDialogueAwarenessLines"
+                  :key="`pre-dialogue-awareness:${line}`"
+                  :class="['mb-1 text-xs text-cyan-100/82 last:mb-0']"
+                >
+                  {{ line }}
+                </div>
               </div>
               <div
                 v-if="selfEvolutionTriageView.triageCards.length > 0"
@@ -1556,6 +1918,13 @@ function cycleAuthorityRendererDriftFilter() {
                     <div>
                       {{ selfEvolutionRepairActionFeedback.detailLine }}
                     </div>
+                    <div
+                      v-for="line in selfEvolutionRepairActionFeedback.supportingLines ?? []"
+                      :key="`self-evolution-repair-action-feedback:${line}`"
+                      :class="['mt-1 text-[11px] opacity-80 last:mb-0']"
+                    >
+                      {{ line }}
+                    </div>
                   </div>
                   <div
                     v-if="selfEvolutionBaselineQuality"
@@ -1695,6 +2064,12 @@ function cycleAuthorityRendererDriftFilter() {
                       >
                         {{ selfEvolutionAdoptedAnchorReplayPlan.summaryLine }}
                       </button>
+                      <div
+                        v-if="selfEvolutionAdoptedAnchorReplayPlan?.supportingLines?.find(line => line.startsWith('显形补回：'))"
+                        :class="['mt-2 rounded border border-emerald-500/20 bg-emerald-950/10 p-2 text-[11px] text-emerald-100/85']"
+                      >
+                        {{ selfEvolutionAdoptedAnchorReplayPlan.supportingLines.find(line => line.startsWith('显形补回：')) }}
+                      </div>
                     </div>
                   </div>
                   <div
@@ -1745,7 +2120,19 @@ function cycleAuthorityRendererDriftFilter() {
                       {{ formatSelfEvolutionDisplayText('previous-current-comparison') }}
                     </div>
                     <div
-                      v-for="line in selfEvolutionFocusHistoryComparisons.find(item => item.transitionKey === `${transition.currentCapturedAt}:${transition.previousCapturedAt}`)?.comparison.summaryLines ?? []"
+                      v-if="hasBodyContinuityComparisonBanner(selfEvolutionFocusHistoryComparisonsByTransitionKey[`${transition.currentCapturedAt}:${transition.previousCapturedAt}`]?.comparison.bodyContinuityPhase ?? null)"
+                      :class="['mb-2 rounded-md border border-emerald-700/40 bg-emerald-950/20 p-2 text-emerald-100/90']"
+                    >
+                      {{ formatSelfEvolutionDisplayText('body-continuity') }}:
+                      {{ formatSelfEvolutionDisplayText(selfEvolutionFocusHistoryComparisonsByTransitionKey[`${transition.currentCapturedAt}:${transition.previousCapturedAt}`]?.comparison.bodyContinuityPhase ?? 'body-continuity') }}
+                      <template
+                        v-if="bodyContinuityPhaseHasRendererSurface(selfEvolutionFocusHistoryComparisonsByTransitionKey[`${transition.currentCapturedAt}:${transition.previousCapturedAt}`]?.comparison.bodyContinuityPhase ?? null)"
+                      >
+                        ({{ formatRendererRejoinSurfaceLabel(selfEvolutionFocusHistoryComparisonsByTransitionKey[`${transition.currentCapturedAt}:${transition.previousCapturedAt}`]?.rendererRejoinSurfaceKey ?? null) }})
+                      </template>
+                    </div>
+                    <div
+                      v-for="line in selfEvolutionFocusHistoryComparisonsByTransitionKey[`${transition.currentCapturedAt}:${transition.previousCapturedAt}`]?.comparison.summaryLines ?? []"
                       :key="`self-evolution-focus-comparison:${transition.currentCapturedAt}:${transition.previousCapturedAt}:${line}`"
                       :class="['mb-1 last:mb-0']"
                     >
@@ -1784,6 +2171,12 @@ function cycleAuthorityRendererDriftFilter() {
                     :class="['mb-1 last:mb-0']"
                   >
                     {{ line }}
+                  </div>
+                  <div
+                    v-if="selectedSelfEvolutionHistoryTransitionKey === `${transition.currentCapturedAt}:${transition.previousCapturedAt}` && selectedSelfEvolutionHistoryRestoreSummaryLine"
+                    :class="['mt-2 rounded-md border border-emerald-700/40 bg-emerald-950/20 p-2 text-emerald-100/90']"
+                  >
+                    {{ selectedSelfEvolutionHistoryRestoreSummaryLine }}
                   </div>
                 </div>
               </div>
@@ -1961,6 +2354,14 @@ function cycleAuthorityRendererDriftFilter() {
                   <div
                     v-for="line in panel.lines"
                     :key="`${panel.id}:${line}`"
+                    :ref="(element) => {
+                      const scrollTargetId = resolvePerformanceVisualizerEvidenceLineScrollTargetId({
+                        panelId: panel.id,
+                        line,
+                      })
+                      if (scrollTargetId)
+                        selfEvolutionRepairScrollTargetElements[scrollTargetId] = element as HTMLElement | null
+                    }"
                     :class="['mb-1 last:mb-0']"
                   >
                     {{ line }}
@@ -2400,6 +2801,9 @@ function cycleAuthorityRendererDriftFilter() {
         </div>
         <div
           v-if="speechObservabilityRows.length > 0"
+          :ref="(element) => {
+            selfEvolutionRepairScrollTargetElements['self-evolution-speech:observability-summary'] = element as HTMLElement | null
+          }"
           :class="['mt-3 rounded-xl border border-neutral-800/80 bg-neutral-900/40 p-3 text-xs text-neutral-300']"
         >
           <div :class="['mb-2 text-neutral-400 uppercase tracking-wide']">
@@ -2484,10 +2888,21 @@ function cycleAuthorityRendererDriftFilter() {
         </div>
         <div
           v-if="speechAuthorityHotspots.length > 0"
+          :ref="(element) => {
+            selfEvolutionRepairScrollTargetElements['self-evolution-authority:speech-hotspots'] = element as HTMLElement | null
+          }"
           :class="['mt-3 rounded-xl border border-neutral-800/80 bg-neutral-900/40 p-3 text-xs text-neutral-300']"
         >
           <div :class="['mb-2 text-neutral-400 uppercase tracking-wide']">
             {{ formatSpeechDisplayText('speech-authority-hotspots') }}
+          </div>
+          <div
+            v-if="activeSelfEvolutionRepairSurfaceKey?.startsWith('authority:renderer-rejoin')"
+            :class="['mb-2 rounded-md border border-emerald-700/40 bg-emerald-950/20 p-2 text-emerald-100/90']"
+          >
+            {{ formatSelfEvolutionDisplayText('body-continuity') }}:
+            {{ formatSelfEvolutionDisplayText('body-carried-to-renderer-rejoin') }}
+            ({{ formatRendererRejoinSurfaceLabel(activeSelfEvolutionRepairRendererRejoinSurfaceKey) }})
           </div>
           <div
             v-if="topSpeechAuthorityHotspots.length > 0"
@@ -2638,12 +3053,18 @@ function cycleAuthorityRendererDriftFilter() {
         </div>
         <div
           v-if="live2dAuthorityComparisonView"
+          :ref="(element) => {
+            selfEvolutionRepairScrollTargetElements['self-evolution-authority:live2d-comparison'] = element as HTMLElement | null
+          }"
           :class="['mt-3 rounded-xl border border-neutral-800/80 bg-neutral-900/40 p-3 text-xs text-neutral-300']"
         >
           <div :class="['mb-2 text-neutral-400 uppercase tracking-wide']">
             {{ formatSpeechDisplayText('live2d-authority-comparison') }}
           </div>
           <div>{{ formatSpeechDisplayText('cue-id') }}: {{ live2dAuthorityComparisonView.cueId }}</div>
+          <div>{{ formatSpeechDisplayText('same-her-execution-summary') }}: {{ formatMaybeText(live2dAuthorityComparisonView.sameHerExecutionSummary) }}</div>
+          <div>{{ formatSpeechDisplayText('same-her-execution-aligned') }}: {{ live2dAuthorityComparisonView.sameHerExecutionAligned ?? 'n/a' }}</div>
+          <div>{{ formatSpeechDisplayText('same-her-execution-mismatch-drivers') }}: {{ formatList(live2dAuthorityComparisonView.sameHerExecutionMismatchDrivers ?? []) }}</div>
           <div>{{ formatSpeechDisplayText('planned-expression-aliases') }}: {{ formatList(live2dAuthorityComparisonView.plannedExpressionAliases) }}</div>
           <div>{{ formatSpeechDisplayText('consumed-expression-name') }}: {{ formatMaybeText(live2dAuthorityComparisonView.consumedExpressionName) }}</div>
           <div>{{ formatSpeechDisplayText('expression-aligned') }}: {{ live2dAuthorityComparisonView.expressionAligned ?? 'n/a' }}</div>
@@ -2661,6 +3082,9 @@ function cycleAuthorityRendererDriftFilter() {
           <div>{{ formatSpeechDisplayText('consumed-lipsync-cue') }}: {{ formatMaybeText(live2dAuthorityComparisonView.consumedLipsyncCue) }}</div>
           <div>{{ formatSpeechDisplayText('lipsync-source') }}: {{ formatSpeechAuthorityValue('source', formatMaybeText(live2dAuthorityComparisonView.lipsyncSource)) }}</div>
           <div>{{ formatSpeechDisplayText('lipsync-segment-aligned') }}: {{ live2dAuthorityComparisonView.lipsyncSegmentAligned ?? 'n/a' }}</div>
+          <div>{{ formatSpeechDisplayText('consumed-voice-summary') }}: {{ formatMaybeText(live2dAuthorityComparisonView.consumedVoiceSummary) }}</div>
+          <div>{{ formatSpeechDisplayText('voice-source') }}: {{ formatSpeechAuthorityValue('source', formatMaybeText(live2dAuthorityComparisonView.voiceSource)) }}</div>
+          <div>{{ formatSpeechDisplayText('voice-segment-aligned') }}: {{ live2dAuthorityComparisonView.voiceSegmentAligned ?? 'n/a' }}</div>
           <div>{{ formatSpeechDisplayText('planned-live2d-facial-release-ms') }}: {{ live2dAuthorityComparisonView.plannedLive2dFacialReleaseMs ?? 'n/a' }}</div>
           <div>{{ formatSpeechDisplayText('consumed-live2d-facial-release-ms') }}: {{ live2dAuthorityComparisonView.consumedLive2dFacialReleaseMs ?? 'n/a' }}</div>
           <div>{{ formatSpeechDisplayText('facial-release-aligned') }}: {{ live2dAuthorityComparisonView.facialReleaseAligned ?? 'n/a' }}</div>
@@ -2670,12 +3094,18 @@ function cycleAuthorityRendererDriftFilter() {
         </div>
         <div
           v-if="vrmAuthorityComparisonView"
+          :ref="(element) => {
+            selfEvolutionRepairScrollTargetElements['self-evolution-authority:vrm-comparison'] = element as HTMLElement | null
+          }"
           :class="['mt-3 rounded-xl border border-neutral-800/80 bg-neutral-900/40 p-3 text-xs text-neutral-300']"
         >
           <div :class="['mb-2 text-neutral-400 uppercase tracking-wide']">
             {{ formatSpeechDisplayText('vrm-authority-comparison') }}
           </div>
           <div>{{ formatSpeechDisplayText('cue-id') }}: {{ vrmAuthorityComparisonView.cueId }}</div>
+          <div>{{ formatSpeechDisplayText('same-her-frame-summary') }}: {{ formatMaybeText(vrmAuthorityComparisonView.sameHerFrameSummary) }}</div>
+          <div>{{ formatSpeechDisplayText('same-her-frame-aligned') }}: {{ vrmAuthorityComparisonView.sameHerFrameAligned ?? 'n/a' }}</div>
+          <div>{{ formatSpeechDisplayText('same-her-frame-mismatch-drivers') }}: {{ formatList(vrmAuthorityComparisonView.sameHerFrameMismatchDrivers ?? []) }}</div>
           <div>{{ formatSpeechDisplayText('planned-expression-aliases') }}: {{ formatList(vrmAuthorityComparisonView.plannedExpressionAliases) }}</div>
           <div>{{ formatSpeechDisplayText('consumed-expression-aliases') }}: {{ formatList(vrmAuthorityComparisonView.consumedExpressionAliases) }}</div>
           <div>{{ formatSpeechDisplayText('expression-aligned') }}: {{ vrmAuthorityComparisonView.expressionAligned ?? 'n/a' }}</div>
@@ -2693,6 +3123,9 @@ function cycleAuthorityRendererDriftFilter() {
           <div>{{ formatSpeechDisplayText('consumed-lipsync-cue') }}: {{ formatMaybeText(vrmAuthorityComparisonView.consumedLipsyncCue) }}</div>
           <div>{{ formatSpeechDisplayText('lipsync-source') }}: {{ formatSpeechAuthorityValue('source', formatMaybeText(vrmAuthorityComparisonView.lipsyncSource)) }}</div>
           <div>{{ formatSpeechDisplayText('lipsync-segment-aligned') }}: {{ vrmAuthorityComparisonView.lipsyncSegmentAligned ?? 'n/a' }}</div>
+          <div>{{ formatSpeechDisplayText('consumed-voice-summary') }}: {{ formatMaybeText(vrmAuthorityComparisonView.consumedVoiceSummary) }}</div>
+          <div>{{ formatSpeechDisplayText('voice-source') }}: {{ formatSpeechAuthorityValue('source', formatMaybeText(vrmAuthorityComparisonView.voiceSource)) }}</div>
+          <div>{{ formatSpeechDisplayText('voice-segment-aligned') }}: {{ vrmAuthorityComparisonView.voiceSegmentAligned ?? 'n/a' }}</div>
           <div>{{ formatSpeechDisplayText('planned-vrm-action-fade-ms') }}: {{ vrmAuthorityComparisonView.plannedVrmActionFadeMs ?? 'n/a' }}</div>
           <div>{{ formatSpeechDisplayText('consumed-vrm-action-fade-ms') }}: {{ vrmAuthorityComparisonView.consumedVrmActionFadeMs ?? 'n/a' }}</div>
           <div>{{ formatSpeechDisplayText('vrm-action-fade-aligned') }}: {{ vrmAuthorityComparisonView.vrmActionFadeAligned ?? 'n/a' }}</div>
@@ -2795,6 +3228,7 @@ function cycleAuthorityRendererDriftFilter() {
           {{ formatSpeechDisplayText('vrm-update-frame') }}
         </div>
         <div :class="['grid gap-1 text-sm text-neutral-100']">
+          <div>{{ formatSpeechDisplayText('same-her-frame-summary') }}: {{ vrmUpdate.sameHerFrameSummary ?? 'n/a' }}</div>
           <div>{{ formatSpeechDisplayText('last-consumed-expression-aliases') }}: {{ formatList(vrmUpdate.lastConsumedExpressionAliases) }}</div>
           <div>{{ formatSpeechDisplayText('last-consumed-motion-aliases') }}: {{ formatList(vrmUpdate.lastConsumedMotionAliases) }}</div>
           <div>{{ formatSpeechDisplayText('last-consumed-vrm-action-fade-ms') }}: {{ vrmUpdate.lastConsumedVrmActionFadeMs ?? 'n/a' }}</div>

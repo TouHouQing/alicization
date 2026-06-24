@@ -43,6 +43,35 @@ function formatList(values: string[]) {
   return values.length > 0 ? values.join(', ') : tAudit('empty_value', 'none')
 }
 
+function formatAffectPerspective(label: string, summary: string) {
+  const normalizedLabel = label.trim()
+  const normalizedSummary = summary.trim()
+  if (!normalizedLabel && !normalizedSummary)
+    return ''
+  if (!normalizedLabel)
+    return normalizedSummary
+  if (!normalizedSummary)
+    return normalizedLabel
+  return `${normalizedLabel}: ${normalizedSummary}`
+}
+
+function formatInitiativeOpportunity(entry: AlicizationHumanlikeMemoryAuditEntry) {
+  return [
+    entry.initiativeKind ? `kind: ${entry.initiativeKind}` : '',
+    entry.initiativeSuggestedWindow ? `window: ${entry.initiativeSuggestedWindow}` : '',
+    entry.initiativePressure ? `pressure: ${entry.initiativePressure}` : '',
+    entry.initiativeAntiSpamReason ? `anti-spam: ${entry.initiativeAntiSpamReason}` : '',
+    entry.initiativeVisibleLine ? `visible line: ${entry.initiativeVisibleLine}` : '',
+  ].filter(Boolean).join('\n')
+}
+
+function formatEmbodimentProfile(entry: AlicizationHumanlikeMemoryAuditEntry) {
+  return [
+    entry.embodimentRecallStrength ? `recall: ${entry.embodimentRecallStrength}` : '',
+    entry.embodimentModalityRisk ? `risk: ${entry.embodimentModalityRisk}` : '',
+  ].filter(Boolean).join('\n')
+}
+
 function candidateSummaryRows(entry: AlicizationHumanlikeMemoryAuditEntry) {
   return [
     {
@@ -62,8 +91,24 @@ function candidateSummaryRows(entry: AlicizationHumanlikeMemoryAuditEntry) {
       value: formatList(entry.emotionalResidueTags),
     },
     {
+      label: tAudit('fields.host_affect', 'Host affect'),
+      value: formatAffectPerspective(entry.hostEmotionLabel, entry.hostEmotionSummary),
+    },
+    {
+      label: tAudit('fields.self_affect', 'Self affect'),
+      value: formatAffectPerspective(entry.selfEmotionLabel, entry.selfEmotionSummary),
+    },
+    {
+      label: tAudit('fields.initiative_opportunity', 'Initiative opportunity'),
+      value: formatInitiativeOpportunity(entry),
+    },
+    {
       label: tAudit('fields.embodiment_summary', 'Embodiment trace'),
       value: entry.embodimentSummary,
+    },
+    {
+      label: tAudit('fields.embodiment_profile', 'Embodiment recall profile'),
+      value: formatEmbodimentProfile(entry),
     },
     {
       label: tAudit('fields.autobiographical_impact', 'Autobiographical impact'),
@@ -85,7 +130,7 @@ function fieldValueForCorrection(entry: AlicizationHumanlikeMemoryAuditEntry, fi
     case 'emotionalResidue':
       return entry.emotionalResidueTags.join(', ')
     case 'initiativeOpportunity':
-      return entry.initiativeKind
+      return formatInitiativeOpportunity(entry)
     default:
       return ''
   }

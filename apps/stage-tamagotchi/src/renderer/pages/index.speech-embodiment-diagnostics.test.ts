@@ -90,8 +90,10 @@ describe('index speech embodiment diagnostics mapping', () => {
           reason: 'preferred',
           status: 'aligned',
           driftKind: 'aligned',
-          driverCue: 'focused',
-          driverSource: 'prosody-authority',
+          faceDriverCue: 'focused',
+          faceDriverSource: 'prosody-authority',
+          motionDriverCue: 'observe_focus',
+          motionDriverSource: 'timeline-projection',
         },
         vrm: {
           predicted: 'calm',
@@ -99,8 +101,10 @@ describe('index speech embodiment diagnostics mapping', () => {
           reason: 'preferred',
           status: 'aligned',
           driftKind: 'aligned',
-          driverCue: null,
-          driverSource: null,
+          faceDriverCue: null,
+          faceDriverSource: null,
+          motionDriverCue: null,
+          motionDriverSource: null,
         },
       },
       rendererDriftSummary: {
@@ -120,7 +124,7 @@ describe('index speech embodiment diagnostics mapping', () => {
         matchedSources: ['seeded-face', 'seeded-motion', 'seeded-lipsync'],
         bindingSummary: 'target=vrm | drivers=face, motion, lipsync | sources=seeded-face, seeded-motion, seeded-lipsync | matches=face:yes motion:yes lipsync:yes',
         matchSummary: 'face:yes motion:yes lipsync:yes',
-        authorityTrustSummary: null,
+        authorityTrustSummary: '韵律权威链已重新绑定到当前片段，可直接进入长期基线。',
         prosodyAuthoritySummary: 'mode=energy-phoneme-hybrid | prosody=0.36 | mouth=0.28 | head=0.32 | visemePeak=0.75 | provenance=authority-bound | source=prosody-authority | segment=segment-vrm-1',
         authorityMismatchSummary: null,
         authorityMismatchReasonSummary: null,
@@ -128,8 +132,17 @@ describe('index speech embodiment diagnostics mapping', () => {
         settleSummary: 'authority-bound | segment=segment-vrm-1 | target=vrm | drivers=face, motion, lipsync | sources=seeded-face, seeded-motion, seeded-lipsync',
         traceEmbodimentSummary: 'turn=care | closure=grounded-recall | surface=procedural-carry | authority=face, motion, lipsync | execution=face+motion+lipsync',
       },
+      convergence: {
+        segmentId: 'segment-vrm-1',
+        state: 'fully-reunited',
+        line: 'body+face+motion+lipsync+voice',
+        matchedDrivers: ['body', 'face', 'motion', 'lipsync', 'voice'],
+        missingDrivers: [],
+        summary: 'state=fully-reunited | segment=segment-vrm-1 | line=body+face+motion+lipsync+voice | missing=none',
+      },
       speechEvidence: {
         voiceSummary: 'zh-CN | closure=0.84 | precision=0.90 | provenance=authority-bound | segment=segment-vrm-1 | source=prosody-authority',
+        bodyContinuitySummary: null,
         authorityMatchSummary: 'face:yes motion:yes lipsync:yes',
         topVisemeSummary: 'A:0.66, closed:0.41, E:0.24',
         cueSummary: 'focused / observe_focus | prosody=0.36 mouth=0.28 head=0.32',
@@ -191,6 +204,7 @@ describe('index speech embodiment diagnostics mapping', () => {
           rendererTarget: 'vrm',
           matchedDrivers: ['face', 'motion', 'lipsync'],
           sources: ['seeded-face', 'seeded-motion', 'seeded-lipsync'],
+          bodySegmentMatched: false,
           faceSegmentMatched: true,
           motionSegmentMatched: true,
           lipsyncSegmentMatched: true,
@@ -221,7 +235,10 @@ describe('index speech embodiment diagnostics mapping', () => {
           interruptMode: 'soft-interrupt',
           settleMode: 'hold',
           rendererHints: {
+            residentMode: 'repair-before-closeness',
+            preferredBlinkCadence: 'quiet',
             preferredExpressionAliases: ['CalmInspect'],
+            preferredGazeMode: 'soften',
             preferredMotionAliases: ['ObserveSoft'],
           },
           rendererSettle: {
@@ -247,6 +264,7 @@ describe('index speech embodiment diagnostics mapping', () => {
             mode: 'energy-phoneme-hybrid',
             playbackPhase: 'playing',
             segmentId: 'segment-vrm-1',
+            continuityHoldMs: 320,
             visemeHints: [
               { segmentId: 'segment-vrm-1', viseme: 'I', weight: 0.35, source: 'prosody-authority', confidence: 0.94 },
               { segmentId: 'segment-vrm-1', viseme: 'closed', weight: 0.75, source: 'prosody-authority', confidence: 0.89 },
@@ -345,8 +363,10 @@ describe('index speech embodiment diagnostics mapping', () => {
           reason: 'preferred',
           status: 'aligned',
           driftKind: 'aligned',
-          driverCue: 'focused',
-          driverSource: 'prosody-authority',
+          faceDriverCue: 'focused',
+          faceDriverSource: 'prosody-authority',
+          motionDriverCue: 'observe_focus',
+          motionDriverSource: 'timeline-projection',
         },
         vrm: {
           predicted: 'calm',
@@ -354,8 +374,10 @@ describe('index speech embodiment diagnostics mapping', () => {
           reason: 'preferred',
           status: 'aligned',
           driftKind: 'aligned',
-          driverCue: null,
-          driverSource: null,
+          faceDriverCue: null,
+          faceDriverSource: null,
+          motionDriverCue: null,
+          motionDriverSource: null,
         },
       },
       rendererDriftSummary: null,
@@ -371,7 +393,7 @@ describe('index speech embodiment diagnostics mapping', () => {
         matchedSources: ['seeded-face', 'seeded-motion', 'seeded-lipsync'],
         bindingSummary: 'target=vrm | drivers=face, motion, lipsync | sources=seeded-face, seeded-motion, seeded-lipsync | matches=face:yes motion:yes lipsync:yes',
         matchSummary: 'face:yes motion:yes lipsync:yes',
-        authorityTrustSummary: null,
+        authorityTrustSummary: '韵律权威链已重新绑定到当前片段，可直接进入长期基线。',
         prosodyAuthoritySummary: 'mode=energy-phoneme-hybrid | prosody=0.36 | mouth=0.28 | head=0.32 | visemePeak=0.75 | provenance=authority-bound | source=prosody-authority | segment=segment-vrm-1',
         authorityMismatchSummary: null,
         authorityMismatchReasonSummary: null,
@@ -379,8 +401,17 @@ describe('index speech embodiment diagnostics mapping', () => {
         settleSummary: 'authority-bound | segment=segment-vrm-1 | target=vrm | drivers=face, motion, lipsync | sources=seeded-face, seeded-motion, seeded-lipsync',
         traceEmbodimentSummary: 'turn=care | closure=grounded-recall | surface=procedural-carry | authority=face, motion, lipsync | execution=face+motion+lipsync',
       },
+      convergence: {
+        segmentId: 'segment-vrm-1',
+        state: 'fully-reunited',
+        line: 'body+face+motion+lipsync+voice',
+        matchedDrivers: ['body', 'face', 'motion', 'lipsync', 'voice'],
+        missingDrivers: [],
+        summary: 'state=fully-reunited | segment=segment-vrm-1 | line=body+face+motion+lipsync+voice | missing=none',
+      },
       speechEvidence: {
         voiceSummary: 'zh-CN | closure=0.84 | precision=0.90 | provenance=authority-bound | segment=segment-vrm-1 | source=prosody-authority',
+        bodyContinuitySummary: null,
         authorityMatchSummary: 'face:yes motion:yes lipsync:yes',
         topVisemeSummary: 'A:0.66, closed:0.41, E:0.24',
         cueSummary: 'focused / observe_focus | prosody=0.36 mouth=0.28 head=0.32',
@@ -442,6 +473,7 @@ describe('index speech embodiment diagnostics mapping', () => {
           rendererTarget: 'vrm',
           matchedDrivers: ['face', 'motion', 'lipsync'],
           sources: ['seeded-face', 'seeded-motion', 'seeded-lipsync'],
+          bodySegmentMatched: false,
           faceSegmentMatched: true,
           motionSegmentMatched: true,
           lipsyncSegmentMatched: true,
@@ -472,7 +504,10 @@ describe('index speech embodiment diagnostics mapping', () => {
           interruptMode: 'soft-interrupt',
           settleMode: 'hold',
           rendererHints: {
+            residentMode: 'repair-before-closeness',
+            preferredBlinkCadence: 'quiet',
             preferredExpressionAliases: ['CalmInspect'],
+            preferredGazeMode: 'soften',
             preferredMotionAliases: ['ObserveSoft'],
           },
           rendererSettle: {
@@ -498,6 +533,7 @@ describe('index speech embodiment diagnostics mapping', () => {
             mode: 'energy-phoneme-hybrid',
             playbackPhase: 'playing',
             segmentId: 'segment-vrm-1',
+            continuityHoldMs: 320,
             visemeHints: [
               { segmentId: 'segment-vrm-1', viseme: 'I', weight: 0.35, source: 'prosody-authority', confidence: 0.94 },
               { segmentId: 'segment-vrm-1', viseme: 'closed', weight: 0.75, source: 'prosody-authority', confidence: 0.89 },
@@ -516,6 +552,252 @@ describe('index speech embodiment diagnostics mapping', () => {
         },
       },
     })
+  })
+
+  it('keeps same-her restraint lineage visible in renderer diagnostics when deeper runtime carry is measured-return', () => {
+    const mapped = mapSpeechEmbodimentDiagnosticsForRenderer({
+      phase: 'playing',
+      playbackPhase: 'playing',
+      speechEnergy: 0.28,
+      prosodyIntensity: 0.31,
+      emphasisLevel: 0.18,
+      cadencePulse: 0.14,
+      visemeIntensity: 0.2,
+      articulation: null,
+      runtimeDynamics: {
+        profile: 'quiet-accompaniment',
+        variationToken: 'presence-pulse|measured-return',
+        residentEmotion: 'thinking',
+        residentDelivery: 'gentle',
+        residentFacialCue: 'soft-gaze',
+        residentActionCue: 'steady_focus',
+        actionIntensity: 0.08,
+        breathDrive: 0.18,
+        focusDrive: 0.26,
+        provenance: {
+          watchMode: 'symbiotic-vision',
+          bodyState: 'accompanying',
+          continuityMode: 'quiet-accompaniment',
+          thoughtStance: 'accompany',
+          thoughtShouldSpeak: false,
+          thoughtTension: 'measured-return',
+          runtimeChannel: 'active-dialogue',
+          runtimeSummary: 'same-her hold: measured-return is still keeping this callback line lower-pressure before it widens again.',
+          activeThreadId: 'runtime-thread-measured-1',
+          activeThreadTitle: 'same line return',
+          preferredPresence: 'attentive',
+          selectedAction: 'steady_focus',
+          personaBiasSummary: 'leave room before widening warmth again',
+          personaOpeningGuidance: 'Stay on the same line and keep the return lower-pressure.',
+          scene: 'coding',
+          scenario: 'coding',
+        },
+        eventPointers: {
+          recentTransition: {
+            fromWatchMode: 'recovering',
+            toWatchMode: 'symbiotic-vision',
+            fromScenario: 'chat',
+            durationMs: 120_000,
+            reason: 'same callback line continued without reopening from scratch',
+            occurredAt: 9_876,
+          },
+          rationaleTags: ['same-her-hold', 'measured-return', 'durable-relationship-rhythm'],
+          focusBeliefId: 'belief-measured-1',
+          focusInquiryId: null,
+          commitmentId: 'commitment-measured-1',
+          runtimeThreadId: 'runtime-thread-measured-1',
+          governorDrive: 'accompany',
+          governorIntentionId: 'governor-intention-measured-1',
+          selectedThoughtThreadId: 'thought-thread-measured-1',
+        },
+      },
+      recentDrivingEvent: null,
+      recentDrivingTraceRecord: null,
+      recentDrivingTraceEvents: [],
+      recentDrivingTraceDetails: [],
+      traceSummary: null,
+      rendererAlignment: null,
+      rendererDriftSummary: null,
+      articulationSummary: null,
+      authoritySummary: null,
+      cueMicroSummary: null,
+      driverSummary: {
+        rendererTarget: 'vrm',
+        face: {
+          cue: 'soft-gaze',
+          source: 'prosody-authority',
+          confidence: 0.9,
+          segmentId: 'segment-measured-1',
+          residentMode: 'measured-return',
+          preferredBlinkCadence: 'linger',
+          preferredGazeMode: 'soften',
+          reasonSummary: 'same-her hold still favors a softer return line',
+        },
+        motion: {
+          cue: 'steady_focus',
+          source: 'timeline-projection',
+          confidence: 0.84,
+          segmentId: 'segment-measured-1',
+          residentMode: 'measured-return',
+          preferredBlinkCadence: 'linger',
+          preferredGazeMode: 'soften',
+          reasonSummary: 'leave room before widening back out',
+        },
+        lipsync: null,
+      },
+      driverExecutionSummary: null,
+      live2dExecution: null,
+      visemeHintsSummary: null,
+      playbackTelemetry: {
+        actualDurationMs: 180,
+        plannedDurationMs: 200,
+        driftMs: -20,
+        settleMs: 220,
+        stopReason: null,
+        rendererTarget: 'vrm',
+        driverAuthority: {
+          segmentId: 'segment-measured-1',
+          rendererTarget: 'vrm',
+          matchedDrivers: ['face', 'motion', 'lipsync'],
+          sources: ['seeded-face', 'seeded-motion', 'seeded-lipsync'],
+          bodySegmentMatched: false,
+          faceSegmentMatched: true,
+          motionSegmentMatched: true,
+          lipsyncSegmentMatched: true,
+        },
+        cue: {
+          id: 'segment-measured-1',
+          text: null,
+          prosodyWeight: 0.22,
+          mouthWeight: 0.18,
+          headWeight: 0.16,
+          personaStyleSummary: 'lower-pressure return',
+          facialHoldMs: 340,
+          actionHoldMs: 260,
+          emotionHoldMs: 380,
+          facialCue: 'soft-gaze',
+          actionCue: 'steady_focus',
+          actionWindow: 'segment-start',
+          interruptMode: 'soft-interrupt',
+          settleMode: 'hold',
+          rendererHints: {
+            residentMode: 'measured-return',
+            preferredBlinkCadence: 'linger',
+            preferredExpressionAliases: ['CalmInspect'],
+            preferredGazeMode: 'soften',
+            preferredMotionAliases: ['ObserveSoft'],
+          },
+          rendererSettle: {
+            vrmActionFadeMs: 280,
+            vrmExpressionBlendMs: 360,
+          },
+        },
+        drivers: null,
+      },
+    } as any)
+
+    expect(mapped.runtimeDynamics).toEqual(expect.objectContaining({
+      profile: 'quiet-accompaniment',
+      provenance: expect.objectContaining({
+        continuityMode: 'quiet-accompaniment',
+        thoughtTension: 'measured-return',
+        runtimeSummary: expect.stringContaining('same-her hold: measured-return'),
+        personaOpeningGuidance: 'Stay on the same line and keep the return lower-pressure.',
+      }),
+      eventPointers: expect.objectContaining({
+        rationaleTags: expect.arrayContaining(['same-her-hold', 'measured-return', 'durable-relationship-rhythm']),
+      }),
+    }))
+    expect(mapped.driverSummary).toEqual(expect.objectContaining({
+      rendererTarget: 'vrm',
+      face: expect.objectContaining({
+        residentMode: 'measured-return',
+        preferredBlinkCadence: 'linger',
+        preferredGazeMode: 'soften',
+      }),
+      motion: expect.objectContaining({
+        residentMode: 'measured-return',
+        preferredBlinkCadence: 'linger',
+        preferredGazeMode: 'soften',
+      }),
+    }))
+    expect(mapped.playbackTelemetry?.cue?.rendererHints).toEqual(expect.objectContaining({
+      residentMode: 'measured-return',
+      preferredBlinkCadence: 'linger',
+      preferredGazeMode: 'soften',
+    }))
+  })
+
+  it('preserves same-turn-if-invited timing alongside measured-return renderer hints in renderer diagnostics mapping', () => {
+    const mapped = mapSpeechEmbodimentDiagnosticsForRenderer({
+      phase: 'playing',
+      playbackPhase: 'playing',
+      playbackTelemetry: {
+        actualDurationMs: 180,
+        plannedDurationMs: 200,
+        driftMs: -20,
+        settleMs: 260,
+        stopReason: null,
+        rendererTarget: 'vrm',
+        cue: {
+          id: 'segment-invited-measured-1',
+          text: 'I am still here.',
+          facialCue: 'soft-gaze',
+          actionCue: 'steady_focus',
+          actionWindow: 'same-turn-if-invited',
+          interruptMode: 'soft-interrupt',
+          settleMode: 'hold',
+          rendererHints: {
+            residentMode: 'measured-return',
+            preferredBlinkCadence: 'linger',
+            preferredExpressionAliases: ['RecoverSoft'],
+            preferredGazeMode: 'soften',
+            preferredMotionAliases: ['StillnessGuard', 'ObserveSoft'],
+          },
+          rendererSettle: {
+            vrmActionFadeMs: 280,
+            vrmExpressionBlendMs: 360,
+          },
+        },
+      },
+      driverSummary: {
+        rendererTarget: 'vrm',
+        face: {
+          cue: 'soft-gaze',
+          source: 'cue-bridge',
+          confidence: 0.83,
+          segmentId: 'segment-invited-measured-1',
+          residentMode: 'measured-return',
+          preferredBlinkCadence: 'linger',
+          preferredGazeMode: 'soften',
+          reasonSummary: 'stay on the same callback line when invited back in',
+        },
+        motion: {
+          cue: 'steady_focus',
+          source: 'cue-bridge',
+          confidence: 0.79,
+          segmentId: 'segment-invited-measured-1',
+          residentMode: 'measured-return',
+          preferredBlinkCadence: 'linger',
+          preferredGazeMode: 'soften',
+          reasonSummary: 'keep the invited return settled before widening outward',
+        },
+        lipsync: null,
+      },
+    } as any)
+
+    expect(mapped.playbackTelemetry?.cue).toEqual(expect.objectContaining({
+      actionWindow: 'same-turn-if-invited',
+      interruptMode: 'soft-interrupt',
+      settleMode: 'hold',
+    }))
+    expect(mapped.playbackTelemetry?.cue?.rendererHints).toEqual(expect.objectContaining({
+      residentMode: 'measured-return',
+      preferredBlinkCadence: 'linger',
+      preferredExpressionAliases: ['RecoverSoft'],
+      preferredGazeMode: 'soften',
+      preferredMotionAliases: ['StillnessGuard', 'ObserveSoft'],
+    }))
   })
 
   it('enriches upstream authority mismatch explainability with final surface policy when renderer trace context has stronger authority evidence', () => {
@@ -680,6 +962,810 @@ describe('index speech embodiment diagnostics mapping', () => {
     })
   })
 
+  it('keeps body lipsync voice same-her lanes explicit in snapshot-native trace embodiment summaries', () => {
+    const mapped = mapSpeechEmbodimentDiagnosticsForRenderer({
+      phase: 'playing',
+      playbackPhase: 'playing',
+      recentDrivingTraceRecord: {
+        decisionTraceId: 'mind:trace:body-lipsync-voice-native-1',
+        activeThreadId: 'thread-body-lipsync-voice-native-1',
+        turnMode: 'care',
+        truthState: 'live-grounded',
+        repairState: 'none',
+        finalSurfacePolicy: 'procedural-carry',
+        closureState: 'grounded-recall',
+        suppressionTags: [],
+      },
+      recentDrivingTraceDetails: [
+        {
+          kind: 'presence-pulse-dispatched',
+          summary: 'same living line stayed audible while body and mouth carried it',
+          createdAt: 1_234,
+          details: [
+            { label: 'scenario', value: 'same-body-line' },
+            { label: 'stance', value: 'observe-first' },
+          ],
+        },
+        {
+          kind: 'person-state-updated',
+          summary: 'care, grounded-recall',
+          createdAt: 1_235,
+          details: [
+            { label: 'sourceTrail', value: 'care, grounded-recall' },
+          ],
+        },
+      ],
+      authoritySummary: {
+        cueId: 'segment-body-lipsync-voice-native-1',
+        segmentId: 'segment-body-lipsync-voice-native-1',
+        rendererTarget: 'vrm',
+        matchedDrivers: ['body', 'lipsync', 'voice'],
+        matchedSources: ['prosody-authority', 'voice-segment'],
+        bindingSummary: '上游 authority 绑定',
+        matchSummary: '上游 authority 命中',
+        authorityMismatchSummary: null,
+        authorityMismatchReasonSummary: null,
+        authorityMismatchDisplay: null,
+        settleSummary: '上游 authority settle',
+      },
+      driverExecutionSummary: 'body=measured-return seg=segment-body-lipsync-voice-native-1 | lipsync=energy-phoneme-hybrid phase=playing seg=segment-body-lipsync-voice-native-1 | voice=authority-bound phase=playing seg=segment-body-lipsync-voice-native-1',
+    } as any)
+
+    expect(mapped.authoritySummary).toEqual(expect.objectContaining({
+      cueId: 'segment-body-lipsync-voice-native-1',
+      segmentId: 'segment-body-lipsync-voice-native-1',
+      matchedDrivers: ['body', 'lipsync', 'voice'],
+      traceEmbodimentSummary: 'turn=care | closure=grounded-recall | surface=procedural-carry | authority=body, lipsync, voice | execution=body+lipsync+voice | scenario=same-body-line | stance=observe-first | sourceTrail=care, grounded-recall',
+    }))
+  })
+
+  it('preserves body-carried speech rejoin authority lanes from upstream playback telemetry', () => {
+    const mapped = mapSpeechEmbodimentDiagnosticsForRenderer({
+      phase: 'playing',
+      playbackPhase: 'playing',
+      traceSummary: {
+        cueId: 'segment-body-speech-rejoin-1',
+        segmentBinding: {
+          segmentId: 'segment-body-speech-rejoin-1',
+          rendererTarget: 'vrm',
+          matchedDrivers: ['body', 'lipsync'],
+          matchedSources: ['prosody-authority', 'body-rejoin'],
+          bodySegmentMatched: true,
+          faceSegmentMatched: false,
+          motionSegmentMatched: false,
+          lipsyncSegmentMatched: true,
+        },
+      },
+      authoritySummary: {
+        cueId: 'segment-body-speech-rejoin-1',
+        segmentId: 'segment-body-speech-rejoin-1',
+        rendererTarget: 'vrm',
+        matchedDrivers: ['body', 'lipsync'],
+        matchedSources: ['prosody-authority', 'body-rejoin'],
+        bindingSummary: 'speech authority rebound through the same body segment',
+        matchSummary: 'drivers=body+lipsync matches=body+lipsync',
+        authorityMismatchSummary: null,
+        authorityMismatchReasonSummary: null,
+        authorityMismatchDisplay: null,
+        settleSummary: 'body and speech settle together',
+      },
+      playbackTelemetry: {
+        rendererTarget: 'vrm',
+        driverAuthority: {
+          segmentId: 'segment-body-speech-rejoin-1',
+          rendererTarget: 'vrm',
+          matchedDrivers: ['body', 'lipsync'],
+          sources: ['prosody-authority', 'body-rejoin'],
+          bodySegmentMatched: true,
+          faceSegmentMatched: false,
+          motionSegmentMatched: false,
+          lipsyncSegmentMatched: true,
+        },
+        cue: {
+          id: 'segment-body-speech-rejoin-1',
+          text: 'I am still here with you.',
+        },
+      },
+    } as any)
+
+    expect(mapped.traceSummary?.segmentBinding).toEqual({
+      segmentId: 'segment-body-speech-rejoin-1',
+      rendererTarget: 'vrm',
+      matchedDrivers: ['body', 'lipsync'],
+      matchedSources: ['prosody-authority', 'body-rejoin'],
+      bodySegmentMatched: true,
+      faceSegmentMatched: false,
+      motionSegmentMatched: false,
+      lipsyncSegmentMatched: true,
+    })
+    expect(mapped.authoritySummary?.matchedDrivers).toEqual(['body', 'lipsync'])
+    expect(mapped.playbackTelemetry?.driverAuthority).toMatchObject({
+      segmentId: 'segment-body-speech-rejoin-1',
+      rendererTarget: 'vrm',
+      matchedDrivers: ['body', 'lipsync'],
+      sources: ['prosody-authority', 'body-rejoin'],
+      bodySegmentMatched: true,
+      faceSegmentMatched: false,
+      motionSegmentMatched: false,
+      lipsyncSegmentMatched: true,
+    })
+  })
+
+  it('backfills voice-segment into trace summary matched sources when playback and authority already prove the same cue carries speech rejoin continuity', () => {
+    const mapped = mapSpeechEmbodimentDiagnosticsForRenderer({
+      phase: 'playing',
+      playbackPhase: 'playing',
+      traceSummary: {
+        cueId: 'segment-body-voice-rejoin-1',
+        segmentBinding: {
+          segmentId: 'segment-body-voice-rejoin-1',
+          rendererTarget: 'vrm',
+          matchedDrivers: ['body', 'lipsync'],
+          matchedSources: ['prosody-authority'],
+          bodySegmentMatched: true,
+          faceSegmentMatched: false,
+          motionSegmentMatched: false,
+          lipsyncSegmentMatched: true,
+        },
+      },
+      authoritySummary: {
+        cueId: 'segment-body-voice-rejoin-1',
+        segmentId: 'segment-body-voice-rejoin-1',
+        rendererTarget: 'vrm',
+        matchedDrivers: ['body', 'lipsync'],
+        matchedSources: ['prosody-authority', 'voice-segment'],
+        bindingSummary: 'target=vrm | drivers=body, lipsync | sources=prosody-authority, voice-segment | matches=body:yes face:no motion:no lipsync:yes | lane=body+lipsync-only',
+        matchSummary: 'body:yes face:no motion:no lipsync:yes',
+        authorityMismatchSummary: null,
+        authorityMismatchReasonSummary: null,
+        authorityMismatchDisplay: null,
+        settleSummary: 'authority-bound | segment=segment-body-voice-rejoin-1 | target=vrm | drivers=body, lipsync | sources=prosody-authority, voice-segment | lane=body+lipsync-only',
+      },
+      playbackTelemetry: {
+        rendererTarget: 'vrm',
+        driverAuthority: {
+          segmentId: 'segment-body-voice-rejoin-1',
+          rendererTarget: 'vrm',
+          matchedDrivers: ['body', 'lipsync', 'voice'],
+          sources: ['prosody-authority', 'voice-segment'],
+          bodySegmentMatched: true,
+          faceSegmentMatched: false,
+          motionSegmentMatched: false,
+          lipsyncSegmentMatched: true,
+          voiceSegmentMatched: true,
+        },
+        cue: {
+          id: 'segment-body-voice-rejoin-1',
+          text: '身体先把声音接回来。',
+        },
+        drivers: {
+          face: null,
+          motion: null,
+          lipsync: {
+            mode: 'energy-phoneme-hybrid',
+            playbackPhase: 'playing',
+            segmentId: 'segment-body-voice-rejoin-1',
+            continuityHoldMs: 320,
+            visemeHints: [
+              { segmentId: 'segment-body-voice-rejoin-1', viseme: 'I', weight: 0.42, source: 'prosody-authority', confidence: 0.94 },
+              { segmentId: 'segment-body-voice-rejoin-1', viseme: 'closed', weight: 0.75, source: 'voice-segment', confidence: 0.89 },
+            ],
+          },
+        },
+      },
+    } as any)
+
+    expect(mapped.traceSummary?.segmentBinding).toEqual({
+      segmentId: 'segment-body-voice-rejoin-1',
+      rendererTarget: 'vrm',
+      matchedDrivers: ['body', 'lipsync'],
+      matchedSources: ['prosody-authority', 'voice-segment'],
+      bodySegmentMatched: true,
+      faceSegmentMatched: false,
+      motionSegmentMatched: false,
+      lipsyncSegmentMatched: true,
+    })
+    expect(mapped.playbackTelemetry?.driverAuthority).toEqual(expect.objectContaining({
+      segmentId: 'segment-body-voice-rejoin-1',
+      rendererTarget: 'vrm',
+      matchedDrivers: ['body', 'lipsync', 'voice'],
+      sources: ['prosody-authority', 'voice-segment'],
+      bodySegmentMatched: true,
+      faceSegmentMatched: false,
+      motionSegmentMatched: false,
+      lipsyncSegmentMatched: true,
+      voiceSegmentMatched: true,
+    }))
+  })
+
+  it('keeps tightened callback reopen summaries on the same thread when renderer diagnostics map a repair-before-closeness return', () => {
+    const mapped = mapSpeechEmbodimentDiagnosticsForRenderer({
+      phase: 'playing',
+      playbackPhase: 'playing',
+      runtimeDynamics: {
+        profile: 'quiet-accompaniment',
+        variationToken: 'presence-pulse|repair-before-closeness',
+        residentEmotion: 'thinking',
+        residentDelivery: 'gentle',
+        residentFacialCue: 'soft-gaze',
+        residentActionCue: 'idle_settle',
+        actionIntensity: 0.06,
+        breathDrive: 0.16,
+        focusDrive: 0.22,
+        provenance: {
+          watchMode: 'symbiotic-vision',
+          bodyState: 'accompanying',
+          continuityMode: 'quiet-accompaniment',
+          thoughtStance: 'accompany',
+          thoughtShouldSpeak: false,
+          thoughtTension: 'repair-before-closeness',
+          runtimeChannel: 'active-dialogue',
+          runtimeSummary: 'same-her hold: this callback line tightened into repair-before-closeness before it widens again.',
+          activeThreadId: 'runtime-thread-tightened-callback-1',
+          activeThreadTitle: 'same line return',
+          preferredPresence: 'attentive',
+          selectedAction: 'idle_settle',
+          personaBiasSummary: 'leave more room before widening warmth again',
+          personaOpeningGuidance: 'Stay on the same line and let the return hold more distance first.',
+          scene: 'coding',
+          scenario: 'coding',
+        },
+        eventPointers: {
+          recentTransition: {
+            fromWatchMode: 'symbiotic-vision',
+            toWatchMode: 'symbiotic-vision',
+            fromScenario: 'coding',
+            durationMs: 180_000,
+            reason: 'same callback line reopened again, but this time more inward',
+            occurredAt: 12_468,
+          },
+          rationaleTags: ['same-her-hold', 'repair-before-closeness'],
+          focusBeliefId: 'belief-tightened-callback-1',
+          focusInquiryId: null,
+          commitmentId: 'commitment-tightened-callback-1',
+          runtimeThreadId: 'runtime-thread-tightened-callback-1',
+          governorDrive: 'accompany',
+          governorIntentionId: 'governor-intention-tightened-callback-1',
+          selectedThoughtThreadId: 'thought-thread-tightened-callback-1',
+        },
+      },
+      recentDrivingEvent: {
+        kind: 'dialogue-responded',
+        decisionTraceId: 'mind:tightened-callback-renderer:1',
+        summary: 'same-her callback line tightened inward after repeated reopenings',
+        createdAt: 2_468,
+      },
+      recentDrivingTraceRecord: {
+        decisionTraceId: 'mind:tightened-callback-renderer:1',
+        activeThreadId: 'runtime-thread-tightened-callback-1',
+        turnMode: 'answer',
+        truthState: 'remembered',
+        repairState: 'none',
+        finalSurfacePolicy: 'same-thread-continuation',
+        closureState: 'same-her-carry',
+        suppressionTags: ['continuity-next-open-window'],
+      },
+      recentDrivingTraceEvents: [],
+      recentDrivingTraceDetails: [],
+      traceSummary: {
+        decisionTraceId: 'mind:tightened-callback-renderer:1',
+        turnMode: 'answer',
+        truthState: 'remembered',
+        repairState: 'none',
+        finalSurfacePolicy: 'same-thread-continuation',
+        closureState: 'same-her-carry',
+        activeThreadId: 'runtime-thread-tightened-callback-1',
+        suppressionTags: ['continuity-next-open-window'],
+        latestEventSummary: 'same-her callback line stayed on the same thread, but the reopen narrowed into repair-before-closeness',
+        segmentBinding: {
+          matched: false,
+          rendererTarget: 'vrm',
+          matchedDrivers: ['lipsync'],
+          matchedSources: ['prosody-authority'],
+        },
+      },
+      authoritySummary: {
+        cueId: 'segment-tightened-callback-renderer-1',
+        segmentId: 'segment-tightened-callback-renderer-1',
+        rendererTarget: 'vrm',
+        matchedDrivers: ['lipsync'],
+        matchedSources: ['prosody-authority'],
+        bindingSummary: 'speech authority remained on the same callback line',
+        matchSummary: 'face:no motion:no lipsync:yes',
+        authorityMismatchSummary: 'face-mismatch, motion-mismatch',
+        authorityMismatchReasonSummary: '表情、动作 authority 漂移，但这一段 reopen 已经收紧为 repair-before-closeness。',
+        authorityMismatchDisplay: '表情、动作 authority 漂移，但这一段 reopen 已经收紧为 repair-before-closeness。',
+        settleSummary: 'callback line still held on the same segment',
+      },
+      cueMicroSummary: {
+        cueId: 'segment-tightened-callback-renderer-1',
+        cueText: '我还在，只是先别一下子靠太近。',
+        cue: 'soft-gaze / idle_settle | prosody=0.30 mouth=0.24 head=0.22',
+        personaStyle: 'repair-before-closeness | soften / linger',
+        timing: 'facial=360 action=320 emotion=380 | segment-start | soft-interrupt | hold',
+      },
+      driverSummary: {
+        rendererTarget: 'vrm',
+        face: {
+          cue: 'soft-gaze',
+          source: 'prosody-authority',
+          confidence: 0.93,
+          segmentId: 'segment-tightened-callback-renderer-1',
+          residentMode: 'repair-before-closeness',
+          preferredBlinkCadence: 'linger',
+          preferredGazeMode: 'soften',
+          reasonSummary: 'same callback line tightened before widening again',
+        },
+        motion: {
+          cue: 'idle_settle',
+          source: 'timeline-projection',
+          confidence: 0.88,
+          segmentId: 'segment-tightened-callback-renderer-1',
+          residentMode: 'repair-before-closeness',
+          preferredBlinkCadence: 'linger',
+          preferredGazeMode: 'soften',
+          reasonSummary: 'hold more inward distance before the next outward move',
+        },
+        lipsync: null,
+      },
+      playbackTelemetry: {
+        rendererTarget: 'vrm',
+        driverAuthority: {
+          segmentId: 'segment-tightened-callback-renderer-1',
+          rendererTarget: 'vrm',
+          matchedDrivers: ['face', 'motion', 'lipsync'],
+          sources: ['prosody-authority', 'timeline-projection'],
+          faceSegmentMatched: false,
+          motionSegmentMatched: false,
+          lipsyncSegmentMatched: true,
+        },
+        cue: {
+          id: 'segment-tightened-callback-renderer-1',
+          text: '我还在，只是先别一下子靠太近。',
+          rendererHints: {
+            residentMode: 'repair-before-closeness',
+            preferredExpressionAliases: ['RecoverSoft'],
+            preferredMotionAliases: ['StillnessGuard', 'ObserveSoft'],
+            preferredBlinkCadence: 'linger',
+            preferredGazeMode: 'soften',
+          },
+          rendererSettle: {
+            live2dFacialReleaseMs: 380,
+            live2dMotionFollowThroughMs: 460,
+            vrmActionFadeMs: 460,
+            vrmExpressionBlendMs: 540,
+          },
+        },
+      },
+    } as any)
+
+    expect(mapped.traceSummary?.latestEventSummary).toContain('repair-before-closeness')
+    expect(mapped.authoritySummary?.authorityMismatchReasonSummary).toContain('same-thread-continuation')
+    expect(mapped.authoritySummary?.authorityMismatchDisplay).toContain('same-thread-continuation')
+    expect(mapped.cueMicroSummary?.personaStyle).toBe('repair-before-closeness | soften / linger')
+    expect(mapped.driverSummary?.face?.residentMode).toBe('repair-before-closeness')
+    expect(mapped.driverSummary?.motion?.residentMode).toBe('repair-before-closeness')
+    expect(mapped.playbackTelemetry?.cue?.rendererHints).toEqual(expect.objectContaining({
+      residentMode: 'repair-before-closeness',
+      preferredExpressionAliases: ['RecoverSoft'],
+      preferredMotionAliases: ['StillnessGuard', 'ObserveSoft'],
+    }))
+  })
+
+  it('keeps interruption-tail same-her narration when renderer diagnostics map an owner-canceled callback-line resume', () => {
+    const mapped = mapSpeechEmbodimentDiagnosticsForRenderer({
+      phase: 'playing',
+      playbackPhase: 'playing',
+      recentDrivingEvent: {
+        kind: 'dialogue-interrupted',
+        decisionTraceId: 'mind:interrupt-callback-renderer:1',
+        summary: '打断以后还是沿着同一条 callback 线轻一点接回来。',
+        createdAt: 3_468,
+      },
+      recentDrivingTraceRecord: {
+        decisionTraceId: 'mind:interrupt-callback-renderer:1',
+        activeThreadId: 'runtime-thread-interrupt-callback-1',
+        turnMode: 'answer',
+        truthState: 'remembered',
+        repairState: 'none',
+        finalSurfacePolicy: 'same-thread-continuation',
+        closureState: 'same-her-carry',
+        suppressionTags: ['continuity-next-open-window', 'interrupt-tail'],
+      },
+      recentDrivingTraceEvents: [],
+      recentDrivingTraceDetails: [],
+      traceSummary: {
+        decisionTraceId: 'mind:interrupt-callback-renderer:1',
+        turnMode: 'answer',
+        truthState: 'remembered',
+        repairState: 'none',
+        finalSurfacePolicy: 'same-thread-continuation',
+        closureState: 'same-her-carry',
+        activeThreadId: 'runtime-thread-interrupt-callback-1',
+        suppressionTags: ['continuity-next-open-window', 'interrupt-tail'],
+        latestEventSummary: 'owner-canceled interruption happened, but the same-her callback line still resumed on the later segment',
+        segmentBinding: {
+          matched: true,
+          rendererTarget: 'live2d',
+          matchedDrivers: ['face', 'motion', 'lipsync'],
+          matchedSources: ['prosody-authority', 'timeline-projection'],
+          faceSegmentMatched: true,
+          motionSegmentMatched: true,
+          lipsyncSegmentMatched: true,
+        },
+      },
+      authoritySummary: {
+        cueId: 'segment-later-callback-return',
+        segmentId: 'segment-later-callback-return',
+        rendererTarget: 'live2d',
+        matchedDrivers: ['face', 'motion', 'lipsync'],
+        matchedSources: ['prosody-authority', 'timeline-projection'],
+        bindingSummary: 'interruption tail still resolved onto the later living segment',
+        matchSummary: 'face:yes motion:yes lipsync:yes',
+        authorityMismatchSummary: null,
+        authorityMismatchReasonSummary: '打断发生后没有重新长出另一条人，而是继续沿着同一条线接回来。',
+        authorityMismatchDisplay: '打断发生后没有重新长出另一条人，而是继续沿着同一条线接回来。',
+        settleSummary: 'later callback segment kept authority after interruption',
+      },
+      articulationSummary: {
+        voice: 'zh-CN | closure=0.72 | precision=0.88 | companion=repair-before-closeness',
+        topVisemes: 'closed:0.78, I:0.72',
+        cueId: 'segment-later-callback-return',
+        segmentId: 'segment-later-callback-return',
+        bindingSummary: 'target=live2d | drivers=face, motion, lipsync | sources=prosody-authority, timeline-projection | matches=face:yes motion:yes lipsync:yes',
+      },
+      cueMicroSummary: {
+        cueId: 'segment-later-callback-return',
+        cueText: '我还在，只是先别一下子靠太近。',
+        cue: 'soft-gaze / idle_settle | prosody=0.38 mouth=0.34 head=0.29',
+        personaStyle: 'repair-before-closeness | soften / linger',
+        timing: 'facial=360 action=320 emotion=360 | segment-start | soft-interrupt | hold',
+      },
+      speechEvidence: {
+        voiceSummary: 'companion=repair-before-closeness | closure=0.72 | blink=linger | gaze=soften',
+        authorityMatchSummary: 'face:yes motion:yes lipsync:yes',
+        topVisemeSummary: 'closed:0.78, I:0.72',
+        cueSummary: 'soft-gaze / idle_settle | prosody=0.38 mouth=0.34 head=0.29',
+        cueIdentityPresent: true,
+        cueProsodyPresent: true,
+        personaStyleSummary: 'repair-before-closeness | soften / linger',
+        timingSummary: 'facial=360 action=320 emotion=360 | segment-start | soft-interrupt | hold',
+        driverExecutionSummary: 'face=thinking/soft-release@0.41 hold=360 pre=soft-breath post=soft-release src=prosody-authority conf=0.94 | motion=idle_settle mode=attentive idle=steady_focus@0.18 hold=320 src=timeline-projection conf=0.90 | lipsync=energy-phoneme-hybrid phase=playing',
+        visemeHintsSummary: 'closed:0.78@0.93 | I:0.72@0.95',
+      },
+      driverSummary: {
+        rendererTarget: 'live2d',
+        face: {
+          cue: 'soft-release',
+          source: 'prosody-authority',
+          confidence: 0.94,
+          segmentId: 'segment-later-callback-return',
+          residentMode: 'repair-before-closeness',
+          preferredBlinkCadence: 'linger',
+          preferredGazeMode: 'soften',
+          reasonSummary: 'the interruption passed, but she stayed on the same callback line',
+        },
+        motion: {
+          cue: 'idle_settle',
+          source: 'timeline-projection',
+          confidence: 0.9,
+          segmentId: 'segment-later-callback-return',
+          residentMode: 'repair-before-closeness',
+          preferredBlinkCadence: 'linger',
+          preferredGazeMode: 'soften',
+          reasonSummary: 'resume more inward after the interruption instead of reopening from scratch',
+        },
+        lipsync: null,
+      },
+      live2dExecution: {
+        activeExpression: {
+          name: 'RecoverSoft',
+          reason: 'preferred',
+          score: 12.2,
+          segmentId: 'segment-later-callback-return',
+        },
+        activeMotion: {
+          group: 'StillnessGuard',
+          index: 0,
+        },
+        cue: {
+          emotion: 'thinking',
+          facialCue: 'soft-gaze',
+          preferredExpressionAliases: ['RecoverSoft'],
+          preferredMotionAliases: ['StillnessGuard', 'ObserveSoft'],
+          live2dFacialReleaseMs: 380,
+          live2dMotionFollowThroughMs: 460,
+        },
+      },
+      playbackTelemetry: {
+        stopReason: 'owner-canceled',
+        rendererTarget: 'live2d',
+        driverAuthority: {
+          segmentId: 'segment-later-callback-return',
+          rendererTarget: 'live2d',
+          matchedDrivers: ['face', 'motion', 'lipsync'],
+          sources: ['prosody-authority', 'timeline-projection'],
+          faceSegmentMatched: true,
+          motionSegmentMatched: true,
+          lipsyncSegmentMatched: true,
+        },
+        cue: {
+          id: 'segment-later-callback-return',
+          text: '我还在，只是先别一下子靠太近。',
+          emotion: 'thinking',
+          interruptMode: 'soft-interrupt',
+          settleMode: 'hold',
+          rendererHints: {
+            residentMode: 'repair-before-closeness',
+            preferredExpressionAliases: ['RecoverSoft'],
+            preferredMotionAliases: ['StillnessGuard', 'ObserveSoft'],
+            preferredBlinkCadence: 'linger',
+            preferredGazeMode: 'soften',
+          },
+          rendererSettle: {
+            live2dFacialReleaseMs: 380,
+            live2dMotionFollowThroughMs: 460,
+            vrmActionFadeMs: 460,
+            vrmExpressionBlendMs: 540,
+          },
+        },
+      },
+    } as any)
+
+    expect(mapped.recentDrivingEvent?.summary).toContain('同一条 callback 线')
+    expect(mapped.traceSummary?.latestEventSummary).toContain('owner-canceled')
+    expect(mapped.traceSummary?.latestEventSummary).toContain('same-her callback line')
+    expect(mapped.authoritySummary?.authorityMismatchReasonSummary).toContain('same-thread-continuation')
+    expect(mapped.authoritySummary?.authorityMismatchDisplay).toContain('same-thread-continuation')
+    expect(mapped.articulationSummary?.cueId).toBe('segment-later-callback-return')
+    expect(mapped.articulationSummary?.segmentId).toBe('segment-later-callback-return')
+    expect(mapped.articulationSummary?.voice).toContain('closure=0.72')
+    expect(mapped.articulationSummary?.topVisemes).toContain('closed:0.78')
+    expect(mapped.authoritySummary?.segmentId).toBe(mapped.articulationSummary?.segmentId)
+    expect(mapped.playbackTelemetry?.driverAuthority?.segmentId).toBe(mapped.articulationSummary?.segmentId)
+    expect(mapped.driverSummary?.face?.preferredBlinkCadence).toBe('linger')
+    expect(mapped.driverSummary?.motion?.preferredBlinkCadence).toBe('linger')
+    expect(mapped.driverSummary?.face?.cue).toBe('soft-release')
+    expect(mapped.cueMicroSummary?.personaStyle).toBe('repair-before-closeness | soften / linger')
+    expect(mapped.speechEvidence?.voiceSummary).toContain('emotion=thinking')
+    expect(mapped.speechEvidence?.cueSummary).toContain('soft-gaze / idle_settle')
+    expect(mapped.speechEvidence?.timingSummary).toContain('soft-interrupt | hold')
+    expect(mapped.live2dExecution?.activeExpression?.name).toBe('RecoverSoft')
+    expect(mapped.live2dExecution?.activeExpression?.segmentId).toBe(mapped.articulationSummary?.segmentId)
+    expect(mapped.live2dExecution?.activeMotion?.group).toBe('StillnessGuard')
+    expect(mapped.driverSummary?.motion?.segmentId).toBe(mapped.articulationSummary?.segmentId)
+    expect(mapped.live2dExecution?.cue?.preferredExpressionAliases).toEqual(['RecoverSoft'])
+    expect(mapped.live2dExecution?.cue?.preferredMotionAliases).toEqual(['StillnessGuard', 'ObserveSoft'])
+    expect(mapped.playbackTelemetry?.cue?.settleMode).toBe('hold')
+    expect(mapped.playbackTelemetry?.cue?.interruptMode).toBe('soft-interrupt')
+    expect(mapped.playbackTelemetry?.stopReason).toBe('owner-canceled')
+    expect(mapped.playbackTelemetry?.cue?.rendererHints).toEqual(expect.objectContaining({
+      residentMode: 'repair-before-closeness',
+      preferredExpressionAliases: ['RecoverSoft'],
+      preferredMotionAliases: ['StillnessGuard', 'ObserveSoft'],
+    }))
+    expect(mapped.playbackTelemetry?.cue?.rendererSettle?.live2dFacialReleaseMs).toBe(380)
+    expect(mapped.playbackTelemetry?.cue?.rendererSettle?.live2dMotionFollowThroughMs).toBe(460)
+  })
+
+  it('preserves playback lipsync continuity hold when mapping renderer page diagnostics so later mouth-settle evidence remains host-visible', () => {
+    const mapped = mapSpeechEmbodimentDiagnosticsForRenderer({
+      phase: 'playing',
+      playbackPhase: 'playing',
+      speechEnergy: 0.22,
+      prosodyIntensity: 0.31,
+      emphasisLevel: 0.12,
+      cadencePulse: 0.14,
+      visemeIntensity: 0.28,
+      articulation: null,
+      runtimeDynamics: null,
+      recentDrivingEvent: null,
+      recentDrivingTraceRecord: null,
+      recentDrivingTraceEvents: [],
+      recentDrivingTraceDetails: [],
+      traceSummary: null,
+      rendererAlignment: { live2d: null, vrm: null },
+      rendererDriftSummary: null,
+      articulationSummary: null,
+      authoritySummary: null,
+      speechEvidence: null,
+      cueMicroSummary: null,
+      driverSummary: null,
+      driverExecutionSummary: null,
+      live2dExecution: null,
+      visemeHintsSummary: null,
+      playbackTelemetry: {
+        actualDurationMs: 280,
+        plannedDurationMs: 240,
+        driftMs: 40,
+        settleMs: 520,
+        stopReason: 'owner-canceled',
+        rendererTarget: 'live2d',
+        driverAuthority: null,
+        cue: {
+          id: 'segment-later-mouth-hold',
+          text: '我还沿着这条线在。',
+          rendererSettle: {
+            live2dFacialReleaseMs: 380,
+            live2dMotionFollowThroughMs: 460,
+            vrmActionFadeMs: 0,
+            vrmExpressionBlendMs: 0,
+          },
+        } as any,
+        drivers: {
+          face: null,
+          motion: null,
+          lipsync: {
+            mode: 'energy-phoneme-hybrid',
+            playbackPhase: 'idle',
+            segmentId: 'segment-later-mouth-hold',
+            continuityHoldMs: 520,
+            visemeHints: [],
+          },
+        },
+      },
+    } as any)
+
+    expect(mapped.playbackTelemetry?.drivers?.lipsync).toEqual({
+      mode: 'energy-phoneme-hybrid',
+      playbackPhase: 'idle',
+      segmentId: 'segment-later-mouth-hold',
+      continuityHoldMs: 520,
+      visemeHints: [],
+    })
+  })
+
+  it('normalizes partial body playback driver evidence without dropping the same living segment carry', () => {
+    const mapped = mapSpeechEmbodimentDiagnosticsForRenderer({
+      phase: 'playing',
+      playbackPhase: 'playing',
+      speechEnergy: 0.18,
+      prosodyIntensity: 0.24,
+      emphasisLevel: 0.1,
+      cadencePulse: 0.12,
+      visemeIntensity: 0.16,
+      articulation: null,
+      runtimeDynamics: null,
+      recentDrivingEvent: null,
+      recentDrivingTraceRecord: null,
+      recentDrivingTraceEvents: [],
+      recentDrivingTraceDetails: [],
+      traceSummary: null,
+      rendererAlignment: { live2d: null, vrm: null },
+      rendererDriftSummary: null,
+      articulationSummary: null,
+      authoritySummary: null,
+      speechEvidence: null,
+      cueMicroSummary: null,
+      driverSummary: null,
+      driverExecutionSummary: null,
+      live2dExecution: null,
+      visemeHintsSummary: null,
+      playbackTelemetry: {
+        rendererTarget: 'vrm',
+        driverAuthority: {
+          segmentId: 'segment-body-partial-driver',
+          rendererTarget: 'vrm',
+          matchedDrivers: ['body'],
+          sources: ['measured-return'],
+          bodySegmentMatched: true,
+          faceSegmentMatched: null,
+          motionSegmentMatched: null,
+          lipsyncSegmentMatched: null,
+        },
+        cue: {
+          id: 'segment-body-partial-driver',
+          text: '身体先把这一段托住。',
+        },
+        drivers: {
+          body: {
+            frameMode: 'measured-return',
+            stillness: 0.76,
+            gazeStability: 0.68,
+            breathAmplitude: 0.22,
+            expressivity: 0.34,
+            segmentId: 'segment-body-partial-driver',
+          },
+          face: null,
+          motion: null,
+          lipsync: null,
+        },
+      },
+    })
+
+    expect(mapped.playbackTelemetry?.drivers?.body).toEqual({
+      frameMode: 'measured-return',
+      stillness: 0.76,
+      gazeStability: 0.68,
+      breathAmplitude: 0.22,
+      expressivity: 0.34,
+      source: null,
+      confidence: null,
+      segmentId: 'segment-body-partial-driver',
+    })
+    expect(mapped.playbackTelemetry?.driverAuthority).toEqual(expect.objectContaining({
+      bodySegmentMatched: true,
+      faceSegmentMatched: null,
+      motionSegmentMatched: null,
+      lipsyncSegmentMatched: null,
+    }))
+  })
+
+  it('preserves same-her renderer hint signature and reason tags when mapping renderer page diagnostics', () => {
+    const mapped = mapSpeechEmbodimentDiagnosticsForRenderer({
+      phase: 'playing',
+      playbackPhase: 'playing',
+      speechEnergy: 0.24,
+      prosodyIntensity: 0.2,
+      emphasisLevel: 0.11,
+      cadencePulse: 0.08,
+      visemeIntensity: 0.16,
+      articulation: null,
+      runtimeDynamics: null,
+      recentDrivingEvent: null,
+      recentDrivingTraceRecord: null,
+      recentDrivingTraceEvents: [],
+      recentDrivingTraceDetails: [],
+      traceSummary: null,
+      rendererAlignment: { live2d: null, vrm: null },
+      rendererDriftSummary: null,
+      articulationSummary: null,
+      authoritySummary: null,
+      convergence: null,
+      speechEvidence: null,
+      cueMicroSummary: null,
+      driverSummary: null,
+      driverExecutionSummary: null,
+      live2dExecution: null,
+      visemeHintsSummary: null,
+      playbackTelemetry: {
+        actualDurationMs: 260,
+        plannedDurationMs: 260,
+        driftMs: 0,
+        settleMs: 340,
+        stopReason: null,
+        rendererTarget: 'live2d',
+        driverAuthority: null,
+        cue: {
+          id: 'segment-same-her-renderer-hints',
+          text: '我还在这条线里。',
+          rendererHints: {
+            residentMode: 'measured-return',
+            preferredBlinkCadence: 'linger',
+            preferredGazeMode: 'soften',
+            preferredExpressionAliases: ['RecoverSoft'],
+            preferredMotionAliases: ['IdleSettle'],
+            reasonTags: [
+              'embodiment:audible-same-her-line',
+              'embodiment:still-voiced-motion-line',
+            ],
+            signature: 'embodiment:body-lipsync-voice-rejoin',
+          },
+          rendererSettle: {
+            live2dFacialReleaseMs: 360,
+            live2dMotionFollowThroughMs: 440,
+            vrmActionFadeMs: 420,
+            vrmExpressionBlendMs: 520,
+          },
+        } as any,
+        drivers: null,
+      },
+    } as any)
+
+    expect(mapped.playbackTelemetry?.cue?.rendererHints).toEqual({
+      residentMode: 'measured-return',
+      preferredBlinkCadence: 'linger',
+      preferredGazeMode: 'soften',
+      preferredExpressionAliases: ['RecoverSoft'],
+      preferredMotionAliases: ['IdleSettle'],
+      reasonTags: [
+        'embodiment:audible-same-her-line',
+        'embodiment:still-voiced-motion-line',
+      ],
+      signature: 'embodiment:body-lipsync-voice-rejoin',
+    })
+  })
+
   it('builds fallback trace summary with the current playback cue id instead of an unrelated authority summary cue id', () => {
     const mapped = mapSpeechEmbodimentDiagnosticsForRenderer({
       phase: 'playing',
@@ -787,6 +1873,10 @@ describe('index speech embodiment diagnostics mapping', () => {
         rendererTarget: 'vrm',
         matchedDrivers: [],
         matchedSources: [],
+        bodySegmentMatched: null,
+        faceSegmentMatched: null,
+        motionSegmentMatched: null,
+        lipsyncSegmentMatched: null,
       },
     })
   })
@@ -850,6 +1940,7 @@ describe('index speech embodiment diagnostics mapping', () => {
 
     expect(mapped.speechEvidence).toEqual({
       voiceSummary: '上游语音摘要',
+      bodyContinuitySummary: null,
       authorityMatchSummary: '上游 authority 命中',
       topVisemeSummary: '上游主口型',
       cueSummary: '上游微表情线索',
@@ -860,6 +1951,58 @@ describe('index speech embodiment diagnostics mapping', () => {
       driverExecutionSummary: '上游驱动执行',
       visemeHintsSummary: '上游口型提示',
     })
+  })
+
+  it('preserves memory-deliberation continuity reasons in top-level speech evidence summaries so homepage diagnostics can read why the line stayed repair-first', () => {
+    const mapped = mapSpeechEmbodimentDiagnosticsForRenderer({
+      phase: 'playing',
+      playbackPhase: 'playing',
+      speechEnergy: 0.32,
+      prosodyIntensity: 0.4,
+      emphasisLevel: 0.24,
+      cadencePulse: 0.18,
+      visemeIntensity: 0.28,
+      articulation: null,
+      runtimeDynamics: null,
+      recentDrivingEvent: null,
+      recentDrivingTraceRecord: null,
+      recentDrivingTraceEvents: [],
+      recentDrivingTraceDetails: [],
+      traceSummary: null,
+      rendererAlignment: null,
+      rendererDriftSummary: null,
+      articulationSummary: {
+        voice: 'zh-CN | closure=0.72 | precision=0.88 | companion=repair-before-closeness | reason=Memory deliberation still says let repair settle first on the same living line before closeness widens again | source=prosody-authority | segment=segment-memory-deliberation-repair-1',
+        topVisemes: null,
+      },
+      authoritySummary: null,
+      speechEvidence: {
+        voiceSummary: 'zh-CN | closure=0.72 | precision=0.88 | companion=repair-before-closeness | reason=Memory deliberation still says let repair settle first on the same living line before closeness widens again | source=prosody-authority | segment=segment-memory-deliberation-repair-1',
+        authorityMatchSummary: null,
+        topVisemeSummary: null,
+        cueSummary: null,
+        cueIdentityPresent: false,
+        cueProsodyPresent: false,
+        personaStyleSummary: null,
+        timingSummary: null,
+        driverExecutionSummary: null,
+        visemeHintsSummary: null,
+      },
+      cueMicroSummary: null,
+      driverSummary: null,
+      driverExecutionSummary: null,
+      live2dExecution: null,
+      visemeHintsSummary: null,
+      playbackTelemetry: null,
+      authorityMismatchSummary: null,
+      authorityMismatchReasonSummary: null,
+      authorityMismatchDisplay: null,
+      settleAuthoritySummary: null,
+      traceEmbodimentSummary: null,
+      speechEvidenceSummary: null,
+    } as any)
+
+    expect(mapped.speechEvidence?.voiceSummary).toContain('reason=Memory deliberation still says let repair settle first on the same living line before closeness widens again')
   })
 
   it('does not reuse authority and cue speech evidence fields when they belong to a different cue than the current playback segment', () => {
@@ -921,6 +2064,7 @@ describe('index speech embodiment diagnostics mapping', () => {
 
     expect(mapped.speechEvidence).toEqual({
       voiceSummary: '上游语音摘要',
+      bodyContinuitySummary: null,
       authorityMatchSummary: null,
       topVisemeSummary: '上游主口型',
       cueSummary: null,
@@ -930,6 +2074,256 @@ describe('index speech embodiment diagnostics mapping', () => {
       timingSummary: null,
       driverExecutionSummary: '上游驱动执行',
       visemeHintsSummary: '上游口型提示',
+    })
+  })
+
+  it('refreshes same-cue snapshot speech evidence from current playback telemetry once cue-bridge authority has rebound every driver onto the active segment', () => {
+    const mapped = mapSpeechEmbodimentDiagnosticsForRenderer({
+      phase: 'playing',
+      playbackPhase: 'playing',
+      articulationSummary: {
+        voice: '上游语音摘要',
+        topVisemes: '上游主口型',
+      },
+      authoritySummary: {
+        cueId: 'segment-realigned-snapshot-1',
+        segmentId: 'segment-realigned-snapshot-1',
+        rendererTarget: 'vrm',
+        matchedDrivers: ['face', 'motion', 'lipsync'],
+        matchedSources: ['cue-bridge', 'prosody-authority', 'timeline-projection'],
+        bindingSummary: 'target=vrm | drivers=face, motion, lipsync | sources=cue-bridge, prosody-authority, timeline-projection | matches=face:yes motion:yes lipsync:yes',
+        matchSummary: 'face:yes motion:yes lipsync:yes',
+        authorityMismatchSummary: null,
+        authorityMismatchReasonSummary: null,
+        authorityMismatchDisplay: null,
+        settleSummary: 'authority-bound | segment=segment-realigned-snapshot-1 | target=vrm | drivers=face, motion, lipsync | sources=cue-bridge, prosody-authority, timeline-projection',
+      },
+      cueMicroSummary: {
+        cueId: 'segment-realigned-snapshot-1',
+        cueText: '继续沿着这条线看。',
+        cue: '当前 cue 微表情线索',
+        personaStyle: '当前 cue 人设风格',
+        timing: '当前 cue 时序节奏',
+      },
+      driverExecutionSummary: 'face drifted | motion drifted | lipsync=energy-phoneme-hybrid phase=playing',
+      visemeHintsSummary: '当前 cue 口型提示',
+      playbackTelemetry: {
+        rendererTarget: 'vrm',
+        driverAuthority: {
+          segmentId: 'segment-realigned-snapshot-1',
+          rendererTarget: 'vrm',
+          matchedDrivers: ['lipsync'],
+          sources: ['prosody-authority'],
+          faceSegmentMatched: false,
+          motionSegmentMatched: false,
+          lipsyncSegmentMatched: true,
+        },
+        cue: {
+          id: 'segment-realigned-snapshot-1',
+          text: '继续沿着这条线看。',
+          prosodyWeight: 0.36,
+          mouthWeight: 0.28,
+          headWeight: 0.32,
+          facialCue: 'focused',
+          actionCue: 'observe_focus',
+          actionWindow: 'segment-start',
+          interruptMode: 'soft-interrupt',
+          settleMode: 'hold',
+        },
+        drivers: {
+          face: {
+            emotion: 'attentive',
+            facialCue: 'focused',
+            intensity: 0.61,
+            holdMs: 320,
+            source: 'cue-bridge',
+            confidence: 0.83,
+            preUtteranceCue: 'soften',
+            postUtteranceCue: 'hold-soft',
+            segmentId: 'segment-realigned-snapshot-1',
+          },
+          motion: {
+            idleBase: 'breathing-idle',
+            attentionMode: 'observe-first',
+            actionCue: 'observe_focus',
+            intensity: 0.48,
+            holdMs: 240,
+            source: 'cue-bridge',
+            confidence: 0.79,
+            segmentId: 'segment-realigned-snapshot-1',
+          },
+          lipsync: {
+            mode: 'energy-phoneme-hybrid',
+            playbackPhase: 'playing',
+            segmentId: 'segment-realigned-snapshot-1',
+            visemeHints: [
+              { segmentId: 'segment-realigned-snapshot-1', viseme: 'I', weight: 0.35, source: 'prosody-authority', confidence: 0.94 },
+            ],
+          },
+        },
+      },
+    } as any)
+
+    expect(mapped.speechEvidence).toEqual({
+      voiceSummary: '上游语音摘要',
+      bodyContinuitySummary: null,
+      authorityMatchSummary: 'face:yes motion:yes lipsync:yes',
+      topVisemeSummary: '上游主口型',
+      cueSummary: '当前 cue 微表情线索',
+      cueIdentityPresent: true,
+      cueProsodyPresent: true,
+      personaStyleSummary: '当前 cue 人设风格',
+      timingSummary: '当前 cue 时序节奏',
+      driverExecutionSummary: 'face=attentive/focused@0.61 hold=320 pre=soften post=hold-soft src=cue-bridge conf=0.83 | motion=observe_focus mode=observe-first idle=breathing-idle@0.48 hold=240 src=cue-bridge conf=0.79 | lipsync=energy-phoneme-hybrid phase=playing',
+      visemeHintsSummary: '当前 cue 口型提示',
+    })
+    expect(mapped.driverExecutionSummary).toBe('face drifted | motion drifted | lipsync=energy-phoneme-hybrid phase=playing')
+  })
+
+  it('refreshes same-cue snapshot speech evidence from current playback telemetry when the authority summary already carries the surviving voice lane', () => {
+    const mapped = mapSpeechEmbodimentDiagnosticsForRenderer({
+      phase: 'playing',
+      playbackPhase: 'playing',
+      articulationSummary: {
+        voice: '上游语音摘要',
+        topVisemes: '上游主口型',
+      },
+      authoritySummary: {
+        cueId: 'segment-realigned-snapshot-voice-1',
+        segmentId: 'segment-realigned-snapshot-voice-1',
+        rendererTarget: 'vrm',
+        matchedDrivers: ['face', 'motion', 'lipsync', 'voice'],
+        matchedSources: ['cue-bridge', 'prosody-authority', 'timeline-projection', 'voice-segment'],
+        bindingSummary: 'target=vrm | drivers=face, motion, lipsync, voice | sources=cue-bridge, prosody-authority, timeline-projection, voice-segment | matches=face:yes motion:yes lipsync:yes voice:yes',
+        matchSummary: 'face:yes motion:yes lipsync:yes voice:yes',
+        authorityMismatchSummary: null,
+        authorityMismatchReasonSummary: null,
+        authorityMismatchDisplay: null,
+        settleSummary: 'authority-bound | segment=segment-realigned-snapshot-voice-1 | target=vrm | drivers=face, motion, lipsync, voice | sources=cue-bridge, prosody-authority, timeline-projection, voice-segment',
+      },
+      cueMicroSummary: {
+        cueId: 'segment-realigned-snapshot-voice-1',
+        cueText: '继续沿着这条有声音的线看。',
+        cue: '当前 cue 微表情线索',
+        personaStyle: '当前 cue 人设风格',
+        timing: '当前 cue 时序节奏',
+      },
+      driverExecutionSummary: 'stale upstream driver execution shell',
+      visemeHintsSummary: '当前 cue 口型提示',
+      playbackTelemetry: {
+        rendererTarget: 'vrm',
+        driverAuthority: {
+          segmentId: 'segment-realigned-snapshot-voice-1',
+          rendererTarget: 'vrm',
+          matchedDrivers: ['face', 'motion', 'lipsync', 'voice'],
+          sources: ['cue-bridge', 'prosody-authority', 'timeline-projection', 'voice-segment'],
+          faceSegmentMatched: true,
+          motionSegmentMatched: true,
+          lipsyncSegmentMatched: true,
+          voiceSegmentMatched: true,
+        },
+        cue: {
+          id: 'segment-realigned-snapshot-voice-1',
+          text: '继续沿着这条有声音的线看。',
+          prosodyWeight: 0.36,
+          mouthWeight: 0.28,
+          headWeight: 0.32,
+          facialCue: 'focused',
+          actionCue: 'observe_focus',
+          actionWindow: 'segment-start',
+          interruptMode: 'soft-interrupt',
+          settleMode: 'hold',
+        },
+        drivers: {
+          face: {
+            emotion: 'attentive',
+            facialCue: 'focused',
+            intensity: 0.61,
+            holdMs: 320,
+            source: 'cue-bridge',
+            confidence: 0.83,
+            preUtteranceCue: 'soften',
+            postUtteranceCue: 'hold-soft',
+            segmentId: 'segment-realigned-snapshot-voice-1',
+          },
+          motion: {
+            idleBase: 'breathing-idle',
+            attentionMode: 'observe-first',
+            actionCue: 'observe_focus',
+            intensity: 0.48,
+            holdMs: 240,
+            source: 'cue-bridge',
+            confidence: 0.79,
+            segmentId: 'segment-realigned-snapshot-voice-1',
+          },
+          lipsync: {
+            mode: 'energy-phoneme-hybrid',
+            playbackPhase: 'playing',
+            segmentId: 'segment-realigned-snapshot-voice-1',
+            continuityHoldMs: 0,
+            visemeHints: [
+              { segmentId: 'segment-realigned-snapshot-voice-1', viseme: 'I', weight: 0.35, source: 'prosody-authority', confidence: 0.94 },
+            ],
+          },
+          voice: {
+            playbackPhase: 'playing',
+            continuityHoldMs: 240,
+            segmentId: 'segment-realigned-snapshot-voice-1',
+            source: 'voice-segment',
+            provenance: 'authority-bound',
+            mode: 'energy-phoneme-hybrid',
+            cueProsodyWeight: 0.36,
+            cueMouthWeight: 0.28,
+            cueHeadWeight: 0.32,
+            visemePeakWeight: 0.79,
+          },
+        },
+      },
+    } as any)
+
+    expect(mapped.speechEvidence).toEqual({
+      voiceSummary: '上游语音摘要',
+      bodyContinuitySummary: null,
+      authorityMatchSummary: 'face:yes motion:yes lipsync:yes voice:yes',
+      topVisemeSummary: '上游主口型',
+      cueSummary: '当前 cue 微表情线索',
+      cueIdentityPresent: true,
+      cueProsodyPresent: true,
+      personaStyleSummary: '当前 cue 人设风格',
+      timingSummary: '当前 cue 时序节奏',
+      driverExecutionSummary: 'face=attentive/focused@0.61 hold=320 pre=soften post=hold-soft src=cue-bridge conf=0.83 | motion=observe_focus mode=observe-first idle=breathing-idle@0.48 hold=240 src=cue-bridge conf=0.79 | lipsync=energy-phoneme-hybrid phase=playing | voice=authority-bound phase=playing seg=segment-realigned-snapshot-voice-1',
+      visemeHintsSummary: '当前 cue 口型提示',
+    })
+  })
+
+  it('preserves body continuity summaries in speech evidence when upstream renderer diagnostics already carry them', () => {
+    const mapped = mapSpeechEmbodimentDiagnosticsForRenderer({
+      phase: 'playing',
+      playbackPhase: 'playing',
+      articulationSummary: {
+        voice: null,
+        topVisemes: null,
+      },
+      bodyContinuitySummary: 'mode=thinking | stillness=0.00 | gaze=0.00 | breath=0.00 | expressivity=0.00 | resident=measured-return | timing=same-thread-continuation | blink=linger | gazeMode=soften | seg=segment-body-evidence-1',
+      authoritySummary: null,
+      cueMicroSummary: null,
+      driverExecutionSummary: null,
+      visemeHintsSummary: null,
+      playbackTelemetry: null,
+    } as any)
+
+    expect(mapped.speechEvidence).toEqual({
+      voiceSummary: null,
+      bodyContinuitySummary: 'mode=thinking | stillness=0.00 | gaze=0.00 | breath=0.00 | expressivity=0.00 | resident=measured-return | timing=same-thread-continuation | blink=linger | gazeMode=soften | seg=segment-body-evidence-1',
+      authorityMatchSummary: null,
+      topVisemeSummary: null,
+      cueSummary: null,
+      cueIdentityPresent: false,
+      cueProsodyPresent: false,
+      personaStyleSummary: null,
+      timingSummary: null,
+      driverExecutionSummary: null,
+      visemeHintsSummary: null,
     })
   })
 
@@ -992,9 +2386,9 @@ describe('index speech embodiment diagnostics mapping', () => {
     expect(mapped.authoritySummary).toEqual({
       cueId: 'segment-authority-summary',
       segmentId: 'segment-authority-summary',
-      rendererTarget: 'vrm',
-      matchedDrivers: ['lipsync'],
-      matchedSources: ['prosody-authority'],
+      rendererTarget: null,
+      matchedDrivers: [],
+      matchedSources: [],
       prosodyAuthoritySummary: null,
       bindingSummary: null,
       matchSummary: null,
@@ -1003,8 +2397,258 @@ describe('index speech embodiment diagnostics mapping', () => {
       authorityMismatchReasonSummary: null,
       authorityMismatchDisplay: null,
       settleSummary: null,
-      traceEmbodimentSummary: 'turn=care | closure=grounded-recall | surface=procedural-carry | authority=lipsync | execution=none',
+      traceEmbodimentSummary: 'turn=care | closure=grounded-recall | surface=procedural-carry | authority=none | execution=none',
     })
+  })
+
+  it('does not retain same-cue authority summary text or sources when its segment has drifted onto another embodied line', () => {
+    const mapped = mapSpeechEmbodimentDiagnosticsForRenderer({
+      phase: 'playing',
+      playbackPhase: 'playing',
+      recentDrivingTraceRecord: {
+        decisionTraceId: 'mind:diagnostics:same-cue-segment-scope-1',
+        activeThreadId: 'runtime-thread-diagnostics-same-cue-segment-scope-1',
+        turnMode: 'care',
+        truthState: 'live-grounded',
+        repairState: 'none',
+        finalSurfacePolicy: 'procedural-carry',
+        closureState: 'grounded-recall',
+        suppressionTags: [],
+      },
+      recentDrivingTraceDetails: [],
+      traceSummary: {
+        cueId: 'segment-current-same-cue-diagnostics',
+        decisionTraceId: 'mind:diagnostics:same-cue-segment-scope-1',
+        turnMode: 'care',
+        truthState: 'live-grounded',
+        repairState: 'none',
+        finalSurfacePolicy: 'procedural-carry',
+        closureState: 'grounded-recall',
+        activeThreadId: 'runtime-thread-diagnostics-same-cue-segment-scope-1',
+        suppressionTags: [],
+        latestEventSummary: '当前身体线还在这里。',
+        segmentBinding: {
+          matched: true,
+          rendererTarget: 'vrm',
+          matchedDrivers: ['body'],
+          matchedSources: ['voice-segment'],
+        },
+      },
+      authoritySummary: {
+        cueId: 'segment-current-same-cue-diagnostics',
+        segmentId: 'segment-upstream-other-same-cue-diagnostics',
+        rendererTarget: 'vrm',
+        matchedDrivers: ['face', 'motion', 'lipsync'],
+        matchedSources: ['timeline-projection'],
+        bindingSummary: '上游 authority 绑定：别把另一段身体线拿来复用。',
+        matchSummary: 'body:no face:yes motion:yes lipsync:yes',
+        authorityTrustSummary: '上游 authority trust：这其实还是另一段没有退干净的身体线。',
+        authorityMismatchSummary: 'body-mismatch',
+        authorityMismatchReasonSummary: '上游 authority reason：这一条其实已经不是当前身体线了。',
+        authorityMismatchDisplay: '上游 authority display：别把另一段的她误当成当前这条 embodied line。',
+        settleSummary: 'authority-bound | segment=segment-upstream-other-same-cue-diagnostics | target=vrm | drivers=face, motion, lipsync | sources=timeline-projection',
+      },
+      articulationSummary: {
+        voice: 'zh-CN | closure=0.84 | precision=0.90',
+        topVisemes: 'I:0.35',
+      },
+      cueMicroSummary: {
+        cueId: 'segment-current-same-cue-diagnostics',
+        cueText: '这里才是当前播放片段。',
+        cue: 'focused / observe_focus | prosody=0.36 mouth=0.28 head=0.32',
+        personaStyle: 'same-thread-continuation | soften / linger',
+        timing: 'hold=320ms',
+      },
+      driverExecutionSummary: 'face drifted | motion drifted | lipsync=energy-phoneme-hybrid phase=playing',
+      visemeHintsSummary: 'I:0.35@0.94',
+      playbackTelemetry: {
+        rendererTarget: 'vrm',
+        driverAuthority: {
+          segmentId: 'segment-current-same-cue-diagnostics',
+          rendererTarget: 'vrm',
+          matchedDrivers: ['body'],
+          sources: ['prosody-authority'],
+          bodySegmentMatched: true,
+          faceSegmentMatched: false,
+          motionSegmentMatched: false,
+          lipsyncSegmentMatched: false,
+        },
+        cue: {
+          id: 'segment-current-same-cue-diagnostics',
+          text: '这里才是当前播放片段。',
+          prosodyWeight: 0.36,
+          mouthWeight: 0.28,
+          headWeight: 0.32,
+          facialCue: 'focused',
+          actionCue: 'observe_focus',
+          actionWindow: 'segment-start',
+          interruptMode: 'soft-interrupt',
+          settleMode: 'hold',
+        },
+        drivers: null,
+      },
+    } as any)
+
+    expect(mapped.authoritySummary).toEqual({
+      cueId: 'segment-current-same-cue-diagnostics',
+      segmentId: 'segment-upstream-other-same-cue-diagnostics',
+      rendererTarget: null,
+      matchedDrivers: [],
+      matchedSources: [],
+      prosodyAuthoritySummary: null,
+      bindingSummary: null,
+      matchSummary: null,
+      authorityTrustSummary: null,
+      authorityMismatchSummary: null,
+      authorityMismatchReasonSummary: null,
+      authorityMismatchDisplay: null,
+      settleSummary: null,
+      traceEmbodimentSummary: 'turn=care | closure=grounded-recall | surface=procedural-carry | authority=none | execution=lipsync',
+    })
+    expect(mapped.speechEvidence).toEqual({
+      voiceSummary: 'zh-CN | closure=0.84 | precision=0.90 | provenance=authority-bound | segment=segment-current-same-cue-diagnostics | source=n/a',
+      bodyContinuitySummary: null,
+      authorityMatchSummary: null,
+      topVisemeSummary: 'I:0.35',
+      cueSummary: 'focused / observe_focus | prosody=0.36 mouth=0.28 head=0.32',
+      cueIdentityPresent: true,
+      cueProsodyPresent: true,
+      personaStyleSummary: 'same-thread-continuation | soften / linger',
+      timingSummary: 'hold=320ms',
+      driverExecutionSummary: 'face drifted | motion drifted | lipsync=energy-phoneme-hybrid phase=playing',
+      visemeHintsSummary: 'I:0.35@0.94',
+    })
+    expect(mapped.traceSummary?.segmentBinding?.matchedSources).toEqual(['voice-segment', 'prosody-authority'])
+  })
+
+  it('drops stale same-cue authority summary when explicit voice telemetry is the only active segment truth still holding the current line', () => {
+    const mapped = mapSpeechEmbodimentDiagnosticsForRenderer({
+      phase: 'playing',
+      playbackPhase: 'playing',
+      recentDrivingTraceRecord: {
+        decisionTraceId: 'mind:diagnostics:voice-only-scope-1',
+        activeThreadId: 'runtime-thread-diagnostics-voice-only-scope-1',
+        turnMode: 'care',
+        truthState: 'live-grounded',
+        repairState: 'none',
+        finalSurfacePolicy: 'procedural-carry',
+        closureState: 'grounded-recall',
+        suppressionTags: [],
+      },
+      recentDrivingTraceDetails: [],
+      authoritySummary: {
+        cueId: 'segment-current-voice-only-diagnostics',
+        segmentId: 'segment-upstream-stale-voice-only-diagnostics',
+        rendererTarget: 'vrm',
+        matchedDrivers: ['face', 'motion', 'lipsync'],
+        matchedSources: ['timeline-projection'],
+        bindingSummary: '上游 authority 绑定：别把另一条身体线拿来续到这里。',
+        matchSummary: 'body:no face:yes motion:yes lipsync:yes',
+        authorityTrustSummary: '上游 authority trust：这还是另一条没有退干净的身体线。',
+        authorityMismatchSummary: 'body-mismatch',
+        authorityMismatchReasonSummary: '上游 authority reason：当前只有声音 continuity 还知道真正的身体线在哪里。',
+        authorityMismatchDisplay: '上游 authority display：不要把另一段的她误认成这条正在说话的 embodied line。',
+        settleSummary: 'authority-bound | segment=segment-upstream-stale-voice-only-diagnostics | target=vrm | drivers=face, motion, lipsync | sources=timeline-projection',
+      },
+      playbackTelemetry: {
+        rendererTarget: 'vrm',
+        driverAuthority: {
+          rendererTarget: 'vrm',
+          matchedDrivers: ['lipsync'],
+          sources: ['prosody-authority', 'voice-segment'],
+          faceSegmentMatched: false,
+          motionSegmentMatched: false,
+          lipsyncSegmentMatched: true,
+          voiceSegmentMatched: true,
+        },
+        cue: null,
+        drivers: {
+          voice: {
+            playbackPhase: 'playing',
+            continuityHoldMs: 320,
+            segmentId: 'segment-current-voice-only-diagnostics',
+            source: 'prosody-authority',
+            provenance: 'authority-bound',
+            mode: 'energy-phoneme-hybrid',
+            cueProsodyWeight: 0.31,
+            cueMouthWeight: 0.27,
+            cueHeadWeight: 0.19,
+            visemePeakWeight: 0.74,
+          },
+        },
+      },
+    } as any)
+
+    expect(mapped.authoritySummary).toEqual(expect.objectContaining({
+      cueId: 'segment-current-voice-only-diagnostics',
+      segmentId: 'segment-upstream-stale-voice-only-diagnostics',
+      rendererTarget: null,
+      matchedDrivers: [],
+      matchedSources: [],
+      bindingSummary: null,
+      matchSummary: null,
+      authorityTrustSummary: null,
+      prosodyAuthoritySummary: 'mode=energy-phoneme-hybrid | prosody=0.31 | mouth=0.27 | head=0.19 | visemePeak=0.74 | provenance=authority-bound | source=prosody-authority | segment=segment-current-voice-only-diagnostics',
+      authorityMismatchSummary: null,
+      authorityMismatchReasonSummary: null,
+      authorityMismatchDisplay: null,
+      settleSummary: null,
+    }))
+  })
+
+  it('rehydrates same-segment prosody authority summary and trust from explicit voice telemetry before top-level playback truth rethreads', () => {
+    const mapped = mapSpeechEmbodimentDiagnosticsForRenderer({
+      phase: 'playing',
+      playbackPhase: 'playing',
+      authoritySummary: {
+        cueId: 'segment-voice-only-trust-1',
+        segmentId: 'segment-voice-only-trust-1',
+        rendererTarget: 'vrm',
+        matchedDrivers: ['lipsync'],
+        matchedSources: ['prosody-authority', 'voice-segment'],
+        bindingSummary: 'target=vrm | drivers=lipsync | sources=prosody-authority, voice-segment | matches=face:no motion:no lipsync:yes',
+        matchSummary: 'face:no motion:no lipsync:yes',
+        authorityTrustSummary: null,
+        authorityMismatchSummary: 'face-mismatch, motion-mismatch',
+        authorityMismatchReasonSummary: '表情和动作还没跟回这一段，但声音 continuity 已经先把当前身体线托住了。',
+        authorityMismatchDisplay: '表情和动作还没跟回这一段，但声音 continuity 已经先把当前身体线托住了。',
+        settleSummary: 'authority-bound | segment=segment-voice-only-trust-1 | target=vrm | drivers=lipsync | sources=prosody-authority, voice-segment',
+      },
+      playbackTelemetry: {
+        rendererTarget: 'vrm',
+        driverAuthority: {
+          rendererTarget: 'vrm',
+          matchedDrivers: ['lipsync'],
+          sources: ['prosody-authority', 'voice-segment'],
+          faceSegmentMatched: false,
+          motionSegmentMatched: false,
+          lipsyncSegmentMatched: true,
+          voiceSegmentMatched: true,
+        },
+        cue: null,
+        drivers: {
+          voice: {
+            playbackPhase: 'playing',
+            continuityHoldMs: 280,
+            segmentId: 'segment-voice-only-trust-1',
+            source: 'prosody-authority',
+            provenance: 'authority-bound',
+            mode: 'energy-phoneme-hybrid',
+            cueProsodyWeight: 0.29,
+            cueMouthWeight: 0.25,
+            cueHeadWeight: 0.17,
+            visemePeakWeight: 0.71,
+          },
+        },
+      },
+    } as any)
+
+    expect(mapped.authoritySummary).toEqual(expect.objectContaining({
+      cueId: 'segment-voice-only-trust-1',
+      segmentId: 'segment-voice-only-trust-1',
+      prosodyAuthoritySummary: 'mode=energy-phoneme-hybrid | prosody=0.29 | mouth=0.25 | head=0.17 | visemePeak=0.71 | provenance=authority-bound | source=prosody-authority | segment=segment-voice-only-trust-1',
+      authorityTrustSummary: '韵律权威链已重新绑定到当前片段，可直接进入长期基线。',
+    }))
   })
 
   it('builds snapshot-native renderer drift summaries when renderer alignment explains visible divergence', () => {
@@ -1016,8 +2660,10 @@ describe('index speech embodiment diagnostics mapping', () => {
           reason: 'preferred',
           status: 'drifted',
           driftKind: 'alias-resolution-drift',
-          driverCue: 'focused',
-          driverSource: 'prosody-authority',
+          faceDriverCue: 'focused',
+          faceDriverSource: 'prosody-authority',
+          motionDriverCue: 'observe_focus',
+          motionDriverSource: 'cue-bridge',
         },
         vrm: {
           predicted: 'calm',
@@ -1025,16 +2671,18 @@ describe('index speech embodiment diagnostics mapping', () => {
           reason: 'preferred',
           status: 'predicted-only',
           driftKind: 'resident-not-yet-applied',
-          driverCue: null,
-          driverSource: null,
+          faceDriverCue: null,
+          faceDriverSource: null,
+          motionDriverCue: null,
+          motionDriverSource: null,
         },
       },
     } as any)
 
     expect(mapped.rendererDriftSummary).toEqual({
-      live2d: 'resident Soft Gaze -> actual Focus Inspect | cue focused@prosody-authority',
+      live2d: 'resident Soft Gaze -> actual Focus Inspect | face focused@prosody-authority | motion observe_focus@cue-bridge',
       vrm: 'resident calm is waiting for renderer application',
-      primary: 'resident Soft Gaze -> actual Focus Inspect | cue focused@prosody-authority',
+      primary: 'resident Soft Gaze -> actual Focus Inspect | face focused@prosody-authority | motion observe_focus@cue-bridge',
     })
   })
 
@@ -1222,6 +2870,8 @@ describe('index speech embodiment diagnostics mapping', () => {
       rendererDriftSummary: null,
       articulationSummary: null,
       authoritySummary: null,
+      convergence: null,
+      speechEvidence: null,
       cueMicroSummary: null,
       driverExecutionSummary: null,
       visemeHintsSummary: null,

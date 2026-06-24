@@ -1,10 +1,22 @@
+import type { ChatProvider } from '@xsai-ext/providers/utils'
+
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
+  dispatchDesktopVoiceTurn,
   resetDesktopLayoutState,
   resolveDesktopMouseCaptureState,
   runStageStartupOnboardingCheck,
 } from './index.desktop'
+
+function createMockChatProvider(): ChatProvider {
+  return {
+    chat: model => ({
+      baseURL: 'https://example.invalid/v1/',
+      model: String(model),
+    }),
+  }
+}
 
 describe('stage desktop page helpers', () => {
   describe('resolveDesktopMouseCaptureState', () => {
@@ -237,6 +249,48 @@ describe('stage desktop page helpers', () => {
 
       expect(startupMocks.initializeSetupCheck).toHaveBeenCalledOnce()
       expect(startupMocks.openOnboarding).toHaveBeenCalledOnce()
+    })
+  })
+
+  describe('desktop voice turn dispatch', () => {
+    it('forwards the explicit pre-dialogue send identity through the primary desktop voice entry', async () => {
+      const ingest = vi.fn(async () => undefined)
+      const preDialogueSendIdentity = {
+        status: 'partial',
+        summaryLine: 'Alicization is still in Phase 1 local digital life closure before this turn opens outward.',
+        companionBriefingLine: 'Before speaking, remember what this digital life project is, what has landed, and which life loop is still open.',
+        companionNextClosureLine: 'Next closure: keep memory, initiative, execution, and embodiment on one same-her line.',
+        awarenessLine: 'Before speaking, remember this is still the same digital life project before local fluency takes over.',
+        emotionalClosureCue: null,
+        reasonPreview: [
+          'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
+          'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
+          'Some closure has already landed in the primary desktop proving ground before this voice turn opens outward.',
+          'Memory, initiative, execution, and embodiment still need stronger same-her continuity across noisier desktop runs.',
+        ],
+      }
+
+      await dispatchDesktopVoiceTurn({
+        text: '继续沿着这条数字生命主线推进',
+        providerId: 'mock-provider',
+        model: 'mock-model',
+        chatProvider: createMockChatProvider(),
+        providerConfig: { apiKey: 'test-key' },
+        preDialogueSendIdentity,
+        origin: 'ui-user',
+        ingest,
+      })
+
+      expect(ingest).toHaveBeenCalledWith('继续沿着这条数字生命主线推进', {
+        providerId: 'mock-provider',
+        model: 'mock-model',
+        chatProvider: expect.objectContaining({
+          chat: expect.any(Function),
+        }),
+        providerConfig: { apiKey: 'test-key' },
+        preDialogueSendIdentity,
+        origin: 'ui-user',
+      })
     })
   })
 })

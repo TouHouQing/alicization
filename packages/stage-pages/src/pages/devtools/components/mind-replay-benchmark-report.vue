@@ -259,20 +259,48 @@ const failingKeysText = computed(() => gate.value?.failingKeys.join(', ') ?? '')
           <table :class="['min-w-full', 'text-left', 'text-xs']">
             <thead>
               <tr :class="['border-b', 'border-neutral-200/80', 'dark:border-neutral-800/70']">
-                <th :class="['px-2', 'py-1', 'font-medium']">turnId</th>
-                <th :class="['px-2', 'py-1', 'font-medium']">era</th>
-                <th :class="['px-2', 'py-1', 'font-medium']">procedure</th>
-                <th :class="['px-2', 'py-1', 'font-medium']">thread</th>
-                <th :class="['px-2', 'py-1', 'font-medium']">coherence</th>
-                <th :class="['px-2', 'py-1', 'font-medium']">implicit</th>
-                <th :class="['px-2', 'py-1', 'font-medium']">time</th>
-                <th :class="['px-2', 'py-1', 'font-medium']">restraint</th>
-                <th :class="['px-2', 'py-1', 'font-medium']">repair</th>
-                <th :class="['px-2', 'py-1', 'font-medium']">mistake</th>
-                <th :class="['px-2', 'py-1', 'font-medium']">host</th>
-                <th :class="['px-2', 'py-1', 'font-medium']">skill</th>
-                <th :class="['px-2', 'py-1', 'font-medium']">revision</th>
-                <th :class="['px-2', 'py-1', 'font-medium']">template</th>
+                <th :class="['px-2', 'py-1', 'font-medium']">
+                  turnId
+                </th>
+                <th :class="['px-2', 'py-1', 'font-medium']">
+                  era
+                </th>
+                <th :class="['px-2', 'py-1', 'font-medium']">
+                  procedure
+                </th>
+                <th :class="['px-2', 'py-1', 'font-medium']">
+                  thread
+                </th>
+                <th :class="['px-2', 'py-1', 'font-medium']">
+                  coherence
+                </th>
+                <th :class="['px-2', 'py-1', 'font-medium']">
+                  implicit
+                </th>
+                <th :class="['px-2', 'py-1', 'font-medium']">
+                  time
+                </th>
+                <th :class="['px-2', 'py-1', 'font-medium']">
+                  restraint
+                </th>
+                <th :class="['px-2', 'py-1', 'font-medium']">
+                  repair
+                </th>
+                <th :class="['px-2', 'py-1', 'font-medium']">
+                  mistake
+                </th>
+                <th :class="['px-2', 'py-1', 'font-medium']">
+                  host
+                </th>
+                <th :class="['px-2', 'py-1', 'font-medium']">
+                  skill
+                </th>
+                <th :class="['px-2', 'py-1', 'font-medium']">
+                  revision
+                </th>
+                <th :class="['px-2', 'py-1', 'font-medium']">
+                  template
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -281,20 +309,48 @@ const failingKeysText = computed(() => gate.value?.failingKeys.join(', ') ?? '')
                 :key="row.turnId"
                 :class="['border-b', 'border-neutral-200/60', 'dark:border-neutral-800/50']"
               >
-                <td :class="['px-2', 'py-1', 'font-mono']">{{ row.turnId }}</td>
-                <td :class="['px-2', 'py-1']">{{ row.eraFirst }}</td>
-                <td :class="['px-2', 'py-1']">{{ row.procedureCarryQuality }}</td>
-                <td :class="['px-2', 'py-1']">{{ row.wrongThreadSuppression }}</td>
-                <td :class="['px-2', 'py-1']">{{ row.replyMemoryCoherence }}</td>
-                <td :class="['px-2', 'py-1']">{{ row.implicitRecallQuality }}</td>
-                <td :class="['px-2', 'py-1']">{{ row.temporalScopeFlexibility }}</td>
-                <td :class="['px-2', 'py-1']">{{ row.surfaceRestraint }}</td>
-                <td :class="['px-2', 'py-1']">{{ row.relationshipRepairAdaptation }}</td>
-                <td :class="['px-2', 'py-1']">{{ row.repeatedMistakeAvoidance }}</td>
-                <td :class="['px-2', 'py-1']">{{ row.hostUnderstandingGrowth }}</td>
-                <td :class="['px-2', 'py-1']">{{ row.skillInternalizationGrowth }}</td>
-                <td :class="['px-2', 'py-1']">{{ row.selfRevisionGrowth }}</td>
-                <td :class="['px-2', 'py-1']">{{ row.templateLeakage }}</td>
+                <td :class="['px-2', 'py-1', 'font-mono']">
+                  {{ row.turnId }}
+                </td>
+                <td :class="['px-2', 'py-1']">
+                  {{ row.eraFirst }}
+                </td>
+                <td :class="['px-2', 'py-1']">
+                  {{ row.procedureCarryQuality }}
+                </td>
+                <td :class="['px-2', 'py-1']">
+                  {{ row.wrongThreadSuppression }}
+                </td>
+                <td :class="['px-2', 'py-1']">
+                  {{ row.replyMemoryCoherence }}
+                </td>
+                <td :class="['px-2', 'py-1']">
+                  {{ row.implicitRecallQuality }}
+                </td>
+                <td :class="['px-2', 'py-1']">
+                  {{ row.temporalScopeFlexibility }}
+                </td>
+                <td :class="['px-2', 'py-1']">
+                  {{ row.surfaceRestraint }}
+                </td>
+                <td :class="['px-2', 'py-1']">
+                  {{ row.relationshipRepairAdaptation }}
+                </td>
+                <td :class="['px-2', 'py-1']">
+                  {{ row.repeatedMistakeAvoidance }}
+                </td>
+                <td :class="['px-2', 'py-1']">
+                  {{ row.hostUnderstandingGrowth }}
+                </td>
+                <td :class="['px-2', 'py-1']">
+                  {{ row.skillInternalizationGrowth }}
+                </td>
+                <td :class="['px-2', 'py-1']">
+                  {{ row.selfRevisionGrowth }}
+                </td>
+                <td :class="['px-2', 'py-1']">
+                  {{ row.templateLeakage }}
+                </td>
               </tr>
             </tbody>
           </table>

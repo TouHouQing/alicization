@@ -1,13 +1,11 @@
-import type {
-  StageEmbodimentPerformanceMatchedDriver,
-  StageEmbodimentSpeechArticulationState,
-} from '@proj-alicization/stage-shared'
+import type { StageEmbodimentSpeechArticulationState } from '@proj-alicization/stage-shared'
 import type {
   ThreeHitTestReadTracePayload,
   ThreeRendererMemorySnapshot,
   ThreeSceneRenderInfoTracePayload,
   VrmDisposeEndTracePayload,
   VrmDisposeStartTracePayload,
+  VrmEmbodimentSegmentDriver,
   VrmLifecycleReason,
   VrmLoadEndTracePayload,
   VrmLoadErrorTracePayload,
@@ -61,16 +59,26 @@ export interface StageThreeRuntimeVrmUpdateDiagnostics {
   lastConsumedVrmExpressionBlendMs: number | null
   animationMixerMs: number
   blinkAndSaccadeMs: number
+  bodyActive: boolean
   deltaMs: number
+  embodimentSegmentAligned: boolean | null
+  embodimentSegmentMismatchDrivers: VrmEmbodimentSegmentDriver[]
   emoteMs: number
   expressionMs: number
+  faceActive: boolean
   frameCount: number
   humanoidMs: number
   lastTimestampMs: number
   lipSyncMs: number
+  lipsyncActive: boolean
   lookAtMs: number
+  motionActive: boolean
+  performanceSegmentId: string | null
+  sameHerFrameSummary: string | null
   springBoneMs: number
+  speechSegmentId: string | null
   totalMs: number
+  voiceActive: boolean
   vrmFrameHookMs: number
 }
 
@@ -114,6 +122,13 @@ export interface StageThreeRuntimeResourceSnapshotDiagnostics {
 export interface StageThreeRuntimeSpeechEmbodimentDiagnostics {
   phase: 'idle' | 'starting' | 'playing' | 'stopping'
   playbackPhase: 'idle' | 'playing'
+  currentBodyState?: string | null
+  continuityMode?: string | null
+  quietLineMs?: number | null
+  currentInwardPreoccupation?: string | null
+  activePresenceSummary?: string | null
+  embodiedPresenceSummary?: string | null
+  runtimeSummary?: string | null
   speechEnergy: number
   prosodyIntensity: number
   emphasisLevel: number
@@ -211,25 +226,46 @@ export interface StageThreeRuntimeSpeechEmbodimentDiagnostics {
     latestEventSummary: string | null
     segmentBinding: {
       matched: boolean
-      rendererTarget: 'live2d' | 'vrm' | null
-      matchedDrivers: StageEmbodimentPerformanceMatchedDriver[]
+      rendererTarget: 'live2d' | 'vrm' | 'speech' | null
+      matchedDrivers: Array<'body' | 'face' | 'motion' | 'lipsync' | 'voice'>
       matchedSources: string[]
-    }
-    authorityTrustSummary?: string | null
+      bodySegmentMatched?: boolean | null
+      faceSegmentMatched?: boolean | null
+      motionSegmentMatched?: boolean | null
+      lipsyncSegmentMatched?: boolean | null
+      voiceSegmentMatched?: boolean | null
+    } | null
   } | null
   driverSummary: {
-    rendererTarget: 'live2d' | 'vrm' | null
+    rendererTarget: 'live2d' | 'vrm' | 'speech' | null
+    body?: {
+      frameMode: string | null
+      stillness: number | null
+      gazeStability: number | null
+      breathAmplitude: number | null
+      expressivity: number | null
+      segmentId: string | null
+      reasonSummary?: string | null
+    } | null
     face: {
       cue: string | null
       source: string | null
       confidence: number | null
       segmentId: string | null
+      residentMode?: string | null
+      preferredBlinkCadence?: string | null
+      preferredGazeMode?: string | null
+      reasonSummary?: string | null
     } | null
     motion: {
       cue: string | null
       source: string | null
       confidence: number | null
       segmentId: string | null
+      residentMode?: string | null
+      preferredBlinkCadence?: string | null
+      preferredGazeMode?: string | null
+      reasonSummary?: string | null
     } | null
     lipsync: {
       cue: string | null
@@ -237,7 +273,12 @@ export interface StageThreeRuntimeSpeechEmbodimentDiagnostics {
       confidence: number | null
       segmentId: string | null
       mode: string | null
+      residentMode?: string | null
+      preferredBlinkCadence?: string | null
+      preferredGazeMode?: string | null
+      reasonSummary?: string | null
     } | null
+    voice?: string | null
   } | null
   rendererAlignment: {
     live2d: {
@@ -246,12 +287,12 @@ export interface StageThreeRuntimeSpeechEmbodimentDiagnostics {
       reason: string | null
       status: 'aligned' | 'predicted-only' | 'actual-only' | 'drifted'
       driftKind: 'aligned' | 'resident-not-yet-applied' | 'runtime-only-visible' | 'alias-resolution-drift'
-      driverCue: string | null
-      driverSource: string | null
-      faceDriverCue?: string | null
-      faceDriverSource?: string | null
-      motionDriverCue?: string | null
-      motionDriverSource?: string | null
+      faceDriverCue: string | null
+      faceDriverSource: string | null
+      faceDriverSegmentId?: string | null
+      motionDriverCue: string | null
+      motionDriverSource: string | null
+      motionDriverSegmentId?: string | null
     } | null
     vrm: {
       predicted: string | null
@@ -259,12 +300,12 @@ export interface StageThreeRuntimeSpeechEmbodimentDiagnostics {
       reason: string | null
       status: 'aligned' | 'predicted-only' | 'actual-only' | 'drifted'
       driftKind: 'aligned' | 'resident-not-yet-applied' | 'runtime-only-visible' | 'alias-resolution-drift'
-      driverCue: string | null
-      driverSource: string | null
-      faceDriverCue?: string | null
-      faceDriverSource?: string | null
-      motionDriverCue?: string | null
-      motionDriverSource?: string | null
+      faceDriverCue: string | null
+      faceDriverSource: string | null
+      faceDriverSegmentId?: string | null
+      motionDriverCue: string | null
+      motionDriverSource: string | null
+      motionDriverSegmentId?: string | null
     } | null
   }
   rendererDriftSummary?: {
@@ -273,14 +314,17 @@ export interface StageThreeRuntimeSpeechEmbodimentDiagnostics {
     primary: string | null
   } | null
   articulationSummary: {
+    cueId?: string | null
+    segmentId?: string | null
     voice: string | null
     topVisemes: string | null
+    bindingSummary?: string | null
   } | null
   authoritySummary: {
     cueId: string | null
     segmentId: string | null
-    rendererTarget: 'live2d' | 'vrm' | null
-    matchedDrivers: StageEmbodimentPerformanceMatchedDriver[]
+    rendererTarget: 'live2d' | 'vrm' | 'speech' | null
+    matchedDrivers: Array<'body' | 'face' | 'motion' | 'lipsync' | 'voice'>
     matchedSources: string[]
     bindingSummary: string | null
     matchSummary: string | null
@@ -291,6 +335,14 @@ export interface StageThreeRuntimeSpeechEmbodimentDiagnostics {
     authorityMismatchDisplay?: string | null
     settleSummary: string | null
     traceEmbodimentSummary?: string | null
+  } | null
+  convergence?: {
+    segmentId: string | null
+    state: 'fully-reunited' | 'audible-body-carry' | 'body-carried-to-renderer-rejoin' | 'body-only-carry' | 'audible-only-carry' | 'split-authority'
+    line: string
+    matchedDrivers: Array<'body' | 'face' | 'motion' | 'lipsync' | 'voice'>
+    missingDrivers: Array<'body' | 'face' | 'motion' | 'lipsync' | 'voice'>
+    summary: string
   } | null
   speechEvidence?: {
     voiceSummary: string | null
@@ -324,14 +376,22 @@ export interface StageThreeRuntimeSpeechEmbodimentDiagnostics {
     activeMotion: {
       group: string | null
       index: number | null
-      segmentId?: string | null
+      segmentId: string | null
     } | null
     cue: {
       emotion: string | null
       facialCue: string | null
+      residentMode?: string | null
+      preferredBlinkCadence?: string | null
+      preferredGazeMode?: string | null
       preferredExpressionAliases: string[]
+      preferredMotionAliases?: string[]
+      reasonTags?: string[]
+      signature?: string | null
       live2dFacialReleaseMs: number | null
       live2dMotionFollowThroughMs: number | null
+      vrmActionFadeMs?: number | null
+      vrmExpressionBlendMs?: number | null
     } | null
   } | null
   visemeHintsSummary: string | null
@@ -341,13 +401,13 @@ export interface StageThreeRuntimeSpeechEmbodimentDiagnostics {
     driftMs: number | null
     settleMs: number | null
     stopReason: string | null
-    rendererTarget: 'live2d' | 'vrm' | null
+    rendererTarget: 'live2d' | 'vrm' | 'speech' | null
     driverAuthority: {
       segmentId: string | null
-      rendererTarget: 'live2d' | 'vrm' | null
-      matchedDrivers: StageEmbodimentPerformanceMatchedDriver[]
-      sources: string[]
+      rendererTarget: 'live2d' | 'vrm' | 'speech' | null
+      matchedDrivers: Array<'body' | 'face' | 'motion' | 'lipsync' | 'voice'>
       matchedSources?: string[]
+      sources: string[]
       bodySegmentMatched?: boolean | null
       faceSegmentMatched: boolean | null
       motionSegmentMatched: boolean | null
@@ -452,15 +512,19 @@ export interface StageThreeRuntimeSpeechEmbodimentDiagnostics {
         confidence: number | null
         segmentId: string | null
       } | null
+      voice?: {
+        playbackPhase: 'idle' | 'playing'
+        continuityHoldMs: number
+        segmentId: string | null
+        source: string | null
+        provenance: 'authority-bound' | 'fallback-derived'
+        mode: string | null
+        cueProsodyWeight: number | null
+        cueMouthWeight: number | null
+        cueHeadWeight: number | null
+        visemePeakWeight: number | null
+      } | null
     } | null
-  } | null
-  convergence?: {
-    segmentId: string | null
-    state: string
-    line: string
-    matchedDrivers: StageEmbodimentPerformanceMatchedDriver[]
-    missingDrivers: StageEmbodimentPerformanceMatchedDriver[]
-    summary: string
   } | null
 }
 
@@ -485,16 +549,26 @@ export function createDefaultStageVrmUpdateDiagnostics(): StageThreeRuntimeVrmUp
     lastConsumedVrmExpressionBlendMs: null,
     animationMixerMs: 0,
     blinkAndSaccadeMs: 0,
+    bodyActive: false,
     deltaMs: 0,
+    embodimentSegmentAligned: null,
+    embodimentSegmentMismatchDrivers: [],
     emoteMs: 0,
     expressionMs: 0,
+    faceActive: false,
     frameCount: 0,
     humanoidMs: 0,
     lastTimestampMs: 0,
     lipSyncMs: 0,
+    lipsyncActive: false,
     lookAtMs: 0,
+    motionActive: false,
+    performanceSegmentId: null,
+    sameHerFrameSummary: null,
     springBoneMs: 0,
+    speechSegmentId: null,
     totalMs: 0,
+    voiceActive: false,
     vrmFrameHookMs: 0,
   }
 }
@@ -601,10 +675,131 @@ export function applyHitTestTracePayload(
   }
 }
 
+function buildVrmSameHerFrameSummary(input: {
+  bodyActive: boolean
+  embodimentSegmentAligned: boolean | null
+  embodimentSegmentMismatchDrivers: VrmEmbodimentSegmentDriver[]
+  faceActive: boolean
+  lipsyncActive: boolean
+  motionActive: boolean
+  performanceSegmentId: string | null
+  speechSegmentId: string | null
+  voiceActive: boolean
+}) {
+  if (input.embodimentSegmentAligned == null)
+    return null
+
+  const allDrivers: VrmEmbodimentSegmentDriver[] = ['body', 'face', 'motion', 'lipsync', 'voice']
+  const activeDrivers = [
+    input.bodyActive ? 'body' : null,
+    input.faceActive ? 'face' : null,
+    input.motionActive ? 'motion' : null,
+    input.lipsyncActive ? 'lipsync' : null,
+    input.voiceActive ? 'voice' : null,
+  ].filter((driver): driver is VrmEmbodimentSegmentDriver => Boolean(driver))
+  const activeSummary = activeDrivers.length > 0 ? activeDrivers.join(', ') : 'none'
+  const mismatchDriverSet = new Set(input.embodimentSegmentMismatchDrivers)
+  const matchedDrivers = input.embodimentSegmentAligned
+    ? activeDrivers
+    : activeDrivers.filter(driver => !mismatchDriverSet.has(driver))
+  const matchedDriverSet = new Set(matchedDrivers)
+  const remainingOpenDrivers = allDrivers.filter(driver => !matchedDriverSet.has(driver))
+  const matchedDriverKey = matchedDrivers.join('+')
+  const lane = (() => {
+    if (matchedDriverKey === 'body+face+motion+lipsync+voice')
+      return 'full-driver-rejoin'
+    if (matchedDriverKey === 'body+face+motion')
+      return 'body+face+motion-only'
+    if (matchedDriverKey === 'body+lipsync+voice')
+      return 'body+lipsync+voice-only'
+    if (matchedDriverKey === 'lipsync+voice')
+      return 'lipsync+voice-only'
+    if (matchedDriverKey === 'face+lipsync')
+      return 'face+lipsync-only'
+    if (matchedDriverKey === 'motion+lipsync')
+      return 'motion+lipsync-only'
+    if (matchedDriverKey === 'body')
+      return 'body-only'
+    return matchedDrivers.length > 0 ? `${matchedDriverKey}-only` : null
+  })()
+  const closure = (() => {
+    if (matchedDriverKey === 'body+face+motion+lipsync+voice')
+      return 'full-cross-modal-lock'
+    if (matchedDriverKey === 'body+lipsync+voice')
+      return 'audible-body-carry'
+    if (matchedDriverKey === 'lipsync+voice')
+      return 'voice-lipsync-carry'
+    if (matchedDriverKey === 'body')
+      return 'body-only-hold'
+    if (matchedDriverKey === 'face+lipsync' || matchedDriverKey === 'motion+lipsync')
+      return 'renderer-rejoin-without-body'
+    return null
+  })()
+  const remainingOpenSummary = remainingOpenDrivers.length > 0
+    ? remainingOpenDrivers.join('+')
+    : 'none'
+  const closureSegments = [
+    closure ? `closure=${closure}` : null,
+    lane ? `lane=${lane}` : null,
+    `remaining-open=${remainingOpenSummary}`,
+  ].filter((segment): segment is string => Boolean(segment))
+
+  if (input.embodimentSegmentAligned) {
+    return [
+      'aligned',
+      `segment=${input.performanceSegmentId ?? input.speechSegmentId ?? 'n/a'}`,
+      `active=${activeSummary}`,
+      ...closureSegments,
+    ].join(' | ')
+  }
+
+  const mismatchSummary = input.embodimentSegmentMismatchDrivers.length > 0
+    ? input.embodimentSegmentMismatchDrivers.join(', ')
+    : 'none'
+
+  return [
+    'drift',
+    `performance=${input.performanceSegmentId ?? 'n/a'}`,
+    `speech=${input.speechSegmentId ?? 'n/a'}`,
+    `active=${activeSummary}`,
+    `mismatch=${mismatchSummary}`,
+    ...closureSegments,
+  ].join(' | ')
+}
+
 export function applyVrmUpdateTracePayload(
   current: StageThreeRuntimeVrmUpdateDiagnostics,
   payload: VrmUpdateFrameTracePayload,
 ): StageThreeRuntimeVrmUpdateDiagnostics {
+  const performanceSegmentId = payload.performanceSegmentId === undefined
+    ? current.performanceSegmentId
+    : payload.performanceSegmentId
+  const speechSegmentId = payload.speechSegmentId === undefined
+    ? current.speechSegmentId
+    : payload.speechSegmentId
+  const embodimentSegmentAligned = payload.embodimentSegmentAligned === undefined
+    ? current.embodimentSegmentAligned
+    : payload.embodimentSegmentAligned
+  const bodyActive = payload.bodyActive ?? current.bodyActive
+  const faceActive = payload.faceActive ?? current.faceActive
+  const lipsyncActive = payload.lipsyncActive ?? current.lipsyncActive
+  const motionActive = payload.motionActive ?? current.motionActive
+  const voiceActive = payload.voiceActive ?? current.voiceActive
+  const embodimentSegmentMismatchDrivers = payload.embodimentSegmentMismatchDrivers
+    ? [...payload.embodimentSegmentMismatchDrivers]
+    : current.embodimentSegmentMismatchDrivers
+  const sameHerFrameSummary = buildVrmSameHerFrameSummary({
+    bodyActive,
+    embodimentSegmentAligned,
+    embodimentSegmentMismatchDrivers,
+    faceActive,
+    lipsyncActive,
+    motionActive,
+    performanceSegmentId,
+    speechSegmentId,
+    voiceActive,
+  })
+
   return {
     lastConsumedExpressionAliases: payload.activeCuePreferredExpressionAliases
       ? [...payload.activeCuePreferredExpressionAliases]
@@ -616,16 +811,26 @@ export function applyVrmUpdateTracePayload(
     lastConsumedVrmExpressionBlendMs: payload.activeCueVrmExpressionBlendMs ?? current.lastConsumedVrmExpressionBlendMs,
     animationMixerMs: payload.animationMixerMs,
     blinkAndSaccadeMs: payload.blinkAndSaccadeMs,
+    bodyActive,
     deltaMs: payload.deltaMs,
+    embodimentSegmentAligned,
+    embodimentSegmentMismatchDrivers,
     emoteMs: payload.emoteMs,
     expressionMs: payload.expressionMs,
+    faceActive,
     frameCount: current.frameCount + 1,
     humanoidMs: payload.humanoidMs,
     lastTimestampMs: payload.ts,
     lipSyncMs: payload.lipSyncMs,
+    lipsyncActive,
     lookAtMs: payload.lookAtMs,
+    motionActive,
+    performanceSegmentId,
+    sameHerFrameSummary,
     springBoneMs: payload.springBoneMs,
+    speechSegmentId,
     totalMs: payload.durationMs,
+    voiceActive,
     vrmFrameHookMs: payload.vrmFrameHookMs,
   }
 }

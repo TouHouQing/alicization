@@ -86,6 +86,12 @@ window.addEventListener('error', (event) => {
 
 window.addEventListener('unhandledrejection', (event) => {
   const detail = resolveErrorMessage(event.reason)
+  if (import.meta.env.DEV && detail === 'An object could not be cloned.') {
+    const stack = event.reason instanceof Error && typeof event.reason.stack === 'string'
+      ? event.reason.stack
+      : null
+    console.error(`[renderer] Clone rejection raw stack: ${stack || detail}`)
+  }
   const promoted = promoteBootFallbackFromRuntimeError({
     source: 'unhandledrejection',
     detail,

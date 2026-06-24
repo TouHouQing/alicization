@@ -1,16 +1,18 @@
 <script setup lang="ts">
 import type {
+  AlicizationReplayBenchmarkPackId,
+  AlicizationRunReplayBenchmarkResult,
+} from '@proj-alicization/stage-ui/stores/alicization-bridge'
+import type {
   AlicizationMindReplayBenchmarkDimensionGroup,
   AlicizationMindReplayBenchmarkTurnDiagnosis,
   AlicizationMindReplayHumanRatingDimensionRow,
   AlicizationMindReplayMemoryHealthComparisonRow,
+  AlicizationMindReplayMetricRow,
   AlicizationMindReplayRegressionTriageRow,
+  AlicizationMindReplaySameHerRepairTargetRow,
   AlicizationMindReplayShipGateRow,
 } from '@proj-alicization/stage-ui/stores/alicization-mind-replay'
-import type {
-  AlicizationReplayBenchmarkPackId,
-  AlicizationRunReplayBenchmarkResult,
-} from '@proj-alicization/stage-ui/stores/alicization-bridge'
 
 import { Button, FieldInput, SelectTab } from '@proj-alicization/ui'
 import { computed } from 'vue'
@@ -33,6 +35,14 @@ const props = defineProps<{
   selectedTurnId: string | null
   memoryHealthRows: AlicizationMindReplayMemoryHealthComparisonRow[]
   presenceQualityRows: AlicizationMindReplayMemoryHealthComparisonRow[]
+  projectStateRows: AlicizationMindReplayMetricRow[]
+  runtimeSamplingEvidenceRows: AlicizationMindReplayMetricRow[]
+  sameHerSessionRows: AlicizationMindReplayMetricRow[]
+  sameHerLaneGapRows: AlicizationMindReplayMetricRow[]
+  sameHerTransitionRows: AlicizationMindReplayMetricRow[]
+  sameHerRepairTargetRows: AlicizationMindReplaySameHerRepairTargetRow[]
+  projectStateAuditRows: AlicizationMindReplayMetricRow[]
+  selfAuthorityRows: AlicizationMindReplayMetricRow[]
 }>()
 
 const emit = defineEmits<{
@@ -41,6 +51,7 @@ const emit = defineEmits<{
   (event: 'update:selectedDimension', value: string): void
   (event: 'update:selectedTurnId', value: string | null): void
   (event: 'run'): void
+  (event: 'runSameHerSessionProof'): void
   (event: 'inspectTurn', value: string | null): void
 }>()
 
@@ -101,6 +112,58 @@ const dimensionOptions = computed(() => [
     value: group.key,
   })),
 ])
+
+function projectStateRowHeadline(key: string) {
+  if (key === 'project_state_compared_turn_count')
+    return 'Living thread coverage'
+  if (key === 'project_state_identity_hit_rate')
+    return 'Project identity carry'
+  if (key === 'project_state_phase_hit_rate')
+    return 'Phase 1 route carry'
+  if (key === 'project_state_open_loop_hit_rate')
+    return 'Unresolved closure carry'
+  if (key === 'project_state_continuity_hit_rate')
+    return 'Same-her continuity carry'
+  return key
+}
+
+function selfAuthorityRowHeadline(key: string) {
+  if (key === 'self_authority_compared_turn_count')
+    return 'Same-her self audit coverage'
+  if (key === 'self_authority_summary_rate')
+    return 'Explicit self line carry'
+  if (key === 'self_authority_closeness_posture_rate')
+    return 'Closeness posture carry'
+  if (key === 'self_authority_preserved_rate')
+    return 'Rewrite preserve carry'
+  if (key === 'self_authority_rewrite_applied_rate')
+    return 'Final rewrite carry'
+  if (key === 'self_authority_fully_carried_rate')
+    return 'Same-her self continuity carry'
+  return key
+}
+
+function projectStateAuditRowHeadline(key: string) {
+  if (key === 'project_state_audit_compared_turn_count')
+    return 'Same-her project audit coverage'
+  if (key === 'project_state_audit_same_her_summary_rate')
+    return 'Same-her project brief carry'
+  if (key === 'project_state_audit_preserved_rate')
+    return 'Project brief preserve carry'
+  if (key === 'project_state_audit_rewrite_applied_rate')
+    return 'Project brief rewrite carry'
+  if (key === 'project_state_audit_fully_carried_rate')
+    return 'Same-her project-status continuity carry'
+  return key
+}
+
+function sameHerSessionRowTone(row: AlicizationMindReplayMetricRow) {
+  if (row.key === 'same_her_session_closure_rate')
+    return row.value === 1 ? 'closed' : 'open'
+  if (row.key.startsWith('same_her_session:'))
+    return row.detail.startsWith('closed') ? 'closed' : 'open'
+  return 'closed'
+}
 
 function updatePackId(value: unknown) {
   if (
@@ -172,6 +235,14 @@ function turnTraceLabel(turn: AlicizationMindReplayBenchmarkTurnDiagnosis) {
           size="sm"
           :disabled="loading || !supported"
           @click="emit('run')"
+        />
+        <Button
+          :label="tDiagnosis('actions.run_same_her_session_proof', 'Run Same-her Proof')"
+          icon="i-solar:heart-pulse-bold-duotone"
+          size="sm"
+          variant="secondary"
+          :disabled="loading || !supported"
+          @click="emit('runSameHerSessionProof')"
         />
       </div>
 
@@ -584,6 +655,282 @@ function turnTraceLabel(turn: AlicizationMindReplayBenchmarkTurnDiagnosis) {
 
         <div :class="['mb-3', 'text-sm', 'font-medium', 'text-neutral-800', 'dark:text-neutral-100']">
           {{ tDiagnosis('health.title', 'Memory Health Before / After') }}
+        </div>
+        <div
+          v-if="projectStateRows.length > 0"
+          :class="['mb-4', 'grid', 'gap-2']"
+        >
+          <div :class="['text-xs', 'text-neutral-500', 'dark:text-neutral-400']">
+            {{ tDiagnosis('project_state.description', 'Project-state continuity tracks whether Alicization still carries project identity, the Phase 1 local-digital-life route, and unresolved closure work on the same living thread into replayed turns.') }}
+          </div>
+          <div :class="['text-[11px]', 'font-medium', 'uppercase', 'tracking-[0.18em]', 'text-indigo-600/80', 'dark:text-indigo-300/80']">
+            {{ tDiagnosis('project_state.same_living_thread', 'Same living thread: identity, phase, and unresolved closure carry') }}
+          </div>
+          <div
+            v-for="row in projectStateRows"
+            :key="`project-state:${row.key}`"
+            :class="[
+              'rounded-xl', 'border', 'border-solid', 'border-indigo-200/80',
+              'bg-indigo-50/60', 'px-3', 'py-3',
+              'dark:border-indigo-900/70', 'dark:bg-indigo-950/20',
+            ]"
+          >
+            <div :class="['font-mono', 'text-xs', 'text-indigo-800', 'dark:text-indigo-200']">
+              {{ row.key }}
+            </div>
+            <div :class="['mt-1', 'text-sm', 'font-medium', 'text-indigo-900', 'dark:text-indigo-100']">
+              {{ projectStateRowHeadline(row.key) }}
+            </div>
+            <div :class="['mt-2', 'grid', 'grid-cols-[auto_1fr]', 'gap-2', 'text-[11px]', 'text-indigo-700/80', 'dark:text-indigo-200/80']">
+              <div>{{ tDiagnosis('health.patch', 'patch') }}</div>
+              <div :class="['font-mono', 'text-indigo-900', 'dark:text-indigo-100']">
+                {{ row.value ?? 'n/a' }}
+              </div>
+            </div>
+            <div :class="['mt-2', 'text-[11px]', 'text-indigo-700/80', 'dark:text-indigo-200/80']">
+              {{ row.detail }}
+            </div>
+          </div>
+        </div>
+        <div
+          v-if="sameHerSessionRows.length > 0"
+          :class="['mb-4', 'grid', 'gap-2']"
+        >
+          <div :class="['text-xs', 'text-neutral-500', 'dark:text-neutral-400']">
+            {{ tDiagnosis('same_her_sessions.description', 'Long-run same-her session proof checks whether memory, initiative or execution callback, emotion, and embodiment close together across multiple real sampled turns in the same desktop session.') }}
+          </div>
+          <div :class="['text-[11px]', 'font-medium', 'uppercase', 'tracking-[0.18em]', 'text-emerald-600/80', 'dark:text-emerald-300/80']">
+            {{ tDiagnosis('same_her_sessions.title', 'Long-run same-her sessions: memory, initiative, emotion, and embodiment close together') }}
+          </div>
+          <div
+            v-if="runtimeSamplingEvidenceRows.length > 0"
+            :class="[
+              'rounded-xl', 'border', 'border-solid', 'px-3', 'py-3',
+              runtimeSamplingEvidenceRows[0]?.detail.includes('status=closed')
+                ? 'border-emerald-200/80 bg-emerald-50/70 dark:border-emerald-900/70 dark:bg-emerald-950/20'
+                : 'border-amber-200/80 bg-amber-50/70 dark:border-amber-900/70 dark:bg-amber-950/20',
+            ]"
+          >
+            <div :class="['text-[11px]', 'font-medium', 'uppercase', 'tracking-[0.16em]', 'text-neutral-600', 'dark:text-neutral-300']">
+              {{ tDiagnosis('same_her_sessions.runtime_evidence', 'Runtime sampling evidence') }}
+            </div>
+            <div
+              v-for="row in runtimeSamplingEvidenceRows"
+              :key="`runtime-sampling-evidence:${row.key}`"
+              :class="['mt-2', 'grid', 'gap-2']"
+            >
+              <div :class="['font-mono', 'text-xs', 'text-neutral-700', 'dark:text-neutral-200']">
+                {{ row.key }}
+              </div>
+              <div :class="['grid', 'grid-cols-[auto_1fr]', 'gap-2', 'text-[11px]', 'text-neutral-600', 'dark:text-neutral-300']">
+                <div>{{ tDiagnosis('health.patch', 'patch') }}</div>
+                <div :class="['font-mono', 'text-neutral-800', 'dark:text-neutral-100']">
+                  {{ row.value ?? 'n/a' }}
+                </div>
+              </div>
+              <div :class="['text-[11px]', 'text-neutral-600', 'dark:text-neutral-300']">
+                {{ row.detail }}
+              </div>
+            </div>
+          </div>
+          <div
+            v-if="sameHerLaneGapRows.length > 0"
+            :class="[
+              'rounded-xl', 'border', 'border-solid', 'border-amber-200/80',
+              'bg-amber-50/70', 'px-3', 'py-3',
+              'dark:border-amber-900/70', 'dark:bg-amber-950/20',
+            ]"
+          >
+            <div :class="['text-[11px]', 'font-medium', 'uppercase', 'tracking-[0.16em]', 'text-amber-700', 'dark:text-amber-300']">
+              {{ tDiagnosis('same_her_sessions.lane_gaps', 'Open lane gaps') }}
+            </div>
+            <div :class="['mt-2', 'grid', 'gap-2']">
+              <div
+                v-for="row in sameHerLaneGapRows"
+                :key="`same-her-lane-gap:${row.key}`"
+                :class="['text-[11px]', 'text-amber-900', 'dark:text-amber-100']"
+              >
+                <span :class="['font-mono']">{{ row.key }}</span>
+                <span> · {{ row.detail }}</span>
+              </div>
+            </div>
+          </div>
+          <div
+            v-if="sameHerRepairTargetRows.length > 0"
+            :class="['grid', 'gap-2']"
+          >
+            <div :class="['text-[11px]', 'font-medium', 'uppercase', 'tracking-[0.16em]', 'text-amber-700', 'dark:text-amber-300']">
+              {{ tDiagnosis('same_her_sessions.repair_targets', 'Repair targets') }}
+            </div>
+            <div
+              v-for="target in sameHerRepairTargetRows"
+              :key="`same-her-repair-target:${target.lane}:${target.turnId}`"
+              :class="[
+                'rounded-xl', 'border', 'border-solid', 'border-neutral-200/80',
+                'bg-white/70', 'px-3', 'py-3',
+                'dark:border-neutral-800/70', 'dark:bg-neutral-950/40',
+              ]"
+            >
+              <div :class="['flex', 'items-start', 'justify-between', 'gap-3']">
+                <div :class="['min-w-0', 'flex-1']">
+                  <div :class="['font-mono', 'text-xs', 'text-neutral-700', 'dark:text-neutral-200']">
+                    {{ target.lane }} · {{ target.turnId }}
+                  </div>
+                  <div :class="['mt-1', 'font-mono', 'text-[11px]', 'text-neutral-500', 'dark:text-neutral-400']">
+                    session={{ target.sessionId }} · missing={{ target.missingLanes.join(' + ') }}
+                  </div>
+                  <div :class="['mt-2', 'text-[11px]', 'text-neutral-600', 'dark:text-neutral-300']">
+                    {{ target.firstCheck }}
+                  </div>
+                  <ul
+                    v-if="target.reasons.length > 0"
+                    :class="['mt-2', 'grid', 'gap-1', 'pl-4', 'text-[11px]', 'text-amber-700', 'dark:text-amber-300']"
+                  >
+                    <li
+                      v-for="reason in target.reasons"
+                      :key="`same-her-repair-target-reason:${target.lane}:${target.turnId}:${reason}`"
+                      :class="['list-disc']"
+                    >
+                      {{ reason }}
+                    </li>
+                  </ul>
+                </div>
+                <Button
+                  :label="tDiagnosis('turns.inspect', 'Inspect')"
+                  icon="i-solar:eye-bold-duotone"
+                  size="sm"
+                  variant="secondary"
+                  @click="emit('inspectTurn', target.turnId)"
+                />
+              </div>
+            </div>
+          </div>
+          <div
+            v-if="sameHerTransitionRows.length > 0"
+            :class="['grid', 'gap-2']"
+          >
+            <div :class="['text-[11px]', 'font-medium', 'uppercase', 'tracking-[0.16em]', 'text-sky-700', 'dark:text-sky-300']">
+              {{ tDiagnosis('same_her_sessions.transitions', 'Cross-turn influence') }}
+            </div>
+            <div
+              v-for="row in sameHerTransitionRows"
+              :key="`same-her-transition:${row.key}`"
+              :class="[
+                'rounded-xl', 'border', 'border-solid', 'px-3', 'py-3',
+                row.value === 1
+                  ? 'border-sky-200/80 bg-sky-50/70 dark:border-sky-900/70 dark:bg-sky-950/20'
+                  : 'border-amber-200/80 bg-amber-50/70 dark:border-amber-900/70 dark:bg-amber-950/20',
+              ]"
+            >
+              <div :class="['font-mono', 'text-xs', 'text-neutral-700', 'dark:text-neutral-200']">
+                {{ row.key }}
+              </div>
+              <div :class="['mt-2', 'grid', 'grid-cols-[auto_1fr]', 'gap-2', 'text-[11px]', 'text-neutral-600', 'dark:text-neutral-300']">
+                <div>{{ tDiagnosis('health.patch', 'patch') }}</div>
+                <div :class="['font-mono', 'text-neutral-800', 'dark:text-neutral-100']">
+                  {{ row.value ?? 'n/a' }}
+                </div>
+              </div>
+              <div :class="['mt-2', 'text-[11px]', 'text-neutral-600', 'dark:text-neutral-300']">
+                {{ row.detail }}
+              </div>
+            </div>
+          </div>
+          <div
+            v-for="row in sameHerSessionRows"
+            :key="`same-her-session:${row.key}`"
+            :class="[
+              'rounded-xl', 'border', 'border-solid', 'px-3', 'py-3',
+              sameHerSessionRowTone(row) === 'open'
+                ? 'border-amber-200/80 bg-amber-50/70 dark:border-amber-900/70 dark:bg-amber-950/20'
+                : 'border-emerald-200/80 bg-emerald-50/70 dark:border-emerald-900/70 dark:bg-emerald-950/20',
+            ]"
+          >
+            <div :class="['font-mono', 'text-xs', 'text-neutral-700', 'dark:text-neutral-200']">
+              {{ row.key }}
+            </div>
+            <div :class="['mt-2', 'grid', 'grid-cols-[auto_1fr]', 'gap-2', 'text-[11px]', 'text-neutral-600', 'dark:text-neutral-300']">
+              <div>{{ tDiagnosis('health.patch', 'patch') }}</div>
+              <div :class="['font-mono', 'text-neutral-800', 'dark:text-neutral-100']">
+                {{ row.value ?? 'n/a' }}
+              </div>
+            </div>
+            <div :class="['mt-2', 'text-[11px]', 'text-neutral-600', 'dark:text-neutral-300']">
+              {{ row.detail }}
+            </div>
+          </div>
+        </div>
+        <div
+          v-if="selfAuthorityRows.length > 0"
+          :class="['mb-4', 'grid', 'gap-2']"
+        >
+          <div :class="['text-xs', 'text-neutral-500', 'dark:text-neutral-400']">
+            {{ tDiagnosis('self_authority.description', 'Same-her self authority tracks whether Alicization keeps one explicit self line and the matching relational posture visible all the way into rewrite, so the project thread and the speaking self do not drift apart.') }}
+          </div>
+          <div :class="['text-[11px]', 'font-medium', 'uppercase', 'tracking-[0.18em]', 'text-fuchsia-600/80', 'dark:text-fuchsia-300/80']">
+            {{ tDiagnosis('self_authority.same_living_self_thread', 'Same living self thread: explicit self line, relational posture, and rewrite carry') }}
+          </div>
+          <div
+            v-for="row in selfAuthorityRows"
+            :key="`self-authority:${row.key}`"
+            :class="[
+              'rounded-xl', 'border', 'border-solid', 'border-fuchsia-200/80',
+              'bg-fuchsia-50/60', 'px-3', 'py-3',
+              'dark:border-fuchsia-900/70', 'dark:bg-fuchsia-950/20',
+            ]"
+          >
+            <div :class="['font-mono', 'text-xs', 'text-fuchsia-800', 'dark:text-fuchsia-200']">
+              {{ row.key }}
+            </div>
+            <div :class="['mt-1', 'text-sm', 'font-medium', 'text-fuchsia-900', 'dark:text-fuchsia-100']">
+              {{ selfAuthorityRowHeadline(row.key) }}
+            </div>
+            <div :class="['mt-2', 'grid', 'grid-cols-[auto_1fr]', 'gap-2', 'text-[11px]', 'text-fuchsia-700/80', 'dark:text-fuchsia-200/80']">
+              <div>{{ tDiagnosis('health.patch', 'patch') }}</div>
+              <div :class="['font-mono', 'text-fuchsia-900', 'dark:text-fuchsia-100']">
+                {{ row.value ?? 'n/a' }}
+              </div>
+            </div>
+            <div :class="['mt-2', 'text-[11px]', 'text-fuchsia-700/80', 'dark:text-fuchsia-200/80']">
+              {{ row.detail }}
+            </div>
+          </div>
+        </div>
+        <div
+          v-if="projectStateAuditRows.length > 0"
+          :class="['mb-4', 'grid', 'gap-2']"
+        >
+          <div :class="['text-xs', 'text-neutral-500', 'dark:text-neutral-400']">
+            {{ tDiagnosis('project_state_audit.description', 'Same-her project-state audit tracks whether Alicization answers project-status questions as one living self who is still carrying project identity, the Phase 1 route, and unfinished closure work through rewrite.') }}
+          </div>
+          <div :class="['text-[11px]', 'font-medium', 'uppercase', 'tracking-[0.18em]', 'text-violet-600/80', 'dark:text-violet-300/80']">
+            {{ tDiagnosis('project_state_audit.same_her_project_thread', 'Same-her project thread: one living self, one project brief, one unfinished closure line') }}
+          </div>
+          <div
+            v-for="row in projectStateAuditRows"
+            :key="`project-state-audit:${row.key}`"
+            :class="[
+              'rounded-xl', 'border', 'border-solid', 'border-violet-200/80',
+              'bg-violet-50/60', 'px-3', 'py-3',
+              'dark:border-violet-900/70', 'dark:bg-violet-950/20',
+            ]"
+          >
+            <div :class="['font-mono', 'text-xs', 'text-violet-800', 'dark:text-violet-200']">
+              {{ row.key }}
+            </div>
+            <div :class="['mt-1', 'text-sm', 'font-medium', 'text-violet-900', 'dark:text-violet-100']">
+              {{ projectStateAuditRowHeadline(row.key) }}
+            </div>
+            <div :class="['mt-2', 'grid', 'grid-cols-[auto_1fr]', 'gap-2', 'text-[11px]', 'text-violet-700/80', 'dark:text-violet-200/80']">
+              <div>{{ tDiagnosis('health.patch', 'patch') }}</div>
+              <div :class="['font-mono', 'text-violet-900', 'dark:text-violet-100']">
+                {{ row.value ?? 'n/a' }}
+              </div>
+            </div>
+            <div :class="['mt-2', 'text-[11px]', 'text-violet-700/80', 'dark:text-violet-200/80']">
+              {{ row.detail }}
+            </div>
+          </div>
         </div>
         <div
           v-if="presenceQualityRows.length > 0"

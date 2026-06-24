@@ -203,7 +203,9 @@ function syncDesktopMouseCaptureState() {
   shouldFadeOnCursorWithin.value = false
 
   const ignoreMouse = !shouldCaptureMouse
-  setIgnoreMouseEvents([ignoreMouse, { forward: ignoreMouse }])
+  void setIgnoreMouseEvents([ignoreMouse, { forward: ignoreMouse }]).catch((error: unknown) => {
+    console.warn('[stage-startup-trace] failed to sync ignore mouse events', error)
+  })
 }
 
 function createDrivingEventQueryKey(speechDiagnostics: ReturnType<typeof mapSpeechEmbodimentDiagnosticsForRenderer> | null) {
