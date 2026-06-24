@@ -2223,7 +2223,7 @@ describe('runtime main gateway one-shot', () => {
     } = createOneShotRuntimeHarness({
       resolveCardCustomDirectives: vi.fn(async () => ({
         text: '你是严厉但克制的监督者，避免无效安慰，优先指出关键问题。',
-        source: 'card',
+        source: 'card-soul' as const,
       })),
       buildAgentTurnContinuitySystemMessages: vi.fn(() => [
         {

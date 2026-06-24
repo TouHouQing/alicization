@@ -1095,10 +1095,6 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
       let text = ''
       let finishReason = 'stop'
       const messages = Array.isArray(options?.messages) ? options.messages : []
-      const systemText = messages
-        .filter((message: { role?: string, content?: unknown }) => message.role === 'system')
-        .map((message: { content?: unknown }) => String(message.content ?? ''))
-        .join('\n\n')
       const userText = messages
         .filter((message: { role?: string, content?: unknown }) => message.role === 'user' && typeof message.content === 'string')
         .map((message: { content?: unknown }) => String(message.content ?? ''))
@@ -23889,8 +23885,6 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
       updatedAt: Date.now() - 60_000,
     }))
 
-    let proactiveSystemText = ''
-    let dreamSystemText = ''
     streamTextMock.mockImplementation(async ({ messages, onEvent }: { messages?: Array<{ role?: string, content?: unknown }>, onEvent?: (event: any) => Promise<void> | void }) => {
       const systemText = Array.isArray(messages)
         ? messages
@@ -23899,11 +23893,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
             .join('\n\n')
         : ''
 
-      if (systemText.includes('[ALICIZATION_PROACTIVE_SELF_BRIEF]'))
-        proactiveSystemText = systemText
-
       if (systemText.includes('[SYSTEM OVERRIDE: 内部动机触发]')) {
-        proactiveSystemText = systemText
         await onEvent?.({
           type: 'text-delta',
           text: JSON.stringify({
@@ -23917,7 +23907,6 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
       }
 
       if (systemText.includes('[SYSTEM OVERRIDE: 潜意识代谢与记忆重塑]')) {
-        dreamSystemText = systemText
         await onEvent?.({
           type: 'text-delta',
           text: JSON.stringify({
