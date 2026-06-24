@@ -169,6 +169,7 @@ const safeAwaitHostInputToolNames = new Set<LocalVisualToolName>([
 const highImpactActionPattern = /publish|send|share|delete|remove|trash|erase|clear all|pay|payment|purchase|buy now|checkout|order now|transfer|withdraw|post now|create post|create thread|create topic|create discussion|start discussion|upload|发布|发送|分享|删除|移除|清空|付款|支付|购买|下单|转账|提现|创建帖子|发布帖子|创建主题|发布主题|创建讨论|发布讨论|上传/iu
 const nonUploadHighImpactActionPattern = /publish|send|share|delete|remove|trash|erase|clear all|pay|payment|purchase|buy now|checkout|order now|transfer|withdraw|post now|create post|create thread|create topic|create discussion|start discussion|发布|发送|分享|删除|移除|清空|付款|支付|购买|下单|转账|提现|创建帖子|发布帖子|创建主题|发布主题|创建讨论|发布讨论/iu
 const uploadBridgeActionPattern = /upload(?: image| photo| file)?|attach|choose file|select file|browse|media|上传图片|上传照片|上传文件|添加图片|添加照片|添加附件|选择图片|选择文件|选图|相册|图片|照片/u
+const localVisualVisitedActionKeysField = '__localVisualVisitedActionKeys'
 
 function sanitizeText(raw: unknown, maxChars = 220) {
   if (typeof raw !== 'string')
@@ -258,7 +259,84 @@ function isImmediateRepeatedFollowUpAction(input: {
     return currentAction === suggestedAction
   }
 
+  if (input.currentToolName === 'browser_click_element') {
+    const currentBrowser = sanitizeText(input.currentPayload.browser, 32).toLowerCase()
+    const suggestedBrowser = sanitizeText(suggestedArguments?.browser, 32).toLowerCase()
+    const currentText = sanitizeText(input.currentPayload.text, 160).toLowerCase()
+    const suggestedText = sanitizeText(suggestedArguments?.text, 160).toLowerCase()
+    const currentTargetType = sanitizeText(input.currentPayload.targetType, 80).toLowerCase()
+    const suggestedTargetType = sanitizeText(suggestedArguments?.targetType, 80).toLowerCase()
+    const currentSelector = sanitizeText(input.currentPayload.selector, 240)
+    const suggestedSelector = sanitizeText(suggestedArguments?.selector, 240)
+    const sameBrowser = !currentBrowser || !suggestedBrowser || currentBrowser === suggestedBrowser
+    const sameSelector = Boolean(currentSelector || suggestedSelector) && currentSelector === suggestedSelector
+    const sameVisibleTarget = Boolean(currentText || suggestedText)
+      && currentText === suggestedText
+      && (!currentTargetType || !suggestedTargetType || currentTargetType === suggestedTargetType)
+    return sameBrowser && (sameSelector || sameVisibleTarget)
+  }
+
+  if (input.currentToolName === 'browser_navigate') {
+    const currentAction = sanitizeText(input.currentPayload.action, 80).toLowerCase() || 'reload'
+    const suggestedAction = sanitizeText(suggestedArguments?.action, 80).toLowerCase() || 'reload'
+    const currentBrowser = sanitizeText(input.currentPayload.browser, 32).toLowerCase()
+    const suggestedBrowser = sanitizeText(suggestedArguments?.browser, 32).toLowerCase()
+    return currentAction === suggestedAction
+      && (!currentBrowser || !suggestedBrowser || currentBrowser === suggestedBrowser)
+  }
+
   return false
+}
+
+function buildRepeatableLocalVisualActionKey(toolName: LocalVisualToolName, payload: Record<string, unknown>) {
+  if (toolName === 'browser_navigate') {
+    const browser = sanitizeText(payload.browser, 32).toLowerCase()
+    const action = sanitizeText(payload.action, 80).toLowerCase() || 'reload'
+    return `browser_navigate:${browser}:${action}`
+  }
+
+  if (toolName === 'browser_click_element') {
+    const browser = sanitizeText(payload.browser, 32).toLowerCase()
+    const selector = sanitizeText(payload.selector, 240)
+    if (selector)
+      return `browser_click_element:${browser}:selector:${selector}`
+
+    const text = sanitizeText(payload.text, 160).toLowerCase()
+    const targetType = sanitizeText(payload.targetType, 80).toLowerCase()
+    return text ? `browser_click_element:${browser}:text:${targetType}:${text}` : null
+  }
+
+  if (toolName === 'browser_scroll') {
+    const browser = sanitizeText(payload.browser, 32).toLowerCase()
+    const action = sanitizeText(payload.action, 80).toLowerCase() || 'down'
+    return `browser_scroll:${browser}:${action}`
+  }
+
+  if (toolName === 'desktop_press_keys') {
+    const shortcut = sanitizeText(payload.shortcut, 80).toLowerCase()
+    return shortcut ? `desktop_press_keys:${shortcut}` : null
+  }
+
+  if (toolName === 'desktop_open_application') {
+    const appName = sanitizeText(payload.appName, 160).toLowerCase()
+    const path = sanitizeText(payload.path, 320).toLowerCase()
+    return appName || path ? `desktop_open_application:${appName}:${path}` : null
+  }
+
+  return null
+}
+
+function readVisitedLocalVisualActionKeys(payload: Record<string, unknown>) {
+  return new Set(asStringArray(payload[localVisualVisitedActionKeysField]))
+}
+
+function stripLocalVisualInternalArguments(payload: Record<string, unknown>) {
+  if (!(localVisualVisitedActionKeysField in payload))
+    return payload
+
+  const next = { ...payload }
+  delete next[localVisualVisitedActionKeysField]
+  return next
 }
 
 function matchesHighImpactActionPattern(...fields: unknown[]) {
@@ -798,12 +876,19 @@ async function maybeFollowUpLocalVisualAction(input: {
   const workflowPlan = asRecord(postActionInspection.workflowPlan)
   const blockingSignals = sanitizeStringList(postActionInspection.blockingSignals)
   const executionStrategy = asRecord(postActionInspection.executionStrategy)
+  const visitedActionKeys = readVisitedLocalVisualActionKeys(input.payload)
   const inspectedSuggestedActions = extractSuggestedActionRecords(postActionInspection.suggestedActions)
     .filter(action => !isImmediateRepeatedFollowUpAction({
       currentPayload: input.payload,
       currentToolName: input.toolName,
       suggestedAction: action,
     }))
+    .filter((action) => {
+      const toolName = sanitizeText(action.toolName, 80) as LocalVisualToolName
+      const actionArguments = asRecord(action.arguments) ?? {}
+      const actionKey = buildRepeatableLocalVisualActionKey(toolName, actionArguments)
+      return !actionKey || !visitedActionKeys.has(actionKey)
+    })
   const matchedExpectedPhase = expectedPhase
     ? Boolean(observedPhase && observedPhase === expectedPhase)
     : undefined
@@ -925,6 +1010,7 @@ async function maybeFollowUpLocalVisualAction(input: {
     suggestedActions,
     surface: input.surface,
     thread: input.thread,
+    visitedActionKeys,
   })
   const continuationSummaryText = buildAutoContinuationSummary(continuation.autoContinuation)
   const nextOutputPayload = compactRecord({
@@ -949,22 +1035,30 @@ async function executeLocalVisualAction(input: {
   remainingStepsAfterThis: number
   surface: AlicizationLocalVisualDispatchSurface
   thread: AlicizationTaskThreadRecord
+  visitedActionKeys: Set<string>
 }): Promise<Record<string, unknown> | null> {
   const toolName = sanitizeText(input.action.toolName, 80) as LocalVisualToolName
   if (!supportedToolNames.has(toolName))
     return null
 
   const argumentsRecord = asRecord(input.action.arguments) ?? {}
-  const recursiveArguments = input.remainingStepsAfterThis > 0
+  const recursiveArgumentsBase = input.remainingStepsAfterThis > 0
     ? {
         ...argumentsRecord,
         autoContinueSuggestedActions: true,
         maxAutoContinueSteps: input.remainingStepsAfterThis,
       }
     : argumentsRecord
+  const recursiveArguments = input.visitedActionKeys.size > 0
+    ? {
+        ...recursiveArgumentsBase,
+        [localVisualVisitedActionKeysField]: [...input.visitedActionKeys],
+      }
+    : recursiveArgumentsBase
+  const toolArguments = stripLocalVisualInternalArguments(recursiveArguments)
 
   if (toolName === 'browser_read_page' && input.surface.browserReadPage) {
-    const result = normalizeLocalToolResult(await input.surface.browserReadPage(recursiveArguments as AlicizationLocalBrowserReadPageInput), 'browser_read_page')
+    const result = normalizeLocalToolResult(await input.surface.browserReadPage(toolArguments as AlicizationLocalBrowserReadPageInput), 'browser_read_page')
     return await maybeFollowUpLocalVisualAction({
       commandRuntimeContext: input.commandRuntimeContext,
       payload: recursiveArguments,
@@ -975,7 +1069,7 @@ async function executeLocalVisualAction(input: {
     })
   }
   if (toolName === 'browser_open_url' && input.surface.browserOpenUrl) {
-    const result = normalizeLocalToolResult(await input.surface.browserOpenUrl(recursiveArguments as AlicizationLocalBrowserOpenUrlInput), 'browser_open_url')
+    const result = normalizeLocalToolResult(await input.surface.browserOpenUrl(toolArguments as AlicizationLocalBrowserOpenUrlInput), 'browser_open_url')
     return await maybeFollowUpLocalVisualAction({
       commandRuntimeContext: input.commandRuntimeContext,
       payload: recursiveArguments,
@@ -986,7 +1080,7 @@ async function executeLocalVisualAction(input: {
     })
   }
   if (toolName === 'browser_search_web' && input.surface.browserSearchWeb) {
-    const result = normalizeLocalToolResult(await input.surface.browserSearchWeb(recursiveArguments as unknown as AlicizationLocalBrowserSearchWebInput), 'browser_search_web')
+    const result = normalizeLocalToolResult(await input.surface.browserSearchWeb(toolArguments as unknown as AlicizationLocalBrowserSearchWebInput), 'browser_search_web')
     return await maybeFollowUpLocalVisualAction({
       commandRuntimeContext: input.commandRuntimeContext,
       payload: recursiveArguments,
@@ -997,7 +1091,7 @@ async function executeLocalVisualAction(input: {
     })
   }
   if (toolName === 'browser_click_element' && input.surface.browserClickElement) {
-    const result = normalizeLocalToolResult(await input.surface.browserClickElement(recursiveArguments as AlicizationLocalBrowserClickElementInput), 'browser_click_element')
+    const result = normalizeLocalToolResult(await input.surface.browserClickElement(toolArguments as AlicizationLocalBrowserClickElementInput), 'browser_click_element')
     return await maybeFollowUpLocalVisualAction({
       commandRuntimeContext: input.commandRuntimeContext,
       payload: recursiveArguments,
@@ -1008,7 +1102,7 @@ async function executeLocalVisualAction(input: {
     })
   }
   if (toolName === 'browser_type_text' && input.surface.browserTypeText) {
-    const result = normalizeLocalToolResult(await input.surface.browserTypeText(recursiveArguments as unknown as AlicizationLocalBrowserTypeTextInput), 'browser_type_text')
+    const result = normalizeLocalToolResult(await input.surface.browserTypeText(toolArguments as unknown as AlicizationLocalBrowserTypeTextInput), 'browser_type_text')
     return await maybeFollowUpLocalVisualAction({
       commandRuntimeContext: input.commandRuntimeContext,
       payload: recursiveArguments,
@@ -1019,7 +1113,7 @@ async function executeLocalVisualAction(input: {
     })
   }
   if (toolName === 'browser_navigate' && input.surface.browserNavigate) {
-    const result = normalizeLocalToolResult(await input.surface.browserNavigate(recursiveArguments as unknown as AlicizationLocalBrowserNavigateInput), 'browser_navigate')
+    const result = normalizeLocalToolResult(await input.surface.browserNavigate(toolArguments as unknown as AlicizationLocalBrowserNavigateInput), 'browser_navigate')
     return await maybeFollowUpLocalVisualAction({
       commandRuntimeContext: input.commandRuntimeContext,
       payload: recursiveArguments,
@@ -1030,7 +1124,7 @@ async function executeLocalVisualAction(input: {
     })
   }
   if (toolName === 'browser_scroll' && input.surface.browserScroll) {
-    const result = normalizeLocalToolResult(await input.surface.browserScroll(recursiveArguments as unknown as AlicizationLocalBrowserScrollInput), 'browser_scroll')
+    const result = normalizeLocalToolResult(await input.surface.browserScroll(toolArguments as unknown as AlicizationLocalBrowserScrollInput), 'browser_scroll')
     return await maybeFollowUpLocalVisualAction({
       commandRuntimeContext: input.commandRuntimeContext,
       payload: recursiveArguments,
@@ -1041,7 +1135,7 @@ async function executeLocalVisualAction(input: {
     })
   }
   if (toolName === 'browser_wait' && input.surface.browserWait) {
-    const result = normalizeLocalToolResult(await input.surface.browserWait(recursiveArguments as AlicizationLocalBrowserWaitInput), 'browser_wait')
+    const result = normalizeLocalToolResult(await input.surface.browserWait(toolArguments as AlicizationLocalBrowserWaitInput), 'browser_wait')
     return await maybeFollowUpLocalVisualAction({
       commandRuntimeContext: input.commandRuntimeContext,
       payload: recursiveArguments,
@@ -1052,7 +1146,7 @@ async function executeLocalVisualAction(input: {
     })
   }
   if (toolName === 'desktop_list_interactables' && input.surface.desktopListInteractables) {
-    const result = normalizeLocalToolResult(await input.surface.desktopListInteractables(recursiveArguments as AlicizationLocalDesktopListInteractablesInput), 'desktop_list_interactables')
+    const result = normalizeLocalToolResult(await input.surface.desktopListInteractables(toolArguments as AlicizationLocalDesktopListInteractablesInput), 'desktop_list_interactables')
     return await maybeFollowUpLocalVisualAction({
       commandRuntimeContext: input.commandRuntimeContext,
       payload: recursiveArguments,
@@ -1063,7 +1157,7 @@ async function executeLocalVisualAction(input: {
     })
   }
   if (toolName === 'desktop_click_element' && input.surface.desktopClickElement) {
-    const result = normalizeLocalToolResult(await input.surface.desktopClickElement(recursiveArguments as AlicizationLocalDesktopClickElementInput), 'desktop_click_element')
+    const result = normalizeLocalToolResult(await input.surface.desktopClickElement(toolArguments as AlicizationLocalDesktopClickElementInput), 'desktop_click_element')
     return await maybeFollowUpLocalVisualAction({
       commandRuntimeContext: input.commandRuntimeContext,
       payload: recursiveArguments,
@@ -1074,7 +1168,7 @@ async function executeLocalVisualAction(input: {
     })
   }
   if (toolName === 'desktop_type_text' && input.surface.desktopTypeText) {
-    const result = normalizeLocalToolResult(await input.surface.desktopTypeText(recursiveArguments as unknown as AlicizationLocalDesktopTypeTextInput), 'desktop_type_text')
+    const result = normalizeLocalToolResult(await input.surface.desktopTypeText(toolArguments as unknown as AlicizationLocalDesktopTypeTextInput), 'desktop_type_text')
     return await maybeFollowUpLocalVisualAction({
       commandRuntimeContext: input.commandRuntimeContext,
       payload: recursiveArguments,
@@ -1085,7 +1179,7 @@ async function executeLocalVisualAction(input: {
     })
   }
   if (toolName === 'desktop_press_keys' && input.surface.desktopPressKeys) {
-    const result = normalizeLocalToolResult(await input.surface.desktopPressKeys(recursiveArguments as AlicizationLocalDesktopPressKeysInput), 'desktop_press_keys')
+    const result = normalizeLocalToolResult(await input.surface.desktopPressKeys(toolArguments as AlicizationLocalDesktopPressKeysInput), 'desktop_press_keys')
     return await maybeFollowUpLocalVisualAction({
       commandRuntimeContext: input.commandRuntimeContext,
       payload: recursiveArguments,
@@ -1096,7 +1190,7 @@ async function executeLocalVisualAction(input: {
     })
   }
   if (toolName === 'desktop_open_application' && input.surface.desktopOpenApplication) {
-    const result = normalizeLocalToolResult(await input.surface.desktopOpenApplication(recursiveArguments as AlicizationLocalDesktopOpenApplicationInput), 'desktop_open_application')
+    const result = normalizeLocalToolResult(await input.surface.desktopOpenApplication(toolArguments as AlicizationLocalDesktopOpenApplicationInput), 'desktop_open_application')
     return await maybeFollowUpLocalVisualAction({
       commandRuntimeContext: input.commandRuntimeContext,
       payload: recursiveArguments,
@@ -1107,7 +1201,7 @@ async function executeLocalVisualAction(input: {
     })
   }
   if (toolName === 'desktop_wait' && input.surface.desktopWait) {
-    const result = normalizeLocalToolResult(await input.surface.desktopWait(recursiveArguments as AlicizationLocalDesktopWaitInput), 'desktop_wait')
+    const result = normalizeLocalToolResult(await input.surface.desktopWait(toolArguments as AlicizationLocalDesktopWaitInput), 'desktop_wait')
     return await maybeFollowUpLocalVisualAction({
       commandRuntimeContext: input.commandRuntimeContext,
       payload: recursiveArguments,
@@ -1125,7 +1219,7 @@ async function executeLocalVisualAction(input: {
     const executorInvocation = buildExecutorTaskThreadInvocation({
       action: compactRecord({
         ...input.action,
-        arguments: recursiveArguments,
+        arguments: toolArguments,
       }),
       commandRuntimeContext: input.commandRuntimeContext,
     })
@@ -1169,6 +1263,7 @@ async function executeAutoContinuation(input: {
   suggestedActions: Array<Record<string, unknown>>
   surface: AlicizationLocalVisualDispatchSurface
   thread: AlicizationTaskThreadRecord
+  visitedActionKeys?: Set<string>
 }): Promise<LocalVisualActionExecutionResult> {
   const awaitingHostInput = input.continuationMode === 'await-host-input'
     || input.blockingSignals.includes('awaiting-input')
@@ -1177,11 +1272,15 @@ async function executeAutoContinuation(input: {
   let currentSuggestedActions = [...input.suggestedActions]
   let remainingSteps = input.maxSteps
   let latestResult: Record<string, unknown> | null = null
+  const visitedActionKeys = new Set(input.visitedActionKeys ?? [])
 
   while (remainingSteps > 0) {
     const candidateIndex = currentSuggestedActions.findIndex((action) => {
       const toolName = sanitizeText(action.toolName, 80) as LocalVisualToolName
-      return Boolean(toolName) && supportedToolNames.has(toolName)
+      if (!toolName || !supportedToolNames.has(toolName))
+        return false
+      const actionKey = buildRepeatableLocalVisualActionKey(toolName, asRecord(action.arguments) ?? {})
+      return !actionKey || !visitedActionKeys.has(actionKey)
     })
     if (candidateIndex < 0) {
       stoppedReason = executedSteps.length > 0
@@ -1208,12 +1307,18 @@ async function executeAutoContinuation(input: {
       break
     }
 
+    const candidateArguments = asRecord(candidate.arguments) ?? {}
+    const candidateActionKey = buildRepeatableLocalVisualActionKey(candidateToolName, candidateArguments)
+    if (candidateActionKey)
+      visitedActionKeys.add(candidateActionKey)
+
     const result = await executeLocalVisualAction({
       action: candidate,
       commandRuntimeContext: input.commandRuntimeContext,
       remainingStepsAfterThis: remainingSteps - 1,
       surface: input.surface,
       thread: input.thread,
+      visitedActionKeys,
     })
     if (!result) {
       stoppedReason = 'unsupported-action'
