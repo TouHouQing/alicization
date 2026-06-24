@@ -187,7 +187,7 @@ class DebugClient {
 
   scheduleReconnect() {
     if (this.reconnectAttempts >= CONFIG.RECONNECT_MAX_ATTEMPTS) {
-      console.log('Max reconnect attempts reached')
+      console.info('Max reconnect attempts reached')
       return
     }
 
@@ -823,10 +823,16 @@ class ConversationPanel {
 
     // FEEDBACK: "toolName: Success/Failed. details"
     if (section.tag === 'FEEDBACK') {
-      const fbMatch = text.match(/^(\w+):\s*(Success|Failed)\.?\s*(.*)$/s)
-      if (fbMatch) {
-        const detail = fbMatch[3].slice(0, 50)
-        return `${fbMatch[1]}: ${fbMatch[2]}${detail ? ` — ${detail}${fbMatch[3].length > 50 ? '...' : ''}` : ''}`
+      const separatorIndex = text.indexOf(':')
+      if (separatorIndex > 0) {
+        const toolName = text.slice(0, separatorIndex)
+        const rest = text.slice(separatorIndex + 1).trim()
+        const status = rest.startsWith('Success') ? 'Success' : rest.startsWith('Failed') ? 'Failed' : null
+        if (status) {
+          const rawDetail = rest.slice(status.length).replace(/^\.\s*/, '')
+          const detail = rawDetail.slice(0, 50)
+          return `${toolName}: ${status}${detail ? ` — ${detail}${rawDetail.length > 50 ? '...' : ''}` : ''}`
+        }
       }
     }
 
@@ -1014,7 +1020,7 @@ class ToolsPanel {
   }
 
   requestTools() {
-    console.log('[ToolsPanel] Requesting tools...')
+    console.info('[ToolsPanel] Requesting tools...')
     // Check if we already have tools to avoid re-rendering on reconnect if not needed
     // But re-requesting ensures we are in sync with server capabilities
     this.client.send({ type: 'request_tools' })
