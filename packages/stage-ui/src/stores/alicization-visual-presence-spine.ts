@@ -29,6 +29,10 @@ type AlicizationVisualPresenceStateWithRelationshipTiming = AlicizationVisualPre
     learningReadiness?: number | null
     source?: 'outcome-learning' | 'autobiographical-self' | null
   } | null
+  currentConsciousFrame?: {
+    reasonTags?: readonly string[] | null
+    projectState?: AlicizationDigitalLifeSpineDigest['runtime']['projectState'] | null
+  } | null
 }
 
 function resolveRelationshipTimingNextLearningAction(
@@ -87,6 +91,7 @@ export function ensureAlicizationVisualPresenceResidentPerformance(
       attention: state.attention,
       privateThought: state.privateThought,
       relationshipTimingBias: (state as AlicizationVisualPresenceStateWithRelationshipTiming).relationshipTimingBias ?? null,
+      currentConsciousFrame: (state as AlicizationVisualPresenceStateWithRelationshipTiming).currentConsciousFrame ?? null,
       captureState: state.captureState,
       updatedAt: state.updatedAt,
     }, {
@@ -147,6 +152,35 @@ function resolveVisualScenarioFromSpine(raw: unknown): NonNullable<AlicizationVi
     : 'general'
 }
 
+function includesAny(text: string, needles: readonly string[]) {
+  return needles.some(needle => text.includes(needle))
+}
+
+function hasAutobiographicalSameHerContinuityCarry(
+  digest: AlicizationDigitalLifeSpineDigest,
+) {
+  const autobiographicalSelf = digest.embodiment?.autobiographicalSelf
+  const continuityCue = sanitizeBriefText([
+    autobiographicalSelf?.relationshipDoctrine,
+    autobiographicalSelf?.identityNarrative,
+  ].filter(Boolean).join(' | '), 220).toLowerCase()
+
+  if (!continuityCue)
+    return false
+
+  return includesAny(continuityCue, [
+    'same-her drift risk',
+    'generic assistant shell',
+    'project-summary voice',
+    'detached status talk',
+    'continuity drift',
+    'drift rather than completion',
+    'same living line',
+    'one continuous her',
+    'continuous her',
+  ])
+}
+
 function resolvePresenceAuthorityFromSpine(input: {
   digest: AlicizationDigitalLifeSpineDigest
   previous: AlicizationVisualPresenceStateSnapshot | null
@@ -157,9 +191,9 @@ function resolvePresenceAuthorityFromSpine(input: {
     input.digest.runtime.watchMode === 'recovering'
     && !input.shouldSpeak
   ) {
-      return {
-        currentBodyState: 'recovering' as const,
-        continuityMode: 'protective-watch' as const,
+    return {
+      currentBodyState: 'recovering' as const,
+      continuityMode: 'protective-watch' as const,
       quietLineMs: Math.max(0, previousAuthority?.quietLineMs ?? 0),
       currentInwardPreoccupation: sanitizeBriefText(
         input.digest.memory?.summary
@@ -174,9 +208,9 @@ function resolvePresenceAuthorityFromSpine(input: {
     input.digest.runtime.watchMode === 'symbiotic-vision'
     && !input.shouldSpeak
   ) {
-      return {
-        currentBodyState: 'accompanying' as const,
-        continuityMode: 'quiet-accompaniment' as const,
+    return {
+      currentBodyState: 'accompanying' as const,
+      continuityMode: 'quiet-accompaniment' as const,
       quietLineMs: Math.max(0, previousAuthority?.quietLineMs ?? 0),
       currentInwardPreoccupation: sanitizeBriefText(
         input.digest.memory?.summary
@@ -184,6 +218,29 @@ function resolvePresenceAuthorityFromSpine(input: {
         || 'quiet companionship watch',
         180,
       ) || 'quiet companionship watch',
+    }
+  }
+
+  if (
+    !input.shouldSpeak
+    && previousAuthority?.currentBodyState === 'accompanying'
+    && previousAuthority?.continuityMode === 'quiet-accompaniment'
+    && Math.max(0, previousAuthority?.quietLineMs ?? 0) >= 120_000
+    && hasAutobiographicalSameHerContinuityCarry(input.digest)
+  ) {
+    return {
+      currentBodyState: 'accompanying' as const,
+      continuityMode: 'quiet-accompaniment' as const,
+      quietLineMs: Math.max(0, previousAuthority.quietLineMs ?? 0),
+      currentInwardPreoccupation: sanitizeBriefText(
+        input.digest.embodiment?.autobiographicalSelf?.identityNarrative
+        || input.digest.embodiment?.autobiographicalSelf?.relationshipDoctrine
+        || input.digest.architecture?.summary
+        || input.digest.runtime.sceneSummary
+        || previousAuthority?.currentInwardPreoccupation
+        || 'quiet same-her continuity carry',
+        180,
+      ) || 'quiet same-her continuity carry',
     }
   }
 
@@ -341,6 +398,7 @@ function buildPrivateThoughtReasonTagsFromSpine(
   digest: AlicizationDigitalLifeSpineDigest,
   memoryCarryPolicy: ReturnType<typeof deriveAlicizationDialogueMemoryCarryPolicyFromDigest>,
 ) {
+  const sameHerContinuityCarry = hasAutobiographicalSameHerContinuityCarry(digest)
   const memoryCarryTags = memoryCarryPolicy.mode === 'quiet'
     ? []
     : [
@@ -349,6 +407,8 @@ function buildPrivateThoughtReasonTagsFromSpine(
       ]
   const tags = [
     'digital-life-spine',
+    sameHerContinuityCarry ? 'same-her-inward-carry' : '',
+    sameHerContinuityCarry ? 'quiet-companionship' : '',
     ...memoryCarryTags,
     digest.architecture?.dominantSystem ? `dominant:${digest.architecture.dominantSystem}` : '',
     digest.architecture?.operatingMode ? `mode:${digest.architecture.operatingMode}` : '',
@@ -448,6 +508,14 @@ export function buildAlicizationVisualPresenceStateFromSpineDigest(input: {
     previous: input.previous ?? null,
     shouldSpeak,
   })
+  const priorResidentPerformance = input.previous?.residentPerformance ?? null
+  const previousResidentSoftenedLine = priorResidentPerformance?.performance?.delivery === 'gentle'
+    && priorResidentPerformance.performance.baseEmotion === 'thinking'
+    && (
+      priorResidentPerformance.performance.facialCue === 'soft-gaze'
+      || priorResidentPerformance.performance.facialCue === 'relaxed'
+      || priorResidentPerformance.performance.facialCue === 'half-lid'
+    )
 
   const nextState: AlicizationVisualPresenceStateWithAuthority & AlicizationVisualPresenceStateWithRelationshipTiming = {
     ...base,
@@ -491,26 +559,43 @@ export function buildAlicizationVisualPresenceStateFromSpineDigest(input: {
       : base.attention,
     privateThought: {
       ...base.privateThought,
-      stance: resolvePrivateThoughtStanceFromSpine(input.digest, memoryCarryPolicy),
+      stance: previousResidentSoftenedLine
+        ? 'accompany'
+        : resolvePrivateThoughtStanceFromSpine(input.digest, memoryCarryPolicy),
       confidence: privateThoughtConfidence,
       rationaleTags: buildPrivateThoughtReasonTagsFromSpine(input.digest, memoryCarryPolicy),
-      thoughtText: buildPrivateThoughtTextFromSpine(input.digest, memoryCarryPolicy),
+      thoughtText: previousResidentSoftenedLine
+        ? sanitizeBriefText(
+            input.digest.embodiment?.autobiographicalSelf?.identityNarrative
+            || input.digest.embodiment?.autobiographicalSelf?.relationshipDoctrine
+            || buildPrivateThoughtTextFromSpine(input.digest, memoryCarryPolicy),
+            180,
+          )
+        : buildPrivateThoughtTextFromSpine(input.digest, memoryCarryPolicy),
       shouldSpeak,
       suggestedStyle,
-      embodiedPresence: resolveEmbodiedPresenceFromSpine(input.digest, memoryCarryPolicy),
+      embodiedPresence: previousResidentSoftenedLine
+        ? 'attentive'
+        : resolveEmbodiedPresenceFromSpine(input.digest, memoryCarryPolicy),
       expiresAt: currentTs + (shouldSpeak ? 8_000 : 5_000),
       afterglowFromScenario: scenario === 'coding' || scenario === 'media'
         ? scenario
         : null,
-      emotionalTension: resolveEmotionalTensionFromSpine(input.digest),
+      emotionalTension: previousResidentSoftenedLine
+        ? 'soft-covision'
+        : resolveEmotionalTensionFromSpine(input.digest),
       runtimeThreadId: input.digest.runtime.activeThreadId ?? base.privateThought?.runtimeThreadId ?? null,
       leadingGoalId: input.digest.proactive?.leadingGoalId ?? base.privateThought?.leadingGoalId ?? null,
     },
     relationshipTimingBias: input.digest.outcomeLearning?.summary
       || input.digest.outcomeLearning?.latestInflection
       || input.digest.embodiment?.autobiographicalSelf?.relationshipDoctrine
+      || input.digest.embodiment?.autobiographicalSelf?.identityNarrative
       ? {
-          relationshipDoctrine: input.digest.embodiment?.autobiographicalSelf?.relationshipDoctrine ?? input.digest.outcomeLearning?.summary ?? null,
+          relationshipDoctrine: input.digest.embodiment?.autobiographicalSelf?.relationshipDoctrine
+            ?? input.digest.embodiment?.autobiographicalSelf?.identityNarrative
+            ?? input.digest.outcomeLearning?.summary
+            ?? null,
           latestInflection: input.digest.outcomeLearning?.latestInflection ?? null,
           burdenLine: null,
           trustMeaning: null,
@@ -519,7 +604,15 @@ export function buildAlicizationVisualPresenceStateFromSpineDigest(input: {
           ),
           evolutionMomentum: input.digest.outcomeLearning?.evolutionMomentum ?? null,
           learningReadiness: input.digest.outcomeLearning?.learningReadiness ?? null,
-          source: 'outcome-learning',
+          source: input.digest.outcomeLearning?.summary || input.digest.outcomeLearning?.latestInflection
+            ? 'outcome-learning'
+            : 'autobiographical-self',
+        }
+      : null,
+    currentConsciousFrame: input.digest.runtime.projectState?.emotionalClosureCue
+      ? {
+          reasonTags: ['runtime-conscious-frame'],
+          projectState: input.digest.runtime.projectState,
         }
       : null,
     updatedAt: input.digest.runtime.updatedAt ?? currentTs,

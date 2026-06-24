@@ -4,6 +4,7 @@ import {
   deriveStageEmbodimentSpeechRenderState,
 } from '@proj-alicization/stage-shared'
 import { describe, expect, it } from 'vitest'
+import { ref } from 'vue'
 
 import {
   deriveStageEmbodimentAttentionScreenPoint,
@@ -12,7 +13,6 @@ import {
   resolveStageEmbodimentRuntimePresence,
   useStageEmbodimentAttention,
 } from './use-stage-embodiment-attention'
-import { ref } from 'vue'
 
 describe('stage embodiment attention', () => {
   it('maps hesitant delivery into a short-lived hesitant presence state', () => {
@@ -175,6 +175,46 @@ describe('stage embodiment attention', () => {
     expect(quiet.engaged).toBe(true)
     expect(generic.engaged).toBe(true)
     expect(quiet.point.y).toBeGreaterThan(generic.point.y)
+  })
+
+  it('keeps measured-return lower-pressure presence pulses on a softer accompanying attention line instead of collapsing to generic attentive drift', () => {
+    const expiresAt = Date.now() + 2_000
+    const generic = deriveStageEmbodimentAttentionScreenPoint({
+      basePoint: { x: 512, y: 320 },
+      stageBounds: { width: 1024, height: 640 },
+      presence: {
+        source: 'presence-pulse',
+        embodiedPresence: 'attentive',
+        confidence: 0.82,
+        delivery: null,
+        emphasis: 0,
+        expiresAt,
+        currentBodyState: 'accompanying',
+        continuityMode: 'ambient-covision',
+      } as any,
+      speechRenderState: createIdleStageEmbodimentSpeechRenderState(),
+    })
+    const measuredReturnLowerPressure = deriveStageEmbodimentAttentionScreenPoint({
+      basePoint: { x: 512, y: 320 },
+      stageBounds: { width: 1024, height: 640 },
+      presence: {
+        source: 'presence-pulse',
+        embodiedPresence: 'attentive',
+        confidence: 0.82,
+        delivery: null,
+        emphasis: 0,
+        expiresAt,
+        currentBodyState: 'accompanying',
+        continuityMode: 'ambient-covision',
+        reasonTags: ['quiet-companionship', 'measured-return', 'continuity-next-open-window'],
+      } as any,
+      speechRenderState: createIdleStageEmbodimentSpeechRenderState(),
+    })
+
+    expect(measuredReturnLowerPressure.engaged).toBe(true)
+    expect(generic.engaged).toBe(true)
+    expect(measuredReturnLowerPressure.point.y).toBeGreaterThan(generic.point.y)
+    expect(Math.abs(measuredReturnLowerPressure.point.x - 512)).toBeLessThan(Math.abs(generic.point.x - 512))
   })
 
   it('derives runtime visual presence into an embodied attention state', () => {

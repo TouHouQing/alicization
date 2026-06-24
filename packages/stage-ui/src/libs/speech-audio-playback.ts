@@ -143,7 +143,7 @@ async function playStreamingSpeechAudio(
       activeSources.clear()
     }
 
-    const finalizePlayback = async (optionsInput?: { cancelReader?: boolean, stopSources?: boolean }) => {
+    async function finalizePlayback(optionsInput?: { cancelReader?: boolean, stopSources?: boolean }) {
       if (settled)
         return
 
@@ -157,7 +157,7 @@ async function playStreamingSpeechAudio(
       resolveOnce()
     }
 
-    const maybeResolveCompletedPlayback = () => {
+    function maybeResolveCompletedPlayback() {
       if (!readingDone || activeSources.size > 0)
         return
 
@@ -167,7 +167,7 @@ async function playStreamingSpeechAudio(
       })
     }
 
-    const abortPlayback = () => {
+    function abortPlayback() {
       void finalizePlayback()
     }
 

@@ -351,9 +351,9 @@ async function buildLocalWriteHealth() {
     : null
   const nextRetryAt = entries.length > 0
     ? entries
-        .map(entry => entry.nextRetryAt)
-        .filter(value => Number.isFinite(value) && value > 0)
-        .sort((left, right) => left - right)[0] ?? null
+      .map(entry => entry.nextRetryAt)
+      .filter(value => Number.isFinite(value) && value > 0)
+      .sort((left, right) => left - right)[0] ?? null
     : null
 
   return {
@@ -401,11 +401,12 @@ async function enqueuePendingRuntimeWrite(input: {
 }
 
 async function flushPendingRuntimeWrites() {
-  if (!hasAlicizationBridge() || !shouldUseRuntimeMemoryBackend())
+  if (!hasAlicizationBridge() || !shouldUseRuntimeMemoryBackend()) {
     return {
       flushed: 0,
       pending: (await getPendingRuntimeWrites()).length,
     }
+  }
 
   const bridge = getAlicizationBridge()
   const entries = await getPendingRuntimeWrites()

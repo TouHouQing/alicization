@@ -7,25 +7,28 @@ import type {
 } from '@proj-alicization/stage-shared'
 import type { Ref } from 'vue'
 
+import type { EmbodimentPlaybackTelemetry } from '../../services/embodiment/playback-reconciler'
 import type {
-  AlicizationEmbodimentScriptV1,
   AlicizationDialoguePerformancePayload,
   AlicizationDigitalLifeSpineDigest,
+  AlicizationEmbodimentScriptV1,
 } from '../../stores/alicization-bridge'
-import type { EmbodimentPlaybackTelemetry } from '../../services/embodiment/playback-reconciler'
 
 import {
   createIdleStageEmbodimentMotorState,
   createIdleStageEmbodimentPerformanceState,
   hasAlicizationAudibleSameHerCarry,
+  hasAlicizationBodyVoiceOnlySameHerCarry,
   hasAlicizationQuieterSameHerCarry,
   hasAlicizationSoftenedSameHerCarry,
+  hasAlicizationStillVoicedSameHerCarry,
   normalizeAlicizationEmbodimentScript,
   normalizeAlicizationEmotion,
-  normalizeAlicizationRendererHintTokens,
   normalizeAlicizationPerformancePayload,
+  normalizeAlicizationRendererHintTokens,
 } from '@proj-alicization/stage-shared'
 import { computed, onScopeDispose, readonly, ref, watch } from 'vue'
+
 import { resolveRendererSettleMsWithPersonaBias } from './stage-runtime-embodiment-cues'
 
 type StageEmbodimentPerformanceActionPulseReason = StageEmbodimentPerformanceState['actionPulse']['reason']
@@ -365,6 +368,10 @@ function resolveResidentRuntimeDynamics(input: {
   const residentReasonTags = (input.residentReasonTags ?? [])
     .map(tag => typeof tag === 'string' ? tag.trim().toLowerCase() : '')
     .filter(Boolean)
+  const stillVoicedResidentContinuity = hasAlicizationStillVoicedSameHerCarry({
+    signature: variationToken,
+    reasonTags: residentReasonTags,
+  })
   const durableRelationshipRhythm = residentReasonTags.includes('durable-relationship-rhythm')
     || variationToken.includes('durable-relationship-rhythm')
   const hasResidentBaseline = Boolean(
@@ -414,6 +421,7 @@ function resolveResidentRuntimeDynamics(input: {
     || residentReasonTags.includes('timing:lower-pressure-opening')
     || residentReasonTags.includes('measured-return')
     || residentReasonTags.includes('repair-before-closeness')
+    || stillVoicedResidentContinuity
   const durableMeasuredReturn = durableRelationshipRhythm
     && (variationToken.includes('measured-return') || residentReasonTags.includes('measured-return'))
 
@@ -503,6 +511,10 @@ export function resolveCompanionshipExpressionDampening(input: {
   const residentReasonTags = (input.residentReasonTags ?? [])
     .map(tag => typeof tag === 'string' ? tag.trim().toLowerCase() : '')
     .filter(Boolean)
+  const stillVoicedResidentContinuity = hasAlicizationStillVoicedSameHerCarry({
+    signature: variationToken,
+    reasonTags: residentReasonTags,
+  })
   const durableRelationshipRhythm = residentReasonTags.includes('durable-relationship-rhythm')
     || variationToken.includes('durable-relationship-rhythm')
   const inferredResidentMode = residentMode
@@ -510,20 +522,22 @@ export function resolveCompanionshipExpressionDampening(input: {
       ? 'repair-before-closeness'
       : residentReasonTags.includes('rest-protective') || residentReasonTags.includes('rest-protective-companionship')
         ? 'rest-protective'
-      : residentReasonTags.includes('measured-return')
-        ? 'measured-return'
-        : residentReasonTags.includes('continuity:quiet-accompaniment') || residentReasonTags.includes('quiet-companionship')
-          ? 'quiet-companionship'
-          : '')
-    || (variationToken.includes('repair-before-closeness')
-      ? 'repair-before-closeness'
-      : variationToken.includes('rest-protective')
-        ? 'rest-protective'
-      : variationToken.includes('measured-return')
-        ? 'measured-return'
-        : variationToken.includes('quiet-accompaniment') || variationToken.includes('quiet-companionship')
-          ? 'quiet-companionship'
-          : '')
+        : residentReasonTags.includes('measured-return')
+          || stillVoicedResidentContinuity
+          ? 'measured-return'
+          : residentReasonTags.includes('continuity:quiet-accompaniment') || residentReasonTags.includes('quiet-companionship')
+            ? 'quiet-companionship'
+            : '')
+          || (variationToken.includes('repair-before-closeness')
+            ? 'repair-before-closeness'
+            : variationToken.includes('rest-protective')
+              ? 'rest-protective'
+              : variationToken.includes('measured-return')
+                || stillVoicedResidentContinuity
+                ? 'measured-return'
+                : variationToken.includes('quiet-accompaniment') || variationToken.includes('quiet-companionship')
+                  ? 'quiet-companionship'
+                  : '')
 
   if (inferredResidentMode === 'repair-before-closeness') {
     return input.speechActive
@@ -564,6 +578,46 @@ function normalizeDriverSegmentId(segmentId: string | null | undefined) {
   return normalized || null
 }
 
+function resolvePlaybackItemAuthoritySegmentId(
+  item: StageEmbodimentSpeechPlaybackItem | null | undefined,
+) {
+  return normalizeDriverSegmentId(
+    item?.digitalLifeFrame?.id
+    ?? item?.segmentId
+    ?? item?.cue?.id
+    ?? null,
+  )
+}
+
+function resolveCueOrPlaybackItemAuthoritySegmentId(input: {
+  cue?: {
+    id?: string | null | undefined
+  } | null | undefined
+  item: StageEmbodimentSpeechPlaybackItem | null | undefined
+}) {
+  return normalizeDriverSegmentId(
+    resolvePlaybackItemAuthoritySegmentId(input.item)
+    ?? input.cue?.id
+    ?? null,
+  )
+}
+
+function createAuthorityAlignedActiveSegment(
+  item: StageEmbodimentSpeechPlaybackItem | null | undefined,
+) {
+  if (!item)
+    return null
+
+  const authoritySegmentId = resolvePlaybackItemAuthoritySegmentId(item)
+  if (!authoritySegmentId || authoritySegmentId === item.segmentId)
+    return item
+
+  return {
+    ...item,
+    segmentId: authoritySegmentId,
+  }
+}
+
 function matchesDriverSegment(
   driverSegmentId: string | null | undefined,
   activeSegmentId: string | null | undefined,
@@ -579,6 +633,7 @@ function matchesDriverSegment(
 
 function resolvePlaybackDriverFaceMetadata(
   item: StageEmbodimentSpeechPlaybackItem | null | undefined,
+  segmentId?: string | null,
 ) {
   const candidate = item?.metadata?.embodimentPlayback
   if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate))
@@ -588,6 +643,9 @@ function resolvePlaybackDriverFaceMetadata(
   if (!face)
     return null
   if (!isDriverCueConfidenceSufficient(face.confidence))
+    return null
+  const faceSegmentId = normalizeDriverSegmentId(face.segmentId)
+  if (segmentId != null && faceSegmentId && !matchesDriverSegment(faceSegmentId, segmentId))
     return null
 
   return {
@@ -605,6 +663,7 @@ function resolvePlaybackDriverFaceMetadata(
 
 function resolvePlaybackDriverMotionMetadata(
   item: StageEmbodimentSpeechPlaybackItem | null | undefined,
+  segmentId?: string | null,
 ) {
   const candidate = item?.metadata?.embodimentPlayback
   if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate))
@@ -614,6 +673,9 @@ function resolvePlaybackDriverMotionMetadata(
   if (!motion)
     return null
   if (!isDriverCueConfidenceSufficient(motion.confidence))
+    return null
+  const motionSegmentId = normalizeDriverSegmentId(motion.segmentId)
+  if (segmentId != null && motionSegmentId && !matchesDriverSegment(motionSegmentId, segmentId))
     return null
 
   return {
@@ -822,6 +884,48 @@ function hasTelemetryLipsyncPlaybackOrContinuityHold(
     || Math.max(0, Math.round(lipsync.continuityHoldMs ?? 0)) > 0
 }
 
+function hasTelemetryVoiceAuthoritySignal(
+  driver: EmbodimentPlaybackTelemetry['drivers']['voice'],
+) {
+  if (!driver)
+    return false
+
+  return driver.playbackPhase === 'playing'
+    || driver.continuityHoldMs > 0
+    || driver.cueProsodyWeight != null
+    || driver.cueMouthWeight != null
+    || driver.cueHeadWeight != null
+    || driver.visemePeakWeight != null
+    || Boolean(driver.source)
+}
+
+function resolvePlaybackTelemetryProsodyAuthority(
+  telemetry: EmbodimentPlaybackTelemetry | null | undefined,
+) {
+  const topLevelProsodyAuthority = telemetry?.prosodyAuthority ?? null
+  if (topLevelProsodyAuthority)
+    return topLevelProsodyAuthority
+
+  const seededProsodyAuthority = telemetry?.driverAuthority?.prosodyAuthority ?? null
+  if (seededProsodyAuthority)
+    return seededProsodyAuthority
+
+  const explicitVoiceDriver = telemetry?.drivers.voice ?? null
+  if (!explicitVoiceDriver || !hasTelemetryVoiceAuthoritySignal(explicitVoiceDriver))
+    return null
+
+  return {
+    segmentId: normalizeDriverSegmentId(explicitVoiceDriver?.segmentId),
+    provenance: explicitVoiceDriver.provenance,
+    source: explicitVoiceDriver.source?.trim() || null,
+    mode: explicitVoiceDriver.mode ?? null,
+    cueProsodyWeight: explicitVoiceDriver.cueProsodyWeight ?? null,
+    cueMouthWeight: explicitVoiceDriver.cueMouthWeight ?? null,
+    cueHeadWeight: explicitVoiceDriver.cueHeadWeight ?? null,
+    visemePeakWeight: explicitVoiceDriver.visemePeakWeight ?? null,
+  }
+}
+
 function resolveExplicitPlaybackCueMetadata(input: {
   segmentId?: string | null
   telemetry: EmbodimentPlaybackTelemetry | null | undefined
@@ -846,9 +950,13 @@ function resolveDriverAuthoritySnapshot(input: {
   telemetry: EmbodimentPlaybackTelemetry | null | undefined
 }): StageEmbodimentPerformanceState['driverAuthority'] {
   const seededAuthority = input.telemetry?.driverAuthority
+  const telemetryProsodyAuthority = resolvePlaybackTelemetryProsodyAuthority(input.telemetry)
   if (seededAuthority && !input.ignoreSeededAuthority) {
     const seededSegmentId = normalizeDriverSegmentId(seededAuthority.segmentId)
     const derivedLipSyncSegmentId = resolveDerivedLipSyncHintSegmentId(input.telemetry)
+    const seededCue = input.cue && matchesDriverSegment(input.cue.id, seededSegmentId)
+      ? input.cue
+      : null
     const confidentFaceRejoinAvailable = Boolean(
       input.face
       && matchesDriverSegment(input.face.segmentId, seededSegmentId)
@@ -879,6 +987,17 @@ function resolveDriverAuthoritySnapshot(input: {
       && !seededAuthority.faceSegmentMatched
       && !seededAuthority.motionSegmentMatched
       && !seededAuthority.voiceSegmentMatched
+    const seededVoiceCarryAuthority = !seededAuthority.bodySegmentMatched
+      && !seededAuthority.faceSegmentMatched
+      && !seededAuthority.motionSegmentMatched
+      && !seededAuthority.lipsyncSegmentMatched
+      && Boolean(
+        seededAuthority.voiceSegmentMatched
+        ?? matchesDriverSegment(
+          (seededAuthority.prosodyAuthority ?? telemetryProsodyAuthority)?.segmentId ?? null,
+          seededSegmentId,
+        ),
+      )
     const seededBodyCarryRejoinAvailable = seededBodyCarryAuthority
       && Boolean(seededSegmentId)
       && (
@@ -886,8 +1005,56 @@ function resolveDriverAuthoritySnapshot(input: {
         || confidentMotionRejoinAvailable
         || (!seededAuthority.lipsyncSegmentMatched && lipsyncRejoinAvailable)
       )
+    const seededVoiceCarryFaceRejoinAvailable = seededVoiceCarryAuthority
+      && confidentFaceRejoinAvailable
+      && Boolean(seededCue?.facialCue)
+    const seededVoiceCarryMotionRejoinAvailable = seededVoiceCarryAuthority
+      && confidentMotionRejoinAvailable
+      && Boolean(seededCue?.actionCue)
+    const seededVoiceCarryRejoinAvailable = Boolean(
+      seededSegmentId
+      && (seededVoiceCarryFaceRejoinAvailable || seededVoiceCarryMotionRejoinAvailable),
+    )
+    if (seededVoiceCarryRejoinAvailable) {
+      const seededProsodyAuthority = seededAuthority.prosodyAuthority ?? telemetryProsodyAuthority
+      const seededVoiceSegmentMatched = seededAuthority.voiceSegmentMatched
+        ?? matchesDriverSegment(seededProsodyAuthority?.segmentId ?? null, seededSegmentId)
+      const matchedDrivers = [...seededAuthority.matchedDrivers]
+      if (seededVoiceCarryFaceRejoinAvailable && !matchedDrivers.includes('face'))
+        matchedDrivers.unshift('face')
+      if (seededVoiceCarryMotionRejoinAvailable && !matchedDrivers.includes('motion')) {
+        const voiceIndex = matchedDrivers.indexOf('voice')
+        if (voiceIndex >= 0)
+          matchedDrivers.splice(voiceIndex, 0, 'motion')
+        else
+          matchedDrivers.push('motion')
+      }
+      if (seededVoiceSegmentMatched && !matchedDrivers.includes('voice'))
+        matchedDrivers.push('voice')
+
+      const sources = [...seededAuthority.sources]
+      const voiceSource = seededProsodyAuthority?.source?.trim() || ''
+      if (seededVoiceSegmentMatched && voiceSource && !sources.includes(voiceSource))
+        sources.push(voiceSource)
+      if (!sources.includes('cue-bridge'))
+        sources.push('cue-bridge')
+
+      return {
+        segmentId: seededSegmentId,
+        rendererTarget: seededAuthority.rendererTarget ?? input.telemetry?.rendererTarget ?? null,
+        matchedDrivers,
+        sources,
+        bodySegmentMatched: false,
+        faceSegmentMatched: seededVoiceCarryFaceRejoinAvailable,
+        motionSegmentMatched: seededVoiceCarryMotionRejoinAvailable,
+        lipsyncSegmentMatched: false,
+        voiceSegmentMatched: seededVoiceSegmentMatched,
+        prosodyAuthority: seededProsodyAuthority,
+      }
+    }
+
     if (!seededBodyCarryRejoinAvailable) {
-      const seededProsodyAuthority = seededAuthority.prosodyAuthority ?? input.telemetry?.prosodyAuthority ?? null
+      const seededProsodyAuthority = seededAuthority.prosodyAuthority ?? telemetryProsodyAuthority
       const seededVoiceSegmentMatched = seededAuthority.voiceSegmentMatched
         ?? matchesDriverSegment(seededProsodyAuthority?.segmentId ?? null, seededSegmentId)
       const matchedDrivers = [...seededAuthority.matchedDrivers]
@@ -917,19 +1084,36 @@ function resolveDriverAuthoritySnapshot(input: {
 
   const derivedLipSyncSegmentId = resolveDerivedLipSyncHintSegmentId(input.telemetry)
   const explicitSegmentId = normalizeDriverSegmentId(
-    input.item?.segmentId
-    ?? input.cue?.id
-    ?? null,
+    resolveCueOrPlaybackItemAuthoritySegmentId({
+      cue: input.cue,
+      item: input.item,
+    }),
   )
+  const telemetryFace = (
+    explicitSegmentId
+    && input.telemetry?.drivers.face
+    && normalizeDriverSegmentId(input.telemetry.drivers.face.segmentId)
+    && !matchesDriverSegment(input.telemetry.drivers.face.segmentId, explicitSegmentId)
+  )
+    ? null
+    : (input.telemetry?.drivers.face ?? null)
+  const telemetryMotion = (
+    explicitSegmentId
+    && input.telemetry?.drivers.motion
+    && normalizeDriverSegmentId(input.telemetry.drivers.motion.segmentId)
+    && !matchesDriverSegment(input.telemetry.drivers.motion.segmentId, explicitSegmentId)
+  )
+    ? null
+    : (input.telemetry?.drivers.motion ?? null)
   const bodySegmentId = normalizeDriverSegmentId(input.telemetry?.drivers.body?.segmentId)
   const faceSegmentId = normalizeDriverSegmentId(
     input.face?.segmentId
-    ?? input.telemetry?.drivers.face?.segmentId
+    ?? telemetryFace?.segmentId
     ?? null,
   )
   const motionSegmentId = normalizeDriverSegmentId(
     input.motion?.segmentId
-    ?? input.telemetry?.drivers.motion?.segmentId
+    ?? telemetryMotion?.segmentId
     ?? null,
   )
   const lipsyncSegmentId = normalizeDriverSegmentId(
@@ -952,12 +1136,15 @@ function resolveDriverAuthoritySnapshot(input: {
     ?? input.face?.segmentId
     ?? input.motion?.segmentId
     ?? input.lipsync?.segmentId
-    ?? input.telemetry?.drivers.face?.segmentId
-    ?? input.telemetry?.drivers.motion?.segmentId
+    ?? telemetryFace?.segmentId
+    ?? telemetryMotion?.segmentId
     ?? input.telemetry?.drivers.lipsync?.segmentId
     ?? derivedLipSyncSegmentId
-    ?? input.telemetry?.prosodyAuthority?.segmentId
-    ?? input.item?.segmentId,
+    ?? telemetryProsodyAuthority?.segmentId
+    ?? resolveCueOrPlaybackItemAuthoritySegmentId({
+      cue: input.cue,
+      item: input.item,
+    }),
   )
   const matchedDrivers: Array<'body' | 'face' | 'motion' | 'lipsync' | 'voice'> = []
   const sources: string[] = []
@@ -983,8 +1170,8 @@ function resolveDriverAuthoritySnapshot(input: {
     matchedDrivers.push('body')
   }
 
-  const faceSegmentMatched = matchesDriverSegment(input.telemetry?.drivers.face?.segmentId, segmentId)
-    && Boolean(input.face || input.telemetry?.drivers.face)
+  const faceSegmentMatched = matchesDriverSegment(input.face?.segmentId ?? telemetryFace?.segmentId, segmentId)
+    && Boolean(input.face || telemetryFace)
   const cueFaceBridgeMatched = !faceSegmentMatched
     && input.face != null
     && cue?.facialCue != null
@@ -993,13 +1180,13 @@ function resolveDriverAuthoritySnapshot(input: {
     matchedDrivers.push('face')
     pushSource(
       faceSegmentMatched
-        ? (input.face?.source ?? input.telemetry?.drivers.face?.source ?? 'cue-bridge')
+        ? (input.face?.source ?? telemetryFace?.source ?? 'cue-bridge')
         : (input.face?.source ?? 'cue-bridge'),
     )
   }
 
-  const motionSegmentMatched = matchesDriverSegment(input.telemetry?.drivers.motion?.segmentId, segmentId)
-    && Boolean(input.motion || input.telemetry?.drivers.motion)
+  const motionSegmentMatched = matchesDriverSegment(input.motion?.segmentId ?? telemetryMotion?.segmentId, segmentId)
+    && Boolean(input.motion || telemetryMotion)
   const cueMotionBridgeMatched = !motionSegmentMatched
     && input.motion != null
     && cue?.actionCue != null
@@ -1008,24 +1195,24 @@ function resolveDriverAuthoritySnapshot(input: {
     matchedDrivers.push('motion')
     pushSource(
       motionSegmentMatched
-        ? (input.motion?.source ?? input.telemetry?.drivers.motion?.source ?? 'cue-bridge')
+        ? (input.motion?.source ?? telemetryMotion?.source ?? 'cue-bridge')
         : (input.motion?.source ?? 'cue-bridge'),
     )
   }
 
   const lipsyncSegmentMatched = matchesDriverSegment(
     input.lipsync?.segmentId
-      ?? input.telemetry?.drivers.lipsync?.segmentId
-      ?? derivedLipSyncSegmentId,
+    ?? input.telemetry?.drivers.lipsync?.segmentId
+    ?? derivedLipSyncSegmentId,
     segmentId,
   )
-    && Boolean(
-      input.lipsync
-      || (
-        bodySegmentMatched
-        && hasTelemetryLipsyncPlaybackOrContinuityHold(input.telemetry)
-      ),
-    )
+  && Boolean(
+    input.lipsync
+    || (
+      bodySegmentMatched
+      && hasTelemetryLipsyncPlaybackOrContinuityHold(input.telemetry)
+    ),
+  )
   if (lipsyncSegmentMatched) {
     matchedDrivers.push('lipsync')
     for (const source of new Set(
@@ -1038,12 +1225,12 @@ function resolveDriverAuthoritySnapshot(input: {
   }
 
   const prosodySegmentMatched = matchesDriverSegment(
-    input.telemetry?.prosodyAuthority?.segmentId ?? null,
+    telemetryProsodyAuthority?.segmentId ?? null,
     segmentId,
   )
   if (prosodySegmentMatched) {
     matchedDrivers.push('voice')
-    pushSource(input.telemetry?.prosodyAuthority?.source)
+    pushSource(telemetryProsodyAuthority?.source)
   }
 
   if (!segmentId && matchedDrivers.length === 0 && !input.telemetry?.rendererTarget)
@@ -1059,7 +1246,7 @@ function resolveDriverAuthoritySnapshot(input: {
     motionSegmentMatched: motionSegmentMatched || cueMotionBridgeMatched,
     lipsyncSegmentMatched,
     voiceSegmentMatched: prosodySegmentMatched,
-    prosodyAuthority: input.telemetry?.prosodyAuthority ?? null,
+    prosodyAuthority: telemetryProsodyAuthority,
   }
 }
 
@@ -1081,24 +1268,36 @@ function resolvePlaybackDriverProjectedCue(input: {
   item: StageEmbodimentSpeechPlaybackItem | null | undefined
   lipsync: ReturnType<typeof resolveExplicitPlaybackDriverLipSyncMetadata> | null
   motion: ReturnType<typeof resolveExplicitPlaybackDriverMotionMetadata> | ReturnType<typeof resolvePlaybackDriverMotionMetadata> | null
+  prosodyAuthority?: EmbodimentPlaybackTelemetry['prosodyAuthority'] | null
   preview?: boolean
 }): StageEmbodimentPerformanceState['activeCue'] {
   const text = input.item?.text?.trim() ?? ''
-  if (!text || (!input.face && !input.motion && !input.lipsync))
+  if (!text || (!input.face && !input.motion && !input.lipsync && !input.prosodyAuthority))
     return null
 
   const segmentId = normalizeDriverSegmentId(
     input.face?.segmentId
     ?? input.motion?.segmentId
     ?? input.lipsync?.segmentId
-    ?? input.item?.segmentId,
+    ?? input.prosodyAuthority?.segmentId
+    ?? resolvePlaybackItemAuthoritySegmentId(input.item),
   )
-  const mouthWeight = resolvePlaybackDriverVisemePeakWeight(input.lipsync)
+  const mouthWeight = clamp01(Math.max(
+    resolvePlaybackDriverVisemePeakWeight(input.lipsync),
+    input.prosodyAuthority?.cueMouthWeight ?? 0,
+  ))
   const actionCue = input.actionCue?.trim() || input.motion?.actionCue?.trim() || null
   const facialCue = input.facialCue?.trim() || input.face?.facialCue?.trim() || null
-  const gestureWeight = clamp01(input.motion?.intensity ?? 0)
+  const gestureWeight = clamp01(Math.max(
+    input.motion?.intensity ?? 0,
+    input.prosodyAuthority?.cueHeadWeight ?? 0,
+  ))
   const facialWeight = clamp01(input.face?.intensity ?? 0)
-  const beatWeight = clamp01(Math.max(input.motion?.intensity ?? 0, mouthWeight * 0.72))
+  const beatWeight = clamp01(Math.max(
+    input.motion?.intensity ?? 0,
+    mouthWeight * 0.72,
+    input.prosodyAuthority?.cueHeadWeight ?? 0,
+  ))
   const idSeed = segmentId || text.replace(/\s+/g, ' ').slice(0, 120)
 
   return {
@@ -1110,7 +1309,10 @@ function resolvePlaybackDriverProjectedCue(input: {
     emotion: input.face?.emotion,
     gestureWeight,
     facialWeight,
-    prosodyWeight: clamp01(mouthWeight * 0.68 + facialWeight * 0.18),
+    prosodyWeight: clamp01(Math.max(
+      input.prosodyAuthority?.cueProsodyWeight ?? 0,
+      mouthWeight * 0.68 + facialWeight * 0.18,
+    )),
     beatWeight,
     mouthWeight: mouthWeight > 0 ? mouthWeight : undefined,
     headWeight: gestureWeight > 0 ? gestureWeight : undefined,
@@ -1179,6 +1381,8 @@ function createPlaybackTelemetrySignature(
   if (!telemetry)
     return ''
 
+  const resolvedProsodyAuthority = resolvePlaybackTelemetryProsodyAuthority(telemetry)
+
   return JSON.stringify([
     telemetry.actualDurationMs,
     telemetry.driftMs,
@@ -1193,6 +1397,30 @@ function createPlaybackTelemetrySignature(
     telemetry.driverAuthority?.faceSegmentMatched ?? false,
     telemetry.driverAuthority?.motionSegmentMatched ?? false,
     telemetry.driverAuthority?.lipsyncSegmentMatched ?? false,
+    telemetry.driverAuthority?.voiceSegmentMatched ?? false,
+    telemetry.driverAuthority?.prosodyAuthority?.segmentId ?? '',
+    telemetry.driverAuthority?.prosodyAuthority?.source ?? '',
+    telemetry.driverAuthority?.prosodyAuthority?.mode ?? '',
+    telemetry.driverAuthority?.prosodyAuthority?.cueProsodyWeight ?? 0,
+    telemetry.driverAuthority?.prosodyAuthority?.cueMouthWeight ?? 0,
+    telemetry.driverAuthority?.prosodyAuthority?.cueHeadWeight ?? 0,
+    telemetry.driverAuthority?.prosodyAuthority?.visemePeakWeight ?? 0,
+    resolvedProsodyAuthority?.segmentId ?? '',
+    resolvedProsodyAuthority?.source ?? '',
+    resolvedProsodyAuthority?.mode ?? '',
+    resolvedProsodyAuthority?.cueProsodyWeight ?? 0,
+    resolvedProsodyAuthority?.cueMouthWeight ?? 0,
+    resolvedProsodyAuthority?.cueHeadWeight ?? 0,
+    resolvedProsodyAuthority?.visemePeakWeight ?? 0,
+    telemetry.drivers.voice?.segmentId ?? '',
+    telemetry.drivers.voice?.source ?? '',
+    telemetry.drivers.voice?.mode ?? '',
+    telemetry.drivers.voice?.playbackPhase ?? '',
+    telemetry.drivers.voice?.continuityHoldMs ?? 0,
+    telemetry.drivers.voice?.cueProsodyWeight ?? 0,
+    telemetry.drivers.voice?.cueMouthWeight ?? 0,
+    telemetry.drivers.voice?.cueHeadWeight ?? 0,
+    telemetry.drivers.voice?.visemePeakWeight ?? 0,
     telemetry.drivers.face?.segmentId ?? '',
     telemetry.drivers.face?.facialCue ?? '',
     telemetry.drivers.face?.preUtteranceCue ?? '',
@@ -1232,6 +1460,8 @@ function createPlaybackTelemetrySignature(
     telemetry.cue?.rendererHints?.preferredGazeMode ?? '',
     telemetry.cue?.rendererHints?.preferredBlinkCadence ?? '',
     telemetry.cue?.rendererHints?.residentMode ?? '',
+    telemetry.cue?.rendererHints?.signature ?? '',
+    telemetry.cue?.rendererHints?.reasonTags?.join('|') ?? '',
     telemetry.cue?.rendererSettle?.live2dFacialReleaseMs ?? 0,
     telemetry.cue?.rendererSettle?.live2dMotionFollowThroughMs ?? 0,
     telemetry.cue?.rendererSettle?.vrmActionFadeMs ?? 0,
@@ -1366,26 +1596,133 @@ function resolvePreferredPresence(
 
 function resolveCueResidentMode(
   cue: {
-    rendererHints?: { residentMode?: unknown } | null
+    rendererHints?: {
+      residentMode?: unknown
+      reasonTags?: readonly string[] | string[] | null
+      signature?: string | null
+    } | null
   } | null | undefined,
   lifeFrame: {
-    face?: { rendererHints?: { residentMode?: unknown } | null } | null
-    action?: { rendererHints?: { residentMode?: unknown } | null } | null
+    face?: {
+      rendererHints?: {
+        residentMode?: unknown
+        reasonTags?: readonly string[] | string[] | null
+        signature?: string | null
+      } | null
+    } | null
+    action?: {
+      rendererHints?: {
+        residentMode?: unknown
+        reasonTags?: readonly string[] | string[] | null
+        signature?: string | null
+      } | null
+    } | null
   } | null | undefined,
 ) {
+  const cueStillVoicedContinuity = hasAlicizationStillVoicedSameHerCarry({
+    signature: cue?.rendererHints?.signature ?? null,
+    reasonTags: cue?.rendererHints?.reasonTags ?? [],
+  })
   const cueResidentMode = cue?.rendererHints?.residentMode
   if (cueResidentMode === 'measured-return' || cueResidentMode === 'repair-before-closeness' || cueResidentMode === 'quiet-companionship')
     return cueResidentMode
+  if (cueStillVoicedContinuity)
+    return 'measured-return'
 
+  const faceStillVoicedContinuity = hasAlicizationStillVoicedSameHerCarry({
+    signature: lifeFrame?.face?.rendererHints?.signature ?? null,
+    reasonTags: lifeFrame?.face?.rendererHints?.reasonTags ?? [],
+  })
   const faceResidentMode = lifeFrame?.face?.rendererHints?.residentMode
   if (faceResidentMode === 'measured-return' || faceResidentMode === 'repair-before-closeness' || faceResidentMode === 'quiet-companionship')
     return faceResidentMode
+  if (faceStillVoicedContinuity)
+    return 'measured-return'
 
+  const actionStillVoicedContinuity = hasAlicizationStillVoicedSameHerCarry({
+    signature: lifeFrame?.action?.rendererHints?.signature ?? null,
+    reasonTags: lifeFrame?.action?.rendererHints?.reasonTags ?? [],
+  })
   const actionResidentMode = lifeFrame?.action?.rendererHints?.residentMode
   if (actionResidentMode === 'measured-return' || actionResidentMode === 'repair-before-closeness' || actionResidentMode === 'quiet-companionship')
     return actionResidentMode
+  if (actionStillVoicedContinuity)
+    return 'measured-return'
 
   return null
+}
+
+function resolvePreviewSpeechTimingBias(input: {
+  activeCueSource: StageEmbodimentPerformanceState['activeCueSource']
+  cue: StageEmbodimentPerformanceState['activeCue']
+  previewAhead: boolean
+  transientLife: StageEmbodimentSpeechPlaybackItem['digitalLifeFrame'] | null | undefined
+}) {
+  const neutralBias = {
+    actionScale: 1,
+    expressionScale: 1,
+    headNodScale: 1,
+    opennessBias: 0,
+    settleBias: 0,
+  }
+
+  if (!input.previewAhead || input.activeCueSource !== 'preview')
+    return neutralBias
+
+  const cueHints = input.cue?.rendererHints ?? null
+  const faceHints = input.transientLife?.face.rendererHints ?? null
+  const actionHints = input.transientLife?.action.rendererHints ?? null
+  const residentMode = (
+    cueHints?.residentMode
+    ?? faceHints?.residentMode
+    ?? actionHints?.residentMode
+    ?? ''
+  ).trim().toLowerCase()
+  const signature = cueHints?.signature
+    ?? faceHints?.signature
+    ?? actionHints?.signature
+    ?? null
+  const reasonTags = cueHints?.reasonTags
+    ?? faceHints?.reasonTags
+    ?? actionHints?.reasonTags
+    ?? []
+  const preferredPauseMode = cueHints?.preferredPauseMode
+    ?? faceHints?.preferredPauseMode
+    ?? actionHints?.preferredPauseMode
+    ?? null
+  const preferredVoiceMode = cueHints?.preferredVoiceMode
+    ?? faceHints?.preferredVoiceMode
+    ?? actionHints?.preferredVoiceMode
+    ?? null
+  const preferredPacingMode = cueHints?.preferredPacingMode
+    ?? faceHints?.preferredPacingMode
+    ?? actionHints?.preferredPacingMode
+    ?? null
+  const softenedSameHerReturn = hasAlicizationSoftenedSameHerCarry({
+    signature,
+    reasonTags,
+  })
+  const softerCompanionshipPreview = residentMode === 'measured-return'
+    || residentMode === 'repair-before-closeness'
+    || residentMode === 'quiet-companionship'
+    || residentMode === 'quiet-accompaniment'
+    || residentMode === 'same-thread-continuation'
+    || softenedSameHerReturn
+
+  if (!softerCompanionshipPreview)
+    return neutralBias
+
+  const voiceSoftening = preferredVoiceMode === 'lower-pressure' ? 1 : 0
+  const pacingSoftening = preferredPacingMode === 'slower' ? 1 : 0
+  const pauseSoftening = preferredPauseMode === 'longer' ? 1 : 0
+
+  return {
+    actionScale: 1 - voiceSoftening * 0.12 - pacingSoftening * 0.08 - pauseSoftening * 0.04,
+    expressionScale: 1 - voiceSoftening * 0.04 - pacingSoftening * 0.03 - pauseSoftening * 0.02,
+    headNodScale: 1 - voiceSoftening * 0.12 - pacingSoftening * 0.1 - pauseSoftening * 0.06,
+    opennessBias: -(voiceSoftening * 0.04 + pacingSoftening * 0.03 + pauseSoftening * 0.01),
+    settleBias: voiceSoftening * 0.05 + pacingSoftening * 0.04 + pauseSoftening * 0.02,
+  }
 }
 
 function resolveRuntimeMotor(input: {
@@ -1525,6 +1862,10 @@ function cloneActiveCue(
   const reasonTags = cue.rendererHints?.reasonTags
     ? [...cue.rendererHints.reasonTags]
     : undefined
+  const preferredPauseMode = cue.rendererHints?.preferredPauseMode ?? undefined
+  const preferredLipsyncMode = cue.rendererHints?.preferredLipsyncMode ?? undefined
+  const preferredVoiceMode = cue.rendererHints?.preferredVoiceMode ?? undefined
+  const preferredPacingMode = cue.rendererHints?.preferredPacingMode ?? undefined
   const preserveSoftenedSameHerVrmSettle = hasAlicizationSoftenedSameHerCarry(cue.rendererHints)
 
   return {
@@ -1543,6 +1884,7 @@ function cloneActiveCue(
                 lipsyncSegmentMatched: options?.lipsyncSegmentMatched ?? null,
                 preferredExpressionAliases: preferredExpressionAliases ?? [],
                 preferredMotionAliases: preferredMotionAliases ?? [],
+                rendererHints: cue.rendererHints ?? null,
               }),
           vrmExpressionBlendMs: preserveSoftenedSameHerVrmSettle
             ? cue.rendererSettle.vrmExpressionBlendMs
@@ -1554,6 +1896,7 @@ function cloneActiveCue(
                 lipsyncSegmentMatched: options?.lipsyncSegmentMatched ?? null,
                 preferredExpressionAliases: preferredExpressionAliases ?? [],
                 preferredMotionAliases: preferredMotionAliases ?? [],
+                rendererHints: cue.rendererHints ?? null,
               }),
         }
       : null,
@@ -1564,6 +1907,10 @@ function cloneActiveCue(
           preferredMotionAliases,
           preferredBlinkCadence: cue.rendererHints.preferredBlinkCadence ?? undefined,
           preferredGazeMode: cue.rendererHints.preferredGazeMode ?? undefined,
+          preferredPauseMode,
+          preferredLipsyncMode,
+          preferredVoiceMode,
+          preferredPacingMode,
           reasonTags,
           signature: cue.rendererHints.signature ?? undefined,
         }
@@ -1609,6 +1956,10 @@ function cloneRendererHints(
       : undefined,
     preferredBlinkCadence: hints.preferredBlinkCadence ?? undefined,
     preferredGazeMode: hints.preferredGazeMode ?? undefined,
+    preferredPauseMode: hints.preferredPauseMode ?? undefined,
+    preferredLipsyncMode: hints.preferredLipsyncMode ?? undefined,
+    preferredVoiceMode: hints.preferredVoiceMode ?? undefined,
+    preferredPacingMode: hints.preferredPacingMode ?? undefined,
     reasonTags: hints.reasonTags
       ? [...hints.reasonTags]
       : undefined,
@@ -1622,31 +1973,96 @@ function hasAudibleSameHerRendererCarry(
   return hasAlicizationAudibleSameHerCarry(rendererHints)
 }
 
+function hasBodyVoiceOnlySameHerRendererCarry(
+  rendererHints: AlicizationDialogueEmbodimentRendererHints | null | undefined,
+) {
+  return hasAlicizationBodyVoiceOnlySameHerCarry(rendererHints)
+}
+
 function hasQuieterSameHerRendererCarry(
   rendererHints: AlicizationDialogueEmbodimentRendererHints | null | undefined,
 ) {
   return hasAlicizationQuieterSameHerCarry(rendererHints)
 }
 
+function hasStillVoicedFaceLineRendererCarry(
+  rendererHints: AlicizationDialogueEmbodimentRendererHints | null | undefined,
+) {
+  const signatureTokens = rendererHints?.signature
+    ? normalizeAlicizationRendererHintTokens([rendererHints.signature])
+    : []
+  const reasonTags = normalizeAlicizationRendererHintTokens(rendererHints?.reasonTags)
+
+  return (
+    signatureTokens.some(token => token.includes('still_voiced_face_line'))
+    || signatureTokens.some(token => token.includes('still_voiced_face_motion_line'))
+    || signatureTokens.some(token => token.includes('still_voiced_face_lipsync_line'))
+    || signatureTokens.some(token => token.includes('lane=face+motion+voice_only'))
+    || signatureTokens.some(token => token.includes('lane=face+lipsync+voice_only'))
+    || reasonTags.some(tag => tag.includes('still_voiced_face_line'))
+    || reasonTags.some(tag => tag.includes('still_voiced_face_motion_line'))
+    || reasonTags.some(tag => tag.includes('still_voiced_face_lipsync_line'))
+  )
+}
+
+function hasStillVoicedMotionLineRendererCarry(
+  rendererHints: AlicizationDialogueEmbodimentRendererHints | null | undefined,
+) {
+  const signatureTokens = rendererHints?.signature
+    ? normalizeAlicizationRendererHintTokens([rendererHints.signature])
+    : []
+  const reasonTags = normalizeAlicizationRendererHintTokens(rendererHints?.reasonTags)
+
+  return (
+    signatureTokens.some(token => token.includes('still_voiced_motion_line'))
+    || signatureTokens.some(token => token.includes('still_voiced_face_motion_line'))
+    || signatureTokens.some(token => token.includes('still_voiced_motion_lipsync_line'))
+    || signatureTokens.some(token => token.includes('lane=face+motion+voice_only'))
+    || signatureTokens.some(token => token.includes('lane=motion+lipsync+voice_only'))
+    || reasonTags.some(tag => tag.includes('still_voiced_face_motion_line'))
+    || reasonTags.some(tag => tag.includes('still_voiced_motion_line'))
+    || reasonTags.some(tag => tag.includes('still_voiced_motion_lipsync_line'))
+  )
+}
+
 function shouldSuppressSameHerCarryActionCue(input: {
   cue: StageEmbodimentPerformanceState['activeCue']
   driverAuthority: StageEmbodimentPerformanceState['driverAuthority']
 }) {
+  const driverAuthority = input.driverAuthority
   const actionCue = input.cue?.actionCue?.trim() || null
   if (!input.cue || !actionCue)
     return false
 
-  if (actionCue !== 'steady_focus' && actionCue !== 'observe_focus')
-    return false
-
-  if (!input.driverAuthority?.bodySegmentMatched || input.driverAuthority.motionSegmentMatched)
-    return false
-
+  const residentMode = input.cue.rendererHints?.residentMode ?? null
   const reasonTags = normalizeAlicizationRendererHintTokens(input.cue.rendererHints?.reasonTags)
   const audibleSameHerCarry = hasAudibleSameHerRendererCarry(input.cue.rendererHints)
+  const bodyVoiceOnlySameHerCarry = hasBodyVoiceOnlySameHerRendererCarry(input.cue.rendererHints)
   const quieterSameHerCarry = hasQuieterSameHerRendererCarry(input.cue.rendererHints)
+  const stillVoicedFaceLineCarry = hasStillVoicedFaceLineRendererCarry(input.cue.rendererHints)
+  const stillVoicedMotionLineCarry = hasStillVoicedMotionLineRendererCarry(input.cue.rendererHints)
 
-  if (!audibleSameHerCarry && !quieterSameHerCarry)
+  const suppressibleActionCue = actionCue === 'steady_focus'
+    || actionCue === 'observe_focus'
+    || (
+      actionCue === 'idle_settle'
+      && (residentMode === 'repair-before-closeness' || residentMode === 'measured-return')
+      && (audibleSameHerCarry || bodyVoiceOnlySameHerCarry)
+    )
+  if (!suppressibleActionCue)
+    return false
+
+  if (!audibleSameHerCarry && !bodyVoiceOnlySameHerCarry && !quieterSameHerCarry && !stillVoicedFaceLineCarry && !stillVoicedMotionLineCarry)
+    return false
+
+  if (stillVoicedFaceLineCarry) {
+    return !driverAuthority?.bodySegmentMatched || !driverAuthority?.motionSegmentMatched
+  }
+
+  if (stillVoicedMotionLineCarry)
+    return !driverAuthority?.motionSegmentMatched
+
+  if (!driverAuthority?.bodySegmentMatched || driverAuthority?.motionSegmentMatched)
     return false
 
   return (
@@ -1704,8 +2120,17 @@ function applyPreviewRendererOnlyBodyAuthorityGuard(
     return cue
 
   const residentMode = cue.rendererHints?.residentMode ?? null
-  if (residentMode !== 'repair-before-closeness' && residentMode !== 'measured-return')
+  const stillVoicedSameHerCarry = hasAlicizationStillVoicedSameHerCarry({
+    signature: cue.rendererHints?.signature ?? null,
+    reasonTags: cue.rendererHints?.reasonTags ?? [],
+  })
+  if (
+    residentMode !== 'repair-before-closeness'
+    && residentMode !== 'measured-return'
+    && !stillVoicedSameHerCarry
+  ) {
     return cue
+  }
 
   const expressionAliases = cue.rendererHints?.preferredExpressionAliases ?? []
   const motionAliases = cue.rendererHints?.preferredMotionAliases ?? []
@@ -1754,10 +2179,11 @@ function resolveScriptCueRendererAuthority(input: {
   if (!script)
     return null
 
-  const normalizedSegmentId = input.segmentId?.trim()
-    || input.item?.segmentId?.trim()
-    || input.item?.cue?.id?.trim()
-    || ''
+  const normalizedSegmentId = normalizeDriverSegmentId(
+    input.segmentId
+    ?? resolvePlaybackItemAuthoritySegmentId(input.item)
+    ?? null,
+  ) ?? ''
   if (!normalizedSegmentId)
     return null
 
@@ -1894,6 +2320,7 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
     now: number,
     minimumGapMs: number,
     cueOverride?: string | null,
+    segmentIdOverride?: string | null,
   ) {
     const cue = cueOverride?.trim()
       || state.value.activeActionCue
@@ -1917,7 +2344,7 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
       cue,
       issuedAt: now,
       reason,
-      segmentId: state.value.activeSegment?.segmentId ?? null,
+      segmentId: normalizeDriverSegmentId(segmentIdOverride) ?? state.value.activeSegment?.segmentId ?? null,
     }
     state.value.motionPulse = 1
   }
@@ -2038,6 +2465,7 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
     const speechActivelyPlaying = speech.active && speech.phase !== 'stopping'
     const itemPlaybackTelemetry = resolvePlaybackTelemetryMetadata(speech.item)
     const playbackTelemetry = options.playbackTelemetry?.value ?? itemPlaybackTelemetry ?? null
+    const playbackProsodyAuthority = resolvePlaybackTelemetryProsodyAuthority(playbackTelemetry)
     const previewAhead = !speechActivelyPlaying
     const upcomingSegment = previewAhead
       ? syncUpcomingSegmentSnapshot(options.upcomingSpeechSegment?.value)
@@ -2050,21 +2478,22 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
     state.value.motionPulse = clamp01(state.value.motionPulse)
 
     const previousSegmentId = lastSegmentId
-    const segmentId = speech.item?.segmentId ?? ''
+    const segmentId = resolvePlaybackItemAuthoritySegmentId(speech.item) ?? ''
+    const authorityAlignedActiveSegment = createAuthorityAlignedActiveSegment(speech.item)
     const segmentCue = speech.item?.cue ?? null
     const segmentLife = speech.item?.digitalLifeFrame ?? null
     const segmentPlaybackActive = speechActivelyPlaying
     const segmentDriverFace = segmentPlaybackActive
       ? resolveExplicitPlaybackDriverFaceMetadata({
-          segmentId,
-          telemetry: playbackTelemetry,
-        }) ?? resolvePlaybackDriverFaceMetadata(speech.item)
+        segmentId,
+        telemetry: playbackTelemetry,
+      }) ?? resolvePlaybackDriverFaceMetadata(speech.item, segmentId)
       : null
     const segmentDriverMotion = segmentPlaybackActive
       ? resolveExplicitPlaybackDriverMotionMetadata({
-          segmentId,
-          telemetry: playbackTelemetry,
-        }) ?? resolvePlaybackDriverMotionMetadata(speech.item)
+        segmentId,
+        telemetry: playbackTelemetry,
+      }) ?? resolvePlaybackDriverMotionMetadata(speech.item, segmentId)
       : null
     const segmentDriverLipSync = segmentPlaybackActive
       ? resolveExplicitPlaybackDriverLipSyncMetadata({
@@ -2088,6 +2517,7 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
               item: speech.item,
               lipsync: segmentDriverLipSync,
               motion: segmentDriverMotion,
+              prosodyAuthority: playbackProsodyAuthority,
             }),
             segmentExplicitCue,
           ),
@@ -2103,13 +2533,11 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
       && !segmentDriverFace
       && !segmentDriverMotion
       && (segmentDriverLipSync || matchesDriverSegment(playbackTelemetry?.drivers.body?.segmentId, segmentId))
-      && !(
-        playbackTelemetry?.driverAuthority?.bodySegmentMatched
-        && !playbackTelemetry.driverAuthority.faceSegmentMatched
-        && !playbackTelemetry.driverAuthority.motionSegmentMatched
-        && !playbackTelemetry.driverAuthority.lipsyncSegmentMatched
-        && matchesDriverSegment(playbackTelemetry.driverAuthority.segmentId, segmentId)
-      ),
+      && (!playbackTelemetry?.driverAuthority?.bodySegmentMatched
+        || playbackTelemetry.driverAuthority.faceSegmentMatched
+        || playbackTelemetry.driverAuthority.motionSegmentMatched
+        || playbackTelemetry.driverAuthority.lipsyncSegmentMatched
+        || !matchesDriverSegment(playbackTelemetry.driverAuthority.segmentId, segmentId)),
     )
     const segmentAuthorityFace = segmentDriverFace
       ?? (
@@ -2151,8 +2579,8 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
     const segmentProjectedCueForCarry = segmentBodyOnlyAuthorityCarry
       ? null
       : segmentSameHerCarryActionCueSuppressed
-          ? suppressSameHerCarryActionCue(segmentProjectedCue)
-          : segmentProjectedCue
+        ? suppressSameHerCarryActionCue(segmentProjectedCue)
+        : segmentProjectedCue
     const residentPerformance = state.value.residentPerformance
     const segmentChanged = Boolean(segmentId) && segmentId !== lastSegmentId
     const segmentGestureWeight = Math.max(
@@ -2174,7 +2602,8 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
     )
     if (segmentChanged) {
       lastSegmentId = segmentId
-      lastPreviewPulseSegmentId = segmentId
+      if (segmentPlaybackActive)
+        lastPreviewPulseSegmentId = segmentId
       if (
         segmentPlaybackActive
         && !segmentSameHerCarryActionCueSuppressed
@@ -2185,6 +2614,7 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
           now,
           segmentActionPulseGapMs,
           segmentLife?.action.actionCue ?? segmentCue?.actionCue ?? segmentDriverMotion?.actionCue,
+          segmentId,
         )
       }
     }
@@ -2194,13 +2624,14 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
         now,
         0,
         segmentProjectedCueForCarry?.actionCue,
+        segmentId,
       )
     }
     else if (!speechActivelyPlaying && !segmentId) {
       lastSegmentId = ''
     }
 
-    const previewSegmentId = upcomingSegment?.segmentId ?? ''
+    const previewSegmentId = resolvePlaybackItemAuthoritySegmentId(upcomingSegment) ?? ''
     const previewCue = upcomingSegment?.cue ?? null
     const previewLife = upcomingSegment?.digitalLifeFrame ?? null
     const seededAuthoritySegmentId = normalizeDriverSegmentId(playbackTelemetry?.driverAuthority?.segmentId)
@@ -2211,13 +2642,13 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
       && previewSegmentId !== seededAuthoritySegmentId,
     )
     const previewDriverFace = applyPreviewCueBridgeDriverProvenance({
-      driver: resolvePlaybackDriverFaceMetadata(upcomingSegment),
+      driver: resolvePlaybackDriverFaceMetadata(upcomingSegment, previewSegmentId),
       previewCueActive: previewCueBridgingActive,
       previewSegmentId,
       seededAuthoritySegmentId,
     })
     const previewDriverMotion = applyPreviewCueBridgeDriverProvenance({
-      driver: resolvePlaybackDriverMotionMetadata(upcomingSegment),
+      driver: resolvePlaybackDriverMotionMetadata(upcomingSegment, previewSegmentId),
       previewCueActive: previewCueBridgingActive,
       previewSegmentId,
       seededAuthoritySegmentId,
@@ -2240,28 +2671,29 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
     if (cadencePeakActive && !lastCadencePeakActive) {
       const beatSegmentKey = `${segmentId}:${state.value.actionPulse.revision}`
       if (beatSegmentKey !== lastBeatPulseSegmentKey) {
-        issueActionPulse('segment-beat', now, segmentBeatPulseGapMs, segmentLife?.action.actionCue ?? segmentCue?.actionCue ?? segmentDriverMotion?.actionCue)
+        issueActionPulse('segment-beat', now, segmentBeatPulseGapMs, segmentLife?.action.actionCue ?? segmentCue?.actionCue ?? segmentDriverMotion?.actionCue, segmentId)
         lastBeatPulseSegmentKey = beatSegmentKey
       }
     }
     lastCadencePeakActive = cadencePeakActive
 
     const previewDriverFacialCue = previewDriverFace?.preUtteranceCue ?? previewDriverFace?.facialCue ?? null
+    const stoppingSegmentId = resolvePlaybackItemAuthoritySegmentId(speech.item)
     const stoppingDriverFace = !speechActivelyPlaying && !previewSegmentId
       ? resolveExplicitPlaybackDriverFaceMetadata({
-          segmentId: speech.item?.segmentId ?? null,
-          telemetry: playbackTelemetry,
-        }) ?? resolvePlaybackDriverFaceMetadata(speech.item)
+        segmentId: stoppingSegmentId,
+        telemetry: playbackTelemetry,
+      }) ?? resolvePlaybackDriverFaceMetadata(speech.item, stoppingSegmentId)
       : null
     const stoppingDriverMotion = !speechActivelyPlaying && !previewSegmentId
       ? resolveExplicitPlaybackDriverMotionMetadata({
-          segmentId: speech.item?.segmentId ?? null,
-          telemetry: playbackTelemetry,
-        }) ?? resolvePlaybackDriverMotionMetadata(speech.item)
+        segmentId: stoppingSegmentId,
+        telemetry: playbackTelemetry,
+      }) ?? resolvePlaybackDriverMotionMetadata(speech.item, stoppingSegmentId)
       : null
     const stoppingExplicitCue = !speechActivelyPlaying && !previewSegmentId
       ? resolveExplicitPlaybackCueMetadata({
-          segmentId: speech.item?.segmentId ?? null,
+          segmentId: stoppingSegmentId,
           telemetry: playbackTelemetry,
         })
       : null
@@ -2373,6 +2805,7 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
           now,
           segmentActionPulseGapMs,
           previewLife?.action.actionCue ?? previewProjectedCueForActiveLayer?.actionCue ?? previewDriverMotion?.actionCue,
+          previewSegmentId,
         )
       }
       lastPreviewPulseSegmentId = previewSegmentId
@@ -2415,30 +2848,30 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
 
     const facialCueLayer = previewAhead
       ? previewFacialCue
-          && !shouldSuppressPreviewRendererOnlyCue({
-            bodySegmentMatched: previewDriverAuthority?.bodySegmentMatched ?? null,
+      && !shouldSuppressPreviewRendererOnlyCue({
+        bodySegmentMatched: previewDriverAuthority?.bodySegmentMatched ?? null,
+        cue: previewFacialCue,
+        cueSource: 'facial',
+        previewLife,
+      })
+        ? {
             cue: previewFacialCue,
-            cueSource: 'facial',
-            previewLife,
+            source: 'preview' as const,
+            heldCue: null,
+            heldUntil: 0,
+          }
+        : resolveTransientCueLayer(now, {
+            holdMs: resolveSegmentCueHoldMs(
+              previewCue?.facialHoldMs,
+              segmentFacialCueHoldMs,
+              { min: 90, max: 920 },
+            ),
+            heldCue: heldSegmentFacialCue,
+            heldUntil: heldSegmentFacialCueUntil,
+            residentCue: residentPerformance.facialCue ?? null,
+            segmentCue: null,
+            suppressResidentCue: previewSuppressResidentFacialCue,
           })
-          ? {
-              cue: previewFacialCue,
-              source: 'preview' as const,
-              heldCue: null,
-              heldUntil: 0,
-            }
-          : resolveTransientCueLayer(now, {
-              holdMs: resolveSegmentCueHoldMs(
-                previewCue?.facialHoldMs,
-                segmentFacialCueHoldMs,
-                { min: 90, max: 920 },
-              ),
-              heldCue: heldSegmentFacialCue,
-              heldUntil: heldSegmentFacialCueUntil,
-              residentCue: residentPerformance.facialCue ?? null,
-              segmentCue: null,
-              suppressResidentCue: previewSuppressResidentFacialCue,
-            })
       : resolveTransientCueLayer(now, {
           holdMs: resolveSegmentCueHoldMs(
             segmentProjectedCueForCarry?.facialHoldMs,
@@ -2464,30 +2897,30 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
     const previewActionCue = previewProjectedCueForActiveLayer?.actionCue ?? null
     const actionCueLayer = previewAhead
       ? previewActionCue
-          && !shouldSuppressPreviewRendererOnlyCue({
-            bodySegmentMatched: previewDriverAuthority?.bodySegmentMatched ?? null,
+      && !shouldSuppressPreviewRendererOnlyCue({
+        bodySegmentMatched: previewDriverAuthority?.bodySegmentMatched ?? null,
+        cue: previewActionCue,
+        cueSource: 'action',
+        previewLife,
+      })
+        ? {
             cue: previewActionCue,
-            cueSource: 'action',
-            previewLife,
+            source: 'preview' as const,
+            heldCue: null,
+            heldUntil: 0,
+          }
+        : resolveTransientCueLayer(now, {
+            holdMs: resolveSegmentCueHoldMs(
+              previewCue?.actionHoldMs,
+              segmentActionCueHoldMs,
+              { min: 70, max: 720 },
+            ),
+            heldCue: heldSegmentActionCue,
+            heldUntil: heldSegmentActionCueUntil,
+            residentCue: residentPerformance.actionCue ?? null,
+            segmentCue: previewDriverMotion?.actionCue ?? null,
+            suppressResidentCue: previewSuppressResidentActionCue,
           })
-          ? {
-              cue: previewActionCue,
-              source: 'preview' as const,
-              heldCue: null,
-              heldUntil: 0,
-            }
-          : resolveTransientCueLayer(now, {
-              holdMs: resolveSegmentCueHoldMs(
-                previewCue?.actionHoldMs,
-                segmentActionCueHoldMs,
-                { min: 70, max: 720 },
-              ),
-              heldCue: heldSegmentActionCue,
-              heldUntil: heldSegmentActionCueUntil,
-              residentCue: residentPerformance.actionCue ?? null,
-              segmentCue: previewDriverMotion?.actionCue ?? null,
-              suppressResidentCue: previewSuppressResidentActionCue,
-            })
       : resolveTransientCueLayer(now, {
           holdMs: resolveSegmentCueHoldMs(
             segmentProjectedCueForCarry?.actionHoldMs,
@@ -2664,6 +3097,12 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
     const stoppingPreviewMeasuredReturnVisibleProsodyFloor = stoppingPreviewMeasuredReturnCarry
       ? clamp01((state.value.prosodyDrive * 0.7) + 0.02)
       : 0
+    const previewSpeechTimingBias = resolvePreviewSpeechTimingBias({
+      activeCueSource: activeCueLayer.source,
+      cue: transientCue,
+      previewAhead,
+      transientLife,
+    })
     const activeFactor = speechActivelyPlaying
       ? 1
       : state.value.phase === 'idle'
@@ -2703,6 +3142,33 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
           },
         }
       : runtimeMotor
+    const previewSpeechTimingMotor = (
+      previewSpeechTimingBias.headNodScale !== 1
+      || previewSpeechTimingBias.opennessBias !== 0
+      || previewSpeechTimingBias.settleBias !== 0
+    )
+      ? {
+          ...sustainedRuntimeMotor,
+          head: {
+            ...sustainedRuntimeMotor.head,
+            nod: roundHundredths(
+              clamp01(sustainedRuntimeMotor.head.nod * previewSpeechTimingBias.headNodScale),
+              sustainedRuntimeMotor.head.nod,
+            ),
+          },
+          body: {
+            ...sustainedRuntimeMotor.body,
+            openness: roundHundredths(
+              clamp01(sustainedRuntimeMotor.body.openness + previewSpeechTimingBias.opennessBias),
+              sustainedRuntimeMotor.body.openness,
+            ),
+            settle: roundHundredths(
+              clamp01(sustainedRuntimeMotor.body.settle + previewSpeechTimingBias.settleBias),
+              sustainedRuntimeMotor.body.settle,
+            ),
+          },
+        }
+      : sustainedRuntimeMotor
 
     const resolvedDriverAuthority = previewAhead && activeCueLayer.source === 'preview'
       ? previewDriverAuthority ?? segmentDriverAuthority
@@ -2754,9 +3220,9 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
         lipsyncSegmentMatched: resolvedDriverAuthority?.lipsyncSegmentMatched ?? null,
       }),
       activeCueSource: activeCueLayer.source,
-      activeSegment: speech.item,
+      activeSegment: authorityAlignedActiveSegment,
       expressionIntensity: roundTenths(clamp01(
-        ((baseIntensity + speechDrive * 0.16 + motionPulse * 0.1 + cueFacial * 0.12 + cueMouth * 0.06 + sustainedRuntimeMotor.expressivity * 0.12 + sustainedRuntimeMotor.facial.cheekLift * 0.08) * companionshipExpressionDampening) * spineBias.expressionBias * activeFactor
+        (((baseIntensity + speechDrive * 0.16 + motionPulse * 0.1 + cueFacial * 0.12 + cueMouth * 0.06 + previewSpeechTimingMotor.expressivity * 0.12 + previewSpeechTimingMotor.facial.cheekLift * 0.08) * previewSpeechTimingBias.expressionScale) * companionshipExpressionDampening) * spineBias.expressionBias * activeFactor
         + residentDynamics.expressionFloor * residentFloorFactor,
       )),
       facialCueIntensity: roundTenths(clamp01(
@@ -2764,7 +3230,7 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
         + residentDynamics.facialFloor * facialCueSourceScale * residentFloorFactor,
       )),
       actionIntensity: roundTenths(clamp01(
-        (0.34 + performance.emphasis * 0.12 + motionPulse * 0.18 + cueGesture * 0.16 + cueHead * 0.2 + cueBeat * 0.14 + sustainedRuntimeMotor.body.openness * 0.08 + (1 - sustainedRuntimeMotor.stillness) * 0.12) * spineBias.actionBias * activeFactor * actionCueSourceScale
+        ((0.34 + performance.emphasis * 0.12 + motionPulse * 0.18 + cueGesture * 0.16 + cueHead * 0.2 + cueBeat * 0.14 + previewSpeechTimingMotor.body.openness * 0.08 + (1 - previewSpeechTimingMotor.stillness) * 0.12) * previewSpeechTimingBias.actionScale) * spineBias.actionBias * activeFactor * actionCueSourceScale
         + residentDynamics.actionFloor * residentFloorFactor,
       )),
       motionPulse,
@@ -2781,7 +3247,7 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
         (focusBase + motionPulse * 0.14 + speechDrive * 0.08 + speech.dynamics.prosodyIntensity * 0.08 + cueFacial * 0.06 + cueHead * 0.08 + sustainedRuntimeMotor.gaze.focus * 0.12 + sustainedRuntimeMotor.gaze.stability * 0.08) * spineBias.focusBias * activeFactor
         + residentDynamics.focusFloor * residentFloorFactor,
       )),
-      motor: sustainedRuntimeMotor,
+      motor: previewSpeechTimingMotor,
       updatedAt: now,
     }
 
@@ -3023,6 +3489,11 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
       () => options.upcomingSpeechSegment?.value?.cue?.emotionHoldMs ?? 0,
       () => options.upcomingSpeechSegment?.value?.cue?.rendererHints?.preferredExpressionAliases?.join('|') ?? '',
       () => options.upcomingSpeechSegment?.value?.cue?.rendererHints?.preferredMotionAliases?.join('|') ?? '',
+      () => options.upcomingSpeechSegment?.value?.cue?.rendererHints?.preferredGazeMode ?? '',
+      () => options.upcomingSpeechSegment?.value?.cue?.rendererHints?.preferredBlinkCadence ?? '',
+      () => options.upcomingSpeechSegment?.value?.cue?.rendererHints?.residentMode ?? '',
+      () => options.upcomingSpeechSegment?.value?.cue?.rendererHints?.signature ?? '',
+      () => options.upcomingSpeechSegment?.value?.cue?.rendererHints?.reasonTags?.join('|') ?? '',
       () => options.upcomingSpeechSegment?.value?.cue?.rendererSettle?.live2dFacialReleaseMs ?? 0,
       () => options.upcomingSpeechSegment?.value?.cue?.rendererSettle?.live2dMotionFollowThroughMs ?? 0,
       () => options.upcomingSpeechSegment?.value?.cue?.rendererSettle?.vrmActionFadeMs ?? 0,

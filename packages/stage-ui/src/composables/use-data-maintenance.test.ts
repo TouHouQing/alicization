@@ -26,6 +26,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@proj-alicization/stage-shared', () => ({
+  defaultAlicizationStageModelId: 'preset-live2d-1',
   isStageTamagotchi: () => true,
 }))
 

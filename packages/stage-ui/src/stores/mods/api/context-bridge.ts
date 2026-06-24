@@ -1,9 +1,10 @@
 import type { ChatProvider } from '@xsai-ext/providers/utils'
-import type { UserMessage } from '@xsai/shared-chat'
+import type { CompletionToolCall, UserMessage } from '@xsai/shared-chat'
 
 import type { ChatStreamEvent, ContextMessage } from '../../../types/chat'
 
-import { hasAlicizationChatEntryPreDialogueSendIdentity, isStageTamagotchi, isStageWeb } from '@proj-alicization/stage-shared'
+import { isStageTamagotchi, isStageWeb } from '@proj-alicization/stage-shared'
+import { hasAlicizationChatEntryPreDialogueSendIdentity } from '@proj-alicization/stage-shared/alicization-chat-entry-dispatch'
 import { useBroadcastChannel } from '@vueuse/core'
 import { Mutex } from 'es-toolkit'
 import { nanoid } from 'nanoid'
@@ -20,6 +21,111 @@ import { useChatStreamStore } from '../../chat/stream-store'
 import { useConsciousnessStore } from '../../modules/consciousness'
 import { useProvidersStore } from '../../providers'
 import { useModsServerChannelStore } from './channel-server'
+
+type BroadcastCloneSafeValue
+  = | null
+    | string
+    | number
+    | boolean
+    | BroadcastCloneSafeValue[]
+    | { [key: string]: BroadcastCloneSafeValue }
+
+function sanitizeBroadcastCloneSafeValue(
+  value: unknown,
+  seen: WeakSet<object>,
+): BroadcastCloneSafeValue | undefined {
+  if (value === null)
+    return null
+
+  if (typeof value === 'string' || typeof value === 'boolean')
+    return value
+
+  if (typeof value === 'number')
+    return Number.isFinite(value) ? value : String(value)
+
+  if (typeof value === 'bigint')
+    return value.toString()
+
+  if (typeof value === 'undefined' || typeof value === 'function' || typeof value === 'symbol')
+    return undefined
+
+  if (typeof value !== 'object')
+    return null
+
+  if (seen.has(value))
+    return '[Circular]'
+  seen.add(value)
+
+  if (Array.isArray(value)) {
+    const next: BroadcastCloneSafeValue[] = []
+    value.forEach((entry) => {
+      const sanitized = sanitizeBroadcastCloneSafeValue(entry, seen)
+      if (sanitized !== undefined)
+        next.push(sanitized)
+    })
+    return next
+  }
+
+  if (value instanceof Date)
+    return value.toISOString()
+
+  if (value instanceof URL)
+    return value.toString()
+
+  if (value instanceof Map) {
+    const next: Record<string, BroadcastCloneSafeValue> = {}
+    for (const [entryKey, entryValue] of value.entries()) {
+      const sanitized = sanitizeBroadcastCloneSafeValue(entryValue, seen)
+      if (sanitized !== undefined)
+        next[typeof entryKey === 'string' ? entryKey : String(entryKey)] = sanitized
+    }
+    return next
+  }
+
+  if (value instanceof Set) {
+    const next: BroadcastCloneSafeValue[] = []
+    for (const entry of value.values()) {
+      const sanitized = sanitizeBroadcastCloneSafeValue(entry, seen)
+      if (sanitized !== undefined)
+        next.push(sanitized)
+    }
+    return next
+  }
+
+  if (value instanceof RegExp)
+    return value.toString()
+
+  if (value instanceof Error) {
+    return {
+      name: value.name,
+      message: value.message,
+    }
+  }
+
+  if (value instanceof ArrayBuffer)
+    return Array.from(new Uint8Array(value))
+
+  if (ArrayBuffer.isView(value))
+    return Array.from(new Uint8Array(value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength)))
+
+  const next: Record<string, BroadcastCloneSafeValue> = {}
+  for (const [entryKey, entryValue] of Object.entries(value)) {
+    const sanitized = sanitizeBroadcastCloneSafeValue(entryValue, seen)
+    if (sanitized !== undefined)
+      next[entryKey] = sanitized
+  }
+  return next
+}
+
+function sanitizeBroadcastPayload<T>(value: T): T {
+  const rawValue = toRaw(value)
+  try {
+    return structuredClone(rawValue)
+  }
+  catch {
+    return sanitizeBroadcastCloneSafeValue(rawValue, new WeakSet()) as T
+  }
+}
 
 export const useContextBridgeStore = defineStore('mods:api:context-bridge', () => {
   const mutex = new Mutex()
@@ -78,8 +184,12 @@ export const useContextBridgeStore = defineStore('mods:api:context-bridge', () =
           createdAt: Date.now(),
         }
         chatContext.ingestContextMessage(contextMessage)
-        broadcastContext(toRaw(contextMessage))
+        broadcastContext(sanitizeBroadcastPayload(contextMessage))
       }))
+
+      const postBroadcastStreamEvent = (event: ChatStreamEvent) => {
+        broadcastStreamEvent(sanitizeBroadcastPayload(event))
+      }
 
       disposeHookFns.value.push(serverChannelStore.onEvent('input:text', async (event) => {
         const {
@@ -186,52 +296,85 @@ export const useContextBridgeStore = defineStore('mods:api:context-bridge', () =
           if (isProcessingRemoteStream)
             return
 
-          broadcastStreamEvent({ type: 'before-compose', message, sessionId: chatSession.activeSessionId, context: structuredClone(toRaw(context)) })
+          postBroadcastStreamEvent({ type: 'before-compose', message, sessionId: chatSession.activeSessionId, context })
         }),
         chatOrchestrator.onAfterMessageComposed(async (message, context) => {
           if (isProcessingRemoteStream)
             return
 
-          broadcastStreamEvent({ type: 'after-compose', message, sessionId: chatSession.activeSessionId, context: structuredClone(toRaw(context)) })
+          postBroadcastStreamEvent({ type: 'after-compose', message, sessionId: chatSession.activeSessionId, context })
         }),
         chatOrchestrator.onBeforeSend(async (message, context) => {
           if (isProcessingRemoteStream)
             return
 
-          broadcastStreamEvent({ type: 'before-send', message, sessionId: chatSession.activeSessionId, context: structuredClone(toRaw(context)) })
+          postBroadcastStreamEvent({ type: 'before-send', message, sessionId: chatSession.activeSessionId, context })
         }),
         chatOrchestrator.onAfterSend(async (message, context) => {
           if (isProcessingRemoteStream)
             return
 
-          broadcastStreamEvent({ type: 'after-send', message, sessionId: chatSession.activeSessionId, context: structuredClone(toRaw(context)) })
+          postBroadcastStreamEvent({ type: 'after-send', message, sessionId: chatSession.activeSessionId, context })
         }),
         chatOrchestrator.onTokenLiteral(async (literal, context) => {
           if (isProcessingRemoteStream)
             return
 
-          broadcastStreamEvent({ type: 'token-literal', literal, sessionId: chatSession.activeSessionId, context: structuredClone(toRaw(context)) })
+          postBroadcastStreamEvent({ type: 'token-literal', literal, sessionId: chatSession.activeSessionId, context })
         }),
         chatOrchestrator.onTokenSpecial(async (special, context) => {
           if (isProcessingRemoteStream)
             return
 
-          broadcastStreamEvent({ type: 'token-special', special, sessionId: chatSession.activeSessionId, context: structuredClone(toRaw(context)) })
+          postBroadcastStreamEvent({ type: 'token-special', special, sessionId: chatSession.activeSessionId, context })
         }),
         chatOrchestrator.onStreamEnd(async (context) => {
           if (isProcessingRemoteStream)
             return
 
-          broadcastStreamEvent({ type: 'stream-end', sessionId: chatSession.activeSessionId, context: structuredClone(toRaw(context)) })
+          postBroadcastStreamEvent({ type: 'stream-end', sessionId: chatSession.activeSessionId, context })
         }),
         chatOrchestrator.onAssistantResponseEnd(async (message, context) => {
           if (isProcessingRemoteStream)
             return
 
-          broadcastStreamEvent({ type: 'assistant-end', message, sessionId: chatSession.activeSessionId, context: structuredClone(toRaw(context)) })
+          postBroadcastStreamEvent({ type: 'assistant-end', message, sessionId: chatSession.activeSessionId, context })
+        }),
+        chatOrchestrator.onToolCall(async (toolCall: CompletionToolCall, context: any) => {
+          if (!isProcessingRemoteStream)
+            postBroadcastStreamEvent({ type: 'tool-call', toolCall, sessionId: chatSession.activeSessionId, context })
+
+          serverChannelStore.send({
+            type: 'output:gen-ai:chat:tool-call',
+            data: {
+              ...context.input?.data,
+              'toolCalls': [toolCall],
+              'stage-web': isStageWeb(),
+              'stage-tamagotchi': isStageTamagotchi(),
+              'gen-ai:chat': {
+                message: context.message as UserMessage,
+                composedMessage: context.composedMessage,
+                contexts: context.contexts,
+                input: context.input,
+                ...(context.preDialogueSendIdentity !== undefined
+                  ? { preDialogueSendIdentity: context.preDialogueSendIdentity ?? null }
+                  : {}),
+              },
+            },
+          })
         }),
 
-        chatOrchestrator.onAssistantMessage(async (message, _messageText, context) => {
+        chatOrchestrator.onAssistantMessage(async (message, messageText, context) => {
+          if (!isProcessingRemoteStream) {
+            postBroadcastStreamEvent({
+              type: 'assistant-message',
+              message,
+              messageText,
+              sessionId: chatSession.activeSessionId,
+              context,
+            })
+          }
+
           serverChannelStore.send({
             type: 'output:gen-ai:chat:message',
             data: {
@@ -258,8 +401,7 @@ export const useContextBridgeStore = defineStore('mods:api:context-bridge', () =
             data: {
               ...context.input?.data,
               'message': chat.output,
-              // TODO: tool calls should be captured properly
-              'toolCalls': [],
+              'toolCalls': chat.toolCalls,
               'stage-web': isStageWeb(),
               'stage-tamagotchi': isStageTamagotchi(),
               // TODO: Properly calculate usage data
@@ -346,6 +488,12 @@ export const useContextBridgeStore = defineStore('mods:api:context-bridge', () =
               chatStream.finalizeStream(event.message)
               chatOrchestrator.sending = false
               remoteStreamGuard = null
+              break
+            case 'tool-call':
+              await chatOrchestrator.emitToolCallHooks(event.toolCall, event.context)
+              break
+            case 'assistant-message':
+              await chatOrchestrator.emitAssistantMessageHooks(event.message, event.messageText, event.context)
               break
           }
         }

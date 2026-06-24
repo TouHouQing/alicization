@@ -168,17 +168,41 @@ function resolvePresenceBias(presence: StageEmbodimentAttentionPresenceState | n
   }
 
   const confidence = clampUnit(presence.confidence)
+  const reasonTags = presence.reasonTags ?? []
   const quietAccompanyingPresence = presence.source === 'presence-pulse'
     && presence.currentBodyState === 'accompanying'
     && presence.continuityMode === 'quiet-accompaniment'
     && Number(presence.quietLineMs ?? 0) >= 120_000
+  const measuredReturnLowerPressurePresence = presence.source === 'presence-pulse'
+    && presence.currentBodyState === 'accompanying'
+    && (
+      presence.continuityMode === 'quiet-accompaniment'
+      || presence.continuityMode === 'ambient-covision'
+    )
+    && reasonTags.includes('measured-return')
+    && (
+      reasonTags.includes('continuity-next-open-window')
+      || reasonTags.includes('lower-pressure')
+    )
   const protectiveWatchPresence = presence.source === 'presence-pulse'
     && presence.currentBodyState === 'recovering'
     && presence.continuityMode === 'protective-watch'
   if (presence.embodiedPresence === 'attentive') {
     return {
-      x: cadenceCentered * (quietAccompanyingPresence ? 0.0024 : 0.004) * confidence,
-      y: -(quietAccompanyingPresence ? 0.01 : 0.016) * confidence,
+      x: cadenceCentered * (
+        quietAccompanyingPresence
+          ? 0.0024
+          : measuredReturnLowerPressurePresence
+            ? 0.0027
+            : 0.004
+      ) * confidence,
+      y: -(
+        quietAccompanyingPresence
+          ? 0.01
+          : measuredReturnLowerPressurePresence
+            ? 0.0115
+            : 0.016
+      ) * confidence,
     }
   }
 

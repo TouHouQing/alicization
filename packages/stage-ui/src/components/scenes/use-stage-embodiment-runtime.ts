@@ -1,15 +1,15 @@
 import type { TextSegment } from '@proj-alicization/pipelines-audio'
-import type { VrmResolvedRuntimeCapabilitySnapshot } from '../../../../stage-ui-three/src/composables/vrm/capabilities'
-import type { VrmExecutionDiagnosticsSnapshot } from '../../../../stage-ui-three/src/composables/vrm/execution-diagnostics'
 import type { VrmActionBinding } from '@proj-alicization/stage-ui-three'
+import type { ComputedRef, Ref } from 'vue'
+
 import type {
   Live2DExecutionDiagnosticsSnapshot,
 } from '../../../../stage-ui-live2d/src/composables/live2d/execution-diagnostics'
 import type {
   Live2DRuntimeCapabilitySnapshot,
 } from '../../../../stage-ui-live2d/src/composables/live2d/expression-runtime'
-import type { ComputedRef, Ref } from 'vue'
-
+import type { VrmResolvedRuntimeCapabilitySnapshot } from '../../../../stage-ui-three/src/composables/vrm/capabilities'
+import type { VrmExecutionDiagnosticsSnapshot } from '../../../../stage-ui-three/src/composables/vrm/execution-diagnostics'
 import type { EmotionPayload } from '../../constants/emotions'
 import type {
   AlicizationDialogueEmbodimentEnvelope,
@@ -23,9 +23,12 @@ import type { StageModelRenderer } from '../../stores/settings'
 import type { StageEmbodimentPerformanceContinuityState } from './stage-embodiment-performance-plan'
 import type { StageEmbodimentDiagnosticsSnapshot } from './use-stage-embodiment-diagnostics'
 
-import { readonly, watch } from 'vue'
+import { computed, readonly, watch } from 'vue'
 
-import { resolveStageEmbodimentResidentPerformance } from './stage-embodiment-resident-performance'
+import {
+  resolveResidentSnapshot,
+  resolveStageEmbodimentResidentPerformance,
+} from './stage-embodiment-resident-performance'
 import { useStageEmbodimentAttention } from './use-stage-embodiment-attention'
 import { useStageEmbodimentDiagnostics } from './use-stage-embodiment-diagnostics'
 import { useStageEmbodimentIdlePerformance } from './use-stage-embodiment-idle-performance'
@@ -145,9 +148,30 @@ export function useStageEmbodimentRuntime(options: UseStageEmbodimentRuntimeOpti
     vrmExecutionDiagnostics: options.vrmExecutionDiagnostics,
     vrmRuntimeCapabilities: options.vrmRuntimeCapabilities,
   })
+  function resolveCurrentResidentSnapshot() {
+    return resolveResidentSnapshot({
+      activePresence: attention.activePresence.value,
+      continuity: residentContinuity,
+      digitalLifeSpine: visualPresence.digitalLifeSpineDigest.value,
+      performanceManifest: options.performanceManifest.value,
+      presencePosture: posture.presencePosture.value,
+      visualPresenceState: visualPresence.state.value,
+    })
+  }
+
+  const idleResidentRestraint = computed(() => {
+    const residentSnapshot = resolveCurrentResidentSnapshot()
+
+    return {
+      reasonTags: residentSnapshot.reasonTags,
+      residentMode: residentSnapshot.performance.residentMode ?? null,
+    }
+  })
   const idlePerformance = useStageEmbodimentIdlePerformance({
+    activePresence: attention.activePresence,
     live2dActionCapabilities: options.live2dActionCapabilities,
     presencePosture: posture.presencePosture,
+    residentRestraint: idleResidentRestraint,
     vrmActionBindings: options.vrmActionBindings,
   })
   const presence = useStageEmbodimentPresence({
@@ -183,6 +207,7 @@ export function useStageEmbodimentRuntime(options: UseStageEmbodimentRuntimeOpti
   })
 
   function syncResidentPerformanceFromVisualPresence() {
+    const residentSnapshot = resolveCurrentResidentSnapshot()
     const resolved = resolveStageEmbodimentResidentPerformance({
       activePresence: attention.activePresence.value,
       continuity: residentContinuity,
@@ -196,6 +221,7 @@ export function useStageEmbodimentRuntime(options: UseStageEmbodimentRuntimeOpti
     residentContinuity.variationToken = resolved.variationToken
     performance.syncResidentPerformance(resolved.performance, {
       allowWhileActive: true,
+      residentReasonTags: residentSnapshot.reasonTags,
       variationToken: resolved.variationToken,
     })
   }
@@ -250,7 +276,9 @@ export function useStageEmbodimentRuntime(options: UseStageEmbodimentRuntimeOpti
       performancePayload: AlicizationDialoguePerformancePayload,
       armOptions?: { variationToken?: string | null },
     ) => {
+      const residentSnapshot = resolveCurrentResidentSnapshot()
       performance.armPerformance(options.clampPerformance(performancePayload), {
+        residentReasonTags: residentSnapshot.reasonTags,
         source: 'dialogue',
         variationToken: armOptions?.variationToken ?? null,
       })

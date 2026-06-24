@@ -1,12 +1,12 @@
-import type { ToolMessage } from '@xsai/shared-chat'
+import type { CompletionToolCall, ToolMessage } from '@xsai/shared-chat'
 
 import type { ChatStreamEventContext, StreamingAssistantMessage } from '../../types/chat'
 import type {
   AlicizationDialogueEmbodimentEnvelope,
-  AlicizationEmbodimentScriptV1,
   AlicizationDialogueSpeechTimeline,
   AlicizationDigitalLifeEnvelope,
   AlicizationDigitalLifeSpineDigest,
+  AlicizationEmbodimentScriptV1,
   AlicizationMindTurnGovernance,
   AlicizationRuntimeDigest,
 } from '../alicization-bridge'
@@ -31,6 +31,7 @@ export interface ChatHookRegistry {
   onStreamEnd: (cb: (context: ChatStreamEventContext) => Promise<void>) => () => void
   onEmbodimentMeta: (cb: (meta: ChatEmbodimentMetaHookPayload, context: ChatStreamEventContext) => Promise<void>) => () => void
   onAssistantResponseEnd: (cb: (message: string, context: ChatStreamEventContext) => Promise<void>) => () => void
+  onToolCall: (cb: (toolCall: CompletionToolCall, context: ChatStreamEventContext) => Promise<void>) => () => void
   onAssistantMessage: (cb: (message: StreamingAssistantMessage, messageText: string, context: ChatStreamEventContext) => Promise<void>) => () => void
   onChatTurnComplete: (cb: (chat: { output: StreamingAssistantMessage, outputText: string, toolCalls: ToolMessage[] }, context: ChatStreamEventContext) => Promise<void>) => () => void
   emitBeforeMessageComposedHooks: (message: string, context: Omit<ChatStreamEventContext, 'composedMessage'>) => Promise<void>
@@ -42,6 +43,7 @@ export interface ChatHookRegistry {
   emitStreamEndHooks: (context: ChatStreamEventContext) => Promise<void>
   emitEmbodimentMetaHooks: (meta: ChatEmbodimentMetaHookPayload, context: ChatStreamEventContext) => Promise<void>
   emitAssistantResponseEndHooks: (message: string, context: ChatStreamEventContext) => Promise<void>
+  emitToolCallHooks: (toolCall: CompletionToolCall, context: ChatStreamEventContext) => Promise<void>
   emitAssistantMessageHooks: (message: StreamingAssistantMessage, messageText: string, context: ChatStreamEventContext) => Promise<void>
   emitChatTurnCompleteHooks: (chat: { output: StreamingAssistantMessage, outputText: string, toolCalls: ToolMessage[] }, context: ChatStreamEventContext) => Promise<void>
   clearHooks: () => void
@@ -57,6 +59,7 @@ export function createChatHooks(): ChatHookRegistry {
   const onStreamEndHooks: Array<(context: ChatStreamEventContext) => Promise<void>> = []
   const onEmbodimentMetaHooks: Array<(meta: ChatEmbodimentMetaHookPayload, context: ChatStreamEventContext) => Promise<void>> = []
   const onAssistantResponseEndHooks: Array<(message: string, context: ChatStreamEventContext) => Promise<void>> = []
+  const onToolCallHooks: Array<(toolCall: CompletionToolCall, context: ChatStreamEventContext) => Promise<void>> = []
   const onAssistantMessageHooks: Array<(message: StreamingAssistantMessage, messageText: string, context: ChatStreamEventContext) => Promise<void>> = []
   const onChatTurnCompleteHooks: Array<(chat: { output: StreamingAssistantMessage, outputText: string, toolCalls: ToolMessage[] }, context: ChatStreamEventContext) => Promise<void>> = []
 
@@ -141,6 +144,15 @@ export function createChatHooks(): ChatHookRegistry {
     }
   }
 
+  function onToolCall(cb: (toolCall: CompletionToolCall, context: ChatStreamEventContext) => Promise<void>) {
+    onToolCallHooks.push(cb)
+    return () => {
+      const index = onToolCallHooks.indexOf(cb)
+      if (index >= 0)
+        onToolCallHooks.splice(index, 1)
+    }
+  }
+
   function onAssistantMessage(cb: (message: StreamingAssistantMessage, messageText: string, context: ChatStreamEventContext) => Promise<void>) {
     onAssistantMessageHooks.push(cb)
     return () => {
@@ -169,6 +181,7 @@ export function createChatHooks(): ChatHookRegistry {
     onStreamEndHooks.length = 0
     onEmbodimentMetaHooks.length = 0
     onAssistantResponseEndHooks.length = 0
+    onToolCallHooks.length = 0
     onAssistantMessageHooks.length = 0
     onChatTurnCompleteHooks.length = 0
   }
@@ -218,6 +231,11 @@ export function createChatHooks(): ChatHookRegistry {
       await hook(message, context)
   }
 
+  async function emitToolCallHooks(toolCall: CompletionToolCall, context: ChatStreamEventContext) {
+    for (const hook of onToolCallHooks)
+      await hook(toolCall, context)
+  }
+
   async function emitAssistantMessageHooks(message: StreamingAssistantMessage, messageText: string, context: ChatStreamEventContext) {
     for (const hook of onAssistantMessageHooks)
       await hook(message, messageText, context)
@@ -238,6 +256,7 @@ export function createChatHooks(): ChatHookRegistry {
     onStreamEnd,
     onEmbodimentMeta,
     onAssistantResponseEnd,
+    onToolCall,
     onAssistantMessage,
     onChatTurnComplete,
     emitBeforeMessageComposedHooks,
@@ -249,6 +268,7 @@ export function createChatHooks(): ChatHookRegistry {
     emitStreamEndHooks,
     emitEmbodimentMetaHooks,
     emitAssistantResponseEndHooks,
+    emitToolCallHooks,
     emitAssistantMessageHooks,
     emitChatTurnCompleteHooks,
     clearHooks,

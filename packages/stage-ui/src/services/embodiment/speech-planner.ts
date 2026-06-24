@@ -6,6 +6,8 @@ import type {
   AlicizationSpeechProsodyIntent,
 } from '@proj-alicization/stage-shared'
 
+import { hasAlicizationSoftenedSameHerCarry } from '@proj-alicization/stage-shared'
+
 interface BuildAlicizationEmbodimentSpeechPlanInput {
   turnId: string
   replyText: string
@@ -43,7 +45,7 @@ function roundTempoShift(value: number) {
 }
 
 const chineseCommaPunctuation = /[，,]$/
-const chineseEnumerationPunctuation = /[、]$/
+const chineseEnumerationPunctuation = /、$/
 const chineseFullStopPunctuation = /[。.]$/
 const chineseQuestionPunctuation = /[？?]$/
 const chineseExclaimPunctuation = /[！!]$/
@@ -171,6 +173,121 @@ function createNeutralFallbackProsody(text: string): AlicizationSpeechProsodyInt
   }
 }
 
+function applyResidentProsodyBias(input: {
+  frame: AlicizationDigitalLifeEnvelope['frames'][number] | null
+  prosody: AlicizationSpeechProsodyIntent
+  segment: AlicizationDialogueSpeechTimeline['segments'][number]
+}) {
+  const residentMode = input.segment.rendererHints?.residentMode
+    ?? input.frame?.face.rendererHints?.residentMode
+    ?? input.frame?.action.rendererHints?.residentMode
+    ?? null
+  const preferredBlinkCadence = input.segment.rendererHints?.preferredBlinkCadence
+    ?? input.frame?.face.rendererHints?.preferredBlinkCadence
+    ?? input.frame?.action.rendererHints?.preferredBlinkCadence
+    ?? null
+  const preferredGazeMode = input.segment.rendererHints?.preferredGazeMode
+    ?? input.frame?.face.rendererHints?.preferredGazeMode
+    ?? input.frame?.action.rendererHints?.preferredGazeMode
+    ?? null
+  const preferredPauseMode = input.segment.rendererHints?.preferredPauseMode
+    ?? input.frame?.face.rendererHints?.preferredPauseMode
+    ?? input.frame?.action.rendererHints?.preferredPauseMode
+    ?? null
+  const preferredVoiceMode = input.segment.rendererHints?.preferredVoiceMode
+    ?? input.frame?.face.rendererHints?.preferredVoiceMode
+    ?? input.frame?.action.rendererHints?.preferredVoiceMode
+    ?? null
+  const preferredPacingMode = input.segment.rendererHints?.preferredPacingMode
+    ?? input.frame?.face.rendererHints?.preferredPacingMode
+    ?? input.frame?.action.rendererHints?.preferredPacingMode
+    ?? null
+  const signature = input.segment.rendererHints?.signature
+    ?? input.frame?.face.rendererHints?.signature
+    ?? input.frame?.action.rendererHints?.signature
+    ?? null
+  const reasonTags = input.segment.rendererHints?.reasonTags
+    ?? input.frame?.face.rendererHints?.reasonTags
+    ?? input.frame?.action.rendererHints?.reasonTags
+    ?? null
+
+  const isMeasuredReturn = residentMode === 'measured-return'
+  const isRepairBeforeCloseness = residentMode === 'repair-before-closeness'
+  const isQuietCompanionship = residentMode === 'quiet-companionship'
+    || residentMode === 'quiet-accompaniment'
+  const sameHerSoftenedReturn = hasAlicizationSoftenedSameHerCarry({
+    signature,
+    reasonTags,
+  })
+  const hasSofteningWindow = (
+    preferredBlinkCadence === 'linger'
+    || preferredBlinkCadence === 'quiet'
+    || preferredGazeMode === 'soften'
+    || preferredGazeMode === 'steady'
+  )
+  const isSameThreadSoftenedSameHerReturn = residentMode === 'same-thread-continuation'
+    && sameHerSoftenedReturn
+  const isSofterSameHerReturn = hasSofteningWindow && (
+    isMeasuredReturn
+    || isRepairBeforeCloseness
+    || isQuietCompanionship
+    || isSameThreadSoftenedSameHerReturn
+  )
+
+  if (!isSofterSameHerReturn)
+    return input.prosody
+
+  const voiceModeEmphasisBias = preferredVoiceMode === 'lower-pressure'
+    ? 0.94
+    : preferredVoiceMode === 'even'
+      ? 0.98
+      : 1
+  const pacingModeEmphasisBias = preferredPacingMode === 'slower'
+    ? 0.96
+    : preferredPacingMode === 'natural'
+      ? 0.99
+      : 1
+  const voiceModeTempoBias = preferredVoiceMode === 'lower-pressure'
+    ? 0.03
+    : preferredVoiceMode === 'even'
+      ? 0.01
+      : 0
+  const pacingModeTempoBias = preferredPacingMode === 'slower'
+    ? 0.04
+    : preferredPacingMode === 'natural'
+      ? 0.01
+      : 0
+
+  return {
+    ...input.prosody,
+    emphasisStrength: roundProsodyUnit(
+      input.prosody.emphasisStrength
+      * (isRepairBeforeCloseness
+        ? sameHerSoftenedReturn ? 0.8 : 0.84
+        : isMeasuredReturn && sameHerSoftenedReturn
+          ? 0.88
+          : isQuietCompanionship
+            ? 0.94
+            : isSameThreadSoftenedSameHerReturn ? 0.92 : 0.9)
+          * voiceModeEmphasisBias
+          * pacingModeEmphasisBias,
+    ),
+    tempoShift: roundTempoShift(
+      input.prosody.tempoShift
+      - (isRepairBeforeCloseness
+        ? sameHerSoftenedReturn ? 0.08 : 0.06
+        : isMeasuredReturn && sameHerSoftenedReturn
+          ? 0.05
+          : isQuietCompanionship
+            ? 0.02
+            : isSameThreadSoftenedSameHerReturn ? 0.03 : 0.04)
+          - (preferredPauseMode === 'longer' ? 0.04 : 0)
+          - voiceModeTempoBias
+          - pacingModeTempoBias,
+    ),
+  }
+}
+
 function resolveInterruptPolicy(
   interruptMode: AlicizationDialogueSpeechTimeline['segments'][number]['interruptMode'] | undefined,
 ): AlicizationEmbodimentSpeechSegment['interruptPolicy'] {
@@ -184,6 +301,9 @@ function resolveSegmentSettleMs(input: {
   frameSettleMs: number
   candidateHoldMs: number
   candidateSettleMode: AlicizationDialogueSpeechTimeline['segments'][number]['settleMode'] | undefined
+  preferredPauseMode?: 'longer' | 'natural' | null
+  preferredVoiceMode?: 'lower-pressure' | 'even' | null
+  preferredPacingMode?: 'slower' | 'natural' | null
 }) {
   const baseSettleMs = Math.max(
     input.timelineSettleMs,
@@ -191,15 +311,35 @@ function resolveSegmentSettleMs(input: {
     input.candidateHoldMs,
     120,
   )
+  const preferredPauseModeExtra = input.preferredPauseMode === 'longer' ? 36 : 0
+  const preferredVoiceModeExtra = input.preferredVoiceMode === 'lower-pressure'
+    ? 14
+    : input.preferredVoiceMode === 'even'
+      ? 6
+      : 0
+  const preferredPacingModeExtra = input.preferredPacingMode === 'slower'
+    ? 16
+    : input.preferredPacingMode === 'natural'
+      ? 8
+      : 0
 
   switch (input.candidateSettleMode) {
     case 'hold':
-      return clampNonNegativeInteger(baseSettleMs + 40, 160)
+      return clampNonNegativeInteger(
+        baseSettleMs + 40 + preferredPauseModeExtra + preferredVoiceModeExtra + preferredPacingModeExtra,
+        160,
+      )
     case 'linger':
-      return clampNonNegativeInteger(baseSettleMs + 120, 220)
+      return clampNonNegativeInteger(
+        baseSettleMs + 120 + preferredPauseModeExtra + preferredVoiceModeExtra + preferredPacingModeExtra,
+        220,
+      )
     case 'release':
     default:
-      return clampNonNegativeInteger(baseSettleMs, 140)
+      return clampNonNegativeInteger(
+        baseSettleMs + preferredPauseModeExtra + preferredVoiceModeExtra + preferredPacingModeExtra,
+        140,
+      )
   }
 }
 
@@ -219,16 +359,32 @@ function buildSpeechPlanSegment(input: {
     input.frame?.face.holdMs ?? 0,
     input.frame?.action.holdMs ?? 0,
   )
+  const preferredPauseMode = input.segment.rendererHints?.preferredPauseMode
+    ?? input.frame?.face.rendererHints?.preferredPauseMode
+    ?? input.frame?.action.rendererHints?.preferredPauseMode
+    ?? null
+  const preferredVoiceMode = input.segment.rendererHints?.preferredVoiceMode
+    ?? input.frame?.face.rendererHints?.preferredVoiceMode
+    ?? input.frame?.action.rendererHints?.preferredVoiceMode
+    ?? null
+  const preferredPacingMode = input.segment.rendererHints?.preferredPacingMode
+    ?? input.frame?.face.rendererHints?.preferredPacingMode
+    ?? input.frame?.action.rendererHints?.preferredPacingMode
+    ?? null
 
   return {
     id: input.segment.id,
     index: input.segment.index,
     text: input.segment.text,
     interruptPolicy,
-    prosody: deriveSegmentProsody({
-      text: input.segment.text,
-      prosodyWeight: input.segment.prosodyWeight,
-      beatWeight: input.segment.beatWeight,
+    prosody: applyResidentProsodyBias({
+      frame: input.frame,
+      segment: input.segment,
+      prosody: deriveSegmentProsody({
+        text: input.segment.text,
+        prosodyWeight: input.segment.prosodyWeight,
+        beatWeight: input.segment.beatWeight,
+      }),
     }),
     preRollMs: clampNonNegativeInteger(
       input.segment.actionWindow === 'segment-start'
@@ -244,6 +400,9 @@ function buildSpeechPlanSegment(input: {
       frameSettleMs,
       candidateHoldMs,
       candidateSettleMode: input.segment.settleMode,
+      preferredPauseMode,
+      preferredVoiceMode,
+      preferredPacingMode,
     }),
   } satisfies AlicizationEmbodimentSpeechSegment
 }
@@ -268,14 +427,14 @@ export function buildAlicizationEmbodimentSpeechPlan(
         timelineSettleMs,
       }))
     : [{
-        id: `${input.turnId}-segment-0`,
-        index: 0,
-        text: fallbackText,
-        interruptPolicy: 'hard-stop',
-        prosody: createNeutralFallbackProsody(fallbackText),
-        preRollMs: 0,
-        settleMs: timelineSettleMs,
-      } satisfies AlicizationEmbodimentSpeechSegment]
+      id: `${input.turnId}-segment-0`,
+      index: 0,
+      text: fallbackText,
+      interruptPolicy: 'hard-stop',
+      prosody: createNeutralFallbackProsody(fallbackText),
+      preRollMs: 0,
+      settleMs: timelineSettleMs,
+    } satisfies AlicizationEmbodimentSpeechSegment]
 
   const interruptPolicy = segments.some(segment => segment.interruptPolicy === 'hard-stop')
     ? 'hard-stop'

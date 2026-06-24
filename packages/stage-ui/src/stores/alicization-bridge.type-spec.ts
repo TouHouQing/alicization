@@ -1,5 +1,4 @@
 import type { AlicizationPersistentPresenceAuthoritySnapshot } from '../../../stage-shared/src/alicization-transport-contracts'
-
 import type { AlicizationVisualPresenceStateSnapshot } from './alicization-bridge'
 
 type Expect<T extends true> = T

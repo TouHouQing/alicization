@@ -23,7 +23,7 @@ const { t } = useI18n()
       </h2>
       <div class="h-5 w-5" />
     </div>
-    <div class="flex-1 overflow-y-auto rounded-2xl border border-neutral-200 bg-neutral-50/80 p-4 text-sm text-neutral-700 leading-6 dark:border-neutral-700 dark:bg-neutral-900/60 dark:text-neutral-200">
+    <div class="flex-1 overflow-y-auto border border-neutral-200 rounded-2xl bg-neutral-50/80 p-4 text-sm text-neutral-700 leading-6 dark:border-neutral-700 dark:bg-neutral-900/60 dark:text-neutral-200">
       <div class="space-y-3">
         <p>{{ t('settings.dialogs.onboarding.personaWorkshop.intro.lead') }}</p>
         <div class="rounded-xl bg-white/70 p-3 dark:bg-neutral-950/70">

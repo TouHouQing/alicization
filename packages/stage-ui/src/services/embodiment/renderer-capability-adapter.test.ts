@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest'
-
 import type { AlicizationDialoguePerformancePayload, CharacterPerformanceCapabilitiesManifest } from '../../stores/alicization-bridge'
+
+import { describe, expect, it } from 'vitest'
 
 import { adaptAlicizationEmbodimentPerformanceToRenderer } from './renderer-capability-adapter'
 

@@ -27,15 +27,27 @@ export interface Live2DLipSyncDriverState {
   visemeHints: AlicizationEmbodimentLipSyncVisemeHint[]
 }
 
+function resolveActiveVisemeSegmentId(
+  script: AlicizationEmbodimentScriptV1,
+  segmentId: string | null | undefined,
+) {
+  const normalizedSegmentId = segmentId?.trim()
+  if (normalizedSegmentId)
+    return normalizedSegmentId
+
+  return script.speechPlan.segments[0]?.id?.trim() || null
+}
+
 function resolveVisemeHints(
   script: AlicizationEmbodimentScriptV1,
   segmentId: string | null | undefined,
 ) {
   const visemeHints = script.lipsyncPlan.visemeHints ?? []
-  if (!segmentId)
+  const activeSegmentId = resolveActiveVisemeSegmentId(script, segmentId)
+  if (!activeSegmentId)
     return [...visemeHints]
 
-  return visemeHints.filter(hint => hint.segmentId === segmentId)
+  return visemeHints.filter(hint => hint.segmentId === activeSegmentId)
 }
 
 function clampRestrainedCallbackVisemeHints(

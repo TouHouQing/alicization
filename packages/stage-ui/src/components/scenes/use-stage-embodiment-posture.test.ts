@@ -1,7 +1,8 @@
+import type { AlicizationVisualPresenceStateSnapshot } from '../../stores/alicization-bridge'
+
 import {
   createIdleStageEmbodimentSpeechRenderState,
 } from '@proj-alicization/stage-shared'
-import type { AlicizationVisualPresenceStateSnapshot } from '../../stores/alicization-bridge'
 import { describe, expect, it } from 'vitest'
 
 import { deriveStageEmbodimentPresencePostureState } from './use-stage-embodiment-posture'
@@ -242,6 +243,196 @@ describe('stage embodiment posture', () => {
     expect(lowerPressure.bodyPitch).toBeLessThan(baseline.bodyPitch)
     expect(lowerPressure.breathBoost).toBeLessThan(baseline.breathBoost)
     expect(lowerPressure.gazeStability).toBeGreaterThan(baseline.gazeStability)
+  })
+
+  it.each([
+    ['measured-return'],
+    ['repair-before-closeness'],
+  ] as const)('treats %s callback restraint as lower-pressure attentive posture guidance', (reasonTag) => {
+    const baseline = deriveStageEmbodimentPresencePostureState({
+      activePresence: {
+        source: 'presence-pulse',
+        embodiedPresence: 'attentive',
+        confidence: 0.82,
+        delivery: null,
+        emphasis: 0,
+        expiresAt: Date.now() + 2_000,
+        watchMode: 'symbiotic-vision',
+        stance: 'observe',
+        reasonTags: ['inspection'],
+        emotionalTension: 'focused-flow',
+        currentBodyState: 'noticing',
+        continuityMode: 'ambient-covision',
+        quietLineMs: 45_000,
+        currentInwardPreoccupation: 'stay nearby and track the room',
+      },
+      basePoint: { x: 640, y: 360 },
+      targetPoint: { x: 664, y: 348 },
+      stageBounds: { width: 1280, height: 720 },
+      speechRenderState: createIdleStageEmbodimentSpeechRenderState(),
+      visualPresenceState: createVisualPresenceStateForPosture({
+        watchMode: 'symbiotic-vision',
+        privateThought: {
+          stance: 'observe',
+          confidence: 0.72,
+          rationaleTags: ['inspection'],
+          thoughtText: 'Stay nearby and track the room.',
+          shouldSpeak: false,
+          suggestedStyle: 'silent-observe',
+          embodiedPresence: 'attentive',
+          expiresAt: Date.now() + 5_000,
+          emotionalTension: 'focused-flow',
+        },
+      }),
+    })
+
+    const restrained = deriveStageEmbodimentPresencePostureState({
+      activePresence: {
+        source: 'presence-pulse',
+        embodiedPresence: 'attentive',
+        confidence: 0.82,
+        delivery: null,
+        emphasis: 0,
+        expiresAt: Date.now() + 2_000,
+        watchMode: 'symbiotic-vision',
+        stance: 'observe',
+        reasonTags: ['inspection', reasonTag],
+        emotionalTension: 'focused-flow',
+        currentBodyState: 'noticing',
+        continuityMode: 'ambient-covision',
+        quietLineMs: 45_000,
+        currentInwardPreoccupation: 'stay nearby without reopening too fast',
+      },
+      basePoint: { x: 640, y: 360 },
+      targetPoint: { x: 664, y: 348 },
+      stageBounds: { width: 1280, height: 720 },
+      speechRenderState: createIdleStageEmbodimentSpeechRenderState(),
+      visualPresenceState: createVisualPresenceStateForPosture({
+        watchMode: 'symbiotic-vision',
+        privateThought: {
+          stance: 'observe',
+          confidence: 0.72,
+          rationaleTags: [reasonTag],
+          thoughtText: 'Stay nearby without reopening too fast.',
+          shouldSpeak: false,
+          suggestedStyle: 'silent-observe',
+          embodiedPresence: 'attentive',
+          expiresAt: Date.now() + 5_000,
+          emotionalTension: 'focused-flow',
+        },
+      }),
+    })
+
+    expect(restrained.mode).toBe('attentive')
+    expect(restrained.bodyPitch).toBeLessThan(baseline.bodyPitch)
+    expect(restrained.breathBoost).toBeLessThan(baseline.breathBoost)
+    expect(restrained.gazeStability).toBeGreaterThan(baseline.gazeStability)
+  })
+
+  it('treats resident-only project closure carry as lower-pressure attentive posture guidance even before private-thought tags are rebuilt', () => {
+    const baseline = deriveStageEmbodimentPresencePostureState({
+      activePresence: null,
+      basePoint: { x: 640, y: 360 },
+      targetPoint: { x: 664, y: 348 },
+      stageBounds: { width: 1280, height: 720 },
+      speechRenderState: createIdleStageEmbodimentSpeechRenderState(),
+      visualPresenceState: withSilentPresenceAuthority(createVisualPresenceStateForPosture({
+        watchMode: 'symbiotic-vision',
+        residentPerformance: {
+          version: 'resident-performance-v1',
+          source: 'browser-fallback',
+          performance: {
+            baseEmotion: 'thinking',
+            emotion: 'thinking',
+            facialCue: 'focus',
+            actionCue: 'steady_focus',
+            delivery: 'calm',
+            emphasis: 0,
+            residentMode: null,
+          },
+          embodiedPresence: 'attentive',
+          stance: 'accompany',
+          emotionalTension: 'soft-covision',
+          confidence: 0.74,
+          reasonTags: ['resident-performance', 'continuity:quiet-accompaniment'],
+          signature: 'resident|baseline-project-closure-carry',
+          updatedAt: 1_000,
+        },
+        privateThought: {
+          stance: 'accompany',
+          confidence: 0.72,
+          rationaleTags: ['quiet-companionship'],
+          thoughtText: 'Stay nearby without interrupting.',
+          shouldSpeak: false,
+          suggestedStyle: 'silent-observe',
+          embodiedPresence: 'attentive',
+          expiresAt: Date.now() + 5_000,
+          emotionalTension: 'focused-flow',
+        },
+      }), {
+        currentBodyState: 'accompanying',
+        continuityMode: 'quiet-accompaniment',
+        quietLineMs: 240_000,
+        currentInwardPreoccupation: 'stay quietly nearby while the return settles',
+      }),
+    })
+
+    const restrained = deriveStageEmbodimentPresencePostureState({
+      activePresence: null,
+      basePoint: { x: 640, y: 360 },
+      targetPoint: { x: 664, y: 348 },
+      stageBounds: { width: 1280, height: 720 },
+      speechRenderState: createIdleStageEmbodimentSpeechRenderState(),
+      visualPresenceState: withSilentPresenceAuthority(createVisualPresenceStateForPosture({
+        watchMode: 'symbiotic-vision',
+        residentPerformance: {
+          version: 'resident-performance-v1',
+          source: 'browser-fallback',
+          performance: {
+            baseEmotion: 'thinking',
+            emotion: 'thinking',
+            facialCue: 'soft-gaze',
+            actionCue: 'observe_focus',
+            delivery: 'gentle',
+            emphasis: 1,
+            residentMode: 'measured-return',
+          },
+          embodiedPresence: 'attentive',
+          stance: 'accompany',
+          emotionalTension: 'soft-covision',
+          confidence: 0.82,
+          reasonTags: [
+            'resident-performance',
+            'continuity:quiet-accompaniment',
+            'measured-return',
+            'timing:project-emotional-closure',
+          ],
+          signature: 'resident|project-closure-carry',
+          updatedAt: 1_000,
+        },
+        privateThought: {
+          stance: 'accompany',
+          confidence: 0.72,
+          rationaleTags: ['quiet-companionship'],
+          thoughtText: 'Stay nearby without interrupting.',
+          shouldSpeak: false,
+          suggestedStyle: 'silent-observe',
+          embodiedPresence: 'attentive',
+          expiresAt: Date.now() + 5_000,
+          emotionalTension: 'focused-flow',
+        },
+      }), {
+        currentBodyState: 'accompanying',
+        continuityMode: 'quiet-accompaniment',
+        quietLineMs: 240_000,
+        currentInwardPreoccupation: 'stay quietly nearby while the return settles',
+      }),
+    })
+
+    expect(restrained.mode).toBe('attentive')
+    expect(restrained.bodyPitch).toBeLessThan(baseline.bodyPitch)
+    expect(restrained.breathBoost).toBeLessThan(baseline.breathBoost)
+    expect(restrained.gazeStability).toBeGreaterThan(baseline.gazeStability)
   })
 
   it('keeps recovering in a concerned posture under protective watch', () => {

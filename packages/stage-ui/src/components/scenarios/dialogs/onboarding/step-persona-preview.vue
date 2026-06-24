@@ -1,13 +1,13 @@
 <script setup lang="ts">
+import type { AlicizationGenesisInput } from '../../../../stores/alicization-bridge'
 import type { OnboardingStepNextHandler, OnboardingStepPrevHandler } from './types'
 
+import { defaultAlicizationPersonality, defaultAlicizationProfile } from '@proj-alicization/stage-shared'
 import { Button, Textarea } from '@proj-alicization/ui'
 import { storeToRefs } from 'pinia'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-import { defaultAlicizationPersonality, defaultAlicizationProfile } from '@proj-alicization/stage-shared'
-import type { AlicizationGenesisInput } from '../../../../stores/alicization-bridge'
 import { useAlicizationEpoch1Store } from '../../../../stores/alicization-epoch1'
 import { useAlicizationGenesisWorkshopStore } from '../../../../stores/alicization-genesis-workshop'
 
@@ -33,13 +33,13 @@ function localizedCalibrationLabel(kind: 'relationshipPosture' | 'initiativeStyl
       observer: t('settings.dialogs.onboarding.personaWorkshop.preview.relationshipPostureLabels.observer'),
     },
     initiativeStyle: {
-      observant: t('settings.dialogs.onboarding.personaWorkshop.preview.initiativeStyleLabels.observant'),
+      'observant': t('settings.dialogs.onboarding.personaWorkshop.preview.initiativeStyleLabels.observant'),
       'measured-approach': t('settings.dialogs.onboarding.personaWorkshop.preview.initiativeStyleLabels.measuredApproach'),
       'direct-approach': t('settings.dialogs.onboarding.personaWorkshop.preview.initiativeStyleLabels.directApproach'),
       'high-participation': t('settings.dialogs.onboarding.personaWorkshop.preview.initiativeStyleLabels.highParticipation'),
     },
     silenceReconnect: {
-      hold: t('settings.dialogs.onboarding.personaWorkshop.preview.silenceReconnectLabels.hold'),
+      'hold': t('settings.dialogs.onboarding.personaWorkshop.preview.silenceReconnectLabels.hold'),
       'light-probe': t('settings.dialogs.onboarding.personaWorkshop.preview.silenceReconnectLabels.lightProbe'),
       'direct-approach': t('settings.dialogs.onboarding.personaWorkshop.preview.silenceReconnectLabels.directApproach'),
     },
@@ -158,10 +158,10 @@ async function completePreview() {
       <div class="h-5 w-5" />
     </div>
     <div class="flex-1 overflow-y-auto space-y-4">
-      <div class="rounded-2xl border border-neutral-200 bg-neutral-50/80 p-4 text-sm leading-6 text-neutral-700 dark:border-neutral-700 dark:bg-neutral-900/60 dark:text-neutral-200">
+      <div class="border border-neutral-200 rounded-2xl bg-neutral-50/80 p-4 text-sm text-neutral-700 leading-6 dark:border-neutral-700 dark:bg-neutral-900/60 dark:text-neutral-200">
         {{ t('settings.dialogs.onboarding.personaWorkshop.preview.description') }}
       </div>
-      <div class="rounded-2xl border border-dashed border-primary-200 bg-primary-50/70 p-4 text-sm text-primary-700 dark:border-primary-700/60 dark:bg-primary-900/10 dark:text-primary-200">
+      <div class="border border-primary-200 rounded-2xl border-dashed bg-primary-50/70 p-4 text-sm text-primary-700 dark:border-primary-700/60 dark:bg-primary-900/10 dark:text-primary-200">
         {{ previewInterpretation.summary }}
       </div>
       <label class="block space-y-2">
@@ -183,7 +183,9 @@ async function completePreview() {
           {{ t('settings.dialogs.onboarding.personaWorkshop.preview.notesTitle') }}
         </div>
         <div class="rounded-xl bg-white/70 p-3 text-sm text-neutral-600 dark:bg-neutral-950/60 dark:text-neutral-300">
-          <div v-for="note in previewInterpretation.notes" :key="note">{{ note }}</div>
+          <div v-for="note in previewInterpretation.notes" :key="note">
+            {{ note }}
+          </div>
           <div v-if="previewInterpretation.notes.length === 0">
             {{ t('settings.dialogs.onboarding.personaWorkshop.preview.notesEmpty') }}
           </div>

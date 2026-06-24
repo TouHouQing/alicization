@@ -1,5 +1,7 @@
 import { createAuthClient } from 'better-auth/vue'
 
+import { useAuthStore } from '../stores/auth'
+
 export type OAuthProvider = 'google' | 'github'
 
 function isHttpServerUrl(value: string) {
@@ -50,11 +52,6 @@ function getAuthClient() {
   return authClient
 }
 
-async function getAuthStore() {
-  const { useAuthStore } = await import('../stores/auth')
-  return useAuthStore()
-}
-
 export async function fetchSession() {
   const client = getAuthClient()
   if (!client)
@@ -62,7 +59,7 @@ export async function fetchSession() {
 
   const { data } = await client.getSession()
   if (data) {
-    const authStore = await getAuthStore()
+    const authStore = useAuthStore()
 
     authStore.user = data.user
     authStore.session = data.session
@@ -85,7 +82,7 @@ export async function signOut() {
   if (client)
     await client.signOut()
 
-  const authStore = await getAuthStore()
+  const authStore = useAuthStore()
   authStore.user = undefined
   authStore.session = undefined
 }

@@ -10,10 +10,10 @@ import type {
   AlicizationKillSwitchSnapshot,
   AlicizationKillSwitchState,
   AlicizationListMemoryDecisionTracesPayload,
-  AlicizationMemoryDecisionTraceRecord,
   AlicizationListMindTurnEventsPayload,
   AlicizationLlmConfigPayload,
   AlicizationMemoryArchiveRecord,
+  AlicizationMemoryDecisionTraceRecord,
   AlicizationMemoryFact,
   AlicizationMemoryLegacySnapshot,
   AlicizationMemoryMigrationResult,
@@ -37,33 +37,50 @@ import type {
 
 import { errorMessageFrom } from '@moeru/std'
 import {
-  buildAlicizationMemoryDecisionTraceRecords,
-  deriveAlicizationMindParticipationFromSpine,
   buildAlicizationFinanceSurface,
+  buildAlicizationMemoryDecisionTraceRecords,
   buildAlicizationNewsSurface,
   buildAlicizationSportsSurface,
   buildAlicizationWeatherSurface,
   defaultAlicizationCustomDirectives,
   defaultAlicizationPersonality,
   defaultAlicizationProfile,
+  deriveAlicizationMindParticipationFromSpine,
   extractAlicizationLocationFromQuery,
   formatAlicizationRealtimeSurfaceSummary,
   hasAlicizationPersonaIdentity,
   mapAlicizationFragmentSourceKindToProvenance,
   mapAlicizationMemorySourceToProvenance,
   resolveAlicizationPersonaKernel,
+  sanitizeCharacterPerformanceManifest,
 } from '@proj-alicization/stage-shared'
 import { nanoid } from 'nanoid'
 
 import {
+  normalizeStructuredPreDialogueAwarenessPayload,
+  normalizeStructuredPreDialogueClosurePayload,
+  normalizeStructuredProjectStatePayload,
+} from '../composables/alicization-structured-output'
+import { storage } from '../database/storage'
+import { SERVER_URL } from '../libs/auth'
+import { getStageUiMessageVariants, translateStageUi } from '../utils/i18n'
+import {
+  clearAlicizationBridge,
+  normalizeAlicizationDigitalLifeEnvelope,
+  normalizeAlicizationDigitalLifeSpineDigest,
+  normalizeAlicizationEmbodimentScript,
+  normalizeAlicizationRuntimeDigest,
+  setAlicizationBridge,
+} from './alicization-bridge'
+import { createAlicizationBrowserBridgePresenceComposition } from './alicization-browser-bridge-presence-composition'
+import { createAlicizationBrowserBridgeStorageComposition } from './alicization-browser-bridge-storage-composition'
+import {
   buildBrowserOrganicMemorySnapshot as buildBrowserOrganicMemorySnapshotProjection,
 } from './alicization-browser-organic-memory'
-import { createAlicizationBrowserBridgePresenceComposition } from './alicization-browser-bridge-presence-composition'
 import {
   buildBrowserFallbackDigitalLifeSpineDigest,
   buildBrowserFallbackRuntimeDigest,
 } from './alicization-browser-runtime-digest'
-import { createAlicizationBrowserBridgeStorageComposition } from './alicization-browser-bridge-storage-composition'
 import {
   readActiveSessionId as readActiveSessionIdFromStorage,
   readAuditLog,
@@ -76,21 +93,16 @@ import {
   writeMemoryMeta as writeMemoryMetaToStorage,
   writePerformanceManifest as writePerformanceManifestToStorage,
 } from './alicization-browser-storage'
-import { storage } from '../database/storage'
-import { SERVER_URL } from '../libs/auth'
-import { getStageUiMessageVariants, translateStageUi } from '../utils/i18n'
-import {
-  clearAlicizationBridge,
-  normalizeAlicizationDigitalLifeSpineDigest,
-  normalizeAlicizationRuntimeDigest,
-  setAlicizationBridge,
-} from './alicization-bridge'
 import {
   buildAlicizationVisualPresenceStateFromSpineDigest,
   ensureAlicizationVisualPresenceResidentPerformance,
 } from './alicization-visual-presence-spine'
 import { useCharacterNotebookStore } from './character'
 import { useAiriCardStore } from './modules/airi-card'
+import {
+  projectStateObservationToContinuitySnapshot,
+  readConversationTurnProjectStateObservation,
+} from './project-state-observation'
 
 const currentSoulSchemaVersion = 2
 const defaultAlicizationCardId = 'default'
@@ -136,6 +148,8 @@ interface BrowserConversationTurnRecord extends Required<Pick<AlicizationConvers
   userText: string
   assistantText: string
   structured?: Record<string, unknown>
+  visibleReplyCritic?: Record<string, unknown> | null
+  visibleReplyClosure?: Record<string, unknown> | null
 }
 
 interface BrowserSessionContinuitySummary {
@@ -270,6 +284,24 @@ function normalizeServerStreamError(error: unknown) {
   return new Error(message ?? stageChatText('stream.server-failed'))
 }
 
+function resolveNormalizedBridgeDigitalLife(input: {
+  digitalLife: unknown
+  embodimentScript: unknown
+}) {
+  const normalizedDigitalLife = normalizeAlicizationDigitalLifeEnvelope(
+    input.digitalLife && typeof input.digitalLife === 'object'
+      ? input.digitalLife as Record<string, unknown>
+      : null,
+  )
+  if (normalizedDigitalLife)
+    return normalizedDigitalLife
+
+  const normalizedEmbodimentScript = normalizeAlicizationEmbodimentScript(input.embodimentScript)
+  return normalizeAlicizationDigitalLifeEnvelope(
+    (normalizedEmbodimentScript?.digitalLife ?? null) as Record<string, unknown> | null,
+  )
+}
+
 function normalizeServerStreamEvent(raw: unknown): AlicizationBridgeChatStreamEvent {
   if (!raw || typeof raw !== 'object')
     throw new Error(stageChatText('stream.invalid-event'))
@@ -281,7 +313,8 @@ function normalizeServerStreamEvent(raw: unknown): AlicizationBridgeChatStreamEv
         type: 'text-delta',
         text: typeof event.text === 'string' ? event.text : '',
       }
-    case 'meta':
+    case 'meta': {
+      const normalizedEmbodimentScript = normalizeAlicizationEmbodimentScript(event.embodimentScript)
       return {
         type: 'meta',
         governance: event.governance && typeof event.governance === 'object'
@@ -290,15 +323,18 @@ function normalizeServerStreamEvent(raw: unknown): AlicizationBridgeChatStreamEv
         embodiment: event.embodiment && typeof event.embodiment === 'object'
           ? event.embodiment
           : null,
+        embodimentScript: normalizedEmbodimentScript,
         speechTimeline: event.speechTimeline && typeof event.speechTimeline === 'object'
           ? event.speechTimeline
           : null,
-        digitalLife: event.digitalLife && typeof event.digitalLife === 'object'
-          ? event.digitalLife
-          : null,
+        digitalLife: resolveNormalizedBridgeDigitalLife({
+          digitalLife: event.digitalLife,
+          embodimentScript: normalizedEmbodimentScript,
+        }),
         digitalLifeSpine: normalizeAlicizationDigitalLifeSpineDigest(event.digitalLifeSpine),
         runtimeDigest: normalizeAlicizationRuntimeDigest(event.runtimeDigest),
       }
+    }
     case 'tool-call':
       return {
         type: 'tool-call',
@@ -818,7 +854,7 @@ interface OpenMeteoGeocodeResult {
 }
 
 const cjkLocationPattern = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u
-const weatherLocationSuffixPattern = /(特别行政区|自治区|自治州|自治县|市|州|盟|县|区|旗)$/u
+const weatherLocationSuffixPattern = /(特别行政区|自治区|自治州|自治县|[市州盟县区旗])$/u
 const weatherLocationAliasMap: Record<string, string> = {
   纽约: 'New York',
   洛杉矶: 'Los Angeles',
@@ -1483,7 +1519,7 @@ function trimBrowserRecentProactiveOutcomes(outcomes: BrowserRecentProactiveOutc
 }
 
 function looksExecutionContinuityText(raw: unknown) {
-  return /(?:execution|callback|result|listing|remaining|cli|task|thread|执行|回调|结果|清单|剩下|任务)/iu.test(String(raw ?? ''))
+  return /execution|callback|result|listing|remaining|cli|task|thread|执行|回调|结果|清单|剩下|任务/iu.test(String(raw ?? ''))
 }
 
 function buildBrowserSessionContinuitySummary(input: {
@@ -1514,15 +1550,15 @@ function buildBrowserSessionContinuitySummary(input: {
   ].filter(Boolean).join(' | '), 220) || null
   const proactiveSummary = latestProactive
     ? sanitizeBriefText([
-        latestProactive.userText,
-        latestProactive.assistantText,
-      ].filter(Boolean).join(' | '), 180) || null
+      latestProactive.userText,
+      latestProactive.assistantText,
+    ].filter(Boolean).join(' | '), 180) || null
     : null
   const executionSummary = latestExecution
     ? sanitizeBriefText([
-        latestExecution.userText,
-        latestExecution.assistantText,
-      ].filter(Boolean).join(' | '), 180) || null
+      latestExecution.userText,
+      latestExecution.assistantText,
+    ].filter(Boolean).join(' | '), 180) || null
     : null
 
   return {
@@ -1576,7 +1612,6 @@ function appendBrowserEpisodicEvent(record: BrowserEpisodicMemoryRecord, event: 
   }
   record.events.push(event)
 }
-
 
 function applyBrowserProactiveOutcome(
   state: BrowserProactiveLoopState,
@@ -2691,6 +2726,26 @@ export function installBrowserAlicizationBridge(options?: { runtime?: BrowserRun
       const cardId = resolveActiveCardId()
       return await buildBrowserOrganicMemorySnapshot(cardId)
     },
+    getLatestProjectStateObservation: async () => {
+      const cardId = resolveActiveCardId()
+      const turns = await readConversationTurns(cardId)
+      for (let index = turns.length - 1; index >= 0; index -= 1) {
+        const observation = readConversationTurnProjectStateObservation(turns[index])
+        if (observation)
+          return observation
+      }
+      return null
+    },
+    getProjectStateContinuitySnapshot: async () => {
+      const cardId = resolveActiveCardId()
+      const turns = await readConversationTurns(cardId)
+      for (let index = turns.length - 1; index >= 0; index -= 1) {
+        const observation = readConversationTurnProjectStateObservation(turns[index])
+        if (observation)
+          return projectStateObservationToContinuitySnapshot(observation)
+      }
+      return null
+    },
     searchOrganicSubconsciousFragments: async (payload) => {
       const cardId = resolveActiveCardId()
       const organicMemory = await readOrganicMemory(cardId)
@@ -2730,23 +2785,52 @@ export function installBrowserAlicizationBridge(options?: { runtime?: BrowserRun
     },
     getPerformanceManifest: async () => {
       const cardId = resolveActiveCardId()
-      return await readPerformanceManifest(cardId)
+      return sanitizeCharacterPerformanceManifest(
+        await readPerformanceManifest(cardId),
+      )
     },
     setPerformanceManifest: async (payload) => {
       const cardId = resolveActiveCardId()
-      await writePerformanceManifest(cardId, payload)
+      await writePerformanceManifest(
+        cardId,
+        sanitizeCharacterPerformanceManifest(payload),
+      )
     },
     appendConversationTurn: async (payload) => {
       const cardId = resolveActiveCardId()
       const currentTs = payload.createdAt ?? now()
       const turns = await readConversationTurns(cardId)
+      const normalizedEmbodimentScript = normalizeAlicizationEmbodimentScript(payload.structured?.embodimentScript ?? null)
+      const normalizedStructured = payload.structured
+        ? {
+            ...payload.structured,
+            digitalLife: resolveNormalizedBridgeDigitalLife({
+              digitalLife: payload.structured.digitalLife ?? null,
+              embodimentScript: normalizedEmbodimentScript,
+            }) ?? null,
+            digitalLifeSpine: normalizeAlicizationDigitalLifeSpineDigest(
+              (payload.structured.digitalLifeSpine ?? null) as Record<string, unknown> | null,
+            ) ?? null,
+            projectState: normalizeStructuredProjectStatePayload(
+              (payload.structured.projectState ?? null) as Record<string, unknown> | null,
+            ) ?? null,
+            preDialogueAwareness: normalizeStructuredPreDialogueAwarenessPayload(
+              (payload.structured.preDialogueAwareness ?? null) as Record<string, unknown> | null,
+            ) ?? null,
+            preDialogueClosure: normalizeStructuredPreDialogueClosurePayload(
+              (payload.structured.preDialogueClosure ?? null) as Record<string, unknown> | null,
+            ) ?? null,
+          }
+        : undefined
       const record: BrowserConversationTurnRecord = {
         turnId: payload.turnId?.trim() || nanoid(),
         sessionId: payload.sessionId?.trim() || 'default',
         origin: payload.origin === 'subconscious-proactive' ? 'subconscious-proactive' : 'user-turn',
         userText: sanitizeMultilineText(payload.userText, ''),
         assistantText: sanitizeMultilineText(payload.assistantText, ''),
-        structured: payload.structured ? { ...payload.structured } : undefined,
+        structured: normalizedStructured,
+        visibleReplyCritic: payload.visibleReplyCritic ? { ...payload.visibleReplyCritic } : null,
+        visibleReplyClosure: payload.visibleReplyClosure ? { ...payload.visibleReplyClosure } : null,
         createdAt: currentTs,
       }
       turns.push(record)

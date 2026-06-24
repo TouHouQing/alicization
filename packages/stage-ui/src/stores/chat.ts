@@ -18,12 +18,14 @@ import type {
   AlicizationPreDialogueSendIdentity,
   AlicizationProjectStateContinuitySnapshot,
   AlicizationRuntimeDigest,
+  CharacterPerformanceCapabilitiesManifest,
 } from './alicization-bridge'
 import type { RealtimeEvidenceItem } from './alicization-execution-engine'
 import type { StreamEvent, StreamOptions } from './llm'
 
 import {
   buildAlicizationDialogueSpeechTimeline,
+  buildAlicizationDigitalLifeEnvelope,
   deriveAlicizationRendererBridgeWatchdogTimeoutPolicy,
   detectAlicizationExecutionCapabilityInquiry,
   detectAlicizationExecutionRoutingIntent,
@@ -46,13 +48,26 @@ import { ref, toRaw } from 'vue'
 import { applyPromptBudget, compactMessagesForPromptAssembly, sanitizeAssistantOutputForDisplay, sanitizeForRemoteModel } from '../composables/alicization-guardrails'
 import { composeAlicizationPromptMessages } from '../composables/alicization-prompt-composer'
 import { detectRealtimeQueryIntent } from '../composables/alicization-realtime-query'
-import { enforceGovernedMindTurn, normalizeStructuredOutput, normalizeStructuredPreDialogueAwarenessPayload, normalizeStructuredPreDialogueClosurePayload, normalizeStructuredProjectStatePayload, repairStructuredContractLocally, sanitizeStructuredReplySurface, validateStructuredContract } from '../composables/alicization-structured-output'
+import {
+  enforceGovernedMindTurn,
+  normalizeStructuredOutput,
+  normalizeStructuredProjectStatePayload,
+  repairStructuredContractLocally,
+  sanitizeStructuredReplySurface,
+  validateStructuredContract,
+} from '../composables/alicization-structured-output'
 import { abortAlicizationTurns, completeAlicizationTurnAbort, isAlicizationAbortError, registerAlicizationTurnAbort } from '../composables/alicization-turn-abort'
 import { useLlmmarkerParser } from '../composables/llm-marker-parser'
 import { categorizeResponse, createStreamingCategorizer } from '../composables/response-categoriser'
 import { useAnalytics } from '../composables/use-analytics'
 import { translateStageUi } from '../utils/i18n'
-import { getAlicizationBridge, hasAlicizationBridge, normalizeAlicizationPerformancePayload } from './alicization-bridge'
+import {
+  getAlicizationBridge,
+  hasAlicizationBridge,
+  normalizeAlicizationDigitalLifeEnvelope,
+  normalizeAlicizationEmbodimentScript,
+  normalizeAlicizationPerformancePayload,
+} from './alicization-bridge'
 import { useAlicizationExecutionEngineStore } from './alicization-execution-engine'
 import { useAlicizationPresenceDispatcherStore } from './alicization-presence-dispatcher'
 import { useAlicizationSelfEvolutionInspectorStore } from './alicization-self-evolution-inspector'
@@ -67,6 +82,7 @@ import { createChatHooks } from './chat/hooks'
 import {
   buildPreDialogueSendIdentityFromSnapshots as buildSharedPreDialogueSendIdentityFromSnapshots,
   resolvePreDialogueClosureCompanionHeadlineLine,
+  resolvePreferredCompanionHeadlineLine,
 } from './chat/pre-dialogue-send-identity'
 import { useChatSessionStore } from './chat/session-store'
 import { useChatStreamStore } from './chat/stream-store'
@@ -74,9 +90,26 @@ import { useLLM } from './llm'
 import { useConsciousnessStore } from './modules/consciousness'
 import { useProvidersStore } from './providers'
 
-type ChatPreDialogueSendIdentity = NonNullable<ChatStreamEventContext['preDialogueSendIdentity']>
-type AlicizationPreDialogueAwarenessPayload = NonNullable<AlicizationProjectStateContinuitySnapshot['preDialogueAwareness']>
 type AlicizationPreDialogueClosurePayload = NonNullable<ChatAssistantStructuredPayload['preDialogueClosure']>
+interface AlicizationPreDialogueAwarenessPayload {
+  status: 'grounded' | 'partial' | 'drift'
+  summaryLine: string | null
+  companionHeadlineLine: string | null
+  companionBriefingLine: string | null
+  companionNextClosureLine: string | null
+  awarenessLine: string | null
+  emotionalClosureCue: string | null
+  reasonPreview: string[]
+}
+type ChatPreDialogueSendIdentity = NonNullable<ChatStreamEventContext['preDialogueSendIdentity']>
+
+type StreamToolCallPayload = Extract<StreamEvent, { type: 'tool-call' }>
+
+const runtimeAuthoritativeVisibleReplyBlockedErrorMessage = 'Alicization runtime-authoritative visible reply was blocked before a model-authored reply could be persisted.'
+
+function createRuntimeAuthoritativeVisibleReplyBlockedError() {
+  return new Error(runtimeAuthoritativeVisibleReplyBlockedErrorMessage)
+}
 
 function toAlicizationChatStartPreDialogueSendIdentity(
   identity: ChatStreamEventContext['preDialogueSendIdentity'],
@@ -116,65 +149,118 @@ function toStructuredPreDialogueAwarenessPayload(
   }
 }
 
-function toAlicizationPreDialogueClosurePayload(input: unknown): AlicizationPreDialogueClosurePayload | null {
-  const normalized = normalizeStructuredPreDialogueClosurePayload(input)
-  if (!normalized)
-    return null
-
-  return {
-    status: normalized.status,
-    summaryLine: normalized.summaryLine,
-    companionHeadlineLine: normalized.companionHeadlineLine,
-    sameHerDriftRiskLine: normalized.sameHerDriftRiskLine,
-    companionshipReasonLine: normalized.companionshipReasonLine,
-    companionBriefingLine: normalized.companionBriefingLine,
-    companionNextClosureLine: normalized.companionNextClosureLine,
-    emotionalClosureCue: normalized.emotionalClosureCue,
-    briefingLines: normalized.briefingLines,
-    reasons: normalized.reasons,
-  }
-}
-
-function toAlicizationPreDialogueClosureSnapshot(
-  input: ChatAssistantStructuredPayload['preDialogueClosure'],
-): AlicizationProjectStateContinuitySnapshot['preDialogueClosure'] {
-  return toAlicizationPreDialogueClosurePayload(input)
-}
-
 function deriveStructuredPreDialogueAwarenessFromClosure(
-  closure: ChatAssistantStructuredPayload['preDialogueClosure'] | AlicizationPreDialogueClosurePayload | null,
+  closure: ChatAssistantStructuredPayload['preDialogueClosure'],
 ): AlicizationPreDialogueAwarenessPayload | null {
-  const normalizedClosure = toAlicizationPreDialogueClosurePayload(closure)
-  if (!normalizedClosure)
+  if (!closure)
     return null
 
-  const summaryLine = normalizedClosure.summaryLine ?? null
-  const companionBriefingLine = normalizedClosure.companionBriefingLine ?? null
-  const companionNextClosureLine = normalizedClosure.companionNextClosureLine ?? null
-  const companionHeadlineLine = resolvePreDialogueClosureCompanionHeadlineLine(normalizedClosure)
-  const awarenessLine = companionHeadlineLine
-    ?? companionBriefingLine
-    ?? summaryLine
-    ?? null
+  const summaryLine = closure.summaryLine ?? null
+  const companionBriefingLine = closure.companionBriefingLine ?? null
+  const companionNextClosureLine = closure.companionNextClosureLine ?? null
+  const companionHeadlineLine = resolvePreDialogueClosureCompanionHeadlineLine(closure)
+  const resolvePreferredClosureAwarenessLine = () => {
+    const normalizedCompanionHeadlineLine = typeof companionHeadlineLine === 'string' ? companionHeadlineLine.trim() : ''
+    const normalizedCompanionBriefingLine = typeof companionBriefingLine === 'string' ? companionBriefingLine.trim() : ''
+    const normalizedSummaryLine = typeof summaryLine === 'string' ? summaryLine.trim() : ''
+    const preferredProjectAwareLine = normalizedCompanionBriefingLine || normalizedSummaryLine || ''
+    if (!normalizedCompanionHeadlineLine)
+      return preferredProjectAwareLine || null
+    if (!preferredProjectAwareLine)
+      return normalizedCompanionHeadlineLine || null
+
+    const lowerHeadline = normalizedCompanionHeadlineLine.toLowerCase()
+    const lowerProjectAwareLine = preferredProjectAwareLine.toLowerCase()
+    const projectAwareLineCarriesBroaderPhaseClosure = (lowerProjectAwareLine.includes('phase 1')
+      || lowerProjectAwareLine.includes('digital life')
+      || lowerProjectAwareLine.includes('same living line')
+      || lowerProjectAwareLine.includes('what has landed')
+      || lowerProjectAwareLine.includes('life loop is still open')
+      || lowerProjectAwareLine.includes('still-open life loop'))
+    && (
+      lowerProjectAwareLine.includes('before speaking')
+      || lowerProjectAwareLine.includes('remember')
+      || lowerProjectAwareLine.includes('project')
+    )
+    const headlineLooksEmbodimentOnly = lowerHeadline.includes('body')
+      || lowerHeadline.includes('face')
+      || lowerHeadline.includes('motion')
+      || lowerHeadline.includes('lipsync')
+      || lowerHeadline.includes('voice')
+
+    if (projectAwareLineCarriesBroaderPhaseClosure && headlineLooksEmbodimentOnly)
+      return preferredProjectAwareLine
+
+    return normalizedCompanionHeadlineLine || preferredProjectAwareLine || null
+  }
+  const awarenessLine = resolvePreferredClosureAwarenessLine()
   const reasonPreview = [
     companionHeadlineLine,
     summaryLine,
-    ...(normalizedClosure.reasons ?? []),
+    ...(closure.reasons ?? []),
   ].filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
 
   if (!summaryLine && !awarenessLine && reasonPreview.length === 0)
     return null
 
   return {
-    status: normalizedClosure.status === 'grounded' || normalizedClosure.status === 'drift'
-      ? normalizedClosure.status
-      : 'partial',
+    status: closure.status,
     summaryLine,
     companionHeadlineLine,
     companionBriefingLine,
     companionNextClosureLine,
     awarenessLine,
-    emotionalClosureCue: normalizedClosure.emotionalClosureCue ?? null,
+    emotionalClosureCue: closure.emotionalClosureCue ?? null,
+    reasonPreview,
+  }
+}
+
+function normalizeStructuredPreDialogueAwarenessPayload(
+  awareness: unknown,
+): AlicizationPreDialogueAwarenessPayload | null {
+  const payload = awareness && typeof awareness === 'object' && !Array.isArray(awareness)
+    ? awareness as Record<string, unknown>
+    : null
+  if (!payload)
+    return null
+
+  const status = payload.status
+  if (status !== 'grounded' && status !== 'partial' && status !== 'drift')
+    return null
+
+  const summaryLine = typeof payload.summaryLine === 'string'
+    ? payload.summaryLine
+    : null
+  const companionHeadlineLine = typeof payload.companionHeadlineLine === 'string'
+    ? payload.companionHeadlineLine
+    : null
+  const companionBriefingLine = typeof payload.companionBriefingLine === 'string'
+    ? payload.companionBriefingLine
+    : null
+  const companionNextClosureLine = typeof payload.companionNextClosureLine === 'string'
+    ? payload.companionNextClosureLine
+    : null
+  const awarenessLine = typeof payload.awarenessLine === 'string'
+    ? payload.awarenessLine
+    : null
+  const emotionalClosureCue = typeof payload.emotionalClosureCue === 'string'
+    ? payload.emotionalClosureCue
+    : null
+  const reasonPreview = Array.isArray(payload.reasonPreview)
+    ? payload.reasonPreview.filter((value: unknown): value is string => typeof value === 'string' && value.trim().length > 0)
+    : []
+
+  if (!summaryLine && !companionBriefingLine && !awarenessLine && reasonPreview.length === 0)
+    return null
+
+  return {
+    status,
+    summaryLine,
+    companionHeadlineLine,
+    companionBriefingLine,
+    companionNextClosureLine,
+    awarenessLine,
+    emotionalClosureCue,
     reasonPreview,
   }
 }
@@ -293,6 +379,29 @@ function mergePreDialogueSendIdentityProjectState(
   return merged
 }
 
+function alignPersistedPreDialogueAwarenessCompanionHeadline(input: {
+  awareness: AlicizationPreDialogueAwarenessPayload | null
+  preDialogueSendIdentity: ChatStreamEventContext['preDialogueSendIdentity']
+}) {
+  const awareness = input.awareness
+  const preDialogueSendIdentity = input.preDialogueSendIdentity
+  if (!awareness || !preDialogueSendIdentity)
+    return awareness
+
+  const preferredCompanionHeadlineLine = resolvePreferredCompanionHeadlineLine({
+    awarenessCompanionHeadlineLine: awareness.companionHeadlineLine,
+    closureCompanionHeadlineLine: preDialogueSendIdentity.companionHeadlineLine,
+  })
+
+  if (preferredCompanionHeadlineLine === awareness.companionHeadlineLine)
+    return awareness
+
+  return {
+    ...awareness,
+    companionHeadlineLine: preferredCompanionHeadlineLine,
+  }
+}
+
 function needsPreDialogueSendIdentityUpgrade(
   identity: ChatStreamEventContext['preDialogueSendIdentity'],
 ) {
@@ -377,6 +486,49 @@ interface QueuedSend {
 }
 
 type ExternalPipelineAborter = (reason: AlicizationAbortReason) => Promise<void> | void
+
+function toAlicizationPreDialogueClosurePayload(input: {
+  status: 'grounded' | 'partial' | 'drift'
+  summaryLine: string | null
+  companionHeadlineLine?: string | null
+  sameHerDriftRiskLine?: string | null
+  companionBriefingLine?: string | null
+  companionNextClosureLine?: string | null
+  emotionalClosureCue?: string | null
+  briefingLines?: string[]
+  reasons: string[]
+}): AlicizationPreDialogueClosurePayload {
+  return {
+    status: input.status,
+    summaryLine: input.summaryLine,
+    companionHeadlineLine: input.companionHeadlineLine ?? null,
+    sameHerDriftRiskLine: input.sameHerDriftRiskLine ?? null,
+    companionBriefingLine: input.companionBriefingLine ?? null,
+    companionNextClosureLine: input.companionNextClosureLine ?? null,
+    emotionalClosureCue: input.emotionalClosureCue ?? null,
+    briefingLines: [...(input.briefingLines ?? [])],
+    reasons: [...input.reasons],
+  }
+}
+
+function toAlicizationPreDialogueClosureSnapshot(
+  input: ChatAssistantStructuredPayload['preDialogueClosure'],
+): AlicizationProjectStateContinuitySnapshot['preDialogueClosure'] {
+  if (!input)
+    return null
+
+  return {
+    status: input.status,
+    summaryLine: input.summaryLine ?? null,
+    companionHeadlineLine: input.companionHeadlineLine ?? null,
+    sameHerDriftRiskLine: input.sameHerDriftRiskLine ?? null,
+    companionBriefingLine: input.companionBriefingLine ?? null,
+    emotionalClosureCue: input.emotionalClosureCue ?? null,
+    companionNextClosureLine: input.companionNextClosureLine ?? null,
+    briefingLines: [...(input.briefingLines ?? [])],
+    reasons: [...(input.reasons ?? [])],
+  }
+}
 
 function stageChatText(path: string, params?: Record<string, unknown>) {
   return translateStageUi(`stage.chat.${path}`, params)
@@ -501,12 +653,28 @@ const reminderToolCallCriticalRetryDirective = [
   'DO NOT say you set a reminder unless the set_reminder tool call actually succeeded.',
   'If tool call fails, explain failure briefly and ask for a valid reminder duration/message.',
 ].join(' ')
-const executionToolCallCriticalRetryDirective = [
-  '[CRITICAL DIRECTIVE]: User requested real task execution via CLI/Codex/agent channels in this turn.',
-  'You MUST call executor_run_cli or executor_run_codex or executor_run_claude_code or executor_run_openclaw for actionable execution requests.',
-  'DO NOT claim execution is done unless an executor tool result confirms completion.',
-  'If required command/prompt details are missing, ask one concise clarification question instead of generic refusal.',
-].join(' ')
+const executionEvidenceToolNames = new Set([
+  'executor_run_cli',
+  'executor_run_codex',
+  'executor_run_claude_code',
+  'executor_run_local_visual',
+  'executor_run_openclaw',
+  'browser_open_url',
+  'browser_search_web',
+  'browser_read_page',
+  'browser_click_element',
+  'browser_type_text',
+  'browser_navigate',
+  'browser_scroll',
+  'browser_wait',
+  'desktop_inspect_scene',
+  'desktop_list_interactables',
+  'desktop_click_element',
+  'desktop_type_text',
+  'desktop_press_keys',
+  'desktop_open_application',
+  'desktop_wait',
+])
 const executionPromisePattern = /我现在|我这就|马上|稍后|正在|接下来|i(?:'|’)?ll|i will|let me|going to|about to|run it now/iu
 const executionSettledPattern = /已经|已|完成|结束|拿到|结果|输出|列出|通过|失败|报错|done|completed|finished|result|output|listed|succeeded|failed|error/iu
 const fileSystemOperationVerbPattern = /读取|读|查看|打开|访问|写入|写|修改|删除|列出|搜索|获取|read|open|access|write|update|delete|list|find|inspect/i
@@ -515,7 +683,6 @@ const reminderVerbPattern = /提醒|闹钟|alarm|remind|notify|叫我|喊我|告
 const reminderDurationPattern = /\b(?:in|after)\s*\d+\s*(?:seconds?|secs?|minutes?|mins?|hours?|hrs?|days?)\b|(?:\d+|[零一二两三四五六七八九十百半几]+)\s*(?:秒钟?|分钟?|小时|时|天)(?:\s*之?后)?/iu
 const reminderChineseNaturalPattern = /(?:\d+|[零一二两三四五六七八九十百半几]+)\s*(?:秒钟?|分钟?|小时|时|天)(?:\s*之?后)?[\s，,。！!]*(?:提醒我|叫我|喊我|告诉我|通知我|记得|别忘)/u
 const reminderEnglishNaturalPattern = /(?:^|\s)(?:in|after)\s*\d+\s*(?:seconds?|secs?|minutes?|mins?|hours?|hrs?|days?)\s*(?:[,.:;!?-]\s*)?(?:remind|notify|tell)\s+me\b/iu
-const executorToolNames = new Set(['executor_run_cli', 'executor_run_codex', 'executor_run_claude_code', 'executor_run_openclaw'])
 const strictRealtimeRefusalSystemPrompt = [
   '[System Lock]',
   'User request requires realtime external access, but current runtime is locked in Epoch 1 strict mode.',
@@ -559,6 +726,34 @@ interface ExecutorToolReplyEvidence {
   toolName: string
 }
 
+function buildExecutionToolCallCriticalRetryDirective(requiredToolNames: string[]) {
+  const normalizedToolNames = [...new Set(requiredToolNames.map(toolName => sanitizeExecutorReplyEvidenceText(toolName, 96)).filter(Boolean))]
+  const toolInstruction = normalizedToolNames.length > 0
+    ? `You MUST call ${normalizedToolNames.join(' or ')} for this request.`
+    : 'You MUST call an appropriate execution tool for this request.'
+  return [
+    '[CRITICAL DIRECTIVE]: User requested real task execution in this turn.',
+    toolInstruction,
+    'DO NOT claim execution is done unless the required execution tool result confirms completion.',
+    'If required command, prompt, URL, selector, or page details are missing, ask one concise clarification question instead of generic refusal.',
+  ].join(' ')
+}
+
+function isExecutionEvidenceToolName(toolName: string) {
+  return executionEvidenceToolNames.has(toolName)
+}
+
+function isExecutionToolNameSatisfiedByRoutingIntent(input: {
+  requiredToolNames: Set<string>
+  toolName: string
+}) {
+  if (!input.toolName)
+    return false
+  if (input.requiredToolNames.size <= 0)
+    return isExecutionEvidenceToolName(input.toolName)
+  return input.requiredToolNames.has(input.toolName)
+}
+
 function normalizeExecutorChannelLabel(toolName: string) {
   if (toolName === 'executor_run_cli')
     return 'CLI'
@@ -566,8 +761,14 @@ function normalizeExecutorChannelLabel(toolName: string) {
     return 'Codex'
   if (toolName === 'executor_run_claude_code')
     return 'Claude Code'
+  if (toolName === 'executor_run_local_visual')
+    return '本地视觉执行'
   if (toolName === 'executor_run_openclaw')
     return 'OpenClaw'
+  if (toolName.startsWith('browser_'))
+    return '浏览器'
+  if (toolName.startsWith('desktop_'))
+    return '桌面'
   return '执行通道'
 }
 
@@ -733,7 +934,9 @@ function extractExecutorToolReplyEvidence(result: unknown, toolName: string): Ex
 function buildExecutorResultPayoffRetryDirective(evidence: ExecutorToolReplyEvidence) {
   return [
     '[CRITICAL DIRECTIVE]: This turn already executed an executor tool and received its result.',
-    'Do NOT call executor_run_cli or executor_run_codex or executor_run_claude_code or executor_run_openclaw again in this retry.',
+    evidence.toolName
+      ? `Do NOT call ${evidence.toolName} again in this retry.`
+      : 'Do NOT call the execution tool again in this retry.',
     'Do NOT repeat pre-execution promises like "I will run it now" because execution already happened.',
     'Write the final user-facing answer now from the existing executor result below.',
     'The first sentence must directly state the freshest executor outcome.',
@@ -912,7 +1115,7 @@ type StructuredWithContract = StructuredOutputResult
     digitalLife?: AlicizationDigitalLifeEnvelope | null
     digitalLifeSpine?: AlicizationDigitalLifeSpineDigest | null
     runtimeDigest?: AlicizationRuntimeDigest | null
-    projectState?: ChatAssistantStructuredPayload['projectState']
+    projectState?: StructuredOutputResult['projectState']
     preDialogueClosure?: ChatAssistantStructuredPayload['preDialogueClosure']
     preDialogueAwareness?: AlicizationPreDialogueAwarenessPayload | null
     governance?: AlicizationMindTurnGovernance | null
@@ -939,14 +1142,26 @@ export function mergeStructuredRuntimeMeta(
     digitalLife: AlicizationDigitalLifeEnvelope | null
     digitalLifeSpine: AlicizationDigitalLifeSpineDigest | null
     runtimeDigest: AlicizationRuntimeDigest | null
-    projectState?: ChatAssistantStructuredPayload['projectState']
+    projectState?: StructuredOutputResult['projectState']
     preDialogueClosure?: ChatAssistantStructuredPayload['preDialogueClosure']
     preDialogueAwareness?: AlicizationPreDialogueAwarenessPayload | null
     governance: AlicizationMindTurnGovernance | null
   },
 ): StructuredWithContract {
-  const normalizedInputProjectState = normalizeStructuredProjectStatePayload(input.projectState)
-  const normalizedStructuredProjectState = normalizeStructuredProjectStatePayload(structured.projectState)
+  const normalizedInputDigitalLife = resolveChatRuntimeDigitalLifeAuthority({
+    digitalLife: input.digitalLife,
+    embodimentScript: input.embodimentScript,
+  })
+  const normalizedStructuredDigitalLife = resolveChatRuntimeDigitalLifeAuthority({
+    digitalLife: structured.digitalLife ?? null,
+    embodimentScript: structured.embodimentScript ?? null,
+  })
+  const normalizedInputProjectState = normalizeStructuredProjectStatePayload(
+    (input.projectState ?? null) as Record<string, unknown> | null,
+  ) ?? null
+  const normalizedStructuredProjectState = normalizeStructuredProjectStatePayload(
+    (structured.projectState ?? null) as Record<string, unknown> | null,
+  ) ?? null
   const normalizedInputPreDialogueAwareness = normalizeStructuredPreDialogueAwarenessPayload(
     (input.preDialogueAwareness ?? null) as Record<string, unknown> | null,
   )
@@ -959,13 +1174,58 @@ export function mergeStructuredRuntimeMeta(
     embodiment: input.embodiment ?? structured.embodiment ?? null,
     embodimentScript: input.embodimentScript ?? structured.embodimentScript ?? null,
     speechTimeline: input.speechTimeline ?? structured.speechTimeline ?? null,
-    digitalLife: input.digitalLife ?? structured.digitalLife ?? null,
+    digitalLife: normalizedInputDigitalLife ?? normalizedStructuredDigitalLife ?? input.digitalLife ?? structured.digitalLife ?? null,
     digitalLifeSpine: input.digitalLifeSpine ?? structured.digitalLifeSpine ?? null,
     runtimeDigest: input.runtimeDigest ?? structured.runtimeDigest ?? null,
     projectState: normalizedInputProjectState ?? normalizedStructuredProjectState ?? null,
     preDialogueClosure: input.preDialogueClosure ?? structured.preDialogueClosure ?? null,
     preDialogueAwareness: normalizedInputPreDialogueAwareness ?? normalizedStructuredPreDialogueAwareness ?? null,
     governance: input.governance ?? structured.governance ?? null,
+  }
+}
+
+function normalizeChatRuntimeDigitalLifeEnvelope(
+  digitalLife: AlicizationDigitalLifeEnvelope | null | undefined,
+): AlicizationDigitalLifeEnvelope | null {
+  return normalizeAlicizationDigitalLifeEnvelope(digitalLife ?? null) ?? digitalLife ?? null
+}
+
+function resolveChatRuntimeDigitalLifeAuthority(input: {
+  digitalLife: AlicizationDigitalLifeEnvelope | null | undefined
+  embodimentScript: AlicizationEmbodimentScriptV1 | null | undefined
+}) {
+  return normalizeChatRuntimeDigitalLifeEnvelope(input.digitalLife)
+    ?? normalizeChatRuntimeDigitalLifeEnvelope(input.embodimentScript?.digitalLife ?? null)
+}
+
+function inferPerformanceManifestFromEmbodimentScript(input: {
+  performance: StructuredWithContract['performance'] | null | undefined
+  script: AlicizationEmbodimentScriptV1 | null | undefined
+}): CharacterPerformanceCapabilitiesManifest | null {
+  const script = normalizeAlicizationEmbodimentScript(input.script ?? null) ?? input.script ?? null
+  if (!script)
+    return null
+
+  const renderer = script.rendererTarget
+  if (renderer !== 'live2d' && renderer !== 'vrm')
+    return null
+
+  const supportedBaseEmotions = [
+    input.performance?.baseEmotion,
+    input.performance?.emotion,
+    script.state.baseEmotion,
+  ].filter((emotion, index, values): emotion is AlicizationEmotion => {
+    return Boolean(emotion) && values.indexOf(emotion) === index
+  })
+
+  return {
+    renderer,
+    supportedBaseEmotions,
+    supportedFacialCues: [],
+    supportedActions: [],
+    supportsLookAt: renderer === 'vrm',
+    supportsVisemeLipSync: renderer === 'vrm' && script.lipsyncPlan.mode === 'energy-phoneme-hybrid',
+    supportsMicroDynamics: true,
   }
 }
 
@@ -987,12 +1247,12 @@ function detectReminderToolIntent(message: string) {
   return reminderChineseNaturalPattern.test(normalized) || reminderEnglishNaturalPattern.test(normalized)
 }
 
-function detectExecutionToolIntent(message: string) {
+function detectExecutionToolRoutingIntent(message: string) {
   const capabilityInquiry = detectAlicizationExecutionCapabilityInquiry(message)
-  return Boolean(detectAlicizationExecutionRoutingIntent({
+  return detectAlicizationExecutionRoutingIntent({
     message,
     capabilityInquiry,
-  }))
+  })
 }
 
 function resolveMainGatewayToolingPolicy(input: {
@@ -1029,6 +1289,15 @@ function normalizeObservedToolName(event: {
     return toolName.trim()
   const fallbackName = typeof event.name === 'string' ? event.name : ''
   return fallbackName.trim()
+}
+
+function toToolMessageFromStreamEvent(event: StreamToolCallPayload): ToolMessage {
+  return {
+    role: 'tool',
+    content: '',
+    tool_call_id: typeof event.toolCallId === 'string' ? event.toolCallId : '',
+    toolName: normalizeObservedToolName(event),
+  } as ToolMessage
 }
 
 function insertSystemMessageBeforeLatestUser(messages: Message[], systemText: string): Message[] {
@@ -1513,6 +1782,33 @@ function extractScheduledReminderPayload(result?: unknown): { scheduled: boolean
   return { scheduled: false }
 }
 
+function isUsableMindTurnGovernanceCandidate(value: unknown): value is AlicizationMindTurnGovernance {
+  if (!value || typeof value !== 'object')
+    return false
+
+  const candidate = value as Partial<AlicizationMindTurnGovernance>
+  return typeof candidate.turnMode === 'string'
+    && candidate.turnMode.trim().length > 0
+    && typeof candidate.truthState === 'string'
+    && candidate.truthState.trim().length > 0
+    && typeof candidate.personaKernelMode === 'string'
+    && candidate.personaKernelMode.trim().length > 0
+    && typeof candidate.openingStyle === 'string'
+    && candidate.openingStyle.trim().length > 0
+    && typeof candidate.relationshipPosture === 'string'
+    && candidate.relationshipPosture.trim().length > 0
+    && typeof candidate.repairState === 'string'
+    && candidate.repairState.trim().length > 0
+    && typeof candidate.suppressAssociativeRecall === 'boolean'
+    && typeof candidate.labelCarryAsMemory === 'boolean'
+    && typeof candidate.shouldAskForGrounding === 'boolean'
+    && typeof candidate.shouldAcknowledgeRepair === 'boolean'
+    && typeof candidate.maxSentences === 'number'
+    && Number.isFinite(candidate.maxSentences)
+    && Array.isArray(candidate.mustDo)
+    && Array.isArray(candidate.mustNotDo)
+}
+
 function hasStructuredJsonContract(structured: StructuredOutputResult | undefined) {
   if (!structured?.parsePath)
     return false
@@ -1523,7 +1819,13 @@ function createStructuredFallback(
   replyText: string,
   emotion: StructuredOutputResult['emotion'] = 'neutral',
   userText?: string,
+  projectState?: StructuredOutputResult['projectState'],
+  digitalLife?: AlicizationDigitalLifeEnvelope | null,
 ): StructuredWithContract {
+  const normalizedProjectState = normalizeStructuredProjectStatePayload(
+    (projectState ?? null) as Record<string, unknown> | null,
+  ) ?? null
+  const normalizedDigitalLife = normalizeChatRuntimeDigitalLifeEnvelope(digitalLife)
   return {
     thought: '',
     emotion,
@@ -1535,10 +1837,20 @@ function createStructuredFallback(
     parsePath: 'fallback',
     repairTimedOut: false,
     contractFailed: true,
+    digitalLife: normalizedDigitalLife,
+    projectState: normalizedProjectState,
   }
 }
 
-function createAlicizationBlockedRendererFallback(reason: string): StructuredWithContract {
+function createAlicizationBlockedRendererFallback(
+  reason: string,
+  projectState?: StructuredOutputResult['projectState'],
+  digitalLife?: AlicizationDigitalLifeEnvelope | null,
+): StructuredWithContract {
+  const normalizedProjectState = normalizeStructuredProjectStatePayload(
+    (projectState ?? null) as Record<string, unknown> | null,
+  ) ?? null
+  const normalizedDigitalLife = normalizeChatRuntimeDigitalLifeEnvelope(digitalLife)
   return {
     thought: 'obligation=repair; truth=uncertain; focus=do not invent visible speech outside runtime mind authority; move=block local renderer fallback and wait for model-authored retry; tone=direct',
     emotion: 'neutral',
@@ -1553,7 +1865,305 @@ function createAlicizationBlockedRendererFallback(reason: string): StructuredWit
     visibleReplyBlocked: true,
     nonHumanAuthoredStatus: reason,
     visibleReplyAuthority: 'local-deterministic-fallback',
+    digitalLife: normalizedDigitalLife,
+    projectState: normalizedProjectState,
   }
+}
+
+function deriveFallbackProjectStateContinuitySnapshotFromSessionMessages(
+  messages: ChatAssistantMessage[],
+): AlicizationProjectStateContinuitySnapshot | null {
+  const sanitizeSessionFallbackText = (raw: unknown, maxChars: number) => {
+    if (typeof raw !== 'string')
+      return null
+    const normalized = raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
+    return normalized || null
+  }
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index]
+    if (message.role !== 'assistant' || !message.structured || typeof message.structured !== 'object')
+      continue
+
+    const visibleReplyRealization = message.structured.visibleReplyRealization
+      && typeof message.structured.visibleReplyRealization === 'object'
+      ? message.structured.visibleReplyRealization as {
+        projectStateAudit?: {
+          sameHerSummary?: unknown
+          currentPhaseSummary?: unknown
+          sameHerHoldDetail?: unknown
+          landedProgressSummary?: unknown
+          openClosureSummary?: unknown
+          nextClosureTargetSummary?: unknown
+          emotionalClosureSummary?: unknown
+          preDialogueAwarenessSummary?: unknown
+          continuitySummary?: unknown
+          embodimentClosureSummary?: unknown
+          sameHerDriftRiskSummary?: unknown
+          sameHerDriftRisk?: unknown
+          proactiveSameHerGapSummary?: unknown
+        } | null
+      }
+      : null
+    const projectStateAudit = visibleReplyRealization?.projectStateAudit
+      && typeof visibleReplyRealization.projectStateAudit === 'object'
+      ? visibleReplyRealization.projectStateAudit
+      : null
+    const digitalLifeSpine = message.structured.digitalLifeSpine
+      && typeof message.structured.digitalLifeSpine === 'object'
+      ? message.structured.digitalLifeSpine as {
+        memory?: {
+          personStateProjection?: {
+            selfContinuityAuthority?: {
+              authoritySummary?: unknown
+              inwardLine?: unknown
+              sourceTags?: unknown
+            } | null
+          } | null
+        } | null
+      }
+      : null
+    const spineSelfAuthority = digitalLifeSpine?.memory?.personStateProjection?.selfContinuityAuthority ?? null
+    const normalizedProjectState = normalizeStructuredProjectStatePayload(
+      (message.structured.projectState ?? null) as Record<string, unknown> | null,
+    )
+    if (!normalizedProjectState)
+      continue
+
+    const strongerSameHerSelfLine
+      = sanitizeSessionFallbackText(projectStateAudit?.sameHerSummary, 220)
+        ?? sanitizeSessionFallbackText(spineSelfAuthority?.inwardLine, 220)
+        ?? sanitizeSessionFallbackText(spineSelfAuthority?.authoritySummary, 220)
+        ?? null
+    const strongerSameHerHoldDetail
+      = sanitizeSessionFallbackText(projectStateAudit?.sameHerHoldDetail, 220)
+        ?? sanitizeSessionFallbackText(normalizedProjectState.sameHerHoldDetail, 220)
+        ?? null
+    const strongerCurrentPhase
+      = sanitizeSessionFallbackText(projectStateAudit?.currentPhaseSummary, 180)
+        ?? normalizedProjectState.currentPhase
+    const strongerNextClosureTarget
+      = sanitizeSessionFallbackText(projectStateAudit?.nextClosureTargetSummary, 320)
+        ?? normalizedProjectState.nextClosureTarget
+    const strongerLatestLandedProgress
+      = sanitizeSessionFallbackText(projectStateAudit?.landedProgressSummary, 320)
+        ?? null
+    const strongerPrimaryOpenLoop
+      = sanitizeSessionFallbackText(projectStateAudit?.openClosureSummary, 320)
+        ?? null
+    const strongerPreDialogueAwarenessSummary
+      = sanitizeSessionFallbackText(projectStateAudit?.preDialogueAwarenessSummary, 320)
+        ?? null
+    const strongerContinuitySummary
+      = sanitizeSessionFallbackText(projectStateAudit?.continuitySummary, 480)
+        ?? strongerPreDialogueAwarenessSummary
+        ?? sanitizeSessionFallbackText((message.structured.projectState as Record<string, unknown> | null | undefined)?.continuitySummary, 480)
+        ?? null
+    const strongerSameHerDriftRisk
+      = sanitizeSessionFallbackText(projectStateAudit?.sameHerDriftRiskSummary, 320)
+        ?? sanitizeSessionFallbackText(projectStateAudit?.sameHerDriftRisk, 320)
+        ?? sanitizeSessionFallbackText((message.structured.projectState as Record<string, unknown> | null | undefined)?.sameHerDriftRisk, 320)
+        ?? null
+    const strongerProactiveSameHerGap
+      = sanitizeSessionFallbackText(projectStateAudit?.proactiveSameHerGapSummary, 320)
+        ?? sanitizeSessionFallbackText((message.structured.projectState as Record<string, unknown> | null | undefined)?.proactiveSameHerGap, 320)
+        ?? sanitizeSessionFallbackText(normalizedProjectState.proactiveSameHerGap, 320)
+        ?? null
+    const structuredPreDialogueAwareness = message.structured.preDialogueAwareness
+      && typeof message.structured.preDialogueAwareness === 'object'
+      ? message.structured.preDialogueAwareness as {
+        status?: 'grounded' | 'partial' | 'drift'
+        summaryLine?: unknown
+        companionHeadlineLine?: unknown
+        companionBriefingLine?: unknown
+        companionNextClosureLine?: unknown
+        awarenessLine?: unknown
+        emotionalClosureCue?: unknown
+        reasonPreview?: unknown
+      }
+      : null
+    const structuredPreDialogueAwarenessSummary
+      = sanitizeSessionFallbackText(structuredPreDialogueAwareness?.summaryLine, 320)
+        ?? null
+    const strongerCompanionHeadlineLine
+      = sanitizeSessionFallbackText(structuredPreDialogueAwareness?.companionHeadlineLine, 320)
+        ?? null
+    const structuredAwarenessLine = sanitizeSessionFallbackText(structuredPreDialogueAwareness?.awarenessLine, 320)
+    const structuredCompanionBriefingLine = sanitizeSessionFallbackText(structuredPreDialogueAwareness?.companionBriefingLine, 320)
+    const awarenessCarriesCompactSamePhaseLine = isThinSamePhaseCarryLine(structuredAwarenessLine)
+    const companionBriefingCarriesCompactSamePhaseLine = isThinSamePhaseCarryLine(structuredCompanionBriefingLine)
+    const shouldPreferSameHerHoldDetail = Boolean(
+      strongerSameHerHoldDetail
+      && (
+        awarenessCarriesCompactSamePhaseLine
+        || companionBriefingCarriesCompactSamePhaseLine
+        || isAlicizationThinProjectAwarenessLine(
+          structuredAwarenessLine
+          || strongerPreDialogueAwarenessSummary
+          || structuredCompanionBriefingLine,
+        )
+      ),
+    )
+    const shouldRebuildAwarenessFromBaseProjectState = Boolean(
+      !shouldPreferSameHerHoldDetail
+      && isAlicizationThinProjectAwarenessLine(
+        structuredAwarenessLine
+        || strongerPreDialogueAwarenessSummary
+        || structuredCompanionBriefingLine,
+      ),
+    )
+    const strongerEmotionalClosureCue
+      = sanitizeSessionFallbackText(projectStateAudit?.emotionalClosureSummary, 320)
+        ?? sanitizeSessionFallbackText(structuredPreDialogueAwareness?.emotionalClosureCue, 320)
+        ?? null
+    const structuredCompanionNextClosureLine
+      = sanitizeSessionFallbackText(structuredPreDialogueAwareness?.companionNextClosureLine, 320)
+        ?? null
+    const structuredReasonPreview = Array.isArray(structuredPreDialogueAwareness?.reasonPreview)
+      ? structuredPreDialogueAwareness.reasonPreview
+          .map(reason => sanitizeSessionFallbackText(reason, 320))
+          .filter((reason): reason is string => typeof reason === 'string' && reason.trim().length > 0)
+      : []
+    const preferredAwarenessLine = resolveAlicizationProjectPreDialogueAwarenessLine({
+      runtimeProjectState: {
+        identity: normalizedProjectState.identity,
+        currentPhase: strongerCurrentPhase,
+        preDialogueAwarenessLine: shouldPreferSameHerHoldDetail
+          ? strongerSameHerHoldDetail
+          : shouldRebuildAwarenessFromBaseProjectState
+            ? null
+            : structuredAwarenessLine,
+        awarenessLine: shouldPreferSameHerHoldDetail
+          ? strongerSameHerHoldDetail
+          : shouldRebuildAwarenessFromBaseProjectState
+            ? null
+            : structuredAwarenessLine,
+        companionHeadlineLine: strongerCompanionHeadlineLine,
+        companionBriefingLine: shouldPreferSameHerHoldDetail
+          ? strongerSameHerHoldDetail
+          : shouldRebuildAwarenessFromBaseProjectState
+            ? null
+            : structuredCompanionBriefingLine,
+        preDialogueAwarenessSummary: shouldPreferSameHerHoldDetail
+          ? null
+          : shouldRebuildAwarenessFromBaseProjectState
+            ? null
+            : strongerPreDialogueAwarenessSummary,
+        emotionalClosureSummary: strongerEmotionalClosureCue,
+        latestLandedProgress: strongerLatestLandedProgress ?? normalizedProjectState.latestLandedProgress,
+        landedProgressSummary: strongerLatestLandedProgress,
+        primaryOpenLoop: strongerPrimaryOpenLoop ?? normalizedProjectState.primaryOpenLoop,
+        openClosureSummary: strongerPrimaryOpenLoop,
+        nextClosureTarget: strongerNextClosureTarget,
+        nextClosureTargetSummary: strongerNextClosureTarget,
+        sameHerDriftRiskSummary: strongerSameHerDriftRisk,
+        proactiveSameHerGap: strongerProactiveSameHerGap,
+      },
+    })
+    const shouldSynthesizePreDialogueAwareness = Boolean(
+      strongerPreDialogueAwarenessSummary
+      || structuredPreDialogueAwarenessSummary
+      || preferredAwarenessLine
+      || strongerCompanionHeadlineLine
+      || structuredCompanionBriefingLine
+      || strongerNextClosureTarget
+      || strongerEmotionalClosureCue,
+    )
+
+    return {
+      identity: normalizedProjectState.identity,
+      currentPhase: strongerCurrentPhase,
+      latestLandedProgress: strongerLatestLandedProgress ?? normalizedProjectState.latestLandedProgress,
+      primaryOpenLoop: strongerPrimaryOpenLoop ?? normalizedProjectState.primaryOpenLoop,
+      nextClosureTarget: strongerNextClosureTarget,
+      continuitySummary: strongerContinuitySummary,
+      sameHerSelfLine: strongerSameHerSelfLine ?? normalizedProjectState.sameHerSelfLine ?? null,
+      sameHerHoldDetail: strongerSameHerHoldDetail,
+      sameHerDriftRisk: strongerSameHerDriftRisk ?? normalizedProjectState.sameHerDriftRisk ?? null,
+      proactiveSameHerGap: strongerProactiveSameHerGap ?? normalizedProjectState.proactiveSameHerGap ?? null,
+      emotionalClosureCue: strongerEmotionalClosureCue,
+      preDialogueAwareness: shouldSynthesizePreDialogueAwareness
+        ? {
+            status: (structuredPreDialogueAwareness?.status ?? 'partial'),
+            summaryLine: resolveSessionFallbackAwarenessSummaryLine({
+              strongerPreDialogueAwarenessSummary,
+              structuredPreDialogueAwarenessSummary,
+              preferredAwarenessLine,
+              strongerContinuitySummary,
+            }),
+            companionHeadlineLine: strongerCompanionHeadlineLine,
+            companionBriefingLine: structuredCompanionBriefingLine
+              ?? strongerSameHerHoldDetail
+              ?? strongerSameHerSelfLine
+              ?? null,
+            companionNextClosureLine: structuredCompanionNextClosureLine
+              ?? strongerNextClosureTarget,
+            awarenessLine: preferredAwarenessLine
+              ?? structuredAwarenessLine
+              ?? null,
+            emotionalClosureCue: strongerEmotionalClosureCue,
+            reasonPreview: [
+              ...structuredReasonPreview,
+              strongerPreDialogueAwarenessSummary,
+              structuredPreDialogueAwarenessSummary,
+              strongerLatestLandedProgress,
+              strongerPrimaryOpenLoop,
+              strongerNextClosureTarget,
+              strongerEmotionalClosureCue,
+              strongerSameHerHoldDetail,
+              strongerSameHerSelfLine,
+              strongerProactiveSameHerGap,
+            ].filter((value): value is string => typeof value === 'string' && value.trim().length > 0),
+          }
+        : message.structured.preDialogueAwareness ?? null,
+      preDialogueClosure: toAlicizationPreDialogueClosureSnapshot(message.structured.preDialogueClosure ?? null),
+      nonHumanAuthoredStatus: message.structured.nonHumanAuthoredStatus ?? null,
+      turnId: message.id ?? `session-history-${index}`,
+      sessionId: '',
+      origin: message.origin ?? 'user-turn',
+    }
+  }
+
+  return null
+}
+
+function selectAssistantMessages(messages: ChatHistoryItem[]): ChatAssistantMessage[] {
+  return messages.flatMap((message) => {
+    if (message.role !== 'assistant')
+      return []
+
+    return [{
+      ...message,
+      slices: Array.isArray(message.slices) ? message.slices : [],
+      tool_results: Array.isArray(message.tool_results) ? message.tool_results : [],
+    }] as ChatAssistantMessage[]
+  })
+}
+
+function normalizeStructuredTurnForPersistence(
+  structured: StructuredWithContract | undefined,
+): Record<string, unknown> | undefined {
+  if (!structured)
+    return undefined
+
+  const normalizedDigitalLife = resolveChatRuntimeDigitalLifeAuthority({
+    digitalLife: structured.digitalLife ?? null,
+    embodimentScript: structured.embodimentScript ?? null,
+  })
+  const normalizedProjectState = normalizeStructuredProjectStatePayload(
+    (structured.projectState ?? null) as Record<string, unknown> | null,
+  ) ?? null
+
+  return {
+    ...structured,
+    digitalLife: normalizedDigitalLife,
+    projectState: normalizedProjectState,
+  }
+}
+
+function asStructuredWithContract(
+  structured: ChatAssistantMessage['structured'] | undefined,
+): StructuredWithContract | undefined {
+  return structured ? structured as StructuredWithContract : undefined
 }
 
 function createFailureFallbackThought(kind: StreamFailureKind) {
@@ -1665,213 +2275,6 @@ async function appendAlicizationAuditLog(payload: {
   }).catch(() => {})
 }
 
-function deriveFallbackProjectStateContinuitySnapshotFromSessionMessages(
-  messages: ChatAssistantMessage[],
-): AlicizationProjectStateContinuitySnapshot | null {
-  const sanitizeSessionFallbackText = (raw: unknown, maxChars: number) => {
-    if (typeof raw !== 'string')
-      return null
-    const normalized = raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
-    return normalized || null
-  }
-
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const message = messages[index]
-    if (message.role !== 'assistant' || !message.structured || typeof message.structured !== 'object')
-      continue
-
-    const structuredRecord = message.structured as ChatAssistantStructuredPayload & Record<string, unknown>
-    const normalizedProjectState = normalizeStructuredProjectStatePayload(
-      (structuredRecord.projectState ?? null) as Record<string, unknown> | null,
-    )
-    if (!normalizedProjectState)
-      continue
-
-    const visibleReplyRealization = structuredRecord.visibleReplyRealization
-      && typeof structuredRecord.visibleReplyRealization === 'object'
-      ? structuredRecord.visibleReplyRealization as {
-        projectStateAudit?: {
-          sameHerSummary?: unknown
-          currentPhaseSummary?: unknown
-          sameHerHoldDetail?: unknown
-          landedProgressSummary?: unknown
-          openClosureSummary?: unknown
-          nextClosureTargetSummary?: unknown
-          emotionalClosureSummary?: unknown
-          preDialogueAwarenessSummary?: unknown
-          continuitySummary?: unknown
-          sameHerDriftRiskSummary?: unknown
-          sameHerDriftRisk?: unknown
-          proactiveSameHerGapSummary?: unknown
-        } | null
-      }
-      : null
-    const projectStateAudit = visibleReplyRealization?.projectStateAudit
-      && typeof visibleReplyRealization.projectStateAudit === 'object'
-      ? visibleReplyRealization.projectStateAudit
-      : null
-
-    const strongerSameHerSelfLine
-      = sanitizeSessionFallbackText(projectStateAudit?.sameHerSummary, 220)
-        ?? normalizedProjectState.sameHerSelfLine
-        ?? null
-    const strongerSameHerHoldDetail
-      = sanitizeSessionFallbackText(projectStateAudit?.sameHerHoldDetail, 220)
-        ?? normalizedProjectState.sameHerHoldDetail
-        ?? null
-    const strongerCurrentPhase
-      = sanitizeSessionFallbackText(projectStateAudit?.currentPhaseSummary, 180)
-        ?? normalizedProjectState.currentPhase
-        ?? 'Phase 1: Local Digital Life'
-    const strongerNextClosureTarget
-      = sanitizeSessionFallbackText(projectStateAudit?.nextClosureTargetSummary, 320)
-        ?? normalizedProjectState.nextClosureTarget
-        ?? 'Keep Phase 1 memory and same-her continuity closed before widening capability.'
-    const strongerLatestLandedProgress
-      = sanitizeSessionFallbackText(projectStateAudit?.landedProgressSummary, 320)
-        ?? normalizedProjectState.latestLandedProgress
-        ?? null
-    const strongerPrimaryOpenLoop
-      = sanitizeSessionFallbackText(projectStateAudit?.openClosureSummary, 320)
-        ?? normalizedProjectState.primaryOpenLoop
-        ?? normalizedProjectState.memoryClosureSummary
-        ?? null
-    const strongerPreDialogueAwarenessSummary
-      = sanitizeSessionFallbackText(projectStateAudit?.preDialogueAwarenessSummary, 320)
-        ?? normalizedProjectState.preDialogueAwarenessSummary
-        ?? null
-    const strongerContinuitySummary
-      = sanitizeSessionFallbackText(projectStateAudit?.continuitySummary, 480)
-        ?? normalizedProjectState.continuitySummary
-        ?? strongerPreDialogueAwarenessSummary
-        ?? null
-    const strongerSameHerDriftRisk
-      = sanitizeSessionFallbackText(projectStateAudit?.sameHerDriftRiskSummary, 320)
-        ?? sanitizeSessionFallbackText(projectStateAudit?.sameHerDriftRisk, 320)
-        ?? normalizedProjectState.sameHerDriftRisk
-        ?? null
-    const strongerProactiveSameHerGap
-      = sanitizeSessionFallbackText(projectStateAudit?.proactiveSameHerGapSummary, 320)
-        ?? normalizedProjectState.proactiveSameHerGap
-        ?? null
-    const structuredPreDialogueAwareness = normalizeStructuredPreDialogueAwarenessPayload(
-      structuredRecord.preDialogueAwareness ?? null,
-    )
-    const structuredAwarenessLine = sanitizeSessionFallbackText(structuredPreDialogueAwareness?.awarenessLine, 320)
-    const structuredCompanionBriefingLine = sanitizeSessionFallbackText(structuredPreDialogueAwareness?.companionBriefingLine, 320)
-    const structuredPreDialogueAwarenessSummary = sanitizeSessionFallbackText(structuredPreDialogueAwareness?.summaryLine, 320)
-    const shouldPreferSameHerHoldDetail = Boolean(
-      strongerSameHerHoldDetail
-      && (
-        isThinSamePhaseCarryLine(structuredAwarenessLine)
-        || isThinSamePhaseCarryLine(structuredCompanionBriefingLine)
-        || isAlicizationThinProjectAwarenessLine(
-          structuredAwarenessLine
-          || strongerPreDialogueAwarenessSummary
-          || structuredCompanionBriefingLine,
-        )
-      ),
-    )
-    const preferredAwarenessLine = resolveAlicizationProjectPreDialogueAwarenessLine({
-      runtimeProjectState: {
-        identity: normalizedProjectState.identity,
-        currentPhase: strongerCurrentPhase,
-        preDialogueAwarenessLine: shouldPreferSameHerHoldDetail
-          ? strongerSameHerHoldDetail
-          : structuredAwarenessLine,
-        awarenessLine: shouldPreferSameHerHoldDetail
-          ? strongerSameHerHoldDetail
-          : structuredAwarenessLine,
-        companionHeadlineLine: structuredPreDialogueAwareness?.companionHeadlineLine,
-        companionBriefingLine: shouldPreferSameHerHoldDetail
-          ? strongerSameHerHoldDetail
-          : structuredCompanionBriefingLine,
-        preDialogueAwarenessSummary: strongerPreDialogueAwarenessSummary,
-        emotionalClosureSummary: sanitizeSessionFallbackText(projectStateAudit?.emotionalClosureSummary, 320)
-          ?? normalizedProjectState.emotionalClosureCue,
-        latestLandedProgress: strongerLatestLandedProgress,
-        landedProgressSummary: strongerLatestLandedProgress,
-        primaryOpenLoop: strongerPrimaryOpenLoop,
-        nextClosureTarget: strongerNextClosureTarget,
-        sameHerDriftRisk: strongerSameHerDriftRisk,
-        proactiveSameHerGap: strongerProactiveSameHerGap,
-      },
-    })
-    const strongerEmotionalClosureCue
-      = sanitizeSessionFallbackText(projectStateAudit?.emotionalClosureSummary, 320)
-        ?? structuredPreDialogueAwareness?.emotionalClosureCue
-        ?? normalizedProjectState.emotionalClosureCue
-        ?? null
-
-    return {
-      identity: normalizedProjectState.identity ?? 'Alicization is a local-first digital life project.',
-      currentPhase: strongerCurrentPhase,
-      latestLandedProgress: strongerLatestLandedProgress,
-      primaryOpenLoop: strongerPrimaryOpenLoop,
-      nextClosureTarget: strongerNextClosureTarget,
-      continuitySummary: strongerContinuitySummary,
-      sameHerSelfLine: strongerSameHerSelfLine,
-      sameHerHoldDetail: strongerSameHerHoldDetail,
-      sameHerDriftRisk: strongerSameHerDriftRisk,
-      emotionalClosureCue: strongerEmotionalClosureCue,
-      preDialogueAwareness: {
-        status: structuredPreDialogueAwareness?.status ?? 'partial',
-        summaryLine: resolveSessionFallbackAwarenessSummaryLine({
-          strongerPreDialogueAwarenessSummary,
-          structuredPreDialogueAwarenessSummary,
-          preferredAwarenessLine,
-          strongerContinuitySummary,
-        }),
-        companionHeadlineLine: structuredPreDialogueAwareness?.companionHeadlineLine ?? null,
-        companionBriefingLine: structuredCompanionBriefingLine
-          ?? strongerSameHerHoldDetail
-          ?? strongerSameHerSelfLine
-          ?? null,
-        companionNextClosureLine: structuredPreDialogueAwareness?.companionNextClosureLine
-          ?? strongerNextClosureTarget,
-        awarenessLine: preferredAwarenessLine
-          ?? structuredAwarenessLine
-          ?? null,
-        emotionalClosureCue: strongerEmotionalClosureCue,
-        reasonPreview: [
-          ...(structuredPreDialogueAwareness?.reasonPreview ?? []),
-          strongerPreDialogueAwarenessSummary,
-          structuredPreDialogueAwarenessSummary,
-          strongerLatestLandedProgress,
-          strongerPrimaryOpenLoop,
-          strongerNextClosureTarget,
-          strongerEmotionalClosureCue,
-          strongerSameHerHoldDetail,
-          strongerSameHerSelfLine,
-          strongerProactiveSameHerGap,
-        ].filter((value): value is string => typeof value === 'string' && value.trim().length > 0),
-      },
-      preDialogueClosure: toAlicizationPreDialogueClosureSnapshot(structuredRecord.preDialogueClosure ?? null),
-      nonHumanAuthoredStatus: typeof structuredRecord.nonHumanAuthoredStatus === 'string'
-        ? structuredRecord.nonHumanAuthoredStatus
-        : null,
-      turnId: (message as ChatAssistantMessage & { id?: string }).id ?? `session-history-${index}`,
-      sessionId: '',
-      origin: message.origin ?? 'user-turn',
-    }
-  }
-
-  return null
-}
-
-function selectAssistantMessages(messages: ChatHistoryItem[]): ChatAssistantMessage[] {
-  return messages.flatMap((message) => {
-    if (message.role !== 'assistant')
-      return []
-
-    return [{
-      ...message,
-      slices: Array.isArray(message.slices) ? message.slices : [],
-      tool_results: Array.isArray(message.tool_results) ? message.tool_results : [],
-    }] as ChatAssistantMessage[]
-  })
-}
-
 export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
   const llmStore = useLLM()
   const executionEngine = useAlicizationExecutionEngineStore()
@@ -1944,7 +2347,19 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
     const normalizedAwareness = normalizeStructuredPreDialogueAwarenessPayload(
       (input.preDialogueAwarenessSnapshot ?? null) as Record<string, unknown> | null,
     )
-    const normalizedClosure = toAlicizationPreDialogueClosurePayload(input.preDialogueClosureSnapshot ?? null)
+    const normalizedClosure = input.preDialogueClosureSnapshot && typeof input.preDialogueClosureSnapshot === 'object'
+      ? toAlicizationPreDialogueClosurePayload(input.preDialogueClosureSnapshot as {
+          status: 'grounded' | 'partial' | 'drift'
+          summaryLine: string | null
+          companionHeadlineLine?: string | null
+          sameHerDriftRiskLine?: string | null
+          companionBriefingLine?: string | null
+          companionNextClosureLine?: string | null
+          emotionalClosureCue?: string | null
+          briefingLines?: string[]
+          reasons: string[]
+        })
+      : null
     const normalizedContinuity = input.projectStateContinuitySnapshot && typeof input.projectStateContinuitySnapshot === 'object'
       ? input.projectStateContinuitySnapshot as {
         identity?: string | null
@@ -2023,7 +2438,19 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           : null
       )
       ?? deriveStructuredPreDialogueAwarenessFromClosure(
-        toAlicizationPreDialogueClosurePayload(effectivePreDialogueClosureSnapshot),
+        effectivePreDialogueClosureSnapshot
+          ? toAlicizationPreDialogueClosurePayload(effectivePreDialogueClosureSnapshot as {
+              status: 'grounded' | 'partial' | 'drift'
+              summaryLine: string | null
+              companionHeadlineLine?: string | null
+              sameHerDriftRiskLine?: string | null
+              companionBriefingLine?: string | null
+              companionNextClosureLine?: string | null
+              emotionalClosureCue?: string | null
+              briefingLines?: string[]
+              reasons: string[]
+            })
+          : null,
       )
       ?? null
 
@@ -2152,10 +2579,11 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
 
     const sendingCreatedAt = Date.now()
     const existingAssistantSessionMessages = selectAssistantMessages(chatSession.getSessionMessages(sessionId))
-    let effectivePreDialogueSendIdentity = resolvePreDialogueSendIdentityForTurn({
+    const resolvedPreDialogueSendIdentity = resolvePreDialogueSendIdentityForTurn({
       preDialogueSendIdentity: options.preDialogueSendIdentity,
       sessionMessages: existingAssistantSessionMessages,
     })
+    let effectivePreDialogueSendIdentity = resolvedPreDialogueSendIdentity
     const streamingMessageContext: ChatStreamEventContext = {
       sessionId,
       message: { role: 'user', content: sendingMessage, createdAt: sendingCreatedAt, id: nanoid() },
@@ -2188,6 +2616,8 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
     let stagedSpeechDraft = ''
     let finalAssistantDisplayText = ''
     let assistantTextCommitted = false
+    let blockedStructuredTurnForPersistence: StructuredWithContract | null = null
+    let blockedStructuredTurnPersisted = false
 
     const updateUI = () => {
       if (isForegroundSession()) {
@@ -2216,17 +2646,19 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
     let turnDigitalLife: AlicizationDigitalLifeEnvelope | null = null
     let turnDigitalLifeSpine: AlicizationDigitalLifeSpineDigest | null = null
     let turnRuntimeDigest: AlicizationRuntimeDigest | null = null
-    let turnProjectState: ChatAssistantStructuredPayload['projectState'] = null
+    let turnProjectState: StructuredOutputResult['projectState'] = null
     let turnPreDialogueClosure: ChatAssistantStructuredPayload['preDialogueClosure'] = null
     let turnPreDialogueAwareness: AlicizationPreDialogueAwarenessPayload | null = null
     let turnVisibleReplyExecution: AlicizationConversationTurnInput['visibleReplyExecution'] | null = null
+    let turnVisibleReplyCritic: AlicizationConversationTurnInput['visibleReplyCritic'] | null = null
+    let turnVisibleReplyClosure: AlicizationConversationTurnInput['visibleReplyClosure'] | null = null
+    const turnToolCalls: ToolMessage[] = []
 
     const getTurnStructuredRuntimeMeta = () => {
       const preDialogueAwareness
         = turnPreDialogueAwareness
           ?? toStructuredPreDialogueAwarenessPayload(effectivePreDialogueSendIdentity)
           ?? deriveStructuredPreDialogueAwarenessFromClosure(turnPreDialogueClosure)
-
       return {
         embodiment: turnEmbodiment,
         embodimentScript: turnEmbodimentScript,
@@ -2242,15 +2674,20 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
     }
 
     const ingestTurnStructuredRuntimeMeta = (event: Extract<StreamEvent, { type: 'meta' }>) => {
-      turnMindGovernance = event.governance ?? turnMindGovernance
+      if (isUsableMindTurnGovernanceCandidate(event.governance)) {
+        turnMindGovernance = event.governance
+      }
       turnEmbodiment = event.embodiment ?? turnEmbodiment
       turnEmbodimentScript = event.embodimentScript ?? turnEmbodimentScript
       turnSpeechTimeline = event.speechTimeline ?? turnSpeechTimeline
-      turnDigitalLife = event.digitalLife ?? turnDigitalLife
+      turnDigitalLife = resolveChatRuntimeDigitalLifeAuthority({
+        digitalLife: event.digitalLife,
+        embodimentScript: event.embodimentScript,
+      }) ?? turnDigitalLife
       turnDigitalLifeSpine = event.digitalLifeSpine ?? turnDigitalLifeSpine
       turnRuntimeDigest = event.runtimeDigest ?? turnRuntimeDigest
       turnProjectState = normalizeStructuredProjectStatePayload(
-        (event.projectState ?? event.runtimeDigest?.projectState ?? turnProjectState ?? null) as Record<string, unknown> | null,
+        ((event.projectState ?? event.runtimeDigest?.projectState ?? turnProjectState ?? null) as Record<string, unknown> | null),
       ) ?? turnProjectState
       turnPreDialogueAwareness = normalizeStructuredPreDialogueAwarenessPayload(
         (event.preDialogueAwareness ?? turnPreDialogueAwareness ?? null) as Record<string, unknown> | null,
@@ -2299,12 +2736,34 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
       isAlicizationUserTurn: isAlicizationUserTurn(),
     })
 
+    const ensureRuntimeAuthoritativeVisibleReplyExecution = () => {
+      if (turnVisibleReplyExecution || !runtimeAuthoritativeModelTextObserved)
+        return
+      turnVisibleReplyExecution = {
+        mode: 'provider-stream',
+        expectedVisibleReplyAuthority: 'llm-mind',
+        actualVisibleReplyAuthority: 'llm-mind',
+        providerMindExecuted: true,
+        reason: 'provider-stream',
+      }
+    }
+
     const blockRuntimeAuthoritativeLocalVisibleReply = async (input: {
       action: string
       message: string
       details?: Record<string, unknown>
       level?: 'warning' | 'critical'
     }) => {
+      const blockedStructuredTurnCandidate = (
+        buildingMessage.structured && typeof buildingMessage.structured === 'object'
+          ? buildingMessage.structured
+          : stagedAssistantResolution?.structured
+      ) as StructuredWithContract | undefined
+      if (!blockedStructuredTurnForPersistence && blockedStructuredTurnCandidate) {
+        blockedStructuredTurnForPersistence = {
+          ...blockedStructuredTurnCandidate,
+        }
+      }
       const blockResult = blockAlicizationRendererLocalVisibleReply({
         buildingMessage,
         setRuntimeBlocked: () => {
@@ -2334,6 +2793,26 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
       })
       if (isForegroundSession()) {
         streamingMessage.value = blockResult.streamingMessage
+      }
+
+      if (
+        !blockedStructuredTurnPersisted
+        && blockedStructuredTurnForPersistence
+        && hasAlicizationBridge()
+      ) {
+        blockedStructuredTurnPersisted = true
+        await getAlicizationBridge().appendConversationTurn({
+          turnId,
+          sessionId,
+          userText: sendingMessage,
+          assistantText: '',
+          structured: normalizeStructuredTurnForPersistence({ ...blockedStructuredTurnForPersistence }),
+          visibleReplyExecution: turnVisibleReplyExecution,
+          visibleReplyCritic: turnVisibleReplyCritic,
+          visibleReplyClosure: turnVisibleReplyClosure,
+          governance: turnMindGovernance,
+          createdAt: Date.now(),
+        }).catch(() => {})
       }
     }
 
@@ -2426,6 +2905,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           })
           return ''
         }
+        ensureRuntimeAuthoritativeVisibleReplyExecution()
       }
       else if (shouldBlockRendererLocalVisibleReply() && staged?.visibleReplySource === 'renderer-local') {
         await blockRuntimeAuthoritativeLocalVisibleReply({
@@ -2449,7 +2929,11 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         personalityState: turnPersonalityState,
         preferGroundedEvidence: inspectionLikeTurn || hasVisualAttachment,
       })
-      const finalReply = structuredWithGovernance.reply.trim() || fallbackReply
+      const structuredWithRuntimeMeta = mergeStructuredRuntimeMeta(
+        structuredWithGovernance,
+        getTurnStructuredRuntimeMeta(),
+      )
+      const finalReply = structuredWithRuntimeMeta.reply.trim() || fallbackReply
       const categorization = staged?.categorization ?? {
         speech: finalReply,
         reasoning: '',
@@ -2463,7 +2947,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         : replaceAssistantTextSlices(buildingMessage.slices, finalReply)
 
       buildingMessage.categorization = finalizedCategorization
-      buildingMessage.structured = structuredWithGovernance
+      buildingMessage.structured = structuredWithRuntimeMeta
       buildingMessage.content = finalReply
       buildingMessage.slices = finalizedSlices
       finalAssistantDisplayText = finalReply
@@ -2584,7 +3068,11 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
       streamingMessageContext.preDialogueSendIdentity = effectivePreDialogueSendIdentity
       const requiresImmediateFileToolCall = origin === 'ui-user' && detectFileSystemToolIntent(sendingMessage)
       const requiresReminderToolCall = origin === 'ui-user' && detectReminderToolIntent(sendingMessage)
-      const requiresExecutionToolCall = origin === 'ui-user' && detectExecutionToolIntent(sendingMessage)
+      const executionToolRoutingIntent = origin === 'ui-user'
+        ? detectExecutionToolRoutingIntent(sendingMessage)
+        : null
+      const requiresExecutionToolCall = Boolean(executionToolRoutingIntent)
+      const requiredExecutionToolNames = new Set(executionToolRoutingIntent?.requiredToolNames ?? [])
       const runtimeGatewayToolingPolicy = resolveMainGatewayToolingPolicy({
         origin,
         requiresImmediateFileToolCall,
@@ -2789,8 +3277,11 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
                       sawMeta = true
                       touch('liveness')
                     }
-                    if (event.type === 'finish')
+                    if (event.type === 'finish') {
                       turnVisibleReplyExecution = (event as { visibleReplyExecution?: AlicizationConversationTurnInput['visibleReplyExecution'] }).visibleReplyExecution ?? turnVisibleReplyExecution
+                      turnVisibleReplyCritic = (event as { visibleReplyCritic?: AlicizationConversationTurnInput['visibleReplyCritic'] }).visibleReplyCritic ?? turnVisibleReplyCritic
+                      turnVisibleReplyClosure = (event as { visibleReplyClosure?: AlicizationConversationTurnInput['visibleReplyClosure'] }).visibleReplyClosure ?? turnVisibleReplyClosure
+                    }
                     if (event.type === 'text-delta' || event.type === 'tool-call' || event.type === 'tool-result') {
                       sawProgress = true
                       touch('progress')
@@ -2902,8 +3393,11 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
             onStreamEvent: async (event) => {
               if (event.type === 'meta')
                 touch('liveness')
-              if (event.type === 'finish')
+              if (event.type === 'finish') {
                 turnVisibleReplyExecution = (event as { visibleReplyExecution?: AlicizationConversationTurnInput['visibleReplyExecution'] }).visibleReplyExecution ?? turnVisibleReplyExecution
+                turnVisibleReplyCritic = (event as { visibleReplyCritic?: AlicizationConversationTurnInput['visibleReplyCritic'] }).visibleReplyCritic ?? turnVisibleReplyCritic
+                turnVisibleReplyClosure = (event as { visibleReplyClosure?: AlicizationConversationTurnInput['visibleReplyClosure'] }).visibleReplyClosure ?? turnVisibleReplyClosure
+              }
               if (event.type === 'text-delta' || event.type === 'tool-call' || event.type === 'tool-result')
                 touch('progress')
               await streamOptions.onStreamEvent?.(event)
@@ -3115,12 +3609,34 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         reasoning: string
         reply: string
       }): Promise<StructuredWithContract> => {
-        let candidate = normalizeStructuredOutput({
-          fullText: payload.fullText,
-          thought: payload.reasoning,
-          reply: payload.reply,
-          previousEmotion: getPreviousAssistantEmotion(),
-        })
+        const sameHerFirstValidation = Boolean(
+          turnPreDialogueClosure
+          && (
+            turnPreDialogueClosure.status === 'partial'
+            || turnPreDialogueClosure.status === 'drift'
+            || turnPreDialogueClosure.reasons.some((reason) => {
+              const normalized = reason.toLowerCase()
+              return normalized.includes('project-state-same-her-continuity-required')
+                || normalized.includes('semantic-judge:project-state-same-her-missing')
+                || normalized.includes('primary open life loop still centers on')
+                || normalized.includes('next closure target is still')
+                || normalized.includes('same-her embodiment is now only being carried by')
+                || normalized.includes('resident body continuity')
+                || normalized.includes('resident-body continuity')
+                || normalized.includes('same-her body line')
+                || normalized.includes('one living her')
+            })
+          ),
+        )
+        let candidate: StructuredWithContract = mergeStructuredRuntimeMeta(
+          normalizeStructuredOutput({
+            fullText: payload.fullText,
+            thought: payload.reasoning,
+            reply: payload.reply,
+            previousEmotion: getPreviousAssistantEmotion(),
+          }),
+          getTurnStructuredRuntimeMeta(),
+        )
 
         let validationIssues = hasStructuredJsonContract(candidate)
           ? validateStructuredContract(candidate, turnPersonalityState, {
@@ -3128,6 +3644,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
               denialSource: turnToolEvidence.denialSource,
               reminderScheduled: turnToolEvidence.reminderScheduled,
               reminderMessage: turnToolEvidence.reminderMessage,
+              sameHerFirst: sameHerFirstValidation,
             })
           : [
               {
@@ -3145,6 +3662,9 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
             validationIssues,
             personalityState: turnPersonalityState,
             preferGroundedEvidence: inspectionLikeTurn || hasVisualAttachment,
+            validationContext: {
+              sameHerFirst: sameHerFirstValidation,
+            },
             fallbackReply: payload.reply,
             governance: turnMindGovernance,
             userText: sendingMessage,
@@ -3156,6 +3676,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
               denialSource: turnToolEvidence.denialSource,
               reminderScheduled: turnToolEvidence.reminderScheduled,
               reminderMessage: turnToolEvidence.reminderMessage,
+              sameHerFirst: sameHerFirstValidation,
             })
             if (hasStructuredJsonContract(locallyRepaired) && localRepairIssues.length === 0) {
               await appendAlicizationAuditLog({
@@ -3168,6 +3689,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
                   issues: summarizeValidationIssues(validationIssues),
                   inspectionLikeTurn,
                   hasVisualAttachment,
+                  sameHerFirstValidation,
                 },
               })
               return locallyRepaired
@@ -3182,15 +3704,44 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         )
         if (hasAlicizationBridge() && replyLooksUsable) {
           const sanitizedCandidateReply = sanitizeStructuredReplySurface(candidateReply) || candidateReply
+          const authoritativeEmbodimentScript
+            = normalizeAlicizationEmbodimentScript(candidate.embodimentScript ?? null)
+              ?? normalizeAlicizationEmbodimentScript(getTurnStructuredRuntimeMeta().embodimentScript ?? null)
+              ?? candidate.embodimentScript
+              ?? getTurnStructuredRuntimeMeta().embodimentScript
+              ?? null
+          const inferredPerformanceManifest = inferPerformanceManifestFromEmbodimentScript({
+            performance: candidate.performance,
+            script: authoritativeEmbodimentScript,
+          })
           const resolvedEmbodiment = resolveAlicizationDialogueEmbodiment({
             candidateEmotion: candidate.emotion,
             candidatePerformance: candidate.performance,
             governance: turnMindGovernance,
+            performanceManifest: inferredPerformanceManifest,
             previous: getPreviousAssistantEmbodiment(),
             reply: sanitizedCandidateReply,
             thought: candidate.thought.trim() || payload.reasoning.trim(),
             turnId,
           })
+          const speechTimeline = candidate.speechTimeline ?? buildAlicizationDialogueSpeechTimeline({
+            reply: sanitizedCandidateReply,
+            candidateEmotion: resolvedEmbodiment.emotion,
+            candidatePerformance: resolvedEmbodiment.performance,
+            embodiment: resolvedEmbodiment,
+            performanceManifest: inferredPerformanceManifest,
+          })
+          const digitalLife
+            = resolveChatRuntimeDigitalLifeAuthority({
+              digitalLife: candidate.digitalLife ?? null,
+              embodimentScript: authoritativeEmbodimentScript,
+            })
+            ?? buildAlicizationDigitalLifeEnvelope({
+              embodiment: resolvedEmbodiment,
+              speechTimeline,
+              digitalLifeSpine: candidate.digitalLifeSpine ?? null,
+              performanceManifest: inferredPerformanceManifest,
+            })
           const bestEffort: StructuredWithContract = {
             ...candidate,
             thought: candidate.thought.trim() || payload.reasoning.trim(),
@@ -3198,12 +3749,9 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
             reply: sanitizedCandidateReply,
             performance: resolvedEmbodiment.performance,
             embodiment: resolvedEmbodiment,
-            speechTimeline: buildAlicizationDialogueSpeechTimeline({
-              reply: sanitizedCandidateReply,
-              candidateEmotion: resolvedEmbodiment.emotion,
-              candidatePerformance: resolvedEmbodiment.performance,
-              embodiment: resolvedEmbodiment,
-            }),
+            embodimentScript: authoritativeEmbodimentScript ?? candidate.embodimentScript ?? null,
+            speechTimeline,
+            digitalLife,
             format: 'mind-turn-v1',
             contractFailed: false,
           }
@@ -3254,6 +3802,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
             break
 
           candidate = retried
+          candidate = mergeStructuredRuntimeMeta(candidate, getTurnStructuredRuntimeMeta())
           validationIssues = hasStructuredJsonContract(candidate)
             ? validateStructuredContract(candidate, turnPersonalityState, {
                 toolDenied: turnToolEvidence.deniedBySafety,
@@ -3291,12 +3840,16 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
               reminderScheduled: turnToolEvidence.reminderScheduled,
             }, sendingMessage)
         const fallback = shouldBlockRendererLocalVisibleReply()
-          ? createAlicizationBlockedRendererFallback('structured-contract-local-visible-fallback-blocked')
+          ? createAlicizationBlockedRendererFallback(
+              'structured-contract-local-visible-fallback-blocked',
+              candidate.projectState,
+              candidate.digitalLife ?? null,
+            )
           : createStructuredFallback(fallbackReply, createContractFallbackEmotion(turnPersonalityState, {
               toolDenied: turnToolEvidence.deniedBySafety,
               denialSource: turnToolEvidence.denialSource,
               reminderScheduled: turnToolEvidence.reminderScheduled,
-            }), sendingMessage)
+            }), sendingMessage, candidate.projectState, candidate.digitalLife ?? null)
         await appendAlicizationAuditLog({
           level: shouldBlockRendererLocalVisibleReply() ? 'critical' : 'warning',
           category: 'structured-output',
@@ -3311,6 +3864,11 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           },
         })
         if (shouldBlockRendererLocalVisibleReply()) {
+          if (candidate.projectState) {
+            blockedStructuredTurnForPersistence = {
+              ...fallback,
+            }
+          }
           await blockRuntimeAuthoritativeLocalVisibleReply({
             action: 'structured-contract-local-visible-fallback-blocked',
             message: 'Renderer blocked structured-contract fallback because Alicization visible replies must be model-authored.',
@@ -3364,7 +3922,11 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           personalityState: turnPersonalityState,
           preferGroundedEvidence: inspectionLikeTurn || hasVisualAttachment,
         })
-        const governedReply = governedStructured.reply.trim()
+        const governedStructuredWithRuntimeMeta = mergeStructuredRuntimeMeta(
+          governedStructured,
+          getTurnStructuredRuntimeMeta(),
+        )
+        const governedReply = governedStructuredWithRuntimeMeta.reply.trim()
         const safeFallbackReply = nonContractReply
           || assistantStructuredContractFallbackReply(sendingMessage)
         const finalReply = (
@@ -3398,7 +3960,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
             speech: finalReply,
             reasoning: payload.reasoning,
           },
-          structured: governedStructured,
+          structured: governedStructuredWithRuntimeMeta,
           reply: finalReply,
           visibleReplySource: 'runtime-model',
         })
@@ -3423,7 +3985,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         await hooks.emitChatTurnCompleteHooks({
           output: { ...buildingMessage },
           outputText: assistantOutputText,
-          toolCalls: sessionMessagesForSend.filter(msg => msg.role === 'tool') as ToolMessage[],
+          toolCalls: [...turnToolCalls],
         }, streamingMessageContext)
       }
 
@@ -3432,6 +3994,8 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           if (isForegroundSession()) {
             streamingMessage.value = createEmptyStreamingMessage()
           }
+          if (!blockedStructuredTurnPersisted)
+            throw createRuntimeAuthoritativeVisibleReplyBlockedError()
           return ''
         }
 
@@ -3448,7 +4012,14 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
               hasBuildingContent: Boolean(stringifyAssistantContent(buildingMessage.content).trim()),
             },
           })
-          return ''
+          assistantOutputCommitted = true
+          throw createRuntimeAuthoritativeVisibleReplyBlockedError()
+        }
+        if (buildingMessage.structured) {
+          buildingMessage.structured = mergeStructuredRuntimeMeta(
+            buildingMessage.structured as StructuredWithContract,
+            getTurnStructuredRuntimeMeta(),
+          )
         }
         persistBuiltAssistantMessage()
         assistantOutputCommitted = true
@@ -3458,8 +4029,14 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
             sessionId,
             userText: sendingMessage,
             assistantText: assistantOutputText,
-            structured: buildingMessage.structured ? { ...buildingMessage.structured } : undefined,
+            structured: normalizeStructuredTurnForPersistence(
+              asStructuredWithContract(buildingMessage.structured)
+                ? { ...asStructuredWithContract(buildingMessage.structured)! }
+                : undefined,
+            ),
             visibleReplyExecution: turnVisibleReplyExecution,
+            visibleReplyCritic: turnVisibleReplyCritic,
+            visibleReplyClosure: turnVisibleReplyClosure,
             governance: turnMindGovernance,
             createdAt: Date.now(),
           }).catch(() => {})
@@ -3795,7 +4372,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
               sameHerSelfLine: effectiveProjectStateContinuitySnapshot.sameHerSelfLine ?? null,
               sameHerHoldDetail: effectiveProjectStateContinuitySnapshot.sameHerHoldDetail ?? null,
               sameHerDriftRisk: effectiveProjectStateContinuitySnapshot.sameHerDriftRisk ?? null,
-              proactiveSameHerGap: (effectiveProjectStateContinuitySnapshot as AlicizationProjectStateContinuitySnapshot & { proactiveSameHerGap?: string | null }).proactiveSameHerGap ?? null,
+              proactiveSameHerGap: effectiveProjectStateContinuitySnapshot.proactiveSameHerGap ?? null,
             }) ?? turnProjectState
           }
           const composed = composeAlicizationPromptMessages({
@@ -3818,6 +4395,49 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
               message: 'Injected low-personality semantic directives into SOUL anchor.',
               details: {
                 triggered: composed.personalityDirectiveResult.triggered,
+              },
+            })
+          }
+
+          if (effectiveProjectStateContinuitySnapshot) {
+            await appendAlicizationAuditLog({
+              level: 'notice',
+              category: 'alicization.prompt',
+              action: 'project-state-continuity.injected',
+              message: selfEvolutionInspector.projectStateContinuitySnapshot
+                ? 'Injected latest project-state continuity snapshot before this dialogue turn.'
+                : 'Injected fallback project-state continuity snapshot from recent session carry before this dialogue turn.',
+              details: {
+                turnId,
+                sessionId,
+                continuitySourceTurnId: effectiveProjectStateContinuitySnapshot.turnId,
+                origin: effectiveProjectStateContinuitySnapshot.origin,
+                nonHumanAuthoredStatus: effectiveProjectStateContinuitySnapshot.nonHumanAuthoredStatus,
+                sameHerSelfLine: effectiveProjectStateContinuitySnapshot.sameHerSelfLine ?? null,
+                sameHerHoldDetail: effectiveProjectStateContinuitySnapshot.sameHerHoldDetail ?? null,
+                currentPhase: effectiveProjectStateContinuitySnapshot.currentPhase,
+                nextClosureTarget: effectiveProjectStateContinuitySnapshot.nextClosureTarget,
+              },
+            })
+          }
+
+          if (preDialogueClosureSnapshot) {
+            await appendAlicizationAuditLog({
+              level: 'notice',
+              category: 'alicization.prompt',
+              action: 'pre-dialogue-closure.injected',
+              message: 'Injected pre-dialogue closure snapshot before this dialogue turn.',
+              details: {
+                turnId,
+                sessionId,
+                status: preDialogueClosureSnapshot.status,
+                summaryLine: preDialogueClosureSnapshot.summaryLine,
+                sameHerDriftRiskLine: preDialogueClosureSnapshot.sameHerDriftRiskLine ?? null,
+                companionBriefingLine: preDialogueClosureSnapshot.companionBriefingLine ?? null,
+                companionNextClosureLine: preDialogueClosureSnapshot.companionNextClosureLine ?? null,
+                emotionalClosureCue: preDialogueClosureSnapshot.emotionalClosureCue ?? null,
+                briefingLines: preDialogueClosureSnapshot.briefingLines ?? [],
+                reasons: preDialogueClosureSnapshot.reasons ?? [],
               },
             })
           }
@@ -3957,6 +4577,11 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
 
       await hooks.emitAfterMessageComposedHooks(sendingMessage, streamingMessageContext)
       await hooks.emitBeforeSendHooks(sendingMessage, streamingMessageContext)
+      effectivePreDialogueSendIdentity = streamingMessageContext.preDialogueSendIdentity ?? effectivePreDialogueSendIdentity
+      turnPreDialogueAwareness = alignPersistedPreDialogueAwarenessCompanionHeadline({
+        awareness: turnPreDialogueAwareness,
+        preDialogueSendIdentity: effectivePreDialogueSendIdentity,
+      })
 
       if (shouldAbort())
         return
@@ -4130,6 +4755,12 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         turnToolEvidence.denialSource = classifyDeniedSource(rawReason)
       }
 
+      const recordObservedToolCall = async (event: StreamToolCallPayload) => {
+        const toolMessage = toToolMessageFromStreamEvent(event)
+        turnToolCalls.push(toolMessage)
+        await hooks.emitToolCallHooks(event, streamingMessageContext)
+      }
+
       await streamWithRuntimeGateway(newMessages as Message[], {
         headers,
         tools: options.tools,
@@ -4148,19 +4779,26 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
                   embodiment: event.embodiment ?? null,
                   embodimentScript: event.embodimentScript ?? null,
                   speechTimeline: event.speechTimeline ?? null,
-                  digitalLife: event.digitalLife ?? null,
+                  digitalLife: resolveChatRuntimeDigitalLifeAuthority({
+                    digitalLife: event.digitalLife,
+                    embodimentScript: event.embodimentScript,
+                  }),
                   digitalLifeSpine: event.digitalLifeSpine ?? null,
                   runtimeDigest: event.runtimeDigest ?? null,
                 }, streamingMessageContext)
               }
               break
-            case 'tool-call':
+            case 'tool-call': {
               turnToolEvidence.toolCallCount += 1
+              await recordObservedToolCall(event)
               {
                 const observedToolName = normalizeObservedToolName(event)
                 if (event.toolCallId && observedToolName)
                   observedToolNamesById.set(event.toolCallId, observedToolName)
-                if (executorToolNames.has(observedToolName)) {
+                if (isExecutionToolNameSatisfiedByRoutingIntent({
+                  requiredToolNames: requiredExecutionToolNames,
+                  toolName: observedToolName,
+                })) {
                   turnToolEvidence.executorToolCallCount += 1
                   if (event.toolCallId)
                     turnToolEvidence.executorToolCallIds.add(event.toolCallId)
@@ -4169,7 +4807,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
               if (normalizeObservedToolName(event) === 'set_reminder' && event.toolCallId)
                 turnToolEvidence.reminderToolCallIds.add(event.toolCallId)
               const observedToolName = normalizeObservedToolName(event)
-              toolCallQueue.enqueue(executorToolNames.has(observedToolName)
+              toolCallQueue.enqueue(isExecutionEvidenceToolName(observedToolName)
                 ? buildExecutorExecutionStatus({
                     toolName: observedToolName,
                   })
@@ -4179,6 +4817,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
                   })
 
               break
+            }
             case 'tool-result':
               turnToolEvidence.toolResultCount += 1
               if (hasVerifiedToolResult(event.result))
@@ -4270,7 +4909,9 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         const forcedToolDirectives = [
           shouldForceFileToolRetry ? noToolCallCriticalRetryDirective : '',
           shouldForceReminderToolRetry ? reminderToolCallCriticalRetryDirective : '',
-          shouldForceExecutionToolRetry ? executionToolCallCriticalRetryDirective : '',
+          shouldForceExecutionToolRetry
+            ? buildExecutionToolCallCriticalRetryDirective([...requiredExecutionToolNames])
+            : '',
         ].filter(Boolean).join('\n')
         const forcedRetryMessages = insertSystemMessageBeforeLatestUser(newMessages as Message[], forcedToolDirectives)
         const sanitizedRetry = sanitizeForRemoteModel(forcedRetryMessages, { timeBudgetMs: 50, chunkSize: 2048 })
@@ -4284,13 +4925,17 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
             abortSignal,
             onStreamEvent: async (event: StreamEvent) => {
               switch (event.type) {
-                case 'tool-call':
+                case 'tool-call': {
                   turnToolEvidence.toolCallCount += 1
+                  await recordObservedToolCall(event)
                   {
                     const observedToolName = normalizeObservedToolName(event)
                     if (event.toolCallId && observedToolName)
                       observedToolNamesById.set(event.toolCallId, observedToolName)
-                    if (executorToolNames.has(observedToolName)) {
+                    if (isExecutionToolNameSatisfiedByRoutingIntent({
+                      requiredToolNames: requiredExecutionToolNames,
+                      toolName: observedToolName,
+                    })) {
                       turnToolEvidence.executorToolCallCount += 1
                       if (event.toolCallId)
                         turnToolEvidence.executorToolCallIds.add(event.toolCallId)
@@ -4299,7 +4944,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
                   if (normalizeObservedToolName(event) === 'set_reminder' && event.toolCallId)
                     turnToolEvidence.reminderToolCallIds.add(event.toolCallId)
                   const observedToolName = normalizeObservedToolName(event)
-                  toolCallQueue.enqueue(executorToolNames.has(observedToolName)
+                  toolCallQueue.enqueue(isExecutionEvidenceToolName(observedToolName)
                     ? buildExecutorExecutionStatus({
                         toolName: observedToolName,
                       })
@@ -4308,6 +4953,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
                         toolCall: event,
                       })
                   break
+                }
                 case 'tool-result':
                   turnToolEvidence.toolResultCount += 1
                   if (hasVerifiedToolResult(event.result))
@@ -4760,10 +5406,11 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
             details: {
               reason: error instanceof Error ? error.message : String(error),
               fallbackKind: fallback.kind,
+              visibleReplyClosure: turnVisibleReplyClosure,
+              visibleReplyExecution: turnVisibleReplyExecution,
             },
           })
-          assistantOutputCommitted = true
-          return
+          throw createRuntimeAuthoritativeVisibleReplyBlockedError()
         }
 
         const fallback = resolveStreamFailureFallback(error, sendingMessage)
@@ -4795,8 +5442,14 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
             sessionId,
             userText: sendingMessage,
             assistantText: assistantOutputText,
-            structured: buildingMessage.structured ? { ...buildingMessage.structured } : undefined,
+            structured: normalizeStructuredTurnForPersistence(
+              asStructuredWithContract(buildingMessage.structured)
+                ? { ...asStructuredWithContract(buildingMessage.structured)! }
+                : undefined,
+            ),
             visibleReplyExecution: turnVisibleReplyExecution,
+            visibleReplyCritic: turnVisibleReplyCritic,
+            visibleReplyClosure: turnVisibleReplyClosure,
             governance: turnMindGovernance,
             createdAt: Date.now(),
           }).catch(() => {})
@@ -4809,7 +5462,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         await hooks.emitChatTurnCompleteHooks({
           output: { ...buildingMessage },
           outputText: assistantOutputText,
-          toolCalls: sessionMessagesForSend.filter(msg => msg.role === 'tool') as ToolMessage[],
+          toolCalls: [...turnToolCalls],
         }, streamingMessageContext)
 
         await appendAlicizationAuditLog({
@@ -4994,6 +5647,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
     emitStreamEndHooks: hooks.emitStreamEndHooks,
     emitEmbodimentMetaHooks: hooks.emitEmbodimentMetaHooks,
     emitAssistantResponseEndHooks: hooks.emitAssistantResponseEndHooks,
+    emitToolCallHooks: hooks.emitToolCallHooks,
     emitAssistantMessageHooks: hooks.emitAssistantMessageHooks,
     emitChatTurnCompleteHooks: hooks.emitChatTurnCompleteHooks,
 
@@ -5006,6 +5660,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
     onStreamEnd: hooks.onStreamEnd,
     onEmbodimentMeta: hooks.onEmbodimentMeta,
     onAssistantResponseEnd: hooks.onAssistantResponseEnd,
+    onToolCall: hooks.onToolCall,
     onAssistantMessage: hooks.onAssistantMessage,
     onChatTurnComplete: hooks.onChatTurnComplete,
   }

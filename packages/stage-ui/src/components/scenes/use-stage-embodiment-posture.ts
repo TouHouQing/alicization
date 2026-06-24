@@ -57,11 +57,31 @@ function hasLowerPressureTiming(input: {
   visualPresenceState?: AlicizationVisualPresenceStateSnapshot | null | undefined
 }) {
   const activeReasonTags = input.activePresence?.reasonTags ?? []
-  if (activeReasonTags.includes('timing:lower-pressure-opening'))
+  if (
+    activeReasonTags.includes('timing:lower-pressure-opening')
+    || activeReasonTags.includes('measured-return')
+    || activeReasonTags.includes('repair-before-closeness')
+  ) {
+    return true
+  }
+
+  const residentReasonTags = input.visualPresenceState?.residentPerformance?.reasonTags ?? []
+  if (
+    residentReasonTags.includes('timing:lower-pressure-opening')
+    || residentReasonTags.includes('measured-return')
+    || residentReasonTags.includes('repair-before-closeness')
+  ) {
+    return true
+  }
+
+  const residentMode = input.visualPresenceState?.residentPerformance?.performance?.residentMode
+  if (residentMode === 'measured-return' || residentMode === 'repair-before-closeness')
     return true
 
   const rationaleTags = input.visualPresenceState?.privateThought?.rationaleTags ?? []
   return rationaleTags.includes('timing:lower-pressure-opening')
+    || rationaleTags.includes('measured-return')
+    || rationaleTags.includes('repair-before-closeness')
 }
 
 function resolveSilentPresenceAuthority(
@@ -140,7 +160,7 @@ export function deriveStageEmbodimentPresencePostureState(input: {
       ? 0.18
       : watchMode === 'recovering'
         ? 0.14
-      : watchMode === 'symbiotic-vision'
+        : watchMode === 'symbiotic-vision'
           ? 0.1
           : 0)
         + (speechRenderState?.active === true ? 0.08 : 0)

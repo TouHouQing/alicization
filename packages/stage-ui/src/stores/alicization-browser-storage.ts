@@ -167,16 +167,16 @@ export function createDefaultBrowserProactiveLoopState(now: () => number): Brows
   return {
     globalCooldownUntil: 0,
     scenarioBias: {
-      coding: 0,
-      media: 0,
+      'coding': 0,
+      'media': 0,
       'late-night-care': 0,
-      general: 0,
+      'general': 0,
     },
     consecutiveIgnored: {
-      coding: 0,
-      media: 0,
+      'coding': 0,
+      'media': 0,
       'late-night-care': 0,
-      general: 0,
+      'general': 0,
     },
     initiativeTrust: 0.5,
     openingMomentum: 0,
@@ -376,5 +376,5 @@ export async function removeBrowserCardStorage(cardId: string) {
 }
 
 export async function clearBrowserGlobalStorage() {
-  [await storage.removeItem(browserCardsIndexKey)]
+  await storage.removeItem(browserCardsIndexKey)
 }

@@ -40,7 +40,6 @@ import { useI18n } from 'vue-i18n'
 
 import StageDialoguePanel from './stage-dialogue-panel.vue'
 import StageEmbodimentDiagnosticsOverlay from './stage-embodiment-diagnostics-overlay.vue'
-import StagePresenceExpressionOverlay from './stage-presence-expression-overlay.vue'
 
 import { useDelayMessageQueue, useEmotionsMessageQueue } from '../../composables/queues'
 import { llmInferenceEndToken } from '../../constants'
@@ -958,7 +957,7 @@ function syncLive2DRuntimeCapabilities(snapshot?: Live2DRuntimeCapabilitySnapsho
       .filter(Boolean))].sort((left, right) => left.localeCompare(right)),
     supportedBaseEmotions: [...new Set(snapshot.supportedBaseEmotions)],
     supportedFacialCues: dedupeCapabilityItemsByKey(snapshot.supportedFacialCues),
-    supportedActions: dedupeCapabilityItemsByKey(snapshot.supportedActions ?? []),
+    supportedActions: dedupeCapabilityItemsByKey(snapshot.supportedActions),
   }
 }
 
@@ -979,7 +978,7 @@ function syncVrmRuntimeCapabilities(snapshot?: VrmRuntimeCapabilitySnapshot | nu
       .filter(Boolean))].sort((left, right) => left.localeCompare(right)),
     supportedBaseEmotions: [...new Set(snapshot.supportedBaseEmotions)],
     supportedFacialCues: dedupeCapabilityItemsByKey(snapshot.supportedFacialCues),
-    supportedActions: dedupeCapabilityItemsByKey(snapshot.supportedActions ?? []),
+    supportedActions: dedupeCapabilityItemsByKey(snapshot.supportedActions),
     supportsLookAt: snapshot.supportsLookAt === true,
     supportsVisemeLipSync: snapshot.supportsVisemeLipSync === true,
     supportsMicroDynamics: snapshot.supportsMicroDynamics === true,
@@ -1926,13 +1925,6 @@ defineExpose({
         @error="console.error"
       />
     </div>
-    <StagePresenceExpressionOverlay
-      :expression="visualPresenceState?.presenceExpression ?? null"
-      :character-frame="stageCharacterFrame"
-      :dialogue-visible="shouldRenderDialogueOverlay"
-      :loading="componentState !== 'mounted'"
-      :streaming="bubbleStreaming"
-    />
     <StageEmbodimentDiagnosticsOverlay
       v-if="showEmbodimentDiagnostics"
       :diagnostics="embodimentDiagnostics"

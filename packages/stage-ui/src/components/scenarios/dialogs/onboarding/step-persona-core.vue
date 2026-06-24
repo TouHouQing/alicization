@@ -71,7 +71,7 @@ const temperamentSummary = computed(() => {
       <div class="h-5 w-5" />
     </div>
     <div class="flex-1 overflow-y-auto space-y-4">
-      <div class="rounded-2xl border border-neutral-200 bg-neutral-50/80 p-4 text-sm leading-6 text-neutral-700 dark:border-neutral-700 dark:bg-neutral-900/60 dark:text-neutral-200">
+      <div class="border border-neutral-200 rounded-2xl bg-neutral-50/80 p-4 text-sm text-neutral-700 leading-6 dark:border-neutral-700 dark:bg-neutral-900/60 dark:text-neutral-200">
         {{ t('settings.dialogs.onboarding.personaWorkshop.core.description') }}
       </div>
       <div class="grid gap-3 md:grid-cols-3">
@@ -94,7 +94,7 @@ const temperamentSummary = computed(() => {
           <Input v-model="sensibilityInput" type="number" :min="0" :max="1" :step="0.1" />
         </label>
       </div>
-      <div class="rounded-2xl border border-dashed border-primary-200 bg-primary-50/70 p-4 text-sm text-primary-700 dark:border-primary-700/60 dark:bg-primary-900/10 dark:text-primary-200">
+      <div class="border border-primary-200 rounded-2xl border-dashed bg-primary-50/70 p-4 text-sm text-primary-700 dark:border-primary-700/60 dark:bg-primary-900/10 dark:text-primary-200">
         {{ t('settings.dialogs.onboarding.personaWorkshop.core.summary', { summary: temperamentSummary }) }}
       </div>
       <label class="block space-y-2">

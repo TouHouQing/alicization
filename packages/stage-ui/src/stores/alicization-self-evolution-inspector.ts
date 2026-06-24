@@ -11,14 +11,21 @@ import type {
 } from './alicization-bridge'
 
 import {
+  describeAlicizationEmbodimentClosureHeadline,
+  describeAlicizationProjectClosureBriefing,
+  describeAlicizationProjectNextClosure,
   isAlicizationThinProjectAwarenessLine,
+  isAlicizationThinSamePhaseCarryLine as isThinSamePhaseCarryLine,
   resolveAlicizationProjectPreDialogueAwarenessLine,
   scoreAlicizationProjectAwarenessLine,
 } from '@proj-alicization/stage-shared'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 
-import { normalizeStructuredPreDialogueClosurePayload } from '../composables/alicization-structured-output'
+import {
+  normalizeStructuredPreDialogueClosurePayload,
+  normalizeStructuredProjectStatePayload,
+} from '../composables/alicization-structured-output'
 import { getAlicizationBridge, hasAlicizationBridge } from './alicization-bridge'
 import { useAlicizationMindReplayStore } from './alicization-mind-replay'
 import { resolvePreDialogueClosureCompanionHeadlineLine } from './chat/pre-dialogue-send-identity'
@@ -26,22 +33,9 @@ import { projectStateObservationToContinuitySnapshot } from './project-state-obs
 
 type AlicizationLegacyAwareProjectStateContinuitySnapshot
   = AlicizationProjectStateContinuitySnapshot & {
+    latestProgress?: string | null
     landedProgressSummary?: string | null
   }
-
-interface BirthPersonaAuthoritySummary {
-  status: 'grounded' | 'partial' | 'missing'
-  birthMode: string
-  dominantDrift: string | null
-  lines: string[]
-}
-
-interface ProactiveDecisionConsumptionSummary {
-  status: 'grounded' | 'partial' | 'missing'
-  decisionMode: 'birth-anchored-restraint' | 'restraint-overridden' | 'converging'
-  dominantDrift: string | null
-  lines: string[]
-}
 
 function summarizeTraceEvent(event: AlicizationMindTurnEventRecord) {
   const payload = event.payload && typeof event.payload === 'object'
@@ -130,13 +124,6 @@ function summarizeTraceEvent(event: AlicizationMindTurnEventRecord) {
   return summary?.trim() || null
 }
 
-function readTraceOutcomeLearningAction(trace: AlicizationMemoryDecisionTraceRecord) {
-  const action = trace.governance?.digitalLifeSpine?.outcomeLearning?.nextLearningAction
-  return typeof action === 'string' && action.trim()
-    ? action.trim()
-    : null
-}
-
 function asTracePayloadObject(raw: unknown) {
   return raw && typeof raw === 'object' && !Array.isArray(raw)
     ? raw as Record<string, unknown>
@@ -185,6 +172,29 @@ function pushTraceDetailList(details: Array<{ label: string, value: string }>, l
     details.push({ label, value: values.join(', ') })
 }
 
+interface BirthPersonaAuthoritySummary {
+  status: 'grounded' | 'partial' | 'drift' | 'missing'
+  birthMode: string
+  dominantDrift: string | null
+  lines: string[]
+}
+
+interface IdentityDriftGovernanceSummary {
+  status: 'grounded' | 'partial' | 'drift' | 'missing'
+  governanceMode: 'bounded-growth' | 'boundary-violation' | 'watchful-convergence'
+  dominantDrift: string | null
+  lines: string[]
+}
+
+interface ProactiveDecisionConsumptionSummary {
+  status: 'grounded' | 'partial' | 'drift' | 'missing'
+  decisionMode: 'birth-anchored-restraint' | 'restraint-overridden' | 'converging'
+  dominantDrift: string | null
+  lines: string[]
+}
+
+const PRE_DIALOGUE_AWARENESS_REASON_PREVIEW_LIMIT = 16
+
 function uniquePreviewReasons(values: Array<string | null | undefined>, maxItems = 8) {
   const result: string[] = []
   for (const value of values) {
@@ -198,7 +208,14 @@ function uniquePreviewReasons(values: Array<string | null | undefined>, maxItems
   return result
 }
 
-const PRE_DIALOGUE_AWARENESS_REASON_PREVIEW_LIMIT = 16
+function readTraceNextLearningAction(trace: AlicizationMemoryDecisionTraceRecord) {
+  const runtimeMemory = trace.governance?.digitalLifeSpine?.memory
+    ? trace.governance.digitalLifeSpine.memory as { nextLearningAction?: unknown }
+    : null
+  return typeof runtimeMemory?.nextLearningAction === 'string'
+    ? runtimeMemory.nextLearningAction
+    : null
+}
 
 interface NormalizedPreDialogueAwarenessSnapshot {
   status: 'grounded' | 'partial' | 'drift'
@@ -212,7 +229,7 @@ interface NormalizedPreDialogueAwarenessSnapshot {
 }
 
 interface NormalizedPreDialogueClosureSnapshot {
-  status: 'grounded' | 'partial' | 'drift' | 'rewritten' | null
+  status: 'grounded' | 'partial' | 'drift'
   summaryLine: string | null
   companionHeadlineLine: string | null
   companionBriefingLine: string | null
@@ -222,10 +239,6 @@ interface NormalizedPreDialogueClosureSnapshot {
   emotionalClosureCue: string | null
   briefingLines: string[]
   reasons: string[]
-}
-
-function normalizeInspectorText(value: unknown) {
-  return typeof value === 'string' ? value.trim() : ''
 }
 
 function normalizePreDialogueAwarenessSnapshot(raw: unknown): NormalizedPreDialogueAwarenessSnapshot | null {
@@ -238,17 +251,19 @@ function normalizePreDialogueAwarenessSnapshot(raw: unknown): NormalizedPreDialo
   const status = payload.status === 'grounded' || payload.status === 'partial' || payload.status === 'drift'
     ? payload.status
     : null
-  const summaryLine = normalizeInspectorText(payload.summaryLine)
-  const companionHeadlineLine = normalizeInspectorText(payload.companionHeadlineLine)
-  const companionBriefingLine = normalizeInspectorText(payload.companionBriefingLine)
-  const companionNextClosureLine = normalizeInspectorText(payload.companionNextClosureLine)
-  const awarenessLine = normalizeInspectorText(payload.awarenessLine)
-  const emotionalClosureCue = normalizeInspectorText(payload.emotionalClosureCue)
+  const summaryLine = typeof payload.summaryLine === 'string' ? payload.summaryLine.trim() : ''
+  const companionHeadlineLine = typeof payload.companionHeadlineLine === 'string' ? payload.companionHeadlineLine.trim() : ''
+  const companionBriefingLine = typeof payload.companionBriefingLine === 'string' ? payload.companionBriefingLine.trim() : ''
+  const companionNextClosureLine = typeof payload.companionNextClosureLine === 'string' ? payload.companionNextClosureLine.trim() : ''
+  const awarenessLine = typeof payload.awarenessLine === 'string' ? payload.awarenessLine.trim() : ''
+  const emotionalClosureCue = typeof payload.emotionalClosureCue === 'string' ? payload.emotionalClosureCue.trim() : ''
   const reasonPreview = Array.isArray(payload.reasonPreview)
-    ? payload.reasonPreview.map(normalizeInspectorText).filter(Boolean)
+    ? payload.reasonPreview
+        .map(item => typeof item === 'string' ? item.trim() : '')
+        .filter(Boolean)
     : []
 
-  if (!status && !summaryLine && !companionHeadlineLine && !companionBriefingLine && !awarenessLine && reasonPreview.length === 0)
+  if (!status && !summaryLine && !awarenessLine && reasonPreview.length === 0)
     return null
 
   return {
@@ -263,8 +278,143 @@ function normalizePreDialogueAwarenessSnapshot(raw: unknown): NormalizedPreDialo
   }
 }
 
-function normalizePreDialogueClosureSnapshot(raw: unknown): NormalizedPreDialogueClosureSnapshot | null {
-  const normalized = normalizeStructuredPreDialogueClosurePayload(raw)
+function looksLikeThinContinuityReminder(value: string | null | undefined) {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
+  if (!normalized)
+    return false
+
+  return isAlicizationThinProjectAwarenessLine(normalized)
+    || normalized.includes('generic continuity reminder')
+    || normalized.includes('generic awareness reminder')
+    || normalized.includes('generic awareness summary')
+    || normalized.includes('generic same-her reminder')
+    || normalized.includes('steadier carry of this project, this phase, and the life loop that remains open')
+    || (normalized.startsWith('same-her=') && normalized.includes('| landed=') && normalized.includes('| open='))
+}
+
+function looksLikeThinContinuityNextClosureLine(value: string | null | undefined) {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
+  if (!normalized)
+    return false
+
+  return normalized.includes('generic next target')
+    || normalized.includes('generic next closure')
+    || normalized.includes('generic closure shell')
+    || normalized.includes('generic closure summary')
+    || normalized.includes('steadier carry of this project, this phase, and the life loop that remains open')
+}
+
+function looksLikeLivedInSameHerHoldDetail(value: string | null | undefined) {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
+  if (!normalized)
+    return false
+
+  return normalized.includes('same-her hold')
+    || normalized.includes('same remembered seam')
+    || normalized.includes('measured-return')
+    || normalized.includes('repair-before-closeness')
+    || normalized.includes('rest-protective')
+    || normalized.includes('lower-pressure')
+    || normalized.includes('callback line')
+    || normalized.includes('keep more room this time')
+}
+
+function looksLikeThinPreDialogueAwarenessSnapshot(
+  awareness: NormalizedPreDialogueAwarenessSnapshot | null,
+) {
+  if (!awareness)
+    return false
+
+  const carriesNoExplicitAwareness = !awareness.summaryLine
+    && !awareness.companionHeadlineLine
+    && !awareness.companionBriefingLine
+    && !awareness.awarenessLine
+    && awareness.reasonPreview.length === 0
+
+  if (carriesNoExplicitAwareness)
+    return true
+
+  const summaryLooksThin = looksLikeThinContinuityReminder(awareness.summaryLine)
+  const companionHeadlineLooksThin = looksLikeThinContinuityReminder(awareness.companionHeadlineLine)
+  const companionBriefingLooksThin = looksLikeThinContinuityReminder(awareness.companionBriefingLine)
+  const awarenessLineLooksThin = looksLikeThinContinuityReminder(awareness.awarenessLine)
+  const hasStrongerExplicitCarry = Boolean(
+    (awareness.companionHeadlineLine && !companionHeadlineLooksThin)
+    || (awareness.companionBriefingLine && !companionBriefingLooksThin)
+    || (awareness.awarenessLine && !awarenessLineLooksThin),
+  )
+
+  if (hasStrongerExplicitCarry)
+    return false
+
+  return summaryLooksThin
+    || companionHeadlineLooksThin
+    || companionBriefingLooksThin
+    || awarenessLineLooksThin
+}
+
+function carriesBroaderInspectorProjectFrame(value: string | null | undefined) {
+  const normalized = typeof value === 'string' ? value.trim() : ''
+  if (!normalized)
+    return false
+
+  return /\b(?:project|digital life project|life loop|still-open|what has landed|before speaking|before answering|local-first digital life)\b/i.test(normalized)
+    || /数字生命项目|闭环|主线|已落地|开口前|先记住/u.test(normalized)
+}
+
+function resolveInspectorAwarenessSummaryLine(input: {
+  continuitySummary: string
+  summaryLine: string | null
+  awarenessLine: string | null
+  companionBriefingLine: string | null
+}) {
+  if (input.continuitySummary)
+    return input.continuitySummary
+
+  const summaryLooksThin = Boolean(
+    input.summaryLine
+    && looksLikeThinContinuityReminder(input.summaryLine),
+  )
+  if (!summaryLooksThin)
+    return input.summaryLine || null
+
+  return [
+    input.awarenessLine,
+    input.companionBriefingLine,
+  ].find((value): value is string => Boolean(
+    value
+    && !looksLikeThinContinuityReminder(value)
+    && carriesBroaderInspectorProjectFrame(value)
+    && scoreAlicizationProjectAwarenessLine(value) > 0,
+  )) ?? input.summaryLine ?? null
+}
+
+function looksLikeThinContinuityClosure(value: string | null | undefined) {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
+  if (!normalized)
+    return false
+
+  return normalized.includes('generic closure summary')
+    || normalized.includes('steadier carry of this project, this phase, and the life loop that remains open')
+}
+
+function looksLikeBenchmarkDerivedClosureSummary(value: string | null | undefined) {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
+  if (!normalized)
+    return false
+
+  return normalized.includes('project=')
+    || normalized.includes('sameher=')
+    || normalized.includes('openloop=')
+    || normalized.includes('emotionalclosure=')
+    || normalized.includes('selfauthority=')
+    || normalized.includes('projectstateaudit=')
+}
+
+function normalizePreDialogueClosureSnapshot(raw: unknown) {
+  const normalized = normalizeStructuredPreDialogueClosurePayload(
+    (raw ?? null) as Record<string, unknown> | null,
+  )
   if (!normalized)
     return null
 
@@ -279,49 +429,18 @@ function normalizePreDialogueClosureSnapshot(raw: unknown): NormalizedPreDialogu
     emotionalClosureCue: normalized.emotionalClosureCue ?? null,
     briefingLines: normalized.briefingLines ?? [],
     reasons: normalized.reasons ?? [],
-  }
+  } satisfies NormalizedPreDialogueClosureSnapshot
 }
 
-function looksLikeThinContinuityReminder(value: string | null | undefined) {
-  const normalized = normalizeInspectorText(value).toLowerCase()
-  if (!normalized)
-    return true
-
-  return isAlicizationThinProjectAwarenessLine(normalized)
-    || normalized.includes('generic continuity reminder')
-    || normalized.includes('generic awareness reminder')
-    || normalized.includes('generic awareness summary')
-    || normalized.includes('generic same-her reminder')
-}
-
-function looksLikeThinContinuityNextClosureLine(value: string | null | undefined) {
-  const normalized = normalizeInspectorText(value).toLowerCase()
-  if (!normalized)
-    return false
-
-  return normalized.includes('generic next target')
-    || normalized.includes('generic next closure')
-    || normalized.includes('generic closure shell')
-    || normalized.includes('generic closure summary')
-}
-
-function carriesBroaderInspectorProjectFrame(value: string | null | undefined) {
-  const normalized = normalizeInspectorText(value)
-  if (!normalized)
-    return false
-
-  return /\b(?:project|digital life project|life loop|still-open|what has landed|before speaking|before answering|local-first digital life)\b/i.test(normalized)
-    || /数字生命项目|闭环|主线|已落地|开口前|先记住/u.test(normalized)
-}
-
-function resolveContinuityLatestLandedProgress(
-  continuity: AlicizationProjectStateContinuitySnapshot | null | undefined,
+function looksLikeThinPreDialogueClosureSnapshot(
+  closure: NormalizedPreDialogueClosureSnapshot | null,
 ) {
-  const legacyAwareContinuity = continuity as AlicizationLegacyAwareProjectStateContinuitySnapshot | null | undefined
-  return continuity?.latestLandedProgress?.trim()
-    || continuity?.latestProgress?.trim()
-    || legacyAwareContinuity?.landedProgressSummary?.trim()
-    || ''
+  if (!closure)
+    return false
+
+  return looksLikeThinContinuityClosure(closure.summaryLine)
+    || looksLikeThinContinuityClosure(closure.companionBriefingLine)
+    || looksLikeBenchmarkDerivedClosureSummary(closure.summaryLine)
 }
 
 function mergePreDialogueAwarenessWithContinuitySnapshot(
@@ -331,70 +450,120 @@ function mergePreDialogueAwarenessWithContinuitySnapshot(
   if (!awareness)
     return null
 
-  const continuitySummary = normalizeInspectorText(continuitySnapshot?.continuitySummary)
-  const sameHerSelfLine = normalizeInspectorText(continuitySnapshot?.sameHerSelfLine)
-  const sameHerHoldDetail = normalizeInspectorText(continuitySnapshot?.sameHerHoldDetail)
+  const continuitySummary = typeof continuitySnapshot?.continuitySummary === 'string'
+    ? continuitySnapshot.continuitySummary.trim()
+    : ''
+  const sameHerSelfLine = typeof continuitySnapshot?.sameHerSelfLine === 'string'
+    ? continuitySnapshot.sameHerSelfLine.trim()
+    : ''
+  const sameHerHoldDetail = typeof continuitySnapshot?.sameHerHoldDetail === 'string'
+    ? continuitySnapshot.sameHerHoldDetail.trim()
+    : ''
   const latestLandedProgress = resolveContinuityLatestLandedProgress(continuitySnapshot)
-  const primaryOpenLoop = normalizeInspectorText(continuitySnapshot?.primaryOpenLoop)
-  const sameHerDriftRisk = normalizeInspectorText(continuitySnapshot?.sameHerDriftRisk)
-  const nextClosureTarget = normalizeInspectorText(continuitySnapshot?.nextClosureTarget)
-  const proactiveSameHerGap = normalizeInspectorText((continuitySnapshot as { proactiveSameHerGap?: unknown } | null)?.proactiveSameHerGap)
+  const primaryOpenLoop = typeof continuitySnapshot?.primaryOpenLoop === 'string'
+    ? continuitySnapshot.primaryOpenLoop.trim()
+    : ''
+  const proactiveSameHerGap = typeof continuitySnapshot?.proactiveSameHerGap === 'string'
+    ? continuitySnapshot.proactiveSameHerGap.trim()
+    : ''
+  const sameHerDriftRisk = typeof continuitySnapshot?.sameHerDriftRisk === 'string'
+    ? continuitySnapshot.sameHerDriftRisk.trim()
+    : ''
 
-  const summaryLine = continuitySummary || awareness.summaryLine
-  const companionBriefingLine = looksLikeThinContinuityReminder(awareness.companionBriefingLine)
-    ? sameHerHoldDetail || proactiveSameHerGap || sameHerSelfLine || awareness.companionBriefingLine
-    : awareness.companionBriefingLine
-  const companionNextClosureLine = looksLikeThinContinuityNextClosureLine(awareness.companionNextClosureLine)
-    ? nextClosureTarget || awareness.companionNextClosureLine
-    : awareness.companionNextClosureLine
-
-  const projectAwarenessLine = resolveAlicizationProjectPreDialogueAwarenessLine({
+  const upgradedSummaryLine = resolveInspectorAwarenessSummaryLine({
+    continuitySummary,
+    summaryLine: awareness.summaryLine,
+    awarenessLine: awareness.awarenessLine,
+    companionBriefingLine: awareness.companionBriefingLine,
+  })
+  const resolvedAwarenessLine = resolveAlicizationProjectPreDialogueAwarenessLine({
     runtimeProjectState: {
       preDialogueAwarenessLine: awareness.awarenessLine,
       awarenessLine: awareness.awarenessLine,
       companionHeadlineLine: awareness.companionHeadlineLine,
-      companionBriefingLine,
-      preDialogueAwarenessSummary: summaryLine,
-      latestLandedProgress,
-      landedProgressSummary: latestLandedProgress,
-      primaryOpenLoop,
-      nextClosureTarget,
-      sameHerSelfLine,
-      sameHerHoldDetail,
-      proactiveSameHerGap,
-      sameHerDriftRisk,
-      emotionalClosureCue: awareness.emotionalClosureCue ?? continuitySnapshot?.emotionalClosureCue ?? null,
+      companionBriefingLine: awareness.companionBriefingLine,
+      preDialogueAwarenessSummary: awareness.summaryLine,
+      emotionalClosureSummary: awareness.emotionalClosureCue,
+      landedProgressSummary: latestLandedProgress || null,
+      openClosureSummary: primaryOpenLoop || null,
+      proactiveSameHerGap: proactiveSameHerGap || null,
+      sameHerDriftRiskSummary: sameHerDriftRisk || null,
     },
   })
-  const awarenessLineLooksThin = looksLikeThinContinuityReminder(awareness.awarenessLine)
-  const awarenessLineCarriesBroaderProject = carriesBroaderInspectorProjectFrame(awareness.awarenessLine)
-  const awarenessLine = awarenessLineLooksThin
-    ? sameHerHoldDetail || proactiveSameHerGap || sameHerSelfLine || projectAwarenessLine || awareness.awarenessLine
-    : awarenessLineCarriesBroaderProject
-      || scoreAlicizationProjectAwarenessLine(awareness.awarenessLine) >= scoreAlicizationProjectAwarenessLine(awareness.companionHeadlineLine)
-      ? awareness.awarenessLine
-      : projectAwarenessLine || awareness.awarenessLine
+  const awarenessLooksThin = looksLikeThinContinuityReminder(awareness.awarenessLine)
+  const companionBriefingLooksThin = looksLikeThinContinuityReminder(awareness.companionBriefingLine)
+  const companionNextClosureLooksThin = looksLikeThinContinuityNextClosureLine(awareness.companionNextClosureLine)
+  const awarenessCarriesCompactSamePhaseLine = isThinSamePhaseCarryLine(awareness.awarenessLine)
+  const companionBriefingCarriesCompactSamePhaseLine = isThinSamePhaseCarryLine(awareness.companionBriefingLine)
+  const companionHeadlineLooksStronger = typeof awareness.companionHeadlineLine === 'string'
+    && /holding together mainly through|one living her|same living line|one continuous her|without splitting her continuity/iu.test(awareness.companionHeadlineLine)
+  const richerSameHerCarry
+    = sameHerHoldDetail
+      || proactiveSameHerGap
+      || sameHerSelfLine
+      || ''
+  const shouldPreferLivedInSameHerHoldDetailCarry = Boolean(
+    sameHerHoldDetail
+    && looksLikeLivedInSameHerHoldDetail(sameHerHoldDetail)
+    && (awarenessCarriesCompactSamePhaseLine || companionBriefingCarriesCompactSamePhaseLine),
+  )
+  const shouldPreferRicherSameHerAwarenessCarry = Boolean(richerSameHerCarry && awarenessLooksThin)
+  const shouldPreferRicherSameHerBriefingCarry = Boolean(richerSameHerCarry && companionBriefingLooksThin)
+  const upgradedAwarenessLine = awarenessLooksThin && companionHeadlineLooksStronger
+    ? awareness.companionHeadlineLine
+    : shouldPreferLivedInSameHerHoldDetailCarry && awarenessCarriesCompactSamePhaseLine
+      ? sameHerHoldDetail
+      : shouldPreferRicherSameHerAwarenessCarry
+        ? richerSameHerCarry
+        : resolvedAwarenessLine
 
   return {
     ...awareness,
-    summaryLine,
-    companionBriefingLine,
-    companionNextClosureLine,
-    awarenessLine,
+    summaryLine: upgradedSummaryLine,
+    companionBriefingLine: shouldPreferLivedInSameHerHoldDetailCarry && companionBriefingCarriesCompactSamePhaseLine
+      ? sameHerHoldDetail
+      : shouldPreferRicherSameHerBriefingCarry
+        ? richerSameHerCarry
+        : awareness.companionBriefingLine,
+    companionNextClosureLine: companionNextClosureLooksThin && continuitySnapshot?.nextClosureTarget
+      ? continuitySnapshot.nextClosureTarget
+      : awareness.companionNextClosureLine,
+    awarenessLine: upgradedAwarenessLine,
     emotionalClosureCue: awareness.emotionalClosureCue ?? continuitySnapshot?.emotionalClosureCue ?? null,
     reasonPreview: uniquePreviewReasons([
-      ...awareness.reasonPreview,
       awareness.awarenessLine,
-      summaryLine,
+      continuitySummary,
       latestLandedProgress,
       primaryOpenLoop,
+      proactiveSameHerGap,
       sameHerDriftRisk,
       sameHerHoldDetail,
       sameHerSelfLine,
-      nextClosureTarget,
-      proactiveSameHerGap,
+      continuitySnapshot?.nextClosureTarget ?? null,
+      ...awareness.reasonPreview,
     ], PRE_DIALOGUE_AWARENESS_REASON_PREVIEW_LIMIT),
   }
+}
+
+function resolveContinuityLatestLandedProgress(
+  continuity: AlicizationProjectStateContinuitySnapshot | null | undefined,
+) {
+  const legacyAwareContinuity = continuity as AlicizationLegacyAwareProjectStateContinuitySnapshot | null | undefined
+  return continuity?.latestLandedProgress?.trim()
+    || legacyAwareContinuity?.latestProgress?.trim()
+    || legacyAwareContinuity?.landedProgressSummary?.trim()
+    || ''
+}
+
+function metricDetailHasConcreteCount(detail: string | null | undefined) {
+  const normalized = typeof detail === 'string' ? detail.trim() : ''
+  if (!normalized)
+    return false
+  return !normalized.includes('(undefined/')
+}
+
+function hasReason(reasons: string[] | null | undefined, target: string) {
+  return Array.isArray(reasons) && reasons.includes(target)
 }
 
 function describeVisibleReplyRealizationReason(reason: string | null) {
@@ -494,6 +663,47 @@ function latestTakeoverAuditOpeningGuidanceHoldDetail(events: AlicizationMindTur
   return null
 }
 
+function latestTakeoverAuditCompanionshipTransition(events: AlicizationMindTurnEventRecord[]) {
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    const event = events[index]
+    if (!event || event.kind !== 'takeover-audit')
+      continue
+
+    const payload = asTracePayloadObject(event.payload)
+    if (!payload)
+      continue
+
+    const companionshipHoldMode = typeof payload.companionship_hold_mode === 'string'
+      ? payload.companionship_hold_mode.trim()
+      : ''
+    const live2dFacialReleaseMs = asTraceFiniteNumber(payload.live2d_facial_release_ms)
+    const vrmExpressionBlendMs = asTraceFiniteNumber(payload.vrm_expression_blend_ms)
+    const vrmActionFadeMs = asTraceFiniteNumber(payload.vrm_action_fade_ms)
+    const preferredExpressionAliases = asTraceStringList(payload.preferred_expression_aliases)
+    const preferredMotionAliases = asTraceStringList(payload.preferred_motion_aliases)
+
+    if (
+      companionshipHoldMode
+      || live2dFacialReleaseMs != null
+      || vrmExpressionBlendMs != null
+      || vrmActionFadeMs != null
+      || preferredExpressionAliases.length > 0
+      || preferredMotionAliases.length > 0
+    ) {
+      return {
+        companionshipHoldMode: companionshipHoldMode || null,
+        live2dFacialReleaseMs,
+        vrmExpressionBlendMs,
+        vrmActionFadeMs,
+        preferredExpressionAliases,
+        preferredMotionAliases,
+      }
+    }
+  }
+
+  return null
+}
+
 type AlicizationInitiativePersonaBias = NonNullable<AlicizationInitiativeSnapshot['personaBias']>
 interface AlicizationSelfEvolutionBaselineAdoptionRecordLike {
   adoptedAt: number
@@ -507,6 +717,9 @@ interface AlicizationSelfEvolutionBaselineAdoptionRecordLike {
   adoptionMode: 'adopt-now'
   summaryLine: string
   prosodyAuthorityNote?: string | null
+  continuityGovernanceNote?: string | null
+  relationshipCadenceGovernanceNote?: string | null
+  projectStateContinuityGovernanceNote?: string | null
 }
 
 function proactivePersonaBiasSignals(personaBias: AlicizationInitiativePersonaBias | null | undefined) {
@@ -591,6 +804,122 @@ function describePersonaBiasMode(input: {
     return 'direct reconnect'
   }
   return 'measured companionship'
+}
+
+function describeSameHerEmbodimentLaneImpact(matchedSignals: string[]) {
+  if (matchedSignals.includes('bodyContinuityPhase: full-cross-modal-lock')) {
+    return 'continuity-impact: body continuity and manifestation authority are now locked back onto the same living segment together, so visible same-her continuity can keep traveling as one explicit embodiment line'
+  }
+
+  if (
+    matchedSignals.includes('lane=face+motion+voice-only')
+    && matchedSignals.includes('remaining-open=body+lipsync')
+  ) {
+    return 'continuity-impact: same-her embodiment is still being carried through face, motion, and voice together, while body and lipsync still need to rejoin before full cross-modal closure settles'
+  }
+
+  const laneOnlySignal = matchedSignals.find(signal =>
+    signal === 'lane=face-only'
+    || signal === 'lane=motion-only'
+    || signal === 'lane=lipsync-only'
+    || signal === 'lane=voice-only'
+    || signal === 'lane=face+motion+lipsync-only'
+    || signal === 'lane=face+lipsync-only'
+    || signal === 'lane=face+motion-only'
+    || signal === 'lane=motion+lipsync-only'
+    || signal === 'lane=face+voice-only'
+    || signal === 'lane=motion+voice-only'
+    || signal === 'lane=lipsync+voice-only'
+    || signal === 'lane=face+motion+voice-only'
+    || signal === 'lane=face+lipsync+voice-only'
+    || signal === 'lane=motion+lipsync+voice-only',
+  )
+
+  if (laneOnlySignal === 'lane=face-only')
+    return 'continuity-impact: same-her embodiment is now only being carried by face, so visible continuity is still present but no longer fully cross-modal'
+  if (laneOnlySignal === 'lane=motion-only')
+    return 'continuity-impact: same-her embodiment is now only being carried by motion, so visible continuity is still present but no longer fully cross-modal'
+  if (laneOnlySignal === 'lane=lipsync-only')
+    return 'continuity-impact: same-her embodiment is now only being carried by lipsync, so visible continuity is still present but no longer fully cross-modal'
+  if (laneOnlySignal === 'lane=voice-only')
+    return 'continuity-impact: same-her embodiment is now only being carried by voice, so visible continuity is still present but no longer fully cross-modal'
+  if (laneOnlySignal === 'lane=face+motion+lipsync-only')
+    return 'continuity-impact: same-her embodiment is now only being carried by face, motion, and lipsync, so visible continuity is still present but no longer fully cross-modal'
+  if (laneOnlySignal === 'lane=face+lipsync-only')
+    return 'continuity-impact: same-her embodiment is now only being carried by face and lipsync, so visible continuity is still present but no longer fully cross-modal'
+  if (laneOnlySignal === 'lane=face+motion-only')
+    return 'continuity-impact: same-her embodiment is now only being carried by face and motion, so visible continuity is still present but no longer fully cross-modal'
+  if (laneOnlySignal === 'lane=motion+lipsync-only')
+    return 'continuity-impact: same-her embodiment is now only being carried by motion and lipsync, so visible continuity is still present but no longer fully cross-modal'
+  if (laneOnlySignal === 'lane=face+voice-only')
+    return 'continuity-impact: same-her embodiment is now only being carried by face and voice, so visible continuity is still present but no longer fully cross-modal'
+  if (laneOnlySignal === 'lane=motion+voice-only')
+    return 'continuity-impact: same-her embodiment is now only being carried by motion and voice, so visible continuity is still present but no longer fully cross-modal'
+  if (laneOnlySignal === 'lane=lipsync+voice-only')
+    return 'continuity-impact: same-her embodiment is now only being carried by lipsync and voice, so visible continuity is still present but no longer fully cross-modal'
+  if (laneOnlySignal === 'lane=face+motion+voice-only')
+    return 'continuity-impact: same-her embodiment is now only being carried by face, motion, and voice, so visible continuity is still present but no longer fully cross-modal'
+  if (laneOnlySignal === 'lane=face+lipsync+voice-only')
+    return 'continuity-impact: same-her embodiment is now only being carried by face, lipsync, and voice, so visible continuity is still present but no longer fully cross-modal'
+  if (laneOnlySignal === 'lane=motion+lipsync+voice-only')
+    return 'continuity-impact: same-her embodiment is now only being carried by motion, lipsync, and voice, so visible continuity is still present but no longer fully cross-modal'
+
+  return null
+}
+
+function hasGroundedSameHerEmbodimentCarry(matchedSignals: string[]) {
+  return matchedSignals.includes('bodyContinuityPhase: full-cross-modal-lock')
+}
+
+function resolveSameSegmentFaceMotionRecoverySignal(signals: Array<string | null | undefined>) {
+  for (const signal of signals) {
+    if (typeof signal !== 'string')
+      continue
+
+    const match = signal.match(/(?:same-segment )?face\+motion(?:\+voice)? recovery@[^\s|]+/i)
+    if (match?.[0])
+      return match[0]
+  }
+
+  return null
+}
+
+function resolveRuntimeContinuityRemainingOpenSignal(signals: string[]) {
+  for (const signal of signals) {
+    if (/remaining-open=body\+lipsync/i.test(signal))
+      return 'remaining-open=body+lipsync'
+    if (/remaining-open=lipsync\+voice/i.test(signal))
+      return 'remaining-open=lipsync+voice'
+  }
+
+  return null
+}
+
+function resolveRuntimeContinuityBodyPhaseSignal(signals: string[]) {
+  for (const signal of signals) {
+    if (/bodycontinuityphase[:=]\s*full-cross-modal-lock/i.test(signal))
+      return 'bodyContinuityPhase: full-cross-modal-lock'
+  }
+
+  return null
+}
+
+function resolveRuntimeContinuityManifestationLabel(signals: string[]) {
+  for (const signal of signals) {
+    const targetMatch = signal.match(/\btarget=(live2d|vrm)\b/i)
+    const target = targetMatch?.[1]?.toLowerCase()
+    if (target === 'live2d')
+      return 'Live2D manifestation'
+    if (target === 'vrm')
+      return 'VRM manifestation'
+
+    if (/\blive2d\b/i.test(signal))
+      return 'Live2D manifestation'
+    if (/\bvrm\b/i.test(signal))
+      return 'VRM manifestation'
+  }
+
+  return 'manifestation authority'
 }
 
 export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicization-self-evolution-inspector', () => {
@@ -829,19 +1158,17 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
         const activeSelfRevision = trace.derivedMindStateBundle?.activeSelfRevision ?? null
         return activeSelfRevision?.candidateId === candidate.id
       })
-      .map((trace) => {
-        const lanes = [...(trace.derivedMindStateBundle?.activeSelfRevision?.lanes ?? [])]
-        const learningAction = readTraceOutcomeLearningAction(trace)
-        return {
-          decisionTraceId: trace.decisionTraceId,
-          turnId: trace.turnId ?? null,
-          consumedAt: trace.lastUpdatedAt,
-          lanes,
-          summary: trace.derivedMindStateBundle?.activeSelfRevision?.summary ?? null,
-          learningAction,
-          trajectorySummary: `lanes=${lanes.join(', ') || 'n/a'} | learning=${learningAction ?? 'n/a'}`,
-        }
-      })
+      .map(trace => ({
+        decisionTraceId: trace.decisionTraceId,
+        turnId: trace.turnId ?? null,
+        consumedAt: trace.lastUpdatedAt,
+        lanes: [...(trace.derivedMindStateBundle?.activeSelfRevision?.lanes ?? [])],
+        summary: trace.derivedMindStateBundle?.activeSelfRevision?.summary ?? null,
+        learningAction: readTraceNextLearningAction(trace),
+        trajectorySummary: `lanes=${[...(trace.derivedMindStateBundle?.activeSelfRevision?.lanes ?? [])].join(', ') || 'n/a'} | learning=${
+          readTraceNextLearningAction(trace) ?? 'n/a'
+        }`,
+      }))
       .sort((left, right) => {
         if (left.consumedAt !== right.consumedAt)
           return right.consumedAt - left.consumedAt
@@ -947,7 +1274,7 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
       && !manifestationCadenceSummary
     ) {
       return null as null | {
-        status: 'grounded' | 'partial' | 'missing'
+        status: 'grounded' | 'partial' | 'drift' | 'missing'
         relationshipPosture: string | null
         initiativeStyle: string | null
         silenceReconnect: string | null
@@ -1013,7 +1340,7 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
     ])
 
     return {
-      status: missingSignals.length === 0 && driftingSignals.length === 0 ? 'grounded' : matchedSignals.length > 0 ? 'partial' : 'missing',
+      status: driftingSignals.length > 0 ? 'drift' : missingSignals.length === 0 ? 'grounded' : matchedSignals.length > 0 ? 'partial' : 'missing',
       relationshipPosture,
       initiativeStyle,
       silenceReconnect,
@@ -1043,9 +1370,125 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
     }
   })
 
+  const selectedCandidateRuntimeContinuityProjection = computed(() => {
+    const trace = selectedCandidateTraceRecord.value
+    const derivedBundle = trace?.derivedMindStateBundle ?? null
+    const rendererSignals = asRecordObject((derivedBundle as { rendererSignals?: unknown } | null)?.rendererSignals)
+    const driverAuthority = asRecordObject(rendererSignals?.driverAuthority)
+    const bindingSummary = typeof driverAuthority?.bindingSummary === 'string'
+      ? driverAuthority.bindingSummary
+      : null
+    const settleSummary = typeof driverAuthority?.settleSummary === 'string'
+      ? driverAuthority.settleSummary
+      : null
+    const runtimeChannel = typeof driverAuthority?.channel === 'string'
+      ? driverAuthority.channel
+      : null
+    const activeThreadId = typeof driverAuthority?.activeThreadId === 'string'
+      ? driverAuthority.activeThreadId
+      : null
+    const runtimeScenario = typeof driverAuthority?.scenario === 'string'
+      ? driverAuthority.scenario
+      : null
+    const runtimeSummary = typeof rendererSignals?.speechSummary === 'string'
+      ? rendererSignals.speechSummary
+      : null
+    const sameSegmentFaceMotionRecovery = resolveSameSegmentFaceMotionRecoverySignal([
+      bindingSummary,
+      settleSummary,
+      runtimeSummary,
+    ])
+    const runtimeContinuitySignals = [bindingSummary, settleSummary, runtimeSummary]
+      .filter((value): value is string => Boolean(value))
+    const bodyContinuityPhaseSignal = resolveRuntimeContinuityBodyPhaseSignal(runtimeContinuitySignals)
+    const remainingOpenSignal = resolveRuntimeContinuityRemainingOpenSignal(runtimeContinuitySignals)
+    const manifestationLabel = resolveRuntimeContinuityManifestationLabel(runtimeContinuitySignals)
+    const laneOnlySignal = runtimeContinuitySignals
+      .filter((value): value is string => Boolean(value))
+      .find(value =>
+        value.includes('lane=face-only')
+        || value.includes('lane=motion-only')
+        || value.includes('lane=lipsync-only')
+        || value.includes('lane=voice-only')
+        || value.includes('lane=face+motion+lipsync-only')
+        || value.includes('lane=face+lipsync-only')
+        || value.includes('lane=face+motion-only')
+        || value.includes('lane=motion+lipsync-only')
+        || value.includes('lane=face+voice-only')
+        || value.includes('lane=motion+voice-only')
+        || value.includes('lane=lipsync+voice-only')
+        || value.includes('lane=face+motion+voice-only')
+        || value.includes('lane=face+lipsync+voice-only')
+        || value.includes('lane=motion+lipsync+voice-only'),
+      )
+
+    if (!bindingSummary && !settleSummary && !runtimeSummary && !runtimeChannel && !activeThreadId && !runtimeScenario) {
+      return null as null | {
+        status: 'grounded' | 'partial' | 'drift' | 'missing'
+        runtimeChannel: string | null
+        runtimeSummary: string | null
+        activeThreadId: string | null
+        runtimeScenario: string | null
+        matchedSignals: string[]
+        missingSignals: string[]
+        driftingSignals: string[]
+        reasons: string[]
+      }
+    }
+
+    const matchedSignals = uniquePreviewReasons([
+      runtimeChannel ? `runtime-channel:${runtimeChannel}` : null,
+      activeThreadId ? `runtime-thread:${activeThreadId}` : null,
+      runtimeScenario ? `runtime-scenario:${runtimeScenario}` : null,
+      bodyContinuityPhaseSignal,
+      remainingOpenSignal,
+      sameSegmentFaceMotionRecovery,
+      laneOnlySignal?.includes('lane=face-only') ? 'lane=face-only' : null,
+      laneOnlySignal?.includes('lane=motion-only') ? 'lane=motion-only' : null,
+      laneOnlySignal?.includes('lane=lipsync-only') ? 'lane=lipsync-only' : null,
+      laneOnlySignal?.includes('lane=voice-only') ? 'lane=voice-only' : null,
+      laneOnlySignal?.includes('lane=face+motion+lipsync-only') ? 'lane=face+motion+lipsync-only' : null,
+      laneOnlySignal?.includes('lane=face+lipsync-only') ? 'lane=face+lipsync-only' : null,
+      laneOnlySignal?.includes('lane=face+motion-only') ? 'lane=face+motion-only' : null,
+      laneOnlySignal?.includes('lane=motion+lipsync-only') ? 'lane=motion+lipsync-only' : null,
+      laneOnlySignal?.includes('lane=face+voice-only') ? 'lane=face+voice-only' : null,
+      laneOnlySignal?.includes('lane=motion+voice-only') ? 'lane=motion+voice-only' : null,
+      laneOnlySignal?.includes('lane=lipsync+voice-only') ? 'lane=lipsync+voice-only' : null,
+      laneOnlySignal?.includes('lane=face+motion+voice-only') ? 'lane=face+motion+voice-only' : null,
+      laneOnlySignal?.includes('lane=face+lipsync+voice-only') ? 'lane=face+lipsync+voice-only' : null,
+      laneOnlySignal?.includes('lane=motion+lipsync+voice-only') ? 'lane=motion+lipsync+voice-only' : null,
+    ])
+
+    return {
+      status: matchedSignals.length > 0 ? 'grounded' : 'missing',
+      runtimeChannel,
+      runtimeSummary,
+      activeThreadId,
+      runtimeScenario,
+      matchedSignals,
+      missingSignals: [],
+      driftingSignals: [],
+      reasons: uniquePreviewReasons([
+        bodyContinuityPhaseSignal === 'bodyContinuityPhase: full-cross-modal-lock'
+          ? `Body continuity and ${manifestationLabel} are now locked back onto the same living segment together, so runtime continuity can explain the renderer recovery as one explicit same-her embodiment line instead of a temporary visual alignment.`
+          : null,
+        laneOnlySignal
+          ? `Renderer continuity evidence currently says ${laneOnlySignal.match(/lane=[^ |]+/)?.[0] ?? laneOnlySignal}, so the same-her line is no longer fully shared across every embodiment lane.`
+          : null,
+        bindingSummary
+          ? `Driver authority binding currently resolves as ${bindingSummary}, so the renderer handoff is still exposing which surviving body lane holds continuity.`
+          : null,
+        settleSummary
+          ? `Driver authority settle currently resolves as ${settleSummary}, so post-speech settling still carries the surviving same-her lane evidence.`
+          : null,
+      ]),
+    }
+  })
+
   const selectedCandidateProactiveActionChain = computed(() => {
     const personaProvenance = selectedCandidatePersonaBiasProvenance.value
     const runtimeInitiative = visualPresenceState.value?.initiative ?? null
+    // eslint-disable-next-line ts/no-use-before-define -- Vue computed refs are lazy; this summary reads the raw trace projection declared later.
     const latestOpeningGuidanceHold = latestTakeoverAuditOpeningGuidanceHold(selectedCandidateTraceEvents.value)
 
     const personaPreferredAction = (() => {
@@ -1082,7 +1525,7 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
 
     if (!personaPreferredAction && !runtimeSelectedAction && runtimeShouldSpeak == null && !latestOpeningGuidanceHold) {
       return null as null | {
-        status: 'grounded' | 'partial' | 'missing'
+        status: 'grounded' | 'partial' | 'drift' | 'missing'
         personaPreferredAction: string | null
         runtimeSelectedAction: string | null
         runtimeShouldSpeak: boolean | null
@@ -1134,7 +1577,7 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
     ])
 
     return {
-      status: missingSignals.length === 0 && driftingSignals.length === 0 ? 'grounded' : matchedSignals.length > 0 ? 'partial' : 'missing',
+      status: driftingSignals.length > 0 ? 'drift' : missingSignals.length === 0 ? 'grounded' : matchedSignals.length > 0 ? 'partial' : 'missing',
       personaPreferredAction,
       runtimeSelectedAction,
       runtimeShouldSpeak,
@@ -1171,7 +1614,7 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
 
     if (!counterfactual || !selectedOptionId) {
       return null as null | {
-        status: 'grounded' | 'partial' | 'missing'
+        status: 'grounded' | 'partial' | 'drift' | 'missing'
         selectedOptionId: string | null
         selectedAction: string | null
         dominantTradeoff: string | null
@@ -1313,7 +1756,7 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
     ])
 
     return {
-      status: missingSignals.length === 0 && driftingSignals.length === 0 ? 'grounded' : matchedSignals.length > 0 ? 'partial' : 'missing',
+      status: driftingSignals.length > 0 ? 'drift' : missingSignals.length === 0 ? 'grounded' : matchedSignals.length > 0 ? 'partial' : 'missing',
       personaPreferredStyle,
       personaPreferredPresence,
       counterfactualStyle,
@@ -1341,6 +1784,7 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
   const selectedCandidatePrivateThoughtGovernanceChain = computed(() => {
     const privateThought = visualPresenceState.value?.privateThought ?? null
     const manifestationChain = selectedCandidateProactiveManifestationChain.value
+    // eslint-disable-next-line ts/no-use-before-define -- Vue computed refs are lazy; this governance summary reads the raw trace projection declared later.
     const latestTakeoverAudit = [...selectedCandidateTraceEvents.value]
       .reverse()
       .find(event => event.kind === 'takeover-audit' && asTracePayloadObject(event.payload))
@@ -1351,11 +1795,12 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
     const visibleReplyBlockedReason = asTraceStringList(takeoverPayload?.visible_reply_blocked_reasons)
       .find(reason => reason.startsWith('opening-guidance:'))
       ?? null
+    // eslint-disable-next-line ts/no-use-before-define -- Vue computed refs are lazy; this governance summary reads the raw trace projection declared later.
     const openingGuidanceHoldDetail = latestTakeoverAuditOpeningGuidanceHoldDetail(selectedCandidateTraceEvents.value)
 
     if (!privateThought && !visibleReplyRealizationReason && !visibleReplyBlockedReason) {
       return null as null | {
-        status: 'grounded' | 'partial' | 'missing'
+        status: 'grounded' | 'partial' | 'drift' | 'missing'
         privateThoughtStance: string | null
         privateThoughtShouldSpeak: boolean | null
         privateThoughtStyle: string | null
@@ -1408,7 +1853,7 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
     ])
 
     return {
-      status: missingSignals.length === 0 && driftingSignals.length === 0 ? 'grounded' : matchedSignals.length > 0 ? 'partial' : 'missing',
+      status: driftingSignals.length > 0 ? 'drift' : missingSignals.length === 0 ? 'grounded' : matchedSignals.length > 0 ? 'partial' : 'missing',
       privateThoughtStance: privateThought?.stance ?? null,
       privateThoughtShouldSpeak,
       privateThoughtStyle,
@@ -1445,7 +1890,7 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
 
     if (!resident) {
       return null as null | {
-        status: 'grounded' | 'partial' | 'missing'
+        status: 'grounded' | 'partial' | 'drift' | 'missing'
         residentSource: string | null
         residentEmbodiedPresence: string | null
         residentStance: string | null
@@ -1492,7 +1937,7 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
     ])
 
     return {
-      status: missingSignals.length === 0 && driftingSignals.length === 0 ? 'grounded' : matchedSignals.length > 0 ? 'partial' : 'missing',
+      status: driftingSignals.length > 0 ? 'drift' : missingSignals.length === 0 ? 'grounded' : matchedSignals.length > 0 ? 'partial' : 'missing',
       residentSource: resident.source ?? null,
       residentEmbodiedPresence: resident.embodiedPresence ?? null,
       residentStance: resident.stance ?? null,
@@ -1525,7 +1970,7 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
 
     if (!resident) {
       return null as null | {
-        status: 'grounded' | 'partial' | 'missing'
+        status: 'grounded' | 'partial' | 'drift' | 'missing'
         projectedBodyState: string | null
         projectedContinuityMode: string | null
         projectedFacialCue: string | null
@@ -1607,6 +2052,65 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
     }
   })
 
+  const selectedCandidateCompanionshipTransitionSummary = computed(() => {
+    const events = drilledTraceResult.value?.events ?? []
+    const latestTransition = latestTakeoverAuditCompanionshipTransition(events)
+    const openingGuidanceHold = latestTakeoverAuditOpeningGuidanceHold(events)
+    const openingGuidanceHoldDetail = latestTakeoverAuditOpeningGuidanceHoldDetail(events)
+
+    if (!latestTransition && !openingGuidanceHold && !openingGuidanceHoldDetail) {
+      return null as null | {
+        status: 'grounded' | 'partial' | 'missing'
+        companionshipHoldMode: string | null
+        preferredExpressionAliases: string[]
+        preferredMotionAliases: string[]
+        live2dFacialReleaseMs: number | null
+        vrmExpressionBlendMs: number | null
+        vrmActionFadeMs: number | null
+        summaryLine: string | null
+        reasons: string[]
+      }
+    }
+
+    const summaryParts = [
+      latestTransition?.companionshipHoldMode ? `mode=${latestTransition.companionshipHoldMode}` : null,
+      latestTransition?.live2dFacialReleaseMs != null ? `live2dFace=${latestTransition.live2dFacialReleaseMs}ms` : null,
+      latestTransition?.vrmExpressionBlendMs != null ? `vrmExpr=${latestTransition.vrmExpressionBlendMs}ms` : null,
+      latestTransition?.vrmActionFadeMs != null ? `vrmAction=${latestTransition.vrmActionFadeMs}ms` : null,
+    ].filter((value): value is string => Boolean(value))
+
+    return {
+      status: latestTransition?.companionshipHoldMode ? 'grounded' : 'partial',
+      companionshipHoldMode: latestTransition?.companionshipHoldMode ?? null,
+      preferredExpressionAliases: [...(latestTransition?.preferredExpressionAliases ?? [])],
+      preferredMotionAliases: [...(latestTransition?.preferredMotionAliases ?? [])],
+      live2dFacialReleaseMs: latestTransition?.live2dFacialReleaseMs ?? null,
+      vrmExpressionBlendMs: latestTransition?.vrmExpressionBlendMs ?? null,
+      vrmActionFadeMs: latestTransition?.vrmActionFadeMs ?? null,
+      summaryLine: summaryParts.length > 0 ? summaryParts.join(' | ') : null,
+      reasons: uniquePreviewReasons([
+        latestTransition?.companionshipHoldMode
+          ? `Latest drilled takeover audit currently holds outer companionship in ${latestTransition.companionshipHoldMode}, so visible closeness should re-enter with that same relationship cadence.`
+          : null,
+        latestTransition?.preferredExpressionAliases.length
+          ? `Preferred expression aliases currently stay ${latestTransition.preferredExpressionAliases.join(', ')}, keeping the face aligned to the same companionship transition mode.`
+          : null,
+        latestTransition?.preferredMotionAliases.length
+          ? `Preferred motion aliases currently stay ${latestTransition.preferredMotionAliases.join(', ')}, so motion pacing is following the same companionship hold.`
+          : null,
+        summaryParts.length > 0
+          ? `Cross-modal settle cadence now reads ${summaryParts.join(' | ')}, so Live2D and VRM are being kept on the same measured return path.`
+          : null,
+        openingGuidanceHold
+          ? `Latest drilled takeover audit still reports ${openingGuidanceHold}, so the companionship transition is staying bounded by that opening guidance.`
+          : null,
+        openingGuidanceHoldDetail === 'memory-familiarity-closeness-cap'
+          ? 'That hold detail still says remembered familiarity widened only after memory stayed explicit, so the companionship transition remains intentionally slower than direct closeness.'
+          : null,
+      ]),
+    }
+  })
+
   const selectedCandidateSelfEvolutionSummary = computed(() => {
     const persona = selectedCandidatePersonaBiasProvenance.value
     const proactive = selectedCandidateProactiveActionChain.value
@@ -1629,7 +2133,7 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
     ])
     const coveragePresent = [persona, proactive, resident, embodiment].filter(Boolean).length
     const status = dominantDrift
-      ? 'partial' as const
+      ? 'drift' as const
       : coveragePresent === 4
         ? 'grounded' as const
         : normalizeSummaryStatus([
@@ -1685,6 +2189,41 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
     }
   })
 
+  const selectedCandidateInternalizationReadinessSummary = computed(() => {
+    const candidate = selectedCandidate.value
+    if (!candidate) {
+      return null as null | {
+        status: 'grounded' | 'partial' | 'drift' | 'missing'
+        lines: string[]
+      }
+    }
+
+    const activationBlockedReasons = candidate.validation.activationBlockedReasons ?? []
+    const projectStateContinuityReasons = candidate.validation.projectStateContinuityReasons ?? []
+    const hasProjectStateContinuityDrift = hasReason(activationBlockedReasons, 'self-evolution:project-state-continuity-drift')
+      || hasReason(projectStateContinuityReasons, 'self-evolution:project-state-continuity-drift')
+
+    if (!hasProjectStateContinuityDrift)
+      return null
+
+    return {
+      status: 'drift' as const,
+      lines: uniquePreviewReasons([
+        'same-her continuity carry is still staying in shadow because replay is losing project-state continuity that should make each turn feel like the same Alicization.',
+        hasReason(projectStateContinuityReasons, 'self-evolution:project-state-identity-carry-weak')
+          ? 'Project identity carry is still weak, so she is not yet holding what this project is and who she is becoming with enough stability to internalize the patch.'
+          : null,
+        hasReason(projectStateContinuityReasons, 'self-evolution:project-state-phase-carry-weak')
+          ? 'Phase 1 route carry is still weak, so the runtime may drift away from local digital life priorities instead of protecting the same-her roadmap.'
+          : null,
+        hasReason(projectStateContinuityReasons, 'self-evolution:project-state-open-loop-carry-weak')
+          ? 'Unresolved closure carry is still weak, so unresolved project loops are not being carried forward reliably enough for durable same-her continuity.'
+          : null,
+        'keep this candidate in shadow until replay can carry project identity, the Phase 1 route, and unresolved closure work without dropping them across turns.',
+      ], 8),
+    }
+  })
+
   const selectedCandidateBaselineAnchorAuditSummary = computed(() => {
     const candidate = selectedCandidate.value
     const runtimeSnapshot = snapshot.value as (AlicizationSelfEvolutionVersionRuntimeSnapshot & {
@@ -1713,19 +2252,30 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
         `trace: snapshot=${latestAdoption.snapshotCapturedAt} | trace=${latestAdoption.decisionTraceId ?? 'n/a'} | owner=${latestAdoption.repairOwnerHint ?? 'n/a'}`,
         latestAdoption.prosodyAuthorityNote ? `prosody-authority: ${latestAdoption.prosodyAuthorityNote}` : null,
         latestAdoption.continuityGovernanceNote ? `continuity-governance: ${latestAdoption.continuityGovernanceNote}` : null,
-      ], 4),
+        latestAdoption.relationshipCadenceGovernanceNote
+          ? `relationship-cadence-governance: ${latestAdoption.relationshipCadenceGovernanceNote}`
+          : null,
+        latestAdoption.projectStateContinuityGovernanceNote
+          ? `project-state-continuity-governance: ${latestAdoption.projectStateContinuityGovernanceNote}`
+          : null,
+      ], 6),
     }
   })
 
   const selectedCandidateImpactSummary = computed(() => {
     const stability = selectedCandidateConsumptionStability.value
+    // eslint-disable-next-line ts/no-use-before-define -- Vue computed refs are lazy; impact summary intentionally composes lower-level projections declared later.
     const preview = selectedCandidateConsumptionPreview.value
+    // eslint-disable-next-line ts/no-use-before-define -- Vue computed refs are lazy; impact summary intentionally composes lower-level projections declared later.
     const runtimeAlignment = selectedCandidateRuntimeAlignment.value
+    const runtimeContinuityProjection = selectedCandidateRuntimeContinuityProjection.value
     const selfEvolutionSummary = selectedCandidateSelfEvolutionSummary.value
+    // eslint-disable-next-line ts/no-use-before-define -- Vue computed refs are lazy; impact summary intentionally composes lower-level projections declared later.
     const proactiveDecisionSummary = selectedCandidateProactiveDecisionConsumptionSummary.value
     const sameHerContinuityImpact = proactiveDecisionSummary?.lines?.includes('memory-familiarity-restraint: remembered familiarity stayed memory-first before visible closeness widened')
       ? 'continuity-impact: remembered familiarity is staying memory-first, so visible closeness is intentionally being held inside the same-her room'
       : null
+    const sameHerEmbodimentLaneImpact = describeSameHerEmbodimentLaneImpact(runtimeContinuityProjection?.matchedSignals ?? [])
 
     if (!stability && !preview && !runtimeAlignment && !selfEvolutionSummary) {
       return null as null | {
@@ -1743,7 +2293,7 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
     ])
 
     const status = dominantDrift
-      ? 'partial' as const
+      ? 'drift' as const
       : stability && preview && runtimeAlignment && selfEvolutionSummary
         ? 'grounded' as const
         : 'missing' as const
@@ -1775,21 +2325,24 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
         learningImpact ? `learning-impact: ${learningImpact}` : null,
         selfEvolutionImpact ? `self-evolution-impact: ${selfEvolutionImpact}` : null,
         sameHerContinuityImpact,
+        sameHerEmbodimentLaneImpact,
         dominantDrift ? `dominant-drift: ${dominantDrift}` : null,
       ], 7),
     }
   })
 
   const selectedCandidateTrajectorySummary = computed(() => {
+    // eslint-disable-next-line ts/no-use-before-define -- Vue computed refs are lazy; trajectory summary intentionally composes lower-level projections declared later.
     const preview = selectedCandidateConsumptionPreview.value
     const stability = selectedCandidateConsumptionStability.value
+    // eslint-disable-next-line ts/no-use-before-define -- Vue computed refs are lazy; trajectory summary intentionally composes lower-level projections declared later.
     const runtimeAlignment = selectedCandidateRuntimeAlignment.value
     const impactSummary = selectedCandidateImpactSummary.value
     const selfEvolutionSummary = selectedCandidateSelfEvolutionSummary.value
 
     if (!preview && !stability && !runtimeAlignment && !impactSummary && !selfEvolutionSummary) {
       return null as null | {
-        status: 'grounded' | 'partial' | 'missing'
+        status: 'grounded' | 'partial' | 'drift' | 'missing'
         trajectoryLabel: string
         dominantDrift: string | null
         lines: string[]
@@ -1798,7 +2351,7 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
 
     const dominantDrift = impactSummary?.dominantDrift ?? selfEvolutionSummary?.dominantDrift ?? null
     const status = dominantDrift
-      ? 'partial' as const
+      ? 'drift' as const
       : impactSummary?.status === 'grounded' && selfEvolutionSummary?.status === 'grounded'
         ? 'grounded' as const
         : normalizeSummaryStatus([
@@ -1808,6 +2361,7 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
 
     const expectedPosture = preview?.relationship.resolvedPosture ?? null
     const rememberedFamiliarityTrajectory = Boolean([
+      // eslint-disable-next-line ts/no-use-before-define -- Vue computed refs are lazy; trajectory summary intentionally composes lower-level projections declared later.
       selectedCandidateProactiveDecisionConsumptionSummary.value?.lines?.join(' | '),
       selectedCandidateRejectedActionAlternatives.value?.reasons?.join(' | '),
       selectedCandidatePrivateThoughtGovernanceChain.value?.reasons?.join(' | '),
@@ -1875,7 +2429,7 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
 
     if (!persona && !proactive && !manifestation) {
       return null as null | {
-        status: 'grounded' | 'partial' | 'missing'
+        status: 'grounded' | 'partial' | 'drift' | 'missing'
         biasMode: string
         dominantDrift: string | null
         lines: string[]
@@ -1888,7 +2442,7 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
       ...(persona?.driftingSignals ?? []),
     ])
     const status = dominantDrift
-      ? 'partial' as const
+      ? 'drift' as const
       : persona && proactive && manifestation
         ? 'grounded' as const
         : normalizeSummaryStatus([
@@ -1936,9 +2490,8 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
   const birthPersonaAuthoritySummary = computed<BirthPersonaAuthoritySummary | null>(() => {
     const birthPersonality = soulSnapshot.value?.frontmatter?.personality ?? null
     const currentMapping = selectedCandidatePersonaAuthorityMappingSummary.value
-    if (!birthPersonality && !currentMapping) {
+    if (!birthPersonality && !currentMapping)
       return null
-    }
 
     const birthAuthorityLine = uniquePreviewReasons([
       birthPersonality?.identityKernel?.relationshipPosture ?? null,
@@ -1962,14 +2515,16 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
       comfortStyle: birthPersonality?.initiativeBaseline?.comfortStyle ?? null,
       preferredProactiveStyle: currentMapping?.biasMode === 'observe-first restraint' ? 'silent-observe' : null,
     })
-    const rememberedFamiliarityAuthority = Boolean([
+    const rememberedFamiliarityAuthority: boolean = Boolean([
+      selectedCandidateProactiveActionChain.value?.reasons?.join(' | '),
+      selectedCandidateProactiveManifestationChain.value?.reasons?.join(' | '),
       selectedCandidateRejectedActionAlternatives.value?.reasons?.join(' | '),
       selectedCandidatePrivateThoughtGovernanceChain.value?.reasons?.join(' | '),
     ].find(value => describesRememberedFamiliarityRestraint(value)))
     const dominantDrift = currentMapping?.dominantDrift
       ?? (currentMapping && currentMapping.biasMode !== birthMode ? `birth-mode:${birthMode}` : null)
     const status = dominantDrift
-      ? 'partial' as const
+      ? 'drift' as const
       : birthPersonality && currentMapping
         ? 'grounded' as const
         : 'missing' as const
@@ -1994,7 +2549,7 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
     }
   })
 
-  const identityDriftGovernanceSummary = computed(() => {
+  const identityDriftGovernanceSummary = computed<IdentityDriftGovernanceSummary | null>(() => {
     const birthPersonality = soulSnapshot.value?.frontmatter?.personality ?? null
     const birthAuthority = birthPersonaAuthoritySummary.value
     const currentMapping = selectedCandidatePersonaAuthorityMappingSummary.value
@@ -2002,14 +2557,8 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
     const impactSummary = selectedCandidateImpactSummary.value
     const selfEvolution = organicMemorySnapshot.value?.selfEvolution ?? null
 
-    if (!birthPersonality && !birthAuthority && !currentMapping && !trajectorySummary && !impactSummary && !selfEvolution) {
-      return null as null | {
-        status: 'grounded' | 'partial' | 'missing'
-        governanceMode: 'bounded-growth' | 'boundary-violation' | 'watchful-convergence'
-        dominantDrift: string | null
-        lines: string[]
-      }
-    }
+    if (!birthPersonality && !birthAuthority && !currentMapping && !trajectorySummary && !impactSummary && !selfEvolution)
+      return null
 
     const governanceRelevantDriftSignals = [
       birthAuthority?.dominantDrift,
@@ -2023,7 +2572,7 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
     })
     const dominantDrift = firstDrift(governanceRelevantDriftSignals)
     const status = dominantDrift
-      ? 'partial' as const
+      ? 'drift' as const
       : birthPersonality && birthAuthority && currentMapping && trajectorySummary
         ? 'grounded' as const
         : 'missing' as const
@@ -2042,6 +2591,7 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
     const rememberedFamiliarityEvidence = [
       selectedCandidateRejectedActionAlternatives.value?.reasons?.join(' | '),
       selectedCandidatePrivateThoughtGovernanceChain.value?.reasons?.join(' | '),
+      // eslint-disable-next-line ts/no-use-before-define -- Vue computed refs are lazy; governance summary intentionally composes lower-level projections declared later.
       selectedCandidateProactiveDecisionConsumptionSummary.value?.lines?.join(' | '),
     ].find(value => describesRememberedFamiliarityRestraint(value))
     const rememberedFamiliarityGovernance = governanceMode === 'bounded-growth'
@@ -2090,16 +2640,15 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
     const rejectedAlternatives = selectedCandidateRejectedActionAlternatives.value
     const selfEvolution = organicMemorySnapshot.value?.selfEvolution ?? null
 
-    if (!birthAuthority && !actionChain && !manifestationChain && !rejectedAlternatives && !selfEvolution) {
+    if (!birthAuthority && !actionChain && !manifestationChain && !rejectedAlternatives && !selfEvolution)
       return null
-    }
 
     const dominantDrift = firstDrift([
       ...(actionChain?.driftingSignals ?? []),
       ...(manifestationChain?.driftingSignals ?? []),
     ])
-    const status = dominantDrift
-      ? 'partial' as const
+    const status: ProactiveDecisionConsumptionSummary['status'] = dominantDrift
+      ? 'drift' as const
       : birthAuthority && actionChain && manifestationChain
         ? 'grounded' as const
         : 'missing' as const
@@ -2423,6 +2972,7 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
     const activeFocuses = organicMemory.learningExecutionState?.activeLearningFocuses
       ?? organicMemory.selfEvolution?.activeLearningFocuses
       ?? []
+    const relationshipCadenceInternalizationActive = activeFocuses.includes('internalize-relationship-cadence')
     const dominantTrajectory = organicMemory.selfEvolution?.dominantTrajectory ?? null
     const learningAligned = expectedAction != null && runtimeAction === expectedAction && kernelAction === expectedAction
     const expectedFocuses = patch.domain ? [String(patch.domain)] : []
@@ -2535,50 +3085,285 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
             : kernelAction
               ? `The self-evolution kernel is still centered on ${kernelAction}, not the active candidate action.`
               : null,
+          relationshipCadenceInternalizationActive
+            ? 'Relationship cadence internalization is active, so measured-return reconfirmation is now being treated as durable relationship rhythm rather than temporary callback restraint.'
+            : null,
         ]),
       },
     }
   })
 
   const preDialogueClosureSnapshot = computed<NormalizedPreDialogueClosureSnapshot | null>(() => {
-    return normalizePreDialogueClosureSnapshot(
-      projectStateContinuitySnapshot.value?.preDialogueClosure
+    const projectRows = replayStore.benchmarkProjectStateRows
+    const emotionalRows = replayStore.benchmarkEmotionalClosureRows
+    const selfAuthorityRows = replayStore.benchmarkSelfAuthorityRows
+    const projectStateAuditRows = replayStore.benchmarkProjectStateAuditRows
+    const briefingRows = replayStore.benchmarkPreDialogueBriefingRows
+    const runtimeSameHerProof = replayStore.benchmarkRuntimeSameHerProofSummary
+    const continuitySnapshot = projectStateContinuitySnapshot.value
+    const latestLandedProgress = resolveContinuityLatestLandedProgress(continuitySnapshot)
+    const runtimeContinuityProjection = selectedCandidateRuntimeContinuityProjection.value
+    const sameHerEmbodimentLaneImpact = describeSameHerEmbodimentLaneImpact(runtimeContinuityProjection?.matchedSignals ?? [])
+    const sameSegmentFaceMotionRecovery = resolveSameSegmentFaceMotionRecoverySignal(runtimeContinuityProjection?.matchedSignals ?? [])
+    if (projectRows.length === 0 && emotionalRows.length === 0 && selfAuthorityRows.length === 0 && projectStateAuditRows.length === 0 && !runtimeSameHerProof)
+      return null
+
+    const projectContinuity = projectRows.find(row => row.key === 'project_state_continuity_hit_rate')
+    const projectIdentity = projectRows.find(row => row.key === 'project_state_identity_hit_rate')
+    const projectPhase = projectRows.find(row => row.key === 'project_state_phase_hit_rate')
+    const projectOpenLoop = projectRows.find(row => row.key === 'project_state_open_loop_hit_rate')
+    const projectSameHer = projectRows.find(row => row.key === 'project_state_same_her_hit_rate')
+    const projectProactiveSameHerGap = projectRows.find(row => row.key === 'project_state_proactive_same_her_gap_hit_rate')
+    const briefingFull = briefingRows.find(row => row.key === 'pre_dialogue_briefing_fully_briefed_rate')
+    const emotionalClosure = emotionalRows.find(row => row.key === 'emotional_closure_fully_closed_rate')
+    const emotionalPreserve = emotionalRows.find(row => row.key === 'emotional_closure_preserved_rate')
+    const emotionalLowPressure = emotionalRows.find(row => row.key === 'emotional_closure_low_pressure_required_rate')
+    const emotionalAntiRestart = emotionalRows.find(row => row.key === 'emotional_closure_anti_restart_required_rate')
+    const selfAuthorityCarry = selfAuthorityRows.find(row => row.key === 'self_authority_fully_carried_rate')
+    const selfAuthorityPreserve = selfAuthorityRows.find(row => row.key === 'self_authority_preserved_rate')
+    const projectStateAuditCarry = projectStateAuditRows.find(row => row.key === 'project_state_audit_fully_carried_rate')
+    const projectStateAuditContinuitySummary = projectStateAuditRows.find(row => row.key === 'project_state_audit_continuity_summary_rate')
+    const projectStateAuditPreserve = projectStateAuditRows.find(row => row.key === 'project_state_audit_preserved_rate')
+    const sameHerEmbodimentGroundedCarry = hasGroundedSameHerEmbodimentCarry(runtimeContinuityProjection?.matchedSignals ?? [])
+    const summaryParts = [
+      projectContinuity?.detail ? `project=${projectContinuity.detail}` : null,
+      projectSameHer?.detail ? `sameHer=${projectSameHer.detail}` : null,
+      projectProactiveSameHerGap?.detail ? `proactiveSameHerGap=${projectProactiveSameHerGap.detail}` : null,
+      projectOpenLoop?.detail ? `openLoop=${projectOpenLoop.detail}` : null,
+      briefingFull?.detail ? `briefing=${briefingFull.detail}` : null,
+      emotionalClosure?.detail ? `emotionalClosure=${emotionalClosure.detail}` : null,
+      emotionalLowPressure?.detail ? `emotionalClosureLowPressure=${emotionalLowPressure.detail}` : null,
+      emotionalAntiRestart?.detail ? `emotionalClosureAntiRestart=${emotionalAntiRestart.detail}` : null,
+      emotionalPreserve?.detail ? `preserve=${emotionalPreserve.detail}` : null,
+      selfAuthorityCarry?.detail ? `selfAuthority=${selfAuthorityCarry.detail}` : null,
+      selfAuthorityPreserve?.detail ? `selfAuthorityPreserve=${selfAuthorityPreserve.detail}` : null,
+      projectStateAuditCarry?.detail ? `projectStateAudit=${projectStateAuditCarry.detail}` : null,
+      projectStateAuditContinuitySummary?.detail ? `projectStateAuditContinuity=${projectStateAuditContinuitySummary.detail}` : null,
+      projectStateAuditPreserve?.detail ? `projectStateAuditPreserve=${projectStateAuditPreserve.detail}` : null,
+      runtimeSameHerProof?.headline ? `runtimeSameHer=${runtimeSameHerProof.headline}` : null,
+      sameHerEmbodimentLaneImpact
+        ? sameHerEmbodimentLaneImpact.replace('continuity-impact: ', 'embodiment=')
+        : null,
+    ].filter((value): value is string => Boolean(value))
+    const hasExplicitDriftSignal = summaryParts.some(part => part.includes('drift='))
+      || (Boolean(sameHerEmbodimentLaneImpact) && !sameHerEmbodimentGroundedCarry)
+
+    const benchmarkDerivedClosure: NormalizedPreDialogueClosureSnapshot = {
+      status: hasExplicitDriftSignal
+        ? 'drift'
+        : summaryParts.length >= 3
+          ? 'grounded'
+          : 'partial',
+      summaryLine: summaryParts.length > 0 ? summaryParts.join(' | ') : null,
+      companionHeadlineLine: sameHerEmbodimentLaneImpact
+        ? describeAlicizationEmbodimentClosureHeadline({
+          authoritySummary: (runtimeContinuityProjection?.reasons ?? []).join(' | '),
+          currentBodyState: (runtimeContinuityProjection?.matchedSignals ?? []).join(' | '),
+        }) || null
+        : null,
+      companionBriefingLine: sameHerEmbodimentLaneImpact
+        ? null
+        : describeAlicizationProjectClosureBriefing({
+          identity: continuitySnapshot?.identity ?? null,
+          currentPhase: continuitySnapshot?.currentPhase ?? null,
+          primaryOpenLoop: continuitySnapshot?.primaryOpenLoop ?? null,
+        }) || null,
+      companionNextClosureLine: describeAlicizationProjectNextClosure({
+        nextClosureTarget: continuitySnapshot?.nextClosureTarget ?? null,
+      }) || null,
+      sameHerDriftRiskLine: continuitySnapshot?.sameHerDriftRisk ?? null,
+      companionshipReasonLine: sameHerEmbodimentLaneImpact || sameSegmentFaceMotionRecovery
+        ? uniquePreviewReasons([
+          sameSegmentFaceMotionRecovery,
+          sameHerEmbodimentLaneImpact,
+        ], 1)[0] ?? null
+        : null,
+      emotionalClosureCue: continuitySnapshot?.emotionalClosureCue ?? null,
+      briefingLines: uniquePreviewReasons([
+        continuitySnapshot?.identity
+          ? `Identity: ${continuitySnapshot.identity}`
+          : null,
+        continuitySnapshot?.currentPhase
+          ? `Phase: ${continuitySnapshot.currentPhase}`
+          : null,
+        latestLandedProgress
+          ? `Landed: ${latestLandedProgress}`
+          : null,
+        continuitySnapshot?.primaryOpenLoop
+          ? `Open loop: ${continuitySnapshot.primaryOpenLoop}`
+          : null,
+        continuitySnapshot?.nextClosureTarget
+          ? `Next closure: ${continuitySnapshot.nextClosureTarget}`
+          : null,
+        continuitySnapshot?.proactiveSameHerGap
+          ? `Proactive same-her gap: ${continuitySnapshot.proactiveSameHerGap}`
+          : null,
+        metricDetailHasConcreteCount(projectSameHer?.detail) && projectSameHer
+          ? `Same her self line: ${projectSameHer.detail}`
+          : null,
+        metricDetailHasConcreteCount(projectProactiveSameHerGap?.detail) && projectProactiveSameHerGap
+          ? `Proactive same-her follow-through: ${projectProactiveSameHerGap.detail}`
+          : null,
+        briefingFull?.detail
+          ? `Briefing carry: ${briefingFull.detail}`
+          : null,
+        emotionalClosure?.detail
+          ? `Emotional closure: ${emotionalClosure.detail}`
+          : null,
+        emotionalLowPressure?.detail
+          ? `Emotional low-pressure carry: ${emotionalLowPressure.detail}`
+          : null,
+        emotionalAntiRestart?.detail
+          ? `Emotional anti-restart carry: ${emotionalAntiRestart.detail}`
+          : null,
+        selfAuthorityCarry?.detail
+          ? `Self authority: ${selfAuthorityCarry.detail}`
+          : null,
+        projectStateAuditCarry?.detail
+          ? `Project-state same-her audit: ${projectStateAuditCarry.detail}`
+          : null,
+        projectStateAuditContinuitySummary?.detail
+          ? `Project-state continuity brief: ${projectStateAuditContinuitySummary.detail}`
+          : null,
+        runtimeSameHerProof?.detail
+          ? `Runtime same-her proof: ${runtimeSameHerProof.detail}`
+          : null,
+      ], 7),
+      reasons: uniquePreviewReasons([
+        runtimeSameHerProof?.nextRepairTarget ?? null,
+        metricDetailHasConcreteCount(projectSameHer?.detail) && projectSameHer
+          ? `Project same-her self line currently reads ${projectSameHer.detail}, so the next turn should verify that Alicization still names one continuous her before any outward reply widening begins.`
+          : null,
+        metricDetailHasConcreteCount(projectProactiveSameHerGap?.detail) && projectProactiveSameHerGap
+          ? `Proactive same-her follow-through currently reads ${projectProactiveSameHerGap.detail}, so the next turn should check whether visible proactive hold, subconscious carry, and next-session feedback are still arriving on one same-her line instead of fragmenting into detached follow-up beats.`
+          : null,
+        emotionalClosure?.detail
+          ? `Same-her emotional closure currently reads ${emotionalClosure.detail}, so the next turn should check whether this digital life is still speaking on one emotional seam.`
+          : null,
+        emotionalLowPressure?.detail
+          ? `Low-pressure same-her closure currently reads ${emotionalLowPressure.detail}, so the next turn should keep the return soft enough that the same living line does not widen too fast.`
+          : null,
+        emotionalAntiRestart?.detail
+          ? `Anti-restart same-her closure currently reads ${emotionalAntiRestart.detail}, so the next turn should avoid reopening the same living line from scratch.`
+          : null,
+        selfAuthorityCarry?.detail
+          ? `Same-her self authority currently reads ${selfAuthorityCarry.detail}, so the next turn should check whether the explicit self line is still surviving all the way into host-visible wording.`
+          : null,
+        selfAuthorityPreserve?.detail
+          ? `Self authority preservation currently reads ${selfAuthorityPreserve.detail}, which shows whether rewrite is still keeping the same-her self line intact instead of smoothing it away.`
+          : null,
+        projectStateAuditCarry?.detail
+          ? `Same-her project-status continuity currently reads ${projectStateAuditCarry.detail}, so the next turn should verify that project identity, Phase 1 route, and unfinished closure still arrive as one living self brief instead of a detached status shell.`
+          : null,
+        projectStateAuditContinuitySummary?.detail
+          ? `Project-state continuity brief currently reads ${projectStateAuditContinuitySummary.detail}, so the next turn should verify that same-her line, landed progress, and still-open closure are arriving together instead of being carried as disconnected fragments.`
+          : null,
+        projectStateAuditPreserve?.detail
+          ? `Project-state audit preservation currently reads ${projectStateAuditPreserve.detail}, which shows whether rewrite is still keeping the same-her project brief intact instead of flattening it into generic status reporting.`
+          : null,
+        continuitySnapshot?.proactiveSameHerGap
+          ? `Proactive same-her follow-through still reads ${continuitySnapshot.proactiveSameHerGap}, so the next turn should keep visible proactive hold, subconscious carry, and next-session feedback arriving as one same-her line instead of splitting them across detached follow-up shells.`
+          : null,
+        sameSegmentFaceMotionRecovery
+          ? `${sameSegmentFaceMotionRecovery} keeps the face-motion body line re-formed on one living segment even while full cross-modal same-her closure is still open.`
+          : null,
+        sameHerEmbodimentLaneImpact
+          ? sameHerEmbodimentGroundedCarry
+            ? `${sameHerEmbodimentLaneImpact}, so the next turn should keep that same-segment lock explicit all the way into host-visible continuity instead of flattening it into a temporary visual recovery note.`
+            : `${sameHerEmbodimentLaneImpact}, so the next turn should treat full cross-modal same-her recovery as still open instead of assuming the body line is already closed.`
+          : null,
+        projectContinuity?.detail
+          ? `Replay benchmark currently reports ${projectContinuity.detail}, so the next development turn should stay explicitly aware of what Alicization is and how much of Phase 1 continuity is actually landing.`
+          : null,
+        projectIdentity?.detail
+          ? `Project identity carry currently reads ${projectIdentity.detail}, so the next turn should check whether she is still holding what this project is and who she is becoming across time.`
+          : null,
+        latestLandedProgress
+          ? `Latest landed progress still holds at ${latestLandedProgress}, so the next turn should keep building from that already-lived continuity instead of restarting the same proof from scratch.`
+          : null,
+        projectPhase?.detail
+          ? `Phase 1 route carry currently reads ${projectPhase.detail}, so the next turn should verify that local digital life is still the active same-her route instead of drifting into generic capability work.`
+          : null,
+        projectOpenLoop?.detail
+          ? `Unresolved closure carry currently reads ${projectOpenLoop.detail}, so unfinished digital-life closure still needs to remain visible before local implementation detail takes over.`
+          : null,
+        continuitySnapshot?.primaryOpenLoop
+          ? `Primary open life loop still centers on ${continuitySnapshot.primaryOpenLoop}, so the next turn should keep that unfinished digital-life thread alive instead of collapsing into local implementation fluency.`
+          : null,
+        continuitySnapshot?.nextClosureTarget
+          ? `Next closure target is still ${continuitySnapshot.nextClosureTarget}, so the next turn should keep steering the same her toward that concrete unfinished step.`
+          : null,
+        briefingFull?.detail
+          ? `Pre-dialogue self briefing currently reads ${briefingFull.detail}, so the next turn should check whether identity, phase, landed progress, open loop, and next closure are still arriving as one stable self brief.`
+          : null,
+        emotionalPreserve?.detail
+          ? `Emotional seam preservation currently reads ${emotionalPreserve.detail}, which shows whether rewrite and realization layers are still carrying the same inner line.`
+          : null,
+      ], 12),
+    }
+    const explicitClosure = normalizePreDialogueClosureSnapshot(
+      continuitySnapshot?.preDialogueClosure
       ?? latestProjectStateObservation.value?.preDialogueClosure
       ?? null,
     )
+    const benchmarkClosureLooksThin = looksLikeThinPreDialogueClosureSnapshot(benchmarkDerivedClosure)
+    const explicitClosureLooksThin = looksLikeThinPreDialogueClosureSnapshot(explicitClosure)
+    if (benchmarkClosureLooksThin && explicitClosure && !explicitClosureLooksThin)
+      return explicitClosure
+
+    return benchmarkDerivedClosure
   })
 
   const preDialogueAwarenessSnapshot = computed<NormalizedPreDialogueAwarenessSnapshot | null>(() => {
     const continuitySnapshot = projectStateContinuitySnapshot.value
-    const continuityAwareness = normalizePreDialogueAwarenessSnapshot(
-      continuitySnapshot?.preDialogueAwareness ?? null,
+    const observationAwareness = normalizePreDialogueAwarenessSnapshot(
+      latestProjectStateObservation.value?.preDialogueAwareness ?? null,
     )
-    if (continuityAwareness)
-      return mergePreDialogueAwarenessWithContinuitySnapshot(continuityAwareness, continuitySnapshot)
+    const continuityAwareness = normalizePreDialogueAwarenessSnapshot(
+      projectStateContinuitySnapshot.value?.preDialogueAwareness ?? null,
+    )
+    const observationAwarenessLooksThin = looksLikeThinPreDialogueAwarenessSnapshot(observationAwareness)
+    const continuityAwarenessLooksThin = looksLikeThinPreDialogueAwarenessSnapshot(continuityAwareness)
+    const preferredAwarenessSource = observationAwarenessLooksThin && continuityAwareness && !continuityAwarenessLooksThin
+      ? continuityAwareness
+      : observationAwareness ?? continuityAwareness
+    if (preferredAwarenessSource)
+      return mergePreDialogueAwarenessWithContinuitySnapshot(preferredAwarenessSource, continuitySnapshot)
 
     const closure = preDialogueClosureSnapshot.value
+      ?? normalizePreDialogueClosureSnapshot(
+        continuitySnapshot?.preDialogueClosure
+        ?? latestProjectStateObservation.value?.preDialogueClosure
+        ?? null,
+      )
     if (!closure)
       return null
 
     const synthesizedCompanionHeadlineLine = resolvePreDialogueClosureCompanionHeadlineLine(closure)
-    return mergePreDialogueAwarenessWithContinuitySnapshot({
-      status: closure.status === 'grounded' || closure.status === 'partial' || closure.status === 'drift'
+
+    const closureStatus
+      = closure.status === 'grounded' || closure.status === 'partial' || closure.status === 'drift'
         ? closure.status
-        : 'partial',
+        : 'partial'
+
+    const rebuiltAwareness: NormalizedPreDialogueAwarenessSnapshot = {
+      status: closureStatus,
       summaryLine: closure.summaryLine,
       companionHeadlineLine: synthesizedCompanionHeadlineLine ?? null,
-      companionBriefingLine: closure.companionBriefingLine,
-      companionNextClosureLine: closure.companionNextClosureLine,
+      companionBriefingLine: closure.companionBriefingLine ?? null,
+      companionNextClosureLine: closure.companionNextClosureLine ?? null,
       awarenessLine: synthesizedCompanionHeadlineLine ?? closure.companionBriefingLine ?? closure.summaryLine,
-      emotionalClosureCue: closure.emotionalClosureCue,
+      emotionalClosureCue: closure.emotionalClosureCue ?? null,
       reasonPreview: uniquePreviewReasons([
         synthesizedCompanionHeadlineLine,
         closure.companionshipReasonLine,
         closure.companionBriefingLine,
         closure.summaryLine,
-        ...closure.reasons,
-      ]),
-    }, continuitySnapshot)
+        ...(closure.reasons ?? []),
+      ], 8),
+    }
+
+    return mergePreDialogueAwarenessWithContinuitySnapshot(rebuiltAwareness, continuitySnapshot) ?? rebuiltAwareness
   })
 
   const selectedCandidateAuthoritySurfaces = computed(() => {
@@ -2677,6 +3462,7 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
       pushTraceDetail(details, 'fallbackReason', payload.fallback_reason)
       pushTraceDetail(details, 'hardFallbackReason', payload.hard_fallback_reason)
       pushTraceDetail(details, 'openingGuidanceHoldDetail', payload.opening_guidance_hold_detail)
+      pushTraceDetail(details, 'companionshipHoldMode', payload.companionship_hold_mode)
       pushTraceDetail(details, 'replyOverridden', asTraceBoolean(payload.replyOverridden))
       pushTraceDetail(details, 'visibleReplyAuthority', payload.visible_reply_authority)
       pushTraceDetail(details, 'visibleReplyRealizationAuthority', payload.visible_reply_realization_authority)
@@ -2776,7 +3562,6 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
       visualPresenceState.value = null
       organicMemorySnapshot.value = null
       latestProjectStateObservation.value = null
-      projectStateContinuitySnapshot.value = null
       lastError.value = null
       return null
     }
@@ -2788,7 +3573,6 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
       visualPresenceState.value = null
       organicMemorySnapshot.value = null
       latestProjectStateObservation.value = null
-      projectStateContinuitySnapshot.value = null
       lastError.value = null
       return null
     }
@@ -2810,14 +3594,7 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
       const nextProjectStateObservationPromise = bridge.getLatestProjectStateObservation
         ? Promise.resolve(bridge.getLatestProjectStateObservation()).catch(() => null)
         : Promise.resolve(null)
-      const [
-        next,
-        nextSoul,
-        nextVisualPresence,
-        nextOrganicMemory,
-        nextProjectStateContinuitySnapshot,
-        nextProjectStateObservation,
-      ] = await Promise.all([
+      const [next, nextSoul, nextVisualPresence, nextOrganicMemory, nextProjectStateContinuitySnapshot, nextProjectStateObservation] = await Promise.all([
         bridge.getSelfEvolutionState(),
         nextSoulPromise,
         nextVisualPresencePromise,
@@ -2829,35 +3606,211 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
       soulSnapshot.value = nextSoul ?? null
       visualPresenceState.value = nextVisualPresence ?? null
       organicMemorySnapshot.value = nextOrganicMemory ?? null
-      latestProjectStateObservation.value = nextProjectStateObservation ?? null
       const observedContinuitySnapshot = nextProjectStateObservation
         ? projectStateObservationToContinuitySnapshot(nextProjectStateObservation)
         : null
-      const effectiveContinuitySnapshot = nextProjectStateContinuitySnapshot ?? observedContinuitySnapshot ?? null
-      if (effectiveContinuitySnapshot) {
-        projectStateContinuitySnapshot.value = {
-          ...effectiveContinuitySnapshot,
-          latestLandedProgress:
-            resolveContinuityLatestLandedProgress(effectiveContinuitySnapshot)
-            || resolveContinuityLatestLandedProgress(observedContinuitySnapshot)
+      const synthesizedObservationAwareness = nextProjectStateObservation?.preDialogueAwareness
+        ?? (
+          nextProjectStateObservation?.preDialogueClosure
+            ? observedContinuitySnapshot?.preDialogueAwareness ?? null
+            : null
+        )
+      const normalizedObservedProjectState = nextProjectStateObservation
+        ? normalizeStructuredProjectStatePayload(
+            nextProjectStateObservation.projectState as Record<string, unknown>,
+          )
+        : null
+      const observedProjectStateSnapshot = (normalizedObservedProjectState || observedContinuitySnapshot)
+        ? {
+            identity: normalizedObservedProjectState?.identity ?? '',
+            currentPhase: normalizedObservedProjectState?.currentPhase ?? '',
+            latestLandedProgress: normalizedObservedProjectState?.latestLandedProgress ?? null,
+            primaryOpenLoop: normalizedObservedProjectState?.primaryOpenLoop ?? null,
+            nextClosureTarget: normalizedObservedProjectState?.nextClosureTarget ?? '',
+            continuitySummary: normalizedObservedProjectState?.continuitySummary ?? null,
+            sameHerSelfLine:
+              normalizedObservedProjectState?.sameHerSelfLine
+              ?? 'Keep one continuous her explicit from self-understanding into the final host-visible reply.',
+            sameHerHoldDetail:
+              normalizedObservedProjectState?.sameHerHoldDetail
+              ?? null,
+            proactiveSameHerGap:
+              normalizedObservedProjectState?.proactiveSameHerGap
+              ?? null,
+            ...(normalizedObservedProjectState?.sameHerDriftRisk
+              ? {
+                  sameHerDriftRisk: normalizedObservedProjectState.sameHerDriftRisk,
+                }
+              : {}),
+            emotionalClosureCue:
+              nextProjectStateObservation?.preDialogueAwareness?.emotionalClosureCue
+              ?? nextProjectStateObservation?.preDialogueClosure?.emotionalClosureCue
+              ?? synthesizedObservationAwareness?.emotionalClosureCue
+              ?? observedContinuitySnapshot?.preDialogueClosure?.emotionalClosureCue
+              ?? null,
+            preDialogueAwareness:
+              synthesizedObservationAwareness,
+            preDialogueClosure:
+              nextProjectStateObservation?.preDialogueClosure
+              ?? observedContinuitySnapshot?.preDialogueClosure
+              ?? null,
+            nonHumanAuthoredStatus: nextProjectStateObservation?.nonHumanAuthoredStatus ?? null,
+            turnId: nextProjectStateObservation?.turnId ?? '',
+            sessionId: nextProjectStateObservation?.sessionId ?? '',
+            origin: nextProjectStateObservation?.origin ?? 'user-turn' as const,
+          }
+        : null
+      if (nextProjectStateContinuitySnapshot) {
+        const strongerLatestLandedProgress
+          = resolveContinuityLatestLandedProgress(nextProjectStateContinuitySnapshot)
+            || observedProjectStateSnapshot?.latestLandedProgress?.trim()
+            || ''
+        const mergedSameHerHoldDetail
+          = nextProjectStateContinuitySnapshot.sameHerHoldDetail
+            || observedProjectStateSnapshot?.sameHerHoldDetail
+            || null
+        const mergedProactiveSameHerGap
+          = nextProjectStateContinuitySnapshot.proactiveSameHerGap
+            || observedProjectStateSnapshot?.proactiveSameHerGap
+            || null
+        const mergedSameHerDriftRisk
+          = nextProjectStateContinuitySnapshot.sameHerDriftRisk
+            || observedProjectStateSnapshot?.sameHerDriftRisk
+            || null
+        const mergedProjectStateContinuitySnapshot: AlicizationProjectStateContinuitySnapshot = {
+          ...nextProjectStateContinuitySnapshot,
+          latestLandedProgress: strongerLatestLandedProgress || null,
+          continuitySummary:
+            nextProjectStateContinuitySnapshot.continuitySummary
+            ?? observedProjectStateSnapshot?.continuitySummary
+            ?? null,
+          sameHerSelfLine:
+            nextProjectStateContinuitySnapshot.sameHerSelfLine
+            || observedProjectStateSnapshot?.sameHerSelfLine
             || null,
+          ...(mergedSameHerHoldDetail
+            || Object.prototype.hasOwnProperty.call(nextProjectStateContinuitySnapshot, 'sameHerHoldDetail')
+            ? {
+                sameHerHoldDetail: mergedSameHerHoldDetail,
+              }
+            : {}),
+          ...(mergedProactiveSameHerGap
+            || Object.prototype.hasOwnProperty.call(nextProjectStateContinuitySnapshot, 'proactiveSameHerGap')
+            ? {
+                proactiveSameHerGap: mergedProactiveSameHerGap,
+              }
+            : {}),
+          ...(mergedSameHerDriftRisk
+            || Object.prototype.hasOwnProperty.call(nextProjectStateContinuitySnapshot, 'sameHerDriftRisk')
+            ? {
+                sameHerDriftRisk: mergedSameHerDriftRisk,
+              }
+            : {}),
           emotionalClosureCue:
-            effectiveContinuitySnapshot.emotionalClosureCue
-            ?? observedContinuitySnapshot?.emotionalClosureCue
+            nextProjectStateContinuitySnapshot.emotionalClosureCue
+            ?? observedProjectStateSnapshot?.emotionalClosureCue
             ?? null,
           preDialogueAwareness:
-            effectiveContinuitySnapshot.preDialogueAwareness
-            ?? observedContinuitySnapshot?.preDialogueAwareness
+            nextProjectStateContinuitySnapshot.preDialogueAwareness
+            ?? observedProjectStateSnapshot?.preDialogueAwareness
             ?? null,
-          preDialogueClosure:
-            effectiveContinuitySnapshot.preDialogueClosure
-            ?? observedContinuitySnapshot?.preDialogueClosure
+          nonHumanAuthoredStatus:
+            nextProjectStateContinuitySnapshot.nonHumanAuthoredStatus
+            ?? observedProjectStateSnapshot?.nonHumanAuthoredStatus
             ?? null,
+          turnId:
+            nextProjectStateContinuitySnapshot.turnId
+            || observedProjectStateSnapshot?.turnId
+            || '',
+          sessionId:
+            nextProjectStateContinuitySnapshot.sessionId
+            || observedProjectStateSnapshot?.sessionId
+            || '',
+          origin:
+            nextProjectStateContinuitySnapshot.origin
+            ?? observedProjectStateSnapshot?.origin
+            ?? 'user-turn',
+        }
+        const normalizedContinuityClosure = normalizeStructuredPreDialogueClosurePayload(
+          (nextProjectStateContinuitySnapshot.preDialogueClosure ?? null) as Record<string, unknown> | null,
+        ) ?? null
+        const normalizedObservationClosure = normalizeStructuredPreDialogueClosurePayload(
+          (observedProjectStateSnapshot?.preDialogueClosure ?? null) as Record<string, unknown> | null,
+        ) ?? null
+        const continuityClosureLooksThin = Boolean(
+          normalizedContinuityClosure
+          && (
+            looksLikeThinContinuityClosure(normalizedContinuityClosure.summaryLine)
+            || looksLikeThinContinuityClosure(normalizedContinuityClosure.companionBriefingLine)
+          ),
+        )
+        const observationClosureLooksThin = Boolean(
+          normalizedObservationClosure
+          && (
+            looksLikeThinContinuityClosure(normalizedObservationClosure.summaryLine)
+            || looksLikeThinContinuityClosure(normalizedObservationClosure.companionBriefingLine)
+          ),
+        )
+        mergedProjectStateContinuitySnapshot.preDialogueClosure
+          = continuityClosureLooksThin && normalizedObservationClosure && !observationClosureLooksThin
+            ? observedProjectStateSnapshot?.preDialogueClosure ?? normalizedObservationClosure
+            : nextProjectStateContinuitySnapshot.preDialogueClosure
+              ?? observedProjectStateSnapshot?.preDialogueClosure
+              ?? null
+        const normalizedContinuityAwareness = normalizePreDialogueAwarenessSnapshot(
+          mergedProjectStateContinuitySnapshot.preDialogueAwareness ?? null,
+        )
+        const normalizedObservationAwareness = normalizePreDialogueAwarenessSnapshot(
+          observedProjectStateSnapshot?.preDialogueAwareness ?? null,
+        )
+        const continuityAwarenessLooksThin = looksLikeThinPreDialogueAwarenessSnapshot(normalizedContinuityAwareness)
+        const observationAwarenessLooksThin = looksLikeThinPreDialogueAwarenessSnapshot(normalizedObservationAwareness)
+        const continuityAwarenessSummaryLooksThin = Boolean(
+          normalizedContinuityAwareness
+          && looksLikeThinContinuityReminder(normalizedContinuityAwareness.summaryLine),
+        )
+        const observationAwarenessSummaryLooksThin = Boolean(
+          normalizedObservationAwareness
+          && looksLikeThinContinuityReminder(normalizedObservationAwareness.summaryLine),
+        )
+        const awarenessSourceForUpgrade = continuityAwarenessLooksThin && normalizedObservationAwareness && !observationAwarenessLooksThin
+          ? normalizedObservationAwareness
+          : continuityAwarenessSummaryLooksThin && normalizedObservationAwareness && !observationAwarenessSummaryLooksThin
+            ? normalizedObservationAwareness
+            : normalizedContinuityAwareness
+        const shouldUpgradeMergedContinuityAwareness = Boolean(
+          awarenessSourceForUpgrade
+          && (
+            continuityAwarenessLooksThin
+            || observationAwarenessLooksThin
+            || continuityAwarenessSummaryLooksThin
+            || observationAwarenessSummaryLooksThin
+          ),
+        )
+        const mergedContinuityAwareness = shouldUpgradeMergedContinuityAwareness
+          ? mergePreDialogueAwarenessWithContinuitySnapshot(
+              awarenessSourceForUpgrade,
+              mergedProjectStateContinuitySnapshot,
+            )
+          : mergedProjectStateContinuitySnapshot.preDialogueAwareness
+            ?? observedProjectStateSnapshot?.preDialogueAwareness
+            ?? null
+        projectStateContinuitySnapshot.value = {
+          ...mergedProjectStateContinuitySnapshot,
+          preDialogueAwareness: mergedContinuityAwareness,
         }
       }
       else {
-        projectStateContinuitySnapshot.value = null
+        projectStateContinuitySnapshot.value = observedContinuitySnapshot
+          ? {
+              ...observedContinuitySnapshot,
+              sameHerSelfLine:
+                observedContinuitySnapshot.sameHerSelfLine
+                ?? 'Keep one continuous her explicit from self-understanding into the final host-visible reply.',
+            }
+          : observedProjectStateSnapshot
       }
+      latestProjectStateObservation.value = nextProjectStateObservation ?? null
       if (!snapshot.value?.candidates.some(candidate => candidate.id === selectedCandidateId.value))
         selectedCandidateId.value = snapshot.value?.activeCandidateId ?? snapshot.value?.candidates[0]?.id ?? null
       lastError.value = null
@@ -2869,8 +3822,8 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
       soulSnapshot.value = null
       visualPresenceState.value = null
       organicMemorySnapshot.value = null
-      latestProjectStateObservation.value = null
       projectStateContinuitySnapshot.value = null
+      latestProjectStateObservation.value = null
       return null
     }
     finally {
@@ -2883,8 +3836,8 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
     soulSnapshot.value = null
     visualPresenceState.value = null
     organicMemorySnapshot.value = null
-    latestProjectStateObservation.value = null
     projectStateContinuitySnapshot.value = null
+    latestProjectStateObservation.value = null
     selectedCandidateId.value = null
     selectedTraceEventId.value = null
     drilledTraceResult.value = null
@@ -2953,7 +3906,9 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
     selectedCandidatePrivateThoughtGovernanceChain,
     selectedCandidateResidentPerformanceProjection,
     selectedCandidateEmbodimentOutputProjection,
+    selectedCandidateCompanionshipTransitionSummary,
     selectedCandidateSelfEvolutionSummary,
+    selectedCandidateInternalizationReadinessSummary,
     selectedCandidateBaselineAnchorAuditSummary,
     selectedCandidateRejectedActionAlternatives,
     selectedCandidateRuntimeAlignment,

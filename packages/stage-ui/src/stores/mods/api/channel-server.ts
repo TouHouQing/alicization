@@ -16,6 +16,7 @@ export const useModsServerChannelStore = defineStore('mods:channels:proj-aliciza
   const pendingSend = ref<Array<WebSocketEvent>>([])
   const listenersInitialized = ref(false)
   const listenerDisposers = ref<Array<() => void>>([])
+  const hasAuthenticatedConnection = ref(false)
 
   const defaultWebSocketUrl = import.meta.env.VITE_AIRI_WS_URL || 'ws://localhost:6121/ws'
   const websocketUrl = useLocalStorage('settings/connection/websocket-url', defaultWebSocketUrl)
@@ -65,19 +66,24 @@ export const useModsServerChannelStore = defineStore('mods:channels:proj-aliciza
           initializing.value = null
           clearListeners()
 
-          console.warn('WebSocket server connection error:', error)
+          if (hasAuthenticatedConnection.value) {
+            console.warn('WebSocket server connection error:', error)
+          }
         },
         onClose: () => {
           connected.value = false
           initializing.value = null
           clearListeners()
 
-          console.warn('WebSocket server connection closed')
+          if (hasAuthenticatedConnection.value) {
+            console.warn('WebSocket server connection closed')
+          }
         },
       })
 
       client.value.onEvent('module:authenticated', (event) => {
         if (event.data.authenticated) {
+          hasAuthenticatedConnection.value = true
           connected.value = true
           flush()
           initializeListeners()
@@ -181,6 +187,7 @@ export const useModsServerChannelStore = defineStore('mods:channels:proj-aliciza
       client.value.close()
       client.value = undefined
     }
+    hasAuthenticatedConnection.value = false
     connected.value = false
     initializing.value = null
   }

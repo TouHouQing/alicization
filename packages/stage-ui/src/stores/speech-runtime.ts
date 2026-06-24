@@ -1,6 +1,6 @@
-import { defineStore } from 'pinia'
-
 import type { SpeechPipelineRuntime } from '../services/speech/pipeline-runtime'
+
+import { defineStore } from 'pinia'
 
 import { createSpeechPipelineRuntime } from '../services/speech/pipeline-runtime'
 

@@ -52,14 +52,14 @@ export function resolveStagePresencePulsePerformance(
       ? 'gentle'
       : lowerPressureTiming && payload.embodiedPresence === 'attentive'
         ? 'gentle'
-      : 'calm'
+        : 'calm'
   const emphasis = payload.embodiedPresence === 'concerned'
     ? 1
     : lowerPressureTiming && payload.embodiedPresence === 'attentive'
       ? 0
-    : payload.embodiedPresence === 'attentive'
-      ? 1
-      : 0
+      : payload.embodiedPresence === 'attentive'
+        ? 1
+        : 0
 
   return {
     baseEmotion: emotion,

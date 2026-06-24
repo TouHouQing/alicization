@@ -1,13 +1,8 @@
 import localforage from 'localforage'
 
-import { loadLive2DModelPreview as generateLive2DPreview } from '@proj-alicization/stage-ui-live2d/utils/live2d-preview'
-import { loadVrmModelPreview as generateVrmPreview } from '@proj-alicization/stage-ui-three/utils/vrm-preview'
 import { nanoid } from 'nanoid'
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-
-import '@proj-alicization/stage-ui-live2d/utils/live2d-zip-loader'
-import '@proj-alicization/stage-ui-live2d/utils/live2d-opfs-registration'
 
 export enum DisplayModelFormat {
   Live2dZip = 'live2d-zip',
@@ -156,9 +151,20 @@ export const useDisplayModelsStore = defineStore('display-models', () => {
     return displayModelsPresets.find(model => model.id === id)
   }
 
-  const loadLive2DModelPreview = (file: File) => generateLive2DPreview(file)
+  async function loadLive2DModelPreview(file: File) {
+    // NOTICE: Live2D preview generation depends on browser-only runtime globals.
+    // Load it lazily so non-embodiment store tests can import this store in Node safely.
+    await Promise.all([
+      import('@proj-alicization/stage-ui-live2d/utils/live2d-zip-loader'),
+      import('@proj-alicization/stage-ui-live2d/utils/live2d-opfs-registration'),
+    ])
+
+    const { loadLive2DModelPreview: generateLive2DPreview } = await import('@proj-alicization/stage-ui-live2d/utils/live2d-preview')
+    return generateLive2DPreview(file)
+  }
 
   async function loadVrmModelPreview(file: File) {
+    const { loadVrmModelPreview: generateVrmPreview } = await import('@proj-alicization/stage-ui-three/utils/vrm-preview')
     return generateVrmPreview(file)
   }
 

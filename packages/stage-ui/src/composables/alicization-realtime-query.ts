@@ -1,9 +1,10 @@
+import type { AlicizationRealtimeQueryCategory, AlicizationRealtimeQueryIntent } from '@proj-alicization/stage-shared'
+
 import type { McpToolDescriptor } from '../stores/mcp-tool-bridge'
 
 import {
+
   detectAlicizationRealtimeQueryIntent,
-  type AlicizationRealtimeQueryCategory,
-  type AlicizationRealtimeQueryIntent,
 } from '@proj-alicization/stage-shared'
 
 export type RealtimeQueryCategory = AlicizationRealtimeQueryCategory

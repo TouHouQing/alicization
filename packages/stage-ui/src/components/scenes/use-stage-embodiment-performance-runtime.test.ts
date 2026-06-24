@@ -153,6 +153,7 @@ function createPlaybackTelemetryFixture(
       face: null,
       lipsync: null,
       motion: null,
+      voice: null,
     },
   }
 
@@ -167,6 +168,7 @@ function createPlaybackTelemetryFixture(
     drivers: {
       ...base.drivers,
       ...overrides.drivers,
+      voice: null,
     },
   }
 }
@@ -1435,7 +1437,7 @@ describe('stage embodiment performance runtime', () => {
           stability: null,
           identityNarrative: null,
           relationshipDoctrine: 'Repair should settle before closeness expands, and the opening should keep more room.',
-          latestInflection: 'The last seam held because pressure stayed low and the return stayed slower.',
+          latestInflection: null,
         },
         relationship: null,
         selfState: null,
@@ -1584,6 +1586,174 @@ describe('stage embodiment performance runtime', () => {
     scope.stop()
   })
 
+  it('keeps runtime active-segment and action-pulse ids on the living line even when speech item segmentId is a stale shell', async () => {
+    const speechRenderState = ref(createIdleStageEmbodimentSpeechRenderState())
+    const scope = effectScope()
+    const runtime = scope.run(() => useStageEmbodimentPerformanceRuntime({
+      speechRenderState,
+    }))!
+
+    runtime.armPerformance(createPerformance({
+      baseEmotion: 'thinking',
+      emotion: 'thinking',
+      facialCue: 'focused',
+      actionCue: 'observe_focus',
+      delivery: 'gentle',
+      emphasis: 1,
+    }), {
+      source: 'dialogue',
+      variationToken: 'turn-runtime-stale-shell-action-pulse',
+    })
+
+    const livingCue = createPlaybackCueFixture({
+      id: 'segment-runtime-living-line',
+      index: 1,
+      startOffset: 0,
+      endOffset: 6,
+      text: '继续看这里。',
+      emotion: 'thinking',
+      gestureWeight: 0.34,
+      facialWeight: 0.52,
+      prosodyWeight: 0.36,
+      beatWeight: 0.3,
+      mouthWeight: 0.28,
+      headWeight: 0.32,
+      facialHoldMs: 320,
+      actionHoldMs: 240,
+      emotionHoldMs: 320,
+      actionCue: 'observe_focus',
+      facialCue: 'focused',
+      actionWindow: 'segment-start',
+      interruptMode: 'soft-interrupt',
+      settleMode: 'hold',
+    })
+    const livingFrame = createDigitalLifeFrameFixture({
+      id: 'segment-runtime-living-line',
+      index: 1,
+      startOffset: 0,
+      endOffset: 6,
+      text: '继续看这里。',
+      mode: 'thinking',
+      interruptPolicy: 'soft-interrupt',
+      settleMode: 'hold',
+      face: {
+        emotion: 'thinking',
+        facialCue: 'focused',
+        expressionMode: 'hold',
+        intensity: 0.52,
+        holdMs: 320,
+        rendererHints: null,
+      },
+      action: {
+        actionCue: 'observe_focus',
+        actionMode: 'hold',
+        intensity: 0.34,
+        holdMs: 240,
+        rendererHints: null,
+      },
+    })
+
+    speechRenderState.value = createSpeechRenderStateFixture({
+      active: true,
+      item: createStageEmbodimentSpeechPlaybackItem({
+        intentId: 'intent-runtime-stale-shell-action-pulse',
+        streamId: 'stream-runtime-stale-shell-action-pulse',
+        segmentId: 'segment-runtime-stale-shell',
+        special: null,
+        text: '继续看这里。',
+        cue: livingCue,
+        digitalLifeFrame: livingFrame,
+      }),
+      phase: 'starting',
+      revision: 1,
+      visemeIntensity: 0.24,
+      dynamics: {
+        speechEnergy: 0.44,
+        prosodyIntensity: 0.4,
+        emphasisLevel: 0.32,
+        cadencePulse: 0.38,
+      },
+    })
+    await nextTick()
+
+    expect(runtime.state.value.activeSegment?.cue?.id).toBe('segment-runtime-living-line')
+    expect(runtime.state.value.activeSegment?.digitalLifeFrame?.id).toBe('segment-runtime-living-line')
+    expect(runtime.state.value.activeSegment?.segmentId).toBe('segment-runtime-living-line')
+    expect(runtime.state.value.actionPulse.reason).toBe('segment-start')
+    expect(runtime.state.value.actionPulse.cue).toBe('observe_focus')
+    expect(runtime.state.value.actionPulse.segmentId).toBe('segment-runtime-living-line')
+
+    scope.stop()
+  })
+
+  it('keeps runtime active segment authority on the playback living line even when the cue id is still a stale shell', async () => {
+    const speechRenderState = ref(createIdleStageEmbodimentSpeechRenderState())
+    const scope = effectScope()
+    const runtime = scope.run(() => useStageEmbodimentPerformanceRuntime({
+      speechRenderState,
+    }))!
+
+    runtime.armPerformance(createPerformance({
+      baseEmotion: 'thinking',
+      emotion: 'thinking',
+      facialCue: 'focused',
+      actionCue: 'observe_focus',
+      delivery: 'gentle',
+      emphasis: 1,
+    }), {
+      source: 'dialogue',
+      variationToken: 'turn-runtime-stale-cue-shell-authority',
+    })
+
+    speechRenderState.value = createSpeechRenderStateFixture({
+      active: true,
+      item: createStageEmbodimentSpeechPlaybackItem({
+        intentId: 'intent-runtime-stale-cue-shell-authority',
+        streamId: 'stream-runtime-stale-cue-shell-authority',
+        segmentId: 'segment-runtime-living-line',
+        special: null,
+        text: '继续看这里。',
+        cue: createPlaybackCueFixture({
+          id: 'turn-runtime-stale-cue-shell:0',
+          index: 1,
+          startOffset: 0,
+          endOffset: 6,
+          text: '继续看这里。',
+          emotion: 'thinking',
+          gestureWeight: 0.34,
+          facialWeight: 0.52,
+          prosodyWeight: 0.36,
+          beatWeight: 0.3,
+          mouthWeight: 0.28,
+          headWeight: 0.32,
+          facialHoldMs: 320,
+          actionHoldMs: 240,
+          emotionHoldMs: 320,
+          actionCue: 'observe_focus',
+          facialCue: 'focused',
+          actionWindow: 'segment-start',
+          interruptMode: 'soft-interrupt',
+          settleMode: 'hold',
+        }),
+      }),
+      phase: 'starting',
+      revision: 1,
+      visemeIntensity: 0.24,
+      dynamics: {
+        speechEnergy: 0.44,
+        prosodyIntensity: 0.4,
+        emphasisLevel: 0.32,
+        cadencePulse: 0.38,
+      },
+    })
+    await nextTick()
+
+    expect(runtime.state.value.activeSegment?.segmentId).toBe('segment-runtime-living-line')
+    expect(runtime.state.value.actionPulse.segmentId).toBe('segment-runtime-living-line')
+
+    scope.stop()
+  })
+
   it('consumes playback-driver pre-utterance face cues during preview before resident fallback', async () => {
     const speechRenderState = ref(createIdleStageEmbodimentSpeechRenderState())
     const upcomingSpeechSegment = ref<ReturnType<typeof createStageEmbodimentSpeechPlaybackItem> | null>(null)
@@ -1622,6 +1792,7 @@ describe('stage embodiment performance runtime', () => {
             },
             lipsync: null,
             motion: null,
+            voice: null,
           },
         },
       },
@@ -1688,6 +1859,7 @@ describe('stage embodiment performance runtime', () => {
               source: 'timeline-projection',
               confidence: 0.24,
             },
+            voice: null,
           },
         },
       },
@@ -2132,6 +2304,232 @@ describe('stage embodiment performance runtime', () => {
     scope.stop()
   })
 
+  it('keeps a signature-only still-voiced motion-line preview reopen lightly carried by the stopping mouth tail instead of snapping fully to an ordinary preview floor', async () => {
+    const speechRenderState = ref(createIdleStageEmbodimentSpeechRenderState())
+    const upcomingSpeechSegment = ref<ReturnType<typeof createStageEmbodimentSpeechPlaybackItem> | null>(null)
+    const scope = effectScope()
+    const runtime = scope.run(() => useStageEmbodimentPerformanceRuntime({
+      speechRenderState,
+      upcomingSpeechSegment,
+    }))!
+
+    runtime.armPerformance(createPerformance({
+      baseEmotion: 'thinking',
+      emotion: 'thinking',
+      facialCue: 'soft-gaze',
+      actionCue: 'steady_focus',
+      delivery: 'gentle',
+      emphasis: 0,
+    }), {
+      source: 'dialogue',
+      variationToken: 'turn-signature-only-still-voiced-motion-line-mouth-tail-preview-carry',
+    })
+
+    speechRenderState.value = {
+      ...speechRenderState.value,
+      active: true,
+      dynamics: {
+        speechEnergy: 0.18,
+        prosodyIntensity: 0.2,
+        emphasisLevel: 0.12,
+        cadencePulse: 0.18,
+      },
+      item: createStageEmbodimentSpeechPlaybackItem({
+        intentId: 'intent-signature-only-still-voiced-motion-line-mouth-tail-preview-carry',
+        segmentId: 'segment-signature-only-still-voiced-motion-line-mouth-tail-preview-carry',
+        special: null,
+        streamId: 'stream-signature-only-still-voiced-motion-line-mouth-tail-preview-carry',
+        text: '我会顺着这条还活着的动作和声音线慢慢收回来。',
+        cue: {
+          id: 'segment-signature-only-still-voiced-motion-line-mouth-tail-preview-carry',
+          index: 0,
+          startOffset: 0,
+          endOffset: 20,
+          text: '我会顺着这条还活着的动作和声音线慢慢收回来。',
+          emotion: 'thinking',
+          gestureWeight: 0.18,
+          facialWeight: 0.42,
+          prosodyWeight: 0.28,
+          beatWeight: 0.18,
+          mouthWeight: 0.34,
+          headWeight: 0.16,
+          facialHoldMs: 360,
+          actionHoldMs: 280,
+          emotionHoldMs: 320,
+          actionCue: 'steady_focus',
+          facialCue: 'soft-gaze',
+          actionWindow: 'none',
+          interruptMode: 'soft-interrupt',
+          settleMode: 'linger',
+          rendererHints: {
+            residentMode: 'same-thread-continuation',
+            signature: 'resident|main-runtime|accompanying|quiet-accompaniment|still-voiced-motion-line',
+            preferredGazeMode: 'soften',
+            preferredBlinkCadence: 'linger',
+          },
+        },
+        digitalLifeFrame: {
+          id: 'segment-signature-only-still-voiced-motion-line-mouth-tail-preview-carry',
+          index: 0,
+          startOffset: 0,
+          endOffset: 20,
+          text: '我会顺着这条还活着的动作和声音线慢慢收回来。',
+          mode: 'recovering',
+          interruptPolicy: 'soft-interrupt',
+          settleMode: 'linger',
+          voice: {
+            pitchDelta: -2,
+            rateMultiplier: 0.95,
+            energy: 0.34,
+            cadence: 0.28,
+          },
+          lipSync: {
+            mode: 'hybrid',
+            visemeBias: 0.56,
+            energyBias: 0.34,
+            mouthScale: 0.82,
+            continuityHoldMs: 320,
+          },
+          face: {
+            emotion: 'thinking',
+            facialCue: 'soft-gaze',
+            expressionMode: 'hold',
+            intensity: 0.42,
+            holdMs: 360,
+            rendererHints: {
+              residentMode: 'same-thread-continuation',
+              signature: 'resident|main-runtime|accompanying|quiet-accompaniment|still-voiced-motion-line',
+              preferredGazeMode: 'soften',
+              preferredBlinkCadence: 'linger',
+            },
+          },
+          action: {
+            actionCue: 'steady_focus',
+            actionMode: 'hold',
+            intensity: 0.18,
+            holdMs: 280,
+            rendererHints: {
+              residentMode: 'same-thread-continuation',
+              signature: 'resident|main-runtime|accompanying|quiet-accompaniment|still-voiced-motion-line',
+              preferredGazeMode: 'soften',
+              preferredBlinkCadence: 'linger',
+            },
+          },
+          motor: createRecoveringMotor(),
+        },
+      }),
+      phase: 'stopping',
+      revision: 1,
+      mouthOpenSize: 18,
+      mouthOpenRatio: 0.18,
+      visemeIntensity: 0.18,
+    }
+    await nextTick()
+
+    const stoppingProsodyDrive = runtime.state.value.prosodyDrive
+    const stoppingBreathDrive = runtime.state.value.breathDrive
+    const stoppingExpressionIntensity = runtime.state.value.expressionIntensity
+
+    upcomingSpeechSegment.value = createStageEmbodimentSpeechPlaybackItem({
+      intentId: 'intent-signature-only-still-voiced-motion-line-mouth-tail-preview-carry-next',
+      segmentId: 'segment-signature-only-still-voiced-motion-line-mouth-tail-preview-carry-next',
+      special: null,
+      streamId: 'stream-signature-only-still-voiced-motion-line-mouth-tail-preview-carry',
+      text: '嗯，我还在。',
+      cue: {
+        id: 'segment-signature-only-still-voiced-motion-line-mouth-tail-preview-carry-next',
+        index: 1,
+        startOffset: 20,
+        endOffset: 26,
+        text: '嗯，我还在。',
+        emotion: 'thinking',
+        gestureWeight: 0.12,
+        facialWeight: 0.22,
+        prosodyWeight: 0.14,
+        beatWeight: 0.1,
+        mouthWeight: 0.1,
+        headWeight: 0.1,
+        facialHoldMs: 320,
+        actionHoldMs: 260,
+        emotionHoldMs: 320,
+        actionCue: null,
+        facialCue: 'soft-gaze',
+        actionWindow: 'none',
+        interruptMode: 'soft-interrupt',
+        settleMode: 'linger',
+        rendererHints: {
+          residentMode: 'same-thread-continuation',
+          signature: 'resident|main-runtime|accompanying|quiet-accompaniment|still-voiced-motion-line',
+          preferredGazeMode: 'soften',
+          preferredBlinkCadence: 'linger',
+        },
+      },
+      digitalLifeFrame: {
+        id: 'segment-signature-only-still-voiced-motion-line-mouth-tail-preview-carry-next',
+        index: 1,
+        startOffset: 20,
+        endOffset: 26,
+        text: '嗯，我还在。',
+        mode: 'recovering',
+        interruptPolicy: 'soft-interrupt',
+        settleMode: 'linger',
+        voice: {
+          pitchDelta: -2,
+          rateMultiplier: 0.96,
+          energy: 0.22,
+          cadence: 0.16,
+        },
+        lipSync: {
+          mode: 'closed',
+          visemeBias: 0.34,
+          energyBias: 0.22,
+          mouthScale: 0.62,
+          continuityHoldMs: 220,
+        },
+        face: {
+          emotion: 'thinking',
+          facialCue: 'soft-gaze',
+          expressionMode: 'hold',
+          intensity: 0.22,
+          holdMs: 320,
+          rendererHints: {
+            residentMode: 'same-thread-continuation',
+            signature: 'resident|main-runtime|accompanying|quiet-accompaniment|still-voiced-motion-line',
+            preferredGazeMode: 'soften',
+            preferredBlinkCadence: 'linger',
+          },
+        },
+        action: {
+          actionCue: null,
+          actionMode: 'none',
+          intensity: 0.06,
+          holdMs: 260,
+          rendererHints: {
+            residentMode: 'same-thread-continuation',
+            signature: 'resident|main-runtime|accompanying|quiet-accompaniment|still-voiced-motion-line',
+            preferredGazeMode: 'soften',
+            preferredBlinkCadence: 'linger',
+          },
+        },
+        motor: createRecoveringMotor(),
+      },
+    })
+    await nextTick()
+
+    expect(runtime.state.value.activeCueSource).toBe('preview')
+    expect(runtime.state.value.activeCue?.rendererHints).toEqual(expect.objectContaining({
+      signature: 'resident|main-runtime|accompanying|quiet-accompaniment|still-voiced-motion-line',
+    }))
+    expect(runtime.state.value.prosodyDrive).toBeGreaterThan(0.12)
+    expect(runtime.state.value.breathDrive).toBeGreaterThan(0.12)
+    expect(runtime.state.value.expressionIntensity).toBeGreaterThan(0.12)
+    expect(runtime.state.value.prosodyDrive).toBeLessThanOrEqual(stoppingProsodyDrive)
+    expect(runtime.state.value.breathDrive).toBeLessThanOrEqual(stoppingBreathDrive)
+    expect(runtime.state.value.expressionIntensity).toBeGreaterThanOrEqual(stoppingExpressionIntensity)
+
+    scope.stop()
+  })
+
   it('keeps durable relationship rhythm more settled than ordinary measured-return during same-line preview reopen', async () => {
     const createMeasuredReturnReopenRuntime = () => {
       const speechRenderState = ref(createIdleStageEmbodimentSpeechRenderState())
@@ -2430,6 +2828,7 @@ describe('stage embodiment performance runtime', () => {
             },
             lipsync: null,
             motion: null,
+            voice: null,
           },
         },
       },
@@ -2468,6 +2867,161 @@ describe('stage embodiment performance runtime', () => {
     expect(runtime.state.value.performance.facialCue).toBe('settle-smile')
     expect(runtime.state.value.activeActionCue).toBe('raise_hand_excited')
     expect(runtime.state.value.activeActionCueSource).toBe('resident')
+
+    scope.stop()
+  })
+
+  it('keeps stopping-tail face and motion authority on the current cue line even when the playback item segment id is a stale shell', async () => {
+    const speechRenderState = ref(createIdleStageEmbodimentSpeechRenderState())
+    const scope = effectScope()
+    const runtime = scope.run(() => useStageEmbodimentPerformanceRuntime({ speechRenderState }))!
+
+    runtime.armPerformance(createPerformance({
+      baseEmotion: 'thinking',
+      emotion: 'thinking',
+      facialCue: 'focused',
+      actionCue: 'steady_focus',
+      delivery: 'gentle',
+      emphasis: 0,
+    }), {
+      source: 'dialogue',
+      variationToken: 'turn-stopping-tail-stale-item-shell-should-not-win',
+    })
+
+    const stoppedItem = createStageEmbodimentSpeechPlaybackItem({
+      intentId: 'intent-stopping-tail-stale-item-shell-should-not-win',
+      segmentId: 'segment-stale-stop-shell',
+      special: null,
+      streamId: 'stream-stopping-tail-stale-item-shell-should-not-win',
+      text: '我还在，只是先轻一点收回来。',
+      continuityHoldMs: 320,
+      cue: createPlaybackCueFixture({
+        id: 'segment-current-stop-tail-line',
+        text: '我还在，只是先轻一点收回来。',
+        facialCue: 'soft-release',
+        actionCue: 'observe_focus',
+        facialWeight: 0.42,
+        gestureWeight: 0.18,
+        mouthWeight: 0.28,
+        headWeight: 0.16,
+        beatWeight: 0.18,
+        facialHoldMs: 360,
+        actionHoldMs: 280,
+        emotionHoldMs: 320,
+        settleMode: 'linger',
+      }),
+      digitalLifeFrame: createDigitalLifeFrameFixture({
+        id: 'segment-current-stop-tail-line',
+        text: '我还在，只是先轻一点收回来。',
+        settleMode: 'linger',
+        face: {
+          emotion: 'thinking',
+          facialCue: 'soft-release',
+          expressionMode: 'hold',
+          intensity: 0.42,
+          holdMs: 360,
+          rendererHints: null,
+        },
+        action: {
+          actionCue: 'observe_focus',
+          actionMode: 'hold',
+          intensity: 0.18,
+          holdMs: 280,
+          rendererHints: null,
+        },
+      }),
+      metadata: {
+        embodimentPlayback: {
+          actualDurationMs: 520,
+          driftMs: 0,
+          plannedDurationMs: 520,
+          settleMs: 320,
+          stopReason: 'ended',
+          rendererTarget: 'live2d',
+          cue: {
+            id: 'segment-current-stop-tail-line',
+            index: 0,
+            startOffset: 0,
+            endOffset: 14,
+            text: '我还在，只是先轻一点收回来。',
+            emotion: 'thinking',
+            gestureWeight: 0.18,
+            facialWeight: 0.42,
+            prosodyWeight: 0.24,
+            beatWeight: 0.18,
+            mouthWeight: 0.28,
+            headWeight: 0.16,
+            facialHoldMs: 360,
+            actionHoldMs: 280,
+            emotionHoldMs: 320,
+            settleMode: 'linger',
+            rendererHints: null,
+            actionCue: 'observe_focus',
+            facialCue: 'soft-release',
+            actionWindow: 'none',
+            interruptMode: 'soft-interrupt',
+          },
+          drivers: {
+            body: null,
+            face: {
+              emotion: 'thinking',
+              facialCue: 'soft-release',
+              intensity: 0.42,
+              holdMs: 360,
+              preUtteranceCue: 'steady-inhale',
+              postUtteranceCue: 'soft-release',
+              segmentId: 'segment-current-stop-tail-line',
+              source: 'prosody-authority',
+              confidence: 0.92,
+            },
+            lipsync: null,
+            motion: {
+              idleBase: 'observe_focus',
+              attentionMode: 'attentive',
+              actionCue: 'observe_focus',
+              intensity: 0.18,
+              holdMs: 280,
+              segmentId: 'segment-current-stop-tail-line',
+              source: 'timeline-projection',
+              confidence: 0.88,
+            },
+            voice: null,
+          },
+        },
+      },
+    })
+
+    speechRenderState.value = {
+      ...speechRenderState.value,
+      active: true,
+      dynamics: {
+        speechEnergy: 0.16,
+        prosodyIntensity: 0.18,
+        emphasisLevel: 0.1,
+        cadencePulse: 0.14,
+      },
+      item: stoppedItem,
+      phase: 'stopping',
+      revision: 1,
+      visemeIntensity: 0.08,
+    }
+    await nextTick()
+
+    expect(runtime.state.value.activeCueSource).toBe('preview')
+    expect(runtime.state.value.activeCue).toEqual(expect.objectContaining({
+      id: 'segment-current-stop-tail-line',
+      facialCue: 'soft-release',
+      actionCue: 'observe_focus',
+    }))
+    expect(runtime.state.value.driverAuthority).toEqual(expect.objectContaining({
+      segmentId: 'segment-current-stop-tail-line',
+      faceSegmentMatched: true,
+      motionSegmentMatched: true,
+    }))
+    expect(runtime.state.value.activeFacialCue).toBe('soft-release')
+    expect(runtime.state.value.activeFacialCueSource).toBe('preview')
+    expect(runtime.state.value.activeActionCue).toBe('observe_focus')
+    expect(runtime.state.value.activeActionCueSource).toBe('preview')
 
     scope.stop()
   })
@@ -2609,6 +3163,7 @@ describe('stage embodiment performance runtime', () => {
               confidence: 0.88,
               segmentId: 'segment-live2d-stop-tail-same-body',
             },
+            voice: null,
           },
           driverAuthority: {
             segmentId: 'segment-live2d-stop-tail-same-body',
@@ -2809,6 +3364,7 @@ describe('stage embodiment performance runtime', () => {
               confidence: 0.88,
               segmentId: 'segment-vrm-stop-tail-same-body',
             },
+            voice: null,
           },
           driverAuthority: {
             segmentId: 'segment-vrm-stop-tail-same-body',
@@ -3010,6 +3566,7 @@ describe('stage embodiment performance runtime', () => {
             { segmentId: 'segment-vrm-stop-tail-resumed-rejoin', viseme: 'closed', weight: 0.64, source: 'prosody-authority', confidence: 0.9 },
           ],
         },
+        voice: null,
       },
       driverAuthority: {
         segmentId: 'segment-vrm-stop-tail-resumed-rejoin',
@@ -3244,6 +3801,7 @@ describe('stage embodiment performance runtime', () => {
             { segmentId: 'segment-live2d-stop-tail-resumed-rejoin', viseme: 'closed', weight: 0.64, source: 'prosody-authority', confidence: 0.9 },
           ],
         },
+        voice: null,
       },
       driverAuthority: {
         segmentId: 'segment-live2d-stop-tail-resumed-rejoin',
@@ -3476,6 +4034,7 @@ describe('stage embodiment performance runtime', () => {
             { segmentId: 'segment-vrm-stop-tail-soften-before-pulse', viseme: 'closed', weight: 0.64, source: 'prosody-authority', confidence: 0.9 },
           ],
         },
+        voice: null,
       },
       driverAuthority: {
         segmentId: 'segment-vrm-stop-tail-soften-before-pulse',
@@ -3700,6 +4259,7 @@ describe('stage embodiment performance runtime', () => {
             { segmentId: 'segment-live2d-stop-tail-soften-before-pulse', viseme: 'closed', weight: 0.64, source: 'prosody-authority', confidence: 0.9 },
           ],
         },
+        voice: null,
       },
       driverAuthority: {
         segmentId: 'segment-live2d-stop-tail-soften-before-pulse',
@@ -3924,6 +4484,7 @@ describe('stage embodiment performance runtime', () => {
             { segmentId: 'segment-vrm-reopen-provenance-stable', viseme: 'closed', weight: 0.64, source: 'prosody-authority', confidence: 0.9 },
           ],
         },
+        voice: null,
       },
       driverAuthority: {
         segmentId: 'segment-vrm-reopen-provenance-stable',
@@ -4146,6 +4707,7 @@ describe('stage embodiment performance runtime', () => {
             { segmentId: 'segment-live2d-reopen-provenance-stable', viseme: 'closed', weight: 0.64, source: 'prosody-authority', confidence: 0.9 },
           ],
         },
+        voice: null,
       },
       driverAuthority: {
         segmentId: 'segment-live2d-reopen-provenance-stable',
@@ -4398,6 +4960,7 @@ describe('stage embodiment performance runtime', () => {
                 holdMs: 180,
                 segmentId: 'segment-2',
               },
+              voice: null,
             },
           },
         },
@@ -4414,6 +4977,99 @@ describe('stage embodiment performance runtime', () => {
     expect(runtime.state.value.activeActionCue).toBe('idle_gentle_nod')
     expect(runtime.state.value.activeActionCueSource).toBe('segment')
     expect(runtime.state.value.performance.baseEmotion).toBe('happy')
+
+    scope.stop()
+  })
+
+  it('does not let stale playback-item face and motion shells override the current living segment during active playback', async () => {
+    const speechRenderState = ref(createIdleStageEmbodimentSpeechRenderState())
+    const scope = effectScope()
+    const runtime = scope.run(() => useStageEmbodimentPerformanceRuntime({ speechRenderState }))!
+
+    runtime.armPerformance(createPerformance(), {
+      source: 'dialogue',
+      variationToken: 'turn-stale-playback-item-shell-should-not-revive',
+    })
+
+    speechRenderState.value = {
+      ...speechRenderState.value,
+      active: true,
+      dynamics: {
+        speechEnergy: 0.2,
+        prosodyIntensity: 0.18,
+        emphasisLevel: 0.12,
+        cadencePulse: 0.22,
+      },
+      item: createStageEmbodimentSpeechPlaybackItem({
+        intentId: 'intent-stale-playback-item-shell-should-not-revive',
+        segmentId: 'segment-current-living-line',
+        special: null,
+        streamId: 'stream-stale-playback-item-shell-should-not-revive',
+        text: '继续看这里。',
+        metadata: {
+          embodimentPlayback: {
+            actualDurationMs: 0,
+            driftMs: 0,
+            plannedDurationMs: 220,
+            settleMs: 220,
+            stopReason: null,
+            rendererTarget: 'live2d',
+            cue: null,
+            driverAuthority: null,
+            prosodyAuthority: null,
+            drivers: {
+              body: null,
+              face: {
+                emotion: 'concerned',
+                facialCue: 'stale_shell_focus',
+                intensity: 0.66,
+                holdMs: 220,
+                source: 'digital-life-projection',
+                confidence: 0.92,
+                preUtteranceCue: 'stale-shell-inhale',
+                postUtteranceCue: 'stale-shell-release',
+                segmentId: 'segment-stale-face-shell',
+              },
+              lipsync: null,
+              motion: {
+                idleBase: 'steady_focus',
+                attentionMode: 'attentive',
+                actionCue: 'stale_shell_action',
+                intensity: 0.54,
+                holdMs: 180,
+                source: 'timeline-projection',
+                confidence: 0.9,
+                segmentId: 'segment-stale-motion-shell',
+              },
+              voice: null,
+            },
+          },
+        },
+      }),
+      phase: 'playing',
+      revision: 1,
+      visemeIntensity: 0.08,
+    }
+    await nextTick()
+
+    expect(runtime.state.value.driverAuthority).toEqual({
+      segmentId: 'segment-current-living-line',
+      rendererTarget: 'live2d',
+      matchedDrivers: [],
+      sources: [],
+      bodySegmentMatched: false,
+      faceSegmentMatched: false,
+      motionSegmentMatched: false,
+      lipsyncSegmentMatched: false,
+      voiceSegmentMatched: false,
+      prosodyAuthority: null,
+    })
+    expect(runtime.state.value.activeCueSource).toBe('none')
+    expect(runtime.state.value.activeCue).toBeNull()
+    expect(runtime.state.value.activeFacialCue).toBe('smile')
+    expect(runtime.state.value.activeFacialCueSource).toBe('resident')
+    expect(runtime.state.value.activeActionCue).toBe('raise_hand_excited')
+    expect(runtime.state.value.activeActionCueSource).toBe('resident')
 
     scope.stop()
   })
@@ -4489,6 +5145,7 @@ describe('stage embodiment performance runtime', () => {
                 source: 'timeline-projection',
                 confidence: 0.88,
               },
+              voice: null,
             },
           },
         },
@@ -4563,6 +5220,7 @@ describe('stage embodiment performance runtime', () => {
                 source: 'timeline-projection',
                 confidence: 0.24,
               },
+              voice: null,
             },
           },
         },
@@ -4802,6 +5460,7 @@ describe('stage embodiment performance runtime', () => {
           continuityHoldMs: 0,
           visemeHints: [],
         },
+        voice: null,
       },
     })
     await nextTick()
@@ -4874,6 +5533,18 @@ describe('stage embodiment performance runtime', () => {
       speechActive: false,
       variationToken: null,
     })).toBe(0.78)
+    expect(resolveCompanionshipExpressionDampening({
+      activeCueResidentMode: null,
+      residentReasonTags: ['continuity:quiet-accompaniment'],
+      speechActive: true,
+      variationToken: 'resident|main-runtime|accompanying|quiet-accompaniment|still-voiced-motion-line',
+    })).toBe(0.92)
+    expect(resolveCompanionshipExpressionDampening({
+      activeCueResidentMode: null,
+      residentReasonTags: ['continuity:quiet-accompaniment'],
+      speechActive: false,
+      variationToken: 'resident|main-runtime|accompanying|quiet-accompaniment|still-voiced-motion-line',
+    })).toBe(0.82)
     expect(resolveCompanionshipExpressionDampening({
       activeCueResidentMode: null,
       speechActive: true,
@@ -4952,6 +5623,58 @@ describe('stage embodiment performance runtime', () => {
     baseline.scope.stop()
     repairBeforeCloseness.scope.stop()
     quietCompanionship.scope.stop()
+  })
+
+  it('keeps signature-only still-voiced motion-line resident carry more settled than ordinary quiet companionship during idle carry', async () => {
+    const quietCompanionship = await createResidentIdleRuntime({
+      actionCue: 'observe_focus',
+      baseEmotion: 'thinking',
+      delivery: 'gentle',
+      emphasis: 1,
+      facialCue: 'soft-gaze',
+      variationToken: 'resident|quiet-accompaniment',
+    })
+    quietCompanionship.runtime.syncResidentPerformance({
+      baseEmotion: 'thinking',
+      emotion: 'thinking',
+      facialCue: 'soft-gaze',
+      actionCue: 'observe_focus',
+      delivery: 'gentle',
+      emphasis: 1,
+    }, {
+      residentReasonTags: ['continuity:quiet-accompaniment'],
+      variationToken: 'resident|main-runtime|accompanying|quiet-accompaniment',
+    })
+    await nextTick()
+
+    const stillVoicedMotionLine = await createResidentIdleRuntime({
+      actionCue: 'observe_focus',
+      baseEmotion: 'thinking',
+      delivery: 'gentle',
+      emphasis: 1,
+      facialCue: 'soft-gaze',
+      variationToken: 'resident|main-runtime|accompanying|quiet-accompaniment|still-voiced-motion-line',
+    })
+    stillVoicedMotionLine.runtime.syncResidentPerformance({
+      baseEmotion: 'thinking',
+      emotion: 'thinking',
+      facialCue: 'soft-gaze',
+      actionCue: 'observe_focus',
+      delivery: 'gentle',
+      emphasis: 1,
+    }, {
+      residentReasonTags: ['continuity:quiet-accompaniment'],
+      variationToken: 'resident|main-runtime|accompanying|quiet-accompaniment|still-voiced-motion-line',
+    })
+    await nextTick()
+
+    expect(stillVoicedMotionLine.runtime.state.value.actionIntensity).toBeLessThanOrEqual(quietCompanionship.runtime.state.value.actionIntensity)
+    expect(stillVoicedMotionLine.runtime.state.value.motor.body.openness).toBeLessThan(quietCompanionship.runtime.state.value.motor.body.openness)
+    expect(stillVoicedMotionLine.runtime.state.value.breathDrive).toBeGreaterThan(quietCompanionship.runtime.state.value.breathDrive)
+    expect(stillVoicedMotionLine.runtime.state.value.focusDrive).toBeGreaterThanOrEqual(quietCompanionship.runtime.state.value.focusDrive)
+
+    quietCompanionship.scope.stop()
+    stillVoicedMotionLine.scope.stop()
   })
 
   it('keeps active cue companionship resident mode and blink-gaze hints intact when runtime clones the cue for downstream embodiment surfaces', async () => {
@@ -5348,6 +6071,7 @@ describe('stage embodiment performance runtime', () => {
           source: 'timeline-projection',
           confidence: 0.88,
         },
+        voice: null,
       },
     }
     await nextTick()
@@ -5495,6 +6219,7 @@ describe('stage embodiment performance runtime', () => {
             { segmentId: 'segment-explicit-playback-cue-metadata', viseme: 'I', weight: 0.35, source: 'prosody-authority', confidence: 0.94 },
           ],
         },
+        voice: null,
       },
     })
     await nextTick()
@@ -5507,6 +6232,148 @@ describe('stage embodiment performance runtime', () => {
       vrmActionFadeMs: 520,
       vrmExpressionBlendMs: 600,
     })
+
+    scope.stop()
+  })
+
+  it('refreshes explicit playback cue same-her renderer continuity when only signature and reasonTags change', async () => {
+    const speechRenderState = ref(createIdleStageEmbodimentSpeechRenderState())
+    const playbackTelemetry = ref<EmbodimentPlaybackTelemetry | null>(null)
+    const scope = effectScope()
+    const runtime = scope.run(() => useStageEmbodimentPerformanceRuntime({
+      playbackTelemetry,
+      speechRenderState,
+    }))!
+
+    runtime.armPerformance(createPerformance(), {
+      source: 'dialogue',
+      variationToken: 'turn-explicit-playback-cue-renderer-continuity-refresh',
+    })
+
+    speechRenderState.value = {
+      ...speechRenderState.value,
+      active: true,
+      dynamics: {
+        speechEnergy: 0.18,
+        prosodyIntensity: 0.14,
+        emphasisLevel: 0.12,
+        cadencePulse: 0.2,
+      },
+      item: createStageEmbodimentSpeechPlaybackItem({
+        intentId: 'intent-explicit-playback-cue-renderer-continuity-refresh',
+        segmentId: 'segment-explicit-playback-cue-renderer-continuity-refresh',
+        special: null,
+        streamId: 'stream-explicit-playback-cue-renderer-continuity-refresh',
+        text: '我还是沿着这条线在。',
+      }),
+      phase: 'playing',
+      revision: 1,
+      visemeIntensity: 0.06,
+    }
+    await nextTick()
+
+    const baseTelemetry = createPlaybackTelemetryFixture({
+      actualDurationMs: 240,
+      driftMs: 0,
+      plannedDurationMs: 240,
+      settleMs: 280,
+      stopReason: null,
+      rendererTarget: 'live2d',
+      cue: {
+        id: 'segment-explicit-playback-cue-renderer-continuity-refresh',
+        endOffset: 8,
+        text: '我还是沿着这条线在。',
+        emotion: 'thinking',
+        gestureWeight: 0.28,
+        facialWeight: 0.48,
+        prosodyWeight: 0.34,
+        beatWeight: 0.24,
+        mouthWeight: 0.22,
+        headWeight: 0.2,
+        facialHoldMs: 320,
+        actionHoldMs: 240,
+        emotionHoldMs: 320,
+        actionCue: null,
+        facialCue: 'soft-gaze',
+        actionWindow: 'none',
+        interruptMode: 'soft-interrupt',
+        rendererHints: {
+          residentMode: 'same-thread-continuation',
+          preferredExpressionAliases: ['CalmInspect', 'soft-gaze'],
+          preferredMotionAliases: ['ObserveSoft', 'StillnessGuard'],
+          preferredBlinkCadence: 'linger',
+          preferredGazeMode: 'soften',
+          signature: 'embodiment:body+lipsync-only',
+          reasonTags: ['embodiment:body+lipsync-only'],
+        },
+        rendererSettle: {
+          live2dFacialReleaseMs: 320,
+          live2dMotionFollowThroughMs: 440,
+          vrmActionFadeMs: 280,
+          vrmExpressionBlendMs: 360,
+        },
+      },
+      drivers: {
+        body: null,
+        face: {
+          emotion: 'thinking',
+          facialCue: 'soft-gaze',
+          intensity: 0.48,
+          holdMs: 320,
+          preUtteranceCue: 'steady-inhale',
+          postUtteranceCue: 'soft-release',
+          segmentId: 'segment-explicit-playback-cue-renderer-continuity-refresh',
+          source: 'prosody-authority',
+          confidence: 0.94,
+        },
+        motion: {
+          idleBase: 'idle_settle',
+          attentionMode: 'attentive',
+          actionCue: null,
+          intensity: 0.12,
+          holdMs: 240,
+          segmentId: 'segment-explicit-playback-cue-renderer-continuity-refresh',
+          source: 'timeline-projection',
+          confidence: 0.88,
+        },
+        lipsync: {
+          mode: 'energy-phoneme-hybrid',
+          playbackPhase: 'playing',
+          segmentId: 'segment-explicit-playback-cue-renderer-continuity-refresh',
+          continuityHoldMs: 0,
+          visemeHints: [
+            { segmentId: 'segment-explicit-playback-cue-renderer-continuity-refresh', viseme: 'I', weight: 0.35, source: 'prosody-authority', confidence: 0.94 },
+          ],
+        },
+        voice: null,
+      },
+    })
+
+    playbackTelemetry.value = baseTelemetry
+    await nextTick()
+
+    expect(runtime.state.value.activeCue?.rendererHints).toEqual(expect.objectContaining({
+      signature: 'embodiment:body+lipsync-only',
+      reasonTags: ['embodiment:body+lipsync-only'],
+    }))
+
+    playbackTelemetry.value = {
+      ...baseTelemetry,
+      cue: {
+        ...baseTelemetry.cue!,
+        rendererHints: {
+          ...baseTelemetry.cue!.rendererHints!,
+          signature: 'embodiment:audible_same_her_line',
+          reasonTags: ['embodiment:body+voice-only'],
+        },
+      },
+    }
+    await nextTick()
+
+    expect(runtime.state.value.activeCue?.rendererHints).toEqual(expect.objectContaining({
+      signature: 'embodiment:audible_same_her_line',
+      reasonTags: ['embodiment:body+voice-only'],
+    }))
 
     scope.stop()
   })
@@ -5584,6 +6451,7 @@ describe('stage embodiment performance runtime', () => {
           continuityHoldMs: 0,
           visemeHints: [],
         },
+        voice: null,
       },
     })
     await nextTick()
@@ -5684,6 +6552,7 @@ describe('stage embodiment performance runtime', () => {
           continuityHoldMs: 220,
           visemeHints: [],
         },
+        voice: null,
       },
     })
 
@@ -5734,6 +6603,7 @@ describe('stage embodiment performance runtime', () => {
           continuityHoldMs: 220,
           visemeHints: [],
         },
+        voice: null,
       },
     }
     await nextTick()
@@ -5759,14 +6629,220 @@ describe('stage embodiment performance runtime', () => {
       segmentId: 'segment-vrm-renderer-only-fade-guard',
     }))
     expect(runtime.state.value.activeCueSource).toBe('preview')
-    expect(runtime.state.value.activeCue?.rendererSettle?.live2dFacialReleaseMs).toBe(360)
-    expect(runtime.state.value.activeCue?.rendererSettle?.live2dMotionFollowThroughMs).toBe(420)
+    expect(runtime.state.value.activeCue?.rendererSettle?.live2dFacialReleaseMs ?? 0).toBeGreaterThanOrEqual(360)
+    expect(runtime.state.value.activeCue?.rendererSettle?.live2dMotionFollowThroughMs ?? 0).toBeGreaterThanOrEqual(420)
     expect(runtime.state.value.activeCue?.rendererSettle?.vrmActionFadeMs).toBe(
       fullyMatchedSettle?.vrmActionFadeMs ?? 0,
     )
     expect(runtime.state.value.activeCue?.rendererSettle?.vrmExpressionBlendMs).toBe(
       fullyMatchedSettle?.vrmExpressionBlendMs ?? 0,
     )
+
+    scope.stop()
+  })
+
+  it('keeps a vrm same-her still-voiced preview reopen at measured-return-like settle levels before body authority returns', async () => {
+    const speechRenderState = ref(createIdleStageEmbodimentSpeechRenderState())
+    const playbackTelemetry = ref<EmbodimentPlaybackTelemetry | null>(createPlaybackTelemetryFixture({
+      actualDurationMs: 320,
+      plannedDurationMs: 320,
+      driftMs: 0,
+      settleMs: 360,
+      stopReason: 'ended',
+      rendererTarget: 'vrm',
+      driverAuthority: {
+        segmentId: 'segment-vrm-same-her-still-voiced-preview-reopen',
+        rendererTarget: 'vrm',
+        matchedDrivers: ['face', 'motion', 'lipsync'],
+        sources: ['prosody-authority', 'timeline-projection'],
+        bodySegmentMatched: false,
+        faceSegmentMatched: true,
+        motionSegmentMatched: true,
+        lipsyncSegmentMatched: true,
+      },
+      drivers: {
+        body: null,
+        face: {
+          emotion: 'thinking',
+          facialCue: 'soft-gaze',
+          intensity: 0.42,
+          holdMs: 340,
+          source: 'prosody-authority',
+          confidence: 0.94,
+          preUtteranceCue: 'steady-inhale',
+          postUtteranceCue: 'soft-gaze',
+          segmentId: 'segment-vrm-same-her-still-voiced-preview-reopen',
+        },
+        motion: {
+          idleBase: 'steady_focus',
+          attentionMode: 'attentive',
+          actionCue: 'steady_focus',
+          intensity: 0.2,
+          holdMs: 280,
+          source: 'timeline-projection',
+          confidence: 0.9,
+          segmentId: 'segment-vrm-same-her-still-voiced-preview-reopen',
+        },
+        lipsync: {
+          mode: 'energy-phoneme-hybrid',
+          playbackPhase: 'idle',
+          segmentId: 'segment-vrm-same-her-still-voiced-preview-reopen',
+          continuityHoldMs: 240,
+          visemeHints: [
+            { segmentId: 'segment-vrm-same-her-still-voiced-preview-reopen', viseme: 'closed', weight: 0.62, source: 'prosody-authority', confidence: 0.9 },
+          ],
+        },
+        voice: null,
+      },
+      cue: {
+        id: 'segment-vrm-same-her-still-voiced-preview-reopen',
+        index: 0,
+        startOffset: 0,
+        endOffset: 14,
+        text: '我还是沿着这条还活着的线慢一点接回来。',
+        emotion: 'thinking',
+        gestureWeight: 0.22,
+        facialWeight: 0.38,
+        prosodyWeight: 0.26,
+        beatWeight: 0.18,
+        mouthWeight: 0.24,
+        headWeight: 0.18,
+        facialHoldMs: 340,
+        actionHoldMs: 280,
+        emotionHoldMs: 340,
+        actionCue: 'steady_focus',
+        facialCue: 'soft-gaze',
+        actionWindow: 'segment-start',
+        interruptMode: 'soft-interrupt',
+        settleMode: 'linger',
+        rendererHints: {
+          residentMode: 'same-thread-continuation',
+          preferredExpressionAliases: ['CalmInspect'],
+          preferredMotionAliases: ['ObserveSoft', 'StillnessGuard'],
+          preferredBlinkCadence: 'linger',
+          preferredGazeMode: 'soften',
+          reasonTags: ['embodiment:still-voiced-face-motion-line'],
+        },
+        rendererSettle: {
+          live2dFacialReleaseMs: 360,
+          live2dMotionFollowThroughMs: 420,
+          vrmActionFadeMs: 320,
+          vrmExpressionBlendMs: 420,
+        },
+      },
+    }))
+    const upcomingSpeechSegment = ref(createStageEmbodimentSpeechPlaybackItem({
+      intentId: 'intent-vrm-same-her-still-voiced-preview-reopen',
+      segmentId: 'segment-vrm-same-her-still-voiced-preview-reopen',
+      special: null,
+      streamId: 'stream-vrm-same-her-still-voiced-preview-reopen',
+      text: '我还是沿着这条还活着的线慢一点接回来。',
+      cue: createPlaybackCueFixture({
+        id: 'segment-vrm-same-her-still-voiced-preview-reopen',
+        endOffset: 14,
+        text: '我还是沿着这条还活着的线慢一点接回来。',
+        emotion: 'thinking',
+        gestureWeight: 0.22,
+        facialWeight: 0.38,
+        prosodyWeight: 0.26,
+        beatWeight: 0.18,
+        mouthWeight: 0.24,
+        headWeight: 0.18,
+        facialHoldMs: 340,
+        actionHoldMs: 280,
+        emotionHoldMs: 340,
+        actionCue: 'steady_focus',
+        facialCue: 'soft-gaze',
+        actionWindow: 'segment-start',
+        interruptMode: 'soft-interrupt',
+        settleMode: 'linger',
+        rendererHints: {
+          residentMode: 'same-thread-continuation',
+          preferredExpressionAliases: ['CalmInspect'],
+          preferredMotionAliases: ['ObserveSoft', 'StillnessGuard'],
+          preferredBlinkCadence: 'linger',
+          preferredGazeMode: 'soften',
+          reasonTags: ['embodiment:still-voiced-face-motion-line'],
+        },
+        rendererSettle: {
+          live2dFacialReleaseMs: 360,
+          live2dMotionFollowThroughMs: 420,
+          vrmActionFadeMs: 320,
+          vrmExpressionBlendMs: 420,
+        },
+      }),
+      digitalLifeFrame: createDigitalLifeFrameFixture({
+        id: 'segment-vrm-same-her-still-voiced-preview-reopen',
+        endOffset: 14,
+        text: '我还是沿着这条还活着的线慢一点接回来。',
+        face: {
+          emotion: 'thinking',
+          facialCue: 'soft-gaze',
+          expressionMode: 'hold',
+          intensity: 0.38,
+          holdMs: 340,
+          rendererHints: {
+            residentMode: 'same-thread-continuation',
+            preferredExpressionAliases: ['CalmInspect'],
+            preferredMotionAliases: ['ObserveSoft', 'StillnessGuard'],
+            preferredBlinkCadence: 'linger',
+            preferredGazeMode: 'soften',
+            reasonTags: ['embodiment:still-voiced-face-motion-line'],
+          },
+        },
+        action: {
+          actionCue: 'steady_focus',
+          actionMode: 'hold',
+          intensity: 0.2,
+          holdMs: 280,
+          rendererHints: {
+            residentMode: 'same-thread-continuation',
+            preferredExpressionAliases: ['CalmInspect'],
+            preferredMotionAliases: ['ObserveSoft', 'StillnessGuard'],
+            preferredBlinkCadence: 'linger',
+            preferredGazeMode: 'soften',
+            reasonTags: ['embodiment:still-voiced-face-motion-line'],
+          },
+        },
+      }),
+    }))
+    const scope = effectScope()
+    const runtime = scope.run(() => useStageEmbodimentPerformanceRuntime({
+      upcomingSpeechSegment,
+      playbackTelemetry,
+      speechRenderState,
+    }))!
+
+    runtime.armPerformance(createPerformance({
+      facialCue: 'focus',
+      actionCue: 'steady_focus',
+      baseEmotion: 'thinking',
+      delivery: 'gentle',
+    }), {
+      variationToken: 'turn-vrm-same-her-still-voiced-preview-reopen',
+    })
+    await nextTick()
+
+    expect(runtime.state.value.driverAuthority).toEqual(expect.objectContaining({
+      bodySegmentMatched: false,
+      faceSegmentMatched: true,
+      motionSegmentMatched: true,
+      lipsyncSegmentMatched: true,
+      segmentId: 'segment-vrm-same-her-still-voiced-preview-reopen',
+    }))
+    expect(runtime.state.value.activeCueSource).toBe('preview')
+    expect(runtime.state.value.activeCue?.rendererHints).toEqual(expect.objectContaining({
+      residentMode: 'same-thread-continuation',
+      reasonTags: ['embodiment:still-voiced-face-motion-line'],
+      preferredExpressionAliases: ['CalmInspect'],
+      preferredMotionAliases: ['ObserveSoft', 'StillnessGuard'],
+      preferredBlinkCadence: 'linger',
+      preferredGazeMode: 'soften',
+    }))
+    expect(runtime.state.value.activeCue?.rendererSettle?.live2dFacialReleaseMs ?? 0).toBeGreaterThanOrEqual(360)
+    expect(runtime.state.value.activeCue?.rendererSettle?.live2dMotionFollowThroughMs ?? 0).toBeGreaterThanOrEqual(420)
+    expect(runtime.state.value.activeCue?.rendererSettle?.vrmActionFadeMs).toBe(440)
+    expect(runtime.state.value.activeCue?.rendererSettle?.vrmExpressionBlendMs).toBe(540)
 
     scope.stop()
   })
@@ -5822,6 +6898,7 @@ describe('stage embodiment performance runtime', () => {
             { segmentId: 'segment-preview-renderer-only-inward', viseme: 'closed', weight: 0.62, source: 'prosody-authority', confidence: 0.91 },
           ],
         },
+        voice: null,
       },
       cue: {
         id: 'segment-preview-renderer-only-inward',
@@ -6028,6 +7105,320 @@ describe('stage embodiment performance runtime', () => {
     scope.stop()
   })
 
+  it('preserves quieter speech timing hints on the runtime active cue when preview authority is carried by the same living line', async () => {
+    const speechRenderState = ref(createIdleStageEmbodimentSpeechRenderState())
+    const upcomingSpeechSegment = ref<ReturnType<typeof createStageEmbodimentSpeechPlaybackItem> | null>(null)
+    const scope = effectScope()
+    const runtime = scope.run(() => useStageEmbodimentPerformanceRuntime({
+      speechRenderState,
+      upcomingSpeechSegment,
+    }))!
+
+    runtime.armPerformance(createPerformance({
+      facialCue: 'focus',
+      actionCue: 'steady_focus',
+      baseEmotion: 'thinking',
+      delivery: 'gentle',
+      emphasis: 0,
+    }), {
+      variationToken: 'turn-preview-quieter-speech-timing-hints',
+    })
+
+    upcomingSpeechSegment.value = createStageEmbodimentSpeechPlaybackItem({
+      intentId: 'intent-preview-quieter-speech-timing-hints',
+      streamId: 'stream-preview-quieter-speech-timing-hints',
+      segmentId: 'segment-preview-quieter-speech-timing-hints',
+      text: '我先沿着这条线慢一点接回来。',
+      special: null,
+      digitalLifeFrame: createDigitalLifeFrameFixture({
+        id: 'segment-preview-quieter-speech-timing-hints',
+        text: '我先沿着这条线慢一点接回来。',
+        mode: 'speaking',
+        settleMode: 'linger',
+        voice: {
+          pitchDelta: 0,
+          rateMultiplier: 0.88,
+          energy: 0.28,
+          cadence: 0.22,
+        },
+        face: {
+          emotion: 'thinking',
+          facialCue: 'soft-gaze',
+          expressionMode: 'hold',
+          intensity: 0.34,
+          holdMs: 360,
+          rendererHints: {
+            residentMode: 'measured-return',
+            preferredExpressionAliases: ['CalmInspect'],
+            preferredMotionAliases: ['ObserveSoft'],
+            preferredBlinkCadence: 'linger',
+            preferredGazeMode: 'soften',
+            preferredPauseMode: 'longer',
+            preferredLipsyncMode: 'restrained',
+            preferredVoiceMode: 'lower-pressure',
+            preferredPacingMode: 'slower',
+          },
+        },
+        action: {
+          actionCue: 'observe_focus',
+          actionMode: 'hold',
+          intensity: 0.18,
+          holdMs: 260,
+          rendererHints: {
+            residentMode: 'measured-return',
+            preferredExpressionAliases: ['CalmInspect'],
+            preferredMotionAliases: ['ObserveSoft'],
+            preferredBlinkCadence: 'linger',
+            preferredGazeMode: 'soften',
+            preferredPauseMode: 'longer',
+            preferredLipsyncMode: 'restrained',
+            preferredVoiceMode: 'lower-pressure',
+            preferredPacingMode: 'slower',
+          },
+        },
+      }),
+    })
+    await nextTick()
+
+    expect(runtime.state.value.activeCueSource).toBe('preview')
+    expect(runtime.state.value.activeCue?.rendererHints).toEqual(expect.objectContaining({
+      residentMode: 'measured-return',
+      preferredExpressionAliases: ['CalmInspect'],
+      preferredMotionAliases: ['ObserveSoft'],
+      preferredBlinkCadence: 'linger',
+      preferredGazeMode: 'soften',
+      preferredPauseMode: 'longer',
+      preferredLipsyncMode: 'restrained',
+      preferredVoiceMode: 'lower-pressure',
+      preferredPacingMode: 'slower',
+    }))
+
+    scope.stop()
+  })
+
+  it('keeps preview body behavior more inward when the same living line carries lower-pressure slower speech timing hints', async () => {
+    async function createPreviewRuntimeWithSpeechTiming(input: {
+      preferredVoiceMode: 'even' | 'lower-pressure'
+      preferredPacingMode: 'natural' | 'slower'
+      variationToken: string
+    }) {
+      const speechRenderState = ref(createIdleStageEmbodimentSpeechRenderState())
+      const upcomingSpeechSegment = ref<ReturnType<typeof createStageEmbodimentSpeechPlaybackItem> | null>(null)
+      const scope = effectScope()
+      const runtime = scope.run(() => useStageEmbodimentPerformanceRuntime({
+        speechRenderState,
+        upcomingSpeechSegment,
+      }))!
+
+      runtime.armPerformance(createPerformance({
+        facialCue: 'focus',
+        actionCue: 'steady_focus',
+        baseEmotion: 'thinking',
+        delivery: 'gentle',
+        emphasis: 0,
+      }), {
+        variationToken: input.variationToken,
+      })
+
+      upcomingSpeechSegment.value = createStageEmbodimentSpeechPlaybackItem({
+        intentId: `intent-${input.variationToken}`,
+        streamId: `stream-${input.variationToken}`,
+        segmentId: `segment-${input.variationToken}`,
+        text: '我先沿着这条线轻一点接回来。',
+        special: null,
+        digitalLifeFrame: createDigitalLifeFrameFixture({
+          id: `segment-${input.variationToken}`,
+          text: '我先沿着这条线轻一点接回来。',
+          mode: 'speaking',
+          settleMode: 'linger',
+          voice: {
+            pitchDelta: 0,
+            rateMultiplier: 0.92,
+            energy: 0.3,
+            cadence: 0.24,
+          },
+          face: {
+            emotion: 'thinking',
+            facialCue: 'soft-gaze',
+            expressionMode: 'hold',
+            intensity: 0.34,
+            holdMs: 360,
+            rendererHints: {
+              residentMode: 'measured-return',
+              preferredExpressionAliases: ['CalmInspect'],
+              preferredMotionAliases: ['ObserveSoft'],
+              preferredBlinkCadence: 'linger',
+              preferredGazeMode: 'soften',
+              preferredPauseMode: 'longer',
+              preferredLipsyncMode: 'restrained',
+              preferredVoiceMode: input.preferredVoiceMode,
+              preferredPacingMode: input.preferredPacingMode,
+            },
+          },
+          action: {
+            actionCue: 'observe_focus',
+            actionMode: 'hold',
+            intensity: 0.18,
+            holdMs: 260,
+            rendererHints: {
+              residentMode: 'measured-return',
+              preferredExpressionAliases: ['CalmInspect'],
+              preferredMotionAliases: ['ObserveSoft'],
+              preferredBlinkCadence: 'linger',
+              preferredGazeMode: 'soften',
+              preferredPauseMode: 'longer',
+              preferredLipsyncMode: 'restrained',
+              preferredVoiceMode: input.preferredVoiceMode,
+              preferredPacingMode: input.preferredPacingMode,
+            },
+          },
+          motor: {
+            ...createDigitalLifeFrameFixture().motor,
+            stillness: 0.82,
+            expressivity: 0.18,
+            head: {
+              ...createDigitalLifeFrameFixture().motor.head,
+              nod: 0.12,
+            },
+            body: {
+              ...createDigitalLifeFrameFixture().motor.body,
+              openness: 0.26,
+              settle: 0.84,
+            },
+          },
+        }),
+      })
+      await nextTick()
+
+      return {
+        runtime,
+        scope,
+      }
+    }
+
+    const baseline = await createPreviewRuntimeWithSpeechTiming({
+      preferredVoiceMode: 'even',
+      preferredPacingMode: 'natural',
+      variationToken: 'turn-preview-even-natural-body-behavior',
+    })
+    const quieter = await createPreviewRuntimeWithSpeechTiming({
+      preferredVoiceMode: 'lower-pressure',
+      preferredPacingMode: 'slower',
+      variationToken: 'turn-preview-lower-pressure-slower-body-behavior',
+    })
+
+    expect(baseline.runtime.state.value.activeCueSource).toBe('preview')
+    expect(quieter.runtime.state.value.activeCueSource).toBe('preview')
+    expect(baseline.runtime.state.value.activeCue?.rendererHints).toEqual(expect.objectContaining({
+      preferredVoiceMode: 'even',
+      preferredPacingMode: 'natural',
+    }))
+    expect(quieter.runtime.state.value.activeCue?.rendererHints).toEqual(expect.objectContaining({
+      preferredVoiceMode: 'lower-pressure',
+      preferredPacingMode: 'slower',
+    }))
+    expect(quieter.runtime.state.value.expressionIntensity).toBeLessThanOrEqual(baseline.runtime.state.value.expressionIntensity)
+    expect(quieter.runtime.state.value.actionIntensity).toBeLessThan(baseline.runtime.state.value.actionIntensity)
+    expect(quieter.runtime.state.value.motor.head.nod).toBeLessThanOrEqual(baseline.runtime.state.value.motor.head.nod)
+    expect(quieter.runtime.state.value.motor.body.openness).toBeLessThan(baseline.runtime.state.value.motor.body.openness)
+    expect(quieter.runtime.state.value.motor.body.settle).toBeGreaterThanOrEqual(baseline.runtime.state.value.motor.body.settle)
+
+    baseline.scope.stop()
+    quieter.scope.stop()
+  })
+
+  it('refreshes preview same-her renderer continuity when only upcoming cue signature and reasonTags change', async () => {
+    const speechRenderState = ref(createIdleStageEmbodimentSpeechRenderState())
+    const playbackTelemetry = ref<EmbodimentPlaybackTelemetry | null>(null)
+    const upcomingSpeechSegment = ref(createStageEmbodimentSpeechPlaybackItem({
+      intentId: 'intent-preview-renderer-continuity-refresh',
+      segmentId: 'segment-preview-renderer-continuity-refresh',
+      special: null,
+      streamId: 'stream-preview-renderer-continuity-refresh',
+      text: '我还是沿着这条线在。',
+      cue: createPlaybackCueFixture({
+        id: 'segment-preview-renderer-continuity-refresh',
+        endOffset: 8,
+        text: '我还是沿着这条线在。',
+        emotion: 'thinking',
+        gestureWeight: 0.22,
+        facialWeight: 0.42,
+        prosodyWeight: 0.3,
+        beatWeight: 0.2,
+        mouthWeight: 0.24,
+        headWeight: 0.18,
+        facialHoldMs: 320,
+        actionHoldMs: 240,
+        emotionHoldMs: 320,
+        actionCue: null,
+        facialCue: 'soft-gaze',
+        actionWindow: 'none',
+        interruptMode: 'soft-interrupt',
+        settleMode: 'linger',
+        rendererHints: {
+          residentMode: 'same-thread-continuation',
+          preferredExpressionAliases: ['CalmInspect', 'soft-gaze'],
+          preferredMotionAliases: ['ObserveSoft', 'StillnessGuard'],
+          preferredBlinkCadence: 'linger',
+          preferredGazeMode: 'soften',
+          signature: 'embodiment:body+lipsync-only',
+          reasonTags: ['embodiment:body+lipsync-only'],
+        },
+        rendererSettle: {
+          live2dFacialReleaseMs: 320,
+          live2dMotionFollowThroughMs: 440,
+          vrmActionFadeMs: 280,
+          vrmExpressionBlendMs: 360,
+        },
+      }),
+    }))
+    const scope = effectScope()
+    const runtime = scope.run(() => useStageEmbodimentPerformanceRuntime({
+      upcomingSpeechSegment,
+      playbackTelemetry,
+      speechRenderState,
+    }))!
+
+    runtime.armPerformance(createPerformance({
+      baseEmotion: 'thinking',
+      emotion: 'thinking',
+      facialCue: 'soft-gaze',
+      actionCue: null,
+      delivery: 'gentle',
+      emphasis: 0,
+    }), {
+      source: 'dialogue',
+      variationToken: 'turn-preview-renderer-continuity-refresh',
+    })
+    await nextTick()
+
+    expect(runtime.state.value.activeCueSource).toBe('preview')
+    expect(runtime.state.value.activeCue?.rendererHints).toEqual(expect.objectContaining({
+      signature: 'embodiment:body+lipsync-only',
+      reasonTags: ['embodiment:body+lipsync-only'],
+    }))
+
+    upcomingSpeechSegment.value = {
+      ...upcomingSpeechSegment.value!,
+      cue: {
+        ...upcomingSpeechSegment.value!.cue!,
+        rendererHints: {
+          ...upcomingSpeechSegment.value!.cue!.rendererHints!,
+          signature: 'embodiment:audible_same_her_line',
+          reasonTags: ['embodiment:body+voice-only'],
+        },
+      },
+    }
+    await nextTick()
+
+    expect(runtime.state.value.activeCue?.rendererHints).toEqual(expect.objectContaining({
+      signature: 'embodiment:audible_same_her_line',
+      reasonTags: ['embodiment:body+voice-only'],
+    }))
+
+    scope.stop()
+  })
+
   it('keeps a same-line runtime reopen more inward when repair-before-closeness follows measured-return before body authority returns', async () => {
     const speechRenderState = ref(createIdleStageEmbodimentSpeechRenderState())
     const playbackTelemetry = ref<EmbodimentPlaybackTelemetry | null>(null)
@@ -6114,6 +7505,7 @@ describe('stage embodiment performance runtime', () => {
           continuityHoldMs: 220,
           visemeHints: [],
         },
+        voice: null,
       },
     })
 
@@ -6182,6 +7574,7 @@ describe('stage embodiment performance runtime', () => {
           ...measuredTelemetry.drivers.lipsync!,
           segmentId: 'segment-vrm-same-line-restrained-reopen',
         },
+        voice: null,
       },
     }
     await nextTick()
@@ -6369,6 +7762,7 @@ describe('stage embodiment performance runtime', () => {
             { segmentId: 'segment-post-utterance-settle-tail', viseme: 'I', weight: 0.35, source: 'prosody-authority', confidence: 0.94 },
           ],
         },
+        voice: null,
       },
     })
     await nextTick()
@@ -6481,6 +7875,7 @@ describe('stage embodiment performance runtime', () => {
           source: 'timeline-projection',
           confidence: 0.88,
         },
+        voice: null,
       },
     }
     await nextTick()
@@ -6562,6 +7957,7 @@ describe('stage embodiment performance runtime', () => {
           source: 'timeline-projection',
           confidence: 0.24,
         },
+        voice: null,
       },
     }
     await nextTick()
@@ -6784,6 +8180,7 @@ describe('stage embodiment performance runtime', () => {
         face: null,
         lipsync: null,
         motion: null,
+        voice: null,
       },
       plannedDurationMs: 0,
       settleMs: 560,
@@ -6810,6 +8207,7 @@ describe('stage embodiment performance runtime', () => {
         face: null,
         lipsync: null,
         motion: null,
+        voice: null,
       },
       plannedDurationMs: 0,
       settleMs: 560,
@@ -6878,6 +8276,7 @@ describe('stage embodiment performance runtime', () => {
           source: 'timeline-projection',
           confidence: 0.88,
         },
+        voice: null,
       },
     })
     const scope = effectScope()
@@ -6903,6 +8302,98 @@ describe('stage embodiment performance runtime', () => {
       voiceSegmentMatched: false,
       prosodyAuthority: null,
     })
+
+    scope.stop()
+  })
+
+  it('keeps runtime authority segment on the current cue line when cue-only telemetry is all that survived and the playback item id is stale', async () => {
+    const speechRenderState = ref(createSpeechRenderStateFixture({
+      active: true,
+      dynamics: {
+        speechEnergy: 0.18,
+        prosodyIntensity: 0.14,
+        emphasisLevel: 0.12,
+        cadencePulse: 0.2,
+      },
+      item: createStageEmbodimentSpeechPlaybackItem({
+        intentId: 'intent-runtime-cue-only-current-line',
+        segmentId: 'segment-stale-item-shell',
+        special: null,
+        streamId: 'stream-runtime-cue-only-current-line',
+        text: '继续看这里。',
+        cue: createPlaybackCueFixture({
+          id: 'segment-current-cue-only-line',
+          text: '继续看这里。',
+          facialCue: 'soft-gaze',
+          actionCue: 'steady_focus',
+          facialWeight: 0.44,
+          gestureWeight: 0.2,
+          mouthWeight: 0.28,
+          headWeight: 0.18,
+          beatWeight: 0.22,
+          facialHoldMs: 320,
+          actionHoldMs: 260,
+          emotionHoldMs: 320,
+        }),
+        digitalLifeFrame: createDigitalLifeFrameFixture({
+          id: 'segment-current-cue-only-line',
+          text: '继续看这里。',
+          settleMode: 'linger',
+        }),
+      }),
+      phase: 'playing',
+      revision: 1,
+      visemeIntensity: 0.06,
+    }))
+    const playbackTelemetry = ref<EmbodimentPlaybackTelemetry | null>(createPlaybackTelemetryFixture({
+      rendererTarget: 'vrm',
+      actualDurationMs: 240,
+      plannedDurationMs: 240,
+      settleMs: 280,
+      cue: {
+        id: 'segment-current-cue-only-line',
+        text: '继续看这里。',
+        facialCue: 'soft-gaze',
+        actionCue: 'steady_focus',
+        facialWeight: 0.44,
+        gestureWeight: 0.2,
+        mouthWeight: 0.28,
+        headWeight: 0.18,
+        beatWeight: 0.22,
+        facialHoldMs: 320,
+        actionHoldMs: 260,
+        emotionHoldMs: 320,
+      },
+      drivers: {
+        body: null,
+        face: null,
+        motion: null,
+        lipsync: null,
+        voice: null,
+      },
+    }))
+    const scope = effectScope()
+    const runtime = scope.run(() => useStageEmbodimentPerformanceRuntime({
+      playbackTelemetry,
+      speechRenderState,
+    }))!
+
+    expect(runtime.state.value.driverAuthority).toEqual({
+      segmentId: 'segment-current-cue-only-line',
+      rendererTarget: 'vrm',
+      matchedDrivers: [],
+      sources: [],
+      bodySegmentMatched: false,
+      faceSegmentMatched: false,
+      motionSegmentMatched: false,
+      lipsyncSegmentMatched: false,
+      voiceSegmentMatched: false,
+      prosodyAuthority: null,
+    })
+    expect(runtime.state.value.activeCueSource).toBe('segment')
+    expect(runtime.state.value.activeCue).toEqual(expect.objectContaining({
+      id: 'segment-current-cue-only-line',
+    }))
 
     scope.stop()
   })
@@ -6968,6 +8459,7 @@ describe('stage embodiment performance runtime', () => {
           confidence: 0.88,
           segmentId: 'segment-derived-authority-sources',
         },
+        voice: null,
       },
     })
     const scope = effectScope()
@@ -7034,6 +8526,7 @@ describe('stage embodiment performance runtime', () => {
           ],
         },
         motion: null,
+        voice: null,
       },
     })
     const scope = effectScope()
@@ -7115,6 +8608,7 @@ describe('stage embodiment performance runtime', () => {
           ],
         },
         motion: null,
+        voice: null,
       },
     }
     await nextTick()
@@ -7199,6 +8693,7 @@ describe('stage embodiment performance runtime', () => {
         face: null,
         lipsync: null,
         motion: null,
+        voice: null,
       },
     }
     await nextTick()
@@ -7215,6 +8710,389 @@ describe('stage embodiment performance runtime', () => {
       voiceSegmentMatched: true,
       prosodyAuthority: {
         segmentId: 'segment-runtime-prosody-only-authority',
+        provenance: 'authority-bound',
+        source: 'prosody-authority',
+        mode: 'energy-phoneme-hybrid',
+        cueProsodyWeight: 0.41,
+        cueMouthWeight: 0.33,
+        cueHeadWeight: 0.26,
+        visemePeakWeight: 0.58,
+      },
+    })
+    expect(runtime.state.value.activeCueSource).toBe('segment')
+    expect(runtime.state.value.activeCue).toEqual(expect.objectContaining({
+      id: 'driver:segment-runtime-prosody-only-authority',
+      text: '继续看这里。',
+      prosodyWeight: 0.41,
+      mouthWeight: 0.33,
+      headWeight: 0.26,
+      actionCue: null,
+      facialCue: null,
+    }))
+
+    scope.stop()
+  })
+
+  it('treats explicit voice driver telemetry as a first-class runtime same-segment lane even before caller rethreads top-level prosody authority', async () => {
+    const speechRenderState = ref(createIdleStageEmbodimentSpeechRenderState())
+    const playbackTelemetry = ref<EmbodimentPlaybackTelemetry | null>(null)
+    const scope = effectScope()
+    const runtime = scope.run(() => useStageEmbodimentPerformanceRuntime({
+      playbackTelemetry,
+      speechRenderState,
+    }))!
+
+    speechRenderState.value = {
+      ...speechRenderState.value,
+      active: true,
+      dynamics: {
+        speechEnergy: 0.18,
+        prosodyIntensity: 0.14,
+        emphasisLevel: 0.12,
+        cadencePulse: 0.2,
+      },
+      item: createStageEmbodimentSpeechPlaybackItem({
+        intentId: 'intent-runtime-explicit-voice-driver-authority',
+        segmentId: 'segment-runtime-explicit-voice-driver-authority',
+        special: null,
+        streamId: 'stream-runtime-explicit-voice-driver-authority',
+        text: '继续看这里。',
+      }),
+      phase: 'playing',
+      revision: 1,
+      visemeIntensity: 0.06,
+    }
+    playbackTelemetry.value = {
+      actualDurationMs: 240,
+      plannedDurationMs: 240,
+      driftMs: 0,
+      settleMs: 280,
+      stopReason: null,
+      rendererTarget: 'vrm',
+      driverAuthority: null,
+      prosodyAuthority: null,
+      drivers: {
+        body: null,
+        face: null,
+        lipsync: null,
+        motion: null,
+        voice: {
+          playbackPhase: 'playing',
+          continuityHoldMs: 240,
+          segmentId: 'segment-runtime-explicit-voice-driver-authority',
+          source: 'prosody-authority',
+          provenance: 'authority-bound',
+          mode: 'energy-phoneme-hybrid',
+          cueProsodyWeight: 0.41,
+          cueMouthWeight: 0.33,
+          cueHeadWeight: 0.26,
+          visemePeakWeight: 0.58,
+        },
+      },
+    }
+    await nextTick()
+
+    expect(runtime.state.value.driverAuthority).toEqual({
+      segmentId: 'segment-runtime-explicit-voice-driver-authority',
+      rendererTarget: 'vrm',
+      matchedDrivers: ['voice'],
+      sources: ['prosody-authority'],
+      bodySegmentMatched: false,
+      faceSegmentMatched: false,
+      motionSegmentMatched: false,
+      lipsyncSegmentMatched: false,
+      voiceSegmentMatched: true,
+      prosodyAuthority: {
+        segmentId: 'segment-runtime-explicit-voice-driver-authority',
+        provenance: 'authority-bound',
+        source: 'prosody-authority',
+        mode: 'energy-phoneme-hybrid',
+        cueProsodyWeight: 0.41,
+        cueMouthWeight: 0.33,
+        cueHeadWeight: 0.26,
+        visemePeakWeight: 0.58,
+      },
+    })
+    expect(runtime.state.value.activeCueSource).toBe('segment')
+    expect(runtime.state.value.activeCue).toEqual(expect.objectContaining({
+      id: 'driver:segment-runtime-explicit-voice-driver-authority',
+      text: '继续看这里。',
+      prosodyWeight: 0.41,
+      mouthWeight: 0.33,
+      headWeight: 0.26,
+      actionCue: null,
+      facialCue: null,
+    }))
+
+    scope.stop()
+  })
+
+  it('refreshes runtime authority when playback telemetry only flips voiceSegmentMatched on the same same-her segment', async () => {
+    const speechRenderState = ref(createIdleStageEmbodimentSpeechRenderState())
+    const playbackTelemetry = ref<EmbodimentPlaybackTelemetry | null>(null)
+    const scope = effectScope()
+    const runtime = scope.run(() => useStageEmbodimentPerformanceRuntime({
+      playbackTelemetry,
+      speechRenderState,
+    }))!
+
+    speechRenderState.value = {
+      ...speechRenderState.value,
+      active: true,
+      dynamics: {
+        speechEnergy: 0.18,
+        prosodyIntensity: 0.14,
+        emphasisLevel: 0.12,
+        cadencePulse: 0.2,
+      },
+      item: createStageEmbodimentSpeechPlaybackItem({
+        intentId: 'intent-runtime-voice-flag-refresh',
+        segmentId: 'segment-runtime-voice-flag-refresh',
+        special: null,
+        streamId: 'stream-runtime-voice-flag-refresh',
+        text: '继续看这里。',
+      }),
+      phase: 'playing',
+      revision: 1,
+      visemeIntensity: 0.06,
+    }
+    playbackTelemetry.value = {
+      actualDurationMs: 240,
+      plannedDurationMs: 240,
+      driftMs: 0,
+      settleMs: 280,
+      stopReason: null,
+      rendererTarget: 'vrm',
+      driverAuthority: {
+        segmentId: 'segment-runtime-voice-flag-refresh',
+        rendererTarget: 'vrm',
+        matchedDrivers: [],
+        sources: [],
+        bodySegmentMatched: false,
+        faceSegmentMatched: false,
+        motionSegmentMatched: false,
+        lipsyncSegmentMatched: false,
+        voiceSegmentMatched: false,
+        prosodyAuthority: null,
+      },
+      prosodyAuthority: null,
+      drivers: {
+        body: null,
+        face: null,
+        lipsync: null,
+        motion: null,
+        voice: null,
+      },
+    }
+    await nextTick()
+
+    expect(runtime.state.value.driverAuthority).toEqual({
+      segmentId: 'segment-runtime-voice-flag-refresh',
+      rendererTarget: 'vrm',
+      matchedDrivers: [],
+      sources: [],
+      bodySegmentMatched: false,
+      faceSegmentMatched: false,
+      motionSegmentMatched: false,
+      lipsyncSegmentMatched: false,
+      voiceSegmentMatched: false,
+      prosodyAuthority: null,
+    })
+
+    playbackTelemetry.value = {
+      ...playbackTelemetry.value!,
+      driverAuthority: {
+        ...playbackTelemetry.value!.driverAuthority!,
+        voiceSegmentMatched: true,
+      },
+    }
+    await nextTick()
+
+    expect(runtime.state.value.driverAuthority).toEqual({
+      segmentId: 'segment-runtime-voice-flag-refresh',
+      rendererTarget: 'vrm',
+      matchedDrivers: ['voice'],
+      sources: [],
+      bodySegmentMatched: false,
+      faceSegmentMatched: false,
+      motionSegmentMatched: false,
+      lipsyncSegmentMatched: false,
+      voiceSegmentMatched: true,
+      prosodyAuthority: null,
+    })
+
+    scope.stop()
+  })
+
+  it('replaces stale seeded voice-only authority once same-segment cue-bridged face and motion rejoin the living line', async () => {
+    const speechRenderState = ref(createSpeechRenderStateFixture({
+      active: true,
+      dynamics: {
+        speechEnergy: 0.18,
+        prosodyIntensity: 0.14,
+        emphasisLevel: 0.12,
+        cadencePulse: 0.2,
+      },
+      item: createStageEmbodimentSpeechPlaybackItem({
+        intentId: 'intent-live2d-seeded-voice-only-rejoin',
+        segmentId: 'segment-live2d-seeded-voice-only-rejoin',
+        special: null,
+        streamId: 'stream-live2d-seeded-voice-only-rejoin',
+        text: '继续看这里。',
+        cue: {
+          id: 'segment-live2d-seeded-voice-only-rejoin',
+          index: 0,
+          startOffset: 0,
+          endOffset: 6,
+          text: '继续看这里。',
+          emotion: 'thinking',
+          gestureWeight: 0.34,
+          facialWeight: 0.52,
+          prosodyWeight: 0.36,
+          beatWeight: 0.3,
+          mouthWeight: 0.28,
+          headWeight: 0.32,
+          facialHoldMs: 320,
+          actionHoldMs: 240,
+          emotionHoldMs: 320,
+          actionCue: 'observe_focus',
+          facialCue: 'focused',
+          actionWindow: 'segment-start',
+          interruptMode: 'soft-interrupt',
+          settleMode: 'linger',
+          rendererHints: {
+            residentMode: 'same-thread-continuation',
+            preferredExpressionAliases: ['CalmInspect', 'soft-gaze'],
+            preferredMotionAliases: ['ObserveSoft', 'StillnessGuard'],
+            preferredBlinkCadence: 'linger',
+            preferredGazeMode: 'soften',
+            signature: 'resident|main-runtime|accompanying|quiet-accompaniment|still-voiced-motion-line',
+            reasonTags: ['embodiment:still-voiced-motion-line'],
+          },
+          rendererSettle: {
+            live2dFacialReleaseMs: 360,
+            live2dMotionFollowThroughMs: 420,
+            vrmActionFadeMs: 320,
+            vrmExpressionBlendMs: 420,
+          },
+        },
+      }),
+      phase: 'playing',
+      revision: 1,
+      visemeIntensity: 0.06,
+      articulation: {
+        voice: createSpeechVoiceFixture({
+          language: 'zh-CN',
+          closureBias: 0.62,
+          consonantPrecision: 0.84,
+        }),
+      },
+    }))
+    const playbackTelemetry = ref<EmbodimentPlaybackTelemetry | null>({
+      actualDurationMs: 240,
+      plannedDurationMs: 240,
+      driftMs: 0,
+      settleMs: 280,
+      stopReason: null,
+      rendererTarget: 'live2d',
+      driverAuthority: {
+        segmentId: 'segment-live2d-seeded-voice-only-rejoin',
+        rendererTarget: 'live2d',
+        matchedDrivers: ['voice'],
+        sources: ['prosody-authority'],
+        bodySegmentMatched: false,
+        faceSegmentMatched: false,
+        motionSegmentMatched: false,
+        lipsyncSegmentMatched: false,
+        voiceSegmentMatched: true,
+        prosodyAuthority: {
+          segmentId: 'segment-live2d-seeded-voice-only-rejoin',
+          provenance: 'authority-bound',
+          source: 'prosody-authority',
+          mode: 'energy-phoneme-hybrid',
+          cueProsodyWeight: 0.41,
+          cueMouthWeight: 0.33,
+          cueHeadWeight: 0.26,
+          visemePeakWeight: 0.58,
+        },
+      },
+      prosodyAuthority: {
+        segmentId: 'segment-live2d-seeded-voice-only-rejoin',
+        provenance: 'authority-bound',
+        source: 'prosody-authority',
+        mode: 'energy-phoneme-hybrid',
+        cueProsodyWeight: 0.41,
+        cueMouthWeight: 0.33,
+        cueHeadWeight: 0.26,
+        visemePeakWeight: 0.58,
+      },
+      cue: {
+        id: 'segment-live2d-seeded-voice-only-rejoin',
+        index: 0,
+        startOffset: 0,
+        endOffset: 6,
+        text: '继续看这里。',
+        emotion: 'thinking',
+        gestureWeight: 0.34,
+        facialWeight: 0.52,
+        prosodyWeight: 0.36,
+        beatWeight: 0.3,
+        mouthWeight: 0.28,
+        headWeight: 0.32,
+        facialHoldMs: 320,
+        actionHoldMs: 240,
+        emotionHoldMs: 320,
+        actionCue: 'observe_focus',
+        facialCue: 'focused',
+        actionWindow: 'segment-start',
+        interruptMode: 'soft-interrupt',
+        settleMode: 'linger',
+      },
+      drivers: {
+        body: null,
+        face: {
+          emotion: 'thinking',
+          facialCue: 'focused',
+          intensity: 0.52,
+          holdMs: 320,
+          source: 'prosody-authority',
+          confidence: 0.9,
+          preUtteranceCue: 'steady-inhale',
+          postUtteranceCue: 'eyes-soften',
+          segmentId: 'segment-live2d-seeded-voice-only-rejoin',
+        },
+        lipsync: null,
+        motion: {
+          idleBase: 'steady_focus',
+          attentionMode: 'attentive',
+          actionCue: 'observe_focus',
+          intensity: 0.41,
+          holdMs: 260,
+          source: 'timeline-projection',
+          confidence: 0.87,
+          segmentId: 'segment-live2d-seeded-voice-only-rejoin',
+        },
+        voice: null,
+      },
+    })
+    const scope = effectScope()
+    const runtime = scope.run(() => useStageEmbodimentPerformanceRuntime({
+      playbackTelemetry,
+      speechRenderState,
+    }))!
+
+    expect(runtime.state.value.driverAuthority).toEqual({
+      segmentId: 'segment-live2d-seeded-voice-only-rejoin',
+      rendererTarget: 'live2d',
+      matchedDrivers: ['face', 'motion', 'voice'],
+      sources: ['prosody-authority', 'cue-bridge'],
+      bodySegmentMatched: false,
+      faceSegmentMatched: true,
+      motionSegmentMatched: true,
+      lipsyncSegmentMatched: false,
+      voiceSegmentMatched: true,
+      prosodyAuthority: {
+        segmentId: 'segment-live2d-seeded-voice-only-rejoin',
         provenance: 'authority-bound',
         source: 'prosody-authority',
         mode: 'energy-phoneme-hybrid',
@@ -7285,6 +9163,7 @@ describe('stage embodiment performance runtime', () => {
           ],
         },
         motion: null,
+        voice: null,
       },
     }
     await nextTick()
@@ -7388,6 +9267,7 @@ describe('stage embodiment performance runtime', () => {
           confidence: 0.86,
           segmentId: 'segment-stale-motion-shell',
         },
+        voice: null,
       },
     })
     const scope = effectScope()
@@ -7408,6 +9288,148 @@ describe('stage embodiment performance runtime', () => {
       voiceSegmentMatched: false,
       prosodyAuthority: null,
     })
+
+    scope.stop()
+  })
+
+  it('prefers the current cue and digital-life line over a stale playback item segment id when runtime reconstructs same-segment authority', async () => {
+    const speechRenderState = ref(createSpeechRenderStateFixture({
+      active: true,
+      dynamics: {
+        speechEnergy: 0.17,
+        prosodyIntensity: 0.13,
+        emphasisLevel: 0.11,
+        cadencePulse: 0.18,
+      },
+      item: createStageEmbodimentSpeechPlaybackItem({
+        intentId: 'intent-stale-item-segment-should-not-override-current-cue-line',
+        segmentId: 'segment-stale-item-shell',
+        special: null,
+        streamId: 'stream-stale-item-segment-should-not-override-current-cue-line',
+        text: '我先沿着现在这条线继续接回来。',
+        cue: createPlaybackCueFixture({
+          id: 'segment-current-living-line',
+          text: '我先沿着现在这条线继续接回来。',
+          facialCue: 'soft-gaze',
+          actionCue: 'steady_focus',
+          facialWeight: 0.46,
+          gestureWeight: 0.22,
+          mouthWeight: 0.3,
+          headWeight: 0.2,
+          beatWeight: 0.24,
+          facialHoldMs: 320,
+          actionHoldMs: 260,
+          emotionHoldMs: 320,
+        }),
+        digitalLifeFrame: createDigitalLifeFrameFixture({
+          id: 'segment-current-living-line',
+          text: '我先沿着现在这条线继续接回来。',
+          settleMode: 'linger',
+          face: {
+            emotion: 'thinking',
+            facialCue: 'soft-gaze',
+            expressionMode: 'hold',
+            intensity: 0.46,
+            holdMs: 320,
+            rendererHints: null,
+          },
+          action: {
+            actionCue: 'steady_focus',
+            actionMode: 'hold',
+            intensity: 0.22,
+            holdMs: 260,
+            rendererHints: null,
+          },
+        }),
+      }),
+      phase: 'playing',
+      revision: 1,
+      visemeIntensity: 0.05,
+      articulation: {
+        voice: createSpeechVoiceFixture({
+          language: 'zh-CN',
+          closureBias: 0.58,
+          consonantPrecision: 0.82,
+        }),
+      },
+    }))
+    const playbackTelemetry = ref<EmbodimentPlaybackTelemetry | null>(createPlaybackTelemetryFixture({
+      rendererTarget: 'live2d',
+      actualDurationMs: 240,
+      plannedDurationMs: 240,
+      settleMs: 280,
+      cue: {
+        id: 'segment-current-living-line',
+        text: '我先沿着现在这条线继续接回来。',
+        facialCue: 'soft-gaze',
+        actionCue: 'steady_focus',
+        facialWeight: 0.46,
+        gestureWeight: 0.22,
+        mouthWeight: 0.3,
+        headWeight: 0.2,
+        beatWeight: 0.24,
+        facialHoldMs: 320,
+        actionHoldMs: 260,
+        emotionHoldMs: 320,
+      },
+      drivers: {
+        face: {
+          emotion: 'thinking',
+          facialCue: 'soft-gaze',
+          intensity: 0.46,
+          holdMs: 320,
+          source: 'prosody-authority',
+          confidence: 0.9,
+          preUtteranceCue: 'steady-inhale',
+          postUtteranceCue: 'soft-release',
+          segmentId: 'segment-current-living-line',
+        },
+        motion: {
+          idleBase: 'steady_focus',
+          attentionMode: 'attentive',
+          actionCue: 'steady_focus',
+          intensity: 0.22,
+          holdMs: 260,
+          source: 'timeline-projection',
+          confidence: 0.87,
+          segmentId: 'segment-current-living-line',
+        },
+        lipsync: {
+          mode: 'energy-phoneme-hybrid',
+          playbackPhase: 'playing',
+          segmentId: 'segment-current-living-line',
+          continuityHoldMs: 220,
+          visemeHints: [
+            { segmentId: 'segment-current-living-line', viseme: 'I', weight: 0.38, source: 'prosody-authority', confidence: 0.92 },
+            { segmentId: 'segment-current-living-line', viseme: 'closed', weight: 0.64, source: 'prosody-authority', confidence: 0.89 },
+          ],
+        },
+      },
+    }))
+    const scope = effectScope()
+    const runtime = scope.run(() => useStageEmbodimentPerformanceRuntime({
+      playbackTelemetry,
+      speechRenderState,
+    }))!
+
+    expect(runtime.state.value.driverAuthority).toEqual({
+      segmentId: 'segment-current-living-line',
+      rendererTarget: 'live2d',
+      matchedDrivers: ['face', 'motion', 'lipsync'],
+      sources: ['prosody-authority', 'timeline-projection'],
+      bodySegmentMatched: false,
+      faceSegmentMatched: true,
+      motionSegmentMatched: true,
+      lipsyncSegmentMatched: true,
+      voiceSegmentMatched: false,
+      prosodyAuthority: null,
+    })
+    expect(runtime.state.value.activeCueSource).toBe('segment')
+    expect(runtime.state.value.activeCue).toEqual(expect.objectContaining({
+      id: 'segment-current-living-line',
+      facialCue: 'soft-gaze',
+      actionCue: 'steady_focus',
+    }))
 
     scope.stop()
   })
@@ -7469,6 +9491,7 @@ describe('stage embodiment performance runtime', () => {
           ],
         },
         motion: null,
+        voice: null,
       },
     }
     await nextTick()
@@ -7501,6 +9524,7 @@ describe('stage embodiment performance runtime', () => {
           expressivity: 0.31,
           segmentId: 'segment-late-same-segment-cue-realign',
         },
+        voice: null,
       },
       cue: {
         id: 'segment-late-same-segment-cue-realign',
@@ -7655,6 +9679,7 @@ describe('stage embodiment performance runtime', () => {
           confidence: 0.88,
           segmentId: 'segment-other-live2d-motion-realign',
         },
+        voice: null,
       },
       cue: null,
     }
@@ -7716,6 +9741,7 @@ describe('stage embodiment performance runtime', () => {
             { segmentId: 'segment-live2d-body-voice-realign', viseme: 'closed', weight: 0.71, source: 'prosody-authority', confidence: 0.89 },
           ],
         },
+        voice: null,
       },
       cue: {
         id: 'segment-live2d-body-voice-realign',
@@ -7879,6 +9905,7 @@ describe('stage embodiment performance runtime', () => {
           confidence: 0.88,
           segmentId: 'segment-other-live2d-body-lipsync-motion-realign',
         },
+        voice: null,
       },
       cue: null,
     }
@@ -7936,6 +9963,7 @@ describe('stage embodiment performance runtime', () => {
             { segmentId: 'segment-live2d-body-lipsync-voice-realign', viseme: 'closed', weight: 0.71, source: 'prosody-authority', confidence: 0.89 },
           ],
         },
+        voice: null,
       },
       cue: {
         id: 'segment-live2d-body-lipsync-voice-realign',
@@ -8085,6 +10113,7 @@ describe('stage embodiment performance runtime', () => {
           confidence: 0.87,
           segmentId: 'segment-live2d-seeded-body-only-rejoin',
         },
+        voice: null,
       },
       cue: {
         id: 'segment-live2d-seeded-body-only-rejoin',
@@ -8214,6 +10243,7 @@ describe('stage embodiment performance runtime', () => {
           confidence: 0.87,
           segmentId: 'segment-live2d-seeded-body-lipsync-rejoin',
         },
+        voice: null,
       },
       cue: {
         id: 'segment-live2d-seeded-body-lipsync-rejoin',
@@ -8387,6 +10417,7 @@ describe('stage embodiment performance runtime', () => {
           confidence: 0.86,
           segmentId: 'segment-stale-motion-shell',
         },
+        voice: null,
       },
       cue: null,
     }
@@ -8511,6 +10542,7 @@ describe('stage embodiment performance runtime', () => {
           ],
         },
         motion: null,
+        voice: null,
       },
       cue: null,
     })
@@ -8635,6 +10667,7 @@ describe('stage embodiment performance runtime', () => {
           confidence: 0,
           segmentId: 'segment-live2d-body-only-shell-hold',
         },
+        voice: null,
       },
       cue: {
         id: 'segment-live2d-body-only-shell-hold',
@@ -8881,6 +10914,7 @@ describe('stage embodiment performance runtime', () => {
                       : [],
                   }
                 : null,
+              voice: null,
             },
           }
         : null,
@@ -8892,7 +10926,7 @@ describe('stage embodiment performance runtime', () => {
       speechRenderState,
     }))!
 
-    expect(preview?.cue?.actionCue).toBe('steady_focus')
+    expect(preview?.cue?.actionCue).toBeNull()
     expect(preview?.cue?.rendererHints).toEqual(expect.objectContaining({
       signature: 'embodiment:audible_same_her_line',
       reasonTags: ['embodiment:body+voice-only'],
@@ -9115,6 +11149,7 @@ describe('stage embodiment performance runtime', () => {
                       : [],
                   }
                 : null,
+              voice: null,
             },
           }
         : null,
@@ -9126,7 +11161,7 @@ describe('stage embodiment performance runtime', () => {
       speechRenderState,
     }))!
 
-    expect(preview?.cue?.actionCue).toBe('steady_focus')
+    expect(preview?.cue?.actionCue).toBe('observe_focus')
     expect(preview?.cue?.rendererHints).toEqual(expect.objectContaining({
       signature: 'embodiment:audible-same-her-line',
       reasonTags: ['embodiment:body-lipsync-voice-rejoin'],
@@ -9207,7 +11242,6 @@ describe('stage embodiment performance runtime', () => {
                 preferredBlinkCadence: 'linger',
                 preferredGazeMode: 'soften',
                 signature: 'resident|main-runtime|accompanying|quiet-accompaniment|still-voiced-motion-line',
-                reasonTags: ['embodiment:body-lipsync-voice-rejoin'],
               },
             }],
             interruptPolicy: 'soft-settle',
@@ -9349,6 +11383,7 @@ describe('stage embodiment performance runtime', () => {
                       : [],
                   }
                 : null,
+              voice: null,
             },
           }
         : null,
@@ -9360,10 +11395,9 @@ describe('stage embodiment performance runtime', () => {
       speechRenderState,
     }))!
 
-    expect(preview?.cue?.actionCue).toBe('steady_focus')
+    expect(preview?.cue?.actionCue).toBe('observe_focus')
     expect(preview?.cue?.rendererHints).toEqual(expect.objectContaining({
       signature: 'resident|main-runtime|accompanying|quiet-accompaniment|still-voiced-motion-line',
-      reasonTags: ['embodiment:body-lipsync-voice-rejoin'],
     }))
     expect(playbackTelemetry.value?.drivers.motion).toEqual(expect.objectContaining({
       idleBase: 'observe_focus',
@@ -9371,6 +11405,842 @@ describe('stage embodiment performance runtime', () => {
     }))
     expect(runtime.state.value.driverAuthority).toEqual(expect.objectContaining({
       segmentId: 'segment-live2d-signature-only-still-voiced-motion-line-runtime',
+      rendererTarget: 'live2d',
+      bodySegmentMatched: true,
+      motionSegmentMatched: false,
+    }))
+    expect(runtime.state.value.activeActionCue).toBeNull()
+    expect(runtime.state.value.activeActionCueSource).toBe('none')
+    expect(runtime.state.value.actionPulse.reason).toBeNull()
+    expect(runtime.state.value.actionPulse.cue).toBeNull()
+
+    scope.stop()
+    speech.dispose()
+  })
+
+  it('does not relight a live2d richer still-voiced face-and-mouth carry into a fresh action pulse before body and motion have actually rejoined the living line', async () => {
+    const segmentId = 'segment-live2d-still-voiced-face-mouth-runtime'
+    const text = '我先沿着这条表情、口型和声音还活着的线轻一点接回来。'
+    const rendererHints = {
+      residentMode: 'same-thread-continuation' as const,
+      preferredExpressionAliases: ['CalmInspect', 'soft-gaze'],
+      preferredMotionAliases: ['ObserveSoft', 'StillnessGuard'],
+      preferredBlinkCadence: 'linger' as const,
+      preferredGazeMode: 'soften' as const,
+      reasonTags: [
+        'embodiment:still-voiced-face-lipsync-line',
+      ],
+    }
+    const cue = createPlaybackCueFixture({
+      id: segmentId,
+      text,
+      emotion: 'thinking',
+      gestureWeight: 0.22,
+      facialWeight: 0.4,
+      prosodyWeight: 0.28,
+      beatWeight: 0.2,
+      mouthWeight: 0.34,
+      headWeight: 0.16,
+      facialHoldMs: 320,
+      actionHoldMs: 240,
+      emotionHoldMs: 320,
+      actionCue: 'steady_focus',
+      facialCue: 'settle-smile',
+      actionWindow: 'segment-start',
+      interruptMode: 'soft-interrupt',
+      settleMode: 'linger',
+      rendererHints,
+      rendererSettle: {
+        live2dFacialReleaseMs: 360,
+        live2dMotionFollowThroughMs: 420,
+        vrmActionFadeMs: 320,
+        vrmExpressionBlendMs: 420,
+      },
+    })
+    const speechRenderState = ref(createSpeechRenderStateFixture({
+      active: true,
+      dynamics: {
+        speechEnergy: 0.18,
+        prosodyIntensity: 0.14,
+        emphasisLevel: 0.12,
+        cadencePulse: 0.2,
+      },
+      item: createStageEmbodimentSpeechPlaybackItem({
+        intentId: 'intent-live2d-still-voiced-face-mouth-runtime',
+        segmentId,
+        special: null,
+        streamId: 'stream-live2d-still-voiced-face-mouth-runtime',
+        text,
+        cue,
+        digitalLifeFrame: createDigitalLifeFrameFixture({
+          id: segmentId,
+          text,
+          mode: 'recovering',
+          face: {
+            emotion: 'thinking',
+            facialCue: 'settle-smile',
+            expressionMode: 'hold',
+            intensity: 0.4,
+            holdMs: 320,
+            rendererHints,
+          },
+          action: {
+            actionCue: 'steady_focus',
+            actionMode: 'hold',
+            intensity: 0.18,
+            holdMs: 240,
+            rendererHints,
+          },
+          lipSync: {
+            mode: 'hybrid',
+            visemeBias: 0.56,
+            energyBias: 0.34,
+            mouthScale: 0.82,
+            continuityHoldMs: 320,
+          },
+        }),
+      }),
+      phase: 'playing',
+      revision: 1,
+      visemeIntensity: 0.06,
+      articulation: {
+        voice: createSpeechVoiceFixture({
+          language: 'zh-CN',
+          closureBias: 0.62,
+          consonantPrecision: 0.84,
+        }),
+      },
+    }))
+    const playbackTelemetry = ref<EmbodimentPlaybackTelemetry | null>(createPlaybackTelemetryFixture({
+      actualDurationMs: 240,
+      plannedDurationMs: 240,
+      settleMs: 300,
+      rendererTarget: 'live2d',
+      cue,
+      prosodyAuthority: {
+        segmentId,
+        provenance: 'authority-bound',
+        source: 'prosody-authority',
+        mode: 'energy-phoneme-hybrid',
+        cueProsodyWeight: 0.41,
+        cueMouthWeight: 0.33,
+        cueHeadWeight: 0.26,
+        visemePeakWeight: 0.58,
+      },
+      driverAuthority: {
+        segmentId,
+        rendererTarget: 'live2d',
+        matchedDrivers: ['face', 'lipsync'],
+        sources: ['prosody-authority'],
+        bodySegmentMatched: false,
+        faceSegmentMatched: true,
+        motionSegmentMatched: false,
+        lipsyncSegmentMatched: true,
+      },
+      drivers: {
+        body: null,
+        face: {
+          emotion: 'thinking',
+          facialCue: 'settle-smile',
+          intensity: 0.4,
+          holdMs: 320,
+          source: 'prosody-authority',
+          confidence: 0.92,
+          preUtteranceCue: 'steady-inhale',
+          postUtteranceCue: 'settle-smile',
+          segmentId,
+        },
+        motion: {
+          idleBase: 'steady_focus',
+          attentionMode: 'attentive',
+          actionCue: null,
+          intensity: 0,
+          holdMs: 240,
+          source: 'timeline-projection',
+          confidence: 0,
+          segmentId,
+        },
+        lipsync: {
+          mode: 'energy-phoneme-hybrid',
+          playbackPhase: 'playing',
+          segmentId,
+          continuityHoldMs: 220,
+          visemeHints: [
+            { segmentId, viseme: 'A', weight: 0.5, source: 'prosody-authority', confidence: 0.9 },
+          ],
+        },
+        voice: null,
+      },
+    }))
+    const scope = effectScope()
+    const runtime = scope.run(() => useStageEmbodimentPerformanceRuntime({
+      playbackTelemetry,
+      speechRenderState,
+    }))!
+    await nextTick()
+
+    expect(runtime.state.value.driverAuthority).toEqual(expect.objectContaining({
+      segmentId,
+      rendererTarget: 'live2d',
+      bodySegmentMatched: false,
+      faceSegmentMatched: true,
+      motionSegmentMatched: false,
+      lipsyncSegmentMatched: true,
+    }))
+    expect(runtime.state.value.activeCueSource).toBe('segment')
+    expect(runtime.state.value.activeCue).toEqual(expect.objectContaining({
+      id: segmentId,
+      facialCue: 'settle-smile',
+      actionCue: null,
+    }))
+    expect(runtime.state.value.activeActionCue).toBeNull()
+    expect(runtime.state.value.activeActionCueSource).toBe('none')
+    expect(runtime.state.value.actionPulse.reason).toBeNull()
+    expect(runtime.state.value.actionPulse.cue).toBeNull()
+
+    scope.stop()
+  })
+
+  it('does not relight a live2d richer still-voiced face-and-motion carry into a fresh action pulse before body has actually rejoined the living line', async () => {
+    const segmentId = 'segment-live2d-still-voiced-face-motion-runtime'
+    const text = '我先沿着这条表情、动作和声音还活着的线轻一点接回来。'
+    const rendererHints = {
+      residentMode: 'same-thread-continuation' as const,
+      preferredExpressionAliases: ['CalmInspect', 'soft-gaze'],
+      preferredMotionAliases: ['ObserveSoft', 'StillnessGuard'],
+      preferredBlinkCadence: 'linger' as const,
+      preferredGazeMode: 'soften' as const,
+      reasonTags: [
+        'embodiment:still-voiced-face-motion-line',
+      ],
+    }
+    const cue = createPlaybackCueFixture({
+      id: segmentId,
+      text,
+      emotion: 'thinking',
+      gestureWeight: 0.22,
+      facialWeight: 0.4,
+      prosodyWeight: 0.3,
+      beatWeight: 0.22,
+      mouthWeight: 0.16,
+      headWeight: 0.22,
+      facialHoldMs: 320,
+      actionHoldMs: 240,
+      emotionHoldMs: 320,
+      actionCue: 'steady_focus',
+      facialCue: 'settle-smile',
+      actionWindow: 'segment-start',
+      interruptMode: 'soft-interrupt',
+      settleMode: 'linger',
+      rendererHints,
+      rendererSettle: {
+        live2dFacialReleaseMs: 360,
+        live2dMotionFollowThroughMs: 420,
+        vrmActionFadeMs: 320,
+        vrmExpressionBlendMs: 420,
+      },
+    })
+    const speechRenderState = ref(createSpeechRenderStateFixture({
+      active: true,
+      dynamics: {
+        speechEnergy: 0.18,
+        prosodyIntensity: 0.14,
+        emphasisLevel: 0.12,
+        cadencePulse: 0.2,
+      },
+      item: createStageEmbodimentSpeechPlaybackItem({
+        intentId: 'intent-live2d-still-voiced-face-motion-runtime',
+        segmentId,
+        special: null,
+        streamId: 'stream-live2d-still-voiced-face-motion-runtime',
+        text,
+        cue,
+        digitalLifeFrame: createDigitalLifeFrameFixture({
+          id: segmentId,
+          text,
+          mode: 'recovering',
+          face: {
+            emotion: 'thinking',
+            facialCue: 'settle-smile',
+            expressionMode: 'hold',
+            intensity: 0.4,
+            holdMs: 320,
+            rendererHints,
+          },
+          action: {
+            actionCue: 'steady_focus',
+            actionMode: 'hold',
+            intensity: 0.2,
+            holdMs: 240,
+            rendererHints,
+          },
+          lipSync: {
+            mode: 'closed',
+            visemeBias: 0.18,
+            energyBias: 0.14,
+            mouthScale: 0.7,
+            continuityHoldMs: 220,
+          },
+        }),
+      }),
+      phase: 'playing',
+      revision: 1,
+      visemeIntensity: 0.04,
+      articulation: {
+        voice: createSpeechVoiceFixture({
+          language: 'zh-CN',
+          closureBias: 0.54,
+          consonantPrecision: 0.78,
+        }),
+      },
+    }))
+    const playbackTelemetry = ref<EmbodimentPlaybackTelemetry | null>(createPlaybackTelemetryFixture({
+      actualDurationMs: 240,
+      plannedDurationMs: 240,
+      settleMs: 300,
+      rendererTarget: 'live2d',
+      cue,
+      prosodyAuthority: {
+        segmentId,
+        provenance: 'authority-bound',
+        source: 'prosody-authority',
+        mode: 'energy-phoneme-hybrid',
+        cueProsodyWeight: 0.4,
+        cueMouthWeight: 0.2,
+        cueHeadWeight: 0.28,
+        visemePeakWeight: 0.34,
+      },
+      driverAuthority: {
+        segmentId,
+        rendererTarget: 'live2d',
+        matchedDrivers: ['face', 'motion'],
+        sources: ['prosody-authority', 'timeline-projection'],
+        bodySegmentMatched: false,
+        faceSegmentMatched: true,
+        motionSegmentMatched: true,
+        lipsyncSegmentMatched: false,
+      },
+      drivers: {
+        body: null,
+        face: {
+          emotion: 'thinking',
+          facialCue: 'settle-smile',
+          intensity: 0.4,
+          holdMs: 320,
+          source: 'prosody-authority',
+          confidence: 0.92,
+          preUtteranceCue: 'steady-inhale',
+          postUtteranceCue: 'settle-smile',
+          segmentId,
+        },
+        motion: {
+          idleBase: 'steady_focus',
+          attentionMode: 'attentive',
+          actionCue: 'steady_focus',
+          intensity: 0.22,
+          holdMs: 240,
+          source: 'timeline-projection',
+          confidence: 0.88,
+          segmentId,
+        },
+        lipsync: {
+          mode: 'energy-phoneme-hybrid',
+          playbackPhase: 'playing',
+          segmentId: 'segment-other-lipsync-shell',
+          continuityHoldMs: 220,
+          visemeHints: [
+            { segmentId: 'segment-other-lipsync-shell', viseme: 'A', weight: 0.18, source: 'prosody-authority', confidence: 0.72 },
+          ],
+        },
+        voice: null,
+      },
+    }))
+    const scope = effectScope()
+    const runtime = scope.run(() => useStageEmbodimentPerformanceRuntime({
+      playbackTelemetry,
+      speechRenderState,
+    }))!
+    await nextTick()
+
+    expect(runtime.state.value.driverAuthority).toEqual(expect.objectContaining({
+      segmentId,
+      rendererTarget: 'live2d',
+      bodySegmentMatched: false,
+      faceSegmentMatched: true,
+      motionSegmentMatched: true,
+      lipsyncSegmentMatched: false,
+    }))
+    expect(runtime.state.value.activeCueSource).toBe('segment')
+    expect(runtime.state.value.activeCue).toEqual(expect.objectContaining({
+      id: segmentId,
+      facialCue: 'settle-smile',
+      actionCue: null,
+    }))
+    expect(runtime.state.value.activeActionCue).toBeNull()
+    expect(runtime.state.value.activeActionCueSource).toBe('none')
+    expect(runtime.state.value.actionPulse.reason).toBeNull()
+    expect(runtime.state.value.actionPulse.cue).toBeNull()
+
+    scope.stop()
+  })
+
+  it('does not fire a preview action pulse when a live2d richer still-voiced face-and-mouth carry is only reopening the same restrained line', async () => {
+    const segmentId = 'segment-live2d-still-voiced-face-mouth-preview-reopen'
+    const text = '我还是沿着这条表情、口型和声音还活着的线慢一点接回来。'
+    const rendererHints = {
+      residentMode: 'same-thread-continuation' as const,
+      preferredExpressionAliases: ['CalmInspect', 'soft-gaze'],
+      preferredMotionAliases: ['ObserveSoft', 'StillnessGuard'],
+      preferredBlinkCadence: 'linger' as const,
+      preferredGazeMode: 'soften' as const,
+      reasonTags: [
+        'embodiment:still-voiced-face-lipsync-line',
+      ],
+    }
+
+    const audioContext = {
+      createAnalyser: vi.fn(() => ({
+        fftSize: 2048,
+        getByteTimeDomainData: vi.fn(),
+      })),
+      resume: vi.fn(() => Promise.resolve()),
+      state: 'running',
+    } as unknown as AudioContext
+
+    const speech = useStageEmbodimentSpeech({
+      audioContext,
+      mouthOpenSize: ref(0),
+      paused: ref(false),
+      speechStylePitch: ref(0),
+      speechStyleRate: ref(1),
+      stageModelRenderer: ref('live2d'),
+    })
+
+    const preview = speech.previewSpeechSegment({
+      intentId: 'intent-live2d-still-voiced-face-mouth-preview-reopen',
+      streamId: 'stream-live2d-still-voiced-face-mouth-preview-reopen',
+      segmentId,
+      text,
+      special: null,
+      continuityHoldMs: 240,
+      metadata: {
+        embodimentScript: {
+          version: 'embodiment-script-v1',
+          turnId: 'turn-live2d-still-voiced-face-mouth-preview-reopen',
+          rendererTarget: 'live2d',
+          replyText: text,
+          state: {
+            baseEmotion: 'thinking',
+            delivery: 'gentle',
+            emphasis: 0,
+            residentMode: 'same-thread-continuation',
+          },
+          speechPlan: {
+            segments: [{
+              id: segmentId,
+              index: 0,
+              text,
+              interruptPolicy: 'soft-settle',
+              preRollMs: 40,
+              settleMs: 300,
+              rendererHints,
+            }],
+            interruptPolicy: 'soft-settle',
+            preRollMs: 40,
+            settleMs: 300,
+          },
+          facePlan: {
+            preUtteranceCue: 'steady-inhale',
+            postUtteranceCue: 'settle-smile',
+            speakingCues: [{
+              segmentId,
+              emotion: 'thinking',
+              facialCue: 'settle-smile',
+              intensity: 0.4,
+              holdMs: 320,
+              preUtteranceCue: 'steady-inhale',
+              postUtteranceCue: 'settle-smile',
+              source: 'prosody-authority',
+              confidence: 0.92,
+            }],
+          },
+          motionPlan: {
+            idleBase: 'steady_focus',
+            attentionMode: 'attentive',
+            actionBursts: [{
+              segmentId,
+              actionCue: 'steady_focus',
+              intensity: 0.22,
+              holdMs: 240,
+              source: 'timeline-projection',
+              confidence: 0.86,
+            }],
+          },
+          lipsyncPlan: {
+            mode: 'energy-phoneme-hybrid',
+            visemeHints: [{
+              segmentId,
+              viseme: 'A',
+              weight: 0.5,
+              source: 'prosody-authority',
+              confidence: 0.9,
+            }],
+          },
+        },
+      },
+    })
+
+    const embodiedPlayback = (preview?.metadata as { embodimentPlayback?: EmbodimentPlaybackTelemetry } | null | undefined)?.embodimentPlayback ?? null
+    const speechRenderState = ref(createIdleStageEmbodimentSpeechRenderState())
+    const upcomingSpeechSegment = ref(
+      preview
+        ? {
+            ...preview,
+            metadata: preview.metadata ? { ...preview.metadata } : preview.metadata,
+            cue: preview.cue ? { ...preview.cue } : null,
+            digitalLifeFrame: preview.digitalLifeFrame
+              ? {
+                  ...preview.digitalLifeFrame,
+                  face: { ...preview.digitalLifeFrame.face },
+                  action: { ...preview.digitalLifeFrame.action },
+                  lipSync: { ...preview.digitalLifeFrame.lipSync },
+                  voice: { ...preview.digitalLifeFrame.voice },
+                  motor: {
+                    ...preview.digitalLifeFrame.motor,
+                    gaze: { ...preview.digitalLifeFrame.motor.gaze },
+                    head: { ...preview.digitalLifeFrame.motor.head },
+                    breath: { ...preview.digitalLifeFrame.motor.breath },
+                    facial: { ...preview.digitalLifeFrame.motor.facial },
+                    body: { ...preview.digitalLifeFrame.motor.body },
+                  },
+                }
+              : null,
+          }
+        : null,
+    )
+    const playbackTelemetry = ref<EmbodimentPlaybackTelemetry | null>(
+      embodiedPlayback
+        ? {
+            ...embodiedPlayback,
+            driverAuthority: embodiedPlayback.driverAuthority
+              ? { ...embodiedPlayback.driverAuthority }
+              : null,
+            prosodyAuthority: embodiedPlayback.prosodyAuthority
+              ? { ...embodiedPlayback.prosodyAuthority }
+              : null,
+            cue: embodiedPlayback.cue
+              ? {
+                  ...embodiedPlayback.cue,
+                  rendererHints: embodiedPlayback.cue.rendererHints
+                    ? {
+                        ...embodiedPlayback.cue.rendererHints,
+                        preferredExpressionAliases: embodiedPlayback.cue.rendererHints.preferredExpressionAliases
+                          ? [...embodiedPlayback.cue.rendererHints.preferredExpressionAliases]
+                          : undefined,
+                        preferredMotionAliases: embodiedPlayback.cue.rendererHints.preferredMotionAliases
+                          ? [...embodiedPlayback.cue.rendererHints.preferredMotionAliases]
+                          : undefined,
+                        reasonTags: embodiedPlayback.cue.rendererHints.reasonTags
+                          ? [...embodiedPlayback.cue.rendererHints.reasonTags]
+                          : undefined,
+                      }
+                    : null,
+                  rendererSettle: embodiedPlayback.cue.rendererSettle
+                    ? { ...embodiedPlayback.cue.rendererSettle }
+                    : null,
+                }
+              : null,
+            drivers: {
+              body: embodiedPlayback.drivers.body
+                ? { ...embodiedPlayback.drivers.body }
+                : null,
+              face: embodiedPlayback.drivers.face
+                ? { ...embodiedPlayback.drivers.face }
+                : null,
+              motion: embodiedPlayback.drivers.motion
+                ? { ...embodiedPlayback.drivers.motion }
+                : null,
+              lipsync: embodiedPlayback.drivers.lipsync
+                ? {
+                    ...embodiedPlayback.drivers.lipsync,
+                    visemeHints: embodiedPlayback.drivers.lipsync.visemeHints
+                      ? embodiedPlayback.drivers.lipsync.visemeHints.map(hint => ({ ...hint }))
+                      : [],
+                  }
+                : null,
+              voice: null,
+            },
+          }
+        : null,
+    )
+
+    const scope = effectScope()
+    const runtime = scope.run(() => useStageEmbodimentPerformanceRuntime({
+      upcomingSpeechSegment,
+      playbackTelemetry,
+      speechRenderState,
+    }))!
+
+    runtime.armPerformance(createPerformance({
+      baseEmotion: 'thinking',
+      emotion: 'thinking',
+      facialCue: 'soft-gaze',
+      actionCue: null,
+      delivery: 'gentle',
+      emphasis: 0,
+    }), {
+      source: 'dialogue',
+      variationToken: 'turn-live2d-still-voiced-face-mouth-preview-reopen',
+    })
+    await nextTick()
+
+    expect(runtime.state.value.driverAuthority).toEqual(expect.objectContaining({
+      segmentId,
+      rendererTarget: 'live2d',
+      bodySegmentMatched: true,
+      faceSegmentMatched: true,
+      motionSegmentMatched: false,
+      lipsyncSegmentMatched: true,
+    }))
+    expect(runtime.state.value.activeCueSource).toBe('preview')
+    expect(runtime.state.value.activeCue).toEqual(expect.objectContaining({
+      id: segmentId,
+      facialCue: expect.any(String),
+      actionCue: null,
+    }))
+    expect(runtime.state.value.activeActionCue).toBeNull()
+    expect(runtime.state.value.activeActionCueSource).toBe('none')
+    expect(runtime.state.value.actionPulse.reason).toBeNull()
+    expect(runtime.state.value.actionPulse.cue).toBeNull()
+
+    scope.stop()
+    speech.dispose()
+  })
+
+  it('does not relight a live2d richer still-voiced motion-and-mouth carry into a fresh action pulse before motion has actually rejoined the living line', async () => {
+    vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1))
+    vi.stubGlobal('cancelAnimationFrame', vi.fn())
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    const audioContext = {
+      createAnalyser: vi.fn(() => ({
+        fftSize: 2048,
+        getByteTimeDomainData: vi.fn(),
+      })),
+      resume: vi.fn(() => Promise.resolve()),
+      state: 'running',
+    } as unknown as AudioContext
+
+    const speech = useStageEmbodimentSpeech({
+      audioContext,
+      mouthOpenSize: ref(0),
+      paused: ref(false),
+      speechStylePitch: ref(0),
+      speechStyleRate: ref(1),
+      stageModelRenderer: ref('live2d'),
+    })
+
+    const preview = speech.previewSpeechSegment({
+      intentId: 'intent-live2d-still-voiced-motion-mouth-runtime',
+      streamId: 'stream-live2d-still-voiced-motion-mouth-runtime',
+      segmentId: 'segment-live2d-still-voiced-motion-mouth-runtime',
+      text: '我先沿着这条动作、口型和声音还活着的线轻一点接回来。',
+      special: null,
+      continuityHoldMs: 240,
+      metadata: {
+        embodimentScript: {
+          version: 'embodiment-script-v1',
+          turnId: 'turn-live2d-still-voiced-motion-mouth-runtime',
+          rendererTarget: 'live2d',
+          replyText: '我先沿着这条动作、口型和声音还活着的线轻一点接回来。',
+          state: {
+            baseEmotion: 'thinking',
+            delivery: 'gentle',
+            emphasis: 0,
+            residentMode: 'same-thread-continuation',
+          },
+          speechPlan: {
+            segments: [{
+              id: 'segment-live2d-still-voiced-motion-mouth-runtime',
+              index: 0,
+              text: '我先沿着这条动作、口型和声音还活着的线轻一点接回来。',
+              interruptPolicy: 'soft-settle',
+              preRollMs: 40,
+              settleMs: 300,
+              rendererHints: {
+                residentMode: 'same-thread-continuation',
+                preferredExpressionAliases: ['CalmInspect', 'soft-gaze'],
+                preferredMotionAliases: ['ObserveSoft', 'StillnessGuard'],
+                preferredBlinkCadence: 'linger',
+                preferredGazeMode: 'soften',
+                reasonTags: [
+                  'embodiment:still-voiced-motion-lipsync-line',
+                ],
+              },
+            }],
+            interruptPolicy: 'soft-settle',
+            preRollMs: 40,
+            settleMs: 300,
+          },
+          facePlan: {
+            preUtteranceCue: 'steady-inhale',
+            postUtteranceCue: 'settle-smile',
+            speakingCues: [{
+              segmentId: 'segment-live2d-still-voiced-motion-mouth-runtime',
+              emotion: 'thinking',
+              facialCue: 'settle-smile',
+              intensity: 0.4,
+              holdMs: 320,
+              preUtteranceCue: 'steady-inhale',
+              postUtteranceCue: 'settle-smile',
+              source: 'prosody-authority',
+              confidence: 0.92,
+            }],
+          },
+          motionPlan: {
+            idleBase: 'steady_focus',
+            attentionMode: 'attentive',
+            actionBursts: [{
+              segmentId: 'segment-live2d-still-voiced-motion-mouth-runtime',
+              actionCue: 'steady_focus',
+              intensity: 0.22,
+              holdMs: 240,
+              source: 'timeline-projection',
+              confidence: 0.86,
+            }],
+          },
+          lipsyncPlan: {
+            mode: 'energy-phoneme-hybrid',
+            visemeHints: [{
+              segmentId: 'segment-live2d-still-voiced-motion-mouth-runtime',
+              viseme: 'A',
+              weight: 0.5,
+              source: 'prosody-authority',
+              confidence: 0.9,
+            }],
+          },
+        },
+      },
+    })
+
+    const embodiedPlayback = (preview?.metadata as { embodimentPlayback?: EmbodimentPlaybackTelemetry } | null | undefined)?.embodimentPlayback ?? null
+    const speechRenderState = ref(createSpeechRenderStateFixture({
+      active: true,
+      dynamics: {
+        speechEnergy: 0.18,
+        prosodyIntensity: 0.14,
+        emphasisLevel: 0.12,
+        cadencePulse: 0.2,
+      },
+      item: preview
+        ? {
+            ...preview,
+            metadata: preview.metadata ? { ...preview.metadata } : preview.metadata,
+            cue: preview.cue ? { ...preview.cue } : null,
+            digitalLifeFrame: preview.digitalLifeFrame
+              ? {
+                  ...preview.digitalLifeFrame,
+                  face: { ...preview.digitalLifeFrame.face },
+                  action: { ...preview.digitalLifeFrame.action },
+                  lipSync: { ...preview.digitalLifeFrame.lipSync },
+                  voice: { ...preview.digitalLifeFrame.voice },
+                  motor: {
+                    ...preview.digitalLifeFrame.motor,
+                    gaze: { ...preview.digitalLifeFrame.motor.gaze },
+                    head: { ...preview.digitalLifeFrame.motor.head },
+                    breath: { ...preview.digitalLifeFrame.motor.breath },
+                    facial: { ...preview.digitalLifeFrame.motor.facial },
+                    body: { ...preview.digitalLifeFrame.motor.body },
+                  },
+                }
+              : null,
+          }
+        : null,
+      phase: 'playing',
+      revision: 1,
+      visemeIntensity: 0.06,
+      articulation: {
+        voice: createSpeechVoiceFixture({
+          language: 'zh-CN',
+          closureBias: 0.62,
+          consonantPrecision: 0.84,
+        }),
+      },
+    }))
+    const playbackTelemetry = ref<EmbodimentPlaybackTelemetry | null>(
+      embodiedPlayback
+        ? {
+            ...embodiedPlayback,
+            driverAuthority: embodiedPlayback.driverAuthority
+              ? { ...embodiedPlayback.driverAuthority }
+              : null,
+            prosodyAuthority: embodiedPlayback.prosodyAuthority
+              ? { ...embodiedPlayback.prosodyAuthority }
+              : null,
+            cue: embodiedPlayback.cue
+              ? {
+                  ...embodiedPlayback.cue,
+                  rendererHints: embodiedPlayback.cue.rendererHints
+                    ? {
+                        ...embodiedPlayback.cue.rendererHints,
+                        preferredExpressionAliases: embodiedPlayback.cue.rendererHints.preferredExpressionAliases
+                          ? [...embodiedPlayback.cue.rendererHints.preferredExpressionAliases]
+                          : undefined,
+                        preferredMotionAliases: embodiedPlayback.cue.rendererHints.preferredMotionAliases
+                          ? [...embodiedPlayback.cue.rendererHints.preferredMotionAliases]
+                          : undefined,
+                        reasonTags: embodiedPlayback.cue.rendererHints.reasonTags
+                          ? [...embodiedPlayback.cue.rendererHints.reasonTags]
+                          : undefined,
+                      }
+                    : null,
+                  rendererSettle: embodiedPlayback.cue.rendererSettle
+                    ? { ...embodiedPlayback.cue.rendererSettle }
+                    : null,
+                }
+              : null,
+            drivers: {
+              body: embodiedPlayback.drivers.body
+                ? { ...embodiedPlayback.drivers.body }
+                : null,
+              face: embodiedPlayback.drivers.face
+                ? { ...embodiedPlayback.drivers.face }
+                : null,
+              motion: embodiedPlayback.drivers.motion
+                ? { ...embodiedPlayback.drivers.motion }
+                : null,
+              lipsync: embodiedPlayback.drivers.lipsync
+                ? {
+                    ...embodiedPlayback.drivers.lipsync,
+                    visemeHints: embodiedPlayback.drivers.lipsync.visemeHints
+                      ? embodiedPlayback.drivers.lipsync.visemeHints.map(hint => ({ ...hint }))
+                      : [],
+                  }
+                : null,
+              voice: null,
+            },
+          }
+        : null,
+    )
+
+    const scope = effectScope()
+    const runtime = scope.run(() => useStageEmbodimentPerformanceRuntime({
+      playbackTelemetry,
+      speechRenderState,
+    }))!
+
+    expect(preview?.cue?.actionCue).toBe('observe_focus')
+    expect(preview?.cue?.rendererHints).toEqual(expect.objectContaining({
+      reasonTags: [
+        'embodiment:still-voiced-motion-lipsync-line',
+      ],
+    }))
+    expect(playbackTelemetry.value?.drivers.motion).toEqual(expect.objectContaining({
+      idleBase: 'observe_focus',
+      actionCue: null,
+    }))
+    expect(runtime.state.value.driverAuthority).toEqual(expect.objectContaining({
+      segmentId: 'segment-live2d-still-voiced-motion-mouth-runtime',
       rendererTarget: 'live2d',
       bodySegmentMatched: true,
       motionSegmentMatched: false,
@@ -9583,6 +12453,7 @@ describe('stage embodiment performance runtime', () => {
                       : [],
                   }
                 : null,
+              voice: null,
             },
           }
         : null,
@@ -9594,7 +12465,7 @@ describe('stage embodiment performance runtime', () => {
       speechRenderState,
     }))!
 
-    expect(preview?.cue?.actionCue).toBe('steady_focus')
+    expect(preview?.cue?.actionCue).toBeNull()
     expect(preview?.cue?.rendererHints).toEqual(expect.objectContaining({
       signature: 'embodiment:body+lipsync-only',
       reasonTags: ['embodiment:body+lipsync-only'],
@@ -9808,6 +12679,7 @@ describe('stage embodiment performance runtime', () => {
                       : [],
                   }
                 : null,
+              voice: null,
             },
           }
         : null,
@@ -9833,7 +12705,7 @@ describe('stage embodiment performance runtime', () => {
     })
     await nextTick()
 
-    expect(preview?.cue?.actionCue).toBe('steady_focus')
+    expect(preview?.cue?.actionCue).toBeNull()
     expect(preview?.cue?.rendererSettle).toEqual(expect.objectContaining({
       live2dFacialReleaseMs: expect.any(Number),
       live2dMotionFollowThroughMs: expect.any(Number),
@@ -9861,6 +12733,490 @@ describe('stage embodiment performance runtime', () => {
     expect(runtime.state.value.actionPulse.reason).toBeNull()
     expect(runtime.state.value.actionPulse.cue).toBeNull()
     expect(runtime.state.value.activeCue?.rendererSettle).toEqual(preview?.cue?.rendererSettle ?? null)
+
+    scope.stop()
+    speech.dispose()
+  })
+
+  it('does not fire a preview action pulse when a repair-before-closeness live2d same-her body-plus-voice carry is only reopening the same resident body line', async () => {
+    vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1))
+    vi.stubGlobal('cancelAnimationFrame', vi.fn())
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    const audioContext = {
+      createAnalyser: vi.fn(() => ({
+        fftSize: 2048,
+        getByteTimeDomainData: vi.fn(),
+      })),
+      resume: vi.fn(() => Promise.resolve()),
+      state: 'running',
+    } as unknown as AudioContext
+
+    const speech = useStageEmbodimentSpeech({
+      audioContext,
+      mouthOpenSize: ref(0),
+      paused: ref(false),
+      speechStylePitch: ref(0),
+      speechStyleRate: ref(1),
+      stageModelRenderer: ref('live2d'),
+    })
+
+    const preview = speech.previewSpeechSegment({
+      intentId: 'intent-live2d-repair-first-body-voice-only-preview-reopen',
+      streamId: 'stream-live2d-repair-first-body-voice-only-preview-reopen',
+      segmentId: 'segment-live2d-repair-first-body-voice-only-preview-reopen',
+      text: '我先沿着这条还活着的身体和声音线把身体收稳，再慢一点让别的线接回来。',
+      special: null,
+      continuityHoldMs: 260,
+      metadata: {
+        embodimentScript: {
+          version: 'embodiment-script-v1',
+          turnId: 'turn-live2d-repair-first-body-voice-only-preview-reopen',
+          rendererTarget: 'live2d',
+          replyText: '我先沿着这条还活着的身体和声音线把身体收稳，再慢一点让别的线接回来。',
+          state: {
+            baseEmotion: 'thinking',
+            delivery: 'gentle',
+            emphasis: 0,
+            residentMode: 'repair-before-closeness',
+          },
+          speechPlan: {
+            segments: [{
+              id: 'segment-live2d-repair-first-body-voice-only-preview-reopen',
+              index: 0,
+              text: '我先沿着这条还活着的身体和声音线把身体收稳，再慢一点让别的线接回来。',
+              interruptPolicy: 'soft-settle',
+              preRollMs: 40,
+              settleMs: 320,
+              rendererHints: {
+                residentMode: 'repair-before-closeness',
+                preferredExpressionAliases: ['RecoverSoft', 'soft-gaze'],
+                preferredMotionAliases: ['StillnessGuard', 'ObserveSoft'],
+                preferredBlinkCadence: 'quiet',
+                preferredGazeMode: 'soften',
+                signature: 'embodiment:audible_same_her_line',
+                reasonTags: ['embodiment:body+voice-only'],
+              },
+            }],
+            interruptPolicy: 'soft-settle',
+            preRollMs: 40,
+            settleMs: 320,
+          },
+          facePlan: {
+            preUtteranceCue: 'steady-inhale',
+            postUtteranceCue: 'eyes-soften',
+            speakingCues: [{
+              segmentId: 'segment-live2d-repair-first-body-voice-only-preview-reopen',
+              emotion: 'thinking',
+              facialCue: 'soft-release',
+              intensity: 0.34,
+              holdMs: 340,
+              preUtteranceCue: 'steady-inhale',
+              postUtteranceCue: 'eyes-soften',
+              source: 'prosody-authority',
+              confidence: 0.92,
+            }],
+          },
+          motionPlan: {
+            idleBase: 'idle_settle',
+            attentionMode: 'ambient',
+            actionBursts: [{
+              segmentId: 'segment-live2d-repair-first-body-voice-only-preview-reopen',
+              actionCue: 'idle_settle',
+              intensity: 0.12,
+              holdMs: 260,
+              source: 'timeline-projection',
+              confidence: 0.84,
+            }],
+          },
+          lipsyncPlan: {
+            mode: 'energy-phoneme-hybrid',
+            visemeHints: [{
+              segmentId: 'segment-live2d-repair-first-body-voice-only-preview-reopen',
+              viseme: 'A',
+              weight: 0.44,
+              source: 'prosody-authority',
+              confidence: 0.9,
+            }],
+          },
+        },
+      },
+    })
+
+    const embodiedPlayback = (preview?.metadata as { embodimentPlayback?: EmbodimentPlaybackTelemetry } | null | undefined)?.embodimentPlayback ?? null
+    const speechRenderState = ref(createIdleStageEmbodimentSpeechRenderState())
+    const upcomingSpeechSegment = ref(
+      preview
+        ? {
+            ...preview,
+            metadata: preview.metadata ? { ...preview.metadata } : preview.metadata,
+            cue: preview.cue ? { ...preview.cue } : null,
+            digitalLifeFrame: preview.digitalLifeFrame
+              ? {
+                  ...preview.digitalLifeFrame,
+                  face: { ...preview.digitalLifeFrame.face },
+                  action: { ...preview.digitalLifeFrame.action },
+                  lipSync: { ...preview.digitalLifeFrame.lipSync },
+                  voice: { ...preview.digitalLifeFrame.voice },
+                  motor: {
+                    ...preview.digitalLifeFrame.motor,
+                    gaze: { ...preview.digitalLifeFrame.motor.gaze },
+                    head: { ...preview.digitalLifeFrame.motor.head },
+                    breath: { ...preview.digitalLifeFrame.motor.breath },
+                    facial: { ...preview.digitalLifeFrame.motor.facial },
+                    body: { ...preview.digitalLifeFrame.motor.body },
+                  },
+                }
+              : null,
+          }
+        : null,
+    )
+    const playbackTelemetry = ref<EmbodimentPlaybackTelemetry | null>(
+      embodiedPlayback
+        ? {
+            ...embodiedPlayback,
+            driverAuthority: embodiedPlayback.driverAuthority
+              ? { ...embodiedPlayback.driverAuthority }
+              : null,
+            prosodyAuthority: embodiedPlayback.prosodyAuthority
+              ? { ...embodiedPlayback.prosodyAuthority }
+              : null,
+            cue: embodiedPlayback.cue
+              ? {
+                  ...embodiedPlayback.cue,
+                  rendererHints: embodiedPlayback.cue.rendererHints
+                    ? {
+                        ...embodiedPlayback.cue.rendererHints,
+                        preferredExpressionAliases: embodiedPlayback.cue.rendererHints.preferredExpressionAliases
+                          ? [...embodiedPlayback.cue.rendererHints.preferredExpressionAliases]
+                          : undefined,
+                        preferredMotionAliases: embodiedPlayback.cue.rendererHints.preferredMotionAliases
+                          ? [...embodiedPlayback.cue.rendererHints.preferredMotionAliases]
+                          : undefined,
+                        reasonTags: embodiedPlayback.cue.rendererHints.reasonTags
+                          ? [...embodiedPlayback.cue.rendererHints.reasonTags]
+                          : undefined,
+                      }
+                    : null,
+                  rendererSettle: embodiedPlayback.cue.rendererSettle
+                    ? { ...embodiedPlayback.cue.rendererSettle }
+                    : null,
+                }
+              : null,
+            drivers: {
+              body: embodiedPlayback.drivers.body
+                ? { ...embodiedPlayback.drivers.body }
+                : null,
+              face: embodiedPlayback.drivers.face
+                ? { ...embodiedPlayback.drivers.face }
+                : null,
+              motion: embodiedPlayback.drivers.motion
+                ? { ...embodiedPlayback.drivers.motion }
+                : null,
+              lipsync: embodiedPlayback.drivers.lipsync
+                ? {
+                    ...embodiedPlayback.drivers.lipsync,
+                    visemeHints: embodiedPlayback.drivers.lipsync.visemeHints
+                      ? embodiedPlayback.drivers.lipsync.visemeHints.map(hint => ({ ...hint }))
+                      : [],
+                  }
+                : null,
+              voice: null,
+            },
+          }
+        : null,
+    )
+
+    const scope = effectScope()
+    const runtime = scope.run(() => useStageEmbodimentPerformanceRuntime({
+      upcomingSpeechSegment,
+      playbackTelemetry,
+      speechRenderState,
+    }))!
+
+    runtime.armPerformance(createPerformance({
+      baseEmotion: 'thinking',
+      emotion: 'thinking',
+      facialCue: 'soft-gaze',
+      actionCue: null,
+      delivery: 'gentle',
+      emphasis: 0,
+    }), {
+      source: 'dialogue',
+      variationToken: 'turn-live2d-repair-first-body-voice-only-preview-reopen',
+    })
+    await nextTick()
+
+    expect(preview?.cue?.actionCue).toBe('idle_settle')
+    expect(preview?.cue?.rendererHints).toEqual(expect.objectContaining({
+      residentMode: 'repair-before-closeness',
+      signature: 'embodiment:audible_same_her_line',
+      reasonTags: ['embodiment:body+voice-only'],
+    }))
+    expect(playbackTelemetry.value?.drivers.motion).toEqual(expect.objectContaining({
+      idleBase: 'idle_settle',
+      actionCue: null,
+    }))
+    expect(runtime.state.value.driverAuthority).toEqual(expect.objectContaining({
+      segmentId: 'segment-live2d-repair-first-body-voice-only-preview-reopen',
+      rendererTarget: 'live2d',
+      bodySegmentMatched: true,
+      motionSegmentMatched: false,
+    }))
+    expect(runtime.state.value.activeCueSource).toBe('preview')
+    expect(runtime.state.value.activeCue).toEqual(expect.objectContaining({
+      id: 'segment-live2d-repair-first-body-voice-only-preview-reopen',
+      rendererHints: expect.objectContaining({
+        residentMode: 'repair-before-closeness',
+      }),
+      actionCue: null,
+    }))
+    expect(runtime.state.value.activeActionCue).toBeNull()
+    expect(runtime.state.value.activeActionCueSource).toBe('none')
+    expect(runtime.state.value.actionPulse.reason).toBeNull()
+    expect(runtime.state.value.actionPulse.cue).toBeNull()
+
+    scope.stop()
+    speech.dispose()
+  })
+
+  it('does not fire a preview action pulse when a measured-return live2d same-her body-plus-voice carry is only reopening the same softer resident body line', async () => {
+    vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1))
+    vi.stubGlobal('cancelAnimationFrame', vi.fn())
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    const audioContext = {
+      createAnalyser: vi.fn(() => ({
+        fftSize: 2048,
+        getByteTimeDomainData: vi.fn(),
+      })),
+      resume: vi.fn(() => Promise.resolve()),
+      state: 'running',
+    } as unknown as AudioContext
+
+    const speech = useStageEmbodimentSpeech({
+      audioContext,
+      mouthOpenSize: ref(0),
+      paused: ref(false),
+      speechStylePitch: ref(0),
+      speechStyleRate: ref(1),
+      stageModelRenderer: ref('live2d'),
+    })
+
+    const preview = speech.previewSpeechSegment({
+      intentId: 'intent-live2d-measured-return-body-voice-only-preview-reopen',
+      streamId: 'stream-live2d-measured-return-body-voice-only-preview-reopen',
+      segmentId: 'segment-live2d-measured-return-body-voice-only-preview-reopen',
+      text: '我还是沿着这条更轻一点的身体和声音线把身体先接稳，再慢一点让别的线回来。',
+      special: null,
+      continuityHoldMs: 260,
+      metadata: {
+        embodimentScript: {
+          version: 'embodiment-script-v1',
+          turnId: 'turn-live2d-measured-return-body-voice-only-preview-reopen',
+          rendererTarget: 'live2d',
+          replyText: '我还是沿着这条更轻一点的身体和声音线把身体先接稳，再慢一点让别的线回来。',
+          state: {
+            baseEmotion: 'thinking',
+            delivery: 'gentle',
+            emphasis: 0,
+            residentMode: 'measured-return',
+          },
+          speechPlan: {
+            segments: [{
+              id: 'segment-live2d-measured-return-body-voice-only-preview-reopen',
+              index: 0,
+              text: '我还是沿着这条更轻一点的身体和声音线把身体先接稳，再慢一点让别的线回来。',
+              interruptPolicy: 'soft-settle',
+              preRollMs: 40,
+              settleMs: 320,
+              rendererHints: {
+                residentMode: 'measured-return',
+                preferredExpressionAliases: ['CalmInspect', 'soft-gaze'],
+                preferredMotionAliases: ['ObserveSoft', 'StillnessGuard'],
+                preferredBlinkCadence: 'linger',
+                preferredGazeMode: 'soften',
+                signature: 'embodiment:audible_same_her_line',
+                reasonTags: ['embodiment:body+voice-only'],
+              },
+            }],
+            interruptPolicy: 'soft-settle',
+            preRollMs: 40,
+            settleMs: 320,
+          },
+          facePlan: {
+            preUtteranceCue: 'steady-inhale',
+            postUtteranceCue: 'settle-smile',
+            speakingCues: [{
+              segmentId: 'segment-live2d-measured-return-body-voice-only-preview-reopen',
+              emotion: 'thinking',
+              facialCue: 'soft-release',
+              intensity: 0.34,
+              holdMs: 340,
+              preUtteranceCue: 'steady-inhale',
+              postUtteranceCue: 'settle-smile',
+              source: 'prosody-authority',
+              confidence: 0.92,
+            }],
+          },
+          motionPlan: {
+            idleBase: 'idle_settle',
+            attentionMode: 'ambient',
+            actionBursts: [{
+              segmentId: 'segment-live2d-measured-return-body-voice-only-preview-reopen',
+              actionCue: 'idle_settle',
+              intensity: 0.12,
+              holdMs: 260,
+              source: 'timeline-projection',
+              confidence: 0.84,
+            }],
+          },
+          lipsyncPlan: {
+            mode: 'energy-phoneme-hybrid',
+            visemeHints: [{
+              segmentId: 'segment-live2d-measured-return-body-voice-only-preview-reopen',
+              viseme: 'A',
+              weight: 0.44,
+              source: 'prosody-authority',
+              confidence: 0.9,
+            }],
+          },
+        },
+      },
+    })
+
+    const embodiedPlayback = (preview?.metadata as { embodimentPlayback?: EmbodimentPlaybackTelemetry } | null | undefined)?.embodimentPlayback ?? null
+    const speechRenderState = ref(createIdleStageEmbodimentSpeechRenderState())
+    const upcomingSpeechSegment = ref(
+      preview
+        ? {
+            ...preview,
+            metadata: preview.metadata ? { ...preview.metadata } : preview.metadata,
+            cue: preview.cue ? { ...preview.cue } : null,
+            digitalLifeFrame: preview.digitalLifeFrame
+              ? {
+                  ...preview.digitalLifeFrame,
+                  face: { ...preview.digitalLifeFrame.face },
+                  action: { ...preview.digitalLifeFrame.action },
+                  lipSync: { ...preview.digitalLifeFrame.lipSync },
+                  voice: { ...preview.digitalLifeFrame.voice },
+                  motor: {
+                    ...preview.digitalLifeFrame.motor,
+                    gaze: { ...preview.digitalLifeFrame.motor.gaze },
+                    head: { ...preview.digitalLifeFrame.motor.head },
+                    breath: { ...preview.digitalLifeFrame.motor.breath },
+                    facial: { ...preview.digitalLifeFrame.motor.facial },
+                    body: { ...preview.digitalLifeFrame.motor.body },
+                  },
+                }
+              : null,
+          }
+        : null,
+    )
+    const playbackTelemetry = ref<EmbodimentPlaybackTelemetry | null>(
+      embodiedPlayback
+        ? {
+            ...embodiedPlayback,
+            driverAuthority: embodiedPlayback.driverAuthority
+              ? { ...embodiedPlayback.driverAuthority }
+              : null,
+            prosodyAuthority: embodiedPlayback.prosodyAuthority
+              ? { ...embodiedPlayback.prosodyAuthority }
+              : null,
+            cue: embodiedPlayback.cue
+              ? {
+                  ...embodiedPlayback.cue,
+                  rendererHints: embodiedPlayback.cue.rendererHints
+                    ? {
+                        ...embodiedPlayback.cue.rendererHints,
+                        preferredExpressionAliases: embodiedPlayback.cue.rendererHints.preferredExpressionAliases
+                          ? [...embodiedPlayback.cue.rendererHints.preferredExpressionAliases]
+                          : undefined,
+                        preferredMotionAliases: embodiedPlayback.cue.rendererHints.preferredMotionAliases
+                          ? [...embodiedPlayback.cue.rendererHints.preferredMotionAliases]
+                          : undefined,
+                        reasonTags: embodiedPlayback.cue.rendererHints.reasonTags
+                          ? [...embodiedPlayback.cue.rendererHints.reasonTags]
+                          : undefined,
+                      }
+                    : null,
+                  rendererSettle: embodiedPlayback.cue.rendererSettle
+                    ? { ...embodiedPlayback.cue.rendererSettle }
+                    : null,
+                }
+              : null,
+            drivers: {
+              body: embodiedPlayback.drivers.body
+                ? { ...embodiedPlayback.drivers.body }
+                : null,
+              face: embodiedPlayback.drivers.face
+                ? { ...embodiedPlayback.drivers.face }
+                : null,
+              motion: embodiedPlayback.drivers.motion
+                ? { ...embodiedPlayback.drivers.motion }
+                : null,
+              lipsync: embodiedPlayback.drivers.lipsync
+                ? {
+                    ...embodiedPlayback.drivers.lipsync,
+                    visemeHints: embodiedPlayback.drivers.lipsync.visemeHints
+                      ? embodiedPlayback.drivers.lipsync.visemeHints.map(hint => ({ ...hint }))
+                      : [],
+                  }
+                : null,
+              voice: null,
+            },
+          }
+        : null,
+    )
+
+    const scope = effectScope()
+    const runtime = scope.run(() => useStageEmbodimentPerformanceRuntime({
+      upcomingSpeechSegment,
+      playbackTelemetry,
+      speechRenderState,
+    }))!
+
+    runtime.armPerformance(createPerformance({
+      baseEmotion: 'thinking',
+      emotion: 'thinking',
+      facialCue: 'soft-gaze',
+      actionCue: null,
+      delivery: 'gentle',
+      emphasis: 0,
+    }), {
+      source: 'dialogue',
+      variationToken: 'turn-live2d-measured-return-body-voice-only-preview-reopen',
+    })
+    await nextTick()
+
+    expect(preview?.cue?.actionCue).toBe('idle_settle')
+    expect(preview?.cue?.rendererHints).toEqual(expect.objectContaining({
+      residentMode: 'measured-return',
+      signature: 'embodiment:audible_same_her_line',
+      reasonTags: ['embodiment:body+voice-only'],
+    }))
+    expect(playbackTelemetry.value?.drivers.motion).toEqual(expect.objectContaining({
+      idleBase: 'idle_settle',
+      actionCue: null,
+    }))
+    expect(runtime.state.value.driverAuthority).toEqual(expect.objectContaining({
+      segmentId: 'segment-live2d-measured-return-body-voice-only-preview-reopen',
+      rendererTarget: 'live2d',
+      bodySegmentMatched: true,
+      motionSegmentMatched: false,
+    }))
+    expect(runtime.state.value.activeCueSource).toBe('preview')
+    expect(runtime.state.value.activeCue).toEqual(expect.objectContaining({
+      id: 'segment-live2d-measured-return-body-voice-only-preview-reopen',
+      rendererHints: expect.objectContaining({
+        residentMode: 'measured-return',
+      }),
+      actionCue: null,
+    }))
+    expect(runtime.state.value.activeActionCue).toBeNull()
+    expect(runtime.state.value.activeActionCueSource).toBe('none')
+    expect(runtime.state.value.actionPulse.reason).toBeNull()
+    expect(runtime.state.value.actionPulse.cue).toBeNull()
 
     scope.stop()
     speech.dispose()
@@ -10049,6 +13405,7 @@ describe('stage embodiment performance runtime', () => {
                       : [],
                   }
                 : null,
+              voice: null,
             },
           }
         : null,
@@ -10074,7 +13431,7 @@ describe('stage embodiment performance runtime', () => {
     })
     await nextTick()
 
-    expect(preview?.cue?.actionCue).toBe('steady_focus')
+    expect(preview?.cue?.actionCue).toBe('observe_focus')
     expect(playbackTelemetry.value?.drivers.motion).toEqual(expect.objectContaining({
       idleBase: 'observe_focus',
       actionCue: null,
@@ -10157,7 +13514,6 @@ describe('stage embodiment performance runtime', () => {
                 preferredBlinkCadence: 'linger',
                 preferredGazeMode: 'soften',
                 signature: 'resident|main-runtime|accompanying|quiet-accompaniment|still-voiced-motion-line',
-                reasonTags: ['embodiment:body-lipsync-voice-rejoin'],
               },
             }],
             interruptPolicy: 'soft-settle',
@@ -10283,6 +13639,7 @@ describe('stage embodiment performance runtime', () => {
                       : [],
                   }
                 : null,
+              voice: null,
             },
           }
         : null,
@@ -10308,7 +13665,7 @@ describe('stage embodiment performance runtime', () => {
     })
     await nextTick()
 
-    expect(preview?.cue?.actionCue).toBe('steady_focus')
+    expect(preview?.cue?.actionCue).toBe('observe_focus')
     expect(playbackTelemetry.value?.drivers.motion).toEqual(expect.objectContaining({
       idleBase: 'observe_focus',
       actionCue: null,
@@ -10322,6 +13679,242 @@ describe('stage embodiment performance runtime', () => {
     expect(runtime.state.value.activeCueSource).toBe('preview')
     expect(runtime.state.value.activeCue).toEqual(expect.objectContaining({
       id: 'segment-live2d-signature-only-still-voiced-motion-line-preview-reopen',
+      facialCue: expect.any(String),
+      actionCue: null,
+    }))
+    expect(runtime.state.value.activeActionCue).toBeNull()
+    expect(runtime.state.value.activeActionCueSource).toBe('none')
+    expect(runtime.state.value.actionPulse.reason).toBeNull()
+    expect(runtime.state.value.actionPulse.cue).toBeNull()
+
+    scope.stop()
+    speech.dispose()
+  })
+
+  it('does not fire a preview action pulse when a live2d richer still-voiced motion-and-mouth carry is only reopening the same restrained line', async () => {
+    vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1))
+    vi.stubGlobal('cancelAnimationFrame', vi.fn())
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    const audioContext = {
+      createAnalyser: vi.fn(() => ({
+        fftSize: 2048,
+        getByteTimeDomainData: vi.fn(),
+      })),
+      resume: vi.fn(() => Promise.resolve()),
+      state: 'running',
+    } as unknown as AudioContext
+
+    const speech = useStageEmbodimentSpeech({
+      audioContext,
+      mouthOpenSize: ref(0),
+      paused: ref(false),
+      speechStylePitch: ref(0),
+      speechStyleRate: ref(1),
+      stageModelRenderer: ref('live2d'),
+    })
+
+    const preview = speech.previewSpeechSegment({
+      intentId: 'intent-live2d-still-voiced-motion-mouth-preview-reopen',
+      streamId: 'stream-live2d-still-voiced-motion-mouth-preview-reopen',
+      segmentId: 'segment-live2d-still-voiced-motion-mouth-preview-reopen',
+      text: '我还是沿着这条动作、口型和声音还活着的线慢一点接回来。',
+      special: null,
+      continuityHoldMs: 240,
+      metadata: {
+        embodimentScript: {
+          version: 'embodiment-script-v1',
+          turnId: 'turn-live2d-still-voiced-motion-mouth-preview-reopen',
+          rendererTarget: 'live2d',
+          replyText: '我还是沿着这条动作、口型和声音还活着的线慢一点接回来。',
+          state: {
+            baseEmotion: 'thinking',
+            delivery: 'gentle',
+            emphasis: 0,
+            residentMode: 'same-thread-continuation',
+          },
+          speechPlan: {
+            segments: [{
+              id: 'segment-live2d-still-voiced-motion-mouth-preview-reopen',
+              index: 0,
+              text: '我还是沿着这条动作、口型和声音还活着的线慢一点接回来。',
+              interruptPolicy: 'soft-settle',
+              preRollMs: 40,
+              settleMs: 300,
+              rendererHints: {
+                residentMode: 'same-thread-continuation',
+                preferredExpressionAliases: ['CalmInspect', 'soft-gaze'],
+                preferredMotionAliases: ['ObserveSoft', 'StillnessGuard'],
+                preferredBlinkCadence: 'linger',
+                preferredGazeMode: 'soften',
+                reasonTags: [
+                  'embodiment:still-voiced-motion-lipsync-line',
+                ],
+              },
+            }],
+            interruptPolicy: 'soft-settle',
+            preRollMs: 40,
+            settleMs: 300,
+          },
+          facePlan: {
+            preUtteranceCue: 'steady-inhale',
+            postUtteranceCue: 'settle-smile',
+            speakingCues: [{
+              segmentId: 'segment-live2d-still-voiced-motion-mouth-preview-reopen',
+              emotion: 'thinking',
+              facialCue: 'settle-smile',
+              intensity: 0.4,
+              holdMs: 320,
+              preUtteranceCue: 'steady-inhale',
+              postUtteranceCue: 'settle-smile',
+              source: 'prosody-authority',
+              confidence: 0.92,
+            }],
+          },
+          motionPlan: {
+            idleBase: 'steady_focus',
+            attentionMode: 'attentive',
+            actionBursts: [{
+              segmentId: 'segment-live2d-still-voiced-motion-mouth-preview-reopen',
+              actionCue: 'steady_focus',
+              intensity: 0.22,
+              holdMs: 240,
+              source: 'timeline-projection',
+              confidence: 0.86,
+            }],
+          },
+          lipsyncPlan: {
+            mode: 'energy-phoneme-hybrid',
+            visemeHints: [{
+              segmentId: 'segment-live2d-still-voiced-motion-mouth-preview-reopen',
+              viseme: 'A',
+              weight: 0.5,
+              source: 'prosody-authority',
+              confidence: 0.9,
+            }],
+          },
+        },
+      },
+    })
+
+    const embodiedPlayback = (preview?.metadata as { embodimentPlayback?: EmbodimentPlaybackTelemetry } | null | undefined)?.embodimentPlayback ?? null
+    const speechRenderState = ref(createIdleStageEmbodimentSpeechRenderState())
+    const upcomingSpeechSegment = ref(
+      preview
+        ? {
+            ...preview,
+            metadata: preview.metadata ? { ...preview.metadata } : preview.metadata,
+            cue: preview.cue ? { ...preview.cue } : null,
+            digitalLifeFrame: preview.digitalLifeFrame
+              ? {
+                  ...preview.digitalLifeFrame,
+                  face: { ...preview.digitalLifeFrame.face },
+                  action: { ...preview.digitalLifeFrame.action },
+                  lipSync: { ...preview.digitalLifeFrame.lipSync },
+                  voice: { ...preview.digitalLifeFrame.voice },
+                  motor: {
+                    ...preview.digitalLifeFrame.motor,
+                    gaze: { ...preview.digitalLifeFrame.motor.gaze },
+                    head: { ...preview.digitalLifeFrame.motor.head },
+                    breath: { ...preview.digitalLifeFrame.motor.breath },
+                    facial: { ...preview.digitalLifeFrame.motor.facial },
+                    body: { ...preview.digitalLifeFrame.motor.body },
+                  },
+                }
+              : null,
+          }
+        : null,
+    )
+    const playbackTelemetry = ref<EmbodimentPlaybackTelemetry | null>(
+      embodiedPlayback
+        ? {
+            ...embodiedPlayback,
+            driverAuthority: embodiedPlayback.driverAuthority
+              ? { ...embodiedPlayback.driverAuthority }
+              : null,
+            prosodyAuthority: embodiedPlayback.prosodyAuthority
+              ? { ...embodiedPlayback.prosodyAuthority }
+              : null,
+            cue: embodiedPlayback.cue
+              ? {
+                  ...embodiedPlayback.cue,
+                  rendererHints: embodiedPlayback.cue.rendererHints
+                    ? {
+                        ...embodiedPlayback.cue.rendererHints,
+                        preferredExpressionAliases: embodiedPlayback.cue.rendererHints.preferredExpressionAliases
+                          ? [...embodiedPlayback.cue.rendererHints.preferredExpressionAliases]
+                          : undefined,
+                        preferredMotionAliases: embodiedPlayback.cue.rendererHints.preferredMotionAliases
+                          ? [...embodiedPlayback.cue.rendererHints.preferredMotionAliases]
+                          : undefined,
+                        reasonTags: embodiedPlayback.cue.rendererHints.reasonTags
+                          ? [...embodiedPlayback.cue.rendererHints.reasonTags]
+                          : undefined,
+                      }
+                    : null,
+                  rendererSettle: embodiedPlayback.cue.rendererSettle
+                    ? { ...embodiedPlayback.cue.rendererSettle }
+                    : null,
+                }
+              : null,
+            drivers: {
+              body: embodiedPlayback.drivers.body
+                ? { ...embodiedPlayback.drivers.body }
+                : null,
+              face: embodiedPlayback.drivers.face
+                ? { ...embodiedPlayback.drivers.face }
+                : null,
+              motion: embodiedPlayback.drivers.motion
+                ? { ...embodiedPlayback.drivers.motion }
+                : null,
+              lipsync: embodiedPlayback.drivers.lipsync
+                ? {
+                    ...embodiedPlayback.drivers.lipsync,
+                    visemeHints: embodiedPlayback.drivers.lipsync.visemeHints
+                      ? embodiedPlayback.drivers.lipsync.visemeHints.map(hint => ({ ...hint }))
+                      : [],
+                  }
+                : null,
+              voice: null,
+            },
+          }
+        : null,
+    )
+
+    const scope = effectScope()
+    const runtime = scope.run(() => useStageEmbodimentPerformanceRuntime({
+      upcomingSpeechSegment,
+      playbackTelemetry,
+      speechRenderState,
+    }))!
+
+    runtime.armPerformance(createPerformance({
+      baseEmotion: 'thinking',
+      emotion: 'thinking',
+      facialCue: 'soft-gaze',
+      actionCue: null,
+      delivery: 'gentle',
+      emphasis: 0,
+    }), {
+      source: 'dialogue',
+      variationToken: 'turn-live2d-still-voiced-motion-mouth-preview-reopen',
+    })
+    await nextTick()
+
+    expect(preview?.cue?.actionCue).toBe('observe_focus')
+    expect(playbackTelemetry.value?.drivers.motion).toEqual(expect.objectContaining({
+      idleBase: 'observe_focus',
+      actionCue: null,
+    }))
+    expect(runtime.state.value.driverAuthority).toEqual(expect.objectContaining({
+      segmentId: 'segment-live2d-still-voiced-motion-mouth-preview-reopen',
+      rendererTarget: 'live2d',
+      bodySegmentMatched: true,
+      motionSegmentMatched: false,
+    }))
+    expect(runtime.state.value.activeCueSource).toBe('preview')
+    expect(runtime.state.value.activeCue).toEqual(expect.objectContaining({
+      id: 'segment-live2d-still-voiced-motion-mouth-preview-reopen',
       facialCue: expect.any(String),
       actionCue: null,
     }))
@@ -10517,6 +14110,7 @@ describe('stage embodiment performance runtime', () => {
                       : [],
                   }
                 : null,
+              voice: null,
             },
           }
         : null,
@@ -10542,7 +14136,7 @@ describe('stage embodiment performance runtime', () => {
     })
     await nextTick()
 
-    expect(preview?.cue?.actionCue).toBe('steady_focus')
+    expect(preview?.cue?.actionCue).toBeNull()
     expect(playbackTelemetry.value?.drivers.motion).toEqual(expect.objectContaining({
       idleBase: 'observe_focus',
       actionCue: null,
@@ -10636,6 +14230,7 @@ describe('stage embodiment performance runtime', () => {
           confidence: 0.87,
           segmentId: 'segment-live2d-prosody-provenance-realign',
         },
+        voice: null,
       },
       cue: {
         id: 'segment-live2d-prosody-provenance-realign',

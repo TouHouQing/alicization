@@ -1,15 +1,17 @@
+import type { StageEmbodimentPerformanceContinuityState } from '../../components/scenes/stage-embodiment-performance-plan'
 import type {
   AlicizationDialoguePerformancePayload,
-  CharacterPerformanceCapabilitiesManifest,
   AlicizationResidentPerformanceSnapshot,
+  CharacterPerformanceCapabilitiesManifest,
 } from '../../stores/alicization-bridge'
-import type { StageEmbodimentPerformanceContinuityState } from '../../components/scenes/stage-embodiment-performance-plan'
 
 import {
   hasAlicizationAudibleSameHerCarry,
+  hasAlicizationBodyVoiceOnlySameHerCarry,
   hasAlicizationQuieterSameHerCarry,
   hasAlicizationStillVoicedSameHerCarry,
 } from '@proj-alicization/stage-shared'
+
 import { buildStageEmbodimentPerformancePlan } from '../../components/scenes/stage-embodiment-performance-plan'
 
 export interface AdaptAlicizationEmbodimentPerformanceToRendererInput {
@@ -69,6 +71,10 @@ export function adaptAlicizationEmbodimentPerformanceToRenderer(
     signature: input.residentPerformance?.signature ?? null,
     reasonTags: residentReasonTags,
   })
+  const hasBodyVoiceOnlySameHerContinuity = hasAlicizationBodyVoiceOnlySameHerCarry({
+    signature: input.residentPerformance?.signature ?? null,
+    reasonTags: residentReasonTags,
+  })
   const hasQuieterSameHerContinuity = hasAlicizationQuieterSameHerCarry({
     signature: input.residentPerformance?.signature ?? null,
     reasonTags: residentReasonTags,
@@ -83,6 +89,7 @@ export function adaptAlicizationEmbodimentPerformanceToRenderer(
     && (
       hasResidentReasonTag(residentReasonTags, 'measured-return')
       || hasAudibleSameHerContinuity
+      || hasBodyVoiceOnlySameHerContinuity
       || hasQuieterSameHerContinuity
       || hasStillVoicedContinuity
       || hasResidentReasonTag(residentReasonTags, 'repair-before-closeness')
@@ -93,12 +100,12 @@ export function adaptAlicizationEmbodimentPerformanceToRenderer(
   const restrainedCallbackActionCue = hasResidentReasonTag(residentReasonTags, 'repair-before-closeness')
     ? 'idle_settle'
     : restProtectiveQuietCompanionshipAuthority
-    ? 'idle_settle'
-    : hasResidentReasonTag(residentReasonTags, 'measured-return')
-      ? 'observe_focus'
-      : quietObserveActionCue
+      ? 'idle_settle'
+      : hasResidentReasonTag(residentReasonTags, 'measured-return')
         ? 'observe_focus'
-        : 'steady_focus'
+        : quietObserveActionCue
+          ? 'observe_focus'
+          : 'steady_focus'
 
   const preserveQuietCompanionshipSteadyFocus = input.residentPerformance?.source === 'main-runtime'
     && input.residentPerformance?.stance === 'accompany'
@@ -124,12 +131,14 @@ export function adaptAlicizationEmbodimentPerformanceToRenderer(
     && (
       hasResidentReasonTag(residentReasonTags, 'measured-return')
       || hasAudibleSameHerContinuity
+      || hasBodyVoiceOnlySameHerContinuity
       || hasQuieterSameHerContinuity
       || hasStillVoicedContinuity
     )
     && (
       hasResidentReasonTag(residentReasonTags, 'continuity-next-open-window')
       || hasAudibleSameHerContinuity
+      || hasBodyVoiceOnlySameHerContinuity
       || hasQuieterSameHerContinuity
       || hasStillVoicedContinuity
       || hasResidentReasonTag(residentReasonTags, 'lower-pressure')
@@ -143,16 +152,16 @@ export function adaptAlicizationEmbodimentPerformanceToRenderer(
           actionCue: 'observe_focus',
         }
       : preserveRestProtectiveQuietCompanionshipIdleSettle
-      ? {
-          ...plan.performance,
-          actionCue: restrainedCallbackActionCue,
-        }
-      : preserveQuietCompanionshipSteadyFocus
-      ? {
-          ...plan.performance,
-          actionCue: restrainedCallbackActionCue,
-        }
-      : plan.performance,
+        ? {
+            ...plan.performance,
+            actionCue: restrainedCallbackActionCue,
+          }
+        : preserveQuietCompanionshipSteadyFocus
+          ? {
+              ...plan.performance,
+              actionCue: restrainedCallbackActionCue,
+            }
+          : plan.performance,
     plannedFacialCue: plan.plannedFacialCue,
     plannedActionCue: plan.plannedActionCue,
     residentPerformance: input.residentPerformance ?? null,

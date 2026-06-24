@@ -1,9 +1,15 @@
+import type {
+  VrmActionBinding,
+  VrmCustomExpressionBinding,
+} from '@proj-alicization/stage-ui-three'
+
 import { describe, expect, it } from 'vitest'
 
-import type { VrmCustomExpressionBinding } from '@proj-alicization/stage-ui-three'
-
-import { resolveVrmManifestFacialCapabilities } from './stage-vrm-performance-manifest'
-import { resolveVrmManifestBaseEmotions } from './stage-vrm-performance-manifest'
+import {
+  resolveVrmManifestActionCapabilities,
+  resolveVrmManifestBaseEmotions,
+  resolveVrmManifestFacialCapabilities,
+} from './stage-vrm-performance-manifest'
 
 function createCustomBinding(overrides?: Partial<VrmCustomExpressionBinding>): VrmCustomExpressionBinding {
   return {
@@ -13,6 +19,19 @@ function createCustomBinding(overrides?: Partial<VrmCustomExpressionBinding>): V
     description: 'custom mapped expression',
     affectsMouth: false,
     source: 'custom',
+    ...overrides,
+  }
+}
+
+function createActionBinding(overrides?: Partial<VrmActionBinding>): VrmActionBinding {
+  return {
+    id: 'binding-observe-focus',
+    fileName: 'observe_focus.vrma',
+    actionKey: 'observe_focus',
+    label: 'Observe Focus Clip',
+    description: 'configured observe focus clip',
+    importedAt: 1,
+    source: 'external-vrma',
     ...overrides,
   }
 }
@@ -70,5 +89,66 @@ describe('stage vrm performance manifest helpers', () => {
       runtimeSupportedBaseEmotions: [],
       fallbackBaseEmotions: ['neutral', 'sad'],
     })).toEqual(['neutral', 'sad'])
+  })
+
+  it('supplements vrm action bindings with runtime semantic action support', () => {
+    const supportedActions = resolveVrmManifestActionCapabilities({
+      runtimeSupportedActions: [
+        {
+          key: 'steady_focus',
+          label: 'Steady Focus',
+          description: 'steady focused idle hold',
+          source: 'builtin',
+        },
+        {
+          key: 'observe_focus',
+          label: 'Observe Focus',
+          description: 'gentle observe focus',
+          source: 'builtin',
+        },
+        {
+          key: 'idle_settle',
+          label: 'Idle Settle',
+          description: 'quiet idle settle',
+          source: 'builtin',
+        },
+      ],
+      actionBindings: [
+        createActionBinding({
+          actionKey: 'inspect_follow',
+          label: 'Inspect Follow Clip',
+          description: 'configured inspect follow clip',
+        }),
+      ],
+    })
+
+    expect(supportedActions.map(item => item.key)).toEqual(
+      expect.arrayContaining(['inspect_follow', 'steady_focus', 'observe_focus', 'idle_settle']),
+    )
+  })
+
+  it('keeps explicit action bindings authoritative when runtime semantic support repeats the same cue', () => {
+    const supportedActions = resolveVrmManifestActionCapabilities({
+      runtimeSupportedActions: [
+        {
+          key: 'observe_focus',
+          label: 'Observe Focus',
+          description: 'gentle observe focus',
+          source: 'builtin',
+        },
+      ],
+      actionBindings: [
+        createActionBinding(),
+      ],
+    })
+
+    expect(supportedActions.filter(item => item.key === 'observe_focus')).toEqual([
+      expect.objectContaining({
+        key: 'observe_focus',
+        label: 'Observe Focus Clip',
+        description: 'configured observe focus clip',
+        source: 'external-vrma',
+      }),
+    ])
   })
 })

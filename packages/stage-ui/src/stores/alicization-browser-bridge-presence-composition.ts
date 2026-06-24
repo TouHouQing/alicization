@@ -1,6 +1,6 @@
 import type {
-  AlicizationVisualPresenceStateSnapshot,
   AlicizationPresencePulsePayload,
+  AlicizationVisualPresenceStateSnapshot,
 } from './alicization-bridge'
 
 export function createAlicizationBrowserBridgePresenceComposition(input: {

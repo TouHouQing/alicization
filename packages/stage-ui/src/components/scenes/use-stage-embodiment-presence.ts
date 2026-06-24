@@ -15,11 +15,21 @@ import type {
 import type { useAlicizationPresenceDispatcherStore } from '../../stores/alicization-presence-dispatcher'
 import type { StageModelRenderer } from '../../stores/settings'
 
+import {
+  buildAlicizationDialogueSpeechTimeline,
+  buildAlicizationDigitalLifeEnvelope,
+  sanitizeCharacterPerformanceManifest,
+} from '@proj-alicization/stage-shared'
 import { watch } from 'vue'
 
-import { getAlicizationBridge, hasAlicizationBridge, normalizeAlicizationPerformancePayload } from '../../stores/alicization-bridge'
-import { buildStageEmbodimentPerformancePlan } from './stage-embodiment-performance-plan'
 import { buildAlicizationEmbodimentScript } from '../../services/embodiment/director'
+import { getAlicizationBridge, hasAlicizationBridge, normalizeAlicizationPerformancePayload } from '../../stores/alicization-bridge'
+import { resolveStageEmbodimentMetaAuthority } from './runtime'
+import { buildStageEmbodimentPerformancePlan } from './stage-embodiment-performance-plan'
+import {
+  resolveResidentSnapshot,
+  resolveStageEmbodimentResidentPerformance,
+} from './stage-embodiment-resident-performance'
 
 interface Live2DActionCapability {
   actionKey: string
@@ -45,6 +55,7 @@ export interface UseStageEmbodimentPresenceOptions {
     emotionName: EmotionPayload['name'],
     speechStyle?: StageEmbodimentSpeechStyleProfile | null,
   ) => void
+  applyPreferredExpressionAliases?: (aliases: string[] | null | undefined) => void
   clampPerformance: (performance: AlicizationDialoguePerformancePayload) => AlicizationDialoguePerformancePayload
   enqueueEmotion: (emotion: EmotionPayload) => void
   performanceManifest: ComputedRef<CharacterPerformanceCapabilitiesManifest | null>
@@ -53,7 +64,13 @@ export interface UseStageEmbodimentPresenceOptions {
   speakFallback: (
     reply: string,
     performance: AlicizationDialoguePerformancePayload,
-    metadata?: { embodimentScript?: AlicizationEmbodimentScriptV1 | null } | null,
+    metadata?: {
+      embodimentScript?: AlicizationEmbodimentScriptV1 | null
+      projectState?: AlicizationDialogueRespondedPayload['structured']['projectState'] | null
+      preDialogueAwareness?: AlicizationDialogueRespondedPayload['structured']['preDialogueAwareness'] | null
+      preDialogueClosure?: AlicizationDialogueRespondedPayload['structured']['preDialogueClosure'] | null
+      runtimeDigest?: AlicizationDialogueRespondedPayload['structured']['runtimeDigest'] | null
+    } | null,
   ) => Promise<void> | void
   stageModelRenderer: Ref<StageModelRenderer>
   visualPresenceState?: Readonly<Ref<AlicizationVisualPresenceStateSnapshot | null | undefined>>
@@ -86,18 +103,49 @@ export function useStageEmbodimentPresence(options: UseStageEmbodimentPresenceOp
     performance: AlicizationDialoguePerformancePayload,
     variationToken?: string | null,
     source: 'dialogue' | 'presence-pulse' = 'dialogue',
+    optionsInput?: {
+      dialoguePayload?: AlicizationDialogueRespondedPayload | null
+    },
   ) {
+    const residentSnapshot = source === 'dialogue' && options.visualPresenceState?.value
+      ? resolveResidentSnapshot({
+          activePresence: null,
+          continuity: {
+            previousActionCue: continuityState.previousActionCue,
+            previousFacialCue: continuityState.previousFacialCue,
+            variationToken,
+          },
+          digitalLifeSpine: null,
+          performanceManifest: options.performanceManifest.value,
+          presencePosture: null,
+          visualPresenceState: options.visualPresenceState.value,
+        })
+      : null
+    const residentResolution = source === 'dialogue' && options.visualPresenceState?.value
+      ? resolveStageEmbodimentResidentPerformance({
+          activePresence: null,
+          continuity: {
+            previousActionCue: continuityState.previousActionCue,
+            previousFacialCue: continuityState.previousFacialCue,
+            variationToken,
+          },
+          digitalLifeSpine: optionsInput?.dialoguePayload?.structured.digitalLifeSpine ?? null,
+          performanceManifest: options.performanceManifest.value,
+          presencePosture: null,
+          visualPresenceState: options.visualPresenceState.value,
+        })
+      : null
     const residentSignature = source === 'dialogue'
-      ? options.visualPresenceState?.value?.residentPerformance?.signature?.trim() ?? ''
+      ? residentSnapshot?.signature?.trim() ?? options.visualPresenceState?.value?.residentPerformance?.signature?.trim() ?? ''
       : ''
     const cacheKey = `${source}:${variationToken?.trim() ?? ''}:${residentSignature}`
     const cached = plannedPerformanceCache.get(cacheKey)
     if (cached)
       return cached
 
-    const residentPerformance = options.visualPresenceState?.value?.residentPerformance?.performance
+    const residentPerformance = residentResolution?.performance ?? residentSnapshot?.performance
     const mergedPerformance = source === 'dialogue' && residentPerformance
-      ? resolveResidentFallbackDialoguePerformance(performance, residentPerformance)
+      ? resolveResidentFallbackDialoguePerformance(performance, residentPerformance, residentSnapshot?.reasonTags ?? [])
       : performance
     const plan = buildStageEmbodimentPerformancePlan({
       manifest: options.performanceManifest.value,
@@ -123,13 +171,16 @@ export function useStageEmbodimentPresence(options: UseStageEmbodimentPresenceOp
       return null
 
     const performance = authoritativePerformance ?? payload.structured.performance
-    const embodiment = payload.structured.embodiment
-      ? {
-          ...payload.structured.embodiment,
-          emotion: performance.baseEmotion,
-          performance,
-        }
-      : null
+    const embodiment = buildAuthoritativeDialogueEmbodimentSeed(
+      payload,
+      performance,
+      authoritativePerformance
+        ? {
+            canonicalVariationToken: true,
+            preferCurrentTurnVariationToken: true,
+          }
+        : undefined,
+    )
 
     return buildAlicizationEmbodimentScript({
       seed: {
@@ -138,7 +189,7 @@ export function useStageEmbodimentPresence(options: UseStageEmbodimentPresenceOp
         replyText: payload.structured.reply,
         performance,
         embodiment,
-        speechTimeline: payload.structured.speechTimeline ?? null,
+        speechTimeline: resolveAuthoritativeSpeechTimeline(payload, authoritativePerformance) ?? null,
         digitalLife: payload.structured.digitalLife ?? null,
         digitalLifeSpine: payload.structured.digitalLifeSpine ?? null,
       },
@@ -148,12 +199,133 @@ export function useStageEmbodimentPresence(options: UseStageEmbodimentPresenceOp
     })
   }
 
+  function matchesEmbodimentScriptAuthorityPerformance(
+    left: AlicizationDialoguePerformancePayload,
+    right: AlicizationDialoguePerformancePayload,
+  ) {
+    const normalizedLeft = normalizeAlicizationPerformancePayload(left, left.baseEmotion)
+    const normalizedRight = normalizeAlicizationPerformancePayload(right, right.baseEmotion)
+
+    return normalizedLeft.baseEmotion === normalizedRight.baseEmotion
+      && normalizedLeft.facialCue === normalizedRight.facialCue
+      && normalizedLeft.actionCue === normalizedRight.actionCue
+      && normalizedLeft.delivery === normalizedRight.delivery
+      && normalizedLeft.emphasis === normalizedRight.emphasis
+  }
+
+  function isNeutralQuietFallbackPerformanceCandidate(
+    performance: AlicizationDialoguePerformancePayload | null | undefined,
+  ) {
+    if (!performance)
+      return false
+
+    const normalized = normalizeAlicizationPerformancePayload(performance, performance.baseEmotion)
+    return normalized.baseEmotion === 'neutral'
+      && normalized.delivery === 'calm'
+      && normalized.emphasis === 0
+      && (!normalized.actionCue || !normalized.facialCue)
+  }
+
+  function hasCurrentTurnSameHerContinuityCarry(payload: AlicizationDialogueRespondedPayload) {
+    const cueText = [
+      payload.structured.digitalLifeSpine?.embodiment?.autobiographicalSelf?.identityNarrative,
+      payload.structured.digitalLifeSpine?.embodiment?.autobiographicalSelf?.relationshipDoctrine,
+    ]
+      .filter((segment): segment is string => typeof segment === 'string' && segment.trim().length > 0)
+      .join(' ')
+      .toLowerCase()
+
+    return cueText.includes('same-her drift risk')
+      || cueText.includes('generic assistant shell')
+      || cueText.includes('project-summary voice')
+      || cueText.includes('detached status talk')
+      || cueText.includes('continuity drift')
+      || cueText.includes('drift rather than completion')
+      || cueText.includes('same living line')
+      || cueText.includes('one continuous her')
+      || cueText.includes('continuous her')
+  }
+
+  function shouldBiasQuietAccompanimentDialogueFallback(
+    performance: AlicizationDialoguePerformancePayload,
+    residentPerformance: AlicizationDialoguePerformancePayload | null | undefined,
+  ) {
+    const candidate = normalizeAlicizationPerformancePayload(performance, performance.baseEmotion)
+    const resident = residentPerformance
+      ? normalizeAlicizationPerformancePayload(residentPerformance, residentPerformance.baseEmotion)
+      : null
+    const visualPresenceState = options.visualPresenceState?.value
+
+    return candidate.baseEmotion === 'neutral'
+      && candidate.delivery === 'calm'
+      && candidate.emphasis === 0
+      && visualPresenceState?.currentBodyState === 'accompanying'
+      && visualPresenceState?.continuityMode === 'quiet-accompaniment'
+      && Number(visualPresenceState?.quietLineMs ?? 0) >= 120_000
+      && resident?.delivery === 'gentle'
+      && resident?.baseEmotion === 'thinking'
+      && (
+        visualPresenceState?.privateThought?.shouldSpeak === false
+        || (
+          visualPresenceState?.residentPerformance?.stance === 'accompany'
+          && visualPresenceState?.residentPerformance?.embodiedPresence === 'attentive'
+        )
+      )
+  }
+
+  function shouldRefreshDialogueAuthorityFromPerformance(
+    payload: AlicizationDialogueRespondedPayload,
+    authoritativePerformance: AlicizationDialoguePerformancePayload,
+  ) {
+    const performanceMismatch
+      = !matchesEmbodimentScriptAuthorityPerformance(authoritativePerformance, payload.structured.performance)
+        || (
+          !!payload.structured.embodiment?.performance
+          && !matchesEmbodimentScriptAuthorityPerformance(
+            authoritativePerformance,
+            payload.structured.embodiment.performance,
+          )
+        )
+    if (!performanceMismatch)
+      return false
+
+    if (!options.visualPresenceState?.value)
+      return false
+
+    if (!hasCurrentTurnSameHerContinuityCarry(payload))
+      return false
+
+    if (!isNeutralQuietFallbackPerformanceCandidate(payload.structured.performance))
+      return false
+
+    if (
+      payload.structured.embodiment?.performance
+      && !isNeutralQuietFallbackPerformanceCandidate(payload.structured.embodiment.performance)
+    ) {
+      return false
+    }
+
+    return shouldBiasQuietAccompanimentDialogueFallback(
+      payload.structured.performance,
+      options.visualPresenceState.value.residentPerformance?.performance ?? authoritativePerformance,
+    )
+  }
+
   function resolveEmbodimentScriptMetadata(
     payload: AlicizationDialogueRespondedPayload,
     authoritativePerformance?: AlicizationDialoguePerformancePayload,
   ) {
-    if (payload.structured.embodimentScript)
+    if (payload.structured.embodimentScript) {
+      if (
+        authoritativePerformance
+        && shouldRefreshDialogueAuthorityFromPerformance(payload, authoritativePerformance)
+      ) {
+        return buildFallbackEmbodimentScript(payload, authoritativePerformance)
+          ?? payload.structured.embodimentScript
+      }
+
       return payload.structured.embodimentScript
+    }
 
     return buildFallbackEmbodimentScript(payload, authoritativePerformance)
   }
@@ -161,6 +333,7 @@ export function useStageEmbodimentPresence(options: UseStageEmbodimentPresenceOp
   function resolveResidentFallbackDialoguePerformance(
     performance: AlicizationDialoguePerformancePayload,
     residentPerformance: AlicizationDialoguePerformancePayload,
+    residentReasonTagsInput: string[] = [],
   ) {
     const candidate = normalizeAlicizationPerformancePayload(performance, performance.baseEmotion)
     const resident = normalizeAlicizationPerformancePayload(
@@ -179,19 +352,26 @@ export function useStageEmbodimentPresence(options: UseStageEmbodimentPresenceOp
       : candidate.baseEmotion
 
     const visualPresenceState = options.visualPresenceState?.value
-    const shouldBiasQuietAccompanimentDialogueFallback = candidateNeutralBaseline
-      && visualPresenceState?.currentBodyState === 'accompanying'
-      && visualPresenceState?.continuityMode === 'quiet-accompaniment'
-      && Number(visualPresenceState?.quietLineMs ?? 0) >= 120_000
-      && resident.delivery === 'gentle'
-      && resident.baseEmotion === 'thinking'
-      && (
-        visualPresenceState?.privateThought?.shouldSpeak === false
-        || (
-          visualPresenceState?.residentPerformance?.stance === 'accompany'
-          && visualPresenceState?.residentPerformance?.embodiedPresence === 'attentive'
-        )
-      )
+    const shouldBiasQuietFallback = shouldBiasQuietAccompanimentDialogueFallback(
+      performance,
+      residentPerformance,
+    )
+    const residentReasonTags = residentReasonTagsInput.length > 0
+      ? residentReasonTagsInput
+      : visualPresenceState?.residentPerformance?.reasonTags ?? []
+    const durableRelationshipRhythm = residentReasonTags.includes('durable-relationship-rhythm')
+    const restrainedCallbackHoldMode = residentReasonTags.includes('repair-before-closeness')
+      ? 'repair-before-closeness'
+      : residentReasonTags.includes('measured-return')
+        ? 'measured-return'
+        : null
+    const quietFallbackActionCue = restrainedCallbackHoldMode === 'repair-before-closeness'
+      ? 'idle_settle'
+      : restrainedCallbackHoldMode === 'measured-return'
+        ? durableRelationshipRhythm
+          ? 'steady_focus'
+          : 'observe_focus'
+        : 'steady_focus'
 
     return normalizeAlicizationPerformancePayload({
       baseEmotion: mergedEmotion,
@@ -199,8 +379,8 @@ export function useStageEmbodimentPresence(options: UseStageEmbodimentPresenceOp
       facialCue: candidate.facialCue ?? resident.facialCue ?? null,
       actionCue: candidate.actionCue
         ?? (
-          shouldBiasQuietAccompanimentDialogueFallback
-            ? 'steady_focus'
+          shouldBiasQuietFallback
+            ? quietFallbackActionCue
             : resident.actionCue
         )
         ?? null,
@@ -210,9 +390,10 @@ export function useStageEmbodimentPresence(options: UseStageEmbodimentPresenceOp
   }
 
   function buildDialogueVariationToken(payload: AlicizationDialogueRespondedPayload) {
-    const runtimeVariationToken = payload.structured.embodiment?.variationToken?.trim()
-    if (runtimeVariationToken)
-      return runtimeVariationToken
+    const authoritativeVariationToken = resolveAuthoritativeDialogueDigitalLife(payload)?.variationToken?.trim()
+      ?? resolveAuthoritativeDialogueVariationToken(payload)
+    if (authoritativeVariationToken)
+      return authoritativeVariationToken
 
     return [
       payload.turnId,
@@ -220,6 +401,202 @@ export function useStageEmbodimentPresence(options: UseStageEmbodimentPresenceOp
       payload.structured.thought.slice(0, 64),
       String(payload.structured.performance.emphasis ?? 0),
     ].join('|')
+  }
+
+  function resolveAuthoritativeDialogueVariationToken(
+    payload: AlicizationDialogueRespondedPayload,
+    optionsInput?: {
+      preferCurrentTurnSources?: boolean
+    },
+  ) {
+    if (optionsInput?.preferCurrentTurnSources) {
+      return payload.structured.speechTimeline?.variationToken?.trim()
+        ?? payload.structured.embodiment?.variationToken?.trim()
+        ?? payload.structured.digitalLife?.variationToken?.trim()
+        ?? null
+    }
+
+    return payload.structured.digitalLife?.variationToken?.trim()
+      ?? payload.structured.speechTimeline?.variationToken?.trim()
+      ?? payload.structured.embodiment?.variationToken?.trim()
+      ?? null
+  }
+
+  function buildAuthoritativeDialogueEmbodimentSeed(
+    payload: AlicizationDialogueRespondedPayload,
+    performance: AlicizationDialoguePerformancePayload,
+    optionsInput?: {
+      canonicalVariationToken?: boolean
+      preferCurrentTurnVariationToken?: boolean
+    },
+  ) {
+    const embodiment = payload.structured.embodiment
+    if (!embodiment)
+      return null
+
+    return {
+      ...embodiment,
+      emotion: performance.baseEmotion,
+      performance,
+      variationToken: optionsInput?.canonicalVariationToken
+        ? resolveAuthoritativeDialogueVariationToken(payload, {
+          preferCurrentTurnSources: optionsInput.preferCurrentTurnVariationToken,
+        }) ?? embodiment.variationToken
+        : embodiment.variationToken,
+    }
+  }
+
+  function resolveAuthoritativeSpeechTimeline(
+    payload: AlicizationDialogueRespondedPayload,
+    authoritativePerformance?: AlicizationDialoguePerformancePayload,
+  ) {
+    const rawTimeline = payload.structured.speechTimeline ?? null
+    if (!rawTimeline)
+      return null
+
+    if (
+      !authoritativePerformance
+      || !shouldRefreshDialogueAuthorityFromPerformance(payload, authoritativePerformance)
+    ) {
+      return rawTimeline
+    }
+
+    return buildAlicizationDialogueSpeechTimeline({
+      reply: payload.structured.reply,
+      candidateEmotion: authoritativePerformance.baseEmotion,
+      candidatePerformance: authoritativePerformance,
+      embodiment: buildAuthoritativeDialogueEmbodimentSeed(payload, authoritativePerformance, {
+        canonicalVariationToken: true,
+        preferCurrentTurnVariationToken: true,
+      }),
+      digitalLifeSpine: payload.structured.digitalLifeSpine ?? null,
+      projectState: payload.structured.projectState ?? null,
+      performanceManifest: options.performanceManifest.value,
+    }) ?? rawTimeline
+  }
+
+  function resolvePreferredLive2dMotionFromEmbodimentScript(
+    payload: AlicizationDialogueRespondedPayload,
+    plannedPerformance: AlicizationDialoguePerformancePayload,
+  ) {
+    const embodimentScript = resolveEmbodimentScriptMetadata(payload, plannedPerformance)
+    const preferredMotionAliases = embodimentScript?.motionPlan.actionBursts.find(item => item.actionCue)?.segmentId
+      ? embodimentScript.speechPlan.segments.find(segment =>
+        embodimentScript.motionPlan.actionBursts.some(item =>
+          item.segmentId === segment.id
+          && item.actionCue,
+        ),
+      )?.rendererHints?.preferredMotionAliases
+      : embodimentScript?.speechPlan.segments[0]?.rendererHints?.preferredMotionAliases
+    const preferredMotionGroup = preferredMotionAliases?.find(alias => typeof alias === 'string' && alias.trim())
+    if (!preferredMotionGroup)
+      return null
+
+    const matchedCapability = options.live2dActionCapabilities.value.find(item => item.motionName === preferredMotionGroup)
+    return matchedCapability
+      ? {
+          group: matchedCapability.motionName,
+          index: matchedCapability.motionIndex,
+        }
+      : {
+          group: preferredMotionGroup,
+        }
+  }
+
+  function resolveEmbodimentScriptRendererHints(
+    payload: AlicizationDialogueRespondedPayload,
+    plannedPerformance: AlicizationDialoguePerformancePayload,
+  ) {
+    const embodimentScript = resolveEmbodimentScriptMetadata(payload, plannedPerformance)
+    if (!embodimentScript)
+      return null
+
+    const preferredSegmentId = embodimentScript.motionPlan.actionBursts.find(item =>
+      item.actionCue === plannedPerformance.actionCue
+      || item.actionCue,
+    )?.segmentId
+    const hintedSegment = preferredSegmentId
+      ? embodimentScript.speechPlan.segments.find(segment => segment.id === preferredSegmentId)
+      : embodimentScript.speechPlan.segments[0]
+
+    return hintedSegment?.rendererHints ?? null
+  }
+
+  function applyPreferredExpressionAliasesFromRendererHints(
+    rendererHints: ReturnType<typeof resolveEmbodimentScriptRendererHints>,
+  ) {
+    const aliases = rendererHints?.preferredExpressionAliases?.filter(alias =>
+      typeof alias === 'string' && alias.trim(),
+    ) ?? []
+    options.applyPreferredExpressionAliases?.(aliases.length > 0 ? aliases : null)
+  }
+
+  function resolveAuthoritativeDialogueDigitalLife(
+    payload: AlicizationDialogueRespondedPayload,
+    plannedPerformance?: AlicizationDialoguePerformancePayload,
+  ): AlicizationDigitalLifeEnvelope | null {
+    if (plannedPerformance) {
+      const shouldRefreshCurrentTurnDigitalLife = shouldRefreshDialogueAuthorityFromPerformance(
+        payload,
+        plannedPerformance,
+      )
+      if (shouldRefreshCurrentTurnDigitalLife) {
+        const rebuiltDigitalLife = buildAlicizationDigitalLifeEnvelope({
+          embodiment: buildAuthoritativeDialogueEmbodimentSeed(payload, plannedPerformance, {
+            canonicalVariationToken: true,
+            preferCurrentTurnVariationToken: true,
+          }),
+          speechTimeline: resolveAuthoritativeSpeechTimeline(payload, plannedPerformance),
+          digitalLifeSpine: payload.structured.digitalLifeSpine ?? null,
+          projectState: payload.structured.projectState ?? null,
+          performanceManifest: options.performanceManifest.value,
+        })
+        if (rebuiltDigitalLife)
+          return rebuiltDigitalLife
+      }
+    }
+
+    if (payload.structured.digitalLife)
+      return payload.structured.digitalLife
+
+    const embodimentScript = plannedPerformance
+      ? resolveEmbodimentScriptMetadata(payload, plannedPerformance)
+      : payload.structured.embodimentScript ?? null
+    return embodimentScript?.digitalLife ?? null
+  }
+
+  function resolveAuthoritativeSpeechStyle(
+    payload: AlicizationDialogueRespondedPayload,
+    plannedPerformance?: AlicizationDialoguePerformancePayload,
+  ): StageEmbodimentSpeechStyleProfile | null {
+    return resolveAuthoritativeDialogueDigitalLife(payload, plannedPerformance)?.speechStyle
+      ?? payload.structured.embodiment?.speechStyle
+      ?? null
+  }
+
+  function resolveAuthoritativeEmbodimentEnvelope(
+    payload: AlicizationDialogueRespondedPayload,
+    plannedPerformance: AlicizationDialoguePerformancePayload,
+  ) {
+    const embodiment = payload.structured.embodiment
+    if (!embodiment)
+      return null
+
+    const embodimentScript = resolveEmbodimentScriptMetadata(payload, plannedPerformance)
+    const speechTimeline = resolveAuthoritativeSpeechTimeline(payload, plannedPerformance)
+    const authoritativeMeta = resolveStageEmbodimentMetaAuthority({
+      embodiment,
+      embodimentScript,
+      digitalLife: resolveAuthoritativeDialogueDigitalLife(payload, plannedPerformance),
+      speechTimeline,
+    })
+
+    return {
+      ...embodiment,
+      rendererHints: authoritativeMeta.rendererHints ?? null,
+      speechStyle: authoritativeMeta.speechStyle ?? embodiment.speechStyle,
+      variationToken: authoritativeMeta.variationToken ?? embodiment.variationToken,
+    }
   }
 
   function buildPulseVariationToken(payload: AlicizationPresencePulsePayload) {
@@ -240,6 +617,9 @@ export function useStageEmbodimentPresence(options: UseStageEmbodimentPresenceOp
       payload.structured.performance,
       variationToken,
       'dialogue',
+      {
+        dialoguePayload: payload,
+      },
     )
     return buildFallbackEmbodimentScript(payload, plannedPerformance)
   }))
@@ -248,7 +628,9 @@ export function useStageEmbodimentPresence(options: UseStageEmbodimentPresenceOp
     if (!hasAlicizationBridge())
       return
 
-    await getAlicizationBridge().setPerformanceManifest?.(manifest)
+    await getAlicizationBridge().setPerformanceManifest?.(
+      sanitizeCharacterPerformanceManifest(manifest),
+    )
   }, { immediate: true, deep: true }))
 
   if (options.applyAttentionPerformance || options.applyAttentionPresencePulse) {
@@ -260,6 +642,9 @@ export function useStageEmbodimentPresence(options: UseStageEmbodimentPresenceOp
           performance,
           variationToken,
           'dialogue',
+          {
+            dialoguePayload: payload,
+          },
         )
         await options.applyAttentionPerformance?.(plannedPerformance, payload)
       },
@@ -273,21 +658,33 @@ export function useStageEmbodimentPresence(options: UseStageEmbodimentPresenceOp
     channel: 'live2d',
     isActive: () => options.stageModelRenderer.value === 'live2d',
     applyPerformance: async (performance, payload) => {
-      options.applyRuntimeEmbodimentEnvelope?.(payload.structured.embodiment)
       const variationToken = buildDialogueVariationToken(payload)
       const plannedPerformance = resolvePlannedPerformance(
         performance,
         variationToken,
         'dialogue',
+        {
+          dialoguePayload: payload,
+        },
       )
-      await options.primeDigitalLifeEnvelope?.(payload.structured.digitalLife)
-      await options.primeSpeechTimeline?.(payload.structured.speechTimeline)
+      options.applyRuntimeEmbodimentEnvelope?.(resolveAuthoritativeEmbodimentEnvelope(payload, plannedPerformance))
+      await options.primeDigitalLifeEnvelope?.(resolveAuthoritativeDialogueDigitalLife(payload, plannedPerformance))
+      await options.primeSpeechTimeline?.(resolveAuthoritativeSpeechTimeline(payload, plannedPerformance))
       const emotionName = options.normalizePresenceEmotionName(plannedPerformance.baseEmotion)
-      options.applyEmotionSpeechStyle(emotionName, payload.structured.embodiment?.speechStyle)
+      options.applyEmotionSpeechStyle(emotionName, resolveAuthoritativeSpeechStyle(payload, plannedPerformance))
+      applyPreferredExpressionAliasesFromRendererHints(
+        resolveEmbodimentScriptRendererHints(payload, plannedPerformance),
+      )
       await options.armPerformance?.(plannedPerformance, {
         source: 'dialogue',
         variationToken,
       })
+
+      const preferredMotion = resolvePreferredLive2dMotionFromEmbodimentScript(payload, plannedPerformance)
+      if (preferredMotion) {
+        options.currentMotion.value = preferredMotion
+        return
+      }
 
       const mappedAction = options.live2dActionCapabilities.value.find(item => item.actionKey === plannedPerformance.actionCue)
       if (mappedAction) {
@@ -325,21 +722,32 @@ export function useStageEmbodimentPresence(options: UseStageEmbodimentPresenceOp
     channel: 'vrm',
     isActive: () => options.stageModelRenderer.value === 'vrm',
     applyPerformance: async (performance, payload) => {
-      options.applyRuntimeEmbodimentEnvelope?.(payload.structured.embodiment)
       const variationToken = buildDialogueVariationToken(payload)
       const plannedPerformance = resolvePlannedPerformance(
         performance,
         variationToken,
         'dialogue',
+        {
+          dialoguePayload: payload,
+        },
       )
-      await options.primeDigitalLifeEnvelope?.(payload.structured.digitalLife)
-      await options.primeSpeechTimeline?.(payload.structured.speechTimeline)
+      options.applyRuntimeEmbodimentEnvelope?.(resolveAuthoritativeEmbodimentEnvelope(payload, plannedPerformance))
+      await options.primeDigitalLifeEnvelope?.(resolveAuthoritativeDialogueDigitalLife(payload, plannedPerformance))
+      await options.primeSpeechTimeline?.(resolveAuthoritativeSpeechTimeline(payload, plannedPerformance))
       const emotionName = options.normalizePresenceEmotionName(plannedPerformance.baseEmotion)
-      options.applyEmotionSpeechStyle(emotionName, payload.structured.embodiment?.speechStyle)
+      options.applyEmotionSpeechStyle(emotionName, resolveAuthoritativeSpeechStyle(payload, plannedPerformance))
+      const rendererHints = resolveEmbodimentScriptRendererHints(payload, plannedPerformance)
+      applyPreferredExpressionAliasesFromRendererHints(rendererHints)
       await options.armPerformance?.(plannedPerformance, {
         source: 'dialogue',
         variationToken,
       })
+
+      if (rendererHints?.preferredMotionAliases?.length) {
+        const preferredMotionGroup = rendererHints.preferredMotionAliases.find(alias => typeof alias === 'string' && alias.trim())
+        if (preferredMotionGroup)
+          options.currentMotion.value = { group: preferredMotionGroup }
+      }
     },
     applyPresencePulse: async (payload) => {
       const variationToken = buildPulseVariationToken(payload)
@@ -360,26 +768,36 @@ export function useStageEmbodimentPresence(options: UseStageEmbodimentPresenceOp
   cleanups.push(options.dispatcher.registerEmbodimentController({
     channel: 'tts',
     speak: async (reply, performance, payload) => {
-      options.applyRuntimeEmbodimentEnvelope?.(payload.structured.embodiment)
       const variationToken = buildDialogueVariationToken(payload)
       const plannedPerformance = resolvePlannedPerformance(
         performance,
         variationToken,
         'dialogue',
+        {
+          dialoguePayload: payload,
+        },
       )
-      await options.primeDigitalLifeEnvelope?.(payload.structured.digitalLife)
-      await options.primeSpeechTimeline?.(payload.structured.speechTimeline)
+      options.applyRuntimeEmbodimentEnvelope?.(resolveAuthoritativeEmbodimentEnvelope(payload, plannedPerformance))
+      await options.primeDigitalLifeEnvelope?.(resolveAuthoritativeDialogueDigitalLife(payload, plannedPerformance))
+      await options.primeSpeechTimeline?.(resolveAuthoritativeSpeechTimeline(payload, plannedPerformance))
       const emotionName = options.normalizePresenceEmotionName(plannedPerformance.baseEmotion)
-      options.applyEmotionSpeechStyle(emotionName, payload.structured.embodiment?.speechStyle)
+      options.applyEmotionSpeechStyle(emotionName, resolveAuthoritativeSpeechStyle(payload, plannedPerformance))
+      applyPreferredExpressionAliasesFromRendererHints(
+        resolveEmbodimentScriptRendererHints(payload, plannedPerformance),
+      )
       await options.armPerformance?.(plannedPerformance, {
         source: 'dialogue',
         variationToken,
       })
 
       const embodimentScript = resolveEmbodimentScriptMetadata(payload, plannedPerformance)
-      await options.speakFallback(reply, plannedPerformance, embodimentScript ? {
-        embodimentScript,
-      } : null)
+      await options.speakFallback(reply, plannedPerformance, {
+        ...(payload.structured.projectState ? { projectState: payload.structured.projectState } : {}),
+        ...(payload.structured.preDialogueAwareness ? { preDialogueAwareness: payload.structured.preDialogueAwareness } : {}),
+        ...(payload.structured.preDialogueClosure ? { preDialogueClosure: payload.structured.preDialogueClosure } : {}),
+        ...(payload.structured.runtimeDigest ? { runtimeDigest: payload.structured.runtimeDigest } : {}),
+        ...(embodimentScript ? { embodimentScript } : {}),
+      })
     },
   }))
 

@@ -4,11 +4,13 @@ import type {
   AlicizationMemoryStats,
   AlicizationMindTurnGovernance,
   AlicizationOrganicMemorySnapshot,
+  AlicizationPreDialogueSendIdentity,
   AlicizationSoulSnapshot,
   AlicizationSubconsciousFragment,
 } from './alicization-bridge'
 
 import { errorMessageFrom } from '@moeru/std'
+import { isAlicizationThinProjectAwarenessLine } from '@proj-alicization/stage-shared'
 import { nanoid } from 'nanoid'
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
@@ -34,6 +36,8 @@ import {
 } from './alicization-memory'
 import { computePersonalityDelta } from './alicization-personality'
 import { useChatOrchestratorStore } from './chat'
+import { buildPreDialogueSendIdentityFromSnapshots } from './chat/pre-dialogue-send-identity'
+import { projectStateObservationToContinuitySnapshot } from './project-state-observation'
 
 function clamp(value: number, min: number, max: number) {
   if (Number.isNaN(value))
@@ -225,11 +229,210 @@ function resolvePendingAsyncExtractionTrigger(
   })
 }
 
+function pushUniquePromptLine(lines: string[], value: string | null | undefined) {
+  const normalized = typeof value === 'string' ? value.trim() : ''
+  if (!normalized || lines.includes(normalized))
+    return
+  lines.push(normalized)
+}
+
+function normalizeAsyncExtractionProjectAwarenessText(value: unknown) {
+  if (typeof value !== 'string')
+    return null
+
+  const normalized = value.trim()
+  return normalized || null
+}
+
+function normalizeAsyncExtractionProjectAwarenessProjectState(
+  projectState: AlicizationPreDialogueSendIdentity['projectState'],
+) {
+  return projectState
+    && typeof projectState === 'object'
+    && !Array.isArray(projectState)
+    ? { ...projectState } as Record<string, unknown>
+    : null
+}
+
+function normalizeAsyncExtractionProjectAwarenessReasonPreview(
+  reasonPreview: AlicizationPreDialogueSendIdentity['reasonPreview'],
+) {
+  const normalized: string[] = []
+
+  for (const reason of reasonPreview ?? []) {
+    const trimmed = typeof reason === 'string' ? reason.trim() : ''
+    if (!trimmed || normalized.includes(trimmed))
+      continue
+    normalized.push(trimmed)
+  }
+
+  return normalized
+}
+
+function looksLikeThinAsyncExtractionProjectAwareness(value: unknown) {
+  const normalized = normalizeAsyncExtractionProjectAwarenessText(value)
+  if (!normalized)
+    return false
+
+  const lowered = normalized.toLowerCase()
+  return isAlicizationThinProjectAwarenessLine(normalized)
+    || lowered.includes('generic continuity reminder')
+    || lowered.includes('generic continuity shell')
+    || lowered.includes('generic awareness reminder')
+    || lowered.includes('generic same-her reminder')
+    || lowered.includes('generic next target')
+    || lowered.includes('generic closure summary')
+}
+
+function mergeAsyncExtractionProjectAwarenessText(existing: unknown, incoming: unknown) {
+  const existingText = normalizeAsyncExtractionProjectAwarenessText(existing)
+  const incomingText = normalizeAsyncExtractionProjectAwarenessText(incoming)
+  if (!incomingText)
+    return existingText
+  if (!existingText)
+    return incomingText
+
+  const existingLooksThin = looksLikeThinAsyncExtractionProjectAwareness(existingText)
+  const incomingLooksThin = looksLikeThinAsyncExtractionProjectAwareness(incomingText)
+  if (existingLooksThin && !incomingLooksThin)
+    return incomingText
+  if (incomingLooksThin && !existingLooksThin)
+    return existingText
+
+  return incomingText
+}
+
+function mergeAsyncExtractionProjectAwarenessProjectState(
+  existingProjectState: Record<string, unknown> | null,
+  incomingProjectState: Record<string, unknown> | null,
+) {
+  if (!existingProjectState)
+    return incomingProjectState
+  if (!incomingProjectState)
+    return existingProjectState
+
+  const merged: Record<string, unknown> = { ...existingProjectState }
+  for (const [key, value] of Object.entries(incomingProjectState)) {
+    if (value == null)
+      continue
+    if (typeof value === 'string' && !value.trim())
+      continue
+    merged[key] = value
+  }
+
+  return merged
+}
+
+function needsAsyncExtractionProjectAwarenessUpgrade(
+  identity: AlicizationPreDialogueSendIdentity | null,
+) {
+  if (!identity || typeof identity !== 'object')
+    return true
+
+  const projectState = normalizeAsyncExtractionProjectAwarenessProjectState(identity.projectState)
+  return [
+    identity.summaryLine,
+    identity.companionHeadlineLine,
+    identity.companionBriefingLine,
+    identity.companionNextClosureLine,
+    identity.awarenessLine,
+    projectState?.preflightSummary,
+    projectState?.preDialogueAwarenessLine,
+    projectState?.awarenessLine,
+    projectState?.companionHeadlineLine,
+    projectState?.companionBriefingLine,
+    projectState?.nextClosureTarget,
+  ].some(value => looksLikeThinAsyncExtractionProjectAwareness(value))
+}
+
+function resolveAsyncExtractionProjectAwarenessIdentity(
+  identity: AlicizationPreDialogueSendIdentity | null,
+  fallbackIdentity: AlicizationPreDialogueSendIdentity | null,
+): AlicizationPreDialogueSendIdentity | null {
+  if (!identity)
+    return fallbackIdentity
+  if (!fallbackIdentity || !needsAsyncExtractionProjectAwarenessUpgrade(identity))
+    return identity
+
+  const existingProjectState = normalizeAsyncExtractionProjectAwarenessProjectState(identity.projectState)
+  const fallbackProjectState = normalizeAsyncExtractionProjectAwarenessProjectState(fallbackIdentity.projectState)
+
+  return {
+    ...identity,
+    status: fallbackIdentity.status ?? identity.status,
+    summaryLine: mergeAsyncExtractionProjectAwarenessText(identity.summaryLine, fallbackIdentity.summaryLine),
+    companionHeadlineLine: mergeAsyncExtractionProjectAwarenessText(identity.companionHeadlineLine, fallbackIdentity.companionHeadlineLine),
+    companionBriefingLine: mergeAsyncExtractionProjectAwarenessText(identity.companionBriefingLine, fallbackIdentity.companionBriefingLine),
+    companionNextClosureLine: mergeAsyncExtractionProjectAwarenessText(identity.companionNextClosureLine, fallbackIdentity.companionNextClosureLine),
+    awarenessLine: mergeAsyncExtractionProjectAwarenessText(identity.awarenessLine, fallbackIdentity.awarenessLine),
+    emotionalClosureCue: mergeAsyncExtractionProjectAwarenessText(identity.emotionalClosureCue, fallbackIdentity.emotionalClosureCue),
+    projectState: mergeAsyncExtractionProjectAwarenessProjectState(existingProjectState, fallbackProjectState) as AlicizationPreDialogueSendIdentity['projectState'],
+    reasonPreview: normalizeAsyncExtractionProjectAwarenessReasonPreview([
+      ...identity.reasonPreview,
+      ...fallbackIdentity.reasonPreview,
+    ]),
+  }
+}
+
+function buildAsyncExtractionProjectAwarenessPrompt(identities: AlicizationPreDialogueSendIdentity[]) {
+  const lines = [
+    'You are Alicization asynchronous memory extractor.',
+    'You are extracting memory for a local-first digital life project, not for a generic assistant shell.',
+  ]
+
+  for (const identity of identities) {
+    pushUniquePromptLine(lines, identity.awarenessLine)
+    pushUniquePromptLine(lines, identity.companionHeadlineLine)
+    pushUniquePromptLine(lines, identity.companionBriefingLine)
+    pushUniquePromptLine(lines, identity.summaryLine)
+    pushUniquePromptLine(lines, identity.companionNextClosureLine)
+    for (const reason of identity.reasonPreview)
+      pushUniquePromptLine(lines, reason)
+  }
+
+  lines.push(
+    'When extracting durable memory, stay on the same project-awareness line: keep what this digital life project is, what has landed, and which still-open closure should keep carrying forward.',
+    'If project-awareness survives only as a detached project status shell, treat that as continuity drift instead of a successful same-her carry.',
+    'Return JSON only. No markdown.',
+    'Schema:',
+    '{"facts":[{"subject":"user|assistant|relationship","predicate":"likes|dislikes|plan|fact|constraint|preference","object":"short text","confidence":0.45-0.95}]}',
+    'Rules:',
+    '- Keep only durable facts that matter for future continuity.',
+    '- Ignore one-off small talk and transient phatic lines.',
+    '- Deduplicate semantically similar facts.',
+    '- Max 8 facts in one response.',
+  )
+
+  return lines.join('\n')
+}
+
+function serializeAsyncExtractionProjectAwareness(
+  identity: AlicizationPreDialogueSendIdentity | null,
+) {
+  if (!identity)
+    return null
+
+  const projectState = normalizeAsyncExtractionProjectAwarenessProjectState(identity.projectState)
+
+  return {
+    status: identity.status,
+    summaryLine: identity.summaryLine ?? null,
+    companionHeadlineLine: identity.companionHeadlineLine ?? null,
+    companionBriefingLine: identity.companionBriefingLine ?? null,
+    companionNextClosureLine: identity.companionNextClosureLine ?? null,
+    awarenessLine: identity.awarenessLine ?? null,
+    emotionalClosureCue: identity.emotionalClosureCue ?? null,
+    projectState,
+    reasonPreview: normalizeAsyncExtractionProjectAwarenessReasonPreview(identity.reasonPreview),
+  }
+}
+
 interface PendingAsyncExtractionTurn {
   turnId: string
   sessionId: string
   userText: string
   assistantText: string
+  preDialogueSendIdentity: AlicizationPreDialogueSendIdentity | null
   dedupeKey: string
   priority: number
   decisionTraceId: string | null
@@ -596,6 +799,39 @@ export const useAlicizationEpoch1Store = defineStore('alicization-epoch1', () =>
     if (!providerConfig || typeof providerConfig !== 'object' || Array.isArray(providerConfig))
       return []
 
+    const carriedProjectAwarenessIdentities = batch
+      .map(item => item.preDialogueSendIdentity)
+      .filter((identity): identity is AlicizationPreDialogueSendIdentity => Boolean(identity))
+    const needsFallbackProjectAwareness = batch.some(item => needsAsyncExtractionProjectAwarenessUpgrade(item.preDialogueSendIdentity))
+    const fallbackProjectStateContinuitySnapshot = needsFallbackProjectAwareness
+      ? bridge.getProjectStateContinuitySnapshot
+        ? await bridge.getProjectStateContinuitySnapshot().catch(() => null)
+        : null
+      : null
+    const fallbackObservedProjectState = !needsFallbackProjectAwareness || fallbackProjectStateContinuitySnapshot
+      ? null
+      : bridge.getLatestProjectStateObservation
+        ? await bridge.getLatestProjectStateObservation().catch(() => null)
+        : null
+    const fallbackProjectAwarenessIdentity = needsFallbackProjectAwareness
+      ? buildPreDialogueSendIdentityFromSnapshots({
+          projectStateContinuitySnapshot: fallbackProjectStateContinuitySnapshot
+            ?? projectStateObservationToContinuitySnapshot(fallbackObservedProjectState),
+        })
+      : null
+    const resolvedProjectAwarenessIdentities = batch
+      .map(item => resolveAsyncExtractionProjectAwarenessIdentity(
+        item.preDialogueSendIdentity,
+        fallbackProjectAwarenessIdentity,
+      ))
+      .filter((identity): identity is AlicizationPreDialogueSendIdentity => Boolean(identity))
+    const projectAwarenessIdentities = resolvedProjectAwarenessIdentities.length > 0
+      ? resolvedProjectAwarenessIdentities
+      : [
+          ...carriedProjectAwarenessIdentities,
+          ...(fallbackProjectAwarenessIdentity ? [fallbackProjectAwarenessIdentity] : []),
+        ]
+
     let output = ''
     const abortController = new AbortController()
     const timeout = setTimeout(() => {
@@ -613,26 +849,23 @@ export const useAlicizationEpoch1Store = defineStore('alicization-epoch1', () =>
         messages: [
           {
             role: 'system',
-            content: [
-              'You are Alicization asynchronous memory extractor.',
-              'Return JSON only. No markdown.',
-              'Schema:',
-              '{"facts":[{"subject":"user|assistant|relationship","predicate":"likes|dislikes|plan|fact|constraint|preference","object":"short text","confidence":0.45-0.95}]}',
-              'Rules:',
-              '- Keep only durable facts that matter for future continuity.',
-              '- Ignore one-off small talk and transient phatic lines.',
-              '- Deduplicate semantically similar facts.',
-              '- Max 8 facts in one response.',
-            ].join('\n'),
+            content: buildAsyncExtractionProjectAwarenessPrompt(projectAwarenessIdentities),
           },
           {
             role: 'user',
             content: JSON.stringify({
               turns: batch.map(item => ({
                 turnId: item.turnId,
+                sessionId: item.sessionId,
                 user: item.userText,
                 assistant: item.assistantText,
                 priority: item.priority,
+                projectAwareness: serializeAsyncExtractionProjectAwareness(
+                  resolveAsyncExtractionProjectAwarenessIdentity(
+                    item.preDialogueSendIdentity,
+                    fallbackProjectAwarenessIdentity,
+                  ),
+                ),
                 mind: {
                   obligation: item.thoughtObligation,
                   truth: item.thoughtTruth,
@@ -791,6 +1024,7 @@ export const useAlicizationEpoch1Store = defineStore('alicization-epoch1', () =>
     sessionId: string
     userText: string
     assistantText: string
+    preDialogueSendIdentity?: AlicizationPreDialogueSendIdentity | null
     origin?: 'user-turn' | 'subconscious-proactive'
     thought?: string | null
     structuredFormat?: string | null
@@ -816,6 +1050,7 @@ export const useAlicizationEpoch1Store = defineStore('alicization-epoch1', () =>
       sessionId: payload.sessionId,
       userText,
       assistantText,
+      preDialogueSendIdentity: payload.preDialogueSendIdentity ?? null,
       dedupeKey: buildAsyncExtractionDedupeKey(userText, assistantText),
       priority,
       decisionTraceId: payload.governance?.decisionTraceId?.trim() || null,
@@ -975,6 +1210,7 @@ export const useAlicizationEpoch1Store = defineStore('alicization-epoch1', () =>
             sessionId,
             userText,
             assistantText,
+            preDialogueSendIdentity: context.preDialogueSendIdentity ?? null,
             origin: output.origin,
             thought: structured?.thought ?? null,
             structuredFormat: structured?.format ?? null,

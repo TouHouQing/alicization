@@ -1,5 +1,11 @@
 import type { ChatHistoryItem } from '../../types/chat'
 
+import {
+  isAlicizationThinProjectAwarenessLine,
+  isAlicizationThinSamePhaseCarryLine as isThinSamePhaseCarryLine,
+  resolveAlicizationProjectPreDialogueAwarenessLine,
+} from '@proj-alicization/stage-shared'
+
 function extractMessageContent(message: ChatHistoryItem) {
   if (typeof message.content === 'string')
     return message.content
@@ -109,6 +115,272 @@ function cloneValue<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T
 }
 
+function preferNonEmpty<T>(preferred: T | null | undefined, fallback: T | null | undefined) {
+  if (preferred === undefined || preferred === null)
+    return fallback
+  if (typeof preferred === 'string' && preferred.trim() === '')
+    return fallback
+  return preferred
+}
+
+function preferMergedAwarenessSummaryLine(
+  preferred: string | null | undefined,
+  fallback: string | null | undefined,
+) {
+  const preferredLine = preferNonEmpty(preferred, fallback)
+  const fallbackLine = preferNonEmpty(fallback, preferred)
+  if (typeof preferredLine !== 'string' || preferredLine.trim() === '')
+    return fallbackLine ?? null
+  if (typeof fallbackLine !== 'string' || fallbackLine.trim() === '')
+    return preferredLine
+
+  return isThinMergedAwarenessLine(preferredLine)
+    && !isThinMergedAwarenessLine(fallbackLine)
+    ? fallbackLine
+    : preferredLine
+}
+
+function resolveMergedAwarenessSummaryLine(input: {
+  preferredSummaryLine: string | null | undefined
+  fallbackSummaryLine: string | null | undefined
+  preferredAwarenessLine: string | null | undefined
+  fallbackAwarenessLine: string | null | undefined
+  preferredCompanionBriefingLine: string | null | undefined
+  fallbackCompanionBriefingLine: string | null | undefined
+}) {
+  const mergedSummaryLine = preferMergedAwarenessSummaryLine(
+    input.preferredSummaryLine,
+    input.fallbackSummaryLine,
+  )
+  if (!isThinMergedAwarenessLine(mergedSummaryLine))
+    return mergedSummaryLine
+
+  return [
+    preferNonEmpty(input.preferredAwarenessLine, null),
+    preferNonEmpty(input.preferredCompanionBriefingLine, null),
+    preferNonEmpty(input.fallbackAwarenessLine, null),
+    preferNonEmpty(input.fallbackCompanionBriefingLine, null),
+  ].find((value): value is string => Boolean(
+    value
+    && !isThinMergedAwarenessLine(value)
+    && carriesBroaderMergedProjectFrame(value),
+  )) ?? mergedSummaryLine
+}
+
+function isThinMergedAwarenessLine(value: string | null | undefined) {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
+  if (!normalized)
+    return true
+
+  return isAlicizationThinProjectAwarenessLine(normalized)
+    || normalized.includes('generic continuity reminder')
+    || normalized.includes('generic awareness reminder')
+    || normalized.includes('generic awareness summary')
+    || normalized.includes('generic same-her reminder')
+}
+
+function isSameHerInwardLowPressureHeadline(value: string | null | undefined) {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
+  if (!normalized)
+    return false
+
+  return normalized.includes('holding together mainly through')
+    && normalized.includes('low-pressure')
+    && (
+      normalized.includes('same line inward')
+      || normalized.includes('same living line')
+      || normalized.includes('same-her-inward-carry')
+      || normalized.includes('quiet-companionship')
+    )
+}
+
+function buildCompactSameHerInwardLowPressureAwarenessLine(companionBriefingLine: string) {
+  return `${companionBriefingLine} Right now this one living her is still keeping the same line inward and low-pressure while lipsync and voice rejoin.`
+}
+
+function isAnthropomorphicHostFacingSameHerHeadline(value: string | null | undefined) {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
+  if (!normalized)
+    return false
+
+  return normalized.includes('anthropomorphic emotional closure')
+    && normalized.includes('same-her inward-carry observability')
+    && normalized.includes('measured-return')
+}
+
+function buildCompactAnthropomorphicHostFacingAwarenessLine(companionBriefingLine: string) {
+  return `${companionBriefingLine} Right now this one living her still needs anthropomorphic emotional closure and same-her inward-carry observability to stay on one measured-return line before anything reopens outward.`
+}
+
+function carriesBroaderMergedProjectFrame(value: string | null | undefined) {
+  const normalized = typeof value === 'string' ? value.trim() : ''
+  if (!normalized)
+    return false
+
+  return /\b(?:project|life loop|closure pressure|still-open|what has landed|what has already landed)\b/i.test(normalized)
+    || /数字生命项目|闭环|主线/u.test(normalized)
+}
+
+function preferMergedCompanionBriefingLine(
+  preferred: string | null | undefined,
+  fallback: string | null | undefined,
+) {
+  const preferredLine = preferNonEmpty(preferred, fallback)
+  const fallbackLine = preferNonEmpty(fallback, preferred)
+  if (typeof preferredLine !== 'string' || preferredLine.trim() === '')
+    return fallbackLine ?? null
+  if (typeof fallbackLine !== 'string' || fallbackLine.trim() === '')
+    return preferredLine
+
+  return isThinMergedAwarenessLine(preferredLine)
+    && carriesBroaderMergedProjectFrame(fallbackLine)
+    ? fallbackLine
+    : preferredLine
+}
+
+function isThinMergedNextClosureLine(value: string | null | undefined) {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
+  if (!normalized)
+    return true
+
+  return normalized.includes('generic next target')
+    || normalized.includes('generic next closure')
+    || normalized.includes('generic closure shell')
+    || normalized.includes('generic closure summary')
+    || normalized.includes('steadier carry of this project, this phase, and the life loop that remains open')
+}
+
+function preferMergedNextClosureLine(
+  preferred: string | null | undefined,
+  fallback: string | null | undefined,
+) {
+  const preferredLine = preferNonEmpty(preferred, fallback)
+  const fallbackLine = preferNonEmpty(fallback, preferred)
+  if (typeof preferredLine !== 'string' || preferredLine.trim() === '')
+    return fallbackLine ?? null
+  if (typeof fallbackLine !== 'string' || fallbackLine.trim() === '')
+    return preferredLine
+
+  return isThinMergedNextClosureLine(preferredLine)
+    && !isThinMergedNextClosureLine(fallbackLine)
+    ? fallbackLine
+    : preferredLine
+}
+
+function mergeReasonPreview(
+  preferred: string[] | null | undefined,
+  fallback: string[] | null | undefined,
+) {
+  const merged: string[] = []
+  const seen = new Set<string>()
+
+  for (const reasons of [preferred, fallback]) {
+    if (!Array.isArray(reasons))
+      continue
+
+    for (const rawReason of reasons) {
+      if (typeof rawReason !== 'string')
+        continue
+
+      const reason = rawReason.trim()
+      if (!reason)
+        continue
+
+      const key = reason.toLowerCase()
+      if (seen.has(key))
+        continue
+
+      seen.add(key)
+      merged.push(reason)
+    }
+  }
+
+  return merged
+}
+
+function preferMergedSameHerHoldDetailLine(
+  awarenessLine: string | null | undefined,
+  companionBriefingLine: string | null | undefined,
+  sameHerHoldDetail: string | null | undefined,
+) {
+  const normalizedHoldDetail = typeof sameHerHoldDetail === 'string' ? sameHerHoldDetail.trim() : ''
+  if (!normalizedHoldDetail)
+    return null
+
+  const shouldPreferHoldDetail = (
+    isThinMergedAwarenessLine(awarenessLine)
+    || isThinMergedAwarenessLine(companionBriefingLine)
+    || isThinSamePhaseCarryLine(awarenessLine)
+    || isThinSamePhaseCarryLine(companionBriefingLine)
+  )
+
+  return shouldPreferHoldDetail
+    ? normalizedHoldDetail
+    : null
+}
+
+function resolveMergedSameHerInwardLowPressureAwarenessLine(input: {
+  preferredAwarenessLine: string | null | undefined
+  fallbackAwarenessLine: string | null | undefined
+  preferredCompanionHeadlineLine: string | null | undefined
+  fallbackCompanionHeadlineLine: string | null | undefined
+  companionBriefingLine: string | null | undefined
+}) {
+  const companionBriefingLine = preferNonEmpty(input.companionBriefingLine, null)
+  if (!companionBriefingLine)
+    return null
+
+  const preferredAwarenessLine = preferNonEmpty(input.preferredAwarenessLine, null)
+  const fallbackAwarenessLine = preferNonEmpty(input.fallbackAwarenessLine, null)
+  const preferredCompanionHeadlineLine = preferNonEmpty(input.preferredCompanionHeadlineLine, null)
+  const fallbackCompanionHeadlineLine = preferNonEmpty(input.fallbackCompanionHeadlineLine, null)
+  const repeatedHeadline = (
+    (preferredAwarenessLine && preferredCompanionHeadlineLine && preferredAwarenessLine === preferredCompanionHeadlineLine)
+    || (fallbackAwarenessLine && fallbackCompanionHeadlineLine && fallbackAwarenessLine === fallbackCompanionHeadlineLine)
+  )
+  const strongerHeadline = preferNonEmpty(preferredCompanionHeadlineLine, fallbackCompanionHeadlineLine)
+
+  if (!repeatedHeadline || !strongerHeadline)
+    return null
+  if (!isThinSamePhaseCarryLine(companionBriefingLine))
+    return null
+  if (!isSameHerInwardLowPressureHeadline(strongerHeadline))
+    return null
+
+  return buildCompactSameHerInwardLowPressureAwarenessLine(companionBriefingLine)
+}
+
+function resolveMergedAnthropomorphicHostFacingAwarenessLine(input: {
+  preferredAwarenessLine: string | null | undefined
+  fallbackAwarenessLine: string | null | undefined
+  preferredCompanionHeadlineLine: string | null | undefined
+  fallbackCompanionHeadlineLine: string | null | undefined
+  companionBriefingLine: string | null | undefined
+}) {
+  const companionBriefingLine = preferNonEmpty(input.companionBriefingLine, null)
+  if (!companionBriefingLine)
+    return null
+
+  const preferredAwarenessLine = preferNonEmpty(input.preferredAwarenessLine, null)
+  const fallbackAwarenessLine = preferNonEmpty(input.fallbackAwarenessLine, null)
+  const preferredCompanionHeadlineLine = preferNonEmpty(input.preferredCompanionHeadlineLine, null)
+  const fallbackCompanionHeadlineLine = preferNonEmpty(input.fallbackCompanionHeadlineLine, null)
+  const repeatedHeadline = (
+    (preferredAwarenessLine && preferredCompanionHeadlineLine && preferredAwarenessLine === preferredCompanionHeadlineLine)
+    || (fallbackAwarenessLine && fallbackCompanionHeadlineLine && fallbackAwarenessLine === fallbackCompanionHeadlineLine)
+  )
+  const strongerHeadline = preferNonEmpty(preferredCompanionHeadlineLine, fallbackCompanionHeadlineLine)
+
+  if (!repeatedHeadline || !strongerHeadline)
+    return null
+  if (!isThinSamePhaseCarryLine(companionBriefingLine))
+    return null
+  if (!isAnthropomorphicHostFacingSameHerHeadline(strongerHeadline))
+    return null
+
+  return buildCompactAnthropomorphicHostFacingAwarenessLine(companionBriefingLine)
+}
+
 function areMessagesEquivalent(left: ChatHistoryItem, right: ChatHistoryItem) {
   if (left.role !== right.role)
     return false
@@ -188,9 +460,242 @@ function mergeEquivalentMessages(left: ChatHistoryItem, right: ChatHistoryItem):
       || secondaryAssistant.structured?.reply?.trim()
       ? 1
       : 0
-    mergedAssistant.structured = primaryStructuredScore >= secondaryStructuredScore
+    const preferredStructured = primaryStructuredScore >= secondaryStructuredScore
       ? cloneValue(primaryAssistant.structured)
       : cloneValue(secondaryAssistant.structured)
+    const fallbackStructured = primaryStructuredScore >= secondaryStructuredScore
+      ? cloneValue(secondaryAssistant.structured)
+      : cloneValue(primaryAssistant.structured)
+    const mergedProjectState = preferredStructured?.projectState && fallbackStructured?.projectState
+      ? {
+          ...fallbackStructured.projectState,
+          ...preferredStructured.projectState,
+        }
+      : preferredStructured?.projectState ?? fallbackStructured?.projectState
+    const mergedCompanionBriefingLine = preferMergedCompanionBriefingLine(
+      preferredStructured?.preDialogueAwareness?.companionBriefingLine,
+      fallbackStructured?.preDialogueAwareness?.companionBriefingLine,
+    ) ?? null
+    const mergedHoldDetailLine = preferMergedSameHerHoldDetailLine(
+      preferMergedAwarenessSummaryLine(
+        preferredStructured?.preDialogueAwareness?.awarenessLine,
+        fallbackStructured?.preDialogueAwareness?.awarenessLine,
+      ) ?? null,
+      mergedCompanionBriefingLine,
+      mergedProjectState && typeof mergedProjectState === 'object' && 'sameHerHoldDetail' in mergedProjectState
+        ? mergedProjectState.sameHerHoldDetail as string | null | undefined
+        : null,
+    )
+    const mergedInwardLowPressureAwarenessLine = resolveMergedSameHerInwardLowPressureAwarenessLine({
+      preferredAwarenessLine: preferredStructured?.preDialogueAwareness?.awarenessLine,
+      fallbackAwarenessLine: fallbackStructured?.preDialogueAwareness?.awarenessLine,
+      preferredCompanionHeadlineLine: preferredStructured?.preDialogueAwareness?.companionHeadlineLine,
+      fallbackCompanionHeadlineLine: fallbackStructured?.preDialogueAwareness?.companionHeadlineLine,
+      companionBriefingLine: mergedCompanionBriefingLine,
+    })
+    const mergedAnthropomorphicHostFacingAwarenessLine = resolveMergedAnthropomorphicHostFacingAwarenessLine({
+      preferredAwarenessLine: preferredStructured?.preDialogueAwareness?.awarenessLine,
+      fallbackAwarenessLine: fallbackStructured?.preDialogueAwareness?.awarenessLine,
+      preferredCompanionHeadlineLine: preferredStructured?.preDialogueAwareness?.companionHeadlineLine,
+      fallbackCompanionHeadlineLine: fallbackStructured?.preDialogueAwareness?.companionHeadlineLine,
+      companionBriefingLine: mergedCompanionBriefingLine,
+    })
+    const resolvedMergedCompanionBriefingLine = mergedHoldDetailLine ?? mergedCompanionBriefingLine
+    const mergedAwarenessSummaryLine = resolveMergedAwarenessSummaryLine({
+      preferredSummaryLine: preferredStructured?.preDialogueAwareness?.summaryLine,
+      fallbackSummaryLine: fallbackStructured?.preDialogueAwareness?.summaryLine,
+      preferredAwarenessLine: preferredStructured?.preDialogueAwareness?.awarenessLine,
+      fallbackAwarenessLine: fallbackStructured?.preDialogueAwareness?.awarenessLine,
+      preferredCompanionBriefingLine: preferredStructured?.preDialogueAwareness?.companionBriefingLine,
+      fallbackCompanionBriefingLine: fallbackStructured?.preDialogueAwareness?.companionBriefingLine,
+    })
+    mergedAssistant.structured = preferredStructured && fallbackStructured
+      ? {
+          ...fallbackStructured,
+          ...preferredStructured,
+          projectState: mergedProjectState,
+          preDialogueClosure: preferredStructured.preDialogueClosure && fallbackStructured.preDialogueClosure
+            ? {
+                ...fallbackStructured.preDialogueClosure,
+                ...preferredStructured.preDialogueClosure,
+                summaryLine: preferNonEmpty(
+                  preferredStructured.preDialogueClosure.summaryLine,
+                  fallbackStructured.preDialogueClosure.summaryLine,
+                ) ?? null,
+                companionHeadlineLine: preferNonEmpty(
+                  preferredStructured.preDialogueClosure.companionHeadlineLine,
+                  fallbackStructured.preDialogueClosure.companionHeadlineLine,
+                ) ?? null,
+                sameHerDriftRiskLine: preferNonEmpty(
+                  preferredStructured.preDialogueClosure.sameHerDriftRiskLine,
+                  fallbackStructured.preDialogueClosure.sameHerDriftRiskLine,
+                ) ?? null,
+                companionBriefingLine: preferNonEmpty(
+                  preferredStructured.preDialogueClosure.companionBriefingLine,
+                  fallbackStructured.preDialogueClosure.companionBriefingLine,
+                ) ?? null,
+                companionNextClosureLine: preferMergedNextClosureLine(
+                  preferredStructured.preDialogueClosure.companionNextClosureLine,
+                  fallbackStructured.preDialogueClosure.companionNextClosureLine,
+                ) ?? null,
+                emotionalClosureCue: preferNonEmpty(
+                  preferredStructured.preDialogueClosure.emotionalClosureCue,
+                  fallbackStructured.preDialogueClosure.emotionalClosureCue,
+                ) ?? null,
+                briefingLines: (preferredStructured.preDialogueClosure.briefingLines?.length ?? 0) >= (fallbackStructured.preDialogueClosure.briefingLines?.length ?? 0)
+                  ? cloneValue(preferredStructured.preDialogueClosure.briefingLines) ?? []
+                  : cloneValue(fallbackStructured.preDialogueClosure.briefingLines) ?? [],
+                reasons: (preferredStructured.preDialogueClosure.reasons?.length ?? 0) >= (fallbackStructured.preDialogueClosure.reasons?.length ?? 0)
+                  ? cloneValue(preferredStructured.preDialogueClosure.reasons) ?? []
+                  : cloneValue(fallbackStructured.preDialogueClosure.reasons) ?? [],
+              }
+            : preferredStructured.preDialogueClosure ?? fallbackStructured.preDialogueClosure,
+          preDialogueAwareness: preferredStructured.preDialogueAwareness && fallbackStructured.preDialogueAwareness
+            ? {
+                ...fallbackStructured.preDialogueAwareness,
+                ...preferredStructured.preDialogueAwareness,
+                summaryLine: mergedAwarenessSummaryLine ?? null,
+                companionHeadlineLine: preferNonEmpty(
+                  preferredStructured.preDialogueAwareness.companionHeadlineLine,
+                  fallbackStructured.preDialogueAwareness.companionHeadlineLine,
+                ) ?? null,
+                companionBriefingLine: resolvedMergedCompanionBriefingLine,
+                companionNextClosureLine: preferMergedNextClosureLine(
+                  preferredStructured.preDialogueAwareness.companionNextClosureLine,
+                  fallbackStructured.preDialogueAwareness.companionNextClosureLine,
+                ) ?? null,
+                awarenessLine: resolveAlicizationProjectPreDialogueAwarenessLine({
+                  runtimeProjectState: {
+                    identity: mergedProjectState && typeof mergedProjectState === 'object' && 'identity' in mergedProjectState
+                      ? mergedProjectState.identity as string | null | undefined
+                      : null,
+                    currentPhase: mergedProjectState && typeof mergedProjectState === 'object' && 'currentPhase' in mergedProjectState
+                      ? mergedProjectState.currentPhase as string | null | undefined
+                      : null,
+                    preDialogueAwarenessLine: mergedHoldDetailLine ?? mergedAnthropomorphicHostFacingAwarenessLine ?? mergedInwardLowPressureAwarenessLine ?? preferMergedAwarenessSummaryLine(
+                      preferredStructured.preDialogueAwareness.awarenessLine,
+                      fallbackStructured.preDialogueAwareness.awarenessLine,
+                    ) ?? null,
+                    awarenessLine: mergedHoldDetailLine ?? mergedAnthropomorphicHostFacingAwarenessLine ?? mergedInwardLowPressureAwarenessLine ?? preferMergedAwarenessSummaryLine(
+                      preferredStructured.preDialogueAwareness.awarenessLine,
+                      fallbackStructured.preDialogueAwareness.awarenessLine,
+                    ) ?? null,
+                    companionHeadlineLine: preferNonEmpty(
+                      preferredStructured.preDialogueAwareness.companionHeadlineLine,
+                      fallbackStructured.preDialogueAwareness.companionHeadlineLine,
+                    ) ?? null,
+                    companionBriefingLine: resolvedMergedCompanionBriefingLine,
+                    preDialogueAwarenessSummary: mergedAwarenessSummaryLine ?? null,
+                    latestLandedProgress: mergedProjectState && typeof mergedProjectState === 'object' && 'latestLandedProgress' in mergedProjectState
+                      ? mergedProjectState.latestLandedProgress as string | null | undefined
+                      : null,
+                    latestProgress: mergedProjectState && typeof mergedProjectState === 'object' && 'latestProgress' in mergedProjectState
+                      ? mergedProjectState.latestProgress as string | null | undefined
+                      : null,
+                    landedProgressSummary: mergedProjectState && typeof mergedProjectState === 'object' && 'latestLandedProgress' in mergedProjectState
+                      ? mergedProjectState.latestLandedProgress as string | null | undefined
+                      : null,
+                    primaryOpenLoop: mergedProjectState && typeof mergedProjectState === 'object' && 'primaryOpenLoop' in mergedProjectState
+                      ? mergedProjectState.primaryOpenLoop as string | null | undefined
+                      : null,
+                    openClosureSummary: mergedProjectState && typeof mergedProjectState === 'object' && 'primaryOpenLoop' in mergedProjectState
+                      ? mergedProjectState.primaryOpenLoop as string | null | undefined
+                      : null,
+                    nextClosureTarget: mergedProjectState && typeof mergedProjectState === 'object' && 'nextClosureTarget' in mergedProjectState
+                      ? mergedProjectState.nextClosureTarget as string | null | undefined
+                      : null,
+                    nextClosureTargetSummary: mergedProjectState && typeof mergedProjectState === 'object' && 'nextClosureTarget' in mergedProjectState
+                      ? mergedProjectState.nextClosureTarget as string | null | undefined
+                      : null,
+                    sameHerSelfLine: mergedProjectState && typeof mergedProjectState === 'object' && 'sameHerSelfLine' in mergedProjectState
+                      ? mergedProjectState.sameHerSelfLine as string | null | undefined
+                      : null,
+                    sameHerHoldDetail: mergedProjectState && typeof mergedProjectState === 'object' && 'sameHerHoldDetail' in mergedProjectState
+                      ? mergedProjectState.sameHerHoldDetail as string | null | undefined
+                      : null,
+                    sameHerDriftRisk: mergedProjectState && typeof mergedProjectState === 'object' && 'sameHerDriftRisk' in mergedProjectState
+                      ? mergedProjectState.sameHerDriftRisk as string | null | undefined
+                      : null,
+                    sameHerDriftRiskSummary: mergedProjectState && typeof mergedProjectState === 'object' && 'sameHerDriftRisk' in mergedProjectState
+                      ? mergedProjectState.sameHerDriftRisk as string | null | undefined
+                      : null,
+                    emotionalClosureSummary: preferNonEmpty(
+                      preferredStructured.preDialogueAwareness.emotionalClosureCue,
+                      fallbackStructured.preDialogueAwareness.emotionalClosureCue,
+                    ) ?? null,
+                  },
+                  fallbackProjectState: {
+                    identity: mergedProjectState && typeof mergedProjectState === 'object' && 'identity' in mergedProjectState
+                      ? mergedProjectState.identity as string | null | undefined
+                      : null,
+                    currentPhase: mergedProjectState && typeof mergedProjectState === 'object' && 'currentPhase' in mergedProjectState
+                      ? mergedProjectState.currentPhase as string | null | undefined
+                      : null,
+                    preDialogueAwarenessLine: mergedHoldDetailLine ?? mergedAnthropomorphicHostFacingAwarenessLine ?? mergedInwardLowPressureAwarenessLine ?? preferNonEmpty(
+                      fallbackStructured.preDialogueAwareness.awarenessLine,
+                      preferredStructured.preDialogueAwareness.awarenessLine,
+                    ) ?? null,
+                    awarenessLine: mergedHoldDetailLine ?? mergedAnthropomorphicHostFacingAwarenessLine ?? mergedInwardLowPressureAwarenessLine ?? preferNonEmpty(
+                      fallbackStructured.preDialogueAwareness.awarenessLine,
+                      preferredStructured.preDialogueAwareness.awarenessLine,
+                    ) ?? null,
+                    companionHeadlineLine: preferNonEmpty(
+                      fallbackStructured.preDialogueAwareness.companionHeadlineLine,
+                      preferredStructured.preDialogueAwareness.companionHeadlineLine,
+                    ) ?? null,
+                    companionBriefingLine: resolvedMergedCompanionBriefingLine,
+                    preDialogueAwarenessSummary: mergedAwarenessSummaryLine ?? null,
+                    latestLandedProgress: mergedProjectState && typeof mergedProjectState === 'object' && 'latestLandedProgress' in mergedProjectState
+                      ? mergedProjectState.latestLandedProgress as string | null | undefined
+                      : null,
+                    latestProgress: mergedProjectState && typeof mergedProjectState === 'object' && 'latestProgress' in mergedProjectState
+                      ? mergedProjectState.latestProgress as string | null | undefined
+                      : null,
+                    landedProgressSummary: mergedProjectState && typeof mergedProjectState === 'object' && 'latestLandedProgress' in mergedProjectState
+                      ? mergedProjectState.latestLandedProgress as string | null | undefined
+                      : null,
+                    primaryOpenLoop: mergedProjectState && typeof mergedProjectState === 'object' && 'primaryOpenLoop' in mergedProjectState
+                      ? mergedProjectState.primaryOpenLoop as string | null | undefined
+                      : null,
+                    openClosureSummary: mergedProjectState && typeof mergedProjectState === 'object' && 'primaryOpenLoop' in mergedProjectState
+                      ? mergedProjectState.primaryOpenLoop as string | null | undefined
+                      : null,
+                    nextClosureTarget: mergedProjectState && typeof mergedProjectState === 'object' && 'nextClosureTarget' in mergedProjectState
+                      ? mergedProjectState.nextClosureTarget as string | null | undefined
+                      : null,
+                    nextClosureTargetSummary: mergedProjectState && typeof mergedProjectState === 'object' && 'nextClosureTarget' in mergedProjectState
+                      ? mergedProjectState.nextClosureTarget as string | null | undefined
+                      : null,
+                    sameHerSelfLine: mergedProjectState && typeof mergedProjectState === 'object' && 'sameHerSelfLine' in mergedProjectState
+                      ? mergedProjectState.sameHerSelfLine as string | null | undefined
+                      : null,
+                    sameHerHoldDetail: mergedProjectState && typeof mergedProjectState === 'object' && 'sameHerHoldDetail' in mergedProjectState
+                      ? mergedProjectState.sameHerHoldDetail as string | null | undefined
+                      : null,
+                    sameHerDriftRisk: mergedProjectState && typeof mergedProjectState === 'object' && 'sameHerDriftRisk' in mergedProjectState
+                      ? mergedProjectState.sameHerDriftRisk as string | null | undefined
+                      : null,
+                    sameHerDriftRiskSummary: mergedProjectState && typeof mergedProjectState === 'object' && 'sameHerDriftRisk' in mergedProjectState
+                      ? mergedProjectState.sameHerDriftRisk as string | null | undefined
+                      : null,
+                    emotionalClosureSummary: preferNonEmpty(
+                      fallbackStructured.preDialogueAwareness.emotionalClosureCue,
+                      preferredStructured.preDialogueAwareness.emotionalClosureCue,
+                    ) ?? null,
+                  },
+                }) ?? null,
+                emotionalClosureCue: preferNonEmpty(
+                  preferredStructured.preDialogueAwareness.emotionalClosureCue,
+                  fallbackStructured.preDialogueAwareness.emotionalClosureCue,
+                ) ?? null,
+                reasonPreview: mergeReasonPreview(
+                  preferredStructured.preDialogueAwareness.reasonPreview,
+                  fallbackStructured.preDialogueAwareness.reasonPreview,
+                ),
+              }
+            : preferredStructured.preDialogueAwareness ?? fallbackStructured.preDialogueAwareness,
+        }
+      : preferredStructured ?? fallbackStructured
     mergedAssistant.categorization = primaryAssistant.categorization?.speech?.trim()
       ? cloneValue(primaryAssistant.categorization)
       : cloneValue(secondaryAssistant.categorization)

@@ -1,15 +1,14 @@
 import type { ChatProvider } from '@xsai-ext/providers/utils'
 import type { CompletionToolCall, Message, Tool } from '@xsai/shared-chat'
 
-import type { ChatAssistantStructuredPayload } from '../types/chat'
 import type {
   AlicizationDialogueEmbodimentEnvelope,
   AlicizationDialogueSpeechTimeline,
   AlicizationDigitalLifeEnvelope,
   AlicizationDigitalLifeSpineDigest,
+  AlicizationEmbodimentScriptV1,
   AlicizationMindTurnGovernance,
   AlicizationRuntimeDigest,
-  AlicizationRuntimeProjectStateDigest,
 } from './alicization-bridge'
 
 import { listModels } from '@xsai/model'
@@ -26,12 +25,11 @@ export type StreamEvent
       type: 'meta'
       governance: AlicizationMindTurnGovernance | null
       embodiment?: AlicizationDialogueEmbodimentEnvelope | null
+      embodimentScript?: AlicizationEmbodimentScriptV1 | null
       speechTimeline?: AlicizationDialogueSpeechTimeline | null
       digitalLife?: AlicizationDigitalLifeEnvelope | null
       digitalLifeSpine?: AlicizationDigitalLifeSpineDigest | null
       runtimeDigest?: AlicizationRuntimeDigest | null
-      projectState?: AlicizationRuntimeProjectStateDigest | null
-      preDialogueAwareness?: ChatAssistantStructuredPayload['preDialogueAwareness']
     }
     | ({ type: 'finish' } & any)
     | ({ type: 'tool-call' } & CompletionToolCall)

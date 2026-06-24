@@ -3,7 +3,8 @@ import type { ChatProvider } from '@xsai-ext/providers/utils'
 
 import type { StreamEvent } from './llm'
 
-import { defaultPerfTracer, exportCsv as exportCsvFile, hasAlicizationChatEntryPreDialogueSendIdentity } from '@proj-alicization/stage-shared'
+import { defaultPerfTracer, exportCsv as exportCsvFile } from '@proj-alicization/stage-shared'
+import { hasAlicizationChatEntryPreDialogueSendIdentity } from '@proj-alicization/stage-shared/alicization-chat-entry-dispatch'
 import { defineStore, storeToRefs } from 'pinia'
 import { ref } from 'vue'
 

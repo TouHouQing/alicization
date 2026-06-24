@@ -180,15 +180,15 @@ export function buildBrowserMemoryConsolidations(events: AlicizationEpisodicEven
     .sort((left, right) => right.occurredAt - left.occurredAt || right.salience - left.salience)
     .slice(0, 20)
   const latest = recent[0] ?? null
-  const relationshipEvents = recent.filter(event => {
+  const relationshipEvents = recent.filter((event) => {
     const text = `${event.relationshipMeaning ?? ''} ${event.lesson ?? ''} ${event.whatChanged ?? ''}`
     return Boolean(event.relationshipShift) || /trust|boundary|repair|靠近|关系|信任|边界|修复/iu.test(text)
   })
-  const taskEvents = recent.filter(event => {
+  const taskEvents = recent.filter((event) => {
     const text = `${event.sourceKind} ${event.threadAnchor ?? ''} ${event.whatHappened} ${event.lesson ?? ''}`
     return /execution|reply|proposal|result|callback|cli|codex|claude|patch|verify|runtime|执行|回调|补丁|核验/u.test(text)
   })
-  const selfEvents = recent.filter(event => {
+  const selfEvents = recent.filter((event) => {
     const text = `${event.sourceKind} ${event.whatHappened} ${event.lesson ?? ''}`
     return event.sourceKind === 'dream-reforge' || /self|my own line|自己的线|自我|hold my line|identity/iu.test(text)
   })

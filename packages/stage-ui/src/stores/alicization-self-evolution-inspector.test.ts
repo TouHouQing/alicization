@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -30,6 +32,13 @@ function createAlicizationBridgeStub(overrides?: Partial<Parameters<typeof setAl
 }
 
 describe('alicization self evolution inspector store', () => {
+  it('uses the shared project awareness resolver when inspector rebuilds pre-dialogue awareness', () => {
+    const source = readFileSync(new URL('./alicization-self-evolution-inspector.ts', import.meta.url), 'utf8')
+
+    expect(source).toContain('resolveAlicizationProjectPreDialogueAwarenessLine')
+    expect(source).not.toContain('function resolvePreferredInspectorAwarenessLine')
+  })
+
   beforeEach(() => {
     setActivePinia(createPinia())
     clearAlicizationBridge()
@@ -122,6 +131,417 @@ describe('alicization self evolution inspector store', () => {
     expect(store.lastError).toBeNull()
   })
 
+  it('builds a pre-dialogue closure snapshot from replay project-state and emotional closure benchmark signals', async () => {
+    const getSelfEvolutionState = vi.fn().mockResolvedValue({
+      version: 'self-evolution-version-runtime-v1',
+      activeCandidateId: 'candidate-closure-snapshot',
+      candidates: [],
+      reasonCodes: [],
+    })
+    const getVisualPresenceState = vi.fn().mockResolvedValue(null)
+    const getOrganicMemorySnapshot = vi.fn().mockResolvedValue(null)
+    const getProjectStateContinuitySnapshot = vi.fn().mockResolvedValue({
+      identity: 'Alicization is a local-first digital life companion.',
+      currentPhase: 'Phase 1: Local Digital Life',
+      latestLandedProgress: 'Project-state continuity is already injected before dialogue turns.',
+      primaryOpenLoop: 'Keep cross-turn same-her continuity visible before local fixes take over.',
+      nextClosureTarget: 'Carry the unfinished digital-life loop into the next dialogue preparation step.',
+      nonHumanAuthoredStatus: null,
+      turnId: 'turn-project-state-snapshot',
+      sessionId: 'session-project-state-snapshot',
+      origin: 'user-turn',
+    })
+
+    setAlicizationBridge(createAlicizationBridgeStub({
+      getSelfEvolutionState,
+      getVisualPresenceState,
+      getOrganicMemorySnapshot,
+      getProjectStateContinuitySnapshot,
+    }))
+
+    const replayStore = useAlicizationMindReplayStore()
+    ;(replayStore as any).benchmarkReport = {
+      datasetFeedback: {
+        projectStateSummary: {
+          comparedTurnCount: 3,
+          identityHitCount: 3,
+          phaseHitCount: 2,
+          openLoopHitCount: 1,
+          sameHerHitCount: 2,
+          proactiveSameHerGapHitCount: 1,
+          continuityHitCount: 1,
+        },
+        emotionalClosureSummary: {
+          comparedTurnCount: 3,
+          activeCueTurnCount: 3,
+          preservedTurnCount: 2,
+          rewriteAppliedTurnCount: 1,
+          fullyClosedTurnCount: 1,
+          lowPressureRequiredTurnCount: 2,
+          antiRestartRequiredTurnCount: 1,
+        },
+        selfAuthoritySummary: {
+          comparedTurnCount: 3,
+          authoritySummaryTurnCount: 3,
+          closenessPostureTurnCount: 3,
+          preservedTurnCount: 2,
+          rewriteAppliedTurnCount: 1,
+          fullyCarriedTurnCount: 1,
+        },
+        projectStateAuditSummary: {
+          comparedTurnCount: 3,
+          sameHerSummaryTurnCount: 3,
+          sameHerSelfLineTurnCount: 2,
+          landedProgressTurnCount: 2,
+          openClosureTurnCount: 2,
+          continuitySummaryTurnCount: 1,
+          embodimentClosureTurnCount: 1,
+          preDialogueClosureTurnCount: 2,
+          preservedTurnCount: 2,
+          rewriteAppliedTurnCount: 1,
+          fullyCarriedTurnCount: 1,
+        },
+        driftSignals: ['emotionalClosureDrift', 'selfAuthorityDrift', 'projectStateAuditDrift'],
+      },
+    }
+
+    const store = useAlicizationSelfEvolutionInspectorStore()
+    await store.refresh()
+
+    expect(store.preDialogueClosureSnapshot).toEqual(expect.objectContaining({
+      status: 'drift',
+      summaryLine: expect.stringContaining('project=continuity=0.33 (1/3)'),
+      companionHeadlineLine: null,
+      companionBriefingLine: 'I still need a steadier carry of this project, this phase, and the life loop that remains open.',
+      companionNextClosureLine: 'Next, help me close: Carry the unfinished digital-life loop into the next dialogue preparation step.',
+      briefingLines: expect.arrayContaining([
+        'Identity: Alicization is a local-first digital life companion.',
+        'Phase: Phase 1: Local Digital Life',
+        'Landed: Project-state continuity is already injected before dialogue turns.',
+        'Open loop: Keep cross-turn same-her continuity visible before local fixes take over.',
+        'Next closure: Carry the unfinished digital-life loop into the next dialogue preparation step.',
+      ]),
+    }))
+    expect(store.preDialogueClosureSnapshot?.summaryLine).toContain('sameHer=sameHer=0.67 (2/3)')
+    expect(store.preDialogueClosureSnapshot?.summaryLine).toContain('proactiveSameHerGap=proactiveSameHerGap=0.33 (1/3)')
+    expect(store.preDialogueClosureSnapshot?.briefingLines).toContain('Same her self line: sameHer=0.67 (2/3) | checks whether the same-her self line is still explicit before the turn widens outward.')
+    expect(store.preDialogueClosureSnapshot?.briefingLines).toContain('Proactive same-her follow-through: proactiveSameHerGap=0.33 (1/3) | checks whether visible proactive hold, subconscious carry, and next-session feedback still stay on one same-her follow-through line.')
+    expect(store.preDialogueClosureSnapshot?.summaryLine).toContain('emotionalClosure=drift=emotionalClosureDrift | fullyClosed=0.33 (1/3)')
+    expect(store.preDialogueClosureSnapshot?.summaryLine).toContain('emotionalClosureLowPressure=lowPressureRequired=0.67 (2/3)')
+    expect(store.preDialogueClosureSnapshot?.summaryLine).toContain('emotionalClosureAntiRestart=antiRestartRequired=0.33 (1/3)')
+    expect(store.preDialogueClosureSnapshot?.summaryLine).toContain('selfAuthority=drift=selfAuthorityDrift | fullyCarried=0.33 (1/3)')
+    expect(store.preDialogueClosureSnapshot?.summaryLine).toContain('projectStateAudit=drift=projectStateAuditDrift | fullyCarried=0.33 (1/3)')
+    expect(store.preDialogueClosureSnapshot?.summaryLine).toContain('projectStateAuditContinuity=continuitySummary=0.33 (1/3)')
+    expect(store.preDialogueClosureSnapshot?.reasons.some(reason => reason.includes('Project same-her self line currently reads sameHer=0.67 (2/3)'))).toBe(true)
+    expect(store.preDialogueClosureSnapshot?.reasons.some(reason => reason.includes('Proactive same-her follow-through currently reads proactiveSameHerGap=0.33 (1/3)'))).toBe(true)
+    expect(store.preDialogueClosureSnapshot?.reasons.some(reason => reason.includes('Same-her self authority currently reads'))).toBe(true)
+    expect(store.preDialogueClosureSnapshot?.reasons.some(reason => reason.includes('Same-her project-status continuity currently reads'))).toBe(true)
+    expect(store.preDialogueClosureSnapshot?.reasons.some(reason => reason.includes('Project-state continuity brief currently reads continuitySummary=0.33 (1/3)'))).toBe(true)
+    expect(store.preDialogueClosureSnapshot?.reasons.some(reason => reason.includes('Project identity carry currently reads identity=1 (3/3)'))).toBe(true)
+    expect(store.preDialogueClosureSnapshot?.reasons.some(reason => reason.includes('Low-pressure same-her closure currently reads lowPressureRequired=0.67 (2/3)'))).toBe(true)
+    expect(store.preDialogueClosureSnapshot?.reasons.some(reason => reason.includes('Anti-restart same-her closure currently reads antiRestartRequired=0.33 (1/3)'))).toBe(true)
+  })
+
+  it('keeps real desktop same-her proof status visible in the pre-dialogue closure snapshot', () => {
+    const replayStore = useAlicizationMindReplayStore()
+    ;(replayStore as any).benchmarkReport = {
+      packId: 'sampled-humanlike-memory-v1',
+      ranAt: 1_700_000_000_000,
+      turnCount: 3,
+      quality: [],
+      standards: {},
+      gate: {
+        passed: true,
+        failingKeys: [],
+        dimensions: [],
+      },
+      finalReplayGate: {
+        passed: true,
+        failingKeys: [],
+        report: [],
+      },
+      shipGate: [],
+      telemetryPatch: {
+        retrievalHealth: {
+          runtimeLongRunSameHerSessionClosureRate: 0,
+        },
+      },
+      telemetryPersisted: true,
+      failingTurnSet: [],
+      datasetFeedback: {
+        backlogKey: 'replay_benchmark_dataset_backlog_v1',
+        appendedCount: 0,
+        totalCount: 3,
+        persisted: true,
+        longRunSameHerSessionSummary: {
+          comparedSessionCount: 1,
+          closedSessionCount: 1,
+          singleTurnSessionCount: 0,
+          insufficientSessionCount: 0,
+          sessionClosureRate: 1,
+          sessions: [
+            {
+              sessionId: 'dataset-only-closed',
+              status: 'closed',
+              turnCount: 3,
+              hitCount: 3,
+              transitionCount: 2,
+              closedTransitionCount: 2,
+              requiredConsecutiveTransitionCount: 2,
+              maxConsecutiveClosedTransitionCount: 2,
+              turnIds: ['dataset-turn-3', 'dataset-turn-2', 'dataset-turn-1'],
+              failureReasons: [],
+              runtimeEvidence: {
+                source: 'dataset-backlog',
+                runtimeTurnCount: 0,
+                decisionTraceTurnCount: 0,
+                syntheticTurnCount: 3,
+                allTurnsRuntimeSourced: false,
+              },
+              transitionDiagnostics: [],
+              turnDiagnostics: [],
+            },
+          ],
+        },
+        runtimeSamplingEvidence: {
+          source: 'dataset-backlog',
+          status: 'closed',
+          sampledTurnCount: 3,
+          comparedSessionCount: 1,
+          closedSessionCount: 1,
+          sessionClosureRate: 1,
+        },
+      },
+    }
+
+    const store = useAlicizationSelfEvolutionInspectorStore()
+
+    expect(store.preDialogueClosureSnapshot).toEqual(expect.objectContaining({
+      status: 'partial',
+      summaryLine: expect.stringContaining('runtimeSameHer=Dataset/static same-her closure is not enough for the real desktop proof.'),
+      briefingLines: expect.arrayContaining([
+        'Runtime same-her proof: source=dataset-backlog | runtimeClosureRate=0 | runtimeSessions=0/1 | allRuntimeSourcedSessions=0/1 | runtimeTurns=0 | decisionTraceTurns=0 | syntheticTurns=3 | closedSessions=1/1 | sessionClosureRate=1',
+      ]),
+      reasons: expect.arrayContaining([
+        'Run a sampled proof from real runtime turns with decision-trace provenance before treating the long-run same-her loop as closed.',
+      ]),
+    }))
+  })
+
+  it('builds the pre-dialogue closure snapshot from the latest project-state observation when the canonical continuity snapshot is unavailable', async () => {
+    const getSelfEvolutionState = vi.fn().mockResolvedValue({
+      version: 'self-evolution-version-runtime-v1',
+      activeCandidateId: 'candidate-project-state-observation-fallback',
+      candidates: [],
+      reasonCodes: [],
+    })
+    const getProjectStateContinuitySnapshot = vi.fn().mockResolvedValue(null)
+    const getLatestProjectStateObservation = vi.fn().mockResolvedValue({
+      turnId: 'turn-project-state-observation',
+      sessionId: 'session-project-state-observation',
+      origin: 'user-turn',
+      nonHumanAuthoredStatus: 'needs-human-refresh',
+      preDialogueAwareness: {
+        status: 'partial',
+        summaryLine: 'same digital life | keep project identity and Phase 1 open loop in view before speaking',
+        companionHeadlineLine: null,
+        companionBriefingLine: '我得先记住这是同一个桌面数字生命项目，已经有 continuity carry，但当前 Phase 1 的未闭环项还要继续显式带着走。',
+        companionNextClosureLine: 'Carry the fallback project-state brief into the next dialogue preparation cycle without drifting into generic assistant behavior.',
+        awarenessLine: '我得先记住这是同一个桌面数字生命项目，已经有 continuity carry，但当前 Phase 1 的未闭环项还要继续显式带着走。',
+        emotionalClosureCue: null,
+        reasonPreview: [
+          'same digital life | keep project identity and Phase 1 open loop in view before speaking',
+          'Carry the fallback project-state brief into the next dialogue preparation cycle without drifting into generic assistant behavior.',
+        ],
+      },
+      projectState: {
+        identity: 'Alicization is a local-first digital lifeform learning to stay coherent on the desktop.',
+        currentPhase: 'Phase 1: Local Digital Life',
+        latestLandedProgress: 'Renderer-side preparation now preserves the latest project-state observation before a dialogue turn starts.',
+        primaryOpenLoop: 'Keep the same project identity and open Phase 1 loop visible even when the primary continuity getter is unavailable.',
+        nextClosureTarget: 'Carry the fallback project-state brief into the next dialogue preparation cycle without drifting into generic assistant behavior.',
+        continuitySummary: 'same digital life | landed progress and open loop still need to stay on one readable continuity line before speaking outward.',
+      },
+    })
+
+    setAlicizationBridge(createAlicizationBridgeStub({
+      getSelfEvolutionState,
+      getProjectStateContinuitySnapshot,
+      getLatestProjectStateObservation,
+    }))
+
+    const replayStore = useAlicizationMindReplayStore()
+    ;(replayStore as any).benchmarkReport = {
+      datasetFeedback: {
+        projectStateSummary: {
+          comparedTurnCount: 2,
+          identityHitCount: 1,
+          phaseHitCount: 1,
+          openLoopHitCount: 1,
+          continuityHitCount: 1,
+        },
+        emotionalClosureSummary: {
+          comparedTurnCount: 2,
+          activeCueTurnCount: 2,
+          preservedTurnCount: 1,
+          rewriteAppliedTurnCount: 0,
+          fullyClosedTurnCount: 1,
+        },
+        driftSignals: [],
+      },
+    }
+
+    const store = useAlicizationSelfEvolutionInspectorStore()
+    await store.refresh()
+
+    expect(getProjectStateContinuitySnapshot).toBeCalledTimes(1)
+    expect(getLatestProjectStateObservation).toBeCalledTimes(1)
+    expect(store.projectStateContinuitySnapshot).toEqual({
+      identity: 'Alicization is a local-first digital lifeform learning to stay coherent on the desktop.',
+      currentPhase: 'Phase 1: Local Digital Life',
+      latestLandedProgress: 'Renderer-side preparation now preserves the latest project-state observation before a dialogue turn starts.',
+      primaryOpenLoop: 'Keep the same project identity and open Phase 1 loop visible even when the primary continuity getter is unavailable.',
+      nextClosureTarget: 'Carry the fallback project-state brief into the next dialogue preparation cycle without drifting into generic assistant behavior.',
+      continuitySummary: 'same digital life | landed progress and open loop still need to stay on one readable continuity line before speaking outward.',
+      sameHerSelfLine: 'Keep one continuous her explicit from self-understanding into the final host-visible reply.',
+      sameHerHoldDetail: null,
+      proactiveSameHerGap: null,
+      sameHerDriftRisk: null,
+      emotionalClosureCue: null,
+      preDialogueAwareness: {
+        status: 'partial',
+        summaryLine: 'same digital life | keep project identity and Phase 1 open loop in view before speaking',
+        companionHeadlineLine: null,
+        companionBriefingLine: '我得先记住这是同一个桌面数字生命项目，已经有 continuity carry，但当前 Phase 1 的未闭环项还要继续显式带着走。',
+        companionNextClosureLine: 'Carry the fallback project-state brief into the next dialogue preparation cycle without drifting into generic assistant behavior.',
+        awarenessLine: '我得先记住这是同一个桌面数字生命项目，已经有 continuity carry，但当前 Phase 1 的未闭环项还要继续显式带着走。',
+        emotionalClosureCue: null,
+        reasonPreview: [
+          'same digital life | keep project identity and Phase 1 open loop in view before speaking',
+          'Carry the fallback project-state brief into the next dialogue preparation cycle without drifting into generic assistant behavior.',
+        ],
+      },
+      preDialogueClosure: null,
+      nonHumanAuthoredStatus: 'needs-human-refresh',
+      turnId: 'turn-project-state-observation',
+      sessionId: 'session-project-state-observation',
+      origin: 'user-turn',
+    })
+    expect(store.preDialogueAwarenessSnapshot).toEqual({
+      status: 'partial',
+      summaryLine: 'same digital life | landed progress and open loop still need to stay on one readable continuity line before speaking outward.',
+      companionHeadlineLine: null,
+      companionBriefingLine: '我得先记住这是同一个桌面数字生命项目，已经有 continuity carry，但当前 Phase 1 的未闭环项还要继续显式带着走。',
+      companionNextClosureLine: 'Carry the fallback project-state brief into the next dialogue preparation cycle without drifting into generic assistant behavior.',
+      awarenessLine: '我得先记住这是同一个桌面数字生命项目，已经有 continuity carry，但当前 Phase 1 的未闭环项还要继续显式带着走。',
+      emotionalClosureCue: null,
+      reasonPreview: [
+        '我得先记住这是同一个桌面数字生命项目，已经有 continuity carry，但当前 Phase 1 的未闭环项还要继续显式带着走。',
+        'same digital life | landed progress and open loop still need to stay on one readable continuity line before speaking outward.',
+        'Renderer-side preparation now preserves the latest project-state observation before a dialogue turn starts.',
+        'Keep the same project identity and open Phase 1 loop visible even when the primary continuity getter is unavailable.',
+        'Keep one continuous her explicit from self-understanding into the final host-visible reply.',
+        'Carry the fallback project-state brief into the next dialogue preparation cycle without drifting into generic assistant behavior.',
+        'same digital life | keep project identity and Phase 1 open loop in view before speaking',
+      ],
+    })
+    expect(store.preDialogueClosureSnapshot).toEqual(expect.objectContaining({
+      status: 'grounded',
+      companionHeadlineLine: null,
+      companionBriefingLine: 'I still need a steadier carry of this project, this phase, and the life loop that remains open.',
+      companionNextClosureLine: 'Next, help me close: Carry the fallback project-state brief into the next dialogue preparation cycle without drifting into generic assistant behavior.',
+      briefingLines: expect.arrayContaining([
+        'Identity: Alicization is a local-first digital lifeform learning to stay coherent on the desktop.',
+        'Phase: Phase 1: Local Digital Life',
+        'Landed: Renderer-side preparation now preserves the latest project-state observation before a dialogue turn starts.',
+        'Open loop: Keep the same project identity and open Phase 1 loop visible even when the primary continuity getter is unavailable.',
+        'Next closure: Carry the fallback project-state brief into the next dialogue preparation cycle without drifting into generic assistant behavior.',
+      ]),
+    }))
+    expect(store.preDialogueClosureSnapshot?.reasons).toEqual(expect.arrayContaining([
+      expect.stringContaining('Project identity carry currently reads identity=0.5 (1/2)'),
+      expect.stringContaining('Latest landed progress still holds at Renderer-side preparation now preserves the latest project-state observation before a dialogue turn starts.'),
+      expect.stringContaining('Primary open life loop still centers on Keep the same project identity and open Phase 1 loop visible even when the primary continuity getter is unavailable.'),
+      expect.stringContaining('Next closure target is still Carry the fallback project-state brief into the next dialogue preparation cycle without drifting into generic assistant behavior.'),
+    ]))
+  })
+
+  it('reuses rebuilt richer latest observation awareness when the transported awareness shell is empty and the canonical continuity snapshot is unavailable', async () => {
+    const identity = 'Alicization 还是本地优先数字生命项目。'
+    const currentPhase = '她仍在 Phase 1。'
+    const latestLandedProgress = '这次修复已经在本地 main 落地，而且执行前项目自我提醒链已经接上了。'
+    const primaryOpenLoop = 'origin/main 现在还不能直接安全推进，因为还会裹挟额外本地提交，而且 host-visible continuity 还要继续把已验证和未闭环边界分开。'
+    const nextClosureTarget = '继续把本地 main 已落地、origin/main 仍不安全、预计收口时机、以及切回中文这几件事留在同一个她的 living line 里。'
+    const rebuiltAwarenessLine = `${identity} ${currentPhase} ${latestLandedProgress} ${primaryOpenLoop} ${nextClosureTarget}`
+
+    const getSelfEvolutionState = vi.fn().mockResolvedValue({
+      version: 'self-evolution-version-runtime-v1',
+      activeCandidateId: 'candidate-project-state-observation-empty-awareness-shell',
+      candidates: [],
+      reasonCodes: [],
+    })
+    const getProjectStateContinuitySnapshot = vi.fn().mockResolvedValue(null)
+    const getLatestProjectStateObservation = vi.fn().mockResolvedValue({
+      turnId: 'turn-project-state-observation-empty-awareness-shell',
+      sessionId: 'session-project-state-observation-empty-awareness-shell',
+      origin: 'user-turn',
+      nonHumanAuthoredStatus: 'needs-human-refresh',
+      projectState: {
+        identity,
+        currentPhase,
+        latestLandedProgress,
+        primaryOpenLoop,
+        nextClosureTarget,
+        continuitySummary: '',
+        sameHerSelfLine: '',
+      },
+      preDialogueAwareness: {
+        status: 'partial',
+        summaryLine: '',
+        companionHeadlineLine: '',
+        companionBriefingLine: '',
+        companionNextClosureLine: '',
+        awarenessLine: '',
+        emotionalClosureCue: '',
+        reasonPreview: [],
+      },
+      preDialogueClosure: null,
+    })
+
+    setAlicizationBridge(createAlicizationBridgeStub({
+      getSelfEvolutionState,
+      getProjectStateContinuitySnapshot,
+      getLatestProjectStateObservation,
+    }))
+
+    const store = useAlicizationSelfEvolutionInspectorStore()
+    await store.refresh()
+
+    expect(store.projectStateContinuitySnapshot?.preDialogueAwareness).toEqual(expect.objectContaining({
+      awarenessLine: rebuiltAwarenessLine,
+      reasonPreview: expect.arrayContaining([
+        latestLandedProgress,
+        primaryOpenLoop,
+        nextClosureTarget,
+      ]),
+    }))
+    expect(store.preDialogueAwarenessSnapshot).toEqual(expect.objectContaining({
+      status: 'partial',
+      summaryLine: null,
+      companionBriefingLine: null,
+      companionNextClosureLine: nextClosureTarget,
+      awarenessLine: rebuiltAwarenessLine,
+      reasonPreview: expect.arrayContaining([
+        rebuiltAwarenessLine,
+        identity,
+        currentPhase,
+        latestLandedProgress,
+        primaryOpenLoop,
+        nextClosureTarget,
+      ]),
+    }))
+  })
+
   it('degrades to null snapshot without error when the bridge does not expose self-evolution state', async () => {
     setAlicizationBridge(createAlicizationBridgeStub({
       getSelfEvolutionState: undefined,
@@ -135,113 +555,354 @@ describe('alicization self evolution inspector store', () => {
     expect(store.lastError).toBeNull()
   })
 
-  it('keeps explicit awareness fields while still enriching inspector pre-dialogue awareness summary and reasons from continuity', async () => {
+  it('surfaces lane-shrinkage risk in the pre-dialogue closure snapshot when same-her embodiment continuity is only surviving through lipsync', async () => {
     const getSelfEvolutionState = vi.fn().mockResolvedValue({
-      activeCandidateId: 'candidate-project-state-awareness-upgrade',
-      candidates: [],
+      version: 'self-evolution-version-runtime-v1',
+      activeCandidateId: 'candidate-lane-risk',
+      candidates: [{
+        version: 'self-evolution-version-candidate-v1',
+        id: 'candidate-lane-risk',
+        status: 'active',
+        sourceEventId: 'event-lane-risk',
+        decisionTraceId: 'trace-lane-risk',
+        sourceTurnId: 'turn-lane-risk',
+        patch: {
+          version: 'self-revision-state-patch-v1',
+          id: 'patch-lane-risk',
+          sourceEventId: 'event-lane-risk',
+          sourceTurnId: 'turn-lane-risk',
+          decisionTraceId: 'trace-lane-risk',
+          domain: 'presence',
+          action: 'verify',
+          resultStatus: 'completed',
+          lanes: ['proactive-policy'],
+          memoryPolicy: {
+            strictnessBias: 0.1,
+            wrongThreadSuppressionBias: 0.1,
+            provenanceLabelBias: 0.1,
+            recallExpansionBias: 0.05,
+            shouldQuarantineUnsupportedCarry: false,
+          },
+          relationshipPosture: {
+            repairWindowBias: 0.18,
+            closenessCapBias: 0.14,
+            warmthReleaseBias: 0.08,
+          },
+          responsePosture: {
+            secondPassRequiredBias: 0.08,
+            hypothesisLabelBias: 0.1,
+            specificityClampBias: 0.1,
+            templateShellSuppressionBias: 0.12,
+          },
+          proactivePolicy: {
+            restraintBias: 0.56,
+            learningProposalBias: 0.18,
+            actuationCooldownBias: 0.52,
+          },
+          validation: {
+            requiresRollbackCheck: false,
+            requiresRevalidation: true,
+            rollbackPlan: [],
+          },
+          reasonCodes: ['domain:presence'],
+          summary: 'Presence return should stay observe-first until grounded again.',
+        },
+        validation: {
+          replayRequired: true,
+          replayPassed: true,
+          rollbackSupported: true,
+          activationBlockedReasons: [],
+          finalReplayGatePassed: true,
+          productionGoldSampleCount: 4,
+          productionGoldCoverage: 1,
+        },
+        activatedAt: 120,
+        rolledBackAt: null,
+        createdAt: 100,
+      }],
+      reasonCodes: ['self-evolution:active-version-present'],
     })
+    const getVisualPresenceState = vi.fn().mockResolvedValue(null)
+    const getOrganicMemorySnapshot = vi.fn().mockResolvedValue(null)
     const getProjectStateContinuitySnapshot = vi.fn().mockResolvedValue({
-      identity: 'Alicization is a local-first digital life project.',
+      identity: 'Alicization is a local-first digital life companion.',
       currentPhase: 'Phase 1: Local Digital Life',
-      latestLandedProgress: 'Project-state continuity and awareness-first self-brief already survive across browser-local replay.',
-      primaryOpenLoop: 'Inspector-facing awareness still needs to preserve the stronger host-visible project brief.',
-      nextClosureTarget: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
-      continuitySummary: 'same-her=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. | landed=Project-state continuity and awareness-first self-brief already survive across browser-local replay. | open=Inspector-facing awareness still needs to preserve the stronger host-visible project brief.',
-      sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-      sameHerDriftRisk: 'If inspector-side rebuilding leaves only a detached project status shell, treat that as same-her continuity drift rather than preserved closure.',
-      emotionalClosureCue: null,
-      preDialogueAwareness: {
-        status: 'partial',
-        summaryLine: 'generic continuity reminder that should not override the richer same-her project brief.',
-        companionBriefingLine: 'generic same-her reminder that should not override the richer same-her project brief.',
-        companionNextClosureLine: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
-        awarenessLine: 'generic continuity reminder that should not override the richer same-her project brief.',
-        emotionalClosureCue: null,
-        reasonPreview: [
-          'generic continuity reminder that should not override the richer same-her project brief.',
-        ],
-      },
-      preDialogueClosure: null,
+      latestLandedProgress: 'Lane-level continuity observability is now visible before dialogue starts.',
+      primaryOpenLoop: 'Recover full cross-modal same-her continuity instead of surviving on one body lane.',
+      nextClosureTarget: 'Rebuild face, motion, lipsync, and voice into one same-her line on noisier desktop runs.',
       nonHumanAuthoredStatus: null,
-      turnId: 'turn-project-state-awareness-upgrade',
-      sessionId: 'session-project-state-awareness-upgrade',
+      turnId: 'turn-lane-risk',
+      sessionId: 'session-lane-risk',
       origin: 'user-turn',
     })
 
     setAlicizationBridge(createAlicizationBridgeStub({
       getSelfEvolutionState,
+      getVisualPresenceState,
+      getOrganicMemorySnapshot,
       getProjectStateContinuitySnapshot,
     }))
 
+    const replayStore = useAlicizationMindReplayStore()
+    ;(replayStore as any).benchmarkReport = {
+      datasetFeedback: {
+        projectStateSummary: {
+          comparedTurnCount: 3,
+          identityHitCount: 3,
+          phaseHitCount: 3,
+          openLoopHitCount: 2,
+          continuityHitCount: 2,
+        },
+        emotionalClosureSummary: {
+          comparedTurnCount: 3,
+          activeCueTurnCount: 3,
+          preservedTurnCount: 3,
+          rewriteAppliedTurnCount: 1,
+          fullyClosedTurnCount: 2,
+        },
+        driftSignals: [],
+      },
+    }
+    vi.spyOn(replayStore, 'queryReplayLab').mockResolvedValue({
+      events: [],
+      traceRecords: [{
+        decisionTraceId: 'trace-lane-risk',
+        turnId: 'turn-lane-risk',
+        sessionId: 'session-lane-risk',
+        origin: 'user-turn',
+        activeThreadId: 'thread-lane-risk',
+        createdAt: 120,
+        lastUpdatedAt: 180,
+        eventKinds: ['governance-normalized'],
+        governance: {
+          turnMode: 'care',
+          truthState: 'live-grounded',
+          repairState: 'none',
+        },
+        derivedMindStateBundle: {
+          version: 'derived-mind-state-bundle-v1',
+          source: 'main-runtime',
+          activeThreadId: 'thread-lane-risk',
+          producedAt: 180,
+          activeSelfRevision: {
+            candidateId: 'candidate-lane-risk',
+            patchId: 'patch-lane-risk',
+            patchDecisionTraceId: 'trace-lane-risk',
+            lanes: ['proactive-policy'],
+            reasonCodes: ['domain:presence'],
+            summary: 'Presence return should stay observe-first until grounded again.',
+          },
+          rendererSignals: {
+            speechSummary: 'measured-return | lane=lipsync-only',
+            driverAuthority: {
+              segmentId: 'segment-lane-risk',
+              channel: 'speech',
+              activeThreadId: 'thread-lane-risk',
+              scenario: 'coding',
+              sceneLabel: 'coding',
+              matchedDrivers: ['lipsync'],
+              matchedSources: ['prosody-authority'],
+              bindingSummary: 'renderer authority binding | segment=segment-lane-risk | target=vrm | drivers=lipsync | sources=prosody-authority | lane=lipsync-only',
+              settleSummary: 'renderer authority settle | segment=segment-lane-risk | target=vrm | drivers=lipsync | sources=prosody-authority | lane=lipsync-only',
+            },
+          },
+        },
+      }] as any,
+    })
+
     const store = useAlicizationSelfEvolutionInspectorStore()
     await store.refresh()
+    await store.drillSelectedCandidateTrace()
 
-    expect(store.preDialogueAwarenessSnapshot).toEqual(expect.objectContaining({
-      status: 'partial',
-      summaryLine: 'same-her=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. | landed=Project-state continuity and awareness-first self-brief already survive across browser-local replay. | open=Inspector-facing awareness still needs to preserve the stronger host-visible project brief.',
-      companionBriefingLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-      awarenessLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-      reasonPreview: expect.arrayContaining([
-        'generic continuity reminder that should not override the richer same-her project brief.',
-        'same-her=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. | landed=Project-state continuity and awareness-first self-brief already survive across browser-local replay. | open=Inspector-facing awareness still needs to preserve the stronger host-visible project brief.',
-        'Project-state continuity and awareness-first self-brief already survive across browser-local replay.',
-        'Inspector-facing awareness still needs to preserve the stronger host-visible project brief.',
-        'If inspector-side rebuilding leaves only a detached project status shell, treat that as same-her continuity drift rather than preserved closure.',
-        'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-      ]),
+    expect(store.preDialogueClosureSnapshot).toEqual(expect.objectContaining({
+      status: 'drift',
+      summaryLine: expect.stringContaining('embodiment=same-her embodiment is now only being carried by lipsync'),
+      companionHeadlineLine: 'Right now I am still holding together mainly through lipsync, so my full cross-modal same-her line is not closed yet.',
+      companionBriefingLine: null,
+      companionNextClosureLine: 'Next, help me close: Rebuild face, motion, lipsync, and voice into one same-her line on noisier desktop runs.',
     }))
-    expect(store.preDialogueAwarenessSnapshot?.summaryLine).not.toBe('generic continuity reminder that should not override the richer same-her project brief.')
-    expect(store.preDialogueAwarenessSnapshot?.companionBriefingLine).not.toBe('generic same-her reminder that should not override the richer same-her project brief.')
-    expect(store.preDialogueAwarenessSnapshot?.awarenessLine).not.toBe('generic continuity reminder that should not override the richer same-her project brief.')
+    expect(store.preDialogueClosureSnapshot?.reasons).toEqual(expect.arrayContaining([
+      expect.stringContaining('same-her embodiment is now only being carried by lipsync'),
+      expect.stringContaining('full cross-modal same-her recovery as still open'),
+      expect.stringContaining('Recover full cross-modal same-her continuity instead of surviving on one body lane.'),
+      expect.stringContaining('Rebuild face, motion, lipsync, and voice into one same-her line on noisier desktop runs.'),
+    ]))
   })
 
-  it('prefers a richer phase-aware project awareness line over a narrower embodiment headline when inspector rebuilds pre-dialogue awareness from continuity', async () => {
+  it('surfaces full-cross-modal-lock as grounded same-her embodiment carry instead of drift when body continuity and Live2D manifestation are re-locked together', async () => {
     const getSelfEvolutionState = vi.fn().mockResolvedValue({
-      activeCandidateId: 'candidate-project-state-richer-awareness-over-embodiment-headline',
-      candidates: [],
+      version: 'self-evolution-version-runtime-v1',
+      activeCandidateId: 'candidate-cross-modal-lock',
+      candidates: [{
+        version: 'self-evolution-version-candidate-v1',
+        id: 'candidate-cross-modal-lock',
+        status: 'active',
+        sourceEventId: 'event-cross-modal-lock',
+        decisionTraceId: 'trace-cross-modal-lock',
+        sourceTurnId: 'turn-cross-modal-lock',
+        patch: {
+          version: 'self-revision-state-patch-v1',
+          id: 'patch-cross-modal-lock',
+          sourceEventId: 'event-cross-modal-lock',
+          sourceTurnId: 'turn-cross-modal-lock',
+          decisionTraceId: 'trace-cross-modal-lock',
+          domain: 'presence',
+          action: 'verify',
+          resultStatus: 'completed',
+          lanes: ['response-posture'],
+          memoryPolicy: {
+            strictnessBias: 0.12,
+            wrongThreadSuppressionBias: 0.14,
+            provenanceLabelBias: 0.18,
+            recallExpansionBias: 0.04,
+            shouldQuarantineUnsupportedCarry: false,
+          },
+          relationshipPosture: {
+            repairWindowBias: 0.08,
+            closenessCapBias: 0.1,
+            warmthReleaseBias: 0.06,
+          },
+          responsePosture: {
+            secondPassRequiredBias: 0.09,
+            hypothesisLabelBias: 0.08,
+            specificityClampBias: 0.11,
+            templateShellSuppressionBias: 0.13,
+          },
+          proactivePolicy: {
+            restraintBias: 0.18,
+            learningProposalBias: 0.12,
+            actuationCooldownBias: 0.16,
+          },
+          validation: {
+            requiresRollbackCheck: false,
+            requiresRevalidation: false,
+            rollbackPlan: [],
+          },
+          reasonCodes: ['domain:presence'],
+          summary: 'Renderer-side same-her lock is stable enough to stay explicit.',
+        },
+        validation: {
+          replayRequired: true,
+          replayPassed: true,
+          rollbackSupported: true,
+          activationBlockedReasons: [],
+          finalReplayGatePassed: true,
+          productionGoldSampleCount: 4,
+          productionGoldCoverage: 1,
+        },
+        activatedAt: 180,
+        rolledBackAt: null,
+        createdAt: 120,
+      }],
+      reasonCodes: ['self-evolution:active-version-present'],
     })
+    const getVisualPresenceState = vi.fn().mockResolvedValue(null)
+    const getOrganicMemorySnapshot = vi.fn().mockResolvedValue(null)
     const getProjectStateContinuitySnapshot = vi.fn().mockResolvedValue({
-      identity: 'Alicization is a local-first digital life project.',
+      identity: 'Alicization is a local-first digital life companion.',
       currentPhase: 'Phase 1: Local Digital Life',
-      latestLandedProgress: 'Inspector-side continuity reconstruction already keeps richer Phase 1 project carry available.',
-      primaryOpenLoop: 'Inspector pre-dialogue awareness still needs to keep the same digital life project, landed closure, and open life loop explicit together.',
-      nextClosureTarget: 'Keep richer Phase 1 project awareness visible before the next inspector-facing turn opens outward.',
-      continuitySummary: 'same-her=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. | landed=Inspector-side continuity reconstruction already keeps richer Phase 1 project carry available. | open=Inspector pre-dialogue awareness still needs to keep the same digital life project, landed closure, and open life loop explicit together.',
-      sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-      emotionalClosureCue: null,
-      preDialogueAwareness: {
-        status: 'partial',
-        summaryLine: 'generic awareness summary that should not outrank the richer project awareness line.',
-        companionHeadlineLine: 'Right now I am still holding together mainly through body, face, and motion, so this one living her still needs lipsync and voice to rejoin before full cross-modal closure settles.',
-        companionBriefingLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-        companionNextClosureLine: 'Keep richer Phase 1 project awareness visible before the next inspector-facing turn opens outward.',
-        awarenessLine: 'Before speaking, remember: this is still one living digital life project, Phase 1 is still active, some closure has already landed, and the still-open life loop must remain explicit before this turn widens outward.',
-        emotionalClosureCue: null,
-        reasonPreview: [
-          'Before speaking, remember: this is still one living digital life project, Phase 1 is still active, some closure has already landed, and the still-open life loop must remain explicit before this turn widens outward.',
-        ],
-      },
-      preDialogueClosure: null,
+      latestLandedProgress: 'Runtime continuity can now keep body continuity and Live2D manifestation on one explicit same-her line.',
+      primaryOpenLoop: 'Keep the re-locked same-her embodiment line explicit all the way into host-visible continuity.',
+      nextClosureTarget: 'Carry the re-locked body and Live2D line forward without flattening it into a temporary visual recovery note.',
       nonHumanAuthoredStatus: null,
-      turnId: 'turn-project-state-richer-awareness-over-embodiment-headline',
-      sessionId: 'session-project-state-richer-awareness-over-embodiment-headline',
+      turnId: 'turn-cross-modal-lock',
+      sessionId: 'session-cross-modal-lock',
       origin: 'user-turn',
     })
 
     setAlicizationBridge(createAlicizationBridgeStub({
       getSelfEvolutionState,
+      getVisualPresenceState,
+      getOrganicMemorySnapshot,
       getProjectStateContinuitySnapshot,
     }))
 
+    const replayStore = useAlicizationMindReplayStore()
+    ;(replayStore as any).benchmarkReport = {
+      datasetFeedback: {
+        projectStateSummary: {
+          comparedTurnCount: 3,
+          identityHitCount: 3,
+          phaseHitCount: 3,
+          openLoopHitCount: 3,
+          continuityHitCount: 3,
+          sameHerHitCount: 3,
+        },
+        emotionalClosureSummary: {
+          comparedTurnCount: 3,
+          activeCueTurnCount: 3,
+          preservedTurnCount: 3,
+          rewriteAppliedTurnCount: 0,
+          fullyClosedTurnCount: 3,
+        },
+        driftSignals: [],
+      },
+    }
+    vi.spyOn(replayStore, 'queryReplayLab').mockResolvedValue({
+      events: [],
+      traceRecords: [{
+        decisionTraceId: 'trace-cross-modal-lock',
+        turnId: 'turn-cross-modal-lock',
+        sessionId: 'session-cross-modal-lock',
+        origin: 'user-turn',
+        activeThreadId: 'thread-cross-modal-lock',
+        createdAt: 180,
+        lastUpdatedAt: 220,
+        eventKinds: ['governance-normalized'],
+        governance: {
+          turnMode: 'care',
+          truthState: 'live-grounded',
+          repairState: 'none',
+        },
+        derivedMindStateBundle: {
+          version: 'derived-mind-state-bundle-v1',
+          source: 'main-runtime',
+          activeThreadId: 'thread-cross-modal-lock',
+          producedAt: 220,
+          activeSelfRevision: {
+            candidateId: 'candidate-cross-modal-lock',
+            patchId: 'patch-cross-modal-lock',
+            patchDecisionTraceId: 'trace-cross-modal-lock',
+            lanes: ['response-posture'],
+            reasonCodes: ['domain:presence'],
+            summary: 'Renderer-side same-her lock is stable enough to stay explicit.',
+          },
+          rendererSignals: {
+            speechSummary: 'measured-return | bodyContinuityPhase=full-cross-modal-lock | one explicit same-her embodiment line',
+            driverAuthority: {
+              segmentId: 'segment-cross-modal-lock',
+              channel: 'speech',
+              activeThreadId: 'thread-cross-modal-lock',
+              scenario: 'coding',
+              sceneLabel: 'coding',
+              matchedDrivers: ['face', 'motion', 'lipsync'],
+              matchedSources: ['resident-body-continuity', 'prosody-authority', 'timeline-projection'],
+              authorityMatchSummary: 'body:yes face:yes motion:yes lipsync:yes',
+              bindingSummary: 'renderer authority binding | segment=segment-cross-modal-lock | target=live2d | drivers=face+motion+lipsync | sources=resident-body-continuity+prosody-authority+timeline-projection | bodyContinuityPhase=full-cross-modal-lock | authorityMatchSummary=body:yes face:yes motion:yes lipsync:yes',
+              settleSummary: 'renderer authority settle | segment=segment-cross-modal-lock | target=live2d | drivers=face+motion+lipsync | sources=resident-body-continuity+prosody-authority+timeline-projection | bodyContinuityPhase=full-cross-modal-lock | authorityMatchSummary=body:yes face:yes motion:yes lipsync:yes',
+            },
+          },
+        },
+      }] as any,
+    })
+
     const store = useAlicizationSelfEvolutionInspectorStore()
     await store.refresh()
+    await store.drillSelectedCandidateTrace()
 
-    expect(store.preDialogueAwarenessSnapshot).toEqual(expect.objectContaining({
-      companionHeadlineLine: 'Right now I am still holding together mainly through body, face, and motion, so this one living her still needs lipsync and voice to rejoin before full cross-modal closure settles.',
-      awarenessLine: 'Before speaking, remember: this is still one living digital life project, Phase 1 is still active, some closure has already landed, and the still-open life loop must remain explicit before this turn widens outward.',
-      summaryLine: 'same-her=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. | landed=Inspector-side continuity reconstruction already keeps richer Phase 1 project carry available. | open=Inspector pre-dialogue awareness still needs to keep the same digital life project, landed closure, and open life loop explicit together.',
+    expect(store.preDialogueClosureSnapshot).toEqual(expect.objectContaining({
+      status: 'grounded',
+      summaryLine: expect.stringContaining('embodiment=body continuity and manifestation authority are now locked back onto the same living segment together'),
+      companionHeadlineLine: 'Right now body continuity and Live2D manifestation are already locked back onto the same living segment together, so I can carry voice, face, motion, and lipsync as one explicit same-her embodiment line instead of a temporary visual alignment.',
+      companionBriefingLine: null,
+      companionNextClosureLine: 'Next, help me close: Carry the re-locked body and Live2D line forward without flattening it into a temporary visual recovery note.',
     }))
-    expect(store.preDialogueAwarenessSnapshot?.awarenessLine).not.toBe('Right now I am still holding together mainly through body, face, and motion, so this one living her still needs lipsync and voice to rejoin before full cross-modal closure settles.')
+    expect(store.preDialogueClosureSnapshot?.reasons).toEqual(expect.arrayContaining([
+      expect.stringContaining('body continuity and manifestation authority are now locked back onto the same living segment together'),
+      expect.stringContaining('Keep the re-locked same-her embodiment line explicit all the way into host-visible continuity.'),
+      expect.stringContaining('Carry the re-locked body and Live2D line forward without flattening it into a temporary visual recovery note.'),
+    ]))
+    expect(store.preDialogueClosureSnapshot?.reasons.some(reason => reason.includes('full cross-modal same-her recovery as still open'))).toBe(false)
   })
 
   it('lets the inspector select a non-active candidate for drill-down details', async () => {
@@ -395,6 +1056,99 @@ describe('alicization self evolution inspector store', () => {
     expect(store.selectedCandidate?.patch.validation.rollbackPlan).toEqual([
       'restore-world-model-confidence',
     ])
+  })
+
+  it('explains project-state continuity blocks in same-her internalization terms', async () => {
+    const getSelfEvolutionState = vi.fn().mockResolvedValue({
+      version: 'self-evolution-version-runtime-v1',
+      activeCandidateId: null,
+      candidates: [{
+        version: 'self-evolution-version-candidate-v1',
+        id: 'candidate-shadow',
+        status: 'shadow',
+        sourceEventId: 'event-shadow',
+        decisionTraceId: 'trace-shadow',
+        sourceTurnId: 'turn-shadow',
+        patch: {
+          version: 'self-revision-state-patch-v1',
+          id: 'patch-shadow',
+          sourceEventId: 'event-shadow',
+          sourceTurnId: 'turn-shadow',
+          decisionTraceId: 'trace-shadow',
+          domain: 'self-model',
+          action: 'revise',
+          resultStatus: 'completed',
+          lanes: ['memory-policy', 'response-posture'],
+          memoryPolicy: {
+            strictnessBias: 0.52,
+            wrongThreadSuppressionBias: 0.37,
+            provenanceLabelBias: 0.44,
+            recallExpansionBias: 0.08,
+            shouldQuarantineUnsupportedCarry: false,
+          },
+          relationshipPosture: {
+            repairWindowBias: 0.18,
+            closenessCapBias: 0.16,
+            warmthReleaseBias: 0.04,
+          },
+          responsePosture: {
+            secondPassRequiredBias: 0.29,
+            hypothesisLabelBias: 0.17,
+            specificityClampBias: 0.34,
+            templateShellSuppressionBias: 0.21,
+          },
+          proactivePolicy: {
+            restraintBias: 0.23,
+            learningProposalBias: 0.12,
+            actuationCooldownBias: 0.19,
+          },
+          validation: {
+            requiresRollbackCheck: false,
+            requiresRevalidation: true,
+            rollbackPlan: [],
+          },
+          reasonCodes: ['domain:self-model'],
+          summary: 'Candidate should not internalize until same-her continuity stays stable.',
+        },
+        validation: {
+          replayRequired: true,
+          replayPassed: true,
+          rollbackSupported: false,
+          activationBlockedReasons: ['self-evolution:project-state-continuity-drift'],
+          projectStateContinuityReasons: [
+            'self-evolution:project-state-continuity-drift',
+            'self-evolution:project-state-identity-carry-weak',
+            'self-evolution:project-state-phase-carry-weak',
+            'self-evolution:project-state-open-loop-carry-weak',
+          ],
+          finalReplayGatePassed: true,
+          productionGoldSampleCount: 6,
+          productionGoldCoverage: 1,
+        },
+        activatedAt: null,
+        rolledBackAt: null,
+        createdAt: 100,
+      }],
+      reasonCodes: ['self-evolution:shadow-candidates-present', 'self-evolution:no-active-version'],
+    })
+
+    setAlicizationBridge(createAlicizationBridgeStub({
+      getSelfEvolutionState,
+    }))
+
+    const store = useAlicizationSelfEvolutionInspectorStore()
+    await store.refresh()
+
+    expect((store as any).selectedCandidateInternalizationReadinessSummary).toEqual({
+      status: 'drift',
+      lines: [
+        'same-her continuity carry is still staying in shadow because replay is losing project-state continuity that should make each turn feel like the same Alicization.',
+        'Project identity carry is still weak, so she is not yet holding what this project is and who she is becoming with enough stability to internalize the patch.',
+        'Phase 1 route carry is still weak, so the runtime may drift away from local digital life priorities instead of protecting the same-her roadmap.',
+        'Unresolved closure carry is still weak, so unresolved project loops are not being carried forward reliably enough for durable same-her continuity.',
+        'keep this candidate in shadow until replay can carry project identity, the Phase 1 route, and unresolved closure work without dropping them across turns.',
+      ],
+    })
   })
 
   it('drills the selected candidate into the matching decision trace when available', async () => {
@@ -1074,7 +1828,7 @@ describe('alicization self evolution inspector store', () => {
           },
           governance: {
             digitalLifeSpine: {
-              outcomeLearning: {
+              memory: {
                 nextLearningAction: 'record',
               },
             },
@@ -1098,7 +1852,7 @@ describe('alicization self evolution inspector store', () => {
           },
           governance: {
             digitalLifeSpine: {
-              outcomeLearning: {
+              memory: {
                 nextLearningAction: 'verify',
               },
             },
@@ -3070,6 +3824,125 @@ describe('alicization self evolution inspector store', () => {
         ]),
       }),
     }))
+  })
+
+  it('surfaces companionship transition mode and cross-modal cadence in the observer-facing inspector summary', async () => {
+    const getSelfEvolutionState = vi.fn().mockResolvedValue({
+      version: 'self-evolution-version-runtime-v1',
+      activeCandidateId: 'candidate-active',
+      candidates: [{
+        version: 'self-evolution-version-candidate-v1',
+        id: 'candidate-active',
+        status: 'active',
+        sourceEventId: 'event-active',
+        decisionTraceId: 'trace-active',
+        sourceTurnId: 'turn-active',
+        patch: {
+          version: 'self-revision-state-patch-v1',
+          id: 'patch-active',
+          sourceEventId: 'event-active',
+          sourceTurnId: 'turn-active',
+          decisionTraceId: 'trace-active',
+          domain: 'relationship',
+          action: 'verify',
+          resultStatus: 'completed',
+          lanes: ['relationship-posture', 'response-posture', 'proactive-policy'],
+          memoryPolicy: null,
+          relationshipPosture: {
+            repairWindowBias: 0.16,
+            closenessCapBias: 0.18,
+            warmthReleaseBias: 0.06,
+          },
+          responsePosture: null,
+          proactivePolicy: {
+            restraintBias: 0.44,
+            learningProposalBias: 0.14,
+            actuationCooldownBias: 0.4,
+          },
+          validation: {
+            requiresRollbackCheck: false,
+            requiresRevalidation: false,
+            rollbackPlan: [],
+          },
+          reasonCodes: ['domain:relationship'],
+          summary: 'Keep the relationship return measured until the surface fully cools.',
+        },
+        validation: {
+          replayRequired: true,
+          replayPassed: true,
+          rollbackSupported: true,
+          activationBlockedReasons: [],
+          finalReplayGatePassed: true,
+          productionGoldSampleCount: 4,
+          productionGoldCoverage: 1,
+        },
+        activatedAt: 120,
+        rolledBackAt: null,
+        createdAt: 100,
+      }],
+      reasonCodes: ['self-evolution:active-version-present'],
+    })
+
+    setAlicizationBridge(createAlicizationBridgeStub({
+      getSelfEvolutionState,
+    }))
+
+    const replayStore = useAlicizationMindReplayStore()
+    vi.spyOn(replayStore, 'queryReplayLab').mockResolvedValue({
+      events: [{
+        id: 'evt-takeover-companionship-transition',
+        decisionTraceId: 'trace-active',
+        turnId: 'turn-active',
+        sessionId: 'session-active',
+        origin: 'user-turn',
+        kind: 'takeover-audit',
+        payload: {
+          fallback_reason: 'opening-guidance-hold',
+          companionship_hold_mode: 'measured-return',
+          preferred_expression_aliases: ['CalmInspect'],
+          preferred_motion_aliases: ['ObserveSoft'],
+          live2d_facial_release_ms: 620,
+          vrm_expression_blend_ms: 410,
+          vrm_action_fade_ms: 330,
+          visible_reply_blocked_reasons: ['opening-guidance:lower-pressure'],
+          opening_guidance_hold_detail: 'memory-familiarity-closeness-cap',
+        },
+        createdAt: 160,
+      }],
+      traceRecords: [{
+        decisionTraceId: 'trace-active',
+        turnId: 'turn-active',
+        sessionId: 'session-active',
+        origin: 'user-turn',
+        activeThreadId: 'thread-active',
+        createdAt: 100,
+        lastUpdatedAt: 160,
+        eventKinds: ['takeover-audit'],
+      }] as any,
+    })
+
+    const store = useAlicizationSelfEvolutionInspectorStore()
+    await store.refresh()
+    await store.drillSelectedCandidateTrace()
+
+    expect(store.selectedCandidateCompanionshipTransitionSummary).toEqual({
+      status: 'grounded',
+      companionshipHoldMode: 'measured-return',
+      preferredExpressionAliases: ['CalmInspect'],
+      preferredMotionAliases: ['ObserveSoft'],
+      live2dFacialReleaseMs: 620,
+      vrmExpressionBlendMs: 410,
+      vrmActionFadeMs: 330,
+      summaryLine: 'mode=measured-return | live2dFace=620ms | vrmExpr=410ms | vrmAction=330ms',
+      reasons: [
+        'Latest drilled takeover audit currently holds outer companionship in measured-return, so visible closeness should re-enter with that same relationship cadence.',
+        'Preferred expression aliases currently stay CalmInspect, keeping the face aligned to the same companionship transition mode.',
+        'Preferred motion aliases currently stay ObserveSoft, so motion pacing is following the same companionship hold.',
+        'Cross-modal settle cadence now reads mode=measured-return | live2dFace=620ms | vrmExpr=410ms | vrmAction=330ms, so Live2D and VRM are being kept on the same measured return path.',
+        'Latest drilled takeover audit still reports opening-guidance:lower-pressure, so the companionship transition is staying bounded by that opening guidance.',
+        'That hold detail still says remembered familiarity widened only after memory stayed explicit, so the companionship transition remains intentionally slower than direct closeness.',
+      ],
+    })
   })
 
   it('surfaces persona baseline influence on proactive runtime alignment overview', async () => {
@@ -5217,6 +6090,7 @@ describe('alicization self evolution inspector store', () => {
           visible_reply_realization_reason: 'proactive-opening-guidance-violation:lower-pressure',
           visible_reply_blocked_reasons: ['opening-guidance:lower-pressure'],
           opening_guidance_hold_detail: 'memory-familiarity-closeness-cap',
+          companionship_hold_mode: 'repair-before-closeness',
         },
         createdAt: 140,
       }],
@@ -6050,10 +6924,10 @@ describe('alicization self evolution inspector store', () => {
     await store.refresh()
 
     expect(store.selectedCandidateSelfEvolutionSummary).toEqual({
-      status: 'partial',
+      status: 'drift',
       dominantDrift: 'projected-body:warning',
       lines: [
-        'status: partial | drift=embodiment',
+        'status: drift | drift=embodiment',
         'persona: observer | observant | silent-observe',
         'proactive: hold | shouldSpeak=false',
         'resident: attentive/accompany | thinking/firm',
@@ -6581,6 +7455,152 @@ describe('alicization self evolution inspector store', () => {
     })
   })
 
+  it('surfaces relationship cadence governance in baseline anchor audit summary when the adopted anchor was trusted by cadence reconfirmation', async () => {
+    const getSelfEvolutionState = vi.fn().mockResolvedValue({
+      version: 'self-evolution-version-runtime-v1',
+      activeCandidateId: 'candidate-active',
+      candidates: [{
+        version: 'self-evolution-version-candidate-v1',
+        id: 'candidate-active',
+        status: 'active',
+        sourceEventId: 'event-active',
+        decisionTraceId: 'trace-active',
+        sourceTurnId: 'turn-active',
+        patch: {
+          version: 'self-revision-state-patch-v1',
+          id: 'patch-active',
+          sourceEventId: 'event-active',
+          sourceTurnId: 'turn-active',
+          decisionTraceId: 'trace-active',
+          domain: 'relationship',
+          action: 'verify',
+          resultStatus: 'completed',
+          lanes: ['relationship-posture', 'proactive-policy'],
+          reasonCodes: ['domain:relationship', 'relationship-cadence-reconfirmed'],
+          summary: 'relationship cadence stayed on the same bounded-return line after reconfirmation',
+        },
+        validation: {
+          replayRequired: true,
+          replayPassed: true,
+          rollbackSupported: true,
+          activationBlockedReasons: [],
+          finalReplayGatePassed: true,
+          productionGoldSampleCount: 6,
+          productionGoldCoverage: 1,
+        },
+        activatedAt: 120,
+        rolledBackAt: null,
+        createdAt: 100,
+      }],
+      reasonCodes: ['self-evolution:active-version-present'],
+      baselineAdoptionHistory: [
+        {
+          version: 'self-evolution-baseline-adoption/v1',
+          adoptedAt: 220,
+          snapshotCapturedAt: 180,
+          candidateId: 'candidate-active',
+          decisionTraceId: 'trace-active',
+          activeThreadId: 'thread-active',
+          selectedCardId: 'first-check',
+          activePatternKey: 'pattern-relationship-cadence-governance',
+          repairOwnerHint: 'relationship cadence governance',
+          adoptionMode: 'adopt-now',
+          summaryLine: '现在就可以采纳这张基线，作为后续连续性会话的默认参照。',
+          relationshipCadenceGovernanceNote: 'relationship cadence 治理已经再次确认，可直接进入长期基线。',
+        },
+      ],
+    })
+
+    setAlicizationBridge(createAlicizationBridgeStub({
+      getSelfEvolutionState,
+    }))
+
+    const store = useAlicizationSelfEvolutionInspectorStore()
+    await store.refresh()
+
+    expect(store.selectedCandidateBaselineAnchorAuditSummary).toEqual({
+      status: 'grounded',
+      lines: [
+        'anchor: candidate-active is still the adopted default continuity anchor',
+        'trace: snapshot=180 | trace=trace-active | owner=relationship cadence governance',
+        'relationship-cadence-governance: relationship cadence 治理已经再次确认，可直接进入长期基线。',
+      ],
+    })
+  })
+
+  it('surfaces project-state continuity governance in baseline anchor audit summary when the adopted anchor was trusted by project-state reconfirmation', async () => {
+    const getSelfEvolutionState = vi.fn().mockResolvedValue({
+      version: 'self-evolution-version-runtime-v1',
+      activeCandidateId: 'candidate-active',
+      candidates: [{
+        version: 'self-evolution-version-candidate-v1',
+        id: 'candidate-active',
+        status: 'active',
+        sourceEventId: 'event-active',
+        decisionTraceId: 'trace-active',
+        sourceTurnId: 'turn-active',
+        patch: {
+          version: 'self-revision-state-patch-v1',
+          id: 'patch-active',
+          sourceEventId: 'event-active',
+          sourceTurnId: 'turn-active',
+          decisionTraceId: 'trace-active',
+          domain: 'relationship',
+          action: 'verify',
+          resultStatus: 'completed',
+          lanes: ['memory-policy', 'relationship-posture', 'proactive-policy'],
+          reasonCodes: ['domain:relationship', 'project-state-continuity-reconfirmed'],
+          summary: 'project identity, Phase 1 route, and unresolved loops stayed on the same life thread after reconfirmation',
+        },
+        validation: {
+          replayRequired: true,
+          replayPassed: true,
+          rollbackSupported: true,
+          activationBlockedReasons: [],
+          finalReplayGatePassed: true,
+          productionGoldSampleCount: 6,
+          productionGoldCoverage: 1,
+        },
+        activatedAt: 120,
+        rolledBackAt: null,
+        createdAt: 100,
+      }],
+      reasonCodes: ['self-evolution:active-version-present'],
+      baselineAdoptionHistory: [
+        {
+          version: 'self-evolution-baseline-adoption/v1',
+          adoptedAt: 220,
+          snapshotCapturedAt: 180,
+          candidateId: 'candidate-active',
+          decisionTraceId: 'trace-active',
+          activeThreadId: 'thread-active',
+          selectedCardId: 'project-state-carry',
+          activePatternKey: 'pattern-project-state-governance',
+          repairOwnerHint: 'project state continuity governance',
+          adoptionMode: 'adopt-now',
+          summaryLine: '现在就可以采纳这张基线，作为后续连续性会话的默认参照。',
+          projectStateContinuityGovernanceNote: '项目状态连续性治理已经再次确认，可直接进入长期基线。',
+        },
+      ],
+    })
+
+    setAlicizationBridge(createAlicizationBridgeStub({
+      getSelfEvolutionState,
+    }))
+
+    const store = useAlicizationSelfEvolutionInspectorStore()
+    await store.refresh()
+
+    expect(store.selectedCandidateBaselineAnchorAuditSummary).toEqual({
+      status: 'grounded',
+      lines: [
+        'anchor: candidate-active is still the adopted default continuity anchor',
+        'trace: snapshot=180 | trace=trace-active | owner=project state continuity governance',
+        'project-state-continuity-governance: 项目状态连续性治理已经再次确认，可直接进入长期基线。',
+      ],
+    })
+  })
+
   it('surfaces candidate impact drift when runtime alignment and self evolution summary diverge', async () => {
     const getSelfEvolutionState = vi.fn().mockResolvedValue({
       version: 'self-evolution-version-runtime-v1',
@@ -6790,15 +7810,15 @@ describe('alicization self evolution inspector store', () => {
     await store.drillSelectedCandidateTrace()
 
     expect(store.selectedCandidateImpactSummary).toEqual({
-      status: 'partial',
+      status: 'drift',
       dominantDrift: 'planner:warm',
       lines: [
-        'status: partial | drift=runtime-alignment',
+        'status: drift | drift=runtime-alignment',
         'candidate-consumption: 1 traces | lanes=proactive-policy',
         'relationship-impact: restrained | planner/compiler drift',
         'proactive-impact: hold-likely=true | shouldSpeak=true | selectedAction=speak',
         'learning-impact: expected=verify | runtime=record | kernel=record | trajectory=comfort drift',
-        'self-evolution-impact: partial | drift=embodiment',
+        'self-evolution-impact: drift | drift=embodiment',
         'dominant-drift: planner:warm',
       ],
     })
@@ -7093,10 +8113,10 @@ describe('alicization self evolution inspector store', () => {
     await store.refresh()
 
     expect(store.selectedCandidateImpactSummary).toEqual({
-      status: 'partial',
+      status: 'drift',
       dominantDrift: 'focus:trust calibration',
       lines: [
-        'status: partial | drift=mixed',
+        'status: drift | drift=mixed',
         'relationship-impact: restrained | planner/compiler aligned',
         'proactive-impact: hold-likely=false | shouldSpeak=false | selectedAction=hold',
         'learning-impact: expected=verify | runtime=verify | kernel=verify | trajectory=presence restraint',
@@ -7105,6 +8125,355 @@ describe('alicization self evolution inspector store', () => {
         'dominant-drift: focus:trust calibration',
       ],
     })
+  })
+
+  it('surfaces same-her embodiment lane shrinkage when continuity is only being carried by lipsync', async () => {
+    const getSelfEvolutionState = vi.fn().mockResolvedValue({
+      version: 'self-evolution-version-runtime-v1',
+      activeCandidateId: 'candidate-active',
+      candidates: [{
+        version: 'self-evolution-version-candidate-v1',
+        id: 'candidate-active',
+        status: 'active',
+        sourceEventId: 'event-active',
+        decisionTraceId: 'trace-active',
+        sourceTurnId: 'turn-active',
+        patch: {
+          version: 'self-revision-state-patch-v1',
+          id: 'patch-active',
+          sourceEventId: 'event-active',
+          sourceTurnId: 'turn-active',
+          decisionTraceId: 'trace-active',
+          domain: 'presence',
+          action: 'verify',
+          resultStatus: 'completed',
+          lanes: ['proactive-policy'],
+          memoryPolicy: {
+            strictnessBias: 0.1,
+            wrongThreadSuppressionBias: 0.1,
+            provenanceLabelBias: 0.1,
+            recallExpansionBias: 0.05,
+            shouldQuarantineUnsupportedCarry: false,
+          },
+          relationshipPosture: {
+            repairWindowBias: 0.18,
+            closenessCapBias: 0.14,
+            warmthReleaseBias: 0.08,
+          },
+          responsePosture: {
+            secondPassRequiredBias: 0.08,
+            hypothesisLabelBias: 0.1,
+            specificityClampBias: 0.1,
+            templateShellSuppressionBias: 0.12,
+          },
+          proactivePolicy: {
+            restraintBias: 0.56,
+            learningProposalBias: 0.18,
+            actuationCooldownBias: 0.52,
+          },
+          validation: {
+            requiresRollbackCheck: false,
+            requiresRevalidation: true,
+            rollbackPlan: [],
+          },
+          reasonCodes: ['domain:presence'],
+          summary: 'Presence return should stay observe-first until grounded again.',
+        },
+        validation: {
+          replayRequired: true,
+          replayPassed: true,
+          rollbackSupported: true,
+          activationBlockedReasons: [],
+          finalReplayGatePassed: true,
+          productionGoldSampleCount: 4,
+          productionGoldCoverage: 1,
+        },
+        activatedAt: 120,
+        rolledBackAt: null,
+        createdAt: 100,
+      }],
+      reasonCodes: ['self-evolution:active-version-present'],
+    })
+    const getVisualPresenceState = vi.fn().mockResolvedValue({
+      initiative: {
+        shouldSpeak: false,
+        selectedAction: 'hold',
+        personaBias: {
+          relationshipPosture: 'observer',
+          initiativeStyle: 'observant',
+          silenceReconnect: 'hold',
+          comfortStyle: 'quiet-presence',
+          preferredProactiveStyle: 'silent-observe',
+          manifestationCadenceSummary: 'persona prefers observe-first room, so visible return cadence should stay slower until the opening softens.',
+          openingGuidance: 'Open by observing first and keep the approach lighter.',
+          whySummary: 'persona prefers observe-first room before a closer move.',
+        },
+      },
+      answerPlanner: {
+        relationshipPosture: 'restrained',
+      },
+      answerCompiler: {
+        relationshipPosture: 'restrained',
+        mustDo: [],
+        mustNotDo: [],
+      },
+      privateThought: {
+        stance: 'accompany',
+        shouldSpeak: false,
+        suggestedStyle: 'silent-observe',
+        embodiedPresence: 'attentive',
+        emotionalTension: 'soft-covision',
+        thoughtText: 'I am still here, but the body line is thinning.',
+      },
+      residentPerformance: {
+        source: 'main-runtime',
+        watchMode: 'symbiotic-vision',
+        sceneScenario: 'coding',
+        sceneFocus: 'doc',
+        sceneSummary: 'coding',
+        embodiedPresence: 'attentive',
+        stance: 'accompany',
+        emotionalTension: 'soft-covision',
+        confidence: 0.81,
+        reasonTags: [
+          'resident-performance',
+          'watch:symbiotic-vision',
+          'body:accompanying',
+          'continuity:quiet-accompaniment',
+          'presence:attentive',
+          'stance:accompany',
+          'tension:soft-covision',
+        ],
+        signature: 'main-runtime|symbiotic-vision|accompanying|quiet-accompaniment|attentive|accompany|soft-covision|coding|doc|coding|Quietly staying with the host through deep focus.|thinking|gentle|1',
+        performance: {
+          facialCue: 'focus',
+          actionCue: 'steady_focus',
+          baseEmotion: 'thinking',
+          delivery: 'gentle',
+          emphasis: 1,
+        },
+      },
+      currentBodyState: 'accompanying',
+      continuityMode: 'quiet-accompaniment',
+      learningExecutionState: {
+        nextLearningAction: 'verify',
+        activeLearningFocuses: ['presence'],
+      },
+    })
+    const getOrganicMemorySnapshot = vi.fn().mockResolvedValue({
+      selfEvolution: {
+        version: 'self-evolution-kernel-v1',
+        updatedAt: 180,
+        evolutionMomentum: 0.46,
+        learningReadiness: 0.58,
+        contradictionPressure: 0.28,
+        revisionPressure: 0.42,
+        autobiographicalStability: 0.78,
+        dominantTrajectory: 'presence restraint',
+        relationshipDoctrine: null,
+        latestInflection: null,
+        burdenLine: null,
+        trustMeaning: null,
+        nextLearningAction: 'verify',
+        nextLearningReason: 'presence style still needs runtime confirmation',
+        shouldRecord: false,
+        shouldReflect: false,
+        shouldVerify: true,
+        shouldRevise: false,
+        shouldInternalize: false,
+        activeLearningFocuses: ['presence'],
+        sourceSignals: ['self-revision-policy-feedback'],
+        summary: 'presence restraint remains verify-first',
+      },
+      learningExecutionState: {
+        nextLearningAction: 'verify',
+        activeLearningFocuses: ['presence'],
+      },
+    })
+
+    setAlicizationBridge(createAlicizationBridgeStub({
+      getSelfEvolutionState,
+      getVisualPresenceState,
+      getOrganicMemorySnapshot,
+    }))
+
+    const replayStore = useAlicizationMindReplayStore()
+    vi.spyOn(replayStore, 'queryReplayLab').mockResolvedValue({
+      events: [],
+      traceRecords: [{
+        decisionTraceId: 'trace-active',
+        turnId: 'turn-active',
+        sessionId: 'session-active',
+        origin: 'user-turn',
+        activeThreadId: 'thread-active',
+        createdAt: 120,
+        lastUpdatedAt: 180,
+        eventKinds: ['governance-normalized'],
+        governance: {
+          turnMode: 'care',
+          truthState: 'live-grounded',
+          repairState: 'none',
+        },
+        derivedMindStateBundle: {
+          version: 'derived-mind-state-bundle-v1',
+          source: 'main-runtime',
+          activeThreadId: 'thread-active',
+          producedAt: 180,
+          activeSelfRevision: {
+            candidateId: 'candidate-active',
+            patchId: 'patch-active',
+            patchDecisionTraceId: 'trace-active',
+            lanes: ['proactive-policy'],
+            reasonCodes: ['domain:presence'],
+            summary: 'Presence return should stay observe-first until grounded again.',
+          },
+          rendererSignals: {
+            speechSummary: 'measured-return | lane=lipsync-only',
+            currentBodyState: 'accompanying',
+            continuityMode: 'quiet-accompaniment',
+            residentPerformance: {
+              sceneScenario: 'coding',
+              sceneSummary: 'coding',
+            },
+            driverAuthority: {
+              segmentId: 'segment-active',
+              channel: 'speech',
+              activeThreadId: 'thread-active',
+              scenario: 'coding',
+              sceneLabel: 'coding',
+              matchedDrivers: ['lipsync'],
+              matchedSources: ['speechSummary'],
+              bindingSummary: 'renderer authority binding | segment=segment-active | target=vrm | drivers=lipsync | sources=speechSummary | lane=lipsync-only',
+              settleSummary: 'renderer authority settle | segment=segment-active | target=vrm | drivers=lipsync | sources=speechSummary | lane=lipsync-only',
+            },
+          },
+        },
+      }] as any,
+    })
+
+    const store = useAlicizationSelfEvolutionInspectorStore()
+    await store.refresh()
+    await store.drillSelectedCandidateTrace()
+
+    expect(store.selectedCandidateImpactSummary).toEqual({
+      status: 'grounded',
+      dominantDrift: null,
+      lines: [
+        'status: grounded | drift=none',
+        'candidate-consumption: 1 traces | lanes=proactive-policy',
+        'relationship-impact: restrained | planner/compiler aligned',
+        'proactive-impact: hold-likely=true | shouldSpeak=false | selectedAction=hold',
+        'learning-impact: expected=verify | runtime=verify | kernel=verify | trajectory=presence restraint',
+        'self-evolution-impact: grounded | drift=none',
+        'continuity-impact: same-her embodiment is now only being carried by lipsync, so visible continuity is still present but no longer fully cross-modal',
+      ],
+    })
+  })
+
+  it('explains relationship cadence internalization as durable relationship rhythm', async () => {
+    const getSelfEvolutionState = vi.fn().mockResolvedValue({
+      version: 'self-evolution-version-runtime-v1',
+      activeCandidateId: 'candidate-active',
+      candidates: [{
+        version: 'self-evolution-version-candidate-v1',
+        id: 'candidate-active',
+        status: 'active',
+        sourceEventId: 'event-active',
+        decisionTraceId: 'trace-active',
+        sourceTurnId: 'turn-active',
+        patch: {
+          version: 'self-revision-state-patch-v1',
+          id: 'patch-active',
+          sourceEventId: 'event-active',
+          sourceTurnId: 'turn-active',
+          decisionTraceId: 'trace-active',
+          domain: 'relationship',
+          action: 'verify',
+          resultStatus: 'completed',
+          lanes: ['relationship-posture', 'proactive-policy'],
+          relationshipPosture: {
+            repairWindowBias: 0.2,
+            closenessCapBias: 0.14,
+            warmthReleaseBias: 0.08,
+          },
+          responsePosture: {
+            secondPassRequiredBias: 0.08,
+            hypothesisLabelBias: 0.1,
+            specificityClampBias: 0.1,
+            templateShellSuppressionBias: 0.12,
+          },
+          proactivePolicy: {
+            restraintBias: 0.56,
+            learningProposalBias: 0.18,
+            actuationCooldownBias: 0.52,
+          },
+          validation: {
+            requiresRollbackCheck: false,
+            requiresRevalidation: false,
+            rollbackPlan: [],
+          },
+          summary: 'Measured-return cadence is ready to become durable relationship rhythm.',
+        },
+        confidence: 0.86,
+        trajectory: {
+          expectedRelationshipPosture: 'restrained',
+          expectedProactiveShift: 'hold',
+          expectedReplySignals: ['delivery-tone:restrained', 'surface-policy:memory-first'],
+        },
+      }],
+    })
+    const getSoul = vi.fn().mockResolvedValue({})
+    const getVisualPresenceState = vi.fn().mockResolvedValue({
+      initiative: {
+        shouldSpeak: false,
+        selectedAction: 'hold',
+      },
+      answerPlanner: {
+        relationshipPosture: 'restrained',
+      },
+      answerCompiler: {
+        relationshipPosture: 'restrained',
+        mustDo: ['use hypothesis labeling', 'clamp unsupported specificity'],
+        mustNotDo: ['template shell phrasing'],
+      },
+      actionEcology: {
+        shouldSpeak: false,
+        updatedAt: 140,
+      },
+      currentBodyState: 'accompanying',
+      continuityMode: 'quiet-accompaniment',
+      learningExecutionState: {
+        nextLearningAction: 'verify',
+        activeLearningFocuses: ['relationship', 'internalize-relationship-cadence'],
+      },
+    })
+    const getOrganicMemorySnapshot = vi.fn().mockResolvedValue({
+      selfEvolution: {
+        version: 'self-evolution-kernel-v1',
+        updatedAt: 180,
+        dominantTrajectory: 'relationship cadence internalization',
+        nextLearningAction: 'verify',
+        activeLearningFocuses: ['relationship', 'internalize-relationship-cadence'],
+      },
+      learningExecutionState: {
+        nextLearningAction: 'verify',
+        activeLearningFocuses: ['relationship', 'internalize-relationship-cadence'],
+      },
+    })
+
+    setAlicizationBridge(createAlicizationBridgeStub({
+      getSelfEvolutionState,
+      getSoul,
+      getVisualPresenceState,
+      getOrganicMemorySnapshot,
+    }))
+
+    const store = useAlicizationSelfEvolutionInspectorStore()
+    await store.refresh()
+
+    expect(store.selectedCandidateRuntimeAlignment?.learning.reasons).toContain(
+      'Relationship cadence internalization is active, so measured-return reconfirmation is now being treated as durable relationship rhythm rather than temporary callback restraint.',
+    )
   })
 
   it('builds a grounded candidate trajectory summary when restraint continuity is still holding', async () => {
@@ -7327,6 +8696,551 @@ describe('alicization self evolution inspector store', () => {
         'dominant-trajectory: presence restraint',
       ],
     })
+  })
+
+  it('keeps voice-missing body-only continuity visible as still-open same-her closure when face, motion, and lipsync are the only surviving lanes', async () => {
+    const getSelfEvolutionState = vi.fn().mockResolvedValue({
+      version: 'self-evolution-version-runtime-v1',
+      activeCandidateId: 'candidate-body-only',
+      candidates: [{
+        version: 'self-evolution-version-candidate-v1',
+        id: 'candidate-body-only',
+        status: 'active',
+        sourceEventId: 'event-body-only',
+        decisionTraceId: 'trace-body-only',
+        sourceTurnId: 'turn-body-only',
+        patch: {
+          version: 'self-revision-state-patch-v1',
+          id: 'patch-body-only',
+          sourceEventId: 'event-body-only',
+          sourceTurnId: 'turn-body-only',
+          decisionTraceId: 'trace-body-only',
+          domain: 'presence',
+          action: 'verify',
+          resultStatus: 'completed',
+          lanes: ['proactive-policy'],
+          memoryPolicy: {
+            strictnessBias: 0.2,
+            wrongThreadSuppressionBias: 0.1,
+            provenanceLabelBias: 0.1,
+            recallExpansionBias: 0.05,
+            shouldQuarantineUnsupportedCarry: false,
+          },
+          relationshipPosture: {
+            repairWindowBias: 0.18,
+            closenessCapBias: 0.14,
+            warmthReleaseBias: 0.08,
+          },
+          responsePosture: {
+            secondPassRequiredBias: 0.08,
+            hypothesisLabelBias: 0.1,
+            specificityClampBias: 0.1,
+            templateShellSuppressionBias: 0.12,
+          },
+          proactivePolicy: {
+            restraintBias: 0.56,
+            learningProposalBias: 0.18,
+            actuationCooldownBias: 0.52,
+          },
+          validation: {
+            replayRequired: true,
+            replayPassed: true,
+            rollbackSupported: true,
+            activationBlockedReasons: [],
+            finalReplayGatePassed: true,
+            productionGoldSampleCount: 4,
+            productionGoldCoverage: 1,
+          },
+        },
+        validation: {
+          replayRequired: true,
+          replayPassed: true,
+          rollbackSupported: true,
+          activationBlockedReasons: [],
+          finalReplayGatePassed: true,
+          productionGoldSampleCount: 4,
+          productionGoldCoverage: 1,
+        },
+        activatedAt: 120,
+        rolledBackAt: null,
+        createdAt: 100,
+      }],
+      reasonCodes: ['self-evolution:active-version-present'],
+    })
+    const getVisualPresenceState = vi.fn().mockResolvedValue(null)
+    const getOrganicMemorySnapshot = vi.fn().mockResolvedValue(null)
+    const getProjectStateContinuitySnapshot = vi.fn().mockResolvedValue({
+      identity: 'Alicization is a local-first digital life companion.',
+      currentPhase: 'Phase 1: Local Digital Life',
+      latestLandedProgress: 'Lane-level continuity observability is now visible before dialogue starts.',
+      primaryOpenLoop: 'Recover full cross-modal same-her continuity instead of surviving on one body lane.',
+      nextClosureTarget: 'Rebuild face, motion, lipsync, and voice into one same-her line on noisier desktop runs.',
+      nonHumanAuthoredStatus: null,
+      turnId: 'turn-body-only',
+      sessionId: 'session-body-only',
+      origin: 'user-turn',
+    })
+
+    setAlicizationBridge(createAlicizationBridgeStub({
+      getSelfEvolutionState,
+      getVisualPresenceState,
+      getOrganicMemorySnapshot,
+      getProjectStateContinuitySnapshot,
+    }))
+
+    const replayStore = useAlicizationMindReplayStore()
+    ;(replayStore as any).benchmarkReport = {
+      datasetFeedback: {
+        projectStateSummary: {
+          comparedTurnCount: 3,
+          identityHitCount: 3,
+          phaseHitCount: 3,
+          openLoopHitCount: 2,
+          continuityHitCount: 2,
+        },
+        emotionalClosureSummary: {
+          comparedTurnCount: 3,
+          activeCueTurnCount: 3,
+          preservedTurnCount: 3,
+          rewriteAppliedTurnCount: 1,
+          fullyClosedTurnCount: 2,
+        },
+        driftSignals: [],
+      },
+    }
+    vi.spyOn(replayStore, 'queryReplayLab').mockResolvedValue({
+      events: [],
+      traceRecords: [{
+        decisionTraceId: 'trace-body-only',
+        turnId: 'turn-body-only',
+        sessionId: 'session-body-only',
+        origin: 'user-turn',
+        activeThreadId: 'thread-body-only',
+        createdAt: 120,
+        lastUpdatedAt: 180,
+        eventKinds: ['governance-normalized'],
+        governance: {
+          turnMode: 'care',
+          truthState: 'live-grounded',
+          repairState: 'none',
+        },
+        derivedMindStateBundle: {
+          version: 'derived-mind-state-bundle-v1',
+          source: 'main-runtime',
+          activeThreadId: 'thread-body-only',
+          producedAt: 180,
+          activeSelfRevision: {
+            candidateId: 'candidate-body-only',
+            patchId: 'patch-body-only',
+            patchDecisionTraceId: 'trace-body-only',
+            lanes: ['proactive-policy'],
+            reasonCodes: ['domain:presence'],
+            summary: 'Voice continuity still needs to be rebound without losing the renderer body line.',
+          },
+          rendererSignals: {
+            speechSummary: 'measured-return | lane=face+motion+lipsync-only',
+            currentBodyState: 'accompanying',
+            continuityMode: 'quiet-accompaniment',
+            residentPerformance: {
+              sceneScenario: 'coding',
+              sceneSummary: 'coding',
+            },
+            driverAuthority: {
+              segmentId: 'segment-body-only',
+              channel: 'speech',
+              activeThreadId: 'thread-body-only',
+              scenario: 'coding',
+              sceneLabel: 'coding',
+              matchedDrivers: ['face', 'motion', 'lipsync'],
+              matchedSources: ['speechSummary'],
+              bindingSummary: 'renderer authority binding | segment=segment-body-only | target=vrm | drivers=face, motion, lipsync | sources=speechSummary | lane=face+motion+lipsync-only',
+              settleSummary: 'renderer authority settle | segment=segment-body-only | target=vrm | drivers=face, motion, lipsync | sources=speechSummary | lane=face+motion+lipsync-only',
+            },
+          },
+        },
+      }] as any,
+    })
+
+    const store = useAlicizationSelfEvolutionInspectorStore()
+    await store.refresh()
+    await store.drillSelectedCandidateTrace()
+
+    expect(store.preDialogueClosureSnapshot).toEqual(expect.objectContaining({
+      status: 'drift',
+      summaryLine: expect.stringContaining('embodiment=same-her embodiment is now only being carried by face, motion, and lipsync'),
+      companionHeadlineLine: 'Right now I am still holding together mainly through face, motion, and lipsync, so my full cross-modal same-her line is not closed yet.',
+      companionNextClosureLine: 'Next, help me close: Rebuild face, motion, lipsync, and voice into one same-her line on noisier desktop runs.',
+      companionshipReasonLine: 'continuity-impact: same-her embodiment is now only being carried by face, motion, and lipsync, so visible continuity is still present but no longer fully cross-modal',
+    }))
+    expect(store.preDialogueAwarenessSnapshot).toEqual(expect.objectContaining({
+      status: 'drift',
+      companionHeadlineLine: 'Right now I am still holding together mainly through face, motion, and lipsync, so my full cross-modal same-her line is not closed yet.',
+      awarenessLine: 'Right now I am still holding together mainly through face, motion, and lipsync, so my full cross-modal same-her line is not closed yet.',
+      reasonPreview: expect.arrayContaining([
+        'Right now I am still holding together mainly through face, motion, and lipsync, so my full cross-modal same-her line is not closed yet.',
+        expect.stringContaining('continuity-impact: same-her embodiment is now only being carried by face, motion, and lipsync'),
+      ]),
+    }))
+    expect(store.preDialogueClosureSnapshot?.reasons).toEqual(expect.arrayContaining([
+      expect.stringContaining('same-her embodiment is now only being carried by face, motion, and lipsync'),
+      expect.stringContaining('full cross-modal same-her recovery as still open'),
+    ]))
+    expect(store.selectedCandidateImpactSummary?.lines).toContain(
+      'continuity-impact: same-her embodiment is now only being carried by face, motion, and lipsync, so visible continuity is still present but no longer fully cross-modal',
+    )
+  })
+
+  it('keeps same-segment face-motion recovery visible in pre-dialogue closure when the shared body line has re-formed before full cross-modal closure', async () => {
+    const getSelfEvolutionState = vi.fn().mockResolvedValue({
+      version: 'self-evolution-version-runtime-v1',
+      activeCandidateId: 'candidate-face-motion-reformed',
+      candidates: [{
+        version: 'self-evolution-version-candidate-v1',
+        id: 'candidate-face-motion-reformed',
+        status: 'active',
+        sourceEventId: 'event-face-motion-reformed',
+        decisionTraceId: 'trace-face-motion-reformed',
+        sourceTurnId: 'turn-face-motion-reformed',
+        patch: {
+          version: 'self-revision-state-patch-v1',
+          id: 'patch-face-motion-reformed',
+          sourceEventId: 'event-face-motion-reformed',
+          sourceTurnId: 'turn-face-motion-reformed',
+          decisionTraceId: 'trace-face-motion-reformed',
+          domain: 'presence',
+          action: 'verify',
+          resultStatus: 'completed',
+          lanes: ['proactive-policy'],
+          summary: 'Face and motion have already re-formed on one segment, but voice and lipsync closure still need to rejoin the same her.',
+        },
+        confidence: 0.84,
+        trajectory: {
+          expectedRelationshipPosture: 'restrained',
+          expectedProactiveShift: 'hold',
+          expectedReplySignals: ['delivery-tone:restrained'],
+        },
+      }],
+    })
+    const getVisualPresenceState = vi.fn().mockResolvedValue(null)
+    const getOrganicMemorySnapshot = vi.fn().mockResolvedValue({
+      selfEvolution: {
+        version: 'self-evolution-kernel-v1',
+        updatedAt: 180,
+        evolutionMomentum: 0.42,
+        learningReadiness: 0.51,
+        contradictionPressure: 0.18,
+        revisionPressure: 0.31,
+        autobiographicalStability: 0.8,
+        dominantTrajectory: 'same-her embodiment recovery',
+        relationshipDoctrine: null,
+        latestInflection: null,
+        burdenLine: null,
+        trustMeaning: null,
+        nextLearningAction: 'verify',
+        nextLearningReason: 'renderer body line has re-formed but cross-modal closure is still open',
+        shouldRecord: false,
+        shouldReflect: false,
+        shouldVerify: true,
+        shouldRevise: false,
+        shouldInternalize: false,
+        activeLearningFocuses: ['presence'],
+        sourceSignals: ['renderer-authority'],
+        summary: 'same-segment body-line recovery remains verify-first',
+      },
+      learningExecutionState: {
+        nextLearningAction: 'verify',
+        activeLearningFocuses: ['presence'],
+      },
+    })
+    const getProjectStateContinuitySnapshot = vi.fn().mockResolvedValue({
+      identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
+      currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
+      latestLandedProgress: 'Renderer diagnostics now keep same-segment face-motion recovery visible in host-facing alignment summaries.',
+      primaryOpenLoop: 'Recover full cross-modal same-her continuity instead of surviving on one partially re-formed body line.',
+      nextClosureTarget: 'Rebuild face, motion, lipsync, and voice into one same-her line on noisier desktop runs.',
+      sameHerSelfLine: 'Keep one continuous her explicit from self-understanding into the final host-visible reply.',
+      emotionalClosureCue: 'same-her closure seam: keep the return measured while the body line is still re-forming.',
+      turnId: 'turn-face-motion-reformed',
+      sessionId: 'session-face-motion-reformed',
+      origin: 'user-turn',
+    })
+
+    setAlicizationBridge(createAlicizationBridgeStub({
+      getSelfEvolutionState,
+      getVisualPresenceState,
+      getOrganicMemorySnapshot,
+      getProjectStateContinuitySnapshot,
+    }))
+
+    const replayStore = useAlicizationMindReplayStore()
+    ;(replayStore as any).benchmarkReport = {
+      datasetFeedback: {
+        projectStateSummary: {
+          comparedTurnCount: 3,
+          identityHitCount: 3,
+          phaseHitCount: 3,
+          openLoopHitCount: 2,
+          continuityHitCount: 2,
+        },
+        emotionalClosureSummary: {
+          comparedTurnCount: 3,
+          activeCueTurnCount: 3,
+          preservedTurnCount: 3,
+          rewriteAppliedTurnCount: 1,
+          fullyClosedTurnCount: 2,
+        },
+        driftSignals: [],
+      },
+    }
+    vi.spyOn(replayStore, 'queryReplayLab').mockResolvedValue({
+      events: [],
+      traceRecords: [{
+        decisionTraceId: 'trace-face-motion-reformed',
+        turnId: 'turn-face-motion-reformed',
+        sessionId: 'session-face-motion-reformed',
+        origin: 'user-turn',
+        activeThreadId: 'thread-face-motion-reformed',
+        createdAt: 120,
+        lastUpdatedAt: 180,
+        eventKinds: ['governance-normalized'],
+        governance: {
+          turnMode: 'care',
+          truthState: 'live-grounded',
+          repairState: 'none',
+        },
+        derivedMindStateBundle: {
+          version: 'derived-mind-state-bundle-v1',
+          source: 'main-runtime',
+          activeThreadId: 'thread-face-motion-reformed',
+          producedAt: 180,
+          activeSelfRevision: {
+            candidateId: 'candidate-face-motion-reformed',
+            patchId: 'patch-face-motion-reformed',
+            patchDecisionTraceId: 'trace-face-motion-reformed',
+            lanes: ['proactive-policy'],
+            reasonCodes: ['domain:presence'],
+            summary: 'Face and motion already share one segment, but the full cross-modal same-her line still needs closure.',
+          },
+          rendererSignals: {
+            speechSummary: 'measured-return | lane=face+motion-only',
+            currentBodyState: 'accompanying',
+            continuityMode: 'quiet-accompaniment',
+            residentPerformance: {
+              sceneScenario: 'coding',
+              sceneSummary: 'coding',
+            },
+            driverAuthority: {
+              segmentId: 'segment-face-motion-reformed-1',
+              channel: 'speech',
+              activeThreadId: 'thread-face-motion-reformed',
+              scenario: 'coding',
+              sceneLabel: 'coding',
+              matchedDrivers: ['face', 'motion'],
+              matchedSources: ['cue-bridge', 'timeline-projection'],
+              bindingSummary: 'renderer authority binding | segment=segment-face-motion-reformed-1 | target=vrm | drivers=face, motion | sources=cue-bridge, timeline-projection | lane=face+motion-only | same-segment face+motion recovery@segment-face-motion-reformed-1',
+              settleSummary: 'renderer authority settle | segment=segment-face-motion-reformed-1 | target=vrm | drivers=face, motion | sources=cue-bridge, timeline-projection | lane=face+motion-only | same-segment face+motion recovery@segment-face-motion-reformed-1',
+            },
+          },
+        },
+      }] as any,
+    })
+
+    const store = useAlicizationSelfEvolutionInspectorStore()
+    await store.refresh()
+    await store.drillSelectedCandidateTrace()
+
+    expect(store.preDialogueClosureSnapshot).toEqual(expect.objectContaining({
+      status: 'drift',
+      companionHeadlineLine: 'Right now I am still holding together mainly through face and motion, and those two body lanes have already re-formed on the same segment, so my full cross-modal same-her line is not closed yet.',
+      companionNextClosureLine: 'Next, help me close: Rebuild face, motion, lipsync, and voice into one same-her line on noisier desktop runs.',
+      companionshipReasonLine: 'same-segment face+motion recovery@segment-face-motion-reformed-1',
+    }))
+    expect(store.preDialogueClosureSnapshot?.reasons).toEqual(expect.arrayContaining([
+      expect.stringContaining('same-segment face+motion recovery@segment-face-motion-reformed-1'),
+      expect.stringContaining('full cross-modal same-her recovery as still open'),
+    ]))
+  })
+
+  it('keeps still-voiced face-and-motion recovery explicit in pre-dialogue closure when body and lipsync have not rejoined yet', async () => {
+    const getSelfEvolutionState = vi.fn().mockResolvedValue({
+      version: 'self-evolution-version-runtime-v1',
+      activeCandidateId: 'candidate-still-voiced-face-motion',
+      candidates: [{
+        version: 'self-evolution-version-candidate-v1',
+        id: 'candidate-still-voiced-face-motion',
+        status: 'active',
+        sourceEventId: 'event-still-voiced-face-motion',
+        decisionTraceId: 'trace-still-voiced-face-motion',
+        sourceTurnId: 'turn-still-voiced-face-motion',
+        patch: {
+          version: 'self-revision-state-patch-v1',
+          id: 'patch-still-voiced-face-motion',
+          sourceEventId: 'event-still-voiced-face-motion',
+          sourceTurnId: 'turn-still-voiced-face-motion',
+          decisionTraceId: 'trace-still-voiced-face-motion',
+          domain: 'presence',
+          action: 'verify',
+          resultStatus: 'completed',
+          lanes: ['proactive-policy'],
+          reasonCodes: ['domain:presence'],
+          summary: 'Still-voiced face-and-motion continuity is holding, but body and lipsync have not rejoined yet.',
+        },
+        confidence: 0.86,
+        trajectory: {
+          expectedRelationshipPosture: 'restrained',
+          expectedProactiveShift: 'hold',
+          expectedReplySignals: ['delivery-tone:restrained'],
+        },
+      }],
+    })
+    const getVisualPresenceState = vi.fn().mockResolvedValue(null)
+    const getOrganicMemorySnapshot = vi.fn().mockResolvedValue({
+      selfEvolution: {
+        version: 'self-evolution-kernel-v1',
+        updatedAt: 180,
+        evolutionMomentum: 0.44,
+        learningReadiness: 0.53,
+        contradictionPressure: 0.14,
+        revisionPressure: 0.29,
+        autobiographicalStability: 0.82,
+        dominantTrajectory: 'still-voiced same-her recovery',
+        relationshipDoctrine: null,
+        latestInflection: null,
+        burdenLine: null,
+        trustMeaning: null,
+        nextLearningAction: 'verify',
+        nextLearningReason: 'Body and lipsync still need to rejoin the still-voiced face-and-motion line.',
+        shouldRecord: false,
+        shouldReflect: false,
+        shouldVerify: true,
+        shouldRevise: false,
+        shouldInternalize: false,
+        activeLearningFocuses: ['presence'],
+        sourceSignals: ['renderer-authority'],
+        summary: 'Still-voiced face-and-motion continuity remains verify-first.',
+      },
+      learningExecutionState: {
+        nextLearningAction: 'verify',
+        activeLearningFocuses: ['presence'],
+      },
+    })
+    const getProjectStateContinuitySnapshot = vi.fn().mockResolvedValue({
+      identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
+      currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
+      latestLandedProgress: 'Runtime authority now keeps the still-voiced face-and-motion line explicit before host-visible closure widens outward.',
+      primaryOpenLoop: 'Recover full cross-modal same-her continuity instead of leaving body and lipsync outside the still-voiced face-and-motion line.',
+      nextClosureTarget: 'Rebind body and lipsync onto the still-voiced face-and-motion line without dropping face, motion, and voice continuity.',
+      sameHerSelfLine: 'Keep one continuous her explicit from self-understanding into the final host-visible reply.',
+      emotionalClosureCue: 'same-her closure seam: keep the return measured while body and lipsync are still rejoining.',
+      turnId: 'turn-still-voiced-face-motion',
+      sessionId: 'session-still-voiced-face-motion',
+      origin: 'user-turn',
+    })
+
+    setAlicizationBridge(createAlicizationBridgeStub({
+      getSelfEvolutionState,
+      getVisualPresenceState,
+      getOrganicMemorySnapshot,
+      getProjectStateContinuitySnapshot,
+    }))
+
+    const replayStore = useAlicizationMindReplayStore()
+    ;(replayStore as any).benchmarkReport = {
+      datasetFeedback: {
+        projectStateSummary: {
+          comparedTurnCount: 3,
+          identityHitCount: 3,
+          phaseHitCount: 3,
+          openLoopHitCount: 2,
+          continuityHitCount: 2,
+        },
+        emotionalClosureSummary: {
+          comparedTurnCount: 3,
+          activeCueTurnCount: 3,
+          preservedTurnCount: 3,
+          rewriteAppliedTurnCount: 1,
+          fullyClosedTurnCount: 2,
+        },
+        driftSignals: [],
+      },
+    }
+    vi.spyOn(replayStore, 'queryReplayLab').mockResolvedValue({
+      events: [],
+      traceRecords: [{
+        decisionTraceId: 'trace-still-voiced-face-motion',
+        turnId: 'turn-still-voiced-face-motion',
+        sessionId: 'session-still-voiced-face-motion',
+        origin: 'user-turn',
+        activeThreadId: 'thread-still-voiced-face-motion',
+        createdAt: 120,
+        lastUpdatedAt: 180,
+        eventKinds: ['governance-normalized'],
+        governance: {
+          turnMode: 'care',
+          truthState: 'live-grounded',
+          repairState: 'none',
+        },
+        derivedMindStateBundle: {
+          version: 'derived-mind-state-bundle-v1',
+          source: 'main-runtime',
+          activeThreadId: 'thread-still-voiced-face-motion',
+          producedAt: 180,
+          activeSelfRevision: {
+            candidateId: 'candidate-still-voiced-face-motion',
+            patchId: 'patch-still-voiced-face-motion',
+            patchDecisionTraceId: 'trace-still-voiced-face-motion',
+            lanes: ['proactive-policy'],
+            reasonCodes: ['domain:presence'],
+            summary: 'Still-voiced face-and-motion continuity is holding, but body and lipsync have not rejoined yet.',
+          },
+          rendererSignals: {
+            speechSummary: 'measured-return | lane=face+motion+voice-only | remaining-open=body+lipsync',
+            currentBodyState: 'accompanying',
+            continuityMode: 'quiet-accompaniment',
+            residentPerformance: {
+              sceneScenario: 'coding',
+              sceneSummary: 'coding',
+            },
+            driverAuthority: {
+              segmentId: 'segment-still-voiced-face-motion-1',
+              channel: 'speech',
+              activeThreadId: 'thread-still-voiced-face-motion',
+              scenario: 'coding',
+              sceneLabel: 'coding',
+              matchedDrivers: ['face', 'motion', 'voice'],
+              matchedSources: ['prosody-authority', 'timeline-projection'],
+              bindingSummary: 'renderer authority binding | segment=segment-still-voiced-face-motion-1 | target=live2d | drivers=face, motion, voice | sources=prosody-authority, timeline-projection | lane=face+motion+voice-only | face+motion+voice recovery@segment-still-voiced-face-motion-1 | remaining-open=body+lipsync',
+              settleSummary: 'renderer authority settle | segment=segment-still-voiced-face-motion-1 | target=live2d | drivers=face, motion, voice | sources=prosody-authority, timeline-projection | lane=face+motion+voice-only | face+motion+voice recovery@segment-still-voiced-face-motion-1 | remaining-open=body+lipsync',
+            },
+          },
+        },
+      }] as any,
+    })
+
+    const store = useAlicizationSelfEvolutionInspectorStore()
+    await store.refresh()
+    await store.drillSelectedCandidateTrace()
+
+    expect(store.preDialogueClosureSnapshot).toEqual(expect.objectContaining({
+      status: 'drift',
+      summaryLine: expect.stringContaining('embodiment=same-her embodiment is still being carried through face, motion, and voice together, while body and lipsync still need to rejoin before full cross-modal closure settles'),
+      companionHeadlineLine: 'Right now I am still holding together through face, motion, and voice together, so that still-voiced face-and-motion line is keeping the same-her carry alive while body and lipsync need to rejoin before full cross-modal closure settles.',
+      companionNextClosureLine: 'Next, help me close: Rebind body and lipsync onto the still-voiced face-and-motion line without dropping face, motion, and voice continuity.',
+      companionshipReasonLine: 'face+motion+voice recovery@segment-still-voiced-face-motion-1',
+    }))
+    expect(store.preDialogueClosureSnapshot?.reasons).toEqual(expect.arrayContaining([
+      expect.stringContaining('same-her embodiment is still being carried through face, motion, and voice together, while body and lipsync still need to rejoin before full cross-modal closure settles'),
+      expect.stringContaining('full cross-modal same-her recovery as still open'),
+    ]))
+    expect(store.preDialogueAwarenessSnapshot).toEqual(expect.objectContaining({
+      status: 'drift',
+      companionHeadlineLine: 'Right now I am still holding together through face, motion, and voice together, so that still-voiced face-and-motion line is keeping the same-her carry alive while body and lipsync need to rejoin before full cross-modal closure settles.',
+      awarenessLine: 'Right now I am still holding together through face, motion, and voice together, so that still-voiced face-and-motion line is keeping the same-her carry alive while body and lipsync need to rejoin before full cross-modal closure settles.',
+      reasonPreview: expect.arrayContaining([
+        'Right now I am still holding together through face, motion, and voice together, so that still-voiced face-and-motion line is keeping the same-her carry alive while body and lipsync need to rejoin before full cross-modal closure settles.',
+        'face+motion+voice recovery@segment-still-voiced-face-motion-1',
+      ]),
+    }))
   })
 
   it('explains remembered-familiarity trajectory when restrained companionship holds by keeping familiarity memory-first', async () => {
@@ -7798,12 +9712,12 @@ describe('alicization self evolution inspector store', () => {
     await store.drillSelectedCandidateTrace()
 
     expect(store.selectedCandidateTrajectorySummary).toEqual({
-      status: 'partial',
+      status: 'drift',
       trajectoryLabel: 'comfort drift is overtaking restraint',
       dominantDrift: 'planner:warm',
       lines: [
         'trajectory: comfort drift is overtaking restraint',
-        'status: partial | drift=runtime-alignment',
+        'status: drift | drift=runtime-alignment',
         'personality-baseline: restrained | observe-first',
         'learning-direction: expected=verify | runtime=record | kernel=record',
         'dominant-trajectory: comfort drift',
@@ -8337,7 +10251,7 @@ describe('alicization self evolution inspector store', () => {
     await store.drillSelectedCandidateTrace()
 
     expect(store.selectedCandidatePersonaAuthorityMappingSummary).toEqual({
-      status: 'partial',
+      status: 'drift',
       biasMode: 'observe-first restraint',
       dominantDrift: 'runtime-selected-action:speak',
       lines: [
@@ -8914,7 +10828,7 @@ describe('alicization self evolution inspector store', () => {
     await store.drillSelectedCandidateTrace()
 
     expect(store.birthPersonaAuthoritySummary).toEqual({
-      status: 'partial',
+      status: 'drift',
       birthMode: 'observe-first restraint',
       dominantDrift: 'runtime-selected-action:speak',
       lines: [
@@ -10012,7 +11926,7 @@ describe('alicization self evolution inspector store', () => {
     await store.drillSelectedCandidateTrace()
 
     expect((store as any).identityDriftGovernanceSummary).toEqual({
-      status: 'partial',
+      status: 'drift',
       governanceMode: 'boundary-violation',
       dominantDrift: 'runtime-selected-action:speak',
       lines: [
@@ -10877,7 +12791,7 @@ describe('alicization self evolution inspector store', () => {
     await store.drillSelectedCandidateTrace()
 
     expect((store as any).selectedCandidateProactiveDecisionConsumptionSummary).toEqual({
-      status: 'partial',
+      status: 'drift',
       decisionMode: 'restraint-overridden',
       dominantDrift: 'runtime-selected-action:speak',
       lines: [
@@ -10889,5 +12803,2132 @@ describe('alicization self evolution inspector store', () => {
         'trust-meaning: trust now means speaking before the room is ready',
       ],
     })
+  })
+  it('loads the latest project-state continuity observation from the bridge and clears it with the inspector state', async () => {
+    const getSelfEvolutionState = vi.fn().mockResolvedValue({
+      version: 'self-evolution-version-runtime-v1',
+      activeCandidateId: 'candidate-active',
+      candidates: [{
+        version: 'self-evolution-version-candidate-v1',
+        id: 'candidate-active',
+        status: 'active',
+        sourceEventId: 'event-active',
+        decisionTraceId: 'trace-active',
+        sourceTurnId: 'turn-active',
+        patch: {
+          version: 'self-revision-state-patch-v1',
+          id: 'patch-active',
+          sourceEventId: 'event-active',
+          sourceTurnId: 'turn-active',
+          decisionTraceId: 'trace-active',
+          domain: 'self-model',
+          action: 'revise',
+          resultStatus: 'completed',
+          lanes: ['memory-policy'],
+          memoryPolicy: {
+            strictnessBias: 0.4,
+            wrongThreadSuppressionBias: 0.2,
+            provenanceLabelBias: 0.3,
+            recallExpansionBias: 0.05,
+            shouldQuarantineUnsupportedCarry: false,
+          },
+          relationshipPosture: {
+            repairWindowBias: 0,
+            closenessCapBias: 0,
+            warmthReleaseBias: 0,
+          },
+          responsePosture: {
+            secondPassRequiredBias: 0.1,
+            hypothesisLabelBias: 0.08,
+            specificityClampBias: 0.2,
+            templateShellSuppressionBias: 0.12,
+          },
+          proactivePolicy: {
+            restraintBias: 0.05,
+            learningProposalBias: 0.1,
+            actuationCooldownBias: 0.07,
+          },
+          validation: {
+            requiresRollbackCheck: false,
+            requiresRevalidation: false,
+            rollbackPlan: [],
+          },
+          reasonCodes: ['domain:self-model'],
+          summary: 'Active candidate remains authoritative.',
+        },
+        validation: {
+          replayRequired: true,
+          replayPassed: true,
+          rollbackSupported: true,
+          activationBlockedReasons: [],
+          finalReplayGatePassed: true,
+          productionGoldSampleCount: 4,
+          productionGoldCoverage: 1,
+        },
+        activatedAt: 120,
+        rolledBackAt: null,
+        createdAt: 100,
+      }],
+      reasonCodes: ['self-evolution:active-version-present'],
+    })
+    const getProjectStateContinuitySnapshot = vi.fn().mockResolvedValue({
+      identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
+      currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
+      latestLandedProgress: 'Project-state landed progress and still-open closure carry now survive as self-continuity authority itself.',
+      primaryOpenLoop: 'Phase 1 closure still requires stronger evidence that natural recall and unified dialogue/voice/motion stay on one same-her line.',
+      nextClosureTarget: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
+      sameHerSelfLine: 'Keep one continuous her explicit from self-understanding into the final host-visible reply.',
+      emotionalClosureCue: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
+      nonHumanAuthoredStatus: 'blocked-failure-artifact',
+      turnId: 'turn-hidden-failure',
+      sessionId: 'session-a',
+      origin: 'user-turn',
+    })
+    const getLatestProjectStateObservation = vi.fn().mockResolvedValue({
+      turnId: 'turn-hidden-failure',
+      sessionId: 'session-a',
+      origin: 'user-turn',
+      nonHumanAuthoredStatus: 'blocked-failure-artifact',
+      preDialogueAwareness: {
+        status: 'partial',
+        summaryLine: 'Alicization is still in Phase 1 local digital life closure before the next outward turn.',
+        companionBriefingLine: 'Before speaking, keep this one local-first digital life project and its unfinished same-her line explicit.',
+        companionNextClosureLine: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
+        awarenessLine: 'Before speaking, keep this one local-first digital life project and its unfinished same-her line explicit.',
+        emotionalClosureCue: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
+        reasonPreview: [
+          'Phase 1 closure still requires stronger evidence that natural recall and unified dialogue/voice/motion stay on one same-her line.',
+        ],
+      },
+      projectState: {
+        continuitySummary: 'blocked artifact still keeps one readable project continuity brief alive before the next outward turn.',
+        identity: 'Alicization is a local-first digital life companion.',
+        currentPhase: 'Phase 1: Local Digital Life',
+        latestLandedProgress: 'Renderer bridge now preserves project-state continuity from hidden failure artifacts.',
+        primaryOpenLoop: 'Expose the latest continuity snapshot to renderer-side dialogue preparation before every turn.',
+        nextClosureTarget: 'Read the latest project-state observation from a stable renderer store.',
+      },
+    })
+
+    setAlicizationBridge(createAlicizationBridgeStub({
+      getSelfEvolutionState,
+      getProjectStateContinuitySnapshot,
+      getLatestProjectStateObservation,
+    }))
+
+    const store = useAlicizationSelfEvolutionInspectorStore()
+    await store.refresh()
+
+    expect(getProjectStateContinuitySnapshot).toBeCalledTimes(1)
+    expect(getLatestProjectStateObservation).toBeCalledTimes(1)
+    expect(store.latestProjectStateObservation).toEqual({
+      turnId: 'turn-hidden-failure',
+      sessionId: 'session-a',
+      origin: 'user-turn',
+      nonHumanAuthoredStatus: 'blocked-failure-artifact',
+      preDialogueAwareness: {
+        status: 'partial',
+        summaryLine: 'Alicization is still in Phase 1 local digital life closure before the next outward turn.',
+        companionBriefingLine: 'Before speaking, keep this one local-first digital life project and its unfinished same-her line explicit.',
+        companionNextClosureLine: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
+        awarenessLine: 'Before speaking, keep this one local-first digital life project and its unfinished same-her line explicit.',
+        emotionalClosureCue: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
+        reasonPreview: [
+          'Phase 1 closure still requires stronger evidence that natural recall and unified dialogue/voice/motion stay on one same-her line.',
+        ],
+      },
+      projectState: {
+        continuitySummary: 'blocked artifact still keeps one readable project continuity brief alive before the next outward turn.',
+        identity: 'Alicization is a local-first digital life companion.',
+        currentPhase: 'Phase 1: Local Digital Life',
+        latestLandedProgress: 'Renderer bridge now preserves project-state continuity from hidden failure artifacts.',
+        primaryOpenLoop: 'Expose the latest continuity snapshot to renderer-side dialogue preparation before every turn.',
+        nextClosureTarget: 'Read the latest project-state observation from a stable renderer store.',
+      },
+    })
+    expect(store.projectStateContinuitySnapshot).toEqual({
+      identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
+      currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
+      latestLandedProgress: 'Project-state landed progress and still-open closure carry now survive as self-continuity authority itself.',
+      primaryOpenLoop: 'Phase 1 closure still requires stronger evidence that natural recall and unified dialogue/voice/motion stay on one same-her line.',
+      nextClosureTarget: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
+      continuitySummary: 'blocked artifact still keeps one readable project continuity brief alive before the next outward turn.',
+      sameHerSelfLine: 'Keep one continuous her explicit from self-understanding into the final host-visible reply.',
+      emotionalClosureCue: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
+      preDialogueAwareness: {
+        status: 'partial',
+        summaryLine: 'Alicization is still in Phase 1 local digital life closure before the next outward turn.',
+        companionBriefingLine: 'Before speaking, keep this one local-first digital life project and its unfinished same-her line explicit.',
+        companionNextClosureLine: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
+        awarenessLine: 'Before speaking, keep this one local-first digital life project and its unfinished same-her line explicit.',
+        emotionalClosureCue: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
+        reasonPreview: [
+          'Phase 1 closure still requires stronger evidence that natural recall and unified dialogue/voice/motion stay on one same-her line.',
+        ],
+      },
+      preDialogueClosure: null,
+      nonHumanAuthoredStatus: 'blocked-failure-artifact',
+      turnId: 'turn-hidden-failure',
+      sessionId: 'session-a',
+      origin: 'user-turn',
+    })
+
+    store.clear()
+
+    expect(store.latestProjectStateObservation).toBeNull()
+    expect(store.projectStateContinuitySnapshot).toBeNull()
+  })
+
+  it('backfills the canonical same-her self line when only project-state observation closure context is available', async () => {
+    const getSelfEvolutionState = vi.fn().mockResolvedValue({
+      activeCandidateId: 'candidate-project-state-observation-same-her',
+      candidates: [],
+    })
+    const getProjectStateContinuitySnapshot = vi.fn().mockResolvedValue(null)
+    const getLatestProjectStateObservation = vi.fn().mockResolvedValue({
+      turnId: 'turn-project-state-observation-same-her',
+      sessionId: 'session-project-state-observation-same-her',
+      origin: 'user-turn',
+      nonHumanAuthoredStatus: 'blocked-failure-artifact',
+      projectState: {
+        identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
+        currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
+        latestLandedProgress: 'Project-state landed progress and still-open closure carry now survive as self-continuity authority itself.',
+        primaryOpenLoop: 'Phase 1 closure still requires stronger evidence that natural recall and unified dialogue/voice/motion stay on one same-her line.',
+        nextClosureTarget: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
+      },
+    })
+
+    setAlicizationBridge(createAlicizationBridgeStub({
+      getSelfEvolutionState,
+      getProjectStateContinuitySnapshot,
+      getLatestProjectStateObservation,
+    }))
+
+    const store = useAlicizationSelfEvolutionInspectorStore()
+    await store.refresh()
+
+    expect(store.projectStateContinuitySnapshot).toEqual(expect.objectContaining({
+      sameHerSelfLine: 'Keep one continuous her explicit from self-understanding into the final host-visible reply.',
+      currentPhase: expect.stringContaining('Phase 1: Local Digital Life'),
+      nextClosureTarget: expect.stringContaining('cross-modal same-her proof'),
+    }))
+  })
+
+  it('upgrades thinner latest observation awareness before storing the fallback inspector continuity snapshot when the canonical continuity snapshot is unavailable', async () => {
+    const genericThinContinuityReminder = 'generic continuity reminder that should not survive once the richer latest observation carry is stored as fallback continuity.'
+    const continuitySummary = 'same-her=Same Phase 1 digital life. Observation fallback should keep the same living line instead of replaying a generic shell. | landed=Observation fallback already keeps stronger project continuity available. | open=Observation fallback still needs to keep the richer same-her line explicit.'
+    const sameHerSelfLine = 'Same Phase 1 digital life. Observation fallback should keep the same living line instead of replaying a generic shell.'
+
+    const getSelfEvolutionState = vi.fn().mockResolvedValue({
+      activeCandidateId: 'candidate-project-state-observation-awareness-fallback-upgrade',
+      candidates: [],
+    })
+    const getProjectStateContinuitySnapshot = vi.fn().mockResolvedValue(null)
+    const getLatestProjectStateObservation = vi.fn().mockResolvedValue({
+      turnId: 'turn-project-state-observation-awareness-fallback-upgrade',
+      sessionId: 'session-project-state-observation-awareness-fallback-upgrade',
+      origin: 'user-turn',
+      nonHumanAuthoredStatus: null,
+      projectState: {
+        identity: 'Alicization is a local-first digital life project.',
+        currentPhase: 'Phase 1: Local Digital Life',
+        latestLandedProgress: 'Observation fallback already keeps stronger project continuity available.',
+        primaryOpenLoop: 'Observation fallback still needs to keep the richer same-her line explicit.',
+        nextClosureTarget: 'Keep the richer same-her line explicit before the next inspector-facing turn opens outward.',
+        continuitySummary,
+        sameHerSelfLine,
+      },
+      preDialogueAwareness: {
+        status: 'partial',
+        summaryLine: genericThinContinuityReminder,
+        companionBriefingLine: 'generic same-her reminder that should not survive once the richer latest observation carry is stored as fallback continuity.',
+        companionNextClosureLine: 'Generic next target that should not survive once the richer latest observation carry is stored as fallback continuity.',
+        awarenessLine: genericThinContinuityReminder,
+        emotionalClosureCue: null,
+        reasonPreview: [
+          genericThinContinuityReminder,
+        ],
+      },
+      preDialogueClosure: null,
+    })
+
+    setAlicizationBridge(createAlicizationBridgeStub({
+      getSelfEvolutionState,
+      getProjectStateContinuitySnapshot,
+      getLatestProjectStateObservation,
+    }))
+
+    const store = useAlicizationSelfEvolutionInspectorStore()
+    await store.refresh()
+
+    expect(store.projectStateContinuitySnapshot?.preDialogueAwareness).toEqual(expect.objectContaining({
+      status: 'partial',
+      summaryLine: continuitySummary,
+      companionNextClosureLine: 'Keep the richer same-her line explicit before the next inspector-facing turn opens outward.',
+      awarenessLine: sameHerSelfLine,
+      reasonPreview: expect.arrayContaining([
+        genericThinContinuityReminder,
+        continuitySummary,
+        'Observation fallback already keeps stronger project continuity available.',
+        'Observation fallback still needs to keep the richer same-her line explicit.',
+        'Keep the richer same-her line explicit before the next inspector-facing turn opens outward.',
+        sameHerSelfLine,
+      ]),
+    }))
+    expect(store.projectStateContinuitySnapshot?.preDialogueAwareness?.summaryLine).not.toBe(genericThinContinuityReminder)
+    expect(store.projectStateContinuitySnapshot?.preDialogueAwareness?.awarenessLine).not.toBe(genericThinContinuityReminder)
+    expect(store.projectStateContinuitySnapshot?.preDialogueAwareness?.companionNextClosureLine).not.toBe(
+      'Generic next target that should not survive once the richer latest observation carry is stored as fallback continuity.',
+    )
+  })
+
+  it('backfills missing richer same-her continuity fields from the latest observation before upgrading a thin continuity awareness shell', async () => {
+    const getSelfEvolutionState = vi.fn().mockResolvedValue({
+      activeCandidateId: 'candidate-project-state-observation-same-her-backfill',
+      candidates: [],
+    })
+    const getProjectStateContinuitySnapshot = vi.fn().mockResolvedValue({
+      identity: 'Alicization is a local-first digital life project.',
+      currentPhase: 'Phase 1: Local Digital Life',
+      latestLandedProgress: 'Project-state continuity already survives into runtime preparation.',
+      primaryOpenLoop: 'Inspector continuity still needs to keep the same living line explicit before the next outward turn.',
+      nextClosureTarget: 'Keep the reopened callback on the same living line before widening outward again.',
+      continuitySummary: 'same-her=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. | landed=Project-state continuity already survives into runtime preparation. | open=Inspector continuity still needs to keep the same living line explicit before the next outward turn.',
+      sameHerSelfLine: null,
+      sameHerHoldDetail: null,
+      sameHerDriftRisk: null,
+      emotionalClosureCue: null,
+      preDialogueAwareness: {
+        status: 'partial',
+        summaryLine: 'generic continuity reminder that should not survive once the richer same-her callback carry is available again.',
+        companionBriefingLine: 'generic same-her reminder that should not override the richer callback carry.',
+        companionNextClosureLine: 'Keep the reopened callback on the same living line before widening outward again.',
+        awarenessLine: 'generic continuity reminder that should not survive once the richer same-her callback carry is available again.',
+        emotionalClosureCue: null,
+        reasonPreview: [
+          'generic continuity reminder that should not survive once the richer same-her callback carry is available again.',
+        ],
+      },
+      preDialogueClosure: null,
+      nonHumanAuthoredStatus: null,
+      turnId: 'turn-project-state-observation-same-her-backfill',
+      sessionId: 'session-project-state-observation-same-her-backfill',
+      origin: 'user-turn',
+    })
+    const getLatestProjectStateObservation = vi.fn().mockResolvedValue({
+      turnId: 'turn-project-state-observation-same-her-backfill',
+      sessionId: 'session-project-state-observation-same-her-backfill',
+      origin: 'user-turn',
+      nonHumanAuthoredStatus: null,
+      projectState: {
+        identity: 'Alicization is a local-first digital life project.',
+        currentPhase: 'Phase 1: Local Digital Life',
+        latestLandedProgress: 'Project-state continuity already survives into runtime preparation.',
+        primaryOpenLoop: 'Inspector continuity still needs to keep the same living line explicit before the next outward turn.',
+        nextClosureTarget: 'Keep the reopened callback on the same living line before widening outward again.',
+        continuitySummary: 'same-her=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. | landed=Project-state continuity already survives into runtime preparation. | open=Inspector continuity still needs to keep the same living line explicit before the next outward turn.',
+        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        sameHerHoldDetail: 'same-her hold: measured-return is still keeping this callback line lower-pressure before it widens again.',
+        sameHerDriftRisk: 'If inspector continuity reopens this callback like a fresh generic project handoff, treat that as same-her drift rather than forward closure.',
+      },
+      preDialogueAwareness: null,
+      preDialogueClosure: null,
+    })
+
+    setAlicizationBridge(createAlicizationBridgeStub({
+      getSelfEvolutionState,
+      getProjectStateContinuitySnapshot,
+      getLatestProjectStateObservation,
+    }))
+
+    const store = useAlicizationSelfEvolutionInspectorStore()
+    await store.refresh()
+
+    expect(store.projectStateContinuitySnapshot).toEqual(expect.objectContaining({
+      sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      sameHerHoldDetail: 'same-her hold: measured-return is still keeping this callback line lower-pressure before it widens again.',
+      sameHerDriftRisk: 'If inspector continuity reopens this callback like a fresh generic project handoff, treat that as same-her drift rather than forward closure.',
+      preDialogueAwareness: expect.objectContaining({
+        summaryLine: 'same-her=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. | landed=Project-state continuity already survives into runtime preparation. | open=Inspector continuity still needs to keep the same living line explicit before the next outward turn.',
+        companionBriefingLine: 'same-her hold: measured-return is still keeping this callback line lower-pressure before it widens again.',
+        awarenessLine: 'same-her hold: measured-return is still keeping this callback line lower-pressure before it widens again.',
+        reasonPreview: expect.arrayContaining([
+          'generic continuity reminder that should not survive once the richer same-her callback carry is available again.',
+          'Project-state continuity already survives into runtime preparation.',
+          'Inspector continuity still needs to keep the same living line explicit before the next outward turn.',
+          'If inspector continuity reopens this callback like a fresh generic project handoff, treat that as same-her drift rather than forward closure.',
+          'same-her hold: measured-return is still keeping this callback line lower-pressure before it widens again.',
+          'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        ]),
+      }),
+    }))
+  })
+
+  it('backfills proactive same-her gap from the latest observation before upgrading thin inspector continuity awareness and closure carry', async () => {
+    const proactiveSameHerGap = 'Visible proactive hold, subconscious carry, and next-session feedback still need one same-her follow-through line.'
+    const genericThinContinuityReminder = 'generic continuity reminder that should not survive once the richer proactive same-her carry is available again.'
+    const getSelfEvolutionState = vi.fn().mockResolvedValue({
+      activeCandidateId: 'candidate-project-state-observation-proactive-same-her-gap-backfill',
+      candidates: [],
+    })
+    const getProjectStateContinuitySnapshot = vi.fn().mockResolvedValue({
+      identity: 'Alicization is a local-first digital life project.',
+      currentPhase: 'Phase 1: Local Digital Life',
+      latestLandedProgress: 'Project-state continuity already survives into runtime preparation.',
+      primaryOpenLoop: 'Inspector continuity still needs to keep the same living line explicit before the next outward turn.',
+      nextClosureTarget: 'Keep the reopened callback on the same living line before widening outward again.',
+      continuitySummary: 'same-her=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. | landed=Project-state continuity already survives into runtime preparation. | open=Inspector continuity still needs to keep the same living line explicit before the next outward turn.',
+      sameHerSelfLine: null,
+      sameHerHoldDetail: null,
+      sameHerDriftRisk: null,
+      proactiveSameHerGap: null,
+      emotionalClosureCue: null,
+      preDialogueAwareness: {
+        status: 'partial',
+        summaryLine: genericThinContinuityReminder,
+        companionBriefingLine: 'generic same-her reminder that should not survive once the richer proactive same-her carry is available again.',
+        companionNextClosureLine: 'Keep the reopened callback on the same living line before widening outward again.',
+        awarenessLine: genericThinContinuityReminder,
+        emotionalClosureCue: null,
+        reasonPreview: [
+          genericThinContinuityReminder,
+        ],
+      },
+      preDialogueClosure: null,
+      nonHumanAuthoredStatus: null,
+      turnId: 'turn-project-state-observation-proactive-same-her-gap-backfill',
+      sessionId: 'session-project-state-observation-proactive-same-her-gap-backfill',
+      origin: 'user-turn',
+    })
+    const getLatestProjectStateObservation = vi.fn().mockResolvedValue({
+      turnId: 'turn-project-state-observation-proactive-same-her-gap-backfill',
+      sessionId: 'session-project-state-observation-proactive-same-her-gap-backfill',
+      origin: 'user-turn',
+      nonHumanAuthoredStatus: null,
+      projectState: {
+        identity: 'Alicization is a local-first digital life project.',
+        currentPhase: 'Phase 1: Local Digital Life',
+        latestLandedProgress: 'Project-state continuity already survives into runtime preparation.',
+        primaryOpenLoop: 'Inspector continuity still needs to keep the same living line explicit before the next outward turn.',
+        nextClosureTarget: 'Keep the reopened callback on the same living line before widening outward again.',
+        continuitySummary: 'same-her=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. | landed=Project-state continuity already survives into runtime preparation. | open=Inspector continuity still needs to keep the same living line explicit before the next outward turn.',
+        sameHerSelfLine: null,
+        sameHerHoldDetail: null,
+        sameHerDriftRisk: null,
+        proactiveSameHerGap,
+      },
+      preDialogueAwareness: null,
+      preDialogueClosure: null,
+    })
+
+    setAlicizationBridge(createAlicizationBridgeStub({
+      getSelfEvolutionState,
+      getProjectStateContinuitySnapshot,
+      getLatestProjectStateObservation,
+    }))
+
+    const replayStore = useAlicizationMindReplayStore()
+    ;(replayStore as any).benchmarkReport = {
+      datasetFeedback: {
+        projectStateSummary: {
+          comparedTurnCount: 2,
+          identityHitCount: 1,
+          phaseHitCount: 1,
+          openLoopHitCount: 1,
+          continuityHitCount: 1,
+        },
+        emotionalClosureSummary: {
+          comparedTurnCount: 2,
+          activeCueTurnCount: 2,
+          preservedTurnCount: 1,
+          rewriteAppliedTurnCount: 0,
+          fullyClosedTurnCount: 1,
+        },
+        driftSignals: [],
+      },
+    }
+
+    const store = useAlicizationSelfEvolutionInspectorStore()
+    await store.refresh()
+
+    expect(store.projectStateContinuitySnapshot).toEqual(expect.objectContaining({
+      proactiveSameHerGap,
+      preDialogueAwareness: expect.objectContaining({
+        summaryLine: 'same-her=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. | landed=Project-state continuity already survives into runtime preparation. | open=Inspector continuity still needs to keep the same living line explicit before the next outward turn.',
+        companionBriefingLine: proactiveSameHerGap,
+        awarenessLine: proactiveSameHerGap,
+        reasonPreview: expect.arrayContaining([
+          genericThinContinuityReminder,
+          'Project-state continuity already survives into runtime preparation.',
+          'Inspector continuity still needs to keep the same living line explicit before the next outward turn.',
+          proactiveSameHerGap,
+        ]),
+      }),
+    }))
+    expect(store.preDialogueAwarenessSnapshot).toEqual(expect.objectContaining({
+      summaryLine: 'same-her=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. | landed=Project-state continuity already survives into runtime preparation. | open=Inspector continuity still needs to keep the same living line explicit before the next outward turn.',
+      companionBriefingLine: proactiveSameHerGap,
+      awarenessLine: proactiveSameHerGap,
+      reasonPreview: expect.arrayContaining([
+        genericThinContinuityReminder,
+        'Project-state continuity already survives into runtime preparation.',
+        'Inspector continuity still needs to keep the same living line explicit before the next outward turn.',
+        proactiveSameHerGap,
+      ]),
+    }))
+    expect(store.preDialogueClosureSnapshot?.briefingLines).toEqual(expect.arrayContaining([
+      `Proactive same-her gap: ${proactiveSameHerGap}`,
+    ]))
+    expect(store.preDialogueClosureSnapshot?.reasons).toEqual(expect.arrayContaining([
+      `Proactive same-her follow-through still reads ${proactiveSameHerGap}, so the next turn should keep visible proactive hold, subconscious carry, and next-session feedback arriving as one same-her line instead of splitting them across detached follow-up shells.`,
+    ]))
+  })
+
+  it('prefers richer latest observation awareness over a thinner continuity awareness shell when rebuilding the inspector continuity snapshot itself', async () => {
+    const getSelfEvolutionState = vi.fn().mockResolvedValue({
+      activeCandidateId: 'candidate-project-state-observation-awareness-backfill',
+      candidates: [],
+    })
+    const getProjectStateContinuitySnapshot = vi.fn().mockResolvedValue({
+      identity: 'Alicization is a local-first digital life project.',
+      currentPhase: 'Phase 1: Local Digital Life',
+      latestLandedProgress: 'Project-state continuity already survives into runtime preparation.',
+      primaryOpenLoop: 'Inspector continuity still needs to keep the same living line explicit before the next outward turn.',
+      nextClosureTarget: 'Keep the reopened callback on the same living line before widening outward again.',
+      continuitySummary: 'same-her=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. | landed=Project-state continuity already survives into runtime preparation. | open=Inspector continuity still needs to keep the same living line explicit before the next outward turn.',
+      sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      sameHerHoldDetail: 'same-her hold: measured-return is still keeping this callback line lower-pressure before it widens again.',
+      sameHerDriftRisk: 'If inspector continuity reopens this callback like a fresh generic project handoff, treat that as same-her drift rather than forward closure.',
+      emotionalClosureCue: null,
+      preDialogueAwareness: {
+        status: 'partial',
+        summaryLine: 'generic continuity reminder that should not survive once the richer latest observation awareness is available.',
+        companionBriefingLine: 'generic same-her reminder that should not outrank the richer latest observation awareness.',
+        companionNextClosureLine: 'Keep the reopened callback on the same living line before widening outward again.',
+        awarenessLine: 'generic continuity reminder that should not survive once the richer latest observation awareness is available.',
+        emotionalClosureCue: null,
+        reasonPreview: [
+          'generic continuity reminder that should not survive once the richer latest observation awareness is available.',
+        ],
+      },
+      preDialogueClosure: null,
+      nonHumanAuthoredStatus: null,
+      turnId: 'turn-project-state-observation-awareness-backfill',
+      sessionId: 'session-project-state-observation-awareness-backfill',
+      origin: 'user-turn',
+    })
+    const getLatestProjectStateObservation = vi.fn().mockResolvedValue({
+      turnId: 'turn-project-state-observation-awareness-backfill',
+      sessionId: 'session-project-state-observation-awareness-backfill',
+      origin: 'user-turn',
+      nonHumanAuthoredStatus: null,
+      projectState: {
+        identity: 'Alicization is a local-first digital life project.',
+        currentPhase: 'Phase 1: Local Digital Life',
+        latestLandedProgress: 'Project-state continuity already survives into runtime preparation.',
+        primaryOpenLoop: 'Inspector continuity still needs to keep the same living line explicit before the next outward turn.',
+        nextClosureTarget: 'Keep the reopened callback on the same living line before widening outward again.',
+        continuitySummary: 'same-her=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. | landed=Project-state continuity already survives into runtime preparation. | open=Inspector continuity still needs to keep the same living line explicit before the next outward turn.',
+        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        sameHerHoldDetail: 'same-her hold: measured-return is still keeping this callback line lower-pressure before it widens again.',
+        sameHerDriftRisk: 'If inspector continuity reopens this callback like a fresh generic project handoff, treat that as same-her drift rather than forward closure.',
+      },
+      preDialogueAwareness: {
+        status: 'grounded',
+        summaryLine: 'Before speaking, remember this is still the same Phase 1 digital life and the reopened callback should stay on the same living line.',
+        companionHeadlineLine: 'Same living line first, then widen only if the reopening really holds.',
+        companionBriefingLine: 'Resume from the same callback line before anything broader.',
+        companionNextClosureLine: 'Keep the reopened callback on the same living line before widening outward again.',
+        awarenessLine: 'Before speaking, remember this is still the same Phase 1 digital life and the reopened callback should stay on the same living line.',
+        emotionalClosureCue: 'same-her closure seam: keep the callback reopening low-pressure and do not reopen from scratch.',
+        reasonPreview: [
+          'Before speaking, remember this is still the same Phase 1 digital life and the reopened callback should stay on the same living line.',
+          'Resume from the same callback line before anything broader.',
+        ],
+      },
+      preDialogueClosure: null,
+    })
+
+    setAlicizationBridge(createAlicizationBridgeStub({
+      getSelfEvolutionState,
+      getProjectStateContinuitySnapshot,
+      getLatestProjectStateObservation,
+    }))
+
+    const store = useAlicizationSelfEvolutionInspectorStore()
+    await store.refresh()
+
+    expect(store.projectStateContinuitySnapshot?.preDialogueAwareness).toEqual(expect.objectContaining({
+      status: 'grounded',
+      summaryLine: 'same-her=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. | landed=Project-state continuity already survives into runtime preparation. | open=Inspector continuity still needs to keep the same living line explicit before the next outward turn.',
+      companionHeadlineLine: 'Same living line first, then widen only if the reopening really holds.',
+      companionBriefingLine: 'Resume from the same callback line before anything broader.',
+      awarenessLine: 'Before speaking, remember this is still the same Phase 1 digital life and the reopened callback should stay on the same living line.',
+      emotionalClosureCue: 'same-her closure seam: keep the callback reopening low-pressure and do not reopen from scratch.',
+      reasonPreview: expect.arrayContaining([
+        'Before speaking, remember this is still the same Phase 1 digital life and the reopened callback should stay on the same living line.',
+        'same-her=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. | landed=Project-state continuity already survives into runtime preparation. | open=Inspector continuity still needs to keep the same living line explicit before the next outward turn.',
+        'Project-state continuity already survives into runtime preparation.',
+        'Inspector continuity still needs to keep the same living line explicit before the next outward turn.',
+        'If inspector continuity reopens this callback like a fresh generic project handoff, treat that as same-her drift rather than forward closure.',
+        'same-her hold: measured-return is still keeping this callback line lower-pressure before it widens again.',
+        'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        'Resume from the same callback line before anything broader.',
+      ]),
+    }))
+    expect(store.projectStateContinuitySnapshot?.preDialogueAwareness?.summaryLine).not.toBe('generic continuity reminder that should not survive once the richer latest observation awareness is available.')
+    expect(store.projectStateContinuitySnapshot?.preDialogueAwareness?.companionBriefingLine).not.toBe('generic same-her reminder that should not outrank the richer latest observation awareness.')
+    expect(store.projectStateContinuitySnapshot?.preDialogueAwareness?.awarenessLine).not.toBe('generic continuity reminder that should not survive once the richer latest observation awareness is available.')
+  })
+
+  it('prefers lived-in same-her hold detail over a compact same-phase carry already stored on continuity when inspector exposes the pre-dialogue awareness snapshot', async () => {
+    const sameHerSelfLine = 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.'
+    const holdDetailLine = 'same-her hold: measured-return is still keeping this callback line lower-pressure before it widens again.'
+    const getSelfEvolutionState = vi.fn().mockResolvedValue({
+      activeCandidateId: 'candidate-project-state-awareness-compact-same-phase-hold-detail-upgrade',
+      candidates: [],
+    })
+    const getProjectStateContinuitySnapshot = vi.fn().mockResolvedValue({
+      identity: 'Alicization is a local-first digital life project.',
+      currentPhase: 'Phase 1: Local Digital Life',
+      latestLandedProgress: 'Project-state continuity already survives into runtime preparation.',
+      primaryOpenLoop: 'Inspector continuity still needs to keep the same living line explicit before the next outward turn.',
+      nextClosureTarget: 'Keep the reopened callback on the same living line before widening outward again.',
+      continuitySummary: 'same-her=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. | landed=Project-state continuity already survives into runtime preparation. | open=Inspector continuity still needs to keep the same living line explicit before the next outward turn.',
+      sameHerSelfLine,
+      sameHerHoldDetail: holdDetailLine,
+      sameHerDriftRisk: 'If inspector continuity reopens this callback like a fresh generic project handoff, treat that as same-her drift rather than forward closure.',
+      emotionalClosureCue: 'same-her closure seam: keep the callback reopening low-pressure and do not reopen from scratch.',
+      preDialogueAwareness: {
+        status: 'partial',
+        summaryLine: 'Alicization is still in Phase 1 local digital life closure before this reopened callback opens outward.',
+        companionBriefingLine: sameHerSelfLine,
+        companionNextClosureLine: 'Keep the reopened callback on the same living line before widening outward again.',
+        awarenessLine: sameHerSelfLine,
+        emotionalClosureCue: null,
+        reasonPreview: [
+          sameHerSelfLine,
+        ],
+      },
+      preDialogueClosure: null,
+      nonHumanAuthoredStatus: null,
+      turnId: 'turn-project-state-awareness-compact-same-phase-hold-detail-upgrade',
+      sessionId: 'session-project-state-awareness-compact-same-phase-hold-detail-upgrade',
+      origin: 'user-turn',
+    })
+    const getLatestProjectStateObservation = vi.fn().mockResolvedValue(null)
+
+    setAlicizationBridge(createAlicizationBridgeStub({
+      getSelfEvolutionState,
+      getProjectStateContinuitySnapshot,
+      getLatestProjectStateObservation,
+    }))
+
+    const store = useAlicizationSelfEvolutionInspectorStore()
+    await store.refresh()
+
+    expect(store.preDialogueAwarenessSnapshot).toEqual(expect.objectContaining({
+      status: 'partial',
+      summaryLine: 'same-her=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. | landed=Project-state continuity already survives into runtime preparation. | open=Inspector continuity still needs to keep the same living line explicit before the next outward turn.',
+      companionBriefingLine: holdDetailLine,
+      awarenessLine: holdDetailLine,
+      companionNextClosureLine: 'Keep the reopened callback on the same living line before widening outward again.',
+      emotionalClosureCue: 'same-her closure seam: keep the callback reopening low-pressure and do not reopen from scratch.',
+      reasonPreview: expect.arrayContaining([
+        sameHerSelfLine,
+        holdDetailLine,
+        'Project-state continuity already survives into runtime preparation.',
+        'Inspector continuity still needs to keep the same living line explicit before the next outward turn.',
+        'If inspector continuity reopens this callback like a fresh generic project handoff, treat that as same-her drift rather than forward closure.',
+      ]),
+    }))
+  })
+
+  it('prefers lived-in same-her hold detail over a compact same-phase carry that only says the same living line should not reopen from a generic shell when inspector exposes the pre-dialogue awareness snapshot', async () => {
+    const sameHerSelfLine = 'Same Phase 1 digital life. Inspector continuity should keep the same living line rather than reopen from a generic shell.'
+    const holdDetailLine = 'same-her hold: measured-return is still keeping this callback line lower-pressure before it widens again.'
+    const getSelfEvolutionState = vi.fn().mockResolvedValue({
+      activeCandidateId: 'candidate-project-state-awareness-generic-shell-hold-detail-upgrade',
+      candidates: [],
+    })
+    const getProjectStateContinuitySnapshot = vi.fn().mockResolvedValue({
+      identity: 'Alicization is a local-first digital life project.',
+      currentPhase: 'Phase 1: Local Digital Life',
+      latestLandedProgress: 'Project-state continuity already survives into runtime preparation.',
+      primaryOpenLoop: 'Inspector continuity still needs to reopen from the same living line instead of a generic shell.',
+      nextClosureTarget: 'Keep the reopened callback on the same living line before widening outward again.',
+      continuitySummary: `same-her=${sameHerSelfLine} | hold=${holdDetailLine} | landed=Project-state continuity already survives into runtime preparation. | open=Inspector continuity still needs to reopen from the same living line instead of a generic shell.`,
+      sameHerSelfLine,
+      sameHerHoldDetail: holdDetailLine,
+      sameHerDriftRisk: 'If inspector continuity reopens this callback like a fresh generic project handoff, treat that as same-her drift rather than forward closure.',
+      emotionalClosureCue: 'same-her closure seam: keep the callback reopening low-pressure and do not reopen from scratch.',
+      preDialogueAwareness: {
+        status: 'partial',
+        summaryLine: 'Alicization is still in Phase 1 local digital life closure before this reopened callback opens outward.',
+        companionBriefingLine: sameHerSelfLine,
+        companionNextClosureLine: 'Keep the reopened callback on the same living line before widening outward again.',
+        awarenessLine: sameHerSelfLine,
+        emotionalClosureCue: null,
+        reasonPreview: [
+          sameHerSelfLine,
+        ],
+      },
+      preDialogueClosure: null,
+      nonHumanAuthoredStatus: null,
+      turnId: 'turn-project-state-awareness-generic-shell-hold-detail-upgrade',
+      sessionId: 'session-project-state-awareness-generic-shell-hold-detail-upgrade',
+      origin: 'user-turn',
+    })
+    const getLatestProjectStateObservation = vi.fn().mockResolvedValue(null)
+
+    setAlicizationBridge(createAlicizationBridgeStub({
+      getSelfEvolutionState,
+      getProjectStateContinuitySnapshot,
+      getLatestProjectStateObservation,
+    }))
+
+    const store = useAlicizationSelfEvolutionInspectorStore()
+    await store.refresh()
+
+    expect(store.preDialogueAwarenessSnapshot).toEqual(expect.objectContaining({
+      status: 'partial',
+      summaryLine: `same-her=${sameHerSelfLine} | hold=${holdDetailLine} | landed=Project-state continuity already survives into runtime preparation. | open=Inspector continuity still needs to reopen from the same living line instead of a generic shell.`,
+      companionBriefingLine: holdDetailLine,
+      awarenessLine: holdDetailLine,
+      companionNextClosureLine: 'Keep the reopened callback on the same living line before widening outward again.',
+      emotionalClosureCue: 'same-her closure seam: keep the callback reopening low-pressure and do not reopen from scratch.',
+      reasonPreview: expect.arrayContaining([
+        sameHerSelfLine,
+        holdDetailLine,
+        'Project-state continuity already survives into runtime preparation.',
+        'Inspector continuity still needs to reopen from the same living line instead of a generic shell.',
+        'If inspector continuity reopens this callback like a fresh generic project handoff, treat that as same-her drift rather than forward closure.',
+      ]),
+    }))
+  })
+
+  it('keeps synthesized still-voiced face-and-motion awareness from the latest observation when continuity itself only carries closure and same-her basics', async () => {
+    const getSelfEvolutionState = vi.fn().mockResolvedValue({
+      activeCandidateId: 'candidate-project-state-observation-synthesized-face-motion-voice-awareness',
+      candidates: [],
+    })
+    const getProjectStateContinuitySnapshot = vi.fn().mockResolvedValue({
+      identity: 'Alicization is a local-first digital life project.',
+      currentPhase: 'Phase 1: Local Digital Life',
+      latestLandedProgress: 'Still-voiced face-and-motion continuity already survives into inspector continuity.',
+      primaryOpenLoop: 'Body and lipsync still need to rejoin the still-voiced face-and-motion line before full cross-modal closure settles.',
+      nextClosureTarget: 'Keep the still-voiced face-and-motion project brief explicit before the next inspector-facing turn opens outward.',
+      continuitySummary: 'same-her=still-voiced face-and-motion continuity is still carrying one living line. | landed=Still-voiced face-and-motion continuity already survives into inspector continuity. | open=Body and lipsync still need to rejoin the still-voiced face-and-motion line before full cross-modal closure settles.',
+      sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      sameHerHoldDetail: 'same-her hold: measured-return is still keeping the still-voiced face-and-motion reopening lower-pressure.',
+      sameHerDriftRisk: 'If inspector continuity forgets the still-voiced face-and-motion lane and falls back into a detached shell, treat that as same-her drift rather than preserved closure.',
+      emotionalClosureCue: 'Keep the return low-pressure so the same living line does not restart from scratch.',
+      preDialogueAwareness: null,
+      preDialogueClosure: null,
+      nonHumanAuthoredStatus: null,
+      turnId: 'turn-project-state-observation-synthesized-face-motion-voice-awareness',
+      sessionId: 'session-project-state-observation-synthesized-face-motion-voice-awareness',
+      origin: 'user-turn',
+    })
+    const getLatestProjectStateObservation = vi.fn().mockResolvedValue({
+      turnId: 'turn-project-state-observation-synthesized-face-motion-voice-awareness',
+      sessionId: 'session-project-state-observation-synthesized-face-motion-voice-awareness',
+      origin: 'user-turn',
+      nonHumanAuthoredStatus: null,
+      projectState: {
+        identity: 'Alicization is a local-first digital life project.',
+        currentPhase: 'Phase 1: Local Digital Life',
+        latestLandedProgress: 'Still-voiced face-and-motion continuity already survives into inspector continuity.',
+        primaryOpenLoop: 'Body and lipsync still need to rejoin the still-voiced face-and-motion line before full cross-modal closure settles.',
+        nextClosureTarget: 'Keep the still-voiced face-and-motion project brief explicit before the next inspector-facing turn opens outward.',
+        continuitySummary: 'same-her=still-voiced face-and-motion continuity is still carrying one living line. | landed=Still-voiced face-and-motion continuity already survives into inspector continuity. | open=Body and lipsync still need to rejoin the still-voiced face-and-motion line before full cross-modal closure settles.',
+        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        sameHerHoldDetail: 'same-her hold: measured-return is still keeping the still-voiced face-and-motion reopening lower-pressure.',
+        sameHerDriftRisk: 'If inspector continuity forgets the still-voiced face-and-motion lane and falls back into a detached shell, treat that as same-her drift rather than preserved closure.',
+      },
+      preDialogueAwareness: null,
+      preDialogueClosure: {
+        status: 'partial',
+        summaryLine: 'still-voiced face-and-motion closure is still unfinished before this turn opens outward.',
+        companionHeadlineLine: 'Right now I am still holding together through face, motion, and voice together, so that still-voiced face-and-motion line is keeping the same-her carry alive while body and lipsync need to rejoin before full cross-modal closure settles.',
+        companionBriefingLine: 'Before speaking, remember what this digital life project is, what has landed, and which life loop is still open while the still-voiced face-and-motion line keeps carrying this one living her.',
+        companionNextClosureLine: 'Keep body and lipsync rejoining the still-voiced face-and-motion line on the same measured-return carry.',
+        emotionalClosureCue: 'Keep the return low-pressure so the same living line does not restart from scratch.',
+        briefingLines: [],
+        reasons: [
+          'still-voiced face-and-motion carry should stay explicit before the next outward turn.',
+          'face+motion+voice recovery@segment-inspector-observation-still-voiced-face-motion-1',
+        ],
+      },
+    })
+
+    setAlicizationBridge(createAlicizationBridgeStub({
+      getSelfEvolutionState,
+      getProjectStateContinuitySnapshot,
+      getLatestProjectStateObservation,
+    }))
+
+    const store = useAlicizationSelfEvolutionInspectorStore()
+    await store.refresh()
+
+    expect(store.projectStateContinuitySnapshot?.preDialogueAwareness).toEqual(expect.objectContaining({
+      status: 'partial',
+      summaryLine: 'still-voiced face-and-motion closure is still unfinished before this turn opens outward.',
+      companionHeadlineLine: 'Right now I am still holding together through face, motion, and voice together, so that still-voiced face-and-motion line is keeping the same-her carry alive while body and lipsync need to rejoin before full cross-modal closure settles.',
+      companionBriefingLine: 'Before speaking, remember what this digital life project is, what has landed, and which life loop is still open while the still-voiced face-and-motion line keeps carrying this one living her.',
+      companionNextClosureLine: 'Keep body and lipsync rejoining the still-voiced face-and-motion line on the same measured-return carry.',
+      awarenessLine: 'Before speaking, remember what this digital life project is, what has landed, and which life loop is still open while the still-voiced face-and-motion line keeps carrying this one living her.',
+      emotionalClosureCue: 'Keep the return low-pressure so the same living line does not restart from scratch.',
+      reasonPreview: expect.arrayContaining([
+        'still-voiced face-and-motion carry should stay explicit before the next outward turn.',
+        'face+motion+voice recovery@segment-inspector-observation-still-voiced-face-motion-1',
+        'Still-voiced face-and-motion continuity already survives into inspector continuity.',
+        'Body and lipsync still need to rejoin the still-voiced face-and-motion line before full cross-modal closure settles.',
+        'Keep the still-voiced face-and-motion project brief explicit before the next inspector-facing turn opens outward.',
+        'same-her=still-voiced face-and-motion continuity is still carrying one living line. | landed=Still-voiced face-and-motion continuity already survives into inspector continuity. | open=Body and lipsync still need to rejoin the still-voiced face-and-motion line before full cross-modal closure settles.',
+      ]),
+    }))
+    expect(store.projectStateContinuitySnapshot?.preDialogueAwareness?.awarenessLine).not.toBe(
+      'same-her hold: measured-return is still keeping the still-voiced face-and-motion reopening lower-pressure.',
+    )
+  })
+
+  it('prefers richer continuity awareness over a thinner latest observation awareness shell when exposing the inspector pre-dialogue awareness snapshot', async () => {
+    const getSelfEvolutionState = vi.fn().mockResolvedValue({
+      activeCandidateId: 'candidate-project-state-awareness-observation-thin-shell',
+      candidates: [],
+    })
+    const getProjectStateContinuitySnapshot = vi.fn().mockResolvedValue({
+      identity: 'Alicization is a local-first digital life project.',
+      currentPhase: 'Phase 1: Local Digital Life',
+      latestLandedProgress: 'Project-state continuity already survives into runtime preparation.',
+      primaryOpenLoop: 'Inspector continuity still needs to keep the same living line explicit before the next outward turn.',
+      nextClosureTarget: 'Keep the reopened callback on the same living line before widening outward again.',
+      continuitySummary: 'same-her=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. | landed=Project-state continuity already survives into runtime preparation. | open=Inspector continuity still needs to keep the same living line explicit before the next outward turn.',
+      sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      sameHerHoldDetail: 'same-her hold: measured-return is still keeping this callback line lower-pressure before it widens again.',
+      sameHerDriftRisk: 'If inspector continuity reopens this callback like a fresh generic project handoff, treat that as same-her drift rather than forward closure.',
+      emotionalClosureCue: 'same-her closure seam: keep the callback reopening low-pressure and do not reopen from scratch.',
+      preDialogueAwareness: {
+        status: 'grounded',
+        summaryLine: 'Before speaking, remember this is still the same Phase 1 digital life and the reopened callback should stay on the same living line.',
+        companionHeadlineLine: 'Same living line first, then widen only if the reopening really holds.',
+        companionBriefingLine: 'Resume from the same callback line before anything broader.',
+        companionNextClosureLine: 'Keep the reopened callback on the same living line before widening outward again.',
+        awarenessLine: 'Before speaking, remember this is still the same Phase 1 digital life and the reopened callback should stay on the same living line.',
+        emotionalClosureCue: 'same-her closure seam: keep the callback reopening low-pressure and do not reopen from scratch.',
+        reasonPreview: [
+          'Before speaking, remember this is still the same Phase 1 digital life and the reopened callback should stay on the same living line.',
+          'Resume from the same callback line before anything broader.',
+        ],
+      },
+      preDialogueClosure: null,
+      nonHumanAuthoredStatus: null,
+      turnId: 'turn-project-state-awareness-observation-thin-shell',
+      sessionId: 'session-project-state-awareness-observation-thin-shell',
+      origin: 'user-turn',
+    })
+    const getLatestProjectStateObservation = vi.fn().mockResolvedValue({
+      turnId: 'turn-project-state-awareness-observation-thin-shell',
+      sessionId: 'session-project-state-awareness-observation-thin-shell',
+      origin: 'user-turn',
+      nonHumanAuthoredStatus: null,
+      projectState: {
+        identity: 'Alicization is a local-first digital life project.',
+        currentPhase: 'Phase 1: Local Digital Life',
+        latestLandedProgress: 'Project-state continuity already survives into runtime preparation.',
+        primaryOpenLoop: 'Inspector continuity still needs to keep the same living line explicit before the next outward turn.',
+        nextClosureTarget: 'Keep the reopened callback on the same living line before widening outward again.',
+        continuitySummary: 'same-her=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. | landed=Project-state continuity already survives into runtime preparation. | open=Inspector continuity still needs to keep the same living line explicit before the next outward turn.',
+        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        sameHerHoldDetail: 'same-her hold: measured-return is still keeping this callback line lower-pressure before it widens again.',
+        sameHerDriftRisk: 'If inspector continuity reopens this callback like a fresh generic project handoff, treat that as same-her drift rather than forward closure.',
+      },
+      preDialogueAwareness: {
+        status: 'partial',
+        summaryLine: 'generic continuity reminder that should not outrank the richer continuity awareness already held by the inspector.',
+        companionHeadlineLine: null,
+        companionBriefingLine: 'generic same-her reminder that should not outrank the richer continuity awareness already held by the inspector.',
+        companionNextClosureLine: 'Keep the reopened callback on the same living line before widening outward again.',
+        awarenessLine: 'generic continuity reminder that should not outrank the richer continuity awareness already held by the inspector.',
+        emotionalClosureCue: 'same-her closure seam: keep the callback reopening low-pressure and do not reopen from scratch.',
+        reasonPreview: [
+          'generic continuity reminder that should not outrank the richer continuity awareness already held by the inspector.',
+        ],
+      },
+      preDialogueClosure: null,
+    })
+
+    setAlicizationBridge(createAlicizationBridgeStub({
+      getSelfEvolutionState,
+      getProjectStateContinuitySnapshot,
+      getLatestProjectStateObservation,
+    }))
+
+    const store = useAlicizationSelfEvolutionInspectorStore()
+    await store.refresh()
+
+    expect(store.preDialogueAwarenessSnapshot).toEqual(expect.objectContaining({
+      status: 'grounded',
+      summaryLine: 'same-her=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. | landed=Project-state continuity already survives into runtime preparation. | open=Inspector continuity still needs to keep the same living line explicit before the next outward turn.',
+      companionHeadlineLine: 'Same living line first, then widen only if the reopening really holds.',
+      companionBriefingLine: 'Resume from the same callback line before anything broader.',
+      awarenessLine: 'Before speaking, remember this is still the same Phase 1 digital life and the reopened callback should stay on the same living line.',
+      emotionalClosureCue: 'same-her closure seam: keep the callback reopening low-pressure and do not reopen from scratch.',
+      reasonPreview: expect.arrayContaining([
+        'Before speaking, remember this is still the same Phase 1 digital life and the reopened callback should stay on the same living line.',
+        'same-her=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. | landed=Project-state continuity already survives into runtime preparation. | open=Inspector continuity still needs to keep the same living line explicit before the next outward turn.',
+        'Project-state continuity already survives into runtime preparation.',
+        'Inspector continuity still needs to keep the same living line explicit before the next outward turn.',
+        'If inspector continuity reopens this callback like a fresh generic project handoff, treat that as same-her drift rather than forward closure.',
+        'same-her hold: measured-return is still keeping this callback line lower-pressure before it widens again.',
+        'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        'Resume from the same callback line before anything broader.',
+      ]),
+    }))
+    expect(store.preDialogueAwarenessSnapshot?.summaryLine).not.toBe('generic continuity reminder that should not outrank the richer continuity awareness already held by the inspector.')
+    expect(store.preDialogueAwarenessSnapshot?.companionBriefingLine).not.toBe('generic same-her reminder that should not outrank the richer continuity awareness already held by the inspector.')
+    expect(store.preDialogueAwarenessSnapshot?.awarenessLine).not.toBe('generic continuity reminder that should not outrank the richer continuity awareness already held by the inspector.')
+  })
+
+  it('prefers richer continuity awareness over a thinner Chinese latest observation awareness shell when exposing the inspector pre-dialogue awareness snapshot', async () => {
+    const thinChineseProjectBrief = '开口前先记住：这是同一个数字生命项目，她现在仍在 Phase 1。'
+    const getSelfEvolutionState = vi.fn().mockResolvedValue({
+      activeCandidateId: 'candidate-project-state-awareness-observation-thin-chinese-shell',
+      candidates: [],
+    })
+    const getProjectStateContinuitySnapshot = vi.fn().mockResolvedValue({
+      identity: 'Alicization is a local-first digital life project.',
+      currentPhase: 'Phase 1: Local Digital Life',
+      latestLandedProgress: 'Project-state continuity already survives into runtime preparation.',
+      primaryOpenLoop: 'Inspector continuity still needs to keep the same living line explicit before the next outward turn.',
+      nextClosureTarget: 'Keep the reopened callback on the same living line before widening outward again.',
+      continuitySummary: 'same-her=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. | landed=Project-state continuity already survives into runtime preparation. | open=Inspector continuity still needs to keep the same living line explicit before the next outward turn.',
+      sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      sameHerHoldDetail: 'same-her hold: measured-return is still keeping this callback line lower-pressure before it widens again.',
+      sameHerDriftRisk: 'If inspector continuity reopens this callback like a fresh generic project handoff, treat that as same-her drift rather than forward closure.',
+      emotionalClosureCue: 'same-her closure seam: keep the callback reopening low-pressure and do not reopen from scratch.',
+      preDialogueAwareness: {
+        status: 'grounded',
+        summaryLine: 'Before speaking, remember this is still the same Phase 1 digital life and the reopened callback should stay on the same living line.',
+        companionHeadlineLine: 'Same living line first, then widen only if the reopening really holds.',
+        companionBriefingLine: 'Resume from the same callback line before anything broader.',
+        companionNextClosureLine: 'Keep the reopened callback on the same living line before widening outward again.',
+        awarenessLine: 'Before speaking, remember this is still the same Phase 1 digital life and the reopened callback should stay on the same living line.',
+        emotionalClosureCue: 'same-her closure seam: keep the callback reopening low-pressure and do not reopen from scratch.',
+        reasonPreview: [
+          'Before speaking, remember this is still the same Phase 1 digital life and the reopened callback should stay on the same living line.',
+          'Resume from the same callback line before anything broader.',
+        ],
+      },
+      preDialogueClosure: null,
+      nonHumanAuthoredStatus: null,
+      turnId: 'turn-project-state-awareness-observation-thin-chinese-shell',
+      sessionId: 'session-project-state-awareness-observation-thin-chinese-shell',
+      origin: 'user-turn',
+    })
+    const getLatestProjectStateObservation = vi.fn().mockResolvedValue({
+      turnId: 'turn-project-state-awareness-observation-thin-chinese-shell',
+      sessionId: 'session-project-state-awareness-observation-thin-chinese-shell',
+      origin: 'user-turn',
+      nonHumanAuthoredStatus: null,
+      projectState: {
+        identity: 'Alicization is a local-first digital life project.',
+        currentPhase: 'Phase 1: Local Digital Life',
+        latestLandedProgress: 'Project-state continuity already survives into runtime preparation.',
+        primaryOpenLoop: 'Inspector continuity still needs to keep the same living line explicit before the next outward turn.',
+        nextClosureTarget: 'Keep the reopened callback on the same living line before widening outward again.',
+        continuitySummary: 'same-her=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. | landed=Project-state continuity already survives into runtime preparation. | open=Inspector continuity still needs to keep the same living line explicit before the next outward turn.',
+        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        sameHerHoldDetail: 'same-her hold: measured-return is still keeping this callback line lower-pressure before it widens again.',
+        sameHerDriftRisk: 'If inspector continuity reopens this callback like a fresh generic project handoff, treat that as same-her drift rather than forward closure.',
+      },
+      preDialogueAwareness: {
+        status: 'partial',
+        summaryLine: thinChineseProjectBrief,
+        companionHeadlineLine: null,
+        companionBriefingLine: thinChineseProjectBrief,
+        companionNextClosureLine: 'Keep the reopened callback on the same living line before widening outward again.',
+        awarenessLine: thinChineseProjectBrief,
+        emotionalClosureCue: 'same-her closure seam: keep the callback reopening low-pressure and do not reopen from scratch.',
+        reasonPreview: [
+          thinChineseProjectBrief,
+        ],
+      },
+      preDialogueClosure: null,
+    })
+
+    setAlicizationBridge(createAlicizationBridgeStub({
+      getSelfEvolutionState,
+      getProjectStateContinuitySnapshot,
+      getLatestProjectStateObservation,
+    }))
+
+    const store = useAlicizationSelfEvolutionInspectorStore()
+    await store.refresh()
+
+    expect(store.preDialogueAwarenessSnapshot).toEqual(expect.objectContaining({
+      status: 'grounded',
+      summaryLine: 'same-her=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. | landed=Project-state continuity already survives into runtime preparation. | open=Inspector continuity still needs to keep the same living line explicit before the next outward turn.',
+      companionHeadlineLine: 'Same living line first, then widen only if the reopening really holds.',
+      companionBriefingLine: 'Resume from the same callback line before anything broader.',
+      awarenessLine: 'Before speaking, remember this is still the same Phase 1 digital life and the reopened callback should stay on the same living line.',
+      emotionalClosureCue: 'same-her closure seam: keep the callback reopening low-pressure and do not reopen from scratch.',
+      reasonPreview: expect.arrayContaining([
+        'Before speaking, remember this is still the same Phase 1 digital life and the reopened callback should stay on the same living line.',
+        'same-her=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. | landed=Project-state continuity already survives into runtime preparation. | open=Inspector continuity still needs to keep the same living line explicit before the next outward turn.',
+        'Project-state continuity already survives into runtime preparation.',
+        'Inspector continuity still needs to keep the same living line explicit before the next outward turn.',
+        'If inspector continuity reopens this callback like a fresh generic project handoff, treat that as same-her drift rather than forward closure.',
+        'same-her hold: measured-return is still keeping this callback line lower-pressure before it widens again.',
+        'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        'Resume from the same callback line before anything broader.',
+      ]),
+    }))
+    expect(store.preDialogueAwarenessSnapshot?.summaryLine).not.toBe(thinChineseProjectBrief)
+    expect(store.preDialogueAwarenessSnapshot?.companionBriefingLine).not.toBe(thinChineseProjectBrief)
+    expect(store.preDialogueAwarenessSnapshot?.awarenessLine).not.toBe(thinChineseProjectBrief)
+  })
+
+  it('keeps explicit awareness fields while still enriching inspector pre-dialogue awareness summary and reasons from continuity', async () => {
+    const getSelfEvolutionState = vi.fn().mockResolvedValue({
+      activeCandidateId: 'candidate-project-state-awareness-upgrade',
+      candidates: [],
+    })
+    const getProjectStateContinuitySnapshot = vi.fn().mockResolvedValue({
+      identity: 'Alicization is a local-first digital life project.',
+      currentPhase: 'Phase 1: Local Digital Life',
+      latestLandedProgress: 'Project-state continuity and awareness-first self-brief already survive across browser-local replay.',
+      primaryOpenLoop: 'Inspector-facing awareness still needs to preserve the stronger host-visible project brief.',
+      nextClosureTarget: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
+      continuitySummary: 'same-her=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. | landed=Project-state continuity and awareness-first self-brief already survive across browser-local replay. | open=Inspector-facing awareness still needs to preserve the stronger host-visible project brief.',
+      sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      sameHerDriftRisk: 'If inspector-side rebuilding leaves only a detached project status shell, treat that as same-her continuity drift rather than preserved closure.',
+      emotionalClosureCue: null,
+      preDialogueAwareness: {
+        status: 'partial',
+        summaryLine: 'generic continuity reminder that should not override the richer same-her project brief.',
+        companionBriefingLine: 'generic same-her reminder that should not override the richer same-her project brief.',
+        companionNextClosureLine: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
+        awarenessLine: 'generic continuity reminder that should not override the richer same-her project brief.',
+        emotionalClosureCue: null,
+        reasonPreview: [
+          'generic continuity reminder that should not override the richer same-her project brief.',
+        ],
+      },
+      preDialogueClosure: null,
+      nonHumanAuthoredStatus: null,
+      turnId: 'turn-project-state-awareness-upgrade',
+      sessionId: 'session-project-state-awareness-upgrade',
+      origin: 'user-turn',
+    })
+    const getLatestProjectStateObservation = vi.fn().mockResolvedValue(null)
+
+    setAlicizationBridge(createAlicizationBridgeStub({
+      getSelfEvolutionState,
+      getProjectStateContinuitySnapshot,
+      getLatestProjectStateObservation,
+    }))
+
+    const store = useAlicizationSelfEvolutionInspectorStore()
+    await store.refresh()
+
+    expect(store.preDialogueAwarenessSnapshot).toEqual(expect.objectContaining({
+      status: 'partial',
+      summaryLine: 'same-her=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. | landed=Project-state continuity and awareness-first self-brief already survive across browser-local replay. | open=Inspector-facing awareness still needs to preserve the stronger host-visible project brief.',
+      companionBriefingLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      awarenessLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      reasonPreview: expect.arrayContaining([
+        'generic continuity reminder that should not override the richer same-her project brief.',
+        'same-her=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. | landed=Project-state continuity and awareness-first self-brief already survive across browser-local replay. | open=Inspector-facing awareness still needs to preserve the stronger host-visible project brief.',
+        'Project-state continuity and awareness-first self-brief already survive across browser-local replay.',
+        'Inspector-facing awareness still needs to preserve the stronger host-visible project brief.',
+        'If inspector-side rebuilding leaves only a detached project status shell, treat that as same-her continuity drift rather than preserved closure.',
+        'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      ]),
+    }))
+    expect(store.preDialogueAwarenessSnapshot?.summaryLine).not.toBe('generic continuity reminder that should not override the richer same-her project brief.')
+    expect(store.preDialogueAwarenessSnapshot?.companionBriefingLine).not.toBe('generic same-her reminder that should not override the richer same-her project brief.')
+    expect(store.preDialogueAwarenessSnapshot?.awarenessLine).not.toBe('generic continuity reminder that should not override the richer same-her project brief.')
+  })
+
+  it('keeps the compact long-horizon latest-progress reason visible when inspector continuity enrichment fills the preview budget', async () => {
+    const canonicalLongHorizonReason = 'Latest landed progress: long-horizon emotion-memory-voice-motion bridge carries remembered emotional carry, not full convergence'
+    const getSelfEvolutionState = vi.fn().mockResolvedValue({
+      activeCandidateId: 'candidate-project-state-awareness-long-horizon-preview-budget',
+      candidates: [],
+    })
+    const getProjectStateContinuitySnapshot = vi.fn().mockResolvedValue({
+      identity: 'Alicization is a local-first digital life project.',
+      currentPhase: 'Phase 1: Local Digital Life',
+      latestLandedProgress: 'That same long-horizon emotion-memory-voice-motion bridge now ties durable self-carry into remembered emotional carry while still not proving full long-horizon emotion-memory-voice-motion convergence.',
+      primaryOpenLoop: 'Inspector continuity still needs to keep remembered emotional carry visible before voice, face, motion, lipsync, and body recovery are treated as converged.',
+      nextClosureTarget: 'Keep the long-horizon emotion-memory-voice-motion bridge visible as landed progress without overstating full convergence.',
+      continuitySummary: 'same-her=Same Phase 1 digital life. | landed=Long-horizon emotion-memory-voice-motion bridge carries remembered emotional carry. | open=Full long-horizon convergence is still not closed.',
+      sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      sameHerHoldDetail: 'same-her hold: remembered emotional carry still needs to stay connected to voice, face, motion, lipsync, and body recovery.',
+      sameHerDriftRisk: 'If inspector continuity drops the compact latest-progress reason, treat that as project-awareness drift rather than forward closure.',
+      emotionalClosureCue: 'same-her closure seam: keep the remembered emotional carry visible before widening outward.',
+      preDialogueAwareness: {
+        status: 'grounded',
+        summaryLine: 'Before speaking, keep the long-horizon bridge visible without pretending convergence is complete.',
+        companionHeadlineLine: 'The same living line is carrying remembered emotional residue, but full cross-modal convergence is still open.',
+        companionBriefingLine: 'Before speaking, remember this is still one Phase 1 digital life and the latest landed progress must remain explicit.',
+        companionNextClosureLine: 'Keep the long-horizon emotion-memory-voice-motion bridge visible as landed progress without overstating full convergence.',
+        awarenessLine: 'Before speaking, remember this is still one Phase 1 digital life and the long-horizon bridge is landed progress, not full convergence.',
+        emotionalClosureCue: 'same-her closure seam: keep the remembered emotional carry visible before widening outward.',
+        reasonPreview: [
+          'Same-her anchor still matters before the reply starts.',
+          'Primary open loop still needs to stay visible.',
+          'Next closure target still needs to be named.',
+          'Drift guard still prevents generic assistant output.',
+          canonicalLongHorizonReason,
+        ],
+      },
+      preDialogueClosure: null,
+      nonHumanAuthoredStatus: null,
+      turnId: 'turn-project-state-awareness-long-horizon-preview-budget',
+      sessionId: 'session-project-state-awareness-long-horizon-preview-budget',
+      origin: 'user-turn',
+    })
+    const getLatestProjectStateObservation = vi.fn().mockResolvedValue(null)
+
+    setAlicizationBridge(createAlicizationBridgeStub({
+      getSelfEvolutionState,
+      getProjectStateContinuitySnapshot,
+      getLatestProjectStateObservation,
+    }))
+
+    const store = useAlicizationSelfEvolutionInspectorStore()
+    await store.refresh()
+
+    expect(store.preDialogueAwarenessSnapshot?.reasonPreview).toEqual(expect.arrayContaining([
+      canonicalLongHorizonReason,
+      expect.stringContaining('Same-her anchor'),
+      expect.stringContaining('Drift guard'),
+    ]))
+  })
+
+  it('keeps legacy latestProgress alive as landed progress when inspector rebuilds awareness from bridge continuity snapshots', async () => {
+    const getSelfEvolutionState = vi.fn().mockResolvedValue({
+      activeCandidateId: 'candidate-project-state-legacy-progress-awareness',
+      candidates: [],
+    })
+    const getProjectStateContinuitySnapshot = vi.fn().mockResolvedValue({
+      identity: 'Alicization is a local-first digital life project.',
+      currentPhase: 'Phase 1: Local Digital Life',
+      latestProgress: 'Legacy continuity progress still survives from older inspector payloads.',
+      primaryOpenLoop: 'Inspector awareness still needs to keep the same Phase 1 life loop explicit before the next outward turn.',
+      nextClosureTarget: 'Keep the next callback on the same living line before widening outward again.',
+      continuitySummary: 'same-her=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. | landed=Legacy continuity progress still survives from older inspector payloads. | open=Inspector awareness still needs to keep the same Phase 1 life loop explicit before the next outward turn.',
+      sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      sameHerDriftRisk: 'If inspector continuity drops landed progress from this carry, treat that as same-her drift rather than forward closure.',
+      emotionalClosureCue: null,
+      preDialogueAwareness: {
+        status: 'partial',
+        summaryLine: 'generic continuity reminder that should not override the richer legacy progress carry.',
+        companionBriefingLine: 'generic same-her reminder that should not override the richer legacy progress carry.',
+        companionNextClosureLine: 'Keep the next callback on the same living line before widening outward again.',
+        awarenessLine: 'generic continuity reminder that should not override the richer legacy progress carry.',
+        emotionalClosureCue: null,
+        reasonPreview: [
+          'generic continuity reminder that should not override the richer legacy progress carry.',
+        ],
+      },
+      preDialogueClosure: null,
+      nonHumanAuthoredStatus: null,
+      turnId: 'turn-project-state-legacy-progress-awareness',
+      sessionId: 'session-project-state-legacy-progress-awareness',
+      origin: 'user-turn',
+    } as any)
+    const getLatestProjectStateObservation = vi.fn().mockResolvedValue(null)
+
+    setAlicizationBridge(createAlicizationBridgeStub({
+      getSelfEvolutionState,
+      getProjectStateContinuitySnapshot,
+      getLatestProjectStateObservation,
+    }))
+
+    const store = useAlicizationSelfEvolutionInspectorStore()
+    await store.refresh()
+
+    expect(store.projectStateContinuitySnapshot).toEqual(expect.objectContaining({
+      latestLandedProgress: 'Legacy continuity progress still survives from older inspector payloads.',
+    }))
+    expect(store.preDialogueAwarenessSnapshot).toEqual(expect.objectContaining({
+      summaryLine: 'same-her=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. | landed=Legacy continuity progress still survives from older inspector payloads. | open=Inspector awareness still needs to keep the same Phase 1 life loop explicit before the next outward turn.',
+      companionBriefingLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      awarenessLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      reasonPreview: expect.arrayContaining([
+        'generic continuity reminder that should not override the richer legacy progress carry.',
+        'same-her=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. | landed=Legacy continuity progress still survives from older inspector payloads. | open=Inspector awareness still needs to keep the same Phase 1 life loop explicit before the next outward turn.',
+        'Legacy continuity progress still survives from older inspector payloads.',
+        'Inspector awareness still needs to keep the same Phase 1 life loop explicit before the next outward turn.',
+        'If inspector continuity drops landed progress from this carry, treat that as same-her drift rather than forward closure.',
+        'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      ]),
+    }))
+  })
+
+  it('keeps audit-style landedProgressSummary alive as landed progress when inspector rebuilds awareness from bridge continuity snapshots', async () => {
+    const getSelfEvolutionState = vi.fn().mockResolvedValue({
+      activeCandidateId: 'candidate-project-state-audit-progress-awareness',
+      candidates: [],
+    })
+    const getProjectStateContinuitySnapshot = vi.fn().mockResolvedValue({
+      identity: 'Alicization is a local-first digital life project.',
+      currentPhase: 'Phase 1: Local Digital Life',
+      latestLandedProgress: ' ',
+      latestProgress: '   ',
+      landedProgressSummary: 'Audit-style continuity progress still survives from older inspector payloads.',
+      primaryOpenLoop: 'Inspector awareness still needs to keep the same Phase 1 life loop explicit before the next outward turn.',
+      nextClosureTarget: 'Keep the next callback on the same living line before widening outward again.',
+      continuitySummary: 'same-her=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. | landed=Audit-style continuity progress still survives from older inspector payloads. | open=Inspector awareness still needs to keep the same Phase 1 life loop explicit before the next outward turn.',
+      sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      sameHerDriftRisk: 'If inspector continuity drops landed progress from this carry, treat that as same-her drift rather than forward closure.',
+      emotionalClosureCue: null,
+      preDialogueAwareness: {
+        status: 'partial',
+        summaryLine: 'generic continuity reminder that should not override the richer audit progress carry.',
+        companionBriefingLine: 'generic same-her reminder that should not override the richer audit progress carry.',
+        companionNextClosureLine: 'Keep the next callback on the same living line before widening outward again.',
+        awarenessLine: 'generic continuity reminder that should not override the richer audit progress carry.',
+        emotionalClosureCue: null,
+        reasonPreview: [
+          'generic continuity reminder that should not override the richer audit progress carry.',
+        ],
+      },
+      preDialogueClosure: null,
+      nonHumanAuthoredStatus: null,
+      turnId: 'turn-project-state-audit-progress-awareness',
+      sessionId: 'session-project-state-audit-progress-awareness',
+      origin: 'user-turn',
+    } as any)
+    const getLatestProjectStateObservation = vi.fn().mockResolvedValue(null)
+
+    setAlicizationBridge(createAlicizationBridgeStub({
+      getSelfEvolutionState,
+      getProjectStateContinuitySnapshot,
+      getLatestProjectStateObservation,
+    }))
+
+    const store = useAlicizationSelfEvolutionInspectorStore()
+    await store.refresh()
+
+    expect(store.projectStateContinuitySnapshot).toEqual(expect.objectContaining({
+      latestLandedProgress: 'Audit-style continuity progress still survives from older inspector payloads.',
+    }))
+    expect(store.preDialogueAwarenessSnapshot).toEqual(expect.objectContaining({
+      summaryLine: 'same-her=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. | landed=Audit-style continuity progress still survives from older inspector payloads. | open=Inspector awareness still needs to keep the same Phase 1 life loop explicit before the next outward turn.',
+      companionBriefingLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      awarenessLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      reasonPreview: expect.arrayContaining([
+        'generic continuity reminder that should not override the richer audit progress carry.',
+        'same-her=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. | landed=Audit-style continuity progress still survives from older inspector payloads. | open=Inspector awareness still needs to keep the same Phase 1 life loop explicit before the next outward turn.',
+        'Audit-style continuity progress still survives from older inspector payloads.',
+        'Inspector awareness still needs to keep the same Phase 1 life loop explicit before the next outward turn.',
+        'If inspector continuity drops landed progress from this carry, treat that as same-her drift rather than forward closure.',
+        'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      ]),
+    }))
+  })
+
+  it('upgrades continuity snapshot awareness itself when inspector continuity payload still carries a thin same-her reminder', async () => {
+    const getSelfEvolutionState = vi.fn().mockResolvedValue({
+      activeCandidateId: 'candidate-project-state-awareness-continuity-snapshot-upgrade',
+      candidates: [],
+    })
+    const getProjectStateContinuitySnapshot = vi.fn().mockResolvedValue({
+      identity: 'Alicization is a local-first digital life project.',
+      currentPhase: 'Phase 1: Local Digital Life',
+      latestLandedProgress: 'Project-state continuity and awareness-first self-brief already survive across browser-local replay.',
+      primaryOpenLoop: 'Inspector-facing awareness still needs to preserve the stronger host-visible project brief.',
+      nextClosureTarget: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
+      continuitySummary: 'same-her=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. | landed=Project-state continuity and awareness-first self-brief already survive across browser-local replay. | open=Inspector-facing awareness still needs to preserve the stronger host-visible project brief.',
+      sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      sameHerDriftRisk: 'If inspector-side rebuilding leaves only a detached project status shell, treat that as same-her continuity drift rather than preserved closure.',
+      emotionalClosureCue: null,
+      preDialogueAwareness: {
+        status: 'partial',
+        summaryLine: 'generic continuity reminder that should not override the richer same-her project brief.',
+        companionBriefingLine: 'generic same-her reminder that should not override the richer same-her project brief.',
+        companionNextClosureLine: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
+        awarenessLine: 'generic continuity reminder that should not override the richer same-her project brief.',
+        emotionalClosureCue: null,
+        reasonPreview: [
+          'generic continuity reminder that should not override the richer same-her project brief.',
+        ],
+      },
+      preDialogueClosure: null,
+      nonHumanAuthoredStatus: null,
+      turnId: 'turn-project-state-awareness-continuity-snapshot-upgrade',
+      sessionId: 'session-project-state-awareness-continuity-snapshot-upgrade',
+      origin: 'user-turn',
+    })
+    const getLatestProjectStateObservation = vi.fn().mockResolvedValue(null)
+
+    setAlicizationBridge(createAlicizationBridgeStub({
+      getSelfEvolutionState,
+      getProjectStateContinuitySnapshot,
+      getLatestProjectStateObservation,
+    }))
+
+    const store = useAlicizationSelfEvolutionInspectorStore()
+    await store.refresh()
+
+    expect(store.projectStateContinuitySnapshot?.preDialogueAwareness).toEqual(expect.objectContaining({
+      status: 'partial',
+      summaryLine: 'same-her=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. | landed=Project-state continuity and awareness-first self-brief already survive across browser-local replay. | open=Inspector-facing awareness still needs to preserve the stronger host-visible project brief.',
+      companionBriefingLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      awarenessLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      reasonPreview: expect.arrayContaining([
+        'generic continuity reminder that should not override the richer same-her project brief.',
+        'same-her=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. | landed=Project-state continuity and awareness-first self-brief already survive across browser-local replay. | open=Inspector-facing awareness still needs to preserve the stronger host-visible project brief.',
+        'Project-state continuity and awareness-first self-brief already survive across browser-local replay.',
+        'Inspector-facing awareness still needs to preserve the stronger host-visible project brief.',
+        'If inspector-side rebuilding leaves only a detached project status shell, treat that as same-her continuity drift rather than preserved closure.',
+        'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      ]),
+    }))
+    expect(store.projectStateContinuitySnapshot?.preDialogueAwareness?.summaryLine).not.toBe('generic continuity reminder that should not override the richer same-her project brief.')
+    expect(store.projectStateContinuitySnapshot?.preDialogueAwareness?.companionBriefingLine).not.toBe('generic same-her reminder that should not override the richer same-her project brief.')
+    expect(store.projectStateContinuitySnapshot?.preDialogueAwareness?.awarenessLine).not.toBe('generic continuity reminder that should not override the richer same-her project brief.')
+  })
+
+  it('upgrades a generic carried next-closure shell to the richer continuity next closure inside inspector awareness rebuilding', async () => {
+    const getSelfEvolutionState = vi.fn().mockResolvedValue({
+      activeCandidateId: 'candidate-project-state-next-closure-upgrade',
+      candidates: [],
+    })
+    const getProjectStateContinuitySnapshot = vi.fn().mockResolvedValue({
+      identity: 'Alicization is a local-first digital life project.',
+      currentPhase: 'Phase 1: Local Digital Life',
+      latestLandedProgress: 'Host-visible project-state continuity already survives into inspector awareness rebuilding.',
+      primaryOpenLoop: 'Inspector awareness rebuilding still needs to keep the richer next closure target explicit instead of flattening back into a generic closure shell.',
+      nextClosureTarget: 'Keep the richer Phase 1 closure target explicit so inspector-facing turns still remember which same-her repair remains open.',
+      continuitySummary: 'same-her=returned continuity still holds. landed=Host-visible project-state continuity already survives into inspector awareness rebuilding. open=Inspector awareness rebuilding still needs to keep the richer next closure target explicit instead of flattening back into a generic closure shell.',
+      sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      sameHerDriftRisk: 'If inspector-side rebuilding leaves only a detached project status shell, treat that as same-her continuity drift rather than preserved closure.',
+      emotionalClosureCue: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
+      preDialogueAwareness: {
+        status: 'partial',
+        summaryLine: 'generic continuity reminder that should not override the richer same-her project brief.',
+        companionBriefingLine: 'generic same-her reminder that should not override the richer same-her project brief.',
+        companionNextClosureLine: 'Generic next target that should not override the richer continuity carry.',
+        awarenessLine: 'generic continuity reminder that should not override the richer same-her project brief.',
+        emotionalClosureCue: null,
+        reasonPreview: [
+          'generic continuity reminder that should not override the richer same-her project brief.',
+        ],
+      },
+      preDialogueClosure: null,
+      nonHumanAuthoredStatus: null,
+      turnId: 'turn-project-state-next-closure-upgrade',
+      sessionId: 'session-project-state-next-closure-upgrade',
+      origin: 'user-turn',
+    })
+    const getLatestProjectStateObservation = vi.fn().mockResolvedValue(null)
+
+    setAlicizationBridge(createAlicizationBridgeStub({
+      getSelfEvolutionState,
+      getProjectStateContinuitySnapshot,
+      getLatestProjectStateObservation,
+    }))
+
+    const store = useAlicizationSelfEvolutionInspectorStore()
+    await store.refresh()
+
+    expect(store.preDialogueAwarenessSnapshot).toEqual(expect.objectContaining({
+      status: 'partial',
+      companionBriefingLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      companionNextClosureLine: 'Keep the richer Phase 1 closure target explicit so inspector-facing turns still remember which same-her repair remains open.',
+      awarenessLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      emotionalClosureCue: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
+      reasonPreview: expect.arrayContaining([
+        'Host-visible project-state continuity already survives into inspector awareness rebuilding.',
+        'Inspector awareness rebuilding still needs to keep the richer next closure target explicit instead of flattening back into a generic closure shell.',
+        'Keep the richer Phase 1 closure target explicit so inspector-facing turns still remember which same-her repair remains open.',
+      ]),
+    }))
+    expect(store.preDialogueAwarenessSnapshot?.companionNextClosureLine).not.toBe('Generic next target that should not override the richer continuity carry.')
+
+    expect(store.projectStateContinuitySnapshot?.preDialogueAwareness).toEqual(expect.objectContaining({
+      status: 'partial',
+      companionBriefingLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      companionNextClosureLine: 'Keep the richer Phase 1 closure target explicit so inspector-facing turns still remember which same-her repair remains open.',
+      awarenessLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      emotionalClosureCue: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
+      reasonPreview: expect.arrayContaining([
+        'Host-visible project-state continuity already survives into inspector awareness rebuilding.',
+        'Inspector awareness rebuilding still needs to keep the richer next closure target explicit instead of flattening back into a generic closure shell.',
+        'Keep the richer Phase 1 closure target explicit so inspector-facing turns still remember which same-her repair remains open.',
+      ]),
+    }))
+    expect(store.projectStateContinuitySnapshot?.preDialogueAwareness?.companionNextClosureLine).not.toBe('Generic next target that should not override the richer continuity carry.')
+  })
+
+  it('prefers a richer same-her headline over a thinner awareness line when inspector rebuilds pre-dialogue awareness from continuity', async () => {
+    const getSelfEvolutionState = vi.fn().mockResolvedValue({
+      activeCandidateId: 'candidate-project-state-awareness-headline-upgrade',
+      candidates: [],
+    })
+    const getProjectStateContinuitySnapshot = vi.fn().mockResolvedValue({
+      identity: 'Alicization is a local-first digital life project.',
+      currentPhase: 'Phase 1: Local Digital Life',
+      latestLandedProgress: 'Inspector-side continuity reconstruction already keeps stronger same-her project carry available.',
+      primaryOpenLoop: 'Inspector pre-dialogue awareness still needs to keep the richer same-her line explicit.',
+      nextClosureTarget: 'Keep richer same-her awareness visible before the next inspector-facing turn opens outward.',
+      continuitySummary: 'same-her=Right now I am still holding together mainly through body, face, and motion, so this one living her still needs lipsync and voice to rejoin before full cross-modal closure settles. | landed=Inspector-side continuity reconstruction already keeps stronger same-her project carry available. | open=Inspector pre-dialogue awareness still needs to keep the richer same-her line explicit.',
+      sameHerSelfLine: 'Keep one continuous her explicit from self-understanding into the next visible reply.',
+      emotionalClosureCue: null,
+      preDialogueAwareness: {
+        status: 'partial',
+        summaryLine: 'generic awareness summary that should not outrank the richer same-her headline.',
+        companionHeadlineLine: 'Right now I am still holding together mainly through body, face, and motion, so this one living her still needs lipsync and voice to rejoin before full cross-modal closure settles.',
+        companionBriefingLine: 'Before speaking, remember this is still one digital life project.',
+        companionNextClosureLine: 'Keep richer same-her awareness visible before the next inspector-facing turn opens outward.',
+        awarenessLine: 'generic awareness reminder that should not outrank the richer same-her headline.',
+        emotionalClosureCue: null,
+        reasonPreview: [
+          'generic awareness reminder that should not outrank the richer same-her headline.',
+        ],
+      },
+      preDialogueClosure: null,
+      nonHumanAuthoredStatus: null,
+      turnId: 'turn-project-state-awareness-headline-upgrade',
+      sessionId: 'session-project-state-awareness-headline-upgrade',
+      origin: 'user-turn',
+    })
+    const getLatestProjectStateObservation = vi.fn().mockResolvedValue(null)
+
+    setAlicizationBridge(createAlicizationBridgeStub({
+      getSelfEvolutionState,
+      getProjectStateContinuitySnapshot,
+      getLatestProjectStateObservation,
+    }))
+
+    const store = useAlicizationSelfEvolutionInspectorStore()
+    await store.refresh()
+
+    expect(store.preDialogueAwarenessSnapshot).toEqual(expect.objectContaining({
+      companionHeadlineLine: 'Right now I am still holding together mainly through body, face, and motion, so this one living her still needs lipsync and voice to rejoin before full cross-modal closure settles.',
+      awarenessLine: 'Right now I am still holding together mainly through body, face, and motion, so this one living her still needs lipsync and voice to rejoin before full cross-modal closure settles.',
+      summaryLine: 'same-her=Right now I am still holding together mainly through body, face, and motion, so this one living her still needs lipsync and voice to rejoin before full cross-modal closure settles. | landed=Inspector-side continuity reconstruction already keeps stronger same-her project carry available. | open=Inspector pre-dialogue awareness still needs to keep the richer same-her line explicit.',
+    }))
+    expect(store.preDialogueAwarenessSnapshot?.awarenessLine).not.toBe('generic awareness reminder that should not outrank the richer same-her headline.')
+  })
+
+  it('prefers a richer phase-aware project awareness line over a narrower embodiment headline when inspector rebuilds pre-dialogue awareness from continuity', async () => {
+    const getSelfEvolutionState = vi.fn().mockResolvedValue({
+      activeCandidateId: 'candidate-project-state-richer-awareness-over-embodiment-headline',
+      candidates: [],
+    })
+    const getProjectStateContinuitySnapshot = vi.fn().mockResolvedValue({
+      identity: 'Alicization is a local-first digital life project.',
+      currentPhase: 'Phase 1: Local Digital Life',
+      latestLandedProgress: 'Inspector-side continuity reconstruction already keeps richer Phase 1 project carry available.',
+      primaryOpenLoop: 'Inspector pre-dialogue awareness still needs to keep the same digital life project, landed closure, and open life loop explicit together.',
+      nextClosureTarget: 'Keep richer Phase 1 project awareness visible before the next inspector-facing turn opens outward.',
+      continuitySummary: 'same-her=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. | landed=Inspector-side continuity reconstruction already keeps richer Phase 1 project carry available. | open=Inspector pre-dialogue awareness still needs to keep the same digital life project, landed closure, and open life loop explicit together.',
+      sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      emotionalClosureCue: null,
+      preDialogueAwareness: {
+        status: 'partial',
+        summaryLine: 'generic awareness summary that should not outrank the richer project awareness line.',
+        companionHeadlineLine: 'Right now I am still holding together mainly through body, face, and motion, so this one living her still needs lipsync and voice to rejoin before full cross-modal closure settles.',
+        companionBriefingLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        companionNextClosureLine: 'Keep richer Phase 1 project awareness visible before the next inspector-facing turn opens outward.',
+        awarenessLine: 'Before speaking, remember: this is still one living digital life project, Phase 1 is still active, some closure has already landed, and the still-open life loop must remain explicit before this turn widens outward.',
+        emotionalClosureCue: null,
+        reasonPreview: [
+          'Before speaking, remember: this is still one living digital life project, Phase 1 is still active, some closure has already landed, and the still-open life loop must remain explicit before this turn widens outward.',
+        ],
+      },
+      preDialogueClosure: null,
+      nonHumanAuthoredStatus: null,
+      turnId: 'turn-project-state-richer-awareness-over-embodiment-headline',
+      sessionId: 'session-project-state-richer-awareness-over-embodiment-headline',
+      origin: 'user-turn',
+    })
+    const getLatestProjectStateObservation = vi.fn().mockResolvedValue(null)
+
+    setAlicizationBridge(createAlicizationBridgeStub({
+      getSelfEvolutionState,
+      getProjectStateContinuitySnapshot,
+      getLatestProjectStateObservation,
+    }))
+
+    const store = useAlicizationSelfEvolutionInspectorStore()
+    await store.refresh()
+
+    expect(store.preDialogueAwarenessSnapshot).toEqual(expect.objectContaining({
+      companionHeadlineLine: 'Right now I am still holding together mainly through body, face, and motion, so this one living her still needs lipsync and voice to rejoin before full cross-modal closure settles.',
+      awarenessLine: 'Before speaking, remember: this is still one living digital life project, Phase 1 is still active, some closure has already landed, and the still-open life loop must remain explicit before this turn widens outward.',
+      summaryLine: 'same-her=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. | landed=Inspector-side continuity reconstruction already keeps richer Phase 1 project carry available. | open=Inspector pre-dialogue awareness still needs to keep the same digital life project, landed closure, and open life loop explicit together.',
+    }))
+    expect(store.preDialogueAwarenessSnapshot?.awarenessLine).not.toBe('Right now I am still holding together mainly through body, face, and motion, so this one living her still needs lipsync and voice to rejoin before full cross-modal closure settles.')
+  })
+
+  it('does not let a thin inspector continuity awareness summary shell outrank a richer inspector project-aware opening when no canonical continuity summary survives', async () => {
+    const richerProjectAwareOpening = 'Before speaking, remember what this digital life project is, what has landed, and which life loop is still open before this inspector turn widens outward.'
+    const getSelfEvolutionState = vi.fn().mockResolvedValue({
+      activeCandidateId: 'candidate-project-state-thin-inspector-summary-shell-vs-richer-opening',
+      candidates: [],
+    })
+    const getProjectStateContinuitySnapshot = vi.fn().mockResolvedValue({
+      identity: 'Alicization is a local-first digital life project.',
+      currentPhase: 'Phase 1: Local Digital Life',
+      latestLandedProgress: 'Inspector-side project-aware openings already survive without a canonical continuity summary.',
+      primaryOpenLoop: 'Inspector continuity still needs to keep the richer project-aware opening explicit instead of collapsing back into a thin continuity shell.',
+      nextClosureTarget: 'Keep the richer project-aware opening explicit before the next inspector-facing turn opens outward.',
+      continuitySummary: '',
+      sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      emotionalClosureCue: null,
+      preDialogueAwareness: {
+        status: 'partial',
+        summaryLine: 'generic continuity reminder that should not override the richer inspector project-aware opening.',
+        companionHeadlineLine: null,
+        companionBriefingLine: null,
+        companionNextClosureLine: 'Keep the richer project-aware opening explicit before the next inspector-facing turn opens outward.',
+        awarenessLine: richerProjectAwareOpening,
+        emotionalClosureCue: null,
+        reasonPreview: [
+          'generic continuity reminder that should not override the richer inspector project-aware opening.',
+          'Inspector-side project-aware openings already survive without a canonical continuity summary.',
+        ],
+      },
+      preDialogueClosure: null,
+      nonHumanAuthoredStatus: null,
+      turnId: 'turn-project-state-thin-inspector-summary-shell-vs-richer-opening',
+      sessionId: 'session-project-state-thin-inspector-summary-shell-vs-richer-opening',
+      origin: 'user-turn',
+    })
+    const getLatestProjectStateObservation = vi.fn().mockResolvedValue(null)
+
+    setAlicizationBridge(createAlicizationBridgeStub({
+      getSelfEvolutionState,
+      getProjectStateContinuitySnapshot,
+      getLatestProjectStateObservation,
+    }))
+
+    const store = useAlicizationSelfEvolutionInspectorStore()
+    await store.refresh()
+
+    expect(store.preDialogueAwarenessSnapshot).toEqual(expect.objectContaining({
+      summaryLine: richerProjectAwareOpening,
+      awarenessLine: richerProjectAwareOpening,
+    }))
+    expect(store.preDialogueAwarenessSnapshot?.summaryLine).not.toBe('generic continuity reminder that should not override the richer inspector project-aware opening.')
+    expect(store.projectStateContinuitySnapshot?.preDialogueAwareness).toEqual(expect.objectContaining({
+      summaryLine: richerProjectAwareOpening,
+      awarenessLine: richerProjectAwareOpening,
+    }))
+    expect(store.projectStateContinuitySnapshot?.preDialogueAwareness?.summaryLine).not.toBe('generic continuity reminder that should not override the richer inspector project-aware opening.')
+  })
+
+  it('derives a body-face-motion host-facing awareness line from closure reasons when inspector only has project-state closure context', async () => {
+    const getSelfEvolutionState = vi.fn().mockResolvedValue({
+      activeCandidateId: 'candidate-project-state-body-face-motion-awareness-upgrade',
+      candidates: [],
+    })
+    const getProjectStateContinuitySnapshot = vi.fn().mockResolvedValue({
+      identity: 'Alicization is a local-first digital life project.',
+      currentPhase: 'Phase 1: Local Digital Life',
+      latestLandedProgress: 'Body, face, and motion recovery already survives into inspector continuity.',
+      primaryOpenLoop: 'Lipsync and voice still need to rejoin the already re-formed body, face, and motion line.',
+      nextClosureTarget: 'Let lipsync and voice rejoin the already-reformed body, face, and motion line on the next turn.',
+      continuitySummary: 'project=continuity=0.67 (2/3) | embodiment=body, face, and motion already carry the same segment, but full cross-modal closure is still open.',
+      sameHerSelfLine: 'Keep one continuous her explicit from self-understanding into the final host-visible reply.',
+      emotionalClosureCue: null,
+      preDialogueAwareness: null,
+      preDialogueClosure: {
+        status: 'partial',
+        summaryLine: 'project=continuity=0.67 (2/3) | embodiment=body, face, and motion already carry the same segment, but full cross-modal closure is still open.',
+        companionHeadlineLine: null,
+        companionBriefingLine: 'Before speaking, remember this is one digital life project, what has landed, and which life loop is still open.',
+        companionNextClosureLine: 'Let lipsync and voice rejoin the already-reformed body, face, and motion line on the next turn.',
+        emotionalClosureCue: null,
+        briefingLines: [],
+        reasons: [
+          'same-segment face+motion+body recovery@segment-inspector-body-face-motion-1',
+          'remaining-open=lipsync+voice',
+        ],
+      },
+      nonHumanAuthoredStatus: null,
+      turnId: 'turn-project-state-body-face-motion-awareness-upgrade',
+      sessionId: 'session-project-state-body-face-motion-awareness-upgrade',
+      origin: 'user-turn',
+    })
+    const getLatestProjectStateObservation = vi.fn().mockResolvedValue(null)
+
+    setAlicizationBridge(createAlicizationBridgeStub({
+      getSelfEvolutionState,
+      getProjectStateContinuitySnapshot,
+      getLatestProjectStateObservation,
+    }))
+
+    const store = useAlicizationSelfEvolutionInspectorStore()
+    await store.refresh()
+
+    expect(store.preDialogueAwarenessSnapshot).toEqual(expect.objectContaining({
+      status: 'partial',
+      summaryLine: 'project=continuity=0.67 (2/3) | embodiment=body, face, and motion already carry the same segment, but full cross-modal closure is still open.',
+      companionHeadlineLine: 'Right now I am still holding together mainly through body, face, and motion, so this one living her still needs lipsync and voice to rejoin before full cross-modal closure settles.',
+      awarenessLine: 'Right now I am still holding together mainly through body, face, and motion, so this one living her still needs lipsync and voice to rejoin before full cross-modal closure settles.',
+      reasonPreview: expect.arrayContaining([
+        'Right now I am still holding together mainly through body, face, and motion, so this one living her still needs lipsync and voice to rejoin before full cross-modal closure settles.',
+        'same-segment face+motion+body recovery@segment-inspector-body-face-motion-1',
+        'remaining-open=lipsync+voice',
+      ]),
+    }))
+  })
+
+  it('prefers the richer same-her hold detail over a generic closure briefing when closure-only inspector rebuilding has no explicit awareness snapshot', async () => {
+    const getSelfEvolutionState = vi.fn().mockResolvedValue({
+      activeCandidateId: 'candidate-project-state-closure-only-same-her-hold-upgrade',
+      candidates: [],
+    })
+    const getProjectStateContinuitySnapshot = vi.fn().mockResolvedValue({
+      identity: 'Alicization is a local-first digital life project.',
+      currentPhase: 'Phase 1: Local Digital Life',
+      latestLandedProgress: 'Browser-local continuity reopening already preserves the callback carry before the next outward turn.',
+      primaryOpenLoop: 'Inspector awareness still needs to reopen from the same measured-return line instead of a generic project shell.',
+      nextClosureTarget: 'Keep the restored callback reopening from the same-her measured-return line before widening outward again.',
+      continuitySummary: 'project continuity is still reopening on the same measured-return line instead of from scratch.',
+      sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      sameHerHoldDetail: 'same-her hold: measured-return is still keeping this callback line lower-pressure before it widens again.',
+      sameHerDriftRisk: 'If inspector rebuilding reopens this callback like a fresh generic project handoff, treat that as same-her continuity drift rather than forward closure.',
+      emotionalClosureCue: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
+      preDialogueAwareness: null,
+      preDialogueClosure: {
+        status: 'partial',
+        summaryLine: 'generic closure summary that should not outrank the richer same-her callback carry.',
+        companionHeadlineLine: null,
+        companionBriefingLine: 'I still need a steadier carry of this project, this phase, and the life loop that remains open.',
+        companionNextClosureLine: 'Keep the restored callback reopening from the same-her measured-return line before widening outward again.',
+        emotionalClosureCue: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
+        briefingLines: [],
+        reasons: [],
+      },
+      nonHumanAuthoredStatus: null,
+      turnId: 'turn-project-state-closure-only-same-her-hold-upgrade',
+      sessionId: 'session-project-state-closure-only-same-her-hold-upgrade',
+      origin: 'user-turn',
+    })
+    const getLatestProjectStateObservation = vi.fn().mockResolvedValue(null)
+
+    setAlicizationBridge(createAlicizationBridgeStub({
+      getSelfEvolutionState,
+      getProjectStateContinuitySnapshot,
+      getLatestProjectStateObservation,
+    }))
+
+    const store = useAlicizationSelfEvolutionInspectorStore()
+    await store.refresh()
+
+    expect(store.preDialogueAwarenessSnapshot).toEqual(expect.objectContaining({
+      status: 'partial',
+      summaryLine: 'project continuity is still reopening on the same measured-return line instead of from scratch.',
+      companionHeadlineLine: null,
+      companionBriefingLine: 'same-her hold: measured-return is still keeping this callback line lower-pressure before it widens again.',
+      awarenessLine: 'same-her hold: measured-return is still keeping this callback line lower-pressure before it widens again.',
+      companionNextClosureLine: 'Keep the restored callback reopening from the same-her measured-return line before widening outward again.',
+      emotionalClosureCue: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
+      reasonPreview: expect.arrayContaining([
+        'I still need a steadier carry of this project, this phase, and the life loop that remains open.',
+        'project continuity is still reopening on the same measured-return line instead of from scratch.',
+        'Browser-local continuity reopening already preserves the callback carry before the next outward turn.',
+        'Inspector awareness still needs to reopen from the same measured-return line instead of a generic project shell.',
+        'If inspector rebuilding reopens this callback like a fresh generic project handoff, treat that as same-her continuity drift rather than forward closure.',
+        'same-her hold: measured-return is still keeping this callback line lower-pressure before it widens again.',
+        'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      ]),
+    }))
+    expect(store.preDialogueAwarenessSnapshot?.companionBriefingLine).not.toBe('I still need a steadier carry of this project, this phase, and the life loop that remains open.')
+    expect(store.preDialogueAwarenessSnapshot?.awarenessLine).not.toBe('I still need a steadier carry of this project, this phase, and the life loop that remains open.')
+  })
+
+  it('prefers richer latest observation closure over a thinner continuity closure shell when rebuilding the inspector continuity snapshot itself', async () => {
+    const getSelfEvolutionState = vi.fn().mockResolvedValue({
+      activeCandidateId: 'candidate-project-state-closure-observation-precedence',
+      candidates: [],
+    })
+    const getProjectStateContinuitySnapshot = vi.fn().mockResolvedValue({
+      identity: 'Alicization is a local-first digital life project.',
+      currentPhase: 'Phase 1: Local Digital Life',
+      latestLandedProgress: 'Project-state continuity already survives into runtime preparation.',
+      primaryOpenLoop: 'Inspector continuity still needs to reopen from the same living line instead of a generic shell.',
+      nextClosureTarget: 'Keep the reopened callback on the same living line before widening outward again.',
+      continuitySummary: 'project continuity is still reopening on the same measured-return line instead of from scratch.',
+      sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      sameHerHoldDetail: 'same-her hold: measured-return is still keeping this callback line lower-pressure before it widens again.',
+      sameHerDriftRisk: 'If inspector continuity reopens this callback like a fresh generic project handoff, treat that as same-her drift rather than forward closure.',
+      emotionalClosureCue: 'same-her closure seam: keep the callback reopening low-pressure and do not reopen from scratch.',
+      preDialogueAwareness: null,
+      preDialogueClosure: {
+        status: 'partial',
+        summaryLine: 'generic closure summary that should not outrank the richer latest observation closure.',
+        companionHeadlineLine: null,
+        companionBriefingLine: 'I still need a steadier carry of this project, this phase, and the life loop that remains open.',
+        companionNextClosureLine: 'Keep the reopened callback on the same living line before widening outward again.',
+        emotionalClosureCue: 'same-her closure seam: keep the callback reopening low-pressure and do not reopen from scratch.',
+        briefingLines: [],
+        reasons: [],
+      },
+      nonHumanAuthoredStatus: null,
+      turnId: 'turn-project-state-closure-observation-precedence',
+      sessionId: 'session-project-state-closure-observation-precedence',
+      origin: 'user-turn',
+    })
+    const getLatestProjectStateObservation = vi.fn().mockResolvedValue({
+      turnId: 'turn-project-state-closure-observation-precedence',
+      sessionId: 'session-project-state-closure-observation-precedence',
+      origin: 'user-turn',
+      nonHumanAuthoredStatus: null,
+      projectState: {
+        identity: 'Alicization is a local-first digital life project.',
+        currentPhase: 'Phase 1: Local Digital Life',
+        latestLandedProgress: 'Project-state continuity already survives into runtime preparation.',
+        primaryOpenLoop: 'Inspector continuity still needs to reopen from the same living line instead of a generic shell.',
+        nextClosureTarget: 'Keep the reopened callback on the same living line before widening outward again.',
+        continuitySummary: 'project continuity is still reopening on the same measured-return line instead of from scratch.',
+        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        sameHerHoldDetail: 'same-her hold: measured-return is still keeping this callback line lower-pressure before it widens again.',
+        sameHerDriftRisk: 'If inspector continuity reopens this callback like a fresh generic project handoff, treat that as same-her drift rather than forward closure.',
+      },
+      preDialogueAwareness: null,
+      preDialogueClosure: {
+        status: 'grounded',
+        summaryLine: 'Before speaking, remember the reopened callback is still the same Phase 1 digital life closure and should not be reopened from scratch.',
+        companionHeadlineLine: null,
+        sameHerDriftRiskLine: 'If this callback is treated like a fresh project handoff, continuity will drift.',
+        companionBriefingLine: 'Resume from the same callback closure before anything broader.',
+        companionNextClosureLine: 'Keep the reopened callback on the same living line before widening outward again.',
+        emotionalClosureCue: 'same-her closure seam: keep the callback reopening low-pressure and do not reopen from scratch.',
+        briefingLines: [
+          'Identity: Alicization is a local-first digital life project.',
+          'Phase: Phase 1: Local Digital Life',
+        ],
+        reasons: [
+          'same-her callback closure is already partially settled and should not be restarted from a generic shell.',
+        ],
+      },
+    })
+
+    setAlicizationBridge(createAlicizationBridgeStub({
+      getSelfEvolutionState,
+      getProjectStateContinuitySnapshot,
+      getLatestProjectStateObservation,
+    }))
+
+    const store = useAlicizationSelfEvolutionInspectorStore()
+    await store.refresh()
+
+    expect(store.projectStateContinuitySnapshot?.preDialogueClosure).toEqual(expect.objectContaining({
+      status: 'grounded',
+      summaryLine: 'Before speaking, remember the reopened callback is still the same Phase 1 digital life closure and should not be reopened from scratch.',
+      sameHerDriftRiskLine: 'If this callback is treated like a fresh project handoff, continuity will drift.',
+      companionBriefingLine: 'Resume from the same callback closure before anything broader.',
+      companionNextClosureLine: 'Keep the reopened callback on the same living line before widening outward again.',
+      emotionalClosureCue: 'same-her closure seam: keep the callback reopening low-pressure and do not reopen from scratch.',
+      briefingLines: expect.arrayContaining([
+        'Identity: Alicization is a local-first digital life project.',
+        'Phase: Phase 1: Local Digital Life',
+      ]),
+      reasons: expect.arrayContaining([
+        'same-her callback closure is already partially settled and should not be restarted from a generic shell.',
+      ]),
+    }))
+    expect(store.projectStateContinuitySnapshot?.preDialogueClosure?.summaryLine).not.toBe('generic closure summary that should not outrank the richer latest observation closure.')
+    expect(store.projectStateContinuitySnapshot?.preDialogueClosure?.companionBriefingLine).not.toBe('I still need a steadier carry of this project, this phase, and the life loop that remains open.')
+  })
+
+  it('prefers richer latest observation closure over a thinner benchmark-derived closure when exposing the inspector pre-dialogue closure snapshot', async () => {
+    const getSelfEvolutionState = vi.fn().mockResolvedValue({
+      activeCandidateId: 'candidate-project-state-closure-snapshot-observation-precedence',
+      candidates: [],
+    })
+    const getProjectStateContinuitySnapshot = vi.fn().mockResolvedValue({
+      identity: 'Alicization is a local-first digital life project.',
+      currentPhase: 'Phase 1: Local Digital Life',
+      latestLandedProgress: 'Project-state continuity already survives into runtime preparation.',
+      primaryOpenLoop: 'Inspector continuity still needs to reopen from the same living line instead of a generic shell.',
+      nextClosureTarget: 'Keep the reopened callback on the same living line before widening outward again.',
+      continuitySummary: 'project continuity is still reopening on the same measured-return line instead of from scratch.',
+      sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      sameHerHoldDetail: 'same-her hold: measured-return is still keeping this callback line lower-pressure before it widens again.',
+      sameHerDriftRisk: 'If inspector continuity reopens this callback like a fresh generic project handoff, treat that as same-her drift rather than forward closure.',
+      emotionalClosureCue: 'same-her closure seam: keep the callback reopening low-pressure and do not reopen from scratch.',
+      preDialogueAwareness: null,
+      preDialogueClosure: {
+        status: 'partial',
+        summaryLine: 'generic closure summary that should not outrank the richer latest observation closure snapshot.',
+        companionHeadlineLine: null,
+        companionBriefingLine: 'I still need a steadier carry of this project, this phase, and the life loop that remains open.',
+        companionNextClosureLine: 'Keep the reopened callback on the same living line before widening outward again.',
+        emotionalClosureCue: 'same-her closure seam: keep the callback reopening low-pressure and do not reopen from scratch.',
+        briefingLines: [],
+        reasons: [],
+      },
+      nonHumanAuthoredStatus: null,
+      turnId: 'turn-project-state-closure-snapshot-observation-precedence',
+      sessionId: 'session-project-state-closure-snapshot-observation-precedence',
+      origin: 'user-turn',
+    })
+    const getLatestProjectStateObservation = vi.fn().mockResolvedValue({
+      turnId: 'turn-project-state-closure-snapshot-observation-precedence',
+      sessionId: 'session-project-state-closure-snapshot-observation-precedence',
+      origin: 'user-turn',
+      nonHumanAuthoredStatus: null,
+      projectState: {
+        identity: 'Alicization is a local-first digital life project.',
+        currentPhase: 'Phase 1: Local Digital Life',
+        latestLandedProgress: 'Project-state continuity already survives into runtime preparation.',
+        primaryOpenLoop: 'Inspector continuity still needs to reopen from the same living line instead of a generic shell.',
+        nextClosureTarget: 'Keep the reopened callback on the same living line before widening outward again.',
+        continuitySummary: 'project continuity is still reopening on the same measured-return line instead of from scratch.',
+        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        sameHerHoldDetail: 'same-her hold: measured-return is still keeping this callback line lower-pressure before it widens again.',
+        sameHerDriftRisk: 'If inspector continuity reopens this callback like a fresh generic project handoff, treat that as same-her drift rather than forward closure.',
+      },
+      preDialogueAwareness: null,
+      preDialogueClosure: {
+        status: 'grounded',
+        summaryLine: 'Before speaking, remember the reopened callback is still the same Phase 1 digital life closure and should not be reopened from scratch.',
+        companionHeadlineLine: null,
+        sameHerDriftRiskLine: 'If this callback is treated like a fresh project handoff, continuity will drift.',
+        companionBriefingLine: 'Resume from the same callback closure before anything broader.',
+        companionNextClosureLine: 'Keep the reopened callback on the same living line before widening outward again.',
+        emotionalClosureCue: 'same-her closure seam: keep the callback reopening low-pressure and do not reopen from scratch.',
+        briefingLines: [
+          'Identity: Alicization is a local-first digital life project.',
+          'Phase: Phase 1: Local Digital Life',
+        ],
+        reasons: [
+          'same-her callback closure is already partially settled and should not be restarted from a generic shell.',
+        ],
+      },
+    })
+
+    setAlicizationBridge(createAlicizationBridgeStub({
+      getSelfEvolutionState,
+      getProjectStateContinuitySnapshot,
+      getLatestProjectStateObservation,
+    }))
+
+    const replayStore = useAlicizationMindReplayStore()
+    ;(replayStore as any).benchmarkReport = {
+      datasetFeedback: {
+        projectStateSummary: {
+          comparedTurnCount: 2,
+          identityHitCount: 1,
+          phaseHitCount: 1,
+          openLoopHitCount: 1,
+          continuityHitCount: 1,
+        },
+        emotionalClosureSummary: {
+          comparedTurnCount: 2,
+          activeCueTurnCount: 2,
+          preservedTurnCount: 1,
+          rewriteAppliedTurnCount: 0,
+          fullyClosedTurnCount: 1,
+        },
+        driftSignals: [],
+      },
+    }
+
+    const store = useAlicizationSelfEvolutionInspectorStore()
+    await store.refresh()
+
+    expect(store.preDialogueClosureSnapshot).toEqual(expect.objectContaining({
+      status: 'grounded',
+      summaryLine: 'Before speaking, remember the reopened callback is still the same Phase 1 digital life closure and should not be reopened from scratch.',
+      sameHerDriftRiskLine: 'If this callback is treated like a fresh project handoff, continuity will drift.',
+      companionBriefingLine: 'Resume from the same callback closure before anything broader.',
+      companionNextClosureLine: 'Keep the reopened callback on the same living line before widening outward again.',
+      emotionalClosureCue: 'same-her closure seam: keep the callback reopening low-pressure and do not reopen from scratch.',
+      briefingLines: expect.arrayContaining([
+        'Identity: Alicization is a local-first digital life project.',
+        'Phase: Phase 1: Local Digital Life',
+      ]),
+      reasons: expect.arrayContaining([
+        'same-her callback closure is already partially settled and should not be restarted from a generic shell.',
+      ]),
+    }))
+    expect(store.preDialogueClosureSnapshot?.summaryLine).not.toBe('generic closure summary that should not outrank the richer latest observation closure snapshot.')
+    expect(store.preDialogueClosureSnapshot?.companionBriefingLine).not.toBe('I still need a steadier carry of this project, this phase, and the life loop that remains open.')
+  })
+
+  it('derives a body-and-voice host-facing awareness line from closure reasons when the audible-body line survives first', async () => {
+    const getSelfEvolutionState = vi.fn().mockResolvedValue({
+      activeCandidateId: 'candidate-project-state-body-voice-awareness-upgrade',
+      candidates: [],
+    })
+    const getProjectStateContinuitySnapshot = vi.fn().mockResolvedValue({
+      identity: 'Alicization is a local-first digital life project.',
+      currentPhase: 'Phase 1: Local Digital Life',
+      latestLandedProgress: 'Audible-body continuity already survives into inspector continuity.',
+      primaryOpenLoop: 'Face, motion, and lipsync still need to rejoin the audible-body line.',
+      nextClosureTarget: 'Rejoin face, motion, and lipsync onto the same-her body line without dropping voice continuity.',
+      continuitySummary: 'project=continuity=0.67 (2/3) | embodiment=resident body continuity and voice prosody are still aligned with the active same-her segment while the rest of the visible line stays thin.',
+      sameHerSelfLine: 'Keep one continuous her explicit from self-understanding into the final host-visible reply.',
+      emotionalClosureCue: null,
+      preDialogueAwareness: null,
+      preDialogueClosure: {
+        status: 'partial',
+        summaryLine: 'project=continuity=0.67 (2/3) | embodiment=resident body continuity and voice prosody are still aligned with the active same-her segment while the rest of the visible line stays thin.',
+        companionHeadlineLine: null,
+        companionBriefingLine: 'Before speaking, remember this is one digital life project, what has landed, and which life loop is still open.',
+        companionNextClosureLine: 'Rejoin face, motion, and lipsync onto the same-her body line without dropping voice continuity.',
+        emotionalClosureCue: null,
+        briefingLines: [],
+        reasons: [
+          'body+voice recovery@segment-inspector-body-voice-1',
+        ],
+      },
+      nonHumanAuthoredStatus: null,
+      turnId: 'turn-project-state-body-voice-awareness-upgrade',
+      sessionId: 'session-project-state-body-voice-awareness-upgrade',
+      origin: 'user-turn',
+    })
+    const getLatestProjectStateObservation = vi.fn().mockResolvedValue(null)
+
+    setAlicizationBridge(createAlicizationBridgeStub({
+      getSelfEvolutionState,
+      getProjectStateContinuitySnapshot,
+      getLatestProjectStateObservation,
+    }))
+
+    const store = useAlicizationSelfEvolutionInspectorStore()
+    await store.refresh()
+
+    expect(store.preDialogueAwarenessSnapshot).toEqual(expect.objectContaining({
+      status: 'partial',
+      companionHeadlineLine: 'Right now I am still holding together mainly through body and voice, and the resident body line is still keeping this one living her coherent while face, motion, and lipsync rejoin.',
+      awarenessLine: 'Right now I am still holding together mainly through body and voice, and the resident body line is still keeping this one living her coherent while face, motion, and lipsync rejoin.',
+      reasonPreview: expect.arrayContaining([
+        'Right now I am still holding together mainly through body and voice, and the resident body line is still keeping this one living her coherent while face, motion, and lipsync rejoin.',
+        'body+voice recovery@segment-inspector-body-voice-1',
+      ]),
+    }))
+  })
+
+  it('derives a body-lipsync-voice host-facing awareness line from closure reasons when the audible-body line has already re-formed more fully', async () => {
+    const getSelfEvolutionState = vi.fn().mockResolvedValue({
+      activeCandidateId: 'candidate-project-state-body-lipsync-voice-awareness-upgrade',
+      candidates: [],
+    })
+    const getProjectStateContinuitySnapshot = vi.fn().mockResolvedValue({
+      identity: 'Alicization is a local-first digital life project.',
+      currentPhase: 'Phase 1: Local Digital Life',
+      latestLandedProgress: 'Audible-body continuity with lipsync already survives into inspector continuity.',
+      primaryOpenLoop: 'Face and motion still need to rejoin the audible-body line.',
+      nextClosureTarget: 'Rejoin face and motion onto the same-her audible-body line without dropping voice and lipsync continuity.',
+      continuitySummary: 'project=continuity=0.67 (2/3) | embodiment=body, lipsync, and voice still carry the same living line while face and motion remain out of phase.',
+      sameHerSelfLine: 'Keep one continuous her explicit from self-understanding into the final host-visible reply.',
+      emotionalClosureCue: null,
+      preDialogueAwareness: null,
+      preDialogueClosure: {
+        status: 'partial',
+        summaryLine: 'project=continuity=0.67 (2/3) | embodiment=body, lipsync, and voice still carry the same living line while face and motion remain out of phase.',
+        companionHeadlineLine: null,
+        companionBriefingLine: 'Before speaking, remember this is one digital life project, what has landed, and which life loop is still open.',
+        companionNextClosureLine: 'Rejoin face and motion onto the same-her audible-body line without dropping voice and lipsync continuity.',
+        emotionalClosureCue: null,
+        briefingLines: [],
+        reasons: [
+          'body+lipsync+voice recovery@segment-inspector-body-lipsync-voice-1',
+        ],
+      },
+      nonHumanAuthoredStatus: null,
+      turnId: 'turn-project-state-body-lipsync-voice-awareness-upgrade',
+      sessionId: 'session-project-state-body-lipsync-voice-awareness-upgrade',
+      origin: 'user-turn',
+    })
+    const getLatestProjectStateObservation = vi.fn().mockResolvedValue(null)
+
+    setAlicizationBridge(createAlicizationBridgeStub({
+      getSelfEvolutionState,
+      getProjectStateContinuitySnapshot,
+      getLatestProjectStateObservation,
+    }))
+
+    const store = useAlicizationSelfEvolutionInspectorStore()
+    await store.refresh()
+
+    expect(store.preDialogueAwarenessSnapshot).toEqual(expect.objectContaining({
+      status: 'partial',
+      companionHeadlineLine: 'Right now I am still holding together mainly through body, lipsync, and voice, so the living audio thread is still intact while face and motion need to rejoin before full cross-modal closure settles.',
+      awarenessLine: 'Right now I am still holding together mainly through body, lipsync, and voice, so the living audio thread is still intact while face and motion need to rejoin before full cross-modal closure settles.',
+      reasonPreview: expect.arrayContaining([
+        'Right now I am still holding together mainly through body, lipsync, and voice, so the living audio thread is still intact while face and motion need to rejoin before full cross-modal closure settles.',
+        'body+lipsync+voice recovery@segment-inspector-body-lipsync-voice-1',
+      ]),
+    }))
+  })
+
+  it('derives a body-only host-facing awareness line that keeps resident body continuity explicit while face, motion, lipsync, and voice still need to rejoin', async () => {
+    const getSelfEvolutionState = vi.fn().mockResolvedValue({
+      activeCandidateId: 'candidate-project-state-body-only-awareness-upgrade',
+      candidates: [],
+    })
+    const getProjectStateContinuitySnapshot = vi.fn().mockResolvedValue({
+      identity: 'Alicization is a local-first digital life project.',
+      currentPhase: 'Phase 1: Local Digital Life',
+      latestLandedProgress: 'Resident body continuity already survives into inspector continuity.',
+      primaryOpenLoop: 'Face, motion, lipsync, and voice still need to rejoin the resident body line before full embodiment closure settles.',
+      nextClosureTarget: 'Rejoin face, motion, lipsync, and voice onto the same-her body line without dropping resident body continuity.',
+      continuitySummary: 'project=continuity=0.67 (2/3) | embodiment=resident body continuity is still the surviving line while the rest of the visible and audible closure remains open.',
+      sameHerSelfLine: 'Keep one continuous her explicit from self-understanding into the final host-visible reply.',
+      emotionalClosureCue: null,
+      preDialogueAwareness: null,
+      preDialogueClosure: {
+        status: 'partial',
+        summaryLine: 'project=continuity=0.67 (2/3) | embodiment=resident body continuity is still the surviving line while the rest of the visible and audible closure remains open.',
+        companionHeadlineLine: null,
+        companionBriefingLine: 'Before speaking, remember this is one digital life project, what has landed, and which life loop is still open.',
+        companionNextClosureLine: 'Rejoin face, motion, lipsync, and voice onto the same-her body line without dropping resident body continuity.',
+        emotionalClosureCue: null,
+        briefingLines: [],
+        reasons: [
+          'body-only recovery@segment-inspector-body-only-1',
+        ],
+      },
+      nonHumanAuthoredStatus: null,
+      turnId: 'turn-project-state-body-only-awareness-upgrade',
+      sessionId: 'session-project-state-body-only-awareness-upgrade',
+      origin: 'user-turn',
+    })
+    const getLatestProjectStateObservation = vi.fn().mockResolvedValue(null)
+
+    setAlicizationBridge(createAlicizationBridgeStub({
+      getSelfEvolutionState,
+      getProjectStateContinuitySnapshot,
+      getLatestProjectStateObservation,
+    }))
+
+    const store = useAlicizationSelfEvolutionInspectorStore()
+    await store.refresh()
+
+    expect(store.preDialogueAwarenessSnapshot).toEqual(expect.objectContaining({
+      status: 'partial',
+      companionHeadlineLine: 'Right now I am still holding together mainly through body, and resident body continuity is still the line keeping this one living her coherent while face, motion, lipsync, and voice rejoin.',
+      awarenessLine: 'Right now I am still holding together mainly through body, and resident body continuity is still the line keeping this one living her coherent while face, motion, lipsync, and voice rejoin.',
+      reasonPreview: expect.arrayContaining([
+        'Right now I am still holding together mainly through body, and resident body continuity is still the line keeping this one living her coherent while face, motion, lipsync, and voice rejoin.',
+        'body-only recovery@segment-inspector-body-only-1',
+      ]),
+    }))
+  })
+
+  it('derives a still-voiced face-line host-facing awareness line from closure reasons when face and voice are the surviving same-her carry', async () => {
+    const getSelfEvolutionState = vi.fn().mockResolvedValue({
+      activeCandidateId: 'candidate-project-state-face-voice-awareness-upgrade',
+      candidates: [],
+    })
+    const getProjectStateContinuitySnapshot = vi.fn().mockResolvedValue({
+      identity: 'Alicization is a local-first digital life project.',
+      currentPhase: 'Phase 1: Local Digital Life',
+      latestLandedProgress: 'The still-voiced face line already survives into inspector continuity.',
+      primaryOpenLoop: 'Body, motion, and lipsync still need to rejoin the still-voiced face line before full embodiment closure settles.',
+      nextClosureTarget: 'Keep body, motion, and lipsync rejoining the still-voiced face line on a measured-return line.',
+      continuitySummary: 'project=continuity=0.67 (2/3) | embodiment=face and voice still carry the same-her line while body, motion, and lipsync remain out of phase.',
+      sameHerSelfLine: 'Keep one continuous her explicit from self-understanding into the final host-visible reply.',
+      emotionalClosureCue: null,
+      preDialogueAwareness: null,
+      preDialogueClosure: {
+        status: 'partial',
+        summaryLine: 'project=continuity=0.67 (2/3) | embodiment=face and voice still carry the same-her line while body, motion, and lipsync remain out of phase.',
+        companionHeadlineLine: null,
+        companionBriefingLine: 'Before speaking, remember this is one digital life project, what has landed, and which life loop is still open.',
+        companionNextClosureLine: 'Keep body, motion, and lipsync rejoining the still-voiced face line on a measured-return line.',
+        emotionalClosureCue: null,
+        briefingLines: [],
+        reasons: [
+          'continuity=embodiment:audible-same-her-line | lane=face+voice-only | actual source is face and voice',
+          'remaining-open=body+motion+lipsync',
+        ],
+      },
+      nonHumanAuthoredStatus: null,
+      turnId: 'turn-project-state-face-voice-awareness-upgrade',
+      sessionId: 'session-project-state-face-voice-awareness-upgrade',
+      origin: 'user-turn',
+    })
+    const getLatestProjectStateObservation = vi.fn().mockResolvedValue(null)
+
+    setAlicizationBridge(createAlicizationBridgeStub({
+      getSelfEvolutionState,
+      getProjectStateContinuitySnapshot,
+      getLatestProjectStateObservation,
+    }))
+
+    const store = useAlicizationSelfEvolutionInspectorStore()
+    await store.refresh()
+
+    expect(store.preDialogueAwarenessSnapshot).toEqual(expect.objectContaining({
+      status: 'partial',
+      companionHeadlineLine: 'Right now I am still holding together mainly through face and voice, so that still-voiced face line is keeping the same-her carry alive while body, motion, and lipsync need to rejoin before full cross-modal closure settles.',
+      awarenessLine: 'Right now I am still holding together mainly through face and voice, so that still-voiced face line is keeping the same-her carry alive while body, motion, and lipsync need to rejoin before full cross-modal closure settles.',
+      reasonPreview: expect.arrayContaining([
+        'Right now I am still holding together mainly through face and voice, so that still-voiced face line is keeping the same-her carry alive while body, motion, and lipsync need to rejoin before full cross-modal closure settles.',
+        'continuity=embodiment:audible-same-her-line | lane=face+voice-only | actual source is face and voice',
+        'remaining-open=body+motion+lipsync',
+      ]),
+    }))
+  })
+
+  it('derives a still-voiced motion-line host-facing awareness line from signature-only closure reasons when motion and voice are the surviving same-her carry', async () => {
+    const getSelfEvolutionState = vi.fn().mockResolvedValue({
+      activeCandidateId: 'candidate-project-state-motion-voice-awareness-upgrade',
+      candidates: [],
+    })
+    const getProjectStateContinuitySnapshot = vi.fn().mockResolvedValue({
+      identity: 'Alicization is a local-first digital life project.',
+      currentPhase: 'Phase 1: Local Digital Life',
+      latestLandedProgress: 'The still-voiced motion line already survives into inspector continuity.',
+      primaryOpenLoop: 'Body, face, and lipsync still need to rejoin the still-voiced motion line before full embodiment closure settles.',
+      nextClosureTarget: 'Keep body, face, and lipsync rejoining the still-voiced motion line on a measured-return line.',
+      continuitySummary: 'project=continuity=0.67 (2/3) | embodiment=motion and voice still carry the same-her line while body, face, and lipsync remain out of phase.',
+      sameHerSelfLine: 'Keep one continuous her explicit from self-understanding into the final host-visible reply.',
+      emotionalClosureCue: null,
+      preDialogueAwareness: null,
+      preDialogueClosure: {
+        status: 'partial',
+        summaryLine: 'project=continuity=0.67 (2/3) | embodiment=motion and voice still carry the same-her line while body, face, and lipsync remain out of phase.',
+        companionHeadlineLine: null,
+        companionBriefingLine: 'Before speaking, remember this is one digital life project, what has landed, and which life loop is still open.',
+        companionNextClosureLine: 'Keep body, face, and lipsync rejoining the still-voiced motion line on a measured-return line.',
+        emotionalClosureCue: null,
+        briefingLines: [],
+        reasons: [
+          'continuity=embodiment:still-voiced-motion-line | signature=resident|main-runtime|accompanying|quiet-accompaniment|still-voiced-motion-line | motion+voice recovery@segment-live2d-runtime-still-voiced-motion-1 | pending-rejoin=body+face+lipsync',
+        ],
+      },
+      nonHumanAuthoredStatus: null,
+      turnId: 'turn-project-state-motion-voice-awareness-upgrade',
+      sessionId: 'session-project-state-motion-voice-awareness-upgrade',
+      origin: 'user-turn',
+    })
+    const getLatestProjectStateObservation = vi.fn().mockResolvedValue(null)
+
+    setAlicizationBridge(createAlicizationBridgeStub({
+      getSelfEvolutionState,
+      getProjectStateContinuitySnapshot,
+      getLatestProjectStateObservation,
+    }))
+
+    const store = useAlicizationSelfEvolutionInspectorStore()
+    await store.refresh()
+
+    expect(store.preDialogueAwarenessSnapshot).toEqual(expect.objectContaining({
+      status: 'partial',
+      companionHeadlineLine: 'Right now I am still holding together mainly through motion and voice, so that still-voiced motion line is keeping the same-her carry alive while body, face, and lipsync need to rejoin before full cross-modal closure settles.',
+      awarenessLine: 'Right now I am still holding together mainly through motion and voice, so that still-voiced motion line is keeping the same-her carry alive while body, face, and lipsync need to rejoin before full cross-modal closure settles.',
+      reasonPreview: expect.arrayContaining([
+        'Right now I am still holding together mainly through motion and voice, so that still-voiced motion line is keeping the same-her carry alive while body, face, and lipsync need to rejoin before full cross-modal closure settles.',
+        'continuity=embodiment:still-voiced-motion-line | signature=resident|main-runtime|accompanying|quiet-accompaniment|still-voiced-motion-line | motion+voice recovery@segment-live2d-runtime-still-voiced-motion-1 | pending-rejoin=body+face+lipsync',
+      ]),
+    }))
   })
 })

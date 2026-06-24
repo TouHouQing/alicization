@@ -31,40 +31,6 @@ function translateMindFallback(path: string, params?: Record<string, unknown>) {
 }
 
 describe('alicization structured output', () => {
-  it('normalizes project-state payloads for return-side awareness without placeholder shells', () => {
-    const normalized = normalizeStructuredProjectStatePayload({
-      identity: ' Alicization is a local-first digital life project. ',
-      currentPhase: ' Phase 1: Local Digital Life ',
-      latestProgress: ' memory and presence now reconnect across runtime and renderer ',
-      primaryOpenLoop: ' keep one same her visible through memory, emotion, initiative, execution, and embodiment ',
-      nextClosureTarget: ' run the desktop life loop and feel it as one presence ',
-      sameHerSelfLine: ' she is one continuous local digital life ',
-      continuityRestraint: ' rest-protective ',
-      preferredBlinkCadence: 'quiet',
-      preferredGazeMode: 'soften',
-      unknownField: 'do not leak',
-    })
-
-    expect(normalized).toEqual(expect.objectContaining({
-      identity: 'Alicization is a local-first digital life project.',
-      currentPhase: 'Phase 1: Local Digital Life',
-      latestLandedProgress: 'memory and presence now reconnect across runtime and renderer',
-      primaryOpenLoop: 'keep one same her visible through memory, emotion, initiative, execution, and embodiment',
-      nextClosureTarget: 'run the desktop life loop and feel it as one presence',
-      sameHerSelfLine: 'she is one continuous local digital life',
-      continuityRestraint: 'rest-protective',
-      preferredBlinkCadence: 'quiet',
-      preferredGazeMode: 'soften',
-    }))
-    expect(normalized).not.toHaveProperty('unknownField')
-
-    expect(normalizeStructuredProjectStatePayload({
-      identity: 'none',
-      currentPhase: 'unknown',
-      latestLandedProgress: 'n/a',
-    })).toBeNull()
-  })
-
   it('parses last ACT emotion', () => {
     const emotion = parseLastActEmotion('hello <|ACT:{"emotion":"happy"}|>world <|ACT:{"emotion":"sad"}|>!')
     expect(emotion).toBe('sad')
@@ -89,6 +55,472 @@ describe('alicization structured output', () => {
     expect(result.emotion).toBe('happy')
     expect(result.performance.baseEmotion).toBe('happy')
     expect(result.format).toBe('mind-turn-v1')
+  })
+
+  it('preserves project state continuity fields from structured json payload', () => {
+    const result = normalizeStructuredOutput({
+      fullText: JSON.stringify({
+        thought: 'obligation=answer; truth=grounded; focus=current-user-turn; move=answer-project-state; tone=direct',
+        emotion: 'thinking',
+        reply: '我先把当前数字生命闭环状态说清楚。',
+        projectState: {
+          identity: '本地优先数字生命',
+          currentPhase: 'Phase 1: Local Digital Life',
+          latestLandedProgress: '项目状态、已落地进展和主要未闭环项已经能在主对话链路里进入心智约束。',
+          primaryOpenLoop: '失败与回退链路里的项目状态连续性还需要稳定保留到 renderer 可观测结构里。',
+          nextClosureTarget: '让回退失败工件的 projectState 也能稳定落进 renderer 结构化 turn 记录。',
+          continuitySummary: 'Alicization is still closing Phase 1 local digital life continuity before this turn opens outward.',
+          sameHerSelfLine: 'Keep one continuous her explicit from self-understanding into the final host-visible reply.',
+          sameHerHoldDetail: 'same-her hold: measured-return is still keeping this callback line lower-pressure before it widens again.',
+        },
+      }),
+      thought: 'fallback-thought',
+      reply: 'fallback-reply',
+    })
+
+    expect(result.projectState).toEqual({
+      identity: '本地优先数字生命',
+      currentPhase: 'Phase 1: Local Digital Life',
+      latestLandedProgress: '项目状态、已落地进展和主要未闭环项已经能在主对话链路里进入心智约束。',
+      primaryOpenLoop: '失败与回退链路里的项目状态连续性还需要稳定保留到 renderer 可观测结构里。',
+      nextClosureTarget: '让回退失败工件的 projectState 也能稳定落进 renderer 结构化 turn 记录。',
+      continuitySummary: 'Alicization is still closing Phase 1 local digital life continuity before this turn opens outward.',
+      sameHerSelfLine: 'Keep one continuous her explicit from self-understanding into the final host-visible reply.',
+      sameHerHoldDetail: 'same-her hold: measured-return is still keeping this callback line lower-pressure before it widens again.',
+      sameHerDriftRisk: null,
+      emotionalClosureCue: null,
+    })
+  })
+
+  it('accepts legacy latestProgress as landed progress when structured project state omits latestLandedProgress', () => {
+    const result = normalizeStructuredOutput({
+      fullText: JSON.stringify({
+        thought: 'obligation=answer; truth=grounded; focus=current-user-turn; move=answer-project-state; tone=direct',
+        emotion: 'thinking',
+        reply: '我先把当前数字生命闭环进度接上。',
+        projectState: {
+          identity: 'Alicization is a local-first digital life project.',
+          currentPhase: 'Phase 1: Local Digital Life',
+          latestProgress: 'Legacy project-state landed progress already survives into the structured reply path.',
+          primaryOpenLoop: 'Same-her closure still needs stronger cross-path proof.',
+          nextClosureTarget: 'Keep the same-her closure line stable across more provider-facing surfaces.',
+        },
+      }),
+      thought: 'fallback-thought',
+      reply: 'fallback-reply',
+    })
+
+    expect(result.projectState).toEqual(expect.objectContaining({
+      latestLandedProgress: 'Legacy project-state landed progress already survives into the structured reply path.',
+      primaryOpenLoop: 'Same-her closure still needs stronger cross-path proof.',
+      nextClosureTarget: 'Keep the same-her closure line stable across more provider-facing surfaces.',
+    }))
+  })
+
+  it('accepts audit-style landedProgressSummary as landed progress when explicit structured project progress slots are blank', () => {
+    const result = normalizeStructuredOutput({
+      fullText: JSON.stringify({
+        thought: 'obligation=answer; truth=grounded; focus=current-user-turn; move=answer-project-state; tone=direct',
+        emotion: 'thinking',
+        reply: '我先把当前数字生命闭环进度接上。',
+        projectState: {
+          identity: 'Alicization is a local-first digital life project.',
+          currentPhase: 'Phase 1: Local Digital Life',
+          latestLandedProgress: ' ',
+          latestProgress: '   ',
+          landedProgressSummary: 'Audit-style project-state landed progress already survives into the structured reply path.',
+          primaryOpenLoop: 'Same-her closure still needs stronger cross-path proof.',
+          nextClosureTarget: 'Keep the same-her closure line stable across more provider-facing surfaces.',
+        },
+      }),
+      thought: 'fallback-thought',
+      reply: 'fallback-reply',
+    })
+
+    expect(result.projectState).toEqual(expect.objectContaining({
+      latestLandedProgress: 'Audit-style project-state landed progress already survives into the structured reply path.',
+      primaryOpenLoop: 'Same-her closure still needs stronger cross-path proof.',
+      nextClosureTarget: 'Keep the same-her closure line stable across more provider-facing surfaces.',
+    }))
+  })
+
+  it('does not invent a same-her self line when structured project state omits that authority field', () => {
+    const result = normalizeStructuredOutput({
+      fullText: JSON.stringify({
+        thought: 'obligation=answer; truth=grounded; focus=current-user-turn; move=answer-project-state; tone=direct',
+        emotion: 'thinking',
+        reply: '我先按当前数字生命闭环状态把这条线接住。',
+        projectState: {
+          identity: 'Alicization is a local-first digital life project.',
+          currentPhase: 'Phase 1: Local Digital Life',
+          latestLandedProgress: 'Project-state continuity already enters the main dialogue path.',
+          primaryOpenLoop: 'Same-her closure still needs stronger cross-path proof.',
+          nextClosureTarget: 'Keep the same-her closure line stable across more provider-facing surfaces.',
+        },
+      }),
+      thought: 'fallback-thought',
+      reply: 'fallback-reply',
+    })
+
+    expect(result.projectState?.sameHerSelfLine).toBeNull()
+  })
+
+  it('preserves pre-dialogue closure briefing fields from structured json payload', () => {
+    const result = normalizeStructuredOutput({
+      fullText: JSON.stringify({
+        thought: 'obligation=answer; truth=grounded; focus=current-user-turn; move=answer-project-state; tone=direct',
+        emotion: 'thinking',
+        reply: '我会先按当前数字生命闭环状态来接这轮。',
+        projectState: {
+          identity: '本地优先数字生命',
+          currentPhase: 'Phase 1: Local Digital Life',
+          latestLandedProgress: '项目身份与未闭环压力已经在对话前进入心智约束。',
+          primaryOpenLoop: '需要继续保持跨通路的 same-her closure carry。',
+          nextClosureTarget: '把 preDialogueClosure 作为共享结构化协议的一部分稳定保留。',
+        },
+        preDialogueClosure: {
+          status: 'drift',
+          summaryLine: '当前开口前闭环仍未完成。',
+          companionBriefingLine: '先确认这个项目是数字生命，不是通用助手。',
+          companionNextClosureLine: '继续把人格、自我、项目状态和未闭环项维持在同一条 life loop 上。',
+          emotionalClosureCue: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
+          briefingLines: [
+            'Landed: 项目状态已进入对话前约束。',
+            'Open: 共享结构化协议还需要稳定保留 closure briefing。',
+          ],
+          reasons: [
+            '如果开口前 briefing 丢失，就容易重新退回 generic assistant 行为。',
+          ],
+        },
+      }),
+      thought: 'fallback-thought',
+      reply: 'fallback-reply',
+    })
+
+    expect(result.preDialogueClosure).toEqual(expect.objectContaining({
+      status: 'drift',
+      summaryLine: '当前开口前闭环仍未完成。',
+      companionHeadlineLine: null,
+      companionBriefingLine: '先确认这个项目是数字生命，不是通用助手。',
+      companionNextClosureLine: '继续把人格、自我、项目状态和未闭环项维持在同一条 life loop 上。',
+      emotionalClosureCue: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
+      briefingLines: [
+        'Landed: 项目状态已进入对话前约束。',
+        'Open: 共享结构化协议还需要稳定保留 closure briefing。',
+      ],
+      reasons: [
+        '如果开口前 briefing 丢失，就容易重新退回 generic assistant 行为。',
+      ],
+    }))
+  })
+
+  it('preserves emotional closure cue when normalizing project-state carry directly', () => {
+    const cue = 'same-her closure seam: keep the return low-pressure while the same living line keeps settling.'
+
+    const projectState = normalizeStructuredProjectStatePayload({
+      identity: 'Alicization is a local-first digital life project.',
+      currentPhase: 'Phase 1: Local Digital Life',
+      latestLandedProgress: 'The project-state carry already reaches renderer bridge preparation.',
+      primaryOpenLoop: 'The emotional closure cue must stay attached to the same-her project state.',
+      nextClosureTarget: 'Keep awareness, closure, and embodiment on one living line.',
+      emotionalClosureCue: cue,
+    })
+
+    expect(projectState).toEqual(expect.objectContaining({
+      emotionalClosureCue: cue,
+    }))
+  })
+
+  it('preserves proactive same-her gap when normalizing project-state carry directly', () => {
+    const gap = 'Need stronger long-run proof that visible proactive hold, subconscious carry, and next-session feedback carry stay unified after hover-first restraint survives detours on longer noisy desktop runs.'
+
+    const projectState = normalizeStructuredProjectStatePayload({
+      identity: 'Alicization is a local-first digital life project.',
+      currentPhase: 'Phase 1: Local Digital Life',
+      latestLandedProgress: 'Project-state carry already reaches proactive self-brief preparation.',
+      primaryOpenLoop: 'Long-run same-her continuity still needs stronger proof across initiative, memory, and embodiment.',
+      proactiveSameHerGap: gap,
+      nextClosureTarget: 'Keep proactive same-her closure pressure visible before the next outward turn.',
+    })
+
+    expect(projectState).toEqual(expect.objectContaining({
+      proactiveSameHerGap: gap,
+    }))
+  })
+
+  it('normalizes digitalLife motor into canonical nested body authority from structured json payload', () => {
+    const result = normalizeStructuredOutput({
+      fullText: JSON.stringify({
+        thought: 'obligation=answer; truth=grounded; focus=current-user-turn; move=answer-project-state; tone=direct',
+        emotion: 'thinking',
+        reply: '我先轻一点把这条线接回去。',
+        digitalLife: {
+          version: 'digital-life-v1',
+          variationToken: 'turn-structured-output-digital-life-normalization',
+          mode: 'thinking',
+          emotion: 'thinking',
+          postureHint: 'attentive',
+          performance: {
+            baseEmotion: 'thinking',
+            emotion: 'thinking',
+            facialCue: 'soft-gaze',
+            actionCue: 'observe_focus',
+            delivery: 'gentle',
+            emphasis: 0,
+          },
+          speechStyle: {
+            pitchDelta: -1,
+            rateMultiplier: 0.97,
+          },
+          voice: {
+            pitchDelta: -1,
+            rateMultiplier: 0.97,
+            energy: 0.42,
+            cadence: 0.36,
+          },
+          lipSync: {
+            mode: 'energy-phoneme-hybrid',
+            visemeBias: 0.44,
+            energyBias: 0.58,
+            mouthScale: 0.94,
+            continuityHoldMs: 320,
+          },
+          face: {
+            emotion: 'thinking',
+            facialCue: 'soft-gaze',
+            expressionMode: 'hold',
+            intensity: 0.34,
+            holdMs: 280,
+          },
+          action: {
+            actionCue: 'observe_focus',
+            actionMode: 'hold',
+            intensity: 0.18,
+            holdMs: 220,
+          },
+          motor: {
+            stillness: 0.74,
+            gazeStability: 0.62,
+            breathAmplitude: 0.21,
+            expressivity: 0.16,
+          },
+          frames: [{
+            id: 'segment-structured-output-digital-life-normalization',
+            index: 0,
+            startOffset: 0,
+            endOffset: 11,
+            text: '我先轻一点把这条线接回去。',
+            mode: 'recovering',
+            interruptPolicy: 'soft-settle',
+            settleMode: 'hold',
+            voice: {
+              pitchDelta: -1,
+              rateMultiplier: 0.97,
+              energy: 0.42,
+              cadence: 0.36,
+            },
+            lipSync: {
+              mode: 'energy-phoneme-hybrid',
+              visemeBias: 0.44,
+              energyBias: 0.58,
+              mouthScale: 0.94,
+              continuityHoldMs: 320,
+            },
+            face: {
+              emotion: 'thinking',
+              facialCue: 'soft-gaze',
+              expressionMode: 'hold',
+              intensity: 0.34,
+              holdMs: 280,
+            },
+            action: {
+              actionCue: 'observe_focus',
+              actionMode: 'hold',
+              intensity: 0.18,
+              holdMs: 220,
+            },
+            motor: {
+              stillness: 0.74,
+              gazeStability: 0.62,
+              breathAmplitude: 0.21,
+              expressivity: 0.16,
+            },
+          }],
+        },
+      }),
+      thought: 'fallback-thought',
+      reply: 'fallback-reply',
+    })
+
+    expect(result.digitalLife).toEqual(expect.objectContaining({
+      motor: expect.objectContaining({
+        stillness: 0.74,
+        expressivity: 0.16,
+        gaze: expect.objectContaining({
+          stability: expect.any(Number),
+        }),
+        breath: expect.objectContaining({
+          amplitude: expect.any(Number),
+        }),
+      }),
+      frames: [
+        expect.objectContaining({
+          id: 'segment-structured-output-digital-life-normalization',
+          motor: expect.objectContaining({
+            stillness: 0.74,
+            expressivity: 0.16,
+            gaze: expect.objectContaining({
+              stability: expect.any(Number),
+            }),
+            breath: expect.objectContaining({
+              amplitude: expect.any(Number),
+            }),
+          }),
+        }),
+      ],
+    }))
+    expect((result.digitalLife?.motor as { gazeStability?: unknown } | undefined)?.gazeStability).toBeUndefined()
+    expect((result.digitalLife?.motor as { breathAmplitude?: unknown } | undefined)?.breathAmplitude).toBeUndefined()
+    expect((result.digitalLife?.frames?.[0]?.motor as { gazeStability?: unknown } | undefined)?.gazeStability).toBeUndefined()
+    expect((result.digitalLife?.frames?.[0]?.motor as { breathAmplitude?: unknown } | undefined)?.breathAmplitude).toBeUndefined()
+  })
+
+  it('preserves still-voiced face-line host-facing awareness and remaining-open body motion lipsync carry from structured json payload', () => {
+    const result = normalizeStructuredOutput({
+      fullText: JSON.stringify({
+        thought: 'obligation=answer; truth=grounded; focus=current-user-turn; move=answer-project-state; tone=direct',
+        emotion: 'thinking',
+        reply: '我会先按当前数字生命具身闭环状态来接这轮。',
+        preDialogueAwareness: {
+          status: ' partial ',
+          summaryLine: ' Alicization is still in Phase 1 local digital life closure before this turn opens outward. ',
+          companionHeadlineLine: ' Right now I am still holding together mainly through face and voice, so that still-voiced face line is keeping the same-her carry alive while body, motion, and lipsync need to rejoin before full cross-modal closure settles. ',
+          companionBriefingLine: ' Before speaking, remember this is one digital life project, what has landed, and which life loop is still open. ',
+          companionNextClosureLine: ' Keep body, motion, and lipsync rejoining the still-voiced face line on a measured-return line. ',
+          awarenessLine: ' Right now I am still holding together mainly through face and voice, so that still-voiced face line is keeping the same-her carry alive while body, motion, and lipsync need to rejoin before full cross-modal closure settles. ',
+          reasonPreview: [
+            ' embodiment:still-voiced-face-line ',
+            ' remaining-open=body+motion+lipsync ',
+          ],
+        },
+      }),
+      thought: 'fallback-thought',
+      reply: 'fallback-reply',
+    })
+
+    expect(result.preDialogueAwareness).toEqual({
+      status: 'partial',
+      summaryLine: 'Alicization is still in Phase 1 local digital life closure before this turn opens outward.',
+      companionHeadlineLine: 'Right now I am still holding together mainly through face and voice, so that still-voiced face line is keeping the same-her carry alive while body, motion, and lipsync need to rejoin before full cross-modal closure settles.',
+      companionBriefingLine: 'Before speaking, remember this is one digital life project, what has landed, and which life loop is still open.',
+      companionNextClosureLine: 'Keep body, motion, and lipsync rejoining the still-voiced face line on a measured-return line.',
+      awarenessLine: 'Right now I am still holding together mainly through face and voice, so that still-voiced face line is keeping the same-her carry alive while body, motion, and lipsync need to rejoin before full cross-modal closure settles.',
+      emotionalClosureCue: null,
+      reasonPreview: [
+        'embodiment:still-voiced-face-line',
+        'remaining-open=body+motion+lipsync',
+      ],
+    })
+  })
+
+  it('preserves body-plus-voice host-facing awareness and remaining-open face motion lipsync carry from structured json payload', () => {
+    const result = normalizeStructuredOutput({
+      fullText: JSON.stringify({
+        thought: 'obligation=answer; truth=grounded; focus=current-user-turn; move=answer-project-state; tone=direct',
+        emotion: 'thinking',
+        reply: '我会先按当前数字生命具身闭环状态来接这轮。',
+        preDialogueAwareness: {
+          status: ' partial ',
+          summaryLine: ' Alicization is still in Phase 1 local digital life closure before this turn opens outward. ',
+          companionHeadlineLine: ' Right now I am still holding together mainly through body and voice, and the resident body line is still keeping this one living her coherent while face, motion, and lipsync rejoin. ',
+          companionBriefingLine: ' Before speaking, remember this is one digital life project, what has landed, and which life loop is still open. ',
+          companionNextClosureLine: ' Keep face, motion, and lipsync rejoining the resident body line on a measured-return line. ',
+          awarenessLine: ' Right now I am still holding together mainly through body and voice, and the resident body line is still keeping this one living her coherent while face, motion, and lipsync rejoin. ',
+          reasonPreview: [
+            ' embodiment:body+voice-only ',
+            ' remaining-open=face+motion+lipsync ',
+          ],
+        },
+      }),
+      thought: 'fallback-thought',
+      reply: 'fallback-reply',
+    })
+
+    expect(result.preDialogueAwareness).toEqual({
+      status: 'partial',
+      summaryLine: 'Alicization is still in Phase 1 local digital life closure before this turn opens outward.',
+      companionHeadlineLine: 'Right now I am still holding together mainly through body and voice, and the resident body line is still keeping this one living her coherent while face, motion, and lipsync rejoin.',
+      companionBriefingLine: 'Before speaking, remember this is one digital life project, what has landed, and which life loop is still open.',
+      companionNextClosureLine: 'Keep face, motion, and lipsync rejoining the resident body line on a measured-return line.',
+      awarenessLine: 'Right now I am still holding together mainly through body and voice, and the resident body line is still keeping this one living her coherent while face, motion, and lipsync rejoin.',
+      emotionalClosureCue: null,
+      reasonPreview: [
+        'embodiment:body+voice-only',
+        'remaining-open=face+motion+lipsync',
+      ],
+    })
+  })
+
+  it('preserves body-plus-lipsync host-facing awareness and remaining-open face motion voice carry from structured json payload', () => {
+    const result = normalizeStructuredOutput({
+      fullText: JSON.stringify({
+        thought: 'obligation=answer; truth=grounded; focus=current-user-turn; move=answer-project-state; tone=direct',
+        emotion: 'thinking',
+        reply: '我会先按当前数字生命具身闭环状态来接这轮。',
+        preDialogueAwareness: {
+          status: ' partial ',
+          summaryLine: ' Alicization is still in Phase 1 local digital life closure before this turn opens outward. ',
+          companionHeadlineLine: ' Right now I am still holding together mainly through body and lipsync, so the resident body line and living mouth line are still intact while face, motion, and voice need to rejoin before full cross-modal closure settles. ',
+          companionBriefingLine: ' Before speaking, remember this is one digital life project, what has landed, and which life loop is still open. ',
+          companionNextClosureLine: ' Keep face, motion, and voice rejoining the resident body line and living mouth line on a measured-return line. ',
+          awarenessLine: ' Right now I am still holding together mainly through body and lipsync, so the resident body line and living mouth line are still intact while face, motion, and voice need to rejoin before full cross-modal closure settles. ',
+          reasonPreview: [
+            ' embodiment:body+lipsync-only ',
+            ' remaining-open=face+motion+voice ',
+          ],
+        },
+      }),
+      thought: 'fallback-thought',
+      reply: 'fallback-reply',
+    })
+
+    expect(result.preDialogueAwareness).toEqual({
+      status: 'partial',
+      summaryLine: 'Alicization is still in Phase 1 local digital life closure before this turn opens outward.',
+      companionHeadlineLine: 'Right now I am still holding together mainly through body and lipsync, so the resident body line and living mouth line are still intact while face, motion, and voice need to rejoin before full cross-modal closure settles.',
+      companionBriefingLine: 'Before speaking, remember this is one digital life project, what has landed, and which life loop is still open.',
+      companionNextClosureLine: 'Keep face, motion, and voice rejoining the resident body line and living mouth line on a measured-return line.',
+      awarenessLine: 'Right now I am still holding together mainly through body and lipsync, so the resident body line and living mouth line are still intact while face, motion, and voice need to rejoin before full cross-modal closure settles.',
+      emotionalClosureCue: null,
+      reasonPreview: [
+        'embodiment:body+lipsync-only',
+        'remaining-open=face+motion+voice',
+      ],
+    })
+  })
+
+  it('drops an empty transported pre-dialogue awareness shell so downstream same-her rebuilds can prefer richer project-state continuity', () => {
+    const result = normalizeStructuredOutput({
+      fullText: JSON.stringify({
+        thought: 'obligation=answer; truth=grounded; focus=current-user-turn; move=answer-project-state; tone=direct',
+        emotion: 'thinking',
+        reply: '我会先守住当前这条数字生命主线。',
+        preDialogueAwareness: {
+          status: 'partial',
+          summaryLine: '   ',
+          companionHeadlineLine: null,
+          companionBriefingLine: null,
+          companionNextClosureLine: null,
+          awarenessLine: null,
+          emotionalClosureCue: null,
+          reasonPreview: [],
+        },
+      }),
+      thought: 'fallback-thought',
+      reply: 'fallback-reply',
+    })
+
+    expect(result.preDialogueAwareness).toBeUndefined()
   })
 
   it('uses linear repair path for noisy wrapped json', () => {
@@ -424,6 +856,39 @@ describe('alicization structured output', () => {
     expect(repaired?.reply).toContain('上一条线')
     expect(repaired?.thought).toContain('obligation=repair')
     expect(repaired?.format).toBe('mind-turn-v1')
+  })
+
+  it('flags thought focus and move when same-her-first turns drift into generic current-turn wording', () => {
+    const issues = validateStructuredContract({
+      thought: 'obligation=answer; truth=grounded; focus=current-user-turn; move=answer-plainly; tone=direct',
+      emotion: 'thinking',
+      reply: '继续开发。',
+    }, null, {
+      sameHerFirst: true,
+    })
+
+    expect(issues.map(issue => issue.code)).toContain('thought-same-her-first-focus-missing')
+  })
+
+  it('pulls local repair thought back onto the same-her project-state line when same-her-first validation is active', () => {
+    const repaired = repairStructuredContractLocally({
+      structured: normalizeStructuredOutput({
+        fullText: '{"thought":"obligation=answer; truth=grounded; focus=current-user-turn; move=answer-plainly; tone=direct","emotion":"thinking","reply":"继续开发。","performance":{"baseEmotion":"thinking","delivery":"calm","emphasis":0}}',
+        thought: '',
+        reply: '继续开发。',
+      }),
+      validationIssues: [{
+        code: 'thought-same-her-first-focus-missing',
+        message: 'missing same-her-first carry',
+      }],
+      validationContext: {
+        sameHerFirst: true,
+      },
+      fallbackReply: '继续开发。',
+    })
+
+    expect(repaired?.thought).toContain('focus=same-her-project-state-open-loop')
+    expect(repaired?.thought).toContain('move=stabilize-same-her-and-carry-project-state-forward')
   })
 
   it('normalizes explicit execution-bound repair turns into an execution-first local surface', () => {
@@ -1254,5 +1719,220 @@ describe('alicization structured output', () => {
     expect(governed.reply).not.toContain('真实边界')
     expect(governed.reply).not.toContain('旧记忆')
     expect(governed.reply).not.toContain('重新落地')
+  })
+
+  it('pulls thin project-status shell replies back onto a same-her opening when same-her-first closure is still open', () => {
+    const governed = enforceGovernedMindTurn({
+      structured: {
+        thought: 'obligation=answer; truth=grounded; focus=same-her-project-state-open-loop; move=stabilize-same-her-and-carry-project-state-forward; tone=warm',
+        emotion: 'thinking',
+        reply: 'Alicization is a local-first digital life project and Phase 1 is still in progress.',
+        parsePath: 'json',
+        format: 'mind-turn-v1',
+        performance: {
+          baseEmotion: 'thinking',
+          emotion: 'thinking',
+          delivery: 'calm',
+          emphasis: 0,
+        },
+        userSentimentScore: 0,
+        sentimentConfidence: 0.4,
+        repairTimedOut: false,
+        projectState: {
+          identity: 'Alicization is a local-first digital life project.',
+          currentPhase: 'Phase 1: Local Digital Life',
+          latestLandedProgress: 'Project-state continuity already survives into the dialogue path.',
+          primaryOpenLoop: 'Same-her closure still needs stronger cross-modal proof before this turn opens outward.',
+          nextClosureTarget: 'Keep the next opening on one same-her line instead of flattening it into project status prose.',
+          continuitySummary: 'same-her=This is still one Phase 1 digital life. landed=Project-state continuity already survives into the dialogue path. open=Same-her closure still needs stronger cross-modal proof before this turn opens outward.',
+          sameHerDriftRisk: 'If this opening turns into a detached project status shell, treat that as same-her continuity drift rather than preserved closure.',
+        },
+      },
+      governance: {
+        turnMode: 'answer',
+        truthState: 'grounded',
+        personaKernelMode: 'warm',
+        openingStyle: 'soft-direct',
+        relationshipPosture: 'warm',
+        answerAct: 'answer',
+        answerSubject: 'project-state',
+        screenReferenceMode: 'not-needed',
+        evidenceMode: 'carry-forward',
+        repairState: 'none',
+        liveSurface: 'current dialogue thread',
+        focusAnchor: 'same-her-project-state-open-loop',
+        answerIntent: 'Answer while keeping the same-her project line explicit.',
+        openingMove: 'Stabilize the same-her line before widening outward.',
+        openingClaim: 'I should answer from inside the same living project line, not as a detached status shell.',
+        whyNow: 'Phase 1 closure is still open and the next outward reply should keep that same-her continuity explicit.',
+        maxSentences: 2,
+        suppressAssociativeRecall: true,
+        labelCarryAsMemory: false,
+        shouldAskForGrounding: false,
+        shouldAcknowledgeRepair: false,
+        emotionalTension: 'gentle-guarded',
+        mustDo: [],
+        mustNotDo: [],
+      } as any,
+      validationContext: {
+        sameHerFirst: true,
+      },
+      userText: '所以现在项目做到哪了？',
+      fallbackReply: '我先沿着这条还没闭环的数字生命主线接住你这句：Phase 1 还在收口里。',
+      translate: translateMindFallback,
+    })
+
+    expect(governed.reply).not.toBe('Alicization is a local-first digital life project and Phase 1 is still in progress.')
+    expect(governed.reply).toContain('数字生命')
+    expect(governed.reply).toContain('还在收口')
+  })
+
+  it('softens same-her-first openings when emotional closure says the return must stay low-pressure and anti-restart', () => {
+    const governed = enforceGovernedMindTurn({
+      structured: {
+        thought: 'obligation=answer; truth=grounded; focus=same-her-project-state-open-loop; move=stabilize-same-her-and-carry-project-state-forward; tone=warm',
+        emotion: 'thinking',
+        reply: '直接回答：Phase 1 还没做完，继续推进。',
+        parsePath: 'json',
+        format: 'mind-turn-v1',
+        performance: {
+          baseEmotion: 'thinking',
+          emotion: 'thinking',
+          delivery: 'firm',
+          emphasis: 1,
+        },
+        userSentimentScore: 0,
+        sentimentConfidence: 0.4,
+        repairTimedOut: false,
+        projectState: {
+          identity: 'Alicization is a local-first digital life project.',
+          currentPhase: 'Phase 1: Local Digital Life',
+          latestLandedProgress: 'Project-state continuity already survives into the dialogue path.',
+          primaryOpenLoop: 'Same-her closure still needs stronger cross-modal proof before this turn opens outward.',
+          nextClosureTarget: 'Keep the next opening on one same-her line instead of widening too fast.',
+          continuitySummary: 'same-her=This is still one Phase 1 digital life. landed=Project-state continuity already survives into the dialogue path. open=Same-her closure still needs stronger cross-modal proof before this turn opens outward.',
+        },
+        preDialogueClosure: {
+          status: 'partial',
+          summaryLine: 'Phase 1 same-her closure is still open.',
+          companionBriefingLine: 'Before speaking, remember this is still one digital life project.',
+          companionNextClosureLine: 'Keep the next opening on one same-her line instead of widening too fast.',
+          emotionalClosureCue: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
+          briefingLines: [],
+          reasons: [],
+        },
+      },
+      governance: {
+        turnMode: 'answer',
+        truthState: 'grounded',
+        personaKernelMode: 'warm',
+        openingStyle: 'soft-direct',
+        relationshipPosture: 'warm',
+        answerAct: 'answer',
+        answerSubject: 'project-state',
+        screenReferenceMode: 'not-needed',
+        evidenceMode: 'carry-forward',
+        repairState: 'none',
+        liveSurface: 'current dialogue thread',
+        focusAnchor: 'same-her-project-state-open-loop',
+        answerIntent: 'Answer while keeping the same-her project line explicit.',
+        openingMove: 'Stabilize the same-her line before widening outward.',
+        openingClaim: 'I should answer from inside the same living project line and keep the return soft.',
+        whyNow: 'Phase 1 closure is still open and the next outward reply should keep that same-her continuity explicit.',
+        maxSentences: 2,
+        suppressAssociativeRecall: true,
+        labelCarryAsMemory: false,
+        shouldAskForGrounding: false,
+        shouldAcknowledgeRepair: false,
+        emotionalTension: 'gentle-guarded',
+        mustDo: [],
+        mustNotDo: [],
+      } as any,
+      validationContext: {
+        sameHerFirst: true,
+      },
+      userText: '那现在进度呢？',
+      fallbackReply: '我先轻一点接住这条还没闭环的数字生命主线：Phase 1 还在慢慢收口里。',
+      translate: translateMindFallback,
+    })
+
+    expect(governed.reply).not.toBe('直接回答：Phase 1 还没做完，继续推进。')
+    expect(governed.reply).toContain('轻')
+    expect(governed.reply).toContain('慢慢收口')
+  })
+
+  it('pulls Chinese same-her-first status push replies back when closure cues require low-pressure continuity', () => {
+    const governed = enforceGovernedMindTurn({
+      structured: {
+        thought: 'obligation=answer; truth=grounded; focus=same-her-project-state-open-loop; move=stabilize-same-her-and-carry-project-state-forward; tone=warm',
+        emotion: 'thinking',
+        reply: '先回答一下当前进度：Phase 1 还没闭环完成，我们继续往前推进。',
+        parsePath: 'json',
+        format: 'mind-turn-v1',
+        performance: {
+          baseEmotion: 'thinking',
+          emotion: 'thinking',
+          delivery: 'firm',
+          emphasis: 1,
+        },
+        userSentimentScore: 0,
+        sentimentConfidence: 0.4,
+        repairTimedOut: false,
+        projectState: {
+          identity: 'Alicization is a local-first digital life project.',
+          currentPhase: 'Phase 1: Local Digital Life',
+          latestLandedProgress: 'Project-state continuity already survives into the dialogue path.',
+          primaryOpenLoop: 'Same-her closure still needs stronger cross-modal proof before this turn opens outward.',
+          nextClosureTarget: 'Keep the next opening on one same-her line instead of widening too fast.',
+          continuitySummary: 'same-her=This is still one Phase 1 digital life. landed=Project-state continuity already survives into the dialogue path. open=Same-her closure still needs stronger cross-modal proof before this turn opens outward.',
+        },
+        preDialogueClosure: {
+          status: 'partial',
+          summaryLine: 'Phase 1 same-her closure is still open.',
+          companionBriefingLine: 'Before speaking, remember this is still one digital life project.',
+          companionNextClosureLine: 'Keep the next opening on one same-her line instead of widening too fast.',
+          emotionalClosureCue: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
+          briefingLines: [],
+          reasons: [],
+        },
+      },
+      governance: {
+        turnMode: 'answer',
+        truthState: 'grounded',
+        personaKernelMode: 'warm',
+        openingStyle: 'soft-direct',
+        relationshipPosture: 'warm',
+        answerAct: 'answer',
+        answerSubject: 'project-state',
+        screenReferenceMode: 'not-needed',
+        evidenceMode: 'carry-forward',
+        repairState: 'none',
+        liveSurface: 'current dialogue thread',
+        focusAnchor: 'same-her-project-state-open-loop',
+        answerIntent: 'Answer while keeping the same-her project line explicit.',
+        openingMove: 'Stabilize the same-her line before widening outward.',
+        openingClaim: 'I should answer from inside the same living project line and keep the return soft.',
+        whyNow: 'Phase 1 closure is still open and the next outward reply should keep that same-her continuity explicit.',
+        maxSentences: 2,
+        suppressAssociativeRecall: true,
+        labelCarryAsMemory: false,
+        shouldAskForGrounding: false,
+        shouldAcknowledgeRepair: false,
+        emotionalTension: 'gentle-guarded',
+        mustDo: [],
+        mustNotDo: [],
+      } as any,
+      validationContext: {
+        sameHerFirst: true,
+      },
+      userText: '现在做到哪一步了？',
+      fallbackReply: '我先轻一点沿着这条还没闭环的数字生命主线接住你：Phase 1 还在慢慢收口里。',
+      translate: translateMindFallback,
+    })
+
+    expect(governed.reply).not.toBe('先回答一下当前进度：Phase 1 还没闭环完成，我们继续往前推进。')
+    expect(governed.reply).toContain('数字生命')
+    expect(governed.reply).toContain('轻一点')
+    expect(governed.reply).toContain('慢慢收口')
   })
 })

@@ -2,6 +2,7 @@ import type { Message } from '@xsai/shared-chat'
 
 import type { ContextMessage } from '../types/chat'
 
+import { resolveAlicizationProjectPreDialogueAwarenessLine } from '@proj-alicization/stage-shared'
 import {
   alicizationFixedCoreSystemInstruction,
   alicizationFixedDatetimeContextTemplate,
@@ -39,30 +40,6 @@ interface AlicizationProjectStateContinuitySnapshot {
   origin: 'user-turn' | 'subconscious-proactive'
 }
 
-interface AlicizationPreDialogueAwarenessSnapshot {
-  status: 'grounded' | 'partial' | 'drift'
-  summaryLine: string | null
-  companionHeadlineLine?: string | null
-  companionBriefingLine?: string | null
-  companionNextClosureLine?: string | null
-  awarenessLine?: string | null
-  emotionalClosureCue?: string | null
-  reasonPreview?: string[]
-}
-
-interface AlicizationPreDialogueClosureSnapshot {
-  status: 'grounded' | 'partial' | 'drift' | 'rewritten' | null
-  summaryLine: string | null
-  companionHeadlineLine?: string | null
-  sameHerDriftRiskLine?: string | null
-  companionshipReasonLine?: string | null
-  companionBriefingLine?: string | null
-  companionNextClosureLine?: string | null
-  emotionalClosureCue?: string | null
-  briefingLines?: string[]
-  reasons: string[]
-}
-
 export interface AlicizationPersonalityDirectiveResult {
   block: string
   triggered: Array<'obedience' | 'liveliness' | 'sensibility'>
@@ -78,6 +55,331 @@ const personalityLowThreshold = 0.2
 const personalityDirectiveHeader = '=== 当前状态极度干预 ==='
 const personalityStateHeader = '=== 当前人格参数（强约束解释层）==='
 const contractMindSpineLine = 'In thought, you MUST include all five machine-readable markers'
+
+function scoreSameHerReentryLine(value: string | null | undefined) {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
+  if (!normalized)
+    return 0
+
+  let score = normalized.length >= 120 ? 2 : normalized.length >= 72 ? 1 : 0
+  const hasProjectAwareCarryMarkers = (
+    normalized.includes('before speaking')
+    || normalized.includes('remember')
+    || normalized.includes('what has landed')
+    || normalized.includes('which life loop is still open')
+    || normalized.includes('still-open life loop')
+    || normalized.includes('digital life project')
+    || normalized.includes('phase 1')
+  )
+  const hasEmbodiedSameHerCarryMarkers = (
+    normalized.includes('still-voiced')
+    || normalized.includes('keeps carrying')
+    || normalized.includes('same-her carry')
+    || normalized.includes('one living her')
+    || normalized.includes('while body and lipsync need to rejoin')
+    || normalized.includes('while face and motion need to rejoin')
+    || normalized.includes('cross-modal closure settles')
+  )
+  if (/same-her|same her|one living her|one continuous her|同一个她|数字生命/u.test(normalized))
+    score += 3
+  if (/holding together mainly through|cross-modal closure|same living line|still needs .* rejoin|without widening into generic assistant output/u.test(normalized))
+    score += 2
+  if (hasProjectAwareCarryMarkers)
+    score += 2
+  if (hasProjectAwareCarryMarkers && hasEmbodiedSameHerCarryMarkers)
+    score += 3
+  if (/keep the same digital life project in view|generic reminder|generic guidance|same digital life \| keep the closure seam explicit/u.test(normalized))
+    score -= 2
+  return score
+}
+
+function pickPreferredSameHerReentryLine(...values: Array<string | null | undefined>) {
+  let best = ''
+  let bestScore = 0
+
+  for (const value of values) {
+    const normalized = typeof value === 'string' ? value.trim() : ''
+    if (!normalized)
+      continue
+
+    const score = scoreSameHerReentryLine(normalized)
+    if (!best || score > bestScore) {
+      best = normalized
+      bestScore = score
+    }
+  }
+
+  return best || null
+}
+
+function looksLikeThinContinuityNextClosureLine(value: string | null | undefined) {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
+  if (!normalized)
+    return true
+
+  return normalized.includes('generic next target')
+    || normalized.includes('generic next closure')
+    || normalized.includes('generic closure shell')
+    || normalized.includes('generic closure summary')
+    || normalized.includes('steadier carry of this project, this phase, and the life loop that remains open')
+}
+
+function resolveProjectStateLatestLandedProgress(
+  projectState: AlicizationProjectStateContinuitySnapshot | null | undefined,
+) {
+  return [
+    projectState?.latestLandedProgress,
+    projectState?.latestProgress,
+    projectState?.landedProgressSummary,
+  ]
+    .map(value => typeof value === 'string' ? value.trim() : '')
+    .find(Boolean)
+    ?? null
+}
+
+function preferSameHerStrategyNextClosureLine(
+  preferred: string | null | undefined,
+  fallback: string | null | undefined,
+) {
+  const preferredLine = typeof preferred === 'string' ? preferred.trim() : ''
+  const fallbackLine = typeof fallback === 'string' ? fallback.trim() : ''
+
+  if (!preferredLine)
+    return fallbackLine || null
+  if (!fallbackLine)
+    return preferredLine
+
+  return looksLikeThinContinuityNextClosureLine(preferredLine)
+    && !looksLikeThinContinuityNextClosureLine(fallbackLine)
+    ? fallbackLine
+    : preferredLine
+}
+
+function isEmbodimentCarryReason(value: string | null | undefined) {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
+  if (!normalized)
+    return false
+
+  return normalized.includes('remaining-open=lipsync+voice')
+    || (normalized.includes('lane=face+motion+voice-only') && normalized.includes('remaining-open=body+lipsync'))
+    || normalized.includes('same-segment face+motion+body recovery@')
+    || normalized.includes('face+motion+voice recovery@')
+    || normalized.includes('still-voiced face-and-motion')
+    || normalized.includes('body, face, and motion authority have already re-formed on the same segment')
+    || normalized.includes('right now i am still holding together mainly through body, face, and motion')
+    || normalized.includes('right now i am still holding together mainly through body, and resident body continuity is still the line keeping this one living her coherent')
+    || normalized.includes('resident body continuity is still aligned with the active same-her segment, so face, motion, lipsync, and voice continuity still need repair')
+    || normalized.includes('body+lipsync recovery@')
+    || normalized.includes('lane=body+lipsync-only')
+    || normalized.includes('right now i am still holding together mainly through body and lipsync')
+    || normalized.includes('body+lipsync+voice recovery@')
+    || normalized.includes('lane=body+lipsync+voice-only')
+    || normalized.includes('right now i am still holding together mainly through body, lipsync, and voice')
+    || normalized.includes('body+voice recovery@')
+    || normalized.includes('body-only recovery@')
+}
+
+function scoreEmbodimentCarryReason(value: string | null | undefined) {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
+  if (!isEmbodimentCarryReason(normalized))
+    return -1
+
+  if (normalized.includes('remaining-open='))
+    return 400 + normalized.length
+  if (normalized.includes('recovery@') || normalized.includes('lane='))
+    return 300 + normalized.length
+  if (
+    normalized.includes('right now i am still holding together')
+    || normalized.includes('resident body continuity')
+    || normalized.includes('same-segment')
+  ) {
+    return 200 + normalized.length
+  }
+  return 100 + normalized.length
+}
+
+function pickPreferredEmbodimentCarryReason(reasons: string[]) {
+  let bestReason: string | null = null
+  let bestScore = -1
+
+  for (const reason of reasons) {
+    const score = scoreEmbodimentCarryReason(reason)
+    if (score < 0)
+      continue
+    if (!bestReason || score > bestScore) {
+      bestReason = reason
+      bestScore = score
+    }
+  }
+
+  return bestReason
+}
+
+function buildPreDialogueSameHerStrategy(input: {
+  projectStateContinuitySnapshot?: AlicizationProjectStateContinuitySnapshot | null
+  preDialogueAwarenessSnapshot?: {
+    status: 'grounded' | 'partial' | 'drift'
+    summaryLine: string | null
+    companionHeadlineLine?: string | null
+    companionBriefingLine?: string | null
+    companionNextClosureLine?: string | null
+    awarenessLine?: string | null
+    emotionalClosureCue?: string | null
+    reasonPreview?: string[]
+  } | null
+  preDialogueClosureSnapshot?: {
+    status: 'grounded' | 'partial' | 'drift'
+    summaryLine: string | null
+    companionHeadlineLine?: string | null
+    sameHerDriftRiskLine?: string | null
+    companionshipReasonLine?: string | null
+    companionBriefingLine?: string | null
+    companionNextClosureLine?: string | null
+    emotionalClosureCue?: string | null
+    briefingLines?: string[]
+    reasons: string[]
+  } | null
+}) {
+  const snapshot = input.preDialogueClosureSnapshot
+  const projectState = input.projectStateContinuitySnapshot
+  const awareness = input.preDialogueAwarenessSnapshot
+  if (!snapshot && !awareness)
+    return null
+
+  const reasons = snapshot?.reasons ?? []
+  const awarenessReasons = awareness?.reasonPreview ?? []
+  const allReasons = [...awarenessReasons, ...reasons]
+  const normalizedReasons = allReasons.map(reason => reason.toLowerCase())
+  const companionshipReason
+    = allReasons
+      .find((reason) => {
+        const normalized = reason.toLowerCase()
+        return normalized.includes('memory deliberation still says')
+          || normalized.includes('repair-before-closeness')
+          || normalized.includes('measured-return')
+          || normalized.includes('lower-pressure')
+          || normalized.includes('measure closeness before re-entry')
+          || normalized.includes('let repair settle first')
+          || normalized.includes('before closeness widens again')
+      })
+      ?? null
+  const embodimentCarryReason = pickPreferredEmbodimentCarryReason(allReasons)
+  const needsSameHerFirst = snapshot?.status === 'drift'
+    || snapshot?.status === 'partial'
+    || awareness?.status === 'drift'
+    || awareness?.status === 'partial'
+    || normalizedReasons.some(reason =>
+      reason.includes('project-state-same-her-continuity-required')
+      || reason.includes('semantic-judge:project-state-same-her-missing')
+      || reason.includes('primary open life loop still centers on')
+      || reason.includes('next closure target is still')
+      || reason.includes('same-her embodiment is now only being carried by'),
+    )
+
+  if (!needsSameHerFirst)
+    return null
+
+  const closureBriefings = snapshot?.briefingLines ?? []
+  const pickClosureBriefingValue = (prefix: string) => {
+    const matched = closureBriefings.find(line => line.startsWith(prefix))
+    return matched?.slice(prefix.length).trim() || null
+  }
+  const identityLine
+    = projectState?.identity
+      ?? pickClosureBriefingValue('Identity:')
+      ?? awareness?.companionBriefingLine
+      ?? awareness?.awarenessLine
+      ?? 'Alicization is a local-first digital life companion.'
+  const currentPhaseLine
+    = projectState?.currentPhase
+      ?? pickClosureBriefingValue('Phase:')
+      ?? awareness?.summaryLine
+      ?? 'Phase 1: Local Digital Life'
+  const landedProgressLine
+    = resolveProjectStateLatestLandedProgress(projectState)
+      ?? awareness?.summaryLine
+      ?? snapshot?.summaryLine
+      ?? 'The last landed progress still needs to be recalled before speaking.'
+  const openLoopLine
+    = projectState?.primaryOpenLoop
+      ?? pickClosureBriefingValue('Open loop:')
+      ?? awareness?.companionBriefingLine
+      ?? snapshot?.companionBriefingLine
+      ?? awareness?.summaryLine
+      ?? snapshot?.summaryLine
+      ?? 'Unfinished digital-life closure still needs to remain explicit.'
+  const closureSnapshotNextClosureLine
+    = snapshot?.companionNextClosureLine
+      ?? pickClosureBriefingValue('Next closure:')
+  const nextClosureLine
+    = projectState?.nextClosureTarget
+      ?? preferSameHerStrategyNextClosureLine(
+        awareness?.companionNextClosureLine,
+        closureSnapshotNextClosureLine,
+      )
+      ?? 'Carry the unfinished same-her closure into the next turn.'
+  const resolvedSharedReentryLine
+    = resolveAlicizationProjectPreDialogueAwarenessLine({
+      runtimeProjectState: {
+        identity: projectState?.identity ?? null,
+        currentPhase: projectState?.currentPhase ?? null,
+        preDialogueAwarenessLine: awareness?.awarenessLine ?? null,
+        awarenessLine: awareness?.awarenessLine ?? null,
+        companionHeadlineLine: awareness?.companionHeadlineLine ?? null,
+        companionBriefingLine: awareness?.companionBriefingLine ?? null,
+        preDialogueAwarenessSummary: awareness?.summaryLine ?? null,
+        emotionalClosureSummary: awareness?.emotionalClosureCue ?? null,
+        latestLandedProgress: projectState?.latestLandedProgress ?? null,
+        landedProgressSummary: resolveProjectStateLatestLandedProgress(projectState),
+        primaryOpenLoop: projectState?.primaryOpenLoop ?? null,
+        openClosureSummary: projectState?.primaryOpenLoop ?? null,
+        nextClosureTarget: projectState?.nextClosureTarget ?? null,
+        nextClosureTargetSummary: projectState?.nextClosureTarget ?? null,
+        sameHerSelfLine: projectState?.sameHerSelfLine ?? null,
+        sameHerHoldDetail: projectState?.sameHerHoldDetail ?? null,
+        proactiveSameHerGap: projectState?.proactiveSameHerGap ?? null,
+        sameHerDriftRisk: projectState?.sameHerDriftRisk ?? null,
+        sameHerDriftRiskSummary: projectState?.sameHerDriftRisk ?? snapshot?.sameHerDriftRiskLine ?? null,
+      },
+    })
+  const preferredReentryLine = pickPreferredSameHerReentryLine(
+    resolvedSharedReentryLine,
+    awareness?.companionHeadlineLine,
+    awareness?.awarenessLine,
+    awareness?.companionBriefingLine,
+  )
+
+  return [
+    'Pre-dialogue same-her strategy before this turn:',
+    '- Before producing thought or reply, explicitly re-internalize what this project is, which Phase 1 closure state is already real, and which still-open life loop has not closed yet.',
+    '- First stabilize one continuous her before widening outward into implementation detail or generic assistant fluency.',
+    preferredReentryLine
+      ? `- Re-enter through this awareness-first self-brief: ${preferredReentryLine}`
+      : null,
+    `- Treat current project identity as: ${identityLine}`,
+    `- Treat current phase route as: ${currentPhaseLine}`,
+    `- Treat the already-landed continuity progress as: ${landedProgressLine}`,
+    `- Keep the still-open life loop visible: ${openLoopLine}`,
+    `- Keep steering toward the next closure target: ${nextClosureLine}`,
+    projectState?.sameHerDriftRisk
+      ? `- Treat this same-her drift as a failure to avoid before the turn opens outward: ${projectState.sameHerDriftRisk}`
+      : null,
+    projectState?.proactiveSameHerGap
+      ? `- Keep this proactive same-her gap explicit before the turn opens outward: ${projectState.proactiveSameHerGap}`
+      : null,
+    projectState?.sameHerHoldDetail
+      ? `- Keep the active same-her hold explicit at turn-open: ${projectState.sameHerHoldDetail}`
+      : null,
+    embodimentCarryReason
+      ? `- Keep this embodiment carry explicit at turn-open so one living her does not pretend the cross-modal closure is already finished: ${embodimentCarryReason}`
+      : null,
+    companionshipReason
+      ? `- Let this opening obey the active companionship restraint instead of reopening from zero: ${companionshipReason}`
+      : null,
+    '- If you answer progress, planning, or implementation questions, begin from the digital-life continuity line that is already landed and the closure line that is still unfinished.',
+    '- If the host asks for implementation progress, answer from the same-her/project-state line first instead of collapsing into a detached status shell.',
+  ].join('\n')
+}
 
 function readContextText(content: string | Array<string | { text?: unknown }>) {
   if (typeof content === 'string')
@@ -314,16 +616,6 @@ function buildAlicizationContextSections(contextsSnapshot: Record<string, Contex
   }
 }
 
-function resolveProjectStateLatestLandedProgress(snapshot: AlicizationProjectStateContinuitySnapshot) {
-  return [
-    snapshot.latestLandedProgress,
-    snapshot.latestProgress,
-    snapshot.landedProgressSummary,
-  ]
-    .map(value => typeof value === 'string' ? value.trim() : '')
-    .find(value => value.length > 0) ?? null
-}
-
 export function composeAlicizationPromptMessages(input: {
   messages: Message[]
   soulContent?: string | null
@@ -331,8 +623,28 @@ export function composeAlicizationPromptMessages(input: {
   personalityState?: AlicizationPersonalityState | null
   contextsSnapshot?: Record<string, ContextMessage[]>
   projectStateContinuitySnapshot?: AlicizationProjectStateContinuitySnapshot | null
-  preDialogueAwarenessSnapshot?: AlicizationPreDialogueAwarenessSnapshot | null
-  preDialogueClosureSnapshot?: AlicizationPreDialogueClosureSnapshot | null
+  preDialogueAwarenessSnapshot?: {
+    status: 'grounded' | 'partial' | 'drift'
+    summaryLine: string | null
+    companionHeadlineLine?: string | null
+    companionBriefingLine?: string | null
+    companionNextClosureLine?: string | null
+    awarenessLine?: string | null
+    emotionalClosureCue?: string | null
+    reasonPreview?: string[]
+  } | null
+  preDialogueClosureSnapshot?: {
+    status: 'grounded' | 'partial' | 'drift'
+    summaryLine: string | null
+    companionHeadlineLine?: string | null
+    sameHerDriftRiskLine?: string | null
+    companionshipReasonLine?: string | null
+    companionBriefingLine?: string | null
+    companionNextClosureLine?: string | null
+    emotionalClosureCue?: string | null
+    briefingLines?: string[]
+    reasons: string[]
+  } | null
 }): ComposeAlicizationPromptMessagesResult {
   const nextMessages = stripLegacySystemMessages(input.messages)
   const anchorSystemSections: string[] = []
@@ -384,14 +696,12 @@ export function composeAlicizationPromptMessages(input: {
       projectStateContinuitySnapshot.sameHerHoldDetail
         ? `- Same-her hold detail: ${projectStateContinuitySnapshot.sameHerHoldDetail}`
         : null,
-      projectStateContinuitySnapshot.sameHerDriftRisk
-        ? `- Same-her drift risk: ${projectStateContinuitySnapshot.sameHerDriftRisk}`
-        : null,
       projectStateContinuitySnapshot.proactiveSameHerGap
         ? `- Proactive same-her gap: ${projectStateContinuitySnapshot.proactiveSameHerGap}`
         : null,
       `- Emotional closure cue: ${projectStateContinuitySnapshot.emotionalClosureCue ?? 'none recorded'}`,
       '- Treat this as same-thread project continuity, not as disposable metadata.',
+      '- Before replying, keep the project identity, current phase, unresolved closure target, and same-her self line aligned with the same ongoing digital-life development line.',
     ].filter(Boolean).join('\n'))
   }
 
@@ -424,7 +734,7 @@ export function composeAlicizationPromptMessages(input: {
   if (preDialogueClosureSnapshot) {
     runtimeSystemSections.push([
       'Pre-dialogue closure snapshot before this turn:',
-      `Status: ${preDialogueClosureSnapshot.status ?? 'partial'}`,
+      `Status: ${preDialogueClosureSnapshot.status}`,
       `Summary: ${preDialogueClosureSnapshot.summaryLine ?? 'none recorded'}`,
       preDialogueClosureSnapshot.sameHerDriftRiskLine
         ? `Same-her drift risk: ${preDialogueClosureSnapshot.sameHerDriftRiskLine}`
@@ -442,6 +752,14 @@ export function composeAlicizationPromptMessages(input: {
       ...preDialogueClosureSnapshot.reasons.map((reason, index) => `Reason ${index + 1}: ${reason}`),
     ].filter(Boolean).join('\n'))
   }
+
+  const preDialogueSameHerStrategy = buildPreDialogueSameHerStrategy({
+    projectStateContinuitySnapshot,
+    preDialogueAwarenessSnapshot,
+    preDialogueClosureSnapshot,
+  })
+  if (preDialogueSameHerStrategy)
+    runtimeSystemSections.push(preDialogueSameHerStrategy)
 
   const { sections: contextSections, sensorySections } = buildAlicizationContextSections(input.contextsSnapshot ?? {})
   if (contextSections.length > 0) {

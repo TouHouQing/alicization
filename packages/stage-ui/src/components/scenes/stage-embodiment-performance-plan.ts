@@ -304,11 +304,12 @@ function resolveSupportedFacialCue(
     supportedKeys: supportedCueKeys,
   })
   if (preferredCues.length > 0) {
-    return resolveCueWithVariation({
+    const resolvedPreferredCue = resolveCueWithVariation({
       channel: 'facial',
       candidates: preferredCues,
       continuity,
     })
+    return resolvedPreferredCue
   }
 
   const candidates = resolveStageEmbodimentCueCandidates({

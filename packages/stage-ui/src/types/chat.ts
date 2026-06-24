@@ -58,9 +58,20 @@ export interface ChatAssistantStructuredPayload {
   digitalLifeSpine?: AlicizationDigitalLifeSpineDigest | null
   proactive?: AlicizationProactiveMetadata
   governance?: AlicizationMindTurnGovernance | null
-  projectState?: AlicizationRuntimeProjectStateDigest | null
+  projectState?: {
+    identity: string
+    currentPhase: string
+    latestLandedProgress: string | null
+    latestProgress?: string | null
+    primaryOpenLoop: string | null
+    nextClosureTarget: string
+    continuitySummary?: string | null
+    sameHerSelfLine?: string | null
+    sameHerHoldDetail?: string | null
+    sameHerDriftRisk?: string | null
+  } | null
   preDialogueClosure?: {
-    status: 'grounded' | 'partial' | 'drift' | 'rewritten' | null
+    status: 'grounded' | 'partial' | 'drift'
     summaryLine: string | null
     companionHeadlineLine?: string | null
     sameHerDriftRiskLine?: string | null
@@ -81,10 +92,25 @@ export interface ChatAssistantStructuredPayload {
     emotionalClosureCue?: string | null
     reasonPreview: string[]
   } | null
+  visibleReplyRealization?: {
+    projectStateAudit?: {
+      sameHerSummary?: unknown
+      landedProgressSummary?: unknown
+      openClosureSummary?: unknown
+      preDialogueAwarenessSummary?: unknown
+      continuitySummary?: unknown
+      embodimentClosureSummary?: unknown
+      sameHerDriftRisk?: unknown
+    } | null
+  } | null
+  visibleReplyBlocked?: boolean
+  nonHumanAuthoredStatus?: string | null
+  visibleReplyAuthority?: string | null
   policyLocked?: string
 }
 
 export interface ChatAssistantMessage extends AssistantMessage {
+  id?: string
   origin?: 'user-turn' | 'subconscious-proactive'
   slices: ChatSlices[]
   tool_results: {
@@ -143,6 +169,7 @@ export type ChatStreamEvent
     | { type: 'token-special', special: string, sessionId: string, context: ChatStreamEventContext }
     | { type: 'stream-end', sessionId: string, context: ChatStreamEventContext }
     | { type: 'assistant-end', message: string, sessionId: string, context: ChatStreamEventContext }
+    | { type: 'tool-call', toolCall: CompletionToolCall, sessionId: string, context: ChatStreamEventContext }
     | { type: 'assistant-message', message: ChatAssistantMessage, sessionId: string, messageText: string, context: ChatStreamEventContext }
 
 export type StreamingAssistantMessage = ChatAssistantMessage & { context?: ContextMessage } & { createdAt?: number, id?: string }

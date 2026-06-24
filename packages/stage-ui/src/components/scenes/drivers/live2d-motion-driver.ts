@@ -5,8 +5,10 @@ import type {
 
 import {
   hasAlicizationAudibleSameHerCarry,
+  hasAlicizationBodyVoiceOnlySameHerCarry,
   hasAlicizationQuieterSameHerCarry,
   hasAlicizationSoftenedSameHerCarry,
+  hasAlicizationStillVoicedSameHerCarry,
   normalizeAlicizationRendererHintTokens,
 } from '@proj-alicization/stage-shared'
 
@@ -65,7 +67,7 @@ function clampRestrainedCallbackActionCue(input: {
     || input.preferredGazeMode === 'soften'
     || input.preferredGazeMode === 'steady'
   )
-  const sameHerStillVoicedReturn = (
+  const sameHerSoftenedReturn = (
     hasSofteningWindow
   ) && hasAlicizationSoftenedSameHerCarry({
     signature: input.signature,
@@ -77,13 +79,28 @@ function clampRestrainedCallbackActionCue(input: {
     signature: input.signature,
     reasonTags: input.reasonTags,
   })
+  const sameHerBodyVoiceOnlyReturn = (
+    hasSofteningWindow
+  ) && hasAlicizationBodyVoiceOnlySameHerCarry({
+    signature: input.signature,
+    reasonTags: input.reasonTags,
+  })
+  const sameHerStillVoicedReturn = (
+    hasSofteningWindow
+  ) && hasAlicizationStillVoicedSameHerCarry({
+    signature: input.signature,
+    reasonTags: input.reasonTags,
+  })
   const sameHerQuieterLane = hasSofteningWindow && hasAlicizationQuieterSameHerCarry({
     signature: input.signature,
     reasonTags: input.reasonTags,
   })
-  const sameHerSoftenedReturn = sameHerStillVoicedReturn
-  const sameHerBodyVoiceOnlyLane = sameHerAudibleReturn
-    && normalizedReasonTags.includes('embodiment:body+voice_only')
+  const sameHerBodyVoiceOnlyLane = sameHerBodyVoiceOnlyReturn
+    || (sameHerAudibleReturn && normalizedReasonTags.includes('embodiment:body+voice_only'))
+  const sameHerAudibleRejoinLane = sameHerAudibleReturn
+    && input.residentMode === 'same-thread-continuation'
+  const sameHerStillVoicedLane = sameHerStillVoicedReturn
+    && input.residentMode === 'same-thread-continuation'
   if (input.residentMode === 'repair-before-closeness') {
     return 'idle_settle'
   }
@@ -97,7 +114,7 @@ function clampRestrainedCallbackActionCue(input: {
     return 'observe_focus'
   }
   if (
-    (sameHerBodyVoiceOnlyLane || sameHerQuieterLane)
+    (sameHerAudibleRejoinLane || sameHerBodyVoiceOnlyLane || sameHerQuieterLane || sameHerStillVoicedLane)
     && input.cueKind === 'action-burst'
     && (input.actionCue === 'steady_focus' || input.actionCue === 'observe_focus')
   ) {
