@@ -27,7 +27,9 @@ export function useElectronMouseEventTarget() {
       return
 
     startedTracking = true
-    void defineInvoke(context, startLoopGetCursorScreenPoint)()
+    void defineInvoke(context, startLoopGetCursorScreenPoint)().catch((error) => {
+      console.warn('[electron-vueuse] Failed to start cursor screen point loop.', error)
+    })
   })
 
   return ref(sharedEventTarget)

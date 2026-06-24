@@ -31,7 +31,9 @@ function initializeWindowBoundsTracking() {
   })
 
   tryOnMounted(() => {
-    void defineInvoke(context, startLoopGetBounds)()
+    void defineInvoke(context, startLoopGetBounds)().catch((error) => {
+      console.warn('[electron-vueuse] Failed to start window bounds loop.', error)
+    })
   })
 }
 
