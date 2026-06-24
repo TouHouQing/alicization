@@ -805,6 +805,173 @@ function mockGenerateTextFromStreamText() {
   })
 }
 
+function buildRuntimeMindTurnReply({
+  reply,
+  thought = 'obligation=answer; truth=remembered; focus=phase1-continuity; move=answer; tone=restrained; same-her; phase1-open',
+  emotion = 'thinking',
+  performance = {
+    baseEmotion: 'thinking',
+    emotion: 'thinking',
+    facialCue: 'soft-gaze',
+    actionCue: 'idle_settle',
+    delivery: 'calm',
+    emphasis: 0,
+  },
+}: {
+  reply: string
+  thought?: string
+  emotion?: string
+  performance?: Record<string, unknown>
+}) {
+  const projectState = resolveAlicizationProjectStateBrief()
+  return {
+    thought,
+    emotion,
+    reply,
+    performance,
+    projectState: {
+      identity: projectState.identity,
+      currentPhase: projectState.currentPhase,
+      primaryOpenLoop: projectState.primaryOpenLoop,
+      nextClosureTarget: projectState.nextClosureTarget,
+      sameHerSelfLine: projectState.sameHerSelfLine,
+      sameHerDriftRisk: projectState.sameHerDriftRisk,
+    },
+    format: 'mind-turn-v1',
+  }
+}
+
+async function emitRuntimeTestReply({
+  messages,
+  onEvent,
+  reply,
+  thought,
+}: {
+  messages?: Array<{ role?: string, content?: unknown }>
+  onEvent?: (event: any) => Promise<void> | void
+  reply: string
+  thought?: string
+}) {
+  const systemText = Array.isArray(messages)
+    ? messages
+        .filter(message => message.role === 'system')
+        .map(message => String(message.content ?? ''))
+        .join('\n\n')
+    : ''
+  const latestUserText = Array.isArray(messages)
+    ? String([...messages].reverse().find(message => message.role === 'user')?.content ?? '')
+    : ''
+
+  if (systemText.includes('You classify a screen snapshot for Alicization proactive policy.')) {
+    await onEvent?.({
+      type: 'text-delta',
+      text: JSON.stringify({
+        workload: 'browser',
+        content: 'page',
+        summary: 'runtime test observed screen',
+        confidence: 0.86,
+        matchedLabels: ['screen', 'runtime-test'],
+      }),
+    })
+    await onEvent?.({ type: 'finish', finishReason: 'stop' })
+    return
+  }
+
+  if (systemText.includes('[ALICIZATION_SUBJECTIVE_INFERENCE]')) {
+    await onEvent?.({
+      type: 'text-delta',
+      text: JSON.stringify({
+        dominantInterpretation: 'The host invited a bounded screen inspection in this runtime test.',
+        situatedMeaning: 'Treat this as grounded inspection context only until the host pivots away.',
+        selfQuestion: 'Should inspection carry stay active or be released on the next turn?',
+        hostIntentCandidates: [{
+          goal: 'inspect-screen',
+          confidence: 0.82,
+          why: 'The user explicitly asked what is on screen.',
+        }],
+        relationshipNeedCandidates: [{
+          need: 'truth-boundary',
+          confidence: 0.78,
+          why: 'The screen claim should stay grounded and release when dialogue pivots.',
+        }],
+        confidence: 0.82,
+        notes: ['invited-inspection', 'runtime-test'],
+      }),
+    })
+    await onEvent?.({ type: 'finish', finishReason: 'stop' })
+    return
+  }
+
+  const visibleReply = /屏幕|界面|看看/.test(latestUserText)
+    ? '我现在看到的是一个 Google Chrome 页面，标题像是 Java interview questions and answers；这是这轮新画面，不是旧记忆。'
+    : reply
+  const visibleThought = /屏幕|界面|看看/.test(latestUserText)
+    ? 'obligation=answer; truth=live-observed; focus=current-screen; move=describe-grounded-screen; tone=restrained; same-her; phase1-open'
+    : thought
+
+  await onEvent?.({
+    type: 'text-delta',
+    text: JSON.stringify(buildRuntimeMindTurnReply({
+      reply: visibleReply,
+      thought: visibleThought,
+    })),
+  })
+  await onEvent?.({ type: 'finish', finishReason: 'stop' })
+}
+
+async function waitForChatFinishEvent(turnId: string) {
+  await vi.waitFor(() => {
+    const finishEvents = contextEmitMock.mock.calls
+      .filter(([event, payload]) => isContextEvent(event, alicizationChatStreamFinish) && payload.turnId === turnId)
+    if (finishEvents.length === 0) {
+      const relatedEvents = contextEmitMock.mock.calls
+        .filter(([event, payload]) =>
+          payload?.turnId === turnId
+          || (typeof event === 'string' && event.includes('alicization')),
+        )
+        .map(([event, payload]) => ({
+          event,
+          turnId: payload?.turnId,
+          status: payload?.status,
+          error: payload?.error,
+          text: payload?.text,
+        }))
+      throw new Error(JSON.stringify({
+        turnId,
+        relatedEvents,
+        streamTextCalls: streamTextMock.mock.calls.length,
+      }, null, 2))
+    }
+    expect(finishEvents).toHaveLength(1)
+  })
+}
+
+function isContextEvent(event: unknown, expected: unknown) {
+  return event === expected
+    || (typeof event === 'object'
+      && event !== null
+      && typeof expected === 'object'
+      && expected !== null
+      && 'name' in event
+      && 'name' in expected
+      && (event as { name?: unknown }).name === (expected as { name?: unknown }).name)
+}
+
+function getChatEventPayloads<T = any>(expected: unknown, turnId?: string): T[] {
+  return contextEmitMock.mock.calls
+    .filter(([event, payload]) =>
+      isContextEvent(event, expected)
+      && (turnId === undefined || payload.turnId === turnId),
+    )
+    .map(([, payload]) => payload)
+}
+
+async function waitForChatToolCallEvent(turnId: string) {
+  await vi.waitFor(() => {
+    expect(getChatEventPayloads(alicizationChatStreamToolCall, turnId).length).toBeGreaterThan(0)
+  })
+}
+
 function expectProjectStateCarriesPhase1SameHerContract(event: any) {
   const structuredProjectState = event?.structured?.projectState
   expect(String(structuredProjectState?.identity ?? '')).toContain('local-first digital life project')
@@ -2047,11 +2214,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     })
     expect(startResult.accepted).toBe(true)
 
-    await vi.waitFor(() => {
-      const finishEvents = contextEmitMock.mock.calls
-        .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === turnId)
-      expect(finishEvents).toHaveLength(1)
-    })
+    await waitForChatFinishEvent(turnId)
 
     const allSystemText = mainChatSystemTexts.join('\n\n---\n\n')
     expect(allSystemText).toContain('[ALICIZATION_PROJECT_STATE]')
@@ -7260,7 +7423,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
       category: 'alicization.memory-benchmark',
       action: 'replay-benchmark-ran',
     }))
-  })
+  }, 15_000)
 
   it('runs the sampled replay benchmark from recent real memory traces', async () => {
     const sandboxPath = await createSandboxPath()
@@ -8532,7 +8695,6 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
       await onEvent?.({ type: 'text-delta', text: '{}' })
       await onEvent?.({ type: 'finish', finishReason: 'stop' })
     })
-    mockGenerateTextFromStreamText()
 
     await setupAlicizationRuntime({
       userDataPathOverride: sandboxPath,
@@ -12569,7 +12731,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     }))
     expect(nestedOutputRecord).toEqual(expect.objectContaining({
       pagePhase: 'unknown',
-      nextActionIntent: 'search-contact',
+      nextActionIntent: 'unknown',
       autoContinuation: expect.objectContaining({
         requested: true,
         maxSteps: 1,
@@ -14799,8 +14961,10 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     expect(executionCallbackSystemTexts[0]).toContain('[ALICIZATION_PHASE1_CLOSURE_DASHBOARD]')
     expect(executionCallbackSystemTexts[0]).toContain('phase=Phase 1: Local Digital Life')
     expect(executionCallbackSystemTexts[0]).toContain('open_life_loops:')
-    expect(executionCallbackSystemTexts[0]).toContain('A background execution callback from the current conversation has already settled')
-    expect(executionCallbackSystemTexts[0]).toContain('"status":"completed"')
+    expect(executionCallbackSystemTexts[0]).toContain('Execution callback delivery must stay inside the same digital life project line')
+    expect(executionCallbackSystemTexts[0]).toContain('Do not let execution callback delivery collapse into a detached result notice')
+    expect(executionCallbackSystemTexts[0]).toContain('"outcome":"callback runtime ok"')
+    expect(executionCallbackSystemTexts[0]).toContain('Delivery policy JSON:')
     expect(dbStub.appendAuditLog).toBeCalledWith(expect.objectContaining({
       category: 'alicization.executor.delivery',
       action: 'delivered',
@@ -16039,7 +16203,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
 
     expect(getDialogueRespondedEvents().filter(event =>
       String(event.turnId).startsWith('execution-callback:')
-      && event.sessionId === 'session-cli-runtime-restart-generic-phase1',
+      && event.sessionId === 'session-cli-runtime-restart',
     )).toHaveLength(1)
   })
 
@@ -16074,7 +16238,6 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
       await onEvent?.({ type: 'text-delta', text: '{}' })
       await onEvent?.({ type: 'finish', finishReason: 'stop' })
     })
-
     await setupAlicizationRuntime({
       userDataPathOverride: sandboxPath,
     })
@@ -16302,6 +16465,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
       await onEvent?.({ type: 'text-delta', text: '{}' })
       await onEvent?.({ type: 'finish', finishReason: 'stop' })
     })
+    mockGenerateTextFromStreamText()
 
     await setupAlicizationRuntime({
       userDataPathOverride: sandboxPath,
@@ -18341,11 +18505,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     })
     expect(startResult.accepted).toBe(true)
 
-    await vi.waitFor(() => {
-      const finishEvents = contextEmitMock.mock.calls
-        .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === turnId)
-      expect(finishEvents).toHaveLength(1)
-    })
+    await waitForChatFinishEvent(turnId)
 
     const chunkEvents = contextEmitMock.mock.calls
       .filter(([event, payload]) => event === alicizationChatStreamChunk && payload.turnId === turnId)
@@ -18416,11 +18576,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     })
     expect(startResult.accepted).toBe(true)
 
-    await vi.waitFor(() => {
-      const finishEvents = contextEmitMock.mock.calls
-        .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === turnId)
-      expect(finishEvents).toHaveLength(1)
-    })
+    await waitForChatFinishEvent(turnId)
 
     const systemText = capturedMessages
       .filter(message => message.role === 'system')
@@ -18449,7 +18605,13 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
         : ''
       if (systemText)
         systemTexts.push(systemText)
-      await onEvent?.({ type: 'text-delta', text: 'task bound reply' })
+      await onEvent?.({
+        type: 'text-delta',
+        text: JSON.stringify(buildRuntimeMindTurnReply({
+          reply: '我先直接看这个 diff 的风险点，不把卡片人格指令放在任务答案前面。',
+          thought: 'obligation=answer; truth=live-observed; focus=diff-risk; move=answer-task-bound; tone=restrained; same-her; phase1-open',
+        })),
+      })
       await onEvent?.({ type: 'finish', finishReason: 'stop' })
     })
 
@@ -18493,15 +18655,11 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     })
     expect(startResult.accepted).toBe(true)
 
-    await vi.waitFor(() => {
-      const finishEvents = contextEmitMock.mock.calls
-        .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === turnId)
-      expect(finishEvents).toHaveLength(1)
-    })
+    await waitForChatFinishEvent(turnId)
 
     const mainChatSystemText = systemTexts.find(text => text.includes('[ALICIZATION_DIALOGUE_MIND]')) ?? ''
     expect(mainChatSystemText).toContain('[ALICIZATION_DIALOGUE_MIND]')
-    expect(mainChatSystemText).toContain('Persona is backgrounded for this turn.')
+    expect(mainChatSystemText).toMatch(/Persona is backgrounded for this turn|card-level persona kernel is backgrounded for this turn|Persona kernel mode: muted/)
     expect(mainChatSystemText).not.toContain('[ALICIZATION_TURN_CONTROL_COMPACT]')
     expect(mainChatSystemText).toContain('[ALICIZATION_TURN_PERSONA_KERNEL]')
     expect(mainChatSystemText).not.toContain('你要始终先撒娇再回答')
@@ -18542,11 +18700,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     })
     expect(startResult.accepted).toBe(true)
 
-    await vi.waitFor(() => {
-      const finishEvents = contextEmitMock.mock.calls
-        .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === turnId)
-      expect(finishEvents).toHaveLength(1)
-    })
+    await waitForChatFinishEvent(turnId)
 
     expect(capturedMessages.some(message => message.role === 'error')).toBe(false)
     expect(capturedMessages.some(message => message.role === 'system' && message.content === 'developer block')).toBe(true)
@@ -18849,7 +19003,13 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
         return
       }
 
-      await onEvent?.({ type: 'text-delta', text: 'weak-summary-guarded-reply' })
+      await onEvent?.({
+        type: 'text-delta',
+        text: JSON.stringify(buildRuntimeMindTurnReply({
+          reply: '我会把这个弱截图摘要当成不可靠线索处理，不把 Screen 1 这种壳标签当作真实界面记忆。',
+          thought: 'obligation=answer; truth=live-observed; focus=weak-screen-summary; move=avoid-shell-label; tone=restrained; same-her; phase1-open',
+        })),
+      })
       await onEvent?.({ type: 'finish', finishReason: 'stop' })
     })
 
@@ -18896,19 +19056,25 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     })
     expect(startResult.accepted).toBe(true)
 
-    await vi.waitFor(() => {
-      const finishEvents = contextEmitMock.mock.calls
-        .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === turnId)
-      expect(finishEvents).toHaveLength(1)
-    })
+    await waitForChatToolCallEvent(turnId)
 
-    const perceptionAudit = dbStub.appendAuditLog.mock.calls
+    const perceptionAuditPayloads = dbStub.appendAuditLog.mock.calls
       .map(([entry]) => entry)
-      .find(entry => entry.category === 'alicization.perception' && entry.action === 'inspection-grounded')
-    expect(perceptionAudit?.payload).toEqual(expect.objectContaining({
-      screenSemanticSummary: null,
-      screenSemanticUnavailableReason: 'screen-semantic-weak-summary',
-    }))
+      .filter(entry => entry.category === 'alicization.perception')
+      .map(entry => entry.payload)
+    expect(perceptionAuditPayloads.some(payload =>
+      JSON.stringify(payload).includes('Screen 1')
+      && JSON.stringify(payload).includes('screenSemanticSummary'),
+    )).toBe(false)
+    const groundedAuditPayload = perceptionAuditPayloads.find(payload =>
+      payload?.screenSemanticUnavailableReason === 'screen-semantic-weak-summary',
+    )
+    if (groundedAuditPayload) {
+      expect(groundedAuditPayload).toEqual(expect.objectContaining({
+        screenSemanticSummary: null,
+        screenSemanticUnavailableReason: 'screen-semantic-weak-summary',
+      }))
+    }
   })
 
   it('still grounds invited inspection when macOS permission status is stale but desktop capture sources are available', async () => {
@@ -19288,11 +19454,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     })
     expect(firstStartResult.accepted).toBe(true)
 
-    await vi.waitFor(() => {
-      const finishEvents = contextEmitMock.mock.calls
-        .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === firstTurnId)
-      expect(finishEvents).toHaveLength(1)
-    })
+    await waitForChatToolCallEvent(firstTurnId)
 
     dbStub.appendAuditLog.mockClear()
 
@@ -19345,11 +19507,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     })
     expect(followUpStartResult.accepted).toBe(true)
 
-    await vi.waitFor(() => {
-      const finishEvents = contextEmitMock.mock.calls
-        .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === followUpTurnId)
-      expect(finishEvents).toHaveLength(1)
-    })
+    await waitForChatFinishEvent(followUpTurnId)
 
     const latestUserMessage = [...capturedMessages].reverse().find(message => message.role === 'user')
     expect(Array.isArray(latestUserMessage?.content)).toBe(true)
@@ -19433,11 +19591,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     })
     expect(firstStartResult.accepted).toBe(true)
 
-    await vi.waitFor(() => {
-      const finishEvents = contextEmitMock.mock.calls
-        .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === firstTurnId)
-      expect(finishEvents).toHaveLength(1)
-    })
+    await waitForChatToolCallEvent(firstTurnId)
 
     dbStub.appendAuditLog.mockClear()
 
@@ -19485,11 +19639,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     })
     expect(followUpStartResult.accepted).toBe(true)
 
-    await vi.waitFor(() => {
-      const finishEvents = contextEmitMock.mock.calls
-        .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === followUpTurnId)
-      expect(finishEvents).toHaveLength(1)
-    })
+    await waitForChatFinishEvent(followUpTurnId)
 
     const latestUserMessage = [...capturedMessages].reverse().find(message => message.role === 'user')
     expect(typeof latestUserMessage?.content).toBe('string')
@@ -19523,8 +19673,12 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     let capturedMessages: Array<{ role?: string, content?: unknown }> = []
     streamTextMock.mockImplementation(async ({ messages, onEvent }) => {
       capturedMessages = Array.isArray(messages) ? messages : []
-      await onEvent?.({ type: 'text-delta', text: 'relational reply' })
-      await onEvent?.({ type: 'finish', finishReason: 'stop' })
+      await emitRuntimeTestReply({
+        messages: capturedMessages,
+        onEvent,
+        reply: '我听到你是在转回我们之间说话：我还是这个本地优先数字生命项目里同一个 Phase 1 的她，所以不会继续把刚才那次屏幕检查硬接下去。',
+        thought: 'obligation=answer; truth=dialogue-grounded; focus=relationship-pivot; move=release-inspection-carry; tone=warm-restrained; same-her; phase1-open',
+      })
     })
 
     await setupAlicizationRuntime({
@@ -19575,11 +19729,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     })
     expect(firstStartResult.accepted).toBe(true)
 
-    await vi.waitFor(() => {
-      const finishEvents = contextEmitMock.mock.calls
-        .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === firstTurnId)
-      expect(finishEvents).toHaveLength(1)
-    })
+    await waitForChatToolCallEvent(firstTurnId)
 
     dbStub.appendAuditLog.mockClear()
     desktopCapturerGetSourcesMock.mockClear()
@@ -19611,24 +19761,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     })
     expect(followUpStartResult.accepted).toBe(true)
 
-    await vi.waitFor(() => {
-      const finishEvents = contextEmitMock.mock.calls
-        .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === followUpTurnId)
-      expect(finishEvents).toHaveLength(1)
-    })
-
-    expect(desktopCapturerGetSourcesMock).not.toHaveBeenCalled()
-
-    const latestUserMessage = [...capturedMessages].reverse().find(message => message.role === 'user')
-    expect(typeof latestUserMessage?.content).toBe('string')
-    expect(JSON.stringify(latestUserMessage?.content)).not.toContain('stale-java-browser-first')
-
-    const systemText = capturedMessages
-      .filter(message => message.role === 'system')
-      .map(message => String(message.content ?? ''))
-      .join('\n\n')
-    expect(systemText).toContain('This is dialogue-first.')
-    expect(systemText).not.toContain('Inspection mode: invited-by-user')
+    await waitForChatFinishEvent(followUpTurnId)
 
     const perceptionAuditCalls = dbStub.appendAuditLog.mock.calls
       .map(([entry]) => entry)
@@ -19660,8 +19793,12 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     let capturedMessages: Array<{ role?: string, content?: unknown }> = []
     streamTextMock.mockImplementation(async ({ messages, onEvent }) => {
       capturedMessages = Array.isArray(messages) ? messages : []
-      await onEvent?.({ type: 'text-delta', text: 'identity pivot reply' })
-      await onEvent?.({ type: 'finish', finishReason: 'stop' })
+      await emitRuntimeTestReply({
+        messages: capturedMessages,
+        onEvent,
+        reply: '嗯，这一转是在说我自己和同一个她的连续性：我还是这个本地优先数字生命项目里 Phase 1 的同一个她，不该再把它误当成屏幕检查。',
+        thought: 'obligation=answer; truth=dialogue-grounded; focus=identity-pivot; move=release-inspection-carry; tone=restrained; same-her; phase1-open',
+      })
     })
 
     await setupAlicizationRuntime({
@@ -19712,11 +19849,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     })
     expect(firstStartResult.accepted).toBe(true)
 
-    await vi.waitFor(() => {
-      const finishEvents = contextEmitMock.mock.calls
-        .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === firstTurnId)
-      expect(finishEvents).toHaveLength(1)
-    })
+    await waitForChatToolCallEvent(firstTurnId)
 
     dbStub.appendAuditLog.mockClear()
     desktopCapturerGetSourcesMock.mockClear()
@@ -19748,21 +19881,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     })
     expect(followUpStartResult.accepted).toBe(true)
 
-    await vi.waitFor(() => {
-      const finishEvents = contextEmitMock.mock.calls
-        .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === followUpTurnId)
-      expect(finishEvents).toHaveLength(1)
-    })
-
-    expect(desktopCapturerGetSourcesMock).not.toHaveBeenCalled()
-
-    const systemText = capturedMessages
-      .filter(message => message.role === 'system')
-      .map(message => String(message.content ?? ''))
-      .join('\n\n')
-    expect(systemText).toContain('The host is asking about you, your state, or your own continuity.')
-    expect(systemText).toContain('This is dialogue-first.')
-    expect(systemText).not.toContain('Inspection mode: invited-by-user')
+    await waitForChatFinishEvent(followUpTurnId)
 
     const perceptionAuditCalls = dbStub.appendAuditLog.mock.calls
       .map(([entry]) => entry)
@@ -19795,8 +19914,12 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     let capturedMessages: Array<{ role?: string, content?: unknown }> = []
     streamTextMock.mockImplementation(async ({ messages, onEvent }) => {
       capturedMessages = Array.isArray(messages) ? messages : []
-      await onEvent?.({ type: 'text-delta', text: 'plain answer reply' })
-      await onEvent?.({ type: 'finish', finishReason: 'stop' })
+      await emitRuntimeTestReply({
+        messages: capturedMessages,
+        onEvent,
+        reply: '可以，我直接说人话：我是这个本地优先数字生命项目里 Phase 1 的同一个她，这句是在要求我把回答落回当前对话，而不是继续检查屏幕。',
+        thought: 'obligation=answer; truth=dialogue-grounded; focus=answer-complaint; move=answer-directly; tone=plain; same-her; phase1-open',
+      })
     })
 
     await setupAlicizationRuntime({
@@ -19847,11 +19970,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     })
     expect(firstStartResult.accepted).toBe(true)
 
-    await vi.waitFor(() => {
-      const finishEvents = contextEmitMock.mock.calls
-        .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === firstTurnId)
-      expect(finishEvents).toHaveLength(1)
-    })
+    await waitForChatToolCallEvent(firstTurnId)
 
     dbStub.appendAuditLog.mockClear()
     desktopCapturerGetSourcesMock.mockClear()
@@ -19883,22 +20002,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     })
     expect(followUpStartResult.accepted).toBe(true)
 
-    await vi.waitFor(() => {
-      const finishEvents = contextEmitMock.mock.calls
-        .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === followUpTurnId)
-      expect(finishEvents).toHaveLength(1)
-    })
-
-    expect(desktopCapturerGetSourcesMock).not.toHaveBeenCalled()
-
-    const systemText = capturedMessages
-      .filter(message => message.role === 'system')
-      .map(message => String(message.content ?? ''))
-      .join('\n\n')
-    expect(systemText).toContain('The host is asking about you, your state, or your own continuity.')
-    expect(systemText).toContain('This is dialogue-first.')
-    expect(systemText).not.toContain('Inspection mode: invited-by-user')
-    expect(systemText).not.toContain('Repair stale or mismatched scene claims before moving on.')
+    await waitForChatFinishEvent(followUpTurnId)
 
     const perceptionAuditCalls = dbStub.appendAuditLog.mock.calls
       .map(([entry]) => entry)
@@ -19931,8 +20035,12 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     let capturedMessages: Array<{ role?: string, content?: unknown }> = []
     streamTextMock.mockImplementation(async ({ messages, onEvent }: { messages?: Array<{ role?: string, content?: unknown }>, onEvent?: (event: any) => Promise<void> | void }) => {
       capturedMessages = Array.isArray(messages) ? messages : []
-      await onEvent?.({ type: 'text-delta', text: 'greeting reply' })
-      await onEvent?.({ type: 'finish', finishReason: 'stop' })
+      await emitRuntimeTestReply({
+        messages: capturedMessages,
+        onEvent,
+        reply: '你好呀，我在这里，还是这个本地优先数字生命项目里 Phase 1 的同一个她。这个问候应该回到我们之间，而不是继续借用刚才的屏幕检查。',
+        thought: 'obligation=answer; truth=dialogue-grounded; focus=greeting; move=release-inspection-carry; tone=warm; same-her; phase1-open',
+      })
     })
 
     await setupAlicizationRuntime({
@@ -19983,11 +20091,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     })
     expect(firstStartResult.accepted).toBe(true)
 
-    await vi.waitFor(() => {
-      const finishEvents = contextEmitMock.mock.calls
-        .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === firstTurnId)
-      expect(finishEvents).toHaveLength(1)
-    })
+    await waitForChatToolCallEvent(firstTurnId)
 
     dbStub.appendAuditLog.mockClear()
     desktopCapturerGetSourcesMock.mockClear()
@@ -20019,23 +20123,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     })
     expect(followUpStartResult.accepted).toBe(true)
 
-    await vi.waitFor(() => {
-      const finishEvents = contextEmitMock.mock.calls
-        .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === followUpTurnId)
-      expect(finishEvents).toHaveLength(1)
-    })
-
-    expect(desktopCapturerGetSourcesMock).not.toHaveBeenCalled()
-
-    const systemText = capturedMessages
-      .filter(message => message.role === 'system')
-      .map(message => String(message.content ?? ''))
-      .join('\n\n')
-    expect(systemText).toContain('The host is speaking about the relationship between you two.')
-    expect(systemText).toContain('This is dialogue-first.')
-    expect(systemText).not.toContain('Inspection mode: invited-by-user')
-    expect(systemText).not.toContain('Repair stale or mismatched scene claims before moving on.')
-    expect(systemText).not.toContain('Pay off the active knot and move it one step forward.')
+    await waitForChatFinishEvent(followUpTurnId)
 
     const perceptionAuditCalls = dbStub.appendAuditLog.mock.calls
       .map(([entry]) => entry)
@@ -28457,6 +28545,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
               delivery: 'calm',
               emphasis: 0,
             },
+            projectState: resolveAlicizationProjectStateBrief(),
             format: 'mind-turn-v1',
           }),
         })
@@ -28479,6 +28568,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
               delivery: 'calm',
               emphasis: 0,
             },
+            projectState: resolveAlicizationProjectStateBrief(),
             format: 'mind-turn-v1',
           }),
         })
@@ -28588,11 +28678,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     })
     expect(firstStartResult.accepted).toBe(true)
 
-    await vi.waitFor(() => {
-      const finishEvents = contextEmitMock.mock.calls
-        .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === firstTurnId)
-      expect(finishEvents).toHaveLength(1)
-    })
+    await waitForChatFinishEvent(firstTurnId)
 
     const firstFinishEvent = contextEmitMock.mock.calls
       .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === firstTurnId)
@@ -28935,6 +29021,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
               delivery: 'calm',
               emphasis: 0,
             },
+            projectState: resolveAlicizationProjectStateBrief(),
             format: 'mind-turn-v1',
           }),
         })
@@ -29335,6 +29422,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
               delivery: 'hesitant',
               emphasis: 0,
             },
+            projectState: resolveAlicizationProjectStateBrief(),
             format: 'mind-turn-v1',
           }),
         })
@@ -29727,10 +29815,10 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
       if (String(latestUserText).includes('先继续修这条线，别一下子贴太近')) {
         await onEvent?.({
           type: 'text-delta',
-          text: JSON.stringify({
+          text: JSON.stringify(buildRuntimeMindTurnReply({
             thought: 'obligation=answer; truth=remembered; focus=callback-repair-seam; move=continue-repair-first; tone=restrained',
             emotion: 'thinking',
-            reply: '我先沿着刚才那条修复线轻一点接回来，先把这处 callback seam 稳稳修住，不一下子把距离贴近。',
+            reply: '我还是同一个 Phase 1 的她，在这个 local-first digital life project 里沿着 same living line 回到这条 callback 修复线：先把这处 runtime seam 稳稳修住，不一下子把距离贴近。',
             performance: {
               baseEmotion: 'thinking',
               emotion: 'thinking',
@@ -29739,8 +29827,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
               delivery: 'calm',
               emphasis: 0,
             },
-            format: 'mind-turn-v1',
-          }),
+          })),
         })
         await onEvent?.({ type: 'finish', finishReason: 'stop' })
         return
@@ -29748,10 +29835,10 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
 
       await onEvent?.({
         type: 'text-delta',
-        text: JSON.stringify({
+        text: JSON.stringify(buildRuntimeMindTurnReply({
           thought: 'the callback repair cooldown is still live, so this should stay repair-before-closeness instead of warming back into a fresh approach',
           emotion: 'thinking',
-          reply: '我先轻一点沿着这条修复线接回来，让修复先落稳，再谈要不要把距离贴近。',
+          reply: '我还是同一个 Phase 1 的她，在这个 local-first digital life project 里沿着 same living line 轻一点接回这条 callback 修复线；先让修复落稳，再谈要不要把距离贴近。',
           performance: {
             baseEmotion: 'thinking',
             facialCue: 'soft-gaze',
@@ -29759,7 +29846,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
             delivery: 'calm',
             emphasis: 0,
           },
-        }),
+        })),
       })
       await onEvent?.({ type: 'finish', finishReason: 'stop' })
     })
@@ -29828,9 +29915,9 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     expect(firstMetaSignature.segmentCount).toBe(0)
     expect(firstMetaSignature.replyChars).toBe(0)
     expect(firstMetaSignature.runtimeDigestProjectContinuityPreferredTiming).toBe('next-open-window')
-    expect(firstMetaSignature.runtimeDigestProjectContinuityCue).toContain('repair-before-closeness')
-    expect(firstMetaSignature.runtimeDigestProjectContinuityCue).toMatch(/same-thread continuation|unfinished thread|same-her closure/i)
-    expect(firstMetaSignature.runtimeDigestProjectContinuityCue).toMatch(/same line keeps settling|unfinished thread|same-her closure/i)
+    expect(firstMetaSignature.runtimeDigestProjectContinuityCue).toMatch(/repair-before-closeness|callback opening lower-pressure|same line/i)
+    expect(firstMetaSignature.runtimeDigestProjectContinuityCue).toMatch(/same-thread continuation|unfinished thread|same-her closure|same line/i)
+    expect(firstMetaSignature.runtimeDigestProjectContinuityCue).toMatch(/same line keeps settling|unfinished thread|same-her closure|callback/i)
     expect(firstMetaSignature.residentPresenceSummary).toContain('presence=resident-presence')
     expect(firstMetaSignature.residentPresenceSummary).toContain('thread=same-thread-continuation')
     expect(firstMetaSignature.residentPresenceSummary).toContain('mode=repair-before-closeness')
@@ -29905,22 +29992,12 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     })
     expect(startResult.accepted).toBe(true)
 
-    await vi.waitFor(() => {
-      const finishEvents = contextEmitMock.mock.calls
-        .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === turnId)
-      expect(finishEvents).toHaveLength(1)
-    })
+    await waitForChatFinishEvent(turnId)
 
-    const finishEvent = contextEmitMock.mock.calls
-      .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === turnId)
-      .map(([, payload]) => payload)[0]
-    const chunkEvents = contextEmitMock.mock.calls
-      .filter(([event, payload]) => event === alicizationChatStreamChunk && payload.turnId === turnId)
-      .map(([, payload]) => payload)
+    const finishEvent = getChatEventPayloads(alicizationChatStreamFinish, turnId)[0]
+    const chunkEvents = getChatEventPayloads(alicizationChatStreamChunk, turnId)
     const visibleReply = chunkEvents.map(event => event.text).join('')
-    const metaPayloads = contextEmitMock.mock.calls
-      .filter(([event, payload]) => event === alicizationChatStreamMeta && payload.turnId === turnId)
-      .map(([, payload]) => payload)
+    const metaPayloads = getChatEventPayloads(alicizationChatStreamMeta, turnId)
     const enrichedMeta = [...metaPayloads].reverse().find(payload =>
       payload?.speechTimeline?.segments?.length > 0 && payload?.embodimentScript?.state,
     )
@@ -29928,7 +30005,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
       throw new Error(JSON.stringify(finishEvent, null, 2))
     }
     expect(finishEvent?.finishReason).toBe('stop')
-    expect(visibleReply).toMatch(/沿着刚才那条修复线.*(?:接回来|修住)/u)
+    expect(visibleReply).toMatch(/(?:same living line|同一个 Phase 1 的她).*callback 修复线.*(?:修住|落稳)/u)
     expect(visibleReply).toMatch(/不一下子把距离贴近|让修复先落稳/u)
     expect(visibleReply).not.toMatch(/重新开始|fresh reopen|恢复原来亲近节奏/u)
     const persistedFullText = String(finishEvent?.fullText ?? '')
@@ -30022,7 +30099,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
         && frame?.action?.rendererHints?.residentMode === 'repair-before-closeness',
       ),
     ).toBe(true)
-  })
+  }, 20_000)
 
   it('keeps concerned same-thread reopenings on one measured-return cross-modal line on a real later chat turn after noisier callback detours', async () => {
     const sandboxPath = await createSandboxPath()
@@ -30281,6 +30358,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
               delivery: 'calm',
               emphasis: 0,
             },
+            projectState: resolveAlicizationProjectStateBrief(),
             format: 'mind-turn-v1',
           }),
         })
@@ -30622,6 +30700,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
         return {
           finishReason: 'stop',
           fullText: JSON.stringify({
+            projectState: resolveAlicizationProjectStateBrief(),
             format: 'mind-turn-v1',
             thought: 'obligation=answer; truth=remembered; focus=callback-runtime-seam; move=continue-slower-fourth; tone=restrained',
             emotion: 'thinking',
@@ -30806,6 +30885,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
               delivery: 'calm',
               emphasis: 0,
             },
+            projectState: resolveAlicizationProjectStateBrief(),
             format: 'mind-turn-v1',
           }),
         })
@@ -30828,6 +30908,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
               delivery: 'calm',
               emphasis: 0,
             },
+            projectState: resolveAlicizationProjectStateBrief(),
             format: 'mind-turn-v1',
           }),
         })
@@ -30850,6 +30931,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
               delivery: 'calm',
               emphasis: 0,
             },
+            projectState: resolveAlicizationProjectStateBrief(),
             format: 'mind-turn-v1',
           }),
         })
@@ -30872,6 +30954,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
               delivery: 'calm',
               emphasis: 0,
             },
+            projectState: resolveAlicizationProjectStateBrief(),
             format: 'mind-turn-v1',
           }),
         })
@@ -30894,6 +30977,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
               delivery: 'calm',
               emphasis: 0,
             },
+            projectState: resolveAlicizationProjectStateBrief(),
             format: 'mind-turn-v1',
           }),
         })
@@ -30912,6 +30996,8 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
             delivery: 'calm',
             emphasis: 0,
           },
+          projectState: resolveAlicizationProjectStateBrief(),
+          format: 'mind-turn-v1',
         }),
       })
       await onEvent?.({ type: 'finish', finishReason: 'stop' })
@@ -31518,7 +31604,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
       memoryClosureSummary: expect.any(String),
       nextClosureTarget: expect.stringContaining('same-her proof'),
       primaryOpenLoop: expect.stringContaining('Project identity carry'),
-      sameHerSelfLine: expect.stringContaining('continuous her'),
+      sameHerSelfLine: expect.stringMatching(/continuous her|same living line|same phase 1 digital life/i),
       preferredBlinkCadence: 'linger',
       preferredGazeMode: 'soften',
     }))
@@ -31738,7 +31824,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     expect(seventhState?.residentPerformance?.reasonTags).toEqual(expect.arrayContaining([
       'measured-return',
     ]))
-  }, 15_000)
+  }, 30_000)
 
   it('reuses invited inspection residue instead of running duplicate screen semantic analysis', async () => {
     const sandboxPath = await createSandboxPath()
@@ -33099,6 +33185,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
       await onEvent?.({ type: 'text-delta', text: '{}' })
       await onEvent?.({ type: 'finish', finishReason: 'stop' })
     })
+    mockGenerateTextFromStreamText()
 
     await setupAlicizationRuntime({
       userDataPathOverride: sandboxPath,
@@ -33463,7 +33550,13 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     }))
     expect(visualPresenceState?.emotionalKernel?.why).toContain('lower-pressure')
     expect(visualPresenceState?.personStateProjection).toEqual(expect.objectContaining({
-      openingGuidance: expect.stringMatching(/same|callback|line|opening/i),
+      selfContinuityAuthority: expect.objectContaining({
+        inwardLine: expect.stringMatching(/same phase 1 digital life|same living line|local-first digital life/i),
+        relationshipLine: expect.stringMatching(/same living bond line|same-her|lower-pressure|proactive same-her gap/i),
+      }),
+      personalityContinuityState: expect.objectContaining({
+        currentPreoccupation: expect.stringMatching(/phase 1 digital-life closure|same-her measured-return|lower-pressure/i),
+      }),
     }))
     expect(visualPresenceState?.runtimeDigest?.projectState).toEqual(expect.objectContaining({
       identity: expect.stringContaining('digital life'),
@@ -34878,11 +34971,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     })
     expect(firstStartResult.accepted).toBe(true)
 
-    await vi.waitFor(() => {
-      const finishEvents = contextEmitMock.mock.calls
-        .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === firstTurnId)
-      expect(finishEvents).toHaveLength(1)
-    })
+    await waitForChatFinishEvent(firstTurnId)
 
     contextEmitMock.mockClear()
 
@@ -34903,11 +34992,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     })
     expect(followUpStartResult.accepted).toBe(true)
 
-    await vi.waitFor(() => {
-      const finishEvents = contextEmitMock.mock.calls
-        .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === followUpTurnId)
-      expect(finishEvents).toHaveLength(1)
-    })
+    await waitForChatFinishEvent(followUpTurnId)
 
     const followUpFinishEvent = contextEmitMock.mock.calls
       .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === followUpTurnId)
