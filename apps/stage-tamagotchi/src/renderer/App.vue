@@ -9,6 +9,7 @@ import type { AlicizationCardScope, AlicizationChatAbortPayload, AlicizationChat
 import { defineInvokeHandler } from '@moeru/eventa'
 import { useElectronEventaContext, useElectronEventaInvoke } from '@proj-alicization/electron-vueuse'
 import { themeColorFromValue, useThemeColor } from '@proj-alicization/stage-layouts/composables/theme-color'
+import { sanitizeCharacterPerformanceManifest } from '@proj-alicization/stage-shared'
 import { ToasterRoot } from '@proj-alicization/stage-ui/components'
 import { clearAlicizationBridge, setAlicizationBridge } from '@proj-alicization/stage-ui/stores/alicization-bridge'
 import { useAlicizationEpoch1Store } from '@proj-alicization/stage-ui/stores/alicization-epoch1'
@@ -131,7 +132,10 @@ import {
   pluginProtocolListProviders,
   pluginProtocolListProvidersEventName,
 } from '../shared/eventa'
-import { bridgeAlicizationChatMetaEventToStreamEvent } from './alicization-chat-stream-bridge'
+import {
+  bridgeAlicizationChatMetaEventToStreamEvent,
+  bridgeAlicizationChatStartResultToStreamEvent,
+} from './alicization-chat-stream-bridge'
 import { normalizeChatStructuredRecord, resolveVisibleReasoning } from './alicization-chat-structured-record'
 import { initializeStageThreeRuntimeTraceBridge } from './bridges/stage-three-runtime-trace'
 import { useServerChannelSettingsStore } from './stores/settings/server-channel'
@@ -975,8 +979,13 @@ setAlicizationBridge({
   ),
   getSelfEvolutionState: async () => await alicizationGetSelfEvolutionState(resolveAlicizationScope()),
   searchOrganicSubconsciousFragments: async payload => await alicizationSearchOrganicSubconsciousFragments({ ...resolveAlicizationScope(), ...payload }),
-  getPerformanceManifest: async () => await alicizationGetPerformanceManifest(resolveAlicizationScope()),
-  setPerformanceManifest: async manifest => await alicizationSetPerformanceManifest({ ...resolveAlicizationScope(), manifest }),
+  getPerformanceManifest: async () => sanitizeCharacterPerformanceManifest(
+    await alicizationGetPerformanceManifest(resolveAlicizationScope()),
+  ),
+  setPerformanceManifest: async manifest => await alicizationSetPerformanceManifest({
+    ...resolveAlicizationScope(),
+    manifest: sanitizeCharacterPerformanceManifest(manifest),
+  }),
   appendConversationTurn: async payload => await alicizationAppendConversationTurn({ ...resolveAlicizationScope(), ...payload }),
   listMindTurnEvents: async payload => await alicizationListMindTurnEvents({ ...resolveAlicizationScope(), ...payload }),
   listMemoryDecisionTraces: async payload => await alicizationListMemoryDecisionTraces({ ...resolveAlicizationScope(), ...payload }),
@@ -1141,14 +1150,7 @@ setAlicizationBridge({
           },
         }).catch(() => {})
         if (start.accepted) {
-          await options.onStreamEvent?.({
-            type: 'meta',
-            governance: start.governance ?? null,
-            embodiment: start.embodiment ?? null,
-            speechTimeline: start.speechTimeline ?? null,
-            digitalLife: start.digitalLife ?? null,
-            digitalLifeSpine: start.digitalLifeSpine ?? null,
-          })
+          await options.onStreamEvent?.(bridgeAlicizationChatStartResultToStreamEvent(scope.cardId, start))
         }
         if (!start.accepted) {
           const state = typeof start.state === 'string' ? start.state : 'unknown'

@@ -80,7 +80,7 @@ export function bridgeAlicizationChatMetaEventToStreamEvent(
   payload: AlicizationChatMetaEvent,
 ): Extract<AlicizationBridgeChatStreamEvent, { type: 'meta' }> {
   const normalizedProjectState = normalizeStructuredProjectStatePayload(
-    payload.projectState ?? payload.runtimeDigest?.projectState ?? null,
+    (payload.projectState ?? payload.runtimeDigest?.projectState ?? null) as Record<string, unknown> | null,
   )
   const bridgedProjectState = normalizedProjectState
     && !normalizedProjectState.sameHerSelfLine
@@ -93,10 +93,10 @@ export function bridgeAlicizationChatMetaEventToStreamEvent(
       }
     : normalizedProjectState ?? null
   const normalizedPreDialogueAwareness = normalizeStructuredPreDialogueAwarenessPayload(
-    payload.preDialogueAwareness ?? null,
+    (payload.preDialogueAwareness ?? null) as Record<string, unknown> | null,
   )
   const normalizedPreDialogueClosure = normalizeStructuredPreDialogueClosurePayload(
-    payload.preDialogueClosure ?? null,
+    (payload.preDialogueClosure ?? null) as Record<string, unknown> | null,
   )
   const bridgedExplicitPreDialogueAwareness = normalizedPreDialogueAwareness
     ? {
@@ -152,9 +152,9 @@ export function bridgeAlicizationChatMetaEventToStreamEvent(
   const bridgedPreDialogueAwareness = bridgedExplicitPreDialogueAwareness
     ?? (
       bridgedProjectState?.identity
-      && bridgedProjectState.currentPhase
-      && bridgedProjectState.primaryOpenLoop
-      && bridgedProjectState.nextClosureTarget
+      && bridgedProjectState?.currentPhase
+      && bridgedProjectState?.primaryOpenLoop
+      && bridgedProjectState?.nextClosureTarget
         ? {
             status: 'grounded' as const,
             summaryLine: bridgedProjectState.latestLandedProgress ?? null,
@@ -205,7 +205,6 @@ export function bridgeAlicizationChatStartResultToStreamEvent(
     governance: payload.governance ?? null,
     projectState: payload.projectState ?? null,
     preDialogueAwareness: payload.preDialogueAwareness ?? null,
-    preDialogueClosure: payload.preDialogueClosure ?? null,
     embodiment: payload.embodiment ?? null,
     embodimentScript: payload.embodimentScript ?? null,
     speechTimeline: payload.speechTimeline ?? null,

@@ -1,6 +1,19 @@
-import { normalizeAlicizationDigitalLifeSpineDigest } from '@proj-alicization/stage-ui/stores/alicization-bridge'
+import {
+  normalizeAlicizationDigitalLifeEnvelope,
+  normalizeAlicizationDigitalLifeSpineDigest,
+  normalizeAlicizationEmbodimentScript,
+} from '@proj-alicization/stage-ui/stores/alicization-bridge'
 
 import { normalizeProactiveMetadata, normalizeStructuredFormat } from './alicization-dialogue-normalization'
+
+function resolveStructuredRecordDigitalLifeAuthority(structured: Record<string, unknown>) {
+  const topLevelDigitalLife = structured.digitalLife
+  if (topLevelDigitalLife !== null && topLevelDigitalLife !== undefined)
+    return normalizeAlicizationDigitalLifeEnvelope(topLevelDigitalLife)
+
+  const normalizedEmbodimentScript = normalizeAlicizationEmbodimentScript(structured.embodimentScript)
+  return normalizeAlicizationDigitalLifeEnvelope(normalizedEmbodimentScript?.digitalLife ?? null)
+}
 
 export function normalizeChatStructuredRecord(raw: unknown, fallbackReply: string) {
   const structured = raw && typeof raw === 'object'
@@ -21,6 +34,7 @@ export function normalizeChatStructuredRecord(raw: unknown, fallbackReply: strin
       : undefined,
     malformedFormat: normalizedFormat ? undefined : String(structured.format ?? '').trim() || undefined,
     proactive: normalizeProactiveMetadata(structured.proactive),
+    digitalLife: resolveStructuredRecordDigitalLifeAuthority(structured),
     digitalLifeSpine: normalizeAlicizationDigitalLifeSpineDigest(structured.digitalLifeSpine),
   }
 }
