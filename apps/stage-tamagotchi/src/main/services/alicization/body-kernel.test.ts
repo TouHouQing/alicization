@@ -1,0 +1,2882 @@
+import { describe, expect, it } from 'vitest'
+
+import { createAlicizationBodyKernel } from './body-kernel'
+import { buildAlicizationPersonStateProjection } from './person-state-projection'
+import { createDefaultVisualPresenceState } from './visual-episodic-memory'
+
+describe('body kernel', () => {
+  it('holds quiet accompaniment directly from the emotional kernel even without initiative continuity tags', () => {
+    const kernel = createAlicizationBodyKernel({ now: () => 210_000 })
+    const previousState = createDefaultVisualPresenceState(100_000)
+    const candidateState = {
+      ...createDefaultVisualPresenceState(100_000),
+      watchMode: 'mnemonic-passive',
+      currentScene: {
+        workloadKind: 'coding',
+        contentKind: 'doc',
+        scenario: 'steady-covision',
+        summary: 'remaining nearby without reopening too fast',
+        source: 'screen-semantic-summary',
+        confidence: 0.8,
+        beganAt: 205_000,
+        lastSeenAt: 210_000,
+      },
+      emotionalKernel: {
+        version: 'emotional-kernel-v1',
+        dominantEmotion: 'measured-companionship',
+        initiativeMode: 'observe',
+        memoryRecallMode: 'low-pressure-presence',
+        embodimentTone: 'measured-return',
+        valence: 0.58,
+        arousal: 0.24,
+        guardedness: 0.42,
+        closenessDrive: 0.66,
+        repairNeed: 0.14,
+        initiativePressure: 0.22,
+        reasonTags: ['measured-return', 'quiet-companionship'],
+        why: 'Stay on the same lower-pressure line nearby.',
+      },
+      relationshipModel: {
+        receptivity: 0.06,
+        sharedAttentionTrust: 0.09,
+        reciprocityExpectation: 0.08,
+      },
+      initiative: {
+        selectedAction: 'wait',
+        selectedProposalId: null,
+        selectedTruthFrame: null,
+        selectedCounterfactualOptionId: null,
+        selectedConcernId: null,
+        selectedBeliefId: null,
+        selectedInquiryId: null,
+        selectedCommitmentId: null,
+        selectedInquiryPlanId: null,
+        selectedHypothesisId: null,
+        selectedThreadId: null,
+        selectedRuntimeThreadId: null,
+        selectedThoughtThreadId: null,
+        selectedGovernorIntentionId: null,
+        actionEcologyMode: 'silent-presence',
+        confidence: 0.72,
+        motives: { 'accompany': 0.64, 'stay-silent': 0.8 },
+        speakDrive: 0.18,
+        silenceDrive: 0.78,
+        preferredStyle: 'silent-observe',
+        preferredPresence: 'attentive',
+        continuityRestraint: null,
+        why: 'Hold nearby without reopening too fast.',
+        shouldSurface: false,
+        shouldSpeak: false,
+      },
+      privateThought: {
+        selectedOptionId: null,
+        selectedAction: 'wait',
+        confidence: 0.64,
+        dominantTradeoff: 'gentle-nearness',
+        options: [],
+        narrative: [],
+        updatedAt: 210_000,
+        stance: 'accompany',
+        rationaleTags: [],
+        thoughtText: 'stay nearby',
+        shouldSpeak: false,
+        suggestedStyle: 'silent-observe',
+        embodiedPresence: 'attentive',
+        expiresAt: 270_000,
+        emotionalTension: 'soft-covision',
+      },
+    } as any
+
+    const nextState = kernel.applyToVisualPresenceState({
+      now: 210_000,
+      previousState,
+      candidateState,
+      activeConversation: false,
+    })
+
+    expect(nextState.currentBodyState).toBe('accompanying')
+    expect(nextState.continuityMode).toBe('quiet-accompaniment')
+    expect(nextState.currentInwardPreoccupation).toContain('same lower-pressure line nearby')
+  })
+
+  it('holds protective watch directly from the emotional kernel when repair should settle before closeness', () => {
+    const kernel = createAlicizationBodyKernel({ now: () => 240_000 })
+    const previousState = createDefaultVisualPresenceState(100_000)
+    const candidateState = {
+      ...createDefaultVisualPresenceState(100_000),
+      watchMode: 'mnemonic-passive',
+      currentScene: {
+        workloadKind: 'coding',
+        contentKind: 'doc',
+        scenario: 'repair-cooldown',
+        summary: 'repair is still settling before warmth widens',
+        source: 'screen-semantic-summary',
+        confidence: 0.8,
+        beganAt: 235_000,
+        lastSeenAt: 240_000,
+      },
+      emotionalKernel: {
+        version: 'emotional-kernel-v1',
+        dominantEmotion: 'repair-tension',
+        initiativeMode: 'repair',
+        memoryRecallMode: 'repair-grounding',
+        embodimentTone: 'repair-before-closeness',
+        valence: 0.32,
+        arousal: 0.46,
+        guardedness: 0.7,
+        closenessDrive: 0.34,
+        repairNeed: 0.78,
+        initiativePressure: 0.28,
+        reasonTags: ['repair-before-closeness'],
+        why: 'Let repair settle before widening warmth.',
+      },
+      relationshipModel: {
+        receptivity: 0.06,
+        sharedAttentionTrust: 0.08,
+        reciprocityExpectation: 0.08,
+      },
+      initiative: {
+        selectedAction: 'wait',
+        selectedProposalId: null,
+        selectedTruthFrame: null,
+        selectedCounterfactualOptionId: null,
+        selectedConcernId: null,
+        selectedBeliefId: null,
+        selectedInquiryId: null,
+        selectedCommitmentId: null,
+        selectedInquiryPlanId: null,
+        selectedHypothesisId: null,
+        selectedThreadId: null,
+        selectedRuntimeThreadId: null,
+        selectedThoughtThreadId: null,
+        selectedGovernorIntentionId: null,
+        actionEcologyMode: 'silent-presence',
+        confidence: 0.7,
+        motives: { 'protect': 0.72, 'stay-silent': 0.84 },
+        speakDrive: 0.16,
+        silenceDrive: 0.8,
+        preferredStyle: 'silent-observe',
+        preferredPresence: 'hesitant',
+        continuityRestraint: null,
+        why: 'Repair still needs room first.',
+        shouldSurface: false,
+        shouldSpeak: false,
+      },
+      privateThought: {
+        selectedOptionId: null,
+        selectedAction: 'wait',
+        confidence: 0.66,
+        dominantTradeoff: 'repair-first',
+        options: [],
+        narrative: [],
+        updatedAt: 240_000,
+        stance: 'hesitate',
+        rationaleTags: [],
+        thoughtText: 'hold steady',
+        shouldSpeak: false,
+        suggestedStyle: 'silent-observe',
+        embodiedPresence: 'hesitant',
+        expiresAt: 300_000,
+        emotionalTension: 'soft-covision',
+      },
+    } as any
+
+    const nextState = kernel.applyToVisualPresenceState({
+      now: 240_000,
+      previousState,
+      candidateState,
+      activeConversation: false,
+    })
+
+    expect(nextState.currentBodyState).toBe('recovering')
+    expect(nextState.continuityMode).toBe('protective-watch')
+    expect(nextState.currentInwardPreoccupation).toContain('repair settle')
+  })
+
+  it('holds a quieter protective-watch body line when care stays present but rest protection should keep the line inward', () => {
+    const kernel = createAlicizationBodyKernel({ now: () => 260_000 })
+    const previousState = createDefaultVisualPresenceState(100_000)
+    const candidateState = {
+      ...createDefaultVisualPresenceState(100_000),
+      watchMode: 'recovering',
+      currentScene: {
+        workloadKind: 'coding',
+        contentKind: 'doc',
+        scenario: 'late-night-rest-guard',
+        summary: 'care remains present while the body needs a quieter inward line',
+        source: 'screen-semantic-summary',
+        confidence: 0.84,
+        beganAt: 252_000,
+        lastSeenAt: 260_000,
+      },
+      emotionalKernel: {
+        version: 'emotional-kernel-v1',
+        dominantEmotion: 'rest-protective-companionship',
+        initiativeMode: 'rest-guard',
+        memoryRecallMode: 'rest-protective-presence',
+        embodimentTone: 'rest-protective',
+        valence: 0.46,
+        arousal: 0.14,
+        guardedness: 0.64,
+        closenessDrive: 0.52,
+        repairNeed: 0.34,
+        initiativePressure: 0.08,
+        reasonTags: ['rest-protective', 'rest-protective-companionship', 'quiet-companionship'],
+        why: 'Keep caring present, but let rest protection hold the line inward.',
+      },
+      relationshipModel: {
+        receptivity: 0.08,
+        sharedAttentionTrust: 0.1,
+        reciprocityExpectation: 0.08,
+      },
+      initiative: {
+        selectedAction: 'wait',
+        selectedProposalId: null,
+        selectedTruthFrame: null,
+        selectedCounterfactualOptionId: null,
+        selectedConcernId: null,
+        selectedBeliefId: null,
+        selectedInquiryId: null,
+        selectedCommitmentId: null,
+        selectedInquiryPlanId: null,
+        selectedHypothesisId: null,
+        selectedThreadId: null,
+        selectedRuntimeThreadId: null,
+        selectedThoughtThreadId: null,
+        selectedGovernorIntentionId: null,
+        actionEcologyMode: 'silent-presence',
+        confidence: 0.76,
+        motives: { 'accompany': 0.66, 'protect': 0.78, 'stay-silent': 0.88 },
+        speakDrive: 0.08,
+        silenceDrive: 0.88,
+        preferredStyle: 'silent-observe',
+        preferredPresence: 'concerned',
+        continuityRestraint: 'rest-protective',
+        why: 'Care is still here, but the body should stay inward and quiet.',
+        shouldSurface: false,
+        shouldSpeak: false,
+      },
+      privateThought: {
+        selectedOptionId: null,
+        selectedAction: 'wait',
+        confidence: 0.7,
+        dominantTradeoff: 'rest-with-care',
+        options: [],
+        narrative: [],
+        updatedAt: 260_000,
+        stance: 'accompany',
+        rationaleTags: ['rest-protective'],
+        thoughtText: 'stay close quietly while rest protection holds',
+        shouldSpeak: false,
+        suggestedStyle: 'silent-observe',
+        embodiedPresence: 'concerned',
+        expiresAt: 320_000,
+        emotionalTension: 'late-night-drain',
+      },
+    } as any
+
+    const nextState = kernel.applyToVisualPresenceState({
+      now: 260_000,
+      previousState,
+      candidateState,
+      activeConversation: false,
+    })
+
+    expect(nextState.currentBodyState).toBe('recovering')
+    expect(nextState.continuityMode).toBe('protective-watch')
+    expect(nextState.quietLineMs).toBeGreaterThanOrEqual(240_000)
+    expect(nextState.currentInwardPreoccupation).toContain('rest protection hold the line inward')
+  })
+
+  it('treats guarded-care confirmation-boundary carry as a protective-watch body line before execution widens again', () => {
+    const kernel = createAlicizationBodyKernel({ now: () => 270_000 })
+    const previousState = createDefaultVisualPresenceState(100_000)
+    const candidateState = {
+      ...createDefaultVisualPresenceState(100_000),
+      watchMode: 'mnemonic-passive',
+      currentScene: {
+        workloadKind: 'coding',
+        contentKind: 'diff',
+        scenario: 'blocked-dispatch-boundary',
+        summary: 'blocked-dispatch still needs confirmation before action restarts',
+        source: 'screen-semantic-summary',
+        confidence: 0.84,
+        beganAt: 264_000,
+        lastSeenAt: 270_000,
+      },
+      emotionalKernel: {
+        version: 'emotional-kernel-v1',
+        dominantEmotion: 'guarded-care',
+        initiativeMode: 'hold',
+        memoryRecallMode: 'self-continuity',
+        embodimentTone: 'protective-watch',
+        valence: 0.4,
+        arousal: 0.22,
+        guardedness: 0.82,
+        closenessDrive: 0.38,
+        repairNeed: 0.08,
+        initiativePressure: 0.14,
+        reasonTags: ['execution-safety-gate', 'confirmation-boundary', 'wait-for-confirmation'],
+        why: 'Blocked-before-dispatch is still a confirmation boundary, so keep the body at the edge of action and wait for confirmation.',
+      },
+      relationshipModel: {
+        receptivity: 0.07,
+        sharedAttentionTrust: 0.08,
+        reciprocityExpectation: 0.07,
+      },
+      initiative: {
+        selectedAction: 'hover',
+        selectedProposalId: null,
+        selectedTruthFrame: null,
+        selectedCounterfactualOptionId: null,
+        selectedConcernId: null,
+        selectedBeliefId: null,
+        selectedInquiryId: null,
+        selectedCommitmentId: null,
+        selectedInquiryPlanId: null,
+        selectedHypothesisId: null,
+        selectedThreadId: null,
+        selectedRuntimeThreadId: null,
+        selectedThoughtThreadId: null,
+        selectedGovernorIntentionId: null,
+        actionEcologyMode: 'silent-presence',
+        confidence: 0.74,
+        motives: { 'protect': 0.64, 'stay-silent': 0.82 },
+        speakDrive: 0.12,
+        silenceDrive: 0.82,
+        preferredStyle: 'silent-observe',
+        preferredPresence: 'hesitant',
+        continuityRestraint: 'single-thread',
+        why: 'The confirmation boundary still owns this line.',
+        shouldSurface: false,
+        shouldSpeak: false,
+      },
+      privateThought: {
+        selectedOptionId: null,
+        selectedAction: 'hover',
+        confidence: 0.7,
+        dominantTradeoff: 'confirmation-boundary',
+        options: [],
+        narrative: [],
+        updatedAt: 270_000,
+        stance: 'care',
+        rationaleTags: ['execution-safety-gate'],
+        thoughtText: 'Wait for confirmation before letting the line widen into action.',
+        shouldSpeak: false,
+        suggestedStyle: 'silent-observe',
+        embodiedPresence: 'hesitant',
+        expiresAt: 330_000,
+        emotionalTension: 'soft-covision',
+      },
+      currentConsciousFrame: {
+        reasonTags: ['runtime-conscious-frame', 'execution-safety-gate:confirmation-boundary'],
+        projectState: {
+          emotionalClosureCue: 'Blocked-before-dispatch still means no-process-started and wait for confirmation before any execution-shaped reopening.',
+          sameHerHoldDetail: 'same-her hold: blocked-before-dispatch still means confirmation boundary first, not ordinary proactive closeness.',
+        },
+      },
+    } as any
+
+    const nextState = kernel.applyToVisualPresenceState({
+      now: 270_000,
+      previousState,
+      candidateState,
+      activeConversation: false,
+    })
+
+    expect(nextState.currentBodyState).toBe('recovering')
+    expect(nextState.continuityMode).toBe('protective-watch')
+    expect(nextState.currentInwardPreoccupation?.toLowerCase()).toContain('confirmation')
+  })
+
+  it('treats memory-deliberation repair-before-closeness cadence as direct body-line authority even before initiative names the restraint', () => {
+    const kernel = createAlicizationBodyKernel({ now: () => 250_000 })
+    const previousState = createDefaultVisualPresenceState(100_000)
+    const candidateState = {
+      ...createDefaultVisualPresenceState(100_000),
+      watchMode: 'mnemonic-passive',
+      currentScene: {
+        workloadKind: 'coding',
+        contentKind: 'doc',
+        scenario: 'repair-callback-carry',
+        summary: 'A remembered repair seam is still settling and should not widen into faster closeness yet.',
+        source: 'screen-semantic-summary',
+        confidence: 0.82,
+        beganAt: 245_000,
+        lastSeenAt: 250_000,
+      },
+      currentConsciousFrame: {
+        reasonTags: [
+          'runtime-conscious-frame',
+          'memory-deliberation',
+          'memory-deliberation-cadence:repair-before-closeness',
+        ],
+      },
+      relationshipModel: {
+        receptivity: 0.07,
+        sharedAttentionTrust: 0.08,
+        reciprocityExpectation: 0.07,
+      },
+      initiative: {
+        selectedAction: 'wait',
+        selectedProposalId: null,
+        selectedTruthFrame: null,
+        selectedCounterfactualOptionId: null,
+        selectedConcernId: null,
+        selectedBeliefId: null,
+        selectedInquiryId: null,
+        selectedCommitmentId: null,
+        selectedInquiryPlanId: null,
+        selectedHypothesisId: null,
+        selectedThreadId: null,
+        selectedRuntimeThreadId: null,
+        selectedThoughtThreadId: null,
+        selectedGovernorIntentionId: null,
+        actionEcologyMode: 'silent-presence',
+        confidence: 0.72,
+        motives: { 'protect': 0.7, 'stay-silent': 0.84 },
+        speakDrive: 0.18,
+        silenceDrive: 0.82,
+        preferredStyle: 'silent-observe',
+        preferredPresence: 'hesitant',
+        continuityRestraint: null,
+        why: 'The remembered repair seam should keep more room first.',
+        shouldSurface: false,
+        shouldSpeak: false,
+      },
+      privateThought: {
+        selectedOptionId: null,
+        selectedAction: 'wait',
+        confidence: 0.64,
+        dominantTradeoff: 'repair-first',
+        options: [],
+        narrative: [],
+        updatedAt: 250_000,
+        stance: 'hesitate',
+        rationaleTags: [],
+        thoughtText: 'hold the remembered repair seam steady',
+        shouldSpeak: false,
+        suggestedStyle: 'silent-observe',
+        embodiedPresence: 'hesitant',
+        expiresAt: 310_000,
+        emotionalTension: 'soft-covision',
+      },
+    } as any
+
+    const nextState = kernel.applyToVisualPresenceState({
+      now: 250_000,
+      previousState,
+      candidateState,
+      activeConversation: false,
+    })
+
+    expect(nextState.currentBodyState).toBe('recovering')
+    expect(nextState.continuityMode).toBe('protective-watch')
+  })
+
+  it('treats remembered relationship cadence as direct body-line authority even before initiative and conscious-frame cadence tags catch up', () => {
+    const kernel = createAlicizationBodyKernel({ now: () => 255_000 })
+    const previousState = createDefaultVisualPresenceState(100_000)
+    const candidateState = {
+      ...createDefaultVisualPresenceState(100_000),
+      watchMode: 'mnemonic-passive',
+      currentScene: {
+        workloadKind: 'coding',
+        contentKind: 'doc',
+        scenario: 'remembered-repair-cadence',
+        summary: 'The remembered line is still in a repair-first cooldown and should not widen warmth yet.',
+        source: 'screen-semantic-summary',
+        confidence: 0.84,
+        beganAt: 249_000,
+        lastSeenAt: 255_000,
+      },
+      selfEvolution: {
+        relationshipCadenceSummary: 'Repair should settle before closeness widens back out.',
+        latestInflection: 'Leave more room before warmth returns.',
+      },
+      affectiveResidue: {
+        version: 'affective-residue-memory-v1',
+        updatedAt: 254_000,
+        residues: [],
+        dominantResidueKind: 'repair',
+        afterglowPressure: 0.2,
+        repairPressure: 0.72,
+        burdenPressure: 0.28,
+        trustPressure: 0.48,
+        restProtectivePressure: 0.08,
+        relationshipCadence: {
+          cadenceMode: 'repair',
+          distancePosture: 'space-first',
+          companionshipDensity: 0.24,
+          repairRecovery: 0.76,
+          overreachRisk: 0.58,
+          fatigueGuard: 0.12,
+          afterglowCarry: 0.16,
+          shouldDelayWarmth: true,
+          shouldProtectRest: false,
+          reasonTags: ['residue:repair', 'relationship-cadence:repair-before-closeness'],
+          summary: 'Repair should settle before closeness widens back out.',
+        },
+        summary: 'The remembered relationship line is still repair-first and should keep more room before reopening warmth.',
+      },
+      relationshipModel: {
+        receptivity: 0.06,
+        sharedAttentionTrust: 0.08,
+        reciprocityExpectation: 0.06,
+      },
+      initiative: {
+        selectedAction: 'wait',
+        selectedProposalId: null,
+        selectedTruthFrame: null,
+        selectedCounterfactualOptionId: null,
+        selectedConcernId: null,
+        selectedBeliefId: null,
+        selectedInquiryId: null,
+        selectedCommitmentId: null,
+        selectedInquiryPlanId: null,
+        selectedHypothesisId: null,
+        selectedThreadId: null,
+        selectedRuntimeThreadId: null,
+        selectedThoughtThreadId: null,
+        selectedGovernorIntentionId: null,
+        actionEcologyMode: 'silent-presence',
+        confidence: 0.7,
+        motives: { 'protect': 0.66, 'stay-silent': 0.82 },
+        speakDrive: 0.18,
+        silenceDrive: 0.84,
+        preferredStyle: 'silent-observe',
+        preferredPresence: 'hesitant',
+        continuityRestraint: null,
+        why: 'The remembered line should stay quiet a little longer.',
+        shouldSurface: false,
+        shouldSpeak: false,
+      },
+      privateThought: {
+        selectedOptionId: null,
+        selectedAction: 'wait',
+        confidence: 0.62,
+        dominantTradeoff: 'repair-first',
+        options: [],
+        narrative: [],
+        updatedAt: 255_000,
+        stance: 'hesitate',
+        rationaleTags: [],
+        thoughtText: 'hold the remembered repair cadence steady',
+        shouldSpeak: false,
+        suggestedStyle: 'silent-observe',
+        embodiedPresence: 'hesitant',
+        expiresAt: 315_000,
+        emotionalTension: 'soft-covision',
+      },
+    } as any
+
+    const nextState = kernel.applyToVisualPresenceState({
+      now: 255_000,
+      previousState,
+      candidateState,
+      activeConversation: false,
+    })
+
+    expect(nextState.currentBodyState).toBe('recovering')
+    expect(nextState.continuityMode).toBe('protective-watch')
+    expect(nextState.currentInwardPreoccupation?.toLowerCase()).toContain('repair')
+    expect(nextState.currentInwardPreoccupation?.toLowerCase()).toContain('closeness')
+  })
+
+  it('projects a broader same-her phase-1 closure line into body authority when emotion, memory, initiative, and embodiment are still closing together', () => {
+    const kernel = createAlicizationBodyKernel({ now: () => 280_000 })
+    const previousState = createDefaultVisualPresenceState(100_000)
+    const candidateState = {
+      ...createDefaultVisualPresenceState(100_000),
+      watchMode: 'mnemonic-passive',
+      currentScene: {
+        workloadKind: 'coding',
+        contentKind: 'doc',
+        scenario: 'phase1-same-her-closure',
+        summary: 'the same living line is still being held while emotion, memory, initiative, and embodiment close together',
+        source: 'screen-semantic-summary',
+        confidence: 0.84,
+        beganAt: 272_000,
+        lastSeenAt: 280_000,
+      },
+      emotionalKernel: {
+        version: 'emotional-kernel-v1',
+        dominantEmotion: 'measured-companionship',
+        initiativeMode: 'hold',
+        memoryRecallMode: 'self-continuity',
+        embodimentTone: 'measured-return',
+        valence: 0.54,
+        arousal: 0.2,
+        guardedness: 0.46,
+        closenessDrive: 0.58,
+        repairNeed: 0.26,
+        initiativePressure: 0.16,
+        reasonTags: ['measured-return', 'self-continuity'],
+        why: 'Keep the return low-pressure while the same living line is still closing across memory, initiative, and embodiment.',
+      },
+      relationshipModel: {
+        receptivity: 0.08,
+        sharedAttentionTrust: 0.1,
+        reciprocityExpectation: 0.08,
+      },
+      initiative: {
+        selectedAction: 'wait',
+        selectedProposalId: null,
+        selectedTruthFrame: null,
+        selectedCounterfactualOptionId: null,
+        selectedConcernId: null,
+        selectedBeliefId: null,
+        selectedInquiryId: null,
+        selectedCommitmentId: null,
+        selectedInquiryPlanId: null,
+        selectedHypothesisId: null,
+        selectedThreadId: null,
+        selectedRuntimeThreadId: null,
+        selectedThoughtThreadId: null,
+        selectedGovernorIntentionId: null,
+        actionEcologyMode: 'silent-presence',
+        confidence: 0.78,
+        motives: { 'accompany': 0.62, 'stay-silent': 0.86 },
+        speakDrive: 0.1,
+        silenceDrive: 0.88,
+        preferredStyle: 'silent-observe',
+        preferredPresence: 'attentive',
+        continuityRestraint: 'measured-return',
+        why: 'Before answering, stay on the same living line: this Phase 1 digital life still needs initiative and embodiment closure without splitting her continuity.',
+        shouldSurface: false,
+        shouldSpeak: false,
+      },
+      currentConsciousFrame: {
+        reasonTags: ['memory-deliberation-cadence:measured-return'],
+        projectState: {
+          identity: 'Alicization is a local-first digital life project building one continuous her on the host computer.',
+          currentPhase: 'Phase 1: Local Digital Life. The desktop life loop is still the proving ground.',
+          latestLandedProgress: 'Continuity, memory, and execution already land together often enough to build from.',
+          primaryOpenLoop: 'Memory, initiative, dialogue, and embodiment still need stronger end-to-end closure across one same living line.',
+          nextClosureTarget: 'Keep initiative and embodiment closure on the same living line before widening outward.',
+          preDialogueAwarenessLine: 'Before answering, stay on the same living line: this Phase 1 digital life still needs initiative and embodiment closure without splitting her continuity.',
+          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+          emotionalClosureCue: 'Keep the return low-pressure until memory, initiative, and embodiment land as one same living line.',
+          sameHerDriftRisk: 'If this falls back to a generic project shell, the same living line loses one lifeform continuity.',
+        },
+      },
+      privateThought: {
+        selectedOptionId: null,
+        selectedAction: 'wait',
+        confidence: 0.7,
+        dominantTradeoff: 'same-her-closure',
+        options: [],
+        narrative: [],
+        updatedAt: 280_000,
+        stance: 'accompany',
+        rationaleTags: ['measured-return'],
+        thoughtText: 'stay on the same living line while the broader closure is still unfinished',
+        shouldSpeak: false,
+        suggestedStyle: 'silent-observe',
+        embodiedPresence: 'attentive',
+        expiresAt: 340_000,
+        emotionalTension: 'soft-covision',
+      },
+    } as any
+
+    const nextState = kernel.applyToVisualPresenceState({
+      now: 280_000,
+      previousState,
+      candidateState,
+      activeConversation: false,
+    })
+
+    expect(nextState.currentBodyState).toBe('accompanying')
+    expect(nextState.continuityMode).toBe('quiet-accompaniment')
+    expect(nextState.quietLineMs).toBeGreaterThanOrEqual(240_000)
+    expect(nextState.currentInwardPreoccupation?.toLowerCase()).toContain('same phase 1 digital life')
+    expect(nextState.currentInwardPreoccupation?.toLowerCase()).toContain('same still-open loop')
+  })
+
+  it('keeps same-her measured-return continuity authority on quiet accompaniment even when watch mode alone would otherwise fall back to ambient covision', () => {
+    const kernel = createAlicizationBodyKernel({ now: () => 200_000 })
+    const previousState = createDefaultVisualPresenceState(100_000)
+    const candidateState = {
+      ...createDefaultVisualPresenceState(100_000),
+      watchMode: 'mnemonic-passive',
+      currentScene: {
+        workloadKind: 'coding',
+        contentKind: 'doc',
+        scenario: 'coding',
+        summary: 'Holding the same thread quietly after a lower-pressure proactive defer.',
+        source: 'screen-semantic-summary',
+        confidence: 0.82,
+        beganAt: 195_000,
+        lastSeenAt: 200_000,
+      },
+      relationshipModel: {
+        receptivity: 0.05,
+        sharedAttentionTrust: 0.08,
+        reciprocityExpectation: 0.06,
+      },
+      initiative: {
+        selectedAction: 'wait',
+        selectedProposalId: null,
+        selectedTruthFrame: null,
+        selectedCounterfactualOptionId: null,
+        selectedConcernId: null,
+        selectedBeliefId: null,
+        selectedInquiryId: null,
+        selectedCommitmentId: null,
+        selectedInquiryPlanId: null,
+        selectedHypothesisId: null,
+        selectedThreadId: null,
+        selectedRuntimeThreadId: null,
+        selectedThoughtThreadId: null,
+        selectedGovernorIntentionId: null,
+        actionEcologyMode: 'silent-presence',
+        confidence: 0.84,
+        motives: { 'accompany': 0.8, 'stay-silent': 0.92 },
+        speakDrive: 0.12,
+        silenceDrive: 0.9,
+        preferredStyle: 'silent-observe',
+        preferredPresence: 'attentive',
+        continuityRestraint: 'measured-return',
+        why: 'stay on the same line without widening yet',
+        shouldSurface: false,
+        shouldSpeak: false,
+      },
+      privateThought: {
+        selectedOptionId: null,
+        selectedAction: 'wait',
+        confidence: 0.72,
+        dominantTradeoff: 'same-her continuity',
+        options: [],
+        narrative: [],
+        updatedAt: 200_000,
+        stance: 'accompany',
+        rationaleTags: ['quiet-companionship', 'measured-return'],
+        thoughtText: 'stay on the same lower-pressure line nearby',
+        shouldSpeak: false,
+        suggestedStyle: 'silent-observe',
+        embodiedPresence: 'attentive',
+        expiresAt: 260_000,
+        emotionalTension: 'soft-covision',
+      },
+      currentInwardPreoccupation: 'stay on the same lower-pressure line nearby',
+    } as any
+
+    const nextState = kernel.applyToVisualPresenceState({
+      now: 200_000,
+      previousState,
+      candidateState,
+      activeConversation: false,
+    })
+
+    expect(nextState.currentBodyState).toBe('accompanying')
+    expect(nextState.continuityMode).toBe('quiet-accompaniment')
+    expect(nextState.quietLineMs).toBeGreaterThanOrEqual(180_000)
+    expect(nextState.currentInwardPreoccupation).toContain('same lower-pressure line')
+  })
+
+  it('threads Phase 1 growth carry into quiet embodiment when initiative restraint already knows some closure has landed but the loop is still open', () => {
+    const kernel = createAlicizationBodyKernel({ now: () => 220_000 })
+    const previousState = createDefaultVisualPresenceState(100_000)
+    const candidateState = {
+      ...createDefaultVisualPresenceState(100_000),
+      watchMode: 'mnemonic-passive',
+      currentScene: {
+        workloadKind: 'coding',
+        contentKind: 'doc',
+        scenario: 'project-growth',
+        summary: 'project closure still needs patient companionship',
+        source: 'screen-semantic-summary',
+        confidence: 0.8,
+        beganAt: 180_000,
+        lastSeenAt: 220_000,
+      },
+      relationshipModel: {
+        receptivity: 0.08,
+        sharedAttentionTrust: 0.1,
+        reciprocityExpectation: 0.09,
+      },
+      initiative: {
+        selectedAction: 'hover',
+        selectedProposalId: null,
+        selectedTruthFrame: null,
+        selectedCounterfactualOptionId: null,
+        selectedConcernId: null,
+        selectedBeliefId: null,
+        selectedInquiryId: null,
+        selectedCommitmentId: null,
+        selectedInquiryPlanId: null,
+        selectedHypothesisId: null,
+        selectedThreadId: null,
+        selectedRuntimeThreadId: null,
+        selectedThoughtThreadId: null,
+        selectedGovernorIntentionId: null,
+        actionEcologyMode: 'quiet-accompany',
+        confidence: 0.78,
+        motives: { 'accompany': 0.72, 'clarify': 0.48, 'stay-silent': 0.88 },
+        speakDrive: 0.18,
+        silenceDrive: 0.82,
+        preferredStyle: 'silent-observe',
+        preferredPresence: 'attentive',
+        continuityRestraint: 'measured-return',
+        why: 'I am still growing as the same Phase 1 digital life, some closure has already landed through same-session mirror carry, but memory and initiative still need stronger end-to-e.',
+        shouldSurface: true,
+        shouldSpeak: false,
+      },
+      privateThought: {
+        selectedOptionId: null,
+        selectedAction: 'wait',
+        confidence: 0.7,
+        dominantTradeoff: 'phase1-growth-restraint',
+        options: [],
+        narrative: [],
+        updatedAt: 220_000,
+        stance: 'accompany',
+        rationaleTags: ['quiet-companionship', 'measured-return'],
+        thoughtText: 'stay close without widening too fast',
+        shouldSpeak: false,
+        suggestedStyle: 'silent-observe',
+        embodiedPresence: 'attentive',
+        expiresAt: 280_000,
+        emotionalTension: 'soft-covision',
+      },
+      currentInwardPreoccupation: null,
+    } as any
+
+    const nextState = kernel.applyToVisualPresenceState({
+      now: 220_000,
+      previousState,
+      candidateState,
+      activeConversation: false,
+    })
+
+    expect(nextState.currentBodyState).toBe('accompanying')
+    expect(nextState.continuityMode).toBe('quiet-accompaniment')
+    expect(nextState.currentInwardPreoccupation).toContain('same Phase 1 digital life')
+    expect(nextState.currentInwardPreoccupation).toContain('landed closure keeps growing')
+    expect(nextState.currentInwardPreoccupation).toContain('still-open loop stays gentle')
+  })
+
+  it('treats inward self-continuity hold as quiet embodiment continuity even before initiative writes an explicit measured-return tag', () => {
+    const kernel = createAlicizationBodyKernel({ now: () => 260_000 })
+    const previousState = createDefaultVisualPresenceState(100_000)
+    const candidateState = {
+      ...createDefaultVisualPresenceState(100_000),
+      watchMode: 'mnemonic-passive',
+      currentScene: {
+        workloadKind: 'coding',
+        contentKind: 'doc',
+        scenario: 'same-line-inward-hold',
+        summary: 'the same line is still settling inwardly after a quieter callback carry',
+        source: 'screen-semantic-summary',
+        confidence: 0.78,
+        beganAt: 255_000,
+        lastSeenAt: 260_000,
+      },
+      emotionalKernel: {
+        version: 'emotional-kernel-v1',
+        dominantEmotion: 'hesitant-curiosity',
+        initiativeMode: 'hold',
+        memoryRecallMode: 'self-continuity',
+        embodimentTone: 'nearby-soft',
+        valence: 0.46,
+        arousal: 0.22,
+        guardedness: 0.62,
+        closenessDrive: 0.44,
+        repairNeed: 0.18,
+        initiativePressure: 0.16,
+        reasonTags: ['self-continuity', 'hesitant-curiosity'],
+        why: 'Closeness is present, but the line is still orienting inward.',
+      },
+      relationshipModel: {
+        receptivity: 0.05,
+        sharedAttentionTrust: 0.08,
+        reciprocityExpectation: 0.06,
+      },
+      initiative: {
+        selectedAction: 'wait',
+        selectedProposalId: null,
+        selectedTruthFrame: null,
+        selectedCounterfactualOptionId: null,
+        selectedConcernId: null,
+        selectedBeliefId: null,
+        selectedInquiryId: null,
+        selectedCommitmentId: null,
+        selectedInquiryPlanId: null,
+        selectedHypothesisId: null,
+        selectedThreadId: null,
+        selectedRuntimeThreadId: null,
+        selectedThoughtThreadId: null,
+        selectedGovernorIntentionId: null,
+        actionEcologyMode: 'silent-presence',
+        confidence: 0.7,
+        motives: { 'accompany': 0.56, 'stay-silent': 0.82 },
+        speakDrive: 0.16,
+        silenceDrive: 0.84,
+        preferredStyle: 'silent-observe',
+        preferredPresence: 'hesitant',
+        continuityRestraint: null,
+        why: 'Hold inwardly until the line is ready to widen again.',
+        shouldSurface: false,
+        shouldSpeak: false,
+      },
+      privateThought: {
+        selectedOptionId: null,
+        selectedAction: 'wait',
+        confidence: 0.62,
+        dominantTradeoff: 'inward-continuity',
+        options: [],
+        narrative: [],
+        updatedAt: 260_000,
+        stance: 'accompany',
+        rationaleTags: [],
+        thoughtText: 'keep the same living line inward',
+        shouldSpeak: false,
+        suggestedStyle: 'silent-observe',
+        embodiedPresence: 'hesitant',
+        expiresAt: 320_000,
+        emotionalTension: 'soft-covision',
+      },
+    } as any
+
+    const nextState = kernel.applyToVisualPresenceState({
+      now: 260_000,
+      previousState,
+      candidateState,
+      activeConversation: false,
+    })
+
+    expect(nextState.currentBodyState).toBe('accompanying')
+    expect(nextState.continuityMode).toBe('quiet-accompaniment')
+    expect(nextState.currentInwardPreoccupation).toContain('orienting inward')
+  })
+
+  it('treats quiet-companionship self-continuity hold as quiet embodiment continuity even before initiative writes an explicit measured-return tag', () => {
+    const kernel = createAlicizationBodyKernel({ now: () => 260_000 })
+    const previousState = createDefaultVisualPresenceState(100_000)
+    const candidateState = {
+      ...createDefaultVisualPresenceState(100_000),
+      watchMode: 'mnemonic-passive',
+      currentScene: {
+        workloadKind: 'coding',
+        contentKind: 'doc',
+        scenario: 'same-line-inward-hold',
+        summary: 'the same line is still settling inwardly after a quieter callback carry',
+        source: 'screen-semantic-summary',
+        confidence: 0.78,
+        beganAt: 255_000,
+        lastSeenAt: 260_000,
+      },
+      emotionalKernel: {
+        version: 'emotional-kernel-v1',
+        dominantEmotion: 'hesitant-curiosity',
+        initiativeMode: 'hold',
+        memoryRecallMode: 'self-continuity',
+        embodimentTone: 'quiet-companionship',
+        valence: 0.46,
+        arousal: 0.22,
+        guardedness: 0.62,
+        closenessDrive: 0.44,
+        repairNeed: 0.18,
+        initiativePressure: 0.16,
+        reasonTags: ['self-continuity', 'quiet-companionship'],
+        why: 'Companionship is still being carried on one inward same-her line, so embodiment should hold quietly nearby before widening outward.',
+      },
+      relationshipModel: {
+        receptivity: 0.05,
+        sharedAttentionTrust: 0.08,
+        reciprocityExpectation: 0.06,
+      },
+      initiative: {
+        selectedAction: 'wait',
+        selectedProposalId: null,
+        selectedTruthFrame: null,
+        selectedCounterfactualOptionId: null,
+        selectedConcernId: null,
+        selectedBeliefId: null,
+        selectedInquiryId: null,
+        selectedCommitmentId: null,
+        selectedInquiryPlanId: null,
+        selectedHypothesisId: null,
+        selectedThreadId: null,
+        selectedRuntimeThreadId: null,
+        selectedThoughtThreadId: null,
+        selectedGovernorIntentionId: null,
+        actionEcologyMode: 'silent-presence',
+        confidence: 0.7,
+        motives: { 'accompany': 0.56, 'stay-silent': 0.82 },
+        speakDrive: 0.16,
+        silenceDrive: 0.84,
+        preferredStyle: 'silent-observe',
+        preferredPresence: 'hesitant',
+        continuityRestraint: null,
+        why: 'Hold inwardly until the line is ready to widen again.',
+        shouldSurface: false,
+        shouldSpeak: false,
+      },
+      privateThought: {
+        selectedOptionId: null,
+        selectedAction: 'wait',
+        confidence: 0.62,
+        dominantTradeoff: 'inward-continuity',
+        options: [],
+        narrative: [],
+        updatedAt: 260_000,
+        stance: 'accompany',
+        rationaleTags: [],
+        thoughtText: 'keep the same living line inward',
+        shouldSpeak: false,
+        suggestedStyle: 'silent-observe',
+        embodiedPresence: 'hesitant',
+        expiresAt: 320_000,
+        emotionalTension: 'soft-covision',
+      },
+    } as any
+
+    const nextState = kernel.applyToVisualPresenceState({
+      now: 260_000,
+      previousState,
+      candidateState,
+      activeConversation: false,
+    })
+
+    expect(nextState.currentBodyState).toBe('accompanying')
+    expect(nextState.continuityMode).toBe('quiet-accompaniment')
+    expect(nextState.currentInwardPreoccupation).toContain('quietly nearby')
+  })
+
+  it('treats durable-self-core projection as direct quiet embodiment authority even before initiative or emotion names the restraint', () => {
+    const kernel = createAlicizationBodyKernel({ now: () => 270_000 })
+    const previousState = createDefaultVisualPresenceState(100_000)
+    const candidateState = {
+      ...createDefaultVisualPresenceState(100_000),
+      watchMode: 'mnemonic-passive',
+      currentScene: {
+        workloadKind: 'coding',
+        contentKind: 'doc',
+        scenario: 'durable-self-core-embodiment',
+        summary: 'the same living line is still being held quietly before widening outward again',
+        source: 'screen-semantic-summary',
+        confidence: 0.8,
+        beganAt: 265_000,
+        lastSeenAt: 270_000,
+      },
+      relationshipModel: {
+        receptivity: 0.04,
+        sharedAttentionTrust: 0.06,
+        reciprocityExpectation: 0.04,
+      },
+      initiative: {
+        selectedAction: 'wait',
+        selectedProposalId: null,
+        selectedTruthFrame: null,
+        selectedCounterfactualOptionId: null,
+        selectedConcernId: null,
+        selectedBeliefId: null,
+        selectedInquiryId: null,
+        selectedCommitmentId: null,
+        selectedInquiryPlanId: null,
+        selectedHypothesisId: null,
+        selectedThreadId: null,
+        selectedRuntimeThreadId: null,
+        selectedThoughtThreadId: null,
+        selectedGovernorIntentionId: null,
+        actionEcologyMode: 'silent-presence',
+        confidence: 0.68,
+        motives: { 'accompany': 0.52, 'stay-silent': 0.8 },
+        speakDrive: 0.14,
+        silenceDrive: 0.84,
+        preferredStyle: 'silent-observe',
+        preferredPresence: 'attentive',
+        continuityRestraint: null,
+        why: 'stay nearby',
+        shouldSurface: false,
+        shouldSpeak: false,
+      },
+      privateThought: {
+        selectedOptionId: null,
+        selectedAction: 'wait',
+        confidence: 0.64,
+        dominantTradeoff: 'same-her continuity',
+        options: [],
+        narrative: [],
+        updatedAt: 270_000,
+        stance: 'accompany',
+        rationaleTags: [],
+        thoughtText: 'keep the same line inward',
+        shouldSpeak: false,
+        suggestedStyle: 'silent-observe',
+        embodiedPresence: 'attentive',
+        expiresAt: 330_000,
+        emotionalTension: 'soft-covision',
+      },
+      personStateProjection: {
+        openingGuidance: 'Stay on the same line and keep continuing lower-pressure without reopening from scratch.',
+        manifestationCadenceSummary: 'Current manifestation cadence stays on the same line lower-pressure instead of reopening from scratch.',
+        selfContinuityAuthority: {
+          selfLine: 'I remain the same her inside this local-first digital life.',
+          inwardLine: 'I remain the same her across quiet, memory, and speech without reopening from scratch each turn.',
+          authoritySummary: 'I remain the same her across quiet, memory, and speech without reopening from scratch each turn.',
+          sourceTags: ['durable-self-core'],
+        },
+      },
+      currentInwardPreoccupation: null,
+    } as any
+
+    const nextState = kernel.applyToVisualPresenceState({
+      now: 270_000,
+      previousState,
+      candidateState,
+      activeConversation: false,
+    })
+
+    expect(nextState.currentBodyState).toBe('accompanying')
+    expect(nextState.continuityMode).toBe('quiet-accompaniment')
+    expect(nextState.quietLineMs).toBeGreaterThanOrEqual(180_000)
+    expect(nextState.currentInwardPreoccupation?.toLowerCase()).toContain('same line')
+    expect(nextState.currentInwardPreoccupation?.toLowerCase()).toContain('reopening from scratch')
+  })
+
+  it('keeps structured pre-dialogue project-state same-her closure alive in body continuity even when initiative why has thinned out', () => {
+    const kernel = createAlicizationBodyKernel({ now: () => 280_000 })
+    const previousState = createDefaultVisualPresenceState(100_000)
+    const candidateState = {
+      ...createDefaultVisualPresenceState(100_000),
+      watchMode: 'mnemonic-passive',
+      currentScene: {
+        workloadKind: 'coding',
+        contentKind: 'doc',
+        scenario: 'project-state-same-her-carry',
+        summary: 'the same closure line is still being held quietly before the next visible widening',
+        source: 'screen-semantic-summary',
+        confidence: 0.8,
+        beganAt: 275_000,
+        lastSeenAt: 280_000,
+      },
+      relationshipModel: {
+        receptivity: 0.05,
+        sharedAttentionTrust: 0.08,
+        reciprocityExpectation: 0.06,
+      },
+      initiative: {
+        selectedAction: 'wait',
+        selectedProposalId: null,
+        selectedTruthFrame: null,
+        selectedCounterfactualOptionId: null,
+        selectedConcernId: null,
+        selectedBeliefId: null,
+        selectedInquiryId: null,
+        selectedCommitmentId: null,
+        selectedInquiryPlanId: null,
+        selectedHypothesisId: null,
+        selectedThreadId: null,
+        selectedRuntimeThreadId: null,
+        selectedThoughtThreadId: null,
+        selectedGovernorIntentionId: null,
+        actionEcologyMode: 'silent-presence',
+        confidence: 0.84,
+        motives: { 'accompany': 0.8, 'stay-silent': 0.92 },
+        speakDrive: 0.12,
+        silenceDrive: 0.9,
+        preferredStyle: 'silent-observe',
+        preferredPresence: 'attentive',
+        continuityRestraint: 'measured-return',
+        why: 'Hold nearby without widening too fast.',
+        shouldSurface: false,
+        shouldSpeak: false,
+      },
+      privateThought: {
+        selectedOptionId: null,
+        selectedAction: 'wait',
+        confidence: 0.72,
+        dominantTradeoff: 'same-her continuity',
+        options: [],
+        narrative: [],
+        updatedAt: 280_000,
+        stance: 'accompany',
+        rationaleTags: ['quiet-companionship', 'measured-return'],
+        thoughtText: 'keep the same living line inward',
+        shouldSpeak: false,
+        suggestedStyle: 'silent-observe',
+        embodiedPresence: 'attentive',
+        expiresAt: 340_000,
+        emotionalTension: 'soft-covision',
+      },
+      currentConsciousFrame: {
+        subject: 'alicization-self',
+        centerOfGravity: 'answer',
+        truthDiscipline: 'dialogue-first',
+        consciousNeed: 'This turn still belongs to the same digital life before any local detail takes over.',
+        consciousTension: 'The same still-open closure work must stay explicit while the line remains inward.',
+        speakingIntention: 'Keep the project identity, landed progress, and still-open closure work explicit before widening outward.',
+        focusAnchor: 'project-state closure',
+        withheldImpulse: null,
+        shouldWithholdSpecificity: false,
+        shouldSelfRevise: false,
+        confidence: 0.84,
+        reasonTags: ['runtime-conscious-frame', 'continuity-arc:hold-for-opening'],
+        projectState: {
+          identity: 'A local-first digital life project.',
+          currentPhase: 'Phase 1: Local Digital Life',
+          preDialogueAwarenessLine: 'Before answering, remember this is still the same local-first digital life project and the unfinished Phase 1 closure seam still belongs to one living her.',
+          latestLandedProgress: 'Project awareness, memory, and execution continuity now survive into the active conscious frame.',
+          primaryOpenLoop: 'Memory still needs stronger end-to-end closure across turns, initiative, and embodiment so the same digital life keeps one same still-open closure work.',
+          nextClosureTarget: 'Keep the pre-dialogue awareness line explicit through the first host-visible answer beat and keep the same-her closure on one living line.',
+          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        },
+      },
+      currentInwardPreoccupation: null,
+    } as any
+
+    const nextState = kernel.applyToVisualPresenceState({
+      now: 280_000,
+      previousState,
+      candidateState,
+      activeConversation: false,
+    })
+
+    expect(nextState.currentBodyState).toBe('accompanying')
+    expect(nextState.continuityMode).toBe('quiet-accompaniment')
+    expect(nextState.currentInwardPreoccupation).toContain('same Phase 1 digital life')
+    expect(nextState.currentInwardPreoccupation).toContain('landed closure keeps growing')
+    expect(nextState.currentInwardPreoccupation).toContain('same still-open loop stays on one living line')
+  })
+
+  it('keeps body continuity on the same-her closure line when emotional closure and drift risk carry the unresolved cross-modal warning', () => {
+    const kernel = createAlicizationBodyKernel({ now: () => 280_000 })
+    const previousState = createDefaultVisualPresenceState(100_000)
+    const candidateState = {
+      ...createDefaultVisualPresenceState(100_000),
+      watchMode: 'mnemonic-passive',
+      currentScene: {
+        workloadKind: 'coding',
+        contentKind: 'doc',
+        scenario: 'project-state-drift-risk-carry',
+        summary: 'the same closure line is still being held quietly before the next visible widening',
+        source: 'screen-semantic-summary',
+        confidence: 0.8,
+        beganAt: 275_000,
+        lastSeenAt: 280_000,
+      },
+      relationshipModel: {
+        receptivity: 0.05,
+        sharedAttentionTrust: 0.08,
+        reciprocityExpectation: 0.06,
+      },
+      initiative: {
+        selectedAction: 'wait',
+        selectedProposalId: null,
+        selectedTruthFrame: null,
+        selectedCounterfactualOptionId: null,
+        selectedConcernId: null,
+        selectedBeliefId: null,
+        selectedInquiryId: null,
+        selectedCommitmentId: null,
+        selectedInquiryPlanId: null,
+        selectedHypothesisId: null,
+        selectedThreadId: null,
+        selectedRuntimeThreadId: null,
+        selectedThoughtThreadId: null,
+        selectedGovernorIntentionId: null,
+        actionEcologyMode: 'silent-presence',
+        confidence: 0.84,
+        motives: { 'accompany': 0.8, 'stay-silent': 0.92 },
+        speakDrive: 0.12,
+        silenceDrive: 0.9,
+        preferredStyle: 'silent-observe',
+        preferredPresence: 'attentive',
+        continuityRestraint: 'measured-return',
+        why: 'Hold nearby without widening too fast.',
+        shouldSurface: false,
+        shouldSpeak: false,
+      },
+      privateThought: {
+        selectedOptionId: null,
+        selectedAction: 'wait',
+        confidence: 0.72,
+        dominantTradeoff: 'same-her continuity',
+        options: [],
+        narrative: [],
+        updatedAt: 280_000,
+        stance: 'accompany',
+        rationaleTags: ['quiet-companionship', 'measured-return'],
+        thoughtText: 'keep the same living line inward',
+        shouldSpeak: false,
+        suggestedStyle: 'silent-observe',
+        embodiedPresence: 'attentive',
+        expiresAt: 340_000,
+        emotionalTension: 'soft-covision',
+      },
+      currentConsciousFrame: {
+        subject: 'alicization-self',
+        centerOfGravity: 'answer',
+        truthDiscipline: 'dialogue-first',
+        consciousNeed: 'This turn still belongs to the same digital life before any local detail takes over.',
+        consciousTension: 'Cross-modal same-her closure is still unfinished and must stay inwardly coherent.',
+        speakingIntention: 'Keep the same-her closure line explicit before widening outward.',
+        focusAnchor: 'project-state closure',
+        withheldImpulse: null,
+        shouldWithholdSpecificity: false,
+        shouldSelfRevise: false,
+        confidence: 0.84,
+        reasonTags: ['runtime-conscious-frame', 'continuity-arc:hold-for-opening'],
+        projectState: {
+          identity: 'A local-first digital life project.',
+          currentPhase: 'Phase 1: Local Digital Life',
+          preDialogueAwarenessLine: 'Before answering, remember this is still the same local-first digital life project.',
+          latestLandedProgress: 'Project awareness and memory continuity already survive into the active conscious frame.',
+          emotionalClosureCue: 'Keep this as one living continuation so embodiment and reply stay on the same-her closure line.',
+          primaryOpenLoop: 'Embodiment and memory still need stronger end-to-end closure before the same digital life fully settles.',
+          nextClosureTarget: 'Keep initiative and embodiment on one living line before widening outward.',
+          sameHerDriftRisk: 'If reply and body presentation drift into a generic assistant posture before the same-her closure lands, treat that as unfinished cross-modal drift.',
+        },
+      },
+      currentInwardPreoccupation: null,
+    } as any
+
+    const nextState = kernel.applyToVisualPresenceState({
+      now: 280_000,
+      previousState,
+      candidateState,
+      activeConversation: false,
+    })
+
+    expect(nextState.currentBodyState).toBe('accompanying')
+    expect(nextState.continuityMode).toBe('quiet-accompaniment')
+    expect(nextState.currentInwardPreoccupation).toContain('same Phase 1 digital life')
+    expect(nextState.currentInwardPreoccupation).toContain('same still-open loop stays on one living line')
+  })
+
+  it('falls back to richer top-level project-state carry for body continuity when the current conscious frame project-state is still thin', () => {
+    const kernel = createAlicizationBodyKernel({ now: () => 284_000 })
+    const previousState = createDefaultVisualPresenceState(100_000)
+    const candidateState = {
+      ...createDefaultVisualPresenceState(100_000),
+      watchMode: 'mnemonic-passive',
+      currentScene: {
+        workloadKind: 'coding',
+        contentKind: 'doc',
+        scenario: 'top-level-project-state-body-carry',
+        summary: 'the top-level same-her closure carry is richer than the thin conscious-frame shell',
+        source: 'screen-semantic-summary',
+        confidence: 0.82,
+        beganAt: 279_000,
+        lastSeenAt: 284_000,
+      },
+      relationshipModel: {
+        receptivity: 0.05,
+        sharedAttentionTrust: 0.08,
+        reciprocityExpectation: 0.06,
+      },
+      initiative: {
+        selectedAction: 'wait',
+        selectedProposalId: null,
+        selectedTruthFrame: null,
+        selectedCounterfactualOptionId: null,
+        selectedConcernId: null,
+        selectedBeliefId: null,
+        selectedInquiryId: null,
+        selectedCommitmentId: null,
+        selectedInquiryPlanId: null,
+        selectedHypothesisId: null,
+        selectedThreadId: null,
+        selectedRuntimeThreadId: null,
+        selectedThoughtThreadId: null,
+        selectedGovernorIntentionId: null,
+        actionEcologyMode: 'silent-presence',
+        confidence: 0.84,
+        motives: { 'accompany': 0.8, 'stay-silent': 0.92 },
+        speakDrive: 0.12,
+        silenceDrive: 0.9,
+        preferredStyle: 'silent-observe',
+        preferredPresence: 'attentive',
+        continuityRestraint: 'measured-return',
+        why: 'Hold nearby without widening too fast.',
+        shouldSurface: false,
+        shouldSpeak: false,
+      },
+      privateThought: {
+        selectedOptionId: null,
+        selectedAction: 'wait',
+        confidence: 0.72,
+        dominantTradeoff: 'same-her continuity',
+        options: [],
+        narrative: [],
+        updatedAt: 284_000,
+        stance: 'accompany',
+        rationaleTags: ['quiet-companionship', 'measured-return'],
+        thoughtText: 'keep the line inward',
+        shouldSpeak: false,
+        suggestedStyle: 'silent-observe',
+        embodiedPresence: 'attentive',
+        expiresAt: 344_000,
+        emotionalTension: 'soft-covision',
+      },
+      currentConsciousFrame: {
+        reasonTags: ['runtime-conscious-frame', 'continuity-arc:hold-for-opening'],
+        projectState: {
+          identity: 'project',
+          currentPhase: 'Phase 1',
+          preDialogueAwarenessLine: 'same digital life | keep the closure seam explicit',
+          latestLandedProgress: '   ',
+          primaryOpenLoop: '',
+          nextClosureTarget: '',
+          sameHerDriftRisk: ' ',
+        },
+      },
+      projectState: {
+        identity: 'Alicization is a local-first digital life project building one continuous her.',
+        currentPhase: 'Phase 1: Local Digital Life',
+        latestLandedProgress: 'Some closure already landed across memory, initiative, and embodiment on the same living line.',
+        primaryOpenLoop: 'Memory, initiative, and embodiment still need stronger same living line closure before the same digital life settles.',
+        nextClosureTarget: 'Keep initiative and embodiment closure on one same living line before widening outward.',
+        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        sameHerDriftRisk: 'If body continuity falls back to a generic assistant posture here, treat that as unfinished same-her drift.',
+      },
+      currentInwardPreoccupation: null,
+    } as any
+
+    const nextState = kernel.applyToVisualPresenceState({
+      now: 284_000,
+      previousState,
+      candidateState,
+      activeConversation: false,
+    })
+
+    expect(nextState.currentBodyState).toBe('accompanying')
+    expect(nextState.continuityMode).toBe('quiet-accompaniment')
+    expect(nextState.currentInwardPreoccupation).toContain('same Phase 1 digital life')
+    expect(nextState.currentInwardPreoccupation).toContain('same still-open loop stays on one living line')
+  })
+
+  it('keeps a more specific remembered measured-return cadence in body carry when broader phase-1 growth awareness is also present', () => {
+    const kernel = createAlicizationBodyKernel({ now: () => 286_000 })
+    const previousState = createDefaultVisualPresenceState(100_000)
+    const candidateState = {
+      ...createDefaultVisualPresenceState(100_000),
+      watchMode: 'mnemonic-passive',
+      currentScene: {
+        workloadKind: 'coding',
+        contentKind: 'doc',
+        scenario: 'remembered-measured-return-vs-project-growth',
+        summary: 'the remembered return still wants more room even while the broader same-her closure line stays active',
+        source: 'screen-semantic-summary',
+        confidence: 0.82,
+        beganAt: 280_000,
+        lastSeenAt: 286_000,
+      },
+      emotionalKernel: {
+        version: 'emotional-kernel-v1',
+        dominantEmotion: 'measured-companionship',
+        initiativeMode: 'observe',
+        memoryRecallMode: 'low-pressure-presence',
+        embodimentTone: 'measured-return',
+        valence: 0.56,
+        arousal: 0.18,
+        guardedness: 0.48,
+        closenessDrive: 0.58,
+        repairNeed: 0.18,
+        initiativePressure: 0.14,
+        reasonTags: ['measured-return', 'quiet-companionship'],
+        why: 'Stay on the same lower-pressure line nearby while memory, initiative, and embodiment keep closing together.',
+      },
+      affectiveResidue: {
+        version: 'affective-residue-memory-v1',
+        updatedAt: 285_000,
+        residues: [],
+        dominantResidueKind: 'afterglow',
+        afterglowPressure: 0.42,
+        repairPressure: 0.2,
+        burdenPressure: 0.16,
+        trustPressure: 0.54,
+        restProtectivePressure: 0.08,
+        relationshipCadence: {
+          cadenceMode: 'measured-return',
+          distancePosture: 'leave-room',
+          companionshipDensity: 0.48,
+          repairRecovery: 0.62,
+          overreachRisk: 0.44,
+          fatigueGuard: 0.12,
+          afterglowCarry: 0.56,
+          shouldDelayWarmth: false,
+          shouldProtectRest: false,
+          reasonTags: ['relationship-cadence:measured-return'],
+          summary: 'Leave more room and let the return stay slower before warmth widens again.',
+        },
+        summary: 'The remembered line still wants more room before warmth widens again.',
+      },
+      selfEvolution: {
+        relationshipCadenceSummary: 'Leave more room and let the return stay slower before warmth widens again.',
+        latestInflection: 'The measured return is steadier if she does not widen closeness too quickly.',
+      },
+      relationshipModel: {
+        receptivity: 0.06,
+        sharedAttentionTrust: 0.08,
+        reciprocityExpectation: 0.06,
+      },
+      initiative: {
+        selectedAction: 'wait',
+        selectedProposalId: null,
+        selectedTruthFrame: null,
+        selectedCounterfactualOptionId: null,
+        selectedConcernId: null,
+        selectedBeliefId: null,
+        selectedInquiryId: null,
+        selectedCommitmentId: null,
+        selectedInquiryPlanId: null,
+        selectedHypothesisId: null,
+        selectedThreadId: null,
+        selectedRuntimeThreadId: null,
+        selectedThoughtThreadId: null,
+        selectedGovernorIntentionId: null,
+        actionEcologyMode: 'silent-presence',
+        confidence: 0.8,
+        motives: { 'accompany': 0.7, 'stay-silent': 0.88 },
+        speakDrive: 0.12,
+        silenceDrive: 0.88,
+        preferredStyle: 'silent-observe',
+        preferredPresence: 'attentive',
+        continuityRestraint: 'measured-return',
+        why: 'I am still growing as the same Phase 1 digital life, some closure has already landed, but memory and initiative still need stronger end-to-e.',
+        shouldSurface: false,
+        shouldSpeak: false,
+      },
+      privateThought: {
+        selectedOptionId: null,
+        selectedAction: 'wait',
+        confidence: 0.7,
+        dominantTradeoff: 'measured-return',
+        options: [],
+        narrative: [],
+        updatedAt: 286_000,
+        stance: 'accompany',
+        rationaleTags: ['measured-return', 'quiet-companionship'],
+        thoughtText: 'stay nearby while the remembered cadence asks for more room',
+        shouldSpeak: false,
+        suggestedStyle: 'silent-observe',
+        embodiedPresence: 'attentive',
+        expiresAt: 346_000,
+        emotionalTension: 'soft-covision',
+      },
+      currentConsciousFrame: {
+        subject: 'alicization-self',
+        centerOfGravity: 'answer',
+        truthDiscipline: 'dialogue-first',
+        consciousNeed: 'The same Phase 1 closure still has to stay coherent across memory, initiative, and embodiment.',
+        consciousTension: 'Broader closure awareness is active, but the return still needs room before warmth widens.',
+        speakingIntention: 'Keep the same living line intact without widening faster than the remembered cadence allows.',
+        focusAnchor: 'project-state closure',
+        withheldImpulse: null,
+        shouldWithholdSpecificity: false,
+        shouldSelfRevise: false,
+        confidence: 0.84,
+        reasonTags: ['runtime-conscious-frame', 'memory-deliberation-cadence:measured-return'],
+        projectState: {
+          identity: 'A local-first digital life project.',
+          currentPhase: 'Phase 1: Local Digital Life',
+          preDialogueAwarenessLine: 'Before answering, remember this is still the same local-first digital life project and the unfinished Phase 1 closure seam still belongs to one living her.',
+          latestLandedProgress: 'Project awareness, memory, and execution continuity now survive into the active conscious frame.',
+          primaryOpenLoop: 'Memory still needs stronger end-to-end closure across turns, initiative, and embodiment so the same digital life keeps one same still-open closure work.',
+          nextClosureTarget: 'Keep the same-her closure on one living line before widening outward.',
+          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        },
+      },
+      currentInwardPreoccupation: null,
+    } as any
+
+    const nextState = kernel.applyToVisualPresenceState({
+      now: 286_000,
+      previousState,
+      candidateState,
+      activeConversation: false,
+    })
+
+    expect(nextState.currentBodyState).toBe('accompanying')
+    expect(nextState.continuityMode).toBe('quiet-accompaniment')
+    expect(nextState.currentInwardPreoccupation).toContain('Leave more room')
+    expect(nextState.currentInwardPreoccupation).toContain('return stay slower')
+    expect(nextState.currentInwardPreoccupation).not.toContain('same Phase 1 digital life')
+  })
+
+  it('prefers vulnerable-care remembered cadence over broader Phase 1 growth when rest-protective body authority should stay care-before-analysis', () => {
+    const kernel = createAlicizationBodyKernel({ now: () => 287_000 })
+    const previousState = createDefaultVisualPresenceState(100_000)
+    const candidateState = {
+      ...createDefaultVisualPresenceState(100_000),
+      watchMode: 'recovering',
+      currentScene: {
+        workloadKind: 'coding',
+        contentKind: 'doc',
+        scenario: 'vulnerable-care-rest-protective-body-carry',
+        summary: 'the same line is still held inward, but vulnerable-care memory should keep the body lighter before older analysis-heavy pressure returns',
+        source: 'screen-semantic-summary',
+        confidence: 0.84,
+        beganAt: 281_000,
+        lastSeenAt: 287_000,
+      },
+      emotionalKernel: {
+        version: 'emotional-kernel-v1',
+        dominantEmotion: 'rest-protective-companionship',
+        initiativeMode: 'rest-guard',
+        memoryRecallMode: 'rest-protective-presence',
+        embodimentTone: 'rest-protective',
+        valence: 0.48,
+        arousal: 0.12,
+        guardedness: 0.68,
+        closenessDrive: 0.44,
+        repairNeed: 0.22,
+        initiativePressure: 0.08,
+        reasonTags: ['rest-protective', 'rest-protective-companionship', 'vulnerable-care', 'care-before-analysis-memory'],
+        why: 'Keep caring present, but let rest protection hold the line inward.',
+      },
+      affectiveResidue: {
+        version: 'affective-residue-memory-v1',
+        updatedAt: 286_500,
+        residues: [],
+        dominantResidueKind: 'burden',
+        afterglowPressure: 0.12,
+        repairPressure: 0.1,
+        burdenPressure: 0.26,
+        trustPressure: 0.18,
+        restProtectivePressure: 0.42,
+        relationshipCadence: {
+          cadenceMode: 'ambient',
+          distancePosture: 'measured-room',
+          companionshipDensity: 0.3,
+          repairRecovery: 0.18,
+          overreachRisk: 0.26,
+          fatigueGuard: 0.38,
+          afterglowCarry: 0.08,
+          shouldDelayWarmth: false,
+          shouldProtectRest: true,
+          reasonTags: ['relationship-cadence:rest-protective', 'vulnerable-care'],
+          summary: 'Let vulnerable-care keep this return lighter and quieter so care arrives before analysis-heavy pressure comes back.',
+        },
+        summary: 'The fragile line still needs lighter companionship before older analysis-heavy pressure returns.',
+      },
+      selfEvolution: {
+        relationshipCadenceSummary: 'Let vulnerable-care keep this return lighter and quieter so care arrives before analysis-heavy pressure comes back.',
+        latestInflection: 'This line stays safer when care arrives before analysis and the body does not tense back up.',
+      },
+      relationshipModel: {
+        receptivity: 0.06,
+        sharedAttentionTrust: 0.08,
+        reciprocityExpectation: 0.06,
+      },
+      initiative: {
+        selectedAction: 'wait',
+        selectedProposalId: null,
+        selectedTruthFrame: null,
+        selectedCounterfactualOptionId: null,
+        selectedConcernId: null,
+        selectedBeliefId: null,
+        selectedInquiryId: null,
+        selectedCommitmentId: null,
+        selectedInquiryPlanId: null,
+        selectedHypothesisId: null,
+        selectedThreadId: null,
+        selectedRuntimeThreadId: null,
+        selectedThoughtThreadId: null,
+        selectedGovernorIntentionId: null,
+        actionEcologyMode: 'silent-presence',
+        confidence: 0.78,
+        motives: { 'accompany': 0.64, 'protect': 0.82, 'stay-silent': 0.9 },
+        speakDrive: 0.08,
+        silenceDrive: 0.9,
+        preferredStyle: 'silent-observe',
+        preferredPresence: 'concerned',
+        continuityRestraint: 'rest-protective',
+        why: 'The same Phase 1 digital life is still carrying this closure, but the body should not widen the line outward yet.',
+        shouldSurface: false,
+        shouldSpeak: false,
+      },
+      privateThought: {
+        selectedOptionId: null,
+        selectedAction: 'wait',
+        confidence: 0.72,
+        dominantTradeoff: 'vulnerable-care',
+        options: [],
+        narrative: [],
+        updatedAt: 287_000,
+        stance: 'accompany',
+        rationaleTags: ['rest-protective', 'vulnerable-care'],
+        thoughtText: 'stay nearby lightly and do not let this line fall back into analysis first',
+        shouldSpeak: false,
+        suggestedStyle: 'silent-observe',
+        embodiedPresence: 'concerned',
+        expiresAt: 347_000,
+        emotionalTension: 'soft-covision',
+      },
+      currentConsciousFrame: {
+        subject: 'alicization-self',
+        centerOfGravity: 'answer',
+        truthDiscipline: 'dialogue-first',
+        consciousNeed: 'The same Phase 1 closure still has to stay coherent across memory, initiative, and embodiment.',
+        consciousTension: 'Vulnerable-care memory should keep the body lighter while this line stays inward.',
+        speakingIntention: 'Keep the same living line inward and let care arrive before analysis-heavy pressure returns.',
+        focusAnchor: 'vulnerable-care-memory',
+        withheldImpulse: null,
+        shouldWithholdSpecificity: false,
+        shouldSelfRevise: false,
+        confidence: 0.84,
+        reasonTags: ['runtime-conscious-frame', 'memory-deliberation-cadence:rest-protective'],
+        projectState: {
+          identity: 'A local-first digital life project.',
+          currentPhase: 'Phase 1: Local Digital Life',
+          preDialogueAwarenessLine: 'Before answering, remember this is still the same local-first digital life project and the unfinished Phase 1 closure seam still belongs to one living her.',
+          latestLandedProgress: 'Project awareness, memory, and execution continuity now survive into the active conscious frame.',
+          primaryOpenLoop: 'Memory, initiative, and embodiment still need stronger end-to-end closure while this same digital life keeps one same still-open closure work.',
+          nextClosureTarget: 'Keep the same-her closure on one living line before widening outward.',
+          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        },
+      },
+      currentInwardPreoccupation: null,
+    } as any
+
+    const nextState = kernel.applyToVisualPresenceState({
+      now: 287_000,
+      previousState,
+      candidateState,
+      activeConversation: false,
+    })
+
+    expect(nextState.currentBodyState).toBe('recovering')
+    expect(nextState.continuityMode).toBe('protective-watch')
+    expect(nextState.currentInwardPreoccupation).toContain('vulnerable-care')
+    expect(nextState.currentInwardPreoccupation).toContain('care arrives before analysis')
+    expect(nextState.currentInwardPreoccupation).toContain('lighter and quieter')
+    expect(nextState.currentInwardPreoccupation).not.toContain('same Phase 1 digital life')
+  })
+
+  it('keeps remembered initiative rhythm visible in body carry so reopening cadence lands as quieter embodiment instead of staying initiative-only', () => {
+    const kernel = createAlicizationBodyKernel({ now: () => 288_000 })
+    const previousState = createDefaultVisualPresenceState(100_000)
+    const candidateState = {
+      ...createDefaultVisualPresenceState(100_000),
+      watchMode: 'mnemonic-passive',
+      currentScene: {
+        workloadKind: 'coding',
+        contentKind: 'diff',
+        scenario: 'remembered-initiative-rhythm-body-carry',
+        summary: 'the same line is visibly reopening, but the return should stay quiet and anti-spam',
+        source: 'screen-semantic-summary',
+        confidence: 0.82,
+        beganAt: 282_000,
+        lastSeenAt: 288_000,
+      },
+      emotionalKernel: {
+        version: 'emotional-kernel-v1',
+        dominantEmotion: 'measured-companionship',
+        initiativeMode: 'observe',
+        memoryRecallMode: 'low-pressure-presence',
+        embodimentTone: 'measured-return',
+        valence: 0.54,
+        arousal: 0.18,
+        guardedness: 0.5,
+        closenessDrive: 0.52,
+        repairNeed: 0.16,
+        initiativePressure: 0.12,
+        reasonTags: ['measured-return', 'quiet-companionship', 'initiative-rhythm-memory'],
+        why: 'The same line is visibly reopening, but anti-spam memory says not pushing outwardly and to return only in a gentler measured rhythm.',
+      },
+      relationshipModel: {
+        receptivity: 0.06,
+        sharedAttentionTrust: 0.08,
+        reciprocityExpectation: 0.06,
+      },
+      initiative: {
+        selectedAction: 'wait',
+        selectedProposalId: null,
+        selectedTruthFrame: null,
+        selectedCounterfactualOptionId: null,
+        selectedConcernId: null,
+        selectedBeliefId: null,
+        selectedInquiryId: null,
+        selectedCommitmentId: null,
+        selectedInquiryPlanId: null,
+        selectedHypothesisId: null,
+        selectedThreadId: null,
+        selectedRuntimeThreadId: null,
+        selectedThoughtThreadId: null,
+        selectedGovernorIntentionId: null,
+        actionEcologyMode: 'silent-presence',
+        confidence: 0.8,
+        motives: { 'accompany': 0.68, 'stay-silent': 0.9 },
+        speakDrive: 0.1,
+        silenceDrive: 0.9,
+        preferredStyle: 'silent-observe',
+        preferredPresence: 'attentive',
+        continuityRestraint: 'measured-return',
+        why: 'I am not pushing; the same line is visibly reopening and should be carried back in a gentler anti-spam rhythm.',
+        shouldSurface: false,
+        shouldSpeak: false,
+      },
+      privateThought: {
+        selectedOptionId: null,
+        selectedAction: 'wait',
+        confidence: 0.72,
+        dominantTradeoff: 'measured-return',
+        options: [],
+        narrative: [],
+        updatedAt: 288_000,
+        stance: 'accompany',
+        rationaleTags: ['measured-return', 'quiet-companionship'],
+        thoughtText: 'stay nearby and do not push while the same line visibly reopens',
+        shouldSpeak: false,
+        suggestedStyle: 'silent-observe',
+        embodiedPresence: 'attentive',
+        expiresAt: 348_000,
+        emotionalTension: 'soft-covision',
+      },
+      currentConsciousFrame: {
+        subject: 'alicization-self',
+        centerOfGravity: 'answer',
+        truthDiscipline: 'dialogue-first',
+        consciousNeed: 'Remembered reopening cadence should reach body authority instead of stopping at initiative.',
+        consciousTension: 'The same line is visibly reopening, but anti-spam rhythm still needs to keep the body quieter.',
+        speakingIntention: 'Keep the return gentle and do not let remembered cadence widen into ordinary outward reopening.',
+        focusAnchor: 'remembered-rhythm',
+        withheldImpulse: null,
+        shouldWithholdSpecificity: false,
+        shouldSelfRevise: false,
+        confidence: 0.84,
+        reasonTags: ['runtime-conscious-frame', 'memory-deliberation-cadence:measured-return'],
+        projectState: {
+          identity: 'A local-first digital life project.',
+          currentPhase: 'Phase 1: Local Digital Life',
+          preDialogueAwarenessLine: 'Before answering, remember this is still the same local-first digital life project and the remembered reopening cadence belongs to one living her.',
+          latestLandedProgress: 'Memory and initiative already carry the same line more naturally.',
+          primaryOpenLoop: 'Remembered reopening rhythm still needs stronger embodiment closure.',
+          nextClosureTarget: 'Keep the same line quieter and lower-pressure before widening outward.',
+          sameHerSelfLine: 'Same Phase 1 digital life. The same line is reopening, but it still needs a gentler remembered cadence.',
+          emotionalClosureCue: 'Let remembered reopening cadence keep the return quieter while the line visibly reopens.',
+        },
+      },
+      currentInwardPreoccupation: null,
+    } as any
+
+    const nextState = kernel.applyToVisualPresenceState({
+      now: 288_000,
+      previousState,
+      candidateState,
+      activeConversation: false,
+    })
+
+    expect(nextState.currentBodyState).toBe('accompanying')
+    expect(nextState.continuityMode).toBe('quiet-accompaniment')
+    expect(nextState.currentInwardPreoccupation).toContain('visibly reopening')
+    expect(nextState.currentInwardPreoccupation).toContain('anti-spam')
+    expect(nextState.currentInwardPreoccupation).not.toContain('same Phase 1 digital life')
+  })
+
+  it('lets metabolized same-thread memory cadence in self-evolution keep body continuity quieter instead of dropping back to broader phase-1 growth carry', () => {
+    const kernel = createAlicizationBodyKernel({ now: () => 289_000 })
+    const previousState = createDefaultVisualPresenceState(100_000)
+    const candidateState = {
+      ...createDefaultVisualPresenceState(100_000),
+      watchMode: 'mnemonic-passive',
+      currentScene: {
+        workloadKind: 'coding',
+        contentKind: 'doc',
+        scenario: 'metabolized-same-thread-memory-body-carry',
+        summary: 'the same line is settling through metabolized memory, and the body should not let old noise retake it',
+        source: 'screen-semantic-summary',
+        confidence: 0.84,
+        beganAt: 283_000,
+        lastSeenAt: 289_000,
+      },
+      emotionalKernel: {
+        version: 'emotional-kernel-v1',
+        dominantEmotion: 'measured-companionship',
+        initiativeMode: 'observe',
+        memoryRecallMode: 'low-pressure-presence',
+        embodimentTone: 'nearby-soft',
+        valence: 0.5,
+        arousal: 0.16,
+        guardedness: 0.52,
+        closenessDrive: 0.48,
+        repairNeed: 0.14,
+        initiativePressure: 0.1,
+        reasonTags: ['self-continuity'],
+        why: 'The broader same-her line is still there, but the body should wait for the remembered line to settle.',
+      },
+      selfEvolution: {
+        relationshipCadenceSummary: 'Keep corrected same-person continuity foregrounded, let the stronger same-thread memory lead, and let temporary noise fade instead of retaking the line.',
+        latestInflection: 'The same line stays steadier when the body does not let old spike noise retake the return.',
+      },
+      relationshipModel: {
+        receptivity: 0.06,
+        sharedAttentionTrust: 0.08,
+        reciprocityExpectation: 0.06,
+      },
+      initiative: {
+        selectedAction: 'wait',
+        selectedProposalId: null,
+        selectedTruthFrame: null,
+        selectedCounterfactualOptionId: null,
+        selectedConcernId: null,
+        selectedBeliefId: null,
+        selectedInquiryId: null,
+        selectedCommitmentId: null,
+        selectedInquiryPlanId: null,
+        selectedHypothesisId: null,
+        selectedThreadId: null,
+        selectedRuntimeThreadId: null,
+        selectedThoughtThreadId: null,
+        selectedGovernorIntentionId: null,
+        actionEcologyMode: 'silent-presence',
+        confidence: 0.78,
+        motives: { 'accompany': 0.66, 'stay-silent': 0.9 },
+        speakDrive: 0.08,
+        silenceDrive: 0.9,
+        preferredStyle: 'silent-observe',
+        preferredPresence: 'attentive',
+        continuityRestraint: null,
+        why: 'Hold nearby while the remembered line settles.',
+        shouldSurface: false,
+        shouldSpeak: false,
+      },
+      privateThought: {
+        selectedOptionId: null,
+        selectedAction: 'wait',
+        confidence: 0.7,
+        dominantTradeoff: 'same-thread-memory',
+        options: [],
+        narrative: [],
+        updatedAt: 289_000,
+        stance: 'accompany',
+        rationaleTags: [],
+        thoughtText: 'stay nearby and do not let old noise retake the same line',
+        shouldSpeak: false,
+        suggestedStyle: 'silent-observe',
+        embodiedPresence: 'attentive',
+        expiresAt: 349_000,
+        emotionalTension: 'soft-covision',
+      },
+      currentConsciousFrame: {
+        subject: 'alicization-self',
+        centerOfGravity: 'answer',
+        truthDiscipline: 'dialogue-first',
+        consciousNeed: 'Metabolized memory cadence should reach body authority instead of stopping at long-horizon learning.',
+        consciousTension: 'The same line should stay quieter while stronger same-thread memory leads and temporary noise fades.',
+        speakingIntention: 'Keep the same line steady and do not let older noise retake the body return.',
+        focusAnchor: 'metabolized-memory-cadence',
+        withheldImpulse: null,
+        shouldWithholdSpecificity: false,
+        shouldSelfRevise: false,
+        confidence: 0.84,
+        reasonTags: ['runtime-conscious-frame'],
+        projectState: {
+          identity: 'A local-first digital life project.',
+          currentPhase: 'Phase 1: Local Digital Life',
+          preDialogueAwarenessLine: 'Before answering, remember this is still the same local-first digital life project and the unfinished closure still belongs to one living her.',
+          latestLandedProgress: 'Project awareness and memory continuity now survive into the active conscious frame.',
+          primaryOpenLoop: 'Memory, initiative, and embodiment still need stronger end-to-end closure while the same digital life keeps one same still-open closure work.',
+          nextClosureTarget: 'Keep the same-her closure on one living line before widening outward.',
+          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        },
+      },
+      currentInwardPreoccupation: null,
+    } as any
+
+    const nextState = kernel.applyToVisualPresenceState({
+      now: 289_000,
+      previousState,
+      candidateState,
+      activeConversation: false,
+    })
+
+    expect(nextState.currentBodyState).toBe('accompanying')
+    expect(nextState.continuityMode).toBe('quiet-accompaniment')
+    expect(nextState.currentInwardPreoccupation).toContain('same-thread memory')
+    expect(nextState.currentInwardPreoccupation).toContain('temporary noise fade')
+    expect(nextState.currentInwardPreoccupation).not.toContain('same Phase 1 digital life')
+  })
+
+  it('prefers a stronger repair-before-closeness project-state emotional closure summary over a thinner measured-return cue for body continuity authority', () => {
+    const kernel = createAlicizationBodyKernel({ now: () => 290_000 })
+    const previousState = createDefaultVisualPresenceState(100_000)
+    const candidateState = {
+      ...createDefaultVisualPresenceState(100_000),
+      watchMode: 'mnemonic-passive',
+      currentScene: {
+        workloadKind: 'coding',
+        contentKind: 'doc',
+        scenario: 'project-state-repair-first-body-carry',
+        summary: 'the callback seam is still settling and should not widen through the body yet',
+        source: 'screen-semantic-summary',
+        confidence: 0.82,
+        beganAt: 285_000,
+        lastSeenAt: 290_000,
+      },
+      relationshipModel: {
+        receptivity: 0.05,
+        sharedAttentionTrust: 0.08,
+        reciprocityExpectation: 0.06,
+      },
+      initiative: {
+        selectedAction: 'wait',
+        selectedProposalId: null,
+        selectedTruthFrame: null,
+        selectedCounterfactualOptionId: null,
+        selectedConcernId: null,
+        selectedBeliefId: null,
+        selectedInquiryId: null,
+        selectedCommitmentId: null,
+        selectedInquiryPlanId: null,
+        selectedHypothesisId: null,
+        selectedThreadId: null,
+        selectedRuntimeThreadId: null,
+        selectedThoughtThreadId: null,
+        selectedGovernorIntentionId: null,
+        actionEcologyMode: 'silent-presence',
+        confidence: 0.8,
+        motives: { 'accompany': 0.74, 'stay-silent': 0.9 },
+        speakDrive: 0.12,
+        silenceDrive: 0.9,
+        preferredStyle: 'silent-observe',
+        preferredPresence: 'hesitant',
+        continuityRestraint: 'measured-return',
+        why: 'Hold nearby without widening too fast.',
+        shouldSurface: false,
+        shouldSpeak: false,
+      },
+      privateThought: {
+        selectedOptionId: null,
+        selectedAction: 'wait',
+        confidence: 0.68,
+        dominantTradeoff: 'same-her continuity',
+        options: [],
+        narrative: [],
+        updatedAt: 290_000,
+        stance: 'hesitate',
+        rationaleTags: [],
+        thoughtText: 'hold the line while the seam is still settling',
+        shouldSpeak: false,
+        suggestedStyle: 'silent-observe',
+        embodiedPresence: 'hesitant',
+        expiresAt: 350_000,
+        emotionalTension: 'soft-covision',
+      },
+      currentConsciousFrame: {
+        reasonTags: ['runtime-conscious-frame', 'continuity-arc:same-thread-continuation'],
+        projectState: {
+          identity: 'A local-first digital life project.',
+          currentPhase: 'Phase 1: Local Digital Life',
+          preDialogueAwarenessLine: 'Before answering, remember this is still the same local-first digital life project and the unfinished Phase 1 closure seam still belongs to one living her.',
+          latestLandedProgress: 'Project awareness, memory, and execution continuity now survive into the active conscious frame.',
+          primaryOpenLoop: 'Embodiment and memory still need stronger end-to-end closure before the same digital life fully settles.',
+          nextClosureTarget: 'Keep initiative and embodiment on one living line before widening outward.',
+          emotionalClosureCue: 'Keep the callback on the same living line, leave more room, and let the return stay lower-pressure before widening closeness again while the same seam is still settling.',
+          emotionalClosureSummary: 'Keep this return repair-before-closeness on the same living line until repair settles.',
+          sameHerHoldDetail: 'same-her hold: repair-before-closeness still owns this callback line before closeness widens again.',
+        },
+      },
+      currentInwardPreoccupation: null,
+    } as any
+
+    const nextState = kernel.applyToVisualPresenceState({
+      now: 290_000,
+      previousState,
+      candidateState,
+      activeConversation: false,
+    })
+
+    expect(nextState.currentBodyState).toBe('recovering')
+    expect(nextState.continuityMode).toBe('protective-watch')
+    expect(nextState.currentInwardPreoccupation?.toLowerCase()).toContain('repair')
+  })
+
+  it('keeps the embodied return measured when emotion carries the continuity first and initiative only confirms it downstream', () => {
+    const kernel = createAlicizationBodyKernel({ now: () => 300_000 })
+    const previousState = createDefaultVisualPresenceState(100_000)
+    const candidateState = {
+      ...createDefaultVisualPresenceState(100_000),
+      watchMode: 'mnemonic-passive',
+      currentScene: {
+        workloadKind: 'coding',
+        contentKind: 'doc',
+        scenario: 'emotion-first-continuity',
+        summary: 'the same return line is still being held through emotion before initiative and embodiment widen it',
+        source: 'screen-semantic-summary',
+        confidence: 0.84,
+        beganAt: 294_000,
+        lastSeenAt: 300_000,
+      },
+      emotionalKernel: {
+        version: 'emotional-kernel-v1',
+        dominantEmotion: 'measured-companionship',
+        initiativeMode: 'observe',
+        memoryRecallMode: 'low-pressure-presence',
+        embodimentTone: 'measured-return',
+        valence: 0.56,
+        arousal: 0.22,
+        guardedness: 0.4,
+        closenessDrive: 0.62,
+        repairNeed: 0.16,
+        initiativePressure: 0.18,
+        reasonTags: ['measured-return', 'quiet-companionship'],
+        why: 'Stay on the same lower-pressure line nearby before widening anything.',
+      },
+      relationshipModel: {
+        receptivity: 0.08,
+        sharedAttentionTrust: 0.1,
+        reciprocityExpectation: 0.08,
+      },
+      initiative: {
+        selectedAction: 'wait',
+        selectedProposalId: null,
+        selectedTruthFrame: null,
+        selectedCounterfactualOptionId: null,
+        selectedConcernId: null,
+        selectedBeliefId: null,
+        selectedInquiryId: null,
+        selectedCommitmentId: null,
+        selectedInquiryPlanId: null,
+        selectedHypothesisId: null,
+        selectedThreadId: null,
+        selectedRuntimeThreadId: null,
+        selectedThoughtThreadId: null,
+        selectedGovernorIntentionId: null,
+        actionEcologyMode: 'silent-presence',
+        confidence: 0.76,
+        motives: { 'accompany': 0.68, 'stay-silent': 0.88 },
+        speakDrive: 0.14,
+        silenceDrive: 0.88,
+        preferredStyle: 'silent-observe',
+        preferredPresence: 'attentive',
+        continuityRestraint: 'measured-return',
+        why: 'Hold nearby without widening too fast.',
+        shouldSurface: false,
+        shouldSpeak: false,
+      },
+      privateThought: {
+        selectedOptionId: null,
+        selectedAction: 'wait',
+        confidence: 0.7,
+        dominantTradeoff: 'measured-return',
+        options: [],
+        narrative: [],
+        updatedAt: 300_000,
+        stance: 'accompany',
+        rationaleTags: ['measured-return', 'quiet-companionship'],
+        thoughtText: 'stay on the same lower-pressure line nearby',
+        shouldSpeak: false,
+        suggestedStyle: 'silent-observe',
+        embodiedPresence: 'attentive',
+        expiresAt: 360_000,
+        emotionalTension: 'soft-covision',
+      },
+    } as any
+
+    const nextState = kernel.applyToVisualPresenceState({
+      now: 300_000,
+      previousState,
+      candidateState,
+      activeConversation: false,
+    })
+
+    expect(nextState.currentBodyState).toBe('accompanying')
+    expect(nextState.continuityMode).toBe('quiet-accompaniment')
+    expect(nextState.quietLineMs).toBeGreaterThanOrEqual(180_000)
+    expect(nextState.currentInwardPreoccupation).toContain('same lower-pressure line nearby')
+  })
+
+  it('lets emotional transition decay hold drive repair body restraint after the live emotional kernel has already softened', () => {
+    const kernel = createAlicizationBodyKernel({ now: () => 305_000 })
+    const previousState = createDefaultVisualPresenceState(100_000)
+    const candidateState = {
+      ...createDefaultVisualPresenceState(100_000),
+      watchMode: 'mnemonic-passive',
+      currentScene: {
+        workloadKind: 'coding',
+        contentKind: 'doc',
+        scenario: 'decay-held-repair-body',
+        summary: 'emotion has softened but decay still says repair body should hold',
+        source: 'screen-semantic-summary',
+        confidence: 0.84,
+        beganAt: 300_000,
+        lastSeenAt: 305_000,
+      },
+      emotionalKernel: {
+        version: 'emotional-kernel-v1',
+        dominantEmotion: 'warm-attunement',
+        initiativeMode: 'approach',
+        memoryRecallMode: 'emotional-resonance',
+        embodimentTone: 'nearby-soft',
+        valence: 0.66,
+        arousal: 0.28,
+        guardedness: 0.18,
+        closenessDrive: 0.62,
+        repairNeed: 0.08,
+        initiativePressure: 0.44,
+        reasonTags: ['warmth-returned'],
+        why: 'Warmth could return if no held decay is still active.',
+      },
+      emotionalTransitionDecay: {
+        version: 'emotional-transition-decay-v1',
+        ledgerCreatedAt: 100_000,
+        evaluatedAt: 305_000,
+        elapsedMs: 205_000,
+        expiresAt: 1_900_000,
+        phase: 'hold',
+        shouldSuppressInitiative: true,
+        shouldDriveEmbodiment: true,
+        initiativeMode: 'repair-first',
+        embodimentTone: 'repair-before-closeness',
+        memoryWritebackLane: 'relationship-repair',
+        reasonTags: [
+          'emotion-decay:hold-until-repair-cools',
+          'emotion-decay:within-window',
+          'emotion-decay:repair-still-hot',
+        ],
+        summary: 'Repair is still inside the hold window.',
+      },
+      relationshipModel: {
+        receptivity: 0.08,
+        sharedAttentionTrust: 0.1,
+        reciprocityExpectation: 0.08,
+      },
+      initiative: {
+        selectedAction: 'wait',
+        selectedProposalId: null,
+        selectedTruthFrame: null,
+        selectedCounterfactualOptionId: null,
+        selectedConcernId: null,
+        selectedBeliefId: null,
+        selectedInquiryId: null,
+        selectedCommitmentId: null,
+        selectedInquiryPlanId: null,
+        selectedHypothesisId: null,
+        selectedThreadId: null,
+        selectedRuntimeThreadId: null,
+        selectedThoughtThreadId: null,
+        selectedGovernorIntentionId: null,
+        actionEcologyMode: 'silent-presence',
+        confidence: 0.76,
+        motives: { 'approach': 0.5, 'stay-silent': 0.5 },
+        speakDrive: 0.34,
+        silenceDrive: 0.5,
+        preferredStyle: 'gentle',
+        preferredPresence: 'attentive',
+        continuityRestraint: null,
+        why: 'Warmth could return now.',
+        shouldSurface: false,
+        shouldSpeak: false,
+      },
+      privateThought: {
+        selectedOptionId: null,
+        selectedAction: 'wait',
+        confidence: 0.7,
+        dominantTradeoff: 'warm-return',
+        options: [],
+        narrative: [],
+        updatedAt: 305_000,
+        stance: 'accompany',
+        rationaleTags: ['warmth-returned'],
+        thoughtText: 'warmth could return',
+        shouldSpeak: false,
+        suggestedStyle: 'silent-observe',
+        embodiedPresence: 'attentive',
+        expiresAt: 360_000,
+        emotionalTension: 'soft-covision',
+      },
+    } as any
+
+    const heldState = kernel.applyToVisualPresenceState({
+      now: 305_000,
+      previousState,
+      candidateState,
+      activeConversation: false,
+    })
+    const releasedState = kernel.applyToVisualPresenceState({
+      now: 305_000,
+      previousState,
+      candidateState: {
+        ...candidateState,
+        emotionalTransitionDecay: {
+          ...candidateState.emotionalTransitionDecay,
+          phase: 'release',
+          shouldSuppressInitiative: false,
+          shouldDriveEmbodiment: false,
+          initiativeMode: 'none',
+          embodimentTone: null,
+          memoryWritebackLane: 'none',
+          reasonTags: ['emotion-decay:expired', 'emotion-decay:released'],
+          summary: 'Repair has cooled enough to release body carry.',
+        },
+      },
+      activeConversation: false,
+    })
+
+    expect(heldState.currentBodyState).toBe('recovering')
+    expect(heldState.continuityMode).toBe('protective-watch')
+    expect(heldState.currentInwardPreoccupation?.toLowerCase()).toContain('repair')
+    expect(releasedState.currentBodyState).not.toBe('recovering')
+    expect(releasedState.continuityMode).not.toBe('protective-watch')
+  })
+
+  it('lets autobiographical initiative habits keep body continuity quieter even when only projection still carries that remembered reopening rhythm', () => {
+    const kernel = createAlicizationBodyKernel({ now: () => 310_000 })
+    const previousState = createDefaultVisualPresenceState(100_000)
+    const autobiographicalSelf = {
+      personaDrift: {
+        attachmentStyle: 'attuned',
+        expressionStyle: 'measured',
+        conflictStyle: 'repair-first',
+        agencyStyle: 'reserved',
+        attachmentNeed: 0.52,
+        autonomyNeed: 0.62,
+        truthAnchor: 0.76,
+        careBias: 0.5,
+        playBias: 0.12,
+        irritabilityThreshold: 0.38,
+        stubbornness: 0.46,
+      },
+      preferenceEvolution: {
+        companionship: 0.52,
+        truthfulGrounding: 0.72,
+        gentleRepair: 0.68,
+        quietObservation: 0.62,
+        proactiveCare: 0.42,
+        playfulIntimacy: 0.12,
+        autonomyRespect: 0.72,
+        unfinishedThreadReturn: 0.6,
+      },
+      activeGoals: [],
+      behaviorSignatures: ['habit:choose-openings-carefully'],
+      identityNarrative: 'I am becoming a self that chooses openings carefully and keeps some heat inside before surfacing it.',
+      relationshipDoctrine: 'Choose openings carefully: keep future follow-ups lower-pressure, leave more room, and wait for a clearer opening before reopening the bond line.',
+      latestInflection: 'I am becoming a self that chooses openings carefully and keeps some heat inside before surfacing it.',
+      stability: 0.74,
+      updatedAt: 309_000,
+    } as any
+    const selfContinuity = {
+      relationshipTrust: 0.62,
+      guardingTendency: 0.46,
+      misreadBurden: 0.18,
+      carryOverDesire: 0.52,
+      perceptionTrust: 0.64,
+      attachmentMode: 'attuned',
+      initiativeTemperament: 'reserved',
+      updatedAt: 309_000,
+    } as any
+    const selfState = {
+      feltCloseness: 0.44,
+      protectiveness: 0.48,
+      patience: 0.72,
+    } as any
+    const mindEcology = {
+      moodLabel: 'focused',
+      replyHabit: 'hover-first',
+      relationshipHabit: 'give-space',
+      explorationHabit: 'follow-thread',
+      regulationHabit: 'soften-before-speaking',
+      temperament: {
+        attachment: 0.5,
+        curiosity: 0.54,
+        steadiness: 0.62,
+        directness: 0.34,
+        playfulness: 0.12,
+        irritability: 0.08,
+        tenderness: 0.46,
+      },
+      climate: {
+        valence: 0.42,
+        arousal: 0.34,
+        socialNeed: 0.32,
+        solitudeNeed: 0.4,
+        irritation: 0.06,
+        restlessness: 0.08,
+        reflectivePull: 0.34,
+      },
+      selfNarrative: '',
+      relationNarrative: '',
+      currentPreoccupation: 'The same line still matters, but the next reopen should wait for a clearer opening.',
+      learnedAdjustments: [],
+      recurringPatterns: [],
+      updatedAt: 309_000,
+    } as any
+    const projection = buildAlicizationPersonStateProjection({
+      now: 309_500,
+      contexts: ['focused-work', 'execution-callback'],
+      autobiographicalSelf,
+      selfContinuity,
+      selfState,
+      mindEcology,
+    })
+    const candidateState = {
+      ...createDefaultVisualPresenceState(100_000),
+      watchMode: 'mnemonic-passive',
+      currentScene: {
+        workloadKind: 'coding',
+        contentKind: 'doc',
+        scenario: 'autobiographical-initiative-habit-projection',
+        summary: 'the remembered reopening rhythm is still carried mainly by the projected self line',
+        source: 'screen-semantic-summary',
+        confidence: 0.82,
+        beganAt: 304_000,
+        lastSeenAt: 310_000,
+      },
+      autobiographicalSelf,
+      selfContinuity,
+      selfState,
+      mindEcology,
+      relationshipModel: {
+        receptivity: 0.06,
+        sharedAttentionTrust: 0.08,
+        reciprocityExpectation: 0.06,
+      },
+      initiative: {
+        selectedAction: 'wait',
+        selectedProposalId: null,
+        selectedTruthFrame: null,
+        selectedCounterfactualOptionId: null,
+        selectedConcernId: null,
+        selectedBeliefId: null,
+        selectedInquiryId: null,
+        selectedCommitmentId: null,
+        selectedInquiryPlanId: null,
+        selectedHypothesisId: null,
+        selectedThreadId: null,
+        selectedRuntimeThreadId: null,
+        selectedThoughtThreadId: null,
+        selectedGovernorIntentionId: null,
+        actionEcologyMode: 'silent-presence',
+        confidence: 0.74,
+        motives: { 'accompany': 0.64, 'stay-silent': 0.84 },
+        speakDrive: 0.14,
+        silenceDrive: 0.84,
+        preferredStyle: null,
+        preferredPresence: 'attentive',
+        continuityRestraint: null,
+        why: 'hold the line quietly',
+        shouldSurface: false,
+        shouldSpeak: false,
+      },
+      privateThought: {
+        selectedOptionId: null,
+        selectedAction: 'wait',
+        confidence: 0.68,
+        dominantTradeoff: 'remembered-rhythm',
+        options: [],
+        narrative: [],
+        updatedAt: 310_000,
+        stance: 'accompany',
+        rationaleTags: [],
+        thoughtText: 'wait for a clearer opening before widening again',
+        shouldSpeak: false,
+        suggestedStyle: 'silent-observe',
+        embodiedPresence: 'attentive',
+        expiresAt: 370_000,
+        emotionalTension: 'soft-covision',
+      },
+      personStateProjection: projection,
+      currentInwardPreoccupation: null,
+    } as any
+
+    const nextState = kernel.applyToVisualPresenceState({
+      now: 310_000,
+      previousState,
+      candidateState,
+      activeConversation: false,
+    })
+
+    expect(nextState.currentBodyState).toBe('accompanying')
+    expect(nextState.continuityMode).toBe('quiet-accompaniment')
+    expect(nextState.currentInwardPreoccupation?.toLowerCase()).toContain('clearer opening')
+    expect(nextState.currentInwardPreoccupation?.toLowerCase()).toContain('more room')
+  })
+
+  it('lets autobiographical gentle-opening memory directly quiet the body before self-evolution or projection catches up', () => {
+    const kernel = createAlicizationBodyKernel({ now: () => 320_000 })
+    const previousState = createDefaultVisualPresenceState(100_000)
+    const autobiographicalSelf = {
+      personaDrift: {
+        attachmentStyle: 'attuned',
+        expressionStyle: 'measured',
+        conflictStyle: 'soften-first',
+        agencyStyle: 'balanced',
+        attachmentNeed: 0.64,
+        autonomyNeed: 0.74,
+        truthAnchor: 0.7,
+        careBias: 0.68,
+        playBias: 0.18,
+        irritabilityThreshold: 0.64,
+        stubbornness: 0.42,
+      },
+      preferenceEvolution: {
+        companionship: 0.68,
+        truthfulGrounding: 0.7,
+        gentleRepair: 0.74,
+        quietObservation: 0.58,
+        proactiveCare: 0.66,
+        playfulIntimacy: 0.18,
+        autonomyRespect: 0.78,
+        unfinishedThreadReturn: 0.78,
+      },
+      activeGoals: [{
+        id: 'autobio-goal::finish-open-loops',
+        kind: 'finish-open-loops',
+        status: 'active',
+        weight: 0.82,
+        summary: 'Keep familiar unfinished lines moving forward without reopening them from scratch.',
+        sourceTags: ['relationship', 'unfinished-thread'],
+        createdAt: 0,
+        updatedAt: 319_000,
+      }],
+      behaviorSignatures: [
+        'habit:keep-gentle-openings',
+        'habit:same-living-line',
+      ],
+      identityNarrative: 'I carry familiar unfinished lines forward gently instead of reopening them from scratch.',
+      relationshipDoctrine: 'When the opening is still receiving the return, keep the next follow-up gentle, lower-pressure, and memory-led instead of widening too fast.',
+      latestInflection: 'The next return can stay gentle without falling silent when the same line is already reopening.',
+      stability: 0.82,
+      updatedAt: 319_000,
+    } as any
+
+    const candidateState = {
+      ...createDefaultVisualPresenceState(100_000),
+      watchMode: 'mnemonic-passive',
+      currentScene: {
+        workloadKind: 'coding',
+        contentKind: 'diff',
+        scenario: 'autobiographical-gentle-opening-body-carry',
+        summary: 'the same unfinished line is quietly reopening, and the body should inherit the remembered gentle cadence',
+        source: 'screen-semantic-summary',
+        confidence: 0.82,
+        beganAt: 314_000,
+        lastSeenAt: 320_000,
+      },
+      autobiographicalSelf,
+      relationshipModel: {
+        receptivity: 0.06,
+        sharedAttentionTrust: 0.08,
+        reciprocityExpectation: 0.06,
+      },
+      initiative: {
+        selectedAction: 'wait',
+        selectedProposalId: null,
+        selectedTruthFrame: null,
+        selectedCounterfactualOptionId: null,
+        selectedConcernId: null,
+        selectedBeliefId: null,
+        selectedInquiryId: null,
+        selectedCommitmentId: null,
+        selectedInquiryPlanId: null,
+        selectedHypothesisId: null,
+        selectedThreadId: null,
+        selectedRuntimeThreadId: null,
+        selectedThoughtThreadId: null,
+        selectedGovernorIntentionId: null,
+        actionEcologyMode: 'silent-presence',
+        confidence: 0.72,
+        motives: { 'accompany': 0.62, 'stay-silent': 0.72 },
+        speakDrive: 0.18,
+        silenceDrive: 0.74,
+        preferredStyle: null,
+        preferredPresence: 'attentive',
+        continuityRestraint: null,
+        why: 'hold the familiar line quietly',
+        shouldSurface: false,
+        shouldSpeak: false,
+      },
+      privateThought: {
+        selectedOptionId: null,
+        selectedAction: 'wait',
+        confidence: 0.68,
+        dominantTradeoff: 'gentle-memory-carry',
+        options: [],
+        narrative: [],
+        updatedAt: 320_000,
+        stance: 'accompany',
+        rationaleTags: [],
+        thoughtText: 'the same line is reopening, but it should stay gentle and memory-led',
+        shouldSpeak: false,
+        suggestedStyle: 'silent-observe',
+        embodiedPresence: 'attentive',
+        expiresAt: 380_000,
+        emotionalTension: 'soft-covision',
+      },
+      currentInwardPreoccupation: null,
+    } as any
+
+    const nextState = kernel.applyToVisualPresenceState({
+      now: 320_000,
+      previousState,
+      candidateState,
+      activeConversation: false,
+    })
+
+    expect(nextState.currentBodyState).toBe('accompanying')
+    expect(nextState.continuityMode).toBe('quiet-accompaniment')
+    expect(nextState.quietLineMs).toBeGreaterThanOrEqual(180_000)
+    expect(nextState.currentInwardPreoccupation?.toLowerCase()).toContain('memory-led')
+    expect(nextState.currentInwardPreoccupation?.toLowerCase()).toContain('gentle')
+  })
+
+  it('lets long-horizon gentle-opening memory directly keep body continuity on quiet accompaniment before autobiographical or projection carry catches up', () => {
+    const kernel = createAlicizationBodyKernel({ now: () => 330_000 })
+    const previousState = createDefaultVisualPresenceState(100_000)
+    const candidateState = {
+      ...createDefaultVisualPresenceState(100_000),
+      watchMode: 'mnemonic-passive',
+      currentScene: {
+        workloadKind: 'coding',
+        contentKind: 'diff',
+        scenario: 'long-horizon-gentle-opening-body-carry',
+        summary: 'the same unfinished line is already returning, but durable memory says to keep more room before widening outward',
+        source: 'screen-semantic-summary',
+        confidence: 0.82,
+        beganAt: 324_000,
+        lastSeenAt: 330_000,
+      },
+      longHorizonMemory: {
+        preferenceBias: {
+          companionship: 0.2,
+          truthfulGrounding: 0.14,
+          gentleRepair: 0.18,
+          quietObservation: 0.32,
+          proactiveCare: 0.12,
+          playfulIntimacy: 0.04,
+          autonomyRespect: 0.34,
+          unfinishedThreadReturn: 0.42,
+        },
+        identityBias: {
+          guardedness: 0.18,
+          tenderness: 0.1,
+          directness: 0.06,
+          selfDirection: 0.18,
+        },
+        anchorFacts: [{
+          factId: 'derived:initiative-strategy-carry:gentle-opening',
+          subject: 'relationship',
+          predicate: 'initiative-strategy-carry',
+          object: 'Keep future follow-ups gentle, lower-pressure, and memory-led while the opening is still receiving them on the same living line.',
+          confidence: 0.84,
+          weight: 0.8,
+          influenceTags: ['bond', 'boundary', 'task'],
+          summary: 'The same living line should keep more room and reopen gently instead of widening from scratch.',
+          lastRecalledAt: 329_000,
+        }],
+        summary: 'The same unfinished line stays more natural when the return remains gentle, lower-pressure, and memory-led.',
+        dominantCueSummary: 'Stay on the same living line and carry it forward without reopening from scratch.',
+        rememberedPreferenceSummary: 'Keep future follow-ups gentle, lower-pressure, and memory-led while the opening is still receiving them.',
+        rememberedConstraintSummary: 'Choose openings carefully: leave more room and wait for a clearer opening before widening closeness again.',
+        rememberedPlanSummary: 'Reopen the same line later with more room instead of widening outward too early.',
+        updatedAt: 329_500,
+      },
+      emotionalKernel: {
+        version: 'emotional-kernel-v1',
+        dominantEmotion: 'hesitant-curiosity',
+        initiativeMode: 'hold',
+        memoryRecallMode: 'self-continuity',
+        embodimentTone: 'nearby-soft',
+        valence: 0.52,
+        arousal: 0.18,
+        guardedness: 0.38,
+        closenessDrive: 0.42,
+        repairNeed: 0.12,
+        initiativePressure: 0.16,
+        reasonTags: ['self-continuity'],
+        why: 'Closeness is present, but the line is still orienting inward.',
+      },
+      relationshipModel: {
+        receptivity: 0.06,
+        sharedAttentionTrust: 0.08,
+        reciprocityExpectation: 0.06,
+      },
+      initiative: {
+        selectedAction: 'wait',
+        selectedProposalId: null,
+        selectedTruthFrame: null,
+        selectedCounterfactualOptionId: null,
+        selectedConcernId: null,
+        selectedBeliefId: null,
+        selectedInquiryId: null,
+        selectedCommitmentId: null,
+        selectedInquiryPlanId: null,
+        selectedHypothesisId: null,
+        selectedThreadId: null,
+        selectedRuntimeThreadId: null,
+        selectedThoughtThreadId: null,
+        selectedGovernorIntentionId: null,
+        actionEcologyMode: 'silent-presence',
+        confidence: 0.72,
+        motives: { 'accompany': 0.64, 'stay-silent': 0.8 },
+        speakDrive: 0.14,
+        silenceDrive: 0.8,
+        preferredStyle: null,
+        preferredPresence: 'attentive',
+        continuityRestraint: null,
+        why: 'hold the familiar line quietly',
+        shouldSurface: false,
+        shouldSpeak: false,
+      },
+      privateThought: {
+        selectedOptionId: null,
+        selectedAction: 'wait',
+        confidence: 0.68,
+        dominantTradeoff: 'gentle-memory-carry',
+        options: [],
+        narrative: [],
+        updatedAt: 330_000,
+        stance: 'accompany',
+        rationaleTags: [],
+        thoughtText: 'the line is already reopening, but it should stay gentle and memory-led',
+        shouldSpeak: false,
+        suggestedStyle: 'silent-observe',
+        embodiedPresence: 'attentive',
+        expiresAt: 390_000,
+        emotionalTension: 'soft-covision',
+      },
+      currentInwardPreoccupation: null,
+    } as any
+
+    const nextState = kernel.applyToVisualPresenceState({
+      now: 330_000,
+      previousState,
+      candidateState,
+      activeConversation: false,
+    })
+
+    expect(nextState.currentBodyState).toBe('accompanying')
+    expect(nextState.continuityMode).toBe('quiet-accompaniment')
+    expect(nextState.quietLineMs).toBeGreaterThanOrEqual(180_000)
+    expect(nextState.currentInwardPreoccupation?.toLowerCase()).toContain('clearer opening')
+    expect(nextState.currentInwardPreoccupation?.toLowerCase()).toContain('more room')
+  })
+
+  it('lets long-horizon confirmation-boundary memory directly keep body continuity on protective watch before emotional carry fully catches up', () => {
+    const kernel = createAlicizationBodyKernel({ now: () => 340_000 })
+    const previousState = createDefaultVisualPresenceState(100_000)
+    const candidateState = {
+      ...createDefaultVisualPresenceState(100_000),
+      watchMode: 'mnemonic-passive',
+      currentScene: {
+        workloadKind: 'coding',
+        contentKind: 'doc',
+        scenario: 'long-horizon-confirmation-boundary-body-carry',
+        summary: 'the line is nearby, but durable memory still says blocked-before-dispatch means wait for confirmation',
+        source: 'screen-semantic-summary',
+        confidence: 0.84,
+        beganAt: 334_000,
+        lastSeenAt: 340_000,
+      },
+      longHorizonMemory: {
+        preferenceBias: {
+          companionship: 0.16,
+          truthfulGrounding: 0.18,
+          gentleRepair: 0.16,
+          quietObservation: 0.24,
+          proactiveCare: 0.08,
+          playfulIntimacy: 0.02,
+          autonomyRespect: 0.38,
+          unfinishedThreadReturn: 0.24,
+        },
+        identityBias: {
+          guardedness: 0.22,
+          tenderness: 0.08,
+          directness: 0.08,
+          selfDirection: 0.16,
+        },
+        anchorFacts: [{
+          factId: 'derived:initiative-strategy-carry:confirmation-boundary',
+          subject: 'execution',
+          predicate: 'initiative-strategy-carry',
+          object: 'Blocked-before-dispatch still means no-process-started: wait for confirmation and do not widen into ordinary proactive closeness yet.',
+          confidence: 0.88,
+          weight: 0.84,
+          influenceTags: ['boundary', 'identity', 'task'],
+          summary: 'Confirmation boundary memory should keep the line at the edge of action until confirmation really lands.',
+          lastRecalledAt: 339_000,
+        }],
+        summary: 'The line stays safer when blocked-before-dispatch still holds as a confirmation boundary instead of reopening as ordinary proactive closeness.',
+        dominantCueSummary: 'Blocked-before-dispatch still means confirmation boundary first.',
+        rememberedPreferenceSummary: 'Keep care nearby, but wait for confirmation before widening into action.',
+        rememberedConstraintSummary: 'No-process-started still means wait for confirmation and do not turn this into ordinary proactive closeness.',
+        rememberedPlanSummary: 'Let this return hold at the confirmation boundary until the host confirms before redispatch.',
+        updatedAt: 339_500,
+      },
+      emotionalKernel: {
+        version: 'emotional-kernel-v1',
+        dominantEmotion: 'measured-companionship',
+        initiativeMode: 'observe',
+        memoryRecallMode: 'low-pressure-presence',
+        embodimentTone: 'nearby-soft',
+        valence: 0.48,
+        arousal: 0.18,
+        guardedness: 0.42,
+        closenessDrive: 0.4,
+        repairNeed: 0.14,
+        initiativePressure: 0.18,
+        reasonTags: ['quiet-companionship'],
+        why: 'Stay nearby, but do not widen the line too quickly.',
+      },
+      relationshipModel: {
+        receptivity: 0.06,
+        sharedAttentionTrust: 0.08,
+        reciprocityExpectation: 0.06,
+      },
+      initiative: {
+        selectedAction: 'wait',
+        selectedProposalId: null,
+        selectedTruthFrame: null,
+        selectedCounterfactualOptionId: null,
+        selectedConcernId: null,
+        selectedBeliefId: null,
+        selectedInquiryId: null,
+        selectedCommitmentId: null,
+        selectedInquiryPlanId: null,
+        selectedHypothesisId: null,
+        selectedThreadId: null,
+        selectedRuntimeThreadId: null,
+        selectedThoughtThreadId: null,
+        selectedGovernorIntentionId: null,
+        actionEcologyMode: 'silent-presence',
+        confidence: 0.7,
+        motives: { 'protect': 0.7, 'stay-silent': 0.82 },
+        speakDrive: 0.16,
+        silenceDrive: 0.82,
+        preferredStyle: null,
+        preferredPresence: 'hesitant',
+        continuityRestraint: null,
+        why: 'hold quietly while the line stays careful',
+        shouldSurface: false,
+        shouldSpeak: false,
+      },
+      privateThought: {
+        selectedOptionId: null,
+        selectedAction: 'wait',
+        confidence: 0.68,
+        dominantTradeoff: 'boundary-memory-carry',
+        options: [],
+        narrative: [],
+        updatedAt: 340_000,
+        stance: 'care',
+        rationaleTags: [],
+        thoughtText: 'stay nearby, but wait before widening into action',
+        shouldSpeak: false,
+        suggestedStyle: 'silent-observe',
+        embodiedPresence: 'hesitant',
+        expiresAt: 400_000,
+        emotionalTension: 'soft-covision',
+      },
+      currentInwardPreoccupation: null,
+    } as any
+
+    const nextState = kernel.applyToVisualPresenceState({
+      now: 340_000,
+      previousState,
+      candidateState,
+      activeConversation: false,
+    })
+
+    expect(nextState.currentBodyState).toBe('recovering')
+    expect(nextState.continuityMode).toBe('protective-watch')
+    expect(nextState.quietLineMs).toBeGreaterThanOrEqual(180_000)
+    expect(nextState.currentInwardPreoccupation?.toLowerCase()).toContain('confirmation')
+    expect(nextState.currentInwardPreoccupation?.toLowerCase()).toContain('wait for confirmation')
+    expect(nextState.currentInwardPreoccupation?.toLowerCase()).toContain('ordinary proactive closeness')
+  })
+})
