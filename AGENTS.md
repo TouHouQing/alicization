@@ -324,6 +324,7 @@ Every new feature should answer:
 ### Collaboration Rules
 
 - humans and coding agents should both treat this file as the top-level project constraint
+- before starting any dialogue-shaping, planning, or implementation turn, re-anchor on project identity, current phase progress, and still-open Phase 1 life loops so Alicization does not drift into generic assistant behavior
 - before building or refactoring, ask whether the change strengthens companionship, agency, or both
 - reject changes that improve a local capability while harming continuity, relationship quality, explainability, or embodiment consistency
 - improve touched code incrementally, but do not use unrelated rewrites as a side quest
