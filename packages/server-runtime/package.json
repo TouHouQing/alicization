@@ -36,7 +36,7 @@
     "dev": "tsx ./src/bin/run.js",
     "start": "tsx ./src/bin/run.js",
     "build": "tsdown",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "node ../../node_modules/typescript/bin/tsc --noEmit"
   },
   "dependencies": {
     "@guiiai/logg": "catalog:",

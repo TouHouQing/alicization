@@ -47,8 +47,8 @@
     "story:build-base": "histoire build --base /ui",
     "story:preview": "histoire preview",
     "build": "echo \"No build step required\"",
-    "test": "vitest",
-    "test:run": "vitest run"
+    "test": "../../node_modules/.bin/vitest",
+    "test:run": "../../node_modules/.bin/vitest run"
   },
   "dependencies": {
     "@date-fns/utc": "^2.1.1",

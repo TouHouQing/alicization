@@ -1,4 +1,6 @@
+import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
+import { env as processEnv } from 'node:process'
 
 import VueI18n from '@intlify/unplugin-vue-i18n/vite'
 import Vue from '@vitejs/plugin-vue'
@@ -16,9 +18,11 @@ import { DownloadLive2DSDK } from '@proj-airi/unplugin-live2d-sdk'
 import { defineConfig } from 'electron-vite'
 
 const appNodeModulesDir = resolve(join(import.meta.dirname, 'node_modules'))
+const workspaceRoot = resolve(join(import.meta.dirname, '..', '..'))
 const stageUIAssetsRoot = resolve(join(import.meta.dirname, '..', '..', 'packages', 'stage-ui', 'src', 'assets'))
 const sharedCacheDir = resolve(join(import.meta.dirname, '..', '..', '.cache'))
-const shouldEnableVueI18nPlugin = process.env.ALICIZATION_SKIP_VUE_I18N_PLUGIN !== '1'
+const shouldEnableVueI18nPlugin = processEnv.ALICIZATION_SKIP_VUE_I18N_PLUGIN !== '1'
+const pnpmStoreDir = resolve(join(homedir(), 'Library', 'pnpm', 'store'))
 const onnxruntimeCommonPackageDir = resolve(join(appNodeModulesDir, 'onnxruntime-common'))
 const onnxruntimeCommonEntry = resolve(join(onnxruntimeCommonPackageDir, 'dist', 'esm', 'index.js'))
 const threePackageDir = resolve(join(appNodeModulesDir, 'three'))
@@ -187,6 +191,10 @@ export default defineConfig({
           replacement: resolve(join(import.meta.dirname, '..', '..', 'packages', 'stage-shared', 'src')),
         },
         {
+          find: '@proj-alicization/electron-vueuse',
+          replacement: resolve(join(import.meta.dirname, '..', '..', 'packages', 'electron-vueuse', 'src')),
+        },
+        {
           find: /^onnxruntime-common$/,
           replacement: onnxruntimeCommonEntry,
         },
@@ -198,6 +206,12 @@ export default defineConfig({
     },
 
     server: {
+      fs: {
+        allow: [
+          workspaceRoot,
+          pnpmStoreDir,
+        ],
+      },
       warmup: {
         clientFiles: [
           `${resolve(join(import.meta.dirname, '..', '..', 'packages', 'stage-ui', 'src'))}/*.vue`,
@@ -208,9 +222,9 @@ export default defineConfig({
 
     worker: {
       format: 'es',
-      rollupOptions: {
+      rolldownOptions: {
         output: {
-          inlineDynamicImports: false,
+          codeSplitting: false,
         },
       },
     },

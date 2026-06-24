@@ -23,7 +23,7 @@
     "./composables": "./src/composables/index.ts"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "node ../../node_modules/typescript/bin/tsc --noEmit"
   },
   "dependencies": {
     "@vueuse/core": "catalog:",

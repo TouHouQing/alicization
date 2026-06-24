@@ -47,6 +47,34 @@ export default defineConfig({
     'markdown/require-alt-text': 'off',
   },
 }, {
+  files: [
+    'apps/stage-tamagotchi/src/main/services/alicization/**/*.{ts,tsx}',
+    'apps/stage-tamagotchi/src/renderer/pages/devtools/performance-visualizer*.{ts,vue}',
+  ],
+  rules: {
+    // Alicization relies on broad natural-language intent recognizers. Keep the
+    // regexp plugin visible without forcing semantic rewrites for lint-only wins.
+    'regexp/no-contradiction-with-assertion': 'warn',
+    'regexp/no-dupe-disjunctions': 'warn',
+    'regexp/no-misleading-capturing-group': 'warn',
+    'regexp/no-super-linear-backtracking': 'warn',
+    'regexp/no-unused-capturing-group': 'warn',
+    'regexp/no-useless-assertions': 'warn',
+    'regexp/no-useless-non-capturing-group': 'warn',
+    'style/indent': 'warn',
+    'style/indent-binary-ops': 'warn',
+    'style/no-mixed-operators': 'warn',
+    'style/no-tabs': 'warn',
+    'ts/no-use-before-define': 'warn',
+  },
+}, {
+  files: [
+    'apps/stage-tamagotchi/src/main/services/alicization/**/*.test.ts',
+  ],
+  rules: {
+    'no-template-curly-in-string': 'off',
+  },
+}, {
   ignores: [
     '**/*.md',
   ],

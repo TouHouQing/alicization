@@ -8,6 +8,7 @@ import { execSync } from 'node:child_process'
 import { join, resolve } from 'node:path'
 
 import VueI18n from '@intlify/unplugin-vue-i18n/vite'
+import templateCompilerOptions from '@tresjs/core/template-compiler-options'
 import Vue from '@vitejs/plugin-vue'
 import Unocss from 'unocss/vite'
 import Info from 'unplugin-info/vite'
@@ -20,7 +21,6 @@ import VueMacros from 'vue-macros/vite'
 
 import { Download } from '@proj-airi/unplugin-fetch/vite'
 import { DownloadLive2DSDK } from '@proj-airi/unplugin-live2d-sdk/vite'
-import { templateCompilerOptions } from '@tresjs/core'
 import { defineConfig } from 'vite'
 
 // import { isEnvTruthy } from '@proj-alicization/stage-shared'
@@ -30,8 +30,13 @@ function isEnvTruthy(value: string | undefined | null): boolean {
   return /^(?:1|true|t|yes|y|on)$/i.test(value.trim())
 }
 
+const appNodeModulesDir = resolve(join(import.meta.dirname, 'node_modules'))
 const stageUIAssetsRoot = resolve(join(import.meta.dirname, '..', '..', 'packages', 'stage-ui', 'src', 'assets'))
 const sharedCacheDir = resolve(join(import.meta.dirname, '..', '..', '.cache'))
+const onnxruntimeCommonPackageDir = resolve(join(appNodeModulesDir, 'onnxruntime-common'))
+const onnxruntimeCommonEntry = resolve(join(onnxruntimeCommonPackageDir, 'dist', 'esm', 'index.js'))
+const threePackageDir = resolve(join(appNodeModulesDir, 'three'))
+const threeModuleEntry = resolve(join(threePackageDir, 'build', 'three.module.js'))
 
 export default defineConfig({
   optimizeDeps: {
@@ -62,14 +67,40 @@ export default defineConfig({
     ],
   },
   resolve: {
-    alias: {
-      '@proj-alicization/server-sdk': resolve(join(import.meta.dirname, '..', '..', 'packages', 'server-sdk', 'src')),
-      '@proj-alicization/i18n': resolve(join(import.meta.dirname, '..', '..', 'packages', 'i18n', 'src')),
-      '@proj-alicization/stage-ui': resolve(join(import.meta.dirname, '..', '..', 'packages', 'stage-ui', 'src')),
-      '@proj-alicization/stage-layouts': resolve(join(import.meta.dirname, '..', '..', 'packages', 'stage-layouts', 'src')),
-      '@proj-alicization/stage-pages': resolve(join(import.meta.dirname, '..', '..', 'packages', 'stage-pages', 'src')),
-      '@proj-alicization/stage-shared': resolve(join(import.meta.dirname, '..', '..', 'packages', 'stage-shared', 'src')),
-    },
+    alias: [
+      {
+        find: '@proj-alicization/server-sdk',
+        replacement: resolve(join(import.meta.dirname, '..', '..', 'packages', 'server-sdk', 'src')),
+      },
+      {
+        find: '@proj-alicization/i18n',
+        replacement: resolve(join(import.meta.dirname, '..', '..', 'packages', 'i18n', 'src')),
+      },
+      {
+        find: '@proj-alicization/stage-ui',
+        replacement: resolve(join(import.meta.dirname, '..', '..', 'packages', 'stage-ui', 'src')),
+      },
+      {
+        find: '@proj-alicization/stage-layouts',
+        replacement: resolve(join(import.meta.dirname, '..', '..', 'packages', 'stage-layouts', 'src')),
+      },
+      {
+        find: '@proj-alicization/stage-pages',
+        replacement: resolve(join(import.meta.dirname, '..', '..', 'packages', 'stage-pages', 'src')),
+      },
+      {
+        find: '@proj-alicization/stage-shared',
+        replacement: resolve(join(import.meta.dirname, '..', '..', 'packages', 'stage-shared', 'src')),
+      },
+      {
+        find: /^onnxruntime-common$/,
+        replacement: onnxruntimeCommonEntry,
+      },
+      {
+        find: /^three$/,
+        replacement: threeModuleEntry,
+      },
+    ],
   },
   server: {
     host: '0.0.0.0',

@@ -24,11 +24,18 @@
     "uno.config.ts",
     "electron.vite.config.ts",
 
+    "../../packages/stage-ui/src/stores/chat-entry-awareness-audit.ts",
+    "../../apps/stage-web/src/pages/index.voice.ts",
+    "../../apps/stage-web/src/pages/devtools/performance-playground.chat.ts",
+    "../../apps/stage-pocket/src/pages/index.voice.ts",
+    "../../apps/stage-pocket/src/pages/devtools/performance-playground.chat.ts",
+
     "src/main/**/*.ts",
     "src/main/**/*.d.ts",
     "src/main/**/*.tsx",
     "src/main/**/*.vue",
 
+    "src/renderer/pages/index.desktop.ts",
     "src/shared/**/*.ts",
     "src/shared/**/*.d.ts",
     "src/shared/**/*.tsx",
