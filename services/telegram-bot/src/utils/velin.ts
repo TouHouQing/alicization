@@ -12,6 +12,16 @@ function isMarkdown(module: string) {
   return module.endsWith('.md') || module.endsWith('.velin.md')
 }
 
+type VelinRenderResult
+  = | string
+    | { rendered: string }
+
+function renderedTextFromVelinResult(result: VelinRenderResult): string {
+  if (typeof result === 'string')
+    return result
+  return result.rendered
+}
+
 export function importVelin(module: string, base: string): VelinModule {
   return {
     render: async (data) => {
@@ -19,10 +29,7 @@ export function importVelin(module: string, base: string): VelinModule {
       const result = isMarkdown(module)
         ? await renderMarkdownString(content, data)
         : await renderSFCString(content, data)
-      // renderMarkdownString returns { rendered, props } instead of a plain string
-      if (result && typeof result === 'object' && 'rendered' in result)
-        return (result as { rendered: string }).rendered
-      return result
+      return renderedTextFromVelinResult(result as VelinRenderResult)
     },
   }
 }
