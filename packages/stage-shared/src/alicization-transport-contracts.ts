@@ -6481,6 +6481,7 @@ export type AlicizationProactiveStaticReasonCode
     | 'private-thought-uncertain'
     | 'belief-tentative'
     | 'belief-contradicted'
+    | 'world-model-revalidation-required'
     | 'inquiry-open'
     | 'relationship-guarded'
     | 'relationship-attuned'
