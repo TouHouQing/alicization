@@ -95,8 +95,9 @@ export function normalizeAlicizationMemoryResolutionLedger(raw: unknown): Aliciz
         || value === 'conflicted-recall'
         || value === 'inward-only'
         || value === 'no-recall'
-      )
+      ) {
         return value
+      }
       return candidate.shouldStayInward === true
         ? 'inward-only'
         : 'no-recall'
@@ -113,8 +114,9 @@ export function normalizeAlicizationMemoryResolutionLedger(raw: unknown): Aliciz
         || value === 'gist-only'
         || value === 'tone-carry'
         || value === 'withhold'
-      )
+      ) {
         return value
+      }
       return candidate.shouldStayInward === true
         ? 'withhold'
         : 'tone-carry'

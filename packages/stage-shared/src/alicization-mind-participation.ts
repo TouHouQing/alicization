@@ -1,7 +1,7 @@
 import type {
   AlicizationDigitalLifeSpineDigest,
-  AlicizationMindParticipationSnapshot,
   AlicizationMemoryDecisionTraceRecord,
+  AlicizationMindParticipationSnapshot,
 } from './alicization-transport-contracts'
 
 function clampUnit(value: number) {

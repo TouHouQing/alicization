@@ -125,7 +125,7 @@ function deriveInitiativeStrategyResidueCarry(input: {
     } satisfies AlicizationInitiativeStrategyResidueCarry
   }
 
-  const cautiousCarry = /clearer opening|fresher opening|leave more room|less eager|lower-pressure|quieter timing|quieter timing/u.test(combined)
+  const cautiousCarry = /clearer opening|fresher opening|leave more room|less eager|lower-pressure|quieter timing/u.test(combined)
   if (cautiousCarry) {
     return {
       cadenceMode: 'measured-return',
@@ -514,7 +514,7 @@ export function buildAlicizationBrowserAffectiveResidueMemory(input: {
     /深夜|late night|tired|累|休息|rest/iu.test(`${event.whatHappened} ${event.relationshipMeaning ?? ''} ${event.lesson ?? ''}`),
   ).length
   const repairCount = recentEpisodicEvents.filter(event =>
-    /repair|修|修复|澄清|seam|reground/iu.test(`${event.whatHappened} ${event.lesson ?? ''}`),
+    /repair|修复?|澄清|seam|reground/iu.test(`${event.whatHappened} ${event.lesson ?? ''}`),
   ).length
   const warmCount = recentEpisodicEvents.filter(event =>
     /warm|接住|陪|在这|still here|afterglow|余温/iu.test(`${event.whatHappened} ${event.felt} ${event.relationshipMeaning ?? ''}`),

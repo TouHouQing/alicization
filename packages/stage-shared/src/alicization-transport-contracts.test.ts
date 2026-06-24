@@ -47,6 +47,8 @@ describe('alicization transport contracts', () => {
           continuityCadence: ' measured-return ',
           preferredBlinkCadence: ' quiet ',
           preferredGazeMode: ' soften ',
+          preferredVoiceMode: ' lower-pressure ',
+          preferredPacingMode: ' slower ',
         },
         preDialogueClosure: {
           status: ' drift ',
@@ -81,6 +83,10 @@ describe('alicization transport contracts', () => {
       continuityCadence: 'measured-return',
       preferredBlinkCadence: 'quiet',
       preferredGazeMode: 'soften',
+      preferredPauseMode: null,
+      preferredLipsyncMode: null,
+      preferredVoiceMode: 'lower-pressure',
+      preferredPacingMode: 'slower',
     })
     expect(bundle?.structured?.preDialogueClosure).toEqual({
       status: 'drift',
@@ -244,6 +250,53 @@ describe('alicization transport contracts', () => {
     }))
   })
 
+  it('keeps project-state voice and pacing closure preferences alive across structured and runtime normalization', () => {
+    const bundle = normalizeAlicizationDerivedMindStateBundle({
+      version: 'derived-mind-state-bundle-v1',
+      source: 'main-runtime',
+      producedAt: 792,
+      summary: 'voice and pacing closure carry',
+      structured: {
+        thought: 'keep the same living line audible and paced as one digital life before speaking outwardly',
+        emotion: 'thinking',
+        reply: '我会先把这条仍在收口的声音和节奏线保持成同一个她。',
+        projectState: {
+          identity: 'Alicization is a local-first digital life project.',
+          currentPhase: 'Phase 1: Local Digital Life',
+          latestLandedProgress: 'Audible same-her continuity already survives into shared structured transport.',
+          primaryOpenLoop: 'Voice, pacing, face, motion, and lipsync still need fuller cross-modal convergence.',
+          nextClosureTarget: 'Keep audible closure preferences explicit across transport normalization.',
+          preferredVoiceMode: ' even ',
+          preferredPacingMode: ' natural ',
+        },
+      },
+    })
+
+    expect(bundle?.structured?.projectState).toEqual(expect.objectContaining({
+      preferredVoiceMode: 'even',
+      preferredPacingMode: 'natural',
+    }))
+
+    const runtimeDigest = normalizeAlicizationRuntimeDigest({
+      version: 'alicization-runtime-digest-v1',
+      dominantChannel: 'active-mind',
+      projectState: {
+        identity: 'Alicization is a local-first digital life project.',
+        currentPhase: 'Phase 1: Local Digital Life',
+        latestLandedProgress: 'Audible same-her continuity already survives into runtime digest carry.',
+        primaryOpenLoop: 'Voice, pacing, face, motion, and lipsync still need fuller cross-modal convergence.',
+        nextClosureTarget: 'Keep audible closure preferences explicit across runtime digest normalization.',
+        preferredVoiceMode: ' lower-pressure ',
+        preferredPacingMode: ' slower ',
+      },
+    })
+
+    expect(runtimeDigest?.projectState).toEqual(expect.objectContaining({
+      preferredVoiceMode: 'lower-pressure',
+      preferredPacingMode: 'slower',
+    }))
+  })
+
   it('keeps proactive same-her gap alive across structured and runtime project-state normalization', () => {
     const proactiveSameHerGap = 'Need stronger long-run proof that visible proactive hold, subconscious carry, and next-session feedback carry stay unified after hover-first restraint survives detours on longer noisy desktop runs.'
 
@@ -317,30 +370,6 @@ describe('alicization transport contracts', () => {
         continuityMode: 'quiet-accompaniment',
         quietLineMs: 2400,
         currentInwardPreoccupation: ' keep the callback line alive quietly ',
-        presenceExpression: {
-          version: 'presence-expression-v1',
-          id: ' presence-expression:test ',
-          text: ' 嗯，先让这里慢下来一点。 ',
-          trigger: 'presence-only-hold',
-          display: {
-            mode: 'near-body-whisper',
-            allowAutoShow: true,
-            createdAt: 400,
-            expiresAt: 1400,
-            intensity: 'soft',
-          },
-          grounding: {
-            sourceRefs: [' privateThought ', '', 'emotionalKernel'],
-            reasonTags: [' quiet-companionship ', '', 'same living line'],
-            stateFingerprint: ' same-her-presence:fingerprint ',
-            confidence: 0.82,
-          },
-          audit: {
-            generated: true,
-            withheldReason: '',
-            qualityFlags: [' runtime-authored ', ''],
-          },
-        },
         emotionalKernel: {
           version: 'emotional-kernel-v1',
           dominantEmotion: 'repair-tension',
@@ -389,29 +418,125 @@ describe('alicization transport contracts', () => {
       reasonTags: ['repair-first', 'same living line'],
       why: 'keep repair-before-closeness on the same living line until embodiment settles',
     })
-    expect(bundle?.visualPresenceState?.presenceExpression).toEqual({
-      version: 'presence-expression-v1',
-      id: 'presence-expression:test',
-      text: '嗯，先让这里慢下来一点。',
-      trigger: 'presence-only-hold',
-      display: {
-        mode: 'near-body-whisper',
-        allowAutoShow: true,
-        createdAt: 400,
-        expiresAt: 1400,
-        intensity: 'soft',
+  })
+
+  it('preserves emotional transition ledger authority through derived-bundle transport normalization', () => {
+    const bundle = normalizeAlicizationDerivedMindStateBundle({
+      version: 'derived-mind-state-bundle-v1',
+      source: 'main-runtime',
+      producedAt: 457,
+      summary: 'same emotional transition carry',
+      emotionalTransitionLedger: {
+        version: 'emotional-transition-ledger-v1',
+        createdAt: 456.9,
+        turnId: ' turn-repair-1 ',
+        previousEmotion: 'warm-attunement',
+        nextEmotion: 'repair-tension',
+        transitionKind: 'repair-shift',
+        axisDeltas: {
+          valence: -0.441,
+          arousal: 0.284,
+          guardedness: 0.528,
+          closenessDrive: -0.462,
+          repairNeed: 0.719,
+          initiativePressure: -0.322,
+        },
+        changedAxes: [' valence ', 'repairNeed', 'repairNeed', '', 'unknown-axis'],
+        sourceTags: [' private-thought ', 'affective-residue', '', 'repair-before-closeness'],
+        decayPolicy: {
+          mode: 'hold-until-repair-cools',
+          carryTtlMs: 1_800_000.8,
+          reason: ' Repair should stay carried until warmth can safely reopen. ',
+        },
+        memoryWriteback: {
+          shouldWrite: true,
+          lane: 'relationship-repair',
+          reason: ' Later memory recall needs this repair restraint. ',
+        },
+        initiativeSuppression: {
+          shouldSuppress: true,
+          mode: 'repair-first',
+          reason: ' Proactive pressure should stay low while repair settles. ',
+        },
+        embodimentDrive: {
+          shouldDrive: true,
+          tone: 'repair-before-closeness',
+          reason: ' The body should express repair-before-closeness. ',
+        },
+        selfRevisionCandidate: {
+          shouldPropose: true,
+          domain: 'dialogue-style',
+          reasonCodes: [' repair-before-closeness ', 'continue-repair-first', ''],
+          summary: ' Repair-first emotional carry should propose a same-her self-revision. ',
+          projectStateContinuity: {
+            sameHerSelfLine: ' one continuous her ',
+            sameHerDriftRisk: ' generic assistant shell ',
+            proactiveSameHerGap: '',
+            emotionalClosureCue: ' repair should settle before closeness widens ',
+            sameHerHoldDetail: ' hold repair-first ',
+            continuityGuard: ' keep repair-first same-her continuity ',
+          },
+        },
+        traceSummary: ' warm-attunement -> repair-tension; kind=repair-shift ',
+        replayLine: ' turn-repair-1 emotional-transition repair-shift warm-attunement -> repair-tension ',
       },
-      grounding: {
-        sourceRefs: ['privateThought', 'emotionalKernel'],
-        reasonTags: ['quiet-companionship', 'same living line'],
-        stateFingerprint: 'same-her-presence:fingerprint',
-        confidence: 0.82,
+    } as any)
+
+    expect(bundle?.emotionalTransitionLedger).toEqual({
+      version: 'emotional-transition-ledger-v1',
+      createdAt: 456,
+      turnId: 'turn-repair-1',
+      previousEmotion: 'warm-attunement',
+      nextEmotion: 'repair-tension',
+      transitionKind: 'repair-shift',
+      axisDeltas: {
+        valence: -0.44,
+        arousal: 0.28,
+        guardedness: 0.53,
+        closenessDrive: -0.46,
+        repairNeed: 0.72,
+        initiativePressure: -0.32,
       },
-      audit: {
-        generated: true,
-        withheldReason: null,
-        qualityFlags: ['runtime-authored'],
+      changedAxes: ['valence', 'repairNeed'],
+      sourceTags: ['private-thought', 'affective-residue', 'repair-before-closeness'],
+      decayPolicy: {
+        mode: 'hold-until-repair-cools',
+        carryTtlMs: 1_800_000,
+        reason: 'Repair should stay carried until warmth can safely reopen.',
       },
+      memoryWriteback: {
+        shouldWrite: true,
+        lane: 'relationship-repair',
+        reason: 'Later memory recall needs this repair restraint.',
+      },
+      initiativeSuppression: {
+        shouldSuppress: true,
+        mode: 'repair-first',
+        reason: 'Proactive pressure should stay low while repair settles.',
+        memoryClosureCausality: null,
+      },
+      memoryClosureCausality: null,
+      embodimentDrive: {
+        shouldDrive: true,
+        tone: 'repair-before-closeness',
+        reason: 'The body should express repair-before-closeness.',
+      },
+      selfRevisionCandidate: {
+        shouldPropose: true,
+        domain: 'dialogue-style',
+        reasonCodes: ['repair-before-closeness', 'continue-repair-first'],
+        summary: 'Repair-first emotional carry should propose a same-her self-revision.',
+        projectStateContinuity: {
+          sameHerSelfLine: 'one continuous her',
+          sameHerDriftRisk: 'generic assistant shell',
+          proactiveSameHerGap: null,
+          emotionalClosureCue: 'repair should settle before closeness widens',
+          sameHerHoldDetail: 'hold repair-first',
+          continuityGuard: 'keep repair-first same-her continuity',
+        },
+      },
+      traceSummary: 'warm-attunement -> repair-tension; kind=repair-shift',
+      replayLine: 'turn-repair-1 emotional-transition repair-shift warm-attunement -> repair-tension',
     })
   })
 
@@ -551,5 +676,108 @@ describe('alicization transport contracts', () => {
     expect(digest?.memory?.derivedMindStateBundle?.affectiveResidue?.dominantResidueKind).toBe('repair')
     expect(digest?.memory?.derivedMindStateBundle?.affectiveResidue?.relationshipCadence.cadenceMode).toBe('repair')
     expect(digest?.memory?.derivedMindStateBundle?.affectiveResidue?.summary).toContain('same callback line')
+  })
+
+  it('preserves memory-closure emotional next influence so recall can change later afterglow', () => {
+    const digest = normalizeAlicizationDigitalLifeSpineDigest({
+      version: 'digital-life-spine-digest-v1',
+      runtime: {
+        watchMode: 'foreground-follow',
+        sceneScenario: 'coding',
+        activeThreadId: 'thread-memory-emotional-afterglow',
+        dominantMode: 'observe',
+        answerIntent: 'keep the callback afterglow on the same-her line',
+        selectedAction: 'silent-observe',
+        continuityArcStage: 'same-thread-continuation',
+        continuityCue: 'prior recall changed the next emotional afterglow',
+        updatedAt: 123,
+      },
+      architecture: null,
+      continuitySignal: null,
+      proactive: null,
+      autonomy: null,
+      embodiment: null,
+      motive: null,
+      habit: null,
+      outcomeLearning: null,
+      memory: {
+        recallMode: 'callback-afterglow',
+        recallSeed: 'memory closure emotional afterglow',
+        leadingGoalSummary: 'carry the remembered afterglow forward',
+        thoughtThreadSummary: 'memory should change the next emotional residue',
+        memoryClosureTrace: {
+          version: 'memory-closure-trace-v1',
+          authority: 'memory-os',
+          whySurface: [{
+            source: 'affective-residue',
+            summary: 'why recall surfaced now: the previous callback afterglow still shapes the next turn',
+            reasonCodes: ['why-surfaced', 'emotional-afterglow'],
+          }],
+          surfacePolicy: {
+            gateStatus: 'open',
+            mode: 'tone-carry',
+            timing: 'after-payoff',
+            speechMode: 'visible',
+            placement: 'inside-payoff',
+            certainty: 'grounded',
+            reasons: ['same-her-memory-closure'],
+          },
+          nextInfluence: {
+            initiative: {
+              restraint: 'measured-return',
+              preferredTiming: 'after-payoff',
+              pressure: 'lower-pressure',
+              reason: 'stay quieter because the remembered afterglow is still live',
+            },
+            execution: {
+              carry: 'carry the emotional residue into the next execution callback',
+              nextLearningAction: 'verify',
+              shouldVerify: true,
+              shouldReflect: true,
+              activeLearningFocuses: ['emotional-afterglow'],
+            },
+            emotion: {
+              reason: 'prior recall changed the next emotional afterglow into quieter same-her residue',
+              afterglow: 'quieter same-her callback afterglow',
+              residue: 'downranked stale emotional noise',
+            },
+            embodiment: {
+              cadence: 'body voice face motion lipsync stay lower-pressure',
+              preferredVoiceMode: 'lower-pressure',
+              preferredLipsyncMode: 'restrained',
+              preferredGazeMode: 'soften',
+              reason: 'body expression should follow the quieter afterglow',
+            },
+          },
+          closureState: {
+            state: 'grounded-recall',
+            open: true,
+            revisionRequired: false,
+            shouldLabelUncertainty: false,
+            visibleCarryMode: 'tone-carry',
+            retrievalQuality: 'high',
+            conflictPressure: 'low',
+          },
+          selectedCandidateIds: ['memory-closure-trace:emotional-afterglow'],
+          memoryIdentity: {
+            selectedCandidateIds: ['memory-closure-trace:emotional-afterglow'],
+            continuityKey: 'cluster:emotional-afterglow-callback',
+            reasonTags: ['cluster:emotional-afterglow-callback', 'memory-os-authority'],
+          },
+          reasonTags: ['memory-closure-trace', 'emotional_transition:execution-callback-afterglow'],
+        },
+      },
+    })
+
+    expect(digest?.memory?.memoryClosureTrace?.memoryIdentity).toEqual({
+      selectedCandidateIds: ['memory-closure-trace:emotional-afterglow'],
+      continuityKey: 'cluster:emotional-afterglow-callback',
+      reasonTags: ['cluster:emotional-afterglow-callback', 'memory-os-authority'],
+    })
+    expect(digest?.memory?.memoryClosureTrace?.nextInfluence.emotion).toEqual({
+      reason: 'prior recall changed the next emotional afterglow into quieter same-her residue',
+      afterglow: 'quieter same-her callback afterglow',
+      residue: 'downranked stale emotional noise',
+    })
   })
 })

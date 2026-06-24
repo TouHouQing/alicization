@@ -1,7 +1,9 @@
+import type { AlicizationLearningArtifactLedgerRecord } from './alicization-learning-artifact-ledger'
+
 import { describe, expect, it } from 'vitest'
 
 import {
-  type AlicizationLearningArtifactLedgerRecord,
+
   filterLearningArtifactLedgerRecords,
   learningArtifactLedgerRecordFromMindTurnEvent,
 } from './alicization-learning-artifact-ledger'

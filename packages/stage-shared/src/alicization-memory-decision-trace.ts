@@ -1,14 +1,15 @@
+import type { AlicizationMemoryResolutionLedger } from './alicization-memory-resolution-ledger'
+import type { AlicizationOrganicMemoryStageReplay } from './alicization-memory-stats'
 import type {
+  AlicizationDerivedMindStateBundle,
   AlicizationMemoryDecisionTraceRecord,
   AlicizationMindTurnEventKind,
   AlicizationMindTurnEventRecord,
 } from './alicization-transport-contracts'
 
-import type { AlicizationOrganicMemoryStageReplay } from './alicization-memory-stats'
-import type { AlicizationMemoryResolutionLedger } from './alicization-memory-resolution-ledger'
-import { deriveAlicizationMindParticipationFromTrace } from './alicization-mind-participation'
 import { normalizeAlicizationMemoryResolutionLedger } from './alicization-memory-resolution-ledger'
 import { normalizeAlicizationOrganicMemoryStageReplay } from './alicization-memory-stage-replay'
+import { deriveAlicizationMindParticipationFromTrace } from './alicization-mind-participation'
 import { normalizeAlicizationDerivedMindStateBundle } from './alicization-transport-contracts'
 
 function asObject(raw: unknown) {
@@ -41,13 +42,186 @@ function extractMemoryResolutionLedger(payload: Record<string, unknown> | null |
   return normalizeAlicizationMemoryResolutionLedger(payload?.memoryResolutionLedger)
 }
 
+function readStringList(raw: unknown) {
+  return Array.isArray(raw)
+    ? raw.map(item => sanitizeText(item, 160)).filter(Boolean)
+    : []
+}
+
+function memoryClosureCausalityRecordsFromBundle(bundle: AlicizationDerivedMindStateBundle) {
+  const emotionalTransitionLedger = asObject(bundle.emotionalTransitionLedger)
+  const initiativeSuppression = asObject(emotionalTransitionLedger?.initiativeSuppression)
+  const learningExecutionState = asObject(bundle.learningExecutionState)
+  const embodimentContinuityLedger = asObject(bundle.embodimentContinuityLedger)
+  return [
+    asObject(emotionalTransitionLedger?.memoryClosureCausality),
+    asObject(initiativeSuppression?.memoryClosureCausality),
+    asObject(learningExecutionState?.memoryClosureCausality),
+    asObject(embodimentContinuityLedger?.memoryClosureCausality),
+  ].filter((record): record is Record<string, unknown> => Boolean(record))
+}
+
+function scoreMemoryClosureIdentityEvidence(bundle: AlicizationDerivedMindStateBundle) {
+  const records = memoryClosureCausalityRecordsFromBundle(bundle)
+  if (records.length === 0)
+    return 0
+
+  const identityKeys = new Set<string>()
+  let explicitClosureScore = 0
+  let inwardOnlyGenericPenalty = 0
+  for (const record of records) {
+    const memoryIdentity = asObject(record.memoryIdentity)
+    const continuityKey = sanitizeText(memoryIdentity?.continuityKey, 160).toLowerCase()
+    const selectedCandidateIds = readStringList(memoryIdentity?.selectedCandidateIds)
+      .map(id => id.toLowerCase())
+    const reasonTags = [
+      ...readStringList(record.reasonTags),
+      ...readStringList(memoryIdentity?.reasonTags),
+    ].map(tag => tag.toLowerCase())
+
+    if (continuityKey)
+      identityKeys.add(continuityKey)
+    for (const candidateId of selectedCandidateIds)
+      identityKeys.add(candidateId)
+
+    if (
+      continuityKey.startsWith('fallback:')
+      || selectedCandidateIds.some(id => id.startsWith('fallback-memory-closure:'))
+      || reasonTags.includes('fallback-memory-closure')
+      || reasonTags.includes('why-surfaced')
+      || reasonTags.some(tag => tag.startsWith('memory-identity:fallback:'))
+    ) {
+      explicitClosureScore += 8
+    }
+
+    if (
+      continuityKey.startsWith('cluster:')
+      && selectedCandidateIds.length === 0
+      && reasonTags.includes('gate:inward-only')
+    ) {
+      inwardOnlyGenericPenalty += 6
+    }
+  }
+
+  return Math.min(12, identityKeys.size * 2 + explicitClosureScore) - inwardOnlyGenericPenalty
+}
+
+function scoreDerivedMindStateBundleEvidence(bundle: AlicizationDerivedMindStateBundle | null): number {
+  if (!bundle)
+    return 0
+
+  let score = 1
+  if (bundle.emotionalKernel)
+    score += 4
+  if (bundle.emotionalTransitionLedger)
+    score += 8
+  if (bundle.embodimentContinuityLedger)
+    score += 8
+  if (bundle.affectiveResidue)
+    score += 4
+  if (bundle.activeSelfRevision)
+    score += 3
+  if (bundle.activeContinuityGovernance)
+    score += 3
+  if (bundle.learningExecutionState)
+    score += 3
+  if (bundle.recollectionIntent)
+    score += 2
+  if (bundle.recollectionPlan)
+    score += 2
+  if (bundle.recollectionSpeechPlan)
+    score += 2
+  if (bundle.memoryDeliberation)
+    score += 2
+  if (bundle.recallLatencyPolicy)
+    score += 2
+  if (bundle.dialogueRhythm)
+    score += 2
+  if (bundle.hostPersonModel)
+    score += 2
+  if (bundle.personStateProjection)
+    score += 2
+  if (bundle.knowledgeEvidence)
+    score += 2
+  score += Math.min(4, bundle.claimEvidenceGraphs?.length ?? 0)
+  if (sanitizeText(bundle.summary, 220))
+    score += 1
+  score += scoreMemoryClosureIdentityEvidence(bundle)
+
+  return score
+}
+
+function scoreMemoryResolutionLedgerEvidence(ledger: AlicizationMemoryResolutionLedger | null): number {
+  if (!ledger)
+    return 0
+
+  let score = 1
+  if (ledger.dominantClusterId)
+    score += 2
+  if (ledger.dominantClusterSummary)
+    score += 2
+  if (ledger.competingClusterId)
+    score += 3
+  if (ledger.competingClusterSummary)
+    score += 3
+  if (ledger.finalSurfacePolicy)
+    score += 2
+  if (ledger.finalRationale)
+    score += 3
+  if (ledger.shouldStayInward)
+    score += 1
+  if (ledger.shouldDelayUntilAfterPayoff)
+    score += 1
+  if (ledger.stableCoreOnly)
+    score += 1
+  if (ledger.shouldLabelUncertainty)
+    score += 1
+  score += Math.min(6, ledger.candidates.length)
+  score += Math.min(4, ledger.selectedCandidates.length)
+  score += Math.min(6, ledger.rejectedCandidates.length * 2)
+  score += Math.min(4, ledger.suppressionTags.length)
+  if (ledger.visibleCarryMode === 'explicit-recall')
+    score += 2
+  if (ledger.retrievalQuality === 'high')
+    score += 2
+  if (ledger.conflictPressure === 'medium' || ledger.conflictPressure === 'high')
+    score += 1
+
+  return score
+}
+
+function selectBestExtractedValue<T>(
+  events: Array<AlicizationMindTurnEventRecord | null>,
+  extract: (payload: Record<string, unknown> | null | undefined) => T | null,
+  score: (value: T | null) => number,
+): T | null {
+  return events.reduce<{ value: T | null, score: number, createdAt: number }>((best, event) => {
+    const value = extract(event?.payload)
+    const evidenceScore = score(value)
+    if (!value || evidenceScore <= 0)
+      return best
+    const createdAt = event?.createdAt ?? 0
+    if (
+      evidenceScore > best.score
+      || (evidenceScore === best.score && createdAt >= best.createdAt)
+    ) {
+      return { value, score: evidenceScore, createdAt }
+    }
+    return best
+  }, { value: null, score: 0, createdAt: -1 }).value
+}
+
 function extractEmbodimentAuthority(payload: Record<string, unknown> | null | undefined) {
   const performance = asObject(payload?.performance)
   const digitalLife = asObject(payload?.digitalLife)
   const digitalLifeSpine = asObject(payload?.digitalLifeSpine)
   const digitalLifeSpineRuntime = asObject(digitalLifeSpine?.runtime)
   const visibleReply = asObject(payload?.visibleReply)
+  const digitalLifeVoice = asObject(digitalLife?.voice)
   const digitalLifeFace = asObject(digitalLife?.face)
+  const digitalLifeMotion = asObject(digitalLife?.motion)
+  const digitalLifeLipSync = asObject(digitalLife?.lipSync)
+  const digitalLifeBodyContinuity = asObject(digitalLife?.bodyContinuity)
   const digitalLifeAction = asObject(digitalLife?.action)
   const embodimentScript = asObject(payload?.embodimentScript)
   const embodimentScriptState = asObject(embodimentScript?.state)
@@ -78,10 +252,31 @@ function extractEmbodimentAuthority(payload: Record<string, unknown> | null | un
           emotion: sanitizeText(digitalLife.emotion, 64) || null,
           mode: sanitizeText(digitalLife.mode, 64) || null,
           preferredPresence: sanitizeText(digitalLifeSpineRuntime?.preferredPresence, 64) || null,
+          voice: digitalLifeVoice
+            ? {
+                residentMode: sanitizeText(digitalLifeVoice.residentMode, 64) || null,
+              }
+            : null,
           face: digitalLifeFace
             ? {
+                residentMode: sanitizeText(digitalLifeFace.residentMode, 64) || null,
                 emotion: sanitizeText(digitalLifeFace.emotion, 64) || null,
                 facialCue: sanitizeText(digitalLifeFace.facialCue, 64) || null,
+              }
+            : null,
+          motion: digitalLifeMotion
+            ? {
+                residentMode: sanitizeText(digitalLifeMotion.residentMode, 64) || null,
+              }
+            : null,
+          lipSync: digitalLifeLipSync
+            ? {
+                residentMode: sanitizeText(digitalLifeLipSync.residentMode, 64) || null,
+              }
+            : null,
+          bodyContinuity: digitalLifeBodyContinuity
+            ? {
+                bodyLine: sanitizeText(digitalLifeBodyContinuity.bodyLine, 220) || null,
               }
             : null,
           action: digitalLifeAction
@@ -102,6 +297,7 @@ function extractEmbodimentAuthority(payload: Record<string, unknown> | null | un
                 emphasis: typeof embodimentScriptState.emphasis === 'number' && Number.isFinite(embodimentScriptState.emphasis)
                   ? Number(embodimentScriptState.emphasis)
                   : null,
+                residentMode: sanitizeText(embodimentScriptState.residentMode, 64) || null,
               }
             : null,
           speechPlan: embodimentScriptSpeechPlan
@@ -153,6 +349,7 @@ export function buildAlicizationMemoryDecisionTraceRecords(
       const memoryStableCoreSurfaced = byKind('memory-stable-core-surfaced')
       const memoryFollowUpDeferred = byKind('memory-followup-deferred')
       const memoryWrongThreadSuppressed = byKind('memory-wrong-thread-suppressed')
+      const memoryReconsolidated = byKind('memory-reconsolidated')
       const replyMemoryCoherence = byKind('reply-memory-coherence')
       const persistenceWritten = byKind('persistence-written')
       const dialogueEmitted = byKind('dialogue-emitted')
@@ -164,19 +361,24 @@ export function buildAlicizationMemoryDecisionTraceRecords(
         || extractActiveThreadId(persistenceWritten?.payload)
         || extractActiveThreadId(dialogueEmitted?.payload)
         || null
-      const derivedMindStateBundle = extractDerivedMindStateBundle(governance?.payload)
-        || extractDerivedMindStateBundle(persistenceWritten?.payload)
-        || extractDerivedMindStateBundle(dialogueEmitted?.payload)
-        || null
+      const evidenceEvents = [governance, persistenceWritten, dialogueEmitted]
+      const derivedMindStateBundle = selectBestExtractedValue(
+        evidenceEvents,
+        extractDerivedMindStateBundle,
+        scoreDerivedMindStateBundleEvidence,
+      )
       const memoryStageReplay = extractMemoryStageReplay(governance?.payload)
         || extractMemoryStageReplay(persistenceWritten?.payload)
         || extractMemoryStageReplay(dialogueEmitted?.payload)
         || null
-      const memoryResolutionLedger = extractMemoryResolutionLedger(governance?.payload)
-        || extractMemoryResolutionLedger(persistenceWritten?.payload)
-        || extractMemoryResolutionLedger(dialogueEmitted?.payload)
-        || null
+      const memoryResolutionLedger = selectBestExtractedValue(
+        evidenceEvents,
+        extractMemoryResolutionLedger,
+        scoreMemoryResolutionLedgerEvidence,
+      )
       const embodimentAuthority = extractEmbodimentAuthority(dialogueEmitted?.payload)
+        || extractEmbodimentAuthority(persistenceWritten?.payload)
+        || extractEmbodimentAuthority(governance?.payload)
 
       return {
         decisionTraceId,
@@ -207,6 +409,7 @@ export function buildAlicizationMemoryDecisionTraceRecords(
         memoryStableCoreSurfaced: memoryStableCoreSurfaced?.payload ?? null,
         memoryFollowUpDeferred: memoryFollowUpDeferred?.payload ?? null,
         memoryWrongThreadSuppressed: memoryWrongThreadSuppressed?.payload ?? null,
+        memoryReconsolidated: memoryReconsolidated?.payload ?? null,
         replyMemoryCoherence: replyMemoryCoherence?.payload ?? null,
         persistenceWritten: persistenceWritten?.payload ?? null,
         dialogueEmitted: dialogueEmitted?.payload ?? null,

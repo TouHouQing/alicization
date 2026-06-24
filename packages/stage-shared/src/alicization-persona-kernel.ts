@@ -6,15 +6,16 @@ import type {
   AlicizationPersonaTemperament,
   AlicizationPersonaWorkshopSubmission,
 } from './alicization-transport-contracts'
+
 import {
-  defaultAlicizationPersonality,
-  defaultAlicizationProfile,
-  defaultAlicizationPersonaExpressionProfile,
   defaultAlicizationPersonaEvolutionSeed,
+  defaultAlicizationPersonaExpressionProfile,
   defaultAlicizationPersonaIdentityKernel,
   defaultAlicizationPersonaInitiativeBaseline,
+  defaultAlicizationPersonality,
   defaultAlicizationPersonaTemperament,
   defaultAlicizationPersonaWorkshopSubmission,
+  defaultAlicizationProfile,
 } from './alicization-defaults'
 
 export interface AlicizationPersonaKernelProfile {

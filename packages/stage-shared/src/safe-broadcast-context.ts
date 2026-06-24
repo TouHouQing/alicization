@@ -3,7 +3,7 @@ import { createContext as createBroadcastChannelContext } from '@moeru/eventa/ad
 
 import { isElectronWindow } from './window'
 
-type BroadcastChannelLike = {
+interface BroadcastChannelLike {
   close: () => void
 }
 
@@ -31,8 +31,8 @@ export function createSafeBroadcastChannelContext(
   context: SafeBroadcastContext
 } {
   const windowLike = resolveWindowLike()
-  const broadcastChannelCtor = (globalThis as { BroadcastChannel?: new (name: string) => BroadcastChannelLike }).BroadcastChannel
-  if (typeof broadcastChannelCtor !== 'function' || !windowLike || shouldDisableBroadcastChannel(windowLike)) {
+  const BroadcastChannelCtor = (globalThis as { BroadcastChannel?: new (name: string) => BroadcastChannelLike }).BroadcastChannel
+  if (typeof BroadcastChannelCtor !== 'function' || !windowLike || shouldDisableBroadcastChannel(windowLike)) {
     return {
       close: () => {},
       context: createWebContext(),
@@ -40,7 +40,7 @@ export function createSafeBroadcastChannelContext(
   }
 
   try {
-    const channel = new broadcastChannelCtor(name)
+    const channel = new BroadcastChannelCtor(name)
     const { context } = createBroadcastChannelContext(
       channel as Parameters<typeof createBroadcastChannelContext>[0],
     )

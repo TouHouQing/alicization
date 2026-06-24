@@ -16,9 +16,9 @@ const realtimeCategoryPatterns: Record<AlicizationRealtimeQueryCategory, RegExp>
 }
 
 const locationLeadNoisePatterns = [
-  /^(?:请(?:你|帮我|帮忙)?|麻烦(?:你)?|想请你|能不能|可以(?:帮我|帮忙)?|我想知道|想知道)\s*/u,
+  /^(?:请(?:你|帮我|帮忙)?|麻烦你?|想请你|能不能|可以(?:帮我|帮忙)?|我想知道|想知道)\s*/u,
   /^(?:帮我|帮忙|给我|替我)\s*/u,
-  /^(?:查(?:一下|下|查)?|看(?:一下|下|看)?|看看|搜(?:一下|下)?|找(?:一下|下)?|确认一下|告诉我|说说|问(?:一下|下)?|报一下)\s*/u,
+  /^(?:查(?:一下|下|查)?|看(?:一下|下|看)?|搜(?:一下|下)?|找(?:一下|下)?|确认一下|告诉我|说说|问(?:一下|下)?|报一下)\s*/u,
   /^(?:现在|当前|今天|今日|这会儿|此刻)\s*/u,
 ]
 
@@ -26,7 +26,7 @@ const locationTailNoisePatterns = [
   /[\s,，。！？、;；:：]+$/u,
   /(?:现在|当前|今天|今日|这会儿|此刻)$/u,
   /(?:的|这边|那边|这里|那里)$/u,
-  /(?:天气情况|天气状况|情况|状况|怎么样|如何|呢|呀|啊|吗|吧)$/u,
+  /(?:天气情况|天气状况|情况|状况|怎么样|如何|[呢呀啊吗吧])$/u,
 ]
 
 function pushCategory(categories: AlicizationRealtimeQueryCategory[], category: AlicizationRealtimeQueryCategory) {

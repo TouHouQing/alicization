@@ -3,13 +3,14 @@ import type {
   AlicizationExecutionRuntimeContextActionDigest,
   AlicizationExecutionRuntimeContextCapture,
   AlicizationExecutionRuntimeContextForegroundWindow,
+  AlicizationExecutionRuntimeMemoryClosureExecution,
 } from './alicization-transport-contracts'
 
-import { normalizeAlicizationDerivedMindStateBundle } from './alicization-transport-contracts'
 import {
   isAlicizationThinProjectAwarenessLine,
   resolveAlicizationProjectPreDialogueAwarenessLine,
 } from './alicization-project-awareness'
+import { normalizeAlicizationDerivedMindStateBundle } from './alicization-transport-contracts'
 
 function sanitizeText(raw: unknown, maxChars = 200) {
   if (typeof raw !== 'string')
@@ -129,6 +130,56 @@ function normalizeRuntimeActions(raw: unknown): AlicizationExecutionRuntimeConte
     .slice(0, 6)
 }
 
+function normalizeMemoryClosureExecution(raw: unknown): AlicizationExecutionRuntimeMemoryClosureExecution | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+    return null
+
+  const value = raw as Record<string, unknown>
+  if (value.authority !== 'memory-os')
+    return null
+
+  const carry = sanitizeText(value.carry, 220) || null
+  const nextLearningAction = sanitizeText(value.nextLearningAction, 80) || null
+  const activeLearningFocuses = Array.isArray(value.activeLearningFocuses)
+    ? [...new Set(value.activeLearningFocuses.map(focus => sanitizeText(focus, 120)).filter(Boolean))].slice(0, 8)
+    : []
+  const reasonTags = Array.isArray(value.reasonTags)
+    ? [...new Set(value.reasonTags.map(tag => sanitizeText(tag, 80)).filter(Boolean))].slice(0, 12)
+    : []
+  const closureStateCandidate = value.closureState && typeof value.closureState === 'object' && !Array.isArray(value.closureState)
+    ? value.closureState as Record<string, unknown>
+    : {}
+
+  const normalized = {
+    authority: 'memory-os',
+    carry,
+    nextLearningAction,
+    shouldVerify: value.shouldVerify === true,
+    shouldReflect: value.shouldReflect === true,
+    activeLearningFocuses,
+    reasonTags,
+    closureState: {
+      state: sanitizeText(closureStateCandidate.state, 80) || null,
+      open: closureStateCandidate.open === true,
+      revisionRequired: closureStateCandidate.revisionRequired === true,
+      shouldLabelUncertainty: closureStateCandidate.shouldLabelUncertainty === true,
+      visibleCarryMode: sanitizeText(closureStateCandidate.visibleCarryMode, 80) || null,
+      retrievalQuality: sanitizeText(closureStateCandidate.retrievalQuality, 80) || null,
+      conflictPressure: sanitizeText(closureStateCandidate.conflictPressure, 80) || null,
+    },
+  } satisfies AlicizationExecutionRuntimeMemoryClosureExecution
+
+  return normalized.carry
+    || normalized.nextLearningAction
+    || normalized.shouldVerify
+    || normalized.shouldReflect
+    || normalized.activeLearningFocuses.length > 0
+    || normalized.reasonTags.length > 0
+    || Object.values(normalized.closureState).some(Boolean)
+    ? normalized
+    : null
+}
+
 function resolveProjectBriefingLatestLandedProgress(value: Record<string, unknown>) {
   return sanitizeExecutionProjectBriefingText(value.latestLandedProgress, 320)
     || sanitizeExecutionProjectBriefingText(value.latestProgress, 320)
@@ -182,6 +233,22 @@ function normalizeProjectBriefingGazeMode(raw: unknown) {
     : null
 }
 
+function normalizeProjectBriefingPauseMode(raw: unknown) {
+  const value = sanitizeExecutionProjectBriefingText(raw, 32)
+  return value === 'longer'
+    || value === 'natural'
+    ? value
+    : null
+}
+
+function normalizeProjectBriefingLipsyncMode(raw: unknown) {
+  const value = sanitizeExecutionProjectBriefingText(raw, 32)
+  return value === 'restrained'
+    || value === 'matched'
+    ? value
+    : null
+}
+
 function normalizeProjectBriefingContinuityRestraint(raw: unknown) {
   const value = sanitizeExecutionProjectBriefingText(raw, 64)
   return value === 'lower-pressure'
@@ -225,6 +292,16 @@ function normalizeProjectBriefing(raw: unknown): NonNullable<AlicizationExecutio
   const proactiveSameHerGap = sanitizeExecutionProjectBriefingText(value.proactiveSameHerGap, 320) || null
   const companionBriefingLine = sanitizeExecutionProjectBriefingText(value.companionBriefingLine, 320) || null
   const emotionalClosureSummary = sanitizeExecutionProjectBriefingText(value.emotionalClosureSummary, 240) || null
+  const continuityRestraint = normalizeProjectBriefingContinuityRestraint(value.continuityRestraint)
+  const continuityCue = sanitizeExecutionProjectBriefingText(value.continuityCue, 220) || null
+  const continuityPreferredTiming = normalizeProjectBriefingContinuityPreferredTiming(value.continuityPreferredTiming)
+  const continuityCadence = sanitizeExecutionProjectBriefingText(value.continuityCadence, 120) || null
+  const preferredBlinkCadence = normalizeProjectBriefingBlinkCadence(value.preferredBlinkCadence)
+  const preferredGazeMode = normalizeProjectBriefingGazeMode(value.preferredGazeMode)
+  const preferredPauseMode = normalizeProjectBriefingPauseMode(value.preferredPauseMode)
+  const preferredLipsyncMode = normalizeProjectBriefingLipsyncMode(value.preferredLipsyncMode)
+  const preferredVoiceMode = normalizeProjectBriefingVoiceMode(value.preferredVoiceMode)
+  const preferredPacingMode = normalizeProjectBriefingPacingMode(value.preferredPacingMode)
   const preflightSummary = sanitizeExecutionProjectBriefingText(value.preflightSummary, 320) || null
   const explicitPreDialogueAwarenessLine = sanitizeExecutionProjectBriefingText(value.preDialogueAwarenessLine, 320) || null
   const preDialogueAwarenessSummary = sanitizeExecutionProjectBriefingText(value.preDialogueAwarenessSummary, 320) || null
@@ -241,6 +318,14 @@ function normalizeProjectBriefing(raw: unknown): NonNullable<AlicizationExecutio
       proactiveSameHerGap,
       companionBriefingLine,
       emotionalClosureSummary,
+      continuityRestraint,
+      continuityCue,
+      continuityPreferredTiming,
+      continuityCadence,
+      preferredPauseMode,
+      preferredLipsyncMode,
+      preferredVoiceMode,
+      preferredPacingMode,
       preflightSummary,
       preDialogueAwarenessLine: explicitPreDialogueAwarenessLine,
       preDialogueAwarenessSummary,
@@ -267,14 +352,16 @@ function normalizeProjectBriefing(raw: unknown): NonNullable<AlicizationExecutio
     proactiveSameHerGap,
     companionBriefingLine,
     emotionalClosureSummary,
-    continuityRestraint: normalizeProjectBriefingContinuityRestraint(value.continuityRestraint),
-    continuityCue: sanitizeExecutionProjectBriefingText(value.continuityCue, 220) || null,
-    continuityPreferredTiming: normalizeProjectBriefingContinuityPreferredTiming(value.continuityPreferredTiming),
-    continuityCadence: sanitizeExecutionProjectBriefingText(value.continuityCadence, 120) || null,
-    preferredBlinkCadence: normalizeProjectBriefingBlinkCadence(value.preferredBlinkCadence),
-    preferredGazeMode: normalizeProjectBriefingGazeMode(value.preferredGazeMode),
-    preferredVoiceMode: normalizeProjectBriefingVoiceMode(value.preferredVoiceMode),
-    preferredPacingMode: normalizeProjectBriefingPacingMode(value.preferredPacingMode),
+    continuityRestraint,
+    continuityCue,
+    continuityPreferredTiming,
+    continuityCadence,
+    preferredBlinkCadence,
+    preferredGazeMode,
+    preferredPauseMode,
+    preferredLipsyncMode,
+    preferredVoiceMode,
+    preferredPacingMode,
     preflightSummary,
     preDialogueAwarenessLine,
     preDialogueAwarenessSummary,
@@ -296,17 +383,26 @@ function normalizeExecutionRuntimeAffectiveResidue(raw: unknown) {
 function normalizeExecutionRuntimeDerivedMindStateBundle(
   raw: unknown,
 ): AlicizationExecutionRuntimeContext['derivedMindStateBundle'] {
+  const normalized = normalizeAlicizationDerivedMindStateBundle(raw)
+  if (normalized)
+    return normalized
+
   if (!raw || typeof raw !== 'object' || Array.isArray(raw))
     return null
 
-  const candidate = raw as Record<string, unknown>
-  const affectiveResidue = normalizeExecutionRuntimeAffectiveResidue(candidate.affectiveResidue)
-  if (!affectiveResidue)
+  const value = raw as Record<string, unknown>
+  if (!('affectiveResidue' in value))
     return null
 
-  return {
-    affectiveResidue,
-  }
+  return normalizeAlicizationDerivedMindStateBundle({
+    ...value,
+    version: 'derived-mind-state-bundle-v1',
+    source: value.source === 'main-runtime' || value.source === 'browser-fallback'
+      ? value.source
+      : 'browser-fallback',
+    producedAt: normalizeTimestamp(value.producedAt) ?? 0,
+    summary: sanitizeText(value.summary, 220) || 'execution-runtime-context-derived-mind-state-bundle',
+  })
 }
 
 export function normalizeAlicizationExecutionRuntimeContext(raw: unknown): AlicizationExecutionRuntimeContext | null {
@@ -321,6 +417,7 @@ export function normalizeAlicizationExecutionRuntimeContext(raw: unknown): Alici
   const sensory = sensoryValue as Record<string, unknown>
   const affectiveResidue = normalizeExecutionRuntimeAffectiveResidue(value.affectiveResidue)
   const derivedMindStateBundle = normalizeExecutionRuntimeDerivedMindStateBundle(value.derivedMindStateBundle)
+  const memoryClosureExecution = normalizeMemoryClosureExecution(value.memoryClosureExecution)
 
   return {
     generatedAt: normalizeTimestamp(value.generatedAt) ?? Date.now(),
@@ -331,6 +428,7 @@ export function normalizeAlicizationExecutionRuntimeContext(raw: unknown): Alici
     agentSessionId: sanitizeText(value.agentSessionId, 160) || null,
     ...(affectiveResidue ? { affectiveResidue } : {}),
     ...(derivedMindStateBundle ? { derivedMindStateBundle } : {}),
+    ...(memoryClosureExecution ? { memoryClosureExecution } : {}),
     projectBriefing: normalizeProjectBriefing(value.projectBriefing),
     recentActions: normalizeRuntimeActions(value.recentActions),
     sensory: {
@@ -391,6 +489,16 @@ export function buildAlicizationExecutionRuntimeContextBlock(raw: unknown) {
     context.affectiveResidue?.dominantResidueKind ? `affective_residue_kind=${context.affectiveResidue.dominantResidueKind}` : '',
     context.affectiveResidue?.relationshipCadence?.cadenceMode ? `affective_residue_cadence=${context.affectiveResidue.relationshipCadence.cadenceMode}` : '',
     context.affectiveResidue?.summary ? `affective_residue_summary=${context.affectiveResidue.summary}` : '',
+    context.memoryClosureExecution?.carry ? `memory_closure_execution_carry=${context.memoryClosureExecution.carry}` : '',
+    context.memoryClosureExecution?.nextLearningAction ? `memory_closure_next_learning_action=${context.memoryClosureExecution.nextLearningAction}` : '',
+    context.memoryClosureExecution ? `memory_closure_should_verify=${context.memoryClosureExecution.shouldVerify ? 'true' : 'false'}` : '',
+    context.memoryClosureExecution ? `memory_closure_should_reflect=${context.memoryClosureExecution.shouldReflect ? 'true' : 'false'}` : '',
+    context.memoryClosureExecution?.activeLearningFocuses.length
+      ? `memory_closure_active_learning_focuses=${context.memoryClosureExecution.activeLearningFocuses.join(' | ')}`
+      : '',
+    context.memoryClosureExecution?.reasonTags.length
+      ? `memory_closure_reason_tags=${context.memoryClosureExecution.reasonTags.join(' | ')}`
+      : '',
     context.projectBriefing?.identity ? `project_identity=${context.projectBriefing.identity}` : '',
     context.projectBriefing?.currentPhase ? `project_phase=${context.projectBriefing.currentPhase}` : '',
     context.projectBriefing?.latestLandedProgress ? `project_landed_progress=${context.projectBriefing.latestLandedProgress}` : '',
@@ -410,6 +518,8 @@ export function buildAlicizationExecutionRuntimeContextBlock(raw: unknown) {
     context.projectBriefing?.continuityCadence ? `project_continuity_cadence=${context.projectBriefing.continuityCadence}` : '',
     context.projectBriefing?.preferredBlinkCadence ? `project_preferred_blink_cadence=${context.projectBriefing.preferredBlinkCadence}` : '',
     context.projectBriefing?.preferredGazeMode ? `project_preferred_gaze_mode=${context.projectBriefing.preferredGazeMode}` : '',
+    context.projectBriefing?.preferredPauseMode ? `project_preferred_pause_mode=${context.projectBriefing.preferredPauseMode}` : '',
+    context.projectBriefing?.preferredLipsyncMode ? `project_preferred_lipsync_mode=${context.projectBriefing.preferredLipsyncMode}` : '',
     context.projectBriefing?.preferredVoiceMode ? `project_preferred_voice_mode=${context.projectBriefing.preferredVoiceMode}` : '',
     context.projectBriefing?.preferredPacingMode ? `project_preferred_pacing_mode=${context.projectBriefing.preferredPacingMode}` : '',
     `recent_runtime_actions=${formatRecentActions(context.recentActions)}`,

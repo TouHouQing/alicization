@@ -170,15 +170,15 @@ export function deriveAlicizationMemoryClosureDiscipline(
       closureCovered: true,
       conflictClosed: conflictApplicable
         ? ledger.closureState === 'conflicted-recall'
-          || shouldLabelUncertainty
-          || allowedSurface === 'none'
-          || allowedSurface === 'gist'
+        || shouldLabelUncertainty
+        || allowedSurface === 'none'
+        || allowedSurface === 'gist'
         : null,
       lowQualityWithheld: lowQualityApplicable
         ? allowedSurface === 'none'
-          || ledger.shouldStayInward
-          || ledger.closureState === 'no-recall'
-          || ledger.closureState === 'inward-only'
+        || ledger.shouldStayInward
+        || ledger.closureState === 'no-recall'
+        || ledger.closureState === 'inward-only'
         : null,
       uncertaintyLabeled: uncertaintyApplicable
         ? shouldLabelUncertainty || allowedSurface === 'none'

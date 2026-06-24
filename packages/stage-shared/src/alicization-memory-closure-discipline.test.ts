@@ -1,7 +1,8 @@
+import type { AlicizationMemoryResolutionLedger } from './alicization-memory-resolution-ledger'
+
 import { describe, expect, it } from 'vitest'
 
 import { deriveAlicizationMemoryClosureDiscipline } from './alicization-memory-closure-discipline'
-import type { AlicizationMemoryResolutionLedger } from './alicization-memory-resolution-ledger'
 
 function ledger(overrides: Partial<AlicizationMemoryResolutionLedger> = {}): AlicizationMemoryResolutionLedger {
   return {

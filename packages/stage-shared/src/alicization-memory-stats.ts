@@ -175,6 +175,7 @@ export interface AlicizationMemoryRetrievalHealth {
   selfEvolutionReasonCodes?: string[]
   relationshipCadenceRegressionRate?: number
   selfModelStaleBeliefRate?: number
+  runtimeMemoryClosureLongRunClosureRate?: number
 }
 
 export interface AlicizationPresenceQualityStats {
@@ -182,6 +183,8 @@ export interface AlicizationPresenceQualityStats {
   silentPresenceNuisanceRate: number
   continuityMindCarryRate: number
   roomFirstCadenceRespectRate: number
+  longRunSameHerClosureRate?: number
+  longRunSameHerSessionClosureRate?: number
 }
 
 export interface AlicizationMemoryStats {

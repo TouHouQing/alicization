@@ -4,6 +4,7 @@ import type {
   AlicizationRealtimeSurfaceField,
   AlicizationRealtimeSurfaceItem,
 } from './alicization-transport-contracts'
+
 import { translateGovernedMindFallback } from './alicization-mind-fallback-messages'
 
 function sanitizeText(raw: unknown, maxChars = 240) {
@@ -88,18 +89,17 @@ export function buildAlicizationNewsSurface(input: {
 
 export function buildAlicizationFinanceSurface(input:
   | {
-      ticker: string
-      market: 'crypto'
-      priceUsd: number
-      change24h: number
-    }
+    ticker: string
+    market: 'crypto'
+    priceUsd: number
+    change24h: number
+  }
   | {
-      ticker: string
-      market: 'equity'
-      closePriceUsd: number
-      date: string
-    },
-): AlicizationRealtimeSurface {
+    ticker: string
+    market: 'equity'
+    closePriceUsd: number
+    date: string
+  }): AlicizationRealtimeSurface {
   if (input.market === 'crypto') {
     return {
       kind: 'finance',
@@ -205,7 +205,7 @@ function renderListSurface(surface: AlicizationRealtimeSurface, locale: 'zh' | '
 function renderFinanceSurface(surface: AlicizationRealtimeSurface, locale: 'zh' | 'en') {
   const lead = sanitizeText(surface.lead, 180)
   const fields = (surface.fields ?? [])
-    .map(field => {
+    .map((field) => {
       const label = sanitizeText(field.label, 24)
       const value = sanitizeText(field.value, 64)
       if (!label || !value)

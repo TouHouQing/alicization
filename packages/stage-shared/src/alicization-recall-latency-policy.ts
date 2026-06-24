@@ -1,11 +1,11 @@
 import type {
+  AlicizationMemoryRetrievalBudgetClass,
+} from './alicization-memory-stats'
+import type {
   AlicizationMemoryRecollectionIntentSnapshot,
   AlicizationRecallLatencyBudgetSnapshot,
   AlicizationRecallLatencyPolicySnapshot,
 } from './alicization-transport-contracts'
-import type {
-  AlicizationMemoryRetrievalBudgetClass,
-} from './alicization-memory-stats'
 
 export type AlicizationRecallLatencyClass = 'fast' | 'balanced' | 'deep'
 export type AlicizationRecallLatencyAction

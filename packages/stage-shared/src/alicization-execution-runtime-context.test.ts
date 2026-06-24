@@ -114,6 +114,8 @@ describe('alicization execution runtime context', () => {
         continuityCadence: 'measured-return',
         preferredBlinkCadence: 'linger',
         preferredGazeMode: 'soften',
+        preferredPauseMode: 'longer',
+        preferredLipsyncMode: 'restrained',
         preferredVoiceMode: 'lower-pressure',
         preferredPacingMode: 'slower',
         preflightSummary: 'identity=Alicization | phase=Phase 1 | open=Embodiment still needs stronger same-line closure | next=Keep execution grounded on the same living line before widening outward.',
@@ -160,6 +162,8 @@ describe('alicization execution runtime context', () => {
     expect(block).toContain('project_continuity_cadence=measured-return')
     expect(block).toContain('project_preferred_blink_cadence=linger')
     expect(block).toContain('project_preferred_gaze_mode=soften')
+    expect(block).toContain('project_preferred_pause_mode=longer')
+    expect(block).toContain('project_preferred_lipsync_mode=restrained')
     expect(block).toContain('project_preferred_voice_mode=lower-pressure')
     expect(block).toContain('project_preferred_pacing_mode=slower')
     expect(block).toContain('recent_runtime_actions=sensory/completed:sensory_capture_state -> capture healthy')
@@ -656,6 +660,99 @@ describe('alicization execution runtime context', () => {
     } as any)
 
     expect(block).toContain(`project_awareness=${richerSummary}`)
+    expect(block).not.toContain(`project_awareness=${thinAwarenessLine}`)
+  })
+
+  it('derives a same-her measured-return awareness line from continuity cadence when execution context only carries a thin awareness shell', () => {
+    const thinAwarenessLine = 'Keep the same digital life project in view.'
+
+    const context = normalizeAlicizationExecutionRuntimeContext({
+      generatedAt: 1_710_000_000_000,
+      cardId: 'default',
+      turnId: 'turn-ctx-cadence-aware-reanchor',
+      projectBriefing: {
+        identity: 'Alicization is a local-first digital life project.',
+        currentPhase: 'Phase 1: Local Digital Life',
+        latestLandedProgress: 'Execution-side continuity already survives into runtime context preparation.',
+        primaryOpenLoop: 'Execution-side embodiment still needs face and motion to rejoin the quieter same-her line.',
+        nextClosureTarget: 'Keep execution openings on the same quieter living line before they widen outward again.',
+        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        continuityCadence: 'measured-return',
+        preferredPauseMode: 'longer',
+        preferredLipsyncMode: 'restrained',
+        preferredVoiceMode: 'lower-pressure',
+        preferredPacingMode: 'slower',
+        preDialogueAwarenessLine: thinAwarenessLine,
+      },
+      sensory: {
+        collectedAt: 1_710_000_000_123,
+        running: true,
+        stale: false,
+        ageMs: 33,
+        foregroundWindow: {
+          appName: 'Cursor',
+          processName: 'cursor',
+          title: 'airi-alice',
+        },
+        capture: {
+          health: 'healthy',
+          permission: 'granted',
+          sourceCount: 2,
+          lastUpdatedAt: 1_710_000_000_100,
+          lastError: null,
+          degradedReasons: [],
+        },
+      },
+    } as any)
+
+    expect(context?.projectBriefing).toEqual(expect.objectContaining({
+      preferredPauseMode: 'longer',
+      preferredLipsyncMode: 'restrained',
+      preferredVoiceMode: 'lower-pressure',
+      preferredPacingMode: 'slower',
+      preDialogueAwarenessLine: 'same-her hold: keep the return lower-pressure and slower before the line widens again.',
+    }))
+
+    const block = buildAlicizationExecutionRuntimeContextBlock({
+      generatedAt: 1_710_000_000_000,
+      cardId: 'default',
+      turnId: 'turn-ctx-cadence-aware-reanchor',
+      projectBriefing: {
+        identity: 'Alicization is a local-first digital life project.',
+        currentPhase: 'Phase 1: Local Digital Life',
+        latestLandedProgress: 'Execution-side continuity already survives into runtime context preparation.',
+        primaryOpenLoop: 'Execution-side embodiment still needs face and motion to rejoin the quieter same-her line.',
+        nextClosureTarget: 'Keep execution openings on the same quieter living line before they widen outward again.',
+        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        continuityCadence: 'measured-return',
+        preferredPauseMode: 'longer',
+        preferredLipsyncMode: 'restrained',
+        preferredVoiceMode: 'lower-pressure',
+        preferredPacingMode: 'slower',
+        preDialogueAwarenessLine: thinAwarenessLine,
+      },
+      sensory: {
+        collectedAt: 1_710_000_000_123,
+        running: true,
+        stale: false,
+        ageMs: 33,
+        foregroundWindow: {
+          appName: 'Cursor',
+          processName: 'cursor',
+          title: 'airi-alice',
+        },
+        capture: {
+          health: 'healthy',
+          permission: 'granted',
+          sourceCount: 2,
+          lastUpdatedAt: 1_710_000_000_100,
+          lastError: null,
+          degradedReasons: [],
+        },
+      },
+    } as any)
+
+    expect(block).toContain('project_awareness=same-her hold: keep the return lower-pressure and slower before the line widens again.')
     expect(block).not.toContain(`project_awareness=${thinAwarenessLine}`)
   })
 

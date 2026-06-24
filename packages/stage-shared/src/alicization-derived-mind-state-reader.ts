@@ -14,7 +14,7 @@ export function readHostPersonModelFromDerivedMindStateBundle(
   return bundle?.hostPersonModel ?? null
 }
 
-export function readPersonStateProjectionFromDerivedMindStateBundle<T extends Record<string, unknown>>(
+export function readPersonStateProjectionFromDerivedMindStateBundle<T>(
   bundle: AlicizationDerivedMindStateBundle | null | undefined,
 ) {
   return asObject(bundle?.personStateProjection) as T | null
@@ -62,25 +62,25 @@ export function readRecallLatencyPolicyFromDerivedMindStateBundle(
   return bundle?.recallLatencyPolicy ?? null
 }
 
-export function readRecollectionIntentFromDerivedMindStateBundle<T extends Record<string, unknown>>(
+export function readRecollectionIntentFromDerivedMindStateBundle<T>(
   bundle: AlicizationDerivedMindStateBundle | null | undefined,
 ) {
   return asObject(bundle?.recollectionIntent) as T | null
 }
 
-export function readRecollectionPlanFromDerivedMindStateBundle<T extends Record<string, unknown>>(
+export function readRecollectionPlanFromDerivedMindStateBundle<T>(
   bundle: AlicizationDerivedMindStateBundle | null | undefined,
 ) {
   return asObject(bundle?.recollectionPlan) as T | null
 }
 
-export function readRecollectionSpeechPlanFromDerivedMindStateBundle<T extends Record<string, unknown>>(
+export function readRecollectionSpeechPlanFromDerivedMindStateBundle<T>(
   bundle: AlicizationDerivedMindStateBundle | null | undefined,
 ) {
   return asObject(bundle?.recollectionSpeechPlan) as T | null
 }
 
-export function readMemoryDeliberationFromDerivedMindStateBundle<T extends Record<string, unknown>>(
+export function readMemoryDeliberationFromDerivedMindStateBundle<T>(
   bundle: AlicizationDerivedMindStateBundle | null | undefined,
 ) {
   return asObject(bundle?.memoryDeliberation) as T | null

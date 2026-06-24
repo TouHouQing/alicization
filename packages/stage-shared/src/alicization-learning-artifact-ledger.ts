@@ -1,8 +1,8 @@
+import type { AlicizationVerifiedLearningArtifact } from './alicization-claim-evidence-graph'
 import type {
   AlicizationListLearningArtifactLedgerInput,
   AlicizationMindTurnEventRecord,
 } from './alicization-transport-contracts'
-import type { AlicizationVerifiedLearningArtifact } from './alicization-claim-evidence-graph'
 
 export interface AlicizationLearningArtifactLedgerRecord {
   decisionTraceId: string

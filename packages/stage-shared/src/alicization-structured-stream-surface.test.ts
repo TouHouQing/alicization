@@ -20,6 +20,13 @@ describe('alicization-structured-stream-surface', () => {
     expect(shouldBufferAlicizationStructuredSpeechPrelude('```json\n{"thought":"obligation=answer"')).toBe(true)
   })
 
+  it('recognizes embodimentScript-led structured envelopes before cross-modal body scripts leak into visible speech', () => {
+    const payload = '{"embodimentScript":{"version":"embodiment-script-v1","rendererTarget":"live2d","state":{"residentMode":"dialogue"}},"runtimeDigest":{"version":"alicization-runtime-digest-v1"},"reply":"我还在这条线上。"}'
+
+    expect(looksLikeAlicizationStructuredPayloadText(payload)).toBe(true)
+    expect(shouldBufferAlicizationStructuredSpeechPrelude(payload.slice(0, 104))).toBe(true)
+  })
+
   it('does not classify ordinary human dialogue as structured envelope text', () => {
     const reply = '你好，我在。你接下来想聊什么，或者想让我做什么，都直接说。'
 

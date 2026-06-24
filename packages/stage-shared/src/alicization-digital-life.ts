@@ -189,6 +189,22 @@ function normalizeDigitalLifeRendererHints(
     || candidate.preferredBlinkCadence === 'quiet'
     ? candidate.preferredBlinkCadence
     : undefined
+  const preferredPauseMode = candidate.preferredPauseMode === 'longer'
+    || candidate.preferredPauseMode === 'natural'
+    ? candidate.preferredPauseMode
+    : undefined
+  const preferredLipsyncMode = candidate.preferredLipsyncMode === 'restrained'
+    || candidate.preferredLipsyncMode === 'matched'
+    ? candidate.preferredLipsyncMode
+    : undefined
+  const preferredVoiceMode = candidate.preferredVoiceMode === 'lower-pressure'
+    || candidate.preferredVoiceMode === 'even'
+    ? candidate.preferredVoiceMode
+    : undefined
+  const preferredPacingMode = candidate.preferredPacingMode === 'slower'
+    || candidate.preferredPacingMode === 'natural'
+    ? candidate.preferredPacingMode
+    : undefined
   const residentMode = typeof candidate.residentMode === 'string' && candidate.residentMode.trim()
     ? candidate.residentMode.trim()
     : undefined
@@ -201,6 +217,10 @@ function normalizeDigitalLifeRendererHints(
     && preferredMotionAliases.length === 0
     && !preferredGazeMode
     && !preferredBlinkCadence
+    && !preferredPauseMode
+    && !preferredLipsyncMode
+    && !preferredVoiceMode
+    && !preferredPacingMode
     && !residentMode
     && reasonTags.length === 0
     && !signature
@@ -213,6 +233,10 @@ function normalizeDigitalLifeRendererHints(
     preferredMotionAliases: preferredMotionAliases.length > 0 ? preferredMotionAliases : undefined,
     preferredGazeMode,
     preferredBlinkCadence,
+    preferredPauseMode,
+    preferredLipsyncMode,
+    preferredVoiceMode,
+    preferredPacingMode,
     residentMode,
     reasonTags: reasonTags.length > 0 ? reasonTags : undefined,
     signature,
@@ -835,7 +859,7 @@ function resolveSpineEmbodimentMotorBias(
 
   const presence = privateThought?.embodiedPresence
     ?? initiative?.preferredPresence
-    ?? digitalLifeSpine?.runtime.preferredPresence
+    ?? digitalLifeSpine?.runtime?.preferredPresence
     ?? null
   const expressionStyle = autobiographicalSelf?.expressionStyle ?? null
   const approachVector = relationship?.approachVector ?? null
@@ -1482,10 +1506,38 @@ function resolveVoicePlan(input: {
   performance: AlicizationDialoguePerformancePayload
   segments: AlicizationDialogueSpeechTimelineSegment[]
   speechStyle: StageEmbodimentSpeechStyleProfile
+  projectState?: AlicizationRuntimeProjectStateDigest | null
 }): AlicizationDigitalLifeVoicePlan {
   const averageProsody = averageWeight(input.segments, segment => segment.prosodyWeight)
   const averageBeat = averageWeight(input.segments, segment => segment.beatWeight)
   const averageMouth = averageWeight(input.segments, segment => segment.mouthWeight)
+  const preferredVoiceMode = input.projectState?.preferredVoiceMode ?? null
+  const preferredPacingMode = input.projectState?.preferredPacingMode ?? null
+
+  let rateMultiplier = input.speechStyle.rateMultiplier
+  let energyFactor = 1
+  let cadenceFactor = 1
+
+  if (preferredVoiceMode === 'lower-pressure') {
+    rateMultiplier *= 0.95
+    energyFactor *= 0.86
+    cadenceFactor *= 0.9
+  }
+  else if (preferredVoiceMode === 'even') {
+    rateMultiplier *= 0.98
+    energyFactor *= 0.94
+    cadenceFactor *= 0.96
+  }
+
+  if (preferredPacingMode === 'slower') {
+    rateMultiplier *= 0.9
+    cadenceFactor *= 0.88
+  }
+  else if (preferredPacingMode === 'natural') {
+    rateMultiplier *= 0.97
+    cadenceFactor *= 0.97
+  }
+
   const energy = roundHundredths(
     0.46
     + input.performance.emphasis * 0.1
@@ -1494,21 +1546,21 @@ function resolveVoicePlan(input: {
     + averageBeat * 0.08
     + averageMouth * 0.06,
     0.62,
-  )
+  ) * energyFactor
   const cadence = roundHundredths(
     0.4
     + averageProsody * 0.18
     + averageBeat * 0.22
     + resolveDeliveryCadenceBoost(input.performance.delivery)
-    + (input.speechStyle.rateMultiplier - 1) * 0.3,
+    + (rateMultiplier - 1) * 0.3,
     0.5,
-  )
+  ) * cadenceFactor
 
   return {
     pitchDelta: clampPitchDelta(input.speechStyle.pitchDelta),
-    rateMultiplier: clampRateMultiplier(input.speechStyle.rateMultiplier),
-    energy,
-    cadence,
+    rateMultiplier: clampRateMultiplier(rateMultiplier),
+    energy: roundHundredths(energy, 0.62),
+    cadence: roundHundredths(cadence, 0.5),
   }
 }
 
@@ -1537,11 +1589,15 @@ function resolveLipSyncPlan(input: {
     reply: input.reply,
   })
   const rememberedSeamMoreRoom = hasRememberedSeamMoreRoomRendererHints(input.rendererHints)
+  const preferredPauseMode = input.rendererHints?.preferredPauseMode ?? null
+  const preferredLipsyncMode = input.rendererHints?.preferredLipsyncMode ?? null
   const averageMouth = averageWeight(input.segments, segment => segment.mouthWeight)
   const averageHold = averageWeight(input.segments, (segment) => {
     return clampRange((segment.emotionHoldMs ?? 160) / 720, 0, 1, 0.2)
   })
-  const mouthWeight = rememberedSeamMoreRoom ? averageMouth * 0.88 : averageMouth
+  const mouthWeight = rememberedSeamMoreRoom || preferredLipsyncMode === 'restrained'
+    ? averageMouth * 0.88
+    : averageMouth
 
   const visemeBias = mode === 'energy'
     ? 0.22
@@ -1565,7 +1621,15 @@ function resolveLipSyncPlan(input: {
       + input.performance.emphasis * 0.06,
       0.88,
     ),
-    continuityHoldMs: Math.round(clampRange(120 + averageHold * 320, 60, 480, 180)),
+    continuityHoldMs: Math.round(clampRange(
+      120
+      + averageHold * 320
+      + (preferredPauseMode === 'longer' ? 24 : 0)
+      + (preferredLipsyncMode === 'restrained' ? 18 : 0),
+      60,
+      480,
+      180,
+    )),
   }
 }
 
@@ -1811,10 +1875,12 @@ export function buildAlicizationDigitalLifeEnvelope(
     embodiment.performance,
     embodiment.emotion,
   )
+  const projectState = input.projectState ?? input.digitalLifeSpine?.runtime?.projectState ?? null
   const voice = resolveVoicePlan({
     performance,
     segments: speechTimeline.segments,
     speechStyle: embodiment.speechStyle,
+    projectState,
   })
   const lipSync = resolveLipSyncPlan({
     performance,
@@ -1869,7 +1935,6 @@ export function buildAlicizationDigitalLifeEnvelope(
     voice,
     rendererHints: embodiment.rendererHints,
   })
-  const projectState = input.projectState ?? input.digitalLifeSpine?.runtime?.projectState ?? null
   const frames = speechTimeline.segments.map(segment => resolveFrame({
     segment,
     envelope: embodiment,

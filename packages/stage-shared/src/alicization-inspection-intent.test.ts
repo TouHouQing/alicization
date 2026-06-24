@@ -1,10 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import {
-  inferAlicizationInspectionIntent,
-  resolveAlicizationKnownWebsiteBySite,
-  resolveAlicizationKnownWebsiteInText,
-} from './alicization-inspection-intent'
+import { inferAlicizationInspectionIntent } from './alicization-inspection-intent'
 
 describe('inferAlicizationInspectionIntent', () => {
   it('does not treat dialogue complaints as inspection continuation under shared-attention carry', () => {
@@ -95,6 +91,25 @@ describe('inferAlicizationInspectionIntent', () => {
     expect(result.signalProfile.actionable).toBe(false)
   })
 
+  it('does not treat same-her memory closure dialogue as current-screen inspection', () => {
+    const result = inferAlicizationInspectionIntent({
+      message: '铃兰-Phase1-0621F 第二轮：上一轮那条“同一个她、同一个数字生命、Phase 1 Local Digital Life”的记忆线现在自然回到这里。请只做安静对话承接：说清 why recall surfaced now；说明上一轮的情绪余波怎样让这一轮更低压、更克制地开口；说明下一次轻主动节奏怎样被这条记忆调低；让身体、声音、表情、动作、口型仍沿同一个她收住。',
+      recentMessages: [
+        { role: 'user', content: '帮我看看我屏幕上现在是什么' },
+        { role: 'assistant', content: '我在看着 Terminal 线程。' },
+      ],
+      contextPhrases: [
+        'Terminal thread',
+        'current screen',
+      ],
+      sharedAttentionActive: true,
+    })
+
+    expect(result.active).toBe(false)
+    expect(result.reasonCodes).not.toContain('contextual-continuation')
+    expect(result.signalProfile.actionable).toBe(false)
+  })
+
   it('keeps weak observe fillers non-actionable even when an old inspection carry exists', () => {
     const result = inferAlicizationInspectionIntent({
       message: '看看',
@@ -113,14 +128,5 @@ describe('inferAlicizationInspectionIntent', () => {
     expect(result.reasonCodes).toContain('observe-cue')
     expect(result.signalProfile.actionable).toBe(false)
     expect(result.signalProfile.decisive).toBe(false)
-  })
-
-  it('resolves known website requests for local browser execution', () => {
-    expect(resolveAlicizationKnownWebsiteBySite(' 微博 ')?.url).toBe('https://weibo.com')
-    expect(resolveAlicizationKnownWebsiteInText('帮我打开微博然后搜索 Alicization')).toEqual(expect.objectContaining({
-      site: 'weibo',
-      label: '微博',
-      url: 'https://weibo.com',
-    }))
   })
 })

@@ -1,22 +1,22 @@
+import type { AlicizationLearningArtifactLedgerRecord } from './alicization-learning-artifact-ledger'
+import type { AlicizationMemoryResolutionLedger } from './alicization-memory-resolution-ledger'
+import type { AlicizationMemorySituationCandidateSet } from './alicization-memory-situation-candidate'
 import type {
   AlicizationAffectiveResidueMemorySnapshot,
   AlicizationDerivedMindStateBundle,
   AlicizationLearningExecutionStateSnapshot,
   AlicizationRecallLatencyPolicySnapshot,
 } from './alicization-transport-contracts'
-import type { AlicizationLearningArtifactLedgerRecord } from './alicization-learning-artifact-ledger'
-import type { AlicizationMemoryResolutionLedger } from './alicization-memory-resolution-ledger'
-import type { AlicizationMemorySituationCandidateSet } from './alicization-memory-situation-candidate'
 
-export type AlicizationBrowserMainParityLayer =
-  | 'bundle'
-  | 'learning-execution'
-  | 'affective-residue'
-  | 'latency-policy'
-  | 'resolution-ledger'
-  | 'situation-candidates'
-  | 'claim-evidence'
-  | 'learning-causal-chain'
+export type AlicizationBrowserMainParityLayer
+  = | 'bundle'
+    | 'learning-execution'
+    | 'affective-residue'
+    | 'latency-policy'
+    | 'resolution-ledger'
+    | 'situation-candidates'
+    | 'claim-evidence'
+    | 'learning-causal-chain'
 
 export interface AlicizationBrowserMainParitySummary {
   version: 'browser-main-parity-v1'

@@ -1,6 +1,6 @@
 import { isElectronWindow } from './window'
 
-type BroadcastChannelLike = {
+interface BroadcastChannelLike {
   close: () => void
   postMessage: (payload: unknown) => void
 }
@@ -42,14 +42,14 @@ export function createLazyBroadcastPoster<T>(
     if (channel !== undefined)
       return channel
 
-    const broadcastChannelCtor = (globalThis as { BroadcastChannel?: new (name: string) => BroadcastChannelLike }).BroadcastChannel
-    if (typeof broadcastChannelCtor !== 'function' || shouldDisableBroadcastChannel()) {
+    const BroadcastChannelCtor = (globalThis as { BroadcastChannel?: new (name: string) => BroadcastChannelLike }).BroadcastChannel
+    if (typeof BroadcastChannelCtor !== 'function' || shouldDisableBroadcastChannel()) {
       channel = null
       return channel
     }
 
     try {
-      channel = new broadcastChannelCtor(name)
+      channel = new BroadcastChannelCtor(name)
     }
     catch (error) {
       channel = null

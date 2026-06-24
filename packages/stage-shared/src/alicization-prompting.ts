@@ -5,6 +5,15 @@ export interface AlicizationPromptTemplateVars {
   iso: string
   local: string
   moduleName: string
+  identity: string
+  currentPhase: string
+  latestLandedProgress: string
+  primaryOpenLoop: string
+  nextClosureTarget: string
+  continuitySummary: string
+  nonHumanAuthoredStatus: string
+  sameHerSelfLine: string
+  emotionalClosureCue: string
 }
 
 export const alicizationFixedSensoryContextHeader = 'Current sensory state:'
@@ -28,6 +37,20 @@ export const alicizationFixedDatetimeContextTemplate = 'Current datetime:\n- ISO
 export const alicizationFixedMemoryContextTemplate = 'Relevant memory facts:\n{{content}}'
 export const alicizationFixedGenericContextTemplate = 'Context from {{source}}:\n{{content}}'
 export const alicizationFixedSensoryContextTemplate = `${alicizationFixedSensoryContextHeader}\n{{content}}`
+export const alicizationFixedProjectStateContinuityTemplate = [
+  'Project state continuity before this turn:',
+  '- Identity: {{identity}}',
+  '- Current phase: {{currentPhase}}',
+  '- Latest landed progress: {{latestLandedProgress}}',
+  '- Primary open loop: {{primaryOpenLoop}}',
+  '- Next closure target: {{nextClosureTarget}}',
+  '- Continuity summary: {{continuitySummary}}',
+  '- Observation status: {{nonHumanAuthoredStatus}}',
+  '- Same-her self line: {{sameHerSelfLine}}',
+  '- Emotional closure cue: {{emotionalClosureCue}}',
+  '- Treat this as same-thread project continuity, not as disposable metadata.',
+  '- Before replying, keep the project identity, current phase, unresolved closure target, and same-her self line aligned with the same ongoing digital-life development line.',
+].join('\n')
 export const alicizationFixedStructuredContractAnchor = [
   alicizationFixedStructuredContractHeader,
   '- Return exactly one strict JSON object with keys: thought, emotion, reply, performance.',

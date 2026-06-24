@@ -108,7 +108,7 @@ export function normalizeStageEmbodimentMotorState(
   raw: unknown,
   fallback: StageEmbodimentMotorState = createIdleStageEmbodimentMotorState(),
 ): StageEmbodimentMotorState {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     return {
       ...fallback,
       gaze: { ...fallback.gaze },
@@ -117,6 +117,7 @@ export function normalizeStageEmbodimentMotorState(
       facial: { ...fallback.facial },
       body: { ...fallback.body },
     }
+  }
 
   const candidate = raw as Record<string, unknown>
   const gaze = candidate.gaze && typeof candidate.gaze === 'object' && !Array.isArray(candidate.gaze)

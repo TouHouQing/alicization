@@ -4,6 +4,64 @@ import { deriveAlicizationBrowserMainParitySummary } from './alicization-browser
 import { normalizeAlicizationDerivedMindStateBundle } from './alicization-transport-contracts'
 
 describe('alicization-browser-main-parity', () => {
+  it('preserves structured same-her renderer continuity when speech timeline travels through the shared transport bundle', () => {
+    const bundle = normalizeAlicizationDerivedMindStateBundle({
+      source: 'main-runtime',
+      producedAt: 1,
+      structured: {
+        thought: 'same-thread-continuation keep the same living line slower than impulse',
+        emotion: 'thinking',
+        reply: '我沿着这条线轻一点接回来。',
+        performance: {
+          baseEmotion: 'thinking',
+          emotion: 'thinking',
+          facialCue: 'soft-gaze',
+          actionCue: 'observe_focus',
+          delivery: 'gentle',
+          emphasis: 0,
+        },
+        speechTimeline: {
+          version: 'speech-timeline-v1',
+          variationToken: 'transport-same-her-line',
+          reply: '我沿着这条线轻一点接回来。',
+          emotion: 'thinking',
+          segments: [{
+            id: 'segment-same-her-line',
+            index: 0,
+            startOffset: 0,
+            endOffset: 14,
+            text: '我沿着这条线轻一点接回来。',
+            emotion: 'thinking',
+            gestureWeight: 0.22,
+            facialWeight: 0.46,
+            prosodyWeight: 0.4,
+            beatWeight: 0.2,
+            settleMode: 'linger',
+            rendererHints: {
+              residentMode: 'same-thread-continuation',
+              preferredBlinkCadence: 'linger',
+              preferredGazeMode: 'soften',
+              signature: 'embodiment:audible-same-her-line',
+              reasonTags: ['embodiment:body-lipsync-voice-rejoin'],
+            },
+            actionCue: 'observe_focus',
+            facialCue: 'soft-gaze',
+            actionWindow: 'segment-start',
+            interruptMode: 'soft-interrupt',
+          }],
+        },
+      },
+    } as any)
+
+    expect(bundle?.structured?.speechTimeline?.segments[0]?.rendererHints).toEqual(expect.objectContaining({
+      residentMode: 'same-thread-continuation',
+      preferredBlinkCadence: 'linger',
+      preferredGazeMode: 'soften',
+      signature: 'embodiment:audible-same-her-line',
+      reasonTags: ['embodiment:body-lipsync-voice-rejoin'],
+    }))
+  })
+
   it('flags rendererTarget divergence inside embodimentScript authority', () => {
     const summary = deriveAlicizationBrowserMainParitySummary({
       mainBundle: normalizeAlicizationDerivedMindStateBundle({

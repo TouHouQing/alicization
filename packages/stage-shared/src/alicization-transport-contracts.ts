@@ -57,6 +57,22 @@ function normalizeTransportRendererHints(raw: unknown): AlicizationDialogueSpeec
     || candidate.preferredBlinkCadence === 'quiet'
     ? candidate.preferredBlinkCadence
     : undefined
+  const preferredPauseMode = candidate.preferredPauseMode === 'longer'
+    || candidate.preferredPauseMode === 'natural'
+    ? candidate.preferredPauseMode
+    : undefined
+  const preferredLipsyncMode = candidate.preferredLipsyncMode === 'restrained'
+    || candidate.preferredLipsyncMode === 'matched'
+    ? candidate.preferredLipsyncMode
+    : undefined
+  const preferredVoiceMode = candidate.preferredVoiceMode === 'lower-pressure'
+    || candidate.preferredVoiceMode === 'even'
+    ? candidate.preferredVoiceMode
+    : undefined
+  const preferredPacingMode = candidate.preferredPacingMode === 'slower'
+    || candidate.preferredPacingMode === 'natural'
+    ? candidate.preferredPacingMode
+    : undefined
   const residentMode = typeof candidate.residentMode === 'string' && candidate.residentMode.trim()
     ? candidate.residentMode.trim()
     : undefined
@@ -69,6 +85,10 @@ function normalizeTransportRendererHints(raw: unknown): AlicizationDialogueSpeec
     && preferredMotionAliases.length === 0
     && !preferredGazeMode
     && !preferredBlinkCadence
+    && !preferredPauseMode
+    && !preferredLipsyncMode
+    && !preferredVoiceMode
+    && !preferredPacingMode
     && !residentMode
     && reasonTags.length === 0
     && !signature
@@ -81,6 +101,10 @@ function normalizeTransportRendererHints(raw: unknown): AlicizationDialogueSpeec
     preferredMotionAliases: preferredMotionAliases.length > 0 ? preferredMotionAliases : undefined,
     preferredGazeMode,
     preferredBlinkCadence,
+    preferredPauseMode,
+    preferredLipsyncMode,
+    preferredVoiceMode,
+    preferredPacingMode,
     residentMode,
     reasonTags: reasonTags.length > 0 ? reasonTags : undefined,
     signature,
@@ -819,6 +843,25 @@ export interface AlicizationExecutionRuntimeContextActionDigest {
   summary: string | null
 }
 
+export interface AlicizationExecutionRuntimeMemoryClosureExecution {
+  authority: 'memory-os'
+  carry: string | null
+  nextLearningAction: string | null
+  shouldVerify: boolean
+  shouldReflect: boolean
+  activeLearningFocuses: string[]
+  reasonTags: string[]
+  closureState: {
+    state: string | null
+    open: boolean
+    revisionRequired: boolean
+    shouldLabelUncertainty: boolean
+    visibleCarryMode: string | null
+    retrievalQuality: string | null
+    conflictPressure: string | null
+  }
+}
+
 export interface AlicizationExecutionRuntimeContext {
   generatedAt: number
   cardId?: string | null
@@ -827,7 +870,8 @@ export interface AlicizationExecutionRuntimeContext {
   sessionId?: string | null
   agentSessionId?: string | null
   affectiveResidue?: AlicizationAffectiveResidueMemorySnapshot | null
-  derivedMindStateBundle?: Pick<AlicizationDerivedMindStateBundle, 'affectiveResidue'> | null
+  derivedMindStateBundle?: AlicizationDerivedMindStateBundle | null
+  memoryClosureExecution?: AlicizationExecutionRuntimeMemoryClosureExecution | null
   projectBriefing?: {
     identity: string | null
     currentPhase: string | null
@@ -836,16 +880,19 @@ export interface AlicizationExecutionRuntimeContext {
     nextClosureTarget: string | null
     sameHerSelfLine: string | null
     sameHerHoldDetail: string | null
+    continuityRestraint?: 'lower-pressure' | 'measured-return' | 'repair-before-closeness' | 'rest-protective' | 'single-thread' | null
+    continuityArcStage?: string | null
     sameHerDriftRisk: string | null
     proactiveSameHerGap?: string | null
     companionBriefingLine?: string | null
     emotionalClosureSummary?: string | null
-    continuityRestraint?: 'lower-pressure' | 'measured-return' | 'repair-before-closeness' | 'rest-protective' | 'single-thread' | null
     continuityCue: string | null
     continuityPreferredTiming?: 'internal-only' | 'after-payoff' | 'same-turn-if-invited' | 'next-open-window' | null
     continuityCadence?: string | null
     preferredBlinkCadence?: 'normal' | 'linger' | 'quiet' | null
     preferredGazeMode?: 'steady' | 'soften' | 'drift' | null
+    preferredPauseMode?: 'longer' | 'natural' | null
+    preferredLipsyncMode?: 'restrained' | 'matched' | null
     preferredVoiceMode?: 'lower-pressure' | 'even' | null
     preferredPacingMode?: 'slower' | 'natural' | null
     preflightSummary: string | null
@@ -1190,8 +1237,8 @@ export interface AlicizationOpenClawCommandInput {
 }
 
 export interface AlicizationLocalVisualCommandInput {
-  instruction: string
-  timeoutMs?: number | null
+  instruction?: string | null
+  meta?: Record<string, unknown> | null
   runtimeContext?: AlicizationExecutionRuntimeContext | null
 }
 
@@ -1277,41 +1324,10 @@ export interface AlicizationPersistentPresenceAuthoritySnapshot {
   currentInwardPreoccupation: string | null
 }
 
-export interface AlicizationPresenceExpressionSnapshot {
-  version: 'presence-expression-v1'
-  id: string
-  text: string
-  trigger:
-    | 'startup-restore'
-    | 'state-shift'
-    | 'presence-only-hold'
-    | 'memory-carry-return'
-  display: {
-    mode: 'near-body-whisper'
-    allowAutoShow: boolean
-    createdAt: number
-    expiresAt: number
-    intensity: 'barely-there' | 'soft'
-  }
-  grounding: {
-    sourceRefs: string[]
-    reasonTags: string[]
-    stateFingerprint: string
-    confidence: number
-  }
-  audit: {
-    generated: boolean
-    withheldReason?: string | null
-    qualityFlags: string[]
-  }
-}
-
 export interface AlicizationVisualPresenceStateSnapshot extends AlicizationPersistentPresenceAuthoritySnapshot {
   watchMode: AlicizationVisualWatchMode
   updatedAt: number
   emotionalKernel?: AlicizationEmotionalKernelSnapshot | null
-  emotionalTransitionDecay?: AlicizationEmotionalTransitionDecaySnapshot | null
-  presenceExpression?: AlicizationPresenceExpressionSnapshot | null
 }
 
 export type AlicizationMindTurnMode = 'grounded-inspection' | 'screen-repair' | 'guide-current-knot' | 'care' | 'accompany' | 'answer'
@@ -1891,6 +1907,10 @@ export interface AlicizationReplayBenchmarkTelemetryPatch {
     silentPresenceNuisanceRate?: number
     continuityMindCarryRate?: number
     roomFirstCadenceRespectRate?: number
+    longRunSameHerClosureRate?: number
+    longRunSameHerSessionClosureRate?: number
+    runtimeLongRunSameHerSessionClosureRate?: number
+    runtimeMemoryClosureLongRunClosureRate?: number
     learningTaskCompletionCount?: number
     learningTaskFailureCount?: number
     learningTaskBlockedCount?: number
@@ -2082,6 +2102,175 @@ export interface AlicizationReplayBenchmarkDatasetFeedback {
     rewriteAppliedTurnCount: number
     fullyCarriedTurnCount: number
   } | null
+  longRunSameHerSessionSummary?: {
+    comparedSessionCount: number
+    closedSessionCount: number
+    singleTurnSessionCount: number
+    insufficientSessionCount: number
+    sessionClosureRate: number
+    sessions: Array<{
+      sessionId: string
+      status: 'closed' | 'insufficient'
+      turnCount: number
+      hitCount: number
+      transitionCount: number
+      closedTransitionCount: number
+      requiredConsecutiveTransitionCount: number
+      maxConsecutiveClosedTransitionCount: number
+      maxConsecutiveEventRoleProofTurnCount?: number
+      turnIds: string[]
+      failureReasons: Array<'single-turn-session' | 'too-short-noisy-desktop-run' | 'missing-same-her-closure-turn' | 'missing-same-her-transition' | 'missing-noisy-desktop-event-role-proof' | 'missing-consecutive-noisy-desktop-event-role-proof' | 'missing-memory-metabolism-proof' | 'missing-memory-metabolism-transition' | 'missing-memory-identity-continuity' | 'missing-runtime-decision-trace-provenance'>
+      runtimeEvidence: {
+        source: 'runtime-sampling-backlog' | 'mixed-runtime-and-conversation' | 'conversation-sample' | 'dataset-backlog' | 'static-pack' | 'unknown'
+        runtimeTurnCount: number
+        decisionTraceTurnCount: number
+        syntheticTurnCount: number
+        allTurnsRuntimeSourced: boolean
+      }
+      eventRoleCoverage?: {
+        memoryRecall: boolean
+        proactiveOpening: boolean
+        executionCallback: boolean
+        emotionalAfterglow: boolean
+        embodimentExpression: boolean
+        missingRoles: Array<'memoryRecall' | 'proactiveOpening' | 'executionCallback' | 'emotionalAfterglow' | 'embodimentExpression'>
+      }
+      eventRoleDiagnostics?: Array<{
+        turnId: string
+        tracePointer?: AlicizationReplayBenchmarkTracePointer | null
+        memoryRecall: boolean
+        proactiveOpening: boolean
+        executionCallback: boolean
+        emotionalAfterglow: boolean
+        embodimentExpression: boolean
+        missingRoles: Array<'memoryRecall' | 'proactiveOpening' | 'executionCallback' | 'emotionalAfterglow' | 'embodimentExpression'>
+      }>
+      memoryMetabolismCoverage?: {
+        revision: boolean
+        forgettingOrRestraint: boolean
+        auditability: boolean
+        missingProofs: Array<'revision' | 'forgettingOrRestraint' | 'auditability'>
+      }
+      memoryIdentityContinuity?: {
+        stable: boolean
+        dominantMemoryIds: string[]
+        transitionBreaks: string[]
+      }
+      transitionDiagnostics: Array<{
+        fromTurnId: string
+        toTurnId: string
+        tracePointer?: AlicizationReplayBenchmarkTracePointer | null
+        memoryInfluencedNext: boolean
+        emotionInfluencedNext: boolean
+        initiativeInfluencedNext: boolean
+        embodimentInfluencedNext: boolean
+        memoryMetabolismInfluencedNext?: boolean
+        missingInfluences: Array<'memory' | 'emotion' | 'initiativeOrExecution' | 'embodiment'>
+        missingInfluenceReasons?: Partial<Record<'memory' | 'emotion' | 'initiativeOrExecution' | 'embodiment', string[]>>
+      }>
+      turnDiagnostics: Array<{
+        turnId: string
+        tracePointer?: AlicizationReplayBenchmarkTracePointer | null
+        memoryIdentityKeys?: string[]
+        memory: boolean
+        initiativeOrExecution: boolean
+        emotion: boolean
+        embodiment: boolean
+        missingLanes: Array<'memory' | 'initiativeOrExecution' | 'emotion' | 'embodiment'>
+        missingLaneReasons?: Partial<Record<'memory' | 'initiativeOrExecution' | 'emotion' | 'embodiment', string[]>>
+      }>
+    }>
+  } | null
+  memoryClosureLongRun?: {
+    status: 'closed' | 'insufficient'
+    turnCount: number
+    requiredTurnCount: number
+    stableMemoryIdentity: boolean
+    dominantMemoryIdentityKey: string | null
+    dominantMemoryIdentityKeys: string[]
+    transitionBreaks: string[]
+    failureReasons: Array<
+      | 'too-short-noisy-desktop-run'
+      | 'missing-causal-memory-identity'
+      | 'missing-memory-closure-lanes'
+      | 'missing-memory-identity-continuity'
+      | 'missing-runtime-memory-closure-provenance'
+    >
+    turnDiagnostics: Array<{
+      turnId: string
+      memoryIdentityKey: string | null
+      memoryIdentityKeys: string[]
+      provedLanes: Array<'recall' | 'emotion' | 'initiative' | 'execution' | 'embodiment' | 'embodiment-expression'>
+      missingLanes: Array<'recall' | 'emotion' | 'initiative' | 'execution' | 'embodiment' | 'embodiment-expression'>
+      continuityDigest: string | null
+    }>
+  } | null
+  runtimeSamplingEvidence?: {
+    source: 'runtime-sampling-backlog' | 'mixed-runtime-and-conversation' | 'conversation-sample' | 'dataset-backlog' | 'static-pack'
+    status: 'closed' | 'insufficient' | 'none'
+    sampledTurnCount: number
+    comparedSessionCount: number
+    closedSessionCount: number
+    sessionClosureRate: number
+    traceEventCoverage?: {
+      decisionTraceTurnCount: number
+      verifiedTraceEventTurnCount: number
+      missingTraceEventTurnCount: number
+      allRuntimeDecisionTracesVerified: boolean
+      runtimeDecisionTraceProvenanceBoundTurnCount?: number
+      missingRuntimeDecisionTraceProvenanceBoundTurnCount?: number
+      missingRuntimeDecisionTraceProvenanceBoundTurnIds?: string[]
+      allRuntimeDecisionTracesProvenanceBound?: boolean
+      runtimeRoleCompleteTraceTurnCount: number
+      missingRuntimeRoleTraceTurnCount: number
+      allRuntimeDecisionTracesRoleComplete: boolean
+      runtimeDownstreamStateTraceTurnCount: number
+      missingRuntimeDownstreamStateTraceTurnCount: number
+      allRuntimeDecisionTracesDownstreamStateComplete: boolean
+      runtimeDownstreamStateMemoryIdentityTurnCount?: number
+      missingRuntimeDownstreamStateMemoryIdentityTurnCount?: number
+      missingRuntimeDownstreamStateMemoryIdentityTurnIds?: string[]
+      runtimeDownstreamStateMemoryIdentityTransitionBreakCount?: number
+      runtimeDownstreamStateMemoryIdentityTransitionBreaks?: string[]
+      allRuntimeDecisionTracesMemoryIdentityContinuous?: boolean
+      runtimeDownstreamStateMemoryIdentityReplayMatchTurnCount?: number
+      runtimeDownstreamStateMemoryIdentityReplayMismatchTurnCount?: number
+      runtimeDownstreamStateMemoryIdentityReplayMismatchTurnIds?: string[]
+      allRuntimeDecisionTracesMemoryIdentityMatchesReplay?: boolean
+      runtimeDecisionTraceMemoryMetabolismTurnCount?: number
+      missingRuntimeDecisionTraceMemoryMetabolismTurnCount?: number
+      missingRuntimeDecisionTraceMemoryMetabolismTurnIds?: string[]
+      allRuntimeDecisionTracesMemoryMetabolismComplete?: boolean
+      runtimeDecisionTraceRecallExplanationTurnCount?: number
+      missingRuntimeDecisionTraceRecallExplanationTurnCount?: number
+      missingRuntimeDecisionTraceRecallExplanationTurnIds?: string[]
+      allRuntimeDecisionTracesRecallExplanationComplete?: boolean
+      runtimeDecisionTraceMemoryHandoffTransitionCount?: number
+      missingRuntimeDecisionTraceMemoryHandoffTransitionCount?: number
+      missingRuntimeDecisionTraceMemoryHandoffTransitions?: string[]
+      missingRuntimeDecisionTraceMemoryHandoffTransitionLanes?: Record<string, Array<'emotion' | 'initiative' | 'execution' | 'embodiment'>>
+      allRuntimeDecisionTraceMemoryHandoffsComplete?: boolean
+    }
+    tracePointers?: Array<{
+      sampleTurnId: string
+      tracePointer: AlicizationReplayBenchmarkTracePointer
+    }>
+    repairTargets?: Array<{
+      lane: 'memory' | 'initiativeOrExecution' | 'emotion' | 'embodiment'
+      missingTurnCount: number
+      missingTransitionCount: number
+      affectedSessionCount: number
+      affectedSessionIds: string[]
+      sampleTurnIds: string[]
+      reasons: string[]
+    }>
+    nextRunEvidenceChecklist?: Array<{
+      lane: 'memory' | 'initiativeOrExecution' | 'emotion' | 'embodiment'
+      evidenceKind: 'same-turn-runtime-proof' | 'cross-turn-continuity' | 'next-turn-memory-handoff'
+      sampleTurnIds: string[]
+      requiredTraceEvidence: string[]
+    }>
+  } | null
   authoritySummary?: {
     comparedTurnCount: number
     mismatchTurnCount: number
@@ -2223,6 +2412,7 @@ export interface AlicizationMemoryDecisionTraceRecord {
   memoryStableCoreSurfaced?: Record<string, unknown> | null
   memoryFollowUpDeferred?: Record<string, unknown> | null
   memoryWrongThreadSuppressed?: Record<string, unknown> | null
+  memoryReconsolidated?: Record<string, unknown> | null
   replyMemoryCoherence?: Record<string, unknown> | null
   persistenceWritten?: Record<string, unknown> | null
   dialogueEmitted?: Record<string, unknown> | null
@@ -2525,6 +2715,7 @@ export interface AlicizationLearningTaskPayload {
     preDialogueAwarenessLine: string | null
     emotionalClosureCue: string | null
     sameHerSelfLine: string | null
+    sameHerHoldDetail: string | null
     sameHerDriftRisk: string | null
   } | null
   focuses: string[]
@@ -2569,6 +2760,54 @@ export interface AlicizationLearningTaskRecord {
   firedTurnId: string | null
 }
 
+export type AlicizationMemoryClosureCausalityLane = 'emotion' | 'initiative' | 'execution' | 'embodiment'
+
+export interface AlicizationMemoryClosureIdentitySnapshot {
+  selectedCandidateIds: string[]
+  continuityKey: string | null
+  reasonTags: string[]
+}
+
+export interface AlicizationMemoryClosureCausalitySnapshot<T extends AlicizationMemoryClosureCausalityLane = AlicizationMemoryClosureCausalityLane> {
+  causalSource: 'memory-closure-trace'
+  affectedLane: T
+  causedByMemoryClosure: boolean
+  traceAuthority: string | null
+  reasonTags: string[]
+  memoryIdentity: AlicizationMemoryClosureIdentitySnapshot | null
+  summary: string | null
+}
+
+export type AlicizationSameHerCausalityRepairLane = 'initiative-execution' | 'emotion' | 'embodiment'
+
+export interface AlicizationSameHerCausalityRepairLaneSnapshot {
+  lane: AlicizationSameHerCausalityRepairLane
+  reasonTags: string[]
+  summary: string | null
+}
+
+export interface AlicizationSameHerMemoryIdentityRequirementSnapshot {
+  status: 'required'
+  proofBoundary: 'downstream-memory-closure-causality'
+  requiredPath: 'memoryClosureCausality.memoryIdentity'
+  excludedProofs: Array<'route-chain-text' | 'visible-reply-wording'>
+  continuity: 'stable-memory-identity-key'
+  summary: string | null
+}
+
+export interface AlicizationSameHerCausalityRepairPressureSnapshot {
+  version: 'same-her-causality-repair-pressure-v1'
+  source: 'memory-tuning-advice'
+  status: 'pending-runtime-evidence'
+  updatedAt: number | null
+  sourceReportAt: number | null
+  focusDimensions: string[]
+  lanes: AlicizationSameHerCausalityRepairLaneSnapshot[]
+  memoryIdentityRequirement?: AlicizationSameHerMemoryIdentityRequirementSnapshot | null
+  notes: string[]
+  summary: string
+}
+
 export interface AlicizationLearningExecutionStateSnapshot {
   currentTaskId: string | null
   currentStatus: AlicizationLearningTaskStatus | null
@@ -2596,6 +2835,7 @@ export interface AlicizationLearningExecutionStateSnapshot {
   lastFailureReason: string | null
   lastFailureNextRetryAt: number | null
   updatedAt: number | null
+  memoryClosureCausality?: AlicizationMemoryClosureCausalitySnapshot<'execution'> | null
 }
 
 export type AlicizationRelationshipOutcomeSourceKind = 'reply' | 'proactive' | 'execution'
@@ -2712,6 +2952,10 @@ export interface AlicizationPersonStateUpdateSurface {
     continuityRestraint?: 'lower-pressure' | 'measured-return' | 'repair-before-closeness' | 'rest-protective' | 'single-thread' | null
     preferredBlinkCadence?: 'normal' | 'linger' | 'quiet' | null
     preferredGazeMode?: 'steady' | 'soften' | 'drift' | null
+    preferredPauseMode?: 'longer' | 'natural' | null
+    preferredLipsyncMode?: 'restrained' | 'matched' | null
+    preferredVoiceMode?: 'lower-pressure' | 'even' | null
+    preferredPacingMode?: 'slower' | 'natural' | null
   } | null
   dominantContexts: string[]
   relationshipShift: AlicizationPersonStateUpdateRelationshipShift
@@ -2753,13 +2997,20 @@ export interface AlicizationHumanlikeMemoryAuditEntry {
   relationshipPrimaryIntent: string
   relationshipSignals: string[]
   emotionalResidueTags: string[]
+  hostEmotionLabel: string
+  hostEmotionSummary: string
+  selfEmotionLabel: string
+  selfEmotionSummary: string
   initiativeKind: string
   initiativeSuggestedWindow: string
   initiativePressure: string
   initiativeAntiSpamReason: string
   initiativeVisibleLine: string
   embodimentSummary: string
+  embodimentRecallStrength: string
+  embodimentModalityRisk: string
   autobiographicalImpact: string
+  stablePreferenceHint: string
   whyRemember: string
   confidence: number
   recallCertainty: 'steady' | 'tentative' | 'corrected'
@@ -2767,6 +3018,7 @@ export interface AlicizationHumanlikeMemoryAuditEntry {
   naturalRecallLine: string
   userCorrectableFields: string[]
   revisionMemoryIds: string[]
+  revisionReasons: string[]
   downrankMemoryIds: string[]
   mergeMemoryIds: string[]
   forgetMemoryIds: string[]
@@ -2993,30 +3245,6 @@ export interface AlicizationEmotionalKernelSnapshot {
   why: string
 }
 
-export interface AlicizationRecallLatencyBudgetSnapshot {
-  domain: 'procedure' | 'relationship' | 'self-model' | 'world-model' | 'general'
-  budgetMs: number
-  candidateLimit: number
-  hotCacheTtlMs: number
-}
-
-export interface AlicizationRecallLatencyPolicySnapshot {
-  version: 'recall-latency-policy-v1'
-  budgetClass: 'realtime-reply' | 'deep-recall-reply' | 'proactive-generation' | 'nightly-benchmark' | 'diagnosis-replay'
-  latencyClass: 'fast' | 'balanced' | 'deep'
-  recallAction: 'shallow-answer' | 'stable-core-only' | 'deep-recall' | 'defer-to-followup' | 'answer-then-supplement'
-  degradeReason: string | null
-  domainBudgets: AlicizationRecallLatencyBudgetSnapshot[]
-  hotPathKey: string | null
-  shouldUseHotCache: boolean
-  shouldPrefetch: boolean
-  shouldAvoidDeepExpansion: boolean
-  shouldEmitFollowUpAffordance: boolean
-  confidence: number
-  reasonTags: string[]
-  summary: string
-}
-
 export type AlicizationEmotionalTransitionKind
   = 'stable'
     | 'intensified'
@@ -3025,6 +3253,14 @@ export type AlicizationEmotionalTransitionKind
     | 'rest-protective-shift'
     | 'guarded-shift'
 
+export type AlicizationEmotionalTransitionAxisName
+  = 'valence'
+    | 'arousal'
+    | 'guardedness'
+    | 'closenessDrive'
+    | 'repairNeed'
+    | 'initiativePressure'
+
 export interface AlicizationEmotionalTransitionLedgerSnapshot {
   version: 'emotional-transition-ledger-v1'
   createdAt: number
@@ -3032,8 +3268,8 @@ export interface AlicizationEmotionalTransitionLedgerSnapshot {
   previousEmotion: AlicizationEmotionalKernelSnapshot['dominantEmotion'] | null
   nextEmotion: AlicizationEmotionalKernelSnapshot['dominantEmotion']
   transitionKind: AlicizationEmotionalTransitionKind
-  axisDeltas: Record<'valence' | 'arousal' | 'guardedness' | 'closenessDrive' | 'repairNeed' | 'initiativePressure', number>
-  changedAxes: Array<'valence' | 'arousal' | 'guardedness' | 'closenessDrive' | 'repairNeed' | 'initiativePressure'>
+  axisDeltas: Record<AlicizationEmotionalTransitionAxisName, number>
+  changedAxes: AlicizationEmotionalTransitionAxisName[]
   sourceTags: string[]
   decayPolicy: {
     mode: 'decay-normally' | 'hold-until-repair-cools' | 'protect-rest-window' | 'cool-approach-pressure'
@@ -3049,6 +3285,7 @@ export interface AlicizationEmotionalTransitionLedgerSnapshot {
     shouldSuppress: boolean
     mode: 'none' | 'repair-first' | 'rest-guard' | 'measured-return' | 'single-thread'
     reason: string
+    memoryClosureCausality?: AlicizationMemoryClosureCausalitySnapshot<'initiative'> | null
   }
   embodimentDrive: {
     shouldDrive: boolean
@@ -3071,20 +3308,63 @@ export interface AlicizationEmotionalTransitionLedgerSnapshot {
   }
   traceSummary: string
   replayLine: string
+  memoryClosureCausality?: AlicizationMemoryClosureCausalitySnapshot<'emotion'> | null
 }
 
-export interface AlicizationEmotionalTransitionDecaySnapshot {
-  version: 'emotional-transition-decay-v1'
-  ledgerCreatedAt: number
-  evaluatedAt: number
-  elapsedMs: number
-  expiresAt: number
-  phase: 'hold' | 'soften' | 'release'
-  shouldSuppressInitiative: boolean
-  shouldDriveEmbodiment: boolean
-  initiativeMode: AlicizationEmotionalTransitionLedgerSnapshot['initiativeSuppression']['mode']
-  embodimentTone: AlicizationEmotionalTransitionLedgerSnapshot['embodimentDrive']['tone']
-  memoryWritebackLane: AlicizationEmotionalTransitionLedgerSnapshot['memoryWriteback']['lane']
+export type AlicizationEmbodimentContinuityLane = 'body' | 'voice' | 'face' | 'motion' | 'lipsync'
+export type AlicizationEmbodimentContinuityLaneStatus = 'carrying-same-her' | 'dropped' | 'pending-rejoin' | 'rejoined' | 'silent'
+export type AlicizationEmbodimentContinuityPhase = 'fragmented' | 'partial-carry' | 'rejoining' | 'fully-rejoined' | 'quiet'
+
+export interface AlicizationEmbodimentContinuityLedgerSnapshot {
+  version: 'embodiment-continuity-ledger-v1'
+  createdAt: number
+  turnId: string | null
+  lanes?: Record<AlicizationEmbodimentContinuityLane, {
+    status: AlicizationEmbodimentContinuityLaneStatus
+    summary: string | null
+  }> | null
+  carryingLanes: AlicizationEmbodimentContinuityLane[]
+  droppedLanes: AlicizationEmbodimentContinuityLane[]
+  rejoinedLanes: AlicizationEmbodimentContinuityLane[]
+  pendingRejoinLanes: AlicizationEmbodimentContinuityLane[]
+  continuityPhase: AlicizationEmbodimentContinuityPhase
+  memoryWriteback: {
+    shouldWrite: boolean
+    lane: 'none' | 'cross-modal-continuity' | 'rejoin'
+    reason: string
+  }
+  selfRevisionCandidate: {
+    shouldPropose: boolean
+    domain: 'dialogue-style'
+    reasonCodes: string[]
+    summary: string | null
+  }
+  traceSummary: string
+  replayLine: string
+  sourceTags: string[]
+  memoryClosureCausality?: AlicizationMemoryClosureCausalitySnapshot<'embodiment'> | null
+}
+
+export interface AlicizationRecallLatencyBudgetSnapshot {
+  domain: 'procedure' | 'relationship' | 'self-model' | 'world-model' | 'general'
+  budgetMs: number
+  candidateLimit: number
+  hotCacheTtlMs: number
+}
+
+export interface AlicizationRecallLatencyPolicySnapshot {
+  version: 'recall-latency-policy-v1'
+  budgetClass: 'realtime-reply' | 'deep-recall-reply' | 'proactive-generation' | 'nightly-benchmark' | 'diagnosis-replay'
+  latencyClass: 'fast' | 'balanced' | 'deep'
+  recallAction: 'shallow-answer' | 'stable-core-only' | 'deep-recall' | 'defer-to-followup' | 'answer-then-supplement'
+  degradeReason: string | null
+  domainBudgets: AlicizationRecallLatencyBudgetSnapshot[]
+  hotPathKey: string | null
+  shouldUseHotCache: boolean
+  shouldPrefetch: boolean
+  shouldAvoidDeepExpansion: boolean
+  shouldEmitFollowUpAffordance: boolean
+  confidence: number
   reasonTags: string[]
   summary: string
 }
@@ -3122,8 +3402,10 @@ export interface AlicizationDerivedMindStateBundle {
     lanes: string[]
     reasonCodes: string[]
   } | null
+  sameHerCausalityRepairPressure?: AlicizationSameHerCausalityRepairPressureSnapshot | null
   emotionalKernel?: AlicizationEmotionalKernelSnapshot | null
   emotionalTransitionLedger?: AlicizationEmotionalTransitionLedgerSnapshot | null
+  embodimentContinuityLedger?: AlicizationEmbodimentContinuityLedgerSnapshot | null
   selfEvolution?: AlicizationSelfEvolutionKernelSnapshot | null
   affectiveResidue?: AlicizationAffectiveResidueMemorySnapshot | null
   learningExecutionState?: AlicizationLearningExecutionStateSnapshot | null
@@ -3264,21 +3546,7 @@ function normalizeAlicizationEmotionalTransitionKind(raw: unknown): AlicizationE
     : null
 }
 
-function normalizeAlicizationEmotionalTransitionAxisDeltas(raw: unknown): AlicizationEmotionalTransitionLedgerSnapshot['axisDeltas'] {
-  const source = raw && typeof raw === 'object' && !Array.isArray(raw)
-    ? raw as Partial<Record<keyof AlicizationEmotionalTransitionLedgerSnapshot['axisDeltas'], unknown>>
-    : {}
-  return {
-    valence: Number.isFinite(Number(source.valence)) ? Number(Number(source.valence).toFixed(2)) : 0,
-    arousal: Number.isFinite(Number(source.arousal)) ? Number(Number(source.arousal).toFixed(2)) : 0,
-    guardedness: Number.isFinite(Number(source.guardedness)) ? Number(Number(source.guardedness).toFixed(2)) : 0,
-    closenessDrive: Number.isFinite(Number(source.closenessDrive)) ? Number(Number(source.closenessDrive).toFixed(2)) : 0,
-    repairNeed: Number.isFinite(Number(source.repairNeed)) ? Number(Number(source.repairNeed).toFixed(2)) : 0,
-    initiativePressure: Number.isFinite(Number(source.initiativePressure)) ? Number(Number(source.initiativePressure).toFixed(2)) : 0,
-  }
-}
-
-function normalizeAlicizationEmotionalTransitionAxisName(raw: unknown): keyof AlicizationEmotionalTransitionLedgerSnapshot['axisDeltas'] | null {
+function normalizeAlicizationEmotionalTransitionAxisName(raw: unknown): AlicizationEmotionalTransitionAxisName | null {
   return raw === 'valence'
     || raw === 'arousal'
     || raw === 'guardedness'
@@ -3289,169 +3557,290 @@ function normalizeAlicizationEmotionalTransitionAxisName(raw: unknown): keyof Al
     : null
 }
 
-function normalizeAlicizationEmotionalTransitionLedger(raw: unknown): AlicizationEmotionalTransitionLedgerSnapshot | null {
+function normalizeAlicizationMemoryClosureCausalitySnapshot<T extends AlicizationMemoryClosureCausalityLane>(
+  raw: unknown,
+  affectedLane: T,
+): AlicizationMemoryClosureCausalitySnapshot<T> | null {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw))
     return null
 
   const candidate = raw as Record<string, unknown>
-  if (candidate.version !== 'emotional-transition-ledger-v1')
+  if (
+    candidate.causalSource !== 'memory-closure-trace'
+    || candidate.affectedLane !== affectedLane
+  ) {
+    return null
+  }
+
+  const memoryIdentity = candidate.memoryIdentity && typeof candidate.memoryIdentity === 'object' && !Array.isArray(candidate.memoryIdentity)
+    ? candidate.memoryIdentity as Record<string, unknown>
+    : null
+  const selectedCandidateIds = Array.isArray(memoryIdentity?.selectedCandidateIds)
+    ? memoryIdentity.selectedCandidateIds
+        .map(id => sanitizeAlicizationDigitalLifeDigestText(id, 160))
+        .filter(Boolean)
+        .slice(0, 8)
+    : []
+  const memoryIdentityReasonTags = Array.isArray(memoryIdentity?.reasonTags)
+    ? memoryIdentity.reasonTags
+        .map(tag => sanitizeAlicizationDigitalLifeDigestText(tag, 120))
+        .filter(Boolean)
+        .slice(0, 8)
+    : []
+  const continuityKey = sanitizeAlicizationDigitalLifeDigestText(memoryIdentity?.continuityKey, 160) || selectedCandidateIds[0] || null
+
+  return {
+    causalSource: 'memory-closure-trace' as const,
+    affectedLane,
+    causedByMemoryClosure: candidate.causedByMemoryClosure === true,
+    traceAuthority: sanitizeAlicizationDigitalLifeDigestText(candidate.traceAuthority, 80) || null,
+    reasonTags: Array.isArray(candidate.reasonTags)
+      ? candidate.reasonTags
+          .map(tag => sanitizeAlicizationDigitalLifeDigestText(tag, 120))
+          .filter(Boolean)
+          .slice(0, 12)
+      : [],
+    memoryIdentity: selectedCandidateIds.length > 0 || memoryIdentityReasonTags.length > 0 || continuityKey
+      ? {
+          selectedCandidateIds,
+          continuityKey,
+          reasonTags: memoryIdentityReasonTags,
+        }
+      : null,
+    summary: sanitizeAlicizationDigitalLifeDigestText(candidate.summary, 260) || null,
+  }
+}
+
+function normalizeAlicizationSameHerCausalityRepairLane(raw: unknown): AlicizationSameHerCausalityRepairLane | null {
+  return raw === 'initiative-execution'
+    || raw === 'emotion'
+    || raw === 'embodiment'
+    ? raw
+    : null
+}
+
+function normalizeAlicizationSameHerCausalityRepairPressureSnapshot(raw: unknown): AlicizationSameHerCausalityRepairPressureSnapshot | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw))
     return null
 
+  const candidate = raw as Record<string, unknown>
+  if (
+    candidate.version !== 'same-her-causality-repair-pressure-v1'
+    || candidate.source !== 'memory-tuning-advice'
+    || candidate.status !== 'pending-runtime-evidence'
+  ) {
+    return null
+  }
+
+  const lanes = Array.isArray(candidate.lanes)
+    ? candidate.lanes
+        .map((item) => {
+          const laneCandidate = item && typeof item === 'object' && !Array.isArray(item)
+            ? item as Record<string, unknown>
+            : null
+          const lane = normalizeAlicizationSameHerCausalityRepairLane(laneCandidate?.lane)
+          if (!lane)
+            return null
+          return {
+            lane,
+            reasonTags: Array.isArray(laneCandidate?.reasonTags)
+              ? laneCandidate.reasonTags
+                  .map(tag => sanitizeAlicizationDigitalLifeDigestText(tag, 120))
+                  .filter(Boolean)
+                  .slice(0, 12)
+              : [],
+            summary: sanitizeAlicizationDigitalLifeDigestText(laneCandidate?.summary, 260) || null,
+          } satisfies AlicizationSameHerCausalityRepairLaneSnapshot
+        })
+        .filter((item): item is AlicizationSameHerCausalityRepairLaneSnapshot => Boolean(item))
+        .slice(0, 3)
+    : []
+
+  if (lanes.length === 0)
+    return null
+
+  const rawMemoryIdentityRequirement = candidate.memoryIdentityRequirement && typeof candidate.memoryIdentityRequirement === 'object' && !Array.isArray(candidate.memoryIdentityRequirement)
+    ? candidate.memoryIdentityRequirement as Record<string, unknown>
+    : null
+  const excludedProofs = Array.isArray(rawMemoryIdentityRequirement?.excludedProofs)
+    ? rawMemoryIdentityRequirement.excludedProofs
+        .filter((item): item is 'route-chain-text' | 'visible-reply-wording' => item === 'route-chain-text' || item === 'visible-reply-wording')
+        .slice(0, 4)
+    : []
+  const memoryIdentityRequirement: AlicizationSameHerMemoryIdentityRequirementSnapshot | null = rawMemoryIdentityRequirement
+    && rawMemoryIdentityRequirement.status === 'required'
+    && rawMemoryIdentityRequirement.proofBoundary === 'downstream-memory-closure-causality'
+    && rawMemoryIdentityRequirement.requiredPath === 'memoryClosureCausality.memoryIdentity'
+    && rawMemoryIdentityRequirement.continuity === 'stable-memory-identity-key'
+    ? {
+        status: 'required',
+        proofBoundary: 'downstream-memory-closure-causality',
+        requiredPath: 'memoryClosureCausality.memoryIdentity',
+        excludedProofs,
+        continuity: 'stable-memory-identity-key',
+        summary: sanitizeAlicizationDigitalLifeDigestText(rawMemoryIdentityRequirement.summary, 260) || null,
+      }
+    : null
+
+  return {
+    version: 'same-her-causality-repair-pressure-v1',
+    source: 'memory-tuning-advice',
+    status: 'pending-runtime-evidence',
+    updatedAt: Number.isFinite(Number(candidate.updatedAt)) ? Math.max(0, Math.floor(Number(candidate.updatedAt))) : null,
+    sourceReportAt: Number.isFinite(Number(candidate.sourceReportAt)) ? Math.max(0, Math.floor(Number(candidate.sourceReportAt))) : null,
+    focusDimensions: Array.isArray(candidate.focusDimensions)
+      ? candidate.focusDimensions
+          .map(item => sanitizeAlicizationDigitalLifeDigestText(item, 120))
+          .filter(Boolean)
+          .slice(0, 18)
+      : [],
+    lanes,
+    memoryIdentityRequirement,
+    notes: Array.isArray(candidate.notes)
+      ? candidate.notes
+          .map(item => sanitizeAlicizationDigitalLifeDigestText(item, 260))
+          .filter(Boolean)
+          .slice(0, 6)
+      : [],
+    summary: sanitizeAlicizationDigitalLifeDigestText(candidate.summary, 260)
+      || `pending same-her causality repair: ${lanes.map(item => item.lane).join(', ')}`,
+  }
+}
+
+function normalizeAlicizationEmotionalTransitionLedgerSnapshot(raw: unknown): AlicizationEmotionalTransitionLedgerSnapshot | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+    return null
+
+  const candidate = raw as Record<string, unknown>
   const transitionKind = normalizeAlicizationEmotionalTransitionKind(candidate.transitionKind)
   const nextEmotion = normalizeAlicizationEmotionalKernelDominantEmotion(candidate.nextEmotion)
-  const createdAt = Number(candidate.createdAt)
-  if (!transitionKind || !nextEmotion || !Number.isFinite(createdAt))
+  if (!transitionKind || !nextEmotion)
     return null
 
-  const previousEmotion = normalizeAlicizationEmotionalKernelDominantEmotion(candidate.previousEmotion)
+  const axisNames = ['valence', 'arousal', 'guardedness', 'closenessDrive', 'repairNeed', 'initiativePressure'] as const
+  const axisDeltasSource = candidate.axisDeltas && typeof candidate.axisDeltas === 'object' && !Array.isArray(candidate.axisDeltas)
+    ? candidate.axisDeltas as Record<string, unknown>
+    : null
+  const axisDeltas = Object.fromEntries(axisNames.map((axis) => {
+    const value = Number(axisDeltasSource?.[axis] ?? 0)
+    return [axis, Number.isFinite(value) ? Number(value.toFixed(2)) : 0]
+  })) as Record<AlicizationEmotionalTransitionAxisName, number>
+  const changedAxes = Array.isArray(candidate.changedAxes)
+    ? Array.from(new Set(candidate.changedAxes
+      .map(item => normalizeAlicizationEmotionalTransitionAxisName(sanitizeAlicizationDigitalLifeDigestText(item, 48)))
+      .filter(Boolean))) as AlicizationEmotionalTransitionAxisName[]
+    : []
+
   const decayPolicy = candidate.decayPolicy && typeof candidate.decayPolicy === 'object' && !Array.isArray(candidate.decayPolicy)
     ? candidate.decayPolicy as Record<string, unknown>
-    : {}
+    : null
   const memoryWriteback = candidate.memoryWriteback && typeof candidate.memoryWriteback === 'object' && !Array.isArray(candidate.memoryWriteback)
     ? candidate.memoryWriteback as Record<string, unknown>
-    : {}
+    : null
   const initiativeSuppression = candidate.initiativeSuppression && typeof candidate.initiativeSuppression === 'object' && !Array.isArray(candidate.initiativeSuppression)
     ? candidate.initiativeSuppression as Record<string, unknown>
-    : {}
+    : null
   const embodimentDrive = candidate.embodimentDrive && typeof candidate.embodimentDrive === 'object' && !Array.isArray(candidate.embodimentDrive)
     ? candidate.embodimentDrive as Record<string, unknown>
-    : {}
+    : null
   const selfRevisionCandidate = candidate.selfRevisionCandidate && typeof candidate.selfRevisionCandidate === 'object' && !Array.isArray(candidate.selfRevisionCandidate)
     ? candidate.selfRevisionCandidate as Record<string, unknown>
-    : {}
-  const projectStateContinuity = selfRevisionCandidate.projectStateContinuity && typeof selfRevisionCandidate.projectStateContinuity === 'object' && !Array.isArray(selfRevisionCandidate.projectStateContinuity)
-    ? selfRevisionCandidate.projectStateContinuity as Record<string, unknown>
-    : {}
-  const decayMode = decayPolicy.mode === 'hold-until-repair-cools'
-    || decayPolicy.mode === 'protect-rest-window'
-    || decayPolicy.mode === 'cool-approach-pressure'
-    ? decayPolicy.mode
-    : 'decay-normally'
-  const writebackLane = memoryWriteback.lane === 'relationship-repair'
-    || memoryWriteback.lane === 'rest-protection'
-    || memoryWriteback.lane === 'emotional-continuity'
-    ? memoryWriteback.lane
-    : 'none'
-  const initiativeMode = initiativeSuppression.mode === 'repair-first'
-    || initiativeSuppression.mode === 'rest-guard'
-    || initiativeSuppression.mode === 'measured-return'
-    || initiativeSuppression.mode === 'single-thread'
-    ? initiativeSuppression.mode
-    : 'none'
-  const domain = selfRevisionCandidate.domain === 'proactive-policy'
-    || selfRevisionCandidate.domain === 'relationship'
-    ? selfRevisionCandidate.domain
-    : 'dialogue-style'
+    : null
 
   return {
     version: 'emotional-transition-ledger-v1',
-    createdAt: Math.max(0, Math.floor(createdAt)),
+    createdAt: normalizeNonNegativeInteger(candidate.createdAt),
     turnId: sanitizeAlicizationDigitalLifeDigestText(candidate.turnId, 160) || null,
-    previousEmotion,
+    previousEmotion: candidate.previousEmotion === null
+      ? null
+      : normalizeAlicizationEmotionalKernelDominantEmotion(candidate.previousEmotion),
     nextEmotion,
     transitionKind,
-    axisDeltas: normalizeAlicizationEmotionalTransitionAxisDeltas(candidate.axisDeltas),
-    changedAxes: Array.isArray(candidate.changedAxes)
-      ? candidate.changedAxes
-          .map(normalizeAlicizationEmotionalTransitionAxisName)
-          .filter((axis): axis is keyof AlicizationEmotionalTransitionLedgerSnapshot['axisDeltas'] => Boolean(axis))
-          .slice(0, 6)
-      : [],
+    axisDeltas,
+    changedAxes,
     sourceTags: Array.isArray(candidate.sourceTags)
       ? candidate.sourceTags
           .map(tag => sanitizeAlicizationDigitalLifeDigestText(tag, 120))
           .filter(Boolean)
-          .slice(0, 16)
-      : [],
-    decayPolicy: {
-      mode: decayMode,
-      carryTtlMs: normalizeNonNegativeInteger(decayPolicy.carryTtlMs),
-      reason: sanitizeAlicizationDigitalLifeDigestText(decayPolicy.reason, 240) || '',
-    },
-    memoryWriteback: {
-      shouldWrite: memoryWriteback.shouldWrite === true,
-      lane: writebackLane,
-      reason: sanitizeAlicizationDigitalLifeDigestText(memoryWriteback.reason, 240) || '',
-    },
-    initiativeSuppression: {
-      shouldSuppress: initiativeSuppression.shouldSuppress === true,
-      mode: initiativeMode,
-      reason: sanitizeAlicizationDigitalLifeDigestText(initiativeSuppression.reason, 240) || '',
-    },
-    embodimentDrive: {
-      shouldDrive: embodimentDrive.shouldDrive === true,
-      tone: normalizeAlicizationEmotionalKernelEmbodimentTone(embodimentDrive.tone),
-      reason: sanitizeAlicizationDigitalLifeDigestText(embodimentDrive.reason, 240) || '',
-    },
-    selfRevisionCandidate: {
-      shouldPropose: selfRevisionCandidate.shouldPropose === true,
-      domain,
-      reasonCodes: Array.isArray(selfRevisionCandidate.reasonCodes)
-        ? selfRevisionCandidate.reasonCodes
-            .map(reason => sanitizeAlicizationDigitalLifeDigestText(reason, 120))
-            .filter(Boolean)
-            .slice(0, 12)
-        : [],
-      summary: sanitizeAlicizationDigitalLifeDigestText(selfRevisionCandidate.summary, 240) || null,
-      projectStateContinuity: {
-        sameHerSelfLine: sanitizeAlicizationDigitalLifeDigestText(projectStateContinuity.sameHerSelfLine, 240) || null,
-        sameHerDriftRisk: sanitizeAlicizationDigitalLifeDigestText(projectStateContinuity.sameHerDriftRisk, 240) || null,
-        proactiveSameHerGap: sanitizeAlicizationDigitalLifeDigestText(projectStateContinuity.proactiveSameHerGap, 240) || null,
-        emotionalClosureCue: sanitizeAlicizationDigitalLifeDigestText(projectStateContinuity.emotionalClosureCue, 240) || null,
-        sameHerHoldDetail: sanitizeAlicizationDigitalLifeDigestText(projectStateContinuity.sameHerHoldDetail, 240) || null,
-        continuityGuard: sanitizeAlicizationDigitalLifeDigestText(projectStateContinuity.continuityGuard, 240) || null,
-      },
-    },
-    traceSummary: sanitizeAlicizationDigitalLifeDigestText(candidate.traceSummary, 360) || '',
-    replayLine: sanitizeAlicizationDigitalLifeDigestText(candidate.replayLine, 360) || '',
-  }
-}
-
-function normalizeAlicizationEmotionalTransitionDecay(raw: unknown): AlicizationEmotionalTransitionDecaySnapshot | null {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw))
-    return null
-
-  const candidate = raw as Record<string, unknown>
-  if (candidate.version !== 'emotional-transition-decay-v1')
-    return null
-
-  const phase = candidate.phase === 'hold' || candidate.phase === 'soften' || candidate.phase === 'release'
-    ? candidate.phase
-    : null
-  if (!phase)
-    return null
-
-  const initiativeMode = candidate.initiativeMode === 'repair-first'
-    || candidate.initiativeMode === 'rest-guard'
-    || candidate.initiativeMode === 'measured-return'
-    || candidate.initiativeMode === 'single-thread'
-    ? candidate.initiativeMode
-    : 'none'
-  const memoryWritebackLane = candidate.memoryWritebackLane === 'relationship-repair'
-    || candidate.memoryWritebackLane === 'rest-protection'
-    || candidate.memoryWritebackLane === 'emotional-continuity'
-    ? candidate.memoryWritebackLane
-    : 'none'
-
-  return {
-    version: 'emotional-transition-decay-v1',
-    ledgerCreatedAt: normalizeNonNegativeInteger(candidate.ledgerCreatedAt),
-    evaluatedAt: normalizeNonNegativeInteger(candidate.evaluatedAt),
-    elapsedMs: normalizeNonNegativeInteger(candidate.elapsedMs),
-    expiresAt: normalizeNonNegativeInteger(candidate.expiresAt),
-    phase,
-    shouldSuppressInitiative: candidate.shouldSuppressInitiative === true,
-    shouldDriveEmbodiment: candidate.shouldDriveEmbodiment === true,
-    initiativeMode,
-    embodimentTone: normalizeAlicizationEmotionalKernelEmbodimentTone(candidate.embodimentTone),
-    memoryWritebackLane,
-    reasonTags: Array.isArray(candidate.reasonTags)
-      ? candidate.reasonTags
-          .map(reason => sanitizeAlicizationDigitalLifeDigestText(reason, 120))
-          .filter(Boolean)
           .slice(0, 12)
       : [],
-    summary: sanitizeAlicizationDigitalLifeDigestText(candidate.summary, 260) || '',
+    decayPolicy: {
+      mode: decayPolicy && (
+        decayPolicy.mode === 'decay-normally'
+        || decayPolicy.mode === 'hold-until-repair-cools'
+        || decayPolicy.mode === 'protect-rest-window'
+        || decayPolicy.mode === 'cool-approach-pressure'
+      )
+        ? decayPolicy.mode
+        : 'decay-normally',
+      carryTtlMs: Math.max(0, Math.floor(Number(decayPolicy?.carryTtlMs ?? 0))),
+      reason: sanitizeAlicizationDigitalLifeDigestText(decayPolicy?.reason, 220) || '',
+    },
+    memoryWriteback: {
+      shouldWrite: memoryWriteback?.shouldWrite === true,
+      lane: memoryWriteback && (
+        memoryWriteback.lane === 'none'
+        || memoryWriteback.lane === 'relationship-repair'
+        || memoryWriteback.lane === 'rest-protection'
+        || memoryWriteback.lane === 'emotional-continuity'
+      )
+        ? memoryWriteback.lane
+        : 'none',
+      reason: sanitizeAlicizationDigitalLifeDigestText(memoryWriteback?.reason, 220) || '',
+    },
+    initiativeSuppression: {
+      shouldSuppress: initiativeSuppression?.shouldSuppress === true,
+      mode: initiativeSuppression && (
+        initiativeSuppression.mode === 'none'
+        || initiativeSuppression.mode === 'repair-first'
+        || initiativeSuppression.mode === 'rest-guard'
+        || initiativeSuppression.mode === 'measured-return'
+        || initiativeSuppression.mode === 'single-thread'
+      )
+        ? initiativeSuppression.mode
+        : 'none',
+      reason: sanitizeAlicizationDigitalLifeDigestText(initiativeSuppression?.reason, 220) || '',
+      memoryClosureCausality: normalizeAlicizationMemoryClosureCausalitySnapshot(
+        initiativeSuppression?.memoryClosureCausality,
+        'initiative',
+      ),
+    },
+    embodimentDrive: {
+      shouldDrive: embodimentDrive?.shouldDrive === true,
+      tone: embodimentDrive
+        ? normalizeAlicizationEmotionalKernelEmbodimentTone(embodimentDrive.tone)
+        : null,
+      reason: sanitizeAlicizationDigitalLifeDigestText(embodimentDrive?.reason, 220) || '',
+    },
+    selfRevisionCandidate: {
+      shouldPropose: selfRevisionCandidate?.shouldPropose === true,
+      domain: selfRevisionCandidate?.domain === 'dialogue-style'
+        || selfRevisionCandidate?.domain === 'proactive-policy'
+        || selfRevisionCandidate?.domain === 'relationship'
+        ? selfRevisionCandidate.domain
+        : 'dialogue-style',
+      reasonCodes: Array.isArray(selfRevisionCandidate?.reasonCodes)
+        ? selfRevisionCandidate.reasonCodes
+            .map(item => sanitizeAlicizationDigitalLifeDigestText(item, 120))
+            .filter(Boolean)
+            .slice(0, 8)
+        : [],
+      summary: sanitizeAlicizationDigitalLifeDigestText(selfRevisionCandidate?.summary, 220) || null,
+      projectStateContinuity: {
+        sameHerSelfLine: sanitizeAlicizationDigitalLifeDigestText(selfRevisionCandidate && typeof selfRevisionCandidate.projectStateContinuity === 'object' ? (selfRevisionCandidate.projectStateContinuity as Record<string, unknown>).sameHerSelfLine : '', 220) || null,
+        sameHerDriftRisk: sanitizeAlicizationDigitalLifeDigestText(selfRevisionCandidate && typeof selfRevisionCandidate.projectStateContinuity === 'object' ? (selfRevisionCandidate.projectStateContinuity as Record<string, unknown>).sameHerDriftRisk : '', 220) || null,
+        proactiveSameHerGap: sanitizeAlicizationDigitalLifeDigestText(selfRevisionCandidate && typeof selfRevisionCandidate.projectStateContinuity === 'object' ? (selfRevisionCandidate.projectStateContinuity as Record<string, unknown>).proactiveSameHerGap : '', 220) || null,
+        emotionalClosureCue: sanitizeAlicizationDigitalLifeDigestText(selfRevisionCandidate && typeof selfRevisionCandidate.projectStateContinuity === 'object' ? (selfRevisionCandidate.projectStateContinuity as Record<string, unknown>).emotionalClosureCue : '', 220) || null,
+        sameHerHoldDetail: sanitizeAlicizationDigitalLifeDigestText(selfRevisionCandidate && typeof selfRevisionCandidate.projectStateContinuity === 'object' ? (selfRevisionCandidate.projectStateContinuity as Record<string, unknown>).sameHerHoldDetail : '', 220) || null,
+        continuityGuard: sanitizeAlicizationDigitalLifeDigestText(selfRevisionCandidate && typeof selfRevisionCandidate.projectStateContinuity === 'object' ? (selfRevisionCandidate.projectStateContinuity as Record<string, unknown>).continuityGuard : '', 220) || null,
+      },
+    },
+    traceSummary: sanitizeAlicizationDigitalLifeDigestText(candidate.traceSummary, 260) || '',
+    replayLine: sanitizeAlicizationDigitalLifeDigestText(candidate.replayLine, 260) || '',
+    memoryClosureCausality: normalizeAlicizationMemoryClosureCausalitySnapshot(
+      candidate.memoryClosureCausality,
+      'emotion',
+    ),
   }
 }
 
@@ -3460,6 +3849,118 @@ function normalizeNonNegativeInteger(raw: unknown) {
   if (!Number.isFinite(value))
     return 0
   return Math.max(0, Math.floor(value))
+}
+
+function normalizeAlicizationEmbodimentContinuityLane(raw: unknown): AlicizationEmbodimentContinuityLane | null {
+  return raw === 'body'
+    || raw === 'voice'
+    || raw === 'face'
+    || raw === 'motion'
+    || raw === 'lipsync'
+    ? raw
+    : null
+}
+
+function normalizeAlicizationEmbodimentContinuityLaneStatus(raw: unknown): AlicizationEmbodimentContinuityLaneStatus {
+  return raw === 'carrying-same-her'
+    || raw === 'dropped'
+    || raw === 'pending-rejoin'
+    || raw === 'rejoined'
+    || raw === 'silent'
+    ? raw
+    : 'silent'
+}
+
+function normalizeAlicizationEmbodimentContinuityLaneList(raw: unknown) {
+  if (!Array.isArray(raw))
+    return []
+  return Array.from(new Set(raw
+    .map(item => normalizeAlicizationEmbodimentContinuityLane(sanitizeAlicizationDigitalLifeDigestText(item, 48)))
+    .filter(Boolean))) as AlicizationEmbodimentContinuityLane[]
+}
+
+function normalizeAlicizationEmbodimentContinuityLedgerSnapshot(raw: unknown): AlicizationEmbodimentContinuityLedgerSnapshot | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+    return null
+
+  const candidate = raw as Record<string, unknown>
+  const phase = candidate.continuityPhase === 'fragmented'
+    || candidate.continuityPhase === 'partial-carry'
+    || candidate.continuityPhase === 'rejoining'
+    || candidate.continuityPhase === 'fully-rejoined'
+    || candidate.continuityPhase === 'quiet'
+    ? candidate.continuityPhase
+    : null
+  if (!phase)
+    return null
+
+  const laneNames = ['body', 'voice', 'face', 'motion', 'lipsync'] as const
+  const rawLanes = candidate.lanes && typeof candidate.lanes === 'object' && !Array.isArray(candidate.lanes)
+    ? candidate.lanes as Record<string, unknown>
+    : null
+  const lanes = rawLanes
+    ? Object.fromEntries(laneNames.map((lane) => {
+      const rawLane = rawLanes[lane] && typeof rawLanes[lane] === 'object' && !Array.isArray(rawLanes[lane])
+        ? rawLanes[lane] as Record<string, unknown>
+        : null
+      return [lane, {
+        status: normalizeAlicizationEmbodimentContinuityLaneStatus(rawLane?.status),
+        summary: sanitizeAlicizationDigitalLifeDigestText(rawLane?.summary, 220) || null,
+      }]
+    })) as NonNullable<AlicizationEmbodimentContinuityLedgerSnapshot['lanes']>
+    : null
+  const memoryWriteback = candidate.memoryWriteback && typeof candidate.memoryWriteback === 'object' && !Array.isArray(candidate.memoryWriteback)
+    ? candidate.memoryWriteback as Record<string, unknown>
+    : null
+  const selfRevisionCandidate = candidate.selfRevisionCandidate && typeof candidate.selfRevisionCandidate === 'object' && !Array.isArray(candidate.selfRevisionCandidate)
+    ? candidate.selfRevisionCandidate as Record<string, unknown>
+    : null
+
+  return {
+    version: 'embodiment-continuity-ledger-v1',
+    createdAt: normalizeNonNegativeInteger(candidate.createdAt),
+    turnId: sanitizeAlicizationDigitalLifeDigestText(candidate.turnId, 160) || null,
+    lanes,
+    carryingLanes: normalizeAlicizationEmbodimentContinuityLaneList(candidate.carryingLanes).slice(0, 5),
+    droppedLanes: normalizeAlicizationEmbodimentContinuityLaneList(candidate.droppedLanes).slice(0, 5),
+    rejoinedLanes: normalizeAlicizationEmbodimentContinuityLaneList(candidate.rejoinedLanes).slice(0, 5),
+    pendingRejoinLanes: normalizeAlicizationEmbodimentContinuityLaneList(candidate.pendingRejoinLanes).slice(0, 5),
+    continuityPhase: phase,
+    memoryWriteback: {
+      shouldWrite: memoryWriteback?.shouldWrite === true,
+      lane: memoryWriteback && (
+        memoryWriteback.lane === 'none'
+        || memoryWriteback.lane === 'cross-modal-continuity'
+        || memoryWriteback.lane === 'rejoin'
+      )
+        ? memoryWriteback.lane
+        : 'none',
+      reason: sanitizeAlicizationDigitalLifeDigestText(memoryWriteback?.reason, 240) || '',
+    },
+    selfRevisionCandidate: {
+      shouldPropose: selfRevisionCandidate?.shouldPropose === true,
+      domain: 'dialogue-style',
+      reasonCodes: Array.isArray(selfRevisionCandidate?.reasonCodes)
+        ? selfRevisionCandidate.reasonCodes
+            .map(reason => sanitizeAlicizationDigitalLifeDigestText(reason, 120))
+            .filter(Boolean)
+            .slice(0, 16)
+        : [],
+      summary: sanitizeAlicizationDigitalLifeDigestText(selfRevisionCandidate?.summary, 260) || null,
+    },
+    traceSummary: sanitizeAlicizationDigitalLifeDigestText(candidate.traceSummary, 360) || '',
+    replayLine: sanitizeAlicizationDigitalLifeDigestText(candidate.replayLine, 360) || '',
+    sourceTags: Array.isArray(candidate.sourceTags)
+      ? candidate.sourceTags
+          .map(tag => sanitizeAlicizationDigitalLifeDigestText(tag, 120))
+          .filter(Boolean)
+          .slice(0, 12)
+      : [],
+    memoryClosureCausality: normalizeAlicizationMemoryClosureCausalitySnapshot(
+      candidate.memoryClosureCausality,
+      'embodiment',
+    ),
+  }
 }
 
 function normalizePresenceAuthoritySnapshot(raw: unknown): AlicizationPersistentPresenceAuthoritySnapshot | null {
@@ -3472,107 +3973,6 @@ function normalizePresenceAuthoritySnapshot(raw: unknown): AlicizationPersistent
     continuityMode: normalizePresenceContinuityMode(candidate.continuityMode),
     quietLineMs: normalizeNonNegativeInteger(candidate.quietLineMs),
     currentInwardPreoccupation: normalizeScalar(candidate.currentInwardPreoccupation),
-  }
-}
-
-function normalizeAlicizationPresenceExpressionTrigger(raw: unknown): AlicizationPresenceExpressionSnapshot['trigger'] | null {
-  return raw === 'startup-restore'
-    || raw === 'state-shift'
-    || raw === 'presence-only-hold'
-    || raw === 'memory-carry-return'
-    ? raw
-    : null
-}
-
-function normalizeAlicizationPresenceExpressionIntensity(raw: unknown): AlicizationPresenceExpressionSnapshot['display']['intensity'] | null {
-  return raw === 'barely-there' || raw === 'soft'
-    ? raw
-    : null
-}
-
-function normalizeAlicizationPresenceExpressionTextList(raw: unknown, maxItems: number) {
-  if (!Array.isArray(raw))
-    return []
-
-  const normalized: string[] = []
-  const seen = new Set<string>()
-  for (const item of raw) {
-    const text = sanitizeAlicizationDigitalLifeDigestText(item, 120)
-    if (!text || seen.has(text))
-      continue
-
-    seen.add(text)
-    normalized.push(text)
-    if (normalized.length >= maxItems)
-      break
-  }
-
-  return normalized
-}
-
-function normalizeAlicizationPresenceExpressionSnapshot(raw: unknown): AlicizationPresenceExpressionSnapshot | null {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw))
-    return null
-
-  const candidate = raw as Record<string, unknown>
-  if (candidate.version !== 'presence-expression-v1')
-    return null
-
-  const id = sanitizeAlicizationDigitalLifeDigestText(candidate.id, 120)
-  const text = sanitizeAlicizationDigitalLifeDigestText(candidate.text, 160)
-  const trigger = normalizeAlicizationPresenceExpressionTrigger(candidate.trigger)
-  const display = candidate.display && typeof candidate.display === 'object' && !Array.isArray(candidate.display)
-    ? candidate.display as Record<string, unknown>
-    : null
-  const grounding = candidate.grounding && typeof candidate.grounding === 'object' && !Array.isArray(candidate.grounding)
-    ? candidate.grounding as Record<string, unknown>
-    : null
-  const audit = candidate.audit && typeof candidate.audit === 'object' && !Array.isArray(candidate.audit)
-    ? candidate.audit as Record<string, unknown>
-    : null
-  const intensity = normalizeAlicizationPresenceExpressionIntensity(display?.intensity)
-  const createdAt = normalizeNonNegativeInteger(display?.createdAt)
-  const expiresAt = normalizeNonNegativeInteger(display?.expiresAt)
-  const sourceRefs = normalizeAlicizationPresenceExpressionTextList(grounding?.sourceRefs, 12)
-  const reasonTags = normalizeAlicizationPresenceExpressionTextList(grounding?.reasonTags, 12)
-  const stateFingerprint = sanitizeAlicizationDigitalLifeDigestText(grounding?.stateFingerprint, 180)
-
-  if (
-    !id
-    || !text
-    || !trigger
-    || display?.mode !== 'near-body-whisper'
-    || !intensity
-    || expiresAt <= createdAt
-    || sourceRefs.length === 0
-    || !stateFingerprint
-  ) {
-    return null
-  }
-
-  return {
-    version: 'presence-expression-v1',
-    id,
-    text,
-    trigger,
-    display: {
-      mode: 'near-body-whisper',
-      allowAutoShow: display?.allowAutoShow === true,
-      createdAt,
-      expiresAt,
-      intensity,
-    },
-    grounding: {
-      sourceRefs,
-      reasonTags,
-      stateFingerprint,
-      confidence: normalizeAlicizationDigitalLifeDigestUnit(grounding?.confidence) ?? 0,
-    },
-    audit: {
-      generated: audit?.generated === true,
-      withheldReason: sanitizeAlicizationDigitalLifeDigestText(audit?.withheldReason, 160) || null,
-      qualityFlags: normalizeAlicizationPresenceExpressionTextList(audit?.qualityFlags, 12),
-    },
   }
 }
 
@@ -3593,8 +3993,6 @@ function normalizeVisualPresenceStateSnapshot(raw: unknown): AlicizationVisualPr
     quietLineMs: authority.quietLineMs,
     currentInwardPreoccupation: authority.currentInwardPreoccupation,
     emotionalKernel: normalizeAlicizationEmotionalKernelSnapshot(candidate.emotionalKernel),
-    emotionalTransitionDecay: normalizeAlicizationEmotionalTransitionDecay(candidate.emotionalTransitionDecay),
-    presenceExpression: normalizeAlicizationPresenceExpressionSnapshot(candidate.presenceExpression),
   }
 }
 
@@ -3906,6 +4304,18 @@ function normalizeAlicizationDialogueStructuredPayload(raw: unknown): Alicizatio
       const preferredGazeMode = normalizeAlicizationProjectStateGazeMode(
         sanitizeAlicizationProjectAwarenessDigestText(projectStateCandidate.preferredGazeMode, 32),
       )
+      const preferredPauseMode = normalizeAlicizationProjectStatePauseMode(
+        sanitizeAlicizationProjectAwarenessDigestText(projectStateCandidate.preferredPauseMode, 32),
+      )
+      const preferredLipsyncMode = normalizeAlicizationProjectStateLipsyncMode(
+        sanitizeAlicizationProjectAwarenessDigestText(projectStateCandidate.preferredLipsyncMode, 32),
+      )
+      const preferredVoiceMode = normalizeAlicizationProjectStateVoiceMode(
+        sanitizeAlicizationProjectAwarenessDigestText(projectStateCandidate.preferredVoiceMode, 32),
+      )
+      const preferredPacingMode = normalizeAlicizationProjectStatePacingMode(
+        sanitizeAlicizationProjectAwarenessDigestText(projectStateCandidate.preferredPacingMode, 32),
+      )
 
       if (!hasAlicizationProjectAwarenessContent([
         identity,
@@ -3929,6 +4339,10 @@ function normalizeAlicizationDialogueStructuredPayload(raw: unknown): Alicizatio
         continuityCadence,
         preferredBlinkCadence,
         preferredGazeMode,
+        preferredPauseMode,
+        preferredLipsyncMode,
+        preferredVoiceMode,
+        preferredPacingMode,
       ])) {
         return undefined
       }
@@ -3955,6 +4369,10 @@ function normalizeAlicizationDialogueStructuredPayload(raw: unknown): Alicizatio
         continuityCadence,
         preferredBlinkCadence,
         preferredGazeMode,
+        preferredPauseMode,
+        preferredLipsyncMode,
+        preferredVoiceMode,
+        preferredPacingMode,
       }
     })(),
     preDialogueAwareness: (() => {
@@ -4174,8 +4592,10 @@ export function normalizeAlicizationDerivedMindStateBundle(raw: unknown): Aliciz
             : [],
         }
       : null,
+    sameHerCausalityRepairPressure: normalizeAlicizationSameHerCausalityRepairPressureSnapshot(candidate.sameHerCausalityRepairPressure),
     emotionalKernel: normalizeAlicizationEmotionalKernelSnapshot(candidate.emotionalKernel),
-    emotionalTransitionLedger: normalizeAlicizationEmotionalTransitionLedger(candidate.emotionalTransitionLedger),
+    emotionalTransitionLedger: normalizeAlicizationEmotionalTransitionLedgerSnapshot(candidate.emotionalTransitionLedger),
+    embodimentContinuityLedger: normalizeAlicizationEmbodimentContinuityLedgerSnapshot(candidate.embodimentContinuityLedger),
     selfEvolution: selfEvolution ? selfEvolution as unknown as AlicizationSelfEvolutionKernelSnapshot : null,
     affectiveResidue: affectiveResidue
       ? {
@@ -4354,6 +4774,10 @@ export function normalizeAlicizationDerivedMindStateBundle(raw: unknown): Aliciz
           lastFailureReason: sanitizeAlicizationDigitalLifeDigestText(learningExecutionState.lastFailureReason, 180) || null,
           lastFailureNextRetryAt: Number.isFinite(Number(learningExecutionState.lastFailureNextRetryAt)) ? Math.max(0, Math.floor(Number(learningExecutionState.lastFailureNextRetryAt))) : null,
           updatedAt: Number.isFinite(Number(learningExecutionState.updatedAt)) ? Math.max(0, Math.floor(Number(learningExecutionState.updatedAt))) : null,
+          memoryClosureCausality: normalizeAlicizationMemoryClosureCausalitySnapshot(
+            learningExecutionState.memoryClosureCausality,
+            'execution',
+          ),
         }
       : null,
     recallLatencyPolicy: recallLatencyPolicy
@@ -4455,6 +4879,73 @@ export type AlicizationMindHeadKey
     | 'habit-policy'
     | 'learning-execution-state'
 
+export type AlicizationDigitalLifeSpineMemoryClosureTraceSource
+  = | 'personality'
+    | 'affective-residue'
+    | 'execution-feedback'
+    | 'embodiment-cadence'
+    | 'initiative'
+    | 'retrieval'
+    | 'settlement'
+
+export interface AlicizationDigitalLifeSpineMemoryClosureTrace {
+  version: 'memory-closure-trace-v1'
+  authority: 'memory-os'
+  whySurface: Array<{
+    source: AlicizationDigitalLifeSpineMemoryClosureTraceSource
+    summary: string
+    reasonCodes: string[]
+  }>
+  surfacePolicy: {
+    gateStatus: string | null
+    mode: 'open' | 'gist-only' | 'tone-carry' | 'inward-only' | 'closed'
+    timing: string | null
+    speechMode: string | null
+    placement: string | null
+    certainty: string | null
+    reasons: string[]
+  }
+  nextInfluence: {
+    initiative: {
+      restraint: string | null
+      preferredTiming: string | null
+      pressure: 'lower-pressure' | 'standard'
+      reason: string | null
+    }
+    execution: {
+      carry: string | null
+      nextLearningAction: string | null
+      shouldVerify: boolean
+      shouldReflect: boolean
+      activeLearningFocuses: string[]
+    }
+    emotion?: {
+      reason: string | null
+      afterglow: string | null
+      residue: string | null
+    }
+    embodiment: {
+      cadence: string | null
+      preferredVoiceMode: 'lower-pressure' | 'even' | null
+      preferredLipsyncMode: 'restrained' | 'matched' | null
+      preferredGazeMode: 'steady' | 'soften' | 'drift' | null
+      reason: string | null
+    }
+  }
+  closureState: {
+    state: string | null
+    open: boolean
+    revisionRequired: boolean
+    shouldLabelUncertainty: boolean
+    visibleCarryMode: string | null
+    retrievalQuality: string | null
+    conflictPressure: string | null
+  }
+  selectedCandidateIds: string[]
+  memoryIdentity?: AlicizationMemoryClosureIdentitySnapshot | null
+  reasonTags: string[]
+}
+
 export interface AlicizationDigitalLifeSpineMemoryDigest {
   summary: string | null
   recentEpisodeSummary: string | null
@@ -4485,7 +4976,7 @@ export interface AlicizationDigitalLifeSpineMemoryDigest {
     summary: string | null
   } | null
   affectiveResidue?: AlicizationAffectiveResidueMemorySnapshot | null
-  derivedMindStateBundle?: Pick<AlicizationDerivedMindStateBundle, 'affectiveResidue'> | null
+  derivedMindStateBundle?: AlicizationDerivedMindStateBundle | null
   personStateProjection?: {
     summary?: string | null
     selfContinuityAuthority?: {
@@ -4504,6 +4995,7 @@ export interface AlicizationDigitalLifeSpineMemoryDigest {
     preferredProactiveStyle: string | null
     manifestationCadenceSummary: string | null
   } | null
+  memoryClosureTrace?: AlicizationDigitalLifeSpineMemoryClosureTrace | null
 }
 
 export interface AlicizationDigitalLifeSpineEmbodimentDigest {
@@ -4773,7 +5265,7 @@ export interface AlicizationRuntimeDigest {
   autonomy?: AlicizationRuntimeAutonomyDigest | null
   projectState?: AlicizationRuntimeProjectStateDigest | null
   affectiveResidue?: AlicizationAffectiveResidueMemorySnapshot | null
-  derivedMindStateBundle?: Pick<AlicizationDerivedMindStateBundle, 'affectiveResidue'> | null
+  derivedMindStateBundle?: AlicizationDerivedMindStateBundle | null
   currentConsciousFrame?: {
     reasonTags: string[]
     signature?: string | null
@@ -4815,18 +5307,25 @@ function normalizeAlicizationRuntimeDigestAffectiveResidue(
 
 function normalizeAlicizationRuntimeDigestDerivedMindStateBundle(
   raw: unknown,
-): Pick<AlicizationDerivedMindStateBundle, 'affectiveResidue'> | null {
+): AlicizationDerivedMindStateBundle | null {
+  const normalized = normalizeAlicizationDerivedMindStateBundle(raw)
+  if (normalized)
+    return normalized
+
   if (!raw || typeof raw !== 'object' || Array.isArray(raw))
     return null
 
   const candidate = raw as Record<string, unknown>
-  const affectiveResidue = normalizeAlicizationRuntimeDigestAffectiveResidue(candidate.affectiveResidue)
-  if (!affectiveResidue)
+  if (!('affectiveResidue' in candidate))
     return null
 
-  return {
-    affectiveResidue,
-  }
+  return normalizeAlicizationDerivedMindStateBundle({
+    version: 'derived-mind-state-bundle-v1',
+    source: 'browser-fallback',
+    producedAt: 0,
+    summary: 'runtime-digest-derived-mind-state-bundle',
+    affectiveResidue: candidate.affectiveResidue,
+  })
 }
 
 const ALICIZATION_PROJECT_AWARENESS_PLACEHOLDER_VALUES = new Set([
@@ -4879,6 +5378,177 @@ function normalizeAlicizationDigitalLifeDigestUnit(raw: unknown) {
 
 function normalizeAlicizationDigitalLifeDigestBoolean(raw: unknown) {
   return typeof raw === 'boolean' ? raw : null
+}
+
+function normalizeAlicizationDigitalLifeDigestStringList(raw: unknown, limit = 8, maxChars = 120) {
+  if (!Array.isArray(raw))
+    return []
+
+  const normalized: string[] = []
+  const seen = new Set<string>()
+  for (const item of raw) {
+    const text = sanitizeAlicizationDigitalLifeDigestText(item, maxChars)
+    if (!text || seen.has(text))
+      continue
+    normalized.push(text)
+    seen.add(text)
+    if (normalized.length >= limit)
+      break
+  }
+  return normalized
+}
+
+function normalizeAlicizationDigitalLifeSpineMemoryClosureTrace(
+  raw: unknown,
+): AlicizationDigitalLifeSpineMemoryClosureTrace | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+    return null
+
+  const candidate = raw as Record<string, unknown>
+  if (candidate.version !== 'memory-closure-trace-v1' || candidate.authority !== 'memory-os')
+    return null
+
+  const surfacePolicyCandidate = candidate.surfacePolicy && typeof candidate.surfacePolicy === 'object' && !Array.isArray(candidate.surfacePolicy)
+    ? candidate.surfacePolicy as Record<string, unknown>
+    : null
+  const nextInfluenceCandidate = candidate.nextInfluence && typeof candidate.nextInfluence === 'object' && !Array.isArray(candidate.nextInfluence)
+    ? candidate.nextInfluence as Record<string, unknown>
+    : null
+  const initiativeCandidate = nextInfluenceCandidate?.initiative && typeof nextInfluenceCandidate.initiative === 'object' && !Array.isArray(nextInfluenceCandidate.initiative)
+    ? nextInfluenceCandidate.initiative as Record<string, unknown>
+    : null
+  const executionCandidate = nextInfluenceCandidate?.execution && typeof nextInfluenceCandidate.execution === 'object' && !Array.isArray(nextInfluenceCandidate.execution)
+    ? nextInfluenceCandidate.execution as Record<string, unknown>
+    : null
+  const emotionCandidate = nextInfluenceCandidate?.emotion && typeof nextInfluenceCandidate.emotion === 'object' && !Array.isArray(nextInfluenceCandidate.emotion)
+    ? nextInfluenceCandidate.emotion as Record<string, unknown>
+    : null
+  const embodimentCandidate = nextInfluenceCandidate?.embodiment && typeof nextInfluenceCandidate.embodiment === 'object' && !Array.isArray(nextInfluenceCandidate.embodiment)
+    ? nextInfluenceCandidate.embodiment as Record<string, unknown>
+    : null
+  const closureStateCandidate = candidate.closureState && typeof candidate.closureState === 'object' && !Array.isArray(candidate.closureState)
+    ? candidate.closureState as Record<string, unknown>
+    : null
+  const memoryIdentityCandidate = candidate.memoryIdentity && typeof candidate.memoryIdentity === 'object' && !Array.isArray(candidate.memoryIdentity)
+    ? candidate.memoryIdentity as Record<string, unknown>
+    : null
+
+  const normalizeMode = (rawMode: unknown): AlicizationDigitalLifeSpineMemoryClosureTrace['surfacePolicy']['mode'] => {
+    return rawMode === 'open'
+      || rawMode === 'gist-only'
+      || rawMode === 'tone-carry'
+      || rawMode === 'inward-only'
+      || rawMode === 'closed'
+      ? rawMode
+      : 'closed'
+  }
+  const normalizePressure = (rawPressure: unknown): AlicizationDigitalLifeSpineMemoryClosureTrace['nextInfluence']['initiative']['pressure'] => {
+    return rawPressure === 'lower-pressure' ? 'lower-pressure' : 'standard'
+  }
+  const normalizeVoice = (rawVoice: unknown): AlicizationDigitalLifeSpineMemoryClosureTrace['nextInfluence']['embodiment']['preferredVoiceMode'] => {
+    return rawVoice === 'lower-pressure' || rawVoice === 'even' ? rawVoice : null
+  }
+  const normalizeLipsync = (rawLipsync: unknown): AlicizationDigitalLifeSpineMemoryClosureTrace['nextInfluence']['embodiment']['preferredLipsyncMode'] => {
+    return rawLipsync === 'restrained' || rawLipsync === 'matched' ? rawLipsync : null
+  }
+  const normalizeGaze = (rawGaze: unknown): AlicizationDigitalLifeSpineMemoryClosureTrace['nextInfluence']['embodiment']['preferredGazeMode'] => {
+    return rawGaze === 'steady' || rawGaze === 'soften' || rawGaze === 'drift' ? rawGaze : null
+  }
+  const normalizeSource = (rawSource: unknown): AlicizationDigitalLifeSpineMemoryClosureTraceSource | null => {
+    return rawSource === 'personality'
+      || rawSource === 'affective-residue'
+      || rawSource === 'execution-feedback'
+      || rawSource === 'embodiment-cadence'
+      || rawSource === 'initiative'
+      || rawSource === 'retrieval'
+      || rawSource === 'settlement'
+      ? rawSource
+      : null
+  }
+
+  return {
+    version: 'memory-closure-trace-v1',
+    authority: 'memory-os',
+    whySurface: Array.isArray(candidate.whySurface)
+      ? candidate.whySurface
+          .map((item): AlicizationDigitalLifeSpineMemoryClosureTrace['whySurface'][number] | null => {
+            if (!item || typeof item !== 'object' || Array.isArray(item))
+              return null
+            const whyCandidate = item as Record<string, unknown>
+            const source = normalizeSource(whyCandidate.source)
+            const summary = sanitizeAlicizationDigitalLifeDigestText(whyCandidate.summary, 220)
+            if (!source || !summary)
+              return null
+            return {
+              source,
+              summary,
+              reasonCodes: normalizeAlicizationDigitalLifeDigestStringList(whyCandidate.reasonCodes, 8, 120),
+            }
+          })
+          .filter((item): item is AlicizationDigitalLifeSpineMemoryClosureTrace['whySurface'][number] => Boolean(item))
+          .slice(0, 8)
+      : [],
+    surfacePolicy: {
+      gateStatus: sanitizeAlicizationDigitalLifeDigestText(surfacePolicyCandidate?.gateStatus, 48) || null,
+      mode: normalizeMode(surfacePolicyCandidate?.mode),
+      timing: sanitizeAlicizationDigitalLifeDigestText(surfacePolicyCandidate?.timing, 80) || null,
+      speechMode: sanitizeAlicizationDigitalLifeDigestText(surfacePolicyCandidate?.speechMode, 80) || null,
+      placement: sanitizeAlicizationDigitalLifeDigestText(surfacePolicyCandidate?.placement, 80) || null,
+      certainty: sanitizeAlicizationDigitalLifeDigestText(surfacePolicyCandidate?.certainty, 80) || null,
+      reasons: normalizeAlicizationDigitalLifeDigestStringList(surfacePolicyCandidate?.reasons, 8, 120),
+    },
+    nextInfluence: {
+      initiative: {
+        restraint: sanitizeAlicizationDigitalLifeDigestText(initiativeCandidate?.restraint, 80) || null,
+        preferredTiming: sanitizeAlicizationDigitalLifeDigestText(initiativeCandidate?.preferredTiming, 80) || null,
+        pressure: normalizePressure(initiativeCandidate?.pressure),
+        reason: sanitizeAlicizationDigitalLifeDigestText(initiativeCandidate?.reason, 220) || null,
+      },
+      execution: {
+        carry: sanitizeAlicizationDigitalLifeDigestText(executionCandidate?.carry, 220) || null,
+        nextLearningAction: sanitizeAlicizationDigitalLifeDigestText(executionCandidate?.nextLearningAction, 80) || null,
+        shouldVerify: executionCandidate?.shouldVerify === true,
+        shouldReflect: executionCandidate?.shouldReflect === true,
+        activeLearningFocuses: normalizeAlicizationDigitalLifeDigestStringList(executionCandidate?.activeLearningFocuses, 8, 120),
+      },
+      ...(emotionCandidate
+        ? {
+            emotion: {
+              reason: sanitizeAlicizationDigitalLifeDigestText(emotionCandidate.reason, 220) || null,
+              afterglow: sanitizeAlicizationDigitalLifeDigestText(emotionCandidate.afterglow, 220) || null,
+              residue: sanitizeAlicizationDigitalLifeDigestText(emotionCandidate.residue, 220) || null,
+            },
+          }
+        : {}),
+      embodiment: {
+        cadence: sanitizeAlicizationDigitalLifeDigestText(embodimentCandidate?.cadence, 220) || null,
+        preferredVoiceMode: normalizeVoice(embodimentCandidate?.preferredVoiceMode),
+        preferredLipsyncMode: normalizeLipsync(embodimentCandidate?.preferredLipsyncMode),
+        preferredGazeMode: normalizeGaze(embodimentCandidate?.preferredGazeMode),
+        reason: sanitizeAlicizationDigitalLifeDigestText(embodimentCandidate?.reason, 220) || null,
+      },
+    },
+    closureState: {
+      state: sanitizeAlicizationDigitalLifeDigestText(closureStateCandidate?.state, 80) || null,
+      open: closureStateCandidate?.open === true,
+      revisionRequired: closureStateCandidate?.revisionRequired === true,
+      shouldLabelUncertainty: closureStateCandidate?.shouldLabelUncertainty === true,
+      visibleCarryMode: sanitizeAlicizationDigitalLifeDigestText(closureStateCandidate?.visibleCarryMode, 80) || null,
+      retrievalQuality: sanitizeAlicizationDigitalLifeDigestText(closureStateCandidate?.retrievalQuality, 80) || null,
+      conflictPressure: sanitizeAlicizationDigitalLifeDigestText(closureStateCandidate?.conflictPressure, 80) || null,
+    },
+    selectedCandidateIds: normalizeAlicizationDigitalLifeDigestStringList(candidate.selectedCandidateIds, 8, 120),
+    memoryIdentity: memoryIdentityCandidate
+      ? {
+          selectedCandidateIds: normalizeAlicizationDigitalLifeDigestStringList(memoryIdentityCandidate.selectedCandidateIds, 8, 160),
+          continuityKey: sanitizeAlicizationDigitalLifeDigestText(memoryIdentityCandidate.continuityKey, 160)
+            || normalizeAlicizationDigitalLifeDigestStringList(memoryIdentityCandidate.selectedCandidateIds, 1, 160)[0]
+            || null,
+          reasonTags: normalizeAlicizationDigitalLifeDigestStringList(memoryIdentityCandidate.reasonTags, 8, 120),
+        }
+      : null,
+    reasonTags: normalizeAlicizationDigitalLifeDigestStringList(candidate.reasonTags, 12, 80),
+  }
 }
 
 function normalizeAlicizationFallbackExpressionMode(raw: unknown) {
@@ -5083,6 +5753,38 @@ function normalizeAlicizationProjectStateGazeMode(raw: unknown) {
     : null
 }
 
+function normalizeAlicizationProjectStateVoiceMode(raw: unknown) {
+  const normalized = sanitizeAlicizationProjectAwarenessDigestText(raw, 32)
+  return normalized === 'lower-pressure'
+    || normalized === 'even'
+    ? normalized
+    : null
+}
+
+function normalizeAlicizationProjectStatePauseMode(raw: unknown) {
+  const normalized = sanitizeAlicizationProjectAwarenessDigestText(raw, 32)
+  return normalized === 'longer'
+    || normalized === 'natural'
+    ? normalized
+    : null
+}
+
+function normalizeAlicizationProjectStateLipsyncMode(raw: unknown) {
+  const normalized = sanitizeAlicizationProjectAwarenessDigestText(raw, 32)
+  return normalized === 'restrained'
+    || normalized === 'matched'
+    ? normalized
+    : null
+}
+
+function normalizeAlicizationProjectStatePacingMode(raw: unknown) {
+  const normalized = sanitizeAlicizationProjectAwarenessDigestText(raw, 32)
+  return normalized === 'slower'
+    || normalized === 'natural'
+    ? normalized
+    : null
+}
+
 function resolveAlicizationProjectStateLatestLandedProgress(
   projectState: Record<string, unknown>,
 ) {
@@ -5210,6 +5912,10 @@ export function normalizeAlicizationRuntimeDigest(raw: unknown): AlicizationRunt
       const continuityCue = sanitizeAlicizationProjectAwarenessDigestText(projectStateCandidate.continuityCue, 220) || null
       const preferredBlinkCadence = normalizeAlicizationProjectStateBlinkCadence(projectStateCandidate.preferredBlinkCadence)
       const preferredGazeMode = normalizeAlicizationProjectStateGazeMode(projectStateCandidate.preferredGazeMode)
+      const preferredPauseMode = normalizeAlicizationProjectStatePauseMode(projectStateCandidate.preferredPauseMode)
+      const preferredLipsyncMode = normalizeAlicizationProjectStateLipsyncMode(projectStateCandidate.preferredLipsyncMode)
+      const preferredVoiceMode = normalizeAlicizationProjectStateVoiceMode(projectStateCandidate.preferredVoiceMode)
+      const preferredPacingMode = normalizeAlicizationProjectStatePacingMode(projectStateCandidate.preferredPacingMode)
 
       if (!hasAlicizationProjectAwarenessContent([
         preflightSummary,
@@ -5232,6 +5938,10 @@ export function normalizeAlicizationRuntimeDigest(raw: unknown): AlicizationRunt
         continuityCue,
         preferredBlinkCadence,
         preferredGazeMode,
+        preferredPauseMode,
+        preferredLipsyncMode,
+        preferredVoiceMode,
+        preferredPacingMode,
       ])) {
         return null
       }
@@ -5257,6 +5967,10 @@ export function normalizeAlicizationRuntimeDigest(raw: unknown): AlicizationRunt
         continuityCue,
         preferredBlinkCadence,
         preferredGazeMode,
+        preferredPauseMode,
+        preferredLipsyncMode,
+        preferredVoiceMode,
+        preferredPacingMode,
       }
     })(),
     affectiveResidue,
@@ -5662,6 +6376,7 @@ export function normalizeAlicizationDigitalLifeSpineDigest(raw: unknown): Aliciz
                 manifestationCadenceSummary: sanitizeAlicizationDigitalLifeDigestText((memoryCandidate.personStateProjection as Record<string, unknown>).manifestationCadenceSummary, 220) || null,
               }
             : null,
+          memoryClosureTrace: normalizeAlicizationDigitalLifeSpineMemoryClosureTrace(memoryCandidate.memoryClosureTrace),
         }
       : null,
   }
@@ -5848,6 +6563,10 @@ export interface AlicizationDialogueStructuredPayload {
     continuityCadence?: string | null
     preferredBlinkCadence?: 'normal' | 'linger' | 'quiet' | null
     preferredGazeMode?: 'steady' | 'soften' | 'drift' | null
+    preferredPauseMode?: 'longer' | 'natural' | null
+    preferredLipsyncMode?: 'restrained' | 'matched' | null
+    preferredVoiceMode?: 'lower-pressure' | 'even' | null
+    preferredPacingMode?: 'slower' | 'natural' | null
   } | null
   preDialogueAwareness?: {
     status: 'grounded' | 'partial' | 'drift'
@@ -5876,6 +6595,9 @@ export interface AlicizationDialogueStructuredPayload {
   speechTimeline?: AlicizationDialogueSpeechTimeline | null
   digitalLife?: AlicizationDigitalLifeEnvelope | null
   digitalLifeSpine?: AlicizationDigitalLifeSpineDigest | null
+  derivedMindStateBundle?: AlicizationDerivedMindStateBundle | null
+  memoryStageReplay?: AlicizationOrganicMemoryStageReplay | null
+  memoryResolutionLedger?: AlicizationMemoryResolutionLedger | null
   format?: AlicizationDialogueStructuredFormat
   formatLane?: AlicizationDialogueStructuredFormatLane | null
   legacyInputFormat?: Extract<AlicizationDialogueStructuredFormat, 'epoch1-v1' | 'fallback-v1'> | null
@@ -5892,8 +6614,8 @@ export interface AlicizationDialogueRespondedPayload {
   turnId: string
   sessionId: string
   origin?: 'user-turn' | 'subconscious-proactive'
-  userText?: string | null
-  assistantText?: string | null
+  userText?: string
+  assistantText?: string
   structured: AlicizationDialogueStructuredPayload
   isFallback: boolean
   createdAt: number

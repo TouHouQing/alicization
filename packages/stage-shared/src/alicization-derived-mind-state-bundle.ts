@@ -1,14 +1,16 @@
+import type { AlicizationClaimEvidenceGraph } from './alicization-claim-evidence-graph'
 import type {
   AlicizationAffectiveResidueMemorySnapshot,
   AlicizationDerivedMindStateBundle,
+  AlicizationEmbodimentContinuityLedgerSnapshot,
+  AlicizationEmotionalTransitionLedgerSnapshot,
   AlicizationHostPersonModelSnapshot,
   AlicizationLearningExecutionStateSnapshot,
+  AlicizationRecallLatencyPolicySnapshot,
   AlicizationRecollectionPlan,
   AlicizationRecollectionSpeechPlan,
-  AlicizationRecallLatencyPolicySnapshot,
   AlicizationSelfEvolutionKernelSnapshot,
 } from './alicization-transport-contracts'
-import type { AlicizationClaimEvidenceGraph } from './alicization-claim-evidence-graph'
 
 function sanitizeText(raw: unknown, maxChars = 220) {
   if (typeof raw !== 'string')
@@ -24,17 +26,20 @@ function buildDialogueRhythm(input: {
   const projection = input.personStateProjection ?? null
   const selfEvolution = input.selfEvolution ?? null
   const affectiveResidue = input.affectiveResidue ?? null
+  const residues = Array.isArray(affectiveResidue?.residues)
+    ? affectiveResidue.residues
+    : []
   if (!projection && !selfEvolution && !affectiveResidue)
     return null
   return {
     activeClosenessContext: sanitizeText(projection?.activeClosenessContext, 64) || null,
     activeClosenessRung: sanitizeText(projection?.activeClosenessRung, 64) || null,
     relationshipDoctrine: selfEvolution?.relationshipDoctrine ?? null,
-    burdenLine: selfEvolution?.burdenLine ?? affectiveResidue?.residues.find(item => item.kind === 'burden')?.summary ?? null,
-    trustMeaning: selfEvolution?.trustMeaning ?? affectiveResidue?.residues.find(item => item.kind === 'trust')?.summary ?? null,
+    burdenLine: selfEvolution?.burdenLine ?? residues.find(item => item.kind === 'burden')?.summary ?? null,
+    trustMeaning: selfEvolution?.trustMeaning ?? residues.find(item => item.kind === 'trust')?.summary ?? null,
     stabilitySignal: sanitizeText(
       selfEvolution?.latestInflection
-      ?? affectiveResidue?.relationshipCadence.summary
+      ?? affectiveResidue?.relationshipCadence?.summary
       ?? projection?.openingGuidance
       ?? projection?.trustRationale
       ?? '',
@@ -48,6 +53,9 @@ function summarizeBundle(input: {
   hostPersonModel?: AlicizationHostPersonModelSnapshot | null
   activeSelfRevision?: AlicizationDerivedMindStateBundle['activeSelfRevision']
   activeContinuityGovernance?: AlicizationDerivedMindStateBundle['activeContinuityGovernance']
+  sameHerCausalityRepairPressure?: AlicizationDerivedMindStateBundle['sameHerCausalityRepairPressure']
+  emotionalTransitionLedger?: AlicizationEmotionalTransitionLedgerSnapshot | null
+  embodimentContinuityLedger?: AlicizationEmbodimentContinuityLedgerSnapshot | null
   selfEvolution?: AlicizationSelfEvolutionKernelSnapshot | null
   affectiveResidue?: AlicizationAffectiveResidueMemorySnapshot | null
   learningExecutionState?: AlicizationLearningExecutionStateSnapshot | null
@@ -61,6 +69,17 @@ function summarizeBundle(input: {
     input.activeSelfRevision?.patchId ? `self_revision=${sanitizeText(input.activeSelfRevision.patchId, 120)}` : '',
     input.activeContinuityGovernance?.mode ? `continuity=${input.activeContinuityGovernance.mode}` : '',
     input.activeContinuityGovernance?.candidateId ? `anchor=${sanitizeText(input.activeContinuityGovernance.candidateId, 120)}` : '',
+    input.sameHerCausalityRepairPressure?.lanes?.length
+      ? `same_her_causality_repair=${input.sameHerCausalityRepairPressure.lanes.map(item => item.lane).join(',')}`
+      : '',
+    input.emotionalTransitionLedger?.transitionKind ? `emotion_transition=${input.emotionalTransitionLedger.transitionKind}` : '',
+    input.emotionalTransitionLedger?.selfRevisionCandidate.shouldPropose
+      ? `self_revision_candidate=${input.emotionalTransitionLedger.selfRevisionCandidate.domain}`
+      : '',
+    input.embodimentContinuityLedger?.continuityPhase ? `embodiment_phase=${input.embodimentContinuityLedger.continuityPhase}` : '',
+    input.embodimentContinuityLedger?.selfRevisionCandidate.shouldPropose
+      ? `embodiment_self_revision_candidate=${input.embodimentContinuityLedger.selfRevisionCandidate.domain}`
+      : '',
     input.selfEvolution?.dominantTrajectory ? `trajectory=${sanitizeText(input.selfEvolution.dominantTrajectory, 120)}` : '',
     input.affectiveResidue?.dominantResidueKind ? `residue=${input.affectiveResidue.dominantResidueKind}` : '',
     input.learningExecutionState?.nextLearningAction ? `learning=${sanitizeText(input.learningExecutionState.nextLearningAction, 64)}` : '',
@@ -88,6 +107,9 @@ export function buildDerivedMindStateBundle(input: {
   claimEvidenceGraphs?: AlicizationClaimEvidenceGraph[] | null
   activeSelfRevision?: AlicizationDerivedMindStateBundle['activeSelfRevision']
   activeContinuityGovernance?: AlicizationDerivedMindStateBundle['activeContinuityGovernance']
+  sameHerCausalityRepairPressure?: AlicizationDerivedMindStateBundle['sameHerCausalityRepairPressure']
+  emotionalTransitionLedger?: AlicizationEmotionalTransitionLedgerSnapshot | null
+  embodimentContinuityLedger?: AlicizationEmbodimentContinuityLedgerSnapshot | null
   selfEvolution?: AlicizationSelfEvolutionKernelSnapshot | null
   affectiveResidue?: AlicizationAffectiveResidueMemorySnapshot | null
   learningExecutionState?: AlicizationLearningExecutionStateSnapshot | null
@@ -107,6 +129,9 @@ export function buildDerivedMindStateBundle(input: {
     claimEvidenceGraphs: input.claimEvidenceGraphs ?? null,
     activeSelfRevision: input.activeSelfRevision ?? null,
     activeContinuityGovernance: input.activeContinuityGovernance ?? null,
+    sameHerCausalityRepairPressure: input.sameHerCausalityRepairPressure ?? null,
+    emotionalTransitionLedger: input.emotionalTransitionLedger ?? null,
+    embodimentContinuityLedger: input.embodimentContinuityLedger ?? null,
     selfEvolution: input.selfEvolution ?? null,
     affectiveResidue: input.affectiveResidue ?? null,
     learningExecutionState: input.learningExecutionState ?? null,
@@ -125,6 +150,9 @@ export function buildDerivedMindStateBundle(input: {
       hostPersonModel: input.hostPersonModel ?? null,
       activeSelfRevision: input.activeSelfRevision ?? null,
       activeContinuityGovernance: input.activeContinuityGovernance ?? null,
+      sameHerCausalityRepairPressure: input.sameHerCausalityRepairPressure ?? null,
+      emotionalTransitionLedger: input.emotionalTransitionLedger ?? null,
+      embodimentContinuityLedger: input.embodimentContinuityLedger ?? null,
       selfEvolution: input.selfEvolution ?? null,
       affectiveResidue: input.affectiveResidue ?? null,
       learningExecutionState: input.learningExecutionState ?? null,

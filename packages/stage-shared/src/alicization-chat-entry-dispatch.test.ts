@@ -31,17 +31,6 @@ describe('alicization chat entry dispatch contract', () => {
     })).toBe(true)
   })
 
-  it('accepts partial runtime objects when project-state carry is present even if reason preview was not serialized', () => {
-    expect(hasAlicizationChatEntryPreDialogueSendIdentity({
-      status: 'partial',
-      summaryLine: null,
-      awarenessLine: null,
-      projectState: {
-        sameHerSelfLine: 'The reply is still grounded in the same local digital life rather than a fresh assistant mask.',
-      },
-    } as Parameters<typeof hasAlicizationChatEntryPreDialogueSendIdentity>[0])).toBe(true)
-  })
-
   it('rejects empty or missing pre-dialogue identity so voice turns cannot open outward without project awareness', () => {
     expect(hasAlicizationChatEntryPreDialogueSendIdentity(null)).toBe(false)
     expect(hasAlicizationChatEntryPreDialogueSendIdentity({

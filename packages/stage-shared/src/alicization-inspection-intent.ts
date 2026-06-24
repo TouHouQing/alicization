@@ -31,32 +31,36 @@ const inspectionDeicticCues = ['这个', '这首', '这页', '这段', '这张',
 const inspectionQuestionCues = ['?', '？', '什么', '怎么', '哪里', '哪个', '哪首', '为什么', '怎么样', '叫什么', 'what', 'which', 'where', 'how', 'why', 'name', '何', 'なに', 'どこ', 'どう', 'どうして', 'なんで']
 const inspectionContinuationCues = ['呢', '怎么样', '喜欢吗', '能看出来', '看出来了吗', '是什么', '有问题吗', 'what about', 'how about', 'かな', 'どうかな']
 const inspectionAssistantPresenceCues = ['我在看', '我看着', '我在盯着', '一起看', '共视', '屏幕上', '窗口里', '当前画面', 'i can see', 'i\'m looking', 'still looking', 'on your screen', '見えてる', '見てる', 'まだ見てる']
-const knownWebsites = [
-  {
-    site: 'weibo',
-    label: '微博',
-    url: 'https://weibo.com',
-    aliases: ['weibo', '微博', '新浪微博'],
-  },
-  {
-    site: 'bilibili',
-    label: '哔哩哔哩',
-    url: 'https://www.bilibili.com',
-    aliases: ['bilibili', 'b站', '哔哩哔哩'],
-  },
-  {
-    site: 'github',
-    label: 'GitHub',
-    url: 'https://github.com',
-    aliases: ['github'],
-  },
-  {
-    site: 'youtube',
-    label: 'YouTube',
-    url: 'https://www.youtube.com',
-    aliases: ['youtube', '油管'],
-  },
-] as const
+const memoryClosureDialogueCues = [
+  'same-her',
+  'same her',
+  '同一个她',
+  '同一个数字生命',
+  'phase 1',
+  'local digital life',
+  'memory closure',
+  'memory line',
+  '记忆闭环',
+  '记忆线',
+  '闭环线',
+  'why recall surfaced',
+  'why surfaced',
+  '浮现',
+  '情绪余波',
+  '轻主动',
+  '身体',
+  '声音',
+  '声线',
+  '表情',
+  '动作',
+  '口型',
+  'lipsync',
+  'lip sync',
+  'body',
+  'voice',
+  'face',
+  'motion',
+]
 const cjkSequencePattern = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]+/u
 const alphaNumericPattern = /^[\p{Letter}\p{Number}]+$/u
 const stopwords = new Set([
@@ -227,46 +231,6 @@ function normalizeInspectionIntentText(value: string) {
     .trim()
 }
 
-export type AlicizationKnownWebsite = Omit<typeof knownWebsites[number], 'aliases'>
-
-function normalizeKnownWebsiteLookupText(raw: unknown) {
-  return typeof raw === 'string'
-    ? raw.normalize('NFKC').toLowerCase().replace(/\s+/g, ' ').trim()
-    : ''
-}
-
-export function resolveAlicizationKnownWebsiteBySite(site: unknown): AlicizationKnownWebsite | null {
-  const normalized = normalizeKnownWebsiteLookupText(site)
-  if (!normalized)
-    return null
-
-  const matched = knownWebsites.find(entry => entry.aliases.some(alias => normalizeKnownWebsiteLookupText(alias) === normalized))
-  return matched
-    ? {
-        site: matched.site,
-        label: matched.label,
-        url: matched.url,
-      }
-    : null
-}
-
-export function resolveAlicizationKnownWebsiteInText(text: unknown): AlicizationKnownWebsite | null {
-  const normalized = normalizeKnownWebsiteLookupText(text)
-  if (!normalized)
-    return null
-
-  const matched = knownWebsites.find(entry =>
-    entry.aliases.some(alias => normalized.includes(normalizeKnownWebsiteLookupText(alias))),
-  )
-  return matched
-    ? {
-        site: matched.site,
-        label: matched.label,
-        url: matched.url,
-      }
-    : null
-}
-
 function containsInspectionCue(text: string, cues: string[]) {
   return cues.some(cue => text.includes(cue))
 }
@@ -365,6 +329,7 @@ export function inferAlicizationInspectionIntent(input: {
   const observeCue = containsInspectionCue(normalizedMessage, inspectionObserveCues)
   const describeCue = containsInspectionCue(normalizedMessage, inspectionDescribeCues)
   const visualPlaneCue = containsInspectionCue(normalizedMessage, inspectionVisualPlaneCues)
+  const memoryClosureDialogueCue = containsInspectionCue(normalizedMessage, memoryClosureDialogueCues)
   const recheckCue = containsInspectionCue(normalizedMessage, inspectionRecheckCues)
   const sceneShiftCue = containsInspectionCue(normalizedMessage, inspectionSceneShiftCues)
   const deicticCue = containsInspectionCue(normalizedMessage, inspectionDeicticCues)
@@ -390,46 +355,57 @@ export function inferAlicizationInspectionIntent(input: {
     input.sharedAttentionActive
     || inferSharedAttentionFromMessages(input.recentMessages ?? []),
   )
+  const referentialDensity = messageTerms.filter(term => term.length >= 2 || cjkSequencePattern.test(term)).length
+  const entityDense = referentialDensity >= 2
+  const referentiallyRich = referentialDensity >= 3
+  const explicitVisualAsk = visualPlaneCue && (observeCue || describeCue || questionCue || recheckCue)
+  const dialogueFirstMemoryClosure = memoryClosureDialogueCue && !explicitVisualAsk && !observeCue && !visualPlaneCue
+  const effectiveSceneShiftCue = dialogueFirstMemoryClosure ? false : sceneShiftCue
+  const effectiveDeicticCue = dialogueFirstMemoryClosure ? false : deicticCue
+  const effectiveQuestionCue = dialogueFirstMemoryClosure ? false : questionCue
+  const effectiveEntityDense = dialogueFirstMemoryClosure ? false : entityDense
+  const effectiveReferentiallyRich = dialogueFirstMemoryClosure ? false : referentiallyRich
   const semanticAnchorCue = Boolean(
     observeCue
     || describeCue
     || visualPlaneCue
     || recheckCue
-    || sceneShiftCue
-    || deicticCue
+    || effectiveSceneShiftCue
+    || effectiveDeicticCue
     || continuationCue,
   )
-  const referentialDensity = messageTerms.filter(term => term.length >= 2 || cjkSequencePattern.test(term)).length
-  const entityDense = referentialDensity >= 2
-  const referentiallyRich = referentialDensity >= 3
-  const explicitVisualAsk = visualPlaneCue && (observeCue || describeCue || questionCue || recheckCue)
   const contextOverlapEligible = semanticAnchorCue || explicitVisualAsk
-  const effectiveContextOverlap = contextOverlapEligible ? contextOverlap : 0
+  const effectiveContextOverlap = !dialogueFirstMemoryClosure && contextOverlapEligible ? contextOverlap : 0
   const anchoredContinuationCue = Boolean(
-    recheckCue
-    || sceneShiftCue
-    || (deicticCue && (visualPlaneCue || questionCue || effectiveContextOverlap >= 0.34))
-    || (continuationCue && (visualPlaneCue || effectiveContextOverlap >= 0.42)),
+    !dialogueFirstMemoryClosure
+    && (
+      recheckCue
+      || effectiveSceneShiftCue
+      || (effectiveDeicticCue && (visualPlaneCue || effectiveQuestionCue || effectiveContextOverlap >= 0.34))
+      || (continuationCue && (visualPlaneCue || effectiveContextOverlap >= 0.42))
+    ),
   )
   const observedSharedAttentionContinuation = Boolean(
-    sharedAttentionLikely
+    !dialogueFirstMemoryClosure
+    && sharedAttentionLikely
     && shortTurn
     && observeCue
     && questionCue
     && (
       continuationCue
-      || entityDense
-      || referentiallyRich
+      || effectiveEntityDense
+      || effectiveReferentiallyRich
       || contextOverlap >= 0.24
     ),
   )
-  const contextualContinuation = sharedAttentionLikely
+  const contextualContinuation = !dialogueFirstMemoryClosure
+    && sharedAttentionLikely
     && shortTurn
     && (
       explicitVisualAsk
       || anchoredContinuationCue
       || observedSharedAttentionContinuation
-      || (effectiveContextOverlap >= 0.42 && (entityDense || referentiallyRich || visualPlaneCue))
+      || (effectiveContextOverlap >= 0.42 && (effectiveEntityDense || effectiveReferentiallyRich || visualPlaneCue))
     )
 
   let score = 0
@@ -437,17 +413,17 @@ export function inferAlicizationInspectionIntent(input: {
   score += describeCue ? 0.18 : 0
   score += visualPlaneCue ? 0.22 : 0
   score += recheckCue ? 0.18 : 0
-  score += sceneShiftCue ? 0.16 : 0
-  score += deicticCue ? 0.1 : 0
-  score += questionCue ? 0.1 : 0
+  score += effectiveSceneShiftCue ? 0.16 : 0
+  score += effectiveDeicticCue ? 0.1 : 0
+  score += effectiveQuestionCue ? 0.1 : 0
   score += continuationCue ? 0.08 : 0
-  score += entityDense ? 0.12 : 0
-  score += referentiallyRich ? 0.12 : 0
+  score += effectiveEntityDense ? 0.12 : 0
+  score += effectiveReferentiallyRich ? 0.12 : 0
   score += Math.min(0.24, effectiveContextOverlap * 0.32)
   score += sharedAttentionLikely ? 0.16 : 0
   score += contextualContinuation ? 0.24 : 0
   score += explicitVisualAsk ? 0.22 : 0
-  score += observeCue && questionCue && entityDense ? 0.18 : 0
+  score += observeCue && effectiveQuestionCue && effectiveEntityDense ? 0.18 : 0
   score += observedSharedAttentionContinuation ? 0.14 : 0
   score += sharedAttentionLikely && effectiveContextOverlap >= 0.32 ? 0.12 : 0
   if (explicitVisualAsk)
@@ -460,13 +436,13 @@ export function inferAlicizationInspectionIntent(input: {
       describeCue ? 'describe-cue' : '',
       visualPlaneCue ? 'visual-plane-cue' : '',
       recheckCue ? 'recheck-cue' : '',
-      sceneShiftCue ? 'scene-shift-cue' : '',
-      deicticCue ? 'deictic-cue' : '',
-      questionCue ? 'question-cue' : '',
+      effectiveSceneShiftCue ? 'scene-shift-cue' : '',
+      effectiveDeicticCue ? 'deictic-cue' : '',
+      effectiveQuestionCue ? 'question-cue' : '',
       continuationCue ? 'continuation-cue' : '',
       anchoredContinuationCue ? 'anchored-continuation-cue' : '',
-      entityDense ? 'entity-dense' : '',
-      referentiallyRich ? 'referentially-rich' : '',
+      effectiveEntityDense ? 'entity-dense' : '',
+      effectiveReferentiallyRich ? 'referentially-rich' : '',
       effectiveContextOverlap > 0 ? 'context-overlap' : '',
       sharedAttentionLikely ? 'shared-attention-likely' : '',
       observedSharedAttentionContinuation ? 'observed-shared-attention-continuation' : '',
@@ -488,13 +464,13 @@ export function inferAlicizationInspectionIntent(input: {
       describeCue ? 'describe-cue' : '',
       visualPlaneCue ? 'visual-plane-cue' : '',
       recheckCue ? 'recheck-cue' : '',
-      sceneShiftCue ? 'scene-shift-cue' : '',
-      deicticCue ? 'deictic-cue' : '',
-      questionCue ? 'question-cue' : '',
+      effectiveSceneShiftCue ? 'scene-shift-cue' : '',
+      effectiveDeicticCue ? 'deictic-cue' : '',
+      effectiveQuestionCue ? 'question-cue' : '',
       continuationCue ? 'continuation-cue' : '',
       anchoredContinuationCue ? 'anchored-continuation-cue' : '',
-      entityDense ? 'entity-dense' : '',
-      referentiallyRich ? 'referentially-rich' : '',
+      effectiveEntityDense ? 'entity-dense' : '',
+      effectiveReferentiallyRich ? 'referentially-rich' : '',
       effectiveContextOverlap > 0 ? 'context-overlap' : '',
       sharedAttentionLikely ? 'shared-attention-likely' : '',
       observedSharedAttentionContinuation ? 'observed-shared-attention-continuation' : '',

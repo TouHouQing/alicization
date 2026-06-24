@@ -1,7 +1,7 @@
 import type {
-  AlicizationOrganicMemoryStageReplay,
-  AlicizationOrganicMemoryRuntimeStageReplaySnapshot,
   AlicizationOrganicMemoryRuntimeStage,
+  AlicizationOrganicMemoryRuntimeStageReplaySnapshot,
+  AlicizationOrganicMemoryStageReplay,
 } from './alicization-memory-stats'
 
 function sanitizeText(raw: unknown, maxChars = 220) {
@@ -35,40 +35,40 @@ export function normalizeAlicizationOrganicMemoryStageReplay(raw: unknown): Alic
     return null
 
   const normalizedStages: AlicizationOrganicMemoryRuntimeStageReplaySnapshot[] = stagesRaw.flatMap((item) => {
-      const stageEntry = asObject(item)
-      if (!stageEntry)
-        return []
-      const stage = sanitizeText(stageEntry.stage, 80) as AlicizationOrganicMemoryRuntimeStage
-      if (
-        stage !== 'search-prelude'
-        && stage !== 'candidate-generation'
-        && stage !== 'candidate-ranking'
-        && stage !== 'recollection-planning'
-        && stage !== 'surface-planning'
-        && stage !== 'self-evolution-integration'
-        && stage !== 'prompt-blocks'
-      ) {
-        return []
-      }
-      const budgetClassText = sanitizeText(stageEntry.budgetClass, 80)
-      const budgetClass = budgetClassText === 'realtime-reply'
-        || budgetClassText === 'deep-recall-reply'
-        || budgetClassText === 'proactive-generation'
-        || budgetClassText === 'nightly-benchmark'
-        || budgetClassText === 'diagnosis-replay'
-        ? budgetClassText
-        : null
-      const latencyMs = Number(stageEntry.latencyMs)
-      return [{
-        stage,
-        summary: sanitizeText(stageEntry.summary, 240),
-        latencyMs: Number.isFinite(latencyMs) ? Math.max(0, latencyMs) : null,
-        budgetClass,
-        inputs: asStringList(stageEntry.inputs, 8, 200),
-        outputs: asStringList(stageEntry.outputs, 8, 200),
-        diagnostics: asStringList(stageEntry.diagnostics, 8, 220),
-      } satisfies AlicizationOrganicMemoryRuntimeStageReplaySnapshot]
-    })
+    const stageEntry = asObject(item)
+    if (!stageEntry)
+      return []
+    const stage = sanitizeText(stageEntry.stage, 80) as AlicizationOrganicMemoryRuntimeStage
+    if (
+      stage !== 'search-prelude'
+      && stage !== 'candidate-generation'
+      && stage !== 'candidate-ranking'
+      && stage !== 'recollection-planning'
+      && stage !== 'surface-planning'
+      && stage !== 'self-evolution-integration'
+      && stage !== 'prompt-blocks'
+    ) {
+      return []
+    }
+    const budgetClassText = sanitizeText(stageEntry.budgetClass, 80)
+    const budgetClass = budgetClassText === 'realtime-reply'
+      || budgetClassText === 'deep-recall-reply'
+      || budgetClassText === 'proactive-generation'
+      || budgetClassText === 'nightly-benchmark'
+      || budgetClassText === 'diagnosis-replay'
+      ? budgetClassText
+      : null
+    const latencyMs = Number(stageEntry.latencyMs)
+    return [{
+      stage,
+      summary: sanitizeText(stageEntry.summary, 240),
+      latencyMs: Number.isFinite(latencyMs) ? Math.max(0, latencyMs) : null,
+      budgetClass,
+      inputs: asStringList(stageEntry.inputs, 8, 200),
+      outputs: asStringList(stageEntry.outputs, 8, 200),
+      diagnostics: asStringList(stageEntry.diagnostics, 8, 220),
+    } satisfies AlicizationOrganicMemoryRuntimeStageReplaySnapshot]
+  })
 
   return {
     version: 'organic-memory-stage-replay-v1',

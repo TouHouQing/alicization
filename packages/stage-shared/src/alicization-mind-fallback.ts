@@ -15,6 +15,7 @@ import {
   deriveAlicizationInspectionSignalProfile,
   inferAlicizationInspectionIntent,
 } from './alicization-inspection-intent'
+import { resolveAlicizationProjectPreDialogueAwarenessLine } from './alicization-project-awareness'
 import { buildAlicizationScreenSurfaceCue, isWeakAlicizationScreenSurfaceCue } from './alicization-screen-surface'
 
 function sanitizeText(raw: unknown, maxChars = 180) {
@@ -139,6 +140,7 @@ export interface AlicizationMindTurnGovernanceLike {
   focusAnchor?: string | null
   answerIntent?: string | null
   openingMove?: string | null
+  emotionalClosureCue?: string | null
   carriedThread?: string | null
   labelCarryAsMemory: boolean
   shouldAskForGrounding: boolean
@@ -146,6 +148,22 @@ export interface AlicizationMindTurnGovernanceLike {
   maxSentences: number
   dialogueActKernel?: AlicizationGovernedMindDialogueActKernelLike | null
   mindTurnFrame?: AlicizationGovernedMindTurnFrameLike | null
+  projectState?: {
+    identity: string
+    currentPhase: string
+    preflightSummary?: string | null
+    preDialogueAwarenessLine?: string | null
+    latestLandedProgress: string | null
+    latestProgress?: string | null
+    landedProgressSummary?: string | null
+    primaryOpenLoop: string | null
+    nextClosureTarget: string
+    sameHerSelfLine?: string | null
+    sameHerHoldDetail?: string | null
+    sameHerDriftRisk?: string | null
+    continuitySummary?: string | null
+    companionHeadlineLine?: string | null
+  } | null
   mustDo: string[]
   mustNotDo: string[]
 }
@@ -171,7 +189,7 @@ function pick<T>(...values: Array<T | null | undefined | ''>) {
 function uniqueSentences(sentences: string[], maxSentences: number) {
   const output: string[] = []
   for (const sentence of sentences) {
-    const normalized = sanitizeText(sentence, 220)
+    const normalized = sanitizeText(sentence, 320)
     if (!normalized || output.includes(normalized))
       continue
     output.push(normalized)
@@ -190,7 +208,7 @@ function isDialogueFirstGovernance(governance: AlicizationMindTurnGovernanceLike
     return true
 
   const subject = governance.answerSubject ?? governance.mindTurnFrame?.relation?.subject ?? null
-  return subject === 'alicization-self' || subject === 'relationship' || subject === 'host-state'
+  return subject === 'alicization-self' || subject === 'project-state' || subject === 'relationship' || subject === 'host-state'
 }
 
 function executionTurnNeedsRepairAuthorityOverride(governance: AlicizationMindTurnGovernanceLike) {
@@ -619,6 +637,110 @@ function shouldSuppressDialogueFirstPlainOpener(governance: AlicizationMindTurnG
   return governance.turnMode === 'answer'
     || governance.turnMode === 'care'
     || governance.turnMode === 'accompany'
+}
+
+function carriesProjectAwareSameHerContinuityCue(line: string) {
+  const normalized = sanitizeText(line, 320).toLowerCase()
+  if (!normalized)
+    return false
+
+  const carriesProjectFrame
+    = /same-her|same her|one continuous her|same living line|phase 1|phase1|digital life|open loop|continuity|数字生命|同一个 her|同一个她|项目状态|未闭环|连续性|主线|收住/iu.test(normalized)
+  if (!carriesProjectFrame)
+    return false
+
+  const carriesClosurePressure
+    = /still-open|still open|still needs|closure|open loop|same living line|one continuous her|without splitting her continuity|未闭环|闭环|连续性|主线|收住/iu.test(normalized)
+  if (carriesClosurePressure)
+    return true
+
+  const looksLikeLandedOnlyProgressUpdate
+    = /already landed|already land|already survives|already survive|landed progress|latest landed|已落地|已经接进|已经接入|已经接到|已经接回|主对话链路|prompt strategy|链路/u.test(normalized)
+
+  return !looksLikeLandedOnlyProgressUpdate
+}
+
+function resolveSameHerContinuityCue(governance: AlicizationMindTurnGovernanceLike, userText?: string) {
+  const projectState = governance.projectState
+  const explicitProjectAwareSeed = projectState
+    ? sanitizeText(
+        projectState.preDialogueAwarenessLine
+        ?? projectState.sameHerHoldDetail
+        ?? projectState.companionHeadlineLine
+        ?? '',
+        220,
+      )
+    : ''
+  const projectAwarePreDialogueCue = projectState && explicitProjectAwareSeed
+    ? sanitizeText(resolveAlicizationProjectPreDialogueAwarenessLine({
+        runtimeProjectState: {
+          identity: projectState.identity,
+          currentPhase: projectState.currentPhase,
+          preflightSummary: projectState.preflightSummary ?? null,
+          preDialogueAwarenessLine: projectState.preDialogueAwarenessLine ?? null,
+          awarenessLine: projectState.preDialogueAwarenessLine ?? null,
+          latestLandedProgress: projectState.latestLandedProgress,
+          latestProgress: projectState.latestProgress ?? null,
+          landedProgressSummary: projectState.landedProgressSummary ?? null,
+          primaryOpenLoop: projectState.primaryOpenLoop,
+          nextClosureTarget: projectState.nextClosureTarget,
+          sameHerSelfLine: projectState.sameHerSelfLine ?? null,
+          sameHerHoldDetail: projectState.sameHerHoldDetail ?? null,
+          sameHerDriftRisk: projectState.sameHerDriftRisk ?? null,
+          companionHeadlineLine: projectState.companionHeadlineLine ?? null,
+        },
+      }) ?? '', 220)
+    : ''
+  const preferredProjectAwareCue = projectAwarePreDialogueCue && !mirrorsUserText(projectAwarePreDialogueCue, userText)
+    ? projectAwarePreDialogueCue
+    : ''
+  if (preferredProjectAwareCue && carriesProjectAwareSameHerContinuityCue(preferredProjectAwareCue))
+    return preferredProjectAwareCue
+
+  const candidates = [
+    governance.focusAnchor,
+    governance.answerIntent,
+    governance.openingMove,
+    governance.carriedThread,
+    governance.mindTurnFrame?.focusAnchor,
+    governance.mindTurnFrame?.memory?.carriedThread,
+    governance.mindTurnFrame?.obligation?.answerIntent,
+    governance.dialogueActKernel?.openingClaim,
+    governance.dialogueActKernel?.whyNow,
+  ]
+    .map(value => sanitizeGovernedSurfaceCue(value, governance, userText, 220))
+    .filter(Boolean)
+
+  return candidates.find(candidate => /same-her|project-state|continuity|open loop|phase 1|digital life|same her|phase1|数字生命|同一个 her|项目状态|未闭环|连续性|主线|收住/iu.test(candidate)) ?? ''
+}
+
+function resolveLatestLandedProgressCue(governance: AlicizationMindTurnGovernanceLike, userText?: string) {
+  const latestLandedProgress = [
+    governance.projectState?.latestLandedProgress,
+    governance.projectState?.latestProgress,
+    governance.projectState?.landedProgressSummary,
+  ]
+    .map(value => sanitizeGovernedSurfaceCue(value, governance, userText, 220))
+    .find(Boolean) ?? ''
+  if (!latestLandedProgress)
+    return ''
+  if (mirrorsUserText(latestLandedProgress, userText))
+    return ''
+  return latestLandedProgress
+}
+
+function resolveNextClosureCue(governance: AlicizationMindTurnGovernanceLike, userText?: string) {
+  const nextClosureTarget = sanitizeGovernedSurfaceCue(
+    governance.projectState?.nextClosureTarget,
+    governance,
+    userText,
+    220,
+  )
+  if (!nextClosureTarget)
+    return ''
+  if (mirrorsUserText(nextClosureTarget, userText))
+    return ''
+  return nextClosureTarget
 }
 
 export function replyLeaksGovernedMindSurface(
@@ -1112,6 +1234,16 @@ export function buildMindGovernedFallbackSurface(input: {
   const visibleRepairState = visibleRepairSurface.allowed && visibleRepairSurface.strongVisualInspection
     ? effectiveRepairState
     : 'none'
+  const sameHerDialogueContinuityCue = dialogueFirst && visibleRepairState === 'none'
+    ? resolveSameHerContinuityCue(governance, input.userText)
+    : ''
+  const latestLandedProgressCue = sameHerDialogueContinuityCue
+    ? resolveLatestLandedProgressCue(governance, input.userText)
+    : ''
+  const nextClosureCue = sameHerDialogueContinuityCue
+    ? resolveNextClosureCue(governance, input.userText)
+    : ''
+  const suppressDialogueFirstOpening = suppressDialogueFirstPlainOpener && !sameHerDialogueContinuityCue
   const contextualNeedRegroundOpening = Boolean(
     !dialogueFirst
     && visibleRepairState === 'need-reground'
@@ -1146,20 +1278,20 @@ export function buildMindGovernedFallbackSurface(input: {
       ? t('mind-fallback.guide-opening-plain')
       : t('mind-fallback.guide-opening', { focus }))
   }
-  else if (governance.turnMode === 'care' && !suppressDialogueFirstPlainOpener) {
+  else if (governance.turnMode === 'care' && !suppressDialogueFirstOpening) {
     sentences.push(usePlainOpening
       ? t('mind-fallback.care-opening-plain')
       : t('mind-fallback.care-opening', { focus }))
   }
-  else if (governance.turnMode === 'care' && suppressDialogueFirstPlainOpener) {
+  else if (governance.turnMode === 'care' && suppressDialogueFirstOpening) {
     thinShellCue = t('mind-fallback.care-opening-plain')
   }
-  else if (governance.turnMode === 'accompany' && !suppressDialogueFirstPlainOpener) {
+  else if (governance.turnMode === 'accompany' && !suppressDialogueFirstOpening) {
     sentences.push(usePlainOpening
       ? t('mind-fallback.accompany-opening-plain')
       : t('mind-fallback.accompany-opening', { focus }))
   }
-  else if (governance.turnMode === 'accompany' && suppressDialogueFirstPlainOpener) {
+  else if (governance.turnMode === 'accompany' && suppressDialogueFirstOpening) {
     thinShellCue = t('mind-fallback.accompany-opening-plain')
   }
   else if (governance.turnMode === 'grounded-inspection') {
@@ -1167,10 +1299,19 @@ export function buildMindGovernedFallbackSurface(input: {
       ? t('mind-fallback.observation-opening-plain')
       : t('mind-fallback.observation-opening', { focus }))
   }
-  else if (!suppressDialogueFirstPlainOpener) {
-    sentences.push(usePlainOpening
-      ? t('mind-fallback.answer-opening-plain')
-      : t('mind-fallback.answer-opening', { focus }))
+  else if (!suppressDialogueFirstOpening) {
+    if (sameHerDialogueContinuityCue) {
+      sentences.push(t('mind-fallback.answer-opening-same-her-first', {
+        focus: sameHerDialogueContinuityCue,
+        landed: latestLandedProgressCue,
+        next: nextClosureCue,
+      }))
+    }
+    else {
+      sentences.push(usePlainOpening
+        ? t('mind-fallback.answer-opening-plain')
+        : t('mind-fallback.answer-opening', { focus }))
+    }
   }
   else {
     thinShellCue = t('mind-fallback.answer-opening-plain')

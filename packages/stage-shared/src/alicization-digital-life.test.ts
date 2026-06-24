@@ -768,9 +768,9 @@ describe('alicization digital life', () => {
             autonomyRespect: 0.82,
             unfinishedThreadReturn: 0.52,
             stability: 0.76,
-            latestInflection: null,
             identityNarrative: 'stay careful and keep distance until the line is safe',
             relationshipDoctrine: 'do not crowd the host',
+            latestInflection: 'Keep the line quieter and steadier until the room is safe again.',
           },
           relationship: {
             climate: 'guarded',
@@ -891,13 +891,13 @@ describe('alicization digital life', () => {
             gentleRepair: 0.82,
             quietObservation: 0.42,
             proactiveCare: 0.86,
-            latestInflection: null,
             playfulIntimacy: 0.42,
             autonomyRespect: 0.46,
             unfinishedThreadReturn: 0.72,
             stability: 0.8,
             identityNarrative: 'stay near, guide gently, and keep the line warm',
             relationshipDoctrine: 'care openly without losing truth',
+            latestInflection: 'Warmth lands best when the return stays gentle and does not crowd the line.',
           },
           relationship: {
             climate: 'attuned',
@@ -1298,12 +1298,12 @@ describe('alicization digital life', () => {
             quietObservation: null,
             proactiveCare: null,
             playfulIntimacy: null,
-            latestInflection: null,
             autonomyRespect: null,
             unfinishedThreadReturn: null,
             stability: null,
             identityNarrative: null,
             relationshipDoctrine: 'Keep the return lower-pressure and leave more room before widening closeness.',
+            latestInflection: 'The callback afterglow is still asking for a slower reopening.',
           },
           relationship: null,
           selfState: null,
@@ -1468,6 +1468,7 @@ describe('alicization digital life', () => {
         embodiment: {
           autobiographicalSelf: {
             relationshipDoctrine: '同一条线被重新看见时，先留白，再慢一点重开。',
+            latestInflection: '这次要让身体先更安静一点，再把同一条线慢慢接回去。',
           },
         },
         outcomeLearning: {
@@ -2170,6 +2171,147 @@ describe('alicization digital life', () => {
     expect(envelope?.voice.cadence).toBeGreaterThanOrEqual(0.48)
     expect(envelope?.frames[0]?.voice.energy).toBeGreaterThanOrEqual(0.49)
     expect(envelope?.frames[0]?.voice.cadence).toBeGreaterThanOrEqual(0.49)
+  })
+
+  it('lets rest-protective memory-owned voice and pacing preferences lower-pressure the final voice plan', () => {
+    const baseline = buildAlicizationDigitalLifeEnvelope({
+      embodiment: {
+        variationToken: 'rest-protective-voice-baseline',
+        emotion: 'concerned',
+        performance: {
+          baseEmotion: 'concerned',
+          emotion: 'concerned',
+          delivery: 'gentle',
+          emphasis: 0,
+          facialCue: 'soft-gaze',
+          actionCue: 'observe_focus',
+        },
+        postureHint: 'concerned',
+        speechStyle: {
+          pitchDelta: 1,
+          rateMultiplier: 0.96,
+        },
+        rendererHints: {
+          residentMode: 'quiet-companionship',
+          preferredBlinkCadence: 'quiet',
+          preferredGazeMode: 'soften',
+        },
+      },
+      speechTimeline: {
+        version: 'speech-timeline-v1',
+        variationToken: 'rest-protective-voice-baseline',
+        reply: '我先轻一点陪着你，把这条线慢慢接稳。',
+        emotion: 'concerned',
+        segments: [{
+          id: 'segment-1',
+          index: 0,
+          startOffset: 0,
+          endOffset: 21,
+          text: '我先轻一点陪着你，把这条线慢慢接稳。',
+          emotion: 'concerned',
+          gestureWeight: 0.34,
+          facialWeight: 0.42,
+          prosodyWeight: 0.4,
+          beatWeight: 0.34,
+          mouthWeight: 0.38,
+          headWeight: 0.36,
+          facialHoldMs: 340,
+          actionHoldMs: 260,
+          emotionHoldMs: 360,
+          settleMode: 'linger',
+          rendererHints: {
+            residentMode: 'quiet-companionship',
+            preferredBlinkCadence: 'quiet',
+            preferredGazeMode: 'soften',
+          },
+          actionCue: 'observe_focus',
+          facialCue: 'soft-gaze',
+          actionWindow: 'none',
+          interruptMode: 'continue',
+        }],
+      },
+      projectState: {
+        currentPhase: 'Phase 1: Local Digital Life',
+        continuityCadence: 'rest-protective',
+        preferredBlinkCadence: 'quiet',
+        preferredGazeMode: 'soften',
+      },
+    })
+
+    const lowered = buildAlicizationDigitalLifeEnvelope({
+      embodiment: {
+        variationToken: 'rest-protective-voice-lowered',
+        emotion: 'concerned',
+        performance: {
+          baseEmotion: 'concerned',
+          emotion: 'concerned',
+          delivery: 'gentle',
+          emphasis: 0,
+          facialCue: 'soft-gaze',
+          actionCue: 'observe_focus',
+        },
+        postureHint: 'concerned',
+        speechStyle: {
+          pitchDelta: 1,
+          rateMultiplier: 0.96,
+        },
+        rendererHints: {
+          residentMode: 'quiet-companionship',
+          preferredBlinkCadence: 'quiet',
+          preferredGazeMode: 'soften',
+        },
+      },
+      speechTimeline: {
+        version: 'speech-timeline-v1',
+        variationToken: 'rest-protective-voice-lowered',
+        reply: '我先轻一点陪着你，把这条线慢慢接稳。',
+        emotion: 'concerned',
+        segments: [{
+          id: 'segment-1',
+          index: 0,
+          startOffset: 0,
+          endOffset: 21,
+          text: '我先轻一点陪着你，把这条线慢慢接稳。',
+          emotion: 'concerned',
+          gestureWeight: 0.34,
+          facialWeight: 0.42,
+          prosodyWeight: 0.4,
+          beatWeight: 0.34,
+          mouthWeight: 0.38,
+          headWeight: 0.36,
+          facialHoldMs: 340,
+          actionHoldMs: 260,
+          emotionHoldMs: 360,
+          settleMode: 'linger',
+          rendererHints: {
+            residentMode: 'quiet-companionship',
+            preferredBlinkCadence: 'quiet',
+            preferredGazeMode: 'soften',
+          },
+          actionCue: 'observe_focus',
+          facialCue: 'soft-gaze',
+          actionWindow: 'none',
+          interruptMode: 'continue',
+        }],
+      },
+      projectState: {
+        currentPhase: 'Phase 1: Local Digital Life',
+        continuityCadence: 'rest-protective',
+        preferredBlinkCadence: 'quiet',
+        preferredGazeMode: 'soften',
+        preferredVoiceMode: 'lower-pressure',
+        preferredPacingMode: 'slower',
+      },
+    })
+
+    expect(baseline).not.toBeNull()
+    expect(lowered).not.toBeNull()
+    expect(lowered?.voice.rateMultiplier).toBeLessThan(baseline?.voice.rateMultiplier ?? 1)
+    expect(lowered?.voice.energy).toBeLessThan(baseline?.voice.energy ?? 1)
+    expect(lowered?.voice.cadence).toBeLessThan(baseline?.voice.cadence ?? 1)
+    expect(lowered?.frames[0]?.voice.rateMultiplier).toBeLessThan(baseline?.frames[0]?.voice.rateMultiplier ?? 1)
+    expect(lowered?.frames[0]?.voice.energy).toBeLessThan(baseline?.frames[0]?.voice.energy ?? 1)
+    expect(lowered?.frames[0]?.voice.cadence).toBeLessThan(baseline?.frames[0]?.voice.cadence ?? 1)
   })
 
   it('reuses runtime project-state continuity from the digital-life spine when measured-return closure is only carried there', () => {
