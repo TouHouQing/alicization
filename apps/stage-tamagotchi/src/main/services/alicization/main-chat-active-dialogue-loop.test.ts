@@ -15,6 +15,7 @@ import {
   compactProjectLatestProgressForSystemBlock,
   resolveAlicizationProjectStateBrief,
 } from './project-state-brief'
+import { decideAlicizationActiveDialogueCompactAuthority } from './visible-reply/facade'
 
 function createPrepared(overrides?: Partial<any>): any {
   return {
@@ -217,6 +218,34 @@ describe('main chat active dialogue loop', () => {
 
     expect(decision?.lane).toBe('greeting')
     expect(decision?.strategy).toBe('compact-one-shot')
+  })
+
+  it('lets greeting turns use compact provider-mind authority without enabling deterministic local wording', () => {
+    const decision = deriveAlicizationActiveDialogueFastPathDecision({
+      conversationMessages: [
+        { role: 'user', content: 'hello' },
+      ] as Message[],
+      prepared: createPrepared({
+        messages: [
+          { role: 'user' as const, content: 'hello' },
+        ] as Message[],
+      }),
+      runtimeDigest: null,
+    })
+
+    expect(decision?.lane).toBe('greeting')
+    expect(decision?.strategy).toBe('compact-one-shot')
+    expect(decideAlicizationActiveDialogueCompactAuthority(decision)).toEqual(expect.objectContaining({
+      allowed: true,
+      reason: 'compact-provider-mind-authority',
+      reasonCodes: expect.arrayContaining(['compact-provider-mind-authority', 'fresh-greeting']),
+    }))
+    expectFallbackMindAuthorityEscalation({
+      actionKind: 'answer',
+      conversationMessages: [
+        { role: 'user', content: 'hello' },
+      ] as Message[],
+    }, 'greeting')
   })
 
   it('does not throw when prepared runtime surface lacks a dialogue subtree during fast-path timeout recovery probing', () => {

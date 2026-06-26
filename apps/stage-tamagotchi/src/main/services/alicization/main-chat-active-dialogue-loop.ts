@@ -2673,6 +2673,9 @@ export function shouldAlicizationActiveDialogueStayLLMAuthored(
   if (isInfraFallbackOnlyDecision(decision))
     return false
 
+  if (decision.lane === 'greeting')
+    return false
+
   if (
     decision.lane === 'follow-up'
     && (
