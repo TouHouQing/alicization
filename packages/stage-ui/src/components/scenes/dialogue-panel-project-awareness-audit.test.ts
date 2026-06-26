@@ -13,7 +13,7 @@ const proofRows = [
     ],
   },
   {
-    entry: 'dialogue-panel-project-state-same-her-headline',
+    entry: 'internal-closure-line-project-state-same-her-headline',
     file: './stage-dialogue-panel-closure-line.test.ts',
     snippets: [
       'keeps the same-her project-state headline visible when the closure cue is specifically about recognizing the same her before opening outward',
@@ -22,12 +22,12 @@ const proofRows = [
     ],
   },
   {
-    entry: 'dialogue-panel-closure-cue-aware-of-pre-dialogue-awareness',
-    file: './stage-dialogue-panel.vue',
+    entry: 'quick-reply-closure-cue-aware-of-pre-dialogue-awareness',
+    file: './stage-quick-reply-composer.vue',
     snippets: [
       'buildStageQuickReplyClosureDiagnosticEntry(',
-      'selfEvolutionInspectorStore.preDialogueClosureSnapshot,',
-      'selfEvolutionInspectorStore.preDialogueAwarenessSnapshot,',
+      'preDialogueClosureSnapshot.value,',
+      'preDialogueAwarenessSnapshot.value,',
     ],
   },
   {
@@ -159,11 +159,11 @@ const proofRows = [
 ] as const
 
 describe('dialogue panel project awareness audit', () => {
-  it('keeps one explicit route-level proof that the dialogue panel still carries same-her project awareness into the host-visible closure cue', () => {
+  it('keeps route-level proof that same-her project awareness stays available internally while the main dialogue bubble hides diagnostic cues', () => {
     expect(proofRows).toEqual([
       expect.objectContaining({ entry: 'dialogue-panel-long-horizon-self-carry-bridge' }),
-      expect.objectContaining({ entry: 'dialogue-panel-project-state-same-her-headline' }),
-      expect.objectContaining({ entry: 'dialogue-panel-closure-cue-aware-of-pre-dialogue-awareness' }),
+      expect.objectContaining({ entry: 'internal-closure-line-project-state-same-her-headline' }),
+      expect.objectContaining({ entry: 'quick-reply-closure-cue-aware-of-pre-dialogue-awareness' }),
       expect.objectContaining({ entry: 'dialogue-panel-emotion-memory-initiative-embodiment-seam' }),
       expect.objectContaining({ entry: 'dialogue-panel-full-cross-modal-lock-headline' }),
       expect.objectContaining({ entry: 'dialogue-panel-audible-body-headline' }),
@@ -183,13 +183,22 @@ describe('dialogue panel project awareness audit', () => {
     expect(proofRows.every(row => row.snippets.length > 0)).toBe(true)
   })
 
-  it('anchors the dialogue-panel project-awareness claim to current behavior tests instead of only broader host-visible prose', () => {
+  it('anchors the dialogue-panel project-awareness claim to current behavior tests and hidden-surface guards instead of only broader host-visible prose', () => {
     for (const row of proofRows) {
       const source = readFileSync(new URL(row.file, import.meta.url), 'utf8')
       expect(source.length).toBeGreaterThan(0)
       for (const snippet of row.snippets)
         expect(source).toContain(snippet)
     }
+  })
+
+  it('keeps project-awareness diagnostics out of the main dialogue bubble surface', () => {
+    const panelSource = readFileSync(new URL('./stage-dialogue-panel.vue', import.meta.url), 'utf8')
+
+    expect(panelSource).not.toContain('persistentClosureLine')
+    expect(panelSource).not.toContain('stage-dialogue-panel__closure-cue')
+    expect(panelSource).not.toContain('buildStageQuickReplyClosureDiagnosticEntry(')
+    expect(panelSource).not.toContain('resolveStageDialoguePanelClosureLine(')
   })
 
   it('makes this boundary explicit: the dialogue panel now has dedicated same-her project proof, while fully sustained noisy-desktop closure still remains open', () => {
@@ -212,9 +221,9 @@ describe('dialogue panel project awareness audit', () => {
     expect(projectStateSource).toContain('Host-facing same-her headline precedence')
     expect(projectStateSource).toContain('Host-facing proactive same-her follow-through')
     expect(projectStateSource).toContain('renderer-rejoin-without-body visible same-her line')
-    expect(projectStateSource).toContain('The dialogue panel no longer lets a thinner project-state briefing outrank a stronger')
+    expect(projectStateSource).toContain('The internal dialogue-panel headline resolver still prefers a stronger')
     expect(projectStateSource).toContain('execution-only lipsync+voice structured same-her continuity evidence')
-    expect(projectStateSource).toContain('dialogue panel no longer lets a thinner project-state lane headline outrank that richer execution-only same-her evidence')
+    expect(projectStateSource).toContain('main dialogue bubble no longer renders the diagnostic closure cue')
     expect(longHorizonSource).toContain(
       'keeps one explicit route-level proof that longer-lived self-carry preserves project identity landed progress still-open closure and repair-first same-her continuity pressure before outward turns reopen',
     )

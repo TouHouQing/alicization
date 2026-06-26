@@ -64,21 +64,23 @@ const proofRows = [
     ],
   },
   {
-    entry: 'dialogue-panel-host-visible-same-her-carry',
+    entry: 'dialogue-panel-hidden-diagnostic-boundary',
     file: '../../../../../../packages/stage-ui/src/components/scenes/dialogue-panel-project-awareness-audit.test.ts',
     snippets: [
-      'keeps one explicit route-level proof that the dialogue panel still carries same-her project awareness into the host-visible closure cue',
+      'keeps route-level proof that same-her project awareness stays available internally while the main dialogue bubble hides diagnostic cues',
       'expect.objectContaining({ entry: \'dialogue-panel-audible-body-headline\' })',
       'expect.objectContaining({ entry: \'dialogue-panel-lipsync-and-voice-headline\' })',
       'expect.objectContaining({ entry: \'dialogue-panel-body-and-lipsync-headline\' })',
       'expect.objectContaining({ entry: \'dialogue-panel-visible-renderer-rejoin-without-body-headline\' })',
       'expect.objectContaining({ entry: \'dialogue-panel-phase-aware-fallback-project-awareness\' })',
+      'expect(panelSource).not.toContain(\'persistentClosureLine\')',
+      'expect(panelSource).not.toContain(\'stage-dialogue-panel__closure-cue\')',
     ],
   },
 ] as const
 
 describe('same living self host visible inward carry bridge audit', () => {
-  it('keeps one explicit compact cold proof that restored-session/browser-local reopen persistence handoff, speech-boundary awareness rebuilding, front-stage quick-reply closure, and dialogue-panel host-facing closure cues all keep the same-her inward project-awareness line visible instead of flattening it back into broader project-state shells at the last host-facing step', () => {
+  it('keeps one explicit compact cold proof that restored-session/browser-local reopen persistence handoff, speech-boundary awareness rebuilding, front-stage quick-reply closure, and the dialogue-panel hidden diagnostic boundary all keep the same-her inward project-awareness line available without leaking diagnostic cues into the main bubble', () => {
     expect(proofRows).toEqual([
       expect.objectContaining({ entry: 'speech-pipeline-aware-host-visible-carry' }),
       expect.objectContaining({ entry: 'speech-pipeline-richer-project-awareness-over-embodiment-headline' }),
@@ -86,7 +88,7 @@ describe('same living self host visible inward carry bridge audit', () => {
       expect.objectContaining({ entry: 'speech-pipeline-thin-awareness-upgrade' }),
       expect.objectContaining({ entry: 'reopen-persistence-host-visible-handoff' }),
       expect.objectContaining({ entry: 'quick-reply-host-visible-same-her-carry' }),
-      expect.objectContaining({ entry: 'dialogue-panel-host-visible-same-her-carry' }),
+      expect.objectContaining({ entry: 'dialogue-panel-hidden-diagnostic-boundary' }),
     ])
 
     expect(proofRows.every(row => row.snippets.length > 0)).toBe(true)
@@ -129,7 +131,7 @@ describe('same living self host visible inward carry bridge audit', () => {
     expect(matrixSource).toContain('dialogue-panel lipsync-and-voice headline')
     expect(matrixSource).toContain('dialogue-panel body-and-lipsync headline')
     expect(matrixSource).toContain('dialogue-panel visible renderer-rejoin-without-body headline')
-    expect(auditSource).toContain('same-living-self host-visible inward-carry bridge now also ties reopen-persistence handoff from restored-session/browser-local recovery, speech-boundary pre-dialogue awareness rebuilding, front-stage quick-reply closure, and dialogue-panel host-facing closure cues onto the same living inward project-awareness line')
+    expect(auditSource).toContain('same-living-self host-visible inward-carry bridge now also ties reopen-persistence handoff from restored-session/browser-local recovery, speech-boundary pre-dialogue awareness rebuilding, front-stage quick-reply closure, and the dialogue-panel hidden diagnostic boundary onto the same living inward project-awareness line without leaking diagnostic closure markers into the main dialogue bubble')
     expect(auditSource).toContain('renderer-rejoin-without-body stronger same-her fact')
     expect(auditSource).toContain('visible same-her line has already rejoined without body carry')
     expect(auditSource).toContain('quieter lipsync+voice and body+lipsync same-her carry')

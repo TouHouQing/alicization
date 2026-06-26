@@ -40,9 +40,9 @@ const proofRows = [
     entry: 'same-living-self-host-visible-inward-carry-line',
     file: './same-living-self-host-visible-inward-carry-bridge-audit.test.ts',
     snippets: [
-      'keeps one explicit compact cold proof that restored-session/browser-local reopen persistence handoff, speech-boundary awareness rebuilding, front-stage quick-reply closure, and dialogue-panel host-facing closure cues all keep the same-her inward project-awareness line visible instead of flattening it back into broader project-state shells at the last host-facing step',
+      'keeps one explicit compact cold proof that restored-session/browser-local reopen persistence handoff, speech-boundary awareness rebuilding, front-stage quick-reply closure, and the dialogue-panel hidden diagnostic boundary all keep the same-her inward project-awareness line available without leaking diagnostic cues into the main bubble',
       'expect.objectContaining({ entry: \'quick-reply-host-visible-same-her-carry\' })',
-      'expect.objectContaining({ entry: \'dialogue-panel-host-visible-same-her-carry\' })',
+      'expect.objectContaining({ entry: \'dialogue-panel-hidden-diagnostic-boundary\' })',
       'responsibility).toContain(\'renderer-rejoin-without-body stronger same-her fact\')',
       'responsibility).toContain(\'living audio thread\')',
       'responsibility).toContain(\'quieter living line\')',

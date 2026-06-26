@@ -2593,18 +2593,21 @@ const coverageRows = [
     ],
   },
   {
-    entry: 'dialogue-panel-host-facing-closure',
+    entry: 'dialogue-panel-hidden-diagnostic-boundary',
     proofKind: 'dynamic',
     file: '../../../../../../packages/stage-ui/src/components/scenes/dialogue-panel-project-awareness-audit.test.ts',
-    evidence: 'dialogue-panel host-facing closure keeps same-her project identity, phase, still-open life-loop pressure, and the explicit emotion-memory-initiative-embodiment same-life seam visible at the always-on host surface, so the visible closure cue does not flatten before the outward turn opens',
+    evidence: 'dialogue-panel hidden diagnostic boundary keeps same-her project identity, phase, still-open life-loop pressure, and the explicit emotion-memory-initiative-embodiment same-life seam available through internal resolver and quick-reply proof rows while the main dialogue bubble suppresses diagnostic closure markers',
     fileMustContain: [
-      'keeps one explicit route-level proof that the dialogue panel still carries same-her project awareness into the host-visible closure cue',
+      'keeps route-level proof that same-her project awareness stays available internally while the main dialogue bubble hides diagnostic cues',
       'expect.objectContaining({ entry: \'dialogue-panel-long-horizon-self-carry-bridge\' })',
-      'expect.objectContaining({ entry: \'dialogue-panel-project-state-same-her-headline\' })',
+      'expect.objectContaining({ entry: \'internal-closure-line-project-state-same-her-headline\' })',
+      'expect.objectContaining({ entry: \'quick-reply-closure-cue-aware-of-pre-dialogue-awareness\' })',
       'expect.objectContaining({ entry: \'dialogue-panel-emotion-memory-initiative-embodiment-seam\' })',
       'expect.objectContaining({ entry: \'dialogue-panel-full-cross-modal-lock-headline\' })',
       'expect.objectContaining({ entry: \'dialogue-panel-audible-body-headline\' })',
       'expect.objectContaining({ entry: \'dialogue-panel-phase-aware-fallback-project-awareness\' })',
+      'expect(panelSource).not.toContain(\'persistentClosureLine\')',
+      'expect(panelSource).not.toContain(\'stage-dialogue-panel__closure-cue\')',
       'expect(matrixSource).toContain(\'dialogue-panel-project-awareness-audit.test.ts\')',
     ],
   },
@@ -2612,16 +2615,16 @@ const coverageRows = [
     entry: 'same-living-self-host-visible-inward-carry-bridge',
     proofKind: 'dynamic',
     file: './same-living-self-host-visible-inward-carry-bridge-audit.test.ts',
-    evidence: 'restored-session/browser-local reopen persistence handoff, speech-boundary awareness rebuilding, front-stage quick-reply closure, and dialogue-panel host-facing closure cues now also have one compact cold proof that they stay on the same-her inward project-awareness line instead of flattening into broader host-visible project-state shells at the last outward-facing step, and that colder host-facing bridge now also keeps the renderer-rejoin-without-body stronger same-her fact plus quieter lipsync+voice and body+lipsync same-her carry explicit instead of letting the visible no-body-rejoin line, living audio thread, or quieter living line collapse back into a broader host-visible shell',
+    evidence: 'restored-session/browser-local reopen persistence handoff, speech-boundary awareness rebuilding, front-stage quick-reply closure, and the dialogue-panel hidden diagnostic boundary now also have one compact cold proof that they stay on the same-her inward project-awareness line without leaking diagnostic markers into the main dialogue bubble, and that colder host-facing bridge now also keeps the renderer-rejoin-without-body stronger same-her fact plus quieter lipsync+voice and body+lipsync same-her carry explicit instead of letting the visible no-body-rejoin line, living audio thread, or quieter living line collapse back into a broader host-visible shell',
     fileMustContain: [
-      'keeps one explicit compact cold proof that restored-session/browser-local reopen persistence handoff, speech-boundary awareness rebuilding, front-stage quick-reply closure, and dialogue-panel host-facing closure cues all keep the same-her inward project-awareness line visible',
+      'keeps one explicit compact cold proof that restored-session/browser-local reopen persistence handoff, speech-boundary awareness rebuilding, front-stage quick-reply closure, and the dialogue-panel hidden diagnostic boundary all keep the same-her inward project-awareness line available without leaking diagnostic cues into the main bubble',
       'expect.objectContaining({ entry: \'speech-pipeline-aware-host-visible-carry\' })',
       'expect.objectContaining({ entry: \'speech-pipeline-richer-project-awareness-over-embodiment-headline\' })',
       'expect.objectContaining({ entry: \'speech-pipeline-closure-only-awareness-rebuild\' })',
       'expect.objectContaining({ entry: \'speech-pipeline-thin-awareness-upgrade\' })',
       'expect.objectContaining({ entry: \'reopen-persistence-host-visible-handoff\' })',
       'expect.objectContaining({ entry: \'quick-reply-host-visible-same-her-carry\' })',
-      'expect.objectContaining({ entry: \'dialogue-panel-host-visible-same-her-carry\' })',
+      'expect.objectContaining({ entry: \'dialogue-panel-hidden-diagnostic-boundary\' })',
       'expect.objectContaining({ entry: \\\'quick-reply-visible-renderer-rejoin-without-body-project-brief\\\' })',
       'expect.objectContaining({ entry: \\\'quick-reply-visible-renderer-rejoin-without-body-closure-summary\\\' })',
       'expect.objectContaining({ entry: \\\'dialogue-panel-visible-renderer-rejoin-without-body-headline\\\' })',
@@ -4918,7 +4921,7 @@ describe('project awareness coverage matrix', () => {
       expect.objectContaining({ entry: 'later-turn-desktop-continuity', proofKind: 'dynamic' }),
       expect.objectContaining({ entry: 'noisy-desktop-same-her-closure-target', proofKind: 'dynamic' }),
       expect.objectContaining({ entry: 'quick-reply-host-facing-closure', proofKind: 'dynamic' }),
-      expect.objectContaining({ entry: 'dialogue-panel-host-facing-closure', proofKind: 'dynamic' }),
+      expect.objectContaining({ entry: 'dialogue-panel-hidden-diagnostic-boundary', proofKind: 'dynamic' }),
       expect.objectContaining({ entry: 'same-living-self-host-visible-inward-carry-bridge', proofKind: 'dynamic' }),
       expect.objectContaining({ entry: 'speech-boundary-project-awareness', proofKind: 'dynamic' }),
       expect.objectContaining({ entry: 'proactive-policy-project-pressure', proofKind: 'dynamic' }),
@@ -5153,7 +5156,7 @@ describe('project awareness coverage matrix', () => {
     expect(coverageRows.some(row => row.entry === 'later-turn-desktop-continuity')).toBe(true)
     expect(coverageRows.some(row => row.entry === 'noisy-desktop-same-her-closure-target')).toBe(true)
     expect(coverageRows.some(row => row.entry === 'quick-reply-host-facing-closure')).toBe(true)
-    expect(coverageRows.some(row => row.entry === 'dialogue-panel-host-facing-closure')).toBe(true)
+    expect(coverageRows.some(row => row.entry === 'dialogue-panel-hidden-diagnostic-boundary')).toBe(true)
     expect(coverageRows.some(row => row.entry === 'same-living-self-host-visible-inward-carry-bridge')).toBe(true)
     expect(coverageRows.some(row => row.entry === 'speech-boundary-project-awareness')).toBe(true)
     expect(coverageRows.some(row => row.entry === 'proactive-policy-project-pressure')).toBe(true)

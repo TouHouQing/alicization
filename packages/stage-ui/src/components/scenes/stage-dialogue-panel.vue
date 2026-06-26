@@ -9,7 +9,6 @@ import { useI18n } from 'vue-i18n'
 import StageDialogueOverlay from './stage-dialogue-overlay.vue'
 import StageQuickReplyComposer from './stage-quick-reply-composer.vue'
 
-import { useAlicizationSelfEvolutionInspectorStore } from '../../stores/alicization-self-evolution-inspector'
 import { useStageDialogueStore } from '../../stores/stage-dialogue'
 import {
   clampStageDialogueOrbRect,
@@ -19,8 +18,6 @@ import {
   stageDialogueOrbSize,
   stageDialoguePanelChromeWidth,
 } from '../../utils'
-import { resolveStageDialoguePanelClosureLine } from './stage-dialogue-panel-closure-line'
-import { buildStageQuickReplyClosureDiagnosticEntry } from './stage-quick-reply-closure'
 
 const props = withDefaults(defineProps<{
   text: string
@@ -67,7 +64,6 @@ interface ActiveInteraction {
 }
 
 const stageDialogueStore = useStageDialogueStore()
-const selfEvolutionInspectorStore = useAlicizationSelfEvolutionInspectorStore()
 const { minimized } = storeToRefs(stageDialogueStore)
 const { t } = useI18n()
 
@@ -274,46 +270,6 @@ watch(activeInteraction, (interaction) => {
 const expandedRect = computed(() => resolveExpandedRect())
 const orbRect = computed(() => resolveOrbRect())
 const panelRect = computed(() => minimized.value ? orbRect.value : expandedRect.value)
-const closureCue = computed(() => buildStageQuickReplyClosureDiagnosticEntry(
-  selfEvolutionInspectorStore.preDialogueClosureSnapshot,
-  selfEvolutionInspectorStore.preDialogueAwarenessSnapshot,
-))
-const persistentClosureLine = computed(() => resolveStageDialoguePanelClosureLine(
-  closureCue.value
-    ? {
-        ...closureCue.value,
-        companionshipReasonLine: selfEvolutionInspectorStore.preDialogueClosureSnapshot?.companionshipReasonLine ?? null,
-      }
-    : null,
-  {
-    fallbackAwarenessLine: selfEvolutionInspectorStore.preDialogueAwarenessSnapshot?.awarenessLine ?? null,
-    fallbackAwarenessCandidates: [
-      selfEvolutionInspectorStore.preDialogueAwarenessSnapshot?.awarenessLine ?? null,
-      selfEvolutionInspectorStore.preDialogueAwarenessSnapshot?.summaryLine ?? null,
-      selfEvolutionInspectorStore.preDialogueAwarenessSnapshot?.companionBriefingLine ?? null,
-    ],
-  },
-))
-const closureStatusLabel = computed(() => {
-  const status = closureCue.value.routeQuery?.status?.trim().toLowerCase()
-  if (status === 'grounded')
-    return 'Grounded'
-  if (status === 'drift')
-    return 'Drift'
-  if (status === 'partial')
-    return 'Carrying'
-  return null
-})
-const closureStatusClass = computed(() => {
-  const status = closureCue.value.routeQuery?.status?.trim().toLowerCase()
-  if (status === 'grounded')
-    return 'stage-dialogue-panel__closure-status--grounded'
-  if (status === 'drift')
-    return 'stage-dialogue-panel__closure-status--drift'
-  if (status === 'partial')
-    return 'stage-dialogue-panel__closure-status--partial'
-  return ''
-})
 const bubbleBodyHeight = computed(() => {
   const reservedHeight = props.quickReplyEnabled ? 122 : 18
   return Math.max(108, expandedRect.value.height - reservedHeight)
@@ -555,23 +511,6 @@ defineExpose({
               {{ t('stage.dialogue.move-panel') }}
             </div>
           </div>
-          <div
-            v-if="persistentClosureLine"
-            class="stage-dialogue-panel__closure-cue"
-          >
-            <span
-              v-if="closureStatusLabel"
-              :class="[
-                'stage-dialogue-panel__closure-status',
-                closureStatusClass,
-              ]"
-            >
-              {{ closureStatusLabel }}
-            </span>
-            <span class="stage-dialogue-panel__closure-copy">
-              {{ persistentClosureLine }}
-            </span>
-          </div>
 
           <StageDialogueOverlay
             :loading="props.loading"
@@ -614,50 +553,6 @@ defineExpose({
   display: flex;
   flex-direction: column;
   gap: 0.7rem;
-}
-
-.stage-dialogue-panel__closure-cue {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.48rem;
-  border: 1px solid rgb(112 74 39 / 14%);
-  border-radius: 0.9rem;
-  background: linear-gradient(135deg, rgb(255 246 234 / 92%) 0%, rgb(250 240 227 / 78%) 100%);
-  color: rgb(92 58 31 / 92%);
-  font-size: 0.72rem;
-  line-height: 1.42;
-  padding: 0.46rem 0.62rem;
-}
-
-.stage-dialogue-panel__closure-status {
-  flex: 0 0 auto;
-  border-radius: 999px;
-  font-size: 0.62rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  line-height: 1;
-  padding: 0.24rem 0.42rem;
-  text-transform: uppercase;
-}
-
-.stage-dialogue-panel__closure-status--grounded {
-  background: rgb(232 247 235 / 92%);
-  color: rgb(50 106 63 / 92%);
-}
-
-.stage-dialogue-panel__closure-status--partial {
-  background: rgb(255 239 214 / 92%);
-  color: rgb(143 86 29 / 92%);
-}
-
-.stage-dialogue-panel__closure-status--drift {
-  background: rgb(255 229 225 / 92%);
-  color: rgb(148 58 48 / 94%);
-}
-
-.stage-dialogue-panel__closure-copy {
-  min-width: 0;
-  flex: 1 1 auto;
 }
 
 .stage-dialogue-panel__toolbar {
