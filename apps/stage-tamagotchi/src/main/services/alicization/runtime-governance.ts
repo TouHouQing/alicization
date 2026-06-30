@@ -3370,6 +3370,21 @@ export function isExplicitGovernanceRepairTurn(governance: AlicizationMindTurnGo
     || governance.answerAct === 'correct-stale-anchor'
 }
 
+function shouldBlockLocalVisibleOverrideText(governance: AlicizationMindTurnGovernance) {
+  if (governance.screenReferenceMode === 'avoid')
+    return true
+
+  const subject = governance.answerSubject ?? governance.mindTurnFrame?.relation.subject ?? null
+  return governance.turnMode === 'care'
+    || governance.turnMode === 'accompany'
+    || governance.answerAct === 'care'
+    || governance.answerAct === 'defer'
+    || subject === 'alicization-self'
+    || subject === 'project-state'
+    || subject === 'relationship'
+    || subject === 'host-state'
+}
+
 export function resolveGovernedFallbackPatternId(governance: AlicizationMindTurnGovernance, replyOverridden: boolean) {
   if (!replyOverridden)
     return 'none'
@@ -3736,7 +3751,7 @@ export function coerceConversationTurnToMindGovernedPayload(
     currentConsciousFrame?: AlicizationGovernanceCurrentConsciousFrameInput
   },
 ) {
-  const dialogueFirstLocalRepairMode = options?.dialogueFirstLocalRepairMode ?? 'compat-visible'
+  const dialogueFirstLocalRepairMode = options?.dialogueFirstLocalRepairMode ?? 'rewrite-request-only'
   const visibleReplyOverrideMode = options?.visibleReplyOverrideMode ?? 'rewrite-request-only'
   const normalizedCurrentConsciousFrame = coerceGovernanceCurrentConsciousFrame(options?.currentConsciousFrame)
   const structuredPayload = input.structured && typeof input.structured === 'object'
@@ -3849,6 +3864,7 @@ export function coerceConversationTurnToMindGovernedPayload(
         droppedClauses: [] as string[],
       }
   const useDialogueFirstRepairAsVisibleCandidate = dialogueFirstLocalRepairMode === 'compat-visible'
+    && !dialogueFirstRepairEvidence.analysis.decorativePersonaTemplate
   const candidateReply = useDialogueFirstRepairAsVisibleCandidate && dialogueFirstRepairEvidence.applied
     ? dialogueFirstRepairEvidence.reply
     : reply
@@ -3929,9 +3945,12 @@ export function coerceConversationTurnToMindGovernedPayload(
       })
     : initialGovernedSurface
   const dispatchOnlyVisibleOverride = governedSurface?.visibleReplyMode === 'dispatch-only'
-  const thinGovernedShell = governedSurface
-    ? replyLooksThinGovernedShell(candidateReply, governedSurface.reply, fallbackGovernance, governedSurface.thinShellCue)
-    : false
+  const thinGovernedShell = replyLooksThinGovernedShell(
+    candidateReply,
+    governedSurface?.reply ?? '',
+    fallbackGovernance,
+    governedSurface?.thinShellCue,
+  )
   const coherentSceneReply = replyLooksCoherentSceneAnswer({
     reply: candidateReply,
     governance: fallbackGovernance,
@@ -4042,6 +4061,7 @@ export function coerceConversationTurnToMindGovernedPayload(
       dispatchOnlyVisibleOverride
       || Boolean(renderedOverrideSurface?.reply)
       || Boolean(governedSurface?.reply)
+      || dialogueFirstOverrideRequired
     ),
   )
   const replyKeptDespiteMismatch = Boolean(
@@ -4094,7 +4114,8 @@ export function coerceConversationTurnToMindGovernedPayload(
         dialogueFirstOverrideRequired ? 'dialogue-first-visible-reply-contaminated' : '',
       ].find(Boolean) ?? 'hard-governance-fallback'
     : null
-  const compatVisibleOverrideReply = shouldOverrideVisibleReply && !dispatchOnlyVisibleOverride
+  const blockLocalVisibleOverrideText = shouldBlockLocalVisibleOverrideText(coherentGovernance)
+  const compatVisibleOverrideReply = shouldOverrideVisibleReply && !dispatchOnlyVisibleOverride && !blockLocalVisibleOverrideText
     ? sanitizeBriefText(renderedOverrideSurface?.reply ?? governedSurface?.reply ?? '', 2_000)
     : ''
   const finalReply = shouldOverrideVisibleReply

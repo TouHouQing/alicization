@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { buildMindGovernedFallbackSurface } from './alicization-mind-fallback'
+import { translateGovernedMindFallback } from './alicization-mind-fallback-messages'
 
 describe('alicization-mind-fallback', () => {
   it('returns dispatch-only surface for explicit execution-bound turns', () => {
@@ -38,7 +39,7 @@ describe('alicization-mind-fallback', () => {
     expect(surface?.thought).toContain('obligation=guide')
   })
 
-  it('suppresses visual repair narration for non-inspection dialogue turns even if repair residue exists', () => {
+  it('does not author non-inspection dialogue turns even if repair residue exists', () => {
     const surface = buildMindGovernedFallbackSurface({
       userText: '你好',
       translate: path => path,
@@ -65,16 +66,10 @@ describe('alicization-mind-fallback', () => {
       },
     })
 
-    expect(surface).toEqual(expect.objectContaining({
-      emotion: 'thinking',
-    }))
-    expect(surface?.reply).not.toContain('repair-stale-anchor')
-    expect(surface?.reply).not.toContain('repair-need-reground')
-    expect(surface?.reply).not.toContain('carry-memory')
-    expect(surface?.reply).not.toContain('reground-note')
+    expect(surface).toBeNull()
   })
 
-  it('prefers a same-her-first opening on dialogue-first turns when project-state continuity is still the active carried thread', () => {
+  it('does not author same-her-first dialogue openings through local fallback', () => {
     const surface = buildMindGovernedFallbackSurface({
       userText: '继续开发',
       translate: (path, params) => {
@@ -121,12 +116,94 @@ describe('alicization-mind-fallback', () => {
       },
     })
 
-    expect(surface?.reply).toContain('Same-her first: 当前项目状态还要继续守住同一个 her')
-    expect(surface?.reply).toContain('Landed: 前台摘要、发送前 awareness 和 same-her-first prompt strategy 已经接进主对话链路。')
-    expect(surface?.reply).toContain('Next: 把已落地进展和未闭环项一起压进 final visible reply opening。')
+    expect(surface).toBeNull()
   })
 
-  it('keeps legacy latestProgress alive in same-her-first fallback openings when governance project-state still uses the older field name', () => {
+  it('does not author ordinary greeting repairs through same-her fallback wording', () => {
+    const surface = buildMindGovernedFallbackSurface({
+      userText: '你好',
+      translate: (path, params) => {
+        if (path === 'mind-fallback.answer-opening-same-her-first')
+          return `Same-her first: ${String(params?.focus ?? '')} | Landed: ${String(params?.landed ?? '')} | Next: ${String(params?.next ?? '')}`
+        if (path === 'mind-fallback.answer-opening-plain')
+          return 'Answer: plain'
+        return path
+      },
+      governance: {
+        turnMode: 'answer',
+        truthState: 'dialogue-grounded',
+        relationshipPosture: 'warm',
+        answerAct: 'answer',
+        answerSubject: 'alicization-self',
+        screenReferenceMode: 'avoid',
+        evidenceMode: 'continuity-carry',
+        repairState: 'none',
+        liveSurface: null,
+        focusAnchor: '当前项目状态还要继续守住同一个 her',
+        answerIntent: '先把这一轮接成自然回复',
+        openingMove: '自然地回问候，不要再把它写成模板壳',
+        carriedThread: '项目状态 same-her continuity 仍未闭环',
+        projectState: {
+          identity: 'Alicization is a local-first digital life companion.',
+          currentPhase: 'Phase 1: Local Digital Life',
+          latestLandedProgress: '前台摘要、发送前 awareness 和 same-her-first prompt strategy 已经接进主对话链路。',
+          primaryOpenLoop: '让首句更自然地同时带出已落地进度和未闭环主线。',
+          nextClosureTarget: '把已落地进展和未闭环项一起压进 final visible reply opening。',
+          sameHerSelfLine: 'Keep one continuous her explicit from self-understanding into the final host-visible reply.',
+        },
+        labelCarryAsMemory: true,
+        shouldAskForGrounding: false,
+        shouldAcknowledgeRepair: false,
+        maxSentences: 3,
+        mustDo: [],
+        mustNotDo: [],
+      },
+    })
+
+    expect(surface).toBeNull()
+  })
+
+  it('does not author ordinary dialogue replies through the governed fallback surface', () => {
+    const surface = buildMindGovernedFallbackSurface({
+      userText: '你好',
+      translate: (path, params) => {
+        if (path === 'mind-fallback.answer-opening')
+          return `Answer: ${String(params?.focus ?? '')}`
+        if (path === 'mind-fallback.answer-opening-plain')
+          return 'Answer: plain'
+        if (path === 'mind-fallback.accompany-opening-plain')
+          return 'Accompany: plain'
+        if (path === 'mind-fallback.accompany-body')
+          return 'I heard you.'
+        return path
+      },
+      governance: {
+        turnMode: 'accompany',
+        truthState: 'dialogue-grounded',
+        relationshipPosture: 'warm',
+        answerAct: 'answer',
+        answerSubject: 'relationship',
+        screenReferenceMode: 'avoid',
+        evidenceMode: 'dialogue-grounded',
+        repairState: 'none',
+        liveSurface: null,
+        focusAnchor: '你好',
+        answerIntent: 'Answer this greeting naturally.',
+        openingMove: 'Use Alicization natural voice.',
+        carriedThread: null,
+        labelCarryAsMemory: false,
+        shouldAskForGrounding: false,
+        shouldAcknowledgeRepair: false,
+        maxSentences: 3,
+        mustDo: [],
+        mustNotDo: [],
+      },
+    })
+
+    expect(surface).toBeNull()
+  })
+
+  it('keeps legacy latestProgress out of local visible same-her fallback openings', () => {
     const surface = buildMindGovernedFallbackSurface({
       userText: '继续开发',
       translate: (path, params) => {
@@ -173,12 +250,10 @@ describe('alicization-mind-fallback', () => {
       } as any,
     })
 
-    expect(surface?.reply).toContain('Same-her first: 当前项目状态还要继续守住同一个 her')
-    expect(surface?.reply).toContain('Landed: Legacy project progress 仍然要在 fallback 开场里保住。')
-    expect(surface?.reply).toContain('Next: 把已落地进展和未闭环项一起压进 final visible reply opening。')
+    expect(surface).toBeNull()
   })
 
-  it('keeps audit-style landedProgressSummary alive in same-her-first fallback openings when explicit landed-progress slots are blank', () => {
+  it('keeps audit-style landedProgressSummary out of local visible same-her fallback openings', () => {
     const surface = buildMindGovernedFallbackSurface({
       userText: '继续开发',
       translate: (path, params) => {
@@ -227,12 +302,10 @@ describe('alicization-mind-fallback', () => {
       } as any,
     })
 
-    expect(surface?.reply).toContain('Same-her first: 当前项目状态还要继续守住同一个 her')
-    expect(surface?.reply).toContain('Landed: Audit-style landed progress 也要在 fallback 开场里保住。')
-    expect(surface?.reply).toContain('Next: 把已落地进展和未闭环项一起压进 final visible reply opening。')
+    expect(surface).toBeNull()
   })
 
-  it('prefers a richer project-aware pre-dialogue self brief over a thin same-her focus shell in same-her-first fallback openings', () => {
+  it('keeps rich project-aware pre-dialogue self briefs out of local visible same-her fallback openings', () => {
     const richerProjectBriefing = 'Before speaking, remember what this digital life project is, what has landed, and which life loop is still open.'
     const surface = buildMindGovernedFallbackSurface({
       userText: '继续开发',
@@ -281,8 +354,37 @@ describe('alicization-mind-fallback', () => {
       },
     })
 
-    expect(surface?.reply).toContain(`Same-her first: ${richerProjectBriefing}`)
-    expect(surface?.reply).toContain('Landed: 前台摘要、发送前 awareness 和 same-her-first prompt strategy 已经接进主对话链路。')
-    expect(surface?.reply).toContain('Next: 把已落地进展和未闭环项一起压进 final visible reply opening。')
+    expect(surface).toBeNull()
+  })
+
+  it('returns direct repair text for stream timeout, structured contract, and provider config failures', () => {
+    expect(translateGovernedMindFallback('mind-repair.stream-timeout', undefined, '你好')).toBe(
+      '超时了。',
+    )
+    expect(translateGovernedMindFallback('mind-repair.structured-contract', undefined, '你好')).toBe(
+      '结构化回复失败。',
+    )
+    expect(translateGovernedMindFallback('mind-repair.provider-config', undefined, '你好')).toBe(
+      '提供方或模型配置不完整。',
+    )
+  })
+
+  it('does not append retry wording to direct repair failures', () => {
+    const directFailures = [
+      translateGovernedMindFallback('mind-repair.stream-timeout', undefined, '你好'),
+      translateGovernedMindFallback('mind-repair.structured-contract', undefined, '你好'),
+      translateGovernedMindFallback('mind-repair.provider-config', undefined, '你好'),
+      translateGovernedMindFallback('mind-repair.stream-failure', undefined, '你好'),
+    ]
+
+    for (const message of directFailures) {
+      expect(message).not.toMatch(/重试|retry/i)
+    }
+  })
+
+  it('keeps direct repair failures terse instead of turning them back into template shells', () => {
+    expect(translateGovernedMindFallback('mind-repair.stream-timeout', undefined, '你好')).toBe('超时了。')
+    expect(translateGovernedMindFallback('mind-repair.stream-failure', undefined, '你好')).toBe('回复流失败。')
+    expect(translateGovernedMindFallback('mind-repair.provider-config', undefined, '你好')).toBe('提供方或模型配置不完整。')
   })
 })

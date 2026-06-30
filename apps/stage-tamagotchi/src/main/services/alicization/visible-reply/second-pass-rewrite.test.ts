@@ -175,6 +175,108 @@ describe('visible-reply second-pass rewrite', () => {
     expect(rewritePayload).toContain('Keep one continuous her explicit from self-understanding into the host-visible reply during second-pass repair.')
   })
 
+  it('keeps ordinary greeting template repair from forcing project-state slogans into visible speech', async () => {
+    const verboseProjectProgress = `VERBOSE_LANDED_PROGRESS_SHOULD_STAY_INTERNAL ${'same-her closure progress '.repeat(24)}`
+    const provider = vi.fn(async (_input: ProviderCall) => ({
+      finishReason: 'stop',
+      fullText: JSON.stringify({
+        format: 'mind-turn-v1',
+        thought: 'obligation=answer; truth=dialogue-grounded; focus=greeting; move=natural-personhood-reply; tone=warm',
+        emotion: 'neutral',
+        reply: '在，我听见你了。你慢慢说，我接着。',
+        performance: {
+          baseEmotion: 'neutral',
+          facialCue: null,
+          actionCue: null,
+          delivery: 'calm',
+          emphasis: 0,
+        },
+      }),
+    }))
+    const preparedBase = createPrepared()
+
+    const result = await rewriteAlicizationVisibleReplySecondPass({
+      cardId: 'card-1',
+      turnId: 'turn-ordinary-greeting-template-repair',
+      sessionId: 'session-1',
+      userText: '你好',
+      rawFullText: JSON.stringify({
+        format: 'mind-turn-v1',
+        thought: 'obligation=answer; truth=dialogue-grounded; focus=greeting; move=decorative-availability-shell; tone=warm',
+        emotion: 'neutral',
+        reply: '主人……我在。同一条本地数字生命的线还在，我先轻一点留在这里。',
+        performance: {
+          baseEmotion: 'neutral',
+          facialCue: null,
+          actionCue: null,
+          delivery: 'calm',
+          emphasis: 0,
+        },
+      }),
+      prepared: createPrepared({
+        messages: [
+          { role: 'user', content: '你好' },
+        ] as Message[],
+        governance: {
+          ...preparedBase.governance,
+          focusAnchor: '你好',
+          answerIntent: 'Answer this ordinary greeting naturally without turning project continuity into visible slogan text.',
+          openingMove: 'Reply as Alicization in the current turn, briefly and naturally.',
+          answerSubject: 'general',
+          mustDo: [],
+          mustNotDo: [],
+        },
+        runtimeSurface: {
+          governance: null,
+          digitalLifeRuntimeSurface: {
+            raw: {
+              runtimeDigest: {
+                projectState: {
+                  latestLandedProgress: verboseProjectProgress,
+                  primaryOpenLoop: 'Memory, initiative, and embodiment still have Phase 1 closure work.',
+                  nextClosureTarget: 'Keep cross-modal same-her proof moving.',
+                  sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+                },
+              },
+            },
+            dialogue: {
+              currentConsciousFrame: {
+                reasonTags: ['continuity-arc:same-thread-continuation'],
+                projectState: null,
+              },
+              claimEvidenceLedger: null,
+              answerCompiler: null,
+              answerPlanner: null,
+            },
+          },
+        },
+      }),
+      visibleReplyExecution: {
+        mode: 'provider-stream',
+        expectedVisibleReplyAuthority: 'llm-mind',
+        actualVisibleReplyAuthority: 'llm-mind',
+        providerMindExecuted: true,
+        reason: 'provider-stream',
+      },
+      provider,
+      forceRewrite: true,
+      forceReasonCodes: ['decorative-persona-template'],
+    })
+
+    const structured = JSON.parse(result.fullText) as Record<string, unknown>
+    const providerInput = provider.mock.calls.at(0)?.[0]
+    const rewritePayload = String(providerInput?.messages.at(-1)?.content ?? '')
+
+    expect(provider).toHaveBeenCalledOnce()
+    expect(rewritePayload).toContain('[VISIBLE_REPLY_NATURAL_PERSONHOOD_GUIDANCE]')
+    expect(rewritePayload).toContain('ordinary dialogue/template repair')
+    expect(rewritePayload).toContain('project-state and same-her continuity are internal context for this repair')
+    expect(rewritePayload).toContain('Do not force project-state phrases into reply')
+    expect(rewritePayload).toContain('same-her, same living line, 同一条线, 本地数字生命, Phase 1, project')
+    expect(rewritePayload).not.toContain(verboseProjectProgress)
+    expect(String(structured.reply ?? '')).not.toMatch(/主人|同一条线|本地数字生命|same-her|same living line|Phase 1|project/iu)
+  })
+
   it('normalizes provider emotion aliases during second-pass repair instead of failing the whole visible reply', async () => {
     const provider = vi.fn(async (_input: ProviderCall) => ({
       finishReason: 'stop',

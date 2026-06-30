@@ -9,14 +9,14 @@ chat:
     leak-filtered: さっきの結果に内部ツール片が混ざっていたので、こちらで除去した。もう一度聞いてくれれば、整えた答えだけを返す。
     realtime-unavailable: 今は信頼できるリアルタイム外部データを取得できない。少し待ってから試すか、設定で MCP のリアルタイムツールが使えるか確認してほしい。
     epoch1-strict: すまない。今は制限付きの Epoch 1 モードなので、外部のリアルタイムデータにはアクセスできない。ローカルでの会話、設定調整、記憶整理は続けられる。
-    structured-contract: ここにいる。続けて話してくれれば、できるだけ安定して明瞭に返す。
-    stream-failure: 今回の応答は失敗した。まず一度やり直して、それでも続くなら provider と model の設定を確認してほしい。
-    local-runtime-unavailable: 今回はローカルのモデルランタイムに接続できなかった。たとえば `11434` の Ollama や `1234` の LM Studio だ。対応するサービスを起動してからもう一度試してほしい。
-    stream-timeout: 今回はモデル応答の待機がタイムアウトした。サービスが混み合っているかもしれない。もう一度試してほしい。
-    provider-auth: provider の認証に失敗した。API キーかモデル権限が無効かもしれない。確認してから再試行してほしい。
-    provider-network: モデルサービスへの接続が不安定だ。少し待ってからもう一度試してほしい。
-    provider-config: provider か model の設定が不足している。たとえば `provider`、`model`、`baseUrl` だ。設定を確認してから再試行してほしい。
-    unsupported-tools: 現在のモデルはこのターンに必要なツール呼び出しをサポートしていない。もう一度試すか、ツール呼び出し対応モデルに切り替えてほしい。
+    structured-contract: 構造化応答に失敗した。このターンは有効な JSON に収束しなかった。
+    stream-failure: 今回の応答は失敗した。
+    local-runtime-unavailable: 今回はローカルのモデルランタイムに接続できなかった。たとえば `11434` の Ollama や `1234` の LM Studio だ。
+    stream-timeout: タイムアウトした。このターンはモデル応答の待機が長すぎた。
+    provider-auth: provider の認証に失敗した。API キーかモデル権限が無効かもしれない。
+    provider-network: モデルサービスへの接続が不安定だ。
+    provider-config: provider か model の設定が不足している。たとえば `provider`、`model`、`baseUrl` だ。
+    unsupported-tools: 現在のモデルはこのターンに必要なツール呼び出しをサポートしていない。
     low-obedience-host-denied: ふん。権限をくれないなら、最初から頼まないで。
     low-obedience-system-denied: システムの権限壁に止められた。見えていないものを見えたふりはしない。
     low-obedience-denied: ふん。操作は拒否された。気分がいいふりはしない。

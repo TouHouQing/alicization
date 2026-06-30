@@ -16952,7 +16952,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     }))
   })
 
-  it('replaces thin dialogue-first governed shells before persistence', async () => {
+  it('requests model rewrite for thin dialogue-first governed shells before persistence', async () => {
     const sandboxPath = await createSandboxPath()
     await setupAlicizationRuntime({
       userDataPathOverride: sandboxPath,
@@ -17007,17 +17007,26 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     const persisted = dbStub.appendConversationTurn.mock.calls.at(-1)?.[0] as AlicizationConversationTurnInput | undefined
     const persistedStructured = persisted?.structured as Record<string, unknown> | undefined
     expect(String(persistedStructured?.reply ?? '')).not.toBe('我直接说。')
-    expect(String(persistedStructured?.reply ?? '')).toContain('你不用先把话整理好')
+    expect(String(persistedStructured?.reply ?? '')).toBe('')
+    expect((persistedStructured as any)?.visibleReplyRewriteRequest).toEqual(expect.objectContaining({
+      required: true,
+      authority: 'llm-second-pass-rewrite',
+    }))
     expect(String(persistedStructured?.thought ?? '')).toContain('obligation=care')
     expect(persistedStructured?.emotion).toBe('concerned')
 
     const events = getDialogueRespondedEvents()
-    expect(events[0]?.structured.reply).toContain('你不用先把话整理好')
+    expect(events[0]?.structured.reply).toBe('')
 
     const takeoverAudit = dbStub.appendAuditLog.mock.calls
       .map(([entry]) => entry)
       .find(entry => entry.category === 'alicization.dialogue' && entry.action === 'mind-governance-takeover')
-    expect(takeoverAudit).toBeTruthy()
+    expect(takeoverAudit?.payload?.replyOverridden).toBe(true)
+    expect(takeoverAudit?.payload?.reasons).toContain('reply-thin-governed-shell')
+    expect(takeoverAudit?.payload?.visible_reply_rewrite_request).toEqual(expect.objectContaining({
+      required: true,
+      authority: 'llm-second-pass-rewrite',
+    }))
   })
 
   it('preserves ordinary dialogue-first replies instead of collapsing them into governed fallback prose', async () => {
@@ -17086,7 +17095,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     expect(takeoverAudit?.payload?.replyOverridden).toBe(false)
   })
 
-  it('rewrites contaminated dialogue-first replies when visible surface residue leaks back onto the answer', async () => {
+  it('requests model rewrite when contaminated dialogue-first replies leak visible surface residue', async () => {
     const sandboxPath = await createSandboxPath()
     await setupAlicizationRuntime({
       userDataPathOverride: sandboxPath,
@@ -17143,9 +17152,13 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     const persistedReply = String(persistedStructured?.reply ?? '')
 
     expect(persistedReply).not.toBe('主人……我仔细看看了。你今天很累，却还在IntelliJ IDEA里盯着代码。')
-    expect(persistedReply).toMatch(/不把(?:旧画面或旧线程硬套回现在|前一段影子压回来)/u)
+    expect(persistedReply).toBe('')
     expect(persistedReply).not.toContain('IntelliJ IDEA')
     expect(persistedReply).not.toContain('主人')
+    expect((persistedStructured as any)?.visibleReplyRewriteRequest).toEqual(expect.objectContaining({
+      required: true,
+      authority: 'llm-second-pass-rewrite',
+    }))
 
     const takeoverAudit = dbStub.appendAuditLog.mock.calls
       .map(([entry]) => entry)
@@ -17159,7 +17172,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     expect(takeoverAudit?.payload?.scene_cue_mentions).toEqual(expect.arrayContaining(['IntelliJ IDEA']))
   })
 
-  it('soft-repairs removable dialogue-first contamination before falling back to governed shell prose', async () => {
+  it('requests model rewrite for removable dialogue-first contamination instead of locally authoring repair prose', async () => {
     const sandboxPath = await createSandboxPath()
     await setupAlicizationRuntime({
       userDataPathOverride: sandboxPath,
@@ -17213,17 +17226,21 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
 
     const persisted = dbStub.appendConversationTurn.mock.calls.at(-1)?.[0] as AlicizationConversationTurnInput | undefined
     const persistedStructured = persisted?.structured as Record<string, unknown> | undefined
-    expect(String(persistedStructured?.reply ?? '')).toBe('我能陪你聊，也能帮你一起看当前这件事。')
+    expect(String(persistedStructured?.reply ?? '')).toBe('')
     expect(String(persistedStructured?.reply ?? '')).not.toContain('主人')
+    expect((persistedStructured as any)?.visibleReplyRewriteRequest).toEqual(expect.objectContaining({
+      required: true,
+      authority: 'llm-second-pass-rewrite',
+    }))
 
     const takeoverAudit = dbStub.appendAuditLog.mock.calls
       .map(([entry]) => entry)
       .find(entry => entry.category === 'alicization.dialogue' && entry.action === 'mind-governance-takeover')
-    expect(takeoverAudit?.payload?.replyOverridden).toBe(false)
-    expect(takeoverAudit?.payload?.soft_repair_applied).toBe(true)
-    expect(takeoverAudit?.payload?.local_repair_candidate_blocked).toBe(false)
-    expect(String(takeoverAudit?.payload?.soft_repair_reason ?? '')).toContain('removed-roleplay-preface')
-    expect(takeoverAudit?.payload?.reasons).toContain('dialogue-first-visible-reply-soft-repaired')
+    expect(takeoverAudit?.payload?.replyOverridden).toBe(true)
+    expect(takeoverAudit?.payload?.soft_repair_applied).toBe(false)
+    expect(takeoverAudit?.payload?.local_repair_candidate_blocked).toBe(true)
+    expect(String(takeoverAudit?.payload?.local_repair_candidate_reason ?? '')).toContain('removed-roleplay-preface')
+    expect(takeoverAudit?.payload?.reasons).toContain('dialogue-first-visible-reply-rewrite-evidence')
     expect(String(takeoverAudit?.payload?.answer_intent_after ?? '')).not.toContain('Answer the host')
     expect((takeoverAudit?.payload?.anchor_candidates_after ?? []).join(' | ')).not.toContain('Answer the host')
   })

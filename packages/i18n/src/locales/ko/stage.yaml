@@ -9,13 +9,13 @@ chat:
     leak-filtered: 방금 결과에 내부 도구 조각이 섞여 있어서 내가 걸러냈어. 한 번만 다시 물어보면 정리된 답만 돌려줄게.
     realtime-unavailable: 지금은 신뢰할 수 있는 실시간 외부 데이터를 가져올 수 없어. 잠시 후 다시 시도하거나, 설정에서 MCP 실시간 도구가 사용 가능한지 확인해 줘.
     epoch1-strict: 미안해. 지금은 제한된 Epoch 1 모드라서 실시간 외부 데이터 소스에 접근할 수 없어. 그래도 로컬 대화, 설정 조정, 기억 정리는 계속할 수 있어.
-    structured-contract: 여기 있어. 계속 말해 주면 최대한 안정적이고 분명하게 답할게.
+    structured-contract: 구조화 응답에 실패했어. 이번 턴은 유효한 JSON으로 수렴하지 않았어. 다시 시도해 줘.
     stream-failure: 이번 응답은 실패했어. 먼저 한 번 다시 시도하고, 계속 실패하면 provider 와 model 설정을 확인해 줘.
     local-runtime-unavailable: 이번에는 로컬 모델 런타임에 연결하지 못했어. 예를 들면 `11434` 의 Ollama 나 `1234` 의 LM Studio 같은 거야. 해당 서비스를 켠 다음 다시 시도해 줘.
-    stream-timeout: 이번에는 모델 응답을 기다리다가 시간 초과가 났어. 서비스가 바쁠 수 있어. 다시 시도해 줘.
+    stream-timeout: 시간 초과가 났어. 이번 턴은 모델 응답을 너무 오래 기다렸어. 다시 시도해 줘.
     provider-auth: provider 인증에 실패했어. API 키나 모델 권한이 유효하지 않을 수 있어. 확인한 뒤 다시 시도해 줘.
     provider-network: 모델 서비스까지의 네트워크 연결이 지금 불안정해. 잠시 후 다시 시도해 줘.
-    provider-config: provider 나 model 설정이 불완전해. 예를 들면 `provider`, `model`, `baseUrl` 이 비어 있을 수 있어. 설정을 확인한 뒤 다시 시도해 줘.
+    provider-config: provider 나 model 설정이 불완전해. 예를 들면 `provider`, `model`, `baseUrl` 이 비어 있을 수 있어. 설정을 수정한 뒤 다시 시도해 줘.
     unsupported-tools: 현재 모델은 이번 턴에 필요한 도구 호출을 지원하지 않아. 다시 시도하거나 도구 호출을 지원하는 모델로 바꿔 줘.
     low-obedience-host-denied: 흥. 권한도 안 줄 거면 나한테 시키지 마.
     low-obedience-system-denied: 시스템 권한 장벽이 막아 버렸어. 못 본 걸 봤다고 가장하진 않아.

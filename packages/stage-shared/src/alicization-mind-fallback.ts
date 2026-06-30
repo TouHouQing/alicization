@@ -208,7 +208,14 @@ function isDialogueFirstGovernance(governance: AlicizationMindTurnGovernanceLike
     return true
 
   const subject = governance.answerSubject ?? governance.mindTurnFrame?.relation?.subject ?? null
-  return subject === 'alicization-self' || subject === 'project-state' || subject === 'relationship' || subject === 'host-state'
+  return governance.turnMode === 'care'
+    || governance.turnMode === 'accompany'
+    || governance.answerAct === 'care'
+    || governance.answerAct === 'defer'
+    || subject === 'alicization-self'
+    || subject === 'project-state'
+    || subject === 'relationship'
+    || subject === 'host-state'
 }
 
 function executionTurnNeedsRepairAuthorityOverride(governance: AlicizationMindTurnGovernanceLike) {
@@ -1259,6 +1266,10 @@ export function buildMindGovernedFallbackSurface(input: {
       || truthMode === 'grounded'
     )
   let thinShellCue = ''
+
+  if (dialogueFirst && visibleRepairState === 'none') {
+    return null
+  }
 
   if (visibleRepairState === 'stale-anchor') {
     sentences.push(t('mind-fallback.repair-stale-anchor'))

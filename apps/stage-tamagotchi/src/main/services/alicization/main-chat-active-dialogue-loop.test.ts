@@ -220,7 +220,7 @@ describe('main chat active dialogue loop', () => {
     expect(decision?.strategy).toBe('compact-one-shot')
   })
 
-  it('lets greeting turns use compact provider-mind authority without enabling deterministic local wording', () => {
+  it('keeps greeting turns provider-authored on the main stream instead of spending a compact one-shot preflight', () => {
     const decision = deriveAlicizationActiveDialogueFastPathDecision({
       conversationMessages: [
         { role: 'user', content: 'hello' },
@@ -236,9 +236,9 @@ describe('main chat active dialogue loop', () => {
     expect(decision?.lane).toBe('greeting')
     expect(decision?.strategy).toBe('compact-one-shot')
     expect(decideAlicizationActiveDialogueCompactAuthority(decision)).toEqual(expect.objectContaining({
-      allowed: true,
-      reason: 'compact-provider-mind-authority',
-      reasonCodes: expect.arrayContaining(['compact-provider-mind-authority', 'fresh-greeting']),
+      allowed: false,
+      reason: 'mind-authored-lane',
+      reasonCodes: expect.arrayContaining(['mind-authored-lane', 'fresh-greeting']),
     }))
     expectFallbackMindAuthorityEscalation({
       actionKind: 'answer',
@@ -698,6 +698,55 @@ describe('main chat active dialogue loop', () => {
         { role: 'user', content: '下午好呀' },
       ] as Message[],
     }, 'greeting')
+  })
+
+  it('blocks governed reply builders from synthesizing persona dialogue without model text', () => {
+    expect(() => buildAlicizationActiveDialogueGovernedReply({
+      decision: {
+        lane: 'greeting',
+        strategy: 'compact-one-shot',
+        timeoutMs: 4_500,
+        resolvedTimeZone: 'Asia/Shanghai',
+        resolvedTimeZoneSource: 'process-env',
+        latestUserText: '你好',
+        previousUserText: '',
+        previousAssistantText: '',
+        continuityAnchor: '',
+        preparedExecutionCarryText: '',
+        runtimeDigest: null,
+        sessionMirror: null,
+        governance: null,
+        personaKernel: null,
+        reasonCodes: ['fresh-greeting'],
+      },
+    })).toThrow(AlicizationActiveDialogueMindAuthorityEscalationError)
+  })
+
+  it('blocks explicit persona moves from bypassing model-authored visible text', () => {
+    expect(() => buildAlicizationActiveDialogueGovernedReply({
+      decision: {
+        lane: 'greeting',
+        strategy: 'compact-one-shot',
+        timeoutMs: 4_500,
+        resolvedTimeZone: 'Asia/Shanghai',
+        resolvedTimeZoneSource: 'process-env',
+        latestUserText: '在吗',
+        previousUserText: '',
+        previousAssistantText: '',
+        continuityAnchor: '',
+        preparedExecutionCarryText: '',
+        runtimeDigest: null,
+        sessionMirror: null,
+        governance: null,
+        personaKernel: null,
+        reasonCodes: ['fresh-greeting'],
+      },
+      moves: [{
+        kind: 'greeting',
+        salutation: '你好',
+        presenceCheck: true,
+      }],
+    })).toThrow(AlicizationActiveDialogueMindAuthorityEscalationError)
   })
 
   it('does not allow fresh greeting fallback to drag old continuity anchor locally', () => {

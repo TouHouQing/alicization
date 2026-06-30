@@ -134,6 +134,82 @@ describe('runtime-organic-memory-prompt', () => {
     expect(planMemoryDeliberation.mock.calls[0]?.[0]?.digitalLifeRuntimeSurface).toBe(runtimeSurface)
   })
 
+  it('keeps ordinary greeting prompt preparation from awaiting provider-side recollection planners', async () => {
+    const planMemoryRecollection = vi.fn(async () => ({
+      selectedConsolidationIds: [],
+      selectedWindowIds: [],
+      selectedProceduralIds: [],
+      selectedEpisodeIds: [],
+      selectedConversationTurnIds: ['turn-greeting'],
+      selectedRelationshipLines: [],
+      opening: 'provider planning should not be awaited for a light greeting',
+      certainty: 'approximate' as const,
+      rationale: 'provider',
+      confidence: 0.6,
+    }))
+    const planRecollectionSpeech = vi.fn(async () => null)
+    const planMemoryDeliberation = vi.fn(async () => null)
+    const runtime = createAlicizationOrganicMemoryPromptRuntime({
+      normalizeOrganicRecallText,
+      selectPromptActiveThoughts,
+      getOrganicMemorySnapshot: async () => ({
+        hostAttitude: 'nearby',
+        coreIncarnation: '',
+        activeThoughts: [],
+      }),
+      getLatestRelationshipDynamics: async () => null,
+      retrieveMemoryFacts: async () => [],
+      recallSubconsciousFragmentsWithGovernor: async () => [],
+      recallEpisodicEventsWithGovernor: async () => [],
+      buildHostPersonModel: async () => null,
+      recallConversationHistory: async () => [{
+        turnId: 'turn-greeting',
+        sessionId: 'session-greeting',
+        userText: '你好',
+        assistantText: '我在。',
+        createdAt: Date.UTC(2026, 5, 28, 8, 0, 0),
+      }],
+      recallMemoryConsolidations: async () => [],
+      planRecollectionIntent: vi.fn(async () => ({
+        mode: 'relationship-history' as const,
+        temporalFocus: 'recent-or-mid' as const,
+        searchEpisodes: false,
+        searchConversations: true,
+        searchProceduralExperience: false,
+        queryHints: ['你好'],
+        rationale: 'A greeting may carry relationship presence.',
+        confidence: 0.7,
+        recollectionAgenda: {
+          whyRecallNow: 'ordinary greeting presence',
+          goalSimilarity: null,
+          relationshipNeed: null,
+          affectivePull: null,
+          sceneFamiliarity: null,
+          candidateTimeScopes: [],
+          candidateEraFacets: [],
+          candidateProcedureLines: [],
+          uncertaintyTolerance: 'high' as const,
+        },
+      })),
+      planMemoryRecollection,
+      planRecollectionSpeech,
+      planMemoryDeliberation,
+      isPersonaResidueMemoryText: () => false,
+    })
+
+    const context = await runtime.resolveOrganicMemoryPromptContext({
+      recallSeed: 'dialogue:你好',
+      recallGovernor: null,
+    })
+
+    expect(planMemoryRecollection).not.toHaveBeenCalled()
+    expect(planRecollectionSpeech).not.toHaveBeenCalled()
+    expect(planMemoryDeliberation).not.toHaveBeenCalled()
+    expect(context.recollectionIntent).toEqual(expect.objectContaining({
+      mode: 'relationship-history',
+    }))
+  })
+
   it('treats embodiment-confirmed cadence in self-evolution as recollection authority instead of mere flavor', async () => {
     const runtime = createAlicizationOrganicMemoryPromptRuntime({
       normalizeOrganicRecallText,

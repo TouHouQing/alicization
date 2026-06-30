@@ -9,13 +9,13 @@ chat:
     leak-filtered: El resultado anterior mezcló fragmentos internos de herramientas. Ya los filtré. Pregúntame otra vez y te daré la respuesta limpia.
     realtime-unavailable: Ahora no puedo obtener datos externos en tiempo real de forma fiable. Inténtalo más tarde o revisa en ajustes si las herramientas MCP en tiempo real están disponibles.
     epoch1-strict: Lo siento. Ahora estoy en el modo restringido de Epoch 1, así que no puedo acceder a fuentes externas en tiempo real. Aun así puedes seguir hablando conmigo en local, ajustar configuraciones y ordenar recuerdos.
-    structured-contract: Estoy aquí. Sigue hablando y trataré de responder con la mayor estabilidad y claridad posible.
+    structured-contract: "La respuesta estructurada falló: este turno no se cerró en JSON utilizable. Vuelve a intentarlo."
     stream-failure: Esta respuesta falló. Reinténtalo una vez; si sigue fallando, revisa la configuración del proveedor y del modelo.
     local-runtime-unavailable: En este turno no pude conectarme al runtime local del modelo, por ejemplo Ollama en `11434` o LM Studio en `1234`. Inicia el servicio correspondiente y vuelve a intentarlo.
-    stream-timeout: Se agotó el tiempo esperando la respuesta del modelo en este turno. El servicio puede estar ocupado. Vuelve a intentarlo.
+    stream-timeout: "Tiempo agotado: este turno esperó demasiado la respuesta del modelo. Vuelve a intentarlo."
     provider-auth: Falló la autenticación del proveedor. La API key o el permiso del modelo pueden ser inválidos. Revísalo y vuelve a intentarlo.
     provider-network: La conexión con el servicio del modelo es inestable ahora mismo. Inténtalo de nuevo más tarde.
-    provider-config: Falta parte de la configuración del proveedor o del modelo, por ejemplo `provider`, `model` o `baseUrl`. Revísalo en ajustes y vuelve a intentarlo.
+    provider-config: "Falta parte de la configuración del proveedor o del modelo, por ejemplo `provider`, `model` o `baseUrl`. Corrígelo en ajustes y vuelve a intentarlo."
     unsupported-tools: El modelo actual no soporta las llamadas de herramientas necesarias para este turno. Vuelve a intentarlo o cambia a un modelo que sí las soporte.
     low-obedience-host-denied: Ja. Si no vas a darme permiso, no me lo pidas.
     low-obedience-system-denied: La muralla de permisos del sistema lo bloqueó. No voy a fingir que vi lo que no vi.

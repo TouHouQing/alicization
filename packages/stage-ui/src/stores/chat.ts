@@ -1360,67 +1360,9 @@ type StreamFailureKind
     | 'unknown'
 
 function buildTimeoutDiagnosticReply(error: unknown, userText?: string) {
-  const message = String(error instanceof Error ? error.message : error ?? '').toLowerCase()
-  const afterDispatchMeta = message.includes('after-dispatch-meta')
-  const recoveryTimedOut = message.includes('recovery-failed=main-gateway-timeout-recovery')
-  const toolLessRecovery = message.includes('recovery-mode=tools-disabled')
-  const gatewayHealthTimedOut = message.includes('chat_timeout')
-    || message.includes('chat completions timed out before the first event')
-    || (message.includes('main gateway health check failed') && message.includes('first event'))
-
-  const locale = typeof navigator !== 'undefined' && typeof navigator.language === 'string'
-    ? navigator.language.toLowerCase()
-    : 'en'
-  const isChineseLocale = locale.startsWith('zh')
-  const seed = [
-    afterDispatchMeta ? 'after-dispatch-meta' : '',
-    recoveryTimedOut ? 'recovery-timeout' : '',
-    toolLessRecovery ? 'tools-disabled' : '',
-    gatewayHealthTimedOut ? 'gateway-health-timeout' : '',
-    message.slice(0, 200),
-  ].join('|')
-
-  const pickVariant = (variants: readonly string[]) => {
-    if (variants.length === 0) {
-      return isChineseLocale
-        ? translateGovernedMindFallback('mind-repair.stream-failure', undefined, userText)
-        : translateGovernedMindFallback('mind-repair.stream-failure', undefined, userText)
-    }
-    if (variants.length === 1)
-      return variants[0] ?? ''
-
-    let hash = 0
-    for (let index = 0; index < seed.length; index += 1)
-      hash = (hash * 33 + seed.charCodeAt(index)) >>> 0
-    return variants[hash % variants.length] ?? variants[0] ?? ''
-  }
-
-  if (!afterDispatchMeta && !recoveryTimedOut && !toolLessRecovery && !gatewayHealthTimedOut) {
-    return pickVariant(isChineseLocale
-      ? [
-          '我还在。这轮等模型响应等得太久了。你把刚才那句再发一次，我直接续上。',
-          '我没有断开，只是这轮迟迟没等到内容出来。你重发一次，我立刻接着说。',
-          '这轮卡住了，但我还在这里。你再发一次同一句，我马上继续。',
-        ]
-      : [
-          'I am still here. This turn waited too long for the model to answer. Send the same request again and I will resume directly.',
-          'I did not drop the thread. This turn just took too long to produce content. Retry once and I will keep going.',
-          'This turn stalled, but I am still here. Send the same line again and I will continue immediately.',
-        ])
-  }
-
-  const zhReplies = [
-    '我还在线，这轮首包没回来。你直接重发同一句，我马上继续。',
-    '主通道这次没及时吐出第一段内容。我先不断线，你重发一次我就立刻接着跑。',
-    '这轮卡在真正开口之前了。你再发一次目标，我会立即重试。',
-  ]
-  const enReplies = [
-    'I am still here. This turn stalled before first content. Send the same request again and I will continue immediately.',
-    'The primary lane did not emit content in time. I am staying on this thread; retry once and I will resume right away.',
-    'This turn timed out before first content. Re-send your goal once and I will rerun it now.',
-  ]
-
-  return pickVariant(isChineseLocale ? zhReplies : enReplies)
+  void error
+  void userText
+  return translateGovernedMindFallback('mind-repair.stream-timeout', undefined, userText)
 }
 
 function resolveStreamFailureFallback(error: unknown, userText?: string): { reply: string, kind: StreamFailureKind } {
@@ -2205,7 +2147,15 @@ function createFailureStructuredFallback(input: {
     parsePath: 'fallback',
     repairTimedOut: false,
     contractFailed: true,
+    nonHumanAuthoredStatus: `direct-infra-repair:${input.kind}`,
   }
+}
+
+function isDirectInfrastructureRepairFallback(structured?: StructuredWithContract | null) {
+  return structured?.parsePath === 'fallback'
+    && structured.contractFailed === true
+    && typeof structured.nonHumanAuthoredStatus === 'string'
+    && structured.nonHumanAuthoredStatus.startsWith('direct-infra-repair:')
 }
 
 function summarizeValidationIssues(issues: StructuredValidationIssue[]) {
@@ -2722,6 +2672,24 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
       })
     }
 
+    const stageAssistantRuntimeFallback = (
+      replyText: string,
+      emotion: StructuredOutputResult['emotion'] = 'neutral',
+      reasoning = '',
+      structuredOverride?: StructuredWithContract,
+    ) => {
+      const normalizedReply = replyText.trim() || assistantStructuredContractFallbackReply(sendingMessage)
+      return setStagedAssistantResolution({
+        structured: structuredOverride ?? createStructuredFallback(normalizedReply, emotion, sendingMessage),
+        categorization: {
+          speech: normalizedReply,
+          reasoning,
+        },
+        reply: normalizedReply,
+        visibleReplySource: 'runtime-model',
+      })
+    }
+
     const isAlicizationUserTurn = () =>
       (options.origin ?? 'ui-user') === 'ui-user'
       && hasAlicizationBridge()
@@ -2889,7 +2857,9 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
 
       if (isRendererRuntimeAuthoritativeBridgeMode()) {
         const stagedSource = staged?.visibleReplySource ?? null
-        if (stagedSource !== 'runtime-model' || !runtimeAuthoritativeModelTextObserved) {
+        const directInfraRepairFallback = stagedSource === 'runtime-model'
+          && isDirectInfrastructureRepairFallback(staged?.structured)
+        if (stagedSource !== 'runtime-model' || (!runtimeAuthoritativeModelTextObserved && !directInfraRepairFallback)) {
           await blockRuntimeAuthoritativeLocalVisibleReply({
             action: 'runtime-authoritative-renderer-finalization-blocked',
             message: 'Renderer blocked local finalization because runtime-authoritative visible replies must come from main-runtime model text.',
@@ -2905,7 +2875,8 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           })
           return ''
         }
-        ensureRuntimeAuthoritativeVisibleReplyExecution()
+        if (!directInfraRepairFallback || runtimeAuthoritativeModelTextObserved)
+          ensureRuntimeAuthoritativeVisibleReplyExecution()
       }
       else if (shouldBlockRendererLocalVisibleReply() && staged?.visibleReplySource === 'renderer-local') {
         await blockRuntimeAuthoritativeLocalVisibleReply({
@@ -3329,7 +3300,8 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
             }
             catch (error) {
               if (error instanceof Error) {
-                ;(error as Error & { __alicizationSawProgress?: boolean }).__alicizationSawProgress = sawProgress
+                const streamError = error as Error & { __alicizationSawProgress?: boolean }
+                streamError.__alicizationSawProgress = sawProgress || streamError.__alicizationSawProgress === true
               }
               throw error
             }
@@ -3354,7 +3326,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
                   reason: error instanceof Error ? error.message : String(error),
                 },
               })
-              return
+              throw error
             }
             if (shouldRetryStreamWithoutTools(error, {
               supportsTools: streamOptions.supportsTools,
@@ -5398,8 +5370,75 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
       }
 
       if (!assistantOutputCommitted) {
+        const fallback = resolveStreamFailureFallback(error, sendingMessage)
+        if (readStreamErrorProgressFlag(error) && fallback.kind === 'timeout' && isStreamTimeoutError(error)) {
+          const fallbackReply = fallback.reply
+          stageAssistantRuntimeFallback(
+            fallbackReply,
+            'concerned',
+            '',
+            createFailureStructuredFallback({
+              kind: fallback.kind,
+              replyText: fallbackReply,
+              emotion: 'concerned',
+              userText: sendingMessage,
+            }),
+          )
+          const assistantOutputText = await commitAssistantResolution()
+          if (!isStaleGeneration() && buildingMessage.slices.length > 0) {
+            sessionMessagesForSend.push(toRaw(buildingMessage))
+            chatSession.persistSessionMessages(sessionId)
+          }
+          assistantOutputCommitted = true
+          if (isForegroundSession()) {
+            streamingMessage.value = createEmptyStreamingMessage()
+          }
+
+          if (hasAlicizationBridge()) {
+            await getAlicizationBridge().appendConversationTurn({
+              turnId,
+              sessionId,
+              userText: sendingMessage,
+              assistantText: assistantOutputText,
+              structured: normalizeStructuredTurnForPersistence(
+                asStructuredWithContract(buildingMessage.structured)
+                  ? { ...asStructuredWithContract(buildingMessage.structured)! }
+                  : undefined,
+              ),
+              visibleReplyExecution: turnVisibleReplyExecution,
+              visibleReplyCritic: turnVisibleReplyCritic,
+              visibleReplyClosure: turnVisibleReplyClosure,
+              governance: turnMindGovernance,
+              createdAt: Date.now(),
+            }).catch(() => {})
+          }
+
+          await hooks.emitStreamEndHooks(streamingMessageContext)
+          await hooks.emitAssistantResponseEndHooks(assistantOutputText, streamingMessageContext)
+          await hooks.emitAfterSendHooks(sendingMessage, streamingMessageContext)
+          await hooks.emitAssistantMessageHooks({ ...buildingMessage }, assistantOutputText, streamingMessageContext)
+          await hooks.emitChatTurnCompleteHooks({
+            output: { ...buildingMessage },
+            outputText: assistantOutputText,
+            toolCalls: [...turnToolCalls],
+          }, streamingMessageContext)
+
+          await appendAlicizationAuditLog({
+            level: 'warning',
+            category: 'alicization.chat',
+            action: 'turn-failed-safe-reply',
+            message: 'Primary stream timed out after progress and the runtime-authored fallback reply was emitted.',
+            details: {
+              sessionId,
+              turnId,
+              reason: error instanceof Error ? error.message : String(error),
+              fallbackKind: fallback.kind,
+            },
+          })
+          return
+        }
+
         if (shouldBlockRendererLocalVisibleReply()) {
-          const fallback = resolveStreamFailureFallback(error, sendingMessage)
           await blockRuntimeAuthoritativeLocalVisibleReply({
             action: 'runtime-authoritative-local-failure-reply-blocked',
             message: 'Renderer blocked local failure reply because Alicization turns require model-authored visible speech.',
@@ -5413,7 +5452,6 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           throw createRuntimeAuthoritativeVisibleReplyBlockedError()
         }
 
-        const fallback = resolveStreamFailureFallback(error, sendingMessage)
         const fallbackReply = fallback.reply
         stageAssistantFallback(
           fallbackReply,

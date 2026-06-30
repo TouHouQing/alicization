@@ -9,13 +9,13 @@ chat:
     leak-filtered: Kết quả vừa rồi có lẫn các mảnh gọi công cụ nội bộ. Tôi đã lọc chúng ra rồi. Hỏi lại một lần nữa, tôi sẽ trả lời bằng bản đã được làm sạch.
     realtime-unavailable: Hiện tại tôi không thể lấy dữ liệu bên ngoài theo thời gian thực một cách đáng tin cậy. Hãy thử lại sau hoặc kiểm tra trong cài đặt xem các công cụ MCP thời gian thực có khả dụng không.
     epoch1-strict: Xin lỗi. Hiện tôi đang ở chế độ Epoch 1 bị giới hạn nên không thể truy cập các nguồn dữ liệu bên ngoài theo thời gian thực. Nhưng bạn vẫn có thể tiếp tục trò chuyện cục bộ, chỉnh cài đặt và sắp xếp ký ức cùng tôi.
-    structured-contract: Tôi ở đây. Bạn cứ nói tiếp, tôi sẽ cố trả lời ổn định và rõ ràng nhất có thể.
+    structured-contract: "Trả lời có cấu trúc thất bại: lượt này không hội tụ thành JSON dùng được. Hãy thử lại."
     stream-failure: Lượt trả lời này đã thất bại. Hãy thử lại một lần; nếu vẫn lặp lại, hãy kiểm tra cấu hình provider và model.
     local-runtime-unavailable: Trong lượt này tôi không kết nối được tới runtime model cục bộ, ví dụ Ollama ở `11434` hoặc LM Studio ở `1234`. Hãy khởi động dịch vụ tương ứng rồi thử lại.
-    stream-timeout: Lượt này đã quá thời gian chờ phản hồi từ model. Dịch vụ có thể đang bận. Hãy thử lại.
+    stream-timeout: "Hết thời gian chờ: lượt này đã đợi phản hồi từ model quá lâu. Hãy thử lại."
     provider-auth: Xác thực provider thất bại. API key hoặc quyền truy cập model có thể không hợp lệ. Hãy kiểm tra rồi thử lại.
     provider-network: Kết nối tới dịch vụ model hiện không ổn định. Hãy thử lại sau.
-    provider-config: Cấu hình provider hoặc model hiện chưa đầy đủ, ví dụ thiếu `provider`, `model` hoặc `baseUrl`. Hãy kiểm tra trong cài đặt rồi thử lại.
+    provider-config: "Cấu hình provider hoặc model chưa đầy đủ, ví dụ thiếu `provider`, `model` hoặc `baseUrl`. Hãy sửa trong cài đặt rồi thử lại."
     unsupported-tools: Model hiện tại không hỗ trợ các lời gọi công cụ cần cho lượt này. Hãy thử lại hoặc chuyển sang model có hỗ trợ tool calling.
     low-obedience-host-denied: Hừ. Nếu bạn không định cấp quyền thì đừng nhờ tôi làm.
     low-obedience-system-denied: Bức tường quyền của hệ thống đã chặn nó. Tôi sẽ không giả vờ rằng mình đã thấy thứ mình chưa thấy.

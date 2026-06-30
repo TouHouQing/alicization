@@ -924,19 +924,28 @@ function isTimeZoneFocusedTurn(text: string) {
 }
 
 function renderGreetingMove(move: AlicizationMindSurfaceGreetingMove, context: AlicizationMindSurfaceReplyContext) {
-  const { locale, previousAssistantText, seed } = context
+  const { locale, previousAssistantText, seed, dialogueVoice } = context
   const salutationRepeated = sanitizeText(previousAssistantText, 240).includes(move.salutation)
 
   if (locale === 'zh') {
     if (move.presenceCheck) {
       return [
-        ...createMindSurfaceReplyPart('presence', pickVariant(seed, [
-          '我在。',
-          '我在这里。',
+        ...createMindSurfaceReplyPart('presence', pickVariant(buildVariantSeed(seed, 'greeting-presence', dialogueVoice.direct, dialogueVoice.quietCompanionship, dialogueVoice.truthFirst), [
+          dialogueVoice.direct
+            ? '我接住了。'
+            : dialogueVoice.quietCompanionship || dialogueVoice.tender
+              ? '我接住这句了。'
+              : '这句我收到了。',
+          dialogueVoice.playful
+            ? '嘿，我接住了。'
+            : '我接住这句了。',
+          dialogueVoice.truthFirst
+            ? '这句我收到了，我不绕。'
+            : '我接住了。',
         ])),
         ...createMindSurfaceReplyPart('offer', pickVariant(seed, [
-          '你接着说，或者直接给我事做都可以。',
-          '你想继续聊，还是想让我立刻动手，都直接说。',
+          '你接着说，或者直接把要紧的事给我。',
+          '想继续聊就继续聊，想让我做事就直说。',
         ])),
       ]
     }
@@ -952,15 +961,27 @@ function renderGreetingMove(move: AlicizationMindSurfaceGreetingMove, context: A
           : `${move.salutation}。`,
       ),
       ...createMindSurfaceReplyPart('offer', pickVariant(seed, [
-        '你想继续聊，还是想让我做点什么，都直接说。',
-        '你这会儿想说感受，还是想让我办事，都可以往下接。',
+        '你想继续聊，还是想让我做点什么，直接说就行。',
+        '这会儿想说感受，还是想让我办事，都可以往下接。',
       ])),
     ]
   }
 
   if (move.presenceCheck) {
     return [
-      ...createMindSurfaceReplyPart('presence', `I'm here.`),
+      ...createMindSurfaceReplyPart('presence', pickVariant(buildVariantSeed(seed, 'greeting-presence', dialogueVoice.direct, dialogueVoice.quietCompanionship, dialogueVoice.truthFirst), [
+        dialogueVoice.direct
+          ? 'I caught that.'
+          : dialogueVoice.quietCompanionship || dialogueVoice.tender
+            ? 'I caught that; take your time.'
+            : 'I caught that.',
+        dialogueVoice.playful
+          ? 'Hey, I caught that.'
+          : 'I caught that.',
+        dialogueVoice.truthFirst
+          ? 'I caught that, and I will keep it plain.'
+          : 'I caught that.',
+      ])),
       ...createMindSurfaceReplyPart('offer', `Keep talking if you want, or hand me something concrete to do.`),
     ]
   }
@@ -1399,7 +1420,7 @@ function renderPlainDialogueMove(move: AlicizationMindSurfaceDialogueMove, conte
           dialogueVoice.direct
             ? `行，${focus} 这句我认真回你。`
             : dialogueVoice.quietCompanionship || dialogueVoice.tender
-              ? `${focus} 这句我在，你慢一点说也可以。`
+              ? `${focus} 这句我会慢一点接，你慢一点说也可以。`
               : `${focus} 这句我收到了。`,
           dialogueVoice.playful
             ? `${focus} 这句一下就戳过来了，我会认真回。`
@@ -1412,13 +1433,13 @@ function renderPlainDialogueMove(move: AlicizationMindSurfaceDialogueMove, conte
           dialogueVoice.direct
             ? '说吧，我不躲。'
             : dialogueVoice.quietCompanionship || dialogueVoice.tender
-              ? '嗯，我在，你慢一点也可以。'
-              : '我在听。',
+              ? '嗯，我听着，你慢一点也可以。'
+              : '我听着。',
           dialogueVoice.playful
             ? '来，别兜圈，直接给我。'
-            : '嗯，我在。',
+            : '嗯，我听着。',
           dialogueVoice.truthFirst
-            ? '好，我在，不拿漂亮话盖你。'
+            ? '好，我听着，不拿漂亮话盖你。'
             : '好，我听着。',
         ])
     const offerVariants = focus
@@ -1457,10 +1478,10 @@ function renderPlainDialogueMove(move: AlicizationMindSurfaceDialogueMove, conte
 
   const presence = focus
     ? pickVariant(buildVariantSeed(seed, 'dialogue-plain', 'focus', focus, dialogueVoice.direct, dialogueVoice.quietCompanionship), [
-        dialogueVoice.direct
-          ? `All right. I have ${focus}.`
-          : dialogueVoice.quietCompanionship || dialogueVoice.tender
-            ? `I'm here with ${focus}; you don't have to rush it.`
+      dialogueVoice.direct
+        ? `All right. I have ${focus}.`
+        : dialogueVoice.quietCompanionship || dialogueVoice.tender
+            ? `I'm with ${focus}; you don't have to rush it.`
             : `I caught ${focus}.`,
         dialogueVoice.playful
           ? `${focus} came straight at me; I'm holding it.`
@@ -1470,17 +1491,17 @@ function renderPlainDialogueMove(move: AlicizationMindSurfaceDialogueMove, conte
           : `All right, I have ${focus}.`,
       ])
     : pickVariant(buildVariantSeed(seed, 'dialogue-plain', 'presence', dialogueVoice.direct, dialogueVoice.tender), [
-        dialogueVoice.direct
-          ? `Say it. I'm not dodging.`
-          : dialogueVoice.quietCompanionship || dialogueVoice.tender
-            ? `I'm here. You can take it slowly.`
+      dialogueVoice.direct
+        ? `Say it. I'm not dodging.`
+        : dialogueVoice.quietCompanionship || dialogueVoice.tender
+            ? `I'm listening. You can take it slowly.`
             : `I'm listening.`,
         dialogueVoice.playful
           ? `Come on, don't circle it. Just give it to me straight.`
           : `All right, I'm with you.`,
-        dialogueVoice.truthFirst
-          ? `I'm here, and I'm not going to cover this with pretty filler.`
-          : `I'm here.`,
+      dialogueVoice.truthFirst
+          ? `I'm listening, and I'm not going to cover this with pretty filler.`
+          : `I'm listening.`,
       ])
   const offer = focus
     ? pickVariant(buildVariantSeed(seed, 'dialogue-plain', 'offer', focus, dialogueVoice.truthFirst, dialogueVoice.quietCompanionship), [
@@ -1558,8 +1579,8 @@ function renderHostEmotionDialogueMove(move: AlicizationMindSurfaceDialogueMove,
         ? `Then stop forcing yourself to hold it up for a second.`
         : affect === 'stressed'
           ? `Don't tighten around it any further; let me take this part first.`
-          : affect === 'hurt'
-            ? `Then don't carry it alone for a minute. I'm here.`
+        : affect === 'hurt'
+            ? `Then don't carry it alone for a minute. I'll stay with you.`
             : dialogueVoice.quietCompanionship || dialogueVoice.tender
               ? `...Come a little closer. I'll catch this part first.`
               : `Then don't force yourself to hold it all up; I'll take this part first.`,

@@ -200,6 +200,7 @@ export interface AlicizationOrganicMemoryPreludeResolution {
   personStateProjection: OrganicMemoryPromptContext['personStateProjection'] | null
   digitalLifeRuntimeSurface: AlicizationDigitalLifeRuntimeSurface | null
   memoryClosureExecution: AlicizationExecutionRuntimeMemoryClosureExecution | null
+  skipProviderRecollectionPlanning?: boolean
 }
 
 export interface AlicizationOrganicMemoryCandidateResolution {

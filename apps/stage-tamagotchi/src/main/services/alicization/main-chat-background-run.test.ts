@@ -3903,7 +3903,7 @@ describe('main chat background run', () => {
     expect(finishedStructured.preDialogueClosure?.status).toBe('partial')
   })
 
-  it('serves simple greeting turns through compact provider-mind path instead of the full main stream', async () => {
+  it('keeps simple greeting turns on the main stream instead of spending a compact one-shot preflight', async () => {
     vi.mocked(runAlicizationMainChatStream).mockResolvedValueOnce(createStreamResult({
       fullText: '你好。今天想从哪件事开始？',
     }))
@@ -3928,8 +3928,8 @@ describe('main chat background run', () => {
 
     await runAlicizationMainChatBackground(input)
 
-    expect(runAlicizationMainChatStream).not.toHaveBeenCalled()
-    expect(recoverAlicizationMainChatFromTimeout).toHaveBeenCalledTimes(1)
+    expect(runAlicizationMainChatStream).toHaveBeenCalledTimes(1)
+    expect(recoverAlicizationMainChatFromTimeout).not.toHaveBeenCalled()
     const finishedPayload = readFinishedPayload(input)
     const finishedStructured = parseStructuredMindTurn(String(finishedPayload?.fullText ?? '{}')) as ReturnType<typeof parseStructuredMindTurn> & {
       projectState?: {
@@ -3943,30 +3943,20 @@ describe('main chat background run', () => {
     }
     expect(finishedPayload).toEqual(expect.objectContaining({
       status: 'completed',
-      finishReason: 'active-dialogue-fast-path',
+      finishReason: 'stop',
       fullText: expect.any(String),
-      visibleReplyExecution: expect.objectContaining({
-        actualVisibleReplyAuthority: 'llm-mind',
-        mode: 'provider-one-shot',
-        providerMindExecuted: true,
-      }),
     }))
-    expect(finishedStructured.reply).toBeTruthy()
-    expect(String(finishedStructured.reply ?? '')).not.toMatch(/同一条线|守着你的专注|不当成重新开始/u)
+    expect(finishedStructured.reply).toBe('你好。今天想从哪件事开始？')
     expect(finishedStructured.projectState?.identity).toContain('local-first digital life project')
     expect(finishedStructured.preDialogueClosure?.status).toBe('partial')
     const runtimeEvents = vi.mocked(input.appendRuntimeDebugLine).mock.calls.map(([event]) => event)
-    expect(runtimeEvents).not.toContain('chat-stream.active-dialogue-deferred-to-main-runtime')
-    expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.active-dialogue-lane-selected', expect.objectContaining({
+    expect(runtimeEvents).not.toContain('chat-stream.active-dialogue-lane-selected')
+    expect(runtimeEvents).not.toContain('chat-stream.active-dialogue-mind-started')
+    expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.active-dialogue-deferred-to-main-runtime', expect.objectContaining({
       cardId: 'card-1',
       turnId: 'turn-greeting',
       lane: 'greeting',
       strategy: 'compact-one-shot',
-    }))
-    expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.active-dialogue-mind-started', expect.objectContaining({
-      cardId: 'card-1',
-      turnId: 'turn-greeting',
-      lane: 'greeting',
     }))
   })
 
@@ -6600,16 +6590,16 @@ describe('main chat background run', () => {
     }))
   })
 
-  it('keeps greeting turns on compact provider-mind instead of deferring to the full main runtime', async () => {
+  it('defers greeting turns to the full main runtime before any compact one-shot path runs', async () => {
     vi.mocked(runAlicizationMainChatStream).mockResolvedValueOnce(createStreamResult({
       fullText: '你好。今天想从哪件事开始？',
     }))
 
     const input = createInput({
-      key: 'card-1::turn-greeting-compact',
+      key: 'card-1::turn-greeting-stream',
       payload: {
         cardId: 'card-1',
-        turnId: 'turn-greeting-compact',
+        turnId: 'turn-greeting-stream',
         providerId: 'openai',
         model: 'gpt-test',
         providerConfig: {},
@@ -6626,20 +6616,16 @@ describe('main chat background run', () => {
 
     await runAlicizationMainChatBackground(input)
 
-    expect(recoverAlicizationMainChatFromTimeout).toHaveBeenCalledTimes(1)
-    expect(runAlicizationMainChatStream).not.toHaveBeenCalled()
+    expect(recoverAlicizationMainChatFromTimeout).not.toHaveBeenCalled()
+    expect(runAlicizationMainChatStream).toHaveBeenCalledTimes(1)
     const runtimeEvents = vi.mocked(input.appendRuntimeDebugLine).mock.calls.map(([event]) => event)
-    expect(runtimeEvents).not.toContain('chat-stream.active-dialogue-deferred-to-main-runtime')
-    expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.active-dialogue-lane-selected', expect.objectContaining({
+    expect(runtimeEvents).not.toContain('chat-stream.active-dialogue-lane-selected')
+    expect(runtimeEvents).not.toContain('chat-stream.active-dialogue-mind-started')
+    expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.active-dialogue-deferred-to-main-runtime', expect.objectContaining({
       cardId: 'card-1',
-      turnId: 'turn-greeting-compact',
+      turnId: 'turn-greeting-stream',
       lane: 'greeting',
       strategy: 'compact-one-shot',
-    }))
-    expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.active-dialogue-mind-started', expect.objectContaining({
-      cardId: 'card-1',
-      turnId: 'turn-greeting-compact',
-      lane: 'greeting',
     }))
     const finishedPayload = readFinishedPayload(input)
     const finishedStructured = JSON.parse(String(finishedPayload?.fullText ?? '{}')) as ReturnType<typeof parseStructuredMindTurn> & {
@@ -6658,16 +6644,10 @@ describe('main chat background run', () => {
     const canonicalProjectState = resolveAlicizationProjectStateBrief()
     expect(finishedPayload).toEqual(expect.objectContaining({
       status: 'completed',
-      finishReason: 'active-dialogue-fast-path',
+      finishReason: 'stop',
       fullText: expect.any(String),
-      visibleReplyExecution: expect.objectContaining({
-        actualVisibleReplyAuthority: 'llm-mind',
-        mode: 'provider-one-shot',
-        providerMindExecuted: true,
-      }),
     }))
-    expect(finishedStructured.reply).toBeTruthy()
-    expect(String(finishedStructured.reply ?? '')).not.toMatch(/同一条线|守着你的专注|不当成重新开始/u)
+    expect(finishedStructured.reply).toBe('你好。今天想从哪件事开始？')
     expect(String(finishedStructured.projectState?.identity ?? '')).toContain('local-first digital life project')
     expect(String(finishedStructured.projectState?.currentPhase ?? '')).toContain('Phase 1')
     expect(String(finishedStructured.projectState?.latestLandedProgress ?? '')).toMatch(/same-her|same session|same-session|continuity|measured-return/i)

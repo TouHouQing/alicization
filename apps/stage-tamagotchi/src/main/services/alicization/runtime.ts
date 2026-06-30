@@ -5154,7 +5154,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
 
     const performanceManifest = await getPerformanceManifest()
     const governedTurn = coerceConversationTurnToMindGovernedPayload(normalizedPayload, performanceManifest, {
-      visibleReplyOverrideMode: 'compat-visible',
+      visibleReplyOverrideMode: 'rewrite-request-only',
       currentConsciousFrame: visualPresenceStateByCard.get(activeCardId)?.currentConsciousFrame ?? null,
     })
     normalizedPayload = {

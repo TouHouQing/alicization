@@ -204,7 +204,7 @@ describe('buildMindGovernedFallbackSurface', () => {
     expect(result?.reply).not.toContain('Reground on the fresh view.')
   })
 
-  it('does not surface internal carried-thread or governance-planning text', () => {
+  it('does not author dialogue-first accompany text from internal carried-thread or governance-planning text', () => {
     const governance = createGovernance({
       turnMode: 'accompany',
       answerAct: 'answer',
@@ -219,10 +219,7 @@ describe('buildMindGovernedFallbackSurface', () => {
       translate: t,
     })
 
-    expect(result).not.toBeNull()
-    expect(result?.reply).toContain('Accompany:')
-    expect(result?.reply).not.toContain('There is a real care need')
-    expect(result?.reply).not.toContain('relational position')
+    expect(result).toBeNull()
     expect(replyLeaksGovernedMindSurface(
       'Answer: The turn is asking for Alicization’s relational position, not a detached explanation.',
       governance,
@@ -230,7 +227,7 @@ describe('buildMindGovernedFallbackSurface', () => {
     )).toBe(true)
   })
 
-  it('does not parrot the raw host line when the governed fallback repairs a care turn', () => {
+  it('does not author dialogue-first care text locally', () => {
     const result = buildMindGovernedFallbackSurface({
       governance: createGovernance({
         turnMode: 'care',
@@ -245,10 +242,7 @@ describe('buildMindGovernedFallbackSurface', () => {
       translate: t,
     })
 
-    expect(result).not.toBeNull()
-    expect(result?.reply).toContain('I am here with you')
-    expect(result?.reply).not.toContain('我有点困了')
-    expect(result?.reply).not.toContain('哄我睡觉')
+    expect(result).toBeNull()
   })
 
   it('does not author ordinary dialogue-first answer turns locally', () => {
@@ -297,7 +291,7 @@ describe('buildMindGovernedFallbackSurface', () => {
     expect(result?.reply.match(/GitHub Markdown doc for AI assistant module dev spec/gi)?.length).toBe(1)
   })
 
-  it('suppresses dialogue-first meta anchors and shell traces', () => {
+  it('does not author dialogue-first meta-anchor repairs locally', () => {
     const result = buildMindGovernedFallbackSurface({
       governance: createGovernance({
         turnMode: 'accompany',
@@ -311,10 +305,7 @@ describe('buildMindGovernedFallbackSurface', () => {
       translate: t,
     })
 
-    expect(result).not.toBeNull()
-    expect(result?.reply).toContain('I heard this clearly.')
-    expect(result?.reply).not.toContain('Code | Code | general unknown')
-    expect(result?.reply).not.toContain('The host is turning the dialogue back')
+    expect(result).toBeNull()
   })
 
   it('marks concrete scene replies as coherent on explicit repair turns', () => {

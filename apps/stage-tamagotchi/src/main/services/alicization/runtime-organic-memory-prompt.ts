@@ -1049,6 +1049,33 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
     }
     return result
   }
+
+  function looksLikeOrdinaryGreetingMemoryFastLane(input: {
+    recallSeed?: string | null
+    recollectionIntent?: OrganicMemoryPromptContext['recollectionIntent'] | null
+  }) {
+    const seed = (sanitizeOrganicProjectStateText(input.recallSeed ?? '', 220) ?? '').toLowerCase()
+    const intent = input.recollectionIntent
+    const queryText = [
+      ...(intent?.queryHints ?? []),
+      intent?.rationale ?? '',
+      intent?.recollectionAgenda?.whyRecallNow ?? '',
+    ].join(' ').toLowerCase()
+    const combined = `${seed} ${queryText}`
+    const compactSeed = seed.replace(/(?:^|\s\|\s)[a-z][a-z0-9_-]*:/gu, ' ').replace(/[\s。！？!?,，、.．~～…]+/gu, '')
+
+    const ordinaryGreeting = /(?:^|[:\s|])(?:你好|您好|嗨|哈喽|哈啰|在吗|你在吗|还在吗|你还在吗|我来了|早安|早上好|中午好|下午好|晚上好|晚安|hi|hey|hello|good morning|good afternoon|good evening|good night)(?:$|[\s|。！？!?,，、.．~～…])/iu.test(combined)
+      || /^(?:dialogue)?(?:你好|您好|嗨|哈喽|哈啰|在吗|你在吗|还在吗|你还在吗|我来了|早安|早上好|中午好|下午好|晚上好|晚安|hi|hey|hello|goodmorning|goodafternoon|goodevening|goodnight)$/iu.test(compactSeed)
+
+    if (!ordinaryGreeting)
+      return false
+
+    if (intent && intent.mode !== 'none' && intent.mode !== 'conversation-history' && intent.mode !== 'relationship-history')
+      return false
+
+    return !/project|phase\s*1|phase1|digital life|same-her|execution|callback|memory closure|recollection|recall|remember|previous|screen|inspect|verify|repair|code|file|class|项目|阶段|数字生命|同一条线|执行|回调|记忆闭环|回忆|记得|之前|上次|屏幕|检查|修复|代码|文件/u.test(combined)
+  }
+
   async function resolveOrganicMemoryPrelude(input: {
     recallSeed?: string
     recallGovernor?: AlicizationRecallGovernorSnapshot | null
@@ -1170,6 +1197,10 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
       personStateProjection: projectedPersonStateProjection,
       digitalLifeRuntimeSurface: input.digitalLifeRuntimeSurface ?? null,
       memoryClosureExecution,
+      skipProviderRecollectionPlanning: looksLikeOrdinaryGreetingMemoryFastLane({
+        recallSeed: prelude.recallSeed,
+        recollectionIntent: prelude.activeRecollectionIntent ?? prelude.recollectionIntent ?? null,
+      }),
     }
   }
 
@@ -1293,6 +1324,7 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
       personStateProjection,
       digitalLifeRuntimeSurface,
       memoryClosureExecution,
+      skipProviderRecollectionPlanning,
     } = prelude
     const {
       projectStatePreflightSummary,
@@ -1351,6 +1383,7 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
       resolveRecollectionPlanSearch,
       recordMemoryPlannerLatency,
       recordMemorySpeechPlanLatency,
+      skipProviderPlanning: skipProviderRecollectionPlanning === true,
     })
     void recordOrganicMemoryStageLatency?.({
       stage: 'recollection-planning',

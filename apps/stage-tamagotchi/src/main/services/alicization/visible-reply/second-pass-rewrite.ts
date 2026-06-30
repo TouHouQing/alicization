@@ -1066,6 +1066,110 @@ function buildDialogueShellRewriteGuidance(input: {
   ].join('\n')
 }
 
+function looksLikeSimpleGreetingOrPresenceTurn(value: string | null | undefined) {
+  const normalized = sanitizeBoundedText(value, 80).trim().toLowerCase()
+  if (!normalized)
+    return false
+
+  const compact = normalized.replace(/[\s。！？!?,，、.．~～…]+/gu, '')
+  if (!compact || compact.length > 24)
+    return false
+
+  return /^(?:你好|您好|嗨|哈喽|哈啰|在吗|你在吗|还在吗|你还在吗|我来了|早|早安|早上好|中午好|下午好|晚上好|晚安|hi|hey|hello|goodmorning|goodafternoon|goodevening|goodnight)$/iu.test(compact)
+}
+
+function containsProjectStateVisibleIntent(value: string | null | undefined) {
+  const normalized = sanitizeBoundedText(value, 240).toLowerCase()
+  if (!normalized)
+    return false
+
+  return /alicization|project|phase\s*1|phase1|local-first|digital life|same-her|same her|same living line|same digital-life line|项目|阶段|第一阶段|数字生命|本地数字生命|同一个她|同一个 her|同一条线|连续性|闭环|做到哪|进度|还差什么/u.test(normalized)
+}
+
+function looksLikeSecondPassDecorativePersonaShell(value: unknown) {
+  const text = sanitizeBoundedText(value, 500)
+  if (!text)
+    return false
+
+  return /主人|亲爱的|宝贝|呜|唔|嗯……|……$|\([^)]*(?:动作|靠近|眨眼|微笑|低头)[^)]*\)/u.test(text)
+}
+
+function reasonCodeNeedsVisibleContinuityOrProjectRepair(reasonCode: string) {
+  return reasonCode.startsWith('semantic-judge:project-state-')
+    || reasonCode.startsWith('semantic-judge:continuity-')
+    || reasonCode.startsWith('semantic-judge:memory-')
+    || reasonCode.startsWith('visible-memory-gate-violation:')
+    || reasonCode.includes('execution')
+    || reasonCode.includes('callback')
+    || reasonCode.includes('autonomy')
+    || reasonCode.includes('opening-guidance')
+    || reasonCode.includes('same-thread-restart-shell')
+    || reasonCode === 'held-autonomy-opening-shell'
+    || reasonCode === 'mind-contract-not-closed'
+}
+
+function shouldUseNaturalPersonhoodTemplateRepair(input: {
+  userText: string
+  reasonCodes: string[]
+  originalReply: unknown
+}) {
+  if (!looksLikeSimpleGreetingOrPresenceTurn(input.userText))
+    return false
+  if (containsProjectStateVisibleIntent(input.userText))
+    return false
+  if (input.reasonCodes.some(reasonCodeNeedsVisibleContinuityOrProjectRepair))
+    return false
+
+  return input.reasonCodes.includes('decorative-persona-template')
+    || input.reasonCodes.includes('dialogue-shell-opener')
+    || looksLikeSecondPassDecorativePersonaShell(input.originalReply)
+}
+
+function buildNaturalPersonhoodTemplateRepairGuidance(input: {
+  enabled: boolean
+}) {
+  if (!input.enabled)
+    return '(none)'
+
+  return [
+    'This is ordinary dialogue/template repair, not a project-state answer.',
+    'The project-state and same-her continuity are internal context for this repair; keep them as self-consistency and audit context, not visible wording.',
+    'Do not force project-state phrases into reply: same-her, same living line, 同一条线, 本地数字生命, Phase 1, project.',
+    'Do not produce a fixed availability slogan. The provider must choose fresh wording in Alicization\'s own natural voice for the current Host text.',
+    'Keep the visible reply brief, present, and personal; no pet names, roleplay stage directions, project recap, roadmap recap, or continuity slogan.',
+  ].join('\n')
+}
+
+function buildNaturalPersonhoodTemplateRepairProjectStatePrompt(projectState: ReturnType<typeof resolveSecondPassProjectState>) {
+  return {
+    contextUse: 'internal-audit-only',
+    visibleReplyBoundary: 'Ordinary greeting/presence repair: do not turn project continuity into visible slogan text.',
+    identityHint: 'same Alicization mind',
+    currentTurn: 'natural current-turn reply',
+    auditContinuity: Boolean(projectState.identity || projectState.sameHerSelfLine),
+  }
+}
+
+function buildNaturalPersonhoodTemplateRepairDashboardPrompt() {
+  return [
+    '[ALICIZATION_INTERNAL_CONTINUITY_AUDIT_BOUNDARY]',
+    'Project-state closure remains available only as internal audit context for this ordinary dialogue/template repair.',
+    'Do not summarize, quote, or paraphrase project progress, phase, same-her continuity, closure targets, or dashboard language in the visible reply.',
+  ].join('\n')
+}
+
+function buildNaturalPersonhoodTemplateRepairContractPrompt(input: {
+  governance: AlicizationMindTurnGovernance | null
+}) {
+  return {
+    mode: 'ordinary-dialogue-template-repair',
+    answerIntent: input.governance?.answerIntent ?? null,
+    openingMove: input.governance?.openingMove ?? null,
+    focusAnchor: input.governance?.focusAnchor ?? null,
+    visibleReplyBoundary: 'Fresh Alicization voice for this current turn; no fixed shell and no project-state slogan.',
+  }
+}
+
 function looksLikeResumeConfirmationBoundaryHoldDetail(value: string | null | undefined) {
   const normalized = sanitizeBoundedText(value, 360).toLowerCase()
   if (!normalized)
@@ -1357,6 +1461,12 @@ function buildSecondPassRewriteMessages(input: {
 }) {
   const rewriteRequest = normalizeVisibleReplyRewriteRequest(input.governedStructured.visibleReplyRewriteRequest)
   const governance = input.governance
+  const rewriteReasonCodes = rewriteRequest?.reasonCodes ?? []
+  const naturalPersonhoodTemplateRepair = shouldUseNaturalPersonhoodTemplateRepair({
+    userText: input.userText,
+    reasonCodes: rewriteReasonCodes,
+    originalReply: input.originalStructured.reply,
+  })
   const projectState = resolveSecondPassProjectState({
     prepared: input.prepared,
   })
@@ -1364,21 +1474,24 @@ function buildSecondPassRewriteMessages(input: {
     prepared: input.prepared,
     projectState,
   })
-  const canonicalProjectStateSystemMessages = buildSecondPassCanonicalProjectStateSystemMessages({
-    projectState,
-    continuityFields: projectStateContinuityFields,
-  })
+  const canonicalProjectStateSystemMessages = naturalPersonhoodTemplateRepair
+    ? []
+    : buildSecondPassCanonicalProjectStateSystemMessages({
+        projectState,
+        continuityFields: projectStateContinuityFields,
+      })
   const projectStateBrief = resolveAlicizationProjectStateBrief()
-  const projectStateClosureDashboard = buildAlicizationProjectStateClosureDashboard({
-    brief: {
-      ...projectStateBrief,
-      currentPhase: projectState.currentPhase,
-      continuityProgressSummary: projectState.latestLandedProgress ?? projectStateBrief.continuityProgressSummary,
-      openLoops: projectState.primaryOpenLoop ? [projectState.primaryOpenLoop] : projectStateBrief.openLoops,
-      nextClosureTarget: projectState.nextClosureTarget,
-    },
-  })
-  const rewriteReasonCodes = rewriteRequest?.reasonCodes ?? []
+  const projectStateClosureDashboard = naturalPersonhoodTemplateRepair
+    ? buildNaturalPersonhoodTemplateRepairDashboardPrompt()
+    : buildAlicizationProjectStateClosureDashboard({
+        brief: {
+          ...projectStateBrief,
+          currentPhase: projectState.currentPhase,
+          continuityProgressSummary: projectState.latestLandedProgress ?? projectStateBrief.continuityProgressSummary,
+          openLoops: projectState.primaryOpenLoop ? [projectState.primaryOpenLoop] : projectStateBrief.openLoops,
+          nextClosureTarget: projectState.nextClosureTarget,
+        },
+      })
   const inwardOnlyMemoryGateRewriteRequired = rewriteReasonCodes.includes('visible-memory-gate-violation:inward-only')
   const hasRoomFirstViolation = rewriteReasonCodes.includes('execution-callback-room-first-violation')
   const openingGuidanceBlockedReason = buildAlicizationOpeningGuidanceBlockedReason(
@@ -1419,10 +1532,13 @@ function buildSecondPassRewriteMessages(input: {
     rewriteRequest,
     governance,
   })
-  const executionCallbackEmbodimentHandoff = resolveExecutionCallbackEmbodimentHandoffForRewrite({
-    prepared: input.prepared,
-    rewriteRequest,
-  })
+  const visibleSameThreadContinuationRewriteGuidanceRequired = sameThreadContinuationRewriteGuidanceRequired && !naturalPersonhoodTemplateRepair
+  const executionCallbackEmbodimentHandoff = naturalPersonhoodTemplateRepair
+    ? null
+    : resolveExecutionCallbackEmbodimentHandoffForRewrite({
+        prepared: input.prepared,
+        rewriteRequest,
+      })
   const projectStateReasonCodes = rewriteRequest?.reasonCodes ?? []
   const projectStateAudit
     = readStructuredProjectStateAudit(input.originalStructured)
@@ -1560,29 +1676,33 @@ function buildSecondPassRewriteMessages(input: {
     input.userText || '(empty)',
     '',
     '[ALICIZATION_PROJECT_STATE]',
-    safeJson({
-      identity: projectState.identity,
-      currentPhase: projectState.currentPhase,
-      latestLandedProgress: projectState.latestLandedProgress,
-      primaryOpenLoop: projectState.primaryOpenLoop,
-      nextClosureTarget: projectState.nextClosureTarget,
-      sameHerSelfLine: projectState.sameHerSelfLine,
-      ...(projectState.companionHeadlineLine
-        ? { companionHeadlineLine: projectState.companionHeadlineLine }
-        : {}),
-      ...(projectState.companionBriefingLine
-        ? { companionBriefingLine: projectState.companionBriefingLine }
-        : {}),
-      ...(projectStateContinuityFields.sameHerHoldDetail
-        ? { sameHerHoldDetail: projectStateContinuityFields.sameHerHoldDetail }
-        : {}),
-      ...(projectStateContinuityFields.continuityArcStage
-        ? { continuityArcStage: projectStateContinuityFields.continuityArcStage }
-        : {}),
-      ...(projectStateContinuityFields.continuityCue
-        ? { continuityCue: projectStateContinuityFields.continuityCue }
-        : {}),
-    }),
+    safeJson(
+      naturalPersonhoodTemplateRepair
+        ? buildNaturalPersonhoodTemplateRepairProjectStatePrompt(projectState)
+        : {
+            identity: projectState.identity,
+            currentPhase: projectState.currentPhase,
+            latestLandedProgress: projectState.latestLandedProgress,
+            primaryOpenLoop: projectState.primaryOpenLoop,
+            nextClosureTarget: projectState.nextClosureTarget,
+            sameHerSelfLine: projectState.sameHerSelfLine,
+            ...(projectState.companionHeadlineLine
+              ? { companionHeadlineLine: projectState.companionHeadlineLine }
+              : {}),
+            ...(projectState.companionBriefingLine
+              ? { companionBriefingLine: projectState.companionBriefingLine }
+              : {}),
+            ...(projectStateContinuityFields.sameHerHoldDetail
+              ? { sameHerHoldDetail: projectStateContinuityFields.sameHerHoldDetail }
+              : {}),
+            ...(projectStateContinuityFields.continuityArcStage
+              ? { continuityArcStage: projectStateContinuityFields.continuityArcStage }
+              : {}),
+            ...(projectStateContinuityFields.continuityCue
+              ? { continuityCue: projectStateContinuityFields.continuityCue }
+              : {}),
+          },
+    ),
     '',
     projectStateClosureDashboard,
     '',
@@ -1610,6 +1730,11 @@ function buildSecondPassRewriteMessages(input: {
     '[REWRITE_REQUEST]',
     safeJson(rewriteRequest),
     '',
+    '[VISIBLE_REPLY_NATURAL_PERSONHOOD_GUIDANCE]',
+    buildNaturalPersonhoodTemplateRepairGuidance({
+      enabled: naturalPersonhoodTemplateRepair,
+    }),
+    '',
     '[MEMORY_GATE_REWRITE_GUIDANCE]',
     inwardOnlyMemoryGateRewriteRequired
       ? [
@@ -1636,7 +1761,7 @@ function buildSecondPassRewriteMessages(input: {
       : '(none)',
     '',
     '[SAME_THREAD_CONTINUATION_REWRITE_GUIDANCE]',
-    sameThreadContinuationRewriteGuidanceRequired
+    visibleSameThreadContinuationRewriteGuidanceRequired
       ? [
           'This turn is already on the same living line and should not be reopened from zero.',
           'Do not rewrite it as a restart, a new greeting, or a fresh approach.',
@@ -1666,7 +1791,7 @@ function buildSecondPassRewriteMessages(input: {
     buildProjectStateRewriteGuidance({
       projectStateRewriteRequired,
       projectStateSameHerRewriteRequired,
-      sameThreadContinuationRewriteGuidanceRequired,
+      sameThreadContinuationRewriteGuidanceRequired: visibleSameThreadContinuationRewriteGuidanceRequired,
       sameHerProjectFollowThroughRewrite,
       projectStateAnswerStancePreserveLine,
       projectStateSameHerSelfLine: projectState.sameHerSelfLine,
@@ -1732,7 +1857,13 @@ function buildSecondPassRewriteMessages(input: {
       : '(none)',
     '',
     '[MIND_TURN_CONTRACT]',
-    safeJson(input.prepared.mindTurnContract ?? null),
+    safeJson(
+      naturalPersonhoodTemplateRepair
+        ? buildNaturalPersonhoodTemplateRepairContractPrompt({
+            governance,
+          })
+        : input.prepared.mindTurnContract ?? null,
+    ),
     '',
     '[RESPONSE_SURFACE_AUTHORITY]',
     safeJson({

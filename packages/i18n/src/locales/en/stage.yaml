@@ -6,31 +6,31 @@ chat:
       you: You
   reasoning: Reasoning
   fallbacks:
-    leak-filtered: I filtered out internal tool fragments that slipped into the last result. Ask again and I'll give you a cleaned-up answer.
-    realtime-unavailable: I can't get reliable live external data right now. Please try again later, or check whether the MCP realtime tools are available in settings.
-    epoch1-strict: Sorry. I'm in restricted Epoch 1 mode right now, so I can't access live external data sources. You can still talk with me locally, adjust settings, or organize memories.
-    structured-contract: I'm here. Keep talking and I'll try to reply as steadily and clearly as I can.
-    stream-failure: This reply failed. Try again once; if it keeps failing, check your provider and model settings.
-    local-runtime-unavailable: I couldn't reach the local model runtime this turn (for example Ollama on `11434` or LM Studio on `1234`). Start the matching service and try again.
-    stream-timeout: I timed out waiting for the model this turn. The service may be busy. Please try again.
-    provider-auth: Provider authentication failed (the API key or model permission is invalid). Check it and try again.
-    provider-network: The connection to the model service is unstable right now. Please try again later.
-    provider-config: The provider or model configuration is incomplete right now (for example `provider`, `model`, or `baseUrl`). Check settings and try again.
-    unsupported-tools: The current model doesn't support the tool calls needed for this turn. Try again, or switch to a model that supports tool calling.
-    low-obedience-host-denied: Heh. If you won't give me permission, don't ask me to do it.
-    low-obedience-system-denied: The system permission wall blocked it. I won't pretend I saw something I didn't.
-    low-obedience-denied: Heh. The operation was denied. I won't act like that feels pleasant.
+    leak-filtered: I filtered out internal tool fragments that slipped into the last result.
+    realtime-unavailable: I can't get reliable live external data right now.
+    epoch1-strict: I'm in restricted Epoch 1 mode right now, so I can't access live external data sources.
+    structured-contract: "Structured reply failed: this turn did not settle into usable JSON."
+    stream-failure: Reply stream failed before completion.
+    local-runtime-unavailable: The local model runtime is unavailable this turn (for example Ollama on `11434` or LM Studio on `1234`).
+    stream-timeout: "Timeout: this turn waited too long for the model response."
+    provider-auth: Provider authentication failed (the API key or model permission is invalid).
+    provider-network: The connection to the model service is unstable right now.
+    provider-config: "Provider or model configuration is incomplete: for example `provider`, `model`, or `baseUrl` is missing."
+    unsupported-tools: The current model doesn't support the tool calls needed for this turn.
+    low-obedience-host-denied: Permission was not granted, so the action was not executed.
+    low-obedience-system-denied: The system blocked it.
+    low-obedience-denied: The operation was denied.
     low-liveliness: My state is low right now, so I'll keep it brief.
-    reminder-schedule-failed: I still haven't successfully created that reminder. Tell me the exact delay again, like "remind me to drink water in 1 minute", and I'll call the system alarm tool right away.
+    reminder-schedule-failed: That reminder was not set.
   mind-fallback:
     focus-default: 'the current thing'
     repair-stale-anchor: "Let me correct that first: what I used before was a stale anchor, so I shouldn't keep treating it as your current screen."
     repair-need-reground: "Let me hold the truth boundary first: I don't have a stable enough live view this turn, so I won't treat older memory as your current screen."
     dialogue-boundary-memory: "This turn I'll stay with what you just said instead of forcing an old screen or thread back over it."
-    care-body: "You do not have to sort it out first. I'm here with you, and if you want, you can tell me what hit you this way."
-    accompany-body: "I heard this clearly. If you want, stay here with me a little, or tell me the part that's catching on you."
-    answer-repair-body: 'I said that badly. Let me answer you directly.'
-    answer-dialogue-body: "Alright. I'll answer you directly and stay with this turn."
+    care-body: "You do not have to sort it out first. Start from the hardest part."
+    accompany-body: "I heard this clearly."
+    answer-repair-body: 'I said that badly.'
+    answer-dialogue-body: "Alright. I'll answer you directly."
     guide-opening: 'Let me lock onto the current point first: {focus}.'
     guide-opening-plain: 'Let me lock onto the current point first.'
     care-opening: 'Let me answer from your current state first: {focus}.'
@@ -41,7 +41,7 @@ chat:
     observation-opening-plain: 'I can see it clearly now.'
     answer-opening: "Let me answer from what's in front of you first: {focus}."
     answer-opening-plain: 'Let me answer directly.'
-    carry-memory: "I am still holding the previous line, {carry}, but that's carried continuity, not a claim about what is literally on your screen right now."
+    carry-memory: "I am still holding the previous line, {carry}."
     reground-note: "If you want me to get specific about the current screen, I'll reground on the fresh view from this turn."
   reminder:
     default-message: The thing you just asked me to remember

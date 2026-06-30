@@ -306,7 +306,7 @@ const projectStateGoalClosurePattern = /goal|目标|闭环|收口|收住|完成|
 const projectStateReadinessQualifierPattern = /还差哪步|还差什么|哪步才能算|什么时候算|什么时候能|什么时候完成|何时完成|计划什么时候完成|why are you replying in english|replying in english|是不是偏移了|偏移了吗|can\s+it|is\s+it\s+ready|ready|能不能|可以吗/iu
 const projectStateLanguageDriftPattern = /为什么(?:一直|还)?用英文(?:不用中文)?|为什么(?:一直|还)?不用中文|为什么还用英文|英文不用中文|reply(?:ing)? in english|use english instead of chinese|why are you replying in english|why are you using english|是不是偏移了|偏移了吗|did the thread drift|thread drift|out of alignment|跑偏了/iu
 const runtimeMetaLeakPattern = /provider|baseurl|main-gateway|timeout|timed out|stream|recovery|首段回复|首包|当前提供方或模型配置不完整|我先守住真实边界|旧锚点|重新落地|继续还是执行下一步|旧线硬接|实时画面依据|基于当前屏幕给出细节/iu
-const legacyTemplateShellPattern = /要是还是.+?(?:那条线|那件事)|你现在想聊什么，或者想让我做什么|你想继续聊，还是想让我做点什么|你想继续聊，还是想让我立刻动手|这一轮你想开哪个点|我贴着这一轮往下接|我就沿.+?往下|贴着.+?往下说|(?:好，)?我就直接接(?:「.+?」)?|我不把话题滑开|我不拿别的壳盖住它|这条线还连着|我可以直接续|我就正面回你|我听见你了|这句我收到了|你要是想往深里说，就从这点继续|上一条线的余温|If you want to keep going with|The previous line is still warm in my head|Then I'll answer you directly\.|I'll stay with .+? and keep going from there\.|I won't drift away from it\.|I won't turn it into something else\./iu
+const legacyTemplateShellPattern = /要是还是.+?(?:那条线|那件事)|你现在想聊什么，或者想让我做什么|你想继续聊，还是想让我做点什么|你想继续聊，还是想让我立刻动手|这一轮你想开哪个点|我贴着这一轮往下接|我就沿.+?往下|贴着.+?往下说|(?:好，)?我就直接接(?:「.+?」)?|我不把话题滑开|我不拿别的壳盖住它|这条线还连着|同一条本地数字生命|本地数字生命的线|我先轻一点留在这里|不抢你的节奏|你想说什么，我就接住|我可以直接续|我就正面回你|我听见你了|这句我收到了|你要是想往深里说，就从这点继续|上一条线的余温|If you want to keep going with|same local digital life thread|same digital life line|same living line|same line is still here|The previous line is still warm in my head|Then I'll answer you directly\.|I'll stay with .+? and keep going from there\.|I won't drift away from it\.|I won't turn it into something else\./iu
 const cjkPattern = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u
 const zhWeekdayLabels = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'] as const
 
@@ -2486,58 +2486,6 @@ function buildDecisionLocalMoves(decision: AlicizationActiveDialogueFastPathDeci
   }
 }
 
-function buildMindAuthorityInfraFallbackText(decision: AlicizationActiveDialogueFastPathDecision) {
-  const prefersChinese = countCjkChars(decision.latestUserText) > 0
-  const personaName = resolvePersonaDisplayName(decision.personaKernel)
-  const continuityCue = buildFastPathContinuityCue(decision)
-  const summary = sanitizeText(
-    decision.continuityAnchor
-    || humanizeMirrorSummary(decision.sessionMirror?.executionSummary)
-    || humanizeMirrorSummary(decision.sessionMirror?.dialogueSummary)
-    || humanizeMirrorSummary(decision.runtimeDigest?.activeLoop?.summary),
-    120,
-  )
-
-  switch (decision.lane) {
-    case 'identity':
-      if (prefersChinese) {
-        return decision.reasonCodes.includes('identity-reconfirmation')
-          ? continuityCue.selfLine
-            ? `确认一下，我是${personaName}。${continuityCue.selfLine}`
-            : `确认一下，我是${personaName}。`
-          : continuityCue.selfLine
-            ? `我是${personaName}。${continuityCue.selfLine}`
-            : `我是${personaName}。`
-      }
-      return decision.reasonCodes.includes('identity-reconfirmation')
-        ? continuityCue.selfLine
-          ? `To confirm: I am ${personaName}. ${continuityCue.selfLine}`
-          : `To confirm: I am ${personaName}.`
-        : continuityCue.selfLine
-          ? `I am ${personaName}. ${continuityCue.selfLine}`
-          : `I am ${personaName}.`
-    case 'present-state':
-      if (prefersChinese) {
-        if (summary && continuityCue.selfLine)
-          return `我现在在接 ${summary}。心里还挂着的是：${continuityCue.selfLine}`
-        if (summary)
-          return `我现在在接 ${summary}。`
-        return continuityCue.focusLine
-          ? `我现在就在顺着 ${continuityCue.focusLine} 这条线想。`
-          : '我现在就在回你这句。'
-      }
-      if (summary && continuityCue.selfLine)
-        return `Right now I'm staying with ${summary}. The line still in me is: ${continuityCue.selfLine}`
-      return summary ? `Right now I'm staying with ${summary}.` : continuityCue.focusLine ? `Right now I'm still following ${continuityCue.focusLine}.` : 'Right now I am staying with this turn.'
-    case 'presence-critique':
-      if (prefersChinese)
-        return '对，刚才那句太像系统口气了。我收回来，直接跟你说。'
-      return 'Fair. That line sounded too much like system narration. I am pulling it back and speaking to you directly.'
-    default:
-      return null
-  }
-}
-
 function buildExecutionRecoveryReply() {
   const resolvedTimeZone = resolveAlicizationTimeZoneFromMessages()
   throw new AlicizationActiveDialogueMindAuthorityEscalationError(
@@ -2572,6 +2520,17 @@ export function buildAlicizationActiveDialogueGovernedReply(input: {
     = input.decision.governance?.answerSubject === 'project-state'
       || input.decision.reasonCodes.includes('project-state-progress-open-loop-follow-up')
       || input.decision.reasonCodes.includes('project-state-same-her-continuity-required')
+  const hasExplicitModelReply = Boolean(sanitizeText(input.reply, 320))
+  const hasAllowedDeterministicMoves = allowsDeterministicVisibleReplyMoves(input.moves)
+  if (
+    !hasExplicitModelReply
+    && !hasAllowedDeterministicMoves
+    && !allowsDeterministicVisibleReplyForDecision(input.decision)
+  ) {
+    throw new AlicizationActiveDialogueMindAuthorityEscalationError(
+      `active-dialogue-governed-reply-requires-model-text:${input.decision.lane}`,
+    )
+  }
   const moves = input.moves?.length
     ? input.moves
     : input.reply
@@ -2613,15 +2572,6 @@ function buildDecisionLocalReply(decision: AlicizationActiveDialogueFastPathDeci
       `active-dialogue-local-visible-reply-forbidden:${decision.lane}`,
     )
   }
-  const directInfraFallback = buildMindAuthorityInfraFallbackText(decision)
-  if (directInfraFallback) {
-    return buildAlicizationActiveDialogueGovernedReply({
-      decision,
-      reply: directInfraFallback,
-      suppressGovernedLead: true,
-      visibleReplyAuthority: 'llm-second-pass-rewrite',
-    })
-  }
 
   return buildAlicizationActiveDialogueGovernedReply({
     decision,
@@ -2638,6 +2588,19 @@ function allowsDeterministicVisibleReplyForDecision(
     return false
   return decision.lane === 'utility-time'
     || decision.lane === 'utility-date'
+}
+
+function allowsDeterministicVisibleReplyMove(move: AlicizationMindSurfaceMove) {
+  return move.kind === 'local-time'
+    || move.kind === 'local-date'
+    || move.kind === 'execution-listing'
+    || move.kind === 'execution-detail'
+}
+
+function allowsDeterministicVisibleReplyMoves(moves: readonly AlicizationMindSurfaceMove[] | undefined) {
+  return Array.isArray(moves)
+    && moves.length > 0
+    && moves.every(allowsDeterministicVisibleReplyMove)
 }
 
 function isInfraFallbackOnlyDecision(
@@ -2671,9 +2634,6 @@ export function shouldAlicizationActiveDialogueStayLLMAuthored(
   decision: Pick<AlicizationActiveDialogueFastPathDecision, 'lane' | 'strategy' | 'reasonCodes'>,
 ) {
   if (isInfraFallbackOnlyDecision(decision))
-    return false
-
-  if (decision.lane === 'greeting')
     return false
 
   if (

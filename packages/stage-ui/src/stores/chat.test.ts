@@ -4066,7 +4066,8 @@ describe('chat orchestrator', () => {
     })).resolves.toBeUndefined()
 
     const payload = appendConversationTurnMock.mock.calls.at(-1)?.[0]
-    expect(String(payload?.assistantText ?? '')).toContain('你好，我在')
+    expect(String(payload?.assistantText ?? '')).toContain('超时')
+    expect(String(payload?.assistantText ?? '')).not.toContain('你好，我在')
     expect(String(payload?.assistantText ?? '')).not.toContain('没有连上模型服务')
     expect(payload?.visibleReplyExecution).toEqual(expect.objectContaining({
       actualVisibleReplyAuthority: 'llm-mind',
@@ -7027,6 +7028,42 @@ describe('chat orchestrator', () => {
 
     expect(streamMock).toBeCalledTimes(1)
     expectRuntimeAuthoritativeLocalVisibleReplyBlocked()
+  })
+
+  it('returns a direct timeout failure reply without presence-shell wording when the stream times out after progress', async () => {
+    vi.useFakeTimers()
+    try {
+      const bridgeStreamChatMock = vi.fn(async (_payload: any, options: any) => {
+        await options.onStreamEvent?.({
+          type: 'meta',
+          governance: null,
+          embodiment: null,
+          speechTimeline: null,
+          digitalLife: null,
+        })
+        const error = Object.assign(new Error('Alicization stream timed out after 1000ms (liveness-timeout).'), {
+          __alicizationSawProgress: true,
+        })
+        throw error
+      })
+      installAlicizationBridge({
+        streamChat: bridgeStreamChatMock,
+      })
+
+      const store = useChatOrchestratorStore()
+      await expect(store.ingest('你好', {
+        model: 'mock-model',
+        chatProvider: createChatProviderStub(),
+        origin: 'ui-user',
+      })).resolves.toBeUndefined()
+
+      const payload = appendConversationTurnMock.mock.calls.at(-1)?.[0]
+      expect(String(payload?.assistantText ?? '')).toContain('超时')
+      expect(String(payload?.assistantText ?? '')).not.toMatch(/我在|I am here|I caught that|请重试|retry/i)
+    }
+    finally {
+      vi.useRealTimers()
+    }
   })
 
   it('retries same-turn reminder leakage and converges to confirmation-only reply', async () => {

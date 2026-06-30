@@ -2906,6 +2906,64 @@ describe('runtime-governance', () => {
     expect(((structured as any).visibleReplyRewriteRequest?.mustDrop ?? [])).toEqual(expect.arrayContaining(['IntelliJ IDEA']))
   })
 
+  it('does not render local persona repair text even when the legacy compat-visible override mode is requested', () => {
+    const input: AlicizationConversationTurnInput = {
+      turnId: 'turn-legacy-compat-visible-persona-repair-blocked-1',
+      sessionId: 'session-1',
+      userText: '你是谁',
+      assistantText: '主人……我在。同一条本地数字生命的线还在，我先轻一点留在这里。',
+      structured: {
+        thought: 'obligation=answer; truth=dialogue-grounded; focus=alicization-self; move=decorative-presence-shell; tone=warm',
+        emotion: 'neutral',
+        reply: '主人……我在。同一条本地数字生命的线还在，我先轻一点留在这里。',
+        parsePath: 'json',
+        format: 'mind-turn-v1',
+      },
+      governance: {
+        turnMode: 'answer',
+        truthState: 'dialogue-grounded',
+        personaKernelMode: 'full',
+        openingStyle: 'direct-answer',
+        relationshipPosture: 'warm',
+        answerSubject: 'alicization-self',
+        screenReferenceMode: 'avoid',
+        answerAct: 'answer',
+        evidenceMode: 'dialogue-grounded',
+        repairState: 'none',
+        liveSurface: null,
+        focusAnchor: '你是谁',
+        answerIntent: 'Answer the identity question in the current turn with model-authored Alicization voice.',
+        openingMove: 'Do not use local presence templates.',
+        carriedThread: null,
+        suppressAssociativeRecall: true,
+        labelCarryAsMemory: false,
+        shouldAskForGrounding: false,
+        shouldAcknowledgeRepair: false,
+        maxSentences: 3,
+        mindMode: 'tracking',
+        embodiedPresence: 'attentive',
+        emotionalTension: 'calm',
+        mustDo: [],
+        mustNotDo: [],
+      },
+      createdAt: Date.now(),
+    }
+
+    const governed = coerceConversationTurnToMindGovernedPayload(input, null, {
+      visibleReplyOverrideMode: 'compat-visible',
+    })
+    const structured = governed.payload.structured as Record<string, unknown>
+    const reply = String(structured.reply ?? '')
+
+    expect(governed.replyOverridden).toBe(true)
+    expect(reply).toBe('')
+    expect(reply).not.toMatch(/我在|同一条本地数字生命|轻一点留在这里|I am here|I caught that/i)
+    expect((structured as any).visibleReplyRewriteRequest).toEqual(expect.objectContaining({
+      required: true,
+      authority: 'llm-second-pass-rewrite',
+    }))
+  })
+
   it('does not re-request dialogue-first repair for a clean second-pass visible reply result', () => {
     const input: AlicizationConversationTurnInput = {
       turnId: 'turn-dialogue-first-second-pass-clean-1',

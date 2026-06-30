@@ -11,6 +11,7 @@ import { deriveAlicizationTruthDiscipline } from '../truth-discipline'
 export const dialogueFirstRoleplayPrefacePattern = /^(?:主人(?:[，。…!！\s]|$)|……欸～主人|欸～主人|宝贝|亲爱的)[，。…!！\s]*/u
 export const dialogueFirstStaleCarryClausePattern = /(?:那个|刚才那个|上一个|之前那个|之前那条|上一条).{0,8}(?:枚举|页面|浏览器|模块|窗口|线程|diff|改动|case)|\b(?:that|the previous|the old|earlier)\s+(?:enum|page|browser|module|window|thread|diff|change)\b/iu
 export const dialogueFirstProcessOnlyReplyPattern = /^(?:那?我[先就再会]?|先)[\p{Script=Han}\p{Letter}\p{Number}\s,，。.!！?？]{0,16}(?:[看听陪]|看看|留在|接住|回答|说清|说)[\p{Script=Han}\p{Letter}\p{Number}\s,，。.!！?？]{0,8}$/u
+export const dialogueFirstDecorativePersonaTemplatePattern = /(?:同一条本地数字生命|本地数字生命的线|我先轻一点留在这里|不抢你的节奏|你想说什么，我就接住|same local digital life thread|same digital life line|same living line|same line is still here)/iu
 
 export function normalizeGovernedAnchorText(raw: unknown) {
   if (typeof raw !== 'string')
@@ -40,6 +41,24 @@ export function replyLooksProcessOnlyRepairShell(reply: string) {
   if (/[你妳累]|这句|现在|这个|这件事|问题|事情|情绪|难过|伤心/u.test(normalized))
     return false
   return dialogueFirstProcessOnlyReplyPattern.test(normalized)
+}
+
+function dialogueFirstTurnAllowsVisibleContinuityLanguage(input: {
+  userText?: string
+  governance: AlicizationMindTurnGovernance
+}) {
+  const subject = input.governance.answerSubject ?? input.governance.mindTurnFrame?.relation.subject ?? null
+  if (subject === 'project-state')
+    return true
+
+  const normalized = normalizeGovernedAnchorText([
+    input.userText,
+    input.governance.focusAnchor,
+    input.governance.answerIntent,
+    input.governance.openingMove,
+    input.governance.mindTurnFrame?.obligation.answerIntent,
+  ].filter(Boolean).join(' '))
+  return /(?:project|phase\s*1|phase1|做到哪|进度|还差什么|闭环|项目|阶段|第一阶段)/iu.test(normalized)
 }
 
 export function clauseMentionsCue(clause: string, cues: string[]) {
@@ -241,16 +260,20 @@ export function analyzeDialogueFirstVisibleReply(input: {
   const roleplayPreface = dialogueFirstRoleplayPrefacePattern.test(input.reply.trim())
   const staleCarryReference = dialogueFirstStaleCarryClausePattern.test(input.reply)
   const foreignTechnicalCues = extractForeignTechnicalReplyCues(input)
+  const decorativePersonaTemplate = !dialogueFirstTurnAllowsVisibleContinuityLanguage(input)
+    && dialogueFirstDecorativePersonaTemplatePattern.test(input.reply)
 
   return {
     overlapRatio,
     roleplayPreface,
     staleCarryReference,
+    decorativePersonaTemplate,
     sceneCueMentions,
     foreignTechnicalCues,
     truthDisciplineMode: truthDiscipline.mode,
     contaminated: roleplayPreface
       || staleCarryReference
+      || decorativePersonaTemplate
       || (sceneCueMentions.length > 0 && overlapRatio < 0.34)
       || foreignTechnicalCues.length > 0,
   }
