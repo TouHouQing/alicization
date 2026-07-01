@@ -42,18 +42,19 @@ describe('working memory policy', () => {
     expect(createLongTermCandidatesFromWorkingTurns([failure])).toEqual([])
   })
 
-  it('creates correction candidates without allowing training from fallback-like turns', () => {
+  it('does not promote ordinary requests as corrections and excludes fallback templates directly', () => {
+    const ordinaryRequest = turn({
+      turnId: 'turn-request',
+      role: 'user',
+      text: '我需要你帮我写测试',
+    })
     const candidates = createLongTermCandidatesFromWorkingTurns([
       turn({
         turnId: 'turn-correction',
         role: 'user',
         text: '我不是要固定回复，我需要她数字生命自身的人格回复',
       }),
-      turn({
-        turnId: 'turn-fallback',
-        role: 'alice',
-        text: '我在。同一条本地数字生命的线还在。',
-      }),
+      ordinaryRequest,
     ])
 
     expect(candidates).toHaveLength(1)
@@ -62,5 +63,34 @@ describe('working memory policy', () => {
       allowTraining: false,
       sourceTurnIds: ['turn-correction'],
     })
+    expect(createLongTermCandidatesFromWorkingTurns([ordinaryRequest])).toEqual([])
+    expect(shouldExcludeTurnFromLongTermCandidate(turn({
+      turnId: 'turn-fallback',
+      role: 'alice',
+      text: '我在。同一条本地数字生命的线还在。',
+    }))).toBe(true)
+  })
+
+  it('demotes failed turns even if they start with high raw importance', () => {
+    const failure = turn({
+      turnId: 'failure-high',
+      role: 'alice',
+      text: '超时了。',
+      failureKind: 'timeout',
+      importance: 1,
+    })
+    const normal = turn({
+      turnId: 'normal',
+      role: 'user',
+      text: '今天还可以',
+      importance: 0.2,
+    })
+
+    const ranked = rankWorkingMemoryRetention([failure, normal])
+
+    expect(ranked[0].turnId).toBe('normal')
+    expect(ranked.find(item => item.turnId === 'failure-high')?.importance).toBeLessThan(
+      ranked.find(item => item.turnId === 'normal')?.importance ?? 0,
+    )
   })
 })
